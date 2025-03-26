@@ -64,4 +64,4 @@ jobs:
         uses: lukka/run-cmake@v10
         with:
             configurePreset: "ninja_release_vcpkg"
-            buildPreset: "Ninja Release"
+            buildPreset: "ninja_release_vcpkg_build"

@@ -5,6 +5,7 @@ project(ModelViewer)
 
 find_package(assimp REQUIRED)
 find_package(Freetype REQUIRED)
+find_package(glm REQUIRED)
 
 find_package(Qt6 COMPONENTS Core Gui OpenGLWidgets Widgets)
 if(Qt6_FOUND)
@@ -58,6 +59,7 @@ target_link_libraries(ModelViewer
     PRIVATE
         assimp::assimp
         Freetype::Freetype
+        glm::glm
         Qt::Core
         Qt::Gui
         $<$<EQUAL:${QT_VERSION_MAJOR},6>:Qt::OpenGLWidgets>
