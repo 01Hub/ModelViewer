@@ -55,6 +55,18 @@
       "inherits": [ "base", "ninja", "release" ],
       "displayName": "Ninja Release Config",
       "description": "Configure with vcpkg toolchain"
+    },
+    {
+      "hidden": true,
+      "name": "Qt",
+      "cacheVariables": {
+        "CMAKE_PREFIX_PATH": "$env{QTDIR}"
+      },
+      "vendor": {
+        "qt-project.org/Qt": {
+          "checksum": "wVa86FgEkvdCTVp1/nxvrkaemJc="
+        }
+      }
     }
   ],
   "buildPresets": [
@@ -86,5 +98,10 @@
       "description": "Build Release with Ninja",
       "configuration": "Release"
     }
-  ]
+  ],
+  "vendor": {
+    "qt-project.org/Presets": {
+      "checksum": "LHD+rwGO7ojCbP4bVbiXmRMVGBc="
+    }
+  }
 }
