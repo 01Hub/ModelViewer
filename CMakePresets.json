@@ -25,34 +25,56 @@
     {
       "name": "release",
       "hidden": true,
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
     },
     {
       "name": "debug",
       "hidden": true,
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
     },
     {
       "name": "ninja_debug_vcpkg",
-      "inherits": [ "base", "vcpkg", "ninja", "debug" ],
+      "inherits": [
+        "base",
+        "vcpkg",
+        "ninja",
+        "debug"
+      ],
       "displayName": "ninja debug config with vcpkg",
       "description": "Configure with vcpkg toolchain"
     },
     {
       "name": "ninja_release_vcpkg",
-      "inherits": [ "base", "vcpkg", "ninja", "release" ],
+      "inherits": [
+        "base",
+        "vcpkg",
+        "ninja",
+        "release"
+      ],
       "displayName": "ninja release config with vcpkg",
       "description": "Configure with vcpkg toolchain"
     },
     {
       "name": "ninja_debug",
-      "inherits": [ "base", "ninja", "debug" ],
+      "inherits": [
+        "base",
+        "ninja",
+        "debug"
+      ],
       "displayName": "Ninja Debug Config",
       "description": "Configure with vcpkg toolchain"
     },
     {
       "name": "ninja_release",
-      "inherits": [ "base", "ninja", "release" ],
+      "inherits": [
+        "base",
+        "ninja",
+        "release"
+      ],
       "displayName": "Ninja Release Config",
       "description": "Configure with vcpkg toolchain"
     },
@@ -101,7 +123,7 @@
   ],
   "vendor": {
     "qt-project.org/Presets": {
-      "checksum": "LHD+rwGO7ojCbP4bVbiXmRMVGBc="
+      "checksum": "eBFs5gi7mpsilOVyNP6T21YGBtQ="
     }
   }
 }
