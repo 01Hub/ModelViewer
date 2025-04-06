@@ -6,7 +6,8 @@ using namespace std;
 // Constructor
 AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")
 {
-	setAutoIncrName(name);
+	//setAutoIncrName(name);
+	_name = name;
 	_vertices = vertices;
 	_indices = indices;
 	_textures = textures;
