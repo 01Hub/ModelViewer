@@ -277,7 +277,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 	}
 
 	// Return a mesh object created from the extracted mesh data
-	return new AssImpMesh(_prog, QFileInfo(QString(_path.data())).baseName(), vertices, indices, textures, mat);
+	return new AssImpMesh(_prog, QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ") ", vertices, indices, textures, mat);
 }
 
 // Checks all material textures of a given type and loads the textures if they're not loaded yet.
