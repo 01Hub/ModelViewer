@@ -2457,7 +2457,7 @@ void GLWidget::paintGL()
 		if (_meshStore.size() != 0 && _displayedObjectsIds.size() != 0)
 		{
 			int num = _displayedObjectsIds.at(0);
-			_textRenderer->RenderText(_meshStore.at(num)->getName().toStdString(), 4, 4, 1, glm::vec3(1.0f, 1.0f, 0.0f));
+			_textRenderer->RenderText(QString("No of Meshes: %1").arg(_meshStore.size()).toStdString(), 4, 4, 1, glm::vec3(1.0f, 1.0f, 0.0f));
 		}
 
         /*if (_meshStore.size() && _displayedObjectsIds.size() != 0)
