@@ -146,8 +146,39 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(listWidgetModel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
 
 	// For item editing
-    connect(listWidgetModel->itemDelegate(), SIGNAL(closeEditor(QWidget*,QAbstractItemDelegate::EndEditHint)),
-        this, SLOT(itemEdited(QWidget*,QAbstractItemDelegate::EndEditHint)));
+	connect(listWidgetModel->itemDelegate(), SIGNAL(closeEditor(QWidget*, QAbstractItemDelegate::EndEditHint)),
+		this, SLOT(itemEdited(QWidget*, QAbstractItemDelegate::EndEditHint)));
+
+
+	connect(searchBox, &QLineEdit::textChanged, listWidgetModel, [&](const QString& text) {
+		listWidgetModel->filterItems(text);
+
+		// Optional: give visual feedback if no match
+		bool anySelected = false;
+		for (int i = 0; i < listWidgetModel->count(); ++i) {
+			if (listWidgetModel->item(i)->isSelected()) {
+				anySelected = true;
+				break;
+			}
+		}
+
+		searchBox->setStyleSheet(anySelected ? "" : "QLineEdit { border: 2px solid red; }");
+		});
+
+	connect(clearSearchBtn, &QPushButton::clicked, [&]() {
+		// Clear the search box and reset the filter
+		searchBox->clear();
+		listWidgetModel->filterItems("");
+		// Reset the style to default
+		searchBox->setStyleSheet("");
+		// Optionally, you can also clear the selection
+		listWidgetModel->clearSelection();
+		searchBox->clear();
+		deselectAll();
+		});
+
+	connect(listWidgetModel, &ModelObjectList::selectionUpdated, this, &ModelViewer::on_listWidgetModel_itemSelectionChanged);
+
 
 	QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), listWidgetModel);
 	connect(shortcut, SIGNAL(activated()), this, SLOT(deleteSelectedItems()));
@@ -208,9 +239,9 @@ ModelViewer::~ModelViewer()
 void ModelViewer::deselectAll()
 {
 	bool oldState = listWidgetModel->blockSignals(true);
-    QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-    for (QListWidgetItem* item : items)
-    {
+	QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
+	for (QListWidgetItem* item : items)
+	{
 		item->setSelected(false);
 	}
 	resetTransformationValues();
@@ -358,17 +389,17 @@ void ModelViewer::updateControls()
 	QString qss;
 	QVector4D ambientLight = _glWidget->getAmbientLight();
 	col.setRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+	qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 	pushButtonLightAmbient->setStyleSheet(qss);
 
 	QVector4D diffuseLight = _glWidget->getDiffuseLight();
 	col.setRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+	qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 	pushButtonLightDiffuse->setStyleSheet(qss);
 
 	QVector4D specularLight = _glWidget->getSpecularLight();
 	col.setRgbF(specularLight.x(), specularLight.y(), specularLight.z());
-    qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+	qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 	pushButtonLightSpecular->setStyleSheet(qss);
 	// ADS Lighting
 	if (radioButtonADSL->isChecked())
@@ -377,26 +408,26 @@ void ModelViewer::updateControls()
 		sliderTransparency->setValue((int)(1000 * _material.opacity()));
 
 		col.setRgbF(_material.ambient().x(), _material.ambient().y(), _material.ambient().z());
-        qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+		qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 		pushButtonMaterialAmbient->setStyleSheet(qss);
 
 		col.setRgbF(_material.diffuse().x(), _material.diffuse().y(), _material.diffuse().z());
-        qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+		qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 		pushButtonMaterialDiffuse->setStyleSheet(qss);
 
 		col.setRgbF(_material.specular().x(), _material.specular().y(), _material.specular().z());
-        qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+		qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 		pushButtonMaterialSpecular->setStyleSheet(qss);
 
 		col.setRgbF(_material.emissive().x(), _material.emissive().y(), _material.emissive().z());
-        qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+		qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 		pushButtonMaterialEmissive->setStyleSheet(qss);
 	}
 	// PBR Direct Lighting
 	if (radioButtonDLPBR->isChecked())
 	{
 		col.setRgbF(_material.albedoColor().x(), _material.albedoColor().y(), _material.albedoColor().z());
-        qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
+		qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 		pushButtonAlbedoColor->setStyleSheet(qss);
 		sliderMetallic->setValue((int)(_material.metalness() * 1000));
 		sliderRoughness->setValue((int)(_material.roughness() * 1000));
@@ -414,13 +445,13 @@ QString ModelViewer::getSupportedQtImagesFilter()
 	QList<QByteArray> supportedFormats = QImageReader::supportedImageFormats();
 	QList<QString> filters;
 	QString filter("All Supported Images (");
-	for (const QByteArray &ba : supportedFormats)
+	for (const QByteArray& ba : supportedFormats)
 	{
 		filter += QString("*.%1 ").arg(QString(ba));
 		filters.push_back(QString("*.%1").arg(QString(ba)));
 	}
 	filter += ")";
-	for (const QString &fil : filters)
+	for (const QString& fil : filters)
 	{
 		filter += ";;" + fil;
 	}
@@ -660,12 +691,12 @@ void ModelViewer::setLastSelectedFilter(const QString& lastSelectedFilter)
 
 QString ModelViewer::getSupportedExtensions()
 {
-    return _supportedExtensions;
+	return _supportedExtensions;
 }
 
-void ModelViewer::setSupportedExtensions(const QString &supportedExtensions)
+void ModelViewer::setSupportedExtensions(const QString& supportedExtensions)
 {
-    _supportedExtensions = supportedExtensions;
+	_supportedExtensions = supportedExtensions;
 }
 
 void ModelViewer::showContextMenu(const QPoint& pos)
@@ -1086,8 +1117,8 @@ void ModelViewer::on_pushButtonResetTransformations_clicked()
 void ModelViewer::on_isometricView_triggered(bool /*checked*/)
 {
 	buttonGroupViews->setExclusive(false);
-    QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
-    for (auto b : buttons)
+	QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
+	for (auto b : buttons)
 	{
 		b->setChecked(false);
 	}
@@ -1103,8 +1134,8 @@ void ModelViewer::on_isometricView_triggered(bool /*checked*/)
 void ModelViewer::on_dimetricView_triggered(bool /*checked*/)
 {
 	buttonGroupViews->setExclusive(false);
-    QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
-    for (auto b : buttons)
+	QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
+	for (auto b : buttons)
 	{
 		b->setChecked(false);
 	}
@@ -1119,8 +1150,8 @@ void ModelViewer::on_dimetricView_triggered(bool /*checked*/)
 void ModelViewer::on_trimetricView_triggered(bool /*checked*/)
 {
 	buttonGroupViews->setExclusive(false);
-    QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
-    for (auto b : buttons)
+	QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
+	for (auto b : buttons)
 	{
 		b->setChecked(false);
 	}
@@ -1726,9 +1757,9 @@ void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 
 void ModelViewer::on_toolButtonImport_clicked()
 {
-    QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir, _supportedExtensions);
-    fileDialog.setFileMode(QFileDialog::ExistingFiles);
-    fileDialog.selectNameFilter(_lastSelectedFilter);
+	QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir, _supportedExtensions);
+	fileDialog.setFileMode(QFileDialog::ExistingFiles);
+	fileDialog.selectNameFilter(_lastSelectedFilter);
 	QStringList fileNames;
 	if (fileDialog.exec())
 	{
@@ -1739,7 +1770,7 @@ void ModelViewer::on_toolButtonImport_clicked()
 	if (fileNames.count())
 	{
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (const QString &fileName : std::as_const(fileNames))
+		for (const QString& fileName : std::as_const(fileNames))
 		{
 			loadFile(fileName);
 		}
@@ -1753,22 +1784,22 @@ void ModelViewer::on_toolButtonImport_clicked()
 #include <AssImpMesh.h>
 void ModelViewer::on_toolButtonExport_clicked()
 {
-    QString fileName = QFileDialog::getSaveFileName(this, tr("Export Model"), _lastOpenedDir, _supportedExtensions);
-    if(!fileName.isEmpty())
-    {
-        AssImpMeshExporter exporter;
-        std::vector<TriangleMesh*> triMeshes = _glWidget->getMeshStore();
-        std::vector<AssImpMesh*> assImpMeshes;
-        for(TriangleMesh* triMesh : triMeshes)
-        {
-            assImpMeshes.push_back(dynamic_cast<AssImpMesh*>(triMesh));
-        }
-        aiReturn res = exporter.exportMeshes(assImpMeshes, fileName.toStdString());
-        if(res == aiReturn_SUCCESS)
-            QMessageBox::information(this, "Information", "Exported", "Ok");
-        else
-            QMessageBox::critical(this, "Information", "Export failed!", "Ok");
-    }
+	QString fileName = QFileDialog::getSaveFileName(this, tr("Export Model"), _lastOpenedDir, _supportedExtensions);
+	if (!fileName.isEmpty())
+	{
+		AssImpMeshExporter exporter;
+		std::vector<TriangleMesh*> triMeshes = _glWidget->getMeshStore();
+		std::vector<AssImpMesh*> assImpMeshes;
+		for (TriangleMesh* triMesh : triMeshes)
+		{
+			assImpMeshes.push_back(dynamic_cast<AssImpMesh*>(triMesh));
+		}
+		aiReturn res = exporter.exportMeshes(assImpMeshes, fileName.toStdString());
+		if (res == aiReturn_SUCCESS)
+			QMessageBox::information(this, "Information", "Exported", "Ok");
+		else
+			QMessageBox::critical(this, "Information", "Export failed!", "Ok");
+	}
 }
 
 bool ModelViewer::loadFile(const QString& fileName)
@@ -1952,7 +1983,7 @@ void ModelViewer::switchToRealisticRendering()
 	}
 }
 
-void ModelViewer::lightingType_toggled(QAbstractButton *, bool)
+void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 {
 	if (radioButtonADSL->isChecked())
 	{

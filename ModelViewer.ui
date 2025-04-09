@@ -1118,6 +1118,27 @@
                </layout>
               </item>
               <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_28">
+                <item>
+                 <widget class="QLabel" name="label_23">
+                  <property name="text">
+                   <string>Search</string>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <widget class="QLineEdit" name="searchBox"/>
+                </item>
+                <item>
+                 <widget class="QPushButton" name="clearSearchBtn">
+                  <property name="text">
+                   <string>Clear</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
                <widget class="ModelObjectList" name="listWidgetModel">
                 <property name="styleSheet">
                  <string notr="true">selection-background-color: rgb(255, 163, 101);</string>
@@ -1187,8 +1208,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>474</width>
-                   <height>756</height>
+                   <width>448</width>
+                   <height>734</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1952,8 +1973,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>474</width>
-                   <height>756</height>
+                   <width>460</width>
+                   <height>733</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2106,8 +2127,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>474</width>
-                   <height>756</height>
+                   <width>460</width>
+                   <height>733</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2795,8 +2816,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>474</width>
-                   <height>756</height>
+                   <width>460</width>
+                   <height>733</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2964,7 +2985,7 @@
                         <string>Brass</string>
                        </property>
                        <property name="autoFillBackground">
-                        <bool>true</bool>
+                        <bool>false</bool>
                        </property>
                        <property name="text">
                         <string/>
@@ -3655,8 +3676,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>611</width>
-                   <height>742</height>
+                   <width>640</width>
+                   <height>721</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -4009,8 +4030,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>501</width>
-                   <height>742</height>
+                   <width>500</width>
+                   <height>721</height>
                   </rect>
                  </property>
                  <attribute name="label">
