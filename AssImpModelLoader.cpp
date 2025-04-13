@@ -1,6 +1,10 @@
 #include "AssImpModelLoader.h"
 #include "Utils.h"
 
+#include "BRepToAssimpConverter.h"
+#include <STEPControl_Reader.hxx>
+#include <IGESControl_Reader.hxx>
+
 using namespace std;
 
 bool AssImpModelProgressHandler::Update(float percentage)
@@ -50,14 +54,46 @@ void AssImpModelLoader::loadModel(string path)
 	_path = std::string(path);
 	_meshes.clear();
 	_loadedTextures.clear();
-	// Read file via ASSIMP
-	_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
-	const aiScene* scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace |
-		aiProcess_GenSmoothNormals |
-		aiProcess_JoinIdenticalVertices |
-		aiProcess_Triangulate |
-		aiProcess_GenUVCoords |
-		aiProcess_SortByPType);
+
+	const aiScene* scene = nullptr;
+
+	QFileInfo fi(path.c_str());
+
+	if(fi.suffix().toLower() == "step" || fi.suffix().toLower() == "stp")
+	{
+		STEPControl_Reader reader;
+		if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
+				qCritical("Failed to load STEP file");
+				return;
+		}
+		reader.TransferRoots();
+		TopoDS_Shape shape = reader.OneShape();
+
+		scene = BRepToAssimpConverter::Convert(shape);
+	}
+	else if(fi.suffix().toLower() == "iges" || fi.suffix().toLower() == "igs")
+	{
+		IGESControl_Reader reader;
+		if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
+			qCritical("Failed to load IGES file");
+			return;
+		}
+		reader.TransferRoots();
+		TopoDS_Shape shape = reader.OneShape();
+
+		scene = BRepToAssimpConverter::Convert(shape);
+	}
+	else
+	{
+		// Read file via ASSIMP
+		_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
+		scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace |
+			aiProcess_GenSmoothNormals |
+			aiProcess_JoinIdenticalVertices |
+			aiProcess_Triangulate |
+			aiProcess_GenUVCoords |
+			aiProcess_SortByPType);
+	}
 
 	// Check for errors
 	if (!scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) // if is Not Zero

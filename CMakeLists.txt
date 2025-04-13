@@ -6,6 +6,14 @@ project(ModelViewer)
 find_package(assimp REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(glm REQUIRED)
+find_package(OpenCASCADE REQUIRED)
+
+if(NOT OpenCASCADE_FOUND)
+    message(FATAL_ERROR "Cannot build the executable without OpenCASCADE. Please set the variable OpenCASCADE_DIR.")
+else()
+    message("Found OpenCASCADE " ${OpenCASCADE_VERSION})
+endif()
+
 
 find_package(Qt6 COMPONENTS Core Gui OpenGLWidgets Widgets)
 if(Qt6_FOUND)
@@ -53,6 +61,7 @@ target_include_directories(ModelViewer
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_BINARY_DIR}
+        ${OpenCASCADE_INCLUDE_DIR}
 )
 
 target_link_libraries(ModelViewer
@@ -65,6 +74,10 @@ target_link_libraries(ModelViewer
         $<$<EQUAL:${QT_VERSION_MAJOR},6>:Qt::OpenGLWidgets>
         $<$<EQUAL:${QT_VERSION_MAJOR},5>:Qt::OpenGL>
         Qt::Widgets
+        ${OpenCASCADE_FoundationClasses_LIBRARIES}
+        ${OpenCASCADE_ModelingData_LIBRARIES}
+        ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
+        ${OpenCASCADE_DataExchange_LIBRARIES}
 )
 
 if(WIN32)

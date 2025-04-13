@@ -18,12 +18,12 @@ QString ModelViewer::_lastSelectedFilter = "All Models(*.dae *.xml *.blend *.bvh
 "*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
 "*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.fbx *.irrmesh *.xml "
 "*.irr *.off. *.ter *.mdl *.hmp *.mesh.xml *.skeleton.xml *.material "
-"*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl)";
+"*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl *.igs *.iges *.stp *.step)";
 QString ModelViewer::_supportedExtensions = "All Files (*.*);;""All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
 "*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
 "*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.fbx *.irrmesh *.xml "
 "*.irr *.off. *.ter *.mdl *.hmp *.mesh.xml *.skeleton.xml *.material "
-"*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl);;"
+"*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl *.igs *.iges *.stp *.step);;"
 "Collada ( *.dae;*.xml );;" "Blender ( *.blend );;" "Biovision BVH ( *.bvh );;"
 "3D Studio Max 3DS ( *.3ds );;" "3D Studio Max ASE ( *.ase );;" "Wavefront Object ( *.obj );;"
 "Stanford Polygon Library ( *.ply );;" "AutoCAD DXF ( *.dxf );;"
@@ -33,6 +33,7 @@ QString ModelViewer::_supportedExtensions = "All Files (*.*);;""All Models(*.dae
 "RtCW ( *.mdc );;" "Doom 3 ( *.md5mesh;*.md5anim;*.md5camera );;" "DirectX X ( *.x );;" "Quick3D ( *.q3o;q3s );;"
 "Raw Triangles ( .raw );;" "AC3D ( *.ac );;" "Stereolithography ( *.stl );;"
 "Autodesk DXF ( *.dxf );;" "Autodesk FBX ( *.fbx );;"
+"STEP ( *.step *.stp );;" "IGES ( *.igs *.iges );;"
 "Irrlicht Mesh ( *.irrmesh;*.xml );;" "Irrlicht Scene ( *.irr;*.xml );;" "Object File Format ( *.off );;"
 "Terragen Terrain ( *.ter );;" "3D GameStudio Model ( *.mdl );;" "3D GameStudio Terrain ( *.hmp );;"
 "Ogre (*.mesh.xml, *.skeleton.xml, *.material);;" "Milkshape 3D ( *.ms3d );;" "LightWave Model ( *.lwo );;"
