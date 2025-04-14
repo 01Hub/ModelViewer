@@ -10,10 +10,10 @@
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
 #include <vector>
-#include <map>
 #include <cmath>
 
-aiScene* BRepToAssimpConverter::Convert(const TopoDS_Shape& shape) {
+aiScene* BRepToAssimpConverter::Convert(const TopoDS_Shape& shape)
+{
     auto* scene = new aiScene();
     scene->mRootNode = new aiNode();
 
@@ -37,6 +37,7 @@ aiScene* BRepToAssimpConverter::Convert(const TopoDS_Shape& shape) {
             meshNode->mNumMeshes = 1;
             meshNode->mParent = scene->mRootNode;
             meshNode->mName = aiString("Mesh_" + std::to_string(meshIndex));
+            mesh->mName = aiString("Mesh_" + std::to_string(meshIndex));
             meshNodes.push_back(meshNode);
             ++meshIndex;
         }
@@ -56,6 +57,7 @@ aiScene* BRepToAssimpConverter::Convert(const TopoDS_Shape& shape) {
                 meshNode->mNumMeshes = 1;
                 meshNode->mParent = scene->mRootNode;
                 meshNode->mName = aiString("SolidMesh_" + std::to_string(meshIndex));
+                mesh->mName = aiString("SolidMesh_" + std::to_string(meshIndex));
                 meshNodes.push_back(meshNode);
                 ++meshIndex;
             }

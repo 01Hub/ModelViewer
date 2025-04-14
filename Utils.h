@@ -6,7 +6,7 @@
 
 inline QImage convertToGLFormat(const QImage& image)
 {
-    return image.convertToFormat(QImage::Format_RGBA8888).flipped(); // flipped 32bit RGBA
+    return image.convertToFormat(QImage::Format_RGBA8888).mirrored();//flipped(); // flipped 32bit RGBA
 }
 
 #endif
