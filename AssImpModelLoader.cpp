@@ -61,27 +61,55 @@ void AssImpModelLoader::loadModel(string path)
 
     if(fi.suffix().toLower() == "step" || fi.suffix().toLower() == "stp")
     {
+        Handle(TopTools_HSequenceOfShape) aSequence = new TopTools_HSequenceOfShape;
+
         STEPControl_Reader reader;
 		if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
 				qCritical("Failed to load STEP file");
 				return;
 		}
-        reader.TransferRoots();
-        TopoDS_Shape shape = reader.OneShape();
+        //reader.TransferRoots();
+        //TopoDS_Shape shape = reader.OneShape();
 
-        scene = BRepToAssimpConverter::Convert(shape);
+        bool failsonly = false;
+        reader.PrintCheckLoad( failsonly, IFSelect_ItemsByEntity );
+
+        int nbr = reader.NbRootsForTransfer();
+        reader.PrintCheckTransfer( failsonly, IFSelect_ItemsByEntity );
+        for ( Standard_Integer n = 1; n <= nbr; n++ )
+        {
+            reader.TransferRoot( n );
+        }
+
+        int nbs = reader.NbShapes();
+        if ( nbs > 0 )
+        {
+            for ( int i = 1; i <= nbs; i++ )
+            {
+                TopoDS_Shape shape = reader.Shape( i );
+                aSequence->Append( shape );
+            }
+        }
+
+        scene = BRepToAssimpConverter::convert(aSequence);
     }
     else if(fi.suffix().toLower() == "iges" || fi.suffix().toLower() == "igs")
     {
+        Handle(TopTools_HSequenceOfShape) aSequence;
         IGESControl_Reader reader;
         if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
             qCritical("Failed to load IGES file");
             return;
         }
+        //reader.TransferRoots();
+        //TopoDS_Shape shape = reader.OneShape();
+        aSequence = new TopTools_HSequenceOfShape();
         reader.TransferRoots();
-        TopoDS_Shape shape = reader.OneShape();
+        TopoDS_Shape aShape = reader.OneShape();
+        aSequence->Append( aShape );
 
-        scene = BRepToAssimpConverter::Convert(shape);
+
+        scene = BRepToAssimpConverter::convert(aSequence);
     }
     else
     {
