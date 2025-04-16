@@ -16,3 +16,5 @@ build/
 /Makefile.Release
 out/
 
+/vcpkg_installed/vcpkg
+/vcpkg_installed/x64-windows
