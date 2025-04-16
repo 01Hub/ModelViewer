@@ -397,6 +397,7 @@ void MainWindow::closeAllSubWindows()
 bool MainWindow::loadFile(const QString& fileName)
 {
 	ModelViewer* child = createMdiChild();
+	child->setWindowState(Qt::WindowMaximized);
 	child->show();
 	const bool succeeded = child->loadFile(fileName);
 	if (!succeeded)
