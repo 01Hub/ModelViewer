@@ -6,6 +6,7 @@
     "freetype",
     "glm",
     "qtbase",
-    "qttools"
+    "qttools",
+    "opencascade"
   ]
 }
