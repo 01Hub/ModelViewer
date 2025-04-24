@@ -7,13 +7,16 @@
 #include <STEPCAFControl_Reader.hxx>
 #include <assimp/scene.h>
 
+using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, gp_Trsf>;
+
 class BRepToAssimpConverter
 {
 public:
     static aiScene* convert(const Handle(TopTools_HSequenceOfShape)& shapeSeq);
+    static aiScene* convert( const std::vector<ShapeWithNameAndTrsf>& shapeTuples);
 
 private:
-    static aiScene* convert(const TopoDS_Shape& shape, int& index);
+    static aiScene* convert(const TopoDS_Shape& shape, int& index, const std::string& name = "");
     static aiMesh* convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex);
     static aiNode* cloneNodeDeep(const aiNode* src);
     static Standard_Real computeDeflectionFromBBox(const TopTools_IndexedMapOfShape& faceGroup, Standard_Real percent = 0.01);

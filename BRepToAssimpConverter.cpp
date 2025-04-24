@@ -2,6 +2,7 @@
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepBndLib.hxx>
+#include <BRepBuilderAPI_Transform.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Shape.hxx>
@@ -107,6 +108,89 @@ aiScene* BRepToAssimpConverter::convert(const Handle(TopTools_HSequenceOfShape)&
     return scene;
 }
 
+aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples)
+{
+    if (shapeTuples.empty())
+        return nullptr;
+
+    aiScene* scene = new aiScene();
+    scene->mRootNode = new aiNode();
+    scene->mRootNode->mName = aiString("Root");
+
+    std::vector<aiMesh*> meshList;
+    std::vector<aiMaterial*> materialList;
+    std::vector<aiNode*> childNodes;
+
+    int meshIndex = 0;
+
+    for (const auto& [shape, name, trsf] : shapeTuples)
+    {
+        // Apply transformation to the shape
+        TopoDS_Shape transformedShape = shape;
+        if (!trsf.Form() == gp_Identity)
+        {
+            BRepBuilderAPI_Transform trsfBuilder(shape, trsf, true);
+            transformedShape = trsfBuilder.Shape();
+        }
+
+        // Convert the shape into a subscene with name
+        aiScene* subScene = convert(transformedShape, meshIndex, name); // <== this version must accept name
+
+        if (subScene && subScene->mNumMeshes > 0)
+        {
+            unsigned int meshBase = static_cast<unsigned int>(meshList.size());
+
+            // Append meshes and materials
+            for (unsigned int m = 0; m < subScene->mNumMeshes; ++m)
+                meshList.push_back(subScene->mMeshes[m]);
+            for (unsigned int m = 0; m < subScene->mNumMaterials; ++m)
+                materialList.push_back(subScene->mMaterials[m]);
+
+            if (subScene->mRootNode)
+            {
+                aiNode* nodeCopy = cloneNodeDeep(subScene->mRootNode);
+
+                // Adjust mesh indices
+                for (unsigned int j = 0; j < nodeCopy->mNumMeshes; ++j)
+                    nodeCopy->mMeshes[j] += meshBase;
+
+                // Optionally override node name to shape name
+                if (!name.empty())
+                    nodeCopy->mName = aiString(name);
+
+                childNodes.push_back(nodeCopy);
+            }
+
+            // Clean up subscene without deleting shared mesh/material pointers
+            subScene->mMeshes = nullptr;
+            subScene->mMaterials = nullptr;
+            subScene->mRootNode = nullptr;
+            subScene->mNumMeshes = 0;
+            subScene->mNumMaterials = 0;
+            delete subScene;
+        }
+    }
+
+    // Attach all child nodes to the root node
+    scene->mRootNode->mNumChildren = static_cast<unsigned int>(childNodes.size());
+    if (!childNodes.empty())
+    {
+        scene->mRootNode->mChildren = new aiNode * [childNodes.size()];
+        std::copy(childNodes.begin(), childNodes.end(), scene->mRootNode->mChildren);
+    }
+
+    // Finalize the scene
+    scene->mNumMeshes = static_cast<unsigned int>(meshList.size());
+    scene->mMeshes = new aiMesh * [scene->mNumMeshes];
+    std::copy(meshList.begin(), meshList.end(), scene->mMeshes);
+
+    scene->mNumMaterials = static_cast<unsigned int>(materialList.size());
+    scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
+    std::copy(materialList.begin(), materialList.end(), scene->mMaterials);
+
+    return scene;
+}
+
 /**
  * @brief Converts a TopoDS_Shape (from OpenCASCADE) into an aiScene (from Assimp).
  *
@@ -117,7 +201,7 @@ aiScene* BRepToAssimpConverter::convert(const Handle(TopTools_HSequenceOfShape)&
  * @param meshIndex Reference to an integer used to assign unique indices to generated meshes. It is incremented as meshes are created.
  * @return aiScene* Pointer to the newly created aiScene containing the converted meshes and nodes.
  */
-aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, int& meshIndex)
+aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, int& meshIndex, const std::string& name)
 {
     // Create a new Assimp scene and its root node
     auto* scene = new aiScene();
@@ -158,8 +242,8 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, int& meshInde
             meshNode->mParent = scene->mRootNode;
 
             // Name the node and mesh using the mesh index
-            meshNode->mName = aiString("Mesh_" + std::to_string(meshIndex));
-            mesh->mName = aiString("Mesh_" + std::to_string(meshIndex));
+            meshNode->mName = name;// aiString("Mesh_" + std::to_string(meshIndex));
+            mesh->mName = name;// aiString("Mesh_" + std::to_string(meshIndex));
 
             // Store the node
             meshNodes.push_back(meshNode);
@@ -199,8 +283,8 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, int& meshInde
                 meshNode->mParent = scene->mRootNode;
 
                 // Name the node and mesh using the mesh index, indicating it comes from a solid
-                meshNode->mName = aiString("SolidMesh_" + std::to_string(meshIndex));
-                mesh->mName = aiString("SolidMesh_" + std::to_string(meshIndex));
+                meshNode->mName = name;// aiString("SolidMesh_" + std::to_string(meshIndex));
+                mesh->mName = name;// aiString("SolidMesh_" + std::to_string(meshIndex));
 
                 // Store the node
                 meshNodes.push_back(meshNode);

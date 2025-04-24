@@ -4,424 +4,599 @@
 #include "BRepToAssimpConverter.h"
 #include <STEPControl_Reader.hxx>
 #include <IGESControl_Reader.hxx>
+#include <XCAFApp_Application.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc.hxx>
+#include <TopoDS_Iterator.hxx>
 
 using namespace std;
 
+
+void CollectNamedShapesFromSTEP(
+	const Handle(XCAFDoc_ShapeTool)& shapeTool,
+	std::vector<ShapeWithNameAndTrsf>& outShapes,
+	const TDF_Label& label,
+	const TopLoc_Location& parentLoc,
+	std::map<TopoDS_Shape, int, TopTools_ShapeMapHasher>* visited)
+{
+	// Avoid revisiting shapes
+	static std::map<TopoDS_Shape, int, TopTools_ShapeMapHasher> defaultVisited;
+	if (!visited)
+		visited = &defaultVisited;
+
+	TopoDS_Shape shape;
+	if (!XCAFDoc_ShapeTool::IsShape(label)) {
+		// Not a shape label at all — skip
+		return;
+	}
+
+	if (shapeTool->IsReference(label)) {
+		TDF_Label referredLabel;
+		if (shapeTool->GetReferredShape(label, referredLabel))
+			shapeTool->GetShape(referredLabel, shape);
+	}
+	else {
+		shapeTool->GetShape(label, shape);
+	}
+
+	if (shape.IsNull())
+		return;
+
+	TopLoc_Location loc = parentLoc;
+
+	// If it's an instance/reference, resolve it
+	if (XCAFDoc_ShapeTool::IsReference(label)) {
+		TDF_Label referred;
+		if (shapeTool->GetReferredShape(label, referred)) {
+			// Get instance transform (location of the label)
+			loc = shapeTool->GetLocation(label).Multiplied(parentLoc);
+			CollectNamedShapesFromSTEP(shapeTool, outShapes, referred, loc, visited);
+		}
+		return;
+	}
+
+	// If it's an assembly, recurse
+	if (XCAFDoc_ShapeTool::IsAssembly(label)) {
+		TDF_LabelSequence children;
+		shapeTool->GetComponents(label, children);
+		for (Standard_Integer i = 1; i <= children.Length(); ++i) {
+			CollectNamedShapesFromSTEP(shapeTool, outShapes, children.Value(i), loc, visited);
+		}
+		return;
+	}
+
+	// If it's a compound shape, also recurse
+	if (shapeTool->IsCompound(label)) {
+		TDF_LabelSequence children;
+		shapeTool->GetSubShapes(label, children);
+		for (Standard_Integer i = 1; i <= children.Length(); ++i) {
+			CollectNamedShapesFromSTEP(shapeTool, outShapes, children.Value(i), loc, visited);
+		}
+		return;
+	}
+
+	// Now it's a leaf part (a solid), with its own shape
+	TopoDS_Shape transformedShape = shape.Located(loc);
+
+	// Avoid duplicates
+	if (visited->count(transformedShape))
+		return;
+
+	visited->insert({ transformedShape, 1 });
+
+	// Get name
+	TCollection_ExtendedString extName;
+	Handle(TDataStd_Name) nameAttr;
+	label.FindAttribute(TDataStd_Name::GetID(), nameAttr);
+	extName = nameAttr->Get().ToExtString();
+	if (extName == "")
+		extName = "Unnamed";
+
+	TCollection_AsciiString asciiString(extName);
+	std::string name = extName.IsEmpty() ? "Unnamed" : std::string(asciiString.ToCString());
+
+	// Save it
+	outShapes.emplace_back(transformedShape, name, loc.Transformation());
+}
+
+void ReadSTEPFile(const std::string& filename, Handle(TDocStd_Document)& doc) {
+	STEPCAFControl_Reader reader;
+	if (!reader.ReadFile(filename.c_str())) {
+		throw std::runtime_error("Cannot read STEP file");
+	}
+	if (!reader.Transfer(doc)) {
+		throw std::runtime_error("Cannot transfer STEP data to XCAF document");
+	}
+}
+
+
+void ExtractShapeNames(const Handle(XCAFDoc_ShapeTool)& shapeTool, const TDF_Label& label, std::vector<std::string>& names) {
+	
+	Handle(TDataStd_Name) nameAttr;
+	TDF_Label referredLabel;
+	if (shapeTool->GetReferredShape(label, referredLabel) && !referredLabel.IsNull()) {
+		if (referredLabel.FindAttribute(TDataStd_Name::GetID(), nameAttr)) {
+			names.push_back(TCollection_AsciiString(TCollection_ExtendedString(nameAttr->Get())).ToCString());
+		}
+		else if (label.FindAttribute(TDataStd_Name::GetID(), nameAttr)) {
+			names.push_back(TCollection_AsciiString(TCollection_ExtendedString(nameAttr->Get())).ToCString());
+		}
+		else {
+			names.push_back("Unnamed");
+		}
+	}
+	else if (label.FindAttribute(TDataStd_Name::GetID(), nameAttr)) {
+		names.push_back(TCollection_AsciiString(TCollection_ExtendedString(nameAttr->Get())).ToCString());
+	}
+	else {
+		names.push_back("Unnamed");
+	}
+}
+
+
+#include <set>
+
+
+// Custom comparator for TDF_Label
+struct TDF_LabelComparator {
+	bool operator()(const TDF_Label& lhs, const TDF_Label& rhs) const {
+		return lhs.Tag() < rhs.Tag();
+	}
+};
+
+
+void TraverseAssembly(const Handle(XCAFDoc_ShapeTool)& shapeTool, const TDF_Label& label, std::vector<TopoDS_Shape>& shapes, std::vector<std::string>& names, std::set<TDF_Label, TDF_LabelComparator>& processedLabels)
+{
+
+	if (shapeTool->IsAssembly(label)) {
+		TDF_LabelSequence components;
+		shapeTool->GetComponents(label, components);
+		for (Standard_Integer i = 1; i <= components.Length(); ++i) {
+			TraverseAssembly(shapeTool, components.Value(i), shapes, names, processedLabels);
+		}
+	}
+	else {
+		TopoDS_Shape shape = shapeTool->GetShape(label);
+		if (!shape.IsNull()) {
+			shapes.push_back(shape);
+			ExtractShapeNames(shapeTool, label, names);
+		}
+	}
+}
+
+
+
 bool AssImpModelProgressHandler::Update(float percentage)
 {
-    emit fileReadProcessed(percentage);
-    return true;
+	emit fileReadProcessed(percentage);
+	return true;
 }
 
 /*  Functions   */
 // Constructor, expects a filepath to a 3D model.
 AssImpModelLoader::AssImpModelLoader(QOpenGLShaderProgram* prog) : QObject(), _prog(prog)
 {
-    initializeOpenGLFunctions();
-    _loadingCancelled = false;
-    _progHandler = new AssImpModelProgressHandler();
-    _importer.SetProgressHandler(_progHandler);
-    connect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
+	initializeOpenGLFunctions();
+	_loadingCancelled = false;
+	_progHandler = new AssImpModelProgressHandler();
+	_importer.SetProgressHandler(_progHandler);
+	connect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
 }
 
 AssImpModelLoader::~AssImpModelLoader()
 {
-    disconnect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
-    //delete _progHandler; // causes crash
-    _progHandler = nullptr;
+	disconnect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
+	//delete _progHandler; // causes crash
+	_progHandler = nullptr;
 }
 
 void AssImpModelLoader::processFileReadProgress(float percentage)
 {
-    emit fileReadProcessed(percentage);
+	emit fileReadProcessed(percentage);
 }
 
 void AssImpModelLoader::cancelLoading()
 {
-    _loadingCancelled = true;
+	_loadingCancelled = true;
 }
 
 vector<AssImpMesh*> AssImpModelLoader::getMeshes() const
 {
-    return _meshes;
+	return _meshes;
 }
 
 /*  Functions   */
 // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
 void AssImpModelLoader::loadModel(string path)
 {
-    _loadingCancelled = false;
-    _path = std::string(path);
-    _meshes.clear();
-    _loadedTextures.clear();
+	_loadingCancelled = false;
+	_path = std::string(path);
+	_meshes.clear();
+	_loadedTextures.clear();
 
-    const aiScene* scene = nullptr;
+	const aiScene* scene = nullptr;
 
-    QFileInfo fi(path.c_str());
+	QFileInfo fi(path.c_str());
 
-    if(fi.suffix().toLower() == "step" || fi.suffix().toLower() == "stp")
-    {
-        Handle(TopTools_HSequenceOfShape) aSequence = new TopTools_HSequenceOfShape;
+	if (fi.suffix().toLower() == "step" || fi.suffix().toLower() == "stp")
+	{
+		Handle(TDocStd_Document) doc;
+		Handle(XCAFApp_Application)::DownCast(XCAFApp_Application::GetApplication())->NewDocument("MDTV-XCAF", doc);
 
-        STEPControl_Reader reader;
-		if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
-				qCritical("Failed to load STEP file");
-				return;
+		ReadSTEPFile(path.c_str(), doc);
+
+		Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+
+		TDF_LabelSequence labels;
+		shapeTool->GetFreeShapes(labels);
+		if (labels.IsEmpty()) {
+			qCritical("No shapes found in STEP file");
+			return;
 		}
-        //reader.TransferRoots();
-        //TopoDS_Shape shape = reader.OneShape();
 
-        bool failsonly = false;
-        reader.PrintCheckLoad( failsonly, IFSelect_ItemsByEntity );
+		std::vector<TopoDS_Shape> shapes;
+		std::vector<std::string> names;
+		std::set<TDF_Label, TDF_LabelComparator> processedLabels;
 
-        int nbr = reader.NbRootsForTransfer();
-        reader.PrintCheckTransfer( failsonly, IFSelect_ItemsByEntity );
-        for ( Standard_Integer n = 1; n <= nbr; n++ )
-        {
-            reader.TransferRoot( n );
-        }
+		for (Standard_Integer i = 1; i <= labels.Length(); ++i) {
+			TraverseAssembly(shapeTool, labels.Value(i), shapes, names, processedLabels);
+		}
 
-        int nbs = reader.NbShapes();
-        if ( nbs > 0 )
-        {
-            for ( int i = 1; i <= nbs; i++ )
-            {
-                TopoDS_Shape shape = reader.Shape( i );
-                aSequence->Append( shape );
-            }
-        }
+		// Convert to Assimp scene	
+		std::vector<ShapeWithNameAndTrsf> shapeTuples;
+		for (int i = 0; i < shapes.size(); i++)
+		{
+			shapeTuples.emplace_back(shapes[i], names[i], TopLoc_Location());
+		}
+		
+		scene = BRepToAssimpConverter::convert(shapeTuples);
 
-        scene = BRepToAssimpConverter::convert(aSequence);
-    }
-    else if(fi.suffix().toLower() == "iges" || fi.suffix().toLower() == "igs")
-    {
-        Handle(TopTools_HSequenceOfShape) aSequence;
-        IGESControl_Reader reader;
-        if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
-            qCritical("Failed to load IGES file");
-            return;
-        }
-        //reader.TransferRoots();
-        //TopoDS_Shape shape = reader.OneShape();
-        aSequence = new TopTools_HSequenceOfShape();
-        reader.TransferRoots();
-        TopoDS_Shape aShape = reader.OneShape();
-        aSequence->Append( aShape );
+	}
+	else if (fi.suffix().toLower() == "iges" || fi.suffix().toLower() == "igs")
+	{
+		Handle(TopTools_HSequenceOfShape) aSequence;
+		IGESControl_Reader reader;
+		if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
+			qCritical("Failed to load IGES file");
+			return;
+		}
+		//reader.TransferRoots();
+		//TopoDS_Shape shape = reader.OneShape();
+		aSequence = new TopTools_HSequenceOfShape();
+		reader.TransferRoots();
+		TopoDS_Shape aShape = reader.OneShape();
+		aSequence->Append(aShape);
 
 
-        scene = BRepToAssimpConverter::convert(aSequence);
-    }
-    else
-    {
-        // Read file via ASSIMP
-        _importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
-        scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace |
-            aiProcess_GenSmoothNormals |
-            aiProcess_JoinIdenticalVertices |
-            aiProcess_Triangulate |
-            aiProcess_GenUVCoords |
-            aiProcess_SortByPType);
-    }
+		scene = BRepToAssimpConverter::convert(aSequence);
+	}
+	else
+	{
+		// Read file via ASSIMP
+		_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
+		scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace |
+			aiProcess_GenSmoothNormals |
+			aiProcess_JoinIdenticalVertices |
+			aiProcess_Triangulate |
+			aiProcess_GenUVCoords |
+			aiProcess_SortByPType);
+	}
 
-    // Check for errors
-    if (!scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) // if is Not Zero
-    {
-        _errorMessage = _importer.GetErrorString();
-        cout << "ERROR::ASSIMP:: " << _importer.GetErrorString() << endl;
-        return;
-    }
-    // Retrieve the directory path of the filepath
-    this->directory = path.substr(0, path.find_last_of('/'));
+	// Check for errors
+	if (!scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) // if is Not Zero
+	{
+		_errorMessage = _importer.GetErrorString();
+		cout << "ERROR::ASSIMP:: " << _importer.GetErrorString() << endl;
+		return;
+	}
+	// Retrieve the directory path of the filepath
+	this->directory = path.substr(0, path.find_last_of('/'));
 
-    // Process ASSIMP's root node recursively
-    this->processNode(0, scene->mRootNode, scene);
+	// Process ASSIMP's root node recursively
+	this->processNode(0, scene->mRootNode, scene);
 }
 
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 void AssImpModelLoader::processNode(int nodeNum, aiNode* node, const aiScene* scene)
 {
-    if (_loadingCancelled)
-    {
-        emit loadingCancelled();
-        return;
-    }
-    // Process each mesh located at the current node
-    for (unsigned int i = 0; i < node->mNumMeshes; i++)
-    {
-        // The node object only contains indices to index the actual objects in the scene.
-        // The scene contains all the data, node is just to keep stuff organized (like relations between nodes).
-        aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+	if (_loadingCancelled)
+	{
+		emit loadingCancelled();
+		return;
+	}
+	// Process each mesh located at the current node
+	for (unsigned int i = 0; i < node->mNumMeshes; i++)
+	{
+		// The node object only contains indices to index the actual objects in the scene.
+		// The scene contains all the data, node is just to keep stuff organized (like relations between nodes).
+		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
 
-        this->_meshes.push_back(this->processMesh(mesh, scene));
-    }
+		this->_meshes.push_back(this->processMesh(mesh, scene));
+	}
 
-    // After we've processed all of the meshes (if any) we then recursively process each of the children nodes
-    for (unsigned int i = 0; i < node->mNumChildren; i++)
-    {
-        if (_loadingCancelled)
-        {
-            emit loadingCancelled();
-            return;
-        }
-        this->processNode(++nodeNum, node->mChildren[i], scene);
-        emit nodeProcessed(nodeNum, node->mNumChildren);
-    }
+	// After we've processed all of the meshes (if any) we then recursively process each of the children nodes
+	for (unsigned int i = 0; i < node->mNumChildren; i++)
+	{
+		if (_loadingCancelled)
+		{
+			emit loadingCancelled();
+			return;
+		}
+		this->processNode(++nodeNum, node->mChildren[i], scene);
+		emit nodeProcessed(nodeNum, node->mNumChildren);
+	}
 }
 
 AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 {
-    // Data to fill
-    vector<Vertex> vertices;
-    vector<unsigned int> indices;
-    vector<Texture> textures;
+	// Data to fill
+	vector<Vertex> vertices;
+	vector<unsigned int> indices;
+	vector<Texture> textures;
 
-    // Walk through each of the mesh's vertices
-    int step = 0;
-    unsigned int nbVertices = mesh->mNumVertices;
-    for (unsigned int i = 0; i < nbVertices; i++)
-    {
-        step++;
-        Vertex vertex;
-        glm::vec3 vector; // We declare a placeholder vector since assimp uses its own vector class that doesn't directly convert to glm's vec3 class so we transfer the data to this placeholder glm::vec3 first.
+	// Walk through each of the mesh's vertices
+	int step = 0;
+	unsigned int nbVertices = mesh->mNumVertices;
+	for (unsigned int i = 0; i < nbVertices; i++)
+	{
+		step++;
+		Vertex vertex;
+		glm::vec3 vector; // We declare a placeholder vector since assimp uses its own vector class that doesn't directly convert to glm's vec3 class so we transfer the data to this placeholder glm::vec3 first.
 
-        // Positions
-        vector.x = mesh->mVertices[i].x;
-        vector.y = mesh->mVertices[i].y;
-        vector.z = mesh->mVertices[i].z;
-        vertex.Position = vector;
+		// Positions
+		vector.x = mesh->mVertices[i].x;
+		vector.y = mesh->mVertices[i].y;
+		vector.z = mesh->mVertices[i].z;
+		vertex.Position = vector;
 
-        // Normals
-        vector.x = mesh->mNormals[i].x;
-        vector.y = mesh->mNormals[i].y;
-        vector.z = mesh->mNormals[i].z;
-        vertex.Normal = vector;
+		// Normals
+		vector.x = mesh->mNormals[i].x;
+		vector.y = mesh->mNormals[i].y;
+		vector.z = mesh->mNormals[i].z;
+		vertex.Normal = vector;
 
-        // Texture Coordinates
-        if (mesh->mTextureCoords[0]) // Does the mesh contain texture coordinates?
-        {
-            glm::vec2 vec;
-            // A vertex can contain up to 8 different texture coordinates. We thus make the assumption that we won't
-            // use models where a vertex can have multiple texture coordinates so we always take the first set (0).
-            vec.x = mesh->mTextureCoords[0][i].x;
-            vec.y = mesh->mTextureCoords[0][i].y;
-            vertex.TexCoords = vec;
+		// Texture Coordinates
+		if (mesh->mTextureCoords[0]) // Does the mesh contain texture coordinates?
+		{
+			glm::vec2 vec;
+			// A vertex can contain up to 8 different texture coordinates. We thus make the assumption that we won't
+			// use models where a vertex can have multiple texture coordinates so we always take the first set (0).
+			vec.x = mesh->mTextureCoords[0][i].x;
+			vec.y = mesh->mTextureCoords[0][i].y;
+			vertex.TexCoords = vec;
 
-            // tangent
-            if (mesh->mTangents)
-            {
-                vector.x = mesh->mTangents[i].x;
-                vector.y = mesh->mTangents[i].y;
-                vector.z = mesh->mTangents[i].z;
-                vertex.Tangent = vector;
-            }
-            // bitangent
-            if (mesh->mBitangents)
-            {
-                vector.x = mesh->mBitangents[i].x;
-                vector.y = mesh->mBitangents[i].y;
-                vector.z = mesh->mBitangents[i].z;
-                vertex.Bitangent = vector;
-            }
-        }
-        else
-        {
-            if (step == 1)
-                vertex.TexCoords = glm::vec2(0.0f, 0.0f);
-            else if (step == 2)
-                vertex.TexCoords = glm::vec2(1.0f, 0.0f);
-            else
-            {
-                vertex.TexCoords = glm::vec2(0.5f, 1.0f);
-                step = 0;
-            }
-        }
-        vertices.push_back(vertex);
+			// tangent
+			if (mesh->mTangents)
+			{
+				vector.x = mesh->mTangents[i].x;
+				vector.y = mesh->mTangents[i].y;
+				vector.z = mesh->mTangents[i].z;
+				vertex.Tangent = vector;
+			}
+			// bitangent
+			if (mesh->mBitangents)
+			{
+				vector.x = mesh->mBitangents[i].x;
+				vector.y = mesh->mBitangents[i].y;
+				vector.z = mesh->mBitangents[i].z;
+				vertex.Bitangent = vector;
+			}
+		}
+		else
+		{
+			if (step == 1)
+				vertex.TexCoords = glm::vec2(0.0f, 0.0f);
+			else if (step == 2)
+				vertex.TexCoords = glm::vec2(1.0f, 0.0f);
+			else
+			{
+				vertex.TexCoords = glm::vec2(0.5f, 1.0f);
+				step = 0;
+			}
+		}
+		vertices.push_back(vertex);
 
-        if (i % 100000 == 0)
-        {
-            emit verticesProcessed(static_cast<float>(i) / nbVertices * 100.0f);
-        }
-    }
+		if (i % 100000 == 0)
+		{
+			emit verticesProcessed(static_cast<float>(i) / nbVertices * 100.0f);
+		}
+	}
 
-    // Now wak through each of the mesh's faces (a face is a mesh its triangle) and retrieve the corresponding vertex indices.
-    for (unsigned int i = 0; i < mesh->mNumFaces; i++)
-    {
-        aiFace face = mesh->mFaces[i];
-        // Retrieve all indices of the face and store them in the indices vector
-        for (unsigned int j = 0; j < face.mNumIndices; j++)
-        {
-            indices.push_back(face.mIndices[j]);
-        }
-    }
+	// Now wak through each of the mesh's faces (a face is a mesh its triangle) and retrieve the corresponding vertex indices.
+	for (unsigned int i = 0; i < mesh->mNumFaces; i++)
+	{
+		aiFace face = mesh->mFaces[i];
+		// Retrieve all indices of the face and store them in the indices vector
+		for (unsigned int j = 0; j < face.mNumIndices; j++)
+		{
+			indices.push_back(face.mIndices[j]);
+		}
+	}
 
-    // Process materials
-    GLMaterial mat = GLMaterial::DEFAULT_MAT();
-    if (mesh->mMaterialIndex != 0)
-    {
-        aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
-        // We assume a convention for sampler names in the shaders. Each diffuse texture should be named
-        // as 'texture_diffuseN' where N is a sequential number ranging from 1 to MAX_SAMPLER_NUMBER.
-        // Same applies to other texture as the following list summarizes:
-        // Diffuse: texture_diffuseN
-        // Specular: texture_specularN
-        // Normal: texture_normalN
+	// Process materials
+	GLMaterial mat = GLMaterial::DEFAULT_MAT();
+	if (mesh->mMaterialIndex != 0)
+	{
+		aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
+		// We assume a convention for sampler names in the shaders. Each diffuse texture should be named
+		// as 'texture_diffuseN' where N is a sequential number ranging from 1 to MAX_SAMPLER_NUMBER.
+		// Same applies to other texture as the following list summarizes:
+		// Diffuse: texture_diffuseN
+		// Specular: texture_specularN
+		// Normal: texture_normalN
 
-        // ADS Maps
-        // 1. diffuse maps
-        vector<Texture> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
-        textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
-        // 2. specular maps
-        vector<Texture> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR, "texture_specular");
-        textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
-        // 3. emissive maps
-        vector<Texture> emissiveMaps = loadMaterialTextures(material, aiTextureType_EMISSIVE, "texture_emissive");
-        textures.insert(textures.end(), emissiveMaps.begin(), emissiveMaps.end());
-        // 4. normal maps
-        std::vector<Texture> normalMaps = loadMaterialTextures(material, aiTextureType_HEIGHT, "texture_normal");
-        textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
-        // 5. height maps
-        std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_DISPLACEMENT, "texture_height");
-        textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
-        // 6. opacity maps
-        std::vector<Texture> opacityMaps = loadMaterialTextures(material, aiTextureType_OPACITY, "texture_opacity");
-        textures.insert(textures.end(), opacityMaps.begin(), opacityMaps.end());
+		// ADS Maps
+		setADSTextureMaps(material, textures);
 
-        // PBR Maps
-        // 1. albedo maps
-        vector<Texture> albedoPBRMaps = loadMaterialTextures(material, aiTextureType_BASE_COLOR, "albedoMap");
-        textures.insert(textures.end(), albedoPBRMaps.begin(), albedoPBRMaps.end());
-        // 2. specular maps
-        vector<Texture> metalicPBRMaps = loadMaterialTextures(material, aiTextureType_METALNESS, "metallicMap");
-        textures.insert(textures.end(), metalicPBRMaps.begin(), metalicPBRMaps.end());
-        // 3. roughness maps
-        vector<Texture> roughnessPBRMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE_ROUGHNESS, "roughnessMap");
-        textures.insert(textures.end(), roughnessPBRMaps.begin(), roughnessPBRMaps.end());
-        // 4. emissive maps
-        vector<Texture> emissivePBRMaps = loadMaterialTextures(material, aiTextureType_EMISSION_COLOR, "emissiveMap");
-        textures.insert(textures.end(), emissivePBRMaps.begin(), emissivePBRMaps.end());
-        // 5. normal maps
-        std::vector<Texture> normalPBRMaps = loadMaterialTextures(material, aiTextureType_NORMAL_CAMERA, "normalMap");
-        textures.insert(textures.end(), normalPBRMaps.begin(), normalPBRMaps.end());
-        // 6. AO maps
-        std::vector<Texture> aoPBRMaps = loadMaterialTextures(material, aiTextureType_AMBIENT_OCCLUSION, "aoMap");
-        textures.insert(textures.end(), aoPBRMaps.begin(), aoPBRMaps.end());
+		// PBR Maps
+		setPBRTextureMaps(material, textures);
 
-        aiColor3D color(0.f, 0.f, 0.f);
-        float opacity = 1.0f;
-        material->Get(AI_MATKEY_OPACITY, opacity);
-        if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, color))
-        {
-            mat.setAmbient(QVector3D(color.r, color.g, color.b));
-        }
-        if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, color))
-        {
-            mat.setDiffuse(QVector3D(color.r, color.g, color.b));
-            mat.setAlbedoColor(QVector3D(color.r, color.g, color.b));
-        }
-        if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, color))
-        {
-            mat.setSpecular(QVector3D(color.r, color.g, color.b));
-            bool grayScale = (color.r == color.g && color.g == color.b && color.r == color.b);
-            float intensity = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
-            if (grayScale)
-                mat.setMetalness(intensity > 0.04f ? 0.04f : intensity); // limit to 4% for dielectrics
-            else
-                mat.setMetalness(intensity);
-            mat.setRoughness(1.0f - intensity);
+		//Set color and material
+		setColorAndMaterial(material, mat);
+	}
 
-        }
-        if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
-        {
-            mat.setEmissive(QVector3D(color.r, color.g, color.b));
-        }
-        if (AI_SUCCESS == material->Get(AI_MATKEY_OPACITY, opacity))
-        {
-            mat.setOpacity(opacity);
-        }
-    }
+	// Return a mesh object created from the extracted mesh data
+	return new AssImpMesh(_prog, QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ") ", vertices, indices, textures, mat);
+}
 
-    // Return a mesh object created from the extracted mesh data
-    return new AssImpMesh(_prog, QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ") ", vertices, indices, textures, mat);
+void AssImpModelLoader::setColorAndMaterial(aiMaterial* material, GLMaterial& mat)
+{
+	aiColor3D color(0.f, 0.f, 0.f);
+	float opacity = 1.0f;
+	material->Get(AI_MATKEY_OPACITY, opacity);
+	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, color))
+	{
+		mat.setAmbient(QVector3D(color.r, color.g, color.b));
+	}
+	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, color))
+	{
+		mat.setDiffuse(QVector3D(color.r, color.g, color.b));
+		mat.setAlbedoColor(QVector3D(color.r, color.g, color.b));
+	}
+	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, color))
+	{
+		mat.setSpecular(QVector3D(color.r, color.g, color.b));
+		bool grayScale = (color.r == color.g && color.g == color.b && color.r == color.b);
+		float intensity = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+		if (grayScale)
+			mat.setMetalness(intensity > 0.04f ? 0.04f : intensity); // limit to 4% for dielectrics
+		else
+			mat.setMetalness(intensity);
+		mat.setRoughness(1.0f - intensity);
+
+	}
+	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
+	{
+		mat.setEmissive(QVector3D(color.r, color.g, color.b));
+	}
+	if (AI_SUCCESS == material->Get(AI_MATKEY_OPACITY, opacity))
+	{
+		mat.setOpacity(opacity);
+	}
+}
+
+void AssImpModelLoader::setPBRTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
+{
+	// 1. albedo maps
+	vector<Texture> albedoPBRMaps = loadMaterialTextures(material, aiTextureType_BASE_COLOR, "albedoMap");
+	textures.insert(textures.end(), albedoPBRMaps.begin(), albedoPBRMaps.end());
+	// 2. specular maps
+	vector<Texture> metalicPBRMaps = loadMaterialTextures(material, aiTextureType_METALNESS, "metallicMap");
+	textures.insert(textures.end(), metalicPBRMaps.begin(), metalicPBRMaps.end());
+	// 3. roughness maps
+	vector<Texture> roughnessPBRMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE_ROUGHNESS, "roughnessMap");
+	textures.insert(textures.end(), roughnessPBRMaps.begin(), roughnessPBRMaps.end());
+	// 4. emissive maps
+	vector<Texture> emissivePBRMaps = loadMaterialTextures(material, aiTextureType_EMISSION_COLOR, "emissiveMap");
+	textures.insert(textures.end(), emissivePBRMaps.begin(), emissivePBRMaps.end());
+	// 5. normal maps
+	std::vector<Texture> normalPBRMaps = loadMaterialTextures(material, aiTextureType_NORMAL_CAMERA, "normalMap");
+	textures.insert(textures.end(), normalPBRMaps.begin(), normalPBRMaps.end());
+	// 6. AO maps
+	std::vector<Texture> aoPBRMaps = loadMaterialTextures(material, aiTextureType_AMBIENT_OCCLUSION, "aoMap");
+	textures.insert(textures.end(), aoPBRMaps.begin(), aoPBRMaps.end());
+}
+
+void AssImpModelLoader::setADSTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
+{
+	// 1. diffuse maps
+	vector<Texture> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
+	textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
+	// 2. specular maps
+	vector<Texture> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR, "texture_specular");
+	textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
+	// 3. emissive maps
+	vector<Texture> emissiveMaps = loadMaterialTextures(material, aiTextureType_EMISSIVE, "texture_emissive");
+	textures.insert(textures.end(), emissiveMaps.begin(), emissiveMaps.end());
+	// 4. normal maps
+	std::vector<Texture> normalMaps = loadMaterialTextures(material, aiTextureType_HEIGHT, "texture_normal");
+	textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
+	// 5. height maps
+	std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_DISPLACEMENT, "texture_height");
+	textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
+	// 6. opacity maps
+	std::vector<Texture> opacityMaps = loadMaterialTextures(material, aiTextureType_OPACITY, "texture_opacity");
+	textures.insert(textures.end(), opacityMaps.begin(), opacityMaps.end());
 }
 
 // Checks all material textures of a given type and loads the textures if they're not loaded yet.
 // The required info is returned as a Texture struct.
 vector<Texture> AssImpModelLoader::loadMaterialTextures(aiMaterial* mat, aiTextureType type, string typeName)
 {
-    vector<Texture> textures;
+	vector<Texture> textures;
 
-    for (unsigned int i = 0; i < mat->GetTextureCount(type); i++)
-    {
-        aiString str;
-        mat->GetTexture(type, i, &str);
+	for (unsigned int i = 0; i < mat->GetTextureCount(type); i++)
+	{
+		aiString str;
+		mat->GetTexture(type, i, &str);
 
-        // Check if texture was loaded before and if so, continue to next iteration: skip loading a new texture
-        GLboolean skip = false;
+		// Check if texture was loaded before and if so, continue to next iteration: skip loading a new texture
+		GLboolean skip = false;
 
-        for (unsigned int j = 0; j < _loadedTextures.size(); j++)
-        {
-            if (_loadedTextures[j].path == str)
-            {
-                textures.push_back(_loadedTextures[j]);
-                skip = true; // A texture with the same filepath has already been loaded, continue to next one. (optimization)
-                break;
-            }
-        }
+		for (unsigned int j = 0; j < _loadedTextures.size(); j++)
+		{
+			if (_loadedTextures[j].path == str)
+			{
+				textures.push_back(_loadedTextures[j]);
+				skip = true; // A texture with the same filepath has already been loaded, continue to next one. (optimization)
+				break;
+			}
+		}
 
-        if (!skip)
-        {
-            // If texture hasn't been loaded already, load it
-            Texture texture;
-            texture.id = textureFromFile(str.C_Str(), this->directory);
-            texture.type = typeName;
-            texture.path = str;
-            textures.push_back(texture);
+		if (!skip)
+		{
+			// If texture hasn't been loaded already, load it
+			Texture texture;
+			texture.id = textureFromFile(str.C_Str(), this->directory);
+			texture.type = typeName;
+			texture.path = str;
+			textures.push_back(texture);
 
-            this->_loadedTextures.push_back(texture);  // Store it as texture loaded for entire model, to ensure we won't unnecesery load duplicate textures.
-        }
-    }
+			this->_loadedTextures.push_back(texture);  // Store it as texture loaded for entire model, to ensure we won't unnecesery load duplicate textures.
+		}
+	}
 
-    return textures;
+	return textures;
 }
 
 unsigned int AssImpModelLoader::textureFromFile(const char* path, std::string directory)
 {
-    //Generate texture ID and load texture data
-    string filename = string(path);
-    filename = directory + '/' + filename;
-    unsigned int textureID;
-    glGenTextures(1, &textureID);
+	//Generate texture ID and load texture data
+	string filename = string(path);
+	filename = directory + '/' + filename;
+	unsigned int textureID;
+	glGenTextures(1, &textureID);
 
-    QImage texImage;
+	QImage texImage;
 
-    if (!texImage.load(QString(filename.c_str())))
-    { // Load first image from file
-        qWarning("AssImpModelLoader::textureFromFile - Could not read image file, using single-color instead.");
-        QImage dummy(128, 128, QImage::Format_ARGB32);
-        dummy.fill(Qt::white);
-        texImage = dummy;
-    }
-    else
-    {
-        texImage = convertToGLFormat(texImage);
-    }
+	if (!texImage.load(QString(filename.c_str())))
+	{ // Load first image from file
+		qWarning("AssImpModelLoader::textureFromFile - Could not read image file, using single-color instead.");
+		QImage dummy(128, 128, QImage::Format_ARGB32);
+		dummy.fill(Qt::white);
+		texImage = dummy;
+	}
+	else
+	{
+		texImage = convertToGLFormat(texImage);
+	}
 
-    // Assign texture to ID
-    glBindTexture(GL_TEXTURE_2D, textureID);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texImage.width(), texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, texImage.bits());
-    glGenerateMipmap(GL_TEXTURE_2D);
+	// Assign texture to ID
+	glBindTexture(GL_TEXTURE_2D, textureID);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texImage.width(), texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, texImage.bits());
+	glGenerateMipmap(GL_TEXTURE_2D);
 
-    // Parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindTexture(GL_TEXTURE_2D, 0);
+	// Parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glBindTexture(GL_TEXTURE_2D, 0);
 
-    return textureID;
+	return textureID;
 }
 
 QString AssImpModelLoader::getErrorMessage() const
 {
-    return _errorMessage;
+	return _errorMessage;
 }

@@ -20,6 +20,25 @@
 #include "AssImpMesh.h"
 #include "TriangleMesh.h"
 
+#include <XCAFDoc_ShapeTool.hxx>
+#include <XCAFDoc_Location.hxx>
+#include <TDF_LabelSequence.hxx>
+#include <TDF_Tool.hxx>
+#include <TDataStd_Name.hxx>
+#include <TopoDS_Shape.hxx>
+#include <TopLoc_Location.hxx>
+#include <gp_Trsf.hxx>
+#include <map>
+#include <tuple>
+
+using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, gp_Trsf>;
+
+void CollectNamedShapesFromSTEP(
+	const Handle(XCAFDoc_ShapeTool)& shapeTool,
+	std::vector<ShapeWithNameAndTrsf>& outShapes,
+	const TDF_Label& label,
+	const TopLoc_Location& parentLoc = TopLoc_Location(),
+	std::map<TopoDS_Shape, int, TopTools_ShapeMapHasher>* visited = nullptr);
 
 class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
 {
@@ -79,6 +98,12 @@ private:
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene);
 
 	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene);
+
+	void setColorAndMaterial(aiMaterial* material, GLMaterial& mat);
+
+	void setPBRTextureMaps(aiMaterial* material, std::vector<Texture>& textures);
+
+	void setADSTextureMaps(aiMaterial* material, std::vector<Texture>& textures);
 
 	// Checks all material textures of a given type and loads the textures if they're not loaded yet.
 	// The required info is returned as a Texture struct.
