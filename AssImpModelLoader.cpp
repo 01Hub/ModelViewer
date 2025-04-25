@@ -1,169 +1,15 @@
-#include "AssImpModelLoader.h"
+﻿#include "AssImpModelLoader.h"
 #include "Utils.h"
 
 #include "BRepToAssimpConverter.h"
 #include <STEPControl_Reader.hxx>
 #include <IGESControl_Reader.hxx>
 #include <XCAFApp_Application.hxx>
-#include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc.hxx>
 #include <TopoDS_Iterator.hxx>
-
-using namespace std;
-
-
-void CollectNamedShapesFromSTEP(
-	const Handle(XCAFDoc_ShapeTool)& shapeTool,
-	std::vector<ShapeWithNameAndTrsf>& outShapes,
-	const TDF_Label& label,
-	const TopLoc_Location& parentLoc,
-	std::map<TopoDS_Shape, int, TopTools_ShapeMapHasher>* visited)
-{
-	// Avoid revisiting shapes
-	static std::map<TopoDS_Shape, int, TopTools_ShapeMapHasher> defaultVisited;
-	if (!visited)
-		visited = &defaultVisited;
-
-	TopoDS_Shape shape;
-	if (!XCAFDoc_ShapeTool::IsShape(label)) {
-		// Not a shape label at all � skip
-		return;
-	}
-
-	if (shapeTool->IsReference(label)) {
-		TDF_Label referredLabel;
-		if (shapeTool->GetReferredShape(label, referredLabel))
-			shapeTool->GetShape(referredLabel, shape);
-	}
-	else {
-		shapeTool->GetShape(label, shape);
-	}
-
-	if (shape.IsNull())
-		return;
-
-	TopLoc_Location loc = parentLoc;
-
-	// If it's an instance/reference, resolve it
-	if (XCAFDoc_ShapeTool::IsReference(label)) {
-		TDF_Label referred;
-		if (shapeTool->GetReferredShape(label, referred)) {
-			// Get instance transform (location of the label)
-			loc = shapeTool->GetLocation(label).Multiplied(parentLoc);
-			CollectNamedShapesFromSTEP(shapeTool, outShapes, referred, loc, visited);
-		}
-		return;
-	}
-
-	// If it's an assembly, recurse
-	if (XCAFDoc_ShapeTool::IsAssembly(label)) {
-		TDF_LabelSequence children;
-		shapeTool->GetComponents(label, children);
-		for (Standard_Integer i = 1; i <= children.Length(); ++i) {
-			CollectNamedShapesFromSTEP(shapeTool, outShapes, children.Value(i), loc, visited);
-		}
-		return;
-	}
-
-	// If it's a compound shape, also recurse
-	if (shapeTool->IsCompound(label)) {
-		TDF_LabelSequence children;
-		shapeTool->GetSubShapes(label, children);
-		for (Standard_Integer i = 1; i <= children.Length(); ++i) {
-			CollectNamedShapesFromSTEP(shapeTool, outShapes, children.Value(i), loc, visited);
-		}
-		return;
-	}
-
-	// Now it's a leaf part (a solid), with its own shape
-	TopoDS_Shape transformedShape = shape.Located(loc);
-
-	// Avoid duplicates
-	if (visited->count(transformedShape))
-		return;
-
-	visited->insert({ transformedShape, 1 });
-
-	// Get name
-	TCollection_ExtendedString extName;
-	Handle(TDataStd_Name) nameAttr;
-	label.FindAttribute(TDataStd_Name::GetID(), nameAttr);
-	extName = nameAttr->Get().ToExtString();
-	if (extName == "")
-		extName = "Unnamed";
-
-	TCollection_AsciiString asciiString(extName);
-	std::string name = extName.IsEmpty() ? "Unnamed" : std::string(asciiString.ToCString());
-
-	// Save it
-	outShapes.emplace_back(transformedShape, name, loc.Transformation());
-}
-
-void ReadSTEPFile(const std::string& filename, Handle(TDocStd_Document)& doc) {
-	STEPCAFControl_Reader reader;
-	if (!reader.ReadFile(filename.c_str())) {
-		throw std::runtime_error("Cannot read STEP file");
-	}
-	if (!reader.Transfer(doc)) {
-		throw std::runtime_error("Cannot transfer STEP data to XCAF document");
-	}
-}
-
-
-void ExtractShapeNames(const Handle(XCAFDoc_ShapeTool)& shapeTool, const TDF_Label& label, std::vector<std::string>& names) {
-	
-	Handle(TDataStd_Name) nameAttr;
-	TDF_Label referredLabel;
-	if (shapeTool->GetReferredShape(label, referredLabel) && !referredLabel.IsNull()) {
-		if (referredLabel.FindAttribute(TDataStd_Name::GetID(), nameAttr)) {
-			names.push_back(TCollection_AsciiString(TCollection_ExtendedString(nameAttr->Get())).ToCString());
-		}
-		else if (label.FindAttribute(TDataStd_Name::GetID(), nameAttr)) {
-			names.push_back(TCollection_AsciiString(TCollection_ExtendedString(nameAttr->Get())).ToCString());
-		}
-		else {
-			names.push_back("Unnamed");
-		}
-	}
-	else if (label.FindAttribute(TDataStd_Name::GetID(), nameAttr)) {
-		names.push_back(TCollection_AsciiString(TCollection_ExtendedString(nameAttr->Get())).ToCString());
-	}
-	else {
-		names.push_back("Unnamed");
-	}
-}
-
-
 #include <set>
 
-
-// Custom comparator for TDF_Label
-struct TDF_LabelComparator {
-	bool operator()(const TDF_Label& lhs, const TDF_Label& rhs) const {
-		return lhs.Tag() < rhs.Tag();
-	}
-};
-
-
-void TraverseAssembly(const Handle(XCAFDoc_ShapeTool)& shapeTool, const TDF_Label& label, std::vector<TopoDS_Shape>& shapes, std::vector<std::string>& names, std::set<TDF_Label, TDF_LabelComparator>& processedLabels)
-{
-
-	if (shapeTool->IsAssembly(label)) {
-		TDF_LabelSequence components;
-		shapeTool->GetComponents(label, components);
-		for (Standard_Integer i = 1; i <= components.Length(); ++i) {
-			TraverseAssembly(shapeTool, components.Value(i), shapes, names, processedLabels);
-		}
-	}
-	else {
-		TopoDS_Shape shape = shapeTool->GetShape(label);
-		if (!shape.IsNull()) {
-			shapes.push_back(shape);
-			ExtractShapeNames(shapeTool, label, names);
-		}
-	}
-}
-
+using namespace std;
 
 
 bool AssImpModelProgressHandler::Update(float percentage)
@@ -220,13 +66,16 @@ void AssImpModelLoader::loadModel(string path)
 
 	if (fi.suffix().toLower() == "step" || fi.suffix().toLower() == "stp")
 	{
+		// Create XCAF Application and document
 		Handle(TDocStd_Document) doc;
 		Handle(XCAFApp_Application)::DownCast(XCAFApp_Application::GetApplication())->NewDocument("MDTV-XCAF", doc);
 
-		ReadSTEPFile(path.c_str(), doc);
+		readSTEPFile(path.c_str(), doc);
 
+		// Get the shape tool from the document
 		Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
 
+		// Get the shapes from the STEP file
 		TDF_LabelSequence labels;
 		shapeTool->GetFreeShapes(labels);
 		if (labels.IsEmpty()) {
@@ -234,21 +83,22 @@ void AssImpModelLoader::loadModel(string path)
 			return;
 		}
 
+		// Traverse the assembly structure and extract shapes and names
 		std::vector<TopoDS_Shape> shapes;
 		std::vector<std::string> names;
-		std::set<TDF_Label, TDF_LabelComparator> processedLabels;
-
-		for (Standard_Integer i = 1; i <= labels.Length(); ++i) {
-			TraverseAssembly(shapeTool, labels.Value(i), shapes, names, processedLabels);
+		
+		for (Standard_Integer i = 1; i <= labels.Length(); ++i) {			
+			traverseSTEPAssembly(shapeTool, labels.Value(i), TopLoc_Location(), shapes, names);			
 		}
 
-		// Convert to Assimp scene	
+		// Add shapes and names to the tuple vector
 		std::vector<ShapeWithNameAndTrsf> shapeTuples;
 		for (int i = 0; i < shapes.size(); i++)
 		{
 			shapeTuples.emplace_back(shapes[i], names[i], TopLoc_Location());
 		}
 		
+		// Convert the shapes to Assimp scene
 		scene = BRepToAssimpConverter::convert(shapeTuples);
 
 	}
@@ -259,9 +109,7 @@ void AssImpModelLoader::loadModel(string path)
 		if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
 			qCritical("Failed to load IGES file");
 			return;
-		}
-		//reader.TransferRoots();
-		//TopoDS_Shape shape = reader.OneShape();
+		}		
 		aSequence = new TopTools_HSequenceOfShape();
 		reader.TransferRoots();
 		TopoDS_Shape aShape = reader.OneShape();
@@ -294,6 +142,97 @@ void AssImpModelLoader::loadModel(string path)
 
 	// Process ASSIMP's root node recursively
 	this->processNode(0, scene->mRootNode, scene);
+}
+
+// Read s STEP file
+void AssImpModelLoader::readSTEPFile(const std::string& filename, Handle(TDocStd_Document)& doc)
+{
+	STEPCAFControl_Reader reader;
+	if (!reader.ReadFile(filename.c_str())) {
+		throw std::runtime_error("Cannot read STEP file");
+	}
+	if (!reader.Transfer(doc)) {
+		throw std::runtime_error("Cannot transfer STEP data to XCAF document");
+	}
+}
+
+// Traverse the STEP assembly structure and extract shapes and names
+void AssImpModelLoader::traverseSTEPAssembly(
+	const Handle(XCAFDoc_ShapeTool)& shapeTool,
+	const TDF_Label& label,
+	const TopLoc_Location& parentLoc,
+	std::vector<TopoDS_Shape>& outShapes,
+	std::vector<std::string>& outNames)
+{
+	// 1) Assembly?  Recurse its components (cycle‐safe)
+	if (shapeTool->IsAssembly(label)) {
+
+		TDF_LabelSequence comps;
+		shapeTool->GetComponents(label, comps);
+		for (Standard_Integer i = 1; i <= comps.Length(); ++i) {
+			traverseSTEPAssembly(shapeTool, comps.Value(i), parentLoc, outShapes, outNames);
+		}
+		return;
+	}
+
+	// 2) Compute this instance's transform
+	TopLoc_Location loc = parentLoc * shapeTool->GetLocation(label);
+
+	// 3) If it's a reference, resolve to its definition label
+	TDF_Label defLabel = label;
+	if (shapeTool->IsReference(label)) {
+		TDF_Label tmp;
+		if (shapeTool->GetReferredShape(label, tmp)) {
+			defLabel = tmp;
+		}
+	}
+
+	// 4) If that definition is *also* an assembly, dive in (so we don't name a sub-assembly as if it were a leaf)
+	if (shapeTool->IsAssembly(defLabel)) {
+		// an instance of an assembly—recurse into its real children
+		TDF_LabelSequence comps;
+		shapeTool->GetComponents(defLabel, comps);
+		for (Standard_Integer i = 1; i <= comps.Length(); ++i) {
+			traverseSTEPAssembly(shapeTool, comps.Value(i), loc, outShapes, outNames);
+		}
+		return;
+	}
+
+	// 5) Now defLabel must be a true leaf part definition—grab its shape
+	TopoDS_Shape shape = shapeTool->GetShape(defLabel);
+	if (shape.IsNull()) return;
+
+	shape.Move(loc);
+	outShapes.push_back(shape);
+
+	// 6) Extract the name from the *definition* label (defLabel), falling back to the instance label only if needed
+	Handle(TDataStd_Name) nameAttr;
+	std::string name = "Unnamed";
+	if (defLabel.FindAttribute(TDataStd_Name::GetID(), nameAttr)) {
+		name = TCollection_AsciiString(nameAttr->Get()).ToCString();
+	}
+	else if (label.FindAttribute(TDataStd_Name::GetID(), nameAttr)) {
+		name = TCollection_AsciiString(nameAttr->Get()).ToCString();
+	}
+
+
+	// 7) Add instance number to the name (e.g., Wheel.1, Wheel.2)
+	// --- Extract Instance Number from the label ---
+	static std::map<std::string, int> nameCountMap;
+	int instanceNum = 1; // Default value if no instance number is found
+
+	// Attempt to extract instance number based on shapeTool's label information
+	// Check if the name is already counted (for handling multiple instances)
+	if (nameCountMap.find(name) != nameCountMap.end()) {
+		instanceNum = ++nameCountMap[name];  // Increment the count
+	}
+	else {
+		nameCountMap[name] = 1;  // Initialize the count
+	}
+
+	// Add instance number to the name (e.g., Wheel.1, Wheel.2)
+	std::string instanceName = name + "." + std::to_string(instanceNum);
+	outNames.push_back(instanceName);
 }
 
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).

@@ -22,6 +22,7 @@
 
 #include <XCAFDoc_ShapeTool.hxx>
 #include <XCAFDoc_Location.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
 #include <TDF_LabelSequence.hxx>
 #include <TDF_Tool.hxx>
 #include <TDataStd_Name.hxx>
@@ -31,14 +32,6 @@
 #include <map>
 #include <tuple>
 
-using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, gp_Trsf>;
-
-void CollectNamedShapesFromSTEP(
-	const Handle(XCAFDoc_ShapeTool)& shapeTool,
-	std::vector<ShapeWithNameAndTrsf>& outShapes,
-	const TDF_Label& label,
-	const TopLoc_Location& parentLoc = TopLoc_Location(),
-	std::map<TopoDS_Shape, int, TopTools_ShapeMapHasher>* visited = nullptr);
 
 class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
 {
@@ -93,6 +86,16 @@ private:
 	std::vector<AssImpMesh*> _meshes;
 	std::string directory;
 	std::vector<Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
+
+	using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, gp_Trsf>;
+
+	void readSTEPFile(const std::string& filename, Handle(TDocStd_Document)& doc);
+	void traverseSTEPAssembly(
+		const Handle(XCAFDoc_ShapeTool)& shapeTool,
+		const TDF_Label& label,
+		const TopLoc_Location& parentLoc,
+		std::vector<TopoDS_Shape>& outShapes,
+		std::vector<std::string>& outNames);
 
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene);
