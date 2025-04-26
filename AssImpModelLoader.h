@@ -20,7 +20,9 @@
 #include "AssImpMesh.h"
 #include "TriangleMesh.h"
 
+#include <Quantity_Color.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
+#include <XCAFDoc_ColorTool.hxx>
 #include <XCAFDoc_Location.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <TDF_LabelSequence.hxx>
@@ -87,14 +89,17 @@ private:
 	std::string directory;
 	std::vector<Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
 
-	using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, gp_Trsf>;
+	//using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, gp_Trsf>;
+	using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, TopLoc_Location, Quantity_Color>;
 
 	void readSTEPFile(const std::string& filename, Handle(TDocStd_Document)& doc);
 	void traverseSTEPAssembly(
 		const Handle(XCAFDoc_ShapeTool)& shapeTool,
+		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TDF_Label& label,
 		const TopLoc_Location& parentLoc,
 		std::vector<TopoDS_Shape>& outShapes,
+		std::vector<Quantity_Color>& outColors,
 		std::vector<std::string>& outNames);
 
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).

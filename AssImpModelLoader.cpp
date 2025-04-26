@@ -70,10 +70,18 @@ void AssImpModelLoader::loadModel(string path)
 		Handle(TDocStd_Document) doc;
 		Handle(XCAFApp_Application)::DownCast(XCAFApp_Application::GetApplication())->NewDocument("MDTV-XCAF", doc);
 
-		readSTEPFile(path.c_str(), doc);
+		try {
+			readSTEPFile(path.c_str(), doc);
+		}
+		catch (const std::exception& e) {
+			qCritical("Failed to read STEP file: %s", e.what());
+			return;
+		}
 
 		// Get the shape tool from the document
 		Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+		Handle(XCAFDoc_ColorTool) colorTool = XCAFDoc_DocumentTool::ColorTool(doc->Main());
+
 
 		// Get the shapes from the STEP file
 		TDF_LabelSequence labels;
@@ -86,18 +94,19 @@ void AssImpModelLoader::loadModel(string path)
 		// Traverse the assembly structure and extract shapes and names
 		std::vector<TopoDS_Shape> shapes;
 		std::vector<std::string> names;
-		
-		for (Standard_Integer i = 1; i <= labels.Length(); ++i) {			
-			traverseSTEPAssembly(shapeTool, labels.Value(i), TopLoc_Location(), shapes, names);			
+		std::vector<Quantity_Color> colors;
+
+		for (Standard_Integer i = 1; i <= labels.Length(); ++i) {
+			traverseSTEPAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), shapes, colors, names);
 		}
 
 		// Add shapes and names to the tuple vector
 		std::vector<ShapeWithNameAndTrsf> shapeTuples;
 		for (int i = 0; i < shapes.size(); i++)
 		{
-			shapeTuples.emplace_back(shapes[i], names[i], TopLoc_Location());
+			shapeTuples.emplace_back(shapes[i], names[i], TopLoc_Location(), colors[i]);
 		}
-		
+
 		// Convert the shapes to Assimp scene
 		scene = BRepToAssimpConverter::convert(shapeTuples);
 
@@ -109,7 +118,7 @@ void AssImpModelLoader::loadModel(string path)
 		if (reader.ReadFile(path.c_str()) != IFSelect_RetDone) {
 			qCritical("Failed to load IGES file");
 			return;
-		}		
+		}
 		aSequence = new TopTools_HSequenceOfShape();
 		reader.TransferRoots();
 		TopoDS_Shape aShape = reader.OneShape();
@@ -159,9 +168,11 @@ void AssImpModelLoader::readSTEPFile(const std::string& filename, Handle(TDocStd
 // Traverse the STEP assembly structure and extract shapes and names
 void AssImpModelLoader::traverseSTEPAssembly(
 	const Handle(XCAFDoc_ShapeTool)& shapeTool,
+	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TDF_Label& label,
 	const TopLoc_Location& parentLoc,
 	std::vector<TopoDS_Shape>& outShapes,
+	std::vector<Quantity_Color>& outColors,
 	std::vector<std::string>& outNames)
 {
 	// 1) Assembly?  Recurse its components (cycle‐safe)
@@ -170,7 +181,7 @@ void AssImpModelLoader::traverseSTEPAssembly(
 		TDF_LabelSequence comps;
 		shapeTool->GetComponents(label, comps);
 		for (Standard_Integer i = 1; i <= comps.Length(); ++i) {
-			traverseSTEPAssembly(shapeTool, comps.Value(i), parentLoc, outShapes, outNames);
+			traverseSTEPAssembly(shapeTool, colorTool, comps.Value(i), parentLoc, outShapes, outColors, outNames);
 		}
 		return;
 	}
@@ -193,7 +204,7 @@ void AssImpModelLoader::traverseSTEPAssembly(
 		TDF_LabelSequence comps;
 		shapeTool->GetComponents(defLabel, comps);
 		for (Standard_Integer i = 1; i <= comps.Length(); ++i) {
-			traverseSTEPAssembly(shapeTool, comps.Value(i), loc, outShapes, outNames);
+			traverseSTEPAssembly(shapeTool, colorTool, comps.Value(i), loc, outShapes, outColors, outNames);
 		}
 		return;
 	}
@@ -230,9 +241,33 @@ void AssImpModelLoader::traverseSTEPAssembly(
 		nameCountMap[name] = 1;  // Initialize the count
 	}
 
-	// Add instance number to the name (e.g., Wheel.1, Wheel.2)
+	// 8) Add instance number to the name (e.g., Wheel.1, Wheel.2)
 	std::string instanceName = name + "." + std::to_string(instanceNum);
 	outNames.push_back(instanceName);
+
+	// 9) Get the color of the shape
+	Quantity_Color color;
+	bool hasColor = false;
+	if (!colorTool.IsNull()) {
+		// Try to get specific Surface color first
+		if (colorTool->GetColor(shape, XCAFDoc_ColorSurf, color)) {
+			hasColor = true;
+		}
+		// Try to get Curvature color (if no Surface color)
+		else if (colorTool->GetColor(shape, XCAFDoc_ColorCurv, color)) {
+			hasColor = true;
+		}
+		// Try to get General color (if no Surface or Curvature color)
+		else if (colorTool->GetColor(shape, XCAFDoc_ColorGen, color)) {
+			hasColor = true;
+		}
+
+		if (!hasColor) {
+			// If still no color, set default
+			color = Quantity_NOC_WHITE;
+		}
+		outColors.push_back(color); // Store the color
+	}
 }
 
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
@@ -354,7 +389,8 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 
 	// Process materials
 	GLMaterial mat = GLMaterial::DEFAULT_MAT();
-	if (mesh->mMaterialIndex != 0)
+	//if (mesh->mMaterialIndex != 0)
+	if (mesh->mMaterialIndex < scene->mNumMaterials)
 	{
 		aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
 		// We assume a convention for sampler names in the shaders. Each diffuse texture should be named

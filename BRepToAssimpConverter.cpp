@@ -1,4 +1,4 @@
-#include "BRepToAssimpConverter.h"
+﻿#include "BRepToAssimpConverter.h"
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepBndLib.hxx>
@@ -50,7 +50,8 @@ aiScene* BRepToAssimpConverter::convert(const Handle(TopTools_HSequenceOfShape)&
         const TopoDS_Shape& shape = shapeSeq->Value(i);
 
         // Convert the individual shape into an aiScene, passing meshIndex by reference to update it
-        aiScene* subScene = convert(shape, meshIndex);
+		Quantity_Color color = Quantity_NOC_ANTIQUEWHITE;
+        aiScene* subScene = convert(shape, color, meshIndex);
 
         // If the sub-scene contains meshes, integrate them into the main scene
         if (subScene && subScene->mNumMeshes > 0)
@@ -123,8 +124,13 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 
     int meshIndex = 0;
 
-    for (const auto& [shape, name, trsf] : shapeTuples)
+    for (const auto& tuple : shapeTuples)
     {
+        const TopoDS_Shape& shape = std::get<0>(tuple);
+        const std::string& name = std::get<1>(tuple);
+        const gp_Trsf& trsf = std::get<2>(tuple);
+        const Quantity_Color& color = std::get<3>(tuple);
+
         // Apply transformation to the shape
         TopoDS_Shape transformedShape = shape;
         if (!trsf.Form() == gp_Identity)
@@ -134,17 +140,39 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
         }
 
         // Convert the shape into a subscene with name
-        aiScene* subScene = convert(transformedShape, meshIndex, name); // <== this version must accept name
+        aiScene* subScene = convert(transformedShape, color, meshIndex, name); // <== this version must accept name
 
         if (subScene && subScene->mNumMeshes > 0)
         {
             unsigned int meshBase = static_cast<unsigned int>(meshList.size());
+            unsigned int materialBase = static_cast<unsigned int>(materialList.size());
 
-            // Append meshes and materials
+            // Append meshes
             for (unsigned int m = 0; m < subScene->mNumMeshes; ++m)
                 meshList.push_back(subScene->mMeshes[m]);
-            for (unsigned int m = 0; m < subScene->mNumMaterials; ++m)
-                materialList.push_back(subScene->mMaterials[m]);
+
+            for (unsigned int i = 0; i < subScene->mNumMaterials; ++i) {
+                materialList.push_back(subScene->mMaterials[i]);
+            }
+
+          
+            // Apply color and fix mMaterialIndex
+            for (unsigned int m = meshBase; m < meshBase + subScene->mNumMeshes; ++m)
+            {
+                aiMesh* mesh = meshList[m];
+
+                // 🛠 Correct the material index!
+                mesh->mMaterialIndex = materialBase; // (use the newly appended material)
+
+                aiMaterial* material = materialList[materialBase];
+
+                // Set color only if no texture
+                if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
+                {
+                    aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
+                    material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+                }
+            }
 
             if (subScene->mRootNode)
             {
@@ -161,7 +189,7 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
                 childNodes.push_back(nodeCopy);
             }
 
-            // Clean up subscene without deleting shared mesh/material pointers
+            // Clean up subscene
             subScene->mMeshes = nullptr;
             subScene->mMaterials = nullptr;
             subScene->mRootNode = nullptr;
@@ -201,7 +229,7 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
  * @param meshIndex Reference to an integer used to assign unique indices to generated meshes. It is incremented as meshes are created.
  * @return aiScene* Pointer to the newly created aiScene containing the converted meshes and nodes.
  */
-aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, int& meshIndex, const std::string& name)
+aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantity_Color& color, int& meshIndex, const std::string& name)
 {
     // Create a new Assimp scene and its root node
     auto* scene = new aiScene();
@@ -228,6 +256,32 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, int& meshInde
         // Convert the collected faces into a single mesh
         aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
         if (mesh) {
+
+            /*
+            // 🔴 Create a new material
+            aiMaterial* material = new aiMaterial();
+
+            // 🛠 Apply the incoming color immediately
+            if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
+            {
+                aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
+                material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+            }
+
+            // Add this material to the scene (we'll track them in a vector)
+            scene->mMaterials = static_cast<aiMaterial**>(
+                realloc(scene->mMaterials, sizeof(aiMaterial*) * (scene->mNumMaterials + 1)));
+            scene->mMaterials[scene->mNumMaterials] = material;
+
+            // Update material count
+            ++scene->mNumMaterials;
+            */
+
+            // Assign this material to the mesh
+            mesh->mMaterialIndex = scene->mNumMaterials - 1;
+            
+
+            
             // Add the mesh to the list
             meshes.push_back(mesh);
 
@@ -269,6 +323,32 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, int& meshInde
             // Convert the collected faces into a mesh
             aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
             if (mesh) {
+
+                /*
+                // 🔴 Create a new material
+                aiMaterial* material = new aiMaterial();
+
+                // 🛠 Apply the incoming color immediately
+                if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
+                {
+                    aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
+                    material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+                }
+
+                // Add this material to the scene (we'll track them in a vector)
+                scene->mMaterials = static_cast<aiMaterial**>(
+                    realloc(scene->mMaterials, sizeof(aiMaterial*) * (scene->mNumMaterials + 1)));
+                scene->mMaterials[scene->mNumMaterials] = material;
+
+                // Update material count
+                ++scene->mNumMaterials;
+                */
+
+                // Assign this material to the mesh
+                mesh->mMaterialIndex = scene->mNumMaterials -1;
+                
+                   
+
                 // Add the mesh to the list
                 meshes.push_back(mesh);
 
@@ -311,8 +391,14 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, int& meshInde
 
     // Create a default material for the scene
     scene->mMaterials = new aiMaterial*[1];
-    scene->mMaterials[0] = new aiMaterial();
+    aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
+    aiMaterial* material = new aiMaterial;
+    material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+    scene->mMaterials[0] = material;
     scene->mNumMaterials = 1;
+
+    // Update material count
+    ++scene->mNumMaterials;
 
     // Return the constructed scene
     return scene;
