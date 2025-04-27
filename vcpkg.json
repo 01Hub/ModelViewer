@@ -3,10 +3,11 @@
   "version-string": "1.0.0",
   "dependencies": [
     "assimp",
+    "fontconfig",
     "freetype",
     "glm",
+    "opencascade",
     "qtbase",
-    "qttools",
-    "opencascade"
+    "qttools"
   ]
 }
