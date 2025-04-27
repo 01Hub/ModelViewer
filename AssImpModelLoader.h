@@ -43,11 +43,11 @@ public:
 
 	// Required by Qt system. TODO: Make sure it is fine
 	inline void* operator new(size_t, void* ptr) noexcept
-    {
-        return ptr;
-    }
+	{
+		return ptr;
+	}
 
-    using Assimp::ProgressHandler::operator new;
+	using Assimp::ProgressHandler::operator new;
 
 signals:
 	void fileReadProcessed(float percent);
@@ -101,6 +101,10 @@ private:
 		std::vector<TopoDS_Shape>& outShapes,
 		std::vector<Quantity_Color>& outColors,
 		std::vector<std::string>& outNames);
+	bool GetShapeColorFromShape(
+		const Handle(XCAFDoc_ColorTool)& colorTool,
+		const TopoDS_Shape& shape,
+		Quantity_Color& outColor);
 
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene);

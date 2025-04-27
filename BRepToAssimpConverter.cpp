@@ -28,195 +28,215 @@
  */
 aiScene* BRepToAssimpConverter::convert(const Handle(TopTools_HSequenceOfShape)& shapeSeq)
 {
-    // Return nullptr if input sequence is null or empty
-    if (shapeSeq.IsNull() || shapeSeq->IsEmpty())
-        return nullptr;
+	// Return nullptr if input sequence is null or empty
+	if (shapeSeq.IsNull() || shapeSeq->IsEmpty())
+		return nullptr;
 
-    // Create a new Assimp scene and initialize the root node
-    aiScene* scene = new aiScene();
-    scene->mRootNode = new aiNode();
-    scene->mRootNode->mName = aiString("Root");
+	// Create a new Assimp scene and initialize the root node
+	aiScene* scene = new aiScene();
+	scene->mRootNode = new aiNode();
+	scene->mRootNode->mName = aiString("Root");
 
-    // Containers to accumulate meshes, materials, and child nodes from all shapes
-    std::vector<aiMesh*> meshList;
-    std::vector<aiMaterial*> materialList;
-    std::vector<aiNode*> childNodes;
+	// Containers to accumulate meshes, materials, and child nodes from all shapes
+	std::vector<aiMesh*> meshList;
+	std::vector<aiMaterial*> materialList;
+	std::vector<aiNode*> childNodes;
 
-    int meshIndex = 0;  // Tracks global mesh index to ensure uniqueness across all shapes
+	int meshIndex = 0;  // Tracks global mesh index to ensure uniqueness across all shapes
 
-    // Iterate through each shape in the sequence
-    for (Standard_Integer i = 1; i <= shapeSeq->Length(); ++i)
-    {
-        const TopoDS_Shape& shape = shapeSeq->Value(i);
+	// Iterate through each shape in the sequence
+	for (Standard_Integer i = 1; i <= shapeSeq->Length(); ++i)
+	{
+		const TopoDS_Shape& shape = shapeSeq->Value(i);
 
-        // Convert the individual shape into an aiScene, passing meshIndex by reference to update it
-		Quantity_Color color = Quantity_NOC_ANTIQUEWHITE;
-        aiScene* subScene = convert(shape, color, meshIndex);
+		// Convert the individual shape into an aiScene, passing meshIndex by reference to update it
+		Quantity_Color color = Quantity_NOC_GRAY95;
+		aiScene* subScene = convert(shape, color, meshIndex);
 
-        // If the sub-scene contains meshes, integrate them into the main scene
-        if (subScene && subScene->mNumMeshes > 0)
-        {
-            unsigned int meshBase = static_cast<unsigned int>(meshList.size());
+		// If the sub-scene contains meshes, integrate them into the main scene
+		if (subScene && subScene->mNumMeshes > 0)
+		{
+			unsigned int meshBase = static_cast<unsigned int>(meshList.size());
+			unsigned int materialBase = static_cast<unsigned int>(materialList.size());
 
-            // Append all meshes from subScene to meshList
-            for (unsigned int m = 0; m < subScene->mNumMeshes; ++m)
-                meshList.push_back(subScene->mMeshes[m]);
+			// Append all meshes from subScene to meshList
+			for (unsigned int m = 0; m < subScene->mNumMeshes; ++m)
+				meshList.push_back(subScene->mMeshes[m]);
 
-            // Append all materials from subScene to materialList
-            for (unsigned int m = 0; m < subScene->mNumMaterials; ++m)
-                materialList.push_back(subScene->mMaterials[m]);
+			// Append all materials from subScene to materialList
+			for (unsigned int m = 0; m < subScene->mNumMaterials; ++m)
+				materialList.push_back(subScene->mMaterials[m]);
 
-            // Clone the root node of the subScene to avoid shared ownership issues
-            if (subScene->mRootNode)
-            {
-                aiNode* nodeCopy = cloneNodeDeep(subScene->mRootNode);
+			// Apply color and fix mMaterialIndex
+			for (unsigned int m = meshBase; m < meshBase + subScene->mNumMeshes; ++m)
+			{
+				aiMesh* mesh = meshList[m];
 
-                // Adjust mesh indices in the cloned node to account for the meshes already added
-                for (unsigned int j = 0; j < nodeCopy->mNumMeshes; ++j)
-                    nodeCopy->mMeshes[j] += meshBase;
+				// 🛠 Correct the material index!
+				mesh->mMaterialIndex = materialBase; // (use the newly appended material)
 
-                // Add the cloned node as a child of the main scene's root node
-                childNodes.push_back(nodeCopy);
-            }
+				aiMaterial* material = materialList[materialBase];
 
-            // Prevent double deletion by nullifying pointers in subScene before deleting
-            subScene->mMeshes = nullptr;
-            subScene->mMaterials = nullptr;
-            subScene->mRootNode = nullptr;
-            subScene->mNumMeshes = 0;
-            subScene->mNumMaterials = 0;
+				// Set color only if no texture
+				if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
+				{
+					aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
+					material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+				}
+			}
 
-            // Delete the temporary subScene
-            delete subScene;
-        }
-    }
+			// Clone the root node of the subScene to avoid shared ownership issues
+			if (subScene->mRootNode)
+			{
+				aiNode* nodeCopy = cloneNodeDeep(subScene->mRootNode);
 
-    // Set the total number of meshes and allocate array in the main scene
-    scene->mNumMeshes = static_cast<unsigned int>(meshList.size());
-    scene->mMeshes = meshList.empty() ? nullptr : new aiMesh*[meshList.size()];
-    std::copy(meshList.begin(), meshList.end(), scene->mMeshes);
+				// Adjust mesh indices in the cloned node to account for the meshes already added
+				for (unsigned int j = 0; j < nodeCopy->mNumMeshes; ++j)
+					nodeCopy->mMeshes[j] += meshBase;
 
-    // Set the total number of materials and allocate array in the main scene
-    scene->mNumMaterials = static_cast<unsigned int>(materialList.size());
-    scene->mMaterials = materialList.empty() ? nullptr : new aiMaterial*[materialList.size()];
-    std::copy(materialList.begin(), materialList.end(), scene->mMaterials);
+				// Add the cloned node as a child of the main scene's root node
+				childNodes.push_back(nodeCopy);
+			}
 
-    // Set the number of children and allocate array for root node's children
-    scene->mRootNode->mNumChildren = static_cast<unsigned int>(childNodes.size());
-    scene->mRootNode->mChildren = childNodes.empty() ? nullptr : new aiNode*[childNodes.size()];
-    std::copy(childNodes.begin(), childNodes.end(), scene->mRootNode->mChildren);
+			// Prevent double deletion by nullifying pointers in subScene before deleting
+			subScene->mMeshes = nullptr;
+			subScene->mMaterials = nullptr;
+			subScene->mRootNode = nullptr;
+			subScene->mNumMeshes = 0;
+			subScene->mNumMaterials = 0;
 
-    return scene;
+			// Delete the temporary subScene
+			delete subScene;
+		}
+	}
+
+	// Set the total number of meshes and allocate array in the main scene
+	scene->mNumMeshes = static_cast<unsigned int>(meshList.size());
+	scene->mMeshes = meshList.empty() ? nullptr : new aiMesh * [meshList.size()];
+	std::copy(meshList.begin(), meshList.end(), scene->mMeshes);
+
+	// Set the total number of materials and allocate array in the main scene
+	scene->mNumMaterials = static_cast<unsigned int>(materialList.size());
+	scene->mMaterials = materialList.empty() ? nullptr : new aiMaterial * [materialList.size()];
+	std::copy(materialList.begin(), materialList.end(), scene->mMaterials);
+
+	// Set the number of children and allocate array for root node's children
+	scene->mRootNode->mNumChildren = static_cast<unsigned int>(childNodes.size());
+	scene->mRootNode->mChildren = childNodes.empty() ? nullptr : new aiNode * [childNodes.size()];
+	std::copy(childNodes.begin(), childNodes.end(), scene->mRootNode->mChildren);
+
+	return scene;
 }
 
 aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples)
 {
-    if (shapeTuples.empty())
-        return nullptr;
+	if (shapeTuples.empty())
+		return nullptr;
 
-    aiScene* scene = new aiScene();
-    scene->mRootNode = new aiNode();
-    scene->mRootNode->mName = aiString("Root");
+	aiScene* scene = new aiScene();
+	scene->mRootNode = new aiNode();
+	scene->mRootNode->mName = aiString("Root");
 
-    std::vector<aiMesh*> meshList;
-    std::vector<aiMaterial*> materialList;
-    std::vector<aiNode*> childNodes;
+	std::vector<aiMesh*> meshList;
+	std::vector<aiMaterial*> materialList;
+	std::vector<aiNode*> childNodes;
 
-    int meshIndex = 0;
+	int meshIndex = 0;
 
-    for (const auto& tuple : shapeTuples)
-    {
-        const TopoDS_Shape& shape = std::get<0>(tuple);
-        const std::string& name = std::get<1>(tuple);
-        const gp_Trsf& trsf = std::get<2>(tuple);
-        const Quantity_Color& color = std::get<3>(tuple);
+	for (const auto& tuple : shapeTuples)
+	{
+		const TopoDS_Shape& shape = std::get<0>(tuple);
+		const std::string& name = std::get<1>(tuple);
+		const gp_Trsf& trsf = std::get<2>(tuple);
+		const Quantity_Color& color = std::get<3>(tuple);
 
-        // Apply transformation to the shape
-        TopoDS_Shape transformedShape = shape;
-        if (!trsf.Form() == gp_Identity)
-        {
-            BRepBuilderAPI_Transform trsfBuilder(shape, trsf, true);
-            transformedShape = trsfBuilder.Shape();
-        }
+		// Apply transformation to the shape
+		TopoDS_Shape transformedShape = shape;
+		if (!trsf.Form() == gp_Identity)
+		{
+			BRepBuilderAPI_Transform trsfBuilder(shape, trsf, true);
+			transformedShape = trsfBuilder.Shape();
+		}
 
-        // Convert the shape into a subscene with name
-        aiScene* subScene = convert(transformedShape, color, meshIndex, name); // <== this version must accept name
+		// Convert the shape into a subscene with name
+		aiScene* subScene = convert(transformedShape, color, meshIndex, name); // <== this version must accept name
 
-        if (subScene && subScene->mNumMeshes > 0)
-        {
-            unsigned int meshBase = static_cast<unsigned int>(meshList.size());
-            unsigned int materialBase = static_cast<unsigned int>(materialList.size());
+		if (subScene && subScene->mNumMeshes > 0)
+		{
+			unsigned int meshBase = static_cast<unsigned int>(meshList.size());
+			unsigned int materialBase = static_cast<unsigned int>(materialList.size());
 
-            // Append meshes
-            for (unsigned int m = 0; m < subScene->mNumMeshes; ++m)
-                meshList.push_back(subScene->mMeshes[m]);
+			// Append meshes
+			for (unsigned int m = 0; m < subScene->mNumMeshes; ++m)
+				meshList.push_back(subScene->mMeshes[m]);
 
-            for (unsigned int i = 0; i < subScene->mNumMaterials; ++i) {
-                materialList.push_back(subScene->mMaterials[i]);
-            }
+			for (unsigned int i = 0; i < subScene->mNumMaterials; ++i)
+			{
+				materialList.push_back(subScene->mMaterials[i]);
+			}
 
-          
-            // Apply color and fix mMaterialIndex
-            for (unsigned int m = meshBase; m < meshBase + subScene->mNumMeshes; ++m)
-            {
-                aiMesh* mesh = meshList[m];
 
-                // 🛠 Correct the material index!
-                mesh->mMaterialIndex = materialBase; // (use the newly appended material)
+			// Apply color and fix mMaterialIndex
+			for (unsigned int m = meshBase; m < meshBase + subScene->mNumMeshes; ++m)
+			{
+				aiMesh* mesh = meshList[m];
 
-                aiMaterial* material = materialList[materialBase];
+				// 🛠 Correct the material index!
+				mesh->mMaterialIndex = materialBase; // (use the newly appended material)
 
-                // Set color only if no texture
-                if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
-                {
-                    aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
-                    material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
-                }
-            }
+				aiMaterial* material = materialList[materialBase];
 
-            if (subScene->mRootNode)
-            {
-                aiNode* nodeCopy = cloneNodeDeep(subScene->mRootNode);
+				// Set color only if no texture
+				if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
+				{
+					aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
+					material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+				}
+			}
 
-                // Adjust mesh indices
-                for (unsigned int j = 0; j < nodeCopy->mNumMeshes; ++j)
-                    nodeCopy->mMeshes[j] += meshBase;
+			if (subScene->mRootNode)
+			{
+				aiNode* nodeCopy = cloneNodeDeep(subScene->mRootNode);
 
-                // Optionally override node name to shape name
-                if (!name.empty())
-                    nodeCopy->mName = aiString(name);
+				// Adjust mesh indices
+				for (unsigned int j = 0; j < nodeCopy->mNumMeshes; ++j)
+					nodeCopy->mMeshes[j] += meshBase;
 
-                childNodes.push_back(nodeCopy);
-            }
+				// Optionally override node name to shape name
+				if (!name.empty())
+					nodeCopy->mName = aiString(name);
 
-            // Clean up subscene
-            subScene->mMeshes = nullptr;
-            subScene->mMaterials = nullptr;
-            subScene->mRootNode = nullptr;
-            subScene->mNumMeshes = 0;
-            subScene->mNumMaterials = 0;
-            delete subScene;
-        }
-    }
+				childNodes.push_back(nodeCopy);
+			}
 
-    // Attach all child nodes to the root node
-    scene->mRootNode->mNumChildren = static_cast<unsigned int>(childNodes.size());
-    if (!childNodes.empty())
-    {
-        scene->mRootNode->mChildren = new aiNode * [childNodes.size()];
-        std::copy(childNodes.begin(), childNodes.end(), scene->mRootNode->mChildren);
-    }
+			// Clean up subscene
+			subScene->mMeshes = nullptr;
+			subScene->mMaterials = nullptr;
+			subScene->mRootNode = nullptr;
+			subScene->mNumMeshes = 0;
+			subScene->mNumMaterials = 0;
+			delete subScene;
+		}
+	}
 
-    // Finalize the scene
-    scene->mNumMeshes = static_cast<unsigned int>(meshList.size());
-    scene->mMeshes = new aiMesh * [scene->mNumMeshes];
-    std::copy(meshList.begin(), meshList.end(), scene->mMeshes);
+	// Attach all child nodes to the root node
+	scene->mRootNode->mNumChildren = static_cast<unsigned int>(childNodes.size());
+	if (!childNodes.empty())
+	{
+		scene->mRootNode->mChildren = new aiNode * [childNodes.size()];
+		std::copy(childNodes.begin(), childNodes.end(), scene->mRootNode->mChildren);
+	}
 
-    scene->mNumMaterials = static_cast<unsigned int>(materialList.size());
-    scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
-    std::copy(materialList.begin(), materialList.end(), scene->mMaterials);
+	// Finalize the scene
+	scene->mNumMeshes = static_cast<unsigned int>(meshList.size());
+	scene->mMeshes = new aiMesh * [scene->mNumMeshes];
+	std::copy(meshList.begin(), meshList.end(), scene->mMeshes);
 
-    return scene;
+	scene->mNumMaterials = static_cast<unsigned int>(materialList.size());
+	scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
+	std::copy(materialList.begin(), materialList.end(), scene->mMaterials);
+
+	return scene;
 }
 
 /**
@@ -231,177 +251,135 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
  */
 aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantity_Color& color, int& meshIndex, const std::string& name)
 {
-    // Create a new Assimp scene and its root node
-    auto* scene = new aiScene();
-    scene->mRootNode = new aiNode();
+	// Create a new Assimp scene and its root node
+	auto* scene = new aiScene();
+	scene->mRootNode = new aiNode();
 
-    // Vectors to hold generated meshes and their corresponding nodes
-    std::vector<aiMesh*> meshes;
-    std::vector<aiNode*> meshNodes;
+	// Vectors to hold generated meshes and their corresponding nodes
+	std::vector<aiMesh*> meshes;
+	std::vector<aiNode*> meshNodes;
 
-    // Explorer to find solids within the shape
-    TopExp_Explorer solidExplorer(shape, TopAbs_SOLID);
-    if (!solidExplorer.More()) {
-        // No solids found in the shape, fallback to extracting faces directly
+	// Explorer to find solids within the shape
+	TopExp_Explorer solidExplorer(shape, TopAbs_SOLID);
+	if (!solidExplorer.More())
+	{
+		// No solids found in the shape, fallback to extracting faces directly
 
-        // Indexed map to collect faces
-        TopTools_IndexedMapOfShape faceGroup;
+		// Indexed map to collect faces
+		TopTools_IndexedMapOfShape faceGroup;
 
-        // Explorer to iterate over faces in the shape
-        TopExp_Explorer faceExplorer(shape, TopAbs_FACE);
-        for (; faceExplorer.More(); faceExplorer.Next()) {
-            faceGroup.Add(faceExplorer.Current());
-        }
+		// Explorer to iterate over faces in the shape
+		TopExp_Explorer faceExplorer(shape, TopAbs_FACE);
+		for (; faceExplorer.More(); faceExplorer.Next())
+		{
+			faceGroup.Add(faceExplorer.Current());
+		}
 
-        // Convert the collected faces into a single mesh
-        aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
-        if (mesh) {
+		// Convert the collected faces into a single mesh
+		aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
+		if (mesh)
+		{
+			// Add the mesh to the list
+			meshes.push_back(mesh);
 
-            /*
-            // 🔴 Create a new material
-            aiMaterial* material = new aiMaterial();
+			// Create a node for this mesh
+			aiNode* meshNode = new aiNode();
 
-            // 🛠 Apply the incoming color immediately
-            if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
-            {
-                aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
-                material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
-            }
+			// Assign the mesh index to the node
+			meshNode->mMeshes = new unsigned int[1] {static_cast<unsigned int>(meshIndex)};
+			meshNode->mNumMeshes = 1;
 
-            // Add this material to the scene (we'll track them in a vector)
-            scene->mMaterials = static_cast<aiMaterial**>(
-                realloc(scene->mMaterials, sizeof(aiMaterial*) * (scene->mNumMaterials + 1)));
-            scene->mMaterials[scene->mNumMaterials] = material;
+			// Set the parent of this node to the root node of the scene
+			meshNode->mParent = scene->mRootNode;
 
-            // Update material count
-            ++scene->mNumMaterials;
-            */
+			// Name the node and mesh using the mesh index
+			meshNode->mName = name;// aiString("Mesh_" + std::to_string(meshIndex));
+			mesh->mName = name;// aiString("Mesh_" + std::to_string(meshIndex));
 
-            // Assign this material to the mesh
-            mesh->mMaterialIndex = scene->mNumMaterials - 1;
-            
+			// Store the node
+			meshNodes.push_back(meshNode);
 
-            
-            // Add the mesh to the list
-            meshes.push_back(mesh);
+			// Increment mesh index for next mesh
+			++meshIndex;
+		}
+	}
+	else
+	{
+		// Solids found, process each solid separately
+		for (; solidExplorer.More(); solidExplorer.Next())
+		{
+			// Extract the current solid
+			TopoDS_Solid solid = TopoDS::Solid(solidExplorer.Current());
 
-            // Create a node for this mesh
-            aiNode* meshNode = new aiNode();
+			// Indexed map to collect faces of the solid
+			TopTools_IndexedMapOfShape faceGroup;
 
-            // Assign the mesh index to the node
-            meshNode->mMeshes = new unsigned int[1]{static_cast<unsigned int>(meshIndex)};
-            meshNode->mNumMeshes = 1;
+			// Explorer to iterate over faces in the solid
+			TopExp_Explorer faceExplorer(solid, TopAbs_FACE);
+			for (; faceExplorer.More(); faceExplorer.Next())
+			{
+				faceGroup.Add(faceExplorer.Current());
+			}
 
-            // Set the parent of this node to the root node of the scene
-            meshNode->mParent = scene->mRootNode;
+			// Convert the collected faces into a mesh
+			aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
+			if (mesh)
+			{
+				// Add the mesh to the list
+				meshes.push_back(mesh);
 
-            // Name the node and mesh using the mesh index
-            meshNode->mName = name;// aiString("Mesh_" + std::to_string(meshIndex));
-            mesh->mName = name;// aiString("Mesh_" + std::to_string(meshIndex));
+				// Create a node for this mesh
+				aiNode* meshNode = new aiNode();
 
-            // Store the node
-            meshNodes.push_back(meshNode);
+				// Assign the mesh index to the node
+				meshNode->mMeshes = new unsigned int[1] {static_cast<unsigned int>(meshIndex)};
+				meshNode->mNumMeshes = 1;
 
-            // Increment mesh index for next mesh
-            ++meshIndex;
-        }
-    } else {
-        // Solids found, process each solid separately
-        for (; solidExplorer.More(); solidExplorer.Next()) {
-            // Extract the current solid
-            TopoDS_Solid solid = TopoDS::Solid(solidExplorer.Current());
+				// Set the parent of this node to the root node of the scene
+				meshNode->mParent = scene->mRootNode;
 
-            // Indexed map to collect faces of the solid
-            TopTools_IndexedMapOfShape faceGroup;
+				// Name the node and mesh using the mesh index, indicating it comes from a solid
+				meshNode->mName = name;// aiString("SolidMesh_" + std::to_string(meshIndex));
+				mesh->mName = name;// aiString("SolidMesh_" + std::to_string(meshIndex));
 
-            // Explorer to iterate over faces in the solid
-            TopExp_Explorer faceExplorer(solid, TopAbs_FACE);
-            for (; faceExplorer.More(); faceExplorer.Next()) {
-                faceGroup.Add(faceExplorer.Current());
-            }
+				// Store the node
+				meshNodes.push_back(meshNode);
 
-            // Convert the collected faces into a mesh
-            aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
-            if (mesh) {
+				// Increment mesh index for next mesh
+				++meshIndex;
+			}
+		}
+	}
 
-                /*
-                // 🔴 Create a new material
-                aiMaterial* material = new aiMaterial();
+	// Assign the collected meshes to the scene
+	scene->mNumMeshes = meshes.size();
+	scene->mMeshes = new aiMesh * [scene->mNumMeshes];
+	for (size_t i = 0; i < meshes.size(); ++i)
+	{
+		scene->mMeshes[i] = meshes[i];
+	}
 
-                // 🛠 Apply the incoming color immediately
-                if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
-                {
-                    aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
-                    material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
-                }
+	// Assign the mesh nodes as children of the root node
+	scene->mRootNode->mNumChildren = meshNodes.size();
+	scene->mRootNode->mChildren = new aiNode * [meshNodes.size()];
+	for (size_t i = 0; i < meshNodes.size(); ++i)
+	{
+		scene->mRootNode->mChildren[i] = meshNodes[i];
+	}
 
-                // Add this material to the scene (we'll track them in a vector)
-                scene->mMaterials = static_cast<aiMaterial**>(
-                    realloc(scene->mMaterials, sizeof(aiMaterial*) * (scene->mNumMaterials + 1)));
-                scene->mMaterials[scene->mNumMaterials] = material;
+	// Create a default material for the scene
+	scene->mMaterials = new aiMaterial * [1];
+	aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
+	aiMaterial* material = new aiMaterial;
+	material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+	scene->mMaterials[0] = material;
+	scene->mNumMaterials = 1;
 
-                // Update material count
-                ++scene->mNumMaterials;
-                */
+	// Update material count
+	++scene->mNumMaterials;
 
-                // Assign this material to the mesh
-                mesh->mMaterialIndex = scene->mNumMaterials -1;
-                
-                   
-
-                // Add the mesh to the list
-                meshes.push_back(mesh);
-
-                // Create a node for this mesh
-                aiNode* meshNode = new aiNode();
-
-                // Assign the mesh index to the node
-                meshNode->mMeshes = new unsigned int[1]{static_cast<unsigned int>(meshIndex)};
-                meshNode->mNumMeshes = 1;
-
-                // Set the parent of this node to the root node of the scene
-                meshNode->mParent = scene->mRootNode;
-
-                // Name the node and mesh using the mesh index, indicating it comes from a solid
-                meshNode->mName = name;// aiString("SolidMesh_" + std::to_string(meshIndex));
-                mesh->mName = name;// aiString("SolidMesh_" + std::to_string(meshIndex));
-
-                // Store the node
-                meshNodes.push_back(meshNode);
-
-                // Increment mesh index for next mesh
-                ++meshIndex;
-            }
-        }
-    }
-
-    // Assign the collected meshes to the scene
-    scene->mNumMeshes = meshes.size();
-    scene->mMeshes = new aiMesh*[scene->mNumMeshes];
-    for (size_t i = 0; i < meshes.size(); ++i) {
-        scene->mMeshes[i] = meshes[i];
-    }
-
-    // Assign the mesh nodes as children of the root node
-    scene->mRootNode->mNumChildren = meshNodes.size();
-    scene->mRootNode->mChildren = new aiNode*[meshNodes.size()];
-    for (size_t i = 0; i < meshNodes.size(); ++i) {
-        scene->mRootNode->mChildren[i] = meshNodes[i];
-    }
-
-    // Create a default material for the scene
-    scene->mMaterials = new aiMaterial*[1];
-    aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
-    aiMaterial* material = new aiMaterial;
-    material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
-    scene->mMaterials[0] = material;
-    scene->mNumMaterials = 1;
-
-    // Update material count
-    ++scene->mNumMaterials;
-
-    // Return the constructed scene
-    return scene;
+	// Return the constructed scene
+	return scene;
 }
 
 
@@ -420,133 +398,140 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantit
  * @param meshIndex An integer index that can be used to identify the created mesh (unused here).
  * @return aiMesh* Pointer to the generated Assimp mesh. Returns nullptr if no vertices are processed.
  */
-aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex) {
-    // Container vectors for the combined mesh data: vertices, normals, texture coordinates, and faces
-    std::vector<aiVector3D> vertices, normals, texCoords;
-    std::vector<aiFace> faces;
-    int vertexOffset = 0; // Tracks global vertex index offset for face indices
+aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex)
+{
+	// Container vectors for the combined mesh data: vertices, normals, texture coordinates, and faces
+	std::vector<aiVector3D> vertices, normals, texCoords;
+	std::vector<aiFace> faces;
+	int vertexOffset = 0; // Tracks global vertex index offset for face indices
 
-    // Compute deflection for mesh tessellation based on the bounding box of the entire face group
-    // Deflection controls the tessellation granularity (here 5% of bounding box diagonal)
-    Standard_Real deflection =  computeDeflectionFromBBox(faceGroup, 0.05);
+	// Compute deflection for mesh tessellation based on the bounding box of the entire face group
+	// Deflection controls the tessellation granularity (here 5% of bounding box diagonal)
+	Standard_Real deflection = computeDeflectionFromBBox(faceGroup, 0.05);
 
-    // Loop over each face in the input group
-    for (int f = 1; f <= faceGroup.Extent(); ++f) {
-        TopoDS_Face face = TopoDS::Face(faceGroup(f));
+	// Loop over each face in the input group
+	for (int f = 1; f <= faceGroup.Extent(); ++f)
+	{
+		TopoDS_Face face = TopoDS::Face(faceGroup(f));
 
-        // Generate mesh triangulation on the face with the computed deflection
-        BRepMesh_IncrementalMesh(face, deflection);
+		// Generate mesh triangulation on the face with the computed deflection
+		BRepMesh_IncrementalMesh(face, deflection);
 
-        // Retrieve the triangulation and its location transformation on the face
-        TopLoc_Location loc;
-        Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation(face, loc);
-        if (triangulation.IsNull()) continue; // Skip faces that failed to triangulate
+		// Retrieve the triangulation and its location transformation on the face
+		TopLoc_Location loc;
+		Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation(face, loc);
+		if (triangulation.IsNull()) continue; // Skip faces that failed to triangulate
 
-        gp_Trsf trsf = loc.Transformation();
+		gp_Trsf trsf = loc.Transformation();
 
-        int nNodes = triangulation->NbNodes();
-        int nTriangles = triangulation->NbTriangles();
+		int nNodes = triangulation->NbNodes();
+		int nTriangles = triangulation->NbTriangles();
 
-        // Initialize bounding box for UV coordinate computation
-        double minX = 1e10, maxX = -1e10, minY = 1e10, maxY = -1e10;
-        std::vector<gp_Pnt> points(nNodes);
+		// Initialize bounding box for UV coordinate computation
+		double minX = 1e10, maxX = -1e10, minY = 1e10, maxY = -1e10;
+		std::vector<gp_Pnt> points(nNodes);
 
-        // Transform all nodes in the triangulation to global coordinates
-        // and compute bounding box in the XY plane to generate UV map
-        for (int i = 1; i <= nNodes; ++i) {
-            gp_Pnt p = triangulation->Node(i).Transformed(trsf);
-            points[i - 1] = p;
-            minX = std::min(minX, p.X());
-            maxX = std::max(maxX, p.X());
-            minY = std::min(minY, p.Y());
-            maxY = std::max(maxY, p.Y());
-        }
-        // Avoid division by zero in UV normalization
-        double deltaX = (maxX - minX == 0) ? 1 : (maxX - minX);
-        double deltaY = (maxY - minY == 0) ? 1 : (maxY - minY);
+		// Transform all nodes in the triangulation to global coordinates
+		// and compute bounding box in the XY plane to generate UV map
+		for (int i = 1; i <= nNodes; ++i)
+		{
+			gp_Pnt p = triangulation->Node(i).Transformed(trsf);
+			points[i - 1] = p;
+			minX = std::min(minX, p.X());
+			maxX = std::max(maxX, p.X());
+			minY = std::min(minY, p.Y());
+			maxY = std::max(maxY, p.Y());
+		}
+		// Avoid division by zero in UV normalization
+		double deltaX = (maxX - minX == 0) ? 1 : (maxX - minX);
+		double deltaY = (maxY - minY == 0) ? 1 : (maxY - minY);
 
-        // Local containers for the current face's vertex data
-        std::vector<aiVector3D> localVertices;
-        std::vector<aiVector3D> localNormals(nNodes);
-        std::vector<aiVector3D> localUVs;
+		// Local containers for the current face's vertex data
+		std::vector<aiVector3D> localVertices;
+		std::vector<aiVector3D> localNormals(nNodes);
+		std::vector<aiVector3D> localUVs;
 
-        // Create local vertex positions and UV texture coordinates from points
-        for (int i = 0; i < nNodes; ++i) {
-            const gp_Pnt& p = points[i];
-            localVertices.emplace_back(p.X(), p.Y(), p.Z());
-            // UV coordinates normalized based on XY bounding box of the face
-            localUVs.emplace_back((p.X() - minX) / deltaX, (p.Y() - minY) / deltaY, 0.0f);
-        }
+		// Create local vertex positions and UV texture coordinates from points
+		for (int i = 0; i < nNodes; ++i)
+		{
+			const gp_Pnt& p = points[i];
+			localVertices.emplace_back(p.X(), p.Y(), p.Z());
+			// UV coordinates normalized based on XY bounding box of the face
+			localUVs.emplace_back((p.X() - minX) / deltaX, (p.Y() - minY) / deltaY, 0.0f);
+		}
 
-        // Calculate normals per triangle and assign them to the vertices of the triangle
-        for (int i = 1; i <= nTriangles; ++i) {
-            Standard_Integer n1, n2, n3;
-            triangulation->Triangle(i).Get(n1, n2, n3);
-            // Convert 1-based indices to 0-based
-            --n1; --n2; --n3;
+		// Calculate normals per triangle and assign them to the vertices of the triangle
+		for (int i = 1; i <= nTriangles; ++i)
+		{
+			Standard_Integer n1, n2, n3;
+			triangulation->Triangle(i).Get(n1, n2, n3);
+			// Convert 1-based indices to 0-based
+			--n1; --n2; --n3;
 
-            const aiVector3D& v0 = localVertices[n1];
-            const aiVector3D& v1 = localVertices[n2];
-            const aiVector3D& v2 = localVertices[n3];
+			const aiVector3D& v0 = localVertices[n1];
+			const aiVector3D& v1 = localVertices[n2];
+			const aiVector3D& v2 = localVertices[n3];
 
-            // Compute face normal using cross product of two edges
-            aiVector3D normal = (v1 - v0) ^ (v2 - v0);
-            normal.Normalize();
+			// Compute face normal using cross product of two edges
+			aiVector3D normal = (v1 - v0) ^ (v2 - v0);
+			normal.Normalize();
 
-            // Assign the computed normal to each vertex of the triangle
-            // This simple approach assigns face normals directly, no smoothing done here
-            localNormals[n1] = normal;
-            localNormals[n2] = normal;
-            localNormals[n3] = normal;
+			// Assign the computed normal to each vertex of the triangle
+			// This simple approach assigns face normals directly, no smoothing done here
+			localNormals[n1] = normal;
+			localNormals[n2] = normal;
+			localNormals[n3] = normal;
 
-            // Construct a face with indices adjusted for the global vertex offset
-            aiFace face;
-            face.mNumIndices = 3;
-            face.mIndices = new unsigned int[3] {
-                static_cast<unsigned int>(vertexOffset + n1),
-                static_cast<unsigned int>(vertexOffset + n2),
-                static_cast<unsigned int>(vertexOffset + n3)
-            };
-            faces.push_back(face);
-        }
+			// Construct a face with indices adjusted for the global vertex offset
+			aiFace face;
+			face.mNumIndices = 3;
+			face.mIndices = new unsigned int[3] {
+				static_cast<unsigned int>(vertexOffset + n1),
+					static_cast<unsigned int>(vertexOffset + n2),
+					static_cast<unsigned int>(vertexOffset + n3)
+				};
+			faces.push_back(face);
+		}
 
-        // Append the local face data to the global containers
-        vertices.insert(vertices.end(), localVertices.begin(), localVertices.end());
-        texCoords.insert(texCoords.end(), localUVs.begin(), localUVs.end());
-        normals.insert(normals.end(), localNormals.begin(), localNormals.end());
-        vertexOffset = vertices.size(); // Update vertex offset for next face
-    }
+		// Append the local face data to the global containers
+		vertices.insert(vertices.end(), localVertices.begin(), localVertices.end());
+		texCoords.insert(texCoords.end(), localUVs.begin(), localUVs.end());
+		normals.insert(normals.end(), localNormals.begin(), localNormals.end());
+		vertexOffset = vertices.size(); // Update vertex offset for next face
+	}
 
-    // Return nullptr if no vertices were created (empty mesh)
-    if (vertices.empty()) return nullptr;
+	// Return nullptr if no vertices were created (empty mesh)
+	if (vertices.empty()) return nullptr;
 
-    // Create new Assimp mesh and allocate memory for vertex data
-    aiMesh* mesh = new aiMesh();
-    mesh->mPrimitiveTypes = aiPrimitiveType_TRIANGLE;
-    mesh->mNumVertices = vertices.size();
-    mesh->mVertices = new aiVector3D[vertices.size()];
-    mesh->mNormals = new aiVector3D[normals.size()];
-    mesh->mTextureCoords[0] = new aiVector3D[texCoords.size()];
-    mesh->mNumUVComponents[0] = 2; // UV coordinates have two components (u,v)
+	// Create new Assimp mesh and allocate memory for vertex data
+	aiMesh* mesh = new aiMesh();
+	mesh->mPrimitiveTypes = aiPrimitiveType_TRIANGLE;
+	mesh->mNumVertices = vertices.size();
+	mesh->mVertices = new aiVector3D[vertices.size()];
+	mesh->mNormals = new aiVector3D[normals.size()];
+	mesh->mTextureCoords[0] = new aiVector3D[texCoords.size()];
+	mesh->mNumUVComponents[0] = 2; // UV coordinates have two components (u,v)
 
-    // Copy vertex positions, normals, and texture coordinates into the mesh arrays
-    for (size_t i = 0; i < vertices.size(); ++i) {
-        mesh->mVertices[i] = vertices[i];
-        mesh->mNormals[i] = normals[i];
-        mesh->mTextureCoords[0][i] = texCoords[i];
-    }
+	// Copy vertex positions, normals, and texture coordinates into the mesh arrays
+	for (size_t i = 0; i < vertices.size(); ++i)
+	{
+		mesh->mVertices[i] = vertices[i];
+		mesh->mNormals[i] = normals[i];
+		mesh->mTextureCoords[0][i] = texCoords[i];
+	}
 
-    // Allocate and copy face (triangle) data
-    mesh->mNumFaces = faces.size();
-    mesh->mFaces = new aiFace[faces.size()];
-    for (size_t i = 0; i < faces.size(); ++i) {
-        mesh->mFaces[i] = faces[i];
-    }
+	// Allocate and copy face (triangle) data
+	mesh->mNumFaces = faces.size();
+	mesh->mFaces = new aiFace[faces.size()];
+	for (size_t i = 0; i < faces.size(); ++i)
+	{
+		mesh->mFaces[i] = faces[i];
+	}
 
-    // Default material index assigned to zero since no material handling here
-    mesh->mMaterialIndex = 0;
+	// Default material index assigned to zero since no material handling here
+	mesh->mMaterialIndex = 0;
 
-    return mesh;
+	return mesh;
 }
 
 
@@ -562,32 +547,32 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
  */
 aiNode* BRepToAssimpConverter::cloneNodeDeep(const aiNode* src)
 {
-    // Create a new node and copy basic properties
-    aiNode* dest = new aiNode();
-    dest->mName = src->mName;
-    dest->mTransformation = src->mTransformation;
-    dest->mNumMeshes = src->mNumMeshes;
+	// Create a new node and copy basic properties
+	aiNode* dest = new aiNode();
+	dest->mName = src->mName;
+	dest->mTransformation = src->mTransformation;
+	dest->mNumMeshes = src->mNumMeshes;
 
-    // Copy mesh indices if present
-    if (src->mNumMeshes > 0)
-    {
-        dest->mMeshes = new unsigned int[src->mNumMeshes];
-        std::copy(src->mMeshes, src->mMeshes + src->mNumMeshes, dest->mMeshes);
-    }
+	// Copy mesh indices if present
+	if (src->mNumMeshes > 0)
+	{
+		dest->mMeshes = new unsigned int[src->mNumMeshes];
+		std::copy(src->mMeshes, src->mMeshes + src->mNumMeshes, dest->mMeshes);
+	}
 
-    // Recursively clone child nodes
-    dest->mNumChildren = src->mNumChildren;
-    if (src->mNumChildren > 0)
-    {
-        dest->mChildren = new aiNode*[src->mNumChildren];
-        for (unsigned int i = 0; i < src->mNumChildren; ++i)
-        {
-            dest->mChildren[i] = cloneNodeDeep(src->mChildren[i]);
-            dest->mChildren[i]->mParent = dest;  // Set parent pointer in cloned child
-        }
-    }
+	// Recursively clone child nodes
+	dest->mNumChildren = src->mNumChildren;
+	if (src->mNumChildren > 0)
+	{
+		dest->mChildren = new aiNode * [src->mNumChildren];
+		for (unsigned int i = 0; i < src->mNumChildren; ++i)
+		{
+			dest->mChildren[i] = cloneNodeDeep(src->mChildren[i]);
+			dest->mChildren[i]->mParent = dest;  // Set parent pointer in cloned child
+		}
+	}
 
-    return dest;
+	return dest;
 }
 
 /**
@@ -603,24 +588,24 @@ aiNode* BRepToAssimpConverter::cloneNodeDeep(const aiNode* src)
  */
 Standard_Real BRepToAssimpConverter::computeDeflectionFromBBox(const TopTools_IndexedMapOfShape& faceGroup, Standard_Real percent)
 {
-    Bnd_Box bbox;
+	Bnd_Box bbox;
 
-    // Accumulate bounding box of all faces in the group
-    for (int i = 1; i <= faceGroup.Extent(); ++i)
-    {
-        BRepBndLib::Add(faceGroup(i), bbox);
-    }
+	// Accumulate bounding box of all faces in the group
+	for (int i = 1; i <= faceGroup.Extent(); ++i)
+	{
+		BRepBndLib::Add(faceGroup(i), bbox);
+	}
 
-    // Extract bounding box limits
-    Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
-    bbox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+	// Extract bounding box limits
+	Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
+	bbox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
 
-    // Compute diagonal length of bounding box
-    gp_Pnt pMin(xmin, ymin, zmin);
-    gp_Pnt pMax(xmax, ymax, zmax);
-    Standard_Real diag = pMin.Distance(pMax);
+	// Compute diagonal length of bounding box
+	gp_Pnt pMin(xmin, ymin, zmin);
+	gp_Pnt pMax(xmax, ymax, zmax);
+	Standard_Real diag = pMin.Distance(pMax);
 
-    // Return deflection as a fraction of the diagonal
-    return percent * diag;
+	// Return deflection as a fraction of the diagonal
+	return percent * diag;
 }
 
