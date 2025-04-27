@@ -678,19 +678,11 @@ void TriangleMesh::computeBounds()
 	_boundingSphere.setCenter(center);
 	_boundingSphere.setRadius(radius);
 
-	QList<float> xVals, yVals, zVals;
-	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
-	{
-		xVals.push_back(_trsfpoints.at(i));
-		yVals.push_back(_trsfpoints.at(i + 1));
-		zVals.push_back(_trsfpoints.at(i + 2));
-	}
-	std::sort(xVals.begin(), xVals.end(), std::less<float>());
-	std::sort(yVals.begin(), yVals.end(), std::less<float>());
-	std::sort(zVals.begin(), zVals.end(), std::less<float>());
-	_boundingBox.setLimits(xVals.first(), xVals.last(),
-		yVals.first(), yVals.last(),
-		zVals.first(), zVals.last());
+	_boundingBox.setLimits(
+		xmin.x(), xmax.x(),
+		ymin.y(), ymax.y(),
+		zmin.z(), zmax.z()
+	);
 	Point cen = _boundingBox.center();
 }
 
