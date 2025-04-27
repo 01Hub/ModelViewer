@@ -41,7 +41,6 @@ jobs:
           sudo apt install          \
           ninja-build
 
-
       - name: Install macOS dependencies
         if: runner.os == 'macOS'
         run: |
