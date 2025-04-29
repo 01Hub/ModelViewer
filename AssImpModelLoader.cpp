@@ -122,10 +122,6 @@ void AssImpModelLoader::loadModel(string path)
 	}
 	else if (fi.suffix().toLower() == "iges" || fi.suffix().toLower() == "igs")
 	{
-		/*
-		
-		*/
-
 		// Initialize IGES controller inside session
 		IGESControl_Controller::Init();
 
@@ -172,25 +168,17 @@ void AssImpModelLoader::loadModel(string path)
 
 			// Color (if available)
 			Quantity_Color color = Quantity_NOC_GRAY90; // default: light gray
-
-			Quantity_Color c;
-			XCAFDoc_ColorType ct;
-			if (colorTool->GetColor(label, XCAFDoc_ColorGen, c) ||
-				colorTool->GetColor(label, XCAFDoc_ColorSurf, c) ||
-				colorTool->GetColor(label, XCAFDoc_ColorCurv, c))
-			{
-				color = c;
-			}
-
+			
 			static const XCAFDoc_ColorType colorTypes[] = {
 				XCAFDoc_ColorSurf, XCAFDoc_ColorCurv, XCAFDoc_ColorGen
 			};
 
+			Quantity_Color c;
 			for (XCAFDoc_ColorType type : colorTypes)
 			{
 				if (colorTool->GetColor(shape, type, c))
 					color = c;
-				if (colorTool->GetInstanceColor(shape, type, c))
+				else if (colorTool->GetInstanceColor(shape, type, c))
 					color = c;
 			}
 
@@ -201,7 +189,7 @@ void AssImpModelLoader::loadModel(string path)
 		scene = BRepToAssimpConverter::convert(shapeTuples);		
 		
 	}
-	else
+	else // all Assimp models
 	{
 		// Read file via ASSIMP
 		_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
