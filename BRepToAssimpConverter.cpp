@@ -80,8 +80,21 @@ aiScene* BRepToAssimpConverter::convert(const Handle(TopTools_HSequenceOfShape)&
 				// Set color only if no texture
 				if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
 				{
-					aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
-					material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+					// Diffuse color (from STEP model)
+					aiColor3D diffuseColor(color.Red(), color.Green(), color.Blue());
+					material->AddProperty(&diffuseColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+
+					// Ambient color: dimmed diffuse (30%)
+					aiColor3D ambientColor = diffuseColor * 0.3f;
+					material->AddProperty(&ambientColor, 1, AI_MATKEY_COLOR_AMBIENT);
+
+					// Specular color: bright white
+					aiColor3D specularColor(0.8f, 0.8f, 1.0f);
+					material->AddProperty(&specularColor, 1, AI_MATKEY_COLOR_SPECULAR);
+
+					// Shininess
+					float shininess = 24.0f;
+					material->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
 				}
 			}
 
