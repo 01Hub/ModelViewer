@@ -2,12 +2,16 @@
 #include "Utils.h"
 
 #include "BRepToAssimpConverter.h"
-#include <STEPControl_Reader.hxx>
 #include <IGESControl_Reader.hxx>
+#include <set>
+#include <STEPControl_Reader.hxx>
+#include <TopoDS_Iterator.hxx>
 #include <XCAFApp_Application.hxx>
 #include <XCAFDoc.hxx>
-#include <TopoDS_Iterator.hxx>
-#include <set>
+#include <IGESControl_Controller.hxx>
+#include <IGESCAFControl_Reader.hxx>
+#include <Quantity_ColorRGBA.hxx>
+#include <XSControl_WorkSession.hxx>
 
 using namespace std;
 
@@ -50,6 +54,7 @@ vector<AssImpMesh*> AssImpModelLoader::getMeshes() const
 {
 	return _meshes;
 }
+
 
 /*  Functions   */
 // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
@@ -117,20 +122,84 @@ void AssImpModelLoader::loadModel(string path)
 	}
 	else if (fi.suffix().toLower() == "iges" || fi.suffix().toLower() == "igs")
 	{
-		Handle(TopTools_HSequenceOfShape) aSequence;
-		IGESControl_Reader reader;
-		if (reader.ReadFile(path.c_str()) != IFSelect_RetDone)
+		/*
+		
+		*/
+
+		// Initialize IGES controller inside session
+		IGESControl_Controller::Init();
+
+		Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+		Handle(TDocStd_Document) doc;
+		app->NewDocument("MDTV-XCAF", doc);
+
+		Handle(XSControl_WorkSession) workSession = new XSControl_WorkSession();
+			
+		// Read IGES file into XCAF document
+		IGESCAFControl_Reader cafReader;
+		
+		if (cafReader.ReadFile(path.c_str()) != IFSelect_RetDone)
 		{
-			qCritical("Failed to load IGES file");
+			qCritical("Failed to read IGES file: %s", path.c_str());
 			return;
 		}
-		aSequence = new TopTools_HSequenceOfShape();
-		reader.TransferRoots();
-		TopoDS_Shape aShape = reader.OneShape();
-		aSequence->Append(aShape);
+		
+		cafReader.Transfer(doc);
 
+		// Access shape tool and color tool
+		Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+		Handle(XCAFDoc_ColorTool) colorTool = XCAFDoc_DocumentTool::ColorTool(doc->Main());
 
-		scene = BRepToAssimpConverter::convert(aSequence);
+		// Collect free shapes (top-level shapes)
+		TDF_LabelSequence labels;
+		shapeTool->GetFreeShapes(labels);
+
+		// Prepare shape tuples
+		std::vector<ShapeWithNameAndTrsf> shapeTuples;
+
+		for (Standard_Integer i = 1; i <= labels.Length(); ++i)
+		{
+			const TDF_Label& label = labels.Value(i);
+			TopoDS_Shape shape = shapeTool->GetShape(label);
+			if (shape.IsNull())
+				continue;
+
+			// Artificial name (IGES usually has no names)
+			std::string name = "Shape_" + std::to_string(i);
+
+			// No transform (IGES rarely uses instancing, but we can still support it)
+			TopLoc_Location loc; // identity
+
+			// Color (if available)
+			Quantity_Color color = Quantity_NOC_GRAY90; // default: light gray
+
+			Quantity_Color c;
+			XCAFDoc_ColorType ct;
+			if (colorTool->GetColor(label, XCAFDoc_ColorGen, c) ||
+				colorTool->GetColor(label, XCAFDoc_ColorSurf, c) ||
+				colorTool->GetColor(label, XCAFDoc_ColorCurv, c))
+			{
+				color = c;
+			}
+
+			static const XCAFDoc_ColorType colorTypes[] = {
+				XCAFDoc_ColorSurf, XCAFDoc_ColorCurv, XCAFDoc_ColorGen
+			};
+
+			for (XCAFDoc_ColorType type : colorTypes)
+			{
+				if (colorTool->GetColor(shape, type, c))
+					color = c;
+				if (colorTool->GetInstanceColor(shape, type, c))
+					color = c;
+			}
+
+			shapeTuples.emplace_back(shape, name, loc, color);
+		}
+
+		// Convert to Assimp scene
+		scene = BRepToAssimpConverter::convert(shapeTuples);		
+		
 	}
 	else
 	{
