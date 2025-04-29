@@ -39,6 +39,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt install          \
+          libfontconfig1-dev        \
           ninja-build
 
       - name: Install macOS dependencies
