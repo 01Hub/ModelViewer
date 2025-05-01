@@ -140,6 +140,17 @@ aiScene* BRepToAssimpConverter::convert(const Handle(TopTools_HSequenceOfShape)&
 	return scene;
 }
 
+/**
+ * Converts a vector of shapes (with name, transformation, and color) into an Assimp aiScene.
+ *
+ * This method iterates over each shape in the provided vector, applies the specified transformation,
+ * and converts each shape into a sub-scene. The resulting meshes and nodes are aggregated into a single
+ * aiScene with a root node named "Root".
+ *
+ * @param shapeTuples A vector of tuples containing shapes, names, transformations, and colors.
+ * @return Pointer to the newly created aiScene containing all converted shapes,
+ *         or nullptr if the input vector is empty.
+ */
 aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples)
 {
 	if (shapeTuples.empty())
@@ -618,21 +629,29 @@ aiNode* BRepToAssimpConverter::cloneNodeDeep(const aiNode* src)
 Standard_Real BRepToAssimpConverter::computeDeflectionFromBBox(const TopTools_IndexedMapOfShape& faceGroup, Standard_Real percent)
 {
 	Bnd_Box bbox;
+	Standard_Real diag = 0.01; // Default deflection if no faces are present
 
-	// Accumulate bounding box of all faces in the group
-	for (int i = 1; i <= faceGroup.Extent(); ++i)
-	{
-		BRepBndLib::Add(faceGroup(i), bbox);
+	try {
+		// Accumulate bounding box of all faces in the group
+		for (int i = 1; i <= faceGroup.Extent(); ++i)
+		{
+			BRepBndLib::Add(faceGroup(i), bbox);
+		}
+
+		// Extract bounding box limits
+		Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
+		bbox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+
+		// Compute diagonal length of bounding box
+		gp_Pnt pMin(xmin, ymin, zmin);
+		gp_Pnt pMax(xmax, ymax, zmax);
+		diag = pMin.Distance(pMax);
 	}
-
-	// Extract bounding box limits
-	Standard_Real xmin, ymin, zmin, xmax, ymax, zmax;
-	bbox.Get(xmin, ymin, zmin, xmax, ymax, zmax);
-
-	// Compute diagonal length of bounding box
-	gp_Pnt pMin(xmin, ymin, zmin);
-	gp_Pnt pMax(xmax, ymax, zmax);
-	Standard_Real diag = pMin.Distance(pMax);
+	catch (Standard_Failure& e)
+	{
+		// Handle exceptions gracefully, log if necessary
+		std::cerr << "Error computing bounding box: " << e.GetMessageString() << std::endl;
+	}
 
 	// Return deflection as a fraction of the diagonal
 	return percent * diag;
