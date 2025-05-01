@@ -3538,14 +3538,14 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 	checkAndStopTimers();
 	if (e->button() & Qt::LeftButton)
 	{
-		_leftButtonPoint.setX(e->x());
-		_leftButtonPoint.setY(e->y());
+		_leftButtonPoint.setX(e->position().x());
+		_leftButtonPoint.setY(e->position().y());
 
 		if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
 			&& !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			// Selection
-			clickSelect(QPoint(e->x(), e->y()));
+			clickSelect(QPoint(e->position().x(), e->position().y()));
 		}
 
 
@@ -3555,14 +3555,14 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 
 	if ((e->button() & Qt::RightButton) || ((e->button() & Qt::LeftButton) && _viewPanning))
 	{
-		_rightButtonPoint.setX(e->x());
-		_rightButtonPoint.setY(e->y());
+		_rightButtonPoint.setX(e->position().x());
+		_rightButtonPoint.setY(e->position().y());
 	}
 
 	if (e->button() & Qt::MiddleButton || ((e->button() & Qt::LeftButton) && _viewRotating))
 	{
-		_middleButtonPoint.setX(e->x());
-		_middleButtonPoint.setY(e->y());
+		_middleButtonPoint.setX(e->position().x());
+		_middleButtonPoint.setY(e->position().y());
 	}
 }
 
@@ -3612,7 +3612,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 
 void GLWidget::mouseMoveEvent(QMouseEvent* e)
 {
-	QPoint downPoint(e->x(), e->y());
+	QPoint downPoint(e->position().x(), e->position().y());
 	if (e->buttons() == Qt::LeftButton && !_viewPanning && !_viewZooming)
 	{
 		if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)
