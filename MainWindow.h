@@ -47,6 +47,8 @@ public:
 
 	static void showStatusMessage(const QString& message, int timeout = 0);
 	static void showProgressBar();
+	static void showIndeterminateProgressBar();
+	static void resetProgressBar();
 	static void hideProgressBar();
 	static void setProgressValue(const int& value);
 

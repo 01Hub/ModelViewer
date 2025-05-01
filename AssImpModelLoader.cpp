@@ -129,8 +129,8 @@ void AssImpModelLoader::loadModel(string path)
 		Handle(XCAFApp_Application)::DownCast(XCAFApp_Application::GetApplication())->NewDocument("MDTV-XCAF", doc);
 
 		try
-		{
-			readSTEPFile(path.c_str(), doc);
+		{			
+			readSTEPFile(path.c_str(), doc);			
 		}
 		catch (const std::exception& e)
 		{
@@ -203,23 +203,25 @@ void AssImpModelLoader::loadModel(string path)
 		Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
 		Handle(TDocStd_Document) doc;
 		app->NewDocument("MDTV-XCAF", doc);
+		
+		MainWindow::showIndeterminateProgressBar();
 
-		Handle(XSControl_WorkSession) workSession = new XSControl_WorkSession();
-			
-		// Read IGES file into XCAF document
-		IGESCAFControl_Reader cafReader;
-		
-		if (cafReader.ReadFile(path.c_str()) != IFSelect_RetDone)
-		{
-			qCritical("Failed to read IGES file: %s", path.c_str());
-			return;
-		}
-		
-		MainWindow::showStatusMessage("Transfering shape...");
 		Handle(ConsoleProgressIndicator) progress = new ConsoleProgressIndicator();
 		Message_ProgressRange rootRange = progress->Start();
 
 		Message_ProgressScope transferScope(rootRange, "IGES Transfer", -1);
+
+		// Read IGES file into XCAF document
+		IGESCAFControl_Reader cafReader;
+		if (cafReader.ReadFile(path.c_str()) != IFSelect_RetDone)
+		{
+			qCritical("Failed to read IGES file: %s", path.c_str());
+			MainWindow::resetProgressBar();
+			return;
+		}
+		MainWindow::resetProgressBar();
+		
+		MainWindow::showStatusMessage("Transfering shape...");		
 
 		cafReader.Transfer(doc, transferScope.Next());
 
@@ -283,20 +285,24 @@ void AssImpModelLoader::loadModel(string path)
 
 // Read s STEP file
 void AssImpModelLoader::readSTEPFile(const std::string& filename, Handle(TDocStd_Document)& doc)
-{
-	Handle(ConsoleProgressIndicator) progress = new ConsoleProgressIndicator();
-	Message_ProgressRange rootRange = progress->Start();
-	
-	Message_ProgressScope transferScope(rootRange, "STEP Transfer", -1);
-
+{	
 	STEPCAFControl_Reader reader;
 #ifdef __DEBUG__
 	auto startCount = std::chrono::high_resolution_clock::now();
 #endif
+	MainWindow::showIndeterminateProgressBar();
+
+	Handle(ConsoleProgressIndicator) progress = new ConsoleProgressIndicator();
+	Message_ProgressRange rootRange = progress->Start();
+
+	Message_ProgressScope transferScope(rootRange, "STEP Transfer", -1);
+
 	if (!reader.ReadFile(filename.c_str()))
 	{
-		throw std::runtime_error("Cannot read STEP file");
+		MainWindow::resetProgressBar();
+		throw std::runtime_error("Cannot read STEP file");		
 	}
+	MainWindow::resetProgressBar();
 	
 #ifdef __DEBUG__
 	auto endCount = std::chrono::high_resolution_clock::now();
@@ -308,6 +314,7 @@ void AssImpModelLoader::readSTEPFile(const std::string& filename, Handle(TDocStd
 #endif
 	
 	MainWindow::showStatusMessage("Transferring shapes..");
+	
 	if (!reader.Transfer(doc, transferScope.Next()))
 	{
 		throw std::runtime_error("Cannot transfer STEP data to XCAF document");

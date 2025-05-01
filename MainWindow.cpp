@@ -190,6 +190,22 @@ void MainWindow::showProgressBar()
 	_mainWindow->_cancelTaskButton->show();
 }
 
+void MainWindow::showIndeterminateProgressBar()
+{
+	_mainWindow->_progressBar->setRange(0, 0);
+	_mainWindow->_progressBar->show();	
+#if defined _WIN32 && QT_VERSION_MAJOR == 5
+	_mainWindow->_windowsTaskbarProgress->show();
+#endif 
+	_mainWindow->_cancelTaskButton->show();
+}
+
+void MainWindow::resetProgressBar()
+{
+	_mainWindow->_progressBar->reset();
+	_mainWindow->_progressBar->setRange(0, 100);	
+}
+
 void MainWindow::hideProgressBar()
 {
 	_mainWindow->_progressBar->hide();
