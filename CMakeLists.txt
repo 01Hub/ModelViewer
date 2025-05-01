@@ -44,7 +44,7 @@ configure_file(
   @ONLY
 )
 
-file(GLOB sources *.cpp *.h)
+file(GLOB sources *.cpp *.cxx *.h *.hxx)
 file(GLOB ui_sources *.ui)
 
 qt_wrap_ui(ui_wrapped ${ui_sources})
