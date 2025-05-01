@@ -215,7 +215,13 @@ void AssImpModelLoader::loadModel(string path)
 			return;
 		}
 		
-		cafReader.Transfer(doc);
+		MainWindow::showStatusMessage("Transfering shape...");
+		Handle(ConsoleProgressIndicator) progress = new ConsoleProgressIndicator();
+		Message_ProgressRange rootRange = progress->Start();
+
+		Message_ProgressScope transferScope(rootRange, "IGES Transfer", -1);
+
+		cafReader.Transfer(doc, transferScope.Next());
 
 		// Access shape tool and color tool
 		Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
@@ -225,42 +231,27 @@ void AssImpModelLoader::loadModel(string path)
 		TDF_LabelSequence labels;
 		shapeTool->GetFreeShapes(labels);
 
-		// Prepare shape tuples
-		std::vector<ShapeWithNameAndTrsf> shapeTuples;
+		// Traverse the assembly structure and extract shapes and names
+		std::vector<TopoDS_Shape> shapes;
+		std::vector<std::string> names;
+		std::vector<Quantity_Color> colors;
+
+		MainWindow::showStatusMessage("Traversing assembly...");
 
 		for (Standard_Integer i = 1; i <= labels.Length(); ++i)
 		{
-			const TDF_Label& label = labels.Value(i);
-			TopoDS_Shape shape = shapeTool->GetShape(label);
-			if (shape.IsNull())
-				continue;
+			traverseSTEPAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), shapes, colors, names);
+		}
 
-			// Artificial name (IGES usually has no names)
-			std::string name = "Shape_" + std::to_string(i);
-
-			// No transform (IGES rarely uses instancing, but we can still support it)
-			TopLoc_Location loc; // identity
-
-			// Color (if available)
-			Quantity_Color color = Quantity_NOC_GRAY90; // default: light gray
-			
-			static const XCAFDoc_ColorType colorTypes[] = {
-				XCAFDoc_ColorSurf, XCAFDoc_ColorCurv, XCAFDoc_ColorGen
-			};
-
-			Quantity_Color c;
-			for (XCAFDoc_ColorType type : colorTypes)
-			{
-				if (colorTool->GetColor(shape, type, c))
-					color = c;
-				else if (colorTool->GetInstanceColor(shape, type, c))
-					color = c;
-			}
-
-			shapeTuples.emplace_back(shape, name, loc, color);
+		// Add shapes and names to the tuple vector
+		std::vector<ShapeWithNameAndTrsf> shapeTuples;
+		for (int i = 0; i < shapes.size(); i++)
+		{
+			shapeTuples.emplace_back(shapes[i], names[i], TopLoc_Location(), colors[i]);
 		}
 
 		// Convert to Assimp scene
+		MainWindow::showStatusMessage("Converting shapes to mesh...");
 		scene = BRepToAssimpConverter::convert(shapeTuples);		
 		
 	}
