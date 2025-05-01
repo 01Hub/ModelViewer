@@ -1,16 +1,17 @@
 ﻿#include "AssImpModelLoader.h"
-#include "Utils.h"
-
 #include "BRepToAssimpConverter.h"
+#include "ConsoleProgressIndicator.hxx"
+#include "MainWindow.h"
+#include "Utils.h"
+#include <IGESCAFControl_Reader.hxx>
+#include <IGESControl_Controller.hxx>
 #include <IGESControl_Reader.hxx>
+#include <Quantity_ColorRGBA.hxx>
 #include <set>
 #include <STEPControl_Reader.hxx>
 #include <TopoDS_Iterator.hxx>
 #include <XCAFApp_Application.hxx>
 #include <XCAFDoc.hxx>
-#include <IGESControl_Controller.hxx>
-#include <IGESCAFControl_Reader.hxx>
-#include <Quantity_ColorRGBA.hxx>
 #include <XSControl_WorkSession.hxx>
 
 using namespace std;
@@ -56,6 +57,52 @@ vector<AssImpMesh*> AssImpModelLoader::getMeshes() const
 }
 
 
+void CollectDisplayableShapes(
+	const Handle(XCAFDoc_ShapeTool)& shapeTool,
+	const TDF_Label& label,
+	TopTools_IndexedMapOfShape& collectedShapes)
+{
+	if (shapeTool->IsAssembly(label)) {
+		TDF_LabelSequence children;
+		shapeTool->GetComponents(label, children);
+		for (Standard_Integer i = 1; i <= children.Length(); ++i) {
+			CollectDisplayableShapes(shapeTool, children.Value(i), collectedShapes);
+		}
+	}
+	else if (shapeTool->IsReference(label)) {
+		TDF_Label referred;
+		TDF_Label tmp;
+		if (shapeTool->GetReferredShape(label, tmp))
+		{
+			referred = tmp;
+		}
+		CollectDisplayableShapes(shapeTool, referred, collectedShapes);
+	}
+	else if (shapeTool->IsSimpleShape(label)) {
+		TopoDS_Shape shape = shapeTool->GetShape(label);
+		if (!shape.IsNull()) {
+			collectedShapes.Add(shape);
+		}
+	}
+	// Compound and others can be handled here if needed
+}
+
+int CountAllDisplayableShapes(const Handle(TDocStd_Document)& doc)
+{
+	Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+	TDF_LabelSequence topLevelShapes;
+	shapeTool->GetShapes(topLevelShapes);
+
+	TopTools_IndexedMapOfShape collectedShapes;
+
+	for (Standard_Integer i = 1; i <= topLevelShapes.Length(); ++i) {
+		CollectDisplayableShapes(shapeTool, topLevelShapes.Value(i), collectedShapes);
+	}
+
+	return collectedShapes.Extent();
+}
+
+
 /*  Functions   */
 // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
 void AssImpModelLoader::loadModel(string path)
@@ -68,6 +115,12 @@ void AssImpModelLoader::loadModel(string path)
 	const aiScene* scene = nullptr;
 
 	QFileInfo fi(path.c_str());
+
+#ifdef __DEBUG__
+	std::cout << "\n--------------------------------------------------" << std::endl;
+	std::cout << "Starting to load model: " << path.c_str() << std::endl;
+	std::cout << "File size: " << fi.size() / 1024.0f << " KB" << std::endl;
+#endif
 
 	if (fi.suffix().toLower() == "step" || fi.suffix().toLower() == "stp")
 	{
@@ -93,6 +146,7 @@ void AssImpModelLoader::loadModel(string path)
 		// Get the shapes from the STEP file
 		TDF_LabelSequence labels;
 		shapeTool->GetFreeShapes(labels);
+		
 		if (labels.IsEmpty())
 		{
 			qCritical("No shapes found in STEP file");
@@ -104,10 +158,19 @@ void AssImpModelLoader::loadModel(string path)
 		std::vector<std::string> names;
 		std::vector<Quantity_Color> colors;
 
+#ifdef __DEBUG__
+		auto startTraverse = std::chrono::high_resolution_clock::now();
+#endif
+		MainWindow::showStatusMessage("Traversing assembly...");
 		for (Standard_Integer i = 1; i <= labels.Length(); ++i)
 		{
 			traverseSTEPAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), shapes, colors, names);
 		}
+#ifdef __DEBUG__
+		auto endTraverse = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> durationTraverse = endTraverse - startTraverse;
+		std::cout << "TraverseSTEPAssembly took " << durationTraverse.count() << " seconds\n";
+#endif
 
 		// Add shapes and names to the tuple vector
 		std::vector<ShapeWithNameAndTrsf> shapeTuples;
@@ -117,7 +180,19 @@ void AssImpModelLoader::loadModel(string path)
 		}
 
 		// Convert the shapes to Assimp scene
+		MainWindow::showStatusMessage("Converting shapes to mesh...");
+#ifdef __DEBUG__
+		auto startConversion = std::chrono::high_resolution_clock::now();
+#endif
 		scene = BRepToAssimpConverter::convert(shapeTuples);
+#ifdef __DEBUG__
+		auto endConversion = std::chrono::high_resolution_clock::now();
+		std::chrono::duration<double> durationConversion = endConversion - startConversion;
+		std::cout << "BRepToAssimpConverter::convert took " << durationConversion.count() << " seconds\n";
+
+		std::cout << "End of loading STEP file" << std::endl;
+		std::cout << "--------------------------------------------------" << std::endl;
+#endif
 
 	}
 	else if (fi.suffix().toLower() == "iges" || fi.suffix().toLower() == "igs")
@@ -218,16 +293,41 @@ void AssImpModelLoader::loadModel(string path)
 // Read s STEP file
 void AssImpModelLoader::readSTEPFile(const std::string& filename, Handle(TDocStd_Document)& doc)
 {
+	Handle(ConsoleProgressIndicator) progress = new ConsoleProgressIndicator();
+	Message_ProgressRange rootRange = progress->Start();
+	
+	Message_ProgressScope transferScope(rootRange, "STEP Transfer", -1);
+
 	STEPCAFControl_Reader reader;
+#ifdef __DEBUG__
+	auto startCount = std::chrono::high_resolution_clock::now();
+#endif
 	if (!reader.ReadFile(filename.c_str()))
 	{
 		throw std::runtime_error("Cannot read STEP file");
 	}
-	if (!reader.Transfer(doc))
+	
+#ifdef __DEBUG__
+	auto endCount = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> durationCount = endCount - startCount;
+	std::cout << "ReadFile took " << durationCount.count() << " seconds\n";
+
+
+	auto startTraverse = std::chrono::high_resolution_clock::now();
+#endif
+	
+	MainWindow::showStatusMessage("Transferring shapes..");
+	if (!reader.Transfer(doc, transferScope.Next()))
 	{
 		throw std::runtime_error("Cannot transfer STEP data to XCAF document");
 	}
+#ifdef __DEBUG__
+	auto endTraverse = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> durationTraverse = endTraverse - startTraverse;
+	std::cout << "\nTransfer took " << durationTraverse.count() << " seconds\n";
+#endif
 }
+
 
 // Traverse the STEP assembly structure and extract shapes and names
 void AssImpModelLoader::traverseSTEPAssembly(
