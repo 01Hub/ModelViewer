@@ -1,20 +1,19 @@
 ﻿#include "BRepToAssimpConverter.h"
-#include <BRepMesh_IncrementalMesh.hxx>
+#include "MainWindow.h"
 #include <BRep_Tool.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepBuilderAPI_Transform.hxx>
-#include <TopExp_Explorer.hxx>
-#include <TopoDS.hxx>
-#include <TopoDS_Shape.hxx>
-#include <TopoDS_Face.hxx>
-#include <TopoDS_Solid.hxx>
-#include <Poly_Triangulation.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <cmath>
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
+#include <Poly_Triangulation.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Face.hxx>
+#include <TopoDS_Shape.hxx>
+#include <TopoDS_Solid.hxx>
 #include <vector>
-#include <cmath>
-
-
 /**
  * Converts a sequence of BRep shapes into an Assimp aiScene.
  *
@@ -155,9 +154,12 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 	std::vector<aiNode*> childNodes;
 
 	int meshIndex = 0;
+	int totalCount = shapeTuples.size();
 
 	for (const auto& tuple : shapeTuples)
 	{
+		int progress = (int)(((float)meshIndex / (float)totalCount)*100);		
+		MainWindow::setProgressValue(progress);
 		const TopoDS_Shape& shape = std::get<0>(tuple);
 		const std::string& name = std::get<1>(tuple);
 		const gp_Trsf& trsf = std::get<2>(tuple);
