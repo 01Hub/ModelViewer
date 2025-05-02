@@ -40,4 +40,4 @@ Linux: Open the .pro file in Qt Creator, change the library paths to point to yo
 
 Windows: Open the .pro file in Qt Creator, change the library paths to point to your local paths or in Visual Studio using the Qt Tools Extension and build
 
-Dependencies: Qt6.8 or above Assimp-5.0.1, GLM, freetype-2.10.1
+Dependencies: Qt6.8 or above Assimp-5.0.1, GLM, freetype-2.10.1, OpenCascade 7.9
