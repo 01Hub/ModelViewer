@@ -18,7 +18,6 @@ int main(int argc, char** argv)
 	QCoreApplication::setApplicationName("ModelViewer");
 	QCoreApplication::setOrganizationName("Sharjith N");
     QCoreApplication::setApplicationVersion(QT_VERSION_STR);
-    QApplication::setAttribute(Qt::AA_DisableHighDpiScaling);
 
     QApplication app(argc, argv);
 
