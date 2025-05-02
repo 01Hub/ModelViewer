@@ -7,7 +7,6 @@
 #include <IGESControl_Controller.hxx>
 #include <IGESControl_Reader.hxx>
 #include <Quantity_ColorRGBA.hxx>
-#include <set>
 #include <STEPControl_Reader.hxx>
 #include <TopoDS_Iterator.hxx>
 #include <XCAFApp_Application.hxx>
@@ -126,7 +125,7 @@ void AssImpModelLoader::loadModel(string path)
 	{
 		// Create XCAF Application and document
 		Handle(TDocStd_Document) doc;
-		Handle(XCAFApp_Application)::DownCast(XCAFApp_Application::GetApplication())->NewDocument("MDTV-XCAF", doc);
+        XCAFApp_Application::GetApplication()->NewDocument("MDTV-XCAF", doc);
 
 		try
 		{			

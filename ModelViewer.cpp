@@ -9,7 +9,6 @@
 #include "MainWindow.h"
 #include "ModelViewer.h"
 #include "GLWidget.h"
-#include "SphericalHarmonicsEditor.h"
 #include "TriangleMesh.h"
 #include "MeshProperties.h"
 
@@ -1797,9 +1796,9 @@ void ModelViewer::on_toolButtonExport_clicked()
 		}
 		aiReturn res = exporter.exportMeshes(assImpMeshes, fileName.toStdString());
 		if (res == aiReturn_SUCCESS)
-			QMessageBox::information(this, "Information", "Exported", "Ok");
+            QMessageBox::information(this, "Information", "Exported");
 		else
-			QMessageBox::critical(this, "Information", "Export failed!", "Ok");
+            QMessageBox::critical(this, "Information", "Export failed!");
 	}
 }
 
