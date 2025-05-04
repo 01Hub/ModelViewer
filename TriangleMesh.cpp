@@ -1,15 +1,15 @@
 
-#include <QApplication>
-
+#include "config.h"
+#include "Point.h"
+#include "TriangleBaldwinWeber.h"
 #include "TriangleMesh.h"
 #include "TriangleMollerTrumbore.h"
-#include "TriangleBaldwinWeber.h"
-#include "Point.h"
 #include "Utils.h"
-#include "config.h"
-
 #include <algorithm>
+#include <atomic>
 #include <iostream>
+#include <QApplication>
+#include <QVector3D>
 
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
 _texture(0),
@@ -1000,53 +1000,53 @@ unsigned long long TriangleMesh::memorySize() const
 	return _memorySize + sizeof(TriangleMesh);
 }
 
-/*
+
 bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
 {
-	bool intersects = false;
-	if (_triangles.size())
+	float closestDistance = std::numeric_limits<float>::max();
+	bool found = false;
+	QVector3D bestIntersection;
+
+#pragma omp parallel
 	{
-		for (Triangle* t : _triangles)
+		float localMinDist = std::numeric_limits<float>::max();
+		QVector3D localIntersection;
+		bool localFound = false;
+
+#pragma omp for nowait
+		for (int i = 0; i < _triangles.size(); ++i)
 		{
-			intersects = t->intersectsWithRay(rayPos, rayDir, outIntersectionPoint);
-			if (intersects)
-				break;
+			QVector3D hitPoint;
+			if (_triangles[i]->intersectsWithRay(rayPos, rayDir, hitPoint))
+			{
+				float dist = (hitPoint - rayPos).length();
+				if (dist < localMinDist)
+				{
+					localMinDist = dist;
+					localIntersection = hitPoint;
+					localFound = true;
+				}
+			}
+		}
+
+#pragma omp critical
+		{
+			if (localFound && localMinDist < closestDistance)
+			{
+				closestDistance = localMinDist;
+				bestIntersection = localIntersection;
+				found = true;
+			}
 		}
 	}
-	return intersects;
+
+	if (found)
+	{
+		outIntersectionPoint = bestIntersection;
+	}
+	return found;
 }
-*/
 
-#include <atomic>
-#include <QVector3D>
-
-bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
-{
-    std::atomic<bool> intersectionFound(false); // Atomic flag for thread safety
-    QVector3D localIntersectionPoint;
-
-    if (_triangles.size())
-    {
-        #pragma omp parallel for shared(intersectionFound, outIntersectionPoint) private(localIntersectionPoint)
-        for (int i = 0; i < _triangles.size(); ++i)
-        {
-            if (!intersectionFound.load()) // Check if another thread already found an intersection
-            {
-                if (_triangles[i]->intersectsWithRay(rayPos, rayDir, localIntersectionPoint))
-                {
-                    intersectionFound.store(true); // Set the flag to true if an intersection is found
-
-                    #pragma omp critical
-                    {
-                        outIntersectionPoint = localIntersectionPoint; // Update the output intersection point
-                    }
-                }
-            }
-        }
-    }
-
-    return intersectionFound.load(); // Return whether an intersection was found
-}
 
 
 bool TriangleMesh::hasAlbedoPBRMap() const
