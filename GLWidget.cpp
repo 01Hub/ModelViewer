@@ -662,6 +662,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	}
 	_displayedObjectsMemSize = memSize;
 	updateBoundingSphere();
+	updateBoundingBox();
 
 	if (_floorPlane)
 	{
@@ -725,6 +726,34 @@ void GLWidget::updateBoundingSphere()
 	if (_floorPlane)
 	{
 		updateFloorPlane();
+	}
+
+	update();
+}
+
+void GLWidget::updateBoundingBox()
+{	
+	if ((!_visibleSwapped && _displayedObjectsIds.size() == 0) ||
+		(_visibleSwapped && _hiddenObjectsIds.size() == 0))
+	{
+		_primaryCamera->setPosition(0, 0, 0);
+		_currentTranslation = _primaryCamera->getPosition();
+		_boundingBox.setLimits(1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+	}
+	else
+	{
+		for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
+		{
+			try
+			{
+				TriangleMesh* mesh = _meshStore.at(i);
+				_boundingBox.addBox(mesh->getBoundingBox());
+			}
+			catch (const std::out_of_range& ex)
+			{
+				std::cout << ex.what() << std::endl;
+			}
+		}
 	}
 
 	update();
@@ -952,6 +981,7 @@ void GLWidget::swapVisible(bool checked)
 {
 	_visibleSwapped = checked;
 	updateBoundingSphere();
+	updateBoundingBox();
 	if (_autoFitViewOnUpdate)
 		fitAll();
 	emit visibleSwapped(checked);
@@ -1761,6 +1791,7 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 		}
 	}
 	updateBoundingSphere();
+	updateBoundingBox();
 }
 
 void GLWidget::resetTransformation(const std::vector<int>& ids)
@@ -1778,6 +1809,7 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 		}
 	}
 	updateBoundingSphere();
+	updateBoundingBox();
 }
 
 void GLWidget::initializeGL()
@@ -3883,7 +3915,15 @@ void GLWidget::animateFitAll()
 {
 	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 		_lowResEnabled = true;
+
+	float targetZoom = 0.0f;
+	QVector3D targetPan;
+	computeFitZoomAndPan(targetZoom, targetPan);
+
+	//setZoomAndPan(targetZoom, -_currentTranslation + targetPan);
+
 	setZoomAndPan(_viewBoundingSphereDia, -_currentTranslation + _boundingSphere.getCenter());
+
 	resizeGL(width(), height());
 }
 
@@ -4288,6 +4328,46 @@ void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
 		emit zoomAndPanSet();
 	}
 }
+
+
+void GLWidget::computeFitZoomAndPan(float& outZoom, QVector3D& outPan)
+{	
+	Point center = _boundingBox.center();
+
+	std::vector<Point> corners = _boundingBox.corners();
+
+	float minX = +1.0f, maxX = -1.0f;
+	float minY = +1.0f, maxY = -1.0f;
+
+	for (const Point& p : corners)
+	{
+		QVector3D v(p.getX(), p.getY(), p.getZ());
+		QVector4D clip = _projectionMatrix * _viewMatrix * QVector4D(v, 1.0f);
+		QVector3D ndc = clip.toVector3DAffine(); // Divide by w
+
+		minX = std::min(minX, ndc.x());
+		maxX = std::max(maxX, ndc.x());
+		minY = std::min(minY, ndc.y());
+		maxY = std::max(maxY, ndc.y());
+	}
+
+	float widthNDC = maxX - minX;
+	float heightNDC = maxY - minY;
+	float padding = 1.05f;
+
+	if (_projection == ViewProjection::PERSPECTIVE) {
+		float fovYRad = qDegreesToRadians(_primaryCamera->getFOV());
+		float newDistance = (_boundingBox.extent().getY() * 0.5f * padding) / tan(fovYRad * 0.5f);
+		outZoom = newDistance;
+	}
+	else {
+		float orthoHeight = heightNDC * 0.5f * padding;
+		outZoom = orthoHeight;
+	}
+
+	outPan = QVector3D(center.getX(), center.getY(), center.getZ());
+}
+
 
 void GLWidget::closeEvent(QCloseEvent* event)
 {

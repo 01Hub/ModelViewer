@@ -45,6 +45,8 @@ public:
 	inline double zMax() const { return _zMax; }
 	inline double zMin() const { return _zMin; }
 	Point center() const;
+	Point extent() const;
+	std::vector<Point> corners() const;
 	double boundingRadius() const;
 	bool contains(const Point& P) const;
 	void addBox(const BoundingBox&);

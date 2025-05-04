@@ -42,6 +42,32 @@ Point BoundingBox::center() const
 	return P;
 }
 
+Point BoundingBox::extent() const
+{
+	Point P;
+	P.setX(xMax() - xMin());
+	P.setY(yMax() - yMin());
+	P.setZ(zMax() - zMin());
+	return P;
+}
+
+std::vector<Point> BoundingBox::corners() const
+{
+	std::vector<Point> corners;
+	corners.reserve(8);
+
+	corners.emplace_back(_xMin, _yMin, _zMin); // 0
+	corners.emplace_back(_xMax, _yMin, _zMin); // 1
+	corners.emplace_back(_xMin, _yMax, _zMin); // 2
+	corners.emplace_back(_xMax, _yMax, _zMin); // 3
+	corners.emplace_back(_xMin, _yMin, _zMax); // 4
+	corners.emplace_back(_xMax, _yMin, _zMax); // 5
+	corners.emplace_back(_xMin, _yMax, _zMax); // 6
+	corners.emplace_back(_xMax, _yMax, _zMax); // 7
+
+	return corners;
+}
+
 double BoundingBox::boundingRadius() const
 {
 	double rad;
