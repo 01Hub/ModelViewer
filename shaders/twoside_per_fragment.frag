@@ -263,9 +263,8 @@ void main()
 
 // ----------------------------------------------------------------------------
 vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
-{
-    vec2 texCoords = g_texCoord2d;
-    vec2 clippedTexCoord = texCoords;
+{    
+    vec2 clippedTexCoord = g_texCoord2d;
     vec3 lightDir;
     vec3 viewDir;
     if(lockLightAndCamera)
@@ -449,6 +448,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     float roughness;
     float ambientOcclusion;
     vec3 N; vec3 V; vec3 L;
+
     if(lockLightAndCamera)
     {
         V = normalize(lightSource.position);
@@ -459,6 +459,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         V = normalize(lightSource.position + cameraPos);
         L = normalize(lightSource.position + cameraPos);
     }
+
     vec2 texCoords = g_texCoord2d;
     vec2 clippedTexCoord = texCoords;
 
