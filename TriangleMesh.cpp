@@ -718,18 +718,22 @@ float TriangleMesh::getLowestZValue() const
 
 QRect TriangleMesh::projectedRect(const QMatrix4x4& modelView, const QMatrix4x4& projection, const QRect& viewport, const QRect& window) const
 {
-	QList<float> xVals;
-	QList<float> yVals;
+	float xMin = std::numeric_limits<float>::max();
+	float xMax = std::numeric_limits<float>::lowest();
+	float yMin = std::numeric_limits<float>::max();
+	float yMax = std::numeric_limits<float>::lowest();
+
 	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
 	{
 		QVector3D point(_trsfpoints.at(i + 0), _trsfpoints.at(i + 1), _trsfpoints.at(i + 2));
 		QVector3D projPoint = point.project(modelView, projection, viewport);
-		xVals.push_back(projPoint.x());
-		yVals.push_back(projPoint.y());
+
+		xMin = std::min(xMin, projPoint.x());
+		xMax = std::max(xMax, projPoint.x());
+		yMin = std::min(yMin, projPoint.y());
+		yMax = std::max(yMax, projPoint.y());
 	}
-	std::sort(xVals.begin(), xVals.end(), std::less<float>());
-	std::sort(yVals.begin(), yVals.end(), std::less<float>());
-	QRect rect(xVals.first(), (window.height() - yVals.last()), (xVals.last() - xVals.first()), (yVals.last() - yVals.first()));
+	QRect rect(xMin, (window.height() - yMax), (xMax - xMin), (yMax - yMin));
 
 	return rect;
 }
