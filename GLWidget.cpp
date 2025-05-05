@@ -3916,12 +3916,6 @@ void GLWidget::animateFitAll()
 	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 		_lowResEnabled = true;
 
-	float targetZoom = 0.0f;
-	QVector3D targetPan;
-	computeFitZoomAndPan(targetZoom, targetPan);
-
-	//setZoomAndPan(targetZoom, -_currentTranslation + targetPan);
-
 	setZoomAndPan(_viewBoundingSphereDia, -_currentTranslation + _boundingSphere.getCenter());
 
 	resizeGL(width(), height());
@@ -4328,46 +4322,6 @@ void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
 		emit zoomAndPanSet();
 	}
 }
-
-
-void GLWidget::computeFitZoomAndPan(float& outZoom, QVector3D& outPan)
-{	
-	Point center = _boundingBox.center();
-
-	std::vector<Point> corners = _boundingBox.corners();
-
-	float minX = +1.0f, maxX = -1.0f;
-	float minY = +1.0f, maxY = -1.0f;
-
-	for (const Point& p : corners)
-	{
-		QVector3D v(p.getX(), p.getY(), p.getZ());
-		QVector4D clip = _projectionMatrix * _viewMatrix * QVector4D(v, 1.0f);
-		QVector3D ndc = clip.toVector3DAffine(); // Divide by w
-
-		minX = std::min(minX, ndc.x());
-		maxX = std::max(maxX, ndc.x());
-		minY = std::min(minY, ndc.y());
-		maxY = std::max(maxY, ndc.y());
-	}
-
-	float widthNDC = maxX - minX;
-	float heightNDC = maxY - minY;
-	float padding = 1.05f;
-
-	if (_projection == ViewProjection::PERSPECTIVE) {
-		float fovYRad = qDegreesToRadians(_primaryCamera->getFOV());
-		float newDistance = (_boundingBox.extent().getY() * 0.5f * padding) / tan(fovYRad * 0.5f);
-		outZoom = newDistance;
-	}
-	else {
-		float orthoHeight = heightNDC * 0.5f * padding;
-		outZoom = orthoHeight;
-	}
-
-	outPan = QVector3D(center.getX(), center.getY(), center.getZ());
-}
-
 
 void GLWidget::closeEvent(QCloseEvent* event)
 {
