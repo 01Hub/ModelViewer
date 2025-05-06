@@ -547,6 +547,18 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 				step = 0;
 			}
 		}
+
+		// Vertex Color
+		if (mesh->HasVertexColors(0))
+		{
+			aiColor4D color = mesh->mColors[0][i];
+			vertex.Color = glm::vec4(color.r, color.g, color.b, color.a); // Add color
+		}
+		else
+		{
+			vertex.Color = glm::vec4(1.0f); // Default color (white)
+		}
+
 		vertices.push_back(vertex);
 
 		if (i % 100000 == 0)

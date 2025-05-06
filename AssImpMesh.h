@@ -27,6 +27,8 @@ struct Vertex
 	glm::vec3 Tangent;
 	// bitangent
 	glm::vec3 Bitangent;
+	// Vertex Color 
+	glm::vec4 Color;     
 };
 
 struct Texture
