@@ -3328,7 +3328,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 					if (mesh)
 					{
 						QColor pickColor = indexToColor(i + 1);
-						qDebug() << "Id " << i << "Pick Color" << pickColor;
+						//qDebug() << "Id " << i << "Pick Color" << pickColor;
 						_selectionShader->bind();
 
 						const float r = pickColor.redF();
@@ -4042,8 +4042,7 @@ unsigned int GLWidget::loadTextureFromFile(char const* path)
 {
 	unsigned int textureID;
 	glGenTextures(1, &textureID);
-	//std::cout << "GLWidget::loadTextureFromFile : textureID = " << textureID << std::endl;
-
+	
 	int width, height, nrComponents;
 	unsigned char* data = stbi_load(path, &width, &height, &nrComponents, 0);
 	if (data)
@@ -4085,7 +4084,6 @@ int GLWidget::clickSelect(const QPoint& pixel)
 	int id = -1;
 	_selectedIDs.clear();
 
-	//if (!_displayedObjectsIds.size())
 	if (_visibleSwapped)
 	{
 		if (!_hiddenObjectsIds.size())
@@ -4124,9 +4122,6 @@ int GLWidget::clickSelect(const QPoint& pixel)
 	convertClickToRay(pixel, viewport, camera, rayPos, rayDir);
 	rayDir.normalize();
 
-	// Get starting timepoint
-    //auto start = high_resolution_clock::now();
-
 	QMap<int, float> selectedIdsDist;
 	for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
 	{
@@ -4134,23 +4129,15 @@ int GLWidget::clickSelect(const QPoint& pixel)
 		if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir))
 		{
 			bool intersects = mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint);
-			//qDebug() << intPoint;
+			
 			if (intersects)
-			{
-				//id = i;
+			{				
 				selectedIdsDist[i] = intersectionPoint.distanceToPoint(rayPos);
-				_selectedIDs.push_back(i);
-				//_selectRect->setGeometry(_boundingRect);
-				//_selectRect->setGeometry(mesh->getBoundingBox().project(_modelViewMatrix, _projectionMatrix, viewport, geometry()));
-				//_selectRect->setGeometry(mesh->projectedRect(_modelViewMatrix, _projectionMatrix, viewport, geometry()));
-				//_selectRect->show();
-				//break;
+				_selectedIDs.push_back(i);				
 			}
 		}
-		//else
-		//_selectRect->hide();
 	}
-	//qDebug() << selectedIdsDist;
+	
 	if (!selectedIdsDist.isEmpty())
 	{
 		QMapIterator<int, float> it(selectedIdsDist);
@@ -4164,36 +4151,43 @@ int GLWidget::clickSelect(const QPoint& pixel)
 		}
 		id = selectedIdsDist.key(lowestDist);
 	}
-	qDebug() << "Selected Id: " << id;
 
 	int colId = processSelection(pixel);
 
-	qDebug() << "Color Id: " << colId;
-
-    //if (colId > 0)
-        //id = colId;
-
-	// Get ending timepoint
-    //auto stop = high_resolution_clock::now();
-
-	// Get duration. Substart timepoints to
-	// get durarion. To cast it to proper unit
-	// use duration cast method
-    //auto duration = duration_cast<microseconds>(stop - start);
-
-	//cout << "Time taken by function: " << duration.count() << " microseconds" << endl;
-
 	QApplication::restoreOverrideCursor();
 
-	emit singleSelectionDone(id);
-	return id;
+	int selectedId = -1;
+
+	if (colId != -1)
+	{
+		selectedId = colId;
+	}
+	else
+	{
+		selectedId = id;
+	}
+
+#ifdef __DEBUG__
+	qDebug() << "Intersected Ids:";
+	int ct = 0;
+	for (int id : _selectedIDs)
+	{
+		++ct;
+		qDebug() << "Id " << ct << ": " << id;
+	}
+	qDebug() << "Closest Id: " << id;
+	qDebug() << "Color Id: " << colId;
+	qDebug() << "Selected Id: " << selectedId;
+#endif
+
+	emit singleSelectionDone(selectedId);
+	return selectedId;
 }
 
 QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 {
 	_selectedIDs.clear();
 
-	//if (!_displayedObjectsIds.size())
 	if (_visibleSwapped)
 	{
 		if (!_hiddenObjectsIds.size())
