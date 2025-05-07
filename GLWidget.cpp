@@ -2434,103 +2434,18 @@ void GLWidget::paintGL()
 		_modelMatrix.setToIdentity();
 		if (_multiViewActive)
 		{
-            glViewport(0, 0, width(), height());
-			if (_shadowsEnabled)
-				renderToShadowBuffer();
-			gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-				botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF());
-			// Render orthographic views with ortho view camera
-			// Top View
-			_orthoViewsCamera->setScreenSize(width() / 2, height() / 2);
-			_orthoViewsCamera->setProjectionMatrix(_projectionMatrix);
-			_orthoViewsCamera->setViewMatrix(_viewMatrix);
-			_orthoViewsCamera->setPosition(_primaryCamera->getPosition());
-			glViewport(0, 0, width() / 2, height() / 2);
-			_orthoViewsCamera->setView(GLCamera::ViewProjection::TOP_VIEW);
-			render(_orthoViewsCamera);
-			_textRenderer->RenderText("Top", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
-
-			// Front View
-			glViewport(0, height() / 2, width() / 2, height() / 2);
-			_orthoViewsCamera->setView(GLCamera::ViewProjection::FRONT_VIEW);
-			render(_orthoViewsCamera);
-			_textRenderer->RenderText("Front", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
-
-			// Left View
-			glViewport(width() / 2, height() / 2, width() / 2, height() / 2);
-			_orthoViewsCamera->setView(GLCamera::ViewProjection::LEFT_VIEW);
-			render(_orthoViewsCamera);
-			_textRenderer->RenderText("Left", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
-
-			// Render isometric view with primary camera
-			// Isometric View
-			glViewport(width() / 2, 0, width() / 2, height() / 2);
-			render(_primaryCamera);
-			std::string viewLabel = _viewMode == ViewMode::DIMETRIC ? "Dimetric" : _viewMode
-				== ViewMode::TRIMETRIC ? "Trimetric" : "Isometric";
-			_textRenderer->RenderText(viewLabel, -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
-
-			// draw screen partitioning lines
-			splitScreen();
+			renderMultiView(topColor, botColor);
 		}
 		else
 		{
-			QMatrix4x4 projection;
-			projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height())));
-			_textShader->bind();
-			_textShader->setUniformValue("projection", projection);
-			_textShader->release();
-			glViewport(0, 0, width(), height());
-			if (_shadowsEnabled)
-				renderToShadowBuffer();
-
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-			gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-				botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF());
-			render(_primaryCamera);
-			drawCornerAxis();
+			renderSingleView(topColor, botColor);
 		}
 
 		// Text rendering
 		if (_meshStore.size() != 0 && _displayedObjectsIds.size() != 0)
 		{			
 			_textRenderer->RenderText(QString("No of Meshes: %1").arg(_meshStore.size()).toStdString(), 4, 4, 1, glm::vec3(1.0f, 1.0f, 0.0f));
-		}
-
-        /*if (_meshStore.size() && _displayedObjectsIds.size() != 0)
-		{
-			int num = _displayedObjectsIds[0];
-			// Display Harmonics Editor
-			if (dynamic_cast<SphericalHarmonic*>(_meshStore.at(num)))
-				_sphericalHarmonicsEditor->show();
-			else
-				_sphericalHarmonicsEditor->hide();
-
-			// Display Gray's Klein Editor
-			if (dynamic_cast<GraysKlein*>(_meshStore.at(num)))
-				_graysKleinEditor->show();
-			else
-				_graysKleinEditor->hide();
-
-			// Display Super Toroid Editor
-			if (dynamic_cast<SuperToroid*>(_meshStore.at(num)))
-				_superToroidEditor->show();
-			else
-				_superToroidEditor->hide();
-
-			// Display Super Ellipsoid Editor
-			if (dynamic_cast<SuperEllipsoid*>(_meshStore.at(num)))
-				_superEllipsoidEditor->show();
-			else
-				_superEllipsoidEditor->hide();
-
-			// Display Spring Editor
-			if (dynamic_cast<Spring*>(_meshStore.at(num)))
-				_springEditor->show();
-			else
-				_springEditor->hide();
-        }*/
+		}        
 	}
 	catch (const std::exception& ex)
 	{
@@ -2547,6 +2462,67 @@ void GLWidget::paintGL()
 
 	//_brdfShader->bind();
 	//renderQuad();
+}
+
+void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
+{
+	QMatrix4x4 projection;
+	projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height())));
+	_textShader->bind();
+	_textShader->setUniformValue("projection", projection);
+	_textShader->release();
+	glViewport(0, 0, width(), height());
+	if (_shadowsEnabled)
+		renderToShadowBuffer();
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
+		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF());
+	render(_primaryCamera);
+	drawCornerAxis();
+}
+
+void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
+{
+	glViewport(0, 0, width(), height());
+	if (_shadowsEnabled)
+		renderToShadowBuffer();
+	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
+		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF());
+	// Render orthographic views with ortho view camera
+	// Top View
+	_orthoViewsCamera->setScreenSize(width() / 2, height() / 2);
+	_orthoViewsCamera->setProjectionMatrix(_projectionMatrix);
+	_orthoViewsCamera->setViewMatrix(_viewMatrix);
+	_orthoViewsCamera->setPosition(_primaryCamera->getPosition());
+	glViewport(0, 0, width() / 2, height() / 2);
+	_orthoViewsCamera->setView(GLCamera::ViewProjection::TOP_VIEW);
+	render(_orthoViewsCamera);
+	_textRenderer->RenderText("Top", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+
+	// Front View
+	glViewport(0, height() / 2, width() / 2, height() / 2);
+	_orthoViewsCamera->setView(GLCamera::ViewProjection::FRONT_VIEW);
+	render(_orthoViewsCamera);
+	_textRenderer->RenderText("Front", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+
+	// Left View
+	glViewport(width() / 2, height() / 2, width() / 2, height() / 2);
+	_orthoViewsCamera->setView(GLCamera::ViewProjection::LEFT_VIEW);
+	render(_orthoViewsCamera);
+	_textRenderer->RenderText("Left", -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+
+	// Render isometric view with primary camera
+	// Isometric View
+	glViewport(width() / 2, 0, width() / 2, height() / 2);
+	render(_primaryCamera);
+	std::string viewLabel = _viewMode == ViewMode::DIMETRIC ? "Dimetric" : _viewMode
+		== ViewMode::TRIMETRIC ? "Trimetric" : "Isometric";
+	_textRenderer->RenderText(viewLabel, -50, 5, 1.6f, glm::vec3(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+
+	// draw screen partitioning lines
+	splitScreen();
 }
 
 void GLWidget::drawFloor()

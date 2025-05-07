@@ -277,6 +277,10 @@ protected:
 	void resizeGL(int width, int height);
 	void paintGL();
 
+	void renderSingleView(QColor& topColor, QColor& botColor);
+
+	void renderMultiView(QColor& topColor, QColor& botColor);
+
 	void mousePressEvent(QMouseEvent*);
 	void mouseReleaseEvent(QMouseEvent*);
 	void mouseMoveEvent(QMouseEvent*);
