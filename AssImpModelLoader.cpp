@@ -235,7 +235,7 @@ void AssImpModelLoader::loadModel(string path)
 		}
 		MainWindow::resetProgressBar();
 		
-		MainWindow::showStatusMessage("Transfering shape...");		
+        MainWindow::showStatusMessage("Transfering shapes...");
 
 		cafReader.Transfer(doc, transferScope.Next());
 
@@ -339,7 +339,7 @@ void AssImpModelLoader::readSTEPFile(const std::string& filename, Handle(TDocStd
 	auto startTraverse = std::chrono::high_resolution_clock::now();
 #endif
 	
-	MainWindow::showStatusMessage("Transferring shapes..");
+    MainWindow::showStatusMessage("Transfering shapes...");
 	
 	if (!reader.Transfer(doc, transferScope.Next()))
 	{
