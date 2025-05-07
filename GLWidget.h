@@ -319,6 +319,8 @@ private:
 	void setRotations(float xRot, float yRot, float zRot);
 	void setZoomAndPan(float zoom, QVector3D pan);
 	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
+	void fitBoxToScreen(const BoundingBox& box);
+
 		
 	void convertClickToRay(const QPoint& pixel, const QRect& viewport, GLCamera* camera, QVector3D& orig, QVector3D& dir);
 	int clickSelect(const QPoint& pixel);

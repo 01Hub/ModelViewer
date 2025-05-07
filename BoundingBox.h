@@ -34,16 +34,16 @@ class BoundingBox
 {
 public:
 	BoundingBox();
-	BoundingBox(const double&, const double&, const double&, const double&, const double&, const double&);
+	BoundingBox(const double& xMin, const double& yMin, const double& zMin, const double& xMax, const double& yMax, const double& zMax);
 	virtual ~BoundingBox();
-	void setLimits(const double&, const double&, const double&, const double&, const double&, const double&);
+	void setLimits(const double& xMin, const double& yMin, const double& zMin, const double& xMax, const double& yMax, const double& zMax);
 	void getLimits(double& xMin, double& xMax, double& yMin, double& yMax, double& zMin, double& zMax);
-	inline double xMax() const { return _xMax; }
 	inline double xMin() const { return _xMin; }
-	inline double yMax() const { return _yMax; }
+	inline double xMax() const { return _xMax; }
 	inline double yMin() const { return _yMin; }
-	inline double zMax() const { return _zMax; }
+	inline double yMax() const { return _yMax; }
 	inline double zMin() const { return _zMin; }
+	inline double zMax() const { return _zMax; }
 	Point center() const;
 	Point extent() const;
 	std::vector<Point> corners() const;
@@ -52,12 +52,12 @@ public:
 	void addBox(const BoundingBox&);
 	QRect project(const QMatrix4x4& modelView, const QMatrix4x4& projection, const QRect& viewport, const QRect& window);
 private:
-	double _xMax;
 	double _xMin;
-	double _yMax;
+	double _xMax;
 	double _yMin;
-	double _zMax;
+	double _yMax;
 	double _zMin;
+	double _zMax;
 };
 
 #endif /* _BOUNDINGBOX_H */

@@ -13,19 +13,19 @@
 
 BoundingBox::BoundingBox()
 {
-	_xMax = 0.0f;
-	_xMin = 0.0f;
-	_yMax = 0.0f;
-	_yMin = 0.0f;
-	_zMax = 0.0f;
-	_zMin = 0.0f;
+	_xMin = -1.0f;
+	_xMax = -1.0f;
+	_yMin = -1.0f;
+	_yMax = 1.0f;
+	_zMin = 1.0f;
+	_zMax = 1.0f;
 }
 
 BoundingBox::BoundingBox(const double& xMin, const double& xMax,
 	const double& yMin, const double& yMax,
-	const double& zMin, const double& zMax) : _xMax(xMax), _xMin(xMin),
-	_yMax(yMax), _yMin(yMin),
-	_zMax(zMax), _zMin(zMin)
+	const double& zMin, const double& zMax) : _xMin(xMin), _xMax(xMax),
+	_yMin(yMin), _yMax(yMax),
+	_zMin(zMin), _zMax(zMax)
 {
 }
 
@@ -81,24 +81,24 @@ void BoundingBox::setLimits(const double& xMin, const double& xMax,
 	const double& yMin, const double& yMax,
 	const double& zMin, const double& zMax)
 {
-	_xMax = xMax;
 	_xMin = xMin;
-	_yMax = yMax;
+	_xMax = xMax;
 	_yMin = yMin;
-	_zMax = zMax;
+	_yMax = yMax;
 	_zMin = zMin;
+	_zMax = zMax;
 }
 
 void BoundingBox::getLimits(double& xMin, double& xMax,
 	double& yMin, double& yMax,
 	double& zMin, double& zMax)
 {
-	xMax = _xMax;
 	xMin = _xMin;
-	yMax = _yMax;
+	xMax = _xMax;
 	yMin = _yMin;
-	zMax = _zMax;
+	yMax = _yMax;
 	zMin = _zMin;
+	zMax = _zMax;
 }
 
 bool BoundingBox::contains(const Point& P) const

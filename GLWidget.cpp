@@ -733,12 +733,14 @@ void GLWidget::updateBoundingSphere()
 
 void GLWidget::updateBoundingBox()
 {	
+	_currentTranslation = _primaryCamera->getPosition();
+	_boundingBox.setLimits(-1.0, -1.0, -1.0, 1.0, 1.0, 1.0);
+
 	if ((!_visibleSwapped && _displayedObjectsIds.size() == 0) ||
 		(_visibleSwapped && _hiddenObjectsIds.size() == 0))
 	{
 		_primaryCamera->setPosition(0, 0, 0);
-		_currentTranslation = _primaryCamera->getPosition();
-		_boundingBox.setLimits(1.0, 1.0, 1.0, 1.0, 1.0, 1.0);
+		_currentTranslation = _primaryCamera->getPosition();		
 	}
 	else
 	{
@@ -754,6 +756,11 @@ void GLWidget::updateBoundingBox()
 				std::cout << ex.what() << std::endl;
 			}
 		}
+	}
+
+	if (_floorPlane)
+	{
+		updateFloorPlane();
 	}
 
 	update();
@@ -3917,6 +3924,7 @@ void GLWidget::animateFitAll()
 		_lowResEnabled = true;
 
 	setZoomAndPan(_viewBoundingSphereDia, -_currentTranslation + _boundingSphere.getCenter());
+	//fitBoxToScreen(_boundingBox);
 
 	resizeGL(width(), height());
 }
@@ -4254,6 +4262,82 @@ void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QV
 	_primaryCamera->setView(viewPos, viewDir, upDir, rightDir);
 	emit viewSet();
 }
+
+// Improved approach based on rubberband zoom technique
+void GLWidget::fitBoxToScreen(const BoundingBox& box)
+{			
+	// Project bounding box corners to screen space
+	std::vector<Point> corners = box.corners();
+	std::vector<QVector3D> vcorners =	
+	{
+	QVector3D(corners[0].getX(), corners[0].getY(), corners[0].getZ()),
+	QVector3D(corners[1].getX(), corners[1].getY(), corners[1].getZ()),
+	QVector3D(corners[2].getX(), corners[2].getY(), corners[2].getZ()),
+	QVector3D(corners[3].getX(), corners[3].getY(), corners[3].getZ()),
+	QVector3D(corners[4].getX(), corners[4].getY(), corners[4].getZ()),
+	QVector3D(corners[5].getX(), corners[5].getY(), corners[5].getZ()),
+	QVector3D(corners[6].getX(), corners[6].getY(), corners[6].getZ()),
+	QVector3D(corners[7].getX(), corners[7].getY(), corners[7].getZ())
+	};
+
+	QRect screenBounds;
+	bool firstPoint = true;
+
+	for (const auto& corner : vcorners)
+	{
+		// Project point to screen coordinates
+		QVector4D clipCoords = _projectionMatrix * _viewMatrix * QVector4D(corner, 1.0f);
+
+		QVector3D screenPoint(clipCoords.x() / clipCoords.w(),
+                           clipCoords.y() / clipCoords.w(), 
+                           clipCoords.z() / clipCoords.w());
+				
+		QPoint pixelPoint(
+			static_cast<int>((clipCoords.x() + 1.0f) * 0.5f * width()),
+			static_cast<int>(height() - (clipCoords.y() + 1.0f) * 0.5f * height())
+		);
+
+		// Update screen bounds
+		if (firstPoint) {
+			screenBounds = QRect(pixelPoint, QSize(1, 1));
+			firstPoint = false;
+		}
+		else {
+			screenBounds = screenBounds.united(QRect(pixelPoint, QSize(1, 1)));
+		}
+	}
+
+	// Calculate client rect (full viewport)
+	QRect clientRect(0, 0, width(), height());
+
+	// Calculate zoom ratio using the same approach as window zoom
+	double widthRatio = static_cast<double>(clientRect.width()) / screenBounds.width();
+	double heightRatio = static_cast<double>(clientRect.height()) / screenBounds.height();
+
+	// Use the smaller ratio to ensure the box fits in both dimensions
+	// Apply a factor of 0.95 to leave a small margin around the object
+	double zoomRatio = std::min(widthRatio, heightRatio) * 0.95;
+		
+	// Get center points for screen and box
+	QPoint screenCenter = screenBounds.center();
+	QPoint viewportCenter = clientRect.center();
+
+	// Convert pan offset to 3D space
+	// First, get world coordinates at screen center with current Z
+	QVector3D screenCenterWorld(screenCenter.x(), height() - screenCenter.y(), 0.5);
+	QVector3D viewportCenterWorld(viewportCenter.x(), height() - viewportCenter.y(), 0.5);
+
+	// Unproject both points to get world coordinates
+	QVector3D screenCenterPoint = screenCenterWorld.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+	QVector3D viewportCenterPoint = viewportCenterWorld.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
+
+	// Calculate the pan vector
+	QVector3D panVector = screenCenterPoint - viewportCenterPoint;
+
+	
+	setZoomAndPan(_currentViewRange / zoomRatio, panVector);
+}
+
 
 void GLWidget::setRotations(float xRot, float yRot, float zRot)
 {
