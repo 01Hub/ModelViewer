@@ -16,12 +16,7 @@
 /* Custom OpenGL Viewer Widget */
 
 class TextRenderer;
-class SphericalHarmonicsEditor;
-class SuperToroidEditor;
-class SuperEllipsoidEditor;
-class SpringEditor;
 class ClippingPlanesEditor;
-class GraysKleinEditor;
 class AssImpModelLoader;
 class Plane;
 class Cube;
@@ -496,12 +491,7 @@ private:
 	QVBoxLayout* _editorLayout;
 	QFormLayout* _lowerLayout;
 	QFormLayout* _upperLayout;
-
-	SphericalHarmonicsEditor* _sphericalHarmonicsEditor;
-	SuperToroidEditor* _superToroidEditor;
-	SuperEllipsoidEditor* _superEllipsoidEditor;
-	SpringEditor* _springEditor;
-	GraysKleinEditor* _graysKleinEditor;
+		
 	ClippingPlanesEditor* _clippingPlanesEditor;
 	Plane* _clippingPlaneXY;
 	Plane* _clippingPlaneYZ;

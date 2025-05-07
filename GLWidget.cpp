@@ -7,45 +7,10 @@
 
 #include "TextRenderer.h"
 
-#include "Cylinder.h"
-#include "Cone.h"
-#include "Torus.h"
+#include "Point.h"
 #include "Sphere.h"
 #include "Cube.h"
-#include "Teapot.h"
-#include "KleinBottle.h"
-#include "Figure8KleinBottle.h"
-#include "BoySurface.h"
-#include "TwistedTriaxial.h"
-#include "SteinerSurface.h"
-#include "SuperToroid.h"
-#include "SuperToroidEditor.h"
-#include "SuperEllipsoid.h"
-#include "SuperEllipsoidEditor.h"
-#include "Spring.h"
-#include "SpringEditor.h"
-#include "AppleSurface.h"
-#include "DoubleCone.h"
-#include "BentHorns.h"
-#include "Folium.h"
-#include "LimpetTorus.h"
-#include "SaddleTorus.h"
-#include "GraysKlein.h"
-#include "GraysKleinEditor.h"
-#include "BowTie.h"
-#include "TriaxialTritorus.h"
-#include "TriaxialHexatorus.h"
-#include "VerrillMinimal.h"
-#include "Horn.h"
-#include "Crescent.h"
-#include "ConeShell.h"
-#include "Periwinkle.h"
-#include "TopShell.h"
-#include "WrinkledPeriwinkle.h"
-#include "SpindleShell.h"
-#include "TurretShell.h"
-#include "TwistedPseudoSphere.h"
-#include "SphericalHarmonicsEditor.h"
+#include "Cone.h"
 #include "ClippingPlanesEditor.h"
 
 #include "Plane.h"
@@ -86,11 +51,6 @@ _debugShader(nullptr),
 _textShader(nullptr),
 _textRenderer(nullptr),
 _axisTextRenderer(nullptr),
-_sphericalHarmonicsEditor(nullptr),
-_superToroidEditor(nullptr),
-_superEllipsoidEditor(nullptr),
-_springEditor(nullptr),
-_graysKleinEditor(nullptr),
 _clippingPlanesEditor(nullptr),
 _clippingPlaneXY(nullptr),
 _clippingPlaneYZ(nullptr),
@@ -4379,35 +4339,6 @@ void GLWidget::setZoomAndPan(float zoom, QVector3D pan)
 
 void GLWidget::closeEvent(QCloseEvent* event)
 {
-	if (_sphericalHarmonicsEditor)
-	{
-		_sphericalHarmonicsEditor->hide();
-		_sphericalHarmonicsEditor->close();
-	}
-
-	if (_graysKleinEditor)
-	{
-		_graysKleinEditor->hide();
-		_graysKleinEditor->close();
-	}
-
-	if (_superToroidEditor)
-	{
-		_superToroidEditor->hide();
-		_superToroidEditor->close();
-	}
-
-	if (_superEllipsoidEditor)
-	{
-		_superEllipsoidEditor->hide();
-		_superEllipsoidEditor->close();
-	}
-
-	if (_springEditor)
-	{
-		_springEditor->hide();
-		_springEditor->close();
-	}
 	event->accept();
 }
 
