@@ -637,14 +637,41 @@ void MainWindow::updateRecentFileActions()
 		recentFileActs[i]->setVisible(false);
 }
 
+void MainWindow::removeFromRecentFiles(const QString& fileName)
+{
+    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    QStringList recentFiles = readRecentFiles(settings);
+    recentFiles.removeAll(fileName);
+    writeRecentFiles(recentFiles, settings);
+    setRecentFilesVisible(!recentFiles.isEmpty());
+}
+
 void MainWindow::openRecentFile()
 {
-	if (const QAction* action = qobject_cast<const QAction*>(sender()))
-	{
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		openFile(action->data().toString());
-		QApplication::restoreOverrideCursor();
-		MainWindow::mainWindow()->activateWindow();
-		QApplication::alert(MainWindow::mainWindow());
-	}
+    if (const QAction* action = qobject_cast<const QAction*>(sender()))
+    {
+        QString filePath = action->data().toString();
+        if (!QFile::exists(filePath))
+        {
+            QMessageBox::StandardButton reply = QMessageBox::question(
+                this,
+                tr("File Not Found"),
+                tr("The file '%1' no longer exists. Would you like to remove it from the recent files?").arg(filePath),
+                QMessageBox::Yes | QMessageBox::No
+            );
+
+            if (reply == QMessageBox::Yes)
+            {
+                removeFromRecentFiles(filePath);
+                updateRecentFileActions();
+            }
+            return;
+        }
+
+        QApplication::setOverrideCursor(Qt::WaitCursor);
+        openFile(filePath);
+        QApplication::restoreOverrideCursor();
+        MainWindow::mainWindow()->activateWindow();
+        QApplication::alert(MainWindow::mainWindow());
+    }
 }

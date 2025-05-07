@@ -77,6 +77,7 @@ private slots:
 	bool loadFile(const QString& fileName);
 	void updateMenus();
 	void updateRecentFileActions();
+    void removeFromRecentFiles(const QString& fileName);
 	void openRecentFile();
 	void updateWindowMenu();
 
