@@ -12,6 +12,7 @@
 #include <XCAFApp_Application.hxx>
 #include <XCAFDoc.hxx>
 #include <XSControl_WorkSession.hxx>
+#include <BinDrivers.hxx>
 
 using namespace std;
 
@@ -125,7 +126,9 @@ void AssImpModelLoader::loadModel(string path)
 	{
 		// Create XCAF Application and document
 		Handle(TDocStd_Document) doc;
-        XCAFApp_Application::GetApplication()->NewDocument("MDTV-XCAF", doc);
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        BinDrivers::DefineFormat(app);
+        app->NewDocument("BinOcaf", doc);
 
 		try
 		{			
@@ -191,17 +194,29 @@ void AssImpModelLoader::loadModel(string path)
 
 		std::cout << "End of loading STEP file" << std::endl;
 		std::cout << "--------------------------------------------------" << std::endl;
+
+        QString savePath = "/home/sharjith/" + fi.baseName() + ".cbf";
+        PCDM_StoreStatus sstatus = app->SaveAs(doc, TCollection_ExtendedString(savePath.toStdString().c_str()));
+        if(sstatus != PCDM_SS_OK)
+        {
+            app->Close(doc);
+            qDebug() << "Error saving the document";
+        }
 #endif
+
+        app->Close(doc);
 
 	}
 	else if (fi.suffix().toLower() == "iges" || fi.suffix().toLower() == "igs")
-	{
-		// Initialize IGES controller inside session
-		IGESControl_Controller::Init();
+    {
+        // Create XCAF Application and document
+        Handle(TDocStd_Document) doc;
+        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+        BinDrivers::DefineFormat(app);
+        app->NewDocument("BinOcaf", doc);
 
-		Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
-		Handle(TDocStd_Document) doc;
-		app->NewDocument("MDTV-XCAF", doc);
+        // Initialize IGES controller inside session
+        IGESControl_Controller::Init();
 		
 		MainWindow::showIndeterminateProgressBar();
 
@@ -253,7 +268,19 @@ void AssImpModelLoader::loadModel(string path)
 
 		// Convert to Assimp scene
 		MainWindow::showStatusMessage("Converting shapes to mesh...");
-		scene = BRepToAssimpConverter::convert(shapeTuples);		
+        scene = BRepToAssimpConverter::convert(shapeTuples);
+
+#ifdef __DEBUG__
+        QString savePath = "/home/sharjith/" + fi.baseName() + ".cbf";
+        PCDM_StoreStatus sstatus = app->SaveAs(doc, TCollection_ExtendedString(savePath.toStdString().c_str()));
+        if(sstatus != PCDM_SS_OK)
+        {
+            app->Close(doc);
+            qDebug() << "Error saving the document";
+        }
+#endif
+
+        app->Close(doc);
 		
 	}
 	else // all Assimp models
