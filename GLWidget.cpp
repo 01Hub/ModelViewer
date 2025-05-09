@@ -3073,7 +3073,7 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->setUniformValue("gammaCorrection", _gammaCorrection);
 	_fgShader->setUniformValue("screenGamma", _screenGamma);
 	_fgShader->setUniformValue("shadowSamples", 27.0f);
-	_fgShader->setUniformValue("shadowSoftness", 0.05f);
+	_fgShader->setUniformValue("shadowSoftness", static_cast<float>(_viewBoundingSphereDia) * 0.00025f);
 	_fgShader->setUniformValue("lightFarPlane", _lightPosition.z() + _lightOffsetZ);
 
 	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
