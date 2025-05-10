@@ -12,8 +12,7 @@ using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, TopLoc_Locati
 
 class BRepToAssimpConverter
 {
-public:
-    static aiScene* convert(const Handle(TopTools_HSequenceOfShape)& shapeSeq);
+public:    
     static aiScene* convert( const std::vector<ShapeWithNameAndTrsf>& shapeTuples);
 
 private:
