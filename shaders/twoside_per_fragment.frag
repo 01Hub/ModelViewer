@@ -138,7 +138,7 @@ layout( location = 0 ) out vec4 fragColor;
 
 float   calculateShadow(vec4 fragPosLightSpace);
 // Function to fetch shadow value with variable kernel size
-float ShadowCalculation(vec4 fragPosLightSpace, int kernelSize);
+float   calculateShadowVariableKernel(vec4 fragPosLightSpace, int kernelSize);
 
 vec4    shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
 vec4    calculatePBRLighting(int renderMode, float side);
@@ -370,7 +370,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
         // Calculate kernel size adaptively based on distance
         float distanceToLight = length(fs_in_shadow.FragPos - fs_in_shadow.lightPos);
         int kernelSize = int(clamp(distanceToLight * 0.1, 1.0, 8.0)); // Adaptive kernel size
-        float shadowFactor = ShadowCalculation(fs_in_shadow.FragPosLightSpace, kernelSize);
+        float shadowFactor = calculateShadowVariableKernel(fs_in_shadow.FragPosLightSpace, kernelSize);
         //float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
         colorLinear =  vec4(clamp(sceneColor +
                              (ambient  * matAmbient + 1 - shadowFactor) *
@@ -437,7 +437,7 @@ float calculateShadow(vec4 fragPosLightSpace)
 }
 
 // Function to fetch shadow value with variable kernel size
-float ShadowCalculation(vec4 fragPosLightSpace, int kernelSize) 
+float calculateShadowVariableKernel(vec4 fragPosLightSpace, int kernelSize) 
 {
     // Transform to [0,1] range for sampling
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;

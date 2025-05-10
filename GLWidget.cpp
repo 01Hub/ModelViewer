@@ -2051,8 +2051,30 @@ void GLWidget::createGeometry()
 	_axisCone = new Cone(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
 }
 
+int GLWidget::calculateShadowMapResolution(float modelSize, int baseResolution)
+{
+	// Smaller models get higher resolution shadow maps
+	if (modelSize < 10.0f) {
+		return baseResolution * 4; // Increase resolution for very small models
+	}
+	else if (modelSize < 50.0f) {
+		return baseResolution * 2; // Moderate increase for small models
+	}
+	else {
+		return baseResolution; // Default resolution for larger models
+	}
+}
+
 void GLWidget::loadFloor()
 {
+	// Calculate model size using the bounding sphere's radius
+	float modelSize = _boundingSphere.getRadius() * 2.0f;
+
+	// Dynamically adjust shadow map resolution
+	int dynamicResolution = calculateShadowMapResolution(modelSize);
+	_shadowWidth = dynamicResolution;
+	_shadowHeight = dynamicResolution;
+
 	// configure depth map FBO
 	// -----------------------
 	// create depth texture
@@ -3167,6 +3189,7 @@ void GLWidget::renderToShadowBuffer()
 	glViewport(0, 0, _shadowWidth, _shadowHeight);
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
 	glClear(GL_DEPTH_BUFFER_BIT);
+	glDisable(GL_CULL_FACE);
 	// 1. render depth of scene to texture (from light's perspective)
 	// --------------------------------------------------------------
 	QMatrix4x4 lightProjection, lightView;
@@ -3208,7 +3231,7 @@ void GLWidget::renderToShadowBuffer()
 			}
 		}
 	}
-	glDisable(GL_CULL_FACE);
+	
 	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
 	// End Shadow Mapping
 	// restore viewport
