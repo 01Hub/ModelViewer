@@ -591,7 +591,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     vec3 radiance;
     if(shadowsEnabled && displayMode == 3)
     {
-        float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
+        // Calculate kernel size adaptively based on distance
+        float distanceToLight = length(fs_in_shadow.FragPos - fs_in_shadow.lightPos);
+        int kernelSize = int(clamp(distanceToLight * 0.1, 1.0, 8.0)); // Adaptive kernel size
+        float shadowFactor = calculateShadowVariableKernel(fs_in_shadow.FragPosLightSpace, kernelSize);
+        //float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
         radiance = (lightSource.ambient + 1- shadowFactor)  * (lightSource.diffuse + lightSource.specular);
     }
     else
