@@ -231,11 +231,20 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantit
 			TopTools_IndexedMapOfShape faceGroup;
 
 			// Explorer to iterate over faces in the solid
+			int faceCnt = 0;
 			TopExp_Explorer faceExplorer(solid, TopAbs_FACE);
 			for (; faceExplorer.More(); faceExplorer.Next())
 			{
 				faceGroup.Add(faceExplorer.Current());
+				++faceCnt;
 			}
+
+#ifdef __DEBUG__
+			std::cout << "Mesh index: " << meshIndex << std::endl;
+			std::cout << "Solid has " << faceCnt << " faces." << std::endl;
+#endif
+
+
 
 			// Convert the collected faces into a mesh
 			aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
@@ -314,6 +323,9 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantit
  * @param meshIndex An integer index that can be used to identify the created mesh (unused here).
  * @return aiMesh* Pointer to the generated Assimp mesh. Returns nullptr if no vertices are processed.
  */
+#include <ShapeFix_Face.hxx>
+#include <BRepCheck_Analyzer.hxx>
+#include <BRepTools.hxx>
 aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex)
 {
 	// Container vectors for the combined mesh data: vertices, normals, texture coordinates, and faces
@@ -330,13 +342,50 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 	{
 		TopoDS_Face face = TopoDS::Face(faceGroup(f));
 
+		BRepTools::Clean(face); // Clean the face to remove any artifacts
+
 		// Generate mesh triangulation on the face with the computed deflection
-		BRepMesh_IncrementalMesh(face, deflection);
+		BRepMesh_IncrementalMesh mesher(face, deflection);
+
+		BRepCheck_Analyzer analyzer(face);
+		if (!analyzer.IsValid())
+		{
+			std::cout << "Face is invalid. Attempting to heal..." << std::endl;
+			// Use ShapeFix_Face or other healing tools here
+		}
 
 		// Retrieve the triangulation and its location transformation on the face
 		TopLoc_Location loc;
 		Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation(face, loc);
-		if (triangulation.IsNull()) continue; // Skip faces that failed to triangulate
+		if (triangulation.IsNull())
+		{
+			std::cout << "Failed to triangulate face " << f << " trying to heal..."<< std::endl;
+			// Use ShapeFix_Face or other healing tools here
+			ShapeFix_Face fixer;
+			fixer.Init(face);
+			fixer.Perform(); // Attempt to heal the face
+			TopoDS_Face healedFace = fixer.Face();			
+			if (!healedFace.IsNull())
+			{				
+				triangulation = BRep_Tool::Triangulation(healedFace, loc, Poly_MeshPurpose_AnyFallback);
+				if (triangulation.IsNull())
+				{
+					Standard_Real increasedDeflection = deflection * 1.5; // Increase by 50%
+					BRepMesh_IncrementalMesh mesher(healedFace, increasedDeflection);
+					triangulation = BRep_Tool::Triangulation(healedFace, loc, Poly_MeshPurpose_AnyFallback);
+					if (triangulation.IsNull())
+					{
+						std::cout << "Unable to triangulate, face will not be displayed..." << std::endl;
+						continue; // Skip faces that failed to triangulate
+					}
+				}
+				else
+				{
+					std::cout << "Face healed successfully..." << std::endl;
+				}
+			}		
+			
+		}
 
 		gp_Trsf trsf = loc.Transformation();
 
@@ -507,7 +556,8 @@ Standard_Real BRepToAssimpConverter::computeDeflectionFromBBox(const TopTools_In
 	Bnd_Box bbox;
 	Standard_Real diag = 0.01; // Default deflection if no faces are present
 
-	try {
+	try 
+	{
 		// Accumulate bounding box of all faces in the group
 		for (int i = 1; i <= faceGroup.Extent(); ++i)
 		{
@@ -522,8 +572,8 @@ Standard_Real BRepToAssimpConverter::computeDeflectionFromBBox(const TopTools_In
 		gp_Pnt pMin(xmin, ymin, zmin);
 		gp_Pnt pMax(xmax, ymax, zmax);
 		diag = pMin.Distance(pMax);
-	}
-	catch (Standard_Failure& e)
+	} 
+	catch (Standard_Failure& e) 
 	{
 		// Handle exceptions gracefully, log if necessary
 		std::cerr << "Error computing bounding box: " << e.GetMessageString() << std::endl;
