@@ -883,9 +883,14 @@ bool GLWidget::loadAssImpModel(const QString& fileName, QString& error)
 
 	makeCurrent();
 	QString displayFileName = fileName;
-	if (fileName.length() > 125)
+	if (fileName.length() > 100)
 	{
-		displayFileName = fileName.left(61) + "..." + fileName.right(61);
+		// Extract just the filename from the full path
+		QString fileOnly = fileName.section('/', -1);
+		// Calculate how much of the path to truncate
+		int remainingLength = 100 - fileOnly.length() - 3; // 3 for "..."
+		QString truncatedPath = fileName.left(remainingLength).section('/', 0, -2);
+		displayFileName = truncatedPath + "/.../" + fileOnly;
 	}
 	MainWindow::showStatusMessage("Reading file: " + displayFileName);
 	MainWindow::showProgressBar();
