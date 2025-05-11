@@ -346,56 +346,35 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 
 		// Generate mesh triangulation on the face with the computed deflection
 		BRepMesh_IncrementalMesh mesher(face, deflection);
-
-		BRepCheck_Analyzer analyzer(face);
-		if (!analyzer.IsValid())
-		{
-			std::cout << "Face is invalid. Attempting to heal..." << std::endl;
-			// Use ShapeFix_Face or other healing tools here
-		}
-
+	
 		// Retrieve the triangulation and its location transformation on the face
 		TopLoc_Location loc;
 		Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation(face, loc);
 		if (triangulation.IsNull())
 		{
 			std::cout << "Failed to triangulate face " << f << " trying to heal..."<< std::endl;
-			TopoDS_Face healedFace = healAndTriangulateFace(face);
-			triangulation = BRep_Tool::Triangulation(healedFace, loc, Poly_MeshPurpose_AnyFallback);
-			if (triangulation.IsNull())
+			BRepCheck_Analyzer analyzer(face);
+			if (!analyzer.IsValid())
 			{
-				std::cout << "Unable to triangulate, face will not be displayed..." << std::endl;
-				continue; // Skip faces that failed to triangulate
-			}
-			else
-			{
-				std::cout << "Face healed and triangulated successfully..." << std::endl;
-			}
-			// Use ShapeFix_Face or other healing tools here
-			/*ShapeFix_Face fixer;
-			fixer.Init(face);
-			fixer.Perform(); // Attempt to heal the face
-			TopoDS_Face healedFace = fixer.Face();			
-			if (!healedFace.IsNull())
-			{				
-				triangulation = BRep_Tool::Triangulation(healedFace, loc, Poly_MeshPurpose_AnyFallback);
+				std::cout << "Face is invalid. Attempting to heal..." << std::endl;
+				TopoDS_Face healedFace = healAndTriangulateFace(face);
+				TopLoc_Location loc;
+				Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation(face, loc);
 				if (triangulation.IsNull())
 				{
-					Standard_Real increasedDeflection = deflection * 1.5; // Increase by 50%
-					BRepMesh_IncrementalMesh mesher(healedFace, increasedDeflection);
-					triangulation = BRep_Tool::Triangulation(healedFace, loc, Poly_MeshPurpose_AnyFallback);
-					if (triangulation.IsNull())
-					{
-						std::cout << "Unable to triangulate, face will not be displayed..." << std::endl;
-						continue; // Skip faces that failed to triangulate
-					}
+					std::cout << "Unable to heal face, skipping..." << std::endl;
+					continue; // Skip faces that failed to heal
 				}
 				else
 				{
 					std::cout << "Face healed successfully..." << std::endl;
 				}
-			}*/
-			
+			}
+			else
+			{
+				std::cout << "Face is valid, but triangulation failed..." << std::endl;
+				continue; // Skip faces that failed to triangulate
+			}			
 		}
 
 		gp_Trsf trsf = loc.Transformation();
@@ -601,36 +580,46 @@ TopoDS_Face BRepToAssimpConverter::healAndTriangulateFace(const TopoDS_Face& inp
 								   double angularDeflection,
 								   double fixTolerance)
 {
-	// 1. Validate original face
-	BRepCheck_Analyzer analyzer(inputFace);
-	if (!analyzer.IsValid()) {
-		std::cout << "[Heal] Input face is invalid" << std::endl;
+	TopoDS_Face healedFace;
+	try
+	{
+		// 1. Validate original face
+		BRepCheck_Analyzer analyzer(inputFace);
+		if (!analyzer.IsValid()) {
+			std::cout << "[Heal] Input face is invalid" << std::endl;
+		}
+
+		// 2. Heal the face using ShapeFix_Face
+		Handle(ShapeFix_Face) fixFace = new ShapeFix_Face(inputFace);
+		fixFace->FixWireTool()->SetPrecision(fixTolerance);
+		fixFace->FixOrientation();
+		fixFace->FixAddNaturalBoundMode() = Standard_True;
+		fixFace->Perform();
+		healedFace = fixFace->Face();
+
+		// 3. Optionally reset tolerance (if the face tolerance is very large)
+		if (BRep_Tool::Tolerance(healedFace) > 1e-2) {
+			BRep_Builder builder;
+			builder.UpdateFace(healedFace, fixTolerance);
+		}
+
+		// 4. Clean any existing triangulation
+		BRepTools::Clean(healedFace);
+
+		// 5. Recompute triangulation
+		BRepMesh_IncrementalMesh mesher(healedFace, deflection, Standard_True, angularDeflection);
+
+		if (!mesher.IsDone()) {
+			std::cerr << "[Heal] Triangulation failed" << std::endl;
+		}
+		else {
+			std::cout << "[Heal] Face healed and triangulated successfully" << std::endl;
+		}
 	}
-
-	// 2. Heal the face using ShapeFix_Face
-	Handle(ShapeFix_Face) fixFace = new ShapeFix_Face(inputFace);
-	fixFace->FixWireTool()->SetPrecision(fixTolerance);
-	fixFace->FixOrientation();
-	fixFace->FixAddNaturalBoundMode() = Standard_True;
-	fixFace->Perform();
-	TopoDS_Face healedFace = fixFace->Face();
-
-	// 3. Optionally reset tolerance (if the face tolerance is very large)
-	if (BRep_Tool::Tolerance(healedFace) > 1e-2) {
-		BRep_Builder builder;
-		builder.UpdateFace(healedFace, fixTolerance);
-	}
-
-	// 4. Clean any existing triangulation
-	BRepTools::Clean(healedFace);
-
-	// 5. Recompute triangulation
-	BRepMesh_IncrementalMesh mesher(healedFace, deflection, Standard_True, angularDeflection);
-
-	if (!mesher.IsDone()) {
-		std::cerr << "[Heal] Triangulation failed" << std::endl;
-	} else {
-		std::cout << "[Heal] Face healed and triangulated successfully" << std::endl;
+	catch (Standard_Failure& e)
+	{
+		// Handle exceptions gracefully, log if necessary
+		std::cerr << "Error healing face: " << e.GetMessageString() << std::endl;
 	}
 
 	return healedFace;

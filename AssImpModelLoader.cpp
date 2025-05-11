@@ -56,53 +56,6 @@ vector<AssImpMesh*> AssImpModelLoader::getMeshes() const
 	return _meshes;
 }
 
-
-void CollectDisplayableShapes(
-	const Handle(XCAFDoc_ShapeTool)& shapeTool,
-	const TDF_Label& label,
-	TopTools_IndexedMapOfShape& collectedShapes)
-{
-	if (shapeTool->IsAssembly(label)) {
-		TDF_LabelSequence children;
-		shapeTool->GetComponents(label, children);
-		for (Standard_Integer i = 1; i <= children.Length(); ++i) {
-			CollectDisplayableShapes(shapeTool, children.Value(i), collectedShapes);
-		}
-	}
-	else if (shapeTool->IsReference(label)) {
-		TDF_Label referred;
-		TDF_Label tmp;
-		if (shapeTool->GetReferredShape(label, tmp))
-		{
-			referred = tmp;
-		}
-		CollectDisplayableShapes(shapeTool, referred, collectedShapes);
-	}
-	else if (shapeTool->IsSimpleShape(label)) {
-		TopoDS_Shape shape = shapeTool->GetShape(label);
-		if (!shape.IsNull()) {
-			collectedShapes.Add(shape);
-		}
-	}
-	// Compound and others can be handled here if needed
-}
-
-int CountAllDisplayableShapes(const Handle(TDocStd_Document)& doc)
-{
-	Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
-	TDF_LabelSequence topLevelShapes;
-	shapeTool->GetShapes(topLevelShapes);
-
-	TopTools_IndexedMapOfShape collectedShapes;
-
-	for (Standard_Integer i = 1; i <= topLevelShapes.Length(); ++i) {
-		CollectDisplayableShapes(shapeTool, topLevelShapes.Value(i), collectedShapes);
-	}
-
-	return collectedShapes.Extent();
-}
-
-
 /*  Functions   */
 // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
 void AssImpModelLoader::loadModel(string path)
@@ -124,164 +77,11 @@ void AssImpModelLoader::loadModel(string path)
 
 	if (fi.suffix().toLower() == "step" || fi.suffix().toLower() == "stp")
 	{
-		// Create XCAF Application and document
-		Handle(TDocStd_Document) doc;
-        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
-        BinDrivers::DefineFormat(app);
-        app->NewDocument("BinOcaf", doc);
-
-		try
-		{			
-			readSTEPFile(path.c_str(), doc);			
-		}
-		catch (const std::exception& e)
-		{
-			qCritical("Failed to read STEP file: %s", e.what());
-			return;
-		}
-
-		// Get the shape tool from the document
-		Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
-		Handle(XCAFDoc_ColorTool) colorTool = XCAFDoc_DocumentTool::ColorTool(doc->Main());
-
-
-		// Get the shapes from the STEP file
-		TDF_LabelSequence labels;
-		shapeTool->GetFreeShapes(labels);
-		
-		if (labels.IsEmpty())
-		{
-			qCritical("No shapes found in STEP file");
-			return;
-		}
-
-		// Traverse the assembly structure and extract shapes and names
-		std::vector<TopoDS_Shape> shapes;
-		std::vector<std::string> names;
-		std::vector<Quantity_Color> colors;
-
-#ifdef __DEBUG__
-		auto startTraverse = std::chrono::high_resolution_clock::now();
-#endif
-		MainWindow::showStatusMessage("Traversing assembly...");
-		for (Standard_Integer i = 1; i <= labels.Length(); ++i)
-		{
-			traverseSTEPAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), shapes, colors, names);
-		}
-#ifdef __DEBUG__
-		auto endTraverse = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double> durationTraverse = endTraverse - startTraverse;
-		std::cout << "TraverseSTEPAssembly took " << durationTraverse.count() << " seconds\n";
-#endif
-
-		// Add shapes and names to the tuple vector
-		std::vector<ShapeWithNameAndTrsf> shapeTuples;
-		for (int i = 0; i < shapes.size(); i++)
-		{
-			shapeTuples.emplace_back(shapes[i], names[i], TopLoc_Location(), colors[i]);
-		}
-
-		// Convert the shapes to Assimp scene
-		MainWindow::showStatusMessage("Converting shapes to mesh...");
-#ifdef __DEBUG__
-		auto startConversion = std::chrono::high_resolution_clock::now();
-#endif
-		scene = BRepToAssimpConverter::convert(shapeTuples);
-#ifdef __DEBUG__
-		auto endConversion = std::chrono::high_resolution_clock::now();
-		std::chrono::duration<double> durationConversion = endConversion - startConversion;
-		std::cout << "BRepToAssimpConverter::convert took " << durationConversion.count() << " seconds\n";
-
-		std::cout << "End of loading STEP file" << std::endl;
-		std::cout << "--------------------------------------------------" << std::endl;
-
-        QString savePath = "/home/sharjith/" + fi.baseName() + ".cbf";
-        PCDM_StoreStatus sstatus = app->SaveAs(doc, TCollection_ExtendedString(savePath.toStdString().c_str()));
-        if(sstatus != PCDM_SS_OK)
-        {
-            app->Close(doc);
-            qDebug() << "Error saving the document";
-        }
-#endif
-
-        app->Close(doc);
-
+		scene = processSTEPFile(path);
 	}
 	else if (fi.suffix().toLower() == "iges" || fi.suffix().toLower() == "igs")
     {
-        // Create XCAF Application and document
-        Handle(TDocStd_Document) doc;
-        Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
-        BinDrivers::DefineFormat(app);
-        app->NewDocument("BinOcaf", doc);
-
-        // Initialize IGES controller inside session
-        IGESControl_Controller::Init();
-		
-		MainWindow::showIndeterminateProgressBar();
-
-		Handle(ConsoleProgressIndicator) progress = new ConsoleProgressIndicator();
-		Message_ProgressRange rootRange = progress->Start();
-
-		Message_ProgressScope transferScope(rootRange, "IGES Transfer", -1);
-
-		// Read IGES file into XCAF document
-		IGESCAFControl_Reader cafReader;
-		if (cafReader.ReadFile(path.c_str()) != IFSelect_RetDone)
-		{
-			qCritical("Failed to read IGES file: %s", path.c_str());
-			MainWindow::resetProgressBar();
-			return;
-		}
-		MainWindow::resetProgressBar();
-		
-        MainWindow::showStatusMessage("Transfering shapes...");
-
-		cafReader.Transfer(doc, transferScope.Next());
-
-		// Access shape tool and color tool
-		Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
-		Handle(XCAFDoc_ColorTool) colorTool = XCAFDoc_DocumentTool::ColorTool(doc->Main());
-
-		// Collect free shapes (top-level shapes)
-		TDF_LabelSequence labels;
-		shapeTool->GetFreeShapes(labels);
-
-		// Traverse the assembly structure and extract shapes and names
-		std::vector<TopoDS_Shape> shapes;
-		std::vector<std::string> names;
-		std::vector<Quantity_Color> colors;
-
-		MainWindow::showStatusMessage("Traversing assembly...");
-
-		for (Standard_Integer i = 1; i <= labels.Length(); ++i)
-		{
-			traverseSTEPAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), shapes, colors, names);
-		}
-
-		// Add shapes and names to the tuple vector
-		std::vector<ShapeWithNameAndTrsf> shapeTuples;
-		for (int i = 0; i < shapes.size(); i++)
-		{
-			shapeTuples.emplace_back(shapes[i], names[i], TopLoc_Location(), colors[i]);
-		}
-
-		// Convert to Assimp scene
-		MainWindow::showStatusMessage("Converting shapes to mesh...");
-        scene = BRepToAssimpConverter::convert(shapeTuples);
-
-#ifdef __DEBUG__
-        QString savePath = "/home/sharjith/" + fi.baseName() + ".cbf";
-        PCDM_StoreStatus sstatus = app->SaveAs(doc, TCollection_ExtendedString(savePath.toStdString().c_str()));
-        if(sstatus != PCDM_SS_OK)
-        {
-            app->Close(doc);
-            qDebug() << "Error saving the document";
-        }
-#endif
-
-        app->Close(doc);
-		
+		scene = processIGESFile(path);
 	}
 	else // all Assimp models
 	{
@@ -307,6 +107,171 @@ void AssImpModelLoader::loadModel(string path)
 
 	// Process ASSIMP's root node recursively
 	this->processNode(0, scene->mRootNode, scene);
+}
+
+aiScene* AssImpModelLoader::processSTEPFile(const std::string& path)
+{
+	// Create XCAF Application and document
+	Handle(TDocStd_Document) doc;
+	Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+	BinDrivers::DefineFormat(app);
+	app->NewDocument("BinOcaf", doc);
+
+	try
+	{
+		readSTEPFile(path.c_str(), doc);
+	}
+	catch (const std::exception& e)
+	{
+		qCritical("Failed to read STEP file: %s", e.what());
+		return nullptr;
+	}
+
+	// Get the shape tool from the document
+	Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+	Handle(XCAFDoc_ColorTool) colorTool = XCAFDoc_DocumentTool::ColorTool(doc->Main());
+
+
+	// Get the shapes from the STEP file
+	TDF_LabelSequence labels;
+	shapeTool->GetFreeShapes(labels);
+
+	if (labels.IsEmpty())
+	{
+		qCritical("No shapes found in STEP file");
+		return nullptr;
+	}
+
+	// Traverse the assembly structure and extract shapes and names
+	std::vector<TopoDS_Shape> shapes;
+	std::vector<std::string> names;
+	std::vector<Quantity_Color> colors;
+
+#ifdef __DEBUG__
+	auto startTraverse = std::chrono::high_resolution_clock::now();
+#endif
+	MainWindow::showStatusMessage("Traversing assembly...");
+	for (Standard_Integer i = 1; i <= labels.Length(); ++i)
+	{
+		traverseSTEPAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), shapes, colors, names);
+	}
+#ifdef __DEBUG__
+	auto endTraverse = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> durationTraverse = endTraverse - startTraverse;
+	std::cout << "TraverseSTEPAssembly took " << durationTraverse.count() << " seconds\n";
+#endif
+
+	// Add shapes and names to the tuple vector
+	std::vector<ShapeWithNameAndTrsf> shapeTuples;
+	for (int i = 0; i < shapes.size(); i++)
+	{
+		shapeTuples.emplace_back(shapes[i], names[i], TopLoc_Location(), colors[i]);
+	}
+
+	// Convert the shapes to Assimp scene
+	MainWindow::showStatusMessage("Converting shapes to mesh...");
+#ifdef __DEBUG__
+	auto startConversion = std::chrono::high_resolution_clock::now();
+#endif
+	aiScene* scene = BRepToAssimpConverter::convert(shapeTuples);
+#ifdef __DEBUG__
+	auto endConversion = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> durationConversion = endConversion - startConversion;
+	std::cout << "BRepToAssimpConverter::convert took " << durationConversion.count() << " seconds\n";
+
+	std::cout << "End of loading STEP file" << std::endl;
+	std::cout << "--------------------------------------------------" << std::endl;
+
+	QString savePath = "/home/sharjith/" + fi.baseName() + ".cbf";
+	PCDM_StoreStatus sstatus = app->SaveAs(doc, TCollection_ExtendedString(savePath.toStdString().c_str()));
+	if (sstatus != PCDM_SS_OK)
+	{
+		app->Close(doc);
+		qDebug() << "Error saving the document";
+	}
+#endif
+
+	app->Close(doc);
+
+	return scene;
+}
+
+aiScene* AssImpModelLoader::processIGESFile(const std::string& path)
+{
+	// Create XCAF Application and document
+	Handle(TDocStd_Document) doc;
+	Handle(XCAFApp_Application) app = XCAFApp_Application::GetApplication();
+	BinDrivers::DefineFormat(app);
+	app->NewDocument("BinOcaf", doc);
+
+	// Initialize IGES controller inside session
+	IGESControl_Controller::Init();
+
+	MainWindow::showIndeterminateProgressBar();
+
+	Handle(ConsoleProgressIndicator) progress = new ConsoleProgressIndicator();
+	Message_ProgressRange rootRange = progress->Start();
+
+	Message_ProgressScope transferScope(rootRange, "IGES Transfer", -1);
+
+	// Read IGES file into XCAF document
+	IGESCAFControl_Reader cafReader;
+	if (cafReader.ReadFile(path.c_str()) != IFSelect_RetDone)
+	{
+		qCritical("Failed to read IGES file: %s", path.c_str());
+		MainWindow::resetProgressBar();
+		return nullptr;
+	}
+	MainWindow::resetProgressBar();
+
+	MainWindow::showStatusMessage("Transfering shapes...");
+
+	cafReader.Transfer(doc, transferScope.Next());
+
+	// Access shape tool and color tool
+	Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+	Handle(XCAFDoc_ColorTool) colorTool = XCAFDoc_DocumentTool::ColorTool(doc->Main());
+
+	// Collect free shapes (top-level shapes)
+	TDF_LabelSequence labels;
+	shapeTool->GetFreeShapes(labels);
+
+	// Traverse the assembly structure and extract shapes and names
+	std::vector<TopoDS_Shape> shapes;
+	std::vector<std::string> names;
+	std::vector<Quantity_Color> colors;
+
+	MainWindow::showStatusMessage("Traversing assembly...");
+
+	for (Standard_Integer i = 1; i <= labels.Length(); ++i)
+	{
+		traverseSTEPAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), shapes, colors, names);
+	}
+
+	// Add shapes and names to the tuple vector
+	std::vector<ShapeWithNameAndTrsf> shapeTuples;
+	for (int i = 0; i < shapes.size(); i++)
+	{
+		shapeTuples.emplace_back(shapes[i], names[i], TopLoc_Location(), colors[i]);
+	}
+
+	// Convert to Assimp scene
+	MainWindow::showStatusMessage("Converting shapes to mesh...");
+	aiScene* scene = BRepToAssimpConverter::convert(shapeTuples);
+
+#ifdef __DEBUG__
+	QString savePath = "/home/sharjith/" + fi.baseName() + ".cbf";
+	PCDM_StoreStatus sstatus = app->SaveAs(doc, TCollection_ExtendedString(savePath.toStdString().c_str()));
+	if (sstatus != PCDM_SS_OK)
+	{
+		app->Close(doc);
+		qDebug() << "Error saving the document";
+	}
+#endif
+
+	app->Close(doc);
+
+	return scene;
 }
 
 // Read s STEP file

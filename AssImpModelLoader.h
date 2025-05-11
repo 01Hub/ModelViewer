@@ -92,6 +92,9 @@ private:
 	//using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, gp_Trsf>;
 	using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, TopLoc_Location, Quantity_Color>;
 
+	aiScene* processIGESFile(const std::string& path);
+	aiScene* processSTEPFile(const std::string& path);
+
 	void readSTEPFile(const std::string& filename, Handle(TDocStd_Document)& doc);
 	void traverseSTEPAssembly(
 		const Handle(XCAFDoc_ShapeTool)& shapeTool,

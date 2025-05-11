@@ -3,6 +3,7 @@
 #include <Quantity_Color.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Solid.hxx>
+#include <TopoDS_Face.hxx>
 #include <TopTools_IndexedMapOfShape.hxx>
 #include <TopTools_HSequenceOfShape.hxx>
 #include <STEPCAFControl_Reader.hxx>
