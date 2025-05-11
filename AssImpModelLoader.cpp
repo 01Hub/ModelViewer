@@ -648,7 +648,9 @@ void AssImpModelLoader::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
 		mat.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
 	}
 	if (AI_SUCCESS == material->Get(AI_MATKEY_OPACITY, opacity) && opacity != 0)
-	{		
+	{
+		if (opacity <= 0.0f)
+			std::cout << "Opacity: " << opacity << " - setting to 1" << std::endl;
 		mat.setOpacity(opacity);
 	}
 	else
