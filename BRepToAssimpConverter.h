@@ -20,4 +20,8 @@ private:
     static aiMesh* convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex);
     static aiNode* cloneNodeDeep(const aiNode* src);
     static Standard_Real computeDeflectionFromBBox(const TopTools_IndexedMapOfShape& faceGroup, Standard_Real percent = 0.01);
+    static TopoDS_Face healAndTriangulateFace(const TopoDS_Face& inputFace,
+                                   double deflection = 0.01,
+                                   double angularDeflection = 0.5,
+                                   double fixTolerance = 1e-6);
 };
