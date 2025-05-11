@@ -89,7 +89,9 @@ void AssImpModelLoader::loadModel(string path)
 		_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
 		scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace |
 			aiProcess_GenSmoothNormals |
+			aiProcess_FixInfacingNormals |
 			aiProcess_JoinIdenticalVertices |
+			aiProcess_OptimizeMeshes |
 			aiProcess_Triangulate |
 			aiProcess_GenUVCoords |
 			aiProcess_SortByPType);
@@ -600,16 +602,24 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 void AssImpModelLoader::setColorAndMaterial(aiMaterial* material, GLMaterial& mat)
 {
 	aiColor3D color(0.f, 0.f, 0.f);
-	float opacity = 1.0f;
-	material->Get(AI_MATKEY_OPACITY, opacity);
+	float opacity = 1.0f;	
 	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, color))
 	{
 		mat.setAmbient(QVector3D(color.r, color.g, color.b));
+	}
+	else
+	{
+		mat.setAmbient(QVector3D(0.7f, 0.7f, 0.7f));
 	}
 	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, color))
 	{
 		mat.setDiffuse(QVector3D(color.r, color.g, color.b));
 		mat.setAlbedoColor(QVector3D(color.r, color.g, color.b));
+	}
+	else
+	{
+		mat.setDiffuse(QVector3D(0.7f, 0.7f, 0.7f));
+		mat.setAlbedoColor(QVector3D(0.7f, 0.7f, 0.7f));
 	}
 	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, color))
 	{
@@ -623,14 +633,30 @@ void AssImpModelLoader::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
 		mat.setRoughness(1.0f - intensity);
 
 	}
+	else
+	{
+		mat.setSpecular(QVector3D(0.7f, 0.7f, 0.7f));
+		mat.setMetalness(0.0f);
+		mat.setRoughness(1.0f);
+	}
 	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
 	{
 		mat.setEmissive(QVector3D(color.r, color.g, color.b));
 	}
-	if (AI_SUCCESS == material->Get(AI_MATKEY_OPACITY, opacity))
+	else
 	{
+		mat.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
+	}
+	if (AI_SUCCESS == material->Get(AI_MATKEY_OPACITY, opacity) && opacity != 0)
+	{
+		std::cout << "Opacity: " << opacity << std::endl;
 		mat.setOpacity(opacity);
 	}
+	else
+	{
+		mat.setOpacity(1.0f);
+	}
+
 }
 
 void AssImpModelLoader::setPBRTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
