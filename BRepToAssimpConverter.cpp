@@ -359,7 +359,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 				std::cout << "Face is invalid. Attempting to heal..." << std::endl;
 				TopoDS_Face healedFace = healAndTriangulateFace(face);
 				TopLoc_Location loc;
-				Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation(face, loc);
+				triangulation = BRep_Tool::Triangulation(face, loc);
 				if (triangulation.IsNull())
 				{
 					std::cout << "Unable to heal face, skipping..." << std::endl;
