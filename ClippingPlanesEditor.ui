@@ -6,15 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>257</width>
-    <height>293</height>
+    <width>317</width>
+    <height>344</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Dialog</string>
   </property>
-  <property name="windowOpacity">
-   <double>1.000000000000000</double>
+  <property name="styleSheet">
+   <string notr="true">color: rgb(0, 0, 0);</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="0" column="0">
