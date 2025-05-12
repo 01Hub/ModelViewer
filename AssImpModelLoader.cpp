@@ -155,7 +155,7 @@ aiScene* AssImpModelLoader::processSTEPFile(const std::string& path)
 	MainWindow::showStatusMessage("Traversing assembly...");
 	for (Standard_Integer i = 1; i <= labels.Length(); ++i)
 	{
-		traverseSTEPAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), shapes, colors, names);
+		traverseXCAFAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), shapes, colors, names);
 	}
 #ifdef __DEBUG__
 	auto endTraverse = std::chrono::high_resolution_clock::now();
@@ -247,7 +247,7 @@ aiScene* AssImpModelLoader::processIGESFile(const std::string& path)
 
 	for (Standard_Integer i = 1; i <= labels.Length(); ++i)
 	{
-		traverseSTEPAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), shapes, colors, names);
+		traverseXCAFAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), shapes, colors, names);
 	}
 
 	// Add shapes and names to the tuple vector
@@ -321,7 +321,7 @@ void AssImpModelLoader::readSTEPFile(const std::string& filename, Handle(TDocStd
 
 
 // Traverse the STEP assembly structure and extract shapes and names
-void AssImpModelLoader::traverseSTEPAssembly(
+void AssImpModelLoader::traverseXCAFAssembly(
 	const Handle(XCAFDoc_ShapeTool)& shapeTool,
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TDF_Label& label,
@@ -337,7 +337,7 @@ void AssImpModelLoader::traverseSTEPAssembly(
 		shapeTool->GetComponents(label, comps);
 		for (Standard_Integer i = 1; i <= comps.Length(); ++i)
 		{
-			traverseSTEPAssembly(shapeTool, colorTool, comps.Value(i), parentLoc, outShapes, outColors, outNames);
+			traverseXCAFAssembly(shapeTool, colorTool, comps.Value(i), parentLoc, outShapes, outColors, outNames);
 		}
 		return;
 	}
@@ -364,7 +364,7 @@ void AssImpModelLoader::traverseSTEPAssembly(
 		shapeTool->GetComponents(defLabel, comps);
 		for (Standard_Integer i = 1; i <= comps.Length(); ++i)
 		{
-			traverseSTEPAssembly(shapeTool, colorTool, comps.Value(i), loc, outShapes, outColors, outNames);
+			traverseXCAFAssembly(shapeTool, colorTool, comps.Value(i), loc, outShapes, outColors, outNames);
 		}
 		return;
 	}

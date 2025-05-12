@@ -96,7 +96,7 @@ private:
 	aiScene* processSTEPFile(const std::string& path);
 
 	void readSTEPFile(const std::string& filename, Handle(TDocStd_Document)& doc);
-	void traverseSTEPAssembly(
+	void traverseXCAFAssembly(
 		const Handle(XCAFDoc_ShapeTool)& shapeTool,
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TDF_Label& label,
