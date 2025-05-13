@@ -241,6 +241,10 @@ _assimpModelLoader(nullptr)
 	_lowerLayout->setRowWrapPolicy(QFormLayout::DontWrapRows);
 	_lowerLayout->setFieldGrowthPolicy(QFormLayout::FieldsStayAtSizeHint);
 
+	_clippingPlanesEditor = new ClippingPlanesEditor(this);
+	_lowerLayout->addWidget(_clippingPlanesEditor);
+	_clippingPlanesEditor->hide();
+
 	//_displayedObjectsIds.push_back(0);
 
 	setContextMenuPolicy(Qt::CustomContextMenu);
@@ -750,12 +754,6 @@ void GLWidget::updateClippingPlane()
 
 void GLWidget::showClippingPlaneEditor(bool show)
 {
-	if (!_clippingPlanesEditor)
-	{
-		_clippingPlanesEditor = new ClippingPlanesEditor(this);
-	}
-
-	_lowerLayout->addWidget(_clippingPlanesEditor);
 	show ? _clippingPlanesEditor->show() : _clippingPlanesEditor->hide();
 }
 
@@ -4470,6 +4468,20 @@ QColor GLWidget::getBgBotColor() const
 void GLWidget::setBgBotColor(const QColor& bgBotColor)
 {
 	_bgBotColor = bgBotColor;
+	const QColor color = _bgBotColor;
+
+	auto contrast_color = QColor(255 - color.red(), 255 - color.green(), 255 - color.blue());
+	if (contrast_color.lightnessF() < 0.5)
+		contrast_color = QColor(0,0,0);
+	else
+		contrast_color = QColor(255, 255,255);
+
+	const QString styleSheet = QString::fromUtf8("color: rgb(%1, %2, %3);")
+						 .arg(contrast_color.red())
+						 .arg(contrast_color.green())
+						 .arg(contrast_color.blue());
+
+	_clippingPlanesEditor->setStyleSheet(styleSheet);
 	update();
 }
 
