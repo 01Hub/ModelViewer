@@ -1,7 +1,7 @@
 # ModelViewer
 OpenGL Model Viewer
 
-A 3D Viewer that reads and displays most common 3D file formats that are supported by the Assimp library.
+A 3D Viewer that reads and displays most common 3D file formats that are supported by the Assimp library and STEP and IGES files using the Open Cascade library.
 
 ![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Screenshot%202021-07-24%20172616.jpg)
 
