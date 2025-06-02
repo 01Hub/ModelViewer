@@ -162,7 +162,7 @@ void GLCamera::updateProjectionMatrix(void)
         //float wd = HFOV / (2.0f * tan(AFOV / 2.0f));
 		//qDebug() << "WD: " << wd;
         //wd = wd + wd * 0.2f;
-		float shift = -_viewRange * 4;
+		float shift = -_viewRange * 1.25;
 		_projectionMatrix.translate(0.0, 0.0, shift);
 	}
 }
