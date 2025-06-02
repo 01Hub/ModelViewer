@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.18)
 
 project(ModelViewer)
 
+set(ENV{FREETYPE_DIR} "D:/Sharjith/software/libs/freetype-2.5.5-vc12-32/bin")
+
 find_package(assimp REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(glm REQUIRED)
@@ -67,8 +69,7 @@ target_include_directories(ModelViewer
 target_link_libraries(ModelViewer
     PRIVATE
         assimp::assimp
-        Freetype::Freetype
-        glm::glm
+        Freetype::Freetype        
         Qt::Core
         Qt::Gui
         $<$<EQUAL:${QT_VERSION_MAJOR},6>:Qt::OpenGLWidgets>

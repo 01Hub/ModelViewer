@@ -748,15 +748,15 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      </size>
                     </property>
                     <property name="toolTip">
-                     <string>Perspective</string>
+                     <string>Swith to Perspective</string>
                     </property>
                     <property name="text">
                      <string>Shaded</string>
                     </property>
                     <property name="icon">
                      <iconset resource="ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/Perspective.png</normaloff>
-                      <normalon>:/new/prefix1/res/Ortho.png</normalon>:/new/prefix1/res/Perspective.png</iconset>
+                      <normaloff>:/new/prefix1/res/Ortho.png</normaloff>
+                      <normalon>:/new/prefix1/res/Perspective.png</normalon>:/new/prefix1/res/Ortho.png</iconset>
                     </property>
                     <property name="iconSize">
                      <size>
@@ -1209,8 +1209,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>467</width>
-                   <height>789</height>
+                   <width>434</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1974,8 +1974,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>488</width>
-                   <height>727</height>
+                   <width>162</width>
+                   <height>172</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2128,8 +2128,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>488</width>
-                   <height>727</height>
+                   <width>361</width>
+                   <height>461</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2817,8 +2817,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>488</width>
-                   <height>727</height>
+                   <width>310</width>
+                   <height>479</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3677,8 +3677,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>610</width>
-                   <height>706</height>
+                   <width>496</width>
+                   <height>204</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -4031,8 +4031,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>503</width>
-                   <height>706</height>
+                   <width>419</width>
+                   <height>429</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -5420,8 +5420,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupViews"/>
   <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
+  <buttongroup name="buttonGroupViews"/>
  </buttongroups>
 </ui>
