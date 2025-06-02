@@ -1272,7 +1272,7 @@ void ModelViewer::on_toolButtonBackView_clicked()
 void ModelViewer::on_toolButtonProjection_toggled(bool checked)
 {
 	_glWidget->setProjection(checked ? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC);
-	toolButtonProjection->setToolTip(checked ? "Orthographic" : "Perspective");
+	toolButtonProjection->setToolTip(checked ? "Swith to Orthographic" : "Switch to Perspective");
 }
 
 void ModelViewer::on_toolButtonSectionView_toggled(bool checked)
