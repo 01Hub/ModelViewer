@@ -117,7 +117,8 @@
                </sizepolicy>
               </property>
               <property name="styleSheet">
-               <string notr="true">background-color: rgba(255, 255, 255, 0%);</string>
+               <string notr="true">color: rgb(0, 0, 0);
+background-color: rgba(255, 255, 255, 0%);</string>
               </property>
               <property name="tabPosition">
                <enum>QTabWidget::TabPosition::North</enum>
@@ -1208,8 +1209,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>445</width>
-                   <height>727</height>
+                   <width>467</width>
+                   <height>789</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1973,8 +1974,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>459</width>
-                   <height>721</height>
+                   <width>488</width>
+                   <height>727</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2127,8 +2128,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>459</width>
-                   <height>721</height>
+                   <width>488</width>
+                   <height>727</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2816,8 +2817,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>459</width>
-                   <height>721</height>
+                   <width>488</width>
+                   <height>727</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3676,8 +3677,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>569</width>
-                   <height>707</height>
+                   <width>610</width>
+                   <height>706</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -4030,8 +4031,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>477</width>
-                   <height>707</height>
+                   <width>503</width>
+                   <height>706</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -5419,8 +5420,8 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupLighting"/>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupViews"/>
+  <buttongroup name="buttonGroupviewManip"/>
+  <buttongroup name="buttonGroupLighting"/>
  </buttongroups>
 </ui>

@@ -72,7 +72,7 @@ _assimpModelLoader(nullptr)
 
 	_viewBoundingSphereDia = 200.0f;
 	_viewRange = _viewBoundingSphereDia;
-	_FOV = 15.0f;
+	_FOV = 45.0f;
 	_currentViewRange = 1.0f;
 	_viewMode = ViewMode::ISOMETRIC;
 	_projection = ViewProjection::ORTHOGRAPHIC;
@@ -4468,20 +4468,24 @@ QColor GLWidget::getBgBotColor() const
 void GLWidget::setBgBotColor(const QColor& bgBotColor)
 {
 	_bgBotColor = bgBotColor;
-	const QColor color = _bgBotColor;
 
-	auto contrast_color = QColor(255 - color.red(), 255 - color.green(), 255 - color.blue());
-	if (contrast_color.lightnessF() < 0.5)
-		contrast_color = QColor(0,0,0);
-	else
-		contrast_color = QColor(255, 255,255);
+	QColor contrastColor = (_bgBotColor.lightnessF() < 0.5)
+						   ? QColor(255, 255, 255)
+						   : QColor(0, 0, 0);
 
-	const QString styleSheet = QString::fromUtf8("color: rgb(%1, %2, %3);")
-						 .arg(contrast_color.red())
-						 .arg(contrast_color.green())
-						 .arg(contrast_color.blue());
+	const QString textColorStyle = QString("color: rgb(%1, %2, %3);")
+								   .arg(contrastColor.red())
+								   .arg(contrastColor.green())
+								   .arg(contrastColor.blue());
 
-	_clippingPlanesEditor->setStyleSheet(styleSheet);
+	_clippingPlanesEditor->setStyleSheet(textColorStyle);
+
+	if (QTabWidget* tabs = _viewer->findChild<QTabWidget*>("tabWidget")) {
+		const QString tabStyleSheet = textColorStyle +
+									  "background-color: rgba(255, 255, 255, 0);";
+		tabs->setStyleSheet(tabStyleSheet);
+	}
+
 	update();
 }
 
