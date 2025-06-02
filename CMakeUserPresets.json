@@ -26,7 +26,7 @@
       "name": "Qt_5.15.2_msvc2019_64",
       "inherits": "Qt",
       "environment": {
-        "QTDIR": "C:/Qt/5.15.2/msvc2019_64"
+        "QTDIR": "D:/Sharjith/software/Qt/6.9.0/msvc2022_64"
       },
       "architecture": {
         "strategy": "external",
@@ -35,17 +35,7 @@
       "generator": "Ninja",
       "vendor": {
         "qt-project.org/Version": {
-          "checksum": "9oGra7eStyZ2a3ZMMD98QO5xLYI="
-        }
-      }
-    },
-    {
-      "hidden": true,
-      "name": "Qt-Default",
-      "inherits": "6.8.2_msvc2022_64",
-      "vendor": {
-        "qt-project.org/Default": {
-          "checksum": "dVaXqt7vT7P6yO+8E9fl9WciXD4="
+          "checksum": "UA24DBqglBYw+2Yy+mxLg5Npqr4="
         }
       }
     },
@@ -54,7 +44,7 @@
       "name": "6.8.2_msvc2022_64",
       "inherits": "Qt",
       "environment": {
-        "QTDIR": "C:/Qt/6.8.2/msvc2022_64"
+        "QTDIR": "D:/Sharjith/software/Qt/6.9.0/msvc2022_64"
       },
       "architecture": {
         "strategy": "external",
@@ -63,14 +53,60 @@
       "generator": "Ninja",
       "vendor": {
         "qt-project.org/Version": {
-          "checksum": "TsF7fqxlwTY3dckxwqcOyu+ixiM="
+          "checksum": "uF4eLov0SbWL+DrlNsnuow4n1iU="
+        }
+      }
+    },
+    {
+      "hidden": true,
+      "name": "5.15.2_msvc2019_64",
+      "inherits": "Qt",
+      "environment": {
+        "QTDIR": "D:/Sharjith/software/Qt/5.15.2/msvc2019_64"
+      },
+      "architecture": {
+        "strategy": "external",
+        "value": "x64"
+      },
+      "generator": "Ninja",
+      "vendor": {
+        "qt-project.org/Version": {
+          "checksum": "yfKRdvG+fe47yCU2yOggE1UBCZo="
+        }
+      }
+    },
+    {
+      "hidden": true,
+      "name": "Qt-Default",
+      "inherits": "6.9.0_msvc2022_64",
+      "vendor": {
+        "qt-project.org/Default": {
+          "checksum": "p2g8qSfRuZwrHdoqsydD/azGQjs="
+        }
+      }
+    },
+    {
+      "hidden": true,
+      "name": "6.9.0_msvc2022_64",
+      "inherits": "Qt",
+      "environment": {
+        "QTDIR": "D:/Sharjith/software/Qt/6.9.0/msvc2022_64"
+      },
+      "architecture": {
+        "strategy": "external",
+        "value": "x64"
+      },
+      "generator": "Ninja",
+      "vendor": {
+        "qt-project.org/Version": {
+          "checksum": "7L+p1PniTEL7PxcmDXlc/BOWPWo="
         }
       }
     }
   ],
   "vendor": {
     "qt-project.org/Presets": {
-      "checksum": "PR1Geu4tljee+h38c+PA+q47c7M="
+      "checksum": "9mSIApw03lS+1Mjmr6XWeKfd4RA="
     }
   }
 }
