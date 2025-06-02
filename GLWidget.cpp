@@ -72,7 +72,7 @@ _assimpModelLoader(nullptr)
 
 	_viewBoundingSphereDia = 200.0f;
 	_viewRange = _viewBoundingSphereDia;
-	_FOV = 45.0f;
+	_FOV = 15.0f;
 	_currentViewRange = 1.0f;
 	_viewMode = ViewMode::ISOMETRIC;
 	_projection = ViewProjection::ORTHOGRAPHIC;
