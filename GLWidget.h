@@ -384,6 +384,14 @@ private:
 	unsigned int _selectionRBO;
 	unsigned int _selectionDBO;
 
+	enum class SelectionMode {
+		RayOnly,
+		ColorOnly,
+		Hybrid // Try ray, fallback to color
+	};
+
+	SelectionMode _selectionMode = SelectionMode::RayOnly; // Default
+
 	bool _multiViewActive;
 
 	bool _showAxis;

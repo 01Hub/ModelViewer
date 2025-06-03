@@ -3325,7 +3325,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 			}
 			glReadBuffer(GL_COLOR_ATTACHMENT0);
 			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-			int pixelWinSize = 6;
+			int pixelWinSize = 2;
 			std::vector<float> res(static_cast<size_t>(pixelWinSize) * pixelWinSize * 4);
 			glReadPixels(pixel.x() - pixelWinSize / 2, viewport[3] - pixel.y() + pixelWinSize / 2, pixelWinSize, pixelWinSize, GL_RGBA, GL_FLOAT, res.data());
 			std::map<int, int> voteCount;
@@ -3921,30 +3921,31 @@ void GLWidget::stopAnimations()
 
 void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, GLCamera* camera, QVector3D& orig, QVector3D& dir)
 {
-	if (_projection == ViewProjection::PERSPECTIVE)
-	{
-		QVector3D Z(0, 0, -_viewRange); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-		Z = Z.project(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
-		QVector3D p(pixel.x(), height() - pixel.y() - 1, Z.z());
-		QVector3D P = p.unproject(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
+	int yInverted = height() - pixel.y() - 1;
 
-		orig = QVector3D(P.x(), P.y(), P.z());
+	QMatrix4x4 view = _viewMatrix;
+	QMatrix4x4 projection = camera->getProjectionMatrix();
 
-		QVector3D Z1(0, 0, _viewRange); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-		Z1 = Z1.project(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
-		QVector3D q(pixel.x(), height() - pixel.y() - 1, Z1.z());
-		QVector3D Q = q.unproject(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
+	// Convert to Normalized Device Coordinates [-1, 1]
+	float ndcX = (2.0f * (pixel.x() - viewport.x())) / viewport.width() - 1.0f;
+	float ndcY = (2.0f * (yInverted - viewport.y())) / viewport.height() - 1.0f;
 
-		dir = (Q - P).normalized();
-	}
-	else
-	{
-		QVector3D nearPoint(pixel.x(), height() - pixel.y() - 1, 0.0f);
-		QVector3D farPoint(pixel.x(), height() - pixel.y() - 1, 1.0f);
-		orig = nearPoint.unproject(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport);
-		dir = farPoint.unproject(_viewMatrix * _modelMatrix, camera->getProjectionMatrix(), viewport) - orig;
-	}
+	QVector4D nearNDC(ndcX, ndcY, -1.0f, 1.0f); // Near plane
+	QVector4D farNDC(ndcX, ndcY, 1.0f, 1.0f);   // Far plane
+
+	QMatrix4x4 inv = (projection * view).inverted();
+
+	QVector4D nearWorld = inv * nearNDC;
+	QVector4D farWorld = inv * farNDC;
+
+	// Homogeneous divide
+	nearWorld /= nearWorld.w();
+	farWorld /= farWorld.w();
+
+	orig = nearWorld.toVector3D();
+	dir = (farWorld.toVector3D() - orig).normalized();
 }
+
 
 QRect GLWidget::getViewportFromPoint(const QPoint& pixel)
 {
@@ -4051,107 +4052,75 @@ unsigned int GLWidget::loadTextureFromFile(char const* path)
 	return textureID;
 }
 
-#include <chrono>
-using namespace std::chrono;
 int GLWidget::clickSelect(const QPoint& pixel)
 {
 	int id = -1;
 	_selectedIDs.clear();
 
-	if (_visibleSwapped)
-	{
-		if (!_hiddenObjectsIds.size())
-		{
-			emit singleSelectionDone(id);
-			return id;
-		}
-	}
-	else
-	{
-		if (!_displayedObjectsIds.size())
-		{
-			emit singleSelectionDone(id);
-			return id;
-		}
+	const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	if (ids.empty()) {
+		emit singleSelectionDone(-1);
+		return -1;
 	}
 
-	QVector3D rayPos, rayDir;
-	QVector3D intersectionPoint;
+	QVector3D rayPos, rayDir, intersectionPoint;
 	QRect viewport = getViewportFromPoint(pixel);
-	GLCamera* camera = _primaryCamera;
-	if (_multiViewActive)
-	{
-		if (viewport.x() == viewport.width() && viewport.y() == 0)
-		{
-			camera = _primaryCamera;
-		}
-		else
-		{
-			camera = _orthoViewsCamera;
-		}
-	}
+
+	GLCamera* camera = _multiViewActive && (viewport.x() != viewport.width() || viewport.y() != 0)
+		? _orthoViewsCamera
+		: _primaryCamera;
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
-
 	convertClickToRay(pixel, viewport, camera, rayPos, rayDir);
 	rayDir.normalize();
 
+	// === Ray-based intersection test ===
 	QMap<int, float> selectedIdsDist;
-	for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
-	{
+	for (int i : ids) {
 		TriangleMesh* mesh = _meshStore.at(i);
-		if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir))
-		{
-			bool intersects = mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint);
-			
-			if (intersects)
-			{				
+		if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir)) {
+			if (mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint)) {
 				selectedIdsDist[i] = intersectionPoint.distanceToPoint(rayPos);
-				_selectedIDs.push_back(i);				
+				_selectedIDs.push_back(i);
 			}
 		}
 	}
-	
-	if (!selectedIdsDist.isEmpty())
-	{
-		QMapIterator<int, float> it(selectedIdsDist);
-		float lowestDist = std::numeric_limits<float>::max();
-		while (it.hasNext())
-		{
-			it.next();
-			float val = it.value();
-			if (val < lowestDist)
-				lowestDist = val;
-		}
-		id = selectedIdsDist.key(lowestDist);
+
+	if (!selectedIdsDist.isEmpty()) {
+		auto it = std::min_element(
+			selectedIdsDist.constBegin(), selectedIdsDist.constEnd(),
+			[](auto a, auto b) { return a < b; });
+		id = it.key();
 	}
 
-	int colId = processSelection(pixel);
+	// === Color-picking fallback (if applicable) ===
+	int colId = -1;
+	if (_selectionMode != SelectionMode::RayOnly)
+		colId = processSelection(pixel);
 
 	QApplication::restoreOverrideCursor();
 
 	int selectedId = -1;
-
-	if (colId != -1)
-	{
-		selectedId = colId;
-	}
-	else
-	{
+	switch (_selectionMode) {
+	case SelectionMode::RayOnly:
 		selectedId = id;
+		break;
+	case SelectionMode::ColorOnly:
+		selectedId = colId;
+		break;
+	case SelectionMode::Hybrid:
+		selectedId = (id != -1) ? id : colId;
+		break;
 	}
 
 #ifdef __DEBUG__
 	qDebug() << "Intersected Ids:";
 	int ct = 0;
 	for (int id : _selectedIDs)
-	{
-		++ct;
-		qDebug() << "Id " << ct << ": " << id;
-	}
-	qDebug() << "Closest Id: " << id;
+		qDebug() << "Id " << ++ct << ": " << id;
+	qDebug() << "Closest Ray Id: " << id;
 	qDebug() << "Color Id: " << colId;
-	qDebug() << "Selected Id: " << selectedId;
+	qDebug() << "Selected Id (final): " << selectedId;
 #endif
 
 	emit singleSelectionDone(selectedId);
@@ -4162,47 +4131,41 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 {
 	_selectedIDs.clear();
 
-	if (_visibleSwapped)
-	{
-		if (!_hiddenObjectsIds.size())
-		{
-			return _selectedIDs;
-		}
-	}
-	else
-	{
-		if (!_displayedObjectsIds.size())
-		{
-			return _selectedIDs;
-		}
-	}
-
-    QRect rubberRect = _rubberBand->geometry();
-	if (rubberRect.width() == 0 || rubberRect.height() == 0)
-	{
+	const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	if (ids.empty())
 		return _selectedIDs;
-	}
+
+	QRect rubberRect = _rubberBand->geometry();
+	if (rubberRect.isNull())
+		return _selectedIDs;
 
 	QRect viewport = getViewportFromPoint(pixel);
+	QMatrix4x4 modelView = _viewMatrix * _modelMatrix;
+	QRect widgetRect = geometry();
+
 	QApplication::setOverrideCursor(Qt::WaitCursor);
-	for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
+	_selectedIDs.reserve(ids.size());
+
+	for (int i : ids)
 	{
 		TriangleMesh* mesh = _meshStore.at(i);
-		QRect objRect = mesh->getBoundingBox().project(_viewMatrix * _modelMatrix, _projectionMatrix, viewport, geometry());
-		QRect interRect = rubberRect.intersected(objRect);
-		// Intersection rectangle of rubberband and object is more than 5% of objRect
-		bool intersects = (float(interRect.width() * interRect.height()) >= float(objRect.width() * objRect.height()) * 0.05f);
+		QRect objRect = mesh->getBoundingBox().project(modelView, _projectionMatrix, viewport, widgetRect);
+		if (objRect.isNull())
+			continue;
 
-		if (intersects)
-		{
+		QRect interRect = rubberRect.intersected(objRect);
+		int objArea = objRect.width() * objRect.height();
+		int interArea = interRect.width() * interRect.height();
+
+		if (objArea > 0 && interArea * 20 >= objArea) // ≥5%
 			_selectedIDs.push_back(i);
-		}
 	}
 	QApplication::restoreOverrideCursor();
 
 	emit sweepSelectionDone(_selectedIDs);
 	return _selectedIDs;
 }
+
 
 unsigned int GLWidget::colorToIndex(const QColor& color)
 {
