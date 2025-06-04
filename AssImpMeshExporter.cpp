@@ -1,118 +1,99 @@
 #include "AssImpMeshExporter.h"
-#include <AssImpMesh.h>
-#include <assimp/Exporter.hpp>
-#include <GLMaterial.h>
+#include "AssImpMesh.h"
+#include "GLMaterial.h"
 
-AssImpMeshExporter::AssImpMeshExporter(QObject* parent)
-    : QObject{ parent }
-{
+#include <QDebug>
+#include <algorithm>
+#include <memory>
 
-}
+AssImpMeshExporter::AssImpMeshExporter(QObject* parent) : QObject(parent) {}
 
 aiReturn AssImpMeshExporter::exportMeshes(const std::vector<AssImpMesh*>& meshes, const std::string& exportPath)
 {
     std::vector<aiMesh*> aiMeshes;
     std::vector<aiMaterial*> aiMaterials;
+
     for (AssImpMesh* mesh : meshes)
     {
-        std::vector<aiVector3D> aivertices;
-        std::vector<unsigned int> aiindices;
-        std::vector<aiVector3D> ainormals;
-        std::vector<aiVector3D> aitexCoords;
-        std::vector<aiColor4D> aicolors;
+        const auto& vertices = mesh->vertices();
+        const auto& indices = mesh->indices();
 
-        for (Vertex v : mesh->vertices())
-        {
-            aivertices.push_back(aiVector3D(v.Position.x, v.Position.y, v.Position.z));
-            ainormals.push_back(aiVector3D(v.Normal.x, v.Normal.y, v.Normal.z));
-            aitexCoords.push_back(aiVector3D(v.TexCoords.s, v.TexCoords.t, 0));
-            aicolors.push_back(aiColor4D(v.Color.r, v.Color.g, v.Color.b, v.Color.a)); // Include vertex colors
-        }
-        for (int index : mesh->indices())
-        {
-            aiindices.push_back(index);
+        if (vertices.empty() || indices.empty()) {
+            qWarning() << "Skipping empty mesh";
+            continue;
         }
 
-        aiMesh* aimesh = createMesh(aivertices, aiindices, ainormals, aitexCoords, aicolors);
+        aiMesh* aimesh = createMesh(vertices, indices);
+        if (!aimesh)
+            continue;
+
+        aiMaterial* mat = createMaterial(mesh->getMaterial());
+        aimesh->mMaterialIndex = static_cast<unsigned int>(aiMaterials.size());
+
         aiMeshes.push_back(aimesh);
-
-        aiMaterial* material = createMaterial(mesh->getMaterial());
-        aiMaterials.push_back(material);
+        aiMaterials.push_back(mat);
     }
 
-    aiScene* scene = createScene(aiMeshes, aiMaterials);
-    // Export the scene to the selected file type
+    std::unique_ptr<aiScene> scene(createScene(aiMeshes, aiMaterials));
+
     Assimp::Exporter exporter;
-    std::string fileExtension = exportPath.substr(exportPath.find_last_of('.') + 1);
-    aiReturn result = exporter.Export(scene, fileExtension.c_str(), exportPath.c_str());
-
-    if (result == aiReturn_SUCCESS) {
-        std::cout << "Scene with multiple meshes exported successfully!" << std::endl;
+    const aiExportFormatDesc* format = findExportFormat(exportPath, exporter);
+    if (!format) {
+        qCritical() << "Unsupported export format for:" << QString::fromStdString(exportPath);
+        return aiReturn_FAILURE;
     }
-    else {
-        std::cerr << "Error exporting scene: " << exporter.GetErrorString() << std::endl;
+
+    aiReturn result = exporter.Export(scene.get(), format->id, exportPath.c_str());
+    if (result != aiReturn_SUCCESS) {
+        qCritical() << "Export failed:" << exporter.GetErrorString();
+    } else {
+        qDebug() << "Export successful:" << QString::fromStdString(exportPath);
     }
 
     return result;
 }
 
-aiMesh* AssImpMeshExporter::createMesh(const std::vector<aiVector3D>& vertices,
-    const std::vector<unsigned int>& indices,
-    const std::vector<aiVector3D>& normals,
-    const std::vector<aiVector3D>& texCoords,
-    const std::vector<aiColor4D>& colors) {
-    // Create a new aiMesh
-    aiMesh* mesh = new aiMesh();
+aiMesh* AssImpMeshExporter::createMesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices)
+{
+    auto mesh = new aiMesh();
 
-    // Set number of vertices and allocate memory for vertices
     mesh->mNumVertices = static_cast<unsigned int>(vertices.size());
     mesh->mVertices = new aiVector3D[mesh->mNumVertices];
+    mesh->mNormals = new aiVector3D[mesh->mNumVertices];
+    mesh->mTextureCoords[0] = new aiVector3D[mesh->mNumVertices];
+    mesh->mColors[0] = new aiColor4D[mesh->mNumVertices];
+
     for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
-        mesh->mVertices[i] = vertices[i];
+        const auto& v = vertices[i];
+        mesh->mVertices[i] = aiVector3D(v.Position.x, v.Position.y, v.Position.z);
+        mesh->mNormals[i] = aiVector3D(v.Normal.x, v.Normal.y, v.Normal.z);
+        mesh->mTextureCoords[0][i] = aiVector3D(v.TexCoords.s, v.TexCoords.t, 0.0f);
+        mesh->mColors[0][i] = aiColor4D(v.Color.r, v.Color.g, v.Color.b, v.Color.a);
     }
 
-    // Set indices (faces)
-    mesh->mNumFaces = static_cast<unsigned int>(indices.size()) / 3;
+    mesh->mNumFaces = static_cast<unsigned int>(indices.size() / 3);
     mesh->mFaces = new aiFace[mesh->mNumFaces];
+
     for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
-        mesh->mFaces[i].mNumIndices = 3;
-        mesh->mFaces[i].mIndices = new unsigned int[3];
-        for (unsigned int j = 0; j < 3; ++j) {
-            mesh->mFaces[i].mIndices[j] = indices[i * 3 + j];
-        }
-    }
-
-    // If you have normals, allocate and set them
-    if (!normals.empty()) {
-        mesh->mNormals = new aiVector3D[mesh->mNumVertices];
-        for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
-            mesh->mNormals[i] = normals[i];
-        }
-    }
-
-    // If you have texture coordinates, allocate and set them
-    if (!texCoords.empty()) {
-        mesh->mTextureCoords[0] = new aiVector3D[mesh->mNumVertices];
-        for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
-            mesh->mTextureCoords[0][i] = texCoords[i];
-        }
-    }
-
-    // If you have vertex colors, allocate and set them
-    if (!colors.empty()) {
-        mesh->mColors[0] = new aiColor4D[mesh->mNumVertices];
-        for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
-            mesh->mColors[0][i] = colors[i];
-        }
+        aiFace& face = mesh->mFaces[i];
+        face.mNumIndices = 3;
+        face.mIndices = new unsigned int[3]{
+            indices[i * 3],
+            indices[i * 3 + 1],
+            indices[i * 3 + 2]
+        };
     }
 
     return mesh;
 }
 
-aiMaterial* AssImpMeshExporter::createMaterial(const GLMaterial& material) {
-    aiMaterial* aiMat = new aiMaterial();
+aiMaterial* AssImpMeshExporter::createMaterial(const GLMaterial& material)
+{
+    auto aiMat = new aiMaterial();
 
-    aiColor3D color(material.ambient().x(), material.ambient().y(), material.ambient().z());
+    aiColor3D color;
+
+    color = aiColor3D(material.ambient().x(), material.ambient().y(), material.ambient().z());
     aiMat->AddProperty(&color, 1, AI_MATKEY_COLOR_AMBIENT);
 
     color = aiColor3D(material.diffuse().x(), material.diffuse().y(), material.diffuse().z());
@@ -133,29 +114,37 @@ aiMaterial* AssImpMeshExporter::createMaterial(const GLMaterial& material) {
     return aiMat;
 }
 
-aiScene* AssImpMeshExporter::createScene(const std::vector<aiMesh*>& meshes,
-    const std::vector<aiMaterial*>& materials) {
+aiScene* AssImpMeshExporter::createScene(const std::vector<aiMesh*>& meshes, const std::vector<aiMaterial*>& materials)
+{
     aiScene* scene = new aiScene();
 
     scene->mNumMeshes = static_cast<unsigned int>(meshes.size());
-    scene->mMeshes = new aiMesh * [scene->mNumMeshes];
-    for (unsigned int i = 0; i < scene->mNumMeshes; ++i) {
-        scene->mMeshes[i] = meshes[i];
-    }
+    scene->mMeshes = new aiMesh*[scene->mNumMeshes];
+    std::copy(meshes.begin(), meshes.end(), scene->mMeshes);
 
     scene->mNumMaterials = static_cast<unsigned int>(materials.size());
-    scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
-    for (unsigned int i = 0; i < scene->mNumMaterials; ++i) {
-        scene->mMaterials[i] = materials[i];
-    }
+    scene->mMaterials = new aiMaterial*[scene->mNumMaterials];
+    std::copy(materials.begin(), materials.end(), scene->mMaterials);
 
     scene->mRootNode = new aiNode();
     scene->mRootNode->mNumMeshes = scene->mNumMeshes;
     scene->mRootNode->mMeshes = new unsigned int[scene->mRootNode->mNumMeshes];
-    for (unsigned int i = 0; i < scene->mRootNode->mNumMeshes; ++i) {
+    for (unsigned int i = 0; i < scene->mRootNode->mNumMeshes; ++i)
         scene->mRootNode->mMeshes[i] = i;
-    }
 
     return scene;
 }
 
+const aiExportFormatDesc* AssImpMeshExporter::findExportFormat(const std::string& filePath, Assimp::Exporter& exporter)
+{
+    std::string ext = filePath.substr(filePath.find_last_of('.') + 1);
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
+
+    for (unsigned int i = 0; i < exporter.GetExportFormatCount(); ++i) {
+        const aiExportFormatDesc* fmt = exporter.GetExportFormatDescription(i);
+        if (fmt && ext == fmt->fileExtension) {
+            return fmt;
+        }
+    }
+    return nullptr;
+}

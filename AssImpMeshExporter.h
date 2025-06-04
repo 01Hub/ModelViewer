@@ -1,37 +1,25 @@
-#ifndef ASSIMPMESHEXPORTER_H
-#define ASSIMPMESHEXPORTER_H
+#pragma once
 
 #include <QObject>
-
-#include <assimp/vector3.h>
-#include <assimp/mesh.h>
+#include <vector>
 #include <assimp/scene.h>
+#include <assimp/Exporter.hpp>
 
 class GLMaterial;
 class AssImpMesh;
+struct Vertex;
+
 class AssImpMeshExporter : public QObject
 {
     Q_OBJECT
+
 public:
-    explicit AssImpMeshExporter(QObject *parent = nullptr);
-
-
+    explicit AssImpMeshExporter(QObject* parent = nullptr);
     aiReturn exportMeshes(const std::vector<AssImpMesh*>& meshes, const std::string& exportPath);
-signals:
-
 
 private:
-    aiMesh* createMesh(const std::vector<aiVector3D>& vertices,
-                       const std::vector<unsigned int>& indices,
-                       const std::vector<aiVector3D>& normals,
-                       const std::vector<aiVector3D>& texCoords,
-                        const std::vector<aiColor4D>& colors);
-
+    aiMesh* createMesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices);
     aiMaterial* createMaterial(const GLMaterial& material);
-
-    aiScene* createScene(const std::vector<aiMesh*>& meshes,
-        const std::vector<aiMaterial*>& materials);
-
+    aiScene* createScene(const std::vector<aiMesh*>& meshes, const std::vector<aiMaterial*>& materials);
+    const aiExportFormatDesc* findExportFormat(const std::string& filePath, Assimp::Exporter& exporter);
 };
-
-#endif // ASSIMPMESHEXPORTER_H
