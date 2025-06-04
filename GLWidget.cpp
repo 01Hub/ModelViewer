@@ -4003,14 +4003,52 @@ QRect GLWidget::getClientRectFromPoint(const QPoint& pixel)
 
 QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end)
 {
-	QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-	Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(start));
-	QVector3D p1(start.x(), height() - start.y(), Z.z());
-	QVector3D O = p1.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(start));
-	QVector3D p2(end.x(), height() - end.y(), Z.z());
-	QVector3D P = p2.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(start));
-	QVector3D OP = P - O;
-	return OP;
+	// Determine viewport and camera
+	QRect viewport = getViewportFromPoint(start);
+	GLCamera* camera = _multiViewActive && (viewport.x() != viewport.width() || viewport.y() != 0)
+		? _orthoViewsCamera
+		: _primaryCamera;
+
+	// Get view and projection matrices
+	QMatrix4x4 view = camera->getViewMatrix();
+	QMatrix4x4 projection = camera->getProjectionMatrix();
+	QMatrix4x4 inv = (projection * view).inverted();
+
+	// Choose reference Z in world space
+	float referenceWorldZ = 0.0f;
+	if (camera->getProjectionType() == GLCamera::ProjectionType::ORTHOGRAPHIC) {
+		referenceWorldZ = _boundingSphere.getCenter().z();
+	}
+	else {
+		QVector3D focusPoint = camera->getPosition() + camera->getViewDir();
+		referenceWorldZ = focusPoint.z();
+	}
+
+	// Project reference world point to get NDC Z
+	QVector4D refWorld(0, 0, referenceWorldZ, 1.0f);
+	QVector4D refClip = projection * view * refWorld;
+	float ndcZ = refClip.w() != 0.0f ? refClip.z() / refClip.w() : 0.0f;
+
+	// Helper to convert screen point to NDC
+	auto toNDC = [&](const QPoint& pt) {
+		int yInverted = height() - pt.y() - 1;
+		float ndcX = (2.0f * (pt.x() - viewport.x())) / viewport.width() - 1.0f;
+		float ndcY = (2.0f * (yInverted - viewport.y())) / viewport.height() - 1.0f;
+		return QVector2D(ndcX, ndcY);
+		};
+
+	QVector2D ndcStart2 = toNDC(start);
+	QVector2D ndcEnd2 = toNDC(end);
+
+	QVector4D ndcStart(ndcStart2.x(), ndcStart2.y(), ndcZ, 1.0f);
+	QVector4D ndcEnd(ndcEnd2.x(), ndcEnd2.y(), ndcZ, 1.0f);
+
+	QVector4D worldStart = inv * ndcStart;
+	QVector4D worldEnd = inv * ndcEnd;
+	if (worldStart.w() != 0.0f) worldStart /= worldStart.w();
+	if (worldEnd.w() != 0.0f) worldEnd /= worldEnd.w();
+
+	return worldEnd.toVector3D() - worldStart.toVector3D();
 }
 
 unsigned int GLWidget::loadTextureFromFile(char const* path)
