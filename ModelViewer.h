@@ -32,8 +32,9 @@ public:
 	static QString getLastSelectedFilter();
 	static void setLastSelectedFilter(const QString& lastSelectedFilter);
 
-    static QString getSupportedExtensions();
-    static void setSupportedExtensions(const QString &supportedExtensions);
+	void initializeSupportedImportExtensions();
+    static QStringList getSupportedExtensions();
+    static void setSupportedExtensions(const QStringList &supportedExtensions);
 
 	QString currentFile() const;
 
@@ -293,7 +294,7 @@ private:
 
 	static QString _lastOpenedDir;
 	static QString _lastSelectedFilter;
-	static QString _supportedExtensions;
+	static QStringList _supportedExtensions;
 
 private:
 	bool checkForActiveSelection();

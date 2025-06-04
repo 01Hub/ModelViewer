@@ -15,7 +15,7 @@
 
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
-QString ModelViewer::_supportedExtensions;
+QStringList ModelViewer::_supportedExtensions = QStringList();
 
 ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 {
@@ -204,6 +204,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_heightPBRTexScale = 0.05f;
 
 	updateControls();
+
+	initializeSupportedImportExtensions();
 }
 
 ModelViewer::~ModelViewer()
@@ -573,7 +575,7 @@ void ModelViewer::dragEnterEvent(QDragEnterEvent* event)
 
 void ModelViewer::dropEvent(QDropEvent* event)
 {
-	QString supportedExtensions = ModelViewer::getSupportedExtensions();
+	QStringList supportedExtensions = ModelViewer::getSupportedExtensions();
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	foreach(const QUrl & url, event->mimeData()->urls())
 	{
@@ -581,7 +583,7 @@ void ModelViewer::dropEvent(QDropEvent* event)
 		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 		QFileInfo fi(fileName);
 		QString extn = fi.suffix();
-		if (!supportedExtensions.contains(extn, Qt::CaseInsensitive))
+		if (!supportedExtensions[0].contains(extn, Qt::CaseInsensitive))
 		{
 			QMessageBox::critical(this, "Error", url.toString() + "\nUnsupported file format: " + extn);
 		}
@@ -666,13 +668,57 @@ void ModelViewer::setLastSelectedFilter(const QString& lastSelectedFilter)
 {
 	_lastSelectedFilter = lastSelectedFilter;
 }
+void ModelViewer::initializeSupportedImportExtensions()
+{
+	// 1. Get supported extensions from Assimp
+	Assimp::Importer importer;
+	std::string extList;
+	importer.GetExtensionList(extList); // E.g. "*.obj;*.3ds;*.fbx;..."
+	QString allExtensions = QString::fromStdString(extList).replace(';', ' ');
 
-QString ModelViewer::getSupportedExtensions()
+	// 2. Manually add STEP/IGES extensions (if not in Assimp list)
+	if (!allExtensions.contains("*.step", Qt::CaseInsensitive)) {
+		allExtensions += " *.step *.stp";
+	}
+	if (!allExtensions.contains("*.iges", Qt::CaseInsensitive)) {
+		allExtensions += " *.iges *.igs";
+	}
+
+	// 3. All Supported filter
+	QString allSupportedFilter = QString("All Supported Files (%1)").arg(allExtensions.trimmed());
+
+	// 4. Common filters list
+	QStringList commonFilters = {
+		"Wavefront OBJ (*.obj)",
+		"Autodesk 3DS (*.3ds)",
+		"Collada DAE (*.dae)",
+		"STL (*.stl)",
+		"FBX (*.fbx)",
+		"PLY (*.ply)",
+		"DXF (*.dxf)",
+		"GLTF (*.gltf *.glb)",
+		"STEP (*.step *.stp)",
+		"IGES (*.iges *.igs)",
+		"IFC (*.ifc)",
+		"OFF (*.off)",
+		"LWO (*.lwo *.lws)",
+		"AC3D (*.ac *.ac3d *.acc)",
+		"Blender (*.blend)",
+		"Irrlicht (*.irr *.irrmesh)",
+		"MD5 (*.md5mesh *.md5anim *.md5camera)"
+	};
+
+	// 5. Add all filters to dialog	
+	_supportedExtensions << allSupportedFilter << commonFilters;
+}
+
+
+QStringList ModelViewer::getSupportedExtensions()
 {
 	return _supportedExtensions;
 }
 
-void ModelViewer::setSupportedExtensions(const QString& supportedExtensions)
+void ModelViewer::setSupportedExtensions(const QStringList& supportedExtensions)
 {
 	_supportedExtensions = supportedExtensions;
 }
@@ -1735,53 +1781,13 @@ void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 
 void ModelViewer::on_toolButtonImport_clicked()
 {
-	// 1. Get supported extensions from Assimp
-	Assimp::Importer importer;
-	std::string extList;
-	importer.GetExtensionList(extList); // E.g. "*.obj;*.3ds;*.fbx;..."
-	QString allExtensions = QString::fromStdString(extList).replace(';', ' ');
-
-	// 2. Manually add STEP/IGES extensions (if not in Assimp list)
-	if (!allExtensions.contains("*.step", Qt::CaseInsensitive)) {
-		allExtensions += " *.step *.stp";
-	}
-	if (!allExtensions.contains("*.iges", Qt::CaseInsensitive)) {
-		allExtensions += " *.iges *.igs";
-	}
-
-	// 3. All Supported filter
-	QString allSupportedFilter = QString("All Supported Files (%1)").arg(allExtensions.trimmed());
-
-	// 4. Common filters list
-	QStringList commonFilters = {
-		"Wavefront OBJ (*.obj)",
-		"Autodesk 3DS (*.3ds)",
-		"Collada DAE (*.dae)",
-		"STL (*.stl)",
-		"FBX (*.fbx)",
-		"PLY (*.ply)",
-		"DXF (*.dxf)",
-		"GLTF (*.gltf *.glb)",
-		"STEP (*.step *.stp)",
-		"IGES (*.iges *.igs)",
-		"IFC (*.ifc)",
-		"OFF (*.off)",
-		"LWO (*.lwo *.lws)",
-		"AC3D (*.ac *.ac3d *.acc)",
-		"Blender (*.blend)",
-		"Irrlicht (*.irr *.irrmesh)",
-		"MD5 (*.md5mesh *.md5anim *.md5camera)"
-	};
-
-	// 5. Add all filters to dialog
-	QStringList filters;
-	filters << allSupportedFilter << commonFilters;
+	
 
 	QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir);
 	fileDialog.setFileMode(QFileDialog::ExistingFiles);
-	fileDialog.setNameFilters(filters);
+	fileDialog.setNameFilters(_supportedExtensions);
 
-	if (filters.contains(_lastSelectedFilter)) {
+	if (_supportedExtensions.contains(_lastSelectedFilter)) {
 		fileDialog.selectNameFilter(_lastSelectedFilter);
 	}
 

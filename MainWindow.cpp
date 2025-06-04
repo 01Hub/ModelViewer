@@ -304,7 +304,7 @@ void MainWindow::dragEnterEvent(QDragEnterEvent* event)
 
 void MainWindow::dropEvent(QDropEvent* event)
 {
-	QString supportedExtensions = ModelViewer::getSupportedExtensions();
+	QStringList supportedExtensions = ModelViewer::getSupportedExtensions();
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	foreach(const QUrl & url, event->mimeData()->urls())
 	{
@@ -312,7 +312,7 @@ void MainWindow::dropEvent(QDropEvent* event)
 		ModelViewer::setLastOpenedDir(QFileInfo(fileName).path()); // store path for next time
 		QFileInfo fi(fileName);
 		QString extn = fi.suffix();
-		if (!supportedExtensions.contains(extn, Qt::CaseInsensitive))
+		if (!supportedExtensions[0].contains(extn, Qt::CaseInsensitive))
 		{
 			QMessageBox::critical(this, "Error", url.toString() + "\nUnsupported file format: " + extn);
 		}
@@ -339,8 +339,9 @@ void MainWindow::on_actionNew_triggered()
 
 void MainWindow::on_actionOpen_triggered()
 {
-	QFileDialog fileDialog(this, tr("Open Model File"), ModelViewer::getLastOpenedDir(), ModelViewer::getSupportedExtensions());
-	fileDialog.setFileMode(QFileDialog::ExistingFile);
+	QFileDialog fileDialog(this, tr("Open Model File"), ModelViewer::getLastOpenedDir());
+	fileDialog.setFileMode(QFileDialog::ExistingFile);	
+	fileDialog.setNameFilters(ModelViewer::getSupportedExtensions());
 	fileDialog.selectNameFilter(ModelViewer::getLastSelectedFilter());
 	QString fileName;
 	if (fileDialog.exec())
@@ -505,6 +506,7 @@ void MainWindow::updateMenus()
 	//pasteAct->setEnabled(hasMdiChild);
 #endif
 	ui->actionImport->setVisible(hasMdiChild);
+	ui->actionExport->setVisible(hasMdiChild);
 	ui->actionClose->setEnabled(hasMdiChild);
 	ui->actionFileClose->setVisible(hasMdiChild);
 	ui->actionClose_All->setVisible(hasMdiChild && ui->mdiArea->subWindowList().size() > 1);
