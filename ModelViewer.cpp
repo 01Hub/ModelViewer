@@ -668,8 +668,12 @@ void ModelViewer::setLastSelectedFilter(const QString& lastSelectedFilter)
 {
 	_lastSelectedFilter = lastSelectedFilter;
 }
+
 void ModelViewer::initializeSupportedImportExtensions()
 {
+	if(!_supportedExtensions.isEmpty())
+		return; // Already initialized
+
 	// 1. Get supported extensions from Assimp
 	Assimp::Importer importer;
 	std::string extList;
@@ -1781,8 +1785,6 @@ void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 
 void ModelViewer::on_toolButtonImport_clicked()
 {
-	
-
 	QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir);
 	fileDialog.setFileMode(QFileDialog::ExistingFiles);
 	fileDialog.setNameFilters(_supportedExtensions);
