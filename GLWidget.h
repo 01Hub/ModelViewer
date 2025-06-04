@@ -239,6 +239,7 @@ public slots:
 	void animateFitAll();
 	void animateWindowZoom();
 	void animateCenterScreen();
+	void onInertiaTimer();
 	void stopAnimations();
 	void checkAndStopTimers();
 	void fitAll();
@@ -372,6 +373,22 @@ private:
 	QPoint _leftButtonPoint;
 	QPoint _rightButtonPoint;
 	QPoint _middleButtonPoint;
+
+	QPoint _lastPanPoint;
+	int _lastZoomDirection = 0; // +1 for zoom in, -1 for zoom out, 0 for none
+	float _lastZoomStep = 1.05f;
+	QVector3D _lastZoomPanVector;
+	QVector3D _inertiaZoomPanVelocity = QVector3D(0, 0, 0);
+
+	// Inertia state for mouse actions
+	QVector2D _inertiaPanVelocity;
+	float _inertiaZoomVelocity = 0.0f;
+	QVector2D _inertiaRotateVelocity;
+	QTimer* _inertiaTimer = nullptr;
+	float _inertiaDamping = 0.8f; // Damping factor (tweak as needed)
+	
+	bool _mouseMovedSincePress = false;
+	qint64 _lastMouseMoveTime = 0;
 
     QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;

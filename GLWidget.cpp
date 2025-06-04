@@ -226,6 +226,10 @@ _assimpModelLoader(nullptr)
 	connect(_animateCenterScreenTimer, SIGNAL(timeout()), this, SLOT(animateCenterScreen()));
 	connect(this, SIGNAL(zoomAndPanSet()), this, SLOT(stopAnimations()));
 
+	_inertiaTimer = new QTimer(this);
+	_inertiaTimer->setInterval(16); // ~60 FPS
+	connect(_inertiaTimer, &QTimer::timeout, this, &GLWidget::onInertiaTimer);
+
 	_editorLayout = new QVBoxLayout(this);
 	_upperLayout = new QFormLayout();
 	_upperLayout->setFormAlignment(Qt::AlignTop | Qt::AlignLeft);
@@ -3541,6 +3545,17 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 {
 	setFocus();
 	checkAndStopTimers();
+
+	// Reset inertia on new mouse press
+	_inertiaPanVelocity = QVector2D();
+	_inertiaZoomVelocity = 0.0f;
+	_inertiaRotateVelocity = QVector2D();
+	if (_inertiaTimer) _inertiaTimer->stop();
+
+	// Reset movement tracking
+	_mouseMovedSincePress = false;
+	_lastMouseMoveTime = 0;
+
 	if (e->button() & Qt::LeftButton)
 	{
 		_leftButtonPoint.setX(e->position().x());
@@ -3562,6 +3577,7 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 	{
 		_rightButtonPoint.setX(e->position().x());
 		_rightButtonPoint.setY(e->position().y());
+		_lastPanPoint = e->pos();
 	}
 
 	if (e->button() & Qt::MiddleButton || ((e->button() & Qt::LeftButton) && _viewRotating))
@@ -3588,6 +3604,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 
 	if (e->button() & Qt::RightButton)
 	{
+		_lastPanPoint = e->pos();
 	}
 
 	if (e->button() & Qt::MiddleButton)
@@ -3612,11 +3629,35 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	{
 		setCursor(QCursor(Qt::ArrowCursor));
 	}
+
+	// Only start inertia if mouse was moving recently
+	qint64 now = e->timestamp();
+	const qint64 maxIdleMs = 50; // adjust as needed
+	bool recentMove = (_lastMouseMoveTime > 0) && ((now - _lastMouseMoveTime) < maxIdleMs);
+
+	// Start inertia if velocity is significant
+	if (_mouseMovedSincePress && recentMove &&
+		(_inertiaPanVelocity.lengthSquared() > 1.0f ||
+			std::abs(_inertiaZoomVelocity) > 0.01f ||
+			_inertiaRotateVelocity.lengthSquared() > 1.0f))
+	{
+		if (_inertiaTimer) _inertiaTimer->start();
+	}
+
 	update();
 }
 
 void GLWidget::mouseMoveEvent(QMouseEvent* e)
 {
+	_mouseMovedSincePress = true;
+	_lastMouseMoveTime = e->timestamp();
+	static QPoint lastPos = e->pos();
+	static qint64 lastTime = e->timestamp();
+	QPoint currentPos = e->pos();
+	qint64 currentTime = e->timestamp();
+	QPoint delta = currentPos - lastPos;
+	float dt = (currentTime - lastTime) / 1000.0f; // seconds
+
 	QPoint downPoint(e->position().x(), e->position().y());
 	if (e->buttons() == Qt::LeftButton && !_viewPanning && !_viewZooming)
 	{
@@ -3640,6 +3681,13 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 			_leftButtonPoint = downPoint;
 			setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
 			_viewMode = ViewMode::NONE;
+
+			const float maxInertiaVelocity = 10.0f; // Adjust as needed
+			if (dt > 0) {
+				_inertiaRotateVelocity = -QVector2D(delta) / dt;
+				if (_inertiaRotateVelocity.length() > maxInertiaVelocity)
+					_inertiaRotateVelocity = _inertiaRotateVelocity.normalized() * maxInertiaVelocity;
+			}
 		}
 
 		update();
@@ -3655,6 +3703,16 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		_rightButtonPoint = downPoint;
 		setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
 
+		// Clamp pan inertia velocity
+		const float maxPanInertiaVelocity = 20.0f; // Adjust as needed
+		if (dt > 0) {
+			_inertiaPanVelocity = QVector2D(delta) / dt;
+			if (_inertiaPanVelocity.length() > maxPanInertiaVelocity)
+				_inertiaPanVelocity = _inertiaPanVelocity.normalized() * maxPanInertiaVelocity;
+
+			_inertiaZoomPanVelocity = OP;
+		}
+
 		update();
 	}
 	else if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewZooming))
@@ -3662,10 +3720,15 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 			_lowResEnabled = true;
 		// Zoom
-		if (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y())
+		if (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y()) {
 			_viewRange /= 1.05f;
-		else
+			_lastZoomDirection = 1;
+		}
+		else {
 			_viewRange *= 1.05f;
+			_lastZoomDirection = -1;
+		}
+		
 		if (_viewRange < _boundingSphere.getRadius() / 100.0f)
 			_viewRange = _boundingSphere.getRadius() / 100.0f;
 		if (_viewRange > _boundingSphere.getRadius() * 100.0f)
@@ -3679,6 +3742,11 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		OP *= sign * 0.05f;
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
 		_currentTranslation = _primaryCamera->getPosition();
+		_lastZoomPanVector = OP; // Store for inertia
+
+		if (dt > 0) {
+			_inertiaZoomVelocity = _lastZoomDirection; // +1 or -1
+		}
 
 		resizeGL(width(), height());
 
@@ -3691,15 +3759,23 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	{
 		_lowResEnabled = false;
 	}
+
+	lastPos = currentPos;
+	lastTime = currentTime;
 }
 
 void GLWidget::wheelEvent(QWheelEvent* e)
 {
+	// Stop any ongoing rotation inertia when wheel zooming
+	_inertiaRotateVelocity = QVector2D(0, 0);
+	if (_inertiaTimer && _inertiaTimer->isActive())
+		_inertiaTimer->stop();
+
 	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 		_lowResEnabled = true;
 	// Zoom
 	QPoint numDegrees = e->angleDelta() / 8;
-	QPoint numSteps = numDegrees / 15;
+	QPoint numSteps = numDegrees / 30;
 	float zoomStep = numSteps.y();
 	float zoomFactor = abs(zoomStep) + 0.05;
 
@@ -3707,10 +3783,12 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 		_viewRange *= zoomFactor;
 	else
 		_viewRange /= zoomFactor;
+
 	if (_viewRange < _boundingSphere.getRadius() / 100.0f)
 		_viewRange = _boundingSphere.getRadius() / 100.0f;
 	if (_viewRange > _boundingSphere.getRadius() * 100.0f)
 		_viewRange = _boundingSphere.getRadius() * 100.0f;
+
 	_currentViewRange = _viewRange;
 
 	// Translate to focus on mouse center
@@ -3721,6 +3799,12 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	OP *= sign * 0.05f;
 	_primaryCamera->move(OP.x(), OP.y(), OP.z());
 	_currentTranslation = _primaryCamera->getPosition();
+
+	// Add inertia for wheel zoom
+	_inertiaZoomVelocity = (e->angleDelta().y() / 120.0f) * 0.05f; // scale as needed
+	if (_inertiaTimer) _inertiaTimer->start();
+
+	_inertiaZoomPanVelocity += OP * sign * 0.05f;
 
 	resizeGL(width(), height());
 	update();
@@ -3907,6 +3991,76 @@ void GLWidget::animateCenterScreen()
 {
 	setZoomAndPan(_selectionBoundingSphere.getRadius() * 2, -_currentTranslation + _selectionBoundingSphere.getCenter());
 	resizeGL(width(), height());
+}
+
+void GLWidget::onInertiaTimer()
+{
+	bool active = false;
+
+	// --- Pan inertia ---
+	if (_inertiaPanVelocity.lengthSquared() > 0.01f) {
+		// Apply pan inertia from the last pan point, in the same way as interactive panning
+		QPointF panDelta(-_inertiaPanVelocity.x(), -_inertiaPanVelocity.y());
+		QPoint newPanPoint = _lastPanPoint + panDelta.toPoint();
+		QVector3D OP = get3dTranslationVectorFromMousePoints(_lastPanPoint, newPanPoint);
+		_primaryCamera->move(OP.x(), OP.y(), OP.z());
+		_currentTranslation = _primaryCamera->getPosition();
+		_lastPanPoint = newPanPoint; // Update for next frame
+		_inertiaPanVelocity *= _inertiaDamping;
+		active = true;
+	}
+
+	// --- Zoom inertia ---
+	if (std::abs(_inertiaZoomVelocity) > 0.001f) {
+		float zoomFactor = 1.005f;
+		if (_inertiaZoomVelocity > 0)
+			_viewRange /= zoomFactor;
+		else
+			_viewRange *= zoomFactor;
+
+		QPoint cen = rect().center();
+		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, cen);
+		OP *= -_inertiaZoomPanVelocity * 0.05f;
+		_primaryCamera->move(OP.x(), OP.y(), OP.z());
+		_currentTranslation = _primaryCamera->getPosition();
+
+		// Decay inertia
+		_inertiaZoomVelocity *= _inertiaDamping * 0.5f;
+
+		if (std::abs(_inertiaZoomVelocity) > 0.001f)
+			active = true;
+		else
+			_inertiaZoomVelocity = 0.0f;
+
+		resizeGL(width(), height());
+
+		// Clamp _viewRange as before
+		float minRange = _boundingSphere.getRadius() / 100.0f;
+		float maxRange = _boundingSphere.getRadius() * 100.0f;
+		if (_viewRange < minRange) _viewRange = minRange;
+		if (_viewRange > maxRange) _viewRange = maxRange;
+		_currentViewRange = _viewRange;
+
+		active = true;
+	}
+
+	// --- Rotation inertia ---
+	if (_inertiaRotateVelocity.lengthSquared() > 0.01f) {
+		_primaryCamera->rotateX(_inertiaRotateVelocity.y() / 2.0);
+		_primaryCamera->rotateY(_inertiaRotateVelocity.x() / 2.0);
+		_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
+		_inertiaRotateVelocity *= _inertiaDamping;
+		active = true;
+	}
+
+	if (!active) {
+		_inertiaTimer->stop();
+		_inertiaPanVelocity = QVector2D();
+		_inertiaZoomVelocity = 0.0f;
+		_inertiaRotateVelocity = QVector2D();
+	}
+
+	update();
 }
 
 void GLWidget::stopAnimations()
