@@ -1,10 +1,11 @@
-#include <QApplication>
+﻿#include <QApplication>
 #include <QColorDialog>
 #include <QFileDialog>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
 #include <QToolTip>
+#include <assimp/Importer.hpp>
 
 #include "MainWindow.h"
 #include "ModelViewer.h"
@@ -13,31 +14,8 @@
 #include "MeshProperties.h"
 
 QString ModelViewer::_lastOpenedDir;
-QString ModelViewer::_lastSelectedFilter = "All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
-"*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
-"*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.fbx *.irrmesh *.xml "
-"*.irr *.off. *.ter *.mdl *.hmp *.mesh.xml *.skeleton.xml *.material "
-"*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl *.igs *.iges *.stp *.step)";
-QString ModelViewer::_supportedExtensions = "All Files (*.*);;""All Models(*.dae *.xml *.blend *.bvh *.3ds *.ase *.obj *.ply *.dxf *.ifc "
-"*.nff *.smd *.vta *.mdl *.md2 *.md3 *.pk3 *.mdc *.md5mesh *.md5anim "
-"*.md5camera *.x *.q3o *.q3s *.raw *.ac *.stl *.fbx *.irrmesh *.xml "
-"*.irr *.off. *.ter *.mdl *.hmp *.mesh.xml *.skeleton.xml *.material "
-"*.ms3d *.lwo *.lws *.lxo *.csm *.ply *.cob *.scn *.xgl *.zgl *.igs *.iges *.stp *.step);;"
-"Collada ( *.dae;*.xml );;" "Blender ( *.blend );;" "Biovision BVH ( *.bvh );;"
-"3D Studio Max 3DS ( *.3ds );;" "3D Studio Max ASE ( *.ase );;" "Wavefront Object ( *.obj );;"
-"Stanford Polygon Library ( *.ply );;" "AutoCAD DXF ( *.dxf );;"
-"IFC-STEP, Industry Foundation Classes ( *.ifc );;" "Neutral File Format ( *.nff );;"
-"Sense8 WorldToolkit ( *.nff );;" "Valve Model ( *.smd,*.vta );;"
-"Quake I ( *.mdl );;" "Quake II ( *.md2 );;" "Quake III ( *.md3 );;" "Quake 3 BSP ( *.pk3 );;"
-"RtCW ( *.mdc );;" "Doom 3 ( *.md5mesh;*.md5anim;*.md5camera );;" "DirectX X ( *.x );;" "Quick3D ( *.q3o;q3s );;"
-"Raw Triangles ( .raw );;" "AC3D ( *.ac );;" "Stereolithography ( *.stl );;"
-"Autodesk DXF ( *.dxf );;" "Autodesk FBX ( *.fbx );;"
-"STEP ( *.step *.stp );;" "IGES ( *.igs *.iges );;"
-"Irrlicht Mesh ( *.irrmesh;*.xml );;" "Irrlicht Scene ( *.irr;*.xml );;" "Object File Format ( *.off );;"
-"Terragen Terrain ( *.ter );;" "3D GameStudio Model ( *.mdl );;" "3D GameStudio Terrain ( *.hmp );;"
-"Ogre (*.mesh.xml, *.skeleton.xml, *.material);;" "Milkshape 3D ( *.ms3d );;" "LightWave Model ( *.lwo );;"
-"LightWave Scene ( *.lws );;" "Modo Model ( *.lxo );;" "CharacterStudio Motion ( *.csm );;"
-"Stanford Ply ( *.ply );;" "TrueSpace ( *.cob, *.scn );;" "XGL ( *.xgl, *.zgl );;";
+QString ModelViewer::_lastSelectedFilter;
+QString ModelViewer::_supportedExtensions;
 
 ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 {
@@ -1757,21 +1735,68 @@ void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 
 void ModelViewer::on_toolButtonImport_clicked()
 {
-	QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir, _supportedExtensions);
-	fileDialog.setFileMode(QFileDialog::ExistingFiles);
-	fileDialog.selectNameFilter(_lastSelectedFilter);
-	QStringList fileNames;
-	if (fileDialog.exec())
-	{
-		fileNames = fileDialog.selectedFiles();
-		_lastSelectedFilter = fileDialog.selectedNameFilter();
+	// 1. Get supported extensions from Assimp
+	Assimp::Importer importer;
+	std::string extList;
+	importer.GetExtensionList(extList); // E.g. "*.obj;*.3ds;*.fbx;..."
+	QString allExtensions = QString::fromStdString(extList).replace(';', ' ');
+
+	// 2. Manually add STEP/IGES extensions (if not in Assimp list)
+	if (!allExtensions.contains("*.step", Qt::CaseInsensitive)) {
+		allExtensions += " *.step *.stp";
+	}
+	if (!allExtensions.contains("*.iges", Qt::CaseInsensitive)) {
+		allExtensions += " *.iges *.igs";
 	}
 
-	if (fileNames.count())
-	{
+	// 3. All Supported filter
+	QString allSupportedFilter = QString("All Supported Files (%1)").arg(allExtensions.trimmed());
+
+	// 4. Common filters list
+	QStringList commonFilters = {
+		"Wavefront OBJ (*.obj)",
+		"Autodesk 3DS (*.3ds)",
+		"Collada DAE (*.dae)",
+		"STL (*.stl)",
+		"FBX (*.fbx)",
+		"PLY (*.ply)",
+		"DXF (*.dxf)",
+		"GLTF (*.gltf *.glb)",
+		"STEP (*.step *.stp)",
+		"IGES (*.iges *.igs)",
+		"IFC (*.ifc)",
+		"OFF (*.off)",
+		"LWO (*.lwo *.lws)",
+		"AC3D (*.ac *.ac3d *.acc)",
+		"Blender (*.blend)",
+		"Irrlicht (*.irr *.irrmesh)",
+		"MD5 (*.md5mesh *.md5anim *.md5camera)"
+	};
+
+	// 5. Add all filters to dialog
+	QStringList filters;
+	filters << allSupportedFilter << commonFilters;
+
+	QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir);
+	fileDialog.setFileMode(QFileDialog::ExistingFiles);
+	fileDialog.setNameFilters(filters);
+
+	if (filters.contains(_lastSelectedFilter)) {
+		fileDialog.selectNameFilter(_lastSelectedFilter);
+	}
+
+	// 6. Run dialog
+	QStringList fileNames;
+	if (fileDialog.exec()) {
+		fileNames = fileDialog.selectedFiles();
+		_lastSelectedFilter = fileDialog.selectedNameFilter();
+		_lastOpenedDir = QFileInfo(fileNames.first()).absolutePath();
+	}
+
+	// 7. Load selected files
+	if (!fileNames.isEmpty()) {
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (const QString& fileName : std::as_const(fileNames))
-		{
+		for (const QString& fileName : std::as_const(fileNames)) {
 			loadFile(fileName);
 		}
 		QApplication::restoreOverrideCursor();
@@ -1780,27 +1805,61 @@ void ModelViewer::on_toolButtonImport_clicked()
 	}
 }
 
+
 #include "AssImpMeshExporter.h"
 #include <AssImpMesh.h>
 void ModelViewer::on_toolButtonExport_clicked()
 {
-	QString fileName = QFileDialog::getSaveFileName(this, tr("Export Model"), _lastOpenedDir, _supportedExtensions);
-	if (!fileName.isEmpty())
-	{
+	Assimp::Exporter exporter;
+	QStringList filters;
+	QStringList allExtensions;
+	QMap<QString, QString> filterToExtension; // Map filter → extension
+
+	// Build filters and track extensions
+	for (unsigned int i = 0; i < exporter.GetExportFormatCount(); ++i) {
+		const aiExportFormatDesc* desc = exporter.GetExportFormatDescription(i);
+		QString ext = QString::fromUtf8(desc->fileExtension);
+		QString descStr = QString::fromUtf8(desc->description);
+		QString filter = QString("%1 (*.%2)").arg(descStr).arg(ext);
+
+		filters.append(filter);
+		allExtensions.append("*." + ext);
+		filterToExtension[filter] = ext;
+	}
+
+	// All Supported Files filter
+	QString allSupportedFilter = QString("All Supported Files (%1)").arg(allExtensions.join(' '));
+	filters.prepend(allSupportedFilter);
+
+	// Map the "All Supported Files" to empty extension (no default append)
+	filterToExtension[allSupportedFilter] = "";
+
+	QString selectedFilter;
+	QString fileName = QFileDialog::getSaveFileName(this, tr("Export Model"), _lastOpenedDir, filters.join(";;"), &selectedFilter);
+
+	if (!fileName.isEmpty()) {
+		QString extToAppend = filterToExtension[selectedFilter];
+
+		// Append extension only if not present already
+		if (!extToAppend.isEmpty() && !fileName.endsWith("." + extToAppend, Qt::CaseInsensitive)) {
+			fileName += "." + extToAppend;
+		}
+
+		// Export
 		AssImpMeshExporter exporter;
 		std::vector<TriangleMesh*> triMeshes = _glWidget->getMeshStore();
 		std::vector<AssImpMesh*> assImpMeshes;
 		for (TriangleMesh* triMesh : triMeshes)
-		{
 			assImpMeshes.push_back(dynamic_cast<AssImpMesh*>(triMesh));
-		}
+
 		aiReturn res = exporter.exportMeshes(assImpMeshes, fileName.toStdString());
 		if (res == aiReturn_SUCCESS)
-            QMessageBox::information(this, "Information", "Exported");
+			QMessageBox::information(this, "Information", "Exported");
 		else
-            QMessageBox::critical(this, "Information", "Export failed!");
+			QMessageBox::critical(this, "Error", "Export failed!");
 	}
 }
+
 
 bool ModelViewer::loadFile(const QString& fileName)
 {
