@@ -222,6 +222,9 @@ public:
 
 	void cleanUpShaders();
 
+	void serializeScene(QDataStream& out) const;
+	void deserializeScene(QDataStream& in);
+
 signals:
 	void windowZoomEnded();
 	void rotationsSet();

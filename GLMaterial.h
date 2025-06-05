@@ -74,6 +74,9 @@ public:
 	static GLMaterial BLACK_RUBBER();
 	static GLMaterial DEFAULT_MAT();
 
+	void serialize(QDataStream& out) const;
+	void deserialize(QDataStream& in);
+
 private:
 	void setAlbedoFromADS();
 private:

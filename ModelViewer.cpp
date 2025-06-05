@@ -22,6 +22,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	setAttribute(Qt::WA_DeleteOnClose);
 
 	_documentSaved = false;
+	_documentModified = false;
 	_runningFirstTime = true;
 
 	_textureDirOpenedFirstTime = true;
@@ -610,7 +611,7 @@ QString ModelViewer::currentFile() const
 
 void ModelViewer::importModel()
 {
-	on_toolButtonImport_clicked();
+	on_toolButtonImport_clicked();	
 }
 
 void ModelViewer::exportModel()
@@ -630,23 +631,43 @@ bool ModelViewer::hasRedo()
 
 bool ModelViewer::documentModified()
 {
-	return false;
+	return _documentModified;
 }
 
 bool ModelViewer::save()
 {
-	QMessageBox::critical(this, "Save", "Not Implemented!");
-	if (!_documentSaved)
+	if (_currentFile.isEmpty()) {
 		return saveAs();
-	/* Saving code here*/
-	return false;
+	}
+
+	if (saveToFile(_currentFile)) {
+		_documentSaved = true;
+		_documentModified = false;
+		MainWindow::showStatusMessage(tr("File saved"), 2000);
+		setWindowTitle(tr("%1").arg(QFileInfo(_currentFile).fileName()));
+		return true;
+	}
+	else {
+		QMessageBox::critical(this, tr("Error"), tr("Failed to save file: %1").arg(_currentFile));
+		return false;
+	}
 }
 
 bool ModelViewer::saveAs()
 {
-	QMessageBox::critical(this, "Save As", "Not Implemented!");
-	_documentSaved = true;
-	return false;
+	// Set the filter for .mvf files
+	QString filter = tr("Model Viewer Files (*.mvf)");
+	QString fileName = QFileDialog::getSaveFileName(this, tr("Save Model"), currentFile(), filter);
+
+	if (fileName.isEmpty())
+		return false;
+
+	// Ensure the file has the .mvf extension
+	if (!fileName.endsWith(".mvf", Qt::CaseInsensitive))
+		fileName += ".mvf";
+
+	_currentFile = fileName;
+	return save();
 }
 
 QString ModelViewer::getLastOpenedDir()
@@ -1793,7 +1814,7 @@ void ModelViewer::on_toolButtonImport_clicked()
 		fileDialog.selectNameFilter(_lastSelectedFilter);
 	}
 
-	// 6. Run dialog
+	// Run dialog
 	QStringList fileNames;
 	if (fileDialog.exec()) {
 		fileNames = fileDialog.selectedFiles();
@@ -1801,12 +1822,14 @@ void ModelViewer::on_toolButtonImport_clicked()
 		_lastOpenedDir = QFileInfo(fileNames.first()).absolutePath();
 	}
 
-	// 7. Load selected files
+	// Load selected files
 	if (!fileNames.isEmpty()) {
 		QApplication::setOverrideCursor(Qt::WaitCursor);
 		for (const QString& fileName : std::as_const(fileNames)) {
 			loadFile(fileName);
 		}
+		_documentModified = true;
+
 		QApplication::restoreOverrideCursor();
 		MainWindow::mainWindow()->activateWindow();
 		QApplication::alert(MainWindow::mainWindow());
@@ -1871,11 +1894,19 @@ void ModelViewer::on_toolButtonExport_clicked()
 
 bool ModelViewer::loadFile(const QString& fileName)
 {
-	_currentFile = fileName;
 	_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 
 	QString errMsg;
-	bool success = _glWidget->loadAssImpModel(fileName, errMsg);
+	bool success = false;
+	if (QFileInfo(fileName).suffix().toLower() == "mvf")
+	{
+		// Load MVF file
+		success = loadFromFile(fileName);		
+	}
+	else
+	{
+		success = _glWidget->loadAssImpModel(fileName, errMsg);
+	}
 
 	if (success)
 	{
@@ -1886,16 +1917,47 @@ bool ModelViewer::loadFile(const QString& fileName)
 
 		updateDisplayList();
 
+		_documentModified = true;
+
 		MainWindow::showStatusMessage(tr("File loaded"), 2000);
+
+		return success;
 	}
 	else
 	{
 		QApplication::restoreOverrideCursor();
 		QMessageBox::critical(this, "Error", QString("Failed to load model %1").arg(fileName) + "\n" + errMsg);
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-	}
 
-	return success;
+		return false;
+	}
+	
+
+	return false;
+}
+
+#include <QFile>
+#include <QDataStream>
+
+bool ModelViewer::saveToFile(const QString& fileName)
+{
+	QFile file(fileName);
+	if (!file.open(QIODevice::WriteOnly))
+		return false;
+	QDataStream out(&file);
+	_glWidget->serializeScene(out);
+	return true;
+}
+
+bool ModelViewer::loadFromFile(const QString& fileName)
+{
+	QFile file(fileName);
+	if (!file.open(QIODevice::ReadOnly))
+		return false;
+	QDataStream in(&file);
+	_glWidget->deserializeScene(in);
+	setWindowTitle(QFileInfo(fileName).fileName());
+	return true;
 }
 
 void ModelViewer::setMaterialToSelectedItems(const GLMaterial& mat)

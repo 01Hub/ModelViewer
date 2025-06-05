@@ -334,6 +334,53 @@ void GLWidget::cleanUpShaders()
 	if (_debugShader) delete _debugShader;
 }
 
+void GLWidget::serializeScene(QDataStream& out) const
+{
+	// Write a version number for the scene format
+	out << quint32(1);
+
+	// Write number of meshes
+	out << quint32(_meshStore.size());
+
+	// Serialize each mesh
+	for (TriangleMesh* mesh : _meshStore) {
+		dynamic_cast<AssImpMesh*>(mesh)->serialize(out);
+	}
+}
+
+#include "AssImpMesh.h"
+void GLWidget::deserializeScene(QDataStream& in)
+{
+	// Clean up any existing meshes
+	for (TriangleMesh* mesh : _meshStore) {
+		delete mesh;
+	}
+	_meshStore.clear();
+
+	quint32 version;
+	in >> version;
+
+	quint32 meshCount;
+	in >> meshCount;
+
+	for (quint32 i = 0; i < meshCount; ++i) {
+		// You may need to use a factory or a default shader program here
+		AssImpMesh* mesh = new AssImpMesh(
+			_fgShader,                // Use the main shader
+			QString(),                // Empty name (will be set in deserialize)
+			{},                       // Empty vertices
+			{},                       // Empty indices
+			{},                       // Empty textures
+			GLMaterial()              // Default material
+		);
+		mesh->deserialize(in);
+		_meshStore.push_back(mesh);
+	}
+
+	// Optionally, update the view or UI after loading
+	updateView();
+}
+
 void GLWidget::updateView()
 {
 	update();

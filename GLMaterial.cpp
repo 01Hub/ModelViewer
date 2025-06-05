@@ -647,3 +647,50 @@ void GLMaterial::setAlbedoFromADS()
 	_albedoColor.setY(std::clamp(col.y(), 0.0f, 1.0f));
 	_albedoColor.setZ(std::clamp(col.z(), 0.0f, 1.0f));
 }
+
+#include <QDataStream>
+#include <QVector3D>
+
+void GLMaterial::serialize(QDataStream& out) const
+{
+	// Write Phong/ADS properties
+	out << ambient();
+	out << diffuse();
+	out << specular();
+	out << emissive();
+	out << shininess();
+	out << opacity();
+
+	// Write PBR properties
+	out << albedoColor();
+	out << metalness();
+	out << roughness();
+
+	// Write metallic flag (if you use it)
+	out << _metallic;
+}
+
+void GLMaterial::deserialize(QDataStream& in)
+{
+	QVector3D amb, diff, spec, emis, albedo;
+	float shin, opac, metal, rough;
+	bool metallicFlag;
+
+	in >> amb >> diff >> spec >> emis >> shin >> opac;
+	in >> albedo >> metal >> rough;
+	in >> metallicFlag;
+
+	setAmbient(amb);
+	setDiffuse(diff);
+	setSpecular(spec);
+	setEmissive(emis);
+	setShininess(shin);
+	setOpacity(opac);
+
+	setAlbedoColor(albedo);
+	setMetalness(metal);
+	setRoughness(rough);
+
+	setMetallic(metallicFlag);
+}
+

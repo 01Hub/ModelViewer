@@ -169,6 +169,9 @@ public:
 
 	void deleteTextures();
 
+	void serialize(QDataStream& out) const;
+	void deserialize(QDataStream& in);
+
 protected: // methods
 	virtual void initBuffers(
 		std::vector<unsigned int>* indices,

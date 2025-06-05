@@ -352,3 +352,92 @@ vector<Texture> AssImpMesh::textures() const
     return _textures;
 }
 
+#include <QDataStream>
+
+// --- Serialization ---
+void AssImpMesh::serialize(QDataStream& out) const
+{
+	// Write mesh name
+	out << _name;
+
+	// Write vertices
+	out << static_cast<quint32>(_vertices.size());
+	for (const Vertex& v : _vertices) {
+		out << v.Position.x << v.Position.y << v.Position.z;
+		out << v.Normal.x << v.Normal.y << v.Normal.z;
+		out << v.TexCoords.x << v.TexCoords.y;
+		out << v.Tangent.x << v.Tangent.y << v.Tangent.z;
+		out << v.Bitangent.x << v.Bitangent.y << v.Bitangent.z;
+	}
+
+	// Write indices
+	out << static_cast<quint32>(_indices.size());
+	for (unsigned int idx : _indices) {
+		out << static_cast<quint32>(idx);
+	}
+
+	// Write textures
+	out << static_cast<quint32>(_textures.size());
+	for (const Texture& t : _textures) {
+		out << t.type.c_str();
+		out << t.path.C_Str();
+		// Note: t.id is an OpenGL handle, not portable, so don't serialize it
+	}
+
+	// Write material (assuming GLMaterial is serializable, otherwise write its fields)
+	_material.serialize(out);
+}
+
+// --- Deserialization ---
+void AssImpMesh::deserialize(QDataStream& in)
+{
+	// Read mesh name
+	in >> _name;
+
+	// Read vertices
+	quint32 vCount;
+	in >> vCount;
+	_vertices.clear();
+	_vertices.reserve(vCount);
+	for (quint32 i = 0; i < vCount; ++i) {
+		Vertex v;
+		in >> v.Position.x >> v.Position.y >> v.Position.z;
+		in >> v.Normal.x >> v.Normal.y >> v.Normal.z;
+		in >> v.TexCoords.x >> v.TexCoords.y;
+		in >> v.Tangent.x >> v.Tangent.y >> v.Tangent.z;
+		in >> v.Bitangent.x >> v.Bitangent.y >> v.Bitangent.z;
+		_vertices.push_back(v);
+	}
+
+	// Read indices
+	quint32 iCount;
+	in >> iCount;
+	_indices.clear();
+	_indices.reserve(iCount);
+	for (quint32 i = 0; i < iCount; ++i) {
+		quint32 idx;
+		in >> idx;
+		_indices.push_back(idx);
+	}
+
+	// Read textures
+	quint32 tCount;
+	in >> tCount;
+	_textures.clear();
+	_textures.reserve(tCount);
+	for (quint32 i = 0; i < tCount; ++i) {
+		Texture t;
+		QString type, path;
+		in >> type >> path;
+		t.type = type.toStdString();
+		t.path = path.toStdString();
+		t.id = 0; // Will be reloaded as needed
+		_textures.push_back(t);
+	}
+
+	// Read material
+	_material.deserialize(in);
+
+	// Re-setup OpenGL buffers
+	setupMesh();
+}

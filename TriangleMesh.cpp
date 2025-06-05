@@ -1237,3 +1237,105 @@ void TriangleMesh::clearAllPBRMaps()
 	glDeleteTextures(1, &_heightPBRMap);
 	_heightPBRMap = 0;
 }
+
+void TriangleMesh::serialize(QDataStream& out) const
+{
+	// Write a version number for future compatibility
+	out << quint32(1);
+
+	// Name
+	out << _name;
+
+	// Indices
+	out << static_cast<quint32>(_indices.size());
+	for (auto v : _indices) out << v;
+
+	// Points
+	out << static_cast<quint32>(_points.size());
+	for (auto v : _points) out << v;
+
+	// Normals
+	out << static_cast<quint32>(_normals.size());
+	for (auto v : _normals) out << v;
+
+	// TexCoords
+	out << static_cast<quint32>(_texCoords.size());
+	for (auto v : _texCoords) out << v;
+
+	// Material
+	out << _material.ambient();
+	out << _material.diffuse();
+	out << _material.specular();
+	out << _material.emissive();
+	out << _material.shininess();
+	out << _material.metallic();
+	out << _material.albedoColor();
+	out << _material.metalness();
+	out << _material.roughness();
+	out << _material.opacity();
+
+	// Transform
+	out << _transX << _transY << _transZ;
+	out << _rotateX << _rotateY << _rotateZ;
+	out << _scaleX << _scaleY << _scaleZ;
+}
+
+void TriangleMesh::deserialize(QDataStream& in)
+{
+	quint32 version;
+	in >> version;
+
+	// Name
+	in >> _name;
+
+	// Indices
+	quint32 indicesSize;
+	in >> indicesSize;
+	_indices.resize(indicesSize);
+	for (quint32 i = 0; i < indicesSize; ++i) in >> _indices[i];
+
+	// Points
+	quint32 pointsSize;
+	in >> pointsSize;
+	_points.resize(pointsSize);
+	for (quint32 i = 0; i < pointsSize; ++i) in >> _points[i];
+
+	// Normals
+	quint32 normalsSize;
+	in >> normalsSize;
+	_normals.resize(normalsSize);
+	for (quint32 i = 0; i < normalsSize; ++i) in >> _normals[i];
+
+	// TexCoords
+	quint32 texCoordsSize;
+	in >> texCoordsSize;
+	_texCoords.resize(texCoordsSize);
+	for (quint32 i = 0; i < texCoordsSize; ++i) in >> _texCoords[i];
+
+	// Material
+	QVector3D ambient, diffuse, specular, emissive, albedo;
+	float shininess, metalness, roughness, opacity;
+	bool metallic;
+	in >> ambient >> diffuse >> specular >> emissive >> shininess >> metallic >> albedo >> metalness >> roughness >> opacity;
+	_material.setAmbient(ambient);
+	_material.setDiffuse(diffuse);
+	_material.setSpecular(specular);
+	_material.setEmissive(emissive);
+	_material.setShininess(shininess);
+	_material.setMetallic(metallic);
+	_material.setAlbedoColor(albedo);
+	_material.setMetalness(metalness);
+	_material.setRoughness(roughness);
+	_material.setOpacity(opacity);
+
+	// Transform
+	in >> _transX >> _transY >> _transZ;
+	in >> _rotateX >> _rotateY >> _rotateZ;
+	in >> _scaleX >> _scaleY >> _scaleZ;
+
+	// Recompute buffers and bounds
+	_trsfpoints = _points;
+	_trsfnormals = _normals;
+	computeBounds();
+	buildTriangles();
+}

@@ -341,7 +341,10 @@ void MainWindow::on_actionOpen_triggered()
 {
 	QFileDialog fileDialog(this, tr("Open Model File"), ModelViewer::getLastOpenedDir());
 	fileDialog.setFileMode(QFileDialog::ExistingFile);	
-	fileDialog.setNameFilters(ModelViewer::getSupportedExtensions());
+	QStringList supportedExtensions = ModelViewer::getSupportedExtensions();
+	QStringList nativeFilter = { "ModelViewer Files (*.mvf)" };
+	nativeFilter.append(supportedExtensions);
+	fileDialog.setNameFilters(nativeFilter);
 	fileDialog.selectNameFilter(ModelViewer::getLastSelectedFilter());
 	QString fileName;
 	if (fileDialog.exec())
@@ -423,6 +426,7 @@ bool MainWindow::loadFile(const QString& fileName)
 	{
 		child->setWindowTitle(QFileInfo(fileName).fileName());
 		MainWindow::prependToRecentFiles(fileName);
+		updateMenus();
 	}
 	return succeeded;
 }
@@ -430,13 +434,29 @@ bool MainWindow::loadFile(const QString& fileName)
 void MainWindow::on_actionImport_triggered()
 {
 	if (activeMdiChild())
+	{
 		activeMdiChild()->importModel();
+		updateMenus();
+	}
+
 }
 
 void MainWindow::on_actionExport_triggered()
 {
 	if (activeMdiChild())
 		activeMdiChild()->exportModel();
+}
+
+void MainWindow::on_actionSave_triggered()
+{
+	if (activeMdiChild())
+		activeMdiChild()->save();
+}
+
+void MainWindow::on_actionSave_As_triggered()
+{
+	if (activeMdiChild())
+		activeMdiChild()->saveAs();
 }
 
 void MainWindow::on_actionTile_Horizontally_triggered()
@@ -499,8 +519,8 @@ void MainWindow::updateMenus()
 	ui->actionSave_As->setVisible(hasMdiChild);
 	if (hasMdiChild)
 	{
-		ui->actionSave->setEnabled(activeMdiChild()->documentModified());
-		ui->actionSave_As->setEnabled(activeMdiChild()->documentModified());
+		ui->actionSave->setEnabled(activeMdiChild()->documentModified());	
+		ui->actionSave_As->setEnabled(!activeMdiChild()->getGLView()->getMeshStore().empty());
 	}
 #ifndef QT_NO_CLIPBOARD
 	//pasteAct->setEnabled(hasMdiChild);

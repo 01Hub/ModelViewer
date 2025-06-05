@@ -55,6 +55,9 @@ public:
 
     std::vector<Texture> textures() const;
 
+	void serialize(QDataStream& out) const;
+	void deserialize(QDataStream& in);
+
 private:
 	/*  Functions    */
 	// Initializes all the buffer objects/arrays

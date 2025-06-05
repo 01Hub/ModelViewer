@@ -43,6 +43,9 @@ public:
 	void importModel();
 	void exportModel();
 
+	bool saveToFile(const QString& fileName);
+	bool loadFromFile(const QString& fileName);
+
 	bool hasUndo();
 	bool hasRedo();
 	bool documentModified();
@@ -291,6 +294,7 @@ private:
 	QString _currentFile;
 	bool _textureDirOpenedFirstTime;
 	bool _documentSaved;
+	bool _documentModified;
 
 	static QString _lastOpenedDir;
 	static QString _lastSelectedFilter;
