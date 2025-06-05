@@ -3766,10 +3766,14 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 void GLWidget::wheelEvent(QWheelEvent* e)
 {
-	// Stop any ongoing rotation inertia when wheel zooming
+	// Stop any ongoing inertia when wheel zooming
 	_inertiaRotateVelocity = QVector2D(0, 0);
+	_inertiaPanVelocity = QVector2D(0, 0);
+	_inertiaZoomVelocity = 0.0f;
 	if (_inertiaTimer && _inertiaTimer->isActive())
 		_inertiaTimer->stop();
+
+	
 
 	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 		_lowResEnabled = true;
