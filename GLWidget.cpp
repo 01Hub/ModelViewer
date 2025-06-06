@@ -374,7 +374,7 @@ void GLWidget::deserializeScene(QDataStream& in)
 			GLMaterial()              // Default material
 		);
 		mesh->deserialize(in);
-		_meshStore.push_back(mesh);
+		addToDisplay(mesh);
 	}
 
 	// Optionally, update the view or UI after loading
