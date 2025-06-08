@@ -617,7 +617,7 @@ QString ModelViewer::currentFile() const
 
 void ModelViewer::importModel()
 {
-	on_toolButtonImport_clicked();	
+	on_toolButtonImport_clicked();		
 }
 
 void ModelViewer::exportModel()
@@ -635,9 +635,15 @@ bool ModelViewer::hasRedo()
 	return false;
 }
 
-bool ModelViewer::documentModified()
+
+void ModelViewer::setDocumentModified(bool modified)
 {
-	return _documentModified;
+	_documentModified = modified;
+	if (modified) {
+		setWindowTitle(tr("%1*").arg(QFileInfo(_currentFile).fileName()));
+	} else {
+		setWindowTitle(tr("%1").arg(QFileInfo(_currentFile).fileName()));
+	}
 }
 
 bool ModelViewer::save()
@@ -674,6 +680,16 @@ bool ModelViewer::saveAs()
 
 	_currentFile = fileName;
 	return save();
+}
+
+void ModelViewer::setDocumentSaved(bool saved)
+{
+	_documentSaved = saved;
+	if (saved) {
+		setWindowTitle(tr("%1").arg(QFileInfo(_currentFile).fileName()));
+	} else {
+		setWindowTitle(tr("%1*").arg(QFileInfo(_currentFile).fileName()));
+	}
 }
 
 QString ModelViewer::getLastOpenedDir()

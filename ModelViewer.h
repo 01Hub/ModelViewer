@@ -48,10 +48,14 @@ public:
 
 	bool hasUndo();
 	bool hasRedo();
-	bool documentModified();
+	bool documentModified() const { return _documentModified; }
+	void setDocumentModified(bool modified = true);
 
 	bool save();
 	bool saveAs();
+
+	void setDocumentSaved(bool saved = true);
+	bool isDocumentSaved() const { return _documentSaved; }
 
 	void selectAll();
 	void deselectAll();

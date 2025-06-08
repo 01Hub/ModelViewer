@@ -427,6 +427,7 @@ bool MainWindow::loadFile(const QString& fileName)
 	else
 	{
 		child->setWindowTitle(QFileInfo(fileName).fileName());
+		child->setDocumentModified(false);
 		MainWindow::prependToRecentFiles(fileName);
 		updateMenus();
 	}
