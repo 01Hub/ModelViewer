@@ -312,7 +312,8 @@ void MainWindow::dropEvent(QDropEvent* event)
 		ModelViewer::setLastOpenedDir(QFileInfo(fileName).path()); // store path for next time
 		QFileInfo fi(fileName);
 		QString extn = fi.suffix();
-		if (!supportedExtensions[0].contains(extn, Qt::CaseInsensitive))
+		if (!supportedExtensions[0].contains(extn, Qt::CaseInsensitive)
+			&& extn != "mvf")
 		{
 			QMessageBox::critical(this, "Error", url.toString() + "\nUnsupported file format: " + extn);
 		}
@@ -342,9 +343,10 @@ void MainWindow::on_actionOpen_triggered()
 	QFileDialog fileDialog(this, tr("Open Model File"), ModelViewer::getLastOpenedDir());
 	fileDialog.setFileMode(QFileDialog::ExistingFile);	
 	QStringList supportedExtensions = ModelViewer::getSupportedExtensions();
+	supportedExtensions[0].insert(supportedExtensions[0].lastIndexOf(')'), " *.mvf");
 	QStringList nativeFilter = { "ModelViewer Files (*.mvf)" };
-	nativeFilter.append(supportedExtensions);
-	fileDialog.setNameFilters(nativeFilter);
+	supportedExtensions.append(nativeFilter);
+	fileDialog.setNameFilters(supportedExtensions);
 	fileDialog.selectNameFilter(ModelViewer::getLastSelectedFilter());
 	QString fileName;
 	if (fileDialog.exec())

@@ -584,14 +584,20 @@ void ModelViewer::dropEvent(QDropEvent* event)
 		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
 		QFileInfo fi(fileName);
 		QString extn = fi.suffix();
-		if (!supportedExtensions[0].contains(extn, Qt::CaseInsensitive))
+		if (!supportedExtensions[0].contains(extn, Qt::CaseInsensitive)
+			&& extn != "mvf")
 		{
 			QMessageBox::critical(this, "Error", url.toString() + "\nUnsupported file format: " + extn);
 		}
 		else
 		{
-			QString errMsg;
-			_glWidget->loadAssImpModel(fileName, errMsg);
+			if(extn == "mvf")
+				loadFromFile(fileName);
+			else
+			{
+				QString errMsg;
+				_glWidget->loadAssImpModel(fileName, errMsg);
+			}
 
 			updateDisplayList();
 
@@ -1829,6 +1835,7 @@ void ModelViewer::on_toolButtonImport_clicked()
 			loadFile(fileName);
 		}
 		_documentModified = true;
+		_documentSaved = false;
 
 		QApplication::restoreOverrideCursor();
 		MainWindow::mainWindow()->activateWindow();
