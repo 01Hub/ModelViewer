@@ -12,6 +12,7 @@
 #include <QVector3D>
 
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
+_nVerts(0),
 _texture(0),
 _diffuseADSMap(0),
 _specularADSMap(0),
@@ -35,6 +36,7 @@ _roughnessPBRMap(0),
 _normalPBRMap(0),
 _aoPBRMap(0),
 _opacityPBRMap(0),
+_heightPBRMap(0),
 _hasAlbedoPBRMap(false),
 _hasMetallicPBRMap(false),
 _hasRoughnessPBRMap(false),
