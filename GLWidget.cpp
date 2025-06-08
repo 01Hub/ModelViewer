@@ -351,6 +351,7 @@ void GLWidget::serializeScene(QDataStream& out) const
 #include "AssImpMesh.h"
 void GLWidget::deserializeScene(QDataStream& in)
 {
+	makeCurrent();
 	// Clean up any existing meshes
 	for (TriangleMesh* mesh : _meshStore) {
 		delete mesh;
