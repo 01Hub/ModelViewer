@@ -609,6 +609,14 @@ void ModelViewer::dropEvent(QDropEvent* event)
 	QApplication::restoreOverrideCursor();
 }
 
+void ModelViewer::setCurrentFile(const QString& fileName)
+{
+	_currentFile = fileName;
+	_documentSaved = true;
+	_documentModified = false;
+	setWindowTitle(tr("%1").arg(QFileInfo(_currentFile).fileName()));
+}
+
 QString ModelViewer::currentFile() const
 {
 	return _currentFile;

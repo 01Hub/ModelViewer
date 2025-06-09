@@ -32,6 +32,7 @@ public:
 	static QString getLastSelectedFilter();
 	static void setLastSelectedFilter(const QString& lastSelectedFilter);
 		
+	void setCurrentFile(const QString& fileName);
 	QString currentFile() const;
 
 	bool loadFile(const QString& fileName);
