@@ -78,17 +78,26 @@ int main(int argc, char** argv)
 	}
 
 	QOpenGLFunctions glFuncs(QOpenGLContext::currentContext());
-	std::cout << "Renderer: " << glFuncs.glGetString(GL_RENDERER) << '\n';
-	std::cout << "Vendor:   " << glFuncs.glGetString(GL_VENDOR) << '\n';
-	std::cout << "OpenGL Version:  " << glFuncs.glGetString(GL_VERSION) << '\n';
-	std::cout << "Shader Version:   " << glFuncs.glGetString(GL_SHADING_LANGUAGE_VERSION) << "\n"
-		<< std::endl;
+	auto logOpenGLInfo = [&glFuncs](auto& outputStream) {
+		std::map<std::string, GLenum> infoMap = {
+			{"Renderer", GL_RENDERER},
+			{"Vendor", GL_VENDOR},
+			{"OpenGL Version", GL_VERSION},
+			{"Shader Version", GL_SHADING_LANGUAGE_VERSION}
+		};
 
+		for (const auto& [label, value] : infoMap) {
+			const char* info = reinterpret_cast<const char*>(glFuncs.glGetString(value));
+			outputStream << label << ": " << info << '\n';
+		}
+		};
+
+	// Log information to std::cout
+	logOpenGLInfo(std::cout);
+
+	// Collect information into std::stringstream and set it to mw
 	std::stringstream ss;
-	ss << "Renderer: " << glFuncs.glGetString(GL_RENDERER) << '\n';
-	ss << "Vendor:   " << glFuncs.glGetString(GL_VENDOR) << '\n';
-	ss << "OpenGL Version:  " << glFuncs.glGetString(GL_VERSION) << '\n';
-	ss << "Shader Version:   " << glFuncs.glGetString(GL_SHADING_LANGUAGE_VERSION) << "\n";
+	logOpenGLInfo(ss);
 	mw->setGraphicsInfo(ss.str().c_str());
 
 	/*
