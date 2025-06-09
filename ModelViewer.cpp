@@ -7,6 +7,7 @@
 #include <QToolTip>
 #include <assimp/Importer.hpp>
 
+#include "ModelViewerApplication.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
 #include "GLWidget.h"
@@ -15,7 +16,6 @@
 
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
-QStringList ModelViewer::_supportedExtensions = QStringList();
 
 ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 {
@@ -206,7 +206,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	updateControls();
 
-	initializeSupportedImportExtensions();
 }
 
 ModelViewer::~ModelViewer()
@@ -576,7 +575,7 @@ void ModelViewer::dragEnterEvent(QDragEnterEvent* event)
 
 void ModelViewer::dropEvent(QDropEvent* event)
 {
-	QStringList supportedExtensions = ModelViewer::getSupportedExtensions();
+	QStringList supportedExtensions = ModelViewerApplication::supportedImportExtensions();
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	foreach(const QUrl & url, event->mimeData()->urls())
 	{
@@ -710,64 +709,6 @@ QString ModelViewer::getLastSelectedFilter()
 void ModelViewer::setLastSelectedFilter(const QString& lastSelectedFilter)
 {
 	_lastSelectedFilter = lastSelectedFilter;
-}
-
-void ModelViewer::initializeSupportedImportExtensions()
-{
-	if(!_supportedExtensions.isEmpty())
-		return; // Already initialized
-
-	// 1. Get supported extensions from Assimp
-	Assimp::Importer importer;
-	std::string extList;
-	importer.GetExtensionList(extList); // E.g. "*.obj;*.3ds;*.fbx;..."
-	QString allExtensions = QString::fromStdString(extList).replace(';', ' ');
-
-	// 2. Manually add STEP/IGES extensions (if not in Assimp list)
-	if (!allExtensions.contains("*.step", Qt::CaseInsensitive)) {
-		allExtensions += " *.step *.stp";
-	}
-	if (!allExtensions.contains("*.iges", Qt::CaseInsensitive)) {
-		allExtensions += " *.iges *.igs";
-	}
-
-	// 3. All Supported filter
-	QString allSupportedFilter = QString("All Supported Files (%1)").arg(allExtensions.trimmed());
-
-	// 4. Common filters list
-	QStringList commonFilters = {
-		"Wavefront OBJ (*.obj)",
-		"Autodesk 3DS (*.3ds)",
-		"Collada DAE (*.dae)",
-		"STL (*.stl)",
-		"FBX (*.fbx)",
-		"PLY (*.ply)",
-		"DXF (*.dxf)",
-		"GLTF (*.gltf *.glb)",
-		"STEP (*.step *.stp)",
-		"IGES (*.iges *.igs)",
-		"IFC (*.ifc)",
-		"OFF (*.off)",
-		"LWO (*.lwo *.lws)",
-		"AC3D (*.ac *.ac3d *.acc)",
-		"Blender (*.blend)",
-		"Irrlicht (*.irr *.irrmesh)",
-		"MD5 (*.md5mesh *.md5anim *.md5camera)"
-	};
-
-	// 5. Add all filters to dialog	
-	_supportedExtensions << allSupportedFilter << commonFilters;
-}
-
-
-QStringList ModelViewer::getSupportedExtensions()
-{
-	return _supportedExtensions;
-}
-
-void ModelViewer::setSupportedExtensions(const QStringList& supportedExtensions)
-{
-	_supportedExtensions = supportedExtensions;
 }
 
 void ModelViewer::showContextMenu(const QPoint& pos)
@@ -1830,9 +1771,10 @@ void ModelViewer::on_toolButtonImport_clicked()
 {
 	QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir);
 	fileDialog.setFileMode(QFileDialog::ExistingFiles);
-	fileDialog.setNameFilters(_supportedExtensions);
+	QStringList supportedExtensions = ModelViewerApplication::supportedImportExtensions();
+	fileDialog.setNameFilters(supportedExtensions);
 
-	if (_supportedExtensions.contains(_lastSelectedFilter)) {
+	if (supportedExtensions.contains(_lastSelectedFilter)) {
 		fileDialog.selectNameFilter(_lastSelectedFilter);
 	}
 

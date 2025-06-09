@@ -4,6 +4,7 @@
 #include <QOpenGLFunctions>
 #include <QFileInfo>
 
+#include "ModelViewerApplication.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
 #include <iostream>
@@ -19,7 +20,7 @@ int main(int argc, char** argv)
 	QCoreApplication::setOrganizationName("Sharjith N");
     QCoreApplication::setApplicationVersion(QT_VERSION_STR);
 
-    QApplication app(argc, argv);
+	ModelViewerApplication app(argc, argv);
 
 #if QT_VERSION_MAJOR == 6
 	// Disable allocation limit for images

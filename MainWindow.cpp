@@ -2,6 +2,7 @@
 #include <QMessageBox>
 #include <QFileDialog>
 
+#include "ModelViewerApplication.h"
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "ModelViewer.h"
@@ -304,7 +305,7 @@ void MainWindow::dragEnterEvent(QDragEnterEvent* event)
 
 void MainWindow::dropEvent(QDropEvent* event)
 {
-	QStringList supportedExtensions = ModelViewer::getSupportedExtensions();
+	QStringList supportedExtensions = ModelViewerApplication::supportedImportExtensions();
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	foreach(const QUrl & url, event->mimeData()->urls())
 	{
@@ -342,7 +343,7 @@ void MainWindow::on_actionOpen_triggered()
 {
 	QFileDialog fileDialog(this, tr("Open Model File"), ModelViewer::getLastOpenedDir());
 	fileDialog.setFileMode(QFileDialog::ExistingFile);	
-	QStringList supportedExtensions = ModelViewer::getSupportedExtensions();
+	QStringList supportedExtensions = ModelViewerApplication::supportedImportExtensions();
 	supportedExtensions[0].insert(supportedExtensions[0].lastIndexOf(')'), " *.mvf");
 	QStringList nativeFilter = { "ModelViewer Files (*.mvf)" };
 	supportedExtensions.append(nativeFilter);
