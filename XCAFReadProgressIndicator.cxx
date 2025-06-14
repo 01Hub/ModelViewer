@@ -1,15 +1,15 @@
-#include "ConsoleProgressIndicator.hxx"
+#include "XCAFReadProgressIndicator.hxx"
 #include "MainWindow.h"
 
-IMPLEMENT_STANDARD_RTTIEXT(ConsoleProgressIndicator, Message_ProgressIndicator)
+IMPLEMENT_STANDARD_RTTIEXT(XCAFReadProgressIndicator, Message_ProgressIndicator)
 
-ConsoleProgressIndicator::ConsoleProgressIndicator()
+XCAFReadProgressIndicator::XCAFReadProgressIndicator()
     :myLastShownProgress(-1)
 {
     // Initialization if needed
 }
 
-void ConsoleProgressIndicator::Show(const Message_ProgressScope& theScope, const Standard_Boolean theForce)
+void XCAFReadProgressIndicator::Show(const Message_ProgressScope& theScope, const Standard_Boolean theForce)
 {
     Standard_Real pos = GetPosition() * 100.0;
     if (static_cast<int>(pos) != myLastShownProgress || theForce)
@@ -20,14 +20,14 @@ void ConsoleProgressIndicator::Show(const Message_ProgressScope& theScope, const
     }
 }
 
-void ConsoleProgressIndicator::Reset()
+void XCAFReadProgressIndicator::Reset()
 {
     myLastShownProgress = -1;
     std::cout << std::endl;
 }
 
 
-void ConsoleProgressIndicator::SetText(const Standard_CString theText)
+void XCAFReadProgressIndicator::SetText(const Standard_CString theText)
 {
     if (theText)
     {

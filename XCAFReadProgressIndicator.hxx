@@ -8,16 +8,16 @@
 #include <Standard_Handle.hxx>
 #include <Standard_Type.hxx>
 
-class ConsoleProgressIndicator;
-DEFINE_STANDARD_HANDLE(ConsoleProgressIndicator, Message_ProgressIndicator)
+class XCAFReadProgressIndicator;
+DEFINE_STANDARD_HANDLE(XCAFReadProgressIndicator, Message_ProgressIndicator)
 
-class ConsoleProgressIndicator : public Message_ProgressIndicator
+class XCAFReadProgressIndicator : public Message_ProgressIndicator
 {
 public:
-	ConsoleProgressIndicator();
+	XCAFReadProgressIndicator();
 
 	// OCCT RTTI
-	DEFINE_STANDARD_RTTIEXT(ConsoleProgressIndicator, Message_ProgressIndicator)
+	DEFINE_STANDARD_RTTIEXT(XCAFReadProgressIndicator, Message_ProgressIndicator)
 
 	// Overridden methods
 	void Show(const Message_ProgressScope& theScope, const Standard_Boolean theForce) override;

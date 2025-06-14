@@ -1,6 +1,6 @@
 ﻿#include "AssImpModelLoader.h"
 #include "BRepToAssimpConverter.h"
-#include "ConsoleProgressIndicator.hxx"
+#include "XCAFReadProgressIndicator.hxx"
 #include "MainWindow.h"
 #include "Utils.h"
 #include <IGESCAFControl_Reader.hxx>
@@ -211,7 +211,7 @@ aiScene* AssImpModelLoader::processIGESFile(const std::string& path)
 
 	MainWindow::showIndeterminateProgressBar();
 
-	Handle(ConsoleProgressIndicator) progress = new ConsoleProgressIndicator();
+	Handle(XCAFReadProgressIndicator) progress = new XCAFReadProgressIndicator();
 	Message_ProgressRange rootRange = progress->Start();
 
 	Message_ProgressScope transferScope(rootRange, "IGES Transfer", -1);
@@ -285,7 +285,7 @@ void AssImpModelLoader::readSTEPFile(const std::string& filename, Handle(TDocStd
 #endif
 	MainWindow::showIndeterminateProgressBar();
 
-	Handle(ConsoleProgressIndicator) progress = new ConsoleProgressIndicator();
+	Handle(XCAFReadProgressIndicator) progress = new XCAFReadProgressIndicator();
 	Message_ProgressRange rootRange = progress->Start();
 
 	Message_ProgressScope transferScope(rootRange, "STEP Transfer", -1);
