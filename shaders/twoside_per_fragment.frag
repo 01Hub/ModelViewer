@@ -254,7 +254,7 @@ void main()
         lightened = clamp(lightened, 0.0, 1.0);
 
         // Apply a subtle transparency
-        float alpha = fragColor.a * 0.8;
+        float alpha = fragColor.a * 0.99;
 
         // Add glow effect
         vec3 glowColor = lightened * 1.2; // Make the glow a bit brighter
