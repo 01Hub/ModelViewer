@@ -3449,8 +3449,10 @@ void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float t
 
 	_bgShader->bind();
 
+	int GRADIENT_STYLE = 0; // Default gradient style, can be changed based on user preference
 	_bgShader->setUniformValue("top_color", QVector4D(top_r, top_g, top_b, top_a));
 	_bgShader->setUniformValue("bot_color", QVector4D(bot_r, bot_g, bot_b, bot_a));
+	_bgShader->setUniformValue("gradient_style", GRADIENT_STYLE);  // Pass the gradient style
 
 	_bgVAO.bind();
 	glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -3460,6 +3462,7 @@ void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float t
 	_bgVAO.release();
 	_bgShader->release();
 }
+
 
 void GLWidget::splitScreen()
 {
