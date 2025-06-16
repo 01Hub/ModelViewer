@@ -4377,39 +4377,79 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 	_selectedIDs.clear();
 
 	const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
-	if (ids.empty())
+	if (ids.empty() || !_rubberBand || _rubberBand->geometry().isNull())
 		return _selectedIDs;
 
-	QRect rubberRect = _rubberBand->geometry();
-	if (rubberRect.isNull())
-		return _selectedIDs;
-
-	QRect viewport = getViewportFromPoint(pixel);
-	QMatrix4x4 modelView = _viewMatrix * _modelMatrix;
-	QRect widgetRect = geometry();
+	const QRect rubberRect = _rubberBand->geometry();
+	const QRect viewport(0, 0, width(), height());
+	const QMatrix4x4 projMatrix = _projectionMatrix;
+	const QMatrix4x4 viewMatrix = _viewMatrix * _modelMatrix;
+	constexpr float SELECTION_THRESHOLD = 0.5f;
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	_selectedIDs.reserve(ids.size());
 
 	for (int i : ids)
 	{
-		TriangleMesh* mesh = _meshStore.at(i);
-		QRect objRect = mesh->getBoundingBox().project(modelView, _projectionMatrix, viewport, widgetRect);
-		if (objRect.isNull())
+		TriangleMesh* mesh = _meshStore.at(i);		
+
+		BoundingSphere sphere = mesh->getBoundingSphere();
+		QVector3D center = sphere.getCenter();
+		float radius = sphere.getRadius();
+		
+
+		QVector4D center4(center, 1.0f);
+		QVector4D projectedCenter = projMatrix * viewMatrix * center4;
+
+		if (projectedCenter.w() <= 0.0f)
 			continue;
 
-		QRect interRect = rubberRect.intersected(objRect);
-		int objArea = objRect.width() * objRect.height();
-		int interArea = interRect.width() * interRect.height();
+		QVector3D ndcCenter = projectedCenter.toVector3DAffine();
+		QPointF screenCenter(
+			(ndcCenter.x() * 0.5f + 0.5f) * viewport.width(),
+			(1.0f - (ndcCenter.y() * 0.5f + 0.5f)) * viewport.height()
+		);
 
-		if (objArea > 0 && interArea * 20 >= objArea) // ≥5%
+		// Project radius in X direction
+		QVector4D edge4 = projMatrix * viewMatrix * QVector4D(center + QVector3D(radius, 0, 0), 1.0f);
+		if (edge4.w() <= 0.0f)
+			continue;
+
+		QVector3D ndcEdge = edge4.toVector3DAffine();
+		QPointF screenEdge(
+			(ndcEdge.x() * 0.5f + 0.5f) * viewport.width(),
+			(1.0f - (ndcEdge.y() * 0.5f + 0.5f)) * viewport.height()
+		);
+
+		float radiusPixels = QLineF(screenCenter, screenEdge).length();
+		QRectF projectedRect(
+			screenCenter.x() - radiusPixels,
+			screenCenter.y() - radiusPixels,
+			2 * radiusPixels,
+			2 * radiusPixels
+		);
+
+		if (rubberRect.contains(projectedRect.toRect()))
+		{
 			_selectedIDs.push_back(i);
-	}
-	QApplication::restoreOverrideCursor();
+		}
+		else if (rubberRect.intersects(projectedRect.toRect()))
+		{
+			QRectF intersected = rubberRect.intersected(projectedRect.toRect());
+			float intersectArea = intersected.width() * intersected.height();
+			float projectedArea = projectedRect.width() * projectedRect.height();
 
+			if (projectedArea > 0 && (intersectArea / projectedArea) >= SELECTION_THRESHOLD)
+				_selectedIDs.push_back(i);
+		}
+	}
+
+	QApplication::restoreOverrideCursor();
 	emit sweepSelectionDone(_selectedIDs);
 	return _selectedIDs;
 }
+
+
 
 
 unsigned int GLWidget::colorToIndex(const QColor& color)
