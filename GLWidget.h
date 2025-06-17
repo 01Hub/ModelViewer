@@ -207,9 +207,13 @@ public:
 
 	QColor getBgTopColor() const;
 	void setBgTopColor(const QColor& bgTopColor);
+	
 
 	QColor getBgBotColor() const;
 	void setBgBotColor(const QColor& bgBotColor);
+
+	int getBgGradientStyle() const { return _gradientStyle; }
+	void setBgGradientStyle(int style) { _gradientStyle = style; }
 
 	RenderingMode getRenderingMode() const;
 	void setRenderingMode(const RenderingMode& renderingMode);
@@ -318,7 +322,10 @@ private:
 	void renderQuad();
 
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
-		float bot_r, float bot_g, float bot_b, float bot_a);
+		float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle);
+
+	void loadBgColorSettings();
+
 	void splitScreen();
 
 	void setRotations(float xRot, float yRot, float zRot);
@@ -348,6 +355,7 @@ private:
 	RenderingMode _renderingMode;
 	QColor      _bgTopColor;
 	QColor      _bgBotColor;
+	int _gradientStyle = 0; // 0=Vertical, 1=Horizontal, 2=TopLeftToBottomRight, 3=TopRightToBottomLeft
 	bool _windowZoomActive;
 	bool _viewZooming;
 	bool _viewPanning;
@@ -503,7 +511,7 @@ private:
 
 	QOpenGLShaderProgram* _bgShader;
 	QOpenGLVertexArrayObject _bgVAO;
-
+	
 	QOpenGLShaderProgram* _bgSplitShader;
 	QOpenGLVertexArrayObject _bgSplitVAO;
 	QOpenGLBuffer _bgSplitVBO;

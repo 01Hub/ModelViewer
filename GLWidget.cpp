@@ -65,8 +65,7 @@ _assimpModelLoader(nullptr)
 
     _viewer = static_cast<ModelViewer*>(parent);
 
-    _bgTopColor = QColor::fromRgbF(0.45f, 0.45f, 0.45f, 1.0f);
-    _bgBotColor = QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f);
+	loadBgColorSettings();
 
 	_quadVAO = 0;
 
@@ -2468,7 +2467,7 @@ void GLWidget::paintGL()
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
 		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF());
+			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
 
 		_modelMatrix.setToIdentity();
 		if (_multiViewActive)
@@ -2517,7 +2516,7 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF());
+		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
 	render(_primaryCamera);
 	drawCornerAxis();
 }
@@ -2528,7 +2527,7 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF());
+		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
 	// Render orthographic views with ortho view camera
 	// Top View
 	_orthoViewsCamera->setScreenSize(width() / 2, height() / 2);
@@ -3436,7 +3435,7 @@ void GLWidget::renderQuad()
 }
 
 void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float top_a,
-	float bot_r, float bot_g, float bot_b, float bot_a)
+	float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle)
 {
 	glViewport(0, 0, width(), height());
 	if (!_bgVAO.isCreated())
@@ -3452,7 +3451,7 @@ void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float t
 	int GRADIENT_STYLE = 0; // Default gradient style, can be changed based on user preference
 	_bgShader->setUniformValue("top_color", QVector4D(top_r, top_g, top_b, top_a));
 	_bgShader->setUniformValue("bot_color", QVector4D(bot_r, bot_g, bot_b, bot_a));
-	_bgShader->setUniformValue("gradient_style", GRADIENT_STYLE);  // Pass the gradient style
+	_bgShader->setUniformValue("gradient_style", gradientStyle);  // Pass the gradient style
 
 	_bgVAO.bind();
 	glDrawArrays(GL_TRIANGLES, 0, 3);
@@ -3461,6 +3460,53 @@ void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float t
 
 	_bgVAO.release();
 	_bgShader->release();
+}
+
+void GLWidget::loadBgColorSettings()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+	// Retrieve and validate top color
+	QVariant topColorValue = settings.value("Background/TopColor");
+	if (topColorValue.isValid() && topColorValue.canConvert<QColor>())
+	{
+		_bgTopColor = topColorValue.value<QColor>();
+	}
+	else
+	{
+		_bgTopColor = QColor::fromRgbF(0.45f, 0.45f, 0.45f, 1.0f);
+	}
+
+	// Retrieve and validate bottom color
+	QVariant bottomColorValue = settings.value("Background/BottomColor");
+	if (bottomColorValue.isValid() && bottomColorValue.canConvert<QColor>())
+	{
+		_bgBotColor = bottomColorValue.value<QColor>();
+	}
+	else
+	{		
+		_bgBotColor = QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f);
+		
+	}
+
+	// Retrieve and validate gradient style
+	QVariant gradientStyleValue = settings.value("Background/GradientStyle");
+	if (gradientStyleValue.isValid() && gradientStyleValue.canConvert<int>())
+	{
+		int style = gradientStyleValue.toInt();
+		if (style >= 0 && style <= 3)
+		{
+			_gradientStyle = style;
+		}
+		else
+		{
+			_gradientStyle = 0; // Default to vertical gradient
+		}
+	}
+	else
+	{
+		_gradientStyle = 0; // Default to vertical gradient
+	}
 }
 
 
@@ -4392,58 +4438,65 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	_selectedIDs.reserve(ids.size());
 
-	for (int i : ids)
+	for (int i : ids) // Iterate through each ID in the 'ids' collection.
 	{
-		TriangleMesh* mesh = _meshStore.at(i);		
+		TriangleMesh* mesh = _meshStore.at(i);
 
 		BoundingSphere sphere = mesh->getBoundingSphere();
 		QVector3D center = sphere.getCenter();
 		float radius = sphere.getRadius();
-		
 
+		// Convert the 3D center into a 4D vector (homogeneous coordinates).
 		QVector4D center4(center, 1.0f);
+		// Project the center from 3D object space into clip space.
 		QVector4D projectedCenter = projMatrix * viewMatrix * center4;
 
-		if (projectedCenter.w() <= 0.0f)
+		// Check if the projected center is behind the camera (negative w-coordinate).
+		if (projectedCenter.w() <= 0.0f) 
 			continue;
 
-		QVector3D ndcCenter = projectedCenter.toVector3DAffine();
+		// Convert the center from clip space to normalized device coordinates (NDC).
+		QVector3D ndcCenter = projectedCenter.toVector3DAffine(); 
 		QPointF screenCenter(
-			(ndcCenter.x() * 0.5f + 0.5f) * viewport.width(),
-			(1.0f - (ndcCenter.y() * 0.5f + 0.5f)) * viewport.height()
+			(ndcCenter.x() * 0.5f + 0.5f) * viewport.width(), // Map NDC to screen coordinates along the X-axis.
+			(1.0f - (ndcCenter.y() * 0.5f + 0.5f)) * viewport.height() // Map NDC to screen coordinates along the Y-axis (invert Y for screen space).
 		);
 
-		// Project radius in X direction
+		// Project the edge of the bounding sphere in the X direction to determine its radius in screen space.
 		QVector4D edge4 = projMatrix * viewMatrix * QVector4D(center + QVector3D(radius, 0, 0), 1.0f);
-		if (edge4.w() <= 0.0f)
+		if (edge4.w() <= 0.0f) // Check if the projected edge is behind the camera.
 			continue;
 
-		QVector3D ndcEdge = edge4.toVector3DAffine();
+		// Convert the edge from clip space to normalized device coordinates (NDC).
+		QVector3D ndcEdge = edge4.toVector3DAffine(); 
 		QPointF screenEdge(
-			(ndcEdge.x() * 0.5f + 0.5f) * viewport.width(),
-			(1.0f - (ndcEdge.y() * 0.5f + 0.5f)) * viewport.height()
+			(ndcEdge.x() * 0.5f + 0.5f) * viewport.width(), // Map NDC to screen coordinates along the X-axis for the edge.
+			(1.0f - (ndcEdge.y() * 0.5f + 0.5f)) * viewport.height() // Map NDC to screen coordinates along the Y-axis for the edge.
 		);
 
-		float radiusPixels = QLineF(screenCenter, screenEdge).length();
+		// Calculate the radius in pixels based on the distance between the center and edge in screen space.
+		float radiusPixels = QLineF(screenCenter, screenEdge).length(); 
 		QRectF projectedRect(
-			screenCenter.x() - radiusPixels,
-			screenCenter.y() - radiusPixels,
-			2 * radiusPixels,
-			2 * radiusPixels
+			screenCenter.x() - radiusPixels, // Top-left X coordinate of the rectangle.
+			screenCenter.y() - radiusPixels, // Top-left Y coordinate of the rectangle.
+			2 * radiusPixels, // Width of the rectangle (2 * radius).
+			2 * radiusPixels  // Height of the rectangle (2 * radius).
 		);
 
-		if (rubberRect.contains(projectedRect.toRect()))
+		// Check if the projected rectangle is completely within the rubber rectangle.
+		if (rubberRect.contains(projectedRect.toRect())) 
 		{
-			_selectedIDs.push_back(i);
+			_selectedIDs.push_back(i); // Add the ID to the list of selected IDs.
 		}
-		else if (rubberRect.intersects(projectedRect.toRect()))
+		else if (rubberRect.intersects(projectedRect.toRect())) // Check if the projected rectangle intersects the rubber rectangle.
 		{
-			QRectF intersected = rubberRect.intersected(projectedRect.toRect());
-			float intersectArea = intersected.width() * intersected.height();
-			float projectedArea = projectedRect.width() * projectedRect.height();
+			QRectF intersected = rubberRect.intersected(projectedRect.toRect()); // Calculate the intersection rect between the two rectangles.
+			float intersectArea = intersected.width() * intersected.height(); // Compute the area of the intersection.
+			float projectedArea = projectedRect.width() * projectedRect.height(); // Compute the area of the projected rectangle.
 
-			if (projectedArea > 0 && (intersectArea / projectedArea) >= SELECTION_THRESHOLD)
-				_selectedIDs.push_back(i);
+			// Select the ID if the intersection area is significant enough.
+			if (projectedArea > 0 && (intersectArea / projectedArea) >= SELECTION_THRESHOLD) 
+				_selectedIDs.push_back(i); // Add the ID to the list of selected IDs.
 		}
 	}
 

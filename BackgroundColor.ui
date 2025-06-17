@@ -3,27 +3,15 @@
  <class>BackgroundColor</class>
  <widget class="QDialog" name="BackgroundColor">
   <property name="windowModality">
-   <enum>Qt::ApplicationModal</enum>
+   <enum>Qt::WindowModality::ApplicationModal</enum>
   </property>
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>315</width>
-    <height>211</height>
+    <width>363</width>
+    <height>258</height>
    </rect>
-  </property>
-  <property name="minimumSize">
-   <size>
-    <width>315</width>
-    <height>211</height>
-   </size>
-  </property>
-  <property name="maximumSize">
-   <size>
-    <width>315</width>
-    <height>211</height>
-   </size>
   </property>
   <property name="windowTitle">
    <string>Background Color</string>
@@ -31,67 +19,105 @@
   <property name="modal">
    <bool>true</bool>
   </property>
-  <layout class="QGridLayout" name="gridLayout">
-   <item row="0" column="0" rowspan="4">
-    <widget class="QLabel" name="labelColorPreview">
-     <property name="frameShape">
-      <enum>QFrame::Panel</enum>
-     </property>
-     <property name="frameShadow">
-      <enum>QFrame::Raised</enum>
-     </property>
-     <property name="text">
-      <string>Preview</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignCenter</set>
-     </property>
-    </widget>
+  <layout class="QVBoxLayout" name="verticalLayout_2">
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_2">
+     <item>
+      <widget class="QLabel" name="labelColorPreview">
+       <property name="minimumSize">
+        <size>
+         <width>200</width>
+         <height>150</height>
+        </size>
+       </property>
+       <property name="frameShape">
+        <enum>QFrame::Shape::Panel</enum>
+       </property>
+       <property name="frameShadow">
+        <enum>QFrame::Shadow::Raised</enum>
+       </property>
+       <property name="text">
+        <string>Preview</string>
+       </property>
+       <property name="alignment">
+        <set>Qt::AlignmentFlag::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <item>
+        <widget class="QPushButton" name="pushButtonTop">
+         <property name="styleSheet">
+          <string notr="true"/>
+         </property>
+         <property name="text">
+          <string>Choose First Color</string>
+         </property>
+         <property name="autoDefault">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButtonBottom">
+         <property name="text">
+          <string>Choose Second Color</string>
+         </property>
+         <property name="autoDefault">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButtonDefaultColor">
+         <property name="text">
+          <string>Default Color</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBoxGrad">
+         <property name="text">
+          <string>Gradient</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="comboBoxGradientStyle">
+         <item>
+          <property name="text">
+           <string>Vertical Gradient</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Horizontal Gradient</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Top Left To Bottom Right</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Top Right To Bottom Left</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
    </item>
-   <item row="0" column="1">
-    <widget class="QPushButton" name="pushButtonTop">
-     <property name="styleSheet">
-      <string notr="true"/>
-     </property>
-     <property name="text">
-      <string>Choose Top Color</string>
-     </property>
-     <property name="autoDefault">
-      <bool>false</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="1">
-    <widget class="QPushButton" name="pushButtonBottom">
-     <property name="text">
-      <string>Choose Bottom Color</string>
-     </property>
-     <property name="autoDefault">
-      <bool>false</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="2" column="1">
-    <widget class="QPushButton" name="pushButtonDefaultColor">
-     <property name="text">
-      <string>Default Color</string>
-     </property>
-    </widget>
-   </item>
-   <item row="3" column="1">
-    <widget class="QCheckBox" name="checkBoxGrad">
-     <property name="text">
-      <string>Gradient</string>
-     </property>
-     <property name="checked">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item row="4" column="0" colspan="2">
+   <item>
     <spacer name="verticalSpacer">
      <property name="orientation">
-      <enum>Qt::Vertical</enum>
+      <enum>Qt::Orientation::Vertical</enum>
      </property>
      <property name="sizeHint" stdset="0">
       <size>
@@ -101,12 +127,12 @@
      </property>
     </spacer>
    </item>
-   <item row="5" column="0" colspan="2">
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout">
      <item>
       <spacer name="horizontalSpacer">
        <property name="orientation">
-        <enum>Qt::Horizontal</enum>
+        <enum>Qt::Orientation::Horizontal</enum>
        </property>
        <property name="sizeHint" stdset="0">
         <size>
@@ -145,7 +171,6 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>checkBoxGrad</tabstop>
   <tabstop>pushButtonTop</tabstop>
   <tabstop>pushButtonBottom</tabstop>
   <tabstop>pushButtonDefaultColor</tabstop>
@@ -162,12 +187,28 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>71</x>
-     <y>82</y>
+     <x>232</x>
+     <y>122</y>
     </hint>
     <hint type="destinationlabel">
      <x>203</x>
      <y>55</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxGrad</sender>
+   <signal>clicked(bool)</signal>
+   <receiver>comboBoxGradientStyle</receiver>
+   <slot>setEnabled(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>264</x>
+     <y>112</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>269</x>
+     <y>143</y>
     </hint>
    </hints>
   </connection>

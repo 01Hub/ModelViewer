@@ -37,11 +37,17 @@ private slots:
 
 	void on_applyButton_clicked();
 
+	void on_comboBoxGradientStyle_currentIndexChanged(int index);
+
+private:
+	void saveSettings();
+
 private:
 	Ui::BackgroundColor* ui;
 
 	QColor _topColor;
 	QColor _bottomColor;
+	int _gradientStyle = 0;
 };
 
 #endif // BACKGROUNDCOLOR_H
