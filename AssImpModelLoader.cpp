@@ -596,7 +596,16 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 	}
 
 	// Return a mesh object created from the extracted mesh data
-	return new AssImpMesh(_prog, QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ") ", vertices, indices, textures, mat);
+	QString meshName = QString::fromStdString(mesh->mName.C_Str());
+	if(meshName.isEmpty())
+	{
+		meshName = QFileInfo(QString(_path.data())).baseName() + " (Unnamed Mesh)";
+	}
+	else
+	{
+		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
+	}
+	return new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);
 }
 
 void AssImpModelLoader::setColorAndMaterial(aiMaterial* material, GLMaterial& mat)
