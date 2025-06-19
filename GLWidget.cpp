@@ -4300,6 +4300,21 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 	QVector4D worldStart = inv * ndcStart;
 	QVector4D worldEnd = inv * ndcEnd;
 
+	// check if worldStart and worldEnd are valid
+	if (worldStart.w() == 0.0f || worldEnd.w() == 0.0f) {
+		//qDebug() << "Invalid world coordinates: w component is zero.";
+		return QVector3D(0, 0, 0); // Return zero vector if invalid
+	}
+
+	// check if worldStart and worldEnd are not NaN or Inf
+	if (std::isnan(worldStart.x()) || std::isnan(worldStart.y()) || std::isnan(worldStart.z()) ||
+		std::isinf(worldStart.x()) || std::isinf(worldStart.y()) || std::isinf(worldStart.z()) ||
+		std::isnan(worldEnd.x()) || std::isnan(worldEnd.y()) || std::isnan(worldEnd.z()) ||
+		std::isinf(worldEnd.x()) || std::isinf(worldEnd.y()) || std::isinf(worldEnd.z())) {
+		//qDebug() << "Invalid world coordinates: NaN or Inf detected.";
+		return QVector3D(0, 0, 0); // Return zero vector if invalid
+	}	
+	
 	if (worldStart.w() != 0.0f) worldStart /= worldStart.w();
 	if (worldEnd.w() != 0.0f) worldEnd /= worldEnd.w();
 
@@ -4360,12 +4375,15 @@ int GLWidget::clickSelect(const QPoint& pixel)
 	QVector3D rayPos, rayDir, intersectionPoint;
 	QRect viewport = getViewportFromPoint(pixel);
 
-	GLCamera* camera = _multiViewActive && (viewport.x() != viewport.width() || viewport.y() != 0)
-		? _orthoViewsCamera
-		: _primaryCamera;
+	// Don't select in the multi-view if the click is not in the main viewport
+	if (_multiViewActive && (viewport.x() != viewport.width() || viewport.y() != 0))
+	{
+		emit singleSelectionDone(-1);
+		return -1;
+	}
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
-	convertClickToRay(pixel, viewport, camera, rayPos, rayDir);
+	convertClickToRay(pixel, viewport, _primaryCamera, rayPos, rayDir);
 	rayDir.normalize();
 
 	// === Ray-based intersection test ===
