@@ -1,6 +1,5 @@
 #include <iostream>
 
-#include <glm/gtc/matrix_transform.hpp>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
@@ -109,8 +108,8 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
 		// Now store character for later use
 		Character character = {
 			texture,
-			glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
-			glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
+			QVector2D(face->glyph->bitmap.width, face->glyph->bitmap.rows),
+			QVector2D(face->glyph->bitmap_left, face->glyph->bitmap_top),
 			static_cast<unsigned int>(face->glyph->advance.x)
 		};
 		_characters.insert(std::pair<GLchar, Character>(c, character));
@@ -121,12 +120,12 @@ void TextRenderer::Load(std::string font, unsigned int fontSize)
 	FT_Done_FreeType(ft);
 }
 
-void TextRenderer::RenderText(std::string text, float x, float y, float scale, glm::vec3 color,
+void TextRenderer::RenderText(std::string text, float x, float y, float scale, QVector3D color,
 	VAlignment vAlignment, HAlignment hAlignment)
 {
 	// Activate corresponding updateMatrix state
 	_prog->bind();
-	_prog->setUniformValue("textColor", QVector3D(color.x, color.y, color.z));
+	_prog->setUniformValue("textColor", color);
 	glActiveTexture(GL_TEXTURE30);
 	//glBindVertexArray(this->VAO);
 	_charVAO.bind();
@@ -147,9 +146,9 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, g
 	if (hAlignment == HAlignment::HLEFT)
 		hoffset = 0;
 	else if (hAlignment == HAlignment::HRIGHT)
-		hoffset = static_cast<unsigned int>(_width - (text.length() * this->_characters['H'].Size.x));
+		hoffset = static_cast<unsigned int>(_width - (text.length() * this->_characters['H'].Size.x()));
 	else
-		hoffset = static_cast<unsigned int>(_width / 2 - (text.length() * this->_characters['H'].Size.x) / 2);
+		hoffset = static_cast<unsigned int>(_width / 2 - (text.length() * this->_characters['H'].Size.x()) / 2);
 
 	// Iterate through all characters
 	std::string::const_iterator c;
@@ -157,11 +156,11 @@ void TextRenderer::RenderText(std::string text, float x, float y, float scale, g
 	{
 		Character ch = _characters[*c];
 
-		float xpos = x + hoffset + ch.Bearing.x * scale;
-		float ypos = y - voffset + (this->_characters['H'].Bearing.y - ch.Bearing.y) * scale;
+		float xpos = x + hoffset + ch.Bearing.x() * scale;
+		float ypos = y - voffset + (this->_characters['H'].Bearing.y() - ch.Bearing.y()) * scale;
 
-		float w = ch.Size.x * scale;
-		float h = ch.Size.y * scale;
+		float w = ch.Size.x() * scale;
+		float h = ch.Size.y() * scale;
 		// Update VBO for each character
 		float vertices[6][4] = {
 			{ xpos,     ypos + h,   0.0, 1.0 },
