@@ -4119,7 +4119,7 @@ void GLWidget::onInertiaTimer()
 		else
 			_viewRange *= zoomFactor;
 
-		QPoint cen = rect().center();
+		QPoint cen = getViewportFromPoint(mapFromGlobal(QCursor::pos())).center();
 		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, cen);
 		OP *= -_inertiaZoomPanVelocity * 0.05f;
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
@@ -4299,21 +4299,6 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 
 	QVector4D worldStart = inv * ndcStart;
 	QVector4D worldEnd = inv * ndcEnd;
-
-	// check if worldStart and worldEnd are valid
-	if (worldStart.w() == 0.0f || worldEnd.w() == 0.0f) {
-		//qDebug() << "Invalid world coordinates: w component is zero.";
-		return QVector3D(0, 0, 0); // Return zero vector if invalid
-	}
-
-	// check if worldStart and worldEnd are not NaN or Inf
-	if (std::isnan(worldStart.x()) || std::isnan(worldStart.y()) || std::isnan(worldStart.z()) ||
-		std::isinf(worldStart.x()) || std::isinf(worldStart.y()) || std::isinf(worldStart.z()) ||
-		std::isnan(worldEnd.x()) || std::isnan(worldEnd.y()) || std::isnan(worldEnd.z()) ||
-		std::isinf(worldEnd.x()) || std::isinf(worldEnd.y()) || std::isinf(worldEnd.z())) {
-		//qDebug() << "Invalid world coordinates: NaN or Inf detected.";
-		return QVector3D(0, 0, 0); // Return zero vector if invalid
-	}	
 	
 	if (worldStart.w() != 0.0f) worldStart /= worldStart.w();
 	if (worldEnd.w() != 0.0f) worldEnd /= worldEnd.w();
