@@ -102,77 +102,77 @@ public:
 
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
-	void setAlbedoPBRMap(unsigned int albedoMap);
-	void setNormalPBRMap(unsigned int normalMap);
-	void setMetallicPBRMap(unsigned int metallicMap);
-	void setRoughnessPBRMap(unsigned int roughnessMap);
-	void setAOPBRMap(unsigned int aoMap);
-	void setHeightPBRMap(unsigned int heightMap);
-	void setOpacityPBRMap(unsigned int opacityMap);
-	void invertOpacityPBRMap(bool invert);
+	virtual void setAlbedoPBRMap(unsigned int albedoMap);
+	virtual void setNormalPBRMap(unsigned int normalMap);
+	virtual void setMetallicPBRMap(unsigned int metallicMap);
+	virtual void setRoughnessPBRMap(unsigned int roughnessMap);
+	virtual void setAOPBRMap(unsigned int aoMap);
+	virtual void setHeightPBRMap(unsigned int heightMap);
+	virtual void setOpacityPBRMap(unsigned int opacityMap);
+	virtual void invertOpacityPBRMap(bool invert);
 
-	bool hasAlbedoPBRMap() const;
-	void enableAlbedoPBRMap(bool hasAlbedoMap);
+	virtual bool hasAlbedoPBRMap() const;
+	virtual void enableAlbedoPBRMap(bool hasAlbedoMap);
 
-	bool hasMetallicPBRMap() const;
-	void enableMetallicPBRMap(bool hasMetallicMap);
-
-	bool hasRoughnessPBRMap() const;
-	void enableRoughnessPBRMap(bool hasRoughnessMap);
-
-	bool hasNormalPBRMap() const;
-	void enableNormalPBRMap(bool hasNormalMap);
-
-	bool hasAOPBRMap() const;
-	void enableAOPBRMap(bool hasAOMap);
-
-	bool hasHeightPBRMap() const;
-	void enableHeightPBRMap(bool hasHeightMap);
-
-	float getHeightPBRMapScale() const;
-	void setHeightPBRMapScale(float heightScale);
-
-	bool hasOpacityPBRMap() const;
-	void enableOpacityPBRMap(bool hasHeightMap);
-
-	void clearAlbedoPBRMap();
-	void clearMetallicPBRMap();
-	void clearRoughnessPBRMap();
-	void clearNormalPBRMap();
-	void clearAOPBRMap();
-	void clearHeightPBRMap();
-	void clearOpacityPBRMap();
-	void clearAllPBRMaps();
-
-	GLMaterial getMaterial() const;
-	void setMaterial(const GLMaterial& material);
-
-	void enableDiffuseADSMap(bool enable);
-	void setDiffuseADSMap(unsigned int diffuseTex);
-	void enableSpecularADSMap(bool enable);
-	void setSpecularADSMap(unsigned int specularTex);
-	void enableEmissiveADSMap(bool enable);
-	void setEmissiveADSMap(unsigned int emissiveTex);
-	void enableNormalADSMap(bool enable);
-	void setNormalADSMap(unsigned int normalTex);
-	void enableHeightADSMap(bool enable);
-	void setHeightADSMap(unsigned int heightTex);
-	void enableOpacityADSMap(bool enable);
-	void invertOpacityADSMap(bool invert);
-	void setOpacityADSMap(unsigned int opacityTex);
-
-	void clearDiffuseADSMap();
-	void clearSpecularADSMap();
-	void clearEmissiveADSMap();
-	void clearNormalADSMap();
-	void clearHeightADSMap();
-	void clearOpacityADSMap();
-	void clearAllADSMaps();
-
-	void deleteTextures();
-
-	void serialize(QDataStream& out) const;
-	void deserialize(QDataStream& in);
+	virtual bool hasMetallicPBRMap() const;
+	virtual void enableMetallicPBRMap(bool hasMetallicMap);
+	 
+	virtual bool hasRoughnessPBRMap() const;
+	virtual void enableRoughnessPBRMap(bool hasRoughnessMap);
+	
+	virtual bool hasNormalPBRMap() const;
+	virtual void enableNormalPBRMap(bool hasNormalMap);
+	
+	virtual bool hasAOPBRMap() const;
+	virtual void enableAOPBRMap(bool hasAOMap);
+	
+	virtual bool hasHeightPBRMap() const;
+	virtual void enableHeightPBRMap(bool hasHeightMap);
+	
+	virtual float getHeightPBRMapScale() const;
+	virtual void setHeightPBRMapScale(float heightScale);
+	
+	virtual bool hasOpacityPBRMap() const;
+	virtual void enableOpacityPBRMap(bool hasHeightMap);
+	
+	virtual void clearAlbedoPBRMap();
+	virtual void clearMetallicPBRMap();
+	virtual void clearRoughnessPBRMap();
+	virtual void clearNormalPBRMap();
+	virtual void clearAOPBRMap();
+	virtual void clearHeightPBRMap();
+	virtual void clearOpacityPBRMap();
+	virtual void clearAllPBRMaps();
+	
+	virtual GLMaterial getMaterial() const;
+	virtual void setMaterial(const GLMaterial& material);
+	
+	virtual void enableDiffuseADSMap(bool enable);
+	virtual void setDiffuseADSMap(unsigned int diffuseTex);
+	virtual void enableSpecularADSMap(bool enable);
+	virtual void setSpecularADSMap(unsigned int specularTex);
+	virtual void enableEmissiveADSMap(bool enable);
+	virtual void setEmissiveADSMap(unsigned int emissiveTex);
+	virtual void enableNormalADSMap(bool enable);
+	virtual void setNormalADSMap(unsigned int normalTex);
+	virtual void enableHeightADSMap(bool enable);
+	virtual void setHeightADSMap(unsigned int heightTex);
+	virtual void enableOpacityADSMap(bool enable);
+	virtual void invertOpacityADSMap(bool invert);
+	virtual void setOpacityADSMap(unsigned int opacityTex);
+	
+	virtual void clearDiffuseADSMap();
+	virtual void clearSpecularADSMap();
+	virtual void clearEmissiveADSMap();
+	virtual void clearNormalADSMap();
+	virtual void clearHeightADSMap();
+	virtual void clearOpacityADSMap();
+	virtual void clearAllADSMaps();
+	
+	virtual void deleteTextures();
+	
+	virtual void serialize(QDataStream& out) const;
+	virtual void deserialize(QDataStream& in);
 
 protected: // methods
 	virtual void initBuffers(

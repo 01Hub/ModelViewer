@@ -58,6 +58,14 @@ public:
 	void serialize(QDataStream& out) const;
 	void deserialize(QDataStream& in);
 
+	void setAlbedoPBRMap(unsigned int albedoMap) override;
+	void setMetallicPBRMap(unsigned int metallicMap) override;
+	void setRoughnessPBRMap(unsigned int roughnessMap) override;
+	void setNormalPBRMap(unsigned int normalMap) override;
+	void setAOPBRMap(unsigned int aoMap) override;
+	void setHeightPBRMap(unsigned int heightMap) override;
+	void setOpacityPBRMap(unsigned int opacityMap) override;
+	
 private:
 	/*  Functions    */
 	// Initializes all the buffer objects/arrays

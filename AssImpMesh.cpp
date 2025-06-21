@@ -50,13 +50,6 @@ void AssImpMesh::render()
 
 	bindTexturesOptimized();
 
-	if(_hasAlbedoPBRMap || _hasMetallicPBRMap || _hasRoughnessPBRMap ||
-	   _hasNormalPBRMap || _hasAOPBRMap || _hasHeightPBRMap || _hasOpacityPBRMap)
-	{
-		setupTextures();	
-	}
-	
-
 	if (_material.opacity() < 1.0f || _hasOpacityADSMap || _hasOpacityPBRMap)
 	{
 		glEnable(GL_BLEND);
@@ -218,42 +211,43 @@ void AssImpMesh::precomputeTextureBindings()
 		if (texture.type == "texture_diffuse")
 		{
 			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10 + i);
-			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE20 + i); // PBR duplicate
+			addBinding("albedoMap" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE20 + i); // PBR duplicate
 			diffuseNr++;
 		}
 		else if (texture.type == "texture_specular")
 		{
 			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE10 + i);
-			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE20 + i);
+			addBinding("metallicMap" /*+ std::to_string(specularNr)*/, GL_TEXTURE20 + i);
 			specularNr++;
 		}
 		else if (texture.type == "texture_emissive")
 		{
 			addBinding("texture_emissive" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE10 + i);
-			addBinding("texture_emissive" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE20 + i);
+			addBinding("emissiveMap" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE20 + i);
 			emissiveNr++;
 		}
 		else if (texture.type == "texture_normal")
 		{
 			addBinding("texture_normal" /*+ std::to_string(normalNr)*/, GL_TEXTURE10 + i);
-			addBinding("texture_normal" /*+ std::to_string(normalNr)*/, GL_TEXTURE20 + i);
+			addBinding("normalMap" /*+ std::to_string(normalNr)*/, GL_TEXTURE20 + i);
 			normalNr++;
 		}
 		else if (texture.type == "texture_height")
 		{
 			addBinding("texture_height" /*+ std::to_string(heightNr)*/, GL_TEXTURE10 + i);
-			addBinding("texture_height" /*+ std::to_string(heightNr)*/, GL_TEXTURE20 + i);
+			addBinding("heightMap" /*+ std::to_string(heightNr)*/, GL_TEXTURE20 + i);
 			heightNr++;
 		}
 		else if (texture.type == "texture_opacity")
 		{
 			addBinding("texture_opacity" /*+ std::to_string(opacityNr)*/, GL_TEXTURE10 + i);
-			addBinding("texture_opacity" /*+ std::to_string(opacityNr)*/, GL_TEXTURE20 + i);
+			addBinding("opacityMap" /*+ std::to_string(opacityNr)*/, GL_TEXTURE20 + i);
 			opacityNr++;
 		}
 		
 		else if (texture.type == "albedoMap")
 		{
+			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10 + i);
 			addBinding("albedoMap" /*+ std::to_string(albedoNr)*/, GL_TEXTURE20 + i);
 			albedoNr++;
 		}
@@ -400,4 +394,95 @@ void AssImpMesh::deserialize(QDataStream& in)
 
 	// Re-setup OpenGL buffers
 	setupMesh();
+}
+
+void AssImpMesh::setAlbedoPBRMap(unsigned int albedoMap)
+{
+	glDeleteTextures(1, &_albedoPBRMap);
+	_albedoPBRMap = albedoMap;
+	Texture t;
+	t.id = albedoMap;
+	t.type = "albedoMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setMetallicPBRMap(unsigned int metallicMap)
+{
+	glDeleteTextures(1, &_metallicPBRMap);
+	_metallicPBRMap = metallicMap;
+	Texture t;
+	t.id = metallicMap;
+	t.type = "metallicMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setRoughnessPBRMap(unsigned int roughnessMap)
+{
+	glDeleteTextures(1, &_roughnessPBRMap);
+	_roughnessPBRMap = roughnessMap;
+	Texture t;
+	t.id = roughnessMap;
+	t.type = "roughnessMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setNormalPBRMap(unsigned int normalMap)
+{
+	glDeleteTextures(1, &_normalPBRMap);
+	_normalPBRMap = normalMap;
+	Texture t;
+	t.id = normalMap;
+	t.type = "normalMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setAOPBRMap(unsigned int aoMap)
+{
+	glDeleteTextures(1, &_aoPBRMap);
+	_aoPBRMap = aoMap;
+	Texture t;
+	t.id = aoMap;
+	t.type = "aoMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setHeightPBRMap(unsigned int heightMap)
+{
+	glDeleteTextures(1, &_heightPBRMap);
+	_heightPBRMap = heightMap;
+	Texture t;
+	t.id = heightMap;
+	t.type = "heightMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setOpacityPBRMap(unsigned int opacityMap)
+{
+	glDeleteTextures(1, &_opacityPBRMap);
+	_opacityPBRMap = opacityMap;
+	Texture t;
+	t.id = opacityMap;
+	t.type = "opacityMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
 }
