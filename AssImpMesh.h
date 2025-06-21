@@ -65,6 +65,15 @@ public:
 	void setAOPBRMap(unsigned int aoMap) override;
 	void setHeightPBRMap(unsigned int heightMap) override;
 	void setOpacityPBRMap(unsigned int opacityMap) override;
+
+	// implementations for enabling/disabling textures
+	void setDiffuseADSMap(unsigned int diffuseTex) override;
+	void setSpecularADSMap(unsigned int specularTex) override;
+	void setEmissiveADSMap(unsigned int emissiveTex) override;
+	void setNormalADSMap(unsigned int normalTex) override;
+	void setHeightADSMap(unsigned int heightTex) override;
+	void setOpacityADSMap(unsigned int opacityTex) override;
+
 	
 private:
 	/*  Functions    */

@@ -486,3 +486,87 @@ void AssImpMesh::setOpacityPBRMap(unsigned int opacityMap)
 	markTexturesDirty();
 	markUniformsDirty();
 }
+
+void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
+{
+	glDeleteTextures(1, &_diffuseADSMap);
+	_diffuseADSMap = diffuseTex;
+	Texture t;
+	t.id = diffuseTex;
+	t.type = "texture_diffuse";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	_hasDiffuseADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
+{
+	glDeleteTextures(1, &_specularADSMap);
+	_specularADSMap = specularTex;
+	Texture t;
+	t.id = specularTex;
+	t.type = "texture_specular";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	_hasSpecularADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
+{
+	glDeleteTextures(1, &_emissiveADSMap);
+	_emissiveADSMap = emissiveTex;
+	Texture t;
+	t.id = emissiveTex;
+	t.type = "texture_emissive";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	_hasEmissiveADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setNormalADSMap(unsigned int normalTex)
+{
+	glDeleteTextures(1, &_normalADSMap);
+	_normalADSMap = normalTex;
+	Texture t;
+	t.id = normalTex;
+	t.type = "texture_normal";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	_hasNormalADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setHeightADSMap(unsigned int heightTex)
+{
+	glDeleteTextures(1, &_heightADSMap);
+	_heightADSMap = heightTex;
+	Texture t;
+	t.id = heightTex;
+	t.type = "texture_height";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	_hasHeightADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
+{
+	glDeleteTextures(1, &_opacityADSMap);
+	_opacityADSMap = opacityTex;
+	Texture t;
+	t.id = opacityTex;
+	t.type = "texture_opacity";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	_hasOpacityADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
