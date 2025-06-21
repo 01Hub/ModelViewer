@@ -14,6 +14,8 @@
 #include "TriangleMesh.h"
 #include "MeshProperties.h"
 
+#include "config.h"
+
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
 
@@ -2094,7 +2096,7 @@ void ModelViewer::on_checkBoxFloorTexture_toggled(bool checked)
 
 void ModelViewer::on_pushButtonFloorTexture_clicked()
 {
-	QString appPath = QCoreApplication::applicationDirPath();
+	QString appPath = MODELVIEWER_DATA_DIR;
 	QImage buf;
 	QString filter = getSupportedQtImagesFilter();
 	QString fileName = QFileDialog::getOpenFileName(
@@ -2143,7 +2145,7 @@ void ModelViewer::on_toolButtonZoomView_clicked()
 void ModelViewer::on_pushButtonSkyBoxTex_clicked()
 {
 	QString texpath = checkBoxSkyBoxHDRI->isChecked() ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes";
-	QString appPath = QCoreApplication::applicationDirPath();
+	QString appPath = MODELVIEWER_DATA_DIR;
 	QString dir = QFileDialog::getExistingDirectory(this, tr("Select Skybox Texture Folder"),
 		appPath + texpath,
 		QFileDialog::ShowDirsOnly
@@ -2262,7 +2264,7 @@ void ModelViewer::on_pushButtonAlbedoMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -2314,7 +2316,7 @@ void ModelViewer::on_pushButtonMetallicMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -2366,7 +2368,7 @@ void ModelViewer::on_pushButtonRoughnessMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -2418,7 +2420,7 @@ void ModelViewer::on_pushButtonNormalMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -2470,7 +2472,7 @@ void ModelViewer::on_pushButtonAOMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -2533,7 +2535,7 @@ void ModelViewer::on_pushButtonOpacityMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -2600,7 +2602,7 @@ void ModelViewer::on_pushButtonHeightMap_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/materials";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -2829,7 +2831,7 @@ void ModelViewer::on_pushButtonDiffuseTexture_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/lightmaps";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -2893,7 +2895,7 @@ void ModelViewer::on_pushButtonSpecularTexture_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/lightmaps";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -2957,7 +2959,7 @@ void ModelViewer::on_pushButtonEmissiveTexture_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/lightmaps";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -3021,7 +3023,7 @@ void ModelViewer::on_pushButtonNormalTexture_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/lightmaps";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -3085,7 +3087,7 @@ void ModelViewer::on_pushButtonHeightTexture_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/lightmaps";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
@@ -3161,7 +3163,7 @@ void ModelViewer::on_pushButtonOpacityTexture_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		QString appPath = QCoreApplication::applicationDirPath();
+		QString appPath = MODELVIEWER_DATA_DIR;
 		QString dirPath = appPath + "/textures/lightmaps";
 		QString filter = getSupportedQtImagesFilter();
 		QString fileName = QFileDialog::getOpenFileName(
