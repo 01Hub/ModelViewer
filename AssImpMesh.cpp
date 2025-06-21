@@ -11,14 +11,11 @@ AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex
 	_vertices = vertices;
 	_indices = indices;
 	_textures = textures;
-	/*for (Texture t : _textures)
-	{
-		std::cout << "AssImpMesh::AssImpMesh : texture = " << t.id << std::endl;
-	}*/
-
 	_material = material;
+
 	// Now that we have all the required data, set the vertex buffers and its attribute pointers.
 	setupMesh();
+
 }
 
 AssImpMesh::~AssImpMesh()
@@ -27,7 +24,6 @@ AssImpMesh::~AssImpMesh()
 	{
 		for (const Texture &t : _textures)
 		{
-			//std::cout << "AssImpMesh::~AssImpMesh : texture = " << t.id << std::endl;
 			glDeleteTextures(1, &t.id);
 		}
 	}
@@ -38,171 +34,28 @@ TriangleMesh* AssImpMesh::clone()
 	return new AssImpMesh(_prog, _name, _vertices, _indices, _textures, _material);
 }
 
+
 void AssImpMesh::render()
 {
 	if (!_vertexArrayObject.isCreated())
 		return;
 
-	setupTextures();
-	setupUniforms();
+	precomputeTextureBindings();
 
-	// Bind appropriate textures
-	unsigned int diffuseNr = 1;
-	unsigned int specularNr = 1;
-	unsigned int emissiveNr = 1;
-	unsigned int normalNr = 1;
-	unsigned int heightNr = 1;
-	unsigned int opacityNr = 1;
-	// PBR
-	unsigned int albedoNr = 1;
-	unsigned int metallicNr = 1;
-	unsigned int roughnessNr = 1;
-	unsigned int normalPBRNr = 1;
-	unsigned int aoNr = 1;
+	if (/*shaderChanged ||*/ _uniformsDirty)
+	{
+		setupUniforms();		
+		_uniformsDirty = false;
+	}
+
+	bindTexturesOptimized();
+
+	if(_hasAlbedoPBRMap || _hasMetallicPBRMap || _hasRoughnessPBRMap ||
+	   _hasNormalPBRMap || _hasAOPBRMap || _hasHeightPBRMap || _hasOpacityPBRMap)
+	{
+		setupTextures();	
+	}
 	
-	bool hasTexture = false;
-	// ADS
-	for (unsigned int i = 0; i < _textures.size(); i++)
-	{		
-		hasTexture = false;
-		// Retrieve texture number (the N in diffuse_textureN)
-		stringstream ss;
-		string number;
-		string name = _textures[i].type;
-
-		// Transfer unsigned int to stream
-		if (name == "texture_diffuse")
-		{
-			ss << diffuseNr++;
-			hasTexture = true;
-		}
-		if (name == "texture_specular")
-		{
-			ss << specularNr++;
-			hasTexture = true;
-		}
-		if (name == "texture_emissive")
-		{
-			ss << emissiveNr++;
-			hasTexture = true;
-		}
-		if (name == "texture_normal")
-		{
-			ss << normalNr++;
-			hasTexture = true;
-		}
-		if (name == "texture_height")
-		{
-			ss << heightNr++;
-			hasTexture = true;
-		}
-		if (name == "texture_opacity")
-		{
-			ss << opacityNr++;
-			hasTexture = true;
-		}		
-		number = ss.str();
-
-		if (hasTexture)
-		{
-			glActiveTexture(GL_TEXTURE10 + i); // Active proper texture unit before binding
-			// Now set the sampler to the correct texture unit
-			_prog->bind();
-			_prog->setUniformValue((name + number).c_str(), i);
-			// And finally bind the texture
-			glBindTexture(GL_TEXTURE_2D, _textures[i].id);
-		}
-	}
-	// PBR from ADS
-	for (unsigned int i = 0; i < _textures.size(); i++)
-	{
-		hasTexture = false;
-		// Retrieve texture number (the N in diffuse_textureN)
-		stringstream ss;
-		string number;
-		string name = _textures[i].type;
-		// Transfer unsigned int to stream
-		if (name == "texture_diffuse")
-		{
-			ss << diffuseNr++;
-			hasTexture = true;
-		}
-		if (name == "texture_specular")
-		{
-			ss << specularNr++;
-			hasTexture = true;
-		}		
-		if (name == "texture_normal")
-		{
-			ss << normalNr++;
-			hasTexture = true;
-		}
-		if (name == "texture_height")
-		{
-			ss << heightNr++;
-			hasTexture = true;
-		}
-		if (name == "texture_opacity")
-		{
-			ss << opacityNr++;
-			hasTexture = true;
-		}
-		number = ss.str();
-		if (hasTexture)
-		{
-			glActiveTexture(GL_TEXTURE20 + i); // Active proper texture unit before binding
-			// Now set the sampler to the correct texture unit
-			_prog->bind();
-			_prog->setUniformValue((name + number).c_str(), i);
-			// And finally bind the texture
-			glBindTexture(GL_TEXTURE_2D, _textures[i].id);
-		}
-	}
-	// PBR from model
-	for (unsigned int i = 0; i < _textures.size(); i++)
-	{
-		hasTexture = false;
-		// Retrieve texture number (the N in diffuse_textureN)
-		stringstream ss;
-		string number;
-		string name = _textures[i].type;
-		// Transfer unsigned int to stream
-		if (name == "albedoMap")
-		{
-			ss << albedoNr++;
-			hasTexture = true;
-		}
-		if (name == "metallicMap")
-		{
-			ss << metallicNr++;
-			hasTexture = true;
-		}
-		if (name == "roughnessMap")
-		{
-			ss << roughnessNr++;
-			hasTexture = true;
-		}
-		if (name == "normalMap")
-		{
-			ss << normalPBRNr++;
-			hasTexture = true;
-		}		
-		if (name == "aoMap")
-		{
-			ss << aoNr++;
-			hasTexture = true;
-		}
-		number = ss.str();
-		if (hasTexture)
-		{
-			glActiveTexture(GL_TEXTURE20 + i); // Active proper texture unit before binding
-			// Now set the sampler to the correct texture unit
-			_prog->bind();
-			_prog->setUniformValue((name + number).c_str(), i);
-			// And finally bind the texture
-			glBindTexture(GL_TEXTURE_2D, _textures[i].id);
-		}
-	}
 
 	if (_material.opacity() < 1.0f || _hasOpacityADSMap || _hasOpacityPBRMap)
 	{
@@ -228,18 +81,13 @@ void AssImpMesh::render()
 	{
 		glFrontFace(GL_CCW);
 	}
+	
 	_vertexArrayObject.bind();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
 	_vertexArrayObject.release();
 	_prog->release();
 	glDisable(GL_BLEND);
-
-	// Always good practice to set everything back to defaults once configured.
-	for (unsigned int i = 0; i < _textures.size(); i++)
-	{
-		glActiveTexture(GL_TEXTURE10 + i);
-		glBindTexture(GL_TEXTURE_2D, 0);
-	}
+	
 }
 
 /*  Functions    */
@@ -316,6 +164,7 @@ void AssImpMesh::setupMesh()
 		}
 		if (name == "metallicMap")
 		{
+			_hasSpecularADSMap = true;
 			_hasMetallicPBRMap = true;
 		}
 		if (name == "roughnessMap")
@@ -334,6 +183,117 @@ void AssImpMesh::setupMesh()
 
 	initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
 	computeBounds();
+}
+
+void AssImpMesh::precomputeTextureBindings()
+{
+	if (!_textureBindingsDirty) return;
+
+	_textureBindings.clear();
+	_textureBindings.reserve(_textures.size() * 2); // Account for duplicates
+
+	// Counters for numbering
+	int diffuseNr = 1, specularNr = 1, emissiveNr = 1, normalNr = 1;
+	int heightNr = 1, opacityNr = 1, albedoNr = 1, metallicNr = 1;
+	int roughnessNr = 1, normalPBRNr = 1, aoNr = 1;
+
+	for (size_t i = 0; i < _textures.size(); ++i)
+	{
+		const auto& texture = _textures[i];
+
+		// Helper lambda to add binding
+		auto addBinding = [&](const std::string& uniformName, GLuint unit) {
+			PrecomputedTexture binding;
+			binding.textureId = texture.id;
+			binding.textureUnit = unit;
+			binding.uniformLocation = _prog->uniformLocation(uniformName.c_str());
+			binding.isValid = (binding.uniformLocation != -1);
+			if (binding.isValid)
+			{
+				_textureBindings.push_back(binding);
+			}
+			};
+
+		// Handle different texture types
+		if (texture.type == "texture_diffuse")
+		{
+			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10 + i);
+			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE20 + i); // PBR duplicate
+			diffuseNr++;
+		}
+		else if (texture.type == "texture_specular")
+		{
+			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE10 + i);
+			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE20 + i);
+			specularNr++;
+		}
+		else if (texture.type == "texture_emissive")
+		{
+			addBinding("texture_emissive" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE10 + i);
+			addBinding("texture_emissive" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE20 + i);
+			emissiveNr++;
+		}
+		else if (texture.type == "texture_normal")
+		{
+			addBinding("texture_normal" /*+ std::to_string(normalNr)*/, GL_TEXTURE10 + i);
+			addBinding("texture_normal" /*+ std::to_string(normalNr)*/, GL_TEXTURE20 + i);
+			normalNr++;
+		}
+		else if (texture.type == "texture_height")
+		{
+			addBinding("texture_height" /*+ std::to_string(heightNr)*/, GL_TEXTURE10 + i);
+			addBinding("texture_height" /*+ std::to_string(heightNr)*/, GL_TEXTURE20 + i);
+			heightNr++;
+		}
+		else if (texture.type == "texture_opacity")
+		{
+			addBinding("texture_opacity" /*+ std::to_string(opacityNr)*/, GL_TEXTURE10 + i);
+			addBinding("texture_opacity" /*+ std::to_string(opacityNr)*/, GL_TEXTURE20 + i);
+			opacityNr++;
+		}
+		
+		else if (texture.type == "albedoMap")
+		{
+			addBinding("albedoMap" /*+ std::to_string(albedoNr)*/, GL_TEXTURE20 + i);
+			albedoNr++;
+		}
+		else if (texture.type == "metallicMap")
+		{
+			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE10 + i);
+			addBinding("metallicMap" /*+ std::to_string(metallicNr)*/, GL_TEXTURE20 + i);
+			metallicNr++;
+		}
+		else if (texture.type == "roughnessMap")
+		{
+			addBinding("roughnessMap" /*+ std::to_string(roughnessNr)*/, GL_TEXTURE20 + i);
+			roughnessNr++;
+		}
+		else if (texture.type == "normalMap")
+		{
+			addBinding("normalMap" /*+ std::to_string(normalNr)*/, GL_TEXTURE20 + i);
+			normalNr++;
+		}
+		else if (texture.type == "aoMap")
+		{
+			addBinding("aoMap" /*+ std::to_string(aoNr)*/, GL_TEXTURE20 + i);
+			aoNr++;
+		}		
+	}
+
+	_textureBindingsDirty = false;
+}
+
+void AssImpMesh::bindTexturesOptimized()
+{
+	for (const auto& binding : _textureBindings)
+	{
+		if (binding.isValid)
+		{
+			glActiveTexture(binding.textureUnit);
+			glBindTexture(GL_TEXTURE_2D, binding.textureId);
+			glUniform1i(binding.uniformLocation, binding.textureUnit - GL_TEXTURE0);
+		}
+	}
 }
 
 

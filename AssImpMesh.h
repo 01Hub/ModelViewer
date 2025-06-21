@@ -68,4 +68,16 @@ private:
 	std::vector<Vertex> _vertices;
 	std::vector<unsigned int> _indices;
 	std::vector<Texture> _textures;
+
+	struct PrecomputedTexture
+	{
+		GLuint textureId;
+		GLuint textureUnit;
+		int uniformLocation; // Cache uniform location
+		bool isValid;
+	};
+	std::vector<PrecomputedTexture> _textureBindings;
+	
+	void precomputeTextureBindings();
+	void bindTexturesOptimized();
 };

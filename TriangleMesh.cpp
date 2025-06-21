@@ -261,38 +261,33 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 
 	//_indexBuffer.bind();
 
-	// _position
+	// Position
 	_positionBuffer.bind();
-	//glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	//glEnableVertexAttribArray(0);  // Vertex position
 	_prog->enableAttributeArray("vertexPosition");
 	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
 
 	// Normal
 	_normalBuffer.bind();
-	//glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
-	//glEnableVertexAttribArray(1);  // Normal
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
+	// Tex coords
 	if (_texCoords.size())
 	{
 		_texCoordBuffer.bind();
-		//glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
-		//glEnableVertexAttribArray(2);  // Tex coord
 		_prog->enableAttributeArray("texCoord2d");
 		_prog->setAttributeBuffer("texCoord2d", GL_FLOAT, 0, 2);
 	}
 
+	// Tangents
 	if (_tangents.size())
 	{
 		_tangentBuf.bind();
-		//glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
-		//glEnableVertexAttribArray(3);  // Tangents
 		_prog->enableAttributeArray("vertexTangent");
 		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
 	}
 
+	// Bitangents
 	if (_bitangents.size())
 	{
 		_bitangentBuf.bind();
@@ -301,6 +296,7 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 	}
 
 	_vertexArrayObject.release();
+	markUniformsDirty();
 }
 
 void TriangleMesh::setupTextures()
@@ -407,6 +403,8 @@ void TriangleMesh::setOpacityADSMap(unsigned int opacityTex)
 	glDeleteTextures(1, &_opacityADSMap);
 	_opacityADSMap = opacityTex;
 	_hasOpacityADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::enableHeightADSMap(bool enable)
@@ -419,6 +417,8 @@ void TriangleMesh::setHeightADSMap(unsigned int heightTex)
 	glDeleteTextures(1, &_heightADSMap);
 	_heightADSMap = heightTex;
 	_hasHeightADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::enableNormalADSMap(bool enable)
@@ -431,6 +431,8 @@ void TriangleMesh::setNormalADSMap(unsigned int normalTex)
 	glDeleteTextures(1, &_normalADSMap);
 	_normalADSMap = normalTex;
 	_hasNormalADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::enableSpecularADSMap(bool enable)
@@ -443,6 +445,8 @@ void TriangleMesh::setSpecularADSMap(unsigned int specularTex)
 	glDeleteTextures(1, &_specularADSMap);
 	_specularADSMap = specularTex;
 	_hasSpecularADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::enableEmissiveADSMap(bool enable)
@@ -455,6 +459,8 @@ void TriangleMesh::setEmissiveADSMap(unsigned int emissiveTex)
 	glDeleteTextures(1, &_emissiveADSMap);
 	_emissiveADSMap = emissiveTex;
 	_hasEmissiveADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::enableDiffuseADSMap(bool enable)
@@ -467,6 +473,8 @@ void TriangleMesh::setDiffuseADSMap(unsigned int diffuseTex)
 	glDeleteTextures(1, &_diffuseADSMap);
 	_diffuseADSMap = diffuseTex;
 	_hasDiffuseADSMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::clearDiffuseADSMap()
@@ -908,6 +916,7 @@ bool TriangleMesh::hasTexture() const
 void TriangleMesh::enableTexture(const bool& bHasTexture)
 {
 	_hasTexture = bHasTexture;
+	markUniformsDirty();
 }
 
 float TriangleMesh::shininess() const
@@ -918,6 +927,7 @@ float TriangleMesh::shininess() const
 void TriangleMesh::setShininess(const float& shine)
 {
 	_material.setShininess(shine);
+	markUniformsDirty();
 }
 
 float TriangleMesh::opacity() const
@@ -928,6 +938,7 @@ float TriangleMesh::opacity() const
 void TriangleMesh::setOpacity(const float& opacity)
 {
 	_material.setOpacity(opacity);
+	markUniformsDirty();
 }
 
 QVector3D TriangleMesh::emmissiveMaterial() const
@@ -938,6 +949,7 @@ QVector3D TriangleMesh::emmissiveMaterial() const
 void TriangleMesh::setEmmissiveMaterial(const QVector3D& emissive)
 {
 	_material.setEmissive(emissive);
+	markUniformsDirty();
 }
 
 QVector3D TriangleMesh::specularMaterial() const
@@ -948,6 +960,7 @@ QVector3D TriangleMesh::specularMaterial() const
 void TriangleMesh::setSpecularMaterial(const QVector3D& specular)
 {
 	_material.setSpecular(specular);
+	markUniformsDirty();
 }
 
 QVector3D TriangleMesh::diffuseMaterial() const
@@ -958,6 +971,7 @@ QVector3D TriangleMesh::diffuseMaterial() const
 void TriangleMesh::setDiffuseMaterial(const QVector3D& diffuse)
 {
 	_material.setDiffuse(diffuse);
+	markUniformsDirty();
 }
 
 QVector3D TriangleMesh::ambientMaterial() const
@@ -968,6 +982,7 @@ QVector3D TriangleMesh::ambientMaterial() const
 void TriangleMesh::setAmbientMaterial(const QVector3D& ambient)
 {
 	_material.setAmbient(ambient);
+	markUniformsDirty();
 }
 
 bool TriangleMesh::isMetallic() const
@@ -979,21 +994,25 @@ void TriangleMesh::setMetallic(bool metallic)
 {
 	_material.setMetallic(metallic);
 	_material.setMetalness(metallic ? 1.0f : 0.0f);
+	markUniformsDirty();
 }
 
 void TriangleMesh::setPBRAlbedoColor(const float& r, const float& g, const float& b)
 {
 	_material.setAlbedoColor(QVector3D(r, g, b));
+	markUniformsDirty();
 }
 
 void TriangleMesh::setPBRMetallic(const float& val)
 {
 	_material.setMetalness(val);
+	markUniformsDirty();
 }
 
 void TriangleMesh::setPBRRoughness(const float& val)
 {
 	_material.setRoughness(val);
+	markUniformsDirty();
 }
 
 QOpenGLVertexArrayObject& TriangleMesh::getVAO()
@@ -1063,6 +1082,7 @@ bool TriangleMesh::hasAlbedoPBRMap() const
 void TriangleMesh::enableAlbedoPBRMap(bool hasAlbedoMap)
 {
 	_hasAlbedoPBRMap = hasAlbedoMap;
+	markUniformsDirty();
 }
 
 bool TriangleMesh::hasMetallicPBRMap() const
@@ -1073,6 +1093,7 @@ bool TriangleMesh::hasMetallicPBRMap() const
 void TriangleMesh::enableMetallicPBRMap(bool hasMetallicMap)
 {
 	_hasMetallicPBRMap = hasMetallicMap;
+	markUniformsDirty();
 }
 
 bool TriangleMesh::hasRoughnessPBRMap() const
@@ -1083,6 +1104,7 @@ bool TriangleMesh::hasRoughnessPBRMap() const
 void TriangleMesh::enableRoughnessPBRMap(bool hasRoughnessMap)
 {
 	_hasRoughnessPBRMap = hasRoughnessMap;
+	markUniformsDirty();
 }
 
 bool TriangleMesh::hasHeightPBRMap() const
@@ -1093,6 +1115,7 @@ bool TriangleMesh::hasHeightPBRMap() const
 void TriangleMesh::enableHeightPBRMap(bool hasHeightMap)
 {
 	_hasHeightPBRMap = hasHeightMap;
+	markUniformsDirty();
 }
 
 bool TriangleMesh::hasAOPBRMap() const
@@ -1103,6 +1126,7 @@ bool TriangleMesh::hasAOPBRMap() const
 void TriangleMesh::enableAOPBRMap(bool hasAOMap)
 {
 	_hasAOPBRMap = hasAOMap;
+	markUniformsDirty();
 }
 
 bool TriangleMesh::hasNormalPBRMap() const
@@ -1113,6 +1137,7 @@ bool TriangleMesh::hasNormalPBRMap() const
 void TriangleMesh::enableNormalPBRMap(bool hasNormalMap)
 {
 	_hasNormalPBRMap = hasNormalMap;
+	markUniformsDirty();
 }
 
 bool TriangleMesh::hasOpacityPBRMap() const
@@ -1123,42 +1148,55 @@ bool TriangleMesh::hasOpacityPBRMap() const
 void TriangleMesh::enableOpacityPBRMap(bool hasOpacityMap)
 {
 	_hasOpacityPBRMap = hasOpacityMap;
+	markUniformsDirty();
 }
 
 void TriangleMesh::setAlbedoPBRMap(unsigned int albedoMap)
 {
 	glDeleteTextures(1, &_albedoPBRMap);
 	_albedoPBRMap = albedoMap;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::setMetallicPBRMap(unsigned int metallicMap)
 {
 	glDeleteTextures(1, &_metallicPBRMap);
 	_metallicPBRMap = metallicMap;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::setRoughnessPBRMap(unsigned int roughnessMap)
 {
 	glDeleteTextures(1, &_roughnessPBRMap);
 	_roughnessPBRMap = roughnessMap;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::setNormalPBRMap(unsigned int normalMap)
 {
 	glDeleteTextures(1, &_normalPBRMap);
 	_normalPBRMap = normalMap;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::setAOPBRMap(unsigned int aoMap)
 {
 	glDeleteTextures(1, &_aoPBRMap);
 	_aoPBRMap = aoMap;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::setHeightPBRMap(unsigned int heightMap)
 {
 	glDeleteTextures(1, &_heightPBRMap);
 	_heightPBRMap = heightMap;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 float TriangleMesh::getHeightPBRMapScale() const
@@ -1186,42 +1224,56 @@ void TriangleMesh::clearAlbedoPBRMap()
 {
 	glDeleteTextures(1, &_albedoPBRMap);
 	_albedoPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::clearMetallicPBRMap()
 {
 	glDeleteTextures(1, &_metallicPBRMap);
 	_metallicPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::clearRoughnessPBRMap()
 {
 	glDeleteTextures(1, &_roughnessPBRMap);
 	_roughnessPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::clearNormalPBRMap()
 {
 	glDeleteTextures(1, &_normalPBRMap);
 	_normalPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::clearAOPBRMap()
 {
 	glDeleteTextures(1, &_aoPBRMap);
 	_aoPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::clearHeightPBRMap()
 {
 	glDeleteTextures(1, &_heightPBRMap);
 	_heightPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::clearOpacityPBRMap()
 {
 	glDeleteTextures(1, &_opacityPBRMap);
 	_opacityPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::clearAllPBRMaps()
@@ -1238,6 +1290,8 @@ void TriangleMesh::clearAllPBRMaps()
 	_aoPBRMap = 0;
 	glDeleteTextures(1, &_heightPBRMap);
 	_heightPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::serialize(QDataStream& out) const

@@ -24,10 +24,12 @@ public:
 	virtual void select()
 	{
 		_selected = true;
+		markUniformsDirty();
 	}
 	virtual void deselect()
 	{
 		_selected = false;
+		markUniformsDirty();
 	}
 
 	virtual BoundingSphere getBoundingSphere() const { return _boundingSphere; }
@@ -190,6 +192,9 @@ protected: // methods
 	virtual void setupTextures();
 	virtual void setupUniforms();
 
+	void markTexturesDirty() { _textureBindingsDirty = true; }
+	void markUniformsDirty() { _uniformsDirty = true; }
+
 protected:
 
 	QOpenGLBuffer _indexBuffer;
@@ -252,6 +257,10 @@ protected:
 	float _heightPBRMapScale;
 	bool _hasOpacityPBRMap;
 	bool _opacityPBRMapInverted;
+
+	bool _textureBindingsDirty = true;
+
+	bool _uniformsDirty = true;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;
