@@ -138,7 +138,8 @@ layout( location = 0 ) out vec4 fragColor;
 
 float   calculateShadow(vec4 fragPosLightSpace);
 // Function to fetch shadow value with variable kernel size
-float   calculateShadowVariableKernel(vec4 fragPosLightSpace, int kernelSize);
+//float   calculateShadowVariableKernel(vec4 fragPosLightSpace, int kernelSize);
+float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos);
 
 vec4    shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
 vec4    calculatePBRLighting(int renderMode, float side);
@@ -366,23 +367,22 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     vec3 sceneColor = matEmissive + matAmbient * model.ambient;
     vec4 colorLinear;
 
-    if(shadowsEnabled && displayMode == 3)
-    {        
-        float distanceToLight = length(fs_in_shadow.FragPos - fs_in_shadow.lightPos);
-        int kernelSize = int(clamp(distanceToLight * 0.1, 1.0, 8.0));
-        float shadowFactor = calculateShadowVariableKernel(fs_in_shadow.FragPosLightSpace, kernelSize);
+    if(shadowsEnabled && displayMode == 3) // Shadow Mapping
+{        
+    // Pass both fragment position and light position for distance calculation
+    float shadowFactor = calculateShadowVariableKernel(
+        fs_in_shadow.FragPosLightSpace, 
+        fs_in_shadow.FragPos, 
+        fs_in_shadow.lightPos
+    );
     
-        // Calculate normal lighting
-        vec3 normalLighting = ambient * matAmbient + diffuse * matDiffuse + specular * matSpecular;
-    
-        // Create a "shadowed" version that preserves material color
-        vec3 shadowedLighting = matDiffuse * 0.3 + ambient * matAmbient * 0.5; // Force material color
-    
-        // Blend between lit and shadowed
-        vec3 finalLighting = mix(normalLighting, shadowedLighting, shadowFactor * 0.65); // Reduce shadow strength
-    
-        colorLinear = vec4(clamp(sceneColor + finalLighting, 0.0, 1.0), alpha);
-    }
+    // Rest of your shadow application code...
+    vec3 ambientContrib = ambient * matAmbient * 0.6;
+    shadowFactor = clamp(shadowFactor, 0.0, 0.7);
+    float lightFactor = 1.0 - shadowFactor;
+    vec3 directContrib = lightFactor * (diffuse * matDiffuse + specular * matSpecular);
+    colorLinear = vec4(clamp(sceneColor + ambientContrib + directContrib, 0.0, 1.0), alpha);
+}
     else
     {
         colorLinear =  vec4(clamp(sceneColor +
@@ -443,21 +443,71 @@ float calculateShadow(vec4 fragPosLightSpace)
 }
 
 // Function to fetch shadow value with variable kernel size
-float calculateShadowVariableKernel(vec4 fragPosLightSpace, int kernelSize) 
+//float calculateShadowVariableKernel(vec4 fragPosLightSpace, int kernelSize) 
+//{
+//    // Transform to [0,1] range for sampling
+//    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+//    projCoords = projCoords * 0.5 + 0.5;
+//
+//    // Depth in light space
+//    float closestDepth = texture(shadowMap, projCoords.xy).r;
+//    float currentDepth = projCoords.z;
+//
+//    // Shadow factor
+//    float shadow = 0.0;
+//    float totalWeight = 0.0;
+//
+//    // Variable kernel size loop
+//    for (int x = -kernelSize; x <= kernelSize; ++x) 
+//    {
+//        for (int y = -kernelSize; y <= kernelSize; ++y) 
+//        {
+//            // Compute Gaussian weight
+//            int index = abs(x) + abs(y);
+//            float weight = gaussianKernel[index];
+//            totalWeight += weight;
+//
+//            // Offset sampling
+//            vec2 offset = vec2(x, y) * shadowSoftness / lightFarPlane;
+//            float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
+//            vec3 norm = normalize(gl_FrontFacing ? g_normal : -g_normal);
+//            vec3 lightDir = normalize(lightSource.position);
+//            float bias = max(0.05 * (1.0 - dot(norm, lightDir)), 0.005);
+//            shadow += (currentDepth > sampleDepth + bias) ? weight : 0.0;
+//        }
+//    }
+//
+//    // Normalize shadow factor
+//    shadow /= totalWeight;
+//    return shadow;
+//}
+
+float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos) 
 {
     // Transform to [0,1] range for sampling
     vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
     projCoords = projCoords * 0.5 + 0.5;
-
-    // Depth in light space
-    float closestDepth = texture(shadowMap, projCoords.xy).r;
+    
+    // Calculate distance for both kernel size and softness
+    float distanceToLight = length(fragPos - lightPos);
+    
+    // Stepped kernel sizes for GPU coherency
+    int kernelSize;
+    if (distanceToLight < 5.0) kernelSize = 1;        // 3x3 = 9 samples
+    else if (distanceToLight < 15.0) kernelSize = 2;  // 5x5 = 25 samples  
+    else kernelSize = 3;                              // 7x7 = 49 samples
+    
+    // Adaptive shadow softness based on distance
+    float adaptiveSoftness = shadowSoftness * clamp(distanceToLight * 0.1, 0.5, 2.0);
+    
+    // Current depth
     float currentDepth = projCoords.z;
-
-    // Shadow factor
+    
+    // Shadow factor calculation
     float shadow = 0.0;
     float totalWeight = 0.0;
-
-    // Variable kernel size loop
+    
+    // Variable kernel size loop with adaptive softness
     for (int x = -kernelSize; x <= kernelSize; ++x) 
     {
         for (int y = -kernelSize; y <= kernelSize; ++y) 
@@ -466,17 +516,16 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, int kernelSize)
             int index = abs(x) + abs(y);
             float weight = gaussianKernel[index];
             totalWeight += weight;
-
-            // Offset sampling
-            vec2 offset = vec2(x, y) * shadowSoftness / lightFarPlane;
+            
+            // Apply adaptive softness to the offset - THIS IS THE KEY LINE
+            vec2 offset = vec2(x, y) * adaptiveSoftness / lightFarPlane;
+            
+            // Sample shadow map with adaptive offset
             float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
-            vec3 norm = normalize(gl_FrontFacing ? g_normal : -g_normal);
-            vec3 lightDir = normalize(lightSource.position);
-            float bias = max(0.05 * (1.0 - dot(norm, lightDir)), 0.005);
-            shadow += (currentDepth > sampleDepth + bias) ? weight : 0.0;
+            shadow += (currentDepth > sampleDepth + 0.005) ? weight : 0.0;
         }
     }
-
+    
     // Normalize shadow factor
     shadow /= totalWeight;
     return shadow;
@@ -603,8 +652,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         // Calculate kernel size adaptively based on distance
         float distanceToLight = length(fs_in_shadow.FragPos - fs_in_shadow.lightPos);
         int kernelSize = int(clamp(distanceToLight * 0.1, 1.0, 8.0)); // Adaptive kernel size
-        float shadowFactor = calculateShadowVariableKernel(fs_in_shadow.FragPosLightSpace, kernelSize);
+        //float shadowFactor = calculateShadowVariableKernel(fs_in_shadow.FragPosLightSpace, kernelSize);
         //float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
+        float shadowFactor = calculateShadowVariableKernel(
+        fs_in_shadow.FragPosLightSpace, 
+        fs_in_shadow.FragPos, 
+        fs_in_shadow.lightPos
+    );
         radiance = (lightSource.ambient + 1- shadowFactor)  * (lightSource.diffuse + lightSource.specular);
     }
     else
