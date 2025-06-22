@@ -365,6 +365,10 @@ void ModelViewer::setTransformation()
 		QVector3D rotate(doubleSpinBoxRX->value(), doubleSpinBoxRY->value(), doubleSpinBoxRZ->value());
 		QVector3D scale(doubleSpinBoxSX->value(), doubleSpinBoxSY->value(), doubleSpinBoxSZ->value());
 		_glWidget->setTransformation(ids, translate, rotate, scale);
+		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
+		sliderLightPosX->setRange(-range, range);
+		sliderLightPosY->setRange(-range, range);
+		sliderLightPosZ->setRange(-range, range);
 		QApplication::restoreOverrideCursor();
 	}
 }
@@ -385,6 +389,10 @@ void ModelViewer::resetTransformation()
 		doubleSpinBoxSY->setValue(1.0f);
 		doubleSpinBoxSZ->setValue(1.0f);
 		_glWidget->resetTransformation(ids);
+		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
+		sliderLightPosX->setRange(-range, range);
+		sliderLightPosY->setRange(-range, range);
+		sliderLightPosZ->setRange(-range, range);
 		QApplication::restoreOverrideCursor();
 	}
 }
