@@ -365,17 +365,23 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
     vec3 sceneColor = matEmissive + matAmbient * model.ambient;
     vec4 colorLinear;
-    if(shadowsEnabled && displayMode == 3) // Shadow Mapping
+
+    if(shadowsEnabled && displayMode == 3)
     {        
-        // Calculate kernel size adaptively based on distance
         float distanceToLight = length(fs_in_shadow.FragPos - fs_in_shadow.lightPos);
-        int kernelSize = int(clamp(distanceToLight * 0.1, 1.0, 8.0)); // Adaptive kernel size
+        int kernelSize = int(clamp(distanceToLight * 0.1, 1.0, 8.0));
         float shadowFactor = calculateShadowVariableKernel(fs_in_shadow.FragPosLightSpace, kernelSize);
-        //float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
-        colorLinear =  vec4(clamp(sceneColor +
-                             (ambient  * matAmbient + 1 - shadowFactor) *
-                             (diffuse  * matDiffuse +
-                              specular * matSpecular), 0.f, 1.f ), alpha);
+    
+        // Calculate normal lighting
+        vec3 normalLighting = ambient * matAmbient + diffuse * matDiffuse + specular * matSpecular;
+    
+        // Create a "shadowed" version that preserves material color
+        vec3 shadowedLighting = matDiffuse * 0.3 + ambient * matAmbient * 0.5; // Force material color
+    
+        // Blend between lit and shadowed
+        vec3 finalLighting = mix(normalLighting, shadowedLighting, shadowFactor * 0.65); // Reduce shadow strength
+    
+        colorLinear = vec4(clamp(sceneColor + finalLighting, 0.0, 1.0), alpha);
     }
     else
     {
@@ -464,7 +470,10 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, int kernelSize)
             // Offset sampling
             vec2 offset = vec2(x, y) * shadowSoftness / lightFarPlane;
             float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
-            shadow += (currentDepth > sampleDepth + 0.005) ? weight : 0.0;
+            vec3 norm = normalize(gl_FrontFacing ? g_normal : -g_normal);
+            vec3 lightDir = normalize(lightSource.position);
+            float bias = max(0.05 * (1.0 - dot(norm, lightDir)), 0.005);
+            shadow += (currentDepth > sampleDepth + bias) ? weight : 0.0;
         }
     }
 
