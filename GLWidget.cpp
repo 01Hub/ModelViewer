@@ -1824,6 +1824,8 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 	}
 	updateBoundingSphere();
 	updateBoundingBox();
+	if (_autoFitViewOnUpdate)
+		fitAll();
 }
 
 void GLWidget::resetTransformation(const std::vector<int>& ids)
