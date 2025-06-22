@@ -74,6 +74,8 @@ public:
 	void setHeightADSMap(unsigned int heightTex) override;
 	void setOpacityADSMap(unsigned int opacityTex) override;
 
+	static void releaseCurrentShader();
+
 	
 private:
 	/*  Functions    */
@@ -94,7 +96,13 @@ private:
 		bool isValid;
 	};
 	std::vector<PrecomputedTexture> _textureBindings;
+	// State caching
+	static QOpenGLShaderProgram* _currentBoundShader;
+	static bool _currentBlendEnabled;
+	static GLenum _currentFrontFace;
 	
-	void precomputeTextureBindings();
+	void cacheTextureBindings();
 	void bindTexturesOptimized();
+	void setRenderStateOptimized();
+	void setupUniformsOptimized();
 };

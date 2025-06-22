@@ -2,6 +2,11 @@
 
 using namespace std;
 
+// Initialize static members (add to .cpp file)
+QOpenGLShaderProgram* AssImpMesh::_currentBoundShader = nullptr;
+bool AssImpMesh::_currentBlendEnabled = false;
+GLenum AssImpMesh::_currentFrontFace = GL_CCW;
+
 /*  Functions  */
 // Constructor
 AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")
@@ -40,40 +45,35 @@ void AssImpMesh::render()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
-	precomputeTextureBindings();
+	// Smart shader binding - only bind if different
+	bool shaderChanged = false;
+	if (_currentBoundShader != _prog)
+	{
+		if (_currentBoundShader)
+		{
+			_currentBoundShader->release();
+		}
+		_prog->bind();
+		_currentBoundShader = _prog;
+		shaderChanged = true;
+
+		// When shader changes, we need to recache texture bindings
+		_textureBindingsDirty = true;
+		_uniformsDirty = true;
+	}
+
+	cacheTextureBindings();
 
 	if (/*shaderChanged ||*/ _uniformsDirty)
 	{
-		setupUniforms();		
-		_uniformsDirty = false;
+		setupUniformsOptimized();
 	}
 
+	// Bind textures efficiently
 	bindTexturesOptimized();
 
-	if (_material.opacity() < 1.0f || _hasOpacityADSMap || _hasOpacityPBRMap)
-	{
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		glEnable(GL_LINE_SMOOTH);
-		glEnable(GL_POLYGON_SMOOTH);
-	}
-	else
-	{
-		glDisable(GL_BLEND);
-	}
-
-	// Handle lighting normal for negative scaling
-	if ((_scaleX < 0 && _scaleY > 0 && _scaleZ > 0) ||
-		(_scaleX > 0 && _scaleY < 0 && _scaleZ > 0) ||
-		(_scaleX > 0 && _scaleY > 0 && _scaleZ < 0) ||
-		(_scaleX < 0 && _scaleY < 0 && _scaleZ < 0))
-	{
-		glFrontFace(GL_CW);
-	}
-	else
-	{
-		glFrontFace(GL_CCW);
-	}
+	// Set render state efficiently
+	setRenderStateOptimized();
 	
 	_vertexArrayObject.bind();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
@@ -178,7 +178,7 @@ void AssImpMesh::setupMesh()
 	computeBounds();
 }
 
-void AssImpMesh::precomputeTextureBindings()
+void AssImpMesh::cacheTextureBindings()
 {
 	if (!_textureBindingsDirty) return;
 
@@ -288,6 +288,54 @@ void AssImpMesh::bindTexturesOptimized()
 			glUniform1i(binding.uniformLocation, binding.textureUnit - GL_TEXTURE0);
 		}
 	}
+}
+
+void AssImpMesh::setRenderStateOptimized()
+{
+	// Handle blending efficiently
+	bool needsBlending = (_material.opacity() < 1.0f || _hasOpacityADSMap || _hasOpacityPBRMap);
+	if (needsBlending != _currentBlendEnabled)
+	{
+		if (needsBlending)
+		{
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glEnable(GL_LINE_SMOOTH);
+			glEnable(GL_POLYGON_SMOOTH);
+		}
+		else
+		{
+			glDisable(GL_BLEND);
+			glDisable(GL_LINE_SMOOTH);
+			glDisable(GL_POLYGON_SMOOTH);
+		}
+		_currentBlendEnabled = needsBlending;
+	}
+
+	// Handle face culling efficiently
+	GLenum frontFace = GL_CCW; // Default
+
+	// Calculate front face based on negative scaling
+	int negativeScales = (_scaleX < 0 ? 1 : 0) + (_scaleY < 0 ? 1 : 0) + (_scaleZ < 0 ? 1 : 0);
+	if (negativeScales == 1 || negativeScales == 3)
+	{
+		frontFace = GL_CW;
+	}
+
+	if (frontFace != _currentFrontFace)
+	{
+		glFrontFace(frontFace);
+		_currentFrontFace = frontFace;
+	}
+}
+
+void AssImpMesh::setupUniformsOptimized()
+{
+	if (!_uniformsDirty) return;
+
+	// Only call the expensive setupUniforms when actually needed
+	setupUniforms();
+	_uniformsDirty = false;
 }
 
 
@@ -569,4 +617,14 @@ void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 	_hasOpacityADSMap = true;
 	markTexturesDirty();
 	markUniformsDirty();
+}
+
+// Static cleanup method - call at end of render pass
+void AssImpMesh::releaseCurrentShader()
+{
+	if (_currentBoundShader)
+	{
+		_currentBoundShader->release();
+		_currentBoundShader = nullptr;
+	}
 }
