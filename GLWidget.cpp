@@ -500,6 +500,7 @@ void GLWidget::setLightOffset(const QVector3D& offset)
 	_lightOffsetX = offset.x();
 	_lightOffsetY = offset.y();
 	_lightOffsetZ = offset.z();
+	_shadowMapNeedsInitialization = true;
 }
 
 QVector4D GLWidget::getSpecularLight() const
@@ -510,6 +511,9 @@ QVector4D GLWidget::getSpecularLight() const
 void GLWidget::setSpecularLight(const QVector4D& specularLight)
 {
 	_specularLight = specularLight;
+	_fgShader->bind();
+	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
+	_fgShader->release();
 }
 
 QVector4D GLWidget::getDiffuseLight() const
@@ -520,6 +524,9 @@ QVector4D GLWidget::getDiffuseLight() const
 void GLWidget::setDiffuseLight(const QVector4D& diffuseLight)
 {
 	_diffuseLight = diffuseLight;
+	_fgShader->bind();
+	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
+	_fgShader->release();
 }
 
 QVector4D GLWidget::getAmbientLight() const
@@ -530,6 +537,9 @@ QVector4D GLWidget::getAmbientLight() const
 void GLWidget::setAmbientLight(const QVector4D& ambientLight)
 {
 	_ambientLight = ambientLight;
+	_fgShader->bind();
+	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
+	_fgShader->release();
 }
 
 void GLWidget::setViewMode(ViewMode mode)
@@ -737,6 +747,12 @@ void GLWidget::updateBoundingSphere()
 	{
 		updateFloorPlane();
 	}
+
+	_fgShader->bind();
+	_fgShader->setUniformValue("shadowSoftness", static_cast<float>(_viewBoundingSphereDia) * 0.00025f);
+	_fgShader->release();
+
+	_shadowMapNeedsInitialization = true;
 
 	update();
 }
@@ -1862,7 +1878,8 @@ void GLWidget::initializeGL()
 	// Shadow mapping
 	loadFloor();
 
-	createGeometry();
+	float size = 15;
+	_axisCone = new Cone(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
 
 	// Set lighting information
 	_fgShader->bind();
@@ -1871,23 +1888,18 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
 	_fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
+	_fgShader->setUniformValue("Line.Width", 0.75f);
+	_fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
 	_fgShader->setUniformValue("texUnit", 0);
 	_fgShader->setUniformValue("envMap", 1);
 	_fgShader->setUniformValue("shadowMap", 2);
 	_fgShader->setUniformValue("irradianceMap", 3);
 	_fgShader->setUniformValue("prefilterMap", 4);
 	_fgShader->setUniformValue("brdfLUT", 5);
-
-	/*std::vector<int> ids;
-	for(size_t i = 0; i < _meshStore.size(); i++)
-	{
-		ids.push_back(i);
-	}
-	setAlbedoTexture(ids,       "textures/materials/gold/albedo.png");
-	setNormalTexture(ids,       "textures/materials/gold/normal.png");
-	setMetallicTexture(ids,     "textures/materials/gold/metallic.png");
-	setRoughnessTexture(ids,    "textures/materials/gold/roughness.png");
-	setAOTexture(ids,           "textures/materials/gold/ao.png");*/
+	_fgShader->setUniformValue("shadowSamples", 27.0f);
+	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
+	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+	_fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
 
 	_debugShader->bind();
 	_debugShader->setUniformValue("depthMap", 0);
@@ -2027,77 +2039,6 @@ void GLWidget::createCappingPlanes()
 void GLWidget::createLights()
 {
 	_lightCube = new Cube(_lightCubeShader, 10);
-}
-
-void GLWidget::createGeometry()
-{
-    /*_meshStore.push_back(new Cube(_fgShader, 100.0f));
-	_meshStore.push_back(new Sphere(_fgShader, 50.0f, 100.0f, 100.0f));
-	_meshStore.push_back(new Cylinder(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
-	_meshStore.push_back(new Cone(_fgShader, 50.0f, 100.0f, 100.0f, 2.0f, 2));
-	_meshStore.push_back(new Torus(_fgShader, 50.0f, 25.0f, 100.0f, 100.0f, 2, 2));
-	_meshStore.push_back(new Teapot(_fgShader, 35.0f, 50, glm::translate(mat4(1.0f), vec3(0.0f, 15.0f, 25.0f))));
-	_meshStore.push_back(new KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new Figure8KleinBottle(_fgShader, 30.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new BoySurface(_fgShader, 60.0f, 250.0f, 250.0f, 4, 4));
-	_meshStore.push_back(new TwistedTriaxial(_fgShader, 110.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new SteinerSurface(_fgShader, 150.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new AppleSurface(_fgShader, 7.5f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new DoubleCone(_fgShader, 35.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new BentHorns(_fgShader, 15.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new Folium(_fgShader, 75.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new LimpetTorus(_fgShader, 35.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new SaddleTorus(_fgShader, 30.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new BowTie(_fgShader, 40.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new TriaxialTritorus(_fgShader, 45.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new TriaxialHexatorus(_fgShader, 45.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new VerrillMinimal(_fgShader, 25.0f, 150.0f, 150.0f, 1, 1));
-	_meshStore.push_back(new Horn(_fgShader, 30.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new Crescent(_fgShader, 30.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new ConeShell(_fgShader, 45.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new Periwinkle(_fgShader, 40.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new TopShell(_fgShader, Point(-50, 0, 0), 35.0f, 250.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new WrinkledPeriwinkle(_fgShader, 45.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new SpindleShell(_fgShader, 25.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new TurretShell(_fgShader, 20.0f, 250.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new TwistedPseudoSphere(_fgShader, 50.0f, 150.0f, 150.0f, 4, 4));
-	_meshStore.push_back(new BreatherSurface(_fgShader, 15.0f, 150.0f, 150.0f, 4, 4));
-
-	Spring* spring = new Spring(_fgShader, 10.0f, 30.0f, 10.0f, 2.0f, 150.0f, 150.0f, 4, 4);
-	_meshStore.push_back(spring);
-	_springEditor = new SpringEditor(spring, this);
-	_upperLayout->addWidget(_springEditor);
-
-	SuperToroid* storoid = new SuperToroid(_fgShader, 50, 25, 1, 1, 150.0f, 150.0f, 4, 4);
-	_meshStore.push_back(storoid);
-	_superToroidEditor = new SuperToroidEditor(storoid, this);
-	_upperLayout->addWidget(_superToroidEditor);
-
-	SuperEllipsoid* sellipsoid = new SuperEllipsoid(_fgShader, 50, 1.0, 1.0, 1.0, 1.0, 1.0, 150.0f, 150.0f, 4, 4);
-	_meshStore.push_back(sellipsoid);
-	_superEllipsoidEditor = new SuperEllipsoidEditor(sellipsoid, this);
-	_upperLayout->addWidget(_superEllipsoidEditor);
-
-	GraysKlein* gklein = new GraysKlein(_fgShader, 30.0f, 150.0f, 150.0f, 4, 4);
-	_meshStore.push_back(gklein);
-	_graysKleinEditor = new GraysKleinEditor(gklein, this);
-	_upperLayout->addWidget(_graysKleinEditor);
-
-	SphericalHarmonic* sph = new SphericalHarmonic(_fgShader, 30.0f, 150.0f, 150.0f, 2, 2);
-	_meshStore.push_back(sph);
-	_sphericalHarmonicsEditor = new SphericalHarmonicsEditor(sph, this);
-    _upperLayout->addWidget(_sphericalHarmonicsEditor);*/
-
-	QString fileName;
-#ifdef WIN32
-	fileName = "D:/work/progs/qt5/ModelViewer-Github/data/Logo/Logo.stl";
-#else
-	fileName = "/home/sharjith/work/progs/Qt5/ModelViewer-Github/data/Logo/Logo.stl";
-#endif
-	//loadAssImpModel(fileName);
-
-	float size = 15;
-	_axisCone = new Cone(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
 }
 
 int GLWidget::calculateShadowMapResolution(float modelSize, int baseResolution)
@@ -3118,33 +3059,18 @@ void GLWidget::render(GLCamera* camera)
 	bool showShadows = (_shadowsEnabled && floorVisible && !_lowResEnabled && camera == _primaryCamera);
 
 	_fgShader->bind();
-	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
-	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
+		
+	_fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));	
 	_fgShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	_fgShader->setUniformValue("normalMatrix", _modelViewMatrix.normalMatrix());
 	_fgShader->setUniformValue("projectionMatrix", _projectionMatrix);
-	_fgShader->setUniformValue("viewportMatrix", _viewportMatrix);
-	_fgShader->setUniformValue("Line.Width", 0.75f);
-	_fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
-	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
-	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
-	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
-	_fgShader->setUniformValue("shadowsEnabled", showShadows);
-	_fgShader->setUniformValue("reflectionMapEnabled", false);
+	_fgShader->setUniformValue("viewportMatrix", _viewportMatrix);		
+	_fgShader->setUniformValue("shadowsEnabled", showShadows);	
 	_fgShader->setUniformValue("cameraPos", _primaryCamera->getPosition());
 	_fgShader->setUniformValue("lightPos", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_fgShader->setUniformValue("modelMatrix", _modelMatrix);
 	_fgShader->setUniformValue("viewMatrix", _viewMatrix);
-	_fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
-	_fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
-	_fgShader->setUniformValue("hdrToneMapping", _hdrToneMapping);
-	_fgShader->setUniformValue("gammaCorrection", _gammaCorrection);
-	_fgShader->setUniformValue("screenGamma", _screenGamma);
-	_fgShader->setUniformValue("shadowSamples", 27.0f);
-	_fgShader->setUniformValue("shadowSoftness", static_cast<float>(_viewBoundingSphereDia) * 0.00025f);
+	_fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);		
 	_fgShader->setUniformValue("lightFarPlane", _lightPosition.z() + _lightOffsetZ);
 
 	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
@@ -3224,11 +3150,15 @@ void GLWidget::render(GLCamera* camera)
 	if (_showLights)
 		drawLights();
 
+	AssImpMesh::releaseCurrentShader();
 	_fgShader->release();
 }
 
 void GLWidget::renderToShadowBuffer()
 {
+	if(!_shadowMapNeedsInitialization && _lockLightAndCamera)
+		return;
+	_shadowMapNeedsInitialization = false;
 	// save current viewport
 	int viewport[4];
 	glGetIntegerv(GL_VIEWPORT, viewport);
@@ -3630,6 +3560,10 @@ void GLWidget::disableLowRes()
 void GLWidget::lockLightAndCamera(bool lock)
 {
 	_lockLightAndCamera = lock;
+	_shadowMapNeedsInitialization = true; // Force re-initialization of shadow map
+	_fgShader->bind();
+	_fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
+	_fgShader->release();
 	update();
 }
 
@@ -4726,6 +4660,9 @@ RenderingMode GLWidget::getRenderingMode() const
 void GLWidget::setRenderingMode(const RenderingMode& renderingMode)
 {
 	_renderingMode = renderingMode;
+	_fgShader->bind();
+	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+	_fgShader->release();
 	update();
 }
 
@@ -4845,6 +4782,9 @@ bool GLWidget::isShaded() const
 void GLWidget::setDisplayMode(DisplayMode mode)
 {
 	_displayMode = mode;
+	_fgShader->bind();
+	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
+	_fgShader->release();
 }
 
 float GLWidget::getZScale() const

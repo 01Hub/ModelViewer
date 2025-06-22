@@ -298,8 +298,7 @@ private:
 		const QString& tessControlProg = "", const QString& tessEvalProg = "");
 	void createShaderPrograms();
 	void createLights();
-	void createGeometry();
-
+	
 	int calculateShadowMapResolution(float modelSize, int baseResolution = 1024);
 
 	void loadEnvMap();
@@ -456,6 +455,8 @@ private:
 	unsigned int _shadowWidth;
 	unsigned int _shadowHeight;
 
+	bool _shadowMapNeedsInitialization = true;
+
 	float _xTran;
 	float _yTran;
 	float _zTran;
@@ -577,7 +578,7 @@ private:
 
 	unsigned long long _displayedObjectsMemSize;
 
-    AssImpModelLoader* _assimpModelLoader;
+    AssImpModelLoader* _assimpModelLoader;	
 };
 
 #endif
