@@ -53,6 +53,7 @@ public:
 	void performWindowZoom();
 
 	void setDisplayList(const std::vector<int>& ids);
+	void triggerShadowRecomputation();
 	void duplicateObjects(const std::vector<int>& ids);
 
 	void updateFloorPlane();
@@ -503,6 +504,7 @@ private:
 	unsigned int             _prefilterMap;
 	unsigned int             _brdfLUTTexture;
 	float                    _floorSize;
+	float 					 _floorSizeFactor;
 	float					 _floorOffsetPercent;
 	QVector3D                _floorCenter;
 

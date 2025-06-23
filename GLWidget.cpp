@@ -137,6 +137,7 @@ _assimpModelLoader(nullptr)
 	_shadowsEnabled = false;
 	_reflectionsEnabled = false;
 	_floorSize = 10.0f;
+	_floorSizeFactor = 5.0f;
 	_floorDisplayed = false;
 	_floorTextureDisplayed = true;
 	_floorTexRepeatS = _floorTexRepeatT = 1;
@@ -152,8 +153,8 @@ _assimpModelLoader(nullptr)
 	_lockLightAndCamera = true;
 	_showLights = false;
 
-	_shadowWidth = 1024 * 3;
-	_shadowHeight = 1024 * 3;
+	_shadowWidth = 1024 * 6;
+	_shadowHeight = 1024 * 6;
 
 	_environmentMap = 0;
 	_shadowMap = 0;
@@ -683,18 +684,26 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	_displayedObjectsMemSize = memSize;
 	updateBoundingSphere();
 	updateBoundingBox();
-
-	if (_floorPlane)
-	{
-		updateFloorPlane();
-	}
-
-	if (_autoFitViewOnUpdate)
-		fitAll();
-
+	triggerShadowRecomputation();
+	updateFloorPlane();
+	
+	fitAll();
 	update();
 
 	emit displayListSet();
+}
+
+void GLWidget::triggerShadowRecomputation()
+{
+	_viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
+	_fgShader->bind();
+	_fgShader->setUniformValue("shadowSoftness", static_cast<float>(_viewBoundingSphereDia) * 0.000125f);
+	_fgShader->release();
+
+	_shadowMapNeedsInitialization = true;
+
+	makeCurrent();
+	loadFloor();
 }
 
 void GLWidget::duplicateObjects(const std::vector<int>& ids)
@@ -748,16 +757,6 @@ void GLWidget::updateBoundingSphere()
 		updateFloorPlane();
 	}
 
-	_viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
-	_fgShader->bind();
-	_fgShader->setUniformValue("shadowSoftness", static_cast<float>(_viewBoundingSphereDia) * 0.000125f);
-	_fgShader->release();
-
-	_shadowMapNeedsInitialization = true;
-
-	makeCurrent();
-	loadFloor();
-
 	update();
 }
 
@@ -798,13 +797,15 @@ void GLWidget::updateBoundingBox()
 
 void GLWidget::updateFloorPlane()
 {
-	_floorSize = _boundingSphere.getRadius();
+	float halfObjectSize = _boundingSphere.getRadius();
+	// floor size is maximum of bounding box x and y dimensions
+	_floorSize = std::max(_boundingBox.getXSize(), _boundingBox.getYSize());
 	_floorCenter = _boundingSphere.getCenter();
-	_lightCube->setSize(_boundingSphere.getRadius() * 0.05f);
-	_lightPosition.setX(_floorCenter.x() + _boundingSphere.getRadius() * 0.5f + _lightOffsetX);
-	_lightPosition.setY(_floorCenter.y() + _boundingSphere.getRadius() * 0.5f + _lightOffsetY);
-	_lightPosition.setZ(highestModelZ() + _boundingSphere.getRadius() * 1.5f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
-	_floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
+	_lightCube->setSize(halfObjectSize * 0.1f);
+	_lightPosition.setX(_floorCenter.x() + halfObjectSize * 0.5f + _lightOffsetX);
+	_lightPosition.setY(_floorCenter.y() + halfObjectSize * 0.5f + _lightOffsetY);
+	_lightPosition.setZ(highestModelZ() + halfObjectSize * 1.5f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
+	_floorPlane->setPlane(_fgShader, _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
 	updateClippingPlane();
 }
 
@@ -1018,8 +1019,10 @@ void GLWidget::swapVisible(bool checked)
 	_visibleSwapped = checked;
 	updateBoundingSphere();
 	updateBoundingBox();
-	if (_autoFitViewOnUpdate)
-		fitAll();
+	triggerShadowRecomputation();
+	updateFloorPlane();
+	fitAll();
+
 	emit visibleSwapped(checked);
 }
 
@@ -1826,10 +1829,12 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 			std::cout << "Exception in GLWidget::setTransformation\n" << ex.what() << std::endl;
 		}
 	}
+
 	updateBoundingSphere();
 	updateBoundingBox();
-	if (_autoFitViewOnUpdate)
-		fitAll();
+	triggerShadowRecomputation();
+	updateFloorPlane();
+	fitAll();
 }
 
 void GLWidget::resetTransformation(const std::vector<int>& ids)
@@ -1846,8 +1851,11 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 			std::cout << "Exception in GLWidget::resetTransformation\n" << ex.what() << std::endl;
 		}
 	}
+
 	updateBoundingSphere();
 	updateBoundingBox();
+	triggerShadowRecomputation();
+	updateFloorPlane();
 	fitAll();
 }
 
@@ -2104,7 +2112,7 @@ void GLWidget::loadFloor()
 	_floorSize = _boundingSphere.getRadius();
 	_floorCenter = _boundingSphere.getCenter();
 	_lightPosition.setZ(_floorSize + _lightOffsetZ);
-	_floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * 5.0f, _floorSize * 5.0f, 1, 1, -_floorSize - (_floorSize * 0.05f), 1, 1);
+	_floorPlane = new Plane(_fgShader, _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, -_floorSize - (_floorSize * 0.05f), 1, 1);
 
 	_floorPlane->setAmbientMaterial(QVector3D(0.0f, 0.0f, 0.0f));
 	_floorPlane->setDiffuseMaterial(QVector3D(1.0f, 1.0f, 1.0f));
@@ -3162,7 +3170,7 @@ void GLWidget::renderToShadowBuffer()
 	// 1. render depth of scene to texture (from light's perspective)
 	// --------------------------------------------------------------
 	QMatrix4x4 lightProjection, lightView;
-	float extent = _boundingSphere.getRadius() * 6.0f;
+	float extent = _floorSize * _floorSizeFactor;
 	QVector3D center = _boundingSphere.getCenter();
 	float near_plane = 1.0f, far_plane = extent;
 	lightProjection.ortho(-extent + center.x(), extent + center.x(),
@@ -3361,9 +3369,7 @@ void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float t
 	glDisable(GL_DEPTH_TEST);
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-	_bgShader->bind();
-
-	int GRADIENT_STYLE = 0; // Default gradient style, can be changed based on user preference
+	_bgShader->bind();		
 	_bgShader->setUniformValue("top_color", QVector4D(top_r, top_g, top_b, top_a));
 	_bgShader->setUniformValue("bot_color", QVector4D(bot_r, bot_g, bot_b, bot_a));
 	_bgShader->setUniformValue("gradient_style", gradientStyle);  // Pass the gradient style
