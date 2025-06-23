@@ -299,8 +299,6 @@ private:
 	void createShaderPrograms();
 	void createLights();
 	
-	int calculateShadowMapResolution(float modelSize, int baseResolution = 1024);
-
 	void loadEnvMap();
 	void loadIrradianceMap();
 	void loadFloor();

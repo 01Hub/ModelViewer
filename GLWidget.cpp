@@ -748,11 +748,15 @@ void GLWidget::updateBoundingSphere()
 		updateFloorPlane();
 	}
 
+	_viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
 	_fgShader->bind();
-	_fgShader->setUniformValue("shadowSoftness", static_cast<float>(_viewBoundingSphereDia) * 0.00025f);
+	_fgShader->setUniformValue("shadowSoftness", static_cast<float>(_viewBoundingSphereDia) * 0.000125f);
 	_fgShader->release();
 
 	_shadowMapNeedsInitialization = true;
+
+	makeCurrent();
+	loadFloor();
 
 	update();
 }
@@ -1844,6 +1848,7 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	}
 	updateBoundingSphere();
 	updateBoundingBox();
+	fitAll();
 }
 
 void GLWidget::initializeGL()
@@ -2043,35 +2048,18 @@ void GLWidget::createLights()
 	_lightCube = new Cube(_lightCubeShader, 10);
 }
 
-int GLWidget::calculateShadowMapResolution(float modelSize, int baseResolution)
-{
-	// Smaller models get higher resolution shadow maps
-	if (modelSize < 10.0f) {
-		return baseResolution * 4; // Increase resolution for very small models
-	}
-	else if (modelSize < 50.0f) {
-		return baseResolution * 2; // Moderate increase for small models
-	}
-	else {
-		return baseResolution; // Default resolution for larger models
-	}
-}
-
 void GLWidget::loadFloor()
-{
-	// Calculate model size using the bounding sphere's radius
-	float modelSize = _boundingSphere.getRadius() * 2.0f;
-
-	// Dynamically adjust shadow map resolution
-	int dynamicResolution = calculateShadowMapResolution(modelSize);
-	_shadowWidth = dynamicResolution;
-	_shadowHeight = dynamicResolution;
-
+{	
 	// configure depth map FBO
 	// -----------------------
 	// create depth texture
-	if (_shadowMap == 0)
+	if (_shadowMap == 0 || _shadowMapNeedsInitialization)
 	{
+		if(_shadowMap != 0)
+		{
+			glDeleteTextures(1, &_shadowMap);
+			_shadowMap = 0;
+		}
 		glGenTextures(1, &_shadowMap);
 		//std::cout << "GLWidget::loadFloor : _shadowMap = " << _shadowMap << std::endl;
 		glActiveTexture(GL_TEXTURE2);
