@@ -3134,7 +3134,10 @@ void GLWidget::render(GLCamera* camera)
 	glDisable(GL_CLIP_DISTANCE3);
 	*/
 
-	if (_displayMode == DisplayMode::REALSHADED && _floorDisplayed && camera != _orthoViewsCamera)
+	if (_displayMode == DisplayMode::REALSHADED 
+		&& _floorDisplayed && 
+		!_meshStore.empty() &&
+		camera != _orthoViewsCamera)
 	{
 		drawFloor();
 	}
