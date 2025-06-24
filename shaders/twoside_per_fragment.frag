@@ -97,6 +97,7 @@ uniform int u_gradientStyle;
 uniform vec2 u_screenSize;
 uniform vec3 u_screenCenter;
 uniform float u_floorSize;
+uniform bool isReflectedPass;
 
 struct LineInfo
 {
@@ -169,6 +170,16 @@ void main()
     vec4 v_color_front;
     vec4 v_color_back;
     vec4 v_color;
+
+    if (isReflectedPass) 
+    {
+        float distance = length(g_position - u_screenCenter);
+        float floorRadius = u_floorSize * 0.50;
+        float fadeStart = floorRadius * 0.65; // Same value used for floor blend start
+
+        if (distance > fadeStart)
+            discard;        
+    }
 
     if(renderingMode == 0)
     {
@@ -278,8 +289,9 @@ void main()
         if (displayMode == 2)
             fragColor = mix(fragColor, Line.Color, mixVal);
     }
-
-     if (floorRendering) {
+     
+    if (floorRendering) 
+    {
         // Calculate a background color based on gradient
         vec2 screenUV = gl_FragCoord.xy / vec2(u_screenSize);
         
@@ -289,15 +301,14 @@ void main()
         // Compute distance-based blending factor
         float distance = length(g_position - u_screenCenter);
         float floorRadius = u_floorSize * 0.5; // Adjust radius based on floor size
-        float fadeStart = floorRadius * 0.5;   // Start fading at 30 units
+        float fadeStart = floorRadius * 0.65;   // Start fading at 30 units
         float fadeEnd = floorRadius;     // Fully faded at 80 units
         float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
         
         // Blend floor color with the background gradient
         fragColor.rgb = mix(fragColor.rgb, backgroundColor, fadeFactor);
-        fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade
-    }
-
+        fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade        
+    } 
 }
 
 // ----------------------------------------------------------------------------

@@ -2519,6 +2519,7 @@ void GLWidget::drawFloor()
 		_fgShader->bind();
 		_fgShader->setUniformValue("envMapEnabled", false);
 		_fgShader->setUniformValue("floorRendering", true);
+		_fgShader->setUniformValue("isReflectedPass", true);
 		_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
 		_fgShader->setUniformValue("u_topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
 		_fgShader->setUniformValue("u_botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
@@ -2549,8 +2550,8 @@ void GLWidget::drawFloor()
 		_fgShader->setUniformValue("modelMatrix", model);
 		if (_reflectionsEnabled)
 		{
-			_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
-			drawMesh(_fgShader);
+			_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));			
+			drawMesh(_fgShader);			
 		}
 
 		glStencilMask(0x00);
@@ -2566,6 +2567,7 @@ void GLWidget::drawFloor()
 	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
 	_fgShader->setUniformValue("shadowSamples", 18.0f);	
+	_fgShader->setUniformValue("isReflectedPass", false);
 	_fgShader->setUniformValue("u_topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
 	_fgShader->setUniformValue("u_botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
 	_fgShader->setUniformValue("u_screenSize", QVector2D(width(), height()));
