@@ -2499,6 +2499,7 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 
 void GLWidget::drawFloor()
 {
+	
 	if (!_lowResEnabled)
 	{
 		//https://open.gl/depthstencils
@@ -2519,8 +2520,17 @@ void GLWidget::drawFloor()
 		_fgShader->setUniformValue("envMapEnabled", false);
 		_fgShader->setUniformValue("floorRendering", true);
 		_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
+		_fgShader->setUniformValue("u_topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
+		_fgShader->setUniformValue("u_botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
+		_fgShader->setUniformValue("u_screenSize", QVector2D(width(), height()));
+		_fgShader->setUniformValue("u_screenCenter", _boundingSphere.getCenter());
+		_fgShader->setUniformValue("u_gradientStyle", _gradientStyle);
+		_fgShader->setUniformValue("u_floorSize", _floorSize * _floorSizeFactor);		
 		_floorPlane->enableTexture(false);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		_floorPlane->render();
+		glDisable(GL_BLEND);
 		glDisable(GL_CULL_FACE);
 
 		// Draw model reflection
@@ -2551,17 +2561,24 @@ void GLWidget::drawFloor()
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);
+	glCullFace(GL_FRONT);	
 	_fgShader->bind();
 	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
-	_fgShader->setUniformValue("shadowSamples", 18.0f);
+	_fgShader->setUniformValue("shadowSamples", 18.0f);	
+	_fgShader->setUniformValue("u_topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
+	_fgShader->setUniformValue("u_botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
+	_fgShader->setUniformValue("u_screenSize", QVector2D(width(), height()));
+	_fgShader->setUniformValue("u_screenCenter", _boundingSphere.getCenter());
+	_fgShader->setUniformValue("u_gradientStyle", _gradientStyle);
+	_fgShader->setUniformValue("u_floorSize", _floorSize * _floorSizeFactor);
 	_floorPlane->enableTexture(_floorTextureDisplayed);
 	_floorPlane->render();
 	glDisable(GL_CULL_FACE);
 	_fgShader->bind();
 	_fgShader->setUniformValue("floorRendering", false);
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+	glDisable(GL_BLEND);
 }
 
 void GLWidget::drawSkyBox()

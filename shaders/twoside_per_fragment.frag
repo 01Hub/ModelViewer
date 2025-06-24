@@ -91,6 +91,13 @@ uniform bool hdrToneMapping = false;
 uniform bool gammaCorrection = false;
 uniform float screenGamma = 2.2;
 
+uniform vec4 u_topColor;    
+uniform vec4 u_botColor;
+uniform int u_gradientStyle;
+uniform vec2 u_screenSize;
+uniform vec3 u_screenCenter;
+uniform float u_floorSize;
+
 struct LineInfo
 {
     float Width;
@@ -153,6 +160,9 @@ vec3    fresnelSchlick(float cosTheta, vec3 F0);
 vec3    fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
 vec2    parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D map);
 vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
+
+vec2 calculateBackgroundUV();
+vec3 calculateBackgroundColor();
 
 void main()
 {
@@ -223,7 +233,7 @@ void main()
         fragColor = mix(v_color, linecolor, mixVal);
 
     }
-
+             
     // Get alpha from maps if available
     float alpha = opacity;
     if(renderingMode == 0 && hasOpacityTexture)
@@ -267,6 +277,25 @@ void main()
 
         if (displayMode == 2)
             fragColor = mix(fragColor, Line.Color, mixVal);
+    }
+
+     if (floorRendering) {
+        // Calculate a background color based on gradient
+        vec2 screenUV = gl_FragCoord.xy / vec2(u_screenSize);
+        
+        // Interpolate background gradient color
+        vec3 backgroundColor = calculateBackgroundColor();
+
+        // Compute distance-based blending factor
+        float distance = length(g_position - u_screenCenter);
+        float floorRadius = u_floorSize * 0.5; // Adjust radius based on floor size
+        float fadeStart = floorRadius * 0.5;   // Start fading at 30 units
+        float fadeEnd = floorRadius;     // Fully faded at 80 units
+        float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
+        
+        // Blend floor color with the background gradient
+        fragColor.rgb = mix(fragColor.rgb, backgroundColor, fadeFactor);
+        fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade
     }
 
 }
@@ -849,4 +878,35 @@ vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
     newNormal = TBN * bumpMapNormal;
     newNormal = normalize(newNormal);
     return newNormal;
+}
+
+
+vec2 calculateBackgroundUV() {
+    vec2 ndc = (gl_FragCoord.xy / u_screenSize) * 2.0 - 1.0;
+    return ndc * 0.5 + 0.5;
+}
+
+vec3 calculateBackgroundColor() {
+    vec2 v_uv = calculateBackgroundUV();
+    
+    vec4 frag_color;
+    if (u_gradientStyle == 0) {
+        frag_color = mix(u_botColor, u_topColor, v_uv.y);
+    }
+    else if (u_gradientStyle == 1) {
+        frag_color = mix(u_topColor, u_botColor, v_uv.x);
+    }
+    else if (u_gradientStyle == 2) {
+        float diagonal_factor = (v_uv.x + (1.0 - v_uv.y)) * 0.5;
+        frag_color = mix(u_topColor, u_botColor, diagonal_factor);
+    }
+    else if (u_gradientStyle == 3) {
+        float diagonal_factor = ((1.0 - v_uv.x) + (1.0 - v_uv.y)) * 0.5;
+        frag_color = mix(u_topColor, u_botColor, diagonal_factor);
+    }
+    else {
+        frag_color = mix(u_botColor, u_topColor, v_uv.y);
+    }
+    
+    return frag_color.rgb;
 }
