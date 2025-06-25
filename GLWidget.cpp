@@ -763,7 +763,7 @@ void GLWidget::updateBoundingSphere()
 void GLWidget::updateBoundingBox()
 {	
 	_currentTranslation = _primaryCamera->getPosition();
-	_boundingBox.setLimits(-1.0, -1.0, -1.0, 1.0, 1.0, 1.0);
+	_boundingBox.setLimits(-0.001, -0.001, -0.001, 0.001, 0.001, 0.001);
 
 	if ((!_visibleSwapped && _displayedObjectsIds.size() == 0) ||
 		(_visibleSwapped && _hiddenObjectsIds.size() == 0))
@@ -799,7 +799,7 @@ void GLWidget::updateFloorPlane()
 {
 	float halfObjectSize = _boundingSphere.getRadius();
 	// floor size is maximum of bounding box x and y dimensions
-	_floorSize = std::max(_boundingBox.getXSize(), _boundingBox.getYSize());
+	_floorSize = std::max(_boundingBox.getZSize(), std::max(_boundingBox.getXSize(), _boundingBox.getYSize()));
 	_floorCenter = _boundingSphere.getCenter();
 	_lightCube->setSize(halfObjectSize * 0.1f);
 	_lightPosition.setX(_floorCenter.x() + halfObjectSize * 0.5f + _lightOffsetX);
