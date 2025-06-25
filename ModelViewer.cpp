@@ -368,7 +368,8 @@ void ModelViewer::setTransformation()
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 		sliderLightPosX->setRange(-range, range);
 		sliderLightPosY->setRange(-range, range);
-		sliderLightPosZ->setRange(-range, range);
+		sliderLightPosZ->setRange(-range / 3, range / 2);
+		sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
 		QApplication::restoreOverrideCursor();
 	}
 }
@@ -392,7 +393,8 @@ void ModelViewer::resetTransformation()
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 		sliderLightPosX->setRange(-range, range);
 		sliderLightPosY->setRange(-range, range);
-		sliderLightPosZ->setRange(-range, range);
+		sliderLightPosZ->setRange(-range / 3, range / 2);
+		sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
 		QApplication::restoreOverrideCursor();
 	}
 }
@@ -554,7 +556,8 @@ void ModelViewer::updateDisplayList()
 	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 	sliderLightPosX->setRange(-range, range);
 	sliderLightPosY->setRange(-range, range);
-	sliderLightPosZ->setRange(-range, range);
+	sliderLightPosZ->setRange(-range / 3, range / 2);
+	sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
 	QApplication::restoreOverrideCursor();
 
 	listWidgetModel->blockSignals(oldState);
@@ -1188,7 +1191,9 @@ void ModelViewer::on_pushButtonDefaultLights_clicked()
 
 	sliderLightPosX->setValue(0);
 	sliderLightPosY->setValue(0);
-	sliderLightPosZ->setValue(0);
+
+	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;	
+	sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
 
 	_glWidget->updateView();
 	updateControls();
@@ -1812,7 +1817,8 @@ void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 		sliderLightPosX->setRange(-range, range);
 		sliderLightPosY->setRange(-range, range);
-		sliderLightPosZ->setRange(-range, range);
+		sliderLightPosZ->setRange(-range/3, range/2);
+		sliderLightPosZ->setValue((-range / 3 + range / 2)/2);
 	}
 }
 
