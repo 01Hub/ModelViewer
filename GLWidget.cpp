@@ -2561,7 +2561,7 @@ void GLWidget::drawFloor()
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
 	_fgShader->bind();
-	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+	_fgShader->setUniformValue("envMapEnabled", false);	
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
 	_fgShader->setUniformValue("shadowSamples", 18.0f);
 	_fgShader->setUniformValue("isReflectedPass", false);
@@ -2578,6 +2578,8 @@ void GLWidget::drawFloor()
 	_fgShader->setUniformValue("floorRendering", false);
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
 	glDisable(GL_BLEND);
+
+	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
 }
 
 void GLWidget::drawSkyBox()
