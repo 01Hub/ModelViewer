@@ -165,6 +165,10 @@ vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
 vec2 calculateBackgroundUV();
 vec3 calculateBackgroundColor();
 
+float floorRadius = u_floorSize * 0.5; // Adjust radius based on floor size
+float fadeStart = floorRadius * 0.65;   // Start fading at 30 units
+float fadeEnd = floorRadius;     // Fully faded at 80 units
+
 void main()
 {
     vec4 v_color_front;
@@ -173,10 +177,7 @@ void main()
 
     if (isReflectedPass) 
     {
-        float distance = length(g_position - u_screenCenter);
-        float floorRadius = u_floorSize * 0.50;
-        float fadeStart = floorRadius * 0.65; // Same value used for floor blend start
-
+        float distance = length(g_position - u_screenCenter);        
         if (distance > fadeStart)
             discard;        
     }
@@ -299,10 +300,7 @@ void main()
         vec3 backgroundColor = calculateBackgroundColor();
 
         // Compute distance-based blending factor
-        float distance = length(g_position - u_screenCenter);
-        float floorRadius = u_floorSize * 0.5; // Adjust radius based on floor size
-        float fadeStart = floorRadius * 0.65;   // Start fading at 30 units
-        float fadeEnd = floorRadius;     // Fully faded at 80 units
+        float distance = length(g_position - u_screenCenter);        
         float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
         
         // Blend floor color with the background gradient
