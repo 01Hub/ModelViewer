@@ -2499,74 +2499,71 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 
 void GLWidget::drawFloor()
 {
-	
-	if (!_lowResEnabled)
+	//https://open.gl/depthstencils
+	glEnable(GL_STENCIL_TEST);
+	glClear(GL_STENCIL_BUFFER_BIT);
+	glStencilMask(0x0);
+	glStencilFunc(GL_ALWAYS, 1, 0xFF);
+	glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+	glStencilMask(0xFF);
+	glDepthMask(GL_FALSE);
+	glClear(GL_STENCIL_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glCullFace(GL_FRONT);
+
+	// Draw floor
+	_fgShader->bind();
+	_fgShader->setUniformValue("envMapEnabled", false);
+	_fgShader->setUniformValue("floorRendering", true);
+	_fgShader->setUniformValue("isReflectedPass", true);
+	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
+	_fgShader->setUniformValue("u_topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
+	_fgShader->setUniformValue("u_botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
+	_fgShader->setUniformValue("u_screenSize", QVector2D(width(), height()));
+	_fgShader->setUniformValue("u_screenCenter", _boundingSphere.getCenter());
+	_fgShader->setUniformValue("u_gradientStyle", _gradientStyle);
+	_fgShader->setUniformValue("u_floorSize", _floorSize * _floorSizeFactor);
+	_floorPlane->enableTexture(false);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	_floorPlane->render();
+	glDisable(GL_BLEND);
+	glDisable(GL_CULL_FACE);
+
+	// Draw model reflection
+	glStencilFunc(GL_EQUAL, 1, 0xFF);
+	glStencilMask(0x00);
+	glDepthMask(GL_TRUE);
+
+	QMatrix4x4 model;
+	float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent);
+	float floorGap = fabs(floorPos - lowestModelZ());
+	float offset = ((lowestModelZ()) - floorGap) * 2.0f;
+	model.scale(1.0f, 1.0f, -1.0f);
+	model.translate(0.0f, 0.0f, -offset);
+
+	_fgShader->bind();
+	_fgShader->setUniformValue("modelMatrix", model);
+	if (_reflectionsEnabled)
 	{
-		//https://open.gl/depthstencils
-		glEnable(GL_STENCIL_TEST);
-		glClear(GL_STENCIL_BUFFER_BIT);
-		glStencilMask(0x0);
-		glStencilFunc(GL_ALWAYS, 1, 0xFF);
-		glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
-		glStencilMask(0xFF);
-		glDepthMask(GL_FALSE);
-		glClear(GL_STENCIL_BUFFER_BIT);
-		glEnable(GL_DEPTH_TEST);
-		glEnable(GL_CULL_FACE);
-		glCullFace(GL_FRONT);
-
-		// Draw floor
-		_fgShader->bind();
-		_fgShader->setUniformValue("envMapEnabled", false);
-		_fgShader->setUniformValue("floorRendering", true);
-		_fgShader->setUniformValue("isReflectedPass", true);
-		_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
-		_fgShader->setUniformValue("u_topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
-		_fgShader->setUniformValue("u_botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
-		_fgShader->setUniformValue("u_screenSize", QVector2D(width(), height()));
-		_fgShader->setUniformValue("u_screenCenter", _boundingSphere.getCenter());
-		_fgShader->setUniformValue("u_gradientStyle", _gradientStyle);
-		_fgShader->setUniformValue("u_floorSize", _floorSize * _floorSizeFactor);		
-		_floorPlane->enableTexture(false);
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		_floorPlane->render();
-		glDisable(GL_BLEND);
-		glDisable(GL_CULL_FACE);
-
-		// Draw model reflection
-		glStencilFunc(GL_EQUAL, 1, 0xFF);
-		glStencilMask(0x00);
-		glDepthMask(GL_TRUE);
-
-		QMatrix4x4 model;
-		float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent);
-		float floorGap = fabs(floorPos - lowestModelZ());
-		float offset = ((lowestModelZ()) - floorGap) * 2.0f;
-		model.scale(1.0f, 1.0f, -1.0f);
-		model.translate(0.0f, 0.0f, -offset);
-
-		_fgShader->bind();
-		_fgShader->setUniformValue("modelMatrix", model);
-		if (_reflectionsEnabled)
-		{
-			_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));			
-			drawMesh(_fgShader);			
-		}
-
-		glStencilMask(0x00);
-		glDisable(GL_STENCIL_TEST);
-
-		_floorPlane->setOpacity(0.80f);
+		_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+		drawMesh(_fgShader);
 	}
+
+	glStencilMask(0x00);
+	glDisable(GL_STENCIL_TEST);
+
+	_floorPlane->setOpacity(0.80f);
+
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
-	glCullFace(GL_FRONT);	
+	glCullFace(GL_FRONT);
 	_fgShader->bind();
 	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
-	_fgShader->setUniformValue("shadowSamples", 18.0f);	
+	_fgShader->setUniformValue("shadowSamples", 18.0f);
 	_fgShader->setUniformValue("isReflectedPass", false);
 	_fgShader->setUniformValue("u_topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
 	_fgShader->setUniformValue("u_botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
@@ -3156,7 +3153,8 @@ void GLWidget::render(GLCamera* camera)
 	if (_displayMode == DisplayMode::REALSHADED 
 		&& _floorDisplayed && 
 		!_meshStore.empty() &&
-		camera != _orthoViewsCamera)
+		camera != _orthoViewsCamera &&
+		!_lowResEnabled)
 	{
 		drawFloor();
 	}
