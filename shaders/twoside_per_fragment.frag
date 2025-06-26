@@ -91,6 +91,9 @@ uniform bool hdrToneMapping = false;
 uniform bool gammaCorrection = false;
 uniform float screenGamma = 2.2;
 
+uniform bool skyBoxEnabled;
+uniform samplerCube skybox; // to get the skybox colors
+
 uniform vec4 u_topColor;    
 uniform vec4 u_botColor;
 uniform int u_gradientStyle;
@@ -293,19 +296,39 @@ void main()
      
     if (floorRendering) 
     {
-        // Calculate a background color based on gradient
-        vec2 screenUV = gl_FragCoord.xy / vec2(u_screenSize);
-        
+        /// Compute distance-based blending factor
+        float distance = length(g_position - u_screenCenter);            
+        float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
+
+        if (fadeFactor >= 1.0)
+            discard;
+
         // Interpolate background gradient color
         vec3 backgroundColor = calculateBackgroundColor();
 
-        // Compute distance-based blending factor
-        float distance = length(g_position - u_screenCenter);        
-        float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
-        
-        // Blend floor color with the background gradient
-        fragColor.rgb = mix(fragColor.rgb, backgroundColor, fadeFactor);
-        fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade        
+        // If skybox is enabled, sample sky instead
+        if (skyBoxEnabled)
+        {
+            vec3 viewDir = normalize(g_position - cameraPos);
+            //vec3 reflectedDir = reflect(viewDir, vec3(0.0, 0.0, 1.0)); // Floor reflects sky upwards
+            backgroundColor = texture(skybox, viewDir).rgb;    
+            
+            vec3 linearFrag = pow(fragColor.rgb, vec3(2.2));
+            vec3 linearSky = pow(backgroundColor, vec3(2.2));
+
+            vec3 linearMix = mix(linearFrag, linearSky, fadeFactor);
+            fragColor.rgb = pow(linearMix, vec3(1.0 / 2.2));
+
+            // Blend floor color with the background gradient
+            //fragColor.rgb = mix(fragColor.rgb, backgroundColor, fadeFactor);
+            //fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade  
+        }   
+        else
+        {        
+            // Blend floor color with the background gradient
+            fragColor.rgb = mix(fragColor.rgb, backgroundColor, fadeFactor);
+            fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade        
+        }
     } 
 }
 

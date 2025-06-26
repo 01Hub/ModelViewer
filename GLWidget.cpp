@@ -845,6 +845,8 @@ void GLWidget::showEnvironment(bool show)
 void GLWidget::showSkyBox(bool show)
 {
 	_skyBoxEnabled = show;
+	_fgShader->bind();
+	_fgShader->setUniformValue("skyBoxEnabled", _skyBoxEnabled);
 	update();
 }
 
@@ -2136,6 +2138,14 @@ void GLWidget::loadEnvMap()
         path + QString("textures/envmap/skyboxes/stormydays/negy.jpg")
 	};
 
+
+	_skyBox = new Cube(_skyBoxShader, 1);
+	_skyBoxShader->bind();
+	_skyBoxShader->setUniformValue("skybox", 1);
+	_fgShader->bind();
+	_fgShader->setUniformValue("skybox", 1);
+
+
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 	glGenTextures(1, &_environmentMap);
 	//std::cout << "GLWidget::loadEnvMap : _environmentMap = " << _environmentMap << std::endl;
@@ -2178,10 +2188,7 @@ void GLWidget::loadEnvMap()
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-
-	_skyBox = new Cube(_skyBoxShader, 1);
-	_skyBoxShader->bind();
-	_skyBoxShader->setUniformValue("skybox", 1);
+	
 }
 
 void GLWidget::loadIrradianceMap()
