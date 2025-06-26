@@ -321,6 +321,10 @@ void main()
         {
             vec2 uv = gl_FragCoord.xy / u_screenSize;
             backgroundColor = texture(skyboxColorTexture, uv).rgb;
+            
+
+            //vec3 viewDir = normalize(g_position - cameraPos);
+            //backgroundColor = texture(envMap, viewDir).rgb;
 
              if (distance > fadeEnd)
                 discard;
