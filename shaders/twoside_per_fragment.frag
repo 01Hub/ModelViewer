@@ -92,7 +92,7 @@ uniform bool gammaCorrection = false;
 uniform float screenGamma = 2.2;
 
 uniform bool skyBoxEnabled;
-uniform samplerCube skybox; // to get the skybox colors
+uniform sampler2D skyboxColorTexture;
 
 uniform vec4 u_topColor;    
 uniform vec4 u_botColor;
@@ -169,8 +169,8 @@ vec2 calculateBackgroundUV();
 vec3 calculateBackgroundColor();
 
 float floorRadius = u_floorSize * 0.5; // Adjust radius based on floor size
-float fadeStart = floorRadius * 0.65;   // Start fading at 30 units
-float fadeEnd = floorRadius;     // Fully faded at 80 units
+float fadeStart = floorRadius * 0.65;   // Start fading 
+float fadeEnd = floorRadius * 1.05;     // Fully faded
 
 void main()
 {
@@ -297,8 +297,18 @@ void main()
     if (floorRendering) 
     {
         /// Compute distance-based blending factor
-        float distance = length(g_position - u_screenCenter);            
-        float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
+        float distance = length(g_position - u_screenCenter);     
+        
+        if (distance > fadeEnd)
+            discard;
+        
+        if (skyBoxEnabled) 
+        {
+            fadeStart = floorRadius * 0.05;
+            fadeEnd = floorRadius;  
+        } 
+
+        float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);        
 
         if (fadeFactor >= 1.0)
             discard;
@@ -309,17 +319,22 @@ void main()
         // If skybox is enabled, sample sky instead
         if (skyBoxEnabled)
         {
-            vec3 viewDir = normalize(g_position - cameraPos);
-            //vec3 reflectedDir = reflect(viewDir, vec3(0.0, 0.0, 1.0)); // Floor reflects sky upwards
-            backgroundColor = texture(skybox, viewDir).rgb;    
+            vec2 uv = gl_FragCoord.xy / u_screenSize;
+            backgroundColor = texture(skyboxColorTexture, uv).rgb;
+
+             if (distance > fadeEnd)
+                discard;
+
+            fadeFactor = pow(smoothstep(fadeStart, fadeEnd, distance), 1.4);
             
-            vec3 linearFrag = pow(fragColor.rgb, vec3(2.2));
-            vec3 linearSky = pow(backgroundColor, vec3(2.2));
+            float gamma = 2.2;
+            vec3 linearFrag = pow(fragColor.rgb, vec3(gamma));
+            vec3 linearSky = pow(backgroundColor, vec3(gamma));
 
             vec3 linearMix = mix(linearFrag, linearSky, fadeFactor);
-            fragColor.rgb = pow(linearMix, vec3(1.0 / 2.2));
+            fragColor.rgb = pow(linearMix, vec3(1.0 / gamma));
 
-            // Blend floor color with the background gradient
+            // Blend floor color with the sky box texture
             //fragColor.rgb = mix(fragColor.rgb, backgroundColor, fadeFactor);
             //fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade  
         }   
@@ -327,7 +342,7 @@ void main()
         {        
             // Blend floor color with the background gradient
             fragColor.rgb = mix(fragColor.rgb, backgroundColor, fadeFactor);
-            fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade        
+            fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade
         }
     } 
 }

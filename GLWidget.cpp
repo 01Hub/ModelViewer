@@ -306,6 +306,10 @@ GLWidget::~GLWidget()
 	_bgSplitVAO.destroy();
 
 	_bgVAO.destroy();
+
+	glDeleteFramebuffers(1, &_skyboxFBO);
+	glDeleteTextures(1, &_skyboxColorTexture);
+	glDeleteRenderbuffers(1, &_skyboxDepthBuffer);
 }
 
 void GLWidget::cleanUpShaders()
@@ -1861,6 +1865,49 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	fitAll();
 }
 
+void GLWidget::initSkyboxFramebuffer(int width, int height)
+{
+	// 1. Generate FBO
+	glGenFramebuffers(1, &_skyboxFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, _skyboxFBO);
+
+	// 2. Create color attachment texture
+	glGenTextures(1, &_skyboxColorTexture);
+	glBindTexture(GL_TEXTURE_2D, _skyboxColorTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); // Filtering
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _skyboxColorTexture, 0);
+
+	// 3. Optional: Create depth buffer for depth testing
+	glGenRenderbuffers(1, &_skyboxDepthBuffer);
+	glBindRenderbuffer(GL_RENDERBUFFER, _skyboxDepthBuffer);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _skyboxDepthBuffer);
+
+	// 4. Check FBO completeness
+	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (status != GL_FRAMEBUFFER_COMPLETE)
+	{
+		qWarning("Skybox framebuffer not complete!");
+	}
+
+	// 5. Unbind
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _skyboxFBO);
+	glViewport(0, 0, this->width(), this->height());
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	_skyBox->render(); // Render into skyboxColorTexture
+
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+	glViewport(0, 0, this->width(), this->height());
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+}
+
 void GLWidget::initializeGL()
 {
 	initializeOpenGLFunctions();
@@ -1895,6 +1942,8 @@ void GLWidget::initializeGL()
 	// Shadow mapping
 	loadFloor();
 
+	initSkyboxFramebuffer(width(), height());
+
 	float size = 15;
 	_axisCone = new Cone(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
 
@@ -1922,7 +1971,7 @@ void GLWidget::initializeGL()
 	_debugShader->setUniformValue("depthMap", 0);
 
 	_viewMatrix.setToIdentity();
-	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_DEPTH_TEST);	
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.f);
 }
@@ -2142,10 +2191,7 @@ void GLWidget::loadEnvMap()
 	_skyBox = new Cube(_skyBoxShader, 1);
 	_skyBoxShader->bind();
 	_skyBoxShader->setUniformValue("skybox", 1);
-	_fgShader->bind();
-	_fgShader->setUniformValue("skybox", 1);
-
-
+	
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 	glGenTextures(1, &_environmentMap);
 	//std::cout << "GLWidget::loadEnvMap : _environmentMap = " << _environmentMap << std::endl;
@@ -2579,6 +2625,11 @@ void GLWidget::drawFloor()
 	_fgShader->setUniformValue("u_gradientStyle", _gradientStyle);
 	_fgShader->setUniformValue("u_floorSize", _floorSize * _floorSizeFactor);
 	_floorPlane->enableTexture(_floorTextureDisplayed);
+
+	glActiveTexture(GL_TEXTURE5);
+	glBindTexture(GL_TEXTURE_2D, _skyboxColorTexture);
+	_fgShader->setUniformValue("skyboxColorTexture", 5);
+
 	_floorPlane->render();
 	glDisable(GL_CULL_FACE);
 	_fgShader->bind();
@@ -2603,6 +2654,7 @@ void GLWidget::drawSkyBox()
 	_skyBoxShader->setUniformValue("hdrToneMapping", _hdrToneMapping);
 	_skyBoxShader->setUniformValue("gammaCorrection", _gammaCorrection);
 	_skyBoxShader->setUniformValue("screenGamma", _screenGamma);
+	
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when values are equal to depth buffer's content
 	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
@@ -3169,7 +3221,16 @@ void GLWidget::render(GLCamera* camera)
 	}
 
 	if (_skyBoxEnabled)
+	{
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _skyboxFBO);
+		glViewport(0, 0, this->width(), this->height());
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		drawSkyBox(); // Render into skyboxColorTexture
+
+		// Draw regular skybox
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
 		drawSkyBox();
+	}
 
 	if (_showAxis)
 		drawAxis();

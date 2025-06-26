@@ -303,6 +303,7 @@ private:
 	void loadEnvMap();
 	void loadIrradianceMap();
 	void loadFloor();
+	void initSkyboxFramebuffer(int width, int height);
 
 	void drawMesh(QOpenGLShaderProgram* prog);
 	void drawSectionCapping();
@@ -503,6 +504,10 @@ private:
 	unsigned int			 _irradianceMap;
 	unsigned int             _prefilterMap;
 	unsigned int             _brdfLUTTexture;
+	unsigned int			 _skyboxFBO = 0;
+	unsigned int			 _skyboxColorTexture = 0;
+	unsigned int			 _skyboxDepthBuffer = 0;
+
 	float                    _floorSize;
 	float 					 _floorSizeFactor;
 	float					 _floorOffsetPercent;
