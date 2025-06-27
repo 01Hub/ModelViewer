@@ -410,10 +410,10 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 	{
 		QString(folder + "/posx"),
 		QString(folder + "/negx"),
-		QString(folder + "/posz"),
-		QString(folder + "/negz"),
 		QString(folder + "/posy"),
-		QString(folder + "/negy")
+		QString(folder + "/negy"),
+		QString(folder + "/posz"),
+		QString(folder + "/negz")
 	};
 	// stb image library supported formats
 	QList<QString> supportedFormats = { "jpeg", "jpg", "png", "bmp", "psd", "tga", "gif", "hdr", "pic", "pnm" };
@@ -422,7 +422,6 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
-	stbi_set_flip_vertically_on_load(true);
 	bool loaded = false;
 	int width, height, nrComponents;
 	void* data = nullptr;
@@ -2179,12 +2178,12 @@ void GLWidget::loadEnvMap()
 	// Env Map
 	_skyBoxFaces =
 	{
-        path + QString("textures/envmap/skyboxes/stormydays/posx.jpg"),
-        path + QString("textures/envmap/skyboxes/stormydays/negx.jpg"),
-        path + QString("textures/envmap/skyboxes/stormydays/posz.jpg"),
-        path + QString("textures/envmap/skyboxes/stormydays/negz.jpg"),
-        path + QString("textures/envmap/skyboxes/stormydays/posy.jpg"),
-        path + QString("textures/envmap/skyboxes/stormydays/negy.jpg")
+        path + QString("textures/envmap/skyboxes/Yokohama2/posx.jpg"),
+        path + QString("textures/envmap/skyboxes/Yokohama2/negx.jpg"),
+        path + QString("textures/envmap/skyboxes/Yokohama2/posy.jpg"),
+        path + QString("textures/envmap/skyboxes/Yokohama2/negy.jpg"),
+        path + QString("textures/envmap/skyboxes/Yokohama2/posz.jpg"),
+        path + QString("textures/envmap/skyboxes/Yokohama2/negz.jpg")
 	};
 
 
@@ -2197,8 +2196,7 @@ void GLWidget::loadEnvMap()
 	//std::cout << "GLWidget::loadEnvMap : _environmentMap = " << _environmentMap << std::endl;
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-
-	stbi_set_flip_vertically_on_load(true);
+		
 	int width, height, nrComponents;
 	void* data = nullptr;
 	for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)

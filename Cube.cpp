@@ -15,19 +15,57 @@ void Cube::setSize(const float& size)
 {
 	float side = size / 2.0f;
 
+	//std::vector<float> p = {
+	//	// Front
+	//	-side, -side, side, -side, -side, -side, side, -side, -side, side, -side, side,
+	//	// Right
+	//	side, -side, side, side, -side, -side, side, side, -side, side, side, side,
+	//	// Back
+	//	-side, side, side, side, side, side, side, side, -side, -side, side, -side,
+	//	// Left
+	//	-side, -side, side, -side, side, side, -side, side, -side, -side, -side, -side,
+	//	// Bottom
+	//	-side, -side, -side, -side, side, -side, side, side, -side, side, -side, -side,
+	//	// Top
+	//	-side, -side, side, side, -side, side, side, side, side, -side, side, side };
+
 	std::vector<float> p = {
-		// Front
-		-side, -side, side, -side, -side, -side, side, -side, -side, side, -side, side,
-		// Right
-		side, -side, side, side, -side, -side, side, side, -side, side, side, side,
-		// Back
-		-side, side, side, side, side, side, side, side, -side, -side, side, -side,
-		// Left
-		-side, -side, side, -side, side, side, -side, side, -side, -side, -side, -side,
-		// Bottom
-		-side, -side, -side, -side, side, -side, side, side, -side, side, -side, -side,
-		// Top
-		-side, -side, side, side, -side, side, side, side, side, -side, side, side };
+		// Right (+X)
+		 side, -side, -side,
+		 side, -side,  side,
+		 side,  side,  side,
+		 side,  side, -side,
+
+		 // Left (-X)
+		 -side, -side,  side,
+		 -side, -side, -side,
+		 -side,  side, -side,
+		 -side,  side,  side,
+
+		 // Top (+Y) — skybox posy.jpg
+		 -side,  side, -side,
+		  side,  side, -side,
+		  side,  side,  side,
+		 -side,  side,  side,
+
+		 // Bottom (-Y) — skybox negy.jpg
+		 -side, -side,  side,
+		  side, -side,  side,
+		  side, -side, -side,
+		 -side, -side, -side,
+
+		 // Front (+Z)
+		 -side, -side,  side,
+		  side, -side,  side,
+		  side,  side,  side,
+		 -side,  side,  side,
+
+		 // Back (-Z)
+		  side, -side, -side,
+		 -side, -side, -side,
+		 -side,  side, -side,
+		  side,  side, -side
+	};
 
 	std::vector<float> n = {
 		// Front
