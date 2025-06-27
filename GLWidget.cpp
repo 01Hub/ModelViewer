@@ -1966,6 +1966,10 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
 	_fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
 
+	QMatrix4x4 envMapRot;
+	envMapRot.rotate(-90, 1, 0, 0); // Or whatever rotation you used for the cube
+	_fgShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
+
 	_debugShader->bind();
 	_debugShader->setUniformValue("depthMap", 0);
 
@@ -2187,7 +2191,7 @@ void GLWidget::loadEnvMap()
 	};
 
 
-	_skyBox = new Cube(_skyBoxShader, 1);
+	_skyBox = new Cube(_skyBoxShader, 1);		
 	_skyBoxShader->bind();
 	_skyBoxShader->setUniformValue("skybox", 1);
 	
@@ -2198,7 +2202,7 @@ void GLWidget::loadEnvMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 		
 	int width, height, nrComponents;
-	void* data = nullptr;
+	void* data = nullptr;	
 	for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
 	{
 		if (_skyBoxTextureHDRI)
@@ -2300,7 +2304,10 @@ void GLWidget::loadIrradianceMap()
 	for (unsigned int i = 0; i < 6; ++i)
 	{
 		_irradianceShader->bind();
-		_irradianceShader->setUniformValue("viewMatrix", captureViews[i]);
+		_irradianceShader->setUniformValue("viewMatrix", captureViews[i]);		
+		QMatrix4x4 model;
+		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
+		_irradianceShader->setUniformValue("modelMatrix", model);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _irradianceMap, 0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		_skyBox->render();
@@ -2356,6 +2363,9 @@ void GLWidget::loadIrradianceMap()
 		{
 			_prefilterShader->bind();
 			_prefilterShader->setUniformValue("viewMatrix", captureViews[i]);
+			QMatrix4x4 model;
+			model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
+			_prefilterShader->setUniformValue("modelMatrix", model);
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _prefilterMap, mip);
 
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -2578,9 +2588,9 @@ void GLWidget::drawFloor()
 	_floorPlane->enableTexture(false);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glActiveTexture(GL_TEXTURE5);
+	glActiveTexture(GL_TEXTURE7);
 	glBindTexture(GL_TEXTURE_2D, _skyboxColorTexture);
-	_fgShader->setUniformValue("skyboxColorTexture", 5);
+	_fgShader->setUniformValue("skyboxColorTexture", 7);
 	_floorPlane->render();
 	glDisable(GL_BLEND);
 	glDisable(GL_CULL_FACE);
@@ -2650,6 +2660,9 @@ void GLWidget::drawSkyBox()
 	QMatrix4x4 view = _viewMatrix;
 	// Remove translation
 	view.setColumn(3, QVector4D(0, 0, 0, 1));
+	QMatrix4x4 model;
+	model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
+	_skyBoxShader->setUniformValue("modelMatrix", model);
 	_skyBoxShader->setUniformValue("viewMatrix", view);
 	_skyBoxShader->setUniformValue("projectionMatrix", projection);
 	_skyBoxShader->setUniformValue("hdrToneMapping", _hdrToneMapping);
@@ -3222,14 +3235,13 @@ void GLWidget::render(GLCamera* camera)
 	}
 
 	if (_skyBoxEnabled)
-	{
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _skyboxFBO);
-		glViewport(0, 0, this->width(), this->height());
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		drawSkyBox(); // Render into skyboxColorTexture
+	{		
+		//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _skyboxFBO);
+		//glViewport(0, 0, this->width(), this->height());
+		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		//drawSkyBox(); // Render into skyboxColorTexture		
+		//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
 
-		// Draw regular skybox
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
 		drawSkyBox();
 	}
 
