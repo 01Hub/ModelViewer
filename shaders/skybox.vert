@@ -7,11 +7,12 @@ out vec3 worldPos;
 
 uniform mat4 projectionMatrix;
 uniform mat4 viewMatrix;
+uniform mat4 modelMatrix;
 
 void main()
 {
     texCoords = vertexPosition;
     worldPos = vertexPosition;
-    vec4 pos = projectionMatrix * viewMatrix * vec4(vertexPosition, 1.0);
+    vec4 pos = projectionMatrix * viewMatrix * modelMatrix * vec4(vertexPosition, 1.0);
     gl_Position = pos.xyww;
 }
