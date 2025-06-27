@@ -76,6 +76,7 @@ uniform bool hasOpacityMap;
 uniform bool opacityMapInverted = false;
 
 uniform bool envMapEnabled;
+uniform mat3 envMapRotationMatrix;
 uniform bool shadowsEnabled;
 uniform float shadowSamples;
 uniform vec3 cameraPos;
@@ -304,7 +305,7 @@ void main()
         
         if (skyBoxEnabled) 
         {
-            fadeStart = floorRadius * 0.05;
+            fadeStart = floorRadius;
             fadeEnd = floorRadius;  
         } 
 
@@ -319,12 +320,12 @@ void main()
         // If skybox is enabled, sample sky instead
         if (skyBoxEnabled)
         {
-            vec2 uv = gl_FragCoord.xy / u_screenSize;
-            backgroundColor = texture(skyboxColorTexture, uv).rgb;
+            //vec2 uv = gl_FragCoord.xy / u_screenSize;
+            //backgroundColor = texture(skyboxColorTexture, uv).rgb;
             
 
-            //vec3 viewDir = normalize(g_position - cameraPos);
-            //backgroundColor = texture(envMap, viewDir).rgb;
+            vec3 viewDir = normalize(g_position - cameraPos);
+            backgroundColor = texture(envMap, viewDir).rgb;
 
              if (distance > fadeEnd)
                 discard;
@@ -336,11 +337,19 @@ void main()
             vec3 linearSky = pow(backgroundColor, vec3(gamma));
 
             vec3 linearMix = mix(linearFrag, linearSky, fadeFactor);
-            fragColor.rgb = pow(linearMix, vec3(1.0 / gamma));
+            //fragColor.rgb = pow(linearMix, vec3(1.0 / gamma));
 
             // Blend floor color with the sky box texture
-            //fragColor.rgb = mix(fragColor.rgb, backgroundColor, fadeFactor);
-            //fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade  
+            fragColor.rgb = mix(fragColor.rgb, backgroundColor, fadeFactor);
+            fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade  
+            
+
+//            vec4 colour = fragColor;
+//            float alp = 0.8;
+//            vec3 I = normalize(g_reflectionPosition - cameraPos);
+//            vec3 R = refract(I, normalize(g_reflectionNormal), 1.0f - alp);           
+//            fragColor = vec4(texture(envMap, R).rgb, 1.0f - alp);
+//            fragColor = mix(fragColor, colour, alp/1.0f);
         }   
         else
         {        
@@ -808,6 +817,7 @@ void applyEnvironmentMapping(float alpha)
             vec4 colour = fragColor;
             vec3 I = normalize(g_reflectionPosition - cameraPos);
             vec3 R = refract(I, normalize(g_reflectionNormal), 1.0f - alpha);
+            R = envMapRotationMatrix * R;
             if(texEnabled == true)
                 fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
             else
@@ -818,6 +828,15 @@ void applyEnvironmentMapping(float alpha)
         {
             vec3 I = normalize(cameraPos - g_reflectionPosition);
             vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
+            
+            //vec3 V = normalize(cameraPos - g_reflectionPosition);
+            //vec3 R = reflect(V, normalize(g_reflectionNormal));
+          
+
+            //vec3 I = normalize(cameraPos - g_reflectionPosition);
+            //vec3 N = normalize(g_reflectionNormal);
+            //vec3 R = reflect(I, N);                      
+            R = envMapRotationMatrix * R;
             float factor =  material.metallic ? length(material.specular) : length(material.diffuse);
             fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128.0f * factor);
         }
