@@ -305,8 +305,8 @@ void main()
         
         if (skyBoxEnabled) 
         {
-            fadeStart = floorRadius;
-            fadeEnd = floorRadius;  
+            fadeStart = floorRadius * 0.65;
+            fadeEnd = floorRadius * 0.70;  
         } 
 
         float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);        
@@ -320,10 +320,6 @@ void main()
         // If skybox is enabled, sample sky instead
         if (skyBoxEnabled)
         {
-            //vec2 uv = gl_FragCoord.xy / u_screenSize;
-            //backgroundColor = texture(skyboxColorTexture, uv).rgb;
-            
-
             vec3 viewDir = normalize(g_position - cameraPos);
             backgroundColor = texture(envMap, viewDir).rgb;
 
@@ -337,19 +333,7 @@ void main()
             vec3 linearSky = pow(backgroundColor, vec3(gamma));
 
             vec3 linearMix = mix(linearFrag, linearSky, fadeFactor);
-            //fragColor.rgb = pow(linearMix, vec3(1.0 / gamma));
-
-            // Blend floor color with the sky box texture
-            fragColor.rgb = mix(fragColor.rgb, backgroundColor, fadeFactor);
-            fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade  
-            
-
-//            vec4 colour = fragColor;
-//            float alp = 0.8;
-//            vec3 I = normalize(g_reflectionPosition - cameraPos);
-//            vec3 R = refract(I, normalize(g_reflectionNormal), 1.0f - alp);           
-//            fragColor = vec4(texture(envMap, R).rgb, 1.0f - alp);
-//            fragColor = mix(fragColor, colour, alp/1.0f);
+            fragColor.rgb = pow(linearMix, vec3(1.0 / gamma));
         }   
         else
         {        
