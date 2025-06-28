@@ -795,7 +795,6 @@ void applyEnvironmentMapping(float alpha)
 {
     if(envMapEnabled && displayMode == 3) // Environment mapping
     {
-
         if(alpha < 1.0f && !floorRendering) // Transparent - refract
         {
             vec4 colour = fragColor;
@@ -811,15 +810,7 @@ void applyEnvironmentMapping(float alpha)
         else if(renderingMode == 0)// Opaque - Reflect
         {
             vec3 I = normalize(cameraPos - g_reflectionPosition);
-            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
-            
-            //vec3 V = normalize(cameraPos - g_reflectionPosition);
-            //vec3 R = reflect(V, normalize(g_reflectionNormal));
-          
-
-            //vec3 I = normalize(cameraPos - g_reflectionPosition);
-            //vec3 N = normalize(g_reflectionNormal);
-            //vec3 R = reflect(I, N);                      
+            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection                                
             R = envMapRotationMatrix * R;
             float factor =  material.metallic ? length(material.specular) : length(material.diffuse);
             fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128.0f * factor);
