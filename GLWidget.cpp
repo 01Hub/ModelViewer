@@ -406,93 +406,275 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 {
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
-	_skyBoxFaces =
-	{
-		QString(folder + "/posx"),
-		QString(folder + "/negx"),
-		QString(folder + "/posy"),
-		QString(folder + "/negy"),
-		QString(folder + "/posz"),
-		QString(folder + "/negz")
+	// File pattern map: match flexible identifiers to cube map indices
+	QMap<QString, int> faceMap = {
+		{"right", 0}, {"posx", 0}, {"px", 0}, {"rt", 0},
+		{"left", 1},  {"negx", 1}, {"nx", 1}, {"lt", 1},
+		{"top", 2},   {"posy", 2}, {"py", 2}, {"up", 2},
+		{"bottom", 3},{"negy", 3}, {"ny", 3}, {"dn", 3}, {"down", 3},
+		{"front", 4}, {"posz", 4}, {"pz", 4}, {"ft", 4},
+		{"back", 5},  {"negz", 5}, {"nz", 5}, {"bk", 5}
 	};
-	// stb image library supported formats
-	QList<QString> supportedFormats = { "jpeg", "jpg", "png", "bmp", "psd", "tga", "gif", "hdr", "pic", "pnm" };
+
+	QStringList faceNames = { "right", "left", "top", "bottom", "front", "back" };
+	QStringList supportedFormats = { "jpeg", "jpg", "png", "bmp", "psd", "tga", "gif", "hdr", "pic", "pnm" };
+
+	QStringList files = QDir(folder).entryList(QDir::Files | QDir::Readable, QDir::Name);
+
+	if (files.isEmpty())
+	{
+		QMessageBox::critical(this, "Error", "No files found in selected folder.");
+		QApplication::restoreOverrideCursor();
+		return;
+	}
 
 	makeCurrent();
-
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
-	bool loaded = false;
-	int width, height, nrComponents;
-	void* data = nullptr;
-	for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
+	// Temp holders
+	QString skyboxImages[6];
+	bool loadedFaces[6] = { false };
+
+	// Try to match each file name with a face using the map
+	for (const QString& file : files)
 	{
-		if (!_skyBoxTextureHDRI)
+		QString name = QFileInfo(file).baseName().toLower();
+		for (auto it = faceMap.constBegin(); it != faceMap.constEnd(); ++it)
 		{
-			for (const QString &extn : supportedFormats)
+			if (name.contains(it.key()) && !loadedFaces[it.value()])
 			{
-				QString fileName = _skyBoxFaces.at(i) + "." + extn;
-				data = static_cast<unsigned char*>(stbi_load(fileName.toStdString().c_str(), &width, &height, &nrComponents, 0));
-				if (data)
-				{
-					loaded = true;
-					break;
-				}
+				skyboxImages[it.value()] = folder + "/" + file;
+				loadedFaces[it.value()] = true;
+				break;
+			}
+		}
+	}
+
+	// Check if all faces were loaded
+	bool allFacesLoaded = std::all_of(std::begin(loadedFaces), std::end(loadedFaces),
+		[](bool b) { return b; });
+
+	if (!allFacesLoaded)
+	{
+		// Fallback: try single HDR cubemap image
+		QStringList hdrFiles = QDir(folder).entryList(QStringList() << "*.hdr", QDir::Files);
+		if (!hdrFiles.isEmpty())
+		{
+			QString fallbackHDR = folder + "/" + hdrFiles.first();
+			if (loadCubemapFromSingleHDR(fallbackHDR))
+			{
+				qDebug() << "Loaded fallback cubemap from single HDR file:" << fallbackHDR;
+				loadIrradianceMap();
+				update();
+				QApplication::restoreOverrideCursor();
+				return;
+			}
+			else
+			{
+				QMessageBox::critical(this, "Error",
+					"Failed to load fallback HDR cubemap from:\n" + fallbackHDR);
 			}
 		}
 		else
 		{
-			QString fileName = _skyBoxFaces.at(i) + ".hdr";
-			data = static_cast<float*>(stbi_loadf(fileName.toStdString().c_str(), &width, &height, &nrComponents, 0));
-			if (data)
-			{
-				loaded = true;
-			}
+			QMessageBox::critical(this, "Error",
+				"No valid 6-face skybox images or fallback HDR file found in folder.");
 		}
-		if (loaded)
+
+		QApplication::restoreOverrideCursor();
+		return;
+	}
+
+	// Ensure all 6 faces are found
+	for (int i = 0; i < 6; ++i)
+	{
+		if (!loadedFaces[i])
 		{
-			if (_skyBoxTextureHDRI)
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
-			else
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-			glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-			stbi_image_free(data);
-		}
-		else
-		{
-			if (_skyBoxTextureHDRI)
-			{
-				QMessageBox::critical(this, "Error", "Skybox HDR files are not found in the selected folder\n"
-					"Please make sure that if HRDI option is checked,\n"
-					"six HDRI images with names in the following manner...\n"
-					"posx.hdr, posy.hdr, posz.hdr,\n"
-					"negx.hdr, negy.hdr, negz.hdr\n"
-					"are present in the folder."
-					"\nSkybox has not changed, continuing with the existing one.");
-			}
-			else
-			{
-				QString formats;
-                for (const QString& extn : supportedFormats)
-				{
-					formats += extn + " ";
-				}
-				// Load first image from file
-				QMessageBox::critical(this, "Error", "Skybox compatible files are not found in the selected folder.\n"
-					"Please make sure that there are six images of supported formats "
-					"in the folder with names in the following manner...\n"
-					"posx.jpg, posy.jpg, posz.jpg,\n"
-					"negx.jpg, negy.jpg, negz.jpg\nSupported formats are:\n" + formats +
-					"\nSkybox has not changed, continuing with the existing one.");
-			}
+			QString missingFace = faceNames[i];
+			QMessageBox::critical(this, "Error", "Missing skybox face: " + missingFace + "\n"
+				"Expected files should include identifiers like posx/negx or right/left, etc.");
 			QApplication::restoreOverrideCursor();
 			return;
 		}
 	}
+
+	// Load and upload each face
+	for (int i = 0; i < 6; ++i)
+	{
+		int width, height, nrComponents;
+		void* data = nullptr;
+		std::string fileName = skyboxImages[i].toStdString();
+
+		if (_skyBoxTextureHDRI)
+		{
+			data = static_cast<float*>(stbi_loadf(fileName.c_str(), &width, &height, &nrComponents, 0));
+			if (!data) goto failure;
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
+				width, height, 0, GL_RGB, GL_FLOAT, data);
+		}
+		else
+		{
+			data = static_cast<unsigned char*>(stbi_load(fileName.c_str(), &width, &height, &nrComponents, 0));
+			if (!data) goto failure;
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
+				width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+		}
+
+		glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+		stbi_image_free(data);
+		continue;
+
+	failure:
+		{
+			QMessageBox::critical(this, "Error", "Failed to load skybox face:\n" + QString::fromStdString(fileName));
+			QApplication::restoreOverrideCursor();
+			return;
+		}
+	}
+
+	// Setup sampler parameters
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
 	loadIrradianceMap();
 	update();
 	QApplication::restoreOverrideCursor();
 }
+
+bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
+{
+	int imgWidth, imgHeight, channels;
+	float* data = stbi_loadf(filePath.toStdString().c_str(), &imgWidth, &imgHeight, &channels, 0);
+	if (!data)
+	{
+		qWarning() << "Failed to load HDR file:" << filePath;
+		return false;
+	}
+
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+
+	int faceSize = 0;
+	QPoint faceOffsets[6];
+	bool validLayout = false;
+
+	// --- Detect 6x1 strip ---
+	if (imgWidth % 6 == 0 && imgHeight == imgWidth / 6)
+	{
+		faceSize = imgHeight;
+		for (int i = 0; i < 6; ++i)
+			faceOffsets[i] = QPoint(i * faceSize, 0);
+		qDebug() << "Detected layout: 6x1 horizontal strip";
+		validLayout = true;
+	}
+
+	// --- Detect 1x6 vertical strip ---
+	else if (imgHeight % 6 == 0 && imgWidth == imgHeight / 6)
+	{
+		faceSize = imgWidth;
+		for (int i = 0; i < 6; ++i)
+			faceOffsets[i] = QPoint(0, i * faceSize);
+		qDebug() << "Detected layout: 1x6 vertical strip";
+		validLayout = true;
+	}
+
+	// --- Detect 3x2 grid ---
+	else if (imgWidth % 3 == 0 && imgHeight % 2 == 0 && imgWidth / 3 == imgHeight / 2)
+	{
+		faceSize = imgWidth / 3;
+		QPoint gridOffsets[6] = {
+			{0, 0}, // +X
+			{1, 0}, // -X
+			{2, 0}, // +Y
+			{0, 1}, // -Y
+			{1, 1}, // +Z
+			{2, 1}  // -Z
+		};
+		for (int i = 0; i < 6; ++i)
+			faceOffsets[i] = QPoint(gridOffsets[i].x() * faceSize, gridOffsets[i].y() * faceSize);
+		qDebug() << "Detected layout: 3x2 grid";
+		validLayout = true;
+	}
+
+	// --- Detect 4x3 or 3x4 cross layout ---
+	else if ((imgWidth % 4 == 0 && imgHeight % 3 == 0 && imgWidth / 4 == imgHeight / 3) ||
+		(imgWidth % 3 == 0 && imgHeight % 4 == 0 && imgWidth / 3 == imgHeight / 4))
+	{
+		// Handle 4x3 cross layout
+		if (imgWidth / 4 == imgHeight / 3)
+		{
+			faceSize = imgWidth / 4;
+			QPoint crossOffsets[6] = {
+				{2, 1}, // +X
+				{0, 1}, // -X
+				{1, 0}, // +Y
+				{1, 2}, // -Y
+				{1, 1}, // +Z
+				{3, 1}  // -Z
+			};
+			for (int i = 0; i < 6; ++i)
+				faceOffsets[i] = QPoint(crossOffsets[i].x() * faceSize, crossOffsets[i].y() * faceSize);
+			qDebug() << "Detected layout: 4x3 cross";
+			validLayout = true;
+		}
+		// Handle 3x4 cross layout (rotated cross)
+		else if (imgWidth / 3 == imgHeight / 4)
+		{
+			faceSize = imgWidth / 3;
+			QPoint crossOffsets[6] = {
+				{2, 1}, // +X
+				{0, 1}, // -X
+				{1, 0}, // +Y
+				{1, 2}, // -Y
+				{1, 1}, // +Z
+				{1, 3}  // -Z
+			};
+			for (int i = 0; i < 6; ++i)
+				faceOffsets[i] = QPoint(crossOffsets[i].x() * faceSize, crossOffsets[i].y() * faceSize);
+			qDebug() << "Detected layout: 3x4 cross";
+			validLayout = true;
+		}
+	}
+
+	// --- Fallback: 1 face only (not a cubemap) ---
+	if (!validLayout)
+	{
+		qWarning() << "Unsupported cubemap layout. Cannot determine layout from image dimensions.";
+		stbi_image_free(data);
+		return false;
+	}
+
+	// --- Upload faces to OpenGL ---
+	for (int i = 0; i < 6; ++i)
+	{
+		const QPoint& offset = faceOffsets[i];
+		float* facePixels = new float[faceSize * faceSize * channels];
+
+		for (int y = 0; y < faceSize; ++y)
+		{
+			const float* src = data + ((offset.y() + y) * imgWidth + offset.x()) * channels;
+			float* dst = facePixels + y * faceSize * channels;
+			memcpy(dst, src, sizeof(float) * faceSize * channels);
+		}
+
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
+			faceSize, faceSize, 0, GL_RGB, GL_FLOAT, facePixels);
+		delete[] facePixels;
+	}
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+	stbi_image_free(data);
+	return true;
+}
+
 
 QVector3D GLWidget::getLightPosition() const
 {
@@ -1864,48 +2046,6 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	fitAll();
 }
 
-void GLWidget::initSkyboxFramebuffer(int width, int height)
-{
-	// 1. Generate FBO
-	glGenFramebuffers(1, &_skyboxFBO);
-	glBindFramebuffer(GL_FRAMEBUFFER, _skyboxFBO);
-
-	// 2. Create color attachment texture
-	glGenTextures(1, &_skyboxColorTexture);
-	glBindTexture(GL_TEXTURE_2D, _skyboxColorTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR); // Filtering
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, _skyboxColorTexture, 0);
-
-	// 3. Optional: Create depth buffer for depth testing
-	glGenRenderbuffers(1, &_skyboxDepthBuffer);
-	glBindRenderbuffer(GL_RENDERBUFFER, _skyboxDepthBuffer);
-	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, width, height);
-	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _skyboxDepthBuffer);
-
-	// 4. Check FBO completeness
-	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	if (status != GL_FRAMEBUFFER_COMPLETE)
-	{
-		qWarning("Skybox framebuffer not complete!");
-	}
-
-	// 5. Unbind
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-	
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _skyboxFBO);
-	glViewport(0, 0, this->width(), this->height());
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	_skyBox->render(); // Render into skyboxColorTexture
-
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
-	glViewport(0, 0, this->width(), this->height());
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-}
 
 void GLWidget::initializeGL()
 {
@@ -1940,9 +2080,7 @@ void GLWidget::initializeGL()
 	loadIrradianceMap();
 	// Shadow mapping
 	loadFloor();
-
-	initSkyboxFramebuffer(width(), height());
-
+	
 	float size = 15;
 	_axisCone = new Cone(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
 
@@ -2588,9 +2726,6 @@ void GLWidget::drawFloor()
 	_floorPlane->enableTexture(false);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	glActiveTexture(GL_TEXTURE7);
-	glBindTexture(GL_TEXTURE_2D, _skyboxColorTexture);
-	_fgShader->setUniformValue("skyboxColorTexture", 7);
 	_floorPlane->render();
 	glDisable(GL_BLEND);
 	glDisable(GL_CULL_FACE);
@@ -3235,13 +3370,7 @@ void GLWidget::render(GLCamera* camera)
 	}
 
 	if (_skyBoxEnabled)
-	{		
-		//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _skyboxFBO);
-		//glViewport(0, 0, this->width(), this->height());
-		//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		//drawSkyBox(); // Render into skyboxColorTexture		
-		//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
-
+	{	
 		drawSkyBox();
 	}
 

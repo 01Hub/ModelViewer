@@ -150,6 +150,7 @@ public:
 	void resetTransformation(const std::vector<int>& ids);
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);
 	void setSkyBoxTextureFolder(QString folder);
+	bool loadCubemapFromSingleHDR(const QString& filePath);
 
 public:
 	float getXTran() const;
@@ -303,8 +304,7 @@ private:
 	void loadEnvMap();
 	void loadIrradianceMap();
 	void loadFloor();
-	void initSkyboxFramebuffer(int width, int height);
-
+	
 	void drawMesh(QOpenGLShaderProgram* prog);
 	void drawSectionCapping();
 	void drawFloor();
