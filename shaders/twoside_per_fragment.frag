@@ -306,7 +306,7 @@ void main()
         if (skyBoxEnabled) 
         {
             fadeStart = floorRadius * 0.65;
-            fadeEnd = floorRadius * 0.70;  
+            fadeEnd = floorRadius * 0.67;  
         } 
 
         float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);        
