@@ -2320,12 +2320,12 @@ void GLWidget::loadEnvMap()
 	// Env Map
 	_skyBoxFaces =
 	{
-        path + QString("textures/envmap/skyboxes/vasa/posx.jpg"),
-        path + QString("textures/envmap/skyboxes/vasa/negx.jpg"),
-        path + QString("textures/envmap/skyboxes/vasa/posy.jpg"),
-        path + QString("textures/envmap/skyboxes/vasa/negy.jpg"),
-        path + QString("textures/envmap/skyboxes/vasa/posz.jpg"),
-        path + QString("textures/envmap/skyboxes/vasa/negz.jpg")
+        path + QString("textures/envmap/skyboxes/lakemountains/posx.jpg"),
+        path + QString("textures/envmap/skyboxes/lakemountains/negx.jpg"),
+        path + QString("textures/envmap/skyboxes/lakemountains/posy.jpg"),
+        path + QString("textures/envmap/skyboxes/lakemountains/negy.jpg"),
+        path + QString("textures/envmap/skyboxes/lakemountains/posz.jpg"),
+        path + QString("textures/envmap/skyboxes/lakemountains/negz.jpg")
 	};
 
 
