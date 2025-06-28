@@ -2434,6 +2434,9 @@ void GLWidget::loadIrradianceMap()
 	_irradianceShader->bind();
 	_irradianceShader->setUniformValue("environmentMap", 1);
 	_irradianceShader->setUniformValue("projectionMatrix", captureProjection);
+	QMatrix4x4 envMapRot;
+	envMapRot.rotate(-90, 1, 0, 0); // Or whatever rotation you used for the cube
+	_irradianceShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
@@ -2479,7 +2482,9 @@ void GLWidget::loadIrradianceMap()
 	_skyBox->setProg(_prefilterShader);
 	_prefilterShader->bind();
 	_prefilterShader->setUniformValue("environmentMap", 1);
-	_prefilterShader->setUniformValue("projectionMatrix", captureProjection);
+	_prefilterShader->setUniformValue("projectionMatrix", captureProjection);		
+	_prefilterShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
+
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 

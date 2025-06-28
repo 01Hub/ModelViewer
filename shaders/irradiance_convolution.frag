@@ -4,6 +4,7 @@ out vec4 fragColor;
 in vec3 worldPos;
 
 uniform samplerCube environmentMap;
+uniform mat3 envMapRotationMatrix;
 
 const float PI = 3.14159265359;
 
@@ -34,7 +35,9 @@ void main()
             // tangent space to world
             vec3 sampleVec = tangentSample.x * right + tangentSample.y * up + tangentSample.z * N;
 
-            irradiance += texture(environmentMap, sampleVec).rgb * cos(theta) * sin(theta);
+            vec3 rotatedSampleVec = envMapRotationMatrix * sampleVec; // rotate sample vector to match environment map orientation
+
+            irradiance += texture(environmentMap, rotatedSampleVec).rgb * cos(theta) * sin(theta);
             nrSamples++;
         }
     }
