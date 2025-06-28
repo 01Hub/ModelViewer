@@ -297,49 +297,53 @@ void main()
      
     if (floorRendering) 
     {
-        /// Compute distance-based blending factor
-        float distance = length(g_position - u_screenCenter);     
-        
-        if (distance > fadeEnd)
-            discard;
-        
+        // Compute distance-based blending factor
+        float distance = length(g_position - u_screenCenter);
+    
+        // Set fade parameters first, before any calculations
         if (skyBoxEnabled) 
         {
             fadeStart = floorRadius * 0.65;
-            fadeEnd = floorRadius * 0.67;  
-        } 
-
-        float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);        
-
+            fadeEnd = floorRadius * 0.68;  
+        }
+    
+        // Early discard for pixels beyond fade range
+        if (distance > fadeEnd)
+            discard;
+    
+        // Calculate fade factor
+        float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
         if (fadeFactor >= 1.0)
             discard;
-
-        // Interpolate background gradient color
-        vec3 backgroundColor = calculateBackgroundColor();
-
-        // If skybox is enabled, sample sky instead
+    
+        // Get background color
+        vec3 backgroundColor;
         if (skyBoxEnabled)
         {
             vec3 viewDir = normalize(g_position - cameraPos);
             backgroundColor = texture(envMap, viewDir).rgb;
-
-             if (distance > fadeEnd)
-                discard;
-
-            fadeFactor = pow(smoothstep(fadeStart, fadeEnd, distance), 1.4);
-            
+        
+            // Apply power curve for smoother transition
+            fadeFactor = pow(fadeFactor, 1.4);
+        
+            // Optional: Handle gamma correction if needed
             float gamma = 2.2;
             vec3 linearFrag = pow(fragColor.rgb, vec3(gamma));
             vec3 linearSky = pow(backgroundColor, vec3(gamma));
-
             vec3 linearMix = mix(linearFrag, linearSky, fadeFactor);
             fragColor.rgb = pow(linearMix, vec3(1.0 / gamma));
+        
+            // Handle alpha similar to gradient case
+            fragColor.a *= (1.0 - fadeFactor);
         }   
         else
-        {        
+        {
+            // Interpolate background gradient color
+            backgroundColor = calculateBackgroundColor();
+        
             // Blend floor color with the background gradient
             fragColor.rgb = mix(fragColor.rgb, backgroundColor, fadeFactor);
-            fragColor.a *= (1.0 - fadeFactor); // Adjust alpha for fade
+            fragColor.a *= (1.0 - fadeFactor);
         }
     } 
 }
@@ -795,6 +799,7 @@ void applyEnvironmentMapping(float alpha)
 {
     if(envMapEnabled && displayMode == 3) // Environment mapping
     {
+
         if(alpha < 1.0f && !floorRendering) // Transparent - refract
         {
             vec4 colour = fragColor;
@@ -810,7 +815,15 @@ void applyEnvironmentMapping(float alpha)
         else if(renderingMode == 0)// Opaque - Reflect
         {
             vec3 I = normalize(cameraPos - g_reflectionPosition);
-            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection                                
+            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
+            
+            //vec3 V = normalize(cameraPos - g_reflectionPosition);
+            //vec3 R = reflect(V, normalize(g_reflectionNormal));
+          
+
+            //vec3 I = normalize(cameraPos - g_reflectionPosition);
+            //vec3 N = normalize(g_reflectionNormal);
+            //vec3 R = reflect(I, N);                      
             R = envMapRotationMatrix * R;
             float factor =  material.metallic ? length(material.specular) : length(material.diffuse);
             fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128.0f * factor);
