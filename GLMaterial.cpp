@@ -209,7 +209,7 @@ GLMaterial GLMaterial::BRASS()
         1.0f);
 
     // Corrected PBR properties for brass
-    mat.setAlbedoColor(QVector3D(0.955f, 0.638f, 0.538f)); // Proper brass F0 color
+    mat.setAlbedoColor(mat.diffuse());
     mat.setMetalness(1.0f);
     mat.setRoughness(0.3f); // Brass is typically smoother than 0.65
     mat.setShadingModel(ShadingModel::PBR);
@@ -228,7 +228,7 @@ GLMaterial GLMaterial::BRONZE()
         true,
         1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.804f, 0.498f, 0.196f)); // Proper bronze F0
+    mat.setAlbedoColor(mat.diffuse());
     mat.setMetalness(1.0f);
     mat.setRoughness(0.4f);
     mat.setShadingModel(ShadingModel::PBR);
@@ -247,7 +247,7 @@ GLMaterial GLMaterial::COPPER()
         true,
         1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.955f, 0.638f, 0.538f)); // Proper copper F0
+    mat.setAlbedoColor(mat.diffuse());
     mat.setMetalness(1.0f);
     mat.setRoughness(0.25f);
     mat.setShadingModel(ShadingModel::PBR);
@@ -266,7 +266,7 @@ GLMaterial GLMaterial::GOLD()
         true,
         1.0f);
 
-    mat.setAlbedoColor(QVector3D(1.0f, 0.766f, 0.336f)); // Proper gold F0
+    mat.setAlbedoColor(mat.diffuse());
     mat.setMetalness(1.0f);
     mat.setRoughness(0.1f); // Gold is very smooth when polished
     mat.setShadingModel(ShadingModel::PBR);
@@ -285,7 +285,7 @@ GLMaterial GLMaterial::SILVER()
         true,
         1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.972f, 0.960f, 0.915f)); // Proper silver F0
+    mat.setAlbedoColor(mat.diffuse());
     mat.setMetalness(1.0f);
     mat.setRoughness(0.05f); // Silver is very reflective
     mat.setShadingModel(ShadingModel::PBR);
@@ -304,7 +304,7 @@ GLMaterial GLMaterial::CHROME()
         true,
         1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.549f, 0.556f, 0.554f)); // Proper chrome F0
+    mat.setAlbedoColor(mat.diffuse());
     mat.setMetalness(1.0f);
     mat.setRoughness(0.02f); // Chrome is extremely smooth
     mat.setShadingModel(ShadingModel::PBR);
