@@ -116,6 +116,11 @@ private:
 
 	void setColorAndMaterial(aiMaterial* material, GLMaterial& mat);
 
+	void setDefaultMaterial(GLMaterial& mat);
+	void setShadingModel(GLMaterial& mat, aiShadingMode shadingModel);
+	void setBlendMode(GLMaterial& mat, aiBlendMode blendMode);
+	void validateMaterialConsistency(GLMaterial& mat);
+
 	void setPBRTextureMaps(aiMaterial* material, std::vector<Texture>& textures);
 
 	void setADSTextureMaps(aiMaterial* material, std::vector<Texture>& textures);

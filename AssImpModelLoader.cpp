@@ -610,63 +610,239 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 
 void AssImpModelLoader::setColorAndMaterial(aiMaterial* material, GLMaterial& mat)
 {
-	aiColor3D color(0.f, 0.f, 0.f);
-	float opacity = 1.0f;	
-	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, color))
-	{
-		mat.setAmbient(QVector3D(color.r, color.g, color.b));
-	}
-	else
-	{
-		mat.setAmbient(QVector3D(0.7f, 0.7f, 0.7f));
-	}
-	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, color))
-	{
-		mat.setDiffuse(QVector3D(color.r, color.g, color.b));
-		mat.setAlbedoColor(QVector3D(color.r, color.g, color.b));
-	}
-	else
-	{
-		mat.setDiffuse(QVector3D(0.7f, 0.7f, 0.7f));
-		mat.setAlbedoColor(QVector3D(0.7f, 0.7f, 0.7f));
-	}
-	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, color))
-	{
-		mat.setSpecular(QVector3D(color.r, color.g, color.b));
-		bool grayScale = (color.r == color.g && color.g == color.b && color.r == color.b);
-		float intensity = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
-		if (grayScale)
-			mat.setMetalness(intensity > 0.04f ? 0.04f : intensity); // limit to 4% for dielectrics
-		else
-			mat.setMetalness(intensity);
-		mat.setRoughness(1.0f - intensity);
+    if (!material) {
+        setDefaultMaterial(mat);
+        return;
+    }
 
-	}
-	else
-	{
-		mat.setSpecular(QVector3D(0.7f, 0.7f, 0.7f));
-		mat.setMetalness(0.0f);
-		mat.setRoughness(1.0f);
-	}
-	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
-	{
-		mat.setEmissive(QVector3D(color.r, color.g, color.b));
-	}
-	else
-	{
-		mat.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
-	}
-	if (AI_SUCCESS == material->Get(AI_MATKEY_OPACITY, opacity) && opacity != 0)
-	{
-		if (opacity <= 0.0f)
-			std::cout << "Opacity: " << opacity << " - setting to 1" << std::endl;
-		mat.setOpacity(opacity);
-	}
-	else
-	{
-		mat.setOpacity(1.0f);
-	}
+    // Initialize default values
+    aiColor3D color(0.f, 0.f, 0.f);
+    float value = 0.0f;
+    int intValue = 0;
 
+    // === PBR Material Properties ===
+
+    // Albedo/Base Color (prioritize PBR over legacy diffuse)
+    if (AI_SUCCESS == material->Get(AI_MATKEY_BASE_COLOR, color) ||
+        AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, color)) {
+        mat.setAlbedoColor(QVector3D(color.r, color.g, color.b));
+        mat.setDiffuse(QVector3D(color.r, color.g, color.b)); // Legacy compatibility
+    } else {
+        mat.setAlbedoColor(QVector3D(0.8f, 0.8f, 0.8f));
+        mat.setDiffuse(QVector3D(0.8f, 0.8f, 0.8f));
+    }
+
+    // Metallic Factor
+    if (AI_SUCCESS == material->Get(AI_MATKEY_METALLIC_FACTOR, value)) {
+        mat.setMetalness(std::clamp(value, 0.0f, 1.0f));
+    } else {
+        // Fallback: derive from specular color for legacy materials
+        if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, color)) {
+            mat.setSpecular(QVector3D(color.r, color.g, color.b));
+
+            // Convert specular to metallic approximation
+            bool isGrayscale = (std::abs(color.r - color.g) < 0.01f &&
+                               std::abs(color.g - color.b) < 0.01f);
+            float intensity = 0.299f * color.r + 0.587f * color.g + 0.114f * color.b;
+
+            if (isGrayscale && intensity > 0.9f) {
+                mat.setMetalness(0.8f); // Likely metallic
+            } else if (intensity > 0.5f) {
+                mat.setMetalness(0.3f); // Semi-metallic
+            } else {
+                mat.setMetalness(0.0f); // Dielectric
+            }
+        } else {
+            mat.setSpecular(QVector3D(0.04f, 0.04f, 0.04f)); // Default dielectric F0
+            mat.setMetalness(0.0f);
+        }
+    }
+
+    // Roughness Factor
+    if (AI_SUCCESS == material->Get(AI_MATKEY_ROUGHNESS_FACTOR, value)) {
+        mat.setRoughness(std::clamp(value, 0.01f, 1.0f)); // Avoid zero roughness
+    } else if (AI_SUCCESS == material->Get(AI_MATKEY_SHININESS, value)) {
+        // Convert shininess to roughness (Phong to PBR approximation)
+        float roughness = std::sqrt(2.0f / (value + 2.0f));
+        mat.setRoughness(std::clamp(roughness, 0.01f, 1.0f));
+    } else {
+        mat.setRoughness(0.8f); // Default medium roughness
+    }
+
+    // === Additional Material Properties ===
+
+    // Ambient (for legacy lighting models)
+    if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, color)) {
+        mat.setAmbient(QVector3D(color.r, color.g, color.b));
+    } else {
+        // Derive ambient from albedo with reduced intensity
+        QVector3D albedo = mat.getAlbedoColor();
+        mat.setAmbient(albedo * 0.1f);
+    }
+
+    // Emissive
+    if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color)) {
+        mat.setEmissive(QVector3D(color.r, color.g, color.b));
+
+        // Set emissive strength if available
+        if (AI_SUCCESS == material->Get(AI_MATKEY_EMISSIVE_INTENSITY, value)) {
+            mat.setEmissiveStrength(value);
+        }
+    } else {
+        mat.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
+        mat.setEmissiveStrength(1.0f);
+    }
+
+    // Opacity/Transparency
+    float opacity = 1.0f;
+    if (AI_SUCCESS == material->Get(AI_MATKEY_OPACITY, opacity)) {
+        opacity = std::clamp(opacity, 0.0f, 1.0f);
+        mat.setOpacity(opacity);
+    } else if (AI_SUCCESS == material->Get(AI_MATKEY_TRANSPARENCYFACTOR, value)) {
+        // Some formats use transparency factor instead of opacity
+        opacity = 1.0f - std::clamp(value, 0.0f, 1.0f);
+        mat.setOpacity(opacity);
+    } else {
+        mat.setOpacity(1.0f);
+    }
+
+    // Index of Refraction (IOR)
+    if (AI_SUCCESS == material->Get(AI_MATKEY_REFRACTI, value)) {
+        mat.setIOR(std::clamp(value, 1.0f, 3.0f)); // Physically plausible range
+    } else {
+        mat.setIOR(1.5f); // Default glass IOR
+    }
+
+    // === Advanced Properties ===
+
+    // Clearcoat (if supported by your material system)
+    if (AI_SUCCESS == material->Get(AI_MATKEY_CLEARCOAT_FACTOR, value)) {
+        mat.setClearcoat(std::clamp(value, 0.0f, 1.0f));
+
+        if (AI_SUCCESS == material->Get(AI_MATKEY_CLEARCOAT_ROUGHNESS_FACTOR, value)) {
+            mat.setClearcoatRoughness(std::clamp(value, 0.0f, 1.0f));
+        }
+    }
+
+    // Sheen (for fabric-like materials)
+    if (AI_SUCCESS == material->Get(AI_MATKEY_SHEEN_COLOR_FACTOR, color)) {
+        mat.setSheenColor(QVector3D(color.r, color.g, color.b));
+
+        if (AI_SUCCESS == material->Get(AI_MATKEY_SHEEN_ROUGHNESS_FACTOR, value)) {
+            mat.setSheenRoughness(std::clamp(value, 0.0f, 1.0f));
+        }
+    }
+
+    // Transmission (for glass-like materials)
+    if (AI_SUCCESS == material->Get(AI_MATKEY_TRANSMISSION_FACTOR, value)) {
+        mat.setTransmission(std::clamp(value, 0.0f, 1.0f));
+    }
+
+    // === Rendering Hints ===
+
+    // Two-sided material
+    if (AI_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, intValue)) {
+        mat.setTwoSided(intValue != 0);
+    }
+
+    // Wireframe mode
+    if (AI_SUCCESS == material->Get(AI_MATKEY_ENABLE_WIREFRAME, intValue)) {
+        mat.setWireframe(intValue != 0);
+    }
+
+    // Shading model
+    if (AI_SUCCESS == material->Get(AI_MATKEY_SHADING_MODEL, intValue)) {
+        setShadingModel(mat, static_cast<aiShadingMode>(intValue));
+    }
+
+    // Blend mode for transparency
+    if (opacity < 1.0f) {
+        // Determine blend mode based on material properties
+        if (AI_SUCCESS == material->Get(AI_MATKEY_BLEND_FUNC, intValue)) {
+            setBlendMode(mat, static_cast<aiBlendMode>(intValue));
+        } else {
+            // Default to alpha blending for transparent materials
+            mat.setBlendMode(GLMaterial::BlendMode::Alpha);
+        }
+    }
+
+    // === Validation and Consistency Checks ===
+    validateMaterialConsistency(mat);
+}
+
+void AssImpModelLoader::setDefaultMaterial(GLMaterial& mat)
+{
+    mat.setAlbedoColor(QVector3D(0.8f, 0.8f, 0.8f));
+    mat.setDiffuse(QVector3D(0.8f, 0.8f, 0.8f));
+    mat.setAmbient(QVector3D(0.08f, 0.08f, 0.08f));
+    mat.setSpecular(QVector3D(0.04f, 0.04f, 0.04f));
+    mat.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
+    mat.setMetalness(0.0f);
+    mat.setRoughness(0.8f);
+    mat.setOpacity(1.0f);
+    mat.setIOR(1.5f);
+    mat.setTwoSided(false);
+    mat.setEmissiveStrength(1.0f);
+}
+
+void AssImpModelLoader::setShadingModel(GLMaterial& mat, aiShadingMode shadingModel)
+{
+    switch (shadingModel) {
+        case aiShadingMode_Flat:
+            mat.setShadingModel(GLMaterial::ShadingModel::Unlit);
+            break;
+        case aiShadingMode_Phong:
+        case aiShadingMode_Blinn:
+            mat.setShadingModel(GLMaterial::ShadingModel::BlinnPhong);
+            break;
+        case aiShadingMode_PBR_BRDF:
+            mat.setShadingModel(GLMaterial::ShadingModel::PBR);
+            break;
+        case aiShadingMode_Unlit:
+            mat.setShadingModel(GLMaterial::ShadingModel::Unlit);
+            break;
+        default:
+            mat.setShadingModel(GLMaterial::ShadingModel::PBR); // Default to PBR
+            break;
+    }
+}
+
+void AssImpModelLoader::setBlendMode(GLMaterial& mat, aiBlendMode blendMode)
+{
+    switch (blendMode) {
+        case aiBlendMode_Additive:
+            mat.setBlendMode(GLMaterial::BlendMode::Additive);
+            break;
+        case aiBlendMode_Default:
+        default:
+            mat.setBlendMode(GLMaterial::BlendMode::Alpha);
+            break;
+    }
+}
+
+void AssImpModelLoader::validateMaterialConsistency(GLMaterial& mat)
+{
+    // Ensure metallic materials have appropriate F0 values
+    if (mat.getMetalness() > 0.5f) {
+        QVector3D albedo = mat.getAlbedoColor();
+        // For metals, F0 should be derived from albedo, not be the default dielectric value
+        mat.setSpecular(albedo);
+    }
+
+    // Ensure rough metals don't have unrealistic specular values
+    if (mat.getMetalness() > 0.8f && mat.getRoughness() < 0.1f) {
+        // Very smooth metals are rare in practice
+        mat.setRoughness(std::max(0.1f, mat.getRoughness()));
+    }
+
+    // Validate opacity consistency
+    if (mat.getOpacity() < 1.0f && mat.getTransmission() > 0.0f) {
+        // For transmitted materials, opacity and transmission should be consistent
+        float totalTransparency = 1.0f - mat.getOpacity() + mat.getTransmission();
+        if (totalTransparency > 1.0f) {
+            mat.setTransmission(1.0f - (1.0f - mat.getOpacity()));
+        }
+    }
 }
 
 void AssImpModelLoader::setPBRTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
