@@ -315,6 +315,8 @@ private:
 	void drawCornerAxis();
 	void drawLights();
 
+	void bindIBLTextures();
+
 	void render(GLCamera* camera);
 	void renderToShadowBuffer();
 	int processSelection(const QPoint& pixel);

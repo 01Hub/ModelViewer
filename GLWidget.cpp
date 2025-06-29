@@ -3262,6 +3262,16 @@ void GLWidget::drawLights()
 	_lightCube->render();
 }
 
+void GLWidget::bindIBLTextures()
+{
+	_fgShader->setUniformValue("irradianceMap", 3);
+	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
+	_fgShader->setUniformValue("prefilterMap", 4);
+	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
+	_fgShader->setUniformValue("brdfLUTTexture", 5);
+	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
+}
+
 void GLWidget::render(GLCamera* camera)
 {
 	glEnable(GL_DEPTH_TEST);
@@ -3300,9 +3310,7 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);		
 	_fgShader->setUniformValue("lightFarPlane", _lightPosition.z() + _lightOffsetZ);
 
-	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
-	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
-	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
+	bindIBLTextures();
 
 	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
 	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
