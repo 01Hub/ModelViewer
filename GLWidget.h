@@ -1,17 +1,16 @@
 #ifndef GLWIDGET_H
 #define GLWIDGET_H
 
-#include <QOpenGLWidget>
-#include <QOpenGLFunctions_4_5_Core>
-#include <QImage>
+#include "BoundingSphere.h"
+#include "GLCamera.h"
+#include "TriangleMesh.h"
+#include <math.h>
 #include <QColor>
 #include <QFormLayout>
+#include <QImage>
+#include <QOpenGLFunctions_4_5_Core>
+#include <QOpenGLWidget>
 #include <QRubberBand>
-
-#include <math.h>
-#include "GLCamera.h"
-#include "BoundingSphere.h"
-#include "TriangleMesh.h"
 
 /* Custom OpenGL Viewer Widget */
 

@@ -1,28 +1,21 @@
 
+#include "AssImpModelLoader.h"
+#include "ClippingPlanesEditor.h"
+#include "Cone.h"
+#include "config.h"
+#include "Cube.h"
+#include "GLWidget.h"
+#include "MainWindow.h"
+#include "ModelViewer.h"
+#include "Plane.h"
+#include "Point.h"
+#include "Sphere.h"
+#include "stb_image.h"
+#include "TextRenderer.h"
+#include "Utils.h"
 #include <QMenu>
 #include <QMessageBox>
 #include <QStyleFactory>
-
-#include "GLWidget.h"
-
-#include "TextRenderer.h"
-
-#include "Point.h"
-#include "Sphere.h"
-#include "Cube.h"
-#include "Cone.h"
-#include "ClippingPlanesEditor.h"
-
-#include "Plane.h"
-#include "ModelViewer.h"
-#include "MainWindow.h"
-#include "Utils.h"
-
-#include "stb_image.h"
-
-#include "AssImpModelLoader.h"
-
-#include "config.h"
 
 constexpr auto TWO_HUNDRED_MB = 209715200; // bytes
 
@@ -333,52 +326,159 @@ void GLWidget::cleanUpShaders()
 	if (_debugShader) delete _debugShader;
 }
 
-void GLWidget::serializeScene(QDataStream& out) const
+void GLWidget::initializeGL()
 {
-	// Write a version number for the scene format
-	out << quint32(1);
+	initializeOpenGLFunctions();
 
-	// Write number of meshes
-	out << quint32(_meshStore.size());
+	makeCurrent();
 
-	// Serialize each mesh
-	for (TriangleMesh* mesh : _meshStore) {
-		dynamic_cast<AssImpMesh*>(mesh)->serialize(out);
-	}
+	createShaderPrograms();
+
+	_assimpModelLoader = new AssImpModelLoader(_fgShader);
+	connect(_assimpModelLoader, SIGNAL(fileReadProcessed(float)), this, SLOT(showFileReadingProgress(float)));
+	connect(_assimpModelLoader, SIGNAL(verticesProcessed(float)), this, SLOT(showMeshLoadingProgress(float)));
+	connect(_assimpModelLoader, SIGNAL(nodeProcessed(int, int)), this, SLOT(showModelLoadingProgress(int, int)));
+	connect(this, SIGNAL(loadingAssImpModelCancelled()), _assimpModelLoader, SLOT(cancelLoading()));
+
+	const std::string path = std::string(MODELVIEWER_DATA_DIR) + "/";
+	// Text rendering
+	_textShader->bind();
+	_textRenderer = new TextRenderer(_textShader, width(), height());
+	_textRenderer->Load(path + "fonts/arial.ttf", 20);
+	_axisTextRenderer = new TextRenderer(_textShader, width(), height());
+	_axisTextRenderer->Load(path + "fonts/arialbd.ttf", 16);
+	_textShader->release();
+
+	createCappingPlanes();
+
+	createLights();
+
+	// Environment Mapping
+	loadEnvMap();
+	// IBL Map
+	loadIrradianceMap();
+	// Shadow mapping
+	loadFloor();
+
+	float size = 15;
+	_axisCone = new Cone(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
+
+	// Set lighting information
+	_fgShader->bind();
+	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
+	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
+	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
+	_fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
+	_fgShader->setUniformValue("Line.Width", 0.75f);
+	_fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
+	_fgShader->setUniformValue("texUnit", 0);
+	_fgShader->setUniformValue("envMap", 1);
+	_fgShader->setUniformValue("shadowMap", 2);
+	_fgShader->setUniformValue("irradianceMap", 3);
+	_fgShader->setUniformValue("prefilterMap", 4);
+	_fgShader->setUniformValue("brdfLUT", 5);
+	_fgShader->setUniformValue("shadowSamples", 27.0f);
+	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
+	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+	_fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
+
+	QMatrix4x4 envMapRot;
+	envMapRot.rotate(-90, 1, 0, 0); // Or whatever rotation you used for the cube
+	_fgShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
+
+	_debugShader->bind();
+	_debugShader->setUniformValue("depthMap", 0);
+
+	_viewMatrix.setToIdentity();
+	glEnable(GL_DEPTH_TEST);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.f);
 }
 
-#include "AssImpMesh.h"
-void GLWidget::deserializeScene(QDataStream& in)
+void GLWidget::resizeGL(int width, int height)
 {
-	makeCurrent();
-	// Clean up any existing meshes
-	for (TriangleMesh* mesh : _meshStore) {
-		delete mesh;
+	float w = (float)width;
+	float h = (float)height;
+
+	glViewport(0, 0, w, h);
+	_viewportMatrix = QMatrix4x4(w / 2, 0.0f, 0.0f, 0.0f,
+		0.0f, h / 2, 0.0f, 0.0f,
+		0.0f, 0.0f, 1.0f, 0.0f,
+		w / 2 + 0, h / 2 + 0, 0.0f, 1.0f);
+
+	_projectionMatrix.setToIdentity();
+	_primaryCamera->setScreenSize(w, h);
+	_primaryCamera->setViewRange(_viewRange);
+	if (_projection == ViewProjection::ORTHOGRAPHIC)
+	{
+		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
 	}
-	_meshStore.clear();
+	else
+	{
+		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
+	}
+	_projectionMatrix = _primaryCamera->getProjectionMatrix();
+	_viewMatrix = _primaryCamera->getViewMatrix();
 
-	quint32 version;
-	in >> version;
+	// Resize the text frame
+	_textRenderer->setWidth(width);
+	_textRenderer->setHeight(height);
+	QMatrix4x4 projection;
+	projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h)));
+	_textShader->bind();
+	_textShader->setUniformValue("projection", projection);
+	_textShader->release();
 
-	quint32 meshCount;
-	in >> meshCount;
+	update();
+}
 
-	for (quint32 i = 0; i < meshCount; ++i) {
-		// You may need to use a factory or a default shader program here
-		AssImpMesh* mesh = new AssImpMesh(
-			_fgShader,                // Use the main shader
-			QString(),                // Empty name (will be set in deserialize)
-			{},                       // Empty vertices
-			{},                       // Empty indices
-			{},                       // Empty textures
-			GLMaterial()              // Default material
-		);
-		mesh->deserialize(in);
-		addToDisplay(mesh);
+void GLWidget::paintGL()
+{
+	QColor topColor = !_visibleSwapped ? _bgTopColor : QColor::fromRgbF(1.0f - _bgTopColor.redF(),
+		1.0f - _bgTopColor.greenF(), 1.0f - _bgTopColor.blueF(),
+		_bgTopColor.alphaF());
+	QColor botColor = !_visibleSwapped ? _bgBotColor : QColor::fromRgbF(1.0f - _bgBotColor.redF(),
+		1.0f - _bgBotColor.greenF(), 1.0f - _bgBotColor.blueF(),
+		_bgBotColor.alphaF());
+	try
+	{
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+
+		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
+			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
+
+		_modelMatrix.setToIdentity();
+		if (_multiViewActive)
+		{
+			renderMultiView(topColor, botColor);
+		}
+		else
+		{
+			renderSingleView(topColor, botColor);
+		}
+
+		// Text rendering
+		if (_meshStore.size() != 0 && _displayedObjectsIds.size() != 0)
+		{
+			_textRenderer->RenderText(QString("No of Meshes: %1").arg(_meshStore.size()).toStdString(), 4, 4, 1, QVector3D(1.0f, 1.0f, 0.0f));
+		}
+	}
+	catch (const std::exception& ex)
+	{
+		std::cout << "Exception raised in GLWidget::paintGL\n" << ex.what() << std::endl;
 	}
 
-	// Optionally, update the view or UI after loading
-	updateView();
+	// For testing rendered shadow map
+	/*_debugShader.bind();
+	_debugShader.setUniformValue("near_plane", 1.0f);
+	_debugShader.setUniformValue("far_plane", _viewRange);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, _shadowMap);
+	renderQuad();*/
+
+	//_brdfShader->bind();
+	//renderQuad();
 }
 
 void GLWidget::updateView()
@@ -2048,77 +2148,6 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	fitAll();
 }
 
-
-void GLWidget::initializeGL()
-{
-	initializeOpenGLFunctions();
-
-	makeCurrent();
-
-	createShaderPrograms();
-
-	_assimpModelLoader = new AssImpModelLoader(_fgShader);
-	connect(_assimpModelLoader, SIGNAL(fileReadProcessed(float)), this, SLOT(showFileReadingProgress(float)));
-	connect(_assimpModelLoader, SIGNAL(verticesProcessed(float)), this, SLOT(showMeshLoadingProgress(float)));
-    connect(_assimpModelLoader, SIGNAL(nodeProcessed(int,int)), this, SLOT(showModelLoadingProgress(int,int)));
-	connect(this, SIGNAL(loadingAssImpModelCancelled()), _assimpModelLoader, SLOT(cancelLoading()));
-
-    const std::string path = std::string(MODELVIEWER_DATA_DIR) + "/";
-	// Text rendering
-	_textShader->bind();
-	_textRenderer = new TextRenderer(_textShader, width(), height());
-    _textRenderer->Load(path + "fonts/arial.ttf", 20);
-	_axisTextRenderer = new TextRenderer(_textShader, width(), height());
-    _axisTextRenderer->Load(path + "fonts/arialbd.ttf", 16);
-	_textShader->release();
-
-	createCappingPlanes();
-
-	createLights();
-
-	// Environment Mapping
-	loadEnvMap();
-	// IBL Map
-	loadIrradianceMap();
-	// Shadow mapping
-	loadFloor();
-	
-	float size = 15;
-	_axisCone = new Cone(_axisShader, _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
-
-	// Set lighting information
-	_fgShader->bind();
-	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
-	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
-	_fgShader->setUniformValue("Line.Width", 0.75f);
-	_fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
-	_fgShader->setUniformValue("texUnit", 0);
-	_fgShader->setUniformValue("envMap", 1);
-	_fgShader->setUniformValue("shadowMap", 2);
-	_fgShader->setUniformValue("irradianceMap", 3);
-	_fgShader->setUniformValue("prefilterMap", 4);
-	_fgShader->setUniformValue("brdfLUT", 5);
-	_fgShader->setUniformValue("shadowSamples", 27.0f);
-	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
-	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
-	_fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
-
-	QMatrix4x4 envMapRot;
-	envMapRot.rotate(-90, 1, 0, 0); // Or whatever rotation you used for the cube
-	_fgShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
-
-	_debugShader->bind();
-	_debugShader->setUniformValue("depthMap", 0);
-
-	_viewMatrix.setToIdentity();
-	glEnable(GL_DEPTH_TEST);	
-
-	glClearColor(0.0f, 0.0f, 0.0f, 1.f);
-}
-
 bool GLWidget::loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, const QString& vertexProg,
 	const QString& fragmentProg, const QString& geometryProg,
 	const QString& tessControlProg, const QString& tessEvalProg)
@@ -2551,91 +2580,6 @@ void GLWidget::loadIrradianceMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
 	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
-}
-
-void GLWidget::resizeGL(int width, int height)
-{
-	float w = (float)width;
-    float h = (float)height;
-
-	glViewport(0, 0, w, h);
-	_viewportMatrix = QMatrix4x4(w / 2, 0.0f, 0.0f, 0.0f,
-		0.0f, h / 2, 0.0f, 0.0f,
-		0.0f, 0.0f, 1.0f, 0.0f,
-		w / 2 + 0, h / 2 + 0, 0.0f, 1.0f);
-
-	_projectionMatrix.setToIdentity();
-	_primaryCamera->setScreenSize(w, h);
-	_primaryCamera->setViewRange(_viewRange);
-	if (_projection == ViewProjection::ORTHOGRAPHIC)
-	{
-		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
-	}
-	else
-	{
-		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
-	}
-	_projectionMatrix = _primaryCamera->getProjectionMatrix();
-	_viewMatrix = _primaryCamera->getViewMatrix();
-
-	// Resize the text frame
-	_textRenderer->setWidth(width);
-	_textRenderer->setHeight(height);
-	QMatrix4x4 projection;
-	projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(w), static_cast<float>(h)));
-	_textShader->bind();
-	_textShader->setUniformValue("projection", projection);
-	_textShader->release();
-
-	update();
-}
-
-void GLWidget::paintGL()
-{
-	QColor topColor = !_visibleSwapped ? _bgTopColor : QColor::fromRgbF(1.0f - _bgTopColor.redF(),
-		1.0f - _bgTopColor.greenF(), 1.0f - _bgTopColor.blueF(),
-		_bgTopColor.alphaF());
-	QColor botColor = !_visibleSwapped ? _bgBotColor : QColor::fromRgbF(1.0f - _bgBotColor.redF(),
-		1.0f - _bgBotColor.greenF(), 1.0f - _bgBotColor.blueF(),
-		_bgBotColor.alphaF());
-	try
-	{
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-
-		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
-
-		_modelMatrix.setToIdentity();
-		if (_multiViewActive)
-		{
-			renderMultiView(topColor, botColor);
-		}
-		else
-		{
-			renderSingleView(topColor, botColor);
-		}
-
-		// Text rendering
-		if (_meshStore.size() != 0 && _displayedObjectsIds.size() != 0)
-		{			
-			_textRenderer->RenderText(QString("No of Meshes: %1").arg(_meshStore.size()).toStdString(), 4, 4, 1, QVector3D(1.0f, 1.0f, 0.0f));
-		}        
-	}
-	catch (const std::exception& ex)
-	{
-		std::cout << "Exception raised in GLWidget::paintGL\n" << ex.what() << std::endl;
-	}
-
-	// For testing rendered shadow map
-	/*_debugShader.bind();
-	_debugShader.setUniformValue("near_plane", 1.0f);
-	_debugShader.setUniformValue("far_plane", _viewRange);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _shadowMap);
-	renderQuad();*/
-
-	//_brdfShader->bind();
-	//renderQuad();
 }
 
 void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
@@ -5247,4 +5191,55 @@ void GLWidget::setBackgroundColor()
 {
 	BackgroundColor bgCol(this);
 	bgCol.exec();
+}
+
+void GLWidget::serializeScene(QDataStream& out) const
+{
+	// Write a version number for the scene format
+	out << quint32(1);
+
+	// Write number of meshes
+	out << quint32(_meshStore.size());
+
+	// Serialize each mesh
+	for (TriangleMesh* mesh : _meshStore)
+	{
+		dynamic_cast<AssImpMesh*>(mesh)->serialize(out);
+	}
+}
+
+#include "AssImpMesh.h"
+void GLWidget::deserializeScene(QDataStream& in)
+{
+	makeCurrent();
+	// Clean up any existing meshes
+	for (TriangleMesh* mesh : _meshStore)
+	{
+		delete mesh;
+	}
+	_meshStore.clear();
+
+	quint32 version;
+	in >> version;
+
+	quint32 meshCount;
+	in >> meshCount;
+
+	for (quint32 i = 0; i < meshCount; ++i)
+	{
+		// You may need to use a factory or a default shader program here
+		AssImpMesh* mesh = new AssImpMesh(
+			_fgShader,                // Use the main shader
+			QString(),                // Empty name (will be set in deserialize)
+			{},                       // Empty vertices
+			{},                       // Empty indices
+			{},                       // Empty textures
+			GLMaterial()              // Default material
+		);
+		mesh->deserialize(in);
+		addToDisplay(mesh);
+	}
+
+	// Optionally, update the view or UI after loading
+	updateView();
 }
