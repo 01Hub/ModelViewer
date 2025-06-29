@@ -632,7 +632,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
                 viewDir = normalize(g_tangentViewPos - g_tangentFragPos);
             else
                 viewDir = normalize(g_tangentLightPos + g_tangentFragPos);
-            
+
             // Apply parallax mapping and get the new texture coordinates
             clippedTexCoord = applyParallax(g_texCoord2d, viewDir, heightMap, heightScale);
 
@@ -682,15 +682,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     float attenuation = 1.0 / (distance * distance);
     float lightIntensity = 1000.0f;
     vec3 lightColor = vec3(3.0f, 3.0f, 3.0f) * lightIntensity;
-    //vec3 radiance = lightColor * attenuation;//(lightSource.ambient + lightSource.diffuse + lightSource.specular);
     vec3 radiance;
     if(shadowsEnabled && displayMode == 3)
     {
         // Calculate kernel size adaptively based on distance
         //float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
         float shadowFactor = calculateShadowVariableKernel(
-        fs_in_shadow.FragPosLightSpace, 
-        fs_in_shadow.FragPos, 
+        fs_in_shadow.FragPosLightSpace,
+        fs_in_shadow.FragPos,
         fs_in_shadow.lightPos
     );
         radiance = (lightSource.ambient + 1- shadowFactor)  * (lightSource.diffuse + lightSource.specular);
@@ -816,14 +815,6 @@ void applyEnvironmentMapping(float alpha)
         {
             vec3 I = normalize(cameraPos - g_reflectionPosition);
             vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
-            
-            //vec3 V = normalize(cameraPos - g_reflectionPosition);
-            //vec3 R = reflect(V, normalize(g_reflectionNormal));
-          
-
-            //vec3 I = normalize(cameraPos - g_reflectionPosition);
-            //vec3 N = normalize(g_reflectionNormal);
-            //vec3 R = reflect(I, N);                      
             R = envMapRotationMatrix * R;
             float factor =  material.metallic ? length(material.specular) : length(material.diffuse);
             fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128.0f * factor);

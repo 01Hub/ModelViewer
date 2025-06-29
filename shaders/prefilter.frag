@@ -4,7 +4,6 @@ out vec4 fragColor;
 in vec3 worldPos;
 
 uniform samplerCube environmentMap;
-uniform mat3 envMapRotationMatrix;
 uniform float roughness;
 
 const float PI = 3.14159265359;
@@ -97,9 +96,7 @@ void main()
 
             float mipLevel = roughness == 0.0 ? 0.0 : 0.5 * log2(saSample / saTexel);
 
-            vec3 rotatedL = envMapRotationMatrix * L; // rotation due to skybox rotation
-
-            prefilteredColor += textureLod(environmentMap, rotatedL, mipLevel).rgb * NdotL;
+            prefilteredColor += textureLod(environmentMap, L, mipLevel).rgb * NdotL;
             totalWeight      += NdotL;
         }
     }

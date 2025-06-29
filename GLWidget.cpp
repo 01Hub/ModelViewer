@@ -505,6 +505,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 		void* data = nullptr;
 		std::string fileName = skyboxImages[i].toStdString();
 
+		stbi_set_flip_vertically_on_load(false);
 		if (_skyBoxTextureHDRI)
 		{
 			data = static_cast<float*>(stbi_loadf(fileName.c_str(), &width, &height, &nrComponents, 0));
@@ -547,6 +548,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 {
 	int imgWidth, imgHeight, channels;
+	stbi_set_flip_vertically_on_load(false);
 	float* data = stbi_loadf(filePath.toStdString().c_str(), &imgWidth, &imgHeight, &channels, 0);
 	if (!data)
 	{
@@ -2340,7 +2342,8 @@ void GLWidget::loadEnvMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 		
 	int width, height, nrComponents;
-	void* data = nullptr;	
+	void* data = nullptr;
+	stbi_set_flip_vertically_on_load(false);
 	for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
 	{
 		if (_skyBoxTextureHDRI)
@@ -2434,9 +2437,6 @@ void GLWidget::loadIrradianceMap()
 	_irradianceShader->bind();
 	_irradianceShader->setUniformValue("environmentMap", 1);
 	_irradianceShader->setUniformValue("projectionMatrix", captureProjection);
-	QMatrix4x4 envMapRot;
-	envMapRot.rotate(-90, 1, 0, 0); // Or whatever rotation you used for the cube
-	_irradianceShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
@@ -2482,9 +2482,7 @@ void GLWidget::loadIrradianceMap()
 	_skyBox->setProg(_prefilterShader);
 	_prefilterShader->bind();
 	_prefilterShader->setUniformValue("environmentMap", 1);
-	_prefilterShader->setUniformValue("projectionMatrix", captureProjection);		
-	_prefilterShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
-
+	_prefilterShader->setUniformValue("projectionMatrix", captureProjection);
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
@@ -3301,6 +3299,10 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->setUniformValue("viewMatrix", _viewMatrix);
 	_fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);		
 	_fgShader->setUniformValue("lightFarPlane", _lightPosition.z() + _lightOffsetZ);
+
+	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
+	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
+	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
 
 	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
 	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
@@ -4475,6 +4477,7 @@ unsigned int GLWidget::loadTextureFromFile(char const* path)
 	glGenTextures(1, &textureID);
 	
 	int width, height, nrComponents;
+	stbi_set_flip_vertically_on_load(true);
 	unsigned char* data = stbi_load(path, &width, &height, &nrComponents, 0);
 	if (data)
 	{
