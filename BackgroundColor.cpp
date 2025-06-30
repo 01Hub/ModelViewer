@@ -145,5 +145,7 @@ void BackgroundColor::on_pushButtonDefaultColor_clicked()
 {
     _topColor = QColor::fromRgbF(0.45f, 0.45f, 0.45f, 1.0f);
     _bottomColor = QColor::fromRgbF(0.9f, 0.9f, 0.9f, 1.0f);
+	_gradientStyle = 0; // Default to vertical gradient
+	ui->comboBoxGradientStyle->setCurrentIndex(_gradientStyle);
     setPreviewColor();
 }
