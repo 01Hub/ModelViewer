@@ -94,7 +94,8 @@ private:
 
 	aiScene* processIGESFile(const std::string& path);
 	aiScene* processSTEPFile(const std::string& path);
-
+	aiScene* processBREPFile(const std::string& path);
+	
 	void readSTEPFile(const std::string& filename, Handle(TDocStd_Document)& doc);
 	void traverseXCAFAssembly(
 		const Handle(XCAFDoc_ShapeTool)& shapeTool,
