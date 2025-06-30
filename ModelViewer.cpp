@@ -688,7 +688,12 @@ void ModelViewer::dropEvent(QDropEvent* event)
 			else
 			{
 				QString errMsg;
-				_glWidget->loadAssImpModel(fileName, errMsg);
+				bool success = _glWidget->loadAssImpModel(fileName, errMsg);
+				if(!success)
+				{
+					QMessageBox::critical(this, "Error", "Failed to load model: " + fileName + "\n" + errMsg);
+					continue;
+				}
 			}
 
 			updateDisplayList();
