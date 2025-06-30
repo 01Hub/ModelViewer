@@ -32,6 +32,10 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 	if (!allExtensions.contains("*.iges", Qt::CaseInsensitive)) {
 		allExtensions += " *.iges *.igs";
 	}
+	if (!allExtensions.contains("*.brep", Qt::CaseInsensitive))
+	{
+		allExtensions += " *.brep *.rle";
+	}
 
 	// 3. All Supported filter
 	QString allSupportedFilter = QString("All Supported Files (%1)").arg(allExtensions.trimmed());
@@ -48,6 +52,7 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 		"GLTF (*.gltf *.glb)",
 		"STEP (*.step *.stp)",
 		"IGES (*.iges *.igs)",
+		"BREP (*.brep *.rle)",
 		"IFC (*.ifc)",
 		"OFF (*.off)",
 		"LWO (*.lwo *.lws)",
