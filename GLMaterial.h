@@ -167,6 +167,7 @@ public:
     static GLMaterial GOLD();
     static GLMaterial SILVER();
     static GLMaterial CHROME();
+	static GLMaterial STEEL();
     static GLMaterial RUBY();
     static GLMaterial EMERALD();
     static GLMaterial TURQUOISE();
@@ -196,6 +197,34 @@ public:
     static GLMaterial SKIN();
     static GLMaterial PAPER();
     static GLMaterial WOOD();
+	static GLMaterial METAL();
+	static GLMaterial PLASTIC();
+	static GLMaterial STONE();
+
+	// Some intereting stone materials
+    static GLMaterial STONE_GRANITE();
+    static GLMaterial STONE_LIMESTONE();
+    static GLMaterial STONE_MARBLE();
+    static GLMaterial STONE_SLATE();
+    static GLMaterial STONE_SANDSTONE();
+    static GLMaterial STONE_BASALT();
+    static GLMaterial STONE_OBSIDIAN();
+    static GLMaterial STONE_TRAVERTINE();
+    static GLMaterial STONE_QUARTZITE();
+    static GLMaterial STONE_SOAPSTONE();
+
+	// Some interesting metal materials
+    static GLMaterial METAL_TITANIUM();
+    static GLMaterial METAL_PLATINUM();
+    static GLMaterial METAL_MAGNESIUM();
+    static GLMaterial METAL_ZINC();
+    static GLMaterial METAL_NICKEL();
+    static GLMaterial METAL_ALUMINUM();
+    static GLMaterial METAL_IRON_RAW();
+    static GLMaterial METAL_COBALT();
+    static GLMaterial METAL_PEWTER();
+    static GLMaterial METAL_TUNGSTEN();
+
 
     void serialize(QDataStream& out) const;
     void deserialize(QDataStream& in);

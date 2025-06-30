@@ -313,6 +313,26 @@ GLMaterial GLMaterial::CHROME()
     return mat;
 }
 
+GLMaterial GLMaterial::STEEL()
+{
+    GLMaterial mat({ 0.25f, 0.25f, 0.25f },
+        { 0.4f, 0.4f, 0.4f },
+        { 0.774597f, 0.774597f, 0.774597f },
+        { 0.0, 0.0, 0.0 },
+        fabs(128.0 * 0.6),
+        true,
+        1.0f);
+
+    mat.setAlbedoColor(mat.diffuse());
+    mat.setMetalness(1.0f);
+    mat.setRoughness(0.25f);
+    mat.setShadingModel(ShadingModel::PBR);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+
+    return mat;
+}
+
 GLMaterial GLMaterial::RUBY()
 {
     GLMaterial mat({ 0.17450f, 0.01175f, 0.01175f },
@@ -853,26 +873,394 @@ GLMaterial GLMaterial::WOOD()
 	return mat;
 }
 
+GLMaterial GLMaterial::METAL()
+{
+    GLMaterial mat;
+
+    mat.setAmbient(QVector3D(0.1f, 0.1f, 0.1f));
+    mat.setDiffuse(QVector3D(0.2f, 0.2f, 0.2f));
+    mat.setSpecular(QVector3D(0.8f, 0.8f, 0.8f));
+    mat.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
+    mat.setShininess(256.0f);
+    mat.setMetallic(true);
+
+    mat.setAlbedoColor(QVector3D(0.7f, 0.7f, 0.7f));
+    mat.setMetalness(1.0f);
+    mat.setRoughness(0.1f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(2.5f);
+    mat.setShadingModel(ShadingModel::PBR);
+
+    return mat;
+}
+
+GLMaterial GLMaterial::PLASTIC()
+{
+    GLMaterial mat;
+
+    mat.setAmbient(QVector3D(0.2f, 0.2f, 0.2f));
+    mat.setDiffuse(QVector3D(0.6f, 0.6f, 0.8f));
+    mat.setSpecular(QVector3D(0.5f, 0.5f, 0.5f));
+    mat.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
+    mat.setShininess(128.0f);
+    mat.setMetallic(false);
+
+    mat.setAlbedoColor(QVector3D(0.6f, 0.6f, 0.8f));
+    mat.setMetalness(0.0f);
+    mat.setRoughness(0.3f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.5f);
+    mat.setShadingModel(ShadingModel::PBR);
+
+    return mat;
+}
+
+GLMaterial GLMaterial::STONE()
+{
+    GLMaterial mat;
+
+    mat.setAmbient(QVector3D(0.1f, 0.1f, 0.1f)); // Lower ambient reflectivity
+    mat.setDiffuse(QVector3D(0.5f, 0.5f, 0.5f)); // Neutral gray diffuse for a generic stone
+    mat.setSpecular(QVector3D(0.05f, 0.05f, 0.05f)); // Very low specular highlight
+    mat.setEmissive(QVector3D(0.0f, 0.0f, 0.0f)); // No emission
+    mat.setShininess(8.0f); // Very dull surface
+    mat.setMetallic(false);
+
+    mat.setAlbedoColor(QVector3D(0.5f, 0.5f, 0.5f)); // Base color
+    mat.setMetalness(0.0f); // Stone is non-metallic
+    mat.setRoughness(0.9f); // High roughness
+    mat.setOpacity(1.0f); // Fully opaque
+    mat.setTransmission(0.0f); // No light transmission
+    mat.setIOR(1.45f); // IOR of typical minerals/stones
+    mat.setShadingModel(ShadingModel::PBR);
+
+    return mat;
+}
+
+GLMaterial GLMaterial::STONE_GRANITE()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.6f, 0.55f, 0.55f));
+    mat.setRoughness(0.8f);
+    mat.setSpecular(QVector3D(0.05f, 0.05f, 0.05f));
+    mat.setShininess(12.0f);
+    mat.setMetalness(0.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.45f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::STONE_LIMESTONE()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.75f, 0.73f, 0.68f));
+    mat.setRoughness(0.9f);
+    mat.setSpecular(QVector3D(0.02f, 0.02f, 0.02f));
+    mat.setShininess(6.0f);
+    mat.setMetalness(0.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.45f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::STONE_MARBLE()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.9f));
+    mat.setRoughness(0.5f);
+    mat.setSpecular(QVector3D(0.2f, 0.2f, 0.2f));
+    mat.setShininess(32.0f);
+    mat.setMetalness(0.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.45f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::STONE_SLATE()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.15f, 0.18f, 0.22f));
+    mat.setRoughness(0.95f);
+    mat.setSpecular(QVector3D(0.01f, 0.01f, 0.01f));
+    mat.setShininess(4.0f);
+    mat.setMetalness(0.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.45f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::STONE_SANDSTONE()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.76f, 0.64f, 0.48f));
+    mat.setRoughness(0.85f);
+    mat.setSpecular(QVector3D(0.03f, 0.03f, 0.03f));
+    mat.setShininess(10.0f);
+    mat.setMetalness(0.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.45f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::STONE_BASALT()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.1f, 0.1f, 0.1f));
+    mat.setRoughness(0.9f);
+    mat.setSpecular(QVector3D(0.02f, 0.02f, 0.02f));
+    mat.setShininess(6.0f);
+    mat.setMetalness(0.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.45f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::STONE_OBSIDIAN()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.02f, 0.02f, 0.02f));
+    mat.setRoughness(0.2f);
+    mat.setSpecular(QVector3D(0.5f, 0.5f, 0.5f));
+    mat.setShininess(128.0f);
+    mat.setMetalness(0.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.45f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::STONE_TRAVERTINE()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.85f, 0.8f, 0.7f));
+    mat.setRoughness(0.85f);
+    mat.setSpecular(QVector3D(0.02f, 0.02f, 0.02f));
+    mat.setShininess(8.0f);
+    mat.setMetalness(0.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.45f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::STONE_QUARTZITE()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.8f, 0.85f, 0.9f));
+    mat.setRoughness(0.4f);
+    mat.setSpecular(QVector3D(0.3f, 0.3f, 0.3f));
+    mat.setShininess(64.0f);
+    mat.setMetalness(0.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.45f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::STONE_SOAPSTONE()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.25f, 0.3f, 0.28f));
+    mat.setRoughness(0.95f);
+    mat.setSpecular(QVector3D(0.01f, 0.01f, 0.01f));
+    mat.setShininess(4.0f);
+    mat.setMetalness(0.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.45f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::METAL_TITANIUM()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.55f, 0.58f, 0.62f));
+    mat.setRoughness(0.3f);
+    mat.setMetalness(1.0f);
+    mat.setSpecular(QVector3D(0.7f, 0.7f, 0.7f));
+    mat.setShininess(64.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(2.5f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::METAL_PLATINUM()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.82f, 0.82f, 0.85f));
+    mat.setRoughness(0.2f);
+    mat.setMetalness(1.0f);
+    mat.setSpecular(QVector3D(0.9f, 0.9f, 0.9f));
+    mat.setShininess(96.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(2.9f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::METAL_MAGNESIUM()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.95f));
+    mat.setRoughness(0.4f);
+    mat.setMetalness(1.0f);
+    mat.setSpecular(QVector3D(0.7f, 0.7f, 0.75f));
+    mat.setShininess(40.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.6f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::METAL_ZINC()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.65f, 0.7f, 0.75f));
+    mat.setRoughness(0.35f);
+    mat.setMetalness(1.0f);
+    mat.setSpecular(QVector3D(0.7f, 0.7f, 0.7f));
+    mat.setShininess(48.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.9f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::METAL_NICKEL()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.72f, 0.72f, 0.74f));
+    mat.setRoughness(0.25f);
+    mat.setMetalness(1.0f);
+    mat.setSpecular(QVector3D(0.85f, 0.85f, 0.85f));
+    mat.setShininess(80.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(2.0f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::METAL_ALUMINUM()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.91f, 0.92f, 0.92f));
+    mat.setRoughness(0.2f);
+    mat.setMetalness(1.0f);
+    mat.setSpecular(QVector3D(0.95f, 0.95f, 0.95f));
+    mat.setShininess(72.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(1.44f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::METAL_IRON_RAW()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.45f, 0.45f, 0.47f));
+    mat.setRoughness(0.5f); // Raw/unpolished
+    mat.setMetalness(1.0f);
+    mat.setSpecular(QVector3D(0.6f, 0.6f, 0.6f));
+    mat.setShininess(32.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(2.25f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::METAL_COBALT()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.4f, 0.45f, 0.6f));
+    mat.setRoughness(0.3f);
+    mat.setMetalness(1.0f);
+    mat.setSpecular(QVector3D(0.7f, 0.7f, 0.75f));
+    mat.setShininess(52.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(2.3f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::METAL_PEWTER()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.6f, 0.6f, 0.62f));
+    mat.setRoughness(0.6f); // Matte finish
+    mat.setMetalness(1.0f);
+    mat.setSpecular(QVector3D(0.55f, 0.55f, 0.55f));
+    mat.setShininess(20.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(2.1f);
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+GLMaterial GLMaterial::METAL_TUNGSTEN()
+{
+    GLMaterial mat;
+    mat.setAlbedoColor(QVector3D(0.3f, 0.3f, 0.33f));
+    mat.setRoughness(0.15f);
+    mat.setMetalness(1.0f);
+    mat.setSpecular(QVector3D(0.85f, 0.85f, 0.9f));
+    mat.setShininess(96.0f);
+    mat.setOpacity(1.0f);
+    mat.setTransmission(0.0f);
+    mat.setIOR(3.0f); // High IOR for heavy metals
+    mat.setShadingModel(ShadingModel::PBR);
+    return mat;
+}
+
+
 GLMaterial GLMaterial::DEFAULT_MAT()
 {    
-    GLMaterial mat({ 90 / 255.0f, 98 / 255.0f, 115 / 255.0f },
-        { 175 / 255.0f, 192 / 255.0f, 224 / 255.0f },
-        { 26 / 255.0f, 26 / 255.0f, 26 / 255.0f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.05f),
-        false,
-        1.0f);
-	mat.setAlbedoColor(mat.ambient() + mat.diffuse());
-	mat.setMetalness(1.0f);
-	mat.setRoughness(0.7f);
+	return STEEL(); // Default material set to STEEL
+ //   GLMaterial mat({ 90 / 255.0f, 98 / 255.0f, 115 / 255.0f },
+ //       { 175 / 255.0f, 192 / 255.0f, 224 / 255.0f },
+ //       { 26 / 255.0f, 26 / 255.0f, 26 / 255.0f },
+ //       { 0.0, 0.0, 0.0 },
+ //       fabs(128.0 * 0.05f),
+ //       false,
+ //       1.0f);
+	//mat.setAlbedoColor(mat.ambient() + mat.diffuse());
+	//mat.setMetalness(1.0f);
+	//mat.setRoughness(0.7f);
 
-	// Additional PBR properties for complete material definition
-	mat.setOpacity(1.0f); // Fully opaque
-	mat.setTransmission(0.0f); // No light transmission
-	mat.setIOR(1.5f); // Standard dielectric IOR
-	mat.setShadingModel(ShadingModel::PBR); // Use PBR shading
+	//// Additional PBR properties for complete material definition
+	//mat.setOpacity(1.0f); // Fully opaque
+	//mat.setTransmission(0.0f); // No light transmission
+	//mat.setIOR(1.5f); // Standard dielectric IOR
+	//mat.setShadingModel(ShadingModel::PBR); // Use PBR shading
 
-	return mat;
+	//return mat;
 }
 
 void GLMaterial::setAlbedoFromADS()
