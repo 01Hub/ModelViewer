@@ -9,7 +9,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>363</width>
+    <width>399</width>
     <height>258</height>
    </rect>
   </property>
@@ -70,23 +70,6 @@
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButtonDefaultColor">
-         <property name="text">
-          <string>Default Color</string>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QCheckBox" name="checkBoxGrad">
-         <property name="text">
-          <string>Gradient</string>
-         </property>
-         <property name="checked">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-       <item>
         <widget class="QComboBox" name="comboBoxGradientStyle">
          <item>
           <property name="text">
@@ -108,6 +91,23 @@
            <string>Top Right To Bottom Left</string>
           </property>
          </item>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="checkBoxGrad">
+         <property name="text">
+          <string>Gradient</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="pushButtonDefaultColor">
+         <property name="text">
+          <string>Default</string>
+         </property>
         </widget>
        </item>
       </layout>
@@ -173,7 +173,6 @@
  <tabstops>
   <tabstop>pushButtonTop</tabstop>
   <tabstop>pushButtonBottom</tabstop>
-  <tabstop>pushButtonDefaultColor</tabstop>
   <tabstop>okButton</tabstop>
   <tabstop>applyButton</tabstop>
   <tabstop>cancelButton</tabstop>
@@ -187,12 +186,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>232</x>
-     <y>122</y>
+     <x>387</x>
+     <y>93</y>
     </hint>
     <hint type="destinationlabel">
-     <x>203</x>
-     <y>55</y>
+     <x>387</x>
+     <y>66</y>
     </hint>
    </hints>
   </connection>
@@ -203,12 +202,12 @@
    <slot>setEnabled(bool)</slot>
    <hints>
     <hint type="sourcelabel">
-     <x>264</x>
-     <y>112</y>
+     <x>387</x>
+     <y>93</y>
     </hint>
     <hint type="destinationlabel">
-     <x>269</x>
-     <y>143</y>
+     <x>387</x>
+     <y>122</y>
     </hint>
    </hints>
   </connection>
