@@ -1287,6 +1287,7 @@ void ModelViewer::on_displayShaded_triggered(bool)
 {
 	checkBoxEnvMapping->setChecked(false);
 	checkBoxShadowMapping->setChecked(false);
+	checkBoxSelfShadows->setChecked(false);
 	checkBoxReflections->setChecked(false);
 	checkBoxFloor->setChecked(false);
 	_glWidget->setDisplayMode(DisplayMode::SHADED);
@@ -1298,6 +1299,7 @@ void ModelViewer::on_displayWireframe_triggered(bool)
 {
 	checkBoxEnvMapping->setChecked(false);
 	checkBoxShadowMapping->setChecked(false);
+	checkBoxSelfShadows->setChecked(false);
 	checkBoxReflections->setChecked(false);
 	checkBoxFloor->setChecked(false);
 	_glWidget->setDisplayMode(DisplayMode::WIREFRAME);
@@ -1309,6 +1311,7 @@ void ModelViewer::on_displayWireShaded_triggered(bool)
 {
 	checkBoxEnvMapping->setChecked(false);
 	checkBoxShadowMapping->setChecked(false);
+	checkBoxSelfShadows->setChecked(false);
 	checkBoxReflections->setChecked(false);
 	checkBoxFloor->setChecked(false);
 	_glWidget->setDisplayMode(DisplayMode::WIRESHADED);
@@ -1320,6 +1323,7 @@ void ModelViewer::on_displayRealShaded_triggered(bool)
 {
 	checkBoxEnvMapping->setChecked(true);
 	checkBoxShadowMapping->setChecked(true);
+	checkBoxSelfShadows->setChecked(true);
 	checkBoxReflections->setChecked(true);
 	checkBoxFloor->setChecked(true);
 	_glWidget->setDisplayMode(DisplayMode::REALSHADED);
