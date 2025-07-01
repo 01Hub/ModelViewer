@@ -899,17 +899,7 @@ void AssImpModelLoader::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
 
 void AssImpModelLoader::setDefaultMaterial(GLMaterial& mat)
 {
-    mat.setAlbedoColor(QVector3D(0.8f, 0.8f, 0.8f));
-    mat.setDiffuse(QVector3D(0.8f, 0.8f, 0.8f));
-    mat.setAmbient(QVector3D(0.08f, 0.08f, 0.08f));
-    mat.setSpecular(QVector3D(0.04f, 0.04f, 0.04f));
-    mat.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.8f);
-    mat.setOpacity(1.0f);
-    mat.setIOR(1.5f);
-    mat.setTwoSided(false);
-    mat.setEmissiveStrength(1.0f);
+	mat = GLMaterial::DEFAULT_MAT();
 }
 
 void AssImpModelLoader::setShadingModel(GLMaterial& mat, aiShadingMode shadingModel)
