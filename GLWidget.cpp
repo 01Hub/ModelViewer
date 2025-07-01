@@ -3261,6 +3261,9 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->setUniformValue("viewMatrix", _viewMatrix);
 	_fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);		
 	_fgShader->setUniformValue("lightFarPlane", _lightPosition.z() + _lightOffsetZ);
+	_fgShader->setUniformValue("hdrToneMapping", _hdrToneMapping);
+	_fgShader->setUniformValue("gammaCorrection", _gammaCorrection);
+	_fgShader->setUniformValue("screenGamma", _screenGamma);
 
 	bindIBLTextures();
 
