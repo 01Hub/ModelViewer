@@ -684,7 +684,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     float lightIntensity = 1000.0f;
     vec3 lightColor = vec3(3.0f, 3.0f, 3.0f) * lightIntensity;
     vec3 radiance;
-    if(shadowsEnabled && displayMode == 3)
+    if(shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering))
     {
         // Calculate kernel size adaptively based on distance
         //float shadowFactor = calculateShadow(fs_in_shadow.FragPosLightSpace);
