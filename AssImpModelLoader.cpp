@@ -658,14 +658,24 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		}
 		else
 		{
-			if (step == 1)
-				vertex.TexCoords = glm::vec2(0.0f, 0.0f);
-			else if (step == 2)
-				vertex.TexCoords = glm::vec2(1.0f, 0.0f);
+			// Generate UVs based on the dominant axis of the vertex position
+			glm::vec3 pos = vertex.Position;
+			glm::vec3 absPos = glm::abs(pos);
+
+			if (absPos.x >= absPos.y && absPos.x >= absPos.z)
+			{
+				// X-dominant face
+				vertex.TexCoords = glm::vec2((pos.z + 1.0f) * 0.5f, (pos.y + 1.0f) * 0.5f);
+			}
+			else if (absPos.y >= absPos.x && absPos.y >= absPos.z)
+			{
+				// Y-dominant face  
+				vertex.TexCoords = glm::vec2((pos.x + 1.0f) * 0.5f, (pos.z + 1.0f) * 0.5f);
+			}
 			else
 			{
-				vertex.TexCoords = glm::vec2(0.5f, 1.0f);
-				step = 0;
+				// Z-dominant face
+				vertex.TexCoords = glm::vec2((pos.x + 1.0f) * 0.5f, (pos.y + 1.0f) * 0.5f);
 			}
 		}
 
