@@ -814,10 +814,22 @@ void applyEnvironmentMapping(float alpha)
         else if(renderingMode == 0)// Opaque - Reflect
         {
             vec3 I = normalize(cameraPos - g_reflectionPosition);
-            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection
+            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection to compensate for coordinate system
             R = envMapRotationMatrix * R;
-            float factor =  material.metallic ? length(material.specular) : length(material.diffuse);
-            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), material.shininess/128.0f * factor);
+    
+            float specularIntensity = dot(min(material.specular, vec3(1.0)), vec3(0.2126, 0.7152, 0.0722));
+            float fresnelPower = 1.0 + (1.0 - specularIntensity) * 4.0;
+            float fresnel = pow(1.0 - max(dot(-I, normalize(-g_reflectionNormal)), 0.0), fresnelPower);
+    
+            float factor = material.metallic ? length(material.specular) : length(material.diffuse);
+    
+            // Simulate surface roughness reducing reflections
+            float roughness = 1.0 - (material.shininess / 128.0); // Convert shininess to roughness
+            float roughnessReduction = 1.0 - (roughness * 0.8); // Rougher surfaces reflect less
+    
+            float reflectionStrength = (material.shininess / 128.0) * factor * fresnel * roughnessReduction * 0.3;
+    
+            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), reflectionStrength);
         }
     }
 }
