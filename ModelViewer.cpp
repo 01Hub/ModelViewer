@@ -2083,6 +2083,12 @@ void ModelViewer::on_checkBoxShadowMapping_toggled(bool checked)
 	_glWidget->update();
 }
 
+void ModelViewer::on_checkBoxSelfShadows_toggled(bool checked)
+{
+	_glWidget->showSelfShadows(checked);
+	_glWidget->update();
+}
+
 void ModelViewer::on_checkBoxEnvMapping_toggled(bool checked)
 {
 	_glWidget->showEnvironment(checked);

@@ -70,6 +70,7 @@ public:
 	void showAxis(bool show);
 
 	void showShadows(bool show);
+	void showSelfShadows(bool show);
 	void showEnvironment(bool show);
 	void showSkyBox(bool show);
 	void showReflections(bool show);
@@ -445,6 +446,7 @@ private:
 
 	bool _envMapEnabled;
 	bool _shadowsEnabled;
+	bool _selfShadowsEnabled;
 	bool _reflectionsEnabled;
 	bool _floorDisplayed;
 	bool _floorTextureDisplayed;

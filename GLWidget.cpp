@@ -128,6 +128,7 @@ _assimpModelLoader(nullptr)
 
 	_envMapEnabled = false;
 	_shadowsEnabled = false;
+	_selfShadowsEnabled = false;
 	_reflectionsEnabled = false;
 	_floorSize = 10.0f;
 	_floorSizeFactor = 5.0f;
@@ -1120,6 +1121,12 @@ void GLWidget::showAxis(bool show)
 void GLWidget::showShadows(bool show)
 {
 	_shadowsEnabled = show;
+	update();
+}
+
+void GLWidget::showSelfShadows(bool show)
+{
+	_selfShadowsEnabled = show;		
 	update();
 }
 
@@ -3247,6 +3254,7 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->setUniformValue("projectionMatrix", _projectionMatrix);
 	_fgShader->setUniformValue("viewportMatrix", _viewportMatrix);		
 	_fgShader->setUniformValue("shadowsEnabled", showShadows);	
+	_fgShader->setUniformValue("selfShadowsEnabled", _selfShadowsEnabled);
 	_fgShader->setUniformValue("cameraPos", _primaryCamera->getPosition());
 	_fgShader->setUniformValue("lightPos", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_fgShader->setUniformValue("modelMatrix", _modelMatrix);

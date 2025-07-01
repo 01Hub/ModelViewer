@@ -78,6 +78,7 @@ uniform bool opacityMapInverted = false;
 uniform bool envMapEnabled;
 uniform mat3 envMapRotationMatrix;
 uniform bool shadowsEnabled;
+uniform bool selfShadowsEnabled;
 uniform float shadowSamples;
 uniform vec3 cameraPos;
 uniform mat4 viewMatrix;
@@ -443,7 +444,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     vec3 sceneColor = matEmissive + matAmbient * model.ambient;
     vec4 colorLinear;
 
-    if(shadowsEnabled && displayMode == 3) // Shadow Mapping
+    if(shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering)) // Shadow Mapping
     {        
         // Pass both fragment position and light position for distance calculation
         float shadowFactor = calculateShadowVariableKernel(

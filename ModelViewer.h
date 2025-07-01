@@ -155,6 +155,7 @@ private slots:
 	void itemEdited(QWidget* widget, QAbstractItemDelegate::EndEditHint hint);
 
 	void on_checkBoxShadowMapping_toggled(bool checked);
+	void on_checkBoxSelfShadows_toggled(bool checked);
 	void on_checkBoxEnvMapping_toggled(bool checked);
 	void on_checkBoxSkyBox_toggled(bool checked);
 	void on_checkBoxReflections_toggled(bool checked);

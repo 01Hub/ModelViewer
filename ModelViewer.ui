@@ -1974,8 +1974,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>162</width>
-                   <height>172</height>
+                   <width>434</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2128,8 +2128,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>361</width>
-                   <height>461</height>
+                   <width>434</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2817,8 +2817,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>310</width>
-                   <height>479</height>
+                   <width>434</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3678,7 +3678,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                    <x>0</x>
                    <y>0</y>
                    <width>496</width>
-                   <height>204</height>
+                   <height>719</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -4031,8 +4031,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>419</width>
-                   <height>429</height>
+                   <width>471</width>
+                   <height>719</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -4216,13 +4216,6 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <item row="0" column="0">
                       <layout class="QHBoxLayout" name="horizontalLayout">
                        <item>
-                        <widget class="QCheckBox" name="checkBoxShadowMapping">
-                         <property name="text">
-                          <string>Shadows</string>
-                         </property>
-                        </widget>
-                       </item>
-                       <item>
                         <widget class="QCheckBox" name="checkBoxSkyBox">
                          <property name="text">
                           <string>Sky Box</string>
@@ -4270,6 +4263,20 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      </item>
                      <item row="1" column="0">
                       <layout class="QHBoxLayout" name="horizontalLayout_2">
+                       <item>
+                        <widget class="QCheckBox" name="checkBoxShadowMapping">
+                         <property name="text">
+                          <string>Shadows</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QCheckBox" name="checkBoxSelfShadows">
+                         <property name="text">
+                          <string>Self Shadows</string>
+                         </property>
+                        </widget>
+                       </item>
                        <item>
                         <widget class="QCheckBox" name="checkBoxReflections">
                          <property name="text">
@@ -4604,7 +4611,6 @@ background-color: rgba(255, 255, 255, 0%);</string>
   <tabstop>sliderLightPosZ</tabstop>
   <tabstop>checkBoxLockLightCamera</tabstop>
   <tabstop>checkBoxShowLights</tabstop>
-  <tabstop>checkBoxShadowMapping</tabstop>
   <tabstop>checkBoxReflections</tabstop>
   <tabstop>checkBoxFloor</tabstop>
   <tabstop>checkBoxSkyBox</tabstop>
@@ -5420,8 +5426,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
+  <buttongroup name="buttonGroupViews"/>
   <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
-  <buttongroup name="buttonGroupViews"/>
  </buttongroups>
 </ui>
