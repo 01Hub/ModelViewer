@@ -304,8 +304,8 @@ void main()
         // Set fade parameters first, before any calculations
         if (skyBoxEnabled) 
         {
-            fadeStart = floorRadius * 0.65;
-            fadeEnd = floorRadius * 0.68;  
+            fadeStart = floorRadius * 0.64;
+            fadeEnd = floorRadius * 0.67;  
         }
     
         // Early discard for pixels beyond fade range
