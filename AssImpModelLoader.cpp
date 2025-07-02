@@ -1113,10 +1113,10 @@ MeshAnalysis AssImpModelLoader::analyzeMesh(aiMesh* mesh)
 	{
 		// Sample normals to confirm spherical pattern
 		int radialCount = 0;
-		// Sample 10% or max 100
-		int sampleCount = mesh->mNumVertices > 0 ? std::min(100u, std::max(1u, mesh->mNumVertices / 10)) : 0;
+		int sampleCount = std::max(1u, std::min(100u, mesh->mNumVertices / 10)); // At least 1, sample 10% or max 100
+		int step = std::max(1u, mesh->mNumVertices / sampleCount);
 
-		for (unsigned int i = 0; i < mesh->mNumVertices; i += mesh->mNumVertices / sampleCount)
+		for (unsigned int i = 0; i < mesh->mNumVertices; i += step)
 		{
 			glm::vec3 pos(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z);
 			glm::vec3 normal(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
@@ -1153,10 +1153,10 @@ MeshAnalysis AssImpModelLoader::analyzeMesh(aiMesh* mesh)
 
 		// Quick verification - check if normals are perpendicular to dominant axis
 		int perpendicularCount = 0;
-		int sampleCount = mesh->mNumVertices > 0 ? std::min(50u, std::max(1u, mesh->mNumVertices / 20)) : 0;
+		int sampleCount = std::max(1u, std::min(50u, mesh->mNumVertices / 20)); // At least 1
+		int step = std::max(1u, mesh->mNumVertices / sampleCount);
 
-
-		for (unsigned int i = 0; i < mesh->mNumVertices; i += mesh->mNumVertices / sampleCount)
+		for (unsigned int i = 0; i < mesh->mNumVertices; i += step)
 		{
 			glm::vec3 normal(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
 			float dot = glm::abs(glm::dot(normal, analysis.dominantAxis));
@@ -1172,10 +1172,10 @@ MeshAnalysis AssImpModelLoader::analyzeMesh(aiMesh* mesh)
 
 	// Check if mostly planar (sample normals for consistency)
 	glm::vec3 avgNormal(0.0f);
-	int sampleCount = mesh->mNumVertices > 0 ? std::min(50u, std::max(1u, mesh->mNumVertices / 20)) : 0;
+	int sampleCount = std::max(1u, std::min(50u, mesh->mNumVertices / 20)); // At least 1
+	int step = std::max(1u, mesh->mNumVertices / sampleCount);
 
-
-	for (unsigned int i = 0; i < mesh->mNumVertices; i += mesh->mNumVertices / sampleCount)
+	for (unsigned int i = 0; i < mesh->mNumVertices; i += step)
 	{
 		glm::vec3 normal(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
 		avgNormal += normal;
@@ -1183,7 +1183,7 @@ MeshAnalysis AssImpModelLoader::analyzeMesh(aiMesh* mesh)
 	avgNormal = glm::normalize(avgNormal);
 
 	int consistentNormals = 0;
-	for (unsigned int i = 0; i < mesh->mNumVertices; i += mesh->mNumVertices / sampleCount)
+	for (unsigned int i = 0; i < mesh->mNumVertices; i += step)
 	{
 		glm::vec3 normal(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
 		if (glm::dot(normal, avgNormal) > 0.8f) consistentNormals++;
