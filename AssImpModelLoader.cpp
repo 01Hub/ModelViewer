@@ -1113,7 +1113,8 @@ MeshAnalysis AssImpModelLoader::analyzeMesh(aiMesh* mesh)
 	{
 		// Sample normals to confirm spherical pattern
 		int radialCount = 0;
-		int sampleCount = std::min(100u, mesh->mNumVertices / 10); // Sample 10% or max 100
+		// Sample 10% or max 100
+		int sampleCount = mesh->mNumVertices > 0 ? std::min(100u, std::max(1u, mesh->mNumVertices / 10)) : 0;
 
 		for (unsigned int i = 0; i < mesh->mNumVertices; i += mesh->mNumVertices / sampleCount)
 		{
@@ -1152,7 +1153,8 @@ MeshAnalysis AssImpModelLoader::analyzeMesh(aiMesh* mesh)
 
 		// Quick verification - check if normals are perpendicular to dominant axis
 		int perpendicularCount = 0;
-		int sampleCount = std::min(50u, mesh->mNumVertices / 20);
+		int sampleCount = mesh->mNumVertices > 0 ? std::min(50u, std::max(1u, mesh->mNumVertices / 20)) : 0;
+
 
 		for (unsigned int i = 0; i < mesh->mNumVertices; i += mesh->mNumVertices / sampleCount)
 		{
@@ -1170,7 +1172,8 @@ MeshAnalysis AssImpModelLoader::analyzeMesh(aiMesh* mesh)
 
 	// Check if mostly planar (sample normals for consistency)
 	glm::vec3 avgNormal(0.0f);
-	int sampleCount = std::min(50u, mesh->mNumVertices / 20);
+	int sampleCount = mesh->mNumVertices > 0 ? std::min(50u, std::max(1u, mesh->mNumVertices / 20)) : 0;
+
 
 	for (unsigned int i = 0; i < mesh->mNumVertices; i += mesh->mNumVertices / sampleCount)
 	{
