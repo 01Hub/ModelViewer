@@ -608,6 +608,8 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 	vector<unsigned int> indices;
 	vector<Texture> textures;
 
+	MeshAnalysis meshAnalysis = analyzeMesh(mesh);
+
 	// Walk through each of the mesh's vertices
 	int step = 0;
 	unsigned int nbVertices = mesh->mNumVertices;
@@ -658,25 +660,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		}
 		else
 		{
-			// Generate UVs based on the dominant axis of the vertex position
-			glm::vec3 pos = vertex.Position;
-			glm::vec3 absPos = glm::abs(pos);
-
-			if (absPos.x >= absPos.y && absPos.x >= absPos.z)
-			{
-				// X-dominant face
-				vertex.TexCoords = glm::vec2((pos.z + 1.0f) * 0.5f, (pos.y + 1.0f) * 0.5f);
-			}
-			else if (absPos.y >= absPos.x && absPos.y >= absPos.z)
-			{
-				// Y-dominant face  
-				vertex.TexCoords = glm::vec2((pos.x + 1.0f) * 0.5f, (pos.z + 1.0f) * 0.5f);
-			}
-			else
-			{
-				// Z-dominant face
-				vertex.TexCoords = glm::vec2((pos.x + 1.0f) * 0.5f, (pos.y + 1.0f) * 0.5f);
-			}
+			generateUVForSurface(vertex, meshAnalysis);
 		}
 
 		// Vertex Color
@@ -1096,4 +1080,247 @@ unsigned int AssImpModelLoader::textureFromFile(const char* path, std::string di
 QString AssImpModelLoader::getErrorMessage() const
 {
 	return _errorMessage;
+}
+
+MeshAnalysis AssImpModelLoader::analyzeMesh(aiMesh* mesh)
+{
+	MeshAnalysis analysis;
+
+	// Calculate bounding box and center
+	glm::vec3 minBounds(FLT_MAX), maxBounds(-FLT_MAX);
+	glm::vec3 centerSum(0.0f);
+
+	for (unsigned int i = 0; i < mesh->mNumVertices; i++)
+	{
+		glm::vec3 pos(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z);
+		minBounds = glm::min(minBounds, pos);
+		maxBounds = glm::max(maxBounds, pos);
+		centerSum += pos;
+	}
+
+	analysis.boundingMin = minBounds;
+	analysis.boundingMax = maxBounds;
+	analysis.center = centerSum / (float)mesh->mNumVertices;
+
+	glm::vec3 size = maxBounds - minBounds;
+	float maxDim = std::max({ size.x, size.y, size.z });
+	float minDim = std::min({ size.x, size.y, size.z });
+
+	// Quick heuristics based on mesh geometry
+
+	// Check if roughly spherical (all dimensions similar)
+	if (minDim / maxDim > 0.8f)
+	{
+		// Sample normals to confirm spherical pattern
+		int radialCount = 0;
+		int sampleCount = std::min(100u, mesh->mNumVertices / 10); // Sample 10% or max 100
+
+		for (unsigned int i = 0; i < mesh->mNumVertices; i += mesh->mNumVertices / sampleCount)
+		{
+			glm::vec3 pos(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z);
+			glm::vec3 normal(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
+			glm::vec3 radialDir = glm::normalize(pos - analysis.center);
+
+			if (glm::dot(normal, radialDir) > 0.7f) radialCount++;
+		}
+
+		if (radialCount > sampleCount * 0.6f)
+		{
+			analysis.surfaceType = MeshAnalysis::SPHERICAL;
+			analysis.avgRadius = glm::distance(analysis.center,
+				glm::vec3(mesh->mVertices[0].x, mesh->mVertices[0].y, mesh->mVertices[0].z));
+			return analysis;
+		}
+	}
+
+	// Check if cylindrical (one dimension much larger than others)
+	if (maxDim / minDim > 2.0f)
+	{
+		// Determine cylinder axis
+		if (size.y > size.x && size.y > size.z)
+		{
+			analysis.dominantAxis = glm::vec3(0, 1, 0);
+		}
+		else if (size.x > size.y && size.x > size.z)
+		{
+			analysis.dominantAxis = glm::vec3(1, 0, 0);
+		}
+		else
+		{
+			analysis.dominantAxis = glm::vec3(0, 0, 1);
+		}
+
+		// Quick verification - check if normals are perpendicular to dominant axis
+		int perpendicularCount = 0;
+		int sampleCount = std::min(50u, mesh->mNumVertices / 20);
+
+		for (unsigned int i = 0; i < mesh->mNumVertices; i += mesh->mNumVertices / sampleCount)
+		{
+			glm::vec3 normal(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
+			float dot = glm::abs(glm::dot(normal, analysis.dominantAxis));
+			if (dot < 0.3f) perpendicularCount++; // Normal perpendicular to axis
+		}
+
+		if (perpendicularCount > sampleCount * 0.5f)
+		{
+			analysis.surfaceType = MeshAnalysis::CYLINDRICAL;
+			return analysis;
+		}
+	}
+
+	// Check if mostly planar (sample normals for consistency)
+	glm::vec3 avgNormal(0.0f);
+	int sampleCount = std::min(50u, mesh->mNumVertices / 20);
+
+	for (unsigned int i = 0; i < mesh->mNumVertices; i += mesh->mNumVertices / sampleCount)
+	{
+		glm::vec3 normal(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
+		avgNormal += normal;
+	}
+	avgNormal = glm::normalize(avgNormal);
+
+	int consistentNormals = 0;
+	for (unsigned int i = 0; i < mesh->mNumVertices; i += mesh->mNumVertices / sampleCount)
+	{
+		glm::vec3 normal(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
+		if (glm::dot(normal, avgNormal) > 0.8f) consistentNormals++;
+	}
+
+	if (consistentNormals > sampleCount * 0.8f)
+	{
+		analysis.surfaceType = MeshAnalysis::PLANAR;
+		analysis.hasUniformNormals = true;
+	}
+	else
+	{
+		analysis.surfaceType = MeshAnalysis::MIXED;
+		analysis.hasUniformNormals = false;
+	}
+
+	return analysis;
+}
+
+void AssImpModelLoader::generateUVForSurface(Vertex& vertex, const MeshAnalysis& analysis)
+{
+	glm::vec3 pos = vertex.Position;
+	glm::vec3 normal = vertex.Normal;
+
+	switch (analysis.surfaceType)
+	{
+	case MeshAnalysis::SPHERICAL:
+		generateSphericalUV(vertex, pos, analysis.center);
+		generateSphericalTangents(vertex, pos, normal, analysis.center);
+		break;
+
+	case MeshAnalysis::CYLINDRICAL:
+		generateCylindricalUV(vertex, pos, analysis.dominantAxis, analysis.boundingMin, analysis.boundingMax);
+		generateCylindricalTangents(vertex, pos, normal, analysis.dominantAxis);
+		break;
+
+	case MeshAnalysis::PLANAR:
+		generatePlanarUV(vertex, pos, normal);
+		generatePlanarTangents(vertex, normal);
+		break;
+
+	case MeshAnalysis::MIXED:
+	default:
+		// Use local normal-based decision for mixed surfaces
+		generateAdaptiveUV(vertex, pos, normal);
+		generatePlanarTangents(vertex, normal);
+		break;
+	}
+
+	// Clamp UV coordinates
+	vertex.TexCoords.x = glm::clamp(vertex.TexCoords.x, 0.0f, 1.0f);
+	vertex.TexCoords.y = glm::clamp(vertex.TexCoords.y, 0.0f, 1.0f);
+}
+
+void AssImpModelLoader::generateSphericalUV(Vertex& vertex, glm::vec3 pos, glm::vec3 center)
+{
+	glm::vec3 normalized = glm::normalize(pos - center);
+	float u = atan2(normalized.z, normalized.x) / (2.0f * M_PI) + 0.5f;
+	float v = asin(glm::clamp(normalized.y, -1.0f, 1.0f)) / M_PI + 0.5f;
+	vertex.TexCoords = glm::vec2(u, v);
+}
+
+void AssImpModelLoader::generateCylindricalUV(Vertex& vertex, glm::vec3 pos, glm::vec3 axis, glm::vec3 minBounds, glm::vec3 maxBounds)
+{
+	if (glm::abs(axis.y) > 0.8f)
+	{
+		// Y-axis cylinder
+		float u = atan2(pos.z, pos.x) / (2.0f * M_PI) + 0.5f;
+		float v = (pos.y - minBounds.y) / (maxBounds.y - minBounds.y);
+		vertex.TexCoords = glm::vec2(u, v);
+	}
+	else if (glm::abs(axis.x) > 0.8f)
+	{
+		// X-axis cylinder
+		float u = atan2(pos.z, pos.y) / (2.0f * M_PI) + 0.5f;
+		float v = (pos.x - minBounds.x) / (maxBounds.x - minBounds.x);
+		vertex.TexCoords = glm::vec2(u, v);
+	}
+	else
+	{
+		// Z-axis cylinder
+		float u = atan2(pos.y, pos.x) / (2.0f * M_PI) + 0.5f;
+		float v = (pos.z - minBounds.z) / (maxBounds.z - minBounds.z);
+		vertex.TexCoords = glm::vec2(u, v);
+	}
+}
+
+void AssImpModelLoader::generatePlanarUV(Vertex& vertex, glm::vec3 pos, glm::vec3 normal)
+{
+	glm::vec3 absNormal = glm::abs(normal);
+
+	if (absNormal.x > absNormal.y && absNormal.x > absNormal.z)
+	{
+		vertex.TexCoords = glm::vec2((pos.z + 1.0f) * 0.5f, (pos.y + 1.0f) * 0.5f);
+	}
+	else if (absNormal.y > absNormal.x && absNormal.y > absNormal.z)
+	{
+		vertex.TexCoords = glm::vec2((pos.x + 1.0f) * 0.5f, (pos.z + 1.0f) * 0.5f);
+	}
+	else
+	{
+		vertex.TexCoords = glm::vec2((pos.x + 1.0f) * 0.5f, (pos.y + 1.0f) * 0.5f);
+	}
+}
+
+void AssImpModelLoader::generateAdaptiveUV(Vertex& vertex, glm::vec3 pos, glm::vec3 normal)
+{
+	generatePlanarUV(vertex, pos, normal);
+}
+
+void AssImpModelLoader::generateSphericalTangents(Vertex& vertex, glm::vec3 pos, glm::vec3 normal, glm::vec3 center)
+{
+	glm::vec3 normalized = glm::normalize(pos - center);
+	vertex.Tangent = glm::normalize(glm::vec3(-normalized.z, 0, normalized.x));
+	vertex.Bitangent = glm::normalize(glm::cross(normal, vertex.Tangent));
+}
+
+void AssImpModelLoader::generateCylindricalTangents(Vertex& vertex, glm::vec3 pos, glm::vec3 normal, glm::vec3 axis)
+{
+	vertex.Tangent = glm::normalize(glm::cross(axis, normal));
+	vertex.Bitangent = glm::normalize(glm::cross(normal, vertex.Tangent));
+}
+
+void AssImpModelLoader::generatePlanarTangents(Vertex& vertex, glm::vec3 normal)
+{
+	glm::vec3 absNormal = glm::abs(normal);
+
+	if (absNormal.x > absNormal.y && absNormal.x > absNormal.z)
+	{
+		vertex.Tangent = glm::vec3(0, 0, 1);
+		vertex.Bitangent = glm::vec3(0, 1, 0);
+	}
+	else if (absNormal.y > absNormal.x && absNormal.y > absNormal.z)
+	{
+		vertex.Tangent = glm::vec3(1, 0, 0);
+		vertex.Bitangent = glm::vec3(0, 0, 1);
+	}
+	else
+	{
+		vertex.Tangent = glm::vec3(1, 0, 0);
+		vertex.Bitangent = glm::vec3(0, 1, 0);
+	}
 }

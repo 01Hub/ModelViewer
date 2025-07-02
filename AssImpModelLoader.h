@@ -53,6 +53,16 @@ signals:
 	void fileReadProcessed(float percent);
 };
 
+// Pre-analyze the entire mesh to determine surface type and characteristics
+struct MeshAnalysis
+{
+	enum SurfaceType { PLANAR, CYLINDRICAL, SPHERICAL, MIXED } surfaceType;
+	glm::vec3 boundingMin, boundingMax, center;
+	glm::vec3 dominantAxis;  // For cylindrical surfaces
+	float avgRadius;         // For spherical surfaces
+	bool hasUniformNormals;
+};
+
 class AssImpModelLoader : public QObject, public QOpenGLFunctions_4_5_Core
 {
 	Q_OBJECT
@@ -136,4 +146,15 @@ private:
 	AssImpModelProgressHandler* _progHandler;
 	QString _errorMessage;
 	bool _loadingCancelled;
+		
+	MeshAnalysis analyzeMesh(aiMesh* mesh);
+	// Efficient per-vertex UV generation based on pre-computed analysis
+	void generateUVForSurface(Vertex& vertex, const MeshAnalysis& analysis);
+	void generateSphericalUV(Vertex& vertex, glm::vec3 pos, glm::vec3 center);
+	void generateCylindricalUV(Vertex& vertex, glm::vec3 pos, glm::vec3 axis, glm::vec3 minBounds, glm::vec3 maxBounds);
+	void generatePlanarUV(Vertex& vertex, glm::vec3 pos, glm::vec3 normal);
+	void generateAdaptiveUV(Vertex& vertex, glm::vec3 pos, glm::vec3 normal);
+	void generateSphericalTangents(Vertex& vertex, glm::vec3 pos, glm::vec3 normal, glm::vec3 center);
+	void generateCylindricalTangents(Vertex& vertex, glm::vec3 pos, glm::vec3 normal, glm::vec3 axis);
+	void generatePlanarTangents(Vertex& vertex, glm::vec3 normal);
 };
