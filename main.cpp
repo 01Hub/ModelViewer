@@ -11,14 +11,27 @@
 #include <string>
 #include <sstream>
 
+#include <config.h>
+
 int main(int argc, char** argv)
 {
 	Q_INIT_RESOURCE(ModelViewer);
 
+	QSurfaceFormat format;
+	format.setDepthBufferSize(24);
+	format.setStencilBufferSize(8);
+	format.setVersion(4, 5); // OpenGL version 4.5
+	format.setProfile(QSurfaceFormat::CoreProfile);
+	format.setOption(QSurfaceFormat::DebugContext);
+	format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
+	format.setRenderableType(QSurfaceFormat::OpenGL);
+
 	QApplication::setDesktopSettingsAware(true);
 	QCoreApplication::setApplicationName("ModelViewer");
 	QCoreApplication::setOrganizationName("Sharjith N");
-    QCoreApplication::setApplicationVersion(QT_VERSION_STR);
+    
+	QString version = QString(APP_VERSION_STRING);
+	QCoreApplication::setApplicationVersion(version);
 
 	ModelViewerApplication app(argc, argv);
 

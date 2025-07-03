@@ -13,6 +13,8 @@
 #include <QMdiSubWindow>
 #include <assimp/version.h>
 
+#include "config.h"
+
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 #include <QWinTaskbarProgress>
 #include <QWinTaskbarButton>
@@ -244,15 +246,21 @@ void MainWindow::on_actionExit_triggered(bool /*checked*/)
 
 void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 {
-    unsigned int assimpMajor = aiGetVersionMajor();
-    unsigned int assimpMinor = aiGetVersionMinor();
+	unsigned int assimpMajor = aiGetVersionMajor();
+	unsigned int assimpMinor = aiGetVersionMinor();
+
+	QString aboutText = QString::fromWCharArray(L"Application to visualize various 3D Models like OBJ and StereoLithography models using the ASSIMP library,"
+		" and STEP, IGES, and BREP files using the OpenCASCADE library\n\n"
+		"App Version: %1\n"
+		"ASSIMP Version: %2.%3\n\n"
+		"Copyright \u00A9 2021 Sharjith Naramparambath - sharjith@gmail.com\n\n")
+		.arg(APP_VERSION_STRING)
+		.arg(assimpMajor)
+		.arg(assimpMinor);
+
 	QMessageBox::about(this,
 		"About 3D Model Viewer",
-        QString::fromWCharArray(L"Application to visualize various 3D Models like OBJ and StereoLithography models using the ASSIMP library - "
-        "Version %1.%2\n\n"
-        "Copyright \u00A9 2021 Sharjith Naramparambath - sharjith@gmail.com\n\n").arg(assimpMajor).arg(assimpMinor)
-		+ graphicsInfo());
-
+		aboutText + graphicsInfo());
 }
 
 void MainWindow::on_actionAbout_Qt_triggered(bool /*checked*/)

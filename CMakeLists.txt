@@ -38,6 +38,10 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(ModelViewer)
 
+set(APP_VERSION_MAJOR 1)
+set(APP_VERSION_MINOR 2)
+set(APP_VERSION_PATCH 3)
+
 configure_file(
   "${CMAKE_CURRENT_SOURCE_DIR}/config.h.in"
   "${CMAKE_CURRENT_BINARY_DIR}/config.h"
