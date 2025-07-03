@@ -975,7 +975,9 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	triggerShadowRecomputation();
 	updateFloorPlane();
 	
-	fitAll();
+	if (_autoFitViewOnUpdate)
+		fitAll();
+
 	update();
 
 	emit displayListSet();
