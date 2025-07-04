@@ -48,7 +48,7 @@ configure_file(
   @ONLY
 )
 
-file(GLOB sources *.cpp *.cxx *.h *.hxx)
+file(GLOB sources *.c *.cpp *.cxx *.h *.hxx)
 file(GLOB ui_sources *.ui)
 
 qt_wrap_ui(ui_wrapped ${ui_sources})
@@ -103,7 +103,7 @@ endif()
 set_target_properties(ModelViewer PROPERTIES AUTOMOC TRUE)
 
 install(TARGETS ModelViewer)
-install(DIRECTORY fonts shaders textures
+install(DIRECTORY fonts shaders textures test-models
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
 
