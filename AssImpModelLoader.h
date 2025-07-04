@@ -1,38 +1,35 @@
 #pragma once
 
-#include <string>
 #include <fstream>
-#include <sstream>
 #include <iostream>
 #include <map>
+#include <sstream>
+#include <string>
 #include <vector>
-
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <QImage>
-#include <QString>
-#include <QFileInfo>
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-#include <assimp/ProgressHandler.hpp>
 
 #include "AssImpMesh.h"
 #include "TriangleMesh.h"
-
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+#include <assimp/ProgressHandler.hpp>
+#include <assimp/scene.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <gp_Trsf.hxx>
+#include <QFileInfo>
+#include <QImage>
+#include <QString>
 #include <Quantity_Color.hxx>
-#include <XCAFDoc_ShapeTool.hxx>
-#include <XCAFDoc_ColorTool.hxx>
-#include <XCAFDoc_Location.hxx>
-#include <XCAFDoc_DocumentTool.hxx>
+#include <TDataStd_Name.hxx>
 #include <TDF_LabelSequence.hxx>
 #include <TDF_Tool.hxx>
-#include <TDataStd_Name.hxx>
-#include <TopoDS_Shape.hxx>
 #include <TopLoc_Location.hxx>
-#include <gp_Trsf.hxx>
-#include <map>
+#include <TopoDS_Shape.hxx>
 #include <tuple>
+#include <XCAFDoc_ColorTool.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_Location.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
 
 
 class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
