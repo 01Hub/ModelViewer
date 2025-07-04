@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cfloat>
+#include <vector>
 
 MeshAnalysis::AnalysisResult MeshAnalyzer::analyzeMesh(
     const aiMesh* mesh,

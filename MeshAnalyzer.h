@@ -1,7 +1,8 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <optional>
-#include <memory>
+#include <algorithm>
+
 
 // Forward declaration
 struct aiMesh;
