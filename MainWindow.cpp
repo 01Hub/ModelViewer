@@ -97,7 +97,8 @@ MainWindow::MainWindow(QWidget* parent)
 ModelViewer* MainWindow::createMdiChild()
 {
 	ModelViewer* viewer = new ModelViewer(ui->mdiArea);
-	viewer->setLastOpenedDir(QApplication::applicationDirPath());
+	QString lastOpenedDir = MODELVIEWER_DATA_DIR + QString("/test-models");
+	viewer->setLastOpenedDir(lastOpenedDir);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	_viewers.append(viewer);
 	ui->mdiArea->addSubWindow(viewer);
