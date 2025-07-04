@@ -3,7 +3,6 @@
 #include "MeshAnalyzer.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
-#include <glm/gtx/transform.hpp>
 #include <vector>
 #include <cmath>
 #include "AssImpMesh.h"
