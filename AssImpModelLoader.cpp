@@ -569,7 +569,6 @@ bool AssImpModelLoader::GetShapeColorFromShape(
 	return false;
 }
 
-
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 void AssImpModelLoader::processNode(int nodeNum, aiNode* node, const aiScene* scene)
 {
@@ -601,6 +600,9 @@ void AssImpModelLoader::processNode(int nodeNum, aiNode* node, const aiScene* sc
 	}
 }
 
+#include "MeshAnalyzer.h"
+#include "UVGenerator.h"
+#include "TangentGenerator.h"
 AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 {
 	// Data to fill
@@ -608,7 +610,8 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 	vector<unsigned int> indices;
 	vector<Texture> textures;
 
-	MeshAnalysis meshAnalysis = analyzeMesh(mesh);
+	//MeshAnalysis meshAnalysis = analyzeMesh(mesh);
+	bool needsUVGeneration = false;
 
 	// Walk through each of the mesh's vertices
 	int step = 0;
@@ -660,7 +663,8 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		}
 		else
 		{
-			generateUVForSurface(vertex, meshAnalysis);
+			//generateUVForSurface(vertex, meshAnalysis);
+			needsUVGeneration = true;
 		}
 
 		// Vertex Color
@@ -691,6 +695,46 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		{
 			indices.push_back(face.mIndices[j]);
 		}
+	}
+
+	// If the mesh has no texture coordinates, we generate them now.
+	if (needsUVGeneration)
+	{
+		// Generate UVs for the mesh
+		MeshAnalysis::SamplingConfig config;
+		config.maxSamples = 200;
+		config.sphericalAspectRatio = 0.85f;
+		auto analysis = MeshAnalyzer::analyzeMesh(mesh, config);
+
+		// Choose UV config based on surface type
+		UVConfig uvconfig;
+		switch (analysis.surfaceType)
+		{
+		case MeshAnalysis::SurfaceType::SPHERICAL:
+			uvconfig.sphericalScale = 1.0f;
+			uvconfig.seamlessSpherical = true;
+			std::cout << "  Using spherical UV mapping\n";
+			break;
+
+		case MeshAnalysis::SurfaceType::CYLINDRICAL:
+			uvconfig.cylindricalScale = 1.0f;
+			uvconfig.cylindricalOffset = 0.0f;
+			std::cout << "  Using cylindrical UV mapping\n";
+			break;
+
+		case MeshAnalysis::SurfaceType::PLANAR:
+			uvconfig.planarScale = glm::vec2(1.0f);
+			std::cout << "  Using planar UV mapping\n";
+			break;
+
+		case MeshAnalysis::SurfaceType::MIXED:
+			std::cout << "  Using adaptive UV mapping\n";
+			break;
+		}
+
+		// Generate UVs and tangents
+		UVGenerator::generateUVForMesh(vertices, analysis, uvconfig);
+		TangentGenerator::generateTangentsForMesh(vertices, indices, analysis);
 	}
 
 	// Process materials
@@ -1082,6 +1126,7 @@ QString AssImpModelLoader::getErrorMessage() const
 	return _errorMessage;
 }
 
+/*
 MeshAnalysis AssImpModelLoader::analyzeMesh(aiMesh* mesh)
 {
 	MeshAnalysis analysis;
@@ -1327,3 +1372,4 @@ void AssImpModelLoader::generatePlanarTangents(Vertex& vertex, glm::vec3 normal)
 		vertex.Bitangent = glm::vec3(0, 1, 0);
 	}
 }
+*/

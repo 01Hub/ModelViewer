@@ -60,6 +60,7 @@ glm::vec3 MeshAnalyzer::calculateCentroid(const aiMesh* mesh)
     return centroid / static_cast<float>(mesh->mNumVertices);
 }
 
+
 MeshAnalysis::SurfaceType MeshAnalyzer::determineSurfaceType(
     const aiMesh* mesh,
     const MeshAnalysis::BoundingBox& bbox,
@@ -68,7 +69,13 @@ MeshAnalysis::SurfaceType MeshAnalyzer::determineSurfaceType(
     MeshAnalysis::AnalysisResult& result)
 {
 
-    // Try spherical analysis first (most restrictive)
+    // Try planar analysis first for cube-like shapes
+    if (analyzePlanarity(mesh, config, result))
+    {
+        return MeshAnalysis::SurfaceType::PLANAR;
+    }
+
+    // Try spherical analysis (with improved logic)
     if (analyzeSphericality(mesh, centroid, config, result))
     {
         return MeshAnalysis::SurfaceType::SPHERICAL;
@@ -78,12 +85,6 @@ MeshAnalysis::SurfaceType MeshAnalyzer::determineSurfaceType(
     if (analyzeCylindricity(mesh, bbox, config, result))
     {
         return MeshAnalysis::SurfaceType::CYLINDRICAL;
-    }
-
-    // Try planar analysis
-    if (analyzePlanarity(mesh, config, result))
-    {
-        return MeshAnalysis::SurfaceType::PLANAR;
     }
 
     // Default to mixed
@@ -98,31 +99,41 @@ bool MeshAnalyzer::analyzeSphericality(
     MeshAnalysis::AnalysisResult& result)
 {
 
-    // First check: aspect ratio should be close to 1.0 for spheres
+    // First check: aspect ratio should be very close to 1.0 for spheres
     const float minDim = result.boundingBox.getMinDimension();
     const float maxDim = result.boundingBox.getMaxDimension();
 
-    if (maxDim == 0.0f || minDim / maxDim < config.sphericalAspectRatio)
+    if (maxDim == 0.0f || minDim / maxDim < 0.9f)
     {
-        return false;
+        return false; // Very strict aspect ratio for spheres
     }
 
     if (!mesh->mNormals)
     {
-        return false; // Need normals for spherical analysis
+        return false;
     }
 
-    // Sample normals to check if they point radially outward
     const uint32_t sampleCount = result.samplesUsed;
     const uint32_t step = calculateSampleStep(mesh->mNumVertices, sampleCount);
 
     uint32_t radialCount = 0;
+    uint32_t cylindricalCount = 0; // Count normals that could be cylindrical
     float radiusSum = 0.0f;
+    float radiusVariance = 0.0f;
+    std::vector<float> radii;
 
+    // Determine the dominant axis to check for cylindrical patterns
+    const glm::vec3 dominantAxis = getDominantAxis(result.boundingBox);
+
+    // First pass: collect radii and check radial normals
     for (uint32_t i = 0; i < mesh->mNumVertices; i += step)
     {
         const glm::vec3 pos(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z);
         const glm::vec3 normal(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
+
+        const float radius = glm::distance(pos, centroid);
+        radii.push_back(radius);
+        radiusSum += radius;
 
         const glm::vec3 radialDir = safeNormalize(pos - centroid);
         const float radialDot = glm::dot(glm::normalize(normal), radialDir);
@@ -132,14 +143,38 @@ bool MeshAnalyzer::analyzeSphericality(
             radialCount++;
         }
 
-        radiusSum += glm::distance(pos, centroid);
+        // Check if this normal could be from a cylinder (perpendicular to dominant axis)
+        const float axialDot = std::abs(glm::dot(glm::normalize(normal), dominantAxis));
+        if (axialDot < 0.3f)
+        { // Normal is mostly perpendicular to dominant axis
+            cylindricalCount++;
+        }
     }
 
-    const float radialRatio = static_cast<float>(radialCount) / sampleCount;
-    if (radialRatio > 0.6f)
+    // Check radius uniformity (spheres should have consistent radius)
+    const float avgRadius = radiusSum / radii.size();
+    for (float radius : radii)
     {
-        result.avgRadius = radiusSum / sampleCount;
-        result.typeConfidence = radialRatio;
+        const float diff = radius - avgRadius;
+        radiusVariance += diff * diff;
+    }
+    radiusVariance /= radii.size();
+
+    const float radiusConsistency = 1.0f - (std::sqrt(radiusVariance) / avgRadius);
+    const float radialRatio = static_cast<float>(radialCount) / sampleCount;
+    const float cylindricalRatio = static_cast<float>(cylindricalCount) / sampleCount;
+
+    // Reject if too many normals look cylindrical
+    if (cylindricalRatio > 0.5f)
+    {
+        return false;
+    }
+
+    // Both radial normals and radius consistency should be very high for spheres
+    if (radialRatio > 0.8f && radiusConsistency > 0.9f)
+    {
+        result.avgRadius = avgRadius;
+        result.typeConfidence = std::min(radialRatio, radiusConsistency);
         return true;
     }
 
@@ -156,42 +191,67 @@ bool MeshAnalyzer::analyzeCylindricity(
     const float minDim = bbox.getMinDimension();
     const float maxDim = bbox.getMaxDimension();
 
-    // Check aspect ratio for cylindrical shape
-    if (maxDim == 0.0f || maxDim / minDim < config.cylindricalAspectRatio)
+    // Check aspect ratio for cylindrical shape - even 1:1 ratio should be considered
+    if (maxDim == 0.0f || maxDim / minDim < 1.0f)
     {
         return false;
     }
 
     if (!mesh->mNormals)
     {
-        return false; // Need normals for cylindrical analysis
+        return false;
     }
 
-    // Determine cylinder axis (direction of longest dimension)
     const glm::vec3 dominantAxis = getDominantAxis(bbox);
-
-    // Sample normals to check if they're perpendicular to the dominant axis
     const uint32_t sampleCount = result.samplesUsed;
     const uint32_t step = calculateSampleStep(mesh->mNumVertices, sampleCount);
 
     uint32_t perpendicularCount = 0;
+    uint32_t radialCount = 0;
+    uint32_t axialCount = 0; // Count normals parallel to axis (end caps)
 
     for (uint32_t i = 0; i < mesh->mNumVertices; i += step)
     {
+        const glm::vec3 pos(mesh->mVertices[i].x, mesh->mVertices[i].y, mesh->mVertices[i].z);
         const glm::vec3 normal(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z);
         const float axialDot = std::abs(glm::dot(glm::normalize(normal), dominantAxis));
 
-        if (axialDot < config.perpendicularNormalThreshold)
+        // Check if normal is parallel to cylinder axis (end caps)
+        if (axialDot > 0.8f)
+        {
+            axialCount++;
+        }
+        // Check if normal is perpendicular to cylinder axis (side surface)
+        else if (axialDot < config.perpendicularNormalThreshold)
         {
             perpendicularCount++;
+
+            // For true cylinders, check if perpendicular normals are radial from axis
+            const glm::vec3 axisPoint = result.centroid + glm::dot(pos - result.centroid, dominantAxis) * dominantAxis;
+            const glm::vec3 radialDir = safeNormalize(pos - axisPoint);
+
+            if (glm::length(pos - axisPoint) > 0.01f)
+            {
+                const float radialDot = glm::dot(glm::normalize(normal), radialDir);
+                if (radialDot > 0.7f)
+                {
+                    radialCount++;
+                }
+            }
         }
     }
 
     const float perpendicularRatio = static_cast<float>(perpendicularCount) / sampleCount;
-    if (perpendicularRatio > 0.5f)
+    const float radialRatio = perpendicularCount > 0 ? static_cast<float>(radialCount) / perpendicularCount : 0.0f;
+    const float axialRatio = static_cast<float>(axialCount) / sampleCount;
+
+    // Cylinders should have significant perpendicular normals AND some axial normals (end caps)
+    // OR very high radial consistency even without end caps
+    if ((perpendicularRatio > 0.4f && radialRatio > 0.6f && axialRatio > 0.1f) ||
+        (perpendicularRatio > 0.6f && radialRatio > 0.8f))
     {
         result.dominantAxis = dominantAxis;
-        result.typeConfidence = perpendicularRatio;
+        result.typeConfidence = std::min(perpendicularRatio, radialRatio);
         return true;
     }
 
@@ -206,13 +266,56 @@ bool MeshAnalyzer::analyzePlanarity(
 
     if (!mesh->mNormals)
     {
-        return false; // Need normals for planar analysis
+        return false;
     }
 
     const uint32_t sampleCount = result.samplesUsed;
     const uint32_t step = calculateSampleStep(mesh->mNumVertices, sampleCount);
 
-    // Calculate average normal
+    // For cube-like shapes, group normals by similarity
+    std::vector<glm::vec3> normalGroups;
+    std::vector<uint32_t> groupCounts;
+
+    for (uint32_t i = 0; i < mesh->mNumVertices; i += step)
+    {
+        const glm::vec3 normal = glm::normalize(glm::vec3(mesh->mNormals[i].x, mesh->mNormals[i].y, mesh->mNormals[i].z));
+
+        bool foundGroup = false;
+        for (size_t j = 0; j < normalGroups.size(); ++j)
+        {
+            if (glm::dot(normal, normalGroups[j]) > 0.9f)
+            {
+                groupCounts[j]++;
+                foundGroup = true;
+                break;
+            }
+        }
+
+        if (!foundGroup)
+        {
+            normalGroups.push_back(normal);
+            groupCounts.push_back(1);
+        }
+    }
+
+    // Check if we have distinct planar faces (like a cube)
+    if (normalGroups.size() <= 6)
+    { // Max 6 faces for cube
+        uint32_t totalGrouped = 0;
+        for (uint32_t count : groupCounts)
+        {
+            totalGrouped += count;
+        }
+
+        const float groupedRatio = static_cast<float>(totalGrouped) / sampleCount;
+        if (groupedRatio > 0.8f)
+        {
+            result.typeConfidence = groupedRatio;
+            return true;
+        }
+    }
+
+    // Traditional planar test for single planes
     glm::vec3 avgNormal(0.0f);
     for (uint32_t i = 0; i < mesh->mNumVertices; i += step)
     {
@@ -222,7 +325,11 @@ bool MeshAnalyzer::analyzePlanarity(
 
     avgNormal = safeNormalize(avgNormal);
 
-    // Check consistency of normals with average
+    if (glm::length(avgNormal) < 0.1f)
+    {
+        return false; // Average normal is too small (opposing normals cancel out)
+    }
+
     uint32_t consistentCount = 0;
     for (uint32_t i = 0; i < mesh->mNumVertices; i += step)
     {
@@ -244,6 +351,7 @@ bool MeshAnalyzer::analyzePlanarity(
 
     return false;
 }
+
 
 glm::vec3 MeshAnalyzer::getDominantAxis(const MeshAnalysis::BoundingBox& bbox)
 {
