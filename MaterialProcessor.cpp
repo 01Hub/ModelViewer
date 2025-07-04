@@ -5,7 +5,12 @@
 
 using namespace std;
 
-MaterialProcessor::MaterialProcessor()
+MaterialProcessor::MaterialProcessor() : _folderPath("")
+{
+    initializeOpenGLFunctions();
+}
+
+MaterialProcessor::MaterialProcessor(std::string& folderPath) : _folderPath(folderPath)
 {
     initializeOpenGLFunctions();
 }
@@ -302,7 +307,7 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, std::string di
 
     if (!texImage.load(QString(filename.c_str())))
     { // Load first image from file
-        qWarning("AssImpModelLoader::textureFromFile - Could not read image file, using single-color instead.");
+        qWarning("MaterialProcessor::textureFromFile - Could not read image file, using single-color instead.");
         QImage dummy(128, 128, QImage::Format_ARGB32);
         dummy.fill(Qt::white);
         texImage = dummy;
@@ -325,4 +330,88 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, std::string di
     glBindTexture(GL_TEXTURE_2D, 0);
 
     return textureID;
+}
+
+void MaterialProcessor::setPBRTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
+{
+    // 1. albedo maps
+    vector<Texture> albedoPBRMaps = loadMaterialTextures(material, aiTextureType_BASE_COLOR, "albedoMap");
+    textures.insert(textures.end(), albedoPBRMaps.begin(), albedoPBRMaps.end());
+    // 2. specular maps
+    vector<Texture> metalicPBRMaps = loadMaterialTextures(material, aiTextureType_METALNESS, "metallicMap");
+    textures.insert(textures.end(), metalicPBRMaps.begin(), metalicPBRMaps.end());
+    // 3. roughness maps
+    vector<Texture> roughnessPBRMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE_ROUGHNESS, "roughnessMap");
+    textures.insert(textures.end(), roughnessPBRMaps.begin(), roughnessPBRMaps.end());
+    // 4. emissive maps
+    vector<Texture> emissivePBRMaps = loadMaterialTextures(material, aiTextureType_EMISSION_COLOR, "emissiveMap");
+    textures.insert(textures.end(), emissivePBRMaps.begin(), emissivePBRMaps.end());
+    // 5. normal maps
+    std::vector<Texture> normalPBRMaps = loadMaterialTextures(material, aiTextureType_NORMAL_CAMERA, "normalMap");
+    textures.insert(textures.end(), normalPBRMaps.begin(), normalPBRMaps.end());
+    // 6. AO maps
+    std::vector<Texture> aoPBRMaps = loadMaterialTextures(material, aiTextureType_AMBIENT_OCCLUSION, "aoMap");
+    textures.insert(textures.end(), aoPBRMaps.begin(), aoPBRMaps.end());
+}
+
+void MaterialProcessor::setADSTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
+{
+    // 1. diffuse maps
+    vector<Texture> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
+    textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
+    // 2. specular maps
+    vector<Texture> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR, "texture_specular");
+    textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
+    // 3. emissive maps
+    vector<Texture> emissiveMaps = loadMaterialTextures(material, aiTextureType_EMISSIVE, "texture_emissive");
+    textures.insert(textures.end(), emissiveMaps.begin(), emissiveMaps.end());
+    // 4. normal maps
+    std::vector<Texture> normalMaps = loadMaterialTextures(material, aiTextureType_HEIGHT, "texture_normal");
+    textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
+    // 5. height maps
+    std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_DISPLACEMENT, "texture_height");
+    textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
+    // 6. opacity maps
+    std::vector<Texture> opacityMaps = loadMaterialTextures(material, aiTextureType_OPACITY, "texture_opacity");
+    textures.insert(textures.end(), opacityMaps.begin(), opacityMaps.end());
+}
+
+// Checks all material textures of a given type and loads the textures if they're not loaded yet.
+// The required info is returned as a Texture struct.
+vector<Texture> MaterialProcessor::loadMaterialTextures(aiMaterial* mat, aiTextureType type, string typeName)
+{
+    vector<Texture> textures;
+
+    for (unsigned int i = 0; i < mat->GetTextureCount(type); i++)
+    {
+        aiString str;
+        mat->GetTexture(type, i, &str);
+
+        // Check if texture was loaded before and if so, continue to next iteration: skip loading a new texture
+        GLboolean skip = false;
+
+        for (unsigned int j = 0; j < _loadedTextures.size(); j++)
+        {
+            if (_loadedTextures[j].path == str)
+            {
+                textures.push_back(_loadedTextures[j]);
+                skip = true; // A texture with the same filepath has already been loaded, continue to next one. (optimization)
+                break;
+            }
+        }
+
+        if (!skip)
+        {
+            // If texture hasn't been loaded already, load it
+            Texture texture;
+            texture.id = textureFromFile(str.C_Str(), this->_folderPath);
+            texture.type = typeName;
+            texture.path = str;
+            textures.push_back(texture);
+
+            this->_loadedTextures.push_back(texture);  // Store it as texture loaded for entire model, to ensure we won't unnecesery load duplicate textures.
+        }
+    }
+
+    return textures;
 }

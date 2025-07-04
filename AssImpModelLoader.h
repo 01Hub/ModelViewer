@@ -30,6 +30,7 @@
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_Location.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
+#include "MaterialProcessor.h"
 
 
 class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
@@ -93,9 +94,8 @@ private:
 	std::string _path;
 	/*  Model Data  */
 	std::vector<AssImpMesh*> _meshes;
-	std::string directory;
-	std::vector<Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
-
+	std::string _texturePath;
+	
 	//using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, gp_Trsf>;
 	using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, TopLoc_Location, Quantity_Color>;
 
@@ -122,25 +122,10 @@ private:
 
 	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene);
 
-	void setColorAndMaterial(aiMaterial* material, GLMaterial& mat);
-
-	void setDefaultMaterial(GLMaterial& mat);
-	void setShadingModel(GLMaterial& mat, aiShadingMode shadingModel);
-	void setBlendMode(GLMaterial& mat, aiBlendMode blendMode);
-	void validateMaterialConsistency(GLMaterial& mat);
-
-	void setPBRTextureMaps(aiMaterial* material, std::vector<Texture>& textures);
-
-	void setADSTextureMaps(aiMaterial* material, std::vector<Texture>& textures);
-
-	// Checks all material textures of a given type and loads the textures if they're not loaded yet.
-	// The required info is returned as a Texture struct.
-	std::vector<Texture> loadMaterialTextures(aiMaterial* mat, aiTextureType type, std::string typeName);
-
-	unsigned int textureFromFile(const char* path, std::string directory);
-
 	Assimp::Importer _importer;
 	AssImpModelProgressHandler* _progHandler;
 	QString _errorMessage;
 	bool _loadingCancelled;
+
+	MaterialProcessor _materialProcessor; // Handles material processing and texture loading
 };
