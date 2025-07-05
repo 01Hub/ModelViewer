@@ -10,6 +10,10 @@
 class TangentGenerator
 {
 public:
+    static void generateMikkTSpaceTangentsForMesh(
+        std::vector<Vertex>& vertices, 
+        const std::vector<unsigned int>& indices);
+
     static void generateTangentsForMesh(
         std::vector<Vertex>& vertices,
         const std::vector<uint32_t>& indices,

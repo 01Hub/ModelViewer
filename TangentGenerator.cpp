@@ -195,3 +195,85 @@ void TangentGenerator::gramSchmidt(glm::vec3& tangent, glm::vec3& bitangent, con
         bitangent = -bitangent;
     }
 }
+
+
+#include "mikktspace.h"
+namespace
+{
+
+    struct MikkTSpaceUserData
+    {
+        std::vector<Vertex>* vertices;
+        const std::vector<unsigned int>* indices;
+    };
+
+    // --- Required callbacks ---
+    int getNumFaces(const SMikkTSpaceContext* context)
+    {
+        const auto* data = (MikkTSpaceUserData*)context->m_pUserData;
+        return static_cast<int>(data->indices->size() / 3);
+    }
+
+    int getNumVertsOfFace(const SMikkTSpaceContext*, const int)
+    {
+        return 3;
+    }
+
+    void getPosition(const SMikkTSpaceContext* context, float outPos[3], const int faceIdx, const int vertIdx)
+    {
+        const auto* data = (MikkTSpaceUserData*)context->m_pUserData;
+        int idx = (*data->indices)[faceIdx * 3 + vertIdx];
+        const glm::vec3& pos = (*data->vertices)[idx].Position;
+        outPos[0] = pos.x; outPos[1] = pos.y; outPos[2] = pos.z;
+    }
+
+    void getNormal(const SMikkTSpaceContext* context, float outNormal[3], const int faceIdx, const int vertIdx)
+    {
+        const auto* data = (MikkTSpaceUserData*)context->m_pUserData;
+        int idx = (*data->indices)[faceIdx * 3 + vertIdx];
+        const glm::vec3& norm = (*data->vertices)[idx].Normal;
+        outNormal[0] = norm.x; outNormal[1] = norm.y; outNormal[2] = norm.z;
+    }
+
+    void getTexCoord(const SMikkTSpaceContext* context, float outUV[2], const int faceIdx, const int vertIdx)
+    {
+        const auto* data = (MikkTSpaceUserData*)context->m_pUserData;
+        int idx = (*data->indices)[faceIdx * 3 + vertIdx];
+        const glm::vec2& uv = (*data->vertices)[idx].TexCoords;
+        outUV[0] = uv.x; outUV[1] = uv.y;
+    }
+
+    void setTSpaceBasic(const SMikkTSpaceContext* context, const float tangent[3], const float sign, const int faceIdx, const int vertIdx)
+    {
+        auto* data = (MikkTSpaceUserData*)context->m_pUserData;
+        int idx = (*data->indices)[faceIdx * 3 + vertIdx];
+
+        glm::vec3 T = glm::vec3(tangent[0], tangent[1], tangent[2]);
+        glm::vec3 N = (*data->vertices)[idx].Normal;
+        glm::vec3 B = glm::cross(N, T) * sign;
+
+        (*data->vertices)[idx].Tangent = T;
+        (*data->vertices)[idx].Bitangent = B;
+    }
+
+} // unnamed namespace
+
+void TangentGenerator::generateMikkTSpaceTangentsForMesh(std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices)
+{
+    MikkTSpaceUserData userData{ &vertices, &indices };
+
+    SMikkTSpaceInterface iface = {};
+    iface.m_getNumFaces = getNumFaces;
+    iface.m_getNumVerticesOfFace = getNumVertsOfFace;
+    iface.m_getPosition = getPosition;
+    iface.m_getNormal = getNormal;
+    iface.m_getTexCoord = getTexCoord;
+    iface.m_setTSpaceBasic = setTSpaceBasic;
+
+    SMikkTSpaceContext context = {};
+    context.m_pInterface = &iface;
+    context.m_pUserData = &userData;
+
+    genTangSpaceDefault(&context);
+}
+
