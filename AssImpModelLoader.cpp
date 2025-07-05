@@ -728,8 +728,10 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		}
 
 		// Generate UVs and tangents
-		UVGenerator::generateUVForMesh(vertices, analysis, uvconfig);
-		TangentGenerator::generateTangentsForMesh(vertices, indices, analysis);
+		UVGenerator::generateUVForMesh(vertices, analysis, uvconfig);		
+		
+		// MikkTSpace tangents
+		TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);
 	}
 
 	// Process materials
