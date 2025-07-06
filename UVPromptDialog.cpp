@@ -28,11 +28,9 @@ UVPromptDialog::UVPromptDialog(const SceneUVPromptInfo& info, QWidget* parent)
             "<b>Total Vertices:</b> %3<br>"
             "<b>Total Triangles:</b> %4<br>"
             "<b>Largest Mesh:</b> %5 (%6 triangles)<br><br>"
-			"<b>Note:</b> Auto generation of UVs may take longer to load the<br>" 
-            "model depending on the size and complexity."
+			"<b>Note:</b> Auto generation of UVs may take longer to load the model depending on the size and complexity."
 			"<br>Click Ok only if you need to apply textures, or choose Cancel<br>"
-			"<b>Tip:</b> If the model has more than 3000 triangles, consider using<br>"
-            "the Hybrid method for faster UV generation.</b><br><br>"
+			"<b>Tip:</b> If the model has more than 3000 triangles, consider using the Hybrid method for faster UV generation.</b><br><br>"
             "Choose a UV generation method:")
         .arg(info.fileName)
         .arg(info.meshCount)
@@ -41,6 +39,8 @@ UVPromptDialog::UVPromptDialog(const SceneUVPromptInfo& info, QWidget* parent)
         .arg(info.largestMeshName)
         .arg(info.largestTriangleCount));
     label->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    label->setWordWrap(true);
+    label->setMaximumWidth(500);
     layout->addWidget(label);
 
     _hybridButton = new QRadioButton("Hybrid (Fast)");
