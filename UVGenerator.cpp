@@ -211,7 +211,7 @@ bool UVGenerator::generateHybrid(aiMesh* mesh,
 }
 
 
-// This is the best method to generate UVs based on angle thresholds
+// Method 6: Angle-based Smart UV (similar to Blender's Smart UV)
 bool UVGenerator::generateAngleBasedSmartUV(
     aiMesh* mesh,
     std::vector<Vertex>& vertices,
@@ -333,7 +333,7 @@ void UVGenerator::createUVIslands(
     const std::vector<std::pair<unsigned int, unsigned int>>& seams,
     std::vector<UVIsland>& islands)
 {
-    // 1. Build adjacency map: triangle index ? list of connected neighbors
+    // 1. Build adjacency map: triangle index list of connected neighbors
     std::unordered_map<unsigned int, std::vector<unsigned int>> adjacency;
     for (size_t i = 0; i < triangles.size(); ++i)
     {
