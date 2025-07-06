@@ -1,211 +1,694 @@
 #include "UVGenerator.h"
 
-void UVGenerator::generateUVForMesh(
+// Method 1: Angle-based unwrapping (most similar to Blender's Smart UV)
+bool UVGenerator::generateAngleBased(aiMesh* mesh,
     std::vector<Vertex>& vertices,
-    const MeshAnalysis::AnalysisResult& analysis,
+    std::vector<unsigned int>& indices,
     const UVConfig& config)
 {
+    if (vertices.empty() || indices.empty()) return false;
+
+    // Build triangle list
+    std::vector<Triangle> triangles;
+    buildTriangleList(vertices, indices, triangles);
+
+    // Find seams based on angle threshold
+    std::vector<std::pair<unsigned int, unsigned int>> seams;
+    findSeams(vertices, triangles, seams, config.angleThreshold);
+
+    // Create UV islands
+    std::vector<UVIsland> islands;
+    createUVIslands(triangles, seams, islands);
+
+    // Unwrap each island
+    std::vector<glm::vec2> uvs(vertices.size());
+    for (const auto& island : islands)
+    {
+        unwrapIsland(vertices, triangles, island, uvs);
+    }
+
+    // Pack UV islands
+    packUVIslands(const_cast<std::vector<UVIsland>&>(islands), uvs, config.seamPadding);
+
+    // Apply transformations and update vertices
+    for (size_t i = 0; i < vertices.size(); ++i)
+    {
+        glm::vec2 finalUV = uvs[i];
+        applyUVTransforms(finalUV, config);
+        vertices[i].TexCoords = finalUV;
+    }
+
+    return true;
+}
+
+// Method 2: Cylindrical projection
+bool UVGenerator::generateCylindrical(aiMesh* mesh,
+    std::vector<Vertex>& vertices,
+    std::vector<unsigned int>& indices,
+    const UVConfig& config)
+{
+    if (vertices.empty()) return false;
+
+    glm::vec3 centroid = calculateCentroid(vertices);
+    glm::vec3 minBounds, maxBounds;
+    calculateBounds(vertices, minBounds, maxBounds);
+
+    float height = maxBounds.y - minBounds.y;
 
     for (auto& vertex : vertices)
     {
-        generateUVForSurface(vertex, analysis, config);
+        glm::vec3 localPos = vertex.Position - centroid;
+
+        // Cylindrical mapping
+        float u = (atan2(localPos.z, localPos.x) + M_PI) / (2.0f * M_PI);
+        float v = (vertex.Position.y - minBounds.y) / height;
+
+        // Handle seam
+        if (config.seamlessSpherical && u > 0.75f && localPos.x > 0)
+        {
+            u -= 1.0f;
+        }
+
+        u += config.cylindricalOffset;
+        u = fmod(u + 1.0f, 1.0f); // Wrap to [0,1]
+
+        glm::vec2 uv(u * config.cylindricalScale, v);
+        applyUVTransforms(uv, config);
+        vertex.TexCoords = uv;
     }
+
+    return true;
 }
 
-void UVGenerator::generateUVForSurface(
-    Vertex& vertex,
-    const MeshAnalysis::AnalysisResult& analysis,
+// Method 3: Spherical projection
+bool UVGenerator::generateSpherical(aiMesh* mesh,
+    std::vector<Vertex>& vertices,
+    std::vector<unsigned int>& indices,
     const UVConfig& config)
 {
+    if (vertices.empty()) return false;
 
-    switch (analysis.surfaceType)
+    glm::vec3 centroid = calculateCentroid(vertices);
+
+    for (auto& vertex : vertices)
     {
-    case MeshAnalysis::SurfaceType::SPHERICAL:
-        generateSphericalUV(vertex, analysis.centroid, config);
-        break;
+        glm::vec3 localPos = glm::normalize(vertex.Position - centroid);
 
-    case MeshAnalysis::SurfaceType::CYLINDRICAL:
-        if (analysis.dominantAxis.has_value())
+        // Spherical mapping
+        float u = (atan2(localPos.z, localPos.x) + M_PI) / (2.0f * M_PI);
+        float v = (asin(localPos.y) + M_PI * 0.5f) / M_PI;
+
+        // Handle poles and seams
+        if (config.seamlessSpherical)
         {
-            generateCylindricalUV(vertex, analysis.dominantAxis.value(), analysis.boundingBox, config);
+            if (abs(localPos.y) > 0.99f)
+            { // Near poles
+                u = 0.5f;
+            }
+        }
+
+        glm::vec2 uv(u * config.sphericalScale, v * config.sphericalScale);
+        applyUVTransforms(uv, config);
+        vertex.TexCoords = uv;
+    }
+
+    return true;
+}
+
+// Method 4: Planar projection with automatic orientation
+bool UVGenerator::generatePlanar(aiMesh* mesh,
+    std::vector<Vertex>& vertices,
+    std::vector<unsigned int>& indices,
+    const UVConfig& config)
+{
+    if (vertices.empty()) return false;
+
+    glm::vec3 minBounds, maxBounds;
+    calculateBounds(vertices, minBounds, maxBounds);
+
+    // Find the best projection plane (largest face)
+    glm::vec3 size = maxBounds - minBounds;
+    int bestPlane = 0; // 0=YZ, 1=XZ, 2=XY
+    if (size.x * size.y > size.y * size.z && size.x * size.y > size.x * size.z)
+    {
+        bestPlane = 2; // XY plane
+    }
+    else if (size.x * size.z > size.y * size.z)
+    {
+        bestPlane = 1; // XZ plane
+    }
+
+    for (auto& vertex : vertices)
+    {
+        glm::vec2 uv;
+        switch (bestPlane)
+        {
+        case 0: // YZ plane
+            uv.x = (vertex.Position.y - minBounds.y) / size.y;
+            uv.y = (vertex.Position.z - minBounds.z) / size.z;
+            break;
+        case 1: // XZ plane
+            uv.x = (vertex.Position.x - minBounds.x) / size.x;
+            uv.y = (vertex.Position.z - minBounds.z) / size.z;
+            break;
+        case 2: // XY plane
+            uv.x = (vertex.Position.x - minBounds.x) / size.x;
+            uv.y = (vertex.Position.y - minBounds.y) / size.y;
+            break;
+        }
+
+        uv *= config.planarScale;
+        applyUVTransforms(uv, config);
+        vertex.TexCoords = uv;
+    }
+
+    return true;
+}
+
+// Method 5: Hybrid approach
+bool UVGenerator::generateHybrid(aiMesh* mesh,
+    std::vector<Vertex>& vertices,
+    std::vector<unsigned int>& indices,
+    const UVConfig& config)
+{
+    if (vertices.empty()) return false;
+
+    // Analyze mesh characteristics
+    glm::vec3 minBounds, maxBounds;
+    calculateBounds(vertices, minBounds, maxBounds);
+    glm::vec3 size = maxBounds - minBounds;
+
+    // Choose best method based on mesh shape
+    float aspectRatio = std::max({ size.x / size.y, size.y / size.x,
+                                  size.x / size.z, size.z / size.x,
+                                  size.y / size.z, size.z / size.y });
+
+    if (aspectRatio > 3.0f)
+    {
+        // Very elongated - use cylindrical
+        return generateCylindrical(mesh, vertices, indices, config);
+    }
+    else if (aspectRatio < 1.5f)
+    {
+        // Roughly cubic - use spherical or angle-based
+        float avgSize = (size.x + size.y + size.z) / 3.0f;
+        float variance = (pow(size.x - avgSize, 2) + pow(size.y - avgSize, 2) + pow(size.z - avgSize, 2)) / 3.0f;
+
+        if (variance < avgSize * 0.1f)
+        {
+            return generateSpherical(mesh, vertices, indices, config);
         }
         else
         {
-            generateAdaptiveUV(vertex, analysis.boundingBox, config);
+            return generateAngleBased(mesh, vertices, indices, config);
         }
-        break;
-
-    case MeshAnalysis::SurfaceType::PLANAR:
-        generatePlanarUV(vertex, vertex.Normal, analysis.boundingBox, config);
-        break;
-
-    case MeshAnalysis::SurfaceType::MIXED:
-    default:
-        generateAdaptiveUV(vertex, analysis.boundingBox, config);
-        break;
-    }
-}
-
-void UVGenerator::generateSphericalUV(
-    Vertex& vertex,
-    const glm::vec3& center,
-    const UVConfig& config)
-{
-
-    glm::vec2 sphericalUV = cartesianToSpherical(vertex.Position, center);
-
-    // Apply scaling
-    sphericalUV *= config.sphericalScale;
-
-    // Handle seams for spherical mapping
-    if (config.seamlessSpherical)
-    {
-        // Ensure U coordinate is in [0, 1] range
-        sphericalUV.x = fmod(sphericalUV.x + 1.0f, 1.0f);
-    }
-
-    if (config.flipV)
-    {
-        sphericalUV.y = 1.0f - sphericalUV.y;
-    }
-
-    vertex.TexCoords = sphericalUV;
-}
-
-void UVGenerator::generateCylindricalUV(
-    Vertex& vertex,
-    const glm::vec3& axis,
-    const MeshAnalysis::BoundingBox& bbox,
-    const UVConfig& config)
-{
-
-    glm::vec2 cylindricalUV = cartesianToCylindrical(vertex.Position, axis, bbox);
-
-    // Apply scaling and offset
-    cylindricalUV.x = cylindricalUV.x * config.cylindricalScale + config.cylindricalOffset;
-    cylindricalUV.y *= config.cylindricalScale;
-
-    // Wrap U coordinate
-    cylindricalUV.x = fmod(cylindricalUV.x + 1.0f, 1.0f);
-
-    if (config.flipV)
-    {
-        cylindricalUV.y = 1.0f - cylindricalUV.y;
-    }
-
-    vertex.TexCoords = cylindricalUV;
-}
-
-void UVGenerator::generatePlanarUV(
-    Vertex& vertex,
-    const glm::vec3& normal,
-    const MeshAnalysis::BoundingBox& bbox,
-    const UVConfig& config)
-{
-
-    glm::vec2 planarUV = projectToPlanar(vertex.Position, normal, bbox);
-
-    // Apply scaling
-    planarUV *= config.planarScale;
-
-    if (config.flipV)
-    {
-        planarUV.y = 1.0f - planarUV.y;
-    }
-
-    vertex.TexCoords = planarUV;
-}
-
-void UVGenerator::generateAdaptiveUV(
-    Vertex& vertex,
-    const MeshAnalysis::BoundingBox& bbox,
-    const UVConfig& config)
-{
-
-    // Use bounding box projection as fallback
-    glm::vec3 size = bbox.getSize();
-    glm::vec3 normalizedPos = (vertex.Position - bbox.min) / size;
-
-    // Project to the two largest dimensions
-    glm::vec2 adaptiveUV;
-    if (size.x >= size.y && size.x >= size.z)
-    {
-        if (size.y >= size.z)
-        {
-            adaptiveUV = glm::vec2(normalizedPos.x, normalizedPos.y);
-        }
-        else
-        {
-            adaptiveUV = glm::vec2(normalizedPos.x, normalizedPos.z);
-        }
-    }
-    else if (size.y >= size.z)
-    {
-        adaptiveUV = glm::vec2(normalizedPos.y, normalizedPos.z);
     }
     else
     {
-        adaptiveUV = glm::vec2(normalizedPos.x, normalizedPos.z);
+        // Moderately elongated - use planar
+        return generatePlanar(mesh, vertices, indices, config);
     }
+}
+
+
+// This is the best method to generate UVs based on angle thresholds
+bool UVGenerator::generateAngleBasedSmartUV(
+    aiMesh* mesh,
+    std::vector<Vertex>& vertices,
+    std::vector<unsigned int>& indices,
+    const UVConfig& config)
+{
+    if (vertices.empty() || indices.empty())
+        return false;
+
+    // 1. Triangle segmentation based on angle threshold
+    std::vector<Triangle> triangles;
+    buildTriangleList(vertices, indices, triangles);
+
+    std::vector<std::pair<uint32_t, uint32_t>> seams;
+    findSeams(vertices, triangles, seams, config.angleThreshold);
+
+    std::vector<UVIsland> islands;
+    createUVIslands(triangles, seams, islands);
+
+    // 2. PCA-based projection per island
+    std::vector<glm::vec2> uvs(vertices.size(), glm::vec2(0.0f));
+    for (const auto& island : islands)
+    {
+        unwrapIslandPCA(vertices, triangles, island, uvs);
+    }
+
+    // 3. Optional UV relaxation (not always needed)
+    if (config.enableRelaxation)
+    {
+        relaxUVs(triangles, uvs, islands, config, config.relaxationIterations);
+    }
+
+    // 4. Pack using xatlas (pass positions, indices, uvs)
+    std::vector<glm::vec3> positions(vertices.size());
+    for (size_t i = 0; i < vertices.size(); ++i)
+        positions[i] = vertices[i].Position;
+
+    packWithXAtlas(uvs, indices, positions);
+
+    // 5. Apply final transforms
+    for (size_t i = 0; i < vertices.size(); ++i)
+    {
+        glm::vec2 finalUV = uvs[i];
+        applyUVTransforms(finalUV, config);
+        vertices[i].TexCoords = finalUV;
+    }
+
+    return true;
+}
+
+
+// Helper method implementations
+void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
+    const std::vector<unsigned int>& indices,
+    std::vector<Triangle>& triangles)
+{
+    triangles.clear();
+    triangles.reserve(indices.size() / 3);
+
+    for (size_t i = 0; i < indices.size(); i += 3)
+    {
+        Triangle tri;
+        tri.indices[0] = indices[i];
+        tri.indices[1] = indices[i + 1];
+        tri.indices[2] = indices[i + 2];
+        tri.visited = false;
+
+        const glm::vec3& v0 = vertices[tri.indices[0]].Position;
+        const glm::vec3& v1 = vertices[tri.indices[1]].Position;
+        const glm::vec3& v2 = vertices[tri.indices[2]].Position;
+
+        tri.normal = calculateTriangleNormal(v0, v1, v2);
+        tri.area = calculateTriangleArea(v0, v1, v2);
+
+        triangles.push_back(tri);
+    }
+}
+
+void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
+    const std::vector<Triangle>& triangles,
+    std::vector<std::pair<unsigned int, unsigned int>>& seams,
+    float angleThreshold)
+{
+    seams.clear();
+    float cosThreshold = cos(glm::radians(angleThreshold));
+
+    // Simple seam detection based on normal angle differences
+    for (size_t i = 0; i < triangles.size(); ++i)
+    {
+        for (size_t j = i + 1; j < triangles.size(); ++j)
+        {
+            // Check if triangles share an edge
+            int sharedVertices = 0;
+            for (int vi = 0; vi < 3; ++vi)
+            {
+                for (int vj = 0; vj < 3; ++vj)
+                {
+                    if (triangles[i].indices[vi] == triangles[j].indices[vj])
+                    {
+                        sharedVertices++;
+                    }
+                }
+            }
+
+            if (sharedVertices >= 2)
+            { // Shared edge
+                float dot = glm::dot(triangles[i].normal, triangles[j].normal);
+                if (dot < cosThreshold)
+                {
+                    seams.push_back({ static_cast<unsigned int>(i), static_cast<unsigned int>(j) });
+                }
+            }
+        }
+    }
+}
+
+void UVGenerator::createUVIslands(
+    const std::vector<Triangle>& triangles,
+    const std::vector<std::pair<unsigned int, unsigned int>>& seams,
+    std::vector<UVIsland>& islands)
+{
+    // 1. Build adjacency map: triangle index ? list of connected neighbors
+    std::unordered_map<unsigned int, std::vector<unsigned int>> adjacency;
+    for (size_t i = 0; i < triangles.size(); ++i)
+    {
+        for (size_t j = i + 1; j < triangles.size(); ++j)
+        {
+            int shared = 0;
+            for (int a = 0; a < 3; ++a)
+            {
+                for (int b = 0; b < 3; ++b)
+                {
+                    if (triangles[i].indices[a] == triangles[j].indices[b])
+                    {
+                        shared++;
+                    }
+                }
+            }
+            if (shared >= 2)
+            {
+                adjacency[i].push_back(j);
+                adjacency[j].push_back(i);
+            }
+        }
+    }
+
+    // 2. Build a fast seam lookup map: seam[i][j] = true if edge is a seam
+    std::unordered_map<uint64_t, bool> seamMap;
+    auto encodeEdge = [](unsigned int a, unsigned int b) -> uint64_t {
+        return (static_cast<uint64_t>(std::min(a, b)) << 32) | std::max(a, b);
+        };
+    for (const auto& seam : seams)
+    {
+        const Triangle& t1 = triangles[seam.first];
+        const Triangle& t2 = triangles[seam.second];
+
+        // Find shared edge between the triangles
+        for (int i = 0; i < 3; ++i)
+        {
+            for (int j = 0; j < 3; ++j)
+            {
+                unsigned int a1 = t1.indices[i];
+                unsigned int b1 = t1.indices[(i + 1) % 3];
+                unsigned int a2 = t2.indices[j];
+                unsigned int b2 = t2.indices[(j + 1) % 3];
+
+                if ((a1 == a2 && b1 == b2) || (a1 == b2 && b1 == a2))
+                {
+                    seamMap[encodeEdge(a1, b1)] = true;
+                }
+            }
+        }
+    }
+
+    // 3. Flood-fill UV islands
+    std::vector<bool> visited(triangles.size(), false);
+    islands.clear();
+
+    for (size_t i = 0; i < triangles.size(); ++i)
+    {
+        if (visited[i]) continue;
+
+        UVIsland island;
+        std::vector<unsigned int> stack = { static_cast<unsigned int>(i) };
+
+        while (!stack.empty())
+        {
+            unsigned int current = stack.back();
+            stack.pop_back();
+
+            if (visited[current]) continue;
+            visited[current] = true;
+
+            island.triangles.push_back(current);
+            island.totalArea += triangles[current].area;
+
+            for (unsigned int neighbor : adjacency[current])
+            {
+                if (visited[neighbor]) continue;
+
+                // Check if there's a seam between current and neighbor
+                bool hasSeam = false;
+                for (int e1 = 0; e1 < 3; ++e1)
+                {
+                    unsigned int a = triangles[current].indices[e1];
+                    unsigned int b = triangles[current].indices[(e1 + 1) % 3];
+                    uint64_t edgeKey = encodeEdge(a, b);
+                    if (seamMap.count(edgeKey))
+                    {
+                        hasSeam = true;
+                        break;
+                    }
+                }
+
+                if (!hasSeam)
+                {
+                    stack.push_back(neighbor);
+                }
+            }
+        }
+
+        islands.push_back(std::move(island));
+    }
+}
+
+
+void UVGenerator::unwrapIsland(const std::vector<Vertex>& vertices,
+    const std::vector<Triangle>& triangles,
+    const UVIsland& island,
+    std::vector<glm::vec2>& uvs)
+{
+    // Simple planar unwrapping for each island
+    for (unsigned int triIdx : island.triangles)
+    {
+        const Triangle& tri = triangles[triIdx];
+
+        // Project triangle onto its best-fit plane
+        glm::vec3 normal = tri.normal;
+        glm::vec3 tangent = glm::normalize(glm::cross(normal, glm::vec3(0, 1, 0)));
+        if (glm::length(tangent) < 0.1f)
+        {
+            tangent = glm::normalize(glm::cross(normal, glm::vec3(1, 0, 0)));
+        }
+        glm::vec3 bitangent = glm::cross(normal, tangent);
+
+        for (int i = 0; i < 3; ++i)
+        {
+            glm::vec3 pos = vertices[tri.indices[i]].Position;
+            uvs[tri.indices[i]] = glm::vec2(
+                glm::dot(pos, tangent),
+                glm::dot(pos, bitangent)
+            );
+        }
+    }
+}
+
+void UVGenerator::packUVIslands(std::vector<UVIsland>& islands,
+    std::vector<glm::vec2>& uvs,
+    float padding)
+{
+    // Simple UV packing - normalize all UVs to [0,1] range
+    if (uvs.empty()) return;
+
+    glm::vec2 minUV = uvs[0];
+    glm::vec2 maxUV = uvs[0];
+
+    for (const auto& uv : uvs)
+    {
+        minUV = glm::min(minUV, uv);
+        maxUV = glm::max(maxUV, uv);
+    }
+
+    glm::vec2 size = maxUV - minUV;
+    if (size.x > 0 && size.y > 0)
+    {
+        for (auto& uv : uvs)
+        {
+            uv = (uv - minUV) / size;
+        }
+    }
+}
+
+void UVGenerator::applyUVTransforms(glm::vec2& uv, const UVConfig& config)
+{
+    uv *= config.planarScale;
 
     if (config.flipV)
     {
-        adaptiveUV.y = 1.0f - adaptiveUV.y;
+        uv.y = 1.0f - uv.y;
     }
 
-    vertex.TexCoords = adaptiveUV;
+    // Ensure UVs are in [0,1] range
+    uv = glm::clamp(uv, 0.0f, 1.0f);
 }
 
-// UV Utility Functions
-glm::vec2 UVGenerator::cartesianToSpherical(const glm::vec3& pos, const glm::vec3& center)
+// Utility methods
+glm::vec3 UVGenerator::calculateCentroid(const std::vector<Vertex>& vertices)
 {
-    glm::vec3 dir = glm::normalize(pos - center);
-
-    float u = 0.5f + atan2f(dir.z, dir.x) / (2.0f * glm::pi<float>());
-    float v = 0.5f - asinf(dir.y) / glm::pi<float>();
-
-    return glm::vec2(u, v);
+    glm::vec3 centroid(0.0f);
+    for (const auto& vertex : vertices)
+    {
+        centroid += vertex.Position;
+    }
+    return centroid / static_cast<float>(vertices.size());
 }
 
-glm::vec2 UVGenerator::cartesianToCylindrical(const glm::vec3& pos, const glm::vec3& axis, const MeshAnalysis::BoundingBox& bbox)
+glm::vec3 UVGenerator::calculateBounds(const std::vector<Vertex>& vertices,
+    glm::vec3& minBounds, glm::vec3& maxBounds)
 {
-    // Project position onto the plane perpendicular to the axis
-    glm::vec3 center = bbox.getCenter();
-    glm::vec3 relativePos = pos - center;
+    if (vertices.empty()) return glm::vec3(0);
 
-    // Remove the component along the axis
-    glm::vec3 projected = relativePos - glm::dot(relativePos, axis) * axis;
-
-    // Calculate cylindrical coordinates
-    float u = 0.5f + atan2f(projected.z, projected.x) / (2.0f * glm::pi<float>());
-
-    // V coordinate is the position along the axis
-    float axisLength = glm::dot(bbox.getSize(), glm::abs(axis));
-    float v = (glm::dot(relativePos, axis) + axisLength * 0.5f) / axisLength;
-
-    return glm::vec2(u, glm::clamp(v, 0.0f, 1.0f));
+    minBounds = maxBounds = vertices[0].Position;
+    for (const auto& vertex : vertices)
+    {
+        minBounds = glm::min(minBounds, vertex.Position);
+        maxBounds = glm::max(maxBounds, vertex.Position);
+    }
+    return maxBounds - minBounds;
 }
 
-glm::vec2 UVGenerator::projectToPlanar(const glm::vec3& pos, const glm::vec3& normal, const MeshAnalysis::BoundingBox& bbox)
+float UVGenerator::calculateTriangleArea(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)
 {
-    // Determine the best projection plane based on normal
-    glm::vec3 absNormal = glm::abs(normal);
-    glm::vec3 size = bbox.getSize();
-    glm::vec3 relativePos = (pos - bbox.min) / size;
+    return 0.5f * glm::length(glm::cross(v1 - v0, v2 - v0));
+}
 
-    if (absNormal.x > absNormal.y && absNormal.x > absNormal.z)
+glm::vec3 UVGenerator::calculateTriangleNormal(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)
+{
+    return glm::normalize(glm::cross(v1 - v0, v2 - v0));
+}
+
+void UVGenerator::unwrapIslandPCA(const std::vector<Vertex>& vertices,
+    const std::vector<Triangle>& triangles,
+    const UVIsland& island,
+    std::vector<glm::vec2>& uvs)
+{
+    std::vector<glm::vec3> points;
+    for (unsigned int triIdx : island.triangles)
     {
-        // Project to YZ plane
-        return glm::vec2(relativePos.y, relativePos.z);
+        const Triangle& tri = triangles[triIdx];
+        for (int i = 0; i < 3; ++i)
+        {
+            points.push_back(vertices[tri.indices[i]].Position);
+        }
     }
-    else if (absNormal.y > absNormal.z)
+
+    // Compute centroid
+    glm::vec3 centroid(0.0f);
+    for (auto& p : points) centroid += p;
+    centroid /= static_cast<float>(points.size());
+
+    // Compute covariance
+    glm::mat3 cov(0.0f);
+    for (auto& p : points)
     {
-        // Project to XZ plane
-        return glm::vec2(relativePos.x, relativePos.z);
+        glm::vec3 d = p - centroid;
+        cov += glm::outerProduct(d, d);
     }
-    else
+
+    // Eigen decomposition
+    glm::vec3 axis1(1, 0, 0), axis2(0, 1, 0);
+    // Use PCA if you have a math lib for it, or fallback: cross with normal
+    glm::vec3 normal = triangles[island.triangles[0]].normal;
+    axis1 = glm::normalize(glm::cross(normal, glm::vec3(0, 1, 0)));
+    if (glm::length(axis1) < 0.01f) axis1 = glm::normalize(glm::cross(normal, glm::vec3(1, 0, 0)));
+    axis2 = glm::cross(normal, axis1);
+
+    // Project to 2D plane
+    for (unsigned int triIdx : island.triangles)
     {
-        // Project to XY plane
-        return glm::vec2(relativePos.x, relativePos.y);
+        const Triangle& tri = triangles[triIdx];
+        for (int i = 0; i < 3; ++i)
+        {
+            glm::vec3 pos = vertices[tri.indices[i]].Position - centroid;
+            uvs[tri.indices[i]] = glm::vec2(glm::dot(pos, axis1), glm::dot(pos, axis2));
+        }
     }
+}
+
+void UVGenerator::relaxUVs(
+    const std::vector<Triangle>& triangles,
+    std::vector<glm::vec2>& uvs,
+    const std::vector<UVIsland>& islands,
+    const UVConfig& config,
+    int iterations)
+{
+    // Build adjacency: vertex index -> set of neighbor indices
+    std::unordered_map<uint32_t, std::vector<uint32_t>> adjacency;
+
+    for (const auto& island : islands)
+    {
+        for (uint32_t triIdx : island.triangles)
+        {
+            const Triangle& tri = triangles[triIdx];
+            for (int i = 0; i < 3; ++i)
+            {
+                uint32_t vi = tri.indices[i];
+                for (int j = 0; j < 3; ++j)
+                {
+                    uint32_t vj = tri.indices[j];
+                    if (vi != vj)
+                        adjacency[vi].push_back(vj);
+                }
+            }
+        }
+    }
+
+    // Laplacian relaxation iterations
+    std::vector<glm::vec2> newUVs = uvs;
+
+    for (int iter = 0; iter < iterations; ++iter)
+    {
+        for (const auto& [vi, neighbors] : adjacency)
+        {
+            if (neighbors.empty())
+                continue;
+
+            glm::vec2 avg(0.0f);
+            for (uint32_t nj : neighbors)
+                avg += uvs[nj];
+            avg /= static_cast<float>(neighbors.size());
+
+            // Blend original and average (you can bias this if needed)
+            newUVs[vi] = avg;
+        }
+
+        std::swap(uvs, newUVs);  // Update uvs for next iteration
+    }
+}
+
+
+#include <xatlas.h>
+
+void UVGenerator::packWithXAtlas(
+    std::vector<glm::vec2>& uvs,
+    const std::vector<unsigned int>& indices,
+    const std::vector<glm::vec3>& positions)
+{
+    assert(!uvs.empty());
+    assert(!indices.empty());
+    assert(positions.size() == uvs.size());
+
+    xatlas::Atlas* atlas = xatlas::Create();
+
+    xatlas::MeshDecl meshDecl{};
+    meshDecl.vertexCount = static_cast<uint32_t>(positions.size());
+    meshDecl.vertexPositionData = positions.data();
+    meshDecl.vertexPositionStride = sizeof(glm::vec3);
+    meshDecl.indexCount = static_cast<uint32_t>(indices.size());
+    meshDecl.indexData = indices.data();
+    meshDecl.indexFormat = xatlas::IndexFormat::UInt32;
+
+    // Add mesh to xatlas
+    xatlas::AddMeshError error = xatlas::AddMesh(atlas, meshDecl);
+    if (error != xatlas::AddMeshError::Success)
+    {
+        printf("xatlas AddMesh failed: %s\n", xatlas::StringForEnum(error));
+        xatlas::Destroy(atlas);
+        return;
+    }
+
+    xatlas::ChartOptions chartOptions{};
+    xatlas::PackOptions packOptions{};
+    packOptions.padding = 2;
+    packOptions.texelsPerUnit = 1.0f;
+
+    xatlas::Generate(atlas, chartOptions, packOptions);
+
+    const xatlas::Mesh& outMesh = atlas->meshes[0];
+    uvs.resize(outMesh.vertexCount);
+
+    for (uint32_t i = 0; i < outMesh.vertexCount; ++i)
+    {
+        const xatlas::Vertex& v = outMesh.vertexArray[i];
+        uvs[v.xref] = glm::vec2(
+            v.uv[0] / float(atlas->width),
+            v.uv[1] / float(atlas->height));
+    }
+
+    xatlas::Destroy(atlas);
 }

@@ -698,7 +698,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 
 	// If the mesh has no texture coordinates, we generate them now.
 	if (needsUVGeneration)
-	{
+	{		
 		// Generate UVs for the mesh
 		MeshAnalysis::SamplingConfig config;
 		config.maxSamples = 200;
@@ -726,12 +726,20 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		case MeshAnalysis::SurfaceType::MIXED:
 			break;
 		}
+			
+
+		
+		uvconfig.angleThreshold = 66.0f; // Similar to Blender's default
+		uvconfig.enableRelaxation = true;
 
 		// Generate UVs and tangents
-		UVGenerator::generateUVForMesh(vertices, analysis, uvconfig);		
-		
+		//UVGenerator::generateUVForMesh(vertices, analysis, uvconfig);		
+		//bool success = UVGenerator::generateAngleBased(mesh, vertices, indices, uvconfig);
+		//bool success = UVGenerator::generateHybrid(mesh, vertices, indices);		
+		bool success = UVGenerator::generateAngleBasedSmartUV(mesh, vertices, indices, uvconfig);
+
 		// MikkTSpace tangents
-		TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);
+		TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);	
 	}
 
 	// Process materials
@@ -769,6 +777,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 	{
 		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
 	}
+	
 	return new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);
 }
 
