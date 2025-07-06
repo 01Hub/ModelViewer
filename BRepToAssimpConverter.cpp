@@ -404,7 +404,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		// Local containers for the current face's vertex data
 		std::vector<aiVector3D> localVertices;
 		std::vector<aiVector3D> localNormals(nNodes);
-		std::vector<aiVector3D> localUVs;
+		//std::vector<aiVector3D> localUVs;
 
 		// Create local vertex positions and UV texture coordinates from points
 		for (int i = 0; i < nNodes; ++i)
@@ -412,7 +412,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			const gp_Pnt& p = points[i];
 			localVertices.emplace_back(p.X(), p.Y(), p.Z());
 			// UV coordinates normalized based on XY bounding box of the face
-			localUVs.emplace_back((p.X() - minX) / deltaX, (p.Y() - minY) / deltaY, 0.0f);
+			//localUVs.emplace_back((p.X() - minX) / deltaX, (p.Y() - minY) / deltaY, 0.0f);
 		}
 
 		// Calculate normals per triangle and assign them to the vertices of the triangle
@@ -450,7 +450,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 
 		// Append the local face data to the global containers
 		vertices.insert(vertices.end(), localVertices.begin(), localVertices.end());
-		texCoords.insert(texCoords.end(), localUVs.begin(), localUVs.end());
+		//texCoords.insert(texCoords.end(), localUVs.begin(), localUVs.end());
 		normals.insert(normals.end(), localNormals.begin(), localNormals.end());
 		vertexOffset = vertices.size(); // Update vertex offset for next face
 	}
@@ -464,7 +464,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 	mesh->mNumVertices = vertices.size();
 	mesh->mVertices = new aiVector3D[vertices.size()];
 	mesh->mNormals = new aiVector3D[normals.size()];
-	mesh->mTextureCoords[0] = new aiVector3D[texCoords.size()];
+	//mesh->mTextureCoords[0] = new aiVector3D[texCoords.size()];
 	mesh->mNumUVComponents[0] = 2; // UV coordinates have two components (u,v)
 
 	// Copy vertex positions, normals, and texture coordinates into the mesh arrays
@@ -472,7 +472,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 	{
 		mesh->mVertices[i] = vertices[i];
 		mesh->mNormals[i] = normals[i];
-		mesh->mTextureCoords[0][i] = texCoords[i];
+		//mesh->mTextureCoords[0][i] = texCoords[i];
 	}
 
 	// Allocate and copy face (triangle) data
