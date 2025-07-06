@@ -31,6 +31,7 @@
 #include <XCAFDoc_Location.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 #include "MaterialProcessor.h"
+#include "UVPromptDialog.h"
 
 
 class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
@@ -119,7 +120,7 @@ private:
 	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene);
 	
 	// For UV generation dialog user selection
-	UVDialogResult askUserForUVMethod(QWidget* parent);
+	UVDialogResult askUserForUVMethod(const SceneUVPromptInfo& info, QWidget* parent);
 
 private:
 	QOpenGLShaderProgram* _prog;

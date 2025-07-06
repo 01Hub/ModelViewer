@@ -16,6 +16,7 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QCheckBox>
+#include <QLayout>
 #include <Quantity_ColorRGBA.hxx>
 #include <STEPControl_Reader.hxx>
 #include <TopoDS_Iterator.hxx>
@@ -130,7 +131,15 @@ void AssImpModelLoader::loadModel(string path)
 
 	if (modelHasMissingUVs)
 	{
-		UVDialogResult userChoice = askUserForUVMethod(qobject_cast<MainWindow*>(QApplication::activeWindow()));
+		SceneMeshInfo stats = UVPromptDialog::collectSceneMeshInfo(scene);
+		SceneUVPromptInfo info;
+		info.fileName = QFileInfo(QString::fromStdString(path)).fileName();
+		info.meshCount = stats.meshCount;
+		info.totalVertices = stats.totalVertices;
+		info.totalTriangles = stats.totalTriangles;
+		info.largestMeshName = QString::fromStdString(stats.largestMeshName);
+		info.largestTriangleCount = stats.largestMeshTriangles;
+		UVDialogResult userChoice = askUserForUVMethod(info, qobject_cast<MainWindow*>(QApplication::activeWindow()));
 		_selectedUVMethod = userChoice.method;		
 	}
 
@@ -806,28 +815,36 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 	return new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);
 }
 
-UVDialogResult AssImpModelLoader::askUserForUVMethod(QWidget* parent)
+UVDialogResult AssImpModelLoader::askUserForUVMethod(const SceneUVPromptInfo& info, QWidget* parent)
 {
 	UVDialogResult result;
 
-	QMessageBox msgBox(parent);
-	msgBox.setIcon(QMessageBox::Question);
-	msgBox.setWindowTitle("Generate Missing UVs?");
-	msgBox.setText("Some meshes in this model are missing UVs.");
-	msgBox.setInformativeText("Choose how you want to generate UVs:");
+	UVPromptDialog dialog(info, parent);
+	dialog.setWindowFlag(Qt::WindowContextHelpButtonHint, false);
+	dialog.adjustSize();  // Resizes to layout's preferred size
+	dialog.move(parent->window()->frameGeometry().center() - dialog.rect().center());
+	dialog.layout()->setSizeConstraint(QLayout::SetMinimumSize);
 
-	QPushButton* hybridButton = msgBox.addButton("Fast (Hybrid)", QMessageBox::AcceptRole);
-	QPushButton* smartButton = msgBox.addButton("Accurate (Smart UV)", QMessageBox::YesRole);
-	QPushButton* skipButton = msgBox.addButton("Skip", QMessageBox::RejectRole);
-
-	msgBox.exec();
-
-	if (msgBox.clickedButton() == hybridButton)
-		result.method = UVMethod::Hybrid;
-	else if (msgBox.clickedButton() == smartButton)
-		result.method = UVMethod::AngleBasedSmartUV;
+	if (dialog.exec() == QDialog::Accepted)
+	{
+		UVPromptDialog::Choice choice = dialog.selectedChoice();
+		if(choice == UVPromptDialog::Choice::Hybrid)
+		{
+			result.method = UVMethod::Hybrid;
+		}
+		else if (choice == UVPromptDialog::Choice::Smart)
+		{
+			result.method = UVMethod::AngleBasedSmartUV;
+		}
+		else
+		{
+			result.method = UVMethod::None; // Skip UV generation			
+		}
+	}
 	else
-		result.method = UVMethod::None;
+	{
+		result.method = UVMethod::None; // User cancelled	
+	}	
 
 	return result;
 }
