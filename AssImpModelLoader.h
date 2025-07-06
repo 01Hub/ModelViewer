@@ -51,15 +51,17 @@ signals:
 	void fileReadProcessed(float percent);
 };
 
-// Pre-analyze the entire mesh to determine surface type and characteristics
-/*struct MeshAnalysis
+enum class UVMethod
 {
-	enum SurfaceType { PLANAR, CYLINDRICAL, SPHERICAL, MIXED } surfaceType;
-	glm::vec3 boundingMin, boundingMax, center;
-	glm::vec3 dominantAxis;  // For cylindrical surfaces
-	float avgRadius;         // For spherical surfaces
-	bool hasUniformNormals;
-};*/
+	None,
+	Hybrid,
+	AngleBasedSmartUV
+};
+
+struct UVDialogResult
+{
+	UVMethod method = UVMethod::None;	
+};
 
 class AssImpModelLoader : public QObject, public QOpenGLFunctions_4_5_Core
 {
@@ -89,13 +91,7 @@ public slots:
 	void processFileReadProgress(float percentage);
 	void cancelLoading();
 
-private:
-	QOpenGLShaderProgram* _prog;
-	std::string _path;
-	/*  Model Data  */
-	std::vector<AssImpMesh*> _meshes;
-	std::string _texturePath;
-	
+private:	
 	//using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, gp_Trsf>;
 	using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, TopLoc_Location, Quantity_Color>;
 
@@ -121,11 +117,23 @@ private:
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene);
 
 	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene);
+	
+	// For UV generation dialog user selection
+	UVDialogResult askUserForUVMethod(QWidget* parent);
+
+private:
+	QOpenGLShaderProgram* _prog;
+	std::string _path;
+	/*  Model Data  */
+	std::vector<AssImpMesh*> _meshes;
+	std::string _texturePath;
 
 	Assimp::Importer _importer;
 	AssImpModelProgressHandler* _progHandler;
 	QString _errorMessage;
 	bool _loadingCancelled;
 
-	MaterialProcessor _materialProcessor; // Handles material processing and texture loading
+	MaterialProcessor _materialProcessor; 
+
+	UVMethod _selectedUVMethod = UVMethod::None;	
 };

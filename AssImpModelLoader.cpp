@@ -12,8 +12,10 @@
 #include <IGESCAFControl_Reader.hxx>
 #include <IGESControl_Controller.hxx>
 #include <IGESControl_Reader.hxx>
+#include <QApplication>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QCheckBox>
 #include <Quantity_ColorRGBA.hxx>
 #include <STEPControl_Reader.hxx>
 #include <TopoDS_Iterator.hxx>
@@ -115,6 +117,24 @@ void AssImpModelLoader::loadModel(string path)
 		cout << "ERROR::ASSIMP:: " << _importer.GetErrorString() << endl;
 		return;
 	}
+
+	bool modelHasMissingUVs = false;
+	for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
+	{
+		if (scene->mMeshes[i]->mTextureCoords[0] == nullptr)
+		{
+			modelHasMissingUVs = true;
+			break;
+		}
+	}
+
+	if (modelHasMissingUVs)
+	{
+		UVDialogResult userChoice = askUserForUVMethod(qobject_cast<MainWindow*>(QApplication::activeWindow()));
+		_selectedUVMethod = userChoice.method;		
+	}
+
+
 	// Retrieve the directory path of the filepath
 	this->_texturePath = path.substr(0, path.find_last_of('/'));
 
@@ -697,7 +717,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 	}
 
 	// If the mesh has no texture coordinates, we generate them now.
-	if (needsUVGeneration)
+	if (needsUVGeneration && _selectedUVMethod != UVMethod::None)
 	{		
 		// Generate UVs for the mesh
 		MeshAnalysis::SamplingConfig config;
@@ -726,17 +746,22 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		case MeshAnalysis::SurfaceType::MIXED:
 			break;
 		}
-			
-
 		
 		uvconfig.angleThreshold = 66.0f; // Similar to Blender's default
 		uvconfig.enableRelaxation = true;
 
 		// Generate UVs and tangents
-		//UVGenerator::generateUVForMesh(vertices, analysis, uvconfig);		
-		//bool success = UVGenerator::generateAngleBased(mesh, vertices, indices, uvconfig);
-		//bool success = UVGenerator::generateHybrid(mesh, vertices, indices);		
-		bool success = UVGenerator::generateAngleBasedSmartUV(mesh, vertices, indices, uvconfig);
+		switch (_selectedUVMethod)
+		{
+		case UVMethod::Hybrid:
+			UVGenerator::generateHybrid(mesh, vertices, indices);
+			break;
+		case UVMethod::AngleBasedSmartUV:
+			UVGenerator::generateAngleBasedSmartUV(mesh, vertices, indices, uvconfig);
+			break;
+		default:
+			break; // skip UV generation
+		}
 
 		// MikkTSpace tangents
 		TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);	
@@ -779,6 +804,32 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 	}
 	
 	return new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);
+}
+
+UVDialogResult AssImpModelLoader::askUserForUVMethod(QWidget* parent)
+{
+	UVDialogResult result;
+
+	QMessageBox msgBox(parent);
+	msgBox.setIcon(QMessageBox::Question);
+	msgBox.setWindowTitle("Generate Missing UVs?");
+	msgBox.setText("Some meshes in this model are missing UVs.");
+	msgBox.setInformativeText("Choose how you want to generate UVs:");
+
+	QPushButton* hybridButton = msgBox.addButton("Fast (Hybrid)", QMessageBox::AcceptRole);
+	QPushButton* smartButton = msgBox.addButton("Accurate (Smart UV)", QMessageBox::YesRole);
+	QPushButton* skipButton = msgBox.addButton("Skip", QMessageBox::RejectRole);
+
+	msgBox.exec();
+
+	if (msgBox.clickedButton() == hybridButton)
+		result.method = UVMethod::Hybrid;
+	else if (msgBox.clickedButton() == smartButton)
+		result.method = UVMethod::AngleBasedSmartUV;
+	else
+		result.method = UVMethod::None;
+
+	return result;
 }
 
 
