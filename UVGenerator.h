@@ -7,6 +7,47 @@
 #include <cmath>
 #include "AssImpMesh.h"
 
+#include <utility>
+#include <cstdint>
+
+// Edge type (ensure vertex indices are sorted to prevent duplicates)
+struct Edge
+{
+    uint32_t v1, v2;
+
+    Edge(uint32_t a, uint32_t b)
+    {
+        if (a < b)
+        {
+            v1 = a;
+            v2 = b;
+        }
+        else
+        {
+            v1 = b;
+            v2 = a;
+        }
+    }
+
+    bool operator==(const Edge& other) const
+    {
+        return v1 == other.v1 && v2 == other.v2;
+    }
+};
+
+// Custom hash for Edge
+namespace std
+{
+    template <>
+    struct hash<Edge>
+    {
+        std::size_t operator()(const Edge& e) const
+        {
+            return std::hash<uint32_t>()(e.v1) ^ (std::hash<uint32_t>()(e.v2) << 1);
+        }
+    };
+}
+
 // UV Generation Configuration
 struct UVConfig
 {

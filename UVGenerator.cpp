@@ -1,4 +1,5 @@
 #include "UVGenerator.h"
+#include <omp.h>
 
 // Method 1: Angle-based unwrapping (most similar to Blender's Smart UV)
 bool UVGenerator::generateAngleBased(aiMesh* mesh,
@@ -233,9 +234,11 @@ bool UVGenerator::generateAngleBasedSmartUV(
 
     // 2. PCA-based projection per island
     std::vector<glm::vec2> uvs(vertices.size(), glm::vec2(0.0f));
-    for (const auto& island : islands)
+
+#pragma omp parallel for
+    for (int i = 0; i < static_cast<int>(islands.size()); ++i)
     {
-        unwrapIslandPCA(vertices, triangles, island, uvs);
+        unwrapIslandPCA(vertices, triangles, islands[i], uvs);
     }
 
     // 3. Optional UV relaxation (not always needed)
@@ -290,145 +293,188 @@ void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
     }
 }
 
+//void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
+//    const std::vector<Triangle>& triangles,
+//    std::vector<std::pair<unsigned int, unsigned int>>& seams,
+//    float angleThreshold)
+//{
+//    seams.clear();
+//    float cosThreshold = cos(glm::radians(angleThreshold));
+//
+//    // Simple seam detection based on normal angle differences
+//    for (size_t i = 0; i < triangles.size(); ++i)
+//    {
+//        for (size_t j = i + 1; j < triangles.size(); ++j)
+//        {
+//            // Check if triangles share an edge
+//            int sharedVertices = 0;
+//            for (int vi = 0; vi < 3; ++vi)
+//            {
+//                for (int vj = 0; vj < 3; ++vj)
+//                {
+//                    if (triangles[i].indices[vi] == triangles[j].indices[vj])
+//                    {
+//                        sharedVertices++;
+//                    }
+//                }
+//            }
+//
+//            if (sharedVertices >= 2)
+//            { // Shared edge
+//                float dot = glm::dot(triangles[i].normal, triangles[j].normal);
+//                if (dot < cosThreshold)
+//                {
+//                    seams.push_back({ static_cast<unsigned int>(i), static_cast<unsigned int>(j) });
+//                }
+//            }
+//        }
+//    }
+//}
+
 void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
     const std::vector<Triangle>& triangles,
-    std::vector<std::pair<unsigned int, unsigned int>>& seams,
+    std::vector<std::pair<uint32_t, uint32_t>>& seams,
     float angleThreshold)
 {
     seams.clear();
-    float cosThreshold = cos(glm::radians(angleThreshold));
+        
+    std::unordered_map<Edge, std::vector<uint32_t>> edgeToTriangles;
 
-    // Simple seam detection based on normal angle differences
-    for (size_t i = 0; i < triangles.size(); ++i)
+    // 1. Build edge -> triangle adjacency
+    for (uint32_t i = 0; i < triangles.size(); ++i)
     {
-        for (size_t j = i + 1; j < triangles.size(); ++j)
+        const Triangle& tri = triangles[i];
+        for (int j = 0; j < 3; ++j)
         {
-            // Check if triangles share an edge
-            int sharedVertices = 0;
-            for (int vi = 0; vi < 3; ++vi)
-            {
-                for (int vj = 0; vj < 3; ++vj)
-                {
-                    if (triangles[i].indices[vi] == triangles[j].indices[vj])
-                    {
-                        sharedVertices++;
-                    }
-                }
-            }
+            uint32_t a = tri.indices[j];
+            uint32_t b = tri.indices[(j + 1) % 3];
+            edgeToTriangles[Edge(a, b)].push_back(i);
+        }
+    }
 
-            if (sharedVertices >= 2)
-            { // Shared edge
-                float dot = glm::dot(triangles[i].normal, triangles[j].normal);
-                if (dot < cosThreshold)
-                {
-                    seams.push_back({ static_cast<unsigned int>(i), static_cast<unsigned int>(j) });
-                }
-            }
+    const float cosThreshold = std::cos(glm::radians(angleThreshold));
+
+    // 2. Check each edge's adjacent triangle pair(s)
+    for (const auto& entry : edgeToTriangles)
+    {
+        const auto& adjTris = entry.second;
+        if (adjTris.size() != 2)
+            continue; // boundary edge
+
+        uint32_t t0 = adjTris[0];
+        uint32_t t1 = adjTris[1];
+
+        const glm::vec3& n0 = triangles[t0].normal;
+        const glm::vec3& n1 = triangles[t1].normal;
+
+        float dot = glm::dot(n0, n1);
+        if (dot < cosThreshold)
+        {
+            seams.emplace_back(t0, t1);
         }
     }
 }
 
-void UVGenerator::createUVIslands(
-    const std::vector<Triangle>& triangles,
-    const std::vector<std::pair<unsigned int, unsigned int>>& seams,
+
+#include <utility>   // for std::pair
+#include <cstdint>   // for uint32_t
+#include <functional> // for std::hash
+#include <queue>
+
+namespace std
+{
+    template<>
+    struct hash<std::pair<uint32_t, uint32_t>>
+    {
+        size_t operator()(const std::pair<uint32_t, uint32_t>& p) const
+        {
+            // Combine the two integers into a 64-bit value
+            return std::hash<uint64_t>()(
+                (static_cast<uint64_t>(p.first) << 32) | p.second
+                );
+        }
+    };
+}
+
+
+void UVGenerator::createUVIslands(const std::vector<Triangle>& triangles,
+    const std::vector<std::pair<uint32_t, uint32_t>>& seams,
     std::vector<UVIsland>& islands)
 {
-    // 1. Build adjacency map: triangle index list of connected neighbors
-    std::unordered_map<unsigned int, std::vector<unsigned int>> adjacency;
-    for (size_t i = 0; i < triangles.size(); ++i)
+    islands.clear();
+    const size_t triangleCount = triangles.size();
+
+    // Build fast edge -> triangle adjacency       
+
+    std::unordered_map<Edge, std::vector<uint32_t>> edgeMap;
+
+    for (uint32_t i = 0; i < triangleCount; ++i)
     {
-        for (size_t j = i + 1; j < triangles.size(); ++j)
-        {
-            int shared = 0;
-            for (int a = 0; a < 3; ++a)
-            {
-                for (int b = 0; b < 3; ++b)
-                {
-                    if (triangles[i].indices[a] == triangles[j].indices[b])
-                    {
-                        shared++;
-                    }
-                }
-            }
-            if (shared >= 2)
-            {
-                adjacency[i].push_back(j);
-                adjacency[j].push_back(i);
-            }
-        }
+        const auto& tri = triangles[i];
+        edgeMap[Edge(tri.indices[0], tri.indices[1])].push_back(i);
+        edgeMap[Edge(tri.indices[1], tri.indices[2])].push_back(i);
+        edgeMap[Edge(tri.indices[2], tri.indices[0])].push_back(i);
     }
 
-    // 2. Build a fast seam lookup map: seam[i][j] = true if edge is a seam
-    std::unordered_map<uint64_t, bool> seamMap;
-    auto encodeEdge = [](unsigned int a, unsigned int b) -> uint64_t {
-        return (static_cast<uint64_t>(std::min(a, b)) << 32) | std::max(a, b);
-        };
-    for (const auto& seam : seams)
+    // Build seam edge set for fast lookup
+    std::unordered_set<Edge> seamEdges;
+    for (const auto& s : seams)
     {
-        const Triangle& t1 = triangles[seam.first];
-        const Triangle& t2 = triangles[seam.second];
-
-        // Find shared edge between the triangles
+        const auto& t0 = triangles[s.first];
+        const auto& t1 = triangles[s.second];
         for (int i = 0; i < 3; ++i)
         {
+            uint32_t a = t0.indices[i];
+            uint32_t b = t0.indices[(i + 1) % 3];
+            Edge e = Edge(a, b);
+
+            // Check if edge exists in both triangles
             for (int j = 0; j < 3; ++j)
             {
-                unsigned int a1 = t1.indices[i];
-                unsigned int b1 = t1.indices[(i + 1) % 3];
-                unsigned int a2 = t2.indices[j];
-                unsigned int b2 = t2.indices[(j + 1) % 3];
-
-                if ((a1 == a2 && b1 == b2) || (a1 == b2 && b1 == a2))
+                uint32_t a1 = t1.indices[j];
+                uint32_t b1 = t1.indices[(j + 1) % 3];
+                if (Edge(a1, b1) == e)
                 {
-                    seamMap[encodeEdge(a1, b1)] = true;
+                    seamEdges.emplace(e);
                 }
             }
         }
     }
 
-    // 3. Flood-fill UV islands
-    std::vector<bool> visited(triangles.size(), false);
-    islands.clear();
-
-    for (size_t i = 0; i < triangles.size(); ++i)
+    // Flood fill to build islands
+    std::vector<bool> visited(triangleCount, false);
+    for (uint32_t i = 0; i < triangleCount; ++i)
     {
-        if (visited[i]) continue;
+        if (visited[i])
+            continue;
 
         UVIsland island;
-        std::vector<unsigned int> stack = { static_cast<unsigned int>(i) };
+        std::queue<uint32_t> q;
+        q.push(i);
+        visited[i] = true;
 
-        while (!stack.empty())
+        while (!q.empty())
         {
-            unsigned int current = stack.back();
-            stack.pop_back();
+            uint32_t tidx = q.front();
+            q.pop();
+            island.triangles.push_back(tidx);
+            island.totalArea += triangles[tidx].area;
 
-            if (visited[current]) continue;
-            visited[current] = true;
-
-            island.triangles.push_back(current);
-            island.totalArea += triangles[current].area;
-
-            for (unsigned int neighbor : adjacency[current])
+            const auto& tri = triangles[tidx];
+            for (int ei = 0; ei < 3; ++ei)
             {
-                if (visited[neighbor]) continue;
+                Edge e = Edge(tri.indices[ei], tri.indices[(ei + 1) % 3]);
+                if (seamEdges.count(e)) continue;
 
-                // Check if there's a seam between current and neighbor
-                bool hasSeam = false;
-                for (int e1 = 0; e1 < 3; ++e1)
+                // Neighbors sharing this edge
+                const auto& adjTris = edgeMap[e];
+                for (uint32_t nidx : adjTris)
                 {
-                    unsigned int a = triangles[current].indices[e1];
-                    unsigned int b = triangles[current].indices[(e1 + 1) % 3];
-                    uint64_t edgeKey = encodeEdge(a, b);
-                    if (seamMap.count(edgeKey))
+                    if (!visited[nidx])
                     {
-                        hasSeam = true;
-                        break;
+                        visited[nidx] = true;
+                        q.push(nidx);
                     }
-                }
-
-                if (!hasSeam)
-                {
-                    stack.push_back(neighbor);
                 }
             }
         }
@@ -436,6 +482,7 @@ void UVGenerator::createUVIslands(
         islands.push_back(std::move(island));
     }
 }
+
 
 
 void UVGenerator::unwrapIsland(const std::vector<Vertex>& vertices,
@@ -597,8 +644,8 @@ void UVGenerator::relaxUVs(
     const UVConfig& config,
     int iterations)
 {
-    // Build adjacency: vertex index -> set of neighbor indices
-    std::unordered_map<uint32_t, std::vector<uint32_t>> adjacency;
+    // Build adjacency map: vertex index -> unique neighbors
+    std::unordered_map<uint32_t, std::unordered_set<uint32_t>> adjacency;
 
     for (const auto& island : islands)
     {
@@ -612,34 +659,34 @@ void UVGenerator::relaxUVs(
                 {
                     uint32_t vj = tri.indices[j];
                     if (vi != vj)
-                        adjacency[vi].push_back(vj);
+                        adjacency[vi].insert(vj); // insert deduplicates
                 }
             }
         }
     }
 
-    // Laplacian relaxation iterations
     std::vector<glm::vec2> newUVs = uvs;
 
     for (int iter = 0; iter < iterations; ++iter)
     {
-        for (const auto& [vi, neighbors] : adjacency)
+        for (size_t i = 0; i < uvs.size(); ++i)
         {
-            if (neighbors.empty())
+            auto it = adjacency.find(static_cast<uint32_t>(i));
+            if (it == adjacency.end() || it->second.empty())
                 continue;
 
             glm::vec2 avg(0.0f);
-            for (uint32_t nj : neighbors)
-                avg += uvs[nj];
-            avg /= static_cast<float>(neighbors.size());
+            for (uint32_t neighbor : it->second)
+                avg += uvs[neighbor];
 
-            // Blend original and average (you can bias this if needed)
-            newUVs[vi] = avg;
+            avg /= static_cast<float>(it->second.size());
+            newUVs[i] = avg;
         }
 
-        std::swap(uvs, newUVs);  // Update uvs for next iteration
+        std::swap(uvs, newUVs); // Apply new UVs for next iteration
     }
 }
+
 
 
 #include <xatlas.h>
