@@ -131,16 +131,15 @@ void AssImpModelLoader::loadModel(string path)
 
 	if (modelHasMissingUVs)
 	{
-		SceneMeshInfo stats = UVPromptDialog::collectSceneMeshInfo(scene);
-		SceneUVPromptInfo info;
-		info.fileName = QFileInfo(QString::fromStdString(path)).fileName();
-		info.meshCount = stats.meshCount;
-		info.totalVertices = stats.totalVertices;
-		info.totalTriangles = stats.totalTriangles;
-		info.largestMeshName = QString::fromStdString(stats.largestMeshName);
-		info.largestTriangleCount = stats.largestMeshTriangles;
-		UVDialogResult userChoice = askUserForUVMethod(info, qobject_cast<MainWindow*>(QApplication::activeWindow()));
-		_selectedUVMethod = userChoice.method;		
+		SceneMeshInfo stats = collectSceneMeshInfo(scene);						
+
+		if (stats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV)
+		{
+			QMessageBox::StandardButton  ret = QMessageBox::question(qApp->activeWindow(), "Performance Warning!",
+				"The model contains more than 100000 triangles and the current method of UV generation is \"Smart UV\" which is time consuming.\nDo you want to continue generating the UV");
+			if(ret == QMessageBox::StandardButton::No)
+				_selectedUVMethod = UVMethod::None;
+		}			
 	}
 
 
@@ -762,12 +761,25 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		// Generate UVs and tangents
 		switch (_selectedUVMethod)
 		{
+		case UVMethod::Planar:
+			UVGenerator::generatePlanar(mesh, vertices, indices, uvconfig);
+			break;
+		case UVMethod::Cylindrical:
+			UVGenerator::generateCylindrical(mesh, vertices, indices, uvconfig);
+			break;
+		case UVMethod::Spherical:
+			UVGenerator::generateSpherical(mesh, vertices, indices, uvconfig);
+			break;
+		case UVMethod::AngleBased:
+			UVGenerator::generateAngleBased(mesh, vertices, indices, uvconfig);
+			break;
 		case UVMethod::Hybrid:
 			UVGenerator::generateHybrid(mesh, vertices, indices);
 			break;
 		case UVMethod::AngleBasedSmartUV:
 			UVGenerator::generateAngleBasedSmartUV(mesh, vertices, indices, uvconfig);
 			break;
+		case UVMethod::None: // fall through
 		default:
 			break; // skip UV generation
 		}
@@ -815,42 +827,36 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 	return new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);
 }
 
-UVDialogResult AssImpModelLoader::askUserForUVMethod(const SceneUVPromptInfo& info, QWidget* parent)
-{
-	UVDialogResult result;
-
-	UVPromptDialog dialog(info, parent);
-	dialog.setWindowFlag(Qt::WindowContextHelpButtonHint, false);
-	dialog.adjustSize();  // Resizes to layout's preferred size
-	dialog.move(parent->window()->frameGeometry().center() - dialog.rect().center());
-	dialog.layout()->setSizeConstraint(QLayout::SetMinimumSize);
-
-	if (dialog.exec() == QDialog::Accepted)
-	{
-		UVPromptDialog::Choice choice = dialog.selectedChoice();
-		if(choice == UVPromptDialog::Choice::Hybrid)
-		{
-			result.method = UVMethod::Hybrid;
-		}
-		else if (choice == UVPromptDialog::Choice::Smart)
-		{
-			result.method = UVMethod::AngleBasedSmartUV;
-		}
-		else
-		{
-			result.method = UVMethod::None; // Skip UV generation			
-		}
-	}
-	else
-	{
-		result.method = UVMethod::None; // User cancelled	
-	}	
-
-	return result;
-}
-
 
 QString AssImpModelLoader::getErrorMessage() const
 {
 	return _errorMessage;
+}
+
+SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
+{
+	SceneMeshInfo info;
+
+	if (!scene || !scene->HasMeshes())
+		return info;
+
+	info.meshCount = static_cast<int>(scene->mNumMeshes);
+
+	for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
+	{
+		const aiMesh* mesh = scene->mMeshes[i];
+		int numFaces = static_cast<int>(mesh->mNumFaces);
+		int numVerts = static_cast<int>(mesh->mNumVertices);
+
+		info.totalVertices += numVerts;
+		info.totalTriangles += numFaces;
+
+		if (numFaces > info.largestMeshTriangles)
+		{
+			info.largestMeshTriangles = numFaces;
+			info.largestMeshName = mesh->mName.C_Str();
+		}
+	}
+
+	return info;
 }

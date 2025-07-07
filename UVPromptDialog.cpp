@@ -5,8 +5,9 @@
 #include <QPushButton>
 #include <QStyle>
 #include <QButtonGroup>
+#include <QGroupBox>
 
-UVPromptDialog::UVPromptDialog(const SceneUVPromptInfo& info, QWidget* parent)
+UVPromptDialog::UVPromptDialog(QWidget* parent)
     : QDialog(parent)
 {
     setWindowTitle("UV Auto Generation Options");    
@@ -23,26 +24,31 @@ UVPromptDialog::UVPromptDialog(const SceneUVPromptInfo& info, QWidget* parent)
     layout->addWidget(iconLabel);
 
     QLabel* label = new QLabel(
-        QString("<b>Model:</b> %1<br>"
-            "<b>Total Meshes:</b> %2<br>"
-            "<b>Total Vertices:</b> %3<br>"
-            "<b>Total Triangles:</b> %4<br>"
-            "<b>Largest Mesh:</b> %5 (%6 triangles)<br><br>"
-			"<b>Note:</b> Auto generation of UVs may take longer to load the model depending on the size and complexity."
+        QString("<b>Note:</b> Auto generation of UVs may take longer to load the model depending on the size and complexity."
 			"<br>Click Ok only if you need to apply textures, or choose Cancel<br>"
 			"<b>Tip:</b> If the model has more than 3000 triangles, consider using the Hybrid method for faster UV generation.</b><br><br>"
-            "Choose a UV generation method:")
-        .arg(info.fileName)
-        .arg(info.meshCount)
-        .arg(info.totalVertices)
-        .arg(info.totalTriangles)
-        .arg(info.largestMeshName)
-        .arg(info.largestTriangleCount));
+            "Choose a UV generation method:"));
     label->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     label->setWordWrap(true);
-    label->setMaximumWidth(500);
+    label->setMinimumWidth(500);
+    label->setMaximumWidth(700);
     layout->addWidget(label);
 
+    QGroupBox* uvMethodGroup = new QGroupBox("UV Generation Methods");
+    QVBoxLayout* radiolayout = new QVBoxLayout(uvMethodGroup);
+        
+    _planarButton = new QRadioButton("Planar (Fast, Good for flat surfaces)");
+    _planarButton->setToolTip(
+        "Uses planar shape detection.\nFast, but less accurate.");
+    _cylindricalButton = new QRadioButton("Cylindrical (Fast, only cylinders)");
+    _cylindricalButton->setToolTip(
+        "Uses cylindrical shape detection.\nFast, but less accurate.");
+    _sphericalButton = new QRadioButton("Spherical (Fast, only spheres)");
+    _sphericalButton->setToolTip(
+        "Uses spherical shape detection.\nFast, but less accurate.");
+    _angleBasedButton = new QRadioButton("Angle Based (Fast, detects geometry crudely)");
+    _angleBasedButton->setToolTip(
+        "Uses basic shape detection based on angular deflection (planar, cylindrical, spherical).\nFast, but less accurate.");
     _hybridButton = new QRadioButton("Hybrid (Fast)");
     _hybridButton->setToolTip(
         "Uses basic shape detection (planar, cylindrical, spherical).\nFast, but less accurate.");
@@ -50,22 +56,31 @@ UVPromptDialog::UVPromptDialog(const SceneUVPromptInfo& info, QWidget* parent)
     _smartButton->setToolTip(
         "Performs angle-based segmentation and PCA projection.\nMore accurate, similar to Blender's Smart UV Project.");
 
-    _buttonGroup = new QButtonGroup(this);
+    _buttonGroup = new QButtonGroup(this);    
+    _buttonGroup->addButton(_planarButton, Planar);
+    _buttonGroup->addButton(_cylindricalButton, Cylindrical);
+    _buttonGroup->addButton(_sphericalButton, Spherical);
+    _buttonGroup->addButton(_angleBasedButton, Angular);
     _buttonGroup->addButton(_hybridButton, Hybrid);
     _buttonGroup->addButton(_smartButton, Smart);
 
-    layout->addWidget(_hybridButton);
-    layout->addWidget(_smartButton);
+    radiolayout->addWidget(_planarButton);
+    radiolayout->addWidget(_cylindricalButton);
+    radiolayout->addWidget(_sphericalButton);
+    radiolayout->addWidget(_angleBasedButton);
+    radiolayout->addWidget(_hybridButton);
+    radiolayout->addWidget(_smartButton);
 
-    // Auto-select default
-    if (info.totalTriangles > 3000)
-        _hybridButton->setChecked(true);
-    else
-        _smartButton->setChecked(true);
+    layout->addWidget(uvMethodGroup);
+
+    _smartButton->setChecked(true);
+
+    _rememberChoice = new QCheckBox("Remember Choice");
+    layout->addWidget(_rememberChoice);
 
     QHBoxLayout* buttonsLayout = new QHBoxLayout;
-    _okButton = new QPushButton("OK");
-    _cancelButton = new QPushButton("Cancel");
+    _okButton = new QPushButton("Generate");
+    _cancelButton = new QPushButton("Don't");
     buttonsLayout->addStretch();
     buttonsLayout->addWidget(_okButton);
     buttonsLayout->addWidget(_cancelButton);
@@ -83,30 +98,3 @@ UVPromptDialog::Choice UVPromptDialog::selectedChoice() const
     return _choice;
 }
 
-SceneMeshInfo UVPromptDialog::collectSceneMeshInfo(const aiScene* scene)
-{
-    SceneMeshInfo info;
-
-    if (!scene || !scene->HasMeshes())
-        return info;
-
-    info.meshCount = static_cast<int>(scene->mNumMeshes);
-
-    for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
-    {
-        const aiMesh* mesh = scene->mMeshes[i];
-        int numFaces = static_cast<int>(mesh->mNumFaces);
-        int numVerts = static_cast<int>(mesh->mNumVertices);
-
-        info.totalVertices += numVerts;
-        info.totalTriangles += numFaces;
-
-        if (numFaces > info.largestMeshTriangles)
-        {
-            info.largestMeshTriangles = numFaces;
-            info.largestMeshName = mesh->mName.C_Str();
-        }
-    }
-
-    return info;
-}

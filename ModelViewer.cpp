@@ -6,7 +6,7 @@
 #include <QMessageBox>
 #include <QToolTip>
 #include <assimp/Importer.hpp>
-
+#include "AssImpModelLoader.h"
 #include "ModelViewerApplication.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
@@ -687,8 +687,18 @@ void ModelViewer::dropEvent(QDropEvent* event)
 				loadFromFile(fileName);
 			else
 			{
+				UVMethod method;
+				QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+				bool remember = settings.value("RememberUVMethod", false).toBool();
+				if (remember)
+				{
+					int value = settings.value("UVMethod", static_cast<int>(UVMethod::None)).toInt();
+					method = static_cast<UVMethod>(value);
+				}
+				else
+					method = askUserForUVMethod(this).method;
 				QString errMsg;
-				bool success = _glWidget->loadAssImpModel(fileName, errMsg);
+				bool success = _glWidget->loadAssImpModel(fileName, method, errMsg);
 				if(!success)
 				{
 					QMessageBox::critical(this, "Error", "Failed to load model: " + fileName + "\n" + errMsg);
@@ -1983,7 +1993,17 @@ bool ModelViewer::loadFile(const QString& fileName)
 	}
 	else
 	{
-		success = _glWidget->loadAssImpModel(fileName, errMsg);
+		UVMethod method;
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		bool remember = settings.value("RememberUVMethod", false).toBool();
+		if (remember)
+		{
+			int value = settings.value("UVMethod", static_cast<int>(UVMethod::None)).toInt();
+			method = static_cast<UVMethod>(value);
+		}
+		else
+			method = askUserForUVMethod(this).method;
+		success = _glWidget->loadAssImpModel(fileName, method, errMsg);
 	}
 
 	if (success)
@@ -3309,4 +3329,62 @@ void ModelViewer::on_pushButtonClearADSTextures_clicked()
 void ModelViewer::on_toolButtonSwapVisible_clicked(bool checked)
 {
 	_glWidget->swapVisible(checked);
+}
+
+
+UVDialogResult ModelViewer::askUserForUVMethod(QWidget* parent)
+{
+	UVDialogResult result;
+
+	UVPromptDialog dialog(parent);
+	dialog.setWindowFlag(Qt::WindowContextHelpButtonHint, false);
+	dialog.adjustSize();  // Resizes to layout's preferred size
+	dialog.move(parent->window()->frameGeometry().center() - dialog.rect().center());
+	dialog.layout()->setSizeConstraint(QLayout::SetMinimumSize);
+
+	if (dialog.exec() == QDialog::Accepted)
+	{
+		UVPromptDialog::Choice choice = dialog.selectedChoice();
+		if (choice == UVPromptDialog::Choice::Planar)
+		{
+			result.method = UVMethod::Planar;
+		}
+		else if (choice == UVPromptDialog::Choice::Cylindrical)
+		{
+			result.method = UVMethod::Cylindrical;
+		}
+		else if (choice == UVPromptDialog::Choice::Spherical)
+		{
+			result.method = UVMethod::Spherical;
+		}
+		else if (choice == UVPromptDialog::Choice::Angular)
+		{
+			result.method = UVMethod::AngleBased;
+		}
+		else if (choice == UVPromptDialog::Choice::Hybrid)
+		{
+			result.method = UVMethod::Hybrid;
+		}
+		else if (choice == UVPromptDialog::Choice::Smart)
+		{
+			result.method = UVMethod::AngleBasedSmartUV;
+		}
+		else
+		{
+			result.method = UVMethod::None; // Skip UV generation			
+		}
+	}
+	else
+	{
+		result.method = UVMethod::None; // User cancelled	
+	}
+
+	if (dialog.rememberChoiceChecked())
+	{
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		settings.setValue("RememberUVMethod", true);
+		settings.setValue("UVMethod", static_cast<int>(result.method));
+	}
+
+	return result;
 }

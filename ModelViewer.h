@@ -5,6 +5,13 @@
 
 #include "GLWidget.h"
 #include "GLMaterial.h"
+#include "UVPromptDialog.h"
+#include "AssImpModelLoader.h"
+
+struct UVDialogResult
+{
+	UVMethod method = UVMethod::None;
+};
 
 class ModelViewer : public QWidget, public Ui::ModelViewer
 {
@@ -306,6 +313,9 @@ private:
 	std::vector<int> getSelectedIDs() const;
 	void updateControls();
 	QString getSupportedQtImagesFilter();
+
+	// For UV generation dialog user selection
+	UVDialogResult askUserForUVMethod(QWidget* parent);
 };
 
 #endif

@@ -31,7 +31,6 @@
 #include <XCAFDoc_Location.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 #include "MaterialProcessor.h"
-#include "UVPromptDialog.h"
 
 
 class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
@@ -55,14 +54,23 @@ signals:
 enum class UVMethod
 {
 	None,
+	Planar,
+	Cylindrical,
+	Spherical,
+	AngleBased,
 	Hybrid,
 	AngleBasedSmartUV
 };
 
-struct UVDialogResult
+struct SceneMeshInfo
 {
-	UVMethod method = UVMethod::None;	
+	int totalVertices = 0;
+	int totalTriangles = 0;
+	int meshCount = 0;
+	std::string largestMeshName;
+	int largestMeshTriangles = 0;
 };
+
 
 class AssImpModelLoader : public QObject, public QOpenGLFunctions_4_5_Core
 {
@@ -81,6 +89,9 @@ public:
 	std::vector<AssImpMesh*> getMeshes() const;
 
 	QString getErrorMessage() const;
+
+	void setUVGenerationMethod(const UVMethod& uvMethod) { _selectedUVMethod = uvMethod; }
+	UVMethod getUVGenerationMethod() const { return _selectedUVMethod; }
 
 signals:
 	void fileReadProcessed(float percent);
@@ -118,10 +129,9 @@ private:
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene);
 
 	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene);
-	
-	// For UV generation dialog user selection
-	UVDialogResult askUserForUVMethod(const SceneUVPromptInfo& info, QWidget* parent);
 
+	static SceneMeshInfo collectSceneMeshInfo(const aiScene* scene);
+	
 private:
 	QOpenGLShaderProgram* _prog;
 	std::string _path;
@@ -136,5 +146,5 @@ private:
 
 	MaterialProcessor _materialProcessor; 
 
-	UVMethod _selectedUVMethod = UVMethod::None;	
+	UVMethod _selectedUVMethod = UVMethod::Hybrid;	
 };

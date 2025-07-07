@@ -1,5 +1,4 @@
 
-#include "AssImpModelLoader.h"
 #include "ClippingPlanesEditor.h"
 #include "Cone.h"
 #include "config.h"
@@ -1240,7 +1239,7 @@ void GLWidget::deselect(int id)
 	}
 }
 
-bool GLWidget::loadAssImpModel(const QString& fileName, QString& error)
+bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error)
 {
 	bool success = false;
 
@@ -1273,6 +1272,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, QString& error)
 		QPushButton *abortButton = msgBox.addButton(QMessageBox::Abort);
 		connect(abortButton, SIGNAL(pressed()), this, SLOT(cancelAssImpModelLoading()));
 		msgBox.show();*/
+		_assimpModelLoader->setUVGenerationMethod(uvMethod);
 		_assimpModelLoader->loadModel(const_cast<GLchar*>(fileName.toStdString().c_str()));
 		std::vector<AssImpMesh*> meshes = _assimpModelLoader->getMeshes();
 		if (meshes.size() == 0)

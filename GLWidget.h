@@ -5,6 +5,7 @@
 #include "GLCamera.h"
 #include "TriangleMesh.h"
 #include "ShaderProgram.h"
+#include "AssImpModelLoader.h"
 #include <math.h>
 #include <QColor>
 #include <QFormLayout>
@@ -87,7 +88,7 @@ public:
 	void select(int id);
 	void deselect(int id);
 
-	bool loadAssImpModel(const QString& fileName, QString& error);
+	bool loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error);
 
 	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
 	void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);
