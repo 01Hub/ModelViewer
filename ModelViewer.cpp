@@ -1922,7 +1922,7 @@ void ModelViewer::on_toolButtonExport_clicked()
 	Assimp::Exporter exporter;
 	QStringList filters;
 	QStringList allExtensions;
-	QMap<QString, QString> filterToExtension; // Map filter → extension
+	QMap<QString, QString> filterToExtension; // Map filter -> extension
 
 	// Build filters and track extensions
 	for (unsigned int i = 0; i < exporter.GetExportFormatCount(); ++i) {
