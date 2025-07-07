@@ -1,5 +1,24 @@
 #include "UVGenerator.h"
-#include <omp.h>
+#include <cstdint>   
+#include <functional>
+#include <queue>
+#include <utility>
+
+namespace std
+{
+    template<>
+    struct hash<std::pair<uint32_t, uint32_t>>
+    {
+        size_t operator()(const std::pair<uint32_t, uint32_t>& p) const
+        {
+            // Combine the two integers into a 64-bit value
+            return std::hash<uint64_t>()(
+                (static_cast<uint64_t>(p.first) << 32) | p.second
+                );
+        }
+    };
+}
+
 
 // Method 1: Angle-based unwrapping (most similar to Blender's Smart UV)
 bool UVGenerator::generateAngleBased(aiMesh* mesh,
@@ -42,6 +61,7 @@ bool UVGenerator::generateAngleBased(aiMesh* mesh,
     return true;
 }
 
+
 // Method 2: Cylindrical projection
 bool UVGenerator::generateCylindrical(aiMesh* mesh,
     std::vector<Vertex>& vertices,
@@ -81,6 +101,7 @@ bool UVGenerator::generateCylindrical(aiMesh* mesh,
     return true;
 }
 
+
 // Method 3: Spherical projection
 bool UVGenerator::generateSpherical(aiMesh* mesh,
     std::vector<Vertex>& vertices,
@@ -115,6 +136,7 @@ bool UVGenerator::generateSpherical(aiMesh* mesh,
 
     return true;
 }
+
 
 // Method 4: Planar projection with automatic orientation
 bool UVGenerator::generatePlanar(aiMesh* mesh,
@@ -166,6 +188,7 @@ bool UVGenerator::generatePlanar(aiMesh* mesh,
     return true;
 }
 
+
 // Method 5: Hybrid approach
 bool UVGenerator::generateHybrid(aiMesh* mesh,
     std::vector<Vertex>& vertices,
@@ -174,39 +197,54 @@ bool UVGenerator::generateHybrid(aiMesh* mesh,
 {
     if (vertices.empty()) return false;
 
-    // Analyze mesh characteristics
+    // Compute bounding box and size
     glm::vec3 minBounds, maxBounds;
     calculateBounds(vertices, minBounds, maxBounds);
     glm::vec3 size = maxBounds - minBounds;
 
-    // Choose best method based on mesh shape
-    float aspectRatio = std::max({ size.x / size.y, size.y / size.x,
-                                  size.x / size.z, size.z / size.x,
-                                  size.y / size.z, size.z / size.y });
+    // Principal Component Analysis (for elongation and dominant axis)
+    glm::vec3 mean(0.0f);
+    for (const auto& v : vertices)
+        mean += v.Position;
+    mean /= static_cast<float>(vertices.size());
 
-    if (aspectRatio > 3.0f)
+    glm::mat3 covariance(0.0f);
+    for (const auto& v : vertices)
     {
-        // Very elongated - use cylindrical
+        glm::vec3 p = v.Position - mean;
+        covariance[0] += p.x * p;
+        covariance[1] += p.y * p;
+        covariance[2] += p.z * p;
+    }
+
+    covariance /= static_cast<float>(vertices.size());
+
+    // Eigen decomposition to get principal axes
+    glm::vec3 eigenValues;
+    glm::mat3 eigenVectors;
+    computeEigenDecomposition(covariance, eigenValues, eigenVectors);
+
+    // Sort eigenvalues (largest = most elongated axis)
+    float e0 = eigenValues[0], e1 = eigenValues[1], e2 = eigenValues[2];
+    float elongation = e0 / e2; // e0 >= e1 >= e2 assumed after sort
+
+    // Use elongation + variance to determine mapping
+    if (elongation > 4.0f)
+    {
         return generateCylindrical(mesh, vertices, indices, config);
     }
-    else if (aspectRatio < 1.5f)
+    else if (elongation < 1.5f)
     {
-        // Roughly cubic - use spherical or angle-based
-        float avgSize = (size.x + size.y + size.z) / 3.0f;
-        float variance = (pow(size.x - avgSize, 2) + pow(size.y - avgSize, 2) + pow(size.z - avgSize, 2)) / 3.0f;
+        float avg = (e0 + e1 + e2) / 3.0f;
+        float var = (pow(e0 - avg, 2) + pow(e1 - avg, 2) + pow(e2 - avg, 2)) / 3.0f;
 
-        if (variance < avgSize * 0.1f)
-        {
+        if (var < avg * 0.05f)
             return generateSpherical(mesh, vertices, indices, config);
-        }
         else
-        {
             return generateAngleBased(mesh, vertices, indices, config);
-        }
     }
     else
     {
-        // Moderately elongated - use planar
         return generatePlanar(mesh, vertices, indices, config);
     }
 }
@@ -235,7 +273,6 @@ bool UVGenerator::generateAngleBasedSmartUV(
     // 2. PCA-based projection per island
     std::vector<glm::vec2> uvs(vertices.size(), glm::vec2(0.0f));
 
-#pragma omp parallel for
     for (int i = 0; i < static_cast<int>(islands.size()); ++i)
     {
         unwrapIslandPCA(vertices, triangles, islands[i], uvs);
@@ -293,43 +330,6 @@ void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
     }
 }
 
-//void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
-//    const std::vector<Triangle>& triangles,
-//    std::vector<std::pair<unsigned int, unsigned int>>& seams,
-//    float angleThreshold)
-//{
-//    seams.clear();
-//    float cosThreshold = cos(glm::radians(angleThreshold));
-//
-//    // Simple seam detection based on normal angle differences
-//    for (size_t i = 0; i < triangles.size(); ++i)
-//    {
-//        for (size_t j = i + 1; j < triangles.size(); ++j)
-//        {
-//            // Check if triangles share an edge
-//            int sharedVertices = 0;
-//            for (int vi = 0; vi < 3; ++vi)
-//            {
-//                for (int vj = 0; vj < 3; ++vj)
-//                {
-//                    if (triangles[i].indices[vi] == triangles[j].indices[vj])
-//                    {
-//                        sharedVertices++;
-//                    }
-//                }
-//            }
-//
-//            if (sharedVertices >= 2)
-//            { // Shared edge
-//                float dot = glm::dot(triangles[i].normal, triangles[j].normal);
-//                if (dot < cosThreshold)
-//                {
-//                    seams.push_back({ static_cast<unsigned int>(i), static_cast<unsigned int>(j) });
-//                }
-//            }
-//        }
-//    }
-//}
 
 void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
     const std::vector<Triangle>& triangles,
@@ -373,27 +373,6 @@ void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
             seams.emplace_back(t0, t1);
         }
     }
-}
-
-
-#include <utility>   // for std::pair
-#include <cstdint>   // for uint32_t
-#include <functional> // for std::hash
-#include <queue>
-
-namespace std
-{
-    template<>
-    struct hash<std::pair<uint32_t, uint32_t>>
-    {
-        size_t operator()(const std::pair<uint32_t, uint32_t>& p) const
-        {
-            // Combine the two integers into a 64-bit value
-            return std::hash<uint64_t>()(
-                (static_cast<uint64_t>(p.first) << 32) | p.second
-                );
-        }
-    };
 }
 
 
@@ -484,7 +463,6 @@ void UVGenerator::createUVIslands(const std::vector<Triangle>& triangles,
 }
 
 
-
 void UVGenerator::unwrapIsland(const std::vector<Vertex>& vertices,
     const std::vector<Triangle>& triangles,
     const UVIsland& island,
@@ -515,79 +493,6 @@ void UVGenerator::unwrapIsland(const std::vector<Vertex>& vertices,
     }
 }
 
-void UVGenerator::packUVIslands(std::vector<UVIsland>& islands,
-    std::vector<glm::vec2>& uvs,
-    float padding)
-{
-    // Simple UV packing - normalize all UVs to [0,1] range
-    if (uvs.empty()) return;
-
-    glm::vec2 minUV = uvs[0];
-    glm::vec2 maxUV = uvs[0];
-
-    for (const auto& uv : uvs)
-    {
-        minUV = glm::min(minUV, uv);
-        maxUV = glm::max(maxUV, uv);
-    }
-
-    glm::vec2 size = maxUV - minUV;
-    if (size.x > 0 && size.y > 0)
-    {
-        for (auto& uv : uvs)
-        {
-            uv = (uv - minUV) / size;
-        }
-    }
-}
-
-void UVGenerator::applyUVTransforms(glm::vec2& uv, const UVConfig& config)
-{
-    uv *= config.planarScale;
-
-    if (config.flipV)
-    {
-        uv.y = 1.0f - uv.y;
-    }
-
-    // Ensure UVs are in [0,1] range
-    uv = glm::clamp(uv, 0.0f, 1.0f);
-}
-
-// Utility methods
-glm::vec3 UVGenerator::calculateCentroid(const std::vector<Vertex>& vertices)
-{
-    glm::vec3 centroid(0.0f);
-    for (const auto& vertex : vertices)
-    {
-        centroid += vertex.Position;
-    }
-    return centroid / static_cast<float>(vertices.size());
-}
-
-glm::vec3 UVGenerator::calculateBounds(const std::vector<Vertex>& vertices,
-    glm::vec3& minBounds, glm::vec3& maxBounds)
-{
-    if (vertices.empty()) return glm::vec3(0);
-
-    minBounds = maxBounds = vertices[0].Position;
-    for (const auto& vertex : vertices)
-    {
-        minBounds = glm::min(minBounds, vertex.Position);
-        maxBounds = glm::max(maxBounds, vertex.Position);
-    }
-    return maxBounds - minBounds;
-}
-
-float UVGenerator::calculateTriangleArea(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)
-{
-    return 0.5f * glm::length(glm::cross(v1 - v0, v2 - v0));
-}
-
-glm::vec3 UVGenerator::calculateTriangleNormal(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)
-{
-    return glm::normalize(glm::cross(v1 - v0, v2 - v0));
-}
 
 void UVGenerator::unwrapIslandPCA(const std::vector<Vertex>& vertices,
     const std::vector<Triangle>& triangles,
@@ -688,9 +593,34 @@ void UVGenerator::relaxUVs(
 }
 
 
+void UVGenerator::packUVIslands(std::vector<UVIsland>& islands,
+    std::vector<glm::vec2>& uvs,
+    float padding)
+{
+    // Simple UV packing - normalize all UVs to [0,1] range
+    if (uvs.empty()) return;
+
+    glm::vec2 minUV = uvs[0];
+    glm::vec2 maxUV = uvs[0];
+
+    for (const auto& uv : uvs)
+    {
+        minUV = glm::min(minUV, uv);
+        maxUV = glm::max(maxUV, uv);
+    }
+
+    glm::vec2 size = maxUV - minUV;
+    if (size.x > 0 && size.y > 0)
+    {
+        for (auto& uv : uvs)
+        {
+            uv = (uv - minUV) / size;
+        }
+    }
+}
+
 
 #include <xatlas.h>
-
 void UVGenerator::packWithXAtlas(
     std::vector<glm::vec2>& uvs,
     const std::vector<unsigned int>& indices,
@@ -738,4 +668,130 @@ void UVGenerator::packWithXAtlas(
     }
 
     xatlas::Destroy(atlas);
+}
+
+
+void UVGenerator::applyUVTransforms(glm::vec2& uv, const UVConfig& config)
+{
+    uv *= config.planarScale;
+
+    if (config.flipV)
+    {
+        uv.y = 1.0f - uv.y;
+    }
+
+    // Ensure UVs are in [0,1] range
+    uv = glm::clamp(uv, 0.0f, 1.0f);
+}
+
+// Utility methods
+glm::vec3 UVGenerator::calculateCentroid(const std::vector<Vertex>& vertices)
+{
+    glm::vec3 centroid(0.0f);
+    for (const auto& vertex : vertices)
+    {
+        centroid += vertex.Position;
+    }
+    return centroid / static_cast<float>(vertices.size());
+}
+
+glm::vec3 UVGenerator::calculateBounds(const std::vector<Vertex>& vertices,
+    glm::vec3& minBounds, glm::vec3& maxBounds)
+{
+    if (vertices.empty()) return glm::vec3(0);
+
+    minBounds = maxBounds = vertices[0].Position;
+    for (const auto& vertex : vertices)
+    {
+        minBounds = glm::min(minBounds, vertex.Position);
+        maxBounds = glm::max(maxBounds, vertex.Position);
+    }
+    return maxBounds - minBounds;
+}
+
+float UVGenerator::calculateTriangleArea(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)
+{
+    return 0.5f * glm::length(glm::cross(v1 - v0, v2 - v0));
+}
+
+glm::vec3 UVGenerator::calculateTriangleNormal(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2)
+{
+    return glm::normalize(glm::cross(v1 - v0, v2 - v0));
+}
+
+// Utility: compute eigenvalues and eigenvectors of symmetric 3x3 matrix
+// Only works correctly for symmetric matrices (like covariance)
+void UVGenerator::computeEigenDecomposition(
+    const glm::mat3& m,
+    glm::vec3& eigenValues,
+    glm::mat3& eigenVectors)
+{
+    const int maxIterations = 50;
+    const float epsilon = 1e-10f;
+
+    glm::mat3 A = m;
+    eigenVectors = glm::mat3(1.0f); // Identity
+
+    for (int iter = 0; iter < maxIterations; ++iter)
+    {
+        // Find largest off-diagonal element in A
+        int p = 0, q = 1;
+        float maxVal = std::abs(A[0][1]);
+        for (int i = 0; i < 3; ++i)
+        {
+            for (int j = i + 1; j < 3; ++j)
+            {
+                float val = std::abs(A[i][j]);
+                if (val > maxVal)
+                {
+                    maxVal = val;
+                    p = i;
+                    q = j;
+                }
+            }
+        }
+
+        if (maxVal < epsilon)
+            break; // Converged
+
+        float app = A[p][p];
+        float aqq = A[q][q];
+        float apq = A[p][q];
+
+        float phi = 0.5f * atan2(2.0f * apq, aqq - app);
+        float c = cos(phi);
+        float s = sin(phi);
+
+        // Build rotation matrix
+        glm::mat3 R(1.0f);
+        R[p][p] = c;
+        R[q][q] = c;
+        R[p][q] = s;
+        R[q][p] = -s;
+
+        // A = R^T * A * R
+        A = glm::transpose(R) * A * R;
+        eigenVectors = eigenVectors * R;
+    }
+
+    eigenValues = glm::vec3(A[0][0], A[1][1], A[2][2]);
+
+    // Sort by eigenvalue magnitude (descending)
+    std::array<std::pair<float, glm::vec3>, 3> sorted = {
+        std::make_pair(eigenValues.x, glm::vec3(eigenVectors[0][0], eigenVectors[1][0], eigenVectors[2][0])),
+        std::make_pair(eigenValues.y, glm::vec3(eigenVectors[0][1], eigenVectors[1][1], eigenVectors[2][1])),
+        std::make_pair(eigenValues.z, glm::vec3(eigenVectors[0][2], eigenVectors[1][2], eigenVectors[2][2]))
+    };
+
+    std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
+        return a.first > b.first;
+        });
+
+    for (int i = 0; i < 3; ++i)
+    {
+        eigenValues[i] = sorted[i].first;
+        eigenVectors[0][i] = sorted[i].second.x;
+        eigenVectors[1][i] = sorted[i].second.y;
+        eigenVectors[2][i] = sorted[i].second.z;
+    }
 }

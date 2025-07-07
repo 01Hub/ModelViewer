@@ -1,14 +1,14 @@
 
 #pragma once
+#include "AssImpMesh.h"
 #include "MeshAnalyzer.h"
+#include <cmath>
+#include <cstdint>
 #include <glm/glm.hpp>
 #include <glm/gtc/constants.hpp>
-#include <vector>
-#include <cmath>
-#include "AssImpMesh.h"
-
 #include <utility>
-#include <cstdint>
+#include <vector>
+
 
 // Edge type (ensure vertex indices are sorted to prevent duplicates)
 struct Edge
@@ -142,12 +142,6 @@ private:
         const UVIsland& island,
         std::vector<glm::vec2>& uvs);
 
-    static void packUVIslands(std::vector<UVIsland>& islands,
-        std::vector<glm::vec2>& uvs,
-        float padding);
-
-    static void applyUVTransforms(glm::vec2& uv, const UVConfig& config);
-
     static void unwrapIslandPCA(const std::vector<Vertex>& vertices,
         const std::vector<Triangle>& triangles,
         const UVIsland& island,
@@ -160,15 +154,21 @@ private:
         const UVConfig& config,
         int iterations);
 
+    static void packUVIslands(std::vector<UVIsland>& islands,
+        std::vector<glm::vec2>& uvs,
+        float padding);
+
     static void packWithXAtlas(
         std::vector<glm::vec2>& uvs,
         const std::vector<unsigned int>& indices,
         const std::vector<glm::vec3>& positions);
 
     // Utility methods
+    static void applyUVTransforms(glm::vec2& uv, const UVConfig& config);
     static glm::vec3 calculateCentroid(const std::vector<Vertex>& vertices);
     static glm::vec3 calculateBounds(const std::vector<Vertex>& vertices,
         glm::vec3& minBounds, glm::vec3& maxBounds);
     static float calculateTriangleArea(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2);
-    static glm::vec3 calculateTriangleNormal(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2);    
+    static glm::vec3 calculateTriangleNormal(const glm::vec3& v0, const glm::vec3& v1, const glm::vec3& v2);   
+    static void computeEigenDecomposition(const glm::mat3& m, glm::vec3& eigenValues, glm::mat3& eigenVectors);
 };
