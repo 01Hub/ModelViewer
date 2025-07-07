@@ -65,6 +65,7 @@ struct UVConfig
     float seamPadding = 0.02f;          // Padding around UV islands
     bool enableRelaxation = false;
     int relaxationIterations = 10; // Default number of smoothing passes
+    bool enablePacking = true;
 };
 
 struct Triangle
@@ -116,6 +117,12 @@ public:
         const UVConfig& config = UVConfig{});
 
 	// Method 6: Angle-based Smart UV (similar to Blender's Smart UV)
+    /*static bool generateAngleBasedSmartUV(
+        aiMesh* mesh,
+        std::vector<Vertex>& vertices,
+        std::vector<unsigned int>& indices,
+        const UVConfig& config);*/
+
     static bool generateAngleBasedSmartUV(
         aiMesh* mesh,
         std::vector<Vertex>& vertices,
@@ -142,10 +149,16 @@ private:
         const UVIsland& island,
         std::vector<glm::vec2>& uvs);
 
+    /*static void unwrapIslandPCA(const std::vector<Vertex>& vertices,
+        const std::vector<Triangle>& triangles,
+        const UVIsland& island,
+        std::vector<glm::vec2>& uvs);*/
+
     static void unwrapIslandPCA(const std::vector<Vertex>& vertices,
         const std::vector<Triangle>& triangles,
         const UVIsland& island,
-        std::vector<glm::vec2>& uvs);
+        std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs,
+        bool normalizeUVs = true);
 
     static void relaxUVs(
         const std::vector<Triangle>& triangles,

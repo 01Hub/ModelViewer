@@ -260,7 +260,7 @@ bool UVGenerator::generateAngleBasedSmartUV(
     if (vertices.empty() || indices.empty())
         return false;
 
-    // 1. Triangle segmentation based on angle threshold
+    // 1. Build triangle list and detect seams
     std::vector<Triangle> triangles;
     buildTriangleList(vertices, indices, triangles);
 
@@ -270,37 +270,72 @@ bool UVGenerator::generateAngleBasedSmartUV(
     std::vector<UVIsland> islands;
     createUVIslands(triangles, seams, islands);
 
-    // 2. PCA-based projection per island
-    std::vector<glm::vec2> uvs(vertices.size(), glm::vec2(0.0f));
+    // 2. Unwrap per island using PCA (per-triangle UVs)
+    std::unordered_map<unsigned int, std::array<glm::vec2, 3>> triangleUVs;
 
     for (int i = 0; i < static_cast<int>(islands.size()); ++i)
     {
-        unwrapIslandPCA(vertices, triangles, islands[i], uvs);
+        unwrapIslandPCA(vertices, triangles, islands[i], triangleUVs, true);
     }
 
-    // 3. Optional UV relaxation (not always needed)
-    if (config.enableRelaxation)
+    // 3. Flatten: expand vertices and indices to support seams
+    std::vector<Vertex> newVertices;
+    std::vector<unsigned int> newIndices;
+
+    for (size_t triIdx = 0; triIdx < triangles.size(); ++triIdx)
     {
-        relaxUVs(triangles, uvs, islands, config, config.relaxationIterations);
+        const Triangle& tri = triangles[triIdx];
+        auto it = triangleUVs.find(static_cast<unsigned int>(triIdx));
+        if (it == triangleUVs.end()) continue;
+
+        const auto& uvSet = it->second;
+
+        for (int i = 0; i < 3; ++i)
+        {
+            Vertex v = vertices[tri.indices[i]];
+            v.TexCoords = uvSet[i];
+            newIndices.push_back(static_cast<unsigned int>(newVertices.size()));
+            newVertices.push_back(v);
+        }
     }
 
-    // 4. Pack using xatlas (pass positions, indices, uvs)
-    std::vector<glm::vec3> positions(vertices.size());
-    for (size_t i = 0; i < vertices.size(); ++i)
-        positions[i] = vertices[i].Position;
-
-    packWithXAtlas(uvs, indices, positions);
-
-    // 5. Apply final transforms
-    for (size_t i = 0; i < vertices.size(); ++i)
+    // 4. Optional: pack with xatlas
+    if (config.enablePacking)
     {
-        glm::vec2 finalUV = uvs[i];
-        applyUVTransforms(finalUV, config);
-        vertices[i].TexCoords = finalUV;
+        std::vector<glm::vec2> packedUVs(newVertices.size());
+        std::vector<glm::vec3> positions(newVertices.size());
+
+        for (size_t i = 0; i < newVertices.size(); ++i)
+            positions[i] = newVertices[i].Position;
+
+        for (size_t i = 0; i < newVertices.size(); ++i)
+            packedUVs[i] = newVertices[i].TexCoords;
+
+        packWithXAtlas(packedUVs, newIndices, positions);
+
+        // 5. Apply UV transforms
+        for (size_t i = 0; i < newVertices.size(); ++i)
+        {
+            applyUVTransforms(packedUVs[i], config);
+            newVertices[i].TexCoords = packedUVs[i];
+        }
     }
+    else
+    {
+        // Apply transforms without packing
+        for (auto& v : newVertices)
+        {
+            applyUVTransforms(v.TexCoords, config);
+        }
+    }
+
+    // 6. Replace original vertex/index buffers
+    vertices = std::move(newVertices);
+    indices = std::move(newIndices);
 
     return true;
 }
+
 
 
 // Helper method implementations
@@ -497,8 +532,10 @@ void UVGenerator::unwrapIsland(const std::vector<Vertex>& vertices,
 void UVGenerator::unwrapIslandPCA(const std::vector<Vertex>& vertices,
     const std::vector<Triangle>& triangles,
     const UVIsland& island,
-    std::vector<glm::vec2>& uvs)
+    std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs,
+    bool normalizeUVs /* = true */)
 {
+    // 1. Gather all island points
     std::vector<glm::vec3> points;
     for (unsigned int triIdx : island.triangles)
     {
@@ -509,38 +546,72 @@ void UVGenerator::unwrapIslandPCA(const std::vector<Vertex>& vertices,
         }
     }
 
-    // Compute centroid
+    if (points.empty())
+        return;
+
+    // 2. Compute centroid
     glm::vec3 centroid(0.0f);
-    for (auto& p : points) centroid += p;
+    for (const auto& p : points)
+        centroid += p;
     centroid /= static_cast<float>(points.size());
 
-    // Compute covariance
+    // 3. Compute covariance matrix
     glm::mat3 cov(0.0f);
-    for (auto& p : points)
+    for (const auto& p : points)
     {
         glm::vec3 d = p - centroid;
         cov += glm::outerProduct(d, d);
     }
 
-    // Eigen decomposition
-    glm::vec3 axis1(1, 0, 0), axis2(0, 1, 0);
-    // Use PCA if you have a math lib for it, or fallback: cross with normal
-    glm::vec3 normal = triangles[island.triangles[0]].normal;
-    axis1 = glm::normalize(glm::cross(normal, glm::vec3(0, 1, 0)));
-    if (glm::length(axis1) < 0.01f) axis1 = glm::normalize(glm::cross(normal, glm::vec3(1, 0, 0)));
-    axis2 = glm::cross(normal, axis1);
+    // 4. PCA: compute eigenvectors from covariance
+    glm::vec3 eigenValues;
+    glm::mat3 eigenVectors;
+    computeEigenDecomposition(cov, eigenValues, eigenVectors);
 
-    // Project to 2D plane
+    glm::vec3 axis1 = glm::normalize(glm::vec3(eigenVectors[0][0], eigenVectors[1][0], eigenVectors[2][0]));
+    glm::vec3 axis2 = glm::normalize(glm::vec3(eigenVectors[0][1], eigenVectors[1][1], eigenVectors[2][1]));
+
+    // 5. Project and collect per-triangle UVs
+    glm::vec2 minUV(FLT_MAX), maxUV(-FLT_MAX);
+
     for (unsigned int triIdx : island.triangles)
     {
         const Triangle& tri = triangles[triIdx];
+        std::array<glm::vec2, 3> projected;
+
         for (int i = 0; i < 3; ++i)
         {
             glm::vec3 pos = vertices[tri.indices[i]].Position - centroid;
-            uvs[tri.indices[i]] = glm::vec2(glm::dot(pos, axis1), glm::dot(pos, axis2));
+            glm::vec2 uv(glm::dot(pos, axis1), glm::dot(pos, axis2));
+            projected[i] = uv;
+
+            if (normalizeUVs)
+            {
+                minUV = glm::min(minUV, uv);
+                maxUV = glm::max(maxUV, uv);
+            }
+        }
+
+        triangleUVs[triIdx] = projected;
+    }
+
+    // 6. Normalize to [0,1] UV box (optional)
+    if (normalizeUVs)
+    {
+        glm::vec2 size = maxUV - minUV;
+        if (size.x > 0 && size.y > 0)
+        {
+            for (auto& [triIdx, uvSet] : triangleUVs)
+            {
+                for (glm::vec2& uv : uvSet)
+                {
+                    uv = (uv - minUV) / size;
+                }
+            }
         }
     }
 }
+
 
 void UVGenerator::relaxUVs(
     const std::vector<Triangle>& triangles,
