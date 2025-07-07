@@ -4,6 +4,7 @@
 #include "BoundingSphere.h"
 #include "GLCamera.h"
 #include "TriangleMesh.h"
+#include "ShaderProgram.h"
 #include <math.h>
 #include <QColor>
 #include <QFormLayout>
@@ -295,9 +296,7 @@ protected:
 	void closeEvent(QCloseEvent* event);
 
 private:
-	bool loadCompileAndLinkShaderFromFile(QOpenGLShaderProgram* prog, const QString& vertexProg,
-		const QString& fragmentProg, const QString& geometryProg = "",
-		const QString& tessControlProg = "", const QString& tessEvalProg = "");
+	
 	void createShaderPrograms();
 	void createLights();
 	
@@ -487,19 +486,19 @@ private:
 	QMatrix4x4 _modelViewMatrix;
 	QMatrix4x4 _viewportMatrix;
 
-	QOpenGLShaderProgram* _fgShader;
-	QOpenGLShaderProgram* _axisShader;
-	QOpenGLShaderProgram* _vertexNormalShader;
-	QOpenGLShaderProgram* _faceNormalShader;
-	QOpenGLShaderProgram* _shadowMappingShader;
-	QOpenGLShaderProgram* _skyBoxShader;
-	QOpenGLShaderProgram* _irradianceShader;
-	QOpenGLShaderProgram* _prefilterShader;
-	QOpenGLShaderProgram* _brdfShader;
-	QOpenGLShaderProgram* _lightCubeShader;
-	QOpenGLShaderProgram* _clippingPlaneShader;
-	QOpenGLShaderProgram* _clippedMeshShader;
-	QOpenGLShaderProgram* _selectionShader;
+	std::unique_ptr<ShaderProgram> _fgShader;
+	std::unique_ptr<ShaderProgram> _axisShader;
+	std::unique_ptr<ShaderProgram> _vertexNormalShader;
+	std::unique_ptr<ShaderProgram> _faceNormalShader;
+	std::unique_ptr<ShaderProgram> _shadowMappingShader;
+	std::unique_ptr<ShaderProgram> _skyBoxShader;
+	std::unique_ptr<ShaderProgram> _irradianceShader;
+	std::unique_ptr<ShaderProgram> _prefilterShader;
+	std::unique_ptr<ShaderProgram> _brdfShader;
+	std::unique_ptr<ShaderProgram> _lightCubeShader;
+	std::unique_ptr<ShaderProgram> _clippingPlaneShader;
+	std::unique_ptr<ShaderProgram> _clippedMeshShader;
+	std::unique_ptr<ShaderProgram> _selectionShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;
@@ -516,12 +515,12 @@ private:
 	float					 _floorOffsetPercent;
 	QVector3D                _floorCenter;
 
-	QOpenGLShaderProgram* _textShader;
+	std::unique_ptr<ShaderProgram> _textShader;
 
-	QOpenGLShaderProgram* _bgShader;
+	std::unique_ptr<ShaderProgram> _bgShader;
 	QOpenGLVertexArrayObject _bgVAO;
 	
-	QOpenGLShaderProgram* _bgSplitShader;
+	std::unique_ptr<ShaderProgram> _bgSplitShader;
 	QOpenGLVertexArrayObject _bgSplitVAO;
 	QOpenGLBuffer _bgSplitVBO;
 
@@ -577,7 +576,7 @@ private:
 	Cube* _lightCube;
 	bool _showLights;
 
-	QOpenGLShaderProgram* _debugShader;
+	std::unique_ptr<ShaderProgram> _debugShader;
 
 	ModelViewer* _viewer;
 
