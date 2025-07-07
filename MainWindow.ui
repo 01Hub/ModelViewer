@@ -118,8 +118,15 @@
     <addaction name="actionUndo"/>
     <addaction name="actionRedo"/>
    </widget>
+   <widget class="QMenu" name="menuSettings">
+    <property name="title">
+     <string>Settings</string>
+    </property>
+    <addaction name="actionClear_UV_Prompt_Settings"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
+   <addaction name="menuSettings"/>
    <addaction name="menuWindows"/>
    <addaction name="menuHelp"/>
   </widget>
@@ -324,6 +331,11 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+E</string>
+   </property>
+  </action>
+  <action name="actionClear_UV_Prompt_Settings">
+   <property name="text">
+    <string>Clear UV Prompt Settings</string>
    </property>
   </action>
  </widget>

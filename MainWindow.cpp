@@ -473,6 +473,18 @@ void MainWindow::on_actionSave_As_triggered()
 		activeMdiChild()->saveAs();
 }
 
+void MainWindow::on_actionClear_UV_Prompt_Settings_triggered()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+	settings.remove("UVMethod");
+	settings.remove("RememberUVMethod");
+
+	qDebug() << "UV Prompt settings have been reset.";
+	QMessageBox::information(this, "Settings Reset", "UV Prompt settings have been cleared.");
+
+}
+
 void MainWindow::on_actionTile_Horizontally_triggered()
 {
 	ui->mdiArea->tileSubWindows();
