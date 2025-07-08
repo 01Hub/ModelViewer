@@ -64,6 +64,9 @@ public:
 	void selectAll();
 	void deselectAll();
 
+	// For UV generation dialog user selection
+	static UVDialogResult askUserForUVMethod(QWidget* parent);
+
 public slots:
     void updateDisplayList();
     void updateSelectionStatusMessage();
@@ -312,10 +315,7 @@ private:
 	bool checkForActiveSelection();
 	std::vector<int> getSelectedIDs() const;
 	void updateControls();
-	QString getSupportedQtImagesFilter();
-
-	// For UV generation dialog user selection
-	UVDialogResult askUserForUVMethod(QWidget* parent);
+	QString getSupportedQtImagesFilter();	
 };
 
 #endif
