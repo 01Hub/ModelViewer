@@ -1,6 +1,7 @@
 ﻿#include "AssImpModelLoader.h"
 #include "BRepToAssimpConverter.h"
 #include "MainWindow.h"
+#include "ModelViewer.h"
 #include "MeshAnalyzer.h"
 #include "TangentGenerator.h"
 #include "Utils.h"
@@ -135,10 +136,30 @@ void AssImpModelLoader::loadModel(string path)
 
 		if (stats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV)
 		{
-			QMessageBox::StandardButton  ret = QMessageBox::question(qApp->activeWindow(), "Performance Warning!",
-				"The model contains more than 100000 triangles and the current method of UV generation is \"Smart UV\" which is time consuming.\nDo you want to continue generating the UV");
-			if(ret == QMessageBox::StandardButton::No)
+			QMessageBox msgBox;
+			msgBox.setWindowTitle("Performance Warning!");
+			msgBox.setText("The model contains more than 100000 triangles and the current method of UV generation is \"Smart UV\" which is time consuming.\nDo you want to continue generating the UV?");
+			msgBox.setIcon(QMessageBox::Question);
+
+			// Add custom buttons
+			QPushButton* yesButton = msgBox.addButton(QMessageBox::Yes);
+			QPushButton* noButton = msgBox.addButton(QMessageBox::No);
+			QPushButton* changeSettingsButton = msgBox.addButton("Change Settings", QMessageBox::ActionRole);
+
+			// Set default button
+			msgBox.setDefaultButton(QMessageBox::Yes);
+
+			// Execute and check result
+			msgBox.exec();
+
+			if (msgBox.clickedButton() == noButton)
+			{
 				_selectedUVMethod = UVMethod::None;
+			}
+			else if (msgBox.clickedButton() == changeSettingsButton)
+			{
+				_selectedUVMethod = ModelViewer::askUserForUVMethod(qApp->activeWindow()).method;
+			}
 		}			
 	}
 
