@@ -1,0 +1,896 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SettingsDialog</class>
+ <widget class="QDialog" name="SettingsDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>858</width>
+    <height>345</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Settings</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="generalTab">
+      <attribute name="title">
+       <string>General</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="0" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_5">
+         <item>
+          <widget class="QLabel" name="labelTheme">
+           <property name="text">
+            <string>Theme</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboBoxTheme">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <item>
+            <property name="text">
+             <string>System Default</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Light</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Dark</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="1" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_6">
+         <item>
+          <widget class="QLabel" name="labelLanguage">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>Language</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="comboBoxLanguage">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="2" column="0">
+        <widget class="QCheckBox" name="checkPromptOverwrite">
+         <property name="text">
+          <string>Prompt Before Overwriting Model</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QCheckBox" name="checkRestoreLastFile">
+         <property name="text">
+          <string>Restore Last Opened File at Startup</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QCheckBox" name="checkTooltips">
+         <property name="text">
+          <string>Enable Tooltips</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QCheckBox" name="checkConfirmExit">
+         <property name="text">
+          <string>Confirm on Exit</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="cameraTab">
+      <attribute name="title">
+       <string>Camera</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_6">
+       <item row="0" column="0">
+        <layout class="QVBoxLayout" name="verticalLayout_2">
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout">
+           <item>
+            <widget class="QLabel" name="label">
+             <property name="text">
+              <string>Projection</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboProjectionMode">
+             <property name="toolTip">
+              <string>Select projection mode</string>
+             </property>
+             <item>
+              <property name="text">
+               <string>Perspective</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Orthographic</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_2">
+           <item>
+            <widget class="QLabel" name="label_2">
+             <property name="text">
+              <string>View</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboDefaultView">
+             <property name="toolTip">
+              <string>Select default camera view</string>
+             </property>
+             <item>
+              <property name="text">
+               <string>Top</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Front</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Left</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Isometric</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_3">
+           <item>
+            <widget class="QLabel" name="label_3">
+             <property name="text">
+              <string>Axonometric Mode</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QComboBox" name="comboDefaultProjection">
+             <property name="toolTip">
+              <string>Select default camera view</string>
+             </property>
+             <item>
+              <property name="text">
+               <string>Isometric</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Dimetric</string>
+              </property>
+             </item>
+             <item>
+              <property name="text">
+               <string>Trimetric</string>
+              </property>
+             </item>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="checkTrackball">
+           <property name="text">
+            <string>Enable Trackball Rotation</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QCheckBox" name="checkInvertZoom">
+           <property name="text">
+            <string>Invert Zoom Direction</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="horizontalLayout_4">
+           <item>
+            <widget class="QLabel" name="label_4">
+             <property name="text">
+              <string>Zoom Factor</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="spinZoomFactor">
+             <property name="suffix">
+              <string>x</string>
+             </property>
+             <property name="maximum">
+              <double>10.000000000000000</double>
+             </property>
+             <property name="value">
+              <double>1.000000000000000</double>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab">
+      <attribute name="title">
+       <string>View</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout">
+       <item row="0" column="0">
+        <widget class="QLabel" name="labelBackground">
+         <property name="text">
+          <string>Background Style</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="comboBoxBackgroundStyle">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <item>
+          <property name="text">
+           <string>Solid</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Gradient</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="labelTopColor">
+         <property name="text">
+          <string>Top Color</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QPushButton" name="pushButtonTopColor">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Choose...</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="labelBottomColor">
+         <property name="text">
+          <string>Bottom Color</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QPushButton" name="pushButtonBottomColor">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Choose...</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="labelDefaultView">
+         <property name="text">
+          <string>Default View</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QComboBox" name="comboBoxDefaultView">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <item>
+          <property name="text">
+           <string>Isometric</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Dimetric</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Trimetric</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Top</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Front</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Right</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QCheckBox" name="checkBoxShowAxis">
+         <property name="text">
+          <string>Show Axis</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QCheckBox" name="checkBoxShowGrid">
+         <property name="text">
+          <string>Show Grid</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="renderTab">
+      <attribute name="title">
+       <string>Rendering</string>
+      </attribute>
+      <widget class="QComboBox" name="comboShadingMode">
+       <property name="geometry">
+        <rect>
+         <x>9</x>
+         <y>9</y>
+         <width>96</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <item>
+        <property name="text">
+         <string>Wireframe</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Shaded</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Wireshaded</string>
+        </property>
+       </item>
+      </widget>
+      <widget class="QCheckBox" name="checkBackfaceCulling">
+       <property name="geometry">
+        <rect>
+         <x>9</x>
+         <y>38</y>
+         <width>159</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Enable Backface Culling</string>
+       </property>
+      </widget>
+      <widget class="QCheckBox" name="checkNormalMap">
+       <property name="geometry">
+        <rect>
+         <x>9</x>
+         <y>65</y>
+         <width>192</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Enable Normal Map Support</string>
+       </property>
+      </widget>
+      <widget class="QCheckBox" name="checkPBRShaders">
+       <property name="geometry">
+        <rect>
+         <x>9</x>
+         <y>92</y>
+         <width>139</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Enable PBR Shaders</string>
+       </property>
+      </widget>
+      <widget class="QCheckBox" name="checkGroundPlane">
+       <property name="geometry">
+        <rect>
+         <x>9</x>
+         <y>234</y>
+         <width>206</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Show Ground Plane / Trihedron</string>
+       </property>
+      </widget>
+      <widget class="QWidget" name="layoutWidget">
+       <property name="geometry">
+        <rect>
+         <x>9</x>
+         <y>119</y>
+         <width>78</width>
+         <height>25</height>
+        </rect>
+       </property>
+       <layout class="QHBoxLayout" name="horizontalLayout_7">
+        <item>
+         <widget class="QLabel" name="label_5">
+          <property name="text">
+           <string>MSAA</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="spinAASamples">
+          <property name="suffix">
+           <string>x</string>
+          </property>
+          <property name="maximum">
+           <number>8</number>
+          </property>
+          <property name="value">
+           <number>2</number>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+     <widget class="QWidget" name="lightsTab">
+      <attribute name="title">
+       <string>Lights</string>
+      </attribute>
+      <widget class="QLabel" name="labelLightIntensity">
+       <property name="geometry">
+        <rect>
+         <x>190</x>
+         <y>150</y>
+         <width>79</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Light Intensity</string>
+       </property>
+      </widget>
+      <widget class="QSlider" name="sliderLightIntensity">
+       <property name="geometry">
+        <rect>
+         <x>314</x>
+         <y>150</y>
+         <width>485</width>
+         <height>22</height>
+        </rect>
+       </property>
+       <property name="minimum">
+        <number>0</number>
+       </property>
+       <property name="maximum">
+        <number>100</number>
+       </property>
+       <property name="value">
+        <number>50</number>
+       </property>
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+      </widget>
+      <widget class="QCheckBox" name="checkBoxEnableShadows">
+       <property name="geometry">
+        <rect>
+         <x>190</x>
+         <y>202</y>
+         <width>118</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Enable Shadows</string>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QWidget" name="materialsTab">
+      <attribute name="title">
+       <string>Materials</string>
+      </attribute>
+      <widget class="QComboBox" name="comboBoxDefaultMaterial">
+       <property name="geometry">
+        <rect>
+         <x>360</x>
+         <y>50</y>
+         <width>459</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <item>
+        <property name="text">
+         <string>Plastic</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Metal</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Glass</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Custom</string>
+        </property>
+       </item>
+      </widget>
+      <widget class="QLabel" name="labelDefaultMaterial">
+       <property name="geometry">
+        <rect>
+         <x>210</x>
+         <y>50</y>
+         <width>93</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Default Material</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="labelDefaultTextureDir">
+       <property name="geometry">
+        <rect>
+         <x>210</x>
+         <y>79</y>
+         <width>144</width>
+         <height>23</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Default Texture Directory</string>
+       </property>
+      </widget>
+      <widget class="QLineEdit" name="lineEditTextureDir">
+       <property name="geometry">
+        <rect>
+         <x>360</x>
+         <y>79</y>
+         <width>459</width>
+         <height>23</height>
+        </rect>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QWidget" name="uvTab">
+      <attribute name="title">
+       <string>UV Generation</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_3">
+       <item row="0" column="0">
+        <widget class="QComboBox" name="comboUVMethod">
+         <item>
+          <property name="text">
+           <string>Planar</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Cylindrical</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Spherical</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Angle-Based Smart UV</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QDoubleSpinBox" name="spinAngleThreshold">
+         <property name="prefix">
+          <string>Angle: </string>
+         </property>
+         <property name="suffix">
+          <string>°</string>
+         </property>
+         <property name="maximum">
+          <double>180.000000000000000</double>
+         </property>
+         <property name="value">
+          <double>45.000000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QCheckBox" name="checkPreserveUVs">
+         <property name="text">
+          <string>Preserve Existing UVs</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QCheckBox" name="checkAutoPackUVs">
+         <property name="text">
+          <string>Auto Pack UVs</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QCheckBox" name="checkRelaxUVs">
+         <property name="text">
+          <string>Relax UVs</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QCheckBox" name="checkPCAProjection">
+         <property name="text">
+          <string>Use PCA Projection</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0">
+        <widget class="QCheckBox" name="checkXatlasPackingOnly">
+         <property name="text">
+          <string>Use xatlas only for Packing</string>
+         </property>
+        </widget>
+       </item>
+       <item row="7" column="0">
+        <widget class="QCheckBox" name="checkRememberUV">
+         <property name="text">
+          <string>Remember Last Used UV Method</string>
+         </property>
+        </widget>
+       </item>
+       <item row="8" column="0">
+        <widget class="QPushButton" name="buttonResetUVPrompt">
+         <property name="text">
+          <string>Reset UV Prompt Setting</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="performanceTab">
+      <attribute name="title">
+       <string>Performance</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_4">
+       <item row="0" column="0">
+        <widget class="QCheckBox" name="checkMultithreadedLoad">
+         <property name="text">
+          <string>Enable Multithreaded Loading</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QSpinBox" name="spinThreadLimit">
+         <property name="suffix">
+          <string> Threads</string>
+         </property>
+         <property name="maximum">
+          <number>32</number>
+         </property>
+         <property name="value">
+          <number>4</number>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QCheckBox" name="checkSkyboxBlending">
+         <property name="text">
+          <string>Enable Background Skybox Blending</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
+        <widget class="QCheckBox" name="checkProgressiveLoading">
+         <property name="text">
+          <string>Enable Progressive Loading</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="developerTab">
+      <attribute name="title">
+       <string>Advanced</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_5">
+       <item row="0" column="0">
+        <widget class="QLabel" name="labelOpenGLVersion">
+         <property name="text">
+          <string>OpenGL Version</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1" colspan="2">
+        <widget class="QComboBox" name="comboBoxOpenGLVersion">
+         <item>
+          <property name="text">
+           <string>4.5 Core</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>4.1 Core</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>3.3 Core</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="1" column="0" colspan="2">
+        <widget class="QCheckBox" name="checkBoxVSync">
+         <property name="text">
+          <string>Enable VSync</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="labelThreads">
+         <property name="text">
+          <string>Loader Threads</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="2">
+        <widget class="QSpinBox" name="spinBoxThreads">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>16</number>
+         </property>
+         <property name="value">
+          <number>4</number>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0" colspan="3">
+        <widget class="QCheckBox" name="checkDebugLog">
+         <property name="text">
+          <string>Enable Debug Logging</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0" colspan="3">
+        <widget class="QCheckBox" name="checkShaderHotReload">
+         <property name="text">
+          <string>Reload Shaders on File Change</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0" colspan="3">
+        <widget class="QCheckBox" name="checkShowFPS">
+         <property name="text">
+          <string>Show FPS Counter</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0" colspan="3">
+        <widget class="QCheckBox" name="checkLegacyOpenGL">
+         <property name="text">
+          <string>Force Legacy OpenGL Compatibility Mode</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout">
+     <item>
+      <spacer>
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>0</width>
+         <height>0</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="buttonClose">
+       <property name="text">
+        <string>Close</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
