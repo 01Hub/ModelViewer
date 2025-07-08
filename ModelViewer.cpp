@@ -3337,11 +3337,7 @@ UVDialogResult ModelViewer::askUserForUVMethod(QWidget* parent)
 	UVDialogResult result;
 
 	UVPromptDialog dialog(parent);
-	dialog.setWindowFlag(Qt::WindowContextHelpButtonHint, false);
-	dialog.adjustSize();  // Resizes to layout's preferred size
-	dialog.move(parent->window()->frameGeometry().center() - dialog.rect().center());
-	dialog.layout()->setSizeConstraint(QLayout::SetMinimumSize);
-
+	
 	if (dialog.exec() == QDialog::Accepted)
 	{
 		UVPromptDialog::Choice choice = dialog.selectedChoice();
