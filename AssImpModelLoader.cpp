@@ -133,8 +133,9 @@ void AssImpModelLoader::loadModel(string path)
 	if (modelHasMissingUVs)
 	{
 		SceneMeshInfo stats = collectSceneMeshInfo(scene);						
-
-		if (stats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV)
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		bool remember = settings.value("RememberUVMethod", false).toBool();
+		if (stats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV && remember)
 		{
 			QMessageBox msgBox;
 			msgBox.setWindowTitle("Performance Warning!");
