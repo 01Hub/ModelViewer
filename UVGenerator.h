@@ -52,12 +52,15 @@ namespace std
 struct UVConfig
 {
     float sphericalScale = 1.0f;        // Scale factor for spherical UV
+    float sphericalUVRotation = 0.0f;   // Radians; e.g. glm::radians(90.0f)
+	bool duplicatePoleVertices = false; // Duplicate vertices at poles for seamless spherical UV
     float cylindricalScale = 1.0f;      // Scale factor for cylindrical UV
     glm::vec2 planarScale = glm::vec2(1.0f);  // Scale factor for planar UV
     bool flipV = false;                 // Flip V coordinate
     bool seamlessSpherical = true;      // Handle spherical UV seams
     float cylindricalOffset = 0.0f;     // Offset for cylindrical wrapping
-
+    float cylindricalSeamRotation = 0.0f; // radians
+	
     // Angle-based unwrapping parameters
     float angleThreshold = 60.0f;       // Angle threshold for seam detection (degrees)
     float distortionWeight = 0.5f;      // Weight for distortion vs area preservation

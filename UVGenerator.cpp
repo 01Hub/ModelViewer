@@ -68,38 +68,81 @@ bool UVGenerator::generateCylindrical(aiMesh* mesh,
     std::vector<unsigned int>& indices,
     const UVConfig& config)
 {
-    if (vertices.empty()) return false;
+    if (vertices.empty() || indices.empty()) return false;
 
     glm::vec3 centroid = calculateCentroid(vertices);
     glm::vec3 minBounds, maxBounds;
     calculateBounds(vertices, minBounds, maxBounds);
 
     float height = maxBounds.y - minBounds.y;
+    if (height < 1e-6f) height = 1.0f; // Avoid division by zero
 
+    // Step 1: Assign UVs based on cylindrical mapping
     for (auto& vertex : vertices)
     {
         glm::vec3 localPos = vertex.Position - centroid;
 
-        // Cylindrical mapping
-        float u = (atan2(localPos.z, localPos.x) + M_PI) / (2.0f * M_PI);
+        // Optional seam rotation (in radians)
+        float angle = atan2(localPos.z, localPos.x);
+        angle += config.cylindricalSeamRotation; // rotate seam if needed
+
+        float u = (angle + M_PI) / (2.0f * M_PI); // wrap to [0,1]
         float v = (vertex.Position.y - minBounds.y) / height;
 
-        // Handle seam
-        if (config.seamlessSpherical && u > 0.75f && localPos.x > 0)
-        {
-            u -= 1.0f;
-        }
-
+        // Apply user offset and scale
         u += config.cylindricalOffset;
-        u = fmod(u + 1.0f, 1.0f); // Wrap to [0,1]
+        u = fmod(u + 1.0f, 1.0f); // ensure [0,1] wrap
 
         glm::vec2 uv(u * config.cylindricalScale, v);
         applyUVTransforms(uv, config);
         vertex.TexCoords = uv;
     }
 
+    // Step 2: Handle seam-crossing triangles by duplicating vertices
+    if (config.seamlessSpherical)
+    {
+        const size_t triangleCount = indices.size() / 3;
+        for (size_t t = 0; t < triangleCount; ++t)
+        {
+            unsigned int& i0 = indices[3 * t + 0];
+            unsigned int& i1 = indices[3 * t + 1];
+            unsigned int& i2 = indices[3 * t + 2];
+
+            Vertex& v0 = vertices[i0];
+            Vertex& v1 = vertices[i1];
+            Vertex& v2 = vertices[i2];
+
+            float u0 = v0.TexCoords.x;
+            float u1 = v1.TexCoords.x;
+            float u2 = v2.TexCoords.x;
+
+            float maxU = std::max({ u0, u1, u2 });
+            float minU = std::min({ u0, u1, u2 });
+
+            // If UVs span the seam boundary
+            if (maxU - minU > 0.5f)
+            {
+                auto duplicateIfNeeded = [&](unsigned int& idx, float u) {
+                    if (u < 0.5f)
+                    {
+                        Vertex dup = vertices[idx];
+                        dup.TexCoords.x += 1.0f; // Shift u to maintain continuity
+                        applyUVTransforms(dup.TexCoords, config); // Optional second transform
+                        vertices.push_back(dup);
+                        idx = static_cast<unsigned int>(vertices.size() - 1);
+                    }
+                    };
+
+                duplicateIfNeeded(i0, u0);
+                duplicateIfNeeded(i1, u1);
+                duplicateIfNeeded(i2, u2);
+            }
+        }
+    }
+
     return true;
 }
+
 
 
 // Method 3: Spherical projection
@@ -108,34 +151,112 @@ bool UVGenerator::generateSpherical(aiMesh* mesh,
     std::vector<unsigned int>& indices,
     const UVConfig& config)
 {
-    if (vertices.empty()) return false;
+    if (vertices.empty() || indices.empty())
+        return false;
 
     glm::vec3 centroid = calculateCentroid(vertices);
+    const float poleThreshold = 0.98f;
 
-    for (auto& vertex : vertices)
+    float longitudeOffset = config.sphericalUVRotation; // optional texture twist
+
+    // If pole duplication is enabled
+    if (config.duplicatePoleVertices)
     {
-        glm::vec3 localPos = glm::normalize(vertex.Position - centroid);
+        std::vector<Vertex> finalVertices;
+        std::vector<unsigned int> finalIndices;
 
-        // Spherical mapping
-        float u = (atan2(localPos.z, localPos.x) + M_PI) / (2.0f * M_PI);
-        float v = (asin(localPos.y) + M_PI * 0.5f) / M_PI;
-
-        // Handle poles and seams
-        if (config.seamlessSpherical)
+        for (size_t i = 0; i < indices.size(); i += 3)
         {
-            if (abs(localPos.y) > 0.99f)
-            { // Near poles
-                u = 0.5f;
+            std::array<unsigned int, 3> triIndices = { indices[i], indices[i + 1], indices[i + 2] };
+            std::array<unsigned int, 3> newTriIndices;
+
+            for (int j = 0; j < 3; ++j)
+            {
+                Vertex v = vertices[triIndices[j]];
+                glm::vec3 localPos = glm::normalize(v.Position - centroid);
+
+                float x = localPos.x;
+                float y = localPos.y;
+                float z = localPos.z;
+
+                float longitude = atan2(z, x);
+                float latitude = asin(glm::clamp(y, -1.0f, 1.0f));
+
+                longitude += longitudeOffset;
+
+                float u = (longitude + M_PI) / (2.0f * M_PI);
+                float v_uv = (latitude + M_PI_2) / M_PI;
+
+                if (config.seamlessSpherical && std::abs(y) > poleThreshold)
+                {
+                    u = 0.5f; // Clamp to center
+                    Vertex duplicated = v;
+                    duplicated.TexCoords = glm::vec2(u, v_uv);
+                    applyUVTransforms(duplicated.TexCoords, config);
+                    finalVertices.push_back(duplicated);
+                    newTriIndices[j] = static_cast<unsigned int>(finalVertices.size() - 1);
+                }
+                else
+                {
+                    v.TexCoords = glm::vec2(u * config.sphericalScale, v_uv * config.sphericalScale);
+                    applyUVTransforms(v.TexCoords, config);
+                    finalVertices.push_back(v);
+                    newTriIndices[j] = static_cast<unsigned int>(finalVertices.size() - 1);
+                }
             }
+
+            finalIndices.insert(finalIndices.end(), {
+                newTriIndices[0],
+                newTriIndices[1],
+                newTriIndices[2]
+                });
         }
 
-        glm::vec2 uv(u * config.sphericalScale, v * config.sphericalScale);
-        applyUVTransforms(uv, config);
-        vertex.TexCoords = uv;
+        vertices = std::move(finalVertices);
+        indices = std::move(finalIndices);
+    }
+    else
+    {
+        // Original version: spread UVs near poles across seam
+        for (auto& vertex : vertices)
+        {
+            glm::vec3 localPos = glm::normalize(vertex.Position - centroid);
+
+            float x = localPos.x;
+            float y = localPos.y;
+            float z = localPos.z;
+
+            float longitude = atan2(z, x);
+            float latitude = asin(glm::clamp(y, -1.0f, 1.0f));
+
+            longitude += longitudeOffset;
+
+            float u = (longitude + M_PI) / (2.0f * M_PI);
+            float v = (latitude + M_PI_2) / M_PI;
+
+            if (config.seamlessSpherical)
+            {
+                if (y > poleThreshold)
+                {
+                    u = (longitude + M_PI) / (2.0f * M_PI);
+                    v = 1.0f - 0.001f;
+                }
+                else if (y < -poleThreshold)
+                {
+                    u = (longitude + M_PI) / (2.0f * M_PI);
+                    v = 0.001f;
+                }
+            }
+
+            glm::vec2 uv(u * config.sphericalScale, v * config.sphericalScale);
+            applyUVTransforms(uv, config);
+            vertex.TexCoords = uv;
+        }
     }
 
     return true;
 }
+
 
 
 // Method 4: Planar projection with automatic orientation
