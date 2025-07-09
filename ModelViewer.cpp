@@ -286,6 +286,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_hasPBRHeightTex = false;
 	_heightPBRTexScale = 0.05f;
 
+	_progressiveLoadingEnabled = QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName()).value("checkProgressiveLoading", true).toBool();
+
 	updateControls();
 
 }
@@ -551,7 +553,9 @@ void ModelViewer::updateDisplayList()
 		listWidgetModel->addItem(item);
 		id++;
 	}
-	_glWidget->fitAll();
+	
+	if(!_progressiveLoadingEnabled)
+		_glWidget->fitAll();
 
 	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 	sliderLightPosX->setRange(-range, range);
@@ -698,7 +702,8 @@ void ModelViewer::dropEvent(QDropEvent* event)
 				else
 					method = askUserForUVMethod(this).method;
 				QString errMsg;
-				bool success = _glWidget->loadAssImpModel(fileName, method, errMsg);
+				_progressiveLoadingEnabled = settings.value("checkProgressiveLoading", true).toBool();
+				bool success = _glWidget->loadAssImpModel(fileName, method, errMsg, _progressiveLoadingEnabled);
 				if(!success)
 				{
 					QMessageBox::critical(this, "Error", "Failed to load model: " + fileName + "\n" + errMsg);
@@ -2003,7 +2008,9 @@ bool ModelViewer::loadFile(const QString& fileName)
 		}
 		else
 			method = askUserForUVMethod(this).method;
-		success = _glWidget->loadAssImpModel(fileName, method, errMsg);
+
+		_progressiveLoadingEnabled = settings.value("checkProgressiveLoading", true).toBool();
+		success = _glWidget->loadAssImpModel(fileName, method, errMsg, _progressiveLoadingEnabled);
 	}
 
 	if (success)

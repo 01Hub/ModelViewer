@@ -1171,9 +1171,17 @@ void GLWidget::showFloorTexture(bool show)
 }
 
 void GLWidget::addToDisplay(TriangleMesh* mesh)
-{
+{	
+	if(mesh == nullptr)
+	{
+		qDebug() << "Error: Attempted to add a null mesh to display.";
+		return;
+	}
 	_meshStore.push_back(mesh);
 	_displayedObjectsIds.push_back(static_cast<int>(_meshStore.size() - 1));
+
+	if(_progressiveLoadingEnabled)
+		_viewer->updateDisplayList();	
 }
 
 void GLWidget::removeFromDisplay(int index)
@@ -1239,8 +1247,10 @@ void GLWidget::deselect(int id)
 	}
 }
 
-bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error)
+bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
 {
+	_progressiveLoadingEnabled = progressiveLoading;
+	qDebug() << "Progressive loading: " << progressiveLoading;
 	bool success = false;
 
 	makeCurrent();
@@ -1272,20 +1282,44 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		QPushButton *abortButton = msgBox.addButton(QMessageBox::Abort);
 		connect(abortButton, SIGNAL(pressed()), this, SLOT(cancelAssImpModelLoading()));
 		msgBox.show();*/
+				
+		// connect AssimpModelLoader meshProcessed signal to addToDisplay slot
+		connect(_assimpModelLoader, &AssImpModelLoader::meshProcessed, this, &GLWidget::addToDisplay);
+
+		// connect AssimpModelLoader loadingFinshed signal to a lambda sets the success value to true
+		connect(_assimpModelLoader, &AssImpModelLoader::loadingFinished, this, [this, &success, &error](bool successFlag) {
+			success = successFlag;
+			if (!successFlag)
+			{
+				error = _assimpModelLoader->getErrorMessage();
+			}
+			});
+
+		// if user cancels the loading, we still need to set the success to true
+		connect(this, &GLWidget::loadingAssImpModelCancelled, this, [this, &success, &error]() {
+			success = true; // set success to true to avoid blocking the UI
+			error = "Model loading cancelled by user.";
+			});
+		
+
 		_assimpModelLoader->setUVGenerationMethod(uvMethod);
-		_assimpModelLoader->loadModel(const_cast<GLchar*>(fileName.toStdString().c_str()));
-		std::vector<AssImpMesh*> meshes = _assimpModelLoader->getMeshes();
-		if (meshes.size() == 0)
+		_assimpModelLoader->loadModel(const_cast<GLchar*>(fileName.toStdString().c_str()), progressiveLoading);
+
+		if(!progressiveLoading) // process all the meshes at once
 		{
-			success = false;
-			error = _assimpModelLoader->getErrorMessage();
-		}
-		else
-		{
-			success = true;
-			for (AssImpMesh* mesh : meshes)
-				addToDisplay(mesh);
-		}
+			std::vector<AssImpMesh*> meshes = _assimpModelLoader->getMeshes();
+			if (meshes.size() == 0)
+			{
+				success = false;
+				error = _assimpModelLoader->getErrorMessage();
+			}
+			else
+			{
+				success = true;
+				for (AssImpMesh* mesh : meshes)
+					addToDisplay(mesh);
+			}
+		}		
 	}
 	MainWindow::showStatusMessage("");
 	MainWindow::setProgressValue(0);
@@ -1326,7 +1360,7 @@ void GLWidget::swapVisible(bool checked)
 
 void GLWidget::cancelAssImpModelLoading()
 {
-	emit loadingAssImpModelCancelled();
+	emit loadingAssImpModelCancelled();	
 	QMessageBox::critical(this, "Cancelled", "Model loading cancelled!\nModel may be loaded partially");
 }
 

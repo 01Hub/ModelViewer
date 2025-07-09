@@ -88,7 +88,7 @@ public:
 	void select(int id);
 	void deselect(int id);
 
-	bool loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error);
+	bool loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading = false);	
 
 	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
 	void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);
@@ -587,6 +587,7 @@ private:
 	unsigned long long _displayedObjectsMemSize;
 
     AssImpModelLoader* _assimpModelLoader;	
+	bool _progressiveLoadingEnabled = false;
 };
 
 #endif

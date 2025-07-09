@@ -84,7 +84,7 @@ public:
 
 	/*  Functions   */
 	// Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
-	void loadModel(std::string path);
+	void loadModel(std::string path, const bool& progressiveLoading = false);
 
 	std::vector<AssImpMesh*> getMeshes() const;
 
@@ -97,6 +97,8 @@ signals:
 	void fileReadProcessed(float percent);
 	void verticesProcessed(float percent);
 	void nodeProcessed(int nodeNum, int totalNodes);
+	void meshProcessed(AssImpMesh*);
+	void loadingFinished(const aiScene* scene);
 	void loadingCancelled();
 
 public slots:
@@ -143,6 +145,10 @@ private:
 	AssImpModelProgressHandler* _progHandler;
 	QString _errorMessage;
 	bool _loadingCancelled;
+
+	const aiScene* _scene = nullptr; // Holds the loaded scene
+
+	bool _progressiveLoading = false; // If true, emit progress signals during loading
 
 	MaterialProcessor _materialProcessor; 
 

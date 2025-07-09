@@ -69,15 +69,14 @@ vector<AssImpMesh*> AssImpModelLoader::getMeshes() const
 
 /*  Functions   */
 // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
-void AssImpModelLoader::loadModel(string path)
+void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 {
+	_progressiveLoading = progressiveLoading;
 	_loadingCancelled = false;
 	_path = std::string(path);
 	_meshes.clear();	
 	_materialProcessor.clearLoadedTextures();
-
-	const aiScene* scene = nullptr;
-
+		
 	QFileInfo fi(path.c_str());
 
 #ifdef __DEBUG__
@@ -88,21 +87,21 @@ void AssImpModelLoader::loadModel(string path)
 
 	if (fi.suffix().toLower() == "step" || fi.suffix().toLower() == "stp")
 	{
-		scene = processSTEPFile(path);
+		_scene = processSTEPFile(path);
 	}
 	else if (fi.suffix().toLower() == "iges" || fi.suffix().toLower() == "igs")
     {
-		scene = processIGESFile(path);
+		_scene = processIGESFile(path);
 	}
 	else if (fi.suffix().toLower() == "brep" || fi.suffix().toLower() == "rle")
 	{
-		scene = processBREPFile(path);
+		_scene = processBREPFile(path);
 	}
 	else // all Assimp models
 	{
 		// Read file via ASSIMP
 		_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
-		scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace |
+		_scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace |
 			aiProcess_GenSmoothNormals |
 			aiProcess_FixInfacingNormals |
 			aiProcess_JoinIdenticalVertices |
@@ -113,7 +112,7 @@ void AssImpModelLoader::loadModel(string path)
 	}
 
 	// Check for errors
-	if (!scene || scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode) // if is Not Zero
+	if (!_scene || _scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !_scene->mRootNode) // if is Not Zero
 	{
 		_errorMessage = _importer.GetErrorString();
 		cout << "ERROR::ASSIMP:: " << _importer.GetErrorString() << endl;
@@ -121,9 +120,9 @@ void AssImpModelLoader::loadModel(string path)
 	}
 
 	bool modelHasMissingUVs = false;
-	for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
+	for (unsigned int i = 0; i < _scene->mNumMeshes; ++i)
 	{
-		if (scene->mMeshes[i]->mTextureCoords[0] == nullptr)
+		if (_scene->mMeshes[i]->mTextureCoords[0] == nullptr)
 		{
 			modelHasMissingUVs = true;
 			break;
@@ -132,7 +131,7 @@ void AssImpModelLoader::loadModel(string path)
 
 	if (modelHasMissingUVs)
 	{
-		SceneMeshInfo stats = collectSceneMeshInfo(scene);						
+		SceneMeshInfo stats = collectSceneMeshInfo(_scene);						
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());				
 		bool remember = settings.value("RememberUVMethod", false).toBool();		
 		if (stats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV && remember)
@@ -175,7 +174,10 @@ void AssImpModelLoader::loadModel(string path)
 	this->_texturePath = path.substr(0, path.find_last_of('/'));
 
 	// Process ASSIMP's root node recursively
-	this->processNode(0, scene->mRootNode, scene);
+	this->processNode(0, _scene->mRootNode, _scene);
+
+	if (_progressiveLoading)
+		emit loadingFinished(_scene);
 }
 
 aiScene* AssImpModelLoader::processSTEPFile(const std::string& path)
@@ -852,7 +854,10 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
 	}
 	
-	return new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);
+	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);
+	if(_progressiveLoading)
+		emit meshProcessed(newMesh);
+	return newMesh;
 }
 
 

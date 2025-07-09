@@ -308,6 +308,8 @@ private:
 	bool _documentSaved;
 	bool _documentModified;
 
+	bool _progressiveLoadingEnabled = false;
+
 	static QString _lastOpenedDir;
 	static QString _lastSelectedFilter;	
 
