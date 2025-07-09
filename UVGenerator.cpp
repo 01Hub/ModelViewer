@@ -73,7 +73,6 @@ bool UVGenerator::generateCylindrical(aiMesh* mesh,
     glm::vec3 centroid = calculateCentroid(vertices);
     glm::vec3 minBounds, maxBounds;
     calculateBounds(vertices, minBounds, maxBounds);
-
     float height = maxBounds.y - minBounds.y;
     if (height < 1e-6f) height = 1.0f; // Avoid division by zero
 
@@ -82,11 +81,15 @@ bool UVGenerator::generateCylindrical(aiMesh* mesh,
     {
         glm::vec3 localPos = vertex.Position - centroid;
 
-        // Optional seam rotation (in radians)
+        // Calculate angle with proper handling of edge cases
         float angle = atan2(localPos.z, localPos.x);
         angle += config.cylindricalSeamRotation; // rotate seam if needed
 
-        float u = (angle + M_PI) / (2.0f * M_PI); // wrap to [0,1]
+        // Normalize angle to [0, 2pi] range first
+        while (angle < 0.0f) angle += 2.0f * M_PI;
+        while (angle >= 2.0f * M_PI) angle -= 2.0f * M_PI;
+
+        float u = angle / (2.0f * M_PI); // map to [0,1]
         float v = (vertex.Position.y - minBounds.y) / height;
 
         // Apply user offset and scale
@@ -99,45 +102,68 @@ bool UVGenerator::generateCylindrical(aiMesh* mesh,
     }
 
     // Step 2: Handle seam-crossing triangles by duplicating vertices
-    if (config.seamlessSpherical)
+    if (config.seamlessSpherical) // Note: This should probably be renamed to seamlessCylindrical
     {
         const size_t triangleCount = indices.size() / 3;
+        std::vector<unsigned int> newIndices;
+        newIndices.reserve(indices.size());
+
         for (size_t t = 0; t < triangleCount; ++t)
         {
-            unsigned int& i0 = indices[3 * t + 0];
-            unsigned int& i1 = indices[3 * t + 1];
-            unsigned int& i2 = indices[3 * t + 2];
+            unsigned int i0 = indices[3 * t + 0];
+            unsigned int i1 = indices[3 * t + 1];
+            unsigned int i2 = indices[3 * t + 2];
 
-            Vertex& v0 = vertices[i0];
-            Vertex& v1 = vertices[i1];
-            Vertex& v2 = vertices[i2];
+            // Get UV coordinates
+            float u0 = vertices[i0].TexCoords.x;
+            float u1 = vertices[i1].TexCoords.x;
+            float u2 = vertices[i2].TexCoords.x;
 
-            float u0 = v0.TexCoords.x;
-            float u1 = v1.TexCoords.x;
-            float u2 = v2.TexCoords.x;
-
+            // Check if triangle crosses the seam (0/1 boundary)
             float maxU = std::max({ u0, u1, u2 });
             float minU = std::min({ u0, u1, u2 });
 
-            // If UVs span the seam boundary
+            // If UVs span the seam boundary (accounting for wrapping)
             if (maxU - minU > 0.5f)
             {
-                auto duplicateIfNeeded = [&](unsigned int& idx, float u) {
-                    if (u < 0.5f)
+                // Create new indices for this triangle
+                unsigned int newI0 = i0, newI1 = i1, newI2 = i2;
+
+                // Helper lambda to duplicate vertex if it needs seam adjustment
+                auto duplicateIfNeeded = [&](unsigned int originalIdx, float u) -> unsigned int {
+                    if (u < 0.5f) // Vertex is on the "left" side of seam, needs to be moved right
                     {
-                        Vertex dup = vertices[idx];
+                        Vertex dup = vertices[originalIdx];
                         dup.TexCoords.x += 1.0f; // Shift u to maintain continuity
-                        applyUVTransforms(dup.TexCoords, config); // Optional second transform
+
+                        // Don't apply transforms again - they were already applied
+                        // The transformed coordinates should maintain the offset
+
                         vertices.push_back(dup);
-                        idx = static_cast<unsigned int>(vertices.size() - 1);
+                        return static_cast<unsigned int>(vertices.size() - 1);
                     }
+                    return originalIdx;
                     };
 
-                duplicateIfNeeded(i0, u0);
-                duplicateIfNeeded(i1, u1);
-                duplicateIfNeeded(i2, u2);
+                newI0 = duplicateIfNeeded(i0, u0);
+                newI1 = duplicateIfNeeded(i1, u1);
+                newI2 = duplicateIfNeeded(i2, u2);
+
+                newIndices.push_back(newI0);
+                newIndices.push_back(newI1);
+                newIndices.push_back(newI2);
+            }
+            else
+            {
+                // Triangle doesn't cross seam, use original indices
+                newIndices.push_back(i0);
+                newIndices.push_back(i1);
+                newIndices.push_back(i2);
             }
         }
+
+        // Replace indices with the new ones
+        indices = std::move(newIndices);
     }
 
     return true;
@@ -156,59 +182,222 @@ bool UVGenerator::generateSpherical(aiMesh* mesh,
 
     glm::vec3 centroid = calculateCentroid(vertices);
     const float poleThreshold = 0.98f;
+    float longitudeOffset = config.sphericalUVRotation;
 
-    float longitudeOffset = config.sphericalUVRotation; // optional texture twist
+    // Helper function to calculate spherical coordinates
+    auto calculateSphericalUV = [&](const glm::vec3& localPos) -> glm::vec2 {
+        float longitude = atan2(localPos.z, localPos.x);
+        float latitude = asin(glm::clamp(localPos.y, -1.0f, 1.0f));
+        longitude += longitudeOffset;
 
-    // If pole duplication is enabled
+        // Normalize longitude to [0, 2pi)
+        while (longitude < 0.0f) longitude += 2.0f * M_PI;
+        while (longitude >= 2.0f * M_PI) longitude -= 2.0f * M_PI;
+
+        float u = longitude / (2.0f * M_PI);
+        float v = (latitude + M_PI_2) / M_PI;
+
+        return glm::vec2(u, v);
+        };
+
+    // Analyze mesh to find optimal seam placement
+    auto findOptimalSeam = [&]() -> float {
+        std::vector<float> seamCandidates;
+
+        // Sample longitude values from mesh
+        for (const auto& vertex : vertices)
+        {
+            glm::vec3 localPos = glm::normalize(vertex.Position - centroid);
+            float longitude = atan2(localPos.z, localPos.x);
+            longitude += longitudeOffset;
+            while (longitude < 0.0f) longitude += 2.0f * M_PI;
+            while (longitude >= 2.0f * M_PI) longitude -= 2.0f * M_PI;
+            seamCandidates.push_back(longitude);
+        }
+
+        // Find the longitude range with fewest vertices (best seam location)
+        std::sort(seamCandidates.begin(), seamCandidates.end());
+
+        float bestSeamLongitude = 0.0f;
+        float maxGap = 0.0f;
+
+        for (size_t i = 0; i < seamCandidates.size() - 1; ++i)
+        {
+            float gap = seamCandidates[i + 1] - seamCandidates[i];
+            if (gap > maxGap)
+            {
+                maxGap = gap;
+                bestSeamLongitude = (seamCandidates[i] + seamCandidates[i + 1]) * 0.5f;
+            }
+        }
+
+        // Check wrap-around gap
+        float wrapGap = (seamCandidates[0] + 2.0f * M_PI) - seamCandidates.back();
+        if (wrapGap > maxGap)
+        {
+            bestSeamLongitude = seamCandidates.back() + wrapGap * 0.5f;
+            if (bestSeamLongitude >= 2.0f * M_PI) bestSeamLongitude -= 2.0f * M_PI;
+        }
+
+        return bestSeamLongitude;
+        };
+
+    // Calculate optimal seam position
+    float optimalSeamLongitude = config.seamlessSpherical ? findOptimalSeam() : 0.0f;
+
+    // Helper function to detect if triangle crosses seam
+    auto crossesSeam = [&](const std::array<glm::vec2, 3>& uvs, float seamU) -> bool {
+        // Convert seam longitude to U coordinate
+        float seamUCoord = seamU / (2.0f * M_PI);
+
+        // Check if vertices are on opposite sides of the seam
+        for (int i = 0; i < 3; ++i)
+        {
+            for (int j = i + 1; j < 3; ++j)
+            {
+                float uDiff = std::abs(uvs[i].x - uvs[j].x);
+                if (uDiff > 0.5f)
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
+        };
+
+    // Helper function to fix seam crossing with adaptive approach
+    auto fixSeamCrossing = [&](std::array<glm::vec2, 3>& uvs,
+        const std::array<glm::vec3, 3>& worldPos) {
+            // Calculate triangle center in world space
+            glm::vec3 triCenter = (worldPos[0] + worldPos[1] + worldPos[2]) / 3.0f;
+            glm::vec3 localTriCenter = glm::normalize(triCenter - centroid);
+
+            // Determine which side of seam the triangle center is on
+            float centerLongitude = atan2(localTriCenter.z, localTriCenter.x);
+            centerLongitude += longitudeOffset;
+            while (centerLongitude < 0.0f) centerLongitude += 2.0f * M_PI;
+            while (centerLongitude >= 2.0f * M_PI) centerLongitude -= 2.0f * M_PI;
+
+            float centerU = centerLongitude / (2.0f * M_PI);
+
+            // Adjust vertices to be on the same side as the triangle center
+            for (int i = 0; i < 3; ++i)
+            {
+                float uDiff = uvs[i].x - centerU;
+
+                if (uDiff > 0.5f)
+                {
+                    uvs[i].x -= 1.0f;
+                }
+                else if (uDiff < -0.5f)
+                {
+                    uvs[i].x += 1.0f;
+                }
+            }
+        };
+
+    // Helper function to handle pole triangles
+    auto handlePoleTriangle = [&](std::array<glm::vec2, 3>& uvs,
+        const std::array<glm::vec3, 3>& localPos) -> bool {
+            int poleVertices = 0;
+            int poleIndex = -1;
+
+            for (int i = 0; i < 3; ++i)
+            {
+                if (std::abs(localPos[i].y) > poleThreshold)
+                {
+                    poleVertices++;
+                    poleIndex = i;
+                }
+            }
+
+            if (poleVertices == 1)
+            {
+                // Single pole vertex - interpolate U from other vertices
+                float avgU = 0.0f;
+                int nonPoleCount = 0;
+
+                for (int i = 0; i < 3; ++i)
+                {
+                    if (i != poleIndex)
+                    {
+                        avgU += uvs[i].x;
+                        nonPoleCount++;
+                    }
+                }
+
+                if (nonPoleCount > 0)
+                {
+                    uvs[poleIndex].x = avgU / nonPoleCount;
+                }
+
+                // Adjust V coordinate slightly to avoid exact pole
+                if (localPos[poleIndex].y > 0)
+                {
+                    uvs[poleIndex].y = 1.0f - 0.001f;
+                }
+                else
+                {
+                    uvs[poleIndex].y = 0.001f;
+                }
+
+                return true;
+            }
+
+            return false;
+        };
+
     if (config.duplicatePoleVertices)
     {
         std::vector<Vertex> finalVertices;
         std::vector<unsigned int> finalIndices;
 
+        // Process triangles to handle seams and poles
         for (size_t i = 0; i < indices.size(); i += 3)
         {
             std::array<unsigned int, 3> triIndices = { indices[i], indices[i + 1], indices[i + 2] };
-            std::array<unsigned int, 3> newTriIndices;
+            std::array<Vertex, 3> triVertices = { vertices[triIndices[0]], vertices[triIndices[1]], vertices[triIndices[2]] };
+            std::array<glm::vec3, 3> localPos;
+            std::array<glm::vec2, 3> uvs;
 
+            // Calculate initial UVs and local positions
             for (int j = 0; j < 3; ++j)
             {
-                Vertex v = vertices[triIndices[j]];
-                glm::vec3 localPos = glm::normalize(v.Position - centroid);
+                localPos[j] = glm::normalize(triVertices[j].Position - centroid);
+                uvs[j] = calculateSphericalUV(localPos[j]);
+            }
 
-                float x = localPos.x;
-                float y = localPos.y;
-                float z = localPos.z;
+            // Handle pole triangles first
+            bool isPoleTriangle = handlePoleTriangle(uvs, localPos);
 
-                float longitude = atan2(z, x);
-                float latitude = asin(glm::clamp(y, -1.0f, 1.0f));
+            // Handle seam crossing if not a pole triangle
+            if (!isPoleTriangle && crossesSeam(uvs, optimalSeamLongitude))
+            {
+                fixSeamCrossing(uvs, { triVertices[0].Position, triVertices[1].Position, triVertices[2].Position });
+            }
 
-                longitude += longitudeOffset;
+            // Create final vertices with corrected UVs
+            std::array<unsigned int, 3> newTriIndices;
+            for (int j = 0; j < 3; ++j)
+            {
+                Vertex newVertex = triVertices[j];
+                glm::vec2 finalUV = uvs[j];
 
-                float u = (longitude + M_PI) / (2.0f * M_PI);
-                float v_uv = (latitude + M_PI_2) / M_PI;
+                // Wrap U coordinates back to [0,1] range
+                while (finalUV.x < 0.0f) finalUV.x += 1.0f;
+                while (finalUV.x > 1.0f) finalUV.x -= 1.0f;
+                finalUV.y = glm::clamp(finalUV.y, 0.0f, 1.0f);
 
-                if (config.seamlessSpherical && std::abs(y) > poleThreshold)
-                {
-                    u = 0.5f; // Clamp to center
-                    Vertex duplicated = v;
-                    duplicated.TexCoords = glm::vec2(u, v_uv);
-                    applyUVTransforms(duplicated.TexCoords, config);
-                    finalVertices.push_back(duplicated);
-                    newTriIndices[j] = static_cast<unsigned int>(finalVertices.size() - 1);
-                }
-                else
-                {
-                    v.TexCoords = glm::vec2(u * config.sphericalScale, v_uv * config.sphericalScale);
-                    applyUVTransforms(v.TexCoords, config);
-                    finalVertices.push_back(v);
-                    newTriIndices[j] = static_cast<unsigned int>(finalVertices.size() - 1);
-                }
+                newVertex.TexCoords = glm::vec2(finalUV.x * config.sphericalScale,
+                    finalUV.y * config.sphericalScale);
+                applyUVTransforms(newVertex.TexCoords, config);
+
+                finalVertices.push_back(newVertex);
+                newTriIndices[j] = static_cast<unsigned int>(finalVertices.size() - 1);
             }
 
             finalIndices.insert(finalIndices.end(), {
-                newTriIndices[0],
-                newTriIndices[1],
-                newTriIndices[2]
+                newTriIndices[0], newTriIndices[1], newTriIndices[2]
                 });
         }
 
@@ -217,46 +406,59 @@ bool UVGenerator::generateSpherical(aiMesh* mesh,
     }
     else
     {
-        // Original version: spread UVs near poles across seam
-        for (auto& vertex : vertices)
+        // Create a mapping from original to corrected UVs
+        std::unordered_map<unsigned int, glm::vec2> vertexUVMap;
+
+        // Process triangles to determine correct UVs
+        for (size_t i = 0; i < indices.size(); i += 3)
         {
-            glm::vec3 localPos = glm::normalize(vertex.Position - centroid);
+            std::array<unsigned int, 3> triIndices = { indices[i], indices[i + 1], indices[i + 2] };
+            std::array<glm::vec3, 3> localPos;
+            std::array<glm::vec2, 3> uvs;
 
-            float x = localPos.x;
-            float y = localPos.y;
-            float z = localPos.z;
-
-            float longitude = atan2(z, x);
-            float latitude = asin(glm::clamp(y, -1.0f, 1.0f));
-
-            longitude += longitudeOffset;
-
-            float u = (longitude + M_PI) / (2.0f * M_PI);
-            float v = (latitude + M_PI_2) / M_PI;
-
-            if (config.seamlessSpherical)
+            // Calculate initial UVs and local positions
+            for (int j = 0; j < 3; ++j)
             {
-                if (y > poleThreshold)
-                {
-                    u = (longitude + M_PI) / (2.0f * M_PI);
-                    v = 1.0f - 0.001f;
-                }
-                else if (y < -poleThreshold)
-                {
-                    u = (longitude + M_PI) / (2.0f * M_PI);
-                    v = 0.001f;
-                }
+                localPos[j] = glm::normalize(vertices[triIndices[j]].Position - centroid);
+                uvs[j] = calculateSphericalUV(localPos[j]);
             }
 
-            glm::vec2 uv(u * config.sphericalScale, v * config.sphericalScale);
-            applyUVTransforms(uv, config);
-            vertex.TexCoords = uv;
+            // Handle pole triangles
+            bool isPoleTriangle = handlePoleTriangle(uvs, localPos);
+
+            // Handle seam crossing if not a pole triangle
+            if (!isPoleTriangle && crossesSeam(uvs, optimalSeamLongitude))
+            {
+                fixSeamCrossing(uvs, { vertices[triIndices[0]].Position,
+                                    vertices[triIndices[1]].Position,
+                                    vertices[triIndices[2]].Position });
+            }
+
+            // Store corrected UVs (may overwrite previous values, but that's expected)
+            for (int j = 0; j < 3; ++j)
+            {
+                vertexUVMap[triIndices[j]] = uvs[j];
+            }
+        }
+
+        // Apply final UVs to vertices
+        for (size_t i = 0; i < vertices.size(); ++i)
+        {
+            glm::vec2 uv = vertexUVMap[i];
+
+            // Wrap U coordinates back to [0,1] range
+            while (uv.x < 0.0f) uv.x += 1.0f;
+            while (uv.x > 1.0f) uv.x -= 1.0f;
+            uv.y = glm::clamp(uv.y, 0.0f, 1.0f);
+
+            vertices[i].TexCoords = glm::vec2(uv.x * config.sphericalScale,
+                uv.y * config.sphericalScale);
+            applyUVTransforms(vertices[i].TexCoords, config);
         }
     }
 
     return true;
 }
-
 
 
 // Method 4: Planar projection with automatic orientation
@@ -270,39 +472,91 @@ bool UVGenerator::generatePlanar(aiMesh* mesh,
     glm::vec3 minBounds, maxBounds;
     calculateBounds(vertices, minBounds, maxBounds);
 
-    // Find the best projection plane (largest face)
     glm::vec3 size = maxBounds - minBounds;
-    int bestPlane = 0; // 0=YZ, 1=XZ, 2=XY
-    if (size.x * size.y > size.y * size.z && size.x * size.y > size.x * size.z)
-    {
-        bestPlane = 2; // XY plane
-    }
-    else if (size.x * size.z > size.y * size.z)
-    {
-        bestPlane = 1; // XZ plane
-    }
 
+    // Add epsilon to prevent division by zero
+    const float epsilon = 1e-6f;
+    size.x = std::max(size.x, epsilon);
+    size.y = std::max(size.y, epsilon);
+    size.z = std::max(size.z, epsilon);
+
+    // For proper cube mapping, we need to consider face normals
+    // This approach projects from the dominant direction while maintaining orientation
+
+    // Calculate the overall bounding box dimensions
+    glm::vec3 center = (minBounds + maxBounds) * 0.5f;
+    float maxDimension = std::max({ size.x, size.y, size.z });
+
+    // Pre-calculate inverse sizes for efficiency
+    const glm::vec3 invSize = 1.0f / size;
+
+    // Generate UV coordinates for each vertex
     for (auto& vertex : vertices)
     {
+        glm::vec3 pos = vertex.Position;
+        glm::vec3 normal = vertex.Normal; // Assuming you have vertex normals
+
+        // Find the dominant axis of the normal
+        glm::vec3 absNormal = glm::abs(normal);
+
         glm::vec2 uv;
-        switch (bestPlane)
+
+        if (absNormal.x >= absNormal.y && absNormal.x >= absNormal.z)
         {
-        case 0: // YZ plane
-            uv.x = (vertex.Position.y - minBounds.y) / size.y;
-            uv.y = (vertex.Position.z - minBounds.z) / size.z;
-            break;
-        case 1: // XZ plane
-            uv.x = (vertex.Position.x - minBounds.x) / size.x;
-            uv.y = (vertex.Position.z - minBounds.z) / size.z;
-            break;
-        case 2: // XY plane
-            uv.x = (vertex.Position.x - minBounds.x) / size.x;
-            uv.y = (vertex.Position.y - minBounds.y) / size.y;
-            break;
+            // X-dominant face (left/right walls)
+            if (normal.x > 0)
+            {
+                // Right face (+X): looking from outside, Y goes right, Z goes up
+                uv.x = (pos.y - minBounds.y) * invSize.y;
+                uv.y = (pos.z - minBounds.z) * invSize.z;
+            }
+            else
+            {
+                // Left face (-X): looking from outside, Y goes left, Z goes up
+                uv.x = 1.0f - (pos.y - minBounds.y) * invSize.y;
+                uv.y = (pos.z - minBounds.z) * invSize.z;
+            }
+        }
+        else if (absNormal.y >= absNormal.x && absNormal.y >= absNormal.z)
+        {
+            // Y-dominant face (front/back walls)
+            if (normal.y > 0)
+            {
+                // Front face (+Y): looking from outside, X goes right, Z goes up
+                uv.x = (pos.x - minBounds.x) * invSize.x;
+                uv.y = (pos.z - minBounds.z) * invSize.z;
+            }
+            else
+            {
+                // Back face (-Y): looking from outside, X goes left, Z goes up
+                uv.x = 1.0f - (pos.x - minBounds.x) * invSize.x;
+                uv.y = (pos.z - minBounds.z) * invSize.z;
+            }
+        }
+        else
+        {
+            // Z-dominant face (top/bottom)
+            if (normal.z > 0)
+            {
+                // Top face (+Z): looking from above, X goes right, Y goes away
+                uv.x = (pos.x - minBounds.x) * invSize.x;
+                uv.y = (pos.y - minBounds.y) * invSize.y;
+            }
+            else
+            {
+                // Bottom face (-Z): looking from below, X goes right, Y goes toward
+                uv.x = (pos.x - minBounds.x) * invSize.x;
+                uv.y = 1.0f - (pos.y - minBounds.y) * invSize.y;
+            }
         }
 
+        // Apply scaling
         uv *= config.planarScale;
+
+        // Apply additional transforms
         applyUVTransforms(uv, config);
+
+        // Assign to vertex
         vertex.TexCoords = uv;
     }
 
