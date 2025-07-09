@@ -53,7 +53,7 @@ struct UVConfig
 {
     float sphericalScale = 1.0f;        // Scale factor for spherical UV
     float sphericalUVRotation = 0.0f;   // Radians; e.g. glm::radians(90.0f)
-	bool duplicatePoleVertices = false; // Duplicate vertices at poles for seamless spherical UV
+	bool duplicatePoleVertices = true; // Duplicate vertices at poles for seamless spherical UV
     float cylindricalScale = 1.0f;      // Scale factor for cylindrical UV
     glm::vec2 planarScale = glm::vec2(1.0f);  // Scale factor for planar UV
     bool flipV = false;                 // Flip V coordinate

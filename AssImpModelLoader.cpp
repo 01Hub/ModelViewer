@@ -133,8 +133,10 @@ void AssImpModelLoader::loadModel(string path)
 	if (modelHasMissingUVs)
 	{
 		SceneMeshInfo stats = collectSceneMeshInfo(scene);						
-		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());		
+		int value = settings.value("UVMethod", static_cast<int>(UVMethod::AngleBasedSmartUV)).toInt();
 		bool remember = settings.value("RememberUVMethod", false).toBool();
+		_selectedUVMethod = static_cast<UVMethod>(value);
 		if (stats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV && remember)
 		{
 			QMessageBox msgBox;
@@ -155,13 +157,19 @@ void AssImpModelLoader::loadModel(string path)
 
 			if (msgBox.clickedButton() == noButton)
 			{
+				qDebug() << "User chose not to generate UVs, using None method.";
 				_selectedUVMethod = UVMethod::None;
 			}
 			else if (msgBox.clickedButton() == changeSettingsButton)
-			{
+			{				
 				_selectedUVMethod = ModelViewer::askUserForUVMethod(qApp->activeWindow()).method;
 			}
 		}			
+	}
+	else
+	{
+		qDebug() << "Model has no missing UVs, using None method.";
+		_selectedUVMethod = UVMethod::None; // No UVs needed, reset to None
 	}
 
 

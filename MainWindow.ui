@@ -70,7 +70,7 @@
      <x>0</x>
      <y>0</y>
      <width>1298</width>
-     <height>33</height>
+     <height>23</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -87,6 +87,7 @@
     <addaction name="separator"/>
     <addaction name="actionFileClose"/>
     <addaction name="actionExit"/>
+    <addaction name="separator"/>
    </widget>
    <widget class="QMenu" name="menuHelp">
     <property name="title">
@@ -117,16 +118,11 @@
     </property>
     <addaction name="actionUndo"/>
     <addaction name="actionRedo"/>
-   </widget>
-   <widget class="QMenu" name="menuSettings">
-    <property name="title">
-     <string>Settings</string>
-    </property>
-    <addaction name="actionClear_UV_Prompt_Settings"/>
+    <addaction name="separator"/>
+    <addaction name="actionSettings"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
-   <addaction name="menuSettings"/>
    <addaction name="menuWindows"/>
    <addaction name="menuHelp"/>
   </widget>
@@ -336,6 +332,11 @@
   <action name="actionClear_UV_Prompt_Settings">
    <property name="text">
     <string>Clear UV Prompt Settings</string>
+   </property>
+  </action>
+  <action name="actionSettings">
+   <property name="text">
+    <string>Settings</string>
    </property>
   </action>
  </widget>
