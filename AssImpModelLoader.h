@@ -93,12 +93,14 @@ public:
 	void setUVGenerationMethod(const UVMethod& uvMethod) { _selectedUVMethod = uvMethod; }
 	UVMethod getUVGenerationMethod() const { return _selectedUVMethod; }
 
+	void freeScene();
+
 signals:
 	void fileReadProcessed(float percent);
 	void verticesProcessed(float percent);
 	void nodeProcessed(int nodeNum, int totalNodes);
 	void meshProcessed(AssImpMesh*);
-	void loadingFinished(const aiScene* scene);
+	void loadingFinished(bool successFlag, const aiScene* scene);
 	void loadingCancelled();
 
 public slots:

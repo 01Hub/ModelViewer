@@ -1282,17 +1282,27 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		QPushButton *abortButton = msgBox.addButton(QMessageBox::Abort);
 		connect(abortButton, SIGNAL(pressed()), this, SLOT(cancelAssImpModelLoading()));
 		msgBox.show();*/
-				
+		
+
 		// connect AssimpModelLoader meshProcessed signal to addToDisplay slot
 		connect(_assimpModelLoader, &AssImpModelLoader::meshProcessed, this, &GLWidget::addToDisplay);
 
 		// connect AssimpModelLoader loadingFinshed signal to a lambda sets the success value to true
-		connect(_assimpModelLoader, &AssImpModelLoader::loadingFinished, this, [this, &success, &error](bool successFlag) {
-			success = successFlag;
-			if (!successFlag)
-			{
-				error = _assimpModelLoader->getErrorMessage();
-			}
+		connect(_assimpModelLoader, &AssImpModelLoader::loadingFinished,
+			this, [this, &success, &error](bool successFlag, const aiScene* scene) {
+				success = successFlag;
+				if (!successFlag)
+				{
+					error = _assimpModelLoader->getErrorMessage();
+				}
+				else
+				{
+					// You can now use `scene` here
+					qDebug() << "Scene loaded:" << scene;
+					// nullify the assimp scene pointer to avoid memory leaks
+					_assimpModelLoader->freeScene(); // Free previous scene if exists
+					scene = nullptr;					
+				}
 			});
 
 		// if user cancels the loading, we still need to set the success to true

@@ -76,6 +76,9 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_path = std::string(path);
 	_meshes.clear();	
 	_materialProcessor.clearLoadedTextures();
+
+	_importer.FreeScene(); // Free any previously loaded scene
+	_scene = nullptr; // Reset scene pointer
 		
 	QFileInfo fi(path.c_str());
 
@@ -177,7 +180,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	this->processNode(0, _scene->mRootNode, _scene);
 
 	if (_progressiveLoading)
-		emit loadingFinished(_scene);
+		emit loadingFinished(true, _scene);
 }
 
 aiScene* AssImpModelLoader::processSTEPFile(const std::string& path)
@@ -864,6 +867,12 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 QString AssImpModelLoader::getErrorMessage() const
 {
 	return _errorMessage;
+}
+
+void AssImpModelLoader::freeScene()
+{
+	_importer.FreeScene();
+	_scene = nullptr;
 }
 
 SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
