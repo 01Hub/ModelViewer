@@ -133,10 +133,8 @@ void AssImpModelLoader::loadModel(string path)
 	if (modelHasMissingUVs)
 	{
 		SceneMeshInfo stats = collectSceneMeshInfo(scene);						
-		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());		
-		int value = settings.value("UVMethod", static_cast<int>(UVMethod::AngleBasedSmartUV)).toInt();
-		bool remember = settings.value("RememberUVMethod", false).toBool();
-		_selectedUVMethod = static_cast<UVMethod>(value);
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());				
+		bool remember = settings.value("RememberUVMethod", false).toBool();		
 		if (stats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV && remember)
 		{
 			QMessageBox msgBox;
