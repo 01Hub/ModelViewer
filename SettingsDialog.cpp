@@ -8,9 +8,7 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     ui(new Ui::SettingsDialog)
 {
     ui->setupUi(this);
-
-	_settings = std::make_unique<QSettings>(new QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName()));
-
+    	
     // Connect to specific buttons
     QPushButton* okButton = ui->buttonBox->button(QDialogButtonBox::Ok);
     if (okButton)
@@ -35,10 +33,13 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     {
         connect(restoreButton, &QPushButton::clicked, this, &SettingsDialog::onRestoreDefaults);
     }
+
+    loadSettings();
 }
 
 SettingsDialog::~SettingsDialog()
 {
+    saveSettings();
     delete ui;
 }
 
@@ -60,312 +61,529 @@ void SettingsDialog::onApplyClicked()
 
 void SettingsDialog::onRestoreDefaults()
 {
-    _settings->clear();
-	restoreDefaults();
+    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	qDebug() << "Restoring default settings...";
+    settings.clear();
+	setDefaultValues();
     qDebug() << "All settings have been reset to defaults.";
     QMessageBox::information(this, "Settings Reset", "All settings have been cleared.");
 }
 
 void SettingsDialog::applySettings()
 {
+	// TODO: First apply the settings to the UI elements
 
+	// then save them to the settings file
+	saveSettings();
 }
 
+void SettingsDialog::setDefaultValues()
+{
+    // General tab
+    ui->checkRestoreLastFile->setChecked(false);  // No 'checked' property found
+    ui->checkTooltips->setChecked(true);          // Explicitly set to true
+    ui->comboBoxTheme->setCurrentIndex(0);        // Default: "System Default"
+    ui->comboBoxLanguage->setCurrentIndex(0);     // Default: "English"
+    ui->checkPromptOverwrite->setChecked(true);   // Explicitly set to true
+    ui->checkConfirmExit->setChecked(false);      // No 'checked' property found
+
+    // Camera tab
+    ui->comboProjectionMode->setCurrentIndex(0);       // "Orthographic"
+    ui->comboDefaultView->setCurrentIndex(0);          // "Isometric"
+    ui->comboDefaultProjection->setCurrentIndex(0);    // "Isometric"
+    ui->checkTrackball->setChecked(false);             // No 'checked' property found
+    ui->checkInvertZoom->setChecked(false);            // No 'checked' property found
+    ui->spinZoomFactor->setValue(1.0);                 // Explicitly set to 1.0
+
+    // Background tab
+    ui->comboBoxBackgroundStyle->setCurrentIndex(0);   // "Gradient"
+    ui->comboBoxGradientStyle->setCurrentIndex(0);     // "Vertical"
+    // pushButtonTopColor and pushButtonBottomColor do not store actual color values — handled elsewhere.
+
+    // Display tab
+    ui->showBoundingBoxCheckBox->setChecked(false);    // No 'checked' property found
+    ui->showCornerTrihedronCheckBox->setChecked(true); // Explicitly set to true
+    ui->showGridCheckBox->setChecked(true);            // Explicitly set to true
+    ui->showWireframeCheckBox->setChecked(false);      // No 'checked' property found
+    ui->fieldOfViewSpinBox->setValue(60);              // Explicitly set
+    ui->nearPlaneSpinBox->setValue(0.1);               // Explicitly set
+    ui->farPlaneSpinBox->setValue(1000.0);             // Explicitly set
+
+    // Navigation group
+    ui->navigationModeComboBox->setCurrentIndex(0);          // "Orbit"
+    ui->mouseSensitivitySlider->setValue(5);                 // Explicitly set
+    ui->zoomSensitivitySlider->setValue(5);                  // Explicitly set
+    ui->invertYAxisCheckBox->setChecked(false);              // Not set
+    ui->smoothNavigationCheckBox->setChecked(true);          // Explicitly set
+
+    // Rendering tab
+    ui->comboShadingMode->setCurrentIndex(0);                // "Shaded"
+    ui->checkBackfaceCulling->setChecked(false);             // Not set
+    ui->checkNormalMap->setChecked(false);                   // Not set
+    ui->shaderModelComboBox->setCurrentIndex(0);             // "Blinn-Phong"
+    ui->msaaComboBox->setCurrentIndex(0);                // "1 (No MSAA)"
+    ui->anisotropyComboBox->setCurrentIndex(0);          // "1x (Off)"
+
+    // Lighting
+    ui->enableLightingCheckBox->setChecked(true);
+    ui->enableShadowsCheckBox->setChecked(false);
+    ui->ambientLightSlider->setValue(20);
+    ui->diffuseLightSlider->setValue(80);
+    ui->specularLightSlider->setValue(50);
+
+    // Materials
+    ui->comboBoxDefaultMaterial->setCurrentIndex(0);     // "Plastic"
+    ui->lineEditTextureDir->clear();                     // Default: empty
+
+    // --- UV Generation Tab ---
+    ui->comboUVMethod->setCurrentIndex(0);               // "Angle-Based Smart UV"
+    ui->spinAngleThreshold->setValue(66.0);
+    ui->checkPreserveUVs->setChecked(false);
+    ui->checkAutoPackUVs->setChecked(false);
+    ui->checkRelaxUVs->setChecked(false);
+    ui->checkPCAProjection->setChecked(false);
+    ui->checkXatlasPackingOnly->setChecked(false);
+    ui->checkRememberUV->setChecked(false);
+
+    // --- Import/Export Tab ---    
+    // OpenCascade settings
+    ui->tessellationQualitySlider->setValue(5);
+    ui->linearDeflectionSpinBox->setValue(0.1);
+    ui->angularDeflectionSpinBox->setValue(0.1);
+    ui->occtUnifyFacesCheckBox->setChecked(false);
+    ui->occtUnifyEdgesCheckBox->setChecked(false);
+    ui->occtBuildCurvesCheckBox->setChecked(false);
+
+    // Assimp settings
+    ui->assimpTriangulateCheckBox->setChecked(true);
+    ui->assimpGenNormalsCheckBox->setChecked(true);
+    ui->assimpSmoothNormalsCheckBox->setChecked(false);
+    ui->assimpCalcTangentsCheckBox->setChecked(false);
+    ui->assimpOptimizeMeshCheckBox->setChecked(false);
+    ui->assimpRemoveDuplicatesCheckBox->setChecked(false);
+    ui->assimpMaxFaceVerticesSpinBox->setValue(3);
+
+    // --- Performance Tab ---
+    ui->checkMultithreadedLoad->setChecked(false);
+    ui->spinThreadLimit->setValue(4);
+    ui->checkSkyboxBlending->setChecked(false);
+    ui->checkProgressiveLoading->setChecked(false);
+
+    // Rendering performance
+    ui->maxFpsSpinBox->setValue(60);
+    ui->vsyncCheckBox->setChecked(true);
+    ui->frustumCullingCheckBox->setChecked(true);
+    ui->backfaceCullingCheckBox->setChecked(true);
+    ui->levelOfDetailCheckBox->setChecked(false);
+    ui->maxVerticesSpinBox->setValue(1000000);
+
+    // Memory management
+    ui->textureCacheSizeSpinBox->setValue(512);
+    ui->geometryCacheSizeSpinBox->setValue(256);
+    ui->compressTexturesCheckBox->setChecked(true);
+    ui->generateMipmapsCheckBox->setChecked(true);
+
+    // --- Advanced Tab ---
+    ui->comboBoxOpenGLVersion->setCurrentText("4.5 Core");
+    ui->checkBoxVSync->setChecked(false);
+    ui->spinBoxThreads->setValue(4);
+    ui->checkShaderHotReload->setChecked(false);
+    ui->checkShowFPS->setChecked(false);
+    ui->checkLegacyOpenGL->setChecked(false);
+
+    // --- Debug Tab ---
+    ui->showFpsCheckBox->setChecked(false);
+    ui->showMemoryUsageCheckBox->setChecked(false);
+    ui->showRenderStatsCheckBox->setChecked(false);
+    ui->showOpenGLInfoCheckBox->setChecked(false);
+    ui->enableLoggingCheckBox->setChecked(false);
+    ui->logLevelComboBox->setCurrentText("Warning");
+
+    ui->checkOpenGLErrorsCheckBox->setChecked(false);
+    ui->validateShadersCheckBox->setChecked(false);
+    ui->profileRenderingCheckBox->setChecked(false);
+}
+
+
 void SettingsDialog::loadSettings()
-{    
-    if (ui->comboBoxTheme) ui->comboBoxTheme->setProperty("value", _settings->value("comboBoxTheme", ui->comboBoxTheme->property("value")));
-    if (ui->comboBoxLanguage) ui->comboBoxLanguage->setProperty("value", _settings->value("comboBoxLanguage", ui->comboBoxLanguage->property("value")));
-    if (ui->checkPromptOverwrite) ui->checkPromptOverwrite->setProperty("value", _settings->value("checkPromptOverwrite", ui->checkPromptOverwrite->property("value")));
-    if (ui->checkRestoreLastFile) ui->checkRestoreLastFile->setProperty("value", _settings->value("checkRestoreLastFile", ui->checkRestoreLastFile->property("value")));
-    if (ui->checkTooltips) ui->checkTooltips->setProperty("value", _settings->value("checkTooltips", ui->checkTooltips->property("value")));
-    if (ui->checkConfirmExit) ui->checkConfirmExit->setProperty("value", _settings->value("checkConfirmExit", ui->checkConfirmExit->property("value")));
-    if (ui->comboProjectionMode) ui->comboProjectionMode->setProperty("value", _settings->value("comboProjectionMode", ui->comboProjectionMode->property("value")));
-    if (ui->comboDefaultView) ui->comboDefaultView->setProperty("value", _settings->value("comboDefaultView", ui->comboDefaultView->property("value")));
-    if (ui->comboDefaultProjection) ui->comboDefaultProjection->setProperty("value", _settings->value("comboDefaultProjection", ui->comboDefaultProjection->property("value")));
-    if (ui->checkTrackball) ui->checkTrackball->setProperty("value", _settings->value("checkTrackball", ui->checkTrackball->property("value")));
-    if (ui->checkInvertZoom) ui->checkInvertZoom->setProperty("value", _settings->value("checkInvertZoom", ui->checkInvertZoom->property("value")));
-    if (ui->spinZoomFactor) ui->spinZoomFactor->setProperty("value", _settings->value("spinZoomFactor", ui->spinZoomFactor->property("value")));
-    if (ui->comboBoxBackgroundStyle) ui->comboBoxBackgroundStyle->setProperty("value", _settings->value("comboBoxBackgroundStyle", ui->comboBoxBackgroundStyle->property("value")));
-    if (ui->pushButtonTopColor) ui->pushButtonTopColor->setProperty("value", _settings->value("pushButtonTopColor", ui->pushButtonTopColor->property("value")));
-    if (ui->pushButtonBottomColor) ui->pushButtonBottomColor->setProperty("value", _settings->value("pushButtonBottomColor", ui->pushButtonBottomColor->property("value")));
-    if (ui->comboBoxGradientStyle) ui->comboBoxGradientStyle->setProperty("value", _settings->value("comboBoxGradientStyle", ui->comboBoxGradientStyle->property("value")));
-    if (ui->showBoundingBoxCheckBox) ui->showBoundingBoxCheckBox->setProperty("value", _settings->value("showBoundingBoxCheckBox", ui->showBoundingBoxCheckBox->property("value")));
-    if (ui->showCornerTrihedronCheckBox) ui->showCornerTrihedronCheckBox->setProperty("value", _settings->value("showCornerTrihedronCheckBox", ui->showCornerTrihedronCheckBox->property("value")));
-    if (ui->farPlaneSpinBox) ui->farPlaneSpinBox->setProperty("value", _settings->value("farPlaneSpinBox", ui->farPlaneSpinBox->property("value")));
-    if (ui->fieldOfViewSpinBox) ui->fieldOfViewSpinBox->setProperty("value", _settings->value("fieldOfViewSpinBox", ui->fieldOfViewSpinBox->property("value")));
-    if (ui->showGridCheckBox) ui->showGridCheckBox->setProperty("value", _settings->value("showGridCheckBox", ui->showGridCheckBox->property("value")));
-    if (ui->nearPlaneSpinBox) ui->nearPlaneSpinBox->setProperty("value", _settings->value("nearPlaneSpinBox", ui->nearPlaneSpinBox->property("value")));
-    if (ui->showWireframeCheckBox) ui->showWireframeCheckBox->setProperty("value", _settings->value("showWireframeCheckBox", ui->showWireframeCheckBox->property("value")));
-    if (ui->showCenterTrihedronCheckBox) ui->showCenterTrihedronCheckBox->setProperty("value", _settings->value("showCenterTrihedronCheckBox", ui->showCenterTrihedronCheckBox->property("value")));
-    if (ui->navigationModeComboBox) ui->navigationModeComboBox->setProperty("value", _settings->value("navigationModeComboBox", ui->navigationModeComboBox->property("value")));
-    if (ui->mouseSensitivitySlider) ui->mouseSensitivitySlider->setProperty("value", _settings->value("mouseSensitivitySlider", ui->mouseSensitivitySlider->property("value")));
-    if (ui->zoomSensitivitySlider) ui->zoomSensitivitySlider->setProperty("value", _settings->value("zoomSensitivitySlider", ui->zoomSensitivitySlider->property("value")));
-    if (ui->invertYAxisCheckBox) ui->invertYAxisCheckBox->setProperty("value", _settings->value("invertYAxisCheckBox", ui->invertYAxisCheckBox->property("value")));
-    if (ui->smoothNavigationCheckBox) ui->smoothNavigationCheckBox->setProperty("value", _settings->value("smoothNavigationCheckBox", ui->smoothNavigationCheckBox->property("value")));
-    if (ui->comboShadingMode) ui->comboShadingMode->setProperty("value", _settings->value("comboShadingMode", ui->comboShadingMode->property("value")));
-    if (ui->checkBackfaceCulling) ui->checkBackfaceCulling->setProperty("value", _settings->value("checkBackfaceCulling", ui->checkBackfaceCulling->property("value")));
-    if (ui->checkNormalMap) ui->checkNormalMap->setProperty("value", _settings->value("checkNormalMap", ui->checkNormalMap->property("value")));
-    if (ui->shaderModelComboBox) ui->shaderModelComboBox->setProperty("value", _settings->value("shaderModelComboBox", ui->shaderModelComboBox->property("value")));
-    if (ui->msaaComboBox) ui->msaaComboBox->setProperty("value", _settings->value("msaaComboBox", ui->msaaComboBox->property("value")));
-    if (ui->anisotropyComboBox) ui->anisotropyComboBox->setProperty("value", _settings->value("anisotropyComboBox", ui->anisotropyComboBox->property("value")));
-    if (ui->enableLightingCheckBox) ui->enableLightingCheckBox->setProperty("value", _settings->value("enableLightingCheckBox", ui->enableLightingCheckBox->property("value")));
-    if (ui->enableShadowsCheckBox) ui->enableShadowsCheckBox->setProperty("value", _settings->value("enableShadowsCheckBox", ui->enableShadowsCheckBox->property("value")));
-    if (ui->ambientLightSlider) ui->ambientLightSlider->setProperty("value", _settings->value("ambientLightSlider", ui->ambientLightSlider->property("value")));
-    if (ui->diffuseLightSlider) ui->diffuseLightSlider->setProperty("value", _settings->value("diffuseLightSlider", ui->diffuseLightSlider->property("value")));
-    if (ui->specularLightSlider) ui->specularLightSlider->setProperty("value", _settings->value("specularLightSlider", ui->specularLightSlider->property("value")));
-    if (ui->lineEditTextureDir) ui->lineEditTextureDir->setProperty("value", _settings->value("lineEditTextureDir", ui->lineEditTextureDir->property("value")));
-    if (ui->comboBoxDefaultMaterial) ui->comboBoxDefaultMaterial->setProperty("value", _settings->value("comboBoxDefaultMaterial", ui->comboBoxDefaultMaterial->property("value")));
-    if (ui->comboUVMethod) ui->comboUVMethod->setProperty("value", _settings->value("comboUVMethod", ui->comboUVMethod->property("value")));
-    if (ui->spinAngleThreshold) ui->spinAngleThreshold->setProperty("value", _settings->value("spinAngleThreshold", ui->spinAngleThreshold->property("value")));
-    if (ui->checkPreserveUVs) ui->checkPreserveUVs->setProperty("value", _settings->value("checkPreserveUVs", ui->checkPreserveUVs->property("value")));
-    if (ui->checkAutoPackUVs) ui->checkAutoPackUVs->setProperty("value", _settings->value("checkAutoPackUVs", ui->checkAutoPackUVs->property("value")));
-    if (ui->checkRelaxUVs) ui->checkRelaxUVs->setProperty("value", _settings->value("checkRelaxUVs", ui->checkRelaxUVs->property("value")));
-    if (ui->checkPCAProjection) ui->checkPCAProjection->setProperty("value", _settings->value("checkPCAProjection", ui->checkPCAProjection->property("value")));
-    if (ui->checkXatlasPackingOnly) ui->checkXatlasPackingOnly->setProperty("value", _settings->value("checkXatlasPackingOnly", ui->checkXatlasPackingOnly->property("value")));
-    if (ui->checkRememberUV) ui->checkRememberUV->setProperty("value", _settings->value("checkRememberUV", ui->checkRememberUV->property("value")));
-    if (ui->buttonResetUVPrompt) ui->buttonResetUVPrompt->setProperty("value", _settings->value("buttonResetUVPrompt", ui->buttonResetUVPrompt->property("value")));
-    if (ui->tessellationQualitySlider) ui->tessellationQualitySlider->setProperty("value", _settings->value("tessellationQualitySlider", ui->tessellationQualitySlider->property("value")));
-    if (ui->linearDeflectionSpinBox) ui->linearDeflectionSpinBox->setProperty("value", _settings->value("linearDeflectionSpinBox", ui->linearDeflectionSpinBox->property("value")));
-    if (ui->angularDeflectionSpinBox) ui->angularDeflectionSpinBox->setProperty("value", _settings->value("angularDeflectionSpinBox", ui->angularDeflectionSpinBox->property("value")));
-    if (ui->occtUnifyFacesCheckBox) ui->occtUnifyFacesCheckBox->setProperty("value", _settings->value("occtUnifyFacesCheckBox", ui->occtUnifyFacesCheckBox->property("value")));
-    if (ui->occtUnifyEdgesCheckBox) ui->occtUnifyEdgesCheckBox->setProperty("value", _settings->value("occtUnifyEdgesCheckBox", ui->occtUnifyEdgesCheckBox->property("value")));
-    if (ui->occtBuildCurvesCheckBox) ui->occtBuildCurvesCheckBox->setProperty("value", _settings->value("occtBuildCurvesCheckBox", ui->occtBuildCurvesCheckBox->property("value")));
-    if (ui->assimpTriangulateCheckBox) ui->assimpTriangulateCheckBox->setProperty("value", _settings->value("assimpTriangulateCheckBox", ui->assimpTriangulateCheckBox->property("value")));
-    if (ui->assimpGenNormalsCheckBox) ui->assimpGenNormalsCheckBox->setProperty("value", _settings->value("assimpGenNormalsCheckBox", ui->assimpGenNormalsCheckBox->property("value")));
-    if (ui->assimpSmoothNormalsCheckBox) ui->assimpSmoothNormalsCheckBox->setProperty("value", _settings->value("assimpSmoothNormalsCheckBox", ui->assimpSmoothNormalsCheckBox->property("value")));
-    if (ui->assimpCalcTangentsCheckBox) ui->assimpCalcTangentsCheckBox->setProperty("value", _settings->value("assimpCalcTangentsCheckBox", ui->assimpCalcTangentsCheckBox->property("value")));
-    if (ui->assimpOptimizeMeshCheckBox) ui->assimpOptimizeMeshCheckBox->setProperty("value", _settings->value("assimpOptimizeMeshCheckBox", ui->assimpOptimizeMeshCheckBox->property("value")));
-    if (ui->assimpRemoveDuplicatesCheckBox) ui->assimpRemoveDuplicatesCheckBox->setProperty("value", _settings->value("assimpRemoveDuplicatesCheckBox", ui->assimpRemoveDuplicatesCheckBox->property("value")));
-    if (ui->assimpMaxFaceVerticesSpinBox) ui->assimpMaxFaceVerticesSpinBox->setProperty("value", _settings->value("assimpMaxFaceVerticesSpinBox", ui->assimpMaxFaceVerticesSpinBox->property("value")));
-    if (ui->checkMultithreadedLoad) ui->checkMultithreadedLoad->setProperty("value", _settings->value("checkMultithreadedLoad", ui->checkMultithreadedLoad->property("value")));
-    if (ui->spinThreadLimit) ui->spinThreadLimit->setProperty("value", _settings->value("spinThreadLimit", ui->spinThreadLimit->property("value")));
-    if (ui->checkSkyboxBlending) ui->checkSkyboxBlending->setProperty("value", _settings->value("checkSkyboxBlending", ui->checkSkyboxBlending->property("value")));
-    if (ui->checkProgressiveLoading) ui->checkProgressiveLoading->setProperty("value", _settings->value("checkProgressiveLoading", ui->checkProgressiveLoading->property("value")));
-    if (ui->maxFpsSpinBox) ui->maxFpsSpinBox->setProperty("value", _settings->value("maxFpsSpinBox", ui->maxFpsSpinBox->property("value")));
-    if (ui->vsyncCheckBox) ui->vsyncCheckBox->setProperty("value", _settings->value("vsyncCheckBox", ui->vsyncCheckBox->property("value")));
-    if (ui->frustumCullingCheckBox) ui->frustumCullingCheckBox->setProperty("value", _settings->value("frustumCullingCheckBox", ui->frustumCullingCheckBox->property("value")));
-    if (ui->backfaceCullingCheckBox) ui->backfaceCullingCheckBox->setProperty("value", _settings->value("backfaceCullingCheckBox", ui->backfaceCullingCheckBox->property("value")));
-    if (ui->levelOfDetailCheckBox) ui->levelOfDetailCheckBox->setProperty("value", _settings->value("levelOfDetailCheckBox", ui->levelOfDetailCheckBox->property("value")));
-    if (ui->maxVerticesSpinBox) ui->maxVerticesSpinBox->setProperty("value", _settings->value("maxVerticesSpinBox", ui->maxVerticesSpinBox->property("value")));
-    if (ui->textureCacheSizeSpinBox) ui->textureCacheSizeSpinBox->setProperty("value", _settings->value("textureCacheSizeSpinBox", ui->textureCacheSizeSpinBox->property("value")));
-    if (ui->geometryCacheSizeSpinBox) ui->geometryCacheSizeSpinBox->setProperty("value", _settings->value("geometryCacheSizeSpinBox", ui->geometryCacheSizeSpinBox->property("value")));
-    if (ui->compressTexturesCheckBox) ui->compressTexturesCheckBox->setProperty("value", _settings->value("compressTexturesCheckBox", ui->compressTexturesCheckBox->property("value")));
-    if (ui->generateMipmapsCheckBox) ui->generateMipmapsCheckBox->setProperty("value", _settings->value("generateMipmapsCheckBox", ui->generateMipmapsCheckBox->property("value")));
-    if (ui->comboBoxOpenGLVersion) ui->comboBoxOpenGLVersion->setProperty("value", _settings->value("comboBoxOpenGLVersion", ui->comboBoxOpenGLVersion->property("value")));
-    if (ui->checkBoxVSync) ui->checkBoxVSync->setProperty("value", _settings->value("checkBoxVSync", ui->checkBoxVSync->property("value")));
-    if (ui->checkShaderHotReload) ui->checkShaderHotReload->setProperty("value", _settings->value("checkShaderHotReload", ui->checkShaderHotReload->property("value")));
-    if (ui->checkShowFPS) ui->checkShowFPS->setProperty("value", _settings->value("checkShowFPS", ui->checkShowFPS->property("value")));
-    if (ui->checkLegacyOpenGL) ui->checkLegacyOpenGL->setProperty("value", _settings->value("checkLegacyOpenGL", ui->checkLegacyOpenGL->property("value")));
-    if (ui->spinBoxThreads) ui->spinBoxThreads->setProperty("value", _settings->value("spinBoxThreads", ui->spinBoxThreads->property("value")));
-    if (ui->showFpsCheckBox) ui->showFpsCheckBox->setProperty("value", _settings->value("showFpsCheckBox", ui->showFpsCheckBox->property("value")));
-    if (ui->showMemoryUsageCheckBox) ui->showMemoryUsageCheckBox->setProperty("value", _settings->value("showMemoryUsageCheckBox", ui->showMemoryUsageCheckBox->property("value")));
-    if (ui->showRenderStatsCheckBox) ui->showRenderStatsCheckBox->setProperty("value", _settings->value("showRenderStatsCheckBox", ui->showRenderStatsCheckBox->property("value")));
-    if (ui->showOpenGLInfoCheckBox) ui->showOpenGLInfoCheckBox->setProperty("value", _settings->value("showOpenGLInfoCheckBox", ui->showOpenGLInfoCheckBox->property("value")));
-    if (ui->enableLoggingCheckBox) ui->enableLoggingCheckBox->setProperty("value", _settings->value("enableLoggingCheckBox", ui->enableLoggingCheckBox->property("value")));
-    if (ui->logLevelComboBox) ui->logLevelComboBox->setProperty("value", _settings->value("logLevelComboBox", ui->logLevelComboBox->property("value")));
-    if (ui->checkOpenGLErrorsCheckBox) ui->checkOpenGLErrorsCheckBox->setProperty("value", _settings->value("checkOpenGLErrorsCheckBox", ui->checkOpenGLErrorsCheckBox->property("value")));
-    if (ui->validateShadersCheckBox) ui->validateShadersCheckBox->setProperty("value", _settings->value("validateShadersCheckBox", ui->validateShadersCheckBox->property("value")));
-    if (ui->profileRenderingCheckBox) ui->profileRenderingCheckBox->setProperty("value", _settings->value("profileRenderingCheckBox", ui->profileRenderingCheckBox->property("value")));
-    if (ui->clearCacheButton) ui->clearCacheButton->setProperty("value", _settings->value("clearCacheButton", ui->clearCacheButton->property("value")));
-    if (ui->resetSettingsButton) ui->resetSettingsButton->setProperty("value", _settings->value("resetSettingsButton", ui->resetSettingsButton->property("value")));
+{
+	qDebug() << "Loading settings from QSettings...";
+    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    int iVal = settings.value("comboBoxTheme", ui->comboBoxTheme->currentIndex()).toInt();
+    ui->comboBoxTheme->setCurrentIndex(iVal);
+    iVal = settings.value("comboBoxLanguage", ui->comboBoxLanguage->currentIndex()).toInt();
+    ui->comboBoxLanguage->setCurrentIndex(iVal);
+    bool bVal = settings.value("checkPromptOverwrite", ui->checkPromptOverwrite->isChecked()).toBool();
+    ui->checkPromptOverwrite->setChecked(bVal);
+    bVal = settings.value("checkRestoreLastFile", ui->checkRestoreLastFile->isChecked()).toBool();
+    ui->checkRestoreLastFile->setChecked(bVal);
+    bVal = settings.value("checkTooltips", ui->checkTooltips->isChecked()).toBool();
+    ui->checkTooltips->setChecked(bVal);
+    bVal = settings.value("checkConfirmExit", ui->checkConfirmExit->isChecked()).toBool();
+    ui->checkConfirmExit->setChecked(bVal);
+    iVal = settings.value("comboProjectionMode", ui->comboProjectionMode->currentIndex()).toInt();
+    ui->comboProjectionMode->setCurrentIndex(iVal);
+    iVal = settings.value("comboDefaultView", ui->comboDefaultView->currentIndex()).toInt();
+    ui->comboDefaultView->setCurrentIndex(iVal);
+    iVal = settings.value("comboDefaultProjection", ui->comboDefaultProjection->currentIndex()).toInt();
+    ui->comboDefaultProjection->setCurrentIndex(iVal);
+    bVal = settings.value("checkTrackball", ui->checkTrackball->isChecked()).toBool();
+    ui->checkTrackball->setChecked(bVal);
+    bVal = settings.value("checkInvertZoom", ui->checkInvertZoom->isChecked()).toBool();
+    ui->checkInvertZoom->setChecked(bVal);
+    double dVal = settings.value("spinZoomFactor", ui->spinZoomFactor->value()).toDouble();
+    ui->spinZoomFactor->setValue(dVal);
+    iVal = settings.value("comboBoxBackgroundStyle", ui->comboBoxBackgroundStyle->currentIndex()).toInt();
+    ui->comboBoxBackgroundStyle->setCurrentIndex(iVal);
+    iVal = settings.value("comboBoxGradientStyle", ui->comboBoxGradientStyle->currentIndex()).toInt();
+    ui->comboBoxGradientStyle->setCurrentIndex(iVal);
+    bVal = settings.value("showBoundingBoxCheckBox", ui->showBoundingBoxCheckBox->isChecked()).toBool();
+    ui->showBoundingBoxCheckBox->setChecked(bVal);
+    bVal = settings.value("showCornerTrihedronCheckBox", ui->showCornerTrihedronCheckBox->isChecked()).toBool();
+    ui->showCornerTrihedronCheckBox->setChecked(bVal);
+    dVal = settings.value("farPlaneSpinBox", ui->farPlaneSpinBox->value()).toDouble();
+    ui->farPlaneSpinBox->setValue(dVal);
+    iVal = settings.value("fieldOfViewSpinBox", ui->fieldOfViewSpinBox->value()).toInt();
+    ui->fieldOfViewSpinBox->setValue(iVal);
+    bVal = settings.value("showGridCheckBox", ui->showGridCheckBox->isChecked()).toBool();
+    ui->showGridCheckBox->setChecked(bVal);
+    dVal = settings.value("nearPlaneSpinBox", ui->nearPlaneSpinBox->value()).toDouble();
+    ui->nearPlaneSpinBox->setValue(dVal);
+    bVal = settings.value("showWireframeCheckBox", ui->showWireframeCheckBox->isChecked()).toBool();
+    ui->showWireframeCheckBox->setChecked(bVal);
+    bVal = settings.value("showCenterTrihedronCheckBox", ui->showCenterTrihedronCheckBox->isChecked()).toBool();
+    ui->showCenterTrihedronCheckBox->setChecked(bVal);
+    iVal = settings.value("navigationModeComboBox", ui->navigationModeComboBox->currentIndex()).toInt();
+    ui->navigationModeComboBox->setCurrentIndex(iVal);
+    iVal = settings.value("mouseSensitivitySlider", ui->mouseSensitivitySlider->value()).toInt();
+    ui->mouseSensitivitySlider->setValue(iVal);
+    iVal = settings.value("zoomSensitivitySlider", ui->zoomSensitivitySlider->value()).toInt();
+    ui->zoomSensitivitySlider->setValue(iVal);
+    bVal = settings.value("invertYAxisCheckBox", ui->invertYAxisCheckBox->isChecked()).toBool();
+    ui->invertYAxisCheckBox->setChecked(bVal);
+    bVal = settings.value("smoothNavigationCheckBox", ui->smoothNavigationCheckBox->isChecked()).toBool();
+    ui->smoothNavigationCheckBox->setChecked(bVal);
+    iVal = settings.value("comboShadingMode", ui->comboShadingMode->currentIndex()).toInt();
+    ui->comboShadingMode->setCurrentIndex(iVal);
+    bVal = settings.value("checkBackfaceCulling", ui->checkBackfaceCulling->isChecked()).toBool();
+    ui->checkBackfaceCulling->setChecked(bVal);
+    bVal = settings.value("checkNormalMap", ui->checkNormalMap->isChecked()).toBool();
+    ui->checkNormalMap->setChecked(bVal);
+    iVal = settings.value("shaderModelComboBox", ui->shaderModelComboBox->currentIndex()).toInt();
+    ui->shaderModelComboBox->setCurrentIndex(iVal);
+    iVal = settings.value("msaaComboBox", ui->msaaComboBox->currentIndex()).toInt();
+    ui->msaaComboBox->setCurrentIndex(iVal);
+    iVal = settings.value("anisotropyComboBox", ui->anisotropyComboBox->currentIndex()).toInt();
+    ui->anisotropyComboBox->setCurrentIndex(iVal);
+    bVal = settings.value("enableLightingCheckBox", ui->enableLightingCheckBox->isChecked()).toBool();
+    ui->enableLightingCheckBox->setChecked(bVal);
+    bVal = settings.value("enableShadowsCheckBox", ui->enableShadowsCheckBox->isChecked()).toBool();
+    ui->enableShadowsCheckBox->setChecked(bVal);
+    iVal = settings.value("ambientLightSlider", ui->ambientLightSlider->value()).toInt();
+    ui->ambientLightSlider->setValue(iVal);
+    iVal = settings.value("diffuseLightSlider", ui->diffuseLightSlider->value()).toInt();
+    ui->diffuseLightSlider->setValue(iVal);
+    iVal = settings.value("specularLightSlider", ui->specularLightSlider->value()).toInt();
+    ui->specularLightSlider->setValue(iVal);
+    QString sval = settings.value("lineEditTextureDir", ui->lineEditTextureDir->text()).toString();
+    ui->lineEditTextureDir->setText(sval);
+    iVal = settings.value("comboBoxDefaultMaterial", ui->comboBoxDefaultMaterial->currentIndex()).toInt();
+    ui->comboBoxDefaultMaterial->setCurrentIndex(iVal);
+    iVal = settings.value("comboUVMethod", ui->comboUVMethod->currentIndex()).toInt();
+    ui->comboUVMethod->setCurrentIndex(iVal);
+    dVal = settings.value("spinAngleThreshold", ui->spinAngleThreshold->value()).toDouble();
+    ui->spinAngleThreshold->setValue(dVal);
+    bVal = settings.value("checkPreserveUVs", ui->checkPreserveUVs->isChecked()).toBool();
+    ui->checkPreserveUVs->setChecked(bVal);
+    bVal = settings.value("checkAutoPackUVs", ui->checkAutoPackUVs->isChecked()).toBool();
+    ui->checkAutoPackUVs->setChecked(bVal);
+    bVal = settings.value("checkRelaxUVs", ui->checkRelaxUVs->isChecked()).toBool();
+    ui->checkRelaxUVs->setChecked(bVal);
+    bVal = settings.value("checkPCAProjection", ui->checkPCAProjection->isChecked()).toBool();
+    ui->checkPCAProjection->setChecked(bVal);
+    bVal = settings.value("checkXatlasPackingOnly", ui->checkXatlasPackingOnly->isChecked()).toBool();
+    ui->checkXatlasPackingOnly->setChecked(bVal);
+    bVal = settings.value("checkRememberUV", ui->checkRememberUV->isChecked()).toBool();
+    ui->checkRememberUV->setChecked(bVal);
+    iVal = settings.value("tessellationQualitySlider", ui->tessellationQualitySlider->value()).toInt();
+    ui->tessellationQualitySlider->setValue(iVal);
+    dVal = settings.value("linearDeflectionSpinBox", ui->linearDeflectionSpinBox->value()).toDouble();
+    ui->linearDeflectionSpinBox->setValue(dVal);
+    dVal = settings.value("angularDeflectionSpinBox", ui->angularDeflectionSpinBox->value()).toDouble();
+    ui->angularDeflectionSpinBox->setValue(dVal);
+    bVal = settings.value("occtUnifyFacesCheckBox", ui->occtUnifyFacesCheckBox->isChecked()).toBool();
+    ui->occtUnifyFacesCheckBox->setChecked(bVal);
+    bVal = settings.value("occtUnifyEdgesCheckBox", ui->occtUnifyEdgesCheckBox->isChecked()).toBool();
+    ui->occtUnifyEdgesCheckBox->setChecked(bVal);
+    bVal = settings.value("occtBuildCurvesCheckBox", ui->occtBuildCurvesCheckBox->isChecked()).toBool();
+    ui->occtBuildCurvesCheckBox->setChecked(bVal);
+    bVal = settings.value("assimpTriangulateCheckBox", ui->assimpTriangulateCheckBox->isChecked()).toBool();
+    ui->assimpTriangulateCheckBox->setChecked(bVal);
+    bVal = settings.value("assimpGenNormalsCheckBox", ui->assimpGenNormalsCheckBox->isChecked()).toBool();
+    ui->assimpGenNormalsCheckBox->setChecked(bVal);
+    bVal = settings.value("assimpSmoothNormalsCheckBox", ui->assimpSmoothNormalsCheckBox->isChecked()).toBool();
+    ui->assimpSmoothNormalsCheckBox->setChecked(bVal);
+    bVal = settings.value("assimpCalcTangentsCheckBox", ui->assimpCalcTangentsCheckBox->isChecked()).toBool();
+    ui->assimpCalcTangentsCheckBox->setChecked(bVal);
+    bVal = settings.value("assimpOptimizeMeshCheckBox", ui->assimpOptimizeMeshCheckBox->isChecked()).toBool();
+    ui->assimpOptimizeMeshCheckBox->setChecked(bVal);
+    bVal = settings.value("assimpRemoveDuplicatesCheckBox", ui->assimpRemoveDuplicatesCheckBox->isChecked()).toBool();
+    ui->assimpRemoveDuplicatesCheckBox->setChecked(bVal);
+    iVal = settings.value("assimpMaxFaceVerticesSpinBox", ui->assimpMaxFaceVerticesSpinBox->value()).toInt();
+    ui->assimpMaxFaceVerticesSpinBox->setValue(iVal);
+    bVal = settings.value("checkMultithreadedLoad", ui->checkMultithreadedLoad->isChecked()).toBool();
+    ui->checkMultithreadedLoad->setChecked(bVal);
+    iVal = settings.value("spinThreadLimit", ui->spinThreadLimit->value()).toInt();
+    ui->spinThreadLimit->setValue(iVal);
+    bVal = settings.value("checkSkyboxBlending", ui->checkSkyboxBlending->isChecked()).toBool();
+    ui->checkSkyboxBlending->setChecked(bVal);
+    bVal = settings.value("checkProgressiveLoading", ui->checkProgressiveLoading->isChecked()).toBool();
+    ui->checkProgressiveLoading->setChecked(bVal);
+    iVal = settings.value("maxFpsSpinBox", ui->maxFpsSpinBox->value()).toInt();
+    ui->maxFpsSpinBox->setValue(iVal);
+    bVal = settings.value("vsyncCheckBox", ui->vsyncCheckBox->isChecked()).toBool();
+    ui->vsyncCheckBox->setChecked(bVal);
+    bVal = settings.value("frustumCullingCheckBox", ui->frustumCullingCheckBox->isChecked()).toBool();
+    ui->frustumCullingCheckBox->setChecked(bVal);
+    bVal = settings.value("backfaceCullingCheckBox", ui->backfaceCullingCheckBox->isChecked()).toBool();
+    ui->backfaceCullingCheckBox->setChecked(bVal);
+    bVal = settings.value("levelOfDetailCheckBox", ui->levelOfDetailCheckBox->isChecked()).toBool();
+    ui->levelOfDetailCheckBox->setChecked(bVal);
+    iVal = settings.value("maxVerticesSpinBox", ui->maxVerticesSpinBox->value()).toInt();
+    ui->maxVerticesSpinBox->setValue(iVal);
+    iVal = settings.value("textureCacheSizeSpinBox", ui->textureCacheSizeSpinBox->value()).toInt();
+    ui->textureCacheSizeSpinBox->setValue(iVal);
+    iVal = settings.value("geometryCacheSizeSpinBox", ui->geometryCacheSizeSpinBox->value()).toInt();
+    ui->geometryCacheSizeSpinBox->setValue(iVal);
+    bVal = settings.value("compressTexturesCheckBox", ui->compressTexturesCheckBox->isChecked()).toBool();
+    ui->compressTexturesCheckBox->setChecked(bVal);
+    bVal = settings.value("generateMipmapsCheckBox", ui->generateMipmapsCheckBox->isChecked()).toBool();
+    ui->generateMipmapsCheckBox->setChecked(bVal);
+    iVal = settings.value("comboBoxOpenGLVersion", ui->comboBoxOpenGLVersion->currentIndex()).toInt();
+    ui->comboBoxOpenGLVersion->setCurrentIndex(iVal);
+    bVal = settings.value("checkBoxVSync", ui->checkBoxVSync->isChecked()).toBool();
+    ui->checkBoxVSync->setChecked(bVal);
+    bVal = settings.value("checkShaderHotReload", ui->checkShaderHotReload->isChecked()).toBool();
+    ui->checkShaderHotReload->setChecked(bVal);
+    bVal = settings.value("checkShowFPS", ui->checkShowFPS->isChecked()).toBool();
+    ui->checkShowFPS->setChecked(bVal);
+    bVal = settings.value("checkLegacyOpenGL", ui->checkLegacyOpenGL->isChecked()).toBool();
+    ui->checkLegacyOpenGL->setChecked(bVal);
+    iVal = settings.value("spinBoxThreads", ui->spinBoxThreads->value()).toInt();
+    ui->spinBoxThreads->setValue(iVal);
+    bVal = settings.value("showFpsCheckBox", ui->showFpsCheckBox->isChecked()).toBool();
+    ui->showFpsCheckBox->setChecked(bVal);
+    bVal = settings.value("showMemoryUsageCheckBox", ui->showMemoryUsageCheckBox->isChecked()).toBool();
+    ui->showMemoryUsageCheckBox->setChecked(bVal);
+    bVal = settings.value("showRenderStatsCheckBox", ui->showRenderStatsCheckBox->isChecked()).toBool();
+    ui->showRenderStatsCheckBox->setChecked(bVal);
+    bVal = settings.value("showOpenGLInfoCheckBox", ui->showOpenGLInfoCheckBox->isChecked()).toBool();
+    ui->showOpenGLInfoCheckBox->setChecked(bVal);
+    bVal = settings.value("enableLoggingCheckBox", ui->enableLoggingCheckBox->isChecked()).toBool();
+    ui->enableLoggingCheckBox->setChecked(bVal);
+    iVal = settings.value("logLevelComboBox", ui->logLevelComboBox->currentIndex()).toInt();
+    ui->logLevelComboBox->setCurrentIndex(iVal);
+    bVal = settings.value("checkOpenGLErrorsCheckBox", ui->checkOpenGLErrorsCheckBox->isChecked()).toBool();
+    ui->checkOpenGLErrorsCheckBox->setChecked(bVal);
+    bVal = settings.value("validateShadersCheckBox", ui->validateShadersCheckBox->isChecked()).toBool();
+    ui->validateShadersCheckBox->setChecked(bVal);
+    bVal = settings.value("profileRenderingCheckBox", ui->profileRenderingCheckBox->isChecked()).toBool();
+    ui->profileRenderingCheckBox->setChecked(bVal);
 }
 
 void SettingsDialog::saveSettings()
-{    
-    if (ui->comboBoxTheme) _settings->setValue("comboBoxTheme", ui->comboBoxTheme->property("value"));
-    if (ui->comboBoxLanguage) _settings->setValue("comboBoxLanguage", ui->comboBoxLanguage->property("value"));
-    if (ui->checkPromptOverwrite) _settings->setValue("checkPromptOverwrite", ui->checkPromptOverwrite->property("value"));
-    if (ui->checkRestoreLastFile) _settings->setValue("checkRestoreLastFile", ui->checkRestoreLastFile->property("value"));
-    if (ui->checkTooltips) _settings->setValue("checkTooltips", ui->checkTooltips->property("value"));
-    if (ui->checkConfirmExit) _settings->setValue("checkConfirmExit", ui->checkConfirmExit->property("value"));
-    if (ui->comboProjectionMode) _settings->setValue("comboProjectionMode", ui->comboProjectionMode->property("value"));
-    if (ui->comboDefaultView) _settings->setValue("comboDefaultView", ui->comboDefaultView->property("value"));
-    if (ui->comboDefaultProjection) _settings->setValue("comboDefaultProjection", ui->comboDefaultProjection->property("value"));
-    if (ui->checkTrackball) _settings->setValue("checkTrackball", ui->checkTrackball->property("value"));
-    if (ui->checkInvertZoom) _settings->setValue("checkInvertZoom", ui->checkInvertZoom->property("value"));
-    if (ui->spinZoomFactor) _settings->setValue("spinZoomFactor", ui->spinZoomFactor->property("value"));
-    if (ui->comboBoxBackgroundStyle) _settings->setValue("comboBoxBackgroundStyle", ui->comboBoxBackgroundStyle->property("value"));
-    if (ui->pushButtonTopColor) _settings->setValue("pushButtonTopColor", ui->pushButtonTopColor->property("value"));
-    if (ui->pushButtonBottomColor) _settings->setValue("pushButtonBottomColor", ui->pushButtonBottomColor->property("value"));
-    if (ui->comboBoxGradientStyle) _settings->setValue("comboBoxGradientStyle", ui->comboBoxGradientStyle->property("value"));
-    if (ui->showBoundingBoxCheckBox) _settings->setValue("showBoundingBoxCheckBox", ui->showBoundingBoxCheckBox->property("value"));
-    if (ui->showCornerTrihedronCheckBox) _settings->setValue("showCornerTrihedronCheckBox", ui->showCornerTrihedronCheckBox->property("value"));
-    if (ui->farPlaneSpinBox) _settings->setValue("farPlaneSpinBox", ui->farPlaneSpinBox->property("value"));
-    if (ui->fieldOfViewSpinBox) _settings->setValue("fieldOfViewSpinBox", ui->fieldOfViewSpinBox->property("value"));
-    if (ui->showGridCheckBox) _settings->setValue("showGridCheckBox", ui->showGridCheckBox->property("value"));
-    if (ui->nearPlaneSpinBox) _settings->setValue("nearPlaneSpinBox", ui->nearPlaneSpinBox->property("value"));
-    if (ui->showWireframeCheckBox) _settings->setValue("showWireframeCheckBox", ui->showWireframeCheckBox->property("value"));
-    if (ui->showCenterTrihedronCheckBox) _settings->setValue("showCenterTrihedronCheckBox", ui->showCenterTrihedronCheckBox->property("value"));
-    if (ui->navigationModeComboBox) _settings->setValue("navigationModeComboBox", ui->navigationModeComboBox->property("value"));
-    if (ui->mouseSensitivitySlider) _settings->setValue("mouseSensitivitySlider", ui->mouseSensitivitySlider->property("value"));
-    if (ui->zoomSensitivitySlider) _settings->setValue("zoomSensitivitySlider", ui->zoomSensitivitySlider->property("value"));
-    if (ui->invertYAxisCheckBox) _settings->setValue("invertYAxisCheckBox", ui->invertYAxisCheckBox->property("value"));
-    if (ui->smoothNavigationCheckBox) _settings->setValue("smoothNavigationCheckBox", ui->smoothNavigationCheckBox->property("value"));
-    if (ui->comboShadingMode) _settings->setValue("comboShadingMode", ui->comboShadingMode->property("value"));
-    if (ui->checkBackfaceCulling) _settings->setValue("checkBackfaceCulling", ui->checkBackfaceCulling->property("value"));
-    if (ui->checkNormalMap) _settings->setValue("checkNormalMap", ui->checkNormalMap->property("value"));
-    if (ui->shaderModelComboBox) _settings->setValue("shaderModelComboBox", ui->shaderModelComboBox->property("value"));
-    if (ui->msaaComboBox) _settings->setValue("msaaComboBox", ui->msaaComboBox->property("value"));
-    if (ui->anisotropyComboBox) _settings->setValue("anisotropyComboBox", ui->anisotropyComboBox->property("value"));
-    if (ui->enableLightingCheckBox) _settings->setValue("enableLightingCheckBox", ui->enableLightingCheckBox->property("value"));
-    if (ui->enableShadowsCheckBox) _settings->setValue("enableShadowsCheckBox", ui->enableShadowsCheckBox->property("value"));
-    if (ui->ambientLightSlider) _settings->setValue("ambientLightSlider", ui->ambientLightSlider->property("value"));
-    if (ui->diffuseLightSlider) _settings->setValue("diffuseLightSlider", ui->diffuseLightSlider->property("value"));
-    if (ui->specularLightSlider) _settings->setValue("specularLightSlider", ui->specularLightSlider->property("value"));
-    if (ui->lineEditTextureDir) _settings->setValue("lineEditTextureDir", ui->lineEditTextureDir->property("value"));
-    if (ui->comboBoxDefaultMaterial) _settings->setValue("comboBoxDefaultMaterial", ui->comboBoxDefaultMaterial->property("value"));
-    if (ui->comboUVMethod) _settings->setValue("comboUVMethod", ui->comboUVMethod->property("value"));
-    if (ui->spinAngleThreshold) _settings->setValue("spinAngleThreshold", ui->spinAngleThreshold->property("value"));
-    if (ui->checkPreserveUVs) _settings->setValue("checkPreserveUVs", ui->checkPreserveUVs->property("value"));
-    if (ui->checkAutoPackUVs) _settings->setValue("checkAutoPackUVs", ui->checkAutoPackUVs->property("value"));
-    if (ui->checkRelaxUVs) _settings->setValue("checkRelaxUVs", ui->checkRelaxUVs->property("value"));
-    if (ui->checkPCAProjection) _settings->setValue("checkPCAProjection", ui->checkPCAProjection->property("value"));
-    if (ui->checkXatlasPackingOnly) _settings->setValue("checkXatlasPackingOnly", ui->checkXatlasPackingOnly->property("value"));
-    if (ui->checkRememberUV) _settings->setValue("checkRememberUV", ui->checkRememberUV->property("value"));
-    if (ui->buttonResetUVPrompt) _settings->setValue("buttonResetUVPrompt", ui->buttonResetUVPrompt->property("value"));
-    if (ui->tessellationQualitySlider) _settings->setValue("tessellationQualitySlider", ui->tessellationQualitySlider->property("value"));
-    if (ui->linearDeflectionSpinBox) _settings->setValue("linearDeflectionSpinBox", ui->linearDeflectionSpinBox->property("value"));
-    if (ui->angularDeflectionSpinBox) _settings->setValue("angularDeflectionSpinBox", ui->angularDeflectionSpinBox->property("value"));
-    if (ui->occtUnifyFacesCheckBox) _settings->setValue("occtUnifyFacesCheckBox", ui->occtUnifyFacesCheckBox->property("value"));
-    if (ui->occtUnifyEdgesCheckBox) _settings->setValue("occtUnifyEdgesCheckBox", ui->occtUnifyEdgesCheckBox->property("value"));
-    if (ui->occtBuildCurvesCheckBox) _settings->setValue("occtBuildCurvesCheckBox", ui->occtBuildCurvesCheckBox->property("value"));
-    if (ui->assimpTriangulateCheckBox) _settings->setValue("assimpTriangulateCheckBox", ui->assimpTriangulateCheckBox->property("value"));
-    if (ui->assimpGenNormalsCheckBox) _settings->setValue("assimpGenNormalsCheckBox", ui->assimpGenNormalsCheckBox->property("value"));
-    if (ui->assimpSmoothNormalsCheckBox) _settings->setValue("assimpSmoothNormalsCheckBox", ui->assimpSmoothNormalsCheckBox->property("value"));
-    if (ui->assimpCalcTangentsCheckBox) _settings->setValue("assimpCalcTangentsCheckBox", ui->assimpCalcTangentsCheckBox->property("value"));
-    if (ui->assimpOptimizeMeshCheckBox) _settings->setValue("assimpOptimizeMeshCheckBox", ui->assimpOptimizeMeshCheckBox->property("value"));
-    if (ui->assimpRemoveDuplicatesCheckBox) _settings->setValue("assimpRemoveDuplicatesCheckBox", ui->assimpRemoveDuplicatesCheckBox->property("value"));
-    if (ui->assimpMaxFaceVerticesSpinBox) _settings->setValue("assimpMaxFaceVerticesSpinBox", ui->assimpMaxFaceVerticesSpinBox->property("value"));
-    if (ui->checkMultithreadedLoad) _settings->setValue("checkMultithreadedLoad", ui->checkMultithreadedLoad->property("value"));
-    if (ui->spinThreadLimit) _settings->setValue("spinThreadLimit", ui->spinThreadLimit->property("value"));
-    if (ui->checkSkyboxBlending) _settings->setValue("checkSkyboxBlending", ui->checkSkyboxBlending->property("value"));
-    if (ui->checkProgressiveLoading) _settings->setValue("checkProgressiveLoading", ui->checkProgressiveLoading->property("value"));
-    if (ui->maxFpsSpinBox) _settings->setValue("maxFpsSpinBox", ui->maxFpsSpinBox->property("value"));
-    if (ui->vsyncCheckBox) _settings->setValue("vsyncCheckBox", ui->vsyncCheckBox->property("value"));
-    if (ui->frustumCullingCheckBox) _settings->setValue("frustumCullingCheckBox", ui->frustumCullingCheckBox->property("value"));
-    if (ui->backfaceCullingCheckBox) _settings->setValue("backfaceCullingCheckBox", ui->backfaceCullingCheckBox->property("value"));
-    if (ui->levelOfDetailCheckBox) _settings->setValue("levelOfDetailCheckBox", ui->levelOfDetailCheckBox->property("value"));
-    if (ui->maxVerticesSpinBox) _settings->setValue("maxVerticesSpinBox", ui->maxVerticesSpinBox->property("value"));
-    if (ui->textureCacheSizeSpinBox) _settings->setValue("textureCacheSizeSpinBox", ui->textureCacheSizeSpinBox->property("value"));
-    if (ui->geometryCacheSizeSpinBox) _settings->setValue("geometryCacheSizeSpinBox", ui->geometryCacheSizeSpinBox->property("value"));
-    if (ui->compressTexturesCheckBox) _settings->setValue("compressTexturesCheckBox", ui->compressTexturesCheckBox->property("value"));
-    if (ui->generateMipmapsCheckBox) _settings->setValue("generateMipmapsCheckBox", ui->generateMipmapsCheckBox->property("value"));
-    if (ui->comboBoxOpenGLVersion) _settings->setValue("comboBoxOpenGLVersion", ui->comboBoxOpenGLVersion->property("value"));
-    if (ui->checkBoxVSync) _settings->setValue("checkBoxVSync", ui->checkBoxVSync->property("value"));
-    if (ui->checkShaderHotReload) _settings->setValue("checkShaderHotReload", ui->checkShaderHotReload->property("value"));
-    if (ui->checkShowFPS) _settings->setValue("checkShowFPS", ui->checkShowFPS->property("value"));
-    if (ui->checkLegacyOpenGL) _settings->setValue("checkLegacyOpenGL", ui->checkLegacyOpenGL->property("value"));
-    if (ui->spinBoxThreads) _settings->setValue("spinBoxThreads", ui->spinBoxThreads->property("value"));
-    if (ui->showFpsCheckBox) _settings->setValue("showFpsCheckBox", ui->showFpsCheckBox->property("value"));
-    if (ui->showMemoryUsageCheckBox) _settings->setValue("showMemoryUsageCheckBox", ui->showMemoryUsageCheckBox->property("value"));
-    if (ui->showRenderStatsCheckBox) _settings->setValue("showRenderStatsCheckBox", ui->showRenderStatsCheckBox->property("value"));
-    if (ui->showOpenGLInfoCheckBox) _settings->setValue("showOpenGLInfoCheckBox", ui->showOpenGLInfoCheckBox->property("value"));
-    if (ui->enableLoggingCheckBox) _settings->setValue("enableLoggingCheckBox", ui->enableLoggingCheckBox->property("value"));
-    if (ui->logLevelComboBox) _settings->setValue("logLevelComboBox", ui->logLevelComboBox->property("value"));
-    if (ui->checkOpenGLErrorsCheckBox) _settings->setValue("checkOpenGLErrorsCheckBox", ui->checkOpenGLErrorsCheckBox->property("value"));
-    if (ui->validateShadersCheckBox) _settings->setValue("validateShadersCheckBox", ui->validateShadersCheckBox->property("value"));
-    if (ui->profileRenderingCheckBox) _settings->setValue("profileRenderingCheckBox", ui->profileRenderingCheckBox->property("value"));
-    if (ui->clearCacheButton) _settings->setValue("clearCacheButton", ui->clearCacheButton->property("value"));
-    if (ui->resetSettingsButton) _settings->setValue("resetSettingsButton", ui->resetSettingsButton->property("value"));
+{
+	qDebug() << "Saving settings to QSettings...";
+    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    settings.setValue("comboBoxTheme", ui->comboBoxTheme->currentIndex());
+    settings.setValue("comboBoxLanguage", ui->comboBoxLanguage->currentIndex());
+    settings.setValue("checkPromptOverwrite", ui->checkPromptOverwrite->isChecked());
+    settings.setValue("checkRestoreLastFile", ui->checkRestoreLastFile->isChecked());
+    settings.setValue("checkTooltips", ui->checkTooltips->isChecked());
+    settings.setValue("checkConfirmExit", ui->checkConfirmExit->isChecked());
+    settings.setValue("comboProjectionMode", ui->comboProjectionMode->currentIndex());
+    settings.setValue("comboDefaultView", ui->comboDefaultView->currentIndex());
+    settings.setValue("comboDefaultProjection", ui->comboDefaultProjection->currentIndex());
+    settings.setValue("checkTrackball", ui->checkTrackball->isChecked());
+    settings.setValue("checkInvertZoom", ui->checkInvertZoom->isChecked());
+    settings.setValue("spinZoomFactor", ui->spinZoomFactor->value());
+    settings.setValue("comboBoxBackgroundStyle", ui->comboBoxBackgroundStyle->currentIndex());
+    settings.setValue("comboBoxGradientStyle", ui->comboBoxGradientStyle->currentIndex());
+    settings.setValue("showBoundingBoxCheckBox", ui->showBoundingBoxCheckBox->isChecked());
+    settings.setValue("showCornerTrihedronCheckBox", ui->showCornerTrihedronCheckBox->isChecked());
+    settings.setValue("farPlaneSpinBox", ui->farPlaneSpinBox->value());
+    settings.setValue("fieldOfViewSpinBox", ui->fieldOfViewSpinBox->value());
+    settings.setValue("showGridCheckBox", ui->showGridCheckBox->isChecked());
+    settings.setValue("nearPlaneSpinBox", ui->nearPlaneSpinBox->value());
+    settings.setValue("showWireframeCheckBox", ui->showWireframeCheckBox->isChecked());
+    settings.setValue("showCenterTrihedronCheckBox", ui->showCenterTrihedronCheckBox->isChecked());
+    settings.setValue("navigationModeComboBox", ui->navigationModeComboBox->currentIndex());
+    settings.setValue("mouseSensitivitySlider", ui->mouseSensitivitySlider->value());
+    settings.setValue("zoomSensitivitySlider", ui->zoomSensitivitySlider->value());
+    settings.setValue("invertYAxisCheckBox", ui->invertYAxisCheckBox->isChecked());
+    settings.setValue("smoothNavigationCheckBox", ui->smoothNavigationCheckBox->isChecked());
+    settings.setValue("comboShadingMode", ui->comboShadingMode->currentIndex());
+    settings.setValue("checkBackfaceCulling", ui->checkBackfaceCulling->isChecked());
+    settings.setValue("checkNormalMap", ui->checkNormalMap->isChecked());
+    settings.setValue("shaderModelComboBox", ui->shaderModelComboBox->currentIndex());
+    settings.setValue("msaaComboBox", ui->msaaComboBox->currentIndex());
+    settings.setValue("anisotropyComboBox", ui->anisotropyComboBox->currentIndex());
+    settings.setValue("enableLightingCheckBox", ui->enableLightingCheckBox->isChecked());
+    settings.setValue("enableShadowsCheckBox", ui->enableShadowsCheckBox->isChecked());
+    settings.setValue("ambientLightSlider", ui->ambientLightSlider->value());
+    settings.setValue("diffuseLightSlider", ui->diffuseLightSlider->value());
+    settings.setValue("specularLightSlider", ui->specularLightSlider->value());
+    settings.setValue("lineEditTextureDir", ui->lineEditTextureDir->text());
+    settings.setValue("comboBoxDefaultMaterial", ui->comboBoxDefaultMaterial->currentIndex());
+    settings.setValue("comboUVMethod", ui->comboUVMethod->currentIndex());
+    settings.setValue("spinAngleThreshold", ui->spinAngleThreshold->value());
+    settings.setValue("checkPreserveUVs", ui->checkPreserveUVs->isChecked());
+    settings.setValue("checkAutoPackUVs", ui->checkAutoPackUVs->isChecked());
+    settings.setValue("checkRelaxUVs", ui->checkRelaxUVs->isChecked());
+    settings.setValue("checkPCAProjection", ui->checkPCAProjection->isChecked());
+    settings.setValue("checkXatlasPackingOnly", ui->checkXatlasPackingOnly->isChecked());
+    settings.setValue("checkRememberUV", ui->checkRememberUV->isChecked());
+    settings.setValue("tessellationQualitySlider", ui->tessellationQualitySlider->value());
+    settings.setValue("linearDeflectionSpinBox", ui->linearDeflectionSpinBox->value());
+    settings.setValue("angularDeflectionSpinBox", ui->angularDeflectionSpinBox->value());
+    settings.setValue("occtUnifyFacesCheckBox", ui->occtUnifyFacesCheckBox->isChecked());
+    settings.setValue("occtUnifyEdgesCheckBox", ui->occtUnifyEdgesCheckBox->isChecked());
+    settings.setValue("occtBuildCurvesCheckBox", ui->occtBuildCurvesCheckBox->isChecked());
+    settings.setValue("assimpTriangulateCheckBox", ui->assimpTriangulateCheckBox->isChecked());
+    settings.setValue("assimpGenNormalsCheckBox", ui->assimpGenNormalsCheckBox->isChecked());
+    settings.setValue("assimpSmoothNormalsCheckBox", ui->assimpSmoothNormalsCheckBox->isChecked());
+    settings.setValue("assimpCalcTangentsCheckBox", ui->assimpCalcTangentsCheckBox->isChecked());
+    settings.setValue("assimpOptimizeMeshCheckBox", ui->assimpOptimizeMeshCheckBox->isChecked());
+    settings.setValue("assimpRemoveDuplicatesCheckBox", ui->assimpRemoveDuplicatesCheckBox->isChecked());
+    settings.setValue("assimpMaxFaceVerticesSpinBox", ui->assimpMaxFaceVerticesSpinBox->value());
+    settings.setValue("checkMultithreadedLoad", ui->checkMultithreadedLoad->isChecked());
+    settings.setValue("spinThreadLimit", ui->spinThreadLimit->value());
+    settings.setValue("checkSkyboxBlending", ui->checkSkyboxBlending->isChecked());
+    settings.setValue("checkProgressiveLoading", ui->checkProgressiveLoading->isChecked());
+    settings.setValue("maxFpsSpinBox", ui->maxFpsSpinBox->value());
+    settings.setValue("vsyncCheckBox", ui->vsyncCheckBox->isChecked());
+    settings.setValue("frustumCullingCheckBox", ui->frustumCullingCheckBox->isChecked());
+    settings.setValue("backfaceCullingCheckBox", ui->backfaceCullingCheckBox->isChecked());
+    settings.setValue("levelOfDetailCheckBox", ui->levelOfDetailCheckBox->isChecked());
+    settings.setValue("maxVerticesSpinBox", ui->maxVerticesSpinBox->value());
+    settings.setValue("textureCacheSizeSpinBox", ui->textureCacheSizeSpinBox->value());
+    settings.setValue("geometryCacheSizeSpinBox", ui->geometryCacheSizeSpinBox->value());
+    settings.setValue("compressTexturesCheckBox", ui->compressTexturesCheckBox->isChecked());
+    settings.setValue("generateMipmapsCheckBox", ui->generateMipmapsCheckBox->isChecked());
+    settings.setValue("comboBoxOpenGLVersion", ui->comboBoxOpenGLVersion->currentIndex());
+    settings.setValue("checkBoxVSync", ui->checkBoxVSync->isChecked());
+    settings.setValue("checkShaderHotReload", ui->checkShaderHotReload->isChecked());
+    settings.setValue("checkShowFPS", ui->checkShowFPS->isChecked());
+    settings.setValue("checkLegacyOpenGL", ui->checkLegacyOpenGL->isChecked());
+    settings.setValue("spinBoxThreads", ui->spinBoxThreads->value());
+    settings.setValue("showFpsCheckBox", ui->showFpsCheckBox->isChecked());
+    settings.setValue("showMemoryUsageCheckBox", ui->showMemoryUsageCheckBox->isChecked());
+    settings.setValue("showRenderStatsCheckBox", ui->showRenderStatsCheckBox->isChecked());
+    settings.setValue("showOpenGLInfoCheckBox", ui->showOpenGLInfoCheckBox->isChecked());
+    settings.setValue("enableLoggingCheckBox", ui->enableLoggingCheckBox->isChecked());
+    settings.setValue("logLevelComboBox", ui->logLevelComboBox->currentIndex());
+    settings.setValue("checkOpenGLErrorsCheckBox", ui->checkOpenGLErrorsCheckBox->isChecked());
+    settings.setValue("validateShadersCheckBox", ui->validateShadersCheckBox->isChecked());
+    settings.setValue("profileRenderingCheckBox", ui->profileRenderingCheckBox->isChecked());
 }
 
 void SettingsDialog::restoreDefaults()
 {
-    if (ui->comboBoxTheme) ui->comboBoxTheme->setProperty("value", ui->comboBoxTheme->property("defaultValue"));
-    if (ui->comboBoxLanguage) ui->comboBoxLanguage->setProperty("value", ui->comboBoxLanguage->property("defaultValue"));
-    if (ui->checkPromptOverwrite) ui->checkPromptOverwrite->setProperty("value", ui->checkPromptOverwrite->property("defaultValue"));
-    if (ui->checkRestoreLastFile) ui->checkRestoreLastFile->setProperty("value", ui->checkRestoreLastFile->property("defaultValue"));
-    if (ui->checkTooltips) ui->checkTooltips->setProperty("value", ui->checkTooltips->property("defaultValue"));
-    if (ui->checkConfirmExit) ui->checkConfirmExit->setProperty("value", ui->checkConfirmExit->property("defaultValue"));
-    if (ui->comboProjectionMode) ui->comboProjectionMode->setProperty("value", ui->comboProjectionMode->property("defaultValue"));
-    if (ui->comboDefaultView) ui->comboDefaultView->setProperty("value", ui->comboDefaultView->property("defaultValue"));
-    if (ui->comboDefaultProjection) ui->comboDefaultProjection->setProperty("value", ui->comboDefaultProjection->property("defaultValue"));
-    if (ui->checkTrackball) ui->checkTrackball->setProperty("value", ui->checkTrackball->property("defaultValue"));
-    if (ui->checkInvertZoom) ui->checkInvertZoom->setProperty("value", ui->checkInvertZoom->property("defaultValue"));
-    if (ui->spinZoomFactor) ui->spinZoomFactor->setProperty("value", ui->spinZoomFactor->property("defaultValue"));
-    if (ui->comboBoxBackgroundStyle) ui->comboBoxBackgroundStyle->setProperty("value", ui->comboBoxBackgroundStyle->property("defaultValue"));
-    if (ui->pushButtonTopColor) ui->pushButtonTopColor->setProperty("value", ui->pushButtonTopColor->property("defaultValue"));
-    if (ui->pushButtonBottomColor) ui->pushButtonBottomColor->setProperty("value", ui->pushButtonBottomColor->property("defaultValue"));
-    if (ui->comboBoxGradientStyle) ui->comboBoxGradientStyle->setProperty("value", ui->comboBoxGradientStyle->property("defaultValue"));
-    if (ui->showBoundingBoxCheckBox) ui->showBoundingBoxCheckBox->setProperty("value", ui->showBoundingBoxCheckBox->property("defaultValue"));
-    if (ui->showCornerTrihedronCheckBox) ui->showCornerTrihedronCheckBox->setProperty("value", ui->showCornerTrihedronCheckBox->property("defaultValue"));
-    if (ui->farPlaneSpinBox) ui->farPlaneSpinBox->setProperty("value", ui->farPlaneSpinBox->property("defaultValue"));
-    if (ui->fieldOfViewSpinBox) ui->fieldOfViewSpinBox->setProperty("value", ui->fieldOfViewSpinBox->property("defaultValue"));
-    if (ui->showGridCheckBox) ui->showGridCheckBox->setProperty("value", ui->showGridCheckBox->property("defaultValue"));
-    if (ui->nearPlaneSpinBox) ui->nearPlaneSpinBox->setProperty("value", ui->nearPlaneSpinBox->property("defaultValue"));
-    if (ui->showWireframeCheckBox) ui->showWireframeCheckBox->setProperty("value", ui->showWireframeCheckBox->property("defaultValue"));
-    if (ui->showCenterTrihedronCheckBox) ui->showCenterTrihedronCheckBox->setProperty("value", ui->showCenterTrihedronCheckBox->property("defaultValue"));
-    if (ui->navigationModeComboBox) ui->navigationModeComboBox->setProperty("value", ui->navigationModeComboBox->property("defaultValue"));
-    if (ui->mouseSensitivitySlider) ui->mouseSensitivitySlider->setProperty("value", ui->mouseSensitivitySlider->property("defaultValue"));
-    if (ui->zoomSensitivitySlider) ui->zoomSensitivitySlider->setProperty("value", ui->zoomSensitivitySlider->property("defaultValue"));
-    if (ui->invertYAxisCheckBox) ui->invertYAxisCheckBox->setProperty("value", ui->invertYAxisCheckBox->property("defaultValue"));
-    if (ui->smoothNavigationCheckBox) ui->smoothNavigationCheckBox->setProperty("value", ui->smoothNavigationCheckBox->property("defaultValue"));
-    if (ui->comboShadingMode) ui->comboShadingMode->setProperty("value", ui->comboShadingMode->property("defaultValue"));
-    if (ui->checkBackfaceCulling) ui->checkBackfaceCulling->setProperty("value", ui->checkBackfaceCulling->property("defaultValue"));
-    if (ui->checkNormalMap) ui->checkNormalMap->setProperty("value", ui->checkNormalMap->property("defaultValue"));
-    if (ui->shaderModelComboBox) ui->shaderModelComboBox->setProperty("value", ui->shaderModelComboBox->property("defaultValue"));
-    if (ui->msaaComboBox) ui->msaaComboBox->setProperty("value", ui->msaaComboBox->property("defaultValue"));
-    if (ui->anisotropyComboBox) ui->anisotropyComboBox->setProperty("value", ui->anisotropyComboBox->property("defaultValue"));
-    if (ui->enableLightingCheckBox) ui->enableLightingCheckBox->setProperty("value", ui->enableLightingCheckBox->property("defaultValue"));
-    if (ui->enableShadowsCheckBox) ui->enableShadowsCheckBox->setProperty("value", ui->enableShadowsCheckBox->property("defaultValue"));
-    if (ui->ambientLightSlider) ui->ambientLightSlider->setProperty("value", ui->ambientLightSlider->property("defaultValue"));
-    if (ui->diffuseLightSlider) ui->diffuseLightSlider->setProperty("value", ui->diffuseLightSlider->property("defaultValue"));
-    if (ui->specularLightSlider) ui->specularLightSlider->setProperty("value", ui->specularLightSlider->property("defaultValue"));
-    if (ui->lineEditTextureDir) ui->lineEditTextureDir->setProperty("value", ui->lineEditTextureDir->property("defaultValue"));
-    if (ui->comboBoxDefaultMaterial) ui->comboBoxDefaultMaterial->setProperty("value", ui->comboBoxDefaultMaterial->property("defaultValue"));
-    if (ui->comboUVMethod) ui->comboUVMethod->setProperty("value", ui->comboUVMethod->property("defaultValue"));
-    if (ui->spinAngleThreshold) ui->spinAngleThreshold->setProperty("value", ui->spinAngleThreshold->property("defaultValue"));
-    if (ui->checkPreserveUVs) ui->checkPreserveUVs->setProperty("value", ui->checkPreserveUVs->property("defaultValue"));
-    if (ui->checkAutoPackUVs) ui->checkAutoPackUVs->setProperty("value", ui->checkAutoPackUVs->property("defaultValue"));
-    if (ui->checkRelaxUVs) ui->checkRelaxUVs->setProperty("value", ui->checkRelaxUVs->property("defaultValue"));
-    if (ui->checkPCAProjection) ui->checkPCAProjection->setProperty("value", ui->checkPCAProjection->property("defaultValue"));
-    if (ui->checkXatlasPackingOnly) ui->checkXatlasPackingOnly->setProperty("value", ui->checkXatlasPackingOnly->property("defaultValue"));
-    if (ui->checkRememberUV) ui->checkRememberUV->setProperty("value", ui->checkRememberUV->property("defaultValue"));
-    if (ui->buttonResetUVPrompt) ui->buttonResetUVPrompt->setProperty("value", ui->buttonResetUVPrompt->property("defaultValue"));
-    if (ui->tessellationQualitySlider) ui->tessellationQualitySlider->setProperty("value", ui->tessellationQualitySlider->property("defaultValue"));
-    if (ui->linearDeflectionSpinBox) ui->linearDeflectionSpinBox->setProperty("value", ui->linearDeflectionSpinBox->property("defaultValue"));
-    if (ui->angularDeflectionSpinBox) ui->angularDeflectionSpinBox->setProperty("value", ui->angularDeflectionSpinBox->property("defaultValue"));
-    if (ui->occtUnifyFacesCheckBox) ui->occtUnifyFacesCheckBox->setProperty("value", ui->occtUnifyFacesCheckBox->property("defaultValue"));
-    if (ui->occtUnifyEdgesCheckBox) ui->occtUnifyEdgesCheckBox->setProperty("value", ui->occtUnifyEdgesCheckBox->property("defaultValue"));
-    if (ui->occtBuildCurvesCheckBox) ui->occtBuildCurvesCheckBox->setProperty("value", ui->occtBuildCurvesCheckBox->property("defaultValue"));
-    if (ui->assimpTriangulateCheckBox) ui->assimpTriangulateCheckBox->setProperty("value", ui->assimpTriangulateCheckBox->property("defaultValue"));
-    if (ui->assimpGenNormalsCheckBox) ui->assimpGenNormalsCheckBox->setProperty("value", ui->assimpGenNormalsCheckBox->property("defaultValue"));
-    if (ui->assimpSmoothNormalsCheckBox) ui->assimpSmoothNormalsCheckBox->setProperty("value", ui->assimpSmoothNormalsCheckBox->property("defaultValue"));
-    if (ui->assimpCalcTangentsCheckBox) ui->assimpCalcTangentsCheckBox->setProperty("value", ui->assimpCalcTangentsCheckBox->property("defaultValue"));
-    if (ui->assimpOptimizeMeshCheckBox) ui->assimpOptimizeMeshCheckBox->setProperty("value", ui->assimpOptimizeMeshCheckBox->property("defaultValue"));
-    if (ui->assimpRemoveDuplicatesCheckBox) ui->assimpRemoveDuplicatesCheckBox->setProperty("value", ui->assimpRemoveDuplicatesCheckBox->property("defaultValue"));
-    if (ui->assimpMaxFaceVerticesSpinBox) ui->assimpMaxFaceVerticesSpinBox->setProperty("value", ui->assimpMaxFaceVerticesSpinBox->property("defaultValue"));
-    if (ui->checkMultithreadedLoad) ui->checkMultithreadedLoad->setProperty("value", ui->checkMultithreadedLoad->property("defaultValue"));
-    if (ui->spinThreadLimit) ui->spinThreadLimit->setProperty("value", ui->spinThreadLimit->property("defaultValue"));
-    if (ui->checkSkyboxBlending) ui->checkSkyboxBlending->setProperty("value", ui->checkSkyboxBlending->property("defaultValue"));
-    if (ui->checkProgressiveLoading) ui->checkProgressiveLoading->setProperty("value", ui->checkProgressiveLoading->property("defaultValue"));
-    if (ui->maxFpsSpinBox) ui->maxFpsSpinBox->setProperty("value", ui->maxFpsSpinBox->property("defaultValue"));
-    if (ui->vsyncCheckBox) ui->vsyncCheckBox->setProperty("value", ui->vsyncCheckBox->property("defaultValue"));
-    if (ui->frustumCullingCheckBox) ui->frustumCullingCheckBox->setProperty("value", ui->frustumCullingCheckBox->property("defaultValue"));
-    if (ui->backfaceCullingCheckBox) ui->backfaceCullingCheckBox->setProperty("value", ui->backfaceCullingCheckBox->property("defaultValue"));
-    if (ui->levelOfDetailCheckBox) ui->levelOfDetailCheckBox->setProperty("value", ui->levelOfDetailCheckBox->property("defaultValue"));
-    if (ui->maxVerticesSpinBox) ui->maxVerticesSpinBox->setProperty("value", ui->maxVerticesSpinBox->property("defaultValue"));
-    if (ui->textureCacheSizeSpinBox) ui->textureCacheSizeSpinBox->setProperty("value", ui->textureCacheSizeSpinBox->property("defaultValue"));
-    if (ui->geometryCacheSizeSpinBox) ui->geometryCacheSizeSpinBox->setProperty("value", ui->geometryCacheSizeSpinBox->property("defaultValue"));
-    if (ui->compressTexturesCheckBox) ui->compressTexturesCheckBox->setProperty("value", ui->compressTexturesCheckBox->property("defaultValue"));
-    if (ui->generateMipmapsCheckBox) ui->generateMipmapsCheckBox->setProperty("value", ui->generateMipmapsCheckBox->property("defaultValue"));
-    if (ui->comboBoxOpenGLVersion) ui->comboBoxOpenGLVersion->setProperty("value", ui->comboBoxOpenGLVersion->property("defaultValue"));
-    if (ui->checkBoxVSync) ui->checkBoxVSync->setProperty("value", ui->checkBoxVSync->property("defaultValue"));
-    if (ui->checkShaderHotReload) ui->checkShaderHotReload->setProperty("value", ui->checkShaderHotReload->property("defaultValue"));
-    if (ui->checkShowFPS) ui->checkShowFPS->setProperty("value", ui->checkShowFPS->property("defaultValue"));
-    if (ui->checkLegacyOpenGL) ui->checkLegacyOpenGL->setProperty("value", ui->checkLegacyOpenGL->property("defaultValue"));
-    if (ui->spinBoxThreads) ui->spinBoxThreads->setProperty("value", ui->spinBoxThreads->property("defaultValue"));
-    if (ui->showFpsCheckBox) ui->showFpsCheckBox->setProperty("value", ui->showFpsCheckBox->property("defaultValue"));
-    if (ui->showMemoryUsageCheckBox) ui->showMemoryUsageCheckBox->setProperty("value", ui->showMemoryUsageCheckBox->property("defaultValue"));
-    if (ui->showRenderStatsCheckBox) ui->showRenderStatsCheckBox->setProperty("value", ui->showRenderStatsCheckBox->property("defaultValue"));
-    if (ui->showOpenGLInfoCheckBox) ui->showOpenGLInfoCheckBox->setProperty("value", ui->showOpenGLInfoCheckBox->property("defaultValue"));
-    if (ui->enableLoggingCheckBox) ui->enableLoggingCheckBox->setProperty("value", ui->enableLoggingCheckBox->property("defaultValue"));
-    if (ui->logLevelComboBox) ui->logLevelComboBox->setProperty("value", ui->logLevelComboBox->property("defaultValue"));
-    if (ui->checkOpenGLErrorsCheckBox) ui->checkOpenGLErrorsCheckBox->setProperty("value", ui->checkOpenGLErrorsCheckBox->property("defaultValue"));
-    if (ui->validateShadersCheckBox) ui->validateShadersCheckBox->setProperty("value", ui->validateShadersCheckBox->property("defaultValue"));
-    if (ui->profileRenderingCheckBox) ui->profileRenderingCheckBox->setProperty("value", ui->profileRenderingCheckBox->property("defaultValue"));
-    if (ui->clearCacheButton) ui->clearCacheButton->setProperty("value", ui->clearCacheButton->property("defaultValue"));
-    if (ui->resetSettingsButton) ui->resetSettingsButton->setProperty("value", ui->resetSettingsButton->property("defaultValue"));
+    qDebug() << "Restoring default settings...";
+    // Helper lambda to safely restore widget values
+    auto restoreWidget = [](QWidget* widget, const QVariant& defaultValue) {
+        if (!widget || !defaultValue.isValid()) return;
+
+        // Handle different widget types appropriately
+        if (auto* comboBox = qobject_cast<QComboBox*>(widget))
+        {
+            int index = defaultValue.toInt();
+            if (index >= 0 && index < comboBox->count())
+            {
+                comboBox->setCurrentIndex(index);
+            }
+        }
+        else if (auto* checkBox = qobject_cast<QCheckBox*>(widget))
+        {
+            checkBox->setChecked(defaultValue.toBool());
+        }
+        else if (auto* spinBox = qobject_cast<QSpinBox*>(widget))
+        {
+            spinBox->setValue(defaultValue.toInt());
+        }
+        else if (auto* doubleSpinBox = qobject_cast<QDoubleSpinBox*>(widget))
+        {
+            doubleSpinBox->setValue(defaultValue.toDouble());
+        }
+        else if (auto* slider = qobject_cast<QSlider*>(widget))
+        {
+            slider->setValue(defaultValue.toInt());
+        }
+        else if (auto* lineEdit = qobject_cast<QLineEdit*>(widget))
+        {
+            lineEdit->setText(defaultValue.toString());
+        }
+        else if (auto* pushButton = qobject_cast<QPushButton*>(widget))
+        {
+            // For color buttons, restore the color property
+            if (widget->objectName().contains("Color"))
+            {
+                QColor color = defaultValue.value<QColor>();
+                if (color.isValid())
+                {
+                    widget->setStyleSheet(QString("background-color: %1").arg(color.name()));
+                    widget->setProperty("color", color);
+                }
+            }
+        }
+        };
+
+    // List of all widgets that need to be restored
+    QList<QWidget*> widgetsToRestore = {
+        ui->comboBoxTheme, ui->comboBoxLanguage, ui->checkPromptOverwrite,
+        ui->checkRestoreLastFile, ui->checkTooltips, ui->checkConfirmExit,
+        ui->comboProjectionMode, ui->comboDefaultView, ui->comboDefaultProjection,
+        ui->checkTrackball, ui->checkInvertZoom, ui->spinZoomFactor,
+        ui->comboBoxBackgroundStyle, ui->pushButtonTopColor, ui->pushButtonBottomColor,
+        ui->comboBoxGradientStyle, ui->showBoundingBoxCheckBox, ui->showCornerTrihedronCheckBox,
+        ui->farPlaneSpinBox, ui->fieldOfViewSpinBox, ui->showGridCheckBox,
+        ui->nearPlaneSpinBox, ui->showWireframeCheckBox, ui->showCenterTrihedronCheckBox,
+        ui->navigationModeComboBox, ui->mouseSensitivitySlider, ui->zoomSensitivitySlider,
+        ui->invertYAxisCheckBox, ui->smoothNavigationCheckBox, ui->comboShadingMode,
+        ui->checkBackfaceCulling, ui->checkNormalMap, ui->shaderModelComboBox,
+        ui->msaaComboBox, ui->anisotropyComboBox, ui->enableLightingCheckBox,
+        ui->enableShadowsCheckBox, ui->ambientLightSlider, ui->diffuseLightSlider,
+        ui->specularLightSlider, ui->lineEditTextureDir, ui->comboBoxDefaultMaterial,
+        ui->comboUVMethod, ui->spinAngleThreshold, ui->checkPreserveUVs,
+        ui->checkAutoPackUVs, ui->checkRelaxUVs, ui->checkPCAProjection,
+        ui->checkXatlasPackingOnly, ui->checkRememberUV, ui->buttonResetUVPrompt,
+        ui->tessellationQualitySlider, ui->linearDeflectionSpinBox, ui->angularDeflectionSpinBox,
+        ui->occtUnifyFacesCheckBox, ui->occtUnifyEdgesCheckBox, ui->occtBuildCurvesCheckBox,
+        ui->assimpTriangulateCheckBox, ui->assimpGenNormalsCheckBox, ui->assimpSmoothNormalsCheckBox,
+        ui->assimpCalcTangentsCheckBox, ui->assimpOptimizeMeshCheckBox, ui->assimpRemoveDuplicatesCheckBox,
+        ui->assimpMaxFaceVerticesSpinBox, ui->checkMultithreadedLoad, ui->spinThreadLimit,
+        ui->checkSkyboxBlending, ui->checkProgressiveLoading, ui->maxFpsSpinBox,
+        ui->vsyncCheckBox, ui->frustumCullingCheckBox, ui->backfaceCullingCheckBox,
+        ui->levelOfDetailCheckBox, ui->maxVerticesSpinBox, ui->textureCacheSizeSpinBox,
+        ui->geometryCacheSizeSpinBox, ui->compressTexturesCheckBox, ui->generateMipmapsCheckBox,
+        ui->comboBoxOpenGLVersion, ui->checkBoxVSync, ui->checkShaderHotReload,
+        ui->checkShowFPS, ui->checkLegacyOpenGL, ui->spinBoxThreads,
+        ui->showFpsCheckBox, ui->showMemoryUsageCheckBox, ui->showRenderStatsCheckBox,
+        ui->showOpenGLInfoCheckBox, ui->enableLoggingCheckBox, ui->logLevelComboBox,
+        ui->checkOpenGLErrorsCheckBox, ui->validateShadersCheckBox, ui->profileRenderingCheckBox,
+        ui->clearCacheButton, ui->resetSettingsButton
+    };
+
+    // Restore all widgets using the helper function
+    for (QWidget* widget : widgetsToRestore)
+    {
+        if (widget)
+        {
+            restoreWidget(widget, widget->property("defaultValue"));
+        }
+    }
+
+    qDebug() << "Default settings restored successfully.";
 }
 
 void SettingsDialog::on_comboBoxTheme_currentIndexChanged()
@@ -620,8 +838,9 @@ void SettingsDialog::on_checkRememberUV_stateChanged()
 
 void SettingsDialog::on_buttonResetUVPrompt_clicked()
 {
-    _settings->remove("UVMethod");
-    _settings->remove("RememberUVMethod");
+    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    settings.remove("UVMethod");
+    settings.remove("RememberUVMethod");
 
     qDebug() << "UV Prompt settings have been reset.";
     QMessageBox::information(this, "Settings Reset", "UV Prompt settings have been cleared.");
@@ -709,7 +928,8 @@ void SettingsDialog::on_checkSkyboxBlending_stateChanged()
 
 void SettingsDialog::on_checkProgressiveLoading_stateChanged()
 {
-    // TODO: Handle checkProgressiveLoading::stateChanged(int)
+    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	settings.setValue("checkProgressiveLoading", ui->checkProgressiveLoading->isChecked());
 }
 
 void SettingsDialog::on_maxFpsSpinBox_valueChanged()
@@ -846,5 +1066,4 @@ void SettingsDialog::on_resetSettingsButton_clicked()
 {
     // TODO: Handle resetSettingsButton::clicked()
 }
-
 

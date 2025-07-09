@@ -120,14 +120,13 @@ private slots:
     void restoreDefaults();	
 
 private:
+    void setDefaultValues();
     void applySettings();    
     void loadSettings();
-    void saveSettings();
+    void saveSettings();	
 
 private:
-    Ui::SettingsDialog *ui;
-
-	std::unique_ptr<QSettings> _settings;
+    Ui::SettingsDialog *ui;	
 };
 
 #endif // SETTINGSDIALOG_H
