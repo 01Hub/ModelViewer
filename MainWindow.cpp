@@ -6,6 +6,7 @@
 #include "MainWindow.h"
 #include "ui_MainWindow.h"
 #include "ModelViewer.h"
+#include "ThemeManager.h"
 #include "GLWidget.h"
 #include <QtOpenGL>
 #include <QProgressBar>
@@ -28,6 +29,11 @@ MainWindow::MainWindow(QWidget* parent)
 {
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
+
+	// Set the application theme based on user settings
+	QSettings themeSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	int iVal = themeSettings.value("comboBoxTheme", 0).toInt();
+	(new ThemeManager(this))->setTheme(static_cast<ThemeManager::Theme>(iVal));
 
 	_mainWindow = this;
 
