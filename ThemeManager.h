@@ -34,11 +34,20 @@ signals:
 
 private:
     void applySystemTheme();
+    void applySystemAwareTheme();
     void applyLightTheme();
     void applyDarkTheme();
-    bool isSystemDark() const;
+    bool isSystemInDarkMode() const;
+
+    QPalette getLightPalette() const;
+    QPalette getDarkPalette() const;
+
     QString getLightStyleSheet() const;
     QString getDarkStyleSheet() const;
+
+    QString getCurrentStyleName() const;
+
+    QString getDarkExtrasStyleSheet() const;
 
     Theme m_currentTheme;
     QSettings* m_settings;

@@ -19,7 +19,7 @@ void ThemeManager::setTheme(Theme theme)
     switch (theme)
     {
     case System:
-        applySystemTheme();
+        applySystemAwareTheme();
         break;
     case Light:
         applyLightTheme();
@@ -42,40 +42,127 @@ void ThemeManager::applySystemTheme()
     qApp->setPalette(qApp->style()->standardPalette());
 
     // Optionally apply dark theme if system is dark
-    if (isSystemDark())
+    if (isSystemInDarkMode())
     {
         applyDarkTheme();
     }
 }
 
+void ThemeManager::applySystemAwareTheme()
+{
+    QString styleName = getCurrentStyleName();
+    bool dark = isSystemInDarkMode();
+
+    // Ensure full control of palette
+    if (styleName.toLower() != "fusion")
+    {
+        QApplication::setStyle(QStyleFactory::create("Fusion"));
+    }
+
+    if (dark)
+    {
+        QApplication::setPalette(getDarkPalette());
+        qApp->setStyleSheet(getDarkExtrasStyleSheet()); // optional: menus/tooltips
+    }
+    else
+    {
+        QApplication::setPalette(getLightPalette());
+        qApp->setStyleSheet(""); // no styles needed for light
+    }
+
+    qDebug() << "Applied" << (dark ? "dark" : "light") << "theme using" << QApplication::style()->objectName();
+}
+
 void ThemeManager::applyLightTheme()
 {
-    qApp->setStyleSheet(getLightStyleSheet());
+    //qApp->setStyleSheet(getLightStyleSheet());
+    QApplication::setStyle(QStyleFactory::create("Fusion"));
+    qApp->setPalette(getLightPalette());
 }
 
 void ThemeManager::applyDarkTheme()
 {
-    qApp->setStyleSheet(getDarkStyleSheet());
+    //qApp->setStyleSheet(getDarkStyleSheet());
+    QApplication::setStyle(QStyleFactory::create("Fusion"));
+    qApp->setPalette(getDarkPalette());
+    qApp->setStyleSheet(getDarkExtrasStyleSheet());
 }
 
-bool ThemeManager::isSystemDark() const
+bool ThemeManager::isSystemInDarkMode() const
 {
-#ifdef Q_OS_WIN
-    // Windows 10/11 dark mode detection
-    QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", QSettings::NativeFormat);
-    return settings.value("AppsUseLightTheme", 1).toInt() == 0;
-#elif defined(Q_OS_MAC)
-    // macOS dark mode detection
-    QProcess process;
-    process.start("defaults", QStringList() << "read" << "-g" << "AppleInterfaceStyle");
-    process.waitForFinished();
-    return process.readAllStandardOutput().trimmed() == "Dark";
+#if defined(Q_OS_WIN)
+QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+    QSettings::NativeFormat);
+return settings.value("AppsUseLightTheme", 1).toInt() == 0;
+#elif defined(Q_OS_MACOS)
+    // macOS system appearance detection via Objective-C bridge
+    return QSysInfo::productVersion().startsWith("10.14") || QSysInfo::productVersion() > "10.14";
+#elif defined(Q_OS_LINUX)
+    // Basic fallback, more robust check requires DBus or gsettings
+    QByteArray desktop = qgetenv("XDG_CURRENT_DESKTOP");
+    QByteArray theme = qgetenv("GTK_THEME");
+    return desktop.contains("GNOME") && theme.contains("dark");
 #else
-    // Linux - check if dark theme is being used
-    QPalette palette = qApp->palette();
-    return palette.color(QPalette::Window).lightness() < 128;
+    return false; // Default to light
 #endif
 }
+
+QPalette ThemeManager::getLightPalette() const
+{
+    QPalette palette;
+    palette.setColor(QPalette::Window, QColor("#f4f4f4"));
+    palette.setColor(QPalette::WindowText, QColor("#2e2e2e"));
+    palette.setColor(QPalette::Base, QColor("#ffffff"));
+    palette.setColor(QPalette::AlternateBase, QColor("#f0f0f0"));
+    palette.setColor(QPalette::ToolTipBase, QColor("#ffffdc"));
+    palette.setColor(QPalette::ToolTipText, QColor("#2e2e2e"));
+    palette.setColor(QPalette::Text, QColor("#2e2e2e"));
+    palette.setColor(QPalette::Button, QColor("#e5e5e5"));
+    palette.setColor(QPalette::ButtonText, QColor("#2e2e2e"));
+    palette.setColor(QPalette::BrightText, Qt::red);
+    palette.setColor(QPalette::Highlight, QColor("#b3d4fc"));
+    palette.setColor(QPalette::HighlightedText, QColor("#1e1e1e"));
+    return palette;
+}
+
+QPalette ThemeManager::getDarkPalette() const
+{
+    QPalette palette;
+
+    // Base UI background
+    palette.setColor(QPalette::Window, QColor("#2b2b2b"));          // Main window background
+    palette.setColor(QPalette::Base, QColor("#3a3a3a"));            // Input fields
+    palette.setColor(QPalette::AlternateBase, QColor("#323232"));  // Alternating row color
+
+    // Text colors (no pure white!)
+    palette.setColor(QPalette::WindowText, QColor("#d0d0d0"));      // Labels, titles
+    palette.setColor(QPalette::Text, QColor("#d0d0d0"));            // Editable text
+    palette.setColor(QPalette::ButtonText, QColor("#d0d0d0"));      // Text on buttons
+    palette.setColor(QPalette::HighlightedText, QColor("#f0f0f0")); // Selected text
+
+    // Tooltips
+    palette.setColor(QPalette::ToolTipBase, QColor("#404040"));
+    palette.setColor(QPalette::ToolTipText, QColor("#e0e0e0"));
+
+    // Buttons and controls
+    palette.setColor(QPalette::Button, QColor("#444444"));
+    palette.setColor(QPalette::BrightText, QColor("#ff6a6a"));      // For errors
+
+    // Highlight / selection
+    palette.setColor(QPalette::Highlight, QColor("#467cbf"));       // Calm muted blue
+    palette.setColor(QPalette::Link, QColor("#589df6"));
+    palette.setColor(QPalette::LinkVisited, QColor("#ab82ff"));
+
+    // Disabled state (greyed out)
+    palette.setColor(QPalette::Disabled, QPalette::Text, QColor("#707070"));
+    palette.setColor(QPalette::Disabled, QPalette::WindowText, QColor("#707070"));
+    palette.setColor(QPalette::Disabled, QPalette::ButtonText, QColor("#707070"));
+
+    return palette;
+}
+
+
+
 
 QString ThemeManager::getLightStyleSheet() const
 {
@@ -291,6 +378,13 @@ QString ThemeManager::getDarkStyleSheet() const
     )";
 }
 
+QString ThemeManager::getCurrentStyleName() const
+{
+    QStyle* style = QApplication::style();
+    return style ? style->objectName() : "Unknown";
+}
+
+
 void ThemeManager::saveThemePreference()
 {
     m_settings->setValue("comboBoxTheme", static_cast<int>(m_currentTheme));
@@ -300,4 +394,30 @@ void ThemeManager::loadThemePreference()
 {
     int theme = m_settings->value("comboBoxTheme", static_cast<int>(System)).toInt();
     setTheme(static_cast<Theme>(theme));
+}
+
+QString ThemeManager::getDarkExtrasStyleSheet() const
+{
+    return R"(
+        QMenuBar {
+            background-color: #2b2b2b;
+            color: #d0d0d0;
+        }
+        QMenuBar::item:selected {
+            background-color: #3d3d3d;
+        }
+        QMenu {
+            background-color: #2b2b2b;
+            color: #d0d0d0;
+            border: 1px solid #444444;
+        }
+        QMenu::item:selected {
+            background-color: #3d3d3d;
+        }
+        QToolTip {
+            background-color: #353535;
+            color: #e0e0e0;
+            border: 1px solid #6a6a6a;
+        }
+    )";
 }
