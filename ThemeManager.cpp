@@ -6,14 +6,12 @@ ThemeManager::ThemeManager(QObject* parent)
     , m_currentTheme(System)
     , m_settings(new QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName(), this))
 {
-    loadThemePreference();
+    
 }
 
 void ThemeManager::setTheme(Theme theme)
 {
-    if (m_currentTheme == theme)
-        return;
-
+	Theme oldTheme = m_currentTheme;
     m_currentTheme = theme;
 
     switch (theme)
@@ -29,8 +27,8 @@ void ThemeManager::setTheme(Theme theme)
         break;
     }
 
-    saveThemePreference();
-    emit themeChanged(theme);
+    if(oldTheme != theme)
+        emit themeChanged(theme);
 }
 
 void ThemeManager::applySystemTheme()
@@ -53,37 +51,104 @@ void ThemeManager::applySystemAwareTheme()
     QString styleName = getCurrentStyleName();
     bool dark = isSystemInDarkMode();
 
-    // Ensure full control of palette
-    if (styleName.toLower() != "fusion")
-    {
-        QApplication::setStyle(QStyleFactory::create("Fusion"));
-    }
+    // Set platform-appropriate style first
+
+#if defined(Q_OS_MAC)
+    qApp->setStyle(QStyleFactory::create("macOS"));
+#else
+    qApp->setStyle(QStyleFactory::create("Fusion")); // fallback for other platforms
+#endif
 
     if (dark)
     {
+#ifdef Q_OS_WIN
+        QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", QSettings::NativeFormat);
+        if (settings.value("AppsUseLightTheme") == 0)
+        {
+            QPalette darkPalette;
+            QColor darkColor = QColor(45, 45, 45);
+            QColor disabledColor = QColor(127, 127, 127);
+            darkPalette.setColor(QPalette::Window, darkColor);
+            darkPalette.setColor(QPalette::WindowText, Qt::white);
+            darkPalette.setColor(QPalette::Base, QColor(18, 18, 18));
+            darkPalette.setColor(QPalette::AlternateBase, darkColor);
+            darkPalette.setColor(QPalette::ToolTipBase, Qt::white);
+            darkPalette.setColor(QPalette::ToolTipText, Qt::white);
+            darkPalette.setColor(QPalette::Text, Qt::white);
+            darkPalette.setColor(QPalette::Disabled, QPalette::Text, disabledColor);
+            darkPalette.setColor(QPalette::Button, darkColor);
+            darkPalette.setColor(QPalette::ButtonText, Qt::white);
+            darkPalette.setColor(QPalette::Disabled, QPalette::ButtonText, disabledColor);
+            darkPalette.setColor(QPalette::BrightText, Qt::red);
+            darkPalette.setColor(QPalette::Link, QColor(42, 130, 218));
+            darkPalette.setColor(QPalette::Highlight, QColor(42, 130, 218));
+            darkPalette.setColor(QPalette::HighlightedText, Qt::black);
+            darkPalette.setColor(QPalette::Disabled, QPalette::HighlightedText, disabledColor);
+            qApp->setPalette(darkPalette);
+            qApp->setStyleSheet("QToolTip { color: #ffffff; background-color: #2a82da; border: 1px solid white; }");            
+        }
+        else
+        {
+            QApplication::setPalette(getDarkPalette());
+            qApp->setStyleSheet(getDarkExtrasStyleSheet()); // optional: menus/tooltips
+        }
+#else
         QApplication::setPalette(getDarkPalette());
         qApp->setStyleSheet(getDarkExtrasStyleSheet()); // optional: menus/tooltips
+#endif
     }
     else
     {
+#ifdef Q_OS_WIN
+        QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize", QSettings::NativeFormat);
+        if (settings.value("AppsUseLightTheme") == 1)
+        {
+            QPalette lightPalette;
+            QColor lightColor = QColor(240, 240, 240);
+            QColor disabledColor = QColor(127, 127, 127);
+            lightPalette.setColor(QPalette::Window, lightColor);
+            lightPalette.setColor(QPalette::WindowText, Qt::black);
+            lightPalette.setColor(QPalette::Base, Qt::white);
+            lightPalette.setColor(QPalette::AlternateBase, QColor(233, 233, 233));
+            lightPalette.setColor(QPalette::ToolTipBase, Qt::black);
+            lightPalette.setColor(QPalette::ToolTipText, Qt::black);
+            lightPalette.setColor(QPalette::Text, Qt::black);
+            lightPalette.setColor(QPalette::Disabled, QPalette::Text, disabledColor);
+            lightPalette.setColor(QPalette::Button, lightColor);
+            lightPalette.setColor(QPalette::ButtonText, Qt::black);
+            lightPalette.setColor(QPalette::Disabled, QPalette::ButtonText, disabledColor);
+            lightPalette.setColor(QPalette::BrightText, Qt::red);
+            lightPalette.setColor(QPalette::Link, QColor(0, 0, 238));
+            lightPalette.setColor(QPalette::Highlight, QColor(0, 120, 215));
+            lightPalette.setColor(QPalette::HighlightedText, Qt::white);
+            lightPalette.setColor(QPalette::Disabled, QPalette::HighlightedText, disabledColor);
+            qApp->setPalette(lightPalette);
+            qApp->setStyleSheet("QToolTip { color: #000000; background-color: #ffffcc; border: 1px solid black; }");
+        }
+        else
+        {
+            QApplication::setPalette(getLightPalette());
+            qApp->setStyleSheet(""); // no styles needed for light
+        }
+#else
         QApplication::setPalette(getLightPalette());
         qApp->setStyleSheet(""); // no styles needed for light
+#endif
     }
-
     qDebug() << "Applied" << (dark ? "dark" : "light") << "theme using" << QApplication::style()->objectName();
 }
 
 void ThemeManager::applyLightTheme()
 {
     //qApp->setStyleSheet(getLightStyleSheet());
-    QApplication::setStyle(QStyleFactory::create("Fusion"));
+    qApp->setStyle(QStyleFactory::create("Fusion"));
     qApp->setPalette(getLightPalette());
 }
 
 void ThemeManager::applyDarkTheme()
 {
     //qApp->setStyleSheet(getDarkStyleSheet());
-    QApplication::setStyle(QStyleFactory::create("Fusion"));
+    qApp->setStyle(QStyleFactory::create("Fusion"));
     qApp->setPalette(getDarkPalette());
     qApp->setStyleSheet(getDarkExtrasStyleSheet());
 }
@@ -384,17 +449,6 @@ QString ThemeManager::getCurrentStyleName() const
     return style ? style->objectName() : "Unknown";
 }
 
-
-void ThemeManager::saveThemePreference()
-{
-    m_settings->setValue("comboBoxTheme", static_cast<int>(m_currentTheme));
-}
-
-void ThemeManager::loadThemePreference()
-{
-    int theme = m_settings->value("comboBoxTheme", static_cast<int>(System)).toInt();
-    setTheme(static_cast<Theme>(theme));
-}
 
 QString ThemeManager::getDarkExtrasStyleSheet() const
 {

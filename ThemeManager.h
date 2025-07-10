@@ -25,10 +25,7 @@ public:
 
     void setTheme(Theme theme);
     Theme currentTheme() const { return m_currentTheme; }
-
-    void saveThemePreference();
-    void loadThemePreference();
-
+        
 signals:
     void themeChanged(Theme theme);
 
