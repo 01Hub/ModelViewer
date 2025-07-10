@@ -3,6 +3,8 @@
 
 #include <QDialog>
 #include <QSettings>
+#include "ThemeManager.h"
+
 
 namespace Ui {
 class SettingsDialog;
@@ -251,6 +253,7 @@ private:
     bool debug_validateShaders = false;
     bool debug_profileRendering = false;
 
+	ThemeManager* _themeManager;
 
     Ui::SettingsDialog *ui;	
 };

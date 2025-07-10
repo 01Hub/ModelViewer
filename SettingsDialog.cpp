@@ -5,7 +5,8 @@
 
 SettingsDialog::SettingsDialog(QWidget *parent) :
     QDialog(parent),
-    ui(new Ui::SettingsDialog)
+    ui(new Ui::SettingsDialog),
+    _themeManager(new ThemeManager(this))
 {
     ui->setupUi(this);
     	
@@ -712,6 +713,7 @@ void SettingsDialog::restoreDefaults()
 void SettingsDialog::on_comboBoxTheme_currentIndexChanged()
 {
     general_themeIndex = ui->comboBoxTheme->currentIndex();
+    _themeManager->setTheme(static_cast<ThemeManager::Theme>(general_themeIndex));
 }
 
 void SettingsDialog::on_comboBoxLanguage_currentIndexChanged()
