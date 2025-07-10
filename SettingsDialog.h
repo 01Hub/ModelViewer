@@ -18,6 +18,10 @@ public:
     explicit SettingsDialog(QWidget *parent = nullptr);
     ~SettingsDialog();
 
+
+signals:
+	void settingsChanged(); // Signal to notify that settings have changed
+
 private slots:   
     void onOkClicked();
     void onCancelClicked();

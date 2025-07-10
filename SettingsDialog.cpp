@@ -198,6 +198,11 @@ void SettingsDialog::applySettings()
     settings.setValue("validateShadersCheckBox", debug_validateShaders);
     settings.setValue("profileRenderingCheckBox", debug_profileRendering);
 
+	// Inform that user that some setrings will take effect after restart
+    QMessageBox::information(this, "Settings Applied", "Some settings will take effect after restarting the application.");
+    // Notify other parts of the application about the settings change
+	emit settingsChanged();
+
 }
 
 void SettingsDialog::setDefaultValues()
