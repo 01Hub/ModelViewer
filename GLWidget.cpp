@@ -1305,8 +1305,9 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 				}
 			});
 
-		// if user cancels the loading, we still need to set the success to true
-		connect(this, &GLWidget::loadingAssImpModelCancelled, this, [this, &success, &error]() {
+		// If user cancels the loading, we still need to set the success to true
+		// Store the connection to specifically disconnect the lambda later
+		QMetaObject::Connection connection = connect(this, &GLWidget::loadingAssImpModelCancelled, this, [this, &success, &error]() {
 			success = true; // set success to true to avoid blocking the UI
 			error = "Model loading cancelled by user.";
 			});
@@ -1330,7 +1331,16 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 					addToDisplay(mesh);
 			}
 		}		
+
+
+		// Disconnect the signals to avoid repeated calls
+		disconnect(_assimpModelLoader, &AssImpModelLoader::meshProcessed, this, &GLWidget::addToDisplay);
+		disconnect(_assimpModelLoader, &AssImpModelLoader::loadingFinished, this, nullptr);
+
+		// Disconnect the loadingAssImpModelCancelled with the lambda
+		disconnect(connection);
 	}
+		
 	MainWindow::showStatusMessage("");
 	MainWindow::setProgressValue(0);
 	MainWindow::hideProgressBar();
