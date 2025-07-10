@@ -126,6 +126,132 @@ private:
     void saveSettings();	
 
 private:
+
+    // General tab
+    int general_themeIndex = 0;
+    int general_languageIndex = 0;
+    bool general_promptOverwrite = true;
+    bool general_restoreLastFile = false;
+    bool general_showTooltips = true;
+    bool general_confirmExit = false;
+
+    // Camera tab
+    int camera_projectionModeIndex = 0;
+    int camera_defaultViewIndex = 0;
+    int camera_defaultProjectionIndex = 0;
+    bool camera_trackball = false;
+    bool camera_invertZoom = false;
+    double camera_zoomFactor = 1.0;
+
+    // Background tab
+    int background_styleIndex = 0;
+    int background_gradientStyleIndex = 0;
+    // For color buttons, use QColor
+    QColor background_topColor = Qt::white;
+    QColor background_bottomColor = Qt::white;
+
+    // Display tab
+    bool display_showBoundingBox = false;
+    bool display_showCornerTrihedron = true;
+    bool display_showGrid = true;
+    bool display_showWireframe = false;
+    int display_fieldOfView = 60;
+    double display_nearPlane = 0.1;
+    double display_farPlane = 1000.0;
+    bool display_showCenterTrihedron = false;
+
+    // Navigation group
+    int navigation_modeIndex = 0;
+    int navigation_mouseSensitivity = 5;
+    int navigation_zoomSensitivity = 5;
+    bool navigation_invertYAxis = false;
+    bool navigation_smoothNavigation = true;
+
+    // Rendering tab
+    int rendering_shadingModeIndex = 0;
+    bool rendering_backfaceCulling = false;
+    bool rendering_normalMap = false;
+    int rendering_shaderModelIndex = 0;
+    int rendering_msaaIndex = 0;
+    int rendering_anisotropyIndex = 0;
+
+    // Lighting
+    bool lighting_enableLighting = true;
+    bool lighting_enableShadows = false;
+    int lighting_ambient = 20;
+    int lighting_diffuse = 80;
+    int lighting_specular = 50;
+
+    // Materials
+    int materials_defaultMaterialIndex = 0;
+    QString materials_textureDir;
+
+    // UV Generation Tab
+    int uv_methodIndex = 0;
+    double uv_angleThreshold = 66.0;
+    bool uv_preserveUVs = false;
+    bool uv_autoPackUVs = false;
+    bool uv_relaxUVs = false;
+    bool uv_pcaProjection = false;
+    bool uv_xatlasPackingOnly = false;
+    bool uv_rememberUV = false;
+
+    // Import/Export Tab
+    // OpenCascade
+    int import_tessellationQuality = 5;
+    double import_linearDeflection = 0.1;
+    double import_angularDeflection = 0.1;
+    bool import_occtUnifyFaces = false;
+    bool import_occtUnifyEdges = false;
+    bool import_occtBuildCurves = false;
+
+    // Assimp
+    bool import_assimpTriangulate = true;
+    bool import_assimpGenNormals = true;
+    bool import_assimpSmoothNormals = false;
+    bool import_assimpCalcTangents = false;
+    bool import_assimpOptimizeMesh = false;
+    bool import_assimpRemoveDuplicates = false;
+    int import_assimpMaxFaceVertices = 3;
+
+    // Performance Tab
+    bool perf_multithreadedLoad = false;
+    int perf_threadLimit = 4;
+    bool perf_skyboxBlending = false;
+    bool perf_progressiveLoading = false;
+    int perf_maxFps = 60;
+    bool perf_vsync = true;
+    bool perf_frustumCulling = true;
+    bool perf_backfaceCulling = true;
+    bool perf_levelOfDetail = false;
+    int perf_maxVertices = 1000000;
+
+    // Memory management
+    int perf_textureCacheSize = 512;
+    int perf_geometryCacheSize = 256;
+    bool perf_compressTextures = true;
+    bool perf_generateMipmaps = true;
+
+    // Advanced Tab
+    int advanced_openGLVersionIndex = 0;
+    bool advanced_vsync = false;
+    int advanced_threads = 4;
+    bool advanced_shaderHotReload = false;
+    bool advanced_showFPS = false;
+    bool advanced_legacyOpenGL = false;
+
+    // Debug Tab
+    bool debug_showFps = false;
+    bool debug_showMemoryUsage = false;
+    bool debug_showRenderStats = false;
+    bool debug_showOpenGLInfo = false;
+    bool debug_enableLogging = false;
+    int debug_logLevelIndex = 0;
+    bool debug_checkOpenGLErrors = false;
+    bool debug_validateShaders = false;
+    bool debug_profileRendering = false;
+
+
     Ui::SettingsDialog *ui;	
 };
 

@@ -69,12 +69,134 @@ void SettingsDialog::onRestoreDefaults()
     QMessageBox::information(this, "Settings Reset", "All settings have been cleared.");
 }
 
+
 void SettingsDialog::applySettings()
 {
-	// TODO: First apply the settings to the UI elements
+    // Apply the settings of the UI elements
+    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 
-	// then save them to the settings file
-	saveSettings();
+    // General tab
+    settings.setValue("comboBoxTheme", general_themeIndex);
+    settings.setValue("comboBoxLanguage", general_languageIndex);
+    settings.setValue("checkPromptOverwrite", general_promptOverwrite);
+    settings.setValue("checkRestoreLastFile", general_restoreLastFile);
+    settings.setValue("checkTooltips", general_showTooltips);
+    settings.setValue("checkConfirmExit", general_confirmExit);
+
+    // Camera tab
+    settings.setValue("comboProjectionMode", camera_projectionModeIndex);
+    settings.setValue("comboDefaultView", camera_defaultViewIndex);
+    settings.setValue("comboDefaultProjection", camera_defaultProjectionIndex);
+    settings.setValue("checkTrackball", camera_trackball);
+    settings.setValue("checkInvertZoom", camera_invertZoom);
+    settings.setValue("spinZoomFactor", camera_zoomFactor);
+
+    // Background tab
+    settings.setValue("comboBoxBackgroundStyle", background_styleIndex);
+    settings.setValue("comboBoxGradientStyle", background_gradientStyleIndex);
+    settings.setValue("backgroundTopColor", background_topColor);
+    settings.setValue("backgroundBottomColor", background_bottomColor);
+
+    // Display tab
+    settings.setValue("showBoundingBoxCheckBox", display_showBoundingBox);
+    settings.setValue("showCornerTrihedronCheckBox", display_showCornerTrihedron);
+    settings.setValue("showGridCheckBox", display_showGrid);
+    settings.setValue("showWireframeCheckBox", display_showWireframe);
+    settings.setValue("fieldOfViewSpinBox", display_fieldOfView);
+    settings.setValue("nearPlaneSpinBox", display_nearPlane);
+    settings.setValue("farPlaneSpinBox", display_farPlane);
+    settings.setValue("showCenterTrihedronCheckBox", display_showCenterTrihedron);
+
+    // Navigation group
+    settings.setValue("navigationModeComboBox", navigation_modeIndex);
+    settings.setValue("mouseSensitivitySlider", navigation_mouseSensitivity);
+    settings.setValue("zoomSensitivitySlider", navigation_zoomSensitivity);
+    settings.setValue("invertYAxisCheckBox", navigation_invertYAxis);
+    settings.setValue("smoothNavigationCheckBox", navigation_smoothNavigation);
+
+    // Rendering tab
+    settings.setValue("comboShadingMode", rendering_shadingModeIndex);
+    settings.setValue("checkBackfaceCulling", rendering_backfaceCulling);
+    settings.setValue("checkNormalMap", rendering_normalMap);
+    settings.setValue("shaderModelComboBox", rendering_shaderModelIndex);
+    settings.setValue("msaaComboBox", rendering_msaaIndex);
+    settings.setValue("anisotropyComboBox", rendering_anisotropyIndex);
+
+    // Lighting
+    settings.setValue("enableLightingCheckBox", lighting_enableLighting);
+    settings.setValue("enableShadowsCheckBox", lighting_enableShadows);
+    settings.setValue("ambientLightSlider", lighting_ambient);
+    settings.setValue("diffuseLightSlider", lighting_diffuse);
+    settings.setValue("specularLightSlider", lighting_specular);
+
+    // Materials
+    settings.setValue("comboBoxDefaultMaterial", materials_defaultMaterialIndex);
+    settings.setValue("lineEditTextureDir", materials_textureDir);
+
+    // UV Generation Tab
+    settings.setValue("comboUVMethod", uv_methodIndex);
+    settings.setValue("spinAngleThreshold", uv_angleThreshold);
+    settings.setValue("checkPreserveUVs", uv_preserveUVs);
+    settings.setValue("checkAutoPackUVs", uv_autoPackUVs);
+    settings.setValue("checkRelaxUVs", uv_relaxUVs);
+    settings.setValue("checkPCAProjection", uv_pcaProjection);
+    settings.setValue("checkXatlasPackingOnly", uv_xatlasPackingOnly);
+    settings.setValue("checkRememberUV", uv_rememberUV);
+
+    // Import/Export Tab - OpenCascade
+    settings.setValue("tessellationQualitySlider", import_tessellationQuality);
+    settings.setValue("linearDeflectionSpinBox", import_linearDeflection);
+    settings.setValue("angularDeflectionSpinBox", import_angularDeflection);
+    settings.setValue("occtUnifyFacesCheckBox", import_occtUnifyFaces);
+    settings.setValue("occtUnifyEdgesCheckBox", import_occtUnifyEdges);
+    settings.setValue("occtBuildCurvesCheckBox", import_occtBuildCurves);
+
+    // Import/Export Tab - Assimp
+    settings.setValue("assimpTriangulateCheckBox", import_assimpTriangulate);
+    settings.setValue("assimpGenNormalsCheckBox", import_assimpGenNormals);
+    settings.setValue("assimpSmoothNormalsCheckBox", import_assimpSmoothNormals);
+    settings.setValue("assimpCalcTangentsCheckBox", import_assimpCalcTangents);
+    settings.setValue("assimpOptimizeMeshCheckBox", import_assimpOptimizeMesh);
+    settings.setValue("assimpRemoveDuplicatesCheckBox", import_assimpRemoveDuplicates);
+    settings.setValue("assimpMaxFaceVerticesSpinBox", import_assimpMaxFaceVertices);
+
+    // Performance Tab
+    settings.setValue("checkMultithreadedLoad", perf_multithreadedLoad);
+    settings.setValue("spinThreadLimit", perf_threadLimit);
+    settings.setValue("checkSkyboxBlending", perf_skyboxBlending);
+    settings.setValue("checkProgressiveLoading", perf_progressiveLoading);
+    settings.setValue("maxFpsSpinBox", perf_maxFps);
+    settings.setValue("vsyncCheckBox", perf_vsync);
+    settings.setValue("frustumCullingCheckBox", perf_frustumCulling);
+    settings.setValue("backfaceCullingCheckBox", perf_backfaceCulling);
+    settings.setValue("levelOfDetailCheckBox", perf_levelOfDetail);
+    settings.setValue("maxVerticesSpinBox", perf_maxVertices);
+
+    // Memory management
+    settings.setValue("textureCacheSizeSpinBox", perf_textureCacheSize);
+    settings.setValue("geometryCacheSizeSpinBox", perf_geometryCacheSize);
+    settings.setValue("compressTexturesCheckBox", perf_compressTextures);
+    settings.setValue("generateMipmapsCheckBox", perf_generateMipmaps);
+
+    // Advanced Tab
+    settings.setValue("comboBoxOpenGLVersion", advanced_openGLVersionIndex);
+    settings.setValue("checkBoxVSync", advanced_vsync);
+    settings.setValue("spinBoxThreads", advanced_threads);
+    settings.setValue("checkShaderHotReload", advanced_shaderHotReload);
+    settings.setValue("checkShowFPS", advanced_showFPS);
+    settings.setValue("checkLegacyOpenGL", advanced_legacyOpenGL);
+
+    // Debug Tab
+    settings.setValue("showFpsCheckBox", debug_showFps);
+    settings.setValue("showMemoryUsageCheckBox", debug_showMemoryUsage);
+    settings.setValue("showRenderStatsCheckBox", debug_showRenderStats);
+    settings.setValue("showOpenGLInfoCheckBox", debug_showOpenGLInfo);
+    settings.setValue("enableLoggingCheckBox", debug_enableLogging);
+    settings.setValue("logLevelComboBox", debug_logLevelIndex);
+    settings.setValue("checkOpenGLErrorsCheckBox", debug_checkOpenGLErrors);
+    settings.setValue("validateShadersCheckBox", debug_validateShaders);
+    settings.setValue("profileRenderingCheckBox", debug_profileRendering);
+
 }
 
 void SettingsDialog::setDefaultValues()
@@ -586,254 +708,267 @@ void SettingsDialog::restoreDefaults()
     qDebug() << "Default settings restored successfully.";
 }
 
+// General tab
 void SettingsDialog::on_comboBoxTheme_currentIndexChanged()
 {
-    // TODO: Handle comboBoxTheme::currentIndexChanged(int)
+    general_themeIndex = ui->comboBoxTheme->currentIndex();
 }
 
 void SettingsDialog::on_comboBoxLanguage_currentIndexChanged()
 {
-    // TODO: Handle comboBoxLanguage::currentIndexChanged(int)
+    general_languageIndex = ui->comboBoxLanguage->currentIndex();
 }
 
 void SettingsDialog::on_checkPromptOverwrite_stateChanged()
 {
-    // TODO: Handle checkPromptOverwrite::stateChanged(int)
+    general_promptOverwrite = ui->checkPromptOverwrite->isChecked();
 }
 
 void SettingsDialog::on_checkRestoreLastFile_stateChanged()
 {
-    // TODO: Handle checkRestoreLastFile::stateChanged(int)
+    general_restoreLastFile = ui->checkRestoreLastFile->isChecked();
 }
 
 void SettingsDialog::on_checkTooltips_stateChanged()
 {
-    // TODO: Handle checkTooltips::stateChanged(int)
+    general_showTooltips = ui->checkTooltips->isChecked();
 }
 
 void SettingsDialog::on_checkConfirmExit_stateChanged()
 {
-    // TODO: Handle checkConfirmExit::stateChanged(int)
+    general_confirmExit = ui->checkConfirmExit->isChecked();
 }
 
+// Camera tab
 void SettingsDialog::on_comboProjectionMode_currentIndexChanged()
 {
-    // TODO: Handle comboProjectionMode::currentIndexChanged(int)
+    camera_projectionModeIndex = ui->comboProjectionMode->currentIndex();
 }
 
 void SettingsDialog::on_comboDefaultView_currentIndexChanged()
 {
-    // TODO: Handle comboDefaultView::currentIndexChanged(int)
+    camera_defaultViewIndex = ui->comboDefaultView->currentIndex();
 }
 
 void SettingsDialog::on_comboDefaultProjection_currentIndexChanged()
 {
-    // TODO: Handle comboDefaultProjection::currentIndexChanged(int)
+    camera_defaultProjectionIndex = ui->comboDefaultProjection->currentIndex();
 }
 
 void SettingsDialog::on_checkTrackball_stateChanged()
 {
-    // TODO: Handle checkTrackball::stateChanged(int)
+    camera_trackball = ui->checkTrackball->isChecked();
 }
 
 void SettingsDialog::on_checkInvertZoom_stateChanged()
 {
-    // TODO: Handle checkInvertZoom::stateChanged(int)
+    camera_invertZoom = ui->checkInvertZoom->isChecked();
 }
 
 void SettingsDialog::on_spinZoomFactor_valueChanged()
 {
-    // TODO: Handle spinZoomFactor::valueChanged(double)
+    camera_zoomFactor = ui->spinZoomFactor->value();
 }
 
+// Background tab
 void SettingsDialog::on_comboBoxBackgroundStyle_currentIndexChanged()
 {
-    // TODO: Handle comboBoxBackgroundStyle::currentIndexChanged(int)
+    background_styleIndex = ui->comboBoxBackgroundStyle->currentIndex();
 }
 
 void SettingsDialog::on_pushButtonTopColor_clicked()
 {
-    // TODO: Handle pushButtonTopColor::clicked()
+    // Example: open color dialog and assign
+    // background_topColor = QColorDialog::getColor(background_topColor, this);
+    // For now, just keep as placeholder
 }
 
 void SettingsDialog::on_pushButtonBottomColor_clicked()
 {
-    // TODO: Handle pushButtonBottomColor::clicked()
+    // Example: open color dialog and assign
+    // background_bottomColor = QColorDialog::getColor(background_bottomColor, this);
+    // For now, just keep as placeholder
 }
 
 void SettingsDialog::on_comboBoxGradientStyle_currentIndexChanged()
 {
-    // TODO: Handle comboBoxGradientStyle::currentIndexChanged(int)
+    background_gradientStyleIndex = ui->comboBoxGradientStyle->currentIndex();
 }
 
+// Display tab
 void SettingsDialog::on_showBoundingBoxCheckBox_stateChanged()
 {
-    // TODO: Handle showBoundingBoxCheckBox::stateChanged(int)
+    display_showBoundingBox = ui->showBoundingBoxCheckBox->isChecked();
 }
 
 void SettingsDialog::on_showCornerTrihedronCheckBox_stateChanged()
 {
-    // TODO: Handle showCornerTrihedronCheckBox::stateChanged(int)
+    display_showCornerTrihedron = ui->showCornerTrihedronCheckBox->isChecked();
 }
 
 void SettingsDialog::on_farPlaneSpinBox_valueChanged()
 {
-    // TODO: Handle farPlaneSpinBox::valueChanged(double)
+    display_farPlane = ui->farPlaneSpinBox->value();
 }
 
 void SettingsDialog::on_fieldOfViewSpinBox_valueChanged()
 {
-    // TODO: Handle fieldOfViewSpinBox::valueChanged(int)
+    display_fieldOfView = ui->fieldOfViewSpinBox->value();
 }
 
 void SettingsDialog::on_showGridCheckBox_stateChanged()
 {
-    // TODO: Handle showGridCheckBox::stateChanged(int)
+    display_showGrid = ui->showGridCheckBox->isChecked();
 }
 
 void SettingsDialog::on_nearPlaneSpinBox_valueChanged()
 {
-    // TODO: Handle nearPlaneSpinBox::valueChanged(double)
+    display_nearPlane = ui->nearPlaneSpinBox->value();
 }
 
 void SettingsDialog::on_showWireframeCheckBox_stateChanged()
 {
-    // TODO: Handle showWireframeCheckBox::stateChanged(int)
+    display_showWireframe = ui->showWireframeCheckBox->isChecked();
 }
 
 void SettingsDialog::on_showCenterTrihedronCheckBox_stateChanged()
 {
-    // TODO: Handle showCenterTrihedronCheckBox::stateChanged(int)
+    display_showCenterTrihedron = ui->showCenterTrihedronCheckBox->isChecked();
 }
 
+// Navigation group
 void SettingsDialog::on_navigationModeComboBox_currentIndexChanged()
 {
-    // TODO: Handle navigationModeComboBox::currentIndexChanged(int)
+    navigation_modeIndex = ui->navigationModeComboBox->currentIndex();
 }
 
 void SettingsDialog::on_mouseSensitivitySlider_valueChanged()
 {
-    // TODO: Handle mouseSensitivitySlider::valueChanged(int)
+    navigation_mouseSensitivity = ui->mouseSensitivitySlider->value();
 }
 
 void SettingsDialog::on_zoomSensitivitySlider_valueChanged()
 {
-    // TODO: Handle zoomSensitivitySlider::valueChanged(int)
+    navigation_zoomSensitivity = ui->zoomSensitivitySlider->value();
 }
 
 void SettingsDialog::on_invertYAxisCheckBox_stateChanged()
 {
-    // TODO: Handle invertYAxisCheckBox::stateChanged(int)
+    navigation_invertYAxis = ui->invertYAxisCheckBox->isChecked();
 }
 
 void SettingsDialog::on_smoothNavigationCheckBox_stateChanged()
 {
-    // TODO: Handle smoothNavigationCheckBox::stateChanged(int)
+    navigation_smoothNavigation = ui->smoothNavigationCheckBox->isChecked();
 }
 
+// Rendering tab
 void SettingsDialog::on_comboShadingMode_currentIndexChanged()
 {
-    // TODO: Handle comboShadingMode::currentIndexChanged(int)
+    rendering_shadingModeIndex = ui->comboShadingMode->currentIndex();
 }
 
 void SettingsDialog::on_checkBackfaceCulling_stateChanged()
 {
-    // TODO: Handle checkBackfaceCulling::stateChanged(int)
+    rendering_backfaceCulling = ui->checkBackfaceCulling->isChecked();
 }
 
 void SettingsDialog::on_checkNormalMap_stateChanged()
 {
-    // TODO: Handle checkNormalMap::stateChanged(int)
+    rendering_normalMap = ui->checkNormalMap->isChecked();
 }
 
 void SettingsDialog::on_shaderModelComboBox_currentIndexChanged()
 {
-    // TODO: Handle shaderModelComboBox::currentIndexChanged(int)
+    rendering_shaderModelIndex = ui->shaderModelComboBox->currentIndex();
 }
 
 void SettingsDialog::on_msaaComboBox_currentIndexChanged()
 {
-    // TODO: Handle msaaComboBox::currentIndexChanged(int)
+    rendering_msaaIndex = ui->msaaComboBox->currentIndex();
 }
 
 void SettingsDialog::on_anisotropyComboBox_currentIndexChanged()
 {
-    // TODO: Handle anisotropyComboBox::currentIndexChanged(int)
+    rendering_anisotropyIndex = ui->anisotropyComboBox->currentIndex();
 }
 
+// Lighting
 void SettingsDialog::on_enableLightingCheckBox_stateChanged()
 {
-    // TODO: Handle enableLightingCheckBox::stateChanged(int)
+    lighting_enableLighting = ui->enableLightingCheckBox->isChecked();
 }
 
 void SettingsDialog::on_enableShadowsCheckBox_stateChanged()
 {
-    // TODO: Handle enableShadowsCheckBox::stateChanged(int)
+    lighting_enableShadows = ui->enableShadowsCheckBox->isChecked();
 }
 
 void SettingsDialog::on_ambientLightSlider_valueChanged()
 {
-    // TODO: Handle ambientLightSlider::valueChanged(int)
+    lighting_ambient = ui->ambientLightSlider->value();
 }
 
 void SettingsDialog::on_diffuseLightSlider_valueChanged()
 {
-    // TODO: Handle diffuseLightSlider::valueChanged(int)
+    lighting_diffuse = ui->diffuseLightSlider->value();
 }
 
 void SettingsDialog::on_specularLightSlider_valueChanged()
 {
-    // TODO: Handle specularLightSlider::valueChanged(int)
+    lighting_specular = ui->specularLightSlider->value();
+}
+
+// Materials
+void SettingsDialog::on_comboBoxDefaultMaterial_currentIndexChanged()
+{
+    materials_defaultMaterialIndex = ui->comboBoxDefaultMaterial->currentIndex();
 }
 
 void SettingsDialog::on_lineEditTextureDir_textChanged()
 {
-    // TODO: Handle lineEditTextureDir::textChanged(QString)
+    materials_textureDir = ui->lineEditTextureDir->text();
 }
 
-void SettingsDialog::on_comboBoxDefaultMaterial_currentIndexChanged()
-{
-    // TODO: Handle comboBoxDefaultMaterial::currentIndexChanged(int)
-}
-
+// UV Generation Tab
 void SettingsDialog::on_comboUVMethod_currentIndexChanged()
 {
-    // TODO: Handle comboUVMethod::currentIndexChanged(int)
+    uv_methodIndex = ui->comboUVMethod->currentIndex();
 }
 
 void SettingsDialog::on_spinAngleThreshold_valueChanged()
 {
-    // TODO: Handle spinAngleThreshold::valueChanged(double)
+    uv_angleThreshold = ui->spinAngleThreshold->value();
 }
 
 void SettingsDialog::on_checkPreserveUVs_stateChanged()
 {
-    // TODO: Handle checkPreserveUVs::stateChanged(int)
+    uv_preserveUVs = ui->checkPreserveUVs->isChecked();
 }
 
 void SettingsDialog::on_checkAutoPackUVs_stateChanged()
 {
-    // TODO: Handle checkAutoPackUVs::stateChanged(int)
+    uv_autoPackUVs = ui->checkAutoPackUVs->isChecked();
 }
 
 void SettingsDialog::on_checkRelaxUVs_stateChanged()
 {
-    // TODO: Handle checkRelaxUVs::stateChanged(int)
+    uv_relaxUVs = ui->checkRelaxUVs->isChecked();
 }
 
 void SettingsDialog::on_checkPCAProjection_stateChanged()
 {
-    // TODO: Handle checkPCAProjection::stateChanged(int)
+    uv_pcaProjection = ui->checkPCAProjection->isChecked();
 }
 
 void SettingsDialog::on_checkXatlasPackingOnly_stateChanged()
 {
-    // TODO: Handle checkXatlasPackingOnly::stateChanged(int)
+    uv_xatlasPackingOnly = ui->checkXatlasPackingOnly->isChecked();
 }
 
 void SettingsDialog::on_checkRememberUV_stateChanged()
 {
-    // TODO: Handle checkRememberUV::stateChanged(int)
+    uv_rememberUV = ui->checkRememberUV->isChecked();
 }
 
 void SettingsDialog::on_buttonResetUVPrompt_clicked()
@@ -846,215 +981,220 @@ void SettingsDialog::on_buttonResetUVPrompt_clicked()
     QMessageBox::information(this, "Settings Reset", "UV Prompt settings have been cleared.");
 }
 
+// Import/Export Tab - OpenCascade
 void SettingsDialog::on_tessellationQualitySlider_valueChanged()
 {
-    // TODO: Handle tessellationQualitySlider::valueChanged(int)
+    import_tessellationQuality = ui->tessellationQualitySlider->value();
 }
 
 void SettingsDialog::on_linearDeflectionSpinBox_valueChanged()
 {
-    // TODO: Handle linearDeflectionSpinBox::valueChanged(double)
+    import_linearDeflection = ui->linearDeflectionSpinBox->value();
 }
 
 void SettingsDialog::on_angularDeflectionSpinBox_valueChanged()
 {
-    // TODO: Handle angularDeflectionSpinBox::valueChanged(double)
+    import_angularDeflection = ui->angularDeflectionSpinBox->value();
 }
 
 void SettingsDialog::on_occtUnifyFacesCheckBox_stateChanged()
 {
-    // TODO: Handle occtUnifyFacesCheckBox::stateChanged(int)
+    import_occtUnifyFaces = ui->occtUnifyFacesCheckBox->isChecked();
 }
 
 void SettingsDialog::on_occtUnifyEdgesCheckBox_stateChanged()
 {
-    // TODO: Handle occtUnifyEdgesCheckBox::stateChanged(int)
+    import_occtUnifyEdges = ui->occtUnifyEdgesCheckBox->isChecked();
 }
 
 void SettingsDialog::on_occtBuildCurvesCheckBox_stateChanged()
 {
-    // TODO: Handle occtBuildCurvesCheckBox::stateChanged(int)
+    import_occtBuildCurves = ui->occtBuildCurvesCheckBox->isChecked();
 }
 
+// Import/Export Tab - Assimp
 void SettingsDialog::on_assimpTriangulateCheckBox_stateChanged()
 {
-    // TODO: Handle assimpTriangulateCheckBox::stateChanged(int)
+    import_assimpTriangulate = ui->assimpTriangulateCheckBox->isChecked();
 }
 
 void SettingsDialog::on_assimpGenNormalsCheckBox_stateChanged()
 {
-    // TODO: Handle assimpGenNormalsCheckBox::stateChanged(int)
+    import_assimpGenNormals = ui->assimpGenNormalsCheckBox->isChecked();
 }
 
 void SettingsDialog::on_assimpSmoothNormalsCheckBox_stateChanged()
 {
-    // TODO: Handle assimpSmoothNormalsCheckBox::stateChanged(int)
+    import_assimpSmoothNormals = ui->assimpSmoothNormalsCheckBox->isChecked();
 }
 
 void SettingsDialog::on_assimpCalcTangentsCheckBox_stateChanged()
 {
-    // TODO: Handle assimpCalcTangentsCheckBox::stateChanged(int)
+    import_assimpCalcTangents = ui->assimpCalcTangentsCheckBox->isChecked();
 }
 
 void SettingsDialog::on_assimpOptimizeMeshCheckBox_stateChanged()
 {
-    // TODO: Handle assimpOptimizeMeshCheckBox::stateChanged(int)
+    import_assimpOptimizeMesh = ui->assimpOptimizeMeshCheckBox->isChecked();
 }
 
 void SettingsDialog::on_assimpRemoveDuplicatesCheckBox_stateChanged()
 {
-    // TODO: Handle assimpRemoveDuplicatesCheckBox::stateChanged(int)
+    import_assimpRemoveDuplicates = ui->assimpRemoveDuplicatesCheckBox->isChecked();
 }
 
 void SettingsDialog::on_assimpMaxFaceVerticesSpinBox_valueChanged()
 {
-    // TODO: Handle assimpMaxFaceVerticesSpinBox::valueChanged(int)
+    import_assimpMaxFaceVertices = ui->assimpMaxFaceVerticesSpinBox->value();
 }
 
+// Performance Tab
 void SettingsDialog::on_checkMultithreadedLoad_stateChanged()
 {
-    // TODO: Handle checkMultithreadedLoad::stateChanged(int)
+    perf_multithreadedLoad = ui->checkMultithreadedLoad->isChecked();
 }
 
 void SettingsDialog::on_spinThreadLimit_valueChanged()
 {
-    // TODO: Handle spinThreadLimit::valueChanged(int)
+    perf_threadLimit = ui->spinThreadLimit->value();
 }
 
 void SettingsDialog::on_checkSkyboxBlending_stateChanged()
 {
-    // TODO: Handle checkSkyboxBlending::stateChanged(int)
+    perf_skyboxBlending = ui->checkSkyboxBlending->isChecked();
 }
 
 void SettingsDialog::on_checkProgressiveLoading_stateChanged()
 {
-    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-	settings.setValue("checkProgressiveLoading", ui->checkProgressiveLoading->isChecked());
+    perf_progressiveLoading = ui->checkProgressiveLoading->isChecked();
 }
 
 void SettingsDialog::on_maxFpsSpinBox_valueChanged()
 {
-    // TODO: Handle maxFpsSpinBox::valueChanged(int)
+    perf_maxFps = ui->maxFpsSpinBox->value();
 }
 
 void SettingsDialog::on_vsyncCheckBox_stateChanged()
 {
-    // TODO: Handle vsyncCheckBox::stateChanged(int)
+    perf_vsync = ui->vsyncCheckBox->isChecked();
 }
 
 void SettingsDialog::on_frustumCullingCheckBox_stateChanged()
 {
-    // TODO: Handle frustumCullingCheckBox::stateChanged(int)
+    perf_frustumCulling = ui->frustumCullingCheckBox->isChecked();
 }
 
 void SettingsDialog::on_backfaceCullingCheckBox_stateChanged()
 {
-    // TODO: Handle backfaceCullingCheckBox::stateChanged(int)
+    perf_backfaceCulling = ui->backfaceCullingCheckBox->isChecked();
 }
 
 void SettingsDialog::on_levelOfDetailCheckBox_stateChanged()
 {
-    // TODO: Handle levelOfDetailCheckBox::stateChanged(int)
+    perf_levelOfDetail = ui->levelOfDetailCheckBox->isChecked();
 }
 
 void SettingsDialog::on_maxVerticesSpinBox_valueChanged()
 {
-    // TODO: Handle maxVerticesSpinBox::valueChanged(int)
+    perf_maxVertices = ui->maxVerticesSpinBox->value();
 }
 
+// Memory management
 void SettingsDialog::on_textureCacheSizeSpinBox_valueChanged()
 {
-    // TODO: Handle textureCacheSizeSpinBox::valueChanged(int)
+    perf_textureCacheSize = ui->textureCacheSizeSpinBox->value();
 }
 
 void SettingsDialog::on_geometryCacheSizeSpinBox_valueChanged()
 {
-    // TODO: Handle geometryCacheSizeSpinBox::valueChanged(int)
+    perf_geometryCacheSize = ui->geometryCacheSizeSpinBox->value();
 }
 
 void SettingsDialog::on_compressTexturesCheckBox_stateChanged()
 {
-    // TODO: Handle compressTexturesCheckBox::stateChanged(int)
+    perf_compressTextures = ui->compressTexturesCheckBox->isChecked();
 }
 
 void SettingsDialog::on_generateMipmapsCheckBox_stateChanged()
 {
-    // TODO: Handle generateMipmapsCheckBox::stateChanged(int)
+    perf_generateMipmaps = ui->generateMipmapsCheckBox->isChecked();
 }
 
+// Advanced Tab
 void SettingsDialog::on_comboBoxOpenGLVersion_currentIndexChanged()
 {
-    // TODO: Handle comboBoxOpenGLVersion::currentIndexChanged(int)
+    advanced_openGLVersionIndex = ui->comboBoxOpenGLVersion->currentIndex();
 }
 
 void SettingsDialog::on_checkBoxVSync_stateChanged()
 {
-    // TODO: Handle checkBoxVSync::stateChanged(int)
-}
-
-void SettingsDialog::on_checkShaderHotReload_stateChanged()
-{
-    // TODO: Handle checkShaderHotReload::stateChanged(int)
-}
-
-void SettingsDialog::on_checkShowFPS_stateChanged()
-{
-    // TODO: Handle checkShowFPS::stateChanged(int)
-}
-
-void SettingsDialog::on_checkLegacyOpenGL_stateChanged()
-{
-    // TODO: Handle checkLegacyOpenGL::stateChanged(int)
+    advanced_vsync = ui->checkBoxVSync->isChecked();
 }
 
 void SettingsDialog::on_spinBoxThreads_valueChanged()
 {
-    // TODO: Handle spinBoxThreads::valueChanged(int)
+    advanced_threads = ui->spinBoxThreads->value();
 }
 
+void SettingsDialog::on_checkShaderHotReload_stateChanged()
+{
+    advanced_shaderHotReload = ui->checkShaderHotReload->isChecked();
+}
+
+void SettingsDialog::on_checkShowFPS_stateChanged()
+{
+    advanced_showFPS = ui->checkShowFPS->isChecked();
+}
+
+void SettingsDialog::on_checkLegacyOpenGL_stateChanged()
+{
+    advanced_legacyOpenGL = ui->checkLegacyOpenGL->isChecked();
+}
+
+// Debug Tab
 void SettingsDialog::on_showFpsCheckBox_stateChanged()
 {
-    // TODO: Handle showFpsCheckBox::stateChanged(int)
+    debug_showFps = ui->showFpsCheckBox->isChecked();
 }
 
 void SettingsDialog::on_showMemoryUsageCheckBox_stateChanged()
 {
-    // TODO: Handle showMemoryUsageCheckBox::stateChanged(int)
+    debug_showMemoryUsage = ui->showMemoryUsageCheckBox->isChecked();
 }
 
 void SettingsDialog::on_showRenderStatsCheckBox_stateChanged()
 {
-    // TODO: Handle showRenderStatsCheckBox::stateChanged(int)
+    debug_showRenderStats = ui->showRenderStatsCheckBox->isChecked();
 }
 
 void SettingsDialog::on_showOpenGLInfoCheckBox_stateChanged()
 {
-    // TODO: Handle showOpenGLInfoCheckBox::stateChanged(int)
+    debug_showOpenGLInfo = ui->showOpenGLInfoCheckBox->isChecked();
 }
 
 void SettingsDialog::on_enableLoggingCheckBox_stateChanged()
 {
-    // TODO: Handle enableLoggingCheckBox::stateChanged(int)
+    debug_enableLogging = ui->enableLoggingCheckBox->isChecked();
 }
 
 void SettingsDialog::on_logLevelComboBox_currentIndexChanged()
 {
-    // TODO: Handle logLevelComboBox::currentIndexChanged(int)
+    debug_logLevelIndex = ui->logLevelComboBox->currentIndex();
 }
 
 void SettingsDialog::on_checkOpenGLErrorsCheckBox_stateChanged()
 {
-    // TODO: Handle checkOpenGLErrorsCheckBox::stateChanged(int)
+    debug_checkOpenGLErrors = ui->checkOpenGLErrorsCheckBox->isChecked();
 }
 
 void SettingsDialog::on_validateShadersCheckBox_stateChanged()
 {
-    // TODO: Handle validateShadersCheckBox::stateChanged(int)
+    debug_validateShaders = ui->validateShadersCheckBox->isChecked();
 }
 
 void SettingsDialog::on_profileRenderingCheckBox_stateChanged()
 {
-    // TODO: Handle profileRenderingCheckBox::stateChanged(int)
+    debug_profileRendering = ui->profileRenderingCheckBox->isChecked();
 }
 
 void SettingsDialog::on_clearCacheButton_clicked()
