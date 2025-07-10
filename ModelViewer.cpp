@@ -534,6 +534,11 @@ QString ModelViewer::getSupportedQtImagesFilter()
 
 void ModelViewer::updateDisplayList()
 {
+	if(_glWidget->getMeshStore().empty())
+	{
+		listWidgetModel->clear();
+		return;
+	}	
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	listWidgetModel->clear();
 	std::vector<TriangleMesh*> store = _glWidget->getMeshStore();
@@ -2013,7 +2018,7 @@ bool ModelViewer::loadFile(const QString& fileName)
 		success = _glWidget->loadAssImpModel(fileName, method, errMsg, _progressiveLoadingEnabled);
 	}
 
-	if (success)
+	if (success && !_glWidget->getMeshStore().empty())
 	{
 		updateDisplayList();
 

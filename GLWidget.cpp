@@ -1308,7 +1308,11 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		// If user cancels the loading, we still need to set the success to true
 		// Store the connection to specifically disconnect the lambda later
 		QMetaObject::Connection connection = connect(this, &GLWidget::loadingAssImpModelCancelled, this, [this, &success, &error]() {
-			success = true; // set success to true to avoid blocking the UI
+			if (_meshStore.size() > 0)			
+				success = true; // set success to true to avoid blocking the UI			
+			else 			
+				success = false; // if no meshes were loaded, set success to false
+			
 			error = "Model loading cancelled by user.";
 			});
 		
