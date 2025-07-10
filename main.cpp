@@ -7,6 +7,8 @@
 #include "ModelViewerApplication.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
+#include "ThemeManager.h"
+
 #include <iostream>
 #include <string>
 #include <sstream>
@@ -34,6 +36,11 @@ int main(int argc, char** argv)
 	QCoreApplication::setApplicationVersion(version);
 
 	ModelViewerApplication app(argc, argv);
+
+	// Set the application theme based on user settings
+	QSettings themeSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	int iVal = themeSettings.value("comboBoxTheme", 0).toInt();
+	(new ThemeManager(&app))->setTheme(static_cast<ThemeManager::Theme>(iVal));
 
 #if QT_VERSION_MAJOR == 6
 	// Disable allocation limit for images
