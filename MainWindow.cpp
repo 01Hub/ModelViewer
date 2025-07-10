@@ -34,9 +34,7 @@ MainWindow::MainWindow(QWidget* parent)
 	QSettings themeSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	int iVal = themeSettings.value("comboBoxTheme", 0).toInt();
 	(new ThemeManager(this))->setTheme(static_cast<ThemeManager::Theme>(iVal));
-
-	_mainWindow = this;
-
+	
 	QMenu* fileMenu = ui->menuFile;
 	QAction* exitAct = ui->actionExit;
 	recentFileSeparator = fileMenu->insertSeparator(exitAct);
