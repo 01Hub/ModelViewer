@@ -537,7 +537,7 @@ void AssImpModelLoader::traverseXCAFAssembly(
 	std::vector<Quantity_Color>& outColors,
 	std::vector<std::string>& outNames)
 {
-	// 1) Assembly?  Recurse its components (cycle‐safe)
+	// 1) Assembly?  Recurse its components (cycle-safe)
 	if (shapeTool->IsAssembly(label))
 	{
 		TDF_LabelSequence comps;
@@ -566,7 +566,7 @@ void AssImpModelLoader::traverseXCAFAssembly(
 	// 4) If that definition is *also* an assembly, dive in (so we don't name a sub-assembly as if it were a leaf)
 	if (shapeTool->IsAssembly(defLabel))
 	{
-		// an instance of an assembly—recurse into its real children
+		// an instance of an assemblyrecurse into its real children
 		TDF_LabelSequence comps;
 		shapeTool->GetComponents(defLabel, comps);
 		for (Standard_Integer i = 1; i <= comps.Length(); ++i)
@@ -576,7 +576,7 @@ void AssImpModelLoader::traverseXCAFAssembly(
 		return;
 	}
 
-	// 5) Now defLabel must be a true leaf part definition—grab its shape
+	// 5) Now defLabel must be a true leaf part definition-grab its shape
 	TopoDS_Shape shape = shapeTool->GetShape(defLabel);
 	if (shape.IsNull()) return;
 

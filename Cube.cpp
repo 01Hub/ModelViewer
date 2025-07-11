@@ -42,13 +42,13 @@ void Cube::setSize(const float& size)
 		 -side,  side, -side,
 		 -side,  side,  side,
 
-		 // Top (+Y) — skybox posy.jpg
+		 // Top (+Y) - skybox posy.jpg
 		 -side,  side, -side,
 		  side,  side, -side,
 		  side,  side,  side,
 		 -side,  side,  side,
 
-		 // Bottom (-Y) — skybox negy.jpg
+		 // Bottom (-Y) - skybox negy.jpg
 		 -side, -side,  side,
 		  side, -side,  side,
 		  side, -side, -side,

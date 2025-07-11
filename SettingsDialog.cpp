@@ -224,7 +224,7 @@ void SettingsDialog::setDefaultValues()
     // Background tab
     ui->comboBoxBackgroundStyle->setCurrentIndex(0);   // "Gradient"
     ui->comboBoxGradientStyle->setCurrentIndex(0);     // "Vertical"
-    // pushButtonTopColor and pushButtonBottomColor do not store actual color values — handled elsewhere.
+    // pushButtonTopColor and pushButtonBottomColor do not store actual color values - handled elsewhere.
 
     // Display tab
     ui->showBoundingBoxCheckBox->setChecked(false);    // No 'checked' property found

@@ -83,7 +83,7 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 			{
 				aiMesh* mesh = meshList[m];
 
-				// 🛠 Correct the material index!
+				// Correct the material index!
 				mesh->mMaterialIndex = materialBase; // (use the newly appended material)
 
 				aiMaterial* material = materialList[materialBase];

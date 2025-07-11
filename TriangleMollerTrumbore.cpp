@@ -11,7 +11,7 @@ TriangleMollerTrumbore::~TriangleMollerTrumbore()
 
 bool TriangleMollerTrumbore::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
 {
-	// Möller–Trumbore intersection algorithm
+	// Mller-Trumbore intersection algorithm
 	// https://en.wikipedia.org/wiki/M%C3%B6ller%E2%80%93Trumbore_intersection_algorithm
 	const float EPSILON = 0.0000001f;
 	QVector3D edge1, edge2, h, s, q;
