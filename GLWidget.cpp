@@ -1285,25 +1285,19 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		
 
 		// connect AssimpModelLoader meshProcessed signal to addToDisplay slot
-		connect(_assimpModelLoader, &AssImpModelLoader::meshProcessed, this, &GLWidget::onMeshLoaded, Qt::QueuedConnection);
+		connect(_assimpModelLoader, &AssImpModelLoader::meshBatchReady, this, &GLWidget::onMeshBatchReady, Qt::DirectConnection);
 
 		// connect AssimpModelLoader loadingFinshed signal to a lambda sets the success value to true
 		connect(_assimpModelLoader, &AssImpModelLoader::loadingFinished,
 			this, [this, &success, &error](bool successFlag, const aiScene* scene) {
-				if (!_pendingMeshes.empty())
-				{
-					updateDisplayWithPendingMeshes();
-					_pendingMeshes.clear();
-				}
+				//finalizeLoading();				
 				success = successFlag;
 				if (!successFlag)
 				{
 					error = _assimpModelLoader->getErrorMessage();
 				}
 				else
-				{
-					// You can now use `scene` here
-					qDebug() << "Scene loaded:" << scene;
+				{	
 					// nullify the assimp scene pointer to avoid memory leaks
 					_assimpModelLoader->freeScene(); // Free previous scene if exists
 					scene = nullptr;					
@@ -1339,11 +1333,10 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 				for (AssImpMesh* mesh : meshes)
 					addToDisplay(mesh);
 			}
-		}		
+		}
 
-
-		// Disconnect the signals to avoid repeated calls
-		disconnect(_assimpModelLoader, &AssImpModelLoader::meshProcessed, this, &GLWidget::addToDisplay);
+		// Disconnect the signals to avoid repeated calls		
+		disconnect(_assimpModelLoader, &AssImpModelLoader::meshBatchReady, this, &GLWidget::onMeshBatchReady);
 		disconnect(_assimpModelLoader, &AssImpModelLoader::loadingFinished, this, nullptr);
 
 		// Disconnect the loadingAssImpModelCancelled with the lambda
@@ -1391,23 +1384,6 @@ void GLWidget::cancelAssImpModelLoading()
 {
 	emit loadingAssImpModelCancelled();	
 	QMessageBox::critical(this, "Cancelled", "Model loading cancelled!\nModel may be loaded partially");
-}
-
-void GLWidget::onMeshLoaded(AssImpMesh* mesh, int meshIndex, int totalCount)
-{
-	_pendingMeshes.emplace_back(mesh);
-
-	const int batchSize = 20;
-
-	// Flush if we've hit a batch, or it's the final mesh
-	bool isBatchFull = (_pendingMeshes.size() >= batchSize);
-	bool isLastMesh = (meshIndex >= totalCount - 1); // <= FIX: includes totalCount == 1
-
-	if (isBatchFull || isLastMesh)
-	{
-		updateDisplayWithPendingMeshes();
-		_pendingMeshes.clear();
-	}
 }
 
 void GLWidget::enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable)
@@ -3735,17 +3711,14 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
 }
 
-void GLWidget::updateDisplayWithPendingMeshes()
+
+void GLWidget::onMeshBatchReady(const std::vector<AssImpMesh*>& batch)
 {
-	qDebug() << "Updating display with" << _pendingMeshes.size() << "meshes";
-
-	for (AssImpMesh* mesh : _pendingMeshes)
+	for (AssImpMesh* mesh : batch)
 	{
-		addToDisplay(mesh);
-		_viewer->updateDisplayList();
-	}
-
-	update(); 
+		addToDisplay(mesh);				
+	}	
+	_viewer->updateDisplayList();
 }
 
 void GLWidget::checkAndStopTimers()

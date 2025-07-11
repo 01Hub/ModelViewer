@@ -132,9 +132,10 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		}
 	}
 
+	SceneMeshInfo stats = collectSceneMeshInfo(_scene);
+
 	if (modelHasMissingUVs)
-	{
-		SceneMeshInfo stats = collectSceneMeshInfo(_scene);						
+	{								
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());				
 		bool remember = settings.value("RememberUVMethod", false).toBool();		
 		if (stats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV && remember)
@@ -176,8 +177,22 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	// Retrieve the directory path of the filepath
 	this->_texturePath = path.substr(0, path.find_last_of('/'));
 
+	// Set batch size based on number of meshes;
+	_batchSize = stats.meshCount / 10;
+	qDebug() << "Batch size = " << _batchSize;
+
 	// Process ASSIMP's root node recursively
-	this->processNode(0, _scene->mRootNode, _scene);
+	int nodeNum = 0;
+	this->processNode(nodeNum, _scene->mRootNode, _scene);
+
+	// Flush any remaining meshes in batch
+	if (!_currentBatch.empty())
+	{
+		emit meshBatchReady(std::move(_currentBatch));
+		_currentBatch.clear();
+	}
+
+	//emit nodeProcessed(nodeNum, _scene->mNumMeshes);
 
 	if (_progressiveLoading)
 		emit loadingFinished(true, _scene);
@@ -634,24 +649,33 @@ bool AssImpModelLoader::GetShapeColorFromShape(
 }
 
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
-void AssImpModelLoader::processNode(int nodeNum, aiNode* node, const aiScene* scene)
+void AssImpModelLoader::processNode(int& nodeCounter, aiNode* node, const aiScene* scene)
 {
 	if (_loadingCancelled)
 	{
 		emit loadingCancelled();
 		return;
 	}
-	// Process each mesh located at the current node
+
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
-		// The node object only contains indices to index the actual objects in the scene.
-		// The scene contains all the data, node is just to keep stuff organized (like relations between nodes).
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
+		AssImpMesh* myMesh = processMesh(mesh, scene, i, scene->mNumMeshes);
 
-		this->_meshes.push_back(this->processMesh(mesh, scene, i, scene->mNumMeshes));
+		_meshes.push_back(myMesh);            // full mesh store
+
+
+		if (_progressiveLoading)
+		{
+			_currentBatch.push_back(myMesh);      // batch collection
+			if (_currentBatch.size() >= _batchSize)
+			{
+				emit meshBatchReady(std::move(_currentBatch));
+				_currentBatch.clear();
+			}
+		}
 	}
 
-	// After we've processed all of the meshes (if any) we then recursively process each of the children nodes
 	for (unsigned int i = 0; i < node->mNumChildren; i++)
 	{
 		if (_loadingCancelled)
@@ -659,10 +683,17 @@ void AssImpModelLoader::processNode(int nodeNum, aiNode* node, const aiScene* sc
 			emit loadingCancelled();
 			return;
 		}
-		this->processNode(++nodeNum, node->mChildren[i], scene);
-		emit nodeProcessed(nodeNum, node->mNumChildren);
+
+		++nodeCounter;
+		processNode(nodeCounter, node->mChildren[i], scene);
+
+		if (nodeCounter % 20 == 0)
+		{
+			emit nodeProcessed(nodeCounter, node->mNumChildren);
+		}
 	}
 }
+
 
 
 AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes)
@@ -857,9 +888,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
 	}
 	
-	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);
-	if(_progressiveLoading)
-		emit meshProcessed(newMesh, meshIndex, totalMeshes);
+	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
 	return newMesh;
 }
 
