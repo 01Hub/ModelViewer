@@ -178,7 +178,8 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	this->_texturePath = path.substr(0, path.find_last_of('/'));
 
 	// Set batch size based on number of meshes;
-	_batchSize = stats.meshCount / 10;
+	int batchSize = std::clamp(stats.meshCount / 10, 5, 100);
+	_batchSize = batchSize;
 	qDebug() << "Batch size = " << _batchSize;
 
 	// Process ASSIMP's root node recursively
