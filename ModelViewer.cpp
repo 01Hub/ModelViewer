@@ -558,15 +558,7 @@ void ModelViewer::updateDisplayList()
 		listWidgetModel->addItem(item);
 		id++;
 	}
-	
-	if(!_progressiveLoadingEnabled)
-		_glWidget->fitAll();
 
-	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
-	sliderLightPosX->setRange(-range, range);
-	sliderLightPosY->setRange(-range, range);
-	sliderLightPosZ->setRange(-range / 3, range / 2);
-	sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
 	QApplication::restoreOverrideCursor();
 
 	listWidgetModel->blockSignals(oldState);
