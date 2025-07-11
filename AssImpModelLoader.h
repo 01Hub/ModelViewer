@@ -99,7 +99,7 @@ signals:
 	void fileReadProcessed(float percent);
 	void verticesProcessed(float percent);
 	void nodeProcessed(int nodeNum, int totalNodes);
-	void meshProcessed(AssImpMesh*);
+	void meshProcessed(AssImpMesh* mesh, const int& meshIndex, const int& totalMeshes);
 	void loadingFinished(bool successFlag, const aiScene* scene);
 	void loadingCancelled();
 
@@ -132,7 +132,7 @@ private:
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene);
 
-	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene);
+	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes);
 
 	static SceneMeshInfo collectSceneMeshInfo(const aiScene* scene);
 	

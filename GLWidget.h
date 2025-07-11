@@ -272,12 +272,13 @@ public slots:
 	void showModelLoadingProgress(int nodeNum, int totalNodes);
 	void swapVisible(bool checked);
 	void cancelAssImpModelLoading();
+	void onMeshLoaded(AssImpMesh* mesh, int meshIndex, int totalCount);
 
 private slots:
 	void showContextMenu(const QPoint& pos);
 	void centerDisplayList();
 	void setBackgroundColor();
-
+	
 protected:
 	void initializeGL();
 	void createCappingPlanes();
@@ -349,6 +350,8 @@ private:
 	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
 	unsigned int loadTextureFromFile(const char* path);
 	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
+
+	void updateDisplayWithPendingMeshes();
 
 private:
 	QSet<int> _keys;
@@ -588,6 +591,7 @@ private:
 
     AssImpModelLoader* _assimpModelLoader;	
 	bool _progressiveLoadingEnabled = false;
+	std::vector<AssImpMesh*> _pendingMeshes;
 };
 
 #endif

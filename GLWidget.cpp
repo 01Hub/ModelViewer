@@ -1180,8 +1180,8 @@ void GLWidget::addToDisplay(TriangleMesh* mesh)
 	_meshStore.push_back(mesh);
 	_displayedObjectsIds.push_back(static_cast<int>(_meshStore.size() - 1));
 
-	if(_progressiveLoadingEnabled)
-		_viewer->updateDisplayList();	
+	//if(_progressiveLoadingEnabled)
+		//_viewer->updateDisplayList();	
 }
 
 void GLWidget::removeFromDisplay(int index)
@@ -1285,11 +1285,16 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		
 
 		// connect AssimpModelLoader meshProcessed signal to addToDisplay slot
-		connect(_assimpModelLoader, &AssImpModelLoader::meshProcessed, this, &GLWidget::addToDisplay);
+		connect(_assimpModelLoader, &AssImpModelLoader::meshProcessed, this, &GLWidget::onMeshLoaded, Qt::QueuedConnection);
 
 		// connect AssimpModelLoader loadingFinshed signal to a lambda sets the success value to true
 		connect(_assimpModelLoader, &AssImpModelLoader::loadingFinished,
 			this, [this, &success, &error](bool successFlag, const aiScene* scene) {
+				if (!_pendingMeshes.empty())
+				{
+					updateDisplayWithPendingMeshes();
+					_pendingMeshes.clear();
+				}
 				success = successFlag;
 				if (!successFlag)
 				{
@@ -1386,6 +1391,23 @@ void GLWidget::cancelAssImpModelLoading()
 {
 	emit loadingAssImpModelCancelled();	
 	QMessageBox::critical(this, "Cancelled", "Model loading cancelled!\nModel may be loaded partially");
+}
+
+void GLWidget::onMeshLoaded(AssImpMesh* mesh, int meshIndex, int totalCount)
+{
+	_pendingMeshes.emplace_back(mesh);
+
+	const int batchSize = 20;
+
+	// Flush if we've hit a batch, or it's the final mesh
+	bool isBatchFull = (_pendingMeshes.size() >= batchSize);
+	bool isLastMesh = (meshIndex >= totalCount - 1); // <= FIX: includes totalCount == 1
+
+	if (isBatchFull || isLastMesh)
+	{
+		updateDisplayWithPendingMeshes();
+		_pendingMeshes.clear();
+	}
 }
 
 void GLWidget::enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable)
@@ -3711,6 +3733,19 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 		(_clipZFlipped ? 1 : -1) * (pos.z() - _clipZCoeff)));
 	prog->setUniformValue("clipPlane", QVector4D(_modelViewMatrix.map(QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
 		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+}
+
+void GLWidget::updateDisplayWithPendingMeshes()
+{
+	qDebug() << "Updating display with" << _pendingMeshes.size() << "meshes";
+
+	for (AssImpMesh* mesh : _pendingMeshes)
+	{
+		addToDisplay(mesh);
+		_viewer->updateDisplayList();
+	}
+
+	update(); 
 }
 
 void GLWidget::checkAndStopTimers()

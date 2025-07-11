@@ -648,7 +648,7 @@ void AssImpModelLoader::processNode(int nodeNum, aiNode* node, const aiScene* sc
 		// The scene contains all the data, node is just to keep stuff organized (like relations between nodes).
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
 
-		this->_meshes.push_back(this->processMesh(mesh, scene));
+		this->_meshes.push_back(this->processMesh(mesh, scene, i, scene->mNumMeshes));
 	}
 
 	// After we've processed all of the meshes (if any) we then recursively process each of the children nodes
@@ -665,7 +665,7 @@ void AssImpModelLoader::processNode(int nodeNum, aiNode* node, const aiScene* sc
 }
 
 
-AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
+AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes)
 {
 	// Data to fill
 	vector<Vertex> vertices;
@@ -859,7 +859,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene)
 	
 	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);
 	if(_progressiveLoading)
-		emit meshProcessed(newMesh);
+		emit meshProcessed(newMesh, meshIndex, totalMeshes);
 	return newMesh;
 }
 
