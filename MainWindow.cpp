@@ -33,7 +33,11 @@ MainWindow::MainWindow(QWidget* parent)
 	// Set the application theme based on user settings
 	QSettings themeSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	int iVal = themeSettings.value("comboBoxTheme", 0).toInt();
-	(new ThemeManager(this))->setTheme(static_cast<ThemeManager::Theme>(iVal));
+
+	ThemeManager* themeManager = new ThemeManager(this);
+	themeManager->setTheme(static_cast<ThemeManager::Theme>(iVal));
+
+	connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, themeManager, &ThemeManager::applyThemeForColorScheme);
 	
 	QMenu* fileMenu = ui->menuFile;
 	QAction* exitAct = ui->actionExit;

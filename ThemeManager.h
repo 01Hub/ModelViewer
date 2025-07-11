@@ -25,6 +25,8 @@ public:
 
     void setTheme(Theme theme);
     Theme currentTheme() const { return m_currentTheme; }
+
+    void applyThemeForColorScheme(Qt::ColorScheme scheme);
         
 signals:
     void themeChanged(Theme theme);
@@ -34,7 +36,7 @@ private:
     void applySystemAwareTheme();
     void applyLightTheme();
     void applyDarkTheme();
-    bool isSystemInDarkMode() const;
+    bool isSystemInDarkMode() const;    
 
     QPalette getLightPalette() const;
     QPalette getDarkPalette() const;

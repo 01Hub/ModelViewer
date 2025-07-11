@@ -1,4 +1,9 @@
 #include "ThemeManager.h"
+#include <QGuiApplication>
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+#include <QStyleHints>
+#endif
 
 // Implementation
 ThemeManager::ThemeManager(QObject* parent)
@@ -6,7 +11,7 @@ ThemeManager::ThemeManager(QObject* parent)
     , m_currentTheme(System)
     , m_settings(new QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName(), this))
 {
-    
+   
 }
 
 void ThemeManager::setTheme(Theme theme)
@@ -155,21 +160,44 @@ void ThemeManager::applyDarkTheme()
 
 bool ThemeManager::isSystemInDarkMode() const
 {
-#if defined(Q_OS_WIN)
-QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
-    QSettings::NativeFormat);
-return settings.value("AppsUseLightTheme", 1).toInt() == 0;
-#elif defined(Q_OS_MACOS)
-    // macOS system appearance detection via Objective-C bridge
-    return QSysInfo::productVersion().startsWith("10.14") || QSysInfo::productVersion() > "10.14";
-#elif defined(Q_OS_LINUX)
-    // Basic fallback, more robust check requires DBus or gsettings
-    QByteArray desktop = qgetenv("XDG_CURRENT_DESKTOP");
-    QByteArray theme = qgetenv("GTK_THEME");
-    return desktop.contains("GNOME") && theme.contains("dark");
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+	return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
 #else
-    return false; // Default to light
+#if defined(Q_OS_WIN)
+	QSettings settings("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize",
+		QSettings::NativeFormat);
+	return settings.value("AppsUseLightTheme", 1).toInt() == 0;
+#elif defined(Q_OS_MACOS)
+	// macOS system appearance detection via Objective-C bridge
+	return QSysInfo::productVersion().startsWith("10.14") || QSysInfo::productVersion() > "10.14";
+#elif defined(Q_OS_LINUX)
+	// Basic fallback, more robust check requires DBus or gsettings
+	QByteArray desktop = qgetenv("XDG_CURRENT_DESKTOP");
+	QByteArray theme = qgetenv("GTK_THEME");
+	return desktop.contains("GNOME") && theme.contains("dark");
+#else
+	return false; // Default to light
 #endif
+#endif
+}
+
+void ThemeManager::applyThemeForColorScheme(Qt::ColorScheme scheme)
+{
+    if (QApplication::style()->objectName().toLower() != "fusion")
+    {
+        QApplication::setStyle(QStyleFactory::create("Fusion"));
+    }
+
+    if (scheme == Qt::ColorScheme::Dark)
+    {
+        applyDarkTheme();
+    }
+    else
+    {
+        applyLightTheme();
+    }
+
+    qDebug() << "Applied" << (scheme == Qt::ColorScheme::Dark ? "Dark" : "Light") << "theme";
 }
 
 QPalette ThemeManager::getLightPalette() const
