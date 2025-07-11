@@ -62,6 +62,7 @@ _assimpModelLoader(nullptr)
 	_currentViewRange = 1.0f;
 	_viewMode = ViewMode::ISOMETRIC;
 	_projection = ViewProjection::ORTHOGRAPHIC;
+	_previousProjection = GLCamera::ProjectionType::ORTHOGRAPHIC;
 
 	_autoFitViewOnUpdate = true;
 
@@ -412,11 +413,11 @@ void GLWidget::resizeGL(int width, int height)
 	_primaryCamera->setViewRange(_viewRange);
 	if (_projection == ViewProjection::ORTHOGRAPHIC)
 	{
-		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
+		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);		
 	}
 	else
 	{
-		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
+		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);		
 	}
 	_projectionMatrix = _primaryCamera->getProjectionMatrix();
 	_viewMatrix = _primaryCamera->getViewMatrix();
@@ -902,8 +903,29 @@ void GLWidget::performWindowZoom()
 
 void GLWidget::setProjection(ViewProjection proj)
 {
-	_projection = proj;
+	_projection = proj;	
 	resizeGL(width(), height());
+}
+
+void GLWidget::setCameraMode(GLCamera::CameraMode mode)
+{
+	if (mode == GLCamera::CameraMode::Fly || mode == GLCamera::CameraMode::FirstPerson)
+	{
+		if (_primaryCamera->getProjectionType() != GLCamera::ProjectionType::PERSPECTIVE)
+		{
+			_previousProjection = GLCamera::ProjectionType::ORTHOGRAPHIC;			
+			setProjection(ViewProjection::PERSPECTIVE);
+		}
+	}
+	else if (mode == GLCamera::CameraMode::Orbit)
+	{		
+		setProjection(_previousProjection == GLCamera::ProjectionType::PERSPECTIVE ? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC);
+	}
+
+	_primaryCamera->setMode(mode);
+
+	resizeGL(width(), height());
+	update();
 }
 
 void GLWidget::setRotationActive(bool active)
@@ -3914,8 +3936,25 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 				_lowResEnabled = true;
 			QPoint rotate = _leftButtonPoint - downPoint;
 
-			_primaryCamera->rotateX(rotate.y() / 2.0);
-			_primaryCamera->rotateY(rotate.x() / 2.0);
+			if (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+			{
+				_primaryCamera->rotateX(rotate.y() / 2.0);
+				_primaryCamera->rotateY(rotate.x() / 2.0);
+			}
+			else if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly || _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+			{
+				_primaryCamera->getYaw() += rotate.x() * 0.2f;
+				_primaryCamera->getPitch() += rotate.y() * 0.2f;
+
+				if (_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+					_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -60.0f, 60.0f);
+				else
+					_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -89.0f, 89.0f);
+
+				_primaryCamera->updateFlyView();
+			}
+
+
 			_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
 			_leftButtonPoint = downPoint;
 			setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
@@ -4088,6 +4127,12 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 	else
 		_keys.insert(key);
 
+	// Camera mode switching
+	if (key == Qt::Key_1) setCameraMode(GLCamera::CameraMode::Orbit);
+	if (key == Qt::Key_2) setCameraMode(GLCamera::CameraMode::Fly);
+	if (key == Qt::Key_3) setCameraMode(GLCamera::CameraMode::FirstPerson);
+
+
 	update();
 }
 
@@ -4103,19 +4148,28 @@ void GLWidget::performKeyboardNav()
 	{
 		float factor = _viewRange * 0.01f;
 		// https://forum.qt.io/topic/28327/big-issue-with-qt-key-inputs-for-gaming/4
-		if (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::PERSPECTIVE)
+		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly || _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
 		{
+			if (_keys.contains(Qt::Key_W))
+				_primaryCamera->moveForward(factor);
+			if (_keys.contains(Qt::Key_S))
+				_primaryCamera->moveForward(-factor);
 			if (_keys.contains(Qt::Key_A))
 				_primaryCamera->moveAcross(factor);
 			if (_keys.contains(Qt::Key_D))
 				_primaryCamera->moveAcross(-factor);
-			if (_keys.contains(Qt::Key_W))
-				_primaryCamera->moveForward(-factor);
-			if (_keys.contains(Qt::Key_S))
-				_primaryCamera->moveForward(factor);
+
+			if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly)
+			{
+				if (_keys.contains(Qt::Key_Q))
+					_primaryCamera->moveUpward(-factor);
+				if (_keys.contains(Qt::Key_E))
+					_primaryCamera->moveUpward(factor);
+			}
 		}
 		else
 		{
+			// Use Orbit-style orthographic nav (as before)
 			if (_keys.contains(Qt::Key_A))
 				_primaryCamera->moveAcross(factor);
 			if (_keys.contains(Qt::Key_D))
@@ -4138,25 +4192,28 @@ void GLWidget::performKeyboardNav()
 			_primaryCamera->rotateZ(2.0f);
 		if (_keys.contains(Qt::Key_N))
 			_primaryCamera->rotateZ(-2.0f);
-		if (_keys.contains(Qt::Key_Q) || _keys.contains(Qt::Key_Z))
+		if (_keys.contains(Qt::Key_X) || _keys.contains(Qt::Key_Z))
 		{
-			// Zoom
-			if (_keys.contains(Qt::Key_Q))
-				_viewRange /= 1.05f;
-			else
-				_viewRange *= 1.05f;
-			if (_viewRange < _boundingSphere.getRadius() / 100.0f)
-				_viewRange = _boundingSphere.getRadius() / 100.0f;
-			if (_viewRange > _boundingSphere.getRadius() * 100.0f)
-				_viewRange = _boundingSphere.getRadius() * 100.0f;
-			// Translate to focus on mouse center
-			QPoint pos = mapFromGlobal(QCursor::pos());
-			QPoint cen = getClientRectFromPoint(pos).center();
-			float sign = (pos.x() > cen.x() || pos.y() < cen.y() ||
-				(pos.x() < cen.x() && pos.y() > cen.y())) && _keys.contains(Qt::Key_Q) ? 1.0f : -1.0f;
-			QVector3D OP = get3dTranslationVectorFromMousePoints(cen, pos);
-            OP *= sign * 0.05f;
-			_primaryCamera->move(OP.x(), OP.y(), OP.z());
+			if(_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+			{
+				// Zoom only if Orbit camera mode
+				if (_keys.contains(Qt::Key_X))
+					_viewRange /= 1.05f;
+				else
+					_viewRange *= 1.05f;
+				if (_viewRange < _boundingSphere.getRadius() / 100.0f)
+					_viewRange = _boundingSphere.getRadius() / 100.0f;
+				if (_viewRange > _boundingSphere.getRadius() * 100.0f)
+					_viewRange = _boundingSphere.getRadius() * 100.0f;
+				// Translate to focus on mouse center
+				QPoint pos = mapFromGlobal(QCursor::pos());
+				QPoint cen = getClientRectFromPoint(pos).center();
+				float sign = (pos.x() > cen.x() || pos.y() < cen.y() ||
+					(pos.x() < cen.x() && pos.y() > cen.y())) && _keys.contains(Qt::Key_Q) ? 1.0f : -1.0f;
+				QVector3D OP = get3dTranslationVectorFromMousePoints(cen, pos);
+				OP *= sign * 0.05f;
+				_primaryCamera->move(OP.x(), OP.y(), OP.z());
+			}
 		}
 
 		_currentViewRange = _viewRange;

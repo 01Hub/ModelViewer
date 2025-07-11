@@ -19,6 +19,7 @@
 GLCamera::GLCamera() : _width(100.0f), _height(50.0f), _viewRange(200.0f), _FOV(45.0f)
 {
 	_projectionType = ProjectionType::ORTHOGRAPHIC;
+	_previousProjection = _projectionType;
 	_viewProj = ViewProjection::SE_ISOMETRIC_VIEW;
 	resetAll();
 }
@@ -230,7 +231,7 @@ void GLCamera::move(float iDX, float iDY, float iDZ)
 
 void GLCamera::moveForward(float iDist)
 {
-	_position = _position + (_viewDir * -iDist);
+	_position = _position + (_viewDir * iDist);
 	updateViewMatrix();
 }
 
@@ -369,6 +370,24 @@ void GLCamera::setPosition(QVector3D pos)
 	setPosition(pos.x(), pos.y(), pos.z());
 }
 
+void GLCamera::updateFlyView()
+{
+	float yawRad = qDegreesToRadians(_yaw);
+	float pitchRad = qDegreesToRadians(_pitch);
+
+	_viewDir = QVector3D(
+		cos(pitchRad) * cos(yawRad),
+		sin(pitchRad),
+		cos(pitchRad) * sin(yawRad)
+	).normalized();
+
+	_rightVector = QVector3D::crossProduct(_viewDir, QVector3D(0, 1, 0)).normalized();
+	_upVector = QVector3D::crossProduct(_rightVector, _viewDir).normalized();
+
+	updateViewMatrix();
+}
+
+
 void GLCamera::getRotationAngles(float* oPitch, float* oYaw, float* oRoll)
 {
 	QQuaternion quat = QQuaternion::fromRotationMatrix(_viewMatrix.toGenericMatrix<3, 3>());
@@ -377,6 +396,48 @@ void GLCamera::getRotationAngles(float* oPitch, float* oYaw, float* oRoll)
 	*oYaw = euler.z();
 	*oRoll = euler.x();
 }
+
+void GLCamera::setMode(CameraMode mode)
+{
+	
+	if (_cameraMode == CameraMode::Orbit &&
+		(mode == CameraMode::Fly || mode == CameraMode::FirstPerson))
+	{
+		setYawPitchFromViewDir();
+	}	
+
+	_cameraMode = mode;
+
+	if (mode == CameraMode::Fly || mode == CameraMode::FirstPerson)
+	{
+		_pitch = std::clamp(_pitch, -89.0f, 89.0f);
+		updateFlyView();  // realign camera
+	}
+}
+
+void GLCamera::setYawPitchFromViewDir()
+{
+	QVector3D dir = _viewDir.normalized();
+
+	// Prevent invalid asin domain due to float imprecision
+	float y = std::clamp(dir.y(), -1.0f, 1.0f);
+
+	_yaw = qRadiansToDegrees(std::atan2(dir.z(), dir.x()));
+	_pitch = qRadiansToDegrees(std::asin(y));
+
+	// Optional: Snap to CAD axis-aligned directions
+	const float snapThreshold = 0.001f;
+
+	if (qAbs(dir.x()) < snapThreshold && qAbs(dir.z()) < snapThreshold)
+		_yaw = 0.0f; // default to forward
+
+	if (qAbs(dir.y() - 1.0f) < snapThreshold) _pitch = 89.9f;
+	else if (qAbs(dir.y() + 1.0f) < snapThreshold) _pitch = -89.9f;
+
+	_pitch = std::clamp(_pitch, -89.0f, 89.0f);
+}
+
+
 
 void GLCamera::setViewMatrix(QMatrix4x4 mat)
 {

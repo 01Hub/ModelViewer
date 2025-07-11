@@ -44,6 +44,7 @@ public:
 	void resizeView(int w, int h) { resizeGL(w, h); }
 	void setViewMode(ViewMode mode);
 	void setProjection(ViewProjection proj);
+	void setCameraMode(GLCamera::CameraMode mode);
 
 	void setMultiView(bool active) { _multiViewActive = active; }
 	void setRotationActive(bool active);
@@ -550,6 +551,7 @@ private:
 
 	ViewMode _viewMode;
 	ViewProjection _projection;
+	GLCamera::ProjectionType _previousProjection;
 
 	GLCamera* _primaryCamera;
 	GLCamera* _orthoViewsCamera;

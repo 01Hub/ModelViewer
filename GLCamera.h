@@ -79,6 +79,13 @@ public:
 		PERSPECTIVE = (ORTHOGRAPHIC + 1)
 	};
 
+	enum class CameraMode
+	{
+		Orbit,
+		Fly,
+		FirstPerson
+	};
+
 	GLCamera();
 	GLCamera(float width, float height, float range, float fov);
 
@@ -107,6 +114,9 @@ public:
 	void rotateZ(float iAngle);
 	float getRotatedZ() const { return _rotatedZ; }
 
+	float& getYaw()   { return _yaw; }
+	float& getPitch() { return _pitch; }
+
 	void move(float iDX, float iDY, float iDZ);
 	void moveForward(float iDist);
 	void moveUpward(float iDist);
@@ -117,6 +127,8 @@ public:
 	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
 	void setPosition(float iX, float iY, float iZ);
 	void setPosition(QVector3D pos);
+
+	void updateFlyView();
 
 	QVector3D getViewDir()		const { return _viewDir; }
 	QVector3D getRightVector() const { return _rightVector; }
@@ -132,6 +144,11 @@ public:
 	QMatrix4x4 getProjectionMatrix() const { return _projectionMatrix; }
 
 	void getRotationAngles(float* oPitch, float* oYaw, float* oRoll);
+
+	void setMode(CameraMode mode);
+	CameraMode getMode() const { return _cameraMode; }
+
+	void setYawPitchFromViewDir();
 
 	/*static QQuaternion quaternionFromMatrix(QMatrix4x4 m);
 	static void quatToEuler(const QQuaternion& quat, float *rotx,  float *roty, float *rotz);*/
@@ -150,9 +167,16 @@ private:
 	float _rotatedX, _rotatedY, _rotatedZ, _zoomValue;
 	ViewProjection _viewProj;
 	ProjectionType _projectionType;
+	ProjectionType _previousProjection;
 
 	QMatrix4x4 _projectionMatrix;
 	QMatrix4x4 _viewMatrix;
+
+	float _yaw = -90.0f;  // Initialized to look along -Z
+	float _pitch = 0.0f;  // Horizontal
+
+	CameraMode _cameraMode = CameraMode::Orbit;
+
 };
 
 #endif /* _GLCAMERA_H */
