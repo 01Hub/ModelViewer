@@ -2556,6 +2556,9 @@ void GLWidget::loadIrradianceMap()
 	// generate mipmaps for the cubemap so OpenGL automatically allocates the required memory.
 	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
+	// Apply anisotropic filtering to the cubemap.
+	glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
+
 	// PBR: run a quasi monte-carlo simulation on the environment lighting to create a prefilter (cube)map.
 	// ----------------------------------------------------------------------------------------------------
 	_skyBox->setProg(_prefilterShader.get());
@@ -4551,6 +4554,7 @@ unsigned int GLWidget::loadTextureFromFile(char const* path)
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+		// Apply anisotropic filtering if supported
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
 
 		stbi_image_free(data);
