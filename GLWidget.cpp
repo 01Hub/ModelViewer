@@ -6,6 +6,7 @@
 #include "GLWidget.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
+#include "ModelViewerApplication.h"
 #include "Plane.h"
 #include "Point.h"
 #include "Sphere.h"
@@ -330,6 +331,10 @@ void GLWidget::cleanUpShaders()
 void GLWidget::initializeGL()
 {
 	initializeOpenGLFunctions();
+
+	int maxSamples = 0;
+	glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);	
+	ModelViewerApplication::setSupportedMSAASamples(maxSamples);
 
 	makeCurrent();
 

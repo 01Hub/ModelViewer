@@ -18,6 +18,8 @@ public:
     explicit SettingsDialog(QWidget *parent = nullptr);
     ~SettingsDialog();
 
+    void setMaxMSAASamples(int maxSamples);
+
 
 signals:
 	void settingsChanged(); // Signal to notify that settings have changed

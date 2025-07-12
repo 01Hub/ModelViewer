@@ -44,6 +44,22 @@ SettingsDialog::~SettingsDialog()
     delete ui;
 }
 
+void SettingsDialog::setMaxMSAASamples(int maxSamples)
+{
+    ui->msaaComboBox->clear();
+    ui->msaaComboBox->addItem("None", 0);
+    if (maxSamples >= 2) ui->msaaComboBox->addItem("2x", 2);
+    if (maxSamples >= 4) ui->msaaComboBox->addItem("4x", 4);
+    if (maxSamples >= 8) ui->msaaComboBox->addItem("8x", 8);
+    if (maxSamples >= 16) ui->msaaComboBox->addItem("16x", 16);
+    if (maxSamples >= 32) ui->msaaComboBox->addItem("32x", 32);
+
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    int val = settings.value("msaaComboBox", ui->msaaComboBox->currentIndex()).toInt();
+    ui->msaaComboBox->setCurrentIndex(val);
+}
+
+
 void SettingsDialog::onOkClicked()
 {
 	applySettings();
@@ -890,7 +906,7 @@ void SettingsDialog::on_shaderModelComboBox_currentIndexChanged()
 
 void SettingsDialog::on_msaaComboBox_currentIndexChanged()
 {
-    rendering_msaaIndex = ui->msaaComboBox->currentIndex();
+    rendering_msaaIndex = ui->msaaComboBox->currentIndex();    
 }
 
 void SettingsDialog::on_anisotropyComboBox_currentIndexChanged()

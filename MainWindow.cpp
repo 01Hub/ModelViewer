@@ -486,6 +486,7 @@ void MainWindow::on_actionSettings_triggered()
 {
 	SettingsDialog* settingsDialog = new SettingsDialog(this);
 	settingsDialog->setAttribute(Qt::WA_DeleteOnClose);
+	settingsDialog->setMaxMSAASamples(ModelViewerApplication::supportedMSAASamples());
 	settingsDialog->setWindowTitle("Settings");
 	settingsDialog->setModal(true);
 	settingsDialog->show();

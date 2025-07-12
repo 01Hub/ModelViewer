@@ -1,12 +1,38 @@
 #include "ModelViewerApplication.h"
+#include <QOpenGLFunctions>
+#include <QSettings>
 #include <assimp/Importer.hpp>
+#include <config.h>
 
 QStringList ModelViewerApplication::_supportedExtensions;
+int ModelViewerApplication::_supportedMSAASamples = 4; // Default MSAA samples
 
 ModelViewerApplication::ModelViewerApplication(int& argc, char** argv)
     : QApplication(argc, argv)
 {
-    // Optionally initialize global state, logging, etc.
+	setDesktopSettingsAware(true);
+	setApplicationName("ModelViewer");
+	setOrganizationName("Sharjith N");
+
+	QString version = QString(APP_VERSION_STRING);
+	setApplicationVersion(version);
+
+
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	int values[] = {0, 2, 4, 8, 16, 32};
+	int samples = values[settings.value("msaaComboBox", 4).toInt()];
+	
+	QSurfaceFormat format;
+	format.setDepthBufferSize(24);
+	format.setStencilBufferSize(8);
+	format.setVersion(4, 5); // OpenGL version 4.5
+	format.setProfile(QSurfaceFormat::CoreProfile);
+	format.setOption(QSurfaceFormat::DebugContext);
+	format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
+	format.setRenderableType(QSurfaceFormat::OpenGL);
+	format.setSamples(samples); // Set MSAA samples
+
+	QSurfaceFormat::setDefaultFormat(format);
 }
 
 QStringList ModelViewerApplication::supportedImportExtensions()
