@@ -155,6 +155,9 @@ public:
 	void setSkyBoxTextureFolder(QString folder);
 	bool loadCubemapFromSingleHDR(const QString& filePath);
 
+	void setAnisotropicFilteringLevel(int level) { _anisotropicFilteringLevel = level; }
+	int getAnisotropicFilteringLevel() const { return _anisotropicFilteringLevel; }
+
 public:
 	float getXTran() const;
 	void setXTran(const float& xTran);
@@ -575,6 +578,8 @@ private:
 	bool  _gammaCorrection;
 	float _screenGamma;
 	bool  _hdrToneMapping;
+
+	float _anisotropicFilteringLevel = 16.0f;
 
 	Cone* _axisCone;
 

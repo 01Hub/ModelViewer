@@ -487,9 +487,22 @@ void MainWindow::on_actionSettings_triggered()
 	SettingsDialog* settingsDialog = new SettingsDialog(this);
 	settingsDialog->setAttribute(Qt::WA_DeleteOnClose);
 	settingsDialog->setMaxMSAASamples(ModelViewerApplication::supportedMSAASamples());
+	settingsDialog->setMaxAnisotropy(ModelViewerApplication::supportedAnisotropicFilteringLevel());
 	settingsDialog->setWindowTitle("Settings");
 	settingsDialog->setModal(true);
 	settingsDialog->show();
+
+	connect(settingsDialog, &SettingsDialog::settingsChanged, this, [this, settingsDialog]() {
+		if (!_viewers.empty())
+		{
+			for (ModelViewer* viewer : _viewers)
+			{
+				int anIsoVals[] = {1, 2, 4, 8, 16};
+				int idx = settingsDialog->renderingAnisotropyIndex();
+				viewer->getGLView()->setAnisotropicFilteringLevel(anIsoVals[idx]);				
+			}			
+		}		
+		});
 }
 
 void MainWindow::on_actionTile_Horizontally_triggered()

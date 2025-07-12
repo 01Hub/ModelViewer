@@ -336,6 +336,15 @@ void GLWidget::initializeGL()
 	glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);	
 	ModelViewerApplication::setSupportedMSAASamples(maxSamples);
 
+	GLfloat maxAniso = 0.0f;
+	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
+	ModelViewerApplication::setSupportedAnisotropicFilteringLevel(maxAniso);
+	
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	// Set Anisotropic Filtering Level
+	int anIsoVals[] = { 1, 2, 4, 8, 16, 32 };
+	_anisotropicFilteringLevel = anIsoVals[settings.value("anisotropyComboBox", 4).toInt()];
+	
 	makeCurrent();
 
 	createShaderPrograms();
@@ -4539,6 +4548,8 @@ unsigned int GLWidget::loadTextureFromFile(char const* path)
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
 
 		stbi_image_free(data);
 	}

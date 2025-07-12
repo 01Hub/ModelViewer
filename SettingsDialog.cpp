@@ -59,6 +59,19 @@ void SettingsDialog::setMaxMSAASamples(int maxSamples)
     ui->msaaComboBox->setCurrentIndex(val);
 }
 
+void SettingsDialog::setMaxAnisotropy(int maxAnisotropy)
+{
+    ui->anisotropyComboBox->clear();
+    ui->anisotropyComboBox->addItem("1x (None)", 1.0f);
+    if (maxAnisotropy >= 2) ui->anisotropyComboBox->addItem("2x", 2.0f);
+    if (maxAnisotropy >= 4) ui->anisotropyComboBox->addItem("4x", 4.0f);
+    if (maxAnisotropy >= 8) ui->anisotropyComboBox->addItem("8x", 8.0f);
+    if (maxAnisotropy >= 16) ui->anisotropyComboBox->addItem("16x", 16.0f);
+    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    int val = settings.value("anisotropyComboBox", ui->anisotropyComboBox->currentIndex()).toInt();
+    ui->anisotropyComboBox->setCurrentIndex(val);
+}
+
 
 void SettingsDialog::onOkClicked()
 {

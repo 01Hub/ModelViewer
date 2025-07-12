@@ -6,6 +6,7 @@
 
 QStringList ModelViewerApplication::_supportedExtensions;
 int ModelViewerApplication::_supportedMSAASamples = 4; // Default MSAA samples
+int ModelViewerApplication::_supportedAnisotropicFilteringLevel = 16; // Default anisotropic filtering level
 
 ModelViewerApplication::ModelViewerApplication(int& argc, char** argv)
     : QApplication(argc, argv)

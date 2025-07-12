@@ -19,12 +19,23 @@ public:
         return _supportedMSAASamples;
 	}
 
+    static void setSupportedAnisotropicFilteringLevel(int level)
+    {
+        _supportedAnisotropicFilteringLevel = level;
+    }
+
+    static int supportedAnisotropicFilteringLevel()
+    {
+        return _supportedAnisotropicFilteringLevel;
+	}
+
     private:
         static void initializeSupportedImportExtensions();
 
 private:
     static QStringList _supportedExtensions;
 	static int _supportedMSAASamples;
+	static int _supportedAnisotropicFilteringLevel;
 };
 
 #endif // MODELVIEWERAPPLICATION_H
