@@ -1,4 +1,3 @@
-
 cmake_minimum_required(VERSION 3.18)
 
 project(ModelViewer)
@@ -15,18 +14,20 @@ else()
     message("Found OpenCASCADE " ${OpenCASCADE_VERSION}) 
 endif()
 
+find_package(Qt6 COMPONENTS Core Gui OpenGLWidgets Widgets LinguistTools)
 
-find_package(Qt6 COMPONENTS Core Gui OpenGLWidgets Widgets)
 if(Qt6_FOUND)
     set(QT_VERSION_MAJOR 6)
+    set(QT_TRANSLATE_NAMESPACE Qt6)
 else()
-    find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui OpenGL Widgets)
+    find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui OpenGL Widgets LinguistTools)
 
     if(WIN32)
         find_package(Qt5 REQUIRED COMPONENTS WinExtras)
     endif()
 
     set(QT_VERSION_MAJOR 5)
+    set(QT_TRANSLATE_NAMESPACE Qt5)
 endif()
 
 message("Using Qt${QT_VERSION_MAJOR}")
@@ -36,6 +37,18 @@ include(GNUInstallDirs)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_STANDARD 17)
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+# Don't use AUTOUIC - we'll handle UI files manually
+
+# Handle UI files manually
+file(GLOB ui_sources ui/*.ui)
+if(QT_VERSION_MAJOR EQUAL 6)
+    qt6_wrap_ui(ui_wrapped ${ui_sources})
+else()
+    qt5_wrap_ui(ui_wrapped ${ui_sources})
+endif()
 
 add_executable(ModelViewer)
 
@@ -49,22 +62,96 @@ configure_file(
   @ONLY
 )
 
-file(GLOB sources *.c *.cpp *.cxx *.h *.hxx)
-file(GLOB ui_sources *.ui)
+file(GLOB sources src/*.cpp src/*.cxx src/*.c include/*.h include/*.hxx)
+file(GLOB ui_sources ui/*.ui)
 
-qt_wrap_ui(ui_wrapped ${ui_sources})
-qt_add_resources(resources ModelViewer.qrc)
+# Create translations directory if it doesn't exist
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/translations)
+
+set(TS_FILES
+    translations/modelviewer_en.ts
+    translations/modelviewer_fr.ts
+)
+
+# Create empty .ts files if they don't exist
+foreach(_ts ${TS_FILES})
+    if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${_ts})
+        file(WRITE ${CMAKE_CURRENT_SOURCE_DIR}/${_ts}
+"<?xml version=\"1.0\" encoding=\"utf-8\"?>
+<!DOCTYPE TS>
+<TS version=\"2.1\">
+</TS>
+")
+    endif()
+endforeach()
+
+# Generate/update translation files using lupdate
+# Make sure UI files are processed first so ui_*.h files exist
+if(QT_VERSION_MAJOR EQUAL 6)
+    # Custom target to update translations for Qt6
+    add_custom_target(update_translations
+        # First ensure UI files are processed
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ModelViewer --parallel 1 || true
+        # Then run lupdate on all source files including generated UI headers
+        COMMAND ${Qt6_LUPDATE_EXECUTABLE}
+            ${sources} ${ui_sources}
+            -ts ${TS_FILES}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Updating .ts files"
+        DEPENDS ${ui_wrapped}
+    )
+    
+    # Compile .ts files to .qm files
+    qt6_add_lrelease(ModelViewer
+        TS_FILES ${TS_FILES}
+        QM_FILES_OUTPUT_VARIABLE QM_FILES
+    )
+else()
+    # For Qt5
+    qt5_add_translation(QM_FILES ${TS_FILES})
+    
+    # Custom target to update translations for Qt5
+    add_custom_target(update_translations
+        # First ensure UI files are processed
+        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ModelViewer --parallel 1 || true
+        # Then run lupdate
+        COMMAND ${Qt5_LUPDATE_EXECUTABLE}
+            ${sources} ${ui_sources}
+            -ts ${TS_FILES}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Updating .ts files"
+        DEPENDS ${ui_wrapped}
+    )
+endif()
+
+# Debug: Print QM files list
+message(STATUS "QM_FILES will be: ${QM_FILES}")
+
+# Create a resource file for translations
+set(TRANSLATIONS_QRC ${CMAKE_CURRENT_BINARY_DIR}/translations.qrc)
+file(WRITE ${TRANSLATIONS_QRC} "<!DOCTYPE RCC>\n<RCC version=\"1.0\">\n<qresource prefix=\"/translations\">\n")
+
+foreach(qm_file ${QM_FILES})
+    get_filename_component(qm_name ${qm_file} NAME)
+    file(APPEND ${TRANSLATIONS_QRC} "    <file>${qm_file}</file>\n")
+endforeach()
+
+file(APPEND ${TRANSLATIONS_QRC} "</qresource>\n</RCC>")
+
+# Add the translations resource to the executable
+qt_add_resources(translation_resources ${TRANSLATIONS_QRC})
 
 target_sources(ModelViewer
     PRIVATE
         ${sources}
-        ${ui_wrapped}
-        ${resources}
+        ${ui_wrapped}  # Use the manually wrapped UI files
+        ModelViewer.qrc
+        ${translation_resources}
 )
 
 target_include_directories(ModelViewer
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_BINARY_DIR}
         ${OpenCASCADE_INCLUDE_DIR}
 )
@@ -72,7 +159,7 @@ target_include_directories(ModelViewer
 target_link_libraries(ModelViewer
     PRIVATE
         assimp::assimp
-        Freetype::Freetype    
+        Freetype::Freetype
         glm::glm
         Qt::Core
         Qt::Gui
@@ -86,7 +173,6 @@ target_link_libraries(ModelViewer
         ${OpenCASCADE_ApplicationFramework_LIBRARIES}
 )
 
-# Link OpenMP
 if(OpenMP_CXX_FOUND)
     target_link_libraries(ModelViewer PUBLIC OpenMP::OpenMP_CXX)
 endif()
@@ -103,12 +189,20 @@ if(WIN32)
                 Qt::WinExtras
         )
     endif()
-
 endif()
 
-set_target_properties(ModelViewer PROPERTIES AUTOMOC TRUE)
-
 install(TARGETS ModelViewer)
+
+# Install translation files only if they exist
+if(QM_FILES)
+    install(FILES ${QM_FILES}
+            DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/translations"
+    )
+    message(STATUS "Translation files will be installed to: ${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/translations")
+else()
+    message(STATUS "No QM files to install")
+endif()
+
 install(DIRECTORY fonts shaders textures test-models
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
@@ -117,11 +211,11 @@ if(WIN32)
    install(TARGETS ModelViewer
         RUNTIME_DEPENDENCIES
             PRE_EXCLUDE_REGEXES
-		        [[hvsifiletrust.*]]
-		        [[pdmutilities.*]]
-		        [[api-ms-win-.*]]
-		        [[ext-ms-.*]]
-                [[qt6.*\\.dll]]                                                         # qt_generate_deploy_app_script will take care about Qt's libs
+                [[hvsifiletrust.*]]
+                [[pdmutilities.*]]
+                [[api-ms-win-.*]]
+                [[ext-ms-.*]]
+                [[qt6.*\\.dll]]
             POST_EXCLUDE_REGEXES
                 [[.*system32.*.dll]]
     )
