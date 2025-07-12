@@ -19,6 +19,133 @@ public:
     ~SettingsDialog();
 
     void setMaxMSAASamples(int maxSamples);
+	void setMaxAnisotropy(int maxAnisotropy);
+
+public:
+    // General tab
+    int generalThemeIndex() const { return general_themeIndex; }
+    int generalLanguageIndex() const { return general_languageIndex; }
+    bool generalPromptOverwrite() const { return general_promptOverwrite; }
+    bool generalRestoreLastFile() const { return general_restoreLastFile; }
+    bool generalShowTooltips() const { return general_showTooltips; }
+    bool generalConfirmExit() const { return general_confirmExit; }
+
+    // Camera tab
+    int cameraProjectionModeIndex() const { return camera_projectionModeIndex; }
+    int cameraDefaultViewIndex() const { return camera_defaultViewIndex; }
+    int cameraDefaultProjectionIndex() const { return camera_defaultProjectionIndex; }
+    bool cameraTrackball() const { return camera_trackball; }
+    bool cameraInvertZoom() const { return camera_invertZoom; }
+    double cameraZoomFactor() const { return camera_zoomFactor; }
+
+    // Background tab
+    int backgroundStyleIndex() const { return background_styleIndex; }
+    int backgroundGradientStyleIndex() const { return background_gradientStyleIndex; }
+    QColor backgroundTopColor() const { return background_topColor; }
+    QColor backgroundBottomColor() const { return background_bottomColor; }
+
+    // Display tab
+    bool displayShowBoundingBox() const { return display_showBoundingBox; }
+    bool displayShowCornerTrihedron() const { return display_showCornerTrihedron; }
+    bool displayShowGrid() const { return display_showGrid; }
+    bool displayShowWireframe() const { return display_showWireframe; }
+    int displayFieldOfView() const { return display_fieldOfView; }
+    double displayNearPlane() const { return display_nearPlane; }
+    double displayFarPlane() const { return display_farPlane; }
+    bool displayShowCenterTrihedron() const { return display_showCenterTrihedron; }
+
+    // Navigation group
+    int navigationModeIndex() const { return navigation_modeIndex; }
+    int navigationMouseSensitivity() const { return navigation_mouseSensitivity; }
+    int navigationZoomSensitivity() const { return navigation_zoomSensitivity; }
+    bool navigationInvertYAxis() const { return navigation_invertYAxis; }
+    bool navigationSmoothNavigation() const { return navigation_smoothNavigation; }
+
+    // Rendering tab
+    int renderingShadingModeIndex() const { return rendering_shadingModeIndex; }
+    bool renderingBackfaceCulling() const { return rendering_backfaceCulling; }
+    bool renderingNormalMap() const { return rendering_normalMap; }
+    int renderingShaderModelIndex() const { return rendering_shaderModelIndex; }
+    int renderingMsaaIndex() const { return rendering_msaaIndex; }
+    int renderingAnisotropyIndex() const { return rendering_anisotropyIndex; }
+
+    // Lighting
+    bool lightingEnableLighting() const { return lighting_enableLighting; }
+    bool lightingEnableShadows() const { return lighting_enableShadows; }
+    int lightingAmbient() const { return lighting_ambient; }
+    int lightingDiffuse() const { return lighting_diffuse; }
+    int lightingSpecular() const { return lighting_specular; }
+
+    // Materials
+    int materialsDefaultMaterialIndex() const { return materials_defaultMaterialIndex; }
+    QString materialsTextureDir() const { return materials_textureDir; }
+
+    // UV Generation Tab
+    int uvMethodIndex() const { return uv_methodIndex; }
+    double uvAngleThreshold() const { return uv_angleThreshold; }
+    bool uvPreserveUVs() const { return uv_preserveUVs; }
+    bool uvAutoPackUVs() const { return uv_autoPackUVs; }
+    bool uvRelaxUVs() const { return uv_relaxUVs; }
+    bool uvPcaProjection() const { return uv_pcaProjection; }
+    bool uvXatlasPackingOnly() const { return uv_xatlasPackingOnly; }
+    bool uvRememberUV() const { return uv_rememberUV; }
+
+    // Import/Export Tab
+    // OpenCascade
+    int importTessellationQuality() const { return import_tessellationQuality; }
+    double importLinearDeflection() const { return import_linearDeflection; }
+    double importAngularDeflection() const { return import_angularDeflection; }
+    bool importOcctUnifyFaces() const { return import_occtUnifyFaces; }
+    bool importOcctUnifyEdges() const { return import_occtUnifyEdges; }
+    bool importOcctBuildCurves() const { return import_occtBuildCurves; }
+
+    // Assimp
+    bool importAssimpTriangulate() const { return import_assimpTriangulate; }
+    bool importAssimpGenNormals() const { return import_assimpGenNormals; }
+    bool importAssimpSmoothNormals() const { return import_assimpSmoothNormals; }
+    bool importAssimpCalcTangents() const { return import_assimpCalcTangents; }
+    bool importAssimpOptimizeMesh() const { return import_assimpOptimizeMesh; }
+    bool importAssimpRemoveDuplicates() const { return import_assimpRemoveDuplicates; }
+    int importAssimpMaxFaceVertices() const { return import_assimpMaxFaceVertices; }
+
+    // Performance Tab
+    bool perfMultithreadedLoad() const { return perf_multithreadedLoad; }
+    int perfThreadLimit() const { return perf_threadLimit; }
+    bool perfSkyboxBlending() const { return perf_skyboxBlending; }
+    bool perfProgressiveLoading() const { return perf_progressiveLoading; }
+    int perfMaxFps() const { return perf_maxFps; }
+    bool perfVsync() const { return perf_vsync; }
+    bool perfFrustumCulling() const { return perf_frustumCulling; }
+    bool perfBackfaceCulling() const { return perf_backfaceCulling; }
+    bool perfLevelOfDetail() const { return perf_levelOfDetail; }
+    int perfMaxVertices() const { return perf_maxVertices; }
+
+    // Memory management
+    int perfTextureCacheSize() const { return perf_textureCacheSize; }
+    int perfGeometryCacheSize() const { return perf_geometryCacheSize; }
+    bool perfCompressTextures() const { return perf_compressTextures; }
+    bool perfGenerateMipmaps() const { return perf_generateMipmaps; }
+
+    // Advanced Tab
+    int advancedOpenGLVersionIndex() const { return advanced_openGLVersionIndex; }
+    bool advancedVsync() const { return advanced_vsync; }
+    int advancedThreads() const { return advanced_threads; }
+    bool advancedShaderHotReload() const { return advanced_shaderHotReload; }
+    bool advancedShowFPS() const { return advanced_showFPS; }
+    bool advancedLegacyOpenGL() const { return advanced_legacyOpenGL; }
+
+    // Debug Tab
+    bool debugShowFps() const { return debug_showFps; }
+    bool debugShowMemoryUsage() const { return debug_showMemoryUsage; }
+    bool debugShowRenderStats() const { return debug_showRenderStats; }
+    bool debugShowOpenGLInfo() const { return debug_showOpenGLInfo; }
+    bool debugEnableLogging() const { return debug_enableLogging; }
+    int debugLogLevelIndex() const { return debug_logLevelIndex; }
+    bool debugCheckOpenGLErrors() const { return debug_checkOpenGLErrors; }
+    bool debugValidateShaders() const { return debug_validateShaders; }
+    bool debugProfileRendering() const { return debug_profileRendering; }
+
+    ThemeManager* themeManager() const { return _themeManager; }    
 
 
 signals:
