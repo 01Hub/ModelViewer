@@ -273,7 +273,7 @@ public slots:
 	void showLights(bool showLights);
 	void showFileReadingProgress(float percent);
 	void showMeshLoadingProgress(float percent);
-	void showModelLoadingProgress(int nodeNum, int totalNodes);
+	void showModelLoadingProgress(int nodeNum, int totalNodes, bool uvProcessed);
 	void swapVisible(bool checked);
 	void cancelAssImpModelLoading();
 	

@@ -685,10 +685,12 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		++nodeCounter;
 		processNode(nodeCounter, node->mChildren[i], scene);
 
-		if (nodeCounter % 20 == 0)
+		if (!_needsUVGeneration && nodeCounter % 20 == 0)
 		{
-			emit nodeProcessed(nodeCounter, _sceneStats.meshCount);
+			emit nodeProcessed(nodeCounter, _sceneStats.meshCount, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
 		}
+		else
+			emit nodeProcessed(nodeCounter, _sceneStats.meshCount, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
 	}
 }
 
@@ -701,7 +703,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	vector<unsigned int> indices;
 	vector<Texture> textures;
 	
-	bool needsUVGeneration = false;
+	_needsUVGeneration = false;
 
 	// Walk through each of the mesh's vertices
 	int step = 0;
@@ -753,7 +755,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		}
 		else
 		{			
-			needsUVGeneration = true;
+			_needsUVGeneration = true;
 		}
 
 		// Vertex Color
@@ -787,7 +789,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	}
 
 	// If the mesh has no texture coordinates, we generate them now.
-	if (needsUVGeneration && _selectedUVMethod != UVMethod::None)
+	if (_needsUVGeneration && _selectedUVMethod != UVMethod::None)
 	{		
 		// Generate UVs for the mesh
 		MeshAnalysis::SamplingConfig config;
