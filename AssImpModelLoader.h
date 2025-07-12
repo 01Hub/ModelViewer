@@ -130,7 +130,7 @@ private:
 		Quantity_Color& outColor);
 
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
-	void processNode(int& nodeNum, aiNode* node, const aiScene* scene);
+	void processNode(int nodeNum, aiNode* node, const aiScene* scene);
 
 	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes);
 
@@ -152,6 +152,8 @@ private:
 	int _batchSize = 20;
 
 	const aiScene* _scene = nullptr; // Holds the loaded scene
+	
+	SceneMeshInfo _sceneStats; // Holds statistics about the scene
 
 	bool _progressiveLoading = false; // If true, emit progress signals during loading
 

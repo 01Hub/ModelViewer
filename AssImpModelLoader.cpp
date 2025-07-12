@@ -132,13 +132,13 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		}
 	}
 
-	SceneMeshInfo stats = collectSceneMeshInfo(_scene);
+	_sceneStats = collectSceneMeshInfo(_scene);
 
 	if (modelHasMissingUVs)
 	{								
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());				
 		bool remember = settings.value("RememberUVMethod", false).toBool();		
-		if (stats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV && remember)
+		if (_sceneStats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV && remember)
 		{
 			QMessageBox msgBox;
 			msgBox.setWindowTitle("Performance Warning!");
@@ -178,13 +178,12 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	this->_texturePath = path.substr(0, path.find_last_of('/'));
 
 	// Set batch size based on number of meshes;
-	int batchSize = std::clamp(stats.meshCount / 10, 5, 100);
+	int batchSize = std::clamp(_sceneStats.meshCount / 10, 5, 100);
 	_batchSize = batchSize;
 	qDebug() << "Batch size = " << _batchSize;
 
-	// Process ASSIMP's root node recursively
-	int nodeNum = 0;
-	this->processNode(nodeNum, _scene->mRootNode, _scene);
+	// Process ASSIMP's root node recursively	
+	this->processNode(0, _scene->mRootNode, _scene);
 
 	// Flush any remaining meshes in batch
 	if (!_currentBatch.empty())
@@ -192,8 +191,6 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		emit meshBatchReady(std::move(_currentBatch));
 		_currentBatch.clear();
 	}
-
-	//emit nodeProcessed(nodeNum, _scene->mNumMeshes);
 
 	if (_progressiveLoading)
 		emit loadingFinished(true, _scene);
@@ -650,7 +647,7 @@ bool AssImpModelLoader::GetShapeColorFromShape(
 }
 
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
-void AssImpModelLoader::processNode(int& nodeCounter, aiNode* node, const aiScene* scene)
+void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene* scene)
 {
 	if (_loadingCancelled)
 	{
@@ -690,7 +687,7 @@ void AssImpModelLoader::processNode(int& nodeCounter, aiNode* node, const aiScen
 
 		if (nodeCounter % 20 == 0)
 		{
-			emit nodeProcessed(nodeCounter, node->mNumChildren);
+			emit nodeProcessed(nodeCounter, _sceneStats.meshCount);
 		}
 	}
 }
@@ -909,26 +906,44 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 {
 	SceneMeshInfo info;
 
-	if (!scene || !scene->HasMeshes())
+	if (!scene || !scene->HasMeshes() || !scene->mRootNode)
 		return info;
 
-	info.meshCount = static_cast<int>(scene->mNumMeshes);
+	std::unordered_set<unsigned int> processedMeshes;
 
-	for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
-	{
-		const aiMesh* mesh = scene->mMeshes[i];
-		int numFaces = static_cast<int>(mesh->mNumFaces);
-		int numVerts = static_cast<int>(mesh->mNumVertices);
-
-		info.totalVertices += numVerts;
-		info.totalTriangles += numFaces;
-
-		if (numFaces > info.largestMeshTriangles)
+	std::function<void(const aiNode*)> collectFromNode;
+	collectFromNode = [&](const aiNode* node) {
+		for (unsigned int i = 0; i < node->mNumMeshes; ++i)
 		{
-			info.largestMeshTriangles = numFaces;
-			info.largestMeshName = mesh->mName.C_Str();
+			unsigned int meshIndex = node->mMeshes[i];
+
+			// Prevent double-counting if mesh is referenced by multiple nodes
+			if (!processedMeshes.insert(meshIndex).second)
+				continue;
+
+			const aiMesh* mesh = scene->mMeshes[meshIndex];
+			int numFaces = static_cast<int>(mesh->mNumFaces);
+			int numVerts = static_cast<int>(mesh->mNumVertices);
+
+			info.totalVertices += numVerts;
+			info.totalTriangles += numFaces;
+			info.meshCount++;
+
+			if (numFaces > info.largestMeshTriangles)
+			{
+				info.largestMeshTriangles = numFaces;
+				info.largestMeshName = mesh->mName.C_Str();
+			}
 		}
-	}
+
+		for (unsigned int i = 0; i < node->mNumChildren; ++i)
+		{
+			collectFromNode(node->mChildren[i]);
+		}
+		};
+
+	collectFromNode(scene->mRootNode);
 
 	return info;
 }
+
