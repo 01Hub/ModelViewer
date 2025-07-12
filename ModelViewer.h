@@ -109,6 +109,9 @@ private slots:
 	void on_toolButtonProjection_toggled(bool checked);
 	void on_toolButtonSectionView_toggled(bool checked);
 	void on_toolButtonMultiView_toggled(bool checked);
+	void on_cameraModeOrbit_triggered(bool checked);
+	void on_cameraModeFly_triggered(bool checked);
+	void on_cameraModeFirstPerson_triggered(bool checked);
 	void on_isometricView_triggered(bool checked);
 	void on_dimetricView_triggered(bool checked);
 	void on_trimetricView_triggered(bool checked);
@@ -258,6 +261,11 @@ private:
 
 private:
 	GLWidget* _glWidget;
+
+
+	QAction* cameraModeOrbit;
+	QAction* cameraModeFly;
+	QAction* cameraModeFirstPerson;
 
 	QAction* isometricView;
 	QAction* dimetricView;

@@ -29,6 +29,18 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	_textureDirOpenedFirstTime = true;
 
+	cameraModeOrbit = new QAction(QIcon(":/new/prefix1/res/camera_orbit_64.png"), "Orbit", this);
+	cameraModeOrbit->setObjectName(QString::fromUtf8("cameraModeOrbit"));
+	cameraModeOrbit->setShortcut(QKeySequence(Qt::Key_1));
+
+	cameraModeFly = new QAction(QIcon(":/new/prefix1/res/camera_fly_64.png"), "Fly", this);
+	cameraModeFly->setObjectName(QString::fromUtf8("cameraModeFly"));
+	cameraModeFly->setShortcut(QKeySequence(Qt::Key_2));
+
+	cameraModeFirstPerson = new QAction(QIcon(":/new/prefix1/res/camera_first_person_64.png"), "First Person", this);;
+	cameraModeFirstPerson->setObjectName(QString::fromUtf8("cameraModeFirstPerson"));;
+	cameraModeFirstPerson->setShortcut(QKeySequence(Qt::Key_3));;
+
 	isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
 	isometricView->setObjectName(QString::fromUtf8("isometricView"));
 	isometricView->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_1));
@@ -58,6 +70,61 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	displayRealShaded->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R));
 
 	setupUi(this);
+
+	// Camera Modes
+	QMenu* camMenu = new QMenu;
+	camMenu->setStyleSheet(
+		"QMenu {"
+		"    background-color: rgba(255, 255, 255, 140);"
+		"    border: 1px solid gray;"
+		"    border-radius: 4px;"
+		"    padding: 2px;"
+		"    icon-size: 42px;"
+		"}"
+		"QMenu::item {"
+		"    background: transparent;"
+		"    background-color: #f0f0f0;"
+		"    border: 1px solid #c0c0c0;"
+		"    border-radius: 4px;"
+		"    padding: 5px 8px;"
+		"    margin: 3px;"
+		"    min-width: 120px;"
+		"    min-height: 30px;"
+		"    font-weight: normal;"
+		"    color: black;"
+		"}"
+		"QMenu::item:selected {"
+		"    background-color: #e0e0ff;"
+		"    border: 1px solid #a0a0ff;"
+		"    color: black;"
+		"}"
+		"QMenu::item:pressed {"
+		"    background-color: #d0d0ff;"
+		"    border: 1px solid #8080ff;"
+		"    color: black;"
+		"}"
+		"QMenu::icon {"
+		"    padding-left: 10px;"
+		"    padding-right: 8px;"
+		"}"
+		"QMenu::separator {"
+		"    height: 1px;"
+		"    background-color: #c0c0c0;"
+		"    margin: 4px 8px;"
+		"}"
+	);
+	camMenu->addAction(cameraModeOrbit);
+	camMenu->addAction(cameraModeFly);
+	camMenu->addAction(cameraModeFirstPerson);
+	// add action to widget as well
+	addAction(cameraModeOrbit);
+	addAction(cameraModeFly);
+	addAction(cameraModeFirstPerson);
+
+	toolButtonCameraMode->setMenu(camMenu);
+	toolButtonCameraMode->setDefaultAction(cameraModeOrbit);
+	QObject::connect(toolButtonCameraMode, SIGNAL(triggered(QAction*)),
+		toolButtonCameraMode, SLOT(setDefaultAction(QAction*)));
 
 	// View
 	QMenu* axoMenu = new QMenu;
@@ -1427,6 +1494,24 @@ void ModelViewer::on_toolButtonMultiView_toggled(bool checked)
 	_glWidget->setMultiView(checked);
 	toolButtonIsometricView->animateClick();
 	_glWidget->resizeView(glframe->width(), glframe->height());
+	_glWidget->updateView();
+}
+
+void ModelViewer::on_cameraModeOrbit_triggered(bool checked)
+{
+	_glWidget->setCameraMode(GLCamera::CameraMode::Orbit);
+	_glWidget->updateView();
+}
+
+void ModelViewer::on_cameraModeFly_triggered(bool checked)
+{
+	_glWidget->setCameraMode(GLCamera::CameraMode::Fly);
+	_glWidget->updateView();
+}
+
+void ModelViewer::on_cameraModeFirstPerson_triggered(bool checked)
+{
+	_glWidget->setCameraMode(GLCamera::CameraMode::FirstPerson);
 	_glWidget->updateView();
 }
 

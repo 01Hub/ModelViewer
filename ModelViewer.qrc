@@ -65,5 +65,8 @@
         <file>res/swapvisible.png</file>
         <file>res/showall.png</file>
         <file>res/hideall.png</file>
+        <file>res/camera_first_person_64.png</file>
+        <file>res/camera_fly_64.png</file>
+        <file>res/camera_orbit_64.png</file>
     </qresource>
 </RCC>
