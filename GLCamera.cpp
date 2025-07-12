@@ -377,15 +377,19 @@ void GLCamera::updateFlyView()
 
 	_viewDir = QVector3D(
 		cos(pitchRad) * cos(yawRad),
-		sin(pitchRad),
-		cos(pitchRad) * sin(yawRad)
+		cos(pitchRad) * sin(yawRad),
+		sin(pitchRad)   // Z-up, not Y-up
 	).normalized();
 
-	_rightVector = QVector3D::crossProduct(_viewDir, QVector3D(0, 1, 0)).normalized();
+	// World up = Z+, not Y+
+	const QVector3D worldUp(0, 0, 1);
+
+	_rightVector = QVector3D::crossProduct(_viewDir, worldUp).normalized();
 	_upVector = QVector3D::crossProduct(_rightVector, _viewDir).normalized();
 
 	updateViewMatrix();
 }
+
 
 
 void GLCamera::getRotationAngles(float* oPitch, float* oYaw, float* oRoll)
@@ -399,43 +403,39 @@ void GLCamera::getRotationAngles(float* oPitch, float* oYaw, float* oRoll)
 
 void GLCamera::setMode(CameraMode mode)
 {
-	
 	if (_cameraMode == CameraMode::Orbit &&
 		(mode == CameraMode::Fly || mode == CameraMode::FirstPerson))
 	{
-		setYawPitchFromViewDir();
-	}	
+		setYawPitchFromViewDir(); // Z-up aware
+	}
 
-	_cameraMode = mode;
+	_cameraMode = mode; // move this before matrix update
 
 	if (mode == CameraMode::Fly || mode == CameraMode::FirstPerson)
 	{
-		_pitch = std::clamp(_pitch, -89.0f, 89.0f);
-		updateFlyView();  // realign camera
+		// Use Z+ as world up
+		_rightVector = QVector3D::crossProduct(_viewDir, QVector3D(0, 0, 1)).normalized();
+		_upVector = QVector3D::crossProduct(_rightVector, _viewDir).normalized();
+		updateViewMatrix(); // Apply updated orientation
 	}
 }
+
 
 void GLCamera::setYawPitchFromViewDir()
 {
 	QVector3D dir = _viewDir.normalized();
 
-	// Prevent invalid asin domain due to float imprecision
-	float y = std::clamp(dir.y(), -1.0f, 1.0f);
+	// World up is Z+, so pitch is around Z-axis
+	float z = std::clamp(dir.z(), -1.0f, 1.0f);  // pitch component
 
-	_yaw = qRadiansToDegrees(std::atan2(dir.z(), dir.x()));
-	_pitch = qRadiansToDegrees(std::asin(y));
+	// Yaw is angle in XY plane (Z is up)
+	_yaw = qRadiansToDegrees(std::atan2(dir.y(), dir.x()));
+	_pitch = qRadiansToDegrees(std::asin(z));
 
-	// Optional: Snap to CAD axis-aligned directions
-	const float snapThreshold = 0.001f;
-
-	if (qAbs(dir.x()) < snapThreshold && qAbs(dir.z()) < snapThreshold)
-		_yaw = 0.0f; // default to forward
-
-	if (qAbs(dir.y() - 1.0f) < snapThreshold) _pitch = 89.9f;
-	else if (qAbs(dir.y() + 1.0f) < snapThreshold) _pitch = -89.9f;
-
+	// Clamp pitch to prevent gimbal issues
 	_pitch = std::clamp(_pitch, -89.0f, 89.0f);
 }
+
 
 
 
