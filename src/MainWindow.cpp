@@ -487,8 +487,7 @@ void MainWindow::on_actionSettings_triggered()
 	SettingsDialog* settingsDialog = new SettingsDialog(this);
 	settingsDialog->setAttribute(Qt::WA_DeleteOnClose);
 	settingsDialog->setMaxMSAASamples(ModelViewerApplication::supportedMSAASamples());
-	settingsDialog->setMaxAnisotropy(ModelViewerApplication::supportedAnisotropicFilteringLevel());
-	settingsDialog->setWindowTitle("Settings");
+	settingsDialog->setMaxAnisotropy(ModelViewerApplication::supportedAnisotropicFilteringLevel());	
 	settingsDialog->setModal(true);
 	settingsDialog->show();
 
