@@ -284,6 +284,101 @@ Model may be loaded partially</source>
         <translation>Chargement du modèle annulé! 
 Le modèle peut être partiellement chargé</translation>
     </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5228"/>
+        <source>Center Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5232"/>
+        <source>Center Object List</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5234"/>
+        <source>Visualization Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5235"/>
+        <source>Transformations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5237"/>
+        <source>Show</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5239"/>
+        <source>Hide</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5241"/>
+        <source>Show Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5242"/>
+        <source>Duplicate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5243"/>
+        <source>Delete</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5244"/>
+        <source>Mesh Info</source>
+        <translation type="unfinished">Informations sur le maillage</translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5251"/>
+        <source>Fit All</source>
+        <translation type="unfinished">Convient à tous</translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5253"/>
+        <source>Zoom Area</source>
+        <translation type="unfinished">Zone de zoom</translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5256"/>
+        <source>Zoom</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5257"/>
+        <source>Pan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5258"/>
+        <source>Rotate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5264"/>
+        <source>Show All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5269"/>
+        <source>Hide All</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5274"/>
+        <source>Swap Visible</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5281"/>
+        <source>Background Color</source>
+        <translation type="unfinished">Couleur d&apos;arrière-plan</translation>
+    </message>
 </context>
 <context>
     <name>MainWindow</name>
@@ -1579,6 +1674,46 @@ Format de fichier non pris en charge : </translation>
         <translation>Enregistrer le modèle</translation>
     </message>
     <message>
+        <location filename="../src/ModelViewer.cpp" line="907"/>
+        <source>Center Screen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="908"/>
+        <source>Visualization Settings</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="909"/>
+        <source>Transformations</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="910"/>
+        <source>Hide</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="911"/>
+        <source>Show</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="912"/>
+        <source>Show Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="913"/>
+        <source>Duplicate</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="914"/>
+        <source>Delete</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../src/ModelViewer.cpp" line="933"/>
         <location filename="../src/ModelViewer.cpp" line="954"/>
         <source>Confirmation</source>
@@ -1668,6 +1803,7 @@ Poids : %4 kg
 	Z %3</translation>
     </message>
     <message>
+        <location filename="../src/ModelViewer.cpp" line="915"/>
         <location filename="../src/ModelViewer.cpp" line="1173"/>
         <source>Mesh Info</source>
         <translation>Informations sur le maillage</translation>
@@ -2718,18 +2854,48 @@ Poids : %4 kg
         <translation>Certains paramètres ne prendront effet qu&apos;après le redémarrage de l&apos;application.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="99"/>
-        <location filename="../src/SettingsDialog.cpp" line="1029"/>
+        <location filename="../src/SettingsDialog.cpp" line="103"/>
+        <location filename="../src/SettingsDialog.cpp" line="1046"/>
         <source>Settings Reset</source>
         <translation>Réinitialisation des paramètres</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="99"/>
+        <location filename="../src/SettingsDialog.cpp" line="103"/>
         <source>All settings have been cleared.</source>
         <translation>Réinitialisation des paramètres.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1029"/>
+        <location filename="../src/SettingsDialog.cpp" line="782"/>
+        <source>Language Change</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="782"/>
+        <source>Please restart the application for the language change to take effect.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="952"/>
+        <source>MSAA Change</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="952"/>
+        <source>Please restart the application for the MSAA change to take effect.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="958"/>
+        <source>Anisotropy Change</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="958"/>
+        <source>Please restart the application for the anisotropy change to take effect.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="1046"/>
         <source>UV Prompt settings have been cleared.</source>
         <translation>Les paramètres d&apos;invite UV ont été effacés.</translation>
     </message>
