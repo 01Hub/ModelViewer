@@ -286,97 +286,97 @@ Il modello può essere caricato parzialmente</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5228"/>
         <source>Center Screen</source>
-        <translation type="unfinished"></translation>
+        <translation>Schermo centrale</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5232"/>
         <source>Center Object List</source>
-        <translation type="unfinished"></translation>
+        <translation>Elenco degli oggetti</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5234"/>
         <source>Visualization Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Impostazioni di visualizzazione</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5235"/>
         <source>Transformations</source>
-        <translation type="unfinished"></translation>
+        <translation>Trasformazioni</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5237"/>
         <source>Show</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5239"/>
         <source>Hide</source>
-        <translation type="unfinished"></translation>
+        <translation>Nascondi</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5241"/>
         <source>Show Only</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra solo</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5242"/>
         <source>Duplicate</source>
-        <translation type="unfinished"></translation>
+        <translation>Duplicare</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5243"/>
         <source>Delete</source>
-        <translation type="unfinished"></translation>
+        <translation>Cancella</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5244"/>
         <source>Mesh Info</source>
-        <translation type="unfinished">Informazioni su Mesh</translation>
+        <translation>Informazioni su Mesh</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5251"/>
         <source>Fit All</source>
-        <translation type="unfinished">Tutti</translation>
+        <translation>Tutti</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5253"/>
         <source>Zoom Area</source>
-        <translation type="unfinished">Area Zoom</translation>
+        <translation>Area Zoom</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5256"/>
         <source>Zoom</source>
-        <translation type="unfinished"></translation>
+        <translation>Zoom</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5257"/>
         <source>Pan</source>
-        <translation type="unfinished"></translation>
+        <translation>Pan</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5258"/>
         <source>Rotate</source>
-        <translation type="unfinished"></translation>
+        <translation>Ruotare</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5264"/>
         <source>Show All</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra tutto</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5269"/>
         <source>Hide All</source>
-        <translation type="unfinished"></translation>
+        <translation>Nascondi tutto</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5274"/>
         <source>Swap Visible</source>
-        <translation type="unfinished"></translation>
+        <translation>Visibile Swap</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5281"/>
         <source>Background Color</source>
-        <translation type="unfinished">Colore dello sfondo</translation>
+        <translation>Colore dello sfondo</translation>
     </message>
 </context>
 <context>
@@ -606,7 +606,7 @@ Il modello può essere caricato parzialmente</translation>
     <message>
         <location filename="../ui/MainWindow.ui" line="339"/>
         <source>Settings</source>
-        <translation>Impostazioni impostazioni</translation>
+        <translation>Impostazioni</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="46"/>
@@ -1675,42 +1675,42 @@ Formato del file non supportato: </translation>
     <message>
         <location filename="../src/ModelViewer.cpp" line="907"/>
         <source>Center Screen</source>
-        <translation type="unfinished"></translation>
+        <translation>Schermo centrale</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="908"/>
         <source>Visualization Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Impostazioni di visualizzazione</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="909"/>
         <source>Transformations</source>
-        <translation type="unfinished"></translation>
+        <translation>Trasformazioni</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="910"/>
         <source>Hide</source>
-        <translation type="unfinished"></translation>
+        <translation>Nascondi</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="911"/>
         <source>Show</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="912"/>
         <source>Show Only</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra solo</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="913"/>
         <source>Duplicate</source>
-        <translation type="unfinished"></translation>
+        <translation>Duplicare</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="914"/>
         <source>Delete</source>
-        <translation type="unfinished"></translation>
+        <translation>Cancella</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="933"/>
@@ -1913,7 +1913,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="20"/>
         <source>Settings</source>
-        <translation>Impostazioni impostazioni</translation>
+        <translation>Impostazioni</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="30"/>
@@ -1968,17 +1968,17 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="134"/>
         <source>German</source>
-        <translation type="unfinished"></translation>
+        <translation>Germania</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="139"/>
         <source>Spanish</source>
-        <translation type="unfinished"></translation>
+        <translation>Spagnolo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="144"/>
         <source>Italian</source>
-        <translation type="unfinished"></translation>
+        <translation>Italiano</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="154"/>
@@ -2856,7 +2856,7 @@ Peso: %4kg
         <location filename="../src/SettingsDialog.cpp" line="103"/>
         <location filename="../src/SettingsDialog.cpp" line="1046"/>
         <source>Settings Reset</source>
-        <translation>Impostazioni</translation>
+        <translation>Ripristino delle impostazioni</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="103"/>
@@ -2866,32 +2866,32 @@ Peso: %4kg
     <message>
         <location filename="../src/SettingsDialog.cpp" line="782"/>
         <source>Language Change</source>
-        <translation type="unfinished"></translation>
+        <translation>Cambiamento linguistico</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="782"/>
         <source>Please restart the application for the language change to take effect.</source>
-        <translation type="unfinished"></translation>
+        <translation>Si prega di riavviare l&apos;applicazione per il cambiamento di lingua per prendere effetto.</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="952"/>
         <source>MSAA Change</source>
-        <translation type="unfinished"></translation>
+        <translation>MSAA Cambiamento</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="952"/>
         <source>Please restart the application for the MSAA change to take effect.</source>
-        <translation type="unfinished"></translation>
+        <translation>Si prega di riavviare la domanda per la modifica MSAA di prendere effetto.</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="958"/>
         <source>Anisotropy Change</source>
-        <translation type="unfinished"></translation>
+        <translation>Cambiamento di anisotropia</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="958"/>
         <source>Please restart the application for the anisotropy change to take effect.</source>
-        <translation type="unfinished"></translation>
+        <translation>Si prega di riavviare l&apos;applicazione per il cambiamento anisotropy da prendere effetto.</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="1046"/>

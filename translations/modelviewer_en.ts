@@ -278,6 +278,101 @@ Expected files should include identifiers like posx/negx or right/left, etc.</so
 Model may be loaded partially</source>
         <translation></translation>
     </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5228"/>
+        <source>Center Screen</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5232"/>
+        <source>Center Object List</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5234"/>
+        <source>Visualization Settings</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5235"/>
+        <source>Transformations</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5237"/>
+        <source>Show</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5239"/>
+        <source>Hide</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5241"/>
+        <source>Show Only</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5242"/>
+        <source>Duplicate</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5243"/>
+        <source>Delete</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5244"/>
+        <source>Mesh Info</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5251"/>
+        <source>Fit All</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5253"/>
+        <source>Zoom Area</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5256"/>
+        <source>Zoom</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5257"/>
+        <source>Pan</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5258"/>
+        <source>Rotate</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5264"/>
+        <source>Show All</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5269"/>
+        <source>Hide All</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5274"/>
+        <source>Swap Visible</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="5281"/>
+        <source>Background Color</source>
+        <translation></translation>
+    </message>
 </context>
 <context>
     <name>MainWindow</name>
@@ -1564,6 +1659,46 @@ Unsupported file format: </source>
         <translation></translation>
     </message>
     <message>
+        <location filename="../src/ModelViewer.cpp" line="907"/>
+        <source>Center Screen</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="908"/>
+        <source>Visualization Settings</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="909"/>
+        <source>Transformations</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="910"/>
+        <source>Hide</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="911"/>
+        <source>Show</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="912"/>
+        <source>Show Only</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="913"/>
+        <source>Duplicate</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="914"/>
+        <source>Delete</source>
+        <translation></translation>
+    </message>
+    <message>
         <location filename="../src/ModelViewer.cpp" line="933"/>
         <location filename="../src/ModelViewer.cpp" line="954"/>
         <source>Confirmation</source>
@@ -1639,6 +1774,7 @@ Weight: %4kg
         <translation></translation>
     </message>
     <message>
+        <location filename="../src/ModelViewer.cpp" line="915"/>
         <location filename="../src/ModelViewer.cpp" line="1173"/>
         <source>Mesh Info</source>
         <translation></translation>
@@ -2689,18 +2825,48 @@ Weight: %4kg
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="99"/>
-        <location filename="../src/SettingsDialog.cpp" line="1029"/>
+        <location filename="../src/SettingsDialog.cpp" line="103"/>
+        <location filename="../src/SettingsDialog.cpp" line="1046"/>
         <source>Settings Reset</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="99"/>
+        <location filename="../src/SettingsDialog.cpp" line="103"/>
         <source>All settings have been cleared.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1029"/>
+        <location filename="../src/SettingsDialog.cpp" line="782"/>
+        <source>Language Change</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="782"/>
+        <source>Please restart the application for the language change to take effect.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="952"/>
+        <source>MSAA Change</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="952"/>
+        <source>Please restart the application for the MSAA change to take effect.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="958"/>
+        <source>Anisotropy Change</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="958"/>
+        <source>Please restart the application for the anisotropy change to take effect.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="1046"/>
         <source>UV Prompt settings have been cleared.</source>
         <translation></translation>
     </message>
