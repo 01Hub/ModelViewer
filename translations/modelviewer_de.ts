@@ -6,7 +6,7 @@
     <message>
         <location filename="../src/AssImpModelLoader.cpp" line="144"/>
         <source>Performance Warning!</source>
-        <translation>Performance Warning!</translation>
+        <translation>Leistungswarnung!</translation>
     </message>
     <message>
         <location filename="../src/AssImpModelLoader.cpp" line="145"/>
@@ -186,7 +186,7 @@ Möchten Sie mit der UV-Generierung fortfahren?</translation>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="322"/>
         <source>Capping</source>
-        <translation>Capping</translation>
+        <translation>Verschließen</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="329"/>
@@ -306,7 +306,7 @@ Modell kann teilweise geladen werden</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5237"/>
         <source>Show</source>
-        <translation>Show</translation>
+        <translation>Zeigen</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5239"/>
@@ -341,7 +341,7 @@ Modell kann teilweise geladen werden</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5253"/>
         <source>Zoom Area</source>
-        <translation>Zoom Area</translation>
+        <translation>Zoombereich</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5256"/>
@@ -450,7 +450,7 @@ Modell kann teilweise geladen werden</translation>
     <message>
         <location filename="../ui/MainWindow.ui" line="174"/>
         <source>Ctrl+N</source>
-        <translation>Ctrl+N</translation>
+        <translation>Strg+N</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="179"/>
@@ -475,12 +475,12 @@ Modell kann teilweise geladen werden</translation>
     <message>
         <location filename="../ui/MainWindow.ui" line="195"/>
         <source>Cascade</source>
-        <translation>Cascade</translation>
+        <translation>Kaskade</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="198"/>
         <source>Cascade sub windows</source>
-        <translation>Unterfenster von Cascade</translation>
+        <translation>Unterfenster kaskadieren</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="203"/>
@@ -596,7 +596,7 @@ Modell kann teilweise geladen werden</translation>
     <message>
         <location filename="../ui/MainWindow.ui" line="329"/>
         <source>Ctrl+E</source>
-        <translation>Ctrl+E</translation>
+        <translation>Strg+E</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="334"/>
@@ -774,7 +774,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="339"/>
         <source>Alt+R</source>
-        <translation>Sonstige</translation>
+        <translation>Alt+R</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="358"/>
@@ -784,7 +784,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="374"/>
         <source>Alt+P</source>
-        <translation>Alt und Alt</translation>
+        <translation>Alt+P</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="393"/>
@@ -794,7 +794,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="409"/>
         <source>Alt+Z</source>
-        <translation>Alt und Alt</translation>
+        <translation>Alt+Z</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="428"/>
@@ -804,17 +804,17 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="444"/>
         <source>Home</source>
-        <translation>Home</translation>
+        <translation>Heim</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="460"/>
         <source>Zoom Area</source>
-        <translation>Zoom Area</translation>
+        <translation>Zoombereich</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="476"/>
         <source>Alt+W</source>
-        <translation>Alt und Alt</translation>
+        <translation>Alt+W</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="492"/>
@@ -824,7 +824,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="525"/>
         <source>Top View</source>
-        <translation>An der Spitze</translation>
+        <translation>Draufsicht</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="541"/>
@@ -834,7 +834,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="560"/>
         <source>Bottom View</source>
-        <translation>In den Warenkorb</translation>
+        <translation>Ansicht von unten</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="576"/>
@@ -844,7 +844,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="595"/>
         <source>Left View</source>
-        <translation>Links zum Beitrag</translation>
+        <translation>Linke Ansicht</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="611"/>
@@ -854,17 +854,17 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="630"/>
         <source>Right View</source>
-        <translation>Rechtsansicht</translation>
+        <translation>Ansicht von rechts</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="646"/>
         <source>Ctrl+J</source>
-        <translation>Ctrl+J</translation>
+        <translation>Strg+J</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="665"/>
         <source>Front View</source>
-        <translation>Frontansicht</translation>
+        <translation>Vorderansicht</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="681"/>
@@ -874,7 +874,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="700"/>
         <source>Back View</source>
-        <translation>Zurück zur Übersicht</translation>
+        <translation>Rückansicht</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="716"/>
@@ -889,23 +889,23 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="751"/>
         <source>Ctrl+A</source>
-        <translation>Ctrl+A</translation>
+        <translation>Strg+A</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="777"/>
         <source>Swith to Perspective</source>
-        <translation>Swith to Perspective</translation>
+        <translation>Wechseln Sie zur Perspektive</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="780"/>
         <location filename="../ui/ModelViewer.ui" line="871"/>
         <source>Shaded</source>
-        <translation>geschliffen</translation>
+        <translation>Schattiert</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="794"/>
         <source>Ctrl+P</source>
-        <translation>Ctrl+P</translation>
+        <translation>Strg+P</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="823"/>
@@ -930,7 +930,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="904"/>
         <source>Show/Hide Vertex Normals</source>
-        <translation>Show/Hide Vertex Normals</translation>
+        <translation>Scheitelpunktnormalen ein-/ausblenden</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="934"/>
@@ -980,7 +980,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1162"/>
         <source>Clear</source>
-        <translation>klar</translation>
+        <translation>Klar</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1188"/>
@@ -1112,7 +1112,7 @@ Ununterstütztes Dateiformat: </translation>
         <location filename="../ui/ModelViewer.ui" line="1572"/>
         <location filename="../ui/ModelViewer.ui" line="2119"/>
         <source>Opaque</source>
-        <translation>Opaque</translation>
+        <translation>Undurchsichtig</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1587"/>
@@ -1130,7 +1130,7 @@ Ununterstütztes Dateiformat: </translation>
         <location filename="../ui/ModelViewer.ui" line="1682"/>
         <location filename="../ui/ModelViewer.ui" line="2611"/>
         <source>Invert</source>
-        <translation>Invert</translation>
+        <translation>Umkehren</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1771"/>
@@ -1183,12 +1183,12 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2025"/>
         <source>Dilectric</source>
-        <translation>Dilectric</translation>
+        <translation>Dielektrikum</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2048"/>
         <source>Metallic</source>
-        <translation>Metallic</translation>
+        <translation>Metallisch</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2059"/>
@@ -1218,7 +1218,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2340"/>
         <source>Roughness Map</source>
-        <translation>Roughness Karte</translation>
+        <translation>Rauheitskarte</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2513"/>
@@ -1338,7 +1338,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3464"/>
         <source>Cyan Rubber</source>
-        <translation>Cyankautschuk</translation>
+        <translation>Cyan-Gummi</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3496"/>
@@ -1348,7 +1348,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3528"/>
         <source>Cyan Plastic</source>
-        <translation>Cyan</translation>
+        <translation>Cyanfarbener Kunststoff</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3560"/>
@@ -1560,7 +1560,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4334"/>
         <source>Offset</source>
-        <translation>Offset</translation>
+        <translation>Versatz</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4354"/>
@@ -1695,12 +1695,12 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../src/ModelViewer.cpp" line="911"/>
         <source>Show</source>
-        <translation>Show</translation>
+        <translation>Zeigen</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="912"/>
         <source>Show Only</source>
-        <translation>Nur</translation>
+        <translation>Nur Anzeigen</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="913"/>
@@ -1797,9 +1797,9 @@ Gewicht: %4kg
 	Y %2
 	Z %3</source>
         <translation>Größe:
-X %1
-Y %2
-Z %3</translation>
+	X %1
+	Y %2
+	Z %3</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="915"/>
@@ -1938,7 +1938,7 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="82"/>
         <source>System Default</source>
-        <translation>System Default</translation>
+        <translation>Systemstandard</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="87"/>
@@ -2085,12 +2085,12 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="299"/>
         <source>Invert Zoom Direction</source>
-        <translation>Invert Zoom Richtung</translation>
+        <translation>Zoomrichtung umkehren</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="308"/>
         <source>Zoom Factor</source>
-        <translation>Zoom Factor</translation>
+        <translation>Zoomfaktor</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="315"/>
@@ -2171,17 +2171,17 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="496"/>
         <source>Show Bounding Box</source>
-        <translation>Bounding Box anzeigen</translation>
+        <translation>Begrenzungsrahmen anzeigen</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="503"/>
         <source>Show Corner Trihedron</source>
-        <translation>Show Corner Trihedron</translation>
+        <translation>Eckdreieck anzeigen</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="513"/>
         <source>Far Plane:</source>
-        <translation>Far Plane:</translation>
+        <translation>Fernebene:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="520"/>
@@ -2196,17 +2196,17 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="563"/>
         <source>Show Grid</source>
-        <translation>Zeige Grid</translation>
+        <translation>Raster anzeigen</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="589"/>
         <source>Show Wireframe</source>
-        <translation>Wireframe anzeigen</translation>
+        <translation>Drahtgittermodell anzeigen</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="596"/>
         <source>Show Center Trihedron</source>
-        <translation>Show Center Trihedron</translation>
+        <translation>Dreikant-Zentrale anzeigen</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="609"/>
@@ -2251,17 +2251,17 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="692"/>
         <source>Invert Y-Axis</source>
-        <translation>Invert Y-Achse</translation>
+        <translation>Y-Achse umkehren</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="699"/>
         <source>Smooth Navigation</source>
-        <translation>Smooth Navigation</translation>
+        <translation>Reibungslose Navigation</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="726"/>
         <source>Rendering</source>
-        <translation>Rendering</translation>
+        <translation>Rendern</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="732"/>
@@ -2271,23 +2271,23 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="740"/>
         <source>Shaded</source>
-        <translation>geschliffen</translation>
+        <translation>Schattiert</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="745"/>
         <location filename="../ui/SettingsDialog.ui" line="806"/>
         <source>Wireframe</source>
-        <translation>Drahtrahmen</translation>
+        <translation>Drahtmodell</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="750"/>
         <source>Wireshaded</source>
-        <translation>Drahtsalat</translation>
+        <translation>Drahtgeschattet</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="758"/>
         <source>Enable Backface Culling</source>
-        <translation>Backface Culling aktivieren</translation>
+        <translation>Rückseiten-Culling aktivieren</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="765"/>
@@ -2302,7 +2302,7 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="778"/>
         <source>Shading Model:</source>
-        <translation>Shading Modell:</translation>
+        <translation>Schattierungsmodell:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="786"/>
@@ -2317,7 +2317,7 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="796"/>
         <source>PBR (Physically Based)</source>
-        <translation>PBR (Physical Based)</translation>
+        <translation>PBR (physikalisch basiert)</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="801"/>
@@ -2327,12 +2327,12 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="814"/>
         <source>MSAA Samples:</source>
-        <translation>MASSNAHMEN Proben:</translation>
+        <translation>MSAA-Beispiele:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="822"/>
         <source>1 (No MSAA)</source>
-        <translation>1 (keine MSAA)</translation>
+        <translation>1 (Keine MSAA)</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="827"/>
@@ -2392,7 +2392,7 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="897"/>
         <source>Enable Lighting</source>
-        <translation>Licht aktivieren</translation>
+        <translation>Beleuchtung aktivieren</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="907"/>
@@ -2407,22 +2407,22 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="937"/>
         <source>Diffuse Light:</source>
-        <translation>Diffuse Light:</translation>
+        <translation>Diffuse Licht:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="960"/>
         <source>Specular Light:</source>
-        <translation>Licht:</translation>
+        <translation>Spiegelndes Licht:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="986"/>
         <source>Materials</source>
-        <translation>Material</translation>
+        <translation>Materialien</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="995"/>
         <source>Default Texture Directory</source>
-        <translation>Default Texture Directory</translation>
+        <translation>Standard-Texturverzeichnis</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1003"/>
@@ -2447,7 +2447,7 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1026"/>
         <source>Default Material</source>
-        <translation>Default Material</translation>
+        <translation>Standardmaterial</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1052"/>
@@ -2487,12 +2487,12 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1092"/>
         <source>Angle: </source>
-        <translation>Angle: </translation>
+        <translation>Winkel: </translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1095"/>
         <source>°</source>
-        <translation>°C</translation>
+        <translation>°</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1108"/>
@@ -2502,12 +2502,12 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1115"/>
         <source>Auto Pack UVs</source>
-        <translation>Auto Pack UVs</translation>
+        <translation>UVs automatisch verpacken</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1122"/>
         <source>Relax UVs</source>
-        <translation>Relax UVs</translation>
+        <translation>Entspannen Sie UV-Strahlen</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1129"/>
@@ -2573,7 +2573,7 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1276"/>
         <source>Unify Edges</source>
-        <translation>Unify Edges</translation>
+        <translation>Kanten vereinheitlichen</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1283"/>
@@ -2623,7 +2623,7 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1364"/>
         <source>Max Face Vertices:</source>
-        <translation>Max Face Vertices:</translation>
+        <translation>Max. Flächenscheitelpunkte:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1401"/>
@@ -2633,7 +2633,7 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1407"/>
         <source>Enable Multithreaded Loading</source>
-        <translation>Multithreaded Loading aktivieren</translation>
+        <translation>Multithread-Laden aktivieren</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1414"/>
@@ -2653,7 +2653,7 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1441"/>
         <source>Rendering Performance</source>
-        <translation>Rendering Performance</translation>
+        <translation>Rendering-Leistung</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1447"/>
@@ -2668,7 +2668,7 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1477"/>
         <source>Frustum Culling</source>
-        <translation>Frustum Culling</translation>
+        <translation>Kegelstumpf-Ausmerzung</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1487"/>
@@ -2683,7 +2683,7 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1504"/>
         <source>Max Vertices per Frame:</source>
-        <translation>Max Vertices per Frame:</translation>
+        <translation>Max. Scheitelpunkte pro Frame:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1530"/>
@@ -2728,12 +2728,12 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1638"/>
         <source>4.1 Core</source>
-        <translation>4.1.Core</translation>
+        <translation>4.1.Kern</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1643"/>
         <source>3.3 Core</source>
-        <translation>3.3 Kernkapital</translation>
+        <translation>3.3 Kern</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1651"/>
@@ -2759,18 +2759,18 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1679"/>
         <source>Force Legacy OpenGL Compatibility Mode</source>
-        <translation>Force Legacy OpenGL Kompatibilität Modus</translation>
+        <translation>Legacy-OpenGL-Kompatibilitätsmodus erzwingen</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1713"/>
         <location filename="../ui/SettingsDialog.ui" line="1783"/>
         <source>Debug</source>
-        <translation>Debug</translation>
+        <translation>Debuggen</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1719"/>
         <source>Debug Information</source>
-        <translation>Debug Information</translation>
+        <translation>Debug-Informationen</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1732"/>
