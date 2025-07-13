@@ -2825,6 +2825,26 @@ Weight: %4kg
         <translation></translation>
     </message>
     <message>
+        <location filename="../src/SettingsDialog.cpp" line="16"/>
+        <source>OK</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="22"/>
+        <source>Cancel</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="28"/>
+        <source>Apply</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="34"/>
+        <source>Defaults</source>
+        <translation></translation>
+    </message>
+    <message>
         <location filename="../src/SettingsDialog.cpp" line="103"/>
         <location filename="../src/SettingsDialog.cpp" line="1046"/>
         <source>Settings Reset</source>

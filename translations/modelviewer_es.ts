@@ -2853,6 +2853,26 @@ Z %3</translation>
         <translation>Algunos ajustes tendr\u00e1n efecto s\u00f3lo despu\u00e9s de reiniciar la aplicaci\u00f3n.</translation>
     </message>
     <message>
+        <location filename="../src/SettingsDialog.cpp" line="16"/>
+        <source>OK</source>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="22"/>
+        <source>Cancel</source>
+        <translation>Cancelar</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="28"/>
+        <source>Apply</source>
+        <translation>Aplicar</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="34"/>
+        <source>Defaults</source>
+        <translation>El defecto</translation>
+    </message>
+    <message>
         <location filename="../src/SettingsDialog.cpp" line="103"/>
         <location filename="../src/SettingsDialog.cpp" line="1046"/>
         <source>Settings Reset</source>

@@ -9,29 +9,29 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     _themeManager(new ThemeManager(this))
 {
     ui->setupUi(this);
-    	
+
     // Connect to specific buttons
-    QPushButton* okButton = ui->buttonBox->button(QDialogButtonBox::Ok);
-    if (okButton)
-    {
+    QPushButton *okButton = ui->buttonBox->button(QDialogButtonBox::Ok); // Get the "OK" button
+    if (okButton) {
+        okButton->setText(tr("OK")); // Force "Okay!" to be translated
         connect(okButton, &QPushButton::clicked, this, &SettingsDialog::onOkClicked);
     }
 
-    QPushButton* cancelButton = ui->buttonBox->button(QDialogButtonBox::Cancel);
-    if (cancelButton)
-    {
+    QPushButton *cancelButton = ui->buttonBox->button(QDialogButtonBox::Cancel); // Get the "Cancel" button
+    if (cancelButton) {
+        cancelButton->setText(tr("Cancel")); // Force "Cancel" to be translated
         connect(cancelButton, &QPushButton::clicked, this, &SettingsDialog::onCancelClicked);
     }
 
-    QPushButton* applyButton = ui->buttonBox->button(QDialogButtonBox::Apply);
-    if (applyButton)
-    {
+    QPushButton *applyButton = ui->buttonBox->button(QDialogButtonBox::Apply); // Get the "Cancel" button
+    if (applyButton) {
+        applyButton->setText(tr("Apply")); // Force "Apply" to be translated
         connect(applyButton, &QPushButton::clicked, this, &SettingsDialog::onApplyClicked);
     }
 
     QPushButton* restoreButton = ui->buttonBox->button(QDialogButtonBox::RestoreDefaults);
-    if (restoreButton)
-    {
+    if (restoreButton) {
+        restoreButton->setText(tr("Defaults")); // Force "Defaults" to be translated
         connect(restoreButton, &QPushButton::clicked, this, &SettingsDialog::onRestoreDefaults);
     }
 

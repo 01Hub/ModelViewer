@@ -2853,6 +2853,26 @@ Peso: %4kg
         <translation>Alcune impostazioni avranno effetto solo dopo il riavvio dell&apos;applicazione.</translation>
     </message>
     <message>
+        <location filename="../src/SettingsDialog.cpp" line="16"/>
+        <source>OK</source>
+        <translation>Ok</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="22"/>
+        <source>Cancel</source>
+        <translation>Cancellare</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="28"/>
+        <source>Apply</source>
+        <translation>Applicare</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="34"/>
+        <source>Defaults</source>
+        <translation>Predefiniti</translation>
+    </message>
+    <message>
         <location filename="../src/SettingsDialog.cpp" line="103"/>
         <location filename="../src/SettingsDialog.cpp" line="1046"/>
         <source>Settings Reset</source>

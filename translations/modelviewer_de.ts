@@ -2853,6 +2853,27 @@ Z %3</translation>
         <translation>Einige Einstellungen werden erst nach dem Neustart der Anwendung wirksam.</translation>
     </message>
     <message>
+        <location filename="../src/SettingsDialog.cpp" line="16"/>
+        <source>OK</source>
+        <translatorcomment>OK</translatorcomment>
+        <translation>OK</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="22"/>
+        <source>Cancel</source>
+        <translation>Stornieren</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="28"/>
+        <source>Apply</source>
+        <translation>Anwendung</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="34"/>
+        <source>Defaults</source>
+        <translation>Standardeinstellungen</translation>
+    </message>
+    <message>
         <location filename="../src/SettingsDialog.cpp" line="103"/>
         <location filename="../src/SettingsDialog.cpp" line="1046"/>
         <source>Settings Reset</source>

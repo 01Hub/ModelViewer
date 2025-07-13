@@ -2854,6 +2854,26 @@ Poids : %4 kg
         <translation>Certains paramètres ne prendront effet qu&apos;après le redémarrage de l&apos;application.</translation>
     </message>
     <message>
+        <location filename="../src/SettingsDialog.cpp" line="16"/>
+        <source>OK</source>
+        <translation>D&apos;ACCORD</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="22"/>
+        <source>Cancel</source>
+        <translation>Annuler</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="28"/>
+        <source>Apply</source>
+        <translation>Appliquer</translation>
+    </message>
+    <message>
+        <location filename="../src/SettingsDialog.cpp" line="34"/>
+        <source>Defaults</source>
+        <translation>Valeurs par défaut</translation>
+    </message>
+    <message>
         <location filename="../src/SettingsDialog.cpp" line="103"/>
         <location filename="../src/SettingsDialog.cpp" line="1046"/>
         <source>Settings Reset</source>
