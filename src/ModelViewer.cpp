@@ -904,15 +904,15 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		// Create menu and insert some actions
 		QMenu myMenu;
 
-		myMenu.addAction("Center Screen", this, SLOT(centerScreen()));
-		myMenu.addAction("Visualization Settings", this, SLOT(showVisualizationModelPage()));
-		myMenu.addAction("Transformations", this, SLOT(showTransformationsPage()));
-		myMenu.addAction("Hide", this, SLOT(hideSelectedItems()));
-		myMenu.addAction("Show", this, SLOT(showSelectedItems()));
-		myMenu.addAction("Show Only", this, SLOT(showOnlySelectedItems()));
-		myMenu.addAction("Duplicate", this, SLOT(duplicateSelectedItems()));
-		myMenu.addAction("Delete", this, SLOT(deleteSelectedItems()));
-		myMenu.addAction("Mesh Info", this, SLOT(displaySelectedMeshInfo()));
+		myMenu.addAction(tr("Center Screen"), this, SLOT(centerScreen()));
+		myMenu.addAction(tr("Visualization Settings"), this, SLOT(showVisualizationModelPage()));
+		myMenu.addAction(tr("Transformations"), this, SLOT(showTransformationsPage()));
+		myMenu.addAction(tr("Hide"), this, SLOT(hideSelectedItems()));
+		myMenu.addAction(tr("Show"), this, SLOT(showSelectedItems()));
+		myMenu.addAction(tr("Show Only"), this, SLOT(showOnlySelectedItems()));
+		myMenu.addAction(tr("Duplicate"), this, SLOT(duplicateSelectedItems()));
+		myMenu.addAction(tr("Delete"), this, SLOT(deleteSelectedItems()));
+		myMenu.addAction(tr("Mesh Info"), this, SLOT(displaySelectedMeshInfo()));
 
 		// Show context menu at handling position
 		myMenu.exec(listWidgetModel->mapToGlobal(pos));

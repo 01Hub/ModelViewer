@@ -5225,60 +5225,60 @@ void GLWidget::showContextMenu(const QPoint& pos)
 		if (listWidgetModel->selectedItems().count() != 0 &&
 			(_visibleSwapped ? _hiddenObjectsIds.size() != 0 : _displayedObjectsIds.size() != 0))
 		{
-			myMenu.addAction("Center Screen", _viewer, SLOT(centerScreen()));
+			myMenu.addAction(tr("Center Screen"), _viewer, SLOT(centerScreen()));
 			QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
 			if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
 			{
-				myMenu.addAction("Center Object List", this, SLOT(centerDisplayList()));
+				myMenu.addAction(tr("Center Object List"), this, SLOT(centerDisplayList()));
 			}
-			myMenu.addAction("Visualization Settings", _viewer, SLOT(showVisualizationModelPage()));
-			myMenu.addAction("Transformations", _viewer, SLOT(showTransformationsPage()));
+			myMenu.addAction(tr("Visualization Settings"), _viewer, SLOT(showVisualizationModelPage()));
+			myMenu.addAction(tr("Transformations"), _viewer, SLOT(showTransformationsPage()));
 			if (_visibleSwapped)
-				myMenu.addAction("Show", _viewer, SLOT(showSelectedItems()));
+				myMenu.addAction(tr("Show"), _viewer, SLOT(showSelectedItems()));
 			else
-				myMenu.addAction("Hide", _viewer, SLOT(hideSelectedItems()));
+				myMenu.addAction(tr("Hide"), _viewer, SLOT(hideSelectedItems()));
 			if (_displayedObjectsIds.size() > 1)
-				myMenu.addAction("Show Only", _viewer, SLOT(showOnlySelectedItems()));
-			myMenu.addAction("Duplicate", _viewer, SLOT(duplicateSelectedItems()));
-			myMenu.addAction("Delete", _viewer, SLOT(deleteSelectedItems()));
-			myMenu.addAction("Mesh Info", _viewer, SLOT(displaySelectedMeshInfo()));
+				myMenu.addAction(tr("Show Only"), _viewer, SLOT(showOnlySelectedItems()));
+			myMenu.addAction(tr("Duplicate"), _viewer, SLOT(duplicateSelectedItems()));
+			myMenu.addAction(tr("Delete"), _viewer, SLOT(deleteSelectedItems()));
+			myMenu.addAction(tr("Mesh Info"), _viewer, SLOT(displaySelectedMeshInfo()));
 		}
 		else
 		{
 			QAction* action = nullptr;
 			if ((!_visibleSwapped && _displayedObjectsIds.size() != 0) || (_visibleSwapped && _hiddenObjectsIds.size() != 0))
 			{
-				myMenu.addAction(QIcon(":/new/prefix1/res/fit-all.png"), "Fit All", this, SLOT(fitAll()));
+				myMenu.addAction(QIcon(":/new/prefix1/res/fit-all.png"), tr("Fit All"), this, SLOT(fitAll()));
 
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/window-zoom.png"), "Zoom Area");
+				action = myMenu.addAction(QIcon(":/new/prefix1/res/window-zoom.png"), tr("Zoom Area"));
 				action->setCheckable(true);
 				connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonWindowZoom_clicked(bool)));
-				myMenu.addAction(QIcon(":/new/prefix1/res/zoomview.png"), "Zoom", _viewer, SLOT(on_toolButtonZoomView_clicked()));
-				myMenu.addAction(QIcon(":/new/prefix1/res/panview.png"), "Pan", _viewer, SLOT(on_toolButtonPanView_clicked()));
-				myMenu.addAction(QIcon(":/new/prefix1/res/rotateview.png"), "Rotate", _viewer, SLOT(on_toolButtonRotateView_clicked()));
+				myMenu.addAction(QIcon(":/new/prefix1/res/zoomview.png"), tr("Zoom"), _viewer, SLOT(on_toolButtonZoomView_clicked()));
+				myMenu.addAction(QIcon(":/new/prefix1/res/panview.png"), tr("Pan"), _viewer, SLOT(on_toolButtonPanView_clicked()));
+				myMenu.addAction(QIcon(":/new/prefix1/res/rotateview.png"), tr("Rotate"), _viewer, SLOT(on_toolButtonRotateView_clicked()));
 			}
 			myMenu.addSeparator();
 
 			if (_hiddenObjectsIds.size() != 0)
 			{
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/showall.png"), "Show All", _viewer, SLOT(showAllItems()));
+				action = myMenu.addAction(QIcon(":/new/prefix1/res/showall.png"), tr("Show All"), _viewer, SLOT(showAllItems()));
 				action->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_A));
 			}
 			if (_displayedObjectsIds.size() != 0)
 			{
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/hideall.png"), "Hide All", _viewer, SLOT(hideAllItems()));
+				action = myMenu.addAction(QIcon(":/new/prefix1/res/hideall.png"), tr("Hide All"), _viewer, SLOT(hideAllItems()));
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_A));
 			}
 			if (_hiddenObjectsIds.size() != 0)
 			{
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/swapvisible.png"), "Swap Visible");
+				action = myMenu.addAction(QIcon(":/new/prefix1/res/swapvisible.png"), tr("Swap Visible"));
 				action->setCheckable(true);
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_S));
 				action->setChecked(_visibleSwapped);
 				connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonSwapVisible_clicked(bool)));
 			}
 			myMenu.addSeparator();
-			myMenu.addAction("Background Color", this, SLOT(setBackgroundColor()));
+			myMenu.addAction(tr("Background Color"), this, SLOT(setBackgroundColor()));
 		}
 		// Show context menu at handling position
 		myMenu.exec(mapToGlobal(pos));
