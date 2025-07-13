@@ -71,6 +71,9 @@ file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/translations)
 set(TS_FILES
     translations/modelviewer_en.ts
     translations/modelviewer_fr.ts
+    translations/modelviewer_de.ts
+    translations/modelviewer_es.ts
+    translations/modelviewer_it.ts
 )
 
 # Create empty .ts files if they don't exist

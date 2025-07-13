@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>946</width>
-    <height>662</height>
+    <height>669</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -127,6 +127,21 @@
            <item>
             <property name="text">
              <string>French</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>German</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Spanish</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Italian</string>
             </property>
            </item>
           </widget>
