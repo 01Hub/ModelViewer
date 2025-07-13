@@ -6,51 +6,52 @@
     <message>
         <location filename="../src/AssImpModelLoader.cpp" line="144"/>
         <source>Performance Warning!</source>
-        <translation type="unfinished"></translation>
+        <translation>Attenzione alle prestazioni!</translation>
     </message>
     <message>
         <location filename="../src/AssImpModelLoader.cpp" line="145"/>
         <source>The model contains more than 100000 triangles and the current method of UV generation is &quot;Smart UV&quot; which is time consuming.
 Do you want to continue generating the UV?</source>
-        <translation type="unfinished"></translation>
+        <translation>Il modello contiene più di 100.000 triangoli e l&apos;attuale metodo di generazione UV è &quot;Smart UV&quot;, che richiede molto tempo.
+Vuoi continuare a generare UV?</translation>
     </message>
     <message>
         <location filename="../src/AssImpModelLoader.cpp" line="151"/>
         <source>Change Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Modifica delle impostazioni</translation>
     </message>
     <message>
         <location filename="../src/AssImpModelLoader.cpp" line="240"/>
         <location filename="../src/AssImpModelLoader.cpp" line="450"/>
         <source>Traversing assembly...</source>
-        <translation type="unfinished"></translation>
+        <translation>Assemblaggio incrociato...</translation>
     </message>
     <message>
         <location filename="../src/AssImpModelLoader.cpp" line="259"/>
         <location filename="../src/AssImpModelLoader.cpp" line="465"/>
         <source>Converting shapes to mesh...</source>
-        <translation type="unfinished"></translation>
+        <translation>Convertire forme in rete...</translation>
     </message>
     <message>
         <location filename="../src/AssImpModelLoader.cpp" line="320"/>
         <source>Transferring shapes...</source>
-        <translation type="unfinished"></translation>
+        <translation>Trasferire forme...</translation>
     </message>
     <message>
         <location filename="../src/AssImpModelLoader.cpp" line="348"/>
         <source>Loading as single model...</source>
-        <translation type="unfinished"></translation>
+        <translation>Caricamento come singolo modello...</translation>
     </message>
     <message>
         <location filename="../src/AssImpModelLoader.cpp" line="373"/>
         <source>Converting shape to mesh...</source>
-        <translation type="unfinished"></translation>
+        <translation>Convertire la forma in rete...</translation>
     </message>
     <message>
         <location filename="../src/AssImpModelLoader.cpp" line="433"/>
         <location filename="../src/AssImpModelLoader.cpp" line="513"/>
         <source>Transfering shapes...</source>
-        <translation type="unfinished"></translation>
+        <translation>Trasferire forme...</translation>
     </message>
 </context>
 <context>
@@ -58,67 +59,67 @@ Do you want to continue generating the UV?</source>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="17"/>
         <source>Background Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Colore dello sfondo</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="40"/>
         <source>Preview</source>
-        <translation type="unfinished"></translation>
+        <translation>Anteprima</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="55"/>
         <source>Choose First Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Scegli il primo colore</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="65"/>
         <source>Choose Second Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Scegli il secondo colore</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="76"/>
         <source>Vertical Gradient</source>
-        <translation type="unfinished"></translation>
+        <translation>Gradiente verticale</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="81"/>
         <source>Horizontal Gradient</source>
-        <translation type="unfinished"></translation>
+        <translation>Gradiente orizzontale</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="86"/>
         <source>Top Left To Bottom Right</source>
-        <translation type="unfinished"></translation>
+        <translation>A sinistra in basso a destra</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="91"/>
         <source>Top Right To Bottom Left</source>
-        <translation type="unfinished"></translation>
+        <translation>Da destra a sinistra</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="99"/>
         <source>Gradient</source>
-        <translation type="unfinished"></translation>
+        <translation>Gradiente</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="109"/>
         <source>Default</source>
-        <translation type="unfinished"></translation>
+        <translation>Predefinito</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="148"/>
         <source>OK</source>
-        <translation type="unfinished"></translation>
+        <translation>Ok</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="155"/>
         <source>Apply</source>
-        <translation type="unfinished"></translation>
+        <translation>Applicare</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="162"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>Chiudi</translation>
     </message>
 </context>
 <context>
@@ -126,71 +127,71 @@ Do you want to continue generating the UV?</source>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="14"/>
         <source>Dialog</source>
-        <translation type="unfinished"></translation>
+        <translation>Dialogo</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="26"/>
         <source>Auxilary Plane Normal</source>
-        <translation type="unfinished"></translation>
+        <translation>Piano ausiliario normale</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="32"/>
         <source>DX</source>
-        <translation type="unfinished"></translation>
+        <translation>DX</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="61"/>
         <source>DY</source>
-        <translation type="unfinished"></translation>
+        <translation>D</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="90"/>
         <source>DZ</source>
-        <translation type="unfinished"></translation>
+        <translation>D</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="125"/>
         <source>Default Planes</source>
-        <translation type="unfinished"></translation>
+        <translation>Piani predefiniti</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="139"/>
         <source>XY</source>
-        <translation type="unfinished"></translation>
+        <translation>XY</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="155"/>
         <location filename="../ui/ClippingPlanesEditor.ui" line="217"/>
         <location filename="../ui/ClippingPlanesEditor.ui" line="282"/>
         <source>Flip</source>
-        <translation type="unfinished"></translation>
+        <translation>Flip</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="165"/>
         <location filename="../ui/ClippingPlanesEditor.ui" line="227"/>
         <location filename="../ui/ClippingPlanesEditor.ui" line="292"/>
         <source>Coefficient</source>
-        <translation type="unfinished"></translation>
+        <translation>Coefficiente</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="201"/>
         <source>YZ</source>
-        <translation type="unfinished"></translation>
+        <translation>YZ</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="266"/>
         <source>ZX</source>
-        <translation type="unfinished"></translation>
+        <translation>ZX</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="322"/>
         <source>Capping</source>
-        <translation type="unfinished"></translation>
+        <translation>Capping</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="329"/>
         <source>Reset Coefficients</source>
-        <translation type="unfinished"></translation>
+        <translation>Reset Coefficients</translation>
     </message>
 </context>
 <context>
@@ -198,7 +199,7 @@ Do you want to continue generating the UV?</source>
     <message>
         <location filename="../src/GLWidget.cpp" line="479"/>
         <source>No of Meshes: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>No di Meshes: %1</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="541"/>
@@ -207,76 +208,80 @@ Do you want to continue generating the UV?</source>
         <location filename="../src/GLWidget.cpp" line="609"/>
         <location filename="../src/GLWidget.cpp" line="648"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Errore</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="541"/>
         <source>No files found in selected folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nessun file trovato nella cartella selezionata.</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="590"/>
         <source>Failed to load fallback HDR cubemap from:
 </source>
-        <translation type="unfinished"></translation>
+        <translation>Non è riuscito a caricare fallback HDR cubemap da:
+</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="596"/>
         <source>No valid 6-face skybox images or fallback HDR file found in folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Nessuna immagine di skybox di 6 facce valida o di Fallback file HDR trovato nella cartella.</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="610"/>
         <source>Missing skybox face: %1
 Expected files should include identifiers like posx/negx or right/left, etc.</source>
-        <translation type="unfinished"></translation>
+        <translation>Faccia del paracadute mancante: %1
+I file previsti dovrebbero includere identificatori come posx/negx o destra/sinistra, ecc.</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="648"/>
         <source>Failed to load skybox face:
 </source>
-        <translation type="unfinished"></translation>
+        <translation>Non ha caricato la faccia del skybox:
+</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="954"/>
         <source>Press Esc to deactivate rotation mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Premere Esc per disattivare la modalità di rotazione</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="963"/>
         <source>Press Esc to deactivate panning mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Premere Esc per disattivare la modalità panning</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="972"/>
         <source>Press Esc to deactivate zooming mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Premere Esc per disattivare la modalità zoom</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="1306"/>
         <source>Reading file: </source>
-        <translation type="unfinished"></translation>
+        <translation>File di lettura: </translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="1405"/>
         <source>Generating UVs... </source>
-        <translation type="unfinished"></translation>
+        <translation>Generando UV... </translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="1406"/>
         <source>Processing node: %1/%2</source>
-        <translation type="unfinished"></translation>
+        <translation>Nodo di elaborazione: %1/%2</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="1427"/>
         <source>Cancelled</source>
-        <translation type="unfinished"></translation>
+        <translation>Annullamento</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="1427"/>
         <source>Model loading cancelled!
 Model may be loaded partially</source>
-        <translation type="unfinished"></translation>
+        <translation>Caricamento modello cancellato!
+Il modello può essere caricato parzialmente</translation>
     </message>
 </context>
 <context>
@@ -284,269 +289,269 @@ Model may be loaded partially</source>
     <message>
         <location filename="../ui/MainWindow.ui" line="17"/>
         <source>3D Model Viewer</source>
-        <translation type="unfinished"></translation>
+        <translation>Visualizzatore modello 3D</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="78"/>
         <source>File</source>
-        <translation type="unfinished"></translation>
+        <translation>File</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="94"/>
         <source>Help</source>
-        <translation type="unfinished"></translation>
+        <translation>Aiuto</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="101"/>
         <source>Window</source>
-        <translation type="unfinished"></translation>
+        <translation>Finestra</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="117"/>
         <source>Edit</source>
-        <translation type="unfinished"></translation>
+        <translation>Modifica</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="135"/>
         <source>Exit</source>
-        <translation type="unfinished"></translation>
+        <translation>Uscita</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="138"/>
         <source>Exit the application</source>
-        <translation type="unfinished"></translation>
+        <translation>Esci dall&apos;applicazione</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="146"/>
         <source>About</source>
-        <translation type="unfinished"></translation>
+        <translation>Informazioni</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="149"/>
         <source>About the application</source>
-        <translation type="unfinished"></translation>
+        <translation>Informazioni sull&apos;applicazione</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="157"/>
         <location filename="../src/MainWindow.cpp" line="277"/>
         <source>About Qt</source>
-        <translation type="unfinished"></translation>
+        <translation>Informazioni su Qt</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="160"/>
         <source>About the Qt Library</source>
-        <translation type="unfinished"></translation>
+        <translation>Informazioni sulla Biblioteca Qt</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="168"/>
         <source>New</source>
-        <translation type="unfinished"></translation>
+        <translation>Nuovo</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="171"/>
         <source>Create a new document window</source>
-        <translation type="unfinished"></translation>
+        <translation>Creare una nuova finestra di documento</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="174"/>
         <source>Ctrl+N</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+N</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="179"/>
         <source>Tile Horizontally</source>
-        <translation type="unfinished"></translation>
+        <translation>Piastrelle orizzontale</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="182"/>
         <source>Tile sub windows horizontally</source>
-        <translation type="unfinished"></translation>
+        <translation>Piastrelle sub finestre orizzontalmente</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="187"/>
         <source>Tile Vertically</source>
-        <translation type="unfinished"></translation>
+        <translation>Piastrelle verticale</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="190"/>
         <source>Tile sub windows vertically</source>
-        <translation type="unfinished"></translation>
+        <translation>Piastrelle sub finestre verticalmente</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="195"/>
         <source>Cascade</source>
-        <translation type="unfinished"></translation>
+        <translation>Cascata</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="198"/>
         <source>Cascade sub windows</source>
-        <translation type="unfinished"></translation>
+        <translation>Cascade sub finestre</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="203"/>
         <source>Tile</source>
-        <translation type="unfinished"></translation>
+        <translation>Piastrelle</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="206"/>
         <source>Tile sub windows</source>
-        <translation type="unfinished"></translation>
+        <translation>Piastrelle sotto finestre</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="214"/>
         <location filename="../ui/MainWindow.ui" line="318"/>
         <source>Close</source>
-        <translation type="unfinished"></translation>
+        <translation>Chiudi</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="222"/>
         <source>Close All</source>
-        <translation type="unfinished"></translation>
+        <translation>Chiudi tutto</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="230"/>
         <source>Next</source>
-        <translation type="unfinished"></translation>
+        <translation>Il prossimo</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="238"/>
         <source>Previous</source>
-        <translation type="unfinished"></translation>
+        <translation>Precedente</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="246"/>
         <source>Open</source>
-        <translation type="unfinished"></translation>
+        <translation>Aperto</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="249"/>
         <source>Open an existing model</source>
-        <translation type="unfinished"></translation>
+        <translation>Aprire un modello esistente</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="252"/>
         <source>Ctrl+O</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+O</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="260"/>
         <source>Import</source>
-        <translation type="unfinished"></translation>
+        <translation>Importazioni</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="263"/>
         <source>Import a model into the current document</source>
-        <translation type="unfinished"></translation>
+        <translation>Importare un modello nel documento corrente</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="266"/>
         <source>Ctrl+I</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+I</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="274"/>
         <source>Save</source>
-        <translation type="unfinished"></translation>
+        <translation>Salva</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="277"/>
         <source>Save the current document</source>
-        <translation type="unfinished"></translation>
+        <translation>Salvare il documento corrente</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="285"/>
         <source>Save As</source>
-        <translation type="unfinished"></translation>
+        <translation>Salvare come</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="288"/>
         <source>Save the current document as another file name</source>
-        <translation type="unfinished"></translation>
+        <translation>Salvare il documento corrente come un altro nome di file</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="296"/>
         <source>Undo</source>
-        <translation type="unfinished"></translation>
+        <translation>Undo</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="299"/>
         <source>Undo the last action</source>
-        <translation type="unfinished"></translation>
+        <translation>Annullare l&apos;ultima azione</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="307"/>
         <source>Redo</source>
-        <translation type="unfinished"></translation>
+        <translation>Redo</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="310"/>
         <source>Redo the last action</source>
-        <translation type="unfinished"></translation>
+        <translation>Redo l&apos;ultima azione</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="321"/>
         <source>Close the current file</source>
-        <translation type="unfinished"></translation>
+        <translation>Chiudere il file corrente</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="326"/>
         <source>Export</source>
-        <translation type="unfinished"></translation>
+        <translation>Esportazione</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="329"/>
         <source>Ctrl+E</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+E</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="334"/>
         <source>Clear UV Prompt Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Impostazioni Prompt UV trasparenti</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="339"/>
         <source>Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Impostazioni impostazioni</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="46"/>
         <source>Recent...</source>
-        <translation type="unfinished"></translation>
+        <translation>Recenti...</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="61"/>
         <source>Close the active window</source>
-        <translation type="unfinished"></translation>
+        <translation>Chiudi la finestra attiva</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="66"/>
         <source>Close the active document</source>
-        <translation type="unfinished"></translation>
+        <translation>Chiudere il documento attivo</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="71"/>
         <source>Close all the windows</source>
-        <translation type="unfinished"></translation>
+        <translation>Chiudi tutte le finestre</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="76"/>
         <source>Move the focus to the next window</source>
-        <translation type="unfinished"></translation>
+        <translation>Spostare l&apos;attenzione alla finestra successiva</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="81"/>
         <source>Move the focus to the previous window</source>
-        <translation type="unfinished"></translation>
+        <translation>Spostare la messa a fuoco nella finestra precedente</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="119"/>
         <source>Document modified</source>
-        <translation type="unfinished"></translation>
+        <translation>Documento modificato</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="119"/>
         <source>Do you want to save?</source>
-        <translation type="unfinished"></translation>
+        <translation>Vuoi salvare?</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="261"/>
@@ -558,43 +563,51 @@ ASSIMP Version: %2.%3
 Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
 
 </source>
-        <translation type="unfinished"></translation>
+        <translation>Applicazione per visualizzare vari modelli 3D come OBJ e StereoLithography modelli utilizzando la libreria ASSIMP, e STEP, IGES e file BREP utilizzando la libreria OpenCASCADE
+
+Versione dell&apos;app: %1
+Versione ASSIMP: %2.%3
+
+Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
+
+</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="271"/>
         <source>About 3D Model Viewer</source>
-        <translation type="unfinished"></translation>
+        <translation>Informazioni su 3D Model Viewer</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="336"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Errore</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="336"/>
         <source>
 Unsupported file format: </source>
-        <translation type="unfinished"></translation>
+        <translation>
+Formato del file non supportato: </translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="361"/>
         <source>Open Model File</source>
-        <translation type="unfinished"></translation>
+        <translation>Aprire il file del modello</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="700"/>
         <source>&amp;%1 %2</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;%1 %2</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="726"/>
         <source>File Not Found</source>
-        <translation type="unfinished"></translation>
+        <translation>File non trovato</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="727"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
-        <translation type="unfinished"></translation>
+        <translation>Il file %1 non esiste più. Vuoi rimuoverlo dai file recenti?</translation>
     </message>
 </context>
 <context>
@@ -602,32 +615,32 @@ Unsupported file format: </source>
     <message>
         <location filename="../ui/ModelViewer.ui" line="24"/>
         <source>Session 1</source>
-        <translation type="unfinished"></translation>
+        <translation>Sessione 1</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="70"/>
         <source>3D View</source>
-        <translation type="unfinished"></translation>
+        <translation>3D Vista</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="137"/>
         <source>Document</source>
-        <translation type="unfinished"></translation>
+        <translation>Documento</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="164"/>
         <source>Import</source>
-        <translation type="unfinished"></translation>
+        <translation>Importazioni</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="180"/>
         <source>Ctrl+O</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+O</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="203"/>
         <source>Export</source>
-        <translation type="unfinished"></translation>
+        <translation>Esportazione</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="206"/>
@@ -646,298 +659,298 @@ Unsupported file format: </source>
         <location filename="../ui/ModelViewer.ui" line="2681"/>
         <location filename="../ui/ModelViewer.ui" line="2769"/>
         <source>...</source>
-        <translation type="unfinished"></translation>
+        <translation>...</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="229"/>
         <source>Save</source>
-        <translation type="unfinished"></translation>
+        <translation>Salva</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="296"/>
         <source>View</source>
-        <translation type="unfinished"></translation>
+        <translation>Vista</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="323"/>
         <source>Rotate View</source>
-        <translation type="unfinished"></translation>
+        <translation>Vista girevole</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="339"/>
         <source>Alt+R</source>
-        <translation type="unfinished"></translation>
+        <translation>Alt+R</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="358"/>
         <source>Pan View</source>
-        <translation type="unfinished"></translation>
+        <translation>Vista panoramica</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="374"/>
         <source>Alt+P</source>
-        <translation type="unfinished"></translation>
+        <translation>Alt+P</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="393"/>
         <source>Zoom View</source>
-        <translation type="unfinished"></translation>
+        <translation>Zoom vista</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="409"/>
         <source>Alt+Z</source>
-        <translation type="unfinished"></translation>
+        <translation>Alt+Z</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="428"/>
         <source>Fit All</source>
-        <translation type="unfinished"></translation>
+        <translation>Tutti</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="444"/>
         <source>Home</source>
-        <translation type="unfinished"></translation>
+        <translation>Home</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="460"/>
         <source>Zoom Area</source>
-        <translation type="unfinished"></translation>
+        <translation>Area Zoom</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="476"/>
         <source>Alt+W</source>
-        <translation type="unfinished"></translation>
+        <translation>Alt+W</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="492"/>
         <source>Camera Modes</source>
-        <translation type="unfinished"></translation>
+        <translation>Modalità di fotocamera</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="525"/>
         <source>Top View</source>
-        <translation type="unfinished"></translation>
+        <translation>Top View</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="541"/>
         <source>Ctrl+T</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+T</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="560"/>
         <source>Bottom View</source>
-        <translation type="unfinished"></translation>
+        <translation>Vista inferiore</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="576"/>
         <source>Ctrl+B</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+B</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="595"/>
         <source>Left View</source>
-        <translation type="unfinished"></translation>
+        <translation>Vista a sinistra</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="611"/>
         <source>Ctrl+L</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+L</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="630"/>
         <source>Right View</source>
-        <translation type="unfinished"></translation>
+        <translation>Vista destra</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="646"/>
         <source>Ctrl+J</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+J</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="665"/>
         <source>Front View</source>
-        <translation type="unfinished"></translation>
+        <translation>Vista frontale</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="681"/>
         <source>Ctrl+F</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+F</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="700"/>
         <source>Back View</source>
-        <translation type="unfinished"></translation>
+        <translation>Indietro</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="716"/>
         <source>Ctrl+R</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+R</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="735"/>
         <source>Axonometric View</source>
-        <translation type="unfinished"></translation>
+        <translation>Vista assonometrica</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="751"/>
         <source>Ctrl+A</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+A</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="777"/>
         <source>Swith to Perspective</source>
-        <translation type="unfinished"></translation>
+        <translation>Scontro alla prospettiva</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="780"/>
         <location filename="../ui/ModelViewer.ui" line="871"/>
         <source>Shaded</source>
-        <translation type="unfinished"></translation>
+        <translation>Raso</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="794"/>
         <source>Ctrl+P</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+P</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="823"/>
         <source>Multiple Views</source>
-        <translation type="unfinished"></translation>
+        <translation>Visite multiple</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="826"/>
         <source>Stereo</source>
-        <translation type="unfinished"></translation>
+        <translation>Stereo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="839"/>
         <source>Ctrl+M</source>
-        <translation type="unfinished"></translation>
+        <translation>Ctrl+M</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="868"/>
         <source>Display Mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Modalità di visualizzazione</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="904"/>
         <source>Show/Hide Vertex Normals</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra/Hide Vertex Normals</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="934"/>
         <source>Show/Hide Face Normals</source>
-        <translation type="unfinished"></translation>
+        <translation>Show/Hide Face Normals</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="971"/>
         <source>Clipping Planes</source>
-        <translation type="unfinished"></translation>
+        <translation>Piani di ritaglio</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1000"/>
         <source>Swap Visible Object Space</source>
-        <translation type="unfinished"></translation>
+        <translation>Visibile Swap Spazio oggetti</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1029"/>
         <source>Show/Hide Axis</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra/Asse di guida</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1072"/>
         <source>Actions</source>
-        <translation type="unfinished"></translation>
+        <translation>Azioni</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1113"/>
         <source>Model Objects</source>
-        <translation type="unfinished"></translation>
+        <translation>Oggetti di modello</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1128"/>
         <source>Hide/Show All</source>
-        <translation type="unfinished"></translation>
+        <translation>Nascondi/Mostra tutto</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1138"/>
         <source>Auto Fit View On Hide/Show</source>
-        <translation type="unfinished"></translation>
+        <translation>Vista su Nascondi/Mostra</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1152"/>
         <source>Search</source>
-        <translation type="unfinished"></translation>
+        <translation>Ricerca</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1162"/>
         <source>Clear</source>
-        <translation type="unfinished"></translation>
+        <translation>Libero</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1188"/>
         <source>Visualization Model</source>
-        <translation type="unfinished"></translation>
+        <translation>Modello di visualizzazione</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1196"/>
         <source>Ambient Diffuse Specular Lighting - Blinn Phong</source>
-        <translation type="unfinished"></translation>
+        <translation>Illuminazione Speculare Ambient Diffuse - Blinn Phong</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1209"/>
         <source>Physically Based Rendering - Direct Lighting</source>
-        <translation type="unfinished"></translation>
+        <translation>Rendering a base fisica - Illuminazione diretta</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1219"/>
         <source>Physically Based Rendering - Textured</source>
-        <translation type="unfinished"></translation>
+        <translation>Rendering a base fisica - Textured</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1249"/>
         <source>ADS Lighting Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Impostazioni di illuminazione ADS</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1267"/>
         <source>Material Colours</source>
-        <translation type="unfinished"></translation>
+        <translation>Materiali Colori</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1276"/>
         <location filename="../ui/ModelViewer.ui" line="4089"/>
         <source>Ambient Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Colore ambientale</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1283"/>
         <source>Emissive Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Colore emissivo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1290"/>
         <location filename="../ui/ModelViewer.ui" line="4096"/>
         <source>Diffuse Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Diffusore colore</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1297"/>
         <location filename="../ui/ModelViewer.ui" line="4103"/>
         <source>Specular Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Colore Speculare</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1307"/>
         <location filename="../ui/ModelViewer.ui" line="2815"/>
         <source>Apply Textures to Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>Applicare le texture alla selezione</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1316"/>
         <location filename="../ui/ModelViewer.ui" line="2696"/>
         <source>Height Map</source>
-        <translation type="unfinished"></translation>
+        <translation>Mappa dell&apos;altezza</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1339"/>
@@ -956,331 +969,331 @@ Unsupported file format: </source>
         <location filename="../ui/ModelViewer.ui" line="4284"/>
         <location filename="../ui/ModelViewer.ui" line="4364"/>
         <source>Select Texture</source>
-        <translation type="unfinished"></translation>
+        <translation>Selezionare Texture</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1401"/>
         <source>Enable/Disable Texture</source>
-        <translation type="unfinished"></translation>
+        <translation>Attivare / disattivare la texture</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1404"/>
         <source>Texture</source>
-        <translation type="unfinished"></translation>
+        <translation>Texture</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1420"/>
         <source>Select the image file for texture</source>
-        <translation type="unfinished"></translation>
+        <translation>Selezionare il file immagine per texture</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1423"/>
         <source>Select Texture Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Selezionare immagine di texture</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1434"/>
         <source>Emissive Light Map</source>
-        <translation type="unfinished"></translation>
+        <translation>Mappa della luce emissiva</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1530"/>
         <location filename="../ui/ModelViewer.ui" line="2822"/>
         <source>Clear All Textures from Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>Cancella tutte le texture dalla selezione</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1537"/>
         <source>Opacity</source>
-        <translation type="unfinished"></translation>
+        <translation>Possibilità</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1546"/>
         <location filename="../ui/ModelViewer.ui" line="2093"/>
         <source>Transparent</source>
-        <translation type="unfinished"></translation>
+        <translation>Trasparente</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1572"/>
         <location filename="../ui/ModelViewer.ui" line="2119"/>
         <source>Opaque</source>
-        <translation type="unfinished"></translation>
+        <translation>Opaco</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1587"/>
         <location filename="../ui/ModelViewer.ui" line="2425"/>
         <source>Normal Map</source>
-        <translation type="unfinished"></translation>
+        <translation>Mappa normale</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1672"/>
         <location filename="../ui/ModelViewer.ui" line="2601"/>
         <source>Opacity Map</source>
-        <translation type="unfinished"></translation>
+        <translation>Mappa della città</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1682"/>
         <location filename="../ui/ModelViewer.ui" line="2611"/>
         <source>Invert</source>
-        <translation type="unfinished"></translation>
+        <translation>Invertire</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1771"/>
         <location filename="../ui/ModelViewer.ui" line="1989"/>
         <location filename="../ui/ModelViewer.ui" line="4492"/>
         <source>Reset to default light and material</source>
-        <translation type="unfinished"></translation>
+        <translation>Ripristina alla luce e al materiale di default</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1774"/>
         <location filename="../ui/ModelViewer.ui" line="2144"/>
         <source>Reset to Default Values</source>
-        <translation type="unfinished"></translation>
+        <translation>Ripristino dei valori predefiniti</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1783"/>
         <source>Specular Light Map</source>
-        <translation type="unfinished"></translation>
+        <translation>Mappa della luce speculare</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1866"/>
         <source>Shininess</source>
-        <translation type="unfinished"></translation>
+        <translation>Shinismo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1875"/>
         <source>Value</source>
-        <translation type="unfinished"></translation>
+        <translation>Valore</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1900"/>
         <source>Diffuse Light Map</source>
-        <translation type="unfinished"></translation>
+        <translation>Mappa della luce di Diffuse</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1992"/>
         <source>Apply Colors to Selection</source>
-        <translation type="unfinished"></translation>
+        <translation>Applicare i colori alla selezione</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2008"/>
         <source>Direct Lighting PBR Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Illuminazione diretta PBR Impostazioni impostazioni</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2016"/>
         <source>Albedo Colour</source>
-        <translation type="unfinished"></translation>
+        <translation>Colore Albedo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2025"/>
         <source>Dilectric</source>
-        <translation type="unfinished"></translation>
+        <translation>Dilettrico</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2048"/>
         <source>Metallic</source>
-        <translation type="unfinished"></translation>
+        <translation>Metallo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2059"/>
         <source>Smooth</source>
-        <translation type="unfinished"></translation>
+        <translation>Liscio</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2082"/>
         <source>Rough</source>
-        <translation type="unfinished"></translation>
+        <translation>Rotta</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2162"/>
         <source>Texture Based PBR Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>PBR basato sulla texture Impostazioni impostazioni</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2170"/>
         <source>Albedo Map</source>
-        <translation type="unfinished"></translation>
+        <translation>Mappa di Albedo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2255"/>
         <source>Metallic Map</source>
-        <translation type="unfinished"></translation>
+        <translation>Mappa del metallo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2340"/>
         <source>Roughness Map</source>
-        <translation type="unfinished"></translation>
+        <translation>Mappa della rugosità</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2513"/>
         <source>Ambient Occlusion Map</source>
-        <translation type="unfinished"></translation>
+        <translation>Mappa ambientale di Occlusion</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2787"/>
         <source>Height Scale Factor</source>
-        <translation type="unfinished"></translation>
+        <translation>Fattore di scala di altezza</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2851"/>
         <source>Predefined Materials</source>
-        <translation type="unfinished"></translation>
+        <translation>Materiali predefiniti</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2878"/>
         <source>Green Plastic</source>
-        <translation type="unfinished"></translation>
+        <translation>Plastica verde</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2910"/>
         <source>Chrome</source>
-        <translation type="unfinished"></translation>
+        <translation>Chrome</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2942"/>
         <source>Black Rubber</source>
-        <translation type="unfinished"></translation>
+        <translation>Gomma nera</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2974"/>
         <source>Black Plastic</source>
-        <translation type="unfinished"></translation>
+        <translation>plastica nera</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3012"/>
         <source>Brass</source>
-        <translation type="unfinished"></translation>
+        <translation>Ottone</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3047"/>
         <source>Silver</source>
-        <translation type="unfinished"></translation>
+        <translation>Argento</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3067"/>
         <source>Plastic</source>
-        <translation type="unfinished"></translation>
+        <translation>Plastica</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3089"/>
         <source>Emerald</source>
-        <translation type="unfinished"></translation>
+        <translation>Smeraldo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3121"/>
         <source>Gold</source>
-        <translation type="unfinished"></translation>
+        <translation>Oro</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3153"/>
         <source>Ruby</source>
-        <translation type="unfinished"></translation>
+        <translation>Ruby</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3185"/>
         <source>Yellow Plastic</source>
-        <translation type="unfinished"></translation>
+        <translation>Plastica gialla</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3217"/>
         <source>Green Rubber</source>
-        <translation type="unfinished"></translation>
+        <translation>Gomma verde</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3249"/>
         <source>White Rubber</source>
-        <translation type="unfinished"></translation>
+        <translation>Gomma bianca</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3284"/>
         <source>White Plastic</source>
-        <translation type="unfinished"></translation>
+        <translation>Plastica bianca</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3304"/>
         <source>Gems</source>
-        <translation type="unfinished"></translation>
+        <translation>Gems</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3326"/>
         <source>Jade</source>
-        <translation type="unfinished"></translation>
+        <translation>Jade</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3346"/>
         <source>Metals</source>
-        <translation type="unfinished"></translation>
+        <translation>Metalli</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3368"/>
         <source>Copper</source>
-        <translation type="unfinished"></translation>
+        <translation>Rame</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3400"/>
         <source>Red Rubber</source>
-        <translation type="unfinished"></translation>
+        <translation>Gomma rossa</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3432"/>
         <source>Yellow rubber</source>
-        <translation type="unfinished"></translation>
+        <translation>Gomma gialla</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3464"/>
         <source>Cyan Rubber</source>
-        <translation type="unfinished"></translation>
+        <translation>Gomma Cyan</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3496"/>
         <source>Red Plastic</source>
-        <translation type="unfinished"></translation>
+        <translation>Plastica rossa</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3528"/>
         <source>Cyan Plastic</source>
-        <translation type="unfinished"></translation>
+        <translation>Cyan plastica</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3560"/>
         <source>Obsidian</source>
-        <translation type="unfinished"></translation>
+        <translation>Obsidian</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3592"/>
         <source>Bronze</source>
-        <translation type="unfinished"></translation>
+        <translation>Bronzo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3612"/>
         <source>Rubber</source>
-        <translation type="unfinished"></translation>
+        <translation>Gomma</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3634"/>
         <source>Turquoise</source>
-        <translation type="unfinished"></translation>
+        <translation>Turchese</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3666"/>
         <source>Pearl</source>
-        <translation type="unfinished"></translation>
+        <translation>Perla</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3717"/>
         <source>Object Transformations</source>
-        <translation type="unfinished"></translation>
+        <translation>Trasformazioni degli oggetti</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3723"/>
         <source>Translations</source>
-        <translation type="unfinished"></translation>
+        <translation>Traduzioni</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3732"/>
         <source>DX</source>
-        <translation type="unfinished"></translation>
+        <translation>DX</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3745"/>
@@ -1290,224 +1303,224 @@ Unsupported file format: </source>
         <location filename="../ui/ModelViewer.ui" line="3975"/>
         <location filename="../ui/ModelViewer.ui" line="4007"/>
         <source> mm</source>
-        <translation type="unfinished"></translation>
+        <translation> mm</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3761"/>
         <source>DY</source>
-        <translation type="unfinished"></translation>
+        <translation>D</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3790"/>
         <source>DZ</source>
-        <translation type="unfinished"></translation>
+        <translation>D</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3822"/>
         <source>Rotations</source>
-        <translation type="unfinished"></translation>
+        <translation>Rotazioni</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3831"/>
         <source>RX</source>
-        <translation type="unfinished"></translation>
+        <translation>RX</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3844"/>
         <location filename="../ui/ModelViewer.ui" line="3873"/>
         <location filename="../ui/ModelViewer.ui" line="3902"/>
         <source> deg</source>
-        <translation type="unfinished"></translation>
+        <translation> deg</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3860"/>
         <source>RY</source>
-        <translation type="unfinished"></translation>
+        <translation>RY</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3889"/>
         <source>RZ</source>
-        <translation type="unfinished"></translation>
+        <translation>RZ</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3921"/>
         <source>Scaling</source>
-        <translation type="unfinished"></translation>
+        <translation>Scala</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3930"/>
         <source>SX</source>
-        <translation type="unfinished"></translation>
+        <translation>#</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3962"/>
         <source>SY</source>
-        <translation type="unfinished"></translation>
+        <translation>SY</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3994"/>
         <source>SZ</source>
-        <translation type="unfinished"></translation>
+        <translation>S</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4029"/>
         <source>Apply Transformations</source>
-        <translation type="unfinished"></translation>
+        <translation>Applicare le trasformazioni</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4036"/>
         <source>Reset Transformations</source>
-        <translation type="unfinished"></translation>
+        <translation>Reimpostare le trasformazioni</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4065"/>
         <source>Visualization Environment Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Impostazioni dell&apos;ambiente di visualizzazione</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4077"/>
         <source>Light Colours</source>
-        <translation type="unfinished"></translation>
+        <translation>Colori di luce</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4113"/>
         <source>Light Position</source>
-        <translation type="unfinished"></translation>
+        <translation>Posizione leggera</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4135"/>
         <source>X</source>
-        <translation type="unfinished"></translation>
+        <translation>X</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4158"/>
         <source>Y</source>
-        <translation type="unfinished"></translation>
+        <translation>Y</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4168"/>
         <source>Z</source>
-        <translation type="unfinished"></translation>
+        <translation>Z</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4211"/>
         <source>Lock light and camera together</source>
-        <translation type="unfinished"></translation>
+        <translation>Bloccare luce e fotocamera insieme</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4217"/>
         <source>Lock Light and Camera</source>
-        <translation type="unfinished"></translation>
+        <translation>Luce di blocco e fotocamera</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4227"/>
         <source>Show Lights</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra luci</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4236"/>
         <source>Environment</source>
-        <translation type="unfinished"></translation>
+        <translation>Ambiente</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4247"/>
         <source>Sky Box</source>
-        <translation type="unfinished"></translation>
+        <translation>Sky Box</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4254"/>
         <source>HDRI</source>
-        <translation type="unfinished"></translation>
+        <translation>HDRI</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4261"/>
         <source>FOV</source>
-        <translation type="unfinished"></translation>
+        <translation>FOV</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4295"/>
         <source>Shadows</source>
-        <translation type="unfinished"></translation>
+        <translation>Ombre</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4302"/>
         <source>Self Shadows</source>
-        <translation type="unfinished"></translation>
+        <translation>Ombre del Sé</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4309"/>
         <source>Reflections</source>
-        <translation type="unfinished"></translation>
+        <translation>Riflessioni</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4316"/>
         <source>Environment Mapping</source>
-        <translation type="unfinished"></translation>
+        <translation>Mappatura dell&apos;ambiente</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4327"/>
         <source>Floor</source>
-        <translation type="unfinished"></translation>
+        <translation>Piano terra</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4334"/>
         <source>Offset</source>
-        <translation type="unfinished"></translation>
+        <translation>Offset</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4354"/>
         <source>Floor Texture</source>
-        <translation type="unfinished"></translation>
+        <translation>Texture del pavimento</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4375"/>
         <source>Repeat S</source>
-        <translation type="unfinished"></translation>
+        <translation>Ripetere S</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4395"/>
         <source>Repeat T</source>
-        <translation type="unfinished"></translation>
+        <translation>Ripetizione</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4417"/>
         <source>HDR Tone Mapping</source>
-        <translation type="unfinished"></translation>
+        <translation>Mapping tono HDR</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4426"/>
         <source>Gamma Correction</source>
-        <translation type="unfinished"></translation>
+        <translation>Correzione Gamma</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4436"/>
         <source>Screen Gamma</source>
-        <translation type="unfinished"></translation>
+        <translation>Gamma di schermo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4495"/>
         <source>Default Values</source>
-        <translation type="unfinished"></translation>
+        <translation>Valori di default</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="640"/>
         <source>objects</source>
-        <translation type="unfinished"></translation>
+        <translation>oggetti</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="640"/>
         <source>object</source>
-        <translation type="unfinished"></translation>
+        <translation>oggetto</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="641"/>
         <source>Selected %1 %2</source>
-        <translation type="unfinished"></translation>
+        <translation>Selezione %1 %2</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="644"/>
         <source>No selection</source>
-        <translation type="unfinished"></translation>
+        <translation>Nessuna selezione</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="750"/>
@@ -1516,18 +1529,19 @@ Unsupported file format: </source>
         <location filename="../src/ModelViewer.cpp" line="2065"/>
         <location filename="../src/ModelViewer.cpp" line="2116"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Errore</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="750"/>
         <source>
 Unsupported file format: </source>
-        <translation type="unfinished"></translation>
+        <translation>
+Formato del file non supportato: </translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="773"/>
         <source>Failed to load model: </source>
-        <translation type="unfinished"></translation>
+        <translation>Non caricare il modello: </translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="794"/>
@@ -1535,76 +1549,78 @@ Unsupported file format: </source>
         <location filename="../src/ModelViewer.cpp" line="843"/>
         <location filename="../src/ModelViewer.cpp" line="873"/>
         <source>%1</source>
-        <translation type="unfinished"></translation>
+        <translation>%1</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="827"/>
         <location filename="../src/ModelViewer.cpp" line="875"/>
         <source>%1*</source>
-        <translation type="unfinished"></translation>
+        <translation>%1*</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="842"/>
         <source>File saved</source>
-        <translation type="unfinished"></translation>
+        <translation>File salvato</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="847"/>
         <source>Failed to save file: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Non salvare file: %1</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="855"/>
         <source>Model Viewer Files (*.mvf)</source>
-        <translation type="unfinished"></translation>
+        <translation>File di visualizzazione modello (.*mvf)</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="856"/>
         <source>Save Model</source>
-        <translation type="unfinished"></translation>
+        <translation>Modello di salvataggio</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="933"/>
         <location filename="../src/ModelViewer.cpp" line="954"/>
         <source>Confirmation</source>
-        <translation type="unfinished"></translation>
+        <translation>Conferma</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="933"/>
         <source>Duplicate selection?</source>
-        <translation type="unfinished"></translation>
+        <translation>Selezione duplicata?</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="954"/>
         <source>Delete selection?</source>
-        <translation type="unfinished"></translation>
+        <translation>Elimina la selezione?</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1069"/>
         <source>Selection Required</source>
-        <translation type="unfinished"></translation>
+        <translation>Selezione richiesta</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1069"/>
         <source>Please select an object first</source>
-        <translation type="unfinished"></translation>
+        <translation>Si prega di selezionare un oggetto prima</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1134"/>
         <source>Points: %1
 </source>
-        <translation type="unfinished"></translation>
+        <translation>Punti: %1
+</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1135"/>
         <source>Triangles: %1
 </source>
-        <translation type="unfinished"></translation>
+        <translation>Triangoli: %1
+</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1158"/>
         <source>Memory: %1 </source>
-        <translation type="unfinished"></translation>
+        <translation>Memoria: %1 </translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1161"/>
@@ -1613,13 +1629,18 @@ Surface Area: %2mm^2
 Density: %3kg/m^3
 Weight: %4kg
 </source>
-        <translation type="unfinished"></translation>
+        <translation>Volume della maglia: %1mm^3
+Superficie: %2mm^2
+Densità: %3kg/m^3
+Peso: %4kg
+</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1164"/>
         <source>Mesh Center of Mass: X%1, Y%2, Z%3
 </source>
-        <translation type="unfinished"></translation>
+        <translation>Mesh Center of Mass: X%1, Y%2, Z%3
+</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1166"/>
@@ -1628,7 +1649,11 @@ Weight: %4kg
 	YMin %3  YMax %4
 	ZMin %5  ZMax %6
 </source>
-        <translation type="unfinished"></translation>
+        <translation>Limiti di deposito:
+	XMin %1 XMax %2
+	YMin %3 YMax %4
+	ZMin %5 ZMax %6
+</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1169"/>
@@ -1636,52 +1661,55 @@ Weight: %4kg
 	X %1
 	Y %2
 	Z %3</source>
-        <translation type="unfinished"></translation>
+        <translation>Dimensione del rivestimento:
+	X %1
+	Y%2
+	Z %3</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1173"/>
         <source>Mesh Info</source>
-        <translation type="unfinished"></translation>
+        <translation>Informazioni su Mesh</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1982"/>
         <source>Import Model File</source>
-        <translation type="unfinished"></translation>
+        <translation>Importazione del modello di file</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2044"/>
         <source>Export Model</source>
-        <translation type="unfinished"></translation>
+        <translation>Modello di esportazione</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2063"/>
         <source>Information</source>
-        <translation type="unfinished"></translation>
+        <translation>Informazioni</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2063"/>
         <source>Exported</source>
-        <translation type="unfinished"></translation>
+        <translation>Esportazione</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2065"/>
         <source>Export failed!</source>
-        <translation type="unfinished"></translation>
+        <translation>Esportazione fallita!</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2109"/>
         <source>File loaded</source>
-        <translation type="unfinished"></translation>
+        <translation>File caricato</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2116"/>
         <source>Failed to load model %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Non caricate il modello %1</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2287"/>
         <source>Select Skybox Texture Folder</source>
-        <translation type="unfinished"></translation>
+        <translation>Selezionare la cartella di texture Skybox</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2787"/>
@@ -1691,39 +1719,39 @@ Weight: %4kg
         <location filename="../src/ModelViewer.cpp" line="2807"/>
         <location filename="../src/ModelViewer.cpp" line="2812"/>
         <source>PBR Texture Missing</source>
-        <translation type="unfinished"></translation>
+        <translation>PBR Mancanza di texture</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2787"/>
         <source>Albedo map texture not set</source>
-        <translation type="unfinished"></translation>
+        <translation>Albedo mappa texture non impostato</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2792"/>
         <source>Metallic map texture not set</source>
-        <translation type="unfinished"></translation>
+        <translation>Struttura della mappa metallica non impostata</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2797"/>
         <source>Roughness map texture not set</source>
-        <translation type="unfinished"></translation>
+        <translation>Struttura della mappa rugosità non impostata</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2802"/>
         <location filename="../src/ModelViewer.cpp" line="3359"/>
         <source>Normal map texture not set</source>
-        <translation type="unfinished"></translation>
+        <translation>Texture mappa normale non impostato</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2807"/>
         <source>AO map texture not set</source>
-        <translation type="unfinished"></translation>
+        <translation>AO mappa texture non impostato</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2812"/>
         <location filename="../src/ModelViewer.cpp" line="3364"/>
         <source>Height map texture not set</source>
-        <translation type="unfinished"></translation>
+        <translation>Altezza mappa texture non impostato</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="3349"/>
@@ -1731,17 +1759,17 @@ Weight: %4kg
         <location filename="../src/ModelViewer.cpp" line="3359"/>
         <location filename="../src/ModelViewer.cpp" line="3364"/>
         <source>ADS Texture Missing</source>
-        <translation type="unfinished"></translation>
+        <translation>Mancanza di texture ADS</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="3349"/>
         <source>Diffuse map texture not set</source>
-        <translation type="unfinished"></translation>
+        <translation>Diffuse mappa texture non impostato</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="3354"/>
         <source>Specular map texture not set</source>
-        <translation type="unfinished"></translation>
+        <translation>Grafico speculare texture non impostato</translation>
     </message>
 </context>
 <context>
@@ -1749,945 +1777,945 @@ Weight: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="20"/>
         <source>Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Impostazioni impostazioni</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="30"/>
         <source>General</source>
-        <translation type="unfinished"></translation>
+        <translation>Generale</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="49"/>
         <source>Restore Last Opened File at Startup</source>
-        <translation type="unfinished"></translation>
+        <translation>Ripristina ultimo file aperto all&apos;avvio</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="56"/>
         <source>Enable Tooltips</source>
-        <translation type="unfinished"></translation>
+        <translation>Abilitare gli strumenti</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="68"/>
         <source>Theme</source>
-        <translation type="unfinished"></translation>
+        <translation>Tema</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="82"/>
         <source>System Default</source>
-        <translation type="unfinished"></translation>
+        <translation>Default del sistema</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="87"/>
         <source>Light</source>
-        <translation type="unfinished"></translation>
+        <translation>Luce</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="92"/>
         <source>Dark</source>
-        <translation type="unfinished"></translation>
+        <translation>Oscuro</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="110"/>
         <source>Language</source>
-        <translation type="unfinished"></translation>
+        <translation>Lingua</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="124"/>
         <source>English</source>
-        <translation type="unfinished"></translation>
+        <translation>Inglese</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="129"/>
         <source>French</source>
-        <translation type="unfinished"></translation>
+        <translation>Francese</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="139"/>
         <source>Prompt Before Overwriting Model</source>
-        <translation type="unfinished"></translation>
+        <translation>Prompt prima sovrascrittura modello</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="149"/>
         <source>Confirm on Exit</source>
-        <translation type="unfinished"></translation>
+        <translation>Confermare l&apos;uscita</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="157"/>
         <source>Camera</source>
-        <translation type="unfinished"></translation>
+        <translation>Macchina fotografica</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="165"/>
         <source>Projection</source>
-        <translation type="unfinished"></translation>
+        <translation>Proiezione</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="172"/>
         <source>Select projection mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Selezionare la modalità di proiezione</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="176"/>
         <source>Orthographic</source>
-        <translation type="unfinished"></translation>
+        <translation>Ortografico</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="181"/>
         <source>Perspective</source>
-        <translation type="unfinished"></translation>
+        <translation>Prospettive</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="193"/>
         <source>View</source>
-        <translation type="unfinished"></translation>
+        <translation>Vista</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="200"/>
         <location filename="../ui/SettingsDialog.ui" line="253"/>
         <source>Select default camera view</source>
-        <translation type="unfinished"></translation>
+        <translation>Selezionare la vista predefinita della fotocamera</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="204"/>
         <location filename="../ui/SettingsDialog.ui" line="257"/>
         <source>Isometric</source>
-        <translation type="unfinished"></translation>
+        <translation>Isometrica</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="209"/>
         <source>Top</source>
-        <translation type="unfinished"></translation>
+        <translation>Top</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="214"/>
         <source>Front</source>
-        <translation type="unfinished"></translation>
+        <translation>Fronte anteriore</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="219"/>
         <source>Left</source>
-        <translation type="unfinished"></translation>
+        <translation>Sinistra</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="224"/>
         <source>Bottom</source>
-        <translation type="unfinished"></translation>
+        <translation>Fondo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="229"/>
         <source>Rear</source>
-        <translation type="unfinished"></translation>
+        <translation>Indietro</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="234"/>
         <source>Right</source>
-        <translation type="unfinished"></translation>
+        <translation>Giusto</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="246"/>
         <source>Axonometric Mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Modalità assonometrica</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="262"/>
         <source>Dimetric</source>
-        <translation type="unfinished"></translation>
+        <translation>Differenza</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="267"/>
         <source>Trimetric</source>
-        <translation type="unfinished"></translation>
+        <translation>Trittico</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="277"/>
         <source>Enable Trackball Rotation</source>
-        <translation type="unfinished"></translation>
+        <translation>Attivare la rotazione di Trackball</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="284"/>
         <source>Invert Zoom Direction</source>
-        <translation type="unfinished"></translation>
+        <translation>Invert Zoom Direzione</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="293"/>
         <source>Zoom Factor</source>
-        <translation type="unfinished"></translation>
+        <translation>Fattore di zoom</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="300"/>
         <source>x</source>
-        <translation type="unfinished"></translation>
+        <translation>x</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="329"/>
         <source>Background</source>
-        <translation type="unfinished"></translation>
+        <translation>Contesto</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="337"/>
         <source>Background Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Stile di sfondo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="351"/>
         <source>Gradient</source>
-        <translation type="unfinished"></translation>
+        <translation>Gradiente</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="356"/>
         <source>Solid</source>
-        <translation type="unfinished"></translation>
+        <translation>Solido</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="368"/>
         <source>Top Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Colore superiore</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="381"/>
         <location filename="../ui/SettingsDialog.ui" line="405"/>
         <source>Choose...</source>
-        <translation type="unfinished"></translation>
+        <translation>Scegli...</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="392"/>
         <source>Bottom Color</source>
-        <translation type="unfinished"></translation>
+        <translation>Colore inferiore</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="416"/>
         <source>Gradient Style</source>
-        <translation type="unfinished"></translation>
+        <translation>Stile graduale</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="430"/>
         <source>Vertical</source>
-        <translation type="unfinished"></translation>
+        <translation>Verticale</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="435"/>
         <source>Horizontal</source>
-        <translation type="unfinished"></translation>
+        <translation>Orizzontale</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="440"/>
         <source>Top Left to Bottom Right</source>
-        <translation type="unfinished"></translation>
+        <translation>Da sinistra a destra inferiore</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="445"/>
         <source>Top Rightto Bottom Left</source>
-        <translation type="unfinished"></translation>
+        <translation>Top destro a sinistra</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="469"/>
         <source>Display</source>
-        <translation type="unfinished"></translation>
+        <translation>Visualizza</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="475"/>
         <source>Viewport</source>
-        <translation type="unfinished"></translation>
+        <translation>Visualizza</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="481"/>
         <source>Show Bounding Box</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra la scatola di bounding</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="488"/>
         <source>Show Corner Trihedron</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra angolo Trihedron</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="498"/>
         <source>Far Plane:</source>
-        <translation type="unfinished"></translation>
+        <translation>Far Plane:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="505"/>
         <source>Field of View:</source>
-        <translation type="unfinished"></translation>
+        <translation>Campo visivo:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="541"/>
         <source>Near Plane:</source>
-        <translation type="unfinished"></translation>
+        <translation>Vicino a Plane:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="548"/>
         <source>Show Grid</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra Griglia</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="574"/>
         <source>Show Wireframe</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra Wireframe</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="581"/>
         <source>Show Center Trihedron</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra Centro Trihedron</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="594"/>
         <source>Navigation</source>
-        <translation type="unfinished"></translation>
+        <translation>Navigazione</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="600"/>
         <source>Navigation Mode:</source>
-        <translation type="unfinished"></translation>
+        <translation>Modalità di navigazione:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="608"/>
         <source>Orbit</source>
-        <translation type="unfinished"></translation>
+        <translation>Orbit</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="613"/>
         <source>Fly</source>
-        <translation type="unfinished"></translation>
+        <translation>Volanti</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="618"/>
         <source>First Person</source>
-        <translation type="unfinished"></translation>
+        <translation>Prima persona</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="623"/>
         <source>Walk</source>
-        <translation type="unfinished"></translation>
+        <translation>Camminare</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="631"/>
         <source>Mouse Sensitivity:</source>
-        <translation type="unfinished"></translation>
+        <translation>Sensibilità del mouse:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="654"/>
         <source>Zoom Sensitivity:</source>
-        <translation type="unfinished"></translation>
+        <translation>Sensibilità dello zoom:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="677"/>
         <source>Invert Y-Axis</source>
-        <translation type="unfinished"></translation>
+        <translation>Invertire Y-Axis</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="684"/>
         <source>Smooth Navigation</source>
-        <translation type="unfinished"></translation>
+        <translation>Navigazione liscia</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="711"/>
         <source>Rendering</source>
-        <translation type="unfinished"></translation>
+        <translation>Rendering</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="717"/>
         <source>Default Mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Modalità predefinita</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="725"/>
         <source>Shaded</source>
-        <translation type="unfinished"></translation>
+        <translation>Raso</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="730"/>
         <location filename="../ui/SettingsDialog.ui" line="791"/>
         <source>Wireframe</source>
-        <translation type="unfinished"></translation>
+        <translation>Struttura del filo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="735"/>
         <source>Wireshaded</source>
-        <translation type="unfinished"></translation>
+        <translation>Filosofia</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="743"/>
         <source>Enable Backface Culling</source>
-        <translation type="unfinished"></translation>
+        <translation>Abilitare il ritaglio della faccia posteriore</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="750"/>
         <source>Enable Normal Map Support</source>
-        <translation type="unfinished"></translation>
+        <translation>Abilitare il supporto della mappa normale</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="757"/>
         <source>Shader Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Impostazioni Shader</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="763"/>
         <source>Shading Model:</source>
-        <translation type="unfinished"></translation>
+        <translation>Modello di ombreggiatura:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="771"/>
         <source>Blinn-Phong</source>
-        <translation type="unfinished"></translation>
+        <translation>Blinn-Phong</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="776"/>
         <source>Phong</source>
-        <translation type="unfinished"></translation>
+        <translation>Phong</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="781"/>
         <source>PBR (Physically Based)</source>
-        <translation type="unfinished"></translation>
+        <translation>PBR (Physically Based)</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="786"/>
         <source>Flat</source>
-        <translation type="unfinished"></translation>
+        <translation>Appartamento</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="799"/>
         <source>MSAA Samples:</source>
-        <translation type="unfinished"></translation>
+        <translation>MSAA Campioni:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="807"/>
         <source>1 (No MSAA)</source>
-        <translation type="unfinished"></translation>
+        <translation>1 (No MSAA)</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="812"/>
         <source>2</source>
-        <translation type="unfinished"></translation>
+        <translation>2</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="817"/>
         <source>4</source>
-        <translation type="unfinished"></translation>
+        <translation>4</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="822"/>
         <source>8</source>
-        <translation type="unfinished"></translation>
+        <translation>8</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="827"/>
         <source>16</source>
-        <translation type="unfinished"></translation>
+        <translation>16</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="835"/>
         <source>Anisotropic Filtering:</source>
-        <translation type="unfinished"></translation>
+        <translation>Filtro anisotropico:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="843"/>
         <source>1x (Off)</source>
-        <translation type="unfinished"></translation>
+        <translation>1x (Off)</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="848"/>
         <source>2x</source>
-        <translation type="unfinished"></translation>
+        <translation>2x</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="853"/>
         <source>4x</source>
-        <translation type="unfinished"></translation>
+        <translation>4x</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="858"/>
         <source>8x</source>
-        <translation type="unfinished"></translation>
+        <translation>8x</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="863"/>
         <source>16x</source>
-        <translation type="unfinished"></translation>
+        <translation>16x</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="876"/>
         <source>Lighting</source>
-        <translation type="unfinished"></translation>
+        <translation>Illuminazione</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="882"/>
         <source>Enable Lighting</source>
-        <translation type="unfinished"></translation>
+        <translation>Attiva illuminazione</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="892"/>
         <source>Enable Shadows</source>
-        <translation type="unfinished"></translation>
+        <translation>Attivare ombre</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="899"/>
         <source>Ambient Light:</source>
-        <translation type="unfinished"></translation>
+        <translation>Luce ambientale:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="922"/>
         <source>Diffuse Light:</source>
-        <translation type="unfinished"></translation>
+        <translation>Diffuse Light:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="945"/>
         <source>Specular Light:</source>
-        <translation type="unfinished"></translation>
+        <translation>Luce Speculare:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="971"/>
         <source>Materials</source>
-        <translation type="unfinished"></translation>
+        <translation>Materiali</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="980"/>
         <source>Default Texture Directory</source>
-        <translation type="unfinished"></translation>
+        <translation>Directory di test di default</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="988"/>
         <source>Plastic</source>
-        <translation type="unfinished"></translation>
+        <translation>Plastica</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="993"/>
         <source>Metal</source>
-        <translation type="unfinished"></translation>
+        <translation>Metallo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="998"/>
         <source>Glass</source>
-        <translation type="unfinished"></translation>
+        <translation>Vetro</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1003"/>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>Personale</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1011"/>
         <source>Default Material</source>
-        <translation type="unfinished"></translation>
+        <translation>Materiale predefinito</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1037"/>
         <source>UV Generation</source>
-        <translation type="unfinished"></translation>
+        <translation>Generazione UV</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1044"/>
         <source>Angle-Based Smart UV</source>
-        <translation type="unfinished"></translation>
+        <translation>UV intelligente a base di angolo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1049"/>
         <source>Angle-Based</source>
-        <translation type="unfinished"></translation>
+        <translation>Angle-Basato</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1054"/>
         <source>Hybrid</source>
-        <translation type="unfinished"></translation>
+        <translation>ibrido</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1059"/>
         <source>Planar</source>
-        <translation type="unfinished"></translation>
+        <translation>Piano</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1064"/>
         <source>Cylindrical</source>
-        <translation type="unfinished"></translation>
+        <translation>Cilindrica</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1069"/>
         <source>Spherical</source>
-        <translation type="unfinished"></translation>
+        <translation>Sferica</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1077"/>
         <source>Angle: </source>
-        <translation type="unfinished"></translation>
+        <translation>Angolo: </translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1080"/>
         <source>°</source>
-        <translation type="unfinished"></translation>
+        <translation>°</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1093"/>
         <source>Preserve Existing UVs</source>
-        <translation type="unfinished"></translation>
+        <translation>Conservare gli UV esistenti</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1100"/>
         <source>Auto Pack UVs</source>
-        <translation type="unfinished"></translation>
+        <translation>Auto Pack UVs</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1107"/>
         <source>Relax UVs</source>
-        <translation type="unfinished"></translation>
+        <translation>Rilassa i raggi UV</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1114"/>
         <source>Use PCA Projection</source>
-        <translation type="unfinished"></translation>
+        <translation>Utilizzare la proiezione PCA</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1121"/>
         <source>Use xatlas only for Packing</source>
-        <translation type="unfinished"></translation>
+        <translation>Utilizzare xatlas solo per imballaggio</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1128"/>
         <source>Remember Last Used UV Method</source>
-        <translation type="unfinished"></translation>
+        <translation>Ricordate gli ultimi UV usati Metodo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1135"/>
         <source>Reset UV Prompt Setting</source>
-        <translation type="unfinished"></translation>
+        <translation>Reset UV Prompt Setting</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1156"/>
         <source>Import Export</source>
-        <translation type="unfinished"></translation>
+        <translation>Importazione delle esportazioni</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1162"/>
         <source>OpenCascade Import Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Impostazioni di importazione OpenCascade</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1168"/>
         <location filename="../ui/SettingsDialog.ui" line="1284"/>
         <source>Supported Formats:</source>
-        <translation type="unfinished"></translation>
+        <translation>Formati supportati:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1175"/>
         <source>STEP, IGES, BREP, STL, OBJ, PLY, OFF, XBF, IFC, GLTF, VRML, 3MF</source>
-        <translation type="unfinished"></translation>
+        <translation>STEP, IGES, BREP, STL, OBJ, PLY, OFF, XBF, IFC, GLTF, VRML, 3MF</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1185"/>
         <source>Tessellation Quality:</source>
-        <translation type="unfinished"></translation>
+        <translation>Qualità della Tessellazione:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1208"/>
         <source>Linear Deflection:</source>
-        <translation type="unfinished"></translation>
+        <translation>Diffusione lineare:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1231"/>
         <source>Angular Deflection:</source>
-        <translation type="unfinished"></translation>
+        <translation>Diffusione angolare:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1254"/>
         <source>Unify Faces</source>
-        <translation type="unfinished"></translation>
+        <translation>Unificare i volti</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1261"/>
         <source>Unify Edges</source>
-        <translation type="unfinished"></translation>
+        <translation>Unificare i bordi</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1268"/>
         <source>Build Curves</source>
-        <translation type="unfinished"></translation>
+        <translation>Creare curve</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1278"/>
         <source>Assimp Import Settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Impostazioni di importazione Assimp</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1291"/>
         <source>3DS, BLEND, DAE, FBX, IFC, X3D, MD2, MD3, MD5, MDC, MDL, NFF, PLY, STL, VRML, 3MF, AMF, X</source>
-        <translation type="unfinished"></translation>
+        <translation>3DS, BLEND, DAE, FBX, IFC, X3D, MD2, MD5, MDC, MDL, NFF, PLY, STL, VRML, 3MF, AMF, X</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1301"/>
         <source>Triangulate Faces</source>
-        <translation type="unfinished"></translation>
+        <translation>Triangolare Volti</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1311"/>
         <source>Generate Normals</source>
-        <translation type="unfinished"></translation>
+        <translation>Generare le normali</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1321"/>
         <source>Smooth Normals</source>
-        <translation type="unfinished"></translation>
+        <translation>Smooth Normals</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1328"/>
         <source>Calculate Tangents</source>
-        <translation type="unfinished"></translation>
+        <translation>Calcola i tangenti</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1335"/>
         <source>Optimize Mesh</source>
-        <translation type="unfinished"></translation>
+        <translation>Ottimizzare la maglia</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1342"/>
         <source>Remove Duplicate Vertices</source>
-        <translation type="unfinished"></translation>
+        <translation>Rimuovi duplicati</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1349"/>
         <source>Max Face Vertices:</source>
-        <translation type="unfinished"></translation>
+        <translation>Vertici Max Face:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1386"/>
         <source>Performance</source>
-        <translation type="unfinished"></translation>
+        <translation>Prestazioni</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1392"/>
         <source>Enable Multithreaded Loading</source>
-        <translation type="unfinished"></translation>
+        <translation>Abilitare il caricamento Multithreaded</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1399"/>
         <source> Threads</source>
-        <translation type="unfinished"></translation>
+        <translation> Filetti</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1412"/>
         <source>Enable Background Skybox Blending</source>
-        <translation type="unfinished"></translation>
+        <translation>Abilitare lo sfondo Skybox Blending</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1419"/>
         <source>Enable Progressive Loading</source>
-        <translation type="unfinished"></translation>
+        <translation>Abilitare il caricamento progressivo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1426"/>
         <source>Rendering Performance</source>
-        <translation type="unfinished"></translation>
+        <translation>Rendering Performance</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1432"/>
         <source>Max FPS:</source>
-        <translation type="unfinished"></translation>
+        <translation>Max FPS:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1452"/>
         <source>Enable V-Sync</source>
-        <translation type="unfinished"></translation>
+        <translation>Abilitare V-Sync</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1462"/>
         <source>Frustum Culling</source>
-        <translation type="unfinished"></translation>
+        <translation>Frustum Culling</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1472"/>
         <source>Backface Culling</source>
-        <translation type="unfinished"></translation>
+        <translation>Culling della faccia posteriore</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1482"/>
         <source>Level of Detail (LOD)</source>
-        <translation type="unfinished"></translation>
+        <translation>Livello di dettaglio (LOD)</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1489"/>
         <source>Max Vertices per Frame:</source>
-        <translation type="unfinished"></translation>
+        <translation>Max Vertices per telaio:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1515"/>
         <source>Memory Management</source>
-        <translation type="unfinished"></translation>
+        <translation>Gestione della memoria</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1521"/>
         <source>Texture Cache Size (MB):</source>
-        <translation type="unfinished"></translation>
+        <translation>Texture Cache Size (MB):</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1544"/>
         <source>Geometry Cache Size (MB):</source>
-        <translation type="unfinished"></translation>
+        <translation>Geometria Cache Dimensioni (MB):</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1567"/>
         <source>Compress Textures</source>
-        <translation type="unfinished"></translation>
+        <translation>Comprime texture</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1577"/>
         <source>Generate Mipmaps</source>
-        <translation type="unfinished"></translation>
+        <translation>Generare Mipmaps</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1604"/>
         <source>Advanced</source>
-        <translation type="unfinished"></translation>
+        <translation>Avanzato</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1610"/>
         <source>OpenGL Version</source>
-        <translation type="unfinished"></translation>
+        <translation>Versione OpenGL</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1618"/>
         <source>4.5 Core</source>
-        <translation type="unfinished"></translation>
+        <translation>4.5 Core</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1623"/>
         <source>4.1 Core</source>
-        <translation type="unfinished"></translation>
+        <translation>4.1 Core</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1628"/>
         <source>3.3 Core</source>
-        <translation type="unfinished"></translation>
+        <translation>3.3 Core</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1636"/>
         <source>Enable VSync</source>
-        <translation type="unfinished"></translation>
+        <translation>Attiva VSync</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1643"/>
         <source>Loader Threads</source>
-        <translation type="unfinished"></translation>
+        <translation>Filetti di carico</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1650"/>
         <source>Reload Shaders on File Change</source>
-        <translation type="unfinished"></translation>
+        <translation>Ricarica Shaders su Cambia file</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1657"/>
         <location filename="../ui/SettingsDialog.ui" line="1710"/>
         <source>Show FPS Counter</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra FPS Contatore</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1664"/>
         <source>Force Legacy OpenGL Compatibility Mode</source>
-        <translation type="unfinished"></translation>
+        <translation>Compatibilità Force Legacy OpenGL Modalità</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1698"/>
         <location filename="../ui/SettingsDialog.ui" line="1768"/>
         <source>Debug</source>
-        <translation type="unfinished"></translation>
+        <translation>Debug</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1704"/>
         <source>Debug Information</source>
-        <translation type="unfinished"></translation>
+        <translation>Informazioni su Debug</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1717"/>
         <source>Show Memory Usage</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra l&apos;uso della memoria</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1724"/>
         <source>Show Render Statistics</source>
-        <translation type="unfinished"></translation>
+        <translation>Visualizzare le statistiche di Render</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1731"/>
         <source>Show OpenGL Info</source>
-        <translation type="unfinished"></translation>
+        <translation>Mostra informazioni OpenGL</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1738"/>
         <source>Enable Debug Logging</source>
-        <translation type="unfinished"></translation>
+        <translation>Abilitare Debug Logging</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1745"/>
         <source>Log Level:</source>
-        <translation type="unfinished"></translation>
+        <translation>Livello di registro:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1753"/>
         <source>Error</source>
-        <translation type="unfinished"></translation>
+        <translation>Errore</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1758"/>
         <source>Warning</source>
-        <translation type="unfinished"></translation>
+        <translation>Avvertenza</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1763"/>
         <source>Info</source>
-        <translation type="unfinished"></translation>
+        <translation>Info</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1773"/>
         <source>Verbose</source>
-        <translation type="unfinished"></translation>
+        <translation>Verbose</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1784"/>
         <source>Diagnostics</source>
-        <translation type="unfinished"></translation>
+        <translation>Diagnostica</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1790"/>
         <source>Check OpenGL Errors</source>
-        <translation type="unfinished"></translation>
+        <translation>Controllare gli errori OpenGL</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1797"/>
         <source>Validate Shaders</source>
-        <translation type="unfinished"></translation>
+        <translation>Convalida Shaders</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1804"/>
         <source>Profile Rendering</source>
-        <translation type="unfinished"></translation>
+        <translation>Rendering del profilo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1811"/>
         <source>Clear All Caches</source>
-        <translation type="unfinished"></translation>
+        <translation>Cancellare tutte le cavità</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1818"/>
         <source>Reset to Defaults</source>
-        <translation type="unfinished"></translation>
+        <translation>Ripristino di default</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1855"/>
         <source>Some settings will take effect only after restarting the application.</source>
-        <translation type="unfinished"></translation>
+        <translation>Alcune impostazioni avranno effetto solo dopo il riavvio dell&apos;applicazione.</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="99"/>
         <location filename="../src/SettingsDialog.cpp" line="1029"/>
         <source>Settings Reset</source>
-        <translation type="unfinished"></translation>
+        <translation>Impostazioni</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="99"/>
         <source>All settings have been cleared.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tutte le impostazioni sono state cancellate.</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="1029"/>
         <source>UV Prompt settings have been cleared.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le impostazioni UV Prompt sono state cancellate.</translation>
     </message>
 </context>
 </TS>

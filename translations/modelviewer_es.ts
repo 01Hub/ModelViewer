@@ -1822,882 +1822,897 @@ Z %3</translation>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="124"/>
         <source>English</source>
-        <translation>Ingl\u00e9s</translation>
+        <translation>Inglés</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="129"/>
         <source>French</source>
-        <translation>Franc\u00e9s</translation>
+        <translation>Francés</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="134"/>
+        <source>German</source>
+        <translation>Alemán</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="139"/>
+        <source>Spanish</source>
+        <translation>Español</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="144"/>
+        <source>Italian</source>
+        <translation>Italiano</translation>
+    </message>
+    <message>
+        <location filename="../ui/SettingsDialog.ui" line="154"/>
         <source>Prompt Before Overwriting Model</source>
         <translation>Prompt Antes de Overwriting Modelo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="149"/>
+        <location filename="../ui/SettingsDialog.ui" line="164"/>
         <source>Confirm on Exit</source>
         <translation>Confirmaci\u00f3n de salida</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="157"/>
+        <location filename="../ui/SettingsDialog.ui" line="172"/>
         <source>Camera</source>
         <translation>C\u00e1mara</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="165"/>
+        <location filename="../ui/SettingsDialog.ui" line="180"/>
         <source>Projection</source>
         <translation>Proyecci\u00f3n</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="172"/>
+        <location filename="../ui/SettingsDialog.ui" line="187"/>
         <source>Select projection mode</source>
         <translation>Seleccione el modo de proyecci\u00f3n</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="176"/>
+        <location filename="../ui/SettingsDialog.ui" line="191"/>
         <source>Orthographic</source>
         <translation>Ortogr\u00e1fico</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="181"/>
+        <location filename="../ui/SettingsDialog.ui" line="196"/>
         <source>Perspective</source>
         <translation>Perspectiva</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="193"/>
+        <location filename="../ui/SettingsDialog.ui" line="208"/>
         <source>View</source>
         <translation>Ver</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="200"/>
-        <location filename="../ui/SettingsDialog.ui" line="253"/>
+        <location filename="../ui/SettingsDialog.ui" line="215"/>
+        <location filename="../ui/SettingsDialog.ui" line="268"/>
         <source>Select default camera view</source>
         <translation>Seleccione la vista de c\u00e1mara predeterminada</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="204"/>
-        <location filename="../ui/SettingsDialog.ui" line="257"/>
+        <location filename="../ui/SettingsDialog.ui" line="219"/>
+        <location filename="../ui/SettingsDialog.ui" line="272"/>
         <source>Isometric</source>
         <translation>Isometric</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="209"/>
+        <location filename="../ui/SettingsDialog.ui" line="224"/>
         <source>Top</source>
         <translation>Top</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="214"/>
+        <location filename="../ui/SettingsDialog.ui" line="229"/>
         <source>Front</source>
         <translation>Frente</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="219"/>
+        <location filename="../ui/SettingsDialog.ui" line="234"/>
         <source>Left</source>
         <translation>Izquierda</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="224"/>
+        <location filename="../ui/SettingsDialog.ui" line="239"/>
         <source>Bottom</source>
         <translation>Bottom</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="229"/>
+        <location filename="../ui/SettingsDialog.ui" line="244"/>
         <source>Rear</source>
         <translation>Rear</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="234"/>
+        <location filename="../ui/SettingsDialog.ui" line="249"/>
         <source>Right</source>
         <translation>Bien</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="246"/>
+        <location filename="../ui/SettingsDialog.ui" line="261"/>
         <source>Axonometric Mode</source>
         <translation>Modo axonom\u00e9trico</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="262"/>
+        <location filename="../ui/SettingsDialog.ui" line="277"/>
         <source>Dimetric</source>
         <translation>Dimetric</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="267"/>
+        <location filename="../ui/SettingsDialog.ui" line="282"/>
         <source>Trimetric</source>
         <translation>Trim\u00e9trico</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="277"/>
+        <location filename="../ui/SettingsDialog.ui" line="292"/>
         <source>Enable Trackball Rotation</source>
         <translation>Activar rotaci\u00f3n de bolas de pista</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="284"/>
+        <location filename="../ui/SettingsDialog.ui" line="299"/>
         <source>Invert Zoom Direction</source>
         <translation>Invert Zoom Direction</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="293"/>
+        <location filename="../ui/SettingsDialog.ui" line="308"/>
         <source>Zoom Factor</source>
         <translation>Factor de Zoom</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="300"/>
+        <location filename="../ui/SettingsDialog.ui" line="315"/>
         <source>x</source>
         <translation>x</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="329"/>
+        <location filename="../ui/SettingsDialog.ui" line="344"/>
         <source>Background</source>
         <translation>Antecedentes</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="337"/>
+        <location filename="../ui/SettingsDialog.ui" line="352"/>
         <source>Background Style</source>
         <translation>Estilo de fondo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="351"/>
+        <location filename="../ui/SettingsDialog.ui" line="366"/>
         <source>Gradient</source>
         <translation>Gradiente</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="356"/>
+        <location filename="../ui/SettingsDialog.ui" line="371"/>
         <source>Solid</source>
         <translation>S\u00f3lido</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="368"/>
+        <location filename="../ui/SettingsDialog.ui" line="383"/>
         <source>Top Color</source>
         <translation>Color superior</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="381"/>
-        <location filename="../ui/SettingsDialog.ui" line="405"/>
+        <location filename="../ui/SettingsDialog.ui" line="396"/>
+        <location filename="../ui/SettingsDialog.ui" line="420"/>
         <source>Choose...</source>
         <translation>Elegir...</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="392"/>
+        <location filename="../ui/SettingsDialog.ui" line="407"/>
         <source>Bottom Color</source>
         <translation>Color de fondo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="416"/>
+        <location filename="../ui/SettingsDialog.ui" line="431"/>
         <source>Gradient Style</source>
         <translation>Estilo elegante</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="430"/>
+        <location filename="../ui/SettingsDialog.ui" line="445"/>
         <source>Vertical</source>
         <translation>Vertical</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="435"/>
+        <location filename="../ui/SettingsDialog.ui" line="450"/>
         <source>Horizontal</source>
         <translation>Horizontal</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="440"/>
+        <location filename="../ui/SettingsDialog.ui" line="455"/>
         <source>Top Left to Bottom Right</source>
         <translation>Parte superior izquierda a derecha inferior</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="445"/>
+        <location filename="../ui/SettingsDialog.ui" line="460"/>
         <source>Top Rightto Bottom Left</source>
         <translation>Top Rightto Bottom Left</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="469"/>
+        <location filename="../ui/SettingsDialog.ui" line="484"/>
         <source>Display</source>
         <translation>Visualizaci\u00f3n</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="475"/>
+        <location filename="../ui/SettingsDialog.ui" line="490"/>
         <source>Viewport</source>
         <translation>Viewport</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="481"/>
+        <location filename="../ui/SettingsDialog.ui" line="496"/>
         <source>Show Bounding Box</source>
         <translation>Show Bounding Box</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="488"/>
+        <location filename="../ui/SettingsDialog.ui" line="503"/>
         <source>Show Corner Trihedron</source>
         <translation>Mostrar Corner Trihedron</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="498"/>
+        <location filename="../ui/SettingsDialog.ui" line="513"/>
         <source>Far Plane:</source>
         <translation>Far Plane:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="505"/>
+        <location filename="../ui/SettingsDialog.ui" line="520"/>
         <source>Field of View:</source>
         <translation>Campo de Vista:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="541"/>
+        <location filename="../ui/SettingsDialog.ui" line="556"/>
         <source>Near Plane:</source>
         <translation>Cerca de Plane:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="548"/>
+        <location filename="../ui/SettingsDialog.ui" line="563"/>
         <source>Show Grid</source>
         <translation>Show Grid</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="574"/>
+        <location filename="../ui/SettingsDialog.ui" line="589"/>
         <source>Show Wireframe</source>
         <translation>Mostrar Wireframe</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="581"/>
+        <location filename="../ui/SettingsDialog.ui" line="596"/>
         <source>Show Center Trihedron</source>
         <translation>Show Center Trihedron</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="594"/>
+        <location filename="../ui/SettingsDialog.ui" line="609"/>
         <source>Navigation</source>
         <translation>Navegaci\u00f3n</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="600"/>
+        <location filename="../ui/SettingsDialog.ui" line="615"/>
         <source>Navigation Mode:</source>
         <translation>Modo de navegaci\u00f3n:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="608"/>
+        <location filename="../ui/SettingsDialog.ui" line="623"/>
         <source>Orbit</source>
         <translation>Orbit</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="613"/>
+        <location filename="../ui/SettingsDialog.ui" line="628"/>
         <source>Fly</source>
         <translation>Fly</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="618"/>
+        <location filename="../ui/SettingsDialog.ui" line="633"/>
         <source>First Person</source>
         <translation>Primera persona</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="623"/>
+        <location filename="../ui/SettingsDialog.ui" line="638"/>
         <source>Walk</source>
         <translation>Camina</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="631"/>
+        <location filename="../ui/SettingsDialog.ui" line="646"/>
         <source>Mouse Sensitivity:</source>
         <translation>Rat\u00f3n Sensibilidad:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="654"/>
+        <location filename="../ui/SettingsDialog.ui" line="669"/>
         <source>Zoom Sensitivity:</source>
         <translation>Sensibilidad del Zoom:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="677"/>
+        <location filename="../ui/SettingsDialog.ui" line="692"/>
         <source>Invert Y-Axis</source>
         <translation>Invertir Y-Axis</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="684"/>
+        <location filename="../ui/SettingsDialog.ui" line="699"/>
         <source>Smooth Navigation</source>
         <translation>Smooth Navigation</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="711"/>
+        <location filename="../ui/SettingsDialog.ui" line="726"/>
         <source>Rendering</source>
         <translation>Rendering</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="717"/>
+        <location filename="../ui/SettingsDialog.ui" line="732"/>
         <source>Default Mode</source>
         <translation>Modo predeterminado</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="725"/>
+        <location filename="../ui/SettingsDialog.ui" line="740"/>
         <source>Shaded</source>
         <translation>Shaded</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="730"/>
-        <location filename="../ui/SettingsDialog.ui" line="791"/>
+        <location filename="../ui/SettingsDialog.ui" line="745"/>
+        <location filename="../ui/SettingsDialog.ui" line="806"/>
         <source>Wireframe</source>
         <translation>Wireframe</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="735"/>
+        <location filename="../ui/SettingsDialog.ui" line="750"/>
         <source>Wireshaded</source>
         <translation>Wireshaded</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="743"/>
+        <location filename="../ui/SettingsDialog.ui" line="758"/>
         <source>Enable Backface Culling</source>
         <translation>Enable Backface Culling</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="750"/>
+        <location filename="../ui/SettingsDialog.ui" line="765"/>
         <source>Enable Normal Map Support</source>
         <translation>Activar soporte de mapa normal</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="757"/>
+        <location filename="../ui/SettingsDialog.ui" line="772"/>
         <source>Shader Settings</source>
         <translation>Ajustes de afeitado</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="763"/>
+        <location filename="../ui/SettingsDialog.ui" line="778"/>
         <source>Shading Model:</source>
         <translation>Modelo de formaci\u00f3n:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="771"/>
+        <location filename="../ui/SettingsDialog.ui" line="786"/>
         <source>Blinn-Phong</source>
         <translation>Blinn-Phong</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="776"/>
+        <location filename="../ui/SettingsDialog.ui" line="791"/>
         <source>Phong</source>
         <translation>Phong</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="781"/>
+        <location filename="../ui/SettingsDialog.ui" line="796"/>
         <source>PBR (Physically Based)</source>
         <translation>PBR (Con base f\u00edsica)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="786"/>
+        <location filename="../ui/SettingsDialog.ui" line="801"/>
         <source>Flat</source>
         <translation>Piso</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="799"/>
+        <location filename="../ui/SettingsDialog.ui" line="814"/>
         <source>MSAA Samples:</source>
         <translation>MSAA Muestras:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="807"/>
+        <location filename="../ui/SettingsDialog.ui" line="822"/>
         <source>1 (No MSAA)</source>
         <translation>1 (No MSAA)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="812"/>
+        <location filename="../ui/SettingsDialog.ui" line="827"/>
         <source>2</source>
         <translation>2</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="817"/>
+        <location filename="../ui/SettingsDialog.ui" line="832"/>
         <source>4</source>
         <translation>4</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="822"/>
+        <location filename="../ui/SettingsDialog.ui" line="837"/>
         <source>8</source>
         <translation>8</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="827"/>
+        <location filename="../ui/SettingsDialog.ui" line="842"/>
         <source>16</source>
         <translation>16</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="835"/>
+        <location filename="../ui/SettingsDialog.ui" line="850"/>
         <source>Anisotropic Filtering:</source>
         <translation>Filtro anisotr\u00f3pico:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="843"/>
+        <location filename="../ui/SettingsDialog.ui" line="858"/>
         <source>1x (Off)</source>
         <translation>1x (Off)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="848"/>
+        <location filename="../ui/SettingsDialog.ui" line="863"/>
         <source>2x</source>
         <translation>2x</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="853"/>
+        <location filename="../ui/SettingsDialog.ui" line="868"/>
         <source>4x</source>
         <translation>4x</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="858"/>
+        <location filename="../ui/SettingsDialog.ui" line="873"/>
         <source>8x</source>
         <translation>8x</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="863"/>
+        <location filename="../ui/SettingsDialog.ui" line="878"/>
         <source>16x</source>
         <translation>16x</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="876"/>
+        <location filename="../ui/SettingsDialog.ui" line="891"/>
         <source>Lighting</source>
         <translation>Iluminaci\u00f3n</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="882"/>
+        <location filename="../ui/SettingsDialog.ui" line="897"/>
         <source>Enable Lighting</source>
         <translation>Enable Lighting</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="892"/>
+        <location filename="../ui/SettingsDialog.ui" line="907"/>
         <source>Enable Shadows</source>
         <translation>Habilitar sombras</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="899"/>
+        <location filename="../ui/SettingsDialog.ui" line="914"/>
         <source>Ambient Light:</source>
         <translation>Luz Ambiente:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="922"/>
+        <location filename="../ui/SettingsDialog.ui" line="937"/>
         <source>Diffuse Light:</source>
         <translation>Diffuse Light:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="945"/>
+        <location filename="../ui/SettingsDialog.ui" line="960"/>
         <source>Specular Light:</source>
         <translation>Luz Especular:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="971"/>
+        <location filename="../ui/SettingsDialog.ui" line="986"/>
         <source>Materials</source>
         <translation>Materiales</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="980"/>
+        <location filename="../ui/SettingsDialog.ui" line="995"/>
         <source>Default Texture Directory</source>
         <translation>Directorio de la textura predeterminada</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="988"/>
+        <location filename="../ui/SettingsDialog.ui" line="1003"/>
         <source>Plastic</source>
         <translation>Pl\u00e1stico</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="993"/>
+        <location filename="../ui/SettingsDialog.ui" line="1008"/>
         <source>Metal</source>
         <translation>Metal</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="998"/>
+        <location filename="../ui/SettingsDialog.ui" line="1013"/>
         <source>Glass</source>
         <translation>Cristal</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1003"/>
+        <location filename="../ui/SettingsDialog.ui" line="1018"/>
         <source>Custom</source>
         <translation>Aduanas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1011"/>
+        <location filename="../ui/SettingsDialog.ui" line="1026"/>
         <source>Default Material</source>
         <translation>Material predeterminado</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1037"/>
+        <location filename="../ui/SettingsDialog.ui" line="1052"/>
         <source>UV Generation</source>
         <translation>UV Generation</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1044"/>
+        <location filename="../ui/SettingsDialog.ui" line="1059"/>
         <source>Angle-Based Smart UV</source>
         <translation>UV inteligente basado en \u00e1ngulo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1049"/>
+        <location filename="../ui/SettingsDialog.ui" line="1064"/>
         <source>Angle-Based</source>
         <translation>Angle-Based</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1054"/>
+        <location filename="../ui/SettingsDialog.ui" line="1069"/>
         <source>Hybrid</source>
         <translation>h\u00edbrido</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1059"/>
+        <location filename="../ui/SettingsDialog.ui" line="1074"/>
         <source>Planar</source>
         <translation>Planar</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1064"/>
+        <location filename="../ui/SettingsDialog.ui" line="1079"/>
         <source>Cylindrical</source>
         <translation>Cil\u00edndricos</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1069"/>
+        <location filename="../ui/SettingsDialog.ui" line="1084"/>
         <source>Spherical</source>
         <translation>Spherical</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1077"/>
+        <location filename="../ui/SettingsDialog.ui" line="1092"/>
         <source>Angle: </source>
         <translation>Angle: </translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1080"/>
+        <location filename="../ui/SettingsDialog.ui" line="1095"/>
         <source>°</source>
         <translation>\u00b0</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1093"/>
+        <location filename="../ui/SettingsDialog.ui" line="1108"/>
         <source>Preserve Existing UVs</source>
         <translation>Preserve Existing UVs</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1100"/>
+        <location filename="../ui/SettingsDialog.ui" line="1115"/>
         <source>Auto Pack UVs</source>
         <translation>Auto Pack UVs</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1107"/>
+        <location filename="../ui/SettingsDialog.ui" line="1122"/>
         <source>Relax UVs</source>
         <translation>Rel\u00e1jate con los UV</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1114"/>
+        <location filename="../ui/SettingsDialog.ui" line="1129"/>
         <source>Use PCA Projection</source>
         <translation>Use PCA Projection</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1121"/>
+        <location filename="../ui/SettingsDialog.ui" line="1136"/>
         <source>Use xatlas only for Packing</source>
         <translation>Use xatlas s\u00f3lo para Embalaje</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1128"/>
+        <location filename="../ui/SettingsDialog.ui" line="1143"/>
         <source>Remember Last Used UV Method</source>
         <translation>Recuerda el \u00faltimo uso de UV M\u00e9todo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1135"/>
+        <location filename="../ui/SettingsDialog.ui" line="1150"/>
         <source>Reset UV Prompt Setting</source>
         <translation>Reset UV Prompt Setting</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1156"/>
+        <location filename="../ui/SettingsDialog.ui" line="1171"/>
         <source>Import Export</source>
         <translation>Exportaci\u00f3n de importaci\u00f3n</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1162"/>
+        <location filename="../ui/SettingsDialog.ui" line="1177"/>
         <source>OpenCascade Import Settings</source>
         <translation>Configuraci\u00f3n de importaci\u00f3n OpenCascade</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1168"/>
-        <location filename="../ui/SettingsDialog.ui" line="1284"/>
+        <location filename="../ui/SettingsDialog.ui" line="1183"/>
+        <location filename="../ui/SettingsDialog.ui" line="1299"/>
         <source>Supported Formats:</source>
         <translation>Formatos compatibles:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1175"/>
+        <location filename="../ui/SettingsDialog.ui" line="1190"/>
         <source>STEP, IGES, BREP, STL, OBJ, PLY, OFF, XBF, IFC, GLTF, VRML, 3MF</source>
         <translation>STEP, IGES, BREP, STL, OBJ, PLY, OFF, XBF, IFC, GLTF, VRML, 3MF</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1185"/>
+        <location filename="../ui/SettingsDialog.ui" line="1200"/>
         <source>Tessellation Quality:</source>
         <translation>Calidad delation:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1208"/>
+        <location filename="../ui/SettingsDialog.ui" line="1223"/>
         <source>Linear Deflection:</source>
         <translation>Deflexi\u00f3n lineal:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1231"/>
+        <location filename="../ui/SettingsDialog.ui" line="1246"/>
         <source>Angular Deflection:</source>
         <translation>Deflexi\u00f3n angular:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1254"/>
+        <location filename="../ui/SettingsDialog.ui" line="1269"/>
         <source>Unify Faces</source>
         <translation>Unificar rostros</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1261"/>
+        <location filename="../ui/SettingsDialog.ui" line="1276"/>
         <source>Unify Edges</source>
         <translation>Unify Edges</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1268"/>
+        <location filename="../ui/SettingsDialog.ui" line="1283"/>
         <source>Build Curves</source>
         <translation>Construir curvas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1278"/>
+        <location filename="../ui/SettingsDialog.ui" line="1293"/>
         <source>Assimp Import Settings</source>
         <translation>Ajustes de la importaci\u00f3n de mo\u00f1o</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1291"/>
+        <location filename="../ui/SettingsDialog.ui" line="1306"/>
         <source>3DS, BLEND, DAE, FBX, IFC, X3D, MD2, MD3, MD5, MDC, MDL, NFF, PLY, STL, VRML, 3MF, AMF, X</source>
         <translation>3DS, BLEND, DAE, FBX, IFC, X3D, MD2, MD3, MD5, MDC, MDL, NFF, PLY, STL, VRML, 3MF, AMF, X</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1301"/>
+        <location filename="../ui/SettingsDialog.ui" line="1316"/>
         <source>Triangulate Faces</source>
         <translation>Caras triangulares</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1311"/>
+        <location filename="../ui/SettingsDialog.ui" line="1326"/>
         <source>Generate Normals</source>
         <translation>Generar Normales</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1321"/>
+        <location filename="../ui/SettingsDialog.ui" line="1336"/>
         <source>Smooth Normals</source>
         <translation>Smooth Normals</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1328"/>
+        <location filename="../ui/SettingsDialog.ui" line="1343"/>
         <source>Calculate Tangents</source>
         <translation>C\u00e1lculo de Tangentes</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1335"/>
+        <location filename="../ui/SettingsDialog.ui" line="1350"/>
         <source>Optimize Mesh</source>
         <translation>Optimize Mesh</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1342"/>
+        <location filename="../ui/SettingsDialog.ui" line="1357"/>
         <source>Remove Duplicate Vertices</source>
         <translation>Quitar los v\u00e9rtices duplicados</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1349"/>
+        <location filename="../ui/SettingsDialog.ui" line="1364"/>
         <source>Max Face Vertices:</source>
         <translation>Max Face Vertices:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1386"/>
+        <location filename="../ui/SettingsDialog.ui" line="1401"/>
         <source>Performance</source>
         <translation>Ejecuci\u00f3n</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1392"/>
+        <location filename="../ui/SettingsDialog.ui" line="1407"/>
         <source>Enable Multithreaded Loading</source>
         <translation>Activar Multitreaded Cargando</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1399"/>
+        <location filename="../ui/SettingsDialog.ui" line="1414"/>
         <source> Threads</source>
         <translation> Trapos</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1412"/>
+        <location filename="../ui/SettingsDialog.ui" line="1427"/>
         <source>Enable Background Skybox Blending</source>
         <translation>Enable fondo Skybox Blending</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1419"/>
+        <location filename="../ui/SettingsDialog.ui" line="1434"/>
         <source>Enable Progressive Loading</source>
         <translation>Carga progresiva</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1426"/>
+        <location filename="../ui/SettingsDialog.ui" line="1441"/>
         <source>Rendering Performance</source>
         <translation>Rendering Performance</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1432"/>
+        <location filename="../ui/SettingsDialog.ui" line="1447"/>
         <source>Max FPS:</source>
         <translation>Max FPS:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1452"/>
+        <location filename="../ui/SettingsDialog.ui" line="1467"/>
         <source>Enable V-Sync</source>
         <translation>Activar V-Sync</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1462"/>
+        <location filename="../ui/SettingsDialog.ui" line="1477"/>
         <source>Frustum Culling</source>
         <translation>Cultivo fruct\u00edfero</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1472"/>
+        <location filename="../ui/SettingsDialog.ui" line="1487"/>
         <source>Backface Culling</source>
         <translation>Cultivo de backface</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1482"/>
+        <location filename="../ui/SettingsDialog.ui" line="1497"/>
         <source>Level of Detail (LOD)</source>
         <translation>Nivel de detalle (LOD)</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1489"/>
+        <location filename="../ui/SettingsDialog.ui" line="1504"/>
         <source>Max Vertices per Frame:</source>
         <translation>Max Vertices por Marco:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1515"/>
+        <location filename="../ui/SettingsDialog.ui" line="1530"/>
         <source>Memory Management</source>
         <translation>Gesti\u00f3n de memoria</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1521"/>
+        <location filename="../ui/SettingsDialog.ui" line="1536"/>
         <source>Texture Cache Size (MB):</source>
         <translation>Tama\u00f1o de la cach\u00e9 de textura (MB):</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1544"/>
+        <location filename="../ui/SettingsDialog.ui" line="1559"/>
         <source>Geometry Cache Size (MB):</source>
         <translation>Tama\u00f1o de la cach\u00e9 de geometr\u00eda (MB):</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1567"/>
+        <location filename="../ui/SettingsDialog.ui" line="1582"/>
         <source>Compress Textures</source>
         <translation>Texturas de compresi\u00f3n</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1577"/>
+        <location filename="../ui/SettingsDialog.ui" line="1592"/>
         <source>Generate Mipmaps</source>
         <translation>Generar Mipmaps</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1604"/>
+        <location filename="../ui/SettingsDialog.ui" line="1619"/>
         <source>Advanced</source>
         <translation>Avances</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1610"/>
+        <location filename="../ui/SettingsDialog.ui" line="1625"/>
         <source>OpenGL Version</source>
         <translation>Versi\u00f3n OpenGL</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1618"/>
+        <location filename="../ui/SettingsDialog.ui" line="1633"/>
         <source>4.5 Core</source>
         <translation>4.5 Recursos b\u00e1sicos</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1623"/>
+        <location filename="../ui/SettingsDialog.ui" line="1638"/>
         <source>4.1 Core</source>
         <translation>4.1</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1628"/>
+        <location filename="../ui/SettingsDialog.ui" line="1643"/>
         <source>3.3 Core</source>
         <translation>3.3</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1636"/>
+        <location filename="../ui/SettingsDialog.ui" line="1651"/>
         <source>Enable VSync</source>
         <translation>Activar VSync</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1643"/>
+        <location filename="../ui/SettingsDialog.ui" line="1658"/>
         <source>Loader Threads</source>
         <translation>Panes de anciano</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1650"/>
+        <location filename="../ui/SettingsDialog.ui" line="1665"/>
         <source>Reload Shaders on File Change</source>
         <translation>Reload Shaders on File Change</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1657"/>
-        <location filename="../ui/SettingsDialog.ui" line="1710"/>
+        <location filename="../ui/SettingsDialog.ui" line="1672"/>
+        <location filename="../ui/SettingsDialog.ui" line="1725"/>
         <source>Show FPS Counter</source>
         <translation>Mostrar FPS Contrato</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1664"/>
+        <location filename="../ui/SettingsDialog.ui" line="1679"/>
         <source>Force Legacy OpenGL Compatibility Mode</source>
         <translation>Compatibilidad de la fuerza Legado OpenGL Modo</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1698"/>
-        <location filename="../ui/SettingsDialog.ui" line="1768"/>
+        <location filename="../ui/SettingsDialog.ui" line="1713"/>
+        <location filename="../ui/SettingsDialog.ui" line="1783"/>
         <source>Debug</source>
         <translation>Debug</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1704"/>
+        <location filename="../ui/SettingsDialog.ui" line="1719"/>
         <source>Debug Information</source>
         <translation>Debug Information</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1717"/>
+        <location filename="../ui/SettingsDialog.ui" line="1732"/>
         <source>Show Memory Usage</source>
         <translation>Mostrar uso de memoria</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1724"/>
+        <location filename="../ui/SettingsDialog.ui" line="1739"/>
         <source>Show Render Statistics</source>
         <translation>Mostrar estad\u00edsticas de Render</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1731"/>
+        <location filename="../ui/SettingsDialog.ui" line="1746"/>
         <source>Show OpenGL Info</source>
         <translation>Mostrar informaci\u00f3n OpenGL</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1738"/>
+        <location filename="../ui/SettingsDialog.ui" line="1753"/>
         <source>Enable Debug Logging</source>
         <translation>Enable Debug Logging</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1745"/>
+        <location filename="../ui/SettingsDialog.ui" line="1760"/>
         <source>Log Level:</source>
         <translation>Nivel de registro:</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1753"/>
+        <location filename="../ui/SettingsDialog.ui" line="1768"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1758"/>
+        <location filename="../ui/SettingsDialog.ui" line="1773"/>
         <source>Warning</source>
         <translation>Advertencia</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1763"/>
+        <location filename="../ui/SettingsDialog.ui" line="1778"/>
         <source>Info</source>
         <translation>Info</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1773"/>
+        <location filename="../ui/SettingsDialog.ui" line="1788"/>
         <source>Verbose</source>
         <translation>Verbose</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1784"/>
+        <location filename="../ui/SettingsDialog.ui" line="1799"/>
         <source>Diagnostics</source>
         <translation>Diagn\u00f3sticos</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1790"/>
+        <location filename="../ui/SettingsDialog.ui" line="1805"/>
         <source>Check OpenGL Errors</source>
         <translation>Comprueba los errores de OpenGL</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1797"/>
+        <location filename="../ui/SettingsDialog.ui" line="1812"/>
         <source>Validate Shaders</source>
         <translation>Validar Shaders</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1804"/>
+        <location filename="../ui/SettingsDialog.ui" line="1819"/>
         <source>Profile Rendering</source>
         <translation>Rendering</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1811"/>
+        <location filename="../ui/SettingsDialog.ui" line="1826"/>
         <source>Clear All Caches</source>
         <translation>Limpiar todas las jaulas</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1818"/>
+        <location filename="../ui/SettingsDialog.ui" line="1833"/>
         <source>Reset to Defaults</source>
         <translation>Reset to Defaults</translation>
     </message>
     <message>
-        <location filename="../ui/SettingsDialog.ui" line="1855"/>
+        <location filename="../ui/SettingsDialog.ui" line="1870"/>
         <source>Some settings will take effect only after restarting the application.</source>
         <translation>Algunos ajustes tendr\u00e1n efecto s\u00f3lo despu\u00e9s de reiniciar la aplicaci\u00f3n.</translation>
     </message>
