@@ -18,6 +18,8 @@ public:
     explicit SettingsDialog(QWidget *parent = nullptr);
     ~SettingsDialog();
 
+    void blockAllChildWidgetSignals(bool block);
+
     void setMaxMSAASamples(int maxSamples);
 	void setMaxAnisotropy(int maxAnisotropy);
 
