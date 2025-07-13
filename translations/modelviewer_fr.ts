@@ -287,12 +287,12 @@ Le modèle peut être partiellement chargé</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5228"/>
         <source>Center Screen</source>
-        <translation>Center Screen</translation>
+        <translation>Écran central</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5232"/>
         <source>Center Object List</source>
-        <translation>Center Object List</translation>
+        <translation>Liste d&apos;objets centraux</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5234"/>
@@ -307,7 +307,7 @@ Le modèle peut être partiellement chargé</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5237"/>
         <source>Show</source>
-        <translation>Show</translation>
+        <translation>Montrer</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5239"/>
@@ -317,12 +317,12 @@ Le modèle peut être partiellement chargé</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5241"/>
         <source>Show Only</source>
-        <translation>Show Only</translation>
+        <translation>Afficher uniquement</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5242"/>
         <source>Duplicate</source>
-        <translation>Duplicate</translation>
+        <translation>Double</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5243"/>
@@ -337,12 +337,12 @@ Le modèle peut être partiellement chargé</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5251"/>
         <source>Fit All</source>
-        <translation>Fit All</translation>
+        <translation>Convient à tous</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5253"/>
         <source>Zoom Area</source>
-        <translation>Zoom</translation>
+        <translation>Zone de zoom</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5256"/>
@@ -362,7 +362,7 @@ Le modèle peut être partiellement chargé</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5264"/>
         <source>Show All</source>
-        <translation>Show All</translation>
+        <translation>Afficher tout</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5269"/>
@@ -372,7 +372,7 @@ Le modèle peut être partiellement chargé</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5274"/>
         <source>Swap Visible</source>
-        <translation>Swap Visible</translation>
+        <translation>Échange visible</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5281"/>
@@ -1696,17 +1696,17 @@ Format de fichier non pris en charge : </translation>
     <message>
         <location filename="../src/ModelViewer.cpp" line="911"/>
         <source>Show</source>
-        <translation>Show</translation>
+        <translation>Montrer</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="912"/>
         <source>Show Only</source>
-        <translation>Show Only</translation>
+        <translation>Afficher uniquement</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="913"/>
         <source>Duplicate</source>
-        <translation>Duplicate</translation>
+        <translation>Double</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="914"/>
@@ -2887,7 +2887,7 @@ Poids : %4 kg
     <message>
         <location filename="../src/SettingsDialog.cpp" line="958"/>
         <source>Anisotropy Change</source>
-        <translation>Changement d &amp;apos; anisotropie</translation>
+        <translation>Changement d&apos;anisotropie</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="958"/>
