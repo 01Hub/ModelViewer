@@ -46,6 +46,7 @@ SettingsDialog::~SettingsDialog()
 
 void SettingsDialog::setMaxMSAASamples(int maxSamples)
 {
+    bool oldState = ui->msaaComboBox->blockSignals(true);
     ui->msaaComboBox->clear();
     ui->msaaComboBox->addItem("None", 0);
     if (maxSamples >= 2) ui->msaaComboBox->addItem("2x", 2);
@@ -57,10 +58,12 @@ void SettingsDialog::setMaxMSAASamples(int maxSamples)
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
     int val = settings.value("msaaComboBox", ui->msaaComboBox->currentIndex()).toInt();
     ui->msaaComboBox->setCurrentIndex(val);
+    ui->msaaComboBox->blockSignals(oldState);
 }
 
 void SettingsDialog::setMaxAnisotropy(int maxAnisotropy)
 {
+    bool oldState = ui->anisotropyComboBox->blockSignals(true);
     ui->anisotropyComboBox->clear();
     ui->anisotropyComboBox->addItem("1x (None)", 1.0f);
     if (maxAnisotropy >= 2) ui->anisotropyComboBox->addItem("2x", 2.0f);
@@ -70,6 +73,7 @@ void SettingsDialog::setMaxAnisotropy(int maxAnisotropy)
     QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
     int val = settings.value("anisotropyComboBox", ui->anisotropyComboBox->currentIndex()).toInt();
     ui->anisotropyComboBox->setCurrentIndex(val);
+    ui->anisotropyComboBox->blockSignals(oldState);
 }
 
 
@@ -373,9 +377,17 @@ void SettingsDialog::setDefaultValues()
     ui->profileRenderingCheckBox->setChecked(false);
 }
 
+void SettingsDialog::blockAllChildWidgetSignals(bool block)
+{
+    const auto widgets = this->findChildren<QWidget*>();
+    for (QWidget* widget : widgets)
+        widget->blockSignals(block);
+}
 
 void SettingsDialog::loadSettings()
 {
+    blockAllChildWidgetSignals(true);
+
 	qDebug() << "Loading settings from QSettings...";
     QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
     int iVal = settings.value("comboBoxTheme", ui->comboBoxTheme->currentIndex()).toInt();
@@ -558,6 +570,8 @@ void SettingsDialog::loadSettings()
     ui->validateShadersCheckBox->setChecked(bVal);
     bVal = settings.value("profileRenderingCheckBox", ui->profileRenderingCheckBox->isChecked()).toBool();
     ui->profileRenderingCheckBox->setChecked(bVal);
+
+    blockAllChildWidgetSignals(false);
 }
 
 void SettingsDialog::saveSettings()
@@ -765,6 +779,7 @@ void SettingsDialog::on_comboBoxTheme_currentIndexChanged()
 void SettingsDialog::on_comboBoxLanguage_currentIndexChanged()
 {
     general_languageIndex = ui->comboBoxLanguage->currentIndex();
+    QMessageBox::information(this, tr("Language Change"), tr("Please restart the application for the language change to take effect."));
 }
 
 void SettingsDialog::on_checkPromptOverwrite_stateChanged()
@@ -934,11 +949,13 @@ void SettingsDialog::on_shaderModelComboBox_currentIndexChanged()
 void SettingsDialog::on_msaaComboBox_currentIndexChanged()
 {
     rendering_msaaIndex = ui->msaaComboBox->currentIndex();    
+    QMessageBox::information(this, tr("MSAA Change"), tr("Please restart the application for the MSAA change to take effect."));
 }
 
 void SettingsDialog::on_anisotropyComboBox_currentIndexChanged()
 {
     rendering_anisotropyIndex = ui->anisotropyComboBox->currentIndex();
+    QMessageBox::information(this, tr("Anisotropy Change"), tr("Please restart the application for the anisotropy change to take effect."));
 }
 
 // Lighting
