@@ -29,43 +29,43 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	_textureDirOpenedFirstTime = true;
 
-	cameraModeOrbit = new QAction(QIcon(":/new/prefix1/res/camera_orbit_64.png"), "Orbit", this);
+	cameraModeOrbit = new QAction(QIcon(":/new/prefix1/res/camera_orbit_64.png"), tr("Orbit"), this);
 	cameraModeOrbit->setObjectName(QString::fromUtf8("cameraModeOrbit"));
 	cameraModeOrbit->setShortcut(QKeySequence(Qt::Key_1));
 
-	cameraModeFly = new QAction(QIcon(":/new/prefix1/res/camera_fly_64.png"), "Fly", this);
+	cameraModeFly = new QAction(QIcon(":/new/prefix1/res/camera_fly_64.png"), tr("Fly"), this);
 	cameraModeFly->setObjectName(QString::fromUtf8("cameraModeFly"));
 	cameraModeFly->setShortcut(QKeySequence(Qt::Key_2));
 
-	cameraModeFirstPerson = new QAction(QIcon(":/new/prefix1/res/camera_first_person_64.png"), "First Person", this);;
+	cameraModeFirstPerson = new QAction(QIcon(":/new/prefix1/res/camera_first_person_64.png"), tr("First Person"), this);;
 	cameraModeFirstPerson->setObjectName(QString::fromUtf8("cameraModeFirstPerson"));;
 	cameraModeFirstPerson->setShortcut(QKeySequence(Qt::Key_3));;
 
-	isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric", this);
+	isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), tr("Isometric"), this);
 	isometricView->setObjectName(QString::fromUtf8("isometricView"));
 	isometricView->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_1));
 
-	dimetricView = new QAction(QIcon(":/new/prefix1/res/dimetric.png"), "Dimetric", this);
+	dimetricView = new QAction(QIcon(":/new/prefix1/res/dimetric.png"), tr("Dimetric"), this);
 	dimetricView->setObjectName(QString::fromUtf8("dimetricView"));
 	dimetricView->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_2));
 
-	trimetricView = new QAction(QIcon(":/new/prefix1/res/trimetric.png"), "Trimetric", this);
+	trimetricView = new QAction(QIcon(":/new/prefix1/res/trimetric.png"), tr("Trimetric"), this);
 	trimetricView->setObjectName(QString::fromUtf8("trimetricView"));
 	trimetricView->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_3));
 
-	displayShaded = new QAction(QIcon(":/new/prefix1/res/shaded.png"), "Shaded", this);
+	displayShaded = new QAction(QIcon(":/new/prefix1/res/shaded.png"), tr("Shaded"), this);
 	displayShaded->setObjectName(QString::fromUtf8("displayShaded"));
 	displayShaded->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
 
-	displayWireframe = new QAction(QIcon(":/new/prefix1/res/wireframe.png"), "Wireframe", this);
+	displayWireframe = new QAction(QIcon(":/new/prefix1/res/wireframe.png"), tr("Wireframe"), this);
 	displayWireframe->setObjectName(QString::fromUtf8("displayWireframe"));
 	displayWireframe->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_W));
 
-	displayWireShaded = new QAction(QIcon(":/new/prefix1/res/wireshaded.png"), "Wire Shaded", this);
+	displayWireShaded = new QAction(QIcon(":/new/prefix1/res/wireshaded.png"), tr("Wire Shaded"), this);
 	displayWireShaded->setObjectName(QString::fromUtf8("displayWireShaded"));
 	displayWireShaded->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_W));
 
-	displayRealShaded = new QAction(QIcon(":/new/prefix1/res/realshaded.png"), "Realistic", this);
+	displayRealShaded = new QAction(QIcon(":/new/prefix1/res/realshaded.png"), tr("Realistic"), this);
 	displayRealShaded->setObjectName(QString::fromUtf8("displayRealShaded"));
 	displayRealShaded->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R));
 
