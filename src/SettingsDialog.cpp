@@ -44,6 +44,27 @@ SettingsDialog::~SettingsDialog()
     delete ui;
 }
 
+void SettingsDialog::retranslateUI()
+{
+    // Dialog buttons
+    if (ui->buttonBox->button(QDialogButtonBox::Ok))
+        ui->buttonBox->button(QDialogButtonBox::Ok)->setText(tr("OK"));
+    if (ui->buttonBox->button(QDialogButtonBox::Cancel))
+        ui->buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+    if (ui->buttonBox->button(QDialogButtonBox::Apply))
+        ui->buttonBox->button(QDialogButtonBox::Apply)->setText(tr("Apply"));
+    if (ui->buttonBox->button(QDialogButtonBox::RestoreDefaults))
+        ui->buttonBox->button(QDialogButtonBox::RestoreDefaults)->setText(tr("Defaults"));
+
+    // MSAA ComboBox
+    //setMaxMSAASamples(/* pass current maxSamples value here */);
+
+    // Anisotropy ComboBox
+    //setMaxAnisotropy(/* pass current maxAnisotropy value here */);
+
+    // If you have other dynamically set texts, add them here.
+}
+
 void SettingsDialog::setMaxMSAASamples(int maxSamples)
 {
     bool oldState = ui->msaaComboBox->blockSignals(true);

@@ -27,6 +27,8 @@ public:
 	static MainWindow* mainWindow();
 	~MainWindow();
 
+	void retranslateUI();
+
 	QPushButton* cancelTaskButton();
 
 	ModelViewer* createMdiChild();

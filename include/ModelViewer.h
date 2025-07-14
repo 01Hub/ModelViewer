@@ -20,6 +20,8 @@ public:
 	ModelViewer(QWidget* parent = 0);
 	~ModelViewer();
 
+	void retranslateUI();
+
 	GLWidget* getGLView() const { return _glWidget; }
 
 	void setMaterialToSelectedItems(const GLMaterial& mat);

@@ -102,6 +102,32 @@ MainWindow::MainWindow(QWidget* parent)
 	_bFirstTime = true;
 }
 
+void MainWindow::retranslateUI()
+{
+	// Recent files submenu
+	if (recentFileSubMenuAct && recentFileSubMenuAct->menu())
+		recentFileSubMenuAct->menu()->setTitle(tr("Recent..."));
+
+	// Cancel loading button
+	if (_cancelTaskButton)
+		_cancelTaskButton->setText(tr("Cancel Loading"));
+
+	// Status tips for dynamically created actions
+	if (ui->actionClose)
+		ui->actionClose->setStatusTip(tr("Close the active window"));
+	if (ui->actionFileClose)
+		ui->actionFileClose->setStatusTip(tr("Close the active document"));
+	if (ui->actionClose_All)
+		ui->actionClose_All->setStatusTip(tr("Close all the windows"));
+	if (ui->actionNext)
+		ui->actionNext->setStatusTip(tr("Move the focus to the next window"));
+	if (ui->actionPrevious)
+		ui->actionPrevious->setStatusTip(tr("Move the focus to the previous window"));
+
+	// Recent file actions (text set dynamically)
+	updateRecentFileActions();
+}
+
 ModelViewer* MainWindow::createMdiChild()
 {
 	ModelViewer* viewer = new ModelViewer(ui->mdiArea);

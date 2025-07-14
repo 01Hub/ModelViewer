@@ -196,180 +196,225 @@ Do you want to continue generating the UV?</source>
 <context>
     <name>GLWidget</name>
     <message>
-        <location filename="../src/GLWidget.cpp" line="479"/>
+        <location filename="../src/GLWidget.cpp" line="315"/>
+        <source>X</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="316"/>
+        <source>Y</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="317"/>
+        <source>Z</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="320"/>
+        <source>Top</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="321"/>
+        <source>Front</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="322"/>
+        <source>Left</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="323"/>
+        <source>Isometric</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="324"/>
+        <source>Dimetric</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="325"/>
+        <source>Trimetric</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="328"/>
         <source>No of Meshes: %1</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="541"/>
-        <location filename="../src/GLWidget.cpp" line="589"/>
-        <location filename="../src/GLWidget.cpp" line="595"/>
-        <location filename="../src/GLWidget.cpp" line="609"/>
-        <location filename="../src/GLWidget.cpp" line="648"/>
+        <location filename="../src/GLWidget.cpp" line="562"/>
+        <location filename="../src/GLWidget.cpp" line="610"/>
+        <location filename="../src/GLWidget.cpp" line="616"/>
+        <location filename="../src/GLWidget.cpp" line="630"/>
+        <location filename="../src/GLWidget.cpp" line="669"/>
         <source>Error</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="541"/>
+        <location filename="../src/GLWidget.cpp" line="562"/>
         <source>No files found in selected folder.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="590"/>
+        <location filename="../src/GLWidget.cpp" line="611"/>
         <source>Failed to load fallback HDR cubemap from:
 </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="596"/>
+        <location filename="../src/GLWidget.cpp" line="617"/>
         <source>No valid 6-face skybox images or fallback HDR file found in folder.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="610"/>
+        <location filename="../src/GLWidget.cpp" line="631"/>
         <source>Missing skybox face: %1
 Expected files should include identifiers like posx/negx or right/left, etc.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="648"/>
+        <location filename="../src/GLWidget.cpp" line="669"/>
         <source>Failed to load skybox face:
 </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="954"/>
+        <location filename="../src/GLWidget.cpp" line="975"/>
         <source>Press Esc to deactivate rotation mode</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="963"/>
+        <location filename="../src/GLWidget.cpp" line="984"/>
         <source>Press Esc to deactivate panning mode</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="972"/>
+        <location filename="../src/GLWidget.cpp" line="993"/>
         <source>Press Esc to deactivate zooming mode</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1306"/>
+        <location filename="../src/GLWidget.cpp" line="1327"/>
         <source>Reading file: </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1405"/>
+        <location filename="../src/GLWidget.cpp" line="1426"/>
         <source>Generating UVs... </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1406"/>
+        <location filename="../src/GLWidget.cpp" line="1427"/>
         <source>Processing node: %1/%2</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1427"/>
+        <location filename="../src/GLWidget.cpp" line="1448"/>
         <source>Cancelled</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1427"/>
+        <location filename="../src/GLWidget.cpp" line="1448"/>
         <source>Model loading cancelled!
 Model may be loaded partially</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5228"/>
+        <location filename="../src/GLWidget.cpp" line="5256"/>
         <source>Center Screen</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5232"/>
+        <location filename="../src/GLWidget.cpp" line="5260"/>
         <source>Center Object List</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5234"/>
+        <location filename="../src/GLWidget.cpp" line="5262"/>
         <source>Visualization Settings</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5235"/>
+        <location filename="../src/GLWidget.cpp" line="5263"/>
         <source>Transformations</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5237"/>
+        <location filename="../src/GLWidget.cpp" line="5265"/>
         <source>Show</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5239"/>
+        <location filename="../src/GLWidget.cpp" line="5267"/>
         <source>Hide</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5241"/>
+        <location filename="../src/GLWidget.cpp" line="5269"/>
         <source>Show Only</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5242"/>
+        <location filename="../src/GLWidget.cpp" line="5270"/>
         <source>Duplicate</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5243"/>
+        <location filename="../src/GLWidget.cpp" line="5271"/>
         <source>Delete</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5244"/>
+        <location filename="../src/GLWidget.cpp" line="5272"/>
         <source>Mesh Info</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5251"/>
+        <location filename="../src/GLWidget.cpp" line="5279"/>
         <source>Fit All</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5253"/>
+        <location filename="../src/GLWidget.cpp" line="5281"/>
         <source>Zoom Area</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5256"/>
+        <location filename="../src/GLWidget.cpp" line="5284"/>
         <source>Zoom</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5257"/>
+        <location filename="../src/GLWidget.cpp" line="5285"/>
         <source>Pan</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5258"/>
+        <location filename="../src/GLWidget.cpp" line="5286"/>
         <source>Rotate</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5264"/>
+        <location filename="../src/GLWidget.cpp" line="5292"/>
         <source>Show All</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5269"/>
+        <location filename="../src/GLWidget.cpp" line="5297"/>
         <source>Hide All</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5274"/>
+        <location filename="../src/GLWidget.cpp" line="5302"/>
         <source>Swap Visible</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5281"/>
+        <location filename="../src/GLWidget.cpp" line="5309"/>
         <source>Background Color</source>
         <translation></translation>
     </message>
@@ -423,7 +468,7 @@ Model may be loaded partially</source>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="157"/>
-        <location filename="../src/MainWindow.cpp" line="277"/>
+        <location filename="../src/MainWindow.cpp" line="303"/>
         <source>About Qt</source>
         <translation></translation>
     </message>
@@ -605,46 +650,57 @@ Model may be loaded partially</source>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="46"/>
+        <location filename="../src/MainWindow.cpp" line="109"/>
         <source>Recent...</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="61"/>
+        <location filename="../src/MainWindow.cpp" line="117"/>
         <source>Close the active window</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="66"/>
+        <location filename="../src/MainWindow.cpp" line="119"/>
         <source>Close the active document</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="71"/>
+        <location filename="../src/MainWindow.cpp" line="121"/>
         <source>Close all the windows</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="76"/>
+        <location filename="../src/MainWindow.cpp" line="123"/>
         <source>Move the focus to the next window</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="81"/>
+        <location filename="../src/MainWindow.cpp" line="125"/>
         <source>Move the focus to the previous window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="119"/>
+        <location filename="../src/MainWindow.cpp" line="113"/>
+        <source>Cancel Loading</source>
+        <translation></translation>
+    </message>
+    <message>
+        <location filename="../src/MainWindow.cpp" line="145"/>
         <source>Document modified</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="119"/>
+        <location filename="../src/MainWindow.cpp" line="145"/>
         <source>Do you want to save?</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="261"/>
+        <location filename="../src/MainWindow.cpp" line="287"/>
         <source>Application to visualize various 3D Models like OBJ and StereoLithography models using the ASSIMP library, and STEP, IGES, and BREP files using the OpenCASCADE library
 
 App Version: %1
@@ -656,38 +712,38 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="271"/>
+        <location filename="../src/MainWindow.cpp" line="297"/>
         <source>About 3D Model Viewer</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="336"/>
+        <location filename="../src/MainWindow.cpp" line="362"/>
         <source>Error</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="336"/>
+        <location filename="../src/MainWindow.cpp" line="362"/>
         <source>
 Unsupported file format: </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="361"/>
+        <location filename="../src/MainWindow.cpp" line="387"/>
         <source>Open Model File</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="699"/>
+        <location filename="../src/MainWindow.cpp" line="725"/>
         <source>&amp;%1 %2</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="725"/>
+        <location filename="../src/MainWindow.cpp" line="751"/>
         <source>File Not Found</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="726"/>
+        <location filename="../src/MainWindow.cpp" line="752"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation></translation>
     </message>
@@ -887,6 +943,7 @@ Unsupported file format: </source>
         <location filename="../ui/ModelViewer.ui" line="780"/>
         <location filename="../ui/ModelViewer.ui" line="871"/>
         <location filename="../src/ModelViewer.cpp" line="56"/>
+        <location filename="../src/ModelViewer.cpp" line="379"/>
         <source>Shaded</source>
         <translation></translation>
     </message>
@@ -1586,164 +1643,164 @@ Unsupported file format: </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="640"/>
+        <location filename="../src/ModelViewer.cpp" line="655"/>
         <source>objects</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="640"/>
+        <location filename="../src/ModelViewer.cpp" line="655"/>
         <source>object</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="641"/>
+        <location filename="../src/ModelViewer.cpp" line="656"/>
         <source>Selected %1 %2</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="644"/>
+        <location filename="../src/ModelViewer.cpp" line="659"/>
         <source>No selection</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="750"/>
-        <location filename="../src/ModelViewer.cpp" line="773"/>
-        <location filename="../src/ModelViewer.cpp" line="847"/>
-        <location filename="../src/ModelViewer.cpp" line="2065"/>
-        <location filename="../src/ModelViewer.cpp" line="2116"/>
+        <location filename="../src/ModelViewer.cpp" line="765"/>
+        <location filename="../src/ModelViewer.cpp" line="788"/>
+        <location filename="../src/ModelViewer.cpp" line="862"/>
+        <location filename="../src/ModelViewer.cpp" line="2080"/>
+        <location filename="../src/ModelViewer.cpp" line="2131"/>
         <source>Error</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="750"/>
+        <location filename="../src/ModelViewer.cpp" line="765"/>
         <source>
 Unsupported file format: </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="773"/>
+        <location filename="../src/ModelViewer.cpp" line="788"/>
         <source>Failed to load model: </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="794"/>
-        <location filename="../src/ModelViewer.cpp" line="829"/>
-        <location filename="../src/ModelViewer.cpp" line="843"/>
-        <location filename="../src/ModelViewer.cpp" line="873"/>
+        <location filename="../src/ModelViewer.cpp" line="809"/>
+        <location filename="../src/ModelViewer.cpp" line="844"/>
+        <location filename="../src/ModelViewer.cpp" line="858"/>
+        <location filename="../src/ModelViewer.cpp" line="888"/>
         <source>%1</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="827"/>
-        <location filename="../src/ModelViewer.cpp" line="875"/>
+        <location filename="../src/ModelViewer.cpp" line="842"/>
+        <location filename="../src/ModelViewer.cpp" line="890"/>
         <source>%1*</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="842"/>
+        <location filename="../src/ModelViewer.cpp" line="857"/>
         <source>File saved</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="847"/>
+        <location filename="../src/ModelViewer.cpp" line="862"/>
         <source>Failed to save file: %1</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="855"/>
+        <location filename="../src/ModelViewer.cpp" line="870"/>
         <source>Model Viewer Files (*.mvf)</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="856"/>
+        <location filename="../src/ModelViewer.cpp" line="871"/>
         <source>Save Model</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="907"/>
+        <location filename="../src/ModelViewer.cpp" line="922"/>
         <source>Center Screen</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="908"/>
+        <location filename="../src/ModelViewer.cpp" line="923"/>
         <source>Visualization Settings</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="909"/>
+        <location filename="../src/ModelViewer.cpp" line="924"/>
         <source>Transformations</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="910"/>
+        <location filename="../src/ModelViewer.cpp" line="925"/>
         <source>Hide</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="911"/>
+        <location filename="../src/ModelViewer.cpp" line="926"/>
         <source>Show</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="912"/>
+        <location filename="../src/ModelViewer.cpp" line="927"/>
         <source>Show Only</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="913"/>
+        <location filename="../src/ModelViewer.cpp" line="928"/>
         <source>Duplicate</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="914"/>
+        <location filename="../src/ModelViewer.cpp" line="929"/>
         <source>Delete</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="933"/>
-        <location filename="../src/ModelViewer.cpp" line="954"/>
+        <location filename="../src/ModelViewer.cpp" line="948"/>
+        <location filename="../src/ModelViewer.cpp" line="969"/>
         <source>Confirmation</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="933"/>
+        <location filename="../src/ModelViewer.cpp" line="948"/>
         <source>Duplicate selection?</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="954"/>
+        <location filename="../src/ModelViewer.cpp" line="969"/>
         <source>Delete selection?</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1069"/>
+        <location filename="../src/ModelViewer.cpp" line="1084"/>
         <source>Selection Required</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1069"/>
+        <location filename="../src/ModelViewer.cpp" line="1084"/>
         <source>Please select an object first</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1134"/>
+        <location filename="../src/ModelViewer.cpp" line="1149"/>
         <source>Points: %1
 </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1135"/>
+        <location filename="../src/ModelViewer.cpp" line="1150"/>
         <source>Triangles: %1
 </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1158"/>
+        <location filename="../src/ModelViewer.cpp" line="1173"/>
         <source>Memory: %1 </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1161"/>
+        <location filename="../src/ModelViewer.cpp" line="1176"/>
         <source>Mesh Volume: %1mm^3
 Surface Area: %2mm^2
 Density: %3kg/m^3
@@ -1752,13 +1809,13 @@ Weight: %4kg
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1164"/>
+        <location filename="../src/ModelViewer.cpp" line="1179"/>
         <source>Mesh Center of Mass: X%1, Y%2, Z%3
 </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1166"/>
+        <location filename="../src/ModelViewer.cpp" line="1181"/>
         <source>Bounding Limits:
 	XMin %1  XMax %2
 	YMin %3  YMax %4
@@ -1767,7 +1824,7 @@ Weight: %4kg
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1169"/>
+        <location filename="../src/ModelViewer.cpp" line="1184"/>
         <source>Bounding Size:
 	X %1
 	Y %2
@@ -1775,153 +1832,162 @@ Weight: %4kg
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="915"/>
-        <location filename="../src/ModelViewer.cpp" line="1173"/>
+        <location filename="../src/ModelViewer.cpp" line="930"/>
+        <location filename="../src/ModelViewer.cpp" line="1188"/>
         <source>Mesh Info</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="32"/>
+        <location filename="../src/ModelViewer.cpp" line="373"/>
         <source>Orbit</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="36"/>
+        <location filename="../src/ModelViewer.cpp" line="374"/>
         <source>Fly</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="40"/>
+        <location filename="../src/ModelViewer.cpp" line="375"/>
         <source>First Person</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="44"/>
+        <location filename="../src/ModelViewer.cpp" line="376"/>
         <source>Isometric</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="48"/>
+        <location filename="../src/ModelViewer.cpp" line="377"/>
         <source>Dimetric</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="52"/>
+        <location filename="../src/ModelViewer.cpp" line="378"/>
         <source>Trimetric</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="60"/>
+        <location filename="../src/ModelViewer.cpp" line="380"/>
         <source>Wireframe</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="64"/>
+        <location filename="../src/ModelViewer.cpp" line="381"/>
         <source>Wire Shaded</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="68"/>
+        <location filename="../src/ModelViewer.cpp" line="382"/>
         <source>Realistic</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1982"/>
+        <location filename="../src/ModelViewer.cpp" line="1997"/>
         <source>Import Model File</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2044"/>
+        <location filename="../src/ModelViewer.cpp" line="2059"/>
         <source>Export Model</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2063"/>
+        <location filename="../src/ModelViewer.cpp" line="2078"/>
         <source>Information</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2063"/>
+        <location filename="../src/ModelViewer.cpp" line="2078"/>
         <source>Exported</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2065"/>
+        <location filename="../src/ModelViewer.cpp" line="2080"/>
         <source>Export failed!</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2109"/>
+        <location filename="../src/ModelViewer.cpp" line="2124"/>
         <source>File loaded</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2116"/>
+        <location filename="../src/ModelViewer.cpp" line="2131"/>
         <source>Failed to load model %1</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2287"/>
+        <location filename="../src/ModelViewer.cpp" line="2302"/>
         <source>Select Skybox Texture Folder</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2787"/>
-        <location filename="../src/ModelViewer.cpp" line="2792"/>
-        <location filename="../src/ModelViewer.cpp" line="2797"/>
         <location filename="../src/ModelViewer.cpp" line="2802"/>
         <location filename="../src/ModelViewer.cpp" line="2807"/>
         <location filename="../src/ModelViewer.cpp" line="2812"/>
+        <location filename="../src/ModelViewer.cpp" line="2817"/>
+        <location filename="../src/ModelViewer.cpp" line="2822"/>
+        <location filename="../src/ModelViewer.cpp" line="2827"/>
         <source>PBR Texture Missing</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2787"/>
+        <location filename="../src/ModelViewer.cpp" line="2802"/>
         <source>Albedo map texture not set</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2792"/>
+        <location filename="../src/ModelViewer.cpp" line="2807"/>
         <source>Metallic map texture not set</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2797"/>
+        <location filename="../src/ModelViewer.cpp" line="2812"/>
         <source>Roughness map texture not set</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2802"/>
-        <location filename="../src/ModelViewer.cpp" line="3359"/>
+        <location filename="../src/ModelViewer.cpp" line="2817"/>
+        <location filename="../src/ModelViewer.cpp" line="3374"/>
         <source>Normal map texture not set</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2807"/>
+        <location filename="../src/ModelViewer.cpp" line="2822"/>
         <source>AO map texture not set</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2812"/>
-        <location filename="../src/ModelViewer.cpp" line="3364"/>
+        <location filename="../src/ModelViewer.cpp" line="2827"/>
+        <location filename="../src/ModelViewer.cpp" line="3379"/>
         <source>Height map texture not set</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3349"/>
-        <location filename="../src/ModelViewer.cpp" line="3354"/>
-        <location filename="../src/ModelViewer.cpp" line="3359"/>
         <location filename="../src/ModelViewer.cpp" line="3364"/>
+        <location filename="../src/ModelViewer.cpp" line="3369"/>
+        <location filename="../src/ModelViewer.cpp" line="3374"/>
+        <location filename="../src/ModelViewer.cpp" line="3379"/>
         <source>ADS Texture Missing</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3349"/>
+        <location filename="../src/ModelViewer.cpp" line="3364"/>
         <source>Diffuse map texture not set</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3354"/>
+        <location filename="../src/ModelViewer.cpp" line="3369"/>
         <source>Specular map texture not set</source>
         <translation></translation>
     </message>
@@ -2872,67 +2938,71 @@ Weight: %4kg
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="16"/>
+        <location filename="../src/SettingsDialog.cpp" line="51"/>
         <source>OK</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="22"/>
+        <location filename="../src/SettingsDialog.cpp" line="53"/>
         <source>Cancel</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="28"/>
+        <location filename="../src/SettingsDialog.cpp" line="55"/>
         <source>Apply</source>
         <translation></translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="34"/>
+        <location filename="../src/SettingsDialog.cpp" line="57"/>
         <source>Defaults</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="103"/>
-        <location filename="../src/SettingsDialog.cpp" line="1046"/>
+        <location filename="../src/SettingsDialog.cpp" line="124"/>
+        <location filename="../src/SettingsDialog.cpp" line="1067"/>
         <source>Settings Reset</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="103"/>
+        <location filename="../src/SettingsDialog.cpp" line="124"/>
         <source>All settings have been cleared.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="782"/>
+        <location filename="../src/SettingsDialog.cpp" line="803"/>
         <source>Language Change</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="782"/>
+        <location filename="../src/SettingsDialog.cpp" line="803"/>
         <source>Please restart the application for the language change to take effect.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="952"/>
+        <location filename="../src/SettingsDialog.cpp" line="973"/>
         <source>MSAA Change</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="952"/>
+        <location filename="../src/SettingsDialog.cpp" line="973"/>
         <source>Please restart the application for the MSAA change to take effect.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="958"/>
+        <location filename="../src/SettingsDialog.cpp" line="979"/>
         <source>Anisotropy Change</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="958"/>
+        <location filename="../src/SettingsDialog.cpp" line="979"/>
         <source>Please restart the application for the anisotropy change to take effect.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1046"/>
+        <location filename="../src/SettingsDialog.cpp" line="1067"/>
         <source>UV Prompt settings have been cleared.</source>
         <translation></translation>
     </message>

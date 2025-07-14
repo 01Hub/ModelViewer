@@ -39,6 +39,9 @@ class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 public:
 	GLWidget(QWidget* parent = 0, const char* name = 0);
 	~GLWidget();
+
+	void retranslateUI();
+
 	void updateView();
 
 	void resizeView(int w, int h) { resizeGL(w, h); }
@@ -372,6 +375,9 @@ private:
 	float _floorTexRepeatS, _floorTexRepeatT;
 	TextRenderer* _textRenderer;
 	TextRenderer* _axisTextRenderer;
+	QString _labelTop, _labelFront, _labelLeft, _labelIsometric, _labelDimetric, _labelTrimetric;
+	QString _labelAxisX, _labelAxisY, _labelAxisZ;
+	QString _labelNumMeshes;
 	QString _modelName;
 
 	QVector3D _currentTranslation;

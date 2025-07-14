@@ -69,7 +69,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	displayRealShaded->setObjectName(QString::fromUtf8("displayRealShaded"));
 	displayRealShaded->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R));
 
-	setupUi(this);
+	setupUi(this);	
 
 	// Camera Modes
 	QMenu* camMenu = new QMenu;
@@ -365,6 +365,21 @@ ModelViewer::~ModelViewer()
 	{
 		delete _glWidget;
 	}
+}
+
+void ModelViewer::retranslateUI()
+{
+	// Dynamically created QActions
+	cameraModeOrbit->setText(tr("Orbit"));
+	cameraModeFly->setText(tr("Fly"));
+	cameraModeFirstPerson->setText(tr("First Person"));
+	isometricView->setText(tr("Isometric"));
+	dimetricView->setText(tr("Dimetric"));
+	trimetricView->setText(tr("Trimetric"));
+	displayShaded->setText(tr("Shaded"));
+	displayWireframe->setText(tr("Wireframe"));
+	displayWireShaded->setText(tr("Wire Shaded"));
+	displayRealShaded->setText(tr("Realistic"));
 }
 
 void ModelViewer::deselectAll()

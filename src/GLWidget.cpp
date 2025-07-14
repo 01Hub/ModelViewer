@@ -245,6 +245,8 @@ _assimpModelLoader(nullptr)
 	connect(this, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
 
 	_selectRect = new QRubberBand(QRubberBand::Rectangle, this);
+
+	retranslateUI();
 }
 
 GLWidget::~GLWidget()
@@ -305,6 +307,25 @@ GLWidget::~GLWidget()
 	glDeleteFramebuffers(1, &_skyboxFBO);
 	glDeleteTextures(1, &_skyboxColorTexture);
 	glDeleteRenderbuffers(1, &_skyboxDepthBuffer);
+}
+
+void GLWidget::retranslateUI()
+{
+	// Axis labels
+	_labelAxisX = tr("X");
+	_labelAxisY = tr("Y");
+	_labelAxisZ = tr("Z");
+
+	// View labels
+	_labelTop = tr("Top");
+	_labelFront = tr("Front");
+	_labelLeft = tr("Left");
+	_labelIsometric = tr("Isometric");
+	_labelDimetric = tr("Dimetric");
+	_labelTrimetric = tr("Trimetric");
+
+	// Mesh count label
+	_labelNumMeshes = tr("No of Meshes: %1");
 }
 
 void GLWidget::cleanUpShaders()
@@ -476,7 +497,7 @@ void GLWidget::paintGL()
 		// Text rendering
 		if (_meshStore.size() != 0 && _displayedObjectsIds.size() != 0)
 		{
-			_textRenderer->RenderText(QString(tr("No of Meshes: %1")).arg(_meshStore.size()).toStdString(), 4, 4, 1, QVector3D(1.0f, 1.0f, 0.0f));
+			_textRenderer->RenderText(_labelNumMeshes.arg(_meshStore.size()).toStdString(), 4, 4, 1, QVector3D(1.0f, 1.0f, 0.0f));
 		}
 	}
 	catch (const std::exception& ex)
@@ -2673,27 +2694,34 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	glViewport(0, 0, width() / 2, height() / 2);
 	_orthoViewsCamera->setView(GLCamera::ViewProjection::TOP_VIEW);
 	render(_orthoViewsCamera);
-	_textRenderer->RenderText("Top", -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	_textRenderer->RenderText(_labelTop.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// Front View
 	glViewport(0, height() / 2, width() / 2, height() / 2);
 	_orthoViewsCamera->setView(GLCamera::ViewProjection::FRONT_VIEW);
 	render(_orthoViewsCamera);
-	_textRenderer->RenderText("Front", -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	_textRenderer->RenderText(_labelFront.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// Left View
 	glViewport(width() / 2, height() / 2, width() / 2, height() / 2);
 	_orthoViewsCamera->setView(GLCamera::ViewProjection::LEFT_VIEW);
 	render(_orthoViewsCamera);
-	_textRenderer->RenderText("Left", -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	_textRenderer->RenderText(_labelLeft.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// Render isometric view with primary camera
 	// Isometric View
 	glViewport(width() / 2, 0, width() / 2, height() / 2);
 	render(_primaryCamera);
-	std::string viewLabel = _viewMode == ViewMode::DIMETRIC ? "Dimetric" : _viewMode
-		== ViewMode::TRIMETRIC ? "Trimetric" : "Isometric";
-	_textRenderer->RenderText(viewLabel, -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
+	//std::string viewLabel = _viewMode == ViewMode::DIMETRIC ? "Dimetric" : _viewMode
+		//== ViewMode::TRIMETRIC ? "Trimetric" : "Isometric";
+	QString viewLabel;
+	switch (_viewMode)
+	{
+	case ViewMode::DIMETRIC: viewLabel = _labelDimetric; break;
+	case ViewMode::TRIMETRIC: viewLabel = _labelTrimetric; break;
+	default: viewLabel = _labelIsometric; break;
+	}
+	_textRenderer->RenderText(viewLabel.toStdString(), -50, 5, 1.6f, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VTOP, TextRenderer::HAlignment::HRIGHT);
 
 	// draw screen partitioning lines
 	splitScreen();
@@ -3014,15 +3042,15 @@ void GLWidget::drawAxis()
 	// Labels
 	QVector3D xAxis(_viewRange / size, 0, 0);
 	xAxis = xAxis.project(_modelViewMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText("X", xAxis.x(), height() - xAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderText(_labelAxisX.toStdString(), xAxis.x(), height() - xAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D yAxis(0, _viewRange / size, 0);
 	yAxis = yAxis.project(_modelViewMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText("Y", yAxis.x(), height() - yAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderText(_labelAxisY.toStdString(), yAxis.x(), height() - yAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D zAxis(0, 0, _viewRange / size);
 	zAxis = zAxis.project(_modelViewMatrix, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText("Z", zAxis.x(), height() - zAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), height() - zAxis.y(), 1, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	// Axes Lines
 	if (!_axisVAO.isCreated())
@@ -3134,15 +3162,15 @@ void GLWidget::drawCornerAxis()
 	// Labels
 	QVector3D xAxis(_viewRange / size, 0, 0);
 	xAxis = xAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText("X", xAxis.x(), height() - xAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderText(_labelAxisX.toStdString(), xAxis.x(), height() - xAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D yAxis(0, _viewRange / size, 0);
 	yAxis = yAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText("Y", yAxis.x(), height() - yAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderText(_labelAxisY.toStdString(), yAxis.x(), height() - yAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	QVector3D zAxis(0, 0, _viewRange / size);
 	zAxis = zAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText("Z", zAxis.x(), height() - zAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), height() - zAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	// Axes
 	if (!_axisVAO.isCreated())
