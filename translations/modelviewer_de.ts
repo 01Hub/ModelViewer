@@ -690,17 +690,17 @@ Ununterstütztes Dateiformat: </translation>
         <translation>Open Model File</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="700"/>
+        <location filename="../src/MainWindow.cpp" line="699"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="726"/>
+        <location filename="../src/MainWindow.cpp" line="725"/>
         <source>File Not Found</source>
         <translation>Seite nicht gefunden</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="727"/>
+        <location filename="../src/MainWindow.cpp" line="726"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation>Die Datei %1 existiert nicht mehr. Möchten Sie es aus den letzten Dateien entfernen?</translation>
     </message>
@@ -899,6 +899,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="780"/>
         <location filename="../ui/ModelViewer.ui" line="871"/>
+        <location filename="../src/ModelViewer.cpp" line="56"/>
         <source>Shaded</source>
         <translation>Schattiert</translation>
     </message>
@@ -1806,6 +1807,51 @@ Gewicht: %4kg
         <location filename="../src/ModelViewer.cpp" line="1173"/>
         <source>Mesh Info</source>
         <translation>Mesh Info</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="32"/>
+        <source>Orbit</source>
+        <translation type="unfinished">Orbit</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="36"/>
+        <source>Fly</source>
+        <translation type="unfinished">Fliegen</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="40"/>
+        <source>First Person</source>
+        <translation type="unfinished">Erste Person</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="44"/>
+        <source>Isometric</source>
+        <translation type="unfinished">Isometrisch</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="48"/>
+        <source>Dimetric</source>
+        <translation type="unfinished">Dimetrisch</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="52"/>
+        <source>Trimetric</source>
+        <translation type="unfinished">Trimet</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="60"/>
+        <source>Wireframe</source>
+        <translation type="unfinished">Drahtmodell</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="64"/>
+        <source>Wire Shaded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="68"/>
+        <source>Realistic</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1982"/>

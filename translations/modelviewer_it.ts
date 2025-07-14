@@ -691,17 +691,17 @@ Formato del file non supportato: </translation>
         <translation>Aprire il File del Modello</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="700"/>
+        <location filename="../src/MainWindow.cpp" line="699"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="726"/>
+        <location filename="../src/MainWindow.cpp" line="725"/>
         <source>File Not Found</source>
         <translation>File Non Trovato</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="727"/>
+        <location filename="../src/MainWindow.cpp" line="726"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation>Il file %1 non esiste più. Vuoi rimuoverlo dai file recenti?</translation>
     </message>
@@ -900,6 +900,7 @@ Formato del file non supportato: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="780"/>
         <location filename="../ui/ModelViewer.ui" line="871"/>
+        <location filename="../src/ModelViewer.cpp" line="56"/>
         <source>Shaded</source>
         <translation>Ombreggiato</translation>
     </message>
@@ -1597,6 +1598,51 @@ Formato del file non supportato: </translation>
         <location filename="../ui/ModelViewer.ui" line="4495"/>
         <source>Default Values</source>
         <translation>Valori di Default</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="32"/>
+        <source>Orbit</source>
+        <translation type="unfinished">Orbita</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="36"/>
+        <source>Fly</source>
+        <translation type="unfinished">Volanti</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="40"/>
+        <source>First Person</source>
+        <translation type="unfinished">Prima Persona</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="44"/>
+        <source>Isometric</source>
+        <translation type="unfinished">Isometrica</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="48"/>
+        <source>Dimetric</source>
+        <translation type="unfinished">Dimetrico</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="52"/>
+        <source>Trimetric</source>
+        <translation type="unfinished">Trimetrico</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="60"/>
+        <source>Wireframe</source>
+        <translation type="unfinished">Filo</translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="64"/>
+        <source>Wire Shaded</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/ModelViewer.cpp" line="68"/>
+        <source>Realistic</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="640"/>
