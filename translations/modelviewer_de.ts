@@ -1811,47 +1811,47 @@ Gewicht: %4kg
     <message>
         <location filename="../src/ModelViewer.cpp" line="32"/>
         <source>Orbit</source>
-        <translation type="unfinished">Orbit</translation>
+        <translation>Orbit</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="36"/>
         <source>Fly</source>
-        <translation type="unfinished">Fliegen</translation>
+        <translation>Fliegen</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="40"/>
         <source>First Person</source>
-        <translation type="unfinished">Erste Person</translation>
+        <translation>Erste Person</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="44"/>
         <source>Isometric</source>
-        <translation type="unfinished">Isometrisch</translation>
+        <translation>Isometrisch</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="48"/>
         <source>Dimetric</source>
-        <translation type="unfinished">Dimetrisch</translation>
+        <translation>Dimetrisch</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="52"/>
         <source>Trimetric</source>
-        <translation type="unfinished">Trimet</translation>
+        <translation>Trimet</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="60"/>
         <source>Wireframe</source>
-        <translation type="unfinished">Drahtmodell</translation>
+        <translation>Drahtmodell</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="64"/>
         <source>Wire Shaded</source>
-        <translation type="unfinished"></translation>
+        <translation>Drahtgeschattet</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="68"/>
         <source>Realistic</source>
-        <translation type="unfinished"></translation>
+        <translation>Realistisch</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1982"/>

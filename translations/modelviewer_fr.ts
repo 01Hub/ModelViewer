@@ -1812,47 +1812,47 @@ Poids : %4 kg
     <message>
         <location filename="../src/ModelViewer.cpp" line="32"/>
         <source>Orbit</source>
-        <translation type="unfinished">Orbite</translation>
+        <translation>Orbite</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="36"/>
         <source>Fly</source>
-        <translation type="unfinished">Voler</translation>
+        <translation>Voler</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="40"/>
         <source>First Person</source>
-        <translation type="unfinished">Première Personne</translation>
+        <translation>Première Personne</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="44"/>
         <source>Isometric</source>
-        <translation type="unfinished">Isométrique</translation>
+        <translation>Isométrique</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="48"/>
         <source>Dimetric</source>
-        <translation type="unfinished">Dimétrique</translation>
+        <translation>Dimétrique</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="52"/>
         <source>Trimetric</source>
-        <translation type="unfinished">Trimétrique</translation>
+        <translation>Trimétrique</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="60"/>
         <source>Wireframe</source>
-        <translation type="unfinished">Filaire</translation>
+        <translation>Filaire</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="64"/>
         <source>Wire Shaded</source>
-        <translation type="unfinished"></translation>
+        <translation>Fil+Ombré</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="68"/>
         <source>Realistic</source>
-        <translation type="unfinished"></translation>
+        <translation>Réaliste</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1982"/>
@@ -2329,7 +2329,7 @@ Poids : %4 kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="750"/>
         <source>Wireshaded</source>
-        <translation>Fil+ombré</translation>
+        <translation>Fil+Ombré</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="758"/>

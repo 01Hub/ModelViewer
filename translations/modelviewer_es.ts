@@ -1811,47 +1811,47 @@ Peso: %4kg
     <message>
         <location filename="../src/ModelViewer.cpp" line="32"/>
         <source>Orbit</source>
-        <translation type="unfinished">Órbita</translation>
+        <translation>Órbita</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="36"/>
         <source>Fly</source>
-        <translation type="unfinished">Volar</translation>
+        <translation>Volar</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="40"/>
         <source>First Person</source>
-        <translation type="unfinished">Primera persona</translation>
+        <translation>Primera Persona</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="44"/>
         <source>Isometric</source>
-        <translation type="unfinished">Isometric</translation>
+        <translation>Isométrico</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="48"/>
         <source>Dimetric</source>
-        <translation type="unfinished">Dimetric</translation>
+        <translation>Dimétrico</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="52"/>
         <source>Trimetric</source>
-        <translation type="unfinished">Trimétrico</translation>
+        <translation>Trimétrico</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="60"/>
         <source>Wireframe</source>
-        <translation type="unfinished">Estructura alámbrica</translation>
+        <translation>Estructura alámbrica</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="64"/>
         <source>Wire Shaded</source>
-        <translation type="unfinished"></translation>
+        <translation>Sombreado por Cables</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="68"/>
         <source>Realistic</source>
-        <translation type="unfinished"></translation>
+        <translation>Realista</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1982"/>
@@ -2076,7 +2076,7 @@ Peso: %4kg
         <location filename="../ui/SettingsDialog.ui" line="219"/>
         <location filename="../ui/SettingsDialog.ui" line="272"/>
         <source>Isometric</source>
-        <translation>Isometric</translation>
+        <translation>Isométrico</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="224"/>
@@ -2116,7 +2116,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="277"/>
         <source>Dimetric</source>
-        <translation>Dimetric</translation>
+        <translation>Dimétrico</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="282"/>
@@ -2277,7 +2277,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="633"/>
         <source>First Person</source>
-        <translation>Primera persona</translation>
+        <translation>Primera Persona</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="638"/>

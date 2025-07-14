@@ -1602,47 +1602,47 @@ Formato del file non supportato: </translation>
     <message>
         <location filename="../src/ModelViewer.cpp" line="32"/>
         <source>Orbit</source>
-        <translation type="unfinished">Orbita</translation>
+        <translation>Orbita</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="36"/>
         <source>Fly</source>
-        <translation type="unfinished">Volanti</translation>
+        <translation>Volanti</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="40"/>
         <source>First Person</source>
-        <translation type="unfinished">Prima Persona</translation>
+        <translation>Prima Persona</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="44"/>
         <source>Isometric</source>
-        <translation type="unfinished">Isometrica</translation>
+        <translation>Isometrica</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="48"/>
         <source>Dimetric</source>
-        <translation type="unfinished">Dimetrico</translation>
+        <translation>Dimetrico</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="52"/>
         <source>Trimetric</source>
-        <translation type="unfinished">Trimetrico</translation>
+        <translation>Trimetrico</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="60"/>
         <source>Wireframe</source>
-        <translation type="unfinished">Filo</translation>
+        <translation>Filo</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="64"/>
         <source>Wire Shaded</source>
-        <translation type="unfinished"></translation>
+        <translation>FiloOmbreggiato</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="68"/>
         <source>Realistic</source>
-        <translation type="unfinished"></translation>
+        <translation>Realistico</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="640"/>

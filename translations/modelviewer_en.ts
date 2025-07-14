@@ -1783,47 +1783,47 @@ Weight: %4kg
     <message>
         <location filename="../src/ModelViewer.cpp" line="32"/>
         <source>Orbit</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="36"/>
         <source>Fly</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="40"/>
         <source>First Person</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="44"/>
         <source>Isometric</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="48"/>
         <source>Dimetric</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="52"/>
         <source>Trimetric</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="60"/>
         <source>Wireframe</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="64"/>
         <source>Wire Shaded</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="68"/>
         <source>Realistic</source>
-        <translation type="unfinished"></translation>
+        <translation></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1982"/>
