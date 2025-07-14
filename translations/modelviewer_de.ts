@@ -361,12 +361,12 @@ Modell kann teilweise geladen werden</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5264"/>
         <source>Show All</source>
-        <translation>Alle anzeigen</translation>
+        <translation>Alle Anzeigen</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5269"/>
         <source>Hide All</source>
-        <translation>Alles verbergen</translation>
+        <translation>Alles Verbergen</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5274"/>
@@ -455,7 +455,7 @@ Modell kann teilweise geladen werden</translation>
     <message>
         <location filename="../ui/MainWindow.ui" line="179"/>
         <source>Tile Horizontally</source>
-        <translation>Fliesen horizontal</translation>
+        <translation>Fliesen Horizontal</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="182"/>
@@ -501,7 +501,7 @@ Modell kann teilweise geladen werden</translation>
     <message>
         <location filename="../ui/MainWindow.ui" line="222"/>
         <source>Close All</source>
-        <translation>Alle schließen</translation>
+        <translation>Alle Schließen</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="230"/>
@@ -566,22 +566,22 @@ Modell kann teilweise geladen werden</translation>
     <message>
         <location filename="../ui/MainWindow.ui" line="296"/>
         <source>Undo</source>
-        <translation>Und</translation>
+        <translation>Rückgängig machen</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="299"/>
         <source>Undo the last action</source>
-        <translation>Undo die letzte Aktion</translation>
+        <translation>Die letzte Aktion rückgängig machen</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="307"/>
         <source>Redo</source>
-        <translation>Rot</translation>
+        <translation>Wiederholen</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="310"/>
         <source>Redo the last action</source>
-        <translation>Redo die letzte Aktion</translation>
+        <translation>Die letzte Aktion wiederholen</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="321"/>
@@ -769,7 +769,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="323"/>
         <source>Rotate View</source>
-        <translation>Blick auf Rot</translation>
+        <translation>Ansicht drehen</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="339"/>
@@ -779,7 +779,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="358"/>
         <source>Pan View</source>
-        <translation>Blick aufel</translation>
+        <translation>Schwenkansicht</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="374"/>
@@ -789,7 +789,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="393"/>
         <source>Zoom View</source>
-        <translation>Großansicht</translation>
+        <translation>Zoom-Ansicht</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="409"/>
@@ -799,7 +799,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="428"/>
         <source>Fit All</source>
-        <translation>Alle</translation>
+        <translation>Alles Einpassen</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="444"/>
@@ -935,7 +935,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="934"/>
         <source>Show/Hide Face Normals</source>
-        <translation>Zeige/Hide Gesicht Normale</translation>
+        <translation>Flächennormalen ein-/ausblenden</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="971"/>
@@ -950,12 +950,12 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1029"/>
         <source>Show/Hide Axis</source>
-        <translation>Zeige/Hide Axis</translation>
+        <translation>Achse ein-/ausblenden</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1072"/>
         <source>Actions</source>
-        <translation>Maßnahmen</translation>
+        <translation>Aktionen</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1113"/>
@@ -965,12 +965,12 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1128"/>
         <source>Hide/Show All</source>
-        <translation>Verstecken/Alle anzeigen</translation>
+        <translation>Alle ausblenden/anzeigen</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1138"/>
         <source>Auto Fit View On Hide/Show</source>
-        <translation>Auto Fit View On Hide/Show</translation>
+        <translation>Ansicht automatisch anpassen beim Ausblenden/Einblenden</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1152"/>
@@ -990,7 +990,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1196"/>
         <source>Ambient Diffuse Specular Lighting - Blinn Phong</source>
-        <translation>Umgebungslicht - Blinn Phong</translation>
+        <translation>Diffuses Umgebungslicht mit Spiegeleffekt - Blinn Phong</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1209"/>
@@ -1033,13 +1033,13 @@ Ununterstütztes Dateiformat: </translation>
         <location filename="../ui/ModelViewer.ui" line="1297"/>
         <location filename="../ui/ModelViewer.ui" line="4103"/>
         <source>Specular Color</source>
-        <translation>Art der Farbe</translation>
+        <translation>Glanzfarbe</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1307"/>
         <location filename="../ui/ModelViewer.ui" line="2815"/>
         <source>Apply Textures to Selection</source>
-        <translation>Texturen zur Auswahl anwenden</translation>
+        <translation>Texturen auf Auswahl anwenden</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1316"/>
@@ -1203,17 +1203,17 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2162"/>
         <source>Texture Based PBR Settings</source>
-        <translation>Strukturbasiertes PBR Einstellungen</translation>
+        <translation>Texturbasierte PBR-Einstellungen</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2170"/>
         <source>Albedo Map</source>
-        <translation>Landkarte von Albedo</translation>
+        <translation>Albedo-Karte</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2255"/>
         <source>Metallic Map</source>
-        <translation>Karteische Karte</translation>
+        <translation>Metallische Karte</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2340"/>
@@ -1228,7 +1228,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2787"/>
         <source>Height Scale Factor</source>
-        <translation>Größe Skal</translation>
+        <translation>Höhenskalierungsfaktor</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2851"/>
@@ -1413,7 +1413,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3822"/>
         <source>Rotations</source>
-        <translation>Drehung</translation>
+        <translation>Rotationen</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3831"/>
@@ -1570,17 +1570,17 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4375"/>
         <source>Repeat S</source>
-        <translation>Wiederholen von S</translation>
+        <translation>Wiederholen Sie S</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4395"/>
         <source>Repeat T</source>
-        <translation>Wiederholung T</translation>
+        <translation>Wiederholen Sie T</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4417"/>
         <source>HDR Tone Mapping</source>
-        <translation>HDR Ton Mapping</translation>
+        <translation>HDR-Tonzuordnung</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4426"/>
@@ -1675,7 +1675,7 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../src/ModelViewer.cpp" line="907"/>
         <source>Center Screen</source>
-        <translation>Hauptbildschirm</translation>
+        <translation>Mittlerer Bildschirm</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="908"/>
@@ -1810,7 +1810,7 @@ Gewicht: %4kg
     <message>
         <location filename="../src/ModelViewer.cpp" line="1982"/>
         <source>Import Model File</source>
-        <translation>Modelldatei importieren</translation>
+        <translation>Modelldatei Importieren</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2044"/>

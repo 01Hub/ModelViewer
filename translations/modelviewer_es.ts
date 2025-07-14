@@ -59,7 +59,7 @@ Do you want to continue generating the UV?</source>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="17"/>
         <source>Background Color</source>
-        <translation>Color de fondo</translation>
+        <translation>Color de Fondo</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="40"/>
@@ -74,7 +74,7 @@ Do you want to continue generating the UV?</source>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="65"/>
         <source>Choose Second Color</source>
-        <translation>Elija el segundo color</translation>
+        <translation>Elija el Segundo Color</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="76"/>
@@ -104,7 +104,7 @@ Do you want to continue generating the UV?</source>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="109"/>
         <source>Default</source>
-        <translation>Por defecto</translation>
+        <translation>Por Defecto</translation>
     </message>
     <message>
         <location filename="../ui/BackgroundColor.ui" line="148"/>
@@ -132,7 +132,7 @@ Do you want to continue generating the UV?</source>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="26"/>
         <source>Auxilary Plane Normal</source>
-        <translation>Auxilary Plane Normal</translation>
+        <translation>Normal del Plano Auxiliar</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="32"/>
@@ -152,7 +152,7 @@ Do you want to continue generating the UV?</source>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="125"/>
         <source>Default Planes</source>
-        <translation>Planes predeterminados</translation>
+        <translation>Planes Predeterminados</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="139"/>
@@ -164,7 +164,7 @@ Do you want to continue generating the UV?</source>
         <location filename="../ui/ClippingPlanesEditor.ui" line="217"/>
         <location filename="../ui/ClippingPlanesEditor.ui" line="282"/>
         <source>Flip</source>
-        <translation>Flip</translation>
+        <translation>Voltear</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="165"/>
@@ -186,12 +186,12 @@ Do you want to continue generating the UV?</source>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="322"/>
         <source>Capping</source>
-        <translation>Capping</translation>
+        <translation>Tapa</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="329"/>
         <source>Reset Coefficients</source>
-        <translation>Coeficientes de reasentamiento</translation>
+        <translation>Coeficientes de Reinicio</translation>
     </message>
 </context>
 <context>
@@ -286,17 +286,17 @@ El modelo se puede cargar parcialmente</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5228"/>
         <source>Center Screen</source>
-        <translation>Pantalla central</translation>
+        <translation>Pantalla Central</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5232"/>
         <source>Center Object List</source>
-        <translation>Lista de objetos del centro</translation>
+        <translation>Lista de Objetos del Centro</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5234"/>
         <source>Visualization Settings</source>
-        <translation>Ajustes de visualización</translation>
+        <translation>Ajustes de Visualización</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5235"/>
@@ -316,7 +316,7 @@ El modelo se puede cargar parcialmente</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5241"/>
         <source>Show Only</source>
-        <translation>Mostrar sólo</translation>
+        <translation>Mostrar Sólo</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5242"/>
@@ -361,22 +361,22 @@ El modelo se puede cargar parcialmente</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="5264"/>
         <source>Show All</source>
-        <translation>Mostrar todos</translation>
+        <translation>Mostrar Todos</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5269"/>
         <source>Hide All</source>
-        <translation>Ocultar todo</translation>
+        <translation>Ocultar Todo</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5274"/>
         <source>Swap Visible</source>
-        <translation>Intercambio visible</translation>
+        <translation>Intercambio Visible</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="5281"/>
         <source>Background Color</source>
-        <translation>Color de fondo</translation>
+        <translation>Color de Fondo</translation>
     </message>
 </context>
 <context>
@@ -601,7 +601,7 @@ El modelo se puede cargar parcialmente</translation>
     <message>
         <location filename="../ui/MainWindow.ui" line="334"/>
         <source>Clear UV Prompt Settings</source>
-        <translation>Ajustes de prompta UV clara</translation>
+        <translation>Ajustes de Prompta UV Clara</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="339"/>
@@ -670,7 +670,7 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
     <message>
         <location filename="../src/MainWindow.cpp" line="271"/>
         <source>About 3D Model Viewer</source>
-        <translation>Acerca 3D modelo Viewer</translation>
+        <translation>Acerca 3D Modelo Viewer</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="336"/>
@@ -779,7 +779,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="358"/>
         <source>Pan View</source>
-        <translation>Vista panorámica</translation>
+        <translation>Vista Panorámica</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="374"/>
@@ -789,7 +789,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="393"/>
         <source>Zoom View</source>
-        <translation>Vista zoom</translation>
+        <translation>Vista Zoom</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="409"/>
@@ -799,17 +799,17 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="428"/>
         <source>Fit All</source>
-        <translation>Fit All</translation>
+        <translation>Ajustar Todo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="444"/>
         <source>Home</source>
-        <translation>Home</translation>
+        <translation>Hogar</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="460"/>
         <source>Zoom Area</source>
-        <translation>Zona de zoom</translation>
+        <translation>Zona de Zoom</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="476"/>
@@ -819,12 +819,12 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="492"/>
         <source>Camera Modes</source>
-        <translation>Modos de cámara</translation>
+        <translation>Modos de Cámara</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="525"/>
         <source>Top View</source>
-        <translation>Vista superior</translation>
+        <translation>Vista Superior</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="541"/>
@@ -834,7 +834,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="560"/>
         <source>Bottom View</source>
-        <translation>Punto de vista</translation>
+        <translation>Punto de Vista</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="576"/>
@@ -844,7 +844,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="595"/>
         <source>Left View</source>
-        <translation>Vista izquierda</translation>
+        <translation>Vista Izquierda</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="611"/>
@@ -854,7 +854,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="630"/>
         <source>Right View</source>
-        <translation>Vista derecha</translation>
+        <translation>Vista Derecha</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="646"/>
@@ -864,7 +864,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="665"/>
         <source>Front View</source>
-        <translation>Vista frontal</translation>
+        <translation>Vista Frontal</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="681"/>
@@ -874,7 +874,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="700"/>
         <source>Back View</source>
-        <translation>Vista trasera</translation>
+        <translation>Vista Trasera</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="716"/>
@@ -884,7 +884,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="735"/>
         <source>Axonometric View</source>
-        <translation>Vista axonométrica</translation>
+        <translation>Vista Axonométrica</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="751"/>
@@ -910,7 +910,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="823"/>
         <source>Multiple Views</source>
-        <translation>Vistas múltiples</translation>
+        <translation>Vistas Múltiples</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="826"/>
@@ -925,32 +925,32 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="868"/>
         <source>Display Mode</source>
-        <translation>Modo de visualización</translation>
+        <translation>Modo de Visualización</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="904"/>
         <source>Show/Hide Vertex Normals</source>
-        <translation>Mostrar/ocultar normales de vértices</translation>
+        <translation>Mostrar/Ocultar Normales de Vértices</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="934"/>
         <source>Show/Hide Face Normals</source>
-        <translation>Mostrar/ocultar normales de cara</translation>
+        <translation>Mostrar/Ocultar Normales de Cara</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="971"/>
         <source>Clipping Planes</source>
-        <translation>Planes de deslizamiento</translation>
+        <translation>Planes de Deslizamiento</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1000"/>
         <source>Swap Visible Object Space</source>
-        <translation>Intercambiar espacio de objetos visibles</translation>
+        <translation>Intercambiar Espacio de Objetos Visibles</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1029"/>
         <source>Show/Hide Axis</source>
-        <translation>Mostrar/Ocultar eje</translation>
+        <translation>Mostrar/Ocultar Eje</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1072"/>
@@ -960,17 +960,17 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1113"/>
         <source>Model Objects</source>
-        <translation>Modelo de objetos</translation>
+        <translation>Modelo de Objetos</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1128"/>
         <source>Hide/Show All</source>
-        <translation>Ocultar/Mostrar todo</translation>
+        <translation>Ocultar/Mostrar Todo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1138"/>
         <source>Auto Fit View On Hide/Show</source>
-        <translation>Ajuste automático de vista al ocultar/mostrar</translation>
+        <translation>Ajuste Automático de Vista al Ocultar/Mostrar</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1152"/>
@@ -985,7 +985,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1188"/>
         <source>Visualization Model</source>
-        <translation>Modelo de visualización</translation>
+        <translation>Modelo de Visualización</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1196"/>
@@ -995,22 +995,22 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1209"/>
         <source>Physically Based Rendering - Direct Lighting</source>
-        <translation>Renderizado basado en la física: iluminación directa</translation>
+        <translation>Renderizado Basado en la Física: Iluminación Directa</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1219"/>
         <source>Physically Based Rendering - Textured</source>
-        <translation>Renderizado basado en la física - Texturizado</translation>
+        <translation>Renderizado Basado en la Física - Texturizado</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1249"/>
         <source>ADS Lighting Settings</source>
-        <translation>Configuración de iluminación ADS</translation>
+        <translation>Configuración de Iluminación ADS</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1267"/>
         <source>Material Colours</source>
-        <translation>Colores materiales</translation>
+        <translation>Colores Materiales</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1276"/>
@@ -1039,13 +1039,13 @@ Formato de archivo no compatible: </translation>
         <location filename="../ui/ModelViewer.ui" line="1307"/>
         <location filename="../ui/ModelViewer.ui" line="2815"/>
         <source>Apply Textures to Selection</source>
-        <translation>Aplicar texturas a la selección</translation>
+        <translation>Aplicar Texturas a la Selección</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1316"/>
         <location filename="../ui/ModelViewer.ui" line="2696"/>
         <source>Height Map</source>
-        <translation>Mapa de altura</translation>
+        <translation>Mapa de Altura</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1339"/>
@@ -1064,12 +1064,12 @@ Formato de archivo no compatible: </translation>
         <location filename="../ui/ModelViewer.ui" line="4284"/>
         <location filename="../ui/ModelViewer.ui" line="4364"/>
         <source>Select Texture</source>
-        <translation>Select Texture</translation>
+        <translation>Seleccionar Textura</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1401"/>
         <source>Enable/Disable Texture</source>
-        <translation>Textura habilitada/desactivada</translation>
+        <translation>Habilitar/Deshabilitar Textura</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1404"/>
@@ -1084,7 +1084,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1423"/>
         <source>Select Texture Image</source>
-        <translation>Seleccione imagen de texto</translation>
+        <translation>Seleccionar Imagen de Textura</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1434"/>
@@ -1095,7 +1095,7 @@ Formato de archivo no compatible: </translation>
         <location filename="../ui/ModelViewer.ui" line="1530"/>
         <location filename="../ui/ModelViewer.ui" line="2822"/>
         <source>Clear All Textures from Selection</source>
-        <translation>Limpiar todas las texturas de la selecci\u00f3n</translation>
+        <translation>Borrar Todas las Texturas de la Selección</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1537"/>
@@ -1118,7 +1118,7 @@ Formato de archivo no compatible: </translation>
         <location filename="../ui/ModelViewer.ui" line="1587"/>
         <location filename="../ui/ModelViewer.ui" line="2425"/>
         <source>Normal Map</source>
-        <translation>Mapa normal</translation>
+        <translation>Mapa Normal</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1672"/>
@@ -1143,7 +1143,7 @@ Formato de archivo no compatible: </translation>
         <location filename="../ui/ModelViewer.ui" line="1774"/>
         <location filename="../ui/ModelViewer.ui" line="2144"/>
         <source>Reset to Default Values</source>
-        <translation>Restablecer valores predeterminados</translation>
+        <translation>Restablecer Valores Predeterminados</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1783"/>
@@ -1163,22 +1163,22 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1900"/>
         <source>Diffuse Light Map</source>
-        <translation>Mapa de la luz difusa</translation>
+        <translation>Mapa de la Luz Difusa</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1992"/>
         <source>Apply Colors to Selection</source>
-        <translation>Aplicar colores a la selección</translation>
+        <translation>Aplicar Colores a la Selección</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2008"/>
         <source>Direct Lighting PBR Settings</source>
-        <translation>Configuración PBR de iluminación directa</translation>
+        <translation>Configuración PBR de Iluminación Directa</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2016"/>
         <source>Albedo Colour</source>
-        <translation>Color del albedo</translation>
+        <translation>Color del Albedo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2025"/>
@@ -1203,7 +1203,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2162"/>
         <source>Texture Based PBR Settings</source>
-        <translation>PBR basado en la textura Ajustes</translation>
+        <translation>PBR Basado en la Textura Ajustes</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2170"/>
@@ -1218,27 +1218,27 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2340"/>
         <source>Roughness Map</source>
-        <translation>Mapa de rugosidad</translation>
+        <translation>Mapa de Rugosidad</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2513"/>
         <source>Ambient Occlusion Map</source>
-        <translation>Mapa de oclusión ambiental</translation>
+        <translation>Mapa de Oclusión Ambiental</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2787"/>
         <source>Height Scale Factor</source>
-        <translation>Factor de escala de altura</translation>
+        <translation>Factor de Escala de Altura</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2851"/>
         <source>Predefined Materials</source>
-        <translation>Materiales predefinidos</translation>
+        <translation>Materiales Predefinidos</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2878"/>
         <source>Green Plastic</source>
-        <translation>Plástico verde</translation>
+        <translation>Plástico Verde</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2910"/>
@@ -1248,12 +1248,12 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2942"/>
         <source>Black Rubber</source>
-        <translation>Caucho negro</translation>
+        <translation>Caucho Negro</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="2974"/>
         <source>Black Plastic</source>
-        <translation>Plástico negro</translation>
+        <translation>Plástico Negro</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3012"/>
@@ -1288,22 +1288,22 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3185"/>
         <source>Yellow Plastic</source>
-        <translation>Plástico amarillo</translation>
+        <translation>Plástico Amarillo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3217"/>
         <source>Green Rubber</source>
-        <translation>Caucho verde</translation>
+        <translation>Caucho Verde</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3249"/>
         <source>White Rubber</source>
-        <translation>Caucho blanco</translation>
+        <translation>Caucho Blanco</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3284"/>
         <source>White Plastic</source>
-        <translation>Plástico blanco</translation>
+        <translation>Plástico Blanco</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3304"/>
@@ -1328,12 +1328,12 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3400"/>
         <source>Red Rubber</source>
-        <translation>Caucho rojo</translation>
+        <translation>Caucho Rojo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3432"/>
         <source>Yellow rubber</source>
-        <translation>Goma amarilla</translation>
+        <translation>Goma Amarilla</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3464"/>
@@ -1343,12 +1343,12 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3496"/>
         <source>Red Plastic</source>
-        <translation>Plástico rojo</translation>
+        <translation>Plástico Rojo</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3528"/>
         <source>Cyan Plastic</source>
-        <translation>Plástico cian</translation>
+        <translation>Plástico Cian</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3560"/>
@@ -1378,7 +1378,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3717"/>
         <source>Object Transformations</source>
-        <translation>Transformaciones de objetos</translation>
+        <translation>Transformaciones de Objetos</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3723"/>
@@ -1460,27 +1460,27 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4029"/>
         <source>Apply Transformations</source>
-        <translation>Transformaciones de aplicaciones</translation>
+        <translation>Transformaciones de Aplicaciones</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4036"/>
         <source>Reset Transformations</source>
-        <translation>Reiniciar las transformaciones</translation>
+        <translation>Reiniciar las Transformaciones</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4065"/>
         <source>Visualization Environment Settings</source>
-        <translation>Configuración del entorno de visualización</translation>
+        <translation>Configuración del Eentorno de Visualización</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4077"/>
         <source>Light Colours</source>
-        <translation>Colores de luz</translation>
+        <translation>Colores de Luz</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4113"/>
         <source>Light Position</source>
-        <translation>Posición de la luz</translation>
+        <translation>Posición de la Luz</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4135"/>
@@ -1505,17 +1505,17 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4217"/>
         <source>Lock Light and Camera</source>
-        <translation>Bloquear luz y cámara</translation>
+        <translation>Bloquear Luz y Cámara</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4227"/>
         <source>Show Lights</source>
-        <translation>Mostrar luces</translation>
+        <translation>Mostrar Luces</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4236"/>
         <source>Environment</source>
-        <translation>para el Medio Ambiente</translation>
+        <translation>Para el Medio Ambiente</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4247"/>
@@ -1550,7 +1550,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4316"/>
         <source>Environment Mapping</source>
-        <translation>Environment Mapping</translation>
+        <translation>Mapeo del Entorno</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4327"/>
@@ -1580,12 +1580,12 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4417"/>
         <source>HDR Tone Mapping</source>
-        <translation>HDR Tone Mapping</translation>
+        <translation>Mapeo de Tonos HDR</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4426"/>
         <source>Gamma Correction</source>
-        <translation>Corrección gamma</translation>
+        <translation>Corrección Gamma</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4436"/>
@@ -1595,7 +1595,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4495"/>
         <source>Default Values</source>
-        <translation>Valores predeterminados</translation>
+        <translation>Valores Predeterminados</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="640"/>
@@ -1615,7 +1615,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../src/ModelViewer.cpp" line="644"/>
         <source>No selection</source>
-        <translation>No hay selecci\u00f3n</translation>
+        <translation>Sin selección</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="750"/>
@@ -1636,7 +1636,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../src/ModelViewer.cpp" line="773"/>
         <source>Failed to load model: </source>
-        <translation>Failed to load model: </translation>
+        <translation>Error al Cargar el Modelo: </translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="794"/>
@@ -1670,17 +1670,17 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../src/ModelViewer.cpp" line="856"/>
         <source>Save Model</source>
-        <translation>Guardar modelo</translation>
+        <translation>Guardar Modelo</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="907"/>
         <source>Center Screen</source>
-        <translation>Pantalla central</translation>
+        <translation>Pantalla Centrar</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="908"/>
         <source>Visualization Settings</source>
-        <translation>Ajustes de visualización</translation>
+        <translation>Ajustes de Visualización</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="909"/>
@@ -1700,7 +1700,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../src/ModelViewer.cpp" line="912"/>
         <source>Show Only</source>
-        <translation>Mostrar sólo</translation>
+        <translation>Mostrar Sólo</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="913"/>
@@ -1731,7 +1731,7 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1069"/>
         <source>Selection Required</source>
-        <translation>Selección requerida</translation>
+        <translation>Selección Requerida</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1069"/>
@@ -1774,7 +1774,7 @@ Peso: %4kg
         <location filename="../src/ModelViewer.cpp" line="1164"/>
         <source>Mesh Center of Mass: X%1, Y%2, Z%3
 </source>
-        <translation>Mesh Center of Mass: X%1, Y%2, Z%3
+        <translation>Centro de Masa de la Malla: X%1, Y%2, Z%3
 </translation>
     </message>
     <message>
@@ -1784,10 +1784,10 @@ Peso: %4kg
 	YMin %3  YMax %4
 	ZMin %5  ZMax %6
 </source>
-        <translation>L\u00edmites brillantes:
-	XMin %1 XMax %2
-	YMin %3 YMax %4
-	ZMin %5 ZMax %6
+        <translation>Límites:
+	XMín %1  XMáx %2
+	YMín %3  YMáx %4
+	ZMín %5  ZMáx %6
 </translation>
     </message>
     <message>
@@ -1796,7 +1796,7 @@ Peso: %4kg
 	X %1
 	Y %2
 	Z %3</source>
-        <translation>Tama\u00f1o de la herida:
+        <translation>Tamaño límite:
 	X %1
 	Y %2
 	Z %3</translation>
@@ -1805,17 +1805,17 @@ Peso: %4kg
         <location filename="../src/ModelViewer.cpp" line="915"/>
         <location filename="../src/ModelViewer.cpp" line="1173"/>
         <source>Mesh Info</source>
-        <translation>Información de la malla</translation>
+        <translation>Información de la Malla</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1982"/>
         <source>Import Model File</source>
-        <translation>Importar archivo modelo</translation>
+        <translation>Importar Archivo Modelo</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2044"/>
         <source>Export Model</source>
-        <translation>Modelo de exportación</translation>
+        <translation>Modelo de Exportación</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2063"/>
@@ -1845,7 +1845,7 @@ Peso: %4kg
     <message>
         <location filename="../src/ModelViewer.cpp" line="2287"/>
         <source>Select Skybox Texture Folder</source>
-        <translation>Seleccione la carpeta de textura de Skybox</translation>
+        <translation>Seleccione la Carpeta de Textura de Skybox</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2787"/>
@@ -1855,39 +1855,39 @@ Peso: %4kg
         <location filename="../src/ModelViewer.cpp" line="2807"/>
         <location filename="../src/ModelViewer.cpp" line="2812"/>
         <source>PBR Texture Missing</source>
-        <translation>PBR Falta de textura</translation>
+        <translation>PBR Falta de Textura</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2787"/>
         <source>Albedo map texture not set</source>
-        <translation>Albedo mapa textura no set</translation>
+        <translation>Textura del mapa de albedo no establecida</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2792"/>
         <source>Metallic map texture not set</source>
-        <translation>Textura de mapa met\u00e1lico no set</translation>
+        <translation>Textura de mapa metálico no establecida</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2797"/>
         <source>Roughness map texture not set</source>
-        <translation>Rioughness mapa textura no set</translation>
+        <translation>Textura del mapa de rugosidad no establecida</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2802"/>
         <location filename="../src/ModelViewer.cpp" line="3359"/>
         <source>Normal map texture not set</source>
-        <translation>Textura de mapa normal no set</translation>
+        <translation>Textura del mapa normal no establecida</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2807"/>
         <source>AO map texture not set</source>
-        <translation>AO mapa textura no set</translation>
+        <translation>Textura del mapa AO no establecida</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="2812"/>
         <location filename="../src/ModelViewer.cpp" line="3364"/>
         <source>Height map texture not set</source>
-        <translation>Altura mapa textura no se establece</translation>
+        <translation>Textura del mapa de altura no establecida</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="3349"/>
@@ -1895,17 +1895,17 @@ Peso: %4kg
         <location filename="../src/ModelViewer.cpp" line="3359"/>
         <location filename="../src/ModelViewer.cpp" line="3364"/>
         <source>ADS Texture Missing</source>
-        <translation>Falta textura ADS</translation>
+        <translation>Falta Textura ADS</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="3349"/>
         <source>Diffuse map texture not set</source>
-        <translation>Diffuse mapa textura no set</translation>
+        <translation>Textura de mapa difuso no establecida</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="3354"/>
         <source>Specular map texture not set</source>
-        <translation>Textura de mapa espectacular no</translation>
+        <translation>Textura del mapa especular no establecida</translation>
     </message>
 </context>
 <context>
@@ -1923,12 +1923,12 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="49"/>
         <source>Restore Last Opened File at Startup</source>
-        <translation>Restau Last Opened File at Startup</translation>
+        <translation>Restaurar el último Archivo Abierto al Iniciar</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="56"/>
         <source>Enable Tooltips</source>
-        <translation>Activar las herramientas</translation>
+        <translation>Activar las Herramientas</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="68"/>
@@ -1938,7 +1938,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="82"/>
         <source>System Default</source>
-        <translation>Sistema predeterminado</translation>
+        <translation>Sistema Predeterminado</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="87"/>
@@ -1988,7 +1988,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="164"/>
         <source>Confirm on Exit</source>
-        <translation>Confirmar al salir</translation>
+        <translation>Confirmar al Salir</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="172"/>
@@ -2065,7 +2065,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="261"/>
         <source>Axonometric Mode</source>
-        <translation>Modo axonométrico</translation>
+        <translation>Modo Axonométrico</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="277"/>
@@ -2080,12 +2080,12 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="292"/>
         <source>Enable Trackball Rotation</source>
-        <translation>Habilitar la rotación del trackball</translation>
+        <translation>Habilitar la Rotación del Trackball</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="299"/>
         <source>Invert Zoom Direction</source>
-        <translation>Invertir dirección de zoom</translation>
+        <translation>Invertir Dirección de Zoom</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="308"/>
@@ -2105,7 +2105,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="352"/>
         <source>Background Style</source>
-        <translation>Estilo de fondo</translation>
+        <translation>Estilo de Fondo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="366"/>
@@ -2120,7 +2120,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="383"/>
         <source>Top Color</source>
-        <translation>Color superior</translation>
+        <translation>Color Superior</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="396"/>
@@ -2131,12 +2131,12 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="407"/>
         <source>Bottom Color</source>
-        <translation>Color de fondo</translation>
+        <translation>Color de Fondo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="431"/>
         <source>Gradient Style</source>
-        <translation>Estilo elegante</translation>
+        <translation>Estilo Elegante</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="445"/>
@@ -2166,17 +2166,17 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="490"/>
         <source>Viewport</source>
-        <translation>Ventana gráfica</translation>
+        <translation>Ventana Gráfica</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="496"/>
         <source>Show Bounding Box</source>
-        <translation>Mostrar cuadro delimitador</translation>
+        <translation>Mostrar Cuadro Delimitador</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="503"/>
         <source>Show Corner Trihedron</source>
-        <translation>Triedro de esquina de exhibición</translation>
+        <translation>Triedro de Esquina de Exhibición</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="513"/>
@@ -2196,7 +2196,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="563"/>
         <source>Show Grid</source>
-        <translation>Mostrar cuadrícula</translation>
+        <translation>Mostrar Cuadrícula</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="589"/>
@@ -2206,7 +2206,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="596"/>
         <source>Show Center Trihedron</source>
-        <translation>Triedro del centro de exposiciones</translation>
+        <translation>Triedro del Centro de Exposiciones</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="609"/>
@@ -2216,7 +2216,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="615"/>
         <source>Navigation Mode:</source>
-        <translation>Modo de navegación:</translation>
+        <translation>Modo de Navegación:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="623"/>
@@ -2241,7 +2241,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="646"/>
         <source>Mouse Sensitivity:</source>
-        <translation>Sensibilidad del ratón:</translation>
+        <translation>Sensibilidad del Ratón:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="669"/>
@@ -2266,7 +2266,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="732"/>
         <source>Default Mode</source>
-        <translation>Modo predeterminado</translation>
+        <translation>Modo Predeterminado</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="740"/>
@@ -2282,27 +2282,27 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="750"/>
         <source>Wireshaded</source>
-        <translation>Sombreado con alambre</translation>
+        <translation>Sombreado por Cables</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="758"/>
         <source>Enable Backface Culling</source>
-        <translation>Habilitar la eliminación de cara posterior</translation>
+        <translation>Habilitar la Eeliminación de Cara Posterior</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="765"/>
         <source>Enable Normal Map Support</source>
-        <translation>Activar soporte de mapa normal</translation>
+        <translation>Activar Soporte de Mapa Normal</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="772"/>
         <source>Shader Settings</source>
-        <translation>Ajustes de afeitado</translation>
+        <translation>Ajustes de Afeitado</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="778"/>
         <source>Shading Model:</source>
-        <translation>Modelo de formaci\u00f3n:</translation>
+        <translation>Modelo de Sombreado:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="786"/>
@@ -2357,7 +2357,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="850"/>
         <source>Anisotropic Filtering:</source>
-        <translation>Filtrado anisotrópico:</translation>
+        <translation>Filtrado Anisotrópico:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="858"/>
@@ -2392,12 +2392,12 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="897"/>
         <source>Enable Lighting</source>
-        <translation>Habilitar iluminación</translation>
+        <translation>Habilitar Iluminación</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="907"/>
         <source>Enable Shadows</source>
-        <translation>Habilitar sombras</translation>
+        <translation>Habilitar Sombras</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="914"/>
@@ -2422,7 +2422,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="995"/>
         <source>Default Texture Directory</source>
-        <translation>Directorio de la textura predeterminada</translation>
+        <translation>Directorio de la Textura Predeterminada</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1003"/>
@@ -2447,7 +2447,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1026"/>
         <source>Default Material</source>
-        <translation>Material predeterminado</translation>
+        <translation>Material Predeterminado</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1052"/>
@@ -2457,7 +2457,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1059"/>
         <source>Angle-Based Smart UV</source>
-        <translation>UV inteligente basado en ángulos</translation>
+        <translation>UV Inteligente Basado en ángulos</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1064"/>
@@ -2497,37 +2497,37 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1108"/>
         <source>Preserve Existing UVs</source>
-        <translation>Preservar los UV existentes</translation>
+        <translation>Preservar los UV Existentes</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1115"/>
         <source>Auto Pack UVs</source>
-        <translation>UV de empaque automático</translation>
+        <translation>UV de Empaque Automático</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1122"/>
         <source>Relax UVs</source>
-        <translation>Relájese con los rayos UV</translation>
+        <translation>Relájese con los Rrayos UV</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1129"/>
         <source>Use PCA Projection</source>
-        <translation>Utilice la proyección PCA</translation>
+        <translation>Utilice la Proyección PCA</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1136"/>
         <source>Use xatlas only for Packing</source>
-        <translation>Utilice xatlas solo para empacar</translation>
+        <translation>Utilice xatlas solo para Empacar</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1143"/>
         <source>Remember Last Used UV Method</source>
-        <translation>Recordar el último método UV utilizado</translation>
+        <translation>Recordar el último Método UV Utilizado</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1150"/>
         <source>Reset UV Prompt Setting</source>
-        <translation>Restablecer configuración del indicador UV</translation>
+        <translation>Restablecer Configuración del Indicador UV</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1171"/>
@@ -2553,37 +2553,37 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1200"/>
         <source>Tessellation Quality:</source>
-        <translation>Calidad delation:</translation>
+        <translation>Calidad de Teselación:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1223"/>
         <source>Linear Deflection:</source>
-        <translation>Desviación lineal:</translation>
+        <translation>Desviación Lineal:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1246"/>
         <source>Angular Deflection:</source>
-        <translation>Desviación angular:</translation>
+        <translation>Desviación Angular:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1269"/>
         <source>Unify Faces</source>
-        <translation>Unificar rostros</translation>
+        <translation>Unificar Rostros</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1276"/>
         <source>Unify Edges</source>
-        <translation>Unificar bordes</translation>
+        <translation>Unificar Bordes</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1283"/>
         <source>Build Curves</source>
-        <translation>Construir curvas</translation>
+        <translation>Construir Curvas</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1293"/>
         <source>Assimp Import Settings</source>
-        <translation>Configuración de importación de Assimp</translation>
+        <translation>Configuración de Importación de Assimp</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1306"/>
@@ -2593,7 +2593,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1316"/>
         <source>Triangulate Faces</source>
-        <translation>Caras triangulares</translation>
+        <translation>Caras Triangulares</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1326"/>
@@ -2603,27 +2603,27 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1336"/>
         <source>Smooth Normals</source>
-        <translation>Normales suaves</translation>
+        <translation>Normales Suaves</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1343"/>
         <source>Calculate Tangents</source>
-        <translation>Calcular tangentes</translation>
+        <translation>Calcular Tangentes</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1350"/>
         <source>Optimize Mesh</source>
-        <translation>Optimizar malla</translation>
+        <translation>Optimizar Malla</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1357"/>
         <source>Remove Duplicate Vertices</source>
-        <translation>Eliminar vértices duplicados</translation>
+        <translation>Eliminar Vértices Duplicados</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1364"/>
         <source>Max Face Vertices:</source>
-        <translation>Máximos vértices de la cara:</translation>
+        <translation>Máximos Vértices de la Cara:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1401"/>
@@ -2643,17 +2643,17 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1427"/>
         <source>Enable Background Skybox Blending</source>
-        <translation>Habilitar la fusión de Skybox en segundo plano</translation>
+        <translation>Habilitar la Fusión de Skybox en Segundo Plano</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1434"/>
         <source>Enable Progressive Loading</source>
-        <translation>Carga progresiva</translation>
+        <translation>Habilitar Carga Progresiva</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1441"/>
         <source>Rendering Performance</source>
-        <translation>Rendimiento de renderizado</translation>
+        <translation>Rendimiento de Renderizado</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1447"/>
@@ -2668,17 +2668,17 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1477"/>
         <source>Frustum Culling</source>
-        <translation>Eliminación de troncos truncados</translation>
+        <translation>Eliminación de Troncos Truncados</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1487"/>
         <source>Backface Culling</source>
-        <translation>Eliminación de la cara posterior</translation>
+        <translation>Eliminación de la Cara Posterior</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1497"/>
         <source>Level of Detail (LOD)</source>
-        <translation>Nivel de detalle (LOD)</translation>
+        <translation>Nivel de Detalle (LOD)</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1504"/>
@@ -2688,22 +2688,22 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1530"/>
         <source>Memory Management</source>
-        <translation>Gestión de la memoria</translation>
+        <translation>Gestión de la Memoria</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1536"/>
         <source>Texture Cache Size (MB):</source>
-        <translation>Tamaño de caché de textura (MB):</translation>
+        <translation>Tamaño de Caché de Textura (MB):</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1559"/>
         <source>Geometry Cache Size (MB):</source>
-        <translation>Tamaño de caché de geometría (MB):</translation>
+        <translation>Tamaño de Caché de Geometría (MB):</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1582"/>
         <source>Compress Textures</source>
-        <translation>Comprimir texturas</translation>
+        <translation>Comprimir Texturas</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1592"/>
@@ -2743,12 +2743,12 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1658"/>
         <source>Loader Threads</source>
-        <translation>Panes de anciano</translation>
+        <translation>Subprocesos de Carga</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1665"/>
         <source>Reload Shaders on File Change</source>
-        <translation>Recargar sombreadores al cambiar de archivo</translation>
+        <translation>Recargar Sombreadores al Cambiar de Archivo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1672"/>
@@ -2759,7 +2759,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1679"/>
         <source>Force Legacy OpenGL Compatibility Mode</source>
-        <translation>Compatibilidad de la fuerza Legado OpenGL Modo</translation>
+        <translation>Compatibilidad de la Fuerza Legado OpenGL Modo</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1713"/>
@@ -2770,32 +2770,32 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1719"/>
         <source>Debug Information</source>
-        <translation>Información de depuración</translation>
+        <translation>Información de Depuración</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1732"/>
         <source>Show Memory Usage</source>
-        <translation>Mostrar uso de memoria</translation>
+        <translation>Mostrar Uso de Memoria</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1739"/>
         <source>Show Render Statistics</source>
-        <translation>Mostrar estadísticas de renderizado</translation>
+        <translation>Mostrar Estadísticas de Renderizado</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1746"/>
         <source>Show OpenGL Info</source>
-        <translation>Mostrar información de OpenGL</translation>
+        <translation>Mostrar Información de OpenGL</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1753"/>
         <source>Enable Debug Logging</source>
-        <translation>Habilitar el registro de depuración</translation>
+        <translation>Habilitar el Registro de Depuración</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1760"/>
         <source>Log Level:</source>
-        <translation>Nivel de registro:</translation>
+        <translation>Nivel de Registro:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1768"/>
@@ -2825,7 +2825,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1805"/>
         <source>Check OpenGL Errors</source>
-        <translation>Comprueba los errores de OpenGL</translation>
+        <translation>Comprueba los Errores de OpenGL</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1812"/>
@@ -2835,17 +2835,17 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1819"/>
         <source>Profile Rendering</source>
-        <translation>Renderizado de perfiles</translation>
+        <translation>Renderizado de Perfiles</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1826"/>
         <source>Clear All Caches</source>
-        <translation>Limpiar todas las jaulas</translation>
+        <translation>Borrar Todos los Cachés</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1833"/>
         <source>Reset to Defaults</source>
-        <translation>Restablecer valores predeterminados</translation>
+        <translation>Restablecer Valores Predeterminados</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1870"/>
@@ -2886,7 +2886,7 @@ Peso: %4kg
     <message>
         <location filename="../src/SettingsDialog.cpp" line="782"/>
         <source>Language Change</source>
-        <translation>Cambio de idioma</translation>
+        <translation>Cambio de Idioma</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="782"/>
