@@ -142,12 +142,12 @@ Vuoi continuare a generare UV?</translation>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="61"/>
         <source>DY</source>
-        <translation>D</translation>
+        <translation>DY</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="90"/>
         <source>DZ</source>
-        <translation>D</translation>
+        <translation>DZ</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="125"/>
@@ -186,12 +186,12 @@ Vuoi continuare a generare UV?</translation>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="322"/>
         <source>Capping</source>
-        <translation>Capping</translation>
+        <translation>Tappatura</translation>
     </message>
     <message>
         <location filename="../ui/ClippingPlanesEditor.ui" line="329"/>
         <source>Reset Coefficients</source>
-        <translation>Reset Coefficients</translation>
+        <translation>Reimposta Coefficienti</translation>
     </message>
 </context>
 <context>
@@ -238,8 +238,7 @@ I file previsti dovrebbero includere identificatori come posx/negx o destra/sini
         <location filename="../src/GLWidget.cpp" line="648"/>
         <source>Failed to load skybox face:
 </source>
-        <translation>Non ha caricato la faccia del skybox:
-</translation>
+        <translation>Non ha caricato la faccia del skybox:</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="954"/>
@@ -259,17 +258,17 @@ I file previsti dovrebbero includere identificatori come posx/negx o destra/sini
     <message>
         <location filename="../src/GLWidget.cpp" line="1306"/>
         <source>Reading file: </source>
-        <translation>File di lettura: </translation>
+        <translation>File di lettura:</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="1405"/>
         <source>Generating UVs... </source>
-        <translation>Generando UV... </translation>
+        <translation>Generando UV.</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="1406"/>
         <source>Processing node: %1/%2</source>
-        <translation>Nodo di elaborazione: %1/%2</translation>
+        <translation>Nodo di elaborazione: 1/%2</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="1427"/>
@@ -606,7 +605,7 @@ Il modello può essere caricato parzialmente</translation>
     <message>
         <location filename="../ui/MainWindow.ui" line="339"/>
         <source>Settings</source>
-        <translation>Impostazioni</translation>
+        <translation>Impostazioni impostazioni</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="46"/>
@@ -660,12 +659,10 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
 </source>
         <translation>Applicazione per visualizzare vari modelli 3D come OBJ e StereoLithography modelli utilizzando la libreria ASSIMP, e STEP, IGES e file BREP utilizzando la libreria OpenCASCADE
 
-Versione dell&apos;app: %1
-Versione ASSIMP: %2.%3
+Versione dell&apos;app: %
+Versione ASSIMP: 2.%3
 
-Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
-
-</translation>
+Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="271"/>
@@ -681,8 +678,7 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
         <location filename="../src/MainWindow.cpp" line="336"/>
         <source>
 Unsupported file format: </source>
-        <translation>
-Formato del file non supportato: </translation>
+        <translation>Formato del file non supportato:</translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="361"/>
@@ -692,7 +688,7 @@ Formato del file non supportato: </translation>
     <message>
         <location filename="../src/MainWindow.cpp" line="700"/>
         <source>&amp;%1 %2</source>
-        <translation>&amp;%1 %2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/MainWindow.cpp" line="726"/>
@@ -754,7 +750,7 @@ Formato del file non supportato: </translation>
         <location filename="../ui/ModelViewer.ui" line="2681"/>
         <location filename="../ui/ModelViewer.ui" line="2769"/>
         <source>...</source>
-        <translation>...</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="229"/>
@@ -1283,7 +1279,7 @@ Formato del file non supportato: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3153"/>
         <source>Ruby</source>
-        <translation>Ruby</translation>
+        <translation>Ruby.</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3185"/>
@@ -1398,7 +1394,7 @@ Formato del file non supportato: </translation>
         <location filename="../ui/ModelViewer.ui" line="3975"/>
         <location filename="../ui/ModelViewer.ui" line="4007"/>
         <source> mm</source>
-        <translation> mm</translation>
+        <translation>mm</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3761"/>
@@ -1425,7 +1421,7 @@ Formato del file non supportato: </translation>
         <location filename="../ui/ModelViewer.ui" line="3873"/>
         <location filename="../ui/ModelViewer.ui" line="3902"/>
         <source> deg</source>
-        <translation> deg</translation>
+        <translation>D</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3860"/>
@@ -1450,7 +1446,7 @@ Formato del file non supportato: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3962"/>
         <source>SY</source>
-        <translation>SY</translation>
+        <translation>Sì.</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="3994"/>
@@ -1490,7 +1486,7 @@ Formato del file non supportato: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4158"/>
         <source>Y</source>
-        <translation>Y</translation>
+        <translation>Sì.</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="4168"/>
@@ -1630,13 +1626,12 @@ Formato del file non supportato: </translation>
         <location filename="../src/ModelViewer.cpp" line="750"/>
         <source>
 Unsupported file format: </source>
-        <translation>
-Formato del file non supportato: </translation>
+        <translation>Formato del file non supportato:</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="773"/>
         <source>Failed to load model: </source>
-        <translation>Non caricare il modello: </translation>
+        <translation>Non caricare il modello:</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="794"/>
@@ -1644,13 +1639,13 @@ Formato del file non supportato: </translation>
         <location filename="../src/ModelViewer.cpp" line="843"/>
         <location filename="../src/ModelViewer.cpp" line="873"/>
         <source>%1</source>
-        <translation>%1</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="827"/>
         <location filename="../src/ModelViewer.cpp" line="875"/>
         <source>%1*</source>
-        <translation>%1*</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="842"/>
@@ -1665,7 +1660,7 @@ Formato del file non supportato: </translation>
     <message>
         <location filename="../src/ModelViewer.cpp" line="855"/>
         <source>Model Viewer Files (*.mvf)</source>
-        <translation>File di visualizzazione modello (.*mvf)</translation>
+        <translation>Modello Visualizzatore file *.(mvf)</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="856"/>
@@ -1713,6 +1708,12 @@ Formato del file non supportato: </translation>
         <translation>Cancella</translation>
     </message>
     <message>
+        <location filename="../src/ModelViewer.cpp" line="915"/>
+        <location filename="../src/ModelViewer.cpp" line="1173"/>
+        <source>Mesh Info</source>
+        <translation>Informazioni su Mesh</translation>
+    </message>
+    <message>
         <location filename="../src/ModelViewer.cpp" line="933"/>
         <location filename="../src/ModelViewer.cpp" line="954"/>
         <source>Confirmation</source>
@@ -1742,20 +1743,18 @@ Formato del file non supportato: </translation>
         <location filename="../src/ModelViewer.cpp" line="1134"/>
         <source>Points: %1
 </source>
-        <translation>Punti: %1
-</translation>
+        <translation>Punti: %1</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1135"/>
         <source>Triangles: %1
 </source>
-        <translation>Triangoli: %1
-</translation>
+        <translation>Triangoli: %1</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1158"/>
         <source>Memory: %1 </source>
-        <translation>Memoria: %1 </translation>
+        <translation>Memoria: %1</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1161"/>
@@ -1767,15 +1766,13 @@ Weight: %4kg
         <translation>Volume della maglia: %1mm^3
 Superficie: %2mm^2
 Densità: %3kg/m^3
-Peso: %4kg
-</translation>
+Peso: %4kg</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1164"/>
         <source>Mesh Center of Mass: X%1, Y%2, Z%3
 </source>
-        <translation>Mesh Center of Mass: X%1, Y%2, Z%3
-</translation>
+        <translation>Mesh Center of Mass: X%1, Y%2, Z%3</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1166"/>
@@ -1785,10 +1782,9 @@ Peso: %4kg
 	ZMin %5  ZMax %6
 </source>
         <translation>Limiti di deposito:
-	XMin %1 XMax %2
-	YMin %3 YMax %4
-	ZMin %5 ZMax %6
-</translation>
+XMin %1 XMax %2
+YMin %3 YMax %4
+ZMin %5 ZMax %6</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1169"/>
@@ -1797,15 +1793,9 @@ Peso: %4kg
 	Y %2
 	Z %3</source>
         <translation>Dimensione del rivestimento:
-	X %1
-	Y%2
-	Z %3</translation>
-    </message>
-    <message>
-        <location filename="../src/ModelViewer.cpp" line="915"/>
-        <location filename="../src/ModelViewer.cpp" line="1173"/>
-        <source>Mesh Info</source>
-        <translation>Informazioni su Mesh</translation>
+X %
+%
+Z %</translation>
     </message>
     <message>
         <location filename="../src/ModelViewer.cpp" line="1982"/>
@@ -1913,7 +1903,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="20"/>
         <source>Settings</source>
-        <translation>Impostazioni</translation>
+        <translation>Impostazioni impostazioni</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="30"/>
@@ -2060,7 +2050,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="249"/>
         <source>Right</source>
-        <translation>Giusto</translation>
+        <translation>Giusto.</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="261"/>
@@ -2126,7 +2116,7 @@ Peso: %4kg
         <location filename="../ui/SettingsDialog.ui" line="396"/>
         <location filename="../ui/SettingsDialog.ui" line="420"/>
         <source>Choose...</source>
-        <translation>Scegli...</translation>
+        <translation>Scegli.</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="407"/>
@@ -2337,22 +2327,22 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="827"/>
         <source>2</source>
-        <translation>2</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="832"/>
         <source>4</source>
-        <translation>4</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="837"/>
         <source>8</source>
-        <translation>8</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="842"/>
         <source>16</source>
-        <translation>16</translation>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="850"/>
@@ -2377,7 +2367,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="873"/>
         <source>8x</source>
-        <translation>8x</translation>
+        <translation>8.</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="878"/>
@@ -2487,7 +2477,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1092"/>
         <source>Angle: </source>
-        <translation>Angolo: </translation>
+        <translation>Angolo:</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1095"/>
@@ -2638,7 +2628,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1414"/>
         <source> Threads</source>
-        <translation> Filetti</translation>
+        <translation>Filetti</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="1427"/>
@@ -2855,12 +2845,12 @@ Peso: %4kg
     <message>
         <location filename="../src/SettingsDialog.cpp" line="16"/>
         <source>OK</source>
-        <translation>Ok</translation>
+        <translation>Ok.</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="22"/>
         <source>Cancel</source>
-        <translation>Cancellare</translation>
+        <translation>Annulla</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="28"/>
@@ -2876,7 +2866,7 @@ Peso: %4kg
         <location filename="../src/SettingsDialog.cpp" line="103"/>
         <location filename="../src/SettingsDialog.cpp" line="1046"/>
         <source>Settings Reset</source>
-        <translation>Ripristino delle impostazioni</translation>
+        <translation>Impostazioni</translation>
     </message>
     <message>
         <location filename="../src/SettingsDialog.cpp" line="103"/>
