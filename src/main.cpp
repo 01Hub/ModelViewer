@@ -7,6 +7,7 @@
 #include "ModelViewerApplication.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
+#include "LanguageManager.h"
 
 #include <iostream>
 #include <string>
@@ -38,48 +39,8 @@ int main(int argc, char** argv)
 	{
 		langCode = QLocale::system().name(); // e.g., "en_US"
 	}
-
-	// Load the Qt system translator
-	QTranslator qtTranslator;
-	QString qtTransPath = QLibraryInfo::location(QLibraryInfo::TranslationsPath);
-	QString baseLanguage = langCode.split('_').first(); // "en_US" -> "en"
-
-	// Try loading Qt translator
-	bool qtLoaded = qtTranslator.load("qt_" + baseLanguage, qtTransPath);
-	if (!qtLoaded) {
-		qtLoaded = qtTranslator.load("qt_" + langCode, qtTransPath);
-	}
-
-	if (qtLoaded) {
-		app.installTranslator(&qtTranslator);
-	}
-
-	QTranslator translator;
-	QString path = QString(MODELVIEWER_DATA_DIR) + "/translations";
-
-	// Try exact locale first (e.g., "en_US"), then fallback to base language (e.g., "en")
-	QStringList candidates = {
-		QString("modelviewer_%1").arg(langCode),
-		QString("modelviewer_%1").arg(QLocale(langCode).languageToString(QLocale(langCode).language()).toLower())
-	};
-
-	bool loaded = false;
-	for (const QString& file : candidates)
-	{
-		if (translator.load(file, path))
-		{
-			app.installTranslator(&translator);
-			qDebug() << "Loaded translation:" << path + "/" + file + ".qm";
-			loaded = true;
-			break;
-		}
-	}
-
-	if (!loaded)
-	{
-		qDebug() << "No translation loaded for:" << langCode << " (tried:" << candidates << ")";
-	}
-
+	// Load the language settings
+	LanguageManager::instance().loadLanguage(langCode);
 
 	MainWindow* mw = MainWindow::mainWindow();		
 	ModelViewer* viewer = mw->createMdiChild();

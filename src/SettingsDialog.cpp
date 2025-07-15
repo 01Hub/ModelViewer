@@ -1,6 +1,7 @@
 #include "SettingsDialog.h"
 #include "ui_SettingsDialog.h"
 #include <QMessageBox>
+#include "LanguageManager.h"
 
 
 SettingsDialog::SettingsDialog(QWidget *parent) :
@@ -36,6 +37,11 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     }
 
     loadSettings();
+
+    connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+       ui->retranslateUi(this);
+        retranslateUI();  // if needed
+        });
 }
 
 SettingsDialog::~SettingsDialog()
@@ -146,6 +152,8 @@ void SettingsDialog::applySettings()
     else if (general_languageIndex == 4)
         langCode = "it"; // Italian    
     settings.setValue("App/Language", langCode);
+
+    LanguageManager::instance().loadLanguage(langCode);
 
     settings.setValue("checkPromptOverwrite", general_promptOverwrite);
     settings.setValue("checkRestoreLastFile", general_restoreLastFile);
@@ -799,8 +807,7 @@ void SettingsDialog::on_comboBoxTheme_currentIndexChanged()
 
 void SettingsDialog::on_comboBoxLanguage_currentIndexChanged()
 {
-    general_languageIndex = ui->comboBoxLanguage->currentIndex();
-    QMessageBox::information(this, tr("Language Change"), tr("Please restart the application for the language change to take effect."));
+    general_languageIndex = ui->comboBoxLanguage->currentIndex();    
 }
 
 void SettingsDialog::on_checkPromptOverwrite_stateChanged()

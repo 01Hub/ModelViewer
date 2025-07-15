@@ -16,6 +16,8 @@
 
 #include "config.h"
 
+#include "LanguageManager.h"
+
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
 
@@ -357,6 +359,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	updateControls();
 
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		retranslateUi(this);
+		retranslateUI();  // if needed
+		});
+
 }
 
 ModelViewer::~ModelViewer()
@@ -369,6 +376,7 @@ ModelViewer::~ModelViewer()
 
 void ModelViewer::retranslateUI()
 {
+	qDebug() << "ModelViewer::retranslateUI";
 	// Dynamically created QActions
 	cameraModeOrbit->setText(tr("Orbit"));
 	cameraModeFly->setText(tr("Fly"));

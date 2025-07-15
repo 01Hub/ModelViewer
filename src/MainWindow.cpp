@@ -7,6 +7,7 @@
 #include "ui_MainWindow.h"
 #include "ModelViewer.h"
 #include "ThemeManager.h"
+#include "LanguageManager.h"
 #include "GLWidget.h"
 #include <QtOpenGL>
 #include <QProgressBar>
@@ -100,6 +101,11 @@ MainWindow::MainWindow(QWidget* parent)
 	setCentralWidget((ui->mdiArea));
 
 	_bFirstTime = true;
+
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		ui->retranslateUi(this);
+		retranslateUI();  // if needed
+		});
 }
 
 void MainWindow::retranslateUI()

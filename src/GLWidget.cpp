@@ -7,6 +7,7 @@
 #include "MainWindow.h"
 #include "ModelViewer.h"
 #include "ModelViewerApplication.h"
+#include "LanguageManager.h"
 #include "Plane.h"
 #include "Point.h"
 #include "Sphere.h"
@@ -247,6 +248,10 @@ _assimpModelLoader(nullptr)
 	_selectRect = new QRubberBand(QRubberBand::Rectangle, this);
 
 	retranslateUI();
+
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {		
+		retranslateUI();  // if needed
+		});
 }
 
 GLWidget::~GLWidget()
