@@ -24,7 +24,7 @@
    <string>Session 1</string>
   </property>
   <property name="windowIcon">
-   <iconset resource="ModelViewer.qrc">
+   <iconset resource="../ModelViewer.qrc">
     <normaloff>:/new/prefix1/res/logo.png</normaloff>:/new/prefix1/res/logo.png</iconset>
   </property>
   <layout class="QGridLayout" name="gridLayout_14">
@@ -167,7 +167,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/import.png</normaloff>:/new/prefix1/res/import.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -206,7 +206,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string>...</string>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/export.png</normaloff>:/new/prefix1/res/export.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -232,7 +232,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/filesave.png</normaloff>:/new/prefix1/res/filesave.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -326,7 +326,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/rotateview.png</normaloff>:/new/prefix1/res/rotateview.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -361,7 +361,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/panview.png</normaloff>:/new/prefix1/res/panview.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -396,7 +396,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/zoomview.png</normaloff>:/new/prefix1/res/zoomview.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -431,7 +431,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/fit-all.png</normaloff>:/new/prefix1/res/fit-all.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -463,7 +463,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/window-zoom.png</normaloff>:/new/prefix1/res/window-zoom.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -495,7 +495,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string>...</string>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/camera_orbit_64.png</normaloff>:/new/prefix1/res/camera_orbit_64.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -528,7 +528,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/top.png</normaloff>:/new/prefix1/res/top.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -563,7 +563,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/bottom.png</normaloff>:/new/prefix1/res/bottom.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -598,7 +598,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/left.png</normaloff>:/new/prefix1/res/left.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -633,7 +633,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/right.png</normaloff>:/new/prefix1/res/right.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -668,7 +668,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/front.png</normaloff>:/new/prefix1/res/front.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -703,7 +703,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/back.png</normaloff>:/new/prefix1/res/back.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -738,7 +738,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/isometric.png</normaloff>:/new/prefix1/res/isometric.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -780,7 +780,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string>Shaded</string>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/Ortho.png</normaloff>
                       <normalon>:/new/prefix1/res/Perspective.png</normalon>:/new/prefix1/res/Ortho.png</iconset>
                     </property>
@@ -826,7 +826,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string>Stereo</string>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/multiview.png</normaloff>:/new/prefix1/res/multiview.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -871,7 +871,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string>Shaded</string>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/shaded.png</normaloff>
                       <normalon>:/new/prefix1/res/wireframe.png</normalon>:/new/prefix1/res/shaded.png</iconset>
                     </property>
@@ -907,7 +907,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/hideVertexNormal.png</normaloff>
                       <normalon>:/new/prefix1/res/showVertexNormal.png</normalon>:/new/prefix1/res/hideVertexNormal.png</iconset>
                     </property>
@@ -937,7 +937,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/hideFaceNormal.png</normaloff>
                       <normalon>:/new/prefix1/res/showFaceNormal.png</normalon>:/new/prefix1/res/hideFaceNormal.png</iconset>
                     </property>
@@ -974,7 +974,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/section.png</normaloff>:/new/prefix1/res/section.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -1003,7 +1003,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/swapvisible.png</normaloff>:/new/prefix1/res/swapvisible.png</iconset>
                     </property>
                     <property name="iconSize">
@@ -1032,7 +1032,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                      <string/>
                     </property>
                     <property name="icon">
-                     <iconset resource="ModelViewer.qrc">
+                     <iconset resource="../ModelViewer.qrc">
                       <normaloff>:/new/prefix1/res/hideAxis.png</normaloff>
                       <normalon>:/new/prefix1/res/showAxis.png</normalon>:/new/prefix1/res/hideAxis.png</iconset>
                     </property>
@@ -1235,8 +1235,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>448</width>
-                   <height>734</height>
+                   <width>425</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1386,7 +1386,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -1504,7 +1504,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -1657,7 +1657,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -1752,7 +1752,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -1853,7 +1853,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -1970,7 +1970,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -2000,8 +2000,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>460</width>
-                   <height>733</height>
+                   <width>162</width>
+                   <height>172</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2154,8 +2154,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>460</width>
-                   <height>733</height>
+                   <width>361</width>
+                   <height>461</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2240,7 +2240,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -2325,7 +2325,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -2410,7 +2410,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -2498,7 +2498,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -2586,7 +2586,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -2681,7 +2681,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -2769,7 +2769,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                        <string>...</string>
                       </property>
                       <property name="icon">
-                       <iconset resource="ModelViewer.qrc">
+                       <iconset resource="../ModelViewer.qrc">
                         <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
                       </property>
                      </widget>
@@ -2843,8 +2843,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>460</width>
-                   <height>733</height>
+                   <width>310</width>
+                   <height>479</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2881,7 +2881,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/greenpl.png</normaloff>:/new/prefix1/res/greenpl.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -2913,7 +2913,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/chrome.png</normaloff>:/new/prefix1/res/chrome.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -2945,7 +2945,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/blackru.png</normaloff>:/new/prefix1/res/blackru.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -2977,7 +2977,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/blackpl.png</normaloff>:/new/prefix1/res/blackpl.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3018,7 +3018,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/brass.png</normaloff>:/new/prefix1/res/brass.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3050,7 +3050,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/silver.png</normaloff>:/new/prefix1/res/silver.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3092,7 +3092,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/emerald.png</normaloff>:/new/prefix1/res/emerald.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3124,7 +3124,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/gold.png</normaloff>:/new/prefix1/res/gold.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3156,7 +3156,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/ruby.png</normaloff>:/new/prefix1/res/ruby.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3188,7 +3188,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/yellowpl.png</normaloff>:/new/prefix1/res/yellowpl.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3220,7 +3220,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/greenru.png</normaloff>:/new/prefix1/res/greenru.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3255,7 +3255,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/whiteru.png</normaloff>:/new/prefix1/res/whiteru.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3287,7 +3287,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/whitepl.png</normaloff>:/new/prefix1/res/whitepl.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3329,7 +3329,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/jade.png</normaloff>:/new/prefix1/res/jade.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3371,7 +3371,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/copper.png</normaloff>:/new/prefix1/res/copper.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3403,7 +3403,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/redru.png</normaloff>:/new/prefix1/res/redru.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3435,7 +3435,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/yellowru.png</normaloff>:/new/prefix1/res/yellowru.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3467,7 +3467,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/cyanru.png</normaloff>:/new/prefix1/res/cyanru.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3499,7 +3499,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/redpl.png</normaloff>:/new/prefix1/res/redpl.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3531,7 +3531,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/cyanpl.png</normaloff>:/new/prefix1/res/cyanpl.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3563,7 +3563,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/obsidian.png</normaloff>:/new/prefix1/res/obsidian.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3595,7 +3595,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/bronze.png</normaloff>:/new/prefix1/res/bronze.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3637,7 +3637,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/turquoise.png</normaloff>:/new/prefix1/res/turquoise.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3669,7 +3669,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
                         <string/>
                        </property>
                        <property name="icon">
-                        <iconset resource="ModelViewer.qrc">
+                        <iconset resource="../ModelViewer.qrc">
                          <normaloff>:/new/prefix1/res/pearl.png</normaloff>:/new/prefix1/res/pearl.png</iconset>
                        </property>
                        <property name="iconSize">
@@ -3703,8 +3703,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>640</width>
-                   <height>721</height>
+                   <width>496</width>
+                   <height>204</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -4057,8 +4057,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>529</width>
-                   <height>721</height>
+                   <width>471</width>
+                   <height>429</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -4676,7 +4676,7 @@ background-color: rgba(255, 255, 255, 0%);</string>
   <tabstop>toolButtonShowHideAxis</tabstop>
  </tabstops>
  <resources>
-  <include location="ModelViewer.qrc"/>
+  <include location="../ModelViewer.qrc"/>
  </resources>
  <connections>
   <connection>
@@ -5452,8 +5452,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupViews"/>
-  <buttongroup name="buttonGroupviewManip"/>
   <buttongroup name="buttonGroupLighting"/>
+  <buttongroup name="buttonGroupviewManip"/>
+  <buttongroup name="buttonGroupViews"/>
  </buttongroups>
 </ui>
