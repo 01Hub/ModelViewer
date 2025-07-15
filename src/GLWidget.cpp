@@ -2680,7 +2680,7 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
 	render(_primaryCamera);
-	drawCornerAxis();
+	drawCornerAxis(CornerAxisPosition::TOP_RIGHT);
 }
 
 void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
@@ -3156,14 +3156,41 @@ void GLWidget::drawAxis()
 	_axisShader->release();
 }
 
-void GLWidget::drawCornerAxis()
+void GLWidget::drawCornerAxis(CornerAxisPosition position)
 {
-	glViewport(width() - width() / 10, height() - height() / 10, width() / 10, height() / 10);
+	int viewportX = 0;
+	int viewportY = 0;
+
+	// Determine the viewport position based on the CornerAxisPosition
+	switch (position)
+	{
+	case CornerAxisPosition::TOP_LEFT:
+		viewportX = 0;
+		viewportY = height() - height() / 10;
+		break;
+	case CornerAxisPosition::TOP_RIGHT:
+		viewportX = width() - width() / 10;
+		viewportY = height() - height() / 10;
+		break;
+	case CornerAxisPosition::BOTTOM_LEFT:
+		viewportX = 0;
+		viewportY = 0;
+		break;
+	case CornerAxisPosition::BOTTOM_RIGHT:
+		viewportX = width() - width() / 10;
+		viewportY = 0;
+		break;
+	}
+
+	// Set the viewport for the corner axis
+	glViewport(viewportX, viewportY, width() / 10, height() / 10);
+
 	QMatrix4x4 mat = _modelViewMatrix;
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
 
 	float size = 3.5;
+
 	// Labels
 	QVector3D xAxis(_viewRange / size, 0, 0);
 	xAxis = xAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));

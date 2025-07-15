@@ -31,6 +31,7 @@ enum class ViewMode { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK, ISOMETRIC, DIMETRIC
 enum class ViewProjection { ORTHOGRAPHIC, PERSPECTIVE };
 enum class DisplayMode { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
 enum class RenderingMode { ADS_PHONG, PBR_DIRECT_LIGHTING, PBR_TEXTURED_LIGHTING };
+enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT };
 
 class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 {
@@ -319,7 +320,7 @@ private:
 	void drawVertexNormals();
 	void drawFaceNormals();
 	void drawAxis();
-	void drawCornerAxis();
+	void drawCornerAxis(CornerAxisPosition position);
 	void drawLights();
 
 	void bindIBLTextures();
