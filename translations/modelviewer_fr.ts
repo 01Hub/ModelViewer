@@ -1029,7 +1029,8 @@ Format de fichier non pris en charge : </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1138"/>
         <source>Auto Fit View On Hide/Show</source>
-        <translation>Ajuster Automatiquement la Vue sur Masquer/Afficher</translation>
+        <translation type="unfinished">Ajuster Automatiquement 
+la Vue sur Masquer/Afficher</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1152"/>

@@ -1028,7 +1028,8 @@ Formato de archivo no compatible: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1138"/>
         <source>Auto Fit View On Hide/Show</source>
-        <translation>Ajuste Automático de Vista al Ocultar/Mostrar</translation>
+        <translation type="unfinished">Ajuste Automático de 
+Vistaal Ocultar/Mostrar</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1152"/>

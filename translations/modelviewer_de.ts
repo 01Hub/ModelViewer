@@ -1028,7 +1028,8 @@ Ununterstütztes Dateiformat: </translation>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1138"/>
         <source>Auto Fit View On Hide/Show</source>
-        <translation>Ansicht automatisch anpassen beim Ausblenden/Einblenden</translation>
+        <translation type="unfinished">Ansicht automatisch anpassen
+beim Ausblenden/Einblenden</translation>
     </message>
     <message>
         <location filename="../ui/ModelViewer.ui" line="1152"/>
