@@ -1,6 +1,6 @@
 #include "ClippingPlanesEditor.h"
 #include "ui_ClippingPlanesEditor.h"
-
+#include "LanguageManager.h"
 #include "GLWidget.h"
 
 #include <QKeyEvent>
@@ -10,6 +10,10 @@ ClippingPlanesEditor::ClippingPlanesEditor(GLWidget* parent) :
 	_glView(parent)
 {
 	setupUi(this);
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		retranslateUi(this);
+		});
+
 }
 
 ClippingPlanesEditor::~ClippingPlanesEditor()
