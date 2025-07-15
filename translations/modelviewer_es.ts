@@ -429,7 +429,7 @@ El modelo se puede cargar parcialmente</translation>
     <message>
         <location filename="../ui/MainWindow.ui" line="17"/>
         <source>3D Model Viewer</source>
-        <translation>3D Model Viewer</translation>
+        <translation>Visor de Modelos 3D</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="78"/>
