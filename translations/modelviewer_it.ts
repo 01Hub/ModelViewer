@@ -219,7 +219,7 @@ Vuoi continuare a generare UV?</translation>
     <message>
         <location filename="../src/GLWidget.cpp" line="321"/>
         <source>Front</source>
-        <translation>Fronte anteriore</translation>
+        <translation>Fronte</translation>
     </message>
     <message>
         <location filename="../src/GLWidget.cpp" line="322"/>
@@ -2153,7 +2153,7 @@ Peso: %4kg
     <message>
         <location filename="../ui/SettingsDialog.ui" line="229"/>
         <source>Front</source>
-        <translation>Fronte anteriore</translation>
+        <translation>Fronte</translation>
     </message>
     <message>
         <location filename="../ui/SettingsDialog.ui" line="234"/>
