@@ -376,7 +376,6 @@ ModelViewer::~ModelViewer()
 
 void ModelViewer::retranslateUI()
 {
-	qDebug() << "ModelViewer::retranslateUI";
 	// Dynamically created QActions
 	cameraModeOrbit->setText(tr("Orbit"));
 	cameraModeFly->setText(tr("Fly"));
