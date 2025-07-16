@@ -83,9 +83,8 @@ public slots:
 	void showVisualizationModelPage();
 	void showEnvironmentPage();
 	void showPredefinedMaterialsPage();
-	void showTransformationsPage();
-	void clickMultiViewButton();
-	void onDisplayModeChanged(QString mode);
+	void showTransformationsPage();	
+	void onDisplayModeChanged(int mode);
 
 private slots:
 	void setListRow(int index);
@@ -100,28 +99,7 @@ private slots:
 	void on_pushButtonApplyADSColors_clicked();
 	void on_pushButtonDefaultMatls_clicked();
 	void on_pushButtonApplyTransformations_clicked();
-	void on_pushButtonResetTransformations_clicked();
-	void on_toolButtonFitAll_clicked();
-	void on_toolButtonWindowZoom_clicked(bool checked);
-	void on_toolButtonTopView_clicked();
-	void on_toolButtonBottomView_clicked();
-	void on_toolButtonLeftView_clicked();
-	void on_toolButtonRightView_clicked();
-	void on_toolButtonFrontView_clicked();
-	void on_toolButtonBackView_clicked();
-	void on_toolButtonProjection_toggled(bool checked);
-	void on_toolButtonSectionView_toggled(bool checked);
-	void on_toolButtonMultiView_toggled(bool checked);
-	void on_cameraModeOrbit_triggered(bool checked);
-	void on_cameraModeFly_triggered(bool checked);
-	void on_cameraModeFirstPerson_triggered(bool checked);
-	void on_isometricView_triggered(bool checked);
-	void on_dimetricView_triggered(bool checked);
-	void on_trimetricView_triggered(bool checked);
-	void on_displayShaded_triggered(bool);
-	void on_displayWireframe_triggered(bool);
-	void on_displayWireShaded_triggered(bool);
-	void on_displayRealShaded_triggered(bool);
+	void on_pushButtonResetTransformations_clicked();	
 	void on_pushButtonLightAmbient_clicked();
 	void on_pushButtonLightDiffuse_clicked();
 	void on_pushButtonLightSpecular_clicked();
@@ -158,12 +136,9 @@ private slots:
 	void on_pushButtonRedRubber_clicked();
 	void on_pushButtonWhiteRubber_clicked();
 	void on_pushButtonYellowRubber_clicked();
-	void on_toolButtonImport_clicked();
-	void on_toolButtonExport_clicked();
-	void on_toolButtonShowHideAxis_toggled(bool checked);
-	void on_toolButtonVertexNormal_clicked(bool checked);
-	void on_toolButtonFaceNormal_clicked(bool checked);
-
+	void onFileImport();
+	void onFileExport();
+	
 	void on_checkBoxSelectAll_stateChanged(int arg1);
 
 	void on_listWidgetModel_itemChanged(QListWidgetItem*);
@@ -179,11 +154,8 @@ private slots:
 	void on_checkBoxFloorTexture_toggled(bool checked);
 	void on_pushButtonFloorTexture_clicked();
 	void on_toolBox_currentChanged(int index);
-	void on_toolButtonRotateView_clicked();
-	void on_toolButtonPanView_clicked();
-	void on_toolButtonZoomView_clicked();
-	void on_pushButtonSkyBoxTex_clicked();
 
+	void on_pushButtonSkyBoxTex_clicked();
 	void on_pushButtonAlbedoColor_clicked();
 	void on_sliderMetallic_valueChanged(int value);
 	void on_sliderRoughness_valueChanged(int value);
@@ -250,9 +222,7 @@ private slots:
 
 	void on_pushButtonApplyADSTexture_clicked();
 	void on_pushButtonClearADSTextures_clicked();
-
-	void on_toolButtonSwapVisible_clicked(bool checked);
-
+		
 protected:
 	void showEvent(QShowEvent* event);
 	void keyPressEvent(QKeyEvent* event);

@@ -31,214 +31,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	_textureDirOpenedFirstTime = true;
 
-	cameraModeOrbit = new QAction(QIcon(":/new/prefix1/res/camera_orbit_64.png"), tr("Orbit"), this);
-	cameraModeOrbit->setObjectName(QString::fromUtf8("cameraModeOrbit"));
-	cameraModeOrbit->setShortcut(QKeySequence(Qt::Key_1));
-
-	cameraModeFly = new QAction(QIcon(":/new/prefix1/res/camera_fly_64.png"), tr("Fly"), this);
-	cameraModeFly->setObjectName(QString::fromUtf8("cameraModeFly"));
-	cameraModeFly->setShortcut(QKeySequence(Qt::Key_2));
-
-	cameraModeFirstPerson = new QAction(QIcon(":/new/prefix1/res/camera_first_person_64.png"), tr("First Person"), this);;
-	cameraModeFirstPerson->setObjectName(QString::fromUtf8("cameraModeFirstPerson"));;
-	cameraModeFirstPerson->setShortcut(QKeySequence(Qt::Key_3));;
-
-	isometricView = new QAction(QIcon(":/new/prefix1/res/isometric.png"), tr("Isometric"), this);
-	isometricView->setObjectName(QString::fromUtf8("isometricView"));
-	isometricView->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_1));
-
-	dimetricView = new QAction(QIcon(":/new/prefix1/res/dimetric.png"), tr("Dimetric"), this);
-	dimetricView->setObjectName(QString::fromUtf8("dimetricView"));
-	dimetricView->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_2));
-
-	trimetricView = new QAction(QIcon(":/new/prefix1/res/trimetric.png"), tr("Trimetric"), this);
-	trimetricView->setObjectName(QString::fromUtf8("trimetricView"));
-	trimetricView->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_3));
-
-	displayShaded = new QAction(QIcon(":/new/prefix1/res/shaded.png"), tr("Shaded"), this);
-	displayShaded->setObjectName(QString::fromUtf8("displayShaded"));
-	displayShaded->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_S));
-
-	displayWireframe = new QAction(QIcon(":/new/prefix1/res/wireframe.png"), tr("Wireframe"), this);
-	displayWireframe->setObjectName(QString::fromUtf8("displayWireframe"));
-	displayWireframe->setShortcut(QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_W));
-
-	displayWireShaded = new QAction(QIcon(":/new/prefix1/res/wireshaded.png"), tr("Wire Shaded"), this);
-	displayWireShaded->setObjectName(QString::fromUtf8("displayWireShaded"));
-	displayWireShaded->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_W));
-
-	displayRealShaded = new QAction(QIcon(":/new/prefix1/res/realshaded.png"), tr("Realistic"), this);
-	displayRealShaded->setObjectName(QString::fromUtf8("displayRealShaded"));
-	displayRealShaded->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_R));
-
-	setupUi(this);	
-
-	// Camera Modes
-	QMenu* camMenu = new QMenu;
-	camMenu->setStyleSheet(
-		"QMenu {"
-		"    background-color: rgba(255, 255, 255, 140);"
-		"    border: 1px solid gray;"
-		"    border-radius: 4px;"
-		"    padding: 2px;"
-		"    icon-size: 42px;"
-		"}"
-		"QMenu::item {"
-		"    background: transparent;"
-		"    background-color: #f0f0f0;"
-		"    border: 1px solid #c0c0c0;"
-		"    border-radius: 4px;"
-		"    padding: 5px 8px;"
-		"    margin: 3px;"
-		"    min-width: 120px;"
-		"    min-height: 30px;"
-		"    font-weight: normal;"
-		"    color: black;"
-		"}"
-		"QMenu::item:selected {"
-		"    background-color: #e0e0ff;"
-		"    border: 1px solid #a0a0ff;"
-		"    color: black;"
-		"}"
-		"QMenu::item:pressed {"
-		"    background-color: #d0d0ff;"
-		"    border: 1px solid #8080ff;"
-		"    color: black;"
-		"}"
-		"QMenu::icon {"
-		"    padding-left: 10px;"
-		"    padding-right: 8px;"
-		"}"
-		"QMenu::separator {"
-		"    height: 1px;"
-		"    background-color: #c0c0c0;"
-		"    margin: 4px 8px;"
-		"}"
-	);
-	camMenu->addAction(cameraModeOrbit);
-	camMenu->addAction(cameraModeFly);
-	camMenu->addAction(cameraModeFirstPerson);
-	// add action to widget as well
-	addAction(cameraModeOrbit);
-	addAction(cameraModeFly);
-	addAction(cameraModeFirstPerson);
-
-	toolButtonCameraMode->setMenu(camMenu);
-	toolButtonCameraMode->setDefaultAction(cameraModeOrbit);
-	QObject::connect(toolButtonCameraMode, SIGNAL(triggered(QAction*)),
-		toolButtonCameraMode, SLOT(setDefaultAction(QAction*)));
-
-	// View
-	QMenu* axoMenu = new QMenu;
-	axoMenu->setStyleSheet(
-		"QMenu {"
-		"    background-color: rgba(255, 255, 255, 140);"
-		"    border: 1px solid gray;"
-		"    border-radius: 4px;"
-		"    padding: 2px;"
-		"    icon-size: 42px;"
-		"}"
-		"QMenu::item {"
-		"    background: transparent;"
-		"    background-color: #f0f0f0;"
-		"    border: 1px solid #c0c0c0;"
-		"    border-radius: 4px;"
-		"    padding: 5px 8px;"
-		"    margin: 3px;"
-		"    min-width: 120px;"
-		"    min-height: 30px;"
-		"    font-weight: normal;"
-		"    color: black;"
-		"}"
-		"QMenu::item:selected {"
-		"    background-color: #e0e0ff;"
-		"    border: 1px solid #a0a0ff;"
-		"    color: black;"
-		"}"
-		"QMenu::item:pressed {"
-		"    background-color: #d0d0ff;"
-		"    border: 1px solid #8080ff;"
-		"    color: black;"
-		"}"
-		"QMenu::icon {"
-		"    padding-left: 10px;"
-		"    padding-right: 8px;"
-		"}"
-		"QMenu::separator {"
-		"    height: 1px;"
-		"    background-color: #c0c0c0;"
-		"    margin: 4px 8px;"
-		"}"
-	);
-	axoMenu->addAction(isometricView);
-	axoMenu->addAction(dimetricView);
-	axoMenu->addAction(trimetricView);
-	// add action to widget as well
-	addAction(isometricView);
-	addAction(dimetricView);
-	addAction(trimetricView);
-
-	toolButtonIsometricView->setMenu(axoMenu);
-	toolButtonIsometricView->setDefaultAction(isometricView);
-	QObject::connect(toolButtonIsometricView, SIGNAL(triggered(QAction*)),
-		toolButtonIsometricView, SLOT(setDefaultAction(QAction*)));
-
-	// Shading
-	QMenu* dispMenu = new QMenu;
-	dispMenu->setStyleSheet(
-		"QMenu {"
-		"    background-color: rgba(255, 255, 255, 140);"
-		"    border: 1px solid gray;"
-		"    border-radius: 4px;"
-		"    padding: 2px;"
-		"    icon-size: 42px;"
-		"}"
-		"QMenu::item {"
-		"    background: transparent;"
-		"    background-color: #f0f0f0;"
-		"    border: 1px solid #c0c0c0;"
-		"    border-radius: 4px;"
-		"    padding: 5px 8px;"
-		"    margin: 3px;"
-		"    min-width: 120px;"
-		"    min-height: 30px;"
-		"    font-weight: normal;"
-		"    color: black;"
-		"}"
-		"QMenu::item:selected {"
-		"    background-color: #e0e0ff;"
-		"    border: 1px solid #a0a0ff;"
-		"    color: black;"
-		"}"
-		"QMenu::item:pressed {"
-		"    background-color: #d0d0ff;"
-		"    border: 1px solid #8080ff;"
-		"    color: black;"
-		"}"
-		"QMenu::icon {"
-		"    padding-left: 10px;"
-		"    padding-right: 8px;"
-		"}"
-		"QMenu::separator {"
-		"    height: 1px;"
-		"    background-color: #c0c0c0;"
-		"    margin: 4px 8px;"
-		"}"
-	);
-	dispMenu->addAction(displayRealShaded);
-	dispMenu->addAction(displayShaded);
-	dispMenu->addAction(displayWireframe);
-	dispMenu->addAction(displayWireShaded);
-	// add action to widget as well
-	addAction(displayRealShaded);
-	addAction(displayShaded);
-	addAction(displayWireframe);
-	addAction(displayWireShaded);
-
-	toolButtonDisplayMode->setMenu(dispMenu);
-	toolButtonDisplayMode->setDefaultAction(displayShaded);
-	QObject::connect(toolButtonDisplayMode, SIGNAL(triggered(QAction*)),
-		toolButtonDisplayMode, SLOT(setDefaultAction(QAction*)));
+	setupUi(this);
 
 	setAttribute(Qt::WA_DeleteOnClose);
 
@@ -263,23 +56,12 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Put the GL widget inside the frame
 	QVBoxLayout* flayout = new QVBoxLayout(glframe);
 	flayout->addWidget(_glWidget, 1);
-	//_glWidget->installEventFilter(tabWidget);
-	//tabWidget->setParent(_glWidget);
-	//_glWidget->layout()->addWidget(tabWidget);
-	//tabWidget->setAutoHide(true);
-	tabWidget->hide();
-		
+			
 	connect(checkBoxAutoFitView, SIGNAL(toggled(bool)), _glWidget, SLOT(setAutoFitViewOnUpdate(bool)));
-
-	connect(_glWidget, &GLWidget::windowZoomEnded, this, [this]() {
-		if (toolButtonWindowZoom->isChecked())
-			toolButtonWindowZoom->setChecked(false);
-		});
 	connect(_glWidget, SIGNAL(singleSelectionDone(int)), this, SLOT(setListRow(int)));
 	connect(_glWidget, SIGNAL(sweepSelectionDone(QList<int>)), this, SLOT(setListRows(QList<int>)));
 	connect(_glWidget, SIGNAL(floorShown(bool)), checkBoxFloor, SLOT(setChecked(bool)));
-	connect(_glWidget, SIGNAL(visibleSwapped(bool)), toolButtonSwapVisible, SLOT(setChecked(bool)));
-
+	
 	listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(listWidgetModel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
 
@@ -322,10 +104,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(shortcut, SIGNAL(activated()), this, SLOT(deleteSelectedItems()));
 
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), this);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonImport_clicked()));
+	connect(shortcut, SIGNAL(activated()), this, SLOT(onFileImport()));
 
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(on_toolButtonExport_clicked()));
+	connect(shortcut, SIGNAL(activated()), this, SLOT(onFileExport()));
 
 	connect(checkBoxLockLightCamera, SIGNAL(toggled(bool)), _glWidget, SLOT(lockLightAndCamera(bool)));
 	connect(doubleSpinBoxRepeatS, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatS(double)));
@@ -687,23 +469,7 @@ void ModelViewer::showEvent(QShowEvent*)
 void ModelViewer::keyPressEvent(QKeyEvent* event)
 {
 	if (event->modifiers() == Qt::ControlModifier)
-	{
-		if (event->key() == Qt::Key_T)
-			toolButtonTopView->animateClick();
-		if (event->key() == Qt::Key_B)
-			toolButtonBottomView->animateClick();
-		if (event->key() == Qt::Key_F)
-			toolButtonFrontView->animateClick();
-		if (event->key() == Qt::Key_R)
-			toolButtonBackView->animateClick();
-		if (event->key() == Qt::Key_L)
-			toolButtonLeftView->animateClick();
-		if (event->key() == Qt::Key_J)
-			toolButtonRightView->animateClick();
-		if (event->key() == Qt::Key_P)
-			toolButtonProjection->animateClick();
-		if (event->key() == Qt::Key_M)
-			toolButtonMultiView->animateClick();
+	{		
 		if (event->key() == Qt::Key_A)
 		{
 			selectAll();
@@ -712,15 +478,7 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 	else if (event->modifiers() == Qt::AltModifier)
 	{
 		if (event->key() == Qt::Key_A)
-			hideAllItems();
-		if (event->key() == Qt::Key_Z)
-			toolButtonZoomView->animateClick();
-		if (event->key() == Qt::Key_P)
-			toolButtonPanView->animateClick();
-		if (event->key() == Qt::Key_R)
-			toolButtonRotateView->animateClick();
-		if (event->key() == Qt::Key_W)
-			toolButtonWindowZoom->animateClick();
+			hideAllItems();		
 		if (event->key() == Qt::Key_C)
 			centerScreen();
 	}
@@ -730,9 +488,7 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 			showAllItems();
 	}
 	else
-	{
-		if (event->key() == Qt::Key_Home)
-			toolButtonIsometricView->animateClick();
+	{		
 	}
 
 	QWidget::keyPressEvent(event);
@@ -841,12 +597,12 @@ QString ModelViewer::currentFile() const
 
 void ModelViewer::importModel()
 {
-	on_toolButtonImport_clicked();		
+	onFileImport();		
 }
 
 void ModelViewer::exportModel()
 {
-	on_toolButtonExport_clicked();
+	onFileExport();
 }
 
 bool ModelViewer::hasUndo()
@@ -1246,10 +1002,6 @@ void ModelViewer::showEnvironmentPage()
 	toolBox->setCurrentIndex(5);
 }
 
-void ModelViewer::clickMultiViewButton()
-{
-	toolButtonMultiView->animateClick();
-}
 
 void ModelViewer::on_checkTexture_toggled(bool checked)
 {
@@ -1351,208 +1103,6 @@ void ModelViewer::on_pushButtonResetTransformations_clicked()
 {
 	resetTransformation();
 	_glWidget->update();
-}
-
-void ModelViewer::on_isometricView_triggered(bool /*checked*/)
-{
-	buttonGroupViews->setExclusive(false);
-	QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
-	for (auto b : buttons)
-	{
-		b->setChecked(false);
-	}
-	buttonGroupViews->setExclusive(true);
-
-	toolButtonTopView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::ISOMETRIC);
-	_glWidget->updateView();
-
-	toolButtonIsometricView->setDefaultAction(dynamic_cast<QAction*>(sender()));
-}
-
-void ModelViewer::on_dimetricView_triggered(bool /*checked*/)
-{
-	buttonGroupViews->setExclusive(false);
-	QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
-	for (auto b : buttons)
-	{
-		b->setChecked(false);
-	}
-	buttonGroupViews->setExclusive(true);
-
-	_glWidget->setViewMode(ViewMode::DIMETRIC);
-	_glWidget->updateView();
-
-	toolButtonIsometricView->setDefaultAction(dynamic_cast<QAction*>(sender()));
-}
-
-void ModelViewer::on_trimetricView_triggered(bool /*checked*/)
-{
-	buttonGroupViews->setExclusive(false);
-	QList<QAbstractButton*> buttons = buttonGroupViews->buttons();
-	for (auto b : buttons)
-	{
-		b->setChecked(false);
-	}
-	buttonGroupViews->setExclusive(true);
-
-	_glWidget->setViewMode(ViewMode::TRIMETRIC);
-	_glWidget->updateView();
-
-	toolButtonIsometricView->setDefaultAction(dynamic_cast<QAction*>(sender()));
-}
-
-void ModelViewer::on_displayShaded_triggered(bool)
-{
-	checkBoxEnvMapping->setChecked(false);
-	checkBoxShadowMapping->setChecked(false);
-	checkBoxSelfShadows->setChecked(false);
-	checkBoxReflections->setChecked(false);
-	checkBoxFloor->setChecked(false);
-	_glWidget->setDisplayMode(DisplayMode::SHADED);
-	_glWidget->updateView();
-	displayShaded->setToolTip("Wireframe");
-}
-
-void ModelViewer::on_displayWireframe_triggered(bool)
-{
-	checkBoxEnvMapping->setChecked(false);
-	checkBoxShadowMapping->setChecked(false);
-	checkBoxSelfShadows->setChecked(false);
-	checkBoxReflections->setChecked(false);
-	checkBoxFloor->setChecked(false);
-	_glWidget->setDisplayMode(DisplayMode::WIREFRAME);
-	_glWidget->updateView();
-	displayShaded->setToolTip("Shaded");
-}
-
-void ModelViewer::on_displayWireShaded_triggered(bool)
-{
-	checkBoxEnvMapping->setChecked(false);
-	checkBoxShadowMapping->setChecked(false);
-	checkBoxSelfShadows->setChecked(false);
-	checkBoxReflections->setChecked(false);
-	checkBoxFloor->setChecked(false);
-	_glWidget->setDisplayMode(DisplayMode::WIRESHADED);
-	_glWidget->updateView();
-	displayShaded->setToolTip("Wire Shaded");
-}
-
-void ModelViewer::on_displayRealShaded_triggered(bool)
-{
-	checkBoxEnvMapping->setChecked(true);
-	checkBoxShadowMapping->setChecked(true);
-	checkBoxSelfShadows->setChecked(true);
-	checkBoxReflections->setChecked(true);
-	checkBoxFloor->setChecked(true);
-	_glWidget->setDisplayMode(DisplayMode::REALSHADED);
-	_glWidget->updateView();
-	displayShaded->setToolTip("Real Shaded");
-}
-
-void ModelViewer::on_toolButtonFitAll_clicked()
-{
-	_glWidget->fitAll();
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonWindowZoom_clicked(bool checked)
-{
-	if (checked)
-	{
-		_glWidget->beginWindowZoom();
-	}
-}
-
-void ModelViewer::on_toolButtonTopView_clicked()
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::TOP);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonBottomView_clicked()
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::BOTTOM);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonLeftView_clicked()
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::LEFT);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonRightView_clicked()
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::RIGHT);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonFrontView_clicked()
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::FRONT);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonBackView_clicked()
-{
-	_glWidget->setMultiView(false);
-	toolButtonMultiView->setChecked(false);
-	_glWidget->setViewMode(ViewMode::BACK);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_toolButtonProjection_toggled(bool checked)
-{
-	_glWidget->setProjection(checked ? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC);
-	toolButtonProjection->setToolTip(checked ? "Swith to Orthographic" : "Switch to Perspective");
-}
-
-void ModelViewer::on_toolButtonSectionView_toggled(bool checked)
-{
-	_glWidget->showClippingPlaneEditor(checked);
-	tabWidget->setAutoHide(!checked);
-}
-
-void ModelViewer::on_toolButtonShowHideAxis_toggled(bool checked)
-{
-	_glWidget->showAxis(checked);
-}
-
-void ModelViewer::on_toolButtonMultiView_toggled(bool checked)
-{
-	_glWidget->setMultiView(checked);
-	toolButtonIsometricView->animateClick();
-	_glWidget->resizeView(glframe->width(), glframe->height());
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_cameraModeOrbit_triggered(bool checked)
-{
-	_glWidget->setCameraMode(GLCamera::CameraMode::Orbit);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_cameraModeFly_triggered(bool checked)
-{
-	_glWidget->setCameraMode(GLCamera::CameraMode::Fly);
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_cameraModeFirstPerson_triggered(bool checked)
-{
-	_glWidget->setCameraMode(GLCamera::CameraMode::FirstPerson);
-	_glWidget->updateView();
 }
 
 void ModelViewer::on_pushButtonLightAmbient_clicked()
@@ -2017,7 +1567,7 @@ void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 	updateDisplayList();
 }
 
-void ModelViewer::on_toolButtonImport_clicked()
+void ModelViewer::onFileImport()
 {
 	QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir);
 	fileDialog.setFileMode(QFileDialog::ExistingFiles);
@@ -2054,7 +1604,7 @@ void ModelViewer::on_toolButtonImport_clicked()
 
 #include "AssImpMeshExporter.h"
 #include <AssImpMesh.h>
-void ModelViewer::on_toolButtonExport_clicked()
+void ModelViewer::onFileExport()
 {
 	Assimp::Exporter exporter;
 	QStringList filters;
@@ -2196,18 +1746,6 @@ void ModelViewer::setMaterialToSelectedItems(const GLMaterial& mat)
 	updateControls();
 }
 
-void ModelViewer::on_toolButtonVertexNormal_clicked(bool checked)
-{
-	_glWidget->setShowVertexNormals(checked);
-	_glWidget->update();
-}
-
-void ModelViewer::on_toolButtonFaceNormal_clicked(bool checked)
-{
-	_glWidget->setShowFaceNormals(checked);
-	_glWidget->update();
-}
-
 void ModelViewer::on_checkBoxSelectAll_stateChanged(int arg1)
 {
 	if (arg1 != Qt::PartiallyChecked)
@@ -2305,20 +1843,6 @@ void ModelViewer::on_toolBox_currentChanged(int index)
 	}
 }
 
-void ModelViewer::on_toolButtonRotateView_clicked()
-{
-	_glWidget->setRotationActive(true);
-}
-
-void ModelViewer::on_toolButtonPanView_clicked()
-{
-	_glWidget->setPanningActive(true);
-}
-
-void ModelViewer::on_toolButtonZoomView_clicked()
-{
-	_glWidget->setZoomingActive(true);
-}
 
 void ModelViewer::on_pushButtonSkyBoxTex_clicked()
 {
@@ -2337,12 +1861,8 @@ void ModelViewer::on_pushButtonSkyBoxTex_clicked()
 
 void ModelViewer::switchToRealisticRendering()
 {
-	if (toolButtonDisplayMode->defaultAction() != displayRealShaded)
-	{
-		QToolTip::showText(groupBoxVisModel->mapToGlobal(groupBoxVisModel->pos()), "Switching to Realistic Display Mode", this);
-		displayRealShaded->trigger();
-		toolButtonDisplayMode->setDefaultAction(displayRealShaded);
-	}
+	QToolTip::showText(groupBoxVisModel->mapToGlobal(groupBoxVisModel->pos()), "Switching to Realistic Display Mode", this);
+	_glWidget->setDisplayMode(DisplayMode::REALSHADED);	
 }
 
 void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
@@ -2377,9 +1897,9 @@ void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 	_glWidget->update();
 }
 
-void ModelViewer::onDisplayModeChanged(QString mode)
+void ModelViewer::onDisplayModeChanged(int mode)
 {
-	bool checked = (mode == "Realistic");
+	bool checked = (mode == static_cast<int>(DisplayMode::REALSHADED));
 	checkBoxEnvMapping->setChecked(checked);
 	checkBoxShadowMapping->setChecked(checked);
 	checkBoxSelfShadows->setChecked(checked);
@@ -3464,12 +2984,6 @@ void ModelViewer::on_pushButtonClearADSTextures_clicked()
 		QApplication::restoreOverrideCursor();
 	}
 }
-
-void ModelViewer::on_toolButtonSwapVisible_clicked(bool checked)
-{
-	_glWidget->swapVisible(checked);
-}
-
 
 UVDialogResult ModelViewer::askUserForUVMethod(QWidget* parent)
 {

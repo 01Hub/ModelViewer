@@ -5,6 +5,8 @@
 #include <QToolButton>
 #include <QMenu>
 #include <QAction>
+#include <QPushButton>
+#include <QButtonGroup>
 
 ViewToolbar::ViewToolbar(QWidget* parent)
     : QWidget(parent)
@@ -136,8 +138,11 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     QMenu* camModeMenu = new QMenu;
     camModeMenu->setStyleSheet(flyoutStyleSheet);
     QAction* orbit = camModeMenu->addAction(QIcon(":/new/prefix1/res/camera_orbit_64.png"), "Orbit");
+	orbit->setShortcut(QKeySequence(Qt::Key_1));
     QAction* fly = camModeMenu->addAction(QIcon(":/new/prefix1/res/camera_fly_64.png"), "Fly");
+	fly->setShortcut(QKeySequence(Qt::Key_2));
     QAction* firstperson = camModeMenu->addAction(QIcon(":/new/prefix1/res/camera_first_person_64.png"), "First Person");
+	firstperson->setShortcut(QKeySequence(Qt::Key_3));
 
     connect(orbit, &QAction::triggered, this,
         [this, orbit]() {
@@ -164,46 +169,28 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     m_toolButtonCameraModes->setDefaultAction(orbit);
 
     // All views
-    auto createBtn = [this, layout, buttonStyleSheet](const QString& icon, const QString& tooltip, const QString& view) {
+    // Group the buttons so that only one can be checked at a time
+    QButtonGroup* buttonGroup = new QButtonGroup(this);
+    buttonGroup->setExclusive(true); // This ensures radio-button behavior
+    auto createBtn = [this, layout, buttonStyleSheet, buttonGroup](const QString& icon, const QString& tooltip, const QString& view) {
         QToolButton* btn = new QToolButton(this);
         btn->setStyleSheet(buttonStyleSheet);
         btn->setIcon(QIcon(icon));
         btn->setIconSize(QSize(48, 48));
         btn->setToolTip(tooltip);
         btn->setAutoRaise(true);
+		btn->setCheckable(true);
+		buttonGroup->addButton(btn);
         layout->addWidget(btn);
         connect(btn, &QToolButton::clicked, this, [this, view]() { emit viewSelected(view); });
+        return btn;
         };
-    createBtn(":/new/prefix1/res/top.png", "Top View", "Top");
-    createBtn(":/new/prefix1/res/front.png", "Front View", "Front");
-    createBtn(":/new/prefix1/res/left.png", "Left View", "Left");
-    createBtn(":/new/prefix1/res/bottom.png", "Bottom View", "Bottom");
-    createBtn(":/new/prefix1/res/back.png", "Rear View", "Rear");
-    createBtn(":/new/prefix1/res/right.png", "Right View", "Right");
-
-    // Ortho/Perspective Projections
-    QToolButton* projToggleButton = new QToolButton(this);
-    projToggleButton->setStyleSheet(buttonStyleSheet);
-    projToggleButton->setCheckable(true);
-    projToggleButton->setChecked(false);
-    projToggleButton->setIcon(QIcon(":/new/prefix1/res/Ortho.png"));
-    projToggleButton->setIconSize(QSize(48, 48));
-    projToggleButton->setToolTip("Toggle Projection");
-    layout->addWidget(projToggleButton);
-
-    connect(projToggleButton, &QToolButton::toggled, this, [this, projToggleButton](bool checked) {
-        if (!checked)
-        {
-            projToggleButton->setIcon(QIcon(":/new/prefix1/res/Ortho.png"));
-            projToggleButton->setToolTip("Switch to Perspective");
-        }
-        else
-        {
-            projToggleButton->setIcon(QIcon(":/new/prefix1/res/Perspective.png"));
-            projToggleButton->setToolTip("Switch to Orthographic");
-        }
-        emit projectionToggled(!checked);
-        });
+    createBtn(":/new/prefix1/res/top.png", "Top View", "Top")->setShortcut(Qt::CTRL | Qt::Key_T);
+    createBtn(":/new/prefix1/res/front.png", "Front View", "Front")->setShortcut(Qt::CTRL | Qt::Key_F);
+	createBtn(":/new/prefix1/res/left.png", "Left View", "Left")->setShortcut(Qt::CTRL | Qt::Key_L);
+	createBtn(":/new/prefix1/res/bottom.png", "Bottom View", "Bottom")->setShortcut(Qt::CTRL | Qt::Key_B);
+	createBtn(":/new/prefix1/res/back.png", "Rear View", "Rear")->setShortcut(Qt::CTRL | Qt::Key_R);
+	createBtn(":/new/prefix1/res/right.png", "Right View", "Right")->setShortcut(Qt::CTRL | Qt::Key_J);
 
     // Isometric Views
     m_toolButtonIsometricView = new FlyOutViewButton(this);
@@ -211,14 +198,30 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     m_toolButtonIsometricView->setIconSize(QSize(48, 48));
     m_toolButtonIsometricView->setToolTip("Axonometric View");
     m_toolButtonIsometricView->setPopupMode(QToolButton::DelayedPopup);
-    m_toolButtonIsometricView->setAutoRaise(true);
-    layout->addWidget(m_toolButtonIsometricView);
+    m_toolButtonIsometricView->setAutoRaise(true);		
+    layout->addWidget(m_toolButtonIsometricView);    
+
+    // When this button is clicked, uncheck all buttons in the group
+    connect(m_toolButtonIsometricView, &QPushButton::clicked, this, [=]() {
+        buttonGroup->setExclusive(false);
+        for (QAbstractButton* btn : buttonGroup->buttons())
+        {
+            QSignalBlocker blocker(btn); 
+            btn->setChecked(false);
+        }
+        buttonGroup->setExclusive(true);
+        });
 
     QMenu* axoMenu = new QMenu;
     axoMenu->setStyleSheet(flyoutStyleSheet);
     QAction* iso = axoMenu->addAction(QIcon(":/new/prefix1/res/isometric.png"), "Isometric");
+    QList<QKeySequence> shortcuts;
+    shortcuts << QKeySequence("Ctrl+1") << QKeySequence("Home");	
+	iso->setShortcuts(shortcuts);
     QAction* dim = axoMenu->addAction(QIcon(":/new/prefix1/res/dimetric.png"), "Dimetric");
+    dim->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_2));
     QAction* tri = axoMenu->addAction(QIcon(":/new/prefix1/res/trimetric.png"), "Trimetric");
+    tri->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_3));
 
     connect(iso, &QAction::triggered, this, 
         [this, iso]() 
@@ -246,6 +249,31 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     m_toolButtonIsometricView->setMenu(axoMenu);
     m_toolButtonIsometricView->setDefaultAction(iso);
+
+
+    // Ortho/Perspective Projections
+    QToolButton* projToggleButton = new QToolButton(this);
+    projToggleButton->setStyleSheet(buttonStyleSheet);
+    projToggleButton->setCheckable(true);
+    projToggleButton->setChecked(false);
+    projToggleButton->setIcon(QIcon(":/new/prefix1/res/Ortho.png"));
+    projToggleButton->setIconSize(QSize(48, 48));
+    projToggleButton->setToolTip("Toggle Projection");
+    layout->addWidget(projToggleButton);
+
+    connect(projToggleButton, &QToolButton::toggled, this, [this, projToggleButton](bool checked) {
+        if (!checked)
+        {
+            projToggleButton->setIcon(QIcon(":/new/prefix1/res/Ortho.png"));
+            projToggleButton->setToolTip("Switch to Perspective");
+        }
+        else
+        {
+            projToggleButton->setIcon(QIcon(":/new/prefix1/res/Perspective.png"));
+            projToggleButton->setToolTip("Switch to Orthographic");
+        }
+        emit projectionToggled(!checked);
+        });
 
 
     // Multi View
@@ -332,13 +360,26 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     // Show/Hide Axis
     QToolButton* axisBtn = new QToolButton(this);
     axisBtn->setStyleSheet(buttonStyleSheet);
-    axisBtn->setIcon(QIcon(":/new/prefix1/res/hideAxis.png"));    
+    axisBtn->setIcon(QIcon(":/new/prefix1/res/showAxis.png"));    
     axisBtn->setIconSize(QSize(48, 48));
     axisBtn->setToolTip("Show/Hide Axis");
     axisBtn->setCheckable(true);
+    axisBtn->setChecked(true);
     axisBtn->setAutoRaise(true);
-    layout->addWidget(axisBtn);
-    connect(axisBtn, &QToolButton::toggled, this, [this](bool checked) { emit axisDisplayToggled(checked); });
+    layout->addWidget(axisBtn);    
+    connect(axisBtn, &QToolButton::toggled, this, [this, axisBtn](bool checked) {
+        if (checked)
+        {
+            axisBtn->setIcon(QIcon(":/new/prefix1/res/showAxis.png"));
+            axisBtn->setToolTip("Show the trihedron");
+        }
+        else
+        {
+            axisBtn->setIcon(QIcon(":/new/prefix1/res/hideAxis.png"));
+            axisBtn->setToolTip("Hide the trihedron");            
+        }
+        emit axisDisplayToggled(checked);
+        });
 
 
     // Toolbar animations

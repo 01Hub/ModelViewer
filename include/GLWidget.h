@@ -253,7 +253,7 @@ signals:
 	void floorShown(bool);
 	void visibleSwapped(bool);
 	void loadingAssImpModelCancelled();
-	void displayModeChanged(QString string);
+	void displayModeChanged(int);
 
 public slots:
 	void animateViewChange();
@@ -364,7 +364,7 @@ private:
 	void onMeshBatchReady(const std::vector<AssImpMesh*>& batch);
 
 private:
-	ViewToolbar* m_viewToolbar;
+	ViewToolbar* _viewToolbar;
 
 	QSet<int> _keys;
 	DisplayMode _displayMode;

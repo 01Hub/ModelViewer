@@ -56,28 +56,28 @@ _assimpModelLoader(nullptr)
 
 
 	// Setup the view toolbar
-	m_viewToolbar = new ViewToolbar(this);
-	m_viewToolbar->reposition(width(), height());
+	_viewToolbar = new ViewToolbar(this);
+	_viewToolbar->reposition(width(), height());
 
-	connect(m_viewToolbar, &ViewToolbar::zoomViewRequested, this, [this]() {
+	connect(_viewToolbar, &ViewToolbar::zoomViewRequested, this, [this]() {
 		setZoomingActive(true);
 		});
 
-	connect(m_viewToolbar, &ViewToolbar::panViewRequested, this, [this]() {
+	connect(_viewToolbar, &ViewToolbar::panViewRequested, this, [this]() {
 		setPanningActive(true);
 		});
 
-	connect(m_viewToolbar, &ViewToolbar::rotateViewRequested, this, [this]() {
+	connect(_viewToolbar, &ViewToolbar::rotateViewRequested, this, [this]() {
 		setRotationActive(true);
 		});
 
-	connect(m_viewToolbar, &ViewToolbar::cameraModeSelected, this, [this](const QString& type) {
+	connect(_viewToolbar, &ViewToolbar::cameraModeSelected, this, [this](const QString& type) {
 		if (type == "Orbit") setCameraMode(GLCamera::CameraMode::Orbit);
 		else if (type == "Fly") setCameraMode(GLCamera::CameraMode::Fly);
 		else if (type == "First Person") setCameraMode(GLCamera::CameraMode::FirstPerson);
 		});
 
-	 connect(m_viewToolbar, &ViewToolbar::viewSelected, this, [this](const QString& view) {
+	 connect(_viewToolbar, &ViewToolbar::viewSelected, this, [this](const QString& view) {
         if (view == "Top") setViewMode(ViewMode::TOP);
         else if (view == "Front") setViewMode(ViewMode::FRONT);
         else if (view == "Left") setViewMode(ViewMode::LEFT);
@@ -86,31 +86,30 @@ _assimpModelLoader(nullptr)
         else if (view == "Right") setViewMode(ViewMode::RIGHT);
     });
 
-	 connect(m_viewToolbar, &ViewToolbar::axonometricSelected, this, [this](const QString& type) {
+	 connect(_viewToolbar, &ViewToolbar::axonometricSelected, this, [this](const QString& type) {
 		 if (type == "Isometric") setViewMode(ViewMode::ISOMETRIC);
 		 else if (type == "Dimetric") setViewMode(ViewMode::DIMETRIC);
 		 else if (type == "Trimetric") setViewMode(ViewMode::TRIMETRIC);
 		 });
 
-	 connect(m_viewToolbar, &ViewToolbar::displayModeSelected, this, [this](const QString& type) {
+	 connect(_viewToolbar, &ViewToolbar::displayModeSelected, this, [this](const QString& type) {
 		 if (type == "Realistic") setDisplayMode(DisplayMode::REALSHADED);
 		 else if (type == "Shaded") setDisplayMode(DisplayMode::SHADED);
 		 else if (type == "Wireframe") setDisplayMode(DisplayMode::WIREFRAME);
-		 else if (type == "WireShaded") setDisplayMode(DisplayMode::WIRESHADED);
-		 emit displayModeChanged(type);
+		 else if (type == "WireShaded") setDisplayMode(DisplayMode::WIRESHADED);		 
 		 });
 	 connect(this, &GLWidget::displayModeChanged, _viewer, &ModelViewer::onDisplayModeChanged);
 
-	 connect(m_viewToolbar, &ViewToolbar::fitToViewRequested, this, &GLWidget::fitAll);
+	 connect(_viewToolbar, &ViewToolbar::fitToViewRequested, this, &GLWidget::fitAll);
 	 
-	 connect(m_viewToolbar, &ViewToolbar::windowZoomRequested, this, &GLWidget::beginWindowZoom);
+	 connect(_viewToolbar, &ViewToolbar::windowZoomRequested, this, &GLWidget::beginWindowZoom);
 
-	 connect(m_viewToolbar, &ViewToolbar::projectionToggled, this, [this](bool ortho) {
+	 connect(_viewToolbar, &ViewToolbar::projectionToggled, this, [this](bool ortho) {
 		 setProjection(ortho ? ViewProjection::ORTHOGRAPHIC : ViewProjection::PERSPECTIVE);
 		 update();
 		 });
 
-	 connect(m_viewToolbar, &ViewToolbar::multiViewToggled, this, [this](bool enabled) {
+	 connect(_viewToolbar, &ViewToolbar::multiViewToggled, this, [this](bool enabled) {
 		 setMultiView(enabled);
 		 if (enabled)
 			 setViewMode(ViewMode::ISOMETRIC);
@@ -118,15 +117,15 @@ _assimpModelLoader(nullptr)
 		 update();
 		 });
 
-	 connect(m_viewToolbar, &ViewToolbar::sectionViewToggled, this, [this](bool enabled) {
+	 connect(_viewToolbar, &ViewToolbar::sectionViewToggled, this, [this](bool enabled) {
 		 showClippingPlaneEditor(enabled);
 		 });
 
-	 connect(m_viewToolbar, &ViewToolbar::swapVisibleToggled, this, [this](bool enabled) {
+	 connect(_viewToolbar, &ViewToolbar::swapVisibleToggled, this, [this](bool enabled) {
 		 swapVisible(enabled);
 		 });
 
-	 connect(m_viewToolbar, &ViewToolbar::axisDisplayToggled, this, [this](bool enabled) {
+	 connect(_viewToolbar, &ViewToolbar::axisDisplayToggled, this, [this](bool enabled) {
 		 showAxis(enabled);
 		 });
 
@@ -318,7 +317,7 @@ _assimpModelLoader(nullptr)
 		_lowerLayout->setContentsMargins(0, 0, 0, toolbarHeight);
 		});*/
 
-	int toolbarHeight = m_viewToolbar->height();
+	int toolbarHeight = _viewToolbar->height();
 	_lowerLayout->setContentsMargins(0, 0, 0, toolbarHeight);
 
 	_clippingPlanesEditor = new ClippingPlanesEditor(this);
@@ -341,7 +340,7 @@ _assimpModelLoader(nullptr)
 
 GLWidget::~GLWidget()
 {
-	m_viewToolbar = nullptr;
+	_viewToolbar = nullptr;
 
 	if (_textRenderer)
 		delete _textRenderer;
@@ -3973,9 +3972,9 @@ void GLWidget::lockLightAndCamera(bool lock)
 
 void GLWidget::resizeEvent(QResizeEvent* event)
 {
-	if (m_viewToolbar)
+	if (_viewToolbar)
 	{
-		m_viewToolbar->reposition(width(), height()); // Move completely below widget
+		_viewToolbar->reposition(width(), height()); // Move completely below widget
 	}
 	QOpenGLWidget::resizeEvent(event);
 }
@@ -4218,16 +4217,16 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 
 	// Auto-hide/show the view toolbar
-	if (m_viewToolbar && e->buttons() == Qt::NoButton)
+	if (_viewToolbar && e->buttons() == Qt::NoButton)
 	{
 		const int revealMargin = 30; // e.g., 30 px threshold
 
-		QRect hidden = m_viewToolbar->hiddenRect();
+		QRect hidden = _viewToolbar->hiddenRect();
 		QRect revealArea(hidden.left(), hidden.top() - revealMargin, hidden.width(), revealMargin * 2);
 
-		if (revealArea.contains(e->pos()) || m_viewToolbar->underMouse())
+		if (revealArea.contains(e->pos()) || _viewToolbar->underMouse())
 		{
-			m_viewToolbar->showAnimated();
+			_viewToolbar->showAnimated();
 		}
 		else
 		{
@@ -4235,7 +4234,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 			auto timer = new QTimer(this);
 			timer->setSingleShot(true);
 			connect(timer, &QTimer::timeout, this, [this, timer]() {
-				if (!m_viewToolbar)
+				if (!_viewToolbar)
 				{
 					timer->deleteLater(); // Clean up the timer
 					return; // Exit safely
@@ -4243,16 +4242,16 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 				QPoint globalPos = QCursor::pos();
 				QPoint localPos = mapFromGlobal(globalPos);
-				QRect hidden = m_viewToolbar->hiddenRect();
+				QRect hidden = _viewToolbar->hiddenRect();
 				QRect revealArea(hidden.left(), hidden.top() - 30, hidden.width(), 60);
 
-				bool isFlyoutVisible = m_viewToolbar->isFlyoutMenuVisible();
+				bool isFlyoutVisible = _viewToolbar->isFlyoutMenuVisible();
 
 				if (!revealArea.contains(localPos) &&
-					!m_viewToolbar->underMouse() &&
+					!_viewToolbar->underMouse() &&
 					!isFlyoutVisible)
 				{
-					m_viewToolbar->hideAnimated();
+					_viewToolbar->hideAnimated();
 				}
 
 				timer->deleteLater(); // Clean up the timer
@@ -4262,7 +4261,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 			timer->start(2000);
 
 			// Ensure proper cleanup of the timer if the toolbar is deleted
-			connect(m_viewToolbar, &QObject::destroyed, timer, [timer]() {
+			connect(_viewToolbar, &QObject::destroyed, timer, [timer]() {
 				timer->stop();
 				timer->deleteLater();
 				});
@@ -5290,6 +5289,7 @@ void GLWidget::setDisplayMode(DisplayMode mode)
 	_fgShader->bind();
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
 	_fgShader->release();
+	emit displayModeChanged(static_cast<int>(mode));
 }
 
 float GLWidget::getZScale() const

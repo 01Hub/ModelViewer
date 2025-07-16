@@ -43,6 +43,12 @@
       <enum>Qt::Orientation::Horizontal</enum>
      </property>
      <widget class="QFrame" name="viewerframe">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+        <horstretch>100</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
       <layout class="QGridLayout" name="gridLayout_7">
        <property name="leftMargin">
         <number>0</number>
@@ -57,7 +63,7 @@
         <number>0</number>
        </property>
        <item row="0" column="0">
-        <layout class="QVBoxLayout" name="verticalLayout_2">
+        <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0">
          <item>
           <widget class="QGroupBox" name="preview">
            <property name="sizePolicy">
@@ -86,7 +92,7 @@
              <number>2</number>
             </property>
             <item row="0" column="0">
-             <layout class="QVBoxLayout" name="verticalLayout_4">
+             <layout class="QVBoxLayout" name="verticalLayout_4" stretch="0">
               <property name="spacing">
                <number>0</number>
               </property>
@@ -107,972 +113,6 @@
                </widget>
               </item>
              </layout>
-            </item>
-            <item row="1" column="0">
-             <widget class="ToolPanel" name="tabWidget">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Expanding" vsizetype="Minimum">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="styleSheet">
-               <string notr="true">color: rgb(0, 0, 0);
-background-color: rgba(255, 255, 255, 0%);</string>
-              </property>
-              <property name="tabPosition">
-               <enum>QTabWidget::TabPosition::North</enum>
-              </property>
-              <property name="tabShape">
-               <enum>QTabWidget::TabShape::Rounded</enum>
-              </property>
-              <property name="currentIndex">
-               <number>1</number>
-              </property>
-              <property name="tabBarAutoHide">
-               <bool>false</bool>
-              </property>
-              <widget class="QWidget" name="tabDoc">
-               <attribute name="title">
-                <string>Document</string>
-               </attribute>
-               <layout class="QGridLayout" name="gridLayout_13">
-                <item row="0" column="0">
-                 <layout class="QHBoxLayout" name="horizontalLayout_15">
-                  <item>
-                   <spacer name="horizontalSpacer_3">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Horizontal</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonImport">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Import</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/import.png</normaloff>:/new/prefix1/res/import.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Ctrl+O</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>false</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="Line" name="line_6">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Vertical</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonExport">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Export</string>
-                    </property>
-                    <property name="text">
-                     <string>...</string>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/export.png</normaloff>:/new/prefix1/res/export.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonSave">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Save</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/filesave.png</normaloff>:/new/prefix1/res/filesave.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="checkable">
-                     <bool>false</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="Line" name="line_7">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Vertical</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="Line" name="line_8">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Vertical</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="Line" name="line_9">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Vertical</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="Line" name="line_10">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Vertical</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <spacer name="horizontalSpacer_4">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Horizontal</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                 </layout>
-                </item>
-               </layout>
-              </widget>
-              <widget class="QWidget" name="tabView">
-               <attribute name="title">
-                <string>View</string>
-               </attribute>
-               <layout class="QGridLayout" name="gridLayout_12">
-                <item row="0" column="0">
-                 <layout class="QHBoxLayout" name="horizontalLayout_6">
-                  <item>
-                   <spacer name="horizontalSpacer">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Horizontal</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonRotateView">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Rotate View</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/rotateview.png</normaloff>:/new/prefix1/res/rotateview.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Alt+R</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>false</bool>
-                    </property>
-                    <attribute name="buttonGroup">
-                     <string notr="true">buttonGroupviewManip</string>
-                    </attribute>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonPanView">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Pan View</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/panview.png</normaloff>:/new/prefix1/res/panview.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Alt+P</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>false</bool>
-                    </property>
-                    <attribute name="buttonGroup">
-                     <string notr="true">buttonGroupviewManip</string>
-                    </attribute>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonZoomView">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Zoom View</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/zoomview.png</normaloff>:/new/prefix1/res/zoomview.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Alt+Z</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>false</bool>
-                    </property>
-                    <attribute name="buttonGroup">
-                     <string notr="true">buttonGroupviewManip</string>
-                    </attribute>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonFitAll">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Fit All</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/fit-all.png</normaloff>:/new/prefix1/res/fit-all.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Home</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>false</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonWindowZoom">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Zoom Area</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/window-zoom.png</normaloff>:/new/prefix1/res/window-zoom.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Alt+W</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonCameraMode">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Camera Modes</string>
-                    </property>
-                    <property name="text">
-                     <string>...</string>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/camera_orbit_64.png</normaloff>:/new/prefix1/res/camera_orbit_64.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="Line" name="line_5">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Vertical</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonTopView">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Top View</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/top.png</normaloff>:/new/prefix1/res/top.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Ctrl+T</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                    <attribute name="buttonGroup">
-                     <string notr="true">buttonGroupViews</string>
-                    </attribute>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonBottomView">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Bottom View</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/bottom.png</normaloff>:/new/prefix1/res/bottom.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Ctrl+B</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                    <attribute name="buttonGroup">
-                     <string notr="true">buttonGroupViews</string>
-                    </attribute>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonLeftView">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Left View</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/left.png</normaloff>:/new/prefix1/res/left.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Ctrl+L</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                    <attribute name="buttonGroup">
-                     <string notr="true">buttonGroupViews</string>
-                    </attribute>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonRightView">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Right View</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/right.png</normaloff>:/new/prefix1/res/right.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Ctrl+J</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                    <attribute name="buttonGroup">
-                     <string notr="true">buttonGroupViews</string>
-                    </attribute>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonFrontView">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Front View</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/front.png</normaloff>:/new/prefix1/res/front.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Ctrl+F</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                    <attribute name="buttonGroup">
-                     <string notr="true">buttonGroupViews</string>
-                    </attribute>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonBackView">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Back View</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/back.png</normaloff>:/new/prefix1/res/back.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Ctrl+R</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                    <attribute name="buttonGroup">
-                     <string notr="true">buttonGroupViews</string>
-                    </attribute>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonIsometricView">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Axonometric View</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/isometric.png</normaloff>:/new/prefix1/res/isometric.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Ctrl+A</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>false</bool>
-                    </property>
-                    <property name="checked">
-                     <bool>false</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="Line" name="line_2">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Vertical</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonProjection">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Swith to Perspective</string>
-                    </property>
-                    <property name="text">
-                     <string>Shaded</string>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/Ortho.png</normaloff>
-                      <normalon>:/new/prefix1/res/Perspective.png</normalon>:/new/prefix1/res/Ortho.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Ctrl+P</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                    <property name="checked">
-                     <bool>false</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="Line" name="line_4">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Vertical</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonMultiView">
-                    <property name="enabled">
-                     <bool>true</bool>
-                    </property>
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Multiple Views</string>
-                    </property>
-                    <property name="text">
-                     <string>Stereo</string>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/multiview.png</normaloff>:/new/prefix1/res/multiview.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="shortcut">
-                     <string>Ctrl+M</string>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                    <property name="checked">
-                     <bool>false</bool>
-                    </property>
-                    <property name="toolButtonStyle">
-                     <enum>Qt::ToolButtonStyle::ToolButtonIconOnly</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="Line" name="line">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Vertical</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonDisplayMode">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Display Mode</string>
-                    </property>
-                    <property name="text">
-                     <string>Shaded</string>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/shaded.png</normaloff>
-                      <normalon>:/new/prefix1/res/wireframe.png</normalon>:/new/prefix1/res/shaded.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                    <property name="checked">
-                     <bool>true</bool>
-                    </property>
-                    <property name="popupMode">
-                     <enum>QToolButton::ToolButtonPopupMode::InstantPopup</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonVertexNormal">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Show/Hide Vertex Normals</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/hideVertexNormal.png</normaloff>
-                      <normalon>:/new/prefix1/res/showVertexNormal.png</normalon>:/new/prefix1/res/hideVertexNormal.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonFaceNormal">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Show/Hide Face Normals</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/hideFaceNormal.png</normaloff>
-                      <normalon>:/new/prefix1/res/showFaceNormal.png</normalon>:/new/prefix1/res/hideFaceNormal.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="Line" name="line_3">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Vertical</enum>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonSectionView">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Clipping Planes</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/section.png</normaloff>:/new/prefix1/res/section.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonSwapVisible">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Swap Visible Object Space</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/swapvisible.png</normaloff>:/new/prefix1/res/swapvisible.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <widget class="QToolButton" name="toolButtonShowHideAxis">
-                    <property name="maximumSize">
-                     <size>
-                      <width>42</width>
-                      <height>42</height>
-                     </size>
-                    </property>
-                    <property name="toolTip">
-                     <string>Show/Hide Axis</string>
-                    </property>
-                    <property name="text">
-                     <string/>
-                    </property>
-                    <property name="icon">
-                     <iconset resource="../ModelViewer.qrc">
-                      <normaloff>:/new/prefix1/res/hideAxis.png</normaloff>
-                      <normalon>:/new/prefix1/res/showAxis.png</normalon>:/new/prefix1/res/hideAxis.png</iconset>
-                    </property>
-                    <property name="iconSize">
-                     <size>
-                      <width>48</width>
-                      <height>48</height>
-                     </size>
-                    </property>
-                    <property name="checkable">
-                     <bool>true</bool>
-                    </property>
-                    <property name="checked">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item>
-                   <spacer name="horizontalSpacer_2">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Horizontal</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>40</width>
-                      <height>20</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                 </layout>
-                </item>
-               </layout>
-              </widget>
-              <widget class="QWidget" name="tabActions">
-               <attribute name="title">
-                <string>Actions</string>
-               </attribute>
-              </widget>
-             </widget>
             </item>
            </layout>
           </widget>
@@ -1235,8 +275,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>425</width>
-                   <height>736</height>
+                   <width>419</width>
+                   <height>734</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -2000,8 +1040,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>162</width>
-                   <height>172</height>
+                   <width>451</width>
+                   <height>733</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2154,8 +1194,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>361</width>
-                   <height>461</height>
+                   <width>451</width>
+                   <height>733</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2843,8 +1883,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>310</width>
-                   <height>479</height>
+                   <width>451</width>
+                   <height>733</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -3703,8 +2743,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>496</width>
-                   <height>204</height>
+                   <width>640</width>
+                   <height>721</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -4057,8 +3097,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>471</width>
-                   <height>429</height>
+                   <width>529</width>
+                   <height>721</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -4516,12 +3556,6 @@ background-color: rgba(255, 255, 255, 0%);</string>
  <layoutdefault spacing="6" margin="11"/>
  <customwidgets>
   <customwidget>
-   <class>ToolPanel</class>
-   <extends>QTabWidget</extends>
-   <header>ToolPanel.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
    <class>ModelObjectList</class>
    <extends>QListWidget</extends>
    <header>ModelObjectList.h</header>
@@ -4652,28 +3686,6 @@ background-color: rgba(255, 255, 255, 0%);</string>
   <tabstop>checkBoxHDRToneMapping</tabstop>
   <tabstop>checkBoxGammaCorrection</tabstop>
   <tabstop>doubleSpinBoxScreenGamma</tabstop>
-  <tabstop>tabWidget</tabstop>
-  <tabstop>toolButtonImport</tabstop>
-  <tabstop>toolButtonSave</tabstop>
-  <tabstop>toolButtonRotateView</tabstop>
-  <tabstop>toolButtonPanView</tabstop>
-  <tabstop>toolButtonZoomView</tabstop>
-  <tabstop>toolButtonFitAll</tabstop>
-  <tabstop>toolButtonWindowZoom</tabstop>
-  <tabstop>toolButtonTopView</tabstop>
-  <tabstop>toolButtonBottomView</tabstop>
-  <tabstop>toolButtonLeftView</tabstop>
-  <tabstop>toolButtonRightView</tabstop>
-  <tabstop>toolButtonFrontView</tabstop>
-  <tabstop>toolButtonBackView</tabstop>
-  <tabstop>toolButtonIsometricView</tabstop>
-  <tabstop>toolButtonProjection</tabstop>
-  <tabstop>toolButtonMultiView</tabstop>
-  <tabstop>toolButtonDisplayMode</tabstop>
-  <tabstop>toolButtonVertexNormal</tabstop>
-  <tabstop>toolButtonFaceNormal</tabstop>
-  <tabstop>toolButtonSectionView</tabstop>
-  <tabstop>toolButtonShowHideAxis</tabstop>
  </tabstops>
  <resources>
   <include location="../ModelViewer.qrc"/>
@@ -5452,8 +4464,8 @@ background-color: rgba(255, 255, 255, 0%);</string>
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
+  <buttongroup name="buttonGroupViews"/>
   <buttongroup name="buttonGroupLighting"/>
   <buttongroup name="buttonGroupviewManip"/>
-  <buttongroup name="buttonGroupViews"/>
  </buttongroups>
 </ui>
