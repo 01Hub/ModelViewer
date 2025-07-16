@@ -20,14 +20,7 @@ if(Qt6_FOUND)
     set(QT_VERSION_MAJOR 6)
     set(QT_TRANSLATE_NAMESPACE Qt6)
 else()
-    find_package(Qt5 5.15 REQUIRED COMPONENTS Core Gui OpenGL Widgets LinguistTools)
-
-    if(WIN32)
-        find_package(Qt5 REQUIRED COMPONENTS WinExtras)
-    endif()
-
-    set(QT_VERSION_MAJOR 5)
-    set(QT_TRANSLATE_NAMESPACE Qt5)
+    message("Qt6 not found")
 endif()
 
 message("Using Qt${QT_VERSION_MAJOR}")
@@ -44,11 +37,7 @@ set(CMAKE_AUTORCC ON)
 
 # Handle UI files manually
 file(GLOB ui_sources ui/*.ui)
-if(QT_VERSION_MAJOR EQUAL 6)
-    qt6_wrap_ui(ui_wrapped ${ui_sources})
-else()
-    qt5_wrap_ui(ui_wrapped ${ui_sources})
-endif()
+qt6_wrap_ui(ui_wrapped ${ui_sources})
 
 add_executable(ModelViewer)
 
@@ -90,42 +79,25 @@ endforeach()
 
 # Generate/update translation files using lupdate
 # Make sure UI files are processed first so ui_*.h files exist
-if(QT_VERSION_MAJOR EQUAL 6)
-    # Custom target to update translations for Qt6
-    add_custom_target(update_translations
-        # First ensure UI files are processed
-        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ModelViewer --parallel 1 || true
-        # Then run lupdate on all source files including generated UI headers
-        COMMAND ${Qt6_LUPDATE_EXECUTABLE}
-            ${sources} ${ui_sources}
-            -ts ${TS_FILES}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Updating .ts files"
-        DEPENDS ${ui_wrapped}
-    )
+# Custom target to update translations for Qt6
+add_custom_target(update_translations
+    # First ensure UI files are processed
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ModelViewer --parallel 1 || true
+    # Then run lupdate on all source files including generated UI headers
+    COMMAND ${Qt6_LUPDATE_EXECUTABLE}
+        ${sources} ${ui_sources}
+        -ts ${TS_FILES}
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Updating .ts files"
+    DEPENDS ${ui_wrapped}
+)
     
-    # Compile .ts files to .qm files
-    qt6_add_lrelease(ModelViewer
-        TS_FILES ${TS_FILES}
-        QM_FILES_OUTPUT_VARIABLE QM_FILES
-    )
-else()
-    # For Qt5
-    qt5_add_translation(QM_FILES ${TS_FILES})
-    
-    # Custom target to update translations for Qt5
-    add_custom_target(update_translations
-        # First ensure UI files are processed
-        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ModelViewer --parallel 1 || true
-        # Then run lupdate
-        COMMAND ${Qt5_LUPDATE_EXECUTABLE}
-            ${sources} ${ui_sources}
-            -ts ${TS_FILES}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Updating .ts files"
-        DEPENDS ${ui_wrapped}
-    )
-endif()
+# Compile .ts files to .qm files
+qt6_add_lrelease(ModelViewer
+    TS_FILES ${TS_FILES}
+    QM_FILES_OUTPUT_VARIABLE QM_FILES
+)
+
 
 # Debug: Print QM files list
 message(STATUS "QM_FILES will be: ${QM_FILES}")
@@ -185,13 +157,6 @@ if(WIN32)
         PRIVATE
             ModelViewer.rc
     )
-
-    if(QT_VERSION_MAJOR EQUAL 5)
-        target_link_libraries(ModelViewer
-            PRIVATE
-                Qt::WinExtras
-        )
-    endif()
 endif()
 
 install(TARGETS ModelViewer)
