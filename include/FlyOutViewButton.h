@@ -55,7 +55,7 @@ protected:
 		painter.setRenderHint(QPainter::Antialiasing);
 
 		int arrowSize = 6;
-		QPoint arrowTip(width() - 12, 10); // Top-right area
+		QPoint arrowTip(width() - 12, 5); // Top-right area
 
 		// Create upward triangle
 		QPolygon triangle;
