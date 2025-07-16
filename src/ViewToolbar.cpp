@@ -12,6 +12,28 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     setStyleSheet("background: rgba(255, 255, 255, 100); border: 1px solid gray; border-radius: 4px;");
     setFixedHeight(64);
 
+    QString buttonStyleSheet(
+        "QToolButton {"
+        "    border: none;"
+        "    background: transparent;"
+        "    padding: 5px;"
+        "    border-radius: 4px;"
+        "}"
+        "QToolButton:hover {"
+        "    background-color: rgba(0, 120, 215, 50);"
+        "    border: 1px solid #0078D7;"
+        "}"
+        "QToolButton:pressed {"
+        "    background-color: rgba(0, 120, 215, 100);"
+        "    border: 1px solid #005A9E;"
+        "}"
+        "QToolButton:checked {"
+        "    background-color: rgba(0, 150, 100, 100);"
+        "    border: 1px solid #008000;"
+        "    color: white;"
+        "}"
+    );
+
     QString flyoutStyleSheet(
         "QMenu {"
         "    background-color: rgba(255, 255, 255, 100);"
@@ -58,6 +80,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     layout->setSpacing(6);
 
     QToolButton* btn = new QToolButton(this);
+    btn->setStyleSheet(buttonStyleSheet);
     btn->setIcon(QIcon(":/new/prefix1/res/rotateview.png"));
     btn->setIconSize(QSize(48, 48));
     btn->setToolTip("Rotate View");
@@ -66,6 +89,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(btn, &QToolButton::clicked, this, [this]() { emit rotateViewRequested(); });
 
     btn = new QToolButton(this);
+    btn->setStyleSheet(buttonStyleSheet);
     btn->setIcon(QIcon(":/new/prefix1/res/panview.png"));
     btn->setIconSize(QSize(48, 48));
     btn->setToolTip("Pan View");
@@ -74,6 +98,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(btn, &QToolButton::clicked, this, [this]() { emit panViewRequested(); });
 
     btn = new QToolButton(this);
+    btn->setStyleSheet(buttonStyleSheet);
     btn->setIcon(QIcon(":/new/prefix1/res/zoomview.png"));
     btn->setIconSize(QSize(48, 48));
     btn->setToolTip("Zoom View");
@@ -82,6 +107,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(btn, &QToolButton::clicked, this, [this]() { emit zoomViewRequested(); });
 
     btn = new QToolButton(this);
+    btn->setStyleSheet(buttonStyleSheet);
     btn->setIcon(QIcon(":/new/prefix1/res/fit-all.png"));
     btn->setIconSize(QSize(48, 48));
     btn->setToolTip("Fit All");
@@ -90,22 +116,13 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(btn, &QToolButton::clicked, this, [this]() { emit fitToViewRequested(); });
 
     btn = new QToolButton(this);
+    btn->setStyleSheet(buttonStyleSheet);
     btn->setIcon(QIcon(":/new/prefix1/res/window-zoom.png"));
     btn->setIconSize(QSize(48, 48));
     btn->setToolTip("Window Zoom");
     btn->setAutoRaise(true);
     layout->addWidget(btn);
     connect(btn, &QToolButton::clicked, this, [this]() { emit windowZoomRequested(); });
-
-    auto createBtn = [this, layout](const QString& icon, const QString& tooltip, const QString& view) {
-        QToolButton* btn = new QToolButton(this);
-        btn->setIcon(QIcon(icon));
-        btn->setIconSize(QSize(48, 48));
-        btn->setToolTip(tooltip);
-        btn->setAutoRaise(true);
-        layout->addWidget(btn);
-        connect(btn, &QToolButton::clicked, this, [this, view]() { emit viewSelected(view); });
-    };
 
     // Camera Modes
     m_toolButtonCameraModes = new FlyOutViewButton(this);
@@ -147,6 +164,16 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     m_toolButtonCameraModes->setDefaultAction(orbit);
 
     // All views
+    auto createBtn = [this, layout, buttonStyleSheet](const QString& icon, const QString& tooltip, const QString& view) {
+        QToolButton* btn = new QToolButton(this);
+        btn->setStyleSheet(buttonStyleSheet);
+        btn->setIcon(QIcon(icon));
+        btn->setIconSize(QSize(48, 48));
+        btn->setToolTip(tooltip);
+        btn->setAutoRaise(true);
+        layout->addWidget(btn);
+        connect(btn, &QToolButton::clicked, this, [this, view]() { emit viewSelected(view); });
+        };
     createBtn(":/new/prefix1/res/top.png", "Top View", "Top");
     createBtn(":/new/prefix1/res/front.png", "Front View", "Front");
     createBtn(":/new/prefix1/res/left.png", "Left View", "Left");
@@ -156,15 +183,16 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     // Ortho/Perspective Projections
     QToolButton* projToggleButton = new QToolButton(this);
+    projToggleButton->setStyleSheet(buttonStyleSheet);
     projToggleButton->setCheckable(true);
-    projToggleButton->setChecked(true);
+    projToggleButton->setChecked(false);
     projToggleButton->setIcon(QIcon(":/new/prefix1/res/Ortho.png"));
     projToggleButton->setIconSize(QSize(48, 48));
     projToggleButton->setToolTip("Toggle Projection");
     layout->addWidget(projToggleButton);
 
     connect(projToggleButton, &QToolButton::toggled, this, [this, projToggleButton](bool checked) {
-        if (checked)
+        if (!checked)
         {
             projToggleButton->setIcon(QIcon(":/new/prefix1/res/Ortho.png"));
             projToggleButton->setToolTip("Switch to Perspective");
@@ -174,7 +202,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
             projToggleButton->setIcon(QIcon(":/new/prefix1/res/Perspective.png"));
             projToggleButton->setToolTip("Switch to Orthographic");
         }
-        emit projectionToggled(checked);
+        emit projectionToggled(!checked);
         });
 
     // Isometric Views
@@ -222,6 +250,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     // Multi View
     QToolButton* multiBtn = new QToolButton(this);
+    multiBtn->setStyleSheet(buttonStyleSheet);
     multiBtn->setIcon(QIcon(":/new/prefix1/res/multiview.png"));
     multiBtn->setIconSize(QSize(48, 48));
     multiBtn->setToolTip("Toggle Multi-View");
@@ -280,6 +309,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     // Section View
     QToolButton* sectionBtn = new QToolButton(this);
+    sectionBtn->setStyleSheet(buttonStyleSheet);
     sectionBtn->setIcon(QIcon(":/new/prefix1/res/section.png"));
     sectionBtn->setIconSize(QSize(48, 48));
     sectionBtn->setToolTip("Clipping Planes");
@@ -290,6 +320,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     // Swap Visible View
     QToolButton* swapBtn = new QToolButton(this);
+    swapBtn->setStyleSheet(buttonStyleSheet);
     swapBtn->setIcon(QIcon(":/new/prefix1/res/swapvisible.png"));
     swapBtn->setIconSize(QSize(48, 48));
     swapBtn->setToolTip("Clipping Planes");
@@ -300,6 +331,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     // Show/Hide Axis
     QToolButton* axisBtn = new QToolButton(this);
+    axisBtn->setStyleSheet(buttonStyleSheet);
     axisBtn->setIcon(QIcon(":/new/prefix1/res/hideAxis.png"));    
     axisBtn->setIconSize(QSize(48, 48));
     axisBtn->setToolTip("Show/Hide Axis");
@@ -372,7 +404,7 @@ void ViewToolbar::paintEvent(QPaintEvent* event)
     // Draw rounded rectangle background
     painter.setBrush(bg);
     painter.setPen(QPen(border, 1));
-    painter.drawRoundedRect(r.adjusted(0, 0, -1, -1), 6, 6);
+    painter.drawRoundedRect(r.adjusted(0, 0, -1, -1), 4, 4);
 
     QWidget::paintEvent(event); // Optional, not strictly needed here
 }
