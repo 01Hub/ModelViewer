@@ -16,7 +16,7 @@ LanguageManager& LanguageManager::instance()
 
 void LanguageManager::loadLanguage(const QString& langCode)
 {
-    QString qtPath = QLibraryInfo::location(QLibraryInfo::TranslationsPath);
+    QString qtPath = QLibraryInfo::path(QLibraryInfo::TranslationsPath);
     QString appPath = QString(MODELVIEWER_DATA_DIR) + "/translations";
 
     QString baseLang = langCode.section('_', 0, 0);
