@@ -85,6 +85,7 @@ public slots:
 	void showPredefinedMaterialsPage();
 	void showTransformationsPage();
 	void clickMultiViewButton();
+	void onDisplayModeChanged(QString mode);
 
 private slots:
 	void setListRow(int index);
@@ -92,7 +93,7 @@ private slots:
 	void showContextMenu(const QPoint& pos);
 	void centerScreen();
 	void lightingType_toggled(QAbstractButton *, bool);
-
+	
 	void on_checkTexture_toggled(bool checked);
 	void on_pushButtonTexture_clicked();
 	void on_pushButtonDefaultLights_clicked();
@@ -257,13 +258,14 @@ protected:
 	void keyPressEvent(QKeyEvent* event);
 	void dragEnterEvent(QDragEnterEvent* event);
 	void dropEvent(QDropEvent* event);
+	void resizeEvent(QResizeEvent* event);
+	void mouseMoveEvent(QMouseEvent* event);
 
 private:
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
 
 private:
 	GLWidget* _glWidget;
-
 
 	QAction* cameraModeOrbit;
 	QAction* cameraModeFly;

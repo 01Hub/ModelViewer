@@ -13,6 +13,7 @@
 #include <QOpenGLFunctions_4_5_Core>
 #include <QOpenGLWidget>
 #include <QRubberBand>
+#include "ViewToolbar.h"
 
 /* Custom OpenGL Viewer Widget */
 
@@ -252,6 +253,7 @@ signals:
 	void floorShown(bool);
 	void visibleSwapped(bool);
 	void loadingAssImpModelCancelled();
+	void displayModeChanged(QString string);
 
 public slots:
 	void animateViewChange();
@@ -296,6 +298,7 @@ protected:
 
 	void renderMultiView(QColor& topColor, QColor& botColor);
 
+	void resizeEvent(QResizeEvent* event);
 	void mousePressEvent(QMouseEvent*);
 	void mouseReleaseEvent(QMouseEvent*);
 	void mouseMoveEvent(QMouseEvent*);
@@ -361,6 +364,8 @@ private:
 	void onMeshBatchReady(const std::vector<AssImpMesh*>& batch);
 
 private:
+	ViewToolbar* m_viewToolbar;
+
 	QSet<int> _keys;
 	DisplayMode _displayMode;
 	RenderingMode _renderingMode;

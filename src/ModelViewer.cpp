@@ -263,11 +263,12 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Put the GL widget inside the frame
 	QVBoxLayout* flayout = new QVBoxLayout(glframe);
 	flayout->addWidget(_glWidget, 1);
-	_glWidget->installEventFilter(tabWidget);
-	tabWidget->setParent(_glWidget);
-	_glWidget->layout()->addWidget(tabWidget);
-	tabWidget->setAutoHide(true);
-
+	//_glWidget->installEventFilter(tabWidget);
+	//tabWidget->setParent(_glWidget);
+	//_glWidget->layout()->addWidget(tabWidget);
+	//tabWidget->setAutoHide(true);
+	tabWidget->hide();
+		
 	connect(checkBoxAutoFitView, SIGNAL(toggled(bool)), _glWidget, SLOT(setAutoFitViewOnUpdate(bool)));
 
 	connect(_glWidget, &GLWidget::windowZoomEnded, this, [this]() {
@@ -813,6 +814,16 @@ void ModelViewer::dropEvent(QDropEvent* event)
 		}
 	}
 	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::resizeEvent(QResizeEvent* event)
+{
+	QWidget::resizeEvent(event);
+}
+
+void ModelViewer::mouseMoveEvent(QMouseEvent* event)
+{
+	QWidget::mouseMoveEvent(event);
 }
 
 void ModelViewer::setCurrentFile(const QString& fileName)
@@ -2364,6 +2375,16 @@ void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 	}
 	updateControls();
 	_glWidget->update();
+}
+
+void ModelViewer::onDisplayModeChanged(QString mode)
+{
+	bool checked = (mode == "Realistic");
+	checkBoxEnvMapping->setChecked(checked);
+	checkBoxShadowMapping->setChecked(checked);
+	checkBoxSelfShadows->setChecked(checked);
+	checkBoxReflections->setChecked(checked);
+	checkBoxFloor->setChecked(checked);
 }
 
 void ModelViewer::on_pushButtonAlbedoColor_clicked()

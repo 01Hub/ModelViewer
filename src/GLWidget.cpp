@@ -54,6 +54,82 @@ _assimpModelLoader(nullptr)
 
     _viewer = static_cast<ModelViewer*>(parent);
 
+
+	// Setup the view toolbar
+	m_viewToolbar = new ViewToolbar(this);
+	m_viewToolbar->reposition(width(), height());
+
+	connect(m_viewToolbar, &ViewToolbar::zoomViewRequested, this, [this]() {
+		setZoomingActive(true);
+		});
+
+	connect(m_viewToolbar, &ViewToolbar::panViewRequested, this, [this]() {
+		setPanningActive(true);
+		});
+
+	connect(m_viewToolbar, &ViewToolbar::rotateViewRequested, this, [this]() {
+		setRotationActive(true);
+		});
+
+	connect(m_viewToolbar, &ViewToolbar::cameraModeSelected, this, [this](const QString& type) {
+		if (type == "Orbit") setCameraMode(GLCamera::CameraMode::Orbit);
+		else if (type == "Fly") setCameraMode(GLCamera::CameraMode::Fly);
+		else if (type == "First Person") setCameraMode(GLCamera::CameraMode::FirstPerson);
+		});
+
+	 connect(m_viewToolbar, &ViewToolbar::viewSelected, this, [this](const QString& view) {
+        if (view == "Top") setViewMode(ViewMode::TOP);
+        else if (view == "Front") setViewMode(ViewMode::FRONT);
+        else if (view == "Left") setViewMode(ViewMode::LEFT);
+        else if (view == "Bottom") setViewMode(ViewMode::BOTTOM);
+        else if (view == "Rear") setViewMode(ViewMode::BACK);
+        else if (view == "Right") setViewMode(ViewMode::RIGHT);
+    });
+
+	 connect(m_viewToolbar, &ViewToolbar::axonometricSelected, this, [this](const QString& type) {
+		 if (type == "Isometric") setViewMode(ViewMode::ISOMETRIC);
+		 else if (type == "Dimetric") setViewMode(ViewMode::DIMETRIC);
+		 else if (type == "Trimetric") setViewMode(ViewMode::TRIMETRIC);
+		 });
+
+	 connect(m_viewToolbar, &ViewToolbar::displayModeSelected, this, [this](const QString& type) {
+		 if (type == "Realistic") setDisplayMode(DisplayMode::REALSHADED);
+		 else if (type == "Shaded") setDisplayMode(DisplayMode::SHADED);
+		 else if (type == "Wireframe") setDisplayMode(DisplayMode::WIREFRAME);
+		 else if (type == "WireShaded") setDisplayMode(DisplayMode::WIRESHADED);
+		 emit displayModeChanged(type);
+		 });
+	 connect(this, &GLWidget::displayModeChanged, _viewer, &ModelViewer::onDisplayModeChanged);
+
+	 connect(m_viewToolbar, &ViewToolbar::fitToViewRequested, this, &GLWidget::fitAll);
+	 
+	 connect(m_viewToolbar, &ViewToolbar::windowZoomRequested, this, &GLWidget::beginWindowZoom);
+
+	 connect(m_viewToolbar, &ViewToolbar::projectionToggled, this, [this](bool ortho) {
+		 setProjection(ortho ? ViewProjection::ORTHOGRAPHIC : ViewProjection::PERSPECTIVE);
+		 update();
+		 });
+
+	 connect(m_viewToolbar, &ViewToolbar::multiViewToggled, this, [this](bool enabled) {
+		 setMultiView(enabled);
+		 if (enabled)
+			 setViewMode(ViewMode::ISOMETRIC);
+		 fitAll();
+		 update();
+		 });
+
+	 connect(m_viewToolbar, &ViewToolbar::sectionViewToggled, this, [this](bool enabled) {
+		 showClippingPlaneEditor(enabled);
+		 });
+
+	 connect(m_viewToolbar, &ViewToolbar::swapVisibleToggled, this, [this](bool enabled) {
+		 swapVisible(enabled);
+		 });
+
+	 connect(m_viewToolbar, &ViewToolbar::axisDisplayToggled, this, [this](bool enabled) {
+		 showAxis(enabled);
+		 });
+
 	loadBgColorSettings();
 
 	_quadVAO = 0;
@@ -256,6 +332,8 @@ _assimpModelLoader(nullptr)
 
 GLWidget::~GLWidget()
 {
+	m_viewToolbar = nullptr;
+
 	if (_textRenderer)
 		delete _textRenderer;
 	if (_axisTextRenderer)
@@ -3884,6 +3962,15 @@ void GLWidget::lockLightAndCamera(bool lock)
 	update();
 }
 
+void GLWidget::resizeEvent(QResizeEvent* event)
+{
+	if (m_viewToolbar)
+	{
+		m_viewToolbar->reposition(width(), height()); // Move completely below widget
+	}
+	QOpenGLWidget::resizeEvent(event);
+}
+
 void GLWidget::mousePressEvent(QMouseEvent* e)
 {
 	setFocus();
@@ -4120,6 +4207,61 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		_lowResEnabled = false;
 	}
 
+
+	// Auto-hide/show the view toolbar
+	if (m_viewToolbar && e->buttons() == Qt::NoButton)
+	{
+		const int revealMargin = 30; // e.g., 30 px threshold
+
+		QRect hidden = m_viewToolbar->hiddenRect();
+		QRect revealArea(hidden.left(), hidden.top() - revealMargin, hidden.width(), revealMargin * 2);
+
+		if (revealArea.contains(e->pos()) || m_viewToolbar->underMouse())
+		{
+			m_viewToolbar->showAnimated();
+		}
+		else
+		{
+			// Store the timer as a member (optional) to manage it better
+			auto timer = new QTimer(this);
+			timer->setSingleShot(true);
+			connect(timer, &QTimer::timeout, this, [this, timer]() {
+				if (!m_viewToolbar)
+				{
+					timer->deleteLater(); // Clean up the timer
+					return; // Exit safely
+				}
+
+				QPoint globalPos = QCursor::pos();
+				QPoint localPos = mapFromGlobal(globalPos);
+				QRect hidden = m_viewToolbar->hiddenRect();
+				QRect revealArea(hidden.left(), hidden.top() - 30, hidden.width(), 60);
+
+				bool isFlyoutVisible = m_viewToolbar->isFlyoutMenuVisible();
+
+				if (!revealArea.contains(localPos) &&
+					!m_viewToolbar->underMouse() &&
+					!isFlyoutVisible)
+				{
+					m_viewToolbar->hideAnimated();
+				}
+
+				timer->deleteLater(); // Clean up the timer
+				});
+
+			// Start the timer
+			timer->start(2000);
+
+			// Ensure proper cleanup of the timer if the toolbar is deleted
+			connect(m_viewToolbar, &QObject::destroyed, timer, [timer]() {
+				timer->stop();
+				timer->deleteLater();
+				});
+		}
+	}
+
+	update();
+
 	lastPos = currentPos;
 	lastTime = currentTime;
 }
@@ -4131,9 +4273,7 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	_inertiaPanVelocity = QVector2D(0, 0);
 	_inertiaZoomVelocity = 0.0f;
 	if (_inertiaTimer && _inertiaTimer->isActive())
-		_inertiaTimer->stop();
-
-	
+		_inertiaTimer->stop();	
 
 	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
 		_lowResEnabled = true;
