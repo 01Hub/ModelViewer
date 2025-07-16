@@ -312,6 +312,15 @@ _assimpModelLoader(nullptr)
 	_lowerLayout->setRowWrapPolicy(QFormLayout::DontWrapRows);
 	_lowerLayout->setFieldGrowthPolicy(QFormLayout::FieldsStayAtSizeHint);
 
+	// Update margins dynamically when the toolbar size changes
+	/*connect(m_viewToolbar, &ViewToolbar::resizeEvent, this, [this]() {
+		int toolbarHeight = m_viewToolbar->height();
+		_lowerLayout->setContentsMargins(0, 0, 0, toolbarHeight);
+		});*/
+
+	int toolbarHeight = m_viewToolbar->height();
+	_lowerLayout->setContentsMargins(0, 0, 0, toolbarHeight);
+
 	_clippingPlanesEditor = new ClippingPlanesEditor(this);
 	_lowerLayout->addWidget(_clippingPlanesEditor);
 	_clippingPlanesEditor->hide();
