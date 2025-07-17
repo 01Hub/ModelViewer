@@ -486,7 +486,7 @@ void ViewToolbar::paintEvent(QPaintEvent* event)
 	painter.setRenderHint(QPainter::Antialiasing);
 
 	QRect r = rect();
-	QColor bg(255, 255, 255, 180);
+	QColor bg(255, 255, 255, 100);
 	QColor border(100, 100, 100, 160);
 
 	// Draw rounded rectangle background
