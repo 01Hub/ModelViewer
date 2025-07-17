@@ -131,14 +131,21 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
     float opacity = 1.0f;
     if (AI_SUCCESS == material->Get(AI_MATKEY_OPACITY, opacity))
     {
+        if (opacity == 0) // 0 opacity is of no use
+            opacity = 1;
+
         opacity = std::clamp(opacity, 0.0f, 1.0f);
-        mat.setOpacity(opacity);
+        mat.setOpacity(opacity);        
     }
     else if (AI_SUCCESS == material->Get(AI_MATKEY_TRANSPARENCYFACTOR, value))
     {
         // Some formats use transparency factor instead of opacity
         opacity = 1.0f - std::clamp(value, 0.0f, 1.0f);
-        mat.setOpacity(opacity);
+
+        if (opacity == 0) // 0 opacity is of no use
+            opacity = 1;
+
+        mat.setOpacity(opacity);        
     }
     else
     {
