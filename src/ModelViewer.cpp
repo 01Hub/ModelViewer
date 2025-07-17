@@ -166,17 +166,7 @@ ModelViewer::~ModelViewer()
 
 void ModelViewer::retranslateUI()
 {
-	// Dynamically created QActions
-	cameraModeOrbit->setText(tr("Orbit"));
-	cameraModeFly->setText(tr("Fly"));
-	cameraModeFirstPerson->setText(tr("First Person"));
-	isometricView->setText(tr("Isometric"));
-	dimetricView->setText(tr("Dimetric"));
-	trimetricView->setText(tr("Trimetric"));
-	displayShaded->setText(tr("Shaded"));
-	displayWireframe->setText(tr("Wireframe"));
-	displayWireShaded->setText(tr("Wire Shaded"));
-	displayRealShaded->setText(tr("Realistic"));
+	// Dynamically created	
 }
 
 void ModelViewer::deselectAll()

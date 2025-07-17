@@ -237,19 +237,6 @@ private:
 private:
 	GLWidget* _glWidget;
 
-	QAction* cameraModeOrbit;
-	QAction* cameraModeFly;
-	QAction* cameraModeFirstPerson;
-
-	QAction* isometricView;
-	QAction* dimetricView;
-	QAction* trimetricView;
-
-	QAction* displayShaded;
-	QAction* displayWireframe;
-	QAction* displayWireShaded;
-	QAction* displayRealShaded;
-
 	GLMaterial _material;
 
 	bool _bHasTexture;
