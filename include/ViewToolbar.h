@@ -50,6 +50,46 @@ protected slots:
     void paintEvent(QPaintEvent* event);    
 
 private:
+    void retranslateUI();
+
+private:
+
+    QToolButton* _btnRotateView;
+    QToolButton* _btnPanView;
+    QToolButton* _btnZoomView;
+    QToolButton* _btnFitAll;
+    QToolButton* _btnWindowZoom;
+    
+    QAction* _orbitAction;
+    QAction* _flyAction;
+    QAction* _firstPersonAction;
+
+    QToolButton* _btnTopView;
+    QToolButton* _btnFrontView;
+    QToolButton* _btnLeftView;
+    QToolButton* _btnBottomView;
+    QToolButton* _btnRearView;
+    QToolButton* _btnRightView;
+
+    QAction* _isoAction;
+    QAction* _dimAction;
+    QAction* _triAction;
+
+    QToolButton* _projToggleButton;
+
+    QToolButton* _multiBtn;
+
+    QAction* _realistic;
+    QAction* _shaded;
+    QAction* _wireframe;
+    QAction* _wireshaded;
+
+    QToolButton* _sectionBtn;
+
+    QToolButton* _swapBtn;
+
+    QToolButton* _axisBtn;
+
     FlyOutViewButton* _toolButtonCameraModes;
     QMap<CameraModeActions, QAction*> _cameraModeActions;
 
