@@ -1680,10 +1680,7 @@ bool ModelViewer::loadFile(const QString& fileName)
 	{
 		updateDisplayList();
 
-		listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
-		listWidgetModel->currentItem()->setCheckState(Qt::Checked);
-
-		updateDisplayList();
+		listWidgetModel->scrollToTop();		
 
 		_documentModified = true;
 
