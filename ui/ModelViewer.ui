@@ -77,16 +77,16 @@
            </property>
            <layout class="QGridLayout" name="gridLayout">
             <property name="leftMargin">
-             <number>2</number>
+             <number>0</number>
             </property>
             <property name="topMargin">
-             <number>2</number>
+             <number>0</number>
             </property>
             <property name="rightMargin">
-             <number>2</number>
+             <number>0</number>
             </property>
             <property name="bottomMargin">
-             <number>2</number>
+             <number>0</number>
             </property>
             <property name="spacing">
              <number>2</number>
@@ -275,8 +275,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>419</width>
-                   <height>734</height>
+                   <width>398</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1040,8 +1040,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>451</width>
-                   <height>733</height>
+                   <width>398</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1194,8 +1194,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>451</width>
-                   <height>733</height>
+                   <width>398</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1883,8 +1883,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>451</width>
-                   <height>733</height>
+                   <width>398</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2743,8 +2743,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>640</width>
-                   <height>721</height>
+                   <width>496</width>
+                   <height>719</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -3097,8 +3097,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>529</width>
-                   <height>721</height>
+                   <width>471</width>
+                   <height>719</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -4464,8 +4464,6 @@
   <slot>slotResetRotations()</slot>
  </slots>
  <buttongroups>
-  <buttongroup name="buttonGroupViews"/>
   <buttongroup name="buttonGroupLighting"/>
-  <buttongroup name="buttonGroupviewManip"/>
  </buttongroups>
 </ui>

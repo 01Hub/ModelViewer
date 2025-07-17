@@ -55,6 +55,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_glWidget->setMouseTracking(true);
 	// Put the GL widget inside the frame
 	QVBoxLayout* flayout = new QVBoxLayout(glframe);
+	flayout->setContentsMargins(0, 0, 0, 0);
 	flayout->addWidget(_glWidget, 1);
 			
 	connect(checkBoxAutoFitView, SIGNAL(toggled(bool)), _glWidget, SLOT(setAutoFitViewOnUpdate(bool)));
