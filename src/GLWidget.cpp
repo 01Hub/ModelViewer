@@ -311,12 +311,6 @@ _assimpModelLoader(nullptr)
 	_lowerLayout->setRowWrapPolicy(QFormLayout::DontWrapRows);
 	_lowerLayout->setFieldGrowthPolicy(QFormLayout::FieldsStayAtSizeHint);
 
-	// Update margins dynamically when the toolbar size changes
-	/*connect(m_viewToolbar, &ViewToolbar::resizeEvent, this, [this]() {
-		int toolbarHeight = m_viewToolbar->height();
-		_lowerLayout->setContentsMargins(0, 0, 0, toolbarHeight);
-		});*/
-
 	int toolbarHeight = _viewToolbar->height();
 	_lowerLayout->setContentsMargins(0, 0, 0, toolbarHeight);
 
