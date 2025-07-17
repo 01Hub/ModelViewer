@@ -197,229 +197,229 @@ Do you want to continue generating the UV?</source>
 <context>
     <name>GLWidget</name>
     <message>
-        <location filename="../src/GLWidget.cpp" line="315"/>
+        <location filename="../src/GLWidget.cpp" line="400"/>
         <source>X</source>
         <translation>X</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="316"/>
+        <location filename="../src/GLWidget.cpp" line="401"/>
         <source>Y</source>
         <translation>Y</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="317"/>
+        <location filename="../src/GLWidget.cpp" line="402"/>
         <source>Z</source>
         <translation>Z</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="320"/>
+        <location filename="../src/GLWidget.cpp" line="405"/>
         <source>Top</source>
         <translation>Top</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="321"/>
+        <location filename="../src/GLWidget.cpp" line="406"/>
         <source>Front</source>
         <translation>Frente</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="322"/>
+        <location filename="../src/GLWidget.cpp" line="407"/>
         <source>Left</source>
         <translation>Izquierda</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="323"/>
+        <location filename="../src/GLWidget.cpp" line="408"/>
         <source>Isometric</source>
         <translation>Isométrico</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="324"/>
+        <location filename="../src/GLWidget.cpp" line="409"/>
         <source>Dimetric</source>
         <translation>Dimétrico</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="325"/>
+        <location filename="../src/GLWidget.cpp" line="410"/>
         <source>Trimetric</source>
         <translation>Trimétrico</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="328"/>
+        <location filename="../src/GLWidget.cpp" line="413"/>
         <source>No of Meshes: %1</source>
         <translation>No de Meshes: %1</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="562"/>
-        <location filename="../src/GLWidget.cpp" line="610"/>
-        <location filename="../src/GLWidget.cpp" line="616"/>
-        <location filename="../src/GLWidget.cpp" line="630"/>
-        <location filename="../src/GLWidget.cpp" line="669"/>
+        <location filename="../src/GLWidget.cpp" line="647"/>
+        <location filename="../src/GLWidget.cpp" line="695"/>
+        <location filename="../src/GLWidget.cpp" line="701"/>
+        <location filename="../src/GLWidget.cpp" line="715"/>
+        <location filename="../src/GLWidget.cpp" line="754"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="562"/>
+        <location filename="../src/GLWidget.cpp" line="647"/>
         <source>No files found in selected folder.</source>
         <translation>No hay archivos encontrados en la carpeta seleccionada.</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="611"/>
+        <location filename="../src/GLWidget.cpp" line="696"/>
         <source>Failed to load fallback HDR cubemap from:
 </source>
         <translation>Failed to load fallback HDR cubemap from:
 </translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="617"/>
+        <location filename="../src/GLWidget.cpp" line="702"/>
         <source>No valid 6-face skybox images or fallback HDR file found in folder.</source>
         <translation>No se encontraron imágenes de skybox de 6 caras válidas ni archivos HDR de respaldo en la carpeta.</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="631"/>
+        <location filename="../src/GLWidget.cpp" line="716"/>
         <source>Missing skybox face: %1
 Expected files should include identifiers like posx/negx or right/left, etc.</source>
         <translation>Cara de la caja de seguridad: %1
 Los archivos esperados deben incluir identificadores como posx/negx o right/left, etc.</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="669"/>
+        <location filename="../src/GLWidget.cpp" line="754"/>
         <source>Failed to load skybox face:
 </source>
         <translation>Failed to load skybox face:
 </translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="975"/>
+        <location filename="../src/GLWidget.cpp" line="1060"/>
         <source>Press Esc to deactivate rotation mode</source>
         <translation>Presione Esc para desactivar el modo de rotación</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="984"/>
+        <location filename="../src/GLWidget.cpp" line="1069"/>
         <source>Press Esc to deactivate panning mode</source>
         <translation>Presione Esc para desactivar el modo panorámico</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="993"/>
+        <location filename="../src/GLWidget.cpp" line="1078"/>
         <source>Press Esc to deactivate zooming mode</source>
         <translation>Pulse Esc para desactivar el modo de zoom</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1327"/>
+        <location filename="../src/GLWidget.cpp" line="1412"/>
         <source>Reading file: </source>
         <translation>Archivo de lectura: </translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1426"/>
+        <location filename="../src/GLWidget.cpp" line="1511"/>
         <source>Generating UVs... </source>
         <translation>Generando UVs... </translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1427"/>
+        <location filename="../src/GLWidget.cpp" line="1512"/>
         <source>Processing node: %1/%2</source>
         <translation>Nodo de procesamiento: %1/%2</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1448"/>
+        <location filename="../src/GLWidget.cpp" line="1533"/>
         <source>Cancelled</source>
         <translation>Cancelada</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1448"/>
+        <location filename="../src/GLWidget.cpp" line="1533"/>
         <source>Model loading cancelled!
 Model may be loaded partially</source>
         <translation>Carga modelo cancelada!
 El modelo se puede cargar parcialmente</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5256"/>
+        <location filename="../src/GLWidget.cpp" line="5438"/>
         <source>Center Screen</source>
         <translation>Pantalla Central</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5260"/>
+        <location filename="../src/GLWidget.cpp" line="5442"/>
         <source>Center Object List</source>
         <translation>Lista de Objetos del Centro</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5262"/>
+        <location filename="../src/GLWidget.cpp" line="5444"/>
         <source>Visualization Settings</source>
         <translation>Ajustes de Visualización</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5263"/>
+        <location filename="../src/GLWidget.cpp" line="5445"/>
         <source>Transformations</source>
         <translation>Transformaciones</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5265"/>
+        <location filename="../src/GLWidget.cpp" line="5447"/>
         <source>Show</source>
         <translation>Espectáculo</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5267"/>
+        <location filename="../src/GLWidget.cpp" line="5449"/>
         <source>Hide</source>
         <translation>Escóndete</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5269"/>
+        <location filename="../src/GLWidget.cpp" line="5451"/>
         <source>Show Only</source>
         <translation>Mostrar Sólo</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5270"/>
+        <location filename="../src/GLWidget.cpp" line="5452"/>
         <source>Duplicate</source>
         <translation>Duplicar</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5271"/>
+        <location filename="../src/GLWidget.cpp" line="5453"/>
         <source>Delete</source>
         <translation>Suprimir</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5272"/>
+        <location filename="../src/GLWidget.cpp" line="5454"/>
         <source>Mesh Info</source>
         <translation>Informaciónsh</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5279"/>
+        <location filename="../src/GLWidget.cpp" line="5461"/>
         <source>Fit All</source>
         <translation>Fit All</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5281"/>
+        <location filename="../src/GLWidget.cpp" line="5463"/>
         <source>Zoom Area</source>
         <translation>Zona de zoom</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5284"/>
+        <location filename="../src/GLWidget.cpp" line="5466"/>
         <source>Zoom</source>
         <translation>Zoom</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5285"/>
+        <location filename="../src/GLWidget.cpp" line="5467"/>
         <source>Pan</source>
         <translation>Pan</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5286"/>
+        <location filename="../src/GLWidget.cpp" line="5468"/>
         <source>Rotate</source>
         <translation>Rotación</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5292"/>
+        <location filename="../src/GLWidget.cpp" line="5474"/>
         <source>Show All</source>
         <translation>Mostrar Todos</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5297"/>
+        <location filename="../src/GLWidget.cpp" line="5479"/>
         <source>Hide All</source>
         <translation>Ocultar Todo</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5302"/>
+        <location filename="../src/GLWidget.cpp" line="5484"/>
         <source>Swap Visible</source>
         <translation>Intercambio Visible</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5309"/>
+        <location filename="../src/GLWidget.cpp" line="5491"/>
         <source>Background Color</source>
         <translation>Color de Fondo</translation>
     </message>
@@ -473,7 +473,7 @@ El modelo se puede cargar parcialmente</translation>
     </message>
     <message>
         <location filename="../ui/MainWindow.ui" line="157"/>
-        <location filename="../src/MainWindow.cpp" line="303"/>
+        <location filename="../src/MainWindow.cpp" line="309"/>
         <source>About Qt</source>
         <translation>Acerca de Qt</translation>
     </message>
@@ -654,58 +654,58 @@ El modelo se puede cargar parcialmente</translation>
         <translation>Ajustes</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="46"/>
-        <location filename="../src/MainWindow.cpp" line="109"/>
+        <location filename="../src/MainWindow.cpp" line="47"/>
+        <location filename="../src/MainWindow.cpp" line="115"/>
         <source>Recent...</source>
         <translation>Recientes...</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="61"/>
-        <location filename="../src/MainWindow.cpp" line="117"/>
+        <location filename="../src/MainWindow.cpp" line="62"/>
+        <location filename="../src/MainWindow.cpp" line="123"/>
         <source>Close the active window</source>
         <translation>Cerrar la ventana activa</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="66"/>
-        <location filename="../src/MainWindow.cpp" line="119"/>
+        <location filename="../src/MainWindow.cpp" line="67"/>
+        <location filename="../src/MainWindow.cpp" line="125"/>
         <source>Close the active document</source>
         <translation>Cerrar el documento activo</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="71"/>
-        <location filename="../src/MainWindow.cpp" line="121"/>
+        <location filename="../src/MainWindow.cpp" line="72"/>
+        <location filename="../src/MainWindow.cpp" line="127"/>
         <source>Close all the windows</source>
         <translation>Cerrar todas las ventanas</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="76"/>
-        <location filename="../src/MainWindow.cpp" line="123"/>
+        <location filename="../src/MainWindow.cpp" line="77"/>
+        <location filename="../src/MainWindow.cpp" line="129"/>
         <source>Move the focus to the next window</source>
         <translation>Mover el enfoque a la siguiente ventana</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="81"/>
-        <location filename="../src/MainWindow.cpp" line="125"/>
+        <location filename="../src/MainWindow.cpp" line="82"/>
+        <location filename="../src/MainWindow.cpp" line="131"/>
         <source>Move the focus to the previous window</source>
         <translation>Mover el enfoque a la ventana anterior</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="113"/>
+        <location filename="../src/MainWindow.cpp" line="119"/>
         <source>Cancel Loading</source>
         <translation>Cancelar Carga</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="145"/>
+        <location filename="../src/MainWindow.cpp" line="151"/>
         <source>Document modified</source>
         <translation>Documento modificado</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="145"/>
+        <location filename="../src/MainWindow.cpp" line="151"/>
         <source>Do you want to save?</source>
         <translation>¿Quieres ahorrar?</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="287"/>
+        <location filename="../src/MainWindow.cpp" line="293"/>
         <source>Application to visualize various 3D Models like OBJ and StereoLithography models using the ASSIMP library, and STEP, IGES, and BREP files using the OpenCASCADE library
 
 App Version: %1
@@ -724,39 +724,39 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
 </translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="297"/>
+        <location filename="../src/MainWindow.cpp" line="303"/>
         <source>About 3D Model Viewer</source>
         <translation>Acerca 3D Modelo Viewer</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="362"/>
+        <location filename="../src/MainWindow.cpp" line="368"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="362"/>
+        <location filename="../src/MainWindow.cpp" line="368"/>
         <source>
 Unsupported file format: </source>
         <translation>
 Formato de archivo no compatible: </translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="387"/>
+        <location filename="../src/MainWindow.cpp" line="393"/>
         <source>Open Model File</source>
         <translation>Abrir archivo modelo</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="725"/>
+        <location filename="../src/MainWindow.cpp" line="731"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="751"/>
+        <location filename="../src/MainWindow.cpp" line="757"/>
         <source>File Not Found</source>
         <translation>Archivo no encontrado</translation>
     </message>
     <message>
-        <location filename="../src/MainWindow.cpp" line="752"/>
+        <location filename="../src/MainWindow.cpp" line="758"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation>El archivo &apos;%1&apos; ya no existe. ¿Desea eliminarlo de los archivos recientes?</translation>
     </message>
@@ -769,1055 +769,1006 @@ Formato de archivo no compatible: </translation>
         <translation>Sesión 1</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="70"/>
+        <location filename="../ui/ModelViewer.ui" line="76"/>
         <source>3D View</source>
         <translation>3D Ver</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="137"/>
         <source>Document</source>
-        <translation>Documento</translation>
+        <translation type="vanished">Documento</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="164"/>
         <source>Import</source>
-        <translation>Importar</translation>
+        <translation type="vanished">Importar</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="180"/>
         <source>Ctrl+O</source>
-        <translation>Ctrl+O</translation>
+        <translation type="vanished">Ctrl+O</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="203"/>
         <source>Export</source>
-        <translation>Exportar</translation>
+        <translation type="vanished">Exportar</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="206"/>
-        <location filename="../ui/ModelViewer.ui" line="495"/>
-        <location filename="../ui/ModelViewer.ui" line="1386"/>
-        <location filename="../ui/ModelViewer.ui" line="1504"/>
-        <location filename="../ui/ModelViewer.ui" line="1657"/>
-        <location filename="../ui/ModelViewer.ui" line="1752"/>
-        <location filename="../ui/ModelViewer.ui" line="1853"/>
-        <location filename="../ui/ModelViewer.ui" line="1970"/>
-        <location filename="../ui/ModelViewer.ui" line="2240"/>
-        <location filename="../ui/ModelViewer.ui" line="2325"/>
-        <location filename="../ui/ModelViewer.ui" line="2410"/>
-        <location filename="../ui/ModelViewer.ui" line="2498"/>
-        <location filename="../ui/ModelViewer.ui" line="2586"/>
-        <location filename="../ui/ModelViewer.ui" line="2681"/>
-        <location filename="../ui/ModelViewer.ui" line="2769"/>
+        <location filename="../ui/ModelViewer.ui" line="426"/>
+        <location filename="../ui/ModelViewer.ui" line="544"/>
+        <location filename="../ui/ModelViewer.ui" line="697"/>
+        <location filename="../ui/ModelViewer.ui" line="792"/>
+        <location filename="../ui/ModelViewer.ui" line="893"/>
+        <location filename="../ui/ModelViewer.ui" line="1010"/>
+        <location filename="../ui/ModelViewer.ui" line="1280"/>
+        <location filename="../ui/ModelViewer.ui" line="1365"/>
+        <location filename="../ui/ModelViewer.ui" line="1450"/>
+        <location filename="../ui/ModelViewer.ui" line="1538"/>
+        <location filename="../ui/ModelViewer.ui" line="1626"/>
+        <location filename="../ui/ModelViewer.ui" line="1721"/>
+        <location filename="../ui/ModelViewer.ui" line="1809"/>
         <source>...</source>
         <translation>...</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="229"/>
         <source>Save</source>
-        <translation>Guardar</translation>
+        <translation type="vanished">Guardar</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="296"/>
         <source>View</source>
-        <translation>Ver</translation>
+        <translation type="vanished">Ver</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="323"/>
         <source>Rotate View</source>
-        <translation>Vista giratoria</translation>
+        <translation type="vanished">Vista giratoria</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="339"/>
         <source>Alt+R</source>
-        <translation>Alt+R</translation>
+        <translation type="vanished">Alt+R</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="358"/>
         <source>Pan View</source>
-        <translation>Vista Panorámica</translation>
+        <translation type="vanished">Vista Panorámica</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="374"/>
         <source>Alt+P</source>
-        <translation>Alt+P</translation>
+        <translation type="vanished">Alt+P</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="393"/>
         <source>Zoom View</source>
-        <translation>Vista Zoom</translation>
+        <translation type="vanished">Vista Zoom</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="409"/>
         <source>Alt+Z</source>
-        <translation>Alt+Z</translation>
+        <translation type="vanished">Alt+Z</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="428"/>
         <source>Fit All</source>
-        <translation>Ajustar Todo</translation>
+        <translation type="vanished">Ajustar Todo</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="444"/>
         <source>Home</source>
-        <translation>Hogar</translation>
+        <translation type="vanished">Hogar</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="460"/>
         <source>Zoom Area</source>
-        <translation>Zona de Zoom</translation>
+        <translation type="vanished">Zona de Zoom</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="476"/>
         <source>Alt+W</source>
-        <translation>Alt+W</translation>
+        <translation type="vanished">Alt+W</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="492"/>
         <source>Camera Modes</source>
-        <translation>Modos de Cámara</translation>
+        <translation type="vanished">Modos de Cámara</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="525"/>
         <source>Top View</source>
-        <translation>Vista Superior</translation>
+        <translation type="vanished">Vista Superior</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="541"/>
         <source>Ctrl+T</source>
-        <translation>Ctrl+T</translation>
+        <translation type="vanished">Ctrl+T</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="560"/>
         <source>Bottom View</source>
-        <translation>Punto de Vista</translation>
+        <translation type="vanished">Punto de Vista</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="576"/>
         <source>Ctrl+B</source>
-        <translation>Ctrl+B</translation>
+        <translation type="vanished">Ctrl+B</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="595"/>
         <source>Left View</source>
-        <translation>Vista Izquierda</translation>
+        <translation type="vanished">Vista Izquierda</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="611"/>
         <source>Ctrl+L</source>
-        <translation>Ctrl+L</translation>
+        <translation type="vanished">Ctrl+L</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="630"/>
         <source>Right View</source>
-        <translation>Vista Derecha</translation>
+        <translation type="vanished">Vista Derecha</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="646"/>
         <source>Ctrl+J</source>
-        <translation>Ctrl+J</translation>
+        <translation type="vanished">Ctrl+J</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="665"/>
         <source>Front View</source>
-        <translation>Vista Frontal</translation>
+        <translation type="vanished">Vista Frontal</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="681"/>
         <source>Ctrl+F</source>
-        <translation>Ctrl+F</translation>
+        <translation type="vanished">Ctrl+F</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="700"/>
         <source>Back View</source>
-        <translation>Vista Trasera</translation>
+        <translation type="vanished">Vista Trasera</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="716"/>
         <source>Ctrl+R</source>
-        <translation>Ctrl+R</translation>
+        <translation type="vanished">Ctrl+R</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="735"/>
         <source>Axonometric View</source>
-        <translation>Vista Axonométrica</translation>
+        <translation type="vanished">Vista Axonométrica</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="751"/>
         <source>Ctrl+A</source>
-        <translation>Ctrl+A</translation>
+        <translation type="vanished">Ctrl+A</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="777"/>
         <source>Swith to Perspective</source>
-        <translation>Swith to Perspective</translation>
+        <translation type="vanished">Swith to Perspective</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="780"/>
-        <location filename="../ui/ModelViewer.ui" line="871"/>
-        <location filename="../src/ModelViewer.cpp" line="56"/>
-        <location filename="../src/ModelViewer.cpp" line="379"/>
         <source>Shaded</source>
-        <translation>Shaded</translation>
+        <translation type="vanished">Shaded</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="794"/>
         <source>Ctrl+P</source>
-        <translation>Ctrl+P</translation>
+        <translation type="vanished">Ctrl+P</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="823"/>
         <source>Multiple Views</source>
-        <translation>Vistas Múltiples</translation>
+        <translation type="vanished">Vistas Múltiples</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="826"/>
         <source>Stereo</source>
-        <translation>Stereo</translation>
+        <translation type="vanished">Stereo</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="839"/>
         <source>Ctrl+M</source>
-        <translation>Ctrl+M</translation>
+        <translation type="vanished">Ctrl+M</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="868"/>
         <source>Display Mode</source>
-        <translation>Modo de Visualización</translation>
+        <translation type="vanished">Modo de Visualización</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="904"/>
         <source>Show/Hide Vertex Normals</source>
-        <translation>Mostrar/Ocultar Normales de Vértices</translation>
+        <translation type="vanished">Mostrar/Ocultar Normales de Vértices</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="934"/>
         <source>Show/Hide Face Normals</source>
-        <translation>Mostrar/Ocultar Normales de Cara</translation>
+        <translation type="vanished">Mostrar/Ocultar Normales de Cara</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="971"/>
         <source>Clipping Planes</source>
-        <translation>Planes de Deslizamiento</translation>
+        <translation type="vanished">Planes de Deslizamiento</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1000"/>
         <source>Swap Visible Object Space</source>
-        <translation>Intercambiar Espacio de Objetos Visibles</translation>
+        <translation type="vanished">Intercambiar Espacio de Objetos Visibles</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1029"/>
         <source>Show/Hide Axis</source>
-        <translation>Mostrar/Ocultar Eje</translation>
+        <translation type="vanished">Mostrar/Ocultar Eje</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1072"/>
         <source>Actions</source>
-        <translation>Acciones</translation>
+        <translation type="vanished">Acciones</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1113"/>
+        <location filename="../ui/ModelViewer.ui" line="153"/>
         <source>Model Objects</source>
         <translation>Modelo de Objetos</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1128"/>
+        <location filename="../ui/ModelViewer.ui" line="168"/>
         <source>Hide/Show All</source>
         <translation>Ocultar/Mostrar Todo</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1138"/>
+        <location filename="../ui/ModelViewer.ui" line="178"/>
         <source>Auto Fit View On Hide/Show</source>
-        <translation type="unfinished">Ajuste Automático de 
+        <translation>Ajuste Automático de 
 Vistaal Ocultar/Mostrar</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1152"/>
+        <location filename="../ui/ModelViewer.ui" line="192"/>
         <source>Search</source>
         <translation>Buscar</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1162"/>
+        <location filename="../ui/ModelViewer.ui" line="202"/>
         <source>Clear</source>
         <translation>Despejado</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1188"/>
+        <location filename="../ui/ModelViewer.ui" line="228"/>
         <source>Visualization Model</source>
         <translation>Modelo de Visualización</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1196"/>
+        <location filename="../ui/ModelViewer.ui" line="236"/>
         <source>Ambient Diffuse Specular Lighting - Blinn Phong</source>
         <translation>Ambient Diffuse Specular Lighting - Blinn Phong</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1209"/>
+        <location filename="../ui/ModelViewer.ui" line="249"/>
         <source>Physically Based Rendering - Direct Lighting</source>
         <translation>Renderizado Basado en la Física: Iluminación Directa</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1219"/>
+        <location filename="../ui/ModelViewer.ui" line="259"/>
         <source>Physically Based Rendering - Textured</source>
         <translation>Renderizado Basado en la Física - Texturizado</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1249"/>
+        <location filename="../ui/ModelViewer.ui" line="289"/>
         <source>ADS Lighting Settings</source>
         <translation>Configuración de Iluminación ADS</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1267"/>
+        <location filename="../ui/ModelViewer.ui" line="307"/>
         <source>Material Colours</source>
         <translation>Colores Materiales</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1276"/>
-        <location filename="../ui/ModelViewer.ui" line="4089"/>
+        <location filename="../ui/ModelViewer.ui" line="316"/>
+        <location filename="../ui/ModelViewer.ui" line="3129"/>
         <source>Ambient Color</source>
         <translation>Color Ambiental</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1283"/>
+        <location filename="../ui/ModelViewer.ui" line="323"/>
         <source>Emissive Color</source>
         <translation>Color Emisivo</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1290"/>
-        <location filename="../ui/ModelViewer.ui" line="4096"/>
+        <location filename="../ui/ModelViewer.ui" line="330"/>
+        <location filename="../ui/ModelViewer.ui" line="3136"/>
         <source>Diffuse Color</source>
         <translation>Color Difuso</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1297"/>
-        <location filename="../ui/ModelViewer.ui" line="4103"/>
+        <location filename="../ui/ModelViewer.ui" line="337"/>
+        <location filename="../ui/ModelViewer.ui" line="3143"/>
         <source>Specular Color</source>
         <translation>Color Especular</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1307"/>
-        <location filename="../ui/ModelViewer.ui" line="2815"/>
+        <location filename="../ui/ModelViewer.ui" line="347"/>
+        <location filename="../ui/ModelViewer.ui" line="1855"/>
         <source>Apply Textures to Selection</source>
         <translation>Aplicar Texturas a la Selección</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1316"/>
-        <location filename="../ui/ModelViewer.ui" line="2696"/>
+        <location filename="../ui/ModelViewer.ui" line="356"/>
+        <location filename="../ui/ModelViewer.ui" line="1736"/>
         <source>Height Map</source>
         <translation>Mapa de Altura</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1339"/>
-        <location filename="../ui/ModelViewer.ui" line="1457"/>
-        <location filename="../ui/ModelViewer.ui" line="1610"/>
-        <location filename="../ui/ModelViewer.ui" line="1705"/>
-        <location filename="../ui/ModelViewer.ui" line="1806"/>
-        <location filename="../ui/ModelViewer.ui" line="1923"/>
-        <location filename="../ui/ModelViewer.ui" line="2193"/>
-        <location filename="../ui/ModelViewer.ui" line="2278"/>
-        <location filename="../ui/ModelViewer.ui" line="2363"/>
-        <location filename="../ui/ModelViewer.ui" line="2451"/>
-        <location filename="../ui/ModelViewer.ui" line="2539"/>
-        <location filename="../ui/ModelViewer.ui" line="2634"/>
-        <location filename="../ui/ModelViewer.ui" line="2722"/>
-        <location filename="../ui/ModelViewer.ui" line="4284"/>
-        <location filename="../ui/ModelViewer.ui" line="4364"/>
+        <location filename="../ui/ModelViewer.ui" line="379"/>
+        <location filename="../ui/ModelViewer.ui" line="497"/>
+        <location filename="../ui/ModelViewer.ui" line="650"/>
+        <location filename="../ui/ModelViewer.ui" line="745"/>
+        <location filename="../ui/ModelViewer.ui" line="846"/>
+        <location filename="../ui/ModelViewer.ui" line="963"/>
+        <location filename="../ui/ModelViewer.ui" line="1233"/>
+        <location filename="../ui/ModelViewer.ui" line="1318"/>
+        <location filename="../ui/ModelViewer.ui" line="1403"/>
+        <location filename="../ui/ModelViewer.ui" line="1491"/>
+        <location filename="../ui/ModelViewer.ui" line="1579"/>
+        <location filename="../ui/ModelViewer.ui" line="1674"/>
+        <location filename="../ui/ModelViewer.ui" line="1762"/>
+        <location filename="../ui/ModelViewer.ui" line="3324"/>
+        <location filename="../ui/ModelViewer.ui" line="3404"/>
         <source>Select Texture</source>
         <translation>Seleccionar Textura</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1401"/>
+        <location filename="../ui/ModelViewer.ui" line="441"/>
         <source>Enable/Disable Texture</source>
         <translation>Habilitar/Deshabilitar Textura</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1404"/>
+        <location filename="../ui/ModelViewer.ui" line="444"/>
         <source>Texture</source>
         <translation>Textura</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1420"/>
+        <location filename="../ui/ModelViewer.ui" line="460"/>
         <source>Select the image file for texture</source>
         <translation>Seleccione el archivo de imagen para la textura</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1423"/>
+        <location filename="../ui/ModelViewer.ui" line="463"/>
         <source>Select Texture Image</source>
         <translation>Seleccionar Imagen de Textura</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1434"/>
+        <location filename="../ui/ModelViewer.ui" line="474"/>
         <source>Emissive Light Map</source>
         <translation>Mapa de Luz Emisiva</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1530"/>
-        <location filename="../ui/ModelViewer.ui" line="2822"/>
+        <location filename="../ui/ModelViewer.ui" line="570"/>
+        <location filename="../ui/ModelViewer.ui" line="1862"/>
         <source>Clear All Textures from Selection</source>
         <translation>Borrar Todas las Texturas de la Selección</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1537"/>
+        <location filename="../ui/ModelViewer.ui" line="577"/>
         <source>Opacity</source>
         <translation>Opacidad</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1546"/>
-        <location filename="../ui/ModelViewer.ui" line="2093"/>
+        <location filename="../ui/ModelViewer.ui" line="586"/>
+        <location filename="../ui/ModelViewer.ui" line="1133"/>
         <source>Transparent</source>
         <translation>Transparente</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1572"/>
-        <location filename="../ui/ModelViewer.ui" line="2119"/>
+        <location filename="../ui/ModelViewer.ui" line="612"/>
+        <location filename="../ui/ModelViewer.ui" line="1159"/>
         <source>Opaque</source>
         <translation>Opaco</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1587"/>
-        <location filename="../ui/ModelViewer.ui" line="2425"/>
+        <location filename="../ui/ModelViewer.ui" line="627"/>
+        <location filename="../ui/ModelViewer.ui" line="1465"/>
         <source>Normal Map</source>
         <translation>Mapa Normal</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1672"/>
-        <location filename="../ui/ModelViewer.ui" line="2601"/>
+        <location filename="../ui/ModelViewer.ui" line="712"/>
+        <location filename="../ui/ModelViewer.ui" line="1641"/>
         <source>Opacity Map</source>
         <translation>Mapa de la Opacidad</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1682"/>
-        <location filename="../ui/ModelViewer.ui" line="2611"/>
+        <location filename="../ui/ModelViewer.ui" line="722"/>
+        <location filename="../ui/ModelViewer.ui" line="1651"/>
         <source>Invert</source>
         <translation>Invertir</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1771"/>
-        <location filename="../ui/ModelViewer.ui" line="1989"/>
-        <location filename="../ui/ModelViewer.ui" line="4492"/>
+        <location filename="../ui/ModelViewer.ui" line="811"/>
+        <location filename="../ui/ModelViewer.ui" line="1029"/>
+        <location filename="../ui/ModelViewer.ui" line="3532"/>
         <source>Reset to default light and material</source>
         <translation>Reiniciar la luz y el material predeterminados</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1774"/>
-        <location filename="../ui/ModelViewer.ui" line="2144"/>
+        <location filename="../ui/ModelViewer.ui" line="814"/>
+        <location filename="../ui/ModelViewer.ui" line="1184"/>
         <source>Reset to Default Values</source>
         <translation>Restablecer Valores Predeterminados</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1783"/>
+        <location filename="../ui/ModelViewer.ui" line="823"/>
         <source>Specular Light Map</source>
         <translation>Mapa de Luz Especular</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1866"/>
+        <location filename="../ui/ModelViewer.ui" line="906"/>
         <source>Shininess</source>
         <translation>Brillo</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1875"/>
+        <location filename="../ui/ModelViewer.ui" line="915"/>
         <source>Value</source>
         <translation>Valor</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1900"/>
+        <location filename="../ui/ModelViewer.ui" line="940"/>
         <source>Diffuse Light Map</source>
         <translation>Mapa de la Luz Difusa</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="1992"/>
+        <location filename="../ui/ModelViewer.ui" line="1032"/>
         <source>Apply Colors to Selection</source>
         <translation>Aplicar Colores a la Selección</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2008"/>
+        <location filename="../ui/ModelViewer.ui" line="1048"/>
         <source>Direct Lighting PBR Settings</source>
         <translation>Configuración PBR de Iluminación Directa</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2016"/>
+        <location filename="../ui/ModelViewer.ui" line="1056"/>
         <source>Albedo Colour</source>
         <translation>Color del Albedo</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2025"/>
+        <location filename="../ui/ModelViewer.ui" line="1065"/>
         <source>Dilectric</source>
         <translation>Dieléctrico</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2048"/>
+        <location filename="../ui/ModelViewer.ui" line="1088"/>
         <source>Metallic</source>
         <translation>Metálico</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2059"/>
+        <location filename="../ui/ModelViewer.ui" line="1099"/>
         <source>Smooth</source>
         <translation>Liso</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2082"/>
+        <location filename="../ui/ModelViewer.ui" line="1122"/>
         <source>Rough</source>
         <translation>Bruto</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2162"/>
+        <location filename="../ui/ModelViewer.ui" line="1202"/>
         <source>Texture Based PBR Settings</source>
         <translation>PBR Basado en la Textura Ajustes</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2170"/>
+        <location filename="../ui/ModelViewer.ui" line="1210"/>
         <source>Albedo Map</source>
         <translation>Mapa de Albedo</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2255"/>
+        <location filename="../ui/ModelViewer.ui" line="1295"/>
         <source>Metallic Map</source>
         <translation>Mapa Metálico</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2340"/>
+        <location filename="../ui/ModelViewer.ui" line="1380"/>
         <source>Roughness Map</source>
         <translation>Mapa de Rugosidad</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2513"/>
+        <location filename="../ui/ModelViewer.ui" line="1553"/>
         <source>Ambient Occlusion Map</source>
         <translation>Mapa de Oclusión Ambiental</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2787"/>
+        <location filename="../ui/ModelViewer.ui" line="1827"/>
         <source>Height Scale Factor</source>
         <translation>Factor de Escala de Altura</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2851"/>
+        <location filename="../ui/ModelViewer.ui" line="1891"/>
         <source>Predefined Materials</source>
         <translation>Materiales Predefinidos</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2878"/>
+        <location filename="../ui/ModelViewer.ui" line="1918"/>
         <source>Green Plastic</source>
         <translation>Plástico Verde</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2910"/>
+        <location filename="../ui/ModelViewer.ui" line="1950"/>
         <source>Chrome</source>
         <translation>Cromo</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2942"/>
+        <location filename="../ui/ModelViewer.ui" line="1982"/>
         <source>Black Rubber</source>
         <translation>Caucho Negro</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="2974"/>
+        <location filename="../ui/ModelViewer.ui" line="2014"/>
         <source>Black Plastic</source>
         <translation>Plástico Negro</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3012"/>
+        <location filename="../ui/ModelViewer.ui" line="2052"/>
         <source>Brass</source>
         <translation>Latón</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3047"/>
+        <location filename="../ui/ModelViewer.ui" line="2087"/>
         <source>Silver</source>
         <translation>Plata</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3067"/>
+        <location filename="../ui/ModelViewer.ui" line="2107"/>
         <source>Plastic</source>
         <translation>Plástico</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3089"/>
+        <location filename="../ui/ModelViewer.ui" line="2129"/>
         <source>Emerald</source>
         <translation>Esmeralda</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3121"/>
+        <location filename="../ui/ModelViewer.ui" line="2161"/>
         <source>Gold</source>
         <translation>Oro</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3153"/>
+        <location filename="../ui/ModelViewer.ui" line="2193"/>
         <source>Ruby</source>
         <translation>Rubí</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3185"/>
+        <location filename="../ui/ModelViewer.ui" line="2225"/>
         <source>Yellow Plastic</source>
         <translation>Plástico Amarillo</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3217"/>
+        <location filename="../ui/ModelViewer.ui" line="2257"/>
         <source>Green Rubber</source>
         <translation>Caucho Verde</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3249"/>
+        <location filename="../ui/ModelViewer.ui" line="2289"/>
         <source>White Rubber</source>
         <translation>Caucho Blanco</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3284"/>
+        <location filename="../ui/ModelViewer.ui" line="2324"/>
         <source>White Plastic</source>
         <translation>Plástico Blanco</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3304"/>
+        <location filename="../ui/ModelViewer.ui" line="2344"/>
         <source>Gems</source>
         <translation>Gemas</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3326"/>
+        <location filename="../ui/ModelViewer.ui" line="2366"/>
         <source>Jade</source>
         <translation>Jade</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3346"/>
+        <location filename="../ui/ModelViewer.ui" line="2386"/>
         <source>Metals</source>
         <translation>Metales</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3368"/>
+        <location filename="../ui/ModelViewer.ui" line="2408"/>
         <source>Copper</source>
         <translation>Cobre</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3400"/>
+        <location filename="../ui/ModelViewer.ui" line="2440"/>
         <source>Red Rubber</source>
         <translation>Caucho Rojo</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3432"/>
+        <location filename="../ui/ModelViewer.ui" line="2472"/>
         <source>Yellow rubber</source>
         <translation>Goma Amarilla</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3464"/>
+        <location filename="../ui/ModelViewer.ui" line="2504"/>
         <source>Cyan Rubber</source>
         <translation>Cyan Rubber</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3496"/>
+        <location filename="../ui/ModelViewer.ui" line="2536"/>
         <source>Red Plastic</source>
         <translation>Plástico Rojo</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3528"/>
+        <location filename="../ui/ModelViewer.ui" line="2568"/>
         <source>Cyan Plastic</source>
         <translation>Plástico Cian</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3560"/>
+        <location filename="../ui/ModelViewer.ui" line="2600"/>
         <source>Obsidian</source>
         <translation>Obsidiana</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3592"/>
+        <location filename="../ui/ModelViewer.ui" line="2632"/>
         <source>Bronze</source>
         <translation>Bronce</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3612"/>
+        <location filename="../ui/ModelViewer.ui" line="2652"/>
         <source>Rubber</source>
         <translation>Goma</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3634"/>
+        <location filename="../ui/ModelViewer.ui" line="2674"/>
         <source>Turquoise</source>
         <translation>Turquesa</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3666"/>
+        <location filename="../ui/ModelViewer.ui" line="2706"/>
         <source>Pearl</source>
         <translation>Perla</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3717"/>
+        <location filename="../ui/ModelViewer.ui" line="2757"/>
         <source>Object Transformations</source>
         <translation>Transformaciones de Objetos</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3723"/>
+        <location filename="../ui/ModelViewer.ui" line="2763"/>
         <source>Translations</source>
         <translation>Traducciones</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3732"/>
+        <location filename="../ui/ModelViewer.ui" line="2772"/>
         <source>DX</source>
         <translation>DX</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3745"/>
-        <location filename="../ui/ModelViewer.ui" line="3774"/>
-        <location filename="../ui/ModelViewer.ui" line="3803"/>
-        <location filename="../ui/ModelViewer.ui" line="3943"/>
-        <location filename="../ui/ModelViewer.ui" line="3975"/>
-        <location filename="../ui/ModelViewer.ui" line="4007"/>
+        <location filename="../ui/ModelViewer.ui" line="2785"/>
+        <location filename="../ui/ModelViewer.ui" line="2814"/>
+        <location filename="../ui/ModelViewer.ui" line="2843"/>
+        <location filename="../ui/ModelViewer.ui" line="2983"/>
+        <location filename="../ui/ModelViewer.ui" line="3015"/>
+        <location filename="../ui/ModelViewer.ui" line="3047"/>
         <source> mm</source>
         <translation> mm</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3761"/>
+        <location filename="../ui/ModelViewer.ui" line="2801"/>
         <source>DY</source>
         <translation>DY</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3790"/>
+        <location filename="../ui/ModelViewer.ui" line="2830"/>
         <source>DZ</source>
         <translation>DZ</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3822"/>
+        <location filename="../ui/ModelViewer.ui" line="2862"/>
         <source>Rotations</source>
         <translation>Rotaciones</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3831"/>
+        <location filename="../ui/ModelViewer.ui" line="2871"/>
         <source>RX</source>
         <translation>RX</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3844"/>
-        <location filename="../ui/ModelViewer.ui" line="3873"/>
-        <location filename="../ui/ModelViewer.ui" line="3902"/>
+        <location filename="../ui/ModelViewer.ui" line="2884"/>
+        <location filename="../ui/ModelViewer.ui" line="2913"/>
+        <location filename="../ui/ModelViewer.ui" line="2942"/>
         <source> deg</source>
         <translation> deg</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3860"/>
+        <location filename="../ui/ModelViewer.ui" line="2900"/>
         <source>RY</source>
         <translation>RY</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3889"/>
+        <location filename="../ui/ModelViewer.ui" line="2929"/>
         <source>RZ</source>
         <translation>RZ</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3921"/>
+        <location filename="../ui/ModelViewer.ui" line="2961"/>
         <source>Scaling</source>
         <translation>Escalada</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3930"/>
+        <location filename="../ui/ModelViewer.ui" line="2970"/>
         <source>SX</source>
         <translation>SX</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3962"/>
+        <location filename="../ui/ModelViewer.ui" line="3002"/>
         <source>SY</source>
         <translation>SY</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="3994"/>
+        <location filename="../ui/ModelViewer.ui" line="3034"/>
         <source>SZ</source>
         <translation>SZ</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4029"/>
+        <location filename="../ui/ModelViewer.ui" line="3069"/>
         <source>Apply Transformations</source>
         <translation>Transformaciones de Aplicaciones</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4036"/>
+        <location filename="../ui/ModelViewer.ui" line="3076"/>
         <source>Reset Transformations</source>
         <translation>Reiniciar las Transformaciones</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4065"/>
+        <location filename="../ui/ModelViewer.ui" line="3105"/>
         <source>Visualization Environment Settings</source>
         <translation>Configuración del Eentorno de Visualización</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4077"/>
+        <location filename="../ui/ModelViewer.ui" line="3117"/>
         <source>Light Colours</source>
         <translation>Colores de Luz</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4113"/>
+        <location filename="../ui/ModelViewer.ui" line="3153"/>
         <source>Light Position</source>
         <translation>Posición de la Luz</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4135"/>
+        <location filename="../ui/ModelViewer.ui" line="3175"/>
         <source>X</source>
         <translation>X</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4158"/>
+        <location filename="../ui/ModelViewer.ui" line="3198"/>
         <source>Y</source>
         <translation>Y</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4168"/>
+        <location filename="../ui/ModelViewer.ui" line="3208"/>
         <source>Z</source>
         <translation>Z</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4211"/>
+        <location filename="../ui/ModelViewer.ui" line="3251"/>
         <source>Lock light and camera together</source>
         <translation>Bloquear la luz y la cámara juntas</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4217"/>
+        <location filename="../ui/ModelViewer.ui" line="3257"/>
         <source>Lock Light and Camera</source>
         <translation>Bloquear Luz y Cámara</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4227"/>
+        <location filename="../ui/ModelViewer.ui" line="3267"/>
         <source>Show Lights</source>
         <translation>Mostrar Luces</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4236"/>
+        <location filename="../ui/ModelViewer.ui" line="3276"/>
         <source>Environment</source>
         <translation>Para el Medio Ambiente</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4247"/>
+        <location filename="../ui/ModelViewer.ui" line="3287"/>
         <source>Sky Box</source>
         <translation>Sky Box</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4254"/>
+        <location filename="../ui/ModelViewer.ui" line="3294"/>
         <source>HDRI</source>
         <translation>HDRI</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4261"/>
+        <location filename="../ui/ModelViewer.ui" line="3301"/>
         <source>FOV</source>
         <translation>FOV</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4295"/>
+        <location filename="../ui/ModelViewer.ui" line="3335"/>
         <source>Shadows</source>
         <translation>Sombras</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4302"/>
+        <location filename="../ui/ModelViewer.ui" line="3342"/>
         <source>Self Shadows</source>
         <translation>Auto Sombras</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4309"/>
+        <location filename="../ui/ModelViewer.ui" line="3349"/>
         <source>Reflections</source>
         <translation>Reflexiones</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4316"/>
+        <location filename="../ui/ModelViewer.ui" line="3356"/>
         <source>Environment Mapping</source>
         <translation>Mapeo del Entorno</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4327"/>
+        <location filename="../ui/ModelViewer.ui" line="3367"/>
         <source>Floor</source>
         <translation>Piso</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4334"/>
+        <location filename="../ui/ModelViewer.ui" line="3374"/>
         <source>Offset</source>
         <translation>Offset</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4354"/>
+        <location filename="../ui/ModelViewer.ui" line="3394"/>
         <source>Floor Texture</source>
         <translation>Textura de piso</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4375"/>
+        <location filename="../ui/ModelViewer.ui" line="3415"/>
         <source>Repeat S</source>
         <translation>Repito S</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4395"/>
+        <location filename="../ui/ModelViewer.ui" line="3435"/>
         <source>Repeat T</source>
         <translation>Repito T</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4417"/>
+        <location filename="../ui/ModelViewer.ui" line="3457"/>
         <source>HDR Tone Mapping</source>
         <translation>Mapeo de Tonos HDR</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4426"/>
+        <location filename="../ui/ModelViewer.ui" line="3466"/>
         <source>Gamma Correction</source>
         <translation>Corrección Gamma</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4436"/>
+        <location filename="../ui/ModelViewer.ui" line="3476"/>
         <source>Screen Gamma</source>
         <translation>Pantalla Gamma</translation>
     </message>
     <message>
-        <location filename="../ui/ModelViewer.ui" line="4495"/>
+        <location filename="../ui/ModelViewer.ui" line="3535"/>
         <source>Default Values</source>
         <translation>Valores Predeterminados</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="655"/>
+        <location filename="../src/ModelViewer.cpp" line="442"/>
         <source>objects</source>
         <translation>objetos</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="655"/>
+        <location filename="../src/ModelViewer.cpp" line="442"/>
         <source>object</source>
         <translation>objeto</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="656"/>
+        <location filename="../src/ModelViewer.cpp" line="443"/>
         <source>Selected %1 %2</source>
         <translation>Seleccionado %1 %2</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="659"/>
+        <location filename="../src/ModelViewer.cpp" line="446"/>
         <source>No selection</source>
         <translation>Sin selección</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="765"/>
-        <location filename="../src/ModelViewer.cpp" line="788"/>
-        <location filename="../src/ModelViewer.cpp" line="862"/>
-        <location filename="../src/ModelViewer.cpp" line="2080"/>
-        <location filename="../src/ModelViewer.cpp" line="2131"/>
+        <location filename="../src/ModelViewer.cpp" line="526"/>
+        <location filename="../src/ModelViewer.cpp" line="549"/>
+        <location filename="../src/ModelViewer.cpp" line="633"/>
+        <location filename="../src/ModelViewer.cpp" line="1645"/>
+        <location filename="../src/ModelViewer.cpp" line="1696"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="765"/>
+        <location filename="../src/ModelViewer.cpp" line="526"/>
         <source>
 Unsupported file format: </source>
         <translation>
 Formato de archivo no compatible: </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="788"/>
+        <location filename="../src/ModelViewer.cpp" line="549"/>
         <source>Failed to load model: </source>
         <translation>Error al Cargar el Modelo: </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="809"/>
-        <location filename="../src/ModelViewer.cpp" line="844"/>
-        <location filename="../src/ModelViewer.cpp" line="858"/>
-        <location filename="../src/ModelViewer.cpp" line="888"/>
+        <location filename="../src/ModelViewer.cpp" line="580"/>
+        <location filename="../src/ModelViewer.cpp" line="615"/>
+        <location filename="../src/ModelViewer.cpp" line="629"/>
+        <location filename="../src/ModelViewer.cpp" line="659"/>
         <source>%1</source>
         <translation>%1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="842"/>
-        <location filename="../src/ModelViewer.cpp" line="890"/>
+        <location filename="../src/ModelViewer.cpp" line="613"/>
+        <location filename="../src/ModelViewer.cpp" line="661"/>
         <source>%1*</source>
         <translation>%1*</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="857"/>
+        <location filename="../src/ModelViewer.cpp" line="628"/>
         <source>File saved</source>
         <translation>Archivo guardado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="862"/>
+        <location filename="../src/ModelViewer.cpp" line="633"/>
         <source>Failed to save file: %1</source>
         <translation>Fallado para guardar el archivo: %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="870"/>
+        <location filename="../src/ModelViewer.cpp" line="641"/>
         <source>Model Viewer Files (*.mvf)</source>
         <translation>Modelo de archivos Viewer (.*mvf)</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="871"/>
+        <location filename="../src/ModelViewer.cpp" line="642"/>
         <source>Save Model</source>
         <translation>Guardar Modelo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="922"/>
+        <location filename="../src/ModelViewer.cpp" line="693"/>
         <source>Center Screen</source>
         <translation>Pantalla Centrar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="923"/>
+        <location filename="../src/ModelViewer.cpp" line="694"/>
         <source>Visualization Settings</source>
         <translation>Ajustes de Visualización</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="924"/>
+        <location filename="../src/ModelViewer.cpp" line="695"/>
         <source>Transformations</source>
         <translation>Transformaciones</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="925"/>
+        <location filename="../src/ModelViewer.cpp" line="696"/>
         <source>Hide</source>
         <translation>Escóndete</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="926"/>
+        <location filename="../src/ModelViewer.cpp" line="697"/>
         <source>Show</source>
         <translation>Espectáculo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="927"/>
+        <location filename="../src/ModelViewer.cpp" line="698"/>
         <source>Show Only</source>
         <translation>Mostrar Sólo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="928"/>
+        <location filename="../src/ModelViewer.cpp" line="699"/>
         <source>Duplicate</source>
         <translation>Duplicar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="929"/>
+        <location filename="../src/ModelViewer.cpp" line="700"/>
         <source>Delete</source>
         <translation>Suprimir</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="948"/>
-        <location filename="../src/ModelViewer.cpp" line="969"/>
+        <location filename="../src/ModelViewer.cpp" line="719"/>
+        <location filename="../src/ModelViewer.cpp" line="740"/>
         <source>Confirmation</source>
         <translation>Confirmación</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="948"/>
+        <location filename="../src/ModelViewer.cpp" line="719"/>
         <source>Duplicate selection?</source>
         <translation>¿Selección duplicada?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="969"/>
+        <location filename="../src/ModelViewer.cpp" line="740"/>
         <source>Delete selection?</source>
         <translation>¿Borrar selección?</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1084"/>
+        <location filename="../src/ModelViewer.cpp" line="855"/>
         <source>Selection Required</source>
         <translation>Selección Requerida</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1084"/>
+        <location filename="../src/ModelViewer.cpp" line="855"/>
         <source>Please select an object first</source>
         <translation>Por favor seleccione un objeto primero</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1149"/>
+        <location filename="../src/ModelViewer.cpp" line="920"/>
         <source>Points: %1
 </source>
         <translation>Puntos: %1
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1150"/>
+        <location filename="../src/ModelViewer.cpp" line="921"/>
         <source>Triangles: %1
 </source>
         <translation>Triángulos: %1
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1173"/>
+        <location filename="../src/ModelViewer.cpp" line="944"/>
         <source>Memory: %1 </source>
         <translation>Memoria: %1 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1176"/>
+        <location filename="../src/ModelViewer.cpp" line="947"/>
         <source>Mesh Volume: %1mm^3
 Surface Area: %2mm^2
 Density: %3kg/m^3
@@ -1830,14 +1781,14 @@ Peso: %4kg
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1179"/>
+        <location filename="../src/ModelViewer.cpp" line="950"/>
         <source>Mesh Center of Mass: X%1, Y%2, Z%3
 </source>
         <translation>Centro de Masa de la Malla: X%1, Y%2, Z%3
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1181"/>
+        <location filename="../src/ModelViewer.cpp" line="952"/>
         <source>Bounding Limits:
 	XMin %1  XMax %2
 	YMin %3  YMax %4
@@ -1850,7 +1801,7 @@ Peso: %4kg
 </translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1184"/>
+        <location filename="../src/ModelViewer.cpp" line="955"/>
         <source>Bounding Size:
 	X %1
 	Y %2
@@ -1861,162 +1812,144 @@ Peso: %4kg
 	Z %3</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="930"/>
-        <location filename="../src/ModelViewer.cpp" line="1188"/>
+        <location filename="../src/ModelViewer.cpp" line="701"/>
+        <location filename="../src/ModelViewer.cpp" line="959"/>
         <source>Mesh Info</source>
         <translation>Información de la Malla</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="32"/>
-        <location filename="../src/ModelViewer.cpp" line="373"/>
         <source>Orbit</source>
-        <translation>Órbita</translation>
+        <translation type="vanished">Órbita</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="36"/>
-        <location filename="../src/ModelViewer.cpp" line="374"/>
         <source>Fly</source>
-        <translation>Volar</translation>
+        <translation type="vanished">Volar</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="40"/>
-        <location filename="../src/ModelViewer.cpp" line="375"/>
         <source>First Person</source>
-        <translation>Primera Persona</translation>
+        <translation type="vanished">Primera Persona</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="44"/>
-        <location filename="../src/ModelViewer.cpp" line="376"/>
         <source>Isometric</source>
-        <translation>Isométrico</translation>
+        <translation type="vanished">Isométrico</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="48"/>
-        <location filename="../src/ModelViewer.cpp" line="377"/>
         <source>Dimetric</source>
-        <translation>Dimétrico</translation>
+        <translation type="vanished">Dimétrico</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="52"/>
-        <location filename="../src/ModelViewer.cpp" line="378"/>
         <source>Trimetric</source>
-        <translation>Trimétrico</translation>
+        <translation type="vanished">Trimétrico</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="60"/>
-        <location filename="../src/ModelViewer.cpp" line="380"/>
         <source>Wireframe</source>
-        <translation>Estructura alámbrica</translation>
+        <translation type="vanished">Estructura alámbrica</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="64"/>
-        <location filename="../src/ModelViewer.cpp" line="381"/>
         <source>Wire Shaded</source>
-        <translation>Sombreado por Cables</translation>
+        <translation type="vanished">Sombreado por Cables</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="68"/>
-        <location filename="../src/ModelViewer.cpp" line="382"/>
         <source>Realistic</source>
-        <translation>Realista</translation>
+        <translation type="vanished">Realista</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="1997"/>
+        <location filename="../src/ModelViewer.cpp" line="1562"/>
         <source>Import Model File</source>
         <translation>Importar Archivo Modelo</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2059"/>
+        <location filename="../src/ModelViewer.cpp" line="1624"/>
         <source>Export Model</source>
         <translation>Modelo de Exportación</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2078"/>
+        <location filename="../src/ModelViewer.cpp" line="1643"/>
         <source>Information</source>
         <translation>Información</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2078"/>
+        <location filename="../src/ModelViewer.cpp" line="1643"/>
         <source>Exported</source>
         <translation>Exportado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2080"/>
+        <location filename="../src/ModelViewer.cpp" line="1645"/>
         <source>Export failed!</source>
         <translation>¡Exportación fallida!</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2124"/>
+        <location filename="../src/ModelViewer.cpp" line="1689"/>
         <source>File loaded</source>
         <translation>Archivo cargado</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2131"/>
+        <location filename="../src/ModelViewer.cpp" line="1696"/>
         <source>Failed to load model %1</source>
         <translation>Failed to load model %1</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2302"/>
+        <location filename="../src/ModelViewer.cpp" line="1841"/>
         <source>Select Skybox Texture Folder</source>
         <translation>Seleccione la Carpeta de Textura de Skybox</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2802"/>
-        <location filename="../src/ModelViewer.cpp" line="2807"/>
-        <location filename="../src/ModelViewer.cpp" line="2812"/>
-        <location filename="../src/ModelViewer.cpp" line="2817"/>
-        <location filename="../src/ModelViewer.cpp" line="2822"/>
-        <location filename="../src/ModelViewer.cpp" line="2827"/>
+        <location filename="../src/ModelViewer.cpp" line="2347"/>
+        <location filename="../src/ModelViewer.cpp" line="2352"/>
+        <location filename="../src/ModelViewer.cpp" line="2357"/>
+        <location filename="../src/ModelViewer.cpp" line="2362"/>
+        <location filename="../src/ModelViewer.cpp" line="2367"/>
+        <location filename="../src/ModelViewer.cpp" line="2372"/>
         <source>PBR Texture Missing</source>
         <translation>PBR Falta de Textura</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2802"/>
+        <location filename="../src/ModelViewer.cpp" line="2347"/>
         <source>Albedo map texture not set</source>
         <translation>Textura del mapa de albedo no establecida</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2807"/>
+        <location filename="../src/ModelViewer.cpp" line="2352"/>
         <source>Metallic map texture not set</source>
         <translation>Textura de mapa metálico no establecida</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2812"/>
+        <location filename="../src/ModelViewer.cpp" line="2357"/>
         <source>Roughness map texture not set</source>
         <translation>Textura del mapa de rugosidad no establecida</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2817"/>
-        <location filename="../src/ModelViewer.cpp" line="3374"/>
+        <location filename="../src/ModelViewer.cpp" line="2362"/>
+        <location filename="../src/ModelViewer.cpp" line="2919"/>
         <source>Normal map texture not set</source>
         <translation>Textura del mapa normal no establecida</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2822"/>
+        <location filename="../src/ModelViewer.cpp" line="2367"/>
         <source>AO map texture not set</source>
         <translation>Textura del mapa AO no establecida</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="2827"/>
-        <location filename="../src/ModelViewer.cpp" line="3379"/>
+        <location filename="../src/ModelViewer.cpp" line="2372"/>
+        <location filename="../src/ModelViewer.cpp" line="2924"/>
         <source>Height map texture not set</source>
         <translation>Textura del mapa de altura no establecida</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3364"/>
-        <location filename="../src/ModelViewer.cpp" line="3369"/>
-        <location filename="../src/ModelViewer.cpp" line="3374"/>
-        <location filename="../src/ModelViewer.cpp" line="3379"/>
+        <location filename="../src/ModelViewer.cpp" line="2909"/>
+        <location filename="../src/ModelViewer.cpp" line="2914"/>
+        <location filename="../src/ModelViewer.cpp" line="2919"/>
+        <location filename="../src/ModelViewer.cpp" line="2924"/>
         <source>ADS Texture Missing</source>
         <translation>Falta Textura ADS</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3364"/>
+        <location filename="../src/ModelViewer.cpp" line="2909"/>
         <source>Diffuse map texture not set</source>
         <translation>Textura de mapa difuso no establecida</translation>
     </message>
     <message>
-        <location filename="../src/ModelViewer.cpp" line="3369"/>
+        <location filename="../src/ModelViewer.cpp" line="2914"/>
         <source>Specular map texture not set</source>
         <translation>Textura del mapa especular no establecida</translation>
     </message>
@@ -2966,74 +2899,305 @@ Peso: %4kg
         <translation>Algunas configuraciones tendrán efecto solo después de reiniciar la aplicación.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="16"/>
-        <location filename="../src/SettingsDialog.cpp" line="51"/>
+        <location filename="../src/SettingsDialog.cpp" line="17"/>
+        <location filename="../src/SettingsDialog.cpp" line="57"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="22"/>
-        <location filename="../src/SettingsDialog.cpp" line="53"/>
+        <location filename="../src/SettingsDialog.cpp" line="23"/>
+        <location filename="../src/SettingsDialog.cpp" line="59"/>
         <source>Cancel</source>
         <translation>Cancelar</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="28"/>
-        <location filename="../src/SettingsDialog.cpp" line="55"/>
+        <location filename="../src/SettingsDialog.cpp" line="29"/>
+        <location filename="../src/SettingsDialog.cpp" line="61"/>
         <source>Apply</source>
         <translation>Aplicar</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="34"/>
-        <location filename="../src/SettingsDialog.cpp" line="57"/>
+        <location filename="../src/SettingsDialog.cpp" line="35"/>
+        <location filename="../src/SettingsDialog.cpp" line="63"/>
         <source>Defaults</source>
         <translation>El defecto</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="124"/>
-        <location filename="../src/SettingsDialog.cpp" line="1067"/>
+        <location filename="../src/SettingsDialog.cpp" line="130"/>
+        <location filename="../src/SettingsDialog.cpp" line="1074"/>
         <source>Settings Reset</source>
         <translation>Ajustes Reset</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="124"/>
+        <location filename="../src/SettingsDialog.cpp" line="130"/>
         <source>All settings have been cleared.</source>
         <translation>Todos los ajustes han sido aclarados.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="803"/>
         <source>Language Change</source>
-        <translation>Cambio de Idioma</translation>
+        <translation type="vanished">Cambio de Idioma</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="803"/>
         <source>Please restart the application for the language change to take effect.</source>
-        <translation>Por favor reinicie la solicitud para que el cambio de idioma surta efecto.</translation>
+        <translation type="vanished">Por favor reinicie la solicitud para que el cambio de idioma surta efecto.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="973"/>
+        <location filename="../src/SettingsDialog.cpp" line="980"/>
         <source>MSAA Change</source>
         <translation>MSAA Cambio</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="973"/>
+        <location filename="../src/SettingsDialog.cpp" line="980"/>
         <source>Please restart the application for the MSAA change to take effect.</source>
         <translation>Por favor reinicie la solicitud para que el cambio MSAA surta efecto.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="979"/>
+        <location filename="../src/SettingsDialog.cpp" line="986"/>
         <source>Anisotropy Change</source>
         <translation>Cambio de Anisotropía</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="979"/>
+        <location filename="../src/SettingsDialog.cpp" line="986"/>
         <source>Please restart the application for the anisotropy change to take effect.</source>
         <translation>Por favor reinicie la aplicación para que el cambio de anisotropía surta efecto.</translation>
     </message>
     <message>
-        <location filename="../src/SettingsDialog.cpp" line="1067"/>
+        <location filename="../src/SettingsDialog.cpp" line="1074"/>
         <source>UV Prompt settings have been cleared.</source>
         <translation>Los ajustes UV Prompt han sido despejados.</translation>
+    </message>
+</context>
+<context>
+    <name>ViewToolbar</name>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="90"/>
+        <location filename="../src/ViewToolbar.cpp" line="503"/>
+        <source>Rotate View</source>
+        <translation>Vista giratoria</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="99"/>
+        <location filename="../src/ViewToolbar.cpp" line="504"/>
+        <source>Pan View</source>
+        <translation>Vista Panorámica</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="108"/>
+        <location filename="../src/ViewToolbar.cpp" line="505"/>
+        <source>Zoom View</source>
+        <translation>Vista Zoom</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="117"/>
+        <location filename="../src/ViewToolbar.cpp" line="506"/>
+        <source>Fit All</source>
+        <translation>Adjustar Todo</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="126"/>
+        <location filename="../src/ViewToolbar.cpp" line="507"/>
+        <source>Window Zoom</source>
+        <translation>Zoom de Ventana</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="135"/>
+        <location filename="../src/ViewToolbar.cpp" line="510"/>
+        <source>Camera Modes</source>
+        <translation>Modos de Cámara</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="142"/>
+        <location filename="../src/ViewToolbar.cpp" line="511"/>
+        <source>Orbit</source>
+        <translation>Órbita</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="144"/>
+        <location filename="../src/ViewToolbar.cpp" line="512"/>
+        <source>Fly</source>
+        <translation>Volar</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="146"/>
+        <location filename="../src/ViewToolbar.cpp" line="513"/>
+        <source>First Person</source>
+        <translation>Primera Persona</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="194"/>
+        <location filename="../src/ViewToolbar.cpp" line="516"/>
+        <source>Top View</source>
+        <translation>Vista Superior</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="194"/>
+        <location filename="../src/ViewToolbar.cpp" line="517"/>
+        <source>Top</source>
+        <translation>Top</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="195"/>
+        <location filename="../src/ViewToolbar.cpp" line="518"/>
+        <source>Front View</source>
+        <translation>Vista Frontal</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="195"/>
+        <location filename="../src/ViewToolbar.cpp" line="519"/>
+        <source>Front</source>
+        <translation>Frente</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="196"/>
+        <location filename="../src/ViewToolbar.cpp" line="520"/>
+        <source>Left View</source>
+        <translation>Vista Izquierda</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="196"/>
+        <location filename="../src/ViewToolbar.cpp" line="521"/>
+        <source>Left</source>
+        <translation>Izquierda</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="197"/>
+        <location filename="../src/ViewToolbar.cpp" line="522"/>
+        <source>Bottom View</source>
+        <translation>Punto de Vista</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="197"/>
+        <location filename="../src/ViewToolbar.cpp" line="523"/>
+        <source>Bottom</source>
+        <translation>Del fondo</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="198"/>
+        <location filename="../src/ViewToolbar.cpp" line="524"/>
+        <source>Rear View</source>
+        <translation>Vista Trasero</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="198"/>
+        <location filename="../src/ViewToolbar.cpp" line="525"/>
+        <source>Rear</source>
+        <translation>Trasero</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="199"/>
+        <location filename="../src/ViewToolbar.cpp" line="526"/>
+        <source>Right View</source>
+        <translation>Vista Derecha</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="199"/>
+        <location filename="../src/ViewToolbar.cpp" line="527"/>
+        <source>Right</source>
+        <translation>Bien</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="205"/>
+        <location filename="../src/ViewToolbar.cpp" line="530"/>
+        <source>Axonometric View</source>
+        <translation>Vista Axonométrica</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="223"/>
+        <location filename="../src/ViewToolbar.cpp" line="531"/>
+        <source>Isometric</source>
+        <translation>Isométrico</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="227"/>
+        <location filename="../src/ViewToolbar.cpp" line="532"/>
+        <source>Dimetric</source>
+        <translation>Dimétrico</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="229"/>
+        <location filename="../src/ViewToolbar.cpp" line="533"/>
+        <source>Trimetric</source>
+        <translation>Trimétrico</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="268"/>
+        <location filename="../src/ViewToolbar.cpp" line="536"/>
+        <source>Toggle Projection</source>
+        <translation>Alternar Proyección</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="275"/>
+        <source>Switch to Perspective</source>
+        <translation>Cambiar a Perspectiva</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="279"/>
+        <source>Switch to Orthographic</source>
+        <translation>Cambiar a Ortográfico</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="291"/>
+        <location filename="../src/ViewToolbar.cpp" line="539"/>
+        <source>Toggle Multi-View</source>
+        <translation>Activar/Desactivar Vista Múltiple</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="311"/>
+        <location filename="../src/ViewToolbar.cpp" line="542"/>
+        <source>Display Modes</source>
+        <translation>Modos de Visualización</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="318"/>
+        <location filename="../src/ViewToolbar.cpp" line="543"/>
+        <source>Realistic</source>
+        <translation>Realista</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="319"/>
+        <location filename="../src/ViewToolbar.cpp" line="544"/>
+        <source>Shaded</source>
+        <translation>Sombreado</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="320"/>
+        <location filename="../src/ViewToolbar.cpp" line="545"/>
+        <source>Wireframe</source>
+        <translation>Estructura Alámbrica</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="321"/>
+        <location filename="../src/ViewToolbar.cpp" line="546"/>
+        <source>Wire Shaded</source>
+        <translation>Sombreado por Cables</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="365"/>
+        <location filename="../src/ViewToolbar.cpp" line="549"/>
+        <source>Clipping Planes</source>
+        <translation>Planes de Deslizamiento</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="376"/>
+        <location filename="../src/ViewToolbar.cpp" line="552"/>
+        <source>Swap Visible</source>
+        <translation>Intercambio Visible</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="387"/>
+        <location filename="../src/ViewToolbar.cpp" line="555"/>
+        <source>Show/Hide Axis</source>
+        <translation>Mostrar/Ocultar Eje</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="396"/>
+        <source>Show the trihedron</source>
+        <translation>Mostrar el Triedro</translation>
+    </message>
+    <message>
+        <location filename="../src/ViewToolbar.cpp" line="401"/>
+        <source>Hide the trihedron</source>
+        <translation>Ocultar el Triedro</translation>
     </message>
 </context>
 </TS>
