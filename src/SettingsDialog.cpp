@@ -177,6 +177,7 @@ void SettingsDialog::applySettings()
     // Display tab
     settings.setValue("showBoundingBoxCheckBox", display_showBoundingBox);
     settings.setValue("showCornerTrihedronCheckBox", display_showCornerTrihedron);
+    settings.setValue("comboBoxCornerTrihedronPosition", display_cornerTrihedronPosition);
     settings.setValue("showGridCheckBox", display_showGrid);
     settings.setValue("showWireframeCheckBox", display_showWireframe);
     settings.setValue("fieldOfViewSpinBox", display_fieldOfView);
@@ -305,6 +306,7 @@ void SettingsDialog::setDefaultValues()
     // Display tab
     ui->showBoundingBoxCheckBox->setChecked(false);    // No 'checked' property found
     ui->showCornerTrihedronCheckBox->setChecked(true); // Explicitly set to true
+    ui->comboBoxCornerTrihedronPosition->setCurrentIndex(1); // Explicitly set to 1
     ui->showGridCheckBox->setChecked(true);            // Explicitly set to true
     ui->showWireframeCheckBox->setChecked(false);      // No 'checked' property found
     ui->fieldOfViewSpinBox->setValue(60);              // Explicitly set
@@ -451,6 +453,8 @@ void SettingsDialog::loadSettings()
     ui->showBoundingBoxCheckBox->setChecked(bVal);
     bVal = settings.value("showCornerTrihedronCheckBox", ui->showCornerTrihedronCheckBox->isChecked()).toBool();
     ui->showCornerTrihedronCheckBox->setChecked(bVal);
+    iVal = settings.value("comboBoxCornerTrihedronPosition", ui->comboBoxCornerTrihedronPosition->currentIndex()).toInt();
+    ui->comboBoxCornerTrihedronPosition->setCurrentIndex(iVal);
     dVal = settings.value("farPlaneSpinBox", ui->farPlaneSpinBox->value()).toDouble();
     ui->farPlaneSpinBox->setValue(dVal);
     iVal = settings.value("fieldOfViewSpinBox", ui->fieldOfViewSpinBox->value()).toInt();
@@ -623,12 +627,13 @@ void SettingsDialog::saveSettings()
     settings.setValue("comboBoxGradientStyle", ui->comboBoxGradientStyle->currentIndex());
     settings.setValue("showBoundingBoxCheckBox", ui->showBoundingBoxCheckBox->isChecked());
     settings.setValue("showCornerTrihedronCheckBox", ui->showCornerTrihedronCheckBox->isChecked());
+    settings.setValue("comboBoxCornerTrihedronPosition", ui->comboBoxCornerTrihedronPosition->currentIndex());
     settings.setValue("farPlaneSpinBox", ui->farPlaneSpinBox->value());
     settings.setValue("fieldOfViewSpinBox", ui->fieldOfViewSpinBox->value());
     settings.setValue("showGridCheckBox", ui->showGridCheckBox->isChecked());
     settings.setValue("nearPlaneSpinBox", ui->nearPlaneSpinBox->value());
     settings.setValue("showWireframeCheckBox", ui->showWireframeCheckBox->isChecked());
-    settings.setValue("showCenterTrihedronCheckBox", ui->showCenterTrihedronCheckBox->isChecked());
+    settings.setValue("showCenterTrihedronCheckBox", ui->showCenterTrihedronCheckBox->isChecked());    
     settings.setValue("navigationModeComboBox", ui->navigationModeComboBox->currentIndex());
     settings.setValue("mouseSensitivitySlider", ui->mouseSensitivitySlider->value());
     settings.setValue("zoomSensitivitySlider", ui->zoomSensitivitySlider->value());
@@ -758,7 +763,7 @@ void SettingsDialog::restoreDefaults()
         ui->checkTrackball, ui->checkInvertZoom, ui->spinZoomFactor,
         ui->comboBoxBackgroundStyle, ui->pushButtonTopColor, ui->pushButtonBottomColor,
         ui->comboBoxGradientStyle, ui->showBoundingBoxCheckBox, ui->showCornerTrihedronCheckBox,
-        ui->farPlaneSpinBox, ui->fieldOfViewSpinBox, ui->showGridCheckBox,
+        ui->comboBoxCornerTrihedronPosition, ui->farPlaneSpinBox, ui->fieldOfViewSpinBox, ui->showGridCheckBox,
         ui->nearPlaneSpinBox, ui->showWireframeCheckBox, ui->showCenterTrihedronCheckBox,
         ui->navigationModeComboBox, ui->mouseSensitivitySlider, ui->zoomSensitivitySlider,
         ui->invertYAxisCheckBox, ui->smoothNavigationCheckBox, ui->comboShadingMode,
@@ -895,6 +900,11 @@ void SettingsDialog::on_showBoundingBoxCheckBox_stateChanged()
 void SettingsDialog::on_showCornerTrihedronCheckBox_stateChanged()
 {
     display_showCornerTrihedron = ui->showCornerTrihedronCheckBox->isChecked();
+}
+
+void SettingsDialog::on_comboBoxCornerTrihedronPosition_currentIndexChanged()
+{
+    display_cornerTrihedronPosition = ui->comboBoxCornerTrihedronPosition->currentIndex();
 }
 
 void SettingsDialog::on_farPlaneSpinBox_valueChanged()

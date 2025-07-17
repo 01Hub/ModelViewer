@@ -56,6 +56,8 @@ public:
 	void setPanningActive(bool active);
 	void setZoomingActive(bool active);
 
+	void setCornerAxisPosition(CornerAxisPosition position) { _cornerAxisPosition = position; }
+ 
 	void beginWindowZoom();
 	void performWindowZoom();
 
@@ -547,6 +549,8 @@ private:
 	QOpenGLBuffer _axisVBO;
 	QOpenGLBuffer _axisCBO;
 
+	CornerAxisPosition _cornerAxisPosition = CornerAxisPosition::TOP_RIGHT;
+
 	std::vector<TriangleMesh*> _meshStore;
 	std::vector<int> _displayedObjectsIds;
 	std::vector<int> _hiddenObjectsIds;
@@ -608,7 +612,7 @@ private:
 	unsigned long long _displayedObjectsMemSize;
 
     AssImpModelLoader* _assimpModelLoader;	
-	bool _progressiveLoadingEnabled = false;	
+	bool _progressiveLoadingEnabled = false;
 };
 
 #endif

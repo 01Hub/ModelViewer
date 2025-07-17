@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>946</width>
-    <height>669</height>
+    <height>760</height>
    </rect>
   </property>
   <property name="minimumSize">
@@ -20,6 +20,23 @@
    <string>Settings</string>
   </property>
   <layout class="QGridLayout" name="gridLayout_4">
+   <item row="2" column="0">
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="orientation">
+      <enum>Qt::Orientation::Horizontal</enum>
+     </property>
+     <property name="standardButtons">
+      <set>QDialogButtonBox::StandardButton::Apply|QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok|QDialogButtonBox::StandardButton::RestoreDefaults</set>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="label_5">
+     <property name="text">
+      <string>Some settings will take effect only after restarting the application.</string>
+     </property>
+    </widget>
+   </item>
    <item row="0" column="0">
     <widget class="QTabWidget" name="tabWidget">
      <property name="currentIndex">
@@ -30,7 +47,121 @@
        <string>General</string>
       </attribute>
       <layout class="QGridLayout" name="gridLayout_2">
-       <item row="6" column="0">
+       <item row="0" column="0">
+        <widget class="QLabel" name="labelTheme">
+         <property name="text">
+          <string>Theme</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="comboBoxTheme">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <item>
+          <property name="text">
+           <string>System Default</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Light</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Dark</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="labelLanguage">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Language</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QComboBox" name="comboBoxLanguage">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <item>
+          <property name="text">
+           <string>English</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>French</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>German</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Spanish</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Italian</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="2" column="0" colspan="2">
+        <widget class="QCheckBox" name="checkPromptOverwrite">
+         <property name="text">
+          <string>Prompt Before Overwriting Model</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0" colspan="2">
+        <widget class="QCheckBox" name="checkRestoreLastFile">
+         <property name="text">
+          <string>Restore Last Opened File at Startup</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0" colspan="2">
+        <widget class="QCheckBox" name="checkTooltips">
+         <property name="text">
+          <string>Enable Tooltips</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0" colspan="2">
+        <widget class="QCheckBox" name="checkConfirmExit">
+         <property name="text">
+          <string>Confirm on Exit</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="1">
         <spacer name="verticalSpacer">
          <property name="orientation">
           <enum>Qt::Orientation::Vertical</enum>
@@ -42,128 +173,6 @@
           </size>
          </property>
         </spacer>
-       </item>
-       <item row="3" column="0">
-        <widget class="QCheckBox" name="checkRestoreLastFile">
-         <property name="text">
-          <string>Restore Last Opened File at Startup</string>
-         </property>
-        </widget>
-       </item>
-       <item row="4" column="0">
-        <widget class="QCheckBox" name="checkTooltips">
-         <property name="text">
-          <string>Enable Tooltips</string>
-         </property>
-         <property name="checked">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="0">
-        <layout class="QHBoxLayout" name="horizontalLayout_6">
-         <item>
-          <widget class="QLabel" name="labelTheme">
-           <property name="text">
-            <string>Theme</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QComboBox" name="comboBoxTheme">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <item>
-            <property name="text">
-             <string>System Default</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Light</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Dark</string>
-            </property>
-           </item>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item row="1" column="0">
-        <layout class="QHBoxLayout" name="horizontalLayout_7">
-         <item>
-          <widget class="QLabel" name="labelLanguage">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Minimum" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>Language</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QComboBox" name="comboBoxLanguage">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <item>
-            <property name="text">
-             <string>English</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>French</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>German</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Spanish</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Italian</string>
-            </property>
-           </item>
-          </widget>
-         </item>
-        </layout>
-       </item>
-       <item row="2" column="0">
-        <widget class="QCheckBox" name="checkPromptOverwrite">
-         <property name="text">
-          <string>Prompt Before Overwriting Model</string>
-         </property>
-         <property name="checked">
-          <bool>true</bool>
-         </property>
-        </widget>
-       </item>
-       <item row="5" column="0">
-        <widget class="QCheckBox" name="checkConfirmExit">
-         <property name="text">
-          <string>Confirm on Exit</string>
-         </property>
-        </widget>
        </item>
       </layout>
      </widget>
@@ -345,126 +354,110 @@
       </attribute>
       <layout class="QGridLayout" name="gridLayout">
        <item row="0" column="0">
-        <layout class="QHBoxLayout" name="horizontalLayout_8">
+        <widget class="QLabel" name="labelBackground">
+         <property name="text">
+          <string>Background Style</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="comboBoxBackgroundStyle">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
          <item>
-          <widget class="QLabel" name="labelBackground">
-           <property name="text">
-            <string>Background Style</string>
-           </property>
-          </widget>
+          <property name="text">
+           <string>Gradient</string>
+          </property>
          </item>
          <item>
-          <widget class="QComboBox" name="comboBoxBackgroundStyle">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <item>
-            <property name="text">
-             <string>Gradient</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Solid</string>
-            </property>
-           </item>
-          </widget>
+          <property name="text">
+           <string>Solid</string>
+          </property>
          </item>
-        </layout>
+        </widget>
        </item>
        <item row="1" column="0">
-        <layout class="QHBoxLayout" name="horizontalLayout_9">
-         <item>
-          <widget class="QLabel" name="labelTopColor">
-           <property name="text">
-            <string>Top Color</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="pushButtonTopColor">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>Choose...</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
+        <widget class="QLabel" name="labelTopColor">
+         <property name="text">
+          <string>Top Color</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QPushButton" name="pushButtonTopColor">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Choose...</string>
+         </property>
+        </widget>
        </item>
        <item row="2" column="0">
-        <layout class="QHBoxLayout" name="horizontalLayout_10">
-         <item>
-          <widget class="QLabel" name="labelBottomColor">
-           <property name="text">
-            <string>Bottom Color</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QPushButton" name="pushButtonBottomColor">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>Choose...</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
+        <widget class="QLabel" name="labelBottomColor">
+         <property name="text">
+          <string>Bottom Color</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1">
+        <widget class="QPushButton" name="pushButtonBottomColor">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>Choose...</string>
+         </property>
+        </widget>
        </item>
        <item row="3" column="0">
-        <layout class="QHBoxLayout" name="horizontalLayout_11">
-         <item>
-          <widget class="QLabel" name="labelDefaultView">
-           <property name="text">
-            <string>Gradient Style</string>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QComboBox" name="comboBoxGradientStyle">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <item>
-            <property name="text">
-             <string>Vertical</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Horizontal</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Top Left to Bottom Right</string>
-            </property>
-           </item>
-           <item>
-            <property name="text">
-             <string>Top Rightto Bottom Left</string>
-            </property>
-           </item>
-          </widget>
-         </item>
-        </layout>
+        <widget class="QLabel" name="labelDefaultView">
+         <property name="text">
+          <string>Gradient Style</string>
+         </property>
+        </widget>
        </item>
-       <item row="4" column="0">
+       <item row="3" column="1">
+        <widget class="QComboBox" name="comboBoxGradientStyle">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <item>
+          <property name="text">
+           <string>Vertical</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Horizontal</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Top Left to Bottom Right</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Top Rightto Bottom Left</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="4" column="1">
         <spacer name="verticalSpacer_4">
          <property name="orientation">
           <enum>Qt::Orientation::Vertical</enum>
@@ -472,7 +465,7 @@
          <property name="sizeHint" stdset="0">
           <size>
            <width>20</width>
-           <height>302</height>
+           <height>517</height>
           </size>
          </property>
         </spacer>
@@ -490,10 +483,13 @@
           <string>Viewport</string>
          </property>
          <layout class="QGridLayout" name="gridLayout_12">
-          <item row="3" column="0">
-           <widget class="QCheckBox" name="showBoundingBoxCheckBox">
+          <item row="0" column="0">
+           <widget class="QCheckBox" name="showGridCheckBox">
             <property name="text">
-             <string>Show Bounding Box</string>
+             <string>Show Grid</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
             </property>
            </widget>
           </item>
@@ -507,10 +503,80 @@
             </property>
            </widget>
           </item>
-          <item row="7" column="0">
-           <widget class="QLabel" name="farPlaneLabel">
+          <item row="2" column="0">
+           <widget class="QCheckBox" name="showCenterTrihedronCheckBox">
             <property name="text">
-             <string>Far Plane:</string>
+             <string>Show Center Trihedron</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1">
+           <widget class="QLabel" name="label_7">
+            <property name="text">
+             <string>Position</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="2">
+           <widget class="QComboBox" name="comboBoxCornerTrihedronPosition">
+            <property name="minimumSize">
+             <size>
+              <width>100</width>
+              <height>0</height>
+             </size>
+            </property>
+            <property name="currentIndex">
+             <number>1</number>
+            </property>
+            <item>
+             <property name="text">
+              <string>Top Left</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Top Right</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Bottom Left</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Bottom Right</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QCheckBox" name="showBoundingBoxCheckBox">
+            <property name="text">
+             <string>Show Bounding Box</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="3" rowspan="2">
+           <spacer name="horizontalSpacer">
+            <property name="orientation">
+             <enum>Qt::Orientation::Horizontal</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>558</width>
+              <height>20</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+          <item row="4" column="0">
+           <widget class="QCheckBox" name="showWireframeCheckBox">
+            <property name="text">
+             <string>Show Wireframe</string>
             </property>
            </widget>
           </item>
@@ -521,23 +587,7 @@
             </property>
            </widget>
           </item>
-          <item row="7" column="1">
-           <widget class="QDoubleSpinBox" name="farPlaneSpinBox">
-            <property name="minimum">
-             <double>10.000000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>10000.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>10.000000000000000</double>
-            </property>
-            <property name="value">
-             <double>1000.000000000000000</double>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="1">
+          <item row="5" column="2">
            <widget class="QSpinBox" name="fieldOfViewSpinBox">
             <property name="minimum">
              <number>10</number>
@@ -557,17 +607,7 @@
             </property>
            </widget>
           </item>
-          <item row="0" column="0">
-           <widget class="QCheckBox" name="showGridCheckBox">
-            <property name="text">
-             <string>Show Grid</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="1">
+          <item row="6" column="2">
            <widget class="QDoubleSpinBox" name="nearPlaneSpinBox">
             <property name="minimum">
              <double>0.000000000000000</double>
@@ -583,20 +623,26 @@
             </property>
            </widget>
           </item>
-          <item row="4" column="0">
-           <widget class="QCheckBox" name="showWireframeCheckBox">
+          <item row="7" column="0">
+           <widget class="QLabel" name="farPlaneLabel">
             <property name="text">
-             <string>Show Wireframe</string>
+             <string>Far Plane:</string>
             </property>
            </widget>
           </item>
-          <item row="2" column="0" colspan="2">
-           <widget class="QCheckBox" name="showCenterTrihedronCheckBox">
-            <property name="text">
-             <string>Show Center Trihedron</string>
+          <item row="7" column="2">
+           <widget class="QDoubleSpinBox" name="farPlaneSpinBox">
+            <property name="minimum">
+             <double>10.000000000000000</double>
             </property>
-            <property name="checked">
-             <bool>true</bool>
+            <property name="maximum">
+             <double>10000.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>10.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>1000.000000000000000</double>
             </property>
            </widget>
           </item>
@@ -1854,25 +1900,107 @@
      </widget>
     </widget>
    </item>
-   <item row="2" column="0">
-    <widget class="QDialogButtonBox" name="buttonBox">
-     <property name="orientation">
-      <enum>Qt::Orientation::Horizontal</enum>
-     </property>
-     <property name="standardButtons">
-      <set>QDialogButtonBox::StandardButton::Apply|QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok|QDialogButtonBox::StandardButton::RestoreDefaults</set>
-     </property>
-    </widget>
-   </item>
-   <item row="1" column="0">
-    <widget class="QLabel" name="label_5">
-     <property name="text">
-      <string>Some settings will take effect only after restarting the application.</string>
-     </property>
-    </widget>
-   </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>tabWidget</tabstop>
+  <tabstop>comboBoxTheme</tabstop>
+  <tabstop>comboBoxLanguage</tabstop>
+  <tabstop>checkPromptOverwrite</tabstop>
+  <tabstop>checkRestoreLastFile</tabstop>
+  <tabstop>checkTooltips</tabstop>
+  <tabstop>checkConfirmExit</tabstop>
+  <tabstop>comboProjectionMode</tabstop>
+  <tabstop>comboDefaultView</tabstop>
+  <tabstop>comboDefaultProjection</tabstop>
+  <tabstop>checkTrackball</tabstop>
+  <tabstop>checkInvertZoom</tabstop>
+  <tabstop>spinZoomFactor</tabstop>
+  <tabstop>comboBoxBackgroundStyle</tabstop>
+  <tabstop>pushButtonTopColor</tabstop>
+  <tabstop>pushButtonBottomColor</tabstop>
+  <tabstop>comboBoxGradientStyle</tabstop>
+  <tabstop>showGridCheckBox</tabstop>
+  <tabstop>showCornerTrihedronCheckBox</tabstop>
+  <tabstop>showCenterTrihedronCheckBox</tabstop>
+  <tabstop>comboBoxCornerTrihedronPosition</tabstop>
+  <tabstop>showBoundingBoxCheckBox</tabstop>
+  <tabstop>showWireframeCheckBox</tabstop>
+  <tabstop>fieldOfViewSpinBox</tabstop>
+  <tabstop>nearPlaneSpinBox</tabstop>
+  <tabstop>farPlaneSpinBox</tabstop>
+  <tabstop>navigationModeComboBox</tabstop>
+  <tabstop>mouseSensitivitySlider</tabstop>
+  <tabstop>zoomSensitivitySlider</tabstop>
+  <tabstop>invertYAxisCheckBox</tabstop>
+  <tabstop>smoothNavigationCheckBox</tabstop>
+  <tabstop>comboShadingMode</tabstop>
+  <tabstop>checkBackfaceCulling</tabstop>
+  <tabstop>checkNormalMap</tabstop>
+  <tabstop>shaderModelComboBox</tabstop>
+  <tabstop>msaaComboBox</tabstop>
+  <tabstop>anisotropyComboBox</tabstop>
+  <tabstop>enableLightingCheckBox</tabstop>
+  <tabstop>enableShadowsCheckBox</tabstop>
+  <tabstop>ambientLightSlider</tabstop>
+  <tabstop>diffuseLightSlider</tabstop>
+  <tabstop>specularLightSlider</tabstop>
+  <tabstop>comboBoxDefaultMaterial</tabstop>
+  <tabstop>lineEditTextureDir</tabstop>
+  <tabstop>comboUVMethod</tabstop>
+  <tabstop>spinAngleThreshold</tabstop>
+  <tabstop>checkPreserveUVs</tabstop>
+  <tabstop>checkAutoPackUVs</tabstop>
+  <tabstop>checkRelaxUVs</tabstop>
+  <tabstop>checkPCAProjection</tabstop>
+  <tabstop>checkXatlasPackingOnly</tabstop>
+  <tabstop>checkRememberUV</tabstop>
+  <tabstop>buttonResetUVPrompt</tabstop>
+  <tabstop>tessellationQualitySlider</tabstop>
+  <tabstop>linearDeflectionSpinBox</tabstop>
+  <tabstop>angularDeflectionSpinBox</tabstop>
+  <tabstop>occtUnifyFacesCheckBox</tabstop>
+  <tabstop>occtUnifyEdgesCheckBox</tabstop>
+  <tabstop>occtBuildCurvesCheckBox</tabstop>
+  <tabstop>assimpTriangulateCheckBox</tabstop>
+  <tabstop>assimpGenNormalsCheckBox</tabstop>
+  <tabstop>assimpSmoothNormalsCheckBox</tabstop>
+  <tabstop>assimpCalcTangentsCheckBox</tabstop>
+  <tabstop>assimpOptimizeMeshCheckBox</tabstop>
+  <tabstop>assimpRemoveDuplicatesCheckBox</tabstop>
+  <tabstop>assimpMaxFaceVerticesSpinBox</tabstop>
+  <tabstop>checkMultithreadedLoad</tabstop>
+  <tabstop>spinThreadLimit</tabstop>
+  <tabstop>checkSkyboxBlending</tabstop>
+  <tabstop>checkProgressiveLoading</tabstop>
+  <tabstop>maxFpsSpinBox</tabstop>
+  <tabstop>vsyncCheckBox</tabstop>
+  <tabstop>frustumCullingCheckBox</tabstop>
+  <tabstop>backfaceCullingCheckBox</tabstop>
+  <tabstop>levelOfDetailCheckBox</tabstop>
+  <tabstop>maxVerticesSpinBox</tabstop>
+  <tabstop>textureCacheSizeSpinBox</tabstop>
+  <tabstop>geometryCacheSizeSpinBox</tabstop>
+  <tabstop>compressTexturesCheckBox</tabstop>
+  <tabstop>generateMipmapsCheckBox</tabstop>
+  <tabstop>comboBoxOpenGLVersion</tabstop>
+  <tabstop>checkBoxVSync</tabstop>
+  <tabstop>spinBoxThreads</tabstop>
+  <tabstop>checkShaderHotReload</tabstop>
+  <tabstop>checkShowFPS</tabstop>
+  <tabstop>checkLegacyOpenGL</tabstop>
+  <tabstop>showFpsCheckBox</tabstop>
+  <tabstop>showMemoryUsageCheckBox</tabstop>
+  <tabstop>showRenderStatsCheckBox</tabstop>
+  <tabstop>showOpenGLInfoCheckBox</tabstop>
+  <tabstop>enableLoggingCheckBox</tabstop>
+  <tabstop>logLevelComboBox</tabstop>
+  <tabstop>checkOpenGLErrorsCheckBox</tabstop>
+  <tabstop>validateShadersCheckBox</tabstop>
+  <tabstop>profileRenderingCheckBox</tabstop>
+  <tabstop>clearCacheButton</tabstop>
+  <tabstop>resetSettingsButton</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

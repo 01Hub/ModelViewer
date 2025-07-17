@@ -450,6 +450,8 @@ void GLWidget::initializeGL()
 	// Set Anisotropic Filtering Level
 	int anIsoVals[] = { 1, 2, 4, 8, 16, 32 };
 	_anisotropicFilteringLevel = anIsoVals[settings.value("anisotropyComboBox", 4).toInt()];
+
+	_cornerAxisPosition = static_cast<CornerAxisPosition>(settings.value("comboBoxCornerTrihedronPosition", 1).toInt());
 	
 	makeCurrent();
 
@@ -2760,7 +2762,7 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
 	render(_primaryCamera);
-	drawCornerAxis(CornerAxisPosition::TOP_RIGHT);
+	drawCornerAxis(_cornerAxisPosition);
 }
 
 void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)

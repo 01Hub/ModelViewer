@@ -51,6 +51,7 @@ public:
     // Display tab
     bool displayShowBoundingBox() const { return display_showBoundingBox; }
     bool displayShowCornerTrihedron() const { return display_showCornerTrihedron; }
+    int  displayCornerTrihedronPosition() const { return display_cornerTrihedronPosition; }
     bool displayShowGrid() const { return display_showGrid; }
     bool displayShowWireframe() const { return display_showWireframe; }
     int displayFieldOfView() const { return display_fieldOfView; }
@@ -179,6 +180,7 @@ private slots:
     void on_comboBoxGradientStyle_currentIndexChanged();
     void on_showBoundingBoxCheckBox_stateChanged();
     void on_showCornerTrihedronCheckBox_stateChanged();
+    void on_comboBoxCornerTrihedronPosition_currentIndexChanged();
     void on_farPlaneSpinBox_valueChanged();
     void on_fieldOfViewSpinBox_valueChanged();
     void on_showGridCheckBox_stateChanged();
@@ -292,6 +294,7 @@ private:
     // Display tab
     bool display_showBoundingBox = false;
     bool display_showCornerTrihedron = true;
+    int display_cornerTrihedronPosition = 1;
     bool display_showGrid = true;
     bool display_showWireframe = false;
     int display_fieldOfView = 60;

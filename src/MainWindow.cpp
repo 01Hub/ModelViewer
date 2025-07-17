@@ -530,7 +530,8 @@ void MainWindow::on_actionSettings_triggered()
 			{
 				int anIsoVals[] = {1, 2, 4, 8, 16};
 				int idx = settingsDialog->renderingAnisotropyIndex();
-				viewer->getGLView()->setAnisotropicFilteringLevel(anIsoVals[idx]);				
+				viewer->getGLView()->setAnisotropicFilteringLevel(anIsoVals[idx]);
+				viewer->getGLView()->setCornerAxisPosition(static_cast<CornerAxisPosition>(settingsDialog->displayCornerTrihedronPosition()));
 			}			
 		}		
 		});
