@@ -5285,11 +5285,18 @@ bool GLWidget::isShaded() const
 
 void GLWidget::setDisplayMode(DisplayMode mode)
 {
+	if (_displayMode == mode)
+		return;
+
 	_displayMode = mode;
+
+	if (_viewToolbar)
+		_viewToolbar->setDefaultDisplayModeAction(static_cast<DisplayModeActions>(_displayMode));
+		
 	_fgShader->bind();
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
 	_fgShader->release();
-	emit displayModeChanged(static_cast<int>(mode));
+	emit displayModeChanged(static_cast<int>(_displayMode));
 }
 
 float GLWidget::getZScale() const

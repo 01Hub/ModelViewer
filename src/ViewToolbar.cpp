@@ -165,6 +165,10 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         }
     );
 
+    m_cameraModeActions[CameraModeActions::ORBIT] = orbit;
+    m_cameraModeActions[CameraModeActions::FLY] = fly;
+    m_cameraModeActions[CameraModeActions::FIRST_PERSON] = firstperson;
+
     m_toolButtonCameraModes->setMenu(camModeMenu);
     m_toolButtonCameraModes->setDefaultAction(orbit);
 
@@ -246,6 +250,10 @@ ViewToolbar::ViewToolbar(QWidget* parent)
             emit axonometricSelected("Trimetric"); 
         }
     );
+
+    m_viewModeActions[ViewModeActions::ISOMETRIC] = iso;
+    m_viewModeActions[ViewModeActions::DIMETRIC] = dim;
+    m_viewModeActions[ViewModeActions::TRIMETRIC] = tri;    
 
     m_toolButtonIsometricView->setMenu(axoMenu);
     m_toolButtonIsometricView->setDefaultAction(iso);
@@ -330,6 +338,11 @@ ViewToolbar::ViewToolbar(QWidget* parent)
             emit displayModeSelected("WireShaded");
         }
     );
+
+    m_displayModeActions[DisplayModeActions::REALSHADED] = realistic;
+    m_displayModeActions[DisplayModeActions::WIREFRAME] = wireframe;
+    m_displayModeActions[DisplayModeActions::WIRESHADED] = wireshaded;
+    m_displayModeActions[DisplayModeActions::SHADED] = shaded;
 
     m_toolButtonDisplayModes->setMenu(dispModeMenu);
     m_toolButtonDisplayModes->setDefaultAction(shaded);
@@ -428,6 +441,24 @@ bool ViewToolbar::isFlyoutMenuVisible() const
         (m_toolButtonDisplayModes &&
             m_toolButtonDisplayModes->menu() &&
             m_toolButtonDisplayModes->menu()->isVisible());
+}
+
+void ViewToolbar::setDefaultCameraModeAction(CameraModeActions mode)
+{
+    if (m_cameraModeActions.contains(mode))
+        m_toolButtonCameraModes->setDefaultAction(m_cameraModeActions[mode]);
+}
+
+void ViewToolbar::setDefaultViewModeAction(ViewModeActions mode)
+{
+    if (m_viewModeActions.contains(mode))
+        m_toolButtonIsometricView->setDefaultAction(m_viewModeActions[mode]);
+}
+
+void ViewToolbar::setDefaultDisplayModeAction(DisplayModeActions mode)
+{
+    if (m_displayModeActions.contains(mode))
+        m_toolButtonDisplayModes->setDefaultAction(m_displayModeActions[mode]);
 }
 
 

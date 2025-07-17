@@ -8,6 +8,10 @@
 
 class FlyOutViewButton;
 
+enum class CameraModeActions { ORBIT, FLY, FIRST_PERSON };
+enum class ViewModeActions { ISOMETRIC, DIMETRIC, TRIMETRIC };
+enum class DisplayModeActions { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
+
 class ViewToolbar : public QWidget
 {
     Q_OBJECT
@@ -21,6 +25,10 @@ public:
     QRect hiddenRect() const;
     void reposition(int widgetWidth, int widgetHeight);
     bool isFlyoutMenuVisible() const;
+
+    void setDefaultCameraModeAction(CameraModeActions mode);
+    void setDefaultViewModeAction(ViewModeActions mode);
+    void setDefaultDisplayModeAction(DisplayModeActions mode);
 
 signals:
     void cameraModeSelected(const QString& type);
@@ -43,8 +51,14 @@ protected slots:
 
 private:
     FlyOutViewButton* m_toolButtonCameraModes;
+    QMap<CameraModeActions, QAction*> m_cameraModeActions;
+
     FlyOutViewButton* m_toolButtonIsometricView;
+    QMap<ViewModeActions, QAction*> m_viewModeActions;
+
     FlyOutViewButton* m_toolButtonDisplayModes;
+    QMap<DisplayModeActions, QAction*> m_displayModeActions;
+
     QPropertyAnimation* m_toolbarAnimation;
     QRect m_visibleRect;
     QRect m_hiddenRect;
