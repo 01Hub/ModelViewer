@@ -45,21 +45,21 @@ signals:
     void sectionViewToggled(bool enabled);
     void swapVisibleToggled(bool enabled);
     void axisDisplayToggled(bool enabled);
-
+    
 protected slots:
-    void paintEvent(QPaintEvent* event);
+    void paintEvent(QPaintEvent* event);    
 
 private:
-    FlyOutViewButton* m_toolButtonCameraModes;
-    QMap<CameraModeActions, QAction*> m_cameraModeActions;
+    FlyOutViewButton* _toolButtonCameraModes;
+    QMap<CameraModeActions, QAction*> _cameraModeActions;
 
-    FlyOutViewButton* m_toolButtonIsometricView;
-    QMap<ViewModeActions, QAction*> m_viewModeActions;
+    FlyOutViewButton* _toolButtonViewModes;
+    QMap<ViewModeActions, QAction*> _viewModeActions;
 
-    FlyOutViewButton* m_toolButtonDisplayModes;
-    QMap<DisplayModeActions, QAction*> m_displayModeActions;
+    FlyOutViewButton* _toolButtonDisplayModes;
+    QMap<DisplayModeActions, QAction*> _displayModeActions;
 
-    QPropertyAnimation* m_toolbarAnimation;
-    QRect m_visibleRect;
-    QRect m_hiddenRect;
+    QPropertyAnimation* _toolbarAnimation;
+    QRect _visibleRect;
+    QRect _hiddenRect;
 };

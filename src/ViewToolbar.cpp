@@ -7,6 +7,7 @@
 #include <QAction>
 #include <QPushButton>
 #include <QButtonGroup>
+#include <QPainter>
 
 ViewToolbar::ViewToolbar(QWidget* parent)
     : QWidget(parent)
@@ -127,13 +128,13 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(btn, &QToolButton::clicked, this, [this]() { emit windowZoomRequested(); });
 
     // Camera Modes
-    m_toolButtonCameraModes = new FlyOutViewButton(this);
-    m_toolButtonCameraModes->setIcon(QIcon(":/new/prefix1/res/camera_orbit_64.png"));
-    m_toolButtonCameraModes->setIconSize(QSize(48, 48));
-    m_toolButtonCameraModes->setToolTip("Camera Modes");
-    m_toolButtonCameraModes->setPopupMode(QToolButton::DelayedPopup);
-    m_toolButtonCameraModes->setAutoRaise(true);
-    layout->addWidget(m_toolButtonCameraModes);
+    _toolButtonCameraModes = new FlyOutViewButton(this);
+    _toolButtonCameraModes->setIcon(QIcon(":/new/prefix1/res/camera_orbit_64.png"));
+    _toolButtonCameraModes->setIconSize(QSize(48, 48));
+    _toolButtonCameraModes->setToolTip("Camera Modes");
+    _toolButtonCameraModes->setPopupMode(QToolButton::DelayedPopup);
+    _toolButtonCameraModes->setAutoRaise(true);
+    layout->addWidget(_toolButtonCameraModes);
 
     QMenu* camModeMenu = new QMenu;
     camModeMenu->setStyleSheet(flyoutStyleSheet);
@@ -146,31 +147,31 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     connect(orbit, &QAction::triggered, this,
         [this, orbit]() {
-            m_toolButtonCameraModes->setDefaultAction(orbit);
+            _toolButtonCameraModes->setDefaultAction(orbit);
             emit cameraModeSelected("Orbit");
         }
     );
 
     connect(fly, &QAction::triggered, this,
         [this, fly]() {
-            m_toolButtonCameraModes->setDefaultAction(fly);
+            _toolButtonCameraModes->setDefaultAction(fly);
             emit cameraModeSelected("Fly");
         }
     );
 
     connect(firstperson, &QAction::triggered, this,
         [this, firstperson]() {
-            m_toolButtonCameraModes->setDefaultAction(firstperson);
+            _toolButtonCameraModes->setDefaultAction(firstperson);
             emit cameraModeSelected("First Person");
         }
     );
 
-    m_cameraModeActions[CameraModeActions::ORBIT] = orbit;
-    m_cameraModeActions[CameraModeActions::FLY] = fly;
-    m_cameraModeActions[CameraModeActions::FIRST_PERSON] = firstperson;
+    _cameraModeActions[CameraModeActions::ORBIT] = orbit;
+    _cameraModeActions[CameraModeActions::FLY] = fly;
+    _cameraModeActions[CameraModeActions::FIRST_PERSON] = firstperson;
 
-    m_toolButtonCameraModes->setMenu(camModeMenu);
-    m_toolButtonCameraModes->setDefaultAction(orbit);
+    _toolButtonCameraModes->setMenu(camModeMenu);
+    _toolButtonCameraModes->setDefaultAction(orbit);
 
     // All views
     // Group the buttons so that only one can be checked at a time
@@ -197,16 +198,16 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 	createBtn(":/new/prefix1/res/right.png", "Right View", "Right")->setShortcut(Qt::CTRL | Qt::Key_J);
 
     // Isometric Views
-    m_toolButtonIsometricView = new FlyOutViewButton(this);
-    m_toolButtonIsometricView->setIcon(QIcon(":/new/prefix1/res/isometric.png"));
-    m_toolButtonIsometricView->setIconSize(QSize(48, 48));
-    m_toolButtonIsometricView->setToolTip("Axonometric View");
-    m_toolButtonIsometricView->setPopupMode(QToolButton::DelayedPopup);
-    m_toolButtonIsometricView->setAutoRaise(true);		
-    layout->addWidget(m_toolButtonIsometricView);    
+    _toolButtonViewModes = new FlyOutViewButton(this);
+    _toolButtonViewModes->setIcon(QIcon(":/new/prefix1/res/isometric.png"));
+    _toolButtonViewModes->setIconSize(QSize(48, 48));
+    _toolButtonViewModes->setToolTip("Axonometric View");
+    _toolButtonViewModes->setPopupMode(QToolButton::DelayedPopup);
+    _toolButtonViewModes->setAutoRaise(true);		
+    layout->addWidget(_toolButtonViewModes);    
 
     // When this button is clicked, uncheck all buttons in the group
-    connect(m_toolButtonIsometricView, &QPushButton::clicked, this, [=]() {
+    connect(_toolButtonViewModes, &QPushButton::clicked, this, [=]() {
         buttonGroup->setExclusive(false);
         for (QAbstractButton* btn : buttonGroup->buttons())
         {
@@ -230,7 +231,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(iso, &QAction::triggered, this, 
         [this, iso]() 
         {
-            m_toolButtonIsometricView->setDefaultAction(iso);
+            _toolButtonViewModes->setDefaultAction(iso);
             emit axonometricSelected("Isometric"); 
         }
     );
@@ -238,7 +239,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(dim, &QAction::triggered, this, 
         [this, dim]() 
         {
-            m_toolButtonIsometricView->setDefaultAction(dim);
+            _toolButtonViewModes->setDefaultAction(dim);
             emit axonometricSelected("Dimetric"); 
         }
     );
@@ -246,17 +247,17 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(tri, &QAction::triggered, this, 
         [this, tri]() 
         {
-			m_toolButtonIsometricView->setDefaultAction(tri);
+			_toolButtonViewModes->setDefaultAction(tri);
             emit axonometricSelected("Trimetric"); 
         }
     );
 
-    m_viewModeActions[ViewModeActions::ISOMETRIC] = iso;
-    m_viewModeActions[ViewModeActions::DIMETRIC] = dim;
-    m_viewModeActions[ViewModeActions::TRIMETRIC] = tri;    
+    _viewModeActions[ViewModeActions::ISOMETRIC] = iso;
+    _viewModeActions[ViewModeActions::DIMETRIC] = dim;
+    _viewModeActions[ViewModeActions::TRIMETRIC] = tri;    
 
-    m_toolButtonIsometricView->setMenu(axoMenu);
-    m_toolButtonIsometricView->setDefaultAction(iso);
+    _toolButtonViewModes->setMenu(axoMenu);
+    _toolButtonViewModes->setDefaultAction(iso);
 
 
     // Ortho/Perspective Projections
@@ -294,15 +295,25 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     multiBtn->setAutoRaise(true);
     layout->addWidget(multiBtn);
     connect(multiBtn, &QToolButton::toggled, this, [this](bool checked) { emit multiViewToggled(checked); });
+    // When this button is clicked, uncheck all buttons in the group
+    connect(multiBtn, &QPushButton::clicked, this, [=]() {
+        buttonGroup->setExclusive(false);
+        for (QAbstractButton* btn : buttonGroup->buttons())
+        {
+            QSignalBlocker blocker(btn);
+            btn->setChecked(false);
+        }
+        buttonGroup->setExclusive(true);
+        });
 
     // Display Modes
-    m_toolButtonDisplayModes = new FlyOutViewButton(this);
-    m_toolButtonDisplayModes->setIcon(QIcon(":/new/prefix1/res/shaded.png"));
-    m_toolButtonDisplayModes->setIconSize(QSize(48, 48));
-    m_toolButtonDisplayModes->setToolTip("Display Modes");
-    m_toolButtonDisplayModes->setPopupMode(QToolButton::DelayedPopup);
-    m_toolButtonDisplayModes->setAutoRaise(true);
-    layout->addWidget(m_toolButtonDisplayModes);
+    _toolButtonDisplayModes = new FlyOutViewButton(this);
+    _toolButtonDisplayModes->setIcon(QIcon(":/new/prefix1/res/shaded.png"));
+    _toolButtonDisplayModes->setIconSize(QSize(48, 48));
+    _toolButtonDisplayModes->setToolTip("Display Modes");
+    _toolButtonDisplayModes->setPopupMode(QToolButton::DelayedPopup);
+    _toolButtonDisplayModes->setAutoRaise(true);
+    layout->addWidget(_toolButtonDisplayModes);
 
     QMenu* dispModeMenu = new QMenu;
     dispModeMenu->setStyleSheet(flyoutStyleSheet);
@@ -313,39 +324,39 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     connect(realistic, &QAction::triggered, this,
         [this, realistic]() {
-            m_toolButtonDisplayModes->setDefaultAction(realistic);
+            _toolButtonDisplayModes->setDefaultAction(realistic);
             emit displayModeSelected("Realistic");
         }
     );
 
     connect(shaded, &QAction::triggered, this,
         [this, shaded]() {
-            m_toolButtonDisplayModes->setDefaultAction(shaded);
+            _toolButtonDisplayModes->setDefaultAction(shaded);
             emit displayModeSelected("Shaded");
         }
     );
 
     connect(wireframe, &QAction::triggered, this,
         [this, wireframe]() {
-            m_toolButtonDisplayModes->setDefaultAction(wireframe);
+            _toolButtonDisplayModes->setDefaultAction(wireframe);
             emit displayModeSelected("Wireframe");
         }
     );
 
     connect(wireshaded, &QAction::triggered, this,
         [this, wireshaded]() {
-            m_toolButtonDisplayModes->setDefaultAction(wireshaded);
+            _toolButtonDisplayModes->setDefaultAction(wireshaded);
             emit displayModeSelected("WireShaded");
         }
     );
 
-    m_displayModeActions[DisplayModeActions::REALSHADED] = realistic;
-    m_displayModeActions[DisplayModeActions::WIREFRAME] = wireframe;
-    m_displayModeActions[DisplayModeActions::WIRESHADED] = wireshaded;
-    m_displayModeActions[DisplayModeActions::SHADED] = shaded;
+    _displayModeActions[DisplayModeActions::REALSHADED] = realistic;
+    _displayModeActions[DisplayModeActions::WIREFRAME] = wireframe;
+    _displayModeActions[DisplayModeActions::WIRESHADED] = wireshaded;
+    _displayModeActions[DisplayModeActions::SHADED] = shaded;
 
-    m_toolButtonDisplayModes->setMenu(dispModeMenu);
-    m_toolButtonDisplayModes->setDefaultAction(shaded);
+    _toolButtonDisplayModes->setMenu(dispModeMenu);
+    _toolButtonDisplayModes->setDefaultAction(shaded);
 
 
     // Section View
@@ -396,25 +407,25 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
 
     // Toolbar animations
-    m_toolbarAnimation = new QPropertyAnimation(this, "geometry", this);
-    m_toolbarAnimation->setDuration(300);
-    m_toolbarAnimation->setEasingCurve(QEasingCurve::OutCubic);
+    _toolbarAnimation = new QPropertyAnimation(this, "geometry", this);
+    _toolbarAnimation->setDuration(300);
+    _toolbarAnimation->setEasingCurve(QEasingCurve::OutCubic);
 }
 
 void ViewToolbar::showAnimated() {
-    if (m_toolbarAnimation->state() == QAbstractAnimation::Running)
-        m_toolbarAnimation->stop();
-    m_toolbarAnimation->setStartValue(geometry());
-    m_toolbarAnimation->setEndValue(m_visibleRect);
-    m_toolbarAnimation->start();
+    if (_toolbarAnimation->state() == QAbstractAnimation::Running)
+        _toolbarAnimation->stop();
+    _toolbarAnimation->setStartValue(geometry());
+    _toolbarAnimation->setEndValue(_visibleRect);
+    _toolbarAnimation->start();
 }
 
 void ViewToolbar::hideAnimated() {
-    if (m_toolbarAnimation->state() == QAbstractAnimation::Running)
-        m_toolbarAnimation->stop();
-    m_toolbarAnimation->setStartValue(geometry());
-    m_toolbarAnimation->setEndValue(m_hiddenRect);
-    m_toolbarAnimation->start();
+    if (_toolbarAnimation->state() == QAbstractAnimation::Running)
+        _toolbarAnimation->stop();
+    _toolbarAnimation->setStartValue(geometry());
+    _toolbarAnimation->setEndValue(_hiddenRect);
+    _toolbarAnimation->start();
 }
 
 void ViewToolbar::reposition(int widgetWidth, int widgetHeight) {
@@ -423,46 +434,44 @@ void ViewToolbar::reposition(int widgetWidth, int widgetHeight) {
     int x = (widgetWidth - sz.width()) / 2;
     int y = widgetHeight - sz.height() - 10;
     move(x, y);
-    m_visibleRect = QRect(x, y, sz.width(), sz.height());
-    m_hiddenRect = m_visibleRect.translated(0, 80);
+    _visibleRect = QRect(x, y, sz.width(), sz.height());
+    _hiddenRect = _visibleRect.translated(0, 80);
 }
 
-QRect ViewToolbar::visibleRect() const { return m_visibleRect; }
-QRect ViewToolbar::hiddenRect() const { return m_hiddenRect; }
+QRect ViewToolbar::visibleRect() const { return _visibleRect; }
+QRect ViewToolbar::hiddenRect() const { return _hiddenRect; }
 
 bool ViewToolbar::isFlyoutMenuVisible() const
 {
-    return (m_toolButtonIsometricView &&
-        m_toolButtonIsometricView->menu() &&
-        m_toolButtonIsometricView->menu()->isVisible()) || 
-        (m_toolButtonCameraModes &&
-            m_toolButtonCameraModes->menu() &&
-            m_toolButtonCameraModes->menu()->isVisible()) ||
-        (m_toolButtonDisplayModes &&
-            m_toolButtonDisplayModes->menu() &&
-            m_toolButtonDisplayModes->menu()->isVisible());
+    return (_toolButtonViewModes &&
+        _toolButtonViewModes->menu() &&
+        _toolButtonViewModes->menu()->isVisible()) || 
+        (_toolButtonCameraModes &&
+            _toolButtonCameraModes->menu() &&
+            _toolButtonCameraModes->menu()->isVisible()) ||
+        (_toolButtonDisplayModes &&
+            _toolButtonDisplayModes->menu() &&
+            _toolButtonDisplayModes->menu()->isVisible());
 }
 
 void ViewToolbar::setDefaultCameraModeAction(CameraModeActions mode)
 {
-    if (m_cameraModeActions.contains(mode))
-        m_toolButtonCameraModes->setDefaultAction(m_cameraModeActions[mode]);
+    if (_cameraModeActions.contains(mode))
+        _toolButtonCameraModes->setDefaultAction(_cameraModeActions[mode]);
 }
 
 void ViewToolbar::setDefaultViewModeAction(ViewModeActions mode)
 {
-    if (m_viewModeActions.contains(mode))
-        m_toolButtonIsometricView->setDefaultAction(m_viewModeActions[mode]);
+    if (_viewModeActions.contains(mode))
+        _toolButtonViewModes->setDefaultAction(_viewModeActions[mode]);
 }
 
 void ViewToolbar::setDefaultDisplayModeAction(DisplayModeActions mode)
 {
-    if (m_displayModeActions.contains(mode))
-        m_toolButtonDisplayModes->setDefaultAction(m_displayModeActions[mode]);
+    if (_displayModeActions.contains(mode))
+        _toolButtonDisplayModes->setDefaultAction(_displayModeActions[mode]);
 }
 
-
-#include <QPainter>
 
 void ViewToolbar::paintEvent(QPaintEvent* event)
 {
@@ -480,3 +489,5 @@ void ViewToolbar::paintEvent(QPaintEvent* event)
 
     QWidget::paintEvent(event); // Optional, not strictly needed here
 }
+
+
