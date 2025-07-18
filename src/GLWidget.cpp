@@ -5464,10 +5464,22 @@ void GLWidget::showContextMenu(const QPoint& pos)
 
 				action = myMenu.addAction(QIcon(":/new/prefix1/res/window-zoom.png"), tr("Zoom Area"));
 				action->setCheckable(true);
-				connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonWindowZoom_clicked(bool)));
-				myMenu.addAction(QIcon(":/new/prefix1/res/zoomview.png"), tr("Zoom"), _viewer, SLOT(on_toolButtonZoomView_clicked()));
-				myMenu.addAction(QIcon(":/new/prefix1/res/panview.png"), tr("Pan"), _viewer, SLOT(on_toolButtonPanView_clicked()));
-				myMenu.addAction(QIcon(":/new/prefix1/res/rotateview.png"), tr("Rotate"), _viewer, SLOT(on_toolButtonRotateView_clicked()));
+				connect(action, &QAction::triggered, this, &GLWidget::beginWindowZoom);
+
+				action = myMenu.addAction(QIcon(":/new/prefix1/res/zoomview.png"), tr("Zoom"));
+				connect(action, &QAction::triggered, this, [this]() {
+					setZoomingActive(true);
+					});
+
+				action = myMenu.addAction(QIcon(":/new/prefix1/res/panview.png"), tr("Pan"));
+				connect(action, &QAction::triggered, this, [this]() {
+					setPanningActive(true);
+					});
+
+				action = myMenu.addAction(QIcon(":/new/prefix1/res/rotateview.png"), tr("Rotate"));
+				connect(action, &QAction::triggered, this, [this]() {
+					setRotationActive(true);
+					});
 			}
 			myMenu.addSeparator();
 
@@ -5486,8 +5498,10 @@ void GLWidget::showContextMenu(const QPoint& pos)
 				action = myMenu.addAction(QIcon(":/new/prefix1/res/swapvisible.png"), tr("Swap Visible"));
 				action->setCheckable(true);
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_S));
-				action->setChecked(_visibleSwapped);
-				connect(action, SIGNAL(triggered(bool)), _viewer, SLOT(on_toolButtonSwapVisible_clicked(bool)));
+				action->setChecked(_visibleSwapped);				
+				connect(action, &QAction::triggered, this, [this](bool enabled) {
+					swapVisible(enabled);
+					});
 			}
 			myMenu.addSeparator();
 			myMenu.addAction(tr("Background Color"), this, SLOT(setBackgroundColor()));
