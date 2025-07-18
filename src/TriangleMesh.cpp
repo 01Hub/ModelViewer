@@ -70,8 +70,8 @@ _opacityPBRMapInverted(false)
 
 	_vertexArrayObject.create();
 
-    const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
-    if (!_texBuffer.load(path + "textures/opengllogo.png"))
+	const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
+	if (!_texBuffer.load(path + "textures/opengllogo.png"))
 	{ // Load first image from file
 		qWarning("TriangleMesh::TriangleMesh - Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, QImage::Format_ARGB32);
@@ -222,7 +222,8 @@ void TriangleMesh::buildTriangles()
 		_memorySize -= _triangles.size() * sizeof(Triangle);
 		_triangles.clear();
 	}
-	try {
+	try
+	{
 		size_t offset = 3; // each index points to 3 floats
 		for (size_t i = 0; i < _indices.size();)
 		{
@@ -248,7 +249,8 @@ void TriangleMesh::buildTriangles()
 		}
 		_memorySize += _triangles.size() * sizeof(Triangle);
 	}
-	catch (const std::exception& ex) {
+	catch (const std::exception& ex)
+	{
 		std::cout << "Exception raised in TriangleMesh::buildTriangles\n" << ex.what() << std::endl;
 	}
 }
@@ -1032,37 +1034,31 @@ bool TriangleMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& r
 	bool found = false;
 	QVector3D bestIntersection;
 
-#pragma omp parallel
+
+	float localMinDist = std::numeric_limits<float>::max();
+	QVector3D localIntersection;
+	bool localFound = false;
+
+	for (int i = 0; i < _triangles.size(); ++i)
 	{
-		float localMinDist = std::numeric_limits<float>::max();
-		QVector3D localIntersection;
-		bool localFound = false;
-
-#pragma omp for nowait
-		for (int i = 0; i < _triangles.size(); ++i)
+		QVector3D hitPoint;
+		if (_triangles[i]->intersectsWithRay(rayPos, rayDir, hitPoint))
 		{
-			QVector3D hitPoint;
-			if (_triangles[i]->intersectsWithRay(rayPos, rayDir, hitPoint))
+			float dist = (hitPoint - rayPos).length();
+			if (dist < localMinDist)
 			{
-				float dist = (hitPoint - rayPos).length();
-				if (dist < localMinDist)
-				{
-					localMinDist = dist;
-					localIntersection = hitPoint;
-					localFound = true;
-				}
+				localMinDist = dist;
+				localIntersection = hitPoint;
+				localFound = true;
 			}
 		}
+	}
 
-#pragma omp critical
-		{
-			if (localFound && localMinDist < closestDistance)
-			{
-				closestDistance = localMinDist;
-				bestIntersection = localIntersection;
-				found = true;
-			}
-		}
+	if (localFound && localMinDist < closestDistance)
+	{
+		closestDistance = localMinDist;
+		bestIntersection = localIntersection;
+		found = true;
 	}
 
 	if (found)

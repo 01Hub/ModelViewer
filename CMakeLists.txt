@@ -6,7 +6,6 @@ find_package(assimp REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(glm REQUIRED)
 find_package(OpenCASCADE REQUIRED)
-find_package(OpenMP REQUIRED)
 
 if(NOT OpenCASCADE_FOUND)
     message(FATAL_ERROR "Cannot build the executable without OpenCASCADE. Please set the variable OpenCASCADE_DIR.")
@@ -147,10 +146,6 @@ target_link_libraries(ModelViewer
         ${OpenCASCADE_DataExchange_LIBRARIES}
         ${OpenCASCADE_ApplicationFramework_LIBRARIES}
 )
-
-if(OpenMP_CXX_FOUND)
-    target_link_libraries(ModelViewer PUBLIC OpenMP::OpenMP_CXX)
-endif()
 
 if(WIN32)
     target_sources(ModelViewer
