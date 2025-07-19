@@ -27,133 +27,139 @@
  * @return Pointer to the newly created aiScene containing all converted shapes,
  *         or nullptr if the input vector is empty.
  */
-aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples)
-{
-	if (shapeTuples.empty())
-		return nullptr;
-
-	aiScene* scene = new aiScene();
-	scene->mRootNode = new aiNode();
-	scene->mRootNode->mName = aiString("Root");
-
-	std::vector<aiMesh*> meshList;
-	std::vector<aiMaterial*> materialList;
-	std::vector<aiNode*> childNodes;
-
-	int meshIndex = 0;
-	int totalCount = shapeTuples.size();
-
-	for (const auto& tuple : shapeTuples)
+	aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples)
 	{
-		int progress = (int)(((float)meshIndex / (float)totalCount)*100);		
-		MainWindow::setProgressValue(progress);
-		const TopoDS_Shape& shape = std::get<0>(tuple);
-		const std::string& name = std::get<1>(tuple);
-		const gp_Trsf& trsf = std::get<2>(tuple);
-		const Quantity_Color& color = std::get<3>(tuple);
+		if (shapeTuples.empty())
+			return nullptr;
 
-		// Apply transformation to the shape
-		TopoDS_Shape transformedShape = shape;
-		if (!trsf.Form() == gp_Identity)
+		aiScene* scene = new aiScene();
+		scene->mRootNode = new aiNode();
+		scene->mRootNode->mName = aiString("Root");
+
+		std::vector<aiMesh*> meshList;
+		std::vector<aiMaterial*> materialList;
+		std::vector<aiNode*> childNodes;
+
+		int meshIndex = 0;
+		int totalCount = shapeTuples.size();
+
+		for (const auto& tuple : shapeTuples)
 		{
-			BRepBuilderAPI_Transform trsfBuilder(shape, trsf, true);
-			transformedShape = trsfBuilder.Shape();
-		}
+			int progress = (int)(((float)meshIndex / (float)totalCount)*100);		
+			MainWindow::setProgressValue(progress);
+			const TopoDS_Shape& shape = std::get<0>(tuple);
+			const std::string& name = std::get<1>(tuple);
+			const gp_Trsf& trsf = std::get<2>(tuple);
+			const Quantity_Color& color = std::get<3>(tuple);
 
-		// Convert the shape into a subscene with name
-		aiScene* subScene = convert(transformedShape, color, meshIndex, name); // <== this version must accept name
-
-		if (subScene && subScene->mNumMeshes > 0)
-		{
-			unsigned int meshBase = static_cast<unsigned int>(meshList.size());
-			unsigned int materialBase = static_cast<unsigned int>(materialList.size());
-
-			// Append meshes
-			for (unsigned int m = 0; m < subScene->mNumMeshes; ++m)
-				meshList.push_back(subScene->mMeshes[m]);
-
-			for (unsigned int i = 0; i < subScene->mNumMaterials; ++i)
+			// Apply transformation to the shape
+			TopoDS_Shape transformedShape = shape;
+			if (!trsf.Form() == gp_Identity)
 			{
-				materialList.push_back(subScene->mMaterials[i]);
+				BRepBuilderAPI_Transform trsfBuilder(shape, trsf, true);
+				transformedShape = trsfBuilder.Shape();
 			}
 
+			// Convert the shape into a subscene with name
+			aiScene* subScene = convert(transformedShape, color, meshIndex, name); // <== this version must accept name
 
-			// Apply color and fix mMaterialIndex
-			for (unsigned int m = meshBase; m < meshBase + subScene->mNumMeshes; ++m)
+			if (subScene && subScene->mNumMeshes > 0)
 			{
-				aiMesh* mesh = meshList[m];
+				unsigned int meshBase = static_cast<unsigned int>(meshList.size());
+				unsigned int materialBase = static_cast<unsigned int>(materialList.size());
 
-				// Correct the material index!
-				mesh->mMaterialIndex = materialBase; // (use the newly appended material)
+				// Append meshes
+				for (unsigned int m = 0; m < subScene->mNumMeshes; ++m)
+					meshList.push_back(subScene->mMeshes[m]);
 
-				aiMaterial* material = materialList[materialBase];
-
-				// Set color only if no texture
-				if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
+				for (unsigned int i = 0; i < subScene->mNumMaterials; ++i)
 				{
-                    // Diffuse color (from STEP model)
-                    aiColor3D diffuseColor(color.Red(), color.Green(), color.Blue());
-                    material->AddProperty(&diffuseColor, 1, AI_MATKEY_COLOR_DIFFUSE);
-
-                    // Ambient color: dimmed diffuse (30%)
-                    aiColor3D ambientColor = diffuseColor * 0.3f;
-                    material->AddProperty(&ambientColor, 1, AI_MATKEY_COLOR_AMBIENT);
-
-                    // Specular color: bright white
-                    aiColor3D specularColor(0.8f, 0.8f, 1.0f);
-                    material->AddProperty(&specularColor, 1, AI_MATKEY_COLOR_SPECULAR);
-
-                    // Shininess
-                    float shininess = 24.0f;
-                    material->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
-
+					materialList.push_back(subScene->mMaterials[i]);
 				}
+
+
+				// Apply color and fix mMaterialIndex
+				for (unsigned int m = meshBase; m < meshBase + subScene->mNumMeshes; ++m)
+				{
+					aiMesh* mesh = meshList[m];
+
+					// Correct the material index!
+					// Find which material this mesh should use
+					unsigned int originalMatIndex = mesh->mMaterialIndex;
+					mesh->mMaterialIndex = materialBase + originalMatIndex; // Correct material index
+
+					// Only modify the material if it's within bounds
+					if (materialBase + originalMatIndex < materialList.size())
+					{
+						aiMaterial* material = materialList[materialBase + originalMatIndex];
+						
+						// Set color only if no texture
+						if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
+						{
+							// Diffuse color (from STEP model)
+							aiColor3D diffuseColor(color.Red(), color.Green(), color.Blue());
+							material->AddProperty(&diffuseColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+
+							// Ambient color: dimmed diffuse (30%)
+							aiColor3D ambientColor = diffuseColor * 0.3f;
+							material->AddProperty(&ambientColor, 1, AI_MATKEY_COLOR_AMBIENT);
+
+							// Specular color: bright white
+							aiColor3D specularColor(0.8f, 0.8f, 1.0f);
+							material->AddProperty(&specularColor, 1, AI_MATKEY_COLOR_SPECULAR);
+
+							// Shininess
+							float shininess = 24.0f;
+							material->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
+
+						}
+					}
+				}
+
+				if (subScene->mRootNode)
+				{
+					aiNode* nodeCopy = cloneNodeDeep(subScene->mRootNode);
+
+					// Adjust mesh indices
+					for (unsigned int j = 0; j < nodeCopy->mNumMeshes; ++j)
+						nodeCopy->mMeshes[j] += meshBase;
+
+					// Optionally override node name to shape name
+					if (!name.empty())
+						nodeCopy->mName = aiString(name);
+
+					childNodes.push_back(nodeCopy);
+				}
+
+				// Clean up subscene
+				subScene->mMeshes = nullptr;
+				subScene->mMaterials = nullptr;
+				subScene->mRootNode = nullptr;
+				subScene->mNumMeshes = 0;
+				subScene->mNumMaterials = 0;
+				delete subScene;
 			}
-
-			if (subScene->mRootNode)
-			{
-				aiNode* nodeCopy = cloneNodeDeep(subScene->mRootNode);
-
-				// Adjust mesh indices
-				for (unsigned int j = 0; j < nodeCopy->mNumMeshes; ++j)
-					nodeCopy->mMeshes[j] += meshBase;
-
-				// Optionally override node name to shape name
-				if (!name.empty())
-					nodeCopy->mName = aiString(name);
-
-				childNodes.push_back(nodeCopy);
-			}
-
-			// Clean up subscene
-			subScene->mMeshes = nullptr;
-			subScene->mMaterials = nullptr;
-			subScene->mRootNode = nullptr;
-			subScene->mNumMeshes = 0;
-			subScene->mNumMaterials = 0;
-			delete subScene;
 		}
+
+		// Attach all child nodes to the root node
+		scene->mRootNode->mNumChildren = static_cast<unsigned int>(childNodes.size());
+		if (!childNodes.empty())
+		{
+			scene->mRootNode->mChildren = new aiNode * [childNodes.size()];
+			std::copy(childNodes.begin(), childNodes.end(), scene->mRootNode->mChildren);
+		}
+
+		// Finalize the scene
+		scene->mNumMeshes = static_cast<unsigned int>(meshList.size());
+		scene->mMeshes = new aiMesh * [scene->mNumMeshes];
+		std::copy(meshList.begin(), meshList.end(), scene->mMeshes);
+
+		scene->mNumMaterials = static_cast<unsigned int>(materialList.size());
+		scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
+		std::copy(materialList.begin(), materialList.end(), scene->mMaterials);
+
+		return scene;
 	}
-
-	// Attach all child nodes to the root node
-	scene->mRootNode->mNumChildren = static_cast<unsigned int>(childNodes.size());
-	if (!childNodes.empty())
-	{
-		scene->mRootNode->mChildren = new aiNode * [childNodes.size()];
-		std::copy(childNodes.begin(), childNodes.end(), scene->mRootNode->mChildren);
-	}
-
-	// Finalize the scene
-	scene->mNumMeshes = static_cast<unsigned int>(meshList.size());
-	scene->mMeshes = new aiMesh * [scene->mNumMeshes];
-	std::copy(meshList.begin(), meshList.end(), scene->mMeshes);
-
-	scene->mNumMaterials = static_cast<unsigned int>(materialList.size());
-	scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
-	std::copy(materialList.begin(), materialList.end(), scene->mMaterials);
-
-	return scene;
-}
 
 /**
  * @brief Converts a TopoDS_Shape (from OpenCASCADE) into an aiScene (from Assimp).
@@ -300,8 +306,8 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantit
 	scene->mMaterials[0] = material;
 	scene->mNumMaterials = 1;
 
-	// Update material count
-	++scene->mNumMaterials;
+	// Update material count	
+	scene->mNumMaterials = 1;
 
 	// Return the constructed scene
 	return scene;
@@ -502,33 +508,46 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
  */
 aiNode* BRepToAssimpConverter::cloneNodeDeep(const aiNode* src)
 {
-	// Create a new node and copy basic properties
+	if (!src) return nullptr;
+
 	aiNode* dest = new aiNode();
+
 	dest->mName = src->mName;
 	dest->mTransformation = src->mTransformation;
-	dest->mNumMeshes = src->mNumMeshes;
+	dest->mParent = nullptr;
 
-	// Copy mesh indices if present
-	if (src->mNumMeshes > 0)
+	// Clone mesh indices
+	dest->mNumMeshes = src->mNumMeshes;
+	dest->mMeshes = nullptr;
+	if (src->mNumMeshes > 0 && src->mMeshes)
 	{
 		dest->mMeshes = new unsigned int[src->mNumMeshes];
 		std::copy(src->mMeshes, src->mMeshes + src->mNumMeshes, dest->mMeshes);
 	}
 
-	// Recursively clone child nodes
+	// Clone metadata if present
+	if (src->mMetaData)
+	{
+		dest->mMetaData = new aiMetadata(*src->mMetaData);
+	}
+
+	// Clone children
 	dest->mNumChildren = src->mNumChildren;
-	if (src->mNumChildren > 0)
+	dest->mChildren = nullptr;
+	if (src->mNumChildren > 0 && src->mChildren)
 	{
 		dest->mChildren = new aiNode * [src->mNumChildren];
 		for (unsigned int i = 0; i < src->mNumChildren; ++i)
 		{
 			dest->mChildren[i] = cloneNodeDeep(src->mChildren[i]);
-			dest->mChildren[i]->mParent = dest;  // Set parent pointer in cloned child
+			if (dest->mChildren[i])
+				dest->mChildren[i]->mParent = dest;
 		}
 	}
 
 	return dest;
 }
+
 
 /**
  * Computes an appropriate deflection value based on the bounding box diagonal of a group of faces.
