@@ -58,17 +58,16 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	flayout->setContentsMargins(0, 0, 0, 0);
 	flayout->addWidget(_glWidget, 1);
 			
-	connect(checkBoxAutoFitView, SIGNAL(toggled(bool)), _glWidget, SLOT(setAutoFitViewOnUpdate(bool)));
-	connect(_glWidget, SIGNAL(singleSelectionDone(int)), this, SLOT(setListRow(int)));
-	connect(_glWidget, SIGNAL(sweepSelectionDone(QList<int>)), this, SLOT(setListRows(QList<int>)));
-	connect(_glWidget, SIGNAL(floorShown(bool)), checkBoxFloor, SLOT(setChecked(bool)));
+	connect(checkBoxAutoFitView, &QCheckBox::toggled, _glWidget, &GLWidget::setAutoFitViewOnUpdate);
+	connect(_glWidget, &GLWidget::singleSelectionDone, this, &ModelViewer::setListRow);
+	connect(_glWidget, &GLWidget::sweepSelectionDone, this,  &ModelViewer::setListRows);
+	connect(_glWidget, &GLWidget::floorShown, checkBoxFloor, &QCheckBox::setChecked);
 	
 	listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
-	connect(listWidgetModel, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
+	connect(listWidgetModel, &ModelObjectList::customContextMenuRequested, this, &ModelViewer::showContextMenu);
 
 	// For item editing
-	connect(listWidgetModel->itemDelegate(), SIGNAL(closeEditor(QWidget*, QAbstractItemDelegate::EndEditHint)),
-		this, SLOT(itemEdited(QWidget*, QAbstractItemDelegate::EndEditHint)));
+	connect(listWidgetModel->itemDelegate(), &QAbstractItemDelegate::closeEditor, this, &ModelViewer::itemEdited);
 
 
 	connect(searchBox, &QLineEdit::textChanged, listWidgetModel, [&](const QString& text) {
@@ -102,34 +101,34 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 
 	QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), listWidgetModel);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(deleteSelectedItems()));
+	connect(shortcut, &QShortcut::activated, this, &ModelViewer::deleteSelectedItems);
 
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), this);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(onFileImport()));
+	connect(shortcut, &QShortcut::activated, this, &ModelViewer::onFileImport);
 
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this);
-	connect(shortcut, SIGNAL(activated()), this, SLOT(onFileExport()));
+	connect(shortcut, &QShortcut::activated, this, &ModelViewer::onFileExport);
 
-	connect(checkBoxLockLightCamera, SIGNAL(toggled(bool)), _glWidget, SLOT(lockLightAndCamera(bool)));
-	connect(doubleSpinBoxRepeatS, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatS(double)));
-	connect(doubleSpinBoxRepeatT, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorTexRepeatT(double)));
-	connect(doubleSpinBoxSkyBoxFOV, SIGNAL(valueChanged(double)), _glWidget, SLOT(setSkyBoxFOV(double)));
-	connect(doubleSpinBoxFloorOffset, SIGNAL(valueChanged(double)), _glWidget, SLOT(setFloorOffsetPercent(double)));
-	connect(checkBoxSkyBoxHDRI, SIGNAL(toggled(bool)), _glWidget, SLOT(setSkyBoxTextureHDRI(bool)));
-	connect(checkBoxShowLights, SIGNAL(toggled(bool)), _glWidget, SLOT(showLights(bool)));
+	connect(checkBoxLockLightCamera, &QCheckBox::toggled,           _glWidget, &GLWidget::lockLightAndCamera);
+	connect(doubleSpinBoxRepeatS,    &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatS);
+	connect(doubleSpinBoxRepeatT,    &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatT);
+	connect(doubleSpinBoxSkyBoxFOV,  &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setSkyBoxFOV);
+	connect(doubleSpinBoxFloorOffset,&QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorOffsetPercent);
+	connect(checkBoxSkyBoxHDRI,      &QCheckBox::toggled,           _glWidget, &GLWidget::setSkyBoxTextureHDRI);
+	connect(checkBoxShowLights,      &QCheckBox::toggled,           _glWidget, &GLWidget::showLights);
 
-	connect(checkBoxHDRToneMapping, SIGNAL(toggled(bool)), _glWidget, SLOT(enableHDRToneMapping(bool)));
-	connect(checkBoxGammaCorrection, SIGNAL(toggled(bool)), _glWidget, SLOT(enableGammaCorrection(bool)));
-	connect(doubleSpinBoxScreenGamma, SIGNAL(valueChanged(double)), _glWidget, SLOT(setScreenGamma(double)));
+	connect(checkBoxHDRToneMapping,  &QCheckBox::toggled,  _glWidget, &GLWidget::enableHDRToneMapping);
+	connect(checkBoxGammaCorrection, &QCheckBox::toggled,  _glWidget, &GLWidget::enableGammaCorrection);
+	connect(doubleSpinBoxScreenGamma, &QDoubleSpinBox::valueChanged,  _glWidget, &GLWidget::setScreenGamma);
 
-	connect(buttonGroupLighting, SIGNAL(buttonToggled(QAbstractButton*, bool)), this, SLOT(lightingType_toggled(QAbstractButton*, bool)));
+	connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
 	toolBox->setItemEnabled(0, true);
 	toolBox->setItemEnabled(1, false);
 	toolBox->setItemEnabled(2, false);
 	toolBox->setCurrentIndex(0);
 
-	connect(sliderTransparencyPBR, SIGNAL(valueChanged(int)), this, SLOT(on_sliderTransparency_valueChanged(int)));
-	connect(pushButtonDefaultMatlsPBR, SIGNAL(clicked()), this, SLOT(on_pushButtonDefaultMatls_clicked()));
+	connect(sliderTransparencyPBR, &QSlider::valueChanged, this, &ModelViewer::on_sliderTransparency_valueChanged);
+	connect(pushButtonDefaultMatlsPBR, &QPushButton::clicked, this, &ModelViewer::on_pushButtonDefaultMatls_clicked);
 
 	_hasADSDiffuseTex = false;
 	_hasADSSpecularTex = false;
@@ -691,15 +690,15 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		// Create menu and insert some actions
 		QMenu myMenu;
 
-		myMenu.addAction(tr("Center Screen"), this, SLOT(centerScreen()));
-		myMenu.addAction(tr("Visualization Settings"), this, SLOT(showVisualizationModelPage()));
-		myMenu.addAction(tr("Transformations"), this, SLOT(showTransformationsPage()));
-		myMenu.addAction(tr("Hide"), this, SLOT(hideSelectedItems()));
-		myMenu.addAction(tr("Show"), this, SLOT(showSelectedItems()));
-		myMenu.addAction(tr("Show Only"), this, SLOT(showOnlySelectedItems()));
-		myMenu.addAction(tr("Duplicate"), this, SLOT(duplicateSelectedItems()));
-		myMenu.addAction(tr("Delete"), this, SLOT(deleteSelectedItems()));
-		myMenu.addAction(tr("Mesh Info"), this, SLOT(displaySelectedMeshInfo()));
+		myMenu.addAction(tr("Center Screen"),          this, &ModelViewer::centerScreen);
+		myMenu.addAction(tr("Visualization Settings"), this, &ModelViewer::showVisualizationModelPage);
+		myMenu.addAction(tr("Transformations"),        this, &ModelViewer::showTransformationsPage);
+		myMenu.addAction(tr("Hide"),				   this, &ModelViewer::hideSelectedItems);
+		myMenu.addAction(tr("Show"),				   this, &ModelViewer::showSelectedItems);
+		myMenu.addAction(tr("Show Only"),              this, &ModelViewer::showOnlySelectedItems);
+		myMenu.addAction(tr("Duplicate"),              this, &ModelViewer::duplicateSelectedItems);
+		myMenu.addAction(tr("Delete"),                 this, &ModelViewer::deleteSelectedItems);
+		myMenu.addAction(tr("Mesh Info"),              this, &ModelViewer::displaySelectedMeshInfo);
 
 		// Show context menu at handling position
 		myMenu.exec(listWidgetModel->mapToGlobal(pos));

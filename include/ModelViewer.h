@@ -77,6 +77,7 @@ public slots:
 	void showOnlySelectedItems();
 	void hideAllItems();
 	void hideSelectedItems();
+	void centerScreen();
 	void duplicateSelectedItems();
 	void deleteSelectedItems();
 	void displaySelectedMeshInfo();
@@ -89,8 +90,7 @@ public slots:
 private slots:
 	void setListRow(int index);
 	void setListRows(QList<int> indices);
-	void showContextMenu(const QPoint& pos);
-	void centerScreen();
+	void showContextMenu(const QPoint& pos);	
 	void lightingType_toggled(QAbstractButton *, bool);
 	
 	void on_checkTexture_toggled(bool checked);

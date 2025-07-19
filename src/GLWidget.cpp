@@ -274,23 +274,23 @@ _assimpModelLoader(nullptr)
 
 	_animateViewTimer = new QTimer(this);
 	_animateViewTimer->setTimerType(Qt::PreciseTimer);
-	connect(_animateViewTimer, SIGNAL(timeout()), this, SLOT(animateViewChange()));
-	connect(this, SIGNAL(rotationsSet()), this, SLOT(stopAnimations()));
+	connect(_animateViewTimer, &QTimer::timeout, this, &GLWidget::animateViewChange);
+	connect(this, &GLWidget::rotationsSet, this, &GLWidget::stopAnimations);
 
 	_animateFitAllTimer = new QTimer(this);
 	_animateFitAllTimer->setTimerType(Qt::PreciseTimer);
-	connect(_animateFitAllTimer, SIGNAL(timeout()), this, SLOT(animateFitAll()));
-	connect(this, SIGNAL(zoomAndPanSet()), this, SLOT(stopAnimations()));
+	connect(_animateFitAllTimer, &QTimer::timeout, this, &GLWidget::animateFitAll);
+	connect(this, &GLWidget::zoomAndPanSet, this, &GLWidget::stopAnimations);
 
 	_animateWindowZoomTimer = new QTimer(this);
 	_animateWindowZoomTimer->setTimerType(Qt::PreciseTimer);
-	connect(_animateWindowZoomTimer, SIGNAL(timeout()), this, SLOT(animateWindowZoom()));
-	connect(this, SIGNAL(zoomAndPanSet()), this, SLOT(stopAnimations()));
+	connect(_animateWindowZoomTimer, &QTimer::timeout, this, &GLWidget::animateWindowZoom);
+	connect(this, &GLWidget::zoomAndPanSet, this, &GLWidget::stopAnimations);
 
 	_animateCenterScreenTimer = new QTimer(this);
 	_animateCenterScreenTimer->setTimerType(Qt::PreciseTimer);
-	connect(_animateCenterScreenTimer, SIGNAL(timeout()), this, SLOT(animateCenterScreen()));
-	connect(this, SIGNAL(zoomAndPanSet()), this, SLOT(stopAnimations()));
+	connect(_animateCenterScreenTimer, &QTimer::timeout, this, &GLWidget::animateCenterScreen);
+	connect(this, &GLWidget::zoomAndPanSet, this, &GLWidget::stopAnimations);
 
 	_inertiaTimer = new QTimer(this);
 	_inertiaTimer->setInterval(16); // ~60 FPS
@@ -321,7 +321,7 @@ _assimpModelLoader(nullptr)
 	//_displayedObjectsIds.push_back(0);
 
 	setContextMenuPolicy(Qt::CustomContextMenu);
-	connect(this, SIGNAL(customContextMenuRequested(QPoint)), this, SLOT(showContextMenu(QPoint)));
+	connect(this, &GLWidget::customContextMenuRequested, this, &GLWidget::showContextMenu);
 
 	_selectRect = new QRubberBand(QRubberBand::Rectangle, this);
 
@@ -458,10 +458,10 @@ void GLWidget::initializeGL()
 	createShaderPrograms();
 
 	_assimpModelLoader = new AssImpModelLoader(_fgShader.get());
-	connect(_assimpModelLoader, SIGNAL(fileReadProcessed(float)), this, SLOT(showFileReadingProgress(float)));
-	connect(_assimpModelLoader, SIGNAL(verticesProcessed(float)), this, SLOT(showMeshLoadingProgress(float)));
-	connect(_assimpModelLoader, SIGNAL(nodeProcessed(int, int, bool)), this, SLOT(showModelLoadingProgress(int, int, bool)));
-	connect(this, SIGNAL(loadingAssImpModelCancelled()), _assimpModelLoader, SLOT(cancelLoading()));
+	connect(_assimpModelLoader, &AssImpModelLoader::fileReadProcessed, this, &GLWidget::showFileReadingProgress);
+	connect(_assimpModelLoader, &AssImpModelLoader::verticesProcessed, this, &GLWidget::showMeshLoadingProgress);
+	connect(_assimpModelLoader, &AssImpModelLoader::nodeProcessed, this, &GLWidget::showModelLoadingProgress);
+	connect(this, &GLWidget::loadingAssImpModelCancelled, _assimpModelLoader, &AssImpModelLoader::cancelLoading);
 
 	const std::string path = std::string(MODELVIEWER_DATA_DIR) + "/";
 	// Text rendering
@@ -1427,7 +1427,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		float dh = msgBox.height();
 		msgBox.setGeometry( px + 20, py+ph-4*dh, dw, dh );
 		QPushButton *abortButton = msgBox.addButton(QMessageBox::Abort);
-		connect(abortButton, SIGNAL(pressed()), this, SLOT(cancelAssImpModelLoading()));
+		connect(abortButton, &QPushButton::pressed, this, &GLWidget::cancelAssImpModelLoading);
 		msgBox.show();*/
 		
 
@@ -4596,7 +4596,7 @@ void GLWidget::stopAnimations()
 	_animateWindowZoomTimer->stop();
 	_animateCenterScreenTimer->stop();
 	_keyboardNavTimer->start();
-	QTimer::singleShot(100, this, SLOT(disableLowRes()));
+	QTimer::singleShot(100, this, &GLWidget::disableLowRes);
 }
 
 void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, GLCamera* camera, QVector3D& orig, QVector3D& dir)
@@ -5437,30 +5437,30 @@ void GLWidget::showContextMenu(const QPoint& pos)
 		if (listWidgetModel->selectedItems().count() != 0 &&
 			(_visibleSwapped ? _hiddenObjectsIds.size() != 0 : _displayedObjectsIds.size() != 0))
 		{
-			myMenu.addAction(tr("Center Screen"), _viewer, SLOT(centerScreen()));
+			myMenu.addAction(tr("Center Screen"), _viewer, &ModelViewer::centerScreen);
 			QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
 			if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
 			{
-				myMenu.addAction(tr("Center Object List"), this, SLOT(centerDisplayList()));
+				myMenu.addAction(tr("Center Object List"), this, &GLWidget::centerDisplayList);
 			}
-			myMenu.addAction(tr("Visualization Settings"), _viewer, SLOT(showVisualizationModelPage()));
-			myMenu.addAction(tr("Transformations"), _viewer, SLOT(showTransformationsPage()));
+			myMenu.addAction(tr("Visualization Settings"), _viewer, &ModelViewer::showVisualizationModelPage);
+			myMenu.addAction(tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);
 			if (_visibleSwapped)
-				myMenu.addAction(tr("Show"), _viewer, SLOT(showSelectedItems()));
+				myMenu.addAction(tr("Show"), _viewer, &ModelViewer::showSelectedItems);
 			else
-				myMenu.addAction(tr("Hide"), _viewer, SLOT(hideSelectedItems()));
+				myMenu.addAction(tr("Hide"), _viewer, &ModelViewer::hideSelectedItems);
 			if (_displayedObjectsIds.size() > 1)
-				myMenu.addAction(tr("Show Only"), _viewer, SLOT(showOnlySelectedItems()));
-			myMenu.addAction(tr("Duplicate"), _viewer, SLOT(duplicateSelectedItems()));
-			myMenu.addAction(tr("Delete"), _viewer, SLOT(deleteSelectedItems()));
-			myMenu.addAction(tr("Mesh Info"), _viewer, SLOT(displaySelectedMeshInfo()));
+				myMenu.addAction(tr("Show Only"), _viewer, &ModelViewer::showOnlySelectedItems);
+			myMenu.addAction(tr("Duplicate"), _viewer, &ModelViewer::duplicateSelectedItems);
+			myMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedItems);
+			myMenu.addAction(tr("Mesh Info"), _viewer, &ModelViewer::displaySelectedMeshInfo);
 		}
 		else
 		{
 			QAction* action = nullptr;
 			if ((!_visibleSwapped && _displayedObjectsIds.size() != 0) || (_visibleSwapped && _hiddenObjectsIds.size() != 0))
 			{
-				myMenu.addAction(QIcon(":/new/prefix1/res/fit-all.png"), tr("Fit All"), this, SLOT(fitAll()));
+				myMenu.addAction(QIcon(":/new/prefix1/res/fit-all.png"), tr("Fit All"), this, &GLWidget::fitAll);
 
 				action = myMenu.addAction(QIcon(":/new/prefix1/res/window-zoom.png"), tr("Zoom Area"));
 				action->setCheckable(true);
@@ -5485,12 +5485,12 @@ void GLWidget::showContextMenu(const QPoint& pos)
 
 			if (_hiddenObjectsIds.size() != 0)
 			{
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/showall.png"), tr("Show All"), _viewer, SLOT(showAllItems()));
+				action = myMenu.addAction(QIcon(":/new/prefix1/res/showall.png"), tr("Show All"), _viewer, &ModelViewer::showAllItems);
 				action->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_A));
 			}
 			if (_displayedObjectsIds.size() != 0)
 			{
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/hideall.png"), tr("Hide All"), _viewer, SLOT(hideAllItems()));
+				action = myMenu.addAction(QIcon(":/new/prefix1/res/hideall.png"), tr("Hide All"), _viewer, &ModelViewer::hideAllItems);
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_A));
 			}
 			if (_hiddenObjectsIds.size() != 0)
@@ -5504,7 +5504,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
 					});
 			}
 			myMenu.addSeparator();
-			myMenu.addAction(tr("Background Color"), this, SLOT(setBackgroundColor()));
+			myMenu.addAction(tr("Background Color"), this, &GLWidget::setBackgroundColor);
 		}
 		// Show context menu at handling position
 		myMenu.exec(mapToGlobal(pos));
