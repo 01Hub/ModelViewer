@@ -238,6 +238,10 @@ void SettingsDialog::applySettings()
     settings.setValue("assimpRemoveDuplicatesCheckBox", import_assimpRemoveDuplicates);
     settings.setValue("assimpMaxFaceVerticesSpinBox", import_assimpMaxFaceVertices);
 
+	// Import/Export Tab - Export
+	settings.setValue("radioButtonExportScene", export_exportScene);
+	settings.setValue("radioButtonExportMeshs", export_exportMeshes);
+
     // Performance Tab
     settings.setValue("checkMultithreadedLoad", perf_multithreadedLoad);
     settings.setValue("spinThreadLimit", perf_threadLimit);
@@ -366,6 +370,10 @@ void SettingsDialog::setDefaultValues()
     ui->assimpOptimizeMeshCheckBox->setChecked(false);
     ui->assimpRemoveDuplicatesCheckBox->setChecked(false);
     ui->assimpMaxFaceVerticesSpinBox->setValue(3);
+
+    // Import/Export Tab - Export
+    ui->radioButtonExportScene->setChecked(true);
+    ui->radioButtonExportMeshes->setChecked(false);
 
     // --- Performance Tab ---
     ui->checkMultithreadedLoad->setChecked(false);
@@ -545,6 +553,10 @@ void SettingsDialog::loadSettings()
     ui->assimpRemoveDuplicatesCheckBox->setChecked(bVal);
     iVal = settings.value("assimpMaxFaceVerticesSpinBox", ui->assimpMaxFaceVerticesSpinBox->value()).toInt();
     ui->assimpMaxFaceVerticesSpinBox->setValue(iVal);
+	bVal = settings.value("radioButtonExportScene", ui->radioButtonExportScene->isChecked()).toBool();
+	ui->radioButtonExportScene->setChecked(bVal);
+	bVal = settings.value("radioButtonExportMeshes", ui->radioButtonExportMeshes->isChecked()).toBool();
+	ui->radioButtonExportMeshes->setChecked(bVal);
     bVal = settings.value("checkMultithreadedLoad", ui->checkMultithreadedLoad->isChecked()).toBool();
     ui->checkMultithreadedLoad->setChecked(bVal);
     iVal = settings.value("spinThreadLimit", ui->spinThreadLimit->value()).toInt();
@@ -673,6 +685,8 @@ void SettingsDialog::saveSettings()
     settings.setValue("assimpOptimizeMeshCheckBox", ui->assimpOptimizeMeshCheckBox->isChecked());
     settings.setValue("assimpRemoveDuplicatesCheckBox", ui->assimpRemoveDuplicatesCheckBox->isChecked());
     settings.setValue("assimpMaxFaceVerticesSpinBox", ui->assimpMaxFaceVerticesSpinBox->value());
+	settings.setValue("radioButtonExportScene", ui->radioButtonExportScene->isChecked());
+	settings.setValue("radioButtonExportMeshes", ui->radioButtonExportMeshes->isChecked());
     settings.setValue("checkMultithreadedLoad", ui->checkMultithreadedLoad->isChecked());
     settings.setValue("spinThreadLimit", ui->spinThreadLimit->value());
     settings.setValue("checkSkyboxBlending", ui->checkSkyboxBlending->isChecked());
@@ -778,7 +792,8 @@ void SettingsDialog::restoreDefaults()
         ui->occtUnifyFacesCheckBox, ui->occtUnifyEdgesCheckBox, ui->occtBuildCurvesCheckBox,
         ui->assimpTriangulateCheckBox, ui->assimpGenNormalsCheckBox, ui->assimpSmoothNormalsCheckBox,
         ui->assimpCalcTangentsCheckBox, ui->assimpOptimizeMeshCheckBox, ui->assimpRemoveDuplicatesCheckBox,
-        ui->assimpMaxFaceVerticesSpinBox, ui->checkMultithreadedLoad, ui->spinThreadLimit,
+        ui->assimpMaxFaceVerticesSpinBox, ui->radioButtonExportScene, ui->radioButtonExportMeshes,
+        ui->checkMultithreadedLoad, ui->spinThreadLimit,
         ui->checkSkyboxBlending, ui->checkProgressiveLoading, ui->maxFpsSpinBox,
         ui->vsyncCheckBox, ui->frustumCullingCheckBox, ui->backfaceCullingCheckBox,
         ui->levelOfDetailCheckBox, ui->maxVerticesSpinBox, ui->textureCacheSizeSpinBox,
@@ -1149,6 +1164,16 @@ void SettingsDialog::on_assimpRemoveDuplicatesCheckBox_stateChanged()
 void SettingsDialog::on_assimpMaxFaceVerticesSpinBox_valueChanged()
 {
     import_assimpMaxFaceVertices = ui->assimpMaxFaceVerticesSpinBox->value();
+}
+
+void SettingsDialog::on_radioButtonExportScene_toggled(bool checked)
+{
+	export_exportScene = checked;
+}
+
+void SettingsDialog::on_radioButtonExportMeshes_toggled(bool checked)
+{
+	export_exportMeshes = checked;
 }
 
 // Performance Tab

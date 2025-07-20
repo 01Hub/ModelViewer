@@ -14,6 +14,7 @@
 #include <QOpenGLWidget>
 #include <QRubberBand>
 #include "ViewToolbar.h"
+#include "SceneUtils.h"
 
 /* Custom OpenGL Viewer Widget */
 
@@ -97,6 +98,8 @@ public:
 	void deselect(int id);
 
 	bool loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading = false);	
+
+	aiScene* getAssImpScene() const { return _globalScene; }
 
 	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
 	void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);
@@ -612,6 +615,8 @@ private:
 	unsigned long long _displayedObjectsMemSize;
 
     AssImpModelLoader* _assimpModelLoader;	
+	const aiScene* _assimpScene = nullptr;
+	aiScene* _globalScene = nullptr; // Merged scene from multiple files
 	bool _progressiveLoadingEnabled = false;
 };
 

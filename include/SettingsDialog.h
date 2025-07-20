@@ -227,6 +227,8 @@ private slots:
     void on_assimpOptimizeMeshCheckBox_stateChanged();
     void on_assimpRemoveDuplicatesCheckBox_stateChanged();
     void on_assimpMaxFaceVerticesSpinBox_valueChanged();
+	void on_radioButtonExportScene_toggled(bool checked);
+	void on_radioButtonExportMeshes_toggled(bool checked);
     void on_checkMultithreadedLoad_stateChanged();
     void on_spinThreadLimit_valueChanged();
     void on_checkSkyboxBlending_stateChanged();
@@ -355,6 +357,10 @@ private:
     bool import_assimpOptimizeMesh = false;
     bool import_assimpRemoveDuplicates = false;
     int import_assimpMaxFaceVertices = 3;
+
+    bool export_exportScene = true;
+    bool export_exportMeshes = false;
+
 
     // Performance Tab
     bool perf_multithreadedLoad = false;

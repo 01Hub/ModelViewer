@@ -8,6 +8,29 @@
 
 AssImpMeshExporter::AssImpMeshExporter(QObject* parent) : QObject(parent) {}
 
+aiReturn AssImpMeshExporter::exportScene(const aiScene* scene, const std::string& exportPath)
+{
+    Assimp::Exporter exporter;
+    const aiExportFormatDesc* format = findExportFormat(exportPath, exporter);
+    if (!format)
+    {
+        qCritical() << "Unsupported export format for:" << QString::fromStdString(exportPath);
+        return aiReturn_FAILURE;
+    }
+
+    aiReturn result = exporter.Export(scene, format->id, exportPath.c_str());
+    if (result != aiReturn_SUCCESS)
+    {
+        qCritical() << "Export failed:" << exporter.GetErrorString();
+    }
+    else
+    {
+        qDebug() << "Export successful:" << QString::fromStdString(exportPath);
+    }
+
+    return result;
+}
+
 aiReturn AssImpMeshExporter::exportMeshes(const std::vector<AssImpMesh*>& meshes, const std::string& exportPath)
 {
     std::vector<aiMesh*> aiMeshes;
@@ -23,7 +46,7 @@ aiReturn AssImpMeshExporter::exportMeshes(const std::vector<AssImpMesh*>& meshes
             continue;
         }
 
-        aiMesh* aimesh = createMesh(vertices, indices);
+        aiMesh* aimesh = createMesh(vertices, indices, mesh->getName().toStdString());
         if (!aimesh)
             continue;
 
@@ -53,10 +76,11 @@ aiReturn AssImpMeshExporter::exportMeshes(const std::vector<AssImpMesh*>& meshes
     return result;
 }
 
-aiMesh* AssImpMeshExporter::createMesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices)
+aiMesh* AssImpMeshExporter::createMesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, const std::string& name)
 {
     auto mesh = new aiMesh();
 
+	mesh->mName = aiString(name.c_str());
     mesh->mNumVertices = static_cast<unsigned int>(vertices.size());
     mesh->mVertices = new aiVector3D[mesh->mNumVertices];
     mesh->mNormals = new aiVector3D[mesh->mNumVertices];
@@ -118,19 +142,53 @@ aiScene* AssImpMeshExporter::createScene(const std::vector<aiMesh*>& meshes, con
 {
     aiScene* scene = new aiScene();
 
+    // Set up meshes array
     scene->mNumMeshes = static_cast<unsigned int>(meshes.size());
-    scene->mMeshes = new aiMesh*[scene->mNumMeshes];
+    scene->mMeshes = new aiMesh * [scene->mNumMeshes];
     std::copy(meshes.begin(), meshes.end(), scene->mMeshes);
 
+    // Set up materials array
     scene->mNumMaterials = static_cast<unsigned int>(materials.size());
-    scene->mMaterials = new aiMaterial*[scene->mNumMaterials];
+    scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
     std::copy(materials.begin(), materials.end(), scene->mMaterials);
 
+    // Create root node
     scene->mRootNode = new aiNode();
-    scene->mRootNode->mNumMeshes = scene->mNumMeshes;
-    scene->mRootNode->mMeshes = new unsigned int[scene->mRootNode->mNumMeshes];
-    for (unsigned int i = 0; i < scene->mRootNode->mNumMeshes; ++i)
-        scene->mRootNode->mMeshes[i] = i;
+    scene->mRootNode->mName = aiString("RootNode");
+
+    // Create child nodes - one for each mesh
+    scene->mRootNode->mNumChildren = static_cast<unsigned int>(meshes.size());
+    scene->mRootNode->mChildren = new aiNode * [scene->mRootNode->mNumChildren];
+
+    for (unsigned int i = 0; i < meshes.size(); ++i)
+    {
+        aiNode* childNode = new aiNode();
+
+        // Give each node a unique name (important for OBJ export)
+        std::string nodeName = "Mesh_" + std::to_string(i);
+        if (meshes[i]->mName.length > 0)
+        {
+            nodeName = std::string(meshes[i]->mName.C_Str());			
+        }		
+        childNode->mName = aiString(nodeName);
+
+        // Set parent relationship
+        childNode->mParent = scene->mRootNode;
+
+        // Assign one mesh to this node
+        childNode->mNumMeshes = 1;
+        childNode->mMeshes = new unsigned int[1];
+        childNode->mMeshes[0] = i;
+
+        // Set identity transformation matrix
+        childNode->mTransformation = aiMatrix4x4();
+
+        scene->mRootNode->mChildren[i] = childNode;
+    }
+
+    // Root node should not have meshes directly assigned
+    scene->mRootNode->mNumMeshes = 0;
+    scene->mRootNode->mMeshes = nullptr;
 
     return scene;
 }

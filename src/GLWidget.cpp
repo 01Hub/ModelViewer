@@ -348,6 +348,12 @@ GLWidget::~GLWidget()
 	if (_primaryCamera)	delete _primaryCamera;
 	if (_orthoViewsCamera) delete _orthoViewsCamera;
 
+	if (_globalScene)
+	{
+		SceneUtils::deleteScene(_globalScene);
+		_globalScene = nullptr;
+	}
+
 	if (_assimpModelLoader)
 		delete _assimpModelLoader;
 
@@ -1446,8 +1452,8 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 				else
 				{	
 					// nullify the assimp scene pointer to avoid memory leaks
-					_assimpModelLoader->freeScene(); // Free previous scene if exists
-					scene = nullptr;					
+					//_assimpModelLoader->freeScene(); // Free previous scene if exists
+					//scene = nullptr;					
 				}
 			});
 
@@ -1482,6 +1488,11 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			}
 		}
 
+		_assimpScene = _assimpModelLoader->getScene();
+
+		aiScene* copiedScene = SceneUtils::deepCopyScene(_assimpScene);
+		SceneUtils::mergeScene(&_globalScene, copiedScene);
+
 		// Disconnect the signals to avoid repeated calls		
 		disconnect(_assimpModelLoader, &AssImpModelLoader::meshBatchReady, this, &GLWidget::onMeshBatchReady);
 		disconnect(_assimpModelLoader, &AssImpModelLoader::loadingFinished, this, nullptr);
@@ -1496,6 +1507,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 
 	return success;
 }
+
 
 void GLWidget::showFileReadingProgress(float percent)
 {

@@ -1638,7 +1638,25 @@ void ModelViewer::onFileExport()
 		for (TriangleMesh* triMesh : triMeshes)
 			assImpMeshes.push_back(dynamic_cast<AssImpMesh*>(triMesh));
 
-		aiReturn res = exporter.exportMeshes(assImpMeshes, fileName.toStdString());
+
+		// Check the user settings
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		bool exportScene = settings.value("radioButtonExportScene", true).toBool();
+		
+		aiReturn res = aiReturn_FAILURE;
+		if (exportScene)
+		{
+			// Export the original aiScene
+			res = exporter.exportScene(_glWidget->getAssImpScene(), fileName.toStdString());
+			qDebug() << "Exporting scene result:" << res;
+		}			
+		else
+		{
+			// Export the meshes loaded in the scene
+			res = exporter.exportMeshes(assImpMeshes, fileName.toStdString());
+			qDebug() << "Exporting meshes result:" << res;
+		}
+		
 		if (res == aiReturn_SUCCESS)
 			QMessageBox::information(this, tr("Information"), tr("Exported"));
 		else

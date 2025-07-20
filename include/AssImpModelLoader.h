@@ -93,6 +93,8 @@ public:
 	void setUVGenerationMethod(const UVMethod& uvMethod) { _selectedUVMethod = uvMethod; }
 	UVMethod getUVGenerationMethod() const { return _selectedUVMethod; }
 
+	const aiScene* getScene() const { return _scene; }
+
 	void freeScene();
 
 signals:
