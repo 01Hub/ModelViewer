@@ -3553,7 +3553,7 @@ void GLWidget::render(GLCamera* camera)
 	if (_showLights)
 		drawLights();
 
-	AssImpMesh::releaseCurrentShader();
+	//AssImpMesh::releaseCurrentShader();
 	_fgShader->release();
 }
 
