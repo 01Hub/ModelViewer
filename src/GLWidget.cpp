@@ -421,23 +421,7 @@ void GLWidget::retranslateUI()
 
 void GLWidget::cleanUpShaders()
 {
-	//if (_fgShader)	delete _fgShader;
-	//if (_axisShader) delete _axisShader;
-	//if (_vertexNormalShader) delete _vertexNormalShader;
-	//if (_faceNormalShader) delete _faceNormalShader;
-	//if (_shadowMappingShader) delete _shadowMappingShader;
-	//if (_skyBoxShader) delete _skyBoxShader;
-	//if (_irradianceShader) delete _irradianceShader;
-	//if (_prefilterShader) delete _prefilterShader;
-	//if (_brdfShader) delete _brdfShader;
-	//if (_lightCubeShader) delete _lightCubeShader;
-	//if (_clippingPlaneShader) delete _clippingPlaneShader;
-	//if (_clippedMeshShader) delete _clippedMeshShader;
-	//if (_textShader) delete _textShader;
-	//if (_bgShader) delete _bgShader;
-	//if (_bgSplitShader) delete _bgSplitShader;
-	//if (_selectionShader) delete _selectionShader;
-	//if (_debugShader) delete _debugShader;
+	AssImpMesh::releaseCurrentShader();
 }
 
 void GLWidget::initializeGL()
@@ -3553,7 +3537,6 @@ void GLWidget::render(GLCamera* camera)
 	if (_showLights)
 		drawLights();
 
-	//AssImpMesh::releaseCurrentShader();
 	_fgShader->release();
 }
 
