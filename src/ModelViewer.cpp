@@ -143,7 +143,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_hasPBROpacTex = false;
 	_hasPBRNormalTex = false;
 	_hasPBRHeightTex = false;
-	_heightPBRTexScale = 0.05f;
+	_heightPBRTexScale = 0.02f;
 
 	_progressiveLoadingEnabled = QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName()).value("checkProgressiveLoading", true).toBool();
 

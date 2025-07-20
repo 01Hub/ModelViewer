@@ -43,7 +43,7 @@ _hasRoughnessPBRMap(false),
 _hasNormalPBRMap(false),
 _hasAOPBRMap(false),
 _hasHeightPBRMap(false),
-_heightPBRMapScale(0.05f),
+_heightPBRMapScale(0.02f),
 _hasOpacityPBRMap(false),
 _opacityPBRMapInverted(false)
 {
@@ -1203,6 +1203,8 @@ float TriangleMesh::getHeightPBRMapScale() const
 void TriangleMesh::setHeightPBRMapScale(float heightScale)
 {
 	_heightPBRMapScale = heightScale;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::setOpacityPBRMap(unsigned int opacityMap)
@@ -1214,6 +1216,8 @@ void TriangleMesh::setOpacityPBRMap(unsigned int opacityMap)
 void TriangleMesh::invertOpacityPBRMap(bool invert)
 {
 	_opacityPBRMapInverted = invert;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::clearAlbedoPBRMap()

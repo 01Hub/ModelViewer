@@ -71,7 +71,7 @@ uniform bool hasRoughnessMap;
 uniform bool hasNormalMap;
 uniform bool hasAOMap;
 uniform bool hasHeightMap;
-uniform float heightScale;
+uniform float heightScale = 0.02;
 uniform bool hasOpacityMap;
 uniform bool opacityMapInverted = false;
 
@@ -149,14 +149,10 @@ const float PI = 3.14159265359;
 
 layout( location = 0 ) out vec4 fragColor;
 
-float   calculateShadow(vec4 fragPosLightSpace);
-// Function to fetch shadow value with variable kernel size
-float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos);
-
 vec4    shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
 vec4    calculatePBRLighting(int renderMode, float side);
-void    applyEnvironmentMapping(float alpha);
 
+void    applyEnvironmentMapping(float alpha);
 vec3    getNormalFromMap();
 mat3    getTBNFromMap();
 float   distributionGGX(vec3 N, vec3 H, float roughness);
@@ -164,15 +160,21 @@ float   geometrySchlickGGX(float NdotV, float roughness);
 float   geometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3    fresnelSchlick(float cosTheta, vec3 F0);
 vec3    fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
-vec2    parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D map);
+vec2    parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale);
 vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
 
-vec2 calculateBackgroundUV();
-vec3 calculateBackgroundColor();
+float   calculateShadow(vec4 fragPosLightSpace);
+// Function to fetch shadow value with variable kernel size
+float   calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos);
+
+vec2    calculateBackgroundUV();
+vec3    calculateBackgroundColor();
 
 float floorRadius = u_floorSize * 0.5; // Adjust radius based on floor size
 float fadeStart = floorRadius * 0.65;   // Start fading 
 float fadeEnd = floorRadius * 1.05;     // Fully faded
+
+
 
 void main()
 {
@@ -374,31 +376,25 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
     if (hasHeightTexture)
     {
-        float height = texture(texture_height, g_texCoord2d).r;
-        float heightScale = 0.05; // try tweaking this
-        vec3 vDir;
-        vec3 lDir;
+        // Build TBN matrix
+        vec3 n = normalize(g_normal);
+        vec3 t = normalize(g_tangent - dot(g_tangent, n) * n);
+        vec3 b = normalize(cross(n, t));
+        mat3 TBN = mat3(t, b, n);
 
-        if(lockLightAndCamera)
-        {
-            vDir = normalize(g_tangentViewPos);
-            lDir = normalize(g_tangentLightPos);
-        }
-        else
-        {
-            vDir = normalize(g_tangentViewPos - g_tangentFragPos);
-            lDir = normalize(g_tangentLightPos - g_tangentFragPos);
-        }
+        // Compute view direction in world space
+        vec3 viewDirWorld = normalize(cameraPos - g_position);
 
-        vec2 pOffset = vDir.xy * (heightScale * (1.0 - height)); // or height
-        clippedTexCoord = g_texCoord2d - pOffset;
+        // Transform to tangent space
+        vec3 viewDirTangent = TBN * viewDirWorld;
+
+        // Parallax mapping
+        clippedTexCoord = parallaxMapping(g_texCoord2d, viewDirTangent, texture_height, heightScale);
 
         if(clippedTexCoord.x > 1.0 || clippedTexCoord.y > 1.0 ||
            clippedTexCoord.x < 0.0 || clippedTexCoord.y < 0.0)
             discard;
 
-        viewDir = vDir;
-        lightDir = lDir;
         normal = calcBumpedNormal(texture_normal, clippedTexCoord);
     }
 
@@ -477,117 +473,9 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     return colorLinear;
 }
 
+
 // ----------------------------------------------------------------------------
-float calculateShadow(vec4 fragPosLightSpace)
-{
-    // perform perspective divide
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    // transform to [0,1] range
-    projCoords = projCoords * 0.5 + 0.5;
-    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
-    float closestDepth = texture(shadowMap, projCoords.xy).r;
-    // get depth of current fragment from light's perspective
-    float currentDepth = projCoords.z;
-
-    vec3 normal = normalize(fs_in_shadow.Normal);
-    vec3 lightDir;
-    if(lockLightAndCamera)
-        lightDir = normalize(lightSource.position);
-    else
-        lightDir = normalize(lightSource.position + fs_in_shadow.cameraPos);
-    //float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
-    float bias = clamp(0.005 * tan(acos(dot(normal, lightDir))), 0.005, 0.05);
-
-    // PCF - Percentage Closer Filtering
-    float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-    for(int x = -1; x <= 1; ++x)
-    {
-        for(int y = -1; y <= 1; ++y)
-        {
-            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
-            shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;
-        }
-    }
-
-    shadow /= shadowSamples;
-
-    // keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
-    if(projCoords.z > 1.0)
-        shadow = 0.0;
-
-    return shadow;
-}
-
-// Function to fetch shadow value with variable kernel size
-float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos) 
-{
-    // Transform to [0,1] range for sampling
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    projCoords = projCoords * 0.5 + 0.5;
-    
-    // Calculate distance for both kernel size and softness
-    float distanceToLight = length(fragPos - lightPos);
-    
-    // Stepped kernel sizes for GPU coherency
-    int kernelSize;
-    if (distanceToLight < 5.0) kernelSize = 1;        // 3x3 = 9 samples
-    else if (distanceToLight < 15.0) kernelSize = 2;  // 5x5 = 25 samples  
-    else kernelSize = 3;                              // 7x7 = 49 samples
-    
-    // Adaptive shadow softness based on distance
-    float adaptiveSoftness = shadowSoftness * clamp(distanceToLight * 0.1, 0.5, 2.0);
-    
-    // Current depth
-    float currentDepth = projCoords.z;
-    
-    // Shadow factor calculation
-    float shadow = 0.0;
-    float totalWeight = 0.0;
-    
-    // Variable kernel size loop with adaptive softness
-    for (int x = -kernelSize; x <= kernelSize; ++x) 
-    {
-        for (int y = -kernelSize; y <= kernelSize; ++y) 
-        {
-            // Compute Gaussian weight
-            int index = abs(x) + abs(y);
-            float weight = gaussianKernel[index];
-            totalWeight += weight;
-            
-            // Apply adaptive softness to the offset - THIS IS THE KEY LINE
-            vec2 offset = vec2(x, y) * adaptiveSoftness / lightFarPlane;
-            
-            // Sample shadow map with adaptive offset
-            float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
-            shadow += (currentDepth > sampleDepth + 0.005) ? weight : 0.0;
-        }
-    }
-    
-    // Normalize shadow factor
-    shadow /= totalWeight;
-    return shadow;
-}
-
-// Function for parallax mapping to simulate depth displacement
-vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale)
-{
-    // Sample height from the height map (assuming grayscale)
-    float height = texture(heightMap, texCoords).r;
-    // Apply parallax scaling and bias
-    float parallaxAmount = height * heightScale;
-    // Offset texture coordinates based on the view direction (xy components)
-    return texCoords - parallaxAmount * viewDir.xy;
-}
-
-// Helper function to handle parallax (height map) displacement
-vec2 applyParallax(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale)
-{
-    // Call the parallaxMapping function to get the displaced texture coordinates
-    return parallaxMapping(texCoords, viewDir, heightMap, heightScale);
-}
-
-
+// Calculate PBR lighting based on the render mode
 vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = back
 {
     vec3 normal = g_normal * side;
@@ -634,8 +522,20 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             else
                 viewDir = normalize(g_tangentLightPos + g_tangentFragPos);
 
+            // Calculate TBN matrix
+            vec3 normal = normalize(g_normal);
+            vec3 tangent = normalize(g_tangent - dot(g_tangent, normal) * normal);
+            vec3 bitangent = normalize(cross(normal, tangent));
+            mat3 TBN = mat3(tangent, bitangent, normal);
+
+            // Compute view direction in world space
+            vec3 viewDirWorld = normalize(cameraPos - g_position);
+
+            // Transform to tangent space
+            vec3 viewDirTangent = TBN * viewDirWorld;
+
             // Apply parallax mapping and get the new texture coordinates
-            clippedTexCoord = applyParallax(g_texCoord2d, viewDir, heightMap, heightScale);
+            clippedTexCoord = parallaxMapping(g_texCoord2d, viewDirTangent, heightMap, heightScale);
 
             // Ensure the new coordinates are within the [0, 1] range
             if(clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
@@ -795,6 +695,110 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     return vec4(color, alpha);
 }
 
+// ----------------------------------------------------------------------------
+float calculateShadow(vec4 fragPosLightSpace)
+{
+    // perform perspective divide
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    // transform to [0,1] range
+    projCoords = projCoords * 0.5 + 0.5;
+    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
+    float closestDepth = texture(shadowMap, projCoords.xy).r;
+    // get depth of current fragment from light's perspective
+    float currentDepth = projCoords.z;
+
+    vec3 normal = normalize(fs_in_shadow.Normal);
+    vec3 lightDir;
+    if(lockLightAndCamera)
+        lightDir = normalize(lightSource.position);
+    else
+        lightDir = normalize(lightSource.position + fs_in_shadow.cameraPos);
+    //float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+    float bias = clamp(0.005 * tan(acos(dot(normal, lightDir))), 0.005, 0.05);
+
+    // PCF - Percentage Closer Filtering
+    float shadow = 0.0;
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    for(int x = -1; x <= 1; ++x)
+    {
+        for(int y = -1; y <= 1; ++y)
+        {
+            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+            shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;
+        }
+    }
+
+    shadow /= shadowSamples;
+
+    // keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
+    if(projCoords.z > 1.0)
+        shadow = 0.0;
+
+    return shadow;
+}
+
+// Function to fetch shadow value with variable kernel size
+float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos) 
+{
+    // Transform to [0,1] range for sampling
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    projCoords = projCoords * 0.5 + 0.5;
+    
+    // Calculate distance for both kernel size and softness
+    float distanceToLight = length(fragPos - lightPos);
+    
+    // Stepped kernel sizes for GPU coherency
+    int kernelSize;
+    if (distanceToLight < 5.0) kernelSize = 1;        // 3x3 = 9 samples
+    else if (distanceToLight < 15.0) kernelSize = 2;  // 5x5 = 25 samples  
+    else kernelSize = 3;                              // 7x7 = 49 samples
+    
+    // Adaptive shadow softness based on distance
+    float adaptiveSoftness = shadowSoftness * clamp(distanceToLight * 0.1, 0.5, 2.0);
+    
+    // Current depth
+    float currentDepth = projCoords.z;
+    
+    // Shadow factor calculation
+    float shadow = 0.0;
+    float totalWeight = 0.0;
+    
+    // Variable kernel size loop with adaptive softness
+    for (int x = -kernelSize; x <= kernelSize; ++x) 
+    {
+        for (int y = -kernelSize; y <= kernelSize; ++y) 
+        {
+            // Compute Gaussian weight
+            int index = abs(x) + abs(y);
+            float weight = gaussianKernel[index];
+            totalWeight += weight;
+            
+            // Apply adaptive softness to the offset - THIS IS THE KEY LINE
+            vec2 offset = vec2(x, y) * adaptiveSoftness / lightFarPlane;
+            
+            // Sample shadow map with adaptive offset
+            float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
+            shadow += (currentDepth > sampleDepth + 0.005) ? weight : 0.0;
+        }
+    }
+    
+    // Normalize shadow factor
+    shadow /= totalWeight;
+    return shadow;
+}
+
+// Function for parallax mapping to simulate depth displacement
+vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale)
+{
+    // Sample height from the height map (assuming grayscale)
+    float height = texture(heightMap, texCoords).r;
+    // Apply parallax scaling and bias
+    float parallaxAmount = height * heightScale;
+    // Offset texture coordinates based on the view direction (xy components)
+    return texCoords - parallaxAmount * viewDir.xy;
+}
+
+
 void applyEnvironmentMapping(float alpha)
 {
     if(envMapEnabled && displayMode == 3) // Environment mapping
@@ -920,26 +924,20 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
     return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D map)
-{
-    float height =  texture(map, texCoords).r;
-    return texCoords - viewDir.xy * (height * heightScale);
-}
 
 // http://ogldev.atspace.co.uk/www/tutorial26/tutorial26.html
 vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 {
     vec3 normal = normalize(g_normal);
-    vec3 tangent = normalize(g_tangent);
-    tangent = normalize(tangent - dot(tangent, normal) * normal);
-    vec3 bitangent = cross(tangent, normal);
-    vec3 bumpMapNormal = texture(map, texCoord).xyz;
-    bumpMapNormal = 2.0 * bumpMapNormal - vec3(1.0, 1.0, 1.0);
-    vec3 newNormal;
+    vec3 tangent = normalize(g_tangent - dot(g_tangent, normal) * normal);
+    vec3 bitangent = normalize(cross(normal, tangent));
     mat3 TBN = mat3(tangent, bitangent, normal);
-    newNormal = TBN * bumpMapNormal;
-    newNormal = normalize(newNormal);
-    return newNormal;
+
+    vec3 bumpMapNormal = texture(map, texCoord).rgb;
+    bumpMapNormal = 2.0 * bumpMapNormal - 1.0;
+    // Uncomment the next line if your normal maps need Y flipped
+    // bumpMapNormal.y = -bumpMapNormal.y;
+    return normalize(TBN * bumpMapNormal);
 }
 
 
