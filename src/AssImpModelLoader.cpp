@@ -371,7 +371,7 @@ aiScene* AssImpModelLoader::processBREPFile(const std::string& path)
 
 		// Convert to Assimp scene
 		MainWindow::showStatusMessage(tr("Converting shape to mesh..."));
-		return BRepToAssimpConverter::convert(shapeTuples);
+		aiScene* scene = BRepToAssimpConverter::convert(shapeTuples);
 		
 
 #ifdef __DEBUG__
@@ -383,8 +383,8 @@ aiScene* AssImpModelLoader::processBREPFile(const std::string& path)
 			qDebug() << "Error saving the document";
 		}
 #endif
-
 		app->Close(doc);
+		return scene;
 	}
 	catch (const Standard_Failure& e)
 	{
