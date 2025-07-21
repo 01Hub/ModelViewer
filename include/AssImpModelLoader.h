@@ -132,9 +132,9 @@ private:
 		Quantity_Color& outColor);
 
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
-	void processNode(int nodeNum, aiNode* node, const aiScene* scene);
+	void processNode(int nodeNum, aiNode* node, const aiScene* scene, const aiMatrix4x4& parentTransform);
 
-	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes);
+	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform);
 
 	static SceneMeshInfo collectSceneMeshInfo(const aiScene* scene);
 	

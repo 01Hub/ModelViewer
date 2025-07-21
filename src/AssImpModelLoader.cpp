@@ -183,7 +183,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	qDebug() << "Batch size = " << _batchSize;
 
 	// Process ASSIMP's root node recursively	
-	this->processNode(0, _scene->mRootNode, _scene);
+	this->processNode(0, _scene->mRootNode, _scene, aiMatrix4x4());
 
 	// Flush any remaining meshes in batch
 	if (!_currentBatch.empty())
@@ -647,7 +647,7 @@ bool AssImpModelLoader::GetShapeColorFromShape(
 }
 
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
-void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene* scene)
+void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene* scene, const aiMatrix4x4& parentTransform)
 {
 	if (_loadingCancelled)
 	{
@@ -655,10 +655,13 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		return;
 	}
 
+	// Compute global transformation matrix for the current node
+	aiMatrix4x4 globalTransform = parentTransform * node->mTransformation;
+
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-		AssImpMesh* myMesh = processMesh(mesh, scene, i, scene->mNumMeshes);
+		AssImpMesh* myMesh = processMesh(mesh, scene, i, scene->mNumMeshes, globalTransform);
 
 		_meshes.push_back(myMesh);            // full mesh store
 
@@ -683,7 +686,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		}
 
 		++nodeCounter;
-		processNode(nodeCounter, node->mChildren[i], scene);
+		processNode(nodeCounter, node->mChildren[i], scene, globalTransform);
 
 		if (!_needsUVGeneration && nodeCounter % 20 == 0)
 		{
@@ -695,8 +698,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 }
 
 
-
-AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes)
+AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform)
 {
 	// Data to fill
 	vector<Vertex> vertices;
@@ -714,17 +716,19 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		Vertex vertex;
 		glm::vec3 vector; // We declare a placeholder vector since assimp uses its own vector class that doesn't directly convert to glm's vec3 class so we transfer the data to this placeholder glm::vec3 first.
 
-		// Positions
-		vector.x = mesh->mVertices[i].x;
-		vector.y = mesh->mVertices[i].y;
-		vector.z = mesh->mVertices[i].z;
-		vertex.Position = vector;
+		aiMatrix3x3 normalMatrix = aiMatrix3x3(transform);
+		normalMatrix.Inverse().Transpose();
+		// Transform the vertex position by the mesh's transformation matrix		
+		// Transform Position
+		aiVector3D pos = mesh->mVertices[i];
+		aiVector3D transformedPos = transform * pos;
+		vertex.Position = glm::vec3(transformedPos.x, transformedPos.y, transformedPos.z);
 
-		// Normals
-		vector.x = mesh->mNormals[i].x;
-		vector.y = mesh->mNormals[i].y;
-		vector.z = mesh->mNormals[i].z;
-		vertex.Normal = vector;
+		// Transform Normals
+		aiVector3D normal = mesh->mNormals[i];
+		aiVector3D transformedNormal = normalMatrix * normal;
+		transformedNormal.Normalize(); // important if scale is involved
+		vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
 
 		// Texture Coordinates
 		if (mesh->mTextureCoords[0]) // Does the mesh contain texture coordinates?
