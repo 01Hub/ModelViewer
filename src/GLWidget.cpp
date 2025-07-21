@@ -420,8 +420,7 @@ void GLWidget::retranslateUI()
 }
 
 void GLWidget::cleanUpShaders()
-{
-	AssImpMesh::releaseCurrentShader();
+{	
 }
 
 void GLWidget::initializeGL()

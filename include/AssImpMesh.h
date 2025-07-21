@@ -74,13 +74,18 @@ public:
 	void setHeightADSMap(unsigned int heightTex) override;
 	void setOpacityADSMap(unsigned int opacityTex) override;
 
-	static void releaseCurrentShader();
+	void releaseCurrentShader();
 
 	
 private:
 	/*  Functions    */
 	// Initializes all the buffer objects/arrays
 	void setupMesh();
+
+	void cacheTextureBindings();
+	void bindTexturesOptimized();
+	void setRenderStateOptimized();
+	void setupUniformsOptimized();
 
 private:
 	/*  Mesh Data  */
@@ -97,12 +102,7 @@ private:
 	};
 	std::vector<PrecomputedTexture> _textureBindings;
 	// State caching
-	static QOpenGLShaderProgram* _currentBoundShader;
-	static bool _currentBlendEnabled;
-	static GLenum _currentFrontFace;
-	
-	void cacheTextureBindings();
-	void bindTexturesOptimized();
-	void setRenderStateOptimized();
-	void setupUniformsOptimized();
+	QOpenGLShaderProgram* _currentBoundShader;
+	bool _currentBlendEnabled;
+	GLenum _currentFrontFace;	
 };

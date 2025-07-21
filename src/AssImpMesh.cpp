@@ -2,15 +2,13 @@
 
 using namespace std;
 
-// Initialize static members (add to .cpp file)
-QOpenGLShaderProgram* AssImpMesh::_currentBoundShader = nullptr;
-bool AssImpMesh::_currentBlendEnabled = false;
-GLenum AssImpMesh::_currentFrontFace = GL_CCW;
-
 /*  Functions  */
 // Constructor
 AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")
 {
+	_currentBoundShader = nullptr;
+	_currentBlendEnabled = false;
+	_currentFrontFace = GL_CCW;
 	//setAutoIncrName(name);
 	_name = name;
 	_vertices = vertices;
@@ -32,6 +30,7 @@ AssImpMesh::~AssImpMesh()
 			glDeleteTextures(1, &t.id);
 		}
 	}
+	releaseCurrentShader();
 }
 
 TriangleMesh* AssImpMesh::clone()
@@ -181,7 +180,7 @@ void AssImpMesh::setupMesh()
 void AssImpMesh::cacheTextureBindings()
 {
 	if (!_textureBindingsDirty) return;
-
+		
 	_textureBindings.clear();
 	_textureBindings.reserve(_textures.size() * 2); // Account for duplicates
 
@@ -619,12 +618,17 @@ void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 	markUniformsDirty();
 }
 
-// Static cleanup method - call at end of render pass
+// Cleanup method
 void AssImpMesh::releaseCurrentShader()
 {
 	if (_currentBoundShader)
 	{
-		_currentBoundShader->release();
-		_currentBoundShader = nullptr;
+		QOpenGLContext* ctx = QOpenGLContext::currentContext();
+		if (ctx && ctx->isValid() && ctx->thread() == QThread::currentThread())
+		{
+			_currentBoundShader->release();			
+		}
 	}
+	_currentBoundShader = nullptr;
 }
+
