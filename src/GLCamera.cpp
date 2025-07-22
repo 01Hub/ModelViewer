@@ -126,47 +126,62 @@ void GLCamera::updateViewMatrix(void)
 void GLCamera::updateProjectionMatrix(void)
 {
 	_projectionMatrix.setToIdentity();
+
 	float w = _width;
 	float h = _height;
-	float halfRange = _viewRange / 2;
-	if (h == 0)
-		h = 1.0;
+	if (h == 0.0f) h = 1.0f;
+	float aspect = w / h;
+
+	// Clamp view range to avoid problems with tiny scenes
+	float viewRange = std::max(_viewRange, 0.1f); // <- adjust threshold if needed
+	float halfRange = viewRange * 0.5f;
+
 	if (_projectionType == ProjectionType::ORTHOGRAPHIC)
 	{
 		if (w <= h)
-			_projectionMatrix.ortho(-halfRange, halfRange,
-				-halfRange * h / w, halfRange * h / w,
-				-halfRange * 1000, halfRange * 1000);
-		else
-			_projectionMatrix.ortho(-halfRange * w / h, halfRange * w / h,
-				-halfRange, halfRange,
-				-halfRange * 1000, halfRange * 1000);
-	}
-	else
-	{
-		// https://www.khronos.org/opengl/wiki/Viewing_and_Transformations#How_do_I_keep_my_aspect_ratio_correct_after_a_window_resize.3F
-		float aspectYScale = 1.0;
-		float conditionalAspect = 1.0f;
-		if (w / h < conditionalAspect)
 		{
-			aspectYScale *= w / h / conditionalAspect;
+			_projectionMatrix.ortho(
+				-halfRange, halfRange,
+				-halfRange * h / w, halfRange * h / w,
+				-viewRange * 1000.0f, viewRange * 1000.0f
+			);
 		}
-		_projectionMatrix.perspective(atanf(tanf(_FOV * PI / 360.0) / aspectYScale) * 360.0 / PI
-			, w / h, 1.0f, _viewRange * 1000.0f);
-		// https://www.edmundoptics.com/knowledge-center/application-notes/imaging/understanding-focal-length-and-field-of-view
-		// Adjust camera translation according to FOV
-        //float radAngle = _FOV * PI / 180.0;
-        //float radHFOV = 2.0f * atanf(tanf(radAngle / 2.0f) * w / h);
-        //float HFOV = radHFOV * 180.0 / PI;
-		//float HFOV = h / w;// (w <= h) ? h / w : w / h;
-        //float AFOV = _FOV * PIdiv180;
-        //float wd = HFOV / (2.0f * tan(AFOV / 2.0f));
-		//qDebug() << "WD: " << wd;
-        //wd = wd + wd * 0.2f;
-		float shift = -_viewRange * 1.25;
-		_projectionMatrix.translate(0.0, 0.0, shift);
+		else
+		{
+			_projectionMatrix.ortho(
+				-halfRange * w / h, halfRange * w / h,
+				-halfRange, halfRange,
+				-viewRange * 1000.0f, viewRange * 1000.0f
+			);
+		}
+	}
+	else // Perspective
+	{
+		float aspect = w / h;
+		float nearPlane = std::max(_viewRange * 0.01f, 0.01f);
+		float farPlane = _viewRange * 1000.0f;
+
+		float fovY = _FOV;
+		float fovYRad = fovY * PI / 180.0f;
+
+		// Optionally adjust vertical FOV for tall windows
+		float effectiveFOV = fovY;
+		if (aspect < 1.0f)
+		{
+			effectiveFOV = atan(tan(fovYRad / 2.0f) * aspect) * 2.0f * 180.0f / PI;
+			fovYRad = effectiveFOV * PI / 180.0f;
+		}
+
+		_projectionMatrix.perspective(effectiveFOV, aspect, nearPlane, farPlane);
+
+		// Final shift to fit bounding sphere perfectly
+		float shift = computeViewShift(_FOV, _viewRange, 1.05f, 1.25f);
+
+		_projectionMatrix.translate(0.0f, 0.0f, shift);
+
 	}
 }
+
 
 void GLCamera::rotateX(float iAngle)
 {
@@ -448,6 +463,15 @@ void GLCamera::setProjectionMatrix(QMatrix4x4 mat)
 {
 	_projectionMatrix = mat;
 }
+
+float GLCamera::computeViewShift(float fovYDegrees, float viewRange, float margin, float maxShiftFactor)
+{
+	float fovYRad = qDegreesToRadians(fovYDegrees);
+	float shift = -viewRange * margin / std::sin(fovYRad / 2.0f);
+	float minShift = -viewRange * maxShiftFactor;
+	return std::max(shift, minShift);
+}
+
 
 void GLCamera::computeStereoViewProjectionMatrices(int width, int height, float IOD, float depthZ, bool left_eye)
 {

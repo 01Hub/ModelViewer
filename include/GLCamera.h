@@ -138,6 +138,8 @@ public:
 	void setViewMatrix(QMatrix4x4 mat);
 	QMatrix4x4 getViewMatrix() const { return _viewMatrix; }
 
+	float computeViewShift(float fovYDegrees, float viewRange, float margin, float maxShiftFactor);
+
 	void computeStereoViewProjectionMatrices(int width, int height, float IOD, float depthZ, bool left_eye);
 
 	void setProjectionMatrix(QMatrix4x4 mat);
