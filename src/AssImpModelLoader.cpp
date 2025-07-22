@@ -690,10 +690,10 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 
 		if (!_needsUVGeneration && nodeCounter % 20 == 0)
 		{
-			emit nodeProcessed(nodeCounter, _sceneStats.meshCount, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
+			emit nodeProcessed(i+1, node->mNumChildren, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
 		}
 		else
-			emit nodeProcessed(nodeCounter, _sceneStats.meshCount, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
+			emit nodeProcessed(i+1, node->mNumChildren, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
 	}
 }
 
