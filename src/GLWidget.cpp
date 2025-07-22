@@ -1503,10 +1503,10 @@ void GLWidget::showMeshLoadingProgress(float /*percent*/)
 	makeCurrent();
 }
 
-void GLWidget::showModelLoadingProgress(int nodeNum, int totalNodes, bool uvProcessed)
+void GLWidget::showModelLoadingProgress(int nodeNum, int totalNodes, int totalMeshes, bool uvProcessed)
 {
 	QString statusMessage = (uvProcessed) ? tr("Generating UVs... ") : "";
-	statusMessage = statusMessage + QString(tr("Processing node: %1/%2")).arg(nodeNum).arg(totalNodes);
+	statusMessage = statusMessage + QString(tr("Processing node: %1/%2  Total Meshes: %3")).arg(nodeNum).arg(totalNodes).arg(totalMeshes);
 	MainWindow::showStatusMessage(statusMessage);
 	MainWindow::setProgressValue((int)((float)nodeNum / (float)totalNodes * 100.0f));
 	makeCurrent();

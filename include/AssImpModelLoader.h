@@ -100,7 +100,7 @@ public:
 signals:
 	void fileReadProcessed(float percent);
 	void verticesProcessed(float percent);
-	void nodeProcessed(int nodeNum, int totalNodes, bool uvProcessed);
+	void nodeProcessed(int nodeNum, int totalNodes, int totalMeshes, bool uvProcessed);
 	void meshBatchReady(std::vector<AssImpMesh*> batch);
 	void loadingFinished(bool successFlag, const aiScene* scene);
 	void loadingCancelled();

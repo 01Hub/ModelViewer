@@ -690,10 +690,10 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 
 		if (!_needsUVGeneration && nodeCounter % 20 == 0)
 		{
-			emit nodeProcessed(i+1, node->mNumChildren, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
+			emit nodeProcessed(i+1, node->mNumChildren, _sceneStats.meshCount, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
 		}
 		else
-			emit nodeProcessed(i+1, node->mNumChildren, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
+			emit nodeProcessed(i+1, node->mNumChildren, _sceneStats.meshCount, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
 	}
 }
 
@@ -714,20 +714,21 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	{
 		step++;
 		Vertex vertex;
-		glm::vec3 vector; // We declare a placeholder vector since assimp uses its own vector class that doesn't directly convert to glm's vec3 class so we transfer the data to this placeholder glm::vec3 first.
-
+		
+		// Compute the normal matrix as the inverse transpose of the transformation matrix
 		aiMatrix3x3 normalMatrix = aiMatrix3x3(transform);
-		normalMatrix.Inverse().Transpose();
-		// Transform the vertex position by the mesh's transformation matrix		
+		normalMatrix = normalMatrix.Inverse().Transpose(); // Correctly compute the inverse transpose
+
+		// Transform the vertex position by the mesh's transformation matrix
 		// Transform Position
 		aiVector3D pos = mesh->mVertices[i];
-		aiVector3D transformedPos = transform * pos;
+		aiVector3D transformedPos = transform * pos; // Transform position directly
 		vertex.Position = glm::vec3(transformedPos.x, transformedPos.y, transformedPos.z);
 
 		// Transform Normals
 		aiVector3D normal = mesh->mNormals[i];
-		aiVector3D transformedNormal = normalMatrix * normal;
-		transformedNormal.Normalize(); // important if scale is involved
+		aiVector3D transformedNormal = normalMatrix * normal; // Apply the inverse transpose to the normal
+		transformedNormal.Normalize(); // Normalize the normal after transformation (important for scaling)
 		vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
 
 		// Texture Coordinates
@@ -740,21 +741,22 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 			vec.y = mesh->mTextureCoords[0][i].y;
 			vertex.TexCoords = vec;
 
-			// tangent
+			// Tangent
 			if (mesh->mTangents)
 			{
-				vector.x = mesh->mTangents[i].x;
-				vector.y = mesh->mTangents[i].y;
-				vector.z = mesh->mTangents[i].z;
-				vertex.Tangent = vector;
+				aiVector3D tangent = mesh->mTangents[i];
+				aiVector3D transformedTangent = normalMatrix * tangent; // Transform tangent using the inverse transpose
+				transformedTangent.Normalize(); // Normalize the tangent
+				vertex.Tangent = glm::vec3(transformedTangent.x, transformedTangent.y, transformedTangent.z);
 			}
-			// bitangent
+
+			// Bitangent
 			if (mesh->mBitangents)
 			{
-				vector.x = mesh->mBitangents[i].x;
-				vector.y = mesh->mBitangents[i].y;
-				vector.z = mesh->mBitangents[i].z;
-				vertex.Bitangent = vector;
+				aiVector3D bitangent = mesh->mBitangents[i];
+				aiVector3D transformedBitangent = normalMatrix * bitangent; // Transform bitangent using the inverse transpose
+				transformedBitangent.Normalize(); // Normalize the bitangent
+				vertex.Bitangent = glm::vec3(transformedBitangent.x, transformedBitangent.y, transformedBitangent.z);
 			}
 		}
 		else
