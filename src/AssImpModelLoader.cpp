@@ -674,7 +674,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 				emit meshBatchReady(std::move(_currentBatch));
 				_currentBatch.clear();
 			}
-		}		
+		}
 	}
 
 	for (unsigned int i = 0; i < node->mNumChildren; i++)
@@ -690,10 +690,10 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 
 		if (!_needsUVGeneration && nodeCounter % 20 == 0)
 		{
-			emit nodeProcessed(i+1, node->mNumChildren, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
+			emit nodeProcessed(nodeCounter, _sceneStats.meshCount, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
 		}
 		else
-			emit nodeProcessed(i+1, node->mNumChildren, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
+			emit nodeProcessed(nodeCounter, _sceneStats.meshCount, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
 	}
 }
 

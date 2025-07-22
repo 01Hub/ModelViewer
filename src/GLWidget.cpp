@@ -448,7 +448,7 @@ void GLWidget::initializeGL()
 
 	_assimpModelLoader = new AssImpModelLoader(_fgShader.get());
 	connect(_assimpModelLoader, &AssImpModelLoader::fileReadProcessed, this, &GLWidget::showFileReadingProgress);
-	connect(_assimpModelLoader, &AssImpModelLoader::meshesProcessed, this, &GLWidget::showMeshLoadingProgress);
+	connect(_assimpModelLoader, &AssImpModelLoader::verticesProcessed, this, &GLWidget::showMeshLoadingProgress);
 	connect(_assimpModelLoader, &AssImpModelLoader::nodeProcessed, this, &GLWidget::showModelLoadingProgress);
 	connect(this, &GLWidget::loadingAssImpModelCancelled, _assimpModelLoader, &AssImpModelLoader::cancelLoading);
 
@@ -1498,10 +1498,8 @@ void GLWidget::showFileReadingProgress(float percent)
 	makeCurrent();
 }
 
-void GLWidget::showMeshLoadingProgress(float percent)
+void GLWidget::showMeshLoadingProgress(float /*percent*/)
 {
-	MainWindow::showStatusMessage(tr("Loading meshes..."));
-	MainWindow::setProgressValue((int)((float)percent * 100.0f));
 	makeCurrent();
 }
 
