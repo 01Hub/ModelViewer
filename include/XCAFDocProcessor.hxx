@@ -1,0 +1,46 @@
+#pragma once
+
+#include "IXCAFDocProcessor.hxx"
+#include <assimp/scene.h>
+#include <string>
+#include <vector>
+#include <tuple>
+#include <TopLoc_Location.hxx>
+#include <TopoDS_Shape.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
+#include <XCAFDoc_ColorTool.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <Quantity_Color.hxx>
+#include <TDF_Label.hxx>
+#include <TDataStd_Name.hxx>
+#include <TDF_LabelSequence.hxx>
+#include <XCAFDoc_Location.hxx>
+#include <XCAFApp_Application.hxx>
+#include <QObject>
+
+class XCAFDocProcessor : public QObject, public IXCAFDocProcessor
+{
+    Q_OBJECT
+
+public:
+    XCAFDocProcessor() = default;
+    ~XCAFDocProcessor() override = default;
+
+protected:
+    using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, TopLoc_Location, Quantity_Color>;
+
+    // Common XCAF functionality shared by all CAD processors
+    void traverseXCAFAssembly(
+        const Handle(XCAFDoc_ShapeTool)& shapeTool,
+        const Handle(XCAFDoc_ColorTool)& colorTool,
+        const TDF_Label& label,
+        const TopLoc_Location& parentLoc,
+        std::vector<TopoDS_Shape>& outShapes,
+        std::vector<Quantity_Color>& outColors,
+        std::vector<std::string>& outNames);
+
+    bool GetShapeColorFromShape(
+        const Handle(XCAFDoc_ColorTool)& colorTool,
+        const TopoDS_Shape& shape,
+        Quantity_Color& outColor);
+};

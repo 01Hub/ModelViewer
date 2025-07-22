@@ -109,28 +109,7 @@ public slots:
 	void processFileReadProgress(float percentage);
 	void cancelLoading();
 
-private:	
-	//using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, gp_Trsf>;
-	using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, TopLoc_Location, Quantity_Color>;
-
-	aiScene* processIGESFile(const std::string& path);
-	aiScene* processSTEPFile(const std::string& path);
-	aiScene* processBREPFile(const std::string& path);
-	
-	void readSTEPFile(const std::string& filename, Handle(TDocStd_Document)& doc);
-	void traverseXCAFAssembly(
-		const Handle(XCAFDoc_ShapeTool)& shapeTool,
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TDF_Label& label,
-		const TopLoc_Location& parentLoc,
-		std::vector<TopoDS_Shape>& outShapes,
-		std::vector<Quantity_Color>& outColors,
-		std::vector<std::string>& outNames);
-	bool GetShapeColorFromShape(
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TopoDS_Shape& shape,
-		Quantity_Color& outColor);
-
+private:
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene, const aiMatrix4x4& parentTransform);
 
