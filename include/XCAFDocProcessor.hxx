@@ -39,6 +39,15 @@ protected:
         std::vector<Quantity_Color>& outColors,
         std::vector<std::string>& outNames);
 
+    void traverseXCAFAssembly(
+        const Handle(XCAFDoc_ShapeTool)& shapeTool,
+        const Handle(XCAFDoc_ColorTool)& colorTool,
+        const TDF_Label& label,
+        const TopLoc_Location& parentLoc,
+        aiNode* parentNode,
+        aiScene* scene,
+        int& meshIndex);
+
     bool GetShapeColorFromShape(
         const Handle(XCAFDoc_ColorTool)& colorTool,
         const TopoDS_Shape& shape,

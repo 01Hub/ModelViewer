@@ -1,4 +1,5 @@
 #include "XCAFDocProcessor.hxx"
+#include "BRepToAssimpConverter.h"
 #include <map>
 
 // Traverse the STEP assembly structure and extract shapes and names
@@ -101,6 +102,207 @@ void XCAFDocProcessor::traverseXCAFAssembly(
 	}
 
 	outColors.push_back(color);
+}
+
+void XCAFDocProcessor::traverseXCAFAssembly(
+    const Handle(XCAFDoc_ShapeTool)& shapeTool,
+    const Handle(XCAFDoc_ColorTool)& colorTool,
+    const TDF_Label& label,
+    const TopLoc_Location& parentLoc,
+    aiNode* parentNode,
+    aiScene* scene,
+    int& meshIndex)
+{
+    // 1) Extract the name from the TDF_Label
+    Handle(TDataStd_Name) nameAttr;
+    std::string nodeName = "Unnamed";
+    if (label.FindAttribute(TDataStd_Name::GetID(), nameAttr))
+    {
+        nodeName = TCollection_AsciiString(nameAttr->Get()).ToCString();
+    }
+
+    // 2) Assembly? Recurse its components (cycle-safe)
+    if (shapeTool->IsAssembly(label))
+    {
+        TDF_LabelSequence comps;
+        shapeTool->GetComponents(label, comps);
+
+        // Create a node for this assembly
+        aiNode* assemblyNode = new aiNode();
+        assemblyNode->mName = aiString(nodeName);  // Use name from TDF_Label
+
+        // Attach this assembly node to its parent
+        aiNode** newChildren = (aiNode**)realloc(parentNode->mChildren, (parentNode->mNumChildren + 1) * sizeof(aiNode*));
+        if (!newChildren)
+        {
+            free(parentNode->mChildren);  // Free the original memory
+            throw std::bad_alloc();       // Notify the caller of allocation failure
+        }
+        parentNode->mChildren = newChildren;
+        parentNode->mChildren[parentNode->mNumChildren] = assemblyNode;
+        parentNode->mNumChildren++;
+
+        for (Standard_Integer i = 1; i <= comps.Length(); ++i)
+        {
+            traverseXCAFAssembly(shapeTool, colorTool, comps.Value(i), parentLoc, assemblyNode, scene, meshIndex);
+        }
+        return;
+    }
+
+    // 3) Compute this instance's transform
+    TopLoc_Location loc = parentLoc * shapeTool->GetLocation(label);
+
+    // 4) If it's a reference, resolve to its definition label
+    TDF_Label defLabel = label;
+    if (shapeTool->IsReference(label))
+    {
+        TDF_Label tmp;
+        if (shapeTool->GetReferredShape(label, tmp))
+        {
+            defLabel = tmp;
+        }
+    }
+
+    // 5) If that definition is *also* an assembly, dive in
+    if (shapeTool->IsAssembly(defLabel))
+    {
+        TDF_LabelSequence comps;
+        shapeTool->GetComponents(defLabel, comps);
+
+        // Extract the name for the sub-assembly
+        std::string subAssemblyName = "SubAssembly";
+        if (defLabel.FindAttribute(TDataStd_Name::GetID(), nameAttr))
+        {
+            subAssemblyName = TCollection_AsciiString(nameAttr->Get()).ToCString();
+        }
+
+        // Create a node for the sub-assembly
+        aiNode* subAssemblyNode = new aiNode();
+        subAssemblyNode->mName = aiString(subAssemblyName);  // Use name from TDF_Label
+
+        // Attach this sub-assembly node to its parent
+        aiNode** newChildren = (aiNode**)realloc(parentNode->mChildren, (parentNode->mNumChildren + 1) * sizeof(aiNode*));
+        if (!newChildren)
+        {
+            free(parentNode->mChildren);  // Free the original memory
+            throw std::bad_alloc();       // Notify the caller of allocation failure
+        }
+        parentNode->mChildren = newChildren;
+        parentNode->mChildren[parentNode->mNumChildren] = subAssemblyNode;
+        parentNode->mNumChildren++;
+
+        for (Standard_Integer i = 1; i <= comps.Length(); ++i)
+        {
+            traverseXCAFAssembly(shapeTool, colorTool, comps.Value(i), loc, subAssemblyNode, scene, meshIndex);
+        }
+        return;
+    }
+
+    // 6) Now defLabel must be a true leaf part definition - grab its shape
+    TopoDS_Shape shape = shapeTool->GetShape(defLabel);
+    if (shape.IsNull()) return;
+
+    shape.Move(loc);
+
+    // 7) Extract the name for the leaf node
+    std::string leafNodeName = "Unnamed";
+    if (defLabel.FindAttribute(TDataStd_Name::GetID(), nameAttr))
+    {
+        leafNodeName = TCollection_AsciiString(nameAttr->Get()).ToCString();
+    }
+
+    // 8) Extract the color
+    Quantity_Color color;
+    bool hasColor = false;
+    if (!colorTool.IsNull())
+    {
+        hasColor = GetShapeColorFromShape(colorTool, shape, color);
+    }
+    if (!hasColor)
+    {
+        color = Quantity_NOC_GRAY95;  // fallback to default if no color found
+    }
+
+    // 9) Convert the shape into a sub-scene
+    aiScene* subScene = BRepToAssimpConverter::convert(shape, color, meshIndex, leafNodeName);
+
+    // 10) Merge sub-scene into the main scene
+    if (subScene)
+    {
+        unsigned int meshBase = scene->mNumMeshes;
+        unsigned int materialBase = scene->mNumMaterials;
+
+        // Append meshes
+        scene->mMeshes = (aiMesh**)realloc(scene->mMeshes, sizeof(aiMesh*) * (scene->mNumMeshes + subScene->mNumMeshes));
+        if (!scene->mMeshes)
+        {
+            throw std::bad_alloc();
+        }
+        for (unsigned int m = 0; m < subScene->mNumMeshes; ++m)
+        {
+            scene->mMeshes[meshBase + m] = subScene->mMeshes[m];
+        }
+        scene->mNumMeshes += subScene->mNumMeshes;
+
+        // Append materials
+        scene->mMaterials = (aiMaterial**)realloc(scene->mMaterials, sizeof(aiMaterial*) * (scene->mNumMaterials + subScene->mNumMaterials));
+        if (!scene->mMaterials)
+        {
+            throw std::bad_alloc();
+        }
+        for (unsigned int i = 0; i < subScene->mNumMaterials; ++i)
+        {
+            scene->mMaterials[materialBase + i] = subScene->mMaterials[i];
+        }
+        scene->mNumMaterials += subScene->mNumMaterials;
+
+        // Apply the retrieved color to the material of each mesh in the subScene
+        for (unsigned int m = meshBase; m < meshBase + subScene->mNumMeshes; ++m)
+        {
+            aiMesh* mesh = scene->mMeshes[m];
+
+            // Create a new material with the color if necessary
+            aiMaterial* material = new aiMaterial();
+            aiColor3D diffuseColor(color.Red(), color.Green(), color.Blue());
+            material->AddProperty(&diffuseColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+
+            // Assign the new material to the mesh
+            mesh->mMaterialIndex = scene->mNumMaterials;
+            scene->mMaterials = (aiMaterial**)realloc(scene->mMaterials, sizeof(aiMaterial*) * (scene->mNumMaterials + 1));
+            scene->mMaterials[scene->mNumMaterials] = material;
+            scene->mNumMaterials++;
+        }
+
+        // Attach sub-scene's root node to the parent node
+        aiNode* nodeCopy = BRepToAssimpConverter::cloneNodeDeep(subScene->mRootNode);
+
+        // Adjust mesh indices in the copied node
+        for (unsigned int j = 0; j < nodeCopy->mNumMeshes; ++j)
+        {
+            nodeCopy->mMeshes[j] += meshBase;
+        }
+
+        // Use the name from TDF_Label for the node
+        nodeCopy->mName = aiString(leafNodeName);
+
+        aiNode** newChildren = (aiNode**)realloc(parentNode->mChildren, (parentNode->mNumChildren + 1) * sizeof(aiNode*));
+        if (!newChildren)
+        {
+            free(parentNode->mChildren);
+            throw std::bad_alloc();
+        }
+        parentNode->mChildren = newChildren;
+        parentNode->mChildren[parentNode->mNumChildren] = nodeCopy;
+        parentNode->mNumChildren++;
+
+        // Clean up sub-scene
+        subScene->mMeshes = nullptr;
+        subScene->mMaterials = nullptr;
+        subScene->mRootNode = nullptr;
+        subScene->mNumMeshes = 0;
+        subScene->mNumMaterials = 0;
+        delete subScene;
+    }
 }
 
 // --- Helper to get color from shape ---
