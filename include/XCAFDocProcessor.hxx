@@ -46,10 +46,14 @@ protected:
         const TopLoc_Location& parentLoc,
         aiNode* parentNode,
         aiScene* scene,
-        int& meshIndex);
+        int& meshIndex,
+        int& processedMeshes,
+        int totalMeshes);
 
     bool GetShapeColorFromShape(
         const Handle(XCAFDoc_ColorTool)& colorTool,
         const TopoDS_Shape& shape,
         Quantity_Color& outColor);
+
+    int countMeshes(const Handle(XCAFDoc_ShapeTool)& shapeTool, const TDF_Label& label);
 };

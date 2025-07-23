@@ -1,5 +1,6 @@
 #include "XCAFDocProcessor.hxx"
 #include "BRepToAssimpConverter.h"
+#include "MainWindow.h"
 #include <map>
 
 // Traverse the STEP assembly structure and extract shapes and names
@@ -104,6 +105,8 @@ void XCAFDocProcessor::traverseXCAFAssembly(
 	outColors.push_back(color);
 }
 
+
+// Traverse the STEP assembly structure and convert it to an Assimp scene
 void XCAFDocProcessor::traverseXCAFAssembly(
     const Handle(XCAFDoc_ShapeTool)& shapeTool,
     const Handle(XCAFDoc_ColorTool)& colorTool,
@@ -111,7 +114,9 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     const TopLoc_Location& parentLoc,
     aiNode* parentNode,
     aiScene* scene,
-    int& meshIndex)
+    int& meshIndex,
+    int& processedMeshes,
+    int totalMeshes)
 {
     // 1) Extract the name from the TDF_Label
     Handle(TDataStd_Name) nameAttr;
@@ -129,14 +134,13 @@ void XCAFDocProcessor::traverseXCAFAssembly(
 
         // Create a node for this assembly
         aiNode* assemblyNode = new aiNode();
-        assemblyNode->mName = aiString(nodeName);  // Use name from TDF_Label
+        assemblyNode->mName = aiString(nodeName);
 
-        // Attach this assembly node to its parent
         aiNode** newChildren = (aiNode**)realloc(parentNode->mChildren, (parentNode->mNumChildren + 1) * sizeof(aiNode*));
         if (!newChildren)
         {
-            free(parentNode->mChildren);  // Free the original memory
-            throw std::bad_alloc();       // Notify the caller of allocation failure
+            free(parentNode->mChildren);
+            throw std::bad_alloc();
         }
         parentNode->mChildren = newChildren;
         parentNode->mChildren[parentNode->mNumChildren] = assemblyNode;
@@ -144,7 +148,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
 
         for (Standard_Integer i = 1; i <= comps.Length(); ++i)
         {
-            traverseXCAFAssembly(shapeTool, colorTool, comps.Value(i), parentLoc, assemblyNode, scene, meshIndex);
+            traverseXCAFAssembly(shapeTool, colorTool, comps.Value(i), parentLoc, assemblyNode, scene, meshIndex, processedMeshes, totalMeshes);
         }
         return;
     }
@@ -163,7 +167,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         }
     }
 
-    // 5) If that definition is *also* an assembly, dive in
+    // 5) If it's an assembly, recurse into its components
     if (shapeTool->IsAssembly(defLabel))
     {
         TDF_LabelSequence comps;
@@ -175,17 +179,16 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         {
             subAssemblyName = TCollection_AsciiString(nameAttr->Get()).ToCString();
         }
-
         // Create a node for the sub-assembly
         aiNode* subAssemblyNode = new aiNode();
-        subAssemblyNode->mName = aiString(subAssemblyName);  // Use name from TDF_Label
+        subAssemblyNode->mName = aiString(subAssemblyName);
 
         // Attach this sub-assembly node to its parent
         aiNode** newChildren = (aiNode**)realloc(parentNode->mChildren, (parentNode->mNumChildren + 1) * sizeof(aiNode*));
         if (!newChildren)
         {
-            free(parentNode->mChildren);  // Free the original memory
-            throw std::bad_alloc();       // Notify the caller of allocation failure
+            free(parentNode->mChildren);
+            throw std::bad_alloc();
         }
         parentNode->mChildren = newChildren;
         parentNode->mChildren[parentNode->mNumChildren] = subAssemblyNode;
@@ -193,7 +196,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
 
         for (Standard_Integer i = 1; i <= comps.Length(); ++i)
         {
-            traverseXCAFAssembly(shapeTool, colorTool, comps.Value(i), loc, subAssemblyNode, scene, meshIndex);
+            traverseXCAFAssembly(shapeTool, colorTool, comps.Value(i), loc, subAssemblyNode, scene, meshIndex, processedMeshes, totalMeshes);
         }
         return;
     }
@@ -220,11 +223,16 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     }
     if (!hasColor)
     {
-        color = Quantity_NOC_GRAY95;  // fallback to default if no color found
+        color = Quantity_NOC_GRAY95;
     }
 
     // 9) Convert the shape into a sub-scene
-    aiScene* subScene = BRepToAssimpConverter::convert(shape, color, meshIndex, leafNodeName);
+    aiScene* subScene = BRepToAssimpConverter::convert(shape, color, meshIndex, nodeName);
+
+    // Update the progress bar
+    processedMeshes++;
+    double progress = static_cast<double>(processedMeshes) / totalMeshes;
+    MainWindow::setProgressValue(progress * 100); 
 
     // 10) Merge sub-scene into the main scene
     if (subScene)
@@ -324,3 +332,55 @@ bool XCAFDocProcessor::GetShapeColorFromShape(
 	}
 	return false;
 }
+
+int XCAFDocProcessor::countMeshes(const Handle(XCAFDoc_ShapeTool)& shapeTool, const TDF_Label& label)
+{
+    int meshCount = 0;
+
+    // Assembly? Recurse its components
+    if (shapeTool->IsAssembly(label))
+    {
+        TDF_LabelSequence comps;
+        shapeTool->GetComponents(label, comps);
+
+        for (Standard_Integer i = 1; i <= comps.Length(); ++i)
+        {
+            meshCount += countMeshes(shapeTool, comps.Value(i));
+        }
+        return meshCount;
+    }
+
+    // If it's a reference, resolve to its definition label
+    TDF_Label defLabel = label;
+    if (shapeTool->IsReference(label))
+    {
+        TDF_Label tmp;
+        if (shapeTool->GetReferredShape(label, tmp))
+        {
+            defLabel = tmp;
+        }
+    }
+
+    // If it's an assembly, recurse into its components
+    if (shapeTool->IsAssembly(defLabel))
+    {
+        TDF_LabelSequence comps;
+        shapeTool->GetComponents(defLabel, comps);
+
+        for (Standard_Integer i = 1; i <= comps.Length(); ++i)
+        {
+            meshCount += countMeshes(shapeTool, comps.Value(i));
+        }
+        return meshCount;
+    }
+
+    // Leaf node
+    TopoDS_Shape shape = shapeTool->GetShape(defLabel);
+    if (!shape.IsNull())
+    {
+        meshCount += 1; // Count this shape as one mesh
+    }
+
+    return meshCount;
+}
+
