@@ -231,8 +231,12 @@ void XCAFDocProcessor::traverseXCAFAssembly(
 
     // Update the progress bar
     processedMeshes++;
-    double progress = static_cast<double>(processedMeshes) / totalMeshes;
-    MainWindow::setProgressValue(progress * 100); 
+
+    if (processedMeshes % 5 == 0 || processedMeshes == totalMeshes)
+    {
+        double progress = static_cast<double>(processedMeshes) / totalMeshes;
+        MainWindow::setProgressValue(progress * 100);
+    }
 
     // 10) Merge sub-scene into the main scene
     if (subScene)
