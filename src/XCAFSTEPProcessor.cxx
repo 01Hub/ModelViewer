@@ -1,17 +1,18 @@
-#include "XCAFSTEPProcessor.hxx"
-#include "MainWindow.h"
 #include "BRepToAssimpConverter.h"
+#include "MainWindow.h"
+#include "XCAFSTEPProcessor.hxx"
 #include <assimp/scene.h>
+#include <BinDrivers.hxx>
+#include <QFileInfo>
 #include <QString>
-#include <XCAFApp_Application.hxx>
-#include <XCAFReadProgressIndicator.hxx>
 #include <STEPCAFControl_Reader.hxx>
-#include <TDocStd_Document.hxx>
-#include <TDF_LabelSequence.hxx>
-#include <TDF_Tool.hxx>
 #include <TCollection_ExtendedString.hxx>
 #include <TDF_Label.hxx>
-#include <BinDrivers.hxx>
+#include <TDF_LabelSequence.hxx>
+#include <TDF_Tool.hxx>
+#include <TDocStd_Document.hxx>
+#include <XCAFApp_Application.hxx>
+#include <XCAFReadProgressIndicator.hxx>
 
 aiScene* XCAFSTEPProcessor::processFile(const std::string& path)
 {
@@ -55,10 +56,13 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 #endif
 	MainWindow::showStatusMessage(tr("Traversing assembly and building scene..."));
 
+	// Get the document name to set the root node name using file information
+	QFileInfo fi(QString::fromStdString(path));
+
 	// Create the main Assimp scene
 	aiScene* scene = new aiScene();
 	scene->mRootNode = new aiNode();
-	scene->mRootNode->mName = aiString("Root");
+	scene->mRootNode->mName = aiString(fi.baseName().toStdString().c_str());
 
 	int meshIndex = 0; // Tracks the mesh indices for the scene
 

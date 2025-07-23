@@ -1,15 +1,15 @@
-#include "XCAFIGESProcessor.hxx"
-
-#include "MainWindow.h"
+#include "BinDrivers.hxx"
 #include "BRepToAssimpConverter.h"
-#include "XCAFApp_Application.hxx"
-#include "XCAFReadProgressIndicator.hxx"
 #include "IGESCAFControl_Reader.hxx"
 #include "IGESControl_Controller.hxx"
-#include "TDocStd_Document.hxx"
+#include "MainWindow.h"
 #include "TDF_LabelSequence.hxx"
 #include "TDF_Tool.hxx"
-#include "BinDrivers.hxx"
+#include "TDocStd_Document.hxx"
+#include "XCAFApp_Application.hxx"
+#include "XCAFIGESProcessor.hxx"
+#include "XCAFReadProgressIndicator.hxx"
+#include <QFileInfo>
 #include <QString>
 
 
@@ -71,9 +71,13 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
     // Initialize progress tracking
     int processedMeshes = 0;
 
+    // Get the document name to set the root node name using file information
+    QFileInfo fi(QString::fromStdString(path));
+
     // Create the root Assimp scene
     aiScene* scene = new aiScene();
     scene->mRootNode = new aiNode();
+    scene->mRootNode->mName = aiString(fi.baseName().toStdString().c_str());
 
     // Traverse the assembly structure and extract meshes, names, and colors
     MainWindow::showStatusMessage(tr("Traversing assembly..."));
