@@ -4,12 +4,12 @@
 <context>
     <name>AssImpModelLoader</name>
     <message>
-        <location filename="../src/AssImpModelLoader.cpp" line="144"/>
+        <location filename="../src/AssImpModelLoader.cpp" line="133"/>
         <source>Performance Warning!</source>
         <translation>Avertissement de Performances !</translation>
     </message>
     <message>
-        <location filename="../src/AssImpModelLoader.cpp" line="145"/>
+        <location filename="../src/AssImpModelLoader.cpp" line="134"/>
         <source>The model contains more than 100000 triangles and the current method of UV generation is &quot;Smart UV&quot; which is time consuming.
 Do you want to continue generating the UV?</source>
         <translation>Le modèle contient plus de 100&#xa0;000 triangles et la méthode actuelle de génération d&apos;UV est «&#xa0;Smart UV&#xa0;», ce qui est chronophage.
@@ -17,42 +17,33 @@ Do you want to continue generating the UV?</source>
 Souhaitez-vous continuer à générer les UV&#xa0;?</translation>
     </message>
     <message>
-        <location filename="../src/AssImpModelLoader.cpp" line="151"/>
+        <location filename="../src/AssImpModelLoader.cpp" line="140"/>
         <source>Change Settings</source>
         <translation>Modifier les Paramètres</translation>
     </message>
     <message>
-        <location filename="../src/AssImpModelLoader.cpp" line="240"/>
-        <location filename="../src/AssImpModelLoader.cpp" line="450"/>
         <source>Traversing assembly...</source>
-        <translation>Ensemble Traversant...</translation>
+        <translation type="vanished">Ensemble Traversant...</translation>
     </message>
     <message>
-        <location filename="../src/AssImpModelLoader.cpp" line="259"/>
-        <location filename="../src/AssImpModelLoader.cpp" line="465"/>
         <source>Converting shapes to mesh...</source>
-        <translation>Conversion de formes en maillage...</translation>
+        <translation type="vanished">Conversion de formes en maillage...</translation>
     </message>
     <message>
-        <location filename="../src/AssImpModelLoader.cpp" line="320"/>
         <source>Transferring shapes...</source>
-        <translation>Transférer des formes...</translation>
+        <translation type="vanished">Transférer des formes...</translation>
     </message>
     <message>
-        <location filename="../src/AssImpModelLoader.cpp" line="348"/>
         <source>Loading as single model...</source>
-        <translation>Chargement en tant que modèle unique...</translation>
+        <translation type="vanished">Chargement en tant que modèle unique...</translation>
     </message>
     <message>
-        <location filename="../src/AssImpModelLoader.cpp" line="373"/>
         <source>Converting shape to mesh...</source>
-        <translation>Conversion de forme en maillage...</translation>
+        <translation type="vanished">Conversion de forme en maillage...</translation>
     </message>
     <message>
-        <location filename="../src/AssImpModelLoader.cpp" line="433"/>
-        <location filename="../src/AssImpModelLoader.cpp" line="513"/>
         <source>Transfering shapes...</source>
-        <translation>Transférer des formes...</translation>
+        <translation type="vanished">Transférer des formes...</translation>
     </message>
 </context>
 <context>
@@ -248,179 +239,183 @@ Souhaitez-vous continuer à générer les UV&#xa0;?</translation>
         <translation>Nombre de Mailles: %1</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="655"/>
-        <location filename="../src/GLWidget.cpp" line="703"/>
-        <location filename="../src/GLWidget.cpp" line="709"/>
-        <location filename="../src/GLWidget.cpp" line="723"/>
-        <location filename="../src/GLWidget.cpp" line="762"/>
+        <location filename="../src/GLWidget.cpp" line="638"/>
+        <location filename="../src/GLWidget.cpp" line="686"/>
+        <location filename="../src/GLWidget.cpp" line="692"/>
+        <location filename="../src/GLWidget.cpp" line="706"/>
+        <location filename="../src/GLWidget.cpp" line="745"/>
         <source>Error</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="655"/>
+        <location filename="../src/GLWidget.cpp" line="638"/>
         <source>No files found in selected folder.</source>
         <translation>Aucun fichier trouvé dans le dossier sélectionné.</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="704"/>
+        <location filename="../src/GLWidget.cpp" line="687"/>
         <source>Failed to load fallback HDR cubemap from:
 </source>
         <translation>Échec du chargement de la carte cubique HDR de secours à partir de :
 </translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="710"/>
+        <location filename="../src/GLWidget.cpp" line="693"/>
         <source>No valid 6-face skybox images or fallback HDR file found in folder.</source>
         <translation>Aucune image skybox 6 faces valide ni fichier HDR de secours n&apos;a été trouvé dans le dossier.</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="724"/>
+        <location filename="../src/GLWidget.cpp" line="707"/>
         <source>Missing skybox face: %1
 Expected files should include identifiers like posx/negx or right/left, etc.</source>
         <translation>Face de skybox manquante : %1
 Les fichiers attendus doivent inclure des identifiants tels que posx/negx ou right/left, etc.</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="762"/>
+        <location filename="../src/GLWidget.cpp" line="745"/>
         <source>Failed to load skybox face:
 </source>
         <translation>Échec du chargement de la face de skybox :
 </translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1068"/>
+        <location filename="../src/GLWidget.cpp" line="1051"/>
         <source>Press Esc to deactivate rotation mode</source>
         <translation>Appuyez sur Echap pour désactiver le mode rotation</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1077"/>
+        <location filename="../src/GLWidget.cpp" line="1060"/>
         <source>Press Esc to deactivate panning mode</source>
         <translation>Appuyez sur Echap pour désactiver le mode panoramique</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1086"/>
+        <location filename="../src/GLWidget.cpp" line="1069"/>
         <source>Press Esc to deactivate zooming mode</source>
         <translation>Appuyez sur Echap pour désactiver le mode zoom</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1420"/>
+        <location filename="../src/GLWidget.cpp" line="1403"/>
         <source>Reading file: </source>
         <translation>Fichier de lecture : </translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1525"/>
+        <location filename="../src/GLWidget.cpp" line="1508"/>
         <source>Generating UVs... </source>
         <translation>Génération d&apos;UV... </translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1526"/>
-        <source>Processing node: %1/%2</source>
-        <translation>Nœud de traitement : %1/%2</translation>
+        <location filename="../src/GLWidget.cpp" line="1509"/>
+        <source>Processing node: %1/%2  Total Meshes: %3</source>
+        <translation>Nœud de traitement&#xa0;: %1/%2 Nombre total de mailles: %3</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1547"/>
+        <source>Processing node: %1/%2</source>
+        <translation type="vanished">Nœud de traitement : %1/%2</translation>
+    </message>
+    <message>
+        <location filename="../src/GLWidget.cpp" line="1530"/>
         <source>Cancelled</source>
         <translation>Annulé</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="1547"/>
+        <location filename="../src/GLWidget.cpp" line="1530"/>
         <source>Model loading cancelled!
 Model may be loaded partially</source>
         <translation>Chargement du modèle annulé! 
 Le modèle peut être partiellement chargé</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5452"/>
+        <location filename="../src/GLWidget.cpp" line="5434"/>
         <source>Center Screen</source>
         <translation>Centrer Écran</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5456"/>
+        <location filename="../src/GLWidget.cpp" line="5438"/>
         <source>Center Object List</source>
         <translation>Centrer la Liste d&apos;Objets</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5458"/>
+        <location filename="../src/GLWidget.cpp" line="5440"/>
         <source>Visualization Settings</source>
         <translation>Paramètres de Visualisation</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5459"/>
+        <location filename="../src/GLWidget.cpp" line="5441"/>
         <source>Transformations</source>
         <translation>Transformations</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5461"/>
+        <location filename="../src/GLWidget.cpp" line="5443"/>
         <source>Show</source>
         <translation>Montrer</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5463"/>
+        <location filename="../src/GLWidget.cpp" line="5445"/>
         <source>Hide</source>
         <translation>C&apos;est ça</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5465"/>
+        <location filename="../src/GLWidget.cpp" line="5447"/>
         <source>Show Only</source>
         <translation>Afficher Uniquement</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5466"/>
+        <location filename="../src/GLWidget.cpp" line="5448"/>
         <source>Duplicate</source>
         <translation>Double</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5467"/>
+        <location filename="../src/GLWidget.cpp" line="5449"/>
         <source>Delete</source>
         <translation>Supprimer</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5468"/>
+        <location filename="../src/GLWidget.cpp" line="5450"/>
         <source>Mesh Info</source>
         <translation>Mesh Info</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5475"/>
+        <location filename="../src/GLWidget.cpp" line="5457"/>
         <source>Fit All</source>
         <translation>Ajuster tout</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5477"/>
+        <location filename="../src/GLWidget.cpp" line="5459"/>
         <source>Zoom Area</source>
         <translation>Zone de Zoom</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5481"/>
+        <location filename="../src/GLWidget.cpp" line="5463"/>
         <source>Zoom</source>
         <translation>Zoom</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5486"/>
+        <location filename="../src/GLWidget.cpp" line="5468"/>
         <source>Pan</source>
         <translation>Pan</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5491"/>
+        <location filename="../src/GLWidget.cpp" line="5473"/>
         <source>Rotate</source>
         <translation>Rotation</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5500"/>
+        <location filename="../src/GLWidget.cpp" line="5482"/>
         <source>Show All</source>
         <translation>Afficher Tout</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5505"/>
+        <location filename="../src/GLWidget.cpp" line="5487"/>
         <source>Hide All</source>
         <translation>Masquer Tout</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5510"/>
+        <location filename="../src/GLWidget.cpp" line="5492"/>
         <source>Swap Visible</source>
         <translation>Échange Visible</translation>
     </message>
     <message>
-        <location filename="../src/GLWidget.cpp" line="5519"/>
+        <location filename="../src/GLWidget.cpp" line="5501"/>
         <source>Background Color</source>
         <translation>Couleur d&apos;Arrière-Plan</translation>
     </message>
@@ -3239,6 +3234,50 @@ Poids : %4 kg
         <location filename="../src/ViewToolbar.cpp" line="401"/>
         <source>Hide the trihedron</source>
         <translation>Cacher le trièdre</translation>
+    </message>
+</context>
+<context>
+    <name>XCAFBREPProcessor</name>
+    <message>
+        <location filename="../src/XCAFBREPProcessor.cxx" line="56"/>
+        <source>Transferring shapes...</source>
+        <translation>Transférer des formes...</translation>
+    </message>
+    <message>
+        <location filename="../src/XCAFBREPProcessor.cxx" line="84"/>
+        <source>Loading as single model...</source>
+        <translation>Chargement en tant que modèle unique...</translation>
+    </message>
+    <message>
+        <location filename="../src/XCAFBREPProcessor.cxx" line="109"/>
+        <source>Converting shape to mesh...</source>
+        <translation>Conversion de forme en maillage...</translation>
+    </message>
+</context>
+<context>
+    <name>XCAFIGESProcessor</name>
+    <message>
+        <location filename="../src/XCAFIGESProcessor.cxx" line="51"/>
+        <source>Transfering shapes...</source>
+        <translation>Transférer des formes...</translation>
+    </message>
+    <message>
+        <location filename="../src/XCAFIGESProcessor.cxx" line="82"/>
+        <source>Traversing assembly and building scene...</source>
+        <translation>Traversée de l&apos;assemblage et construction de la scène...</translation>
+    </message>
+</context>
+<context>
+    <name>XCAFSTEPProcessor</name>
+    <message>
+        <location filename="../src/XCAFSTEPProcessor.cxx" line="74"/>
+        <source>Traversing assembly and building scene...</source>
+        <translation>Traversée de l&apos;assemblage et construction de la scène...</translation>
+    </message>
+    <message>
+        <location filename="../src/XCAFSTEPProcessor.cxx" line="143"/>
+        <source>Transfering shapes...</source>
+        <translation>Transférer des formes...</translation>
     </message>
 </context>
 </TS>
