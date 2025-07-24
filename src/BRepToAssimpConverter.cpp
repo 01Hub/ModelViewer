@@ -171,147 +171,107 @@
  * @param meshIndex Reference to an integer used to assign unique indices to generated meshes. It is incremented as meshes are created.
  * @return aiScene* Pointer to the newly created aiScene containing the converted meshes and nodes.
  */
-aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantity_Color& color, int& meshIndex, const std::string& name)
-{
-	// Create a new Assimp scene and its root node
-	auto* scene = new aiScene();
-	scene->mRootNode = new aiNode();
-
-	// Vectors to hold generated meshes and their corresponding nodes
-	std::vector<aiMesh*> meshes;
-	std::vector<aiNode*> meshNodes;
-
-	// Explorer to find solids within the shape
-	TopExp_Explorer solidExplorer(shape, TopAbs_SOLID);
-	if (!solidExplorer.More())
+	aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantity_Color& color, int& meshIndex, const std::string& name)
 	{
-		// No solids found in the shape, fallback to extracting faces directly
+		// Create a new Assimp scene and its root node
+		auto* scene = new aiScene();
+		scene->mRootNode = new aiNode();
+		scene->mRootNode->mName = aiString(name); // Assign the name to the root node
 
-		// Indexed map to collect faces
-		TopTools_IndexedMapOfShape faceGroup;
+		// Vectors to hold generated meshes
+		std::vector<aiMesh*> meshes;
 
-		// Explorer to iterate over faces in the shape
-		TopExp_Explorer faceExplorer(shape, TopAbs_FACE);
-		for (; faceExplorer.More(); faceExplorer.Next())
+		// Explorer to find solids within the shape
+		TopExp_Explorer solidExplorer(shape, TopAbs_SOLID);
+		if (!solidExplorer.More())
 		{
-			faceGroup.Add(faceExplorer.Current());
-		}
+			// No solids found in the shape, fallback to extracting faces directly
 
-		// Convert the collected faces into a single mesh
-		aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
-		if (mesh)
-		{
-			// Add the mesh to the list
-			meshes.push_back(mesh);
-
-			// Create a node for this mesh
-			aiNode* meshNode = new aiNode();
-
-			// Assign the mesh index to the node
-			meshNode->mMeshes = new unsigned int[1] {static_cast<unsigned int>(meshIndex)};
-			meshNode->mNumMeshes = 1;
-
-			// Set the parent of this node to the root node of the scene
-			meshNode->mParent = scene->mRootNode;
-
-			// Name the node and mesh using the mesh index
-			meshNode->mName = name;// aiString("Mesh_" + std::to_string(meshIndex));
-			mesh->mName = name;// aiString("Mesh_" + std::to_string(meshIndex));
-
-			// Store the node
-			meshNodes.push_back(meshNode);
-
-			// Increment mesh index for next mesh
-			++meshIndex;
-		}
-	}
-	else
-	{
-		// Solids found, process each solid separately
-		for (; solidExplorer.More(); solidExplorer.Next())
-		{
-			// Extract the current solid
-			TopoDS_Solid solid = TopoDS::Solid(solidExplorer.Current());
-
-			// Indexed map to collect faces of the solid
+			// Indexed map to collect faces
 			TopTools_IndexedMapOfShape faceGroup;
 
-			// Explorer to iterate over faces in the solid
-			int faceCnt = 0;
-			TopExp_Explorer faceExplorer(solid, TopAbs_FACE);
+			// Explorer to iterate over faces in the shape
+			TopExp_Explorer faceExplorer(shape, TopAbs_FACE);
 			for (; faceExplorer.More(); faceExplorer.Next())
 			{
 				faceGroup.Add(faceExplorer.Current());
-				++faceCnt;
 			}
 
-#ifdef __DEBUG__
-			std::cout << "Mesh index: " << meshIndex << std::endl;
-			std::cout << "Solid has " << faceCnt << " faces." << std::endl;
-#endif
-
-
-
-			// Convert the collected faces into a mesh
+			// Convert the collected faces into a single mesh
 			aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
 			if (mesh)
 			{
 				// Add the mesh to the list
 				meshes.push_back(mesh);
 
-				// Create a node for this mesh
-				aiNode* meshNode = new aiNode();
-
-				// Assign the mesh index to the node
-				meshNode->mMeshes = new unsigned int[1] {static_cast<unsigned int>(meshIndex)};
-				meshNode->mNumMeshes = 1;
-
-				// Set the parent of this node to the root node of the scene
-				meshNode->mParent = scene->mRootNode;
-
-				// Name the node and mesh using the mesh index, indicating it comes from a solid
-				meshNode->mName = name;// aiString("SolidMesh_" + std::to_string(meshIndex));
-				mesh->mName = name;// aiString("SolidMesh_" + std::to_string(meshIndex));
-
-				// Store the node
-				meshNodes.push_back(meshNode);
+				// Name the mesh directly
+				mesh->mName = name;
 
 				// Increment mesh index for next mesh
 				++meshIndex;
 			}
 		}
+		else
+		{
+			// Solids found, process each solid separately
+			for (; solidExplorer.More(); solidExplorer.Next())
+			{
+				// Extract the current solid
+				TopoDS_Solid solid = TopoDS::Solid(solidExplorer.Current());
+
+				// Indexed map to collect faces of the solid
+				TopTools_IndexedMapOfShape faceGroup;
+
+				// Explorer to iterate over faces in the solid
+				TopExp_Explorer faceExplorer(solid, TopAbs_FACE);
+				for (; faceExplorer.More(); faceExplorer.Next())
+				{
+					faceGroup.Add(faceExplorer.Current());
+				}
+
+				// Convert the collected faces into a mesh
+				aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
+				if (mesh)
+				{
+					// Add the mesh to the list
+					meshes.push_back(mesh);
+
+					// Name the mesh directly
+					mesh->mName = name;
+
+					// Increment mesh index for next mesh
+					++meshIndex;
+				}
+			}
+		}
+
+		// Assign the collected meshes to the scene
+		scene->mNumMeshes = meshes.size();
+		scene->mMeshes = new aiMesh * [scene->mNumMeshes];
+		for (size_t i = 0; i < meshes.size(); ++i)
+		{
+			scene->mMeshes[i] = meshes[i];
+		}
+
+		// Assign the meshes directly to the root node
+		scene->mRootNode->mNumMeshes = meshes.size();
+		scene->mRootNode->mMeshes = new unsigned int[meshes.size()];
+		for (size_t i = 0; i < meshes.size(); ++i)
+		{
+			scene->mRootNode->mMeshes[i] = i; // Index corresponds to the mesh in `scene->mMeshes`
+		}
+
+		// Create a default material for the scene
+		scene->mMaterials = new aiMaterial * [1];
+		aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
+		aiMaterial* material = new aiMaterial;
+		material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
+		scene->mMaterials[0] = material;
+		scene->mNumMaterials = 1;
+
+		// Return the constructed scene
+		return scene;
 	}
-
-	// Assign the collected meshes to the scene
-	scene->mNumMeshes = meshes.size();
-	scene->mMeshes = new aiMesh * [scene->mNumMeshes];
-	for (size_t i = 0; i < meshes.size(); ++i)
-	{
-		scene->mMeshes[i] = meshes[i];
-	}
-
-	// Assign the mesh nodes as children of the root node
-	scene->mRootNode->mNumChildren = meshNodes.size();
-	scene->mRootNode->mChildren = new aiNode * [meshNodes.size()];
-	for (size_t i = 0; i < meshNodes.size(); ++i)
-	{
-		scene->mRootNode->mChildren[i] = meshNodes[i];
-	}
-
-	// Create a default material for the scene
-	scene->mMaterials = new aiMaterial * [1];
-	aiColor3D aiColor(color.Red(), color.Green(), color.Blue());
-	aiMaterial* material = new aiMaterial;
-	material->AddProperty(&aiColor, 1, AI_MATKEY_COLOR_DIFFUSE);
-	scene->mMaterials[0] = material;
-	scene->mNumMaterials = 1;
-
-	// Update material count	
-	scene->mNumMaterials = 1;
-
-	// Return the constructed scene
-	return scene;
-}
 
 
 
