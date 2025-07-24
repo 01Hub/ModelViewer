@@ -54,7 +54,6 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 #ifdef __DEBUG__
 	auto startTraverse = std::chrono::high_resolution_clock::now();
 #endif
-	MainWindow::showStatusMessage(tr("Traversing assembly and building scene..."));
 
 	// Get the document name to set the root node name using file information
 	QFileInfo fi(QString::fromStdString(path));
@@ -62,13 +61,17 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 	// Create the main Assimp scene
 	aiScene* scene = new aiScene();
 	scene->mRootNode = new aiNode();
-	scene->mRootNode->mName = aiString(fi.baseName().toStdString().c_str());
+	std::string docName = fi.baseName().toStdString();
+	std::string rootNodeName = docName + "_STEP";
+	scene->mRootNode->mName = aiString(rootNodeName.c_str());
 
 	int meshIndex = 0; // Tracks the mesh indices for the scene
 
 	// Traverse the assembly and build the Assimp scene hierarchy
 	int totalMeshes = countMeshes(shapeTool, labels.Value(1)); // Assuming labels contains free shapes
 	int processedMeshes = 0;
+
+	MainWindow::showStatusMessage(tr("Traversing assembly and building scene..."));
 
 	for (Standard_Integer i = 1; i <= labels.Length(); ++i)
 	{

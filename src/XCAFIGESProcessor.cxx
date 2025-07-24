@@ -61,15 +61,7 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
     shapeTool->GetFreeShapes(labels);
 
     // Precompute the total number of meshes for progress bar updates
-    int totalMeshes = 0;
-    for (Standard_Integer i = 1; i <= labels.Length(); ++i)
-    {
-        totalMeshes += countMeshes(shapeTool, labels.Value(i));
-    }
-
-    int meshIndex = 0; // Tracks the mesh indices for the scene
-    // Initialize progress tracking
-    int processedMeshes = 0;
+	int totalMeshes = countMeshes(shapeTool, labels.Value(1));
 
     // Get the document name to set the root node name using file information
     QFileInfo fi(QString::fromStdString(path));
@@ -77,10 +69,17 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
     // Create the root Assimp scene
     aiScene* scene = new aiScene();
     scene->mRootNode = new aiNode();
-    scene->mRootNode->mName = aiString(fi.baseName().toStdString().c_str());
+    std::string docName = fi.baseName().toStdString();
+    std::string rootNodeName = docName + "_IGES";
+    scene->mRootNode->mName = aiString(rootNodeName.c_str());
 
-    // Traverse the assembly structure and extract meshes, names, and colors
-    MainWindow::showStatusMessage(tr("Traversing assembly..."));
+    int meshIndex = 0; // Tracks the mesh indices for the scene
+    // Initialize progress tracking
+    int processedMeshes = 0;
+
+    
+    // Traverse the assembly structure and build the aiScene
+    MainWindow::showStatusMessage(tr("Traversing assembly and building scene..."));
 
     for (Standard_Integer i = 1; i <= labels.Length(); ++i)
     {        
