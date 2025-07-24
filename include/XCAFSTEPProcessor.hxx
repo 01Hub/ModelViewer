@@ -4,6 +4,8 @@
 
 class XCAFSTEPProcessor : public XCAFDocProcessor
 {
+    Q_OBJECT
+
 public:
     aiScene* processFile(const std::string& path) override;
 
