@@ -2,7 +2,7 @@
 #include "ui_SettingsDialog.h"
 #include <QMessageBox>
 #include "LanguageManager.h"
-
+#include <QTimer>
 
 SettingsDialog::SettingsDialog(QWidget *parent) :
     QDialog(parent),
@@ -11,28 +11,26 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
 {
     ui->setupUi(this);
 
+    retranslateUI();
+
     // Connect to specific buttons
     QPushButton *okButton = ui->buttonBox->button(QDialogButtonBox::Ok); // Get the "OK" button
     if (okButton) {
-        okButton->setText(tr("OK")); // Force "Okay!" to be translated
         connect(okButton, &QPushButton::clicked, this, &SettingsDialog::onOkClicked);
     }
 
     QPushButton *cancelButton = ui->buttonBox->button(QDialogButtonBox::Cancel); // Get the "Cancel" button
     if (cancelButton) {
-        cancelButton->setText(tr("Cancel")); // Force "Cancel" to be translated
         connect(cancelButton, &QPushButton::clicked, this, &SettingsDialog::onCancelClicked);
     }
 
     QPushButton *applyButton = ui->buttonBox->button(QDialogButtonBox::Apply); // Get the "Cancel" button
     if (applyButton) {
-        applyButton->setText(tr("Apply")); // Force "Apply" to be translated
         connect(applyButton, &QPushButton::clicked, this, &SettingsDialog::onApplyClicked);
     }
 
     QPushButton* restoreButton = ui->buttonBox->button(QDialogButtonBox::RestoreDefaults);
     if (restoreButton) {
-        restoreButton->setText(tr("Defaults")); // Force "Defaults" to be translated
         connect(restoreButton, &QPushButton::clicked, this, &SettingsDialog::onRestoreDefaults);
     }
 
@@ -41,6 +39,9 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
        ui->retranslateUi(this);
         retranslateUI();  // if needed
+        QTimer::singleShot(0, this, [this]() {
+            retranslateUI();  // Final force
+        });
         });
 }
 
@@ -54,14 +55,19 @@ void SettingsDialog::retranslateUI()
 {
     // Dialog buttons
     if (ui->buttonBox->button(QDialogButtonBox::Ok))
-        ui->buttonBox->button(QDialogButtonBox::Ok)->setText(tr("OK"));
+        ui->buttonBox->button(QDialogButtonBox::Ok)->setText(QCoreApplication::translate("SettingsDialog", "OK"));
     if (ui->buttonBox->button(QDialogButtonBox::Cancel))
-        ui->buttonBox->button(QDialogButtonBox::Cancel)->setText(tr("Cancel"));
+        ui->buttonBox->button(QDialogButtonBox::Cancel)->setText(QCoreApplication::translate("SettingsDialog", "Cancel"));
     if (ui->buttonBox->button(QDialogButtonBox::Apply))
-        ui->buttonBox->button(QDialogButtonBox::Apply)->setText(tr("Apply"));
+        ui->buttonBox->button(QDialogButtonBox::Apply)->setText(QCoreApplication::translate("SettingsDialog", "Apply"));
     if (ui->buttonBox->button(QDialogButtonBox::RestoreDefaults))
-        ui->buttonBox->button(QDialogButtonBox::RestoreDefaults)->setText(tr("Defaults"));
+        ui->buttonBox->button(QDialogButtonBox::RestoreDefaults)->setText(QCoreApplication::translate("SettingsDialog", "Defaults"));
 
+    ui->buttonBox->updateGeometry();
+    ui->buttonBox->update();
+    ui->buttonBox->repaint();
+    this->update();
+    this->repaint();
     // MSAA ComboBox
     //setMaxMSAASamples(/* pass current maxSamples value here */);
 
@@ -278,7 +284,7 @@ void SettingsDialog::applySettings()
     settings.setValue("checkOpenGLErrorsCheckBox", debug_checkOpenGLErrors);
     settings.setValue("validateShadersCheckBox", debug_validateShaders);
     settings.setValue("profileRenderingCheckBox", debug_profileRendering);
-    
+
     // Notify other parts of the application about the settings change
 	emit settingsChanged();
 
