@@ -145,6 +145,7 @@ target_link_libraries(ModelViewer
         ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
         ${OpenCASCADE_DataExchange_LIBRARIES}
         ${OpenCASCADE_ApplicationFramework_LIBRARIES}
+        ${OpenCASCADE_Visualization_LIBRARIES}
 )
 
 if(WIN32)
