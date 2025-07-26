@@ -56,4 +56,6 @@ protected:
         Quantity_Color& outColor);
 
     int countMeshes(const Handle(XCAFDoc_ShapeTool)& shapeTool, const TDF_Label& label);
+
+    aiMatrix4x4 convertLocationToMatrix(const TopLoc_Location& loc);
 };

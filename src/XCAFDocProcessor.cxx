@@ -205,7 +205,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     TopoDS_Shape shape = shapeTool->GetShape(defLabel);
     if (shape.IsNull()) return;
 
-    shape.Move(loc);
+    //shape.Move(loc);
 
     // 7) Extract the name for the leaf node
     std::string leafNodeName = "Unnamed";
@@ -214,20 +214,8 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         leafNodeName = TCollection_AsciiString(nameAttr->Get()).ToCString();
     }
 
-    // 8) Extract the color
-    Quantity_Color color;
-    bool hasColor = false;
-    if (!colorTool.IsNull())
-    {
-        hasColor = GetShapeColorFromShape(colorTool, shape, color);
-    }
-    if (!hasColor)
-    {
-        color = Quantity_NOC_GRAY95;
-    }
-
-    // 9) Convert the shape into a sub-scene
-    aiScene* subScene = BRepToAssimpConverter::convert(shape, color, meshIndex, nodeName);
+    // 8) Convert the shape into a sub-scene with enhanced color extraction
+    aiScene* subScene = BRepToAssimpConverter::convert(shape, colorTool, shapeTool, defLabel, label, meshIndex, nodeName);
 
     // Update the progress bar
     processedMeshes++;
@@ -238,7 +226,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         MainWindow::setProgressValue(progress * 100);
     }
 
-    // 10) Merge sub-scene into the main scene
+    // 9) Merge sub-scene into the main scene
     if (subScene)
     {
         unsigned int meshBase = scene->mNumMeshes;
@@ -252,7 +240,10 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         }
         for (unsigned int m = 0; m < subScene->mNumMeshes; ++m)
         {
-            scene->mMeshes[meshBase + m] = subScene->mMeshes[m];
+            aiMesh* mesh = subScene->mMeshes[m];
+            scene->mMeshes[meshBase + m] = mesh;
+            // IMPORTANT: Update material index, don't overwrite it
+            mesh->mMaterialIndex += materialBase;
         }
         scene->mNumMeshes += subScene->mNumMeshes;
 
@@ -268,25 +259,14 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         }
         scene->mNumMaterials += subScene->mNumMaterials;
 
-        // Apply the retrieved color to the material of each mesh in the subScene
-        for (unsigned int m = meshBase; m < meshBase + subScene->mNumMeshes; ++m)
-        {
-            aiMesh* mesh = scene->mMeshes[m];
-
-            // Create a new material with the color if necessary
-            aiMaterial* material = new aiMaterial();
-            aiColor3D diffuseColor(color.Red(), color.Green(), color.Blue());
-            material->AddProperty(&diffuseColor, 1, AI_MATKEY_COLOR_DIFFUSE);
-
-            // Assign the new material to the mesh
-            mesh->mMaterialIndex = scene->mNumMaterials;
-            scene->mMaterials = (aiMaterial**)realloc(scene->mMaterials, sizeof(aiMaterial*) * (scene->mNumMaterials + 1));
-            scene->mMaterials[scene->mNumMaterials] = material;
-            scene->mNumMaterials++;
-        }
-
         // Attach sub-scene's root node to the parent node
         aiNode* nodeCopy = BRepToAssimpConverter::cloneNodeDeep(subScene->mRootNode);
+
+        // Convert OpenCASCADE location to Assimp transformation matrix
+        aiMatrix4x4 transformMatrix = convertLocationToMatrix(loc); // You need to implement this
+
+        // Apply the transformation to the node
+        nodeCopy->mTransformation = transformMatrix * nodeCopy->mTransformation;
 
         // Adjust mesh indices in the copied node
         for (unsigned int j = 0; j < nodeCopy->mNumMeshes; ++j)
@@ -388,3 +368,26 @@ int XCAFDocProcessor::countMeshes(const Handle(XCAFDoc_ShapeTool)& shapeTool, co
     return meshCount;
 }
 
+
+aiMatrix4x4 XCAFDocProcessor::convertLocationToMatrix(const TopLoc_Location& loc)
+{
+    if (loc.IsIdentity())
+    {
+        return aiMatrix4x4(); // Identity matrix
+    }
+
+    gp_Trsf transformation = loc.Transformation();
+
+    aiMatrix4x4 matrix;
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 4; j++)
+        {
+            matrix[i][j] = transformation.Value(i + 1, j + 1);
+        }
+    }
+    matrix[3][0] = matrix[3][1] = matrix[3][2] = 0.0f;
+    matrix[3][3] = 1.0f;
+
+    return matrix;
+}
