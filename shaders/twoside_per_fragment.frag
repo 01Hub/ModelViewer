@@ -227,31 +227,40 @@ void main()
     else // wireshaded
     {
         // Find the smallest distance
-        float d = min(g_edgeDistance.x, g_edgeDistance.y );
-        d = min( d, g_edgeDistance.z );
+        float d = min(g_edgeDistance.x, g_edgeDistance.y);
+        d = min(d, g_edgeDistance.z);
 
-        if( d < Line.Width - 1.0f )
-        {
+        if (d < Line.Width - 1.0f) {
             mixVal = 1.0f;
-        } else if( d > Line.Width + 1.0f )
-        {
+        } else if (d > Line.Width + 1.0f) {
             mixVal = 0.0f;
-        }
-        else
-        {
+        } else {
             float x = d - (Line.Width - 1.0f);
-            mixVal = exp2(-2.0f * (x*x));
+            mixVal = exp2(-2.0f * (x * x));
         }
 
-        if(texEnabled == true)
+        if (texEnabled == true)
             v_color *= texture2D(texUnit, g_texCoord2d);
 
-        float avg = (v_color.r + v_color.g + v_color.b + v_color.a)/4.0f; // grayscale
-        float lightness = 0.2126*v_color.r + 0.7152*v_color.g + 0.0722*v_color.b;
-        vec4 linecolor = lightness > 0.05f ? Line.Color : vec4(1.0f) - avg;
-        fragColor = mix(v_color, linecolor, mixVal);
+        // Adaptive overlay color based on base diffuse
+        vec3 baseColor = material.diffuse;
+        float brightness = dot(baseColor, vec3(0.2126, 0.7152, 0.0722));
 
+        vec3 overlayColor;
+        if (brightness < 0.2) {
+            overlayColor = baseColor + vec3(0.6); // brighten dark
+        } else if (brightness > 0.8) {
+            overlayColor = baseColor * 0.3; // darken bright
+        } else {
+            overlayColor = brightness > 0.5 ? baseColor * 0.5 : baseColor + vec3(0.4);
+        }
+        overlayColor = clamp(overlayColor, 0.0, 1.0);
+
+        fragColor = mix(v_color, vec4(overlayColor, 1.0), mixVal);
     }
+
+
+
              
     // Get alpha from maps if available
     float alpha = opacity;
