@@ -118,6 +118,9 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     int& processedMeshes,
     int totalMeshes)
 {
+
+    BRepToAssimpConverter::ClearColorCache();
+
     // 1) Extract the name from the TDF_Label
     Handle(TDataStd_Name) nameAttr;
     std::string nodeName = "Unnamed";
@@ -233,11 +236,16 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         unsigned int materialBase = scene->mNumMaterials;
 
         // Append meshes
-        scene->mMeshes = (aiMesh**)realloc(scene->mMeshes, sizeof(aiMesh*) * (scene->mNumMeshes + subScene->mNumMeshes));
-        if (!scene->mMeshes)
+		int newSize = sizeof(aiMesh*) * (scene->mNumMeshes + subScene->mNumMeshes);
+        auto* temp = realloc(scene->mMeshes, newSize);
+        if (temp)
         {
-            throw std::bad_alloc();
+            scene->mMeshes = static_cast<aiMesh**>(temp);
         }
+        else
+        {            
+            throw std::bad_alloc();
+        }        
         for (unsigned int m = 0; m < subScene->mNumMeshes; ++m)
         {
             aiMesh* mesh = subScene->mMeshes[m];
@@ -248,11 +256,16 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         scene->mNumMeshes += subScene->mNumMeshes;
 
         // Append materials
-        scene->mMaterials = (aiMaterial**)realloc(scene->mMaterials, sizeof(aiMaterial*) * (scene->mNumMaterials + subScene->mNumMaterials));
-        if (!scene->mMaterials)
+        newSize = sizeof(aiMaterial*) * (scene->mNumMaterials + subScene->mNumMaterials);
+        auto* tempMat = realloc(scene->mMaterials, newSize);
+        if (tempMat)
         {
-            throw std::bad_alloc();
+            scene->mMaterials = static_cast<aiMaterial**>(tempMat);
         }
+        else
+        {            
+            throw std::bad_alloc();
+        }        
         for (unsigned int i = 0; i < subScene->mNumMaterials; ++i)
         {
             scene->mMaterials[materialBase + i] = subScene->mMaterials[i];
@@ -263,7 +276,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         aiNode* nodeCopy = BRepToAssimpConverter::cloneNodeDeep(subScene->mRootNode);
 
         // Convert OpenCASCADE location to Assimp transformation matrix
-        aiMatrix4x4 transformMatrix = convertLocationToMatrix(loc); // You need to implement this
+        aiMatrix4x4 transformMatrix = convertLocationToMatrix(loc);
 
         // Apply the transformation to the node
         nodeCopy->mTransformation = transformMatrix * nodeCopy->mTransformation;
