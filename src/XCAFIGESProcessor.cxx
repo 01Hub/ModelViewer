@@ -17,6 +17,7 @@
 
 aiScene* XCAFIGESProcessor::processFile(const std::string& path)
 {
+	XCAFDocProcessor::initializeDocumentProcessing();
 	return processIGESFile(path);
 }
 

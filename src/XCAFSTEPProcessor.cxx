@@ -16,6 +16,7 @@
 
 aiScene* XCAFSTEPProcessor::processFile(const std::string& path)
 {
+	XCAFDocProcessor::initializeDocumentProcessing();
 	return processSTEPFile(path);
 }
 

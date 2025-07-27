@@ -29,6 +29,8 @@ public:
 protected:
     using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, TopLoc_Location, Quantity_Color>;
 
+    void initializeDocumentProcessing();
+
     // Common XCAF functionality shared by all CAD processors
     void traverseXCAFAssembly(
         const Handle(XCAFDoc_ShapeTool)& shapeTool,

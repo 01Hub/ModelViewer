@@ -3,6 +3,12 @@
 #include "MainWindow.h"
 #include <map>
 
+void XCAFDocProcessor::initializeDocumentProcessing()
+{
+    // Clear the color cache only once at the start of document processing
+    BRepToAssimpConverter::ClearColorCache();
+}
+
 // Traverse the STEP assembly structure and extract shapes and names
 void XCAFDocProcessor::traverseXCAFAssembly(
 	const Handle(XCAFDoc_ShapeTool)& shapeTool,
@@ -117,10 +123,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     int& meshIndex,
     int& processedMeshes,
     int totalMeshes)
-{
-
-    BRepToAssimpConverter::ClearColorCache();
-
+{ 
     // 1) Extract the name from the TDF_Label
     Handle(TDataStd_Name) nameAttr;
     std::string nodeName = "Unnamed";
