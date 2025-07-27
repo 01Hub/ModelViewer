@@ -1594,7 +1594,8 @@ TopoDS_Face BRepToAssimpConverter::healAndTriangulateFace(const TopoDS_Face& inp
 		BRepCheck_Analyzer analyzer(inputFace);
 		if (!analyzer.IsValid())
 		{
-			//std::cout << "[Heal] Input face is invalid" << std::endl;
+			std::cout << "[Heal] Input face is invalid" << std::endl;
+			return inputFace;
 		}
 
 		// 2. Heal the face using ShapeFix_Face
@@ -1624,7 +1625,7 @@ TopoDS_Face BRepToAssimpConverter::healAndTriangulateFace(const TopoDS_Face& inp
 		}
 		else
 		{
-			//std::cout << "[Heal] Face healed and triangulated successfully" << std::endl;
+			std::cout << "[Heal] Face healed and triangulated successfully" << std::endl;
 		}
 	}
 	catch (Standard_Failure& e)
