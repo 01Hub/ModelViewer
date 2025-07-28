@@ -215,6 +215,18 @@ private:
         const TDF_Label& startLabel,
         Quantity_Color& outColor);
 
+
+    static bool SearchSiblingLabelsForColor(
+        const Handle(XCAFDoc_ColorTool)& colorTool,
+        const TDF_Label& label,
+        Quantity_Color& outColor);
+
+    static bool SearchStyledItemsForColor(
+            const Handle(XCAFDoc_ColorTool)& colorTool,
+            const TDF_Label& label,
+            Quantity_Color& outColor);
+
+
     static Standard_Real computeDeflectionFromBBox(const TopTools_IndexedMapOfShape& faceGroup, Standard_Real percent = 0.01);
     static TopoDS_Face healAndTriangulateFace(const TopoDS_Face& inputFace,
         double deflection = 0.01,

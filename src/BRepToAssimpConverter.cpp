@@ -1027,12 +1027,45 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 		}
 	}
 
+	// PRIORITY 5B: Sibling label color inference
+	if (!defLabel.IsNull())
+	{
+		if (SearchSiblingLabelsForColor(colorTool, defLabel, outColor))
+		{
+			return true;
+		}
+	}
+
+	if (!instanceLabel.IsNull() && instanceLabel != defLabel)
+	{
+		if (SearchSiblingLabelsForColor(colorTool, instanceLabel, outColor))
+		{
+			return true;
+		}
+	}
+
+
 	// PRIORITY 6: Reverse lookup through all colors (REAL API version)
 	if (SearchAllColorsForAssociation(colorTool, shape, defLabel, instanceLabel, outColor))
 	{
 		//std::cout << "P6: Found color via comprehensive search: " << ColorToString(outColor) << std::endl;
 		return true;
 	}
+
+	// PRIORITY 6B: Styled item traversal
+	if (SearchStyledItemsForColor(colorTool, defLabel, outColor))
+	{
+		return true;
+	}
+
+	if (!instanceLabel.IsNull() && instanceLabel != defLabel)
+	{
+		if (SearchStyledItemsForColor(colorTool, instanceLabel, outColor))
+		{
+			return true;
+		}
+	}
+
 
 	// PRIORITY 7: Child label search (sometimes colors are stored on sub-components)
 	if (!defLabel.IsNull())
@@ -1119,6 +1152,13 @@ bool BRepToAssimpConverter::GetComprehensiveColorWithCache(
 	{
 		s_colorCache.CacheColor(shape, outColor);
 	}
+
+	if (SearchSiblingLabelsForColor(colorTool, defLabel, outColor))
+	{
+		s_colorCache.CacheColor(shape, outColor);
+		return true;
+	}
+
 
 	return result;
 }
@@ -1536,6 +1576,70 @@ bool BRepToAssimpConverter::SearchLabelHierarchyForColor(
 	// Search down the hierarchy (children)
 	return SearchChildLabelsForColor(colorTool, startLabel, outColor);
 }
+
+
+bool BRepToAssimpConverter::SearchSiblingLabelsForColor(
+	const Handle(XCAFDoc_ColorTool)& colorTool,
+	const TDF_Label& label,
+	Quantity_Color& outColor)
+{
+	if (label.IsNull()) return false;
+
+	TDF_Label parent = label.Father();
+	if (parent.IsNull()) return false;
+
+	for (TDF_ChildIterator it(parent); it.More(); it.Next())
+	{
+		TDF_Label sibling = it.Value();
+		if (sibling == label) continue;
+
+		for (XCAFDoc_ColorType type : { XCAFDoc_ColorSurf, XCAFDoc_ColorGen, XCAFDoc_ColorCurv })
+		{
+			if (colorTool->GetColor(sibling, type, outColor))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+#include <TDF_AttributeIterator.hxx>
+#include <XCAFDoc.hxx>
+#include <XCAFDoc_Color.hxx>
+bool BRepToAssimpConverter::SearchStyledItemsForColor(
+	const Handle(XCAFDoc_ColorTool)& colorTool,
+	const TDF_Label& label,
+	Quantity_Color& outColor)
+{
+	if (label.IsNull()) return false;
+
+	// Iterate over attributes on the label
+	TDF_AttributeIterator attrIter(label);
+	for (; attrIter.More(); attrIter.Next())
+	{
+		const Handle(TDF_Attribute)& attr = attrIter.Value();
+		for (XCAFDoc_ColorType type : { XCAFDoc_ColorSurf, XCAFDoc_ColorGen, XCAFDoc_ColorCurv })
+		{
+			if (attr->ID() == XCAFDoc::ColorRefGUID(type))
+			{
+				Handle(XCAFDoc_Color) colorAttr = Handle(XCAFDoc_Color)::DownCast(attr);
+				if (!colorAttr.IsNull())
+				{
+					outColor = colorAttr->GetColor();
+					return true;
+				}
+			}
+		}
+
+		// Optional: Check for StyledItem or PresentationStyleAssignment
+		// This part may require parsing STEP entities directly if not exposed via XCAFDoc
+	}
+
+	return false;
+}
+
 
 
 /**
