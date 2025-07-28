@@ -387,6 +387,9 @@ void AssImpMesh::serialize(QDataStream& out) const
 
 	// Write material (assuming GLMaterial is serializable, otherwise write its fields)
 	_material.serialize(out);
+
+	// Write the transform matrix
+	out << _transformation;
 }
 
 // --- Deserialization ---
@@ -439,8 +442,14 @@ void AssImpMesh::deserialize(QDataStream& in)
 	// Read material
 	_material.deserialize(in);
 
+	// Read the transformation matrix
+	in >> _transformation;
+
 	// Re-setup OpenGL buffers
 	setupMesh();
+
+	// Set the transformation matrix
+	setupTransformation();
 }
 
 void AssImpMesh::setAlbedoPBRMap(unsigned int albedoMap)
