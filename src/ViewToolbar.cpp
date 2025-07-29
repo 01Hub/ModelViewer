@@ -131,7 +131,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
 	// Camera Modes
 	_toolButtonCameraModes = new FlyOutViewButton(this);
-	_toolButtonCameraModes->setIcon(QIcon(":/new/prefix1/res/camera_orbit_64.png"));
+	_toolButtonCameraModes->setIcon(QIcon(":/new/prefix1/res/camera_orbit.png"));
 	_toolButtonCameraModes->setIconSize(QSize(48, 48));
 	_toolButtonCameraModes->setToolTip(tr("Camera Modes"));
 	_toolButtonCameraModes->setPopupMode(QToolButton::DelayedPopup);
@@ -140,11 +140,11 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
 	QMenu* camModeMenu = new QMenu;
 	camModeMenu->setStyleSheet(flyoutStyleSheet);
-	_orbitAction = camModeMenu->addAction(QIcon(":/new/prefix1/res/camera_orbit_64.png"), tr("Orbit"));
+	_orbitAction = camModeMenu->addAction(QIcon(":/new/prefix1/res/camera_orbit.png"), tr("Orbit"));
 	_orbitAction->setShortcut(QKeySequence(Qt::Key_1));
-	_flyAction = camModeMenu->addAction(QIcon(":/new/prefix1/res/camera_fly_64.png"), tr("Fly"));
+	_flyAction = camModeMenu->addAction(QIcon(":/new/prefix1/res/camera_fly.png"), tr("Fly"));
 	_flyAction->setShortcut(QKeySequence(Qt::Key_2));
-	_firstPersonAction = camModeMenu->addAction(QIcon(":/new/prefix1/res/camera_first_person_64.png"), tr("First Person"));
+	_firstPersonAction = camModeMenu->addAction(QIcon(":/new/prefix1/res/camera_first_person.png"), tr("First Person"));
 	_firstPersonAction->setShortcut(QKeySequence(Qt::Key_3));
 
 	connect(_orbitAction, &QAction::triggered, this,
