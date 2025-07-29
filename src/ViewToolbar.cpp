@@ -9,6 +9,7 @@
 #include <QPushButton>
 #include <QButtonGroup>
 #include <QPainter>
+#include <QShortcut>
 
 ViewToolbar::ViewToolbar(QWidget* parent)
 	: QWidget(parent)
@@ -178,25 +179,31 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 	// Group the buttons so that only one can be checked at a time
 	QButtonGroup* buttonGroup = new QButtonGroup(this);
 	buttonGroup->setExclusive(true); // This ensures radio-button behavior
-	auto createBtn = [this, layout, buttonStyleSheet, buttonGroup](const QString& icon, const QString& tooltip, const QString& view) {
+	auto createBtn = [this, layout, buttonStyleSheet, buttonGroup](const QString& icon, const QString& tooltip, const QString& view, const QKeySequence& key) {
 		QToolButton* btn = new QToolButton(this);
 		btn->setStyleSheet(buttonStyleSheet);
 		btn->setIcon(QIcon(icon));
 		btn->setIconSize(QSize(48, 48));
-		btn->setToolTip(tooltip);
+		btn->setToolTip(tooltip);		
 		btn->setAutoRaise(true);
 		btn->setCheckable(true);
+		btn->setShortcut(key);
 		buttonGroup->addButton(btn);
 		layout->addWidget(btn);
 		connect(btn, &QToolButton::clicked, this, [this, view]() { emit viewSelected(view); });
+
+		// Add a global shortcut that triggers the button click
+		QShortcut* shortcut = new QShortcut(key, this);
+		connect(shortcut, &QShortcut::activated, btn, &QToolButton::click);
+
 		return btn;
 		};
-	_btnTopView = createBtn(":/new/prefix1/res/top.png", tr("Top View"), tr("Top")); _btnTopView->setShortcut(Qt::CTRL | Qt::Key_T);
-	_btnFrontView = createBtn(":/new/prefix1/res/front.png", tr("Front View"), tr("Front")); _btnFrontView->setShortcut(Qt::CTRL | Qt::Key_F);
-	_btnLeftView = createBtn(":/new/prefix1/res/left.png", tr("Left View"), tr("Left")); _btnLeftView->setShortcut(Qt::CTRL | Qt::Key_L);
-	_btnBottomView = createBtn(":/new/prefix1/res/bottom.png", tr("Bottom View"), tr("Bottom")); _btnBottomView->setShortcut(Qt::CTRL | Qt::Key_B);
-	_btnRearView = createBtn(":/new/prefix1/res/back.png", tr("Rear View"), tr("Rear")); _btnRearView->setShortcut(Qt::CTRL | Qt::Key_R);
-	_btnRightView = createBtn(":/new/prefix1/res/right.png", tr("Right View"), tr("Right")); _btnRightView->setShortcut(Qt::CTRL | Qt::Key_J);
+	_btnTopView = createBtn(":/new/prefix1/res/top.png", tr("Top View"), tr("Top"), Qt::CTRL | Qt::Key_T);
+	_btnFrontView = createBtn(":/new/prefix1/res/front.png", tr("Front View"), tr("Front"), Qt::CTRL | Qt::Key_F);
+	_btnLeftView = createBtn(":/new/prefix1/res/left.png", tr("Left View"), tr("Left"), Qt::CTRL | Qt::Key_L);
+	_btnBottomView = createBtn(":/new/prefix1/res/bottom.png", tr("Bottom View"), tr("Bottom"), Qt::CTRL | Qt::Key_B);
+	_btnRearView = createBtn(":/new/prefix1/res/back.png", tr("Rear View"), tr("Rear"), Qt::CTRL | Qt::Key_R);
+	_btnRightView = createBtn(":/new/prefix1/res/right.png", tr("Right View"), tr("Right"), Qt::CTRL | Qt::Key_J);
 
 	// Isometric Views
 	_toolButtonViewModes = new FlyOutViewButton(this);
