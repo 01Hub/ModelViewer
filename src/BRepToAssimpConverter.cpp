@@ -564,118 +564,117 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshesWithCache(
  * @param meshIndex An integer index that can be used to identify the created mesh (unused here).
  * @return aiMesh* Pointer to the generated Assimp mesh. Returns nullptr if no vertices are processed.
  */
+#include <BRepLib.hxx>
+#include <ShapeUpgrade_UnifySameDomain.hxx>
+
 aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex)
 {
-	// Container vectors for the combined mesh data: vertices, normals, texture coordinates, and faces
-	std::vector<aiVector3D> vertices, normals, texCoords;
+	std::vector<aiVector3D> vertices;
+	std::vector<aiVector3D> smoothedNormals;
 	std::vector<aiFace> faces;
-	int vertexOffset = 0; // Tracks global vertex index offset for face indices
+	int vertexOffset = 0;
 
-	// Compute deflection for mesh tessellation based on the bounding box of the entire face group
-	// Deflection controls the tessellation granularity (here 5% of bounding box diagonal)
 	Standard_Real deflection = computeDeflectionFromBBox(faceGroup, 0.05);
+	Standard_Real angularDeflection = 0.3;
 
-	// Loop over each face in the input group
 	for (int f = 1; f <= faceGroup.Extent(); ++f)
 	{
 		TopoDS_Face face = TopoDS::Face(faceGroup(f));
+		BRepTools::Clean(face);
+		BRepLib::BuildCurves3d(face);
 
-		BRepTools::Clean(face); // Clean the face to remove any artifacts
+		// Step 1: Attempt to fix face geometry
+		TopoDS_Face fixedFace = face;
+		try
+		{
+			ShapeFix_Face faceFixer(face);
+			faceFixer.Perform();
+			fixedFace = faceFixer.Face();
+		}
+		catch (Standard_Failure& failure)
+		{
+			std::cout << "Exception during face fixing: " << failure.GetMessageString() << std::endl;
+			fixedFace = face; // fallback
+		}
 
-		// Generate mesh triangulation on the face with the computed deflection
-		BRepMesh_IncrementalMesh mesher(face, deflection);
+		// Step 2: Attempt to unify domains
+		TopoDS_Shape unifiedShape;
+		try
+		{
+			ShapeUpgrade_UnifySameDomain unify(fixedFace, true, true, true);
+			unify.Build();
+			unifiedShape = unify.Shape();
+		}
+		catch (Standard_Failure& failure)
+		{
+			std::cout << "Exception during domain unification: " << failure.GetMessageString() << std::endl;
+			unifiedShape.Nullify();
+		}
 
-		// Retrieve the triangulation and its location transformation on the face
+		// Step 3: Use unified face if valid, else fallback
+		if (!unifiedShape.IsNull() && unifiedShape.ShapeType() == TopAbs_FACE)
+		{
+			face = TopoDS::Face(unifiedShape);
+		}
+		else
+		{
+			std::cout << "Unification failed or returned non-face for face " << f << std::endl;
+			face = fixedFace; // fallback to fixed face
+		}
+
+
+		BRepMesh_IncrementalMesh mesher(face, deflection, false, angularDeflection, true);
+
 		TopLoc_Location loc;
 		Handle(Poly_Triangulation) triangulation = BRep_Tool::Triangulation(face, loc);
 		if (triangulation.IsNull())
 		{
-			//std::cout << "Failed to triangulate face " << f << " trying to heal..."<< std::endl;
 			BRepCheck_Analyzer analyzer(face);
 			if (!analyzer.IsValid())
 			{
-				//std::cout << "Face is invalid. Attempting to heal..." << std::endl;
 				TopoDS_Face healedFace = healAndTriangulateFace(face);
-				TopLoc_Location loc;
-				triangulation = BRep_Tool::Triangulation(face, loc);
-				if (triangulation.IsNull())
-				{
-					//std::cout << "Unable to heal face, skipping..." << std::endl;
-					continue; // Skip faces that failed to heal
-				}
-				else
-				{
-					std::cout << "Face healed successfully..." << std::endl;
-				}
+				triangulation = BRep_Tool::Triangulation(healedFace, loc);
+				if (triangulation.IsNull()) continue;
+				face = healedFace;
 			}
-			else
-			{
-				//std::cout << "Face is valid, but triangulation failed..." << std::endl;
-				continue; // Skip faces that failed to triangulate
-			}
+			else continue;
 		}
 
 		gp_Trsf trsf = loc.Transformation();
-
 		int nNodes = triangulation->NbNodes();
 		int nTriangles = triangulation->NbTriangles();
 
-		// Initialize bounding box for UV coordinate computation
-		double minX = 1e10, maxX = -1e10, minY = 1e10, maxY = -1e10;
-		std::vector<gp_Pnt> points(nNodes);
+		if (nNodes <= 0 || nTriangles <= 0) continue;
 
-		// Transform all nodes in the triangulation to global coordinates
-		// and compute bounding box in the XY plane to generate UV map
+		std::vector<aiVector3D> localVertices(nNodes);
+		std::vector<std::vector<aiVector3D>> localNormals(nNodes);
+
 		for (int i = 1; i <= nNodes; ++i)
 		{
 			gp_Pnt p = triangulation->Node(i).Transformed(trsf);
-			points[i - 1] = p;
-			minX = std::min(minX, p.X());
-			maxX = std::max(maxX, p.X());
-			minY = std::min(minY, p.Y());
-			maxY = std::max(maxY, p.Y());
-		}
-		// Avoid division by zero in UV normalization
-		double deltaX = (maxX - minX == 0) ? 1 : (maxX - minX);
-		double deltaY = (maxY - minY == 0) ? 1 : (maxY - minY);
-
-		// Local containers for the current face's vertex data
-		std::vector<aiVector3D> localVertices;
-		std::vector<aiVector3D> localNormals(nNodes);
-		//std::vector<aiVector3D> localUVs;
-
-		// Create local vertex positions and UV texture coordinates from points
-		for (int i = 0; i < nNodes; ++i)
-		{
-			const gp_Pnt& p = points[i];
-			localVertices.emplace_back(p.X(), p.Y(), p.Z());
-			// UV coordinates normalized based on XY bounding box of the face
-			//localUVs.emplace_back((p.X() - minX) / deltaX, (p.Y() - minY) / deltaY, 0.0f);
+			localVertices[i - 1] = aiVector3D(p.X(), p.Y(), p.Z());
 		}
 
-		// Calculate normals per triangle and assign them to the vertices of the triangle
 		for (int i = 1; i <= nTriangles; ++i)
 		{
 			Standard_Integer n1, n2, n3;
 			triangulation->Triangle(i).Get(n1, n2, n3);
-			// Convert 1-based indices to 0-based
 			--n1; --n2; --n3;
+
+			if (n1 >= nNodes || n2 >= nNodes || n3 >= nNodes) continue;
 
 			const aiVector3D& v0 = localVertices[n1];
 			const aiVector3D& v1 = localVertices[n2];
 			const aiVector3D& v2 = localVertices[n3];
 
-			// Compute face normal using cross product of two edges
 			aiVector3D normal = (v1 - v0) ^ (v2 - v0);
+			if (normal.SquareLength() < 1e-10) continue;
 			normal.Normalize();
 
-			// Assign the computed normal to each vertex of the triangle
-			// This simple approach assigns face normals directly, no smoothing done here
-			localNormals[n1] = normal;
-			localNormals[n2] = normal;
-			localNormals[n3] = normal;
+			localNormals[n1].push_back(normal);
+			localNormals[n2].push_back(normal);
+			localNormals[n3].push_back(normal);
 
-			// Construct a face with indices adjusted for the global vertex offset
 			aiFace face;
 			face.mNumIndices = 3;
 			face.mIndices = new unsigned int[3] {
@@ -686,46 +685,52 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			faces.push_back(face);
 		}
 
-		// Append the local face data to the global containers
-		vertices.insert(vertices.end(), localVertices.begin(), localVertices.end());
-		//texCoords.insert(texCoords.end(), localUVs.begin(), localUVs.end());
-		normals.insert(normals.end(), localNormals.begin(), localNormals.end());
-		vertexOffset = vertices.size(); // Update vertex offset for next face
+		for (size_t i = 0; i < localVertices.size(); ++i)
+		{
+			vertices.push_back(localVertices[i]);
+
+			aiVector3D avg(0, 0, 0);
+			if (i < localNormals.size() && !localNormals[i].empty())
+			{
+				for (const auto& n : localNormals[i]) avg += n;
+				avg /= static_cast<float>(localNormals[i].size());
+				avg.Normalize();
+			}
+			else
+			{
+				avg = aiVector3D(0, 0, 1); // fallback normal
+			}
+			smoothedNormals.push_back(avg);
+		}
+
+		vertexOffset = vertices.size();
 	}
 
-	// Return nullptr if no vertices were created (empty mesh)
 	if (vertices.empty()) return nullptr;
 
-	// Create new Assimp mesh and allocate memory for vertex data
 	aiMesh* mesh = new aiMesh();
 	mesh->mPrimitiveTypes = aiPrimitiveType_TRIANGLE;
 	mesh->mNumVertices = vertices.size();
 	mesh->mVertices = new aiVector3D[vertices.size()];
-	mesh->mNormals = new aiVector3D[normals.size()];
-	//mesh->mTextureCoords[0] = new aiVector3D[texCoords.size()];
-	mesh->mNumUVComponents[0] = 2; // UV coordinates have two components (u,v)
+	mesh->mNormals = new aiVector3D[vertices.size()];
+	mesh->mNumUVComponents[0] = 2;
 
-	// Copy vertex positions, normals, and texture coordinates into the mesh arrays
 	for (size_t i = 0; i < vertices.size(); ++i)
 	{
 		mesh->mVertices[i] = vertices[i];
-		mesh->mNormals[i] = normals[i];
-		//mesh->mTextureCoords[0][i] = texCoords[i];
+		mesh->mNormals[i] = smoothedNormals[i];
 	}
 
-	// Allocate and copy face (triangle) data
 	mesh->mNumFaces = faces.size();
 	mesh->mFaces = new aiFace[faces.size()];
 	for (size_t i = 0; i < faces.size(); ++i)
-	{
 		mesh->mFaces[i] = faces[i];
-	}
 
-	// Default material index assigned to zero since no material handling here
 	mesh->mMaterialIndex = 0;
-
 	return mesh;
 }
+
+
 
 
 // step colors support
