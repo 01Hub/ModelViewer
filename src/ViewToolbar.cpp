@@ -323,9 +323,13 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 	QMenu* dispModeMenu = new QMenu;
 	dispModeMenu->setStyleSheet(flyoutStyleSheet);
 	_realistic = dispModeMenu->addAction(QIcon(":/new/prefix1/res/realshaded.png"), tr("Realistic"));
+	_realistic->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_R));
 	_shaded = dispModeMenu->addAction(QIcon(":/new/prefix1/res/shaded.png"), tr("Shaded"));
+	_shaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_S));
 	_wireframe = dispModeMenu->addAction(QIcon(":/new/prefix1/res/wireframe.png"), tr("Wireframe"));
+	_wireframe->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_W));
 	_wireshaded = dispModeMenu->addAction(QIcon(":/new/prefix1/res/wireshaded.png"), tr("Wire Shaded"));
+	_wireshaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_E));
 
 	connect(_realistic, &QAction::triggered, this,
 		[this]() {
