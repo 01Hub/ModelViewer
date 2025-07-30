@@ -2,6 +2,9 @@
 
 using namespace std;
 
+bool AssImpMesh::_currentBlendEnabled;
+GLenum AssImpMesh::_currentFrontFace;
+
 /*  Functions  */
 // Constructor
 AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")

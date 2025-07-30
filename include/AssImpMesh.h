@@ -103,6 +103,6 @@ private:
 	std::vector<PrecomputedTexture> _textureBindings;
 	// State caching
 	QOpenGLShaderProgram* _currentBoundShader;
-	bool _currentBlendEnabled;
-	GLenum _currentFrontFace;	
+	static bool _currentBlendEnabled;
+	static GLenum _currentFrontFace;	
 };
