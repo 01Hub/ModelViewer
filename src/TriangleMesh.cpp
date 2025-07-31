@@ -765,6 +765,14 @@ std::vector<float> TriangleMesh::getTrsfPoints() const
 	return _trsfpoints;
 }
 
+void TriangleMesh::bakeTransformations()
+{
+	// Transform the points as permanently
+	_points   = _trsfpoints ;
+	_normals = _trsfnormals;
+	resetTransformations();
+}
+
 void TriangleMesh::resetTransformations()
 {
 	_transX = _transY = _transZ = 0.0f;

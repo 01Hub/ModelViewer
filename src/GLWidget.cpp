@@ -2335,6 +2335,22 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 	fitAll();
 }
 
+void GLWidget::bakeTransformation(const std::vector<int>& ids)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->bakeTransformations();
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::bakeTransformation\n" << ex.what() << std::endl;
+		}
+	}
+}
+
 void GLWidget::resetTransformation(const std::vector<int>& ids)
 {
 	for (int id : ids)

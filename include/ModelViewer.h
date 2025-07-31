@@ -26,6 +26,7 @@ public:
 
 	void setMaterialToSelectedItems(const GLMaterial& mat);
 	void setTransformation();
+	void bakeTransformations();
 	void resetTransformation();
 
 	QListWidget* getListModel() { return listWidgetModel; }
@@ -99,6 +100,7 @@ private slots:
 	void on_pushButtonApplyADSColors_clicked();
 	void on_pushButtonDefaultMatls_clicked();
 	void on_pushButtonApplyTransformations_clicked();
+	void on_pushButtonBakeTransformations_clicked();
 	void on_pushButtonResetTransformations_clicked();	
 	void on_pushButtonLightAmbient_clicked();
 	void on_pushButtonLightDiffuse_clicked();

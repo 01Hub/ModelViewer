@@ -98,6 +98,7 @@ public:
 	std::vector<float> getTexCoords() const;
 	std::vector<float> getTrsfPoints() const;
 
+	void bakeTransformations();
 	void resetTransformations();
 
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);

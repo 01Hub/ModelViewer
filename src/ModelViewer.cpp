@@ -245,6 +245,18 @@ void ModelViewer::setTransformation()
 	}
 }
 
+void ModelViewer::bakeTransformations()
+{
+	if (checkForActiveSelection())
+	{
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+		std::vector<int> ids = getSelectedIDs();		
+		_glWidget->bakeTransformation(ids);		
+		QMessageBox::information(this, tr("Action Complete"), tr("Baked the applied transformations into the mesh vertices"));
+		QApplication::restoreOverrideCursor();
+	}
+}
+
 void ModelViewer::resetTransformation()
 {
 	if (checkForActiveSelection())
@@ -1087,6 +1099,28 @@ void ModelViewer::on_pushButtonApplyTransformations_clicked()
 {
 	setTransformation();
 	_glWidget->update();
+}
+
+void ModelViewer::on_pushButtonBakeTransformations_clicked()
+{
+	// Ask the user whether they really want to perform this irreversible operation
+
+	QMessageBox::StandardButton reply;
+	reply = QMessageBox::question(this, tr("Bake Transformations"),
+		tr("This operation will bake the transformations into the mesh vertices and cannot be undone.\n"
+		"Do you want to proceed?"),
+		QMessageBox::Yes | QMessageBox::No);
+
+	if (reply == QMessageBox::Yes)
+	{
+		// Proceed with baking transformations
+		bakeTransformations();
+		_glWidget->update();
+	}
+	else
+	{
+		// Cancel the operation
+	}	
 }
 
 void ModelViewer::on_pushButtonResetTransformations_clicked()

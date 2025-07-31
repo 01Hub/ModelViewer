@@ -160,6 +160,7 @@ public:
 	void clearPBRHeightTexMap(const std::vector<int>& ids);
 	void setPBRHeightScale(const std::vector<int>& ids, const float& scale);
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
+	void bakeTransformation(const std::vector<int>& ids);
 	void resetTransformation(const std::vector<int>& ids);
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);
 	void setSkyBoxTextureFolder(QString folder);
