@@ -562,29 +562,30 @@ bool BRepToAssimpConverter::isShapeMeshable(const TopoDS_Shape& shape)
 {
 	TopAbs_ShapeEnum type = shape.ShapeType();
 
-	switch (type)
+	if (type == TopAbs_FACE || type == TopAbs_SOLID || type == TopAbs_SHELL)
 	{
-	case TopAbs_FACE:
-	case TopAbs_SOLID:
-	case TopAbs_SHELL:
 		return true;
+	}
 
-	case TopAbs_COMPOUND:
+	if (type == TopAbs_COMPOUND)
 	{
-		// Recursively check sub-shapes
-		for (TopExp_Explorer exp(shape, TopAbs_SHAPE); exp.More(); exp.Next())
+		// Check for meshable sub-shapes
+		for (TopExp_Explorer exp(shape, TopAbs_FACE); exp.More(); exp.Next())
 		{
-			if (isShapeMeshable(exp.Current()))
-			{
-				return true;
-			}
+			return true;
+		}
+		for (TopExp_Explorer exp(shape, TopAbs_SOLID); exp.More(); exp.Next())
+		{
+			return true;
+		}
+		for (TopExp_Explorer exp(shape, TopAbs_SHELL); exp.More(); exp.Next())
+		{
+			return true;
 		}
 		return false;
 	}
 
-	default:
-		return false;
-	}
+	return false;
 }
 
 /**
