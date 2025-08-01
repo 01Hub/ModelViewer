@@ -63,45 +63,75 @@ BoundingBox MeshProperties::boundingBox() const
 
 void MeshProperties::calculateSurfaceAreaAndVolume()
 {
-	_surfaceArea = 0;
-	_volume = 0;
-	float currentVolume = 0, xCen = 0, yCen = 0, zCen = 0;
-	try {
-		std::vector<unsigned int> indices = _mesh->getIndices();
-		size_t offset = 3; // each index points to 3 floats
-		for (size_t i = 0; i < indices.size();)
-		{
-			// Vertex 1
-			QVector3D p1(_meshPoints.at(offset * indices.at(i) + 0), // x coordinate
-				_meshPoints.at(offset * indices.at(i) + 1),          // y coordinate
-				_meshPoints.at(offset * indices.at(i) + 2));         // z coordinate
-			i++;
+    _surfaceArea = 0;
+    _volume = 0;
+    float currentVolume = 0, xCen = 0, yCen = 0, zCen = 0;
+    const float minimalThickness = 0.001f; // mm
+    float totalArea = 0.0f;
+    QVector3D areaWeightedCentroid(0, 0, 0);
 
-			// Vertex 2
-			QVector3D p2(_meshPoints.at(offset * indices.at(i) + 0), // x coordinate
-				_meshPoints.at(offset * indices.at(i) + 1),          // y coordinate
-				_meshPoints.at(offset * indices.at(i) + 2));         // z coordinate
-			i++;
+    try
+    {
+        std::vector<unsigned int> indices = _mesh->getIndices();
+        size_t offset = 3; // each index points to 3 floats             
 
-			// Vertex 3
-			QVector3D p3(_meshPoints.at(offset * indices.at(i) + 0), // x coordinate
-				_meshPoints.at(offset * indices.at(i) + 1),          // y coordinate
-				_meshPoints.at(offset * indices.at(i) + 2));         // z coordinate
-			i++;
+        for (size_t i = 0; i < indices.size();)
+        {
+            QVector3D p1(_meshPoints.at(offset * indices.at(i) + 0),
+                _meshPoints.at(offset * indices.at(i) + 1),
+                _meshPoints.at(offset * indices.at(i) + 2));
+            i++;
 
-			_volume += currentVolume = QVector3D::dotProduct(p1, (QVector3D::crossProduct(p2, p3))) / 6.0f;
-			xCen += ((p1.x() + p2.x() + p3.x()) / 4.0f) * currentVolume;
-			yCen += ((p1.y() + p2.y() + p3.y()) / 4.0f) * currentVolume;
-			zCen += ((p1.z() + p2.z() + p3.z()) / 4.0f) * currentVolume;
+            QVector3D p2(_meshPoints.at(offset * indices.at(i) + 0),
+                _meshPoints.at(offset * indices.at(i) + 1),
+                _meshPoints.at(offset * indices.at(i) + 2));
+            i++;
 
-			_surfaceArea += QVector3D::crossProduct(p2 - p1, p3 - p1).length() * 0.5;
-		}
-	}
-	catch (const std::exception& ex) {
-		std::cout << "Exception raised in MeshProperties::calculateSurfaceAreaAndVolume\n" << ex.what() << std::endl;
-	}
+            QVector3D p3(_meshPoints.at(offset * indices.at(i) + 0),
+                _meshPoints.at(offset * indices.at(i) + 1),
+                _meshPoints.at(offset * indices.at(i) + 2));
+            i++;
 
-	_volume = (float)fabs(_volume);
-	_centerOfMass = { xCen / _volume, yCen / _volume, zCen / _volume };
-	_weight = _density * _volume / 1e9;
+            // Volume contribution
+            currentVolume = QVector3D::dotProduct(p1, QVector3D::crossProduct(p2, p3)) / 6.0f;
+            _volume += currentVolume;
+
+            // Center of mass contribution
+            xCen += ((p1.x() + p2.x() + p3.x()) / 4.0f) * currentVolume;
+            yCen += ((p1.y() + p2.y() + p3.y()) / 4.0f) * currentVolume;
+            zCen += ((p1.z() + p2.z() + p3.z()) / 4.0f) * currentVolume;
+
+            // Surface area and centroid for laminar fallback
+            float area = QVector3D::crossProduct(p2 - p1, p3 - p1).length() * 0.5f;
+            _surfaceArea += area;
+
+            QVector3D centroid = (p1 + p2 + p3) / 3.0f;
+            areaWeightedCentroid += centroid * area;
+            totalArea += area;
+        }
+    }
+    catch (const std::exception& ex)
+    {
+        std::cout << "Exception raised in MeshProperties::calculateSurfaceAreaAndVolume\n" << ex.what() << std::endl;
+    }
+
+    _volume = std::fabs(_volume);
+
+    if (_volume < 1e-8f)
+    {
+        // Use minimal thickness to estimate pseudo-volume
+        _volume = _surfaceArea* minimalThickness;
+
+        // Use area-weighted centroid as center of gravity
+        if (totalArea > 1e-8f)
+            _centerOfMass = areaWeightedCentroid / totalArea;
+        else
+            _centerOfMass = QVector3D(0, 0, 0);
+    }
+    else
+    {
+        _centerOfMass = QVector3D(xCen / _volume, yCen / _volume, zCen / _volume);
+    }
+
+    _weight = _density * _volume / 1e9; // assuming volume in mm³ and density in kg/m³
 }
