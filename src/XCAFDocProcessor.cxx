@@ -6,7 +6,7 @@
 void XCAFDocProcessor::initializeDocumentProcessing()
 {
     // Clear the color cache only once at the start of document processing
-    BRepToAssimpConverter::ClearColorCache();
+    BRepToAssimpConverter::clearColorCache();
 }
 
 // Traverse the STEP assembly structure and extract shapes and names
@@ -223,6 +223,8 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     // 8) Convert the shape into a sub-scene with enhanced color extraction
     aiScene* subScene = BRepToAssimpConverter::convert(shape, colorTool, shapeTool, defLabel, label, meshIndex, nodeName);
 
+    if (subScene == nullptr)
+        return;
     // Update the progress bar
     processedMeshes++;
 
@@ -235,7 +237,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     // 9) Merge sub-scene into the main scene
     if (subScene)
     {
-        unsigned int meshBase = scene->mNumMeshes;
+        unsigned int meshBase = scene->mNumMeshes;        
         unsigned int materialBase = scene->mNumMaterials;
 
         // Append meshes

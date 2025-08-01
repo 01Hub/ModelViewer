@@ -22,6 +22,7 @@
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Shape.hxx>
 #include <TopoDS_Solid.hxx>
+#include <TopAbs_ShapeEnum.hxx>
 #include <vector>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <BRepLib.hxx>
@@ -301,6 +302,10 @@ aiScene* BRepToAssimpConverter::convert(
 	int& meshIndex,
 	const std::string& name)
 {
+	
+	if (!isShapeMeshable(shape))
+		return nullptr;
+
 	auto* scene = new aiScene();
 	scene->mRootNode = new aiNode();
 
@@ -402,9 +407,9 @@ aiScene* BRepToAssimpConverter::convert(
 }
 
 // Utility method to clear caches (call this when processing a new document)
-void BRepToAssimpConverter::ClearColorCache()
+void BRepToAssimpConverter::clearColorCache()
 {
-	s_colorCache.Clear();
+	s_colorCache.clear();
 }
 
 // convertFaceGroupToMeshes logic with just caching added
@@ -437,21 +442,21 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshesWithCache(
 		}
 
 		// Check cache first for compound
-		if (!s_colorCache.GetCachedColor(compound, shapeColor))
+		if (!s_colorCache.getCachedColor(compound, shapeColor))
 		{
 			// Comprehensive color search
-			hasShapeColor = GetComprehensiveColor(colorTool, compound, defLabel, instanceLabel, shapeColor);
+			hasShapeColor = getComprehensiveColor(colorTool, compound, defLabel, instanceLabel, shapeColor);
 
 			// Alternative: try the complete document search
 			if (!hasShapeColor && !shapeTool.IsNull())
 			{
-				hasShapeColor = FindColorInXCAFDocument(colorTool, shapeTool, compound, shapeColor);
+				hasShapeColor = findColorInXCAFDocument(colorTool, shapeTool, compound, shapeColor);
 			}
 
 			// Cache the result
 			if (hasShapeColor)
 			{
-				s_colorCache.CacheColor(compound, shapeColor);
+				s_colorCache.cacheColor(compound, shapeColor);
 			}
 		}
 		else
@@ -468,7 +473,7 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshesWithCache(
 		bool hasFaceColor = false;
 
 		// Check cache first
-		if (s_colorCache.GetCachedColor(face, faceColor))
+		if (s_colorCache.getCachedColor(face, faceColor))
 		{
 			hasFaceColor = true;
 		}
@@ -477,12 +482,12 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshesWithCache(
 			// Comprehensive color search
 			if (!colorTool.IsNull())
 			{
-				hasFaceColor = GetComprehensiveColor(colorTool, face, defLabel, instanceLabel, faceColor);
+				hasFaceColor = getComprehensiveColor(colorTool, face, defLabel, instanceLabel, faceColor);
 
 				// Alternative: try complete document search for this face
 				if (!hasFaceColor && !shapeTool.IsNull())
 				{
-					hasFaceColor = FindColorInXCAFDocument(colorTool, shapeTool, face, faceColor);
+					hasFaceColor = findColorInXCAFDocument(colorTool, shapeTool, face, faceColor);
 				}
 			}
 
@@ -500,7 +505,7 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshesWithCache(
 			}
 
 			// Cache the result
-			s_colorCache.CacheColor(face, faceColor);
+			s_colorCache.cacheColor(face, faceColor);
 		}
 
 		colorFaceGroups[faceColor].push_back(face);
@@ -550,6 +555,36 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshesWithCache(
 	}
 
 	return meshes;
+}
+
+
+bool BRepToAssimpConverter::isShapeMeshable(const TopoDS_Shape& shape)
+{
+	TopAbs_ShapeEnum type = shape.ShapeType();
+
+	switch (type)
+	{
+	case TopAbs_FACE:
+	case TopAbs_SOLID:
+	case TopAbs_SHELL:
+		return true;
+
+	case TopAbs_COMPOUND:
+	{
+		// Recursively check sub-shapes
+		for (TopExp_Explorer exp(shape, TopAbs_SHAPE); exp.More(); exp.Next())
+		{
+			if (isShapeMeshable(exp.Current()))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	default:
+		return false;
+	}
 }
 
 /**
@@ -956,12 +991,12 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshes(const TopTo
 			builder.Add(compound, faceGroup(f));
 		}
 
-		hasShapeColor = GetComprehensiveColor(colorTool, compound, defLabel, instanceLabel, shapeColor);
+		hasShapeColor = getComprehensiveColor(colorTool, compound, defLabel, instanceLabel, shapeColor);
 
 		// Alternative: try the complete document search
 		if (!hasShapeColor && !shapeTool.IsNull())
 		{
-			hasShapeColor = FindColorInXCAFDocument(colorTool, shapeTool, compound, shapeColor);
+			hasShapeColor = findColorInXCAFDocument(colorTool, shapeTool, compound, shapeColor);
 		}
 	}
 
@@ -979,12 +1014,12 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshes(const TopTo
 		// Try to get face-specific color first
 		if (!colorTool.IsNull())
 		{
-			hasFaceColor = GetComprehensiveColor(colorTool, face, defLabel, instanceLabel, faceColor);
+			hasFaceColor = getComprehensiveColor(colorTool, face, defLabel, instanceLabel, faceColor);
 
 			// Alternative: try complete document search for this face
 			if (!hasFaceColor && !shapeTool.IsNull())
 			{
-				hasFaceColor = FindColorInXCAFDocument(colorTool, shapeTool, face, faceColor);
+				hasFaceColor = findColorInXCAFDocument(colorTool, shapeTool, face, faceColor);
 			}
 		}
 
@@ -1100,7 +1135,7 @@ aiNode* BRepToAssimpConverter::cloneNodeDeep(const aiNode* src)
 }
 
 
-bool BRepToAssimpConverter::GetComprehensiveColor(
+bool BRepToAssimpConverter::getComprehensiveColor(
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TopoDS_Shape& shape,
 	const TDF_Label& defLabel,
@@ -1120,7 +1155,7 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 	static const XCAFDoc_ColorType otherTypes[] = { XCAFDoc_ColorCurv, XCAFDoc_ColorGen };
 
 	//std::cout << "=== Color Search Priority System ===" << std::endl;
-	//std::cout << "Shape type: " << ShapeTypeToString(shape.ShapeType()) << std::endl;
+	//std::cout << "Shape type: " << shapeTypeToString(shape.ShapeType()) << std::endl;
 
 	// PRIORITY 1: Face-level surface colors (HIGHEST)
 	if (shape.ShapeType() == TopAbs_FACE)
@@ -1128,14 +1163,14 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 		// Try direct face surface color first
 		if (colorTool->GetColor(shape, XCAFDoc_ColorSurf, outColor))
 		{
-			//std::cout << "P1: Found FACE surface color: " << ColorToString(outColor) << std::endl;
+			//std::cout << "P1: Found FACE surface color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 
 		// Try face instance color
 		if (colorTool->GetInstanceColor(shape, XCAFDoc_ColorSurf, outColor))
 		{
-			//std::cout << "P1: Found FACE instance surface color: " << ColorToString(outColor) << std::endl;
+			//std::cout << "P1: Found FACE instance surface color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1148,7 +1183,7 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 		{
 			if (colorTool->GetColor(instanceLabel, type, outColor))
 			{
-				//std::cout << "P2: Found instance surface color: " << ColorToString(outColor) << std::endl;
+				//std::cout << "P2: Found instance surface color: " << colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1158,7 +1193,7 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 		{
 			if (colorTool->GetColor(instanceLabel, type, outColor))
 			{
-				//std::cout << "P2: Found instance " << ColorTypeToString(type) << " color: " << ColorToString(outColor) << std::endl;
+				//std::cout << "P2: Found instance " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1169,12 +1204,12 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 	{
 		if (colorTool->GetColor(shape, type, outColor))
 		{
-			//std::cout << "P3: Found shape surface color: " << ColorToString(outColor) << std::endl;
+			//std::cout << "P3: Found shape surface color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 		if (colorTool->GetInstanceColor(shape, type, outColor))
 		{
-			//std::cout << "P3: Found shape instance surface color: " << ColorToString(outColor) << std::endl;
+			//std::cout << "P3: Found shape instance surface color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1183,12 +1218,12 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 	{
 		if (colorTool->GetColor(shape, type, outColor))
 		{
-			//std::cout << "P3: Found shape " << ColorTypeToString(type) << " color: " << ColorToString(outColor) << std::endl;
+			//std::cout << "P3: Found shape " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 		if (colorTool->GetInstanceColor(shape, type, outColor))
 		{
-			//std::cout << "P3: Found shape instance " << ColorTypeToString(type) << " color: " << ColorToString(outColor) << std::endl;
+			//std::cout << "P3: Found shape instance " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1200,7 +1235,7 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 		{
 			if (colorTool->GetColor(defLabel, type, outColor))
 			{
-				//std::cout << "P4: Found definition surface color: " << ColorToString(outColor) << std::endl;
+				//std::cout << "P4: Found definition surface color: " << colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1209,7 +1244,7 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 		{
 			if (colorTool->GetColor(defLabel, type, outColor))
 			{
-				//std::cout << "P4: Found definition " << ColorTypeToString(type) << " color: " << ColorToString(outColor) << std::endl;
+				//std::cout << "P4: Found definition " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1218,18 +1253,18 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 	// PRIORITY 5: Assembly-level inherited colors (search up hierarchy)
 	if (!defLabel.IsNull())
 	{
-		if (SearchParentLabelsForColor(colorTool, defLabel, outColor))
+		if (searchParentLabelsForColor(colorTool, defLabel, outColor))
 		{
-			//std::cout << "P5: Found inherited color from parent: " << ColorToString(outColor) << std::endl;
+			//std::cout << "P5: Found inherited color from parent: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
 
 	if (!instanceLabel.IsNull() && instanceLabel != defLabel)
 	{
-		if (SearchParentLabelsForColor(colorTool, instanceLabel, outColor))
+		if (searchParentLabelsForColor(colorTool, instanceLabel, outColor))
 		{
-			//std::cout << "P5: Found inherited color from instance parent: " << ColorToString(outColor) << std::endl;
+			//std::cout << "P5: Found inherited color from instance parent: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1237,7 +1272,7 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 	// PRIORITY 5B: Sibling label color inference
 	if (!defLabel.IsNull())
 	{
-		if (SearchSiblingLabelsForColor(colorTool, defLabel, outColor))
+		if (searchSiblingLabelsForColor(colorTool, defLabel, outColor))
 		{
 			return true;
 		}
@@ -1245,7 +1280,7 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 
 	if (!instanceLabel.IsNull() && instanceLabel != defLabel)
 	{
-		if (SearchSiblingLabelsForColor(colorTool, instanceLabel, outColor))
+		if (searchSiblingLabelsForColor(colorTool, instanceLabel, outColor))
 		{
 			return true;
 		}
@@ -1253,21 +1288,21 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 
 
 	// PRIORITY 6: Reverse lookup through all colors (REAL API version)
-	if (SearchAllColorsForAssociation(colorTool, shape, defLabel, instanceLabel, outColor))
+	if (searchAllColorsForAssociation(colorTool, shape, defLabel, instanceLabel, outColor))
 	{
-		//std::cout << "P6: Found color via comprehensive search: " << ColorToString(outColor) << std::endl;
+		//std::cout << "P6: Found color via comprehensive search: " << colorToString(outColor) << std::endl;
 		return true;
 	}
 
 	// PRIORITY 6B: Styled item traversal
-	if (SearchStyledItemsForColor(colorTool, defLabel, outColor))
+	if (searchStyledItemsForColor(colorTool, defLabel, outColor))
 	{
 		return true;
 	}
 
 	if (!instanceLabel.IsNull() && instanceLabel != defLabel)
 	{
-		if (SearchStyledItemsForColor(colorTool, instanceLabel, outColor))
+		if (searchStyledItemsForColor(colorTool, instanceLabel, outColor))
 		{
 			return true;
 		}
@@ -1277,9 +1312,9 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 	// PRIORITY 7: Child label search (sometimes colors are stored on sub-components)
 	if (!defLabel.IsNull())
 	{
-		if (SearchChildLabelsForColor(colorTool, defLabel, outColor))
+		if (searchChildLabelsForColor(colorTool, defLabel, outColor))
 		{
-			//std::cout << "P7: Found color in child labels: " << ColorToString(outColor) << std::endl;
+			//std::cout << "P7: Found color in child labels: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1289,8 +1324,8 @@ bool BRepToAssimpConverter::GetComprehensiveColor(
 }
 
 
-// Enhanced version of GetComprehensiveColor with caching for expensive operations
-bool BRepToAssimpConverter::GetComprehensiveColorWithCache(
+// Enhanced version of getComprehensiveColor with caching for expensive operations
+bool BRepToAssimpConverter::getComprehensiveColorWithCache(
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TopoDS_Shape& shape,
 	const TDF_Label& defLabel,
@@ -1300,7 +1335,7 @@ bool BRepToAssimpConverter::GetComprehensiveColorWithCache(
 	if (colorTool.IsNull()) return false;
 
 	// Check shape cache first
-	if (s_colorCache.GetCachedColor(shape, outColor))
+	if (s_colorCache.getCachedColor(shape, outColor))
 	{
 		return true;
 	}
@@ -1310,12 +1345,12 @@ bool BRepToAssimpConverter::GetComprehensiveColorWithCache(
 	{
 		if (colorTool->GetColor(shape, XCAFDoc_ColorSurf, outColor))
 		{
-			s_colorCache.CacheColor(shape, outColor);
+			s_colorCache.cacheColor(shape, outColor);
 			return true;
 		}
 		if (colorTool->GetInstanceColor(shape, XCAFDoc_ColorSurf, outColor))
 		{
-			s_colorCache.CacheColor(shape, outColor);
+			s_colorCache.cacheColor(shape, outColor);
 			return true;
 		}
 	}
@@ -1323,10 +1358,10 @@ bool BRepToAssimpConverter::GetComprehensiveColorWithCache(
 	// Priority 2: Instance-level colors
 	if (!instanceLabel.IsNull())
 	{
-		std::string instancePath = GetLabelPath(instanceLabel);
-		if (s_colorCache.GetCachedLabelColor(instancePath, outColor))
+		std::string instancePath = getLabelPath(instanceLabel);
+		if (s_colorCache.getCachedLabelColor(instancePath, outColor))
 		{
-			s_colorCache.CacheColor(shape, outColor);
+			s_colorCache.cacheColor(shape, outColor);
 			return true;
 		}
 
@@ -1337,8 +1372,8 @@ bool BRepToAssimpConverter::GetComprehensiveColorWithCache(
 		{
 			if (colorTool->GetColor(instanceLabel, type, outColor))
 			{
-				s_colorCache.CacheLabelColor(instancePath, outColor);
-				s_colorCache.CacheColor(shape, outColor);
+				s_colorCache.cacheLabelColor(instancePath, outColor);
+				s_colorCache.cacheColor(shape, outColor);
 				return true;
 			}
 		}
@@ -1347,22 +1382,22 @@ bool BRepToAssimpConverter::GetComprehensiveColorWithCache(
 		{
 			if (colorTool->GetColor(instanceLabel, type, outColor))
 			{
-				s_colorCache.CacheLabelColor(instancePath, outColor);
-				s_colorCache.CacheColor(shape, outColor);
+				s_colorCache.cacheLabelColor(instancePath, outColor);
+				s_colorCache.cacheColor(shape, outColor);
 				return true;
 			}
 		}
 	}
 
-	bool result = GetComprehensiveColor(colorTool, shape, defLabel, instanceLabel, outColor);
+	bool result = getComprehensiveColor(colorTool, shape, defLabel, instanceLabel, outColor);
 	if (result)
 	{
-		s_colorCache.CacheColor(shape, outColor);
+		s_colorCache.cacheColor(shape, outColor);
 	}
 
-	if (SearchSiblingLabelsForColor(colorTool, defLabel, outColor))
+	if (searchSiblingLabelsForColor(colorTool, defLabel, outColor))
 	{
-		s_colorCache.CacheColor(shape, outColor);
+		s_colorCache.cacheColor(shape, outColor);
 		return true;
 	}
 
@@ -1371,7 +1406,7 @@ bool BRepToAssimpConverter::GetComprehensiveColorWithCache(
 }
 
 // Utility method to convert color to string for debugging
-std::string BRepToAssimpConverter::ColorTypeToString(XCAFDoc_ColorType type)
+std::string BRepToAssimpConverter::colorTypeToString(XCAFDoc_ColorType type)
 {
 	switch (type)
 	{
@@ -1383,7 +1418,7 @@ std::string BRepToAssimpConverter::ColorTypeToString(XCAFDoc_ColorType type)
 }
 
 // Searches child labels recursively for a color attribute
-bool BRepToAssimpConverter::SearchChildLabelsForColor(
+bool BRepToAssimpConverter::searchChildLabelsForColor(
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TDF_Label& parentLabel,
 	Quantity_Color& outColor)
@@ -1397,8 +1432,8 @@ bool BRepToAssimpConverter::SearchChildLabelsForColor(
 	{
 		if (colorTool->GetColor(parentLabel, type, outColor))
 		{
-			//std::cout << "Found color in current label (" << ColorTypeToString(type) << "): "
-			//	<< ColorToString(outColor) << std::endl;
+			//std::cout << "Found color in current label (" << colorTypeToString(type) << "): "
+			//	<< colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1409,9 +1444,9 @@ bool BRepToAssimpConverter::SearchChildLabelsForColor(
 	{
 		TDF_Label childLabel = childIter.Value();
 
-		//std::cout << "Searching child label: " << GetLabelPath(childLabel) << std::endl;
+		//std::cout << "Searching child label: " << getLabelPath(childLabel) << std::endl;
 
-		if (SearchChildLabelsForColor(colorTool, childLabel, outColor))
+		if (searchChildLabelsForColor(colorTool, childLabel, outColor))
 			return true;
 	}
 
@@ -1419,7 +1454,7 @@ bool BRepToAssimpConverter::SearchChildLabelsForColor(
 }
 
 // Searches parent labels recursively for a color attribute
-bool BRepToAssimpConverter::SearchParentLabelsForColor(
+bool BRepToAssimpConverter::searchParentLabelsForColor(
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TDF_Label& startLabel,
 	Quantity_Color& outColor)
@@ -1434,7 +1469,7 @@ bool BRepToAssimpConverter::SearchParentLabelsForColor(
 
 	while (!currentLabel.IsRoot() && level < maxLevels)
 	{
-		//std::cout << "  Checking parent level " << level << ": " << GetLabelPath(currentLabel) << std::endl;
+		//std::cout << "  Checking parent level " << level << ": " << getLabelPath(currentLabel) << std::endl;
 
 		// Check for colors at this parent level
 		for (XCAFDoc_ColorType type : colorTypes)
@@ -1454,7 +1489,7 @@ bool BRepToAssimpConverter::SearchParentLabelsForColor(
 }
 
 // Searches all color labels in the document for an association with the given shape
-bool BRepToAssimpConverter::SearchAllColorsForAssociation(
+bool BRepToAssimpConverter::searchAllColorsForAssociation(
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TopoDS_Shape& shape,
 	const TDF_Label& defLabel,
@@ -1482,7 +1517,7 @@ bool BRepToAssimpConverter::SearchAllColorsForAssociation(
 		Quantity_Color tempColor;
 		if (!colorTool->GetColor(colorLabel, tempColor)) continue;
 
-		//std::cout << "  Checking color " << i << ": " << ColorToString(tempColor) << std::endl;
+		//std::cout << "  Checking color " << i << ": " << colorToString(tempColor) << std::endl;
 
 		// Method A: Check if this color label is associated with our shape
 		// by testing if our labels have this color set
@@ -1501,7 +1536,7 @@ bool BRepToAssimpConverter::SearchAllColorsForAssociation(
 					if (colorTool->GetColor(defLabel, type, labelColor))
 					{
 						// Compare colors (with small tolerance for floating point)
-						if (ColorsEqual(tempColor, labelColor))
+						if (colorsEqual(tempColor, labelColor))
 						{
 							outColor = tempColor;
 							//std::cout << "    Found matching color via defLabel IsSet check" << std::endl;
@@ -1522,7 +1557,7 @@ bool BRepToAssimpConverter::SearchAllColorsForAssociation(
 					Quantity_Color labelColor;
 					if (colorTool->GetColor(instanceLabel, type, labelColor))
 					{
-						if (ColorsEqual(tempColor, labelColor))
+						if (colorsEqual(tempColor, labelColor))
 						{
 							outColor = tempColor;
 							//std::cout << "    Found matching color via instanceLabel IsSet check" << std::endl;
@@ -1538,7 +1573,7 @@ bool BRepToAssimpConverter::SearchAllColorsForAssociation(
 }
 
 // Searches a shape label recursively for a target shape and retrieves its color
-bool BRepToAssimpConverter::SearchShapeLabelForTargetWithColor(
+bool BRepToAssimpConverter::searchShapeLabelForTargetWithColor(
 	const Handle(XCAFDoc_ShapeTool)& shapeTool,
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TDF_Label& shapeLabel,
@@ -1550,7 +1585,7 @@ bool BRepToAssimpConverter::SearchShapeLabelForTargetWithColor(
 	if (labelShape.IsNull()) return false;
 
 	// Check if this shape contains our target shape
-	if (labelShape.IsSame(targetShape) || ContainsShape(labelShape, targetShape))
+	if (labelShape.IsSame(targetShape) || containsShape(labelShape, targetShape))
 	{
 		// Try to get color from this label
 		static const XCAFDoc_ColorType colorTypes[] = {
@@ -1561,8 +1596,8 @@ bool BRepToAssimpConverter::SearchShapeLabelForTargetWithColor(
 		{
 			if (colorTool->GetColor(shapeLabel, type, outColor))
 			{
-				//std::cout << "Found color for target shape via label " << GetLabelPath(shapeLabel)
-				//	<< " (" << ColorTypeToString(type) << "): " << ColorToString(outColor) << std::endl;
+				//std::cout << "Found color for target shape via label " << getLabelPath(shapeLabel)
+				//	<< " (" << colorTypeToString(type) << "): " << colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1572,8 +1607,8 @@ bool BRepToAssimpConverter::SearchShapeLabelForTargetWithColor(
 		{
 			if (colorTool->GetColor(labelShape, type, outColor))
 			{
-				//std::cout << "Found color for target shape via shape comparison (" << ColorTypeToString(type) << "): "
-				//	<< ColorToString(outColor) << std::endl;
+				//std::cout << "Found color for target shape via shape comparison (" << colorTypeToString(type) << "): "
+				//	<< colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1587,7 +1622,7 @@ bool BRepToAssimpConverter::SearchShapeLabelForTargetWithColor(
 
 		for (Standard_Integer j = 1; j <= components.Length(); ++j)
 		{
-			if (SearchShapeLabelForTargetWithColor(shapeTool, colorTool, components.Value(j), targetShape, outColor))
+			if (searchShapeLabelForTargetWithColor(shapeTool, colorTool, components.Value(j), targetShape, outColor))
 			{
 				return true;
 			}
@@ -1598,7 +1633,7 @@ bool BRepToAssimpConverter::SearchShapeLabelForTargetWithColor(
 }
 
 //Utility method to convert a Quantity_Color to a string representation
-std::string BRepToAssimpConverter::ColorToString(const Quantity_Color& color)
+std::string BRepToAssimpConverter::colorToString(const Quantity_Color& color)
 {
 	std::ostringstream oss;
 	oss << std::fixed << std::setprecision(3)
@@ -1607,7 +1642,7 @@ std::string BRepToAssimpConverter::ColorToString(const Quantity_Color& color)
 }
 
 // Utility method to convert a TopAbs_ShapeEnum to a string representation
-std::string BRepToAssimpConverter::ShapeTypeToString(TopAbs_ShapeEnum shapeType)
+std::string BRepToAssimpConverter::shapeTypeToString(TopAbs_ShapeEnum shapeType)
 {
 	switch (shapeType)
 	{
@@ -1624,7 +1659,7 @@ std::string BRepToAssimpConverter::ShapeTypeToString(TopAbs_ShapeEnum shapeType)
 }
 
 // Utility method to compare two Quantity_Color objects with a tolerance
-bool BRepToAssimpConverter::ColorsEqual(const Quantity_Color& color1, const Quantity_Color& color2, double tolerance)
+bool BRepToAssimpConverter::colorsEqual(const Quantity_Color& color1, const Quantity_Color& color2, double tolerance)
 {
 	return (std::abs(color1.Red() - color2.Red()) < tolerance &&
 		std::abs(color1.Green() - color2.Green()) < tolerance &&
@@ -1632,7 +1667,7 @@ bool BRepToAssimpConverter::ColorsEqual(const Quantity_Color& color1, const Quan
 }
 
 // Utility method to get the label path as a string
-std::string BRepToAssimpConverter::GetLabelPath(const TDF_Label& label)
+std::string BRepToAssimpConverter::getLabelPath(const TDF_Label& label)
 {
 	if (label.IsNull()) return "NULL";
 
@@ -1642,7 +1677,7 @@ std::string BRepToAssimpConverter::GetLabelPath(const TDF_Label& label)
 }
 
 // Searches for a color in the XCAF document by iterating through all free shapes
-bool BRepToAssimpConverter::FindColorInXCAFDocument(
+bool BRepToAssimpConverter::findColorInXCAFDocument(
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const Handle(XCAFDoc_ShapeTool)& shapeTool,
 	const TopoDS_Shape& targetShape,
@@ -1659,10 +1694,10 @@ bool BRepToAssimpConverter::FindColorInXCAFDocument(
 	for (Standard_Integer i = 1; i <= freeShapes.Length(); ++i)
 	{
 		TDF_Label shapeLabel = freeShapes.Value(i);
-		//std::cout << "Checking shape label: " << GetLabelPath(shapeLabel) << std::endl;
+		//std::cout << "Checking shape label: " << getLabelPath(shapeLabel) << std::endl;
 
 		// Check if this label has our target shape and get its color
-		if (SearchShapeLabelForTargetWithColor(shapeTool, colorTool, shapeLabel, targetShape, outColor))
+		if (searchShapeLabelForTargetWithColor(shapeTool, colorTool, shapeLabel, targetShape, outColor))
 		{
 			return true;
 		}
@@ -1672,7 +1707,7 @@ bool BRepToAssimpConverter::FindColorInXCAFDocument(
 }
 
 // Searches a shape label recursively for a target shape and retrieves its color
-bool BRepToAssimpConverter::SearchShapeLabelForTarget(
+bool BRepToAssimpConverter::searchShapeLabelForTarget(
 	const Handle(XCAFDoc_ShapeTool)& shapeTool,
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TDF_Label& shapeLabel,
@@ -1684,7 +1719,7 @@ bool BRepToAssimpConverter::SearchShapeLabelForTarget(
 	if (labelShape.IsNull()) return false;
 
 	// Check if this shape contains our target shape
-	if (labelShape.IsSame(targetShape) || ContainsShape(labelShape, targetShape))
+	if (labelShape.IsSame(targetShape) || containsShape(labelShape, targetShape))
 	{
 		// Try to get color from this label
 		static const XCAFDoc_ColorType colorTypes[] = {
@@ -1695,8 +1730,8 @@ bool BRepToAssimpConverter::SearchShapeLabelForTarget(
 		{
 			if (colorTool->GetColor(shapeLabel, type, outColor))
 			{
-				//std::cout << "Found color for target shape via label " << GetLabelPath(shapeLabel)
-				//	<< " (" << ColorTypeToString(type) << "): "
+				//std::cout << "Found color for target shape via label " << getLabelPath(shapeLabel)
+				//	<< " (" << colorTypeToString(type) << "): "
 				//	<< outColor.Red() << ", " << outColor.Green() << ", " << outColor.Blue() << std::endl;
 				return true;
 			}
@@ -1707,7 +1742,7 @@ bool BRepToAssimpConverter::SearchShapeLabelForTarget(
 		{
 			if (colorTool->GetColor(labelShape, type, outColor))
 			{
-				//std::cout << "Found color for target shape via shape comparison (" << ColorTypeToString(type) << "): "
+				//std::cout << "Found color for target shape via shape comparison (" << colorTypeToString(type) << "): "
 				//	<< outColor.Red() << ", " << outColor.Green() << ", " << outColor.Blue() << std::endl;
 				return true;
 			}
@@ -1722,7 +1757,7 @@ bool BRepToAssimpConverter::SearchShapeLabelForTarget(
 
 		for (Standard_Integer j = 1; j <= components.Length(); ++j)
 		{
-			if (SearchShapeLabelForTarget(shapeTool, colorTool, components.Value(j), targetShape, outColor))
+			if (searchShapeLabelForTarget(shapeTool, colorTool, components.Value(j), targetShape, outColor))
 			{
 				return true;
 			}
@@ -1733,14 +1768,14 @@ bool BRepToAssimpConverter::SearchShapeLabelForTarget(
 }
 
 // Checks if a compound shape contains a specific target shape
-bool BRepToAssimpConverter::ContainsShape(const TopoDS_Shape& compound, const TopoDS_Shape& target)
+bool BRepToAssimpConverter::containsShape(const TopoDS_Shape& compound, const TopoDS_Shape& target)
 {
 	if (compound.IsSame(target)) return true;
 
 	// For compounds, check all sub-shapes
 	for (TopoDS_Iterator it(compound); it.More(); it.Next())
 	{
-		if (it.Value().IsSame(target) || ContainsShape(it.Value(), target))
+		if (it.Value().IsSame(target) || containsShape(it.Value(), target))
 		{
 			return true;
 		}
@@ -1759,7 +1794,7 @@ bool BRepToAssimpConverter::ContainsShape(const TopoDS_Shape& compound, const To
 }
 
 // Searches for a color in the label hierarchy, starting from a given label
-bool BRepToAssimpConverter::SearchLabelHierarchyForColor(
+bool BRepToAssimpConverter::searchLabelHierarchyForColor(
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TDF_Label& startLabel,
 	Quantity_Color& outColor)
@@ -1781,11 +1816,11 @@ bool BRepToAssimpConverter::SearchLabelHierarchyForColor(
 	}
 
 	// Search down the hierarchy (children)
-	return SearchChildLabelsForColor(colorTool, startLabel, outColor);
+	return searchChildLabelsForColor(colorTool, startLabel, outColor);
 }
 
 
-bool BRepToAssimpConverter::SearchSiblingLabelsForColor(
+bool BRepToAssimpConverter::searchSiblingLabelsForColor(
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TDF_Label& label,
 	Quantity_Color& outColor)
@@ -1815,7 +1850,7 @@ bool BRepToAssimpConverter::SearchSiblingLabelsForColor(
 #include <TDF_AttributeIterator.hxx>
 #include <XCAFDoc.hxx>
 #include <XCAFDoc_Color.hxx>
-bool BRepToAssimpConverter::SearchStyledItemsForColor(
+bool BRepToAssimpConverter::searchStyledItemsForColor(
 	const Handle(XCAFDoc_ColorTool)& colorTool,
 	const TDF_Label& label,
 	Quantity_Color& outColor)

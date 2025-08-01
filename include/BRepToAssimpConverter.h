@@ -50,7 +50,7 @@ private:
 	std::unordered_map<std::string, Quantity_Color> labelColorCache;
 
 public:
-	bool GetCachedColor(const TopoDS_Shape& shape, Quantity_Color& color)
+	bool getCachedColor(const TopoDS_Shape& shape, Quantity_Color& color)
 	{
 		if (shape.IsNull()) return false;
 		auto it = shapeColorCache.find(shape);
@@ -62,7 +62,7 @@ public:
 		return false;
 	}
 
-	void CacheColor(const TopoDS_Shape& shape, const Quantity_Color& color)
+	void cacheColor(const TopoDS_Shape& shape, const Quantity_Color& color)
 	{
 		if (!shape.IsNull())
 		{
@@ -70,7 +70,7 @@ public:
 		}
 	}
 
-	bool GetCachedLabelColor(const std::string& labelPath, Quantity_Color& color)
+	bool getCachedLabelColor(const std::string& labelPath, Quantity_Color& color)
 	{
 		auto it = labelColorCache.find(labelPath);
 		if (it != labelColorCache.end())
@@ -81,12 +81,12 @@ public:
 		return false;
 	}
 
-	void CacheLabelColor(const std::string& labelPath, const Quantity_Color& color)
+	void cacheLabelColor(const std::string& labelPath, const Quantity_Color& color)
 	{
 		labelColorCache[labelPath] = color;
 	}
 
-	void Clear()
+	void clear()
 	{
 		shapeColorCache.clear();
 		labelColorCache.clear();
@@ -124,10 +124,12 @@ public:
 
 	static aiNode* cloneNodeDeep(const aiNode* src);
 
-	static void ClearColorCache();
+	static void clearColorCache();
 
 
 private:
+
+	static bool isShapeMeshable(const TopoDS_Shape& shape);
 
 	static aiMesh* convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex, bool enableStatistics = false);
 
@@ -141,7 +143,7 @@ private:
 		std::map<Quantity_Color, unsigned int, QuantityColorComparator>& materialMap,
 		std::vector<aiMaterial*>& materials);
 
-	static bool GetComprehensiveColorWithCache(
+	static bool getComprehensiveColorWithCache(
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TopoDS_Shape& shape,
 		const TDF_Label& defLabel,
@@ -158,73 +160,73 @@ private:
 		std::map<Quantity_Color, unsigned int, QuantityColorComparator>& materialMap,
 		std::vector<aiMaterial*>& materials);
 
-	static bool GetComprehensiveColor(
+	static bool getComprehensiveColor(
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TopoDS_Shape& shape,
 		const TDF_Label& defLabel,
 		const TDF_Label& instanceLabel,
 		Quantity_Color& outColor);
 
-	static std::string ColorTypeToString(XCAFDoc_ColorType type);
+	static std::string colorTypeToString(XCAFDoc_ColorType type);
 
-	static bool SearchChildLabelsForColor(
+	static bool searchChildLabelsForColor(
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TDF_Label& parentLabel,
 		Quantity_Color& outColor);
 
-	static bool SearchParentLabelsForColor(
+	static bool searchParentLabelsForColor(
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TDF_Label& startLabel,
 		Quantity_Color& outColor);
 
-	static bool SearchAllColorsForAssociation(
+	static bool searchAllColorsForAssociation(
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TopoDS_Shape& shape,
 		const TDF_Label& defLabel,
 		const TDF_Label& instanceLabel,
 		Quantity_Color& outColor);
 
-	static bool SearchShapeLabelForTargetWithColor(
+	static bool searchShapeLabelForTargetWithColor(
 		const Handle(XCAFDoc_ShapeTool)& shapeTool,
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TDF_Label& shapeLabel,
 		const TopoDS_Shape& targetShape,
 		Quantity_Color& outColor);
 
-	static std::string ColorToString(const Quantity_Color& color);
-	static std::string ShapeTypeToString(TopAbs_ShapeEnum shapeType);
+	static std::string colorToString(const Quantity_Color& color);
+	static std::string shapeTypeToString(TopAbs_ShapeEnum shapeType);
 
-	static bool ColorsEqual(const Quantity_Color& color1, const Quantity_Color& color2, double tolerance = 0.001);
+	static bool colorsEqual(const Quantity_Color& color1, const Quantity_Color& color2, double tolerance = 0.001);
 
-	static std::string GetLabelPath(const TDF_Label& label);
+	static std::string getLabelPath(const TDF_Label& label);
 
-	static bool FindColorInXCAFDocument(
+	static bool findColorInXCAFDocument(
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const Handle(XCAFDoc_ShapeTool)& shapeTool,
 		const TopoDS_Shape& targetShape,
 		Quantity_Color& outColor);
 
-	static bool SearchShapeLabelForTarget(
+	static bool searchShapeLabelForTarget(
 		const Handle(XCAFDoc_ShapeTool)& shapeTool,
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TDF_Label& shapeLabel,
 		const TopoDS_Shape& targetShape,
 		Quantity_Color& outColor);
 
-	static bool ContainsShape(const TopoDS_Shape& compound, const TopoDS_Shape& target);
+	static bool containsShape(const TopoDS_Shape& compound, const TopoDS_Shape& target);
 
-	static bool SearchLabelHierarchyForColor(
+	static bool searchLabelHierarchyForColor(
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TDF_Label& startLabel,
 		Quantity_Color& outColor);
 
 
-	static bool SearchSiblingLabelsForColor(
+	static bool searchSiblingLabelsForColor(
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TDF_Label& label,
 		Quantity_Color& outColor);
 
-	static bool SearchStyledItemsForColor(
+	static bool searchStyledItemsForColor(
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const TDF_Label& label,
 		Quantity_Color& outColor);
