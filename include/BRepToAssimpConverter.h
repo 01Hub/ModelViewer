@@ -236,6 +236,8 @@ private:
 		double angularDeflection = 0.5,
 		double fixTolerance = 1e-6);
 
+	static TopoDS_Face rebuildFace(const TopoDS_Face& face);
+
 
 
 	// Lightweight triangle validation (no quality metrics unless needed)

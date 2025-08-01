@@ -739,7 +739,7 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 				BRepCheck_Analyzer analyzer(processedFace);
 				if (!analyzer.IsValid())
 				{
-					TopoDS_Face healedFace = healAndTriangulateFace(processedFace);
+					TopoDS_Face healedFace = healAndTriangulateFace(processedFace, deflection, angularDeflection, 1.0e-3);
 					if (!healedFace.IsNull())
 					{
 						triangulation = BRep_Tool::Triangulation(healedFace, loc);
@@ -1906,11 +1906,28 @@ TopoDS_Face BRepToAssimpConverter::healAndTriangulateFace(const TopoDS_Face& inp
 		if (!analyzer.IsValid())
 		{
 			std::cout << "[Heal] Input face is invalid" << std::endl;
-			return inputFace;
+			healedFace = rebuildFace(inputFace);
+		}
+
+		try
+		{
+			ShapeUpgrade_UnifySameDomain unify(healedFace, true, true, true);
+			unify.Build();
+			TopoDS_Shape unifiedShape = unify.Shape();
+
+			if (!unifiedShape.IsNull() && unifiedShape.ShapeType() == TopAbs_FACE)
+			{
+				healedFace = TopoDS::Face(unifiedShape);
+			}
+		}
+		catch (const Standard_Failure& failure)
+		{
+			std::cerr << "Domain unification failed for face " << ": " << failure.GetMessageString() << std::endl;
+			// Continue with current processedFace
 		}
 
 		// 2. Heal the face using ShapeFix_Face
-		Handle(ShapeFix_Face) fixFace = new ShapeFix_Face(inputFace);
+		Handle(ShapeFix_Face) fixFace = new ShapeFix_Face(healedFace);
 		fixFace->FixWireTool()->SetPrecision(fixTolerance);
 		fixFace->FixOrientation();
 		fixFace->FixAddNaturalBoundMode() = Standard_True;
@@ -1946,4 +1963,39 @@ TopoDS_Face BRepToAssimpConverter::healAndTriangulateFace(const TopoDS_Face& inp
 	}
 
 	return healedFace;
+}
+
+#include <BRepBuilderAPI_MakeFace.hxx>
+TopoDS_Face BRepToAssimpConverter::rebuildFace(const TopoDS_Face& face)
+{
+	try
+	{
+		// Use BRepBuilderAPI_MakeFace to rebuild the face
+		Handle(Geom_Surface) surface = BRep_Tool::Surface(face);
+		if (surface.IsNull()) return face;
+
+		Standard_Real uMin, uMax, vMin, vMax;
+		BRepTools::UVBounds(face, uMin, uMax, vMin, vMax);
+
+		// Create new face from surface
+		BRepBuilderAPI_MakeFace faceMaker(surface, uMin, uMax, vMin, vMax, 1e-5);
+
+		if (faceMaker.IsDone())
+		{
+			TopoDS_Face newFace = faceMaker.Face();
+
+			// Copy orientation from original
+			newFace.Orientation(face.Orientation());
+
+			return newFace;
+		}
+
+	}
+	catch (...)
+	{
+		// Fallback failed too
+		std::cerr << "Error rebuilding face, returning original" << std::endl;
+	}
+
+	return face;
 }
