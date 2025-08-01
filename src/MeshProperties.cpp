@@ -133,5 +133,5 @@ void MeshProperties::calculateSurfaceAreaAndVolume()
         _centerOfMass = QVector3D(xCen / _volume, yCen / _volume, zCen / _volume);
     }
 
-    _weight = _density * _volume / 1e9; // assuming volume in mm³ and density in kg/m³
+    _weight = _density * _volume / 1e9; // assuming volume in mmÂ³ and density in kg/mÂ³
 }
