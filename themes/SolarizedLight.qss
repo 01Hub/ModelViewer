@@ -1,0 +1,123 @@
+* {
+    font-family: "Segoe UI", "Noto Sans", sans-serif;
+    font-size: 11pt;
+    color: #586e75;
+    background: #fdf6e3;
+    selection-background-color: #eee8d5;
+    selection-color: #586e75;
+}
+
+QMainWindow, QDialog, QWidget {
+    background-color: #fdf6e3;
+}
+
+QMenuBar, QMenu, QToolBar, QStatusBar {
+    background-color: #eee8d5;
+    color: #586e75;
+    spacing: 6px;
+}
+
+QMenu::item:selected, QMenuBar::item:selected {
+    background-color: #93a1a1;
+    color: #fdf6e3;
+}
+
+QTabWidget::pane {
+    border: 1px solid #93a1a1;
+    top: -1px;
+}
+
+QTabBar::tab {
+    background: #eee8d5;
+    color: #586e75;
+    border: 1px solid #93a1a1;
+    border-bottom: none;
+    padding: 6px 12px;
+    margin-right: 2px;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+QTabBar::tab:selected {
+    background: #fdf6e3;
+    font-weight: bold;
+}
+
+QPushButton {
+    background-color: #eee8d5;
+    color: #586e75;
+    border: 1px solid #93a1a1;
+    padding: 6px 10px;
+    border-radius: 6px;
+}
+
+QPushButton:hover {
+    background-color: #e1dbc7;
+}
+
+QPushButton:pressed {
+    background-color: #93a1a1;
+    color: #fdf6e3;
+}
+
+QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background-color: #fdf6e3;
+    color: #586e75;
+    border: 1px solid #93a1a1;
+    padding: 4px 6px;
+    selection-background-color: #93a1a1;
+    selection-color: #fdf6e3;
+    border-radius: 4px;
+}
+
+QComboBox::drop-down {
+    border: none;
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #eee8d5;
+    width: 14px;
+    height: 14px;
+    margin: 0px;
+}
+
+QScrollBar::handle {
+    background: #93a1a1;
+    border-radius: 7px;
+    min-height: 20px;
+}
+
+QScrollBar::handle:hover {
+    background: #839496;
+}
+
+QSlider::groove:horizontal, QSlider::groove:vertical {
+    background: #dcd6c0;
+    height: 6px;
+    border-radius: 3px;
+}
+
+QSlider::handle:horizontal, QSlider::handle:vertical {
+    background: #859900;
+    width: 14px;
+    height: 14px;
+    margin: -5px 0;
+    border-radius: 7px;
+}
+
+QCheckBox, QRadioButton {
+    spacing: 6px;
+    font-size: 11pt;
+}
+
+QCheckBox::indicator, QRadioButton::indicator {
+    width: 16px;
+    height: 16px;
+    border: 1px solid #93a1a1;
+    background: #fdf6e3;
+    border-radius: 3px;
+}
+
+QCheckBox::indicator:checked, QRadioButton::indicator:checked {
+    background: #859900;
+}

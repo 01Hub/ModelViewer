@@ -1,0 +1,61 @@
+/* Nord Fusion Style */
+QWidget {
+    background-color: #2e3440;
+    color: #d8dee9;
+    font-family: Segoe UI, sans-serif;
+}
+
+QPushButton {
+    background-color: #4c566a;
+    color: #d8dee9;
+    border: 1px solid #434c5e;
+    padding: 5px 10px;
+    border-radius: 3px;
+}
+QPushButton:hover {
+    background-color: #5e81ac;
+}
+QPushButton:pressed {
+    background-color: #81a1c1;
+}
+
+QLineEdit, QTextEdit, QPlainTextEdit {
+    background-color: #3b4252;
+    color: #d8dee9;
+    border: 1px solid #4c566a;
+    border-radius: 3px;
+    padding: 2px;
+}
+
+QMenuBar, QMenu {
+    background-color: #2e3440;
+    color: #d8dee9;
+}
+QMenu::item:selected {
+    background-color: #81a1c1;
+    color: #2e3440;
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #2e3440;
+}
+QScrollBar::handle {
+    background: #4c566a;
+    border-radius: 4px;
+}
+QScrollBar::handle:hover {
+    background: #5e81ac;
+}
+
+QCheckBox, QRadioButton {
+    spacing: 5px;
+}
+QCheckBox::indicator:checked, QRadioButton::indicator:checked {
+    background-color: #81a1c1;
+}
+
+QComboBox {
+    background-color: #3b4252;
+    color: #d8dee9;
+    border: 1px solid #4c566a;
+}

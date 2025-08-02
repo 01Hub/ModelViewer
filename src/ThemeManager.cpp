@@ -32,21 +32,21 @@ void ThemeManager::setTheme(Theme theme)
 		break;
 	case DarkOrange:
 		applyThemefromStyleSheet("DarkOrange");
-		break;
-	case DarkSolarized:
-        applyThemefromStyleSheet("DarkSolarized");
-		break;
+		break;	
 	case Dracula:
         applyThemefromStyleSheet("Dracula");
 		break;
 	case Eclippy:
 		applyThemefromStyleSheet("Eclippy");
 		break;
+	case GruvboxFusion:
+        applyThemefromStyleSheet("GruvboxFusion");
+		break;
 	case LightGray:
 		applyThemefromStyleSheet("LightGray");
 		break;
-	case ManjaroMix:
-		applyThemefromStyleSheet("ManjaroMix");
+	case Manjaroness:
+		applyThemefromStyleSheet("Manjaroness");
 		break;
 	case MaterialDark:
 		applyThemefromStyleSheet("MaterialDark");
@@ -54,11 +54,23 @@ void ThemeManager::setTheme(Theme theme)
 	case Monokai:
         applyThemefromStyleSheet("Monokai");
 		break;
+    case NordFusion:
+		applyThemefromStyleSheet("NordFusion");
+		break;
 	case OneDark:
         applyThemefromStyleSheet("OneDark");
 		break;
+    case SolarizedDark:
+        applyThemefromStyleSheet("SolarizedDark");
+        break;
+    case SolarizedLight:
+        applyThemefromStyleSheet("SolarizedLight");
+        break;
 	case Takezo:
 		applyThemefromStyleSheet("Takezo");
+		break;
+	case TokyoNightFusion:
+        applyThemefromStyleSheet("TokyoNightFusion");
 		break;
 	default:
 		qWarning() << "Unknown theme selected:" << theme;

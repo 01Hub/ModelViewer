@@ -73,12 +73,16 @@
         <file>themes/DarkOrange.qss</file>
         <file>themes/Eclippy.qss</file>
         <file>themes/LightGray.qss</file>
-        <file>themes/ManjaroMix.qss</file>
         <file>themes/MaterialDark.qss</file>
         <file>themes/Takezo.qss</file>
         <file>themes/Dracula.qss</file>
-        <file>themes/DarkSolarized.qss</file>
         <file>themes/Monokai.qss</file>
         <file>themes/OneDark.qss</file>
+        <file>themes/GruvboxFusion.qss</file>
+        <file>themes/TokyoNightFusion.qss</file>
+        <file>themes/NordFusion.qss</file>
+        <file>themes/Manjaroness.qss</file>
+        <file>themes/SolarizedDark.qss</file>
+        <file>themes/SolarizedLight.qss</file>
     </qresource>
 </RCC>

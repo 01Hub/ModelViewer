@@ -1,0 +1,61 @@
+/* Gruvbox Dark Fusion Style */
+QWidget {
+    background-color: #1d2021;
+    color: #ebdbb2;
+    font-family: Segoe UI, sans-serif;
+}
+
+QPushButton {
+    background-color: #3c3836;
+    color: #ebdbb2;
+    border: 1px solid #928374;
+    padding: 5px 10px;
+    border-radius: 3px;
+}
+QPushButton:hover {
+    background-color: #504945;
+}
+QPushButton:pressed {
+    background-color: #665c54;
+}
+
+QLineEdit, QTextEdit, QPlainTextEdit {
+    background-color: #282828;
+    color: #ebdbb2;
+    border: 1px solid #928374;
+    border-radius: 3px;
+    padding: 2px;
+}
+
+QMenuBar, QMenu {
+    background-color: #1d2021;
+    color: #ebdbb2;
+}
+QMenu::item:selected {
+    background-color: #fabd2f;
+    color: #1d2021;
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #1d2021;
+}
+QScrollBar::handle {
+    background: #928374;
+    border-radius: 4px;
+}
+QScrollBar::handle:hover {
+    background: #a89984;
+}
+
+QCheckBox, QRadioButton {
+    spacing: 5px;
+}
+QCheckBox::indicator:checked, QRadioButton::indicator:checked {
+    background-color: #fabd2f;
+}
+
+QComboBox {
+    background-color: #282828;
+    color: #ebdbb2;
+    border: 1px solid #928374;
+}

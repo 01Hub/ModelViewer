@@ -19,16 +19,20 @@ public:
         System,
         Light,
         Dark,        
-        DarkOrange,
-        DarkSolarized,
+        DarkOrange,        
    		Dracula,
         Eclippy,
+        GruvboxFusion,
         LightGray,
-        ManjaroMix,
+        Manjaroness,
         MaterialDark,
 		Monokai,
-		OneDark,
-        Takezo
+        NordFusion,
+		OneDark,        
+        SolarizedDark,
+        SolarizedLight,
+        Takezo,
+		TokyoNightFusion,
     };
 
     explicit ThemeManager(QObject* parent = nullptr);

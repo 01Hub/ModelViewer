@@ -84,11 +84,6 @@
          </item>
          <item>
           <property name="text">
-           <string>Dark Solarized</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
            <string>Dracula</string>
           </property>
          </item>
@@ -99,12 +94,17 @@
          </item>
          <item>
           <property name="text">
+           <string>Gruvbox Fusion</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
            <string>Light Gray</string>
           </property>
          </item>
          <item>
           <property name="text">
-           <string>Manjaro Mix</string>
+           <string>Manjaroness</string>
           </property>
          </item>
          <item>
@@ -119,12 +119,32 @@
          </item>
          <item>
           <property name="text">
+           <string>Nord Fusion</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
            <string>One Dark</string>
           </property>
          </item>
          <item>
           <property name="text">
+           <string>Solarized Dark</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Solarized Light</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
            <string>Takezo</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Tokyo Night Fusion</string>
           </property>
          </item>
         </widget>
