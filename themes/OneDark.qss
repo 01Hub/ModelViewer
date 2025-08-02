@@ -1,0 +1,123 @@
+/* OneDark Theme for Qt Applications (Fusion-style controls) */
+
+QWidget {
+    background-color: #282c34;
+    color: #abb2bf;
+    selection-background-color: #3e4451;
+    selection-color: #abb2bf;
+}
+
+QMainWindow, QDialog, QFrame {
+    background-color: #282c34;
+}
+
+QToolTip {
+    background-color: #3e4451;
+    color: #abb2bf;
+    border: 1px solid #5c6370;
+    padding: 5px;
+    border-radius: 3px;
+}
+
+QPushButton, QToolButton, QCheckBox, QRadioButton {
+    background-color: #3a3f4b;
+    color: #abb2bf;
+    border: 1px solid #5c6370;
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+
+QPushButton:hover, QToolButton:hover {
+    background-color: #5c6370;
+}
+
+QPushButton:pressed, QToolButton:pressed {
+    background-color: #3e4451;
+}
+
+QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox {
+    background-color: #3a3f4b;
+    color: #abb2bf;
+    border: 1px solid #5c6370;
+    padding: 3px;
+    border-radius: 4px;
+}
+
+QComboBox {
+    background-color: #3a3f4b;
+    color: #abb2bf;
+    border: 1px solid #5c6370;
+    padding: 3px;
+    border-radius: 4px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #282c34;
+    color: #abb2bf;
+    selection-background-color: #3e4451;
+    selection-color: #abb2bf;
+    border: 1px solid #5c6370;
+}
+
+QMenuBar, QMenu {
+    background-color: #3a3f4b;
+    color: #abb2bf;
+}
+
+QMenu::item:selected {
+    background-color: #3e4451;
+    color: #abb2bf;
+}
+
+QTabWidget::pane {
+    border: 1px solid #5c6370;
+    background-color: #282c34;
+}
+
+QTabBar::tab {
+    background: #3a3f4b;
+    color: #abb2bf;
+    padding: 6px;
+    border: 1px solid #5c6370;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+QTabBar::tab:selected {
+    background: #282c34;
+    color: #c678dd;
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #3a3f4b;
+    border: none;
+    width: 12px;
+    height: 12px;
+    margin: 0px;
+}
+
+QScrollBar::handle {
+    background: #5c6370;
+    min-height: 20px;
+    border-radius: 4px;
+}
+
+QScrollBar::add-line, QScrollBar::sub-line {
+    background: none;
+    height: 0px;
+    width: 0px;
+}
+
+QHeaderView::section {
+    background-color: #3a3f4b;
+    color: #abb2bf;
+    padding: 5px;
+    border: 1px solid #5c6370;
+}
+
+QStatusBar {
+    background: #3a3f4b;
+    color: #abb2bf;
+    border-top: 1px solid #5c6370;
+}

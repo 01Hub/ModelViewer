@@ -77,6 +77,56 @@
            <string>Dark</string>
           </property>
          </item>
+         <item>
+          <property name="text">
+           <string>Dark Orange</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Dark Solarized</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Dracula</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Eclippy</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Light Gray</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Manjaro Mix</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Material Dark</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Monokai</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>One Dark</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Takezo</string>
+          </property>
+         </item>
         </widget>
        </item>
        <item row="1" column="0">

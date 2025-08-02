@@ -16,9 +16,19 @@ class ThemeManager : public QObject
 public:
     enum Theme
     {
-        System = 0,
-        Light = 1,
-        Dark = 2
+        System,
+        Light,
+        Dark,        
+        DarkOrange,
+        DarkSolarized,
+   		Dracula,
+        Eclippy,
+        LightGray,
+        ManjaroMix,
+        MaterialDark,
+		Monokai,
+		OneDark,
+        Takezo
     };
 
     explicit ThemeManager(QObject* parent = nullptr);
@@ -27,6 +37,8 @@ public:
     Theme currentTheme() const { return m_currentTheme; }
 
     void applyThemeForColorScheme(Qt::ColorScheme scheme);
+
+	void applyThemefromStyleSheet(const QString& styleSheet);
         
 signals:
     void themeChanged(Theme theme);

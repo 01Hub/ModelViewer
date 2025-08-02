@@ -145,7 +145,6 @@ target_link_libraries(ModelViewer
         ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
         ${OpenCASCADE_DataExchange_LIBRARIES}
         ${OpenCASCADE_ApplicationFramework_LIBRARIES}
-        ${OpenCASCADE_Visualization_LIBRARIES}
 )
 
 if(WIN32)
@@ -167,7 +166,7 @@ else()
     message(STATUS "No QM files to install")
 endif()
 
-install(DIRECTORY fonts shaders textures test-models
+install(DIRECTORY fonts shaders textures themes test-models
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
 )
 

@@ -1,0 +1,120 @@
+/* Dracula Theme for Qt (Fusion Style Compatible) */
+
+/* === General Widget Styling === */
+QWidget {
+    background-color: #282a36;
+    color: #f8f8f2;
+    selection-background-color: #44475a;
+    selection-color: #f8f8f2;
+}
+
+/* === Tooltip === */
+QToolTip {
+    background-color: #44475a;
+    color: #f8f8f2;
+    border: 1px solid #6272a4;
+    padding: 5px;
+    border-radius: 3px;
+}
+
+/* === Buttons === */
+QPushButton, QToolButton, QCheckBox, QRadioButton {
+    background-color: #373844;
+    color: #f8f8f2;
+    border: 1px solid #6272a4;
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+QPushButton:hover, QToolButton:hover {
+    background-color: #6272a4;
+}
+QPushButton:pressed, QToolButton:pressed {
+    background-color: #44475a;
+}
+
+/* === Text Inputs === */
+QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox {
+    background-color: #373844;
+    color: #f8f8f2;
+    border: 1px solid #6272a4;
+    padding: 3px;
+    border-radius: 4px;
+}
+
+/* === ComboBox === */
+QComboBox {
+    background-color: #373844;
+    color: #f8f8f2;
+    border: 1px solid #6272a4;
+    padding: 3px;
+    border-radius: 4px;
+}
+QComboBox QAbstractItemView {
+    background-color: #282a36;
+    color: #f8f8f2;
+    selection-background-color: #44475a;
+    selection-color: #f8f8f2;
+    border: 1px solid #6272a4;
+}
+
+/* === Menus === */
+QMenuBar, QMenu {
+    background-color: #373844;
+    color: #f8f8f2;
+}
+QMenu::item:selected {
+    background-color: #44475a;
+}
+
+/* === Tabs === */
+QTabWidget::pane {
+    border: 1px solid #6272a4;
+    background-color: #282a36;
+}
+QTabBar::tab {
+    background: #373844;
+    color: #f8f8f2;
+    padding: 6px;
+    border: 1px solid #6272a4;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+QTabBar::tab:selected {
+    background: #282a36;
+    color: #ff79c6;
+}
+
+/* === Scrollbars === */
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #373844;
+    border: none;
+    width: 12px;
+    height: 12px;
+    margin: 0px;
+}
+QScrollBar::handle {
+    background: #6272a4;
+    min-height: 20px;
+    border-radius: 4px;
+}
+QScrollBar::add-line, QScrollBar::sub-line {
+    background: none;
+    height: 0px;
+    width: 0px;
+}
+
+/* === Headers === */
+QHeaderView::section {
+    background-color: #373844;
+    color: #f8f8f2;
+    padding: 5px;
+    border: 1px solid #6272a4;
+}
+
+/* === Status Bar === */
+QStatusBar {
+    background: #373844;
+    color: #f8f8f2;
+    border-top: 1px solid #6272a4;
+}

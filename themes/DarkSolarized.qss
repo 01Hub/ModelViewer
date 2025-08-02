@@ -1,0 +1,144 @@
+/*
+   Solarized Dark Theme for Qt Applications (Fusion-style controls)
+   Author: OpenAI ChatGPT
+*/
+
+/* === Base Colors === */
+@define-color base03   #002b36;
+@define-color base02   #073642;
+@define-color base01   #586e75;
+@define-color base00   #657b83;
+@define-color base0    #839496;
+@define-color base1    #93a1a1;
+@define-color base2    #eee8d5;
+@define-color base3    #fdf6e3;
+@define-color yellow   #b58900;
+@define-color orange   #cb4b16;
+@define-color red      #dc322f;
+@define-color magenta  #d33682;
+@define-color violet   #6c71c4;
+@define-color blue     #268bd2;
+@define-color cyan     #2aa198;
+@define-color green    #859900;
+
+QWidget {
+    background-color: #073642;
+    color: #839496;
+    selection-background-color: #586e75;
+    selection-color: #fdf6e3;
+}
+
+QMainWindow, QDialog, QFrame {
+    background-color: #073642;
+}
+
+QToolTip {
+    background-color: #586e75;
+    color: #fdf6e3;
+    border: 1px solid #839496;
+    padding: 5px;
+    border-radius: 3px;
+}
+
+QPushButton, QToolButton, QCheckBox, QRadioButton {
+    background-color: #073642;
+    color: #93a1a1;
+    border: 1px solid #586e75;
+    padding: 5px 10px;
+    border-radius: 4px;
+}
+
+QPushButton:hover, QToolButton:hover {
+    background-color: #586e75;
+}
+
+QPushButton:pressed, QToolButton:pressed {
+    background-color: #657b83;
+}
+
+QLineEdit, QTextEdit, QPlainTextEdit, QSpinBox, QDoubleSpinBox {
+    background-color: #002b36;
+    color: #839496;
+    border: 1px solid #586e75;
+    padding: 3px;
+    border-radius: 4px;
+}
+
+QComboBox {
+    background-color: #002b36;
+    color: #839496;
+    border: 1px solid #586e75;
+    padding: 3px;
+    border-radius: 4px;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #073642;
+    color: #93a1a1;
+    selection-background-color: #586e75;
+    selection-color: #fdf6e3;
+    border: 1px solid #586e75;
+}
+
+QMenuBar, QMenu {
+    background-color: #002b36;
+    color: #93a1a1;
+}
+
+QMenu::item:selected {
+    background-color: #586e75;
+    color: #fdf6e3;
+}
+
+QTabWidget::pane {
+    border: 1px solid #586e75;
+    background-color: #073642;
+}
+
+QTabBar::tab {
+    background: #073642;
+    color: #93a1a1;
+    padding: 6px;
+    border: 1px solid #586e75;
+    border-bottom: none;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+QTabBar::tab:selected {
+    background: #002b36;
+    color: #fdf6e3;
+}
+
+QScrollBar:vertical, QScrollBar:horizontal {
+    background: #002b36;
+    border: none;
+    width: 12px;
+    height: 12px;
+    margin: 0px;
+}
+
+QScrollBar::handle {
+    background: #586e75;
+    min-height: 20px;
+    border-radius: 4px;
+}
+
+QScrollBar::add-line, QScrollBar::sub-line {
+    background: none;
+    height: 0px;
+    width: 0px;
+}
+
+QHeaderView::section {
+    background-color: #073642;
+    color: #93a1a1;
+    padding: 5px;
+    border: 1px solid #586e75;
+}
+
+QStatusBar {
+    background: #073642;
+    color: #93a1a1;
+    border-top: 1px solid #586e75;
+}

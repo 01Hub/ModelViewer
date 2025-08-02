@@ -69,4 +69,16 @@
         <file>res/camera_fly.png</file>
         <file>res/camera_orbit.png</file>
     </qresource>
+    <qresource prefix="/styles">
+        <file>themes/DarkOrange.qss</file>
+        <file>themes/Eclippy.qss</file>
+        <file>themes/LightGray.qss</file>
+        <file>themes/ManjaroMix.qss</file>
+        <file>themes/MaterialDark.qss</file>
+        <file>themes/Takezo.qss</file>
+        <file>themes/Dracula.qss</file>
+        <file>themes/DarkSolarized.qss</file>
+        <file>themes/Monokai.qss</file>
+        <file>themes/OneDark.qss</file>
+    </qresource>
 </RCC>
