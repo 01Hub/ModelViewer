@@ -321,20 +321,34 @@ void TriangleMesh::setupTextures()
 	glActiveTexture(GL_TEXTURE15);
 	glBindTexture(GL_TEXTURE_2D, _opacityADSMap);
 
-	glActiveTexture(GL_TEXTURE20);
+	glActiveTexture(GL_TEXTURE10);
 	glBindTexture(GL_TEXTURE_2D, _albedoPBRMap);
-	glActiveTexture(GL_TEXTURE21);
+	glActiveTexture(GL_TEXTURE11);
 	glBindTexture(GL_TEXTURE_2D, _normalPBRMap);
-	glActiveTexture(GL_TEXTURE22);
+	glActiveTexture(GL_TEXTURE12);
 	glBindTexture(GL_TEXTURE_2D, _metallicPBRMap);
-	glActiveTexture(GL_TEXTURE23);
+	glActiveTexture(GL_TEXTURE13);
 	glBindTexture(GL_TEXTURE_2D, _roughnessPBRMap);
-	glActiveTexture(GL_TEXTURE24);
+	glActiveTexture(GL_TEXTURE14);
 	glBindTexture(GL_TEXTURE_2D, _aoPBRMap);
-	glActiveTexture(GL_TEXTURE25);
+	glActiveTexture(GL_TEXTURE15);
 	glBindTexture(GL_TEXTURE_2D, _heightPBRMap);
-	glActiveTexture(GL_TEXTURE26);
+	glActiveTexture(GL_TEXTURE16);
 	glBindTexture(GL_TEXTURE_2D, _opacityPBRMap);
+	glActiveTexture(GL_TEXTURE17);
+	glBindTexture(GL_TEXTURE_2D, _transmissionPBRMap);
+	glActiveTexture(GL_TEXTURE18);
+	glBindTexture(GL_TEXTURE_2D, _IORPBRMap);
+	glActiveTexture(GL_TEXTURE19);
+	glBindTexture(GL_TEXTURE_2D, _sheenColorPBRMap);
+	glActiveTexture(GL_TEXTURE20);
+	glBindTexture(GL_TEXTURE_2D, _sheenRoughnessPBRMap);
+	glActiveTexture(GL_TEXTURE21);
+	glBindTexture(GL_TEXTURE_2D, _clearcoatPBRMap);
+	glActiveTexture(GL_TEXTURE22);
+	glBindTexture(GL_TEXTURE_2D, _clearcoatRoughnessPBRMap);
+	glActiveTexture(GL_TEXTURE23);
+	glBindTexture(GL_TEXTURE_2D, _clearcoatNormalPBRMap);
 }
 
 void TriangleMesh::setupUniforms()
@@ -376,20 +390,20 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("pbrLighting.clearcoat", _material.clearcoat());
 	_prog->setUniformValue("pbrLighting.clearcoatRoughness", _material.clearcoatRoughness());
 	// PBR Texture Maps
-	_prog->setUniformValue("albedoMap", 20);
-	_prog->setUniformValue("normalMap", 21);
-	_prog->setUniformValue("metallicMap", 22);
-	_prog->setUniformValue("roughnessMap", 23);
-	_prog->setUniformValue("aoMap", 24);
-	_prog->setUniformValue("heightMap", 25);
-	_prog->setUniformValue("opacityMap", 26);
-	_prog->setUniformValue("transmissionMap", 27);
-	_prog->setUniformValue("iorMap", 28);
-	_prog->setUniformValue("sheenColorMap", 29);
-	_prog->setUniformValue("sheenRoughnessMap", 30);
-	_prog->setUniformValue("clearcoatMap", 31);
-	_prog->setUniformValue("clearcoatRoughnessMap", 32);
-	_prog->setUniformValue("clearcoatNormalMap", 33);
+	_prog->setUniformValue("albedoMap", 10);
+	_prog->setUniformValue("normalMap", 11);
+	_prog->setUniformValue("metallicMap", 12);
+	_prog->setUniformValue("roughnessMap", 13);
+	_prog->setUniformValue("aoMap", 14);
+	_prog->setUniformValue("heightMap", 15);
+	_prog->setUniformValue("opacityMap", 16);
+	_prog->setUniformValue("transmissionMap", 17);
+	_prog->setUniformValue("iorMap", 18);
+	_prog->setUniformValue("sheenColorMap", 19);
+	_prog->setUniformValue("sheenRoughnessMap", 20);
+	_prog->setUniformValue("clearcoatMap", 21);
+	_prog->setUniformValue("clearcoatRoughnessMap", 22);
+	_prog->setUniformValue("clearcoatNormalMap", 23);
 	_prog->setUniformValue("heightScale", _heightPBRMapScale);
 	_prog->setUniformValue("hasAlbedoMap", _hasAlbedoPBRMap);
 	_prog->setUniformValue("hasMetallicMap", _hasMetallicPBRMap);

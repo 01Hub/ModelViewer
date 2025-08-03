@@ -359,6 +359,22 @@ void MaterialProcessor::setPBRTextureMaps(aiMaterial* material, std::vector<Text
     // 6. AO maps
     std::vector<Texture> aoPBRMaps = loadMaterialTextures(material, aiTextureType_AMBIENT_OCCLUSION, "aoMap");
     textures.insert(textures.end(), aoPBRMaps.begin(), aoPBRMaps.end());
+	// 7. height maps
+    std::vector<Texture> heightPBRMaps = loadMaterialTextures(material, aiTextureType_DISPLACEMENT, "heightMap");
+	textures.insert(textures.end(), heightPBRMaps.begin(), heightPBRMaps.end());
+    // 8. opacity maps
+    std::vector<Texture> opacityPBRMaps = loadMaterialTextures(material, aiTextureType_OPACITY, "opacityMap");
+	textures.insert(textures.end(), opacityPBRMaps.begin(), opacityPBRMaps.end());
+    // 9. clearcoat maps
+    std::vector<Texture> clearcoatPBRMaps = loadMaterialTextures(material, aiTextureType_CLEARCOAT, "clearcoatMap");
+    textures.insert(textures.end(), clearcoatPBRMaps.begin(), clearcoatPBRMaps.end());    
+	// 10. sheen maps
+    std::vector<Texture> sheenPBRMaps = loadMaterialTextures(material, aiTextureType_SHEEN, "sheenColorMap");
+	textures.insert(textures.end(), sheenPBRMaps.begin(), sheenPBRMaps.end());
+    // 11. transmission maps
+    std::vector<Texture> transmissionPBRMaps = loadMaterialTextures(material, aiTextureType_TRANSMISSION, "transmissionMap");
+    textures.insert(textures.end(), transmissionPBRMaps.begin(), transmissionPBRMaps.end());	
+    
 }
 
 void MaterialProcessor::setADSTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
