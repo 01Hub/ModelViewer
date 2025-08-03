@@ -60,6 +60,7 @@ public:
 
 	void setAlbedoPBRMap(unsigned int albedoMap) override;
 	void setMetallicPBRMap(unsigned int metallicMap) override;
+	void setEmissivePBRMap(unsigned int emissiveMap) override;
 	void setRoughnessPBRMap(unsigned int roughnessMap) override;
 	void setNormalPBRMap(unsigned int normalMap) override;
 	void setAOPBRMap(unsigned int aoMap) override;

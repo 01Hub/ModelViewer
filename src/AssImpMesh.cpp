@@ -135,6 +135,7 @@ void AssImpMesh::setupMesh()
 		if (name == "texture_emissive")
 		{
 			_hasEmissiveADSMap = true;
+			_hasEmissivePBRMap = true;
 		}
 		if (name == "texture_normal")
 		{
@@ -161,6 +162,11 @@ void AssImpMesh::setupMesh()
 		{
 			_hasSpecularADSMap = true;
 			_hasMetallicPBRMap = true;
+		}
+		if (name == "emissiveMap")
+		{
+			_hasEmissiveADSMap = true;
+			_hasEmissivePBRMap = true;
 		}
 		if (name == "roughnessMap")
 		{
@@ -299,6 +305,12 @@ void AssImpMesh::cacheTextureBindings()
 			addBinding("metallicMap" /*+ std::to_string(metallicNr)*/, GL_TEXTURE11);
 			metallicNr++;
 		}		
+		else if (texture.type == "emissiveMap")
+		{
+			addBinding("texture_emissive" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE12);
+			addBinding("emissiveMap" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE12);
+			emissiveNr++;
+		}
 		else if (texture.type == "normalMap")
 		{
 			addBinding("normalMap" /*+ std::to_string(normalNr)*/, GL_TEXTURE13);
@@ -550,6 +562,19 @@ void AssImpMesh::setMetallicPBRMap(unsigned int metallicMap)
 	Texture t;
 	t.id = metallicMap;
 	t.type = "metallicMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setEmissivePBRMap(unsigned int emissiveMap)
+{
+	glDeleteTextures(1, &_emissivePBRMap);
+	_emissivePBRMap = emissiveMap;
+	Texture t;
+	t.id = emissiveMap;
+	t.type = "emissiveMap";
 	t.path = ""; // No path for OpenGL texture handles
 	_textures.push_back(t);
 	markTexturesDirty();

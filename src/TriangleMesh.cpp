@@ -32,6 +32,7 @@ _sMax(1),
 _tMax(1),
 _albedoPBRMap(0),
 _metallicPBRMap(0),
+_emissivePBRMap(0),
 _roughnessPBRMap(0),
 _normalPBRMap(0),
 _aoPBRMap(0),
@@ -46,6 +47,7 @@ _clearcoatRoughnessPBRMap(0),
 _clearcoatNormalPBRMap(0),
 _hasAlbedoPBRMap(false),
 _hasMetallicPBRMap(false),
+_hasEmissivePBRMap(false),
 _hasRoughnessPBRMap(false),
 _hasNormalPBRMap(false),
 _hasAOPBRMap(false),
@@ -340,22 +342,19 @@ void TriangleMesh::setupTextures()
 	glActiveTexture(GL_TEXTURE10);
 	glBindTexture(GL_TEXTURE_2D, _albedoPBRMap);
 	glActiveTexture(GL_TEXTURE11);
-	glBindTexture(GL_TEXTURE_2D, _metallicPBRMap);
-	// Needs implementation
-	//glActiveTexture(GL_TEXTURE12);
-	//glBindTexture(GL_TEXTURE_2D, _emissivePBRMap);
+	glBindTexture(GL_TEXTURE_2D, _metallicPBRMap);	
+	glActiveTexture(GL_TEXTURE12);
+	glBindTexture(GL_TEXTURE_2D, _emissivePBRMap);
 	glActiveTexture(GL_TEXTURE13);
 	glBindTexture(GL_TEXTURE_2D, _normalPBRMap);	
 	glActiveTexture(GL_TEXTURE14);
 	glBindTexture(GL_TEXTURE_2D, _heightPBRMap);
 	glActiveTexture(GL_TEXTURE15);
-	glBindTexture(GL_TEXTURE_2D, _opacityPBRMap);	
-	
+	glBindTexture(GL_TEXTURE_2D, _opacityPBRMap);		
 	glActiveTexture(GL_TEXTURE16);
 	glBindTexture(GL_TEXTURE_2D, _roughnessPBRMap);
 	glActiveTexture(GL_TEXTURE17);
 	glBindTexture(GL_TEXTURE_2D, _aoPBRMap);
-
 	
 	// Advanced PBR maps
 	glActiveTexture(GL_TEXTURE18);
@@ -433,6 +432,7 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("heightScale", _heightPBRMapScale);
 	_prog->setUniformValue("hasAlbedoMap", _hasAlbedoPBRMap);
 	_prog->setUniformValue("hasMetallicMap", _hasMetallicPBRMap);
+	_prog->setUniformValue("hasEmissiveMap", _hasEmissivePBRMap);
 	_prog->setUniformValue("hasRoughnessMap", _hasRoughnessPBRMap);
 	_prog->setUniformValue("hasNormalMap", _hasNormalPBRMap);
 	_prog->setUniformValue("hasAOMap", _hasAOPBRMap);
@@ -1167,6 +1167,17 @@ void TriangleMesh::enableMetallicPBRMap(bool hasMetallicMap)
 	markUniformsDirty();
 }
 
+bool TriangleMesh::hasEmissivePBRMap() const
+{
+	return _hasEmissivePBRMap;
+}
+
+void TriangleMesh::enableEmissivePBRMap(bool hasEmissiveMap)
+{
+	_hasEmissivePBRMap = true;
+	markUniformsDirty();
+}
+
 bool TriangleMesh::hasRoughnessPBRMap() const
 {
 	return _hasRoughnessPBRMap;
@@ -1378,6 +1389,14 @@ void TriangleMesh::setMetallicPBRMap(unsigned int metallicMap)
 	markUniformsDirty();
 }
 
+void TriangleMesh::setEmissivePBRMap(unsigned int emissiveMap)
+{
+	glDeleteTextures(1, &_emissivePBRMap);
+	_emissivePBRMap = _emissivePBRMap;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
 void TriangleMesh::setRoughnessPBRMap(unsigned int roughnessMap)
 {
 	glDeleteTextures(1, &_roughnessPBRMap);
@@ -1426,6 +1445,8 @@ void TriangleMesh::setOpacityPBRMap(unsigned int opacityMap)
 {
 	glDeleteTextures(1, &_opacityPBRMap);
 	_opacityPBRMap = opacityMap;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::invertOpacityPBRMap(bool invert)
@@ -1505,6 +1526,23 @@ void TriangleMesh::clearAllPBRMaps()
 	_aoPBRMap = 0;
 	glDeleteTextures(1, &_heightPBRMap);
 	_heightPBRMap = 0;
+	glDeleteTextures(1, &_emissivePBRMap);
+	_emissivePBRMap = 0;
+	glDeleteTextures(1, &_transmissionPBRMap);
+	_transmissionPBRMap = 0;
+	glDeleteTextures(1, &_IORPBRMap);
+	_IORPBRMap = 0;
+	glDeleteTextures(1, &_sheenColorPBRMap);
+	_sheenColorPBRMap = 0;
+	glDeleteTextures(1, &_sheenRoughnessPBRMap);
+	_sheenRoughnessPBRMap = 0;
+	glDeleteTextures(1, &_clearcoatPBRMap);
+	_clearcoatPBRMap = 0;
+	glDeleteTextures(1, &_clearcoatRoughnessPBRMap);
+	_clearcoatRoughnessPBRMap = 0;
+	glDeleteTextures(1, &_clearcoatNormalPBRMap);
+	_clearcoatNormalPBRMap = 0;
+
 	markTexturesDirty();
 	markUniformsDirty();
 }

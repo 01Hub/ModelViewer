@@ -106,6 +106,7 @@ public:
 	virtual void setAlbedoPBRMap(unsigned int albedoMap);
 	virtual void setNormalPBRMap(unsigned int normalMap);
 	virtual void setMetallicPBRMap(unsigned int metallicMap);
+	virtual void setEmissivePBRMap(unsigned int emissiveMap);
 	virtual void setRoughnessPBRMap(unsigned int roughnessMap);
 	virtual void setAOPBRMap(unsigned int aoMap);
 	virtual void setHeightPBRMap(unsigned int heightMap);
@@ -117,6 +118,9 @@ public:
 
 	virtual bool hasMetallicPBRMap() const;
 	virtual void enableMetallicPBRMap(bool hasMetallicMap);
+
+	virtual bool hasEmissivePBRMap() const;
+	virtual void enableEmissivePBRMap(bool hasEmissiveMap);
 	 
 	virtual bool hasRoughnessPBRMap() const;
 	virtual void enableRoughnessPBRMap(bool hasRoughnessMap);
@@ -274,6 +278,7 @@ protected:
 	// PBR texture maps
 	unsigned int _albedoPBRMap;
 	unsigned int _metallicPBRMap;
+	unsigned int _emissivePBRMap;
 	unsigned int _roughnessPBRMap;
 	unsigned int _normalPBRMap;
 	unsigned int _aoPBRMap;
@@ -288,6 +293,7 @@ protected:
 	unsigned int _clearcoatNormalPBRMap;
 	bool _hasAlbedoPBRMap;
 	bool _hasMetallicPBRMap;
+	bool _hasEmissivePBRMap;
 	bool _hasRoughnessPBRMap;
 	bool _hasNormalPBRMap;
 	bool _hasAOPBRMap;
