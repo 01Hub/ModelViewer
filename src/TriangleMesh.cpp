@@ -45,6 +45,13 @@ _hasAOPBRMap(false),
 _hasHeightPBRMap(false),
 _heightPBRMapScale(0.02f),
 _hasOpacityPBRMap(false),
+_hasTransmissionPBRMap(false),
+_hasIORPBRMap(false),
+_hasSheenColorPBRMap(false),
+_hasSheenRoughnessPBRMap(false),
+_hasClearcoatPBRMap(false),
+_hasClearcoatRoughnessPBRMap(false),
+_hasClearcoatNormalPBRMap(false),
 _opacityPBRMapInverted(false)
 {
 	setAutoIncrName(name);
@@ -308,6 +315,7 @@ void TriangleMesh::setupTextures()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
 	glGenerateMipmap(GL_TEXTURE_2D);
 
+	// ADS light texture maps
 	glActiveTexture(GL_TEXTURE10);
 	glBindTexture(GL_TEXTURE_2D, _diffuseADSMap);
 	glActiveTexture(GL_TEXTURE11);
@@ -321,33 +329,41 @@ void TriangleMesh::setupTextures()
 	glActiveTexture(GL_TEXTURE15);
 	glBindTexture(GL_TEXTURE_2D, _opacityADSMap);
 
+	// PBR light texture maps
 	glActiveTexture(GL_TEXTURE10);
 	glBindTexture(GL_TEXTURE_2D, _albedoPBRMap);
 	glActiveTexture(GL_TEXTURE11);
-	glBindTexture(GL_TEXTURE_2D, _normalPBRMap);
-	glActiveTexture(GL_TEXTURE12);
 	glBindTexture(GL_TEXTURE_2D, _metallicPBRMap);
+	// Needs implementation
+	//glActiveTexture(GL_TEXTURE12);
+	//glBindTexture(GL_TEXTURE_2D, _emissivePBRMap);
 	glActiveTexture(GL_TEXTURE13);
-	glBindTexture(GL_TEXTURE_2D, _roughnessPBRMap);
+	glBindTexture(GL_TEXTURE_2D, _normalPBRMap);	
 	glActiveTexture(GL_TEXTURE14);
-	glBindTexture(GL_TEXTURE_2D, _aoPBRMap);
-	glActiveTexture(GL_TEXTURE15);
 	glBindTexture(GL_TEXTURE_2D, _heightPBRMap);
+	glActiveTexture(GL_TEXTURE15);
+	glBindTexture(GL_TEXTURE_2D, _opacityPBRMap);	
+	
 	glActiveTexture(GL_TEXTURE16);
-	glBindTexture(GL_TEXTURE_2D, _opacityPBRMap);
+	glBindTexture(GL_TEXTURE_2D, _roughnessPBRMap);
 	glActiveTexture(GL_TEXTURE17);
-	glBindTexture(GL_TEXTURE_2D, _transmissionPBRMap);
+	glBindTexture(GL_TEXTURE_2D, _aoPBRMap);
+
+	
+	// Advanced PBR maps
 	glActiveTexture(GL_TEXTURE18);
-	glBindTexture(GL_TEXTURE_2D, _IORPBRMap);
+	glBindTexture(GL_TEXTURE_2D, _transmissionPBRMap);
 	glActiveTexture(GL_TEXTURE19);
-	glBindTexture(GL_TEXTURE_2D, _sheenColorPBRMap);
+	glBindTexture(GL_TEXTURE_2D, _IORPBRMap);
 	glActiveTexture(GL_TEXTURE20);
-	glBindTexture(GL_TEXTURE_2D, _sheenRoughnessPBRMap);
+	glBindTexture(GL_TEXTURE_2D, _sheenColorPBRMap);
 	glActiveTexture(GL_TEXTURE21);
-	glBindTexture(GL_TEXTURE_2D, _clearcoatPBRMap);
+	glBindTexture(GL_TEXTURE_2D, _sheenRoughnessPBRMap);
 	glActiveTexture(GL_TEXTURE22);
-	glBindTexture(GL_TEXTURE_2D, _clearcoatRoughnessPBRMap);
+	glBindTexture(GL_TEXTURE_2D, _clearcoatPBRMap);
 	glActiveTexture(GL_TEXTURE23);
+	glBindTexture(GL_TEXTURE_2D, _clearcoatRoughnessPBRMap);
+	glActiveTexture(GL_TEXTURE24);
 	glBindTexture(GL_TEXTURE_2D, _clearcoatNormalPBRMap);
 }
 
@@ -391,19 +407,22 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("pbrLighting.clearcoatRoughness", _material.clearcoatRoughness());
 	// PBR Texture Maps
 	_prog->setUniformValue("albedoMap", 10);
-	_prog->setUniformValue("normalMap", 11);
-	_prog->setUniformValue("metallicMap", 12);
-	_prog->setUniformValue("roughnessMap", 13);
-	_prog->setUniformValue("aoMap", 14);
-	_prog->setUniformValue("heightMap", 15);
-	_prog->setUniformValue("opacityMap", 16);
-	_prog->setUniformValue("transmissionMap", 17);
-	_prog->setUniformValue("iorMap", 18);
-	_prog->setUniformValue("sheenColorMap", 19);
-	_prog->setUniformValue("sheenRoughnessMap", 20);
-	_prog->setUniformValue("clearcoatMap", 21);
-	_prog->setUniformValue("clearcoatRoughnessMap", 22);
-	_prog->setUniformValue("clearcoatNormalMap", 23);
+	_prog->setUniformValue("metallicMap", 11);
+	_prog->setUniformValue("emissiveMap", 12);
+	_prog->setUniformValue("normalMap", 13);
+	_prog->setUniformValue("heightMap", 14);
+	_prog->setUniformValue("opacityMap", 15);
+	_prog->setUniformValue("roughnessMap", 16);
+	_prog->setUniformValue("aoMap", 17);	
+	// Advanced PBR Maps
+	_prog->setUniformValue("transmissionMap", 18);
+	_prog->setUniformValue("iorMap", 19);
+	_prog->setUniformValue("sheenColorMap", 20);
+	_prog->setUniformValue("sheenRoughnessMap", 21);
+	_prog->setUniformValue("clearcoatMap", 22);
+	_prog->setUniformValue("clearcoatRoughnessMap", 23);
+	_prog->setUniformValue("clearcoatNormalMap", 24);
+
 	_prog->setUniformValue("heightScale", _heightPBRMapScale);
 	_prog->setUniformValue("hasAlbedoMap", _hasAlbedoPBRMap);
 	_prog->setUniformValue("hasMetallicMap", _hasMetallicPBRMap);
@@ -633,6 +652,13 @@ void TriangleMesh::deleteTextures()
 	glDeleteTextures(1, &_aoPBRMap);
 	glDeleteTextures(1, &_heightPBRMap);
 	glDeleteTextures(1, &_opacityPBRMap);
+	glDeleteTextures(1, &_transmissionPBRMap);
+	glDeleteTextures(1, &_IORPBRMap);
+	glDeleteTextures(1, &_sheenColorPBRMap);
+	glDeleteTextures(1, &_sheenRoughnessPBRMap);
+	glDeleteTextures(1, &_clearcoatPBRMap);
+	glDeleteTextures(1, &_clearcoatRoughnessPBRMap);
+	glDeleteTextures(1, &_clearcoatNormalPBRMap);
 }
 
 TriangleMesh::~TriangleMesh()

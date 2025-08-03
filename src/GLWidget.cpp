@@ -5172,6 +5172,14 @@ void GLWidget::setRenderingMode(const RenderingMode& renderingMode)
 	_renderingMode = renderingMode;
 	_fgShader->bind();
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+
+	// Mark textures as dirty to ensure they are reloaded
+	for (auto mesh : _meshStore)
+	{
+		mesh->markTexturesDirty();
+		mesh->markUniformsDirty();
+	}
+
 	_fgShader->release();
 	update();
 }

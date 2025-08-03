@@ -174,6 +174,43 @@ void AssImpMesh::setupMesh()
 		{
 			_hasAOPBRMap = true;
 		}
+		if( name == "heightMap")
+		{
+			_hasHeightPBRMap = true;
+		}
+		if (name == "opacityMap")
+		{
+			_hasOpacityPBRMap = true;
+			//_opacityPBRMapInverted = _textures[i].invertOpacity;
+		}
+		if (name == "transmissionMap")
+		{
+			_hasTransmissionPBRMap = true;
+		}
+		if (name == "iorMap")
+		{
+			_hasIORPBRMap = true;
+		}
+		if (name == "sheenColorMap")
+		{
+			_hasSheenColorPBRMap = true;
+		}
+		if (name == "sheenRoughnessMap")
+		{
+			_hasSheenRoughnessPBRMap = true;
+		}
+		if (name == "clearcoatMap")
+		{
+			_hasClearcoatPBRMap = true;
+		}
+		if (name == "clearcoatRoughnessMap")
+		{
+			_hasClearcoatRoughnessPBRMap = true;
+		}
+		if (name == "clearcoatNormalMap")
+		{
+			_hasClearcoatNormalPBRMap = true;		
+		}
 	}
 
 	initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
@@ -183,7 +220,7 @@ void AssImpMesh::setupMesh()
 void AssImpMesh::cacheTextureBindings()
 {
 	if (!_textureBindingsDirty) return;
-		
+
 	_textureBindings.clear();
 	_textureBindings.reserve(_textures.size() * 2); // Account for duplicates
 
@@ -215,101 +252,101 @@ void AssImpMesh::cacheTextureBindings()
 		// Handle different texture types
 		if (texture.type == "texture_diffuse")
 		{
-			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10 + i);
-			addBinding("albedoMap" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE20 + i); // PBR duplicate
+			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10);
+			addBinding("albedoMap" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10); // PBR duplicate
 			diffuseNr++;
 		}
 		else if (texture.type == "texture_specular")
 		{
-			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE10 + i);
-			addBinding("metallicMap" /*+ std::to_string(specularNr)*/, GL_TEXTURE20 + i);
+			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE11);
+			addBinding("metallicMap" /*+ std::to_string(specularNr)*/, GL_TEXTURE11);
 			specularNr++;
 		}
 		else if (texture.type == "texture_emissive")
 		{
-			addBinding("texture_emissive" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE10 + i);
-			addBinding("emissiveMap" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE20 + i);
+			addBinding("texture_emissive" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE12);
+			addBinding("emissiveMap" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE12);
 			emissiveNr++;
 		}
 		else if (texture.type == "texture_normal")
 		{
-			addBinding("texture_normal" /*+ std::to_string(normalNr)*/, GL_TEXTURE10 + i);
-			addBinding("normalMap" /*+ std::to_string(normalNr)*/, GL_TEXTURE20 + i);
+			addBinding("texture_normal" /*+ std::to_string(normalNr)*/, GL_TEXTURE13);
+			addBinding("normalMap" /*+ std::to_string(normalNr)*/, GL_TEXTURE13);
 			normalNr++;
 		}
 		else if (texture.type == "texture_height")
 		{
-			addBinding("texture_height" /*+ std::to_string(heightNr)*/, GL_TEXTURE10 + i);
-			addBinding("heightMap" /*+ std::to_string(heightNr)*/, GL_TEXTURE20 + i);
+			addBinding("texture_height" /*+ std::to_string(heightNr)*/, GL_TEXTURE14);
+			addBinding("heightMap" /*+ std::to_string(heightNr)*/, GL_TEXTURE14);
 			heightNr++;
 		}
 		else if (texture.type == "texture_opacity")
 		{
-			addBinding("texture_opacity" /*+ std::to_string(opacityNr)*/, GL_TEXTURE10 + i);
-			addBinding("opacityMap" /*+ std::to_string(opacityNr)*/, GL_TEXTURE20 + i);
+			addBinding("texture_opacity" /*+ std::to_string(opacityNr)*/, GL_TEXTURE15);
+			addBinding("opacityMap" /*+ std::to_string(opacityNr)*/, GL_TEXTURE15);
 			opacityNr++;
 		}
 		
 		else if (texture.type == "albedoMap")
 		{
-			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10 + i);
-			addBinding("albedoMap" /*+ std::to_string(albedoNr)*/, GL_TEXTURE20 + i);
+			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10);
+			addBinding("albedoMap" /*+ std::to_string(albedoNr)*/, GL_TEXTURE10);
 			albedoNr++;
 		}
 		else if (texture.type == "metallicMap")
 		{
-			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE10 + i);
-			addBinding("metallicMap" /*+ std::to_string(metallicNr)*/, GL_TEXTURE20 + i);
+			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE11);
+			addBinding("metallicMap" /*+ std::to_string(metallicNr)*/, GL_TEXTURE11);
 			metallicNr++;
+		}		
+		else if (texture.type == "normalMap")
+		{
+			addBinding("normalMap" /*+ std::to_string(normalNr)*/, GL_TEXTURE13);
+			normalNr++;
 		}
 		else if (texture.type == "roughnessMap")
 		{
-			addBinding("roughnessMap" /*+ std::to_string(roughnessNr)*/, GL_TEXTURE20 + i);
+			addBinding("roughnessMap" /*+ std::to_string(roughnessNr)*/, GL_TEXTURE16);
 			roughnessNr++;
-		}
-		else if (texture.type == "normalMap")
-		{
-			addBinding("normalMap" /*+ std::to_string(normalNr)*/, GL_TEXTURE20 + i);
-			normalNr++;
 		}
 		else if (texture.type == "aoMap")
 		{
-			addBinding("aoMap" /*+ std::to_string(aoNr)*/, GL_TEXTURE20 + i);
+			addBinding("aoMap" /*+ std::to_string(aoNr)*/, GL_TEXTURE17);
 			aoNr++;
 		}
 		else if (texture.type == "transmissionMap")
 		{
-			addBinding("transmissionMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			addBinding("transmissionMap" /*+ std::to_string(i)*/, GL_TEXTURE18);
 			transmissionNr++;
 		}
 		else if (texture.type == "iorMap")
 		{
-			addBinding("iorMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			addBinding("iorMap" /*+ std::to_string(i)*/, GL_TEXTURE19);
 			iorNr++;
 		}
 		else if (texture.type == "sheenColorMap")
 		{
-			addBinding("sheenColorMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			addBinding("sheenColorMap" /*+ std::to_string(i)*/, GL_TEXTURE20);
 			sheenColorNr++;
 		}
 		else if (texture.type == "sheenRoughnessMap")
 		{
-			addBinding("sheenRoughnessMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			addBinding("sheenRoughnessMap" /*+ std::to_string(i)*/, GL_TEXTURE21);
 			sheenRoughnessNr++;
 		}
 		else if (texture.type == "clearcoatMap")
 		{
-			addBinding("clearcoatMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			addBinding("clearcoatMap" /*+ std::to_string(i)*/, GL_TEXTURE22);
 			clearcoatNr++;
 		}
 		else if (texture.type == "clearcoatRoughnessMap")
 		{
-			addBinding("clearcoatRoughnessMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			addBinding("clearcoatRoughnessMap" /*+ std::to_string(i)*/, GL_TEXTURE23);
 			clearcoatRoughnessNr++;
 		}
 		else if (texture.type == "clearcoatNormalMap")
 		{
-			addBinding("clearcoatNormalMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			addBinding("clearcoatNormalMap" /*+ std::to_string(i)*/, GL_TEXTURE24);
 			clearcoatNormalNr++;
 		}
 	}

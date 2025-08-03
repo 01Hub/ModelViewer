@@ -199,6 +199,10 @@ public:
 	virtual void clearOpacityADSMap();
 	virtual void clearAllADSMaps();
 	
+
+	virtual void markTexturesDirty() { _textureBindingsDirty = true; }
+	virtual void markUniformsDirty() { _uniformsDirty = true; }
+
 	virtual void deleteTextures();
 	
 	virtual void serialize(QDataStream& out) const;
@@ -221,9 +225,6 @@ protected: // methods
     virtual void setupTransformation();
 	virtual void setupTextures();
 	virtual void setupUniforms();
-
-	void markTexturesDirty() { _textureBindingsDirty = true; }
-	void markUniformsDirty() { _uniformsDirty = true; }
 
 protected:
 
