@@ -191,6 +191,9 @@ void AssImpMesh::cacheTextureBindings()
 	int diffuseNr = 1, specularNr = 1, emissiveNr = 1, normalNr = 1;
 	int heightNr = 1, opacityNr = 1, albedoNr = 1, metallicNr = 1;
 	int roughnessNr = 1, normalPBRNr = 1, aoNr = 1;
+	int transmissionNr = 1, iorNr = 1;
+	int sheenColorNr = 1, sheenRoughnessNr = 1;
+	int clearcoatNr = 1, clearcoatRoughnessNr = 1, clearcoatNormalNr = 1;
 
 	for (size_t i = 0; i < _textures.size(); ++i)
 	{
@@ -273,7 +276,42 @@ void AssImpMesh::cacheTextureBindings()
 		{
 			addBinding("aoMap" /*+ std::to_string(aoNr)*/, GL_TEXTURE20 + i);
 			aoNr++;
-		}		
+		}
+		else if (texture.type == "transmissionMap")
+		{
+			addBinding("transmissionMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			transmissionNr++;
+		}
+		else if (texture.type == "iorMap")
+		{
+			addBinding("iorMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			iorNr++;
+		}
+		else if (texture.type == "sheenColorMap")
+		{
+			addBinding("sheenColorMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			sheenColorNr++;
+		}
+		else if (texture.type == "sheenRoughnessMap")
+		{
+			addBinding("sheenRoughnessMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			sheenRoughnessNr++;
+		}
+		else if (texture.type == "clearcoatMap")
+		{
+			addBinding("clearcoatMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			clearcoatNr++;
+		}
+		else if (texture.type == "clearcoatRoughnessMap")
+		{
+			addBinding("clearcoatRoughnessMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			clearcoatRoughnessNr++;
+		}
+		else if (texture.type == "clearcoatNormalMap")
+		{
+			addBinding("clearcoatNormalMap" /*+ std::to_string(i)*/, GL_TEXTURE20 + i);
+			clearcoatNormalNr++;
+		}
 	}
 
 	_textureBindingsDirty = false;
@@ -540,6 +578,97 @@ void AssImpMesh::setOpacityPBRMap(unsigned int opacityMap)
 	Texture t;
 	t.id = opacityMap;
 	t.type = "opacityMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setIORPBRMap(unsigned int iorMap)
+{
+	glDeleteTextures(1, &_IORPBRMap);
+	_IORPBRMap = iorMap;
+	Texture t;
+	t.id = iorMap;
+	t.type = "iorMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setClearcoatPBRMap(unsigned int clearcoatMap)
+{
+	glDeleteTextures(1, &_clearcoatPBRMap);
+	_clearcoatPBRMap = clearcoatMap;
+	Texture t;
+	t.id = clearcoatMap;
+	t.type = "clearcoatMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap)
+{
+	glDeleteTextures(1, &_clearcoatRoughnessPBRMap);
+	_clearcoatRoughnessPBRMap = clearcoatRoughnessMap;
+	Texture t;
+	t.id = clearcoatRoughnessMap;
+	t.type = "clearcoatRoughnessMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap)
+{
+	glDeleteTextures(1, &_clearcoatNormalPBRMap);
+	_clearcoatNormalPBRMap = clearcoatNormalMap;
+	Texture t;
+	t.id = clearcoatNormalMap;
+	t.type = "clearcoatNormalMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setSheenColorPBRMap(unsigned int sheenMap)
+{
+	glDeleteTextures(1, &_sheenColorPBRMap);
+	_sheenColorPBRMap = sheenMap;
+	Texture t;
+	t.id = sheenMap;
+	t.type = "sheenColorMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap)
+{
+	glDeleteTextures(1, &_sheenRoughnessPBRMap);
+	_sheenRoughnessPBRMap = sheenRoughnessMap;
+	Texture t;
+	t.id = sheenRoughnessMap;
+	t.type = "sheenRoughnessMap";
+	t.path = ""; // No path for OpenGL texture handles
+	_textures.push_back(t);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::setTransmissionPBRMap(unsigned int transmissionMap)
+{
+	glDeleteTextures(1, &_transmissionPBRMap);
+	_transmissionPBRMap = transmissionMap;
+	Texture t;
+	t.id = transmissionMap;
+	t.type = "transmissionMap";
 	t.path = ""; // No path for OpenGL texture handles
 	_textures.push_back(t);
 	markTexturesDirty();

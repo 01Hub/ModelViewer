@@ -369,6 +369,12 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("pbrLighting.metallic", _material.metalness());
 	_prog->setUniformValue("pbrLighting.roughness", _material.roughness());
 	_prog->setUniformValue("pbrLighting.ambientOcclusion", 1.0f);
+	_prog->setUniformValue("pbrLighting.transmission", _material.transmission());
+	_prog->setUniformValue("pbrLighting.ior", _material.ior());
+	_prog->setUniformValue("pbrLighting.sheenColor", _material.sheenColor());
+	_prog->setUniformValue("pbrLighting.sheenRoughness", _material.sheenRoughness());
+	_prog->setUniformValue("pbrLighting.clearcoat", _material.clearcoat());
+	_prog->setUniformValue("pbrLighting.clearcoatRoughness", _material.clearcoatRoughness());
 	// PBR Texture Maps
 	_prog->setUniformValue("albedoMap", 20);
 	_prog->setUniformValue("normalMap", 21);
@@ -377,6 +383,13 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("aoMap", 24);
 	_prog->setUniformValue("heightMap", 25);
 	_prog->setUniformValue("opacityMap", 26);
+	_prog->setUniformValue("transmissionMap", 27);
+	_prog->setUniformValue("iorMap", 28);
+	_prog->setUniformValue("sheenColorMap", 29);
+	_prog->setUniformValue("sheenRoughnessMap", 30);
+	_prog->setUniformValue("clearcoatMap", 31);
+	_prog->setUniformValue("clearcoatRoughnessMap", 32);
+	_prog->setUniformValue("clearcoatNormalMap", 33);
 	_prog->setUniformValue("heightScale", _heightPBRMapScale);
 	_prog->setUniformValue("hasAlbedoMap", _hasAlbedoPBRMap);
 	_prog->setUniformValue("hasMetallicMap", _hasMetallicPBRMap);
@@ -386,6 +399,13 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("hasOpacityMap", _hasOpacityPBRMap);
 	_prog->setUniformValue("opacityMapInverted", _opacityPBRMapInverted);
 	_prog->setUniformValue("hasHeightMap", _hasHeightPBRMap);
+	_prog->setUniformValue("hasTransmissionMap", _hasTransmissionPBRMap);
+	_prog->setUniformValue("hasIORMap", _hasIORPBRMap);
+	_prog->setUniformValue("hasSheenColorMap", _hasSheenColorPBRMap);
+	_prog->setUniformValue("hasSheenRoughnessMap", _hasSheenRoughnessPBRMap);
+	_prog->setUniformValue("hasClearcoatMap", _hasClearcoatPBRMap);
+	_prog->setUniformValue("hasClearcoatRoughnessMap", _hasClearcoatRoughnessPBRMap);
+	_prog->setUniformValue("hasClearcoatNormalMap", _hasClearcoatNormalPBRMap);
 
 	_prog->setUniformValue("selected", _selected);
 }
@@ -1152,6 +1172,146 @@ bool TriangleMesh::hasOpacityPBRMap() const
 void TriangleMesh::enableOpacityPBRMap(bool hasOpacityMap)
 {
 	_hasOpacityPBRMap = hasOpacityMap;
+	markUniformsDirty();
+}
+
+bool TriangleMesh::hasTransmissionPBRMap() const
+{
+	return _hasTransmissionPBRMap;
+}
+
+void TriangleMesh::enableTransmissionPBRMap(bool hasTransmissionMap)
+{
+	_hasTransmissionPBRMap = hasTransmissionMap;
+	markUniformsDirty();
+}
+
+void TriangleMesh::setTransmissionPBRMap(unsigned int transmissionMap)
+{
+	glDeleteTextures(1, &_transmissionPBRMap);
+	_transmissionPBRMap = transmissionMap;
+	_hasTransmissionPBRMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+bool TriangleMesh::hasIORPBRMap() const
+{
+	return _hasIORPBRMap;
+}
+
+void TriangleMesh::enableIORPBRMap(bool hasIORMap)
+{
+	_hasIORPBRMap = hasIORMap;
+	markUniformsDirty();
+}
+
+void TriangleMesh::setIORPBRMap(unsigned int iorMap)
+{
+	glDeleteTextures(1, &_IORPBRMap);
+	_IORPBRMap = iorMap;
+	_hasIORPBRMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+bool TriangleMesh::hasSheenColorPBRMap() const
+{
+	return _hasSheenColorPBRMap;
+}
+
+void TriangleMesh::enableSheenColorPBRMap(bool hasSheenColorMap)
+{
+	_hasSheenColorPBRMap = hasSheenColorMap;
+	markUniformsDirty();
+}
+
+void TriangleMesh::setSheenColorPBRMap(unsigned int sheenColorMap)
+{
+	glDeleteTextures(1, &_sheenColorPBRMap);
+	_sheenColorPBRMap = sheenColorMap;
+	_hasSheenColorPBRMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+bool TriangleMesh::hasSheenRoughnessPBRMap() const
+{
+	return _hasSheenColorPBRMap;
+}
+
+void TriangleMesh::enableSheenRoughnessPBRMap(bool hasSheenRoughnessMap)
+{
+	_hasSheenRoughnessPBRMap = hasSheenRoughnessMap;
+	markUniformsDirty();
+}
+
+void TriangleMesh::setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap)
+{
+	glDeleteTextures(1, &_sheenRoughnessPBRMap);
+	_sheenRoughnessPBRMap = sheenRoughnessMap;
+	_hasSheenRoughnessPBRMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+bool TriangleMesh::hasClearcoatPBRMap() const
+{
+	return _hasClearcoatPBRMap;
+}
+
+void TriangleMesh::enableClearcoatPBRMap(bool hasClearcoatMap)
+{
+	_hasClearcoatPBRMap = hasClearcoatMap;
+	markUniformsDirty();
+}
+
+void TriangleMesh::setClearcoatPBRMap(unsigned int clearcoatMap)
+{
+	glDeleteTextures(1, &_clearcoatPBRMap);
+	_clearcoatPBRMap = clearcoatMap;
+	_hasClearcoatPBRMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+bool TriangleMesh::hasClearcoatRoughnessPBRMap() const
+{
+	return _hasClearcoatRoughnessPBRMap;
+}
+
+void TriangleMesh::enableClearcoatRoughnessPBRMap(bool hasClearcoatRoughnessMap)
+{
+	_hasClearcoatRoughnessPBRMap = hasClearcoatRoughnessMap;
+	markUniformsDirty();
+}
+
+void TriangleMesh::setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap)
+{
+	glDeleteTextures(1, &_clearcoatRoughnessPBRMap);
+	_clearcoatRoughnessPBRMap = clearcoatRoughnessMap;
+	_hasClearcoatRoughnessPBRMap = true;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+bool TriangleMesh::hasClearcoatNormalPBRMap() const
+{
+	return _hasClearcoatNormalPBRMap;
+}
+
+void TriangleMesh::enableClearcoatNormalPBRMap(bool hasClearcoatNormalMap)
+{
+	_hasClearcoatNormalPBRMap = hasClearcoatNormalMap;
+	markUniformsDirty();
+}
+
+void TriangleMesh::setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap)
+{
+	glDeleteTextures(1, &_clearcoatNormalPBRMap);
+	_clearcoatNormalPBRMap = clearcoatNormalMap;
+	_hasClearcoatNormalPBRMap = true;
+	markTexturesDirty();
 	markUniformsDirty();
 }
 

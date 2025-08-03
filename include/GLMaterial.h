@@ -142,6 +142,7 @@ public:
     bool hasClearcoat() const;
     bool hasSheen() const;
     bool hasTransmission() const;
+	bool hasIOR() const;
 
     // Material validation
     bool isValid() const;
@@ -461,6 +462,7 @@ inline bool GLMaterial::isEmissive() const {
 inline bool GLMaterial::hasClearcoat() const { return _clearcoat > 0.0f; }
 inline bool GLMaterial::hasSheen() const { return _sheenColor.length() > 0.0f; }
 inline bool GLMaterial::hasTransmission() const { return _transmission > 0.0f; }
+inline bool GLMaterial::hasIOR() const {  return _ior > 0.0f; }
 
 inline bool GLMaterial::isValid() const
 {

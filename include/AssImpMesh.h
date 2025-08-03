@@ -65,6 +65,13 @@ public:
 	void setAOPBRMap(unsigned int aoMap) override;
 	void setHeightPBRMap(unsigned int heightMap) override;
 	void setOpacityPBRMap(unsigned int opacityMap) override;
+	void setIORPBRMap(unsigned int iorMap) override;
+	void setClearcoatPBRMap(unsigned int clearcoatMap) override;
+	void setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap) override;
+	void setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap) override;
+	void setSheenColorPBRMap(unsigned int sheenMap) override;
+	void setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap) override;
+	void setTransmissionPBRMap(unsigned int transmissionMap) override;	
 
 	// implementations for enabling/disabling textures
 	void setDiffuseADSMap(unsigned int diffuseTex) override;

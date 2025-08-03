@@ -135,6 +135,35 @@ public:
 	
 	virtual bool hasOpacityPBRMap() const;
 	virtual void enableOpacityPBRMap(bool hasHeightMap);
+
+	virtual bool hasTransmissionPBRMap() const;
+	virtual void enableTransmissionPBRMap(bool hasTransmissionMap);
+	virtual void setTransmissionPBRMap(unsigned int transmissionMap);
+
+	virtual bool hasIORPBRMap() const;
+	virtual void enableIORPBRMap(bool hasIORMap);
+	virtual void setIORPBRMap(unsigned int iorMap);
+
+	virtual bool hasSheenColorPBRMap() const;
+	virtual void enableSheenColorPBRMap(bool hasSheenColorMap);
+	virtual void setSheenColorPBRMap(unsigned int sheenColorMap);
+
+	virtual bool hasSheenRoughnessPBRMap() const;
+	virtual void enableSheenRoughnessPBRMap(bool hasSheenRoughnessMap);
+	virtual void setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap);
+
+	virtual bool hasClearcoatPBRMap() const;
+	virtual void enableClearcoatPBRMap(bool hasClearcoatMap);
+	virtual void setClearcoatPBRMap(unsigned int clearcoatMap);
+
+	virtual bool hasClearcoatRoughnessPBRMap() const;
+	virtual void enableClearcoatRoughnessPBRMap(bool hasClearcoatRoughnessMap);
+	virtual void setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap);
+
+	virtual bool hasClearcoatNormalPBRMap() const;
+	virtual void enableClearcoatNormalPBRMap(bool hasClearcoatNormalMap);
+	virtual void setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap);
+
 	
 	virtual void clearAlbedoPBRMap();
 	virtual void clearMetallicPBRMap();
@@ -237,7 +266,7 @@ protected:
 	bool _hasHeightADSMap;
 	bool _hasOpacityADSMap;
 	bool _opacityADSMapInverted;
-
+	
 	unsigned int _sMax;
 	unsigned int _tMax;
 
@@ -249,6 +278,13 @@ protected:
 	unsigned int _aoPBRMap;
 	unsigned int _heightPBRMap;
 	unsigned int _opacityPBRMap;
+	unsigned int _transmissionPBRMap;
+	unsigned int _IORPBRMap;
+	unsigned int _sheenColorPBRMap;
+	unsigned int _sheenRoughnessPBRMap;
+	unsigned int _clearcoatPBRMap;
+	unsigned int _clearcoatRoughnessPBRMap;
+	unsigned int _clearcoatNormalPBRMap;
 	bool _hasAlbedoPBRMap;
 	bool _hasMetallicPBRMap;
 	bool _hasRoughnessPBRMap;
@@ -258,6 +294,13 @@ protected:
 	float _heightPBRMapScale;
 	bool _hasOpacityPBRMap;
 	bool _opacityPBRMapInverted;
+	bool _hasTransmissionPBRMap;
+	bool _hasIORPBRMap;
+	bool _hasSheenColorPBRMap;
+	bool _hasSheenRoughnessPBRMap;
+	bool _hasClearcoatPBRMap;
+	bool _hasClearcoatRoughnessPBRMap;
+	bool _hasClearcoatNormalPBRMap;
 
 	bool _textureBindingsDirty = true;
 
