@@ -598,10 +598,25 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         }
 
         // material properties
+        // if(hasAlbedoMap)
+        //   albedo = pow(texture(albedoMap, clippedTexCoord).rgb, vec3(2.2));
+        // else
+        //   albedo = pbrLighting.albedo;
         if(hasAlbedoMap)
-            albedo = pow(texture(albedoMap, clippedTexCoord).rgb, vec3(2.2));
+        {
+            vec3 textureColor = pow(texture(albedoMap, clippedTexCoord).rgb, vec3(2.2));
+    
+            // Option 1: Multiply base color with texture (most common for fabric)
+            albedo = pbrLighting.albedo * textureColor;
+    
+            // Option 2: If you want more control, use a mix instead:
+            //float textureMix = 0.8; // Adjust this value to control texture vs base color blend
+            //albedo = mix(pbrLighting.albedo, pbrLighting.albedo * textureColor, textureMix);
+        }
         else
+        {
             albedo = pbrLighting.albedo;
+        }
 
         if(hasMetallicMap)
             metallic = texture(metallicMap, clippedTexCoord).r;
