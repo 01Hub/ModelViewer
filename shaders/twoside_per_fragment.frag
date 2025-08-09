@@ -597,77 +597,129 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
         }
 
-        // material properties
-        // if(hasAlbedoMap)
-        //   albedo = pow(texture(albedoMap, clippedTexCoord).rgb, vec3(2.2));
-        // else
-        //   albedo = pbrLighting.albedo;
+        // Material properties
+        // === ALBEDO (Base Color) ===
         if(hasAlbedoMap)
         {
             vec3 textureColor = pow(texture(albedoMap, clippedTexCoord).rgb, vec3(2.2));
-    
-            // Option 1: Multiply base color with texture (most common for fabric)
-            albedo = pbrLighting.albedo * textureColor;
-    
-            // Option 2: If you want more control, use a mix instead:
-            //float textureMix = 0.8; // Adjust this value to control texture vs base color blend
-            //albedo = mix(pbrLighting.albedo, pbrLighting.albedo * textureColor, textureMix);
+            albedo = pbrLighting.albedo * textureColor; // Multiplicative
         }
         else
         {
             albedo = pbrLighting.albedo;
         }
 
+        // === METALLIC ===
         if(hasMetallicMap)
-            metallic = texture(metallicMap, clippedTexCoord).r;
+        {
+            float metallicTexture = texture(metallicMap, clippedTexCoord).r;
+            metallic = pbrLighting.metallic * metallicTexture; // Multiplicative
+        }
         else
+        {
             metallic = pbrLighting.metallic;
+        }
 
+        // === ROUGHNESS ===
         if(hasRoughnessMap)
-            roughness = texture(roughnessMap, clippedTexCoord).r;
+        {
+            float roughnessTexture = texture(roughnessMap, clippedTexCoord).r;
+            roughness = pbrLighting.roughness * roughnessTexture; // Multiplicative
+        }
         else
+        {
             roughness = pbrLighting.roughness;
+        }
 
+        // === AMBIENT OCCLUSION ===
         if(hasAOMap)
-            ambientOcclusion = texture(aoMap, clippedTexCoord).r;
+        {
+            float aoTexture = texture(aoMap, clippedTexCoord).r;
+            ambientOcclusion = pbrLighting.ambientOcclusion * aoTexture; // Multiplicative
+        }
         else
+        {
             ambientOcclusion = pbrLighting.ambientOcclusion;
+        }
 
-        // Advanced PBR properties from textures or uniforms
+        // === ADVANCED PBR PROPERTIES ===
+
+        // TRANSMISSION
         if(hasTransmissionMap)
-            transmission = texture(transmissionMap, clippedTexCoord).r;
+        {
+            float transmissionTexture = texture(transmissionMap, clippedTexCoord).r;
+            transmission = pbrLighting.transmission * transmissionTexture; // Multiplicative
+        }
         else
+        {
             transmission = pbrLighting.transmission;
+        }
 
+        // INDEX OF REFRACTION (IOR) - Usually additive/blend approach
         if(hasIORMap)
-            ior = texture(iorMap, clippedTexCoord).r;
+        {
+            float iorTexture = texture(iorMap, clippedTexCoord).r;
+            // IOR is often blended rather than multiplied since it's a physical property
+            ior = mix(1.0, pbrLighting.ior, iorTexture); // Blend from air (1.0) to material IOR
+        }
         else
+        {
             ior = pbrLighting.ior;
+        }
 
+        // SHEEN COLOR
         if(hasSheenColorMap)
-            sheenColor = texture(sheenColorMap, clippedTexCoord).rgb;
+        {
+            vec3 sheenColorTexture = texture(sheenColorMap, clippedTexCoord).rgb;
+            sheenColor = pbrLighting.sheenColor * sheenColorTexture; // Multiplicative
+        }
         else
+        {
             sheenColor = pbrLighting.sheenColor;
+        }
 
+        // SHEEN ROUGHNESS
         if(hasSheenRoughnessMap)
-            sheenRoughness = texture(sheenRoughnessMap, clippedTexCoord).r;
+        {
+            float sheenRoughnessTexture = texture(sheenRoughnessMap, clippedTexCoord).r;
+            sheenRoughness = pbrLighting.sheenRoughness * sheenRoughnessTexture; // Multiplicative
+        }
         else
+        {
             sheenRoughness = pbrLighting.sheenRoughness;
+        }
 
+        // CLEARCOAT
         if(hasClearcoatMap)
-            clearcoat = texture(clearcoatMap, clippedTexCoord).r;
+        {
+            float clearcoatTexture = texture(clearcoatMap, clippedTexCoord).r;
+            clearcoat = pbrLighting.clearcoat * clearcoatTexture; // Multiplicative
+        }
         else
+        {
             clearcoat = pbrLighting.clearcoat;
+        }
 
+        // CLEARCOAT ROUGHNESS
         if(hasClearcoatRoughnessMap)
-            clearcoatRoughness = texture(clearcoatRoughnessMap, clippedTexCoord).r;
+        {
+            float clearcoatRoughnessTexture = texture(clearcoatRoughnessMap, clippedTexCoord).r;
+            clearcoatRoughness = pbrLighting.clearcoatRoughness * clearcoatRoughnessTexture; // Multiplicative
+        }
         else
+        {
             clearcoatRoughness = pbrLighting.clearcoatRoughness;
+        }
 
+        // CLEARCOAT NORMAL (Special case - not multiplicative)
         if(hasClearcoatNormalMap)
+        {
             clearcoatNormal = calcBumpedNormal(clearcoatNormalMap, clippedTexCoord) * side;
+        }
         else
-            clearcoatNormal = N;
+        {
+            clearcoatNormal = N; // Use base normal
+        }
     }
 
     // calculate reflectance at normal incidence; if dia-electric (like plastic) use F0
@@ -813,7 +865,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             alpha = texture(opacityMap, clippedTexCoord).r;
     }
 
-    return vec4(color, alpha);
+    // Handle transmission alpha
+    float finalAlpha = opacity;
+    if(transmission > 0.0) {
+        // Make material more transparent based on transmission
+        finalAlpha = mix(opacity, opacity * (1.0 - transmission * 0.7), transmission);
+    }
+
+    return vec4(color, finalAlpha);
 }
 
 // ----------------------------------------------------------------------------
@@ -847,19 +906,29 @@ float geometryCharlie(float NdotV, float roughness)
 // Calculate transmission contribution
 vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo)
 {
-    // Simple transmission model
+    if(transmission <= 0.0) return vec3(0.0);
+    
     vec3 H = normalize(V + L);
     float VdotH = clamp(dot(V, H), 0.0, 1.0);
-    
-    // Fresnel for transmission
-    vec3 F = fresnelSchlickIOR(VdotH, ior);
-    vec3 transmittance = (1.0 - F) * transmission;
-    
-    // Simple transmission factor based on surface normal and light direction
     float NdotL = dot(N, L);
-    float transmissionFactor = max(0.0, -NdotL); // Light coming from behind
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
     
-    return albedo * transmittance * transmissionFactor;
+    // Calculate transmission based on light coming from behind the surface
+    float backLighting = max(0.0, -NdotL); // Light from behind
+    
+    // Fresnel for transmission (inverted)
+    float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
+    float fresnel = f0 + (1.0 - f0) * pow(1.0 - VdotH, 5.0);
+    float transmittance = (1.0 - fresnel) * transmission;
+    
+    // Simple subsurface scattering approximation
+    vec3 transmissionColor = albedo * transmittance * backLighting;
+    
+    // Add some forward scattering for thin materials
+    float forwardScatter = max(0.0, NdotL) * transmission * 0.3;
+    transmissionColor += albedo * forwardScatter;
+    
+    return transmissionColor;
 }
 
 // Calculate sheen contribution (for fabric-like materials)
