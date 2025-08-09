@@ -413,11 +413,8 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 
 		_materialProcessor.setFolderPath(this->_texturePath);
 
-		// ADS Maps
-		_materialProcessor.setADSTextureMaps(material, textures);
-
-		// PBR Maps
-		_materialProcessor.setPBRTextureMaps(material, textures);
+		// ADS and PBR Maps
+		_materialProcessor.setTextureMaps(material, textures);
 
 		//Set color and material
 		_materialProcessor.setColorAndMaterial(material, mat);

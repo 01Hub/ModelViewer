@@ -339,102 +339,127 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, std::string di
     return textureID;
 }
 
-void MaterialProcessor::setPBRTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
+// Sets the texture maps for a material based on the defined texture mappings.
+void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
 {
-    // 1. albedo maps
-    vector<Texture> albedoPBRMaps = loadMaterialTextures(material, aiTextureType_BASE_COLOR, "albedoMap");
-    textures.insert(textures.end(), albedoPBRMaps.begin(), albedoPBRMaps.end());
-    // 2. specular maps
-    vector<Texture> metalicPBRMaps = loadMaterialTextures(material, aiTextureType_METALNESS, "metallicMap");
-    textures.insert(textures.end(), metalicPBRMaps.begin(), metalicPBRMaps.end());
-    // 3. roughness maps
-    vector<Texture> roughnessPBRMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE_ROUGHNESS, "roughnessMap");
-    textures.insert(textures.end(), roughnessPBRMaps.begin(), roughnessPBRMaps.end());
-    // 4. emissive maps
-    vector<Texture> emissivePBRMaps = loadMaterialTextures(material, aiTextureType_EMISSION_COLOR, "emissiveMap");
-    textures.insert(textures.end(), emissivePBRMaps.begin(), emissivePBRMaps.end());
-    // 5. normal maps
-    std::vector<Texture> normalPBRMaps = loadMaterialTextures(material, aiTextureType_NORMAL_CAMERA, "normalMap");
-    textures.insert(textures.end(), normalPBRMaps.begin(), normalPBRMaps.end());
-    // 6. AO maps
-    std::vector<Texture> aoPBRMaps = loadMaterialTextures(material, aiTextureType_AMBIENT_OCCLUSION, "aoMap");
-    textures.insert(textures.end(), aoPBRMaps.begin(), aoPBRMaps.end());
-	// 7. height maps
-    std::vector<Texture> heightPBRMaps = loadMaterialTextures(material, aiTextureType_DISPLACEMENT, "heightMap");
-	textures.insert(textures.end(), heightPBRMaps.begin(), heightPBRMaps.end());
-    // 8. opacity maps
-    std::vector<Texture> opacityPBRMaps = loadMaterialTextures(material, aiTextureType_OPACITY, "opacityMap");
-	textures.insert(textures.end(), opacityPBRMaps.begin(), opacityPBRMaps.end());
-    // 9. clearcoat maps
-    std::vector<Texture> clearcoatPBRMaps = loadMaterialTextures(material, aiTextureType_CLEARCOAT, "clearcoatMap");
-    textures.insert(textures.end(), clearcoatPBRMaps.begin(), clearcoatPBRMaps.end());    
-	// 10. sheen maps
-    std::vector<Texture> sheenPBRMaps = loadMaterialTextures(material, aiTextureType_SHEEN, "sheenColorMap");
-	textures.insert(textures.end(), sheenPBRMaps.begin(), sheenPBRMaps.end());
-    // 11. transmission maps
-    std::vector<Texture> transmissionPBRMaps = loadMaterialTextures(material, aiTextureType_TRANSMISSION, "transmissionMap");
-    textures.insert(textures.end(), transmissionPBRMaps.begin(), transmissionPBRMaps.end());	
-    
-}
-
-void MaterialProcessor::setADSTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
-{
-    // 1. diffuse maps
-    vector<Texture> diffuseMaps = loadMaterialTextures(material, aiTextureType_DIFFUSE, "texture_diffuse");
-    textures.insert(textures.end(), diffuseMaps.begin(), diffuseMaps.end());
-    // 2. specular maps
-    vector<Texture> specularMaps = loadMaterialTextures(material, aiTextureType_SPECULAR, "texture_specular");
-    textures.insert(textures.end(), specularMaps.begin(), specularMaps.end());
-    // 3. emissive maps
-    vector<Texture> emissiveMaps = loadMaterialTextures(material, aiTextureType_EMISSIVE, "texture_emissive");
-    textures.insert(textures.end(), emissiveMaps.begin(), emissiveMaps.end());
-    // 4. normal maps
-    std::vector<Texture> normalMaps = loadMaterialTextures(material, aiTextureType_HEIGHT, "texture_normal");
-    textures.insert(textures.end(), normalMaps.begin(), normalMaps.end());
-    // 5. height maps
-    std::vector<Texture> heightMaps = loadMaterialTextures(material, aiTextureType_DISPLACEMENT, "texture_height");
-    textures.insert(textures.end(), heightMaps.begin(), heightMaps.end());
-    // 6. opacity maps
-    std::vector<Texture> opacityMaps = loadMaterialTextures(material, aiTextureType_OPACITY, "texture_opacity");
-    textures.insert(textures.end(), opacityMaps.begin(), opacityMaps.end());
-}
-
-// Checks all material textures of a given type and loads the textures if they're not loaded yet.
-// The required info is returned as a Texture struct.
-vector<Texture> MaterialProcessor::loadMaterialTextures(aiMaterial* mat, aiTextureType type, string typeName)
-{
-    vector<Texture> textures;
-
-    for (unsigned int i = 0; i < mat->GetTextureCount(type); i++)
+    // existing mapping loop that calls loadMaterialTextures(...) for all entries
+    for (const auto& mapping : textureMappings)
     {
-        aiString str;
-        mat->GetTexture(type, i, &str);
+        // try primary
+        auto maps = loadMaterialTextures(material, mapping.primaryType, mapping.primaryName, mapping.slotIndex);
+        textures.insert(textures.end(), maps.begin(), maps.end());
 
-        // Check if texture was loaded before and if so, continue to next iteration: skip loading a new texture
-        GLboolean skip = false;
-
-        for (unsigned int j = 0; j < _loadedTextures.size(); j++)
+        // optionally, also try explicit fallback as a separate load (safe because
+        // loadMaterialTextures reuses existing IDs and avoids reloading)
+        if (mapping.fallbackType != aiTextureType_NONE)
         {
-            if (_loadedTextures[j].path == str)
-            {
-                textures.push_back(_loadedTextures[j]);
-                skip = true; // A texture with the same filepath has already been loaded, continue to next one. (optimization)
-                break;
-            }
-        }
-
-        if (!skip)
-        {
-            // If texture hasn't been loaded already, load it
-            Texture texture;
-            texture.id = textureFromFile(str.C_Str(), this->_folderPath);
-            texture.type = typeName;
-            texture.path = str;
-            textures.push_back(texture);
-
-            this->_loadedTextures.push_back(texture);  // Store it as texture loaded for entire model, to ensure we won't unnecesery load duplicate textures.
+            auto fmaps = loadMaterialTextures(material, mapping.fallbackType, mapping.fallbackName, mapping.fallbackSlotIndex);
+            textures.insert(textures.end(), fmaps.begin(), fmaps.end());
         }
     }
 
+    // Now create ADS aliases from PBR maps for backward compatibility
+    synthesizeADSAliases(textures);
+}
+
+
+// Checks all material textures of a given type and loads the textures if they're not loaded yet.
+// The required info is returned as a Texture struct.
+std::vector<Texture> MaterialProcessor::loadMaterialTextures(
+    aiMaterial* mat,
+    aiTextureType type,
+    const std::string& typeName,
+    unsigned int slotIndex)
+{
+    std::vector<Texture> textures;
+
+    if (mat->GetTextureCount(type) <= slotIndex)
+        return textures;
+
+    aiString str;
+    if (mat->GetTexture(type, slotIndex, &str) != AI_SUCCESS)
+        return textures;
+
+    // If same path+type already loaded -> reuse
+    for (const auto& lt : _loadedTextures)
+    {
+        if (lt.path == str && lt.type == typeName)
+        {
+            textures.push_back(lt);
+            return textures;
+        }
+    }
+
+    // If same path loaded but with different uniform name -> reuse its GPU id
+    for (const auto& lt : _loadedTextures)
+    {
+        if (lt.path == str && lt.type != typeName)
+        {
+            Texture alias;
+            alias.id = lt.id;           // reuse GPU texture
+            alias.type = typeName;        // requested uniform name
+            alias.path = lt.path;
+            textures.push_back(alias);
+            _loadedTextures.push_back(alias); // register alias to avoid re-creating later
+            return textures;
+        }
+    }
+
+    // Not loaded at all: load from file
+    Texture texture;
+    texture.id = textureFromFile(str.C_Str(), this->_folderPath);
+    texture.type = typeName;
+    texture.path = str;
+    textures.push_back(texture);
+    _loadedTextures.push_back(texture);
+
     return textures;
 }
+
+void MaterialProcessor::synthesizeADSAliases(std::vector<Texture>& textures)
+{
+    // map PBR uniform -> ADS uniform we want to create if missing
+    static const std::vector<std::pair<std::string, std::string>> pbrToAds = {
+        { "albedoMap",   "texture_diffuse" },
+        { "normalMap",   "texture_normal"  },
+        { "emissiveMap", "texture_emissive"},
+        { "metallicMap", "texture_specular"},
+        { "roughnessMap","texture_specular"}, // rough idea: share with specular slot
+        { "heightMap",   "texture_height"  },
+        { "opacityMap",  "texture_opacity" },
+    };
+
+    // quick helpers to test existence
+    auto hasType = [&](const std::string& t) {
+        for (const auto& tex : textures) if (tex.type == t) return true;
+        return false;
+        };
+
+    // for each mapping, if PBR is present but ADS is missing -> create alias entry
+    for (auto& map : pbrToAds)
+    {
+        const std::string& pbrName = map.first;
+        const std::string& adsName = map.second;
+
+        if (hasType(adsName)) continue; // ADS already present -> skip
+
+        // find first PBR texture with pbrName
+        for (const auto& tex : textures)
+        {
+            if (tex.type == pbrName)
+            {
+                // produce alias (reuse id and path)
+                Texture alias;
+                alias.id = tex.id;
+                alias.path = tex.path;
+                alias.type = adsName;
+
+                textures.push_back(alias);
+                _loadedTextures.push_back(alias); // register to global cache so future loads reuse
+                break;
+            }
+        }
+    }
+}
+
+
