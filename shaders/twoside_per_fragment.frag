@@ -740,8 +740,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     vec3 H = normalize(V + L);
     float distance = length(lightSource.position - vec3(0));
     float attenuation = 1.0 / (distance * distance);
-    float lightIntensity = 1000.0f;
+    
+    // ENHANCEMENT 1: Increase light intensity for better visibility
+    float lightIntensity = 2000.0f; // Moderate increase from 1000.0f
     vec3 lightColor = vec3(3.0f, 3.0f, 3.0f) * lightIntensity;
+    
     vec3 radiance;
     if(shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering))
     {
@@ -750,7 +753,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             fs_in_shadow.FragPos,
             fs_in_shadow.lightPos
         );
-        radiance = (lightSource.ambient + 1.0 - shadowFactor) * (lightSource.diffuse + lightSource.specular);
+        // ENHANCEMENT 2: Reduce shadow impact
+        radiance = (lightSource.ambient + (1.0 - shadowFactor * 0.85)) * (lightSource.diffuse + lightSource.specular);
     }
     else
     {
@@ -804,7 +808,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     vec3 ambient;
     // ambient lighting (we now use IBL as the ambient term)
     vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec3 diffuse      = irradiance * albedo;
+    vec3 diffuse = irradiance * albedo;
 
     if(displayMode == 3)
     {
@@ -825,19 +829,23 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
             vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
 
-            ambient = (kD * diffuse + specular) * ambientOcclusion;
+            // ENHANCEMENT 3: Slightly reduce ambient occlusion impact
+            float boostedAO = mix(1.0, ambientOcclusion, 0.8); // Reduce AO impact by 20%
+            ambient = (kD * diffuse + specular) * boostedAO;
         }
         else
         {
             kS = fresnelSchlick(max(dot(N, V), 0.0), F0);
             kD = 1.0 - kS;
             kD *= 1.0 - metallic;
-            ambient = (kD * diffuse) * ambientOcclusion;
+            float boostedAO = mix(1.0, ambientOcclusion, 0.8);
+            ambient = (kD * diffuse) * boostedAO;
         }
     }
     else
     {
-        ambient = ((lightSource.ambient * diffuse)  + specular) * ambientOcclusion;
+        float boostedAO = mix(1.0, ambientOcclusion, 0.8);
+        ambient = ((lightSource.ambient * diffuse) + specular) * boostedAO;
     }
 
     // Emission map
