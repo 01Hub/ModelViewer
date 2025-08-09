@@ -2523,12 +2523,12 @@ void GLWidget::loadEnvMap()
 	// Env Map
 	_skyBoxFaces =
 	{
-        path + QString("textures/envmap/skyboxes/HDRI/photo_studio_01_4k/px.png"),
-        path + QString("textures/envmap/skyboxes/HDRI/photo_studio_01_4k/nx.png"),
-        path + QString("textures/envmap/skyboxes/HDRI/photo_studio_01_4k/py.png"),
-        path + QString("textures/envmap/skyboxes/HDRI/photo_studio_01_4k/ny.png"),
-        path + QString("textures/envmap/skyboxes/HDRI/photo_studio_01_4k/pz.png"),
-        path + QString("textures/envmap/skyboxes/HDRI/photo_studio_01_4k/nz.png")
+        path + QString("textures/envmap/skyboxes/HDRI/pizzo_pernice_puresky_4k/px.png"),
+        path + QString("textures/envmap/skyboxes/HDRI/pizzo_pernice_puresky_4k/nx.png"),
+        path + QString("textures/envmap/skyboxes/HDRI/pizzo_pernice_puresky_4k/py.png"),
+        path + QString("textures/envmap/skyboxes/HDRI/pizzo_pernice_puresky_4k/ny.png"),
+        path + QString("textures/envmap/skyboxes/HDRI/pizzo_pernice_puresky_4k/pz.png"),
+        path + QString("textures/envmap/skyboxes/HDRI/pizzo_pernice_puresky_4k/nz.png")
 	};
 
 
