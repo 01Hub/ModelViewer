@@ -1033,12 +1033,12 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
     
     // Stepped kernel sizes for GPU coherency
     int kernelSize;
-    if (distanceToLight < 5.0) kernelSize = 1;        // 3x3 = 9 samples
-    else if (distanceToLight < 15.0) kernelSize = 2;  // 5x5 = 25 samples  
-    else kernelSize = 3;                              // 7x7 = 49 samples
+    if (distanceToLight < 5.0) kernelSize = 2;        // Increased from 1 to 2 (5x5)
+    else if (distanceToLight < 15.0) kernelSize = 3;  // Increased from 2 to 3 (7x7)
+    else kernelSize = 4;                              // Increased from 3 to 4 (9x9)
     
-    // Adaptive shadow softness based on distance
-    float adaptiveSoftness = shadowSoftness * clamp(distanceToLight * 0.1, 0.5, 2.0);
+    // More aggressive adaptive shadow softness - increased multipliers
+    float adaptiveSoftness = shadowSoftness * clamp(distanceToLight * 0.15, 1.0, 3.5);
     
     // Current depth
     float currentDepth = projCoords.z;
@@ -1052,22 +1052,33 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
     {
         for (int y = -kernelSize; y <= kernelSize; ++y) 
         {
-            // Compute Gaussian weight
-            int index = abs(x) + abs(y);
-            float weight = gaussianKernel[index];
+            // Enhanced Gaussian weight calculation for smoother falloff
+            float distance = sqrt(float(x * x + y * y));
+            float weight = exp(-distance * distance / (2.0 * float(kernelSize * kernelSize) * 0.5));
             totalWeight += weight;
             
-            // Apply adaptive softness to the offset - THIS IS THE KEY LINE
-            vec2 offset = vec2(x, y) * adaptiveSoftness / lightFarPlane;
+            // Increased adaptive softness multiplier for softer shadows
+            vec2 offset = vec2(x, y) * adaptiveSoftness * 1.5 / lightFarPlane;
             
             // Sample shadow map with adaptive offset
             float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
-            shadow += (currentDepth > sampleDepth + 0.005) ? weight : 0.0;
+            
+            // Softer depth comparison with reduced bias and smooth transition
+            float bias = mix(0.002, 0.008, clamp(distanceToLight * 0.05, 0.0, 1.0));
+            float depthDiff = currentDepth - sampleDepth - bias;
+            
+            // Smooth shadow transition instead of hard cutoff
+            float shadowContrib = smoothstep(-0.003, 0.003, depthDiff);
+            shadow += shadowContrib * weight;
         }
     }
     
     // Normalize shadow factor
     shadow /= totalWeight;
+    
+    // Apply gentle gamma correction for softer appearance
+    shadow = pow(shadow, 0.65);
+    
     return shadow;
 }
 

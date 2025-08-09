@@ -1122,7 +1122,7 @@ void GLWidget::triggerShadowRecomputation()
 {
 	_viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
 	_fgShader->bind();
-	_fgShader->setUniformValue("shadowSoftness", static_cast<float>(_viewBoundingSphereDia) * 0.000125f);
+	_fgShader->setUniformValue("shadowSoftness", static_cast<float>(_viewBoundingSphereDia) * 0.00015f);
 	_fgShader->release();
 
 	_shadowMapNeedsInitialization = true;
