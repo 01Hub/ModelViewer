@@ -18,7 +18,7 @@
 #include <QMessageBox>
 #include <QStyleFactory>
 
-constexpr auto TWO_HUNDRED_MB = 209715200; // bytes
+constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes
 
 GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent),
 _bgShader(nullptr),
@@ -224,8 +224,8 @@ _assimpModelLoader(nullptr)
 	_lockLightAndCamera = true;
 	_showLights = false;
 
-	_shadowWidth = 1024 * 6;
-	_shadowHeight = 1024 * 6;
+	_shadowWidth = 1024 * 4;
+	_shadowHeight = 1024 * 4;
 
 	_environmentMap = 0;
 	_shadowMap = 0;
@@ -1340,7 +1340,7 @@ void GLWidget::centerScreen(std::vector<int> selectedIDs)
 	_centerScreenObjectIDs = selectedIDs;
 	_selectionBoundingSphere.setCenter(0, 0, 0);
 	_selectionBoundingSphere.setRadius(0.0);
-	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
+	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
 	int count = 0;
 	for (int id : _centerScreenObjectIDs)
@@ -3535,8 +3535,7 @@ void GLWidget::render(GLCamera* camera)
 	if (_displayMode == DisplayMode::REALSHADED 
 		&& _floorDisplayed && 
 		!_meshStore.empty() &&
-		camera != _orthoViewsCamera &&
-		!_lowResEnabled)
+		camera != _orthoViewsCamera)
 	{
 		drawFloor();
 	}
@@ -4115,7 +4114,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 		else if ((e->modifiers() & Qt::ControlModifier) || _viewRotating)
 		{
-			if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
+			if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 				_lowResEnabled = true;
 			QPoint rotate = _leftButtonPoint - downPoint;
 
@@ -4155,7 +4154,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	else if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewPanning))
 	{
-		if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
+		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_lowResEnabled = true;
 		QVector3D OP = get3dTranslationVectorFromMousePoints(downPoint, _rightButtonPoint);
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
@@ -4178,7 +4177,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	else if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewZooming))
 	{
-		if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
+		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_lowResEnabled = true;
 		// Zoom
 		if (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y()) {
@@ -4289,7 +4288,7 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	if (_inertiaTimer && _inertiaTimer->isActive())
 		_inertiaTimer->stop();	
 
-	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
+	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
 	// Zoom
 	QPoint numDegrees = e->angleDelta() / 8;
@@ -4462,7 +4461,7 @@ void GLWidget::performKeyboardNav()
 
 void GLWidget::animateViewChange()
 {
-	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
+	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
 	if (_viewMode == ViewMode::TOP)
 	{
@@ -4506,7 +4505,7 @@ void GLWidget::animateViewChange()
 
 void GLWidget::animateFitAll()
 {
-	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
+	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
 
 	setZoomAndPan(_viewBoundingSphereDia, -_currentTranslation + _boundingSphere.getCenter());
@@ -4517,7 +4516,7 @@ void GLWidget::animateFitAll()
 
 void GLWidget::animateWindowZoom()
 {
-	if (_displayedObjectsMemSize > TWO_HUNDRED_MB)
+	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
 	setZoomAndPan(_currentViewRange / _rubberBandZoomRatio, _rubberBandPan);
 	resizeGL(width(), height());

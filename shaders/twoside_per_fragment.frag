@@ -1033,9 +1033,9 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
     
     // Stepped kernel sizes for GPU coherency
     int kernelSize;
-    if (distanceToLight < 5.0) kernelSize = 2;        // Increased from 1 to 2 (5x5)
-    else if (distanceToLight < 15.0) kernelSize = 3;  // Increased from 2 to 3 (7x7)
-    else kernelSize = 4;                              // Increased from 3 to 4 (9x9)
+    if (distanceToLight < 5.0) kernelSize = 3; 
+    else if (distanceToLight < 15.0) kernelSize = 4;
+    else kernelSize = 5;
     
     // More aggressive adaptive shadow softness - increased multipliers
     float adaptiveSoftness = shadowSoftness * clamp(distanceToLight * 0.15, 1.0, 3.5);
@@ -1077,7 +1077,7 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
     shadow /= totalWeight;
     
     // Apply gentle gamma correction for softer appearance
-    shadow = pow(shadow, 0.65);
+    shadow = pow(shadow, 0.75);
     
     return shadow;
 }
