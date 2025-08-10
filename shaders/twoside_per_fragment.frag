@@ -602,7 +602,18 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         if(hasAlbedoMap)
         {
             vec3 textureColor = pow(texture(albedoMap, clippedTexCoord).rgb, vec3(2.2));
-            albedo = pbrLighting.albedo * textureColor; // Multiplicative
+    
+            // Check if albedo color is near white (indicating texture-only intent)
+            float colorDeviation = length(pbrLighting.albedo - vec3(1.0));
+    
+            if(colorDeviation < 0.1) // Threshold for "white enough"
+            {
+                albedo = textureColor; // Pure texture
+            }
+            else
+            {
+                albedo = pbrLighting.albedo * textureColor; // Multiplicative
+            }
         }
         else
         {
@@ -671,7 +682,16 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         if(hasSheenColorMap)
         {
             vec3 sheenColorTexture = texture(sheenColorMap, clippedTexCoord).rgb;
-            sheenColor = pbrLighting.sheenColor * sheenColorTexture; // Multiplicative
+            float sheenColorDeviation = length(pbrLighting.sheenColor - vec3(1.0));
+    
+            if(sheenColorDeviation < 0.1)
+            {
+                sheenColor = sheenColorTexture; // Pure texture
+            }
+            else
+            {
+                sheenColor = pbrLighting.sheenColor * sheenColorTexture; // Multiplicative
+            }
         }
         else
         {
