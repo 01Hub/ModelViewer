@@ -500,7 +500,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
     // HDR tonemapping
     if(hdrToneMapping)
-        colorLinear = colorLinear / (colorLinear + vec4(1.0));
+        colorLinear.rgb = colorLinear.rgb / (colorLinear.rgb + vec3(1.0));
     // gamma correct
     if(gammaCorrection)
         colorLinear = pow(colorLinear, vec4(1.0/screenGamma));
@@ -762,7 +762,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     float attenuation = 1.0 / (distance * distance);
     
     // ENHANCEMENT 1: Increase light intensity for better visibility
-    float lightIntensity = 2000.0f; // Moderate increase from 1000.0f
+    float lightIntensity = 3000.0f; // Moderate increase from 1000.0f
     vec3 lightColor = vec3(3.0f, 3.0f, 3.0f) * lightIntensity;
     
     vec3 radiance;
