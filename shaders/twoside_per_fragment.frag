@@ -636,10 +636,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         {
             float roughnessTexture = texture(roughnessMap, clippedTexCoord).r;
             roughness = pbrLighting.roughness * roughnessTexture; // Multiplicative
+            roughness = clamp(roughness, 0.02, 1.0);
         }
         else
         {
             roughness = pbrLighting.roughness;
+            roughness = clamp(roughness, 0.02, 1.0);
         }
 
         // === AMBIENT OCCLUSION ===
@@ -753,6 +755,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         F0 = mix(F0, vec3(f0_from_ior), transmission);
     }
 
+    if(metallic < 0.1) {
+        F0 = max(F0, vec3(0.04)); // Ensure minimum reflectance
+    }
+
     // reflectance equation
     vec3 Lo = vec3(0.0);
 
@@ -789,6 +795,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     vec3 nominator    = NDF * G * F;
     float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
     vec3 specular = nominator / max(denominator, 0.001);
+
+    specular *= 1.5; // Make direct specular more visible
 
     // Energy conservation
     vec3 kS = F;
@@ -839,19 +847,32 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             kS = F;
             kD = 1.0 - kS;
             kD *= 1.0 - metallic;
-
+                        
             vec3 I = normalize(cameraPos - g_reflectionPosition);
             vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);
 
-            // sample both the pre-filter map and the BRDF lut and combine them together as per the Split-Sum approximation to get the IBL specular part.
+            // Sample both the pre-filter map and the BRDF lut
             const float MAX_REFLECTION_LOD = 4.0;
-            vec3 prefilteredColor = textureLod(prefilterMap, R,  roughness * MAX_REFLECTION_LOD).rgb;
-            vec2 brdf  = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+            vec3 prefilteredColor = textureLod(prefilterMap, R, roughness * MAX_REFLECTION_LOD).rgb;
+            vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+        
+            // ENHANCEMENT: Boost specular contribution significantly
             vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
-
-            // ENHANCEMENT 3: Slightly reduce ambient occlusion impact
-            float boostedAO = mix(1.0, ambientOcclusion, 0.8); // Reduce AO impact by 20%
-            ambient = (kD * diffuse + specular) * boostedAO;
+            specular *= 2.5; // Increase specular visibility
+        
+            // Extra boost for metallic materials
+            if(metallic > 0.1) {
+                specular *= (1.0 + metallic * 1.5); // More metallic = more specular
+            }
+        
+            // Reduce AO impact on specular (AO shouldn't affect reflections as much)
+            float diffuseAO = mix(1.0, ambientOcclusion, 0.8);
+            float specularAO = mix(1.0, ambientOcclusion, 0.3); // Much less AO on specular
+        
+            vec3 irradiance = texture(irradianceMap, N).rgb;
+            vec3 diffuse = irradiance * albedo;
+        
+            ambient = (kD * diffuse * diffuseAO) + (specular * specularAO);
         }
         else
         {
