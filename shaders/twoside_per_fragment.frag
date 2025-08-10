@@ -876,8 +876,21 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     // Handle transmission alpha
     float finalAlpha = opacity;
     if(transmission > 0.0) {
-        // Make material more transparent based on transmission
-        finalAlpha = mix(opacity, opacity * (1.0 - transmission * 0.7), transmission);
+        // More subtle transmission alpha effect
+        finalAlpha = mix(opacity, opacity * 0.8, transmission * 0.5);
+
+        // Ensure minimum visibility for very thin materials
+        finalAlpha = max(finalAlpha, 0.1);
+    }
+
+    if(hasOpacityMap) {
+        float mapAlpha;
+        if(opacityMapInverted)
+        mapAlpha = 1.0f - texture(opacityMap, clippedTexCoord).r;
+        else
+        mapAlpha = texture(opacityMap, clippedTexCoord).r;
+
+        finalAlpha *= mapAlpha;
     }
 
     return vec4(color, finalAlpha);
@@ -915,27 +928,27 @@ float geometryCharlie(float NdotV, float roughness)
 vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo)
 {
     if(transmission <= 0.0) return vec3(0.0);
-    
+
     vec3 H = normalize(V + L);
     float VdotH = clamp(dot(V, H), 0.0, 1.0);
-    float NdotL = dot(N, L);
+    float NdotL = clamp(dot(N, L), -1.0, 1.0);
     float NdotV = clamp(dot(N, V), 0.0, 1.0);
-    
-    // Calculate transmission based on light coming from behind the surface
-    float backLighting = max(0.0, -NdotL); // Light from behind
-    
-    // Fresnel for transmission (inverted)
+
+    // Calculate proper Fresnel for transmission
     float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-    float fresnel = f0 + (1.0 - f0) * pow(1.0 - VdotH, 5.0);
+    float fresnel = f0 + (1.0 - f0) * pow(1.0 - abs(VdotH), 5.0);
     float transmittance = (1.0 - fresnel) * transmission;
-    
-    // Simple subsurface scattering approximation
-    vec3 transmissionColor = albedo * transmittance * backLighting;
-    
-    // Add some forward scattering for thin materials
-    float forwardScatter = max(0.0, NdotL) * transmission * 0.3;
-    transmissionColor += albedo * forwardScatter;
-    
+
+    // Improved transmission with both forward and back scattering
+    float backScatter = max(0.0, -NdotL) * 0.8; // Light from behind
+    float forwardScatter = max(0.0, NdotL) * 0.5; // Light from front (subsurface)
+
+    // Add thickness approximation (you can make this a uniform)
+    float thickness = 0.1; // Adjust based on your model
+    float attenuationFactor = exp(-thickness * (1.0 - transmission));
+
+    vec3 transmissionColor = albedo * transmittance * attenuationFactor * (backScatter + forwardScatter);
+
     return transmissionColor;
 }
 
@@ -1095,39 +1108,57 @@ vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float he
 
 void applyEnvironmentMapping(float alpha)
 {
-    if(envMapEnabled && displayMode == 3) // Environment mapping
+    if(envMapEnabled && displayMode == 3)
     {
+        vec3 I = normalize(g_reflectionPosition - cameraPos);
+        vec3 N = normalize(g_reflectionNormal); // Back to your original
 
-        if(alpha < 1.0f && !floorRendering) // Transparent - refract
+        if(pbrLighting.transmission > 0.0) // Handle transmission materials specifically
         {
-            vec4 colour = fragColor;
-            vec3 I = normalize(g_reflectionPosition - cameraPos);
-            vec3 R = refract(I, normalize(g_reflectionNormal), 1.0f - alpha);
+            // Use proper IOR for transmission, but keep the refract hack for Z-up
+            float iorRatio = 1.0 / pbrLighting.ior;
+            vec3 R = refract(I, N, iorRatio);
             R = envMapRotationMatrix * R;
+
+            // Sample environment with slight roughness for transmission
+            float transmissionRoughness = max(pbrLighting.roughness, 0.1);
+            vec3 envColor = textureLod(envMap, R, transmissionRoughness * 3.0).rgb;
+
+            // Apply transmission color filtering
+            vec3 filteredEnvColor = envColor * pbrLighting.albedo;
+
+            // Blend based on transmission strength
+            float transmissionStrength = pbrLighting.transmission * 0.7;
+            fragColor = mix(fragColor, vec4(filteredEnvColor, fragColor.a), transmissionStrength);
+        }
+        else if(alpha < 1.0f && !floorRendering) // Regular transparency - keep your existing logic
+        {
+            vec3 R = refract(I, N, 1.0f - alpha); // Keep your original approach
+            R = envMapRotationMatrix * R;
+
             if(texEnabled == true)
-                fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
+            fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
             else
-                fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
+            fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
+
+            // Your original color mixing
+            vec4 colour = fragColor;
             fragColor = mix(fragColor, colour, alpha/1.0f);
         }
-        else if(renderingMode == 0)// Opaque - Reflect
+        else if(renderingMode == 0) // Reflection - keep existing
         {
-            vec3 I = normalize(cameraPos - g_reflectionPosition);
-            vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f); // inverted refraction for reflection to compensate for coordinate system
+            vec3 R = refract(-I, N, 1.0f); // Keep your Z-up hack
             R = envMapRotationMatrix * R;
-    
+
             float specularIntensity = dot(min(material.specular, vec3(1.0)), vec3(0.2126, 0.7152, 0.0722));
             float fresnelPower = 1.0 + (1.0 - specularIntensity) * 4.0;
-            float fresnel = pow(1.0 - max(dot(-I, normalize(-g_reflectionNormal)), 0.0), fresnelPower);
-    
+            float fresnel = pow(1.0 - max(dot(-I, N), 0.0), fresnelPower);
+
             float factor = material.metallic ? length(material.specular) : length(material.diffuse);
-    
-            // Simulate surface roughness reducing reflections
-            float roughness = 1.0 - (material.shininess / 128.0); // Convert shininess to roughness
-            float roughnessReduction = 1.0 - (roughness * 0.8); // Rougher surfaces reflect less
-    
+            float roughness = 1.0 - (material.shininess / 128.0);
+            float roughnessReduction = 1.0 - (roughness * 0.8);
+
             float reflectionStrength = (material.shininess / 128.0) * factor * fresnel * roughnessReduction * 0.3;
-    
             fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), reflectionStrength);
         }
     }
