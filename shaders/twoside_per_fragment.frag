@@ -856,7 +856,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);
 
             // Sample both the pre-filter map and the BRDF lut
-            const float MAX_REFLECTION_LOD = 4.0;
+            const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
             vec3 prefilteredColor = textureLod(prefilterMap, R, roughness * MAX_REFLECTION_LOD).rgb;
             vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
         
