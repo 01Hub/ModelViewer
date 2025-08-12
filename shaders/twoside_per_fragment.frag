@@ -859,15 +859,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
             vec3 prefilteredColor = textureLod(prefilterMap, R, roughness * MAX_REFLECTION_LOD).rgb;
             vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
-        
-            // ENHANCEMENT: Boost specular contribution significantly
+                    
             vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
-            specular *= 2.5; // Increase specular visibility
-        
-            // Extra boost for metallic materials
-            if(metallic > 0.1) {
-                specular *= (1.0 + metallic * 1.5); // More metallic = more specular
-            }
         
             // Reduce AO impact on specular (AO shouldn't affect reflections as much)
             float diffuseAO = mix(1.0, ambientOcclusion, 0.8);
