@@ -298,7 +298,11 @@ void main()
         else
             alpha = texture(texture_opacity, g_texCoord2d).r;
     }
-    applyEnvironmentMapping(alpha);    
+
+    if(envMapEnabled && displayMode == 3)
+    {
+        applyEnvironmentMapping(alpha);
+    }
 
     if (selected) // with glow
     {
@@ -1149,59 +1153,56 @@ vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float he
 
 void applyEnvironmentMapping(float alpha)
 {
-    if(envMapEnabled && displayMode == 3)
+    vec3 I = normalize(g_reflectionPosition - cameraPos);
+    vec3 N = normalize(g_reflectionNormal); 
+
+    if(pbrLighting.transmission > 0.0) // Handle transmission materials specifically
     {
-        vec3 I = normalize(g_reflectionPosition - cameraPos);
-        vec3 N = normalize(g_reflectionNormal); // Back to your original
+        // Use proper IOR for transmission, but keep the refract hack for Z-up
+        float iorRatio = 1.0 / pbrLighting.ior;
+        vec3 R = refract(I, N, iorRatio);
+        R = envMapRotationMatrix * R;
 
-        if(pbrLighting.transmission > 0.0) // Handle transmission materials specifically
-        {
-            // Use proper IOR for transmission, but keep the refract hack for Z-up
-            float iorRatio = 1.0 / pbrLighting.ior;
-            vec3 R = refract(I, N, iorRatio);
-            R = envMapRotationMatrix * R;
+        // Sample environment with slight roughness for transmission
+        float transmissionRoughness = max(pbrLighting.roughness, 0.1);
+        vec3 envColor = textureLod(envMap, R, transmissionRoughness * 3.0).rgb;
 
-            // Sample environment with slight roughness for transmission
-            float transmissionRoughness = max(pbrLighting.roughness, 0.1);
-            vec3 envColor = textureLod(envMap, R, transmissionRoughness * 3.0).rgb;
+        // Apply transmission color filtering
+        vec3 filteredEnvColor = envColor * pbrLighting.albedo;
 
-            // Apply transmission color filtering
-            vec3 filteredEnvColor = envColor * pbrLighting.albedo;
+        // Blend based on transmission strength
+        float transmissionStrength = pbrLighting.transmission * 0.7;
+        fragColor = mix(fragColor, vec4(filteredEnvColor, fragColor.a), transmissionStrength);
+    }
+    else if(alpha < 1.0f && !floorRendering) // Regular transparency - keep your existing logic
+    {
+        vec3 R = refract(I, N, 1.0f - alpha); // Keep your original approach
+        R = envMapRotationMatrix * R;
 
-            // Blend based on transmission strength
-            float transmissionStrength = pbrLighting.transmission * 0.7;
-            fragColor = mix(fragColor, vec4(filteredEnvColor, fragColor.a), transmissionStrength);
-        }
-        else if(alpha < 1.0f && !floorRendering) // Regular transparency - keep your existing logic
-        {
-            vec3 R = refract(I, N, 1.0f - alpha); // Keep your original approach
-            R = envMapRotationMatrix * R;
+        if(texEnabled == true)
+        fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
+        else
+        fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
 
-            if(texEnabled == true)
-            fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
-            else
-            fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
+        // Your original color mixing
+        vec4 colour = fragColor;
+        fragColor = mix(fragColor, colour, alpha/1.0f);
+    }
+    else if(renderingMode == 0) // Reflection - keep existing
+    {
+        vec3 R = refract(-I, N, 1.0f); // Keep Z-up hack
+        R = envMapRotationMatrix * R;
 
-            // Your original color mixing
-            vec4 colour = fragColor;
-            fragColor = mix(fragColor, colour, alpha/1.0f);
-        }
-        else if(renderingMode == 0) // Reflection - keep existing
-        {
-            vec3 R = refract(-I, N, 1.0f); // Keep your Z-up hack
-            R = envMapRotationMatrix * R;
+        float specularIntensity = dot(min(material.specular, vec3(1.0)), vec3(0.2126, 0.7152, 0.0722));
+        float fresnelPower = 1.0 + (1.0 - specularIntensity) * 4.0;
+        float fresnel = pow(1.0 - max(dot(-I, N), 0.0), fresnelPower);
 
-            float specularIntensity = dot(min(material.specular, vec3(1.0)), vec3(0.2126, 0.7152, 0.0722));
-            float fresnelPower = 1.0 + (1.0 - specularIntensity) * 4.0;
-            float fresnel = pow(1.0 - max(dot(-I, N), 0.0), fresnelPower);
+        float factor = material.metallic ? length(material.specular) : length(material.diffuse);
+        float roughness = 1.0 - (material.shininess / 128.0);
+        float roughnessReduction = 1.0 - (roughness * 0.8);
 
-            float factor = material.metallic ? length(material.specular) : length(material.diffuse);
-            float roughness = 1.0 - (material.shininess / 128.0);
-            float roughnessReduction = 1.0 - (roughness * 0.8);
-
-            float reflectionStrength = (material.shininess / 128.0) * factor * fresnel * roughnessReduction * 0.3;
-            fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), reflectionStrength);
-        }
+        float reflectionStrength = (material.shininess / 128.0) * factor * fresnel * roughnessReduction * 0.3;
+        fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), reflectionStrength);
     }
 }
 
