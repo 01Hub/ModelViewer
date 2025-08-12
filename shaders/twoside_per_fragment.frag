@@ -902,13 +902,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
     vec3 color = matEmissive + ambient + Lo;
 
-    // HDR tonemapping
-    if(hdrToneMapping)
-        color = color / (color + vec3(1.0));
-    // gamma correct
-    if(gammaCorrection)
-        color = pow(color, vec3(1.0/screenGamma));
-
+    // Alpha transparency
     float alpha = opacity;
     if(hasOpacityMap)
     {
@@ -918,27 +912,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             alpha = texture(opacityMap, clippedTexCoord).r;
     }
 
-    // Handle transmission alpha
-    float finalAlpha = opacity;
-    if(transmission > 0.0) {
-        // More subtle transmission alpha effect
-        finalAlpha = mix(opacity, opacity * 0.8, transmission * 0.5);
+    // HDR tonemapping
+    if(hdrToneMapping)
+        color = color / (color + vec3(1.0));
+    // gamma correct
+    if(gammaCorrection)
+        color = pow(color, vec3(1.0/screenGamma));
 
-        // Ensure minimum visibility for very thin materials
-        finalAlpha = max(finalAlpha, 0.1);
-    }
-
-    if(hasOpacityMap) {
-        float mapAlpha;
-        if(opacityMapInverted)
-        mapAlpha = 1.0f - texture(opacityMap, clippedTexCoord).r;
-        else
-        mapAlpha = texture(opacityMap, clippedTexCoord).r;
-
-        finalAlpha *= mapAlpha;
-    }
-
-    return vec4(color, finalAlpha);
+    return vec4(color, alpha);
 }
 
 // ----------------------------------------------------------------------------
@@ -1172,7 +1153,7 @@ void applyEnvironmentMapping(float alpha)
 
         // Blend based on transmission strength
         float transmissionStrength = pbrLighting.transmission * 0.7;
-        fragColor = mix(fragColor, vec4(filteredEnvColor, fragColor.a), transmissionStrength);
+        fragColor.rgb = mix(fragColor.rgb, filteredEnvColor, transmissionStrength);
     }
     else if(alpha < 1.0f && !floorRendering) // Regular transparency - keep your existing logic
     {

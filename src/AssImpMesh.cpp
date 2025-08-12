@@ -385,8 +385,7 @@ void AssImpMesh::setRenderStateOptimized()
 	// Account for opacity if transmission is enabled
 	bool needsBlending = (
 		_material.opacity() < 1.0f ||
-		_hasOpacityADSMap || _hasOpacityPBRMap ||
-		_material.transmission() > 0.0f || _hasTransmissionPBRMap
+		_hasOpacityADSMap || _hasOpacityPBRMap
 		);
 	if (needsBlending != _currentBlendEnabled)
 	{
