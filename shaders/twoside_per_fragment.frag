@@ -970,7 +970,7 @@ vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior
     float forwardScatter = max(0.0, NdotL) * 0.5; // Light from front (subsurface)
 
     // Add thickness approximation (you can make this a uniform)
-    float thickness = 0.1; // Adjust based on your model
+    float thickness = 0.1; // Adjust based on model
     float attenuationFactor = exp(-thickness * (1.0 - transmission));
 
     vec3 transmissionColor = albedo * transmittance * attenuationFactor * (backScatter + forwardScatter);
@@ -1134,57 +1134,105 @@ vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float he
 
 void applyEnvironmentMapping(float alpha)
 {
-    vec3 I = normalize(g_reflectionPosition - cameraPos);
-    vec3 N = normalize(g_reflectionNormal); 
+	vec3 I = normalize(g_reflectionPosition - cameraPos);
+	vec3 N = normalize(g_reflectionNormal); 
 
-    if(pbrLighting.transmission > 0.0) // Handle transmission materials specifically
-    {
-        // Use proper IOR for transmission, but keep the refract hack for Z-up
-        float iorRatio = 1.0 / pbrLighting.ior;
-        vec3 R = refract(I, N, iorRatio);
-        R = envMapRotationMatrix * R;
+	if(pbrLighting.transmission > 0.0) // Handle transmission materials specifically
+	{
+		// Use proper IOR for transmission, but keep the refract hack for Z-up
+		float iorRatio = 1.0 / pbrLighting.ior;
+		vec3 R = refract(I, N, iorRatio);
+		R = envMapRotationMatrix * R;
 
-        // Sample environment with slight roughness for transmission
-        float transmissionRoughness = max(pbrLighting.roughness, 0.1);
-        vec3 envColor = textureLod(envMap, R, transmissionRoughness * 3.0).rgb;
+		// Sample environment with slight roughness for transmission
+		float transmissionRoughness = max(pbrLighting.roughness, 0.1);
+		vec3 envColor = textureLod(envMap, R, transmissionRoughness * 3.0).rgb;
 
-        // Apply transmission color filtering
-        vec3 filteredEnvColor = envColor * pbrLighting.albedo;
+		// Apply transmission color filtering
+		vec3 filteredEnvColor = envColor * pbrLighting.albedo;
 
-        // Blend based on transmission strength
-        float transmissionStrength = pbrLighting.transmission * 0.7;
-        fragColor.rgb = mix(fragColor.rgb, filteredEnvColor, transmissionStrength);
-    }
-    else if(alpha < 1.0f && !floorRendering) // Regular transparency - keep your existing logic
-    {
-        vec3 R = refract(I, N, 1.0f - alpha); // Keep your original approach
-        R = envMapRotationMatrix * R;
+		// Blend based on transmission strength
+		float transmissionStrength = pbrLighting.transmission * 0.7;
+		fragColor.rgb = mix(fragColor.rgb, filteredEnvColor, transmissionStrength);
+	}
+	else if(alpha < 1.0f && !floorRendering) // Regular transparency - keep existing logic
+	{
+		vec3 R = refract(I, N, 1.0f - alpha); // Keep original approach
+		R = envMapRotationMatrix * R;
 
-        if(texEnabled == true)
-        fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
-        else
-        fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
+		if(texEnabled == true)
+			fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
+		else
+			fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
 
-        // Your original color mixing
-        vec4 colour = fragColor;
-        fragColor = mix(fragColor, colour, alpha/1.0f);
-    }
-    else if(renderingMode == 0) // Reflection - keep existing
-    {
-        vec3 R = refract(-I, N, 1.0f); // Keep Z-up hack
-        R = envMapRotationMatrix * -R;
+		// Color mixing
+		vec4 colour = fragColor;
+		fragColor = mix(fragColor, colour, alpha/1.0f);
+	}
+	else if(renderingMode == 0) // ADS Reflection - IMPROVED
+	{
+		vec3 R = refract(-I, N, 1.0f); // Keep Z-up hack
+		R = envMapRotationMatrix * -R;
 
-        float specularIntensity = dot(min(material.specular, vec3(1.0)), vec3(0.2126, 0.7152, 0.0722));
-        float fresnelPower = 1.0 + (1.0 - specularIntensity) * 4.0;
-        float fresnel = pow(1.0 - max(dot(-I, N), 0.0), fresnelPower);
+		// Better material property analysis
+		float specularLuminance = dot(material.specular, vec3(0.299, 0.587, 0.114));
+		float diffuseLuminance = dot(material.diffuse, vec3(0.299, 0.587, 0.114));
 
-        float factor = material.metallic ? length(material.specular) : length(material.diffuse);
-        float roughness = 1.0 - (material.shininess / 128.0);
-        float roughnessReduction = 1.0 - (roughness * 0.8);
+		// Material type detection
+		bool isMetallic = material.metallic;
+		bool isHighSpecular = specularLuminance > 0.5;
+		bool isDiffuseDominant = diffuseLuminance > specularLuminance * 2.0;
 
-        float reflectionStrength = (material.shininess / 128.0) * factor * fresnel * roughnessReduction * 0.3;
-        fragColor = mix(fragColor, vec4(texture(envMap, R).rgb, 1.0f), reflectionStrength);
-    }
+		// Texture-based reflection masking
+		float textureReflectionMask = 1.0;
+		if(hasSpecularTexture) {
+			// Use specular texture as reflection mask
+			textureReflectionMask = texture(texture_specular, g_texCoord2d).r;
+		} else if(texEnabled) {
+			// For diffuse-only textures like brick, reduce reflections significantly
+			vec3 texColor = texture2D(texUnit, g_texCoord2d).rgb;
+			float texLuminance = dot(texColor, vec3(0.299, 0.587, 0.114));
+			// Darker, more diffuse textures get less reflection
+			textureReflectionMask = mix(0.05, 0.3, texLuminance);
+		}
+
+		// Better fresnel calculation
+		float NdotV = max(dot(-I, N), 0.0);
+		float fresnelPower = isMetallic ? 1.5 : mix(3.0, 5.0, 1.0 - specularLuminance);
+		float fresnel = pow(1.0 - NdotV, fresnelPower);
+
+		// Surface roughness consideration
+		float surfaceRoughness = 1.0 - (material.shininess / 128.0);
+		float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
+
+		// Material-specific reflection strength
+		float baseReflectionStrength;
+		if(isMetallic) {
+			// Metals should have strong reflections
+			baseReflectionStrength = mix(0.7, 1.0, specularLuminance);
+		} else if(isHighSpecular && !isDiffuseDominant) {
+			// Glossy non-metals (plastic, ceramic, etc.)
+			baseReflectionStrength = mix(0.3, 0.6, specularLuminance);
+		} else {
+			// Diffuse materials (wood, brick, fabric, etc.)
+			baseReflectionStrength = mix(0.02, 0.15, specularLuminance);
+		}
+
+		// Final reflection strength calculation
+		float reflectionStrength = baseReflectionStrength * 
+			fresnel * 
+			roughnessReduction * 
+			textureReflectionMask;
+
+		// Clamp to prevent over-reflection
+		reflectionStrength = clamp(reflectionStrength, 0.0, 0.8);
+
+		// Sample environment with appropriate LOD based on roughness
+		float envLOD = surfaceRoughness * 7.0; // Adjust based on environment map mip levels
+		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
+
+		fragColor = mix(fragColor, vec4(envColor, 1.0), reflectionStrength);
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -1282,7 +1330,7 @@ vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 
     vec3 bumpMapNormal = texture(map, texCoord).rgb;
     bumpMapNormal = 2.0 * bumpMapNormal - 1.0;
-    // Uncomment the next line if your normal maps need Y flipped
+    // Uncomment the next line if normal maps need Y flipped
     // bumpMapNormal.y = -bumpMapNormal.y;
     return normalize(TBN * bumpMapNormal);
 }
