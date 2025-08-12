@@ -1191,7 +1191,7 @@ void applyEnvironmentMapping(float alpha)
     else if(renderingMode == 0) // Reflection - keep existing
     {
         vec3 R = refract(-I, N, 1.0f); // Keep Z-up hack
-        R = envMapRotationMatrix * R;
+        R = envMapRotationMatrix * -R;
 
         float specularIntensity = dot(min(material.specular, vec3(1.0)), vec3(0.2126, 0.7152, 0.0722));
         float fresnelPower = 1.0 + (1.0 - specularIntensity) * 4.0;
