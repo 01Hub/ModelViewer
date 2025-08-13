@@ -168,11 +168,12 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
     if (AI_SUCCESS == material->Get(AI_MATKEY_CLEARCOAT_FACTOR, value))
     {
         mat.setClearcoat(std::clamp(value, 0.0f, 1.0f));
-
+		std::cout << "Clearcoat factor: " << value << std::endl;
         if (AI_SUCCESS == material->Get(AI_MATKEY_CLEARCOAT_ROUGHNESS_FACTOR, value))
         {
             mat.setClearcoatRoughness(std::clamp(value, 0.0f, 1.0f));
-        }
+            std::cout << "Clearcoat Roughness factor: " << value << std::endl;
+        }		
     }
 
     // Sheen (for fabric-like materials)
@@ -345,8 +346,10 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
     // existing mapping loop that calls loadMaterialTextures(...) for all entries
     for (const auto& mapping : textureMappings)
     {
+        std::cout << mapping << std::endl;
         // try primary
         auto maps = loadMaterialTextures(material, mapping.primaryType, mapping.primaryName, mapping.slotIndex);
+		std::cout << "Loaded " << maps.size() << " textures for " << mapping.primaryName << std::endl;
         textures.insert(textures.end(), maps.begin(), maps.end());
 
         // optionally, also try explicit fallback as a separate load (safe because
@@ -386,6 +389,7 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
         if (lt.path == str && lt.type == typeName)
         {
             textures.push_back(lt);
+            std::cout << lt << std::endl;
             return textures;
         }
     }
@@ -401,6 +405,7 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
             alias.path = lt.path;
             textures.push_back(alias);
             _loadedTextures.push_back(alias); // register alias to avoid re-creating later
+            std::cout << lt << std::endl;
             return textures;
         }
     }
@@ -412,6 +417,8 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
     texture.path = str;
     textures.push_back(texture);
     _loadedTextures.push_back(texture);
+
+    std::cout << texture << std::endl;
 
     return textures;
 }

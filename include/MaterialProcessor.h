@@ -47,6 +47,15 @@ private:
         aiTextureType fallbackType;
         std::string fallbackName;
         unsigned int fallbackSlotIndex;
+
+		// print for debugging
+        friend std::ostream& operator<<(std::ostream& os, const TextureSlotMapping& mapping) {
+            os << "Primary: " << mapping.primaryType << ", Name: " << mapping.primaryName
+               << ", Slot: " << mapping.slotIndex
+               << ", Fallback: " << mapping.fallbackType << ", Fallback Name: " << mapping.fallbackName
+               << ", Fallback Slot: " << mapping.fallbackSlotIndex;
+            return os;
+		}
     };
 
     const std::vector<TextureSlotMapping> textureMappings = {

@@ -36,6 +36,14 @@ struct Texture
 	unsigned int id;
 	std::string type;
 	aiString path;
+
+	// print for debugging
+	friend std::ostream& operator<<(std::ostream& os, const Texture& texture)
+	{
+		os << "Id: " << texture.id << " type: " << texture.type << " path: " << texture.path.C_Str();
+		return os;
+	}
+
 };
 
 class AssImpMesh : public TriangleMesh
