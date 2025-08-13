@@ -875,9 +875,21 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         }
     }
     else
-    {
+    {        
+        kS = fresnelSchlick(max(dot(N, V), 0.0), F0);
+        kD = 1.0 - kS;
+        kD *= 1.0 - metallic;
+
+        // Simple specular approximation
+        vec3 L = normalize(lightSource.position - g_position);
+        vec3 H = normalize(L + V);
+        float NdotH = max(dot(N, H), 0.0);
+        vec3 F = fresnelSchlick(NdotH, F0);
+        float spec = pow(NdotH, 1.0 / (roughness + 0.001));
+        vec3 specular = F * spec;
+
         float boostedAO = mix(1.0, ambientOcclusion, 0.8);
-        ambient = ((lightSource.ambient * diffuse) + specular) * boostedAO;
+        ambient = (kD * diffuse + kS * specular) * boostedAO;
     }
 
     // Emission map
