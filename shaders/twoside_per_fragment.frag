@@ -835,10 +835,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     // Apply clearcoat on top (it affects the entire BRDF)
     Lo = mix(Lo, Lo + clearcoatContrib, clearcoat);
 
-    // ambient lighting (note that the IBL will replace
-    // this ambient lighting with environment lighting).
-    vec3 ambient;
-    // ambient lighting (we now use IBL as the ambient term)
+    // Ambient lighting (IBL).
+    vec3 ambient;    
     vec3 irradiance = texture(irradianceMap, N).rgb;
     vec3 diffuse = irradiance * albedo;
 
@@ -858,16 +856,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             // Sample both the pre-filter map and the BRDF lut
             const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
             vec3 prefilteredColor = textureLod(prefilterMap, R, roughness * MAX_REFLECTION_LOD).rgb;
-            vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
-                    
+            vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;                    
             vec3 specular = prefilteredColor * (F * brdf.x + brdf.y);
         
             // Reduce AO impact on specular (AO shouldn't affect reflections as much)
             float diffuseAO = mix(1.0, ambientOcclusion, 0.8);
             float specularAO = mix(1.0, ambientOcclusion, 0.3); // Much less AO on specular
-        
-            vec3 irradiance = texture(irradianceMap, N).rgb;
-            vec3 diffuse = irradiance * albedo;
         
             ambient = (kD * diffuse * diffuseAO) + (specular * specularAO);
         }
