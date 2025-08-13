@@ -340,13 +340,67 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, std::string di
     return textureID;
 }
 
+void MaterialProcessor::debugMaterialTextures(aiMaterial* material, const std::string& materialName)
+{
+    std::cout << "=== Material: " << materialName << " ===" << std::endl;
+
+    auto getTextureTypeName = [](int type) -> const char* {
+        switch (type)
+        {
+        case aiTextureType_DIFFUSE: return "DIFFUSE";
+        case aiTextureType_SPECULAR: return "SPECULAR";
+        case aiTextureType_AMBIENT: return "AMBIENT";
+        case aiTextureType_EMISSIVE: return "EMISSIVE";
+        case aiTextureType_HEIGHT: return "HEIGHT";
+        case aiTextureType_NORMALS: return "NORMALS";
+        case aiTextureType_SHININESS: return "SHININESS";
+        case aiTextureType_OPACITY: return "OPACITY";
+        case aiTextureType_DISPLACEMENT: return "DISPLACEMENT";
+        case aiTextureType_LIGHTMAP: return "LIGHTMAP";
+        case aiTextureType_REFLECTION: return "REFLECTION";
+        case aiTextureType_BASE_COLOR: return "BASE_COLOR";
+        case aiTextureType_NORMAL_CAMERA: return "NORMAL_CAMERA";
+        case aiTextureType_EMISSION_COLOR: return "EMISSION_COLOR";
+        case aiTextureType_METALNESS: return "METALNESS";
+        case aiTextureType_DIFFUSE_ROUGHNESS: return "DIFFUSE_ROUGHNESS";
+        case aiTextureType_AMBIENT_OCCLUSION: return "AMBIENT_OCCLUSION";
+        case aiTextureType_SHEEN: return "SHEEN";
+        case aiTextureType_CLEARCOAT: return "CLEARCOAT";
+        case aiTextureType_TRANSMISSION: return "TRANSMISSION";
+        case aiTextureType_UNKNOWN: return "UNKNOWN";
+        default: return "OTHER";
+        }
+        };
+
+    // Check MUCH wider range - some extensions might use higher type numbers
+    for (int type = 0; type <= 50; type++)
+    {  // Expanded range
+        aiTextureType texType = static_cast<aiTextureType>(type);
+        unsigned int count = material->GetTextureCount(texType);
+        if (count > 0)
+        {
+            std::cout << "Type " << type << " (" << getTextureTypeName(type) << "): " << count << " textures" << std::endl;
+            for (unsigned int i = 0; i < count; i++)
+            {
+                aiString path;
+                material->GetTexture(texType, i, &path);
+                std::cout << "  [" << i << "]: " << path.C_Str() << std::endl;
+            }
+        }
+    }
+    std::cout << "========================" << std::endl;
+}
+
 // Sets the texture maps for a material based on the defined texture mappings.
 void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
 {
+
+	debugMaterialTextures(material, material->GetName().C_Str());
+
     // existing mapping loop that calls loadMaterialTextures(...) for all entries
     for (const auto& mapping : textureMappings)
     {
-        std::cout << mapping << std::endl;
+        //std::cout << mapping << std::endl;
         // try primary
         auto maps = loadMaterialTextures(material, mapping.primaryType, mapping.primaryName, mapping.slotIndex);
 		std::cout << "Loaded " << maps.size() << " textures for " << mapping.primaryName << std::endl;
@@ -389,7 +443,7 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
         if (lt.path == str && lt.type == typeName)
         {
             textures.push_back(lt);
-            std::cout << lt << std::endl;
+            //std::cout << lt << std::endl;
             return textures;
         }
     }
@@ -405,7 +459,7 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
             alias.path = lt.path;
             textures.push_back(alias);
             _loadedTextures.push_back(alias); // register alias to avoid re-creating later
-            std::cout << lt << std::endl;
+            //std::cout << lt << std::endl;
             return textures;
         }
     }
@@ -418,7 +472,7 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
     textures.push_back(texture);
     _loadedTextures.push_back(texture);
 
-    std::cout << texture << std::endl;
+    //std::cout << texture << std::endl;
 
     return textures;
 }
