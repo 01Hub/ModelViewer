@@ -266,7 +266,7 @@ private:
     BlendMode _blendMode;
     bool _twoSided;
     bool _wireframe;
-    float _alphaThreshold; // For masked blend mode
+    float _alphaThreshold = 0.5f; // For masked blend mode
 
     // Texture IDs (managed externally)
     int _albedoTextureId;
