@@ -74,6 +74,8 @@ uniform bool hasHeightMap;
 uniform float heightScale = 0.02;
 uniform bool hasOpacityMap;
 uniform bool opacityMapInverted = false;
+uniform int blendMode = 0; // 0 = additive, 1 = multiplicative, 2 = overlay
+uniform float alphaThreshold = 0.5; // Threshold for alpha testing
 
 // Advanced PBR Material Properties
 uniform sampler2D transmissionMap;
@@ -302,6 +304,19 @@ void main()
     if(envMapEnabled && displayMode == 3)
     {
         applyEnvironmentMapping(alpha);
+    }
+
+    if (blendMode == 1 && fragColor.a < alphaThreshold)  // MASK
+    {        
+        discard;        
+    }
+    else if (blendMode == 2)  // BLEND
+    {
+        fragColor.a = alpha;
+    } 
+    else  // OPAQUE
+    {
+        fragColor.a = 1.0;
     }
 
     if (selected) // with glow
@@ -545,6 +560,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
     vec2 texCoords = g_texCoord2d;
     vec2 clippedTexCoord = texCoords;
+    vec4 textureColor;
 
     if(renderMode == 1)
     {
@@ -602,10 +618,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         }
 
         // Material properties
-        // === ALBEDO (Base Color) ===
+        // === ALBEDO (Base Color) ===        
         if(hasAlbedoMap)
         {
-            vec4 textureColor = texture(albedoMap, clippedTexCoord); // Get RGBA, not just RGB
+            textureColor = texture(albedoMap, clippedTexCoord); // Get RGBA, not just RGB
     
             // ALPHA TESTING FOR PERFORATED MATERIALS
             // Apply alpha test threshold - adjust this value between 0.1-0.9
@@ -614,6 +630,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             {
                 discard; // This creates the holes in the mesh
             }
+
+            
+            if (textureColor.a < alphaThreshold)
+                discard;
+
     
             vec3 textureColorRGB = pow(textureColor.rgb, vec3(2.2));
 
@@ -928,7 +949,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     if(gammaCorrection)
         color = pow(color, vec3(1.0/screenGamma));
 
-    return vec4(color, alpha);
+    
+    float finalAlpha = (blendMode == 2) ? textureColor.a : 1.0;
+
+    return vec4(color, finalAlpha);
+
 }
 
 // ----------------------------------------------------------------------------

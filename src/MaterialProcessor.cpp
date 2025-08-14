@@ -23,6 +23,14 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
         return;
     }
 
+	// debugging: print material name
+    /*for (unsigned int i = 0; i < material->mNumProperties; ++i)
+    {
+        const aiMaterialProperty* prop = material->mProperties[i];
+        std::cout << "Property: " << prop->mKey.C_Str() << std::endl;
+    }*/
+
+
     // Initialize default values
     aiColor3D color(0.f, 0.f, 0.f);
     float value = 0.0f;
@@ -167,12 +175,10 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
     // Clearcoat (if supported by your material system)
     if (AI_SUCCESS == material->Get(AI_MATKEY_CLEARCOAT_FACTOR, value))
     {
-        mat.setClearcoat(std::clamp(value, 0.0f, 1.0f));
-		std::cout << "Clearcoat factor: " << value << std::endl;
+        mat.setClearcoat(std::clamp(value, 0.0f, 1.0f));		
         if (AI_SUCCESS == material->Get(AI_MATKEY_CLEARCOAT_ROUGHNESS_FACTOR, value))
         {
-            mat.setClearcoatRoughness(std::clamp(value, 0.0f, 1.0f));
-            std::cout << "Clearcoat Roughness factor: " << value << std::endl;
+            mat.setClearcoatRoughness(std::clamp(value, 0.0f, 1.0f));            
         }		
     }
 
@@ -227,6 +233,40 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
             mat.setBlendMode(GLMaterial::BlendMode::Alpha);
         }
     }
+
+	// Alpha cutoff for transparency for glTF materials
+    aiString alphaModeStr;
+    if (material->Get("$mat.gltf.alphaMode", 0, 0, alphaModeStr) == AI_SUCCESS)
+    {
+        std::string mode = alphaModeStr.C_Str();
+        if (mode == "BLEND")
+        {
+            mat.setBlendMode(GLMaterial::BlendMode::Alpha);
+        }
+        else if (mode == "MASK")
+        {
+            mat.setBlendMode(GLMaterial::BlendMode::Masked);
+
+            float cutoff = 0.5f; // Default value
+            if (material->Get("$mat.gltf.alphaCutoff", 0, 0, cutoff) == AI_SUCCESS)
+            {
+                mat.setAlphaThreshold(cutoff);
+            }
+            else
+            {
+                mat.setAlphaThreshold(0.5f); // Fallback
+            }
+        }
+        else
+        {
+            mat.setBlendMode(GLMaterial::BlendMode::Opaque);
+        }
+    }
+    else
+    {
+        mat.setBlendMode(GLMaterial::BlendMode::Opaque); // Fallback if alphaMode is missing
+    }
+
 
     // === Validation and Consistency Checks ===
     validateMaterialConsistency(mat);

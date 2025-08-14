@@ -411,6 +411,11 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("pbrLighting.sheenRoughness", _material.sheenRoughness());
 	_prog->setUniformValue("pbrLighting.clearcoat", _material.clearcoat());
 	_prog->setUniformValue("pbrLighting.clearcoatRoughness", _material.clearcoatRoughness());
+
+	// Alpha transparency mode and cuttoff
+	_prog->setUniformValue("alphaThreshold", _material.alphaThreshold());
+	_prog->setUniformValue("blendMode", static_cast<int>(_material.blendMode()));
+	
 	// PBR Texture Maps
 	_prog->setUniformValue("albedoMap", 10);
 	_prog->setUniformValue("metallicMap", 11);
