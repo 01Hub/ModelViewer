@@ -74,8 +74,8 @@ uniform bool hasHeightMap;
 uniform float heightScale = 0.02;
 uniform bool hasOpacityMap;
 uniform bool opacityMapInverted = false;
-uniform int blendMode = 0; // 0 = additive, 1 = multiplicative, 2 = overlay
-uniform float alphaThreshold = 0.5; // Threshold for alpha testing
+uniform int blendMode; // 0 = additive, 1 = multiplicative, 2 = overlay
+uniform float alphaThreshold; // Threshold for alpha testing
 
 // Advanced PBR Material Properties
 uniform sampler2D transmissionMap;
@@ -306,19 +306,6 @@ void main()
         applyEnvironmentMapping(alpha);
     }
 
-    if (blendMode == 1 && fragColor.a < alphaThreshold)  // MASK
-    {        
-        discard;        
-    }
-    else if (blendMode == 2)  // BLEND
-    {
-        fragColor.a = alpha;
-    } 
-    else  // OPAQUE
-    {
-        fragColor.a = 1.0;
-    }
-
     if (selected) // with glow
     {
         // Compute lighting
@@ -491,6 +478,29 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
             alpha = texture(texture_opacity, clippedTexCoord).r;
     }
 
+    if (blendMode == 1)  // MASK
+    {
+        fragColor.a = 1.0; // Solid where not discarded
+    }
+    else if (blendMode == 2)  // BLEND
+    {
+        // For ADS mode with opacity maps
+        if(renderingMode == 0 && hasOpacityTexture)
+        {
+            float opacityValue;
+            if(opacityTextureInverted)
+                opacityValue = 1.0f - texture(texture_opacity, g_texCoord2d).r;
+            else
+                opacityValue = texture(texture_opacity, g_texCoord2d).r;
+        
+            fragColor.a = opacityValue * opacity;
+        }        
+    } 
+    else  // OPAQUE
+    {
+        fragColor.a = 1.0;
+    }
+
     vec3 sceneColor = matEmissive + matAmbient * model.ambient;
     vec4 colorLinear;
 
@@ -618,23 +628,21 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         }
 
         // Material properties
-        // === ALBEDO (Base Color) ===        
+        // === ALBEDO (Base Color) ===
         if(hasAlbedoMap)
         {
             textureColor = texture(albedoMap, clippedTexCoord); // Get RGBA, not just RGB
     
             // ALPHA TESTING FOR PERFORATED MATERIALS
-            // Apply alpha test threshold - adjust this value between 0.1-0.9
-            float alphaTestThreshold = 0.5;
-            if(textureColor.a < alphaTestThreshold)
+            // Apply alpha test threshold - adjust this value between 0.1-0.9            
+            if(textureColor.a < alphaThreshold) 
             {
                 discard; // This creates the holes in the mesh
             }
-
-            
-            if (textureColor.a < alphaThreshold)
-                discard;
-
+            if(blendMode == 1 && hasAlbedoMap && textureColor.a < alphaThreshold) 
+            {
+                discard; // This creates the holes in the mesh
+            }            
     
             vec3 textureColorRGB = pow(textureColor.rgb, vec3(2.2));
 
@@ -949,11 +957,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     if(gammaCorrection)
         color = pow(color, vec3(1.0/screenGamma));
 
-    
-    float finalAlpha = (blendMode == 2) ? textureColor.a : 1.0;
-
+    float finalAlpha = (blendMode == 1) ? textureColor.a : 1.0;
     return vec4(color, finalAlpha);
-
 }
 
 // ----------------------------------------------------------------------------
