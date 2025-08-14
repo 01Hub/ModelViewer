@@ -605,18 +605,28 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         // === ALBEDO (Base Color) ===
         if(hasAlbedoMap)
         {
-            vec3 textureColor = pow(texture(albedoMap, clippedTexCoord).rgb, vec3(2.2));
+            vec4 textureColor = texture(albedoMap, clippedTexCoord); // Get RGBA, not just RGB
     
+            // ALPHA TESTING FOR PERFORATED MATERIALS
+            // Apply alpha test threshold - adjust this value between 0.1-0.9
+            float alphaTestThreshold = 0.5;
+            if(textureColor.a < alphaTestThreshold)
+            {
+                discard; // This creates the holes in the mesh
+            }
+    
+            vec3 textureColorRGB = pow(textureColor.rgb, vec3(2.2));
+
             // Check if albedo color is near white (indicating texture-only intent)
             float colorDeviation = length(pbrLighting.albedo - vec3(1.0));
-    
+
             if(colorDeviation < 0.1) // Threshold for "white enough"
             {
-                albedo = textureColor; // Pure texture
+                albedo = textureColorRGB; // Pure texture
             }
             else
             {
-                albedo = pbrLighting.albedo * textureColor; // Multiplicative
+                albedo = pbrLighting.albedo * textureColorRGB; // Multiplicative
             }
         }
         else
