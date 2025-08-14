@@ -435,7 +435,7 @@ void MaterialProcessor::debugMaterialTextures(aiMaterial* material, const std::s
 void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
 {
 
-	debugMaterialTextures(material, material->GetName().C_Str());
+	//debugMaterialTextures(material, material->GetName().C_Str());
 
     // existing mapping loop that calls loadMaterialTextures(...) for all entries
     for (const auto& mapping : textureMappings)
@@ -443,7 +443,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
         //std::cout << mapping << std::endl;
         // try primary
         auto maps = loadMaterialTextures(material, mapping.primaryType, mapping.primaryName, mapping.slotIndex);
-		std::cout << "Loaded " << maps.size() << " textures for " << mapping.primaryName << std::endl;
+		//std::cout << "Loaded " << maps.size() << " textures for " << mapping.primaryName << std::endl;
         textures.insert(textures.end(), maps.begin(), maps.end());
 
         // optionally, also try explicit fallback as a separate load (safe because
