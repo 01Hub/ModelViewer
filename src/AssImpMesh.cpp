@@ -350,19 +350,19 @@ void AssImpMesh::cacheTextureBindings()
 		{
 			addBinding("clearcoatMap" /*+ std::to_string(i)*/, GL_TEXTURE22);
 			clearcoatNr++;
-			std::cout << "Clearcoat map binding: " << i << std::endl;
+			//std::cout << "Clearcoat map binding: " << i << std::endl;
 		}
 		else if (texture.type == "clearcoatRoughnessMap")
 		{
 			addBinding("clearcoatRoughnessMap" /*+ std::to_string(i)*/, GL_TEXTURE23);
 			clearcoatRoughnessNr++;
-			std::cout << "Clearcoat roughness map binding: " << i << std::endl;
+			//std::cout << "Clearcoat roughness map binding: " << i << std::endl;
 		}
 		else if (texture.type == "clearcoatNormalMap")
 		{
 			addBinding("clearcoatNormalMap" /*+ std::to_string(i)*/, GL_TEXTURE24);
 			clearcoatNormalNr++;
-			std::cout << "Clearcoat normal map binding: " << i << std::endl;
+			//std::cout << "Clearcoat normal map binding: " << i << std::endl;
 		}
 	}
 
