@@ -21,11 +21,11 @@ public:
     };
 
     enum class BlendMode {
-        Opaque,
+        Opaque,        
+        Masked,
         Alpha,
         Additive,
-        Multiply,
-        Masked
+        Multiply
     };
 
 public:

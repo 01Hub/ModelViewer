@@ -452,7 +452,10 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     vec3 matAmbient = mat.ambient;
     if(hasDiffuseTexture)
     {
-        matAmbient = texture2D(texture_diffuse, clippedTexCoord).rgb;
+        vec4 ambientColor = texture2D(texture_diffuse, clippedTexCoord);
+        matAmbient =  ambientColor.rgb;
+        if(ambientColor.a < alphaThreshold && blendMode != 0)
+            discard; // Alpha testing for perforated materials
     }
     vec3 matDiffuse = mat.diffuse;
     if(hasDiffuseTexture)
@@ -634,15 +637,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             textureColor = texture(albedoMap, clippedTexCoord); // Get RGBA, not just RGB
     
             // ALPHA TESTING FOR PERFORATED MATERIALS
-            // Apply alpha test threshold - adjust this value between 0.1-0.9            
-            if(textureColor.a < alphaThreshold) 
+            // Apply alpha test threshold
+            if(textureColor.a < alphaThreshold && blendMode != 0) 
             {
                 discard; // This creates the holes in the mesh
-            }
-            if(blendMode == 1 && hasAlbedoMap && textureColor.a < alphaThreshold) 
-            {
-                discard; // This creates the holes in the mesh
-            }            
+            }           
     
             vec3 textureColorRGB = pow(textureColor.rgb, vec3(2.2));
 
@@ -699,7 +698,6 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         }
 
         // === ADVANCED PBR PROPERTIES ===
-
         // TRANSMISSION
         if(hasTransmissionMap)
         {
@@ -957,7 +955,28 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     if(gammaCorrection)
         color = pow(color, vec3(1.0/screenGamma));
 
-    float finalAlpha = (blendMode == 1) ? textureColor.a : 1.0;
+    float finalAlpha = 1.0; // Default opaque
+    
+    if(blendMode == 0) // OPAQUE mode
+    {
+        finalAlpha = 1.0; // Fully opaque
+    }
+    else if (blendMode == 2) // BLEND mode
+    {
+        if(hasAlbedoMap)
+        {
+            finalAlpha = textureColor.a * opacity;
+        }
+        else if(hasOpacityMap)
+        {
+            finalAlpha = alpha * opacity;
+        }
+        else
+        {
+            finalAlpha = opacity;
+        }
+    }
+    
     return vec4(color, finalAlpha);
 }
 
