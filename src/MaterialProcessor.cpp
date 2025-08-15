@@ -343,7 +343,7 @@ void MaterialProcessor::setDefaultMaterial(GLMaterial& mat)
 	mat = GLMaterial::DEFAULT_MAT();
 }
 
-unsigned int MaterialProcessor::textureFromFile(const char* path, std::string directory)
+unsigned int MaterialProcessor::textureFromFile(const char* path, std::string directory, bool& hasAlpha)
 {
     //Generate texture ID and load texture data
     string filename = string(path);
@@ -352,6 +352,7 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, std::string di
     glGenTextures(1, &textureID);
 
     QImage texImage;
+    bool imageHasAlpha = false;
 
     if (!texImage.load(QString(filename.c_str())))
     { // Load first image from file
@@ -359,11 +360,19 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, std::string di
         QImage dummy(128, 128, QImage::Format_ARGB32);
         dummy.fill(Qt::white);
         texImage = dummy;
+        imageHasAlpha = false;        
     }
     else
     {
         texImage = convertToGLFormat(texImage);
+        // Check for meaningful alpha channel
+        if (texImage.hasAlphaChannel())
+        {
+            imageHasAlpha = checkImageForAlpha(texImage);
+        }
     }
+
+	hasAlpha = imageHasAlpha;
 
     // Assign texture to ID
     glBindTexture(GL_TEXTURE_2D, textureID);
@@ -497,6 +506,7 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
             alias.id = lt.id;           // reuse GPU texture
             alias.type = typeName;        // requested uniform name
             alias.path = lt.path;
+			alias.hasAlpha = lt.hasAlpha; // reuse alpha info
             textures.push_back(alias);
             _loadedTextures.push_back(alias); // register alias to avoid re-creating later
             //std::cout << lt << std::endl;
@@ -506,15 +516,44 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
 
     // Not loaded at all: load from file
     Texture texture;
-    texture.id = textureFromFile(str.C_Str(), this->_folderPath);
+	bool hasAlpha = false;
+    texture.id = textureFromFile(str.C_Str(), this->_folderPath, hasAlpha);
     texture.type = typeName;
     texture.path = str;
+	texture.hasAlpha = hasAlpha; // Store alpha info for later use
     textures.push_back(texture);
     _loadedTextures.push_back(texture);
 
     //std::cout << texture << std::endl;
 
     return textures;
+}
+
+bool MaterialProcessor::checkImageForAlpha(const QImage& image)
+{
+    // Quick check: if no alpha channel, definitely no transparency
+    if (!image.hasAlphaChannel())
+    {
+        return false;
+    }
+
+    // Sample some pixels to check for non-opaque alpha values
+    // For performance, we don't need to check every single pixel
+    int step = std::max(1, image.width() / 32); // Sample every 32nd pixel
+
+    for (int y = 0; y < image.height(); y += step)
+    {
+        for (int x = 0; x < image.width(); x += step)
+        {
+            QRgb pixel = image.pixel(x, y);
+            int alpha = qAlpha(pixel);
+            if (alpha < 254)
+            { // 254 to account for compression artifacts
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void MaterialProcessor::synthesizeADSAliases(std::vector<Texture>& textures)

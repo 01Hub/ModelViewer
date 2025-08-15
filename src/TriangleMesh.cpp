@@ -1463,6 +1463,13 @@ void TriangleMesh::invertOpacityPBRMap(bool invert)
 	markUniformsDirty();
 }
 
+bool TriangleMesh::isTransparent() const
+{
+	return _material.opacity() < 1.0f ||
+		_hasOpacityADSMap || _hasOpacityPBRMap ||
+		_hasTextureAlpha;
+}
+
 void TriangleMesh::clearAlbedoPBRMap()
 {
 	glDeleteTextures(1, &_albedoPBRMap);

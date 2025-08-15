@@ -2944,13 +2944,38 @@ void GLWidget::drawSkyBox()
 void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 {
 	QVector3D pos = _primaryCamera->getPosition();
-
 	setupClippingUniforms(prog, pos);
 
 	// Render
 	if (_meshStore.size() != 0)
 	{
-		for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
+		const std::vector<int> objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+
+		// Separate opaque and transparent mesh indices
+		std::vector<int> opaqueMeshIds;
+		std::vector<int> transparentMeshIds;
+
+		for (int i : objectIds)
+		{
+			try
+			{
+				TriangleMesh* mesh = _meshStore.at(i);
+				if (mesh)
+				{
+					if (mesh->isTransparent())
+						transparentMeshIds.push_back(i);
+					else
+						opaqueMeshIds.push_back(i);
+				}
+			}
+			catch (const std::exception& ex)
+			{
+				std::cout << "Exception raised in GLWidget::drawMesh (sorting)\n" << ex.what() << std::endl;
+			}
+		}
+
+		// Render opaque meshes first
+		for (int i : opaqueMeshIds)
 		{
 			try
 			{
@@ -2963,7 +2988,25 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 			}
 			catch (const std::exception& ex)
 			{
-				std::cout << "Exception raised in GLWidget::drawMesh\n" << ex.what() << std::endl;
+				std::cout << "Exception raised in GLWidget::drawMesh (opaque)\n" << ex.what() << std::endl;
+			}
+		}
+
+		// Then render transparent meshes
+		for (int i : transparentMeshIds)
+		{
+			try
+			{
+				TriangleMesh* mesh = _meshStore.at(i);
+				if (mesh)
+				{
+					mesh->setProg(prog);
+					mesh->render();
+				}
+			}
+			catch (const std::exception& ex)
+			{
+				std::cout << "Exception raised in GLWidget::drawMesh (transparent)\n" << ex.what() << std::endl;
 			}
 		}
 	}

@@ -261,6 +261,7 @@ void AssImpMesh::cacheTextureBindings()
 			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10);
 			addBinding("albedoMap" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10); // PBR duplicate
 			diffuseNr++;
+			_hasTextureAlpha = texture.hasAlpha;
 		}
 		else if (texture.type == "texture_specular")
 		{
@@ -298,6 +299,7 @@ void AssImpMesh::cacheTextureBindings()
 			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10);
 			addBinding("albedoMap" /*+ std::to_string(albedoNr)*/, GL_TEXTURE10);
 			albedoNr++;
+			_hasTextureAlpha = texture.hasAlpha;
 		}
 		else if (texture.type == "metallicMap")
 		{

@@ -27,6 +27,8 @@ public:
 		const std::string& typeName,
 		unsigned int slotIndex);
 
+	bool checkImageForAlpha(const QImage& image);
+
 	void synthesizeADSAliases(std::vector<Texture>& textures);
 
 private:
@@ -36,7 +38,7 @@ private:
 
 	void validateMaterialConsistency(GLMaterial& mat);
 
-	unsigned int textureFromFile(const char* path, std::string directory);
+	unsigned int textureFromFile(const char* path, std::string directory, bool& hasAlpha);
 
 	// Each entry: primary type + uniform name, and an optional fallback type+uniform name
 	struct TextureSlotMapping

@@ -36,6 +36,7 @@ struct Texture
 	unsigned int id;
 	std::string type;
 	aiString path;
+	bool hasAlpha = false; // Indicates if the texture has an alpha channel
 
 	// print for debugging
 	friend std::ostream& operator<<(std::ostream& os, const Texture& texture)

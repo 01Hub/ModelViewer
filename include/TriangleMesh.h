@@ -168,6 +168,7 @@ public:
 	virtual void enableClearcoatNormalPBRMap(bool hasClearcoatNormalMap);
 	virtual void setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap);
 
+	virtual bool isTransparent() const;
 	
 	virtual void clearAlbedoPBRMap();
 	virtual void clearMetallicPBRMap();
@@ -264,6 +265,7 @@ protected:
 	unsigned int _heightADSMap;
 	unsigned int _opacityADSMap;
 	bool _hasTexture;
+	bool _hasTextureAlpha;
 	bool _hasDiffuseADSMap;
 	bool _hasSpecularADSMap;
 	bool _hasEmissiveADSMap;
