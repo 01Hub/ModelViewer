@@ -1318,7 +1318,7 @@ void ModelViewer::on_pushButtonBrass_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::BRASS());
+		setMaterialToSelectedItems(GLMaterial::METAL_BRASS());
 	}
 }
 
@@ -1326,7 +1326,7 @@ void ModelViewer::on_pushButtonBronze_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::BRONZE());
+		setMaterialToSelectedItems(GLMaterial::METAL_BRONZE());
 	}
 }
 
@@ -1334,7 +1334,7 @@ void ModelViewer::on_pushButtonCopper_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::COPPER());
+		setMaterialToSelectedItems(GLMaterial::METAL_COPPER());
 	}
 }
 
@@ -1342,7 +1342,7 @@ void ModelViewer::on_pushButtonGold_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::GOLD());
+		setMaterialToSelectedItems(GLMaterial::METAL_GOLD());
 	}
 }
 
@@ -1350,7 +1350,7 @@ void ModelViewer::on_pushButtonSilver_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::SILVER());
+		setMaterialToSelectedItems(GLMaterial::METAL_SILVER());
 	}
 }
 
@@ -1358,7 +1358,7 @@ void ModelViewer::on_pushButtonChrome_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::CHROME());
+		setMaterialToSelectedItems(GLMaterial::METAL_CHROME());
 	}
 }
 
@@ -1366,7 +1366,7 @@ void ModelViewer::on_pushButtonRuby_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::RUBY());
+		setMaterialToSelectedItems(GLMaterial::STONE_RUBY());
 	}
 }
 
@@ -1374,7 +1374,7 @@ void ModelViewer::on_pushButtonEmerald_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::EMERALD());
+		setMaterialToSelectedItems(GLMaterial::STONE_EMERALD());
 	}
 }
 
@@ -1382,7 +1382,7 @@ void ModelViewer::on_pushButtonTurquoise_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::TURQUOISE());
+		setMaterialToSelectedItems(GLMaterial::STONE_TURQUOISE());
 	}
 }
 
@@ -1390,7 +1390,7 @@ void ModelViewer::on_pushButtonJade_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::JADE());
+		setMaterialToSelectedItems(GLMaterial::STONE_JADE());
 	}
 }
 
@@ -1398,7 +1398,7 @@ void ModelViewer::on_pushButtonObsidian_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::OBSIDIAN());
+		setMaterialToSelectedItems(GLMaterial::STONE_OBSIDIAN());
 	}
 }
 
@@ -1406,7 +1406,7 @@ void ModelViewer::on_pushButtonPearl_clicked()
 {
 	if (checkForActiveSelection())
 	{
-		setMaterialToSelectedItems(GLMaterial::PEARL());
+		setMaterialToSelectedItems(GLMaterial::STONE_PEARL());
 	}
 }
 

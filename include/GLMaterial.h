@@ -162,19 +162,44 @@ public:
 
     // Static material creation methods
     static GLMaterial getPredefinedMaterial(GLMaterial::PredefinedMaterials type);
-    static GLMaterial BRASS();
-    static GLMaterial BRONZE();
-    static GLMaterial COPPER();
-    static GLMaterial GOLD();
-    static GLMaterial SILVER();
-    static GLMaterial CHROME();
-	static GLMaterial STEEL();
-    static GLMaterial RUBY();
-    static GLMaterial EMERALD();
-    static GLMaterial TURQUOISE();
-    static GLMaterial PEARL();
-    static GLMaterial JADE();
-    static GLMaterial OBSIDIAN();
+
+    // Some metal materials
+    static GLMaterial METAL_TITANIUM();
+    static GLMaterial METAL_PLATINUM();
+    static GLMaterial METAL_MAGNESIUM();
+    static GLMaterial METAL_ZINC();
+    static GLMaterial METAL_NICKEL();
+    static GLMaterial METAL_ALUMINUM();
+    static GLMaterial METAL_IRON_RAW();
+    static GLMaterial METAL_COBALT();
+    static GLMaterial METAL_PEWTER();
+    static GLMaterial METAL_TUNGSTEN();
+    static GLMaterial METAL_BRASS();
+    static GLMaterial METAL_BRONZE();
+    static GLMaterial METAL_COPPER();
+    static GLMaterial METAL_GOLD();
+    static GLMaterial METAL_SILVER();
+    static GLMaterial METAL_CHROME();
+	static GLMaterial METAL_STEEL();
+
+    // Stone materials
+    static GLMaterial STONE_RUBY();
+    static GLMaterial STONE_EMERALD();
+    static GLMaterial STONE_TURQUOISE();
+    static GLMaterial STONE_PEARL();
+    static GLMaterial STONE_JADE();
+    static GLMaterial STONE_GRANITE();
+    static GLMaterial STONE_LIMESTONE();
+    static GLMaterial STONE_MARBLE();
+    static GLMaterial STONE_SLATE();
+    static GLMaterial STONE_SANDSTONE();
+    static GLMaterial STONE_BASALT();
+    static GLMaterial STONE_OBSIDIAN();
+    static GLMaterial STONE_TRAVERTINE();
+    static GLMaterial STONE_QUARTZITE();
+    static GLMaterial STONE_SOAPSTONE();
+    
+	// Some colored plastic and rubber materials
     static GLMaterial RED_PLASTIC();
     static GLMaterial GREEN_PLASTIC();
     static GLMaterial CYAN_PLASTIC();
@@ -201,31 +226,6 @@ public:
 	static GLMaterial METAL();
 	static GLMaterial PLASTIC();
 	static GLMaterial STONE();
-
-	// Some intereting stone materials
-    static GLMaterial STONE_GRANITE();
-    static GLMaterial STONE_LIMESTONE();
-    static GLMaterial STONE_MARBLE();
-    static GLMaterial STONE_SLATE();
-    static GLMaterial STONE_SANDSTONE();
-    static GLMaterial STONE_BASALT();
-    static GLMaterial STONE_OBSIDIAN();
-    static GLMaterial STONE_TRAVERTINE();
-    static GLMaterial STONE_QUARTZITE();
-    static GLMaterial STONE_SOAPSTONE();
-
-	// Some interesting metal materials
-    static GLMaterial METAL_TITANIUM();
-    static GLMaterial METAL_PLATINUM();
-    static GLMaterial METAL_MAGNESIUM();
-    static GLMaterial METAL_ZINC();
-    static GLMaterial METAL_NICKEL();
-    static GLMaterial METAL_ALUMINUM();
-    static GLMaterial METAL_IRON_RAW();
-    static GLMaterial METAL_COBALT();
-    static GLMaterial METAL_PEWTER();
-    static GLMaterial METAL_TUNGSTEN();
-
 
     void serialize(QDataStream& out) const;
     void deserialize(QDataStream& in);

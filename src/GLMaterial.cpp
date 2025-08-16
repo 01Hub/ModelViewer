@@ -121,40 +121,40 @@ GLMaterial GLMaterial::getPredefinedMaterial(GLMaterial::PredefinedMaterials typ
 	switch (type)
 	{
 	case PredefinedMaterials::BRASS:
-		return BRASS();
+		return METAL_BRASS();
 		break;
 	case PredefinedMaterials::BRONZE:
-		return BRONZE();
+		return METAL_BRONZE();
 		break;
 	case PredefinedMaterials::COPPER:
-		return COPPER();
+		return METAL_COPPER();
 		break;
 	case PredefinedMaterials::GOLD:
-		return GOLD();
+		return METAL_GOLD();
 		break;
 	case PredefinedMaterials::SILVER:
-		return SILVER();
+		return METAL_SILVER();
 		break;
 	case PredefinedMaterials::CHROME:
-		return CHROME();
+		return METAL_CHROME();
 		break;
 	case PredefinedMaterials::RUBY:
-		return RUBY();
+		return STONE_RUBY();
 		break;
 	case PredefinedMaterials::EMERALD:
-		return EMERALD();
+		return STONE_EMERALD();
 		break;
 	case PredefinedMaterials::TURQUOISE:
-		return TURQUOISE();
+		return STONE_TURQUOISE();
 		break;
 	case PredefinedMaterials::PEARL:
-		return PEARL();
+		return STONE_PEARL();
 		break;
 	case PredefinedMaterials::JADE:
-		return JADE();
+		return STONE_JADE();
 		break;
 	case PredefinedMaterials::OBSIDIAN:
-		return OBSIDIAN();
+		return STONE_OBSIDIAN();
 		break;
 	case PredefinedMaterials::RED_PLASTIC:
 		return RED_PLASTIC();
@@ -198,7 +198,7 @@ GLMaterial GLMaterial::getPredefinedMaterial(GLMaterial::PredefinedMaterials typ
 	}
 }
 
-GLMaterial GLMaterial::BRASS()
+GLMaterial GLMaterial::METAL_BRASS()
 {
     GLMaterial mat({ 0.329412f, 0.223529f, 0.027451f },
         { 0.780392f, 0.568627f, 0.113725f },
@@ -218,7 +218,7 @@ GLMaterial GLMaterial::BRASS()
     return mat;
 }
 
-GLMaterial GLMaterial::BRONZE()
+GLMaterial GLMaterial::METAL_BRONZE()
 {
     GLMaterial mat({ 0.2125f, 0.1275f, 0.054f },
         { 0.714f, 0.4284f, 0.18144f },
@@ -237,7 +237,7 @@ GLMaterial GLMaterial::BRONZE()
     return mat;
 }
 
-GLMaterial GLMaterial::COPPER()
+GLMaterial GLMaterial::METAL_COPPER()
 {
     GLMaterial mat({ 0.19125f, 0.0735f, 0.0225f },
         { 0.7038f, 0.27048f, 0.0828f },
@@ -256,7 +256,7 @@ GLMaterial GLMaterial::COPPER()
     return mat;
 }
 
-GLMaterial GLMaterial::GOLD()
+GLMaterial GLMaterial::METAL_GOLD()
 {
     GLMaterial mat({ 0.24725f, 0.1995f, 0.0745f },
         { 0.75164f, 0.60648f, 0.22648f },
@@ -275,7 +275,7 @@ GLMaterial GLMaterial::GOLD()
     return mat;
 }
 
-GLMaterial GLMaterial::SILVER()
+GLMaterial GLMaterial::METAL_SILVER()
 {
     GLMaterial mat({ 0.19225f, 0.19225f, 0.19225f },
         { 0.50754f, 0.50654f, 0.50754f },
@@ -294,7 +294,7 @@ GLMaterial GLMaterial::SILVER()
     return mat;
 }
 
-GLMaterial GLMaterial::CHROME()
+GLMaterial GLMaterial::METAL_CHROME()
 {
     GLMaterial mat({ 0.25f, 0.25f, 0.25f },
         { 0.4f, 0.4f, 0.4f },
@@ -313,7 +313,7 @@ GLMaterial GLMaterial::CHROME()
     return mat;
 }
 
-GLMaterial GLMaterial::STEEL()
+GLMaterial GLMaterial::METAL_STEEL()
 {
     GLMaterial mat({ 0.25f, 0.25f, 0.25f },
         { 0.4f, 0.4f, 0.4f },
@@ -333,7 +333,7 @@ GLMaterial GLMaterial::STEEL()
     return mat;
 }
 
-GLMaterial GLMaterial::RUBY()
+GLMaterial GLMaterial::STONE_RUBY()
 {
     GLMaterial mat({ 0.17450f, 0.01175f, 0.01175f },
         { 0.61424f, 0.04136f, 0.04136f },
@@ -353,7 +353,7 @@ GLMaterial GLMaterial::RUBY()
     return mat;
 }
 
-GLMaterial GLMaterial::EMERALD()
+GLMaterial GLMaterial::STONE_EMERALD()
 {
     GLMaterial mat({ 0.0215f, 0.1745f, 0.0215f },
         { 0.07568f, 0.61424f, 0.07568f },
@@ -373,7 +373,7 @@ GLMaterial GLMaterial::EMERALD()
     return mat;
 }
 
-GLMaterial GLMaterial::TURQUOISE()
+GLMaterial GLMaterial::STONE_TURQUOISE()
 {
     GLMaterial mat({ 0.1f, 0.18725f, 0.1745f },
         { 0.396f, 0.74151f, 0.69102f },
@@ -392,7 +392,7 @@ GLMaterial GLMaterial::TURQUOISE()
     return mat;
 }
 
-GLMaterial GLMaterial::PEARL()
+GLMaterial GLMaterial::STONE_PEARL()
 {
     GLMaterial mat({ 0.25000f, 0.20725f, 0.20725f },
         { 1.000f, 0.829f, 0.829f },
@@ -414,7 +414,7 @@ GLMaterial GLMaterial::PEARL()
     return mat;
 }
 
-GLMaterial GLMaterial::JADE()
+GLMaterial GLMaterial::STONE_JADE()
 {
     GLMaterial mat({ 0.135f, 0.2225f, 0.1575f },
         { 0.54f, 0.89f, 0.63f },
@@ -434,7 +434,7 @@ GLMaterial GLMaterial::JADE()
     return mat;
 }
 
-GLMaterial GLMaterial::OBSIDIAN()
+GLMaterial GLMaterial::STONE_OBSIDIAN()
 {
     GLMaterial mat({ 0.05375f, 0.05f, 0.06625f },
         { 0.18275f, 0.17f, 0.22525f },
@@ -1029,21 +1029,6 @@ GLMaterial GLMaterial::STONE_BASALT()
     return mat;
 }
 
-GLMaterial GLMaterial::STONE_OBSIDIAN()
-{
-    GLMaterial mat;
-    mat.setAlbedoColor(QVector3D(0.02f, 0.02f, 0.02f));
-    mat.setRoughness(0.2f);
-    mat.setSpecular(QVector3D(0.5f, 0.5f, 0.5f));
-    mat.setShininess(128.0f);
-    mat.setMetalness(0.0f);
-    mat.setOpacity(1.0f);
-    mat.setTransmission(0.0f);
-    mat.setIOR(1.45f);
-    mat.setShadingModel(ShadingModel::PBR);
-    return mat;
-}
-
 GLMaterial GLMaterial::STONE_TRAVERTINE()
 {
     GLMaterial mat;
@@ -1242,7 +1227,7 @@ GLMaterial GLMaterial::METAL_TUNGSTEN()
 
 GLMaterial GLMaterial::DEFAULT_MAT()
 {    
-	return STEEL(); // Default material set to STEEL
+	return METAL_STEEL(); // Default material set to METAL_STEEL
  //   GLMaterial mat({ 90 / 255.0f, 98 / 255.0f, 115 / 255.0f },
  //       { 175 / 255.0f, 192 / 255.0f, 224 / 255.0f },
  //       { 26 / 255.0f, 26 / 255.0f, 26 / 255.0f },
