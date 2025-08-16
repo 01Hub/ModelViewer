@@ -9,6 +9,7 @@
 
 #include "AssImpMesh.h"
 #include "TriangleMesh.h"
+#include "BoundingBox.h"
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/ProgressHandler.hpp>
@@ -69,6 +70,8 @@ struct SceneMeshInfo
 	int meshCount = 0;
 	std::string largestMeshName;
 	int largestMeshTriangles = 0;
+	BoundingBox boundingBox;
+	float maxDimension = 0.0f;
 };
 
 
@@ -93,6 +96,12 @@ public:
 	void setUVGenerationMethod(const UVMethod& uvMethod) { _selectedUVMethod = uvMethod; }
 	UVMethod getUVGenerationMethod() const { return _selectedUVMethod; }
 
+	// Auto scale and orient the model to fit the scene's coordinate system
+	void setAutoScaleActive(bool autoScale) { _autoScale = autoScale; }
+	void setAutoOrientActive(bool autoOrient) { _autoOrient = autoOrient; }
+	bool isAutoScaleActive(bool autoScale) const { return _autoScale; }
+	bool isAutoOrientActive(bool autoOrient) const { return _autoOrient; }
+
 	const aiScene* getScene() const { return _scene; }
 
 	void freeScene();
@@ -116,7 +125,16 @@ private:
 	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform);
 
 	static SceneMeshInfo collectSceneMeshInfo(const aiScene* scene);
-	
+	static glm::mat4 aiMatrixToGlm(const aiMatrix4x4& from);
+	static aiMatrix4x4 glmToAiMatrix(const glm::mat4& mat);
+
+	// Automatic orientation and scaling of the model to fit the scene's coordinate system.
+	void applyCoordinateSystemTransformations(const bool rotate, const bool scale, const std::string& filePath);
+	void applyTransformToNode(aiNode* node, const glm::mat4& transform);
+	glm::mat4 getCoordinateSystemTransform(const aiScene* scene, const std::string& filePath);
+	glm::mat4 getCoordinateSystemFromFileType(const std::string& fileExtension);
+	float calculateConditionalScale(const float& maxDimension);
+		
 private:
 	QOpenGLShaderProgram* _prog;
 	std::string _path;
@@ -142,4 +160,7 @@ private:
 
 	UVMethod _selectedUVMethod = UVMethod::Hybrid;
 	bool _needsUVGeneration = false;
+
+	bool _autoScale = true; // Automatically scale the model to fit the scene's coordinate system
+	bool _autoOrient = true; // Automatically orient the model to match the scene's coordinate system
 };

@@ -31,7 +31,14 @@ bool AssImpModelProgressHandler::Update(float percentage)
 
 /*  Functions   */
 // Constructor, expects a filepath to a 3D model.
-AssImpModelLoader::AssImpModelLoader(QOpenGLShaderProgram* prog) : QObject(), _prog(prog)
+AssImpModelLoader::AssImpModelLoader(QOpenGLShaderProgram* prog) : QObject(), _prog(prog),
+	_importer(),
+	_scene(nullptr),
+	_errorMessage(""),
+	_loadingCancelled(false),
+	_selectedUVMethod(UVMethod::None),
+	_autoScale(true),
+	_autoOrient(true)
 {
 	initializeOpenGLFunctions();
 	_loadingCancelled = false;
@@ -111,6 +118,11 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		return;
 	}
 
+	_sceneStats = collectSceneMeshInfo(_scene);
+
+	// check if auto scaling is active and apply it
+	applyCoordinateSystemTransformations(_autoOrient, _autoScale, path);
+
 	bool modelHasMissingUVs = false;
 	for (unsigned int i = 0; i < _scene->mNumMeshes; ++i)
 	{
@@ -120,9 +132,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			break;
 		}
 	}
-
-	_sceneStats = collectSceneMeshInfo(_scene);
-
+	
 	if (modelHasMissingUVs)
 	{								
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());				
@@ -450,18 +460,25 @@ void AssImpModelLoader::freeScene()
 SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 {
 	SceneMeshInfo info;
-
 	if (!scene || !scene->HasMeshes() || !scene->mRootNode)
 		return info;
 
+	// Initialize bounding box with invalid bounds
+	bool firstVertex = true;
+	double minX = DBL_MAX, maxX = -DBL_MAX;
+	double minY = DBL_MAX, maxY = -DBL_MAX;
+	double minZ = DBL_MAX, maxZ = -DBL_MAX;
+
 	std::unordered_set<unsigned int> processedMeshes;
 
-	std::function<void(const aiNode*)> collectFromNode;
-	collectFromNode = [&](const aiNode* node) {
+	std::function<void(const aiNode*, const glm::mat4&)> collectFromNode;
+	collectFromNode = [&](const aiNode* node, const glm::mat4& parentTransform) {
+		// Convert aiMatrix4x4 to glm::mat4
+		glm::mat4 nodeTransform = parentTransform * aiMatrixToGlm(node->mTransformation);
+
 		for (unsigned int i = 0; i < node->mNumMeshes; ++i)
 		{
 			unsigned int meshIndex = node->mMeshes[i];
-
 			// Prevent double-counting if mesh is referenced by multiple nodes
 			if (!processedMeshes.insert(meshIndex).second)
 				continue;
@@ -479,16 +496,307 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 				info.largestMeshTriangles = numFaces;
 				info.largestMeshName = mesh->mName.C_Str();
 			}
+
+			// Calculate bounding box for this mesh
+			for (unsigned int j = 0; j < mesh->mNumVertices; ++j)
+			{
+				// Transform vertex to world space
+				glm::vec4 vertex = nodeTransform * glm::vec4(
+					mesh->mVertices[j].x,
+					mesh->mVertices[j].y,
+					mesh->mVertices[j].z,
+					1.0f
+				);
+
+				double x = static_cast<double>(vertex.x);
+				double y = static_cast<double>(vertex.y);
+				double z = static_cast<double>(vertex.z);
+
+				// Update bounding box limits
+				if (firstVertex)
+				{
+					minX = maxX = x;
+					minY = maxY = y;
+					minZ = maxZ = z;
+					firstVertex = false;
+				}
+				else
+				{
+					minX = std::min(minX, x);
+					maxX = std::max(maxX, x);
+					minY = std::min(minY, y);
+					maxY = std::max(maxY, y);
+					minZ = std::min(minZ, z);
+					maxZ = std::max(maxZ, z);
+				}
+			}
 		}
 
 		for (unsigned int i = 0; i < node->mNumChildren; ++i)
 		{
-			collectFromNode(node->mChildren[i]);
+			collectFromNode(node->mChildren[i], nodeTransform);
 		}
 		};
 
-	collectFromNode(scene->mRootNode);
+	collectFromNode(scene->mRootNode, glm::mat4(1.0f));
+
+	// Set the bounding box limits
+	if (!firstVertex)
+	{
+		info.boundingBox.setLimits(minX, minY, minZ, maxX, maxY, maxZ);
+
+		// Calculate max dimension
+		double sizeX = maxX - minX;
+		double sizeY = maxY - minY;
+		double sizeZ = maxZ - minZ;
+		info.maxDimension = static_cast<float>(std::max({ sizeX, sizeY, sizeZ }));
+	}
+	else
+	{
+		// No vertices found, set default bounding box
+		info.boundingBox.setLimits(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+		info.maxDimension = 0.0f;
+	}
 
 	return info;
 }
+
+void AssImpModelLoader::applyCoordinateSystemTransformations(const bool rotate, const bool scale, const std::string& path)
+{
+	if (_autoScale || _autoOrient)
+	{
+		glm::mat4 finalTransform = glm::mat4(1.0f);
+
+		// Apply only coordinate system conversion
+		if (_autoOrient)
+		{
+			glm::mat4 coordTransform = getCoordinateSystemTransform(_scene, path);
+			finalTransform = coordTransform;			
+		}
+
+		// Apply scaling separately
+		if (_autoScale)
+		{
+			float scale = calculateConditionalScale(_sceneStats.maxDimension);			
+			finalTransform = glm::scale(finalTransform, glm::vec3(scale));
+		}
+
+		applyTransformToNode(_scene->mRootNode, finalTransform);
+	}
+}
+
+void AssImpModelLoader::applyTransformToNode(aiNode* node, const glm::mat4& transform)
+{
+	if (!node) return;
+
+	// Convert glm::mat4 to aiMatrix4x4
+	aiMatrix4x4 aiTransform = glmToAiMatrix(transform);
+	
+	// Apply transformation to the node
+	node->mTransformation = aiTransform * node->mTransformation;
+}
+
+glm::mat4 AssImpModelLoader::getCoordinateSystemTransform(const aiScene* scene, const std::string& filePath)
+{
+	glm::mat4 transform = glm::mat4(1.0f);
+	bool foundMetadata = false;
+		
+	// First: Try to get coordinate system from scene metadata
+	if (scene && scene->mMetaData)
+	{	
+		// Try different possible metadata keys
+		aiString upAxis;
+		int upAxisInt;
+
+		// String-based up axis
+		if (scene->mMetaData->Get("UpAxis", upAxis) ||
+			scene->mMetaData->Get("up_axis", upAxis) ||
+			scene->mMetaData->Get("UP_AXIS", upAxis) ||
+			scene->mMetaData->Get("CoordinateSystem", upAxis))
+		{
+
+			std::string upStr = upAxis.C_Str();
+			std::transform(upStr.begin(), upStr.end(), upStr.begin(), ::tolower);
+
+			if (upStr.find("y") != std::string::npos || upStr == "y_up")
+			{
+				transform = glm::rotate(glm::mat4(1.0f),
+					glm::radians(90.0f),
+					glm::vec3(1.0f, 0.0f, 0.0f));
+				foundMetadata = true;
+			}
+			else if (upStr.find("z") != std::string::npos || upStr == "z_up")
+			{
+				transform = glm::mat4(1.0f); // Already Z-up
+				foundMetadata = true;
+			}			
+		}
+		// Integer-based up axis
+		else if (scene->mMetaData->Get("UpAxis", upAxisInt) ||
+			scene->mMetaData->Get("up_axis", upAxisInt))
+		{
+			switch (upAxisInt)
+			{
+			case 1: // Y-up
+				transform = glm::rotate(glm::mat4(1.0f),
+					glm::radians(90.0f),
+					glm::vec3(1.0f, 0.0f, 0.0f));
+				foundMetadata = true;
+				break;
+			case 2: // Z-up
+				transform = glm::mat4(1.0f);
+				foundMetadata = true;
+				break;
+			}
+		}
+
+#ifdef DEBUG
+		if (foundMetadata)
+		{
+			printf("Found coordinate system metadata\n");
+		}
+		else
+		{
+			printf("No coordinate system metadata found\n");
+		}
+#endif
+	}
+
+	// Fallback to file extension if no metadata found
+	if (!foundMetadata)
+	{
+		std::string extension = filePath.substr(filePath.find_last_of("."));
+		std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+		transform = getCoordinateSystemFromFileType(extension);
+	}
+
+	return transform;
+}
+
+glm::mat4 AssImpModelLoader::getCoordinateSystemFromFileType(const std::string& fileExtension)
+{
+	glm::mat4 transform = glm::mat4(1.0f);
+
+	if (fileExtension == ".gltf" || fileExtension == ".glb")
+	{
+		// GLTF: Always Y-up by specification
+		transform = glm::rotate(glm::mat4(1.0f),
+			glm::radians(90.0f),
+			glm::vec3(1.0f, 0.0f, 0.0f));
+	}
+	else if (fileExtension == ".obj")
+	{
+		// OBJ: Usually Y-up (Wavefront OBJ spec)
+		transform = glm::rotate(glm::mat4(1.0f),
+			glm::radians(90.0f),
+			glm::vec3(1.0f, 0.0f, 0.0f));
+	}
+	else if (fileExtension == ".fbx")
+	{
+		// FBX: Usually Y-up (but can vary based on export settings)
+		transform = glm::rotate(glm::mat4(1.0f),
+			glm::radians(90.0f),
+			glm::vec3(1.0f, 0.0f, 0.0f));
+	}
+	else if (fileExtension == ".dae")
+	{
+		// Collada: Y-up by default
+		transform = glm::rotate(glm::mat4(1.0f),
+			glm::radians(90.0f),
+			glm::vec3(1.0f, 0.0f, 0.0f));
+	}
+	else if (fileExtension == ".blend")
+	{
+		// Blender: Y-up
+		transform = glm::rotate(glm::mat4(1.0f),
+			glm::radians(90.0f),
+			glm::vec3(1.0f, 0.0f, 0.0f));
+	}
+	else if (fileExtension == ".3ds" || fileExtension == ".max")
+	{
+		// 3ds Max files: Z-up (no conversion needed)
+		transform = glm::mat4(1.0f);
+	}
+	else if (fileExtension == ".x3d")
+	{
+		// X3D: Y-up by specification
+		transform = glm::rotate(glm::mat4(1.0f),
+			glm::radians(90.0f),
+			glm::vec3(1.0f, 0.0f, 0.0f));
+	}
+	else if (fileExtension == ".ply")
+	{
+		// PLY: No standard, but commonly Z-up from scanning
+		transform = glm::mat4(1.0f);
+	}
+	else if (fileExtension == ".stl")
+	{
+		// STL: No standard, varies by source
+		// Default to no conversion, let user override
+		transform = glm::mat4(1.0f);
+	}
+	else
+	{
+		// Unknown format: assume no conversion needed
+		// You might want to log this for debugging
+#ifdef DEBUG
+		printf("Unknown file format %s, assuming Z-up\n", fileExtension.c_str());
+#endif
+		transform = glm::mat4(1.0f);
+	}
+
+	return transform;
+}
+
+float AssImpModelLoader::calculateConditionalScale(const float& maxDimension)
+{
+	if (maxDimension < 1e-6f)
+	{
+		return 1.0f; // Avoid division by zero
+	}
+
+	// No scaling needed if already in target range [1, 100000]
+	if (maxDimension >= 1.0f && maxDimension <= 100000.0f)
+	{
+		return 1.0f;
+	}
+
+	float scale = 1.0f;
+
+	if (maxDimension < 1.0f)
+	{
+		// Scale up small models to bring them into range
+		float logScale = std::ceil(std::log10(10.0f / maxDimension));
+		scale = std::pow(10.0f, logScale);
+	}
+	else if (maxDimension > 100000.0f)
+	{
+		// Scale down large models to bring them into range
+		float logScale = std::ceil(std::log10(maxDimension / 100000.0f));
+		scale = 1.0f / std::pow(10.0f, logScale);
+	}
+
+	return scale;
+}
+
+glm::mat4 AssImpModelLoader::aiMatrixToGlm(const aiMatrix4x4& from)
+{
+	return glm::mat4(
+		from.a1, from.b1, from.c1, from.d1,
+		from.a2, from.b2, from.c2, from.d2,
+		from.a3, from.b3, from.c3, from.d3,
+		from.a4, from.b4, from.c4, from.d4
+	);
+}
+
+aiMatrix4x4 AssImpModelLoader::glmToAiMatrix(const glm::mat4& mat)
+{
+	aiMatrix4x4 result;
+	result.a1 = mat[0][0]; result.a2 = mat[1][0]; result.a3 = mat[2][0]; result.a4 = mat[3][0];
+	result.b1 = mat[0][1]; result.b2 = mat[1][1]; result.b3 = mat[2][1]; result.b4 = mat[3][1];
+	result.c1 = mat[0][2]; result.c2 = mat[1][2]; result.c3 = mat[2][2]; result.c4 = mat[3][2];
+	result.d1 = mat[0][3]; result.d2 = mat[1][3]; result.d3 = mat[2][3]; result.d4 = mat[3][3];
+	return result;
+}
+
 

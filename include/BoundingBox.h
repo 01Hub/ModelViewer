@@ -47,6 +47,7 @@ public:
 	inline double getXSize() const { return _xMax - _xMin; }
 	inline double getYSize() const { return _yMax - _yMin; }
 	inline double getZSize() const { return _zMax - _zMin; }
+	inline double getMaxDimension() const	{ return std::max({ getXSize(), getYSize(), getZSize() }); }
 	Point center() const;
 	Point extent() const;
 	std::vector<Point> corners() const;
