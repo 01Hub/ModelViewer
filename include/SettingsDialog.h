@@ -226,6 +226,8 @@ private slots:
     void on_assimpCalcTangentsCheckBox_stateChanged();
     void on_assimpOptimizeMeshCheckBox_stateChanged();
     void on_assimpRemoveDuplicatesCheckBox_stateChanged();
+	void on_assimpAutoScaleCheckBox_stateChanged();
+	void on_assimpAutoOrientCheckBox_stateChanged();
     void on_assimpMaxFaceVerticesSpinBox_valueChanged();
 	void on_radioButtonExportScene_toggled(bool checked);
 	void on_radioButtonExportMeshes_toggled(bool checked);
@@ -356,6 +358,8 @@ private:
     bool import_assimpCalcTangents = false;
     bool import_assimpOptimizeMesh = false;
     bool import_assimpRemoveDuplicates = false;
+	bool import_assimpAutoScaleModel = true;
+	bool import_assimpAutoOrientModel = true;
     int import_assimpMaxFaceVertices = 3;
 
     bool export_exportScene = true;

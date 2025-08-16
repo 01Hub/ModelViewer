@@ -45,6 +45,11 @@ AssImpModelLoader::AssImpModelLoader(QOpenGLShaderProgram* prog) : QObject(), _p
 	_progHandler = new AssImpModelProgressHandler();
 	_importer.SetProgressHandler(_progHandler);
 	connect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
+
+	_autoScale = QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName())
+		.value("assimpAutoScaleCheckBox", true).toBool();
+	_autoOrient = QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName())
+		.value("assimpAutoOrientCheckBox", true).toBool();
 }
 
 AssImpModelLoader::~AssImpModelLoader()

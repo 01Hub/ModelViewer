@@ -242,6 +242,8 @@ void SettingsDialog::applySettings()
     settings.setValue("assimpCalcTangentsCheckBox", import_assimpCalcTangents);
     settings.setValue("assimpOptimizeMeshCheckBox", import_assimpOptimizeMesh);
     settings.setValue("assimpRemoveDuplicatesCheckBox", import_assimpRemoveDuplicates);
+	settings.setValue("assimpAutoScaleCheckBox", import_assimpAutoScaleModel);
+    settings.setValue("assimpAutoOrientCheckBox", import_assimpAutoOrientModel);
     settings.setValue("assimpMaxFaceVerticesSpinBox", import_assimpMaxFaceVertices);
 
 	// Import/Export Tab - Export
@@ -371,10 +373,12 @@ void SettingsDialog::setDefaultValues()
     // Assimp settings
     ui->assimpTriangulateCheckBox->setChecked(true);
     ui->assimpGenNormalsCheckBox->setChecked(true);
-    ui->assimpSmoothNormalsCheckBox->setChecked(false);
-    ui->assimpCalcTangentsCheckBox->setChecked(false);
-    ui->assimpOptimizeMeshCheckBox->setChecked(false);
-    ui->assimpRemoveDuplicatesCheckBox->setChecked(false);
+    ui->assimpSmoothNormalsCheckBox->setChecked(true);
+    ui->assimpCalcTangentsCheckBox->setChecked(true);
+    ui->assimpOptimizeMeshCheckBox->setChecked(true);
+    ui->assimpRemoveDuplicatesCheckBox->setChecked(true);
+	ui->assimpAutoOrientCheckBox->setChecked(true);
+	ui->assimpAutoScaleCheckBox->setChecked(true);
     ui->assimpMaxFaceVerticesSpinBox->setValue(3);
 
     // Import/Export Tab - Export
@@ -557,6 +561,10 @@ void SettingsDialog::loadSettings()
     ui->assimpOptimizeMeshCheckBox->setChecked(bVal);
     bVal = settings.value("assimpRemoveDuplicatesCheckBox", ui->assimpRemoveDuplicatesCheckBox->isChecked()).toBool();
     ui->assimpRemoveDuplicatesCheckBox->setChecked(bVal);
+    bVal = settings.value("assimpAutoScaleCheckBox", ui->assimpAutoScaleCheckBox->isChecked()).toBool();
+    ui->assimpAutoScaleCheckBox->setChecked(bVal);
+    bVal = settings.value("assimpAutoOrientCheckBox", ui->assimpAutoOrientCheckBox->isChecked()).toBool();
+    ui->assimpAutoOrientCheckBox->setChecked(bVal);
     iVal = settings.value("assimpMaxFaceVerticesSpinBox", ui->assimpMaxFaceVerticesSpinBox->value()).toInt();
     ui->assimpMaxFaceVerticesSpinBox->setValue(iVal);
 	bVal = settings.value("radioButtonExportScene", ui->radioButtonExportScene->isChecked()).toBool();
@@ -690,6 +698,8 @@ void SettingsDialog::saveSettings()
     settings.setValue("assimpCalcTangentsCheckBox", ui->assimpCalcTangentsCheckBox->isChecked());
     settings.setValue("assimpOptimizeMeshCheckBox", ui->assimpOptimizeMeshCheckBox->isChecked());
     settings.setValue("assimpRemoveDuplicatesCheckBox", ui->assimpRemoveDuplicatesCheckBox->isChecked());
+	settings.setValue("assimpAutoOrientCheckBox", ui->assimpAutoOrientCheckBox->isChecked());
+	settings.setValue("assimpAutoScaleCheckBox", ui->assimpAutoScaleCheckBox->isChecked());
     settings.setValue("assimpMaxFaceVerticesSpinBox", ui->assimpMaxFaceVerticesSpinBox->value());
 	settings.setValue("radioButtonExportScene", ui->radioButtonExportScene->isChecked());
 	settings.setValue("radioButtonExportMeshes", ui->radioButtonExportMeshes->isChecked());
@@ -798,6 +808,7 @@ void SettingsDialog::restoreDefaults()
         ui->occtUnifyFacesCheckBox, ui->occtUnifyEdgesCheckBox, ui->occtBuildCurvesCheckBox,
         ui->assimpTriangulateCheckBox, ui->assimpGenNormalsCheckBox, ui->assimpSmoothNormalsCheckBox,
         ui->assimpCalcTangentsCheckBox, ui->assimpOptimizeMeshCheckBox, ui->assimpRemoveDuplicatesCheckBox,
+		ui->assimpAutoScaleCheckBox, ui->assimpAutoOrientCheckBox,
         ui->assimpMaxFaceVerticesSpinBox, ui->radioButtonExportScene, ui->radioButtonExportMeshes,
         ui->checkMultithreadedLoad, ui->spinThreadLimit,
         ui->checkSkyboxBlending, ui->checkProgressiveLoading, ui->maxFpsSpinBox,
@@ -1165,6 +1176,16 @@ void SettingsDialog::on_assimpOptimizeMeshCheckBox_stateChanged()
 void SettingsDialog::on_assimpRemoveDuplicatesCheckBox_stateChanged()
 {
     import_assimpRemoveDuplicates = ui->assimpRemoveDuplicatesCheckBox->isChecked();
+}
+
+void SettingsDialog::on_assimpAutoScaleCheckBox_stateChanged()
+{
+    import_assimpAutoScaleModel = ui->assimpAutoScaleCheckBox->isChecked();
+}
+
+void SettingsDialog::on_assimpAutoOrientCheckBox_stateChanged()
+{
+	import_assimpAutoOrientModel = ui->assimpAutoOrientCheckBox->isChecked();
 }
 
 void SettingsDialog::on_assimpMaxFaceVerticesSpinBox_valueChanged()
