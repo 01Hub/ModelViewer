@@ -218,42 +218,74 @@ public:
     static GLMaterial BLACK_RUBBER();
     static GLMaterial DEFAULT_MAT();
 
-    // Additional predefined materials for advanced use cases
-    static GLMaterial GLASS();
-    static GLMaterial WATER();
-    static GLMaterial DIAMOND();
-    static GLMaterial CERAMIC();
+	// Sheen materials
     static GLMaterial FABRIC();
-    static GLMaterial SKIN();
-    static GLMaterial PAPER();
+    static GLMaterial VELVET_RED();
+    static GLMaterial SATIN_FABRIC();
+    static GLMaterial MICROFIBER_CLOTH();
+
+	// Wood materials
+    // Wood materials
     static GLMaterial WOOD();
-	static GLMaterial METAL();
-	static GLMaterial PLASTIC();
-	static GLMaterial STONE();
+    static GLMaterial WOOD_BAMBOO();
+    static GLMaterial WOOD_CEDAR();
+    static GLMaterial WOOD_REDWOOD();
+    static GLMaterial WOOD_OAK();
+    static GLMaterial WOOD_PINE();
+    static GLMaterial WOOD_BIRCH();
+    static GLMaterial WOOD_WALNUT();
+    static GLMaterial WOOD_CHERRY();
+    static GLMaterial WOOD_TEAK();
+    static GLMaterial WOOD_MAPLE();
+
 
     // Advanced PBR Materials
     // === CLEARCOAT MATERIALS ===
 	static GLMaterial CAR_PAINT_RED();
 	static GLMaterial CAR_PAINT_METALLIC_BLUE();
+    static GLMaterial CAR_PAINT_WHITE();
+    static GLMaterial CAR_PAINT_METALLIC_GREEN();
+    static GLMaterial CAR_PAINT_PEARL();
+    static GLMaterial MATTE_GREY();
 	static GLMaterial PIANO_BLACK();
-    static GLMaterial VELVET_RED();
-
-    static GLMaterial SATIN_FABRIC();
-    static GLMaterial MICROFIBER_CLOTH();
+    
 
     // === TRANSMISSION MATERIALS ===
+    static GLMaterial GLASS();
     static GLMaterial FROSTED_GLASS();
     static GLMaterial COLORED_GLASS_GREEN();
     static GLMaterial CRYSTAL_QUARTZ();
 
     // === EMISSIVE MATERIALS ===
     static GLMaterial NEON_BLUE();
+	static GLMaterial NEON_GREEN();
+	static GLMaterial NEON_RED();
+	static GLMaterial NEON_YELLOW();    
+    static GLMaterial LED_RED();
+	static GLMaterial LED_GREEN();
+	static GLMaterial LED_BLUE();
+	static GLMaterial LED_YELLOW();
     static GLMaterial LED_WHITE();
 
     // === COMPLEX MATERIALS (Multiple Properties) ===
     static GLMaterial IRIDESCENT_SOAP_BUBBLE();
     static GLMaterial CARBON_FIBER();
     static GLMaterial WET_ASPHALT();
+	//concrete materials
+	static GLMaterial CONCRETE();
+	static GLMaterial CONCRETE_LIGHT();
+	static GLMaterial CONCRETE_DARK();
+	static GLMaterial CONCRETE_POLISHED();
+
+    // Additional predefined materials for advanced use cases    
+    static GLMaterial WATER();
+    static GLMaterial DIAMOND();
+    static GLMaterial CERAMIC();
+    static GLMaterial SKIN();
+    static GLMaterial PAPER();    
+    static GLMaterial METAL();
+    static GLMaterial PLASTIC();
+    static GLMaterial STONE();
 
 
     // Function to create a material with time-varying properties (for animations)

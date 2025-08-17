@@ -66,34 +66,68 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget *parent)
         {"BLACK_RUBBER",    GLMaterial::BLACK_RUBBER},
 		{"WHITE_RUBBER",    GLMaterial::WHITE_RUBBER},
 
-        // Specials
-        {"GLASS",           GLMaterial::GLASS},
-        {"WATER",           GLMaterial::WATER},
-        {"DIAMOND",         GLMaterial::DIAMOND},
-        {"CERAMIC",         GLMaterial::CERAMIC},
+        // Sheen 
         {"FABRIC",          GLMaterial::FABRIC},
-        {"SKIN",            GLMaterial::SKIN},
-        {"PAPER",           GLMaterial::PAPER},
-        {"WOOD",            GLMaterial::WOOD},
+        {"VELVET_RED",      GLMaterial::VELVET_RED},
+        {"SATIN_FABRIC",    GLMaterial::SATIN_FABRIC},
+        {"MICROFIBER_CLOTH",GLMaterial::MICROFIBER_CLOTH},
 
 		// Clearcoat materials
         {"CAR_PAINT_RED",   GLMaterial::CAR_PAINT_RED},
         {"CAR_PAINT_METALLIC_BLUE", GLMaterial::CAR_PAINT_METALLIC_BLUE},
+        {"CAR_PAINT_WHITE", GLMaterial::CAR_PAINT_WHITE},
+        {"CAR_PAINT_METALLIC_GREEN", GLMaterial::CAR_PAINT_METALLIC_GREEN},
+        {"CAR_PAINT_PEARL", GLMaterial::CAR_PAINT_PEARL},
+		{"MATTE_GREY",      GLMaterial::MATTE_GREY},
         {"PIANO_BLACK",     GLMaterial::PIANO_BLACK},
-        {"VELVET_RED",      GLMaterial::VELVET_RED},
-        {"SATIN_FABRIC",    GLMaterial::SATIN_FABRIC},
-        {"MICROFIBER_CLOTH",GLMaterial::MICROFIBER_CLOTH},
+        
         // Transmission materials
+        {"GLASS",           GLMaterial::GLASS},
         {"FROSTED_GLASS",   GLMaterial::FROSTED_GLASS},
         {"COLORED_GLASS_GREEN", GLMaterial::COLORED_GLASS_GREEN},
         {"CRYSTAL_QUARTZ",  GLMaterial::CRYSTAL_QUARTZ},
+
         // Emissive materials
         {"NEON_BLUE",       GLMaterial::NEON_BLUE},
+        {"NEON_GREEN",      GLMaterial::NEON_GREEN},
+        {"NEON_RED",        GLMaterial::NEON_RED},
+        {"NEON_YELLOW",     GLMaterial::NEON_YELLOW},
+        {"LED_RED",         GLMaterial::LED_RED},
+        {"LED_GREEN",       GLMaterial::LED_GREEN},
+        {"LED_BLUE",        GLMaterial::LED_BLUE},
+		{"LED_YELLOW",      GLMaterial::LED_YELLOW},
         {"LED_WHITE",       GLMaterial::LED_WHITE},
+
         // Complex materials
         {"IRIDESCENT_SOAP_BUBBLE", GLMaterial::IRIDESCENT_SOAP_BUBBLE},
         {"CARBON_FIBER",    GLMaterial::CARBON_FIBER},
-		{"WET_ASPHALT",     GLMaterial::WET_ASPHALT}
+		{"WET_ASPHALT",     GLMaterial::WET_ASPHALT},
+
+        // Wood materials
+        {"WOOD",            GLMaterial::WOOD},
+        {"WOOD_BAMBOO",     GLMaterial::WOOD_BAMBOO},
+        {"WOOD_CEDAR",      GLMaterial::WOOD_CEDAR},
+		{"WOOD_REDWOOD",    GLMaterial::WOOD_REDWOOD},
+        {"WOOD_OAK",        GLMaterial::WOOD_OAK},
+        {"WOOD_PINE",       GLMaterial::WOOD_PINE},
+        {"WOOD_BIRCH",      GLMaterial::WOOD_BIRCH},
+        {"WOOD_WALNUT",     GLMaterial::WOOD_WALNUT},
+        {"WOOD_CHERRY",     GLMaterial::WOOD_CHERRY},
+        {"WOOD_TEAK",       GLMaterial::WOOD_TEAK},
+		{"WOOD_MAPLE",      GLMaterial::WOOD_MAPLE},
+
+        // Concrete materials
+        {"CONCRETE",        GLMaterial::CONCRETE},
+        {"CONCRETE_LIGHT",  GLMaterial::CONCRETE_LIGHT},
+        {"CONCRETE_DARK",   GLMaterial::CONCRETE_DARK},
+		{"CONCRETE_POLISHED", GLMaterial::CONCRETE_POLISHED },
+
+        // Specials        
+        {"WATER",           GLMaterial::WATER},
+        {"DIAMOND",         GLMaterial::DIAMOND},
+        {"CERAMIC",         GLMaterial::CERAMIC},
+        {"SKIN",            GLMaterial::SKIN},
+        {"PAPER",           GLMaterial::PAPER},        
     };
 
     populateMaterials();
@@ -136,7 +170,6 @@ void MaterialLibraryWidget::populateMaterials()
 	(new QTreeWidgetItem(metals, QStringList() << "Pewter"))->setData(0, Qt::UserRole, "METAL_PEWTER");
 	(new QTreeWidgetItem(metals, QStringList() << "Tungsten"))->setData(0, Qt::UserRole, "METAL_TUNGSTEN");
 
-
     // --- Stones ---
     QTreeWidgetItem* stones = new QTreeWidgetItem(this, QStringList() << "Stones & Gems");
     (new QTreeWidgetItem(stones, QStringList() << "Marble"))->setData(0, Qt::UserRole, "STONE_MARBLE");
@@ -178,39 +211,77 @@ void MaterialLibraryWidget::populateMaterials()
     (new QTreeWidgetItem(rubbers, QStringList() << "Black Rubber"))->setData(0, Qt::UserRole, "BLACK_RUBBER");
     (new QTreeWidgetItem(rubbers, QStringList() << "White Rubber"))->setData(0, Qt::UserRole, "WHITE_RUBBER");
 
-    // --- Special ---
-    QTreeWidgetItem* special = new QTreeWidgetItem(this, QStringList() << "Special");
-    (new QTreeWidgetItem(special, QStringList() << "Glass"))->setData(0, Qt::UserRole, "GLASS");
-    (new QTreeWidgetItem(special, QStringList() << "Water"))->setData(0, Qt::UserRole, "WATER");
-    (new QTreeWidgetItem(special, QStringList() << "Diamond"))->setData(0, Qt::UserRole, "DIAMOND");
-    (new QTreeWidgetItem(special, QStringList() << "Wood"))->setData(0, Qt::UserRole, "WOOD");
-	(new QTreeWidgetItem(special, QStringList() << "Ceramic"))->setData(0, Qt::UserRole, "CERAMIC");
-	(new QTreeWidgetItem(special, QStringList() << "Fabric"))->setData(0, Qt::UserRole, "FABRIC");
-	(new QTreeWidgetItem(special, QStringList() << "Skin"))->setData(0, Qt::UserRole, "SKIN");
-	(new QTreeWidgetItem(special, QStringList() << "Paper"))->setData(0, Qt::UserRole, "PAPER");
+	// --- Wood materials ---
+	QTreeWidgetItem* wood = new QTreeWidgetItem(this, QStringList() << "Wood Materials");
+    (new QTreeWidgetItem(wood, QStringList() << "Wood"))->setData(0, Qt::UserRole, "WOOD");
+	(new QTreeWidgetItem(wood, QStringList() << "Bamboo"))->setData(0, Qt::UserRole, "WOOD_BAMBOO");
+	(new QTreeWidgetItem(wood, QStringList() << "Cedar"))->setData(0, Qt::UserRole, "WOOD_CEDAR");
+	(new QTreeWidgetItem(wood, QStringList() << "Redwood"))->setData(0, Qt::UserRole, "WOOD_REDWOOD");
+	(new QTreeWidgetItem(wood, QStringList() << "Oak"))->setData(0, Qt::UserRole, "WOOD_OAK");
+	(new QTreeWidgetItem(wood, QStringList() << "Pine"))->setData(0, Qt::UserRole, "WOOD_PINE");
+	(new QTreeWidgetItem(wood, QStringList() << "Birch"))->setData(0, Qt::UserRole, "WOOD_BIRCH");
+	(new QTreeWidgetItem(wood, QStringList() << "Walnut"))->setData(0, Qt::UserRole, "WOOD_WALNUT");
+	(new QTreeWidgetItem(wood, QStringList() << "Cherry"))->setData(0, Qt::UserRole, "WOOD_CHERRY");
+	(new QTreeWidgetItem(wood, QStringList() << "Teak"))->setData(0, Qt::UserRole, "WOOD_TEAK");
+    (new QTreeWidgetItem(wood, QStringList() << "Maple"))->setData(0, Qt::UserRole, "WOOD_MAPLE");
+
+	// --- Concrete materials ---
+	QTreeWidgetItem* concrete = new QTreeWidgetItem(this, QStringList() << "Concrete Materials");
+	(new QTreeWidgetItem(concrete, QStringList() << "Concrete"))->setData(0, Qt::UserRole, "CONCRETE");
+	(new QTreeWidgetItem(concrete, QStringList() << "Concrete Light"))->setData(0, Qt::UserRole, "CONCRETE_LIGHT");
+	(new QTreeWidgetItem(concrete, QStringList() << "Concrete Dark"))->setData(0, Qt::UserRole, "CONCRETE_DARK");
+	(new QTreeWidgetItem(concrete, QStringList() << "Concrete Polished"))->setData(0, Qt::UserRole, "CONCRETE_POLISHED");
+    
+    // --- Advanced PBR Materials ---
+	// --- Sheen materials ---
+    QTreeWidgetItem* sheen = new QTreeWidgetItem(this, QStringList() << "Sheen Materials");
+    (new QTreeWidgetItem(sheen, QStringList() << "Fabric"))->setData(0, Qt::UserRole, "FABRIC");
+    (new QTreeWidgetItem(sheen, QStringList() << "Velvet Red"))->setData(0, Qt::UserRole, "VELVET_RED");
+    (new QTreeWidgetItem(sheen, QStringList() << "Satin Fabric"))->setData(0, Qt::UserRole, "SATIN_FABRIC");
+    (new QTreeWidgetItem(sheen, QStringList() << "Microfiber Cloth"))->setData(0, Qt::UserRole, "MICROFIBER_CLOTH");
 
 	// --- Clearcoat materials ---
 	QTreeWidgetItem* clearcoat = new QTreeWidgetItem(this, QStringList() << "Clearcoat Materials");
 	(new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Red"))->setData(0, Qt::UserRole, "CAR_PAINT_RED");
 	(new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Blue"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_BLUE");
+	(new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint White"))->setData(0, Qt::UserRole, "CAR_PAINT_WHITE");
+	(new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Green"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_GREEN");
+	(new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Pearl"))->setData(0, Qt::UserRole, "CAR_PAINT_PEARL");
+	(new QTreeWidgetItem(clearcoat, QStringList() << "Matte Grey"))->setData(0, Qt::UserRole, "MATTE_GREY");
 	(new QTreeWidgetItem(clearcoat, QStringList() << "Piano Black"))->setData(0, Qt::UserRole, "PIANO_BLACK");
-	(new QTreeWidgetItem(clearcoat, QStringList() << "Velvet Red"))->setData(0, Qt::UserRole, "VELVET_RED");
-	(new QTreeWidgetItem(clearcoat, QStringList() << "Satin Fabric"))->setData(0, Qt::UserRole, "SATIN_FABRIC");
-	(new QTreeWidgetItem(clearcoat, QStringList() << "Microfiber Cloth"))->setData(0, Qt::UserRole, "MICROFIBER_CLOTH");
+	
 	// --- Transmission materials ---
 	QTreeWidgetItem* transmission = new QTreeWidgetItem(this, QStringList() << "Transmission Materials");
+	(new QTreeWidgetItem(transmission, QStringList() << "Glass"))->setData(0, Qt::UserRole, "GLASS");
 	(new QTreeWidgetItem(transmission, QStringList() << "Frosted Glass"))->setData(0, Qt::UserRole, "FROSTED_GLASS");
 	(new QTreeWidgetItem(transmission, QStringList() << "Colored Glass (Green)"))->setData(0, Qt::UserRole, "COLORED_GLASS_GREEN");
 	(new QTreeWidgetItem(transmission, QStringList() << "Crystal Quartz"))->setData(0, Qt::UserRole, "CRYSTAL_QUARTZ");
+
 	// --- Emissive materials ---
 	QTreeWidgetItem* emissive = new QTreeWidgetItem(this, QStringList() << "Emissive Materials");
 	(new QTreeWidgetItem(emissive, QStringList() << "Neon Blue"))->setData(0, Qt::UserRole, "NEON_BLUE");
+	(new QTreeWidgetItem(emissive, QStringList() << "Neon Green"))->setData(0, Qt::UserRole, "NEON_GREEN");
+	(new QTreeWidgetItem(emissive, QStringList() << "Neon Red"))->setData(0, Qt::UserRole, "NEON_RED");
+	(new QTreeWidgetItem(emissive, QStringList() << "Neon Yellow"))->setData(0, Qt::UserRole, "NEON_YELLOW");
+	(new QTreeWidgetItem(emissive, QStringList() << "LED Red"))->setData(0, Qt::UserRole, "LED_RED");
+	(new QTreeWidgetItem(emissive, QStringList() << "LED Green"))->setData(0, Qt::UserRole, "LED_GREEN");
+	(new QTreeWidgetItem(emissive, QStringList() << "LED Blue"))->setData(0, Qt::UserRole, "LED_BLUE");
+	(new QTreeWidgetItem(emissive, QStringList() << "LED Yellow"))->setData(0, Qt::UserRole, "LED_YELLOW");
 	(new QTreeWidgetItem(emissive, QStringList() << "LED White"))->setData(0, Qt::UserRole, "LED_WHITE");
+
 	// --- Complex materials ---
 	QTreeWidgetItem* complex = new QTreeWidgetItem(this, QStringList() << "Complex Materials");
 	(new QTreeWidgetItem(complex, QStringList() << "Iridescent Soap Bubble"))->setData(0, Qt::UserRole, "IRIDESCENT_SOAP_BUBBLE");
 	(new QTreeWidgetItem(complex, QStringList() << "Carbon Fiber"))->setData(0, Qt::UserRole, "CARBON_FIBER");
 	(new QTreeWidgetItem(complex, QStringList() << "Wet Asphalt"))->setData(0, Qt::UserRole, "WET_ASPHALT");
+
+    // --- Special ---
+    QTreeWidgetItem* special = new QTreeWidgetItem(this, QStringList() << "Special");    
+    (new QTreeWidgetItem(special, QStringList() << "Water"))->setData(0, Qt::UserRole, "WATER");
+    (new QTreeWidgetItem(special, QStringList() << "Diamond"))->setData(0, Qt::UserRole, "DIAMOND");    
+    (new QTreeWidgetItem(special, QStringList() << "Ceramic"))->setData(0, Qt::UserRole, "CERAMIC");    
+    (new QTreeWidgetItem(special, QStringList() << "Skin"))->setData(0, Qt::UserRole, "SKIN");
+    (new QTreeWidgetItem(special, QStringList() << "Paper"))->setData(0, Qt::UserRole, "PAPER");
 
 	
     // --- Expand all items ---

@@ -957,6 +957,187 @@ GLMaterial GLMaterial::WOOD()
 	return mat;
 }
 
+GLMaterial GLMaterial::WOOD_BAMBOO()
+{
+	GLMaterial mat({ 0.10f, 0.09f, 0.06f },   // ambient - pale yellow tint
+		{ 0.85f, 0.78f, 0.55f },              // diffuse - light yellowish
+		{ 0.12f, 0.12f, 0.10f },              // specular - low
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.20f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.85f, 0.78f, 0.55f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);
+	mat.setIOR(1.4f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::WOOD_CEDAR()
+{
+	GLMaterial mat({ 0.10f, 0.05f, 0.04f },   // reddish tint
+		{ 0.65f, 0.28f, 0.20f },              // diffuse - warm red-brown
+		{ 0.15f, 0.12f, 0.10f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.25f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.65f, 0.28f, 0.20f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.65f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::WOOD_REDWOOD()
+{
+	GLMaterial mat({ 0.12f, 0.05f, 0.03f },
+		{ 0.72f, 0.25f, 0.18f },              // redder
+		{ 0.15f, 0.12f, 0.10f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.30f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.72f, 0.25f, 0.18f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.65f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::WOOD_OAK()
+{
+	GLMaterial mat({ 0.12f, 0.10f, 0.07f },
+		{ 0.65f, 0.52f, 0.35f },              // warm golden brown
+		{ 0.14f, 0.14f, 0.12f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.22f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.65f, 0.52f, 0.35f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.7f);
+	mat.setIOR(1.42f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::WOOD_PINE()
+{
+	GLMaterial mat({ 0.11f, 0.10f, 0.08f },
+		{ 0.90f, 0.80f, 0.55f },              // pale yellowish
+		{ 0.12f, 0.12f, 0.10f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.18f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.90f, 0.80f, 0.55f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);
+	mat.setIOR(1.39f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::WOOD_BIRCH()
+{
+	GLMaterial mat({ 0.12f, 0.12f, 0.11f },
+		{ 0.95f, 0.87f, 0.70f },              // creamy white
+		{ 0.14f, 0.14f, 0.12f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.20f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.95f, 0.87f, 0.70f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.65f);
+	mat.setIOR(1.39f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::WOOD_WALNUT()
+{
+	GLMaterial mat({ 0.08f, 0.06f, 0.05f },
+		{ 0.35f, 0.22f, 0.12f },              // dark brown
+		{ 0.12f, 0.12f, 0.10f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.28f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.35f, 0.22f, 0.12f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.7f);
+	mat.setIOR(1.46f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::WOOD_CHERRY()
+{
+	GLMaterial mat({ 0.10f, 0.06f, 0.05f },
+		{ 0.70f, 0.30f, 0.25f },              // reddish brown
+		{ 0.15f, 0.12f, 0.10f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.26f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.70f, 0.30f, 0.25f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.65f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::WOOD_TEAK()
+{
+	GLMaterial mat({ 0.10f, 0.08f, 0.05f },
+		{ 0.55f, 0.38f, 0.20f },              // golden medium brown
+		{ 0.14f, 0.12f, 0.10f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.24f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.55f, 0.38f, 0.20f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.65f);
+	mat.setIOR(1.44f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::WOOD_MAPLE()
+{
+	GLMaterial mat({ 0.12f, 0.11f, 0.09f },
+		{ 0.88f, 0.77f, 0.58f },              // light creamy brown
+		{ 0.14f, 0.14f, 0.12f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.22f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.88f, 0.77f, 0.58f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);
+	mat.setIOR(1.41f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+
 GLMaterial GLMaterial::METAL()
 {
 	GLMaterial mat({ 0.04f, 0.04f, 0.04f },         // ambient - low for metal
@@ -1062,6 +1243,87 @@ GLMaterial GLMaterial::CAR_PAINT_METALLIC_BLUE()
 
 	return mat;
 }
+
+GLMaterial GLMaterial::CAR_PAINT_WHITE()
+{
+	GLMaterial mat({ 0.15f, 0.15f, 0.15f },          // ambient - neutral gray
+		{ 0.95f, 0.95f, 0.95f },                     // diffuse - bright white
+		{ 0.45f, 0.45f, 0.45f },                     // specular - strong gloss
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.9f),                         // shiny
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.95f, 0.95f, 0.95f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.25f);
+	mat.setClearcoat(1.0f);                          // full clearcoat
+	mat.setClearcoatRoughness(0.1f);                 // smooth glossy clearcoat
+	mat.setIOR(1.5f);                                // typical for car paints
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_METALLIC_GREEN()
+{
+	GLMaterial mat({ 0.08f, 0.10f, 0.08f },
+		{ 0.05f, 0.55f, 0.20f },                     // diffuse - metallic green tint
+		{ 0.40f, 0.45f, 0.40f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.85f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.05f, 0.55f, 0.20f));
+	mat.setMetalness(0.3f);                          // metallic flakes effect
+	mat.setRoughness(0.35f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.12f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_PEARL()
+{
+	GLMaterial mat({ 0.15f, 0.14f, 0.13f },
+		{ 0.92f, 0.92f, 0.85f },                     // diffuse - off-white pearl
+		{ 0.50f, 0.48f, 0.45f },                     // strong gloss
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.9f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.92f, 0.92f, 0.85f));
+	mat.setMetalness(0.2f);                          // pearlescent layer acts semi-metallic
+	mat.setRoughness(0.25f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.08f);                // very glossy
+	mat.setIOR(1.52f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::MATTE_GREY()
+{
+	GLMaterial mat({ 0.12f, 0.12f, 0.12f },
+		{ 0.45f, 0.45f, 0.45f },                     // diffuse - medium grey
+		{ 0.15f, 0.15f, 0.15f },                     // weak specular
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.25f),                        // not shiny
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.45f, 0.45f, 0.45f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.85f);                         // matte
+	mat.setClearcoat(1.0f);                          // matte clearcoat still exists
+	mat.setClearcoatRoughness(0.8f);                 // very rough clearcoat -> matte look
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
 
 GLMaterial GLMaterial::PIANO_BLACK()
 {
@@ -1244,6 +1506,139 @@ GLMaterial GLMaterial::NEON_BLUE()
 	return mat;
 }
 
+GLMaterial GLMaterial::NEON_GREEN()
+{
+	GLMaterial mat({ 0.05f, 0.4f, 0.05f },          // ambient - green glow
+		{ 0.2f, 0.8f, 0.2f },             // diffuse - bright green
+		{ 0.8f, 1.0f, 0.8f },             // specular
+		{ 0.1f, 1.0f, 0.1f },             // emissive - bright green emission
+		fabs(128.0f * 0.7f),              // shininess
+		false,                            // metallic
+		0.9f);                           // opacity
+	mat.setAlbedoColor(QVector3D(0.3f, 1.0f, 0.3f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.2f);
+	mat.setEmissiveStrength(3.0f);                   // Strong emission for HDR
+	mat.setIOR(1.46f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::NEON_RED()
+{
+	GLMaterial mat({ 0.4f, 0.05f, 0.05f },          // ambient - red glow
+		{ 0.8f, 0.2f, 0.2f },             // diffuse - bright red
+		{ 1.0f, 0.8f, 0.8f },             // specular
+		{ 1.0f, 0.1f, 0.1f },             // emissive - bright red emission
+		fabs(128.0f * 0.7f),              // shininess
+		false,                            // metallic
+		0.9f);                           // opacity
+	mat.setAlbedoColor(QVector3D(1.0f, 0.3f, 0.3f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.2f);
+	mat.setEmissiveStrength(3.0f);                   // Strong emission for HDR
+	mat.setIOR(1.46f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::NEON_YELLOW()
+{
+	GLMaterial mat({ 0.4f, 0.4f, 0.05f },          // ambient - yellow glow
+		{ 0.8f, 0.8f, 0.2f },             // diffuse - bright yellow
+		{ 1.0f, 1.0f, 0.8f },             // specular
+		{ 1.0f, 1.0f, 0.1f },             // emissive - bright yellow emission
+		fabs(128.0f * 0.7f),              // shininess
+		false,                            // metallic
+		0.9f);                           // opacity
+	mat.setAlbedoColor(QVector3D(1.0f, 1.0f, 0.3f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.2f);
+	mat.setEmissiveStrength(3.0f);                   // Strong emission for HDR
+	mat.setIOR(1.46f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::LED_BLUE()
+{
+	GLMaterial mat({ 0.2f, 0.2f, 0.2f },            // ambient
+		{ 0.8f, 0.8f, 1.0f },             // diffuse - bright blue
+		{ 0.9f, 0.9f, 1.0f },             // specular
+		{ 0.1f, 0.1f, 1.0f },             // emissive - bright blue emission
+		fabs(128.0f * 0.8f),              // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
+	mat.setAlbedoColor(QVector3D(0.3f, 0.3f, 1.0f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.1f);
+	mat.setEmissiveStrength(5.0f);                   // Very bright for LED
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::LED_GREEN()
+{
+	GLMaterial mat({ 0.2f, 0.2f, 0.2f },            // ambient
+		{ 0.8f, 1.0f, 0.8f },             // diffuse - bright green
+		{ 0.9f, 1.0f, 0.9f },             // specular
+		{ 0.1f, 1.0f, 0.1f },             // emissive - bright green emission
+		fabs(128.0f * 0.8f),              // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
+	mat.setAlbedoColor(QVector3D(0.3f, 1.0f, 0.3f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.1f);
+	mat.setEmissiveStrength(5.0f);                   // Very bright for LED
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::LED_RED()
+{
+	GLMaterial mat({ 0.2f, 0.2f, 0.2f },            // ambient
+		{ 0.8f, 0.4f, 0.4f },             // diffuse - bright red
+		{ 1.0f, 0.6f, 0.6f },             // specular
+		{ 1.0f, 0.1f, 0.1f },             // emissive - bright red emission
+		fabs(128.0f * 0.8f),              // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
+	mat.setAlbedoColor(QVector3D(1.0f, 0.3f, 0.3f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.1f);
+	mat.setEmissiveStrength(5.0f);                   // Very bright for LED
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::LED_YELLOW()
+{
+	GLMaterial mat({ 0.2f, 0.2f, 0.2f },            // ambient
+		{ 0.8f, 0.8f, 0.4f },             // diffuse - bright yellow
+		{ 0.9f, 0.9f, 0.6f },             // specular
+		{ 1.0f, 1.0f, 0.1f },             // emissive - bright yellow emission
+		fabs(128.0f * 0.8f),              // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
+	mat.setAlbedoColor(QVector3D(1.0f, 1.0f, 0.3f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.1f);
+	mat.setEmissiveStrength(5.0f);                   // Very bright for LED
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
 GLMaterial GLMaterial::LED_WHITE()
 {
 	GLMaterial mat({ 0.2f, 0.2f, 0.2f },            // ambient
@@ -1334,6 +1729,79 @@ GLMaterial GLMaterial::WET_ASPHALT()
 
 	return mat;
 }
+
+GLMaterial GLMaterial::CONCRETE()
+{
+	GLMaterial mat({ 0.08f, 0.08f, 0.08f },   // ambient - neutral gray
+		{ 0.55f, 0.55f, 0.55f },              // diffuse - medium gray
+		{ 0.10f, 0.10f, 0.10f },              // specular - low reflectivity
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.20f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.55f, 0.55f, 0.55f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.85f);
+	mat.setIOR(1.52f);                        // typical cement IOR
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CONCRETE_LIGHT()
+{
+	GLMaterial mat({ 0.09f, 0.09f, 0.09f },
+		{ 0.75f, 0.75f, 0.75f },              // lighter gray
+		{ 0.12f, 0.12f, 0.12f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.18f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.75f, 0.75f, 0.75f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.8f);
+	mat.setIOR(1.52f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CONCRETE_DARK()
+{
+	GLMaterial mat({ 0.06f, 0.06f, 0.06f },
+		{ 0.30f, 0.30f, 0.30f },              // darker gray
+		{ 0.08f, 0.08f, 0.08f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.22f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.30f, 0.30f, 0.30f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setIOR(1.52f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CONCRETE_POLISHED()
+{
+	GLMaterial mat({ 0.08f, 0.08f, 0.08f },
+		{ 0.60f, 0.60f, 0.60f },              // medium-light gray
+		{ 0.25f, 0.25f, 0.25f },              // stronger highlights
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.60f),                 // much shinier
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.60f, 0.60f, 0.60f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.4f);                   // smoother due to polish
+	mat.setIOR(1.52f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
 
 GLMaterial GLMaterial::STONE_GRANITE()
 {
