@@ -375,6 +375,44 @@ GLMaterial GLMaterial::METAL_STEEL()
 	return mat;
 }
 
+// ----------------- Brushed Metals -----------------
+GLMaterial GLMaterial::BRUSHED_ALUMINUM()
+{
+	GLMaterial mat({ 0.06f, 0.06f, 0.06f },      // ambient
+		{ 0.7f, 0.7f, 0.7f },         // diffuse
+		{ 0.5f, 0.5f, 0.5f },         // specular
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.6f),
+		true, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.7f, 0.7f, 0.7f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.35f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::BRUSHED_STEEL()
+{
+	GLMaterial mat({ 0.05f, 0.05f, 0.05f },
+		{ 0.55f, 0.55f, 0.55f },
+		{ 0.45f, 0.45f, 0.45f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.55f),
+		true, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.55f, 0.55f, 0.55f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.45f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+// --------------------- Stone Materials ---------------------
 GLMaterial GLMaterial::STONE_RUBY()
 {
 	GLMaterial mat({ 0.17450f, 0.01175f, 0.01175f },
@@ -1415,8 +1453,117 @@ GLMaterial GLMaterial::MICROFIBER_CLOTH()
 	return mat;
 }
 
-// === TRANSMISSION MATERIALS ===
+// ----------------- Leather Materials -----------------
+GLMaterial GLMaterial::LEATHER_BLACK()
+{
+	GLMaterial mat({ 0.03f, 0.03f, 0.03f },
+		{ 0.12f, 0.12f, 0.12f },
+		{ 0.2f, 0.2f, 0.2f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.3f),
+		false, 1.0f);
 
+	mat.setAlbedoColor(QVector3D(0.12f, 0.12f, 0.12f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.55f);
+	mat.setIOR(1.48f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::LEATHER_BROWN()
+{
+	GLMaterial mat({ 0.05f, 0.03f, 0.02f },
+		{ 0.35f, 0.22f, 0.15f },
+		{ 0.2f, 0.2f, 0.2f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.28f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.35f, 0.22f, 0.15f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.50f);
+	mat.setIOR(1.48f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::LEATHER_RED()
+{
+	GLMaterial mat({ 0.08f, 0.02f, 0.02f },
+		{ 0.55f, 0.18f, 0.18f },
+		{ 0.2f, 0.2f, 0.2f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.28f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.55f, 0.18f, 0.18f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.52f);
+	mat.setIOR(1.48f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::LEATHER_WHITE()
+{
+	GLMaterial mat({ 0.10f, 0.10f, 0.10f },
+		{ 0.85f, 0.85f, 0.85f },
+		{ 0.2f, 0.2f, 0.2f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.3f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.85f, 0.85f, 0.85f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.50f);
+	mat.setIOR(1.48f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::LEATHER_OXBLOOD()
+{
+	GLMaterial mat({ 0.07f, 0.02f, 0.03f },
+		{ 0.45f, 0.10f, 0.12f },
+		{ 0.2f, 0.2f, 0.2f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.28f),
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.45f, 0.10f, 0.12f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.50f);
+	mat.setIOR(1.48f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::LEATHER_TAN()
+{
+	GLMaterial mat({ 0.06f, 0.04f, 0.02f },          // ambient - warm brown
+		{ 0.60f, 0.40f, 0.25f },          // diffuse - tan color
+		{ 0.2f, 0.2f, 0.2f },             // specular - soft highlights
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.28f),           // moderate shininess
+		false, 1.0f);
+
+	mat.setAlbedoColor(QVector3D(0.60f, 0.40f, 0.25f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.50f);                        // slightly smoother than black/brown leather
+	mat.setIOR(1.48f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+
+// === TRANSMISSION MATERIALS ===
 GLMaterial GLMaterial::FROSTED_GLASS()
 {
 	GLMaterial mat({ 0.05f, 0.05f, 0.05f },         // ambient

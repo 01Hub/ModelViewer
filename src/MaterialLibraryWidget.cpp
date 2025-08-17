@@ -28,6 +28,10 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget *parent)
         {"METAL_PEWTER",    GLMaterial::METAL_PEWTER},
 		{"METAL_TUNGSTEN",  GLMaterial::METAL_TUNGSTEN},
 
+        // Brushed metals
+        {"BRUSHED_ALUMINUM", GLMaterial::BRUSHED_ALUMINUM},
+		{"BRUSHED_STEEL",    GLMaterial::BRUSHED_STEEL},
+
         // Stones & gems
         {"STONE_MARBLE",    GLMaterial::STONE_MARBLE},
         {"STONE_GRANITE",   GLMaterial::STONE_GRANITE},
@@ -71,6 +75,14 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget *parent)
         {"VELVET_RED",      GLMaterial::VELVET_RED},
         {"SATIN_FABRIC",    GLMaterial::SATIN_FABRIC},
         {"MICROFIBER_CLOTH",GLMaterial::MICROFIBER_CLOTH},
+
+        // Leather materials
+        {"LEATHER_BLACK",   GLMaterial::LEATHER_BLACK},
+        {"LEATHER_BROWN",   GLMaterial::LEATHER_BROWN},
+        {"LEATHER_RED",     GLMaterial::LEATHER_RED},
+        {"LEATHER_WHITE",   GLMaterial::LEATHER_WHITE},
+        {"LEATHER_OXBLOOD", GLMaterial::LEATHER_OXBLOOD},
+        {"LEATHER_TAN",     GLMaterial::LEATHER_TAN},		
 
 		// Clearcoat materials
         {"CAR_PAINT_RED",   GLMaterial::CAR_PAINT_RED},
@@ -170,6 +182,11 @@ void MaterialLibraryWidget::populateMaterials()
 	(new QTreeWidgetItem(metals, QStringList() << "Pewter"))->setData(0, Qt::UserRole, "METAL_PEWTER");
 	(new QTreeWidgetItem(metals, QStringList() << "Tungsten"))->setData(0, Qt::UserRole, "METAL_TUNGSTEN");
 
+	// --- Brushed Metals ---
+	QTreeWidgetItem* brushedMetals = new QTreeWidgetItem(this, QStringList() << "Brushed Metals");
+	(new QTreeWidgetItem(brushedMetals, QStringList() << "Brushed Aluminum"))->setData(0, Qt::UserRole, "BRUSHED_ALUMINUM");
+	(new QTreeWidgetItem(brushedMetals, QStringList() << "Brushed Steel"))->setData(0, Qt::UserRole, "BRUSHED_STEEL");
+
     // --- Stones ---
     QTreeWidgetItem* stones = new QTreeWidgetItem(this, QStringList() << "Stones & Gems");
     (new QTreeWidgetItem(stones, QStringList() << "Marble"))->setData(0, Qt::UserRole, "STONE_MARBLE");
@@ -239,6 +256,15 @@ void MaterialLibraryWidget::populateMaterials()
     (new QTreeWidgetItem(sheen, QStringList() << "Velvet Red"))->setData(0, Qt::UserRole, "VELVET_RED");
     (new QTreeWidgetItem(sheen, QStringList() << "Satin Fabric"))->setData(0, Qt::UserRole, "SATIN_FABRIC");
     (new QTreeWidgetItem(sheen, QStringList() << "Microfiber Cloth"))->setData(0, Qt::UserRole, "MICROFIBER_CLOTH");
+
+	// --- Leather materials ---
+	QTreeWidgetItem* leather = new QTreeWidgetItem(this, QStringList() << "Leather Materials");
+	(new QTreeWidgetItem(leather, QStringList() << "Leather Black"))->setData(0, Qt::UserRole, "LEATHER_BLACK");
+	(new QTreeWidgetItem(leather, QStringList() << "Leather Brown"))->setData(0, Qt::UserRole, "LEATHER_BROWN");
+	(new QTreeWidgetItem(leather, QStringList() << "Leather Red"))->setData(0, Qt::UserRole, "LEATHER_RED");
+	(new QTreeWidgetItem(leather, QStringList() << "Leather White"))->setData(0, Qt::UserRole, "LEATHER_WHITE");
+	(new QTreeWidgetItem(leather, QStringList() << "Leather Oxblood"))->setData(0, Qt::UserRole, "LEATHER_OXBLOOD");
+	(new QTreeWidgetItem(leather, QStringList() << "Leather Tan"))->setData(0, Qt::UserRole, "LEATHER_TAN");
 
 	// --- Clearcoat materials ---
 	QTreeWidgetItem* clearcoat = new QTreeWidgetItem(this, QStringList() << "Clearcoat Materials");

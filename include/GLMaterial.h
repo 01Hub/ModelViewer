@@ -182,6 +182,10 @@ public:
     static GLMaterial METAL_CHROME();
 	static GLMaterial METAL_STEEL();
 
+    // Brushed metals
+    static GLMaterial BRUSHED_ALUMINUM();
+    static GLMaterial BRUSHED_STEEL();
+    
     // Stone materials
     static GLMaterial STONE_RUBY();
     static GLMaterial STONE_EMERALD();
@@ -223,6 +227,14 @@ public:
     static GLMaterial VELVET_RED();
     static GLMaterial SATIN_FABRIC();
     static GLMaterial MICROFIBER_CLOTH();
+
+    // Leather finishes
+    static GLMaterial LEATHER_BLACK();
+    static GLMaterial LEATHER_BROWN();
+    static GLMaterial LEATHER_RED();
+    static GLMaterial LEATHER_WHITE();
+    static GLMaterial LEATHER_OXBLOOD();
+    static GLMaterial LEATHER_TAN();
 
 	// Wood materials
     // Wood materials
