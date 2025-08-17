@@ -81,6 +81,18 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget *parent)
 
     connect(this, &QTreeWidget::itemClicked,
         this, &MaterialLibraryWidget::onItemClicked);
+	// connect when user selects a material using arrow keys
+    connect(this, &QTreeWidget::itemSelectionChanged,
+        this, [this]() {
+            if (selectedItems().isEmpty()) return;
+            QTreeWidgetItem* item = selectedItems().first();
+            if (item) {
+                QString key = item->data(0, Qt::UserRole).toString();
+                if (materialMap.contains(key)) {
+                    emit materialSelected(materialMap[key]());
+                }
+            }
+		});
 }
 
 void MaterialLibraryWidget::populateMaterials()
