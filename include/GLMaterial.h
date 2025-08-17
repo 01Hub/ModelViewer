@@ -202,14 +202,18 @@ public:
 	// Some colored plastic and rubber materials
     static GLMaterial RED_PLASTIC();
     static GLMaterial GREEN_PLASTIC();
+	static GLMaterial BLUE_PLASTIC();
     static GLMaterial CYAN_PLASTIC();
     static GLMaterial YELLOW_PLASTIC();
+	static GLMaterial MAGENTA_PLASTIC();
     static GLMaterial WHITE_PLASTIC();
     static GLMaterial BLACK_PLASTIC();
     static GLMaterial RED_RUBBER();
     static GLMaterial GREEN_RUBBER();
+	static GLMaterial BLUE_RUBBER();
     static GLMaterial CYAN_RUBBER();
     static GLMaterial YELLOW_RUBBER();
+	static GLMaterial MAGENTA_RUBBER();
     static GLMaterial WHITE_RUBBER();
     static GLMaterial BLACK_RUBBER();
     static GLMaterial DEFAULT_MAT();

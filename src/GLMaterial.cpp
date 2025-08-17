@@ -492,6 +492,23 @@ GLMaterial GLMaterial::GREEN_PLASTIC()
     return mat;
 }
 
+GLMaterial GLMaterial::BLUE_PLASTIC()
+{	
+    GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+        { 0.0f, 0.0f, 0.5f },
+        { 0.6f, 0.6f, 0.7f },
+        { 0.0, 0.0, 0.0 },
+        fabs(128.0 * 0.25),
+        false,
+        1.0f);
+    mat.setAlbedoColor(QVector3D(0.1f, 0.1f, 0.8f));
+    mat.setMetalness(0.0f);
+    mat.setRoughness(0.6f);
+    mat.setShadingModel(ShadingModel::PBR);
+    mat.setIOR(1.46f);
+	return mat;
+}
+
 GLMaterial GLMaterial::CYAN_PLASTIC()
 {
     GLMaterial mat({ 0.0f, 0.1f, 0.06f },
@@ -528,6 +545,23 @@ GLMaterial GLMaterial::YELLOW_PLASTIC()
     mat.setIOR(1.46f);
 
     return mat;
+}
+
+GLMaterial GLMaterial::MAGENTA_PLASTIC()
+{
+    GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+        { 0.5f, 0.0f, 0.5f },
+        { 0.6f, 0.5f, 0.6f },
+        { 0.0, 0.0, 0.0 },
+        fabs(128.0 * 0.25),
+        false,
+        1.0f);
+    mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.8f));
+    mat.setMetalness(0.0f);
+    mat.setRoughness(0.6f);
+    mat.setShadingModel(ShadingModel::PBR);
+    mat.setIOR(1.46f);
+	return mat;
 }
 
 GLMaterial GLMaterial::WHITE_PLASTIC()
@@ -607,6 +641,23 @@ GLMaterial GLMaterial::GREEN_RUBBER()
     return mat;
 }
 
+GLMaterial GLMaterial::BLUE_RUBBER()
+{
+    GLMaterial mat({ 0.0f, 0.0f, 0.05f },
+        { 0.4f, 0.4f, 0.5f },
+        { 0.04f, 0.04f, 0.7f },
+        { 0.0, 0.0, 0.0 },
+        fabs(128.0 * 0.078125f),
+        false,
+        1.0f);
+    mat.setAlbedoColor(QVector3D(0.1f, 0.1f, 0.8f));
+    mat.setMetalness(0.0f);
+    mat.setRoughness(0.9f);
+    mat.setShadingModel(ShadingModel::PBR);
+    mat.setIOR(1.52f);
+	return mat;
+}
+
 GLMaterial GLMaterial::CYAN_RUBBER()
 {
     GLMaterial mat({ 0.0f, 0.05f, 0.05f },
@@ -643,6 +694,23 @@ GLMaterial GLMaterial::YELLOW_RUBBER()
     mat.setIOR(1.52f);
 
     return mat;
+}
+
+GLMaterial GLMaterial::MAGENTA_RUBBER()
+{
+    GLMaterial mat({ 0.05f, 0.0f, 0.05f },
+        { 0.5f, 0.4f, 0.5f },
+        { 0.7f, 0.04f, 0.7f },
+        { 0.0, 0.0, 0.0 },
+        fabs(128.0 * 0.078125f),
+        false,
+        1.0f);
+    mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.8f));
+    mat.setMetalness(0.0f);
+    mat.setRoughness(0.9f);
+    mat.setShadingModel(ShadingModel::PBR);
+    mat.setIOR(1.52f);
+	return mat;
 }
 
 GLMaterial GLMaterial::WHITE_RUBBER()
