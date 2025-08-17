@@ -59,22 +59,116 @@ void MaterialPreviewWidget::initializeGL()
         uniform float uRoughness;
         uniform float uOpacity;
 
-        void main() {
+        // Advanced PBR (simplified preview versions)
+        uniform float uClearcoat;
+        uniform float uClearcoatRoughness;
+        uniform vec3  uSheenColor;
+        uniform float uSheenRoughness;
+        uniform float uTransmission;
+        uniform float uIOR;
+        uniform float uSpecular;
+
+        void main()
+        {
             vec3 N = normalize(vNormal);
-            vec3 L = normalize(vec3(0.3,0.6,0.8));
             vec3 V = normalize(uCamPos - vPos);
 
-            float NdotL = max(dot(N,L),0.0);
-            vec3 diffuse = uAlbedo * NdotL;
+            // --- Simple 3-light rig ---
+            vec3 L1 = normalize(vec3( 0.5,  0.7, 0.5));
+            vec3 L2 = normalize(vec3(-0.4,  0.3, 0.7));
+            vec3 L3 = normalize(vec3( 0.0, -0.8, 0.6));
+            vec3 lights[3] = {L1, L2, L3};
+            vec3 lightColors[3] = {
+                vec3(1.0, 1.0, 1.0),
+                vec3(0.6, 0.6, 0.7),
+                vec3(0.4, 0.4, 0.5)
+            };
 
-            vec3 H = normalize(L+V);
-            float NdotH = max(dot(N,H),0.0);
-            float shininess = mix(8.0, 128.0, 1.0 - uRoughness);
-            float spec = pow(NdotH, shininess);
-            vec3 specular = mix(vec3(0.04), uAlbedo, uMetalness) * spec;
+            // --- Metal vs dielectric base colors ---
+            vec3 diffuseColor;
+            vec3 specularColor;
 
-            vec3 color = diffuse + specular;
-            FragColor = vec4(color, uOpacity);
+            if (uMetalness > 0.5) {
+                diffuseColor = vec3(0.0);          // metals: no diffuse
+                specularColor = uAlbedo;           // metals: reflection tinted by albedo
+            } else {
+                diffuseColor = uAlbedo;            // dielectrics: diffuse albedo
+                specularColor = vec3(0.04);        // dielectrics: constant specular
+            }
+
+            vec3 color = vec3(0.0);
+
+            // --- Loop over lights ---
+            for (int i = 0; i < 3; i++) {
+                vec3 L = lights[i];
+                vec3 H = normalize(V + L);
+
+                float NdotL = max(dot(N, L), 0.0);
+                float NdotH = max(dot(N, H), 0.0);
+
+                // Simple specular (Blinn-Phong-like)
+                float specPow = mix(8.0, 128.0, 1.0 - uRoughness);
+                float specFactor = pow(NdotH, specPow);
+
+                vec3 diffuse = diffuseColor * NdotL;
+                vec3 spec = specularColor * specFactor;
+
+                color += (diffuse + spec) * lightColors[i] * NdotL;
+            }
+
+            // --- Ambient fallback ---
+            vec3 ambient;
+            if (uMetalness > 0.5) {
+                ambient = uAlbedo * 0.1;   // faint tinted reflection for metals
+            } else {
+                ambient = uAlbedo * 0.2;   // diffuse fill for dielectrics
+            }
+            color += ambient;
+
+            // --- Clearcoat ---
+            if (uClearcoat > 0.001) {
+                vec3 Hc = normalize(V + L1);
+                float ccSpec = pow(max(dot(N, Hc), 0.0),
+                                   mix(64.0, 512.0, 1.0 - uClearcoatRoughness));
+                color += vec3(0.25) * uClearcoat * ccSpec;
+            }
+
+            // --- Sheen ---
+            if (length(uSheenColor) > 0.001) {
+                float NdotV = max(dot(N, V), 0.0);
+                float sheen = pow(1.0 - NdotV, 2.0);
+                color += uSheenColor * sheen * 0.5;
+            }
+
+            // --- Transmission (simplified glassy look) ---
+            if (uTransmission > 0.001) {
+                vec3 glassTint = mix(uAlbedo, vec3(1.0),
+                                     clamp((uIOR - 1.0) * 0.3, 0.0, 1.0));
+                color = mix(color, glassTint, uTransmission);
+            }
+
+           // --- Rim lighting (edge glow) ---
+            // View and normal are already available (V, N)
+            float rim = 1.0 - max(dot(N, V), 0.0);
+            rim = pow(rim, 2.0);                // Sharpen falloff
+            //vec3 rimColor = vec3(0.25, 0.25, 0.3) * rim * 0.6; // cool subtle tint
+            vec3 rimColor = uAlbedo * rim * 0.2; // or the material's albedo
+
+            color += rimColor;
+
+            // --- Final brightness boost ---
+            if (uMetalness > 0.5) {
+                color *= 2.5;
+            } else {
+                color *= 1.1; // Slightly brighter for dielectrics
+            }
+
+            float edge = max(dot(N, V), 0.0);
+            float smoothEdge = smoothstep(0.0, 0.05, edge); // fade out last 5% near rim
+
+
+
+            FragColor = vec4(color, 1.0) * smoothEdge;
         }
     )");
 
@@ -96,6 +190,9 @@ void MaterialPreviewWidget::paintGL()
     glClearColor(0.15f,0.15f,0.18f,1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
     shader.bind();
 
     QMatrix4x4 model;
@@ -114,6 +211,24 @@ void MaterialPreviewWidget::paintGL()
     shader.setUniformValue("uMetalness", currentMaterial.metalness());
     shader.setUniformValue("uRoughness", currentMaterial.roughness());
     shader.setUniformValue("uOpacity", currentMaterial.opacity());
+    shader.setUniformValue("uClearcoat", currentMaterial.clearcoat());
+    shader.setUniformValue("uClearcoatRoughness", currentMaterial.clearcoatRoughness());
+    shader.setUniformValue("uSheenColor", currentMaterial.sheenColor());
+    shader.setUniformValue("uSheenRoughness", currentMaterial.sheenRoughness());
+    shader.setUniformValue("uTransmission", currentMaterial.transmission());
+    shader.setUniformValue("uIOR", currentMaterial.ior());
+    shader.setUniformValue("uSpecular", currentMaterial.specular());
+
+	// Set up simple lighting
+    shader.setUniformValue("uLights[0].position", QVector3D(3.0f, 3.0f, 3.0f));
+    shader.setUniformValue("uLights[0].color", QVector3D(1.0f, 1.0f, 1.0f));
+
+    shader.setUniformValue("uLights[1].position", QVector3D(-3.0f, 3.0f, 1.0f));
+    shader.setUniformValue("uLights[1].color", QVector3D(0.8f, 0.8f, 0.8f));
+
+    shader.setUniformValue("uLights[2].position", QVector3D(0.0f, -3.0f, 2.0f));
+    shader.setUniformValue("uLights[2].color", QVector3D(0.6f, 0.6f, 0.6f));
+
 
     glBindVertexArray(vao);
     glDrawElements(GL_TRIANGLES, indexCount, GL_UNSIGNED_INT, 0);
@@ -124,8 +239,8 @@ void MaterialPreviewWidget::paintGL()
 
 void MaterialPreviewWidget::initSphereMesh()
 {
-    const int X_SEGMENTS = 32;
-    const int Y_SEGMENTS = 16;
+    const int X_SEGMENTS = 64;
+    const int Y_SEGMENTS = 64;
 
     std::vector<float> vertices;
     std::vector<unsigned int> indices;
