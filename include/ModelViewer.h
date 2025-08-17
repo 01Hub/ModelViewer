@@ -114,30 +114,7 @@ private slots:
 	void on_sliderLightPosZ_valueChanged(int);
 	void on_sliderTransparency_valueChanged(int value);
 	void on_sliderShine_valueChanged(int value);
-	void on_pushButtonBrass_clicked();
-	void on_pushButtonBronze_clicked();
-	void on_pushButtonCopper_clicked();
-	void on_pushButtonGold_clicked();
-	void on_pushButtonSilver_clicked();
-	void on_pushButtonRuby_clicked();
-	void on_pushButtonEmerald_clicked();
-	void on_pushButtonTurquoise_clicked();
-	void on_pushButtonJade_clicked();
-	void on_pushButtonObsidian_clicked();
-	void on_pushButtonPearl_clicked();
-	void on_pushButtonChrome_clicked();
-	void on_pushButtonBlackPlastic_clicked();
-	void on_pushButtonCyanPlastic_clicked();
-	void on_pushButtonGreenPlastic_clicked();
-	void on_pushButtonRedPlastic_clicked();
-	void on_pushButtonWhitePlastic_clicked();
-	void on_pushButtonYellowPlastic_clicked();
-	void on_pushButtonBlackRubber_clicked();
-	void on_pushButtonCyanRubber_clicked();
-	void on_pushButtonGreenRubber_clicked();
-	void on_pushButtonRedRubber_clicked();
-	void on_pushButtonWhiteRubber_clicked();
-	void on_pushButtonYellowRubber_clicked();
+
 	void onFileImport();
 	void onFileExport();
 	
