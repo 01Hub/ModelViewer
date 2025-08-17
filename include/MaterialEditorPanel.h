@@ -29,6 +29,14 @@ private:
     QDoubleSpinBox *metalnessSpin;
     QDoubleSpinBox *roughnessSpin;
     QDoubleSpinBox *opacitySpin;
+	QDoubleSpinBox* iorSpin;
+	QDoubleSpinBox* clearcoatSpin;
+	QDoubleSpinBox* clearcoatRoughnessSpin;
+	QPushButton* sheenColorButton;
+	QDoubleSpinBox* sheenRoughnessSpin;
+	QDoubleSpinBox* transmissionSpin;
+	QDoubleSpinBox* alphaThresholdSpin;
+
     QComboBox *shadingCombo;
     QComboBox *blendCombo;
     QCheckBox *twoSidedCheck;
