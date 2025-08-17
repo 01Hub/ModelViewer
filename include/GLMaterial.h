@@ -238,6 +238,7 @@ private:
     void setAlbedoFromADS();
     void updateConsistency(); // Ensure consistency between legacy and PBR properties
     void clampValues(); // Ensure all values are within valid ranges
+	void ensureADSConsistency(); // Ensure ambient, diffuse, specular are consistent with albedo
 
 private:
     // Legacy Phong/Blinn properties
