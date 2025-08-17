@@ -231,6 +231,44 @@ public:
 	static GLMaterial PLASTIC();
 	static GLMaterial STONE();
 
+    // Advanced PBR Materials
+    // === CLEARCOAT MATERIALS ===
+	static GLMaterial CAR_PAINT_RED();
+	static GLMaterial CAR_PAINT_METALLIC_BLUE();
+	static GLMaterial PIANO_BLACK();
+    static GLMaterial VELVET_RED();
+
+    static GLMaterial SATIN_FABRIC();
+    static GLMaterial MICROFIBER_CLOTH();
+
+    // === TRANSMISSION MATERIALS ===
+    static GLMaterial FROSTED_GLASS();
+    static GLMaterial COLORED_GLASS_GREEN();
+    static GLMaterial CRYSTAL_QUARTZ();
+
+    // === EMISSIVE MATERIALS ===
+    static GLMaterial NEON_BLUE();
+    static GLMaterial LED_WHITE();
+
+    // === COMPLEX MATERIALS (Multiple Properties) ===
+    static GLMaterial IRIDESCENT_SOAP_BUBBLE();
+    static GLMaterial CARBON_FIBER();
+    static GLMaterial WET_ASPHALT();
+
+
+    // Function to create a material with time-varying properties (for animations)
+    GLMaterial createAnimatedEmissive(const QVector3D& baseColor,
+        const QVector3D& emissiveColor,
+        float emissiveStrength,
+        float time);
+
+    // Function to blend two materials based on a factor (useful for layered materials)
+    GLMaterial blendMaterials(const GLMaterial& mat1,
+        const GLMaterial& mat2,
+        float factor);
+
+
+
     void serialize(QDataStream& out) const;
     void deserialize(QDataStream& in);
 

@@ -84,7 +84,7 @@ GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float
 	// Set albedo from diffuse
 	setAlbedoFromADS();
 	updateConsistency();
- }
+}
 
 
 
@@ -242,1162 +242,1483 @@ GLMaterial GLMaterial::getPredefinedMaterial(GLMaterial::PredefinedMaterials typ
 
 GLMaterial GLMaterial::METAL_BRASS()
 {
-    GLMaterial mat({ 0.329412f, 0.223529f, 0.027451f },
-        { 0.780392f, 0.568627f, 0.113725f },
-        { 0.992157f, 0.941176f, 0.807843f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.21794872),
-        true,
-        1.0f);
+	GLMaterial mat({ 0.329412f, 0.223529f, 0.027451f },
+		{ 0.780392f, 0.568627f, 0.113725f },
+		{ 0.992157f, 0.941176f, 0.807843f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.21794872),
+		true,
+		1.0f);
 
-    // Corrected PBR properties for brass
-    mat.setAlbedoColor(mat.diffuse());
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.3f); // Brass is typically smoother than 0.65
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(0.47f); // Brass complex IOR (real part)
+	// Corrected PBR properties for brass
+	mat.setAlbedoColor(mat.diffuse());
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.3f); // Brass is typically smoother than 0.65
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(0.47f); // Brass complex IOR (real part)
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_BRONZE()
 {
-    GLMaterial mat({ 0.2125f, 0.1275f, 0.054f },
-        { 0.714f, 0.4284f, 0.18144f },
-        { 0.393548f, 0.271906f, 0.166721f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.2),
-        true,
-        1.0f);
+	GLMaterial mat({ 0.2125f, 0.1275f, 0.054f },
+		{ 0.714f, 0.4284f, 0.18144f },
+		{ 0.393548f, 0.271906f, 0.166721f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.2),
+		true,
+		1.0f);
 
-    mat.setAlbedoColor(mat.diffuse());
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.4f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.18f);
+	mat.setAlbedoColor(mat.diffuse());
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.4f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.18f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_COPPER()
 {
-    GLMaterial mat({ 0.19125f, 0.0735f, 0.0225f },
-        { 0.7038f, 0.27048f, 0.0828f },
-        { 0.256777f, 0.137622f, 0.086014f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.1),
-        true,
-        1.0f);
+	GLMaterial mat({ 0.19125f, 0.0735f, 0.0225f },
+		{ 0.7038f, 0.27048f, 0.0828f },
+		{ 0.256777f, 0.137622f, 0.086014f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.1),
+		true,
+		1.0f);
 
-    mat.setAlbedoColor(mat.diffuse());
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.25f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(0.617f);
+	mat.setAlbedoColor(mat.diffuse());
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.25f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(0.617f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_GOLD()
 {
-    GLMaterial mat({ 0.24725f, 0.1995f, 0.0745f },
-        { 0.75164f, 0.60648f, 0.22648f },
-        { 0.628281f, 0.555802f, 0.366065f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.4),
-        true,
-        1.0f);
+	GLMaterial mat({ 0.24725f, 0.1995f, 0.0745f },
+		{ 0.75164f, 0.60648f, 0.22648f },
+		{ 0.628281f, 0.555802f, 0.366065f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.4),
+		true,
+		1.0f);
 
-    mat.setAlbedoColor(mat.diffuse());
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.1f); // Gold is very smooth when polished
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(0.47f);
+	mat.setAlbedoColor(mat.diffuse());
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.1f); // Gold is very smooth when polished
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(0.47f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_SILVER()
 {
-    GLMaterial mat({ 0.19225f, 0.19225f, 0.19225f },
-        { 0.50754f, 0.50654f, 0.50754f },
-        { 0.508273f, 0.508273f, 0.508273f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.4),
-        true,
-        1.0f);
+	GLMaterial mat({ 0.19225f, 0.19225f, 0.19225f },
+		{ 0.50754f, 0.50654f, 0.50754f },
+		{ 0.508273f, 0.508273f, 0.508273f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.4),
+		true,
+		1.0f);
 
-    mat.setAlbedoColor(mat.diffuse());
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.05f); // Silver is very reflective
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(0.155f);
+	mat.setAlbedoColor(mat.diffuse());
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.05f); // Silver is very reflective
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(0.155f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_CHROME()
 {
-    GLMaterial mat({ 0.25f, 0.25f, 0.25f },
-        { 0.4f, 0.4f, 0.4f },
-        { 0.774597f, 0.774597f, 0.774597f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.6),
-        true,
-        1.0f);
+	GLMaterial mat({ 0.25f, 0.25f, 0.25f },
+		{ 0.4f, 0.4f, 0.4f },
+		{ 0.774597f, 0.774597f, 0.774597f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.6),
+		true,
+		1.0f);
 
-    mat.setAlbedoColor(mat.diffuse());
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.02f); // Chrome is extremely smooth
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(4.1f);
+	mat.setAlbedoColor(mat.diffuse());
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.02f); // Chrome is extremely smooth
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(4.1f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_STEEL()
 {
-    GLMaterial mat({ 0.25f, 0.25f, 0.25f },
-        { 0.4f, 0.4f, 0.4f },
-        { 0.774597f, 0.774597f, 0.774597f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.6),
-        true,
-        1.0f);
+	GLMaterial mat({ 0.25f, 0.25f, 0.25f },
+		{ 0.4f, 0.4f, 0.4f },
+		{ 0.774597f, 0.774597f, 0.774597f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.6),
+		true,
+		1.0f);
 
-    mat.setAlbedoColor(mat.diffuse());
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.25f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setOpacity(1.0f);
-    mat.setTransmission(0.0f);
+	mat.setAlbedoColor(mat.diffuse());
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.25f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setOpacity(1.0f);
+	mat.setTransmission(0.0f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_RUBY()
 {
-    GLMaterial mat({ 0.17450f, 0.01175f, 0.01175f },
-        { 0.61424f, 0.04136f, 0.04136f },
-        { 0.727811f, 0.626959f, 0.626959f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.6),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.17450f, 0.01175f, 0.01175f },
+		{ 0.61424f, 0.04136f, 0.04136f },
+		{ 0.727811f, 0.626959f, 0.626959f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.6),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.7f, 0.1f, 0.1f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.1f); // Gemstones are very smooth
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.77f); // Ruby IOR
-    mat.setTransmission(0.1f); // Slight translucency
+	mat.setAlbedoColor(QVector3D(0.7f, 0.1f, 0.1f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.1f); // Gemstones are very smooth
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.77f); // Ruby IOR
+	mat.setTransmission(0.1f); // Slight translucency
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_EMERALD()
 {
-    GLMaterial mat({ 0.0215f, 0.1745f, 0.0215f },
-        { 0.07568f, 0.61424f, 0.07568f },
-        { 0.633000f, 0.727811f, 0.633000f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.6),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.0215f, 0.1745f, 0.0215f },
+		{ 0.07568f, 0.61424f, 0.07568f },
+		{ 0.633000f, 0.727811f, 0.633000f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.6),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.1f, 0.7f, 0.1f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.1f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.57f); // Emerald IOR
-    mat.setTransmission(0.15f);
+	mat.setAlbedoColor(QVector3D(0.1f, 0.7f, 0.1f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.1f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.57f); // Emerald IOR
+	mat.setTransmission(0.15f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_TURQUOISE()
 {
-    GLMaterial mat({ 0.1f, 0.18725f, 0.1745f },
-        { 0.396f, 0.74151f, 0.69102f },
-        { 0.297254f, 0.30829f, 0.306678f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.1),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.1f, 0.18725f, 0.1745f },
+		{ 0.396f, 0.74151f, 0.69102f },
+		{ 0.297254f, 0.30829f, 0.306678f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.1),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.4f, 0.8f, 0.7f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.3f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.65f);
+	mat.setAlbedoColor(QVector3D(0.4f, 0.8f, 0.7f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.3f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.65f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_PEARL()
 {
-    GLMaterial mat({ 0.25000f, 0.20725f, 0.20725f },
-        { 1.000f, 0.829f, 0.829f },
-        { 0.296648f, 0.296648f, 0.299948f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.088),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.25000f, 0.20725f, 0.20725f },
+		{ 1.000f, 0.829f, 0.829f },
+		{ 0.296648f, 0.296648f, 0.299948f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.088),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(1.0f, 0.95f, 0.9f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.2f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.53f);
-    mat.setTransmission(0.05f); // Slight translucency
-    mat.setSheenColor(QVector3D(0.8f, 0.8f, 0.9f)); // Pearl luster
-    mat.setSheenRoughness(0.1f);
+	mat.setAlbedoColor(QVector3D(1.0f, 0.95f, 0.9f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.2f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.53f);
+	mat.setTransmission(0.05f); // Slight translucency
+	mat.setSheenColor(QVector3D(0.8f, 0.8f, 0.9f)); // Pearl luster
+	mat.setSheenRoughness(0.1f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_JADE()
 {
-    GLMaterial mat({ 0.135f, 0.2225f, 0.1575f },
-        { 0.54f, 0.89f, 0.63f },
-        { 0.316228f, 0.316228f, 0.316228f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.1),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.135f, 0.2225f, 0.1575f },
+		{ 0.54f, 0.89f, 0.63f },
+		{ 0.316228f, 0.316228f, 0.316228f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.1),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.4f, 0.8f, 0.4f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.15f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.66f);
-    mat.setTransmission(0.2f);
+	mat.setAlbedoColor(QVector3D(0.4f, 0.8f, 0.4f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.15f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.66f);
+	mat.setTransmission(0.2f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_OBSIDIAN()
 {
-    GLMaterial mat({ 0.05375f, 0.05f, 0.06625f },
-        { 0.18275f, 0.17f, 0.22525f },
-        { 0.332741f, 0.328634f, 0.346435f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.3),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.05375f, 0.05f, 0.06625f },
+		{ 0.18275f, 0.17f, 0.22525f },
+		{ 0.332741f, 0.328634f, 0.346435f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.3),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.1f, 0.1f, 0.12f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.05f); // Obsidian is very smooth
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.48f);
+	mat.setAlbedoColor(QVector3D(0.1f, 0.1f, 0.12f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.05f); // Obsidian is very smooth
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.48f);
 
-    return mat;
+	return mat;
 }
 
 // Plastic materials - corrected roughness values
 GLMaterial GLMaterial::RED_PLASTIC()
 {
-    GLMaterial mat({ 0.0f, 0.0f, 0.0f },
-        { 0.5f, 0.0f, 0.0f },
-        { 0.7f, 0.6f, 0.6f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.25),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+		{ 0.5f, 0.0f, 0.0f },
+		{ 0.7f, 0.6f, 0.6f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.25),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.1f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.6f); // Plastics are typically rougher
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.46f);
+	mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.1f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f); // Plastics are typically rougher
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.46f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::GREEN_PLASTIC()
 {
-    GLMaterial mat({ 0.0f, 0.0f, 0.0f },
-        { 0.1f, 0.35f, 0.1f },
-        { 0.45f, 0.55f, 0.45f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.25),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+		{ 0.1f, 0.35f, 0.1f },
+		{ 0.45f, 0.55f, 0.45f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.25),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.1f, 0.8f, 0.1f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.6f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.46f);
+	mat.setAlbedoColor(QVector3D(0.1f, 0.8f, 0.1f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.46f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::BLUE_PLASTIC()
-{	
-    GLMaterial mat({ 0.0f, 0.0f, 0.0f },
-        { 0.0f, 0.0f, 0.5f },
-        { 0.6f, 0.6f, 0.7f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.25),
-        false,
-        1.0f);
-    mat.setAlbedoColor(QVector3D(0.1f, 0.1f, 0.8f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.6f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.46f);
+{
+	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+		{ 0.0f, 0.0f, 0.5f },
+		{ 0.6f, 0.6f, 0.7f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.25),
+		false,
+		1.0f);
+	mat.setAlbedoColor(QVector3D(0.1f, 0.1f, 0.8f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.46f);
 	return mat;
 }
 
 GLMaterial GLMaterial::CYAN_PLASTIC()
 {
-    GLMaterial mat({ 0.0f, 0.1f, 0.06f },
-        { 0.0f, 0.50980392f, 0.50980392f },
-        { 0.50196078f, 0.50196078f, 0.50196078f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.25),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.0f, 0.1f, 0.06f },
+		{ 0.0f, 0.50980392f, 0.50980392f },
+		{ 0.50196078f, 0.50196078f, 0.50196078f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.25),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.1f, 0.8f, 0.8f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.6f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.46f);
+	mat.setAlbedoColor(QVector3D(0.1f, 0.8f, 0.8f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.46f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::YELLOW_PLASTIC()
 {
-    GLMaterial mat({ 0.0f, 0.0f, 0.0f },
-        { 0.5f, 0.5f, 0.0f },
-        { 0.6f, 0.6f, 0.5f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.25),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+		{ 0.5f, 0.5f, 0.0f },
+		{ 0.6f, 0.6f, 0.5f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.25),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.8f, 0.8f, 0.1f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.6f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.46f);
+	mat.setAlbedoColor(QVector3D(0.8f, 0.8f, 0.1f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.46f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::MAGENTA_PLASTIC()
 {
-    GLMaterial mat({ 0.0f, 0.0f, 0.0f },
-        { 0.5f, 0.0f, 0.5f },
-        { 0.6f, 0.5f, 0.6f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.25),
-        false,
-        1.0f);
-    mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.8f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.6f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.46f);
+	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+		{ 0.5f, 0.0f, 0.5f },
+		{ 0.6f, 0.5f, 0.6f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.25),
+		false,
+		1.0f);
+	mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.8f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.46f);
 	return mat;
 }
 
 GLMaterial GLMaterial::WHITE_PLASTIC()
 {
-    GLMaterial mat({ 0.0f, 0.0f, 0.0f },
-        { 0.55f, 0.55f, 0.55f },
-        { 0.7f, 0.7f, 0.7f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.25),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+		{ 0.55f, 0.55f, 0.55f },
+		{ 0.7f, 0.7f, 0.7f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.25),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.9f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.6f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.46f);
+	mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.9f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.46f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::BLACK_PLASTIC()
 {
-    GLMaterial mat({ 0.0f, 0.0f, 0.0f },
-        { 0.01f, 0.01f, 0.01f },
-        { 0.5f, 0.5f, 0.5f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.25),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.0f, 0.0f, 0.0f },
+		{ 0.01f, 0.01f, 0.01f },
+		{ 0.5f, 0.5f, 0.5f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.25),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.05f, 0.05f, 0.05f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.6f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.46f);
+	mat.setAlbedoColor(QVector3D(0.05f, 0.05f, 0.05f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.46f);
 
-    return mat;
+	return mat;
 }
 
 // Rubber materials - keep high roughness
 GLMaterial GLMaterial::RED_RUBBER()
 {
-    GLMaterial mat({ 0.05f, 0.0f, 0.0f },
-        { 0.7f, 0.4f, 0.4f },
-        { 0.7f, 0.04f, 0.04f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.078125f),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.05f, 0.0f, 0.0f },
+		{ 0.7f, 0.4f, 0.4f },
+		{ 0.7f, 0.04f, 0.04f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.078125f),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.1f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f); // Rubber is very rough
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.52f);
+	mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.1f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f); // Rubber is very rough
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.52f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::GREEN_RUBBER()
 {
-    GLMaterial mat({ 0.0f, 0.05f, 0.0f },
-        { 0.4f, 0.5f, 0.4f },
-        { 0.04f, 0.7f, 0.04f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.078125f),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.0f, 0.05f, 0.0f },
+		{ 0.4f, 0.5f, 0.4f },
+		{ 0.04f, 0.7f, 0.04f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.078125f),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.1f, 0.8f, 0.1f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.52f);
+	mat.setAlbedoColor(QVector3D(0.1f, 0.8f, 0.1f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.52f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::BLUE_RUBBER()
 {
-    GLMaterial mat({ 0.0f, 0.0f, 0.05f },
-        { 0.4f, 0.4f, 0.5f },
-        { 0.04f, 0.04f, 0.7f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.078125f),
-        false,
-        1.0f);
-    mat.setAlbedoColor(QVector3D(0.1f, 0.1f, 0.8f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.52f);
+	GLMaterial mat({ 0.0f, 0.0f, 0.05f },
+		{ 0.4f, 0.4f, 0.5f },
+		{ 0.04f, 0.04f, 0.7f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.078125f),
+		false,
+		1.0f);
+	mat.setAlbedoColor(QVector3D(0.1f, 0.1f, 0.8f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.52f);
 	return mat;
 }
 
 GLMaterial GLMaterial::CYAN_RUBBER()
 {
-    GLMaterial mat({ 0.0f, 0.05f, 0.05f },
-        { 0.4f, 0.5f, 0.5f },
-        { 0.04f, 0.7f, 0.7f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.078125f),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.0f, 0.05f, 0.05f },
+		{ 0.4f, 0.5f, 0.5f },
+		{ 0.04f, 0.7f, 0.7f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.078125f),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.1f, 0.8f, 0.8f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.52f);
+	mat.setAlbedoColor(QVector3D(0.1f, 0.8f, 0.8f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.52f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::YELLOW_RUBBER()
 {
-    GLMaterial mat({ 0.05f, 0.05f, 0.0f },
-        { 0.5f, 0.5f, 0.4f },
-        { 0.7f, 0.7f, 0.04f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.078125f),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.05f, 0.05f, 0.0f },
+		{ 0.5f, 0.5f, 0.4f },
+		{ 0.7f, 0.7f, 0.04f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.078125f),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.8f, 0.8f, 0.1f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.52f);
+	mat.setAlbedoColor(QVector3D(0.8f, 0.8f, 0.1f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.52f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::MAGENTA_RUBBER()
 {
-    GLMaterial mat({ 0.05f, 0.0f, 0.05f },
-        { 0.5f, 0.4f, 0.5f },
-        { 0.7f, 0.04f, 0.7f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.078125f),
-        false,
-        1.0f);
-    mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.8f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.52f);
+	GLMaterial mat({ 0.05f, 0.0f, 0.05f },
+		{ 0.5f, 0.4f, 0.5f },
+		{ 0.7f, 0.04f, 0.7f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.078125f),
+		false,
+		1.0f);
+	mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.8f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.52f);
 	return mat;
 }
 
 GLMaterial GLMaterial::WHITE_RUBBER()
 {
-    GLMaterial mat({ 0.05f, 0.05f, 0.05f },
-        { 0.5f, 0.5f, 0.5f },
-        { 0.7f, 0.7f, 0.7f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.078125f),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.05f, 0.05f, 0.05f },
+		{ 0.5f, 0.5f, 0.5f },
+		{ 0.7f, 0.7f, 0.7f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.078125f),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.9f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.52f);
+	mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.9f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.52f);
 
-    return mat;
+	return mat;
 }
 
 GLMaterial GLMaterial::BLACK_RUBBER()
 {
-    GLMaterial mat({ 0.02f, 0.02f, 0.02f },
-        { 0.01f, 0.01f, 0.01f },
-        { 0.4f, 0.4f, 0.4f },
-        { 0.0, 0.0, 0.0 },
-        fabs(128.0 * 0.078125f),
-        false,
-        1.0f);
+	GLMaterial mat({ 0.02f, 0.02f, 0.02f },
+		{ 0.01f, 0.01f, 0.01f },
+		{ 0.4f, 0.4f, 0.4f },
+		{ 0.0, 0.0, 0.0 },
+		fabs(128.0 * 0.078125f),
+		false,
+		1.0f);
 
-    mat.setAlbedoColor(QVector3D(0.05f, 0.05f, 0.05f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setIOR(1.52f);
+	mat.setAlbedoColor(QVector3D(0.05f, 0.05f, 0.05f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setIOR(1.52f);
 
-    return mat;
+	return mat;
 }
 
 // === NEW ADDITIONAL MATERIALS ===
 
 GLMaterial GLMaterial::GLASS()
 {
-    GLMaterial mat({ 0.02f, 0.02f, 0.02f },         // ambient - very low
-        { 0.1f, 0.1f, 0.1f },             // diffuse - low for transparency
-        { 0.9f, 0.9f, 0.9f },             // specular - high reflectivity
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.8f),              // shininess - very shiny
-        false,                            // metallic
-        0.1f);                           // opacity - transparent
+	GLMaterial mat({ 0.02f, 0.02f, 0.02f },         // ambient - very low
+		{ 0.1f, 0.1f, 0.1f },             // diffuse - low for transparency
+		{ 0.9f, 0.9f, 0.9f },             // specular - high reflectivity
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.8f),              // shininess - very shiny
+		false,                            // metallic
+		0.1f);                           // opacity - transparent
 
-    mat.setAlbedoColor(QVector3D(0.95f, 0.95f, 0.95f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.05f);
-    mat.setTransmission(0.9f);
-    mat.setIOR(1.52f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setBlendMode(BlendMode::Alpha);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.95f, 0.95f, 0.95f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.05f);
+	mat.setTransmission(0.9f);
+	mat.setIOR(1.52f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setBlendMode(BlendMode::Alpha);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::WATER()
 {
-    GLMaterial mat({ 0.01f, 0.02f, 0.04f },         // ambient - very low, slight blue tint
-        { 0.1f, 0.3f, 0.5f },             // diffuse - blue tint
-        { 0.8f, 0.9f, 1.0f },             // specular - high with blue tint
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.9f),              // shininess - very reflective
-        false,                            // metallic
-        0.2f);                           // opacity - mostly transparent
+	GLMaterial mat({ 0.01f, 0.02f, 0.04f },         // ambient - very low, slight blue tint
+		{ 0.1f, 0.3f, 0.5f },             // diffuse - blue tint
+		{ 0.8f, 0.9f, 1.0f },             // specular - high with blue tint
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.9f),              // shininess - very reflective
+		false,                            // metallic
+		0.2f);                           // opacity - mostly transparent
 
-    mat.setAlbedoColor(QVector3D(0.3f, 0.7f, 0.9f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.02f);
-    mat.setTransmission(0.8f);
-    mat.setIOR(1.33f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setBlendMode(BlendMode::Alpha);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.3f, 0.7f, 0.9f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.02f);
+	mat.setTransmission(0.8f);
+	mat.setIOR(1.33f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setBlendMode(BlendMode::Alpha);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::DIAMOND()
 {
-    GLMaterial mat({ 0.02f, 0.02f, 0.02f },         // ambient - very low
-        { 0.9f, 0.9f, 0.9f },             // diffuse - high reflectivity
-        { 1.0f, 1.0f, 1.0f },             // specular - maximum reflectivity
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.95f),             // shininess - extremely shiny
-        false,                            // metallic
-        0.8f);                           // opacity - semi-transparent
+	GLMaterial mat({ 0.02f, 0.02f, 0.02f },         // ambient - very low
+		{ 0.9f, 0.9f, 0.9f },             // diffuse - high reflectivity
+		{ 1.0f, 1.0f, 1.0f },             // specular - maximum reflectivity
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.95f),             // shininess - extremely shiny
+		false,                            // metallic
+		0.8f);                           // opacity - semi-transparent
 
-    mat.setAlbedoColor(QVector3D(0.98f, 0.98f, 0.98f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.01f);
-    mat.setTransmission(0.2f);
-    mat.setIOR(2.42f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.setBlendMode(BlendMode::Alpha);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.98f, 0.98f, 0.98f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.01f);
+	mat.setTransmission(0.2f);
+	mat.setIOR(2.42f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setBlendMode(BlendMode::Alpha);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::CERAMIC()
 {
-    GLMaterial mat({ 0.16f, 0.16f, 0.16f },         // ambient
-        { 0.8f, 0.8f, 0.8f },             // diffuse
-        { 0.6f, 0.6f, 0.6f },             // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.3f),              // shininess
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.16f, 0.16f, 0.16f },         // ambient
+		{ 0.8f, 0.8f, 0.8f },             // diffuse
+		{ 0.6f, 0.6f, 0.6f },             // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.3f),              // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.9f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.2f);
-    mat.setIOR(1.62f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.9f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.2f);
+	mat.setIOR(1.62f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::FABRIC()
 {
-    GLMaterial mat({ 0.03f, 0.02f, 0.016f },        // ambient
-        { 0.6f, 0.4f, 0.3f },             // diffuse
-        { 0.1f, 0.1f, 0.1f },             // specular - very low for matte fabric
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.05f),             // shininess - very low
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.03f, 0.02f, 0.016f },        // ambient
+		{ 0.6f, 0.4f, 0.3f },             // diffuse
+		{ 0.1f, 0.1f, 0.1f },             // specular - very low for matte fabric
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.05f),             // shininess - very low
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.7f, 0.5f, 0.4f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.8f);
-    mat.setIOR(1.46f);
-    mat.setSheenColor(QVector3D(0.8f, 0.8f, 0.8f));
-    mat.setSheenRoughness(0.2f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.7f, 0.5f, 0.4f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.8f);
+	mat.setIOR(1.46f);
+	mat.setSheenColor(QVector3D(0.8f, 0.8f, 0.8f));
+	mat.setSheenRoughness(0.2f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::SKIN()
 {
-    GLMaterial mat({ 0.16f, 0.12f, 0.08f },         // ambient - warm tones
-        { 0.8f, 0.6f, 0.4f },             // diffuse - skin tone
-        { 0.3f, 0.3f, 0.3f },             // specular - moderate reflectivity
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.15f),             // shininess - slight sheen
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.16f, 0.12f, 0.08f },         // ambient - warm tones
+		{ 0.8f, 0.6f, 0.4f },             // diffuse - skin tone
+		{ 0.3f, 0.3f, 0.3f },             // specular - moderate reflectivity
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.15f),             // shininess - slight sheen
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.9f, 0.7f, 0.5f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.6f);
-    mat.setTransmission(0.1f);
-    mat.setIOR(1.4f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.9f, 0.7f, 0.5f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);
+	mat.setTransmission(0.1f);
+	mat.setIOR(1.4f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::PAPER()
 {
-    GLMaterial mat({ 0.27f, 0.27f, 0.255f },        // ambient - high for diffuse material
-        { 0.9f, 0.9f, 0.85f },            // diffuse - off-white
-        { 0.05f, 0.05f, 0.05f },          // specular - very low for matte
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.063f),            // shininess - very low
-        false,                            // metallic
-        0.85f);                          // opacity - slightly translucent
+	GLMaterial mat({ 0.27f, 0.27f, 0.255f },        // ambient - high for diffuse material
+		{ 0.9f, 0.9f, 0.85f },            // diffuse - off-white
+		{ 0.05f, 0.05f, 0.05f },          // specular - very low for matte
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.063f),            // shininess - very low
+		false,                            // metallic
+		0.85f);                          // opacity - slightly translucent
 
-    mat.setAlbedoColor(QVector3D(0.95f, 0.95f, 0.9f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f);
-    mat.setTransmission(0.05f);
-    mat.setIOR(1.3f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.95f, 0.95f, 0.9f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setTransmission(0.05f);
+	mat.setIOR(1.3f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::WOOD()
 {
-    GLMaterial mat({ 0.12f, 0.08f, 0.04f },         // ambient - brown wood tones
-        { 0.6f, 0.4f, 0.2f },             // diffuse - wood color
-        { 0.1f, 0.1f, 0.1f },             // specular - low reflectivity
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.25f),             // shininess - moderate
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.12f, 0.08f, 0.04f },         // ambient - brown wood tones
+		{ 0.6f, 0.4f, 0.2f },             // diffuse - wood color
+		{ 0.1f, 0.1f, 0.1f },             // specular - low reflectivity
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.25f),             // shininess - moderate
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.6f, 0.4f, 0.2f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.7f);
-    mat.setIOR(1.4f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.6f, 0.4f, 0.2f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.7f);
+	mat.setIOR(1.4f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL()
 {
-    GLMaterial mat({ 0.04f, 0.04f, 0.04f },         // ambient - low for metal
-        { 0.2f, 0.2f, 0.2f },             // diffuse - low for metal
-        { 0.8f, 0.8f, 0.8f },             // specular - high reflectivity
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 1.0f),              // shininess - maximum
-        true,                             // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.04f, 0.04f, 0.04f },         // ambient - low for metal
+		{ 0.2f, 0.2f, 0.2f },             // diffuse - low for metal
+		{ 0.8f, 0.8f, 0.8f },             // specular - high reflectivity
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 1.0f),              // shininess - maximum
+		true,                             // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.7f, 0.7f, 0.7f));
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.1f);
-    mat.setIOR(2.5f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.7f, 0.7f, 0.7f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.1f);
+	mat.setIOR(2.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::PLASTIC()
 {
-    GLMaterial mat({ 0.12f, 0.12f, 0.16f },         // ambient
-        { 0.6f, 0.6f, 0.8f },             // diffuse
-        { 0.5f, 0.5f, 0.5f },             // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 1.0f),              // shininess - high for glossy plastic
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.12f, 0.12f, 0.16f },         // ambient
+		{ 0.6f, 0.6f, 0.8f },             // diffuse
+		{ 0.5f, 0.5f, 0.5f },             // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 1.0f),              // shininess - high for glossy plastic
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.6f, 0.6f, 0.8f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.3f);
-    mat.setIOR(1.5f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.6f, 0.6f, 0.8f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.3f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE()
 {
-    GLMaterial mat({ 0.1f, 0.1f, 0.1f },            // ambient
-        { 0.5f, 0.5f, 0.5f },             // diffuse
-        { 0.05f, 0.05f, 0.05f },          // specular - very low
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.063f),            // shininess - very dull
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.1f, 0.1f, 0.1f },            // ambient
+		{ 0.5f, 0.5f, 0.5f },             // diffuse
+		{ 0.05f, 0.05f, 0.05f },          // specular - very low
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.063f),            // shininess - very dull
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.5f, 0.5f, 0.5f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f);
-    mat.setIOR(1.45f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.5f, 0.5f, 0.5f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+// Advanced PBR Materials - Add these to your GLMaterial.cpp file
+
+// === CLEARCOAT MATERIALS ===
+
+GLMaterial GLMaterial::CAR_PAINT_RED()
+{
+	GLMaterial mat({ 0.1f, 0.02f, 0.02f },          // ambient
+		{ 0.8f, 0.1f, 0.1f },             // diffuse - bright red base
+		{ 0.9f, 0.9f, 0.9f },             // specular - high for clearcoat
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.9f),              // shininess - very high
+		false,                            // metallic
+		1.0f);                           // opacity
+
+	// PBR properties with clearcoat
+	mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.1f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.4f);                          // Base material roughness
+	mat.setClearcoat(1.0f);                          // Full clearcoat layer
+	mat.setClearcoatRoughness(0.05f);                // Very smooth clearcoat
+	mat.setIOR(1.5f);                               // Standard automotive clearcoat
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_METALLIC_BLUE()
+{
+	GLMaterial mat({ 0.02f, 0.05f, 0.15f },         // ambient
+		{ 0.1f, 0.3f, 0.8f },             // diffuse - metallic blue
+		{ 0.9f, 0.9f, 0.9f },             // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.85f),             // shininess
+		false,                            // metallic base, but clearcoated
+		1.0f);                           // opacity
+
+	mat.setAlbedoColor(QVector3D(0.2f, 0.4f, 0.9f));
+	mat.setMetalness(0.3f);                          // Slightly metallic base
+	mat.setRoughness(0.2f);
+	mat.setClearcoat(0.8f);                          // Strong clearcoat
+	mat.setClearcoatRoughness(0.02f);                // Very smooth clearcoat
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+GLMaterial GLMaterial::PIANO_BLACK()
+{
+	GLMaterial mat({ 0.01f, 0.01f, 0.01f },         // ambient - very dark
+		{ 0.05f, 0.05f, 0.05f },          // diffuse - very dark base
+		{ 0.95f, 0.95f, 0.95f },          // specular - high reflectivity
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.95f),             // shininess - mirror-like
+		false,                            // metallic
+		1.0f);                           // opacity
+
+	mat.setAlbedoColor(QVector3D(0.08f, 0.08f, 0.08f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.6f);                          // Rough base material
+	mat.setClearcoat(1.0f);                          // Full clearcoat for piano finish
+	mat.setClearcoatRoughness(0.01f);                // Extremely smooth clearcoat
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+// === SHEEN MATERIALS ===
+
+GLMaterial GLMaterial::VELVET_RED()
+{
+	GLMaterial mat({ 0.15f, 0.03f, 0.03f },         // ambient
+		{ 0.6f, 0.1f, 0.1f },             // diffuse - deep red
+		{ 0.05f, 0.05f, 0.05f },          // specular - very low
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.02f),             // shininess - very low
+		false,                            // metallic
+		1.0f);                           // opacity
+
+	mat.setAlbedoColor(QVector3D(0.7f, 0.15f, 0.15f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);                          // Very rough base
+	mat.setSheenColor(QVector3D(1.0f, 0.8f, 0.8f)); // Bright sheen with slight red tint
+	mat.setSheenRoughness(0.3f);                     // Moderate sheen roughness
+	mat.setIOR(1.46f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+GLMaterial GLMaterial::SATIN_FABRIC()
+{
+	GLMaterial mat({ 0.18f, 0.18f, 0.12f },         // ambient - cream color
+		{ 0.9f, 0.9f, 0.6f },             // diffuse - silk-like cream
+		{ 0.1f, 0.1f, 0.1f },             // specular - low base specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.08f),             // shininess - low
+		false,                            // metallic
+		1.0f);                           // opacity
+
+	mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.7f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.7f);                          // Moderately rough
+	mat.setSheenColor(QVector3D(1.0f, 1.0f, 0.9f)); // Bright sheen
+	mat.setSheenRoughness(0.1f);                     // Sharp sheen highlight
+	mat.setIOR(1.54f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+GLMaterial GLMaterial::MICROFIBER_CLOTH()
+{
+	GLMaterial mat({ 0.08f, 0.1f, 0.12f },          // ambient - blue-gray
+		{ 0.4f, 0.5f, 0.6f },             // diffuse - blue-gray fabric
+		{ 0.02f, 0.02f, 0.02f },          // specular - very low
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.01f),             // shininess - almost none
+		false,                            // metallic
+		1.0f);                           // opacity
+
+	mat.setAlbedoColor(QVector3D(0.4f, 0.5f, 0.6f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.95f);                         // Very rough base
+	mat.setSheenColor(QVector3D(0.6f, 0.7f, 0.8f)); // Subtle blue-tinted sheen
+	mat.setSheenRoughness(0.8f);                     // Diffuse sheen
+	mat.setIOR(1.46f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+// === TRANSMISSION MATERIALS ===
+
+GLMaterial GLMaterial::FROSTED_GLASS()
+{
+	GLMaterial mat({ 0.05f, 0.05f, 0.05f },         // ambient
+		{ 0.1f, 0.1f, 0.1f },             // diffuse - low for transparency
+		{ 0.8f, 0.8f, 0.8f },             // specular - high
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.3f),              // shininess - moderate due to frosting
+		false,                            // metallic
+		0.2f);                           // opacity - mostly transparent
+
+	mat.setAlbedoColor(QVector3D(0.95f, 0.95f, 0.95f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.3f);                          // Roughness creates frosted effect
+	mat.setTransmission(0.8f);                       // High transmission
+	mat.setIOR(1.52f);                              // Glass IOR
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setBlendMode(BlendMode::Alpha);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+GLMaterial GLMaterial::COLORED_GLASS_GREEN()
+{
+	GLMaterial mat({ 0.02f, 0.05f, 0.02f },         // ambient - slight green tint
+		{ 0.1f, 0.3f, 0.1f },             // diffuse - green tint
+		{ 0.9f, 0.9f, 0.9f },             // specular - high
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.9f),              // shininess - very smooth
+		false,                            // metallic
+		0.15f);                          // opacity - very transparent
+
+	mat.setAlbedoColor(QVector3D(0.7f, 0.9f, 0.7f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.02f);                         // Very smooth
+	mat.setTransmission(0.85f);                      // High transmission with color filtering
+	mat.setIOR(1.52f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setBlendMode(BlendMode::Alpha);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+GLMaterial GLMaterial::CRYSTAL_QUARTZ()
+{
+	GLMaterial mat({ 0.03f, 0.03f, 0.03f },         // ambient
+		{ 0.9f, 0.9f, 0.95f },            // diffuse - slightly blue-white
+		{ 0.95f, 0.95f, 1.0f },           // specular - very high
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.95f),             // shininess - very high
+		false,                            // metallic
+		0.7f);                           // opacity - semi-transparent
+
+	mat.setAlbedoColor(QVector3D(0.98f, 0.98f, 1.0f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.01f);                         // Extremely smooth
+	mat.setTransmission(0.3f);                       // Moderate transmission
+	mat.setIOR(1.544f);                             // Quartz IOR
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setBlendMode(BlendMode::Alpha);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+// === EMISSIVE MATERIALS ===
+
+GLMaterial GLMaterial::NEON_BLUE()
+{
+	GLMaterial mat({ 0.05f, 0.15f, 0.4f },          // ambient - blue glow
+		{ 0.2f, 0.6f, 1.0f },             // diffuse - bright blue
+		{ 0.8f, 0.9f, 1.0f },             // specular
+		{ 0.1f, 0.4f, 1.0f },             // emissive - bright blue emission
+		fabs(128.0f * 0.7f),              // shininess
+		false,                            // metallic
+		0.9f);                           // opacity
+
+	mat.setAlbedoColor(QVector3D(0.3f, 0.7f, 1.0f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.2f);
+	mat.setEmissiveStrength(3.0f);                   // Strong emission for HDR
+	mat.setIOR(1.46f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+GLMaterial GLMaterial::LED_WHITE()
+{
+	GLMaterial mat({ 0.2f, 0.2f, 0.2f },            // ambient
+		{ 0.8f, 0.8f, 0.8f },             // diffuse
+		{ 0.9f, 0.9f, 0.9f },             // specular
+		{ 1.0f, 1.0f, 0.95f },            // emissive - warm white
+		fabs(128.0f * 0.8f),              // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
+
+	mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.9f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.1f);
+	mat.setEmissiveStrength(5.0f);                   // Very bright for LED
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+// === COMPLEX MATERIALS (Multiple Properties) ===
+
+GLMaterial GLMaterial::IRIDESCENT_SOAP_BUBBLE()
+{
+	GLMaterial mat({ 0.01f, 0.01f, 0.01f },         // ambient - very low
+		{ 0.05f, 0.05f, 0.05f },          // diffuse - very low for transparency
+		{ 0.98f, 0.98f, 0.98f },          // specular - very high
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.98f),             // shininess - extremely high
+		false,                            // metallic
+		0.05f);                          // opacity - nearly transparent
+
+	mat.setAlbedoColor(QVector3D(0.9f, 0.95f, 1.0f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.005f);                        // Extremely smooth
+	mat.setTransmission(0.95f);                      // Nearly full transmission
+	mat.setIOR(1.33f);                              // Soap film IOR
+	mat.setSheenColor(QVector3D(1.0f, 0.8f, 1.0f)); // Iridescent sheen
+	mat.setSheenRoughness(0.01f);                    // Sharp iridescent highlight
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setBlendMode(BlendMode::Alpha);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+GLMaterial GLMaterial::CARBON_FIBER()
+{
+	GLMaterial mat({ 0.02f, 0.02f, 0.02f },         // ambient - very dark
+		{ 0.1f, 0.1f, 0.1f },             // diffuse - dark base
+		{ 0.6f, 0.6f, 0.6f },             // specular - moderate
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.7f),              // shininess
+		false,                            // metallic (composite material)
+		1.0f);                           // opacity
+
+	mat.setAlbedoColor(QVector3D(0.15f, 0.15f, 0.15f));
+	mat.setMetalness(0.2f);                          // Slightly metallic
+	mat.setRoughness(0.3f);                          // Moderate roughness
+	mat.setClearcoat(0.6f);                          // Resin clearcoat layer
+	mat.setClearcoatRoughness(0.1f);                 // Smooth clearcoat
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+GLMaterial GLMaterial::WET_ASPHALT()
+{
+	GLMaterial mat({ 0.01f, 0.01f, 0.01f },         // ambient - very dark
+		{ 0.08f, 0.08f, 0.08f },          // diffuse - dark asphalt
+		{ 0.4f, 0.4f, 0.4f },             // specular - wet surface
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.6f),              // shininess - wet reflections
+		false,                            // metallic
+		1.0f);                           // opacity
+
+	mat.setAlbedoColor(QVector3D(0.12f, 0.12f, 0.12f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.8f);                          // Rough base material
+	mat.setClearcoat(0.3f);                          // Water layer on top
+	mat.setClearcoatRoughness(0.05f);                // Smooth water surface
+	mat.setIOR(1.33f);                              // Water IOR for clearcoat
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_GRANITE()
 {
-    GLMaterial mat({ 0.12f, 0.11f, 0.11f },        // ambient
-        { 0.6f, 0.55f, 0.55f },          // diffuse  
-        { 0.05f, 0.05f, 0.05f },         // specular
-        { 0.0f, 0.0f, 0.0f },            // emissive
-        fabs(128.0f * 0.09f),             // shininess
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.12f, 0.11f, 0.11f },        // ambient
+		{ 0.6f, 0.55f, 0.55f },          // diffuse  
+		{ 0.05f, 0.05f, 0.05f },         // specular
+		{ 0.0f, 0.0f, 0.0f },            // emissive
+		fabs(128.0f * 0.09f),             // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    // PBR properties
-    mat.setAlbedoColor(QVector3D(0.6f, 0.55f, 0.55f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.8f);
-    mat.setIOR(1.45f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	// PBR properties
+	mat.setAlbedoColor(QVector3D(0.6f, 0.55f, 0.55f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.8f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_LIMESTONE()
 {
-    GLMaterial mat({ 0.15f, 0.146f, 0.136f },       // ambient
-        { 0.75f, 0.73f, 0.68f },          // diffuse
-        { 0.02f, 0.02f, 0.02f },          // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.047f),            // shininess
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.15f, 0.146f, 0.136f },       // ambient
+		{ 0.75f, 0.73f, 0.68f },          // diffuse
+		{ 0.02f, 0.02f, 0.02f },          // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.047f),            // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.75f, 0.73f, 0.68f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f);
-    mat.setIOR(1.45f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.75f, 0.73f, 0.68f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_MARBLE()
 {
-    GLMaterial mat({ 0.18f, 0.18f, 0.18f },         // ambient
-        { 0.9f, 0.9f, 0.9f },             // diffuse
-        { 0.2f, 0.2f, 0.2f },             // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.25f),             // shininess
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.18f, 0.18f, 0.18f },         // ambient
+		{ 0.9f, 0.9f, 0.9f },             // diffuse
+		{ 0.2f, 0.2f, 0.2f },             // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.25f),             // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.9f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.5f);
-    mat.setIOR(1.45f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.9f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.5f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_SLATE()
 {
-    GLMaterial mat({ 0.03f, 0.036f, 0.044f },       // ambient
-        { 0.15f, 0.18f, 0.22f },          // diffuse
-        { 0.01f, 0.01f, 0.01f },          // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.031f),            // shininess
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.03f, 0.036f, 0.044f },       // ambient
+		{ 0.15f, 0.18f, 0.22f },          // diffuse
+		{ 0.01f, 0.01f, 0.01f },          // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.031f),            // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.15f, 0.18f, 0.22f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.95f);
-    mat.setIOR(1.45f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.15f, 0.18f, 0.22f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.95f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_SANDSTONE()
 {
-    GLMaterial mat({ 0.152f, 0.128f, 0.096f },      // ambient
-        { 0.76f, 0.64f, 0.48f },          // diffuse
-        { 0.03f, 0.03f, 0.03f },          // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.078f),            // shininess
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.152f, 0.128f, 0.096f },      // ambient
+		{ 0.76f, 0.64f, 0.48f },          // diffuse
+		{ 0.03f, 0.03f, 0.03f },          // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.078f),            // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.76f, 0.64f, 0.48f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.85f);
-    mat.setIOR(1.45f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.76f, 0.64f, 0.48f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.85f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_BASALT()
 {
-    GLMaterial mat({ 0.02f, 0.02f, 0.02f },         // ambient
-        { 0.1f, 0.1f, 0.1f },             // diffuse
-        { 0.02f, 0.02f, 0.02f },          // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.047f),            // shininess
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.02f, 0.02f, 0.02f },         // ambient
+		{ 0.1f, 0.1f, 0.1f },             // diffuse
+		{ 0.02f, 0.02f, 0.02f },          // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.047f),            // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.1f, 0.1f, 0.1f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.9f);
-    mat.setIOR(1.45f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.1f, 0.1f, 0.1f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.9f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_TRAVERTINE()
 {
-    GLMaterial mat({ 0.17f, 0.16f, 0.14f },         // ambient
-        { 0.85f, 0.8f, 0.7f },            // diffuse
-        { 0.02f, 0.02f, 0.02f },          // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.063f),            // shininess
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.17f, 0.16f, 0.14f },         // ambient
+		{ 0.85f, 0.8f, 0.7f },            // diffuse
+		{ 0.02f, 0.02f, 0.02f },          // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.063f),            // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.85f, 0.8f, 0.7f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.85f);
-    mat.setIOR(1.45f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.85f, 0.8f, 0.7f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.85f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_QUARTZITE()
 {
-    GLMaterial mat({ 0.16f, 0.17f, 0.18f },         // ambient
-        { 0.8f, 0.85f, 0.9f },            // diffuse
-        { 0.3f, 0.3f, 0.3f },             // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.5f),              // shininess
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.16f, 0.17f, 0.18f },         // ambient
+		{ 0.8f, 0.85f, 0.9f },            // diffuse
+		{ 0.3f, 0.3f, 0.3f },             // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.5f),              // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.8f, 0.85f, 0.9f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.4f);
-    mat.setIOR(1.45f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.8f, 0.85f, 0.9f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.4f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::STONE_SOAPSTONE()
 {
-    GLMaterial mat({ 0.05f, 0.06f, 0.056f },        // ambient
-        { 0.25f, 0.3f, 0.28f },           // diffuse
-        { 0.01f, 0.01f, 0.01f },          // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.031f),            // shininess
-        false,                            // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.05f, 0.06f, 0.056f },        // ambient
+		{ 0.25f, 0.3f, 0.28f },           // diffuse
+		{ 0.01f, 0.01f, 0.01f },          // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.031f),            // shininess
+		false,                            // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.25f, 0.3f, 0.28f));
-    mat.setMetalness(0.0f);
-    mat.setRoughness(0.95f);
-    mat.setIOR(1.45f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.25f, 0.3f, 0.28f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.95f);
+	mat.setIOR(1.45f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_TITANIUM()
 {
-    GLMaterial mat({ 0.11f, 0.116f, 0.124f },       // ambient
-        { 0.55f, 0.58f, 0.62f },          // diffuse
-        { 0.7f, 0.7f, 0.7f },             // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.5f),              // shininess
-        true,                             // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.11f, 0.116f, 0.124f },       // ambient
+		{ 0.55f, 0.58f, 0.62f },          // diffuse
+		{ 0.7f, 0.7f, 0.7f },             // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.5f),              // shininess
+		true,                             // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.55f, 0.58f, 0.62f));
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.3f);
-    mat.setIOR(2.5f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.55f, 0.58f, 0.62f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.3f);
+	mat.setIOR(2.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_PLATINUM()
 {
-    GLMaterial mat({ 0.164f, 0.164f, 0.17f },       // ambient
-        { 0.82f, 0.82f, 0.85f },          // diffuse
-        { 0.9f, 0.9f, 0.9f },             // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.75f),             // shininess
-        true,                             // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.164f, 0.164f, 0.17f },       // ambient
+		{ 0.82f, 0.82f, 0.85f },          // diffuse
+		{ 0.9f, 0.9f, 0.9f },             // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.75f),             // shininess
+		true,                             // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.82f, 0.82f, 0.85f));
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.2f);
-    mat.setIOR(2.9f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.82f, 0.82f, 0.85f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.2f);
+	mat.setIOR(2.9f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_MAGNESIUM()
 {
-    GLMaterial mat({ 0.18f, 0.18f, 0.19f },         // ambient
-        { 0.9f, 0.9f, 0.95f },            // diffuse
-        { 0.7f, 0.7f, 0.75f },            // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.31f),             // shininess
-        true,                             // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.18f, 0.18f, 0.19f },         // ambient
+		{ 0.9f, 0.9f, 0.95f },            // diffuse
+		{ 0.7f, 0.7f, 0.75f },            // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.31f),             // shininess
+		true,                             // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.95f));
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.4f);
-    mat.setIOR(1.6f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.9f, 0.9f, 0.95f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.4f);
+	mat.setIOR(1.6f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_ZINC()
 {
-    GLMaterial mat({ 0.13f, 0.14f, 0.15f },         // ambient
-        { 0.65f, 0.7f, 0.75f },           // diffuse
-        { 0.7f, 0.7f, 0.7f },             // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.375f),            // shininess
-        true,                             // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.13f, 0.14f, 0.15f },         // ambient
+		{ 0.65f, 0.7f, 0.75f },           // diffuse
+		{ 0.7f, 0.7f, 0.7f },             // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.375f),            // shininess
+		true,                             // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.65f, 0.7f, 0.75f));
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.35f);
-    mat.setIOR(1.9f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.65f, 0.7f, 0.75f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.35f);
+	mat.setIOR(1.9f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_NICKEL()
 {
-    GLMaterial mat({ 0.144f, 0.144f, 0.148f },      // ambient
-        { 0.72f, 0.72f, 0.74f },          // diffuse
-        { 0.85f, 0.85f, 0.85f },          // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.625f),            // shininess
-        true,                             // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.144f, 0.144f, 0.148f },      // ambient
+		{ 0.72f, 0.72f, 0.74f },          // diffuse
+		{ 0.85f, 0.85f, 0.85f },          // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.625f),            // shininess
+		true,                             // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.72f, 0.72f, 0.74f));
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.25f);
-    mat.setIOR(2.0f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.72f, 0.72f, 0.74f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.25f);
+	mat.setIOR(2.0f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_ALUMINUM()
 {
-    GLMaterial mat({ 0.182f, 0.184f, 0.184f },      // ambient
-        { 0.91f, 0.92f, 0.92f },          // diffuse
-        { 0.95f, 0.95f, 0.95f },          // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.563f),            // shininess
-        true,                             // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.182f, 0.184f, 0.184f },      // ambient
+		{ 0.91f, 0.92f, 0.92f },          // diffuse
+		{ 0.95f, 0.95f, 0.95f },          // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.563f),            // shininess
+		true,                             // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.91f, 0.92f, 0.92f));
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.2f);
-    mat.setIOR(1.44f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.91f, 0.92f, 0.92f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.2f);
+	mat.setIOR(1.44f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_IRON_RAW()
 {
-    GLMaterial mat({ 0.09f, 0.09f, 0.094f },        // ambient
-        { 0.45f, 0.45f, 0.47f },          // diffuse
-        { 0.6f, 0.6f, 0.6f },             // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.25f),             // shininess
-        true,                             // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.09f, 0.09f, 0.094f },        // ambient
+		{ 0.45f, 0.45f, 0.47f },          // diffuse
+		{ 0.6f, 0.6f, 0.6f },             // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.25f),             // shininess
+		true,                             // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.45f, 0.45f, 0.47f));
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.5f);
-    mat.setIOR(2.25f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.45f, 0.45f, 0.47f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.5f);
+	mat.setIOR(2.25f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_COBALT()
 {
-    GLMaterial mat({ 0.08f, 0.09f, 0.12f },         // ambient
-        { 0.4f, 0.45f, 0.6f },            // diffuse
-        { 0.7f, 0.7f, 0.75f },            // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.406f),            // shininess
-        true,                             // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.08f, 0.09f, 0.12f },         // ambient
+		{ 0.4f, 0.45f, 0.6f },            // diffuse
+		{ 0.7f, 0.7f, 0.75f },            // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.406f),            // shininess
+		true,                             // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.4f, 0.45f, 0.6f));
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.3f);
-    mat.setIOR(2.3f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.4f, 0.45f, 0.6f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.3f);
+	mat.setIOR(2.3f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_PEWTER()
 {
-    GLMaterial mat({ 0.12f, 0.12f, 0.124f },        // ambient
-        { 0.6f, 0.6f, 0.62f },            // diffuse
-        { 0.55f, 0.55f, 0.55f },          // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.156f),            // shininess
-        true,                             // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.12f, 0.12f, 0.124f },        // ambient
+		{ 0.6f, 0.6f, 0.62f },            // diffuse
+		{ 0.55f, 0.55f, 0.55f },          // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.156f),            // shininess
+		true,                             // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.6f, 0.6f, 0.62f));
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.6f);
-    mat.setIOR(2.1f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.6f, 0.6f, 0.62f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.6f);
+	mat.setIOR(2.1f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 GLMaterial GLMaterial::METAL_TUNGSTEN()
 {
-    GLMaterial mat({ 0.06f, 0.06f, 0.066f },        // ambient
-        { 0.3f, 0.3f, 0.33f },            // diffuse
-        { 0.85f, 0.85f, 0.9f },           // specular
-        { 0.0f, 0.0f, 0.0f },             // emissive
-        fabs(128.0f * 0.75f),             // shininess
-        true,                             // metallic
-        1.0f);                           // opacity
+	GLMaterial mat({ 0.06f, 0.06f, 0.066f },        // ambient
+		{ 0.3f, 0.3f, 0.33f },            // diffuse
+		{ 0.85f, 0.85f, 0.9f },           // specular
+		{ 0.0f, 0.0f, 0.0f },             // emissive
+		fabs(128.0f * 0.75f),             // shininess
+		true,                             // metallic
+		1.0f);                           // opacity
 
-    mat.setAlbedoColor(QVector3D(0.3f, 0.3f, 0.33f));
-    mat.setMetalness(1.0f);
-    mat.setRoughness(0.15f);
-    mat.setIOR(3.0f);
-    mat.setShadingModel(ShadingModel::PBR);
-    mat.updateConsistency();
-    return mat;
+	mat.setAlbedoColor(QVector3D(0.3f, 0.3f, 0.33f));
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.15f);
+	mat.setIOR(3.0f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
 }
 
 
 GLMaterial GLMaterial::DEFAULT_MAT()
-{    
+{
 	return METAL_STEEL(); // Default material set to METAL_STEEL
- //   GLMaterial mat({ 90 / 255.0f, 98 / 255.0f, 115 / 255.0f },
- //       { 175 / 255.0f, 192 / 255.0f, 224 / 255.0f },
- //       { 26 / 255.0f, 26 / 255.0f, 26 / 255.0f },
- //       { 0.0, 0.0, 0.0 },
- //       fabs(128.0 * 0.05f),
- //       false,
- //       1.0f);
-	//mat.setAlbedoColor(mat.ambient() + mat.diffuse());
-	//mat.setMetalness(1.0f);
-	//mat.setRoughness(0.7f);
+	//   GLMaterial mat({ 90 / 255.0f, 98 / 255.0f, 115 / 255.0f },
+	//       { 175 / 255.0f, 192 / 255.0f, 224 / 255.0f },
+	//       { 26 / 255.0f, 26 / 255.0f, 26 / 255.0f },
+	//       { 0.0, 0.0, 0.0 },
+	//       fabs(128.0 * 0.05f),
+	//       false,
+	//       1.0f);
+	   //mat.setAlbedoColor(mat.ambient() + mat.diffuse());
+	   //mat.setMetalness(1.0f);
+	   //mat.setRoughness(0.7f);
 
-	//// Additional PBR properties for complete material definition
-	//mat.setOpacity(1.0f); // Fully opaque
-	//mat.setTransmission(0.0f); // No light transmission
-	//mat.setIOR(1.5f); // Standard dielectric IOR
-	//mat.setShadingModel(ShadingModel::PBR); // Use PBR shading
+	   //// Additional PBR properties for complete material definition
+	   //mat.setOpacity(1.0f); // Fully opaque
+	   //mat.setTransmission(0.0f); // No light transmission
+	   //mat.setIOR(1.5f); // Standard dielectric IOR
+	   //mat.setShadingModel(ShadingModel::PBR); // Use PBR shading
 
-	//return mat;
+	   //return mat;
 }
 
 void GLMaterial::setAlbedoFromADS()
@@ -1414,168 +1735,254 @@ void GLMaterial::setAlbedoFromADS()
 
 void GLMaterial::updateConsistency()
 {
-    // Synchronize legacy and PBR properties based on current shading model
-    if (_shadingModel == ShadingModel::PBR) {
-        // When using PBR, update legacy properties from PBR values
-        _diffuse = _albedoColor;
-        _ambient = _albedoColor * 0.1f; // Typical ambient factor
+	// Synchronize legacy and PBR properties based on current shading model
+	if (_shadingModel == ShadingModel::PBR)
+	{
+		// When using PBR, update legacy properties from PBR values
+		_diffuse = _albedoColor;
+		_ambient = _albedoColor * 0.1f; // Typical ambient factor
 
-        // Convert metalness to legacy metallic boolean
-        _metallic = (_metalness > 0.5f);
+		// Convert metalness to legacy metallic boolean (keep for compatibility)
+		_metallic = (_metalness > 0.5f);
 
-        // Convert roughness to shininess (inverse relationship)
-        _shininess = (1.0f - _roughness) * 128.0f;
+		// Convert roughness to shininess (inverse relationship)
+		_shininess = (1.0f - _roughness) * 128.0f;
 
-        // Update specular based on metalness and albedo
-        if (_metalness > 0.5f) {
-            _specular = _albedoColor; // Metals use albedo as specular
-        } else {
-            // Dielectrics typically have low specular values
-            float f0 = (_ior - 1.0f) / (_ior + 1.0f);
-            f0 = f0 * f0;
-            _specular = QVector3D(f0, f0, f0);
-        }
+		// SMOOTH BLENDING: Update specular based on gradual metalness transition
+		// Calculate dielectric specular (F0 from IOR)
+		float f0 = (_ior - 1.0f) / (_ior + 1.0f);
+		f0 = f0 * f0;
+		QVector3D dielectricSpecular(f0, f0, f0);
 
-        // Sync emissive properties
-        _emissive = _emissive * _emissiveStrength;
-    }
-    else {
-        // When using legacy shading, update PBR properties from legacy values
-        _albedoColor = _diffuse;
+		// Calculate metallic specular (uses albedo color)
+		QVector3D metallicSpecular = _albedoColor;
 
-        // Convert shininess to roughness (inverse relationship)
-        _roughness = 1.0f - (_shininess / 128.0f);
+		// Smoothly blend between dielectric and metallic specular
+		_specular = dielectricSpecular * (1.0f - _metalness) + metallicSpecular * (_metalness);
 
-        // Convert legacy metallic boolean to metalness value
-        _metalness = _metallic ? 1.0f : 0.0f;
+		// For diffuse: metals have no diffuse, dielectrics use albedo
+		// But since we're setting _diffuse = _albedoColor above, we need to handle this in shader
+		// The shader should use: finalDiffuse = diffuse * (1.0 - metalness)
 
-        // Estimate IOR from specular reflectance (assuming grayscale)
-        float specularGray = (_specular.x() + _specular.y() + _specular.z()) / 3.0f;
-        if (specularGray > 0.0f) {
-            float sqrtF0 = sqrt(specularGray);
-            _ior = (1.0f + sqrtF0) / (1.0f - sqrtF0);
-        }
+		// Sync emissive properties
+		_emissive = _emissive * _emissiveStrength;
+	}
+	else
+	{
+		// When using legacy shading (ADS), update PBR properties from legacy values
+		_albedoColor = _diffuse;
 
-        // Extract emissive strength if emissive is non-zero
-        float emissiveLength = _emissive.length();
-        if (emissiveLength > 0.0f) {
-            _emissiveStrength = emissiveLength;
-            _emissive = _emissive / emissiveLength; // Normalize color
-        }
-    }
+		// Convert shininess to roughness (inverse relationship)
+		_roughness = qBound(0.01f, 1.0f - (_shininess / 128.0f), 1.0f);
+
+		// PRESERVE CONTINUOUS METALNESS: Don't convert boolean back to hard values		
+		if (_metallic)
+		{
+			// If boolean is true, bias toward metallic but allow gradual transition
+			_metalness = qBound(0.5f, _metalness, 1.0f); // Ensure at least 0.5 if flagged as metal
+		}
+		// If boolean is false, allow full range (0.0 to 1.0) based on external metalness input
+
+		// Calculate IOR from specular reflectance (assuming grayscale)
+		float specularGray = ((_specular).x() + (_specular).y() + (_specular).z()) / 3.0f;
+		if (specularGray > 0.0f)
+		{
+			float sqrtF0 = qSqrt(qBound(0.001f, specularGray, 0.999f)); // Clamp to prevent division issues
+			_ior = qBound(1.0f, (1.0f + sqrtF0) / (1.0f - sqrtF0), 3.0f); // Reasonable IOR range
+		}
+
+		// Extract emissive strength if emissive is non-zero
+		float emissiveLength = (_emissive).length();
+		if (emissiveLength > 0.0f)
+		{
+			_emissiveStrength = emissiveLength;
+			_emissive = (_emissive) / emissiveLength; // Normalize color
+		}
+	}
 }
 
 void GLMaterial::clampValues()
 {
-    // Clamp legacy properties
-    _ambient = QVector3D(
-        qBound(0.0f, _ambient.x(), 1.0f),
-        qBound(0.0f, _ambient.y(), 1.0f),
-        qBound(0.0f, _ambient.z(), 1.0f)
-    );
+	// Clamp legacy properties
+	_ambient = QVector3D(
+		qBound(0.0f, _ambient.x(), 1.0f),
+		qBound(0.0f, _ambient.y(), 1.0f),
+		qBound(0.0f, _ambient.z(), 1.0f)
+	);
 
-    _diffuse = QVector3D(
-        qBound(0.0f, _diffuse.x(), 1.0f),
-        qBound(0.0f, _diffuse.y(), 1.0f),
-        qBound(0.0f, _diffuse.z(), 1.0f)
-    );
+	_diffuse = QVector3D(
+		qBound(0.0f, _diffuse.x(), 1.0f),
+		qBound(0.0f, _diffuse.y(), 1.0f),
+		qBound(0.0f, _diffuse.z(), 1.0f)
+	);
 
-    _specular = QVector3D(
-        qBound(0.0f, _specular.x(), 1.0f),
-        qBound(0.0f, _specular.y(), 1.0f),
-        qBound(0.0f, _specular.z(), 1.0f)
-    );
+	_specular = QVector3D(
+		qBound(0.0f, _specular.x(), 1.0f),
+		qBound(0.0f, _specular.y(), 1.0f),
+		qBound(0.0f, _specular.z(), 1.0f)
+	);
 
-    // Emissive can exceed 1.0 for HDR, but should be non-negative
-    _emissive = QVector3D(
-        qMax(0.0f, _emissive.x()),
-        qMax(0.0f, _emissive.y()),
-        qMax(0.0f, _emissive.z())
-    );
+	// Emissive can exceed 1.0 for HDR, but should be non-negative
+	_emissive = QVector3D(
+		qMax(0.0f, _emissive.x()),
+		qMax(0.0f, _emissive.y()),
+		qMax(0.0f, _emissive.z())
+	);
 
-    _shininess = qBound(0.0f, _shininess, 1000.0f);
+	_shininess = qBound(0.0f, _shininess, 1000.0f);
 
-    // Clamp PBR properties
-    _albedoColor = QVector3D(
-        qBound(0.0f, _albedoColor.x(), 1.0f),
-        qBound(0.0f, _albedoColor.y(), 1.0f),
-        qBound(0.0f, _albedoColor.z(), 1.0f)
-    );
+	// Clamp PBR properties
+	_albedoColor = QVector3D(
+		qBound(0.0f, _albedoColor.x(), 1.0f),
+		qBound(0.0f, _albedoColor.y(), 1.0f),
+		qBound(0.0f, _albedoColor.z(), 1.0f)
+	);
 
-    _metalness = qBound(0.0f, _metalness, 1.0f);
-    _roughness = qBound(0.0f, _roughness, 1.0f);
-    _opacity = qBound(0.0f, _opacity, 1.0f);
+	_metalness = qBound(0.0f, _metalness, 1.0f);
+	_roughness = qBound(0.0f, _roughness, 1.0f);
+	_opacity = qBound(0.0f, _opacity, 1.0f);
 
-    // Emissive strength can be > 1.0 for HDR
-    _emissiveStrength = qMax(0.0f, _emissiveStrength);
+	// Emissive strength can be > 1.0 for HDR
+	_emissiveStrength = qMax(0.0f, _emissiveStrength);
 
-    // Advanced PBR properties
-    _ior = qBound(1.0f, _ior, 3.0f); // Typical range for common materials
-    _clearcoat = qBound(0.0f, _clearcoat, 1.0f);
-    _clearcoatRoughness = qBound(0.0f, _clearcoatRoughness, 1.0f);
+	// Advanced PBR properties
+	_ior = qBound(1.0f, _ior, 3.0f); // Typical range for common materials
+	_clearcoat = qBound(0.0f, _clearcoat, 1.0f);
+	_clearcoatRoughness = qBound(0.0f, _clearcoatRoughness, 1.0f);
 
-    _sheenColor = QVector3D(
-        qBound(0.0f, _sheenColor.x(), 1.0f),
-        qBound(0.0f, _sheenColor.y(), 1.0f),
-        qBound(0.0f, _sheenColor.z(), 1.0f)
-    );
+	_sheenColor = QVector3D(
+		qBound(0.0f, _sheenColor.x(), 1.0f),
+		qBound(0.0f, _sheenColor.y(), 1.0f),
+		qBound(0.0f, _sheenColor.z(), 1.0f)
+	);
 
-    _sheenRoughness = qBound(0.0f, _sheenRoughness, 1.0f);
-    _transmission = qBound(0.0f, _transmission, 1.0f);
+	_sheenRoughness = qBound(0.0f, _sheenRoughness, 1.0f);
+	_transmission = qBound(0.0f, _transmission, 1.0f);
 
-    // Rendering properties
-    _alphaThreshold = qBound(0.0f, _alphaThreshold, 1.0f);
+	// Rendering properties
+	_alphaThreshold = qBound(0.0f, _alphaThreshold, 1.0f);
 
-    // Texture coordinate indices should be non-negative
-    _albedoTexCoord = qMax(0, _albedoTexCoord);
-    _normalTexCoord = qMax(0, _normalTexCoord);
-    _metallicRoughnessTexCoord = qMax(0, _metallicRoughnessTexCoord);
+	// Texture coordinate indices should be non-negative
+	_albedoTexCoord = qMax(0, _albedoTexCoord);
+	_normalTexCoord = qMax(0, _normalTexCoord);
+	_metallicRoughnessTexCoord = qMax(0, _metallicRoughnessTexCoord);
 }
 
 void GLMaterial::ensureADSConsistency()
 {
-    // This function can be called to update any material that might have
-    // incomplete ADS values based on its PBR properties
+	// This function can be called to update any material that might have
+	// incomplete ADS values based on its PBR properties
 
-    if (_shadingModel == ShadingModel::PBR)
-    {
-        // Update legacy ADS from PBR values
-        _diffuse = _albedoColor;
-        _ambient = _albedoColor * 0.2f; // Standard ambient factor
+	if (_shadingModel == ShadingModel::PBR)
+	{
+		// Update legacy ADS from PBR values
+		_diffuse = _albedoColor;
+		_ambient = _albedoColor * 0.2f; // Standard ambient factor
 
-        if (_metalness > 0.5f)
-        {
-            // Metallic materials
-            _specular = _albedoColor; // Metals use albedo as specular
-            _shininess = (1.0f - _roughness) * 128.0f;
-        }
-        else
-        {
-            // Dielectric materials
-            float f0 = (_ior - 1.0f) / (_ior + 1.0f);
-            f0 = f0 * f0;
-            _specular = QVector3D(f0, f0, f0);
-            _shininess = (1.0f - _roughness) * 128.0f;
-        }
-    }
-    else
-    {
-        // Update PBR from legacy ADS values
-        _albedoColor = _diffuse;
-        _roughness = 1.0f - (_shininess / 128.0f);
-        _metalness = _metallic ? 1.0f : 0.0f;
+		if (_metalness > 0.5f)
+		{
+			// Metallic materials
+			_specular = _albedoColor; // Metals use albedo as specular
+			_shininess = (1.0f - _roughness) * 128.0f;
+		}
+		else
+		{
+			// Dielectric materials
+			float f0 = (_ior - 1.0f) / (_ior + 1.0f);
+			f0 = f0 * f0;
+			_specular = QVector3D(f0, f0, f0);
+			_shininess = (1.0f - _roughness) * 128.0f;
+		}
+	}
+	else
+	{
+		// Update PBR from legacy ADS values
+		_albedoColor = _diffuse;
+		_roughness = 1.0f - (_shininess / 128.0f);
+		_metalness = _metallic ? 1.0f : 0.0f;
 
-        // Estimate IOR from specular
-        float specGray = (_specular.x() + _specular.y() + _specular.z()) / 3.0f;
-        if (specGray > 0.01f)
-        {
-            float sqrtF0 = sqrt(specGray);
-            _ior = (1.0f + sqrtF0) / (1.0f - sqrtF0);
-        }
-    }
+		// Estimate IOR from specular
+		float specGray = (_specular.x() + _specular.y() + _specular.z()) / 3.0f;
+		if (specGray > 0.01f)
+		{
+			float sqrtF0 = sqrt(specGray);
+			_ior = (1.0f + sqrtF0) / (1.0f - sqrtF0);
+		}
+	}
 
-    // Ensure all values are properly clamped
-    clampValues();
+	// Ensure all values are properly clamped
+	clampValues();
+}
+
+// === HELPER FUNCTIONS FOR ADVANCED MATERIALS ===
+// Function to create a material with time-varying properties (for animations)
+GLMaterial GLMaterial::createAnimatedEmissive(const QVector3D& baseColor,
+	const QVector3D& emissiveColor,
+	float emissiveStrength,
+	float time)
+{
+	GLMaterial mat;
+
+	mat.setAmbient(baseColor * 0.1f);
+	mat.setDiffuse(baseColor);
+	mat.setSpecular(QVector3D(0.2f, 0.2f, 0.2f));
+
+	// Animate emissive strength with time
+	float animatedStrength = emissiveStrength * (0.5f + 0.5f * sin(time));
+	mat.setEmissive(emissiveColor);
+	mat.setEmissiveStrength(animatedStrength);
+
+	mat.setShininess(64.0f);
+	mat.setMetallic(false);
+	mat.setOpacity(1.0f);
+
+	// PBR properties
+	mat.setAlbedoColor(baseColor);
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.3f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+
+	return mat;
+}
+
+// Function to blend two materials based on a factor (useful for layered materials)
+GLMaterial GLMaterial::blendMaterials(const GLMaterial& mat1,
+	const GLMaterial& mat2,
+	float factor)
+{
+	factor = std::clamp(factor, 0.0f, 1.0f);
+	float invFactor = 1.0f - factor;
+
+	GLMaterial result;
+
+	// Blend ADS properties
+	result.setAmbient(mat1.ambient() * invFactor + mat2.ambient() * factor);
+	result.setDiffuse(mat1.diffuse() * invFactor + mat2.diffuse() * factor);
+	result.setSpecular(mat1.specular() * invFactor + mat2.specular() * factor);
+	result.setEmissive(mat1.emissive() * invFactor + mat2.emissive() * factor);
+	result.setShininess(mat1.shininess() * invFactor + mat2.shininess() * factor);
+	result.setOpacity(mat1.opacity() * invFactor + mat2.opacity() * factor);
+
+	// Blend PBR properties
+	result.setAlbedoColor(mat1.albedoColor() * invFactor + mat2.albedoColor() * factor);
+	result.setMetalness(mat1.metalness() * invFactor + mat2.metalness() * factor);
+	result.setRoughness(mat1.roughness() * invFactor + mat2.roughness() * factor);
+	result.setEmissiveStrength(mat1.emissiveStrength() * invFactor + mat2.emissiveStrength() * factor);
+	result.setIOR(mat1.ior() * invFactor + mat2.ior() * factor);
+	result.setClearcoat(mat1.clearcoat() * invFactor + mat2.clearcoat() * factor);
+	result.setClearcoatRoughness(mat1.clearcoatRoughness() * invFactor + mat2.clearcoatRoughness() * factor);
+	result.setSheenColor(mat1.sheenColor() * invFactor + mat2.sheenColor() * factor);
+	result.setSheenRoughness(mat1.sheenRoughness() * invFactor + mat2.sheenRoughness() * factor);
+	result.setTransmission(mat1.transmission() * invFactor + mat2.transmission() * factor);
+
+	// Choose the primary material's shading model and blend mode
+	result.setShadingModel(factor > 0.5f ? mat2.shadingModel() : mat1.shadingModel());
+	result.setBlendMode(factor > 0.5f ? mat2.blendMode() : mat1.blendMode());
+
+	result.updateConsistency();
+	return result;
 }
 
 #include <QDataStream>

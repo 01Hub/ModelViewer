@@ -96,16 +96,15 @@ void MaterialPreviewWidget::initializeGL()
                 vec3(0.4, 0.4, 0.5)
             };
 
-            // --- Metal vs dielectric base colors ---
-            vec3 diffuseColor;
-            vec3 specularColor;
-            if (metalness > 0.5) {
-                diffuseColor = vec3(0.0);          // metals: no diffuse
-                specularColor = albedo;            // metals: reflection tinted by albedo
-            } else {
-                diffuseColor = albedo;             // dielectrics: diffuse albedo
-                specularColor = vec3(0.04);        // dielectrics: constant specular
-            }
+            
+            // --- Metal vs dielectric base colors (smooth blend) ---
+            vec3 dielectricDiffuse = albedo;
+            vec3 dielectricSpecular = vec3(0.04);
+            vec3 metallicDiffuse = vec3(0.0);
+            vec3 metallicSpecular = albedo;
+
+            vec3 diffuseColor = mix(dielectricDiffuse, metallicDiffuse, metalness);
+            vec3 specularColor = mix(dielectricSpecular, metallicSpecular, metalness);
 
             // --- Calculate lighting ---
             vec3 color = vec3(0.0);
@@ -134,12 +133,9 @@ void MaterialPreviewWidget::initializeGL()
             }
 
             // --- Ambient fallback ---
-            vec3 ambient;
-            if (metalness > 0.5) {
-                ambient = albedo * 0.1;   // faint tinted reflection for metals
-            } else {
-                ambient = albedo * 0.2;   // diffuse fill for dielectrics
-            }
+            vec3 dielectricAmbient = albedo * 0.2;
+            vec3 metallicAmbient = albedo * 0.1;
+            vec3 ambient = mix(dielectricAmbient, metallicAmbient, metalness);
 
             color += ambient;
 
@@ -185,11 +181,8 @@ void MaterialPreviewWidget::initializeGL()
             color = clamp(color, vec3(0.0), vec3(10.0));
     
             // --- Final brightness boost ---
-            if (metalness > 0.5) {
-                color *= 2.5;
-            } else {
-                color *= 1.1; // Slightly brighter for dielectrics
-            }
+            float brightnessMult = mix(1.1, 2.5, metalness);
+            color *= brightnessMult;
     
             // Final color clamping before edge calculation
             color = clamp(color, vec3(0.0), vec3(20.0));
