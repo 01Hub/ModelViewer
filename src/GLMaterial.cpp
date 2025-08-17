@@ -29,6 +29,27 @@ GLMaterial::GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular,
 	_opacity = opacity;
 	_metalness = metallic ? 1.0f : 0.0f;
 	_roughness = 0.5f;
+	_albedoColor = diffuse; // Use diffuse as albedo color
+	_emissiveStrength = 1.0f; // Default emissive strength
+	_ior = 1.5f; // Default index of refraction
+	_clearcoat = 0.0f; // Default clearcoat
+	_clearcoatRoughness = 0.0f; // Default clearcoat roughness
+	_sheenColor = QVector3D(0.0f, 0.0f, 0.0f); // Default sheen color
+	_sheenRoughness = 0.0f; // Default
+	_transmission = 0.0f; // Default transmission
+	_shadingModel = ShadingModel::BlinnPhong; // Default shading model
+	_blendMode = BlendMode::Opaque; // Default blend mode
+	_twoSided = false; // Default two-sided rendering
+	_wireframe = false; // Default wireframe rendering
+	_alphaThreshold = 0.5f; // Default alpha threshold for masked blend mode
+	// Ensure all values are within valid ranges
+	clampValues();
+	// Fix shininess (0 to 128 for OpenGL)
+	_shininess = std::clamp(_shininess, 0.0f, 128.0f);
+	// Set albedo from diffuse
+	setAlbedoFromADS();
+	// Update consistency between legacy and PBR properties
+	updateConsistency();
 }
 
 GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float opacity)
@@ -42,7 +63,28 @@ GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float
 	_opacity = opacity;
 	_metallic = _metalness > 0.5f ? true : false;
 	_shininess = 125 * _metalness;
-}
+	_ambient = _albedoColor * 0.2f; // Set ambient to a fraction of albedo
+	_diffuse = _albedoColor; // Use albedo as diffuse color
+	_specular = QVector3D(0.04f, 0.04f, 0.04f); // Default specular for dielectrics
+	_emissive = QVector3D(0.0f, 0.0f, 0.0f); // Default emissive
+	_emissiveStrength = 1.0f; // Default emissive strength
+	_ior = 1.5f; // Default index of refraction
+	_clearcoat = 0.0f; // Default clearcoat
+	_clearcoatRoughness = 0.0f; // Default clearcoat roughness
+	_sheenColor = QVector3D(0.0f, 0.0f, 0.0f); // Default sheen color
+	_sheenRoughness = 0.0f; // Default
+	_transmission = 0.0f; // Default transmission
+	_shadingModel = ShadingModel::PBR; // Default shading model
+	_blendMode = BlendMode::Opaque; // Default blend mode
+	_twoSided = false; // Default two-sided rendering
+	_wireframe = false; // Default wireframe rendering
+	clampValues();
+	// Fix shininess (0 to 128 for OpenGL)
+	_shininess = std::clamp(_shininess, 0.0f, 128.0f);
+	// Set albedo from diffuse
+	setAlbedoFromADS();
+	updateConsistency();
+ }
 
 
 

@@ -52,14 +52,11 @@ void MaterialPreviewWidget::initializeGL()
         in vec3 vNormal;
         in vec3 vPos;
         out vec4 FragColor;
-
         uniform vec3 uCamPos;
         uniform vec3 uAlbedo;
         uniform float uMetalness;
         uniform float uRoughness;
-        uniform float uOpacity;
-
-        // Advanced PBR (simplified preview versions)
+        uniform float uOpacity;        
         uniform float uClearcoat;
         uniform float uClearcoatRoughness;
         uniform vec3  uSheenColor;
@@ -70,9 +67,24 @@ void MaterialPreviewWidget::initializeGL()
 
         void main()
         {
+            // Clamp uniforms to safe ranges to handle uninitialized values
+            vec3 albedo = clamp(uAlbedo, vec3(0.01), vec3(1.0)); // Prevent pure black
+            float metalness = clamp(uMetalness, 0.0, 1.0);
+            float roughness = clamp(uRoughness, 0.01, 1.0); // Prevent division by zero
+            float opacity = clamp(uOpacity, 0.0, 1.0);
+            float clearcoat = clamp(uClearcoat, 0.0, 1.0);
+            float clearcoatRoughness = clamp(uClearcoatRoughness, 0.01, 1.0);
+            vec3 sheenColor = clamp(uSheenColor, vec3(0.0), vec3(1.0));
+            float transmission = clamp(uTransmission, 0.0, 1.0);
+            float ior = clamp(uIOR, 1.0, 3.0); // Reasonable IOR range
+    
             vec3 N = normalize(vNormal);
             vec3 V = normalize(uCamPos - vPos);
-
+    
+            // Check for invalid vectors
+            if (length(N) < 0.1) N = vec3(0.0, 1.0, 0.0); // Default up vector
+            if (length(V) < 0.1) V = vec3(0.0, 0.0, 1.0); // Default view vector
+    
             // --- Simple 3-light rig ---
             vec3 L1 = normalize(vec3( 0.5,  0.7, 0.5));
             vec3 L2 = normalize(vec3(-0.4,  0.3, 0.7));
@@ -87,88 +99,112 @@ void MaterialPreviewWidget::initializeGL()
             // --- Metal vs dielectric base colors ---
             vec3 diffuseColor;
             vec3 specularColor;
-
-            if (uMetalness > 0.5) {
+            if (metalness > 0.5) {
                 diffuseColor = vec3(0.0);          // metals: no diffuse
-                specularColor = uAlbedo;           // metals: reflection tinted by albedo
+                specularColor = albedo;            // metals: reflection tinted by albedo
             } else {
-                diffuseColor = uAlbedo;            // dielectrics: diffuse albedo
+                diffuseColor = albedo;             // dielectrics: diffuse albedo
                 specularColor = vec3(0.04);        // dielectrics: constant specular
             }
 
+            // --- Calculate lighting ---
             vec3 color = vec3(0.0);
-
             // --- Loop over lights ---
             for (int i = 0; i < 3; i++) {
                 vec3 L = lights[i];
                 vec3 H = normalize(V + L);
-
                 float NdotL = max(dot(N, L), 0.0);
                 float NdotH = max(dot(N, H), 0.0);
-
                 // Simple specular (Blinn-Phong-like)
-                float specPow = mix(8.0, 128.0, 1.0 - uRoughness);
-                float specFactor = pow(NdotH, specPow);
-
+                float specPow = mix(8.0, 128.0, 1.0 - roughness);
+        
+                // Clamp specular power and factor to prevent extreme values
+                specPow = clamp(specPow, 1.0, 256.0);
+                float specFactor = pow(clamp(NdotH, 0.0, 1.0), specPow);
+                specFactor = clamp(specFactor, 0.0, 10.0); // Prevent extreme highlights
+        
                 vec3 diffuse = diffuseColor * NdotL;
                 vec3 spec = specularColor * specFactor;
-
+        
+                // Clamp intermediate results
+                diffuse = clamp(diffuse, vec3(0.0), vec3(2.0));
+                spec = clamp(spec, vec3(0.0), vec3(5.0));
+        
                 color += (diffuse + spec) * lightColors[i] * NdotL;
             }
 
             // --- Ambient fallback ---
             vec3 ambient;
-            if (uMetalness > 0.5) {
-                ambient = uAlbedo * 0.1;   // faint tinted reflection for metals
+            if (metalness > 0.5) {
+                ambient = albedo * 0.1;   // faint tinted reflection for metals
             } else {
-                ambient = uAlbedo * 0.2;   // diffuse fill for dielectrics
+                ambient = albedo * 0.2;   // diffuse fill for dielectrics
             }
+
             color += ambient;
 
             // --- Clearcoat ---
-            if (uClearcoat > 0.001) {
+            if (clearcoat > 0.001) {
                 vec3 Hc = normalize(V + L1);
-                float ccSpec = pow(max(dot(N, Hc), 0.0),
-                                   mix(64.0, 512.0, 1.0 - uClearcoatRoughness));
-                color += vec3(0.25) * uClearcoat * ccSpec;
+                float ccNdotH = max(dot(N, Hc), 0.0);
+                float ccSpecPow = mix(64.0, 512.0, 1.0 - clearcoatRoughness);
+                ccSpecPow = clamp(ccSpecPow, 1.0, 1024.0); // DEFENSIVE: Clamp power
+        
+                float ccSpec = pow(clamp(ccNdotH, 0.0, 1.0), ccSpecPow);
+                ccSpec = clamp(ccSpec, 0.0, 5.0); // DEFENSIVE: Clamp result
+        
+                color += vec3(0.25) * clearcoat * ccSpec;
             }
 
             // --- Sheen ---
-            if (length(uSheenColor) > 0.001) {
+            if (length(sheenColor) > 0.001) {
                 float NdotV = max(dot(N, V), 0.0);
-                float sheen = pow(1.0 - NdotV, 2.0);
-                color += uSheenColor * sheen * 0.5;
+                float sheen = pow(clamp(1.0 - NdotV, 0.0, 1.0), 2.0);
+                sheen = clamp(sheen, 0.0, 1.0); // DEFENSIVE: Clamp sheen
+                color += sheenColor * sheen * 0.5;
             }
 
             // --- Transmission (simplified glassy look) ---
-            if (uTransmission > 0.001) {
-                vec3 glassTint = mix(uAlbedo, vec3(1.0),
-                                     clamp((uIOR - 1.0) * 0.3, 0.0, 1.0));
-                color = mix(color, glassTint, uTransmission);
+            if (transmission > 0.001) {
+                vec3 glassTint = mix(albedo, vec3(1.0),
+                                     clamp((ior - 1.0) * 0.3, 0.0, 1.0));
+                color = mix(color, glassTint, transmission);
             }
 
            // --- Rim lighting (edge glow) ---
             // View and normal are already available (V, N)
             float rim = 1.0 - max(dot(N, V), 0.0);
-            rim = pow(rim, 2.0);                // Sharpen falloff
+            rim = pow(clamp(rim, 0.0, 1.0), 2.0);                // Sharpen falloff
+            rim = clamp(rim, 0.0, 1.0); // DEFENSIVE: Clamp rim
+    
             //vec3 rimColor = vec3(0.25, 0.25, 0.3) * rim * 0.6; // cool subtle tint
-            vec3 rimColor = uAlbedo * rim * 0.2; // or the material's albedo
-
+            vec3 rimColor = albedo * rim * 0.2; // or the material's albedo
             color += rimColor;
-
+    
+            // Clamp color before brightness boost to prevent overflow
+            color = clamp(color, vec3(0.0), vec3(10.0));
+    
             // --- Final brightness boost ---
-            if (uMetalness > 0.5) {
+            if (metalness > 0.5) {
                 color *= 2.5;
             } else {
                 color *= 1.1; // Slightly brighter for dielectrics
             }
-
+    
+            // Final color clamping before edge calculation
+            color = clamp(color, vec3(0.0), vec3(20.0));
+    
             float edge = max(dot(N, V), 0.0);
             float smoothEdge = smoothstep(0.0, 0.05, edge); // fade out last 5% near rim
-
-
-
-            FragColor = vec4(color, 1.0) * smoothEdge;
+    
+            // Ensure smoothEdge is valid
+            smoothEdge = clamp(smoothEdge, 0.0, 1.0);
+    
+            // Final output clamping
+            vec3 finalColor = clamp(color, vec3(0.0), vec3(1000.0));
+            float finalOpacity = clamp(opacity * smoothEdge, 0.0, 1.0);
+    
+            FragColor = vec4(finalColor, 1.0) * smoothEdge;
         }
     )");
 
