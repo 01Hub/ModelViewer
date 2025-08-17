@@ -1213,20 +1213,31 @@ void applyEnvironmentMapping(float alpha)
 		float transmissionStrength = pbrLighting.transmission * 0.7;
 		fragColor.rgb = mix(fragColor.rgb, filteredEnvColor, transmissionStrength);
 	}
-	else if(alpha < 1.0f && !floorRendering) // Regular transparency - keep existing logic
-	{
-		vec3 R = refract(I, N, 1.0f - alpha); // Keep original approach
-		R = envMapRotationMatrix * R;
-
-		if(texEnabled == true)
-			fragColor = mix(texture2D(texUnit, g_texCoord2d), vec4(texture(envMap, R).rgb, 1.0f - alpha), 1.0f - alpha);
-		else
-			fragColor = vec4(texture(envMap, R).rgb, 1.0f - alpha);
-
-		// Color mixing
-		vec4 colour = fragColor;
-		fragColor = mix(fragColor, colour, alpha/1.0f);
-	}
+	else if(alpha < 1.0f && !floorRendering) // Regular transparency
+    {
+        vec3 R = refract(I, N, 1.0f - alpha); // Keep Z-up hack
+        R = envMapRotationMatrix * R;
+    
+        // Calculate environment reflection strength based on material properties
+        float envStrength;
+        if(renderingMode == 1) { // PBR mode
+            envStrength = (1.0f - alpha) * 0.3; // Much lower for PBR materials
+        } else { // ADS mode
+            envStrength = (1.0f - alpha) * 0.5;
+        }
+    
+        vec3 envColor = texture(envMap, R).rgb;
+    
+        if(texEnabled == true) {
+            vec3 texColor = texture2D(texUnit, g_texCoord2d).rgb;
+            fragColor.rgb = mix(mix(fragColor.rgb, texColor, 0.8), envColor, envStrength);
+        } else {
+            // Blend with existing color
+            fragColor.rgb = mix(fragColor.rgb, envColor, envStrength);
+        }
+    
+        fragColor.a = alpha; // Set proper alpha
+    }
 	else if(renderingMode == 0) // ADS Reflection - IMPROVED
 	{
 		vec3 R = refract(-I, N, 1.0f); // Keep Z-up hack
@@ -1236,8 +1247,7 @@ void applyEnvironmentMapping(float alpha)
 		float specularLuminance = dot(material.specular, vec3(0.299, 0.587, 0.114));
 		float diffuseLuminance = dot(material.diffuse, vec3(0.299, 0.587, 0.114));
 
-		// Material type detection
-		bool isMetallic = material.metallic;
+		// Material type detection		
 		bool isHighSpecular = specularLuminance > 0.5;
 		bool isDiffuseDominant = diffuseLuminance > specularLuminance * 2.0;
 
@@ -1256,7 +1266,9 @@ void applyEnvironmentMapping(float alpha)
 
 		// Better fresnel calculation
 		float NdotV = max(dot(-I, N), 0.0);
-		float fresnelPower = isMetallic ? 1.5 : mix(3.0, 5.0, 1.0 - specularLuminance);
+		float nonMetallicFresnelPower = mix(3.0, 5.0, 1.0 - specularLuminance);
+        float metallicFresnelPower = 1.5;
+        float fresnelPower = mix(nonMetallicFresnelPower, metallicFresnelPower, pbrLighting.metallic);
 		float fresnel = pow(1.0 - NdotV, fresnelPower);
 
 		// Surface roughness consideration
@@ -1264,17 +1276,26 @@ void applyEnvironmentMapping(float alpha)
 		float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
 
 		// Material-specific reflection strength
-		float baseReflectionStrength;
-		if(isMetallic) {
-			// Metals should have strong reflections
-			baseReflectionStrength = mix(0.7, 1.0, specularLuminance);
-		} else if(isHighSpecular && !isDiffuseDominant) {
-			// Glossy non-metals (plastic, ceramic, etc.)
-			baseReflectionStrength = mix(0.3, 0.6, specularLuminance);
-		} else {
-			// Diffuse materials (wood, brick, fabric, etc.)
-			baseReflectionStrength = mix(0.02, 0.15, specularLuminance);
-		}
+		// Material-specific reflection strength with smooth blending
+        float metallicStrength = mix(0.2, 0.4, specularLuminance); // For metals
+        float glossyStrength = mix(0.3, 0.6, specularLuminance);   // For glossy non-metals  
+        float diffuseStrength = mix(0.02, 0.15, specularLuminance); // For diffuse materials
+
+        // Blend between metallic and non-metallic based on PBR metallic value
+        float nonMetallicStrength;
+        if(isHighSpecular && !isDiffuseDominant) {
+            nonMetallicStrength = glossyStrength;
+        } else {
+            nonMetallicStrength = diffuseStrength;
+        }
+
+        float baseReflectionStrength;
+        // Apply ADS-specific scaling to make reflections more subtle overall
+        if(renderingMode == 0) { // ADS mode
+            baseReflectionStrength *= 0.3; // Scale down all reflections in ADS
+        } else {
+            baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, pbrLighting.metallic);        
+        }
 
 		// Final reflection strength calculation
 		float reflectionStrength = baseReflectionStrength * 
