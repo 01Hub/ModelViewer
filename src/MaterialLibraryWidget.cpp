@@ -1,11 +1,14 @@
 #include "MaterialLibraryWidget.h"
 #include <QTreeWidgetItem>
+#include <QFontMetrics>
+
 
 MaterialLibraryWidget::MaterialLibraryWidget(QWidget *parent)
     : QTreeWidget(parent)
 {
     setHeaderHidden(true);
     setSelectionMode(QAbstractItemView::SingleSelection);
+    setMouseTracking(true);
 
     // --- build map of keys to factory methods ---
     materialMap = {
@@ -158,6 +161,27 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget *parent)
                 }
             }
 		});
+	// connect when user hovers over an item
+    connect(this, &QTreeWidget::itemEntered,
+        this, &MaterialLibraryWidget::handleItemEntered);    
+}
+
+void MaterialLibraryWidget::handleItemEntered(QTreeWidgetItem* item, int column)
+{
+
+    QRect rect = visualItemRect(item);
+    QFontMetrics metrics(font());
+    QString fullText = item->text(column);
+    QString elidedText = metrics.elidedText(fullText, Qt::ElideRight, rect.width());
+
+    if (elidedText != fullText)
+    {
+        item->setToolTip(column, fullText);
+    }
+    else
+    {
+        item->setToolTip(column, QString()); // Clear tooltip if not needed
+    }
 }
 
 void MaterialLibraryWidget::populateMaterials()

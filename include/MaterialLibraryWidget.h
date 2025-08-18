@@ -13,6 +13,7 @@ signals:
 
 private slots:
     void onItemClicked(QTreeWidgetItem *item, int column);
+    void handleItemEntered(QTreeWidgetItem* item, int column);
 
 private:
     void populateMaterials();
