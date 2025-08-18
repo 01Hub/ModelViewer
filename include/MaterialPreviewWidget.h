@@ -1,9 +1,9 @@
 #pragma once
 #include <QOpenGLWidget>
 #include <QOpenGLFunctions_4_5_Core>
-#include <QOpenGLShaderProgram>
 #include <QMatrix4x4>
 #include "GLMaterial.h"
+#include "ShaderProgram.h"
 
 class MaterialPreviewWidget : public QOpenGLWidget, protected QOpenGLFunctions_4_5_Core
 {
@@ -24,7 +24,7 @@ private:
     void updateShaderFromMaterial(const GLMaterial &mat);
 
 private:
-    QOpenGLShaderProgram shader;
+    std::unique_ptr<ShaderProgram> _shader;
     GLuint vao = 0;
     GLuint vbo = 0;
     GLuint ebo = 0;
