@@ -224,8 +224,7 @@ void MaterialLibraryWidget::populateMaterials()
 	(new QTreeWidgetItem(stones, QStringList() << "Jade"))->setData(0, Qt::UserRole, "STONE_JADE");
 	(new QTreeWidgetItem(stones, QStringList() << "Limestone"))->setData(0, Qt::UserRole, "STONE_LIMESTONE");
 	(new QTreeWidgetItem(stones, QStringList() << "Sandstone"))->setData(0, Qt::UserRole, "STONE_SANDSTONE");
-	(new QTreeWidgetItem(stones, QStringList() << "Basalt"))->setData(0, Qt::UserRole, "STONE_BASALT");
-	(new QTreeWidgetItem(stones, QStringList() << "Obsidian"))->setData(0, Qt::UserRole, "STONE_OBSIDIAN");
+	(new QTreeWidgetItem(stones, QStringList() << "Basalt"))->setData(0, Qt::UserRole, "STONE_BASALT");	
 	(new QTreeWidgetItem(stones, QStringList() << "Travertine"))->setData(0, Qt::UserRole, "STONE_TRAVERTINE");
 	(new QTreeWidgetItem(stones, QStringList() << "Quartzite"))->setData(0, Qt::UserRole, "STONE_QUARTZITE");
 	(new QTreeWidgetItem(stones, QStringList() << "Soapstone"))->setData(0, Qt::UserRole, "STONE_SOAPSTONE");
