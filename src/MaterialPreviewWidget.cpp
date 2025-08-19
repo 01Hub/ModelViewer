@@ -20,7 +20,7 @@ MaterialPreviewWidget::~MaterialPreviewWidget()
 
 void MaterialPreviewWidget::setMaterial(const GLMaterial& mat)
 {
-	currentMaterial = mat;
+	_currentMaterial = mat;
 	update();
 }
 
@@ -69,17 +69,17 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("uNormalMatrix", normalMat);
 	_shader->setUniformValue("uCamPos", QVector3D(0, 0, 3));
 
-	_shader->setUniformValue("uAlbedo", currentMaterial.albedoColor());
-	_shader->setUniformValue("uMetalness", currentMaterial.metalness());
-	_shader->setUniformValue("uRoughness", currentMaterial.roughness());
-	_shader->setUniformValue("uOpacity", currentMaterial.opacity());
-	_shader->setUniformValue("uClearcoat", currentMaterial.clearcoat());
-	_shader->setUniformValue("uClearcoatRoughness", currentMaterial.clearcoatRoughness());
-	_shader->setUniformValue("uSheenColor", currentMaterial.sheenColor());
-	_shader->setUniformValue("uSheenRoughness", currentMaterial.sheenRoughness());
-	_shader->setUniformValue("uTransmission", currentMaterial.transmission());
-	_shader->setUniformValue("uIOR", currentMaterial.ior());
-	_shader->setUniformValue("uSpecular", currentMaterial.specular());
+	_shader->setUniformValue("uAlbedo", _currentMaterial.albedoColor());
+	_shader->setUniformValue("uMetalness", _currentMaterial.metalness());
+	_shader->setUniformValue("uRoughness", _currentMaterial.roughness());
+	_shader->setUniformValue("uOpacity", _currentMaterial.opacity());
+	_shader->setUniformValue("uClearcoat", _currentMaterial.clearcoat());
+	_shader->setUniformValue("uClearcoatRoughness", _currentMaterial.clearcoatRoughness());
+	_shader->setUniformValue("uSheenColor", _currentMaterial.sheenColor());
+	_shader->setUniformValue("uSheenRoughness", _currentMaterial.sheenRoughness());
+	_shader->setUniformValue("uTransmission", _currentMaterial.transmission());
+	_shader->setUniformValue("uIOR", _currentMaterial.ior());
+	_shader->setUniformValue("uSpecular", _currentMaterial.specular());
 
 	// Texture support
 	_shader->setUniformValue("uUseAlbedoMap", false);

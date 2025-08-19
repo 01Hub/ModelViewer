@@ -106,125 +106,123 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget *parent)
     connect(albedoButton, &QPushButton::clicked, this, [=]() {
         QColor c = QColorDialog::getColor(Qt::white, this, "Select Albedo Color");
         if (c.isValid()) {
-            currentMaterial.setAlbedoColor(QVector3D(c.redF(), c.greenF(), c.blueF()));
-			currentMaterial.convertToBlinnPhong();
-            previewWidget->setMaterial(currentMaterial);
-            emit materialChanged(currentMaterial);
+            _currentMaterial.setAlbedoColor(QVector3D(c.redF(), c.greenF(), c.blueF()));
+			_currentMaterial.convertToBlinnPhong();
+            previewWidget->setMaterial(_currentMaterial);
+            emit materialChanged(_currentMaterial);
         }
     });
 
     connect(metalnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, [=](double val) {
-        currentMaterial.setMetalness(val);
-        currentMaterial.convertToBlinnPhong();
-        previewWidget->setMaterial(currentMaterial);
-        emit materialChanged(currentMaterial);
+        _currentMaterial.setMetalness(val);
+        _currentMaterial.convertToBlinnPhong();
+        previewWidget->setMaterial(_currentMaterial);
+        emit materialChanged(_currentMaterial);
     });
 
     connect(roughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, [=](double val) {
-        currentMaterial.setRoughness(val);
-        previewWidget->setMaterial(currentMaterial);
-        emit materialChanged(currentMaterial);
+        _currentMaterial.setRoughness(val);
+        previewWidget->setMaterial(_currentMaterial);
+        emit materialChanged(_currentMaterial);
     });
 
     connect(opacitySpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, [=](double val) {
-        currentMaterial.setOpacity(val);
-        previewWidget->setMaterial(currentMaterial);
-        emit materialChanged(currentMaterial);
+        _currentMaterial.setOpacity(val);
+        previewWidget->setMaterial(_currentMaterial);
+        emit materialChanged(_currentMaterial);
     });
 
 	connect(iorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
         this, [=](double val) {
-        currentMaterial.setIOR(val);
-        previewWidget->setMaterial(currentMaterial);
-        emit materialChanged(currentMaterial);
+        _currentMaterial.setIOR(val);
+        previewWidget->setMaterial(_currentMaterial);
+        emit materialChanged(_currentMaterial);
 		});
 
 	connect(clearcoatSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
         this, [=](double val) {
-        currentMaterial.setClearcoat(val);
-        previewWidget->setMaterial(currentMaterial);
-		emit materialChanged(currentMaterial);
+        _currentMaterial.setClearcoat(val);
+        previewWidget->setMaterial(_currentMaterial);
+		emit materialChanged(_currentMaterial);
 		});
 
     connect(clearcoatRoughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
         this, [=](double val) {
-        currentMaterial.setClearcoatRoughness(val);
-		previewWidget->setMaterial(currentMaterial);
-		emit materialChanged(currentMaterial);
+        _currentMaterial.setClearcoatRoughness(val);
+		previewWidget->setMaterial(_currentMaterial);
+		emit materialChanged(_currentMaterial);
 		});
 
     connect(sheenColorButton, &QPushButton::clicked, this, [=]() {
         QColor c = QColorDialog::getColor(Qt::white, this, "Select Sheen Color");
         if (c.isValid()) {
-            currentMaterial.setSheenColor(QVector3D(c.redF(), c.greenF(), c.blueF()));
-            previewWidget->setMaterial(currentMaterial);
-            emit materialChanged(currentMaterial);
+            _currentMaterial.setSheenColor(QVector3D(c.redF(), c.greenF(), c.blueF()));
+            previewWidget->setMaterial(_currentMaterial);
+            emit materialChanged(_currentMaterial);
         }
 		});
 
     connect(sheenRoughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, [=](double val) {
-        currentMaterial.setSheenRoughness(val);
-        previewWidget->setMaterial(currentMaterial);
-        emit materialChanged(currentMaterial);
+        _currentMaterial.setSheenRoughness(val);
+        previewWidget->setMaterial(_currentMaterial);
+        emit materialChanged(_currentMaterial);
 		});
 
     connect(transmissionSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, [=](double val) {
-        currentMaterial.setTransmission(val);
-        previewWidget->setMaterial(currentMaterial);
-		emit materialChanged(currentMaterial);
+        _currentMaterial.setTransmission(val);
+        previewWidget->setMaterial(_currentMaterial);
+		emit materialChanged(_currentMaterial);
 		});
 
     connect(alphaThresholdSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
             this, [=](double val) {
-        currentMaterial.setAlphaThreshold(val);
-        previewWidget->setMaterial(currentMaterial);
-        emit materialChanged(currentMaterial);
+        _currentMaterial.setAlphaThreshold(val);
+        previewWidget->setMaterial(_currentMaterial);
+        emit materialChanged(_currentMaterial);
 		});
 
 
     connect(shadingCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [=](int idx) {
-        currentMaterial.setShadingModel(static_cast<GLMaterial::ShadingModel>(idx));
-        previewWidget->setMaterial(currentMaterial);
-        emit materialChanged(currentMaterial);
+        _currentMaterial.setShadingModel(static_cast<GLMaterial::ShadingModel>(idx));
+        previewWidget->setMaterial(_currentMaterial);
+        emit materialChanged(_currentMaterial);
     });
 
     connect(blendCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [=](int idx) {
-        currentMaterial.setBlendMode(static_cast<GLMaterial::BlendMode>(idx));
-        previewWidget->setMaterial(currentMaterial);
-        emit materialChanged(currentMaterial);
+        _currentMaterial.setBlendMode(static_cast<GLMaterial::BlendMode>(idx));
+        previewWidget->setMaterial(_currentMaterial);
+        emit materialChanged(_currentMaterial);
     });
 
     connect(twoSidedCheck, &QCheckBox::toggled, this, [=](bool checked) {
-        currentMaterial.setTwoSided(checked);
-        previewWidget->setMaterial(currentMaterial);
-        emit materialChanged(currentMaterial);
+        _currentMaterial.setTwoSided(checked);
+        previewWidget->setMaterial(_currentMaterial);
+        emit materialChanged(_currentMaterial);
     });
 
     connect(wireframeCheck, &QCheckBox::toggled, this, [=](bool checked) {
-        currentMaterial.setWireframe(checked);
-        previewWidget->setMaterial(currentMaterial);
-        emit materialChanged(currentMaterial);
+        _currentMaterial.setWireframe(checked);
+        previewWidget->setMaterial(_currentMaterial);
+        emit materialChanged(_currentMaterial);
     });
 
     connect(applyButton, &QPushButton::clicked, this, [=]() {
         // Apply the current material settings to the preview widget
-        previewWidget->setMaterial(currentMaterial);
-        emit materialChanged(currentMaterial);
+        previewWidget->setMaterial(_currentMaterial);
+        emit materialChanged(_currentMaterial);
 		});
-
-	onMaterialSelected(GLMaterial::DEFAULT_MAT()); // Set default material on startup
 }
 
 void MaterialEditorPanel::onMaterialSelected(const GLMaterial &mat)
 {
-    currentMaterial = mat;
+    _currentMaterial = mat;
     previewWidget->setMaterial(mat);
 
     QColor albedoColor(
@@ -257,5 +255,5 @@ void MaterialEditorPanel::onMaterialSelected(const GLMaterial &mat)
     twoSidedCheck->setChecked(mat.twoSided());
     wireframeCheck->setChecked(mat.wireframe());
 
-    emit materialChanged(currentMaterial);
+    emit materialChanged(_currentMaterial);
 }

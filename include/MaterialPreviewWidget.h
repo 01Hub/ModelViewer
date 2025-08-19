@@ -20,8 +20,7 @@ protected:
     void paintGL() override;
 
 private:
-    void initSphereMesh();
-    void updateShaderFromMaterial(const GLMaterial &mat);
+    void initSphereMesh();    
 
 private:
     std::unique_ptr<ShaderProgram> _shader;
@@ -34,5 +33,5 @@ private:
     QMatrix4x4 proj;
     QMatrix4x4 view;
 
-    GLMaterial currentMaterial;
+    GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
 };

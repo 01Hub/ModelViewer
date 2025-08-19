@@ -44,5 +44,5 @@ private:
 
 	QPushButton* applyButton;
 
-    GLMaterial currentMaterial;
+    GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
 };
