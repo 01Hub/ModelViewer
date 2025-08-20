@@ -1,0 +1,608 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>TextureMappingPanel</class>
+ <widget class="QWidget" name="TextureMappingPanel">
+  <property name="windowTitle">
+   <string>Texture Mapping Panel</string>
+  </property>
+  <layout class="QGridLayout" name="gridRoot">
+   <property name="leftMargin"><number>6</number></property>
+   <property name="topMargin"><number>6</number></property>
+   <property name="rightMargin"><number>6</number></property>
+   <property name="bottomMargin"><number>6</number></property>
+   <property name="horizontalSpacing"><number>8</number></property>
+   <property name="verticalSpacing"><number>6</number></property>
+
+   <!-- LEFT SIDE: scrollable groups -->
+   <item row="0" column="0">
+    <widget class="QScrollArea" name="scrollArea">
+     <property name="frameShape"><enum>QFrame::NoFrame</enum></property>
+     <property name="widgetResizable"><bool>true</bool></property>
+     <widget class="QWidget" name="scrollAreaWidgetContents">
+      <property name="geometry">
+       <rect><x>0</x><y>0</y><width>420</width><height>900</height></rect>
+      </property>
+      <layout class="QVBoxLayout" name="vboxLeft">
+       <property name="leftMargin"><number>0</number></property>
+       <property name="topMargin"><number>0</number></property>
+       <property name="rightMargin"><number>0</number></property>
+       <property name="bottomMargin"><number>0</number></property>
+       <property name="spacing"><number>8</number></property>
+
+       <!-- MAIN GROUP -->
+       <item>
+        <widget class="QGroupBox" name="grpMain">
+         <property name="title"><string>Main</string></property>
+         <layout class="QGridLayout" name="gridMain">
+          <property name="leftMargin"><number>6</number></property>
+          <property name="topMargin"><number>6</number></property>
+          <property name="rightMargin"><number>6</number></property>
+          <property name="bottomMargin"><number>6</number></property>
+          <property name="horizontalSpacing"><number>12</number></property>
+          <property name="verticalSpacing"><number>12</number></property>
+
+          <!-- Row 0: Albedo (no gear), Normal (no gear) -->
+          <item row="0" column="0">
+           <layout class="QVBoxLayout" name="slotAlbedo">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topAlbedo">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spAlbedo"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnAlbedo">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Albedo</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblAlbedo"><property name="text"><string>Albedo</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+          <item row="0" column="1">
+           <layout class="QVBoxLayout" name="slotNormal">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topNormal">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spNormal"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnNormal">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Normal</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblNormal"><property name="text"><string>Normal</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+          <!-- Row 1: Emissive (no gear), Metallic (gear) -->
+          <item row="1" column="0">
+           <layout class="QVBoxLayout" name="slotEmissive">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topEmissive">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spEmissive"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnEmissive">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Emissive</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblEmissive"><property name="text"><string>Emissive</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+          <item row="1" column="1">
+           <layout class="QVBoxLayout" name="slotMetallic">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topMetallic">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spMetallic"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+              <item><widget class="QToolButton" name="gearMetallic">
+                <property name="text"><string>⚙</string></property>
+                <property name="toolTip"><string>Channel Packing…</string></property>
+                <property name="autoRaise"><bool>true</bool></property>
+                <property name="minimumSize"><size><width>18</width><height>18</height></size></property>
+                <property name="maximumSize"><size><width>18</width><height>18</height></size></property>
+              </widget></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnMetallic">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Metallic</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblMetallic"><property name="text"><string>Metallic</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+          <!-- Row 2: Roughness (gear), AO (gear) -->
+          <item row="2" column="0">
+           <layout class="QVBoxLayout" name="slotRoughness">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topRoughness">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spRoughness"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+              <item><widget class="QToolButton" name="gearRoughness">
+                <property name="text"><string>⚙</string></property>
+                <property name="toolTip"><string>Channel Packing…</string></property>
+                <property name="autoRaise"><bool>true</bool></property>
+                <property name="minimumSize"><size><width>18</width><height>18</height></size></property>
+                <property name="maximumSize"><size><width>18</width><height>18</height></size></property>
+              </widget></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnRoughness">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Roughness</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblRoughness"><property name="text"><string>Roughness</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+          <item row="2" column="1">
+           <layout class="QVBoxLayout" name="slotAO">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topAO">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spAO"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+              <item><widget class="QToolButton" name="gearAO">
+                <property name="text"><string>⚙</string></property>
+                <property name="toolTip"><string>Channel Packing…</string></property>
+                <property name="autoRaise"><bool>true</bool></property>
+                <property name="minimumSize"><size><width>18</width><height>18</height></size></property>
+                <property name="maximumSize"><size><width>18</width><height>18</height></size></property>
+              </widget></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnAO">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Ambient Occlusion</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblAO"><property name="text"><string>AO</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+          <!-- Row 3: Opacity (gear), Transmission (no gear) -->
+          <item row="3" column="0">
+           <layout class="QVBoxLayout" name="slotOpacity">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topOpacity">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spOpacity"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+              <item><widget class="QToolButton" name="gearOpacity">
+                <property name="text"><string>⚙</string></property>
+                <property name="toolTip"><string>Channel Packing…</string></property>
+                <property name="autoRaise"><bool>true</bool></property>
+                <property name="minimumSize"><size><width>18</width><height>18</height></size></property>
+                <property name="maximumSize"><size><width>18</width><height>18</height></size></property>
+              </widget></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnOpacity">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Opacity</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblOpacity"><property name="text"><string>Opacity</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+          <item row="3" column="1">
+           <layout class="QVBoxLayout" name="slotTransmission">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topTransmission">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spTransmission"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnTransmission">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Transmission</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblTransmission"><property name="text"><string>Transmission</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+          <!-- Row 4: IOR (no gear), empty filler -->
+          <item row="4" column="0">
+           <layout class="QVBoxLayout" name="slotIOR">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topIOR">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spIOR"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnIOR">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace IOR</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblIOR"><property name="text"><string>IOR</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+         </layout>
+        </widget>
+       </item>
+
+       <!-- SHEEN GROUP -->
+       <item>
+        <widget class="QGroupBox" name="grpSheen">
+         <property name="title"><string>Sheen</string></property>
+         <layout class="QGridLayout" name="gridSheen">
+          <property name="leftMargin"><number>6</number></property>
+          <property name="topMargin"><number>6</number></property>
+          <property name="rightMargin"><number>6</number></property>
+          <property name="bottomMargin"><number>6</number></property>
+          <property name="horizontalSpacing"><number>12</number></property>
+          <property name="verticalSpacing"><number>12</number></property>
+
+          <item row="0" column="0">
+           <layout class="QVBoxLayout" name="slotSheenColor">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topSheenColor">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spSheenColor"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnSheenColor">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Sheen Color</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblSheenColor"><property name="text"><string>Sheen Color</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+          <item row="0" column="1">
+           <layout class="QVBoxLayout" name="slotSheenRough">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topSheenRough">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spSheenRough"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnSheenRough">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Sheen Roughness</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblSheenRough"><property name="text"><string>Sheen Roughness</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+         </layout>
+        </widget>
+       </item>
+
+       <!-- CLEARCOAT GROUP -->
+       <item>
+        <widget class="QGroupBox" name="grpClearcoat">
+         <property name="title"><string>Clearcoat</string></property>
+         <layout class="QGridLayout" name="gridClearcoat">
+          <property name="leftMargin"><number>6</number></property>
+          <property name="topMargin"><number>6</number></property>
+          <property name="rightMargin"><number>6</number></property>
+          <property name="bottomMargin"><number>6</number></property>
+          <property name="horizontalSpacing"><number>12</number></property>
+          <property name="verticalSpacing"><number>12</number></property>
+
+          <item row="0" column="0">
+           <layout class="QVBoxLayout" name="slotCCColor">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topCCColor">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spCCColor"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnCCColor">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Clearcoat Color</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblCCColor"><property name="text"><string>Clearcoat Color</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+          <item row="0" column="1">
+           <layout class="QVBoxLayout" name="slotCCRough">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topCCRough">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spCCRough"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnCCRough">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Clearcoat Roughness</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblCCRough"><property name="text"><string>Clearcoat Roughness</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+          <item row="1" column="0">
+           <layout class="QVBoxLayout" name="slotCCNormal">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <property name="spacing"><number>2</number></property>
+            <item>
+             <layout class="QHBoxLayout" name="topCCNormal">
+              <property name="leftMargin"><number>0</number></property>
+              <property name="topMargin"><number>0</number></property>
+              <property name="rightMargin"><number>0</number></property>
+              <property name="bottomMargin"><number>0</number></property>
+              <item><spacer name="spCCNormal"><property name="orientation"><enum>Qt::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>10</width><height>10</height></size></property></spacer></item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QPushButton" name="btnCCNormal">
+              <property name="minimumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="maximumSize"><size><width>96</width><height>96</height></size></property>
+              <property name="iconSize"><size><width>90</width><height>90</height></size></property>
+              <property name="toolTip"><string>Load/Replace Clearcoat Normal</string></property>
+              <property name="text"><string/></property>
+             </widget>
+            </item>
+            <item><widget class="QLabel" name="lblCCNormal"><property name="text"><string>Clearcoat Normal</string></property><property name="alignment"><set>Qt::AlignHCenter</set></property></widget></item>
+           </layout>
+          </item>
+
+         </layout>
+        </widget>
+       </item>
+
+       <!-- UV SETTINGS GROUP -->
+       <item>
+        <widget class="QGroupBox" name="grpUV">
+         <property name="title"><string>UV Settings</string></property>
+         <layout class="QGridLayout" name="gridUV">
+          <property name="leftMargin"><number>6</number></property>
+          <property name="topMargin"><number>6</number></property>
+          <property name="rightMargin"><number>6</number></property>
+          <property name="bottomMargin"><number>6</number></property>
+          <property name="horizontalSpacing"><number>8</number></property>
+          <property name="verticalSpacing"><number>6</number></property>
+          <item row="0" column="0"><widget class="QLabel" name="labelTU"><property name="text"><string>Tiling U</string></property></widget></item>
+          <item row="0" column="1"><widget class="QDoubleSpinBox" name="spinTU"><property name="decimals"><number>3</number></property><property name="value"><double>1.0</double></property></widget></item>
+          <item row="0" column="2"><widget class="QLabel" name="labelTV"><property name="text"><string>V</string></property></widget></item>
+          <item row="0" column="3"><widget class="QDoubleSpinBox" name="spinTV"><property name="decimals"><number>3</number></property><property name="value"><double>1.0</double></property></widget></item>
+          <item row="1" column="0"><widget class="QLabel" name="labelOU"><property name="text"><string>Offset U</string></property></widget></item>
+          <item row="1" column="1"><widget class="QDoubleSpinBox" name="spinOU"><property name="decimals"><number>3</number></property><property name="value"><double>0.0</double></property></widget></item>
+          <item row="1" column="2"><widget class="QLabel" name="labelOV"><property name="text"><string>V</string></property></widget></item>
+          <item row="1" column="3"><widget class="QDoubleSpinBox" name="spinOV"><property name="decimals"><number>3</number></property><property name="value"><double>0.0</double></property></widget></item>
+          <item row="0" column="4" rowspan="2">
+           <widget class="QToolButton" name="btnUVReset">
+            <property name="toolTip"><string>Reset UV</string></property>
+            <property name="text"><string>↺</string></property>
+            <property name="autoRaise"><bool>true</bool></property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+
+      </layout>
+     </widget>
+    </widget>
+   </item>
+
+   <!-- RIGHT SIDE: preview and controls -->
+   <item row="0" column="1">
+    <widget class="QWidget" name="rightHost">
+     <property name="minimumSize"><size><width>160</width><height>0</height></size></property>
+     <property name="maximumSize"><size><width>200</width><height>16777215</height></size></property>
+     <layout class="QVBoxLayout" name="vboxRight">
+      <property name="leftMargin"><number>0</number></property>
+      <property name="topMargin"><number>0</number></property>
+      <property name="rightMargin"><number>0</number></property>
+      <property name="bottomMargin"><number>0</number></property>
+      <property name="spacing"><number>6</number></property>
+      <item>
+       <widget class="QWidget" name="previewWidget" native="true">
+        <property name="minimumSize"><size><width>148</width><height>148</height></size></property>
+        <property name="maximumSize"><size><width>148</width><height>148</height></size></property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="hPreviewTools">
+        <property name="spacing"><number>4</number></property>
+        <item><widget class="QComboBox" name="comboShape">
+          <item><property name="text"><string>Sphere</string></property></item>
+          <item><property name="text"><string>Cube</string></property></item>
+          <item><property name="text"><string>Plane</string></property></item>
+        </widget></item>
+        <item><widget class="QComboBox" name="comboEnv">
+          <item><property name="text"><string>Studio</string></property></item>
+          <item><property name="text"><string>Outdoor</string></property></item>
+          <item><property name="text"><string>Office</string></property></item>
+        </widget></item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QSlider" name="sliderExposure">
+        <property name="orientation"><enum>Qt::Horizontal</enum></property>
+        <property name="minimum"><number>-40</number></property>
+        <property name="maximum"><number>40</number></property>
+        <property name="value"><number>0</number></property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="verticalSpacerRight">
+        <property name="orientation"><enum>Qt::Vertical</enum></property>
+        <property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
