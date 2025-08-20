@@ -2,372 +2,478 @@
 #define GLMATERIAL_H
 
 #include <QVector3D>
+#include <QString>
 
 class GLMaterial
 {
 public:
-    enum class PredefinedMaterials {
-       BRASS, BRONZE, COPPER, GOLD, SILVER, CHROME,
-       RUBY, EMERALD, TURQUOISE, PEARL, JADE, OBSIDIAN,
-       RED_PLASTIC, GREEN_PLASTIC, CYAN_PLASTIC, YELLOW_PLASTIC, WHITE_PLASTIC, BLACK_PLASTIC,
-       RED_RUBBER, GREEN_RUBBER, CYAN_RUBBER, YELLOW_RUBBER, WHITE_RUBBER, BLACK_RUBBER
-    };
+	enum class PredefinedMaterials
+	{
+		BRASS, BRONZE, COPPER, GOLD, SILVER, CHROME,
+		RUBY, EMERALD, TURQUOISE, PEARL, JADE, OBSIDIAN,
+		RED_PLASTIC, GREEN_PLASTIC, CYAN_PLASTIC, YELLOW_PLASTIC, WHITE_PLASTIC, BLACK_PLASTIC,
+		RED_RUBBER, GREEN_RUBBER, CYAN_RUBBER, YELLOW_RUBBER, WHITE_RUBBER, BLACK_RUBBER
+	};
 
-    enum class ShadingModel {
-        Unlit,
-        BlinnPhong,
-        PBR,
-        Toon
-    };
+	enum class ShadingModel
+	{
+		Unlit,
+		BlinnPhong,
+		PBR,
+		Toon
+	};
 
-    enum class BlendMode {
-        Opaque,        
-        Masked,
-        Alpha,
-        Additive,
-        Multiply
-    };
+	enum class BlendMode
+	{
+		Opaque,
+		Masked,
+		Alpha,
+		Additive,
+		Multiply
+	};
+
+	struct ChannelPacking
+	{
+		// Select a single source channel: 0=R, 1=G, 2=B, 3=A, -1 = none
+		int channel = 0;		bool invert = false;
+		float scale = 1.0f;
+		float bias = 0.0f;
+	};
 
 public:
-    GLMaterial();
-    GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic = true, float opacity = 1.0f);
-    GLMaterial(QVector3D albedo, float metalness, float roughness, float opacity = 1.0f);
+	GLMaterial();
+	GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic = true, float opacity = 1.0f);
+	GLMaterial(QVector3D albedo, float metalness, float roughness, float opacity = 1.0f);
 
-    // Legacy Phong/Blinn properties
-    QVector3D ambient() const;
-    void setAmbient(const QVector3D& ambient);
+	// Legacy Phong/Blinn properties
+	QVector3D ambient() const;
+	void setAmbient(const QVector3D& ambient);
 
-    QVector3D diffuse() const;
-    void setDiffuse(const QVector3D& diffuse);
+	QVector3D diffuse() const;
+	void setDiffuse(const QVector3D& diffuse);
 
-    QVector3D specular() const;
-    void setSpecular(const QVector3D& specular);
+	QVector3D specular() const;
+	void setSpecular(const QVector3D& specular);
 
-    QVector3D emissive() const;
-    void setEmissive(const QVector3D& emissive);
+	QVector3D emissive() const;
+	void setEmissive(const QVector3D& emissive);
 
-    float shininess() const;
-    void setShininess(float shininess);
+	float shininess() const;
+	void setShininess(float shininess);
 
-    bool metallic() const;
-    void setMetallic(bool metallic);
+	bool metallic() const;
+	void setMetallic(bool metallic);
 
-    // PBR properties
-    QVector3D albedoColor() const;
-    void setAlbedoColor(const QVector3D& albedoColor);
+	// PBR properties
+	QVector3D albedoColor() const;
+	void setAlbedoColor(const QVector3D& albedoColor);
 
-    float metalness() const;
-    void setMetalness(float metalness);
+	float metalness() const;
+	void setMetalness(float metalness);
 
-    float roughness() const;
-    void setRoughness(float roughness);
+	float roughness() const;
+	void setRoughness(float roughness);
 
-    float opacity() const;
-    void setOpacity(float opacity);
+	float opacity() const;
+	void setOpacity(float opacity);
 
-    // Enhanced emissive properties
-    float emissiveStrength() const;
-    void setEmissiveStrength(float strength);
+	// Enhanced emissive properties
+	float emissiveStrength() const;
+	void setEmissiveStrength(float strength);
 
-    // Advanced PBR properties
-    float ior() const;
-    void setIOR(float ior);
+	// Advanced PBR properties
+	float ior() const;
+	void setIOR(float ior);
 
-    float clearcoat() const;
-    void setClearcoat(float clearcoat);
+	float clearcoat() const;
+	void setClearcoat(float clearcoat);
 
-    float clearcoatRoughness() const;
-    void setClearcoatRoughness(float roughness);
+	float clearcoatRoughness() const;
+	void setClearcoatRoughness(float roughness);
 
-    QVector3D sheenColor() const;
-    void setSheenColor(const QVector3D& color);
+	QVector3D sheenColor() const;
+	void setSheenColor(const QVector3D& color);
 
-    float sheenRoughness() const;
-    void setSheenRoughness(float roughness);
+	float sheenRoughness() const;
+	void setSheenRoughness(float roughness);
 
-    float transmission() const;
-    void setTransmission(float transmission);
+	float transmission() const;
+	void setTransmission(float transmission);
 
-    // Rendering properties
-    ShadingModel shadingModel() const;
-    void setShadingModel(ShadingModel model);
+	// Rendering properties
+	ShadingModel shadingModel() const;
+	void setShadingModel(ShadingModel model);
 
-    BlendMode blendMode() const;
-    void setBlendMode(BlendMode mode);
+	BlendMode blendMode() const;
+	void setBlendMode(BlendMode mode);
 
-    bool twoSided() const;
-    void setTwoSided(bool twoSided);
+	bool twoSided() const;
+	void setTwoSided(bool twoSided);
 
-    bool wireframe() const;
-    void setWireframe(bool wireframe);
+	bool wireframe() const;
+	void setWireframe(bool wireframe);
 
-    float alphaThreshold() const;
-    void setAlphaThreshold(float threshold);
+	float alphaThreshold() const;
+	void setAlphaThreshold(float threshold);
 
-    // Texture slot identifiers (for use with texture manager)
-    int albedoTextureId() const;
-    void setAlbedoTextureId(int id);
+	// Texture slot identifiers (for use with texture manager)
+	int albedoTextureId() const;
+	void setAlbedoTextureId(int id);
 
-    int normalTextureId() const;
-    void setNormalTextureId(int id);
+	int normalTextureId() const;
+	void setNormalTextureId(int id);
 
-    int metallicRoughnessTextureId() const;
-    void setMetallicRoughnessTextureId(int id);
+	int metallicRoughnessTextureId() const;
+	void setMetallicRoughnessTextureId(int id);
 
-    int emissiveTextureId() const;
-    void setEmissiveTextureId(int id);
+	int emissiveTextureId() const;
+	void setEmissiveTextureId(int id);
 
-    int occlusionTextureId() const;
-    void setOcclusionTextureId(int id);
+	int occlusionTextureId() const;
+	void setOcclusionTextureId(int id);
 
-    int clearcoatTextureId() const;
-    void setClearcoatTextureId(int id);
+	int clearcoatTextureId() const;
+	void setClearcoatTextureId(int id);
 
-    int transmissionTextureId() const;
-    void setTransmissionTextureId(int id);
+	int transmissionTextureId() const;
+	void setTransmissionTextureId(int id);
 
-    // Texture coordinate sets for multi-UV support
-    int albedoTexCoord() const;
-    void setAlbedoTexCoord(int coord);
+	// Texture coordinate sets for multi-UV support
+	int albedoTexCoord() const;
+	void setAlbedoTexCoord(int coord);
 
-    int normalTexCoord() const;
-    void setNormalTexCoord(int coord);
+	int normalTexCoord() const;
+	void setNormalTexCoord(int coord);
 
-    int metallicRoughnessTexCoord() const;
-    void setMetallicRoughnessTexCoord(int coord);
+	int metallicRoughnessTexCoord() const;
+	void setMetallicRoughnessTexCoord(int coord);
 
-    // Convenience methods
-    bool isTransparent() const;
-    bool isEmissive() const;
-    bool hasClearcoat() const;
-    bool hasSheen() const;
-    bool hasTransmission() const;
+	// --- Map path API (used by TextureMappingPanel) ---
+	QString albedoMapPath() const;
+	void setAlbedoMap(const QString& path);
+	void clearAlbedoMap();
+
+	QString normalMapPath() const;
+	void setNormalMap(const QString& path);
+	void clearNormalMap();
+
+	QString emissiveMapPath() const;
+	void setEmissiveMap(const QString& path);
+	void clearEmissiveMap();
+
+	QString metallicMapPath() const;
+	void setMetallicMap(const QString& path);
+	void clearMetallicMap();
+
+	QString roughnessMapPath() const;
+	void setRoughnessMap(const QString& path);
+	void clearRoughnessMap();
+
+	QString aoMapPath() const;
+	void setAOMap(const QString& path);
+	void clearAOMap();
+
+	QString opacityMapPath() const;
+	void setOpacityMap(const QString& path);
+	void clearOpacityMap();
+
+	QString transmissionMapPath() const;
+	void setTransmissionMap(const QString& path);
+	void clearTransmissionMap();
+
+	QString iorMapPath() const;
+	void setIORMap(const QString& path);
+	void clearIORMap();
+
+	QString sheenColorMapPath() const;
+	void setSheenColorMap(const QString& path);
+	void clearSheenColorMap();
+
+	QString sheenRoughnessMapPath() const;
+	void setSheenRoughnessMap(const QString& path);
+	void clearSheenRoughnessMap();
+
+	QString clearcoatColorMapPath() const;
+	void setClearcoatColorMap(const QString& path);
+	void clearClearcoatColorMap();
+
+	QString clearcoatRoughnessMapPath() const;
+	void setClearcoatRoughnessMap(const QString& path);
+	void clearClearcoatRoughnessMap();
+
+	QString clearcoatNormalMapPath() const;
+	void setClearcoatNormalMap(const QString& path);
+	void clearClearcoatNormalMap();
+
+	// --- Shared UV transform (used by the panel's UV controls) ---
+	void setUVTiling(float u, float v);
+	void setUVOffset(float u, float v);
+	float uvTilingU() const;
+	float uvTilingV() const;
+	float uvOffsetU() const;
+	float uvOffsetV() const;
+
+	ChannelPacking packingFor(const QString& key) const;
+	void setPackingFor(const QString& key, const ChannelPacking& p);
+
+	// Convenience methods
+	bool isTransparent() const;
+	bool isEmissive() const;
+	bool hasClearcoat() const;
+	bool hasSheen() const;
+	bool hasTransmission() const;
 	bool hasIOR() const;
 
-    // Material validation
-    bool isValid() const;
-    void validateAndFix();
+	// Material validation
+	bool isValid() const;
+	void validateAndFix();
 
-    // Conversion utilities
-    void convertToBlinnPhong();
-    void convertToPBR();
-    QVector3D getF0() const; // Get Fresnel reflectance at normal incidence
+	// Conversion utilities
+	void convertToBlinnPhong();
+	void convertToPBR();
+	QVector3D getF0() const; // Get Fresnel reflectance at normal incidence
 
-    // Utility getters for common material properties
-    QVector3D getAlbedoColor() const { return albedoColor(); }
-    float getMetalness() const { return metalness(); }
-    float getRoughness() const { return roughness(); }
-    float getOpacity() const { return opacity(); }
-    float getTransmission() const { return transmission(); }
+	// Utility getters for common material properties
+	QVector3D getAlbedoColor() const { return albedoColor(); }
+	float getMetalness() const { return metalness(); }
+	float getRoughness() const { return roughness(); }
+	float getOpacity() const { return opacity(); }
+	float getTransmission() const { return transmission(); }
 
-    // Static material creation methods
-    static GLMaterial getPredefinedMaterial(GLMaterial::PredefinedMaterials type);
+	// Static material creation methods
+	static GLMaterial getPredefinedMaterial(GLMaterial::PredefinedMaterials type);
 
-    // Some metal materials
-    static GLMaterial METAL_TITANIUM();
-    static GLMaterial METAL_PLATINUM();
-    static GLMaterial METAL_MAGNESIUM();
-    static GLMaterial METAL_ZINC();
-    static GLMaterial METAL_NICKEL();
-    static GLMaterial METAL_ALUMINUM();
-    static GLMaterial METAL_IRON_RAW();
-    static GLMaterial METAL_COBALT();
-    static GLMaterial METAL_PEWTER();
-    static GLMaterial METAL_TUNGSTEN();
-    static GLMaterial METAL_BRASS();
-    static GLMaterial METAL_BRONZE();
-    static GLMaterial METAL_COPPER();
-    static GLMaterial METAL_GOLD();
-    static GLMaterial METAL_SILVER();
-    static GLMaterial METAL_CHROME();
+	// Some metal materials
+	static GLMaterial METAL_TITANIUM();
+	static GLMaterial METAL_PLATINUM();
+	static GLMaterial METAL_MAGNESIUM();
+	static GLMaterial METAL_ZINC();
+	static GLMaterial METAL_NICKEL();
+	static GLMaterial METAL_ALUMINUM();
+	static GLMaterial METAL_IRON_RAW();
+	static GLMaterial METAL_COBALT();
+	static GLMaterial METAL_PEWTER();
+	static GLMaterial METAL_TUNGSTEN();
+	static GLMaterial METAL_BRASS();
+	static GLMaterial METAL_BRONZE();
+	static GLMaterial METAL_COPPER();
+	static GLMaterial METAL_GOLD();
+	static GLMaterial METAL_SILVER();
+	static GLMaterial METAL_CHROME();
 	static GLMaterial METAL_STEEL();
 
-    // Brushed metals
-    static GLMaterial BRUSHED_ALUMINUM();
-    static GLMaterial BRUSHED_STEEL();
-    
-    // Stone materials
-    static GLMaterial STONE_RUBY();
-    static GLMaterial STONE_EMERALD();
-    static GLMaterial STONE_TURQUOISE();
-    static GLMaterial STONE_PEARL();
-    static GLMaterial STONE_JADE();
-    static GLMaterial STONE_GRANITE();
-    static GLMaterial STONE_LIMESTONE();
-    static GLMaterial STONE_MARBLE();
-    static GLMaterial STONE_SLATE();
-    static GLMaterial STONE_SANDSTONE();
-    static GLMaterial STONE_BASALT();
-    static GLMaterial STONE_OBSIDIAN();
-    static GLMaterial STONE_TRAVERTINE();
-    static GLMaterial STONE_QUARTZITE();
-    static GLMaterial STONE_SOAPSTONE();
-    
+	// Brushed metals
+	static GLMaterial BRUSHED_ALUMINUM();
+	static GLMaterial BRUSHED_STEEL();
+
+	// Stone materials
+	static GLMaterial STONE_RUBY();
+	static GLMaterial STONE_EMERALD();
+	static GLMaterial STONE_TURQUOISE();
+	static GLMaterial STONE_PEARL();
+	static GLMaterial STONE_JADE();
+	static GLMaterial STONE_GRANITE();
+	static GLMaterial STONE_LIMESTONE();
+	static GLMaterial STONE_MARBLE();
+	static GLMaterial STONE_SLATE();
+	static GLMaterial STONE_SANDSTONE();
+	static GLMaterial STONE_BASALT();
+	static GLMaterial STONE_OBSIDIAN();
+	static GLMaterial STONE_TRAVERTINE();
+	static GLMaterial STONE_QUARTZITE();
+	static GLMaterial STONE_SOAPSTONE();
+
 	// Some colored plastic and rubber materials
-    static GLMaterial RED_PLASTIC();
-    static GLMaterial GREEN_PLASTIC();
+	static GLMaterial RED_PLASTIC();
+	static GLMaterial GREEN_PLASTIC();
 	static GLMaterial BLUE_PLASTIC();
-    static GLMaterial CYAN_PLASTIC();
-    static GLMaterial YELLOW_PLASTIC();
+	static GLMaterial CYAN_PLASTIC();
+	static GLMaterial YELLOW_PLASTIC();
 	static GLMaterial MAGENTA_PLASTIC();
-    static GLMaterial WHITE_PLASTIC();
-    static GLMaterial BLACK_PLASTIC();
-    static GLMaterial RED_RUBBER();
-    static GLMaterial GREEN_RUBBER();
+	static GLMaterial WHITE_PLASTIC();
+	static GLMaterial BLACK_PLASTIC();
+	static GLMaterial RED_RUBBER();
+	static GLMaterial GREEN_RUBBER();
 	static GLMaterial BLUE_RUBBER();
-    static GLMaterial CYAN_RUBBER();
-    static GLMaterial YELLOW_RUBBER();
+	static GLMaterial CYAN_RUBBER();
+	static GLMaterial YELLOW_RUBBER();
 	static GLMaterial MAGENTA_RUBBER();
-    static GLMaterial WHITE_RUBBER();
-    static GLMaterial BLACK_RUBBER();
-    static GLMaterial DEFAULT_MAT();
+	static GLMaterial WHITE_RUBBER();
+	static GLMaterial BLACK_RUBBER();
+	static GLMaterial DEFAULT_MAT();
 
 	// Sheen materials
-    static GLMaterial FABRIC();
-    static GLMaterial VELVET_RED();
-    static GLMaterial SATIN_FABRIC();
-    static GLMaterial MICROFIBER_CLOTH();
+	static GLMaterial FABRIC();
+	static GLMaterial VELVET_RED();
+	static GLMaterial SATIN_FABRIC();
+	static GLMaterial MICROFIBER_CLOTH();
 
-    // Leather finishes
-    static GLMaterial LEATHER_BLACK();
-    static GLMaterial LEATHER_BROWN();
-    static GLMaterial LEATHER_RED();
-    static GLMaterial LEATHER_WHITE();
-    static GLMaterial LEATHER_OXBLOOD();
-    static GLMaterial LEATHER_TAN();
+	// Leather finishes
+	static GLMaterial LEATHER_BLACK();
+	static GLMaterial LEATHER_BROWN();
+	static GLMaterial LEATHER_RED();
+	static GLMaterial LEATHER_WHITE();
+	static GLMaterial LEATHER_OXBLOOD();
+	static GLMaterial LEATHER_TAN();
 
 	// Wood materials
-    // Wood materials
-    static GLMaterial WOOD();
-    static GLMaterial WOOD_BAMBOO();
-    static GLMaterial WOOD_CEDAR();
-    static GLMaterial WOOD_REDWOOD();
-    static GLMaterial WOOD_OAK();
-    static GLMaterial WOOD_PINE();
-    static GLMaterial WOOD_BIRCH();
-    static GLMaterial WOOD_WALNUT();
-    static GLMaterial WOOD_CHERRY();
-    static GLMaterial WOOD_TEAK();
-    static GLMaterial WOOD_MAPLE();
+	// Wood materials
+	static GLMaterial WOOD();
+	static GLMaterial WOOD_BAMBOO();
+	static GLMaterial WOOD_CEDAR();
+	static GLMaterial WOOD_REDWOOD();
+	static GLMaterial WOOD_OAK();
+	static GLMaterial WOOD_PINE();
+	static GLMaterial WOOD_BIRCH();
+	static GLMaterial WOOD_WALNUT();
+	static GLMaterial WOOD_CHERRY();
+	static GLMaterial WOOD_TEAK();
+	static GLMaterial WOOD_MAPLE();
 
 
-    // Advanced PBR Materials
-    // === CLEARCOAT MATERIALS ===
+	// Advanced PBR Materials
+	// === CLEARCOAT MATERIALS ===
 	static GLMaterial CAR_PAINT_RED();
 	static GLMaterial CAR_PAINT_METALLIC_BLUE();
-    static GLMaterial CAR_PAINT_WHITE();
-    static GLMaterial CAR_PAINT_METALLIC_GREEN();
-    static GLMaterial CAR_PAINT_PEARL();
-    static GLMaterial MATTE_GREY();
+	static GLMaterial CAR_PAINT_WHITE();
+	static GLMaterial CAR_PAINT_METALLIC_GREEN();
+	static GLMaterial CAR_PAINT_PEARL();
+	static GLMaterial MATTE_GREY();
 	static GLMaterial PIANO_BLACK();
-    
 
-    // === TRANSMISSION MATERIALS ===
-    static GLMaterial GLASS();
-    static GLMaterial FROSTED_GLASS();
-    static GLMaterial COLORED_GLASS_GREEN();
-    static GLMaterial CRYSTAL_QUARTZ();
 
-    // === EMISSIVE MATERIALS ===
-    static GLMaterial NEON_BLUE();
+	// === TRANSMISSION MATERIALS ===
+	static GLMaterial GLASS();
+	static GLMaterial FROSTED_GLASS();
+	static GLMaterial COLORED_GLASS_GREEN();
+	static GLMaterial CRYSTAL_QUARTZ();
+
+	// === EMISSIVE MATERIALS ===
+	static GLMaterial NEON_BLUE();
 	static GLMaterial NEON_GREEN();
 	static GLMaterial NEON_RED();
-	static GLMaterial NEON_YELLOW();    
-    static GLMaterial LED_RED();
+	static GLMaterial NEON_YELLOW();
+	static GLMaterial LED_RED();
 	static GLMaterial LED_GREEN();
 	static GLMaterial LED_BLUE();
 	static GLMaterial LED_YELLOW();
-    static GLMaterial LED_WHITE();
+	static GLMaterial LED_WHITE();
 
-    // === COMPLEX MATERIALS (Multiple Properties) ===
-    static GLMaterial IRIDESCENT_SOAP_BUBBLE();
-    static GLMaterial CARBON_FIBER();
-    static GLMaterial WET_ASPHALT();
+	// === COMPLEX MATERIALS (Multiple Properties) ===
+	static GLMaterial IRIDESCENT_SOAP_BUBBLE();
+	static GLMaterial CARBON_FIBER();
+	static GLMaterial WET_ASPHALT();
 	//concrete materials
 	static GLMaterial CONCRETE();
 	static GLMaterial CONCRETE_LIGHT();
 	static GLMaterial CONCRETE_DARK();
 	static GLMaterial CONCRETE_POLISHED();
 
-    // Additional predefined materials for advanced use cases    
-    static GLMaterial WATER();
-    static GLMaterial DIAMOND();
-    static GLMaterial CERAMIC();
-    static GLMaterial SKIN();
-    static GLMaterial PAPER();    
-    static GLMaterial METAL();
-    static GLMaterial PLASTIC();
-    static GLMaterial STONE();
+	// Additional predefined materials for advanced use cases    
+	static GLMaterial WATER();
+	static GLMaterial DIAMOND();
+	static GLMaterial CERAMIC();
+	static GLMaterial SKIN();
+	static GLMaterial PAPER();
+	static GLMaterial METAL();
+	static GLMaterial PLASTIC();
+	static GLMaterial STONE();
 
 
-    // Function to create a material with time-varying properties (for animations)
-    GLMaterial createAnimatedEmissive(const QVector3D& baseColor,
-        const QVector3D& emissiveColor,
-        float emissiveStrength,
-        float time);
+	// Function to create a material with time-varying properties (for animations)
+	GLMaterial createAnimatedEmissive(const QVector3D& baseColor,
+		const QVector3D& emissiveColor,
+		float emissiveStrength,
+		float time);
 
-    // Function to blend two materials based on a factor (useful for layered materials)
-    GLMaterial blendMaterials(const GLMaterial& mat1,
-        const GLMaterial& mat2,
-        float factor);
+	// Function to blend two materials based on a factor (useful for layered materials)
+	GLMaterial blendMaterials(const GLMaterial& mat1,
+		const GLMaterial& mat2,
+		float factor);
 
 
 
-    void serialize(QDataStream& out) const;
-    void deserialize(QDataStream& in);
+	void serialize(QDataStream& out) const;
+	void deserialize(QDataStream& in);
 
 private:
-    void setAlbedoFromADS();
-    void updateConsistency(); // Ensure consistency between legacy and PBR properties
-    void clampValues(); // Ensure all values are within valid ranges
+	void setAlbedoFromADS();
+	void updateConsistency(); // Ensure consistency between legacy and PBR properties
+	void clampValues(); // Ensure all values are within valid ranges
 	void ensureADSConsistency(); // Ensure ambient, diffuse, specular are consistent with albedo
 
 private:
-    // Legacy Phong/Blinn properties
-    QVector3D _ambient;
-    QVector3D _diffuse;
-    QVector3D _specular;
-    QVector3D _emissive;
-    float _shininess;
-    bool _metallic;
+	// Legacy Phong/Blinn properties
+	QVector3D _ambient;
+	QVector3D _diffuse;
+	QVector3D _specular;
+	QVector3D _emissive;
+	float _shininess;
+	bool _metallic;
 
-    // PBR properties
-    QVector3D _albedoColor;
-    float _metalness;
-    float _roughness;
-    float _opacity;
+	// PBR properties
+	QVector3D _albedoColor;
+	float _metalness;
+	float _roughness;
+	float _opacity;
 
-    // Enhanced emissive
-    float _emissiveStrength;
+	// Enhanced emissive
+	float _emissiveStrength;
 
-    // Advanced PBR properties
-    float _ior; // Index of refraction
-    float _clearcoat;
-    float _clearcoatRoughness;
-    QVector3D _sheenColor;
-    float _sheenRoughness;
-    float _transmission;
+	// Advanced PBR properties
+	float _ior; // Index of refraction
+	float _clearcoat;
+	float _clearcoatRoughness;
+	QVector3D _sheenColor;
+	float _sheenRoughness;
+	float _transmission;
 
-    // Rendering properties
-    ShadingModel _shadingModel;
-    BlendMode _blendMode;
-    bool _twoSided;
-    bool _wireframe;
-    float _alphaThreshold = 0.5f; // For masked blend mode
+	// Rendering properties
+	ShadingModel _shadingModel;
+	BlendMode _blendMode;
+	bool _twoSided;
+	bool _wireframe;
+	float _alphaThreshold = 0.5f; // For masked blend mode
 
-    // Texture IDs (managed externally)
-    int _albedoTextureId;
-    int _normalTextureId;
-    int _metallicRoughnessTextureId;
-    int _emissiveTextureId;
-    int _occlusionTextureId;
-    int _clearcoatTextureId;
-    int _transmissionTextureId;
+	// Texture IDs (managed externally)
+	int _albedoTextureId;
+	int _normalTextureId;
+	int _metallicRoughnessTextureId;
+	int _emissiveTextureId;
+	int _occlusionTextureId;
+	int _clearcoatTextureId;
+	int _transmissionTextureId;
 
-    // Texture coordinate sets
-    int _albedoTexCoord;
-    int _normalTexCoord;
-    int _metallicRoughnessTexCoord;
+	// Texture coordinate sets
+	int _albedoTexCoord;
+	int _normalTexCoord;
+	int _metallicRoughnessTexCoord;
+
+	// Map paths (UI-facing; your renderer/texture manager can translate these to GL)
+	QString _albedoMapPath;
+	QString _normalMapPath;
+	QString _emissiveMapPath;
+	QString _metallicMapPath;
+	QString _roughnessMapPath;
+	QString _aoMapPath;
+	QString _opacityMapPath;
+	QString _transmissionMapPath;
+	QString _iorMapPath;
+	QString _sheenColorMapPath;
+	QString _sheenRoughnessMapPath;
+	QString _clearcoatColorMapPath;
+	QString _clearcoatRoughnessMapPath;
+	QString _clearcoatNormalMapPath;
+
+	// Material-wide UV transform (panel + preview)
+	float _uvTilingU = 1.0f, _uvTilingV = 1.0f;
+	float _uvOffsetU = 0.0f, _uvOffsetV = 0.0f;
+
+	ChannelPacking _metallicPacking;   // default R
+	ChannelPacking _roughnessPacking;  // default G
+	ChannelPacking _aoPacking;         // default B
+	ChannelPacking _opacityPacking;    // default A (or R if A not present)
+
 };
 
 // Inline implementations for performance-critical getters
@@ -385,342 +491,363 @@ inline float GLMaterial::opacity() const { return _opacity; }
 
 inline float GLMaterial::emissiveStrength() const { return _emissiveStrength; }
 
-inline void GLMaterial::setEmissiveStrength(float strength)
-{
-   _emissiveStrength = strength;
-}
+inline void GLMaterial::setEmissiveStrength(float strength) { _emissiveStrength = strength; }
 
 inline float GLMaterial::ior() const { return _ior; }
 
-inline void GLMaterial::setIOR(float ior)
-{
-    _ior = ior;
-}
+inline void GLMaterial::setIOR(float ior) { _ior = ior; }
 
 inline float GLMaterial::clearcoat() const { return _clearcoat; }
 
-inline void GLMaterial::setClearcoat(float clearcoat)
-{
-    _clearcoat = clearcoat;
-}
+inline void GLMaterial::setClearcoat(float clearcoat) { _clearcoat = clearcoat; }
 
 inline float GLMaterial::clearcoatRoughness() const { return _clearcoatRoughness; }
 
-inline void GLMaterial::setClearcoatRoughness(float roughness)
-{
-    _clearcoatRoughness = roughness;
-}
+inline void GLMaterial::setClearcoatRoughness(float roughness) { _clearcoatRoughness = roughness; }
 
 inline QVector3D GLMaterial::sheenColor() const { return _sheenColor; }
 
-inline void GLMaterial::setSheenColor(const QVector3D& color)
-{
-    _sheenColor = color;
-}
+inline void GLMaterial::setSheenColor(const QVector3D& color) { _sheenColor = color; }
 
 inline float GLMaterial::sheenRoughness() const { return _sheenRoughness; }
 
-inline void GLMaterial::setSheenRoughness(float roughness)
-{
-    _sheenRoughness = roughness;
-}
+inline void GLMaterial::setSheenRoughness(float roughness) { _sheenRoughness = roughness; }
 
 inline float GLMaterial::transmission() const { return _transmission; }
 
-inline void GLMaterial::setTransmission(float transmission)
-{
-    _transmission = transmission;
-}
+inline void GLMaterial::setTransmission(float transmission) { _transmission = transmission; }
 
 inline GLMaterial::ShadingModel GLMaterial::shadingModel() const { return _shadingModel; }
 
-inline void GLMaterial::setShadingModel(ShadingModel model)
-{
-    _shadingModel = model;
-}
+inline void GLMaterial::setShadingModel(ShadingModel model) { _shadingModel = model; }
 
 inline GLMaterial::BlendMode GLMaterial::blendMode() const { return _blendMode; }
 
-inline void GLMaterial::setBlendMode(BlendMode mode)
-{
-    _blendMode = mode;
-}
+inline void GLMaterial::setBlendMode(BlendMode mode) { _blendMode = mode; }
 
 inline bool GLMaterial::twoSided() const { return _twoSided; }
 
-inline void GLMaterial::setTwoSided(bool twoSided)
-{
-    _twoSided = twoSided;
-}
+inline void GLMaterial::setTwoSided(bool twoSided) { _twoSided = twoSided; }
 
 inline bool GLMaterial::wireframe() const { return _wireframe; }
 
-inline void GLMaterial::setWireframe(bool wireframe)
-{
-    _wireframe = wireframe;
-}
+inline void GLMaterial::setWireframe(bool wireframe) { _wireframe = wireframe; }
 
 inline float GLMaterial::alphaThreshold() const { return _alphaThreshold; }
 
-inline void GLMaterial::setAlphaThreshold(float threshold)
-{
-    _alphaThreshold = threshold;
-}
+inline void GLMaterial::setAlphaThreshold(float threshold) { _alphaThreshold = threshold; }
 
 inline int GLMaterial::albedoTextureId() const { return _albedoTextureId; }
 
-inline void GLMaterial::setAlbedoTextureId(int id)
-{
-    _albedoTextureId = id;
-}
+inline void GLMaterial::setAlbedoTextureId(int id) { _albedoTextureId = id; }
 
 inline int GLMaterial::normalTextureId() const { return _normalTextureId; }
 
-inline void GLMaterial::setNormalTextureId(int id)
-{
-    _normalTextureId = id;
-}
+inline void GLMaterial::setNormalTextureId(int id) { _normalTextureId = id; }
 
 inline int GLMaterial::metallicRoughnessTextureId() const { return _metallicRoughnessTextureId; }
 
-inline void GLMaterial::setMetallicRoughnessTextureId(int id)
-{
-    _metallicRoughnessTextureId = id;
-}
+inline void GLMaterial::setMetallicRoughnessTextureId(int id) { _metallicRoughnessTextureId = id; }
 
 inline int GLMaterial::emissiveTextureId() const { return _emissiveTextureId; }
 
-inline void GLMaterial::setEmissiveTextureId(int id)
-{
-    _emissiveTextureId = id;
-}
+inline void GLMaterial::setEmissiveTextureId(int id) { _emissiveTextureId = id; }
 
 inline int GLMaterial::occlusionTextureId() const { return _occlusionTextureId; }
 
-inline void GLMaterial::setOcclusionTextureId(int id)
-{
-    _occlusionTextureId = id;
-}
+inline void GLMaterial::setOcclusionTextureId(int id) { _occlusionTextureId = id; }
 
 inline int GLMaterial::clearcoatTextureId() const { return _clearcoatTextureId; }
 
-inline void GLMaterial::setClearcoatTextureId(int id)
-{
-    _clearcoatTextureId = id;
-}
+inline void GLMaterial::setClearcoatTextureId(int id) { _clearcoatTextureId = id; }
 
 inline int GLMaterial::transmissionTextureId() const { return _transmissionTextureId; }
 
-inline void GLMaterial::setTransmissionTextureId(int id)
-{
-    _transmissionTextureId = id;
-}
+inline void GLMaterial::setTransmissionTextureId(int id) { _transmissionTextureId = id; }
 
 inline int GLMaterial::albedoTexCoord() const { return _albedoTexCoord; }
 
-inline void GLMaterial::setAlbedoTexCoord(int coord)
-{
-    _albedoTexCoord = coord;
-}
+inline void GLMaterial::setAlbedoTexCoord(int coord) { _albedoTexCoord = coord; }
 
 inline int GLMaterial::normalTexCoord() const { return _normalTexCoord; }
 
-inline void GLMaterial::setNormalTexCoord(int coord)
-{
-    _normalTexCoord = coord;
-}
+inline void GLMaterial::setNormalTexCoord(int coord) { _normalTexCoord = coord; }
 
 inline int GLMaterial::metallicRoughnessTexCoord() const { return _metallicRoughnessTexCoord; }
 
-inline void GLMaterial::setMetallicRoughnessTexCoord(int coord)
+inline void GLMaterial::setMetallicRoughnessTexCoord(int coord) { _metallicRoughnessTexCoord = coord; }
+
+// Albedo
+inline QString GLMaterial::albedoMapPath() const { return _albedoMapPath; }
+inline void GLMaterial::setAlbedoMap(const QString& path) { _albedoMapPath = path; /* optional: _albedoTextureId = -1; */ }
+inline void GLMaterial::clearAlbedoMap() { _albedoMapPath.clear(); /* optional: _albedoTextureId = -1; */ }
+
+// Normal
+inline QString GLMaterial::normalMapPath() const { return _normalMapPath; }
+inline void GLMaterial::setNormalMap(const QString& path) { _normalMapPath = path; /* _normalTextureId = -1; */ }
+inline void GLMaterial::clearNormalMap() { _normalMapPath.clear(); /* _normalTextureId = -1; */ }
+
+// Emissive
+inline QString GLMaterial::emissiveMapPath() const { return _emissiveMapPath; }
+inline void GLMaterial::setEmissiveMap(const QString& path) { _emissiveMapPath = path; /* _emissiveTextureId = -1; */ }
+inline void GLMaterial::clearEmissiveMap() { _emissiveMapPath.clear(); /* _emissiveTextureId = -1; */ }
+
+// Metallic (separate logical slot; you also have a packed MetallicRoughness texture id)
+inline QString GLMaterial::metallicMapPath() const { return _metallicMapPath; }
+inline void GLMaterial::setMetallicMap(const QString& path) { _metallicMapPath = path; /* optional: invalidate packed id if using separate */ }
+inline void GLMaterial::clearMetallicMap() { _metallicMapPath.clear(); }
+
+// Roughness
+inline QString GLMaterial::roughnessMapPath() const { return _roughnessMapPath; }
+inline void GLMaterial::setRoughnessMap(const QString& path) { _roughnessMapPath = path; }
+inline void GLMaterial::clearRoughnessMap() { _roughnessMapPath.clear(); }
+
+// AO
+inline QString GLMaterial::aoMapPath() const { return _aoMapPath; }
+inline void GLMaterial::setAOMap(const QString& path) { _aoMapPath = path; }
+inline void GLMaterial::clearAOMap() { _aoMapPath.clear(); }
+
+// Opacity
+inline QString GLMaterial::opacityMapPath() const { return _opacityMapPath; }
+inline void GLMaterial::setOpacityMap(const QString& path) { _opacityMapPath = path; }
+inline void GLMaterial::clearOpacityMap() { _opacityMapPath.clear(); }
+
+// Transmission
+inline QString GLMaterial::transmissionMapPath() const { return _transmissionMapPath; }
+inline void GLMaterial::setTransmissionMap(const QString& path) { _transmissionMapPath = path; /* _transmissionTextureId = -1; */ }
+inline void GLMaterial::clearTransmissionMap() { _transmissionMapPath.clear(); /* _transmissionTextureId = -1; */ }
+
+// IOR
+inline QString GLMaterial::iorMapPath() const { return _iorMapPath; }
+inline void GLMaterial::setIORMap(const QString& path) { _iorMapPath = path; }
+inline void GLMaterial::clearIORMap() { _iorMapPath.clear(); }
+
+// Sheen
+inline QString GLMaterial::sheenColorMapPath() const { return _sheenColorMapPath; }
+inline void GLMaterial::setSheenColorMap(const QString& path) { _sheenColorMapPath = path; }
+inline void GLMaterial::clearSheenColorMap() { _sheenColorMapPath.clear(); }
+
+inline QString GLMaterial::sheenRoughnessMapPath() const { return _sheenRoughnessMapPath; }
+inline void GLMaterial::setSheenRoughnessMap(const QString& path) { _sheenRoughnessMapPath = path; }
+inline void GLMaterial::clearSheenRoughnessMap() { _sheenRoughnessMapPath.clear(); }
+
+// Clearcoat
+inline QString GLMaterial::clearcoatColorMapPath() const { return _clearcoatColorMapPath; }
+inline void GLMaterial::setClearcoatColorMap(const QString& path) { _clearcoatColorMapPath = path; /* _clearcoatTextureId = -1; */ }
+inline void GLMaterial::clearClearcoatColorMap() { _clearcoatColorMapPath.clear(); }
+
+inline QString GLMaterial::clearcoatRoughnessMapPath() const { return _clearcoatRoughnessMapPath; }
+inline void GLMaterial::setClearcoatRoughnessMap(const QString& path) { _clearcoatRoughnessMapPath = path; }
+inline void GLMaterial::clearClearcoatRoughnessMap() { _clearcoatRoughnessMapPath.clear(); }
+
+inline QString GLMaterial::clearcoatNormalMapPath() const { return _clearcoatNormalMapPath; }
+inline void GLMaterial::setClearcoatNormalMap(const QString& path) { _clearcoatNormalMapPath = path; }
+inline void GLMaterial::clearClearcoatNormalMap() { _clearcoatNormalMapPath.clear(); }
+
+inline void GLMaterial::setUVTiling(float u, float v) { _uvTilingU = u; _uvTilingV = v; }
+inline void GLMaterial::setUVOffset(float u, float v) { _uvOffsetU = u; _uvOffsetV = v; }
+inline float GLMaterial::uvTilingU() const { return _uvTilingU; }
+inline float GLMaterial::uvTilingV() const { return _uvTilingV; }
+inline float GLMaterial::uvOffsetU() const { return _uvOffsetU; }
+inline float GLMaterial::uvOffsetV() const { return _uvOffsetV; }
+
+inline bool GLMaterial::isTransparent() const
 {
-    _metallicRoughnessTexCoord = coord;
+	return _opacity < 1.0f || _transmission > 0.0f ||
+		_blendMode == BlendMode::Alpha || _blendMode == BlendMode::Additive;
 }
 
-inline bool GLMaterial::isTransparent() const {
-    return _opacity < 1.0f || _transmission > 0.0f ||
-           _blendMode == BlendMode::Alpha || _blendMode == BlendMode::Additive;
-}
-
-inline bool GLMaterial::isEmissive() const {
-    return _emissive.length() > 0.0f && _emissiveStrength > 0.0f;
+inline bool GLMaterial::isEmissive() const
+{
+	return _emissive.length() > 0.0f && _emissiveStrength > 0.0f;
 }
 
 inline bool GLMaterial::hasClearcoat() const { return _clearcoat > 0.0f; }
 inline bool GLMaterial::hasSheen() const { return _sheenColor.length() > 0.0f; }
 inline bool GLMaterial::hasTransmission() const { return _transmission > 0.0f; }
-inline bool GLMaterial::hasIOR() const {  return _ior > 0.0f; }
+inline bool GLMaterial::hasIOR() const { return _ior > 0.0f; }
 
 inline bool GLMaterial::isValid() const
 {
-    // Check if all material properties are within valid ranges
+	// Check if all material properties are within valid ranges
 
-    // Check color components (should be 0.0 to 1.0)
-    auto isColorValid = [](const QVector3D& color) {
-        return color.x() >= 0.0f && color.x() <= 1.0f &&
-               color.y() >= 0.0f && color.y() <= 1.0f &&
-               color.z() >= 0.0f && color.z() <= 1.0f;
-    };
+	// Check color components (should be 0.0 to 1.0)
+	auto isColorValid = [](const QVector3D& color) {
+		return color.x() >= 0.0f && color.x() <= 1.0f &&
+			color.y() >= 0.0f && color.y() <= 1.0f &&
+			color.z() >= 0.0f && color.z() <= 1.0f;
+		};
 
-    // Traditional Phong/Blinn-Phong checks
-    if (!isColorValid(_ambient)) return false;
-    if (!isColorValid(_diffuse)) return false;
-    if (!isColorValid(_specular)) return false;
-    if (!isColorValid(_emissive)) return false;
+	// Traditional Phong/Blinn-Phong checks
+	if (!isColorValid(_ambient)) return false;
+	if (!isColorValid(_diffuse)) return false;
+	if (!isColorValid(_specular)) return false;
+	if (!isColorValid(_emissive)) return false;
 
-    // Shininess should be positive
-    if (_shininess < 0.0f || _shininess > 128.0f) return false;
+	// Shininess should be positive
+	if (_shininess < 0.0f || _shininess > 128.0f) return false;
 
-    // PBR material checks
-    if (!isColorValid(_albedoColor)) return false;
-    if (!isColorValid(_emissive)) return false;
+	// PBR material checks
+	if (!isColorValid(_albedoColor)) return false;
+	if (!isColorValid(_emissive)) return false;
 
-    // PBR parameters should be in valid ranges
-    if (_metalness < 0.0f || _metalness > 1.0f) return false;
-    if (_roughness < 0.0f || _roughness > 1.0f) return false;
-    if (_opacity < 0.0f || _opacity > 1.0f) return false;
-    if (_transmission < 0.0f || _transmission > 1.0f) return false;
-    if (_ior < 1.0f || _ior > 3.0f) return false; // Reasonable IOR range
+	// PBR parameters should be in valid ranges
+	if (_metalness < 0.0f || _metalness > 1.0f) return false;
+	if (_roughness < 0.0f || _roughness > 1.0f) return false;
+	if (_opacity < 0.0f || _opacity > 1.0f) return false;
+	if (_transmission < 0.0f || _transmission > 1.0f) return false;
+	if (_ior < 1.0f || _ior > 3.0f) return false; // Reasonable IOR range
 
-    return true;
+	return true;
 }
 
 inline void GLMaterial::validateAndFix()
 {
-    // Clamp color components to valid range [0.0, 1.0]
-    auto clampColor = [](float& component) {
-        component = qBound(0.0f, component, 1.0f);
-    };
+	// Clamp color components to valid range [0.0, 1.0]
+	auto clampColor = [](float& component) {
+		component = qBound(0.0f, component, 1.0f);
+		};
 
-    // Fix traditional material properties (assuming they are QVector3D members)
-    _ambient.setX(qBound(0.0f, _ambient.x(), 1.0f));
-    _ambient.setY(qBound(0.0f, _ambient.y(), 1.0f));
-    _ambient.setZ(qBound(0.0f, _ambient.z(), 1.0f));
+	// Fix traditional material properties (assuming they are QVector3D members)
+	_ambient.setX(qBound(0.0f, _ambient.x(), 1.0f));
+	_ambient.setY(qBound(0.0f, _ambient.y(), 1.0f));
+	_ambient.setZ(qBound(0.0f, _ambient.z(), 1.0f));
 
-    _diffuse.setX(qBound(0.0f, _diffuse.x(), 1.0f));
-    _diffuse.setY(qBound(0.0f, _diffuse.y(), 1.0f));
-    _diffuse.setZ(qBound(0.0f, _diffuse.z(), 1.0f));
+	_diffuse.setX(qBound(0.0f, _diffuse.x(), 1.0f));
+	_diffuse.setY(qBound(0.0f, _diffuse.y(), 1.0f));
+	_diffuse.setZ(qBound(0.0f, _diffuse.z(), 1.0f));
 
-    _specular.setX(qBound(0.0f, _specular.x(), 1.0f));
-    _specular.setY(qBound(0.0f, _specular.y(), 1.0f));
-    _specular.setZ(qBound(0.0f, _specular.z(), 1.0f));
+	_specular.setX(qBound(0.0f, _specular.x(), 1.0f));
+	_specular.setY(qBound(0.0f, _specular.y(), 1.0f));
+	_specular.setZ(qBound(0.0f, _specular.z(), 1.0f));
 
-    _emissive.setX(qBound(0.0f, _emissive.x(), 1.0f));
-    _emissive.setY(qBound(0.0f, _emissive.y(), 1.0f));
-    _emissive.setZ(qBound(0.0f, _emissive.z(), 1.0f));
+	_emissive.setX(qBound(0.0f, _emissive.x(), 1.0f));
+	_emissive.setY(qBound(0.0f, _emissive.y(), 1.0f));
+	_emissive.setZ(qBound(0.0f, _emissive.z(), 1.0f));
 
-    // Fix shininess (0 to 128 for OpenGL)
-    _shininess = qBound(0.0f, _shininess, 128.0f);
+	// Fix shininess (0 to 128 for OpenGL)
+	_shininess = qBound(0.0f, _shininess, 128.0f);
 
-    // Fix PBR properties
-    _albedoColor.setZ(qBound(0.0f, _albedoColor.z(), 1.0f));
-    _albedoColor.setX(qBound(0.0f, _albedoColor.x(), 1.0f));
-    _albedoColor.setY(qBound(0.0f, _albedoColor.y(), 1.0f));
+	// Fix PBR properties
+	_albedoColor.setZ(qBound(0.0f, _albedoColor.z(), 1.0f));
+	_albedoColor.setX(qBound(0.0f, _albedoColor.x(), 1.0f));
+	_albedoColor.setY(qBound(0.0f, _albedoColor.y(), 1.0f));
 
-    _emissive.setX(qBound(0.0f, _emissive.x(), 1.0f));
-    _emissive.setY(qBound(0.0f, _emissive.y(), 1.0f));
-    _emissive.setZ(qBound(0.0f, _emissive.z(), 1.0f));
+	_emissive.setX(qBound(0.0f, _emissive.x(), 1.0f));
+	_emissive.setY(qBound(0.0f, _emissive.y(), 1.0f));
+	_emissive.setZ(qBound(0.0f, _emissive.z(), 1.0f));
 
-    // Clamp PBR parameters
-    _metalness = qBound(0.0f, _metalness, 1.0f);
-    _roughness = qBound(0.04f, _roughness, 1.0f); // Minimum 0.04 to prevent artifacts
-    _opacity = qBound(0.0f, _opacity, 1.0f);
-    _transmission = qBound(0.0f, _transmission, 1.0f);
-    _ior = qBound(1.0f, _ior, 3.0f);
+	// Clamp PBR parameters
+	_metalness = qBound(0.0f, _metalness, 1.0f);
+	_roughness = qBound(0.04f, _roughness, 1.0f); // Minimum 0.04 to prevent artifacts
+	_opacity = qBound(0.0f, _opacity, 1.0f);
+	_transmission = qBound(0.0f, _transmission, 1.0f);
+	_ior = qBound(1.0f, _ior, 3.0f);
 }
 
 inline void GLMaterial::convertToBlinnPhong()
 {
-    // Convert PBR material to Blinn-Phong approximation
+	// Convert PBR material to Blinn-Phong approximation
 
-    // Use albedo as diffuse color
-    _diffuse = _albedoColor;
+	// Use albedo as diffuse color
+	_diffuse = _albedoColor;
 
-    // Set ambient to a fraction of diffuse (typically 0.1-0.3)
-    float ambientFactor = 0.2f;
-    _ambient = _diffuse * ambientFactor;
+	// Set ambient to a fraction of diffuse (typically 0.1-0.3)
+	float ambientFactor = 0.2f;
+	_ambient = _diffuse * ambientFactor;
 
-    // Convert metalness and roughness to specular properties
-    if (_metalness > 0.5f) {
-        // Metallic: use albedo as specular color, reduce diffuse
-        _specular = _albedoColor * 0.9f;
+	// Convert metalness and roughness to specular properties
+	if (_metalness > 0.5f)
+	{
+		// Metallic: use albedo as specular color, reduce diffuse
+		_specular = _albedoColor * 0.9f;
 
-        // Metals have very little diffuse reflection
-        _diffuse *= (1.0f - _metalness) * 0.1f;
-    } else {
-        // Dielectric: white/gray specular, keep diffuse
-        float specularIntensity = 0.04f + (1.0f - _roughness) * 0.96f;
-        _specular = QVector3D(specularIntensity, specularIntensity, specularIntensity);
-    }
+		// Metals have very little diffuse reflection
+		_diffuse *= (1.0f - _metalness) * 0.1f;
+	}
+	else
+	{
+		// Dielectric: white/gray specular, keep diffuse
+		float specularIntensity = 0.04f + (1.0f - _roughness) * 0.96f;
+		_specular = QVector3D(specularIntensity, specularIntensity, specularIntensity);
+	}
 
-    // Convert roughness to shininess (inverse relationship)
-    // Roughness 0.0 = shininess 128, roughness 1.0 = shininess 1
-    _shininess = (1.0f - _roughness) * 127.0f + 1.0f;
+	// Convert roughness to shininess (inverse relationship)
+	// Roughness 0.0 = shininess 128, roughness 1.0 = shininess 1
+	_shininess = (1.0f - _roughness) * 127.0f + 1.0f;
 
-    // Set shading model to traditional
-    _shadingModel = ShadingModel::BlinnPhong;
+	// Set shading model to traditional
+	_shadingModel = ShadingModel::BlinnPhong;
 }
 
 inline void GLMaterial::convertToPBR()
 {
-    // Convert Blinn-Phong material to PBR approximation
+	// Convert Blinn-Phong material to PBR approximation
 
-    // Use diffuse as base albedo
-    _albedoColor = _diffuse;
+	// Use diffuse as base albedo
+	_albedoColor = _diffuse;
 
-    // Determine if material is metallic based on specular color
-    float specularLuminance = 0.299f * _specular.x() + 0.587f * _specular.y() + 0.114f * _specular.z();
-    float diffuseLuminance = 0.299f * _diffuse.x() + 0.587f * _diffuse.y() + 0.114f * _diffuse.z();
+	// Determine if material is metallic based on specular color
+	float specularLuminance = 0.299f * _specular.x() + 0.587f * _specular.y() + 0.114f * _specular.z();
+	float diffuseLuminance = 0.299f * _diffuse.x() + 0.587f * _diffuse.y() + 0.114f * _diffuse.z();
 
-    if (specularLuminance > 0.9f && diffuseLuminance < 0.1f) {
-        // Likely metallic - high specular, low diffuse
-        _metalness = 1.0f;
-        _albedoColor = _specular;
-    } else if (specularLuminance > 0.5f) {
-        // Partially metallic
-        _metalness = qBound(0.0f, (specularLuminance - 0.04f) / 0.96f, 1.0f);
-        // Blend between diffuse and specular for albedo
-        _albedoColor = _diffuse * (1.0f - _metalness) + _specular * _metalness;
-    } else {
-        // Dielectric material
-        _metalness = 0.0f;
-        _albedoColor = _diffuse;
-    }
+	if (specularLuminance > 0.9f && diffuseLuminance < 0.1f)
+	{
+		// Likely metallic - high specular, low diffuse
+		_metalness = 1.0f;
+		_albedoColor = _specular;
+	}
+	else if (specularLuminance > 0.5f)
+	{
+		// Partially metallic
+		_metalness = qBound(0.0f, (specularLuminance - 0.04f) / 0.96f, 1.0f);
+		// Blend between diffuse and specular for albedo
+		_albedoColor = _diffuse * (1.0f - _metalness) + _specular * _metalness;
+	}
+	else
+	{
+		// Dielectric material
+		_metalness = 0.0f;
+		_albedoColor = _diffuse;
+	}
 
-    // Convert shininess to roughness (inverse relationship)
-    // Shininess 128 = roughness 0.04, shininess 1 = roughness 1.0
-    _roughness = 1.0f - ((_shininess - 1.0f) / 127.0f);
-    _roughness = qBound(0.04f, _roughness, 1.0f);
+	// Convert shininess to roughness (inverse relationship)
+	// Shininess 128 = roughness 0.04, shininess 1 = roughness 1.0
+	_roughness = 1.0f - ((_shininess - 1.0f) / 127.0f);
+	_roughness = qBound(0.04f, _roughness, 1.0f);
 
 
-    // Set reasonable defaults for other PBR properties
-    _transmission = 0.0f;
-    _ior = 1.5f; // Common default IOR
+	// Set reasonable defaults for other PBR properties
+	_transmission = 0.0f;
+	_ior = 1.5f; // Common default IOR
 
-    // Set shading model to PBR
-    _shadingModel = ShadingModel::PBR;
+	// Set shading model to PBR
+	_shadingModel = ShadingModel::PBR;
 }
 
 inline QVector3D GLMaterial::getF0() const
 {
-    // F0 is the base reflectivity at normal incidence
+	// F0 is the base reflectivity at normal incidence
 
-    if (_metalness > 0.5f) {
-        // For metals, F0 is the albedo color
-        return _albedoColor;
-    } else {
-        // For dielectrics, F0 is typically around 0.04 (4% reflectance)
-        // Can be calculated from IOR: F0 = ((IOR-1)/(IOR+1))^2
-        float f0_scalar = pow((_ior - 1.0f) / (_ior + 1.0f), 2.0f);
+	if (_metalness > 0.5f)
+	{
+		// For metals, F0 is the albedo color
+		return _albedoColor;
+	}
+	else
+	{
+		// For dielectrics, F0 is typically around 0.04 (4% reflectance)
+		// Can be calculated from IOR: F0 = ((IOR-1)/(IOR+1))^2
+		float f0_scalar = pow((_ior - 1.0f) / (_ior + 1.0f), 2.0f);
 
-        // For mixed materials, interpolate between dielectric F0 and albedo
-        QVector3D dielectric_f0(f0_scalar, f0_scalar, f0_scalar);
-        return QVector3D(
-            dielectric_f0.x() * (1.0f - _metalness) + _albedoColor.x() * _metalness,
-            dielectric_f0.y() * (1.0f - _metalness) + _albedoColor.y() * _metalness,
-            dielectric_f0.z() * (1.0f - _metalness) + _albedoColor.z() * _metalness
-        );
-    }
+		// For mixed materials, interpolate between dielectric F0 and albedo
+		QVector3D dielectric_f0(f0_scalar, f0_scalar, f0_scalar);
+		return QVector3D(
+			dielectric_f0.x() * (1.0f - _metalness) + _albedoColor.x() * _metalness,
+			dielectric_f0.y() * (1.0f - _metalness) + _albedoColor.y() * _metalness,
+			dielectric_f0.z() * (1.0f - _metalness) + _albedoColor.z() * _metalness
+		);
+	}
 }
 
 #endif // GLMATERIAL_H

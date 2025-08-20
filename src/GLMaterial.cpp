@@ -4,6 +4,11 @@
 GLMaterial::GLMaterial()
 {
 	*this = DEFAULT_MAT();
+	// Sensible defaults (e.g., glTF ORM: O=R, R=G, M=B)
+	_metallicPacking = { 2, false, 1.0f, 0.0f }; // B
+	_roughnessPacking = { 1, false, 1.0f, 0.0f }; // G
+	_aoPacking = { 0, false, 1.0f, 0.0f }; // R
+	_opacityPacking = { 3, false, 1.0f, 0.0f }; // A (common), tweak if your assets prefer R
 }
 
 GLMaterial::GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic, float opacity)
@@ -42,6 +47,13 @@ GLMaterial::GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular,
 	_twoSided = false; // Default two-sided rendering
 	_wireframe = false; // Default wireframe rendering
 	_alphaThreshold = 0.5f; // Default alpha threshold for masked blend mode
+
+	// Sensible defaults (e.g., glTF ORM: O=R, R=G, M=B)
+	_metallicPacking = { 2, false, 1.0f, 0.0f }; // B
+	_roughnessPacking = { 1, false, 1.0f, 0.0f }; // G
+	_aoPacking = { 0, false, 1.0f, 0.0f }; // R
+	_opacityPacking = { 3, false, 1.0f, 0.0f }; // A (common), tweak if your assets prefer R
+
 	// Ensure all values are within valid ranges
 	clampValues();
 	// Fix shininess (0 to 128 for OpenGL)
@@ -78,6 +90,13 @@ GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float
 	_blendMode = BlendMode::Opaque; // Default blend mode
 	_twoSided = false; // Default two-sided rendering
 	_wireframe = false; // Default wireframe rendering
+
+	// Sensible defaults (e.g., glTF ORM: O=R, R=G, M=B)
+	_metallicPacking = { 2, false, 1.0f, 0.0f }; // B
+	_roughnessPacking = { 1, false, 1.0f, 0.0f }; // G
+	_aoPacking = { 0, false, 1.0f, 0.0f }; // R
+	_opacityPacking = { 3, false, 1.0f, 0.0f }; // A (common), tweak if your assets prefer R
+
 	clampValues();
 	// Fix shininess (0 to 128 for OpenGL)
 	_shininess = std::clamp(_shininess, 0.0f, 128.0f);
@@ -2598,6 +2617,25 @@ GLMaterial GLMaterial::blendMaterials(const GLMaterial& mat1,
 
 	result.updateConsistency();
 	return result;
+}
+
+GLMaterial::ChannelPacking GLMaterial::packingFor(const QString& key) const
+{
+	if (key == "metallic")   return _metallicPacking;
+	if (key == "roughness")  return _roughnessPacking;
+	if (key == "ao")         return _aoPacking;
+	if (key == "opacity")    return _opacityPacking;
+	// Fallback: return a neutral pack (R, no invert, scale=1,bias=0)
+	return ChannelPacking{};
+}
+
+void GLMaterial::setPackingFor(const QString& key, const ChannelPacking& p)
+{
+	if (key == "metallic") { _metallicPacking = p; return; }
+	if (key == "roughness") { _roughnessPacking = p; return; }
+	if (key == "ao") { _aoPacking = p; return; }
+	if (key == "opacity") { _opacityPacking = p; return; }
+	// Unknown key: ignore (or assert)
 }
 
 #include <QDataStream>
