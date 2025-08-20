@@ -39,6 +39,9 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
     _ui->spinTV->setSingleStep(0.1);
     _ui->spinOU->setSingleStep(0.1);
     _ui->spinOV->setSingleStep(0.1);
+
+	// Initialize the material to default values and bind it    
+    bindMaterial(new GLMaterial());
 }
 
 TextureMappingPanel::~TextureMappingPanel()
@@ -59,8 +62,11 @@ void TextureMappingPanel::bindMaterial(GLMaterial* material)
         else                applyButtonImageIcon(it.value(), path);
     }
 
-    // TODO: if UV tiling/offset are stored in GLMaterial, read them and set spins here.
-
+	_ui->spinTU->setValue(_material->uvTilingU());
+	_ui->spinTV->setValue(_material->uvTilingV());
+	_ui->spinOU->setValue(_material->uvOffsetU());
+	_ui->spinOV->setValue(_material->uvOffsetV());
+        
     updatePreview();
 }
 
@@ -109,7 +115,7 @@ void TextureMappingPanel::connectSignals()
             applyButtonImageIcon(_maps[k], file);
             setMapPath(k, file);
             updatePreview();
-            emit materialChanged();
+            emit materialChanged(_material);
             });
 
         // Right-click context menu
@@ -126,7 +132,7 @@ void TextureMappingPanel::connectSignals()
                 applyButtonEmptyIcon(_maps[key]);
                 clearMap(key);
                 updatePreview();
-                emit materialChanged();
+                emit materialChanged(_material);
                 });
             menu.exec(btn->mapToGlobal(pos));
             });
@@ -287,7 +293,7 @@ void TextureMappingPanel::openPackingDialogFor(const QString& key)
         {
             _material->setPackingFor(key, dlg.packing());
             updatePreview();
-            emit materialChanged();
+            emit materialChanged(_material);
         }
     }
 }
@@ -299,11 +305,11 @@ void TextureMappingPanel::onUVChanged()
     if (_material)
     {
         // Adapt to your GLMaterial API:
-        // _material->setTiling(_ui->spinTU->value(), _ui->spinTV->value());
-        // _material->setOffset(_ui->spinOU->value(), _ui->spinOV->value());
+        _material->setUVTiling(_ui->spinTU->value(), _ui->spinTV->value());
+        _material->setUVOffset(_ui->spinOU->value(), _ui->spinOV->value());
     }
     updatePreview();
-    emit materialChanged();
+    emit materialChanged(_material);
 }
 
 void TextureMappingPanel::updatePreview()

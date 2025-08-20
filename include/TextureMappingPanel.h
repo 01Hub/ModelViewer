@@ -32,8 +32,10 @@ public:
     // Provide the material we’re editing
     void bindMaterial(GLMaterial* material);
 
+	GLMaterial* material() const { return _material; }
+
 signals:
-    void materialChanged();
+    void materialChanged(const GLMaterial* material);
 
 private:
     struct MapSlot
