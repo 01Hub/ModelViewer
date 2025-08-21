@@ -51,8 +51,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>273</width>
-        <height>1332</height>
+        <width>332</width>
+        <height>1378</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="vboxLeft">
@@ -1532,6 +1532,11 @@
           <item>
            <property name="text">
             <string>Cube</string>
+           </property>
+          </item>
+          <item>
+           <property name="text">
+            <string>Cylinder</string>
            </property>
           </item>
           <item>

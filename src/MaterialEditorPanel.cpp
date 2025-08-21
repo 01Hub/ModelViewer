@@ -18,7 +18,7 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget *parent)
     topLayout->addWidget(treeWidget, 1);
 	QVBoxLayout* previewLayout = new QVBoxLayout();
 	modelCombo = new QComboBox();
-	modelCombo->addItems({ "Sphere", "Cube", "Plane", "Teapot" });
+	modelCombo->addItems({ "Sphere", "Cube", "Cylinder", "Plane", "Teapot" });
     connect(modelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](int index) {
         previewWidget->setPreviewShape(static_cast<PreviewShape>(index));
     });

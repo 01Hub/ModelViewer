@@ -10,7 +10,7 @@
 class QMouseEvent;
 class QWheelEvent;
 
-enum class PreviewShape { Sphere, Cube, Plane, Teapot };
+enum class PreviewShape { Sphere, Cube, Cylinder, Plane, Teapot };
 class MaterialPreviewWidget : public QOpenGLWidget, protected QOpenGLFunctions_4_5_Core
 {
     Q_OBJECT
@@ -48,7 +48,8 @@ protected:
 
 private:
     void initSphereMesh();    
-    void initCubeMesh();      
+    void initCubeMesh();
+    void initCylinderMesh();
     void initPlaneMesh();     
     void initTeapotMesh();    
 
@@ -74,6 +75,7 @@ private:
 
     MeshGL _sphere{};
     MeshGL _cube{};
+    MeshGL _cylinder{};
     MeshGL _plane{};
     MeshGL _teapot{};
 

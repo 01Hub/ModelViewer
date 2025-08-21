@@ -6,6 +6,240 @@
 #include <QWheelEvent>
 #include <QPainter>
 
+#include "TeapotData.h" // (Kilgard) 
+
+namespace
+{
+
+	// ---------- small math helpers ----------
+	struct V3 { float x, y, z; };
+	inline V3 operator+(V3 a, V3 b) { return { a.x + b.x, a.y + b.y, a.z + b.z }; }
+	inline V3 operator-(V3 a, V3 b) { return { a.x - b.x, a.y - b.y, a.z - b.z }; }
+	inline V3 operator*(V3 a, float s) { return { a.x * s, a.y * s, a.z * s }; }
+	inline V3 cross(V3 a, V3 b)
+	{
+		return { a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x };
+	}
+	inline float dot(V3 a, V3 b) { return a.x * b.x + a.y * b.y + a.z * b.z; }
+	inline V3 normalize(V3 v)
+	{
+		float L = std::sqrt(dot(v, v));
+		return (L > 0.f) ? (v * (1.0f / L)) : V3{ 0,0,1 };
+	}
+
+	// ---------- Bernstein basis (from your Teapot.cpp) ----------
+	static void computeBasis(std::vector<float>& B, std::vector<float>& dB, int grid)
+	{ // :contentReference[oaicite:3]{index=3}
+		float inc = 1.0f / grid;
+		B.resize(4 * (grid + 1));
+		dB.resize(4 * (grid + 1));
+		for (int i = 0; i <= grid; ++i)
+		{
+			float t = i * inc;
+			float t2 = t * t;
+			float omt = 1.0f - t;
+			float omt2 = omt * omt;
+
+			B[i * 4 + 0] = omt * omt2;
+			B[i * 4 + 1] = 3.0f * omt2 * t;
+			B[i * 4 + 2] = 3.0f * omt * t2;
+			B[i * 4 + 3] = t * t2;
+
+			dB[i * 4 + 0] = -3.0f * omt2;
+			dB[i * 4 + 1] = -6.0f * t * omt + 3.0f * omt2;
+			dB[i * 4 + 2] = -3.0f * t2 + 6.0f * t * omt;
+			dB[i * 4 + 3] = 3.0f * t2;
+		}
+	}
+
+	// Evaluate a 4x4 Bezier patch at (u,v) with basis tables (from your Teapot.cpp)  // :contentReference[oaicite:4]{index=4}
+	static V3 evalPos(int iu, int iv, const std::vector<float>& B, V3 cp[4][4])
+	{
+		V3 p{ 0,0,0 };
+		for (int i = 0; i < 4; ++i) for (int j = 0; j < 4; ++j)
+		{
+			float w = B[iu * 4 + i] * B[iv * 4 + j];
+			p = p + cp[i][j] * w;
+		}
+		return p;
+	}
+	static V3 evalNormal(int iu, int iv, const std::vector<float>& B, const std::vector<float>& dB, V3 cp[4][4])
+	{
+		V3 du{ 0,0,0 }, dv{ 0,0,0 };
+		for (int i = 0; i < 4; ++i) for (int j = 0; j < 4; ++j)
+		{
+			du = du + cp[i][j] * (dB[iu * 4 + i] * B[iv * 4 + j]);
+			dv = dv + cp[i][j] * (B[iu * 4 + i] * dB[iv * 4 + j]);
+		}
+		return normalize(cross(du, dv));
+	}
+
+	// Get one 4x4 patch control grid from Kilgard data (mirrors logic in your Teapot.cpp::getPatch)  // :contentReference[oaicite:5]{index=5} :contentReference[oaicite:6]{index=6}
+	// Build a 4x4 control grid for patchNum.
+// reverseV toggles the exact indexing trick Kilgard uses.
+	static void getPatch(int patchNum, V3 dst[4][4], bool reverseV, float size)
+	{
+		using namespace TeapotData;
+		for (int u = 0; u < 4; ++u)
+		{
+			for (int v = 0; v < 4; ++v)
+			{
+				const int vv = reverseV ? (3 - v) : v;
+				const int idx = patchdata[patchNum][u * 4 + vv];
+				dst[u][v] = { cpdata[idx][0] * size,
+							  cpdata[idx][1] * size,
+							  cpdata[idx][2] * size - size };
+			}
+		}
+	}
+
+
+	struct M3 { float m[3][3]; }; // column-major not needed; we’ll multiply explicitly
+
+	static inline V3 mul(const M3& R, V3 a)
+	{
+		return {
+			R.m[0][0] * a.x + R.m[0][1] * a.y + R.m[0][2] * a.z,
+			R.m[1][0] * a.x + R.m[1][1] * a.y + R.m[1][2] * a.z,
+			R.m[2][0] * a.x + R.m[2][1] * a.y + R.m[2][2] * a.z
+		};
+	}
+
+	// Identity and simple axis-reflects
+	static const M3 R_ID = { {{ 1,0,0 },{ 0,1,0 },{ 0,0,1 }} };
+	static const M3 R_X = { {{-1,0,0 },{ 0,1,0 },{ 0,0,1 }} };
+	static const M3 R_Y = { {{ 1,0,0 },{ 0,-1,0},{ 0,0,1 }} };
+	static const M3 R_XY = { {{-1,0,0 },{ 0,-1,0},{ 0,0,1 }} };
+
+	// Build one triangulated patch with a reflect matrix and optional normal inversion.
+	// (No global Y/Z swap here.)
+	static void buildOne(V3 patch[4][4],
+		const std::vector<float>& B, const std::vector<float>& dB,
+		std::vector<float>& verts, std::vector<unsigned int>& idx,
+		int grid, const M3& reflect, bool invertNormal)
+	{
+		const int steps = grid;
+		const int stride = steps + 1;
+		const unsigned base = (unsigned)(verts.size() / 8);
+
+		for (int iv = 0; iv <= steps; ++iv)
+		{
+			for (int iu = 0; iu <= steps; ++iu)
+			{
+				V3 P = evalPos(iu, iv, B, patch);
+				V3 dU = { 0,0,0 }, dV = { 0,0,0 };
+				// reuse our normal helper
+				V3 N = evalNormal(iu, iv, B, dB, patch);
+
+				// apply reflection to both position and normal
+				P = mul(reflect, P);
+				N = mul(reflect, N);
+
+				if (invertNormal) N = N * -1.0f;
+				N = normalize(N);
+
+				float u = float(iu) / steps, v = float(iv) / steps;
+				verts.insert(verts.end(), { P.x,P.y,P.z, N.x,N.y,N.z, u,v });
+			}
+		}
+
+		for (int iv = 0; iv < steps; ++iv)
+		{
+			for (int iu = 0; iu < steps; ++iu)
+			{
+				unsigned i0 = base + iv * stride + iu;
+				unsigned i1 = base + (iv + 1) * stride + iu;
+				unsigned i2 = i0 + 1;
+				unsigned i3 = i1 + 1;
+				idx.insert(idx.end(), { i0,i1,i2,  i2,i1,i3 });
+			}
+		}
+	}
+
+
+
+	// Reflect patch across X and/or Y by multiplying coordinates
+	static void reflectPatch(V3 src[4][4], V3 dst[4][4], bool flipX, bool flipY)
+	{
+		const float sx = flipX ? -1.f : 1.f;
+		const float sy = flipY ? -1.f : 1.f;
+		for (int i = 0; i < 4; ++i) for (int j = 0; j < 4; ++j)
+		{
+			V3 p = src[i][j];
+			dst[i][j] = { p.x * sx, p.y * sy, p.z };
+		}
+	}
+
+	// Build a patch with reflections: none / X / Y / X+Y
+	static void buildPatchReflect(int patchNum,
+		const std::vector<float>& B, const std::vector<float>& dB,
+		std::vector<float>& verts, std::vector<unsigned int>& idx,
+		int grid, float size,
+		bool reflectX, bool reflectY)
+	{
+		V3 patch[4][4], patchRevV[4][4];
+		getPatch(patchNum, patch,    /*reverseV=*/false, size);
+		getPatch(patchNum, patchRevV,/*reverseV=*/true, size);
+
+		// 0) Base (no reflection)  --> invert normals (matches Kilgard)
+		buildOne(patch, B, dB, verts, idx, grid, R_ID, /*invertNormal=*/true);
+
+		// 1) X reflection uses V-reversed control net, normals NOT inverted
+		if (reflectX)
+		{
+			buildOne(patchRevV, B, dB, verts, idx, grid, R_X, /*invertNormal=*/false);
+		}
+
+		// 2) Y reflection uses V-reversed control net, normals NOT inverted
+		if (reflectY)
+		{
+			buildOne(patchRevV, B, dB, verts, idx, grid, R_Y, /*invertNormal=*/false);
+		}
+
+		// 3) X+Y reflection uses base control net again, normals inverted
+		if (reflectX && reflectY)
+		{
+			buildOne(patch, B, dB, verts, idx, grid, R_XY, /*invertNormal=*/true);
+		}
+	}
+
+
+	// Generate all 10 base patches with proper reflections (as in your Teapot.cpp::generatePatches)  // :contentReference[oaicite:9]{index=9}
+	static void generateTeapot(std::vector<float>& verts, std::vector<unsigned int>& idx,
+		int grid, float size)
+	{
+		std::vector<float> B, dB;
+		computeBasis(B, dB, grid);
+
+		// Rim
+		buildPatchReflect(0, B, dB, verts, idx, grid, size, true, true);
+		// Body
+		buildPatchReflect(1, B, dB, verts, idx, grid, size, true, true);
+		buildPatchReflect(2, B, dB, verts, idx, grid, size, true, true);
+		// Lid
+		buildPatchReflect(3, B, dB, verts, idx, grid, size, true, true);
+		buildPatchReflect(4, B, dB, verts, idx, grid, size, true, true);
+		// Bottom
+		buildPatchReflect(5, B, dB, verts, idx, grid, size, true, true);
+		// Handle
+		buildPatchReflect(6, B, dB, verts, idx, grid, size, false, true);
+		buildPatchReflect(7, B, dB, verts, idx, grid, size, false, true);
+		// Spout
+		buildPatchReflect(8, B, dB, verts, idx, grid, size, false, true);
+		buildPatchReflect(9, B, dB, verts, idx, grid, size, false, true);
+	}
+
+
+	// Optional: move lid (kept for parity; disabled by default)  // :contentReference[oaicite:10]{index=10}
+	static void moveLidCPU(std::vector<float>& /*verts*/, int /*grid*/, const float* /*mat4x4*/)
+	{
+		// No-op; Kilgard closed-lid dataset doesn’t need it for your preview.
+		// If you ever want this: transform vertex positions of lid patch range here.
+	}
+
+} // namespace
+
+
 MaterialPreviewWidget::MaterialPreviewWidget(QWidget* parent)
 	: QOpenGLWidget(parent)
 {
@@ -53,6 +287,7 @@ MaterialPreviewWidget::~MaterialPreviewWidget()
 	makeCurrent();
 	destroyMesh(_sphere);
 	destroyMesh(_cube);
+	destroyMesh(_cylinder);
 	destroyMesh(_plane);
 	destroyMesh(_teapot);
 	doneCurrent();
@@ -83,6 +318,7 @@ void MaterialPreviewWidget::initializeGL()
 
 	initSphereMesh();
 	initCubeMesh();  
+	initCylinderMesh();
 	initPlaneMesh(); 
 	initTeapotMesh();
 }
@@ -101,10 +337,12 @@ void MaterialPreviewWidget::paintGL()
 		view.translate(0, 0, -3.0f);
 	else if (_currentShape == PreviewShape::Cube)
 		view.translate(0, 0, -4.5f);
+	else if (_currentShape == PreviewShape::Cylinder)
+		view.translate(0, 0, -4.5f);
 	else if (_currentShape == PreviewShape::Plane)
 		view.translate(0, 0, -4.0f);
 	else if (_currentShape == PreviewShape::Teapot)
-		view.translate(0, 0, -4.5f);
+		view.translate(0, 0, -7.5f);
 
 	glViewport(0, 0, width(), height());
 	glClearColor(0.15f, 0.15f, 0.18f, 1.0f);
@@ -122,10 +360,20 @@ void MaterialPreviewWidget::paintGL()
 
 	_shader->bind();
 
+	
 	QMatrix4x4 model;
+	model.setToIdentity();
+
+		
 	model.scale(_zoom);
 	model.rotate(_rotX, 1, 0, 0);
 	model.rotate(_rotY, 0, 1, 0);
+
+	if (_currentShape == PreviewShape::Teapot)
+	{
+		model.rotate(-90, 1, 0, 0);
+		model.rotate(90, 0, 0, 1);
+	}
 
 	QMatrix4x4 mvp = proj * view * model;
 	QMatrix3x3 normalMat = model.normalMatrix();
@@ -174,20 +422,36 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("uEmissiveMap", 6);
 	// Set up texture units
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, 0); // No albedo map
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.albedoTextureId());  
 	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_2D, 0); // No metalness map
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.metallicTextureId());
 	glActiveTexture(GL_TEXTURE2);
-	glBindTexture(GL_TEXTURE_2D, 0); // No roughness map
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.roughnessTextureId());
 	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_2D, 0); // No normal map
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.normalTextureId());
 	glActiveTexture(GL_TEXTURE4);
-	glBindTexture(GL_TEXTURE_2D, 0); // No AO map
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.occlusionTextureId());
 	glActiveTexture(GL_TEXTURE5);
-	glBindTexture(GL_TEXTURE_2D, 0); // No height map
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.heightTextureId());   
 	glActiveTexture(GL_TEXTURE6);
-	glBindTexture(GL_TEXTURE_2D, 0); // No emissive map
-	
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.opacityTextureId());  
+	glActiveTexture(GL_TEXTURE7);
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.emissiveTextureId());
+	glActiveTexture(GL_TEXTURE8);
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.sheenColorTextureId());
+	glActiveTexture(GL_TEXTURE9);
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.sheenRoughnessTextureId());
+	glActiveTexture(GL_TEXTURE10);
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.clearcoatColorTextureId());
+	glActiveTexture(GL_TEXTURE11);
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.clearcoatRoughnessTextureId());
+	glActiveTexture(GL_TEXTURE12);
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.clearcoatNormalTextureId());
+	glActiveTexture(GL_TEXTURE13);
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.iorTextureId());
+	glActiveTexture(GL_TEXTURE14);
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.transmissionTextureId());
+		
 	// Set up simple lighting
 	_shader->setUniformValue("uLights[0].position", QVector3D(3.0f, 3.0f, 3.0f));
 	_shader->setUniformValue("uLights[0].color", QVector3D(1.0f, 1.0f, 1.0f));
@@ -204,6 +468,7 @@ void MaterialPreviewWidget::paintGL()
 	{
 	case PreviewShape::Sphere: mesh = &_sphere; break;
 	case PreviewShape::Cube:   mesh = &_cube;   break;
+	case PreviewShape::Cylinder: mesh = &_cylinder; break;
 	case PreviewShape::Plane:  mesh = &_plane;  break;
 	case PreviewShape::Teapot: mesh = &_teapot; break;
 	}
@@ -388,6 +653,121 @@ void MaterialPreviewWidget::initCubeMesh()
 	glBindVertexArray(0);
 }
 
+void MaterialPreviewWidget::initCylinderMesh()
+{
+	const int SEGMENTS = 64; // smoothness of roundness
+
+	std::vector<float> vertices;
+	std::vector<unsigned int> indices;
+
+	// Side vertices
+	for (int i = 0; i <= SEGMENTS; ++i)
+	{
+		float theta = (float)i / SEGMENTS * 2.0f * M_PI;
+		float x = std::cos(theta);
+		float z = std::sin(theta);
+
+		// top edge
+		vertices.push_back(x); vertices.push_back(1.0f); vertices.push_back(z); // pos
+		vertices.push_back(x); vertices.push_back(0.0f); vertices.push_back(z); // normal (radial)
+		vertices.push_back((float)i / SEGMENTS); vertices.push_back(1.0f);      // texcoord
+
+		// bottom edge
+		vertices.push_back(x); vertices.push_back(-1.0f); vertices.push_back(z);
+		vertices.push_back(x); vertices.push_back(0.0f); vertices.push_back(z);
+		vertices.push_back((float)i / SEGMENTS); vertices.push_back(0.0f);
+	}
+
+	// Side indices (quads → two triangles)
+	for (int i = 0; i < SEGMENTS; ++i)
+	{
+		int top0 = i * 2;
+		int bot0 = top0 + 1;
+		int top1 = top0 + 2;
+		int bot1 = top1 + 1;
+
+		indices.push_back(top0);
+		indices.push_back(bot0);
+		indices.push_back(top1);
+
+		indices.push_back(top1);
+		indices.push_back(bot0);
+		indices.push_back(bot1);
+	}
+
+	// --- Top disk ---
+	int centerTopIndex = vertices.size() / 8;
+	vertices.insert(vertices.end(),
+		{ 0.0f, 1.0f, 0.0f,   0.0f, 1.0f, 0.0f,   0.5f, 0.5f }); // center vertex
+
+	for (int i = 0; i <= SEGMENTS; ++i)
+	{
+		float theta = (float)i / SEGMENTS * 2.0f * M_PI;
+		float x = std::cos(theta);
+		float z = std::sin(theta);
+
+		vertices.push_back(x); vertices.push_back(1.0f); vertices.push_back(z);
+		vertices.push_back(0.0f); vertices.push_back(1.0f); vertices.push_back(0.0f);
+		vertices.push_back(0.5f + 0.5f * x); vertices.push_back(0.5f - 0.5f * z);
+	}
+
+	for (int i = 0; i < SEGMENTS; ++i)
+	{
+		indices.push_back(centerTopIndex);
+		indices.push_back(centerTopIndex + i + 1);
+		indices.push_back(centerTopIndex + i + 2);
+	}
+
+	// --- Bottom disk ---
+	int centerBotIndex = vertices.size() / 8;
+	vertices.insert(vertices.end(),
+		{ 0.0f, -1.0f, 0.0f,   0.0f, -1.0f, 0.0f,   0.5f, 0.5f }); // center vertex
+
+	for (int i = 0; i <= SEGMENTS; ++i)
+	{
+		float theta = (float)i / SEGMENTS * 2.0f * M_PI;
+		float x = std::cos(theta);
+		float z = std::sin(theta);
+
+		vertices.push_back(x); vertices.push_back(-1.0f); vertices.push_back(z);
+		vertices.push_back(0.0f); vertices.push_back(-1.0f); vertices.push_back(0.0f);
+		vertices.push_back(0.5f + 0.5f * x); vertices.push_back(0.5f + 0.5f * z);
+	}
+
+	for (int i = 0; i < SEGMENTS; ++i)
+	{
+		indices.push_back(centerBotIndex);
+		indices.push_back(centerBotIndex + i + 2);
+		indices.push_back(centerBotIndex + i + 1);
+	}
+
+	// --- Upload to GPU ---
+	_cylinder.indexCount = (int)indices.size();
+
+	glGenVertexArrays(1, &_cylinder.vao);
+	glGenBuffers(1, &_cylinder.vbo);
+	glGenBuffers(1, &_cylinder.ebo);
+
+	glBindVertexArray(_cylinder.vao);
+	glBindBuffer(GL_ARRAY_BUFFER, _cylinder.vbo);
+	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _cylinder.ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+	glEnableVertexAttribArray(2);
+
+	glBindVertexArray(0);
+}
+
+
 
 void MaterialPreviewWidget::initPlaneMesh()
 {
@@ -422,14 +802,33 @@ void MaterialPreviewWidget::initPlaneMesh()
 
 void MaterialPreviewWidget::initTeapotMesh()
 {
-	// Intentionally left empty to keep the preview widget lightweight.
-	// If you later want the embedded Utah teapot (closed lid), I’ll provide:
-	//  - static control points and patch index tables
-	//  - Bezier surface evaluator (pos + dp/du, dp/dv -> normal)
-	//  - UVs from (u,v)
-	//  - Triangulation at a selectable tessLevel
-	_teapot = {};
+	const int   grid = 12;
+	const float size = 1.0f;
+
+	std::vector<float> vertices; vertices.reserve(32 * (grid + 1) * (grid + 1) * 8);
+	std::vector<unsigned int> indices; indices.reserve(32 * grid * grid * 6);
+
+	generateTeapot(vertices, indices, grid, size);  // <<— uses logic above
+
+	_teapot.indexCount = (int)indices.size();
+	glGenVertexArrays(1, &_teapot.vao);
+	glGenBuffers(1, &_teapot.vbo);
+	glGenBuffers(1, &_teapot.ebo);
+
+	glBindVertexArray(_teapot.vao);
+	glBindBuffer(GL_ARRAY_BUFFER, _teapot.vbo);
+	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _teapot.ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);                glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
+
+	glBindVertexArray(0);
 }
+
+
 
 
 void MaterialPreviewWidget::destroyMesh(MeshGL& m)
