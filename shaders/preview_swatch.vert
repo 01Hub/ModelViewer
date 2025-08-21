@@ -11,9 +11,12 @@ out vec3 vNormal;
 out vec3 vPos;
 out vec2 vTexCoord; // Pass texture coordinates
 
+out vec3 vWorldPos;
+
 void main() 
 {
     vPos = vec3(uModel * vec4(aPos, 1.0));
+    vWorldPos = (uModel * vec4(aPos,1)).xyz;
     vNormal = normalize(uNormalMatrix * aNormal);
     vTexCoord = aTexCoord; // Pass through texture coordinates
     gl_Position = uMVP * vec4(aPos, 1.0);

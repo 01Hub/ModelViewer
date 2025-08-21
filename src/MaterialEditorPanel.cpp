@@ -16,7 +16,15 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget *parent)
     previewWidget->setFixedSize(160, 160);
 
     topLayout->addWidget(treeWidget, 1);
-    topLayout->addWidget(previewWidget, 0);
+	QVBoxLayout* previewLayout = new QVBoxLayout();
+	modelCombo = new QComboBox();
+	modelCombo->addItems({ "Sphere", "Cube", "Plane", "Teapot" });
+    connect(modelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](int index) {
+        previewWidget->setPreviewShape(static_cast<PreviewShape>(index));
+    });
+	previewLayout->addWidget(previewWidget);
+	previewLayout->addWidget(modelCombo);
+    topLayout->addLayout(previewLayout, 1);
     mainLayout->addLayout(topLayout);
 
     // Property editors

@@ -316,7 +316,7 @@ void TextureMappingPanel::updatePreview()
 {
     if (!_preview) return;
     // Adapt to your preview widget API:
-    // _preview->setPreviewShape(_ui->comboShape->currentIndex());  // 0=sphere,1=cube,2=plane
+    _preview->setPreviewShape(static_cast<PreviewShape>(_ui->comboShape->currentIndex()));  // 0=sphere,1=cube,2=plane
     // _preview->setEnvironment(_ui->comboEnv->currentIndex());     // pick HDRI
     // _preview->setExposure(_ui->sliderExposure->value() / 10.0f);
     _preview->update();  // or _preview->repaintMaterial(_material);

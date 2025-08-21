@@ -1539,6 +1539,11 @@
             <string>Plane</string>
            </property>
           </item>
+          <item>
+           <property name="text">
+            <string>Teapot</string>
+           </property>
+          </item>
          </widget>
         </item>
         <item>

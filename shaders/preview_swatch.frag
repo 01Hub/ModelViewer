@@ -117,7 +117,7 @@ void main()
 	vec3 specularColor = mix(dielectricSpecular, metallicSpecular, metalness);
 
 	// --- Lighting ---
-	vec3 color = vec3(0.0);
+	vec3 color = vec3(0.075) * uAlbedo;
 	for (int i = 0; i < 3; i++) 
 	{
 		vec3 L = lights[i];

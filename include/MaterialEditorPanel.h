@@ -24,7 +24,7 @@ private slots:
 private:
     MaterialLibraryWidget *treeWidget;
     MaterialPreviewWidget *previewWidget;
-
+	QComboBox* modelCombo;
     QPushButton *albedoButton;
     QDoubleSpinBox *metalnessSpin;
     QDoubleSpinBox *roughnessSpin;
