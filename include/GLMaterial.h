@@ -120,11 +120,14 @@ public:
 	int albedoTextureId() const;
 	void setAlbedoTextureId(int id);
 
+	int metallicTextureId() const;
+	void setMetallicTextureId(int id);
+
+	int roughnessTextureId() const;
+	void setRoughnessTextureId(int id);
+
 	int normalTextureId() const;
 	void setNormalTextureId(int id);
-
-	int metallicRoughnessTextureId() const;
-	void setMetallicRoughnessTextureId(int id);
 
 	int emissiveTextureId() const;
 	void setEmissiveTextureId(int id);
@@ -132,8 +135,28 @@ public:
 	int occlusionTextureId() const;
 	void setOcclusionTextureId(int id);
 
-	int clearcoatTextureId() const;
-	void setClearcoatTextureId(int id);
+	int opacityTextureId() const;
+	void setOpacityTextureId(int id);
+
+	int heightTextureId() const;
+	void setHeightTextureId(int id);
+
+	int clearcoatColorTextureId() const;
+	void setClearcoatColorTextureId(int id);
+
+	int clearcoatRoughnessTextureId() const;
+	void setClearcoatRoughnessTextureId(int id);
+
+	int clearcoatNormalTextureId() const;
+	void setClearcoatNormalTextureId(int id);
+
+	int sheenColorTextureId() const;
+	void setSheenColorTextureId(int id);
+	int sheenRoughnessTextureId() const;
+	void setSheenRoughnessTextureId(int id);
+
+	int iorTextureId() const;
+	void setIORTextureId(int id);
 
 	int transmissionTextureId() const;
 	void setTransmissionTextureId(int id);
@@ -437,11 +460,19 @@ private:
 
 	// Texture IDs (managed externally)
 	int _albedoTextureId;
+	int _metallicTextureId;
+	int _roughnessTextureId;
 	int _normalTextureId;
-	int _metallicRoughnessTextureId;
-	int _emissiveTextureId;
 	int _occlusionTextureId;
-	int _clearcoatTextureId;
+	int _emissiveTextureId;
+	int _opacityTextureId;
+	int _heightTextureId;
+	int _sheenColorTextureId;
+	int _sheenRoughnessTextureId;
+	int _clearcoatColorTextureId;
+	int _clearcoatRoughnessTextureId;
+	int _clearcoatNormalTextureId;
+	int _iorTextureId;
 	int _transmissionTextureId;
 
 	// Texture coordinate sets
@@ -545,21 +576,52 @@ inline int GLMaterial::normalTextureId() const { return _normalTextureId; }
 
 inline void GLMaterial::setNormalTextureId(int id) { _normalTextureId = id; }
 
-inline int GLMaterial::metallicRoughnessTextureId() const { return _metallicRoughnessTextureId; }
+inline int GLMaterial::metallicTextureId() const { return _metallicTextureId; }
 
-inline void GLMaterial::setMetallicRoughnessTextureId(int id) { _metallicRoughnessTextureId = id; }
+inline void GLMaterial::setMetallicTextureId(int id) { _metallicTextureId = id; }
 
-inline int GLMaterial::emissiveTextureId() const { return _emissiveTextureId; }
+inline int GLMaterial::roughnessTextureId() const { return _roughnessTextureId; }
 
-inline void GLMaterial::setEmissiveTextureId(int id) { _emissiveTextureId = id; }
+inline void GLMaterial::setRoughnessTextureId(int id) { _roughnessTextureId = id; }
 
 inline int GLMaterial::occlusionTextureId() const { return _occlusionTextureId; }
 
 inline void GLMaterial::setOcclusionTextureId(int id) { _occlusionTextureId = id; }
 
-inline int GLMaterial::clearcoatTextureId() const { return _clearcoatTextureId; }
+inline int GLMaterial::opacityTextureId() const { return _opacityTextureId; }
 
-inline void GLMaterial::setClearcoatTextureId(int id) { _clearcoatTextureId = id; }
+inline void GLMaterial::setOpacityTextureId(int id) { _opacityTextureId = id; }
+
+inline int GLMaterial::heightTextureId() const { return _heightTextureId; }
+
+inline void GLMaterial::setHeightTextureId(int id) { _heightTextureId = id; }
+
+inline int GLMaterial::emissiveTextureId() const { return _emissiveTextureId; }
+
+inline void GLMaterial::setEmissiveTextureId(int id) { _emissiveTextureId = id; }
+
+inline int GLMaterial::clearcoatColorTextureId() const { return _clearcoatColorTextureId; }
+
+inline void GLMaterial::setClearcoatColorTextureId(int id) { _clearcoatColorTextureId = id; }
+
+inline int GLMaterial::clearcoatRoughnessTextureId() const { return _clearcoatRoughnessTextureId; }
+
+inline void GLMaterial::setClearcoatRoughnessTextureId(int id) { _clearcoatRoughnessTextureId = id; }
+
+inline int GLMaterial::clearcoatNormalTextureId() const { return _clearcoatNormalTextureId; }
+
+inline void GLMaterial::setClearcoatNormalTextureId(int id) { _clearcoatNormalTextureId = id; }
+
+inline int GLMaterial::sheenColorTextureId() const { return _sheenColorTextureId; }
+
+inline void GLMaterial::setSheenColorTextureId(int id) { _sheenColorTextureId = id; }
+
+inline int GLMaterial::sheenRoughnessTextureId() const { return _sheenRoughnessTextureId; }
+
+inline void GLMaterial::setSheenRoughnessTextureId(int id) { _sheenRoughnessTextureId = id; }
+
+inline int GLMaterial::iorTextureId() const { return _iorTextureId; }
+inline void GLMaterial::setIORTextureId(int id) { _iorTextureId = id; }
 
 inline int GLMaterial::transmissionTextureId() const { return _transmissionTextureId; }
 
