@@ -5,7 +5,9 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QPainter>
+#include <QFileInfo>
 
+#include "TextureUtil.h"
 #include "TeapotData.h" // (Kilgard) 
 
 namespace
@@ -359,6 +361,9 @@ void MaterialPreviewWidget::paintGL()
 
 	_shader->bind();
 
+	//syncAlbedoFromMaterial();
+	syncAllTexturesFromMaterial();
+
 	
 	QMatrix4x4 model;
 	model.setToIdentity();
@@ -418,16 +423,16 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("uUseAlbedoMap", hasAlbedo);
 	_shader->setUniformValue("uUseMetalnessMap", hasMetalness);
 	_shader->setUniformValue("uUseRoughnessMap", hasRoughness);
-	_shader->setUniformValue("uUseNormalMap", false && hasNormal);      // keep OFF unless you add tangents
+	_shader->setUniformValue("uUseNormalMap", hasNormal);      // keep OFF unless you add tangents
 	_shader->setUniformValue("uUseAOMap", hasAO);
-	_shader->setUniformValue("uUseHeightMap", false && hasHeight);      // keep OFF unless you add tangents
+	_shader->setUniformValue("uUseHeightMap", hasHeight);      // keep OFF unless you add tangents
 	_shader->setUniformValue("uUseOpacityMap", hasOpacity);
 	_shader->setUniformValue("uUseEmissiveMap", hasEmissive);
 	_shader->setUniformValue("uUseSheenColorMap", hasSheenCol);
 	_shader->setUniformValue("uUseSheenRoughnessMap", hasSheenRough);
 	_shader->setUniformValue("uUseClearcoatColorMap", hasCcColor);
 	_shader->setUniformValue("uUseClearcoatRoughnessMap", hasCcRough);
-	_shader->setUniformValue("uUseClearcoatNormalMap", false && hasCcNormal); // needs TBN
+	_shader->setUniformValue("uUseClearcoatNormalMap", hasCcNormal); // needs TBN
 	_shader->setUniformValue("uUseIORMap", hasIOR);
 	_shader->setUniformValue("uUseTransmissionMap", hasTransmission);
 
@@ -937,6 +942,142 @@ void MaterialPreviewWidget::stopSpin()
 {
 	_spinTimer.stop();
 	_spinVelX = _spinVelY = 0.0f;
+}
+
+
+bool MaterialPreviewWidget::shouldReload(const QString& path, const GpuTexCache& cache)
+{
+	if (path.isEmpty()) return cache.id != 0; // need to delete if we used to have one
+	if (path != cache.lastPath) return true;
+
+	QFileInfo fi(path);
+	if (!fi.exists()) return cache.id != 0;   // delete if file vanished
+
+	// if either timestamp or size changed, reload
+	if (fi.lastModified() != cache.lastModified) return true;
+	if (fi.size() != cache.lastSize) return true;
+
+	return false; // same path + same mtime + same size => keep current GL texture
+}
+
+
+void MaterialPreviewWidget::syncTextureFromMaterial(
+	GpuTexCache& cache,
+	const QString& path,
+	int texUnit,
+	const char* uniformSamplerName,
+	const char* uniformUseName,
+	bool srgb)
+{
+	if (shouldReload(path, cache))
+	{
+		// delete old texture
+		if (cache.id)
+		{
+			glDeleteTextures(1, &cache.id);
+			cache.id = 0;
+		}
+
+		if (!path.isEmpty())
+		{
+			cache.id = TextureUtil::loadTexture2DFromFile(
+				path.toUtf8().constData(),
+				srgb, true, GL_REPEAT,
+				GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR,
+				4);
+		}
+
+		// update metadata
+		cache.lastPath = path;
+		QFileInfo fi(path);
+		cache.lastModified = fi.exists() ? fi.lastModified() : QDateTime();
+		cache.lastSize = fi.exists() ? fi.size() : -1;
+	}
+
+	if(std::strcmp(uniformSamplerName, "uAlbedoMap") == 0)
+		_currentMaterial.setAlbedoTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uMetalnessMap") == 0)
+		_currentMaterial.setMetallicTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uRoughnessMap") == 0)
+		_currentMaterial.setRoughnessTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uNormalMap") == 0)
+		_currentMaterial.setNormalTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uAOMap") == 0)
+		_currentMaterial.setOcclusionTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uHeightMap") == 0)
+		_currentMaterial.setHeightTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uOpacityMap") == 0)
+		_currentMaterial.setOpacityTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uEmissiveMap") == 0)
+		_currentMaterial.setEmissiveTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uSheenColorMap") == 0)
+		_currentMaterial.setSheenColorTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uSheenRoughnessMap") == 0)
+		_currentMaterial.setSheenRoughnessTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uClearcoatColorMap") == 0)
+		_currentMaterial.setClearcoatColorTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uClearcoatRoughnessMap") == 0)
+		_currentMaterial.setClearcoatRoughnessTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uClearcoatNormalMap") == 0)
+		_currentMaterial.setClearcoatNormalTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uIORMap") == 0)
+		_currentMaterial.setIORTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uTransmissionMap") == 0)
+		_currentMaterial.setTransmissionTextureId(cache.id);
+
+	// bind and set uniforms
+	glActiveTexture(GL_TEXTURE0 + texUnit);
+	glBindTexture(GL_TEXTURE_2D, cache.id ? cache.id : 0);
+	_shader->setUniformValue(uniformSamplerName, texUnit);
+	_shader->setUniformValue(uniformUseName, cache.id != 0);
+}
+
+void MaterialPreviewWidget::syncAllTexturesFromMaterial()
+{	
+	syncTextureFromMaterial(_albedoTex,	_currentMaterial.albedoMapPath(),
+		0, "uAlbedoMap", "uUseAlbedoMap", true);
+	syncTextureFromMaterial(_metallicTex,
+		_currentMaterial.metallicMapPath(),
+		1, "uMetalnessMap", "uUseMetalnessMap", false);
+	syncTextureFromMaterial(_roughnessTex,
+		_currentMaterial.roughnessMapPath(),
+		2, "uRoughnessMap", "uUseRoughnessMap", false);
+	syncTextureFromMaterial(_normalTex,
+		_currentMaterial.normalMapPath(),
+		3, "uNormalMap", "uUseNormalMap", false);
+	syncTextureFromMaterial(_aoTex,
+		_currentMaterial.aoMapPath(),
+		4, "uAOMap", "uUseAOMap", false);
+	syncTextureFromMaterial(_heightTex,
+		_currentMaterial.heightMapPath(),
+		5, "uHeightMap", "uUseHeightMap", false);
+	syncTextureFromMaterial(_opacityTex,
+		_currentMaterial.opacityMapPath(),
+		6, "uOpacityMap", "uUseOpacityMap", false);
+	syncTextureFromMaterial(_emissiveTex,
+		_currentMaterial.emissiveMapPath(),
+		7, "uEmissiveMap", "uUseEmissiveMap", true);
+	syncTextureFromMaterial(_sheenColorTex,
+		_currentMaterial.sheenColorMapPath(),
+		8, "uSheenColorMap", "uUseSheenColorMap", true);
+	syncTextureFromMaterial(_sheenRoughnessTex,
+		_currentMaterial.sheenRoughnessMapPath(),
+		9, "uSheenRoughnessMap", "uUseSheenRoughnessMap", false);
+	syncTextureFromMaterial(_clearcoatColorTex,
+		_currentMaterial.clearcoatColorMapPath(),
+		10, "uClearcoatColorMap", "uUseClearcoatColorMap", true);
+	syncTextureFromMaterial(_clearcoatRoughnessTex,
+		_currentMaterial.clearcoatRoughnessMapPath(),
+		11, "uClearcoatRoughnessMap", "uUseClearcoatRoughnessMap", false);
+	syncTextureFromMaterial(_clearcoatNormalTex,
+		_currentMaterial.clearcoatNormalMapPath(),
+		12, "uClearcoatNormalMap", "uUseClearcoatNormalMap", false);
+	syncTextureFromMaterial(_iorTex,
+		_currentMaterial.iorMapPath(),
+		13, "uIORMap", "uUseIORMap", false);
+	syncTextureFromMaterial(_transmissionTex,
+		_currentMaterial.transmissionMapPath(),
+		14, "uTransmissionMap", "uUseTransmissionMap", false);
 }
 
 

@@ -199,6 +199,10 @@ public:
 	QString opacityMapPath() const;
 	void setOpacityMap(const QString& path);
 	void clearOpacityMap();
+		
+	QString heightMapPath() const;
+	void setHeightMap(const QString& path);
+	void clearHeightMap();
 
 	QString transmissionMapPath() const;
 	void setTransmissionMap(const QString& path);
@@ -488,6 +492,7 @@ private:
 	QString _roughnessMapPath;
 	QString _aoMapPath;
 	QString _opacityMapPath;
+	QString _heightMapPath;
 	QString _transmissionMapPath;
 	QString _iorMapPath;
 	QString _sheenColorMapPath;
@@ -644,16 +649,6 @@ inline QString GLMaterial::albedoMapPath() const { return _albedoMapPath; }
 inline void GLMaterial::setAlbedoMap(const QString& path) { _albedoMapPath = path; /* optional: _albedoTextureId = -1; */ }
 inline void GLMaterial::clearAlbedoMap() { _albedoMapPath.clear(); /* optional: _albedoTextureId = -1; */ }
 
-// Normal
-inline QString GLMaterial::normalMapPath() const { return _normalMapPath; }
-inline void GLMaterial::setNormalMap(const QString& path) { _normalMapPath = path; /* _normalTextureId = -1; */ }
-inline void GLMaterial::clearNormalMap() { _normalMapPath.clear(); /* _normalTextureId = -1; */ }
-
-// Emissive
-inline QString GLMaterial::emissiveMapPath() const { return _emissiveMapPath; }
-inline void GLMaterial::setEmissiveMap(const QString& path) { _emissiveMapPath = path; /* _emissiveTextureId = -1; */ }
-inline void GLMaterial::clearEmissiveMap() { _emissiveMapPath.clear(); /* _emissiveTextureId = -1; */ }
-
 // Metallic (separate logical slot; you also have a packed MetallicRoughness texture id)
 inline QString GLMaterial::metallicMapPath() const { return _metallicMapPath; }
 inline void GLMaterial::setMetallicMap(const QString& path) { _metallicMapPath = path; /* optional: invalidate packed id if using separate */ }
@@ -664,15 +659,30 @@ inline QString GLMaterial::roughnessMapPath() const { return _roughnessMapPath; 
 inline void GLMaterial::setRoughnessMap(const QString& path) { _roughnessMapPath = path; }
 inline void GLMaterial::clearRoughnessMap() { _roughnessMapPath.clear(); }
 
+// Normal
+inline QString GLMaterial::normalMapPath() const { return _normalMapPath; }
+inline void GLMaterial::setNormalMap(const QString& path) { _normalMapPath = path; /* _normalTextureId = -1; */ }
+inline void GLMaterial::clearNormalMap() { _normalMapPath.clear(); /* _normalTextureId = -1; */ }
+
 // AO
 inline QString GLMaterial::aoMapPath() const { return _aoMapPath; }
 inline void GLMaterial::setAOMap(const QString& path) { _aoMapPath = path; }
 inline void GLMaterial::clearAOMap() { _aoMapPath.clear(); }
 
+// Height (for parallax mapping, optional)
+inline QString GLMaterial::heightMapPath() const { return _heightMapPath; }
+inline void GLMaterial::setHeightMap(const QString& path) { _heightMapPath = path; /* _heightTextureId = -1; */ }
+inline void GLMaterial::clearHeightMap() { _heightMapPath.clear(); /* _heightTextureId = -1; */ }
+
 // Opacity
 inline QString GLMaterial::opacityMapPath() const { return _opacityMapPath; }
 inline void GLMaterial::setOpacityMap(const QString& path) { _opacityMapPath = path; }
 inline void GLMaterial::clearOpacityMap() { _opacityMapPath.clear(); }
+
+// Emissive
+inline QString GLMaterial::emissiveMapPath() const { return _emissiveMapPath; }
+inline void GLMaterial::setEmissiveMap(const QString& path) { _emissiveMapPath = path; /* _emissiveTextureId = -1; */ }
+inline void GLMaterial::clearEmissiveMap() { _emissiveMapPath.clear(); /* _emissiveTextureId = -1; */ }
 
 // Transmission
 inline QString GLMaterial::transmissionMapPath() const { return _transmissionMapPath; }

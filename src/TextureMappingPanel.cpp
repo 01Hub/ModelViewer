@@ -42,6 +42,11 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
 
 	// Initialize the material to default values and bind it    
     bindMaterial(new GLMaterial());
+
+    connect(this , &TextureMappingPanel::materialChanged, this, [this]() {
+        // Update the preview when the material changes
+        _preview->setMaterial(*_material);
+		});
 }
 
 TextureMappingPanel::~TextureMappingPanel()
@@ -67,6 +72,7 @@ void TextureMappingPanel::bindMaterial(GLMaterial* material)
 	_ui->spinOU->setValue(_material->uvOffsetU());
 	_ui->spinOV->setValue(_material->uvOffsetV());
         
+	_preview->setMaterial(*_material);
     updatePreview();
 }
 

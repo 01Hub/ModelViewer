@@ -7,10 +7,21 @@
 #include "GLMaterial.h"
 #include "ShaderProgram.h"
 
+#include <QDateTime>
+
 class QMouseEvent;
 class QWheelEvent;
 
 enum class PreviewShape { Sphere, Cube, Cylinder, Plane, Teapot };
+
+struct GpuTexCache
+{
+    GLuint id = 0;
+    QString lastPath;
+    QDateTime lastModified;   // local time or UTC; stay consistent
+    qint64 lastSize = -1;
+};
+
 class MaterialPreviewWidget : public QOpenGLWidget, protected QOpenGLFunctions_4_5_Core
 {
     Q_OBJECT
@@ -60,6 +71,17 @@ private:
     void startSpin(float velPitchDegPerSec, float velYawDegPerSec);
     void stopSpin();
 
+    bool shouldReload(const QString& path, const GpuTexCache& cache);
+
+    void syncTextureFromMaterial(
+        GpuTexCache& cache,
+        const QString& path,
+        int texUnit,
+        const char* uniformSamplerName,
+        const char* uniformUseName,
+        bool srgb);
+	void syncAllTexturesFromMaterial();
+
 private:
     std::unique_ptr<ShaderProgram> _shader;
     GLuint vao = 0;
@@ -72,6 +94,22 @@ private:
     QMatrix4x4 view;
 
     GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
+    
+    GpuTexCache _albedoTex;
+	GpuTexCache _metallicTex;
+	GpuTexCache _roughnessTex;
+	GpuTexCache _normalTex;
+	GpuTexCache _aoTex;
+	GpuTexCache _opacityTex;
+	GpuTexCache _emissiveTex;
+	GpuTexCache _heightTex;
+	GpuTexCache _sheenColorTex;
+	GpuTexCache _sheenRoughnessTex;
+	GpuTexCache _clearcoatColorTex;
+	GpuTexCache _clearcoatRoughnessTex;
+	GpuTexCache _clearcoatNormalTex;
+	GpuTexCache _transmissionTex;
+	GpuTexCache _iorTex;
 
     MeshGL _sphere{};
     MeshGL _cube{};
