@@ -81,8 +81,8 @@ private:
 
     PreviewShape _currentShape = PreviewShape::Sphere;
         
-    float _rotX = 35.0f;   // pitch  (about X)
-    float _rotY = 35.0f;   // yaw    (about Y)
+    float _rotX = 25.0f;   // pitch  (about X)
+    float _rotY = 20.0f;   // yaw    (about Y)
     float _rotSpeed = 0.3f; // degrees per pixel
 
     bool _dragging = false;

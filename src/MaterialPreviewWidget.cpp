@@ -332,6 +332,7 @@ void MaterialPreviewWidget::resizeGL(int w, int h)
 
 void MaterialPreviewWidget::paintGL()
 {
+	_shader->setUniformValue("uDoubleSided", false);
 	view.setToIdentity();
 	if (_currentShape == PreviewShape::Sphere)
 		view.translate(0, 0, -3.0f);
@@ -340,7 +341,10 @@ void MaterialPreviewWidget::paintGL()
 	else if (_currentShape == PreviewShape::Cylinder)
 		view.translate(0, 0, -4.5f);
 	else if (_currentShape == PreviewShape::Plane)
+	{
 		view.translate(0, 0, -4.0f);
+		_shader->setUniformValue("uDoubleSided", true);
+	}
 	else if (_currentShape == PreviewShape::Teapot)
 		view.translate(0, 0, -7.5f);
 
@@ -352,8 +356,7 @@ void MaterialPreviewWidget::paintGL()
 	glDepthFunc(GL_LEQUAL);
 	glDepthMask(GL_TRUE);
 
-	glDisable(GL_CULL_FACE);
-	glCullFace(GL_BACK);
+	glDisable(GL_CULL_FACE);	
 
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -372,7 +375,7 @@ void MaterialPreviewWidget::paintGL()
 	if (_currentShape == PreviewShape::Teapot)
 	{
 		model.rotate(-90, 1, 0, 0);
-		model.rotate(90, 0, 0, 1);
+		model.rotate(135, 0, 0, 1);
 	}
 
 	QMatrix4x4 mvp = proj * view * model;
@@ -419,7 +422,16 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("uNormalMap", 3);
 	_shader->setUniformValue("uAOMap", 4);
 	_shader->setUniformValue("uHeightMap", 5);
-	_shader->setUniformValue("uEmissiveMap", 6);
+	_shader->setUniformValue("uOpacityMap", 6);
+	_shader->setUniformValue("uEmissiveMap", 7);
+	_shader->setUniformValue("uSheenColorMap", 8);
+	_shader->setUniformValue("uSheenRoughnessMap", 9);
+	_shader->setUniformValue("uClearcoatColorMap", 10);
+	_shader->setUniformValue("uClearcoatRoughnessMap", 11);
+	_shader->setUniformValue("uClearcoatNormalMap", 12);
+	_shader->setUniformValue("uIORMap", 13);
+	_shader->setUniformValue("uTransmissionMap", 14);
+
 	// Set up texture units
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, _currentMaterial.albedoTextureId());  
@@ -452,16 +464,20 @@ void MaterialPreviewWidget::paintGL()
 	glActiveTexture(GL_TEXTURE14);
 	glBindTexture(GL_TEXTURE_2D, _currentMaterial.transmissionTextureId());
 		
-	// Set up simple lighting
-	_shader->setUniformValue("uLights[0].position", QVector3D(3.0f, 3.0f, 3.0f));
+	// Set up simple lighting	
+	_shader->setUniformValue("uLights[0].position", QVector3D(0.5f, 0.7f, 0.5f));
 	_shader->setUniformValue("uLights[0].color", QVector3D(1.0f, 1.0f, 1.0f));
 
-	_shader->setUniformValue("uLights[1].position", QVector3D(-3.0f, 3.0f, 1.0f));
-	_shader->setUniformValue("uLights[1].color", QVector3D(0.8f, 0.8f, 0.8f));
+	_shader->setUniformValue("uLights[1].position", QVector3D(-0.7f, 0.6f, 0.7f));
+	_shader->setUniformValue("uLights[1].color", QVector3D(0.6f, 0.6f, 0.6f));
 
-	_shader->setUniformValue("uLights[2].position", QVector3D(0.0f, -3.0f, 2.0f));
-	_shader->setUniformValue("uLights[2].color", QVector3D(0.6f, 0.6f, 0.6f));
+	_shader->setUniformValue("uLights[2].position", QVector3D(-0.7f, -0.8f, 0.6f));
+	_shader->setUniformValue("uLights[2].color", QVector3D(0.4f, 0.4f, 0.4f));
 
+	_shader->setUniformValue("uLights[3].position", QVector3D(0.7f, -0.8f, 0.9f));
+	_shader->setUniformValue("uLights[3].color", QVector3D(0.5f, 0.5f, 0.5f));
+
+	_shader->setUniformValue("uNumLights", 4);
 
 	const MeshGL* mesh = nullptr;
 	switch (_currentShape)
@@ -951,7 +967,7 @@ void MaterialPreviewWidget::mouseDoubleClickEvent(QMouseEvent* e)
 	{
 		// full reset
 		_rotX = 25.0f;
-		_rotY = 30.0f;
+		_rotY = 20.0f;
 		_zoom = 1.0f;
 		update();
 		e->accept();

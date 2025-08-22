@@ -1,10 +1,17 @@
 #version 450 core
+
+#define MAX_LIGHTS 8
+
 in vec3 vNormal;
 in vec3 vPos;
 in vec2 vTexCoord;
 out vec4 FragColor;
 
 uniform vec3 uCamPos;
+
+struct Light { vec3 position; vec3 color; };
+uniform Light uLights[MAX_LIGHTS];
+uniform int uNumLights;
 
 // === Base material uniforms ===
 uniform vec3 uAlbedo;
@@ -43,6 +50,8 @@ uniform vec3 uEmissiveColor;
 uniform float uEmissiveIntensity;
 uniform vec2 uUVScale;
 uniform float uNormalIntensity;
+
+uniform bool uDoubleSided;
 
 // --- Normal mapping ---
 vec3 getNormalFromMap(vec2 texCoords, vec3 worldPos, vec3 worldNormal) 
@@ -96,16 +105,9 @@ void main()
 	if (length(N) < 0.1) N = vec3(0.0, 1.0, 0.0);
 	if (length(V) < 0.1) V = vec3(0.0, 0.0, 1.0);
 
-	// --- 3 light rig ---
-	vec3 L1 = normalize(vec3( 0.5,  0.7, 0.5));
-	vec3 L2 = normalize(vec3(-0.4,  0.3, 0.7));
-	vec3 L3 = normalize(vec3( 0.0, -0.8, 0.6));
-	vec3 lights[3] = {L1, L2, L3};
-	vec3 lightColors[3] = {
-		vec3(1.0, 1.0, 1.0),
-		vec3(0.6, 0.6, 0.7),
-		vec3(0.4, 0.4, 0.5)
-	};
+	if (uDoubleSided) {
+		N = faceforward(N, -V, N);
+	}
 
 	// --- Metal vs dielectric ---
 	vec3 dielectricDiffuse = albedo;
@@ -118,12 +120,20 @@ void main()
 
 	// --- Lighting ---
 	vec3 color = vec3(0.075) * uAlbedo;
-	for (int i = 0; i < 3; i++) 
+	for (int i = 0; i < uNumLights; i++) 
 	{
-		vec3 L = lights[i];
+		vec3 L = normalize(uLights[i].position);		
+
+		vec3 Nl = N;
+		float NdotL = dot(N, L);
+		if (uDoubleSided && NdotL < 0.0) {
+            Nl = -Nl;
+            NdotL = -NdotL;
+        }
+        NdotL = max(NdotL, 0.0);
+
 		vec3 H = normalize(V + L);
-		float NdotL = max(dot(N, L), 0.0);
-		float NdotH = max(dot(N, H), 0.0);
+		float NdotH = max(dot(Nl, H), 0.0);
 
 		float specPow = mix(8.0, 128.0, 1.0 - roughness);
 		specPow = clamp(specPow, 1.0, 256.0);
@@ -134,7 +144,7 @@ void main()
 		vec3 diffuse = diffuseColor * NdotL;
 		vec3 spec = specularColor * specFactor;
 
-		color += (diffuse + spec) * lightColors[i] * NdotL;
+		color += (diffuse + spec) * uLights[i].color * NdotL;
 	}
 
 	// --- Ambient (with AO) ---
@@ -146,7 +156,7 @@ void main()
 	// --- Clearcoat ---
 	if (uClearcoat > 0.001) 
 	{
-		vec3 Hc = normalize(V + L1);
+		vec3 Hc = normalize(V + uLights[0].position);
 		float ccNdotH = max(dot(N, Hc), 0.0);
 		float ccSpecPow = mix(64.0, 512.0, 1.0 - uClearcoatRoughness);
 		ccSpecPow = clamp(ccSpecPow, 1.0, 1024.0);
