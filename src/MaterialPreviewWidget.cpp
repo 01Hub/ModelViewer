@@ -398,19 +398,47 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("uSpecular", _currentMaterial.specular());
 
 	// Texture support
-	_shader->setUniformValue("uUseAlbedoMap", false);
-	_shader->setUniformValue("uUseMetalnessMap", false);
-	_shader->setUniformValue("uUseRoughnessMap", false);
-	_shader->setUniformValue("uUseNormalMap", false);
-	_shader->setUniformValue("uUseAOMap", false);
-	_shader->setUniformValue("uUseHeightMap", false);
-	_shader->setUniformValue("uUseEmissiveMap", false);
+	// after your glActiveTexture/glBindTexture block
+	const bool hasAlbedo = _currentMaterial.albedoTextureId() != 0;
+	const bool hasMetalness = _currentMaterial.metallicTextureId() != 0;
+	const bool hasRoughness = _currentMaterial.roughnessTextureId() != 0;
+	const bool hasNormal = _currentMaterial.normalTextureId() != 0; // needs TBN to look right
+	const bool hasAO = _currentMaterial.occlusionTextureId() != 0;
+	const bool hasHeight = _currentMaterial.heightTextureId() != 0; // needs TBN for parallax
+	const bool hasOpacity = _currentMaterial.opacityTextureId() != 0;
+	const bool hasEmissive = _currentMaterial.emissiveTextureId() != 0;
+	const bool hasSheenCol = _currentMaterial.sheenColorTextureId() != 0;
+	const bool hasSheenRough = _currentMaterial.sheenRoughnessTextureId() != 0;
+	const bool hasCcColor = _currentMaterial.clearcoatColorTextureId() != 0;
+	const bool hasCcRough = _currentMaterial.clearcoatRoughnessTextureId() != 0;
+	const bool hasCcNormal = _currentMaterial.clearcoatNormalTextureId() != 0; // also needs TBN
+	const bool hasIOR = _currentMaterial.iorTextureId() != 0;
+	const bool hasTransmission = _currentMaterial.transmissionTextureId() != 0;
+
+	_shader->setUniformValue("uUseAlbedoMap", hasAlbedo);
+	_shader->setUniformValue("uUseMetalnessMap", hasMetalness);
+	_shader->setUniformValue("uUseRoughnessMap", hasRoughness);
+	_shader->setUniformValue("uUseNormalMap", false && hasNormal);      // keep OFF unless you add tangents
+	_shader->setUniformValue("uUseAOMap", hasAO);
+	_shader->setUniformValue("uUseHeightMap", false && hasHeight);      // keep OFF unless you add tangents
+	_shader->setUniformValue("uUseOpacityMap", hasOpacity);
+	_shader->setUniformValue("uUseEmissiveMap", hasEmissive);
+	_shader->setUniformValue("uUseSheenColorMap", hasSheenCol);
+	_shader->setUniformValue("uUseSheenRoughnessMap", hasSheenRough);
+	_shader->setUniformValue("uUseClearcoatColorMap", hasCcColor);
+	_shader->setUniformValue("uUseClearcoatRoughnessMap", hasCcRough);
+	_shader->setUniformValue("uUseClearcoatNormalMap", false && hasCcNormal); // needs TBN
+	_shader->setUniformValue("uUseIORMap", hasIOR);
+	_shader->setUniformValue("uUseTransmissionMap", hasTransmission);
+
+	// Optional: intensities/tiling (pull from your material if you expose them)
+	_shader->setUniformValue("uUVScale", QVector2D(1.0f, 1.0f));
 	_shader->setUniformValue("uNormalIntensity", 1.0f);
 	_shader->setUniformValue("uAOIntensity", 1.0f);
-	_shader->setUniformValue("uHeightIntensity", 1.0f);
-	_shader->setUniformValue("uEmissiveColor", QVector3D(1.0f, 1.0f, 1.0f));
+	_shader->setUniformValue("uHeightIntensity", 0.04f);
+	_shader->setUniformValue("uEmissiveColor", QVector3D(1, 1, 1));
 	_shader->setUniformValue("uEmissiveIntensity", 1.0f);
-	_shader->setUniformValue("uUVScale", QVector2D(1.0f, 1.0f));
+
 	// Set up texture samplers
 	_shader->setUniformValue("uAlbedoMap", 0);
 	_shader->setUniformValue("uMetalnessMap", 1);
