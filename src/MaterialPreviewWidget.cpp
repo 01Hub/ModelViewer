@@ -331,8 +331,7 @@ void MaterialPreviewWidget::resizeGL(int w, int h)
 }
 
 void MaterialPreviewWidget::paintGL()
-{
-	_shader->setUniformValue("uDoubleSided", false);
+{	
 	view.setToIdentity();
 	if (_currentShape == PreviewShape::Sphere)
 		view.translate(0, 0, -3.0f);
@@ -340,11 +339,8 @@ void MaterialPreviewWidget::paintGL()
 		view.translate(0, 0, -4.5f);
 	else if (_currentShape == PreviewShape::Cylinder)
 		view.translate(0, 0, -4.5f);
-	else if (_currentShape == PreviewShape::Plane)
-	{
-		view.translate(0, 0, -4.0f);
-		_shader->setUniformValue("uDoubleSided", true);
-	}
+	else if (_currentShape == PreviewShape::Plane)	
+		view.translate(0, 0, -4.0f);	
 	else if (_currentShape == PreviewShape::Teapot)
 		view.translate(0, 0, -7.5f);
 
@@ -787,33 +783,68 @@ void MaterialPreviewWidget::initCylinderMesh()
 
 void MaterialPreviewWidget::initPlaneMesh()
 {
-	// 2x2 quad centered, size 2; in XZ plane with Y=0; uv 0..1
-	const float v[] = {
-		-1, 0, -1,   0,1,0,   0,0,
-		 1, 0, -1,   0,1,0,   1,0,
-		 1, 0,  1,   0,1,0,   1,1,
-		-1, 0,  1,   0,1,0,   0,1
-	};
-	const unsigned int idx[] = { 0,1,2, 0,2,3 };
+	// Square in XZ at Y≈0, size 2×2
+	const float EPS = 1e-4f; // tiny offset to avoid coplanar z-fighting when both faces render
 
-	_plane.indexCount = 6;
+	// interleaved: pos(3), normal(3), uv(2)
+	std::vector<float> v;
+	std::vector<unsigned int> idx;
+	v.reserve(8 * 8);
+	idx.reserve(12);
+
+	// ----- TOP face (normal +Y) -----
+	// CCW winding seen from above
+	auto push = [&](float x, float y, float z, float nx, float ny, float nz, float u, float vv) {
+		v.push_back(x); v.push_back(y); v.push_back(z);
+		v.push_back(nx); v.push_back(ny); v.push_back(nz);
+		v.push_back(u);  v.push_back(vv);
+		};
+
+	// positions
+	push(-1, +0.0f + EPS, -1, 0, 1, 0, 0, 0);
+	push(+1, +0.0f + EPS, -1, 0, 1, 0, 1, 0);
+	push(+1, +0.0f + EPS, +1, 0, 1, 0, 1, 1);
+	push(-1, +0.0f + EPS, +1, 0, 1, 0, 0, 1);
+
+	idx.insert(idx.end(), { 0,1,2,  0,2,3 });
+
+	// ----- BOTTOM face (normal -Y) -----
+	// Also CCW when viewed from below. Slightly offset to avoid z-fighting.
+	const unsigned base = 4;
+
+	push(-1, -0.0f - EPS, -1, 0, -1, 0, 0, 0);
+	push(-1, -0.0f - EPS, +1, 0, -1, 0, 0, 1);
+	push(+1, -0.0f - EPS, +1, 0, -1, 0, 1, 1);
+	push(+1, -0.0f - EPS, -1, 0, -1, 0, 1, 0);
+
+	// triangles CCW as seen from below
+	idx.insert(idx.end(), { base + 0, base + 1, base + 2,  base + 0, base + 2, base + 3 });
+
+	// ---- upload ----
+	_plane.indexCount = static_cast<int>(idx.size());
 
 	glGenVertexArrays(1, &_plane.vao);
 	glGenBuffers(1, &_plane.vbo);
 	glGenBuffers(1, &_plane.ebo);
 
 	glBindVertexArray(_plane.vao);
-	glBindBuffer(GL_ARRAY_BUFFER, _plane.vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(v), v, GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _plane.ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(idx), idx, GL_STATIC_DRAW);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);                 glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
+	glBindBuffer(GL_ARRAY_BUFFER, _plane.vbo);
+	glBufferData(GL_ARRAY_BUFFER, v.size() * sizeof(float), v.data(), GL_STATIC_DRAW);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _plane.ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx.size() * sizeof(unsigned int), idx.data(), GL_STATIC_DRAW);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+	glEnableVertexAttribArray(2);
 
 	glBindVertexArray(0);
 }
+
 
 
 void MaterialPreviewWidget::initTeapotMesh()

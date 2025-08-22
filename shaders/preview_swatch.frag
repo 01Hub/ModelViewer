@@ -51,8 +51,6 @@ uniform float uEmissiveIntensity;
 uniform vec2 uUVScale;
 uniform float uNormalIntensity;
 
-uniform bool uDoubleSided;
-
 // --- Normal mapping ---
 vec3 getNormalFromMap(vec2 texCoords, vec3 worldPos, vec3 worldNormal) 
 {
@@ -105,10 +103,6 @@ void main()
 	if (length(N) < 0.1) N = vec3(0.0, 1.0, 0.0);
 	if (length(V) < 0.1) V = vec3(0.0, 0.0, 1.0);
 
-	if (uDoubleSided) {
-		N = faceforward(N, -V, N);
-	}
-
 	// --- Metal vs dielectric ---
 	vec3 dielectricDiffuse = albedo;
 	vec3 dielectricSpecular = vec3(0.04);
@@ -124,16 +118,12 @@ void main()
 	{
 		vec3 L = normalize(uLights[i].position);		
 
-		vec3 Nl = N;
-		float NdotL = dot(N, L);
-		if (uDoubleSided && NdotL < 0.0) {
-            Nl = -Nl;
-            NdotL = -NdotL;
-        }
+		
+		float NdotL = dot(N, L);		
         NdotL = max(NdotL, 0.0);
 
 		vec3 H = normalize(V + L);
-		float NdotH = max(dot(Nl, H), 0.0);
+		float NdotH = max(dot(N, H), 0.0);
 
 		float specPow = mix(8.0, 128.0, 1.0 - roughness);
 		specPow = clamp(specPow, 1.0, 256.0);
