@@ -13,7 +13,10 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget *parent)
     QHBoxLayout *topLayout = new QHBoxLayout();
     treeWidget = new MaterialLibraryWidget(this);
     previewWidget = new MaterialPreviewWidget(this);
-    previewWidget->setFixedSize(160, 160);
+    //previewWidget->setFixedSize(160, 160);
+	previewWidget->setMinimumSize(160, 160);
+	previewWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
+	previewWidget->setMaximumHeight(160);
 
     topLayout->addWidget(treeWidget, 1);
 	QVBoxLayout* previewLayout = new QVBoxLayout();
