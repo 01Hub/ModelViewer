@@ -92,8 +92,8 @@ private:
     QPoint _lastPos;
 
     float _zoom = 1.0f;          // scale factor
-    float _minZoom = 0.7f;       // -30%
-    float _maxZoom = 1.3f;       // +30%
+    float _minZoom = 0.5f;       // -50%
+    float _maxZoom = 1.5f;       // +50%
     float _zoomSpeed = 0.002f;    // zoom per pixel dragged vertically
 
     bool _overlayActive = false;
