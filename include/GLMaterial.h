@@ -459,21 +459,21 @@ private:
 	float _alphaThreshold = 0.5f; // For masked blend mode
 
 	// Texture IDs (managed externally)
-	int _albedoTextureId;
-	int _metallicTextureId;
-	int _roughnessTextureId;
-	int _normalTextureId;
-	int _occlusionTextureId;
-	int _emissiveTextureId;
-	int _opacityTextureId;
-	int _heightTextureId;
-	int _sheenColorTextureId;
-	int _sheenRoughnessTextureId;
-	int _clearcoatColorTextureId;
-	int _clearcoatRoughnessTextureId;
-	int _clearcoatNormalTextureId;
-	int _iorTextureId;
-	int _transmissionTextureId;
+	int _albedoTextureId = 0;
+	int _metallicTextureId = 0;
+	int _roughnessTextureId = 0;
+	int _normalTextureId = 0;
+	int _occlusionTextureId = 0;
+	int _emissiveTextureId = 0;
+	int _opacityTextureId = 0;
+	int _heightTextureId = 0;
+	int _sheenColorTextureId = 0;
+	int _sheenRoughnessTextureId = 0;
+	int _clearcoatColorTextureId = 0;
+	int _clearcoatRoughnessTextureId = 0;
+	int _clearcoatNormalTextureId = 0;
+	int _iorTextureId = 0;
+	int _transmissionTextureId = 0;
 
 	// Texture coordinate sets
 	int _albedoTexCoord;
