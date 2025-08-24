@@ -25,6 +25,8 @@ public:
 	GLWidget* getGLView() const { return _glWidget; }
 
 	void setMaterialToSelectedItems(const GLMaterial& mat);
+	void setTexturesToSelectedItems(const GLMaterial& mat);
+	
 	void setTransformation();
 	void bakeTransformations();
 	void resetTransformation();

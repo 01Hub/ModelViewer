@@ -53,6 +53,10 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
         this, [this](int idx) {
             _preview->setTextureViewMode(static_cast<TexViewMode>(idx));
         });
+
+    connect(_ui->pushButtonApply, &QPushButton::clicked, this, [this]() {
+        emit applyTexturesTriggered(*_material);
+		});
 }
 
 TextureMappingPanel::~TextureMappingPanel()

@@ -604,6 +604,11 @@ void TriangleMesh::setMaterial(const GLMaterial& material)
 	_material = material;
 }
 
+void TriangleMesh::setTextureMaps(const GLMaterial& material)
+{
+	_material = material;
+}
+
 void TriangleMesh::render()
 {
 	if (!_vertexArrayObject.isCreated())

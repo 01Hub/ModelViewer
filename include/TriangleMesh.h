@@ -181,6 +181,8 @@ public:
 	
 	virtual GLMaterial getMaterial() const;
 	virtual void setMaterial(const GLMaterial& material);
+
+	virtual void setTextureMaps(const GLMaterial& material);
 	
 	virtual void enableDiffuseADSMap(bool enable);
 	virtual void setDiffuseADSMap(unsigned int diffuseTex);

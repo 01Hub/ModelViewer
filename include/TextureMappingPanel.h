@@ -36,6 +36,7 @@ public:
 
 signals:
     void materialChanged(const GLMaterial* material);
+	void applyTexturesTriggered(const GLMaterial& material);
 
 private:
     struct MapSlot

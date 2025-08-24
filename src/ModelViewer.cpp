@@ -13,6 +13,7 @@
 #include "GLWidget.h"
 #include "TriangleMesh.h"
 #include "MeshProperties.h"
+#include "TextureMappingPanel.h"
 
 #include "config.h"
 
@@ -57,12 +58,12 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	QVBoxLayout* flayout = new QVBoxLayout(glframe);
 	flayout->setContentsMargins(0, 0, 0, 0);
 	flayout->addWidget(_glWidget, 1);
-			
+
 	connect(checkBoxAutoFitView, &QCheckBox::toggled, _glWidget, &GLWidget::setAutoFitViewOnUpdate);
 	connect(_glWidget, &GLWidget::singleSelectionDone, this, &ModelViewer::setListRow);
-	connect(_glWidget, &GLWidget::sweepSelectionDone, this,  &ModelViewer::setListRows);
+	connect(_glWidget, &GLWidget::sweepSelectionDone, this, &ModelViewer::setListRows);
 	connect(_glWidget, &GLWidget::floorShown, checkBoxFloor, &QCheckBox::setChecked);
-	
+
 	listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(listWidgetModel, &ModelObjectList::customContextMenuRequested, this, &ModelViewer::showContextMenu);
 
@@ -75,8 +76,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 		// Optional: give visual feedback if no match
 		bool anySelected = false;
-		for (int i = 0; i < listWidgetModel->count(); ++i) {
-			if (listWidgetModel->item(i)->isSelected()) {
+		for (int i = 0; i < listWidgetModel->count(); ++i)
+		{
+			if (listWidgetModel->item(i)->isSelected())
+			{
 				anySelected = true;
 				break;
 			}
@@ -109,17 +112,17 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this);
 	connect(shortcut, &QShortcut::activated, this, &ModelViewer::onFileExport);
 
-	connect(checkBoxLockLightCamera, &QCheckBox::toggled,           _glWidget, &GLWidget::lockLightAndCamera);
-	connect(doubleSpinBoxRepeatS,    &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatS);
-	connect(doubleSpinBoxRepeatT,    &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatT);
-	connect(doubleSpinBoxSkyBoxFOV,  &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setSkyBoxFOV);
-	connect(doubleSpinBoxFloorOffset,&QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorOffsetPercent);
-	connect(checkBoxSkyBoxHDRI,      &QCheckBox::toggled,           _glWidget, &GLWidget::setSkyBoxTextureHDRI);
-	connect(checkBoxShowLights,      &QCheckBox::toggled,           _glWidget, &GLWidget::showLights);
+	connect(checkBoxLockLightCamera, &QCheckBox::toggled, _glWidget, &GLWidget::lockLightAndCamera);
+	connect(doubleSpinBoxRepeatS, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatS);
+	connect(doubleSpinBoxRepeatT, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatT);
+	connect(doubleSpinBoxSkyBoxFOV, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setSkyBoxFOV);
+	connect(doubleSpinBoxFloorOffset, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorOffsetPercent);
+	connect(checkBoxSkyBoxHDRI, &QCheckBox::toggled, _glWidget, &GLWidget::setSkyBoxTextureHDRI);
+	connect(checkBoxShowLights, &QCheckBox::toggled, _glWidget, &GLWidget::showLights);
 
-	connect(checkBoxHDRToneMapping,  &QCheckBox::toggled,  _glWidget, &GLWidget::enableHDRToneMapping);
-	connect(checkBoxGammaCorrection, &QCheckBox::toggled,  _glWidget, &GLWidget::enableGammaCorrection);
-	connect(doubleSpinBoxScreenGamma, &QDoubleSpinBox::valueChanged,  _glWidget, &GLWidget::setScreenGamma);
+	connect(checkBoxHDRToneMapping, &QCheckBox::toggled, _glWidget, &GLWidget::enableHDRToneMapping);
+	connect(checkBoxGammaCorrection, &QCheckBox::toggled, _glWidget, &GLWidget::enableGammaCorrection);
+	connect(doubleSpinBoxScreenGamma, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setScreenGamma);
 
 	connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
 	toolBox->setItemEnabled(0, true);
@@ -130,7 +133,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(sliderTransparencyPBR, &QSlider::valueChanged, this, &ModelViewer::on_sliderTransparency_valueChanged);
 	connect(pushButtonDefaultMatlsPBR, &QPushButton::clicked, this, &ModelViewer::on_pushButtonDefaultMatls_clicked);
 
-	connect(Ui_ModelViewer::materialPreviewWidget, &MaterialEditorPanel::materialChanged, this, &ModelViewer::setMaterialToSelectedItems);	
+	connect(Ui_ModelViewer::materialPreviewWidget, &MaterialEditorPanel::materialChanged, this, &ModelViewer::setMaterialToSelectedItems);
+
+	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::applyTexturesTriggered, this, &ModelViewer::setTexturesToSelectedItems);
 
 	_hasADSDiffuseTex = false;
 	_hasADSSpecularTex = false;
@@ -1593,6 +1598,17 @@ void ModelViewer::setMaterialToSelectedItems(const GLMaterial& mat)
 	_glWidget->setMaterialToObjects(ids, mat);
 	_glWidget->updateView();
 	updateControls();
+}
+
+void ModelViewer::setTexturesToSelectedItems(const GLMaterial& mat)
+{
+	if (checkForActiveSelection())
+	{
+		_material = mat;
+		std::vector<int> ids = getSelectedIDs();
+		_glWidget->setTexturesToObjects(ids, mat);
+		_glWidget->updateView();
+	}
 }
 
 void ModelViewer::on_checkBoxSelectAll_stateChanged(int arg1)

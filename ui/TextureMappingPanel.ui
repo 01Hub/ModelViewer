@@ -1895,6 +1895,13 @@ Normal</string>
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="pushButtonApply">
+        <property name="text">
+         <string>Apply to Selection</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <spacer name="verticalSpacerRight">
         <property name="orientation">
          <enum>Qt::Orientation::Vertical</enum>

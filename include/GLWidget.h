@@ -129,6 +129,7 @@ public:
 	void clearADSTexMaps(const std::vector<int>& ids);
 
 	void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat);
+	void setTexturesToObjects(const std::vector<int>& ids, const GLMaterial& mat);
 	void setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col);
 	void setPBRMetallic(const std::vector<int>& ids, const float& val);
 	void setPBRRoughness(const std::vector<int>& ids, const float& val);
