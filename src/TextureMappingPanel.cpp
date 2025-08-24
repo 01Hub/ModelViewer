@@ -1,4 +1,4 @@
-﻿#include "TextureMappingPanel.h"
+#include "TextureMappingPanel.h"
 
 // If your generated header name differs, adjust this include:
 #include "ui_TextureMappingPanel.h"
@@ -25,6 +25,7 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
 {
     _ui->setupUi(this);
     _preview = qobject_cast<MaterialPreviewWidget*>(_ui->previewWidget);
+	_preview->setPreviewProfile(PreviewProfile::TextureAuthoring);
 
     _checkerIcon = makeCheckerIcon();
     registerMaps();
@@ -47,6 +48,11 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
         // Update the preview when the material changes
         _preview->setMaterial(*_material);
 		});
+
+    connect(_ui->comboBoxTexMode, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this, [this](int idx) {
+            _preview->setTextureViewMode(static_cast<TexViewMode>(idx));
+        });
 }
 
 TextureMappingPanel::~TextureMappingPanel()
@@ -59,7 +65,7 @@ void TextureMappingPanel::bindMaterial(GLMaterial* material)
 {
     _material = material;    
 
-    // reflect current textures → button icons
+    // reflect current textures -> button icons
     for (auto it = _maps.begin(); it != _maps.end(); ++it)
     {
         const QString path = mapPath(it.key());
@@ -87,6 +93,7 @@ void TextureMappingPanel::registerMaps()
     _maps.insert("roughness", { _ui->btnRoughness,   _ui->lblRoughness,   _ui->gearRoughness,"roughness" });
     _maps.insert("ao", { _ui->btnAO,          _ui->lblAO,          _ui->gearAO,       "ao" });
     _maps.insert("opacity", { _ui->btnOpacity,     _ui->lblOpacity,     _ui->gearOpacity,  "opacity" });
+	_maps.insert("height", { _ui->btnHeight,      _ui->lblHeight,      nullptr,           "height" });
     _maps.insert("transmission", { _ui->btnTransmission,_ui->lblTransmission,nullptr,           "transmission" });
     _maps.insert("ior", { _ui->btnIOR,         _ui->lblIOR,         nullptr,           "ior" });
 
@@ -130,10 +137,10 @@ void TextureMappingPanel::connectSignals()
             QMenu menu(btn);
             if (_maps[key].gear)
             {
-                menu.addAction(tr("Channel Packing…"), this, [this, key] { openPackingDialogFor(key); });
+                menu.addAction(tr("Channel Packing..."), this, [this, key] { openPackingDialogFor(key); });
                 menu.addSeparator();
             }
-            menu.addAction(tr("Replace…"), this, [this, btn] { btn->click(); });
+            menu.addAction(tr("Replace..."), this, [this, btn] { btn->click(); });
             menu.addAction(tr("Clear"), this, [this, key] {
                 applyButtonEmptyIcon(_maps[key]);
                 clearMap(key);
@@ -224,6 +231,7 @@ void TextureMappingPanel::setMapPath(const QString& key, const QString& file)
     else if (key == "roughness") _material->setRoughnessMap(file);
     else if (key == "ao")        _material->setAOMap(file);
     else if (key == "opacity")   _material->setOpacityMap(file);
+	else if (key == "height")    _material->setHeightMap(file);
     else if (key == "transmission") _material->setTransmissionMap(file);
     else if (key == "ior")          _material->setIORMap(file);
     else if (key == "sheen_color")  _material->setSheenColorMap(file);
@@ -244,6 +252,7 @@ void TextureMappingPanel::clearMap(const QString& key)
     else if (key == "roughness") _material->clearRoughnessMap();
     else if (key == "ao")        _material->clearAOMap();
     else if (key == "opacity")   _material->clearOpacityMap();
+	else if (key == "height")    _material->clearHeightMap();
     else if (key == "transmission") _material->clearTransmissionMap();
     else if (key == "ior")          _material->clearIORMap();
     else if (key == "sheen_color")  _material->clearSheenColorMap();
@@ -264,6 +273,7 @@ QString TextureMappingPanel::mapPath(const QString& key) const
     if (key == "roughness")      return _material->roughnessMapPath();
     if (key == "ao")             return _material->aoMapPath();
     if (key == "opacity")        return _material->opacityMapPath();
+	if (key == "height")         return _material->heightMapPath();
     if (key == "transmission")   return _material->transmissionMapPath();
     if (key == "ior")            return _material->iorMapPath();
     if (key == "sheen_color")    return _material->sheenColorMapPath();
@@ -323,7 +333,7 @@ void TextureMappingPanel::updatePreview()
     if (!_preview) return;
     // Adapt to your preview widget API:
     _preview->setPreviewShape(static_cast<PreviewShape>(_ui->comboShape->currentIndex()));  // 0=sphere,1=cube,2=plane
-    // _preview->setEnvironment(_ui->comboEnv->currentIndex());     // pick HDRI
-    // _preview->setExposure(_ui->sliderExposure->value() / 10.0f);
-    _preview->update();  // or _preview->repaintMaterial(_material);
+    _preview->setEnvironment(static_cast<EnvMode>(_ui->comboEnv->currentIndex()));     // pick HDRI
+    _preview->setExposureEV(_ui->sliderExposure->value() / 10.0f);
+    _preview->update();
 }

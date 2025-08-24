@@ -13,7 +13,7 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget *parent)
     QHBoxLayout *topLayout = new QHBoxLayout();
     treeWidget = new MaterialLibraryWidget(this);
     previewWidget = new MaterialPreviewWidget(this);
-    //previewWidget->setFixedSize(160, 160);
+    previewWidget->setPreviewProfile(PreviewProfile::MaterialShowcase);
 	previewWidget->setMinimumSize(160, 160);
 	previewWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Minimum);
 	previewWidget->setMaximumHeight(160);

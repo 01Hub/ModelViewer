@@ -96,7 +96,7 @@ namespace
 	}
 
 
-	struct M3 { float m[3][3]; }; // column-major not needed; we’ll multiply explicitly
+	struct M3 { float m[3][3]; }; // column-major not needed; we'll multiply explicitly
 
 	static inline V3 mul(const M3& R, V3 a)
 	{
@@ -235,7 +235,7 @@ namespace
 	// Optional: move lid (kept for parity; disabled by default)  // :contentReference[oaicite:10]{index=10}
 	static void moveLidCPU(std::vector<float>& /*verts*/, int /*grid*/, const float* /*mat4x4*/)
 	{
-		// No-op; Kilgard closed-lid dataset doesn’t need it for your preview.
+		// No-op; Kilgard closed-lid dataset doesn't need it for your preview.
 		// If you ever want this: transform vertex positions of lid patch range here.
 	}
 
@@ -347,7 +347,21 @@ void MaterialPreviewWidget::paintGL()
 		view.translate(0, 0, -7.5f);
 
 	glViewport(0, 0, width(), height());
-	glClearColor(0.15f, 0.15f, 0.18f, 1.0f);
+
+	// Clear color depends on environment
+	switch (_currentEnv)
+	{
+	case EnvMode::Studio:
+		glClearColor(0.12f, 0.12f, 0.12f, 1.0f); // neutral dark gray
+		break;
+	case EnvMode::Outdoor:
+		glClearColor(0.10f, 0.12f, 0.16f, 1.0f); // bluish-dark
+		break;
+	case EnvMode::Office:
+		glClearColor(0.14f, 0.14f, 0.14f, 1.0f); // slightly lighter gray
+		break;
+	}
+
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	glEnable(GL_DEPTH_TEST);
@@ -493,20 +507,13 @@ void MaterialPreviewWidget::paintGL()
 	glActiveTexture(GL_TEXTURE14);
 	glBindTexture(GL_TEXTURE_2D, _currentMaterial.transmissionTextureId());
 		
-	// Set up simple lighting	
-	_shader->setUniformValue("uLights[0].position", QVector3D(0.5f, 0.7f, 0.5f));
-	_shader->setUniformValue("uLights[0].color", QVector3D(1.0f, 1.0f, 1.0f));
+	applyEnvPreset(_currentEnv, _profile);
 
-	_shader->setUniformValue("uLights[1].position", QVector3D(-0.7f, 0.6f, 0.7f));
-	_shader->setUniformValue("uLights[1].color", QVector3D(0.6f, 0.6f, 0.6f));
+	_shader->setUniformValue("uExposureEV", _exposureEV);
+	_shader->setUniformValue("uUseACES", true);   // try true; looks great
+	_shader->setUniformValue("uGamma", 2.2f);
 
-	_shader->setUniformValue("uLights[2].position", QVector3D(-0.7f, -0.8f, 0.6f));
-	_shader->setUniformValue("uLights[2].color", QVector3D(0.4f, 0.4f, 0.4f));
-
-	_shader->setUniformValue("uLights[3].position", QVector3D(0.7f, -0.8f, 0.9f));
-	_shader->setUniformValue("uLights[3].color", QVector3D(0.5f, 0.5f, 0.5f));
-
-	_shader->setUniformValue("uNumLights", 4);
+	_shader->setUniformValue("uTexViewMode", static_cast<int>(_texViewMode));
 
 	const MeshGL* mesh = nullptr;
 	switch (_currentShape)
@@ -573,6 +580,98 @@ void MaterialPreviewWidget::paintGL()
 		p.setPen(textColor);
 		p.drawText(rect, Qt::AlignLeft | Qt::AlignTop, hint);
 	}
+}
+
+void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
+{
+	auto n = [](const QVector3D& v) { return v.normalized(); };
+
+	// Keep your 4 directions
+	const QVector3D L0 = n({ 0.5f,  0.7f,  0.5f });
+	const QVector3D L1 = n({ -0.7f,  0.6f,  0.7f });
+	const QVector3D L2 = n({ -0.7f, -0.8f,  0.6f });
+	const QVector3D L3 = n({ 0.7f, -0.8f,  0.9f });
+
+	// --- base env colors per mode (as before) ---
+	QVector3D sky, ground;
+	float envDiffuse = 0.20f;
+
+	switch (mode)
+	{
+	case EnvMode::Studio:
+		sky = { 0.60f, 0.65f, 0.70f };
+		ground = { 0.08f, 0.08f, 0.08f };
+		envDiffuse = 0.20f;
+		break;
+	case EnvMode::Outdoor:
+		sky = { 0.58f, 0.74f, 0.96f };
+		ground = { 0.24f, 0.22f, 0.20f };
+		envDiffuse = 0.25f;
+		break;
+	case EnvMode::Office:
+		sky = { 0.75f, 0.78f, 0.80f };
+		ground = { 0.12f, 0.12f, 0.12f };
+		envDiffuse = 0.18f;
+		break;
+	}
+
+	// --- base light colors (your current setup) ---
+	QVector3D c0 = { 1.00f, 1.00f, 1.00f };
+	QVector3D c1 = { 0.60f, 0.60f, 0.60f };
+	QVector3D c2 = { 0.40f, 0.40f, 0.40f };
+	QVector3D c3 = { 0.50f, 0.50f, 0.50f };
+
+	// --- profile tweaks ---
+	// TextureAuthoring: softer highlights, more ambient; ACES on; neutral exposure
+	// MaterialShowcase: punchier speculars, less ambient fill; slightly hotter exposure; optional ACES off
+	float exposureEV = 0.0f;
+	bool  useACES = true;
+
+	if (profile == PreviewProfile::MaterialShowcase)
+	{
+		envDiffuse *= 0.6f;         // less hemisphere fill → more contrast
+		c0 *= 1.35f;                // stronger key
+		c1 *= 0.95f;                // keep fill modest
+		c2 *= 1.10f;                // a bit more back/low
+		c3 *= 1.10f;
+		exposureEV = +0.35f;        // lift overall brightness
+		useACES = false;         // optional: harder, punchier highlights
+	}
+	else
+	{ // TextureAuthoring
+		envDiffuse *= 1.0f;         // keep softer ambient
+		exposureEV = 0.0f;
+		useACES = true;
+	}
+
+	// --- push to shader ---
+	_shader->setUniformValue("uPreviewProfile", static_cast<int>(_profile));
+	_shader->setUniformValue("uEnvMode", static_cast<int>(mode));
+	_shader->setUniformValue("uSkyColor", sky);
+	_shader->setUniformValue("uGroundColor", ground);
+	_shader->setUniformValue("uEnvDiffuseIntensity", envDiffuse);
+	_shader->setUniformValue("uEnvSpecularIntensity", 0.0f); // reserved for future IBL
+
+	_shader->setUniformValue("uLights[0].position", L0);
+	_shader->setUniformValue("uLights[0].color", c0);
+	_shader->setUniformValue("uLights[1].position", L1);
+	_shader->setUniformValue("uLights[1].color", c1);
+	_shader->setUniformValue("uLights[2].position", L2);
+	_shader->setUniformValue("uLights[2].color", c2);
+	_shader->setUniformValue("uLights[3].position", L3);
+	_shader->setUniformValue("uLights[3].color", c3);
+	_shader->setUniformValue("uNumLights", 4);
+
+	_shader->setUniformValue("uExposureEV", exposureEV);
+	_shader->setUniformValue("uUseACES", useACES);
+	_shader->setUniformValue("uGamma", 2.2f);
+}
+
+
+void MaterialPreviewWidget::setExposureEV(float ev)
+{
+	_exposureEV = std::clamp(ev, -8.0f, 8.0f); // sane clamp
+	update();
 }
 
 void MaterialPreviewWidget::initSphereMesh()
@@ -725,7 +824,7 @@ void MaterialPreviewWidget::initCylinderMesh()
 		vertices.push_back((float)i / SEGMENTS); vertices.push_back(0.0f);
 	}
 
-	// Side indices (quads → two triangles)
+	// Side indices (quads -> two triangles)
 	for (int i = 0; i < SEGMENTS; ++i)
 	{
 		int top0 = i * 2;
@@ -888,7 +987,7 @@ void MaterialPreviewWidget::initTeapotMesh()
 	std::vector<float> vertices; vertices.reserve(32 * (grid + 1) * (grid + 1) * 8);
 	std::vector<unsigned int> indices; indices.reserve(32 * grid * grid * 6);
 
-	generateTeapot(vertices, indices, grid, size);  // <<— uses logic above
+	generateTeapot(vertices, indices, grid, size);  // <<- uses logic above
 
 	_teapot.indexCount = (int)indices.size();
 
@@ -1138,8 +1237,8 @@ void MaterialPreviewWidget::mouseReleaseEvent(QMouseEvent* e)
 
 		// convert last pixel delta into deg/sec
 		// pixels -> degrees: delta * _rotSpeed (deg/pixel)
-		// deg/frame -> deg/sec : assume ~1/0.016 ≈ 62.5 fps or measure:
-		// We’ll use the spin timer’s interval as a baseline (~16ms).
+		// deg/frame -> deg/sec : assume ~1/0.016 ~ 62.5 fps or measure:
+		// We'll use the spin timer's interval as a baseline (~16ms).
 		const float frameSeconds = 0.016f; // approximate is fine for inertia
 		float velYaw = (_dragDelta.x() * _rotSpeed) / frameSeconds; // deg/sec
 		float velPitch = (_dragDelta.y() * _rotSpeed) / frameSeconds; // deg/sec
@@ -1196,7 +1295,7 @@ void MaterialPreviewWidget::wheelEvent(QWheelEvent* e)
 	if (!numDegrees.isNull())
 	{
 		int numSteps = numDegrees.y() / 15;  // 15 deg per step
-		_zoom *= (1.0f + numSteps * 0.05f);  // each step = ±5%
+		_zoom *= (1.0f + numSteps * 0.05f);  // each step = +/-5%
 		_zoom = std::clamp(_zoom, _minZoom, _maxZoom);
 		update();
 	}

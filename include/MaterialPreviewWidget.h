@@ -13,6 +13,9 @@ class QMouseEvent;
 class QWheelEvent;
 
 enum class PreviewShape { Sphere, Cube, Cylinder, Plane, Teapot };
+enum class EnvMode { Studio, Outdoor, Office };
+enum class TexViewMode { All = 0, Albedo, Metalness, Roughness, Normal, AO, Height, Opacity, Emissive };
+enum class PreviewProfile { TextureAuthoring, MaterialShowcase };
 
 struct GpuTexCache
 {
@@ -39,7 +42,11 @@ public:
     void setMaterial(const GLMaterial &mat);
     
     void setPreviewShape(PreviewShape s);
-
+	void setEnvironment(EnvMode env) { _currentEnv = env; update(); }
+    void setExposureEV(float ev);
+	void setTextureViewMode(TexViewMode mode) { _texViewMode = mode; update(); }
+    void setPreviewProfile(PreviewProfile profile) { _profile = profile; update(); }
+	
 	PreviewShape currentShape() const { return _currentShape; }
 
     void setPreviewRotation(float pitchDeg, float yawDeg);
@@ -48,6 +55,8 @@ protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;
     void paintGL() override;
+
+    void applyEnvPreset(EnvMode preset, PreviewProfile profile);
 
     void mousePressEvent(QMouseEvent* e) override;
     void mouseMoveEvent(QMouseEvent* e) override;
@@ -130,8 +139,8 @@ private:
     QPoint _lastPos;
 
     float _zoom = 1.0f;          // scale factor
-    float _minZoom = 0.5f;       // -50%
-    float _maxZoom = 1.5f;       // +50%
+    float _minZoom = 0.25f;       // -25%
+    float _maxZoom = 2.5f;       // +250%
     float _zoomSpeed = 0.002f;    // zoom per pixel dragged vertically
 
     bool _overlayActive = false;
@@ -147,4 +156,9 @@ private:
     float _spinVelY = 0.0f;     // deg/sec (yaw velocity)
     float _spinDamping = 2.0f;  // per-second damping (>0). Bigger = stops quicker
     float _spinMinSpeed = 5.0f; // deg/sec threshold to stop
+
+	EnvMode _currentEnv = EnvMode::Studio;
+	float _exposureEV = 0.0f;
+	TexViewMode _texViewMode = TexViewMode::All;
+	PreviewProfile _profile = PreviewProfile::MaterialShowcase;
 };

@@ -1,4 +1,4 @@
-﻿#ifndef UTILS_H_INCLUDED
+#ifndef UTILS_H_INCLUDED
 #define UTILS_H_INCLUDED
 
 #include <QImage>
@@ -86,7 +86,7 @@ inline static void appendTangents(std::vector<float>& vertices,
 
         float r = 1.0f / denom;
         QVector3D T = (e1 * dv2 - e2 * dv1) * r;
-        // (We don’t accumulate B; we’ll reconstruct it from N×T with handedness)
+        // (We don't accumulate B; we'll reconstruct it from NxT with handedness)
 
         // add T to each vertex tangent accumulator
         auto addT = [&](unsigned int idx) {
@@ -119,7 +119,7 @@ inline static void appendTangents(std::vector<float>& vertices,
 
         // Handedness: sign to reconstruct B = cross(N,T) * w
         // We need bitangent direction once; approximate from position derivative using UV swap
-        // Simple robust sign: assume UVs are not mirrored → +1; if you know mirrored, compute properly.
+        // Simple robust sign: assume UVs are not mirrored -> +1; if you know mirrored, compute properly.
         float w = 1.0f;
 
         v[8] = T.x();
