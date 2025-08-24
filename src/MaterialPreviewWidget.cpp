@@ -6,7 +6,7 @@
 #include <QWheelEvent>
 #include <QPainter>
 #include <QFileInfo>
-
+#include "Utils.h"
 #include "TextureUtil.h"
 #include "TeapotData.h" // (Kilgard) 
 
@@ -618,6 +618,8 @@ void MaterialPreviewWidget::initSphereMesh()
 		}
 	}
 
+	appendTangents(vertices, indices);
+
 	_sphere.indexCount = (int)indices.size();
 
 	glGenVertexArrays(1, &_sphere.vao);
@@ -630,9 +632,10 @@ void MaterialPreviewWidget::initSphereMesh()
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _sphere.ebo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);               glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)0);               glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
+	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float))); glEnableVertexAttribArray(3); // tangent
 
 	glBindVertexArray(0);
 }
@@ -640,46 +643,41 @@ void MaterialPreviewWidget::initSphereMesh()
 
 void MaterialPreviewWidget::initCubeMesh()
 {
-	// 8 floats per vertex: pos(3) + normal(3) + uv(2)
-	const float v[] = {
-		// +X face
-		1, -1, -1,   1, 0, 0,   0, 0,
-		1,  1, -1,   1, 0, 0,   0, 1,
-		1,  1,  1,   1, 0, 0,   1, 1,
-		1, -1,  1,   1, 0, 0,   1, 0,
-		// -X face
-	   -1, -1,  1,  -1, 0, 0,   0, 0,
-	   -1,  1,  1,  -1, 0, 0,   0, 1,
-	   -1,  1, -1,  -1, 0, 0,   1, 1,
-	   -1, -1, -1,  -1, 0, 0,   1, 0,
-	   // +Y face
-	  -1,  1, -1,   0, 1, 0,   0, 0,
-	  -1,  1,  1,   0, 1, 0,   0, 1,
-	   1,  1,  1,   0, 1, 0,   1, 1,
-	   1,  1, -1,   0, 1, 0,   1, 0,
-	   // -Y face
-	  -1, -1,  1,   0,-1, 0,   0, 0,
-	  -1, -1, -1,   0,-1, 0,   0, 1,
-	   1, -1, -1,   0,-1, 0,   1, 1,
-	   1, -1,  1,   0,-1, 0,   1, 0,
-	   // +Z face
-	  -1, -1,  1,   0, 0, 1,   0, 0,
-	   1, -1,  1,   0, 0, 1,   0, 1,
-	   1,  1,  1,   0, 0, 1,   1, 1,
-	  -1,  1,  1,   0, 0, 1,   1, 0,
-	  // -Z face
-	  1, -1, -1,   0, 0,-1,   0, 0,
-	 -1, -1, -1,   0, 0,-1,   0, 1,
-	 -1,  1, -1,   0, 0,-1,   1, 1,
-	  1,  1, -1,   0, 0,-1,   1, 0,
-	};
-	const unsigned int idx[] = {
-		0,1,2, 0,2,3,       4,5,6, 4,6,7,
-		8,9,10, 8,10,11,   12,13,14, 12,14,15,
-		16,17,18, 16,18,19, 20,21,22, 20,22,23
-	};
+	std::vector<float> vertices;   // pos3, normal3, uv2  (8 floats per-vert, tangents appended later)
+	std::vector<unsigned int> indices;
 
-	_cube.indexCount = (int)(sizeof(idx) / sizeof(idx[0]));
+	auto push = [&](QVector3D p, QVector3D n, QVector2D uv) {
+		vertices.push_back(p.x()); vertices.push_back(p.y()); vertices.push_back(p.z());
+		vertices.push_back(n.x()); vertices.push_back(n.y()); vertices.push_back(n.z());
+		vertices.push_back(uv.x()); vertices.push_back(uv.y());
+		};
+
+	// Helpers
+	auto face = [&](QVector3D n, QVector3D a, QVector3D b, QVector3D c, QVector3D d) {
+		// CCW seen from outside; UVs mapped [0,1]
+		unsigned base = static_cast<unsigned>(vertices.size() / 8);
+		push(a, n, { 0,0 }); push(b, n, { 1,0 }); push(c, n, { 1,1 }); push(d, n, { 0,1 });
+		indices.insert(indices.end(), { base + 0, base + 1, base + 2,  base + 0, base + 2, base + 3 });
+		};
+
+	const float s = 1.0f;
+	// +X
+	face({ +1,0,0 }, { +s,-s,-s }, { +s,-s,+s }, { +s,+s,+s }, { +s,+s,-s });
+	// -X
+	face({ -1,0,0 }, { -s,-s,+s }, { -s,-s,-s }, { -s,+s,-s }, { -s,+s,+s });
+	// +Y (top)
+	face({ 0,+1,0 }, { -s,+s,-s }, { +s,+s,-s }, { +s,+s,+s }, { -s,+s,+s });
+	// -Y (bottom)
+	face({ 0,-1,0 }, { -s,-s,+s }, { +s,-s,+s }, { +s,-s,-s }, { -s,-s,-s });
+	// +Z (front)
+	face({ 0,0,+1 }, { -s,-s,+s }, { -s,+s,+s }, { +s,+s,+s }, { +s,-s,+s });
+	// -Z (back)
+	face({ 0,0,-1 }, { +s,-s,-s }, { +s,+s,-s }, { -s,+s,-s }, { -s,-s,-s });
+
+	// Build tangents (pos,normal,uv -> + tangent.xyzw), changes stride to 12 floats
+	appendTangents(vertices, indices);
+
+	_cube.indexCount = static_cast<int>(indices.size());
 
 	glGenVertexArrays(1, &_cube.vao);
 	glGenBuffers(1, &_cube.vbo);
@@ -687,16 +685,20 @@ void MaterialPreviewWidget::initCubeMesh()
 
 	glBindVertexArray(_cube.vao);
 	glBindBuffer(GL_ARRAY_BUFFER, _cube.vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(v), v, GL_STATIC_DRAW);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _cube.ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(idx), idx, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);                 glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _cube.ebo);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+	// New stride = 12 floats: pos3, normal3, uv2, tangent4
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)0);                 glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
+	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float))); glEnableVertexAttribArray(3);
 
 	glBindVertexArray(0);
 }
+
 
 void MaterialPreviewWidget::initCylinderMesh()
 {
@@ -789,6 +791,8 @@ void MaterialPreviewWidget::initCylinderMesh()
 	// --- Upload to GPU ---
 	_cylinder.indexCount = (int)indices.size();
 
+	appendTangents(vertices, indices);
+
 	glGenVertexArrays(1, &_cylinder.vao);
 	glGenBuffers(1, &_cylinder.vbo);
 	glGenBuffers(1, &_cylinder.ebo);
@@ -800,14 +804,17 @@ void MaterialPreviewWidget::initCylinderMesh()
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _cylinder.ebo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(1);
 
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(6 * sizeof(float)));
 	glEnableVertexAttribArray(2);
+
+	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float)));
+	glEnableVertexAttribArray(3); // tangent
 
 	glBindVertexArray(0);
 }
@@ -816,67 +823,60 @@ void MaterialPreviewWidget::initCylinderMesh()
 
 void MaterialPreviewWidget::initPlaneMesh()
 {
-	// Square in XZ at Y≈0, size 2×2
-	const float EPS = 1e-4f; // tiny offset to avoid coplanar z-fighting when both faces render
+	const float EPS = 1e-4f; // avoids z-fighting with cull disabled
+	std::vector<float> vertices;   // pos3, normal3, uv2
+	std::vector<unsigned int> indices;
 
-	// interleaved: pos(3), normal(3), uv(2)
-	std::vector<float> v;
-	std::vector<unsigned int> idx;
-	v.reserve(8 * 8);
-	idx.reserve(12);
-
-	// ----- TOP face (normal +Y) -----
-	// CCW winding seen from above
-	auto push = [&](float x, float y, float z, float nx, float ny, float nz, float u, float vv) {
-		v.push_back(x); v.push_back(y); v.push_back(z);
-		v.push_back(nx); v.push_back(ny); v.push_back(nz);
-		v.push_back(u);  v.push_back(vv);
+	auto push = [&](QVector3D p, QVector3D n, QVector2D uv) {
+		vertices.push_back(p.x()); vertices.push_back(p.y()); vertices.push_back(p.z());
+		vertices.push_back(n.x()); vertices.push_back(n.y()); vertices.push_back(n.z());
+		vertices.push_back(uv.x()); vertices.push_back(uv.y());
 		};
 
-	// positions
-	push(-1, +0.0f + EPS, -1, 0, 1, 0, 0, 0);
-	push(+1, +0.0f + EPS, -1, 0, 1, 0, 1, 0);
-	push(+1, +0.0f + EPS, +1, 0, 1, 0, 1, 1);
-	push(-1, +0.0f + EPS, +1, 0, 1, 0, 0, 1);
+	// Top (+Y), CCW seen from above
+	{
+		unsigned base = static_cast<unsigned>(vertices.size() / 8);
+		push({ -1, +EPS, -1 }, { 0, 1, 0 }, { 0,0 });
+		push({ +1, +EPS, -1 }, { 0, 1, 0 }, { 1,0 });
+		push({ +1, +EPS, +1 }, { 0, 1, 0 }, { 1,1 });
+		push({ -1, +EPS, +1 }, { 0, 1, 0 }, { 0,1 });
+		indices.insert(indices.end(), { base + 0, base + 1, base + 2,  base + 0, base + 2, base + 3 });
+	}
 
-	idx.insert(idx.end(), { 0,1,2,  0,2,3 });
+	// Bottom (-Y), CCW seen from below (note different ordering)
+	{
+		unsigned base = static_cast<unsigned>(vertices.size() / 8);
+		push({ -1, -EPS, -1 }, { 0,-1, 0 }, { 0,0 });
+		push({ -1, -EPS, +1 }, { 0,-1, 0 }, { 0,1 });
+		push({ +1, -EPS, +1 }, { 0,-1, 0 }, { 1,1 });
+		push({ +1, -EPS, -1 }, { 0,-1, 0 }, { 1,0 });
+		indices.insert(indices.end(), { base + 0, base + 1, base + 2,  base + 0, base + 2, base + 3 });
+	}
 
-	// ----- BOTTOM face (normal -Y) -----
-	// Also CCW when viewed from below. Slightly offset to avoid z-fighting.
-	const unsigned base = 4;
+	// Build tangents (now stride = 12 floats)
+	appendTangents(vertices, indices);
 
-	push(-1, -0.0f - EPS, -1, 0, -1, 0, 0, 0);
-	push(-1, -0.0f - EPS, +1, 0, -1, 0, 0, 1);
-	push(+1, -0.0f - EPS, +1, 0, -1, 0, 1, 1);
-	push(+1, -0.0f - EPS, -1, 0, -1, 0, 1, 0);
-
-	// triangles CCW as seen from below
-	idx.insert(idx.end(), { base + 0, base + 1, base + 2,  base + 0, base + 2, base + 3 });
-
-	// ---- upload ----
-	_plane.indexCount = static_cast<int>(idx.size());
+	_plane.indexCount = static_cast<int>(indices.size());
 
 	glGenVertexArrays(1, &_plane.vao);
 	glGenBuffers(1, &_plane.vbo);
 	glGenBuffers(1, &_plane.ebo);
 
 	glBindVertexArray(_plane.vao);
-
 	glBindBuffer(GL_ARRAY_BUFFER, _plane.vbo);
-	glBufferData(GL_ARRAY_BUFFER, v.size() * sizeof(float), v.data(), GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
 
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _plane.ebo);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, idx.size() * sizeof(unsigned int), idx.data(), GL_STATIC_DRAW);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
-	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)0);                 glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
+	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float))); glEnableVertexAttribArray(3);
 
 	glBindVertexArray(0);
 }
+
 
 
 
@@ -891,6 +891,9 @@ void MaterialPreviewWidget::initTeapotMesh()
 	generateTeapot(vertices, indices, grid, size);  // <<— uses logic above
 
 	_teapot.indexCount = (int)indices.size();
+
+	appendTangents(vertices, indices);
+
 	glGenVertexArrays(1, &_teapot.vao);
 	glGenBuffers(1, &_teapot.vbo);
 	glGenBuffers(1, &_teapot.ebo);
@@ -901,9 +904,10 @@ void MaterialPreviewWidget::initTeapotMesh()
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _teapot.ebo);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
 
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);                glEnableVertexAttribArray(0);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)0);                glEnableVertexAttribArray(0);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
+	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float))); glEnableVertexAttribArray(3); // tangent
 
 	glBindVertexArray(0);
 }
