@@ -125,7 +125,7 @@ void TextureMappingPanel::connectSignals()
             if (k.isEmpty()) return;
 
             const QString file = QFileDialog::getOpenFileName(
-                this, tr("Select %1 Map").arg(k),
+                this, tr("Select %1 Map").arg(k.at(0).toUpper() + k.mid(1)),
                 QString(), tr("Images (*.png *.jpg *.jpeg *.tga *.bmp *.hdr *.exr)"));
             if (file.isEmpty()) return;
 
