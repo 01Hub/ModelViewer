@@ -61,7 +61,8 @@ _hasSheenRoughnessPBRMap(false),
 _hasClearcoatPBRMap(false),
 _hasClearcoatRoughnessPBRMap(false),
 _hasClearcoatNormalPBRMap(false),
-_opacityPBRMapInverted(false)
+_opacityPBRMapInverted(false),
+_hasTextureAlpha(false)
 {
 	setAutoIncrName(name);
 	_memorySize = 0;
@@ -467,7 +468,7 @@ void TriangleMesh::invertOpacityADSMap(bool invert)
 
 void TriangleMesh::setOpacityADSMap(unsigned int opacityTex)
 {
-	glDeleteTextures(1, &_opacityADSMap);
+	//glDeleteTextures(1, &_opacityADSMap);
 	_opacityADSMap = opacityTex;
 	_hasOpacityADSMap = true;
 	markTexturesDirty();
@@ -481,7 +482,7 @@ void TriangleMesh::enableHeightADSMap(bool enable)
 
 void TriangleMesh::setHeightADSMap(unsigned int heightTex)
 {
-	glDeleteTextures(1, &_heightADSMap);
+	//glDeleteTextures(1, &_heightADSMap);
 	_heightADSMap = heightTex;
 	_hasHeightADSMap = true;
 	markTexturesDirty();
@@ -495,7 +496,7 @@ void TriangleMesh::enableNormalADSMap(bool enable)
 
 void TriangleMesh::setNormalADSMap(unsigned int normalTex)
 {
-	glDeleteTextures(1, &_normalADSMap);
+	//glDeleteTextures(1, &_normalADSMap);
 	_normalADSMap = normalTex;
 	_hasNormalADSMap = true;
 	markTexturesDirty();
@@ -509,7 +510,7 @@ void TriangleMesh::enableSpecularADSMap(bool enable)
 
 void TriangleMesh::setSpecularADSMap(unsigned int specularTex)
 {
-	glDeleteTextures(1, &_specularADSMap);
+	//glDeleteTextures(1, &_specularADSMap);
 	_specularADSMap = specularTex;
 	_hasSpecularADSMap = true;
 	markTexturesDirty();
@@ -523,7 +524,7 @@ void TriangleMesh::enableEmissiveADSMap(bool enable)
 
 void TriangleMesh::setEmissiveADSMap(unsigned int emissiveTex)
 {
-	glDeleteTextures(1, &_emissiveADSMap);
+	//glDeleteTextures(1, &_emissiveADSMap);
 	_emissiveADSMap = emissiveTex;
 	_hasEmissiveADSMap = true;
 	markTexturesDirty();
@@ -537,7 +538,7 @@ void TriangleMesh::enableDiffuseADSMap(bool enable)
 
 void TriangleMesh::setDiffuseADSMap(unsigned int diffuseTex)
 {
-	glDeleteTextures(1, &_diffuseADSMap);
+	//glDeleteTextures(1, &_diffuseADSMap);
 	_diffuseADSMap = diffuseTex;
 	_hasDiffuseADSMap = true;
 	markTexturesDirty();
@@ -601,12 +602,14 @@ GLMaterial TriangleMesh::getMaterial() const
 
 void TriangleMesh::setMaterial(const GLMaterial& material)
 {
-	_material = material;
+	_material = material;	
 }
 
 void TriangleMesh::setTextureMaps(const GLMaterial& material)
 {
 	_material = material;
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 void TriangleMesh::render()
@@ -684,7 +687,7 @@ TriangleMesh::~TriangleMesh()
 {
 	deleteBuffers();
 #ifdef Q_OS_WIN
-	deleteTextures(); // causes wrong texture deletion on Linux
+	//deleteTextures(); // causes wrong texture deletion on Linux
 #endif
 	for (Triangle* t : _triangles)
 		delete t;
@@ -1530,6 +1533,63 @@ void TriangleMesh::clearOpacityPBRMap()
 	markTexturesDirty();
 	markUniformsDirty();
 }
+
+void TriangleMesh::clearTransmissionPBRMap()
+{
+	glDeleteTextures(1, &_transmissionPBRMap);
+	_transmissionPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void TriangleMesh::clearIORPBRMap()
+{
+	glDeleteTextures(1, &_IORPBRMap);
+	_IORPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void TriangleMesh::clearSheenColorPBRMap()
+{
+	glDeleteTextures(1, &_sheenColorPBRMap);
+	_sheenColorPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void TriangleMesh::clearSheenRoughnessPBRMap()
+{
+	glDeleteTextures(1, &_sheenRoughnessPBRMap);
+	_sheenRoughnessPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void TriangleMesh::clearClearcoatPBRMap()
+{
+	glDeleteTextures(1, &_clearcoatPBRMap);
+	_clearcoatPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void TriangleMesh::clearClearcoatRoughnessPBRMap()
+{
+	glDeleteTextures(1, &_clearcoatRoughnessPBRMap);
+	_clearcoatRoughnessPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void TriangleMesh::clearClearcoatNormalPBRMap()
+{
+	glDeleteTextures(1, &_clearcoatNormalPBRMap);
+	_clearcoatNormalPBRMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
 
 void TriangleMesh::clearAllPBRMaps()
 {

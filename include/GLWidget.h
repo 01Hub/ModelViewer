@@ -160,6 +160,35 @@ public:
 	void setPBRHeightTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRHeightTexMap(const std::vector<int>& ids);
 	void setPBRHeightScale(const std::vector<int>& ids, const float& scale);
+
+	void enablePBRTransmissionTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRTransmissionTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRTransmissionTexMap(const std::vector<int>& ids);
+
+	void enablePBRIORTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRIORTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRIORTexMap(const std::vector<int>& ids);
+
+	void enablePBRSheenColorTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRSheenColorTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRSheenColorTexMap(const std::vector<int>& ids);
+
+	void enablePBRSheenRoughnessTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRSheenRoughnessTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRSheenRoughnessTexMap(const std::vector<int>& ids);
+
+	void enablePBRClearcoatTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRClearcoatTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRClearcoatTexMap(const std::vector<int>& ids);
+	
+	void enablePBRClearcoatRoughnessTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRClearcoatRoughnessTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRClearcoatRoughnessTexMap(const std::vector<int>& ids);
+	
+	void enablePBRClearcoatNormalTexMap(const std::vector<int>& ids, const bool& enable);
+	void setPBRClearcoatNormalTexMap(const std::vector<int>& ids, const QString& path);
+	void clearPBRClearcoatNormalTexMap(const std::vector<int>& ids);
+
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void bakeTransformation(const std::vector<int>& ids);
 	void resetTransformation(const std::vector<int>& ids);
@@ -369,6 +398,12 @@ private:
 	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
 		
 	void onMeshBatchReady(const std::vector<AssImpMesh*>& batch);
+
+	unsigned int getOrLoadTextureCached(const QString& path);
+	void retainTexture(unsigned int texId);
+	void releaseTexture(unsigned int texId);
+
+	static GLMaterial resolveMaterialTextures(GLWidget* w, const GLMaterial& src);
 
 private:
 	ViewToolbar* _viewToolbar;
@@ -620,6 +655,11 @@ private:
 	const aiScene* _assimpScene = nullptr;
 	aiScene* _globalScene = nullptr; // Merged scene from multiple files
 	bool _progressiveLoadingEnabled = false;
+
+	// --- Texture cache: path -> GL texture id (per GLWidget context)
+	std::unordered_map<QString, unsigned int> _texCache;
+	// Reference counts so we can release when maps are cleared
+	std::unordered_map<unsigned int, int> _texRefCount;
 };
 
 #endif

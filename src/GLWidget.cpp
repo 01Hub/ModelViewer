@@ -1879,7 +1879,8 @@ void GLWidget::setTexturesToObjects(const std::vector<int>& ids, const GLMateria
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->setTextureMaps(mat);
+			GLMaterial resolved = resolveMaterialTextures(this, mat);
+			mesh->setTextureMaps(resolved);
 		}
 		catch (const std::exception& ex)
 		{
@@ -1970,7 +1971,7 @@ void GLWidget::enablePBRAlbedoTexMap(const std::vector<int>& ids, const bool& en
 
 void GLWidget::setPBRAlbedoTexMap(const std::vector<int>& ids, const QString& path)
 {
-	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	unsigned int texId = getOrLoadTextureCached(path);
 	for (int id : ids)
 	{
 		try
@@ -1992,7 +1993,9 @@ void GLWidget::clearPBRAlbedoTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getAlbedoPBRMap();
 			mesh->clearAlbedoPBRMap();
+			releaseTexture(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -2019,7 +2022,7 @@ void GLWidget::enablePBRMetallicTexMap(const std::vector<int>& ids, const bool& 
 
 void GLWidget::setPBRMetallicTexMap(const std::vector<int>& ids, const QString& path)
 {
-	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	unsigned int texId = getOrLoadTextureCached(path);
 	for (int id : ids)
 	{
 		try
@@ -2041,7 +2044,9 @@ void GLWidget::clearPBRMetallicTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getMetallicPBRMap();
 			mesh->clearMetallicPBRMap();
+			releaseTexture(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -2068,7 +2073,7 @@ void GLWidget::enablePBRRoughnessTexMap(const std::vector<int>& ids, const bool&
 
 void GLWidget::setPBRRoughnessTexMap(const std::vector<int>& ids, const QString& path)
 {
-	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	unsigned int texId = getOrLoadTextureCached(path);
 	for (int id : ids)
 	{
 		try
@@ -2090,7 +2095,9 @@ void GLWidget::clearPBRRoughnessTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getRoughnessPBRMap();
 			mesh->clearRoughnessPBRMap();
+			releaseTexture(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -2117,7 +2124,7 @@ void GLWidget::enablePBRNormalTexMap(const std::vector<int>& ids, const bool& en
 
 void GLWidget::setPBRNormalTexMap(const std::vector<int>& ids, const QString& path)
 {
-	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	unsigned int texId = getOrLoadTextureCached(path);
 	for (int id : ids)
 	{
 		try
@@ -2139,7 +2146,9 @@ void GLWidget::clearPBRNormalTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getNormalPBRMap();
 			mesh->clearNormalPBRMap();
+			releaseTexture(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -2166,7 +2175,7 @@ void GLWidget::enablePBRAOTexMap(const std::vector<int>& ids, const bool& enable
 
 void GLWidget::setPBRAOTexMap(const std::vector<int>& ids, const QString& path)
 {
-	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	unsigned int texId = getOrLoadTextureCached(path);
 	for (int id : ids)
 	{
 		try
@@ -2188,7 +2197,9 @@ void GLWidget::clearPBRAOTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getAOPBRMap();
 			mesh->clearAOPBRMap();
+			releaseTexture(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -2215,7 +2226,7 @@ void GLWidget::enablePBROpacityTexMap(const std::vector<int>& ids, const bool& e
 
 void GLWidget::setPBROpacityTexMap(const std::vector<int>& ids, const QString& path)
 {
-	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	unsigned int texId = getOrLoadTextureCached(path);
 	for (int id : ids)
 	{
 		try
@@ -2253,7 +2264,9 @@ void GLWidget::clearPBROpacityTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getOpacityPBRMap();
 			mesh->clearOpacityPBRMap();
+			releaseTexture(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -2280,7 +2293,7 @@ void GLWidget::enablePBRHeightTexMap(const std::vector<int>& ids, const bool& en
 
 void GLWidget::setPBRHeightTexMap(const std::vector<int>& ids, const QString& path)
 {
-	unsigned int texId = loadTextureFromFile(path.toStdString().c_str());
+	unsigned int texId = getOrLoadTextureCached(path);
 	for (int id : ids)
 	{
 		try
@@ -2302,7 +2315,9 @@ void GLWidget::clearPBRHeightTexMap(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getHeightPBRMap();
 			mesh->clearHeightPBRMap();
+			releaseTexture(texId);
 		}
 		catch (const std::exception& ex)
 		{
@@ -2323,6 +2338,364 @@ void GLWidget::setPBRHeightScale(const std::vector<int>& ids, const float& scale
 		catch (const std::exception& ex)
 		{
 			std::cout << "Exception in GLWidget::setHeightScale\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::enablePBRTransmissionTexMap(const std::vector<int>& ids, const bool& enable)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableTransmissionPBRMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableTransmissionTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::setPBRTransmissionTexMap(const std::vector<int>& ids, const QString& path)
+{
+	unsigned int texId = getOrLoadTextureCached(path);
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setTransmissionPBRMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setTransmissionTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::clearPBRTransmissionTexMap(const std::vector<int>& ids)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getTransmissionPBRMap();
+			mesh->clearTransmissionPBRMap();
+			releaseTexture(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearTransmissionTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::enablePBRIORTexMap(const std::vector<int>& ids, const bool& enable)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableIORPBRMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableIORTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::setPBRIORTexMap(const std::vector<int>& ids, const QString& path)
+{
+	unsigned int texId = getOrLoadTextureCached(path);
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setIORPBRMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setIORTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::clearPBRIORTexMap(const std::vector<int>& ids)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getIORPBRMap();
+			mesh->clearIORPBRMap();
+			releaseTexture(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearIORTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+
+void GLWidget::enablePBRSheenColorTexMap(const std::vector<int>& ids, const bool& enable)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableSheenColorPBRMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableSheenColorTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::setPBRSheenColorTexMap(const std::vector<int>& ids, const QString& path)
+{
+	unsigned int texId = getOrLoadTextureCached(path);
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setSheenColorPBRMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setSheenColorTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::clearPBRSheenColorTexMap(const std::vector<int>& ids)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getSheenColorPBRMap();
+			mesh->clearSheenColorPBRMap();
+			releaseTexture(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearSheenColorTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::enablePBRSheenRoughnessTexMap(const std::vector<int>& ids, const bool& enable)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableSheenRoughnessPBRMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableSheenRoughnessTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::setPBRSheenRoughnessTexMap(const std::vector<int>& ids, const QString& path)
+{
+	unsigned int texId = getOrLoadTextureCached(path);
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setSheenRoughnessPBRMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setSheenRoughnessTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::clearPBRSheenRoughnessTexMap(const std::vector<int>& ids)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getSheenRoughnessPBRMap();
+			mesh->clearSheenRoughnessPBRMap();
+			releaseTexture(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearSheenRoughnessTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::enablePBRClearcoatTexMap(const std::vector<int>& ids, const bool& enable)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableClearcoatPBRMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableClearcoatTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::setPBRClearcoatTexMap(const std::vector<int>& ids, const QString& path)
+{
+	unsigned int texId = getOrLoadTextureCached(path);
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setClearcoatPBRMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setClearcoatTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::clearPBRClearcoatTexMap(const std::vector<int>& ids)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getClearcoatPBRMap();
+			mesh->clearClearcoatPBRMap();
+			releaseTexture(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearClearcoatTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::enablePBRClearcoatRoughnessTexMap(const std::vector<int>& ids, const bool& enable)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableClearcoatRoughnessPBRMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableClearcoatRoughnessTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::setPBRClearcoatRoughnessTexMap(const std::vector<int>& ids, const QString& path)
+{
+	unsigned int texId = getOrLoadTextureCached(path);
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setClearcoatRoughnessPBRMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setClearcoatRoughnessTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::clearPBRClearcoatRoughnessTexMap(const std::vector<int>& ids)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getClearcoatRoughnessPBRMap();
+			mesh->clearClearcoatRoughnessPBRMap();
+			releaseTexture(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearClearcoatRoughnessTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::enablePBRClearcoatNormalTexMap(const std::vector<int>& ids, const bool& enable)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->enableClearcoatNormalPBRMap(enable);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::enableClearcoatNormalTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::setPBRClearcoatNormalTexMap(const std::vector<int>& ids, const QString& path)
+{
+	unsigned int texId = getOrLoadTextureCached(path);
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			mesh->setClearcoatNormalPBRMap(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::setClearcoatNormalTexture\n" << ex.what() << std::endl;
+		}
+	}
+}
+
+void GLWidget::clearPBRClearcoatNormalTexMap(const std::vector<int>& ids)
+{
+	for (int id : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore[id];
+			unsigned int texId = mesh->getClearcoatNormalPBRMap();
+			mesh->clearClearcoatNormalPBRMap();
+			releaseTexture(texId);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::clearClearcoatNormalTexture\n" << ex.what() << std::endl;
 		}
 	}
 }
@@ -3974,6 +4347,70 @@ void GLWidget::onMeshBatchReady(const std::vector<AssImpMesh*>& batch)
 	}	
 	_viewer->updateDisplayList();
 }
+
+unsigned int GLWidget::getOrLoadTextureCached(const QString& path)
+{
+	if (path.isEmpty()) return 0;
+	auto it = _texCache.find(path);
+	if (it != _texCache.end())
+	{
+		retainTexture(it->second);
+		return it->second;
+	}
+	makeCurrent(); // ensure this context
+	unsigned int tex = loadTextureFromFile(path.toStdString().c_str()); // you already have this
+	_texCache.emplace(path, tex);
+	_texRefCount[tex] = 1;
+	return tex;
+}
+
+void GLWidget::retainTexture(unsigned int texId)
+{
+	if (texId == 0) return;
+	auto it = _texRefCount.find(texId);
+	if (it != _texRefCount.end()) it->second++;
+	else _texRefCount[texId] = 1;
+}
+
+void GLWidget::releaseTexture(unsigned int texId)
+{
+	if (texId == 0) return;
+	auto it = _texRefCount.find(texId);
+	if (it == _texRefCount.end()) return;
+	if (--(it->second) <= 0)
+	{
+		// remove from path map too
+		for (auto pit = _texCache.begin(); pit != _texCache.end(); )
+		{
+			if (pit->second == texId) pit = _texCache.erase(pit); else ++pit;
+		}
+		glDeleteTextures(1, &texId);
+		_texRefCount.erase(texId);
+	}
+}
+
+GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
+{
+	GLMaterial m = src; // copy
+	if (m.hasAlbedoMap())    m.setAlbedoTextureId(w->getOrLoadTextureCached(m.albedoMapPath()));
+	if (m.hasMetallicMap())  m.setMetallicTextureId(w->getOrLoadTextureCached(m.metallicMapPath()));
+	if (m.hasRoughnessMap()) m.setRoughnessTextureId(w->getOrLoadTextureCached(m.roughnessMapPath()));
+	if (m.hasNormalMap())    m.setNormalTextureId(w->getOrLoadTextureCached(m.normalMapPath()));
+	if (m.hasAOMap())    m.setOcclusionTextureId(w->getOrLoadTextureCached(m.aoMapPath()));
+	if (m.hasOpacityMap())   m.setOpacityTextureId(w->getOrLoadTextureCached(m.opacityMapPath()));
+	if (m.hasHeightMap())    m.setHeightTextureId(w->getOrLoadTextureCached(m.heightMapPath()));
+	if (m.hasEmissiveMap())  m.setEmissiveTextureId(w->getOrLoadTextureCached(m.emissiveMapPath()));
+	if (m.hasTransmissionMap()) m.setTransmissionTextureId(w->getOrLoadTextureCached(m.transmissionMapPath()));
+	if (m.hasIORMap()) m.setIORTextureId(w->getOrLoadTextureCached(m.iorMapPath()));
+	if (m.hasSheenColorMap()) m.setSheenColorTextureId(w->getOrLoadTextureCached(m.sheenColorMapPath()));
+	if (m.hasSheenRoughnessMap()) m.setSheenRoughnessTextureId(w->getOrLoadTextureCached(m.sheenRoughnessMapPath()));
+	if (m.hasClearcoatColorMap()) m.setClearcoatColorTextureId(w->getOrLoadTextureCached(m.clearcoatColorMapPath()));
+	if (m.hasClearcoatRoughnessMap()) m.setClearcoatRoughnessTextureId(w->getOrLoadTextureCached(m.clearcoatRoughnessMapPath()));
+	if (m.hasClearcoatNormalMap()) m.setClearcoatNormalTextureId(w->getOrLoadTextureCached(m.clearcoatNormalMapPath()));
+
+	return m;
+}
+
 
 void GLWidget::checkAndStopTimers()
 {

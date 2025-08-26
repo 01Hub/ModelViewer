@@ -113,6 +113,23 @@ public:
 	virtual void setOpacityPBRMap(unsigned int opacityMap);
 	virtual void invertOpacityPBRMap(bool invert);
 
+	virtual unsigned int getAlbedoPBRMap() const { return _albedoPBRMap; }
+	virtual unsigned int getNormalPBRMap() const { return _normalPBRMap; }
+	virtual unsigned int getMetallicPBRMap() const { return _metallicPBRMap; }
+	virtual unsigned int getEmissivePBRMap() const { return _emissivePBRMap; }
+	virtual unsigned int getRoughnessPBRMap() const { return _roughnessPBRMap; }
+	virtual unsigned int getAOPBRMap() const { return _aoPBRMap; }
+	virtual unsigned int getHeightPBRMap() const { return _heightPBRMap; }
+	virtual unsigned int getOpacityPBRMap() const { return _opacityPBRMap; }
+	virtual unsigned int getTransmissionPBRMap() const { return _transmissionPBRMap; }
+	virtual unsigned int getIORPBRMap() const { return _IORPBRMap; }
+	virtual unsigned int getSheenColorPBRMap() const { return _sheenColorPBRMap; }
+	virtual unsigned int getSheenRoughnessPBRMap() const { return _sheenRoughnessPBRMap; }
+	virtual unsigned int getClearcoatPBRMap() const { return _clearcoatPBRMap; }
+	virtual unsigned int getClearcoatRoughnessPBRMap() const { return _clearcoatRoughnessPBRMap; }
+	virtual unsigned int getClearcoatNormalPBRMap() const { return _clearcoatNormalPBRMap; }
+
+
 	virtual bool hasAlbedoPBRMap() const;
 	virtual void enableAlbedoPBRMap(bool hasAlbedoMap);
 
@@ -177,6 +194,14 @@ public:
 	virtual void clearAOPBRMap();
 	virtual void clearHeightPBRMap();
 	virtual void clearOpacityPBRMap();
+	virtual void clearTransmissionPBRMap();
+	virtual void clearIORPBRMap();
+	virtual void clearSheenColorPBRMap();
+	virtual void clearSheenRoughnessPBRMap();
+	virtual void clearClearcoatPBRMap();
+	virtual void clearClearcoatRoughnessPBRMap();
+	virtual void clearClearcoatNormalPBRMap();
+
 	virtual void clearAllPBRMaps();
 	
 	virtual GLMaterial getMaterial() const;

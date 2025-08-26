@@ -175,62 +175,77 @@ public:
 	QString albedoMapPath() const;
 	void setAlbedoMap(const QString& path);
 	void clearAlbedoMap();
+	bool hasAlbedoMap() const { return !albedoMapPath().isEmpty(); }	
 
 	QString normalMapPath() const;
 	void setNormalMap(const QString& path);
 	void clearNormalMap();
+	bool hasNormalMap() const { return !normalMapPath().isEmpty(); }
 
 	QString emissiveMapPath() const;
 	void setEmissiveMap(const QString& path);
 	void clearEmissiveMap();
+	bool hasEmissiveMap() const { return !emissiveMapPath().isEmpty(); }
 
 	QString metallicMapPath() const;
 	void setMetallicMap(const QString& path);
 	void clearMetallicMap();
+	bool hasMetallicMap() const { return !metallicMapPath().isEmpty(); }
 
 	QString roughnessMapPath() const;
 	void setRoughnessMap(const QString& path);
 	void clearRoughnessMap();
+	bool hasRoughnessMap() const { return !roughnessMapPath().isEmpty(); }
 
 	QString aoMapPath() const;
 	void setAOMap(const QString& path);
 	void clearAOMap();
+	bool hasAOMap() const { return !aoMapPath().isEmpty(); }
 
 	QString opacityMapPath() const;
 	void setOpacityMap(const QString& path);
 	void clearOpacityMap();
+	bool hasOpacityMap() const { return !opacityMapPath().isEmpty(); }
 		
 	QString heightMapPath() const;
 	void setHeightMap(const QString& path);
 	void clearHeightMap();
+	bool hasHeightMap() const { return !heightMapPath().isEmpty(); }
 
 	QString transmissionMapPath() const;
 	void setTransmissionMap(const QString& path);
 	void clearTransmissionMap();
+	bool hasTransmissionMap() const { return !transmissionMapPath().isEmpty(); }
 
 	QString iorMapPath() const;
 	void setIORMap(const QString& path);
 	void clearIORMap();
+	bool hasIORMap() const { return !iorMapPath().isEmpty(); }
 
 	QString sheenColorMapPath() const;
 	void setSheenColorMap(const QString& path);
 	void clearSheenColorMap();
+	bool hasSheenColorMap() const { return !sheenColorMapPath().isEmpty(); }
 
 	QString sheenRoughnessMapPath() const;
 	void setSheenRoughnessMap(const QString& path);
 	void clearSheenRoughnessMap();
+	bool hasSheenRoughnessMap() const { return !sheenRoughnessMapPath().isEmpty(); }
 
 	QString clearcoatColorMapPath() const;
 	void setClearcoatColorMap(const QString& path);
 	void clearClearcoatColorMap();
+	bool hasClearcoatColorMap() const { return !clearcoatColorMapPath().isEmpty(); }
 
 	QString clearcoatRoughnessMapPath() const;
 	void setClearcoatRoughnessMap(const QString& path);
 	void clearClearcoatRoughnessMap();
+	bool hasClearcoatRoughnessMap() const { return !clearcoatRoughnessMapPath().isEmpty(); }
 
 	QString clearcoatNormalMapPath() const;
 	void setClearcoatNormalMap(const QString& path);
 	void clearClearcoatNormalMap();
+	bool hasClearcoatNormalMap() const { return !clearcoatNormalMapPath().isEmpty(); }
 
 	// --- Shared UV transform (used by the panel's UV controls) ---
 	void setUVTiling(float u, float v);

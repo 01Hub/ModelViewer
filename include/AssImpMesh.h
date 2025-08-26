@@ -91,6 +91,10 @@ public:
 	void setHeightADSMap(unsigned int heightTex) override;
 	void setOpacityADSMap(unsigned int opacityTex) override;
 
+	virtual void setTextureMaps(const GLMaterial& material) override;
+	void replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha);
+
+
 	void releaseCurrentShader();
 
 	
