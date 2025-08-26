@@ -141,41 +141,6 @@ private slots:
 	void on_sliderMetallic_valueChanged(int value);
 	void on_sliderRoughness_valueChanged(int value);
 
-	void on_checkBoxAlbedoMap_toggled(bool checked);
-	void on_pushButtonAlbedoMap_clicked();
-
-	void on_checkBoxMetallicMap_toggled(bool checked);
-	void on_pushButtonMetallicMap_clicked();
-
-	void on_checkBoxRoughnessMap_toggled(bool checked);
-	void on_pushButtonRoughnessMap_clicked();
-
-	void on_checkBoxNormalMap_toggled(bool checked);
-	void on_pushButtonNormalMap_clicked();
-
-	void on_checkBoxAOMap_toggled(bool checked);
-	void on_pushButtonAOMap_clicked();
-
-	void on_checkBoxOpacityMap_toggled(bool checked);
-	void on_checkBoxOpacMapInvert_toggled(bool inverted);
-	void on_pushButtonOpacityMap_clicked();
-	void on_toolButtonClearOpacityMap_clicked();
-
-	void on_checkBoxHeightMap_toggled(bool checked);
-	void on_pushButtonHeightMap_clicked();
-	void on_doubleSpinBoxHeightScale_valueChanged(double val);
-
-	void on_pushButtonApplyPBRTexture_clicked();
-	void on_pushButtonClearPBRTextures_clicked();
-
-	void on_toolButtonClearAlbedo_clicked();
-	void on_toolButtonClearMetallic_clicked();
-	void on_toolButtonClearRoughness_clicked();
-	void on_toolButtonClearNormal_clicked();
-	void on_toolButtonClearAO_clicked();
-
-	void on_toolButtonClearHeight_clicked();
-
 	void on_checkBoxDiffuseTex_toggled(bool checked);
 	void on_pushButtonDiffuseTexture_clicked();
 	void on_toolButtonClearDiffuseTex_clicked();
