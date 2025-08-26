@@ -416,6 +416,13 @@ void TriangleMesh::setupUniforms()
 	// Alpha transparency mode and cuttoff
 	_prog->setUniformValue("alphaThreshold", _material.alphaThreshold());
 	_prog->setUniformValue("blendMode", static_cast<int>(_material.blendMode()));
+
+	// Albedo tinting
+	_prog->setUniformValue("tintMode", GLint(_material.albedoTint.mode));
+	_prog->setUniformValue("tintStrength", _material.albedoTint.strength);
+	_prog->setUniformValue("grayEpsilon", _material.albedoTint.grayEps);
+	_prog->setUniformValue("useVertexColor", _material.albedoTint.useVertexColor);
+	_prog->setUniformValue("tintMaskChannel", _material.albedoTint.maskChannel);
 	
 	// PBR Texture Maps
 	_prog->setUniformValue("albedoMap", 10);

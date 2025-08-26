@@ -57,6 +57,17 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
     connect(_ui->pushButtonApply, &QPushButton::clicked, this, [this]() {
         emit applyTexturesTriggered(*_material);
 		});
+
+    connect(_ui->tintModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this, &TextureMappingPanel::onTintParamsChanged);
+    connect(_ui->tintStrengthSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+        this, &TextureMappingPanel::onTintParamsChanged);
+    connect(_ui->grayEpsSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+        this, &TextureMappingPanel::onTintParamsChanged);
+    connect(_ui->useVtxColorCheck, &QCheckBox::toggled,
+        this, &TextureMappingPanel::onTintParamsChanged);
+    connect(_ui->maskChannelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this, &TextureMappingPanel::onTintParamsChanged);
 }
 
 TextureMappingPanel::~TextureMappingPanel()
@@ -84,6 +95,23 @@ void TextureMappingPanel::bindMaterial(GLMaterial* material)
         
 	_preview->setMaterial(*_material);
     updatePreview();
+}
+
+void TextureMappingPanel::onTintParamsChanged()
+{
+    GLMaterial* m = _material;
+    if (!m) return;
+
+    m->albedoTint.mode = static_cast<GLMaterial::TintMode>(_ui->tintModeCombo->currentIndex());
+    m->albedoTint.strength = float(_ui->tintStrengthSpin->value());
+    m->albedoTint.grayEps = float(_ui->grayEpsSpin->value());
+    m->albedoTint.useVertexColor = _ui->useVtxColorCheck->isChecked();
+    m->albedoTint.maskChannel = _ui->maskChannelCombo->currentIndex();
+
+    // Enable/disable mask channel control
+    _ui->maskChannelCombo->setEnabled(m->albedoTint.mode == GLMaterial::TintMode::LerpMask);
+
+    emit materialChanged(m);
 }
 
 // ---------------- registry / wiring ----------------

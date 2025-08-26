@@ -171,10 +171,11 @@ struct PBRLighting {
 };
 uniform PBRLighting pbrLighting;
 
-uniform int   u_tintMode = 1;     // 0=Off, 1=AutoGray, 2=ForceGray, 3=LerpMask
-uniform float u_tintStrength = 1.0;
-uniform float u_grayEpsilon = 0.02; // grayscale detection threshold in sRGB
-uniform bool  u_useVertexColor = false; // if you want to include vtx color
+uniform int   tintMode = 1;     // 0=Off, 1=AutoGray, 2=ForceGray, 3=LerpMask
+uniform float tintStrength = 1.0;
+uniform float grayEpsilon = 0.02; // grayscale detection threshold in sRGB
+uniform bool  useVertexColor = false; // if you want to include vtx color
+uniform int   tintMaskChannel = 0; // 0=R, 1=G, 2=B, 3=A
 
 const float PI = 3.14159265359;
 
@@ -212,6 +213,7 @@ vec3    calculateBackgroundColor();
 vec3 srgbToLinear(vec3 c);
 vec3 linearToSrgb(vec3 c);
 float saturationSRGB(vec3 c);
+float readMaskChannel(vec4 texel, int channel);
 vec3 computeBaseColor(vec2 uv,
                       vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
                       sampler2D albedoTex,
@@ -654,16 +656,15 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
                 vec3 matBase_sRGB = pbrLighting.albedo;
 
                 vec3 vtxColor_sRGB = vec3(1.0);
-                #ifdef HAS_VERTEX_COLOR
-                    vtxColor_sRGB = fragColor.rgb; // or your varying
-                #endif
+                if(useVertexColor)
+                    vtxColor_sRGB = fragColor.rgb; // or your varying                
 
                 vec3 albedo_L = computeBaseColor(clippedTexCoord,
                                                  matBase_sRGB,
                                                  albedoMap,
                                                  hasAlbedoMap,
                                                  vtxColor_sRGB,
-                                                 u_useVertexColor);
+                                                 useVertexColor);
 
                 // Keep everything in linear -> feed albedo_L into your BRDF
                 albedo = albedo_L;
@@ -1470,6 +1471,14 @@ float saturationSRGB(vec3 c) {
     return mx - mn; // cheap proxy; OK for gray detection
 }
 
+
+float readMaskChannel(vec4 texel, int channel) {
+    if (channel == 0) return texel.r;
+    if (channel == 1) return texel.g;
+    if (channel == 2) return texel.b;
+    return texel.a;
+}
+
 vec3 computeBaseColor(vec2 uv,
                       vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
                       sampler2D albedoTex,
@@ -1493,25 +1502,26 @@ vec3 computeBaseColor(vec2 uv,
     if (!hasAlbedoTex) {
         out_L = base_L; // color only
     } else {
-        if (u_tintMode == 0) {
+        if (tintMode == 0) {
             // Texture only
             out_L = tex_L;
-        } else if (u_tintMode == 2) {
+        } else if (tintMode == 2) {
             // Force grayscale treatment (skip detection)
             float lum = dot(tex_L, vec3(0.2126, 0.7152, 0.0722));
-            out_L = mix(tex_L, base_L * lum, u_tintStrength);
-        } else if (u_tintMode == 3) {
+            out_L = mix(tex_L, base_L * lum, tintStrength);
+        } else if (tintMode == 3) {
             // Masked lerp (use one channel as a mask—often A or R; customize as needed)
-            float mask = texture(albedoTex, uv).a; // or .r/.g/.b
-            out_L = mix(tex_L, base_L, clamp(u_tintStrength * mask, 0.0, 1.0));
+            vec4 texel = texture(albedoTex, uv);
+            float mask = readMaskChannel(texel, tintMaskChannel);
+            out_L = mix(tex_L, base_L, clamp(tintStrength * mask, 0.0, 1.0));
         } else {
             // AutoGray (default): only tint grayscale texels
             float sat = saturationSRGB(tex_sRGB);        // in sRGB is fine for detection
-            float grayMask = 1.0 - smoothstep(u_grayEpsilon, u_grayEpsilon * 4.0, sat);
+            float grayMask = 1.0 - smoothstep(grayEpsilon, grayEpsilon * 4.0, sat);
             // Use linear luminance for intensity
             float lum = dot(tex_L, vec3(0.2126, 0.7152, 0.0722));
             vec3 grayTint_L = base_L * lum;
-            out_L = mix(tex_L, grayTint_L, clamp(u_tintStrength * grayMask, 0.0, 1.0));
+            out_L = mix(tex_L, grayTint_L, clamp(tintStrength * grayMask, 0.0, 1.0));
         }
     }
 

@@ -1316,3 +1316,5 @@ void MaterialPreviewWidget::setPreviewRotation(float pitchDeg, float yawDeg)
 	_rotY = yawDeg;
 	update();
 }
+
+

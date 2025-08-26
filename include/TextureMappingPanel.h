@@ -34,6 +34,8 @@ public:
 
 	GLMaterial* material() const { return _material; }
 
+	void onTintParamsChanged();
+
 signals:
     void materialChanged(const GLMaterial* material);
 	void applyTexturesTriggered(const GLMaterial& material);
@@ -47,7 +49,7 @@ private:
         QString      key;                // e.g., "albedo", "roughness"
     };
 
-    // --- helpers (methods have NO underscore prefix) ---
+    // --- helpers ---
     void registerMaps();
     void connectSignals();
     void applyButtonEmptyIcon(MapSlot& m);

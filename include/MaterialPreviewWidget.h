@@ -50,7 +50,7 @@ public:
 	PreviewShape currentShape() const { return _currentShape; }
 
     void setPreviewRotation(float pitchDeg, float yawDeg);
-
+    
 protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;
