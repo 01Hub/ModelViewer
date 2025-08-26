@@ -171,6 +171,11 @@ struct PBRLighting {
 };
 uniform PBRLighting pbrLighting;
 
+uniform int   u_tintMode = 1;     // 0=Off, 1=AutoGray, 2=ForceGray, 3=LerpMask
+uniform float u_tintStrength = 1.0;
+uniform float u_grayEpsilon = 0.02; // grayscale detection threshold in sRGB
+uniform bool  u_useVertexColor = false; // if you want to include vtx color
+
 const float PI = 3.14159265359;
 
 layout( location = 0 ) out vec4 fragColor;
@@ -204,9 +209,20 @@ float   calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3
 vec2    calculateBackgroundUV();
 vec3    calculateBackgroundColor();
 
+vec3 srgbToLinear(vec3 c);
+vec3 linearToSrgb(vec3 c);
+float saturationSRGB(vec3 c);
+vec3 computeBaseColor(vec2 uv,
+                      vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
+                      sampler2D albedoTex,
+                      bool hasAlbedoTex,
+                      vec3 vertexColor_sRGB,    // pass v_color.rgb if you use it
+                      bool useVertexColor);
+
 float floorRadius = u_floorSize * 0.5; // Adjust radius based on floor size
 float fadeStart = floorRadius * 0.65;   // Start fading 
 float fadeEnd = floorRadius * 1.025;     // Fully faded
+
 
 void main()
 {
@@ -634,7 +650,23 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             }
             else
             {
-                albedo = pbrLighting.albedo * textureColorRGB; // Multiplicative
+                // pbrLighting.albedo is your material diffuse/base color (sRGB)
+                vec3 matBase_sRGB = pbrLighting.albedo;
+
+                vec3 vtxColor_sRGB = vec3(1.0);
+                #ifdef HAS_VERTEX_COLOR
+                    vtxColor_sRGB = fragColor.rgb; // or your varying
+                #endif
+
+                vec3 albedo_L = computeBaseColor(clippedTexCoord,
+                                                 matBase_sRGB,
+                                                 albedoMap,
+                                                 hasAlbedoMap,
+                                                 vtxColor_sRGB,
+                                                 u_useVertexColor);
+
+                // Keep everything in linear -> feed albedo_L into your BRDF
+                albedo = albedo_L;
             }
         }
         else
@@ -1422,4 +1454,69 @@ vec3 calculateBackgroundColor() {
     }
     
     return frag_color.rgb;
+}
+
+// sRGB <-> Linear helpers (fast-enough approximations)
+vec3 srgbToLinear(vec3 c) {
+    return pow(c, vec3(2.2));
+}
+vec3 linearToSrgb(vec3 c) {
+    return pow(c, vec3(1.0/2.2));
+}
+
+float saturationSRGB(vec3 c) {
+    float mx = max(max(c.r, c.g), c.b);
+    float mn = min(min(c.r, c.g), c.b);
+    return mx - mn; // cheap proxy; OK for gray detection
+}
+
+vec3 computeBaseColor(vec2 uv,
+                      vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
+                      sampler2D albedoTex,
+                      bool hasAlbedoTex,
+                      vec3 vertexColor_sRGB,    // pass v_color.rgb if you use it
+                      bool useVertexColor)
+{
+    vec3 base_sRGB = matBaseColor_sRGB;
+    vec3 tex_sRGB  = hasAlbedoTex ? texture(albedoTex, uv).rgb : vec3(1.0);
+
+    // Optional vertex color (apply as a tint *in linear*; many pipelines want this)
+    vec3 vtx_sRGB = useVertexColor ? vertexColor_sRGB : vec3(1.0);
+
+    // Convert to linear for math
+    vec3 base_L = srgbToLinear(base_sRGB);
+    vec3 tex_L  = srgbToLinear(tex_sRGB);
+    vec3 vtx_L  = srgbToLinear(vtx_sRGB);
+
+    vec3 out_L;
+
+    if (!hasAlbedoTex) {
+        out_L = base_L; // color only
+    } else {
+        if (u_tintMode == 0) {
+            // Texture only
+            out_L = tex_L;
+        } else if (u_tintMode == 2) {
+            // Force grayscale treatment (skip detection)
+            float lum = dot(tex_L, vec3(0.2126, 0.7152, 0.0722));
+            out_L = mix(tex_L, base_L * lum, u_tintStrength);
+        } else if (u_tintMode == 3) {
+            // Masked lerp (use one channel as a mask—often A or R; customize as needed)
+            float mask = texture(albedoTex, uv).a; // or .r/.g/.b
+            out_L = mix(tex_L, base_L, clamp(u_tintStrength * mask, 0.0, 1.0));
+        } else {
+            // AutoGray (default): only tint grayscale texels
+            float sat = saturationSRGB(tex_sRGB);        // in sRGB is fine for detection
+            float grayMask = 1.0 - smoothstep(u_grayEpsilon, u_grayEpsilon * 4.0, sat);
+            // Use linear luminance for intensity
+            float lum = dot(tex_L, vec3(0.2126, 0.7152, 0.0722));
+            vec3 grayTint_L = base_L * lum;
+            out_L = mix(tex_L, grayTint_L, clamp(u_tintStrength * grayMask, 0.0, 1.0));
+        }
+    }
+
+    // Apply vertex color last (in linear)
+    out_L *= vtx_L;
+
+    return out_L; // keep in linear for the rest of PBR
 }
