@@ -135,29 +135,46 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
         mat.setEmissiveStrength(1.0f);
     }
 
-    // Opacity/Transparency
-    float opacity = 1.0f;
-    if (AI_SUCCESS == material->Get(AI_MATKEY_OPACITY, opacity))
-    {
-        if (opacity == 0) // 0 opacity is of no use
-            opacity = 1;
+	// Opacity/Transparency
+	// --- Opacity / Transparency ---
+    // MTL: d = opacity ; Tr = transparency
+	float dVal = 1.0f;  bool hasD = (material->Get(AI_MATKEY_OPACITY, dVal) == AI_SUCCESS);
+	float trVal = 0.0f;  bool hasTr = (material->Get(AI_MATKEY_TRANSPARENCYFACTOR, trVal) == AI_SUCCESS);
 
-        opacity = std::clamp(opacity, 0.0f, 1.0f);
-        mat.setOpacity(opacity);        
-    }
-    else if (AI_SUCCESS == material->Get(AI_MATKEY_TRANSPARENCYFACTOR, value))
-    {
-        // Some formats use transparency factor instead of opacity
-        opacity = 1.0f - std::clamp(value, 0.0f, 1.0f);
+	dVal = std::clamp(dVal, 0.0f, 1.0f);
+	trVal = std::clamp(trVal, 0.0f, 1.0f);
 
-        if (opacity == 0) // 0 opacity is of no use
-            opacity = 1;
+	float fromD = hasD ? dVal : 1.0f;        // already "opacity"
+	float fromTr = hasTr ? (1.0f - trVal) : 1.0f;        // convert "transparency" to opacity
 
-        mat.setOpacity(opacity);        
-    }
-    else
+	// Use the most transparent interpretation when both are present
+	float finalOpacity = std::min(fromD, fromTr);
+
+    if(finalOpacity == 0)
+		finalOpacity = 1.0f; // Avoid fully transparent materials by default
+
+	// No "opacity == 0 -> 1" fallback; 0.0 is valid (fully transparent)
+	mat.setOpacity(finalOpacity);
+
+	// If not fully opaque, default the blend mode to alpha blending
+	if (finalOpacity < 0.999f)
+	{
+		mat.setBlendMode(GLMaterial::BlendMode::Alpha);
+	}
+
+    // Blend mode for transparency
+    if (finalOpacity < 1.0f)
     {
-        mat.setOpacity(1.0f);
+        // Determine blend mode based on material properties
+        if (AI_SUCCESS == material->Get(AI_MATKEY_BLEND_FUNC, intValue))
+        {
+            setBlendMode(mat, static_cast<aiBlendMode>(intValue));
+        }
+        else
+        {
+            // Default to alpha blending for transparent materials
+            mat.setBlendMode(GLMaterial::BlendMode::Alpha);
+        }
     }
 
     // Index of Refraction (IOR)
@@ -219,21 +236,6 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
         setShadingModel(mat, static_cast<aiShadingMode>(intValue));
     }
 
-    // Blend mode for transparency
-    if (opacity < 1.0f)
-    {
-        // Determine blend mode based on material properties
-        if (AI_SUCCESS == material->Get(AI_MATKEY_BLEND_FUNC, intValue))
-        {
-            setBlendMode(mat, static_cast<aiBlendMode>(intValue));
-        }
-        else
-        {
-            // Default to alpha blending for transparent materials
-            mat.setBlendMode(GLMaterial::BlendMode::Alpha);
-        }
-    }
-
 	// Alpha cutoff for transparency for glTF materials
     aiString alphaModeStr;
     if (material->Get("$mat.gltf.alphaMode", 0, 0, alphaModeStr) == AI_SUCCESS)
@@ -262,12 +264,7 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
             mat.setBlendMode(GLMaterial::BlendMode::Opaque);
         }
     }
-    else
-    {
-        mat.setBlendMode(GLMaterial::BlendMode::Opaque); // Fallback if alphaMode is missing
-    }
-
-
+    
     // === Validation and Consistency Checks ===
     validateMaterialConsistency(mat);
 }
@@ -441,7 +438,7 @@ void MaterialProcessor::debugMaterialTextures(aiMaterial* material, const std::s
 }
 
 // Sets the texture maps for a material based on the defined texture mappings.
-void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture>& textures)
+void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture>& textures, GLMaterial& mat)
 {
 
 	//debugMaterialTextures(material, material->GetName().C_Str());
@@ -466,6 +463,116 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 
     // Now create ADS aliases from PBR maps for backward compatibility
     synthesizeADSAliases(textures);
+
+	// update material maps based on loaded textures
+	// for each texture type, assign to material if found
+    for (const auto& tex : textures)
+    {
+        if (tex.type == "albedoMap")
+        {
+            mat.setAlbedoTextureId(tex.id);
+            mat.setAlbedoMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "normalMap")
+        {
+            mat.setNormalTextureId(tex.id);
+            mat.setNormalMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "metallicMap")
+        {
+            mat.setMetallicTextureId(tex.id);
+            mat.setMetallicMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "roughnessMap")
+        {
+            mat.setRoughnessTextureId(tex.id);
+            mat.setRoughnessMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "emissiveMap")
+        {
+            mat.setEmissiveTextureId(tex.id);
+            mat.setEmissiveMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "heightMap")
+        {
+            mat.setHeightTextureId(tex.id);
+            mat.setHeightMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "opacityMap")
+        {
+            mat.setOpacityTextureId(tex.id);
+            mat.setOpacityMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "texture_diffuse")
+        {
+            mat.setAlbedoTextureId(tex.id);
+            mat.setAlbedoMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "texture_normal")
+        {
+            mat.setNormalTextureId(tex.id);
+            mat.setNormalMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "texture_specular")
+        {
+            mat.setMetallicTextureId(tex.id);
+            mat.setMetallicMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "texture_emissive")
+        {
+            mat.setEmissiveTextureId(tex.id);
+            mat.setEmissiveMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "texture_height")
+        {
+            mat.setHeightTextureId(tex.id);
+            mat.setHeightMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "texture_opacity")
+        {
+            mat.setOpacityTextureId(tex.id);
+            mat.setOpacityMap(QString(tex.path.C_Str()));
+		}
+        // sheen
+        else if (tex.type == "sheenColorMap")
+        {
+            mat.setSheenColorTextureId(tex.id);
+            mat.setSheenColorMap(QString(tex.path.C_Str()));
+		}
+        else if (tex.type == "sheenRoughnessMap")
+        {
+            mat.setSheenRoughnessTextureId(tex.id);
+            mat.setSheenRoughnessMap(QString(tex.path.C_Str()));
+        }
+        // clearcoat
+        else if (tex.type == "clearcoatMap")
+        {
+            mat.setClearcoatColorTextureId(tex.id);
+            mat.setClearcoatColorMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "clearcoatRoughnessMap")
+        {
+            mat.setClearcoatRoughnessTextureId(tex.id);
+            mat.setClearcoatRoughnessMap(QString(tex.path.C_Str()));
+        }
+        else if (tex.type == "clearcoatNormalMap")
+        {
+            mat.setClearcoatNormalTextureId(tex.id);
+            mat.setClearcoatNormalMap(QString(tex.path.C_Str()));
+		}
+        // transmission
+        else if (tex.type == "transmissionMap")
+        {
+            mat.setTransmissionTextureId(tex.id);
+            mat.setTransmissionMap(QString(tex.path.C_Str()));
+		}
+        // ioR map
+        else if (tex.type == "iorMap")
+        {
+            mat.setIORTextureId(tex.id);
+            mat.setIORMap(QString(tex.path.C_Str()));
+		}
+	}
 }
 
 

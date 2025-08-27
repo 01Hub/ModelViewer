@@ -43,31 +43,6 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
 
 	// Initialize the material to default values and bind it    
     bindMaterial(new GLMaterial());
-
-    connect(this , &TextureMappingPanel::materialChanged, this, [this]() {
-        // Update the preview when the material changes
-        _preview->setMaterial(*_material);
-		});
-
-    connect(_ui->comboBoxTexMode, QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this, [this](int idx) {
-            _preview->setTextureViewMode(static_cast<TexViewMode>(idx));
-        });
-
-    connect(_ui->pushButtonApply, &QPushButton::clicked, this, [this]() {
-        emit applyTexturesTriggered(*_material);
-		});
-
-    connect(_ui->tintModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this, &TextureMappingPanel::onTintParamsChanged);
-    connect(_ui->tintStrengthSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-        this, &TextureMappingPanel::onTintParamsChanged);
-    connect(_ui->grayEpsSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-        this, &TextureMappingPanel::onTintParamsChanged);
-    connect(_ui->useVtxColorCheck, &QCheckBox::toggled,
-        this, &TextureMappingPanel::onTintParamsChanged);
-    connect(_ui->maskChannelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this, &TextureMappingPanel::onTintParamsChanged);
 }
 
 TextureMappingPanel::~TextureMappingPanel()
@@ -206,6 +181,37 @@ void TextureMappingPanel::connectSignals()
     connect(_ui->comboShape, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) { updatePreview(); });
     connect(_ui->comboEnv, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) { updatePreview(); });
     connect(_ui->sliderExposure, &QSlider::valueChanged, this, [this](int) { updatePreview(); });
+
+    connect(this, &TextureMappingPanel::materialChanged, this, [this]() {
+        // Update the preview when the material changes
+        _preview->setMaterial(*_material);
+        });
+
+    connect(_ui->comboBoxTexMode, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this, [this](int idx) {
+            _preview->setTextureViewMode(static_cast<TexViewMode>(idx));
+        });
+
+    connect(_ui->pushButtonApply, &QPushButton::clicked, this, [this]() {
+        emit applyTexturesTriggered(*_material);
+        });
+
+    connect(_ui->tintModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this, &TextureMappingPanel::onTintParamsChanged);
+    connect(_ui->tintStrengthSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+        this, &TextureMappingPanel::onTintParamsChanged);
+    connect(_ui->grayEpsSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+        this, &TextureMappingPanel::onTintParamsChanged);
+    connect(_ui->useVtxColorCheck, &QCheckBox::toggled,
+        this, &TextureMappingPanel::onTintParamsChanged);
+    connect(_ui->maskChannelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+        this, &TextureMappingPanel::onTintParamsChanged);
+
+    connect(_ui->invertOpacityCheck, &QCheckBox::toggled, this, [this](bool checked) {
+        if (!_material) return;
+        _material->setInvertOpacityMap(checked);
+        emit materialChanged(_material);
+		});
 }
 
 // ---------------- icons / thumbs ----------------

@@ -629,8 +629,9 @@ void TriangleMesh::render()
 	setupUniforms();
 
 	if(_material.opacity() < 1.0f ||
-		_hasOpacityADSMap || _hasOpacityPBRMap
-		)
+		_hasOpacityADSMap || _hasOpacityPBRMap || _hasTransmissionPBRMap || 
+		_material.blendMode() == GLMaterial::BlendMode::Alpha ||
+		_material.alphaThreshold() > 0.0f || _hasTextureAlpha)
 	{
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

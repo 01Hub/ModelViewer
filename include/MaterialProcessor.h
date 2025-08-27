@@ -15,7 +15,7 @@ public:
 
 	void setColorAndMaterial(aiMaterial* material, GLMaterial& mat);
 	void setDefaultMaterial(GLMaterial& mat);
-	void setTextureMaps(aiMaterial* material, std::vector<Texture>& textures);
+	void setTextureMaps(aiMaterial* material, std::vector<Texture>& textures, GLMaterial& mat);
 
 	void clearLoadedTextures() { _loadedTextures.clear(); }
 

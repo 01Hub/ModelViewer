@@ -470,37 +470,42 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     {
         matEmissive = texture2D(texture_emissive, clippedTexCoord).rgb;
     }
+    
     float alpha = opacity;
-    if(hasOpacityTexture)
-    {
-        if(opacityTextureInverted)
-            alpha = 1.0f - texture(texture_opacity, clippedTexCoord).r;
-        else
-            alpha = texture(texture_opacity, clippedTexCoord).r;
+    // --- ADS alpha (unified) ---
+    // Treat blendMode as: 0=OPAQUE, 1=MASK (cutout), 2=BLEND
+
+    // 1) Gather alphas
+    float texAlpha = 1.0;
+    if (hasDiffuseTexture) {
+        vec4 diffuseTexel = texture(texture_diffuse, clippedTexCoord);
+        texAlpha = diffuseTexel.a;
     }
 
-    if (blendMode == 1)  // MASK
-    {
-        fragColor.a = 1.0; // Solid where not discarded
+    float mapAlpha = 1.0;
+    if (hasOpacityTexture) {
+        float om = texture(texture_opacity, clippedTexCoord).r;
+        mapAlpha = opacityTextureInverted ? (1.0 - om) : om;
     }
-    else if (blendMode == 2)  // BLEND
-    {
-        // For ADS mode with opacity maps
-        if(renderingMode == 0 && hasOpacityTexture)
-        {
-            float opacityValue;
-            if(opacityTextureInverted)
-                opacityValue = 1.0f - texture(texture_opacity, g_texCoord2d).r;
-            else
-                opacityValue = texture(texture_opacity, g_texCoord2d).r;
-        
-            fragColor.a = opacityValue * opacity;
-        }        
-    } 
-    else  // OPAQUE
-    {
+
+    // 2) Combine sources
+    float combinedAlpha = opacity * texAlpha * mapAlpha;
+    combinedAlpha = clamp(combinedAlpha, 0.0, 1.0);
+
+    // 3) Alpha test only for MASK materials
+    if (blendMode == 1) { // MASK
+        // Use diffuse alpha for cutout (common practice)
+        float cutAlpha = hasDiffuseTexture ? texAlpha : combinedAlpha;
+        if (cutAlpha < alphaThreshold) discard;
+        fragColor.a = 1.0;              // survivors are fully opaque in cutout
+    }
+    else if (blendMode == 0) {          // OPAQUE
         fragColor.a = 1.0;
     }
+    else {                              // BLEND
+        fragColor.a = combinedAlpha;    // true translucency
+    }
+
 
     vec3 sceneColor = matEmissive + matAmbient * model.ambient;
     vec4 colorLinear;
@@ -534,6 +539,9 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     // gamma correct
     if(gammaCorrection)
         colorLinear = pow(colorLinear, vec4(1.0/screenGamma));
+
+    // Premultiplied alpha output
+    colorLinear.rgb *= colorLinear.a;
 
     return colorLinear;
 }
@@ -990,6 +998,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         }
     }
     
+    // Premultiplied alpha output
+    color *= finalAlpha;
+
     return vec4(color, finalAlpha);
 }
 

@@ -1881,6 +1881,8 @@ void GLWidget::setTexturesToObjects(const std::vector<int>& ids, const GLMateria
 			TriangleMesh* mesh = _meshStore[id];
 			GLMaterial resolved = resolveMaterialTextures(this, mat);
 			mesh->setTextureMaps(resolved);
+			mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
+			mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
 		}
 		catch (const std::exception& ex)
 		{
@@ -3332,74 +3334,74 @@ void GLWidget::drawSkyBox()
 
 void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 {
-	QVector3D pos = _primaryCamera->getPosition();
-	setupClippingUniforms(prog, pos);
+	QVector3D camPos = _primaryCamera->getPosition();
+	setupClippingUniforms(prog, camPos);
 
-	// Render
-	if (_meshStore.size() != 0)
+	if (_meshStore.empty()) return;
+
+	const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+
+	// Split
+	std::vector<int> opaqueIds;
+	std::vector<std::pair<float, int>> transparent; // (distance, id)
+
+	opaqueIds.reserve(objectIds.size());
+	transparent.reserve(objectIds.size());
+
+	for (int id : objectIds)
 	{
-		const std::vector<int> objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
-
-		// Separate opaque and transparent mesh indices
-		std::vector<int> opaqueMeshIds;
-		std::vector<int> transparentMeshIds;
-
-		for (int i : objectIds)
+		if (auto* mesh = _meshStore.at(id))
 		{
-			try
+			if (mesh->isTransparent())
 			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				if (mesh)
-				{
-					if (mesh->isTransparent())
-						transparentMeshIds.push_back(i);
-					else
-						opaqueMeshIds.push_back(i);
-				}
+				// Use a stable distance metric (camera -> mesh bounds center in world space)
+				const QVector3D c = _boundingSphere.getCenter();   // return center in world space
+				const float d = (c - camPos).lengthSquared();     // squared is fine for sorting
+				transparent.emplace_back(d, id);
 			}
-			catch (const std::exception& ex)
+			else
 			{
-				std::cout << "Exception raised in GLWidget::drawMesh (sorting)\n" << ex.what() << std::endl;
-			}
-		}
-
-		// Render opaque meshes first
-		for (int i : opaqueMeshIds)
-		{
-			try
-			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				if (mesh)
-				{
-					mesh->setProg(prog);
-					mesh->render();
-				}
-			}
-			catch (const std::exception& ex)
-			{
-				std::cout << "Exception raised in GLWidget::drawMesh (opaque)\n" << ex.what() << std::endl;
-			}
-		}
-
-		// Then render transparent meshes
-		for (int i : transparentMeshIds)
-		{
-			try
-			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				if (mesh)
-				{
-					mesh->setProg(prog);
-					mesh->render();
-				}
-			}
-			catch (const std::exception& ex)
-			{
-				std::cout << "Exception raised in GLWidget::drawMesh (transparent)\n" << ex.what() << std::endl;
+				opaqueIds.push_back(id);
 			}
 		}
 	}
+
+	// 1) OPAQUE PASS: depth test ON, depth writes ON, blending OFF
+	glDisable(GL_BLEND);
+	glDepthMask(GL_TRUE);
+
+	for (int id : opaqueIds)
+	{
+		if (auto* mesh = _meshStore.at(id))
+		{
+			mesh->setProg(prog);
+			mesh->render();             // render must NOT disable depth writes here
+		}
+	}
+
+	// 2) TRANSPARENT PASS: depth test ON, depth writes OFF, blending ON
+	//    sort BACK-TO-FRONT (farthest first)
+	std::sort(transparent.begin(), transparent.end(),
+		[](const auto& a, const auto& b) { return a.first > b.first; });
+
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	glDepthMask(GL_TRUE);
+
+	for (auto& it : transparent)
+	{
+		if (auto* mesh = _meshStore.at(it.second))
+		{
+			mesh->setProg(prog);
+			mesh->render();             // render must preserve writes-off for this pass
+		}
+	}
+
+	// restore baseline
+	glDepthMask(GL_TRUE);
+	glDisable(GL_BLEND);
 }
+
 
 void GLWidget::drawSectionCapping()
 {
@@ -3860,6 +3862,16 @@ void GLWidget::bindIBLTextures()
 void GLWidget::render(GLCamera* camera)
 {
 	glEnable(GL_DEPTH_TEST);
+
+	glDisable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glDisable(GL_CULL_FACE);
+	glFrontFace(GL_CCW);
+	glDisable(GL_POLYGON_OFFSET_FILL);
+	glDepthMask(GL_TRUE);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glStencilMask(0xFF);
+	glDisable(GL_STENCIL_TEST);
 
 	_viewMatrix.setToIdentity();
 	_viewMatrix = camera->getViewMatrix();

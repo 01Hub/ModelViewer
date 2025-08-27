@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>646</width>
+    <width>699</width>
     <height>714</height>
    </rect>
   </property>
@@ -52,7 +52,7 @@
         <x>0</x>
         <y>0</y>
         <width>396</width>
-        <height>1512</height>
+        <height>1518</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="vboxLeft">
@@ -774,17 +774,11 @@
                <number>0</number>
               </property>
               <item>
-               <spacer name="spOpacity">
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
+               <widget class="QCheckBox" name="invertOpacityCheck">
+                <property name="text">
+                 <string>Invert</string>
                 </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>10</width>
-                  <height>10</height>
-                 </size>
-                </property>
-               </spacer>
+               </widget>
               </item>
               <item>
                <widget class="QToolButton" name="gearOpacity">
@@ -2030,14 +2024,6 @@ Normal</string>
      <zorder>sliderExposure</zorder>
      <zorder>comboBoxTexMode</zorder>
      <zorder>pushButtonApply</zorder>
-     <zorder>tintStrengthSpin</zorder>
-     <zorder>label</zorder>
-     <zorder>tintModeCombo</zorder>
-     <zorder>label_2</zorder>
-     <zorder>label_3</zorder>
-     <zorder>grayEpsSpin</zorder>
-     <zorder>maskChannelCombo</zorder>
-     <zorder>label_4</zorder>
     </widget>
    </item>
   </layout>

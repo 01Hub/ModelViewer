@@ -77,11 +77,23 @@ void AssImpMesh::render()
 	// Set render state efficiently
 	setRenderStateOptimized();
 	
+	// Transparent draws must NOT write depth, but should still depth-test.
+	const bool isTransparent =
+		(_material.opacity() < 0.999f) ||
+		_hasOpacityADSMap || _hasOpacityPBRMap ||
+		(_material.blendMode() == GLMaterial::BlendMode::Alpha);
+
+	GLboolean prevDepthMask = GL_TRUE;
+	glGetBooleanv(GL_DEPTH_WRITEMASK, &prevDepthMask);
+	if (isTransparent) glDepthMask(GL_FALSE);
+
 	_vertexArrayObject.bind();
-	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
+	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, nullptr);
 	_vertexArrayObject.release();
+
+	if (isTransparent) glDepthMask(prevDepthMask); // restore immediately
+
 	_prog->release();
-	glDisable(GL_BLEND);
 	
 }
 
@@ -386,43 +398,48 @@ void AssImpMesh::bindTexturesOptimized()
 
 void AssImpMesh::setRenderStateOptimized()
 {
-	// Handle blending efficiently
-	// Account for opacity if transmission is enabled
-	bool needsBlending = (
-		_material.opacity() < 1.0f ||
+	// Decide if this mesh wants blending (same rule you use for sorting)
+	const bool wantsBlend =
+		(_material.opacity() < 0.999f) ||
 		_hasOpacityADSMap || _hasOpacityPBRMap ||
-		_material.blendMode() == GLMaterial::BlendMode::Alpha
-		);
-	if (needsBlending != _currentBlendEnabled)
-	{
-		if (needsBlending)
-		{
-			glEnable(GL_BLEND);
-			glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);	
-		}
-		else
-		{
-			glDisable(GL_BLEND);
-		}
-		_currentBlendEnabled = needsBlending;
-	}
+		(_material.blendMode() == GLMaterial::BlendMode::Alpha ||
+			_hasTextureAlpha);
 
-	// Handle face culling efficiently
-	GLenum frontFace = GL_CCW; // Default
+	// Flip GL_BLEND only when the state changes (cache stays in sync)
+	//if (wantsBlend != _currentBlendEnabled)
+	//{
+	//	if (wantsBlend)
+	//	{
+	//		glEnable(GL_BLEND);
+	//		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
+	//			GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 
-	// Calculate front face based on negative scaling
-	int negativeScales = (_scaleX < 0 ? 1 : 0) + (_scaleY < 0 ? 1 : 0) + (_scaleZ < 0 ? 1 : 0);
-	if (negativeScales == 1 || negativeScales == 3)
-	{
-		frontFace = GL_CW;
-	}
+	//		// Never enable smoothing for filled geom; it conflicts with depth+blend
+	//		glDisable(GL_POLYGON_SMOOTH);
+	//		glDisable(GL_LINE_SMOOTH);
+	//		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+	//	}
+	//	else
+	//	{
+	//		glDisable(GL_BLEND);
+	//		glDisable(GL_POLYGON_SMOOTH);
+	//		glDisable(GL_LINE_SMOOTH);
+	//		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+	//	}
+	//	_currentBlendEnabled = wantsBlend;
+	//}
 
+	// Front face correction (as you had)
+	GLenum frontFace = GL_CCW;
+	const int neg = (_scaleX < 0) + (_scaleY < 0) + (_scaleZ < 0);
+	if (neg == 1 || neg == 3) frontFace = GL_CW;
 	if (frontFace != _currentFrontFace)
 	{
 		glFrontFace(frontFace);
 		_currentFrontFace = frontFace;
 	}
 }
+
 
 void AssImpMesh::setupUniformsOptimized()
 {
@@ -860,6 +877,16 @@ void AssImpMesh::setTextureMaps(const GLMaterial& material)
 	{
 		_hasClearcoatNormalPBRMap = true;
 		setClearcoatNormalPBRMap(material.clearcoatNormalTextureId());
+	}
+	if (material.isOpacityMapInverted())
+	{
+		_opacityPBRMapInverted = true;
+		_opacityADSMapInverted = true;
+	}
+	else
+	{
+		_opacityPBRMapInverted = false;
+		_opacityADSMapInverted = false;
 	}
 	_material = material;
 }

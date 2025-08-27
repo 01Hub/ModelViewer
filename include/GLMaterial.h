@@ -189,6 +189,9 @@ public:
 	void clearAlbedoMap();
 	bool hasAlbedoMap() const { return !albedoMapPath().isEmpty(); }	
 
+	void setHasTextureAlpha(bool hasAlpha) { _hasTextureAlpha = hasAlpha; }
+	bool hasTextureAlpha() const { return _hasTextureAlpha; } // Check if any assigned texture has alpha channel
+
 	QString normalMapPath() const;
 	void setNormalMap(const QString& path);
 	void clearNormalMap();
@@ -218,6 +221,8 @@ public:
 	void setOpacityMap(const QString& path);
 	void clearOpacityMap();
 	bool hasOpacityMap() const { return !opacityMapPath().isEmpty(); }
+	void setInvertOpacityMap(bool invert) { _invertOpacityTexture = invert; }
+	bool isOpacityMapInverted() const { return _invertOpacityTexture; }
 		
 	QString heightMapPath() const;
 	void setHeightMap(const QString& path);
@@ -489,6 +494,8 @@ private:
 	bool _wireframe;
 	float _alphaThreshold = 0.5f; // For masked blend mode
 
+	bool _hasTextureAlpha = false; // Whether the albedo texture has an alpha channel
+
 	// Texture IDs (managed externally)
 	int _albedoTextureId = 0;
 	int _metallicTextureId = 0;
@@ -505,6 +512,8 @@ private:
 	int _clearcoatNormalTextureId = 0;
 	int _iorTextureId = 0;
 	int _transmissionTextureId = 0;
+
+	bool _invertOpacityTexture = false;
 
 	// Texture coordinate sets
 	int _albedoTexCoord;
