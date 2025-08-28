@@ -425,6 +425,7 @@ void MaterialPreviewWidget::paintGL()
 	const bool hasAO = _currentMaterial.occlusionTextureId() != 0;
 	const bool hasHeight = _currentMaterial.heightTextureId() != 0; // needs TBN for parallax
 	const bool hasOpacity = _currentMaterial.opacityTextureId() != 0;
+	const bool opacityInverted = _currentMaterial.isOpacityMapInverted();
 	const bool hasEmissive = _currentMaterial.emissiveTextureId() != 0;
 	const bool hasSheenCol = _currentMaterial.sheenColorTextureId() != 0;
 	const bool hasSheenRough = _currentMaterial.sheenRoughnessTextureId() != 0;
@@ -441,6 +442,7 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("uUseAOMap", hasAO);
 	_shader->setUniformValue("uUseHeightMap", hasHeight);      // keep OFF unless you add tangents
 	_shader->setUniformValue("uUseOpacityMap", hasOpacity);
+	_shader->setUniformValue("uOpacityInverted", opacityInverted);
 	_shader->setUniformValue("uUseEmissiveMap", hasEmissive);
 	_shader->setUniformValue("uUseSheenColorMap", hasSheenCol);
 	_shader->setUniformValue("uUseSheenRoughnessMap", hasSheenRough);

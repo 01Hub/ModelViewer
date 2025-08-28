@@ -79,6 +79,7 @@ uniform bool uUseMetalnessMap;
 uniform bool uUseRoughnessMap;
 uniform bool uUseNormalMap;
 uniform bool uUseOpacityMap;
+uniform bool uOpacityInverted;
 uniform bool uUseAOMap;
 uniform bool uUseEmissiveMap;
 uniform bool uUseHeightMap;     // NEW
@@ -222,6 +223,7 @@ void main()
     roughness = clamp(roughness, 0.01, 1.0);
 
     float opacity   = uUseOpacityMap   ? texture(uOpacityMap,   uv).r   : uOpacity;
+    if(uOpacityInverted) opacity = 1 - opacity;
     opacity = clamp(opacity, 0.0, 1.0);
 
     float ao        = uUseAOMap        ? texture(uAOMap,        uv).r   : 1.0;
