@@ -52,7 +52,7 @@ float gaussianKernel[9] = float[](
     0.05, 0.09, 0.12, 0.15, 0.18, 0.15, 0.12, 0.09, 0.05
 );
 
-uniform float u_floorAlpha = 0.9;
+uniform float u_floorAlpha = 0.95;
 uniform float u_floorSpecularScale  = 0.6;  // scale specular on floor [0..1]
 uniform float u_floorFresnelDampen  = 0.5;  // how much to dampen spec at normal incidence [0..1]
 
@@ -598,28 +598,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
         return vec4(floorRGB, fa);
     }
 
-
-    // --- Blend mode resolution ---
-    float finalAlpha;
-    vec3 composed;
-
-    /*if (blendMode == 0) {                // OPAQUE
-        finalAlpha = 1.0;
-        composed   = baseNoSpec + specOnly;
-    }
-    else if (blendMode == 1) {           // MASK
-        float cutAlpha = hasDiffuseTexture ? texAlpha : combinedAlpha;
-        if (cutAlpha < alphaThreshold) discard;
-        finalAlpha = 1.0;
-        composed   = baseNoSpec + specOnly;
-    }
-    else {                               // BLEND
-        finalAlpha = combinedAlpha;
-        composed   = baseNoSpec * finalAlpha + specOnly; // specular preserved
-    }*/
-
-
-    // override transparency
+    vec3 composed;   
     composed   = baseNoSpec + specOnly;
 
     // --- Tone/gamma ---
@@ -822,32 +801,6 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     vec3 baseNoSpec_L = emissive_L + ambient_L + directDiffuse_L + transmission_L + sheen_L;
     vec3 specOnly_L   = directSpecular_L; // (spec IBL already inside 'ambient_L')
 
-    // --- PER-PIXEL ALPHA (opacity map wins over albedo A)
-    /*float albedoA  = hasAlbedoMap ? texture(albedoMap, clippedTexCoord).a : 1.0;
-    float srcAlpha = albedoA;
-    if (hasOpacityMap) {
-        float om = texture(opacityMap, clippedTexCoord).r;
-        srcAlpha = opacityMapInverted ? (1.0 - om) : om;
-    }
-
-    float finalAlpha;
-    vec3  composed_L;
-
-    if (blendMode == 0) {                    // OPAQUE
-        finalAlpha = 1.0;
-        composed_L = baseNoSpec_L + specOnly_L;               // no PMA for opaque
-    }
-    else if (blendMode == 1) {               // MASK (cutout)
-        if (srcAlpha < alphaThreshold) discard;
-        finalAlpha = 1.0;
-        composed_L = baseNoSpec_L + specOnly_L;               // no PMA for cutout
-    }
-    else {                                   // BLEND (true translucency)
-        finalAlpha = clamp(opacity * srcAlpha, 0.0, 1.0);
-        // Selective PMA: premultiply only non-specular energy; keep specular strong
-        composed_L = baseNoSpec_L * finalAlpha + specOnly_L;  // spec preserved
-    }*/
-
     // --- Floor override (non-reflected) ---
     if (floorRendering && !isReflectedPass) {
         float fa = clamp(u_floorAlpha, 0.0, 1.0);
@@ -862,7 +815,6 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         if (gammaCorrection) floorRGB_L = pow(floorRGB_L, vec3(1.0 / screenGamma));
         return vec4(floorRGB_L, fa);
     }
-
 
     vec3 outRGB = baseNoSpec_L + specOnly_L; // override opacity
 
