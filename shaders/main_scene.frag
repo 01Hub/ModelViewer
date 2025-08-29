@@ -16,12 +16,12 @@ in vec3 g_tangentViewPos;
 in vec3 g_tangentFragPos;
 
 in GS_OUT_SHADOW {
-    vec3 FragPos;
-    vec3 Normal;
-    vec2 TexCoords;
-    vec4 FragPosLightSpace;
-    vec3 cameraPos;
-    vec3 lightPos;
+	vec3 FragPos;
+	vec3 Normal;
+	vec2 TexCoords;
+	vec4 FragPosLightSpace;
+	vec3 cameraPos;
+	vec3 lightPos;
 } fs_in_shadow;
 
 uniform float opacity;
@@ -47,10 +47,10 @@ uniform samplerCube envMap;
 uniform sampler2D shadowMap;
 uniform float shadowSoftness; // Adjustable softness factor
 uniform float lightFarPlane; // Far plane of the light's perspective
-// Gaussian weights for a 9x9 kernel
+			     // Gaussian weights for a 9x9 kernel
 float gaussianKernel[9] = float[](
-    0.05, 0.09, 0.12, 0.15, 0.18, 0.15, 0.12, 0.09, 0.05
-);
+		0.05, 0.09, 0.12, 0.15, 0.18, 0.15, 0.12, 0.09, 0.05
+		);
 
 uniform float u_floorAlpha = 0.95;
 uniform float u_floorSpecularScale  = 0.6;  // scale specular on floor [0..1]
@@ -130,49 +130,49 @@ uniform bool isReflectedPass;
 
 struct LineInfo
 {
-    float Width;
-    vec4 Color;
+	float Width;
+	vec4 Color;
 };
 
 uniform LineInfo Line;
 
 struct LightSource
 {
-    vec3 ambient;
-    vec3 diffuse;
-    vec3 specular;
-    vec3 position;
+	vec3 ambient;
+	vec3 diffuse;
+	vec3 specular;
+	vec3 position;
 };
 uniform LightSource lightSource;
 
 struct LightModel
 {
-    vec3 ambient;
+	vec3 ambient;
 };
 uniform LightModel lightModel;
 
 struct Material {
-    vec3  emission;
-    vec3  ambient;
-    vec3  diffuse;
-    vec3  specular;
-    float shininess;
-    bool  metallic;
+	vec3  emission;
+	vec3  ambient;
+	vec3  diffuse;
+	vec3  specular;
+	float shininess;
+	bool  metallic;
 };
 uniform Material material;
 
 struct PBRLighting {
-    vec3 albedo;
-    float metallic;
-    float roughness;
-    float ambientOcclusion;
-    // Advanced PBR Properties
-    float transmission;
-    float ior;
-    vec3 sheenColor;
-    float sheenRoughness;
-    float clearcoat;
-    float clearcoatRoughness;
+	vec3 albedo;
+	float metallic;
+	float roughness;
+	float ambientOcclusion;
+	// Advanced PBR Properties
+	float transmission;
+	float ior;
+	vec3 sheenColor;
+	float sheenRoughness;
+	float clearcoat;
+	float clearcoatRoughness;
 };
 uniform PBRLighting pbrLighting;
 
@@ -220,11 +220,11 @@ vec3 linearToSrgb(vec3 c);
 float saturationSRGB(vec3 c);
 float readMaskChannel(vec4 texel, int channel);
 vec3 computeBaseColor(vec2 uv,
-                      vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
-                      sampler2D albedoTex,
-                      bool hasAlbedoTex,
-                      vec3 vertexColor_sRGB,    // pass v_color.rgb if you use it
-                      bool useVertexColor);
+		vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
+		sampler2D albedoTex,
+		bool hasAlbedoTex,
+		vec3 vertexColor_sRGB,    // pass v_color.rgb if you use it
+		bool useVertexColor);
 
 float floorRadius = u_floorSize * 0.5; // Adjust radius based on floor size
 float fadeStart = floorRadius * 0.65;   // Start fading 
@@ -233,381 +233,386 @@ float fadeEnd = floorRadius * 1.025;     // Fully faded
 
 void main()
 {
-    vec4 v_color_front;
-    vec4 v_color_back;
-    vec4 v_color;
+	vec4 v_color_front;
+	vec4 v_color_back;
+	vec4 v_color;
 
-    if (isReflectedPass) 
-    {
-        float distance = length(g_position - u_screenCenter);        
-        if (distance > fadeStart)
-            discard;        
-    }
+	if (isReflectedPass) 
+	{
+		float distance = length(g_position - u_screenCenter);        
+		if (distance > fadeStart)
+			discard;        
+	}
 
-    if(renderingMode == 0)
-    {
-        v_color_front = shadeBlinnPhong(lightSource, lightModel, material, g_position, g_normal);
-        v_color_back  = shadeBlinnPhong(lightSource, lightModel, material, g_position, -g_normal);
-    }
-    else
-    {
-        v_color_front = calculatePBRLighting(renderingMode, 1.0f);
-        v_color_back  = calculatePBRLighting(renderingMode, -1.0f);
-    }
+	if(renderingMode == 0)
+	{
+		v_color_front = shadeBlinnPhong(lightSource, lightModel, material, g_position, g_normal);
+		v_color_back  = shadeBlinnPhong(lightSource, lightModel, material, g_position, -g_normal);
+	}
+	else
+	{
+		v_color_front = calculatePBRLighting(renderingMode, 1.0f);
+		v_color_back  = calculatePBRLighting(renderingMode, -1.0f);
+	}
 
-    if( gl_FrontFacing )
-    {
-        v_color = v_color_front;
-    }
-    else
-    {
-        if(sectionActive)
-            v_color = v_color_back + 0.15f;
-        else
-            v_color = v_color_back;
-    }
+	if( gl_FrontFacing )
+	{
+		v_color = v_color_front;
+	}
+	else
+	{
+		if(sectionActive)
+			v_color = v_color_back + 0.15f;
+		else
+			v_color = v_color_back;
+	}
 
-    float mixVal; // overlay line
-    if(displayMode == 0 || displayMode == 3) // shaded
-    {
-        if(texEnabled == true)
-            fragColor = v_color * texture2D(texUnit, g_texCoord2d);
-        else
-            fragColor = v_color;
-    }
-    else if(displayMode == 1) // wireframe
-    {
-        fragColor = vec4(v_color.rgb, 0.75f);
-    }
-    else // wireshaded
-    {
-        // Find the smallest distance
-        float d = min(g_edgeDistance.x, g_edgeDistance.y);
-        d = min(d, g_edgeDistance.z);
+	float mixVal; // overlay line
+	if(displayMode == 0 || displayMode == 3) // shaded
+	{
+		if(texEnabled == true)
+			fragColor = v_color * texture2D(texUnit, g_texCoord2d);
+		else
+			fragColor = v_color;
+	}
+	else if(displayMode == 1) // wireframe
+	{
+		fragColor = vec4(v_color.rgb, 0.75f);
+	}
+	else // wireshaded
+	{
+		// Find the smallest distance
+		float d = min(g_edgeDistance.x, g_edgeDistance.y);
+		d = min(d, g_edgeDistance.z);
 
-        if (d < Line.Width - 1.0f) {
-            mixVal = 1.0f;
-        } else if (d > Line.Width + 1.0f) {
-            mixVal = 0.0f;
-        } else {
-            float x = d - (Line.Width - 1.0f);
-            mixVal = exp2(-2.0f * (x * x));
-        }
+		if (d < Line.Width - 1.0f) {
+			mixVal = 1.0f;
+		} else if (d > Line.Width + 1.0f) {
+			mixVal = 0.0f;
+		} else {
+			float x = d - (Line.Width - 1.0f);
+			mixVal = exp2(-2.0f * (x * x));
+		}
 
-        if (texEnabled == true)
-            v_color *= texture2D(texUnit, g_texCoord2d);
+		if (texEnabled == true)
+			v_color *= texture2D(texUnit, g_texCoord2d);
 
-        // Adaptive overlay color based on base diffuse
-        vec3 baseColor = material.diffuse;
-        float brightness = dot(baseColor, vec3(0.2126, 0.7152, 0.0722));
+		// Adaptive overlay color based on base diffuse
+		vec3 baseColor = material.diffuse;
+		float brightness = dot(baseColor, vec3(0.2126, 0.7152, 0.0722));
 
-        vec3 overlayColor;
-        if (brightness < 0.2) {
-            overlayColor = baseColor + vec3(0.6); // brighten dark
-        } else if (brightness > 0.8) {
-            overlayColor = baseColor * 0.3; // darken bright
-        } else {
-            overlayColor = brightness > 0.5 ? baseColor * 0.5 : baseColor + vec3(0.4);
-        }
-        overlayColor = clamp(overlayColor, 0.0, 1.0);
+		vec3 overlayColor;
+		if (brightness < 0.2) {
+			overlayColor = baseColor + vec3(0.6); // brighten dark
+		} else if (brightness > 0.8) {
+			overlayColor = baseColor * 0.3; // darken bright
+		} else {
+			overlayColor = brightness > 0.5 ? baseColor * 0.5 : baseColor + vec3(0.4);
+		}
+		overlayColor = clamp(overlayColor, 0.0, 1.0);
 
-        fragColor = mix(v_color, vec4(overlayColor, 1.0), mixVal);
-    }
+		fragColor = mix(v_color, vec4(overlayColor, 1.0), mixVal);
+	}
 
-    // UNIFIED BLEND MODE AWARE OPACITY CALCULATION
-    // Works for both ADS and PBR pipelines with dynamic texture availability
-    // Skip for floor rendering - it handles its own alpha
-    float finalAlpha = fragColor.a; // Start with whatever alpha the rendering functions set
+	// UNIFIED BLEND MODE AWARE OPACITY CALCULATION
+	// Works for both ADS and PBR pipelines with dynamic texture availability
+	// Skip for floor rendering - it handles its own alpha
+	float finalAlpha = fragColor.a; // Start with whatever alpha the rendering functions set
 
-    if (!floorRendering) {
-        // Handle blend modes properly
-        if(blendMode == 0) {
-            // OPAQUE: Force alpha to 1.0, ignore all opacity settings
-            finalAlpha = 1.0;
-        } else if(blendMode == 1) {
-            // MASK: Alpha test cutout - calculate alpha for testing
-            float testAlpha = opacity;
-        
-            // Apply texture alpha based on what's available
-            // Priority: dedicated opacity map > albedo/diffuse alpha
-            if(hasOpacityMap) {
-                // Use dedicated opacity map if available
-                float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
-                if(opacityMapInverted) opacityMapValue = 1.0 - opacityMapValue;
-                testAlpha *= opacityMapValue;
-            } else {
-                // Fall back to texture alpha if no dedicated opacity map
-                if(renderingMode == 0) {
-                    // ADS mode: check for diffuse texture alpha
-                    if(hasDiffuseTexture) {
-                        vec4 diffuseSample = texture(texture_diffuse, g_texCoord2d);
-                        // Debug: Ensure we're getting the alpha channel properly
-                        testAlpha *= diffuseSample.a;
-                    }
-                } else {
-                    // PBR mode: check for albedo texture alpha
-                    // In PBR, albedo alpha might not always be for transparency
-                    if(hasAlbedoMap) {
-                        vec4 albedoSample = texture(albedoMap, g_texCoord2d);
-                        // Only use albedo alpha if it's meant for opacity (not roughness/metallic)
-                        testAlpha *= albedoSample.a;
-                    }
-                }
-            }
-        
-            // Perform alpha test
-            if(testAlpha < alphaThreshold) discard;
-            finalAlpha = 1.0; // Cutout is either fully opaque or discarded
-        } else {
-            // BLEND: True alpha blending - calculate final alpha
-            finalAlpha = opacity;
-        
-            // Apply texture alpha based on what's available
-            // If both opacity map and texture alpha exist, multiply them
-            if(hasOpacityMap) {
-                float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
-                if(opacityMapInverted) opacityMapValue = 1.0 - opacityMapValue;
-                finalAlpha *= opacityMapValue;
-            }
-        
-            // Apply texture alpha (this can work alongside opacity map)
-            if(renderingMode == 0) {
-                // ADS mode: check for diffuse texture alpha
-                if(hasDiffuseTexture) {
-                    vec4 diffuseSample = texture(texture_diffuse, g_texCoord2d);
-                    // Ensure we sample the full texture for proper alpha gradient
-                    finalAlpha *= diffuseSample.a;
-                }
-            } else {
-                // PBR mode: check for albedo texture alpha
-                if(hasAlbedoMap) {
-                    vec4 albedoSample = texture(albedoMap, g_texCoord2d);
-                    // PBR Issue: Make sure albedo alpha is actually for opacity
-                    // In many PBR workflows, alpha serves other purposes
-                    finalAlpha *= albedoSample.a;
-                }
-            }
-        
-            finalAlpha = clamp(finalAlpha, 0.0, 1.0);
-        }
-    }
+	if (!floorRendering) {
+		// Handle blend modes properly
+		if(blendMode == 0) {
+			// OPAQUE: Force alpha to 1.0, ignore all opacity settings
+			finalAlpha = 1.0;
+		} else if(blendMode == 1) {
+			// MASK: Alpha test cutout - calculate alpha for testing
+			float testAlpha = opacity;
 
-    // Apply the final alpha (outside floorRendering block)
-    fragColor.a = finalAlpha;
+			// Apply texture alpha based on what's available
+			// Priority: dedicated opacity map > albedo/diffuse alpha
+			if(hasOpacityMap) {
+				// Use dedicated opacity map if available
+				float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
+				if(opacityMapInverted) opacityMapValue = 1.0 - opacityMapValue;
+				testAlpha *= opacityMapValue;
+			} else {
+				// Fall back to texture alpha if no dedicated opacity map
+				if(renderingMode == 0) {
+					// ADS mode: check for diffuse texture alpha
+					if(hasDiffuseTexture) {
+						vec4 diffuseSample = texture(texture_diffuse, g_texCoord2d);
+						// Debug: Ensure we're getting the alpha channel properly
+						testAlpha *= diffuseSample.a;
+					}
+				} else {
+					// PBR mode: check for albedo texture alpha
+					// In PBR, albedo alpha might not always be for transparency
+					if(hasAlbedoMap) {
+						vec4 albedoSample = texture(albedoMap, g_texCoord2d);
+						// Only use albedo alpha if it's meant for opacity (not roughness/metallic)
+						testAlpha *= albedoSample.a;
+					}
+				}
+			}
 
-    // Apply environment mapping (outside floorRendering block)
-    if(envMapEnabled && displayMode == 3) {
-        applyEnvironmentMapping(finalAlpha); // Pass the correct alpha
-    }
+			// Perform alpha test
+			if(testAlpha < alphaThreshold) discard;
+			finalAlpha = 1.0; // Cutout is either fully opaque or discarded
+		} else {
+			// BLEND: True alpha blending - calculate final alpha
+			finalAlpha = opacity;
 
-    if (selected) // with glow
-    {
-        // Compute lighting
-        vec3 norm = normalize(gl_FrontFacing ? g_normal : -g_normal);
-        vec3 lightDir = normalize(lightSource.position);
-        float diff = max(dot(norm, lightDir), 0.0);
+			// Apply texture alpha based on what's available
+			// If both opacity map and texture alpha exist, multiply them
+			if(hasOpacityMap) {
+				float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
+				if(opacityMapInverted) opacityMapValue = 1.0 - opacityMapValue;
+				finalAlpha *= opacityMapValue;
+			}
 
-        vec3 viewDir = normalize(cameraPos);
-        vec3 reflectDir = reflect(-lightDir, norm);
-        float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+			// Apply texture alpha (this can work alongside opacity map)
+			if(renderingMode == 0) {
+				// ADS mode: check for diffuse texture alpha
+				if(hasDiffuseTexture) {
+					vec4 diffuseSample = texture(texture_diffuse, g_texCoord2d);
+					// Ensure we sample the full texture for proper alpha gradient
+					finalAlpha *= diffuseSample.a;
+				}
+			} else {
+				// PBR mode: check for albedo texture alpha
+				if(hasAlbedoMap) {
+					vec4 albedoSample = texture(albedoMap, g_texCoord2d);
+					// PBR Issue: Make sure albedo alpha is actually for opacity
+					// In many PBR workflows, alpha serves other purposes
+					finalAlpha *= albedoSample.a;
+				}
+			}
 
-        // Base color from fragColor
-        vec3 baseColor = fragColor.rgb;
+			finalAlpha = clamp(finalAlpha, 0.0, 1.0);
+		}
+	}
 
-        // Lighten the color with lighting + subtle spec
-        vec3 lightened = baseColor + vec3(0.3) * diff + vec3(0.2) * spec + vec3(0.1);
-        lightened = clamp(lightened, 0.0, 1.0);
+	// Apply the final alpha (outside floorRendering block)
+	fragColor.a = finalAlpha;
 
-        // Apply a subtle transparency
-        float alpha = fragColor.a * 0.99;
+	// Premultiply for blending (non-floor; floor path already premultiplies)
+	if (!floorRendering) {
+		fragColor.rgb *= finalAlpha;
+	}
 
-        // Add glow effect
-        vec3 glowColor = lightened * 1.2; // Make the glow a bit brighter
-        glowColor = clamp(glowColor, 0.0, 1.0);
+	// Apply environment mapping (outside floorRendering block)
+	if(envMapEnabled && displayMode == 3) {
+		applyEnvironmentMapping(finalAlpha); // Pass the correct alpha
+	}
 
-        // Mix base color with the glow
-        vec3 finalColor = mix(lightened, glowColor, 0.5); // blend base and glow color
+	if (selected) // with glow
+	{
+		// Compute lighting
+		vec3 norm = normalize(gl_FrontFacing ? g_normal : -g_normal);
+		vec3 lightDir = normalize(lightSource.position);
+		float diff = max(dot(norm, lightDir), 0.0);
 
-        fragColor = vec4(finalColor, alpha);
+		vec3 viewDir = normalize(cameraPos);
+		vec3 reflectDir = reflect(-lightDir, norm);
+		float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
 
-        if (displayMode == 2)
-            fragColor = mix(fragColor, Line.Color, mixVal);
-    }
-     
-    if (floorRendering) 
-    {
-        // Compute distance-based blending factor
-        float distance = length(g_position - u_screenCenter);
-    
-        // Set fade parameters first, before any calculations
-        if (skyBoxEnabled) 
-        {
-            discard; // Skip floor rendering in this pass 
-        }
-    
-        // Early discard for pixels beyond fade range
-        if (distance > fadeEnd)
-            discard;
-    
-        // Calculate fade factor
-        float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
-        if (fadeFactor >= 1.0)
-            discard;
-    
-        // Get background color
-        vec3 backgroundColor;
-      
-        // Interpolate background gradient color
-        //backgroundColor = calculateBackgroundColor();
-        backgroundColor = texture2D(texUnit, g_texCoord2d).rgb;
-        // Blend floor color with the background gradient
-        // View-angle modulation: reduce background mix when looking straight down
-        // NdotV in world (front/back already handled above)
-        vec3 N_main = normalize(gl_FrontFacing ? g_normal : -g_normal);
-        vec3 V_main = normalize(cameraPos - g_position);
-        float NdotV_main = clamp(dot(N_main, V_main), 0.0, 1.0);
+		// Base color from fragColor
+		vec3 baseColor = fragColor.rgb;
 
-        // Original distance-based fade
-        fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
+		// Lighten the color with lighting + subtle spec
+		vec3 lightened = baseColor + vec3(0.3) * diff + vec3(0.2) * spec + vec3(0.1);
+		lightened = clamp(lightened, 0.0, 1.0);
 
-        // Reduce background contribution when NdotV is high (top view).
-        // When looking straight down (NdotV~1), bgMix gets smaller -> floor doesn't wash out.
-        // Reduce background mixing when looking straight down (NdotV ~ 1)
-        float angleMod = mix(1.0, 0.25, NdotV_main); 
-        // at grazing -> 1.0, at top-down -> 0.25
-        float bgMix = fadeFactor * angleMod;
+		// Apply a subtle transparency
+		float alpha = fragColor.a * 0.99;
 
-        // Blend floor color with background gradient
-        fragColor.rgb = mix(fragColor.rgb, backgroundColor, clamp(bgMix, 0.0, 1.0));
-        fragColor.a   *= (1.0 - fadeFactor);
-        
-    } 
+		// Add glow effect
+		vec3 glowColor = lightened * 1.2; // Make the glow a bit brighter
+		glowColor = clamp(glowColor, 0.0, 1.0);
+
+		// Mix base color with the glow
+		vec3 finalColor = mix(lightened, glowColor, 0.5); // blend base and glow color
+
+		fragColor = vec4(finalColor, alpha);
+
+		if (displayMode == 2)
+			fragColor = mix(fragColor, Line.Color, mixVal);
+	}
+
+	if (floorRendering) 
+	{
+		// Compute distance-based blending factor
+		float distance = length(g_position - u_screenCenter);
+
+		// Set fade parameters first, before any calculations
+		if (skyBoxEnabled) 
+		{
+			discard; // Skip floor rendering in this pass 
+		}
+
+		// Early discard for pixels beyond fade range
+		if (distance > fadeEnd)
+			discard;
+
+		// Calculate fade factor
+		float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
+		if (fadeFactor >= 1.0)
+			discard;
+
+		// Get background color
+		vec3 backgroundColor;
+
+		// Interpolate background gradient color
+		//backgroundColor = calculateBackgroundColor();
+		backgroundColor = texture2D(texUnit, g_texCoord2d).rgb;
+		// Blend floor color with the background gradient
+		// View-angle modulation: reduce background mix when looking straight down
+		// NdotV in world (front/back already handled above)
+		vec3 N_main = normalize(gl_FrontFacing ? g_normal : -g_normal);
+		vec3 V_main = normalize(cameraPos - g_position);
+		float NdotV_main = clamp(dot(N_main, V_main), 0.0, 1.0);
+
+		// Original distance-based fade
+		fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
+
+		// Reduce background contribution when NdotV is high (top view).
+		// When looking straight down (NdotV~1), bgMix gets smaller -> floor doesn't wash out.
+		// Reduce background mixing when looking straight down (NdotV ~ 1)
+		float angleMod = mix(1.0, 0.25, NdotV_main); 
+		// at grazing -> 1.0, at top-down -> 0.25
+		float bgMix = fadeFactor * angleMod;
+
+		// Blend floor color with background gradient
+		fragColor.rgb = mix(fragColor.rgb, backgroundColor, clamp(bgMix, 0.0, 1.0));
+		fragColor.a   *= (1.0 - fadeFactor);
+
+	} 
 }
 
 vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
-    vec2 clippedTexCoord = g_texCoord2d;
+	vec2 clippedTexCoord = g_texCoord2d;
 
-    // --- Normal / Parallax (same as before) ---
-    if (hasNormalTexture)
-        normal = calcBumpedNormal(texture_normal, g_texCoord2d);
+	// --- Normal / Parallax (same as before) ---
+	if (hasNormalTexture)
+		normal = calcBumpedNormal(texture_normal, g_texCoord2d);
 
-    if (hasHeightTexture) {
-        vec3 n = normalize(g_normal);
-        vec3 t = normalize(g_tangent - dot(g_tangent, n) * n);
-        vec3 b = normalize(cross(n, t));
-        mat3 TBN = mat3(t, b, n);
+	if (hasHeightTexture) {
+		vec3 n = normalize(g_normal);
+		vec3 t = normalize(g_tangent - dot(g_tangent, n) * n);
+		vec3 b = normalize(cross(n, t));
+		mat3 TBN = mat3(t, b, n);
 
-        vec3 viewDirWorld = normalize(cameraPos - g_position);
-        vec3 viewDirTangent = TBN * viewDirWorld;
-        clippedTexCoord = parallaxMapping(g_texCoord2d, viewDirTangent, texture_height, heightScale);
+		vec3 viewDirWorld = normalize(cameraPos - g_position);
+		vec3 viewDirTangent = TBN * viewDirWorld;
+		clippedTexCoord = parallaxMapping(g_texCoord2d, viewDirTangent, texture_height, heightScale);
 
-        if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
-            clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
-            discard;
+		if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
+				clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
+			discard;
 
-        normal = calcBumpedNormal(texture_normal, clippedTexCoord);
-    }
+		normal = calcBumpedNormal(texture_normal, clippedTexCoord);
+	}
 
-    // --- Lighting vectors ---
-    vec3 lightDir, viewDir;
-    if (lockLightAndCamera) {
-        lightDir = source.position;
-        viewDir  = vec3(0);
-    } else {
-        lightDir = source.position + cameraPos;
-        viewDir  = cameraPos;
-    }
+	// --- Lighting vectors ---
+	vec3 lightDir, viewDir;
+	if (lockLightAndCamera) {
+		lightDir = source.position;
+		viewDir  = vec3(0);
+	} else {
+		lightDir = source.position + cameraPos;
+		viewDir  = cameraPos;
+	}
 
-    vec3 halfVector = normalize(lightDir + viewDir);
-    float nDotVP    = max(dot(normal, normalize(lightDir + viewDir)), 0.0);
-    float nDotHV    = max(0.0, dot(normal, halfVector));
-    float pf        = pow(nDotHV, mat.shininess);
+	vec3 halfVector = normalize(lightDir + viewDir);
+	float nDotVP    = max(dot(normal, normalize(lightDir + viewDir)), 0.0);
+	float nDotHV    = max(0.0, dot(normal, halfVector));
+	float pf        = pow(nDotHV, mat.shininess);
 
-    // --- Material terms ---
-    vec3 matAmbient  = mat.ambient;
-    vec3 matDiffuse  = mat.diffuse * nDotVP;
-    vec3 matSpecular = mat.specular * pf;
-    vec3 matEmissive = mat.emission;
+	// --- Material terms ---
+	vec3 matAmbient  = mat.ambient;
+	vec3 matDiffuse  = mat.diffuse * nDotVP;
+	vec3 matSpecular = mat.specular * pf;
+	vec3 matEmissive = mat.emission;
 
-    if (hasDiffuseTexture) {
-        vec4 d = texture(texture_diffuse, clippedTexCoord);
-        matAmbient = d.rgb;
-        matDiffuse = d.rgb * nDotVP;
-    }
-    if (hasSpecularTexture)
-        matSpecular = texture(texture_specular, clippedTexCoord).rgb * pf;
-    if (hasEmissiveTexture)
-        matEmissive = texture(texture_emissive, clippedTexCoord).rgb;
+	if (hasDiffuseTexture) {
+		vec4 d = texture(texture_diffuse, clippedTexCoord);
+		matAmbient = d.rgb;
+		matDiffuse = d.rgb * nDotVP;
+	}
+	if (hasSpecularTexture)
+		matSpecular = texture(texture_specular, clippedTexCoord).rgb * pf;
+	if (hasEmissiveTexture)
+		matEmissive = texture(texture_emissive, clippedTexCoord).rgb;
 
-    // --- Alpha (diffuse alpha * opacity map * uniform) ---
-    float texAlpha = hasDiffuseTexture ? texture(texture_diffuse, clippedTexCoord).a : 1.0;
-    float mapAlpha = 1.0;
-    if (hasOpacityTexture) {
-        float om = texture(texture_opacity, clippedTexCoord).r;
-        mapAlpha = opacityTextureInverted ? (1.0 - om) : om;
-    }
-    float combinedAlpha = opacity * texAlpha * mapAlpha;
-    combinedAlpha = clamp(combinedAlpha, 0.0, 1.0);
+	// --- Alpha (diffuse alpha * opacity map * uniform) ---
+	float texAlpha = hasDiffuseTexture ? texture(texture_diffuse, clippedTexCoord).a : 1.0;
+	float mapAlpha = 1.0;
+	if (hasOpacityTexture) {
+		float om = texture(texture_opacity, clippedTexCoord).r;
+		mapAlpha = opacityTextureInverted ? (1.0 - om) : om;
+	}
+	float combinedAlpha = opacity * texAlpha * mapAlpha;
+	combinedAlpha = clamp(combinedAlpha, 0.0, 1.0);
 
-    // --- Build lighting buckets ---
-    vec3 ambient = source.ambient * matAmbient * model.ambient;
-    vec3 diffuse = source.diffuse * matDiffuse;
-    vec3 specular = source.specular * matSpecular;
+	// --- Build lighting buckets ---
+	vec3 ambient = source.ambient * matAmbient * model.ambient;
+	vec3 diffuse = source.diffuse * matDiffuse;
+	vec3 specular = source.specular * matSpecular;
 
-    vec3 baseNoSpec, specOnly;
-    vec3 sceneColor = matEmissive + ambient;
+	vec3 baseNoSpec, specOnly;
+	vec3 sceneColor = matEmissive + ambient;
 
-    if (shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering)) {
-        float shadowFactor = calculateShadowVariableKernel(
-            fs_in_shadow.FragPosLightSpace,
-            fs_in_shadow.FragPos,
-            fs_in_shadow.lightPos
-        );
-        shadowFactor = clamp(shadowFactor, 0.0, 0.7);
-        float lightFactor = 1.0 - shadowFactor;
+	if (shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering)) {
+		float shadowFactor = calculateShadowVariableKernel(
+				fs_in_shadow.FragPosLightSpace,
+				fs_in_shadow.FragPos,
+				fs_in_shadow.lightPos
+				);
+		shadowFactor = clamp(shadowFactor, 0.0, 0.7);
+		float lightFactor = 1.0 - shadowFactor;
 
-        vec3 ambientContrib = ambient * 0.6;
-        vec3 directDiffuse  = lightFactor * diffuse;
-        vec3 directSpecular = lightFactor * specular;
+		vec3 ambientContrib = ambient * 0.6;
+		vec3 directDiffuse  = lightFactor * diffuse;
+		vec3 directSpecular = lightFactor * specular;
 
-        baseNoSpec = sceneColor + ambientContrib + directDiffuse;
-        specOnly   = directSpecular;
-    } else {
-        baseNoSpec = sceneColor + diffuse;
-        specOnly   = specular;
-    }
+		baseNoSpec = sceneColor + ambientContrib + directDiffuse;
+		specOnly   = directSpecular;
+	} else {
+		baseNoSpec = sceneColor + diffuse;
+		specOnly   = specular;
+	}
 
-    // --- Floor override (non-reflected) ---
-    // Ensure the floor is actually translucent even if its material is OPAQUE
-    if (floorRendering && !isReflectedPass) {
-        float fa = clamp(u_floorAlpha, 0.0, 1.0);
+	// --- Floor override (non-reflected) ---
+	// Ensure the floor is actually translucent even if its material is OPAQUE
+	if (floorRendering && !isReflectedPass) {
+		float fa = clamp(u_floorAlpha, 0.0, 1.0);
 
-        // View-angle term to avoid “whiteout” when looking straight down
-        vec3 Nf = normalize(gl_FrontFacing ? g_normal : -g_normal);
-        vec3 Vf = normalize(cameraPos - g_position);
-        float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
-        // Fresnel-like dampening of spec when NdotV is high (looking straight down)
-        float fresDampen = mix(1.0 - u_floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
+		// View-angle term to avoid “whiteout” when looking straight down
+		vec3 Nf = normalize(gl_FrontFacing ? g_normal : -g_normal);
+		vec3 Vf = normalize(cameraPos - g_position);
+		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
+		// Fresnel-like dampening of spec when NdotV is high (looking straight down)
+		float fresDampen = mix(1.0 - u_floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
 
-        // Scale specular; keep non-spec premultiplied
-        vec3 floorRGB = baseNoSpec * fa + specOnly * (u_floorSpecularScale * fresDampen);
+		// Scale specular; keep non-spec premultiplied
+		vec3 floorRGB = baseNoSpec * fa + specOnly * (u_floorSpecularScale * fresDampen);
 
-        if (hdrToneMapping) floorRGB = floorRGB / (floorRGB + vec3(1.0));
-        if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
-        return vec4(floorRGB, fa);
-    }
+		if (hdrToneMapping) floorRGB = floorRGB / (floorRGB + vec3(1.0));
+		if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
+		return vec4(floorRGB, fa);
+	}
 
-    vec3 composed;   
-    composed   = baseNoSpec + specOnly;
+	vec3 composed;   
+	composed   = baseNoSpec + specOnly;
 
-    // --- Tone/gamma ---
-    if (hdrToneMapping)
-        composed = composed / (composed + vec3(1.0));
-    if (gammaCorrection)
-        composed = pow(composed, vec3(1.0 / screenGamma));
+	// --- Tone/gamma ---
+	if (hdrToneMapping)
+		composed = composed / (composed + vec3(1.0));
+	if (gammaCorrection)
+		composed = pow(composed, vec3(1.0 / screenGamma));
 
-    return vec4(composed, 1.0);
+	return vec4(composed, 1.0);
 }
 
 
@@ -615,215 +620,215 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 // Calculate PBR lighting based on the render mode
 vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = back
 {
-    vec3 normal = g_normal * side;
+	vec3 normal = g_normal * side;
 
-    vec3  albedo;
-    float metallic;
-    float roughness;
-    float ambientOcclusion;
-    float transmission;
-    float ior;
-    vec3  sheenColor;
-    float sheenRoughness;
-    float clearcoat;
-    float clearcoatRoughness;
-    vec3  clearcoatNormal;
+	vec3  albedo;
+	float metallic;
+	float roughness;
+	float ambientOcclusion;
+	float transmission;
+	float ior;
+	vec3  sheenColor;
+	float sheenRoughness;
+	float clearcoat;
+	float clearcoatRoughness;
+	vec3  clearcoatNormal;
 
-    vec3 N; vec3 V; vec3 L;
+	vec3 N; vec3 V; vec3 L;
 
-    if (lockLightAndCamera) {
-        V = normalize(lightSource.position);
-        L = normalize(lightSource.position);
-    } else {
-        V = normalize(lightSource.position + cameraPos);
-        L = normalize(lightSource.position + cameraPos);
-    }
+	if (lockLightAndCamera) {
+		V = normalize(lightSource.position);
+		L = normalize(lightSource.position);
+	} else {
+		V = normalize(lightSource.position + cameraPos);
+		L = normalize(lightSource.position + cameraPos);
+	}
 
-    vec2 clippedTexCoord = g_texCoord2d;
-    vec4 textureColor = vec4(1.0);
+	vec2 clippedTexCoord = g_texCoord2d;
+	vec4 textureColor = vec4(1.0);
 
-    // --- Material source: uniforms-only (renderMode==1) vs texture-driven (renderMode!=1)
-    if (renderMode == 1) {
-        N                 = normalize(normal);
-        albedo            = pbrLighting.albedo;
-        metallic          = pbrLighting.metallic;
-        roughness         = clamp(pbrLighting.roughness, 0.02, 1.0);
-        ambientOcclusion  = pbrLighting.ambientOcclusion;
-        transmission      = pbrLighting.transmission;
-        ior               = pbrLighting.ior;
-        sheenColor        = pbrLighting.sheenColor;
-        sheenRoughness    = pbrLighting.sheenRoughness;
-        clearcoat         = pbrLighting.clearcoat;
-        clearcoatRoughness= pbrLighting.clearcoatRoughness;
-        clearcoatNormal   = normalize(normal);
-    } else {
-        // Normal map / Parallax
-        if (hasNormalMap)  N = calcBumpedNormal(normalMap, g_texCoord2d) * side;
-        else               N = normalize(normal);
+	// --- Material source: uniforms-only (renderMode==1) vs texture-driven (renderMode!=1)
+	if (renderMode == 1) {
+		N                 = normalize(normal);
+		albedo            = pbrLighting.albedo;
+		metallic          = pbrLighting.metallic;
+		roughness         = clamp(pbrLighting.roughness, 0.02, 1.0);
+		ambientOcclusion  = pbrLighting.ambientOcclusion;
+		transmission      = pbrLighting.transmission;
+		ior               = pbrLighting.ior;
+		sheenColor        = pbrLighting.sheenColor;
+		sheenRoughness    = pbrLighting.sheenRoughness;
+		clearcoat         = pbrLighting.clearcoat;
+		clearcoatRoughness= pbrLighting.clearcoatRoughness;
+		clearcoatNormal   = normalize(normal);
+	} else {
+		// Normal map / Parallax
+		if (hasNormalMap)  N = calcBumpedNormal(normalMap, g_texCoord2d) * side;
+		else               N = normalize(normal);
 
-        if (hasHeightMap) {
-            // TBN for parallax
-            vec3 n = normalize(g_normal);
-            vec3 t = normalize(g_tangent - dot(g_tangent, n) * n);
-            vec3 b = normalize(cross(n, t));
-            mat3 TBN = mat3(t, b, n);
+		if (hasHeightMap) {
+			// TBN for parallax
+			vec3 n = normalize(g_normal);
+			vec3 t = normalize(g_tangent - dot(g_tangent, n) * n);
+			vec3 b = normalize(cross(n, t));
+			mat3 TBN = mat3(t, b, n);
 
-            vec3 viewDirWorld   = normalize(cameraPos - g_position);
-            vec3 viewDirTangent = TBN * viewDirWorld;
+			vec3 viewDirWorld   = normalize(cameraPos - g_position);
+			vec3 viewDirTangent = TBN * viewDirWorld;
 
-            clippedTexCoord = parallaxMapping(g_texCoord2d, viewDirTangent, heightMap, heightScale);
-            if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
-                clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
-                discard;
+			clippedTexCoord = parallaxMapping(g_texCoord2d, viewDirTangent, heightMap, heightScale);
+			if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
+					clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
+				discard;
 
-            N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
-        }
+			N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
+		}
 
-        // Albedo (keep your grayscale-tint logic via computeBaseColor)
-        if (hasAlbedoMap) {
-            textureColor = texture(albedoMap, clippedTexCoord);
-            vec3 texRGB_L = pow(textureColor.rgb, vec3(2.2));
-            float colorDeviation = length(pbrLighting.albedo - vec3(1.0));
-            if (colorDeviation < 0.1) {
-                albedo = texRGB_L;
-            } else {
-                albedo = computeBaseColor(clippedTexCoord,
-                                          pbrLighting.albedo, // sRGB in function; it converts internally
-                                          albedoMap,
-                                          hasAlbedoMap,
-                                          vec3(1.0), false);
-            }
-        } else {
-            albedo = pbrLighting.albedo;
-        }
+		// Albedo (keep your grayscale-tint logic via computeBaseColor)
+		if (hasAlbedoMap) {
+			textureColor = texture(albedoMap, clippedTexCoord);
+			vec3 texRGB_L = pow(textureColor.rgb, vec3(2.2));
+			float colorDeviation = length(pbrLighting.albedo - vec3(1.0));
+			if (colorDeviation < 0.1) {
+				albedo = texRGB_L;
+			} else {
+				albedo = computeBaseColor(clippedTexCoord,
+						pbrLighting.albedo, // sRGB in function; it converts internally
+						albedoMap,
+						hasAlbedoMap,
+						vec3(1.0), false);
+			}
+		} else {
+			albedo = pbrLighting.albedo;
+		}
 
-        metallic   = hasMetallicMap   ? pbrLighting.metallic   * texture(metallicMap,   clippedTexCoord).r : pbrLighting.metallic;
-        roughness  = hasRoughnessMap  ? pbrLighting.roughness  * texture(roughnessMap,  clippedTexCoord).r : pbrLighting.roughness;
-        roughness  = clamp(roughness, 0.02, 1.0);
-        ambientOcclusion = hasAOMap   ? pbrLighting.ambientOcclusion * texture(aoMap, clippedTexCoord).r    : pbrLighting.ambientOcclusion;
-        transmission     = hasTransmissionMap ? pbrLighting.transmission * texture(transmissionMap, clippedTexCoord).r : pbrLighting.transmission;
+		metallic   = hasMetallicMap   ? pbrLighting.metallic   * texture(metallicMap,   clippedTexCoord).r : pbrLighting.metallic;
+		roughness  = hasRoughnessMap  ? pbrLighting.roughness  * texture(roughnessMap,  clippedTexCoord).r : pbrLighting.roughness;
+		roughness  = clamp(roughness, 0.02, 1.0);
+		ambientOcclusion = hasAOMap   ? pbrLighting.ambientOcclusion * texture(aoMap, clippedTexCoord).r    : pbrLighting.ambientOcclusion;
+		transmission     = hasTransmissionMap ? pbrLighting.transmission * texture(transmissionMap, clippedTexCoord).r : pbrLighting.transmission;
 
-        ior = hasIORMap ? mix(1.0, pbrLighting.ior, texture(iorMap, clippedTexCoord).r) : pbrLighting.ior;
+		ior = hasIORMap ? mix(1.0, pbrLighting.ior, texture(iorMap, clippedTexCoord).r) : pbrLighting.ior;
 
-        if (hasSheenColorMap) {
-            vec3 sc = texture(sheenColorMap, clippedTexCoord).rgb;
-            sheenColor = (length(pbrLighting.sheenColor - vec3(1.0)) < 0.1) ? sc : pbrLighting.sheenColor * sc;
-        } else {
-            sheenColor = pbrLighting.sheenColor;
-        }
-        sheenRoughness = hasSheenRoughnessMap ? pbrLighting.sheenRoughness * texture(sheenRoughnessMap, clippedTexCoord).r : pbrLighting.sheenRoughness;
+		if (hasSheenColorMap) {
+			vec3 sc = texture(sheenColorMap, clippedTexCoord).rgb;
+			sheenColor = (length(pbrLighting.sheenColor - vec3(1.0)) < 0.1) ? sc : pbrLighting.sheenColor * sc;
+		} else {
+			sheenColor = pbrLighting.sheenColor;
+		}
+		sheenRoughness = hasSheenRoughnessMap ? pbrLighting.sheenRoughness * texture(sheenRoughnessMap, clippedTexCoord).r : pbrLighting.sheenRoughness;
 
-        clearcoat          = hasClearcoatMap ? pbrLighting.clearcoat * texture(clearcoatMap, clippedTexCoord).r : pbrLighting.clearcoat;
-        clearcoatRoughness = hasClearcoatRoughnessMap ? pbrLighting.clearcoatRoughness * texture(clearcoatRoughnessMap, clippedTexCoord).r : pbrLighting.clearcoatRoughness;
-        clearcoatNormal    = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, clippedTexCoord) * side : N;
-    }
+		clearcoat          = hasClearcoatMap ? pbrLighting.clearcoat * texture(clearcoatMap, clippedTexCoord).r : pbrLighting.clearcoat;
+		clearcoatRoughness = hasClearcoatRoughnessMap ? pbrLighting.clearcoatRoughness * texture(clearcoatRoughnessMap, clippedTexCoord).r : pbrLighting.clearcoatRoughness;
+		clearcoatNormal    = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, clippedTexCoord) * side : N;
+	}
 
-    // --- F0 with metallic + transmission Fresnel
-    vec3 F0 = mix(vec3(0.04), albedo, metallic);
-    if (transmission > 0.0) {
-        float f0_from_ior = pow((ior - 1.0) / (ior + 1.0), 2.0);
-        F0 = mix(F0, vec3(f0_from_ior), transmission);
-    }
-    if (metallic < 0.1) F0 = max(F0, vec3(0.04));
+	// --- F0 with metallic + transmission Fresnel
+	vec3 F0 = mix(vec3(0.04), albedo, metallic);
+	if (transmission > 0.0) {
+		float f0_from_ior = pow((ior - 1.0) / (ior + 1.0), 2.0);
+		F0 = mix(F0, vec3(f0_from_ior), transmission);
+	}
+	if (metallic < 0.1) F0 = max(F0, vec3(0.04));
 
-    // --- Direct BRDF (GGX/Smith/Schlick)
-    vec3 H = normalize(V + L);
-    float NDF = distributionGGX(N, H, roughness);
-    float G   = geometrySmith(N, V, L, roughness);
-    vec3  F   = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
+	// --- Direct BRDF (GGX/Smith/Schlick)
+	vec3 H = normalize(V + L);
+	float NDF = distributionGGX(N, H, roughness);
+	float G   = geometrySmith(N, V, L, roughness);
+	vec3  F   = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
 
-    vec3  specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0), 0.001);
-    specBRDF *= 1.5; // your original visibility boost
+	vec3  specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0), 0.001);
+	specBRDF *= 1.5; // your original visibility boost
 
-    vec3 kS = F;
-    vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
+	vec3 kS = F;
+	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
-    float NdotL = max(dot(N, L), 0.0);
+	float NdotL = max(dot(N, L), 0.0);
 
-    // Optional shadows affecting direct terms (keep your earlier behavior)
-    float lightShadowFactor = 0.0;
-    if (shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering)) {
-        float s = calculateShadowVariableKernel(
-            fs_in_shadow.FragPosLightSpace,
-            fs_in_shadow.FragPos,
-            fs_in_shadow.lightPos
-        );
-        lightShadowFactor = clamp(s, 0.0, 0.85); // a bit stronger on direct light
-    }
-    float lightFactor = 1.0 - lightShadowFactor;
+	// Optional shadows affecting direct terms (keep your earlier behavior)
+	float lightShadowFactor = 0.0;
+	if (shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering)) {
+		float s = calculateShadowVariableKernel(
+				fs_in_shadow.FragPosLightSpace,
+				fs_in_shadow.FragPos,
+				fs_in_shadow.lightPos
+				);
+		lightShadowFactor = clamp(s, 0.0, 0.85); // a bit stronger on direct light
+	}
+	float lightFactor = 1.0 - lightShadowFactor;
 
-    vec3 directDiffuse_L  = kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
-    vec3 directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
+	vec3 directDiffuse_L  = kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
+	vec3 directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
 
-    // --- Extra lobes
-    vec3 transmission_L = (transmission > 0.0) ? calculateTransmission(N, V, L, transmission, ior, albedo) : vec3(0.0);
-    vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(N, V, L, sheenColor, sheenRoughness) : vec3(0.0);
-    vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(clearcoatNormal, V, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
-    // Treat clearcoat as specular-like
-    directSpecular_L += clearcoat_L;
+	// --- Extra lobes
+	vec3 transmission_L = (transmission > 0.0) ? calculateTransmission(N, V, L, transmission, ior, albedo) : vec3(0.0);
+	vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(N, V, L, sheenColor, sheenRoughness) : vec3(0.0);
+	vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(clearcoatNormal, V, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
+	// Treat clearcoat as specular-like
+	directSpecular_L += clearcoat_L;
 
-    // --- IBL (diffuse + specular)        
-    vec3 irradiance = texture(irradianceMap, N).rgb;
-    vec3 diffuseIBL_L = irradiance * albedo;
-    vec3 ambient_L;
+	// --- IBL (diffuse + specular)        
+	vec3 irradiance = texture(irradianceMap, N).rgb;
+	vec3 diffuseIBL_L = irradiance * albedo;
+	vec3 ambient_L;
 
-    if (envMapEnabled) {
-        vec3 Fibl = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
-        vec3 kSibl = Fibl;
-        vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
+	if (envMapEnabled) {
+		vec3 Fibl = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+		vec3 kSibl = Fibl;
+		vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
 
-        vec3 I = normalize(cameraPos - g_reflectionPosition);
-        vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);             
-        R = normalize(R);
+		vec3 I = normalize(cameraPos - g_reflectionPosition);
+		vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);             
+		R = normalize(R);
 
-        float seamBias = 0.25 * (1.0 - roughness);
-        const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
-        vec3 prefilteredColor = textureLod(prefilterMap, R, roughness * MAX_REFLECTION_LOD).rgb;
-        vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
-        vec3 specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
+		float seamBias = 0.25 * (1.0 - roughness);
+		const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
+		vec3 prefilteredColor = textureLod(prefilterMap, R, roughness * MAX_REFLECTION_LOD).rgb;
+		vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+		vec3 specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
 
-        float diffuseAO  = mix(1.0, ambientOcclusion, 0.8);
-        float specularAO = mix(1.0, ambientOcclusion, 0.3);
+		float diffuseAO  = mix(1.0, ambientOcclusion, 0.8);
+		float specularAO = mix(1.0, ambientOcclusion, 0.3);
 
-        ambient_L = (kDibl * diffuseIBL_L) * diffuseAO + specIBL_L * specularAO;
-    } else {
-        vec3 kS0 = fresnelSchlick(max(dot(N, V), 0.0), F0);
-        vec3 kD0 = (vec3(1.0) - kS0) * (1.0 - metallic);
-        float boostedAO = mix(1.0, ambientOcclusion, 0.8);
-        ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
-    }
+		ambient_L = (kDibl * diffuseIBL_L) * diffuseAO + specIBL_L * specularAO;
+	} else {
+		vec3 kS0 = fresnelSchlick(max(dot(N, V), 0.0), F0);
+		vec3 kD0 = (vec3(1.0) - kS0) * (1.0 - metallic);
+		float boostedAO = mix(1.0, ambientOcclusion, 0.8);
+		ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
+	}
 
-    // --- Emission
-    vec3 emissive_L = material.emission;
-    if (hasEmissiveTexture) emissive_L = texture(texture_emissive, clippedTexCoord).rgb;
+	// --- Emission
+	vec3 emissive_L = material.emission;
+	if (hasEmissiveTexture) emissive_L = texture(texture_emissive, clippedTexCoord).rgb;
 
-    // --- Split into "non-specular" bucket vs "specular-only"
-    vec3 baseNoSpec_L = emissive_L + ambient_L + directDiffuse_L + transmission_L + sheen_L;
-    vec3 specOnly_L   = directSpecular_L; // (spec IBL already inside 'ambient_L')
+	// --- Split into "non-specular" bucket vs "specular-only"
+	vec3 baseNoSpec_L = emissive_L + ambient_L + directDiffuse_L + transmission_L + sheen_L;
+	vec3 specOnly_L   = directSpecular_L; // (spec IBL already inside 'ambient_L')
 
-    // --- Floor override (non-reflected) ---
-    if (floorRendering && !isReflectedPass) {
-        float fa = clamp(u_floorAlpha, 0.0, 1.0);
-        vec3 Nf = normalize(gl_FrontFacing ? g_normal : -g_normal);
-        vec3 Vf = normalize(cameraPos - g_position);
-        float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
-        float fresDampen = mix(1.0 - u_floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
+	// --- Floor override (non-reflected) ---
+	if (floorRendering && !isReflectedPass) {
+		float fa = clamp(u_floorAlpha, 0.0, 1.0);
+		vec3 Nf = normalize(gl_FrontFacing ? g_normal : -g_normal);
+		vec3 Vf = normalize(cameraPos - g_position);
+		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
+		float fresDampen = mix(1.0 - u_floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
 
-        vec3 floorRGB_L = baseNoSpec_L * fa + specOnly_L * (u_floorSpecularScale * fresDampen);
+		vec3 floorRGB_L = baseNoSpec_L * fa + specOnly_L * (u_floorSpecularScale * fresDampen);
 
-        if (hdrToneMapping) floorRGB_L = floorRGB_L / (floorRGB_L + vec3(1.0));
-        if (gammaCorrection) floorRGB_L = pow(floorRGB_L, vec3(1.0 / screenGamma));
-        return vec4(floorRGB_L, fa);
-    }
+		if (hdrToneMapping) floorRGB_L = floorRGB_L / (floorRGB_L + vec3(1.0));
+		if (gammaCorrection) floorRGB_L = pow(floorRGB_L, vec3(1.0 / screenGamma));
+		return vec4(floorRGB_L, fa);
+	}
 
-    vec3 outRGB = baseNoSpec_L + specOnly_L; // override opacity
+	vec3 outRGB = baseNoSpec_L + specOnly_L; // override opacity
 
-    // --- Tone map & gamma once, at the end (as in your pipeline)
-    //vec3 outRGB = composed_L;
-    if (hdrToneMapping) outRGB = outRGB / (outRGB + vec3(1.0));
-    if (gammaCorrection) outRGB = pow(outRGB, vec3(1.0 / screenGamma));
+	// --- Tone map & gamma once, at the end (as in your pipeline)
+	//vec3 outRGB = composed_L;
+	if (hdrToneMapping) outRGB = outRGB / (outRGB + vec3(1.0));
+	if (gammaCorrection) outRGB = pow(outRGB, vec3(1.0 / screenGamma));
 
-    return vec4(outRGB, 1.0);
+	return vec4(outRGB, 1.0);
 }
 
 
@@ -833,300 +838,300 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 // IOR-based Fresnel calculation
 vec3 fresnelSchlickIOR(float cosTheta, float ior)
 {
-    float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-    return vec3(f0) + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
+	float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
+	return vec3(f0) + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
 }
 
 // Charlie distribution for sheen (fabric-like materials)
 float distributionCharlie(vec3 N, vec3 H, float roughness)
 {
-    float alpha = roughness * roughness;
-    float invAlpha = 1.0 / alpha;
-    float cos2h = dot(N, H) * dot(N, H);
-    float sin2h = max(1.0 - cos2h, 0.0078125); // 2^(-7), so sin2h is always > 0
-    return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
+	float alpha = roughness * roughness;
+	float invAlpha = 1.0 / alpha;
+	float cos2h = dot(N, H) * dot(N, H);
+	float sin2h = max(1.0 - cos2h, 0.0078125); // 2^(-7), so sin2h is always > 0
+	return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
 }
 
 // Charlie geometry function for sheen
 float geometryCharlie(float NdotV, float roughness)
 {
-    float alpha = roughness * roughness;
-    float sinTheta = sqrt(1.0 - NdotV * NdotV);
-    return NdotV / (NdotV + alpha * sinTheta);
+	float alpha = roughness * roughness;
+	float sinTheta = sqrt(1.0 - NdotV * NdotV);
+	return NdotV / (NdotV + alpha * sinTheta);
 }
 
 // Calculate transmission contribution
 vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo)
 {
-    if(transmission <= 0.0) return vec3(0.0);
+	if(transmission <= 0.0) return vec3(0.0);
 
-    vec3 H = normalize(V + L);
-    float VdotH = clamp(dot(V, H), 0.0, 1.0);
-    float NdotL = clamp(dot(N, L), -1.0, 1.0);
-    float NdotV = clamp(dot(N, V), 0.0, 1.0);
+	vec3 H = normalize(V + L);
+	float VdotH = clamp(dot(V, H), 0.0, 1.0);
+	float NdotL = clamp(dot(N, L), -1.0, 1.0);
+	float NdotV = clamp(dot(N, V), 0.0, 1.0);
 
-    // Calculate proper Fresnel for transmission
-    float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-    float fresnel = f0 + (1.0 - f0) * pow(1.0 - abs(VdotH), 5.0);
-    float transmittance = (1.0 - fresnel) * transmission;
+	// Calculate proper Fresnel for transmission
+	float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
+	float fresnel = f0 + (1.0 - f0) * pow(1.0 - abs(VdotH), 5.0);
+	float transmittance = (1.0 - fresnel) * transmission;
 
-    // Improved transmission with both forward and back scattering
-    float backScatter = max(0.0, -NdotL) * 0.8; // Light from behind
-    float forwardScatter = max(0.0, NdotL) * 0.5; // Light from front (subsurface)
+	// Improved transmission with both forward and back scattering
+	float backScatter = max(0.0, -NdotL) * 0.8; // Light from behind
+	float forwardScatter = max(0.0, NdotL) * 0.5; // Light from front (subsurface)
 
-    // Add thickness approximation (you can make this a uniform)
-    float thickness = 0.1; // Adjust based on model
-    float attenuationFactor = exp(-thickness * (1.0 - transmission));
+	// Add thickness approximation (you can make this a uniform)
+	float thickness = 0.1; // Adjust based on model
+	float attenuationFactor = exp(-thickness * (1.0 - transmission));
 
-    vec3 transmissionColor = albedo * transmittance * attenuationFactor * (backScatter + forwardScatter);
+	vec3 transmissionColor = albedo * transmittance * attenuationFactor * (backScatter + forwardScatter);
 
-    return transmissionColor;
+	return transmissionColor;
 }
 
 // Calculate sheen contribution (for fabric-like materials)
 vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness)
 {
-    vec3 H = normalize(V + L);
-    float NdotL = clamp(dot(N, L), 0.0, 1.0);
-    float NdotV = clamp(dot(N, V), 0.0, 1.0);
-    float NdotH = clamp(dot(N, H), 0.0, 1.0);
-    float VdotH = clamp(dot(V, H), 0.0, 1.0);
+	vec3 H = normalize(V + L);
+	float NdotL = clamp(dot(N, L), 0.0, 1.0);
+	float NdotV = clamp(dot(N, V), 0.0, 1.0);
+	float NdotH = clamp(dot(N, H), 0.0, 1.0);
+	float VdotH = clamp(dot(V, H), 0.0, 1.0);
 
-    // Charlie distribution and geometry
-    float D = distributionCharlie(N, H, sheenRoughness);
-    float G = geometryCharlie(NdotV, sheenRoughness) * geometryCharlie(NdotL, sheenRoughness);
-    
-    // Sheen BRDF
-    vec3 sheenBRDF = sheenColor * D * G / (4.0 * NdotV * NdotL + 0.001);
-    
-    return sheenBRDF * NdotL;
+	// Charlie distribution and geometry
+	float D = distributionCharlie(N, H, sheenRoughness);
+	float G = geometryCharlie(NdotV, sheenRoughness) * geometryCharlie(NdotL, sheenRoughness);
+
+	// Sheen BRDF
+	vec3 sheenBRDF = sheenColor * D * G / (4.0 * NdotV * NdotL + 0.001);
+
+	return sheenBRDF * NdotL;
 }
 
 // Calculate clearcoat contribution
 vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, float clearcoatRoughness, vec3 clearcoatNormal)
 {
-    vec3 H = normalize(V + L);
-    float NdotL = clamp(dot(clearcoatNormal, L), 0.0, 1.0);
-    float NdotV = clamp(dot(clearcoatNormal, V), 0.0, 1.0);
-    float NdotH = clamp(dot(clearcoatNormal, H), 0.0, 1.0);
-    float VdotH = clamp(dot(V, H), 0.0, 1.0);
+	vec3 H = normalize(V + L);
+	float NdotL = clamp(dot(clearcoatNormal, L), 0.0, 1.0);
+	float NdotV = clamp(dot(clearcoatNormal, V), 0.0, 1.0);
+	float NdotH = clamp(dot(clearcoatNormal, H), 0.0, 1.0);
+	float VdotH = clamp(dot(V, H), 0.0, 1.0);
 
-    // Clearcoat uses a fixed IOR of 1.5 (typical for automotive clearcoat)
-    vec3 F0_clearcoat = vec3(0.04); // F0 for IOR 1.5
-    vec3 F = fresnelSchlick(VdotH, F0_clearcoat);
-    
-    float D = distributionGGX(clearcoatNormal, H, clearcoatRoughness);
-    float G = geometrySmith(clearcoatNormal, V, L, clearcoatRoughness);
-    
-    vec3 clearcoatBRDF = (D * G * F) / (4.0 * NdotV * NdotL + 0.001);
-    
-    return clearcoatBRDF * clearcoat * NdotL;
+	// Clearcoat uses a fixed IOR of 1.5 (typical for automotive clearcoat)
+	vec3 F0_clearcoat = vec3(0.04); // F0 for IOR 1.5
+	vec3 F = fresnelSchlick(VdotH, F0_clearcoat);
+
+	float D = distributionGGX(clearcoatNormal, H, clearcoatRoughness);
+	float G = geometrySmith(clearcoatNormal, V, L, clearcoatRoughness);
+
+	vec3 clearcoatBRDF = (D * G * F) / (4.0 * NdotV * NdotL + 0.001);
+
+	return clearcoatBRDF * clearcoat * NdotL;
 }
 
 // ----------------------------------------------------------------------------
 float calculateShadow(vec4 fragPosLightSpace)
 {
-    // perform perspective divide
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    // transform to [0,1] range
-    projCoords = projCoords * 0.5 + 0.5;
-    // get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
-    float closestDepth = texture(shadowMap, projCoords.xy).r;
-    // get depth of current fragment from light's perspective
-    float currentDepth = projCoords.z;
+	// perform perspective divide
+	vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+	// transform to [0,1] range
+	projCoords = projCoords * 0.5 + 0.5;
+	// get closest depth value from light's perspective (using [0,1] range fragPosLight as coords)
+	float closestDepth = texture(shadowMap, projCoords.xy).r;
+	// get depth of current fragment from light's perspective
+	float currentDepth = projCoords.z;
 
-    vec3 normal = normalize(fs_in_shadow.Normal);
-    vec3 lightDir;
-    if(lockLightAndCamera)
-        lightDir = normalize(lightSource.position);
-    else
-        lightDir = normalize(lightSource.position + fs_in_shadow.cameraPos);
-    //float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
-    float bias = clamp(0.005 * tan(acos(dot(normal, lightDir))), 0.005, 0.05);
+	vec3 normal = normalize(fs_in_shadow.Normal);
+	vec3 lightDir;
+	if(lockLightAndCamera)
+		lightDir = normalize(lightSource.position);
+	else
+		lightDir = normalize(lightSource.position + fs_in_shadow.cameraPos);
+	//float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
+	float bias = clamp(0.005 * tan(acos(dot(normal, lightDir))), 0.005, 0.05);
 
-    // PCF - Percentage Closer Filtering
-    float shadow = 0.0;
-    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
-    for(int x = -1; x <= 1; ++x)
-    {
-        for(int y = -1; y <= 1; ++y)
-        {
-            float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
-            shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;
-        }
-    }
+	// PCF - Percentage Closer Filtering
+	float shadow = 0.0;
+	vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+	for(int x = -1; x <= 1; ++x)
+	{
+		for(int y = -1; y <= 1; ++y)
+		{
+			float pcfDepth = texture(shadowMap, projCoords.xy + vec2(x, y) * texelSize).r;
+			shadow += currentDepth - bias > pcfDepth  ? 1.0 : 0.0;
+		}
+	}
 
-    shadow /= shadowSamples;
+	shadow /= shadowSamples;
 
-    // keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
-    if(projCoords.z > 1.0)
-        shadow = 0.0;
+	// keep the shadow at 0.0 when outside the far_plane region of the light's frustum.
+	if(projCoords.z > 1.0)
+		shadow = 0.0;
 
-    return shadow;
+	return shadow;
 }
 
 // Function to fetch shadow value with variable kernel size
 float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos) 
 {
-    // Transform to [0,1] range for sampling
-    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-    projCoords = projCoords * 0.5 + 0.5;
-    
-    // Calculate distance for both kernel size and softness
-    float distanceToLight = length(fragPos - lightPos);
-    
-    // Stepped kernel sizes for GPU coherency
-    int kernelSize;
-    if (distanceToLight < 5.0) kernelSize = 3; 
-    else if (distanceToLight < 15.0) kernelSize = 4;
-    else kernelSize = 5;
-    
-    // More aggressive adaptive shadow softness - increased multipliers
-    float adaptiveSoftness = shadowSoftness * clamp(distanceToLight * 0.15, 1.0, 3.5);
-    
-    // Current depth
-    float currentDepth = projCoords.z;
-    
-    // Shadow factor calculation
-    float shadow = 0.0;
-    float totalWeight = 0.0;
-    
-    // Variable kernel size loop with adaptive softness
-    for (int x = -kernelSize; x <= kernelSize; ++x) 
-    {
-        for (int y = -kernelSize; y <= kernelSize; ++y) 
-        {
-            // Enhanced Gaussian weight calculation for smoother falloff
-            float distance = sqrt(float(x * x + y * y));
-            float weight = exp(-distance * distance / (2.0 * float(kernelSize * kernelSize) * 0.5));
-            totalWeight += weight;
-            
-            // Increased adaptive softness multiplier for softer shadows
-            vec2 offset = vec2(x, y) * adaptiveSoftness * 1.5 / lightFarPlane;
-            
-            // Sample shadow map with adaptive offset
-            float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
-            
-            // Softer depth comparison with reduced bias and smooth transition
-            float bias = mix(0.002, 0.008, clamp(distanceToLight * 0.05, 0.0, 1.0));
-            float depthDiff = currentDepth - sampleDepth - bias;
-            
-            // Smooth shadow transition instead of hard cutoff
-            float shadowContrib = smoothstep(-0.003, 0.003, depthDiff);
-            shadow += shadowContrib * weight;
-        }
-    }
-    
-    // Normalize shadow factor
-    shadow /= totalWeight;
-    
-    // Apply gentle gamma correction for softer appearance
-    shadow = pow(shadow, 0.75);
-    
-    return shadow;
+	// Transform to [0,1] range for sampling
+	vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+	projCoords = projCoords * 0.5 + 0.5;
+
+	// Calculate distance for both kernel size and softness
+	float distanceToLight = length(fragPos - lightPos);
+
+	// Stepped kernel sizes for GPU coherency
+	int kernelSize;
+	if (distanceToLight < 5.0) kernelSize = 3; 
+	else if (distanceToLight < 15.0) kernelSize = 4;
+	else kernelSize = 5;
+
+	// More aggressive adaptive shadow softness - increased multipliers
+	float adaptiveSoftness = shadowSoftness * clamp(distanceToLight * 0.15, 1.0, 3.5);
+
+	// Current depth
+	float currentDepth = projCoords.z;
+
+	// Shadow factor calculation
+	float shadow = 0.0;
+	float totalWeight = 0.0;
+
+	// Variable kernel size loop with adaptive softness
+	for (int x = -kernelSize; x <= kernelSize; ++x) 
+	{
+		for (int y = -kernelSize; y <= kernelSize; ++y) 
+		{
+			// Enhanced Gaussian weight calculation for smoother falloff
+			float distance = sqrt(float(x * x + y * y));
+			float weight = exp(-distance * distance / (2.0 * float(kernelSize * kernelSize) * 0.5));
+			totalWeight += weight;
+
+			// Increased adaptive softness multiplier for softer shadows
+			vec2 offset = vec2(x, y) * adaptiveSoftness * 1.5 / lightFarPlane;
+
+			// Sample shadow map with adaptive offset
+			float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
+
+			// Softer depth comparison with reduced bias and smooth transition
+			float bias = mix(0.002, 0.008, clamp(distanceToLight * 0.05, 0.0, 1.0));
+			float depthDiff = currentDepth - sampleDepth - bias;
+
+			// Smooth shadow transition instead of hard cutoff
+			float shadowContrib = smoothstep(-0.003, 0.003, depthDiff);
+			shadow += shadowContrib * weight;
+		}
+	}
+
+	// Normalize shadow factor
+	shadow /= totalWeight;
+
+	// Apply gentle gamma correction for softer appearance
+	shadow = pow(shadow, 0.75);
+
+	return shadow;
 }
 
 // Function for parallax mapping to simulate depth displacement
 vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale)
 {
-    // Sample height from the height map (assuming grayscale)
-    float height = texture(heightMap, texCoords).r;
-    // Apply parallax scaling and bias
-    float parallaxAmount = height * heightScale;
-    // Offset texture coordinates based on the view direction (xy components)
-    return texCoords - parallaxAmount * viewDir.xy;
+	// Sample height from the height map (assuming grayscale)
+	float height = texture(heightMap, texCoords).r;
+	// Apply parallax scaling and bias
+	float parallaxAmount = height * heightScale;
+	// Offset texture coordinates based on the view direction (xy components)
+	return texCoords - parallaxAmount * viewDir.xy;
 }
 
 void applyEnvironmentMapping(float alphaIn)
 {
-    // PBR opaque already has IBL; skip extra env mixing here to avoid double-counting
-    if (renderingMode != 0 && pbrLighting.transmission <= 0.0) {
-        return;
-    }
+	// PBR opaque already has IBL; skip extra env mixing here to avoid double-counting
+	if (renderingMode != 0 && pbrLighting.transmission <= 0.0) {
+		return;
+	}
 
-    float a = clamp(alphaIn, 0.0, 1.0);
-    vec3 I = normalize(g_reflectionPosition - cameraPos);
-    vec3 N = normalize(g_reflectionNormal);
+	float a = clamp(alphaIn, 0.0, 1.0);
+	vec3 I = normalize(g_reflectionPosition - cameraPos);
+	vec3 N = normalize(g_reflectionNormal);
 
-    // 1) Transmission (PBR glass)
-    if (pbrLighting.transmission > 0.0) {
-        // Transmission materials (glass)
-        float eta = max(1e-3, pbrLighting.ior);
-        vec3 R = refract(normalize(g_reflectionPosition - cameraPos), normalize(g_reflectionNormal), 1.0 / eta);
-        R = envMapRotationMatrix * R;
-        R = normalize(R); // <-- important
+	// 1) Transmission (PBR glass)
+	if (pbrLighting.transmission > 0.0) {
+		// Transmission materials (glass)
+		float eta = max(1e-3, pbrLighting.ior);
+		vec3 R = refract(normalize(g_reflectionPosition - cameraPos), normalize(g_reflectionNormal), 1.0 / eta);
+		R = envMapRotationMatrix * R;
+		R = normalize(R); // <-- important
 
-        float tRough = max(pbrLighting.roughness, 0.1);
-        vec3 envColor = textureLod(envMap, R, tRough * 3.0).rgb;
+		float tRough = max(pbrLighting.roughness, 0.1);
+		vec3 envColor = textureLod(envMap, R, tRough * 3.0).rgb;
 
-        // Fresnel to avoid “painted skybox”
-        float NdotV = clamp(dot(normalize(g_reflectionNormal), normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
-        float f0 = pow((pbrLighting.ior - 1.0) / (pbrLighting.ior + 1.0), 2.0);
-        float F  = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
+		// Fresnel to avoid “painted skybox”
+		float NdotV = clamp(dot(normalize(g_reflectionNormal), normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
+		float f0 = pow((pbrLighting.ior - 1.0) / (pbrLighting.ior + 1.0), 2.0);
+		float F  = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
 
-        // Final strength: transmission * Fresnel * (1 - roughness), capped
-        float w = clamp(pbrLighting.transmission * F * (1.0 - pbrLighting.roughness), 0.0, 0.65);
+		// Final strength: transmission * Fresnel * (1 - roughness), capped
+		float w = clamp(pbrLighting.transmission * F * (1.0 - pbrLighting.roughness), 0.0, 0.65);
 
-        // Filter through base color (thin absorption)
-        vec3 filtered = envColor * pbrLighting.albedo;
+		// Filter through base color (thin absorption)
+		vec3 filtered = envColor * pbrLighting.albedo;
 
-        // Mix RGB only (keep alpha from your new PMA logic)
-        fragColor.rgb = mix(fragColor.rgb, filtered, w);
-        return;
+		// Mix RGB only (keep alpha from your new PMA logic)
+		fragColor.rgb = mix(fragColor.rgb, filtered, w);
+		return;
 
-    }
+	}
 
-    // 2) Regular transparency (BLEND)
-    if (a < 1.0 && !floorRendering) {
-        float refrAmt = max(0.05, 1.0 - a);
-        vec3 R = refract(I, N, refrAmt);
-        R = envMapRotationMatrix * R;
-        R = normalize(R);
+	// 2) Regular transparency (BLEND)
+	if (a < 1.0 && !floorRendering) {
+		float refrAmt = max(0.05, 1.0 - a);
+		vec3 R = refract(I, N, refrAmt);
+		R = envMapRotationMatrix * R;
+		R = normalize(R);
 
-        vec3 envColor = texture(envMap, R).rgb;
-        float envStrength = (1.0 - a) * 0.5;
+		vec3 envColor = texture(envMap, R).rgb;
+		float envStrength = (1.0 - a) * 0.5;
 
-        fragColor.rgb = mix(fragColor.rgb, envColor, envStrength);
-        // alpha preserved
-        return;
-    }
+		fragColor.rgb = mix(fragColor.rgb, envColor, envStrength);
+		// alpha preserved
+		return;
+	}
 
-    // 3) ADS reflection for opaque
-    if (renderingMode == 0) {
-        vec3 R = refract(-I, N, 1.0);
-        R = envMapRotationMatrix * -R;
+	// 3) ADS reflection for opaque
+	if (renderingMode == 0) {
+		vec3 R = refract(-I, N, 1.0);
+		R = envMapRotationMatrix * -R;
 
-        float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
-        float NdotV   = max(dot(-I, N), 0.0);
+		float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
+		float NdotV   = max(dot(-I, N), 0.0);
 
-        float nonMetallicFresnelPower = mix(3.0, 5.0, 1.0 - specLum);
-        float metallicFresnelPower    = 1.5;
-        float fresnelPower            = mix(nonMetallicFresnelPower, metallicFresnelPower, pbrLighting.metallic);
-        float fresnel = pow(1.0 - NdotV, fresnelPower);
+		float nonMetallicFresnelPower = mix(3.0, 5.0, 1.0 - specLum);
+		float metallicFresnelPower    = 1.5;
+		float fresnelPower            = mix(nonMetallicFresnelPower, metallicFresnelPower, pbrLighting.metallic);
+		float fresnel = pow(1.0 - NdotV, fresnelPower);
 
-        float surfaceRoughness   = 1.0 - (material.shininess / 128.0);
-        float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
+		float surfaceRoughness   = 1.0 - (material.shininess / 128.0);
+		float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
 
-        float metallicStrength   = mix(0.2, 0.4, specLum);
-        float glossyStrength     = mix(0.3, 0.6, specLum);
-        float diffuseStrength    = mix(0.02, 0.15, specLum);
+		float metallicStrength   = mix(0.2, 0.4, specLum);
+		float glossyStrength     = mix(0.3, 0.6, specLum);
+		float diffuseStrength    = mix(0.02, 0.15, specLum);
 
-        bool isHighSpecular    = specLum > 0.5;
-        bool isDiffuseDominant = dot(material.diffuse, vec3(0.299,0.587,0.114)) > specLum*2.0;
-        float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
+		bool isHighSpecular    = specLum > 0.5;
+		bool isDiffuseDominant = dot(material.diffuse, vec3(0.299,0.587,0.114)) > specLum*2.0;
+		float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
 
-        float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, pbrLighting.metallic);
-        float reflectionStrength = clamp(baseReflectionStrength * fresnel * roughnessReduction, 0.0, 0.8);
+		float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, pbrLighting.metallic);
+		float reflectionStrength = clamp(baseReflectionStrength * fresnel * roughnessReduction, 0.0, 0.8);
 
-        float envLOD = surfaceRoughness * 7.0;
-        vec3 envColor = textureLod(envMap, R, envLOD).rgb;
+		float envLOD = surfaceRoughness * 7.0;
+		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
 
-        fragColor.rgb += envColor * reflectionStrength; // additive specular
-        // alpha preserved
-        return;
-    }
+		fragColor.rgb += envColor * reflectionStrength; // additive specular
+								// alpha preserved
+		return;
+	}
 
-    // PBR opaque -> handled in main PBR code
+	// PBR opaque -> handled in main PBR code
 }
 
 // ----------------------------------------------------------------------------
@@ -1136,199 +1141,199 @@ void applyEnvironmentMapping(float alphaIn)
 // technique somewhere later in the normal mapping tutorial.
 vec3 getNormalFromMap()
 {
-    vec3 tangentNormal = texture(normalMap, g_texCoord2d).xyz * 2.0 - 1.0;
+	vec3 tangentNormal = texture(normalMap, g_texCoord2d).xyz * 2.0 - 1.0;
 
-    vec3 Q1  = dFdx(g_position);
-    vec3 Q2  = dFdy(g_position);
-    vec2 st1 = dFdx(g_texCoord2d);
-    vec2 st2 = dFdy(g_texCoord2d);
+	vec3 Q1  = dFdx(g_position);
+	vec3 Q2  = dFdy(g_position);
+	vec2 st1 = dFdx(g_texCoord2d);
+	vec2 st2 = dFdy(g_texCoord2d);
 
-    vec3 N   = normalize(g_normal);
-    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
-    vec3 B  = -normalize(cross(N, T));
-    mat3 TBN = mat3(T, B, N);
+	vec3 N   = normalize(g_normal);
+	vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
+	vec3 B  = -normalize(cross(N, T));
+	mat3 TBN = mat3(T, B, N);
 
-    return normalize(TBN * tangentNormal);
+	return normalize(TBN * tangentNormal);
 }
 
 mat3 getTBNFromMap()
 {
-    vec3 tangentNormal = texture(normalMap, g_texCoord2d).xyz * 2.0 - 1.0;
+	vec3 tangentNormal = texture(normalMap, g_texCoord2d).xyz * 2.0 - 1.0;
 
-    vec3 Q1  = dFdx(g_position);
-    vec3 Q2  = dFdy(g_position);
-    vec2 st1 = dFdx(g_texCoord2d);
-    vec2 st2 = dFdy(g_texCoord2d);
+	vec3 Q1  = dFdx(g_position);
+	vec3 Q2  = dFdy(g_position);
+	vec2 st1 = dFdx(g_texCoord2d);
+	vec2 st2 = dFdy(g_texCoord2d);
 
-    vec3 N   = normalize(g_normal);
-    vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
-    vec3 B  = -normalize(cross(N, T));
-    mat3 TBN = mat3(T, B, N);
+	vec3 N   = normalize(g_normal);
+	vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
+	vec3 B  = -normalize(cross(N, T));
+	mat3 TBN = mat3(T, B, N);
 
-    return TBN;
+	return TBN;
 }
 
 // ----------------------------------------------------------------------------
 float distributionGGX(vec3 N, vec3 H, float roughness)
 {
-    float a = roughness*roughness;
-    float a2 = a*a;
-    float NdotH = max(dot(N, H), 0.0);
-    float NdotH2 = NdotH*NdotH;
+	float a = roughness*roughness;
+	float a2 = a*a;
+	float NdotH = max(dot(N, H), 0.0);
+	float NdotH2 = NdotH*NdotH;
 
-    float nom   = a2;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
+	float nom   = a2;
+	float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+	denom = PI * denom * denom;
 
-    return nom / max(denom, 0.001); // prevent divide by zero for roughness=0.0 and NdotH=1.0
+	return nom / max(denom, 0.001); // prevent divide by zero for roughness=0.0 and NdotH=1.0
 }
 // ----------------------------------------------------------------------------
 float geometrySchlickGGX(float NdotV, float roughness)
 {
-    float r = (roughness + 1.0);
-    float k = (r*r) / 8.0;
+	float r = (roughness + 1.0);
+	float k = (r*r) / 8.0;
 
-    float nom   = NdotV;
-    float denom = NdotV * (1.0 - k) + k;
+	float nom   = NdotV;
+	float denom = NdotV * (1.0 - k) + k;
 
-    return nom / denom;
+	return nom / denom;
 }
 // ----------------------------------------------------------------------------
 float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 {
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
-    float ggx2 = geometrySchlickGGX(NdotV, roughness);
-    float ggx1 = geometrySchlickGGX(NdotL, roughness);
+	float NdotV = max(dot(N, V), 0.0);
+	float NdotL = max(dot(N, L), 0.0);
+	float ggx2 = geometrySchlickGGX(NdotV, roughness);
+	float ggx1 = geometrySchlickGGX(NdotL, roughness);
 
-    return ggx1 * ggx2;
+	return ggx1 * ggx2;
 }
 // ----------------------------------------------------------------------------
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
-    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+	return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 // ----------------------------------------------------------------------------
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 {
-    return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
 // http://ogldev.atspace.co.uk/www/tutorial26/tutorial26.html
 vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 {
-    vec3 normal = normalize(g_normal);
-    vec3 tangent = normalize(g_tangent - dot(g_tangent, normal) * normal);
-    vec3 bitangent = normalize(cross(normal, tangent));
-    mat3 TBN = mat3(tangent, bitangent, normal);
+	vec3 normal = normalize(g_normal);
+	vec3 tangent = normalize(g_tangent - dot(g_tangent, normal) * normal);
+	vec3 bitangent = normalize(cross(normal, tangent));
+	mat3 TBN = mat3(tangent, bitangent, normal);
 
-    vec3 bumpMapNormal = texture(map, texCoord).rgb;
-    bumpMapNormal = 2.0 * bumpMapNormal - 1.0;
-    // Uncomment the next line if normal maps need Y flipped
-    // bumpMapNormal.y = -bumpMapNormal.y;
-    return normalize(TBN * bumpMapNormal);
+	vec3 bumpMapNormal = texture(map, texCoord).rgb;
+	bumpMapNormal = 2.0 * bumpMapNormal - 1.0;
+	// Uncomment the next line if normal maps need Y flipped
+	// bumpMapNormal.y = -bumpMapNormal.y;
+	return normalize(TBN * bumpMapNormal);
 }
 
 vec2 calculateBackgroundUV() {
-    vec2 ndc = (gl_FragCoord.xy / u_screenSize) * 2.0 - 1.0;
-    return ndc * 0.5 + 0.5;
+	vec2 ndc = (gl_FragCoord.xy / u_screenSize) * 2.0 - 1.0;
+	return ndc * 0.5 + 0.5;
 }
 
 vec3 calculateBackgroundColor() {
-    vec2 v_uv = calculateBackgroundUV();
-    
-    vec4 frag_color;
-    if (u_gradientStyle == 0) {
-        frag_color = mix(u_botColor, u_topColor, v_uv.y);
-    }
-    else if (u_gradientStyle == 1) {
-        frag_color = mix(u_topColor, u_botColor, v_uv.x);
-    }
-    else if (u_gradientStyle == 2) {
-        float diagonal_factor = (v_uv.x + (1.0 - v_uv.y)) * 0.5;
-        frag_color = mix(u_topColor, u_botColor, diagonal_factor);
-    }
-    else if (u_gradientStyle == 3) {
-        float diagonal_factor = ((1.0 - v_uv.x) + (1.0 - v_uv.y)) * 0.5;
-        frag_color = mix(u_topColor, u_botColor, diagonal_factor);
-    }
-    else {
-        frag_color = mix(u_botColor, u_topColor, v_uv.y);
-    }
-    
-    return frag_color.rgb;
+	vec2 v_uv = calculateBackgroundUV();
+
+	vec4 frag_color;
+	if (u_gradientStyle == 0) {
+		frag_color = mix(u_botColor, u_topColor, v_uv.y);
+	}
+	else if (u_gradientStyle == 1) {
+		frag_color = mix(u_topColor, u_botColor, v_uv.x);
+	}
+	else if (u_gradientStyle == 2) {
+		float diagonal_factor = (v_uv.x + (1.0 - v_uv.y)) * 0.5;
+		frag_color = mix(u_topColor, u_botColor, diagonal_factor);
+	}
+	else if (u_gradientStyle == 3) {
+		float diagonal_factor = ((1.0 - v_uv.x) + (1.0 - v_uv.y)) * 0.5;
+		frag_color = mix(u_topColor, u_botColor, diagonal_factor);
+	}
+	else {
+		frag_color = mix(u_botColor, u_topColor, v_uv.y);
+	}
+
+	return frag_color.rgb;
 }
 
 // sRGB <-> Linear helpers (fast-enough approximations)
 vec3 srgbToLinear(vec3 c) {
-    return pow(c, vec3(2.2));
+	return pow(c, vec3(2.2));
 }
 vec3 linearToSrgb(vec3 c) {
-    return pow(c, vec3(1.0/2.2));
+	return pow(c, vec3(1.0/2.2));
 }
 
 float saturationSRGB(vec3 c) {
-    float mx = max(max(c.r, c.g), c.b);
-    float mn = min(min(c.r, c.g), c.b);
-    return mx - mn; // cheap proxy; OK for gray detection
+	float mx = max(max(c.r, c.g), c.b);
+	float mn = min(min(c.r, c.g), c.b);
+	return mx - mn; // cheap proxy; OK for gray detection
 }
 
 
 float readMaskChannel(vec4 texel, int channel) {
-    if (channel == 0) return texel.r;
-    if (channel == 1) return texel.g;
-    if (channel == 2) return texel.b;
-    return texel.a;
+	if (channel == 0) return texel.r;
+	if (channel == 1) return texel.g;
+	if (channel == 2) return texel.b;
+	return texel.a;
 }
 
 vec3 computeBaseColor(vec2 uv,
-                      vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
-                      sampler2D albedoTex,
-                      bool hasAlbedoTex,
-                      vec3 vertexColor_sRGB,    // pass v_color.rgb if you use it
-                      bool useVertexColor)
+		vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
+		sampler2D albedoTex,
+		bool hasAlbedoTex,
+		vec3 vertexColor_sRGB,    // pass v_color.rgb if you use it
+		bool useVertexColor)
 {
-    vec3 base_sRGB = matBaseColor_sRGB;
-    vec3 tex_sRGB  = hasAlbedoTex ? texture(albedoTex, uv).rgb : vec3(1.0);
+	vec3 base_sRGB = matBaseColor_sRGB;
+	vec3 tex_sRGB  = hasAlbedoTex ? texture(albedoTex, uv).rgb : vec3(1.0);
 
-    // Optional vertex color (apply as a tint *in linear*; many pipelines want this)
-    vec3 vtx_sRGB = useVertexColor ? vertexColor_sRGB : vec3(1.0);
+	// Optional vertex color (apply as a tint *in linear*; many pipelines want this)
+	vec3 vtx_sRGB = useVertexColor ? vertexColor_sRGB : vec3(1.0);
 
-    // Convert to linear for math
-    vec3 base_L = srgbToLinear(base_sRGB);
-    vec3 tex_L  = srgbToLinear(tex_sRGB);
-    vec3 vtx_L  = srgbToLinear(vtx_sRGB);
+	// Convert to linear for math
+	vec3 base_L = srgbToLinear(base_sRGB);
+	vec3 tex_L  = srgbToLinear(tex_sRGB);
+	vec3 vtx_L  = srgbToLinear(vtx_sRGB);
 
-    vec3 out_L;
+	vec3 out_L;
 
-    if (!hasAlbedoTex) {
-        out_L = base_L; // color only
-    } else {
-        if (tintMode == 0) {
-            // Texture only
-            out_L = tex_L;
-        } else if (tintMode == 2) {
-            // Force grayscale treatment (skip detection)
-            float lum = dot(tex_L, vec3(0.2126, 0.7152, 0.0722));
-            out_L = mix(tex_L, base_L * lum, tintStrength);
-        } else if (tintMode == 3) {
-            // Masked lerp (use one channel as a mask-often A or R; customize as needed)
-            vec4 texel = texture(albedoTex, uv);
-            float mask = readMaskChannel(texel, tintMaskChannel);
-            out_L = mix(tex_L, base_L, clamp(tintStrength * mask, 0.0, 1.0));
-        } else {
-            // AutoGray (default): only tint grayscale texels
-            float sat = saturationSRGB(tex_sRGB);        // in sRGB is fine for detection
-            float grayMask = 1.0 - smoothstep(grayEpsilon, grayEpsilon * 4.0, sat);
-            // Use linear luminance for intensity
-            float lum = dot(tex_L, vec3(0.2126, 0.7152, 0.0722));
-            vec3 grayTint_L = base_L * lum;
-            out_L = mix(tex_L, grayTint_L, clamp(tintStrength * grayMask, 0.0, 1.0));
-        }
-    }
+	if (!hasAlbedoTex) {
+		out_L = base_L; // color only
+	} else {
+		if (tintMode == 0) {
+			// Texture only
+			out_L = tex_L;
+		} else if (tintMode == 2) {
+			// Force grayscale treatment (skip detection)
+			float lum = dot(tex_L, vec3(0.2126, 0.7152, 0.0722));
+			out_L = mix(tex_L, base_L * lum, tintStrength);
+		} else if (tintMode == 3) {
+			// Masked lerp (use one channel as a mask-often A or R; customize as needed)
+			vec4 texel = texture(albedoTex, uv);
+			float mask = readMaskChannel(texel, tintMaskChannel);
+			out_L = mix(tex_L, base_L, clamp(tintStrength * mask, 0.0, 1.0));
+		} else {
+			// AutoGray (default): only tint grayscale texels
+			float sat = saturationSRGB(tex_sRGB);        // in sRGB is fine for detection
+			float grayMask = 1.0 - smoothstep(grayEpsilon, grayEpsilon * 4.0, sat);
+			// Use linear luminance for intensity
+			float lum = dot(tex_L, vec3(0.2126, 0.7152, 0.0722));
+			vec3 grayTint_L = base_L * lum;
+			out_L = mix(tex_L, grayTint_L, clamp(tintStrength * grayMask, 0.0, 1.0));
+		}
+	}
 
-    // Apply vertex color last (in linear)
-    out_L *= vtx_L;
+	// Apply vertex color last (in linear)
+	out_L *= vtx_L;
 
-    return out_L; // keep in linear for the rest of PBR
+	return out_L; // keep in linear for the rest of PBR
 }
