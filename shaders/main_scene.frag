@@ -314,86 +314,89 @@ void main()
         fragColor = mix(v_color, vec4(overlayColor, 1.0), mixVal);
     }
 
+    // UNIFIED BLEND MODE AWARE OPACITY CALCULATION
+    // Works for both ADS and PBR pipelines with dynamic texture availability
+    // Skip for floor rendering - it handles its own alpha
     float finalAlpha = fragColor.a; // Start with whatever alpha the rendering functions set
-    
-    // Handle blend modes properly
-    if(blendMode == 0) {
-        // OPAQUE: Force alpha to 1.0, ignore all opacity settings
-        finalAlpha = 1.0;
-    }
-    else if(blendMode == 1) {
-        // MASK: Alpha test cutout - calculate alpha for testing
-        float testAlpha = opacity;
+
+    if (!floorRendering) {
+        // Handle blend modes properly
+        if(blendMode == 0) {
+            // OPAQUE: Force alpha to 1.0, ignore all opacity settings
+            finalAlpha = 1.0;
+        } else if(blendMode == 1) {
+            // MASK: Alpha test cutout - calculate alpha for testing
+            float testAlpha = opacity;
         
-        // Apply texture alpha based on what's available
-        // Priority: dedicated opacity map > albedo/diffuse alpha
-        if(hasOpacityMap) {
-            // Use dedicated opacity map if available
-            float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
-            if(opacityMapInverted)
-                opacityMapValue = 1.0 - opacityMapValue;
-            testAlpha *= opacityMapValue;
-        }
-        else {
-            // Fall back to texture alpha if no dedicated opacity map
+            // Apply texture alpha based on what's available
+            // Priority: dedicated opacity map > albedo/diffuse alpha
+            if(hasOpacityMap) {
+                // Use dedicated opacity map if available
+                float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
+                if(opacityMapInverted) opacityMapValue = 1.0 - opacityMapValue;
+                testAlpha *= opacityMapValue;
+            } else {
+                // Fall back to texture alpha if no dedicated opacity map
+                if(renderingMode == 0) {
+                    // ADS mode: check for diffuse texture alpha
+                    if(hasDiffuseTexture) {
+                        vec4 diffuseSample = texture(texture_diffuse, g_texCoord2d);
+                        // Debug: Ensure we're getting the alpha channel properly
+                        testAlpha *= diffuseSample.a;
+                    }
+                } else {
+                    // PBR mode: check for albedo texture alpha
+                    // In PBR, albedo alpha might not always be for transparency
+                    if(hasAlbedoMap) {
+                        vec4 albedoSample = texture(albedoMap, g_texCoord2d);
+                        // Only use albedo alpha if it's meant for opacity (not roughness/metallic)
+                        testAlpha *= albedoSample.a;
+                    }
+                }
+            }
+        
+            // Perform alpha test
+            if(testAlpha < alphaThreshold) discard;
+            finalAlpha = 1.0; // Cutout is either fully opaque or discarded
+        } else {
+            // BLEND: True alpha blending - calculate final alpha
+            finalAlpha = opacity;
+        
+            // Apply texture alpha based on what's available
+            // If both opacity map and texture alpha exist, multiply them
+            if(hasOpacityMap) {
+                float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
+                if(opacityMapInverted) opacityMapValue = 1.0 - opacityMapValue;
+                finalAlpha *= opacityMapValue;
+            }
+        
+            // Apply texture alpha (this can work alongside opacity map)
             if(renderingMode == 0) {
                 // ADS mode: check for diffuse texture alpha
                 if(hasDiffuseTexture) {
-                    testAlpha *= texture(texture_diffuse, g_texCoord2d).a;
+                    vec4 diffuseSample = texture(texture_diffuse, g_texCoord2d);
+                    // Ensure we sample the full texture for proper alpha gradient
+                    finalAlpha *= diffuseSample.a;
                 }
-            }
-            else {
+            } else {
                 // PBR mode: check for albedo texture alpha
                 if(hasAlbedoMap) {
-                    testAlpha *= texture(albedoMap, g_texCoord2d).a;
+                    vec4 albedoSample = texture(albedoMap, g_texCoord2d);
+                    // PBR Issue: Make sure albedo alpha is actually for opacity
+                    // In many PBR workflows, alpha serves other purposes
+                    finalAlpha *= albedoSample.a;
                 }
             }
-        }
         
-        // Perform alpha test
-        if(testAlpha < alphaThreshold)
-            discard;
-            
-        finalAlpha = 1.0; // Cutout is either fully opaque or discarded
+            finalAlpha = clamp(finalAlpha, 0.0, 1.0);
+        }
     }
-    else {
-        // BLEND: True alpha blending - calculate final alpha
-        finalAlpha = opacity;
-        
-        // Apply texture alpha based on what's available
-        // If both opacity map and texture alpha exist, multiply them
-        bool appliedOpacityMap = false;
-        
-        if(hasOpacityMap) {
-            float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
-            if(opacityMapInverted)
-                opacityMapValue = 1.0 - opacityMapValue;
-            finalAlpha *= opacityMapValue;
-            appliedOpacityMap = true;
-        }
-        
-        // Apply texture alpha (this can work alongside opacity map)
-        if(renderingMode == 0) {
-            // ADS mode: check for diffuse texture alpha
-            if(hasDiffuseTexture) {
-                finalAlpha *= texture(texture_diffuse, g_texCoord2d).a;
-            }
-        }
-        else {
-            // PBR mode: check for albedo texture alpha
-            if(hasAlbedoMap) {
-                finalAlpha *= texture(albedoMap, g_texCoord2d).a;
-            }
-        }
-        
-        finalAlpha = clamp(finalAlpha, 0.0, 1.0);
-    }
-    
-    // Apply the final alpha
+
+    // Apply the final alpha (outside floorRendering block)
     fragColor.a = finalAlpha;
 
-    if(envMapEnabled && displayMode == 3)
-    {
+    // Apply environment mapping (outside floorRendering block)
+    if(envMapEnabled && displayMode == 3) {
         applyEnvironmentMapping(finalAlpha); // Pass the correct alpha
     }
 
