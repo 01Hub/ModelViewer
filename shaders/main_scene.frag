@@ -314,19 +314,87 @@ void main()
         fragColor = mix(v_color, vec4(overlayColor, 1.0), mixVal);
     }
 
-    // Get alpha from maps if available
-    float alpha = opacity;
-    if(renderingMode == 0 && hasOpacityTexture)
-    {
-        if(opacityTextureInverted)
-            alpha = 1.0f - texture(texture_opacity, g_texCoord2d).r;
-        else
-            alpha = texture(texture_opacity, g_texCoord2d).r;
+    float finalAlpha = fragColor.a; // Start with whatever alpha the rendering functions set
+    
+    // Handle blend modes properly
+    if(blendMode == 0) {
+        // OPAQUE: Force alpha to 1.0, ignore all opacity settings
+        finalAlpha = 1.0;
     }
+    else if(blendMode == 1) {
+        // MASK: Alpha test cutout - calculate alpha for testing
+        float testAlpha = opacity;
+        
+        // Apply texture alpha based on what's available
+        // Priority: dedicated opacity map > albedo/diffuse alpha
+        if(hasOpacityMap) {
+            // Use dedicated opacity map if available
+            float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
+            if(opacityMapInverted)
+                opacityMapValue = 1.0 - opacityMapValue;
+            testAlpha *= opacityMapValue;
+        }
+        else {
+            // Fall back to texture alpha if no dedicated opacity map
+            if(renderingMode == 0) {
+                // ADS mode: check for diffuse texture alpha
+                if(hasDiffuseTexture) {
+                    testAlpha *= texture(texture_diffuse, g_texCoord2d).a;
+                }
+            }
+            else {
+                // PBR mode: check for albedo texture alpha
+                if(hasAlbedoMap) {
+                    testAlpha *= texture(albedoMap, g_texCoord2d).a;
+                }
+            }
+        }
+        
+        // Perform alpha test
+        if(testAlpha < alphaThreshold)
+            discard;
+            
+        finalAlpha = 1.0; // Cutout is either fully opaque or discarded
+    }
+    else {
+        // BLEND: True alpha blending - calculate final alpha
+        finalAlpha = opacity;
+        
+        // Apply texture alpha based on what's available
+        // If both opacity map and texture alpha exist, multiply them
+        bool appliedOpacityMap = false;
+        
+        if(hasOpacityMap) {
+            float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
+            if(opacityMapInverted)
+                opacityMapValue = 1.0 - opacityMapValue;
+            finalAlpha *= opacityMapValue;
+            appliedOpacityMap = true;
+        }
+        
+        // Apply texture alpha (this can work alongside opacity map)
+        if(renderingMode == 0) {
+            // ADS mode: check for diffuse texture alpha
+            if(hasDiffuseTexture) {
+                finalAlpha *= texture(texture_diffuse, g_texCoord2d).a;
+            }
+        }
+        else {
+            // PBR mode: check for albedo texture alpha
+            if(hasAlbedoMap) {
+                finalAlpha *= texture(albedoMap, g_texCoord2d).a;
+            }
+        }
+        
+        finalAlpha = clamp(finalAlpha, 0.0, 1.0);
+    }
+    
+    // Apply the final alpha
+    fragColor.a = finalAlpha;
 
     if(envMapEnabled && displayMode == 3)
     {
-        applyEnvironmentMapping(alpha);
+        applyEnvironmentMapping(finalAlpha); // Pass the correct alpha
     }
 
     if (selected) // with glow
@@ -532,7 +600,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     float finalAlpha;
     vec3 composed;
 
-    if (blendMode == 0) {                // OPAQUE
+    /*if (blendMode == 0) {                // OPAQUE
         finalAlpha = 1.0;
         composed   = baseNoSpec + specOnly;
     }
@@ -545,7 +613,11 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     else {                               // BLEND
         finalAlpha = combinedAlpha;
         composed   = baseNoSpec * finalAlpha + specOnly; // specular preserved
-    }
+    }*/
+
+
+    // override transparency
+    composed   = baseNoSpec + specOnly;
 
     // --- Tone/gamma ---
     if (hdrToneMapping)
@@ -553,7 +625,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
     if (gammaCorrection)
         composed = pow(composed, vec3(1.0 / screenGamma));
 
-    return vec4(composed, finalAlpha);
+    return vec4(composed, 1.0);
 }
 
 
@@ -748,7 +820,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     vec3 specOnly_L   = directSpecular_L; // (spec IBL already inside 'ambient_L')
 
     // --- PER-PIXEL ALPHA (opacity map wins over albedo A)
-    float albedoA  = hasAlbedoMap ? texture(albedoMap, clippedTexCoord).a : 1.0;
+    /*float albedoA  = hasAlbedoMap ? texture(albedoMap, clippedTexCoord).a : 1.0;
     float srcAlpha = albedoA;
     if (hasOpacityMap) {
         float om = texture(opacityMap, clippedTexCoord).r;
@@ -771,7 +843,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         finalAlpha = clamp(opacity * srcAlpha, 0.0, 1.0);
         // Selective PMA: premultiply only non-specular energy; keep specular strong
         composed_L = baseNoSpec_L * finalAlpha + specOnly_L;  // spec preserved
-    }
+    }*/
 
     // --- Floor override (non-reflected) ---
     if (floorRendering && !isReflectedPass) {
@@ -789,13 +861,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     }
 
 
+    vec3 outRGB = baseNoSpec_L + specOnly_L; // override opacity
 
     // --- Tone map & gamma once, at the end (as in your pipeline)
-    vec3 outRGB = composed_L;
+    //vec3 outRGB = composed_L;
     if (hdrToneMapping) outRGB = outRGB / (outRGB + vec3(1.0));
     if (gammaCorrection) outRGB = pow(outRGB, vec3(1.0 / screenGamma));
 
-    return vec4(outRGB, finalAlpha);
+    return vec4(outRGB, 1.0);
 }
 
 
