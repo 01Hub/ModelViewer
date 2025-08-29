@@ -1038,6 +1038,10 @@ float TriangleMesh::opacity() const
 void TriangleMesh::setOpacity(const float& opacity)
 {
 	_material.setOpacity(opacity);
+	if (opacity < 1)
+		_material.setBlendMode(GLMaterial::BlendMode::Alpha);
+	else
+		_material.setBlendMode(GLMaterial::BlendMode::Opaque);
 	markUniformsDirty();
 }
 

@@ -268,7 +268,11 @@ void TextureMappingPanel::setMapPath(const QString& key, const QString& file)
     else if (key == "metallic")  _material->setMetallicMap(file);
     else if (key == "roughness") _material->setRoughnessMap(file);
     else if (key == "ao")        _material->setAOMap(file);
-    else if (key == "opacity")   _material->setOpacityMap(file);
+    else if (key == "opacity")
+    {
+        _material->setOpacityMap(file);
+        _material->setBlendMode(GLMaterial::BlendMode::Alpha);
+    }
 	else if (key == "height")    _material->setHeightMap(file);
     else if (key == "transmission") _material->setTransmissionMap(file);
     else if (key == "ior")          _material->setIORMap(file);
@@ -289,7 +293,11 @@ void TextureMappingPanel::clearMap(const QString& key)
     else if (key == "metallic")  _material->clearMetallicMap();
     else if (key == "roughness") _material->clearRoughnessMap();
     else if (key == "ao")        _material->clearAOMap();
-    else if (key == "opacity")   _material->clearOpacityMap();
+    else if (key == "opacity") 
+    { 
+        _material->clearOpacityMap(); 
+        _material->setBlendMode(GLMaterial::BlendMode::Opaque);
+    }
 	else if (key == "height")    _material->clearHeightMap();
     else if (key == "transmission") _material->clearTransmissionMap();
     else if (key == "ior")          _material->clearIORMap();
