@@ -3355,9 +3355,12 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 			if (mesh->isTransparent())
 			{
 				// Use a stable distance metric (camera -> mesh bounds center in world space)
-				const QVector3D c = _boundingSphere.getCenter();   // return center in world space
-				const float d = (c - camPos).lengthSquared();     // squared is fine for sorting
-				transparent.emplace_back(d, id);
+				const QVector3D c = mesh->getBoundingSphere().getCenter();   // return center in world space
+				const float R = mesh->getBoundingSphere().getRadius();
+				const float d = (c - camPos).length();     // squared is fine for sorting
+				// farthest point distance
+				float farthest = d + R;
+				transparent.emplace_back(farthest, id);
 			}
 			else
 			{
@@ -3401,6 +3404,156 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 	glDepthMask(GL_TRUE);
 	glDisable(GL_BLEND);
 }
+
+void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog)
+{
+	QVector3D camPos = _primaryCamera->getPosition();
+	setupClippingUniforms(prog, camPos);
+
+	if (_meshStore.empty()) return;
+	const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+
+	glDisable(GL_BLEND);
+	glDepthMask(GL_TRUE);
+
+	for (int id : objectIds)
+	{
+		if (auto* mesh = _meshStore.at(id))
+		{
+			if (!mesh->isTransparent())
+			{
+				mesh->setProg(prog);
+				mesh->render();
+			}
+		}
+	}
+}
+
+
+void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog)
+{
+	QVector3D camPos = _primaryCamera->getPosition();
+	setupClippingUniforms(prog, camPos);
+
+	if (_meshStore.empty()) return;
+	const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+
+	std::vector<std::pair<float, int>> transparent;
+	transparent.reserve(objectIds.size());
+
+	for (int id : objectIds)
+	{
+		if (auto* mesh = _meshStore.at(id))
+		{
+			if (mesh->isTransparent())
+			{
+				// IMPORTANT: use mesh’s bounding sphere in world space, not global
+				const QVector3D c = _boundingSphere.getCenter();
+				const float d = (c - camPos).lengthSquared();
+				transparent.emplace_back(d, id);
+			}
+		}
+	}
+
+	// Sort far-to-near
+	std::sort(transparent.begin(), transparent.end(),
+		[](const auto& a, const auto& b) { return a.first > b.first; });
+
+	glEnable(GL_BLEND);
+	glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
+		GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	//glDepthMask(GL_FALSE);
+
+	for (auto& it : transparent)
+	{
+		if (auto* mesh = _meshStore.at(it.second))
+		{
+			mesh->setProg(prog);
+			mesh->render();
+		}
+	}
+
+	glDepthMask(GL_TRUE);
+	glDisable(GL_BLEND);
+}
+
+void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
+	bool transparentPass)
+{
+	// https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
+	// If any clipping is active
+	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled)
+	{
+		// Draw capping geometry first (only for opaque pass)
+		if (!transparentPass && _cappingEnabled && !_floorDisplayed)
+		{
+			drawSectionCapping();
+		}
+
+		// Then draw meshes with clip planes enabled
+		if (_clipYZEnabled)
+		{
+			glEnable(GL_CLIP_DISTANCE0);
+			if (transparentPass) drawTransparentMeshes(prog);
+			else                 drawOpaqueMeshes(prog);
+			glDisable(GL_CLIP_DISTANCE0);
+		}
+		if (_clipZXEnabled)
+		{
+			glEnable(GL_CLIP_DISTANCE1);
+			if (transparentPass) drawTransparentMeshes(prog);
+			else                 drawOpaqueMeshes(prog);
+			glDisable(GL_CLIP_DISTANCE1);
+		}
+		if (_clipXYEnabled)
+		{
+			glEnable(GL_CLIP_DISTANCE2);
+			if (transparentPass) drawTransparentMeshes(prog);
+			else                 drawOpaqueMeshes(prog);
+			glDisable(GL_CLIP_DISTANCE2);
+		}
+	}
+	else
+	{
+		// No clipping at all
+		if (transparentPass) drawTransparentMeshes(prog);
+		else                 drawOpaqueMeshes(prog);
+	}
+}
+
+
+void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
+{
+	QVector3D camPos = _primaryCamera->getPosition();
+
+	prog->setUniformValue("lightSource.position",
+		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+	prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
+	prog->setUniformValue("normalMatrix", _modelViewMatrix.normalMatrix());
+	prog->setUniformValue("projectionMatrix", _projectionMatrix);
+	prog->setUniformValue("viewportMatrix", _viewportMatrix);
+
+	QVector3D zDir(0.0, 0.0, 1.0);
+	QVector3D viewDir = _primaryCamera->getViewDir();
+	bool floorVisible = QVector3D::dotProduct(viewDir, zDir) < 0.0f;
+	bool showShadows = (_shadowsEnabled && floorVisible && !_lowResEnabled && camera == _primaryCamera);
+
+	prog->setUniformValue("shadowsEnabled", showShadows);
+	prog->setUniformValue("selfShadowsEnabled", _selfShadowsEnabled);
+	prog->setUniformValue("cameraPos", camPos);
+	prog->setUniformValue("lightPos",
+		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
+	prog->setUniformValue("modelMatrix", _modelMatrix);
+	prog->setUniformValue("viewMatrix", _viewMatrix);
+	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
+	prog->setUniformValue("lightFarPlane", _lightPosition.z() + _lightOffsetZ);
+	prog->setUniformValue("hdrToneMapping", _hdrToneMapping);
+	prog->setUniformValue("gammaCorrection", _gammaCorrection);
+	prog->setUniformValue("screenGamma", _screenGamma);
+
+	bindIBLTextures();
+}
+
 
 
 void GLWidget::drawSectionCapping()
@@ -3859,12 +4012,11 @@ void GLWidget::bindIBLTextures()
 	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
 }
 
+
 void GLWidget::render(GLCamera* camera)
 {
 	glEnable(GL_DEPTH_TEST);
-
 	glDisable(GL_BLEND);
-	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glDisable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
 	glDisable(GL_POLYGON_OFFSET_FILL);
@@ -3876,127 +4028,55 @@ void GLWidget::render(GLCamera* camera)
 	_viewMatrix.setToIdentity();
 	_viewMatrix = camera->getViewMatrix();
 	_projectionMatrix = camera->getProjectionMatrix();
-
-	// model transformations
-	/*_modelMatrix.translate(QVector3D(_xTran, _yTran, _zTran));
-		_modelMatrix.rotate(_xRot, 1, 0, 0);
-		_modelMatrix.rotate(_yRot, 0, 1, 0);
-		_modelMatrix.rotate(_zRot, 0, 0, 1);
-		_modelMatrix.scale(_xScale, _yScale, _zScale);*/
-
 	_modelViewMatrix = _viewMatrix * _modelMatrix;
 
-	// Check if floor is visible from camera angle to enable/disable shadow
-	QVector3D zDir(0.0, 0.0, 1.0);
-	QVector3D viewDir = _primaryCamera->getViewDir();
-	bool floorVisible = QVector3D::dotProduct(viewDir, zDir) < 0.0f;
-	bool showShadows = (_shadowsEnabled && floorVisible && !_lowResEnabled && camera == _primaryCamera);
+	// --- 1) Skybox ---
+	if (_skyBoxEnabled)
+	{
+		glDisable(GL_DEPTH_TEST);
+		glDepthMask(GL_FALSE);
+		drawSkyBox();
+		glEnable(GL_DEPTH_TEST);
+		glDepthMask(GL_TRUE);
+	}
 
+	// --- 2) Opaque meshes (with clipping) ---
 	_fgShader->bind();
-		
-	_fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));	
-	_fgShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
-	_fgShader->setUniformValue("normalMatrix", _modelViewMatrix.normalMatrix());
-	_fgShader->setUniformValue("projectionMatrix", _projectionMatrix);
-	_fgShader->setUniformValue("viewportMatrix", _viewportMatrix);		
-	_fgShader->setUniformValue("shadowsEnabled", showShadows);	
-	_fgShader->setUniformValue("selfShadowsEnabled", _selfShadowsEnabled);
-	_fgShader->setUniformValue("cameraPos", _primaryCamera->getPosition());
-	_fgShader->setUniformValue("lightPos", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
-	_fgShader->setUniformValue("modelMatrix", _modelMatrix);
-	_fgShader->setUniformValue("viewMatrix", _viewMatrix);
-	_fgShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);		
-	_fgShader->setUniformValue("lightFarPlane", _lightPosition.z() + _lightOffsetZ);
-	_fgShader->setUniformValue("hdrToneMapping", _hdrToneMapping);
-	_fgShader->setUniformValue("gammaCorrection", _gammaCorrection);
-	_fgShader->setUniformValue("screenGamma", _screenGamma);
+	setCommonUniforms(_fgShader.get(), camera);	
+	drawMeshesWithClipping(_fgShader.get(), false); // opaque pass
+	_fgShader->release();
 
-	bindIBLTextures();
-
-	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
-	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
-
-	// https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
-	glDisable(GL_STENCIL_TEST);
-	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled)
+	// --- 2.5) Section caps (after opaque, before floor & transparents) ---
+	if (_cappingEnabled && 
+		(_clipYZEnabled || _clipZXEnabled || _clipXYEnabled))
 	{
-		if (_cappingEnabled && !_floorDisplayed)
-			drawSectionCapping();
-		// Clipping Planes
-		if (_clipYZEnabled)
-		{
-			glEnable(GL_CLIP_DISTANCE0);
-			// Mesh
-			drawMesh(_fgShader.get());
-			// Vertex Normal
-			drawVertexNormals();
-			// Face Normal
-			drawFaceNormals();
-			glDisable(GL_CLIP_DISTANCE0);
-		}
-		if (_clipZXEnabled)
-		{
-			glEnable(GL_CLIP_DISTANCE1);
-			// Mesh
-			drawMesh(_fgShader.get());
-			// Vertex Normal
-			drawVertexNormals();
-			// Face Normal
-			drawFaceNormals();
-			glDisable(GL_CLIP_DISTANCE1);
-		}
-		if (_clipXYEnabled)
-		{
-			glEnable(GL_CLIP_DISTANCE2);
-			// Mesh
-			drawMesh(_fgShader.get());
-			// Vertex Normal
-			drawVertexNormals();
-			// Face Normal
-			drawFaceNormals();
-			glDisable(GL_CLIP_DISTANCE2);
-		}
-	}
-	else
-	{
-		// Mesh
-		drawMesh(_fgShader.get());
-		// Vertex Normal
-		drawVertexNormals();
-		// Face Normal
-		drawFaceNormals();
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(-1.0f, -1.0f); // pull forward
+		drawSectionCapping();
+		glDisable(GL_POLYGON_OFFSET_FILL);
 	}
 
-	/*
-	if (!(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
-	{
-		glEnable(GL_CLIP_DISTANCE3);
-	}
-
-	glDisable(GL_CLIP_DISTANCE3);
-	*/
-
-	if (_displayMode == DisplayMode::REALSHADED 
-		&& _floorDisplayed && 
+	// --- 3) Floor ---
+	if (_displayMode == DisplayMode::REALSHADED &&
+		_floorDisplayed &&
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
 		drawFloor();
 	}
 
-	if (_skyBoxEnabled)
-	{	
-		drawSkyBox();
-	}
-
-	if (_showAxis)
-		drawAxis();
-
-	if (_showLights)
-		drawLights();
-
+	// --- 4) Transparent meshes (with clipping) ---
+	_fgShader->bind();
+	setCommonUniforms(_fgShader.get(), camera);
+	drawMeshesWithClipping(_fgShader.get(), true); // transparent pass
 	_fgShader->release();
+
+	// --- 5) Overlays ---
+	if (_showAxis)   drawAxis();
+	if (_showLights) drawLights();
 }
+
+
 
 void GLWidget::renderToShadowBuffer()
 {

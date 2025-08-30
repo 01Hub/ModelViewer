@@ -353,6 +353,12 @@ private:
 	void loadFloor();
 	
 	void drawMesh(QOpenGLShaderProgram* prog);
+
+	void drawOpaqueMeshes(QOpenGLShaderProgram* prog);
+	void drawTransparentMeshes(QOpenGLShaderProgram* prog);
+	void drawMeshesWithClipping(QOpenGLShaderProgram* prog,	bool transparentPass);
+	void setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera);
+
 	void drawSectionCapping();
 	void drawFloor();
 	void drawSkyBox();
