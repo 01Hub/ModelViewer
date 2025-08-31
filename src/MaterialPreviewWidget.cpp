@@ -631,7 +631,7 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 
 	if (profile == PreviewProfile::MaterialShowcase)
 	{
-		envDiffuse *= 0.6f;         // less hemisphere fill → more contrast
+		envDiffuse *= 0.6f;         // less hemisphere fill -> more contrast
 		c0 *= 1.35f;                // stronger key
 		c1 *= 0.95f;                // keep fill modest
 		c2 *= 1.10f;                // a bit more back/low
