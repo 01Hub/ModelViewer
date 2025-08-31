@@ -3447,10 +3447,13 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog)
 		{
 			if (mesh->isTransparent())
 			{
-				// IMPORTANT: use mesh’s bounding sphere in world space, not global
-				const QVector3D c = _boundingSphere.getCenter();
-				const float d = (c - camPos).lengthSquared();
-				transparent.emplace_back(d, id);
+				// Use a stable distance metric (camera -> mesh bounds center in world space)
+				const QVector3D c = mesh->getBoundingSphere().getCenter();   // return center in world space
+				const float R = mesh->getBoundingSphere().getRadius();
+				const float d = (c - camPos).length();     // squared is fine for sorting
+				// farthest point distance
+				float farthest = d + R;
+				transparent.emplace_back(farthest, id);
 			}
 		}
 	}
