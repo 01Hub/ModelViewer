@@ -1289,19 +1289,34 @@ void ModelViewer::on_sliderTransparency_valueChanged(int value)
 {
 	if (checkForActiveSelection())
 	{
-		_material.setOpacity((float)value / 1000.0f);
+		// Lambda for mapping slider [50..1000] → opacity
+		auto mapSliderToOpacity = [](int s) -> float {
+			if (s >= 1000)
+			{
+				return 1.0f; // only at max
+			}
+			// Normalize rest of slider (50 → 999) to [0..1]
+			float t = float(s - 50) / float(999 - 50);
+			// Smooth fade from 0.5 → 0.005
+			return 0.5f - (0.5f - 0.005f) * (1.0f - t);
+			};
+
+		float opacity = mapSliderToOpacity(value);
+
+		_material.setOpacity(opacity);
 		for (int id : getSelectedIDs())
 		{
 			TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
 			if (mesh)
 			{
-				mesh->setOpacity((float)value / 1000.0f);
+				mesh->setOpacity(opacity);
 			}
 		}
 
 		_glWidget->updateView();
 	}
 }
+
 
 void ModelViewer::on_sliderShine_valueChanged(int value)
 {
