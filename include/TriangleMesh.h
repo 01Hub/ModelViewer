@@ -186,6 +186,7 @@ public:
 	virtual void setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap);
 
 	virtual bool isTransparent() const;
+	virtual bool needsDepthMaskOff() const ;
 	
 	virtual void clearAlbedoPBRMap();
 	virtual void clearMetallicPBRMap();

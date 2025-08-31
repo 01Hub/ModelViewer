@@ -1484,11 +1484,21 @@ void TriangleMesh::invertOpacityPBRMap(bool invert)
 }
 
 bool TriangleMesh::isTransparent() const
-{
-	return _material.opacity() < 1.0f ||
-		_hasOpacityADSMap || _hasOpacityPBRMap ||
-		_hasTextureAlpha;
+{	
+	return (_material.opacity() < 0.999f) || (_material.transmission() > 0.001f) ||
+		_hasTextureAlpha || _hasOpacityADSMap || _hasOpacityPBRMap || _hasTransmissionPBRMap ||
+		(_material.blendMode() == GLMaterial::BlendMode::Alpha);
 }
+
+bool TriangleMesh::needsDepthMaskOff() const
+{
+	return isTransparent() &&
+		!_hasOpacityADSMap &&
+		!_hasOpacityPBRMap &&
+		!_hasTextureAlpha &&
+		!_hasTransmissionPBRMap;  // uniform-only transparency
+}
+
 
 void TriangleMesh::clearAlbedoPBRMap()
 {

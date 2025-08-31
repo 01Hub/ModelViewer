@@ -344,6 +344,11 @@ void main()
 						// Debug: Ensure we're getting the alpha channel properly
 						testAlpha *= diffuseSample.a;
 					}
+					if(hasOpacityTexture) {
+						float opacityTexValue = texture(texture_opacity, g_texCoord2d).r;
+						if(opacityTextureInverted) opacityTexValue = 1.0 - opacityTexValue;
+						testAlpha *= opacityTexValue;
+					}
 				} else {
 					// PBR mode: check for albedo texture alpha
 					// In PBR, albedo alpha might not always be for transparency
@@ -363,13 +368,17 @@ void main()
 			finalAlpha = opacity;
 
 			// Apply texture alpha based on what's available
-			// If both opacity map and texture alpha exist, multiply them
+			// If both opacity map and texture alpha exist, multiply them			
 			if(hasOpacityMap) {
 				float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
 				if(opacityMapInverted) opacityMapValue = 1.0 - opacityMapValue;
 				finalAlpha *= opacityMapValue;
+			}		
+			if(hasOpacityTexture) {
+				float opacityTexValue = texture(texture_opacity, g_texCoord2d).r;
+				if(opacityTextureInverted) opacityTexValue = 1.0 - opacityTexValue;
+				finalAlpha *= opacityTexValue;
 			}
-
 			// Apply texture alpha (this can work alongside opacity map)
 			if(renderingMode == 0) {
 				// ADS mode: check for diffuse texture alpha
@@ -546,14 +555,14 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		matEmissive = texture(texture_emissive, clippedTexCoord).rgb;
 
 	// --- Alpha (diffuse alpha * opacity map * uniform) ---
-	float texAlpha = hasDiffuseTexture ? texture(texture_diffuse, clippedTexCoord).a : 1.0;
-	float mapAlpha = 1.0;
-	if (hasOpacityTexture) {
-		float om = texture(texture_opacity, clippedTexCoord).r;
-		mapAlpha = opacityTextureInverted ? (1.0 - om) : om;
-	}
-	float combinedAlpha = opacity * texAlpha * mapAlpha;
-	combinedAlpha = clamp(combinedAlpha, 0.0, 1.0);
+//	float texAlpha = hasDiffuseTexture ? texture(texture_diffuse, clippedTexCoord).a : 1.0;
+//	float mapAlpha = 1.0;
+//	if (hasOpacityTexture) {
+//		float om = texture(texture_opacity, clippedTexCoord).a;
+//		mapAlpha = opacityTextureInverted ? (1.0 - om) : om;
+//	}
+//	float combinedAlpha = opacity * texAlpha * mapAlpha;
+//	combinedAlpha = clamp(combinedAlpha, 0.0, 1.0);
 
 	// --- Build lighting buckets ---
 	vec3 ambient = source.ambient * matAmbient * model.ambient;

@@ -77,21 +77,16 @@ void AssImpMesh::render()
 	// Set render state efficiently
 	setRenderStateOptimized();
 	
-	// Transparent draws must NOT write depth, but should still depth-test.
-	const bool isTransparent =
-		(_material.opacity() < 0.999f) ||
-		_hasOpacityADSMap || _hasOpacityPBRMap ||
-		(_material.blendMode() == GLMaterial::BlendMode::Alpha);
-
+	// Transparent draws must NOT write depth, but should still depth-test.	
 	GLboolean prevDepthMask = GL_TRUE;
 	glGetBooleanv(GL_DEPTH_WRITEMASK, &prevDepthMask);
-	if (isTransparent) glDepthMask(GL_FALSE);
+	if (isTransparent() && needsDepthMaskOff()) glDepthMask(GL_FALSE);
 
 	_vertexArrayObject.bind();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, nullptr);
 	_vertexArrayObject.release();
 
-	if (isTransparent) glDepthMask(prevDepthMask); // restore immediately
+	if (isTransparent()) glDepthMask(prevDepthMask); // restore immediately
 
 	_prog->release();
 	
@@ -199,6 +194,7 @@ void AssImpMesh::setupMesh()
 		if (name == "opacityMap")
 		{
 			_hasOpacityPBRMap = true;
+			_hasOpacityADSMap = true;
 			//_opacityPBRMapInverted = _textures[i].invertOpacity;
 		}
 		if (name == "transmissionMap")
@@ -339,6 +335,12 @@ void AssImpMesh::cacheTextureBindings()
 		{
 			addBinding("aoMap" /*+ std::to_string(aoNr)*/, GL_TEXTURE17);
 			aoNr++;
+		}
+		else if (texture.type == "opacityMap")
+		{
+			addBinding("texture_opacity" /*+ std::to_string(opacityNr)*/, GL_TEXTURE15);
+			addBinding("opacityMap" /*+ std::to_string(opacityNr)*/, GL_TEXTURE15);
+			opacityNr++;
 		}
 		else if (texture.type == "transmissionMap")
 		{
@@ -601,6 +603,7 @@ void AssImpMesh::setOpacityPBRMap(unsigned int opacityMap)
 {
 	//glDeleteTextures(1, &_opacityPBRMap);
 	_opacityPBRMap = opacityMap;
+	_material.setBlendMode(GLMaterial::BlendMode::Alpha);
 	replaceOrAppendTexture("opacityMap", opacityMap, true);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -749,6 +752,7 @@ void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 	t.path = ""; // No path for OpenGL texture handles
 	_textures.push_back(t);
 	_hasOpacityADSMap = true;
+	_material.setBlendMode(GLMaterial::BlendMode::Alpha);
 	markTexturesDirty();
 	markUniformsDirty();
 }
@@ -810,7 +814,7 @@ void AssImpMesh::setTextureMaps(const GLMaterial& material)
 	if (material.hasOpacityMap())
 	{
 		_hasOpacityPBRMap = true;
-		setOpacityPBRMap(material.opacityTextureId());
+		setOpacityPBRMap(material.opacityTextureId());		
 	}
 	if (material.hasTransmissionMap())
 	{
