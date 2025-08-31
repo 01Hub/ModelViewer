@@ -409,6 +409,33 @@ void main()
 		fragColor.rgb *= finalAlpha;
 	}
 
+	// --- TRANSMISSION HANDLING (PBR only) ---
+	// Transmission affects color, NOT alpha.
+	// Keep alpha from opacity logic above.
+	if (renderingMode == 1) { // PBR mode
+		float transmissionFactor = pbrLighting.transmission;
+
+		if (hasTransmissionMap) {
+			float mapVal = texture(transmissionMap, g_texCoord2d).r;
+			transmissionFactor *= mapVal;
+		}
+
+		if (transmissionFactor > 0.0) {
+			vec3 N = normalize(g_normal);
+			vec3 V = normalize(cameraPos - g_position);
+
+			// Refract ray into environment
+			float ior = (pbrLighting.ior > 0.0) ? pbrLighting.ior : 1.5;
+			vec3 R = refract(-V, N, 1.0 / ior);
+
+			// Sample environment
+			vec3 envColor = texture(envMap, R).rgb;
+
+			// Blend transmission into RGB
+			fragColor.rgb = mix(fragColor.rgb, envColor, transmissionFactor);
+		}
+	}
+
 	// Apply environment mapping (outside floorRendering block)
 	if(envMapEnabled && displayMode == 3) {
 		applyEnvironmentMapping(finalAlpha); // Pass the correct alpha

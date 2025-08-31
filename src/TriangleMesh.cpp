@@ -1485,8 +1485,8 @@ void TriangleMesh::invertOpacityPBRMap(bool invert)
 
 bool TriangleMesh::isTransparent() const
 {	
-	return (_material.opacity() < 0.999f) || (_material.transmission() > 0.001f) ||
-		_hasTextureAlpha || _hasOpacityADSMap || _hasOpacityPBRMap || _hasTransmissionPBRMap ||
+	return (_material.opacity() < 0.999f) ||
+		_hasTextureAlpha || _hasOpacityADSMap || _hasOpacityPBRMap ||
 		(_material.blendMode() == GLMaterial::BlendMode::Alpha);
 }
 
