@@ -3483,6 +3483,9 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog)
 void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 	bool transparentPass)
 {
+	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
+	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
+
 	// https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
 	// If any clipping is active
 	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled)
