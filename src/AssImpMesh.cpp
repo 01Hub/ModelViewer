@@ -398,37 +398,6 @@ void AssImpMesh::bindTexturesOptimized()
 
 void AssImpMesh::setRenderStateOptimized()
 {
-	// Decide if this mesh wants blending (same rule you use for sorting)
-	const bool wantsBlend =
-		(_material.opacity() < 0.999f) ||
-		_hasOpacityADSMap || _hasOpacityPBRMap ||
-		(_material.blendMode() == GLMaterial::BlendMode::Alpha ||
-			_hasTextureAlpha);
-
-	// Flip GL_BLEND only when the state changes (cache stays in sync)
-	//if (wantsBlend != _currentBlendEnabled)
-	//{
-	//	if (wantsBlend)
-	//	{
-	//		glEnable(GL_BLEND);
-	//		glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA,
-	//			GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-
-	//		// Never enable smoothing for filled geom; it conflicts with depth+blend
-	//		glDisable(GL_POLYGON_SMOOTH);
-	//		glDisable(GL_LINE_SMOOTH);
-	//		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-	//	}
-	//	else
-	//	{
-	//		glDisable(GL_BLEND);
-	//		glDisable(GL_POLYGON_SMOOTH);
-	//		glDisable(GL_LINE_SMOOTH);
-	//		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-	//	}
-	//	_currentBlendEnabled = wantsBlend;
-	//}
-
 	// Front face correction (as you had)
 	GLenum frontFace = GL_CCW;
 	const int neg = (_scaleX < 0) + (_scaleY < 0) + (_scaleZ < 0);
