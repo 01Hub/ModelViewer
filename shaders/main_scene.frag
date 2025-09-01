@@ -76,7 +76,7 @@ uniform bool hasRoughnessMap;
 uniform bool hasNormalMap;
 uniform bool hasAOMap;
 uniform bool hasHeightMap;
-uniform float heightScale = 0.02;
+uniform float heightScale = 0.05;
 uniform bool hasOpacityMap;
 uniform bool opacityMapInverted = false;
 uniform int blendMode; // 0 = additive, 1 = multiplicative, 2 = overlay
@@ -538,7 +538,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	if (hasNormalTexture)
 		normal = calcBumpedNormal(texture_normal, g_texCoord2d);
 
-	if (hasHeightTexture) {
+	if (hasHeightTexture) {		
 		vec3 n = normalize(g_normal);
 		vec3 t = normalize(g_tangent - dot(g_tangent, n) * n);
 		vec3 b = normalize(cross(n, t));
@@ -550,7 +550,11 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 		if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
 				clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
-			discard;
+			clippedTexCoord = g_texCoord2d; // discard;
+
+		float angle = dot(normalize(viewDirWorld), vec3(0.0, 0.0, 1.0));
+		float fade = clamp((angle - 0.1) / 0.9, 0.0, 1.0);
+		clippedTexCoord = mix(g_texCoord2d, clippedTexCoord, fade);
 
 		normal = calcBumpedNormal(texture_normal, clippedTexCoord);
 	}
@@ -585,16 +589,6 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		matSpecular = texture(texture_specular, clippedTexCoord).rgb * pf;
 	if (hasEmissiveTexture)
 		matEmissive = texture(texture_emissive, clippedTexCoord).rgb;
-
-	// --- Alpha (diffuse alpha * opacity map * uniform) ---
-//	float texAlpha = hasDiffuseTexture ? texture(texture_diffuse, clippedTexCoord).a : 1.0;
-//	float mapAlpha = 1.0;
-//	if (hasOpacityTexture) {
-//		float om = texture(texture_opacity, clippedTexCoord).a;
-//		mapAlpha = opacityTextureInverted ? (1.0 - om) : om;
-//	}
-//	float combinedAlpha = opacity * texAlpha * mapAlpha;
-//	combinedAlpha = clamp(combinedAlpha, 0.0, 1.0);
 
 	// --- Build lighting buckets ---
 	vec3 ambient = source.ambient * matAmbient * model.ambient;
@@ -720,7 +714,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			clippedTexCoord = parallaxMapping(g_texCoord2d, viewDirTangent, heightMap, heightScale);
 			if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
 					clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
-				discard;
+				clippedTexCoord = g_texCoord2d; // discard;
+
+			float angle = dot(normalize(viewDirWorld), vec3(0.0, 0.0, 1.0));
+			float fade = clamp((angle - 0.1) / 0.9, 0.0, 1.0);
+			clippedTexCoord = mix(g_texCoord2d, clippedTexCoord, fade);
 
 			N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
 		}
@@ -1075,12 +1073,40 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
 // Function for parallax mapping to simulate depth displacement
 vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale)
 {
-	// Sample height from the height map (assuming grayscale)
-	float height = texture(heightMap, texCoords).r;
-	// Apply parallax scaling and bias
-	float parallaxAmount = height * heightScale;
-	// Offset texture coordinates based on the view direction (xy components)
-	return texCoords - parallaxAmount * viewDir.xy;
+	// Number of layers to sample depends on view angle
+    const float minLayers = 8.0;
+    const float maxLayers = 32.0;
+    float numLayers = mix(maxLayers, minLayers, abs(dot(vec3(0.0, 0.0, 1.0), normalize(viewDir))));
+
+    // Calculate size of each layer
+    float layerDepth = 1.0 / numLayers;
+    float currentLayerDepth = 0.0;
+
+    // Calculate the per-step texture coordinate shift
+    vec2 P = viewDir.xz * heightScale;   // <-- using xz for your Z-up setup
+    vec2 deltaTexCoords = P / numLayers;
+
+    // Get initial values
+    vec2 currentTexCoords = texCoords;
+    float currentDepthMapValue = texture(heightMap, currentTexCoords).r;
+
+    // Step until we hit the depth
+    while (currentLayerDepth < currentDepthMapValue)
+    {
+        currentTexCoords -= deltaTexCoords;
+        currentDepthMapValue = texture(heightMap, currentTexCoords).r;
+        currentLayerDepth += layerDepth;
+    }
+
+    // Interpolate between last two steps for smoother transition
+    vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
+    float afterDepth = currentDepthMapValue - currentLayerDepth;
+    float beforeDepth = texture(heightMap, prevTexCoords).r - (currentLayerDepth - layerDepth);
+
+    float weight = afterDepth / (afterDepth - beforeDepth);
+    vec2 finalTexCoords = prevTexCoords * weight + currentTexCoords * (1.0 - weight);
+
+    return finalTexCoords;
 }
 
 void applyEnvironmentMapping(float alphaIn)
