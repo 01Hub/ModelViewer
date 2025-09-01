@@ -481,11 +481,6 @@ void main()
 		float distance = length(g_position - u_screenCenter);
 
 		// Set fade parameters first, before any calculations
-		if (skyBoxEnabled) 
-		{
-			discard; // Skip floor rendering in this pass 
-		}
-
 		// Early discard for pixels beyond fade range
 		if (distance > fadeEnd)
 			discard;
@@ -494,23 +489,13 @@ void main()
 		float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
 		if (fadeFactor >= 1.0)
 			discard;
-
-		// Get background color
-		vec3 backgroundColor;
-
-		// Interpolate background gradient color
-		//backgroundColor = calculateBackgroundColor();
-		backgroundColor = texture2D(texUnit, g_texCoord2d).rgb;
-		// Blend floor color with the background gradient
+			// Blend floor color with the background gradient
 		// View-angle modulation: reduce background mix when looking straight down
 		// NdotV in world (front/back already handled above)
 		vec3 N_main = normalize(gl_FrontFacing ? g_normal : -g_normal);
 		vec3 V_main = normalize(cameraPos - g_position);
 		float NdotV_main = clamp(dot(N_main, V_main), 0.0, 1.0);
-
-		// Original distance-based fade
-		fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
-
+		
 		// Reduce background contribution when NdotV is high (top view).
 		// When looking straight down (NdotV~1), bgMix gets smaller -> floor doesn't wash out.
 		// Reduce background mixing when looking straight down (NdotV ~ 1)
@@ -518,10 +503,30 @@ void main()
 		// at grazing -> 1.0, at top-down -> 0.25
 		float bgMix = fadeFactor * angleMod;
 
+		// Get background color
+		vec3 backgroundColor;
+		if (skyBoxEnabled) 
+		{			
+			vec3 N = normalize(g_normal);
+			vec3 V = normalize(cameraPos - g_position);
+
+			// Refract ray into environment
+			float ior = 1.5; // IOR of glass
+			vec3 R = refract(-V, N, 1.0 / ior);
+
+			// Sample environment
+			vec3 backgroundColor = texture(envMap, R).rgb;
+		}
+		else
+		{
+			// Interpolate background gradient color
+			//backgroundColor = calculateBackgroundColor();
+			backgroundColor = texture2D(texUnit, g_texCoord2d).rgb;	
+		}
+		
 		// Blend floor color with background gradient
 		fragColor.rgb = mix(fragColor.rgb, backgroundColor, clamp(bgMix, 0.0, 1.0));
 		fragColor.a   *= (1.0 - fadeFactor);
-
 	} 
 }
 
