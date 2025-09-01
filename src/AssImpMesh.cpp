@@ -271,13 +271,32 @@ void AssImpMesh::cacheTextureBindings()
 			diffuseNr++;
 			_hasTextureAlpha = texture.hasAlpha;
 		}
+		else if (texture.type == "albedoMap")
+		{
+			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10);
+			addBinding("albedoMap" /*+ std::to_string(albedoNr)*/, GL_TEXTURE10);
+			albedoNr++;
+			_hasTextureAlpha = texture.hasAlpha;
+		}
 		else if (texture.type == "texture_specular")
 		{
 			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE11);
 			addBinding("metallicMap" /*+ std::to_string(specularNr)*/, GL_TEXTURE11);
 			specularNr++;
 		}
+		else if (texture.type == "metallicMap")
+		{
+			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE11);
+			addBinding("metallicMap" /*+ std::to_string(metallicNr)*/, GL_TEXTURE11);
+			metallicNr++;
+		}
 		else if (texture.type == "texture_emissive")
+		{
+			addBinding("texture_emissive" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE12);
+			addBinding("emissiveMap" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE12);
+			emissiveNr++;
+		}
+		else if (texture.type == "emissiveMap")
 		{
 			addBinding("texture_emissive" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE12);
 			addBinding("emissiveMap" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE12);
@@ -289,7 +308,18 @@ void AssImpMesh::cacheTextureBindings()
 			addBinding("normalMap" /*+ std::to_string(normalNr)*/, GL_TEXTURE13);
 			normalNr++;
 		}
+		else if (texture.type == "normalMap")
+		{
+			addBinding("normalMap" /*+ std::to_string(normalNr)*/, GL_TEXTURE13);
+			normalNr++;
+		}
 		else if (texture.type == "texture_height")
+		{
+			addBinding("texture_height" /*+ std::to_string(heightNr)*/, GL_TEXTURE14);
+			addBinding("heightMap" /*+ std::to_string(heightNr)*/, GL_TEXTURE14);
+			heightNr++;
+		}
+		else if (texture.type == "heightMap")
 		{
 			addBinding("texture_height" /*+ std::to_string(heightNr)*/, GL_TEXTURE14);
 			addBinding("heightMap" /*+ std::to_string(heightNr)*/, GL_TEXTURE14);
@@ -301,31 +331,12 @@ void AssImpMesh::cacheTextureBindings()
 			addBinding("opacityMap" /*+ std::to_string(opacityNr)*/, GL_TEXTURE15);
 			opacityNr++;
 		}
-		
-		else if (texture.type == "albedoMap")
+		else if (texture.type == "opacityMap")
 		{
-			addBinding("texture_diffuse" /*+ std::to_string(diffuseNr)*/, GL_TEXTURE10);
-			addBinding("albedoMap" /*+ std::to_string(albedoNr)*/, GL_TEXTURE10);
-			albedoNr++;
-			_hasTextureAlpha = texture.hasAlpha;
-		}
-		else if (texture.type == "metallicMap")
-		{
-			addBinding("texture_specular" /*+ std::to_string(specularNr)*/, GL_TEXTURE11);
-			addBinding("metallicMap" /*+ std::to_string(metallicNr)*/, GL_TEXTURE11);
-			metallicNr++;
+			addBinding("texture_opacity" /*+ std::to_string(opacityNr)*/, GL_TEXTURE15);
+			addBinding("opacityMap" /*+ std::to_string(opacityNr)*/, GL_TEXTURE15);
+			opacityNr++;
 		}		
-		else if (texture.type == "emissiveMap")
-		{
-			addBinding("texture_emissive" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE12);
-			addBinding("emissiveMap" /*+ std::to_string(emissiveNr)*/, GL_TEXTURE12);
-			emissiveNr++;
-		}
-		else if (texture.type == "normalMap")
-		{
-			addBinding("normalMap" /*+ std::to_string(normalNr)*/, GL_TEXTURE13);
-			normalNr++;
-		}
 		else if (texture.type == "roughnessMap")
 		{
 			addBinding("roughnessMap" /*+ std::to_string(roughnessNr)*/, GL_TEXTURE16);
@@ -335,13 +346,7 @@ void AssImpMesh::cacheTextureBindings()
 		{
 			addBinding("aoMap" /*+ std::to_string(aoNr)*/, GL_TEXTURE17);
 			aoNr++;
-		}
-		else if (texture.type == "opacityMap")
-		{
-			addBinding("texture_opacity" /*+ std::to_string(opacityNr)*/, GL_TEXTURE15);
-			addBinding("opacityMap" /*+ std::to_string(opacityNr)*/, GL_TEXTURE15);
-			opacityNr++;
-		}
+		}		
 		else if (texture.type == "transmissionMap")
 		{
 			addBinding("transmissionMap" /*+ std::to_string(i)*/, GL_TEXTURE18);
@@ -365,20 +370,17 @@ void AssImpMesh::cacheTextureBindings()
 		else if (texture.type == "clearcoatMap")
 		{
 			addBinding("clearcoatMap" /*+ std::to_string(i)*/, GL_TEXTURE22);
-			clearcoatNr++;
-			//std::cout << "Clearcoat map binding: " << i << std::endl;
+			clearcoatNr++;			
 		}
 		else if (texture.type == "clearcoatRoughnessMap")
 		{
 			addBinding("clearcoatRoughnessMap" /*+ std::to_string(i)*/, GL_TEXTURE23);
-			clearcoatRoughnessNr++;
-			//std::cout << "Clearcoat roughness map binding: " << i << std::endl;
+			clearcoatRoughnessNr++;			
 		}
 		else if (texture.type == "clearcoatNormalMap")
 		{
 			addBinding("clearcoatNormalMap" /*+ std::to_string(i)*/, GL_TEXTURE24);
-			clearcoatNormalNr++;
-			//std::cout << "Clearcoat normal map binding: " << i << std::endl;
+			clearcoatNormalNr++;			
 		}
 	}
 
