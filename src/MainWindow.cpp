@@ -725,14 +725,20 @@ void MainWindow::updateRecentFileActions()
 
 	const QStringList recentFiles = readRecentFiles(settings);
 	const int count = qMin(int(MaxRecentFiles), recentFiles.size());
+
 	int i = 0;
 	for (; i < count; ++i)
 	{
-		const QString fileName = QFileInfo(recentFiles.at(i)).fileName();
-		recentFileActs[i]->setText(tr("&%1 %2").arg(i + 1).arg(fileName));
-		recentFileActs[i]->setData(recentFiles.at(i));
-		recentFileActs[i]->setVisible(true);
+		const QString filePath = recentFiles.at(i);
+		const QString fileName = QFileInfo(filePath).fileName();
+
+		QAction* act = recentFileActs[i];
+		act->setText(tr("&%1 %2").arg(i + 1).arg(fileName));
+		act->setData(filePath);
+		act->setStatusTip(filePath); 
+		act->setVisible(true);
 	}
+
 	for (; i < MaxRecentFiles; ++i)
 		recentFileActs[i]->setVisible(false);
 }
