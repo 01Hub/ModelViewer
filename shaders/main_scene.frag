@@ -76,7 +76,7 @@ uniform bool hasRoughnessMap;
 uniform bool hasNormalMap;
 uniform bool hasAOMap;
 uniform bool hasHeightMap;
-uniform float heightScale = 0.05;
+uniform float heightScale = 0.08;
 uniform bool hasOpacityMap;
 uniform bool opacityMapInverted = false;
 uniform int blendMode; // 0 = additive, 1 = multiplicative, 2 = overlay
@@ -197,7 +197,7 @@ float   geometrySchlickGGX(float NdotV, float roughness);
 float   geometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3    fresnelSchlick(float cosTheta, vec3 F0);
 vec3    fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
-vec2    parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale);
+vec2    parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale);
 vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
 
 // Advanced PBR Functions
@@ -546,15 +546,11 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 		vec3 viewDirWorld = normalize(cameraPos - g_position);
 		vec3 viewDirTangent = TBN * viewDirWorld;
-		clippedTexCoord = parallaxMapping(g_texCoord2d, viewDirTangent, texture_height, heightScale);
+		clippedTexCoord = parallaxOcclusionMapping(g_texCoord2d, viewDirTangent, texture_height, heightScale);
 
 		if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
 				clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
 			clippedTexCoord = g_texCoord2d; // discard;
-
-		float angle = dot(normalize(viewDirWorld), vec3(0.0, 0.0, 1.0));
-		float fade = clamp((angle - 0.1) / 0.9, 0.0, 1.0);
-		clippedTexCoord = mix(g_texCoord2d, clippedTexCoord, fade);
 
 		normal = calcBumpedNormal(texture_normal, clippedTexCoord);
 	}
@@ -711,14 +707,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			vec3 viewDirWorld   = normalize(cameraPos - g_position);
 			vec3 viewDirTangent = TBN * viewDirWorld;
 
-			clippedTexCoord = parallaxMapping(g_texCoord2d, viewDirTangent, heightMap, heightScale);
+			clippedTexCoord = parallaxOcclusionMapping(g_texCoord2d, viewDirTangent, heightMap, heightScale);
 			if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
 					clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
 				clippedTexCoord = g_texCoord2d; // discard;
-
-			float angle = dot(normalize(viewDirWorld), vec3(0.0, 0.0, 1.0));
-			float fade = clamp((angle - 0.1) / 0.9, 0.0, 1.0);
-			clippedTexCoord = mix(g_texCoord2d, clippedTexCoord, fade);
 
 			N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
 		}
@@ -1071,26 +1063,27 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
 }
 
 // Function for parallax mapping to simulate depth displacement
-vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale)
+vec2 parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale)
 {
-	// Number of layers to sample depends on view angle
+    // Number of layers varies with angle
     const float minLayers = 8.0;
     const float maxLayers = 32.0;
-    float numLayers = mix(maxLayers, minLayers, abs(dot(vec3(0.0, 0.0, 1.0), normalize(viewDir))));
+    float numLayers = mix(maxLayers, minLayers,
+                          abs(dot(vec3(0.0, 0.0, 1.0), normalize(viewDir))));
 
-    // Calculate size of each layer
+    // Calculate layer depth and step size
     float layerDepth = 1.0 / numLayers;
     float currentLayerDepth = 0.0;
 
-    // Calculate the per-step texture coordinate shift
-    vec2 P = viewDir.xz * heightScale;   // <-- using xz for your Z-up setup
+    // Shift per step (Z-up -> use xz)
+    vec2 P = viewDir.xz * heightScale;
     vec2 deltaTexCoords = P / numLayers;
 
-    // Get initial values
+    // Start at original texcoords
     vec2 currentTexCoords = texCoords;
     float currentDepthMapValue = texture(heightMap, currentTexCoords).r;
 
-    // Step until we hit the depth
+    // Iteratively march
     while (currentLayerDepth < currentDepthMapValue)
     {
         currentTexCoords -= deltaTexCoords;
@@ -1098,16 +1091,17 @@ vec2 parallaxMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float he
         currentLayerDepth += layerDepth;
     }
 
-    // Interpolate between last two steps for smoother transition
+    // Interpolate between last two steps for smoothness
     vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
-    float afterDepth = currentDepthMapValue - currentLayerDepth;
+
+    float afterDepth  = currentDepthMapValue - currentLayerDepth;
     float beforeDepth = texture(heightMap, prevTexCoords).r - (currentLayerDepth - layerDepth);
 
     float weight = afterDepth / (afterDepth - beforeDepth);
-    vec2 finalTexCoords = prevTexCoords * weight + currentTexCoords * (1.0 - weight);
 
-    return finalTexCoords;
+    return prevTexCoords * weight + currentTexCoords * (1.0 - weight);
 }
+
 
 void applyEnvironmentMapping(float alphaIn)
 {
