@@ -3490,12 +3490,6 @@ void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 	// If any clipping is active
 	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled)
 	{
-		// Draw capping geometry first (only for opaque pass)
-		if (!transparentPass && _cappingEnabled && !_floorDisplayed)
-		{
-			drawSectionCapping();
-		}
-
 		// Then draw meshes with clip planes enabled
 		if (_clipYZEnabled)
 		{
@@ -3618,14 +3612,14 @@ void GLWidget::drawSectionCapping()
 		//At this point, the stencil buffer is 1 wherever the clipping plane is enclosed by
 		// the frontfacing and backfacing surfaces of the object.
 		// 5) The depth buffer is cleared, color buffer writes are enabled,
-		glClear(GL_DEPTH_BUFFER_BIT);
+		//glClear(GL_DEPTH_BUFFER_BIT);
 		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 		glEnable(GL_DEPTH_TEST);
 
 		// and the polygon representing the clipping plane is now drawn using whatever material properties are desired,
 		// with the stencil function set to GL EQUAL and the reference value set to 1.
 		// This draws the color and depth values of the cap into the framebuffer only where the stencil values equal 1.
-		glStencilFunc(GL_EQUAL, 1, 0xFF);
+		glStencilFunc(GL_EQUAL, 1, 0xFF);		
 		glDepthMask(GL_TRUE);
 		glEnable(GL_DEPTH_TEST);
 		// drawCappingPlane
@@ -3682,7 +3676,7 @@ void GLWidget::drawSectionCapping()
 	// 6) Finally, stenciling is disabled, the OpenGL clipping plane is applied, and the
 	// clipped object is drawn with color and depth enabled.
 	glDisable(GL_STENCIL_TEST);
-	glDisable(GL_CULL_FACE);
+	glDisable(GL_CULL_FACE);	
 }
 
 void GLWidget::drawVertexNormals()
@@ -4053,11 +4047,11 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->release();
 
 	// --- 2.5) Section caps (after opaque, before floor & transparents) ---
-	if (_cappingEnabled && 
+	if (_cappingEnabled &&
 		(_clipYZEnabled || _clipZXEnabled || _clipXYEnabled))
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
-		glPolygonOffset(-1.0f, -1.0f); // pull forward
+		glPolygonOffset(1.0f, 1.0f); // pull forward
 		drawSectionCapping();
 		glDisable(GL_POLYGON_OFFSET_FILL);
 	}
