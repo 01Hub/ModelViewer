@@ -828,6 +828,12 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 				continue;
 			}
 
+			// Ensure winding matches face orientation
+			if (processedFace.Orientation() == TopAbs_REVERSED)
+			{
+				std::swap(n2, n3); // flip winding
+			}
+
 			const aiVector3D& v0 = localVertices[n1];
 			const aiVector3D& v1 = localVertices[n2];
 			const aiVector3D& v2 = localVertices[n3];
