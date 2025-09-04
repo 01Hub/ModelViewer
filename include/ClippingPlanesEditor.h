@@ -13,6 +13,8 @@ public:
 	explicit ClippingPlanesEditor(GLWidget* parent = nullptr);
 	~ClippingPlanesEditor();
 
+	void setCoefficientLimits(double xMin, double xMax, double yMin, double yMax, double zMin, double zMax);
+
 protected slots:
 	void keyPressEvent(QKeyEvent* e);
 	void on_checkBoxXY_toggled(bool checked);
@@ -26,11 +28,6 @@ protected slots:
 	void on_doubleSpinBoxYZCoeff_valueChanged(double val);
 	void on_doubleSpinBoxZXCoeff_valueChanged(double val);
 	void on_pushButtonResetCoeffs_clicked();
-
-private slots:
-	void on_doubleSpinBoxDX_valueChanged(double arg1);
-	void on_doubleSpinBoxDY_valueChanged(double arg1);
-	void on_doubleSpinBoxDZ_valueChanged(double arg1);
 
 private:
 	GLWidget* _glView;

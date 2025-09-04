@@ -20,6 +20,18 @@ ClippingPlanesEditor::~ClippingPlanesEditor()
 {
 }
 
+void ClippingPlanesEditor::setCoefficientLimits(double xMin, double xMax, double yMin, double yMax, double zMin, double zMax)
+{
+	doubleSpinBoxXYCoeff->setRange(xMin, xMax);
+	doubleSpinBoxYZCoeff->setRange(yMin, yMax);
+	doubleSpinBoxZXCoeff->setRange(zMin, zMax);
+
+	// Set the step as 1/50th of the range
+	doubleSpinBoxXYCoeff->setSingleStep((xMax - xMin) / 50.0);
+	doubleSpinBoxYZCoeff->setSingleStep((yMax - yMin) / 50.0);
+	doubleSpinBoxZXCoeff->setSingleStep((zMax - zMin) / 50.0);
+}
+
 void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
 {
 	if (e->key() != Qt::Key_Escape)
@@ -98,32 +110,8 @@ void ClippingPlanesEditor::on_doubleSpinBoxZXCoeff_valueChanged(double val)
 	_glView->update();
 }
 
-void ClippingPlanesEditor::on_doubleSpinBoxDX_valueChanged(double arg1)
-{
-	_glView->_clipDX = arg1;
-	_glView->updateClippingPlane();
-	_glView->update();
-}
-
-void ClippingPlanesEditor::on_doubleSpinBoxDY_valueChanged(double arg1)
-{
-	_glView->_clipDY = arg1;
-	_glView->updateClippingPlane();
-	_glView->update();
-}
-
-void ClippingPlanesEditor::on_doubleSpinBoxDZ_valueChanged(double arg1)
-{
-	_glView->_clipDZ = arg1;
-	_glView->updateClippingPlane();
-	_glView->update();
-}
-
 void ClippingPlanesEditor::on_pushButtonResetCoeffs_clicked()
-{
-	doubleSpinBoxDX->setValue(0);
-	doubleSpinBoxDY->setValue(0);
-	doubleSpinBoxDZ->setValue(0);
+{	
 	doubleSpinBoxZXCoeff->setValue(0);
 	doubleSpinBoxXYCoeff->setValue(0);
 	doubleSpinBoxYZCoeff->setValue(0);
