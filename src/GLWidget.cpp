@@ -1203,7 +1203,10 @@ void GLWidget::updateBoundingBox()
 			try
 			{
 				TriangleMesh* mesh = _meshStore.at(i);
-				_boundingBox.addBox(mesh->getBoundingBox());
+				if(_meshStore.size() == 1)
+					_boundingBox = mesh->getBoundingBox();
+				else
+					_boundingBox.addBox(mesh->getBoundingBox());
 			}
 			catch (const std::out_of_range& ex)
 			{
@@ -1224,7 +1227,7 @@ void GLWidget::updateFloorPlane()
 {
 	float halfObjectSize = _boundingSphere.getRadius();
 	// floor size is maximum of bounding box x and y dimensions
-	_floorSize = std::max(_boundingBox.getZSize(), std::max(_boundingBox.getXSize(), _boundingBox.getYSize()));
+	_floorSize = halfObjectSize;
 	_floorCenter = _boundingSphere.getCenter();
 	_lightCube->setSize(halfObjectSize * 0.1f);
 	_lightPosition.setX(_floorCenter.x() + halfObjectSize * 0.5f + _lightOffsetX);
@@ -1242,6 +1245,9 @@ void GLWidget::updateClippingPlane()
 	_clippingPlaneXY->setPlane(_clippingPlaneShader.get(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipZCoeff * zside, _floorSize, _floorSize);
 	_clippingPlaneYZ->setPlane(_clippingPlaneShader.get(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipXCoeff * xside, _floorSize, _floorSize);
 	_clippingPlaneZX->setPlane(_clippingPlaneShader.get(), _floorCenter, _floorSize * 100.0f, _floorSize * 100.0f, 1, 1, -_clipYCoeff * yside, _floorSize, _floorSize);
+	_clippingPlanesEditor->setCoefficientLimits(-_boundingBox.getXSize()/2, _boundingBox.getXSize()/2, 
+		-_boundingBox.getYSize() / 2, _boundingBox.getYSize() / 2,
+		-_boundingBox.getZSize() / 2, _boundingBox.getZSize() / 2);
 }
 
 void GLWidget::showClippingPlaneEditor(bool show)
@@ -3563,6 +3569,18 @@ void GLWidget::drawSectionCapping()
 	_clippedMeshShader->setUniformValue("modelMatrix", _modelMatrix);
 	_clippedMeshShader->setUniformValue("viewMatrix", _viewMatrix);
 	_clippedMeshShader->setUniformValue("projectionMatrix", _projectionMatrix);
+
+	QVector3D pos = _primaryCamera->getPosition();
+
+	_clippedMeshShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix.map(QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
+		(_clipXFlipped ? 1 : -1) * (pos.x() - (_clipXCoeff + _boundingBox.center().getX()))));
+	_clippedMeshShader->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix.map(QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
+		(_clipYFlipped ? 1 : -1) * (pos.y() - (_clipYCoeff + _boundingBox.center().getY()))));
+	_clippedMeshShader->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix.map(QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
+		(_clipZFlipped ? 1 : -1) * (pos.z() - (_clipZCoeff + _boundingBox.center().getZ()))));
+	_clippedMeshShader->setUniformValue("clipPlane", QVector4D(_modelViewMatrix.map(QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
+		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
+
 	for (int i = 0; i < 3; ++i)
 	{
 		// Clipping Planes
@@ -3625,6 +3643,7 @@ void GLWidget::drawSectionCapping()
 		// drawCappingPlane
 		{
 			QMatrix4x4 model;
+			Point P = _boundingBox.center();
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("viewMatrix", _viewMatrix);
@@ -3635,7 +3654,8 @@ void GLWidget::drawSectionCapping()
 			float yAng = _clipXFlipped || _clipXCoeff > 0 ? 90.0f : -90.0f;
 			float xAng = _clipYFlipped || _clipYCoeff > 0 ? 90.0f : -90.0f;
 			float zAng = _clipZFlipped || _clipZCoeff > 0 ? 0.0f : 180.0f;
-			// YZ Plane
+			// YZ Plane			
+			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(yAng, QVector3D(0.0f, 1.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
@@ -3646,6 +3666,7 @@ void GLWidget::drawSectionCapping()
 			}
 			// ZX Plane
 			model.setToIdentity();
+			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(xAng, QVector3D(1.0f, 0.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
@@ -3656,6 +3677,7 @@ void GLWidget::drawSectionCapping()
 			}
 			// XY Plane
 			model.setToIdentity();
+			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(zAng, QVector3D(1.0f, 0.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
@@ -4421,11 +4443,11 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 	prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	prog->setUniformValue("projectionMatrix", _projectionMatrix);
 	prog->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix.map(QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
-		(_clipXFlipped ? 1 : -1) * (pos.x() - _clipXCoeff)));
+		(_clipXFlipped ? 1 : -1) * (pos.x() - (_clipXCoeff + _boundingBox.center().getX()))));
 	prog->setUniformValue("clipPlaneY", QVector4D(_modelViewMatrix.map(QVector3D(0, _clipYFlipped ? 1 : -1, 0) + pos),
-		(_clipYFlipped ? 1 : -1) * (pos.y() - _clipYCoeff)));
+		(_clipYFlipped ? 1 : -1) * (pos.y() - (_clipYCoeff + _boundingBox.center().getY()))));
 	prog->setUniformValue("clipPlaneZ", QVector4D(_modelViewMatrix.map(QVector3D(0, 0, _clipZFlipped ? 1 : -1) + pos),
-		(_clipZFlipped ? 1 : -1) * (pos.z() - _clipZCoeff)));
+		(_clipZFlipped ? 1 : -1) * (pos.z() - (_clipZCoeff + _boundingBox.center().getZ()))));
 	prog->setUniformValue("clipPlane", QVector4D(_modelViewMatrix.map(QVector3D(_clipDX, _clipDY, _clipDZ) + pos),
 		pos.x() * _clipDX + pos.y() * _clipDY + pos.z() * _clipDZ));
 }
