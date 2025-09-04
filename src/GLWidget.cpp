@@ -2841,6 +2841,16 @@ void GLWidget::createCappingPlanes()
     _cappingTexture = loadTextureFromFile(QString(path + "textures/patterns/hatch_02.png").toStdString().c_str());
 	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
+
+	// Stable sampling for any scale
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	// (Optional) if supported:
+	GLfloat aniso = 8.0f;
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, aniso);
 }
 
 void GLWidget::createLights()
@@ -3648,20 +3658,39 @@ void GLWidget::drawSectionCapping()
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("viewMatrix", _viewMatrix);
 			_clippingPlaneShader->setUniformValue("projectionMatrix", _projectionMatrix);
-			glActiveTexture(GL_TEXTURE13);
+			glActiveTexture(GL_TEXTURE6);
 			glBindTexture(GL_TEXTURE_2D, _cappingTexture);
 			_clippingPlaneShader->setUniformValue("hatchMap", 6);
 			float yAng = _clipXFlipped || _clipXCoeff > 0 ? 90.0f : -90.0f;
 			float xAng = _clipYFlipped || _clipYCoeff > 0 ? 90.0f : -90.0f;
 			float zAng = _clipZFlipped || _clipZCoeff > 0 ? 0.0f : 180.0f;
+
+
+			// Pick a consistent density: e.g., ~3 tiles across the model diagonal
+			const Point c = _boundingBox.center();			
+			const float sceneDiag = _boundingBox.boundingRadius() * 2.0f;
+			const float tilesAcross = 3.0f;                             // expose if you want a UI control
+			const float worldUnitsPerTile = sceneDiag / tilesAcross;
+
+			_clippingPlaneShader->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
 			// YZ Plane			
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(yAng, QVector3D(0.0f, 1.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));
+						
+			QVector3D Pxyz(P.getX(), P.getY(), P.getZ());
+
 			if (_clipYZEnabled && i == 0)
 			{
+				// Plane position along X in world space
+				const float xPlane = P.getX() + _clipXCoeff;
+				// Origin at plane through bbox center
+				_clippingPlaneShader->setUniformValue("hatchOrigin", QVector3D(xPlane, P.getY(), P.getZ()));
+				// World-space basis on the plane: U=+Y, V=+Z
+				_clippingPlaneShader->setUniformValue("uDir", QVector3D(0.f, 1.f, 0.f));
+				_clippingPlaneShader->setUniformValue("vDir", QVector3D(0.f, 0.f, 1.f));
 				_clippingPlaneYZ->render();
 			}
 			// ZX Plane
@@ -3673,6 +3702,11 @@ void GLWidget::drawSectionCapping()
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
 			if (_clipZXEnabled && i == 1)
 			{
+				const float yPlane = P.getY() + _clipYCoeff;
+				_clippingPlaneShader->setUniformValue("hatchOrigin", QVector3D(P.getX(), yPlane, P.getZ()));
+				// U=+Z, V=+X
+				_clippingPlaneShader->setUniformValue("uDir", QVector3D(0.f, 0.f, 1.f));
+				_clippingPlaneShader->setUniformValue("vDir", QVector3D(1.f, 0.f, 0.f));
 				_clippingPlaneZX->render();
 			}
 			// XY Plane
@@ -3684,6 +3718,11 @@ void GLWidget::drawSectionCapping()
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
 			if (_clipXYEnabled && i == 2)
 			{
+				const float zPlane = P.getZ() + _clipZCoeff;
+				_clippingPlaneShader->setUniformValue("hatchOrigin", QVector3D(P.getX(), P.getY(), zPlane));
+				// U=+X, V=+Y
+				_clippingPlaneShader->setUniformValue("uDir", QVector3D(1.f, 0.f, 0.f));
+				_clippingPlaneShader->setUniformValue("vDir", QVector3D(0.f, 1.f, 0.f));
 				_clippingPlaneXY->render();
 			}
 		}

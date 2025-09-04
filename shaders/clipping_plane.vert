@@ -1,16 +1,16 @@
 #version 450 core
 
-layout (location = 0) in vec3 vertexPosition;
-in vec2 texCoord2d;
+layout(location=0) in vec3 vertexPosition;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 projectionMatrix;
 
-out vec2 texCoord;
+out vec3 vWorldPos;
 
 void main()
 {
-    texCoord = texCoord2d;
-    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(vertexPosition, 1.0);
+    vec4 wp = modelMatrix * vec4(vertexPosition, 1.0);
+    vWorldPos = wp.xyz;                               // World-space position
+    gl_Position = projectionMatrix * viewMatrix * wp;
 }
