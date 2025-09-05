@@ -6,6 +6,103 @@
 #include <QKeyEvent>
 #include <QColorDialog>
 #include <QFileDialog>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
+
+// helper: simple extension check (same filters as file dialog)
+static bool isImageFileExtension(const QString& path)
+{
+	const QStringList exts = { ".png", ".jpg", ".jpeg", ".bmp", ".tga", ".hdr", ".exr" };
+	const QString lower = path.toLower();
+	for (const QString& e : exts)
+		if (lower.endsWith(e)) return true;
+	return false;
+}
+
+// Filter that only uses the button and glView pointers it was given.
+class TextureButtonDropFilter : public QObject
+{
+public:
+	// pass the specific UI button and the GL view; parent the filter to 'parent'
+	explicit TextureButtonDropFilter(QPushButton* button, GLWidget* glView, QObject* parent = nullptr)
+		: QObject(parent), _button(button), _glView(glView)
+	{
+	}
+
+protected:
+	bool eventFilter(QObject* obj, QEvent* ev) override
+	{
+		Q_UNUSED(obj);
+		if (ev->type() == QEvent::DragEnter)
+		{
+			QDragEnterEvent* den = static_cast<QDragEnterEvent*>(ev);
+			const QMimeData* md = den->mimeData();
+			if (md && md->hasUrls())
+			{
+				const QList<QUrl> urls = md->urls();
+				if (!urls.isEmpty())
+				{
+					const QString local = urls.first().toLocalFile();
+					if (!local.isEmpty() && isImageFileExtension(local))
+					{
+						den->acceptProposedAction();
+						return true;
+					}
+				}
+			}
+			return QObject::eventFilter(obj, ev);
+		}
+		else if (ev->type() == QEvent::Drop)
+		{
+			QDropEvent* de = static_cast<QDropEvent*>(ev);
+			const QMimeData* md = de->mimeData();
+			if (md && md->hasUrls())
+			{
+				const QList<QUrl> urls = md->urls();
+				if (!urls.isEmpty())
+				{
+					const QString local = urls.first().toLocalFile();
+					if (!local.isEmpty() && isImageFileExtension(local))
+					{
+						// Apply same behaviour as on_pushButtonTexture_clicked
+						if (_button)
+						{
+							int thumb = 140;
+							_button->setFixedSize(thumb, thumb);
+
+							QPixmap pix(local);
+							QIcon icon(pix);
+							_button->setIcon(icon);
+							_button->setIconSize(_button->size());
+							_button->setText(QString());
+							_button->setToolTip(QFileInfo(local).fileName());
+						}
+
+						if (_glView)
+						{
+							_glView->setHatchTexture(local);
+							_glView->updateClippingPlane();
+							_glView->update();
+						}
+
+						de->acceptProposedAction();
+						return true;
+					}
+				}
+			}
+			return QObject::eventFilter(obj, ev);
+		}
+
+		return QObject::eventFilter(obj, ev);
+	}
+
+private:
+	QPushButton* _button = nullptr;
+	GLWidget* _glView = nullptr;
+};
+
 
 ClippingPlanesEditor::ClippingPlanesEditor(GLWidget* parent) :
 	QWidget(parent),
@@ -16,6 +113,10 @@ ClippingPlanesEditor::ClippingPlanesEditor(GLWidget* parent) :
 		retranslateUi(this);
 		});
 
+	// enable drag/drop on the single texture button (no header changes)
+	pushButtonTexture->setAcceptDrops(true);
+	// parent the filter to 'this' so it will be deleted with the editor
+	pushButtonTexture->installEventFilter(new TextureButtonDropFilter(pushButtonTexture, _glView, this));
 }
 
 ClippingPlanesEditor::~ClippingPlanesEditor()
