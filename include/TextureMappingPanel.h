@@ -40,6 +40,9 @@ signals:
     void materialChanged(const GLMaterial* material);
 	void applyTexturesTriggered(const GLMaterial& material);
 
+protected:
+    bool eventFilter(QObject* obj, QEvent* ev) override;
+
 private:
     struct MapSlot
     {

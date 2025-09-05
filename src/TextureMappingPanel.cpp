@@ -12,6 +12,10 @@
 #include <QDoubleSpinBox>
 #include <QComboBox>
 #include <QSlider>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QUrl>
 
 // Your project headers
 #include "GLMaterial.h"
@@ -34,6 +38,16 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
     // default checker on all buttons
     for (auto it = _maps.begin(); it != _maps.end(); ++it)
         applyButtonEmptyIcon(it.value());
+
+    // enable drag/drop on the texture buttons
+    for (auto it = _maps.begin(); it != _maps.end(); ++it)
+    {
+        if (it.value().button)
+        {
+            it.value().button->setAcceptDrops(true);
+            it.value().button->installEventFilter(this);
+        }
+    }
 
     // pleasant stepping for UV
     _ui->spinTU->setSingleStep(0.1);
@@ -383,3 +397,83 @@ void TextureMappingPanel::updatePreview()
     _preview->setExposureEV(_ui->sliderExposure->value() / 10.0f);
     _preview->update();
 }
+
+
+// small helper: acceptable file extensions (same as file dialog)
+static bool isImageFileExtension(const QString& path)
+{
+    const QStringList exts = { ".png", ".jpg", ".jpeg", ".tga", ".bmp", ".hdr", ".exr" };
+    const QString lower = path.toLower();
+    for (const QString& e : exts)
+        if (lower.endsWith(e)) return true;
+    return false;
+}
+
+bool TextureMappingPanel::eventFilter(QObject* obj, QEvent* ev)
+{
+    // Only care about drag enter / drop events on the buttons
+    if (!obj || !_ui) return QWidget::eventFilter(obj, ev);
+
+    // We expect obj to be one of the QPushButton* in _maps values.
+    if (ev->type() == QEvent::DragEnter)
+    {
+        QDragEnterEvent* den = static_cast<QDragEnterEvent*>(ev);
+        const QMimeData* md = den->mimeData();
+        if (md && md->hasUrls())
+        {
+            // check first url points to local file with supported extension
+            const QList<QUrl> urls = md->urls();
+            if (!urls.isEmpty())
+            {
+                const QString local = urls.first().toLocalFile();
+                if (!local.isEmpty() && isImageFileExtension(local))
+                {
+                    den->acceptProposedAction();
+                    return true;
+                }
+            }
+        }
+        return QWidget::eventFilter(obj, ev);
+    }
+    else if (ev->type() == QEvent::Drop)
+    {
+        QDropEvent* de = static_cast<QDropEvent*>(ev);
+        const QMimeData* md = de->mimeData();
+        if (md && md->hasUrls())
+        {
+            const QList<QUrl> urls = md->urls();
+            if (!urls.isEmpty())
+            {
+                const QString local = urls.first().toLocalFile();
+                if (!local.isEmpty() && isImageFileExtension(local))
+                {
+                    // Find which map key corresponds to obj (the button)
+                    QString key;
+                    for (auto it = _maps.begin(); it != _maps.end(); ++it)
+                    {
+                        if (it.value().button == obj)
+                        {
+                            key = it.key();
+                            break;
+                        }
+                    }
+                    if (!key.isEmpty())
+                    {
+                        // Apply the image just like the file dialog path
+                        applyButtonImageIcon(_maps[key], local);
+                        setMapPath(key, local);
+                        updatePreview();
+                        emit materialChanged(_material);
+
+                        de->acceptProposedAction();
+                        return true;
+                    }
+                }
+            }
+        }
+        return QWidget::eventFilter(obj, ev);
+    }
+
+    return QWidget::eventFilter(obj, ev);
+}
+

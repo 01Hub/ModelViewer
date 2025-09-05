@@ -136,6 +136,9 @@
                 <height>96</height>
                </size>
               </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
               <property name="toolTip">
                <string>Load/Replace Albedo</string>
               </property>
@@ -259,6 +262,9 @@
                   <width>96</width>
                   <height>96</height>
                  </size>
+                </property>
+                <property name="acceptDrops">
+                 <bool>true</bool>
                 </property>
                 <property name="toolTip">
                  <string>Load/Replace Metallic</string>
@@ -384,6 +390,9 @@
                 <height>96</height>
                </size>
               </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
               <property name="toolTip">
                <string>Load/Replace Roughness</string>
               </property>
@@ -481,6 +490,9 @@
                 <width>96</width>
                 <height>96</height>
                </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
               </property>
               <property name="toolTip">
                <string>Load/Replace Normal</string>
@@ -604,6 +616,9 @@
                 <height>96</height>
                </size>
               </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
               <property name="toolTip">
                <string>Load/Replace Ambient Occlusion</string>
               </property>
@@ -715,6 +730,9 @@
                   <width>96</width>
                   <height>96</height>
                  </size>
+                </property>
+                <property name="acceptDrops">
+                 <bool>true</bool>
                 </property>
                 <property name="toolTip">
                  <string>Load/Replace Transmission</string>
@@ -834,6 +852,9 @@
                 <height>96</height>
                </size>
               </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
               <property name="toolTip">
                <string>Load/Replace Opacity</string>
               </property>
@@ -946,6 +967,9 @@
                   <height>96</height>
                  </size>
                 </property>
+                <property name="acceptDrops">
+                 <bool>true</bool>
+                </property>
                 <property name="toolTip">
                  <string>Load/Replace Emissive</string>
                 </property>
@@ -1028,6 +1052,9 @@
                 <width>96</width>
                 <height>96</height>
                </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
               </property>
               <property name="toolTip">
                <string>Load/Replace IOR</string>
@@ -1154,6 +1181,9 @@
                   <height>96</height>
                  </size>
                 </property>
+                <property name="acceptDrops">
+                 <bool>true</bool>
+                </property>
                 <property name="toolTip">
                  <string>Load/Replace Transmission</string>
                 </property>
@@ -1246,6 +1276,9 @@
                 <height>96</height>
                </size>
               </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
               <property name="toolTip">
                <string>Load/Replace Sheen Color</string>
               </property>
@@ -1327,6 +1360,9 @@ Color</string>
                 <width>96</width>
                 <height>96</height>
                </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
               </property>
               <property name="toolTip">
                <string>Load/Replace Sheen Roughness</string>
@@ -1419,6 +1455,9 @@ Roughness</string>
                 <height>96</height>
                </size>
               </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
               <property name="toolTip">
                <string>Load/Replace Clearcoat Color</string>
               </property>
@@ -1501,6 +1540,9 @@ Color</string>
                 <height>96</height>
                </size>
               </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
               <property name="toolTip">
                <string>Load/Replace Clearcoat Roughness</string>
               </property>
@@ -1582,6 +1624,9 @@ Roughness</string>
                 <width>96</width>
                 <height>96</height>
                </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
               </property>
               <property name="toolTip">
                <string>Load/Replace Clearcoat Normal</string>
