@@ -2,7 +2,7 @@
 #include "ui_ClippingPlanesEditor.h"
 #include "LanguageManager.h"
 #include "GLWidget.h"
-
+#include "config.h"
 #include <QKeyEvent>
 #include <QColorDialog>
 #include <QFileDialog>
@@ -133,6 +133,13 @@ void ClippingPlanesEditor::on_comboBoxHatchMode_currentIndexChanged(int index)
 	_glView->update();
 }
 
+void ClippingPlanesEditor::on_spinBoxHatchTiling_valueChanged(int val)
+{
+	_glView->setHatchTiling(val);
+	_glView->updateClippingPlane();
+	_glView->update();
+}
+
 void ClippingPlanesEditor::on_doubleSpinBoxThickness_valueChanged(double val)
 {
 	_glView->setHatchLineThickness(static_cast<float>(val));
@@ -165,7 +172,9 @@ void ClippingPlanesEditor::on_pushButtonHatchColor_clicked()
 
 void ClippingPlanesEditor::on_pushButtonTexture_clicked()
 {
-	QString filePath = QFileDialog::getOpenFileName(this, tr("Select Hatch Texture"), "", tr("Image Files (*.png *.jpg *.bmp)"));
+	const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
+	QString filePath = QFileDialog::getOpenFileName(this, tr("Select Hatch Texture"), QString(path + "textures/patterns"),
+		tr("Image Files (*.png *.jpg *.bmp)"));
 	if (!filePath.isEmpty())
 	{
 		// make the button a fixed-size square thumbnail (say 48x48)
@@ -209,6 +218,7 @@ void ClippingPlanesEditor::on_pushButtonDefaultValues_clicked()
 	checkBoxCapping->setChecked(false);
 	radioButtonProcedural->setChecked(true);
 	comboBoxHatchMode->setCurrentIndex(0);
+	spinBoxHatchTiling->setValue(50);
 	doubleSpinBoxThickness->setValue(0.05);
 	doubleSpinBoxIntensity->setValue(1.0f);
 	pushButtonHatchColor->setStyleSheet("background-color: #000000; color: #FFFFFF;");

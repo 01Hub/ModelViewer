@@ -1267,6 +1267,12 @@ void GLWidget::setClippingPlaneHatchPattern(HatchPattern pattern)
 	update();
 }
 
+void GLWidget::setHatchTiling(int tiling)
+{
+	_hatchTiling = tiling;
+	update();
+}
+
 void GLWidget::setHatchLineThickness(float width)
 {
 	_hatchThickness = width;
@@ -3718,7 +3724,7 @@ void GLWidget::drawSectionCapping()
 			// Pick a consistent density: e.g., ~3 tiles across the model diagonal
 			const Point c = _boundingBox.center();			
 			const float sceneDiag = _boundingBox.boundingRadius() * 2.0f;
-			const float tilesAcross = wantTexture ? 3.0f : 50.0f;
+			const float tilesAcross = wantTexture ? 3.0f : _hatchTiling;
 			const float worldUnitsPerTile = sceneDiag / tilesAcross;
 
 			_clippingPlaneShader->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);

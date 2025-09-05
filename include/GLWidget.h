@@ -82,6 +82,7 @@ public:
 	void showClippingPlaneEditor(bool show);
 	void setClippingPlaneHatchMode(ClippingPlaneHatchMode mode);
 	void setClippingPlaneHatchPattern(HatchPattern pattern);
+	void setHatchTiling(int tiling);
 	void setHatchLineThickness(float width);
 	void setHatchIntensity(float spacing);
 	void setHatchLayers(int layers);
@@ -680,6 +681,7 @@ private:
 
 	ClippingPlaneHatchMode _hatchMode = ClippingPlaneHatchMode::PROCEDURAL;
 	HatchPattern _hatchPattern = HatchPattern::DIAGONAL_45;
+	int   _hatchTiling = 50;
 	float _hatchThickness = 0.05f;
 	float _hatchIntensity = 1.0f;
 	int _hatchLayers = 3;
