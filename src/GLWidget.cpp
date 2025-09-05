@@ -1255,6 +1255,50 @@ void GLWidget::showClippingPlaneEditor(bool show)
 	show ? _clippingPlanesEditor->show() : _clippingPlanesEditor->hide();
 }
 
+void GLWidget::setClippingPlaneHatchMode(ClippingPlaneHatchMode mode)
+{
+	_hatchMode = mode;
+	update();
+}
+
+void GLWidget::setClippingPlaneHatchPattern(HatchPattern pattern)
+{
+	_hatchPattern = pattern;
+	update();
+}
+
+void GLWidget::setHatchLineThickness(float width)
+{
+	_hatchThickness = width;
+	update();
+}
+
+void GLWidget::setHatchIntensity(float spacing)
+{
+	_hatchIntensity = spacing;
+	update();
+}
+
+void GLWidget::setHatchLayers(int layers)
+{
+	_hatchLayers = layers;
+	update();
+}
+
+void GLWidget::setHatchLineColor(const QColor& color)
+{
+	_hatchLineColor = QVector3D(color.redF(), color.greenF(), color.blueF());
+}
+
+void GLWidget::setHatchTexture(const QString& path)
+{
+	_hatchTexturePath = path;
+	_cappingTexture = loadTextureFromFile(_hatchTexturePath.toStdString().c_str());
+	glActiveTexture(GL_TEXTURE6);
+	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
+	update();
+}
+
 void GLWidget::showAxis(bool show)
 {
 	_showAxis = show;
@@ -2838,7 +2882,7 @@ void GLWidget::createCappingPlanes()
 	_clippingPlaneXY = new Plane(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneYZ = new Plane(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneZX = new Plane(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
-    _cappingTexture = loadTextureFromFile(QString(path + "textures/patterns/hatch_02.png").toStdString().c_str());
+    _cappingTexture = loadTextureFromFile(QString(path + "textures/patterns/hatch_03.png").toStdString().c_str());
 	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _cappingTexture);
 
@@ -3654,6 +3698,8 @@ void GLWidget::drawSectionCapping()
 		{
 			QMatrix4x4 model;
 			Point P = _boundingBox.center();
+			QVector3D Pxyz(P.getX(), P.getY(), P.getZ());
+
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
 			_clippingPlaneShader->setUniformValue("viewMatrix", _viewMatrix);
@@ -3665,23 +3711,36 @@ void GLWidget::drawSectionCapping()
 			float xAng = _clipYFlipped || _clipYCoeff > 0 ? 90.0f : -90.0f;
 			float zAng = _clipZFlipped || _clipZCoeff > 0 ? 0.0f : 180.0f;
 
+			bool wantTexture = _hatchMode == ClippingPlaneHatchMode::TEXTURE/* read from UI or stored flag */;
+			bool wantFlipU = false/* read from UI or stored flag */;
+			bool wantFlipV = false/* read from UI or stored flag */;
 
 			// Pick a consistent density: e.g., ~3 tiles across the model diagonal
 			const Point c = _boundingBox.center();			
 			const float sceneDiag = _boundingBox.boundingRadius() * 2.0f;
-			const float tilesAcross = 3.0f;                             // expose if you want a UI control
+			const float tilesAcross = wantTexture ? 3.0f : 50.0f;
 			const float worldUnitsPerTile = sceneDiag / tilesAcross;
 
 			_clippingPlaneShader->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
+			// procedural hatch params (tweak to taste)
+			_clippingPlaneShader->setUniformValue("hatchThickness", _hatchThickness);
+			_clippingPlaneShader->setUniformValue("hatchIntensity", _hatchIntensity);
+			_clippingPlaneShader->setUniformValue("hatchLayers", _hatchLayers);
+			_clippingPlaneShader->setUniformValue("hatchLineColor", _hatchLineColor);			
+			_clippingPlaneShader->setUniformValue("hatchPattern", static_cast<int>(_hatchPattern));
+			
+			_clippingPlaneShader->setUniformValue("useTexture", wantTexture);
+
+			// texture flip control: (1,1) normal; (-1,1) flip U; (1,-1) flip V			
+			QVector2D texFlip = QVector2D(wantFlipU ? -1.0f : 1.0f, wantFlipV ? -1.0f : 1.0f);
+			_clippingPlaneShader->setUniformValue("textureFlip", texFlip);
+
 			// YZ Plane			
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(yAng, QVector3D(0.0f, 1.0f, 0.0f));
 			_clippingPlaneShader->bind();
 			_clippingPlaneShader->setUniformValue("modelMatrix", model);
-			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));
-						
-			QVector3D Pxyz(P.getX(), P.getY(), P.getZ());
-
+			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));			
 			if (_clipYZEnabled && i == 0)
 			{
 				// Plane position along X in world space
@@ -3693,6 +3752,7 @@ void GLWidget::drawSectionCapping()
 				_clippingPlaneShader->setUniformValue("vDir", QVector3D(0.f, 0.f, 1.f));
 				_clippingPlaneYZ->render();
 			}
+
 			// ZX Plane
 			model.setToIdentity();
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
@@ -3709,6 +3769,7 @@ void GLWidget::drawSectionCapping()
 				_clippingPlaneShader->setUniformValue("vDir", QVector3D(1.f, 0.f, 0.f));
 				_clippingPlaneZX->render();
 			}
+
 			// XY Plane
 			model.setToIdentity();
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
@@ -3726,6 +3787,7 @@ void GLWidget::drawSectionCapping()
 				_clippingPlaneXY->render();
 			}
 		}
+
 		// Clipping Planes
 		if (_clipYZEnabled && i == 0)
 			glDisable(GL_CLIP_DISTANCE0);
@@ -3734,6 +3796,7 @@ void GLWidget::drawSectionCapping()
 		if (_clipXYEnabled && i == 2)
 			glDisable(GL_CLIP_DISTANCE2);
 	}
+
 	// 6) Finally, stenciling is disabled, the OpenGL clipping plane is applied, and the
 	// clipped object is drawn with color and depth enabled.
 	glDisable(GL_STENCIL_TEST);

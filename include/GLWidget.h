@@ -34,6 +34,8 @@ enum class ViewProjection { ORTHOGRAPHIC, PERSPECTIVE };
 enum class DisplayMode { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
 enum class RenderingMode { ADS_PHONG, PBR_DIRECT_LIGHTING, PBR_TEXTURED_LIGHTING };
 enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT };
+enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
+enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3,  GRID = 4, DIAGONAL_CROSS = 5 };
 
 class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 {
@@ -78,6 +80,14 @@ public:
 
 	void updateClippingPlane();
 	void showClippingPlaneEditor(bool show);
+	void setClippingPlaneHatchMode(ClippingPlaneHatchMode mode);
+	void setClippingPlaneHatchPattern(HatchPattern pattern);
+	void setHatchLineThickness(float width);
+	void setHatchIntensity(float spacing);
+	void setHatchLayers(int layers);
+	void setHatchLineColor(const QColor& color);
+	void setHatchTexture(const QString& path);
+
 	void showAxis(bool show);
 
 	void showShadows(bool show);
@@ -666,6 +676,15 @@ private:
 	std::unordered_map<QString, unsigned int> _texCache;
 	// Reference counts so we can release when maps are cleared
 	std::unordered_map<unsigned int, int> _texRefCount;
+
+
+	ClippingPlaneHatchMode _hatchMode = ClippingPlaneHatchMode::PROCEDURAL;
+	HatchPattern _hatchPattern = HatchPattern::DIAGONAL_45;
+	float _hatchThickness = 0.05f;
+	float _hatchIntensity = 1.0f;
+	int _hatchLayers = 3;
+	QVector3D _hatchLineColor = QVector3D(0.0f, 0.0f, 0.0f);
+	QString _hatchTexturePath;
 };
 
 #endif

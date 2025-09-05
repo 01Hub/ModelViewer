@@ -28,6 +28,14 @@ protected slots:
 	void on_doubleSpinBoxYZCoeff_valueChanged(double val);
 	void on_doubleSpinBoxZXCoeff_valueChanged(double val);
 	void on_pushButtonResetCoeffs_clicked();
+	void on_radioButtonProcedural_toggled(bool checked);
+	void on_comboBoxHatchMode_currentIndexChanged(int index);
+	void on_doubleSpinBoxThickness_valueChanged(double val);
+	void on_doubleSpinBoxIntensity_valueChanged(double val);
+	void on_pushButtonHatchColor_clicked();
+	void on_pushButtonTexture_clicked();
+	void on_pushButtonDefaultValues_clicked();
+
 
 private:
 	GLWidget* _glView;

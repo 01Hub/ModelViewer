@@ -4,6 +4,8 @@
 #include "GLWidget.h"
 
 #include <QKeyEvent>
+#include <QColorDialog>
+#include <QFileDialog>
 
 ClippingPlanesEditor::ClippingPlanesEditor(GLWidget* parent) :
 	QWidget(parent),
@@ -115,4 +117,100 @@ void ClippingPlanesEditor::on_pushButtonResetCoeffs_clicked()
 	doubleSpinBoxZXCoeff->setValue(0);
 	doubleSpinBoxXYCoeff->setValue(0);
 	doubleSpinBoxYZCoeff->setValue(0);
+}
+
+void ClippingPlanesEditor::on_radioButtonProcedural_toggled(bool checked)
+{
+	_glView->setClippingPlaneHatchMode(checked ? ClippingPlaneHatchMode::PROCEDURAL : ClippingPlaneHatchMode::TEXTURE);
+	_glView->updateClippingPlane();
+	_glView->update();
+}
+
+void ClippingPlanesEditor::on_comboBoxHatchMode_currentIndexChanged(int index)
+{
+	_glView->setClippingPlaneHatchPattern(static_cast<HatchPattern>(index));
+	_glView->updateClippingPlane();
+	_glView->update();
+}
+
+void ClippingPlanesEditor::on_doubleSpinBoxThickness_valueChanged(double val)
+{
+	_glView->setHatchLineThickness(static_cast<float>(val));
+	_glView->updateClippingPlane();
+	_glView->update();
+}
+
+void ClippingPlanesEditor::on_doubleSpinBoxIntensity_valueChanged(double val)
+{
+	_glView->setHatchIntensity(static_cast<float>(val));
+	_glView->updateClippingPlane();
+	_glView->update();
+}
+
+void ClippingPlanesEditor::on_pushButtonHatchColor_clicked()
+{
+	QColor color = QColorDialog::getColor(QColor(0,0,0), this, tr("Select Hatch Color"));
+	if (color.isValid())
+	{		
+		pushButtonHatchColor->setStyleSheet(
+			QString("background-color: %1; color: %2;")
+			.arg(color.name())
+			.arg(color.lightness() < 128 ? "#FFFFFF" : "#000000")
+		);
+		_glView->setHatchLineColor(color);
+		_glView->updateClippingPlane();
+		_glView->update();
+	}
+}
+
+void ClippingPlanesEditor::on_pushButtonTexture_clicked()
+{
+	QString filePath = QFileDialog::getOpenFileName(this, tr("Select Hatch Texture"), "", tr("Image Files (*.png *.jpg *.bmp)"));
+	if (!filePath.isEmpty())
+	{
+		// make the button a fixed-size square thumbnail (say 48x48)
+		int thumb = 140;
+		pushButtonTexture->setFixedSize(thumb, thumb);
+
+		// set icon and scale it to full button area
+		QPixmap pix(filePath);
+		QIcon icon(pix);
+		pushButtonTexture->setIcon(icon);
+		pushButtonTexture->setIconSize(pushButtonTexture->size());
+
+		// remove text and optional focus/flat look
+		pushButtonTexture->setText(QString());		
+
+		// optionally use tooltip for the filename
+		pushButtonTexture->setToolTip(QFileInfo(filePath).fileName());
+
+		_glView->setHatchTexture(filePath);
+		_glView->updateClippingPlane();
+		_glView->update();
+	}
+	else
+	{
+		pushButtonTexture->setText(tr("Select Texture"));
+	}
+}
+
+void ClippingPlanesEditor::on_pushButtonDefaultValues_clicked()
+{
+	// set default values
+	doubleSpinBoxXYCoeff->setValue(0);
+	doubleSpinBoxYZCoeff->setValue(0);
+	doubleSpinBoxZXCoeff->setValue(0);
+	checkBoxXY->setChecked(false);
+	checkBoxYZ->setChecked(false);
+	checkBoxZX->setChecked(false);
+	checkBoxFlipXY->setChecked(false);
+	checkBoxFlipYZ->setChecked(false);
+	checkBoxFlipZX->setChecked(false);
+	checkBoxCapping->setChecked(false);
+	radioButtonProcedural->setChecked(true);
+	comboBoxHatchMode->setCurrentIndex(0);
+	doubleSpinBoxThickness->setValue(0.05);
+	doubleSpinBoxIntensity->setValue(1.0f);
+	pushButtonHatchColor->setStyleSheet("background-color: #000000; color: #FFFFFF;");
+	pushButtonTexture->setText(tr("Select Texture"));
 }
