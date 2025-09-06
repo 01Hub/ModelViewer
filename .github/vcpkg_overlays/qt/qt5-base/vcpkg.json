@@ -1,5 +1,43 @@
 {
-    "name": "qt5-base",
-    "version": "5.15.18",
-    "port-version": 0
+  "name": "qtbase",
+  "version": "6.8.3-overlay",
+  "description": "Overlay for qtbase: same as upstream but remove SQL defaults for this project",
+  "supports": "!uwp",
+  "dependencies": [
+    "zlib"
+  ],
+  "default-features": [
+    "brotli",
+    "concurrent",
+    { "name": "dbus", "platform": "!(static & windows) & !android" },
+    "dnslookup",
+    "doubleconversion",
+    { "name": "egl", "platform": "linux" },
+    { "name": "egl", "platform": "android" },
+    { "name": "fontconfig", "platform": "linux" },
+    "freetype",
+    { "name": "gles2", "platform": "android" },
+    "gui",
+    "harfbuzz",
+    "icu",
+    "jpeg",
+    "network",
+    { "name": "opengl", "platform": "!ios" },
+    { "name": "openssl", "platform": "!ios" },
+    "pcre2",
+    "png",
+    { "name": "securetransport", "platform": "ios" },
+    "testlib",
+    "thread",
+    "widgets",
+    { "name": "xcb", "platform": "linux" },
+    { "name": "xcb-xlib", "platform": "linux" },
+    { "name": "xrender", "platform": "linux" },
+    "zstd"
+  ],
+  "features": {
+    "gui": { "description": "GUI support" },
+    "widgets": { "description": "Widgets support" },
+    "opengl": { "description": "OpenGL support" }
+  }
 }
