@@ -1,6 +1,4 @@
 #include "TextureMappingPanel.h"
-
-// If your generated header name differs, adjust this include:
 #include "ui_TextureMappingPanel.h"
 
 #include <QFileDialog>
@@ -17,7 +15,7 @@
 #include <QMimeData>
 #include <QUrl>
 
-// Your project headers
+#include "config.h"
 #include "GLMaterial.h"
 #include "MaterialPreviewWidget.h"
 #include "ChannelPackingEditorDialog.h"
@@ -141,9 +139,11 @@ void TextureMappingPanel::connectSignals()
                 if (it.value().button == btn) { k = it.key(); break; }
             if (k.isEmpty()) return;
 
+            const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
             const QString file = QFileDialog::getOpenFileName(
-                this, tr("Select %1 Map").arg(k.at(0).toUpper() + k.mid(1)),
-                QString(), tr("Images (*.png *.jpg *.jpeg *.tga *.bmp *.hdr *.exr)"));
+                this, tr("Select %1 Map").arg(k.at(0).toUpper() + k.mid(1)), 
+                QString(path + "textures/materials"), 
+                tr("Images (*.png *.jpg *.jpeg *.tga *.bmp *.hdr *.exr)"));
             if (file.isEmpty()) return;
 
             applyButtonImageIcon(_maps[k], file);
