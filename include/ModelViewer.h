@@ -230,6 +230,7 @@ private:
 
 private:
 	bool checkForActiveSelection();
+	bool hasSelection() const;
 	std::vector<int> getSelectedIDs() const;
 	void updateControls();
 	QString getSupportedQtImagesFilter();	

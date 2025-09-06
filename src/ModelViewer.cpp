@@ -136,6 +136,14 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(Ui_ModelViewer::materialPreviewWidget, &MaterialEditorPanel::materialChanged, this, &ModelViewer::setMaterialToSelectedItems);
 
 	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::applyTexturesTriggered, this, &ModelViewer::setTexturesToSelectedItems);
+	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::materialChanged, this,
+		[this](const GLMaterial* mat) 
+		{
+			if (hasSelection())
+			{				
+				setTexturesToSelectedItems(*mat);
+			}
+		});
 
 	_hasADSDiffuseTex = false;
 	_hasADSSpecularTex = false;
@@ -869,12 +877,17 @@ void ModelViewer::showSelectedItems()
 
 bool ModelViewer::checkForActiveSelection()
 {
-	if (listWidgetModel->selectedItems().isEmpty())
+	if (!hasSelection())
 	{
 		QMessageBox::information(this, tr("Selection Required"), tr("Please select an object first"));
 		return false;
 	}
 	return true;
+}
+
+bool ModelViewer::hasSelection() const
+{
+	return !listWidgetModel->selectedItems().isEmpty();
 }
 
 std::vector<int> ModelViewer::getSelectedIDs() const
