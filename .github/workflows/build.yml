@@ -50,6 +50,7 @@ jobs:
         uses: lukka/run-vcpkg@v11.5
         with:
           vcpkgDirectory: ${{ github.workspace }}/vcpkg
+          doNotUpdateVcpkg: true
 
       - name: Build
         uses: lukka/run-cmake@v10
