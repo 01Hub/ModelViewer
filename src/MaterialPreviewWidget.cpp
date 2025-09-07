@@ -460,6 +460,32 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("uEmissiveColor", QVector3D(1, 1, 1));
 	_shader->setUniformValue("uEmissiveIntensity", 1.0f);
 
+	// ----- CHANNEL PACKING: send packing params to shader -----
+	// expects these uniform names in the frag shader:
+	//
+	//  uMetalnessChannel  (int)  uMetalnessInvert (int 0/1) uMetalnessScale (float) uMetalnessBias (float)
+	//  uRoughnessChannel  (int)  uRoughnessInvert (int)  uRoughnessScale  (float) uRoughnessBias  (float)
+	//  uAOChannel         (int)  uAOInvert (int)         uAOScale         (float) uAOBias         (float)
+	//  uOpacityChannel    (int)  uOpacityInvert (int)    uOpacityScale    (float) uOpacityBias    (float)
+	//
+	// GLMaterial::packingFor(key) returns the ChannelPacking for keys: "metallic","roughness","ao","opacity".
+
+	auto sendPacking = [this](const QString& key, const char* uniformBase) {
+		GLMaterial::ChannelPacking p = _currentMaterial.packingFor(key);
+		// channel (use -1 for none; shader will handle)
+		_shader->setUniformValue(QString("%1Channel").arg(uniformBase).toUtf8().constData(), p.channel);
+		// invert as int
+		_shader->setUniformValue(QString("%1Invert").arg(uniformBase).toUtf8().constData(), p.invert ? 1 : 0);
+		_shader->setUniformValue(QString("%1Scale").arg(uniformBase).toUtf8().constData(), p.scale);
+		_shader->setUniformValue(QString("%1Bias").arg(uniformBase).toUtf8().constData(), p.bias);
+		};
+
+	// call for each logical packable map
+	sendPacking("metallic", "uMetalness");
+	sendPacking("roughness", "uRoughness");
+	sendPacking("ao", "uAO");
+	sendPacking("opacity", "uOpacity");
+
 	// Set up texture samplers
 	_shader->setUniformValue("uAlbedoMap", 0);
 	_shader->setUniformValue("uMetalnessMap", 1);

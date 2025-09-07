@@ -1,5 +1,6 @@
 #include "GLMaterial.h"
 #include <cmath>
+#include <QVector>
 
 GLMaterial::GLMaterial()
 {
@@ -2546,6 +2547,61 @@ void GLMaterial::ensureADSConsistency()
 
 	// Ensure all values are properly clamped
 	clampValues();
+}
+
+
+void GLMaterial::assignAutoPackingForPath(const QString& path)
+{
+	if (path.isEmpty()) return;
+
+	// collect which packable slots reference this path
+	// We'll check AO, Roughness, Metallic, Opacity
+	struct Ref { QString key; ChannelPacking* pack; QString* pathPtr; };
+	QVector<Ref> refs;
+
+	auto pushIfMatches = [&](QString& slotPath, ChannelPacking& pack, const QString& keyName) {
+		if (!slotPath.isEmpty() && slotPath == path) refs.append({ keyName, &pack, &slotPath });
+		};
+
+	pushIfMatches(_aoMapPath, _aoPacking, "ao");
+	pushIfMatches(_roughnessMapPath, _roughnessPacking, "roughness");
+	pushIfMatches(_metallicMapPath, _metallicPacking, "metallic");
+	pushIfMatches(_opacityMapPath, _opacityPacking, "opacity");
+
+	if (refs.isEmpty()) return;
+
+	if (refs.size() >= 2)
+	{
+		// multiple references -> assume packed ORM/AORM; assign sensible defaults:
+		for (const Ref& r : refs)
+		{
+			if (r.key == "ao")
+			{
+				r.pack->channel = 0; r.pack->invert = false; r.pack->scale = 1.0f; r.pack->bias = 0.0f;
+			}
+			else if (r.key == "roughness")
+			{
+				r.pack->channel = 1; r.pack->invert = false; r.pack->scale = 1.0f; r.pack->bias = 0.0f;
+			}
+			else if (r.key == "metallic")
+			{
+				r.pack->channel = 2; r.pack->invert = false; r.pack->scale = 1.0f; r.pack->bias = 0.0f;
+			}
+			else if (r.key == "opacity")
+			{
+				// prefer alpha for opacity in packed images
+				r.pack->channel = 3; r.pack->invert = false; r.pack->scale = 1.0f; r.pack->bias = 0.0f;
+			}
+		}
+		return;
+	}
+
+	// Single reference only: default to single-channel (R)
+	Ref single = refs.first();
+	single.pack->channel = 0;
+	single.pack->invert = false;
+	single.pack->scale = 1.0f;
+	single.pack->bias = 0.0f;
 }
 
 // === HELPER FUNCTIONS FOR ADVANCED MATERIALS ===

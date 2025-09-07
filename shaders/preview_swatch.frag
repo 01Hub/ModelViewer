@@ -139,6 +139,44 @@ vec3 hemisphereAmbient(vec3 N, vec3 sky, vec3 ground)
     return mix(ground, sky, t);
 }
 
+// channel packing uniforms (for packed textures like ORM/AORM)
+uniform int   uMetalnessChannel;
+uniform int   uMetalnessInvert;
+uniform float uMetalnessScale;
+uniform float uMetalnessBias;
+
+uniform int   uRoughnessChannel;
+uniform int   uRoughnessInvert;
+uniform float uRoughnessScale;
+uniform float uRoughnessBias;
+
+uniform int   uAOChannel;
+uniform int   uAOInvert;
+uniform float uAOScale;
+uniform float uAOBias;
+
+uniform int   uOpacityChannel;
+uniform int   uOpacityInvert;
+uniform float uOpacityScale;
+uniform float uOpacityBias;
+
+// pick a single channel from a vec4 using an integer selector (0=r,1=g,2=b,3=a).
+// invertFlag is 0 or 1. scale & bias allow simple remapping (scale * value + bias).
+float pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
+{
+    float c = 0.0;
+    if (ch == 0) c = v.r;
+    else if (ch == 1) c = v.g;
+    else if (ch == 2) c = v.b;
+    else if (ch == 3) c = v.a;
+    else c = 0.0; // channel == -1 or unknown -> use 0
+
+    if (invertFlag != 0) c = 1.0 - c;
+    c = c * scale + bias;
+    return clamp(c, 0.0, 1.0);
+}
+
+
 void main()
 {
     // World vectors
@@ -166,11 +204,15 @@ void main()
             outCol = clamp(base, 0.0, 1.0);
         }
         else if (uTexViewMode == 2) {                // Metalness
-            float m = uUseMetalnessMap ? texture(uMetalnessMap, uv).r : uMetalness;
+            //float m = uUseMetalnessMap ? texture(uMetalnessMap, uv).r : uMetalness;
+            vec4 metalTex = texture(uMetalnessMap, uv);
+            float m = uUseMetalnessMap ? pickChannel(metalTex, uMetalnessChannel, uMetalnessInvert, uMetalnessScale, uMetalnessBias) : uMetalness;
             outCol = vec3(m);
         }
         else if (uTexViewMode == 3) {                // Roughness
-            float r = uUseRoughnessMap ? texture(uRoughnessMap, uv).r : uRoughness;
+            //float r = uUseRoughnessMap ? texture(uRoughnessMap, uv).r : uRoughness;
+            vec4 roughTex = texture(uRoughnessMap, uv);
+            float r = uUseRoughnessMap ? pickChannel(roughTex, uRoughnessChannel, uRoughnessInvert, uRoughnessScale, uRoughnessBias) : uRoughness;
             outCol = vec3(r);
         }
         else if (uTexViewMode == 4) {                // Normal (tangent space)
@@ -179,7 +221,9 @@ void main()
             outCol = nTS * 0.5 + 0.5;
         }
         else if (uTexViewMode == 5) {                // Ambient Occlusion
-            float ao = uUseAOMap ? texture(uAOMap, uv).r : 1.0;
+            //float ao = uUseAOMap ? texture(uAOMap, uv).r : 1.0;
+            vec4 aoTex    = texture(uAOMap, uv);
+            float ao    = uUseAOMap ? pickChannel(aoTex, uAOChannel, uAOInvert, uAOScale, uAOBias) : 1.0;
             outCol = vec3(ao);
         }
         else if (uTexViewMode == 6) {                // Height
@@ -216,18 +260,15 @@ void main()
     vec3  albedo    = uUseAlbedoMap    ? texture(uAlbedoMap,    uv).rgb : uAlbedo;
     albedo = clamp(albedo, vec3(0.01), vec3(1.0));
 
-    float metalness = uUseMetalnessMap ? texture(uMetalnessMap, uv).r   : uMetalness;
-    metalness = clamp(metalness, 0.0, 1.0);
+    vec4 metalTex = texture(uMetalnessMap, uv);
+    vec4 roughTex = texture(uRoughnessMap, uv);
+    vec4 aoTex    = texture(uAOMap, uv);
+    vec4 opTex    = texture(uOpacityMap, uv);
 
-    float roughness = uUseRoughnessMap ? texture(uRoughnessMap, uv).r   : uRoughness;
-    roughness = clamp(roughness, 0.01, 1.0);
-
-    float opacity   = uUseOpacityMap   ? texture(uOpacityMap,   uv).r   : uOpacity;
-    if(uOpacityInverted) opacity = 1 - opacity;
-    opacity = clamp(opacity, 0.0, 1.0);
-
-    float ao        = uUseAOMap        ? texture(uAOMap,        uv).r   : 1.0;
-    ao = mix(1.0, ao, uAOIntensity);
+    float metalness = uUseMetalnessMap ? pickChannel(metalTex, uMetalnessChannel, uMetalnessInvert, uMetalnessScale, uMetalnessBias) : uMetalness;
+    float roughness = uUseRoughnessMap ? pickChannel(roughTex, uRoughnessChannel, uRoughnessInvert, uRoughnessScale, uRoughnessBias) : uRoughness;
+    float ao    = uUseAOMap ? pickChannel(aoTex, uAOChannel, uAOInvert, uAOScale, uAOBias) : 1.0;
+    float opacity = uUseOpacityMap ? pickChannel(opTex, uOpacityChannel, uOpacityInvert, uOpacityScale, uOpacityBias) : uOpacity;
 
     vec3 emissive = vec3(0.0);
     if (uUseEmissiveMap) {

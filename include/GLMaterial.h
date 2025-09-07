@@ -460,6 +460,7 @@ private:
 	void updateConsistency(); // Ensure consistency between legacy and PBR properties
 	void clampValues(); // Ensure all values are within valid ranges
 	void ensureADSConsistency(); // Ensure ambient, diffuse, specular are consistent with albedo
+	void assignAutoPackingForPath(const QString& path);
 
 private:
 	// Legacy Phong/Blinn properties
@@ -687,12 +688,20 @@ inline void GLMaterial::clearAlbedoMap() { _albedoMapPath.clear(); /* optional: 
 
 // Metallic (separate logical slot; you also have a packed MetallicRoughness texture id)
 inline QString GLMaterial::metallicMapPath() const { return _metallicMapPath; }
-inline void GLMaterial::setMetallicMap(const QString& path) { _metallicMapPath = path; /* optional: invalidate packed id if using separate */ }
+inline void GLMaterial::setMetallicMap(const QString& path) 
+{
+	_metallicMapPath = path; 
+	assignAutoPackingForPath(path);
+}
 inline void GLMaterial::clearMetallicMap() { _metallicMapPath.clear(); }
 
 // Roughness
 inline QString GLMaterial::roughnessMapPath() const { return _roughnessMapPath; }
-inline void GLMaterial::setRoughnessMap(const QString& path) { _roughnessMapPath = path; }
+inline void GLMaterial::setRoughnessMap(const QString& path) 
+{ 
+	_roughnessMapPath = path; 
+	assignAutoPackingForPath(path);
+}
 inline void GLMaterial::clearRoughnessMap() { _roughnessMapPath.clear(); }
 
 // Normal
@@ -702,7 +711,11 @@ inline void GLMaterial::clearNormalMap() { _normalMapPath.clear(); /* _normalTex
 
 // AO
 inline QString GLMaterial::aoMapPath() const { return _aoMapPath; }
-inline void GLMaterial::setAOMap(const QString& path) { _aoMapPath = path; }
+inline void GLMaterial::setAOMap(const QString& path) 
+{ 
+	_aoMapPath = path; 
+	assignAutoPackingForPath(path);
+}
 inline void GLMaterial::clearAOMap() { _aoMapPath.clear(); }
 
 // Height (for parallax mapping, optional)
@@ -712,7 +725,11 @@ inline void GLMaterial::clearHeightMap() { _heightMapPath.clear(); /* _heightTex
 
 // Opacity
 inline QString GLMaterial::opacityMapPath() const { return _opacityMapPath; }
-inline void GLMaterial::setOpacityMap(const QString& path) { _opacityMapPath = path; }
+inline void GLMaterial::setOpacityMap(const QString& path) 
+{ 
+	_opacityMapPath = path; 
+	assignAutoPackingForPath(path);
+}
 inline void GLMaterial::clearOpacityMap() { _opacityMapPath.clear(); }
 
 // Emissive
