@@ -460,6 +460,39 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("hasClearcoatRoughnessMap", _hasClearcoatRoughnessPBRMap);
 	_prog->setUniformValue("hasClearcoatNormalMap", _hasClearcoatNormalPBRMap);
 
+	// send channel-packing uniforms now that samplers are bound to units
+	// Uniform naming: <base>Channel, <base>Invert, <base>Scale, <base>Bias
+	auto sendPackingUniform = [this](const QString& key, const char* base) {
+		GLMaterial::ChannelPacking p = _material.packingFor(key);
+		int ch = p.channel;
+		if (ch < -1) ch = -1;
+		if (ch > 3) ch = 3;
+
+		// Note: _prog must be bound at this point (it is in render())
+		const QByteArray channelName = QString("%1Channel").arg(base).toUtf8();
+		const QByteArray invertName = QString("%1Invert").arg(base).toUtf8();
+		const QByteArray scaleName = QString("%1Scale").arg(base).toUtf8();
+		const QByteArray biasName = QString("%1Bias").arg(base).toUtf8();
+
+		int locChan = _prog->uniformLocation(channelName.constData());
+		if (locChan != -1) _prog->setUniformValue(locChan, ch);
+
+		int locInv = _prog->uniformLocation(invertName.constData());
+		if (locInv != -1) _prog->setUniformValue(locInv, p.invert ? 1 : 0);
+
+		int locScale = _prog->uniformLocation(scaleName.constData());
+		if (locScale != -1) _prog->setUniformValue(locScale, p.scale);
+
+		int locBias = _prog->uniformLocation(biasName.constData());
+		if (locBias != -1) _prog->setUniformValue(locBias, p.bias);
+		};
+
+	// send for all packable maps
+	sendPackingUniform("metallic", "metallic");
+	sendPackingUniform("roughness", "roughness");
+	sendPackingUniform("ao", "ao");
+	sendPackingUniform("opacity", "opacity");
+
 	_prog->setUniformValue("selected", _selected);
 }
 

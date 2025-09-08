@@ -82,6 +82,27 @@ uniform bool opacityMapInverted = false;
 uniform int blendMode; // 0 = additive, 1 = multiplicative, 2 = overlay
 uniform float alphaThreshold; // Threshold for alpha testing
 
+// packing uniforms
+uniform int   metallicChannel;
+uniform int   metallicInvert;
+uniform float metallicScale;
+uniform float metallicBias;
+
+uniform int   roughnessChannel;
+uniform int   roughnessInvert;
+uniform float roughnessScale;
+uniform float roughnessBias;
+
+uniform int   aoChannel;
+uniform int   aoInvert;
+uniform float aoScale;
+uniform float aoBias;
+
+uniform int   opacityChannel;
+uniform int   opacityInvert;
+uniform float opacityScale;
+uniform float opacityBias;
+
 // Advanced PBR Material Properties
 uniform sampler2D transmissionMap;
 uniform sampler2D iorMap;
@@ -215,6 +236,10 @@ float   calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3
 vec2    calculateBackgroundUV();
 vec3    calculateBackgroundColor();
 
+float pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias);
+float sampleOpacityMap(vec2 uv);
+float sampleFallbackOpacity(vec2 uv);
+
 vec3 srgbToLinear(vec3 c);
 vec3 linearToSrgb(vec3 c);
 float saturationSRGB(vec3 c);
@@ -320,84 +345,41 @@ void main()
 	float finalAlpha = fragColor.a; // Start with whatever alpha the rendering functions set
 
 	if (!floorRendering) {
-		// Handle blend modes properly
-		if(blendMode == 0) {
-			// OPAQUE: Force alpha to 1.0, ignore all opacity settings
+		if (blendMode == 0) {
+			// OPAQUE: ignore alpha maps, always fully opaque
 			finalAlpha = 1.0;
-		} else if(blendMode == 1) {
-			// MASK: Alpha test cutout - calculate alpha for testing
-			float testAlpha = opacity;
+		} else if (blendMode == 1) {
+			// MASK: cutout alpha test. Compute testAlpha from material scalar and textures.
+			float testAlpha = opacity; // material scalar
 
-			// Apply texture alpha based on what's available
-			// Priority: dedicated opacity map > albedo/diffuse alpha
-			if(hasOpacityMap) {
-				// Use dedicated opacity map if available
-				float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
-				if(opacityMapInverted) opacityMapValue = 1.0 - opacityMapValue;
-				testAlpha *= opacityMapValue;
+			// Priority: dedicated opacity map > fallbacks
+			if (hasOpacityMap) {
+				float opVal = sampleOpacityMap(g_texCoord2d);
+				testAlpha *= opVal;
 			} else {
-				// Fall back to texture alpha if no dedicated opacity map
-				if(renderingMode == 0) {
-					// ADS mode: check for diffuse texture alpha
-					if(hasDiffuseTexture) {
-						vec4 diffuseSample = texture(texture_diffuse, g_texCoord2d);
-						// Debug: Ensure we're getting the alpha channel properly
-						testAlpha *= diffuseSample.a;
-					}
-					if(hasOpacityTexture) {
-						float opacityTexValue = texture(texture_opacity, g_texCoord2d).r;
-						if(opacityTextureInverted) opacityTexValue = 1.0 - opacityTexValue;
-						testAlpha *= opacityTexValue;
-					}
-				} else {
-					// PBR mode: check for albedo texture alpha
-					// In PBR, albedo alpha might not always be for transparency
-					if(hasAlbedoMap) {
-						vec4 albedoSample = texture(albedoMap, g_texCoord2d);
-						// Only use albedo alpha if it's meant for opacity (not roughness/metallic)
-						testAlpha *= albedoSample.a;
-					}
-				}
+				// fallback to albedo/diffuse alpha or legacy opacity texture
+				float fallback = sampleFallbackOpacity(g_texCoord2d);
+				testAlpha *= fallback;
 			}
 
-			// Perform alpha test
-			if(testAlpha < alphaThreshold) discard;
-			finalAlpha = 1.0; // Cutout is either fully opaque or discarded
-		} else {
-			// BLEND: True alpha blending - calculate final alpha
-			finalAlpha = opacity;
+			// Alpha test
+			if (testAlpha < alphaThreshold) discard;
+			finalAlpha = 1.0; // cutout either opaque or discarded
+		} else { // blendMode == 2 (BLEND) - standard transparency
+			// Compute finalAlpha as material scalar * dedicated opacity map * fallback alpha
+			float alphaVal = opacity;
 
-			// Apply texture alpha based on what's available
-			// If both opacity map and texture alpha exist, multiply them			
-			if(hasOpacityMap) {
-				float opacityMapValue = texture(opacityMap, g_texCoord2d).r;
-				if(opacityMapInverted) opacityMapValue = 1.0 - opacityMapValue;
-				finalAlpha *= opacityMapValue;
-			}		
-			if(hasOpacityTexture) {
-				float opacityTexValue = texture(texture_opacity, g_texCoord2d).r;
-				if(opacityTextureInverted) opacityTexValue = 1.0 - opacityTexValue;
-				finalAlpha *= opacityTexValue;
-			}
-			// Apply texture alpha (this can work alongside opacity map)
-			if(renderingMode == 0) {
-				// ADS mode: check for diffuse texture alpha
-				if(hasDiffuseTexture) {
-					vec4 diffuseSample = texture(texture_diffuse, g_texCoord2d);
-					// Ensure we sample the full texture for proper alpha gradient
-					finalAlpha *= diffuseSample.a;
-				}
+			if (hasOpacityMap) {
+				alphaVal *= sampleOpacityMap(g_texCoord2d);
 			} else {
-				// PBR mode: check for albedo texture alpha
-				if(hasAlbedoMap) {
-					vec4 albedoSample = texture(albedoMap, g_texCoord2d);
-					// PBR Issue: Make sure albedo alpha is actually for opacity
-					// In many PBR workflows, alpha serves other purposes
-					finalAlpha *= albedoSample.a;
-				}
+				alphaVal *= sampleFallbackOpacity(g_texCoord2d);
 			}
 
-			finalAlpha = clamp(finalAlpha, 0.0, 1.0);
+			// clamp and optionally apply any opacityScale/bias global (if desired)
+			finalAlpha = clamp(alphaVal, 0.0, 1.0);
+
+			// Note: do NOT discard here. Transparent fragments are blended.
+			// Depth write/disabling and render-order must be handled on the GL side.
 		}
 	}
 
@@ -733,10 +715,60 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			albedo = pbrLighting.albedo;
 		}
 
-		metallic   = hasMetallicMap   ? pbrLighting.metallic   * texture(metallicMap,   clippedTexCoord).r : pbrLighting.metallic;
-		roughness  = hasRoughnessMap  ? pbrLighting.roughness  * texture(roughnessMap,  clippedTexCoord).r : pbrLighting.roughness;
-		roughness  = clamp(roughness, 0.02, 1.0);
-		ambientOcclusion = hasAOMap   ? pbrLighting.ambientOcclusion * texture(aoMap, clippedTexCoord).r    : pbrLighting.ambientOcclusion;
+		// --- packed-channel aware PBR sampling ---
+		// Note: pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
+		// is assumed to return a value in [0,1] for valid channel indices 0..3.
+		// If you prefer a different fallback for ch < 0, modify accordingly.
+		// Metallic
+		float sampledMetal = 0.0;
+		if (hasMetallicMap) {
+			vec4 metalTex = texture(metallicMap, clippedTexCoord);
+			// if metallicChannel < 0, fall back to using red channel (common default)
+			if (metallicChannel >= 0) {
+				sampledMetal = pickChannel(metalTex, metallicChannel, metallicInvert, metallicScale, metallicBias);
+			} else {
+				sampledMetal = metalTex.r * metallicScale + metallicBias;
+				if (metallicInvert != 0) sampledMetal = 1.0 - sampledMetal;
+				sampledMetal = clamp(sampledMetal, 0.0, 1.0);
+			}
+			metallic = pbrLighting.metallic * sampledMetal;
+		} else {
+			metallic = pbrLighting.metallic;
+		}
+
+		// Roughness
+		float sampledRough = 0.0;
+		if (hasRoughnessMap) {
+			vec4 roughTex = texture(roughnessMap, clippedTexCoord);
+			if (roughnessChannel >= 0) {
+				sampledRough = pickChannel(roughTex, roughnessChannel, roughnessInvert, roughnessScale, roughnessBias);
+			} else {
+				sampledRough = roughTex.r * roughnessScale + roughnessBias;
+				if (roughnessInvert != 0) sampledRough = 1.0 - sampledRough;
+				sampledRough = clamp(sampledRough, 0.0, 1.0);
+			}
+			roughness = pbrLighting.roughness * sampledRough;
+		} else {
+			roughness = pbrLighting.roughness;
+		}
+		roughness = clamp(roughness, 0.02, 1.0);
+
+		// Ambient Occlusion
+		float sampledAO = 1.0;
+		if (hasAOMap) {
+			vec4 aoTex = texture(aoMap, clippedTexCoord);
+			if (aoChannel >= 0) {
+				sampledAO = pickChannel(aoTex, aoChannel, aoInvert, aoScale, aoBias);
+			} else {
+				sampledAO = aoTex.r * aoScale + aoBias;
+				if (aoInvert != 0) sampledAO = 1.0 - sampledAO;
+				sampledAO = clamp(sampledAO, 0.0, 1.0);
+			}
+			ambientOcclusion = pbrLighting.ambientOcclusion * sampledAO;
+		} else {
+			ambientOcclusion = pbrLighting.ambientOcclusion;
+		}
+
 		transmission     = hasTransmissionMap ? pbrLighting.transmission * texture(transmissionMap, clippedTexCoord).r : pbrLighting.transmission;
 
 		ior = hasIORMap ? mix(1.0, pbrLighting.ior, texture(iorMap, clippedTexCoord).r) : pbrLighting.ior;
@@ -1398,3 +1430,63 @@ vec3 computeBaseColor(vec2 uv,
 
 	return out_L; // keep in linear for the rest of PBR
 }
+
+// pickChannel helper: choose channel (0=r,1=g,2=b,3=a), optionally invert and remap
+float pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
+{
+    float c = 0.0;
+    if (ch == 0) c = v.r;
+    else if (ch == 1) c = v.g;
+    else if (ch == 2) c = v.b;
+    else if (ch == 3) c = v.a;
+    else c = 0.0; // sentinel value (no channel)
+
+    if (invertFlag != 0) c = 1.0 - c;
+    c = c * scale + bias;
+    return clamp(c, 0.0, 1.0);
+}
+
+// compute sampled opacity from a dedicated opacity map (with packing support)
+float sampleOpacityMap(vec2 uv) {
+    if (!hasOpacityMap) return 1.0; // neutral when no map
+    vec4 opTex = texture(opacityMap, uv);
+
+    // channel-aware extraction: if channel < 0 fallback to .r (legacy)
+    float val;
+    if (opacityChannel >= 0) {
+        val = pickChannel(opTex, opacityChannel, opacityInvert, opacityScale, opacityBias);
+    } else {
+        // legacy fallback: red channel + optional invert/scale/bias
+        val = opTex.r * opacityScale + opacityBias;
+        if (opacityInvert != 0) val = 1.0 - val;
+        val = clamp(val, 0.0, 1.0);
+    }
+    return val;
+}
+
+// compute fallback opacity from albedo/diffuse or legacy opacity texture
+float sampleFallbackOpacity(vec2 uv) {
+    float val = 1.0;
+
+    if (renderingMode == 0) { // ADS -> use diffuse alpha (if present) and/or texture_opacity
+        if (hasDiffuseTexture) {
+            vec4 diff = texture(texture_diffuse, uv);
+            val *= diff.a; // alpha from diffuse texture
+        }
+        if (hasOpacityTexture) {
+            // legacy single-channel opacity texture (no channel packing currently)
+            float optex = texture(texture_opacity, uv).r;
+            if (opacityTextureInverted) optex = 1.0 - optex;
+            val *= optex;
+        }
+    } else { // PBR mode -> albedo alpha may indicate opacity
+        if (hasAlbedoMap) {
+            vec4 alb = texture(albedoMap, uv);
+            // Use albedo alpha as fallback but be conservative (do not force)
+            val *= alb.a;
+        }
+    }
+
+    return clamp(val, 0.0, 1.0);
+}
+
