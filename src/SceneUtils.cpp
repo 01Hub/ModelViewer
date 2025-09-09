@@ -57,6 +57,42 @@ void SceneUtils::mergeScene(aiScene** globalScene, aiScene* source)
 	(*globalScene)->mRootNode = newRoot;
 }
 
+#ifdef _WIN32
+#include <windows.h>
+
+// Safe memory copy function with exception handling
+bool SafeCopyTextureData(aiTexel* dest, const aiTexel* src, size_t byteSize)
+{
+	__try
+	{
+		std::memcpy(dest, src, byteSize);
+		return true;
+	}
+	__except (GetExceptionCode() == EXCEPTION_ACCESS_VIOLATION ?
+		EXCEPTION_EXECUTE_HANDLER : EXCEPTION_CONTINUE_SEARCH)
+	{
+		printf("SafeCopyTextureData: Access violation caught - invalid source data at %p\n", src);
+		return false;
+	}
+}
+#else
+// For non-Windows platforms
+bool SafeCopyTextureData(aiTexel* dest, const aiTexel* src, size_t byteSize)
+{
+	if (!dest || !src) return false;
+	try
+	{
+		std::memcpy(dest, src, byteSize);
+		return true;
+	}
+	catch (...)
+	{
+		printf("SafeCopyTextureData: Access violation caught - invalid source data at %p\n", src);
+		return false;
+	}
+}
+#endif
+
 aiScene* SceneUtils::deepCopyScene(const aiScene* source)
 {
 	if (!source) return nullptr;
@@ -195,28 +231,87 @@ aiScene* SceneUtils::deepCopyScene(const aiScene* source)
 	if (copy->mNumTextures > 0)
 	{
 		copy->mTextures = new aiTexture * [copy->mNumTextures];
+
+		// Initialize all pointers to nullptr for safe cleanup
 		for (unsigned int i = 0; i < copy->mNumTextures; ++i)
 		{
-			const aiTexture* srcTex = source->mTextures[i];
-			aiTexture* dstTex = new aiTexture();
+			copy->mTextures[i] = nullptr;
+		}
 
-			dstTex->mWidth = srcTex->mWidth;
-			dstTex->mHeight = srcTex->mHeight;
-			dstTex->achFormatHint[0] = '\0';
-			std::memcpy(dstTex->achFormatHint, srcTex->achFormatHint, sizeof(dstTex->achFormatHint));
-
-			if (srcTex->pcData && srcTex->mWidth > 0)
+		try
+		{
+			for (unsigned int i = 0; i < copy->mNumTextures; ++i)
 			{
-				size_t size = (srcTex->mHeight == 0 ? srcTex->mWidth : srcTex->mWidth * srcTex->mHeight);
-				dstTex->pcData = new aiTexel[size];
-				std::memcpy(dstTex->pcData, srcTex->pcData, size * sizeof(aiTexel));
-			}
-			else
-			{
-				dstTex->pcData = nullptr;
-			}
+				const aiTexture* srcTex = source->mTextures[i];
+				if (!srcTex)
+				{
+					continue; // Skip null source textures
+				}
 
-			copy->mTextures[i] = dstTex;
+				aiTexture* dstTex = new aiTexture();
+				dstTex->mWidth = srcTex->mWidth;
+				dstTex->mHeight = srcTex->mHeight;
+				dstTex->pcData = nullptr; // Initialize to safe state
+
+				// Safe format hint copying
+				dstTex->achFormatHint[0] = '\0';
+				std::memcpy(dstTex->achFormatHint, srcTex->achFormatHint, sizeof(dstTex->achFormatHint));
+				dstTex->achFormatHint[sizeof(dstTex->achFormatHint) - 1] = '\0'; // Ensure null termination
+
+				// Texture data copying with strong guards
+				if (srcTex->pcData && srcTex->mWidth > 0)
+				{
+					size_t width = static_cast<size_t>(srcTex->mWidth);
+					size_t height = static_cast<size_t>(srcTex->mHeight);
+					size_t size = (height == 0) ? width : width * height;
+
+					// Sanity checks for reasonable texture size
+					if (size > 0 && size < SIZE_MAX / sizeof(aiTexel) && size < 100000000) // 100M texel limit
+					{
+						size_t byteSize = size * sizeof(aiTexel);
+						dstTex->pcData = new(std::nothrow) aiTexel[size];
+
+						if (dstTex->pcData)
+						{
+							// Strong guard - attempt safe copy
+							if (!SafeCopyTextureData(dstTex->pcData, srcTex->pcData, byteSize))
+							{
+								// Copy failed due to invalid source data - clean up and continue
+								delete[] dstTex->pcData;
+								dstTex->pcData = nullptr;
+								printf("Warning: Skipping corrupted texture %u in model (invalid source data)\n", i);
+							}
+						}
+						else
+						{
+							printf("Warning: Failed to allocate memory for texture %u\n", i);
+						}
+					}
+					else
+					{
+						dstTex->pcData = nullptr;
+						printf("Warning: Invalid texture size (%zu) for texture %u, skipping\n", size, i);
+					}
+				}
+
+				copy->mTextures[i] = dstTex;
+			}
+		}
+		catch (...)
+		{
+			// Cleanup on any exception during the loop
+			for (unsigned int i = 0; i < copy->mNumTextures; ++i)
+			{
+				if (copy->mTextures[i])
+				{
+					delete[] copy->mTextures[i]->pcData;
+					delete copy->mTextures[i];
+				}
+			}
+			delete[] copy->mTextures;
+			copy->mTextures = nullptr;
+			copy->mNumTextures = 0;
+			throw; // Re-throw the exception
 		}
 	}
 
