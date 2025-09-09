@@ -220,12 +220,6 @@ void TextureMappingPanel::connectSignals()
         this, &TextureMappingPanel::onTintParamsChanged);
     connect(_ui->maskChannelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
         this, &TextureMappingPanel::onTintParamsChanged);
-
-    connect(_ui->invertOpacityCheck, &QCheckBox::toggled, this, [this](bool checked) {
-        if (!_material) return;
-        _material->setInvertOpacityMap(checked);
-        emit materialChanged(_material);
-		});
 }
 
 // ---------------- icons / thumbs ----------------

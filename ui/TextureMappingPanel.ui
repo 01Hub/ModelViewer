@@ -52,7 +52,7 @@
         <x>0</x>
         <y>0</y>
         <width>396</width>
-        <height>1518</height>
+        <height>1514</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="vboxLeft">
@@ -792,11 +792,17 @@
                <number>0</number>
               </property>
               <item>
-               <widget class="QCheckBox" name="invertOpacityCheck">
-                <property name="text">
-                 <string>Invert</string>
+               <spacer name="horizontalSpacer_30">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
                 </property>
-               </widget>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
               </item>
               <item>
                <widget class="QToolButton" name="gearOpacity">
