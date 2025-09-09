@@ -1226,8 +1226,7 @@ void GLWidget::updateBoundingBox()
 void GLWidget::updateFloorPlane()
 {
 	float halfObjectSize = _boundingSphere.getRadius();
-	// floor size is maximum of bounding box x and y dimensions
-	_floorSize = halfObjectSize;
+	_floorSize = halfObjectSize + (halfObjectSize * 0.10f); // 10% larger than object
 	_floorCenter = _boundingSphere.getCenter();
 	_lightCube->setSize(halfObjectSize * 0.1f);
 	_lightPosition.setX(_floorCenter.x() + halfObjectSize * 0.5f + _lightOffsetX);
