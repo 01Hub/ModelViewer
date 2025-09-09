@@ -69,6 +69,7 @@ void AssImpMesh::render()
 	if (/*shaderChanged ||*/ _uniformsDirty)
 	{
 		setupUniformsOptimized();
+		_uniformsDirty = false;
 	}
 
 	// Bind textures efficiently
