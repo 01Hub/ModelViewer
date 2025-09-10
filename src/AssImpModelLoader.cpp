@@ -265,33 +265,65 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	// Walk through each of the mesh's vertices
 	int step = 0;
 	unsigned int nbVertices = mesh->mNumVertices;
+
+	// Check if we need to generate normals
+	bool hasNormals = mesh->mNormals != nullptr;
+	bool canGenerateNormals = HasSurfaceGeometry(mesh);
+	std::vector<glm::vec3> generatedNormals;
+
+	if (!hasNormals && canGenerateNormals)
+	{
+		GenerateFaceNormals(mesh, generatedNormals);
+		printf("Generated normals for mesh with %u vertices and %u faces\n",
+			mesh->mNumVertices, mesh->mNumFaces);
+	}
+
 	for (unsigned int i = 0; i < nbVertices; i++)
 	{
 		step++;
 		Vertex vertex;
-		
+
 		// Compute the normal matrix as the inverse transpose of the transformation matrix
 		aiMatrix3x3 normalMatrix = aiMatrix3x3(transform);
-		normalMatrix = normalMatrix.Inverse().Transpose(); // Correctly compute the inverse transpose
+		normalMatrix = normalMatrix.Inverse().Transpose();
 
-		// Transform the vertex position by the mesh's transformation matrix
 		// Transform Position
 		aiVector3D pos = mesh->mVertices[i];
-		aiVector3D transformedPos = transform * pos; // Transform position directly
+		aiVector3D transformedPos = transform * pos;
 		vertex.Position = glm::vec3(transformedPos.x, transformedPos.y, transformedPos.z);
 
-		// Transform Normals
-		aiVector3D normal = mesh->mNormals[i];
-		aiVector3D transformedNormal = normalMatrix * normal; // Apply the inverse transpose to the normal
-		transformedNormal.Normalize(); // Normalize the normal after transformation (important for scaling)
-		vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
+		// Transform Normals - improved logic
+		if (hasNormals)
+		{
+			// Use existing normals from the mesh
+			aiVector3D normal = mesh->mNormals[i];
+			aiVector3D transformedNormal = normalMatrix * normal;
+			transformedNormal.Normalize();
+			vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
+		}
+		else if (!generatedNormals.empty())
+		{
+			// Use generated face normals
+			glm::vec3 normal = generatedNormals[i];
+			aiVector3D aiNormal(normal.x, normal.y, normal.z);
+			aiVector3D transformedNormal = normalMatrix * aiNormal;
+			transformedNormal.Normalize();
+			vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
+		}
+		else
+		{
+			// Fallback for points, lines, or invalid geometry
+			// Use transformed up vector instead of position
+			aiVector3D upVector(0.0f, 1.0f, 0.0f);
+			aiVector3D transformedUp = normalMatrix * upVector;
+			transformedUp.Normalize();
+			vertex.Normal = glm::vec3(transformedUp.x, transformedUp.y, transformedUp.z);
+		}
 
 		// Texture Coordinates
-		if (mesh->mTextureCoords[0]) // Does the mesh contain texture coordinates?
+		if (mesh->mTextureCoords[0])
 		{
 			glm::vec2 vec;
-			// A vertex can contain up to 8 different texture coordinates. We thus make the assumption that we won't
-			// use models where a vertex can have multiple texture coordinates so we always take the first set (0).
 			vec.x = mesh->mTextureCoords[0][i].x;
 			vec.y = mesh->mTextureCoords[0][i].y;
 			vertex.TexCoords = vec;
@@ -300,8 +332,8 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 			if (mesh->mTangents)
 			{
 				aiVector3D tangent = mesh->mTangents[i];
-				aiVector3D transformedTangent = normalMatrix * tangent; // Transform tangent using the inverse transpose
-				transformedTangent.Normalize(); // Normalize the tangent
+				aiVector3D transformedTangent = normalMatrix * tangent;
+				transformedTangent.Normalize();
 				vertex.Tangent = glm::vec3(transformedTangent.x, transformedTangent.y, transformedTangent.z);
 			}
 
@@ -309,13 +341,13 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 			if (mesh->mBitangents)
 			{
 				aiVector3D bitangent = mesh->mBitangents[i];
-				aiVector3D transformedBitangent = normalMatrix * bitangent; // Transform bitangent using the inverse transpose
-				transformedBitangent.Normalize(); // Normalize the bitangent
+				aiVector3D transformedBitangent = normalMatrix * bitangent;
+				transformedBitangent.Normalize();
 				vertex.Bitangent = glm::vec3(transformedBitangent.x, transformedBitangent.y, transformedBitangent.z);
 			}
 		}
 		else
-		{			
+		{
 			_needsUVGeneration = true;
 		}
 
@@ -323,7 +355,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		if (mesh->HasVertexColors(0))
 		{
 			aiColor4D color = mesh->mColors[0][i];
-			vertex.Color = glm::vec4(color.r, color.g, color.b, color.a); // Add color
+			vertex.Color = glm::vec4(color.r, color.g, color.b, color.a);
 		}
 		else
 		{
@@ -448,6 +480,90 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	
 	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
 	return newMesh;
+}
+
+bool AssImpModelLoader::HasSurfaceGeometry(aiMesh* mesh)
+{
+	if (!mesh || mesh->mNumFaces == 0)
+	{
+		return false;
+	}
+
+	// Check if mesh has triangular faces
+	for (unsigned int i = 0; i < mesh->mNumFaces; i++)
+	{
+		if (mesh->mFaces[i].mNumIndices >= 3)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void AssImpModelLoader::GenerateFaceNormals(aiMesh* mesh, std::vector<glm::vec3>& generatedNormals)
+{
+	generatedNormals.clear();
+	generatedNormals.resize(mesh->mNumVertices, glm::vec3(0.0f));
+
+	// Only generate normals for meshes with triangular faces
+	if (mesh->mNumFaces == 0)
+	{
+		// No faces - fill with default up normals
+		std::fill(generatedNormals.begin(), generatedNormals.end(), glm::vec3(0.0f, 1.0f, 0.0f));
+		return;
+	}
+
+	// Calculate normals from faces
+	for (unsigned int i = 0; i < mesh->mNumFaces; i++)
+	{
+		const aiFace& face = mesh->mFaces[i];
+
+		if (face.mNumIndices >= 3)
+		{ 
+			// Only process triangles/polygons
+			// Get three vertices of the face
+			aiVector3D v0 = mesh->mVertices[face.mIndices[0]];
+			aiVector3D v1 = mesh->mVertices[face.mIndices[1]];
+			aiVector3D v2 = mesh->mVertices[face.mIndices[2]];
+
+			// Calculate face normal using cross product
+			aiVector3D edge1 = v1 - v0;
+			aiVector3D edge2 = v2 - v0;
+			aiVector3D faceNormal = edge1 ^ edge2; // Cross product in Assimp
+
+			// Check if normal is valid (non-zero length)
+			float length = faceNormal.Length();
+			if (length > 0.0001f)
+			{
+				faceNormal.Normalize();
+
+				// Add this face normal to all vertices of the face (for smooth shading)
+				for (unsigned int j = 0; j < face.mNumIndices; j++)
+				{
+					unsigned int vertexIndex = face.mIndices[j];
+					if (vertexIndex < generatedNormals.size())
+					{
+						generatedNormals[vertexIndex] += glm::vec3(faceNormal.x, faceNormal.y, faceNormal.z);
+					}
+				}
+			}
+		}
+	}
+
+	// Normalize all accumulated normals
+	for (auto& normal : generatedNormals)
+	{
+		float length = glm::length(normal);
+		if (length > 0.0001f)
+		{
+			normal = glm::normalize(normal);
+		}
+		else
+		{
+			// Fallback for vertices not part of any valid face
+			normal = glm::vec3(0.0f, 1.0f, 0.0f); // Default up vector
+		}
+	}
 }
 
 

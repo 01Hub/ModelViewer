@@ -124,6 +124,10 @@ private:
 
 	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform);
 
+	void GenerateFaceNormals(aiMesh* mesh, std::vector<glm::vec3>& generatedNormals);
+	bool HasSurfaceGeometry(aiMesh* mesh);
+
+
 	static SceneMeshInfo collectSceneMeshInfo(const aiScene* scene);
 	static glm::mat4 aiMatrixToGlm(const aiMatrix4x4& from);
 	static aiMatrix4x4 glmToAiMatrix(const glm::mat4& mat);
