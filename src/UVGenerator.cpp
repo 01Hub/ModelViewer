@@ -719,15 +719,31 @@ void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
     std::vector<Triangle>& triangles)
 {
     triangles.clear();
+
+    // Guard: Ensure indices size is a multiple of 3
+    if (indices.size() % 3 != 0)
+    {        
+        std::cerr << "Warning: Indices size is not a multiple of 3. Ignoring incomplete triangle." << std::endl;
+    }
+
     triangles.reserve(indices.size() / 3);
 
-    for (size_t i = 0; i < indices.size(); i += 3)
+    for (size_t i = 0; i + 2 < indices.size(); i += 3) // Safe loop condition
     {
         Triangle tri;
         tri.indices[0] = indices[i];
         tri.indices[1] = indices[i + 1];
         tri.indices[2] = indices[i + 2];
         tri.visited = false;
+
+        // Ensure index values are within bounds of vertices
+        if (tri.indices[0] >= vertices.size() ||
+            tri.indices[1] >= vertices.size() ||
+            tri.indices[2] >= vertices.size())
+        {
+            std::cerr << "Warning: Triangle index out of bounds. Skipping triangle." << std::endl;
+            continue;
+        }
 
         const glm::vec3& v0 = vertices[tri.indices[0]].Position;
         const glm::vec3& v1 = vertices[tri.indices[1]].Position;
