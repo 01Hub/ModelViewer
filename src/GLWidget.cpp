@@ -4228,9 +4228,13 @@ void GLWidget::renderToShadowBuffer()
 	float extent = _floorSize * _floorSizeFactor;
 	QVector3D center = _boundingSphere.getCenter();
 	float near_plane = 1.0f, far_plane = extent;
-	lightProjection.ortho(-extent + center.x(), extent + center.x(),
-		-extent + center.y(), extent + center.y(),
-		near_plane + center.z(), far_plane + center.z());
+	float margin = _boundingBox.boundingRadius() * 2.0f * 1.5f;
+	lightProjection.ortho(
+		_boundingBox.xMin() - margin, _boundingBox.xMax() + margin,
+		_boundingBox.yMin() - margin, _boundingBox.yMax() + margin,
+		_boundingBox.zMin() - margin, _boundingBox.zMax() + margin
+	);
+
 	QVector3D lightDir;
 	if (_lockLightAndCamera)
 		lightDir = QVector3D(center.x(), center.y(), 0);

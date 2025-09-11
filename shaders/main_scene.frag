@@ -540,11 +540,11 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	// --- Lighting vectors ---
 	vec3 lightDir, viewDir;
 	if (lockLightAndCamera) {
-		lightDir = source.position;
-		viewDir  = vec3(0);
+		lightDir = normalize(source.position -g_position);		
+		viewDir  = normalize(vec3(0,0,1));
 	} else {
-		lightDir = source.position + cameraPos;
-		viewDir  = cameraPos;
+		lightDir = normalize(source.position + cameraPos - g_position);
+		viewDir  = normalize(cameraPos);
 	}
 
 	vec3 halfVector = normalize(lightDir + viewDir);
@@ -650,10 +650,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 N; vec3 V; vec3 L;
 
 	if (lockLightAndCamera) {
-		V = normalize(lightSource.position);
+		V = normalize(lightSource.position - g_position);
 		L = normalize(lightSource.position);
 	} else {
-		V = normalize(lightSource.position + cameraPos);
+		V = normalize(lightSource.position + cameraPos - g_position);
 		L = normalize(lightSource.position + cameraPos);
 	}
 
