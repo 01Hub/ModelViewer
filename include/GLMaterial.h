@@ -392,11 +392,56 @@ public:
 
 	// Advanced PBR Materials
 	// === CLEARCOAT MATERIALS ===
-	static GLMaterial CAR_PAINT_RED();
+	// ORIGINAL METALLIC FINISHES	
 	static GLMaterial CAR_PAINT_METALLIC_BLUE();
-	static GLMaterial CAR_PAINT_WHITE();
+	static GLMaterial CAR_PAINT_DEEP_METALLIC_BLUE();
 	static GLMaterial CAR_PAINT_METALLIC_GREEN();
+	static GLMaterial CAR_PAINT_METALLIC_SILVER();	
+	static GLMaterial CAR_PAINT_METALLIC_RED();
+	static GLMaterial CAR_PAINT_METALLIC_COPPER();
+	static GLMaterial CAR_PAINT_METALLIC_GOLD();
+	static GLMaterial CAR_PAINT_METALLIC_PURPLE();
 	static GLMaterial CAR_PAINT_PEARL();
+
+	// ORIGINAL NON-METALLIC FINISHES
+	static GLMaterial CAR_PAINT_GLOSSY_BLACK();
+	static GLMaterial CAR_PAINT_GLOSSY_WHITE();
+	static GLMaterial CAR_PAINT_MATTE_RED();
+	static GLMaterial CAR_PAINT_GLOSSY_YELLOW();
+	static GLMaterial CAR_PAINT_GLOSSY_ORANGE();
+	static GLMaterial CAR_PAINT_SATIN_GRAY();
+	static GLMaterial CAR_PAINT_RED();
+	static GLMaterial CAR_PAINT_WHITE();
+
+	// ORIGINAL SPECIAL FINISHES
+	static GLMaterial CAR_PAINT_PEARLESCENT_BLUE();
+	static GLMaterial CAR_PAINT_CANDY_APPLE_RED();
+
+	// DARK SHADE VARIATIONS
+	static GLMaterial CAR_PAINT_MIDNIGHT_BLUE();
+	static GLMaterial CAR_PAINT_FOREST_GREEN();
+	static GLMaterial CAR_PAINT_CHARCOAL_GRAY();
+	static GLMaterial CAR_PAINT_BURGUNDY();
+
+	// LIGHT SHADE VARIATIONS
+	static GLMaterial CAR_PAINT_POWDER_BLUE();
+	static GLMaterial CAR_PAINT_MINT_GREEN();
+	static GLMaterial CAR_PAINT_CREAM_YELLOW();
+	static GLMaterial CAR_PAINT_LAVENDER();
+
+	// MEDIUM TONE VARIATIONS
+	static GLMaterial CAR_PAINT_TEAL();
+	static GLMaterial CAR_PAINT_CORAL();
+	static GLMaterial CAR_PAINT_SLATE_BLUE();
+
+	// METALLIC VARIATIONS WITH DIFFERENT SHADES
+	static GLMaterial CAR_PAINT_METALLIC_CHAMPAGNE();
+	static GLMaterial CAR_PAINT_METALLIC_GUNMETAL();
+	static GLMaterial CAR_PAINT_METALLIC_BRONZE();
+
+	// ADDITIONAL SPECIAL FINISHES
+	static GLMaterial CAR_PAINT_IRIDESCENT_GREEN();
+
 	static GLMaterial MATTE_GREY();
 	static GLMaterial PIANO_BLACK();
 

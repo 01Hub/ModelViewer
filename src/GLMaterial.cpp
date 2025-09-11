@@ -1404,6 +1404,570 @@ GLMaterial GLMaterial::PIANO_BLACK()
 
 	return mat;
 }
+// METALLIC CAR PAINTS
+
+GLMaterial GLMaterial::CAR_PAINT_METALLIC_SILVER()
+{
+	GLMaterial mat({ 0.12f, 0.12f, 0.12f },
+		{ 0.75f, 0.76f, 0.78f },                     // diffuse - bright silver
+		{ 0.85f, 0.85f, 0.85f },                     // high reflectivity
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.9f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.75f, 0.76f, 0.78f));
+	mat.setMetalness(0.85f);                         // highly metallic
+	mat.setRoughness(0.15f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.05f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_DEEP_METALLIC_BLUE()
+{
+	GLMaterial mat({ 0.05f, 0.08f, 0.15f },
+		{ 0.15f, 0.35f, 0.75f },                     // diffuse - deep metallic blue
+		{ 0.45f, 0.50f, 0.65f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.85f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.15f, 0.35f, 0.75f));
+	mat.setMetalness(0.7f);
+	mat.setRoughness(0.25f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.08f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_METALLIC_RED()
+{
+	GLMaterial mat({ 0.15f, 0.05f, 0.05f },
+		{ 0.78f, 0.15f, 0.12f },                     // diffuse - bright metallic red
+		{ 0.60f, 0.40f, 0.40f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.88f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.78f, 0.15f, 0.12f));
+	mat.setMetalness(0.45f);
+	mat.setRoughness(0.3f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.1f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_METALLIC_COPPER()
+{
+	GLMaterial mat({ 0.18f, 0.12f, 0.08f },
+		{ 0.85f, 0.45f, 0.25f },                     // diffuse - warm copper
+		{ 0.70f, 0.55f, 0.45f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.82f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.85f, 0.45f, 0.25f));
+	mat.setMetalness(0.8f);
+	mat.setRoughness(0.28f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.12f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_METALLIC_GOLD()
+{
+	GLMaterial mat({ 0.20f, 0.18f, 0.10f },
+		{ 0.90f, 0.75f, 0.35f },                     // diffuse - rich gold
+		{ 0.75f, 0.68f, 0.50f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.88f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.90f, 0.75f, 0.35f));
+	mat.setMetalness(0.9f);
+	mat.setRoughness(0.22f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.06f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_METALLIC_PURPLE()
+{
+	GLMaterial mat({ 0.12f, 0.08f, 0.15f },
+		{ 0.55f, 0.25f, 0.70f },                     // diffuse - deep metallic purple
+		{ 0.55f, 0.45f, 0.60f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.85f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.55f, 0.25f, 0.70f));
+	mat.setMetalness(0.6f);
+	mat.setRoughness(0.32f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.09f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+// NON-METALLIC CAR PAINTS
+
+GLMaterial GLMaterial::CAR_PAINT_GLOSSY_BLACK()
+{
+	GLMaterial mat({ 0.05f, 0.05f, 0.05f },
+		{ 0.08f, 0.08f, 0.08f },                     // diffuse - deep black
+		{ 0.95f, 0.95f, 0.95f },                     // high gloss reflection
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.95f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.08f, 0.08f, 0.08f));
+	mat.setMetalness(0.0f);                          // non-metallic
+	mat.setRoughness(0.1f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.02f);                // mirror-like clearcoat
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_GLOSSY_WHITE()
+{
+	GLMaterial mat({ 0.85f, 0.85f, 0.85f },
+		{ 0.95f, 0.95f, 0.95f },                     // diffuse - pure white
+		{ 0.90f, 0.90f, 0.90f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.92f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.95f, 0.95f, 0.95f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.12f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.04f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_MATTE_RED()
+{
+	GLMaterial mat({ 0.45f, 0.08f, 0.08f },
+		{ 0.75f, 0.12f, 0.12f },                     // diffuse - vibrant red
+		{ 0.15f, 0.15f, 0.15f },                     // low reflectivity for matte
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.3f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.75f, 0.12f, 0.12f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.85f);                         // high roughness for matte
+	mat.setClearcoat(0.0f);                          // no clearcoat for matte finish
+	mat.setClearcoatRoughness(1.0f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_GLOSSY_YELLOW()
+{
+	GLMaterial mat({ 0.65f, 0.60f, 0.15f },
+		{ 0.95f, 0.85f, 0.15f },                     // diffuse - bright yellow
+		{ 0.85f, 0.85f, 0.75f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.88f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.95f, 0.85f, 0.15f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.18f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.06f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_GLOSSY_ORANGE()
+{
+	GLMaterial mat({ 0.55f, 0.35f, 0.12f },
+		{ 0.90f, 0.45f, 0.15f },                     // diffuse - vibrant orange
+		{ 0.80f, 0.70f, 0.60f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.85f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.90f, 0.45f, 0.15f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.2f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.07f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_SATIN_GRAY()
+{
+	GLMaterial mat({ 0.35f, 0.35f, 0.35f },
+		{ 0.55f, 0.55f, 0.55f },                     // diffuse - medium gray
+		{ 0.45f, 0.45f, 0.45f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.6f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.55f, 0.55f, 0.55f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.55f);                         // satin finish - between matte and gloss
+	mat.setClearcoat(0.3f);                          // light clearcoat
+	mat.setClearcoatRoughness(0.4f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+// DARK SHADE VARIATIONS
+
+GLMaterial GLMaterial::CAR_PAINT_MIDNIGHT_BLUE()
+{
+	GLMaterial mat({ 0.03f, 0.05f, 0.12f },
+		{ 0.08f, 0.15f, 0.35f },                     // diffuse - very dark blue
+		{ 0.85f, 0.85f, 0.90f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.92f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.08f, 0.15f, 0.35f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.15f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.04f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_FOREST_GREEN()
+{
+	GLMaterial mat({ 0.05f, 0.12f, 0.06f },
+		{ 0.12f, 0.35f, 0.15f },                     // diffuse - deep forest green
+		{ 0.75f, 0.85f, 0.75f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.88f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.12f, 0.35f, 0.15f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.18f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.06f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_CHARCOAL_GRAY()
+{
+	GLMaterial mat({ 0.15f, 0.15f, 0.15f },
+		{ 0.25f, 0.25f, 0.25f },                     // diffuse - dark charcoal
+		{ 0.80f, 0.80f, 0.80f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.85f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.25f, 0.25f, 0.25f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.22f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.08f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_BURGUNDY()
+{
+	GLMaterial mat({ 0.18f, 0.06f, 0.08f },
+		{ 0.45f, 0.12f, 0.18f },                     // diffuse - deep burgundy
+		{ 0.75f, 0.65f, 0.68f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.82f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.45f, 0.12f, 0.18f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.25f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.1f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+// LIGHT SHADE VARIATIONS
+
+GLMaterial GLMaterial::CAR_PAINT_POWDER_BLUE()
+{
+	GLMaterial mat({ 0.65f, 0.75f, 0.85f },
+		{ 0.75f, 0.85f, 0.95f },                     // diffuse - soft powder blue
+		{ 0.85f, 0.88f, 0.92f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.78f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.75f, 0.85f, 0.95f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.28f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.12f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_MINT_GREEN()
+{
+	GLMaterial mat({ 0.70f, 0.85f, 0.75f },
+		{ 0.80f, 0.95f, 0.85f },                     // diffuse - light mint green
+		{ 0.82f, 0.92f, 0.85f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.75f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.80f, 0.95f, 0.85f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.32f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.15f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_CREAM_YELLOW()
+{
+	GLMaterial mat({ 0.88f, 0.85f, 0.70f },
+		{ 0.95f, 0.92f, 0.78f },                     // diffuse - soft cream yellow
+		{ 0.90f, 0.88f, 0.82f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.72f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.95f, 0.92f, 0.78f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.35f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.18f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_LAVENDER()
+{
+	GLMaterial mat({ 0.75f, 0.70f, 0.85f },
+		{ 0.85f, 0.78f, 0.95f },                     // diffuse - soft lavender
+		{ 0.88f, 0.82f, 0.92f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.75f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.85f, 0.78f, 0.95f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.3f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.14f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+// MEDIUM TONE VARIATIONS
+
+GLMaterial GLMaterial::CAR_PAINT_TEAL()
+{
+	GLMaterial mat({ 0.25f, 0.45f, 0.42f },
+		{ 0.35f, 0.65f, 0.58f },                     // diffuse - medium teal
+		{ 0.70f, 0.85f, 0.82f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.8f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.35f, 0.65f, 0.58f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.25f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.1f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_CORAL()
+{
+	GLMaterial mat({ 0.65f, 0.45f, 0.35f },
+		{ 0.85f, 0.58f, 0.45f },                     // diffuse - warm coral
+		{ 0.88f, 0.75f, 0.68f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.78f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.85f, 0.58f, 0.45f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.28f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.12f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_SLATE_BLUE()
+{
+	GLMaterial mat({ 0.35f, 0.38f, 0.55f },
+		{ 0.48f, 0.52f, 0.75f },                     // diffuse - medium slate blue
+		{ 0.75f, 0.78f, 0.88f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.82f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.48f, 0.52f, 0.75f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.22f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.08f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+// METALLIC VARIATIONS WITH DIFFERENT SHADES
+
+GLMaterial GLMaterial::CAR_PAINT_METALLIC_CHAMPAGNE()
+{
+	GLMaterial mat({ 0.45f, 0.42f, 0.35f },
+		{ 0.75f, 0.68f, 0.55f },                     // diffuse - warm champagne
+		{ 0.82f, 0.78f, 0.68f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.85f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.75f, 0.68f, 0.55f));
+	mat.setMetalness(0.65f);
+	mat.setRoughness(0.25f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.08f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_METALLIC_GUNMETAL()
+{
+	GLMaterial mat({ 0.18f, 0.20f, 0.22f },
+		{ 0.35f, 0.38f, 0.42f },                     // diffuse - dark gunmetal
+		{ 0.65f, 0.68f, 0.72f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.88f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.35f, 0.38f, 0.42f));
+	mat.setMetalness(0.75f);
+	mat.setRoughness(0.2f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.06f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_METALLIC_BRONZE()
+{
+	GLMaterial mat({ 0.35f, 0.25f, 0.15f },
+		{ 0.68f, 0.45f, 0.28f },                     // diffuse - rich bronze
+		{ 0.78f, 0.65f, 0.48f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.83f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.68f, 0.45f, 0.28f));
+	mat.setMetalness(0.8f);
+	mat.setRoughness(0.3f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.1f);
+	mat.setIOR(1.5f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+// SPECIAL FINISHES
+
+GLMaterial GLMaterial::CAR_PAINT_PEARLESCENT_BLUE()
+{
+	GLMaterial mat({ 0.10f, 0.15f, 0.25f },
+		{ 0.35f, 0.55f, 0.85f },                     // diffuse - pearl blue
+		{ 0.60f, 0.65f, 0.70f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.9f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.35f, 0.55f, 0.85f));
+	mat.setMetalness(0.25f);                         // pearlescent semi-metallic
+	mat.setRoughness(0.2f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.05f);
+	mat.setIOR(1.52f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_CANDY_APPLE_RED()
+{
+	GLMaterial mat({ 0.25f, 0.05f, 0.05f },
+		{ 0.85f, 0.08f, 0.08f },                     // diffuse - deep candy red
+		{ 0.90f, 0.70f, 0.70f },                     // high gloss with red tint
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.95f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.85f, 0.08f, 0.08f));
+	mat.setMetalness(0.1f);                          // slight metallic base
+	mat.setRoughness(0.08f);                         // very glossy
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.02f);                // mirror finish
+	mat.setIOR(1.6f);                                // higher IOR for candy effect
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
+
+GLMaterial GLMaterial::CAR_PAINT_IRIDESCENT_GREEN()
+{
+	GLMaterial mat({ 0.15f, 0.25f, 0.18f },
+		{ 0.28f, 0.65f, 0.45f },                     // diffuse - iridescent green
+		{ 0.55f, 0.75f, 0.65f },
+		{ 0.0f, 0.0f, 0.0f },
+		fabs(128.0f * 0.92f),
+		false, 1.0f);
+	mat.setAlbedoColor(QVector3D(0.28f, 0.65f, 0.45f));
+	mat.setMetalness(0.35f);                         // color-shifting effect
+	mat.setRoughness(0.15f);
+	mat.setClearcoat(1.0f);
+	mat.setClearcoatRoughness(0.04f);
+	mat.setIOR(1.55f);
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.updateConsistency();
+	return mat;
+}
 
 // === SHEEN MATERIALS ===
 

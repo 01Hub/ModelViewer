@@ -88,12 +88,41 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget *parent)
         {"LEATHER_TAN",     GLMaterial::LEATHER_TAN},		
 
 		// Clearcoat materials
-        {"CAR_PAINT_RED",   GLMaterial::CAR_PAINT_RED},
+        {"CAR_PAINT_BURGUNDY", GLMaterial::CAR_PAINT_BURGUNDY},
+        {"CAR_PAINT_CANDY_APPLE_RED", GLMaterial::CAR_PAINT_CANDY_APPLE_RED},
+        {"CAR_PAINT_CHARCOAL_GRAY", GLMaterial::CAR_PAINT_CHARCOAL_GRAY},
+        {"CAR_PAINT_CORAL", GLMaterial::CAR_PAINT_CORAL},
+        {"CAR_PAINT_CREAM_YELLOW", GLMaterial::CAR_PAINT_CREAM_YELLOW},
+        {"CAR_PAINT_DEEP_METALLIC_BLUE", GLMaterial::CAR_PAINT_DEEP_METALLIC_BLUE},
+        {"CAR_PAINT_FOREST_GREEN", GLMaterial::CAR_PAINT_FOREST_GREEN},
+        {"CAR_PAINT_GLOSSY_BLACK", GLMaterial::CAR_PAINT_GLOSSY_BLACK},
+        {"CAR_PAINT_GLOSSY_ORANGE", GLMaterial::CAR_PAINT_GLOSSY_ORANGE},
+        {"CAR_PAINT_GLOSSY_WHITE", GLMaterial::CAR_PAINT_GLOSSY_WHITE},
+        {"CAR_PAINT_GLOSSY_YELLOW", GLMaterial::CAR_PAINT_GLOSSY_YELLOW},
+        {"CAR_PAINT_IRIDESCENT_GREEN", GLMaterial::CAR_PAINT_IRIDESCENT_GREEN},
+        {"CAR_PAINT_LAVENDER", GLMaterial::CAR_PAINT_LAVENDER},
+        {"CAR_PAINT_MATTE_RED", GLMaterial::CAR_PAINT_MATTE_RED},
         {"CAR_PAINT_METALLIC_BLUE", GLMaterial::CAR_PAINT_METALLIC_BLUE},
-        {"CAR_PAINT_WHITE", GLMaterial::CAR_PAINT_WHITE},
+        {"CAR_PAINT_METALLIC_BRONZE", GLMaterial::CAR_PAINT_METALLIC_BRONZE},
+        {"CAR_PAINT_METALLIC_CHAMPAGNE", GLMaterial::CAR_PAINT_METALLIC_CHAMPAGNE},
+        {"CAR_PAINT_METALLIC_COPPER", GLMaterial::CAR_PAINT_METALLIC_COPPER},
+        {"CAR_PAINT_METALLIC_GOLD", GLMaterial::CAR_PAINT_METALLIC_GOLD},
         {"CAR_PAINT_METALLIC_GREEN", GLMaterial::CAR_PAINT_METALLIC_GREEN},
+        {"CAR_PAINT_METALLIC_GUNMETAL", GLMaterial::CAR_PAINT_METALLIC_GUNMETAL},
+        {"CAR_PAINT_METALLIC_PURPLE", GLMaterial::CAR_PAINT_METALLIC_PURPLE},
+        {"CAR_PAINT_METALLIC_RED", GLMaterial::CAR_PAINT_METALLIC_RED},
+        {"CAR_PAINT_METALLIC_SILVER", GLMaterial::CAR_PAINT_METALLIC_SILVER},
+        {"CAR_PAINT_MIDNIGHT_BLUE", GLMaterial::CAR_PAINT_MIDNIGHT_BLUE},
+        {"CAR_PAINT_MINT_GREEN", GLMaterial::CAR_PAINT_MINT_GREEN},
         {"CAR_PAINT_PEARL", GLMaterial::CAR_PAINT_PEARL},
-		{"MATTE_GREY",      GLMaterial::MATTE_GREY},
+        {"CAR_PAINT_PEARLESCENT_BLUE", GLMaterial::CAR_PAINT_PEARLESCENT_BLUE},
+        {"CAR_PAINT_POWDER_BLUE", GLMaterial::CAR_PAINT_POWDER_BLUE},
+        {"CAR_PAINT_RED",   GLMaterial::CAR_PAINT_RED},
+        {"CAR_PAINT_SATIN_GRAY", GLMaterial::CAR_PAINT_SATIN_GRAY},
+        {"CAR_PAINT_SLATE_BLUE", GLMaterial::CAR_PAINT_SLATE_BLUE},
+        {"CAR_PAINT_TEAL", GLMaterial::CAR_PAINT_TEAL},
+        {"CAR_PAINT_WHITE", GLMaterial::CAR_PAINT_WHITE},
+        {"MATTE_GREY",      GLMaterial::MATTE_GREY},
         {"PIANO_BLACK",     GLMaterial::PIANO_BLACK},
         
         // Transmission materials
@@ -291,13 +320,43 @@ void MaterialLibraryWidget::populateMaterials()
 
 	// --- Clearcoat materials ---
     QTreeWidgetItem* clearcoat = new QTreeWidgetItem(this, QStringList() << "Clearcoat Materials");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Burgundy"))->setData(0, Qt::UserRole, "CAR_PAINT_BURGUNDY");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Candy Apple Red"))->setData(0, Qt::UserRole, "CAR_PAINT_CANDY_APPLE_RED");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Charcoal Gray"))->setData(0, Qt::UserRole, "CAR_PAINT_CHARCOAL_GRAY");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Coral"))->setData(0, Qt::UserRole, "CAR_PAINT_CORAL");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Cream Yellow"))->setData(0, Qt::UserRole, "CAR_PAINT_CREAM_YELLOW");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Deep Metallic Blue"))->setData(0, Qt::UserRole, "CAR_PAINT_DEEP_METALLIC_BLUE");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Forest Green"))->setData(0, Qt::UserRole, "CAR_PAINT_FOREST_GREEN");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Glossy Black"))->setData(0, Qt::UserRole, "CAR_PAINT_GLOSSY_BLACK");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Glossy Orange"))->setData(0, Qt::UserRole, "CAR_PAINT_GLOSSY_ORANGE");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Glossy White"))->setData(0, Qt::UserRole, "CAR_PAINT_GLOSSY_WHITE");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Glossy Yellow"))->setData(0, Qt::UserRole, "CAR_PAINT_GLOSSY_YELLOW");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Iridescent Green"))->setData(0, Qt::UserRole, "CAR_PAINT_IRIDESCENT_GREEN");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Lavender"))->setData(0, Qt::UserRole, "CAR_PAINT_LAVENDER");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Matte Red"))->setData(0, Qt::UserRole, "CAR_PAINT_MATTE_RED");
     (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Blue"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_BLUE");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Bronze"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_BRONZE");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Champagne"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_CHAMPAGNE");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Copper"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_COPPER");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Gold"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_GOLD");
     (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Green"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_GREEN");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Gunmetal"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_GUNMETAL");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Purple"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_PURPLE");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Red"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_RED");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Metallic Silver"))->setData(0, Qt::UserRole, "CAR_PAINT_METALLIC_SILVER");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Midnight Blue"))->setData(0, Qt::UserRole, "CAR_PAINT_MIDNIGHT_BLUE");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Mint Green"))->setData(0, Qt::UserRole, "CAR_PAINT_MINT_GREEN");
     (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Pearl"))->setData(0, Qt::UserRole, "CAR_PAINT_PEARL");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Pearlescent Blue"))->setData(0, Qt::UserRole, "CAR_PAINT_PEARLESCENT_BLUE");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Powder Blue"))->setData(0, Qt::UserRole, "CAR_PAINT_POWDER_BLUE");
     (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Red"))->setData(0, Qt::UserRole, "CAR_PAINT_RED");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Satin Gray"))->setData(0, Qt::UserRole, "CAR_PAINT_SATIN_GRAY");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Slate Blue"))->setData(0, Qt::UserRole, "CAR_PAINT_SLATE_BLUE");
+    (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint Teal"))->setData(0, Qt::UserRole, "CAR_PAINT_TEAL");
     (new QTreeWidgetItem(clearcoat, QStringList() << "Car Paint White"))->setData(0, Qt::UserRole, "CAR_PAINT_WHITE");
     (new QTreeWidgetItem(clearcoat, QStringList() << "Matte Grey"))->setData(0, Qt::UserRole, "MATTE_GREY");
     (new QTreeWidgetItem(clearcoat, QStringList() << "Piano Black"))->setData(0, Qt::UserRole, "PIANO_BLACK");
+
     	
 	// --- Transmission materials ---
     QTreeWidgetItem* transmission = new QTreeWidgetItem(this, QStringList() << "Transmission Materials");
