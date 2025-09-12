@@ -1216,11 +1216,6 @@ void GLWidget::updateBoundingBox()
 			idx++;
 		}
 	}
-
-	qDebug() << "Bounding box: " << _boundingBox.xMin() << ", " << _boundingBox.xMax()
-		<< _boundingBox.yMin() << ", " << _boundingBox.yMax()
-		<< _boundingBox.zMin() << ", " << _boundingBox.zMax();
-
 	if (_floorPlane)
 	{
 		updateFloorPlane();
@@ -4231,22 +4226,27 @@ void GLWidget::renderToShadowBuffer()
 	// 1. render depth of scene to texture (from light's perspective)
 	// --------------------------------------------------------------
 	QMatrix4x4 lightProjection, lightView;
+
 	float extent = _floorSize * _floorSizeFactor;
 	QVector3D center = _boundingSphere.getCenter();
+	float radius = _boundingSphere.getRadius();
+
+	QVector3D lightPos = _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ);
+	QVector3D lightDir;
+	if (_lockLightAndCamera)
+		lightDir = QVector3D(center.x(), center.y(), 0);
+	else
+		lightDir = lightPos - _primaryCamera->getPosition();
+	lightView.lookAt(lightPos, lightDir, QVector3D(0.0, 1.0, 0.0));
+
 	float near_plane = 1.0f, far_plane = extent;
-	float margin = _boundingBox.boundingRadius() * 2.0 * 1.5f;
+	float margin = (_boundingBox.boundingRadius() * 2.0f) * 1.5f;
 	lightProjection.ortho(
 		_boundingBox.xMin() - margin, _boundingBox.xMax() + margin,
 		_boundingBox.yMin() - margin, _boundingBox.yMax() + margin,
 		_boundingBox.zMin() - margin, _boundingBox.zMax() + margin
 	);
 
-	QVector3D lightDir;
-	if (_lockLightAndCamera)
-		lightDir = QVector3D(center.x(), center.y(), 0);
-	else
-		lightDir = _lightPosition - QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ) - _primaryCamera->getPosition();
-	lightView.lookAt(_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ), lightDir, QVector3D(0.0, 1.0, 0.0));
 	_lightSpaceMatrix = lightProjection * lightView;
 	// render scene from light's point of view
 	_shadowMappingShader->bind();
