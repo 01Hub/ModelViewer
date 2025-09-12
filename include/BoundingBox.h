@@ -48,6 +48,20 @@ public:
 	inline double getYSize() const { return std::abs(_yMax - _yMin); }
 	inline double getZSize() const { return std::abs(_zMax - _zMin); }
 	inline double getMaxDimension() const	{ return std::max({ getXSize(), getYSize(), getZSize() }); }
+	inline std::vector<QVector3D> getCorners() const
+	{
+		return {
+			{static_cast<float>(_xMin), static_cast<float>(_yMin), static_cast<float>(_zMin)},
+			{static_cast<float>(_xMin), static_cast<float>(_yMin), static_cast<float>(_zMax)},
+			{static_cast<float>(_xMin), static_cast<float>(_yMax), static_cast<float>(_zMin)},
+			{static_cast<float>(_xMin), static_cast<float>(_yMax), static_cast<float>(_zMax)},
+			{static_cast<float>(_xMax), static_cast<float>(_yMin), static_cast<float>(_zMin)},
+			{static_cast<float>(_xMax), static_cast<float>(_yMin), static_cast<float>(_zMax)},
+			{static_cast<float>(_xMax), static_cast<float>(_yMax), static_cast<float>(_zMin)},
+			{static_cast<float>(_xMax), static_cast<float>(_yMax), static_cast<float>(_zMax)}
+		};
+	}
+
 	Point center() const;
 	Point extent() const;
 	std::vector<Point> corners() const;

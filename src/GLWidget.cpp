@@ -1198,12 +1198,13 @@ void GLWidget::updateBoundingBox()
 	}
 	else
 	{
+		int idx = 0;
 		for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
 		{
 			try
 			{
 				TriangleMesh* mesh = _meshStore.at(i);
-				if(_meshStore.size() == 1)
+				if(idx == 0)
 					_boundingBox = mesh->getBoundingBox();
 				else
 					_boundingBox.addBox(mesh->getBoundingBox());
@@ -1212,8 +1213,13 @@ void GLWidget::updateBoundingBox()
 			{
 				std::cout << ex.what() << std::endl;
 			}
+			idx++;
 		}
 	}
+
+	qDebug() << "Bounding box: " << _boundingBox.xMin() << ", " << _boundingBox.xMax()
+		<< _boundingBox.yMin() << ", " << _boundingBox.yMax()
+		<< _boundingBox.zMin() << ", " << _boundingBox.zMax();
 
 	if (_floorPlane)
 	{
@@ -4228,7 +4234,7 @@ void GLWidget::renderToShadowBuffer()
 	float extent = _floorSize * _floorSizeFactor;
 	QVector3D center = _boundingSphere.getCenter();
 	float near_plane = 1.0f, far_plane = extent;
-	float margin = _boundingBox.boundingRadius() * 2.0f * 1.5f;
+	float margin = _boundingBox.boundingRadius() * 2.0 * 1.5f;
 	lightProjection.ortho(
 		_boundingBox.xMin() - margin, _boundingBox.xMax() + margin,
 		_boundingBox.yMin() - margin, _boundingBox.yMax() + margin,
