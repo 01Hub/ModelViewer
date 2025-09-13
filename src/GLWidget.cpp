@@ -4228,8 +4228,7 @@ void GLWidget::renderToShadowBuffer()
 
 	// 1. render depth of scene to texture (from light's perspective)
 	// --------------------------------------------------------------
-	QMatrix4x4 lightProjection, lightView;
-	float extent = _floorSize * _floorSizeFactor;
+	QMatrix4x4 lightProjection, lightView;	
 	QVector3D center = _boundingSphere.getCenter();
 	float radius = _boundingSphere.getRadius();
 	QVector3D lightPos = _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ);
@@ -4245,14 +4244,14 @@ void GLWidget::renderToShadowBuffer()
 
 	// Use scene bounding sphere for orthographic projection
 	// This ensures the frustum always encompasses the entire scene
-	float orthoSize = radius * 2.0f;
-	float margin = orthoSize * 1.5f; // 150% margin
+	float orthoSize = radius * 4.0f;
+	float margin = orthoSize * 1.0f; // 150% margin
 	float totalSize = orthoSize + margin;
 
 	lightProjection.ortho(
 		-totalSize, totalSize,
 		-totalSize, totalSize,
-		-extent, extent  // Use consistent near/far planes
+		-totalSize, totalSize  // Use consistent near/far planes
 	);
 
 	_lightSpaceMatrix = lightProjection * lightView;
