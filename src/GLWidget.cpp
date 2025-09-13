@@ -1227,7 +1227,11 @@ void GLWidget::updateBoundingBox()
 void GLWidget::updateFloorPlane()
 {
 	float halfObjectSize = _boundingSphere.getRadius();
-	_floorSize = halfObjectSize + (halfObjectSize * 0.10f); // 10% larger than object
+	if (_boundingBox.getZSize() >= _boundingBox.getXSize() && _boundingBox.getZSize() >= _boundingBox.getYSize())
+		_floorSize = _boundingBox.getZSize();
+	else
+		_floorSize = (std::max(_boundingBox.getYSize(), _boundingBox.getXSize())) / 2.0f;
+	
 	_floorCenter = _boundingSphere.getCenter();
 	_lightCube->setSize(halfObjectSize * 0.1f);
 	_lightPosition.setX(_floorCenter.x() + halfObjectSize * 0.5f + _lightOffsetX);
@@ -3312,8 +3316,9 @@ void GLWidget::drawFloor()
 	_floorPlane->enableTexture(false);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	_floorPlane->setOpacity(0.1f);
 	_floorPlane->render();
-	glDisable(GL_BLEND);
+	//glDisable(GL_BLEND);
 	glDisable(GL_CULL_FACE);
 
 	// Draw model reflection
@@ -3339,8 +3344,7 @@ void GLWidget::drawFloor()
 	glStencilMask(0x00);
 	glDisable(GL_STENCIL_TEST);
 
-	_floorPlane->setOpacity(0.80f);
-
+	_floorPlane->setOpacity(0.95f);
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);

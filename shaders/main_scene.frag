@@ -507,8 +507,8 @@ void main()
 		}
 		
 		// Blend floor color with background gradient
-		fragColor.rgb = mix(fragColor.rgb, backgroundColor, clamp(bgMix, 0.0, 1.0));
-		fragColor.a   *= (1.0 - fadeFactor);
+		fragColor.rgb = mix(fragColor.rgb, backgroundColor, clamp(bgMix, 0.0, 1.0));		
+		fragColor.a   *= (1.0 - fadeFactor) * opacity;
 	} 
 }
 
