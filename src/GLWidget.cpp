@@ -1445,8 +1445,7 @@ void GLWidget::deselect(int id)
 
 bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
 {
-	_progressiveLoadingEnabled = progressiveLoading;
-	qDebug() << "Progressive loading: " << progressiveLoading;
+	_progressiveLoadingEnabled = progressiveLoading;	
 	bool success = false;
 
 	makeCurrent();
@@ -3318,7 +3317,7 @@ void GLWidget::drawFloor()
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	_floorPlane->setOpacity(0.1f);
 	_floorPlane->render();
-	//glDisable(GL_BLEND);
+	glDisable(GL_BLEND);
 	glDisable(GL_CULL_FACE);
 
 	// Draw model reflection
@@ -3343,9 +3342,7 @@ void GLWidget::drawFloor()
 
 	glStencilMask(0x00);
 	glDisable(GL_STENCIL_TEST);
-
-	_floorPlane->setOpacity(0.95f);
-
+		
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
@@ -3365,7 +3362,7 @@ void GLWidget::drawFloor()
 	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_2D, _skyboxColorTexture);
 	_fgShader->setUniformValue("skyboxColorTexture", 5);
-
+	_floorPlane->setOpacity(0.95f);
 	_floorPlane->render();
 	glDisable(GL_CULL_FACE);
 	_fgShader->bind();

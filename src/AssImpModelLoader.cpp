@@ -172,8 +172,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		}			
 	}
 	else
-	{
-		qDebug() << "Model has no missing UVs, using None method.";
+	{		
 		_selectedUVMethod = UVMethod::None; // No UVs needed, reset to None
 	}
 
@@ -184,8 +183,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	// Set batch size based on number of meshes;
 	int batchSize = std::clamp(_sceneStats.meshCount / 10, 5, 100);
 	_batchSize = batchSize;
-	qDebug() << "Batch size = " << _batchSize;
-
+	
 	// Process ASSIMP's root node recursively	
 	this->processNode(0, _scene->mRootNode, _scene, aiMatrix4x4());
 
