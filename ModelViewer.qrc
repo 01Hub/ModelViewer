@@ -1,5 +1,5 @@
 <RCC>
-    <qresource prefix="/new/prefix1">
+    <qresource prefix="/icons">
         <file>res/export.png</file>
         <file>res/import.png</file>
         <file>res/pancursor.png</file>

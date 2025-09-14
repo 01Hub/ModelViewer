@@ -976,7 +976,7 @@ void GLWidget::setAutoFitViewOnUpdate(bool update)
 void GLWidget::beginWindowZoom()
 {
 	_windowZoomActive = true;
-	setCursor(QCursor(QPixmap(":/new/prefix1/res/window-zoom-cursor.png"), 12, 12));
+	setCursor(QCursor(QPixmap(":/icons/res/window-zoom-cursor.png"), 12, 12));
 }
 
 void GLWidget::performWindowZoom()
@@ -1047,7 +1047,7 @@ void GLWidget::setRotationActive(bool active)
 	_viewPanning = false;
 	_viewZooming = false;
 	_viewRotating = active;
-	setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
+	setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate rotation mode"));
 }
 
@@ -1056,7 +1056,7 @@ void GLWidget::setPanningActive(bool active)
 	_viewRotating = false;
 	_viewZooming = false;
 	_viewPanning = active;
-	setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
+	setCursor(QCursor(QPixmap(":/icons/res/pancursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate panning mode"));
 }
 
@@ -1065,7 +1065,7 @@ void GLWidget::setZoomingActive(bool active)
 	_viewPanning = false;
 	_viewRotating = false;
 	_viewZooming = active;
-	setCursor(QCursor(QPixmap(":/new/prefix1/res/zoomcursor.png")));
+	setCursor(QCursor(QPixmap(":/icons/res/zoomcursor.png")));
 	MainWindow::showStatusMessage(tr("Press Esc to deactivate zooming mode"));
 }
 
@@ -4847,7 +4847,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 		if (_windowZoomActive)
 		{
-			setCursor(QCursor(QPixmap(":/new/prefix1/res/window-zoom-cursor.png"), 12, 12));
+			setCursor(QCursor(QPixmap(":/icons/res/window-zoom-cursor.png"), 12, 12));
 		}
 		else if ((e->modifiers() & Qt::ControlModifier) || _viewRotating)
 		{
@@ -4876,7 +4876,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 			_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
 			_leftButtonPoint = downPoint;
-			setCursor(QCursor(QPixmap(":/new/prefix1/res/rotatecursor.png")));
+			setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
 			_viewMode = ViewMode::NONE;
 
 			const float maxInertiaVelocity = 10.0f; // Adjust as needed
@@ -4898,7 +4898,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		_currentTranslation = _primaryCamera->getPosition();
 
 		_rightButtonPoint = downPoint;
-		setCursor(QCursor(QPixmap(":/new/prefix1/res/pancursor.png")));
+		setCursor(QCursor(QPixmap(":/icons/res/pancursor.png")));
 
 		// Clamp pan inertia velocity
 		const float maxPanInertiaVelocity = 20.0f; // Adjust as needed
@@ -4948,7 +4948,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		resizeGL(width(), height());
 
 		_middleButtonPoint = downPoint;
-		setCursor(QCursor(QPixmap(":/new/prefix1/res/zoomcursor.png")));
+		setCursor(QCursor(QPixmap(":/icons/res/zoomcursor.png")));
 
 		update();
 	}
@@ -6214,23 +6214,23 @@ void GLWidget::showContextMenu(const QPoint& pos)
 			QAction* action = nullptr;
 			if ((!_visibleSwapped && _displayedObjectsIds.size() != 0) || (_visibleSwapped && _hiddenObjectsIds.size() != 0))
 			{
-				myMenu.addAction(QIcon(":/new/prefix1/res/fit-all.png"), tr("Fit All"), this, &GLWidget::fitAll);
+				myMenu.addAction(QIcon(":/icons/res/fit-all.png"), tr("Fit All"), this, &GLWidget::fitAll);
 
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/window-zoom.png"), tr("Zoom Area"));
+				action = myMenu.addAction(QIcon(":/icons/res/window-zoom.png"), tr("Zoom Area"));
 				action->setCheckable(true);
 				connect(action, &QAction::triggered, this, &GLWidget::beginWindowZoom);
 
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/zoomview.png"), tr("Zoom"));
+				action = myMenu.addAction(QIcon(":/icons/res/zoomview.png"), tr("Zoom"));
 				connect(action, &QAction::triggered, this, [this]() {
 					setZoomingActive(true);
 					});
 
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/panview.png"), tr("Pan"));
+				action = myMenu.addAction(QIcon(":/icons/res/panview.png"), tr("Pan"));
 				connect(action, &QAction::triggered, this, [this]() {
 					setPanningActive(true);
 					});
 
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/rotateview.png"), tr("Rotate"));
+				action = myMenu.addAction(QIcon(":/icons/res/rotateview.png"), tr("Rotate"));
 				connect(action, &QAction::triggered, this, [this]() {
 					setRotationActive(true);
 					});
@@ -6239,17 +6239,17 @@ void GLWidget::showContextMenu(const QPoint& pos)
 
 			if (_hiddenObjectsIds.size() != 0)
 			{
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/showall.png"), tr("Show All"), _viewer, &ModelViewer::showAllItems);
+				action = myMenu.addAction(QIcon(":/icons/res/showall.png"), tr("Show All"), _viewer, &ModelViewer::showAllItems);
 				action->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_A));
 			}
 			if (_displayedObjectsIds.size() != 0)
 			{
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/hideall.png"), tr("Hide All"), _viewer, &ModelViewer::hideAllItems);
+				action = myMenu.addAction(QIcon(":/icons/res/hideall.png"), tr("Hide All"), _viewer, &ModelViewer::hideAllItems);
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_A));
 			}
 			if (_hiddenObjectsIds.size() != 0)
 			{
-				action = myMenu.addAction(QIcon(":/new/prefix1/res/swapvisible.png"), tr("Swap Visible"));
+				action = myMenu.addAction(QIcon(":/icons/res/swapvisible.png"), tr("Swap Visible"));
 				action->setCheckable(true);
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_S));
 				action->setChecked(_visibleSwapped);				
