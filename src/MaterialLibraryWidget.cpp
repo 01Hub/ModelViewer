@@ -2,6 +2,7 @@
 #include "MaterialRegistry.h"
 #include <QTreeWidgetItem>
 #include <QFontMetrics>
+#include "config.h"
 
 
 MaterialLibraryWidget::MaterialLibraryWidget(QWidget *parent)
@@ -458,7 +459,8 @@ void MaterialLibraryWidget::populateMaterials()
 
     // load JSON once (path can be resource path or config). Do this in app startup instead if you prefer.
     QString err;
-    if (!reg.loadFromJsonFile(":/materials/res/materials.json", &err))
+    const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
+    if (!reg.loadFromJsonFile(path + "data/catalogs/materials.json", &err))
     {
         qWarning() << "Failed to load material registry:" << err;
         // fallback to old behavior or exit
