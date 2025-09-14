@@ -74,12 +74,22 @@ jobs:
     - name: Install additional dependencies (Ubuntu)
       if: runner.os == 'Linux'
       run: |
-        # Additional packages that might be needed for OpenCASCADE
+        # Additional packages that might be needed for OpenCASCADE and Qt
         sudo apt-get install -y \
           libopengl-dev \
           libglu1-mesa-dev \
           libxmu-dev \
-          libxi-dev
+          libxi-dev \
+          libtbb-dev \
+          libtcl8.6 \
+          libtk8.6 \
+          tcl8.6-dev \
+          tk8.6-dev
+
+    - name: Setup environment for OpenCASCADE (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        echo "VCPKG_KEEP_ENV_VARS=DISPLAY" >> $GITHUB_ENV
 
     - name: Install system dependencies (macOS)
       if: runner.os == 'macOS'
