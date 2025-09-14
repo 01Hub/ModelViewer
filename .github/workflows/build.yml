@@ -55,6 +55,9 @@ jobs:
           zip \
           unzip \
           tar \
+          git \
+          gcc \
+          g++ \
           libx11-dev \
           libxext-dev \
           libxrender-dev \
@@ -69,52 +72,72 @@ jobs:
           libxkbcommon-x11-dev \
           libfontconfig1-dev \
           libfreetype6-dev \
-          libgl1-mesa-dev
-
-    - name: Install additional dependencies (Ubuntu)
-      if: runner.os == 'Linux'
-      run: |
-        # Additional packages that might be needed for OpenCASCADE and Qt
-        sudo apt-get install -y \
           libopengl-dev \
-          libglu1-mesa-dev \
           libxmu-dev \
-          libxi-dev \
           libtbb-dev \
           libtcl8.6 \
           libtk8.6 \
           tcl8.6-dev \
-          tk8.6-dev
-
-    - name: Setup environment for OpenCASCADE (Unix)
-      if: runner.os != 'Windows'
-      run: |
-        echo "VCPKG_KEEP_ENV_VARS=DISPLAY" >> $GITHUB_ENV
+          tk8.6-dev \
+          autoconf \
+          automake \
+          libtool
 
     - name: Install system dependencies (macOS)
       if: runner.os == 'macOS'
       run: |
-        brew install cmake ninja pkg-config
+        brew install cmake ninja pkg-config autoconf automake libtool
 
     - name: Setup MSVC (Windows)
       if: runner.os == 'Windows'
       uses: ilammy/msvc-dev-cmd@v1
 
+    - name: Setup environment for vcpkg
+      run: |
+        echo "VCPKG_OVERLAY_TRIPLETS=${{ github.workspace }}/vcpkg/triplets" >> $GITHUB_ENV
+        echo "VCPKG_DEFAULT_TRIPLET=${{ matrix.triplet }}" >> $GITHUB_ENV
+
     - name: Setup vcpkg
       uses: lukka/run-vcpkg@v11
       with:
         vcpkgGitCommitId: 'dd3097e305afa53f7b4312371f62058d2e665320'
+        runVcpkgInstall: false
 
-    - name: Configure CMake
+    - name: Install vcpkg dependencies
+      run: |
+        ${{ github.workspace }}/vcpkg/vcpkg install --triplet=${{ matrix.triplet }} --x-manifest-root=. --x-install-root=./build/vcpkg_installed
+
+    - name: Create required directories (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        New-Item -ItemType Directory -Force -Path translations, ui, include, src
+
+    - name: Create required directories (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        mkdir -p translations ui include src
+
+    - name: Configure CMake (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        cmake -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake" -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} -DCMAKE_INSTALL_PREFIX=install -G "Visual Studio 17 2022" -A x64
+
+    - name: Configure CMake (Unix)
+      if: runner.os != 'Windows'
       run: |
         cmake -B build \
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
           -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake \
           -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
+          -DCMAKE_INSTALL_PREFIX=install \
           -G Ninja
 
     - name: Build
       run: cmake --build build --config ${{ matrix.build_type }} --parallel
+
+    - name: Update translations (optional)
+      run: cmake --build build --target update_translations --config ${{ matrix.build_type }}
+      continue-on-error: true
 
     - name: Test
       working-directory: build
@@ -123,6 +146,12 @@ jobs:
     - name: Install
       run: cmake --install build --prefix install --config ${{ matrix.build_type }}
 
+    - name: Package artifacts (Windows)
+      if: runner.os == 'Windows' && matrix.build_type == 'Release'
+      run: |
+        cmake --build build --target install --config ${{ matrix.build_type }}
+        # Qt deployment script will be run automatically during install
+
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -130,4 +159,15 @@ jobs:
         path: |
           install/
           !install/**/*.pdb
+          build/translations/*.qm
+        retention-days: 30
+
+    - name: Upload translation files
+      if: matrix.build_type == 'Release'
+      uses: actions/upload-artifact@v4
+      with:
+        name: translations-${{ matrix.os }}
+        path: |
+          translations/*.ts
+          build/translations/*.qm
         retention-days: 30
