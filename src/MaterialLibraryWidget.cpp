@@ -202,7 +202,7 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget *parent)
             emit materialSelected(mat);
         });
 
-    /*connect(this, &QTreeWidget::itemSelectionChanged,
+   /* connect(this, &QTreeWidget::itemSelectionChanged,
         this, [this]() {
             if (selectedItems().isEmpty()) return;
             QTreeWidgetItem* item = selectedItems().first();
@@ -433,8 +433,23 @@ void MaterialLibraryWidget::handleItemEntered(QTreeWidgetItem* item, int column)
         setCurrentItem(firstItem);
         emit materialSelected(materialMap[firstItem->data(0, Qt::UserRole).toString()]());
 	}
-}*/
+}
 
+void MaterialLibraryWidget::onItemClicked(QTreeWidgetItem* item, int column)
+{
+    if (!item->childCount())
+    {
+        QString key = item->data(0, Qt::UserRole).toString();
+        if (materialMap.contains(key))
+        {
+            emit materialSelected(materialMap[key]());
+        }
+        else
+        {
+            emit materialSelected(GLMaterial::DEFAULT_MAT());
+        }
+    }
+}*/
 
 void MaterialLibraryWidget::populateMaterials()
 {
@@ -479,23 +494,6 @@ void MaterialLibraryWidget::populateMaterials()
 
 }
 
-
-/*void MaterialLibraryWidget::onItemClicked(QTreeWidgetItem* item, int column)
-{
-    if (!item->childCount())
-    {
-        QString key = item->data(0, Qt::UserRole).toString();
-        if (materialMap.contains(key))
-        {
-            emit materialSelected(materialMap[key]());
-        }
-        else
-        {
-            emit materialSelected(GLMaterial::DEFAULT_MAT());
-        }
-    }
-}*/
-
 void MaterialLibraryWidget::onItemClicked(QTreeWidgetItem* item, int column)
 {
     if (item->childCount()) return; // ignore group headers
@@ -512,4 +510,6 @@ void MaterialLibraryWidget::onItemClicked(QTreeWidgetItem* item, int column)
 
     emit materialSelected(mat);
 }
+
+
 
