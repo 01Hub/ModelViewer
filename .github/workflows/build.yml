@@ -1,59 +1,123 @@
-name: Build Project
+name: CI Build
 
 on:
   push:
-    branches:
-      - master
+    branches: [ master, develop ]
   pull_request:
+    branches: [ master, develop ]
 
 env:
-  VCPKG_OVERLAY_PORTS: ${{ github.workspace }}/.github/vcpkg_overlays/qt
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        build_type: [Release, Debug]
+        include:
+          - os: ubuntu-latest
+            triplet: x64-linux
+            mono: mono
+          - os: windows-latest
+            triplet: x64-windows
+            mono: ""
+          - os: macos-latest
+            triplet: x64-osx
+            mono: mono
+
+    runs-on: ${{ matrix.os }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0   # ensure submodule baseline commit is available
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt update
-          sudo apt install -y libfontconfig1-dev ninja-build
+    - name: Export GitHub Actions cache environment variables
+      uses: actions/github-script@v7
+      with:
+        script: |
+          core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+          core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Install macOS dependencies
-        if: runner.os == 'macOS'
-        run: |
-          brew update
-          brew install ninja
+    - name: Install system dependencies (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          ninja-build \
+          pkg-config \
+          curl \
+          zip \
+          unzip \
+          tar \
+          libx11-dev \
+          libxext-dev \
+          libxrender-dev \
+          libxrandr-dev \
+          libxinerama-dev \
+          libxcursor-dev \
+          libxi-dev \
+          libgl1-mesa-dev \
+          libglu1-mesa-dev \
+          libegl1-mesa-dev \
+          libxkbcommon-dev \
+          libxkbcommon-x11-dev \
+          libfontconfig1-dev \
+          libfreetype6-dev \
+          libgl1-mesa-dev
 
-      - name: Install Ninja on Windows
-        if: runner.os == 'Windows'
-        run: choco install ninja -y
+    - name: Install additional dependencies (Ubuntu)
+      if: runner.os == 'Linux'
+      run: |
+        # Additional packages that might be needed for OpenCASCADE
+        sudo apt-get install -y \
+          libopengl-dev \
+          libglu1-mesa-dev \
+          libxmu-dev \
+          libxi-dev
 
-      - name: Install Qt
-        uses: jurplel/install-qt-action@v4
-        with:
-          version: 6.8.2
-          cache: true
+    - name: Install system dependencies (macOS)
+      if: runner.os == 'macOS'
+      run: |
+        brew install cmake ninja pkg-config
 
-      - name: Run vcpkg
-        uses: lukka/run-vcpkg@v11.5
-        with:
-          vcpkgDirectory: ${{ github.workspace }}/vcpkg
-          doNotUpdateVcpkg: true
+    - name: Setup MSVC (Windows)
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
 
-      - name: Build
-        uses: lukka/run-cmake@v10
-        with:
-          configurePreset: "ninja_release_vcpkg"
-          buildPreset: "ninja_release_vcpkg_build"
+    - name: Setup vcpkg
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgGitCommitId: 'dd3097e305afa53f7b4312371f62058d2e665320'
+
+    - name: Configure CMake
+      run: |
+        cmake -B build \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}/vcpkg/scripts/buildsystems/vcpkg.cmake \
+          -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
+          -G Ninja
+
+    - name: Build
+      run: cmake --build build --config ${{ matrix.build_type }} --parallel
+
+    - name: Test
+      working-directory: build
+      run: ctest --build-config ${{ matrix.build_type }} --output-on-failure --parallel
+
+    - name: Install
+      run: cmake --install build --prefix install --config ${{ matrix.build_type }}
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: modelviewer-${{ matrix.os }}-${{ matrix.build_type }}
+        path: |
+          install/
+          !install/**/*.pdb
+        retention-days: 30
