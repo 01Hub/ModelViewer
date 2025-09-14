@@ -85,4 +85,7 @@
         <file>themes/SolarizedDark.qss</file>
         <file>themes/SolarizedLight.qss</file>
     </qresource>
+    <qresource prefix="/materials">
+        <file>res/materials.json</file>
+    </qresource>
 </RCC>

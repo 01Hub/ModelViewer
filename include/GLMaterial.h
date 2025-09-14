@@ -276,6 +276,7 @@ public:
 	void setPackingFor(const QString& key, const ChannelPacking& p);
 
 	// Convenience methods
+	bool isMetallic() const;
 	bool isTransparent() const;
 	bool isEmissive() const;
 	bool hasClearcoat() const;
@@ -500,12 +501,20 @@ public:
 	void serialize(QDataStream& out) const;
 	void deserialize(QDataStream& in);
 
+	// ------------------------------------------------------------------
+	// Serialization helpers for the MaterialRegistry
+	// Construct a GLMaterial from a QVariantMap (as produced by JSON)
+	static GLMaterial fromVariantMap(const QVariantMap& m);
+	// Serialize the GLMaterial into a QVariantMap suitable for JSON writing
+	QVariantMap toVariantMap() const;
+
 private:
 	void setAlbedoFromADS();
 	void updateConsistency(); // Ensure consistency between legacy and PBR properties
 	void clampValues(); // Ensure all values are within valid ranges
 	void ensureADSConsistency(); // Ensure ambient, diffuse, specular are consistent with albedo
 	void assignAutoPackingForPath(const QString& path);
+
 
 private:
 	// Legacy Phong/Blinn properties
@@ -820,6 +829,11 @@ inline float GLMaterial::uvTilingU() const { return _uvTilingU; }
 inline float GLMaterial::uvTilingV() const { return _uvTilingV; }
 inline float GLMaterial::uvOffsetU() const { return _uvOffsetU; }
 inline float GLMaterial::uvOffsetV() const { return _uvOffsetV; }
+
+inline bool GLMaterial::isMetallic() const
+{
+	return _metallic;
+}
 
 inline bool GLMaterial::isTransparent() const
 {

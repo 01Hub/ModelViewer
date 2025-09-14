@@ -3168,6 +3168,381 @@ void GLMaterial::assignAutoPackingForPath(const QString& path)
 	single.pack->bias = 0.0f;
 }
 
+
+#include <QVariant>
+#include <QVariantMap>
+#include <QVector3D>
+#include <QJsonObject>
+
+// Helper: read QVector3D from variant (list or map)
+static QVector3D readVec3(const QVariant& v, const QVector3D& fallback = QVector3D(0.8f, 0.8f, 0.8f))
+{
+	if (!v.isValid()) return fallback;
+	if (v.type() == QVariant::List)
+	{
+		QVariantList l = v.toList();
+		if (l.size() >= 3)
+		{
+			return QVector3D(l[0].toFloat(), l[1].toFloat(), l[2].toFloat());
+		}
+	}
+	else if (v.canConvert<QVector3D>())
+	{
+		return v.value<QVector3D>();
+	}
+	else if (v.type() == QVariant::Double || v.type() == QVariant::Int)
+	{
+		float f = v.toFloat();
+		return QVector3D(f, f, f);
+	}
+	else if (v.type() == QVariant::Map)
+	{
+		QVariantMap mm = v.toMap();
+		return QVector3D(mm.value("x", fallback.x()).toFloat(),
+			mm.value("y", fallback.y()).toFloat(),
+			mm.value("z", fallback.z()).toFloat());
+	}
+	return fallback;
+}
+
+// Read float with fallback
+static float readFloat(const QVariant& v, float fallback)
+{
+	if (!v.isValid()) return fallback;
+	bool ok = false;
+	float f = v.toFloat(&ok);
+	if (!ok) return fallback;
+	return f;
+}
+
+
+GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
+{
+	// small readers
+	auto readVec3 = [](const QVariant& v, const QVector3D& fallback = QVector3D(0.8f, 0.8f, 0.8f)) -> QVector3D {
+		if (!v.isValid()) return fallback;
+		if (v.type() == QVariant::List)
+		{
+			QVariantList l = v.toList();
+			if (l.size() >= 3) return QVector3D(l[0].toFloat(), l[1].toFloat(), l[2].toFloat());
+		}
+		else if (v.type() == QVariant::Map)
+		{
+			QVariantMap mm = v.toMap();
+			return QVector3D(mm.value("x", fallback.x()).toFloat(),
+				mm.value("y", fallback.y()).toFloat(),
+				mm.value("z", fallback.z()).toFloat());
+		}
+		else if (v.canConvert<QVector3D>())
+		{
+			return v.value<QVector3D>();
+		}
+		return fallback;
+		};
+
+	auto readFloat = [](const QVariant& v, float fallback) -> float {
+		if (!v.isValid()) return fallback;
+		bool ok = false;
+		float f = v.toFloat(&ok);
+		return ok ? f : fallback;
+		};
+
+	auto readBool = [](const QVariant& v, bool fallback) -> bool {
+		if (!v.isValid()) return fallback;
+		return v.toBool();
+		};
+
+	GLMaterial mat; // default
+
+	// ---------------- Read legacy ADS values into locals (so we can reapply them later) ----------------
+	bool userHasAmbient = m.contains("ambient");
+	QVector3D ambientFromJson = userHasAmbient ? readVec3(m.value("ambient"), mat.ambient()) : mat.ambient();
+
+	bool userHasDiffuse = m.contains("diffuse");
+	QVector3D diffuseFromJson = userHasDiffuse ? readVec3(m.value("diffuse"), mat.diffuse()) : mat.diffuse();
+
+	bool userHasSpecular = m.contains("specular");
+	QVector3D specularFromJson = userHasSpecular ? readVec3(m.value("specular"), mat.specular()) : mat.specular();
+
+	bool userHasShininess = m.contains("shininess");
+	float shininessFromJson = userHasShininess ? readFloat(m.value("shininess"), mat.shininess()) : mat.shininess();
+
+	bool userHasEmissive = m.contains("emissive");
+	QVector3D emissiveFromJson = userHasEmissive ? readVec3(m.value("emissive"), mat.emissive()) : mat.emissive();
+
+	bool userHasEmissiveStrength = m.contains("emissiveStrength");
+	float emissiveStrengthFromJson = userHasEmissiveStrength ? readFloat(m.value("emissiveStrength"), mat.emissiveStrength()) : mat.emissiveStrength();
+
+	bool userHasOpacity = m.contains("opacity");
+	float opacityFromJson = userHasOpacity ? readFloat(m.value("opacity"), mat.opacity()) : mat.opacity();
+
+	// ---------------- Read PBR & other values into locals ----------------
+	bool userHasAlbedo = m.contains("albedo") || m.contains("diffuse");
+	QVector3D albedoFromJson = mat.albedoColor();
+	if (m.contains("albedo")) albedoFromJson = readVec3(m.value("albedo"), albedoFromJson);
+	else if (m.contains("diffuse")) albedoFromJson = readVec3(m.value("diffuse"), albedoFromJson);
+
+	// metalness (float) or metallic (bool)
+	bool hasMetalness = m.contains("metalness");
+	float metalness = hasMetalness ? readFloat(m.value("metalness"), 0.0f) : -1.0f;
+	if (!hasMetalness && m.contains("metallic"))
+	{
+		metalness = readBool(m.value("metallic"), false) ? 1.0f : 0.0f;
+		hasMetalness = true;
+	}
+
+	// roughness (or compute from shininess)
+	bool hasRoughness = m.contains("roughness");
+	float roughness = hasRoughness ? readFloat(m.value("roughness"), mat.roughness()) : -1.0f;
+	if (!hasRoughness && userHasShininess)
+	{
+		float shin = shininessFromJson;
+		float r = sqrtf(2.0f / (shin + 2.0f));
+		roughness = qBound(0.02f, r, 1.0f);
+		hasRoughness = true;
+	}
+
+	// other PBR scalars
+	float ior = m.contains("ior") ? readFloat(m.value("ior"), mat.ior()) : mat.ior();
+	float transmission = m.contains("transmission") ? readFloat(m.value("transmission"), mat.transmission()) : mat.transmission();
+	float clearcoat = m.contains("clearcoat") ? readFloat(m.value("clearcoat"), mat.clearcoat()) : mat.clearcoat();
+	float clearcoatRough = m.contains("clearcoatRoughness") ? readFloat(m.value("clearcoatRoughness"), mat.clearcoatRoughness()) : mat.clearcoatRoughness();
+	QVector3D sheenColor = m.contains("sheenColor") ? readVec3(m.value("sheenColor"), mat.sheenColor()) : mat.sheenColor();
+	float sheenRough = m.contains("sheenRoughness") ? readFloat(m.value("sheenRoughness"), mat.sheenRoughness()) : mat.sheenRoughness();
+
+	// texture paths & texcoord indices (read now)
+	QString albedoMap = m.contains("albedoMapPath") ? m.value("albedoMapPath").toString() : QString();
+	QString normalMap = m.contains("normalMapPath") ? m.value("normalMapPath").toString() : QString();
+	QString metallicMap = m.contains("metallicMapPath") ? m.value("metallicMapPath").toString() : QString();
+	QString roughnessMap = m.contains("roughnessMapPath") ? m.value("roughnessMapPath").toString() : QString();
+	QString aoMap = m.contains("aoMapPath") ? m.value("aoMapPath").toString() : QString();
+	QString opacityMap = m.contains("opacityMapPath") ? m.value("opacityMapPath").toString() : QString();
+	QString heightMap = m.contains("heightMapPath") ? m.value("heightMapPath").toString() : QString();
+	QString transmissionMap = m.contains("transmissionMapPath") ? m.value("transmissionMapPath").toString() : QString();
+
+	int albedoTexId = m.contains("albedoTextureId") ? m.value("albedoTextureId").toInt() : mat.albedoTextureId();
+	int normalTexId = m.contains("normalTextureId") ? m.value("normalTextureId").toInt() : mat.normalTextureId();
+	int metallicTexId = m.contains("metallicTextureId") ? m.value("metallicTextureId").toInt() : mat.metallicTextureId();
+	int roughnessTexId = m.contains("roughnessTextureId") ? m.value("roughnessTextureId").toInt() : mat.roughnessTextureId();
+
+	int albedoTexCoord = m.contains("albedoTexCoord") ? m.value("albedoTexCoord").toInt() : mat.albedoTexCoord();
+	int normalTexCoord = m.contains("normalTexCoord") ? m.value("normalTexCoord").toInt() : mat.normalTexCoord();
+	int metallicRoughnessTexCoord = m.contains("metallicRoughnessTexCoord") ? m.value("metallicRoughnessTexCoord").toInt() : mat.metallicRoughnessTexCoord();
+
+	float uvTilingU = m.contains("uvTilingU") ? readFloat(m.value("uvTilingU"), mat.uvTilingU()) : mat.uvTilingU();
+	float uvTilingV = m.contains("uvTilingV") ? readFloat(m.value("uvTilingV"), mat.uvTilingV()) : mat.uvTilingV();
+	float uvOffsetU = m.contains("uvOffsetU") ? readFloat(m.value("uvOffsetU"), mat.uvOffsetU()) : mat.uvOffsetU();
+	float uvOffsetV = m.contains("uvOffsetV") ? readFloat(m.value("uvOffsetV"), mat.uvOffsetV()) : mat.uvOffsetV();
+
+	bool explicitShadingModel = m.contains("shadingModel");
+	QString shadingModelStr = explicitShadingModel ? m.value("shadingModel").toString().toLower() : QString();
+
+	// ---------------- Apply PBR-first values (these may trigger internal consistency) ----------------
+	if (hasMetalness)
+	{
+		metalness = qBound(0.0f, metalness, 1.0f);
+		mat.setMetalness(metalness);
+		mat.setMetallic(metalness >= 0.5f);
+	}
+	else if (m.contains("metallic"))
+	{
+		bool mb = readBool(m.value("metallic"), false);
+		mat.setMetallic(mb);
+		mat.setMetalness(mb ? 1.0f : 0.0f);
+	}
+
+	if (hasRoughness) mat.setRoughness(qBound(0.0f, roughness, 1.0f));
+	mat.setIOR(ior);
+	mat.setTransmission(transmission);
+	mat.setClearcoat(clearcoat);
+	mat.setClearcoatRoughness(clearcoatRough);
+	mat.setSheenColor(sheenColor);
+	mat.setSheenRoughness(sheenRough);
+
+	// ---------------- Apply textures/ids/uvs ----------------
+	if (!albedoMap.isEmpty()) mat.setAlbedoMap(albedoMap);
+	if (!normalMap.isEmpty()) mat.setNormalMap(normalMap);
+	if (!metallicMap.isEmpty()) mat.setMetallicMap(metallicMap);
+	if (!roughnessMap.isEmpty()) mat.setRoughnessMap(roughnessMap);
+	if (!aoMap.isEmpty()) mat.setAOMap(aoMap);
+	if (!opacityMap.isEmpty()) mat.setOpacityMap(opacityMap);
+	if (!heightMap.isEmpty()) mat.setHeightMap(heightMap);
+	if (!transmissionMap.isEmpty()) mat.setTransmissionMap(transmissionMap);
+
+	mat.setAlbedoTextureId(albedoTexId);
+	mat.setNormalTextureId(normalTexId);
+	mat.setMetallicTextureId(metallicTexId);
+	mat.setRoughnessTextureId(roughnessTexId);
+
+	mat.setAlbedoTexCoord(albedoTexId >= 0 ? albedoTexCoord : mat.albedoTexCoord());
+	mat.setNormalTexCoord(normalTexId >= 0 ? normalTexCoord : mat.normalTexCoord());
+	mat.setMetallicRoughnessTexCoord((metallicTexId >= 0 || roughnessTexId >= 0) ? metallicRoughnessTexCoord : mat.metallicRoughnessTexCoord());
+
+	mat.setUVTiling(uvTilingU, uvTilingV);
+	mat.setUVOffset(uvOffsetU, uvOffsetV);
+
+	// ---------------- Apply specular F0 (if provided) ----------------
+	if (userHasSpecular)
+	{
+		mat.setSpecular(specularFromJson);
+	}
+
+	// ---------------- Apply explicit shading model if present ----------------
+	if (explicitShadingModel)
+	{
+		if (shadingModelStr == "pbr") mat.setShadingModel(ShadingModel::PBR);
+		else if (shadingModelStr == "unlit") mat.setShadingModel(ShadingModel::Unlit);
+		else mat.setShadingModel(ShadingModel::BlinnPhong);
+	}
+	else
+	{
+		// if PBR inputs exist (metalness or roughness or maps), keep existing behavior of defaulting to PBR
+		bool anyPBRInputs = hasMetalness || hasRoughness ||
+			!albedoMap.isEmpty() || !metallicMap.isEmpty() || !roughnessMap.isEmpty() ||
+			m.contains("albedo") || m.contains("metalness") || m.contains("roughness");
+		if (anyPBRInputs) mat.setShadingModel(ShadingModel::PBR);
+	}
+
+	// ---------------- Let the class do internal consistency (may override some fields) ----------------
+	mat.updateConsistency();
+
+	// ---------------- Re-apply any user-provided ADS values (critical: preserve JSON ADS values for ADS mode) ----------------
+	if (userHasAmbient)
+	{
+		mat.setAmbient(ambientFromJson);
+	}
+	if (userHasDiffuse)
+	{
+		mat.setDiffuse(diffuseFromJson);
+	}
+	if (userHasSpecular)
+	{
+		mat.setSpecular(specularFromJson);
+	}
+	if (userHasShininess)
+	{
+		mat.setShininess(shininessFromJson);
+	}
+	if (userHasEmissive)
+	{
+		mat.setEmissive(emissiveFromJson);
+	}
+	if (userHasEmissiveStrength)
+	{
+		mat.setEmissiveStrength(emissiveStrengthFromJson);
+	}
+	if (userHasOpacity)
+	{
+		mat.setOpacity(opacityFromJson);
+	}
+
+	// ---------------- Re-apply user albedo (if provided) ----------------
+	if (userHasAlbedo)
+	{
+		mat.setAlbedoColor(albedoFromJson);		
+	}
+
+	return mat;
+}
+
+QVariantMap GLMaterial::toVariantMap() const
+{
+	QVariantMap m;
+
+	// helper to convert QVector3D -> QVariantList
+	auto vec3ToList = [](const QVector3D& v) -> QVariantList {
+		return QVariantList{ QVariant(v.x()), QVariant(v.y()), QVariant(v.z()) };
+		};
+
+	// --- Legacy ADS ---
+	m.insert("ambient", vec3ToList(ambient()));
+	m.insert("diffuse", vec3ToList(diffuse()));
+	m.insert("specular", vec3ToList(specular()));
+	m.insert("emissive", vec3ToList(emissive()));
+	m.insert("shininess", QVariant(shininess()));
+	m.insert("emissiveStrength", QVariant(emissiveStrength()));
+	m.insert("opacity", QVariant(opacity()));
+
+	// --- PBR core ---
+	m.insert("albedo", vec3ToList(albedoColor()));
+	m.insert("metalness", QVariant(metalness()));
+	// Keep legacy boolean for compatibility
+	m.insert("metallic", QVariant(metallic())); // boolean
+	m.insert("roughness", QVariant(roughness()));
+	m.insert("ior", QVariant(ior()));
+	m.insert("transmission", QVariant(transmission()));
+	m.insert("clearcoat", QVariant(clearcoat()));
+	m.insert("clearcoatRoughness", QVariant(clearcoatRoughness()));
+	m.insert("sheenColor", vec3ToList(sheenColor()));
+	m.insert("sheenRoughness", QVariant(sheenRoughness()));
+
+	// --- Texture path slots (strings) ---
+	m.insert("albedoMapPath", QVariant(albedoMapPath()));
+	m.insert("normalMapPath", QVariant(normalMapPath()));
+	m.insert("metallicMapPath", QVariant(metallicMapPath()));
+	m.insert("roughnessMapPath", QVariant(roughnessMapPath()));
+	m.insert("aoMapPath", QVariant(aoMapPath()));
+	m.insert("opacityMapPath", QVariant(opacityMapPath()));
+	m.insert("heightMapPath", QVariant(heightMapPath()));
+	m.insert("transmissionMapPath", QVariant(transmissionMapPath()));
+	m.insert("iorMapPath", QVariant(iorMapPath()));
+	m.insert("sheenColorMapPath", QVariant(sheenColorMapPath()));
+	m.insert("sheenRoughnessMapPath", QVariant(sheenRoughnessMapPath()));
+	m.insert("clearcoatColorMapPath", QVariant(clearcoatColorMapPath()));
+	m.insert("clearcoatRoughnessMapPath", QVariant(clearcoatRoughnessMapPath()));
+	m.insert("clearcoatNormalMapPath", QVariant(clearcoatNormalMapPath()));
+
+	// --- Texture ids (numeric) ---
+	m.insert("albedoTextureId", QVariant(albedoTextureId()));
+	m.insert("normalTextureId", QVariant(normalTextureId()));
+	m.insert("metallicTextureId", QVariant(metallicTextureId()));
+	m.insert("roughnessTextureId", QVariant(roughnessTextureId()));
+	m.insert("aoTextureId", QVariant(occlusionTextureId()));
+	m.insert("opacityTextureId", QVariant(opacityTextureId()));
+	m.insert("heightTextureId", QVariant(heightTextureId()));
+	m.insert("transmissionTextureId", QVariant(transmissionTextureId()));
+
+	// --- Texcoord indices ---
+	m.insert("albedoTexCoord", QVariant(albedoTexCoord()));
+	m.insert("normalTexCoord", QVariant(normalTexCoord()));
+	m.insert("metallicRoughnessTexCoord", QVariant(metallicRoughnessTexCoord()));
+	//m.insert("aoTexCoord", QVariant(aoTexCoord()));
+
+	// --- UV transform ---
+	m.insert("uvTilingU", QVariant(uvTilingU()));
+	m.insert("uvTilingV", QVariant(uvTilingV()));
+	m.insert("uvOffsetU", QVariant(uvOffsetU()));
+	m.insert("uvOffsetV", QVariant(uvOffsetV()));
+
+	// --- Rendering flags / shading model / blend ---
+	// shadingModel -> string (we emit lowercase to match fromVariantMap checks)
+	QString sm;
+	switch (shadingModel())
+	{
+	case ShadingModel::PBR: sm = "pbr"; break;
+	case ShadingModel::Unlit: sm = "unlit"; break;
+	default: sm = "blinnphong"; break;
+	}
+	m.insert("shadingModel", QVariant(sm));
+
+	// blendMode -> string
+	QString bm;
+	switch (blendMode())
+	{
+	case BlendMode::Alpha: bm = "Alpha"; break;
+	case BlendMode::Additive: bm = "Add"; break;
+	default: bm = "Opaque"; break;
+	}
+	m.insert("blendMode", QVariant(bm));
+
+	m.insert("twoSided", QVariant(twoSided()));
+	m.insert("alphaThreshold", QVariant(alphaThreshold()));
+
+	return m;
+}
+
+
+
 // === HELPER FUNCTIONS FOR ADVANCED MATERIALS ===
 // Function to create a material with time-varying properties (for animations)
 GLMaterial GLMaterial::createAnimatedEmissive(const QVector3D& baseColor,

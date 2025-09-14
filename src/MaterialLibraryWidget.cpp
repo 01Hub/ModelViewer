@@ -1,4 +1,5 @@
 #include "MaterialLibraryWidget.h"
+#include "MaterialRegistry.h"
 #include <QTreeWidgetItem>
 #include <QFontMetrics>
 
@@ -183,13 +184,39 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget *parent)
         this, [this]() {
             if (selectedItems().isEmpty()) return;
             QTreeWidgetItem* item = selectedItems().first();
-            if (item) {
+            if (!item) return;
+
+            const QString key = item->data(0, Qt::UserRole).toString();
+            if (key.isEmpty()) return;
+                        
+            MaterialRegistry& reg = MaterialRegistry::instance();
+            GLMaterial mat;
+            if (reg.hasKey(key))
+            {
+                mat = reg.materialForKey(key);
+            }
+            else
+            {
+                mat = GLMaterial::DEFAULT_MAT();
+            }
+            emit materialSelected(mat);
+        });
+
+    /*connect(this, &QTreeWidget::itemSelectionChanged,
+        this, [this]() {
+            if (selectedItems().isEmpty()) return;
+            QTreeWidgetItem* item = selectedItems().first();
+            if (item)
+            {
                 QString key = item->data(0, Qt::UserRole).toString();
-                if (materialMap.contains(key)) {
+                if (materialMap.contains(key))
+                {
                     emit materialSelected(materialMap[key]());
                 }
             }
-		});
+        });*/
+
+
 	// connect when user hovers over an item
     connect(this, &QTreeWidget::itemEntered,
         this, &MaterialLibraryWidget::handleItemEntered);    
@@ -213,7 +240,7 @@ void MaterialLibraryWidget::handleItemEntered(QTreeWidgetItem* item, int column)
     }
 }
 
-void MaterialLibraryWidget::populateMaterials()
+/*void MaterialLibraryWidget::populateMaterials()
 {
     // --- Metals ---
     QTreeWidgetItem* metals = new QTreeWidgetItem(this, QStringList() << "Metals");
@@ -406,9 +433,54 @@ void MaterialLibraryWidget::populateMaterials()
         setCurrentItem(firstItem);
         emit materialSelected(materialMap[firstItem->data(0, Qt::UserRole).toString()]());
 	}
+}*/
+
+
+void MaterialLibraryWidget::populateMaterials()
+{
+    clear();
+    MaterialRegistry& reg = MaterialRegistry::instance();
+
+    // load JSON once (path can be resource path or config). Do this in app startup instead if you prefer.
+    QString err;
+    if (!reg.loadFromJsonFile(":/materials/res/materials.json", &err))
+    {
+        qWarning() << "Failed to load material registry:" << err;
+        // fallback to old behavior or exit
+    }
+
+    const auto groups = reg.groups();
+    for (const auto& g : groups)
+    {
+        QTreeWidgetItem* groupItem = new QTreeWidgetItem(this, QStringList() << g.label);
+        for (const auto& it : g.items)
+        {
+            QTreeWidgetItem* child = new QTreeWidgetItem(groupItem, QStringList() << it.name);
+            child->setData(0, Qt::UserRole, it.key);
+        }
+    }
+    expandAll();
+
+    // --- Set the selection on the first item ---
+    if (topLevelItemCount() > 0)
+    {
+        QTreeWidgetItem* firstItem = topLevelItem(0);
+        if (firstItem->childCount() > 0)
+        {
+            firstItem = firstItem->child(0);
+        }
+        setCurrentItem(firstItem);
+
+        QString key = firstItem->data(0, Qt::UserRole).toString();
+        MaterialRegistry& reg = MaterialRegistry::instance();
+        GLMaterial mat = reg.hasKey(key) ? reg.materialForKey(key) : GLMaterial::DEFAULT_MAT();
+        emit materialSelected(mat);
+    }
+
 }
 
-void MaterialLibraryWidget::onItemClicked(QTreeWidgetItem *item, int column)
+
+/*void MaterialLibraryWidget::onItemClicked(QTreeWidgetItem* item, int column)
 {
     if (!item->childCount())
     {
@@ -422,4 +494,22 @@ void MaterialLibraryWidget::onItemClicked(QTreeWidgetItem *item, int column)
             emit materialSelected(GLMaterial::DEFAULT_MAT());
         }
     }
+}*/
+
+void MaterialLibraryWidget::onItemClicked(QTreeWidgetItem* item, int column)
+{
+    if (item->childCount()) return; // ignore group headers
+
+    const QString key = item->data(0, Qt::UserRole).toString();
+    if (key.isEmpty())
+    {
+        emit materialSelected(GLMaterial::DEFAULT_MAT());
+        return;
+    }
+
+    MaterialRegistry& reg = MaterialRegistry::instance();
+    GLMaterial mat = reg.hasKey(key) ? reg.materialForKey(key) : GLMaterial::DEFAULT_MAT();
+
+    emit materialSelected(mat);
 }
+
