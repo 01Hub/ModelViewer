@@ -11,7 +11,7 @@ UVPromptDialog::UVPromptDialog(QWidget* parent)
     : QDialog(parent)
 {
     setWindowTitle("UV Auto Generation Options");    
-    setWindowIcon(QIcon(":/new/prefix1/res/logo.png"));
+    setWindowIcon(QIcon(":/icons/res/logo.png"));
     setModal(true);
 
     QVBoxLayout* layout = new QVBoxLayout(this);

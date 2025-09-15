@@ -18,7 +18,7 @@
   </property>
   <property name="windowIcon">
    <iconset resource="../ModelViewer.qrc">
-    <normaloff>:/new/prefix1/res/logo.png</normaloff>:/new/prefix1/res/logo.png</iconset>
+    <normaloff>:/icons/res/logo.png</normaloff>:/icons/res/logo.png</iconset>
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QGridLayout" name="gridLayout">

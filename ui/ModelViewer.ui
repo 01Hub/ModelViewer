@@ -25,7 +25,7 @@
   </property>
   <property name="windowIcon">
    <iconset resource="../ModelViewer.qrc">
-    <normaloff>:/new/prefix1/res/logo.png</normaloff>:/new/prefix1/res/logo.png</iconset>
+    <normaloff>:/icons/res/logo.png</normaloff>:/icons/res/logo.png</iconset>
   </property>
   <layout class="QGridLayout" name="gridLayout_14">
    <item row="0" column="0">
@@ -275,8 +275,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>398</width>
-                   <height>747</height>
+                   <width>404</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -427,7 +427,7 @@
                       </property>
                       <property name="icon">
                        <iconset resource="../ModelViewer.qrc">
-                        <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
+                        <normaloff>:/icons/res/clear.png</normaloff>:/icons/res/clear.png</iconset>
                       </property>
                      </widget>
                     </item>
@@ -545,7 +545,7 @@
                       </property>
                       <property name="icon">
                        <iconset resource="../ModelViewer.qrc">
-                        <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
+                        <normaloff>:/icons/res/clear.png</normaloff>:/icons/res/clear.png</iconset>
                       </property>
                      </widget>
                     </item>
@@ -698,7 +698,7 @@
                       </property>
                       <property name="icon">
                        <iconset resource="../ModelViewer.qrc">
-                        <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
+                        <normaloff>:/icons/res/clear.png</normaloff>:/icons/res/clear.png</iconset>
                       </property>
                      </widget>
                     </item>
@@ -793,7 +793,7 @@
                       </property>
                       <property name="icon">
                        <iconset resource="../ModelViewer.qrc">
-                        <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
+                        <normaloff>:/icons/res/clear.png</normaloff>:/icons/res/clear.png</iconset>
                       </property>
                      </widget>
                     </item>
@@ -894,7 +894,7 @@
                       </property>
                       <property name="icon">
                        <iconset resource="../ModelViewer.qrc">
-                        <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
+                        <normaloff>:/icons/res/clear.png</normaloff>:/icons/res/clear.png</iconset>
                       </property>
                      </widget>
                     </item>
@@ -1011,7 +1011,7 @@
                       </property>
                       <property name="icon">
                        <iconset resource="../ModelViewer.qrc">
-                        <normaloff>:/new/prefix1/res/clear.png</normaloff>:/new/prefix1/res/clear.png</iconset>
+                        <normaloff>:/icons/res/clear.png</normaloff>:/icons/res/clear.png</iconset>
                       </property>
                      </widget>
                     </item>
@@ -1040,8 +1040,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>398</width>
-                   <height>747</height>
+                   <width>404</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1194,8 +1194,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>398</width>
-                   <height>747</height>
+                   <width>404</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1212,8 +1212,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>398</width>
-                   <height>747</height>
+                   <width>404</width>
+                   <height>736</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1237,8 +1237,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>496</width>
-                   <height>730</height>
+                   <width>595</width>
+                   <height>724</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1598,8 +1598,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>471</width>
-                   <height>730</height>
+                   <width>483</width>
+                   <height>724</height>
                   </rect>
                  </property>
                  <attribute name="label">
