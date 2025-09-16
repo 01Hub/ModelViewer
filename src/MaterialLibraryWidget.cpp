@@ -5,6 +5,10 @@
 #include "config.h"
 
 
+QMap<QString, std::function<GLMaterial()>> MaterialLibraryWidget::s_materialMap;
+QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget::s_groups;
+QString MaterialLibraryWidget::s_jsonPath;
+
 MaterialLibraryWidget::MaterialLibraryWidget(QWidget* parent)
 	: QTreeWidget(parent)
 {
@@ -24,16 +28,65 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget* parent)
 		if (!item) return;
 
 		QString key = item->data(0, Qt::UserRole).toString();
-		if (!key.isEmpty() && materialMap.contains(key))
-			emit materialSelected(materialMap[key]());
+		if (!key.isEmpty() && MaterialLibraryWidget::s_materialMap.contains(key))
+			emit materialSelected(MaterialLibraryWidget::s_materialMap[key]());
 		else
 			emit materialSelected(GLMaterial::DEFAULT_MAT());
 		});
+
 
 	// connect when user hovers over an item
 	connect(this, &QTreeWidget::itemEntered,
 		this, &MaterialLibraryWidget::handleItemEntered);
 }
+
+bool MaterialLibraryWidget::loadAllMaterials(const QString& jsonPath, QString* err)
+{
+	// store path for convenience
+	s_jsonPath = jsonPath;
+
+	// clear previous data
+	s_materialMap.clear();
+	s_groups.clear();
+
+	// Use the MaterialRegistry (it already knows how to parse the JSON file)
+	MaterialRegistry& reg = MaterialRegistry::instance();
+
+	QString localErr;
+	bool jsonLoaded = reg.loadFromJsonFile(jsonPath, &localErr);
+
+	if (jsonLoaded)
+	{
+		// Populate s_materialMap from JSON groups
+		const auto groups = reg.groups();
+		for (const auto& g : groups)
+		{
+			QVector<QPair<QString, QString>> itemsInGroup;
+			for (const auto& it : g.items)
+			{
+				QVariantMap props = it.props; // capture by value
+				const QString key = it.key;
+				// Insert a factory that creates a GLMaterial from the props
+				s_materialMap.insert(key, [props]() -> GLMaterial {
+					return GLMaterial::fromVariantMap(props);
+					});
+				itemsInGroup.emplace_back(it.name, it.key);
+			}
+			s_groups.emplace_back(g.label, itemsInGroup);
+		}
+		if (err) *err = QString();
+		return true;
+	}
+
+	// fallback to built-in registration if JSON failed
+	if (err) *err = localErr;
+
+	// Reuse your populateMaterialMapWithBuiltIns helper but fill static s_materialMap/s_groups
+	s_groups = populateMaterialMapWithBuiltIns(s_materialMap);
+
+	return true; // we still return true because built-ins were loaded
+}
+
 
 void MaterialLibraryWidget::handleItemEntered(QTreeWidgetItem* item, int column)
 {
@@ -58,9 +111,9 @@ void MaterialLibraryWidget::onItemClicked(QTreeWidgetItem* item, int column)
 	if (!item->childCount())
 	{
 		QString key = item->data(0, Qt::UserRole).toString();
-		if (materialMap.contains(key))
+		if (s_materialMap.contains(key))
 		{
-			emit materialSelected(materialMap[key]());
+			emit materialSelected(s_materialMap[key]());
 		}
 		else
 		{
@@ -73,44 +126,19 @@ void MaterialLibraryWidget::onItemClicked(QTreeWidgetItem* item, int column)
 void MaterialLibraryWidget::populateMaterials()
 {
 	clear();
-	materialMap.clear();
 
-	MaterialRegistry& reg = MaterialRegistry::instance();
-	QString err;
-	const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
-
-	QVector<QPair<QString, QVector<QPair<QString, QString>>>> groupsToShow;
-
-	// Try JSON first
-	if (reg.loadFromJsonFile(path + "data/catalogs/materials.json", &err))
+	// Ensure shared materials were loaded
+	if (s_groups.isEmpty() && s_materialMap.isEmpty())
 	{
-		// JSON loaded successfully — populate materialMap from JSON groups
-		const auto groups = reg.groups();
-		for (const auto& g : groups)
-		{
-			QVector<QPair<QString, QString>> itemsInGroup;
-			for (const auto& it : g.items)
-			{
-				QVariantMap props = it.props; // capture copy
-				QString key = it.key;
-				// Insert a factory into materialMap that produces material from JSON props
-				materialMap.insert(key, [props]() -> GLMaterial {
-					return GLMaterial::fromVariantMap(props);
-					});
-				itemsInGroup.emplace_back(it.name, it.key);
-			}
-			groupsToShow.emplace_back(g.label, itemsInGroup);
-		}
-	}
-	else
-	{
-		// JSON load failed — fallback to built-in factories
-		qWarning() << "Failed to load material registry:" << err << " - using built-in materials.";
-		groupsToShow = populateMaterialMapWithBuiltIns(materialMap);
+		QString err;
+		// try to load using default jsonPath (if set), else try hardcoded DATADIR path
+		QString pathToTry = s_jsonPath;
+		if (pathToTry.isEmpty()) pathToTry = QString(MODELVIEWER_DATA_DIR) + "/data/catalogs/materials.json";
+		loadAllMaterials(pathToTry, &err);
 	}
 
-	// Build the tree from the chosen groups
-	for (const auto& gpair : groupsToShow)
+	// Build tree from s_groups
+	for (const auto& gpair : s_groups)
 	{
 		QTreeWidgetItem* groupItem = new QTreeWidgetItem(this, QStringList() << gpair.first);
 		for (const auto& itemPair : gpair.second)
@@ -122,27 +150,22 @@ void MaterialLibraryWidget::populateMaterials()
 
 	expandAll();
 
-	// Select first item and emit materialSelected via materialMap
+	// select first item and emit materialSelected
 	if (topLevelItemCount() > 0)
 	{
 		QTreeWidgetItem* firstItem = topLevelItem(0);
-		if (firstItem->childCount() > 0)
-			firstItem = firstItem->child(0);
-
+		if (firstItem->childCount() > 0) firstItem = firstItem->child(0);
 		setCurrentItem(firstItem);
 		QString key = firstItem->data(0, Qt::UserRole).toString();
-		if (!key.isEmpty() && materialMap.contains(key))
-		{
-			emit materialSelected(materialMap[key]());
-		}
+		if (!key.isEmpty() && s_materialMap.contains(key))
+			emit materialSelected(s_materialMap[key]());
 		else
-		{
 			emit materialSelected(GLMaterial::DEFAULT_MAT());
-		}
 	}
 }
 
-// Helper: register all built-in factories into materialMap and return the built-in grouping
+
+// Helper: register all built-in factories into _materialMap and return the built-in grouping
 // Return type: QVector of (groupLabel, vector of (displayName, key))
 QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget::populateMaterialMapWithBuiltIns(
 	QMap<QString, std::function<GLMaterial()>>& materialMap)
