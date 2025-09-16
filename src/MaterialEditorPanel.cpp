@@ -271,22 +271,19 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	// Simple search/filter for the tree
 	// -------------------------
 	// The lambda below will recursively check items and show/hide them based on the search text.
+	// Modified to show children when parent matches, even if children don't match the search term.
 	connect(searchEdit, &QLineEdit::textChanged, this, [this, searchEdit](const QString& text) {
 		QTreeWidget* tw = qobject_cast<QTreeWidget*>(treeWidget);
 		if (!tw) return;
-
 		const QString needle = text.trimmed().toLower();
 		const bool hasFilter = !needle.isEmpty();
-
 		QStringList tokens;
 		if (hasFilter) tokens = needle.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
-
 		int matchCount = 0;
 
 		// Recursively walk and update each item.
-		std::function<bool(QTreeWidgetItem*)> matchAndShow = [&](QTreeWidgetItem* item) -> bool {
+		std::function<bool(QTreeWidgetItem*, bool)> matchAndShow = [&](QTreeWidgetItem* item, bool parentMatched) -> bool {
 			const QString label = item->text(0).toLower();
-
 			// Only consider self-match when a filter is active.
 			bool selfMatched = false;
 			if (hasFilter)
@@ -299,14 +296,20 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 			}
 
 			// Always recurse children so we can reset their fonts/foreground when clearing.
+			// Pass down whether this item or any ancestor matched
 			bool anyChildMatched = false;
+			bool shouldShowChildren = parentMatched || selfMatched;
 			for (int i = 0; i < item->childCount(); ++i)
 			{
-				if (matchAndShow(item->child(i))) anyChildMatched = true;
+				if (matchAndShow(item->child(i), shouldShowChildren)) anyChildMatched = true;
 			}
 
-			// If no filter, everything should be visible (and not highlighted).
-			const bool matched = hasFilter ? (selfMatched || anyChildMatched) : true;
+			// Item should be shown if:
+			// 1. No filter is active (show all), OR
+			// 2. This item matched the search, OR  
+			// 3. Any child matched the search, OR
+			// 4. A parent/ancestor matched the search
+			const bool matched = hasFilter ? (selfMatched || anyChildMatched || parentMatched) : true;
 			item->setHidden(hasFilter ? !matched : false);
 
 			// Expand only when filtering and the item matched.
@@ -331,8 +334,9 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 			return matched;
 			};
 
+		// Start recursion from top-level items with parentMatched = false
 		for (int i = 0; i < tw->topLevelItemCount(); ++i)
-			matchAndShow(tw->topLevelItem(i));
+			matchAndShow(tw->topLevelItem(i), false);
 
 		// Red border when no matches and query non-empty; reset otherwise.
 		if (!hasFilter)
@@ -351,8 +355,6 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 			searchEdit->setToolTip("");
 		}
 		});
-
-
 }
 
 void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)
