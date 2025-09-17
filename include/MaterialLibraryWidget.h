@@ -18,6 +18,11 @@ public:
     // reload from registry (e.g. after user edits or imports) — convenience wrapper
     static bool reloadAllMaterials(QString* err = nullptr) { return loadAllMaterials(s_jsonPath, err); }
 
+    // Merge user-defined materials from per-user JSON into the shared cache.
+    // Returns true on success (or when no user file exists). On error returns false and sets err if provided.
+    static bool mergeUserMaterialsFromUserLocation(QString* err = nullptr);
+
+
     // Accessors for read-only shared data (optional)
     static const QMap<QString, std::function<GLMaterial()>>& sharedMaterialMap() { return s_materialMap; }
     static const QVector<QPair<QString, QVector<QPair<QString, QString>>>>& sharedGroups() { return s_groups; }

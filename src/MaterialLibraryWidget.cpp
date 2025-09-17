@@ -73,18 +73,177 @@ bool MaterialLibraryWidget::loadAllMaterials(const QString& jsonPath, QString* e
 				itemsInGroup.emplace_back(it.name, it.key);
 			}
 			s_groups.emplace_back(g.label, itemsInGroup);
-		}
+		}		
+	}
+	else
+	{
+		// fallback to built-in registration if JSON failed
+		if (err) *err = localErr;
+
+		// Reuse your populateMaterialMapWithBuiltIns helper but fill static s_materialMap/s_groups
+		s_groups = populateMaterialMapWithBuiltIns(s_materialMap);
+	}
+
+	// Always attempt to overlay user JSON
+	QString userErr;
+	if (!mergeUserMaterialsFromUserLocation(&userErr))
+	{
+		// Don’t treat as fatal — just warn
+		qWarning() << "User materials overlay failed:" << userErr;
+	}
+
+	if (err && jsonLoaded) *err = QString(); // clear error if system JSON loaded ok
+
+	return true; // we still return true because built-ins were loaded
+}
+
+#include <QStandardPaths>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonParseError>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QVariantMap>
+#include <QDir>
+
+// Helper: return the per-user materials path (create dir if needed)
+static QString userMaterialsFilePath()
+{
+	QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+	if (dir.isEmpty())
+	{
+		// fallback to home path
+		dir = QDir::homePath() + "/.local/share/ModelViewer";
+	}	
+	QDir d(dir);
+	if (!d.exists()) d.mkpath(".");
+	return d.filePath("materials.json");
+}
+
+bool MaterialLibraryWidget::mergeUserMaterialsFromUserLocation(QString* err)
+{
+	const QString userPath = userMaterialsFilePath();
+	qDebug() << "User materials file path:" << userMaterialsFilePath();
+	// If no user file exists, nothing to do (success)
+	if (!QFile::exists(userPath))
+	{
 		if (err) *err = QString();
 		return true;
 	}
 
-	// fallback to built-in registration if JSON failed
-	if (err) *err = localErr;
+	QFile f(userPath);
+	if (!f.open(QIODevice::ReadOnly))
+	{
+		if (err) *err = QString("Failed to open user materials file '%1': %2").arg(userPath, f.errorString());
+		return false;
+	}
 
-	// Reuse your populateMaterialMapWithBuiltIns helper but fill static s_materialMap/s_groups
-	s_groups = populateMaterialMapWithBuiltIns(s_materialMap);
+	const QByteArray data = f.readAll();
+	QJsonParseError perr;
+	QJsonDocument doc = QJsonDocument::fromJson(data, &perr);
+	if (perr.error != QJsonParseError::NoError)
+	{
+		if (err) *err = QString("Failed to parse user materials JSON '%1': %2").arg(userPath, perr.errorString());
+		return false;
+	}
 
-	return true; // we still return true because built-ins were loaded
+	if (!doc.isObject())
+	{
+		if (err) *err = QString("User materials JSON root is not an object: %1").arg(userPath);
+		return false;
+	}
+
+	QJsonObject root = doc.object();
+	// Expecting structure: { "groups": [ { "label": "...", "items": [ {...}, ... ] }, ... ] }
+	if (!root.contains("groups") || !root.value("groups").isArray())
+	{
+		// nothing to merge (valid but empty structure)
+		if (err) *err = QString();
+		return true;
+	}
+
+	QJsonArray groupsArr = root.value("groups").toArray();
+
+	// Merge logic:
+	// - for each group in user JSON:
+	//    - find existing group in s_groups by label; if found append items, else create new group entry
+	// - for each item: insert/overwrite s_materialMap[key] with factory that uses the props
+
+	for (const QJsonValue& gval : groupsArr)
+	{
+		if (!gval.isObject()) continue;
+		QJsonObject gobj = gval.toObject();
+		QString groupLabel = gobj.value("label").toString().trimmed();
+		if (groupLabel.isEmpty()) continue;
+
+		// Convert items array
+		QJsonArray itemsArr = gobj.value("items").toArray();
+		if (itemsArr.isEmpty())
+		{
+			// ensure a group exists even if empty
+			bool foundEmpty = false;
+			for (const auto& existingGroup : s_groups)
+			{
+				if (existingGroup.first == groupLabel) { foundEmpty = true; break; }
+			}
+			if (!foundEmpty) s_groups.emplace_back(groupLabel, QVector<QPair<QString, QString>>());
+			continue;
+		}
+
+		// locate target group index in s_groups
+		int targetIndex = -1;
+		for (int i = 0; i < s_groups.size(); ++i)
+		{
+			if (s_groups[i].first == groupLabel) { targetIndex = i; break; }
+		}
+		bool groupExists = (targetIndex >= 0);
+		if (!groupExists)
+		{
+			// create new empty group
+			s_groups.emplace_back(groupLabel, QVector<QPair<QString, QString>>());
+			targetIndex = s_groups.size() - 1;
+		}
+
+		// append/overwrite items
+		for (const QJsonValue& itVal : itemsArr)
+		{
+			if (!itVal.isObject()) continue;
+			QJsonObject itObj = itVal.toObject();
+
+			// required keys: key, name. If missing, skip.
+			QString key = itObj.value("key").toString().trimmed();
+			QString name = itObj.value("name").toString().trimmed();
+			if (key.isEmpty() || name.isEmpty()) continue;
+
+			// Convert item object to QVariantMap for GLMaterial::fromVariantMap
+			QVariantMap props = itObj.toVariantMap();
+
+			// Insert/overwrite factory in shared map. User materials override existing keys.
+			s_materialMap.insert(key, [props]() -> GLMaterial {
+				return GLMaterial::fromVariantMap(props);
+				});
+
+			// Add to target group (if an item with same key already exists in the group, remove it first)
+			QVector<QPair<QString, QString>>& targetItems = s_groups[targetIndex].second;
+			int existingPos = -1;
+			for (int k = 0; k < targetItems.size(); ++k)
+			{
+				if (targetItems[k].second == key) { existingPos = k; break; }
+			}
+			if (existingPos >= 0)
+			{
+				// replace display name (user override)
+				targetItems[existingPos].first = name;
+			}
+			else
+			{
+				targetItems.emplace_back(name, key);
+			}
+		} // items loop
+	} // groups loop
+
+	if (err) *err = QString();
+	return true;
 }
 
 
