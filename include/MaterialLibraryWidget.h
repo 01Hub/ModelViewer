@@ -12,6 +12,8 @@ class MaterialLibraryWidget : public QTreeWidget
 public:
     explicit MaterialLibraryWidget(QWidget *parent = nullptr);
 
+    void deleteSelectedMaterial();
+
     // call this once at app startup to populate the shared material map + groups
     static bool loadAllMaterials(const QString& jsonPath, QString* err = nullptr);
 
@@ -71,4 +73,8 @@ private:
 
     // remember jsonPath used for reloads
     static QString s_jsonPath;
+
+    // keys that came from user's file (for quick checks)
+    static QSet<QString> s_userMaterialKeys;
+
 };

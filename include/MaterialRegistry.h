@@ -41,6 +41,7 @@ public:
 signals:
     // emitted after successful load (useful for UI to rebuild)
     void registryLoaded();
+    void materialsChanged();
 
 private:
     MaterialRegistry(QObject* parent = nullptr);

@@ -1,5 +1,10 @@
 #include "MaterialEditorPanel.h"
+#include "MaterialRegistry.h" 
+#include "MaterialLibraryWidget.h"
 #include "Utils.h"
+
+#include <QInputDialog>
+#include <QMessageBox>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QColorDialog>
@@ -275,6 +280,16 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 		emit materialChanged(_currentMaterial);
 		});
 
+	connect(saveButton, &QPushButton::clicked, this, [=]() {
+		onSaveButtonClicked();
+		emit materialChanged(_currentMaterial);
+		});
+
+	connect(deleteButton, &QPushButton::clicked, this, [=]() {
+		onDeleteButtonClicked();
+		emit materialChanged(_currentMaterial);
+		});
+
 	// -------------------------
 	// Simple search/filter for the tree
 	// -------------------------
@@ -363,6 +378,125 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 			searchEdit->setToolTip("");
 		}
 		});
+}
+
+void MaterialEditorPanel::onSaveButtonClicked()
+{
+	// Use the current material shown in the editor
+	GLMaterial mat = _currentMaterial;
+
+	// Try to derive default group/key/name from the current selection in the tree
+	QString key;
+	QString name;
+	QString groupLabel;
+
+	if (treeWidget)
+	{
+		QList<QTreeWidgetItem*> sel = treeWidget->selectedItems();
+		if (!sel.isEmpty())
+		{
+			QTreeWidgetItem* item = sel.first();
+			// If a group header is selected, prefer its first child if available
+			if (item->childCount() > 0)
+			{
+				QTreeWidgetItem* child = item->child(0);
+				if (child)
+				{
+					key = child->data(0, Qt::UserRole).toString();
+					name = child->text(0);
+					groupLabel = item->text(0);
+				}
+			}
+			else
+			{
+				// leaf node
+				key = item->data(0, Qt::UserRole).toString();
+				name = item->text(0);
+				if (item->parent()) groupLabel = item->parent()->text(0);
+			}
+		}
+	}
+
+	// If we still don't have a group list, present user with choices from sharedGroups
+	if (groupLabel.isEmpty())
+	{
+		// collect group labels
+		QStringList groups;
+		const auto& sharedGroups = MaterialLibraryWidget::sharedGroups();
+		for (const auto& g : sharedGroups) groups << g.first;
+		// ensure there's at least one choice
+		if (groups.isEmpty()) groups << QStringLiteral("User Materials");
+
+		bool ok = false;
+		QString picked = QInputDialog::getItem(this,
+			tr("Choose Group"),
+			tr("Select a group to save into:"),
+			groups,
+			0,
+			true,
+			&ok);
+		if (!ok) return;
+		groupLabel = picked.trimmed();
+		if (groupLabel.isEmpty()) groupLabel = QStringLiteral("User Materials");
+	}
+
+	// Ask for display name if missing
+	if (name.isEmpty())
+	{
+		bool ok = false;
+		QString suggestedName = QStringLiteral("New Material");
+		QString enteredName = QInputDialog::getText(this,
+			tr("Material Name"),
+			tr("Display name for material:"),
+			QLineEdit::Normal,
+			suggestedName,
+			&ok);
+		if (!ok || enteredName.trimmed().isEmpty()) return;
+		name = enteredName.trimmed();
+	}
+
+	// Ask for key if missing (suggest from name)
+	if (key.isEmpty())
+	{
+		bool ok = false;
+		QString suggestedKey = name.toUpper().replace(' ', '_');
+		// ensure no accidental spaces
+		suggestedKey = suggestedKey.simplified().replace(' ', '_');
+		QString enteredKey = QInputDialog::getText(this,
+			tr("Material Key"),
+			tr("Unique material key (no spaces):"),
+			QLineEdit::Normal,
+			suggestedKey,
+			&ok);
+		if (!ok || enteredKey.trimmed().isEmpty()) return;
+		key = enteredKey.trimmed();
+	}
+
+	// Final sanity: remove spaces in key
+	key = key.simplified().replace(' ', '_');
+
+	// Save using the helper. It will prompt for overwrite if necessary (we pass 'this' as parent).
+	QString err;
+	bool ok = MaterialLibraryWidget::saveUserMaterialToUserLocation(groupLabel, key, name, mat, this, &err);
+	if (!ok)
+	{
+		// save helper returns false on user cancel as well; show warning if there's an actual error
+		if (!err.isEmpty() && err != QStringLiteral("User cancelled overwrite") && err != QStringLiteral("User cancelled removal"))
+		{
+			QMessageBox::warning(this, tr("Save Material Failed"), err);
+		}
+		return;
+	}
+
+	// Notify other widgets to reload (save helper already updated runtime caches).
+	Q_EMIT MaterialRegistry::instance().materialsChanged();
+
+	QMessageBox::information(this, tr("Material Saved"), tr("Material '%1' saved to your library.").arg(name));
+}
+
+void MaterialEditorPanel::onDeleteButtonClicked()
+{
+	treeWidget->deleteSelectedMaterial();
 }
 
 void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)

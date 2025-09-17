@@ -11,24 +11,27 @@
 
 class MaterialEditorPanel : public QWidget
 {
-    Q_OBJECT
+	Q_OBJECT
 public:
-    explicit MaterialEditorPanel(QWidget *parent = nullptr);
+	explicit MaterialEditorPanel(QWidget* parent = nullptr);
+
+	void onSaveButtonClicked();
+	void onDeleteButtonClicked();
 
 signals:
-    void materialChanged(const GLMaterial &mat);
+	void materialChanged(const GLMaterial& mat);
 
 private slots:
-    void onMaterialSelected(const GLMaterial &mat);
+	void onMaterialSelected(const GLMaterial& mat);
 
 private:
-    MaterialLibraryWidget *treeWidget;
-    MaterialPreviewWidget *previewWidget;
+	MaterialLibraryWidget* treeWidget;
+	MaterialPreviewWidget* previewWidget;
 	QComboBox* modelCombo;
-    QPushButton *albedoButton;
-    QDoubleSpinBox *metalnessSpin;
-    QDoubleSpinBox *roughnessSpin;
-    QDoubleSpinBox *opacitySpin;
+	QPushButton* albedoButton;
+	QDoubleSpinBox* metalnessSpin;
+	QDoubleSpinBox* roughnessSpin;
+	QDoubleSpinBox* opacitySpin;
 	QDoubleSpinBox* iorSpin;
 	QDoubleSpinBox* clearcoatSpin;
 	QDoubleSpinBox* clearcoatRoughnessSpin;
@@ -37,14 +40,14 @@ private:
 	QDoubleSpinBox* transmissionSpin;
 	QDoubleSpinBox* alphaThresholdSpin;
 
-    QComboBox *shadingCombo;
-    QComboBox *blendCombo;
-    QCheckBox *twoSidedCheck;
-    QCheckBox *wireframeCheck;
+	QComboBox* shadingCombo;
+	QComboBox* blendCombo;
+	QCheckBox* twoSidedCheck;
+	QCheckBox* wireframeCheck;
 
-    QPushButton* applyButton;
-    QPushButton* saveButton;
-    QPushButton* deleteButton;
+	QPushButton* applyButton;
+	QPushButton* saveButton;
+	QPushButton* deleteButton;
 
-    GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
+	GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
 };
