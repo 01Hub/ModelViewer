@@ -42,7 +42,9 @@ private:
     QCheckBox *twoSidedCheck;
     QCheckBox *wireframeCheck;
 
-	QPushButton* applyButton;
+    QPushButton* applyButton;
+    QPushButton* saveButton;
+    QPushButton* deleteButton;
 
     GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
 };

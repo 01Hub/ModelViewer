@@ -140,7 +140,15 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	formLayout->addRow("Wireframe:", wireframeCheck);
 
 	applyButton = new QPushButton("Apply");
-	formLayout->addRow(applyButton);
+	saveButton = new QPushButton("Save");
+	deleteButton = new QPushButton("Delete");
+
+	QHBoxLayout* buttonRowLayout = new QHBoxLayout;
+	buttonRowLayout->addWidget(applyButton);
+	buttonRowLayout->addWidget(saveButton);
+	buttonRowLayout->addWidget(deleteButton);
+
+	formLayout->addRow(buttonRowLayout);
 
 	mainLayout->addLayout(formLayout);
 	setLayout(mainLayout);
