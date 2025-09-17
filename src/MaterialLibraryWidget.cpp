@@ -2,12 +2,72 @@
 #include "MaterialRegistry.h"
 #include <QTreeWidgetItem>
 #include <QFontMetrics>
+#include <QStandardPaths>
+#include <QFile>
+#include <QJsonDocument>
+#include <QJsonParseError>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QVariantMap>
+#include <QDir>
+#include <QSysInfo>
+#include <QSaveFile>
+#include <QMessageBox>
 #include "config.h"
 
 
 QMap<QString, std::function<GLMaterial()>> MaterialLibraryWidget::s_materialMap;
 QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget::s_groups;
 QString MaterialLibraryWidget::s_jsonPath;
+
+// Helper: return the per-user materials path (create dir if needed)
+static QString userMaterialsFilePath()
+{
+	QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+
+	if (dir.isEmpty())
+	{
+		// Platform-specific fallbacks
+#if defined(Q_OS_WIN)
+		dir = QDir::homePath() + "/AppData/Roaming/ModelViewer";
+#elif defined(Q_OS_MACOS)
+		dir = QDir::homePath() + "/Library/Application Support/ModelViewer";
+#else
+		// Linux / Unix fallback
+		dir = QDir::homePath() + "/.local/share/ModelViewer";
+#endif
+	}
+	else
+	{
+		// Put the app subdir inside the standard location
+		dir += "/ModelViewer";
+	}
+
+	QDir d(dir);
+	if (!d.exists())
+		d.mkpath(".");
+
+	return d.filePath("materials.json");
+}
+
+// helper: atomically write rootVariant to a given path
+static bool writeVariantRootToFile(const QVariantMap& rootVar, const QString& outPath, QString* err)
+{
+	QJsonDocument doc = QJsonDocument::fromVariant(rootVar);
+	QSaveFile out(outPath);
+	if (!out.open(QIODevice::WriteOnly))
+	{
+		if (err) *err = QString("Failed to open file '%1' for writing: %2").arg(outPath, out.errorString());
+		return false;
+	}
+	out.write(doc.toJson(QJsonDocument::Indented));
+	if (!out.commit())
+	{
+		if (err) *err = QString("Failed to commit file '%1': %2").arg(outPath, out.errorString());
+		return false;
+	}
+	return true;
+}
 
 MaterialLibraryWidget::MaterialLibraryWidget(QWidget* parent)
 	: QTreeWidget(parent)
@@ -88,36 +148,13 @@ bool MaterialLibraryWidget::loadAllMaterials(const QString& jsonPath, QString* e
 	QString userErr;
 	if (!mergeUserMaterialsFromUserLocation(&userErr))
 	{
-		// Don’t treat as fatal — just warn
+		// Donâ€™t treat as fatal â€” just warn
 		qWarning() << "User materials overlay failed:" << userErr;
 	}
 
 	if (err && jsonLoaded) *err = QString(); // clear error if system JSON loaded ok
 
 	return true; // we still return true because built-ins were loaded
-}
-
-#include <QStandardPaths>
-#include <QFile>
-#include <QJsonDocument>
-#include <QJsonParseError>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QVariantMap>
-#include <QDir>
-
-// Helper: return the per-user materials path (create dir if needed)
-static QString userMaterialsFilePath()
-{
-	QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-	if (dir.isEmpty())
-	{
-		// fallback to home path
-		dir = QDir::homePath() + "/.local/share/ModelViewer";
-	}	
-	QDir d(dir);
-	if (!d.exists()) d.mkpath(".");
-	return d.filePath("materials.json");
 }
 
 bool MaterialLibraryWidget::mergeUserMaterialsFromUserLocation(QString* err)
@@ -246,6 +283,345 @@ bool MaterialLibraryWidget::mergeUserMaterialsFromUserLocation(QString* err)
 	return true;
 }
 
+
+// -------------------- saveUserMaterialToUserLocation (updated with confirmation) --------------------
+bool MaterialLibraryWidget::saveUserMaterialToUserLocation(const QString& groupLabel,
+	const QString& key,
+	const QString& name,
+	const GLMaterial& mat,
+	QWidget* parent,
+	QString* err)
+{
+	if (groupLabel.trimmed().isEmpty())
+	{
+		if (err) *err = "Empty group label";
+		return false;
+	}
+	if (key.trimmed().isEmpty())
+	{
+		if (err) *err = "Empty material key";
+		return false;
+	}
+
+	const QString userPath = userMaterialsFilePath();
+
+	// Load existing root (if present)
+	QVariantMap rootVar;
+	if (QFile::exists(userPath))
+	{
+		QFile in(userPath);
+		if (!in.open(QIODevice::ReadOnly))
+		{
+			if (err) *err = QString("Failed to open user materials file '%1' for reading: %2").arg(userPath, in.errorString());
+			return false;
+		}
+		QByteArray data = in.readAll();
+		QJsonParseError perr;
+		QJsonDocument doc = QJsonDocument::fromJson(data, &perr);
+		if (perr.error != QJsonParseError::NoError)
+		{
+			if (err) *err = QString("Failed to parse user materials JSON '%1': %2").arg(userPath, perr.errorString());
+			return false;
+		}
+		rootVar = doc.toVariant().toMap();
+	}
+	else
+	{
+		rootVar.clear();
+	}
+
+	// Ensure groups list exists
+	QVariantList groupsList = rootVar.value("groups").toList();
+
+	// Locate or create the target group
+	int groupIndex = -1;
+	for (int i = 0; i < groupsList.size(); ++i)
+	{
+		QVariantMap g = groupsList[i].toMap();
+		QString label = g.value("label").toString();
+		if (label == groupLabel) { groupIndex = i; break; }
+	}
+	if (groupIndex < 0)
+	{
+		QVariantMap newGroup;
+		newGroup.insert("label", groupLabel);
+		newGroup.insert("items", QVariantList());
+		groupsList.append(QVariant(newGroup));
+		groupIndex = groupsList.size() - 1;
+	}
+
+	// Prepare mat props and item object
+	QVariantMap matProps = mat.toVariantMap(); // must produce full fields
+	matProps.insert("key", key);
+	matProps.insert("name", name);
+
+	// Work on items list
+	QVariantMap targetGroup = groupsList[groupIndex].toMap();
+	QVariantList itemsList = targetGroup.value("items").toList();
+
+	int existingItemIndex = -1;
+	for (int i = 0; i < itemsList.size(); ++i)
+	{
+		QVariantMap itm = itemsList[i].toMap();
+		QString existingKey = itm.value("key").toString();
+		if (existingKey == key) { existingItemIndex = i; break; }
+	}
+
+	// If item exists, ask for confirmation (if parent provided)
+	if (existingItemIndex >= 0)
+	{
+		if (parent)
+		{
+			QMessageBox::StandardButton reply =
+				QMessageBox::question(parent,
+					QStringLiteral("Overwrite Material?"),
+					QStringLiteral("A material with this key already exists. Overwrite it?"),
+					QMessageBox::Yes | QMessageBox::No,
+					QMessageBox::No);
+			if (reply != QMessageBox::Yes)
+			{
+				if (err) *err = QStringLiteral("User cancelled overwrite");
+				return false;
+			}
+		}
+		itemsList[existingItemIndex] = QVariant(matProps);
+	}
+	else
+	{
+		itemsList.append(QVariant(matProps));
+	}
+
+	targetGroup.insert("items", itemsList);
+	groupsList[groupIndex] = QVariant(targetGroup);
+	rootVar.insert("groups", groupsList);
+
+	// Write back
+	if (!writeVariantRootToFile(rootVar, userPath, err)) return false;
+
+	// Update runtime caches: s_materialMap & s_groups
+	QVariantMap propsForCache = matProps;
+	s_materialMap.insert(key, [propsForCache]() -> GLMaterial { return GLMaterial::fromVariantMap(propsForCache); });
+
+	// Update s_groups
+	int sGroupIndex = -1;
+	for (int i = 0; i < s_groups.size(); ++i)
+	{
+		if (s_groups[i].first == groupLabel) { sGroupIndex = i; break; }
+	}
+	if (sGroupIndex < 0)
+	{
+		QVector<QPair<QString, QString>> v;
+		v.emplace_back(name, key);
+		s_groups.emplace_back(groupLabel, std::move(v));
+	}
+	else
+	{
+		QVector<QPair<QString, QString>>& v = s_groups[sGroupIndex].second;
+		int pos = -1;
+		for (int i = 0; i < v.size(); ++i)
+		{
+			if (v[i].second == key) { pos = i; break; }
+		}
+		if (pos >= 0) v[pos].first = name;
+		else v.emplace_back(name, key);
+	}
+
+	if (err) *err = QString();
+	return true;
+}
+
+// -------------------- removeUserMaterialFromUserLocation --------------------
+bool MaterialLibraryWidget::removeUserMaterialFromUserLocation(const QString& groupLabel,
+	const QString& key,
+	QWidget* parent,
+	QString* err)
+{
+	if (groupLabel.trimmed().isEmpty())
+	{
+		if (err) *err = "Empty group label";
+		return false;
+	}
+	if (key.trimmed().isEmpty())
+	{
+		if (err) *err = "Empty material key";
+		return false;
+	}
+
+	const QString userPath = userMaterialsFilePath();
+	if (!QFile::exists(userPath))
+	{
+		if (err) *err = QString("User materials file does not exist: %1").arg(userPath);
+		return false;
+	}
+
+	// Optionally ask user for confirmation
+	if (parent)
+	{
+		QMessageBox::StandardButton reply =
+			QMessageBox::question(parent,
+				QStringLiteral("Remove Material?"),
+				QStringLiteral("Are you sure you want to remove this material from your library?"),
+				QMessageBox::Yes | QMessageBox::No,
+				QMessageBox::No);
+		if (reply != QMessageBox::Yes)
+		{
+			if (err) *err = QStringLiteral("User cancelled removal");
+			return false;
+		}
+	}
+
+	// Load existing file
+	QFile in(userPath);
+	if (!in.open(QIODevice::ReadOnly))
+	{
+		if (err) *err = QString("Failed to open user materials file '%1' for reading: %2").arg(userPath, in.errorString());
+		return false;
+	}
+	QByteArray data = in.readAll();
+	QJsonParseError perr;
+	QJsonDocument doc = QJsonDocument::fromJson(data, &perr);
+	if (perr.error != QJsonParseError::NoError || !doc.isObject())
+	{
+		if (err) *err = QString("Failed to parse user materials JSON '%1': %2").arg(userPath, perr.errorString());
+		return false;
+	}
+	QVariantMap rootVar = doc.toVariant().toMap();
+	QVariantList groupsList = rootVar.value("groups").toList();
+
+	// Find group and remove the item by key
+	int groupIndex = -1;
+	for (int i = 0; i < groupsList.size(); ++i)
+	{
+		QVariantMap g = groupsList[i].toMap();
+		if (g.value("label").toString() == groupLabel) { groupIndex = i; break; }
+	}
+	if (groupIndex < 0)
+	{
+		if (err) *err = QString("Group '%1' not found in user file").arg(groupLabel);
+		return false;
+	}
+
+	QVariantMap targetGroup = groupsList[groupIndex].toMap();
+	QVariantList itemsList = targetGroup.value("items").toList();
+	int foundIndex = -1;
+	for (int i = 0; i < itemsList.size(); ++i)
+	{
+		QVariantMap itm = itemsList[i].toMap();
+		if (itm.value("key").toString() == key) { foundIndex = i; break; }
+	}
+	if (foundIndex < 0)
+	{
+		if (err) *err = QString("Material key '%1' not found in group '%2'").arg(key, groupLabel);
+		return false;
+	}
+
+	itemsList.removeAt(foundIndex);
+	targetGroup.insert("items", itemsList);
+	groupsList[groupIndex] = QVariant(targetGroup);
+	rootVar.insert("groups", groupsList);
+
+	// Write file back
+	if (!writeVariantRootToFile(rootVar, userPath, err)) return false;
+
+	// Update runtime caches: remove from s_materialMap and s_groups
+	s_materialMap.remove(key);
+
+	// Remove from s_groups[groupIndex] too
+	int sGroupIndex = -1;
+	for (int i = 0; i < s_groups.size(); ++i)
+	{
+		if (s_groups[i].first == groupLabel) { sGroupIndex = i; break; }
+	}
+	if (sGroupIndex >= 0)
+	{
+		QVector<QPair<QString, QString>>& v = s_groups[sGroupIndex].second;
+		int pos = -1;
+		for (int i = 0; i < v.size(); ++i)
+		{
+			if (v[i].second == key) { pos = i; break; }
+		}
+		if (pos >= 0) v.removeAt(pos);
+		// If the group becomes empty, you may optionally remove the group; we keep empty group to mirror file.
+	}
+
+	if (err) *err = QString();
+	return true;
+}
+
+// -------------------- saveAllUserMaterials --------------------
+bool MaterialLibraryWidget::saveAllUserMaterials(const QString& filePath,
+	QWidget* parent,
+	QString* err)
+{
+	QString outPath = filePath;
+	const QString defaultUserPath = userMaterialsFilePath();
+	if (outPath.isEmpty()) outPath = defaultUserPath;
+
+	// If file exists and is different from default and parent given, prompt before overwriting
+	if (QFile::exists(outPath) && parent)
+	{
+		// If saving to default user path, still ask? We'll only ask if it's not default to be safe
+		if (outPath != defaultUserPath)
+		{
+			QMessageBox::StandardButton reply =
+				QMessageBox::question(parent,
+					QStringLiteral("Overwrite File?"),
+					QStringLiteral("The target file already exists. Overwrite it?"),
+					QMessageBox::Yes | QMessageBox::No,
+					QMessageBox::No);
+			if (reply != QMessageBox::Yes)
+			{
+				if (err) *err = QStringLiteral("User cancelled overwrite");
+				return false;
+			}
+		}
+	}
+
+	// Build rootVariant from s_groups & s_materialMap
+	QVariantMap rootVar;
+	QVariantList groupsList;
+	for (const auto& gpair : s_groups)
+	{
+		QVariantMap gmap;
+		gmap.insert("label", gpair.first);
+		QVariantList itemsList;
+		for (const auto& itemPair : gpair.second)
+		{
+			const QString displayName = itemPair.first;
+			const QString key = itemPair.second;
+
+			// If material factory exists, create material and serialize; else write a bare item with key/name.
+			QVariantMap itemMap;
+			itemMap.insert("key", key);
+			itemMap.insert("name", displayName);
+
+			if (s_materialMap.contains(key))
+			{
+				// create material instance and call toVariantMap()
+				GLMaterial m = s_materialMap[key]();
+				QVariantMap props = m.toVariantMap();
+				// ensure key & name present
+				props.insert("key", key);
+				props.insert("name", displayName);
+				itemMap = props;
+			}
+			else
+			{
+				// no factory: keep only key/name
+			}
+			itemsList.append(QVariant(itemMap));
+		}
+		gmap.insert("items", itemsList);
+		groupsList.append(QVariant(gmap));
+	}
+	rootVar.insert("groups", groupsList);
+
+	// write to outPath
+	if (!writeVariantRootToFile(rootVar, outPath, err)) return false;
+
+	if (err) *err = QString();
+	return true;
+}
 
 void MaterialLibraryWidget::handleItemEntered(QTreeWidgetItem* item, int column)
 {

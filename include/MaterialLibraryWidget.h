@@ -22,6 +22,29 @@ public:
     // Returns true on success (or when no user file exists). On error returns false and sets err if provided.
     static bool mergeUserMaterialsFromUserLocation(QString* err = nullptr);
 
+    // Save a single material to user location with optional overwrite confirmation via parent widget.
+    // If parent is non-null, shows a confirmation dialog when an item with same key exists.
+    static bool saveUserMaterialToUserLocation(const QString& groupLabel,
+        const QString& key,
+        const QString& name,
+        const GLMaterial& mat,
+        QWidget* parent = nullptr,
+        QString* err = nullptr);
+
+    // Remove a user material (by key & group) from user's materials.json with confirmation.
+    // If parent is non-null, shows a confirmation dialog.
+    static bool removeUserMaterialFromUserLocation(const QString& groupLabel,
+        const QString& key,
+        QWidget* parent = nullptr,
+        QString* err = nullptr);
+
+    // Save all current shared materials (s_groups & s_materialMap) into the per-user file
+    // or explicit filePath. If parent is provided and file exists and is different from default user path,
+    // asks confirmation to overwrite.
+    static bool saveAllUserMaterials(const QString& filePath = QString(),
+        QWidget* parent = nullptr,
+        QString* err = nullptr);
+
 
     // Accessors for read-only shared data (optional)
     static const QMap<QString, std::function<GLMaterial()>>& sharedMaterialMap() { return s_materialMap; }
