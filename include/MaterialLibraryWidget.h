@@ -14,6 +14,8 @@ public:
 
     void deleteSelectedMaterial();
 
+    void selectMaterialByKey(const QString& key);
+
     // call this once at app startup to populate the shared material map + groups
     static bool loadAllMaterials(const QString& jsonPath, QString* err = nullptr);
 

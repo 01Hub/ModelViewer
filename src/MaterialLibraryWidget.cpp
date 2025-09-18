@@ -195,6 +195,30 @@ void MaterialLibraryWidget::deleteSelectedMaterial()
 	Q_EMIT MaterialRegistry::instance().materialsChanged();
 }
 
+void MaterialLibraryWidget::selectMaterialByKey(const QString& key)
+{	
+	QList<QTreeWidgetItem*> items = findItems(QString("*"),
+		Qt::MatchWildcard | Qt::MatchRecursive);
+	for (QTreeWidgetItem* item : items)
+	{
+		if (item->childCount() == 0)
+		{ // leaf
+			QString itemKey = item->data(0, Qt::UserRole).toString();
+			if (itemKey == key)
+			{
+				setCurrentItem(item);
+				scrollToItem(item);
+				// emit same signal as if user clicked it				
+				if (!key.isEmpty() && MaterialLibraryWidget::s_materialMap.contains(key))
+					emit materialSelected(MaterialLibraryWidget::s_materialMap[key]());
+				else
+					emit materialSelected(GLMaterial::DEFAULT_MAT());
+				break;
+			}
+		}
+	}
+}
+
 
 bool MaterialLibraryWidget::loadAllMaterials(const QString& jsonPath, QString* err)
 {

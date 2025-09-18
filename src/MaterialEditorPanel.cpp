@@ -163,12 +163,18 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 		this, &MaterialEditorPanel::onMaterialSelected);
 
 	connect(albedoButton, &QPushButton::clicked, this, [=]() {
-		QColor c = QColorDialog::getColor(Qt::white, this, "Select Albedo Color");
+		QColor albedoColor(
+			int(_currentMaterial.albedoColor().x() * 255),
+			int(_currentMaterial.albedoColor().y() * 255),
+			int(_currentMaterial.albedoColor().z() * 255)
+		);
+		QColor c = QColorDialog::getColor(albedoColor, this, "Select Albedo Color");
 		if (c.isValid())
 		{
 			_currentMaterial.setAlbedoColor(QVector3D(c.redF(), c.greenF(), c.blueF()));
 			_currentMaterial.convertToBlinnPhong();
 			previewWidget->setMaterial(_currentMaterial);
+			albedoButton->setStyleSheet(makeButtonStyleSheet(c));
 			emit materialChanged(_currentMaterial);
 		}
 		});
@@ -217,11 +223,17 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 		});
 
 	connect(sheenColorButton, &QPushButton::clicked, this, [=]() {
-		QColor c = QColorDialog::getColor(Qt::white, this, "Select Sheen Color");
+		QColor sheenColor(
+			int(_currentMaterial.sheenColor().x() * 255),
+			int(_currentMaterial.sheenColor().y() * 255),
+			int(_currentMaterial.sheenColor().z() * 255)
+		);
+		QColor c = QColorDialog::getColor(sheenColor, this, "Select Sheen Color");
 		if (c.isValid())
 		{
 			_currentMaterial.setSheenColor(QVector3D(c.redF(), c.greenF(), c.blueF()));
 			previewWidget->setMaterial(_currentMaterial);
+			sheenColorButton->setStyleSheet(makeButtonStyleSheet(c));
 			emit materialChanged(_currentMaterial);
 		}
 		});
@@ -618,6 +630,13 @@ void MaterialEditorPanel::onSaveButtonClicked()
 
 	// Notify registry/widgets
 	Q_EMIT MaterialRegistry::instance().materialsChanged();
+
+	// Make the new/updated material the current selection
+	auto* lib = qobject_cast<MaterialLibraryWidget*>(treeWidget);
+	if (lib)
+	{
+		lib->selectMaterialByKey(key);
+	}
 
 	QMessageBox::information(this, tr("Material Saved"), tr("Material '%1' saved to your library as '%2'.").arg(name, key));
 }
