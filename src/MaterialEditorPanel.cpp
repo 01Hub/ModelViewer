@@ -382,10 +382,10 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 
 void MaterialEditorPanel::onSaveButtonClicked()
 {
-	// Use the current material shown in the editor
+	// current material instance from editor
 	GLMaterial mat = _currentMaterial;
 
-	// Try to derive default group/key/name from the current selection in the tree
+	// Derive defaults from current selection in the material tree (if any)
 	QString key;
 	QString name;
 	QString groupLabel;
@@ -417,14 +417,12 @@ void MaterialEditorPanel::onSaveButtonClicked()
 		}
 	}
 
-	// If we still don't have a group list, present user with choices from sharedGroups
+	// Ensure we have a group label (ask user if not)
 	if (groupLabel.isEmpty())
 	{
-		// collect group labels
 		QStringList groups;
 		const auto& sharedGroups = MaterialLibraryWidget::sharedGroups();
 		for (const auto& g : sharedGroups) groups << g.first;
-		// ensure there's at least one choice
 		if (groups.isEmpty()) groups << QStringLiteral("User Materials");
 
 		bool ok = false;
@@ -440,59 +438,190 @@ void MaterialEditorPanel::onSaveButtonClicked()
 		if (groupLabel.isEmpty()) groupLabel = QStringLiteral("User Materials");
 	}
 
-	// Ask for display name if missing
-	if (name.isEmpty())
+	// Determine whether the current key exists and whether it is user or factory
+	const auto& sharedMap = MaterialLibraryWidget::sharedMaterialMap();
+	bool keyExists = !key.isEmpty() && sharedMap.contains(key);
+	bool isUserKey = MaterialLibraryWidget::s_userMaterialKeys.contains(key);
+
+	// If a factory material is selected (exists && not a user key), we must force "Save As" into user library
+	if (keyExists && !isUserKey)
 	{
-		bool ok = false;
-		QString suggestedName = QStringLiteral("New Material");
+		// Inform user that they are creating a user copy rather than modifying factory
+		QMessageBox::information(this,
+			tr("Save As New User Material"),
+			tr("You are saving changes while a factory material is selected. "
+				"A new user material will be created instead of modifying or deleting the factory material."));
+
+		// Suggest a safe new key and name
+		QString suggestedName = name.isEmpty() ? QStringLiteral("User Material") : QStringLiteral("User %1").arg(name);
+		QString suggestedKey = suggestedName.toUpper().simplified().replace(' ', '_');
+
+		// Ensure suggested key doesn't collide; if it does append suffix numbers
+		int suffix = 1;
+		QString trialKey = suggestedKey;
+		while (sharedMap.contains(trialKey))
+		{
+			trialKey = QString("%1_%2").arg(suggestedKey).arg(suffix++);
+		}
+
+		// Ask user for display name
+		bool okName = false;
 		QString enteredName = QInputDialog::getText(this,
 			tr("Material Name"),
 			tr("Display name for material:"),
 			QLineEdit::Normal,
 			suggestedName,
-			&ok);
-		if (!ok || enteredName.trimmed().isEmpty()) return;
+			&okName);
+		if (!okName || enteredName.trimmed().isEmpty()) return;
 		name = enteredName.trimmed();
-	}
 
-	// Ask for key if missing (suggest from name)
-	if (key.isEmpty())
+		// Ask user for key and validate uniqueness
+		bool okKey = false;
+		QString enteredKey;
+		QString suggestedFinalKey = trialKey;
+		// Loop until user provides a unique key or cancels
+		for (;;)
+		{
+			enteredKey = QInputDialog::getText(this,
+				tr("Material Key"),
+				tr("Enter a unique material key (no spaces):"),
+				QLineEdit::Normal,
+				suggestedFinalKey,
+				&okKey);
+			if (!okKey) return; // cancel
+			enteredKey = enteredKey.trimmed();
+			enteredKey = enteredKey.simplified().replace(' ', '_');
+			if (enteredKey.isEmpty()) continue;
+
+			if (MaterialLibraryWidget::sharedMaterialMap().contains(enteredKey))
+			{
+				// If this key exists and is a factory key (not user), forbid reuse
+				if (!MaterialLibraryWidget::s_userMaterialKeys.contains(enteredKey))
+				{
+					QMessageBox::warning(this,
+						tr("Key Not Allowed"),
+						tr("That key already exists as a factory material. Please choose a different key."));
+					continue; // ask again
+				}
+				else
+				{
+					// This is a user key — confirm overwrite (save helper will also ask). Ask user if want to overwrite:
+					QMessageBox::StandardButton overwriteReply =
+						QMessageBox::question(this,
+							tr("Overwrite User Material?"),
+							tr("A user material with this key already exists. Overwrite it?"),
+							QMessageBox::Yes | QMessageBox::No,
+							QMessageBox::No);
+					if (overwriteReply == QMessageBox::Yes)
+					{
+						// accept this key (will overwrite)
+						key = enteredKey;
+						break;
+					}
+					else
+					{
+						// ask for another key
+						continue;
+					}
+				}
+			}
+			else
+			{
+				// key not present anywhere — accept
+				key = enteredKey;
+				break;
+			}
+		}
+	}
+	else
 	{
-		bool ok = false;
-		QString suggestedKey = name.toUpper().replace(' ', '_');
-		// ensure no accidental spaces
-		suggestedKey = suggestedKey.simplified().replace(' ', '_');
-		QString enteredKey = QInputDialog::getText(this,
-			tr("Material Key"),
-			tr("Unique material key (no spaces):"),
-			QLineEdit::Normal,
-			suggestedKey,
-			&ok);
-		if (!ok || enteredKey.trimmed().isEmpty()) return;
-		key = enteredKey.trimmed();
+		// Not saving over a factory material.
+		// If there is no key yet (new material) ask user for name & key.
+		if (key.isEmpty())
+		{
+			// ask for name if missing
+			if (name.isEmpty())
+			{
+				bool ok = false;
+				QString suggestedName = QStringLiteral("New Material");
+				QString enteredName = QInputDialog::getText(this,
+					tr("Material Name"),
+					tr("Display name for material:"),
+					QLineEdit::Normal,
+					suggestedName,
+					&ok);
+				if (!ok || enteredName.trimmed().isEmpty()) return;
+				name = enteredName.trimmed();
+			}
+
+			// ask for key
+			bool okKey = false;
+			QString suggestedKey = name.toUpper().simplified().replace(' ', '_');
+			QString enteredKey = QInputDialog::getText(this,
+				tr("Material Key"),
+				tr("Unique material key (no spaces):"),
+				QLineEdit::Normal,
+				suggestedKey,
+				&okKey);
+			if (!okKey || enteredKey.trimmed().isEmpty()) return;
+			key = enteredKey.trimmed().simplified().replace(' ', '_');
+
+			// If the key collides with a factory key, disallow (ask user to choose another)
+			if (MaterialLibraryWidget::sharedMaterialMap().contains(key) &&
+				!MaterialLibraryWidget::s_userMaterialKeys.contains(key))
+			{
+				QMessageBox::warning(this,
+					tr("Key Not Allowed"),
+					tr("That key collides with a shipped factory material. Please choose a different key."));
+				return;
+			}
+		}
+		else
+		{
+			// We have a key already (user material or user selected factory handled above).
+			// If it's a factory key (shouldn't happen here), treat as Save As (but we handled that above).
+			if (MaterialLibraryWidget::sharedMaterialMap().contains(key) &&
+				!MaterialLibraryWidget::s_userMaterialKeys.contains(key))
+			{
+				// defensive: treat as Save As flow (same as above)
+				QMessageBox::information(this, tr("Save As New User Material"),
+					tr("A factory material is selected. A new user material will be created instead."));
+				// redirect to same logic as factory-case: ask for new key/name -- for brevity, we just abort here.
+				// (Alternatively, you could loop into the Save As flow above.)
+				return;
+			}
+		}
 	}
 
-	// Final sanity: remove spaces in key
-	key = key.simplified().replace(' ', '_');
+	// Final sanity: key/name/groupLabel must be set
+	if (key.isEmpty() || name.isEmpty() || groupLabel.isEmpty())
+	{
+		QMessageBox::warning(this, tr("Save Failed"), tr("Invalid material name/key/group."));
+		return;
+	}
 
-	// Save using the helper. It will prompt for overwrite if necessary (we pass 'this' as parent).
+	// Save via helper (will prompt for overwrite if key exists and is user)
 	QString err;
-	bool ok = MaterialLibraryWidget::saveUserMaterialToUserLocation(groupLabel, key, name, mat, this, &err);
-	if (!ok)
+	bool saved = MaterialLibraryWidget::saveUserMaterialToUserLocation(groupLabel, key, name, mat, this, &err);
+	if (!saved)
 	{
-		// save helper returns false on user cancel as well; show warning if there's an actual error
-		if (!err.isEmpty() && err != QStringLiteral("User cancelled overwrite") && err != QStringLiteral("User cancelled removal"))
+		// if user cancelled overwrite, err may be "User cancelled overwrite" — only show error if real error
+		if (!err.isEmpty() && err != QStringLiteral("User cancelled overwrite"))
 		{
 			QMessageBox::warning(this, tr("Save Material Failed"), err);
 		}
 		return;
 	}
 
-	// Notify other widgets to reload (save helper already updated runtime caches).
+	// Mark key as user key (save helper should also have done this, but ensure it)
+	MaterialLibraryWidget::s_userMaterialKeys.insert(key);
+
+	// Notify registry/widgets
 	Q_EMIT MaterialRegistry::instance().materialsChanged();
 
-	QMessageBox::information(this, tr("Material Saved"), tr("Material '%1' saved to your library.").arg(name));
+	QMessageBox::information(this, tr("Material Saved"), tr("Material '%1' saved to your library as '%2'.").arg(name, key));
 }
+
 
 void MaterialEditorPanel::onDeleteButtonClicked()
 {

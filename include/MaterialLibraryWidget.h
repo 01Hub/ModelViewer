@@ -65,6 +65,9 @@ private:
     static QVector<QPair<QString, QVector<QPair<QString, QString>>>> populateMaterialMapWithBuiltIns(
         QMap<QString, std::function<GLMaterial()>>& materialMap);
 
+public:
+    // keys that came from user's file (for quick checks)
+    static QSet<QString> s_userMaterialKeys;
 private:
     // static storage
     static QMap<QString, std::function<GLMaterial()>> s_materialMap;
@@ -73,8 +76,5 @@ private:
 
     // remember jsonPath used for reloads
     static QString s_jsonPath;
-
-    // keys that came from user's file (for quick checks)
-    static QSet<QString> s_userMaterialKeys;
 
 };

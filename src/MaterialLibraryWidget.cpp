@@ -272,6 +272,7 @@ bool MaterialLibraryWidget::mergeUserMaterialsFromUserLocation(QString* err)
 	}
 
 	const QByteArray data = f.readAll();
+	f.close();
 	QJsonParseError perr;
 	QJsonDocument doc = QJsonDocument::fromJson(data, &perr);
 	if (perr.error != QJsonParseError::NoError)
@@ -416,6 +417,7 @@ bool MaterialLibraryWidget::saveUserMaterialToUserLocation(const QString& groupL
 			return false;
 		}
 		QByteArray data = in.readAll();
+		in.close();
 		QJsonParseError perr;
 		QJsonDocument doc = QJsonDocument::fromJson(data, &perr);
 		if (perr.error != QJsonParseError::NoError)
@@ -581,6 +583,7 @@ bool MaterialLibraryWidget::removeUserMaterialFromUserLocation(const QString& gr
 		return false;
 	}
 	QByteArray data = in.readAll();
+	in.close();
 	QJsonParseError perr;
 	QJsonDocument doc = QJsonDocument::fromJson(data, &perr);
 	if (perr.error != QJsonParseError::NoError || !doc.isObject())
