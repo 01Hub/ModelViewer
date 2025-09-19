@@ -3218,9 +3218,9 @@ static float readFloat(const QVariant& v, float fallback)
 
 GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 {
-	// small local readers
 	auto readVec3 = [](const QVariant& v, const QVector3D& fallback) -> QVector3D {
 		if (!v.isValid()) return fallback;
+		if (v.canConvert<QVector3D>()) return v.value<QVector3D>();
 		if (v.type() == QVariant::List)
 		{
 			const QVariantList l = v.toList();
@@ -3228,14 +3228,10 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 		}
 		else if (v.type() == QVariant::Map)
 		{
-			const QVariantMap mm = v.toMap();
+			QVariantMap mm = v.toMap();
 			return QVector3D(mm.value("x", fallback.x()).toFloat(),
 				mm.value("y", fallback.y()).toFloat(),
 				mm.value("z", fallback.z()).toFloat());
-		}
-		else if (v.canConvert<QVector3D>())
-		{
-			return v.value<QVector3D>();
 		}
 		return fallback;
 		};
@@ -3252,21 +3248,23 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 		return v.toBool();
 		};
 
-	GLMaterial mat; // default constructed material
+	GLMaterial mat; // default constructed
 
-	// ---------------- Legacy ADS fields (assign internal members directly) ----------------
+	// --- Read ADS (legacy) first if present (direct members) ---
 	if (m.contains("ambient"))          mat._ambient = readVec3(m.value("ambient"), mat._ambient);
 	if (m.contains("diffuse"))          mat._diffuse = readVec3(m.value("diffuse"), mat._diffuse);
 	if (m.contains("specular"))         mat._specular = readVec3(m.value("specular"), mat._specular);
 	if (m.contains("emissive"))         mat._emissive = readVec3(m.value("emissive"), mat._emissive);
 	if (m.contains("shininess"))        mat._shininess = readFloat(m.value("shininess"), mat._shininess);
 	if (m.contains("emissiveStrength")) mat._emissiveStrength = readFloat(m.value("emissiveStrength"), mat._emissiveStrength);
-	if (m.contains("opacity"))          mat._opacity = readFloat(m.value("opacity"), mat._opacity);
 
-	// ---------------- PBR core (assign internal members directly) ----------------
+	// --- Read PBR core (albedo/metalness/roughness/opacity) ---
 	if (m.contains("albedo"))           mat._albedoColor = readVec3(m.value("albedo"), mat._albedoColor);
+	// alternate names
+	if (m.contains("baseColor") && !m.contains("albedo"))
+		mat._albedoColor = readVec3(m.value("baseColor"), mat._albedoColor);
 
-	// metalness/metallic: prefer float "metalness", fall back to boolean "metallic"
+	// metalness can be "metalness" (float) or "metallic" (bool)
 	if (m.contains("metalness"))
 	{
 		mat._metalness = qBound(0.0f, readFloat(m.value("metalness"), mat._metalness), 1.0f);
@@ -3286,108 +3284,108 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	if (m.contains("sheenColor"))       mat._sheenColor = readVec3(m.value("sheenColor"), mat._sheenColor);
 	if (m.contains("sheenRoughness"))   mat._sheenRoughness = readFloat(m.value("sheenRoughness"), mat._sheenRoughness);
 
-	// energy-conserving factor / extra PBR attributes if present
-	if (m.contains("metallicFactor"))   mat._metalness = qBound(0.0f, readFloat(m.value("metallicFactor"), mat._metalness), 1.0f); // alternate key
+	// optional alternate keys
+	if (m.contains("metallicFactor"))
+		mat._metalness = qBound(0.0f, readFloat(m.value("metallicFactor"), mat._metalness), 1.0f);
 
-	// ---------------- Texture paths (strings) and support for combined maps ----------------
-	// (value-only materials can ignore these; we still populate so later textured materials work)
-	if (m.contains("albedoMapPath"))              mat._albedoMapPath = m.value("albedoMapPath").toString();
-	if (m.contains("normalMapPath"))              mat._normalMapPath = m.value("normalMapPath").toString();
-	if (m.contains("metallicMapPath"))            mat._metallicMapPath = m.value("metallicMapPath").toString();
-	if (m.contains("roughnessMapPath"))           mat._roughnessMapPath = m.value("roughnessMapPath").toString();
-	//if (m.contains("metallicRoughnessMapPath"))
-	//{ // combined map (GLTF style)
-	//	mat._metallicRoughnessMapPath = m.value("metallicRoughnessMapPath").toString();
-	//	// optionally mirror combined into separate slots so older code can use them:
-	//	if (mat._metallicMapPath.isEmpty()) mat._metallicMapPath = mat._metallicRoughnessMapPath;
-	//	if (mat._roughnessMapPath.isEmpty()) mat._roughnessMapPath = mat._metallicRoughnessMapPath;
-	//}
-	if (m.contains("aoMapPath"))                  mat._aoMapPath = m.value("aoMapPath").toString();
-	if (m.contains("opacityMapPath"))             mat._opacityMapPath = m.value("opacityMapPath").toString();
-	if (m.contains("heightMapPath"))              mat._heightMapPath = m.value("heightMapPath").toString();
-	if (m.contains("transmissionMapPath"))        mat._transmissionMapPath = m.value("transmissionMapPath").toString();
-	if (m.contains("iorMapPath"))                 mat._iorMapPath = m.value("iorMapPath").toString();
-	if (m.contains("sheenColorMapPath"))          mat._sheenColorMapPath = m.value("sheenColorMapPath").toString();
-	if (m.contains("sheenRoughnessMapPath"))      mat._sheenRoughnessMapPath = m.value("sheenRoughnessMapPath").toString();
-	if (m.contains("clearcoatColorMapPath"))      mat._clearcoatColorMapPath = m.value("clearcoatColorMapPath").toString();
-	if (m.contains("clearcoatRoughnessMapPath"))  mat._clearcoatRoughnessMapPath = m.value("clearcoatRoughnessMapPath").toString();
-	if (m.contains("clearcoatNormalMapPath"))     mat._clearcoatNormalMapPath = m.value("clearcoatNormalMapPath").toString();
+	// --- Paths and texture ids (value-only materials still safe) ---
+	if (m.contains("albedoMapPath"))    mat._albedoMapPath = m.value("albedoMapPath").toString();
+	if (m.contains("normalMapPath"))    mat._normalMapPath = m.value("normalMapPath").toString();
+	if (m.contains("metallicMapPath"))  mat._metallicMapPath = m.value("metallicMapPath").toString();
+	if (m.contains("roughnessMapPath")) mat._roughnessMapPath = m.value("roughnessMapPath").toString();
+	if (m.contains("aoMapPath"))        mat._aoMapPath = m.value("aoMapPath").toString();
+	if (m.contains("opacityMapPath"))   mat._opacityMapPath = m.value("opacityMapPath").toString();
+	if (m.contains("heightMapPath"))    mat._heightMapPath = m.value("heightMapPath").toString();
+	if (m.contains("transmissionMapPath")) mat._transmissionMapPath = m.value("transmissionMapPath").toString();
+	if (m.contains("iorMapPath"))       mat._iorMapPath = m.value("iorMapPath").toString();
+	if (m.contains("sheenColorMapPath")) mat._sheenColorMapPath = m.value("sheenColorMapPath").toString();
+	if (m.contains("sheenRoughnessMapPath")) mat._sheenRoughnessMapPath = m.value("sheenRoughnessMapPath").toString();
+	if (m.contains("clearcoatColorMapPath")) mat._clearcoatColorMapPath = m.value("clearcoatColorMapPath").toString();
+	if (m.contains("clearcoatRoughnessMapPath")) mat._clearcoatRoughnessMapPath = m.value("clearcoatRoughnessMapPath").toString();
+	if (m.contains("clearcoatNormalMapPath")) mat._clearcoatNormalMapPath = m.value("clearcoatNormalMapPath").toString();
 
-	// ---------------- Texture IDs (numeric slot IDs if your texture manager uses them) ----------------
-	if (m.contains("albedoTextureId"))            mat._albedoTextureId = m.value("albedoTextureId").toInt();
-	if (m.contains("normalTextureId"))            mat._normalTextureId = m.value("normalTextureId").toInt();
-	if (m.contains("metallicTextureId"))          mat._metallicTextureId = m.value("metallicTextureId").toInt();
-	if (m.contains("roughnessTextureId"))         mat._roughnessTextureId = m.value("roughnessTextureId").toInt();
-	if (m.contains("occlusionTextureId"))         mat._occlusionTextureId = m.value("occlusionTextureId").toInt();
-	if (m.contains("opacityTextureId"))           mat._opacityTextureId = m.value("opacityTextureId").toInt();
-	if (m.contains("heightTextureId"))            mat._heightTextureId = m.value("heightTextureId").toInt();
-	if (m.contains("transmissionTextureId"))      mat._transmissionTextureId = m.value("transmissionTextureId").toInt();
-	if (m.contains("iorTextureId"))               mat._iorTextureId = m.value("iorTextureId").toInt();
+	// texture ids
+	if (m.contains("albedoTextureId")) mat._albedoTextureId = m.value("albedoTextureId").toInt();
+	if (m.contains("normalTextureId")) mat._normalTextureId = m.value("normalTextureId").toInt();
+	if (m.contains("metallicTextureId")) mat._metallicTextureId = m.value("metallicTextureId").toInt();
+	if (m.contains("roughnessTextureId")) mat._roughnessTextureId = m.value("roughnessTextureId").toInt();
+	if (m.contains("occlusionTextureId")) mat._occlusionTextureId = m.value("occlusionTextureId").toInt();
+	if (m.contains("opacityTextureId")) mat._opacityTextureId = m.value("opacityTextureId").toInt();
+	if (m.contains("heightTextureId")) mat._heightTextureId = m.value("heightTextureId").toInt();
+	if (m.contains("transmissionTextureId")) mat._transmissionTextureId = m.value("transmissionTextureId").toInt();
+	if (m.contains("iorTextureId")) mat._iorTextureId = m.value("iorTextureId").toInt();
 
-	// ---------------- Texcoord indices ----------------
-	if (m.contains("albedoTexCoord"))             mat._albedoTexCoord = m.value("albedoTexCoord").toInt();
-	if (m.contains("normalTexCoord"))             mat._normalTexCoord = m.value("normalTexCoord").toInt();
-	if (m.contains("metallicRoughnessTexCoord"))  mat._metallicRoughnessTexCoord = m.value("metallicRoughnessTexCoord").toInt();
-	//if (m.contains("aoTexCoord"))                 mat._aoTexCoord = m.value("aoTexCoord").toInt();
+	// texcoord indices
+	if (m.contains("albedoTexCoord")) mat._albedoTexCoord = m.value("albedoTexCoord").toInt();
+	if (m.contains("normalTexCoord")) mat._normalTexCoord = m.value("normalTexCoord").toInt();
+	if (m.contains("metallicRoughnessTexCoord")) mat._metallicRoughnessTexCoord = m.value("metallicRoughnessTexCoord").toInt();
 
-	// ---------------- UV tiling & offset ----------------
-	if (m.contains("uvTilingU"))                  mat._uvTilingU = readFloat(m.value("uvTilingU"), mat._uvTilingU);
-	if (m.contains("uvTilingV"))                  mat._uvTilingV = readFloat(m.value("uvTilingV"), mat._uvTilingV);
-	if (m.contains("uvOffsetU"))                  mat._uvOffsetU = readFloat(m.value("uvOffsetU"), mat._uvOffsetU);
-	if (m.contains("uvOffsetV"))                  mat._uvOffsetV = readFloat(m.value("uvOffsetV"), mat._uvOffsetV);
+	// uv
+	if (m.contains("uvTiling"))
+	{
+		QVariantList l = m.value("uvTiling").toList();
+		if (l.size() >= 2) { mat._uvTilingU = l[0].toFloat(); mat._uvTilingV = l[1].toFloat(); }
+	}
+	else
+	{
+		if (m.contains("uvTilingU")) mat._uvTilingU = readFloat(m.value("uvTilingU"), mat._uvTilingU);
+		if (m.contains("uvTilingV")) mat._uvTilingV = readFloat(m.value("uvTilingV"), mat._uvTilingV);
+	}
+	if (m.contains("uvOffset"))
+	{
+		QVariantList l = m.value("uvOffset").toList();
+		if (l.size() >= 2) { mat._uvOffsetU = l[0].toFloat(); mat._uvOffsetV = l[1].toFloat(); }
+	}
+	else
+	{
+		if (m.contains("uvOffsetU")) mat._uvOffsetU = readFloat(m.value("uvOffsetU"), mat._uvOffsetU);
+		if (m.contains("uvOffsetV")) mat._uvOffsetV = readFloat(m.value("uvOffsetV"), mat._uvOffsetV);
+	}
 
-	// ---------------- Rendering flags & enums ----------------
+	// rendering flags
 	if (m.contains("shadingModel"))
 	{
-		QString sm = m.value("shadingModel").toString().toLower();
-		if (sm == "pbr")       mat._shadingModel = ShadingModel::PBR;
-		else if (sm == "unlit") mat._shadingModel = ShadingModel::Unlit;
-		else if (sm == "toon")  mat._shadingModel = ShadingModel::Toon;
-		else                    mat._shadingModel = ShadingModel::BlinnPhong;
+		QVariant v = m.value("shadingModel");
+		if (v.type() == QVariant::String)
+		{
+			QString sm = v.toString().toLower();
+			if (sm == "pbr") mat._shadingModel = ShadingModel::PBR;
+			else if (sm == "unlit") mat._shadingModel = ShadingModel::Unlit;
+			else if (sm == "toon") mat._shadingModel = ShadingModel::Toon;
+			else mat._shadingModel = ShadingModel::BlinnPhong;
+		}
+		else
+		{
+			mat._shadingModel = static_cast<ShadingModel>(v.toInt());
+		}
 	}
 
 	if (m.contains("blendMode"))
 	{
-		QString bm = m.value("blendMode").toString().toLower();
-		if (bm == "alpha")      mat._blendMode = BlendMode::Alpha;
-		else if (bm == "additive") mat._blendMode = BlendMode::Additive;
-		else if (bm == "multiply") mat._blendMode = BlendMode::Multiply;
-		else if (bm == "masked")   mat._blendMode = BlendMode::Masked;
-		else                       mat._blendMode = BlendMode::Opaque;
+		QVariant v = m.value("blendMode");
+		if (v.type() == QVariant::String)
+		{
+			QString bm = v.toString().toLower();
+			if (bm == "alpha") mat._blendMode = BlendMode::Alpha;
+			else if (bm == "additive") mat._blendMode = BlendMode::Additive;
+			else if (bm == "multiply") mat._blendMode = BlendMode::Multiply;
+			else if (bm == "masked") mat._blendMode = BlendMode::Masked;
+			else mat._blendMode = BlendMode::Opaque;
+		}
+		else
+		{
+			mat._blendMode = static_cast<BlendMode>(v.toInt());
+		}
 	}
 
-	if (m.contains("twoSided"))         mat._twoSided = readBool(m.value("twoSided"), mat._twoSided);
-	if (m.contains("wireframe"))        mat._wireframe = readBool(m.value("wireframe"), mat._wireframe);
-	if (m.contains("alphaThreshold"))   mat._alphaThreshold = readFloat(m.value("alphaThreshold"), mat._alphaThreshold);
-	if (m.contains("hasTextureAlpha"))  mat._hasTextureAlpha = readBool(m.value("hasTextureAlpha"), mat._hasTextureAlpha);
+	if (m.contains("twoSided")) mat._twoSided = readBool(m.value("twoSided"), mat._twoSided);
+	if (m.contains("wireframe")) mat._wireframe = readBool(m.value("wireframe"), mat._wireframe);
+	if (m.contains("alphaThreshold")) mat._alphaThreshold = readFloat(m.value("alphaThreshold"), mat._alphaThreshold);
+	if (m.contains("hasTextureAlpha")) mat._hasTextureAlpha = readBool(m.value("hasTextureAlpha"), mat._hasTextureAlpha);
 
-	// ---------------- Optional: hints and alternate keys ----------------
-	// support alternate keys sometimes used by other exporters
-	if (m.contains("diffuseColor") && !m.contains("diffuse"))
-	{
-		mat._diffuse = readVec3(m.value("diffuseColor"), mat._diffuse);
-	}
-	if (m.contains("baseColor") && !m.contains("albedo"))
-	{
-		mat._albedoColor = readVec3(m.value("baseColor"), mat._albedoColor);
-	}
-	/*if (m.contains("metallicRoughnessMap") && mat._metallicRoughnessMapPath.isEmpty())
-	{
-		mat._metallicRoughnessMapPath = m.value("metallicRoughnessMap").toString();
-		if (mat._metallicMapPath.isEmpty()) mat._metallicMapPath = mat._metallicRoughnessMapPath;
-		if (mat._roughnessMapPath.isEmpty()) mat._roughnessMapPath = mat._metallicRoughnessMapPath;
-	}*/
-
-	// ---------------- Finalization: clamp values and run consistency once ----------------
-	mat.clampValues();        // clamp ranges if you have such helper
-	mat.updateConsistency();  // single consistency pass (derived fields computed)
-
-	// NOTE: for value-only predefined materials we intentionally don't do texture loading here.
-	// If you later want direct texture registration, do it after updateConsistency():
-	// e.g.
-	// if (!mat._albedoMapPath.isEmpty() && mat._albedoTextureId < 0) {
-	//     mat._albedoTextureId = TextureManager::instance()->load(mat._albedoMapPath);
-	// }
+	// final clamp + consistency
+	mat.clampValues();
+	mat.updateConsistency();
 
 	return mat;
 }
@@ -3396,95 +3394,86 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 QVariantMap GLMaterial::toVariantMap() const
 {
 	QVariantMap m;
+	auto vecToList = [](const QVector3D& v) -> QVariantList { return QVariantList{ v.x(), v.y(), v.z() }; };
 
-	// helper to convert QVector3D -> QVariantList
-	auto vec3ToList = [](const QVector3D& v) -> QVariantList {
-		return QVariantList{ QVariant(v.x()), QVariant(v.y()), QVariant(v.z()) };
-		};
+	// ADS
+	m["ambient"] = vecToList(_ambient);
+	m["diffuse"] = vecToList(_diffuse);
+	m["specular"] = vecToList(_specular);
+	m["emissive"] = vecToList(_emissive);
+	m["shininess"] = _shininess;
+	m["emissiveStrength"] = _emissiveStrength;
 
-	// --- Legacy ADS ---
-	m.insert("ambient", vec3ToList(ambient()));
-	m.insert("diffuse", vec3ToList(diffuse()));
-	m.insert("specular", vec3ToList(specular()));
-	m.insert("emissive", vec3ToList(emissive()));
-	m.insert("shininess", QVariant(shininess()));
-	m.insert("emissiveStrength", QVariant(emissiveStrength()));
-	m.insert("opacity", QVariant(opacity()));
+	// PBR
+	m["albedo"] = vecToList(_albedoColor);
+	m["metalness"] = _metalness;
+	m["metallic"] = _metallic; // legacy boolean
+	m["roughness"] = _roughness;
+	m["ior"] = _ior;
+	m["transmission"] = _transmission;
+	m["clearcoat"] = _clearcoat;
+	m["clearcoatRoughness"] = _clearcoatRoughness;
+	m["sheenColor"] = vecToList(_sheenColor);
+	m["sheenRoughness"] = _sheenRoughness;
 
-	// --- PBR core ---
-	m.insert("albedo", vec3ToList(albedoColor()));
-	m.insert("metalness", QVariant(metalness()));
-	// Keep legacy boolean for compatibility
-	m.insert("metallic", QVariant(metallic())); // boolean
-	m.insert("roughness", QVariant(roughness()));
-	m.insert("ior", QVariant(ior()));
-	m.insert("transmission", QVariant(transmission()));
-	m.insert("clearcoat", QVariant(clearcoat()));
-	m.insert("clearcoatRoughness", QVariant(clearcoatRoughness()));
-	m.insert("sheenColor", vec3ToList(sheenColor()));
-	m.insert("sheenRoughness", QVariant(sheenRoughness()));
+	// maps/paths
+	m["albedoMapPath"] = _albedoMapPath;
+	m["normalMapPath"] = _normalMapPath;
+	m["metallicMapPath"] = _metallicMapPath;
+	m["roughnessMapPath"] = _roughnessMapPath;
+	m["aoMapPath"] = _aoMapPath;
+	m["opacityMapPath"] = _opacityMapPath;
+	m["heightMapPath"] = _heightMapPath;
+	m["transmissionMapPath"] = _transmissionMapPath;
+	m["iorMapPath"] = _iorMapPath;
+	m["sheenColorMapPath"] = _sheenColorMapPath;
+	m["sheenRoughnessMapPath"] = _sheenRoughnessMapPath;
+	m["clearcoatColorMapPath"] = _clearcoatColorMapPath;
+	m["clearcoatRoughnessMapPath"] = _clearcoatRoughnessMapPath;
+	m["clearcoatNormalMapPath"] = _clearcoatNormalMapPath;
 
-	// --- Texture path slots (strings) ---
-	m.insert("albedoMapPath", QVariant(albedoMapPath()));
-	m.insert("normalMapPath", QVariant(normalMapPath()));
-	m.insert("metallicMapPath", QVariant(metallicMapPath()));
-	m.insert("roughnessMapPath", QVariant(roughnessMapPath()));
-	m.insert("aoMapPath", QVariant(aoMapPath()));
-	m.insert("opacityMapPath", QVariant(opacityMapPath()));
-	m.insert("heightMapPath", QVariant(heightMapPath()));
-	m.insert("transmissionMapPath", QVariant(transmissionMapPath()));
-	m.insert("iorMapPath", QVariant(iorMapPath()));
-	m.insert("sheenColorMapPath", QVariant(sheenColorMapPath()));
-	m.insert("sheenRoughnessMapPath", QVariant(sheenRoughnessMapPath()));
-	m.insert("clearcoatColorMapPath", QVariant(clearcoatColorMapPath()));
-	m.insert("clearcoatRoughnessMapPath", QVariant(clearcoatRoughnessMapPath()));
-	m.insert("clearcoatNormalMapPath", QVariant(clearcoatNormalMapPath()));
+	// texture ids
+	m["albedoTextureId"] = _albedoTextureId;
+	m["normalTextureId"] = _normalTextureId;
+	m["metallicTextureId"] = _metallicTextureId;
+	m["roughnessTextureId"] = _roughnessTextureId;
+	m["aoTextureId"] = _occlusionTextureId;
+	m["opacityTextureId"] = _opacityTextureId;
+	m["heightTextureId"] = _heightTextureId;
+	m["transmissionTextureId"] = _transmissionTextureId;
+	m["iorTextureId"] = _iorTextureId;
 
-	// --- Texture ids (numeric) ---
-	m.insert("albedoTextureId", QVariant(albedoTextureId()));
-	m.insert("normalTextureId", QVariant(normalTextureId()));
-	m.insert("metallicTextureId", QVariant(metallicTextureId()));
-	m.insert("roughnessTextureId", QVariant(roughnessTextureId()));
-	m.insert("aoTextureId", QVariant(occlusionTextureId()));
-	m.insert("opacityTextureId", QVariant(opacityTextureId()));
-	m.insert("heightTextureId", QVariant(heightTextureId()));
-	m.insert("transmissionTextureId", QVariant(transmissionTextureId()));
+	// texcoords
+	m["albedoTexCoord"] = _albedoTexCoord;
+	m["normalTexCoord"] = _normalTexCoord;
+	m["metallicRoughnessTexCoord"] = _metallicRoughnessTexCoord;
 
-	// --- Texcoord indices ---
-	m.insert("albedoTexCoord", QVariant(albedoTexCoord()));
-	m.insert("normalTexCoord", QVariant(normalTexCoord()));
-	m.insert("metallicRoughnessTexCoord", QVariant(metallicRoughnessTexCoord()));
-	//m.insert("aoTexCoord", QVariant(aoTexCoord()));
+	// uv
+	m["uvTiling"] = QVariantList{ _uvTilingU, _uvTilingV };
+	m["uvOffset"] = QVariantList{ _uvOffsetU, _uvOffsetV };
 
-	// --- UV transform ---
-	m.insert("uvTilingU", QVariant(uvTilingU()));
-	m.insert("uvTilingV", QVariant(uvTilingV()));
-	m.insert("uvOffsetU", QVariant(uvOffsetU()));
-	m.insert("uvOffsetV", QVariant(uvOffsetV()));
-
-	// --- Rendering flags / shading model / blend ---
-	// shadingModel -> string (we emit lowercase to match fromVariantMap checks)
-	QString sm;
-	switch (shadingModel())
+	// rendering
+	switch (_shadingModel)
 	{
-	case ShadingModel::PBR: sm = "pbr"; break;
-	case ShadingModel::Unlit: sm = "unlit"; break;
-	default: sm = "blinnphong"; break;
+	case ShadingModel::PBR: m["shadingModel"] = QString("pbr"); break;
+	case ShadingModel::Unlit: m["shadingModel"] = QString("unlit"); break;
+	case ShadingModel::Toon: m["shadingModel"] = QString("toon"); break;
+	default: m["shadingModel"] = QString("blinnphong"); break;
 	}
-	m.insert("shadingModel", QVariant(sm));
-
-	// blendMode -> string
-	QString bm;
-	switch (blendMode())
+	// blend mode as string
+	switch (_blendMode)
 	{
-	case BlendMode::Alpha: bm = "Alpha"; break;
-	case BlendMode::Additive: bm = "Add"; break;
-	default: bm = "Opaque"; break;
+	case BlendMode::Alpha: m["blendMode"] = QString("alpha"); break;
+	case BlendMode::Additive: m["blendMode"] = QString("additive"); break;
+	case BlendMode::Multiply: m["blendMode"] = QString("multiply"); break;
+	case BlendMode::Masked: m["blendMode"] = QString("masked"); break;
+	default: m["blendMode"] = QString("opaque"); break;
 	}
-	m.insert("blendMode", QVariant(bm));
 
-	m.insert("twoSided", QVariant(twoSided()));
-	m.insert("alphaThreshold", QVariant(alphaThreshold()));
+	m["twoSided"] = _twoSided;
+	m["wireframe"] = _wireframe;
+	m["alphaThreshold"] = _alphaThreshold;
+	m["hasTextureAlpha"] = _hasTextureAlpha;
 
 	return m;
 }
@@ -3581,49 +3570,123 @@ void GLMaterial::setPackingFor(const QString& key, const ChannelPacking& p)
 	// Unknown key: ignore (or assert)
 }
 
+// GLMaterial.cpp
 #include <QDataStream>
-#include <QVector3D>
+#include <QDebug>
+
+static const qint32 GLMATERIAL_SESSION_VERSION = 1;
 
 void GLMaterial::serialize(QDataStream& out) const
 {
-	// Write Phong/ADS properties
-	out << ambient();
-	out << diffuse();
-	out << specular();
-	out << emissive();
-	out << shininess();
-	out << opacity();
+    out << GLMATERIAL_SESSION_VERSION;
 
-	// Write PBR properties
-	out << albedoColor();
-	out << metalness();
-	out << roughness();
+    // --- ADS ---
+    out << _ambient << _diffuse << _specular << _emissive;
+    out << _shininess << _opacity << _emissiveStrength;
 
-	// Write metallic flag (if you use it)
-	out << _metallic;
+    // --- PBR core ---
+    out << _albedoColor << _metalness << _metallic << _roughness;
+    out << _ior << _transmission;
+
+    // --- Advanced PBR ---
+    out << _clearcoat << _clearcoatRoughness;
+    out << _sheenColor << _sheenRoughness;
+
+    // --- Rendering flags / enums ---
+    out << static_cast<qint32>(_shadingModel);
+    out << static_cast<qint32>(_blendMode);
+    out << _twoSided << _wireframe << _alphaThreshold << _hasTextureAlpha;
+	    
+    // --- Texture paths ---
+    out << _albedoMapPath << _normalMapPath << _emissiveMapPath;
+    out << _metallicMapPath << _roughnessMapPath << _aoMapPath;
+    out << _opacityMapPath << _heightMapPath << _transmissionMapPath << _iorMapPath;
+    out << _sheenColorMapPath << _sheenRoughnessMapPath;
+    out << _clearcoatColorMapPath << _clearcoatRoughnessMapPath << _clearcoatNormalMapPath;
+	    
+    // --- UV tiling / offset ---
+    out << _uvTilingU << _uvTilingV << _uvOffsetU << _uvOffsetV;
+
+    // --- Channel packing ---
+    out << _metallicPacking.channel << _metallicPacking.invert << _metallicPacking.scale << _metallicPacking.bias;
+    out << _roughnessPacking.channel << _roughnessPacking.invert << _roughnessPacking.scale << _roughnessPacking.bias;
+    out << _aoPacking.channel << _aoPacking.invert << _aoPacking.scale << _aoPacking.bias;
+    out << _opacityPacking.channel << _opacityPacking.invert << _opacityPacking.scale << _opacityPacking.bias;
+
+    // --- Misc ---
+    out << _invertOpacityTexture;
+
+    // --- Albedo tint ---
+    out << static_cast<qint32>(albedoTint.mode);
+    out << albedoTint.strength << albedoTint.grayEps;
+    out << albedoTint.useVertexColor;
+    out << static_cast<qint32>(albedoTint.maskChannel);
 }
 
 void GLMaterial::deserialize(QDataStream& in)
 {
-	QVector3D amb, diff, spec, emis, albedo;
-	float shin, opac, metal, rough;
-	bool metallicFlag;
+    qint32 version = 0;
+    in >> version;
+    if (in.status() != QDataStream::Ok) {
+        qWarning() << "GLMaterial::deserialize: failed to read version";
+        return;
+    }
+    if (version != GLMATERIAL_SESSION_VERSION) {
+        qWarning() << "GLMaterial::deserialize: version mismatch, got" << version;
+        return;
+    }
 
-	in >> amb >> diff >> spec >> emis >> shin >> opac;
-	in >> albedo >> metal >> rough;
-	in >> metallicFlag;
+    // --- ADS ---
+    in >> _ambient >> _diffuse >> _specular >> _emissive;
+    in >> _shininess >> _opacity >> _emissiveStrength;
 
-	setAmbient(amb);
-	setDiffuse(diff);
-	setSpecular(spec);
-	setEmissive(emis);
-	setShininess(shin);
-	setOpacity(opac);
+    // --- PBR core ---
+    in >> _albedoColor >> _metalness >> _metallic >> _roughness;
+    in >> _ior >> _transmission;
 
-	setAlbedoColor(albedo);
-	setMetalness(metal);
-	setRoughness(rough);
+    // --- Advanced PBR ---
+    in >> _clearcoat >> _clearcoatRoughness;
+    in >> _sheenColor >> _sheenRoughness;
 
-	setMetallic(metallicFlag);
+    // --- Rendering flags / enums ---
+    qint32 sm=0, bm=0;
+    in >> sm >> bm;
+    _shadingModel = static_cast<ShadingModel>(sm);
+    _blendMode = static_cast<BlendMode>(bm);
+    in >> _twoSided >> _wireframe >> _alphaThreshold >> _hasTextureAlpha;
+	    
+    // --- Texture paths ---
+    in >> _albedoMapPath >> _normalMapPath >> _emissiveMapPath;
+    in >> _metallicMapPath >> _roughnessMapPath >> _aoMapPath;
+    in >> _opacityMapPath >> _heightMapPath >> _transmissionMapPath >> _iorMapPath;
+    in >> _sheenColorMapPath >> _sheenRoughnessMapPath;
+    in >> _clearcoatColorMapPath >> _clearcoatRoughnessMapPath >> _clearcoatNormalMapPath;
+
+    // --- UV tiling / offset ---
+    in >> _uvTilingU >> _uvTilingV >> _uvOffsetU >> _uvOffsetV;
+
+    // --- Channel packing ---
+    in >> _metallicPacking.channel >> _metallicPacking.invert >> _metallicPacking.scale >> _metallicPacking.bias;
+    in >> _roughnessPacking.channel >> _roughnessPacking.invert >> _roughnessPacking.scale >> _roughnessPacking.bias;
+    in >> _aoPacking.channel >> _aoPacking.invert >> _aoPacking.scale >> _aoPacking.bias;
+    in >> _opacityPacking.channel >> _opacityPacking.invert >> _opacityPacking.scale >> _opacityPacking.bias;
+
+    // --- Misc ---
+    in >> _invertOpacityTexture;
+
+    // --- Albedo tint ---
+    qint32 tintMode, maskCh;
+    in >> tintMode >> albedoTint.strength >> albedoTint.grayEps >> albedoTint.useVertexColor >> maskCh;
+    albedoTint.mode = static_cast<TintMode>(tintMode);
+    albedoTint.maskChannel = maskCh;
+
+    if (in.status() != QDataStream::Ok) {
+        qWarning() << "GLMaterial::deserialize: QDataStream status =" << int(in.status());
+    }
+
+    clampValues();
+    updateConsistency();
 }
+
+
 
