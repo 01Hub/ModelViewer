@@ -108,6 +108,10 @@ private:
 	void setRenderStateOptimized();
 	void setupUniformsOptimized();
 
+	// sync texture path entries into _textures from the material's stored map (if _textures empty)
+	void syncTexturesFromMaterialIfNeeded();
+	GLuint createGLTextureFromFile(const QString& path, bool& outHasAlpha);
+
 private:
 	/*  Mesh Data  */
 	std::vector<Vertex> _vertices;

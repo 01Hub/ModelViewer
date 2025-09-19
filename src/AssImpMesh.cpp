@@ -424,6 +424,108 @@ void AssImpMesh::setupUniformsOptimized()
 	_uniformsDirty = false;
 }
 
+#include <QVariantMap>
+#include <QFileInfo>
+#include <QImage>
+
+// Convert a QString to aiString helper
+static aiString qstrToAiString(const QString& s)
+{
+	// aiString stores a copy internally
+	return aiString(s.toUtf8().constData());
+}
+
+void AssImpMesh::syncTexturesFromMaterialIfNeeded()
+{
+	// If mesh already has explicit paths for textures, do nothing
+	bool hasAnyPath = false;
+	for (const Texture& t : _textures)
+	{
+		if (!QString::fromUtf8(t.path.C_Str()).isEmpty()) { hasAnyPath = true; break; }
+	}
+	if (hasAnyPath) return;
+
+	// Use material->toVariantMap() so we don't need private-member access.
+	QVariantMap vm = _material.toVariantMap();
+
+	// Helper lambda to add a texture entry if path exists and file seems plausible.
+	auto pushIfPresent = [&](const QString& matKey, const std::string& outType) {
+		QVariant v = vm.value(matKey);
+		if (!v.isValid()) return;
+		QString path = v.toString().trimmed();
+		if (path.isEmpty()) return;
+
+		// make path absolute attempt is caller's responsibility; we just store what material had.
+		Texture t;
+		t.id = 0;
+		t.type = outType;
+		t.path = qstrToAiString(path);
+		// Optionally detect alpha channel (light-weight check)
+		bool hasAlpha = false;
+		GLuint id = createGLTextureFromFile(path, hasAlpha);
+		t.id = id;
+		t.hasAlpha = hasAlpha;
+
+		_textures.push_back(t);
+		qDebug() << "syncTexturesFromMaterialIfNeeded: added texture type=" << QString::fromStdString(t.type)
+			<< " path=" << QString::fromUtf8(t.path.C_Str()) << " hasAlpha=" << hasAlpha;
+		};
+
+	// Map GLMaterial variant keys -> mesh texture type strings used throughout AssImpMesh
+	// (these type strings match the checks in setupMesh()/cacheTextureBindings)
+	pushIfPresent("albedoMapPath", "albedoMap");        // PBR albedo
+	pushIfPresent("normalMapPath", "normalMap");        // normal
+	pushIfPresent("metallicMapPath", "metallicMap");      // metallic
+	pushIfPresent("roughnessMapPath", "roughnessMap");     // roughness
+	pushIfPresent("aoMapPath", "aoMap");            // ao / lightmap
+	pushIfPresent("emissiveMapPath", "emissiveMap");      // emissive
+	pushIfPresent("opacityMapPath", "opacityMap");       // opacity/alpha
+	pushIfPresent("heightMapPath", "heightMap");        // height
+	pushIfPresent("transmissionMapPath", "transmissionMap");  // transmission
+	pushIfPresent("iorMapPath", "iorMap");
+	pushIfPresent("sheenColorMapPath", "sheenColorMap");
+	pushIfPresent("sheenRoughnessMapPath", "sheenRoughnessMap");
+	pushIfPresent("clearcoatColorMapPath", "clearcoatMap");
+	pushIfPresent("clearcoatRoughnessMapPath", "clearcoatRoughnessMap");
+	pushIfPresent("clearcoatNormalMapPath", "clearcoatNormalMap");
+
+	// Also add common legacy ADS keys (in case materials were saved using legacy names)
+	pushIfPresent("albedoMap", "albedoMap");
+	pushIfPresent("diffuse", "texture_diffuse");
+	pushIfPresent("specular", "texture_specular");
+	pushIfPresent("emissive", "texture_emissive");
+	pushIfPresent("normal", "texture_normal");
+	pushIfPresent("opacity", "texture_opacity");
+
+	// If we added anything, rebuild mesh flags and buffers
+	if (!_textures.empty())
+	{
+		// Recompute _hasXXX flags and buffers
+		setupMesh();
+
+		// Ensure the next render refresh uses new textures/uniforms
+		markTexturesDirty();
+		markUniformsDirty();
+	}
+}
+
+GLuint AssImpMesh::createGLTextureFromFile(const QString& path, bool& outHasAlpha)
+{
+	QImage img;
+	if (!img.load(path)) return 0;
+	outHasAlpha = img.hasAlphaChannel();
+	QImage glimg = img.convertToFormat(QImage::Format_ARGB32); // ensure 32-bit
+	GLuint tex = 0;
+	glGenTextures(1, &tex);
+	glBindTexture(GL_TEXTURE_2D, tex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, glimg.width(), glimg.height(), 0, GL_BGRA, GL_UNSIGNED_BYTE, glimg.bits());
+	glGenerateMipmap(GL_TEXTURE_2D);
+	// set default params
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	return tex;
+}
 
 vector<Vertex> AssImpMesh::vertices() const
 {
@@ -550,6 +652,9 @@ void AssImpMesh::deserialize(QDataStream& in)
 
 	// Read material
 	_material.deserialize(in);
+
+	// Sync mesh textures from material if mesh had none
+	syncTexturesFromMaterialIfNeeded();
 
 	// Read the transformation matrix
 	in >> _transformation;
