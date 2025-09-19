@@ -464,13 +464,17 @@ void AssImpMesh::serialize(QDataStream& out) const
 		out << static_cast<quint32>(idx);
 	}
 
-	// Write textures
+	// Write textures (paths and types as QString)
 	out << static_cast<quint32>(_textures.size());
-	for (const Texture& t : _textures) {
-		out << t.type.c_str();
-		out << t.path.C_Str();
-		// Note: t.id is an OpenGL handle, not portable, so don't serialize it
+	for (const Texture& t : _textures)
+	{
+		// convert std::string (Assimp) to QString explicitly using UTF-8
+		QString qtype = QString::fromUtf8(t.type.c_str());
+		QString qpath = QString::fromUtf8(t.path.C_Str());
+		out << qtype;
+		out << qpath;		
 	}
+
 
 	// Write material (assuming GLMaterial is serializable, otherwise write its fields)
 	_material.serialize(out);
@@ -516,15 +520,33 @@ void AssImpMesh::deserialize(QDataStream& in)
 	in >> tCount;
 	_textures.clear();
 	_textures.reserve(tCount);
-	for (quint32 i = 0; i < tCount; ++i) {
+	for (quint32 i = 0; i < tCount; ++i)
+	{
+		QString typeQ, pathQ;
+		in >> typeQ >> pathQ;
+		if (in.status() != QDataStream::Ok)
+		{
+			qWarning() << "AssImpMesh::deserialize: failed reading texture entry" << i << "pos" << (in.device() ? in.device()->pos() : -1);
+			return;
+		}
 		Texture t;
-		QString type, path;
-		in >> type >> path;
-		t.type = type.toStdString();
-		t.path = path.toStdString();
-		t.id = 0; // Will be reloaded as needed
+		t.type = typeQ.toStdString();
+		t.path = pathQ.toStdString();
+		t.id = 0; // must be reloaded via TextureManager later
 		_textures.push_back(t);
+
+		// Optional debug:
+		qDebug() << "Loaded texture[" << i << "]: type=" << typeQ << " path=" << pathQ;
 	}
+
+	qDebug() << "After reading textures, stream pos =" << in.device()->pos() << "status=" << int(in.status());
+
+
+	// right before calling _material.deserialize(in)
+	QByteArray head = in.device()->read(16);
+	qDebug() << "Bytes before material (hex):" << head.toHex();
+	in.device()->seek(in.device()->pos() - head.size()); // restore
+
 
 	// Read material
 	_material.deserialize(in);
