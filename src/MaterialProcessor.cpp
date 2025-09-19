@@ -624,9 +624,12 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
     // Not loaded at all: load from file
     Texture texture;
 	bool hasAlpha = false;
-    texture.id = textureFromFile(str.C_Str(), this->_folderPath, hasAlpha);
+    std::string filename = string(str.C_Str());
+    std::string directory = this->_folderPath;
+    filename = directory + '/' + filename;
+    texture.id = textureFromFile(str.C_Str(), directory, hasAlpha);
     texture.type = typeName;
-    texture.path = str;
+    texture.path = aiString(filename);
 	texture.hasAlpha = hasAlpha; // Store alpha info for later use
     textures.push_back(texture);
     _loadedTextures.push_back(texture);
