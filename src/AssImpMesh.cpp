@@ -687,21 +687,9 @@ void AssImpMesh::deserialize(QDataStream& in)
 		t.type = typeQ.toStdString();
 		t.path = pathQ.toStdString();
 		t.id = 0; // must be reloaded via TextureManager later
-		_textures.push_back(t);
-
-		// Optional debug:
-		qDebug() << "Loaded texture[" << i << "]: type=" << typeQ << " path=" << pathQ;
+		_textures.push_back(t);				
 	}
-
-	qDebug() << "After reading textures, stream pos =" << in.device()->pos() << "status=" << int(in.status());
-
-
-	// right before calling _material.deserialize(in)
-	QByteArray head = in.device()->read(16);
-	qDebug() << "Bytes before material (hex):" << head.toHex();
-	in.device()->seek(in.device()->pos() - head.size()); // restore
-
-
+	
 	// Read material
 	_material.deserialize(in);
 
@@ -805,8 +793,7 @@ void AssImpMesh::deserialize(QDataStream& in)
 			{
 				t.id = static_cast<unsigned int>(newId);
 				t.hasAlpha = hasAlpha;
-				qDebug() << "AssImpMesh::deserialize: created GL texture for path" << path << "id" << newId;
-
+				
 				// register/replace in the mesh's internal bindings list
 				replaceOrAppendTexture(t.type, newId, hasAlpha);
 

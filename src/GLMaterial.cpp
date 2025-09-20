@@ -3635,13 +3635,7 @@ void GLMaterial::serialize(QDataStream& out) const
     out << _opacityMapPath << _heightMapPath << _transmissionMapPath << _iorMapPath;
     out << _sheenColorMapPath << _sheenRoughnessMapPath;
     out << _clearcoatColorMapPath << _clearcoatRoughnessMapPath << _clearcoatNormalMapPath;
-
-	qDebug() << _albedoMapPath << "\n" << _normalMapPath << "\n" << _emissiveMapPath;
-	qDebug() << "\n" << _metallicMapPath << "\n" << _roughnessMapPath << "\n" << _aoMapPath;
-	qDebug() << "\n" << _opacityMapPath << "\n" << _heightMapPath << "\n" << _transmissionMapPath << "\n" << _iorMapPath;
-	qDebug() << "\n" << _sheenColorMapPath << "\n" << _sheenRoughnessMapPath;
-	qDebug() << "\n" << _clearcoatColorMapPath << "\n" << _clearcoatRoughnessMapPath << "\n" << _clearcoatNormalMapPath;
-	    
+    
     // --- UV tiling / offset ---
     out << _uvTilingU << _uvTilingV << _uvOffsetU << _uvOffsetV;
 
@@ -3699,12 +3693,6 @@ void GLMaterial::deserialize(QDataStream& in)
     in >> _opacityMapPath >> _heightMapPath >> _transmissionMapPath >> _iorMapPath;
     in >> _sheenColorMapPath >> _sheenRoughnessMapPath;
     in >> _clearcoatColorMapPath >> _clearcoatRoughnessMapPath >> _clearcoatNormalMapPath;
-
-	qDebug() << _albedoMapPath << "\n" << _normalMapPath << "\n" << _emissiveMapPath;
-	qDebug() << "\n" << _metallicMapPath << "\n" << _roughnessMapPath << "\n" << _aoMapPath;
-	qDebug() << "\n" << _opacityMapPath << "\n" << _heightMapPath << "\n" << _transmissionMapPath << "\n" << _iorMapPath;
-	qDebug() << "\n" << _sheenColorMapPath << "\n" << _sheenRoughnessMapPath;
-	qDebug() << "\n" << _clearcoatColorMapPath << "\n" << _clearcoatRoughnessMapPath << "\n" << _clearcoatNormalMapPath;
 
     // --- UV tiling / offset ---
     in >> _uvTilingU >> _uvTilingV >> _uvOffsetU >> _uvOffsetV;
