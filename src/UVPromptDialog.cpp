@@ -18,7 +18,7 @@ UVPromptDialog::UVPromptDialog(QWidget* parent)
 
     QLabel* iconLabel = new QLabel(this);
     QIcon infoIcon = style()->standardIcon(QStyle::SP_MessageBoxInformation);
-    iconLabel->setPixmap(infoIcon.pixmap(48, 48));  // You can change size as needed
+    iconLabel->setPixmap(infoIcon.pixmap(48, 48));
     iconLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
 
     layout->addWidget(iconLabel);

@@ -718,7 +718,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		// --- packed-channel aware PBR sampling ---
 		// Note: pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
 		// is assumed to return a value in [0,1] for valid channel indices 0..3.
-		// If you prefer a different fallback for ch < 0, modify accordingly.
+		// For a different fallback for ch < 0, modify accordingly.
 		// Metallic
 		float sampledMetal = 0.0;
 		if (hasMetallicMap) {
@@ -942,7 +942,7 @@ vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior
 	float backScatter = max(0.0, -NdotL) * 0.8; // Light from behind
 	float forwardScatter = max(0.0, NdotL) * 0.5; // Light from front (subsurface)
 
-	// Add thickness approximation (you can make this a uniform)
+	// Add thickness approximation (can make this a uniform)
 	float thickness = 0.1; // Adjust based on model
 	float attenuationFactor = exp(-thickness * (1.0 - transmission));
 

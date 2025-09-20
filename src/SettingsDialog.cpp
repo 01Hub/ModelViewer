@@ -74,7 +74,7 @@ void SettingsDialog::retranslateUI()
     // Anisotropy ComboBox
     //setMaxAnisotropy(/* pass current maxAnisotropy value here */);
 
-    // If you have other dynamically set texts, add them here.
+    // If there are other dynamically set texts, add them here.
 }
 
 void SettingsDialog::setMaxMSAASamples(int maxSamples)

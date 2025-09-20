@@ -740,7 +740,7 @@ inline QString GLMaterial::albedoMapPath() const { return _albedoMapPath; }
 inline void GLMaterial::setAlbedoMap(const QString& path) { _albedoMapPath = path; /* optional: _albedoTextureId = -1; */ }
 inline void GLMaterial::clearAlbedoMap() { _albedoMapPath.clear(); /* optional: _albedoTextureId = -1; */ }
 
-// Metallic (separate logical slot; you also have a packed MetallicRoughness texture id)
+// Metallic (separate logical slot; we also have a packed MetallicRoughness texture id)
 inline QString GLMaterial::metallicMapPath() const { return _metallicMapPath; }
 inline void GLMaterial::setMetallicMap(const QString& path) 
 {

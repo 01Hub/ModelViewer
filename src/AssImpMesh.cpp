@@ -408,7 +408,7 @@ void AssImpMesh::bindTexturesOptimized()
 
 void AssImpMesh::setRenderStateOptimized()
 {
-	// Front face correction (as you had)
+	// Front face correction
 	GLenum frontFace = GL_CCW;
 	const int neg = (_scaleX < 0) + (_scaleY < 0) + (_scaleZ < 0);
 	if (neg == 1 || neg == 3) frontFace = GL_CW;
@@ -571,7 +571,7 @@ GLuint AssImpMesh::createGLTextureFromFile(const QString& fullPath, bool& outHas
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	// Optional: set wrap modes if you want (repeat/clamp)
+	// Optional: set wrap modes if needed (repeat/clamp)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 
@@ -787,7 +787,7 @@ void AssImpMesh::deserialize(QDataStream& in)
 			_material.setClearcoatNormalTextureId(tex.id);
 			_material.setClearcoatNormalMap(qpath);
 		}
-		// add other mappings if your GLMaterial provides the setters
+		// add other mappings if GLMaterial provides the setters
 		};
 
 	// Iterate existing _textures vector:

@@ -599,7 +599,7 @@ void MaterialEditorPanel::onSaveButtonClicked()
 				QMessageBox::information(this, tr("Save As New User Material"),
 					tr("A factory material is selected. A new user material will be created instead."));
 				// redirect to same logic as factory-case: ask for new key/name -- for brevity, we just abort here.
-				// (Alternatively, you could loop into the Save As flow above.)
+				// (Alternatively, loop into the Save As flow above.)
 				return;
 			}
 		}

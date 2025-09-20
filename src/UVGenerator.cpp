@@ -494,7 +494,7 @@ bool UVGenerator::generatePlanar(aiMesh* mesh,
     for (auto& vertex : vertices)
     {
         glm::vec3 pos = vertex.Position;
-        glm::vec3 normal = vertex.Normal; // Assuming you have vertex normals
+        glm::vec3 normal = vertex.Normal;
 
         // Find the dominant axis of the normal
         glm::vec3 absNormal = glm::abs(normal);

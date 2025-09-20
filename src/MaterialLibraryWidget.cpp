@@ -672,7 +672,7 @@ bool MaterialLibraryWidget::removeUserMaterialFromUserLocation(const QString& gr
 			if (v[i].second == key) { pos = i; break; }
 		}
 		if (pos >= 0) v.removeAt(pos);
-		// If the group becomes empty, you may optionally remove the group; we keep empty group to mirror file.
+		// If the group becomes empty, optionally remove the group; we keep empty group to mirror file.
 	}
 
 	Q_EMIT MaterialRegistry::instance().materialsChanged();

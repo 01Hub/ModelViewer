@@ -496,7 +496,7 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
 
 	QMatrix4x4 envMapRot;
-	envMapRot.rotate(-90, 1, 0, 0); // Or whatever rotation you used for the cube
+	envMapRot.rotate(-90, 1, 0, 0);
 	_fgShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
 
 	_debugShader->bind();
@@ -4599,7 +4599,7 @@ unsigned int GLWidget::getOrLoadTextureCached(const QString& path)
 		return it->second;
 	}
 	makeCurrent(); // ensure this context
-	unsigned int tex = loadTextureFromFile(path.toStdString().c_str()); // you already have this
+	unsigned int tex = loadTextureFromFile(path.toStdString().c_str());
 	_texCache.emplace(path, tex);
 	_texRefCount[tex] = 1;
 	return tex;
@@ -6314,8 +6314,7 @@ void GLWidget::deserializeScene(QDataStream& in)
 	in >> meshCount;
 
 	for (quint32 i = 0; i < meshCount; ++i)
-	{
-		// You may need to use a factory or a default shader program here
+	{		
 		AssImpMesh* mesh = new AssImpMesh(
 			_fgShader.get(),                // Use the main shader
 			QString(),                // Empty name (will be set in deserialize)

@@ -857,7 +857,7 @@ glm::mat4 AssImpModelLoader::getCoordinateSystemFromFileType(const std::string& 
 	else
 	{
 		// Unknown format: assume no conversion needed
-		// You might want to log this for debugging
+		// Log this for debugging
 #ifdef DEBUG
 		printf("Unknown file format %s, assuming Z-up\n", fileExtension.c_str());
 #endif

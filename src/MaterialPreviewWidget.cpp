@@ -438,9 +438,9 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("uUseAlbedoMap", hasAlbedo);
 	_shader->setUniformValue("uUseMetalnessMap", hasMetalness);
 	_shader->setUniformValue("uUseRoughnessMap", hasRoughness);
-	_shader->setUniformValue("uUseNormalMap", hasNormal);      // keep OFF unless you add tangents
+	_shader->setUniformValue("uUseNormalMap", hasNormal);      
 	_shader->setUniformValue("uUseAOMap", hasAO);
-	_shader->setUniformValue("uUseHeightMap", hasHeight);      // keep OFF unless you add tangents
+	_shader->setUniformValue("uUseHeightMap", hasHeight);      
 	_shader->setUniformValue("uUseOpacityMap", hasOpacity);
 	_shader->setUniformValue("uOpacityInverted", opacityInverted);
 	_shader->setUniformValue("uUseEmissiveMap", hasEmissive);
@@ -452,7 +452,7 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("uUseIORMap", hasIOR);
 	_shader->setUniformValue("uUseTransmissionMap", hasTransmission);
 
-	// Optional: intensities/tiling (pull from your material if you expose them)
+	// Optional: intensities/tiling
 	_shader->setUniformValue("uUVScale", QVector2D(1.0f, 1.0f));
 	_shader->setUniformValue("uNormalIntensity", 1.0f);
 	_shader->setUniformValue("uAOIntensity", 1.0f);

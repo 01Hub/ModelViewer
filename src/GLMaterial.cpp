@@ -9,7 +9,7 @@ GLMaterial::GLMaterial()
 	_metallicPacking = { 2, false, 1.0f, 0.0f }; // B
 	_roughnessPacking = { 1, false, 1.0f, 0.0f }; // G
 	_aoPacking = { 0, false, 1.0f, 0.0f }; // R
-	_opacityPacking = { 3, false, 1.0f, 0.0f }; // A (common), tweak if your assets prefer R
+	_opacityPacking = { 3, false, 1.0f, 0.0f }; // A (common), tweak if assets prefer R
 }
 
 GLMaterial::GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic, float opacity)
@@ -53,7 +53,7 @@ GLMaterial::GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular,
 	_metallicPacking = { 2, false, 1.0f, 0.0f }; // B
 	_roughnessPacking = { 1, false, 1.0f, 0.0f }; // G
 	_aoPacking = { 0, false, 1.0f, 0.0f }; // R
-	_opacityPacking = { 3, false, 1.0f, 0.0f }; // A (common), tweak if your assets prefer R
+	_opacityPacking = { 3, false, 1.0f, 0.0f }; // A (common), tweak if assets prefer R
 
 	// Ensure all values are within valid ranges
 	clampValues();
@@ -96,7 +96,7 @@ GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float
 	_metallicPacking = { 2, false, 1.0f, 0.0f }; // B
 	_roughnessPacking = { 1, false, 1.0f, 0.0f }; // G
 	_aoPacking = { 0, false, 1.0f, 0.0f }; // R
-	_opacityPacking = { 3, false, 1.0f, 0.0f }; // A (common), tweak if your assets prefer R
+	_opacityPacking = { 3, false, 1.0f, 0.0f }; // A (common), tweak if assets prefer R
 
 	clampValues();
 	// Fix shininess (0 to 128 for OpenGL)
@@ -1236,13 +1236,13 @@ GLMaterial GLMaterial::PLASTIC()
 
 GLMaterial GLMaterial::STONE()
 {
-	GLMaterial mat({ 0.1f, 0.1f, 0.1f },            // ambient
-		{ 0.5f, 0.5f, 0.5f },             // diffuse
-		{ 0.05f, 0.05f, 0.05f },          // specular - very low
-		{ 0.0f, 0.0f, 0.0f },             // emissive
-		fabs(128.0f * 0.063f),            // shininess - very dull
-		false,                            // metallic
-		1.0f);                           // opacity
+	GLMaterial mat({ 0.1f, 0.1f, 0.1f },    // ambient
+		{ 0.5f, 0.5f, 0.5f },				// diffuse
+		{ 0.05f, 0.05f, 0.05f },			// specular - very low
+		{ 0.0f, 0.0f, 0.0f },				// emissive
+		fabs(128.0f * 0.063f),				// shininess - very dull
+		false,								// metallic
+		1.0f);								// opacity
 
 	mat.setAlbedoColor(QVector3D(0.5f, 0.5f, 0.5f));
 	mat.setMetalness(0.0f);
@@ -1253,19 +1253,16 @@ GLMaterial GLMaterial::STONE()
 	return mat;
 }
 
-// Advanced PBR Materials - Add these to your GLMaterial.cpp file
-
 // === CLEARCOAT MATERIALS ===
-
 GLMaterial GLMaterial::CAR_PAINT_RED()
 {
-	GLMaterial mat({ 0.1f, 0.02f, 0.02f },          // ambient
-		{ 0.8f, 0.1f, 0.1f },             // diffuse - bright red base
-		{ 0.9f, 0.9f, 0.9f },             // specular - high for clearcoat
-		{ 0.0f, 0.0f, 0.0f },             // emissive
-		fabs(128.0f * 0.9f),              // shininess - very high
-		false,                            // metallic
-		1.0f);                           // opacity
+	GLMaterial mat({ 0.1f, 0.02f, 0.02f },	// ambient
+		{ 0.8f, 0.1f, 0.1f },				// diffuse - bright red base
+		{ 0.9f, 0.9f, 0.9f },				// specular - high for clearcoat
+		{ 0.0f, 0.0f, 0.0f },				// emissive
+		fabs(128.0f * 0.9f),				// shininess - very high
+		false,								// metallic
+		1.0f);								// opacity
 
 	// PBR properties with clearcoat
 	mat.setAlbedoColor(QVector3D(0.8f, 0.1f, 0.1f));
@@ -3313,7 +3310,7 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	if (m.contains("clearcoatRoughnessMapPath"))  mat._clearcoatRoughnessMapPath = m.value("clearcoatRoughnessMapPath").toString();
 	if (m.contains("clearcoatNormalMapPath"))     mat._clearcoatNormalMapPath = m.value("clearcoatNormalMapPath").toString();
 
-	// ---------------- Texture IDs (numeric slot IDs if your texture manager uses them) ----------------
+	// ---------------- Texture IDs (numeric slot IDs if texture manager uses them) ----------------
 	if (m.contains("albedoTextureId"))            mat._albedoTextureId = m.value("albedoTextureId").toInt();
 	if (m.contains("normalTextureId"))            mat._normalTextureId = m.value("normalTextureId").toInt();
 	if (m.contains("metallicTextureId"))          mat._metallicTextureId = m.value("metallicTextureId").toInt();
@@ -3399,11 +3396,11 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	}*/
 
 	// ---------------- Finalization: clamp values and run consistency once ----------------
-	mat.clampValues();        // clamp ranges if you have such helper
+	mat.clampValues();        // clamp ranges
 	mat.updateConsistency();  // single consistency pass (derived fields computed)
 
 	// NOTE: for value-only predefined materials we intentionally don't do texture loading here.
-	// If you later want direct texture registration, do it after updateConsistency():
+	// For later direct texture registration, do it after updateConsistency():
 	// e.g.
 	// if (!mat._albedoMapPath.isEmpty() && mat._albedoTextureId < 0) {
 	//     mat._albedoTextureId = TextureManager::instance()->load(mat._albedoMapPath);

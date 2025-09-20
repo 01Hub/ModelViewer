@@ -94,7 +94,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		listWidgetModel->filterItems("");
 		// Reset the style to default
 		searchBox->setStyleSheet("");
-		// Optionally, you can also clear the selection
+		// Optionally, clear the selection
 		listWidgetModel->clearSelection();
 		searchBox->clear();
 		deselectAll();
