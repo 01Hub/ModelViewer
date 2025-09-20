@@ -1,5 +1,10 @@
 #include "AssImpMesh.h"
 
+#include <QDataStream>
+#include <QFileInfo>
+#include <QImage>
+#include <QVariantMap>
+
 using namespace std;
 
 bool AssImpMesh::_currentBlendEnabled;
@@ -424,9 +429,6 @@ void AssImpMesh::setupUniformsOptimized()
 	_uniformsDirty = false;
 }
 
-#include <QVariantMap>
-#include <QFileInfo>
-#include <QImage>
 
 // Convert a QString to aiString helper
 static aiString qstrToAiString(const QString& s)
@@ -509,23 +511,74 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 	}
 }
 
-GLuint AssImpMesh::createGLTextureFromFile(const QString& path, bool& outHasAlpha)
+
+GLuint AssImpMesh::createGLTextureFromFile(const QString& fullPath, bool& outHasAlpha)
 {
+	outHasAlpha = false;
+	if (fullPath.isEmpty()) return 0;
+	if (!QFileInfo::exists(fullPath))
+	{
+		qWarning() << "createGLTextureFromFile: file not found:" << fullPath;
+		return 0;
+	}
+
 	QImage img;
-	if (!img.load(path)) return 0;
+	if (!img.load(fullPath))
+	{
+		qWarning() << "createGLTextureFromFile: QImage failed to load:" << fullPath;
+		return 0;
+	}
+
+	// Detect alpha before any conversion
 	outHasAlpha = img.hasAlphaChannel();
-	QImage glimg = img.convertToFormat(QImage::Format_ARGB32); // ensure 32-bit
+
+	// Convert to a known format and flip vertically to match GL origin (bottom-left)
+	QImage glimg = img.convertToFormat(QImage::Format_ARGB32);
+	glimg = glimg.mirrored(false, true); // horizontal=false, vertical=true
+
+	// Ensure GL context is present (caller must be on GL thread)
+	if (!QOpenGLContext::currentContext())
+	{
+		qWarning() << "createGLTextureFromFile: no GL context; cannot create texture now for" << fullPath;
+		return 0;
+	}
+
 	GLuint tex = 0;
 	glGenTextures(1, &tex);
 	glBindTexture(GL_TEXTURE_2D, tex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, glimg.width(), glimg.height(), 0, GL_BGRA, GL_UNSIGNED_BYTE, glimg.bits());
+
+	// Defensive: ensure unpack alignment won't cause row padding problems
+	GLint prevAlign = 0;
+	glGetIntegerv(GL_UNPACK_ALIGNMENT, &prevAlign);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+
+	// Upload: QImage::Format_ARGB32 corresponds to BGRA ordering on many platforms.
+	glTexImage2D(GL_TEXTURE_2D,
+		0,
+		GL_RGBA,
+		glimg.width(),
+		glimg.height(),
+		0,
+		GL_BGRA,
+		GL_UNSIGNED_BYTE,
+		glimg.bits());
+
+	// Restore previous alignment
+	glPixelStorei(GL_UNPACK_ALIGNMENT, prevAlign);
+
 	glGenerateMipmap(GL_TEXTURE_2D);
-	// set default params
+
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	// Optional: set wrap modes if you want (repeat/clamp)
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
 	glBindTexture(GL_TEXTURE_2D, 0);
 	return tex;
 }
+
 
 vector<Vertex> AssImpMesh::vertices() const
 {
@@ -542,7 +595,6 @@ vector<Texture> AssImpMesh::textures() const
     return _textures;
 }
 
-#include <QDataStream>
 
 // --- Serialization ---
 void AssImpMesh::serialize(QDataStream& out) const
@@ -653,8 +705,147 @@ void AssImpMesh::deserialize(QDataStream& in)
 	// Read material
 	_material.deserialize(in);
 
-	// Sync mesh textures from material if mesh had none
-	syncTexturesFromMaterialIfNeeded();
+	// --- Ensure deserialized texture paths get actual GL texture IDs and keep material in sync ---	
+	// Helper lambda: convert our Texture.type -> update GLMaterial
+	auto updateMaterialFromTexture = [this](const Texture& tex) {
+		QString qpath = QString::fromUtf8(tex.path.C_Str()).trimmed();
+		if (qpath.isEmpty()) return;
+
+		const std::string ttype = tex.type;
+		if (ttype == "albedoMap" || ttype == "texture_diffuse")
+		{
+			_material.setAlbedoTextureId(tex.id);
+			_material.setAlbedoMap(qpath);
+		}
+		else if (ttype == "normalMap" || ttype == "texture_normal")
+		{
+			_material.setNormalTextureId(tex.id);
+			_material.setNormalMap(qpath);
+		}
+		else if (ttype == "metallicMap" || ttype == "texture_specular")
+		{
+			_material.setMetallicTextureId(tex.id);
+			_material.setMetallicMap(qpath);
+		}
+		else if (ttype == "roughnessMap")
+		{
+			_material.setRoughnessTextureId(tex.id);
+			_material.setRoughnessMap(qpath);
+		}
+		else if (ttype == "emissiveMap" || ttype == "texture_emissive")
+		{
+			_material.setEmissiveTextureId(tex.id);
+			_material.setEmissiveMap(qpath);
+		}
+		else if (ttype == "heightMap" || ttype == "texture_height")
+		{
+			_material.setHeightTextureId(tex.id);
+			_material.setHeightMap(qpath);
+		}
+		else if (ttype == "opacityMap" || ttype == "texture_opacity")
+		{
+			_material.setOpacityTextureId(tex.id);
+			_material.setOpacityMap(qpath);
+		}
+		else if (ttype == "aoMap")
+		{
+			_material.setOcclusionTextureId(tex.id);
+			_material.setAOMap(qpath);
+		}
+		else if (ttype == "transmissionMap")
+		{
+			_material.setTransmissionTextureId(tex.id);
+			_material.setTransmissionMap(qpath);
+		}
+		else if (ttype == "iorMap")
+		{
+			_material.setIORTextureId(tex.id);
+			_material.setIORMap(qpath);
+		}
+		else if (ttype == "sheenColorMap")
+		{
+			_material.setSheenColorTextureId(tex.id);
+			_material.setSheenColorMap(qpath);
+		}
+		else if (ttype == "sheenRoughnessMap")
+		{
+			_material.setSheenRoughnessTextureId(tex.id);
+			_material.setSheenRoughnessMap(qpath);
+		}
+		else if (ttype == "clearcoatMap")
+		{
+			_material.setClearcoatColorTextureId(tex.id);
+			_material.setClearcoatColorMap(qpath);
+		}
+		else if (ttype == "clearcoatRoughnessMap")
+		{
+			_material.setClearcoatRoughnessTextureId(tex.id);
+			_material.setClearcoatRoughnessMap(qpath);
+		}
+		else if (ttype == "clearcoatNormalMap")
+		{
+			_material.setClearcoatNormalTextureId(tex.id);
+			_material.setClearcoatNormalMap(qpath);
+		}
+		// add other mappings if your GLMaterial provides the setters
+		};
+
+	// Iterate existing _textures vector:
+	for (size_t i = 0; i < _textures.size(); ++i)
+	{
+		Texture& t = _textures[i];
+		QString path = QString::fromUtf8(t.path.C_Str()).trimmed();
+
+		// If there is a path but id==0, create GL texture now
+		if (!path.isEmpty() && t.id == 0)
+		{
+			bool hasAlpha = false;
+			GLuint newId = createGLTextureFromFile(path, hasAlpha);
+			if (newId != 0)
+			{
+				t.id = static_cast<unsigned int>(newId);
+				t.hasAlpha = hasAlpha;
+				qDebug() << "AssImpMesh::deserialize: created GL texture for path" << path << "id" << newId;
+
+				// register/replace in the mesh's internal bindings list
+				replaceOrAppendTexture(t.type, newId, hasAlpha);
+
+				// also update GLMaterial so both mesh and material are in agreement
+				updateMaterialFromTexture(t);
+			}
+			else
+			{
+				qWarning() << "AssImpMesh::deserialize: failed to create GL texture for" << path;
+			}
+		}
+		else if (!path.isEmpty())
+		{
+			// path present and maybe id was non-zero already (unlikely in serialized stream),
+			// make sure material is at least aware of the mapping
+			updateMaterialFromTexture(t);
+		}
+	}
+
+	// If we didn't find any _textures entries but material has paths, try the material-based sync
+	bool meshHasAnyPath = false;
+	for (const Texture& tt : _textures)
+	{
+		if (!QString::fromUtf8(tt.path.C_Str()).isEmpty()) { meshHasAnyPath = true; break; }
+	}
+	if (!meshHasAnyPath)
+	{
+		// fall back to creating textures from material (this code already exists in syncTexturesFromMaterialIfNeeded)
+		syncTexturesFromMaterialIfNeeded();
+	}
+
+	// finally, recompute flags and rebuild if we added textures
+	if (!_textures.empty())
+	{
+		setupMesh();
+		markTexturesDirty();
+		markUniformsDirty();
+	}
+
 
 	// Read the transformation matrix
 	in >> _transformation;
