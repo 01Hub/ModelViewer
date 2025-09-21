@@ -47,10 +47,14 @@ uniform samplerCube envMap;
 uniform sampler2D shadowMap;
 uniform float shadowSoftness; // Adjustable softness factor
 uniform float lightFarPlane; // Far plane of the light's perspective
-			     // Gaussian weights for a 9x9 kernel
-float gaussianKernel[9] = float[](
-		0.05, 0.09, 0.12, 0.15, 0.18, 0.15, 0.12, 0.09, 0.05
-		);
+uniform int shadowMaxKernelSize;
+uniform float shadowSoftnessScale;
+uniform float shadowMaxSoftnessClamp;
+uniform float shadowBiasMin;
+uniform float shadowBiasMax;
+uniform float shadowTransitionRange;
+uniform float shadowGammaCorrection;
+uniform float shadowSizeScale;
 
 uniform float u_floorAlpha = 0.95;
 uniform float u_floorSpecularScale  = 0.6;  // scale specular on floor [0..1]
@@ -200,7 +204,7 @@ uniform PBRLighting pbrLighting;
 uniform int   tintMode = 1;     // 0=Off, 1=AutoGray, 2=ForceGray, 3=LerpMask
 uniform float tintStrength = 1.0;
 uniform float grayEpsilon = 0.02; // grayscale detection threshold in sRGB
-uniform bool  useVertexColor = false; // if you want to include vtx color
+uniform bool  useVertexColor = false; // include vtx color
 uniform int   tintMaskChannel = 0; // 0=R, 1=G, 2=B, 3=A
 
 const float PI = 3.14159265359;
@@ -248,7 +252,7 @@ vec3 computeBaseColor(vec2 uv,
 		vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
 		sampler2D albedoTex,
 		bool hasAlbedoTex,
-		vec3 vertexColor_sRGB,    // pass v_color.rgb if you use it
+		vec3 vertexColor_sRGB,    // pass v_color.rgb
 		bool useVertexColor);
 
 float floorRadius = u_floorSize * 0.5; // Adjust radius based on floor size
@@ -697,7 +701,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
 		}
 
-		// Albedo (keep your grayscale-tint logic via computeBaseColor)
+		// Albedo (grayscale-tint logic via computeBaseColor)
 		if (hasAlbedoMap) {
 			textureColor = texture(albedoMap, clippedTexCoord);
 			vec3 texRGB_L = pow(textureColor.rgb, vec3(2.2));
@@ -801,14 +805,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3  F   = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
 
 	vec3  specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0), 0.001);
-	specBRDF *= 1.5; // your original visibility boost
+	specBRDF *= 1.5;
 
 	vec3 kS = F;
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
 	float NdotL = max(dot(N, L), 0.0);
 
-	// Optional shadows affecting direct terms (keep your earlier behavior)
+	// Optional shadows affecting direct terms
 	float lightShadowFactor = 0.0;
 	if (shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering)) {
 		float s = calculateShadowVariableKernel(
@@ -886,7 +890,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	vec3 outRGB = baseNoSpec_L + specOnly_L; // override opacity
 
-	// --- Tone map & gamma once, at the end (as in your pipeline)
+	// --- Tone map & gamma once, at the end
 	//vec3 outRGB = composed_L;
 	if (hdrToneMapping) outRGB = outRGB / (outRGB + vec3(1.0));
 	if (gammaCorrection) outRGB = pow(outRGB, vec3(1.0 / screenGamma));
@@ -1036,62 +1040,58 @@ float calculateShadow(vec4 fragPosLightSpace)
 // Function to fetch shadow value with variable kernel size
 float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos) 
 {
-	// Transform to [0,1] range for sampling
-	vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
-	projCoords = projCoords * 0.5 + 0.5;
+    vec3 projCoords = fragPosLightSpace.xyz / fragPosLightSpace.w;
+    projCoords = projCoords * 0.5 + 0.5;
 
-	// Calculate distance for both kernel size and softness
-	float distanceToLight = length(fragPos - lightPos);
+    float distanceToLight = length(fragPos - lightPos);
+    
+    // Size-aware kernel scaling
+    int kernelSize;
+    float distanceThreshold1 = 5.0 / max(shadowSizeScale, 0.1);  // NEW uniform
+    float distanceThreshold2 = 15.0 / max(shadowSizeScale, 0.1);
+    
+    if (distanceToLight < distanceThreshold1) 
+        kernelSize = max(2, shadowMaxKernelSize - 2);
+    else if (distanceToLight < distanceThreshold2) 
+        kernelSize = max(3, shadowMaxKernelSize - 1);
+    else 
+        kernelSize = shadowMaxKernelSize;
 
-	// Stepped kernel sizes for GPU coherency
-	int kernelSize;
-	if (distanceToLight < 5.0) kernelSize = 3; 
-	else if (distanceToLight < 15.0) kernelSize = 4;
-	else kernelSize = 5;
+    // Size-aware adaptive softness
+    float sizeAdjustedSoftness = shadowSoftness * shadowSizeScale;
+    float adaptiveSoftness = sizeAdjustedSoftness * clamp(
+        distanceToLight * shadowSoftnessScale, 
+        1.0, 
+        shadowMaxSoftnessClamp
+    );
 
-	// More aggressive adaptive shadow softness - increased multipliers
-	float adaptiveSoftness = shadowSoftness * clamp(distanceToLight * 0.15, 1.0, 3.5);
+    // Rest of the function remains the same...
+    float currentDepth = projCoords.z;
+    float shadow = 0.0;
+    float totalWeight = 0.0;
 
-	// Current depth
-	float currentDepth = projCoords.z;
+    for (int x = -kernelSize; x <= kernelSize; ++x) {
+        for (int y = -kernelSize; y <= kernelSize; ++y) {
+            float distance = sqrt(float(x * x + y * y));
+            float weight = exp(-distance * distance / (2.0 * float(kernelSize * kernelSize) * 0.5));
+            totalWeight += weight;
 
-	// Shadow factor calculation
-	float shadow = 0.0;
-	float totalWeight = 0.0;
+            vec2 offset = vec2(x, y) * adaptiveSoftness * 1.5 / lightFarPlane;
+            float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
 
-	// Variable kernel size loop with adaptive softness
-	for (int x = -kernelSize; x <= kernelSize; ++x) 
-	{
-		for (int y = -kernelSize; y <= kernelSize; ++y) 
-		{
-			// Enhanced Gaussian weight calculation for smoother falloff
-			float distance = sqrt(float(x * x + y * y));
-			float weight = exp(-distance * distance / (2.0 * float(kernelSize * kernelSize) * 0.5));
-			totalWeight += weight;
+            float bias = mix(shadowBiasMin, shadowBiasMax, 
+                           clamp(distanceToLight * 0.05, 0.0, 1.0));
+            float depthDiff = currentDepth - sampleDepth - bias;
 
-			// Increased adaptive softness multiplier for softer shadows
-			vec2 offset = vec2(x, y) * adaptiveSoftness * 1.5 / lightFarPlane;
+            float shadowContrib = smoothstep(-shadowTransitionRange, shadowTransitionRange, depthDiff);
+            shadow += shadowContrib * weight;
+        }
+    }
 
-			// Sample shadow map with adaptive offset
-			float sampleDepth = texture(shadowMap, projCoords.xy + offset).r;
+    shadow /= totalWeight;
+    shadow = pow(shadow, shadowGammaCorrection);
 
-			// Softer depth comparison with reduced bias and smooth transition
-			float bias = mix(0.002, 0.008, clamp(distanceToLight * 0.05, 0.0, 1.0));
-			float depthDiff = currentDepth - sampleDepth - bias;
-
-			// Smooth shadow transition instead of hard cutoff
-			float shadowContrib = smoothstep(-0.003, 0.003, depthDiff);
-			shadow += shadowContrib * weight;
-		}
-	}
-
-	// Normalize shadow factor
-	shadow /= totalWeight;
-
-	// Apply gentle gamma correction for softer appearance
-	shadow = pow(shadow, 0.75);
-
-	return shadow;
+    return shadow;
 }
 
 // Function for parallax mapping to simulate depth displacement
@@ -1168,7 +1168,7 @@ void applyEnvironmentMapping(float alphaIn)
 		// Filter through base color (thin absorption)
 		vec3 filtered = envColor * pbrLighting.albedo;
 
-		// Mix RGB only (keep alpha from your new PMA logic)
+		// Mix RGB only (keep alpha from PMA logic)
 		fragColor.rgb = mix(fragColor.rgb, filtered, w);
 		return;
 
@@ -1229,9 +1229,6 @@ void applyEnvironmentMapping(float alphaIn)
 
 // ----------------------------------------------------------------------------
 // Easy trick to get tangent-normals to world-space to keep PBR code simplified.
-// Don't worry if you don't get what's going on; you generally want to do normal
-// mapping the usual way for performance anways; I do plan make a note of this
-// technique somewhere later in the normal mapping tutorial.
 vec3 getNormalFromMap()
 {
 	vec3 tangentNormal = texture(normalMap, g_texCoord2d).xyz * 2.0 - 1.0;
@@ -1383,7 +1380,7 @@ vec3 computeBaseColor(vec2 uv,
 		vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
 		sampler2D albedoTex,
 		bool hasAlbedoTex,
-		vec3 vertexColor_sRGB,    // pass v_color.rgb if you use it
+		vec3 vertexColor_sRGB,    // pass v_color.rgb
 		bool useVertexColor)
 {
 	vec3 base_sRGB = matBaseColor_sRGB;

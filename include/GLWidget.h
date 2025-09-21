@@ -1,6 +1,7 @@
 #ifndef GLWIDGET_H
 #define GLWIDGET_H
 
+#include "AdaptiveShadowMapper.h"
 #include "BoundingSphere.h"
 #include "GLCamera.h"
 #include "TriangleMesh.h"
@@ -66,6 +67,9 @@ public:
 
 	void setDisplayList(const std::vector<int>& ids);
 	void triggerShadowRecomputation();
+	void setShadowQuality(AdaptiveShadowMapper::QualityLevel quality);
+	float calculateLightDistance();
+
 	void duplicateObjects(const std::vector<int>& ids);
 
 	void updateFloorPlane();
@@ -687,6 +691,8 @@ private:
 	int _hatchLayers = 3;
 	QVector3D _hatchLineColor = QVector3D(0.0f, 0.0f, 0.0f);
 	QString _hatchTexturePath;
+
+	AdaptiveShadowMapper shadowMapper;
 };
 
 #endif

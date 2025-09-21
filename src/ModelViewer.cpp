@@ -120,6 +120,12 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(checkBoxSkyBoxHDRI, &QCheckBox::toggled, _glWidget, &GLWidget::setSkyBoxTextureHDRI);
 	connect(checkBoxShowLights, &QCheckBox::toggled, _glWidget, &GLWidget::showLights);
 
+	connect(Ui_ModelViewer::comboBoxShadowQuality, &QComboBox::currentIndexChanged, this,
+		[this](int index) {
+			_glWidget->setShadowQuality(static_cast<AdaptiveShadowMapper::QualityLevel>(index));
+			_glWidget->update();
+		});
+
 	connect(checkBoxHDRToneMapping, &QCheckBox::toggled, _glWidget, &GLWidget::enableHDRToneMapping);
 	connect(checkBoxGammaCorrection, &QCheckBox::toggled, _glWidget, &GLWidget::enableGammaCorrection);
 	connect(doubleSpinBoxScreenGamma, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setScreenGamma);

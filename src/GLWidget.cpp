@@ -1120,15 +1120,56 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 
 void GLWidget::triggerShadowRecomputation()
 {
-	_viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
+	float boundingRadius = _boundingSphere.getRadius();
+	_viewBoundingSphereDia = boundingRadius * 2;
+
+	float lightDistance = calculateLightDistance();
+	float shadowFactor = shadowMapper.calculateShadowFactor(boundingRadius, lightDistance);
+	shadowFactor = std::clamp(shadowFactor, 1.0f, 8.0f);
+
+	_shadowWidth = static_cast<int>(1024 * shadowFactor);
+	_shadowHeight = static_cast<int>(1024 * shadowFactor);
+
+	// Get SIZE-AWARE shadow parameters
+	auto shadowParams = shadowMapper.getShadowQualityParamsSmooth(boundingRadius);
+	float shadowSoftness = shadowMapper.calculateShadowSoftness(_viewBoundingSphereDia);
+	float sizeScale = shadowMapper.calculateSizeQualityScale(boundingRadius);
+
 	_fgShader->bind();
-	_fgShader->setUniformValue("shadowSoftness", static_cast<float>(_viewBoundingSphereDia) * 0.00015f);
+
+	// Existing uniforms
+	_fgShader->setUniformValue("shadowSoftness", shadowSoftness);
+	_fgShader->setUniformValue("shadowSamples", static_cast<float>(shadowParams.shadowSamples));
+
+	// Size-aware uniforms
+	_fgShader->setUniformValue("shadowMaxKernelSize", shadowParams.maxKernelSize);
+	_fgShader->setUniformValue("shadowSoftnessScale", shadowParams.softnessScale);
+	_fgShader->setUniformValue("shadowMaxSoftnessClamp", shadowParams.maxSoftnessClamp);
+	_fgShader->setUniformValue("shadowBiasMin", shadowParams.biasMin);
+	_fgShader->setUniformValue("shadowBiasMax", shadowParams.biasMax);
+	_fgShader->setUniformValue("shadowTransitionRange", shadowParams.transitionRange);
+	_fgShader->setUniformValue("shadowGammaCorrection", shadowParams.gammaCorrection);
+	_fgShader->setUniformValue("shadowSizeScale", sizeScale); 
+
 	_fgShader->release();
 
 	_shadowMapNeedsInitialization = true;
-
 	makeCurrent();
 	loadFloor();
+}
+
+void GLWidget::setShadowQuality(AdaptiveShadowMapper::QualityLevel quality)
+{
+	shadowMapper.setQuality(quality);
+	triggerShadowRecomputation();
+	updateFloorPlane();
+}
+
+float GLWidget::calculateLightDistance()
+{
+	QVector3D lightPos = _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ);
+	QVector3D center = _boundingSphere.getCenter();
+	return (lightPos - center).length();
 }
 
 void GLWidget::duplicateObjects(const std::vector<int>& ids)
