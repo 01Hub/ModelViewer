@@ -37,6 +37,7 @@ enum class RenderingMode { ADS_PHONG, PBR_DIRECT_LIGHTING, PBR_TEXTURED_LIGHTING
 enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT };
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
 enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3,  GRID = 4, DIAGONAL_CROSS = 5 };
+enum class HDRToneMapMode { Reinhard, ACESToneMapping , Uncharted2ToneMapping };
 
 class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 {
@@ -327,6 +328,9 @@ public slots:
 	void enableHDRToneMapping(bool hdrToneMapping);
 	void enableGammaCorrection(bool gammaCorrection);
 	void setScreenGamma(double screenGamma);
+	void setHDRToneMappingMode(HDRToneMapMode mode);
+	void setEnvMapExposure(double exposure);
+	void setIBLExposure(double exposure);
 	void showLights(bool showLights);
 	void showFileReadingProgress(float percent);
 	void showMeshLoadingProgress(float percent);
@@ -655,6 +659,10 @@ private:
 	bool  _gammaCorrection;
 	float _screenGamma;
 	bool  _hdrToneMapping;
+	float _envMapExposure;
+	float _iblExposure;
+
+	HDRToneMapMode _toneMappingMode;
 
 	float _anisotropicFilteringLevel = 16.0f;
 

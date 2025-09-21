@@ -129,6 +129,27 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(checkBoxHDRToneMapping, &QCheckBox::toggled, _glWidget, &GLWidget::enableHDRToneMapping);
 	connect(checkBoxGammaCorrection, &QCheckBox::toggled, _glWidget, &GLWidget::enableGammaCorrection);
 	connect(doubleSpinBoxScreenGamma, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setScreenGamma);
+	
+	connect(comboBoxHDRToneMappingMode, &QComboBox::currentIndexChanged, this,
+		[this](int index) {
+			_glWidget->setHDRToneMappingMode(static_cast<HDRToneMapMode>(index));
+		});
+
+	connect(doubleSpinBoxEnvMapExposure, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setEnvMapExposure);
+	connect(doubleSpinBoxIBLExposure, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setIBLExposure);
+
+	connect(pushButtonDefaultEnvValues, &QPushButton::clicked, this,
+		[this]() {
+			doubleSpinBoxSkyBoxFOV->setValue(45.0);
+			comboBoxShadowQuality->setCurrentIndex(1);
+			doubleSpinBoxFloorOffset->setValue(5.0);
+			doubleSpinBoxRepeatS->setValue(1.0);
+			doubleSpinBoxRepeatT->setValue(1.0);
+			comboBoxHDRToneMappingMode->setCurrentIndex(1);
+			doubleSpinBoxEnvMapExposure->setValue(1.0);
+			doubleSpinBoxIBLExposure->setValue(1.0);
+			doubleSpinBoxScreenGamma->setValue(2.2);
+		});
 
 	connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
 	toolBox->setItemEnabled(0, true);

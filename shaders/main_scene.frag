@@ -142,6 +142,10 @@ uniform bool hdrToneMapping = false;
 uniform bool gammaCorrection = false;
 uniform float screenGamma = 2.2;
 
+uniform float envMapExposure = 1.0;
+uniform float iblExposure = 1.0;
+uniform int toneMapMode = 1; // 0=Reinhard, 1=ACES, 2=Uncharted2
+
 uniform bool skyBoxEnabled;
 uniform sampler2D skyboxColorTexture;
 
@@ -243,6 +247,10 @@ vec3    calculateBackgroundColor();
 float pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias);
 float sampleOpacityMap(vec2 uv);
 float sampleFallbackOpacity(vec2 uv);
+
+vec3 acesToneMapping(vec3 color);
+vec3 uncharted2ToneMapping(vec3 color);
+vec3 applyToneMapping(vec3 color);
 
 vec3 srgbToLinear(vec3 c);
 vec3 linearToSrgb(vec3 c);
@@ -615,7 +623,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		// Scale specular; keep non-spec premultiplied
 		vec3 floorRGB = baseNoSpec * fa + specOnly * (u_floorSpecularScale * fresDampen);
 
-		if (hdrToneMapping) floorRGB = floorRGB / (floorRGB + vec3(1.0));
+		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB);//floorRGB / (floorRGB + vec3(1.0));
 		if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
 		return vec4(floorRGB, fa);
 	}
@@ -625,7 +633,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 	// --- Tone/gamma ---
 	if (hdrToneMapping)
-		composed = composed / (composed + vec3(1.0));
+		composed = applyToneMapping(composed);//composed / (composed + vec3(1.0));
 	if (gammaCorrection)
 		composed = pow(composed, vec3(1.0 / screenGamma));
 
@@ -851,11 +859,19 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		float seamBias = 0.25 * (1.0 - roughness);
 		const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
 		vec3 prefilteredColor = textureLod(prefilterMap, R, roughness * MAX_REFLECTION_LOD).rgb;
+    
+		// Apply IBL exposure HERE
+		prefilteredColor *= iblExposure;
+    
 		vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
 		vec3 specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
 
-		float diffuseAO  = mix(1.0, ambientOcclusion, 0.8);
-		float specularAO = mix(1.0, ambientOcclusion, 0.3);
+		// Apply exposure to diffuse IBL too
+		vec3 irradiance = texture(irradianceMap, N).rgb * iblExposure;
+		vec3 diffuseIBL_L = irradiance * albedo;
+
+		float diffuseAO = mix(1.0, ambientOcclusion, 0.6);
+		float specularAO = mix(1.0, ambientOcclusion, 0.2);
 
 		ambient_L = (kDibl * diffuseIBL_L) * diffuseAO + specIBL_L * specularAO;
 	} else {
@@ -883,7 +899,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		vec3 floorRGB_L = baseNoSpec_L * fa + specOnly_L * (u_floorSpecularScale * fresDampen);
 
-		if (hdrToneMapping) floorRGB_L = floorRGB_L / (floorRGB_L + vec3(1.0));
+		if (hdrToneMapping) floorRGB_L = applyToneMapping(floorRGB_L);//floorRGB_L / (floorRGB_L + vec3(1.0));
 		if (gammaCorrection) floorRGB_L = pow(floorRGB_L, vec3(1.0 / screenGamma));
 		return vec4(floorRGB_L, fa);
 	}
@@ -892,7 +908,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	// --- Tone map & gamma once, at the end
 	//vec3 outRGB = composed_L;
-	if (hdrToneMapping) outRGB = outRGB / (outRGB + vec3(1.0));
+	if (hdrToneMapping) outRGB = applyToneMapping(outRGB);//outRGB / (outRGB + vec3(1.0));
 	if (gammaCorrection) outRGB = pow(outRGB, vec3(1.0 / screenGamma));
 
 	return vec4(outRGB, 1.0);
@@ -1137,94 +1153,99 @@ vec2 parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap,
 
 void applyEnvironmentMapping(float alphaIn)
 {
-	// PBR opaque already has IBL; skip extra env mixing here to avoid double-counting
-	if (renderingMode != 0 && pbrLighting.transmission <= 0.0) {
-		return;
-	}
+    if (renderingMode != 0 && pbrLighting.transmission <= 0.0) {
+        return;
+    }
 
-	float a = clamp(alphaIn, 0.0, 1.0);
-	vec3 I = normalize(g_reflectionPosition - cameraPos);
-	vec3 N = normalize(g_reflectionNormal);
+    float a = clamp(alphaIn, 0.0, 1.0);
+    vec3 I = normalize(g_reflectionPosition - cameraPos);
+    vec3 N = normalize(g_reflectionNormal);
 
-	// 1) Transmission (PBR glass)
-	if (pbrLighting.transmission > 0.0) {
-		// Transmission materials (glass)
-		float eta = max(1e-3, pbrLighting.ior);
-		vec3 R = refract(normalize(g_reflectionPosition - cameraPos), normalize(g_reflectionNormal), 1.0 / eta);
-		R = envMapRotationMatrix * R;
-		R = normalize(R); // <-- important
+    // 1) Transmission with exposure control
+    if (pbrLighting.transmission > 0.0) {
+        float eta = max(1e-3, pbrLighting.ior);
+        vec3 R = refract(normalize(g_reflectionPosition - cameraPos), normalize(g_reflectionNormal), 1.0 / eta);
+        R = envMapRotationMatrix * R;
+        R = normalize(R);
 
-		float tRough = max(pbrLighting.roughness, 0.1);
-		vec3 envColor = textureLod(envMap, R, tRough * 3.0).rgb;
+        float tRough = max(pbrLighting.roughness, 0.1);
+        vec3 envColor = textureLod(envMap, R, tRough * 3.0).rgb;
+        
+        // Apply exposure HERE
+        envColor *= envMapExposure;
+        
+        // Apply tone mapping HERE
+        envColor = applyToneMapping(envColor);
 
-		// Fresnel to avoid “painted skybox”
-		float NdotV = clamp(dot(normalize(g_reflectionNormal), normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
-		float f0 = pow((pbrLighting.ior - 1.0) / (pbrLighting.ior + 1.0), 2.0);
-		float F  = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
+        float NdotV = clamp(dot(normalize(g_reflectionNormal), normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
+        float f0 = pow((pbrLighting.ior - 1.0) / (pbrLighting.ior + 1.0), 2.0);
+        float F = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
 
-		// Final strength: transmission * Fresnel * (1 - roughness), capped
-		float w = clamp(pbrLighting.transmission * F * (1.0 - pbrLighting.roughness), 0.0, 0.65);
+        float w = clamp(pbrLighting.transmission * F * (1.0 - pbrLighting.roughness), 0.0, 0.8);
+        vec3 filtered = envColor * pbrLighting.albedo;
+        fragColor.rgb = mix(fragColor.rgb, filtered, w);
+        return;
+    }
 
-		// Filter through base color (thin absorption)
-		vec3 filtered = envColor * pbrLighting.albedo;
+    // 2) Regular transparency with exposure
+    if (a < 1.0 && !floorRendering) {
+        float refrAmt = max(0.05, 1.0 - a);
+        vec3 R = refract(I, N, refrAmt);
+        R = envMapRotationMatrix * R;
+        R = normalize(R);
 
-		// Mix RGB only (keep alpha from PMA logic)
-		fragColor.rgb = mix(fragColor.rgb, filtered, w);
-		return;
+        vec3 envColor = texture(envMap, R).rgb;
+        
+        // Apply exposure HERE
+        envColor *= envMapExposure;
+        
+        // Apply tone mapping HERE  
+        envColor = applyToneMapping(envColor);
+        
+        float envStrength = (1.0 - a) * 0.7;
+        fragColor.rgb = mix(fragColor.rgb, envColor, envStrength);
+        return;
+    }
 
-	}
+    // 3) ADS reflection with exposure
+    if (renderingMode == 0) {
+        vec3 R = refract(-I, N, 1.0);
+        R = envMapRotationMatrix * -R;
 
-	// 2) Regular transparency (BLEND)
-	if (a < 1.0 && !floorRendering) {
-		float refrAmt = max(0.05, 1.0 - a);
-		vec3 R = refract(I, N, refrAmt);
-		R = envMapRotationMatrix * R;
-		R = normalize(R);
+        float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
+        float NdotV = max(dot(-I, N), 0.0);
 
-		vec3 envColor = texture(envMap, R).rgb;
-		float envStrength = (1.0 - a) * 0.5;
+        float nonMetallicFresnelPower = mix(3.0, 5.0, 1.0 - specLum);
+        float metallicFresnelPower = 1.5;
+        float fresnelPower = mix(nonMetallicFresnelPower, metallicFresnelPower, pbrLighting.metallic);
+        float fresnel = pow(1.0 - NdotV, fresnelPower);
 
-		fragColor.rgb = mix(fragColor.rgb, envColor, envStrength);
-		// alpha preserved
-		return;
-	}
+        float surfaceRoughness = 1.0 - (material.shininess / 128.0);
+        float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
 
-	// 3) ADS reflection for opaque
-	if (renderingMode == 0) {
-		vec3 R = refract(-I, N, 1.0);
-		R = envMapRotationMatrix * -R;
+        float metallicStrength = mix(0.3, 0.6, specLum);
+        float glossyStrength = mix(0.4, 0.8, specLum);
+        float diffuseStrength = mix(0.05, 0.25, specLum);
 
-		float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
-		float NdotV   = max(dot(-I, N), 0.0);
+        bool isHighSpecular = specLum > 0.5;
+        bool isDiffuseDominant = dot(material.diffuse, vec3(0.299,0.587,0.114)) > specLum*2.0;
+        float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
 
-		float nonMetallicFresnelPower = mix(3.0, 5.0, 1.0 - specLum);
-		float metallicFresnelPower    = 1.5;
-		float fresnelPower            = mix(nonMetallicFresnelPower, metallicFresnelPower, pbrLighting.metallic);
-		float fresnel = pow(1.0 - NdotV, fresnelPower);
+        float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, pbrLighting.metallic);
+        float reflectionStrength = clamp(baseReflectionStrength * fresnel * roughnessReduction, 0.0, 1.0);
 
-		float surfaceRoughness   = 1.0 - (material.shininess / 128.0);
-		float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
+        float envLOD = surfaceRoughness * 7.0;
+        vec3 envColor = textureLod(envMap, R, envLOD).rgb;
+        
+        // Apply exposure HERE
+        envColor *= envMapExposure;
+        
+        // Apply tone mapping HERE
+        envColor = applyToneMapping(envColor);
 
-		float metallicStrength   = mix(0.2, 0.4, specLum);
-		float glossyStrength     = mix(0.3, 0.6, specLum);
-		float diffuseStrength    = mix(0.02, 0.15, specLum);
-
-		bool isHighSpecular    = specLum > 0.5;
-		bool isDiffuseDominant = dot(material.diffuse, vec3(0.299,0.587,0.114)) > specLum*2.0;
-		float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
-
-		float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, pbrLighting.metallic);
-		float reflectionStrength = clamp(baseReflectionStrength * fresnel * roughnessReduction, 0.0, 0.8);
-
-		float envLOD = surfaceRoughness * 7.0;
-		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
-
-		fragColor.rgb += envColor * reflectionStrength; // additive specular
-								// alpha preserved
-		return;
-	}
-
-	// PBR opaque -> handled in main PBR code
+        fragColor.rgb += envColor * reflectionStrength;
+        return;
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -1487,3 +1508,38 @@ float sampleFallbackOpacity(vec2 uv) {
     return clamp(val, 0.0, 1.0);
 }
 
+vec3 acesToneMapping(vec3 color) {
+    const float a = 2.51;
+    const float b = 0.03;
+    const float c = 2.43;
+    const float d = 0.59;
+    const float e = 0.14;
+    return clamp((color * (a * color + b)) / (color * (c * color + d) + e), 0.0, 1.0);
+}
+
+vec3 uncharted2ToneMapping(vec3 color) {
+    const float A = 0.15;
+    const float B = 0.50;
+    const float C = 0.10;
+    const float D = 0.20;
+    const float E = 0.02;
+    const float F = 0.30;
+    const float W = 11.2;
+    
+    color = ((color * (A * color + C * B) + D * E) / (color * (A * color + B) + D * F)) - E / F;
+    float white = ((W * (A * W + C * B) + D * E) / (W * (A * W + B) + D * F)) - E / F;
+    return color / white;
+}
+
+vec3 applyToneMapping(vec3 color) {
+    if (!hdrToneMapping) return color;
+    
+    if (toneMapMode == 1) {
+        return acesToneMapping(color);
+    } else if (toneMapMode == 2) {
+        return uncharted2ToneMapping(color);
+    } else {
+        // Default Reinhard
+        return color / (color + vec3(1.0));
+    }
+}

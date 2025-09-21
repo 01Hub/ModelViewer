@@ -218,7 +218,10 @@ _assimpModelLoader(nullptr)
 	_skyBoxTextureHDRI = false;
 	_gammaCorrection = false;
 	_screenGamma = 2.2f;
-	_hdrToneMapping = false;;
+	_hdrToneMapping = false;
+	_envMapExposure = 1.2f;
+	_iblExposure = 1.0f;
+	_toneMappingMode = HDRToneMapMode::ACESToneMapping;
 
 	_lowResEnabled = false;
 	_lockLightAndCamera = true;
@@ -1149,7 +1152,7 @@ void GLWidget::triggerShadowRecomputation()
 	_fgShader->setUniformValue("shadowBiasMax", shadowParams.biasMax);
 	_fgShader->setUniformValue("shadowTransitionRange", shadowParams.transitionRange);
 	_fgShader->setUniformValue("shadowGammaCorrection", shadowParams.gammaCorrection);
-	_fgShader->setUniformValue("shadowSizeScale", sizeScale); 
+	_fgShader->setUniformValue("shadowSizeScale", sizeScale);
 
 	_fgShader->release();
 
@@ -3431,6 +3434,9 @@ void GLWidget::drawSkyBox()
 	_skyBoxShader->setUniformValue("hdrToneMapping", _hdrToneMapping);
 	_skyBoxShader->setUniformValue("gammaCorrection", _gammaCorrection);
 	_skyBoxShader->setUniformValue("screenGamma", _screenGamma);
+	_skyBoxShader->setUniformValue("envMapExposure", _envMapExposure);
+	_skyBoxShader->setUniformValue("iblExposure", _iblExposure);
+	_skyBoxShader->setUniformValue("toneMapMode", static_cast<int>(_toneMappingMode));
 	
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when values are equal to depth buffer's content
@@ -3658,6 +3664,9 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	prog->setUniformValue("hdrToneMapping", _hdrToneMapping);
 	prog->setUniformValue("gammaCorrection", _gammaCorrection);
 	prog->setUniformValue("screenGamma", _screenGamma);
+	prog->setUniformValue("envMapExposure", _envMapExposure);
+	prog->setUniformValue("iblExposure", _iblExposure);
+	prog->setUniformValue("toneMapMode", static_cast<int>(_toneMappingMode));
 
 	bindIBLTextures();
 }
@@ -5914,6 +5923,24 @@ float GLWidget::getScreenGamma() const
 void GLWidget::setScreenGamma(double screenGamma)
 {
 	_screenGamma = static_cast<float>(screenGamma);
+	update();
+}
+
+void GLWidget::setHDRToneMappingMode(HDRToneMapMode mode)
+{
+	_toneMappingMode = mode;
+	update();
+}
+
+void GLWidget::setEnvMapExposure(double exposure)
+{
+	_envMapExposure = exposure;
+	update();
+}
+
+void GLWidget::setIBLExposure(double exposure)
+{
+	_iblExposure = exposure;
 	update();
 }
 
