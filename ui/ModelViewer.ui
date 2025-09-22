@@ -1040,8 +1040,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>431</width>
-                   <height>733</height>
+                   <width>181</width>
+                   <height>178</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1194,8 +1194,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>431</width>
-                   <height>733</height>
+                   <width>100</width>
+                   <height>30</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1212,8 +1212,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>431</width>
-                   <height>733</height>
+                   <width>100</width>
+                   <height>30</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1238,7 +1238,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>640</width>
-                   <height>721</height>
+                   <height>262</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1596,7 +1596,7 @@
                 <widget class="QWidget" name="pageEnvSettings">
                  <property name="geometry">
                   <rect>
-                   <x>-80</x>
+                   <x>0</x>
                    <y>0</y>
                    <width>566</width>
                    <height>721</height>
@@ -1860,6 +1860,13 @@
                         </widget>
                        </item>
                        <item>
+                        <widget class="QCheckBox" name="checkBoxSkyBoxHDRI">
+                         <property name="text">
+                          <string>HDRI</string>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
                         <spacer name="horizontalSpacer">
                          <property name="orientation">
                           <enum>Qt::Orientation::Horizontal</enum>
@@ -1871,13 +1878,6 @@
                           </size>
                          </property>
                         </spacer>
-                       </item>
-                       <item>
-                        <widget class="QCheckBox" name="checkBoxSkyBoxHDRI">
-                         <property name="text">
-                          <string>HDRI</string>
-                         </property>
-                        </widget>
                        </item>
                       </layout>
                      </item>
