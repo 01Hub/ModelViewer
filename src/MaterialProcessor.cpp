@@ -340,18 +340,16 @@ void MaterialProcessor::setDefaultMaterial(GLMaterial& mat)
 	mat = GLMaterial::DEFAULT_MAT();
 }
 
-unsigned int MaterialProcessor::textureFromFile(const char* path, std::string directory, bool& hasAlpha)
+unsigned int MaterialProcessor::textureFromFile(const char* path, bool& hasAlpha)
 {
     //Generate texture ID and load texture data
-    string filename = string(path);
-    filename = directory + '/' + filename;
     unsigned int textureID;
     glGenTextures(1, &textureID);
 
     QImage texImage;
     bool imageHasAlpha = false;
 
-    if (!texImage.load(QString(filename.c_str())))
+    if (!texImage.load(QString(path)))
     { // Load first image from file
         qWarning("MaterialProcessor::textureFromFile - Could not read image file, using single-color instead.");
         QImage dummy(128, 128, QImage::Format_ARGB32);
@@ -593,14 +591,12 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
     if (mat->GetTexture(type, slotIndex, &str) != AI_SUCCESS)
         return textures;
 
-    std::string filename = string(str.C_Str());
-    std::string directory = this->_folderPath;
-    filename = directory + '/' + filename;
+    std::string textureFilePath = this->_folderPath + '/' + string(str.C_Str());    
 
     // If same path+type already loaded -> reuse
     for (const auto& lt : _loadedTextures)
     {
-        if (string(lt.path.C_Str()) == filename && lt.type == typeName)
+        if (string(lt.path.C_Str()) == textureFilePath && lt.type == typeName)
         {
             textures.push_back(lt);
             //std::cout << lt << std::endl;
@@ -611,7 +607,7 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
     // If same path loaded but with different uniform name -> reuse its GPU id
     for (const auto& lt : _loadedTextures)
     {
-        if (string(lt.path.C_Str()) == filename && lt.type != typeName)
+        if (string(lt.path.C_Str()) == textureFilePath && lt.type != typeName)
         {
             Texture alias;
             alias.id = lt.id;           // reuse GPU texture
@@ -628,9 +624,9 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
     // Not loaded at all: load from file
     Texture texture;
 	bool hasAlpha = false;    
-    texture.id = textureFromFile(str.C_Str(), directory, hasAlpha);
+    texture.id = textureFromFile(textureFilePath.c_str(), hasAlpha);
     texture.type = typeName;
-    texture.path = aiString(filename);
+    texture.path = aiString(textureFilePath);
 	texture.hasAlpha = hasAlpha; // Store alpha info for later use
     textures.push_back(texture);
     _loadedTextures.push_back(texture);

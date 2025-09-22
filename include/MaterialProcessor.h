@@ -38,7 +38,7 @@ private:
 
 	void validateMaterialConsistency(GLMaterial& mat);
 
-	unsigned int textureFromFile(const char* path, std::string directory, bool& hasAlpha);
+	unsigned int textureFromFile(const char* path, bool& hasAlpha);
 
 	// Each entry: primary type + uniform name, and an optional fallback type+uniform name
 	struct TextureSlotMapping
