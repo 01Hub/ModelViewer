@@ -593,10 +593,14 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
     if (mat->GetTexture(type, slotIndex, &str) != AI_SUCCESS)
         return textures;
 
+    std::string filename = string(str.C_Str());
+    std::string directory = this->_folderPath;
+    filename = directory + '/' + filename;
+
     // If same path+type already loaded -> reuse
     for (const auto& lt : _loadedTextures)
     {
-        if (lt.path == str && lt.type == typeName)
+        if (string(lt.path.C_Str()) == filename && lt.type == typeName)
         {
             textures.push_back(lt);
             //std::cout << lt << std::endl;
@@ -607,7 +611,7 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
     // If same path loaded but with different uniform name -> reuse its GPU id
     for (const auto& lt : _loadedTextures)
     {
-        if (lt.path == str && lt.type != typeName)
+        if (string(lt.path.C_Str()) == filename && lt.type != typeName)
         {
             Texture alias;
             alias.id = lt.id;           // reuse GPU texture
@@ -623,10 +627,7 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
 
     // Not loaded at all: load from file
     Texture texture;
-	bool hasAlpha = false;
-    std::string filename = string(str.C_Str());
-    std::string directory = this->_folderPath;
-    filename = directory + '/' + filename;
+	bool hasAlpha = false;    
     texture.id = textureFromFile(str.C_Str(), directory, hasAlpha);
     texture.type = typeName;
     texture.path = aiString(filename);
