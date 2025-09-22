@@ -848,23 +848,46 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 ambient_L;
 
 	if (envMapEnabled) {
-		vec3 Fibl = fresnelSchlickRoughness(max(dot(N, V), 0.0), F0, roughness);
+		float dotNV = max(dot(N, V), 0.0);
+		vec3 Fibl = fresnelSchlickRoughness(dotNV, F0, roughness);
 		vec3 kSibl = Fibl;
 		vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
 
 		vec3 I = normalize(cameraPos - g_reflectionPosition);
-		vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);             
+		vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);
 		R = normalize(R);
 
-		float seamBias = 0.25 * (1.0 - roughness);
 		const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
-		vec3 prefilteredColor = textureLod(prefilterMap, R, roughness * MAX_REFLECTION_LOD).rgb;
-    
-		// Apply IBL exposure HERE
+
+		// --- Grazing control params (tweak these) ---
+		// How strongly to soften/attenuate reflections at grazing angles
+		float grazingPower = 2.0;          // higher -> stronger effect near grazing
+		float extraLodFactor = 0.5;        // how much extra LOD (blur) to add at grazing
+		float grazingSpecReduce = 0.7;     // how much to reduce specular intensity at full grazing (0..1)
+		// ------------------------------------------------
+
+		// Compute a grazing factor: 0 at face-on, 1 at grazing (dotNV -> 0)
+		float grazing = pow(1.0 - dotNV, grazingPower); // smooth curve
+
+		// Increase LOD (more blur) at grazing angles, but less if roughness is high (already blurred)
+		float lod = roughness * MAX_REFLECTION_LOD
+					+ grazing * extraLodFactor * (1.0 - roughness) * MAX_REFLECTION_LOD;
+		lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
+
+		vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+
+		// Apply IBL exposure
 		prefilteredColor *= iblExposure;
-    
-		vec2 brdf = texture(brdfLUT, vec2(max(dot(N, V), 0.0), roughness)).rg;
+		// Apply envMapExposure to specular IBL
+		prefilteredColor *= envMapExposure;
+
+		vec2 brdf = texture(brdfLUT, vec2(dotNV, roughness)).rg;
 		vec3 specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
+
+		// Attenuate specular IBL at grazing angles to counter overly strong Fresnel at glancing view
+		// This reduces the specular intensity smoothly as grazing -> 1.
+		float grazingAtten = mix(1.0, 1.0 - grazingSpecReduce, grazing);
+		specIBL_L *= grazingAtten;
 
 		// Apply exposure to diffuse IBL too
 		vec3 irradiance = texture(irradianceMap, N).rgb * iblExposure;
@@ -1171,10 +1194,10 @@ void applyEnvironmentMapping(float alphaIn)
         float tRough = max(pbrLighting.roughness, 0.1);
         vec3 envColor = textureLod(envMap, R, tRough * 3.0).rgb;
         
-        // Apply exposure HERE
+        // Apply exposure
         envColor *= envMapExposure;
         
-        // Apply tone mapping HERE
+        // Apply tone mapping
         envColor = applyToneMapping(envColor);
 
         float NdotV = clamp(dot(normalize(g_reflectionNormal), normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
@@ -1196,10 +1219,10 @@ void applyEnvironmentMapping(float alphaIn)
 
         vec3 envColor = texture(envMap, R).rgb;
         
-        // Apply exposure HERE
+        // Apply exposure
         envColor *= envMapExposure;
         
-        // Apply tone mapping HERE  
+        // Apply tone mapping  
         envColor = applyToneMapping(envColor);
         
         float envStrength = (1.0 - a) * 0.7;
@@ -1209,43 +1232,51 @@ void applyEnvironmentMapping(float alphaIn)
 
     // 3) ADS reflection with exposure
     if (renderingMode == 0) {
-        vec3 R = refract(-I, N, 1.0);
-        R = envMapRotationMatrix * -R;
+		vec3 R = refract(-I, N, 1.0);
+		R = envMapRotationMatrix * -R;
 
-        float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
-        float NdotV = max(dot(-I, N), 0.0);
+		float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
+		float NdotV = max(dot(-I, N), 0.0);
 
-        float nonMetallicFresnelPower = mix(3.0, 5.0, 1.0 - specLum);
-        float metallicFresnelPower = 1.5;
-        float fresnelPower = mix(nonMetallicFresnelPower, metallicFresnelPower, pbrLighting.metallic);
-        float fresnel = pow(1.0 - NdotV, fresnelPower);
+		// Gentler fresnel powers
+		float nonMetallicFresnelPower = mix(2.0, 3.5, 1.0 - specLum); // Reduced
+		float metallicFresnelPower = 1.2; // Reduced
+		float fresnelPower = mix(nonMetallicFresnelPower, metallicFresnelPower, pbrLighting.metallic);
+    
+		float fresnel = pow(1.0 - NdotV, fresnelPower);
+    
+		// Limit grazing angle effect
+		float grazingLimit = mix(0.6, 0.9, pbrLighting.metallic); // Metals can handle more
+		fresnel = clamp(fresnel, 0.0, grazingLimit);
 
-        float surfaceRoughness = 1.0 - (material.shininess / 128.0);
-        float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
+		float surfaceRoughness = 1.0 - (material.shininess / 128.0);
+		float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
 
-        float metallicStrength = mix(0.3, 0.6, specLum);
-        float glossyStrength = mix(0.4, 0.8, specLum);
-        float diffuseStrength = mix(0.05, 0.25, specLum);
+		// Reduced base strengths
+		float metallicStrength = mix(0.2, 0.4, specLum);
+		float glossyStrength = mix(0.25, 0.5, specLum);
+		float diffuseStrength = mix(0.02, 0.12, specLum);
 
-        bool isHighSpecular = specLum > 0.5;
-        bool isDiffuseDominant = dot(material.diffuse, vec3(0.299,0.587,0.114)) > specLum*2.0;
-        float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
+		bool isHighSpecular = specLum > 0.5;
+		bool isDiffuseDominant = dot(material.diffuse, vec3(0.299,0.587,0.114)) > specLum*2.0;
+		float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
 
-        float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, pbrLighting.metallic);
-        float reflectionStrength = clamp(baseReflectionStrength * fresnel * roughnessReduction, 0.0, 1.0);
+		float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, pbrLighting.metallic);
+    
+		// Additional roughness damping for very rough surfaces
+		float roughnessDamping = mix(0.3, 1.0, 1.0 - surfaceRoughness);
+    
+		float reflectionStrength = clamp(baseReflectionStrength * fresnel * roughnessReduction * roughnessDamping, 0.0, 0.5);
 
-        float envLOD = surfaceRoughness * 7.0;
-        vec3 envColor = textureLod(envMap, R, envLOD).rgb;
-        
-        // Apply exposure HERE
-        envColor *= envMapExposure;
-        
-        // Apply tone mapping HERE
-        envColor = applyToneMapping(envColor);
+		float envLOD = surfaceRoughness * 7.0;
+		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
+    
+		envColor *= envMapExposure;
+		envColor = applyToneMapping(envColor);
 
-        fragColor.rgb += envColor * reflectionStrength;
-        return;
-    }
+		fragColor.rgb += envColor * reflectionStrength;
+		return;
+	}
 }
 
 // ----------------------------------------------------------------------------
