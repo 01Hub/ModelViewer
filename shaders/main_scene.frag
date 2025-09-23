@@ -743,7 +743,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 				if (metallicInvert != 0) sampledMetal = 1.0 - sampledMetal;
 				sampledMetal = clamp(sampledMetal, 0.0, 1.0);
 			}
-			metallic = pbrLighting.metallic * sampledMetal;
+			metallic = sampledMetal;
 		} else {
 			metallic = pbrLighting.metallic;
 		}
@@ -759,7 +759,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 				if (roughnessInvert != 0) sampledRough = 1.0 - sampledRough;
 				sampledRough = clamp(sampledRough, 0.0, 1.0);
 			}
-			roughness = pbrLighting.roughness * sampledRough;
+			roughness = sampledRough;
 		} else {
 			roughness = pbrLighting.roughness;
 		}
@@ -776,25 +776,25 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 				if (aoInvert != 0) sampledAO = 1.0 - sampledAO;
 				sampledAO = clamp(sampledAO, 0.0, 1.0);
 			}
-			ambientOcclusion = pbrLighting.ambientOcclusion * sampledAO;
+			ambientOcclusion = sampledAO;
 		} else {
 			ambientOcclusion = pbrLighting.ambientOcclusion;
 		}
 
-		transmission     = hasTransmissionMap ? pbrLighting.transmission * texture(transmissionMap, clippedTexCoord).r : pbrLighting.transmission;
+		transmission     = hasTransmissionMap ? texture(transmissionMap, clippedTexCoord).r : pbrLighting.transmission;
 
-		ior = hasIORMap ? mix(1.0, pbrLighting.ior, texture(iorMap, clippedTexCoord).r) : pbrLighting.ior;
+		ior = hasIORMap ? texture(iorMap, clippedTexCoord).r : pbrLighting.ior;
 
 		if (hasSheenColorMap) {
 			vec3 sc = texture(sheenColorMap, clippedTexCoord).rgb;
-			sheenColor = (length(pbrLighting.sheenColor - vec3(1.0)) < 0.1) ? sc : pbrLighting.sheenColor * sc;
+			sheenColor =  sc;
 		} else {
 			sheenColor = pbrLighting.sheenColor;
 		}
-		sheenRoughness = hasSheenRoughnessMap ? pbrLighting.sheenRoughness * texture(sheenRoughnessMap, clippedTexCoord).r : pbrLighting.sheenRoughness;
+		sheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, clippedTexCoord).r : pbrLighting.sheenRoughness;
 
-		clearcoat          = hasClearcoatMap ? pbrLighting.clearcoat * texture(clearcoatMap, clippedTexCoord).r : pbrLighting.clearcoat;
-		clearcoatRoughness = hasClearcoatRoughnessMap ? pbrLighting.clearcoatRoughness * texture(clearcoatRoughnessMap, clippedTexCoord).r : pbrLighting.clearcoatRoughness;
+		clearcoat          = hasClearcoatMap ? texture(clearcoatMap, clippedTexCoord).r : pbrLighting.clearcoat;
+		clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, clippedTexCoord).r : pbrLighting.clearcoatRoughness;
 		clearcoatNormal    = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, clippedTexCoord) * side : N;
 	}
 
