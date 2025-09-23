@@ -2896,25 +2896,32 @@ GLMaterial GLMaterial::METAL_TUNGSTEN()
 
 GLMaterial GLMaterial::DEFAULT_MAT()
 {
-	return METAL_STEEL(); // Default material set to METAL_STEEL
-	//   GLMaterial mat({ 90 / 255.0f, 98 / 255.0f, 115 / 255.0f },
-	//       { 175 / 255.0f, 192 / 255.0f, 224 / 255.0f },
-	//       { 26 / 255.0f, 26 / 255.0f, 26 / 255.0f },
-	//       { 0.0, 0.0, 0.0 },
-	//       fabs(128.0 * 0.05f),
-	//       false,
-	//       1.0f);
-	   //mat.setAlbedoColor(mat.ambient() + mat.diffuse());
-	   //mat.setMetalness(1.0f);
-	   //mat.setRoughness(0.7f);
+	GLMaterial mat(
+		QVector3D(0.108f, 0.108f, 0.108f),   // ambient (~ albedo * 0.12)
+		QVector3D(0.90f, 0.90f, 0.90f),      // diffuse
+		QVector3D(0.04f, 0.04f, 0.04f),      // specular (dielectric F0)
+		QVector3D(0.0f, 0.0f, 0.0f),         // emissive
+		fabs(77.0f),                         // shininess (~roughness 0.45)
+		false,                               // metallic
+		1.0f);                               // opacity
 
-	   //// Additional PBR properties for complete material definition
-	   //mat.setOpacity(1.0f); // Fully opaque
-	   //mat.setTransmission(0.0f); // No light transmission
-	   //mat.setIOR(1.5f); // Standard dielectric IOR
-	   //mat.setShadingModel(ShadingModel::PBR); // Use PBR shading
+	// PBR canonical values
+	mat.setAlbedoColor(QVector3D(0.90f, 0.90f, 0.90f));
+	mat.setMetalness(0.0f);
+	mat.setRoughness(0.45f);
+	mat.setIOR(1.5f);
+	mat.setTransmission(0.0f);
+	mat.setClearcoat(0.0f);
+	mat.setClearcoatRoughness(0.0f);
+	mat.setSheenColor(QVector3D(0.0f, 0.0f, 0.0f));
+	mat.setSheenRoughness(0.0f);
 
-	   //return mat;
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setBlendMode(BlendMode::Opaque);
+	mat.setTwoSided(false);
+
+	mat.updateConsistency();
+	return mat;
 }
 
 void GLMaterial::setAlbedoFromADS()
@@ -2929,73 +2936,142 @@ void GLMaterial::setAlbedoFromADS()
 	_albedoColor.setZ(std::clamp(col.z(), 0.0f, 1.0f));
 }
 
+// ---------------------- BEGIN: Robust updateConsistency + helper ----------------------
+
+// internal helper: convert canonical PBR fields into legacy ADS fields
+// - This is intentionally one-way: it writes ADS fields computed from PBR canonical fields
+// - It does NOT change canonical PBR fields (albedo, metalness, roughness, ior, etc.)
+void GLMaterial::convertPBRtoADS()
+{
+	// Local copies for clarity
+	const QVector3D albedo = _albedoColor;
+	const float metalness = qBound(0.0f, _metalness, 1.0f);
+	const float roughness = qBound(0.0f, _roughness, 1.0f);
+	const float ior = qBound(1.0f, _ior, 10.0f);
+
+	// Ambient: small fraction of albedo (studio friendly)
+	_ambient = albedo * 0.12f;
+
+	// Diffuse: dielectrics keep albedo as diffuse; metals have strongly reduced diffuse contribution.
+	// We'll set diffuse = albedo * (1 - metalness) so shader / final lighting multiply is consistent.
+	_diffuse = albedo * (1.0f - metalness);
+
+	// Compute dielectric F0 from IOR: F0 = ((ior-1)/(ior+1))^2
+	float f0scalar = (ior - 1.0f) / (ior + 1.0f);
+	f0scalar = f0scalar * f0scalar;
+	QVector3D dielectricF0 = QVector3D(f0scalar, f0scalar, f0scalar);
+
+	// Metallic specular uses albedo as F0
+	QVector3D metallicF0 = albedo;
+
+	// Final specular = mix(dielectricF0, metallicF0, metalness)
+	_specular = dielectricF0 * (1.0f - metalness) + metallicF0 * metalness;
+
+	// Shininess mapping: use a perceptual mapping. Keep in 1..128 range for legacy shaders.
+	// Use squared smoothness mapping: shininess ~ pow(1-roughness,2) * 255 -> clamp to [1,128]
+	float smoothness = 1.0f - roughness;
+	float shin = qBound(1.0f, std::pow(smoothness, 2.0f) * 255.0f, 128.0f);
+	_shininess = shin;
+
+}
+
+
 void GLMaterial::updateConsistency()
 {
-	// Synchronize legacy and PBR properties based on current shading model
+	// 1) First, ensure basic ranges are respected
+	clampValues();
+
+	// 2) Make sure metal boolean and float are consistent (boolean is legacy short-hand)
+	// Keep _metalness as the canonical float. If boolean was used, gently bias float.
+	if (_metallic && _metalness < 0.5f)
+	{
+		// If legacy boolean is set but float is low, bias toward metallic but don't force
+		_metalness = qBound(0.5f, _metalness, 1.0f);
+	}
+	else if (!_metallic && _metalness > 0.99f)
+	{
+		// if float says fully-metallic but boolean false, keep float as source of truth
+		// (we will not flip boolean here)
+	}
+	_metallic = (_metalness > 0.5f); // keep boolean consistent with canonical float
+
+	// 3) Behavior per shading model
 	if (_shadingModel == ShadingModel::PBR)
 	{
-		// When using PBR, update legacy properties from PBR values
-		_diffuse = _albedoColor;
-		_ambient = _albedoColor * 0.1f; // Typical ambient factor
+		// PBR is canonical: derive ADS (legacy) fields for UI and any ADS shader fallbacks
+		convertPBRtoADS();
 
-		// Convert metalness to legacy metallic boolean (keep for compatibility)
-		_metallic = (_metalness > 0.5f);
+		// Keep PBR fields unchanged. Don't multiply emissive by strength in the model.
+		// (renderer uses _emissive * _emissiveStrength when shading)
 
-		// Convert roughness to shininess (inverse relationship)
-		_shininess = (1.0f - _roughness) * 128.0f;
+		// Some additional housekeeping: if clearcoat is set but clearcoatRoughness is zero,
+		// set a small default to avoid singular appearance.
+		if (_clearcoat > 0.0f && _clearcoatRoughness <= 0.0f)
+			_clearcoatRoughness = qBound(0.02f, _clearcoatRoughness, 1.0f);
 
-		// SMOOTH BLENDING: Update specular based on gradual metalness transition
-		// Calculate dielectric specular (F0 from IOR)
-		float f0 = (_ior - 1.0f) / (_ior + 1.0f);
-		f0 = f0 * f0;
-		QVector3D dielectricSpecular(f0, f0, f0);
-
-		// Calculate metallic specular (uses albedo color)
-		QVector3D metallicSpecular = _albedoColor;
-
-		// Smoothly blend between dielectric and metallic specular
-		_specular = dielectricSpecular * (1.0f - _metalness) + metallicSpecular * (_metalness);
-
-		// For diffuse: metals have no diffuse, dielectrics use albedo
-		// But since we're setting _diffuse = _albedoColor above, we need to handle this in shader
-		// The shader should use: finalDiffuse = diffuse * (1.0 - metalness)
-
-		// Sync emissive properties
-		_emissive = _emissive * _emissiveStrength;
+		// clamp again after conversions
+		clampValues();
+		return;
 	}
-	else
+
+	// If we reach here, shading model is a legacy ADS-style (BlinnPhong / Unlit / Toon)
+	// We should carefully derive PBR fields *only if safe*, to avoid overwriting canonical PBR values that the user expects.
+	// Rule: only set/overwrite canonical PBR fields when they appear uninitialized/default or clearly coming from ADS.
+	const float EPS = 1e-3f;
+
+	// Derive albedoColor from ADS diffuse, but only if current albedo looks "unset" (very dark) or exactly equal to diffuse
+	bool albedoLooksEmpty = (_albedoColor.lengthSquared() < (EPS * EPS));
+	bool albedoEqualsDiffuse = (((_albedoColor - _diffuse).length() < 1e-4f));
+
+	if (albedoLooksEmpty || albedoEqualsDiffuse)
 	{
-		// When using legacy shading (ADS), update PBR properties from legacy values
+		// safe to assign
 		_albedoColor = _diffuse;
-
-		// Convert shininess to roughness (inverse relationship)
-		_roughness = qBound(0.01f, 1.0f - (_shininess / 128.0f), 1.0f);
-
-		// PRESERVE CONTINUOUS METALNESS: Don't convert boolean back to hard values		
-		if (_metallic)
-		{
-			// If boolean is true, bias toward metallic but allow gradual transition
-			_metalness = qBound(0.5f, _metalness, 1.0f); // Ensure at least 0.5 if flagged as metal
-		}
-		// If boolean is false, allow full range (0.0 to 1.0) based on external metalness input
-
-		// Calculate IOR from specular reflectance (assuming grayscale)
-		float specularGray = ((_specular).x() + (_specular).y() + (_specular).z()) / 3.0f;
-		if (specularGray > 0.0f)
-		{
-			float sqrtF0 = qSqrt(qBound(0.001f, specularGray, 0.999f)); // Clamp to prevent division issues
-			_ior = qBound(1.0f, (1.0f + sqrtF0) / (1.0f - sqrtF0), 3.0f); // Reasonable IOR range
-		}
-
-		// Extract emissive strength if emissive is non-zero
-		float emissiveLength = (_emissive).length();
-		if (emissiveLength > 0.0f)
-		{
-			_emissiveStrength = emissiveLength;
-			_emissive = (_emissive) / emissiveLength; // Normalize color
-		}
 	}
+	// Otherwise: preserve existing canonical albedoColor (avoid clobbering user-specified PBR color)
+
+	// Roughness: map from shininess (legacy) -> roughness
+	// Inverse mapping with clamping; avoid making it exactly zero
+	float derivedRoughness = qBound(0.04f, 1.0f - (_shininess / 128.0f), 1.0f);
+	_roughness = derivedRoughness;
+
+	// Metalness: keep continuous float if present. If legacy boolean set, bias toward metallic.
+	if (_metallic)
+	{
+		_metalness = qBound(0.5f, _metalness, 1.0f); // ensure at least partially metallic if flagged
+	}
+	// otherwise keep existing _metalness as-is (user may have set non-zero)
+
+	// IOR estimation: compute from specular gray if it's meaningfully non-zero
+	float specGray = (_specular.x() + _specular.y() + _specular.z()) / 3.0f;
+	if (specGray > 1e-4f)
+	{
+		// clamp specGray into safe range then invert to IOR approximately
+		float s = qBound(1e-4f, specGray, 0.999f);
+		float sqrtF0 = qSqrt(s);
+		// avoid division by zero; invert relation: sqrtF0 = (n-1)/(n+1) => n = (1+sqrtF0)/(1-sqrtF0)
+		float n = 1.5f;
+		if (sqrtF0 < 0.999f)
+			n = (1.0f + sqrtF0) / (1.0f - sqrtF0);
+		_ior = qBound(1.0f, n, 3.0f);
+	}
+
+	// Do NOT overwrite emissive color or emissiveStrength; preserve both (renderer multiplies them)
+	// Transmission: keep as-is (legacy ADS rarely encodes transmission)
+
+	// Finally, for ADS shading we should still compute reasonable ADS derived helpers:
+	// (for example, ensure _specular is within 0..1)
+	_specular = QVector3D(
+		qBound(0.0f, _specular.x(), 1.0f),
+		qBound(0.0f, _specular.y(), 1.0f),
+		qBound(0.0f, _specular.z(), 1.0f)
+	);
+
+	// Clamp and finish
+	clampValues();
 }
+
+
 
 void GLMaterial::clampValues()
 {

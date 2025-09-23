@@ -513,6 +513,7 @@ private:
 	void updateConsistency(); // Ensure consistency between legacy and PBR properties
 	void clampValues(); // Ensure all values are within valid ranges
 	void ensureADSConsistency(); // Ensure ambient, diffuse, specular are consistent with albedo
+	void convertPBRtoADS();
 	void assignAutoPackingForPath(const QString& path);
 
 
