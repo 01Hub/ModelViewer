@@ -861,9 +861,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		// --- Grazing control params (tweak these) ---
 		// How strongly to soften/attenuate reflections at grazing angles
-		float grazingPower = 2.0;          // higher -> stronger effect near grazing
-		float extraLodFactor = 0.5;        // how much extra LOD (blur) to add at grazing
-		float grazingSpecReduce = 0.7;     // how much to reduce specular intensity at full grazing (0..1)
+		float grazingPower = mix(1.8, 2.5, roughness); // Vary with roughness
+		float extraLodFactor = 0.6;        // how much extra LOD (blur) to add at grazing
+		float grazingSpecReduce = mix(0.8, 0.5, metallic); // Metals handle grazing better
 		// ------------------------------------------------
 
 		// Compute a grazing factor: 0 at face-on, 1 at grazing (dotNV -> 0)
