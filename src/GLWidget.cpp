@@ -129,6 +129,8 @@ _assimpModelLoader(nullptr)
 		 showAxis(enabled);
 		 });
 
+	 connect(this, &GLWidget::visibleSwapped, _viewToolbar, &ViewToolbar::setSwapVisibleChecked);
+
 	loadBgColorSettings();
 
 	_quadVAO = 0;
@@ -1089,7 +1091,10 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	);
 
 	if (_hiddenObjectsIds.size() == 0 && _visibleSwapped)
+	{
 		_visibleSwapped = false;
+		emit visibleSwapped(_visibleSwapped);
+	}
 
 	_currentTranslation = _primaryCamera->getPosition();
 	_boundingSphere.setCenter(0, 0, 0);
@@ -1274,7 +1279,7 @@ void GLWidget::updateFloorPlane()
 	if (_boundingBox.getZSize() >= _boundingBox.getXSize() && _boundingBox.getZSize() >= _boundingBox.getYSize())
 		_floorSize = _boundingBox.getZSize();
 	else
-		_floorSize = (std::max(_boundingBox.getYSize(), _boundingBox.getXSize())) / 2.0f;
+		_floorSize = (std::max(_boundingBox.getYSize(), _boundingBox.getXSize())) / 1.25f;
 	
 	_floorCenter = _boundingSphere.getCenter();
 	_lightCube->setSize(halfObjectSize * 0.1f);
@@ -1434,7 +1439,10 @@ void GLWidget::removeFromDisplay(int index)
 		_displayedObjectsIds.clear();
 		_hiddenObjectsIds.clear();
 		if (_visibleSwapped)
+		{
 			_visibleSwapped = false;
+			emit visibleSwapped(_visibleSwapped);
+		}
 	}
 }
 

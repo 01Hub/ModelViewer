@@ -30,6 +30,8 @@ public:
     void setDefaultViewModeAction(ViewModeActions mode);
     void setDefaultDisplayModeAction(DisplayModeActions mode);
 
+    void setSwapVisibleChecked(bool checked);
+
 signals:
     void cameraModeSelected(const QString& type);
     void viewSelected(const QString& viewName);
