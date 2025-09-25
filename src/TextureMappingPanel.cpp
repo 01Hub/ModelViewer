@@ -19,6 +19,7 @@
 #include "GLMaterial.h"
 #include "MaterialPreviewWidget.h"
 #include "ChannelPackingEditorDialog.h"
+#include "MaterialTextureLibrary.h"
 
 // ---------------- ctor / dtor ----------------
 TextureMappingPanel::TextureMappingPanel(QWidget* parent)
@@ -99,6 +100,14 @@ void TextureMappingPanel::onTintParamsChanged()
     _ui->maskChannelCombo->setEnabled(m->albedoTint.mode == GLMaterial::TintMode::LerpMask);
 
     emit materialChanged(m);
+}
+
+void TextureMappingPanel::onMaterialPresetChanged(int index)
+{
+    if (!_ui->comboBoxPresetTextures) return;
+    QString name = _ui->comboBoxPresetTextures->itemText(index);
+    if (name.isEmpty()) return;
+    applyMaterialPreset(name);
 }
 
 // ---------------- registry / wiring ----------------
@@ -220,6 +229,22 @@ void TextureMappingPanel::connectSignals()
         this, &TextureMappingPanel::onTintParamsChanged);
     connect(_ui->maskChannelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
         this, &TextureMappingPanel::onTintParamsChanged);
+
+    if (_ui->comboBoxPresetTextures)
+    {
+        const MaterialsMap& mats = MaterialTextureLibrary::instance().materials();
+        MaterialScanner::populateComboWithMaterials(_ui->comboBoxPresetTextures, mats);
+
+        connect(_ui->comboBoxPresetTextures, qOverload<int>(&QComboBox::currentIndexChanged),
+            this, &TextureMappingPanel::onMaterialPresetChanged);
+
+        if (_ui->comboBoxPresetTextures->count() > 0)
+        {
+            applyMaterialPreset(_ui->comboBoxPresetTextures->currentText());
+        }
+    }
+
+    connect(_ui->pushButtonClearAllMaps, &QPushButton::clicked, this, &TextureMappingPanel::clearAllMaps);
 }
 
 // ---------------- icons / thumbs ----------------
@@ -316,6 +341,31 @@ void TextureMappingPanel::clearMap(const QString& key)
     else if (key == "cc_normal")    _material->clearClearcoatNormalMap();
 }
 
+void TextureMappingPanel::clearAllMaps()
+{
+    if (!_material) return;
+
+    // Iterate over registered maps and clear both model and UI
+    for (auto it = _maps.constBegin(); it != _maps.constEnd(); ++it)
+    {
+        const QString key = it.key();
+        const MapSlot& slot = it.value(); // your MapEntry type used in _maps
+
+        // Clear the map on the GLMaterial
+        clearMap(key);
+
+        // Clear the UI icon on corresponding button (if any)
+        if (slot.button)
+        {
+            applyButtonEmptyIcon(const_cast<MapSlot&>(slot));
+        }       
+    }
+
+    // After clearing, refresh preview and emit changed so UI/host can react
+    updatePreview();
+    emit materialChanged(_material);
+}
+
 QString TextureMappingPanel::mapPath(const QString& key) const
 {
     if (!_material) return {};
@@ -391,6 +441,79 @@ void TextureMappingPanel::updatePreview()
     _preview->setExposureEV(_ui->sliderExposure->value() / 10.0f);
     _preview->update();
 }
+
+void TextureMappingPanel::applyMaterialPreset(const QString& presetName)
+{
+    if (!_material) return;
+
+    clearAllMaps();
+
+    const MaterialsMap& mats = MaterialTextureLibrary::instance().materials();
+    if (!mats.contains(presetName)) return;
+
+    const TextureMap texs = mats.value(presetName);
+
+    // --- 1) If packed AORM meta is present, apply it to AO/Roughness/Metallic only ---
+    bool appliedPackedAORM = false;
+    if (texs.contains("packed:aorm"))
+    {
+        QString packedVal = texs.value("packed:aorm"); // expected "<path>|<chanOrder>"
+        QString packedPath = packedVal.split('|').value(0).trimmed();
+        if (!packedPath.isEmpty())
+        {
+            // assign packed file to the three logical maps
+            setMapPath("ao", packedPath);
+            setMapPath("roughness", packedPath);
+            setMapPath("metallic", packedPath);
+
+            // update UI icons for the three map slots exactly like the original loop would
+            const QStringList keys = { "ao", "roughness", "metallic" };
+            for (const QString& k : keys)
+            {
+                if (_maps.contains(k))
+                {
+                    auto entry = _maps.value(k); // keep same usage as your original code
+                    if (entry.button && !packedPath.isEmpty())
+                    {
+                        applyButtonImageIcon(entry, packedPath);
+                    }
+                }
+            }
+
+            appliedPackedAORM = true;
+        }
+    }
+
+    // --- 2) Apply remaining maps from the texture map (skip meta keys, and skip ao/roughness/metallic if already applied) ---
+    for (auto it = texs.constBegin(); it != texs.constEnd(); ++it)
+    {
+        const QString& key = it.key();
+        const QString& path = it.value();
+
+        // skip meta entries
+        if (key.startsWith("packed:")) continue;
+
+        // if packed AORM was applied, skip separate ao/roughness/metallic entries (we already applied them)
+        if (appliedPackedAORM && (key == "ao" || key == "roughness" || key == "metallic")) continue;
+
+        // normal, albedo, etc. will be applied as usual
+        setMapPath(key, path);
+
+        if (_maps.contains(key))
+        {
+            auto entry = _maps.value(key);
+            if (entry.button && !path.isEmpty())
+            {
+                applyButtonImageIcon(entry, path);
+            }
+        }
+    }
+
+    updatePreview();
+    emit materialChanged(_material);
+}
+
+
 
 
 // small helper: acceptable file extensions (same as file dialog)

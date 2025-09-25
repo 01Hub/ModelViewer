@@ -36,9 +36,12 @@ public:
 
 	void onTintParamsChanged();
 
+    void onMaterialPresetChanged(int index);
+
 signals:
     void materialChanged(const GLMaterial* material);
 	void applyTexturesTriggered(const GLMaterial& material);
+    
 
 protected:
     bool eventFilter(QObject* obj, QEvent* ev) override;
@@ -63,6 +66,7 @@ private:
     // GLMaterial sync (rename to your exact API in the .cpp body)
     void setMapPath(const QString& key, const QString& file);
     void clearMap(const QString& key);
+    void clearAllMaps();
     QString mapPath(const QString& key) const;
 
     // Channel packing hook
@@ -71,6 +75,8 @@ private:
     // UV + preview
     void onUVChanged();
     void updatePreview();
+
+    void applyMaterialPreset(const QString& presetName);
 
 private:
     Ui::TextureMappingPanel* _ui = nullptr;
