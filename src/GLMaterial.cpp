@@ -2953,8 +2953,8 @@ void GLMaterial::convertPBRtoADS()
 	_ambient = albedo * 0.12f;
 
 	// Diffuse: dielectrics keep albedo as diffuse; metals have strongly reduced diffuse contribution.
-	// We'll set diffuse = albedo * (1 - metalness) so shader / final lighting multiply is consistent.
-	_diffuse = albedo * (1.0f - metalness);
+	// We'll set diffuse = albedo * (1 - metalness/4.0f) so shader / final lighting multiply is consistent.
+	_diffuse = albedo * (1.0f - metalness/4.0f);
 
 	// Compute dielectric F0 from IOR: F0 = ((ior-1)/(ior+1))^2
 	float f0scalar = (ior - 1.0f) / (ior + 1.0f);
