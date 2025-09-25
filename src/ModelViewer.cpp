@@ -4,6 +4,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QString>
 #include <QToolTip>
 #include <assimp/Importer.hpp>
 #include "AssImpModelLoader.h"
@@ -118,6 +119,17 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(doubleSpinBoxSkyBoxFOV, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setSkyBoxFOV);
 	connect(doubleSpinBoxFloorOffset, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorOffsetPercent);
 	connect(checkBoxSkyBoxHDRI, &QCheckBox::toggled, _glWidget, &GLWidget::setSkyBoxTextureHDRI);
+	connect(checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &ModelViewer::loadSkyBoxPresetMaps);
+	connect(comboBoxSkyBoxMaps, &QComboBox::currentIndexChanged, this,
+		[&](const int& index) {
+			QString selectedPath = comboBoxSkyBoxMaps->itemData(index).toString();			
+			if (selectedPath != "")
+			{				
+				if(isVisible())
+					_glWidget->setSkyBoxTextureFolder(selectedPath);
+			}
+		}
+	);
 	connect(checkBoxShowLights, &QCheckBox::toggled, _glWidget, &GLWidget::showLights);
 
 	connect(Ui_ModelViewer::comboBoxShadowQuality, &QComboBox::currentIndexChanged, this,
@@ -196,6 +208,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		retranslateUI();  // if needed
 		});
 
+	loadSkyBoxPresetMaps();
 }
 
 ModelViewer::~ModelViewer()
@@ -1461,6 +1474,23 @@ void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 	updateDisplayList();
 }
 
+void ModelViewer::loadSkyBoxPresetMaps()
+{
+	QString appPath = MODELVIEWER_DATA_DIR;
+	QString texPath = appPath + (checkBoxSkyBoxHDRI->isChecked() ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes/LDRI");	
+
+	comboBoxSkyBoxMaps->clear();
+
+	QDir dir(texPath);
+	QStringList folderList = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+
+	for (const QString& folderName : folderList)
+	{
+		QString fullPath = dir.absoluteFilePath(folderName);
+		comboBoxSkyBoxMaps->addItem(folderName, fullPath);
+	}
+}
+
 void ModelViewer::onFileImport()
 {
 	QFileDialog fileDialog(this, tr("Import Model File"), _lastOpenedDir);
@@ -1766,7 +1796,7 @@ void ModelViewer::on_toolBox_currentChanged(int index)
 
 void ModelViewer::on_pushButtonSkyBoxTex_clicked()
 {
-	QString texpath = checkBoxSkyBoxHDRI->isChecked() ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes";
+	QString texpath = checkBoxSkyBoxHDRI->isChecked() ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes/LDRI";
 	QString appPath = MODELVIEWER_DATA_DIR;
 	QString dir = QFileDialog::getExistingDirectory(this, tr("Select Skybox Texture Folder"),
 		appPath + texpath,

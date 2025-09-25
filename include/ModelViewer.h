@@ -179,6 +179,7 @@ protected:
 
 private:
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
+	void loadSkyBoxPresetMaps();
 
 private:
 	GLWidget* _glWidget;
