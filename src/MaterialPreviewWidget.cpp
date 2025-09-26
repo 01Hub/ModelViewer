@@ -323,6 +323,39 @@ void MaterialPreviewWidget::initializeGL()
 	initCylinderMesh();
 	initPlaneMesh(); 
 	initTeapotMesh();
+
+	initializeOverlayShader();
+
+	// Create overlay quad VAO/VBO
+	glGenVertexArrays(1, &_overlayVAO);
+	glGenBuffers(1, &_overlayVBO);
+
+	glBindVertexArray(_overlayVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, _overlayVBO);
+
+	// Quad vertices (position + UV)
+	float quadVertices[] = {
+		// positions   // texture coords
+		0.0f, 1.0f,    0.0f, 1.0f,  // top left
+		0.0f, 0.0f,    0.0f, 0.0f,  // bottom left  
+		1.0f, 1.0f,    1.0f, 1.0f,  // top right
+		1.0f, 0.0f,    1.0f, 0.0f   // bottom right
+	};
+
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+
+	// Position attribute
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	// Texture coord attribute
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+	glEnableVertexAttribArray(1);
+
+	glBindVertexArray(0);
+
+	// Generate texture
+	glGenTextures(1, &_textOverlayTexture);
 }
 
 
@@ -374,15 +407,12 @@ void MaterialPreviewWidget::paintGL()
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	_shader->bind();
-
-	//syncAlbedoFromMaterial();
+		
 	syncAllTexturesFromMaterial();
-
-	
+		
 	QMatrix4x4 model;
 	model.setToIdentity();
-
-		
+			
 	model.scale(_zoom);
 	model.rotate(_rotX, 1, 0, 0);
 	model.rotate(_rotY, 0, 1, 0);
@@ -534,14 +564,10 @@ void MaterialPreviewWidget::paintGL()
 	glBindTexture(GL_TEXTURE_2D, _currentMaterial.iorTextureId());
 	glActiveTexture(GL_TEXTURE14);
 	glBindTexture(GL_TEXTURE_2D, _currentMaterial.transmissionTextureId());
-		
-	applyEnvPreset(_currentEnv, _profile);
-
-	_shader->setUniformValue("uExposureEV", _exposureEV);
-	_shader->setUniformValue("uUseACES", true);   // try true; looks great
-	_shader->setUniformValue("uGamma", 2.2f);
-
+	
 	_shader->setUniformValue("uTexViewMode", static_cast<int>(_texViewMode));
+
+	applyEnvPreset(_currentEnv, _profile);
 
 	const MeshGL* mesh = nullptr;
 	switch (_currentShape)
@@ -565,8 +591,10 @@ void MaterialPreviewWidget::paintGL()
 
 	if (_overlayActive)
 	{
-		glDisable(GL_DEPTH_TEST);
-		glDisable(GL_CULL_FACE);
+		if (_textTextureNeedsUpdate)
+		{
+			createTextTexture();
+		}
 
 		const qint64 elapsed = _overlayTimer.elapsed();
 		float alpha = 1.0f;
@@ -581,32 +609,7 @@ void MaterialPreviewWidget::paintGL()
 			}
 		}
 
-		QPainter p(this);
-		p.setRenderHint(QPainter::Antialiasing);
-		p.setRenderHint(QPainter::TextAntialiasing);
-
-		QColor textColor(255, 255, 255, int(alpha * 200));
-		QColor bgColor(0, 0, 0, int(alpha * 150));
-
-		QString hint =
-			"L-drag: rotate\n"
-			"R-drag: zoom\n"
-			"Double-click L: reset all\n"
-			"Double-click R: reset zoom";
-
-		QFont font = p.font();
-		font.setPointSize(9);
-		p.setFont(font);
-
-		QRect rect = p.boundingRect(this->rect().adjusted(10, 10, -10, -10),
-			Qt::AlignLeft | Qt::AlignTop, hint);
-
-		p.setBrush(bgColor);
-		p.setPen(Qt::NoPen);
-		p.drawRoundedRect(rect.adjusted(-6, -4, +6, +4), 6, 6);
-
-		p.setPen(textColor);
-		p.drawText(rect, Qt::AlignLeft | Qt::AlignTop, hint);
+		renderTextOverlay(alpha);
 	}
 }
 
@@ -1211,6 +1214,169 @@ void MaterialPreviewWidget::syncAllTexturesFromMaterial()
 		14, "uTransmissionMap", "uUseTransmissionMap", false);
 }
 
+void MaterialPreviewWidget::initializeOverlayShader()
+{
+	_overlayShader = new QOpenGLShaderProgram(this);
+
+	// Simple vertex shader for overlay
+	const char* vertexShaderSource = R"(
+        #version 330 core
+        layout (location = 0) in vec2 aPos;
+        layout (location = 1) in vec2 aTexCoord;
+        
+        out vec2 TexCoord;
+        
+        uniform vec4 uRect;  // x, y, width, height in screen coordinates (0-1)
+        uniform vec2 uScreenSize;
+        
+        void main() {
+            vec2 pos = aPos * uRect.zw + uRect.xy;
+            // Convert to NDC
+            pos = pos * 2.0 - 1.0;
+            pos.y = -pos.y; // Flip Y for screen coordinates
+            
+            gl_Position = vec4(pos, 0.0, 1.0);
+            TexCoord = aTexCoord;
+        }
+    )";
+
+	// Fragment shader for overlay
+	const char* fragmentShaderSource = R"(
+        #version 330 core
+        out vec4 FragColor;
+        
+        in vec2 TexCoord;
+        
+        uniform sampler2D uTextTexture;
+        uniform float uAlpha;
+        
+        void main() {
+            vec4 texColor = texture(uTextTexture, TexCoord);
+            if (texColor.a < 0.01) discard;
+            FragColor = vec4(texColor.rgb, texColor.a * uAlpha);
+        }
+    )";
+
+	_overlayShader->addShaderFromSourceCode(QOpenGLShader::Vertex, vertexShaderSource);
+	_overlayShader->addShaderFromSourceCode(QOpenGLShader::Fragment, fragmentShaderSource);
+	_overlayShader->link();
+}
+
+void MaterialPreviewWidget::createTextTexture()
+{
+	QString hint =
+		"L-drag: rotate\n"
+		"R-drag: zoom\n"
+		"Double-click L: reset all\n"
+		"Double-click R: reset zoom";
+
+	// Create a larger image for better quality
+	QImage textImage(360, 144, QImage::Format_RGBA8888);
+	textImage.fill(Qt::transparent);
+
+	QPainter painter(&textImage);
+	painter.setRenderHint(QPainter::Antialiasing);
+	painter.setRenderHint(QPainter::TextAntialiasing);
+
+	// Background rectangle
+	QColor bgColor(0, 0, 0, 150);
+	QColor textColor(255, 255, 255, 200);
+
+	QFont font = painter.font();
+	font.setPointSize(width()/14);
+	font.setFamily("Arial");
+	painter.setFont(font);
+
+	QRect textRect = painter.boundingRect(textImage.rect().adjusted(10, 10, -10, -10),
+		Qt::AlignLeft | Qt::AlignTop, hint);
+
+	// Draw background
+	painter.setBrush(bgColor);
+	painter.setPen(Qt::NoPen);
+	painter.drawRoundedRect(textRect.adjusted(-6, -4, 6, 4), 6, 6);
+
+	// Draw text
+	painter.setPen(textColor);
+	painter.drawText(textRect, Qt::AlignLeft | Qt::AlignTop, hint);
+
+	painter.end();
+
+	// Upload to OpenGL texture
+	glBindTexture(GL_TEXTURE_2D, _textOverlayTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, textImage.width(), textImage.height(),
+		0, GL_RGBA, GL_UNSIGNED_BYTE, textImage.constBits());
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	_textTextureNeedsUpdate = false;
+}
+
+void MaterialPreviewWidget::renderTextOverlay(float alpha)
+{
+	// Save current OpenGL state
+	GLboolean depthTest = glIsEnabled(GL_DEPTH_TEST);
+	GLboolean blend = glIsEnabled(GL_BLEND);
+	GLint blendSrc, blendDst;
+	glGetIntegerv(GL_BLEND_SRC_ALPHA, &blendSrc);
+	glGetIntegerv(GL_BLEND_DST_ALPHA, &blendDst);
+
+	// Set up for overlay rendering
+	glDisable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	_overlayShader->bind();
+
+	// Calculate aspect-ratio corrected dimensions
+	float viewportWidth = width();
+	float viewportHeight = height();
+	float viewportAspect = viewportWidth / viewportHeight;
+
+	// Texture dimensions (from createTextTexture)
+	float textureWidth = 300.0f;
+	float textureHeight = 120.0f;
+	float textureAspect = textureWidth / textureHeight;
+
+	// Desired size in pixels
+	float desiredPixelWidth = 250.0f;  // Adjust as needed
+	float desiredPixelHeight = desiredPixelWidth / textureAspect;
+
+	// Convert to normalized coordinates (0-1)
+	float w = desiredPixelWidth / viewportWidth;
+	float h = desiredPixelHeight / viewportHeight;
+
+	// Position (offset from edges in pixels)
+	float pixelOffsetX = 15.0f;
+	float pixelOffsetY = 15.0f;
+
+	float x = pixelOffsetX / viewportWidth;
+	float y = pixelOffsetY / viewportHeight;
+
+	_overlayShader->setUniformValue("uRect", QVector4D(x, y, w, h));
+	_overlayShader->setUniformValue("uScreenSize", QVector2D(viewportWidth, viewportHeight));
+	_overlayShader->setUniformValue("uAlpha", alpha);
+	_overlayShader->setUniformValue("uTextTexture", 0);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, _textOverlayTexture);
+
+	glBindVertexArray(_overlayVAO);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	glBindVertexArray(0);
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+	_overlayShader->release();
+
+	// Restore OpenGL state
+	if (!blend) glDisable(GL_BLEND);
+	else glBlendFunc(blendSrc, blendDst);
+	if (depthTest) glEnable(GL_DEPTH_TEST);
+}
 
 void MaterialPreviewWidget::mousePressEvent(QMouseEvent* e)
 {

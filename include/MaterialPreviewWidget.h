@@ -161,4 +161,14 @@ private:
 	float _exposureEV = 0.0f;
 	TexViewMode _texViewMode = TexViewMode::All;
 	PreviewProfile _profile = PreviewProfile::MaterialShowcase;
+
+    GLuint _textOverlayTexture = 0;
+    QOpenGLShaderProgram* _overlayShader = nullptr;
+    GLuint _overlayVAO = 0;
+    GLuint _overlayVBO = 0;
+    bool _textTextureNeedsUpdate = true;
+
+    void initializeOverlayShader();
+    void createTextTexture();
+    void renderTextOverlay(float alpha);
 };
