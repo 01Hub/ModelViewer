@@ -15,7 +15,7 @@ MaterialsMap MaterialScanner::parseMaterialsFolder(const QString& rootFolder)
     // tokens (ordered) used to detect each texture type in the filename
     const QStringList albedoTokens = { "alb", "albedo", "basecolor", "base_color", "base-color", "base", "diffuse", "diff", "col", "color" };
     const QStringList metallicTokens = { "spec", "specular", "metallic", "metalness", "metal", "m" };
-    const QStringList normalTokens = { "normal", "normalmap", "normal_map", "nrm", "nm", "_n", "-n", "n" };
+    const QStringList normalTokens = { "normal", "normalgl", "normalmap", "normal_map", "nor", "nrm", "nm", "_n", "-n", "n" };
     const QStringList aoTokens = { "ao", "ambientocclusion", "ambient_occlusion", "occ", "occlusion" };
 
     const QStringList roughnessTokens = { "roughness","rough","r" };
