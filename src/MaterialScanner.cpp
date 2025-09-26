@@ -13,9 +13,9 @@ MaterialsMap MaterialScanner::parseMaterialsFolder(const QString& rootFolder)
     MaterialsMap out;
 
     // tokens (ordered) used to detect each texture type in the filename
-    const QStringList albedoTokens = { "albedo", "basecolor", "base_color", "base-color", "base", "diffuse", "diff", "col", "color" };
-    const QStringList metallicTokens = { "metallic", "metalness", "metal", "m" };
-    const QStringList normalTokens = { "normal", "normalmap", "normal_map", "nrm", "nm", "n" };
+    const QStringList albedoTokens = { "alb", "albedo", "basecolor", "base_color", "base-color", "base", "diffuse", "diff", "col", "color" };
+    const QStringList metallicTokens = { "spec", "specular", "metallic", "metalness", "metal", "m" };
+    const QStringList normalTokens = { "normal", "normalmap", "normal_map", "nrm", "nm", "_n", "-n", "n" };
     const QStringList aoTokens = { "ao", "ambientocclusion", "ambient_occlusion", "occ", "occlusion" };
 
     const QStringList roughnessTokens = { "roughness","rough","r" };
@@ -138,6 +138,7 @@ MaterialsMap MaterialScanner::parseMaterialsFolder(const QString& rootFolder)
             QString bestPath;
             int bestTokenIndex = INT_MAX;
             int bestExtIndex = INT_MAX;
+            int bestTokenPosition = -1; // position of token in filename
 
             for (const QFileInfo& f : files)
             {
@@ -146,17 +147,46 @@ MaterialsMap MaterialScanner::parseMaterialsFolder(const QString& rootFolder)
                 int extIndex = exts.indexOf(extension);
                 if (extIndex < 0) extIndex = exts.size(); // unlisted extensions get low priority
 
+                // Skip the packed AORM file when detecting other map types
+                if (!packedPath.isEmpty() && f.absoluteFilePath() == packedPath) continue;
+
+                // Skip files that look like normal maps when detecting non-normal types
+                if (type != "normal" && filenameLooksLikeNormal(fname)) continue;
+
                 // find earliest token that occurs in filename
                 for (int ti = 0; ti < tokens.size(); ++ti)
                 {
                     const QString& tok = tokens[ti];
-                    if (fname.contains(tok))
+                    if (tokenMatchesInFilename(fname, tok))
                     {
-                        // choose if token is higher priority (smaller index) or same token but better extension
-                        if (ti < bestTokenIndex || (ti == bestTokenIndex && extIndex < bestExtIndex))
+                        // Find the LAST occurrence of this token in the filename
+                        int tokenPos = fname.lastIndexOf(tok);
+
+                        bool betterMatch = false;
+                        if (ti < bestTokenIndex)
+                        {
+                            // Higher priority token
+                            betterMatch = true;
+                        }
+                        else if (ti == bestTokenIndex)
+                        {
+                            if (tokenPos > bestTokenPosition)
+                            {
+                                // Same token priority, but appears later in filename
+                                betterMatch = true;
+                            }
+                            else if (tokenPos == bestTokenPosition && extIndex < bestExtIndex)
+                            {
+                                // Same position, better extension
+                                betterMatch = true;
+                            }
+                        }
+
+                        if (betterMatch)
                         {
                             bestTokenIndex = ti;
                             bestExtIndex = extIndex;
+                            bestTokenPosition = tokenPos;
                             bestPath = f.absoluteFilePath();
                         }
                         break; // stop checking tokens for this file (we found a token)
@@ -170,6 +200,11 @@ MaterialsMap MaterialScanner::parseMaterialsFolder(const QString& rootFolder)
                 for (const QFileInfo& f : files)
                 {
                     QString fname = f.completeBaseName().toLower();
+
+                    // Skip packed AORM and normal-looking files in fallbacks too
+                    if (!packedPath.isEmpty() && f.absoluteFilePath() == packedPath) continue;
+                    if (type != "normal" && filenameLooksLikeNormal(fname)) continue;
+
                     if (type == "albedo")
                     {
                         if (fname.endsWith("_d") || fname.endsWith("-d") || fname.endsWith("_diff") || fname.endsWith("diffuse")) { bestPath = f.absoluteFilePath(); break; }
