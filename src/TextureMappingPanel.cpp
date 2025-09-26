@@ -34,6 +34,17 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
     registerMaps();
     connectSignals();
 
+    
+    const MaterialsMap& mats = MaterialTextureLibrary::instance().materials();
+    MaterialScanner::populateComboWithMaterials(_ui->comboBoxPresetTextures, mats);
+
+    QTimer::singleShot(0, this, [this] {
+        if (_ui->comboBoxPresetTextures->count() > 0)
+        {
+            applyMaterialPreset(_ui->comboBoxPresetTextures->currentText());
+        }
+        });
+
     // default checker on all buttons
     for (auto it = _maps.begin(); it != _maps.end(); ++it)
         applyButtonEmptyIcon(it.value());
@@ -230,20 +241,9 @@ void TextureMappingPanel::connectSignals()
     connect(_ui->maskChannelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
         this, &TextureMappingPanel::onTintParamsChanged);
 
-    if (_ui->comboBoxPresetTextures)
-    {
-        const MaterialsMap& mats = MaterialTextureLibrary::instance().materials();
-        MaterialScanner::populateComboWithMaterials(_ui->comboBoxPresetTextures, mats);
-
-        connect(_ui->comboBoxPresetTextures, qOverload<int>(&QComboBox::currentIndexChanged),
-            this, &TextureMappingPanel::onMaterialPresetChanged);
-
-        if (_ui->comboBoxPresetTextures->count() > 0)
-        {
-            applyMaterialPreset(_ui->comboBoxPresetTextures->currentText());
-        }
-    }
-
+    connect(_ui->comboBoxPresetTextures, qOverload<int>(&QComboBox::currentIndexChanged),
+        this, &TextureMappingPanel::onMaterialPresetChanged);
+        
     connect(_ui->pushButtonClearAllMaps, &QPushButton::clicked, this, &TextureMappingPanel::clearAllMaps);
 }
 
