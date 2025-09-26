@@ -54,9 +54,9 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	// Material preview widget
 	previewWidget = new MaterialPreviewWidget(this);
 	previewWidget->setPreviewProfile(PreviewProfile::MaterialShowcase);
-	previewWidget->setMinimumSize(160, 160);
+	previewWidget->setMinimumSize(200, 200);
 	previewWidget->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
-	previewWidget->setMaximumHeight(160);
+	previewWidget->setMaximumHeight(200);
 
 	previewLayout->addWidget(previewWidget, 0, Qt::AlignTop);
 	previewLayout->addWidget(modelCombo, 0, Qt::AlignTop);
