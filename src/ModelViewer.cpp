@@ -1064,63 +1064,6 @@ void ModelViewer::showEnvironmentPage()
 	toolBox->setCurrentIndex(5);
 }
 
-
-void ModelViewer::on_checkTexture_toggled(bool checked)
-{
-	_bHasTexture = checked;
-	if (checkForActiveSelection())
-	{
-		std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
-		QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-		for (QListWidgetItem* i : items)
-		{
-			int rowId = listWidgetModel->row(i);
-			TriangleMesh* mesh = meshes.at(rowId);
-			if (mesh)
-			{
-				mesh->enableTexture(_bHasTexture);
-			}
-		}
-		_glWidget->updateView();
-	}
-	else
-	{
-		checkTexture->blockSignals(true);
-		checkTexture->setChecked(!checked);
-		pushButtonTexture->setEnabled(!checked);
-		checkTexture->blockSignals(false);
-	}
-}
-
-void ModelViewer::on_pushButtonTexture_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QImage buf;
-		QString filter = getSupportedQtImagesFilter();
-		QString fileName = QFileDialog::getOpenFileName(
-			this,
-			"Choose an image for texture",
-			_lastOpenedDir,
-			filter);
-		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-		if (fileName != "")
-		{
-			if (!buf.load(fileName))
-			{ // Load first image from file
-				qWarning("ModelViewer::on_pushButtonTexture_clicked - Could not read image file, using single-color instead.");
-				QImage dummy(128, 128, QImage::Format_ARGB32);
-				dummy.fill(1);
-				buf = dummy;
-			}
-
-			std::vector<int> ids = getSelectedIDs();
-			_glWidget->setTexture(ids, buf);
-			_glWidget->updateView();
-		}
-	}
-}
-
 void ModelViewer::on_pushButtonDefaultLights_clicked()
 {
 	_glWidget->setAmbientLight({ 0.0f, 0.0f, 0.0f, 1.0f });

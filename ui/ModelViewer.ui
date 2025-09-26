@@ -289,337 +289,7 @@
                   <string>ADS Lighting Settings</string>
                  </attribute>
                  <layout class="QGridLayout" name="gridLayout_21">
-                  <item row="1" column="0">
-                   <widget class="QGroupBox" name="groupBox_3">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="minimumSize">
-                     <size>
-                      <width>0</width>
-                      <height>0</height>
-                     </size>
-                    </property>
-                    <property name="title">
-                     <string>Material Colours</string>
-                    </property>
-                    <property name="flat">
-                     <bool>true</bool>
-                    </property>
-                    <layout class="QGridLayout" name="gridLayout_19">
-                     <item row="0" column="0">
-                      <widget class="QPushButton" name="pushButtonMaterialAmbient">
-                       <property name="text">
-                        <string>Ambient Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="2">
-                      <widget class="QPushButton" name="pushButtonMaterialEmissive">
-                       <property name="text">
-                        <string>Emissive Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="2">
-                      <widget class="QPushButton" name="pushButtonMaterialDiffuse">
-                       <property name="text">
-                        <string>Diffuse Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="1" column="0">
-                      <widget class="QPushButton" name="pushButtonMaterialSpecular">
-                       <property name="text">
-                        <string>Specular Color</string>
-                       </property>
-                      </widget>
-                     </item>
-                    </layout>
-                   </widget>
-                  </item>
-                  <item row="12" column="0">
-                   <widget class="QPushButton" name="pushButtonApplyADSTexture">
-                    <property name="text">
-                     <string>Apply Textures to Selection</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="10" column="0">
-                   <layout class="QHBoxLayout" name="horizontalLayout_22">
-                    <item>
-                     <widget class="QCheckBox" name="checkBoxHeightTex">
-                      <property name="text">
-                       <string>Height Map</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item>
-                     <spacer name="horizontalSpacer_14">
-                      <property name="orientation">
-                       <enum>Qt::Orientation::Horizontal</enum>
-                      </property>
-                      <property name="sizeHint" stdset="0">
-                       <size>
-                        <width>40</width>
-                        <height>20</height>
-                       </size>
-                      </property>
-                     </spacer>
-                    </item>
-                    <item>
-                     <widget class="QPushButton" name="pushButtonHeightTexture">
-                      <property name="enabled">
-                       <bool>false</bool>
-                      </property>
-                      <property name="text">
-                       <string>Select Texture</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item>
-                     <widget class="QLabel" name="labelHeightTexture">
-                      <property name="enabled">
-                       <bool>false</bool>
-                      </property>
-                      <property name="minimumSize">
-                       <size>
-                        <width>42</width>
-                        <height>42</height>
-                       </size>
-                      </property>
-                      <property name="maximumSize">
-                       <size>
-                        <width>42</width>
-                        <height>42</height>
-                       </size>
-                      </property>
-                      <property name="frameShape">
-                       <enum>QFrame::Shape::Panel</enum>
-                      </property>
-                      <property name="frameShadow">
-                       <enum>QFrame::Shadow::Raised</enum>
-                      </property>
-                      <property name="text">
-                       <string/>
-                      </property>
-                      <property name="scaledContents">
-                       <bool>true</bool>
-                      </property>
-                     </widget>
-                    </item>
-                    <item>
-                     <widget class="QToolButton" name="toolButtonClearHeightTex">
-                      <property name="enabled">
-                       <bool>false</bool>
-                      </property>
-                      <property name="minimumSize">
-                       <size>
-                        <width>25</width>
-                        <height>25</height>
-                       </size>
-                      </property>
-                      <property name="text">
-                       <string>...</string>
-                      </property>
-                      <property name="icon">
-                       <iconset resource="../ModelViewer.qrc">
-                        <normaloff>:/icons/res/clear.png</normaloff>:/icons/res/clear.png</iconset>
-                      </property>
-                     </widget>
-                    </item>
-                   </layout>
-                  </item>
-                  <item row="0" column="0">
-                   <layout class="QHBoxLayout" name="horizontalLayout_23">
-                    <item>
-                     <widget class="QCheckBox" name="checkTexture">
-                      <property name="toolTip">
-                       <string>Enable/Disable Texture</string>
-                      </property>
-                      <property name="text">
-                       <string>Texture</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item>
-                     <widget class="QPushButton" name="pushButtonTexture">
-                      <property name="enabled">
-                       <bool>false</bool>
-                      </property>
-                      <property name="sizePolicy">
-                       <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                        <horstretch>0</horstretch>
-                        <verstretch>0</verstretch>
-                       </sizepolicy>
-                      </property>
-                      <property name="toolTip">
-                       <string>Select the image file for texture</string>
-                      </property>
-                      <property name="text">
-                       <string>Select Texture Image</string>
-                      </property>
-                     </widget>
-                    </item>
-                   </layout>
-                  </item>
                   <item row="8" column="0">
-                   <layout class="QHBoxLayout" name="horizontalLayout_25">
-                    <item>
-                     <widget class="QCheckBox" name="checkBoxEmissiveTex">
-                      <property name="text">
-                       <string>Emissive Light Map</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item>
-                     <spacer name="horizontalSpacer_16">
-                      <property name="orientation">
-                       <enum>Qt::Orientation::Horizontal</enum>
-                      </property>
-                      <property name="sizeHint" stdset="0">
-                       <size>
-                        <width>40</width>
-                        <height>20</height>
-                       </size>
-                      </property>
-                     </spacer>
-                    </item>
-                    <item>
-                     <widget class="QPushButton" name="pushButtonEmissiveTexture">
-                      <property name="enabled">
-                       <bool>false</bool>
-                      </property>
-                      <property name="text">
-                       <string>Select Texture</string>
-                      </property>
-                     </widget>
-                    </item>
-                    <item>
-                     <widget class="QLabel" name="labelEmissiveTexture">
-                      <property name="enabled">
-                       <bool>false</bool>
-                      </property>
-                      <property name="minimumSize">
-                       <size>
-                        <width>42</width>
-                        <height>42</height>
-                       </size>
-                      </property>
-                      <property name="maximumSize">
-                       <size>
-                        <width>42</width>
-                        <height>42</height>
-                       </size>
-                      </property>
-                      <property name="frameShape">
-                       <enum>QFrame::Shape::Panel</enum>
-                      </property>
-                      <property name="frameShadow">
-                       <enum>QFrame::Shadow::Raised</enum>
-                      </property>
-                      <property name="text">
-                       <string/>
-                      </property>
-                      <property name="scaledContents">
-                       <bool>true</bool>
-                      </property>
-                     </widget>
-                    </item>
-                    <item>
-                     <widget class="QToolButton" name="toolButtonClearEmissiveTex">
-                      <property name="enabled">
-                       <bool>false</bool>
-                      </property>
-                      <property name="minimumSize">
-                       <size>
-                        <width>25</width>
-                        <height>25</height>
-                       </size>
-                      </property>
-                      <property name="text">
-                       <string>...</string>
-                      </property>
-                      <property name="icon">
-                       <iconset resource="../ModelViewer.qrc">
-                        <normaloff>:/icons/res/clear.png</normaloff>:/icons/res/clear.png</iconset>
-                      </property>
-                     </widget>
-                    </item>
-                   </layout>
-                  </item>
-                  <item row="14" column="0">
-                   <spacer name="verticalSpacer">
-                    <property name="orientation">
-                     <enum>Qt::Orientation::Vertical</enum>
-                    </property>
-                    <property name="sizeHint" stdset="0">
-                     <size>
-                      <width>218</width>
-                      <height>121</height>
-                     </size>
-                    </property>
-                   </spacer>
-                  </item>
-                  <item row="13" column="0">
-                   <widget class="QPushButton" name="pushButtonClearADSTextures">
-                    <property name="text">
-                     <string>Clear All Textures from Selection</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="3" column="0">
-                   <widget class="QGroupBox" name="groupBox_7">
-                    <property name="title">
-                     <string>Opacity</string>
-                    </property>
-                    <property name="flat">
-                     <bool>true</bool>
-                    </property>
-                    <layout class="QGridLayout" name="gridLayout_4">
-                     <item row="0" column="0">
-                      <widget class="QLabel" name="valueOpacity">
-                       <property name="text">
-                        <string>Transparent</string>
-                       </property>
-                       <property name="alignment">
-                        <set>Qt::AlignmentFlag::AlignCenter</set>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="1">
-                      <widget class="QSlider" name="sliderTransparency">
-                       <property name="minimum">
-                        <number>50</number>
-                       </property>
-                       <property name="maximum">
-                        <number>1000</number>
-                       </property>
-                       <property name="value">
-                        <number>1000</number>
-                       </property>
-                       <property name="orientation">
-                        <enum>Qt::Orientation::Horizontal</enum>
-                       </property>
-                      </widget>
-                     </item>
-                     <item row="0" column="2">
-                      <widget class="QLabel" name="valueOpacity_4">
-                       <property name="text">
-                        <string>Opaque</string>
-                       </property>
-                       <property name="alignment">
-                        <set>Qt::AlignmentFlag::AlignCenter</set>
-                       </property>
-                      </widget>
-                     </item>
-                    </layout>
-                   </widget>
-                  </item>
-                  <item row="9" column="0">
                    <layout class="QHBoxLayout" name="horizontalLayout_21">
                     <item>
                      <widget class="QCheckBox" name="checkBoxNormalTex">
@@ -704,7 +374,121 @@
                     </item>
                    </layout>
                   </item>
-                  <item row="11" column="0">
+                  <item row="3" column="0">
+                   <widget class="QPushButton" name="pushButtonApplyADSColors">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="toolTip">
+                     <string>Reset to default light and material</string>
+                    </property>
+                    <property name="text">
+                     <string>Apply Colors to Selection</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="13" column="0">
+                   <spacer name="verticalSpacer">
+                    <property name="orientation">
+                     <enum>Qt::Orientation::Vertical</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>218</width>
+                      <height>121</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
+                  <item row="6" column="0">
+                   <layout class="QHBoxLayout" name="horizontalLayout_20">
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxSpecularTex">
+                      <property name="text">
+                       <string>Specular Light Map</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <spacer name="horizontalSpacer_12">
+                      <property name="orientation">
+                       <enum>Qt::Orientation::Horizontal</enum>
+                      </property>
+                      <property name="sizeHint" stdset="0">
+                       <size>
+                        <width>40</width>
+                        <height>20</height>
+                       </size>
+                      </property>
+                     </spacer>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="pushButtonSpecularTexture">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                      <property name="text">
+                       <string>Select Texture</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QLabel" name="labelSpecularTexture">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                      <property name="minimumSize">
+                       <size>
+                        <width>42</width>
+                        <height>42</height>
+                       </size>
+                      </property>
+                      <property name="maximumSize">
+                       <size>
+                        <width>42</width>
+                        <height>42</height>
+                       </size>
+                      </property>
+                      <property name="frameShape">
+                       <enum>QFrame::Shape::Panel</enum>
+                      </property>
+                      <property name="frameShadow">
+                       <enum>QFrame::Shadow::Raised</enum>
+                      </property>
+                      <property name="text">
+                       <string/>
+                      </property>
+                      <property name="scaledContents">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QToolButton" name="toolButtonClearSpecularTex">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                      <property name="minimumSize">
+                       <size>
+                        <width>25</width>
+                        <height>25</height>
+                       </size>
+                      </property>
+                      <property name="text">
+                       <string>...</string>
+                      </property>
+                      <property name="icon">
+                       <iconset resource="../ModelViewer.qrc">
+                        <normaloff>:/icons/res/clear.png</normaloff>:/icons/res/clear.png</iconset>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item row="10" column="0">
                    <layout class="QHBoxLayout" name="horizontalLayout_24">
                     <item>
                      <widget class="QCheckBox" name="checkBoxOpacityTex">
@@ -799,33 +583,17 @@
                     </item>
                    </layout>
                   </item>
-                  <item row="5" column="0">
-                   <widget class="QPushButton" name="pushButtonDefaultMatls">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="toolTip">
-                     <string>Reset to default light and material</string>
-                    </property>
-                    <property name="text">
-                     <string>Reset to Default Values</string>
-                    </property>
-                   </widget>
-                  </item>
                   <item row="7" column="0">
-                   <layout class="QHBoxLayout" name="horizontalLayout_20">
+                   <layout class="QHBoxLayout" name="horizontalLayout_25">
                     <item>
-                     <widget class="QCheckBox" name="checkBoxSpecularTex">
+                     <widget class="QCheckBox" name="checkBoxEmissiveTex">
                       <property name="text">
-                       <string>Specular Light Map</string>
+                       <string>Emissive Light Map</string>
                       </property>
                      </widget>
                     </item>
                     <item>
-                     <spacer name="horizontalSpacer_12">
+                     <spacer name="horizontalSpacer_16">
                       <property name="orientation">
                        <enum>Qt::Orientation::Horizontal</enum>
                       </property>
@@ -838,7 +606,7 @@
                      </spacer>
                     </item>
                     <item>
-                     <widget class="QPushButton" name="pushButtonSpecularTexture">
+                     <widget class="QPushButton" name="pushButtonEmissiveTexture">
                       <property name="enabled">
                        <bool>false</bool>
                       </property>
@@ -848,7 +616,7 @@
                      </widget>
                     </item>
                     <item>
-                     <widget class="QLabel" name="labelSpecularTexture">
+                     <widget class="QLabel" name="labelEmissiveTexture">
                       <property name="enabled">
                        <bool>false</bool>
                       </property>
@@ -879,7 +647,108 @@
                      </widget>
                     </item>
                     <item>
-                     <widget class="QToolButton" name="toolButtonClearSpecularTex">
+                     <widget class="QToolButton" name="toolButtonClearEmissiveTex">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                      <property name="minimumSize">
+                       <size>
+                        <width>25</width>
+                        <height>25</height>
+                       </size>
+                      </property>
+                      <property name="text">
+                       <string>...</string>
+                      </property>
+                      <property name="icon">
+                       <iconset resource="../ModelViewer.qrc">
+                        <normaloff>:/icons/res/clear.png</normaloff>:/icons/res/clear.png</iconset>
+                      </property>
+                     </widget>
+                    </item>
+                   </layout>
+                  </item>
+                  <item row="4" column="0">
+                   <widget class="QPushButton" name="pushButtonDefaultMatls">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="toolTip">
+                     <string>Reset to default light and material</string>
+                    </property>
+                    <property name="text">
+                     <string>Reset to Default Values</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="9" column="0">
+                   <layout class="QHBoxLayout" name="horizontalLayout_22">
+                    <item>
+                     <widget class="QCheckBox" name="checkBoxHeightTex">
+                      <property name="text">
+                       <string>Height Map</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <spacer name="horizontalSpacer_14">
+                      <property name="orientation">
+                       <enum>Qt::Orientation::Horizontal</enum>
+                      </property>
+                      <property name="sizeHint" stdset="0">
+                       <size>
+                        <width>40</width>
+                        <height>20</height>
+                       </size>
+                      </property>
+                     </spacer>
+                    </item>
+                    <item>
+                     <widget class="QPushButton" name="pushButtonHeightTexture">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                      <property name="text">
+                       <string>Select Texture</string>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QLabel" name="labelHeightTexture">
+                      <property name="enabled">
+                       <bool>false</bool>
+                      </property>
+                      <property name="minimumSize">
+                       <size>
+                        <width>42</width>
+                        <height>42</height>
+                       </size>
+                      </property>
+                      <property name="maximumSize">
+                       <size>
+                        <width>42</width>
+                        <height>42</height>
+                       </size>
+                      </property>
+                      <property name="frameShape">
+                       <enum>QFrame::Shape::Panel</enum>
+                      </property>
+                      <property name="frameShadow">
+                       <enum>QFrame::Shadow::Raised</enum>
+                      </property>
+                      <property name="text">
+                       <string/>
+                      </property>
+                      <property name="scaledContents">
+                       <bool>true</bool>
+                      </property>
+                     </widget>
+                    </item>
+                    <item>
+                     <widget class="QToolButton" name="toolButtonClearHeightTex">
                       <property name="enabled">
                        <bool>false</bool>
                       </property>
@@ -901,6 +770,54 @@
                    </layout>
                   </item>
                   <item row="2" column="0">
+                   <widget class="QGroupBox" name="groupBox_7">
+                    <property name="title">
+                     <string>Opacity</string>
+                    </property>
+                    <property name="flat">
+                     <bool>true</bool>
+                    </property>
+                    <layout class="QGridLayout" name="gridLayout_4">
+                     <item row="0" column="0">
+                      <widget class="QLabel" name="valueOpacity">
+                       <property name="text">
+                        <string>Transparent</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignmentFlag::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="1">
+                      <widget class="QSlider" name="sliderTransparency">
+                       <property name="minimum">
+                        <number>50</number>
+                       </property>
+                       <property name="maximum">
+                        <number>1000</number>
+                       </property>
+                       <property name="value">
+                        <number>1000</number>
+                       </property>
+                       <property name="orientation">
+                        <enum>Qt::Orientation::Horizontal</enum>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="2">
+                      <widget class="QLabel" name="valueOpacity_4">
+                       <property name="text">
+                        <string>Opaque</string>
+                       </property>
+                       <property name="alignment">
+                        <set>Qt::AlignmentFlag::AlignCenter</set>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                  <item row="1" column="0">
                    <widget class="QGroupBox" name="groupBox_11">
                     <property name="title">
                      <string>Shininess</string>
@@ -932,7 +849,59 @@
                     </layout>
                    </widget>
                   </item>
-                  <item row="6" column="0">
+                  <item row="0" column="0">
+                   <widget class="QGroupBox" name="groupBox_3">
+                    <property name="sizePolicy">
+                     <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+                      <horstretch>0</horstretch>
+                      <verstretch>0</verstretch>
+                     </sizepolicy>
+                    </property>
+                    <property name="minimumSize">
+                     <size>
+                      <width>0</width>
+                      <height>0</height>
+                     </size>
+                    </property>
+                    <property name="title">
+                     <string>Material Colours</string>
+                    </property>
+                    <property name="flat">
+                     <bool>true</bool>
+                    </property>
+                    <layout class="QGridLayout" name="gridLayout_19">
+                     <item row="0" column="0">
+                      <widget class="QPushButton" name="pushButtonMaterialAmbient">
+                       <property name="text">
+                        <string>Ambient Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="2">
+                      <widget class="QPushButton" name="pushButtonMaterialEmissive">
+                       <property name="text">
+                        <string>Emissive Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="2">
+                      <widget class="QPushButton" name="pushButtonMaterialDiffuse">
+                       <property name="text">
+                        <string>Diffuse Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="0">
+                      <widget class="QPushButton" name="pushButtonMaterialSpecular">
+                       <property name="text">
+                        <string>Specular Color</string>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
+                  <item row="5" column="0">
                    <layout class="QHBoxLayout" name="horizontalLayout_19">
                     <item>
                      <widget class="QCheckBox" name="checkBoxDiffuseTex">
@@ -1017,19 +986,17 @@
                     </item>
                    </layout>
                   </item>
-                  <item row="4" column="0">
-                   <widget class="QPushButton" name="pushButtonApplyADSColors">
-                    <property name="sizePolicy">
-                     <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                      <horstretch>0</horstretch>
-                      <verstretch>0</verstretch>
-                     </sizepolicy>
-                    </property>
-                    <property name="toolTip">
-                     <string>Reset to default light and material</string>
-                    </property>
+                  <item row="12" column="0">
+                   <widget class="QPushButton" name="pushButtonClearADSTextures">
                     <property name="text">
-                     <string>Apply Colors to Selection</string>
+                     <string>Clear All Textures from Selection</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="11" column="0">
+                   <widget class="QPushButton" name="pushButtonApplyADSTexture">
+                    <property name="text">
+                     <string>Apply Textures to Selection</string>
                     </property>
                    </widget>
                   </item>
@@ -1040,8 +1007,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>404</width>
-                   <height>736</height>
+                   <width>166</width>
+                   <height>172</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1194,8 +1161,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>404</width>
-                   <height>736</height>
+                   <width>98</width>
+                   <height>28</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1212,8 +1179,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>404</width>
-                   <height>736</height>
+                   <width>98</width>
+                   <height>28</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1238,7 +1205,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>595</width>
-                   <height>724</height>
+                   <height>241</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1599,7 +1566,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>576</width>
-                   <height>724</height>
+                   <height>591</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2266,8 +2233,6 @@
   <tabstop>radioButtonADSL</tabstop>
   <tabstop>radioButtonDLPBR</tabstop>
   <tabstop>radioButtonTXPBR</tabstop>
-  <tabstop>checkTexture</tabstop>
-  <tabstop>pushButtonTexture</tabstop>
   <tabstop>pushButtonMaterialAmbient</tabstop>
   <tabstop>pushButtonMaterialDiffuse</tabstop>
   <tabstop>pushButtonMaterialSpecular</tabstop>
@@ -2374,22 +2339,6 @@
     <hint type="destinationlabel">
      <x>1429</x>
      <y>1167</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>checkTexture</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>pushButtonTexture</receiver>
-   <slot>setEnabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>1334</x>
-     <y>589</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>1659</x>
-     <y>591</y>
     </hint>
    </hints>
   </connection>

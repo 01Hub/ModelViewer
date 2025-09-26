@@ -95,9 +95,7 @@ private slots:
 	void setListRows(QList<int> indices);
 	void showContextMenu(const QPoint& pos);	
 	void lightingType_toggled(QAbstractButton *, bool);
-	
-	void on_checkTexture_toggled(bool checked);
-	void on_pushButtonTexture_clicked();
+		
 	void on_pushButtonDefaultLights_clicked();
 	void on_pushButtonApplyADSColors_clicked();
 	void on_pushButtonDefaultMatls_clicked();
