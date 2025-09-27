@@ -86,19 +86,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 			}
 		}
 
-		searchBox->setStyleSheet(anySelected ? "" : "QLineEdit { border: 2px solid red; }");
-		});
-
-	connect(clearSearchBtn, &QPushButton::clicked, [&]() {
-		// Clear the search box and reset the filter
-		searchBox->clear();
-		listWidgetModel->filterItems("");
-		// Reset the style to default
-		searchBox->setStyleSheet("");
-		// Optionally, clear the selection
-		listWidgetModel->clearSelection();
-		searchBox->clear();
-		deselectAll();
+		searchBox->setStyleSheet((anySelected || searchBox->text() == "") ? "" : "QLineEdit { border: 2px solid red; }");
 		});
 
 	connect(listWidgetModel, &ModelObjectList::selectionUpdated, this, &ModelViewer::on_listWidgetModel_itemSelectionChanged);

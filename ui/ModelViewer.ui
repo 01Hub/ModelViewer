@@ -194,12 +194,9 @@
                  </widget>
                 </item>
                 <item>
-                 <widget class="QLineEdit" name="searchBox"/>
-                </item>
-                <item>
-                 <widget class="QPushButton" name="clearSearchBtn">
-                  <property name="text">
-                   <string>Clear</string>
+                 <widget class="QLineEdit" name="searchBox">
+                  <property name="clearButtonEnabled">
+                   <bool>true</bool>
                   </property>
                  </widget>
                 </item>
