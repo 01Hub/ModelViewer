@@ -1271,7 +1271,7 @@ void MaterialPreviewWidget::createTextTexture()
 		"Double-click R: reset zoom";
 
 	// Create a larger image for better quality
-	QImage textImage(360, 144, QImage::Format_RGBA8888);
+	QImage textImage(400, 160, QImage::Format_RGBA8888);
 	textImage.fill(Qt::transparent);
 
 	QPainter painter(&textImage);
@@ -1283,8 +1283,7 @@ void MaterialPreviewWidget::createTextTexture()
 	QColor textColor(255, 255, 255, 200);
 
 	QFont font = painter.font();
-	font.setPointSize(width()/14);
-	font.setFamily("Arial");
+	font.setPointSize(18);	
 	painter.setFont(font);
 
 	QRect textRect = painter.boundingRect(textImage.rect().adjusted(10, 10, -10, -10),
@@ -1338,8 +1337,8 @@ void MaterialPreviewWidget::renderTextOverlay(float alpha)
 	float viewportAspect = viewportWidth / viewportHeight;
 
 	// Texture dimensions (from createTextTexture)
-	float textureWidth = 300.0f;
-	float textureHeight = 120.0f;
+	float textureWidth = 400.0f;
+	float textureHeight = 160.0f;
 	float textureAspect = textureWidth / textureHeight;
 
 	// Desired size in pixels
@@ -1351,8 +1350,8 @@ void MaterialPreviewWidget::renderTextOverlay(float alpha)
 	float h = desiredPixelHeight / viewportHeight;
 
 	// Position (offset from edges in pixels)
-	float pixelOffsetX = 15.0f;
-	float pixelOffsetY = 15.0f;
+	float pixelOffsetX = 5.0f;
+	float pixelOffsetY = 5.0f;
 
 	float x = pixelOffsetX / viewportWidth;
 	float y = pixelOffsetY / viewportHeight;
