@@ -483,6 +483,7 @@ public:
 	static GLMaterial METAL();
 	static GLMaterial PLASTIC();
 	static GLMaterial STONE();
+	static GLMaterial MIRROR_SILVER();
 
 
 	// Function to create a material with time-varying properties (for animations)

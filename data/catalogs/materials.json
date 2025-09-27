@@ -8362,6 +8362,56 @@
           "key": "DIAMOND",
           "name": "Diamond"
         },
+		{
+		  "ambient": [0.06, 0.06, 0.06],
+		  "diffuse": [0.02, 0.02, 0.02],
+		  "specular": [0.95, 0.94, 0.90],
+		  "emissive": [0.0, 0.0, 0.0],
+		  "shininess": 128.0,
+
+		  "metallic": true,
+		  "opacity": 1.0,
+
+		  "albedo": [0.95, 0.94, 0.90],
+		  "metalness": 1.0,
+		  "roughness": 0.02,
+		  "ior": 2.5,
+		  "transmission": 0.0,
+		  "clearcoat": 0.0,
+		  "clearcoatRoughness": 0.03,
+		  "sheenColor": [0.0, 0.0, 0.0],
+		  "sheenRoughness": 0.0,
+		  "emissiveStrength": 1.0,
+
+		  "shadingModel": "PBR",
+		  "blendMode": "Opaque",
+		  "twoSided": false,
+		  "wireframe": null,
+		  "alphaThreshold": null,
+
+		  "albedoMapPath": null,
+		  "normalMapPath": null,
+		  "metallicMapPath": null,
+		  "roughnessMapPath": null,
+		  "aoMapPath": null,
+		  "opacityMapPath": null,
+		  "heightMapPath": null,
+		  "transmissionMapPath": null,
+		  "iorMapPath": null,
+		  "sheenColorMapPath": null,
+		  "sheenRoughnessMapPath": null,
+		  "clearcoatColorMapPath": null,
+		  "clearcoatRoughnessMapPath": null,
+		  "clearcoatNormalMapPath": null,
+
+		  "uvTilingU": null,
+		  "uvTilingV": null,
+		  "uvOffsetU": null,
+		  "uvOffsetV": null,
+
+		  "key": "MIRROR_SILVER",
+		  "name": "Mirror (Silver)"
+		},
         {
           "ambient": [
             0.27,
@@ -8553,7 +8603,7 @@
           "uvOffsetV": null,
           "key": "WATER",
           "name": "Water"
-        }
+        }		
       ]
     }
   ]

@@ -1253,6 +1253,38 @@ GLMaterial GLMaterial::STONE()
 	return mat;
 }
 
+GLMaterial GLMaterial::MIRROR_SILVER()
+{
+	GLMaterial mat(
+		QVector3D(0.06f, 0.06f, 0.06f),     // ambient (small – scene/IBL will dominate)
+		QVector3D(0.02f, 0.02f, 0.02f),     // diffuse (metals have ~no diffuse; tiny placeholder)
+		QVector3D(0.95f, 0.94f, 0.90f),     // specular (F0-like for silver)
+		QVector3D(0.0f, 0.0f, 0.0f),        // emissive
+		fabs(128.0f),                       // shininess (maxed; legacy ADS)
+		true,                               // metallic
+		1.0f);                              // opacity
+
+	// PBR canonical
+	mat.setAlbedoColor(QVector3D(0.95f, 0.94f, 0.90f));  // silver F0-ish color
+	mat.setMetalness(1.0f);
+	mat.setRoughness(0.02f);                             // very polished
+	mat.setIOR(2.50f);                                   // not critical for metals, reasonable value
+	mat.setTransmission(0.0f);
+
+	// optional extras (off by default)
+	mat.setClearcoat(0.0f);
+	mat.setClearcoatRoughness(0.03f);
+	mat.setSheenColor(QVector3D(0.0f, 0.0f, 0.0f));
+	mat.setSheenRoughness(0.0f);
+
+	mat.setShadingModel(ShadingModel::PBR);
+	mat.setBlendMode(BlendMode::Opaque);
+	mat.setTwoSided(false);
+
+	mat.updateConsistency();
+	return mat;
+}
+
 // === CLEARCOAT MATERIALS ===
 GLMaterial GLMaterial::CAR_PAINT_RED()
 {
