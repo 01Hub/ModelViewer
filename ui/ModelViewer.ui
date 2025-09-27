@@ -1004,8 +1004,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>431</width>
-                   <height>735</height>
+                   <width>181</width>
+                   <height>178</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1158,8 +1158,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>431</width>
-                   <height>735</height>
+                   <width>98</width>
+                   <height>28</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1176,8 +1176,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>431</width>
-                   <height>735</height>
+                   <width>98</width>
+                   <height>28</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1201,8 +1201,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>431</width>
-                   <height>735</height>
+                   <width>233</width>
+                   <height>548</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -2913,6 +2913,22 @@
     <hint type="destinationlabel">
      <x>678</x>
      <y>1327</y>
+    </hint>
+   </hints>
+  </connection>
+  <connection>
+   <sender>checkBoxSkyBoxHDRI</sender>
+   <signal>clicked(bool)</signal>
+   <receiver>checkBoxGammaCorrection</receiver>
+   <slot>setChecked(bool)</slot>
+   <hints>
+    <hint type="sourcelabel">
+     <x>772</x>
+     <y>1003</y>
+    </hint>
+    <hint type="destinationlabel">
+     <x>750</x>
+     <y>1396</y>
     </hint>
    </hints>
   </connection>
