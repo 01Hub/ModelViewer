@@ -492,7 +492,6 @@ void ViewToolbar::setDefaultDisplayModeAction(DisplayModeActions mode)
 
 void ViewToolbar::setSwapVisibleChecked(bool checked)
 {
-	qDebug() << "ViewToolbar::setSwapVisibleChecked" << checked;
 	bool oldState = _swapBtn->blockSignals(true);
 	_swapBtn->setChecked(checked);
 	_swapBtn->blockSignals(oldState);
