@@ -666,6 +666,9 @@ private:
 	float _envMapExposure;
 	float _iblExposure;
 
+	GLuint _conversionCubeVAO = 0;
+	GLuint _conversionCubeVBO = 0;
+
 	HDRToneMapMode _toneMappingMode;
 
 	float _anisotropicFilteringLevel = 16.0f;

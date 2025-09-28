@@ -1000,10 +1000,7 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 
 void GLWidget::renderConversionCube()
 {
-	static GLuint cubeVAO = 0;
-	static GLuint cubeVBO = 0;
-
-	if (cubeVAO == 0)
+	if (_conversionCubeVAO == 0)
 	{
 		float vertices[] = {
 			// positions          
@@ -1050,20 +1047,20 @@ void GLWidget::renderConversionCube()
 			 1.0f, -1.0f,  1.0f
 		};
 
-		glGenVertexArrays(1, &cubeVAO);
-		glGenBuffers(1, &cubeVBO);
+		glGenVertexArrays(1, &_conversionCubeVAO);
+		glGenBuffers(1, &_conversionCubeVBO);
 
-		glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+		glBindBuffer(GL_ARRAY_BUFFER, _conversionCubeVBO);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
 
-		glBindVertexArray(cubeVAO);
+		glBindVertexArray(_conversionCubeVAO);
 		glEnableVertexAttribArray(0);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
 	}
 
-	glBindVertexArray(cubeVAO);
+	glBindVertexArray(_conversionCubeVAO);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
 	glBindVertexArray(0);
 }
