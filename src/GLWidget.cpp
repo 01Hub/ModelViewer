@@ -917,6 +917,31 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 		return false;
 	}
 
+	// Validate and sanitize pixel data
+	size_t totalPixels = imgWidth * imgHeight * channels;
+	int invalidCount = 0;
+
+	for (size_t i = 0; i < totalPixels; i++)
+	{
+		if (!std::isfinite(data[i]) || data[i] < 0.0f)
+		{
+			// Replace invalid values with nearby valid pixel or small positive value
+			data[i] = (i > 0 && std::isfinite(data[i - 1])) ? data[i - 1] : 0.001f;
+			invalidCount++;
+		}
+		// Clamp extremely bright values that cause issues
+		else if (data[i] > 65504.0f)
+		{ // Half-float max
+			data[i] = 65504.0f;
+			invalidCount++;
+		}
+	}
+
+	if (invalidCount > 0)
+	{
+		qDebug() << "Fixed" << invalidCount << "invalid pixels in" << filePath;
+	}
+
 	// Create temporary 2D texture for equirectangular source
 	GLuint equirectTexture;
 	glGenTextures(1, &equirectTexture);
