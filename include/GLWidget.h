@@ -211,6 +211,9 @@ public:
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);
 	void setSkyBoxTextureFolder(QString folder);
 	bool loadCubemapFromSingleHDR(const QString& filePath);
+	bool convertEquirectangularToCubemap(const QString& filePath);
+
+	void renderConversionCube();
 
 	void setAnisotropicFilteringLevel(int level) { _anisotropicFilteringLevel = level; }
 	int getAnisotropicFilteringLevel() const { return _anisotropicFilteringLevel; }
@@ -370,7 +373,7 @@ private:
 	void loadEnvMap();
 	void loadIrradianceMap();
 	void loadFloor();
-	
+		
 	void drawMesh(QOpenGLShaderProgram* prog);
 
 	void drawOpaqueMeshes(QOpenGLShaderProgram* prog);
@@ -585,6 +588,7 @@ private:
 	std::unique_ptr<ShaderProgram> _clippingPlaneShader;
 	std::unique_ptr<ShaderProgram> _clippedMeshShader;
 	std::unique_ptr<ShaderProgram> _selectionShader;
+	std::unique_ptr<ShaderProgram> _equirectToCubeShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;

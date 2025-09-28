@@ -679,8 +679,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 		{
 			QString fallbackHDR = folder + "/" + hdrFiles.first();
 			if (loadCubemapFromSingleHDR(fallbackHDR))
-			{
-				qDebug() << "Loaded fallback cubemap from single HDR file:" << fallbackHDR;
+			{				
 				loadIrradianceMap();
 				update();
 				QApplication::restoreOverrideCursor();
@@ -774,6 +773,13 @@ bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 	{
 		qWarning() << "Failed to load HDR file:" << filePath;
 		return false;
+	}
+
+	// Check for equirectangular first (2:1 aspect ratio)
+	if (imgWidth == 2 * imgHeight)
+	{		
+		stbi_image_free(data); // Free, we'll reload in conversion function
+		return convertEquirectangularToCubemap(filePath);
 	}
 
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
@@ -897,6 +903,170 @@ bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 	return true;
 }
 
+bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
+{
+	// 1. Load equirectangular HDR as 2D texture
+	int imgWidth, imgHeight, channels;
+	stbi_set_flip_vertically_on_load(true);
+	float* data = stbi_loadf(filePath.toStdString().c_str(), &imgWidth, &imgHeight, &channels, 0);
+
+	if (!data || imgWidth != 2 * imgHeight)
+	{
+		qWarning() << "Invalid equirectangular HDR file:" << filePath;
+		if (data) stbi_image_free(data);
+		return false;
+	}
+
+	// Create temporary 2D texture for equirectangular source
+	GLuint equirectTexture;
+	glGenTextures(1, &equirectTexture);
+	glBindTexture(GL_TEXTURE_2D, equirectTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, imgWidth, imgHeight, 0, GL_RGB, GL_FLOAT, data);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	stbi_image_free(data);
+
+	// 2. Create cubemap texture
+	int cubeSize = 512; // Adjust resolution as needed
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	for (int i = 0; i < 6; ++i)
+	{
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
+			cubeSize, cubeSize, 0, GL_RGB, GL_FLOAT, nullptr);
+	}
+
+	// 3. Setup framebuffer
+	GLuint framebuffer, depthBuffer;
+	glGenFramebuffers(1, &framebuffer);
+	glGenRenderbuffers(1, &depthBuffer);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+	glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, cubeSize, cubeSize);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+	
+	// 4. Render each face
+	_equirectToCubeShader->bind();
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, equirectTexture);
+	_equirectToCubeShader->setUniformValue("u_equirectangularMap", 0);
+
+	glViewport(0, 0, cubeSize, cubeSize);
+
+	// View matrices for each cubemap face
+	QMatrix4x4 captureViews[] = {
+		// Use QMatrix4x4::lookAt for each face direction
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1,  0,  0), QVector3D(0, -1,  0)); return m; }(), // +X
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(-1,  0,  0), QVector3D(0, -1,  0)); return m; }(), // -X
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  1,  0), QVector3D(0,  0,  1)); return m; }(), // +Y
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0, -1,  0), QVector3D(0,  0, -1)); return m; }(), // -Y
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  0,  1), QVector3D(0, -1,  0)); return m; }(), // +Z
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  0, -1), QVector3D(0, -1,  0)); return m; }()  // -Z
+	};
+
+	QMatrix4x4 captureProjection;
+	captureProjection.perspective(90.0f, 1.0f, 0.1f, 10.0f);
+	_equirectToCubeShader->setUniformValue("u_projection", captureProjection);
+
+	for (int i = 0; i < 6; ++i)
+	{
+		_equirectToCubeShader->setUniformValue("u_view", captureViews[i]);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _environmentMap, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		// Render the conversion cube
+		renderConversionCube();		
+	}
+
+	// 5. Setup cubemap parameters
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+	// 6. Cleanup
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+	glDeleteFramebuffers(1, &framebuffer);
+	glDeleteRenderbuffers(1, &depthBuffer);
+	glDeleteTextures(1, &equirectTexture);
+
+	return true;
+}
+
+void GLWidget::renderConversionCube()
+{
+	static GLuint cubeVAO = 0;
+	static GLuint cubeVBO = 0;
+
+	if (cubeVAO == 0)
+	{
+		float vertices[] = {
+			// positions          
+			-1.0f,  1.0f, -1.0f,
+			-1.0f, -1.0f, -1.0f,
+			 1.0f, -1.0f, -1.0f,
+			 1.0f, -1.0f, -1.0f,
+			 1.0f,  1.0f, -1.0f,
+			-1.0f,  1.0f, -1.0f,
+
+			-1.0f, -1.0f,  1.0f,
+			-1.0f, -1.0f, -1.0f,
+			-1.0f,  1.0f, -1.0f,
+			-1.0f,  1.0f, -1.0f,
+			-1.0f,  1.0f,  1.0f,
+			-1.0f, -1.0f,  1.0f,
+
+			 1.0f, -1.0f, -1.0f,
+			 1.0f, -1.0f,  1.0f,
+			 1.0f,  1.0f,  1.0f,
+			 1.0f,  1.0f,  1.0f,
+			 1.0f,  1.0f, -1.0f,
+			 1.0f, -1.0f, -1.0f,
+
+			-1.0f, -1.0f,  1.0f,
+			-1.0f,  1.0f,  1.0f,
+			 1.0f,  1.0f,  1.0f,
+			 1.0f,  1.0f,  1.0f,
+			 1.0f, -1.0f,  1.0f,
+			-1.0f, -1.0f,  1.0f,
+
+			-1.0f,  1.0f, -1.0f,
+			 1.0f,  1.0f, -1.0f,
+			 1.0f,  1.0f,  1.0f,
+			 1.0f,  1.0f,  1.0f,
+			-1.0f,  1.0f,  1.0f,
+			-1.0f,  1.0f, -1.0f,
+
+			-1.0f, -1.0f, -1.0f,
+			-1.0f, -1.0f,  1.0f,
+			 1.0f, -1.0f, -1.0f,
+			 1.0f, -1.0f, -1.0f,
+			-1.0f, -1.0f,  1.0f,
+			 1.0f, -1.0f,  1.0f
+		};
+
+		glGenVertexArrays(1, &cubeVAO);
+		glGenBuffers(1, &cubeVBO);
+
+		glBindBuffer(GL_ARRAY_BUFFER, cubeVBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+
+		glBindVertexArray(cubeVAO);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+	}
+
+	glBindVertexArray(cubeVAO);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	glBindVertexArray(0);
+}
 
 QVector3D GLWidget::getLightPosition() const
 {
@@ -2931,6 +3101,11 @@ void GLWidget::createShaderPrograms()
 	// Selection shader program
 	_selectionShader = std::make_unique<ShaderProgram>(); _selectionShader->setObjectName("_selectionShader");
 	_selectionShader->loadCompileAndLinkShaderFromFile(path + "shaders/selection.vert", path + "shaders/selection.frag");
+	// Equirectangular to Cube conversion shader
+	_equirectToCubeShader = std::make_unique<ShaderProgram>();
+	_equirectToCubeShader->setObjectName("_equirectToCubeShader");
+	_equirectToCubeShader->loadCompileAndLinkShaderFromFile( path + "shaders/equirect_to_cube.vert", path + "shaders/equirect_to_cube.frag");
+
 
 	// Shadow Depth quad shader program - for debugging
 	_debugShader = std::make_unique<ShaderProgram>(); _debugShader->setObjectName("_debugShader");
@@ -3035,12 +3210,12 @@ void GLWidget::loadEnvMap()
 	// Env Map
 	_skyBoxFaces =
 	{
-        path + QString("textures/envmap/skyboxes/HDRI/Pizzo_Pernice_Puresky/px.png"),
-        path + QString("textures/envmap/skyboxes/HDRI/Pizzo_Pernice_Puresky/nx.png"),
-        path + QString("textures/envmap/skyboxes/HDRI/Pizzo_Pernice_Puresky/py.png"),
-        path + QString("textures/envmap/skyboxes/HDRI/Pizzo_Pernice_Puresky/ny.png"),
-        path + QString("textures/envmap/skyboxes/HDRI/Pizzo_Pernice_Puresky/pz.png"),
-        path + QString("textures/envmap/skyboxes/HDRI/Pizzo_Pernice_Puresky/nz.png")
+        path + QString("textures/envmap/skyboxes/LDRI/White/px.jpg"),
+        path + QString("textures/envmap/skyboxes/LDRI/White/nx.jpg"),
+        path + QString("textures/envmap/skyboxes/LDRI/White/py.jpg"),
+        path + QString("textures/envmap/skyboxes/LDRI/White/ny.jpg"),
+        path + QString("textures/envmap/skyboxes/LDRI/White/pz.jpg"),
+        path + QString("textures/envmap/skyboxes/LDRI/White/nz.jpg")
 	};
 
 
