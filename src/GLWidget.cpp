@@ -929,7 +929,7 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 	stbi_image_free(data);
 
 	// 2. Create cubemap texture
-	int cubeSize = 512; // Adjust resolution as needed
+	int cubeSize = 1024; // Adjust resolution as needed
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 	for (int i = 0; i < 6; ++i)
 	{
@@ -3304,10 +3304,11 @@ void GLWidget::loadIrradianceMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
 	for (unsigned int i = 0; i < 6; ++i)
 	{
+		constexpr int irradianceSize = 64;
 		if (_skyBoxTextureHDRI)
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_FLOAT, nullptr);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, irradianceSize, irradianceSize, 0, GL_RGB, GL_FLOAT, nullptr);
 		else
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 32, 32, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, irradianceSize, irradianceSize, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
 	}
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -3350,12 +3351,13 @@ void GLWidget::loadIrradianceMap()
 	glGenTextures(1, &_prefilterMap);
 	//std::cout << "GLWidget::loadIrradianceMap : _prefilterMap = " << _prefilterMap << std::endl;
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
+	constexpr int prefilterSize = 256;
 	for (unsigned int i = 0; i < 6; ++i)
 	{
 		if (_skyBoxTextureHDRI)
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_FLOAT, nullptr);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, prefilterSize, prefilterSize, 0, GL_RGB, GL_FLOAT, nullptr);
 		else
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, 128, 128, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, prefilterSize, prefilterSize, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
 	}
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -3382,8 +3384,8 @@ void GLWidget::loadIrradianceMap()
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
 		// reisze framebuffer according to mip-level size.
-		unsigned int mipWidth = 128 * std::pow(0.5, mip);
-		unsigned int mipHeight = 128 * std::pow(0.5, mip);
+		unsigned int mipWidth = prefilterSize * std::pow(0.5, mip);
+		unsigned int mipHeight = prefilterSize * std::pow(0.5, mip);
 		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
 		glViewport(0, 0, mipWidth, mipHeight);
