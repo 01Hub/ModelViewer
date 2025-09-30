@@ -212,6 +212,11 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 	_toolButtonViewModes->setToolTip(tr("Axonometric View"));
 	_toolButtonViewModes->setPopupMode(QToolButton::DelayedPopup);
 	_toolButtonViewModes->setAutoRaise(true);
+	
+	// Shortcut for triggering default action
+	QShortcut* defaultShortcut = new QShortcut(QKeySequence(Qt::Key_Home), this);
+	connect(defaultShortcut, &QShortcut::activated, _toolButtonViewModes, &QToolButton::click);
+
 	layout->addWidget(_toolButtonViewModes);
 
 	// When this button is clicked, uncheck all buttons in the group
@@ -226,16 +231,14 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 		});
 
 	QMenu* axoMenu = new QMenu;
-	axoMenu->setStyleSheet(flyoutStyleSheet);
-	_isoAction = axoMenu->addAction(QIcon(":/icons/res/isometric.png"), tr("Isometric"));
-	QList<QKeySequence> shortcuts;
-	shortcuts << QKeySequence("Ctrl+1") << QKeySequence("Home");
-	_isoAction->setShortcuts(shortcuts);
+	axoMenu->setStyleSheet(flyoutStyleSheet);	
+	_isoAction = axoMenu->addAction(QIcon(":/icons/res/isometric.png"), tr("Isometric"));		
+	_isoAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_1));
 	_dimAction = axoMenu->addAction(QIcon(":/icons/res/dimetric.png"), tr("Dimetric"));
 	_dimAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_2));
 	_triAction = axoMenu->addAction(QIcon(":/icons/res/trimetric.png"), tr("Trimetric"));
 	_triAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_3));
-
+	
 	connect(_isoAction, &QAction::triggered, this,
 		[this]() {
 			_toolButtonViewModes->setDefaultAction(_isoAction);
