@@ -227,6 +227,9 @@ private:
 	static QString _lastOpenedDir;
 	static QString _lastSelectedFilter;	
 
+	int _skyBoxLDRIIndex = 0;
+	int _skyBoxHDRIIndex = 0;
+
 private:
 	bool checkForActiveSelection();
 	bool hasSelection() const;

@@ -115,7 +115,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 			{				
 				if(isVisible())
 					_glWidget->setSkyBoxTextureFolder(selectedPath);
-			}
+			}			
 		}
 	);
 	connect(checkBoxShowLights, &QCheckBox::toggled, _glWidget, &GLWidget::showLights);
@@ -1407,19 +1407,33 @@ void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 
 void ModelViewer::loadSkyBoxPresetMaps()
 {
+	bool isHDRI = checkBoxSkyBoxHDRI->isChecked();
 	QString appPath = MODELVIEWER_DATA_DIR;
-	QString texPath = appPath + (checkBoxSkyBoxHDRI->isChecked() ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes/LDRI");	
-
+	QString texPath = appPath + (isHDRI ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes/LDRI");	
+	
+	int index = comboBoxSkyBoxMaps->currentIndex();
+	if (isHDRI)
+		_skyBoxLDRIIndex = std::max(0, index); // Store previous state index before switching
+	else
+		_skyBoxHDRIIndex = std::max(0, index);
+	
 	comboBoxSkyBoxMaps->clear();
 
 	QDir dir(texPath);
 	QStringList folderList = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
 
+	bool oldState = comboBoxSkyBoxMaps->blockSignals(true);
 	for (const QString& folderName : folderList)
 	{
 		QString fullPath = dir.absoluteFilePath(folderName);
 		comboBoxSkyBoxMaps->addItem(folderName, fullPath);
 	}
+	comboBoxSkyBoxMaps->blockSignals(oldState);
+
+	if (isHDRI)
+		comboBoxSkyBoxMaps->setCurrentIndex(_skyBoxHDRIIndex);
+	else
+		comboBoxSkyBoxMaps->setCurrentIndex(_skyBoxLDRIIndex);
 }
 
 void ModelViewer::onFileImport()
