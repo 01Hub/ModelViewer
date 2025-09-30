@@ -1434,6 +1434,21 @@ void ModelViewer::loadSkyBoxPresetMaps()
 		comboBoxSkyBoxMaps->setCurrentIndex(_skyBoxHDRIIndex);
 	else
 		comboBoxSkyBoxMaps->setCurrentIndex(_skyBoxLDRIIndex);
+
+	if(_skyBoxHDRIIndex == 0 || _skyBoxLDRIIndex == 0)
+	{
+		QString selectedPath;
+		if(isHDRI)
+			selectedPath = comboBoxSkyBoxMaps->itemData(_skyBoxHDRIIndex).toString();
+		else
+			selectedPath = comboBoxSkyBoxMaps->itemData(_skyBoxLDRIIndex).toString();
+
+		if (selectedPath != "")
+		{
+			if (isVisible())
+				_glWidget->setSkyBoxTextureFolder(selectedPath);
+		}
+	}
 }
 
 void ModelViewer::onFileImport()
