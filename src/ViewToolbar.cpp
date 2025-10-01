@@ -11,6 +11,7 @@
 #include <QPainter>
 #include <QShortcut>
 #include <QScrollbar>
+#include <QTimer>
 
 ViewToolbar::ViewToolbar(QWidget* parent)
     : QWidget(parent)
@@ -107,7 +108,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _scrollLeftBtn = new QToolButton(this);
     _scrollLeftBtn->setStyleSheet(scrollButtonStyleSheet);
     _scrollLeftBtn->setText("<");
-    _scrollLeftBtn->setFixedSize(20, 56);
+    _scrollLeftBtn->setFixedSize(20, 68);
     _scrollLeftBtn->setVisible(false);
     outerLayout->addWidget(_scrollLeftBtn);
     connect(_scrollLeftBtn, &QToolButton::clicked, this, &ViewToolbar::scrollLeft);
@@ -118,12 +119,14 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     _scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     _scrollArea->setWidgetResizable(false);
+    _scrollArea->setFixedHeight(72);
     _scrollArea->setStyleSheet("QScrollArea { background: transparent; border: none; }");
     outerLayout->addWidget(_scrollArea, 1);
 
     // Container widget for buttons inside scroll area
     _buttonContainer = new QWidget();
     _buttonContainer->setStyleSheet("background: transparent;");
+    _buttonContainer->setFixedHeight(72);
     _mainLayout = new QHBoxLayout(_buttonContainer);
     _mainLayout->setContentsMargins(4, 4, 4, 4);
     _mainLayout->setSpacing(6);
@@ -134,7 +137,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _scrollRightBtn = new QToolButton(this);
     _scrollRightBtn->setStyleSheet(scrollButtonStyleSheet);
     _scrollRightBtn->setText(">");
-    _scrollRightBtn->setFixedSize(20, 56);
+    _scrollRightBtn->setFixedSize(20, 68);
     _scrollRightBtn->setVisible(false);
     outerLayout->addWidget(_scrollRightBtn);
     connect(_scrollRightBtn, &QToolButton::clicked, this, &ViewToolbar::scrollRight);
@@ -144,6 +147,8 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         this, &ViewToolbar::updateScrollButtons);
 
     // Now add all the toolbar buttons to _mainLayout
+    // (Keep all your existing button creation code here, just replace 'layout' with '_mainLayout')
+
     _btnRotateView = new QToolButton(this);
     _btnRotateView->setStyleSheet(buttonStyleSheet);
     _btnRotateView->setIcon(QIcon(":/icons/res/rotateview.png"));
@@ -503,25 +508,65 @@ void ViewToolbar::hideAnimated()
 
 void ViewToolbar::reposition(int widgetWidth, int widgetHeight)
 {
+    // Prevent recursive calls
+    if (_isRepositioning)
+        return;
+
+    _isRepositioning = true;
+
     // Calculate maximum toolbar width
     int maxToolbarWidth = widgetWidth - 20; // 10px margin on each side
 
-    // Set a reasonable width for the toolbar
-    int toolbarWidth = qMin(maxToolbarWidth, _buttonContainer->sizeHint().width() + 50);
-    resize(toolbarWidth, 64);
+    // Calculate minimum width needed for all buttons
+    int totalButtonWidth = 0;
+    for (int i = 0; i < _mainLayout->count(); ++i)
+    {
+        QLayoutItem* item = _mainLayout->itemAt(i);
+        if (item && item->widget())
+        {
+            totalButtonWidth += item->widget()->sizeHint().width();
+        }
+    }
 
-    // Update button container size
-    _buttonContainer->adjustSize();
+    // Add spacing and margins
+    int buttonCount = _mainLayout->count();
+    totalButtonWidth += (buttonCount - 1) * _mainLayout->spacing();
+    totalButtonWidth += _mainLayout->contentsMargins().left() + _mainLayout->contentsMargins().right();
 
-    // Check if scrolling is needed
-    checkScrollButtonsVisibility();
+    // Account for outer layout margins
+    int outerMargins = 4; // 2px on each side
+
+    // Determine toolbar width
+    int toolbarWidth;
+    bool needsScrolling = (totalButtonWidth + outerMargins) > maxToolbarWidth;
+
+    if (needsScrolling)
+    {
+        // Use max width when scrolling is needed
+        toolbarWidth = maxToolbarWidth;
+        _buttonContainer->setMinimumWidth(totalButtonWidth);
+        _buttonContainer->setMaximumWidth(totalButtonWidth);
+    }
+    else
+    {
+        // Use exact width when no scrolling
+        toolbarWidth = totalButtonWidth + outerMargins;
+        _buttonContainer->setMinimumWidth(totalButtonWidth);
+        _buttonContainer->setMaximumWidth(totalButtonWidth);
+    }
+
+    resize(toolbarWidth, 76);
 
     int x = (widgetWidth - toolbarWidth) / 2;
-    int y = widgetHeight - 64 - 10;
+    int y = widgetHeight - 76 - 10;
     move(x, y);
 
-    _visibleRect = QRect(x, y, toolbarWidth, 64);
+    _visibleRect = QRect(x, y, toolbarWidth, 76);
     _hiddenRect = _visibleRect.translated(0, 80);
+
+    // Update scroll button visibility after positioning is done
+    _isRepositioning = false;
+    checkScrollButtonsVisibility();
 }
 
 QRect ViewToolbar::visibleRect() const { return _visibleRect; }
@@ -585,12 +630,18 @@ void ViewToolbar::paintEvent(QPaintEvent* event)
 
 void ViewToolbar::resizeEvent(QResizeEvent* event)
 {
-	QWidget::resizeEvent(event);
-    // Adjust button container to its natural size
-    _buttonContainer->adjustSize();
+    QWidget::resizeEvent(event);
 
-    // Check if we need scroll buttons
-    checkScrollButtonsVisibility();
+    if (_isRepositioning)
+        return;
+
+    // After resize, check if we need scrolling and adjust toolbar width accordingly
+    QTimer::singleShot(0, this, [this]() {
+        if (parentWidget())
+        {
+            reposition(parentWidget()->width(), parentWidget()->height());
+        }
+        });
 }
 
 void ViewToolbar::retranslateUI()
@@ -680,17 +731,54 @@ void ViewToolbar::updateScrollButtons()
 
 void ViewToolbar::checkScrollButtonsVisibility()
 {
-    // Check if content is wider than scroll area
-    int contentWidth = _buttonContainer->sizeHint().width();
-    int scrollAreaWidth = _scrollArea->width();
+    if (_isRepositioning)
+        return;
 
-    bool needsScrolling = contentWidth > scrollAreaWidth;
+    // Calculate the total width needed for all buttons using sizeHint
+    int totalButtonWidth = 0;
+    for (int i = 0; i < _mainLayout->count(); ++i)
+    {
+        QLayoutItem* item = _mainLayout->itemAt(i);
+        if (item && item->widget())
+        {
+            totalButtonWidth += item->widget()->sizeHint().width();
+        }
+    }
+
+    // Add spacing and margins
+    int buttonCount = _mainLayout->count();
+    totalButtonWidth += (buttonCount - 1) * _mainLayout->spacing();
+    totalButtonWidth += _mainLayout->contentsMargins().left() + _mainLayout->contentsMargins().right();
+
+    // Calculate how much space we have
+    int toolbarWidth = width();
+    int outerMargins = 4; // 2px each side
+    int scrollButtonWidth = 20;
+
+    // Available width if scroll buttons are NOT visible
+    int availableWidthNoScroll = toolbarWidth - outerMargins;
+
+    // Available width if scroll buttons ARE visible
+    int availableWidthWithScroll = toolbarWidth - outerMargins - (2 * scrollButtonWidth);
+
+    // Determine if scrolling is needed based on available space WITHOUT scroll buttons
+    bool needsScrolling = totalButtonWidth > availableWidthNoScroll;
 
     _scrollLeftBtn->setVisible(needsScrolling);
     _scrollRightBtn->setVisible(needsScrolling);
 
     if (needsScrolling)
     {
+        // Set button container to full content width
+        _buttonContainer->setMinimumWidth(totalButtonWidth);
+        _buttonContainer->setMaximumWidth(totalButtonWidth);
         updateScrollButtons();
+    }
+    else
+    {
+        // No scrolling needed - container should match available space
+        _buttonContainer->setMinimumWidth(totalButtonWidth);
+        _buttonContainer->setMaximumWidth(totalButtonWidth);
+        _scrollArea->horizontalScrollBar()->setValue(0);
     }
 }

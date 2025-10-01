@@ -124,4 +124,6 @@ private:
     QPropertyAnimation* _toolbarAnimation;
     QRect _visibleRect;
     QRect _hiddenRect;
+
+    bool _isRepositioning = false;
 };
