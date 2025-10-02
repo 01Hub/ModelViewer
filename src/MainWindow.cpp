@@ -38,7 +38,25 @@ MainWindow::MainWindow(QWidget* parent)
 	ThemeManager* themeManager = new ThemeManager(this);
 	themeManager->setTheme(static_cast<ThemeManager::Theme>(iVal));
 
-	connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged, themeManager, &ThemeManager::applyThemeForColorScheme);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
+	connect(qApp->styleHints(), &QStyleHints::colorSchemeChanged,
+			themeManager, [themeManager](Qt::ColorScheme scheme) {
+		themeManager->applyThemeForColorScheme(scheme == Qt::ColorScheme::Dark);
+	});
+#else
+	// Use polling timer fallback for older Qt versions
+	QTimer* themeCheckTimer = new QTimer(qApp);
+	connect(themeCheckTimer, &QTimer::timeout, [themeManager]() {
+		static bool lastDarkMode = themeManager->isSystemInDarkMode();
+		bool currentDarkMode = themeManager->isSystemInDarkMode();
+
+		if (currentDarkMode != lastDarkMode) {
+			themeManager->applyThemeForColorScheme(currentDarkMode);
+			lastDarkMode = currentDarkMode;
+		}
+	});
+	themeCheckTimer->start(1000);
+#endif
 	
 	QMenu* fileMenu = ui->menuFile;
 	QAction* exitAct = ui->actionExit;

@@ -40,9 +40,14 @@ public:
     void setTheme(Theme theme);
     Theme currentTheme() const { return m_currentTheme; }
 
+    void applyThemeForColorScheme(bool isDarkMode);
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     void applyThemeForColorScheme(Qt::ColorScheme scheme);
+#endif
 
 	void applyThemefromStyleSheet(const QString& styleSheet);
+
+    bool isSystemInDarkMode() const;
         
 signals:
     void themeChanged(Theme theme);
@@ -52,7 +57,7 @@ private:
     void applySystemAwareTheme();
     void applyLightTheme();
     void applyDarkTheme();
-    bool isSystemInDarkMode() const;    
+
 
     QPalette getLightPalette() const;
     QPalette getDarkPalette() const;

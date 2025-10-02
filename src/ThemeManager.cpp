@@ -225,6 +225,26 @@ bool ThemeManager::isSystemInDarkMode() const
 #endif
 }
 
+void ThemeManager::applyThemeForColorScheme(bool isDarkMode)
+{
+	if (QApplication::style()->objectName().toLower() != "fusion")
+	{
+		QApplication::setStyle(QStyleFactory::create("Fusion"));
+	}
+
+	if (isDarkMode)
+	{
+		applyDarkTheme();
+	}
+	else
+	{
+		applyLightTheme();
+	}
+
+	qDebug() << "Applied" << (isDarkMode ? "Dark" : "Light") << "theme";
+}
+
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
 void ThemeManager::applyThemeForColorScheme(Qt::ColorScheme scheme)
 {
 	if (QApplication::style()->objectName().toLower() != "fusion")
@@ -243,6 +263,7 @@ void ThemeManager::applyThemeForColorScheme(Qt::ColorScheme scheme)
 
 	qDebug() << "Applied" << (scheme == Qt::ColorScheme::Dark ? "Dark" : "Light") << "theme";
 }
+#endif
 
 void ThemeManager::applyThemefromStyleSheet(const QString& styleSheet)
 {
