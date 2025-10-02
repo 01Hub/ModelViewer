@@ -10,7 +10,7 @@
 #include <QButtonGroup>
 #include <QPainter>
 #include <QShortcut>
-#include <QScrollbar>
+#include <QScrollBar>
 #include <QTimer>
 
 ViewToolbar::ViewToolbar(QWidget* parent)
