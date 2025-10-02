@@ -18,7 +18,7 @@
 #include <QCheckBox>
 #include <QLayout>
 #include <Quantity_ColorRGBA.hxx>
-
+#include <unordered_set>
 
 using namespace std;
 
