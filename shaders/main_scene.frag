@@ -862,16 +862,26 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		// --- Grazing control params (tweak these) ---
 		// How strongly to soften/attenuate reflections at grazing angles
 		float grazingPower = mix(1.8, 2.5, roughness); // Vary with roughness
-		float extraLodFactor = 0.6;        // how much extra LOD (blur) to add at grazing
+
+		// KEY FIX: Only apply grazing blur for rough dielectrics
+		// Smooth metals and mirrors (low roughness, high metallic) should maintain sharpness
+		float grazingInfluence = roughness * (1.0 - metallic * 0.8); // Reduced for metals
+		float extraLodFactor = 0.6 * grazingInfluence; // Scale the effect
+
 		float grazingSpecReduce = mix(0.8, 0.5, metallic); // Metals handle grazing better
 		// ------------------------------------------------
 
 		// Compute a grazing factor: 0 at face-on, 1 at grazing (dotNV -> 0)
 		float grazing = pow(1.0 - dotNV, grazingPower); // smooth curve
 
-		// Increase LOD (more blur) at grazing angles, but less if roughness is high (already blurred)
-		float lod = roughness * MAX_REFLECTION_LOD
-					+ grazing * extraLodFactor * (1.0 - roughness) * MAX_REFLECTION_LOD;
+		// Base LOD from roughness
+		float baseLod = roughness * MAX_REFLECTION_LOD;
+
+		// Add grazing blur ONLY when appropriate (rough dielectrics)
+		float grazingLod = grazing * extraLodFactor * (1.0 - roughness) * MAX_REFLECTION_LOD;
+
+		// Combine: mirrors/smooth metals mostly ignore grazingLod
+		float lod = baseLod + grazingLod;
 		lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
 
 		vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
@@ -1234,46 +1244,56 @@ void applyEnvironmentMapping(float alphaIn)
     if (renderingMode == 0) {
 		vec3 R = refract(-I, N, 1.0);
 		R = envMapRotationMatrix * -R;
-
 		float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
 		float NdotV = max(dot(-I, N), 0.0);
-
+	
 		// Gentler fresnel powers
 		float nonMetallicFresnelPower = mix(2.0, 3.5, 1.0 - specLum); // Reduced
 		float metallicFresnelPower = 1.2; // Reduced
 		float fresnelPower = mix(nonMetallicFresnelPower, metallicFresnelPower, pbrLighting.metallic);
-    
 		float fresnel = pow(1.0 - NdotV, fresnelPower);
-    
+	
 		// Limit grazing angle effect
 		float grazingLimit = mix(0.6, 0.9, pbrLighting.metallic); // Metals can handle more
 		fresnel = clamp(fresnel, 0.0, grazingLimit);
-
+	
 		float surfaceRoughness = 1.0 - (material.shininess / 128.0);
 		float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
-
+	
 		// Reduced base strengths
 		float metallicStrength = mix(0.2, 0.4, specLum);
 		float glossyStrength = mix(0.25, 0.5, specLum);
 		float diffuseStrength = mix(0.02, 0.12, specLum);
-
+	
 		bool isHighSpecular = specLum > 0.5;
 		bool isDiffuseDominant = dot(material.diffuse, vec3(0.299,0.587,0.114)) > specLum*2.0;
 		float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
-
 		float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, pbrLighting.metallic);
-    
+	
 		// Additional roughness damping for very rough surfaces
 		float roughnessDamping = mix(0.3, 1.0, 1.0 - surfaceRoughness);
-    
 		float reflectionStrength = clamp(baseReflectionStrength * fresnel * roughnessReduction * roughnessDamping, 0.0, 0.5);
-
-		float envLOD = surfaceRoughness * 7.0;
+	
+		// === IMPROVED GRAZING LOD ===
+		// Material-aware grazing influence: smooth metals/mirrors avoid extra blur
+		float grazingInfluence = surfaceRoughness * (1.0 - pbrLighting.metallic * 0.8);
+	
+		// Grazing factor for LOD adjustment
+		float grazingFactor = pow(1.0 - NdotV, mix(1.8, 2.5, surfaceRoughness));
+	
+		// Base LOD from roughness
+		float baseLOD = surfaceRoughness * 7.0;
+	
+		// Extra grazing blur, but only for rough dielectrics
+		float grazingLOD = grazingFactor * grazingInfluence * 4.0; // Scaled to match 7.0 max
+	
+		// Combine: mirrors/smooth metals keep sharp reflections
+		float envLOD = clamp(baseLOD + grazingLOD, 0.0, 7.0);
+		// ========================
+	
 		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
-    
 		envColor *= envMapExposure;
 		envColor = applyToneMapping(envColor);
-
 		fragColor.rgb += envColor * reflectionStrength;
 		return;
 	}
