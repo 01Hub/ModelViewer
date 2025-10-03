@@ -52,6 +52,7 @@ signals:
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+    bool eventFilter(QObject* obj, QEvent* event) override;
 
 private:
     void retranslateUI();
@@ -59,6 +60,10 @@ private:
     void scrollLeft();
     void scrollRight();
     void checkScrollButtonsVisibility();
+    void startAutoScroll(bool scrollLeft);
+    void stopAutoScroll();
+    void checkAndStartAutoScrollLeft();
+    void checkAndStartAutoScrollRight();
 
 private:
     // Scroll infrastructure
@@ -67,6 +72,10 @@ private:
     QHBoxLayout* _mainLayout;
     QToolButton* _scrollLeftBtn;
     QToolButton* _scrollRightBtn;
+    bool _isRepositioning;
+    QTimer* _autoScrollTimer;
+    bool _autoScrollLeft;
+    QTimer* _hoverDelayTimer;
 
     // Navigation buttons
     QToolButton* _btnRotateView;
@@ -124,6 +133,4 @@ private:
     QPropertyAnimation* _toolbarAnimation;
     QRect _visibleRect;
     QRect _hiddenRect;
-
-    bool _isRepositioning = false;
 };

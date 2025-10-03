@@ -15,6 +15,10 @@
 
 ViewToolbar::ViewToolbar(QWidget* parent)
     : QWidget(parent)
+    , _isRepositioning(false)
+    , _autoScrollTimer(nullptr)
+    , _hoverDelayTimer(nullptr)
+    , _autoScrollLeft(true)
 {
     setStyleSheet("background: rgba(255, 255, 255, 100); border: 1px solid gray; border-radius: 4px;");
     setFixedHeight(76);
@@ -110,6 +114,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _scrollLeftBtn->setText("<");
     _scrollLeftBtn->setFixedSize(20, 68);
     _scrollLeftBtn->setVisible(false);
+    _scrollLeftBtn->installEventFilter(this);
     outerLayout->addWidget(_scrollLeftBtn);
     connect(_scrollLeftBtn, &QToolButton::clicked, this, &ViewToolbar::scrollLeft);
 
@@ -139,6 +144,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _scrollRightBtn->setText(">");
     _scrollRightBtn->setFixedSize(20, 68);
     _scrollRightBtn->setVisible(false);
+    _scrollRightBtn->installEventFilter(this);
     outerLayout->addWidget(_scrollRightBtn);
     connect(_scrollRightBtn, &QToolButton::clicked, this, &ViewToolbar::scrollRight);
 
@@ -481,6 +487,25 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _toolbarAnimation->setDuration(300);
     _toolbarAnimation->setEasingCurve(QEasingCurve::OutCubic);
 
+    // Auto-scroll timer
+    _autoScrollTimer = new QTimer(this);
+    _autoScrollTimer->setInterval(50); // Scroll every 50ms for smooth scrolling
+    connect(_autoScrollTimer, &QTimer::timeout, this, [this]() {
+        if (_autoScrollLeft)
+        {
+            scrollLeft();
+        }
+        else
+        {
+            scrollRight();
+        }
+        });
+
+    // Hover delay timer
+    _hoverDelayTimer = new QTimer(this);
+    _hoverDelayTimer->setSingleShot(true);
+    _hoverDelayTimer->setInterval(300); // 300ms delay before auto-scroll starts
+
     retranslateUI();
 
     connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
@@ -644,6 +669,41 @@ void ViewToolbar::resizeEvent(QResizeEvent* event)
         });
 }
 
+bool ViewToolbar::eventFilter(QObject* obj, QEvent* event)
+{
+    if (obj == _scrollLeftBtn)
+    {
+        if (event->type() == QEvent::Enter)
+        {
+            // Disconnect any previous connection
+            disconnect(_hoverDelayTimer, &QTimer::timeout, this, nullptr);
+            // Connect to left scroll check
+            connect(_hoverDelayTimer, &QTimer::timeout, this, &ViewToolbar::checkAndStartAutoScrollLeft);
+            _hoverDelayTimer->start();
+        }
+        else if (event->type() == QEvent::Leave)
+        {
+            stopAutoScroll();
+        }
+    }
+    else if (obj == _scrollRightBtn)
+    {
+        if (event->type() == QEvent::Enter)
+        {
+            // Disconnect any previous connection
+            disconnect(_hoverDelayTimer, &QTimer::timeout, this, nullptr);
+            // Connect to right scroll check
+            connect(_hoverDelayTimer, &QTimer::timeout, this, &ViewToolbar::checkAndStartAutoScrollRight);
+            _hoverDelayTimer->start();
+        }
+        else if (event->type() == QEvent::Leave)
+        {
+            stopAutoScroll();
+        }
+    }
+    return QWidget::eventFilter(obj, event);
+}
+
 void ViewToolbar::retranslateUI()
 {
 	// Main navigation buttons
@@ -780,5 +840,47 @@ void ViewToolbar::checkScrollButtonsVisibility()
         _buttonContainer->setMinimumWidth(totalButtonWidth);
         _buttonContainer->setMaximumWidth(totalButtonWidth);
         _scrollArea->horizontalScrollBar()->setValue(0);
+    }
+}
+
+
+void ViewToolbar::startAutoScroll(bool scrollLeft)
+{
+    _autoScrollLeft = scrollLeft;
+    if (!_autoScrollTimer->isActive())
+    {
+        // Initial scroll immediately
+        if (scrollLeft)
+        {
+            this->scrollLeft();
+        }
+        else
+        {
+            this->scrollRight();
+        }
+        // Then start timer for continuous scrolling
+        _autoScrollTimer->start();
+    }
+}
+
+void ViewToolbar::stopAutoScroll()
+{
+    _autoScrollTimer->stop();
+    _hoverDelayTimer->stop();
+}
+
+void ViewToolbar::checkAndStartAutoScrollLeft()
+{
+    if (_scrollLeftBtn->underMouse())
+    {
+        startAutoScroll(true);
+    }
+}
+
+void ViewToolbar::checkAndStartAutoScrollRight()
+{
+    if (_scrollRightBtn->underMouse())
+    {
+        startAutoScroll(false);
     }
 }
