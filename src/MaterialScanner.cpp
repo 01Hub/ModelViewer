@@ -264,7 +264,7 @@ MaterialsMap MaterialScanner::parseMaterialsFolder(const QString& rootFolder)
         tryAssign(roughnessTokens, "roughness");
         tryAssign(emissiveTokens, "emissive");
         tryAssign(opacityTokens, "opacity");
-        tryAssign(heightTokens, "height");
+        //tryAssign(heightTokens, "height");
         tryAssign(transmissionTokens, "transmission");
         tryAssign(iorTokens, "ior");
         tryAssign(sheenColorTokens, "sheen_color");
