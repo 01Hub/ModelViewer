@@ -85,4 +85,6 @@ private:
 
     QHash<QString, MapSlot> _maps;   // by key
     QIcon _checkerIcon;
+
+	QString _lastUsedFolder;
 };

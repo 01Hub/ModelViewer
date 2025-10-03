@@ -159,10 +159,16 @@ void TextureMappingPanel::connectSignals()
                 if (it.value().button == btn) { k = it.key(); break; }
             if (k.isEmpty()) return;
 
-            const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
+			QString texFolder = _lastUsedFolder;
+            if (texFolder.isEmpty())
+            {
+                const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
+                texFolder = path + "textures/materials/";
+            }
+            
             const QString file = QFileDialog::getOpenFileName(
                 this, tr("Select %1 Map").arg(k.at(0).toUpper() + k.mid(1)), 
-                QString(path + "textures/materials"), 
+                texFolder,
                 tr("Images (*.png *.jpg *.jpeg *.tga *.bmp *.hdr *.exr)"));
             if (file.isEmpty()) return;
 
@@ -452,6 +458,17 @@ void TextureMappingPanel::applyMaterialPreset(const QString& presetName)
     if (!mats.contains(presetName)) return;
 
     const TextureMap texs = mats.value(presetName);
+
+	// Get the path of the first tex (for initial folder)    
+    for (auto it = texs.constBegin(); it != texs.constEnd(); ++it)
+    {
+        const QString& path = it.value();
+        if (!path.isEmpty())
+        {
+            _lastUsedFolder = QFileInfo(path).absolutePath();
+            break;
+        }
+    }    
 
     // --- 1) If packed AORM meta is present, apply it to AO/Roughness/Metallic only ---
     bool appliedPackedAORM = false;
