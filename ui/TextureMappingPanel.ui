@@ -40,7 +40,7 @@
         <x>0</x>
         <y>0</y>
         <width>338</width>
-        <height>1586</height>
+        <height>1614</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout_20">
@@ -59,186 +59,19 @@
        <property name="spacing">
         <number>0</number>
        </property>
-       <item row="3" column="0">
-        <widget class="QGroupBox" name="grpSheen">
+       <item row="0" column="0">
+        <widget class="QGroupBox" name="groupBox">
          <property name="title">
-          <string>Sheen</string>
+          <string>Preset Material Texture Maps</string>
          </property>
-         <layout class="QGridLayout" name="gridLayout_13">
+         <layout class="QGridLayout" name="gridLayout_21">
           <item row="0" column="0">
-           <layout class="QGridLayout" name="gridLayout_11">
-            <item row="0" column="1">
-             <spacer name="spSheenColor">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>13</width>
-                <height>13</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="0">
-             <spacer name="horizontalSpacer_19">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>35</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="1">
-             <widget class="QPushButton" name="btnSheenColor">
-              <property name="minimumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="acceptDrops">
-               <bool>true</bool>
-              </property>
-              <property name="toolTip">
-               <string>Load/Replace Sheen Color</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>90</width>
-                <height>90</height>
-               </size>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="2">
-             <spacer name="horizontalSpacer_20">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>18</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="2" column="1">
-             <widget class="QLabel" name="lblSheenColor">
-              <property name="text">
-               <string>Sheen
-Color</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignHCenter</set>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="0" column="1">
-           <layout class="QGridLayout" name="gridLayout_12">
-            <item row="0" column="1">
-             <spacer name="spSheenRough">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>13</width>
-                <height>13</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="0">
-             <spacer name="horizontalSpacer_21">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="1">
-             <widget class="QPushButton" name="btnSheenRough">
-              <property name="minimumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="acceptDrops">
-               <bool>true</bool>
-              </property>
-              <property name="toolTip">
-               <string>Load/Replace Sheen Roughness</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>90</width>
-                <height>90</height>
-               </size>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="2">
-             <spacer name="horizontalSpacer_22">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="2" column="1">
-             <widget class="QLabel" name="lblSheenRough">
-              <property name="text">
-               <string>Sheen
-Roughness</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignHCenter</set>
-              </property>
-             </widget>
-            </item>
-           </layout>
+           <widget class="QComboBox" name="comboBoxPresetTextures"/>
           </item>
          </layout>
         </widget>
        </item>
-       <item row="5" column="0">
+       <item row="7" column="0">
         <widget class="QGroupBox" name="grpUV">
          <property name="title">
           <string>UV Settings</string>
@@ -347,1169 +180,13 @@ Roughness</string>
         </widget>
        </item>
        <item row="2" column="0">
-        <widget class="QGroupBox" name="grpMain">
-         <property name="title">
-          <string>Main</string>
+        <widget class="QPushButton" name="pushButtonClearAllMaps">
+         <property name="text">
+          <string>Clear All Maps</string>
          </property>
-         <layout class="QGridLayout" name="gridLayout_18">
-          <item row="2" column="0">
-           <layout class="QGridLayout" name="gridLayout_6">
-            <item row="0" column="1">
-             <layout class="QHBoxLayout" name="topAO">
-              <property name="leftMargin">
-               <number>0</number>
-              </property>
-              <property name="topMargin">
-               <number>0</number>
-              </property>
-              <property name="rightMargin">
-               <number>0</number>
-              </property>
-              <property name="bottomMargin">
-               <number>0</number>
-              </property>
-              <item>
-               <spacer name="spAO">
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>10</width>
-                  <height>10</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QToolButton" name="gearAO">
-                <property name="minimumSize">
-                 <size>
-                  <width>18</width>
-                  <height>18</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>18</width>
-                  <height>18</height>
-                 </size>
-                </property>
-                <property name="toolTip">
-                 <string>Channel Packing…</string>
-                </property>
-                <property name="text">
-                 <string>⚙</string>
-                </property>
-                <property name="autoRaise">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item row="1" column="0">
-             <spacer name="horizontalSpacer_11">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="1">
-             <widget class="QPushButton" name="btnAO">
-              <property name="minimumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="acceptDrops">
-               <bool>true</bool>
-              </property>
-              <property name="toolTip">
-               <string>Load/Replace Ambient Occlusion</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>90</width>
-                <height>90</height>
-               </size>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="2">
-             <spacer name="horizontalSpacer_12">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="2" column="1">
-             <widget class="QLabel" name="lblAO">
-              <property name="text">
-               <string>AO</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignHCenter</set>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="1" column="1">
-           <layout class="QGridLayout" name="gridLayout_2">
-            <item row="0" column="1">
-             <layout class="QHBoxLayout" name="horizontalLayout_2">
-              <item>
-               <widget class="Line" name="line_4">
-                <property name="enabled">
-                 <bool>false</bool>
-                </property>
-                <property name="lineWidth">
-                 <number>0</number>
-                </property>
-                <property name="orientation">
-                 <enum>Qt::Orientation::Vertical</enum>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <spacer name="spNormal">
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>13</width>
-                  <height>13</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-             </layout>
-            </item>
-            <item row="1" column="0">
-             <spacer name="horizontalSpacer_3">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="1">
-             <widget class="QPushButton" name="btnNormal">
-              <property name="minimumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="acceptDrops">
-               <bool>true</bool>
-              </property>
-              <property name="toolTip">
-               <string>Load/Replace Normal</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>90</width>
-                <height>90</height>
-               </size>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="2">
-             <spacer name="horizontalSpacer_4">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="2" column="1">
-             <widget class="QLabel" name="lblNormal">
-              <property name="text">
-               <string>Normal</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignHCenter</set>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="3" column="0">
-           <layout class="QGridLayout" name="gridLayout_7">
-            <item row="0" column="1">
-             <layout class="QHBoxLayout" name="topOpacity">
-              <property name="leftMargin">
-               <number>0</number>
-              </property>
-              <property name="topMargin">
-               <number>0</number>
-              </property>
-              <property name="rightMargin">
-               <number>0</number>
-              </property>
-              <property name="bottomMargin">
-               <number>0</number>
-              </property>
-              <item>
-               <spacer name="horizontalSpacer_30">
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>40</width>
-                  <height>20</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QToolButton" name="gearOpacity">
-                <property name="minimumSize">
-                 <size>
-                  <width>18</width>
-                  <height>18</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>18</width>
-                  <height>18</height>
-                 </size>
-                </property>
-                <property name="toolTip">
-                 <string>Channel Packing…</string>
-                </property>
-                <property name="text">
-                 <string>⚙</string>
-                </property>
-                <property name="autoRaise">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item row="1" column="0">
-             <spacer name="horizontalSpacer_13">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>18</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="1">
-             <widget class="QPushButton" name="btnOpacity">
-              <property name="minimumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="acceptDrops">
-               <bool>true</bool>
-              </property>
-              <property name="toolTip">
-               <string>Load/Replace Opacity</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>90</width>
-                <height>90</height>
-               </size>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="2">
-             <spacer name="horizontalSpacer_14">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>18</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="2" column="1">
-             <widget class="QLabel" name="lblOpacity">
-              <property name="text">
-               <string>Opacity</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignHCenter</set>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="4" column="1">
-           <layout class="QGridLayout" name="gridLayout_8">
-            <item row="0" column="0">
-             <spacer name="horizontalSpacer_15">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="0" column="1">
-             <layout class="QVBoxLayout" name="verticalLayout_3">
-              <item>
-               <layout class="QHBoxLayout" name="topTransmission">
-                <property name="leftMargin">
-                 <number>0</number>
-                </property>
-                <property name="topMargin">
-                 <number>0</number>
-                </property>
-                <property name="rightMargin">
-                 <number>0</number>
-                </property>
-                <property name="bottomMargin">
-                 <number>0</number>
-                </property>
-                <item>
-                 <spacer name="spTransmission">
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>10</width>
-                    <height>10</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item>
-                 <widget class="Line" name="line_2">
-                  <property name="enabled">
-                   <bool>false</bool>
-                  </property>
-                  <property name="lineWidth">
-                   <number>0</number>
-                  </property>
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Vertical</enum>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <widget class="QPushButton" name="btnTransmission">
-                <property name="minimumSize">
-                 <size>
-                  <width>96</width>
-                  <height>96</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>96</width>
-                  <height>96</height>
-                 </size>
-                </property>
-                <property name="acceptDrops">
-                 <bool>true</bool>
-                </property>
-                <property name="toolTip">
-                 <string>Load/Replace Transmission</string>
-                </property>
-                <property name="text">
-                 <string/>
-                </property>
-                <property name="iconSize">
-                 <size>
-                  <width>90</width>
-                  <height>90</height>
-                 </size>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLabel" name="lblTransmission">
-                <property name="text">
-                 <string>Transmission</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignmentFlag::AlignHCenter</set>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item row="0" column="2">
-             <spacer name="horizontalSpacer_16">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </item>
-          <item row="4" column="0">
-           <layout class="QGridLayout" name="gridLayout_9">
-            <item row="1" column="0">
-             <spacer name="horizontalSpacer_17">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>13</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="0" column="2">
-             <spacer name="spIOR">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>10</width>
-                <height>10</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="1" colspan="2">
-             <widget class="QPushButton" name="btnIOR">
-              <property name="minimumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="acceptDrops">
-               <bool>true</bool>
-              </property>
-              <property name="toolTip">
-               <string>Load/Replace IOR</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>90</width>
-                <height>90</height>
-               </size>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="3">
-             <spacer name="horizontalSpacer_18">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>13</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="2" column="2">
-             <widget class="QLabel" name="lblIOR">
-              <property name="text">
-               <string>IOR</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignHCenter</set>
-              </property>
-             </widget>
-            </item>
-            <item row="0" column="1">
-             <widget class="Line" name="line_5">
-              <property name="enabled">
-               <bool>false</bool>
-              </property>
-              <property name="lineWidth">
-               <number>0</number>
-              </property>
-              <property name="orientation">
-               <enum>Qt::Orientation::Vertical</enum>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="0" column="0">
-           <layout class="QGridLayout" name="gridLayout">
-            <item row="0" column="1">
-             <layout class="QHBoxLayout" name="horizontalLayout">
-              <item>
-               <spacer name="spAlbedo">
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>13</width>
-                  <height>13</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="Line" name="line_3">
-                <property name="enabled">
-                 <bool>false</bool>
-                </property>
-                <property name="lineWidth">
-                 <number>0</number>
-                </property>
-                <property name="orientation">
-                 <enum>Qt::Orientation::Vertical</enum>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item row="1" column="0">
-             <spacer name="horizontalSpacer">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>18</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="1">
-             <widget class="QPushButton" name="btnAlbedo">
-              <property name="minimumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="acceptDrops">
-               <bool>true</bool>
-              </property>
-              <property name="toolTip">
-               <string>Load/Replace Albedo</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>90</width>
-                <height>90</height>
-               </size>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="2">
-             <spacer name="horizontalSpacer_2">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>18</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="2" column="1">
-             <widget class="QLabel" name="lblAlbedo">
-              <property name="text">
-               <string>Albedo</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignHCenter</set>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="0" column="1">
-           <layout class="QGridLayout" name="gridLayout_4">
-            <item row="0" column="0">
-             <spacer name="horizontalSpacer_7">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="0" column="1">
-             <layout class="QVBoxLayout" name="verticalLayout_2">
-              <item>
-               <layout class="QHBoxLayout" name="topMetallic">
-                <property name="leftMargin">
-                 <number>0</number>
-                </property>
-                <property name="topMargin">
-                 <number>0</number>
-                </property>
-                <property name="rightMargin">
-                 <number>0</number>
-                </property>
-                <property name="bottomMargin">
-                 <number>0</number>
-                </property>
-                <item>
-                 <spacer name="spMetallic">
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>10</width>
-                    <height>10</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item>
-                 <widget class="QToolButton" name="gearMetallic">
-                  <property name="minimumSize">
-                   <size>
-                    <width>18</width>
-                    <height>18</height>
-                   </size>
-                  </property>
-                  <property name="maximumSize">
-                   <size>
-                    <width>18</width>
-                    <height>18</height>
-                   </size>
-                  </property>
-                  <property name="toolTip">
-                   <string>Channel Packing…</string>
-                  </property>
-                  <property name="text">
-                   <string>⚙</string>
-                  </property>
-                  <property name="autoRaise">
-                   <bool>true</bool>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <widget class="QPushButton" name="btnMetallic">
-                <property name="minimumSize">
-                 <size>
-                  <width>96</width>
-                  <height>96</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>96</width>
-                  <height>96</height>
-                 </size>
-                </property>
-                <property name="acceptDrops">
-                 <bool>true</bool>
-                </property>
-                <property name="toolTip">
-                 <string>Load/Replace Metallic</string>
-                </property>
-                <property name="text">
-                 <string/>
-                </property>
-                <property name="iconSize">
-                 <size>
-                  <width>90</width>
-                  <height>90</height>
-                 </size>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLabel" name="lblMetallic">
-                <property name="text">
-                 <string>Metallic</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignmentFlag::AlignHCenter</set>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item row="0" column="2">
-             <spacer name="horizontalSpacer_8">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </item>
-          <item row="3" column="1">
-           <layout class="QGridLayout" name="gridLayout_3">
-            <item row="0" column="0">
-             <spacer name="horizontalSpacer_5">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>18</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="0" column="1">
-             <layout class="QVBoxLayout" name="verticalLayout">
-              <item>
-               <layout class="QHBoxLayout" name="topEmissive">
-                <property name="leftMargin">
-                 <number>0</number>
-                </property>
-                <property name="topMargin">
-                 <number>0</number>
-                </property>
-                <property name="rightMargin">
-                 <number>0</number>
-                </property>
-                <property name="bottomMargin">
-                 <number>0</number>
-                </property>
-                <item>
-                 <widget class="Line" name="line">
-                  <property name="enabled">
-                   <bool>false</bool>
-                  </property>
-                  <property name="lineWidth">
-                   <number>0</number>
-                  </property>
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Vertical</enum>
-                  </property>
-                 </widget>
-                </item>
-                <item>
-                 <spacer name="spEmissive">
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>13</width>
-                    <height>13</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <widget class="QPushButton" name="btnEmissive">
-                <property name="minimumSize">
-                 <size>
-                  <width>96</width>
-                  <height>96</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>96</width>
-                  <height>96</height>
-                 </size>
-                </property>
-                <property name="acceptDrops">
-                 <bool>true</bool>
-                </property>
-                <property name="toolTip">
-                 <string>Load/Replace Emissive</string>
-                </property>
-                <property name="text">
-                 <string/>
-                </property>
-                <property name="iconSize">
-                 <size>
-                  <width>90</width>
-                  <height>90</height>
-                 </size>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLabel" name="lblEmissive">
-                <property name="text">
-                 <string>Emissive</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignmentFlag::AlignHCenter</set>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item row="0" column="2">
-             <spacer name="horizontalSpacer_6">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>18</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </item>
-          <item row="2" column="1">
-           <layout class="QGridLayout" name="gridLayout_10">
-            <item row="0" column="0">
-             <spacer name="horizontalSpacer_28">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="0" column="1">
-             <layout class="QVBoxLayout" name="verticalLayout_4">
-              <item>
-               <layout class="QHBoxLayout" name="topHeight">
-                <property name="leftMargin">
-                 <number>0</number>
-                </property>
-                <property name="topMargin">
-                 <number>0</number>
-                </property>
-                <property name="rightMargin">
-                 <number>0</number>
-                </property>
-                <property name="bottomMargin">
-                 <number>0</number>
-                </property>
-                <item>
-                 <spacer name="spHeight">
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>10</width>
-                    <height>10</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item>
-                 <widget class="Line" name="line_6">
-                  <property name="enabled">
-                   <bool>false</bool>
-                  </property>
-                  <property name="lineWidth">
-                   <number>0</number>
-                  </property>
-                  <property name="orientation">
-                   <enum>Qt::Orientation::Vertical</enum>
-                  </property>
-                 </widget>
-                </item>
-               </layout>
-              </item>
-              <item>
-               <widget class="QPushButton" name="btnHeight">
-                <property name="minimumSize">
-                 <size>
-                  <width>96</width>
-                  <height>96</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>96</width>
-                  <height>96</height>
-                 </size>
-                </property>
-                <property name="acceptDrops">
-                 <bool>true</bool>
-                </property>
-                <property name="toolTip">
-                 <string>Load/Replace Transmission</string>
-                </property>
-                <property name="text">
-                 <string/>
-                </property>
-                <property name="iconSize">
-                 <size>
-                  <width>90</width>
-                  <height>90</height>
-                 </size>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <widget class="QLabel" name="lblHeight">
-                <property name="text">
-                 <string>Height</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignmentFlag::AlignHCenter</set>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item row="0" column="2">
-             <spacer name="horizontalSpacer_29">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>40</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-           </layout>
-          </item>
-          <item row="1" column="0">
-           <layout class="QGridLayout" name="gridLayout_5">
-            <item row="0" column="1">
-             <layout class="QHBoxLayout" name="topRoughness">
-              <property name="leftMargin">
-               <number>0</number>
-              </property>
-              <property name="topMargin">
-               <number>0</number>
-              </property>
-              <property name="rightMargin">
-               <number>0</number>
-              </property>
-              <property name="bottomMargin">
-               <number>0</number>
-              </property>
-              <item>
-               <spacer name="spRoughness">
-                <property name="orientation">
-                 <enum>Qt::Orientation::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>10</width>
-                  <height>10</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QToolButton" name="gearRoughness">
-                <property name="minimumSize">
-                 <size>
-                  <width>18</width>
-                  <height>18</height>
-                 </size>
-                </property>
-                <property name="maximumSize">
-                 <size>
-                  <width>18</width>
-                  <height>18</height>
-                 </size>
-                </property>
-                <property name="toolTip">
-                 <string>Channel Packing…</string>
-                </property>
-                <property name="text">
-                 <string>⚙</string>
-                </property>
-                <property name="autoRaise">
-                 <bool>true</bool>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item row="1" column="0">
-             <spacer name="horizontalSpacer_9">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>18</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="1" column="1">
-             <widget class="QPushButton" name="btnRoughness">
-              <property name="minimumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>96</width>
-                <height>96</height>
-               </size>
-              </property>
-              <property name="acceptDrops">
-               <bool>true</bool>
-              </property>
-              <property name="toolTip">
-               <string>Load/Replace Roughness</string>
-              </property>
-              <property name="text">
-               <string/>
-              </property>
-              <property name="iconSize">
-               <size>
-                <width>90</width>
-                <height>90</height>
-               </size>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="2">
-             <spacer name="horizontalSpacer_10">
-              <property name="orientation">
-               <enum>Qt::Orientation::Horizontal</enum>
-              </property>
-              <property name="sizeHint" stdset="0">
-               <size>
-                <width>18</width>
-                <height>20</height>
-               </size>
-              </property>
-             </spacer>
-            </item>
-            <item row="2" column="1">
-             <widget class="QLabel" name="lblRoughness">
-              <property name="text">
-               <string>Roughness</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignHCenter</set>
-              </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-         </layout>
         </widget>
        </item>
-       <item row="4" column="0">
+       <item row="6" column="0">
         <widget class="QGroupBox" name="grpClearcoat">
          <property name="title">
           <string>Clearcoat</string>
@@ -1773,22 +450,1352 @@ Normal</string>
          </layout>
         </widget>
        </item>
-       <item row="0" column="0">
-        <widget class="QGroupBox" name="groupBox">
+       <item row="5" column="0">
+        <widget class="QGroupBox" name="grpSheen">
          <property name="title">
-          <string>Preset Material Texture Maps</string>
+          <string>Sheen</string>
          </property>
-         <layout class="QGridLayout" name="gridLayout_21">
+         <layout class="QGridLayout" name="gridLayout_13">
           <item row="0" column="0">
-           <widget class="QComboBox" name="comboBoxPresetTextures"/>
+           <layout class="QGridLayout" name="gridLayout_11">
+            <item row="0" column="1">
+             <spacer name="spSheenColor">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>13</width>
+                <height>13</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="1" column="0">
+             <spacer name="horizontalSpacer_19">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>35</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="1" column="1">
+             <widget class="QPushButton" name="btnSheenColor">
+              <property name="minimumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
+              <property name="toolTip">
+               <string>Load/Replace Sheen Color</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>90</width>
+                <height>90</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <spacer name="horizontalSpacer_20">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>18</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="2" column="1">
+             <widget class="QLabel" name="lblSheenColor">
+              <property name="text">
+               <string>Sheen
+Color</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignHCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="0" column="1">
+           <layout class="QGridLayout" name="gridLayout_12">
+            <item row="0" column="1">
+             <spacer name="spSheenRough">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>13</width>
+                <height>13</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="1" column="0">
+             <spacer name="horizontalSpacer_21">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="1" column="1">
+             <widget class="QPushButton" name="btnSheenRough">
+              <property name="minimumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
+              <property name="toolTip">
+               <string>Load/Replace Sheen Roughness</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>90</width>
+                <height>90</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <spacer name="horizontalSpacer_22">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="2" column="1">
+             <widget class="QLabel" name="lblSheenRough">
+              <property name="text">
+               <string>Sheen
+Roughness</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignHCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QGroupBox" name="grpMain">
+         <property name="title">
+          <string>Main</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_18">
+          <item row="1" column="1">
+           <layout class="QGridLayout" name="gridLayout_2">
+            <item row="0" column="1">
+             <layout class="QHBoxLayout" name="horizontalLayout_2">
+              <item>
+               <widget class="Line" name="line_4">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="lineWidth">
+                 <number>0</number>
+                </property>
+                <property name="orientation">
+                 <enum>Qt::Orientation::Vertical</enum>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="spNormal">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>13</width>
+                  <height>13</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+            <item row="1" column="0">
+             <spacer name="horizontalSpacer_3">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="1" column="1">
+             <widget class="QPushButton" name="btnNormal">
+              <property name="minimumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
+              <property name="toolTip">
+               <string>Load/Replace Normal</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>90</width>
+                <height>90</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <spacer name="horizontalSpacer_4">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="2" column="1">
+             <widget class="QLabel" name="lblNormal">
+              <property name="text">
+               <string>Normal</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignHCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="3" column="0">
+           <layout class="QGridLayout" name="gridLayout_7">
+            <item row="0" column="1">
+             <layout class="QHBoxLayout" name="topOpacity">
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
+               <number>0</number>
+              </property>
+              <item>
+               <spacer name="horizontalSpacer_30">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QToolButton" name="gearOpacity">
+                <property name="minimumSize">
+                 <size>
+                  <width>18</width>
+                  <height>18</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>18</width>
+                  <height>18</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Channel Packing…</string>
+                </property>
+                <property name="text">
+                 <string>⚙</string>
+                </property>
+                <property name="autoRaise">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="1" column="0">
+             <spacer name="horizontalSpacer_13">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>18</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="1" column="1">
+             <widget class="QPushButton" name="btnOpacity">
+              <property name="minimumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
+              <property name="toolTip">
+               <string>Load/Replace Opacity</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>90</width>
+                <height>90</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <spacer name="horizontalSpacer_14">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>18</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="2" column="1">
+             <widget class="QLabel" name="lblOpacity">
+              <property name="text">
+               <string>Opacity</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignHCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="2" column="0">
+           <layout class="QGridLayout" name="gridLayout_6">
+            <item row="0" column="1">
+             <layout class="QHBoxLayout" name="topAO">
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
+               <number>0</number>
+              </property>
+              <item>
+               <spacer name="spAO">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>10</width>
+                  <height>10</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QToolButton" name="gearAO">
+                <property name="minimumSize">
+                 <size>
+                  <width>18</width>
+                  <height>18</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>18</width>
+                  <height>18</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Channel Packing…</string>
+                </property>
+                <property name="text">
+                 <string>⚙</string>
+                </property>
+                <property name="autoRaise">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="1" column="0">
+             <spacer name="horizontalSpacer_11">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="1" column="1">
+             <widget class="QPushButton" name="btnAO">
+              <property name="minimumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
+              <property name="toolTip">
+               <string>Load/Replace Ambient Occlusion</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>90</width>
+                <height>90</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <spacer name="horizontalSpacer_12">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="2" column="1">
+             <widget class="QLabel" name="lblAO">
+              <property name="text">
+               <string>AO</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignHCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="3" column="1">
+           <layout class="QGridLayout" name="gridLayout_3">
+            <item row="0" column="0">
+             <spacer name="horizontalSpacer_5">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>18</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="0" column="1">
+             <layout class="QVBoxLayout" name="verticalLayout">
+              <item>
+               <layout class="QHBoxLayout" name="topEmissive">
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
+                <item>
+                 <widget class="Line" name="line">
+                  <property name="enabled">
+                   <bool>false</bool>
+                  </property>
+                  <property name="lineWidth">
+                   <number>0</number>
+                  </property>
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Vertical</enum>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="spEmissive">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>13</width>
+                    <height>13</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnEmissive">
+                <property name="minimumSize">
+                 <size>
+                  <width>96</width>
+                  <height>96</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>96</width>
+                  <height>96</height>
+                 </size>
+                </property>
+                <property name="acceptDrops">
+                 <bool>true</bool>
+                </property>
+                <property name="toolTip">
+                 <string>Load/Replace Emissive</string>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>90</width>
+                  <height>90</height>
+                 </size>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lblEmissive">
+                <property name="text">
+                 <string>Emissive</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignHCenter</set>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="0" column="2">
+             <spacer name="horizontalSpacer_6">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>18</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item row="1" column="0">
+           <layout class="QGridLayout" name="gridLayout_5">
+            <item row="0" column="1">
+             <layout class="QHBoxLayout" name="topRoughness">
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
+               <number>0</number>
+              </property>
+              <item>
+               <spacer name="spRoughness">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>10</width>
+                  <height>10</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="QToolButton" name="gearRoughness">
+                <property name="minimumSize">
+                 <size>
+                  <width>18</width>
+                  <height>18</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>18</width>
+                  <height>18</height>
+                 </size>
+                </property>
+                <property name="toolTip">
+                 <string>Channel Packing…</string>
+                </property>
+                <property name="text">
+                 <string>⚙</string>
+                </property>
+                <property name="autoRaise">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="1" column="0">
+             <spacer name="horizontalSpacer_9">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>18</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="1" column="1">
+             <widget class="QPushButton" name="btnRoughness">
+              <property name="minimumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
+              <property name="toolTip">
+               <string>Load/Replace Roughness</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>90</width>
+                <height>90</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <spacer name="horizontalSpacer_10">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>18</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="2" column="1">
+             <widget class="QLabel" name="lblRoughness">
+              <property name="text">
+               <string>Roughness</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignHCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="4" column="1">
+           <layout class="QGridLayout" name="gridLayout_8">
+            <item row="0" column="0">
+             <spacer name="horizontalSpacer_15">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="0" column="1">
+             <layout class="QVBoxLayout" name="verticalLayout_3">
+              <item>
+               <layout class="QHBoxLayout" name="topTransmission">
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
+                <item>
+                 <spacer name="spTransmission">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>10</width>
+                    <height>10</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="Line" name="line_2">
+                  <property name="enabled">
+                   <bool>false</bool>
+                  </property>
+                  <property name="lineWidth">
+                   <number>0</number>
+                  </property>
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Vertical</enum>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnTransmission">
+                <property name="minimumSize">
+                 <size>
+                  <width>96</width>
+                  <height>96</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>96</width>
+                  <height>96</height>
+                 </size>
+                </property>
+                <property name="acceptDrops">
+                 <bool>true</bool>
+                </property>
+                <property name="toolTip">
+                 <string>Load/Replace Transmission</string>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>90</width>
+                  <height>90</height>
+                 </size>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lblTransmission">
+                <property name="text">
+                 <string>Transmission</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignHCenter</set>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="0" column="2">
+             <spacer name="horizontalSpacer_16">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item row="0" column="1">
+           <layout class="QGridLayout" name="gridLayout_4">
+            <item row="0" column="0">
+             <spacer name="horizontalSpacer_7">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="0" column="1">
+             <layout class="QVBoxLayout" name="verticalLayout_2">
+              <item>
+               <layout class="QHBoxLayout" name="topMetallic">
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
+                <item>
+                 <spacer name="spMetallic">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>10</width>
+                    <height>10</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="QToolButton" name="gearMetallic">
+                  <property name="minimumSize">
+                   <size>
+                    <width>18</width>
+                    <height>18</height>
+                   </size>
+                  </property>
+                  <property name="maximumSize">
+                   <size>
+                    <width>18</width>
+                    <height>18</height>
+                   </size>
+                  </property>
+                  <property name="toolTip">
+                   <string>Channel Packing…</string>
+                  </property>
+                  <property name="text">
+                   <string>⚙</string>
+                  </property>
+                  <property name="autoRaise">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnMetallic">
+                <property name="minimumSize">
+                 <size>
+                  <width>96</width>
+                  <height>96</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>96</width>
+                  <height>96</height>
+                 </size>
+                </property>
+                <property name="acceptDrops">
+                 <bool>true</bool>
+                </property>
+                <property name="toolTip">
+                 <string>Load/Replace Metallic</string>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>90</width>
+                  <height>90</height>
+                 </size>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lblMetallic">
+                <property name="text">
+                 <string>Metallic</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignHCenter</set>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="0" column="2">
+             <spacer name="horizontalSpacer_8">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
+          </item>
+          <item row="0" column="0">
+           <layout class="QGridLayout" name="gridLayout">
+            <item row="0" column="1">
+             <layout class="QHBoxLayout" name="horizontalLayout">
+              <item>
+               <spacer name="spAlbedo">
+                <property name="orientation">
+                 <enum>Qt::Orientation::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>13</width>
+                  <height>13</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+              <item>
+               <widget class="Line" name="line_3">
+                <property name="enabled">
+                 <bool>false</bool>
+                </property>
+                <property name="lineWidth">
+                 <number>0</number>
+                </property>
+                <property name="orientation">
+                 <enum>Qt::Orientation::Vertical</enum>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="1" column="0">
+             <spacer name="horizontalSpacer">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>18</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="1" column="1">
+             <widget class="QPushButton" name="btnAlbedo">
+              <property name="minimumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
+              <property name="toolTip">
+               <string>Load/Replace Albedo</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>90</width>
+                <height>90</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <spacer name="horizontalSpacer_2">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>18</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="2" column="1">
+             <widget class="QLabel" name="lblAlbedo">
+              <property name="text">
+               <string>Albedo</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignHCenter</set>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="4" column="0">
+           <layout class="QGridLayout" name="gridLayout_9">
+            <item row="1" column="0">
+             <spacer name="horizontalSpacer_17">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>13</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="0" column="2">
+             <spacer name="spIOR">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>10</width>
+                <height>10</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="1" column="1" colspan="2">
+             <widget class="QPushButton" name="btnIOR">
+              <property name="minimumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>96</width>
+                <height>96</height>
+               </size>
+              </property>
+              <property name="acceptDrops">
+               <bool>true</bool>
+              </property>
+              <property name="toolTip">
+               <string>Load/Replace IOR</string>
+              </property>
+              <property name="text">
+               <string/>
+              </property>
+              <property name="iconSize">
+               <size>
+                <width>90</width>
+                <height>90</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="3">
+             <spacer name="horizontalSpacer_18">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>13</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="2" column="2">
+             <widget class="QLabel" name="lblIOR">
+              <property name="text">
+               <string>IOR</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignHCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="Line" name="line_5">
+              <property name="enabled">
+               <bool>false</bool>
+              </property>
+              <property name="lineWidth">
+               <number>0</number>
+              </property>
+              <property name="orientation">
+               <enum>Qt::Orientation::Vertical</enum>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="2" column="1">
+           <layout class="QGridLayout" name="gridLayout_10">
+            <item row="0" column="0">
+             <spacer name="horizontalSpacer_28">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="0" column="1">
+             <layout class="QVBoxLayout" name="verticalLayout_4">
+              <item>
+               <layout class="QHBoxLayout" name="topHeight">
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
+                <item>
+                 <spacer name="spHeight">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>10</width>
+                    <height>10</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+                <item>
+                 <widget class="Line" name="line_6">
+                  <property name="enabled">
+                   <bool>false</bool>
+                  </property>
+                  <property name="lineWidth">
+                   <number>0</number>
+                  </property>
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Vertical</enum>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+              </item>
+              <item>
+               <widget class="QPushButton" name="btnHeight">
+                <property name="minimumSize">
+                 <size>
+                  <width>96</width>
+                  <height>96</height>
+                 </size>
+                </property>
+                <property name="maximumSize">
+                 <size>
+                  <width>96</width>
+                  <height>96</height>
+                 </size>
+                </property>
+                <property name="acceptDrops">
+                 <bool>true</bool>
+                </property>
+                <property name="toolTip">
+                 <string>Load/Replace Transmission</string>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>90</width>
+                  <height>90</height>
+                 </size>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="lblHeight">
+                <property name="text">
+                 <string>Height</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignHCenter</set>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="0" column="2">
+             <spacer name="horizontalSpacer_29">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+           </layout>
           </item>
          </layout>
         </widget>
        </item>
        <item row="1" column="0">
-        <widget class="QPushButton" name="pushButtonClearAllMaps">
+        <widget class="QPushButton" name="pushButtonApply">
          <property name="text">
-          <string>Clear All Maps</string>
+          <string>Apply to Selection</string>
          </property>
         </widget>
        </item>
@@ -2074,13 +2081,6 @@ Normal</string>
          </layout>
         </item>
         <item>
-         <widget class="QPushButton" name="pushButtonApply">
-          <property name="text">
-           <string>Apply to Selection</string>
-          </property>
-         </widget>
-        </item>
-        <item>
          <spacer name="verticalSpacerRight">
           <property name="orientation">
            <enum>Qt::Orientation::Vertical</enum>
@@ -2096,11 +2096,6 @@ Normal</string>
        </layout>
       </item>
      </layout>
-     <zorder>useVtxColorCheck</zorder>
-     <zorder>previewWidget</zorder>
-     <zorder>sliderExposure</zorder>
-     <zorder>comboBoxTexMode</zorder>
-     <zorder>pushButtonApply</zorder>
     </widget>
    </item>
   </layout>
