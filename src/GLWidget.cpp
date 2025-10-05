@@ -3227,19 +3227,8 @@ void GLWidget::loadFloor()
 }
 
 void GLWidget::loadEnvMap()
-{
+{	
     const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
-	// Env Map
-	_skyBoxFaces =
-	{
-        path + QString("textures/envmap/skyboxes/LDRI/@Default/px.png"),
-        path + QString("textures/envmap/skyboxes/LDRI/@Default/nx.png"),
-        path + QString("textures/envmap/skyboxes/LDRI/@Default/py.png"),
-        path + QString("textures/envmap/skyboxes/LDRI/@Default/ny.png"),
-        path + QString("textures/envmap/skyboxes/LDRI/@Default/pz.png"),
-        path + QString("textures/envmap/skyboxes/LDRI/@Default/nz.png")
-	};
-
 
 	_skyBox = new Cube(_skyBoxShader.get(), 1);
 	_skyBoxShader->bind();
@@ -3247,47 +3236,11 @@ void GLWidget::loadEnvMap()
 	
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 	glGenTextures(1, &_environmentMap);
-	//std::cout << "GLWidget::loadEnvMap : _environmentMap = " << _environmentMap << std::endl;
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-		
-	int width, height, nrComponents;
-	void* data = nullptr;
-	stbi_set_flip_vertically_on_load(false);
-	for (unsigned int i = 0; i < _skyBoxFaces.size(); i++)
-	{
-		if (_skyBoxTextureHDRI)
-			data = static_cast<float*>(stbi_loadf((_skyBoxFaces.at(i)).toStdString().c_str(), &width, &height, &nrComponents, 0));
-		else
-			data = static_cast<unsigned char*>(stbi_load((_skyBoxFaces.at(i)).toStdString().c_str(), &width, &height, &nrComponents, 0));
-
-		if (data)
-		{
-			if (_skyBoxTextureHDRI)
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_FLOAT, data);
-			else
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
-			glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-			stbi_image_free(data);
-		}
-		else
-		{
-			qWarning("GLWidget::loadEnvMap - Could not read image file, using single-color instead.");
-			QImage dummy(128, 128, QImage::Format_ARGB32);
-			dummy.fill(Qt::white);
-			_texImage = dummy;
-			_texImage = convertToGLFormat(_texBuffer);
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
-		}
-	}
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glActiveTexture(GL_TEXTURE1);
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 	
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+
+	setSkyBoxTextureFolder(path + "textures/envmap/skyboxes/LDRI/@Default");	
 }
 
 void GLWidget::loadIrradianceMap()
