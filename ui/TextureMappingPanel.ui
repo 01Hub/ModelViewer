@@ -6,15 +6,37 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>629</width>
-    <height>720</height>
+    <width>610</width>
+    <height>1028</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Texture Mapping Panel</string>
   </property>
   <layout class="QGridLayout" name="gridRoot">
-   <item row="0" column="0">
+   <property name="leftMargin">
+    <number>0</number>
+   </property>
+   <property name="topMargin">
+    <number>0</number>
+   </property>
+   <property name="rightMargin">
+    <number>0</number>
+   </property>
+   <property name="bottomMargin">
+    <number>0</number>
+   </property>
+   <property name="spacing">
+    <number>5</number>
+   </property>
+   <item row="1" column="0">
+    <widget class="QPushButton" name="pushButtonClearAllMaps">
+     <property name="text">
+      <string>Clear All Maps</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="0">
     <widget class="QScrollArea" name="scrollArea">
      <property name="minimumSize">
       <size>
@@ -40,7 +62,7 @@
         <x>0</x>
         <y>0</y>
         <width>338</width>
-        <height>1614</height>
+        <height>1406</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout_20">
@@ -59,18 +81,6 @@
        <property name="spacing">
         <number>0</number>
        </property>
-       <item row="0" column="0">
-        <widget class="QGroupBox" name="groupBox">
-         <property name="title">
-          <string>Preset Material Texture Maps</string>
-         </property>
-         <layout class="QGridLayout" name="gridLayout_21">
-          <item row="0" column="0">
-           <widget class="QComboBox" name="comboBoxPresetTextures"/>
-          </item>
-         </layout>
-        </widget>
-       </item>
        <item row="7" column="0">
         <widget class="QGroupBox" name="grpUV">
          <property name="title">
@@ -179,19 +189,27 @@
          </layout>
         </widget>
        </item>
-       <item row="2" column="0">
-        <widget class="QPushButton" name="pushButtonClearAllMaps">
-         <property name="text">
-          <string>Clear All Maps</string>
-         </property>
-        </widget>
-       </item>
        <item row="6" column="0">
         <widget class="QGroupBox" name="grpClearcoat">
          <property name="title">
           <string>Clearcoat</string>
          </property>
          <layout class="QGridLayout" name="gridLayout_17">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <property name="spacing">
+           <number>0</number>
+          </property>
           <item row="0" column="0">
            <layout class="QGridLayout" name="gridLayout_14">
             <item row="0" column="1">
@@ -456,6 +474,21 @@ Normal</string>
           <string>Sheen</string>
          </property>
          <layout class="QGridLayout" name="gridLayout_13">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <property name="spacing">
+           <number>0</number>
+          </property>
           <item row="0" column="0">
            <layout class="QGridLayout" name="gridLayout_11">
             <item row="0" column="1">
@@ -629,12 +662,27 @@ Roughness</string>
          </layout>
         </widget>
        </item>
-       <item row="4" column="0">
+       <item row="2" column="0" rowspan="3">
         <widget class="QGroupBox" name="grpMain">
          <property name="title">
           <string>Main</string>
          </property>
          <layout class="QGridLayout" name="gridLayout_18">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <property name="spacing">
+           <number>0</number>
+          </property>
           <item row="1" column="1">
            <layout class="QGridLayout" name="gridLayout_2">
             <item row="0" column="1">
@@ -1792,311 +1840,345 @@ Roughness</string>
          </layout>
         </widget>
        </item>
-       <item row="1" column="0">
-        <widget class="QPushButton" name="pushButtonApply">
-         <property name="text">
-          <string>Apply to Selection</string>
-         </property>
-        </widget>
-       </item>
       </layout>
      </widget>
     </widget>
    </item>
-   <item row="0" column="1">
-    <widget class="QFrame" name="rightHost">
-     <layout class="QGridLayout" name="gridLayout_19">
+   <item row="0" column="0">
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
+      <string>Preset Material Texture Maps</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_21">
       <property name="leftMargin">
-       <number>0</number>
+       <number>5</number>
       </property>
       <property name="topMargin">
-       <number>0</number>
+       <number>5</number>
       </property>
       <property name="rightMargin">
-       <number>0</number>
+       <number>5</number>
       </property>
       <property name="bottomMargin">
-       <number>0</number>
+       <number>5</number>
       </property>
       <property name="spacing">
-       <number>0</number>
+       <number>2</number>
       </property>
       <item row="0" column="0">
-       <layout class="QVBoxLayout" name="verticalLayout_5">
-        <item>
-         <widget class="MaterialPreviewWidget" name="previewWidget" native="true">
-          <property name="minimumSize">
-           <size>
-            <width>253</width>
-            <height>253</height>
-           </size>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="hPreviewTools">
-          <property name="spacing">
-           <number>4</number>
-          </property>
-          <item>
-           <widget class="QComboBox" name="comboShape">
-            <item>
-             <property name="text">
-              <string>Sphere</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Cube</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Cylinder</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Plane</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Teapot</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="comboEnv">
-            <item>
-             <property name="text">
-              <string>Studio</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Outdoor</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Office</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <widget class="QSlider" name="sliderExposure">
-          <property name="minimum">
-           <number>-40</number>
-          </property>
-          <property name="maximum">
-           <number>40</number>
-          </property>
-          <property name="value">
-           <number>0</number>
-          </property>
-          <property name="orientation">
-           <enum>Qt::Orientation::Horizontal</enum>
-          </property>
-          <property name="invertedAppearance">
-           <bool>false</bool>
-          </property>
-          <property name="invertedControls">
-           <bool>false</bool>
-          </property>
-          <property name="tickPosition">
-           <enum>QSlider::TickPosition::TicksBelow</enum>
-          </property>
-          <property name="tickInterval">
-           <number>10</number>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QComboBox" name="comboBoxTexMode">
-          <item>
-           <property name="text">
-            <string>All Textures</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Albedo</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Metalness</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Roughness</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Normal</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Ambient Occlusion</string>
-           </property>
-          </item>
-          <item>
-           <property name="text">
-            <string>Height</string>
-           </property>
-          </item>
-         </widget>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_4">
-          <item>
-           <widget class="QLabel" name="label_2">
-            <property name="text">
-             <string>Tint Mode</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="tintModeCombo">
-            <item>
-             <property name="text">
-              <string>Texture Only (Off)</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Auto (grayscale only)</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Force grayscale tint</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Masked blend</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_3">
-          <item>
-           <widget class="QLabel" name="label">
-            <property name="text">
-             <string>Tint Strength</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QDoubleSpinBox" name="tintStrengthSpin">
-            <property name="maximum">
-             <double>1.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>0.050000000000000</double>
-            </property>
-            <property name="value">
-             <double>1.000000000000000</double>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_5">
-          <item>
-           <widget class="QLabel" name="label_3">
-            <property name="text">
-             <string>Grey Threshold</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QDoubleSpinBox" name="grayEpsSpin">
-            <property name="maximum">
-             <double>0.100000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>0.010000000000000</double>
-            </property>
-            <property name="value">
-             <double>0.020000000000000</double>
-            </property>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <widget class="QCheckBox" name="useVtxColorCheck">
-          <property name="text">
-           <string>Use vertex color</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_6">
-          <item>
-           <widget class="QLabel" name="label_4">
-            <property name="text">
-             <string>Mask Channel</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="maskChannelCombo">
-            <item>
-             <property name="text">
-              <string>R</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>G</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>B</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>A</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <spacer name="verticalSpacerRight">
-          <property name="orientation">
-           <enum>Qt::Orientation::Vertical</enum>
-          </property>
-          <property name="sizeHint" stdset="0">
-           <size>
-            <width>20</width>
-            <height>40</height>
-           </size>
-          </property>
-         </spacer>
-        </item>
-       </layout>
+       <widget class="QLineEdit" name="lineEditSearchPreset">
+        <property name="statusTip">
+         <string/>
+        </property>
+        <property name="placeholderText">
+         <string>Search Presets...</string>
+        </property>
+        <property name="clearButtonEnabled">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0">
+       <widget class="QTreeWidget" name="treeWidgetPresetTextures">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>180</height>
+         </size>
+        </property>
+        <attribute name="headerVisible">
+         <bool>false</bool>
+        </attribute>
+        <column>
+         <property name="text">
+          <string notr="true">1</string>
+         </property>
+        </column>
+       </widget>
       </item>
      </layout>
     </widget>
+   </item>
+   <item row="2" column="0">
+    <widget class="QPushButton" name="pushButtonApply">
+     <property name="text">
+      <string>Apply to Selection</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="MaterialPreviewWidget" name="previewWidget" native="true">
+     <property name="minimumSize">
+      <size>
+       <width>255</width>
+       <height>255</height>
+      </size>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1" rowspan="4">
+    <layout class="QVBoxLayout" name="verticalLayout_5">
+     <item>
+      <layout class="QHBoxLayout" name="hPreviewTools">
+       <property name="spacing">
+        <number>4</number>
+       </property>
+       <item>
+        <widget class="QComboBox" name="comboShape">
+         <item>
+          <property name="text">
+           <string>Sphere</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Cube</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Cylinder</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Plane</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Teapot</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="comboEnv">
+         <item>
+          <property name="text">
+           <string>Studio</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Outdoor</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Office</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <widget class="QSlider" name="sliderExposure">
+       <property name="minimum">
+        <number>-40</number>
+       </property>
+       <property name="maximum">
+        <number>40</number>
+       </property>
+       <property name="value">
+        <number>0</number>
+       </property>
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="invertedAppearance">
+        <bool>false</bool>
+       </property>
+       <property name="invertedControls">
+        <bool>false</bool>
+       </property>
+       <property name="tickPosition">
+        <enum>QSlider::TickPosition::TicksBelow</enum>
+       </property>
+       <property name="tickInterval">
+        <number>10</number>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="comboBoxTexMode">
+       <item>
+        <property name="text">
+         <string>All Textures</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Albedo</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Metalness</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Roughness</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Normal</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Ambient Occlusion</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Height</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_4">
+       <item>
+        <widget class="QLabel" name="label_2">
+         <property name="text">
+          <string>Tint Mode</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="tintModeCombo">
+         <item>
+          <property name="text">
+           <string>Texture Only (Off)</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Auto (grayscale only)</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Force grayscale tint</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Masked blend</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_3">
+       <item>
+        <widget class="QLabel" name="label">
+         <property name="text">
+          <string>Tint Strength</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QDoubleSpinBox" name="tintStrengthSpin">
+         <property name="maximum">
+          <double>1.000000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.050000000000000</double>
+         </property>
+         <property name="value">
+          <double>1.000000000000000</double>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_5">
+       <item>
+        <widget class="QLabel" name="label_3">
+         <property name="text">
+          <string>Grey Threshold</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QDoubleSpinBox" name="grayEpsSpin">
+         <property name="maximum">
+          <double>0.100000000000000</double>
+         </property>
+         <property name="singleStep">
+          <double>0.010000000000000</double>
+         </property>
+         <property name="value">
+          <double>0.020000000000000</double>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <widget class="QCheckBox" name="useVtxColorCheck">
+       <property name="text">
+        <string>Use vertex color</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_6">
+       <item>
+        <widget class="QLabel" name="label_4">
+         <property name="text">
+          <string>Mask Channel</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QComboBox" name="maskChannelCombo">
+         <item>
+          <property name="text">
+           <string>R</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>G</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>B</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>A</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <spacer name="verticalSpacerRight">
+       <property name="orientation">
+        <enum>Qt::Orientation::Vertical</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>20</width>
+         <height>40</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
    </item>
   </layout>
  </widget>

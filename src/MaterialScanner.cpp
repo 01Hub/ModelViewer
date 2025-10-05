@@ -291,7 +291,7 @@ MaterialsMap MaterialScanner::parseMaterialsFolder(const QString& rootFolder)
 }
 
 
-void MaterialScanner::populateComboWithMaterials(QComboBox* combo, const MaterialsMap& materials)
+void MaterialScanner::populateWithMaterials(QComboBox* combo, const MaterialsMap& materials)
 {
     if (!combo) return;
     combo->clear();
@@ -300,4 +300,103 @@ void MaterialScanner::populateComboWithMaterials(QComboBox* combo, const Materia
     {
         combo->addItem(it.key());
     }
+}
+
+void MaterialScanner::populateWithMaterials(QListWidget* list, const MaterialsMap& materials)
+{
+    if (!list) return;
+    list->clear();
+    // preserve iteration order of materials (QMap sorts keys) - if you want insertion order use QList of pairs instead
+    for (auto it = materials.constBegin(); it != materials.constEnd(); ++it)
+    {
+        list->addItem(it.key());
+	}
+}
+
+void MaterialScanner::populateWithMaterials(QTreeWidget* tree, const MaterialsMap& materials)
+{
+    if (!tree) return;
+    tree->clear();
+
+    // Map to store categorized materials: category name -> list of material names
+    QMap<QString, QStringList> categorizedMaterials;
+
+    // Parse materials and group by category prefix (e.g., "Metal_Bronze" -> category: "Metal", name: "Bronze")
+    for (auto it = materials.constBegin(); it != materials.constEnd(); ++it)
+    {
+        const QString& materialName = it.key();
+
+        // Check if name contains underscore separator
+        int underscorePos = materialName.indexOf('_');
+
+        if (underscorePos > 0)
+        {
+            // Extract category and display name
+            QString category = materialName.left(underscorePos);
+            QString displayName = materialName.mid(underscorePos + 1);
+
+            categorizedMaterials[category].append(materialName);
+        }
+        else
+        {
+            // No category prefix, add to "Uncategorized"
+            categorizedMaterials["Uncategorized"].append(materialName);
+        }
+    }
+
+    // Build the tree structure
+    for (auto catIt = categorizedMaterials.constBegin(); catIt != categorizedMaterials.constEnd(); ++catIt)
+    {
+        const QString& categoryName = catIt.key();
+        const QStringList& materialList = catIt.value();
+
+        // Skip empty categories
+        if (materialList.isEmpty()) continue;
+
+        // Create category parent item
+        QTreeWidgetItem* categoryItem = new QTreeWidgetItem(tree);
+        categoryItem->setText(0, QString("%1 (%2)").arg(categoryName).arg(materialList.size()));
+        categoryItem->setFlags(categoryItem->flags() & ~Qt::ItemIsSelectable); // Make category non-selectable
+
+        // Optional: Make category items bold
+        QFont font = categoryItem->font(0);
+        font.setBold(true);
+        categoryItem->setFont(0, font);
+
+        // Add materials as children
+        for (const QString& materialName : materialList)
+        {
+            QTreeWidgetItem* materialItem = new QTreeWidgetItem(categoryItem);
+
+            // Display name without category prefix (e.g., "Bronze" instead of "Metal_Bronze")
+            int underscorePos = materialName.indexOf('_');
+            QString displayName = (underscorePos > 0) ? materialName.mid(underscorePos + 1) : materialName;
+
+            materialItem->setText(0, displayName);
+            materialItem->setData(0, Qt::UserRole, materialName); // Store original full name for retrieval
+        }
+
+        // Expand category by default if it has few items
+        if (materialList.size() <= 10)
+        {
+            categoryItem->setExpanded(true);
+        }
+    }
+
+    // Sort categories alphabetically (but Uncategorized at the end)
+    tree->sortItems(0, Qt::AscendingOrder);
+
+    // Move Uncategorized to the end if it exists
+    for (int i = 0; i < tree->topLevelItemCount(); ++i)
+    {
+        QTreeWidgetItem* item = tree->topLevelItem(i);
+        if (item->text(0).startsWith("Uncategorized"))
+        {
+            tree->takeTopLevelItem(i);
+            tree->addTopLevelItem(item);
+            break;
+        }
+    }
+
+    tree->expandAll();
 }

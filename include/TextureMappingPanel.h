@@ -36,8 +36,6 @@ public:
 
 	void onTintParamsChanged();
 
-    void onMaterialPresetChanged(int index);
-
 signals:
     void materialChanged(const GLMaterial* material);
 	void applyTexturesTriggered(const GLMaterial& material);

@@ -33,15 +33,23 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
     _checkerIcon = makeCheckerIcon();
     registerMaps();
     connectSignals();
-
-    
-    const MaterialsMap& mats = MaterialTextureLibrary::instance().materials();
-    MaterialScanner::populateComboWithMaterials(_ui->comboBoxPresetTextures, mats);
-
+        
+    const MaterialsMap& mats = MaterialTextureLibrary::instance().materials();    
+    MaterialScanner::populateWithMaterials(_ui->treeWidgetPresetTextures, mats);
+        
     QTimer::singleShot(0, this, [this] {
-        if (_ui->comboBoxPresetTextures->count() > 0)
+        // Find first material item (not category)
+        for (int i = 0; i < _ui->treeWidgetPresetTextures->topLevelItemCount(); ++i)
         {
-            applyMaterialPreset(_ui->comboBoxPresetTextures->currentText());
+            QTreeWidgetItem* category = _ui->treeWidgetPresetTextures->topLevelItem(i);
+            if (category->childCount() > 0)
+            {
+                QTreeWidgetItem* firstMaterial = category->child(0);
+                _ui->treeWidgetPresetTextures->setCurrentItem(firstMaterial);
+                QString materialName = firstMaterial->data(0, Qt::UserRole).toString();
+                applyMaterialPreset(materialName);
+                break;
+            }
         }
         });
 
@@ -113,13 +121,6 @@ void TextureMappingPanel::onTintParamsChanged()
     emit materialChanged(m);
 }
 
-void TextureMappingPanel::onMaterialPresetChanged(int index)
-{
-    if (!_ui->comboBoxPresetTextures) return;
-    QString name = _ui->comboBoxPresetTextures->itemText(index);
-    if (name.isEmpty()) return;
-    applyMaterialPreset(name);
-}
 
 // ---------------- registry / wiring ----------------
 void TextureMappingPanel::registerMaps()
@@ -247,8 +248,59 @@ void TextureMappingPanel::connectSignals()
     connect(_ui->maskChannelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
         this, &TextureMappingPanel::onTintParamsChanged);
 
-    connect(_ui->comboBoxPresetTextures, qOverload<int>(&QComboBox::currentIndexChanged),
-        this, &TextureMappingPanel::onMaterialPresetChanged);
+    connect(_ui->treeWidgetPresetTextures, &QTreeWidget::itemDoubleClicked,
+        this, [this](QTreeWidgetItem* item, int column) {
+            Q_UNUSED(column);
+            if (!item) return;
+
+            // Only apply if it's a material item (has parent = category)
+            if (!item->parent()) return;
+
+            QString materialName = item->data(0, Qt::UserRole).toString();
+            if (materialName.isEmpty()) return;
+
+            applyMaterialPreset(materialName);
+        });
+   
+    connect(_ui->lineEditSearchPreset, &QLineEdit::textChanged,
+        this, [this](const QString& text) {
+            bool searchEmpty = text.trimmed().isEmpty();
+
+            // Iterate through all categories
+            for (int i = 0; i < _ui->treeWidgetPresetTextures->topLevelItemCount(); ++i)
+            {
+                QTreeWidgetItem* category = _ui->treeWidgetPresetTextures->topLevelItem(i);
+                bool categoryHasVisibleChildren = false;
+
+                // Check each material in the category
+                for (int j = 0; j < category->childCount(); ++j)
+                {
+                    QTreeWidgetItem* material = category->child(j);
+                    QString materialName = material->data(0, Qt::UserRole).toString();
+
+                    // Show/hide based on search match
+                    bool matches = searchEmpty || materialName.contains(text, Qt::CaseInsensitive);
+                    material->setHidden(!matches);
+
+                    if (matches)
+                        categoryHasVisibleChildren = true;
+                }
+
+                // Hide category if no children match (optional)
+                // category->setHidden(!categoryHasVisibleChildren && !searchEmpty);
+
+                // Or always show categories but expand/collapse based on matches
+                if (categoryHasVisibleChildren && !searchEmpty)
+                {
+                    category->setExpanded(true);
+                }
+                else if (searchEmpty)
+                {
+                    // Reset to default expansion state
+                    category->setExpanded(category->childCount() <= 10);
+                }
+            }
+        });
         
     connect(_ui->pushButtonClearAllMaps, &QPushButton::clicked, this, &TextureMappingPanel::clearAllMaps);
 }
