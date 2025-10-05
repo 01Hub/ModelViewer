@@ -243,7 +243,7 @@
                    <item>
                     <widget class="QRadioButton" name="radioButtonDLPBR">
                      <property name="text">
-                      <string>Physically Based Rendering - Direct Lighting</string>
+                      <string>Physically Based Rendering - Value Based</string>
                      </property>
                      <attribute name="buttonGroup">
                       <string notr="true">buttonGroupLighting</string>
@@ -253,7 +253,7 @@
                    <item>
                     <widget class="QRadioButton" name="radioButtonTXPBR">
                      <property name="text">
-                      <string>Physically Based Rendering - Textured</string>
+                      <string>Physically Based Rendering - Texture Based</string>
                      </property>
                      <attribute name="buttonGroup">
                       <string notr="true">buttonGroupLighting</string>
@@ -1004,12 +1004,12 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>181</width>
-                   <height>178</height>
+                   <width>431</width>
+                   <height>735</height>
                   </rect>
                  </property>
                  <attribute name="label">
-                  <string>Direct Lighting PBR Settings</string>
+                  <string>PBR Settings - Value Based</string>
                  </attribute>
                  <layout class="QGridLayout" name="gridLayout_24">
                   <item row="1" column="0">
@@ -1158,12 +1158,12 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>98</width>
-                   <height>28</height>
+                   <width>431</width>
+                   <height>735</height>
                   </rect>
                  </property>
                  <attribute name="label">
-                  <string>Texture Mapped PBR Settings</string>
+                  <string>PBR Settings - Texture Based</string>
                  </attribute>
                  <layout class="QGridLayout" name="gridLayout_12">
                   <item row="0" column="0">
@@ -1176,8 +1176,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>98</width>
-                   <height>28</height>
+                   <width>431</width>
+                   <height>735</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1201,8 +1201,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>233</width>
-                   <height>548</height>
+                   <width>431</width>
+                   <height>735</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
