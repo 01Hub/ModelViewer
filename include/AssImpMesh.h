@@ -17,19 +17,23 @@
 
 struct Vertex
 {
+	// Vertex Color 
+	glm::vec4 Color;
 	// Position
 	glm::vec3 Position;
 	// Normal
-	glm::vec3 Normal;
-	// TexCoords
-	glm::vec2 TexCoords;
+	glm::vec3 Normal;	
 	// tangent
 	glm::vec3 Tangent;
 	// bitangent
 	glm::vec3 Bitangent;
-	// Vertex Color 
-	glm::vec4 Color;     
+	// TexCoords
+	glm::vec2 TexCoords;
 };
+
+static_assert(sizeof(Vertex) == sizeof(float) * (3 + 3 + 2 + 3 + 3 + 4),
+	"Vertex struct has unexpected padding - meshopt stride will be incorrect");
+
 
 struct Texture
 {
