@@ -104,6 +104,55 @@ void AssImpMesh::render()
 // Initializes all the buffer objects/arrays
 void AssImpMesh::setupMesh()
 {
+	// ============================================
+	// MESH OPTIMIZATION (before splitting arrays)
+	// ============================================
+	if (_indices.size() > 300 && _vertices.size() > 100)
+	{
+		size_t vertexCount = _vertices.size();
+
+		// Extract positions temporarily for overdraw optimization
+		std::vector<float> tempPositions(vertexCount * 3);
+		for (size_t i = 0; i < vertexCount; i++)
+		{
+			tempPositions[i * 3 + 0] = _vertices[i].Position.x;
+			tempPositions[i * 3 + 1] = _vertices[i].Position.y;
+			tempPositions[i * 3 + 2] = _vertices[i].Position.z;
+		}
+
+		// Step 1: Vertex Cache Optimization
+		meshopt_optimizeVertexCache(
+			_indices.data(),
+			_indices.data(),
+			_indices.size(),
+			vertexCount
+		);
+
+		// Step 2: Overdraw Optimization
+		meshopt_optimizeOverdraw(
+			_indices.data(),
+			_indices.data(),
+			_indices.size(),
+			tempPositions.data(),
+			vertexCount,
+			sizeof(float) * 3,
+			1.05f
+		);
+
+		// Step 3: Vertex Fetch Optimization
+		meshopt_optimizeVertexFetch(
+			_vertices.data(),
+			_indices.data(),
+			_indices.size(),
+			_vertices.data(),
+			vertexCount,
+			sizeof(Vertex)
+		);
+	}
+
+	// ============================================
+	// Extract to separate arrays
+	// ============================================
 	std::vector<float> points;
 	std::vector<float> normals;
 	std::vector<float> texCoords;
@@ -126,11 +175,15 @@ void AssImpMesh::setupMesh()
 		tangents.push_back(v.Tangent.x);
 		tangents.push_back(v.Tangent.y);
 		tangents.push_back(v.Tangent.z);
+
 		bitangents.push_back(v.Bitangent.x);
 		bitangents.push_back(v.Bitangent.y);
 		bitangents.push_back(v.Bitangent.z);
 	}
 
+	// ============================================
+	// Texture flags
+	// ============================================
 	_hasTexture = false;
 
 	for (unsigned int i = 0; i < _textures.size(); i++)
@@ -166,11 +219,11 @@ void AssImpMesh::setupMesh()
 		{
 			_hasOpacityADSMap = true;
 			_hasOpacityPBRMap = true;
-		}	
+		}
 
 		// PBR from model
 		if (name == "albedoMap")
-		{			
+		{
 			_hasAlbedoPBRMap = true;
 		}
 		if (name == "metallicMap")
@@ -195,7 +248,7 @@ void AssImpMesh::setupMesh()
 		{
 			_hasAOPBRMap = true;
 		}
-		if( name == "heightMap")
+		if (name == "heightMap")
 		{
 			_hasHeightPBRMap = true;
 		}
@@ -203,7 +256,6 @@ void AssImpMesh::setupMesh()
 		{
 			_hasOpacityPBRMap = true;
 			_hasOpacityADSMap = true;
-			//_opacityPBRMapInverted = _textures[i].invertOpacity;
 		}
 		if (name == "transmissionMap")
 		{
@@ -231,18 +283,8 @@ void AssImpMesh::setupMesh()
 		}
 		if (name == "clearcoatNormalMap")
 		{
-			_hasClearcoatNormalPBRMap = true;		
+			_hasClearcoatNormalPBRMap = true;
 		}
-	}
-
-	if (_indices.size() > 300) // Skip tiny meshes (100 triangles)
-	{
-		meshopt_optimizeVertexCache(
-			_indices.data(),
-			_indices.data(),
-			_indices.size(),
-			_vertices.size()
-		);
 	}
 
 	initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
