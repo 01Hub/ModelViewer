@@ -6,6 +6,7 @@ find_package(assimp REQUIRED)
 find_package(Freetype REQUIRED)
 find_package(glm REQUIRED)
 find_package(OpenCASCADE REQUIRED)
+find_package(meshoptimizer REQUIRED)
 
 if(NOT OpenCASCADE_FOUND)
     message(FATAL_ERROR "Cannot build the executable without OpenCASCADE. Please set the variable OpenCASCADE_DIR.")
@@ -135,6 +136,7 @@ target_link_libraries(ModelViewer
         assimp::assimp
         Freetype::Freetype
         glm::glm
+        meshoptimizer::meshoptimizer
         Qt::Core
         Qt::Gui
         $<$<EQUAL:${QT_VERSION_MAJOR},6>:Qt::OpenGLWidgets>

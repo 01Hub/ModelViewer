@@ -16,6 +16,7 @@
     "assimp",
     "freetype",
     "glm",
-    "opencascade"
+    "opencascade",
+    "meshoptimizer"
   ]
 }
