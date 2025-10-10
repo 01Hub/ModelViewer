@@ -5,6 +5,8 @@
 #include <QImage>
 #include <QVariantMap>
 
+#include <meshoptimizer.h>
+
 using namespace std;
 
 bool AssImpMesh::_currentBlendEnabled;
@@ -231,6 +233,16 @@ void AssImpMesh::setupMesh()
 		{
 			_hasClearcoatNormalPBRMap = true;		
 		}
+	}
+
+	if (_indices.size() > 300) // Skip tiny meshes (100 triangles)
+	{
+		meshopt_optimizeVertexCache(
+			_indices.data(),
+			_indices.data(),
+			_indices.size(),
+			_vertices.size()
+		);
 	}
 
 	initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
