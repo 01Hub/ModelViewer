@@ -3201,7 +3201,7 @@ void GLWidget::loadFloor()
 
 	// Floor texture
     const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
-    if (!_texBuffer.load(QString(path + "textures/envmap/floor/grey-white-checkered-squares1800x1800.jpg")))
+    if (!_texBuffer.load(QString(path + "textures/envmap/floor/Grey-white-checkered-squares1800x1800.jpg")))
 	{ // Load first image from file
 		qWarning("GLWidget::loadFloor - Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, QImage::Format_ARGB32);
