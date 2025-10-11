@@ -671,6 +671,9 @@ void AssImpMesh::setMeshData(const std::vector<Vertex>& vertices,
 
 	// Re-upload to GPU (no optimization)
 	setupMesh();
+
+	// Setup transformation again (in case bounds changed)
+	setupTransformation();
 }
 
 
