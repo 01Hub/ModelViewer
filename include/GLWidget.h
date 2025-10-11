@@ -447,7 +447,7 @@ private:
 	bool _viewPanning;
 	bool _viewRotating;
 	int _modelNum;
-	QImage _texImage, _texBuffer, _floorTexImage;
+	QImage _texImage, _texBuffer;
 	float _floorTexRepeatS, _floorTexRepeatT;
 	TextRenderer* _textRenderer;
 	TextRenderer* _axisTextRenderer;
@@ -600,6 +600,7 @@ private:
 	unsigned int			 _skyboxColorTexture = 0;
 	unsigned int			 _skyboxDepthBuffer = 0;
 
+	QImage					 _floorTexImage;
 	float                    _floorSize;
 	float 					 _floorSizeFactor;
 	float					 _floorOffsetPercent;

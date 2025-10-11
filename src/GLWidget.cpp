@@ -214,7 +214,21 @@ _assimpModelLoader(nullptr)
 	_floorDisplayed = false;
 	_floorTextureDisplayed = true;
 	_floorTexRepeatS = _floorTexRepeatT = 1;
-	_floorOffsetPercent = 0.05f;
+	_floorOffsetPercent = 0.0f;
+
+	// Floor texture
+	if (!_texBuffer.load(QString(MODELVIEWER_DATA_DIR) + "/" + "textures/envmap/floor/Grey-White-Checkered-Squares1800x1800.jpg"))
+	{ // Load first image from file
+		qWarning("GLWidget::loadFloor - Could not read image file, using single-color instead.");
+		QImage dummy(128, 128, QImage::Format_ARGB32);
+		dummy.fill(Qt::white);
+		_floorTexImage = dummy;
+	}
+	else
+	{
+		_floorTexImage = convertToGLFormat(_texBuffer);
+	}
+
 	_skyBoxEnabled = false;
 	_skyBoxFOV = 45.0f;
 	_skyBoxTextureHDRI = false;
@@ -3197,20 +3211,6 @@ void GLWidget::loadFloor()
 		glDrawBuffer(GL_NONE);
 		glReadBuffer(GL_NONE);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
-	}
-
-	// Floor texture
-    const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
-    if (!_texBuffer.load(QString(path + "textures/envmap/floor/Grey-white-checkered-squares1800x1800.jpg")))
-	{ // Load first image from file
-		qWarning("GLWidget::loadFloor - Could not read image file, using single-color instead.");
-		QImage dummy(128, 128, QImage::Format_ARGB32);
-		dummy.fill(Qt::white);
-		_floorTexImage = dummy;
-	}
-	else
-	{
-		_floorTexImage = convertToGLFormat(_texBuffer);
 	}
 
 	_floorSize = _boundingSphere.getRadius();
