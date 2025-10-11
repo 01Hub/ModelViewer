@@ -8,7 +8,6 @@
 
 #include "MainWindow.h"
 #include "ModelViewer.h"
-#include "MeshAnalyzer.h"
 #include "TangentGenerator.h"
 #include "Utils.h"
 #include "UVGenerator.h"
@@ -110,6 +109,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			aiProcess_FixInfacingNormals |
 			aiProcess_JoinIdenticalVertices |
 			aiProcess_OptimizeMeshes |
+			aiProcess_ImproveCacheLocality |
 			aiProcess_Triangulate |
 			aiProcess_GenUVCoords |
 			aiProcess_SortByPType);
@@ -387,60 +387,8 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		config.maxSamples = 200;
 		config.sphericalAspectRatio = 0.85f;
 		auto analysis = MeshAnalyzer::analyzeMesh(mesh, config);
-
-		// Choose UV config based on surface type
-		UVConfig uvconfig;
-		switch (analysis.surfaceType)
-		{
-		case MeshAnalysis::SurfaceType::SPHERICAL:
-			uvconfig.sphericalScale = 1.0f;
-			uvconfig.seamlessSpherical = true;
-			break;
-
-		case MeshAnalysis::SurfaceType::CYLINDRICAL:
-			uvconfig.cylindricalScale = 1.0f;
-			uvconfig.cylindricalOffset = 0.0f;
-			break;
-
-		case MeshAnalysis::SurfaceType::PLANAR:
-			uvconfig.planarScale = glm::vec2(1.0f);
-			break;
-
-		case MeshAnalysis::SurfaceType::MIXED:
-			break;
-		}
-		
-		uvconfig.angleThreshold = 66.0f; // Similar to Blender's default
-		uvconfig.enableRelaxation = true;
-
-		// Generate UVs and tangents
-		switch (_selectedUVMethod)
-		{
-		case UVMethod::Planar:
-			UVGenerator::generatePlanar(mesh, vertices, indices, uvconfig);
-			break;
-		case UVMethod::Cylindrical:
-			UVGenerator::generateCylindrical(mesh, vertices, indices, uvconfig);
-			break;
-		case UVMethod::Spherical:
-			UVGenerator::generateSpherical(mesh, vertices, indices, uvconfig);
-			break;
-		case UVMethod::AngleBased:
-			UVGenerator::generateAngleBased(mesh, vertices, indices, uvconfig);
-			break;
-		case UVMethod::Hybrid:
-			UVGenerator::generateHybrid(mesh, vertices, indices);
-			break;
-		case UVMethod::AngleBasedSmartUV:
-			UVGenerator::generateAngleBasedSmartUV(mesh, vertices, indices, uvconfig);
-			break;
-		case UVMethod::None: // fall through
-		default:
-			break; // skip UV generation
-		}
-
-		// MikkTSpace tangents
-		TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);	
+				
+		generateUVsForMesh(analysis, mesh, vertices, indices);
 	}
 
 	// Process materials
@@ -478,6 +426,64 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	
 	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
 	return newMesh;
+}
+
+void AssImpModelLoader::generateUVsForMesh(MeshAnalysis::AnalysisResult& analysis, aiMesh* mesh, std::vector<Vertex>& vertices, std::vector<std::seed_seq::result_type>& indices)
+{
+	// Choose UV config based on surface type
+	UVConfig uvconfig;
+
+	switch (analysis.surfaceType)
+	{
+	case MeshAnalysis::SurfaceType::SPHERICAL:
+		uvconfig.sphericalScale = 1.0f;
+		uvconfig.seamlessSpherical = true;
+		break;
+
+	case MeshAnalysis::SurfaceType::CYLINDRICAL:
+		uvconfig.cylindricalScale = 1.0f;
+		uvconfig.cylindricalOffset = 0.0f;
+		break;
+
+	case MeshAnalysis::SurfaceType::PLANAR:
+		uvconfig.planarScale = glm::vec2(1.0f);
+		break;
+
+	case MeshAnalysis::SurfaceType::MIXED:
+		break;
+	}
+
+	uvconfig.angleThreshold = 66.0f; // Similar to Blender's default
+	uvconfig.enableRelaxation = true;
+
+	// Generate UVs and tangents
+	switch (_selectedUVMethod)
+	{
+	case UVMethod::Planar:
+		UVGenerator::generatePlanar(vertices, indices, uvconfig);
+		break;
+	case UVMethod::Cylindrical:
+		UVGenerator::generateCylindrical(vertices, indices, uvconfig);
+		break;
+	case UVMethod::Spherical:
+		UVGenerator::generateSpherical(vertices, indices, uvconfig);
+		break;
+	case UVMethod::AngleBased:
+		UVGenerator::generateAngleBased(vertices, indices, uvconfig);
+		break;
+	case UVMethod::Hybrid:
+		UVGenerator::generateHybrid(vertices, indices);
+		break;
+	case UVMethod::AngleBasedSmartUV:
+		UVGenerator::generateAngleBasedSmartUV(vertices, indices, uvconfig);
+		break;
+	case UVMethod::None: // fall through
+	default:
+		break; // skip UV generation
+	}
+
+	// MikkTSpace tangents
+	TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);
 }
 
 bool AssImpModelLoader::HasSurfaceGeometry(aiMesh* mesh)
@@ -569,6 +575,53 @@ QString AssImpModelLoader::getErrorMessage() const
 {
 	return _errorMessage;
 }
+
+bool AssImpModelLoader::regenerateUVs(AssImpMesh* mesh,
+	UVMethod method,
+	const UVConfig& config)
+{
+	if (!mesh) return false;
+
+	// Get current mesh data
+	std::vector<Vertex> vertices;
+	std::vector<unsigned int> indices;
+	mesh->getMeshData(vertices, indices);
+
+	// Generate UVs and tangents
+	switch (method)
+	{
+	case UVMethod::Planar:
+		UVGenerator::generatePlanar(vertices, indices, config);
+		break;
+	case UVMethod::Cylindrical:
+		UVGenerator::generateCylindrical(vertices, indices, config);
+		break;
+	case UVMethod::Spherical:
+		UVGenerator::generateSpherical(vertices, indices, config);
+		break;
+	case UVMethod::AngleBased:
+		UVGenerator::generateAngleBased(vertices, indices, config);
+		break;
+	case UVMethod::Hybrid:
+		UVGenerator::generateHybrid(vertices, indices);
+		break;
+	case UVMethod::AngleBasedSmartUV:
+		UVGenerator::generateAngleBasedSmartUV(vertices, indices, config);
+		break;
+	case UVMethod::None: // fall through
+	default:
+		break; // skip UV generation
+	}
+
+	// MikkTSpace tangents
+	TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);
+
+	// Set data back to mesh (will call setupMesh internally)
+	mesh->setMeshData(vertices, indices);
+
+	return true;
+}
+
 
 void AssImpModelLoader::freeScene()
 {

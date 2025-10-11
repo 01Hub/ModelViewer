@@ -32,6 +32,8 @@
 #include <XCAFDoc_Location.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 #include "MaterialProcessor.h"
+#include "MeshAnalyzer.h"
+#include "UVGenerator.h"
 
 
 class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
@@ -96,6 +98,8 @@ public:
 	void setUVGenerationMethod(const UVMethod& uvMethod) { _selectedUVMethod = uvMethod; }
 	UVMethod getUVGenerationMethod() const { return _selectedUVMethod; }
 
+	bool regenerateUVs(AssImpMesh* mesh, UVMethod method, const UVConfig& config);
+
 	// Auto scale and orient the model to fit the scene's coordinate system
 	void setAutoScaleActive(bool autoScale) { _autoScale = autoScale; }
 	void setAutoOrientActive(bool autoOrient) { _autoOrient = autoOrient; }
@@ -123,6 +127,8 @@ private:
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene, const aiMatrix4x4& parentTransform);
 
 	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform);
+
+	void generateUVsForMesh(MeshAnalysis::AnalysisResult& analysis, aiMesh* mesh, std::vector<Vertex>& vertices, std::vector<std::seed_seq::result_type>& indices);
 
 	void GenerateFaceNormals(aiMesh* mesh, std::vector<glm::vec3>& generatedNormals);
 	bool HasSurfaceGeometry(aiMesh* mesh);
