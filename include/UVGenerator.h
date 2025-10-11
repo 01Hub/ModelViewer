@@ -71,7 +71,7 @@ struct UVConfig
     bool enablePacking = true;
 };
 
-struct Triangle
+struct MeshTriangle
 {
     unsigned int indices[3];
     glm::vec3 normal;
@@ -90,31 +90,31 @@ class UVGenerator
 {
 public:
     // Method 1: Angle-based unwrapping (most reliable for automation)
-    static bool generateAngleBased(aiMesh* mesh,
+    static bool generateAngleBased(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
         const UVConfig& config = UVConfig{});
 
     // Method 2: Cylindrical projection (good for organic shapes)
-    static bool generateCylindrical(aiMesh* mesh,
+    static bool generateCylindrical(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
         const UVConfig& config = UVConfig{});
 
     // Method 3: Spherical projection (good for rounded objects)
-    static bool generateSpherical(aiMesh* mesh,
+    static bool generateSpherical(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
         const UVConfig& config = UVConfig{});
 
     // Method 4: Planar projection with automatic orientation
-    static bool generatePlanar(aiMesh* mesh,
+    static bool generatePlanar(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
         const UVConfig& config = UVConfig{});
 
     // Method 5: Hybrid approach (combines multiple methods)
-    static bool generateHybrid(aiMesh* mesh,
+    static bool generateHybrid(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
         const UVConfig& config = UVConfig{});
@@ -126,8 +126,7 @@ public:
         std::vector<unsigned int>& indices,
         const UVConfig& config);*/
 
-    static bool generateAngleBasedSmartUV(
-        aiMesh* mesh,
+    static bool generateAngleBasedSmartUV(        
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
         const UVConfig& config);
@@ -136,19 +135,19 @@ private:
     // Helper methods for angle-based unwrapping
     static void buildTriangleList(const std::vector<Vertex>& vertices,
         const std::vector<unsigned int>& indices,
-        std::vector<Triangle>& triangles);
+        std::vector<MeshTriangle>& triangles);
 
     static void findSeams(const std::vector<Vertex>& vertices,
-        const std::vector<Triangle>& triangles,
+        const std::vector<MeshTriangle>& triangles,
         std::vector<std::pair<unsigned int, unsigned int>>& seams,
         float angleThreshold);
 
-    static void createUVIslands(const std::vector<Triangle>& triangles,
+    static void createUVIslands(const std::vector<MeshTriangle>& triangles,
         const std::vector<std::pair<unsigned int, unsigned int>>& seams,
         std::vector<UVIsland>& islands);
 
     static void unwrapIsland(const std::vector<Vertex>& vertices,
-        const std::vector<Triangle>& triangles,
+        const std::vector<MeshTriangle>& triangles,
         const UVIsland& island,
         std::vector<glm::vec2>& uvs);
 
@@ -158,13 +157,13 @@ private:
         std::vector<glm::vec2>& uvs);*/
 
     static void unwrapIslandPCA(const std::vector<Vertex>& vertices,
-        const std::vector<Triangle>& triangles,
+        const std::vector<MeshTriangle>& triangles,
         const UVIsland& island,
         std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs,
         bool normalizeUVs = true);
 
     static void relaxUVs(
-        const std::vector<Triangle>& triangles,
+        const std::vector<MeshTriangle>& triangles,
         std::vector<glm::vec2>& uvs,
         const std::vector<UVIsland>& islands,
         const UVConfig& config,

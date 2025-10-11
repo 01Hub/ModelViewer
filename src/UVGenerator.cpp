@@ -22,7 +22,7 @@ namespace std
 
 
 // Method 1: Angle-based unwrapping (most similar to Blender's Smart UV)
-bool UVGenerator::generateAngleBased(aiMesh* mesh,
+bool UVGenerator::generateAngleBased(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
     const UVConfig& config)
@@ -30,7 +30,7 @@ bool UVGenerator::generateAngleBased(aiMesh* mesh,
     if (vertices.empty() || indices.empty()) return false;
 
     // Build triangle list
-    std::vector<Triangle> triangles;
+    std::vector<MeshTriangle> triangles;
     buildTriangleList(vertices, indices, triangles);
 
     // Find seams based on angle threshold
@@ -64,7 +64,7 @@ bool UVGenerator::generateAngleBased(aiMesh* mesh,
 
 
 // Method 2: Cylindrical projection
-bool UVGenerator::generateCylindrical(aiMesh* mesh,
+bool UVGenerator::generateCylindrical(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
     const UVConfig& config)
@@ -173,7 +173,7 @@ bool UVGenerator::generateCylindrical(aiMesh* mesh,
 
 
 // Method 3: Spherical projection
-bool UVGenerator::generateSpherical(aiMesh* mesh,
+bool UVGenerator::generateSpherical(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
     const UVConfig& config)
@@ -463,7 +463,7 @@ bool UVGenerator::generateSpherical(aiMesh* mesh,
 
 
 // Method 4: Planar projection with automatic orientation
-bool UVGenerator::generatePlanar(aiMesh* mesh,
+bool UVGenerator::generatePlanar(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
     const UVConfig& config)
@@ -566,7 +566,7 @@ bool UVGenerator::generatePlanar(aiMesh* mesh,
 
 
 // Method 5: Hybrid approach
-bool UVGenerator::generateHybrid(aiMesh* mesh,
+bool UVGenerator::generateHybrid(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
     const UVConfig& config)
@@ -607,7 +607,7 @@ bool UVGenerator::generateHybrid(aiMesh* mesh,
     // Use elongation + variance to determine mapping
     if (elongation > 4.0f)
     {
-        return generateCylindrical(mesh, vertices, indices, config);
+        return generateCylindrical(vertices, indices, config);
     }
     else if (elongation < 1.5f)
     {
@@ -615,20 +615,19 @@ bool UVGenerator::generateHybrid(aiMesh* mesh,
         float var = (pow(e0 - avg, 2) + pow(e1 - avg, 2) + pow(e2 - avg, 2)) / 3.0f;
 
         if (var < avg * 0.05f)
-            return generateSpherical(mesh, vertices, indices, config);
+            return generateSpherical(vertices, indices, config);
         else
-            return generateAngleBased(mesh, vertices, indices, config);
+            return generateAngleBased(vertices, indices, config);
     }
     else
     {
-        return generatePlanar(mesh, vertices, indices, config);
+        return generatePlanar(vertices, indices, config);
     }
 }
 
 
 // Method 6: Angle-based Smart UV (similar to Blender's Smart UV)
-bool UVGenerator::generateAngleBasedSmartUV(
-    aiMesh* mesh,
+bool UVGenerator::generateAngleBasedSmartUV(    
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
     const UVConfig& config)
@@ -637,7 +636,7 @@ bool UVGenerator::generateAngleBasedSmartUV(
         return false;
 
     // 1. Build triangle list and detect seams
-    std::vector<Triangle> triangles;
+    std::vector<MeshTriangle> triangles;
     buildTriangleList(vertices, indices, triangles);
 
     std::vector<std::pair<uint32_t, uint32_t>> seams;
@@ -660,7 +659,7 @@ bool UVGenerator::generateAngleBasedSmartUV(
 
     for (size_t triIdx = 0; triIdx < triangles.size(); ++triIdx)
     {
-        const Triangle& tri = triangles[triIdx];
+        const MeshTriangle& tri = triangles[triIdx];
         auto it = triangleUVs.find(static_cast<unsigned int>(triIdx));
         if (it == triangleUVs.end()) continue;
 
@@ -717,7 +716,7 @@ bool UVGenerator::generateAngleBasedSmartUV(
 // Helper method implementations
 void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
     const std::vector<unsigned int>& indices,
-    std::vector<Triangle>& triangles)
+    std::vector<MeshTriangle>& triangles)
 {
     triangles.clear();
 
@@ -731,7 +730,7 @@ void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
 
     for (size_t i = 0; i + 2 < indices.size(); i += 3) // Safe loop condition
     {
-        Triangle tri;
+        MeshTriangle tri;
         tri.indices[0] = indices[i];
         tri.indices[1] = indices[i + 1];
         tri.indices[2] = indices[i + 2];
@@ -759,7 +758,7 @@ void UVGenerator::buildTriangleList(const std::vector<Vertex>& vertices,
 
 
 void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
-    const std::vector<Triangle>& triangles,
+    const std::vector<MeshTriangle>& triangles,
     std::vector<std::pair<uint32_t, uint32_t>>& seams,
     float angleThreshold)
 {
@@ -770,7 +769,7 @@ void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
     // 1. Build edge -> triangle adjacency
     for (uint32_t i = 0; i < triangles.size(); ++i)
     {
-        const Triangle& tri = triangles[i];
+        const MeshTriangle& tri = triangles[i];
         for (int j = 0; j < 3; ++j)
         {
             uint32_t a = tri.indices[j];
@@ -803,7 +802,7 @@ void UVGenerator::findSeams(const std::vector<Vertex>& vertices,
 }
 
 
-void UVGenerator::createUVIslands(const std::vector<Triangle>& triangles,
+void UVGenerator::createUVIslands(const std::vector<MeshTriangle>& triangles,
     const std::vector<std::pair<uint32_t, uint32_t>>& seams,
     std::vector<UVIsland>& islands)
 {
@@ -891,14 +890,14 @@ void UVGenerator::createUVIslands(const std::vector<Triangle>& triangles,
 
 
 void UVGenerator::unwrapIsland(const std::vector<Vertex>& vertices,
-    const std::vector<Triangle>& triangles,
+    const std::vector<MeshTriangle>& triangles,
     const UVIsland& island,
     std::vector<glm::vec2>& uvs)
 {
     // Simple planar unwrapping for each island
     for (unsigned int triIdx : island.triangles)
     {
-        const Triangle& tri = triangles[triIdx];
+        const MeshTriangle& tri = triangles[triIdx];
 
         // Project triangle onto its best-fit plane
         glm::vec3 normal = tri.normal;
@@ -922,7 +921,7 @@ void UVGenerator::unwrapIsland(const std::vector<Vertex>& vertices,
 
 
 void UVGenerator::unwrapIslandPCA(const std::vector<Vertex>& vertices,
-    const std::vector<Triangle>& triangles,
+    const std::vector<MeshTriangle>& triangles,
     const UVIsland& island,
     std::unordered_map<unsigned int, std::array<glm::vec2, 3>>& triangleUVs,
     bool normalizeUVs /* = true */)
@@ -931,7 +930,7 @@ void UVGenerator::unwrapIslandPCA(const std::vector<Vertex>& vertices,
     std::vector<glm::vec3> points;
     for (unsigned int triIdx : island.triangles)
     {
-        const Triangle& tri = triangles[triIdx];
+        const MeshTriangle& tri = triangles[triIdx];
         for (int i = 0; i < 3; ++i)
         {
             points.push_back(vertices[tri.indices[i]].Position);
@@ -968,7 +967,7 @@ void UVGenerator::unwrapIslandPCA(const std::vector<Vertex>& vertices,
 
     for (unsigned int triIdx : island.triangles)
     {
-        const Triangle& tri = triangles[triIdx];
+        const MeshTriangle& tri = triangles[triIdx];
         std::array<glm::vec2, 3> projected;
 
         for (int i = 0; i < 3; ++i)
@@ -1006,7 +1005,7 @@ void UVGenerator::unwrapIslandPCA(const std::vector<Vertex>& vertices,
 
 
 void UVGenerator::relaxUVs(
-    const std::vector<Triangle>& triangles,
+    const std::vector<MeshTriangle>& triangles,
     std::vector<glm::vec2>& uvs,
     const std::vector<UVIsland>& islands,
     const UVConfig& config,
@@ -1019,7 +1018,7 @@ void UVGenerator::relaxUVs(
     {
         for (uint32_t triIdx : island.triangles)
         {
-            const Triangle& tri = triangles[triIdx];
+            const MeshTriangle& tri = triangles[triIdx];
             for (int i = 0; i < 3; ++i)
             {
                 uint32_t vi = tri.indices[i];
