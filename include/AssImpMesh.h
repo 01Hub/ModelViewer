@@ -68,6 +68,13 @@ public:
 
     std::vector<Texture> textures() const;
 
+	void getMeshData(std::vector<Vertex>& vertices,
+		std::vector<unsigned int>& indices) const;
+
+	// Set new mesh data and upload to GPU (no optimization)
+	void setMeshData(const std::vector<Vertex>& vertices,
+		const std::vector<unsigned int>& indices);
+
 	void serialize(QDataStream& out) const;
 	void deserialize(QDataStream& in);
 
@@ -103,6 +110,7 @@ public:
 
 	
 private:
+	void optimizeMesh();
 	/*  Functions    */
 	// Initializes all the buffer objects/arrays
 	void setupMesh();

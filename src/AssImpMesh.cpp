@@ -26,9 +26,11 @@ AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex
 	_textures = textures;
 	_material = material;
 
+	// Optimize the mesh (reorder indices and vertices for better vertex cache locality, overdraw, and vertex fetch)
+	optimizeMesh();
+
 	// Now that we have all the required data, set the vertex buffers and its attribute pointers.
 	setupMesh();
-
 }
 
 AssImpMesh::~AssImpMesh()
@@ -100,15 +102,14 @@ void AssImpMesh::render()
 	
 }
 
-/*  Functions    */
-// Initializes all the buffer objects/arrays
-void AssImpMesh::setupMesh()
+void AssImpMesh::optimizeMesh()
 {
 	// ============================================
 	// MESH OPTIMIZATION (before splitting arrays)
 	// ============================================
 	if (_indices.size() > 300 && _vertices.size() > 100)
 	{
+		//qDebug("Optimizing mesh %s with %zu vertices and %zu indices...", qPrintable(_name), _vertices.size(), _indices.size());
 		size_t vertexCount = _vertices.size();
 
 		// Extract positions temporarily for overdraw optimization
@@ -149,7 +150,12 @@ void AssImpMesh::setupMesh()
 			sizeof(Vertex)
 		);
 	}
+}
 
+/*  Functions    */
+// Initializes all the buffer objects/arrays
+void AssImpMesh::setupMesh()
+{
 	// ============================================
 	// Extract to separate arrays
 	// ============================================
@@ -647,6 +653,24 @@ vector<unsigned int> AssImpMesh::indices() const
 vector<Texture> AssImpMesh::textures() const
 {
     return _textures;
+}
+
+void AssImpMesh::getMeshData(std::vector<Vertex>& vertices,
+	std::vector<unsigned int>& indices) const
+{
+	vertices = _vertices;
+	indices = _indices;
+}
+
+// Set new mesh data and upload to GPU (no optimization)
+void AssImpMesh::setMeshData(const std::vector<Vertex>& vertices,
+	const std::vector<unsigned int>& indices)
+{
+	_vertices = vertices;
+	_indices = indices;
+
+	// Re-upload to GPU (no optimization)
+	setupMesh();
 }
 
 
