@@ -1810,10 +1810,15 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 
 bool GLWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVMethod& uvMethod, const UVConfig& uvConfig, QString& error)
 {
-	if (ids.size() == 0)
+	int meshCnt = ids.size();
+	if (meshCnt == 0)
 		return false;
 	bool success = true;
 	makeCurrent();
+	MainWindow::showProgressBar(false);
+	MainWindow::setProgressValue(0);
+	MainWindow::showStatusMessage(tr("Generating UVs for %1 meshes").arg(meshCnt));
+	float count = 0;
 	for (int id : ids)
 	{
 		try
@@ -1822,7 +1827,13 @@ bool GLWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVMethod&
 			if (mesh)
 			{								
 				success = _assimpModelLoader->regenerateUVs(mesh, uvMethod, uvConfig);
-				if (!success)
+				if (success)
+				{
+					MainWindow::showStatusMessage(tr("Updating mesh: ") + mesh->getName());
+					int progress = static_cast<int>((++count / meshCnt) * 100.0f);					
+					MainWindow::setProgressValue(progress);					
+				}
+				else
 				{
 					error = _assimpModelLoader->getErrorMessage();
 					success = false;
@@ -1835,6 +1846,9 @@ bool GLWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVMethod&
 			std::cout << "Exception in GLWidget::generateUVs\n" << ex.what() << std::endl;
 		}
 	}
+	MainWindow::showStatusMessage("");
+	MainWindow::setProgressValue(0);
+	MainWindow::hideProgressBar();
 	return success;
 }
 
@@ -6456,18 +6470,20 @@ void GLWidget::showContextMenu(const QPoint& pos)
 			{
 				myMenu.addAction(tr("Center Object List"), this, &GLWidget::centerDisplayList);
 			}
-			myMenu.addAction(tr("Visualization Settings"), _viewer, &ModelViewer::showVisualizationModelPage);
-			myMenu.addAction(tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);
+			myMenu.addSeparator();
 			if (_visibleSwapped)
 				myMenu.addAction(tr("Show"), _viewer, &ModelViewer::showSelectedItems);
 			else
 				myMenu.addAction(tr("Hide"), _viewer, &ModelViewer::hideSelectedItems);
 			if (_displayedObjectsIds.size() > 1)
 				myMenu.addAction(tr("Show Only"), _viewer, &ModelViewer::showOnlySelectedItems);
-			myMenu.addAction(tr("Duplicate"), _viewer, &ModelViewer::duplicateSelectedItems);
-			myMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedItems);
 			myMenu.addSeparator();
+			myMenu.addAction(tr("Visualization Settings"), _viewer, &ModelViewer::showVisualizationModelPage);
+			myMenu.addAction(tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);			
+			myMenu.addSeparator();			
 			myMenu.addAction(tr("Generate UVs"), _viewer, &ModelViewer::generateUVsForSelectedItems);
+			myMenu.addAction(tr("Duplicate"), _viewer, &ModelViewer::duplicateSelectedItems);
+			myMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedItems);			
 			myMenu.addSeparator();
 			myMenu.addAction(tr("Mesh Info"), _viewer, &ModelViewer::displaySelectedMeshInfo);
 		}
