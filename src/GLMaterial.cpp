@@ -1256,7 +1256,7 @@ GLMaterial GLMaterial::STONE()
 GLMaterial GLMaterial::MIRROR_SILVER()
 {
 	GLMaterial mat(
-		QVector3D(0.06f, 0.06f, 0.06f),     // ambient (small – scene/IBL will dominate)
+		QVector3D(0.06f, 0.06f, 0.06f),     // ambient (small - scene/IBL will dominate)
 		QVector3D(0.02f, 0.02f, 0.02f),     // diffuse (metals have ~no diffuse; tiny placeholder)
 		QVector3D(0.95f, 0.94f, 0.90f),     // specular (F0-like for silver)
 		QVector3D(0.0f, 0.0f, 0.0f),        // emissive
