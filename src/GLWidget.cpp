@@ -1808,6 +1808,36 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 	return success;
 }
 
+bool GLWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVMethod& uvMethod, const UVConfig& uvConfig, QString& error)
+{
+	if (ids.size() == 0)
+		return false;
+	bool success = true;
+	makeCurrent();
+	for (int id : ids)
+	{
+		try
+		{
+			AssImpMesh* mesh = dynamic_cast<AssImpMesh*>(_meshStore.at(id));
+			if (mesh)
+			{								
+				success = _assimpModelLoader->regenerateUVs(mesh, uvMethod, uvConfig);
+				if (!success)
+				{
+					error = _assimpModelLoader->getErrorMessage();
+					success = false;
+					break;
+				}
+			}
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception in GLWidget::generateUVs\n" << ex.what() << std::endl;
+		}
+	}
+	return success;
+}
+
 
 void GLWidget::showFileReadingProgress(float percent)
 {
@@ -6436,6 +6466,9 @@ void GLWidget::showContextMenu(const QPoint& pos)
 				myMenu.addAction(tr("Show Only"), _viewer, &ModelViewer::showOnlySelectedItems);
 			myMenu.addAction(tr("Duplicate"), _viewer, &ModelViewer::duplicateSelectedItems);
 			myMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedItems);
+			myMenu.addSeparator();
+			myMenu.addAction(tr("Generate UVs"), _viewer, &ModelViewer::generateUVsForSelectedItems);
+			myMenu.addSeparator();
 			myMenu.addAction(tr("Mesh Info"), _viewer, &ModelViewer::displaySelectedMeshInfo);
 		}
 		else

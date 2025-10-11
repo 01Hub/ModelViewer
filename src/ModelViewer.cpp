@@ -823,6 +823,22 @@ void ModelViewer::deleteSelectedItems()
 	}
 }
 
+void ModelViewer::generateUVsForSelectedItems()
+{
+	std::vector<int> selected = getSelectedIDs();
+	if (selected.size() != 0)
+	{
+		UVMethod uvMethod = UVMethod::AngleBasedSmartUV;
+		UVConfig uvConfig;
+		QString error;
+		_glWidget->generateUVsForMeshes(selected, uvMethod, uvConfig, error);
+		if(!error.isEmpty())
+			QMessageBox::warning(this, tr("UV Generation Error"), error);
+		else
+			QMessageBox::information(this, tr("UV Generation Complete"), tr("Successfully generated UV coordinates for the selected objects"));
+	}
+}
+
 void ModelViewer::hideAllItems()
 {
 	bool oldState = listWidgetModel->blockSignals(true);

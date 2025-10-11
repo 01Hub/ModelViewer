@@ -83,6 +83,7 @@ public slots:
 	void centerScreen();
 	void duplicateSelectedItems();
 	void deleteSelectedItems();
+	void generateUVsForSelectedItems();
 	void displaySelectedMeshInfo();
 	void showVisualizationModelPage();
 	void showEnvironmentPage();

@@ -115,6 +115,8 @@ public:
 
 	bool loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading = false);	
 
+	bool generateUVsForMeshes(const std::vector<int>& ids, const UVMethod& uvMethod, const UVConfig& uvConfig, QString& error);
+
 	aiScene* getAssImpScene() const { return _globalScene; }
 
 	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
