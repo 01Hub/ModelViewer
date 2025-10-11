@@ -823,19 +823,31 @@ void ModelViewer::deleteSelectedItems()
 	}
 }
 
+#include "UVGenerationDialog.h"
 void ModelViewer::generateUVsForSelectedItems()
 {
 	std::vector<int> selected = getSelectedIDs();
 	if (selected.size() != 0)
 	{
-		UVMethod uvMethod = UVMethod::AngleBasedSmartUV;
-		UVConfig uvConfig;
 		QString error;
-		_glWidget->generateUVsForMeshes(selected, uvMethod, uvConfig, error);
-		if(!error.isEmpty())
-			QMessageBox::warning(this, tr("UV Generation Error"), error);
-		else
-			QMessageBox::information(this, tr("UV Generation Complete"), tr("Successfully generated UV coordinates for the selected objects"));
+		UVGenerationDialog dialog(this);
+		if (dialog.exec() == QDialog::Accepted)
+		{
+			// User clicked OK - get the selected method and config
+			UVMethod method = dialog.getSelectedMethod();
+			UVConfig config = dialog.getUVConfig();
+			
+			bool success = _glWidget->generateUVsForMeshes(selected, method, config, error);
+			if (success)
+			{
+				MainWindow::showStatusMessage(QString("UVs generated using %1 method")
+					.arg(dialog.getMethodName(method)));
+			}				
+			else
+			{
+				QMessageBox::critical(this, "Error", "Failed to generate UVs.\n" + error);
+			}
+		}
 	}
 }
 
