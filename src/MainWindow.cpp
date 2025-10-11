@@ -243,13 +243,14 @@ void MainWindow::showStatusMessage(const QString& message, int timeout)
 	qApp->processEvents();
 }
 
-void MainWindow::showProgressBar()
+void MainWindow::showProgressBar(const bool showCancelButton)
 {
 	_mainWindow->_progressBar->show();
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 	_mainWindow->_windowsTaskbarProgress->show();
 #endif 
-	_mainWindow->_cancelTaskButton->show();
+	if (showCancelButton)
+		_mainWindow->_cancelTaskButton->show();
 }
 
 void MainWindow::showIndeterminateProgressBar()

@@ -48,7 +48,7 @@ public:
 	bool openFile(const QString& fileName);
 
 	static void showStatusMessage(const QString& message, int timeout = 0);
-	static void showProgressBar();
+	static void showProgressBar(const bool showCancelButton = true);
 	static void showIndeterminateProgressBar();
 	static void resetProgressBar();
 	static void hideProgressBar();
