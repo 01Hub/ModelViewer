@@ -5,6 +5,7 @@ out vec4 fragColor;
 in vec3 texCoords;
 
 uniform samplerCube skybox;
+uniform float iblExposure = 1.0;
 uniform bool hdrToneMapping = false;
 uniform bool gammaCorrection = false;
 uniform float screenGamma = 2.2;
@@ -17,10 +18,10 @@ vec3 uncharted2ToneMapping(vec3 color);
 void main()
 {
     fragColor = texture(skybox, texCoords);
-
-    // HDR tonemapping
+        
+    // HDR tonemapping with IBL exposure
     if(hdrToneMapping)
-        fragColor = vec4(applyToneMapping(fragColor.rgb), fragColor.a);//fragColor / (fragColor + vec4(1.0));
+        fragColor = vec4(applyToneMapping(fragColor.rgb * iblExposure), fragColor.a);//fragColor / (fragColor + vec4(1.0));
     // gamma correct
     if(gammaCorrection)
         fragColor = pow(fragColor, vec4(1.0/screenGamma));

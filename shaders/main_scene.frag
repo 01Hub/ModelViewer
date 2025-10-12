@@ -623,7 +623,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		// Scale specular; keep non-spec premultiplied
 		vec3 floorRGB = baseNoSpec * fa + specOnly * (u_floorSpecularScale * fresDampen);
 
-		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB);//floorRGB / (floorRGB + vec3(1.0));
+		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB * iblExposure);
 		if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
 		return vec4(floorRGB, fa);
 	}
@@ -633,7 +633,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 	// --- Tone/gamma ---
 	if (hdrToneMapping)
-		composed = applyToneMapping(composed);//composed / (composed + vec3(1.0));
+		composed = applyToneMapping(composed * iblExposure);
 	if (gammaCorrection)
 		composed = pow(composed, vec3(1.0 / screenGamma));
 
@@ -887,7 +887,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
 
 		// Apply IBL exposure
-		prefilteredColor *= iblExposure;
+		//prefilteredColor *= iblExposure;
 		// Apply envMapExposure to specular IBL
 		prefilteredColor *= envMapExposure;
 
@@ -900,7 +900,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		specIBL_L *= grazingAtten;
 
 		// Apply exposure to diffuse IBL too
-		vec3 irradiance = texture(irradianceMap, N).rgb * iblExposure;
+		vec3 irradiance = texture(irradianceMap, N).rgb;// * iblExposure;
 		vec3 diffuseIBL_L = irradiance * albedo;
 
 		float diffuseAO = mix(1.0, ambientOcclusion, 0.6);
@@ -932,7 +932,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		vec3 floorRGB_L = baseNoSpec_L * fa + specOnly_L * (u_floorSpecularScale * fresDampen);
 
-		if (hdrToneMapping) floorRGB_L = applyToneMapping(floorRGB_L);//floorRGB_L / (floorRGB_L + vec3(1.0));
+		if (hdrToneMapping) floorRGB_L = applyToneMapping(floorRGB_L * iblExposure);
 		if (gammaCorrection) floorRGB_L = pow(floorRGB_L, vec3(1.0 / screenGamma));
 		return vec4(floorRGB_L, fa);
 	}
@@ -941,7 +941,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	// --- Tone map & gamma once, at the end
 	//vec3 outRGB = composed_L;
-	if (hdrToneMapping) outRGB = applyToneMapping(outRGB);//outRGB / (outRGB + vec3(1.0));
+	if (hdrToneMapping) outRGB = applyToneMapping(outRGB * iblExposure);
 	if (gammaCorrection) outRGB = pow(outRGB, vec3(1.0 / screenGamma));
 
 	return vec4(outRGB, 1.0);
@@ -1208,7 +1208,7 @@ void applyEnvironmentMapping(float alphaIn)
         envColor *= envMapExposure;
         
         // Apply tone mapping
-        envColor = applyToneMapping(envColor);
+        envColor = applyToneMapping(envColor * iblExposure);
 
         float NdotV = clamp(dot(normalize(g_reflectionNormal), normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
         float f0 = pow((pbrLighting.ior - 1.0) / (pbrLighting.ior + 1.0), 2.0);
@@ -1233,7 +1233,7 @@ void applyEnvironmentMapping(float alphaIn)
         envColor *= envMapExposure;
         
         // Apply tone mapping  
-        envColor = applyToneMapping(envColor);
+        envColor = applyToneMapping(envColor * iblExposure);
         
         float envStrength = (1.0 - a) * 0.7;
         fragColor.rgb = mix(fragColor.rgb, envColor, envStrength);
@@ -1293,7 +1293,7 @@ void applyEnvironmentMapping(float alphaIn)
 	
 		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
 		envColor *= envMapExposure;
-		envColor = applyToneMapping(envColor);
+		envColor = applyToneMapping(envColor * iblExposure);
 		fragColor.rgb += envColor * reflectionStrength;
 		return;
 	}

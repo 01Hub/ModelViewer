@@ -235,7 +235,7 @@ _assimpModelLoader(nullptr)
 	_gammaCorrection = false;
 	_screenGamma = 2.2f;
 	_hdrToneMapping = false;
-	_envMapExposure = 1.2f;
+	_envMapExposure = 1.0f;
 	_iblExposure = 1.0f;
 	_toneMappingMode = HDRToneMapMode::ACESToneMapping;
 
@@ -6139,13 +6139,13 @@ void GLWidget::setHDRToneMappingMode(HDRToneMapMode mode)
 
 void GLWidget::setEnvMapExposure(double exposure)
 {
-	_envMapExposure = exposure;
+	_envMapExposure = pow(2.0f, exposure);
 	update();
 }
 
 void GLWidget::setIBLExposure(double exposure)
 {
-	_iblExposure = exposure;
+	_iblExposure = pow(2.0f, exposure);
 	update();
 }
 
