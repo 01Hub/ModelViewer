@@ -592,7 +592,7 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
         return textures;
 
     std::string textureFilePath = this->_folderPath + '/' + string(str.C_Str());    
-
+    std::replace(textureFilePath.begin(), textureFilePath.end(), '\\', '/');
     // If same path+type already loaded -> reuse
     for (const auto& lt : _loadedTextures)
     {
