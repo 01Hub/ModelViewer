@@ -743,7 +743,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 		{
 			data = static_cast<float*>(stbi_loadf(fileName.c_str(), &width, &height, &nrComponents, 0));
 			if (!data) goto failure;
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
 				width, height, 0, GL_RGB, GL_FLOAT, data);
 		}
 		else
@@ -901,7 +901,7 @@ bool GLWidget::loadCubemapFromSingleHDR(const QString& filePath)
 			memcpy(dst, src, sizeof(float) * faceSize * channels);
 		}
 
-		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
 			faceSize, faceSize, 0, GL_RGB, GL_FLOAT, facePixels);
 		delete[] facePixels;
 	}
@@ -960,7 +960,7 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 	GLuint equirectTexture;
 	glGenTextures(1, &equirectTexture);
 	glBindTexture(GL_TEXTURE_2D, equirectTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, imgWidth, imgHeight, 0, GL_RGB, GL_FLOAT, data);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, imgWidth, imgHeight, 0, GL_RGB, GL_FLOAT, data);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -972,7 +972,7 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 	for (int i = 0; i < 6; ++i)
 	{
-		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
 			cubeSize, cubeSize, 0, GL_RGB, GL_FLOAT, nullptr);
 	}
 
@@ -3325,7 +3325,7 @@ void GLWidget::loadIrradianceMap()
 	for (unsigned int i = 0; i < 6; ++i)
 	{		
 		if (_skyBoxTextureHDRI)
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, irradianceSize, irradianceSize, 0, GL_RGB, GL_FLOAT, nullptr);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F, irradianceSize, irradianceSize, 0, GL_RGB, GL_FLOAT, nullptr);
 		else
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, irradianceSize, irradianceSize, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
 	}
@@ -3374,7 +3374,7 @@ void GLWidget::loadIrradianceMap()
 	for (unsigned int i = 0; i < 6; ++i)
 	{
 		if (_skyBoxTextureHDRI)
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, prefilterSize, prefilterSize, 0, GL_RGB, GL_FLOAT, nullptr);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F, prefilterSize, prefilterSize, 0, GL_RGB, GL_FLOAT, nullptr);
 		else
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, prefilterSize, prefilterSize, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
 	}
