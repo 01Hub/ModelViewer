@@ -142,12 +142,12 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		[this]() {
 			doubleSpinBoxSkyBoxFOV->setValue(45.0);
 			comboBoxShadowQuality->setCurrentIndex(1);
-			doubleSpinBoxFloorOffset->setValue(5.0);
+			doubleSpinBoxFloorOffset->setValue(0.0);
 			doubleSpinBoxRepeatS->setValue(1.0);
 			doubleSpinBoxRepeatT->setValue(1.0);
 			comboBoxHDRToneMappingMode->setCurrentIndex(1);
-			doubleSpinBoxEnvMapExposure->setValue(1.0);
-			doubleSpinBoxIBLExposure->setValue(1.0);
+			doubleSpinBoxEnvMapExposure->setValue(0.0);
+			doubleSpinBoxIBLExposure->setValue(0.0);
 			doubleSpinBoxScreenGamma->setValue(2.2);
 		});
 
