@@ -32,12 +32,6 @@ public:
 
     QString getMethodName(UVMethod method) const;
 
-    // Preset management
-    void savePreset(const QString& presetName);
-    void loadPreset(const QString& presetName);
-    QStringList getAvailablePresets() const;
-    void deletePreset(const QString& presetName);
-
 protected:
     void accept() override;
 
