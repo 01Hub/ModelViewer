@@ -311,6 +311,11 @@ void AssImpMesh::cacheTextureBindings()
 	int transmissionNr = 1, iorNr = 1;
 	int sheenColorNr = 1, sheenRoughnessNr = 1;
 	int clearcoatNr = 1, clearcoatRoughnessNr = 1, clearcoatNormalNr = 1;
+	// New glTF extension counters
+	int specularFactorNr = 1, specularColorNr = 1;
+	int anisotropyNr = 1;
+	int iridescenceNr = 1, iridescenceThicknessNr = 1;
+	int thicknessNr = 1;
 
 	for (size_t i = 0; i < _textures.size(); ++i)
 	{
@@ -402,7 +407,7 @@ void AssImpMesh::cacheTextureBindings()
 			addBinding("texture_opacity" /*+ std::to_string(opacityNr)*/, GL_TEXTURE15);
 			addBinding("opacityMap" /*+ std::to_string(opacityNr)*/, GL_TEXTURE15);
 			opacityNr++;
-		}		
+		}
 		else if (texture.type == "roughnessMap")
 		{
 			addBinding("roughnessMap" /*+ std::to_string(roughnessNr)*/, GL_TEXTURE16);
@@ -412,46 +417,78 @@ void AssImpMesh::cacheTextureBindings()
 		{
 			addBinding("aoMap" /*+ std::to_string(aoNr)*/, GL_TEXTURE17);
 			aoNr++;
-		}		
+		}
 		else if (texture.type == "transmissionMap")
 		{
-			addBinding("transmissionMap" /*+ std::to_string(i)*/, GL_TEXTURE18);
+			addBinding("transmissionMap" /*+ std::to_string(transmissionNr)*/, GL_TEXTURE18);
 			transmissionNr++;
 		}
 		else if (texture.type == "iorMap")
 		{
-			addBinding("iorMap" /*+ std::to_string(i)*/, GL_TEXTURE19);
+			addBinding("iorMap" /*+ std::to_string(iorNr)*/, GL_TEXTURE19);
 			iorNr++;
 		}
 		else if (texture.type == "sheenColorMap")
 		{
-			addBinding("sheenColorMap" /*+ std::to_string(i)*/, GL_TEXTURE20);
+			addBinding("sheenColorMap" /*+ std::to_string(sheenColorNr)*/, GL_TEXTURE20);
 			sheenColorNr++;
 		}
 		else if (texture.type == "sheenRoughnessMap")
 		{
-			addBinding("sheenRoughnessMap" /*+ std::to_string(i)*/, GL_TEXTURE21);
+			addBinding("sheenRoughnessMap" /*+ std::to_string(sheenRoughnessNr)*/, GL_TEXTURE21);
 			sheenRoughnessNr++;
 		}
 		else if (texture.type == "clearcoatMap")
 		{
-			addBinding("clearcoatMap" /*+ std::to_string(i)*/, GL_TEXTURE22);
-			clearcoatNr++;			
+			addBinding("clearcoatMap" /*+ std::to_string(clearcoatNr)*/, GL_TEXTURE22);
+			clearcoatNr++;
 		}
 		else if (texture.type == "clearcoatRoughnessMap")
 		{
-			addBinding("clearcoatRoughnessMap" /*+ std::to_string(i)*/, GL_TEXTURE23);
-			clearcoatRoughnessNr++;			
+			addBinding("clearcoatRoughnessMap" /*+ std::to_string(clearcoatRoughnessNr)*/, GL_TEXTURE23);
+			clearcoatRoughnessNr++;
 		}
 		else if (texture.type == "clearcoatNormalMap")
 		{
-			addBinding("clearcoatNormalMap" /*+ std::to_string(i)*/, GL_TEXTURE24);
-			clearcoatNormalNr++;			
+			addBinding("clearcoatNormalMap" /*+ std::to_string(clearcoatNormalNr)*/, GL_TEXTURE24);
+			clearcoatNormalNr++;
+		}
+		// === NEW GLTF EXTENSION TEXTURES ===
+		else if (texture.type == "specularFactorMap")
+		{
+			addBinding("specularFactorMap" /*+ std::to_string(specularFactorNr)*/, GL_TEXTURE25);
+			specularFactorNr++;
+		}
+		else if (texture.type == "specularColorMap")
+		{
+			addBinding("specularColorMap" /*+ std::to_string(specularColorNr)*/, GL_TEXTURE26);
+			specularColorNr++;
+		}
+		else if (texture.type == "anisotropyMap")
+		{
+			addBinding("anisotropyMap" /*+ std::to_string(anisotropyNr)*/, GL_TEXTURE27);
+			anisotropyNr++;
+		}
+		else if (texture.type == "iridescenceMap")
+		{
+			addBinding("iridescenceMap" /*+ std::to_string(iridescenceNr)*/, GL_TEXTURE28);
+			iridescenceNr++;
+		}
+		else if (texture.type == "iridescenceThicknessMap")
+		{
+			addBinding("iridescenceThicknessMap" /*+ std::to_string(iridescenceThicknessNr)*/, GL_TEXTURE29);
+			iridescenceThicknessNr++;
+		}
+		else if (texture.type == "thicknessMap")
+		{
+			addBinding("thicknessMap" /*+ std::to_string(thicknessNr)*/, GL_TEXTURE30);
+			thicknessNr++;
 		}
 	}
 
 	_textureBindingsDirty = false;
 }
+
 
 void AssImpMesh::bindTexturesOptimized()
 {
@@ -550,6 +587,14 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 	pushIfPresent("clearcoatColorMapPath", "clearcoatMap");
 	pushIfPresent("clearcoatRoughnessMapPath", "clearcoatRoughnessMap");
 	pushIfPresent("clearcoatNormalMapPath", "clearcoatNormalMap");
+	// New glTF extension textures
+	pushIfPresent("specularFactorMapPath", "specularFactorMap");
+	pushIfPresent("specularColorMapPath", "specularColorMap");
+	pushIfPresent("anisotropyMapPath", "anisotropyMap");
+	pushIfPresent("iridescenceMapPath", "iridescenceMap");
+	pushIfPresent("iridescenceThicknessMapPath", "iridescenceThicknessMap");
+	pushIfPresent("thicknessMapPath", "thicknessMap");
+
 
 	// Also add common legacy ADS keys (in case materials were saved using legacy names)
 	pushIfPresent("albedoMap", "albedoMap");

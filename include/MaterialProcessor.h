@@ -69,32 +69,45 @@ private:
 		{ aiTextureType_NORMALS,           "normalMap",         0, aiTextureType_HEIGHT,     "texture_normal",  0 },
 		{ aiTextureType_LIGHTMAP,          "aoMap",             0, aiTextureType_AMBIENT_OCCLUSION, "aoMap",    0 },
 		{ aiTextureType_EMISSIVE,          "emissiveMap",       0, aiTextureType_EMISSION_COLOR, "emissiveMap", 0 },
-
 		{ aiTextureType_AMBIENT_OCCLUSION, "aoMap",             0, aiTextureType_LIGHTMAP,   "aoMap",           0 },
 		{ aiTextureType_DISPLACEMENT,      "heightMap",         0, aiTextureType_DISPLACEMENT, "texture_height", 0 },
 		{ aiTextureType_OPACITY,           "opacityMap",        0, aiTextureType_OPACITY,    "texture_opacity", 0 },
 		{ aiTextureType_EMISSION_COLOR,    "emissiveMap",       0, aiTextureType_EMISSIVE,   "texture_emissive", 0 },
 
-		// Clearcoat extension
-		{ aiTextureType_CLEARCOAT,           "clearcoatMap",      0, aiTextureType_NONE,       "",                0 },
-		{ aiTextureType_CLEARCOAT,         "clearcoatRoughnessMap",1, aiTextureType_NONE, "" , 0 },
-		{ aiTextureType_CLEARCOAT,         "clearcoatNormalMap",   2, aiTextureType_HEIGHT, "texture_normal", 0 },
+		// KHR_materials_clearcoat
+		{ aiTextureType_CLEARCOAT,         "clearcoatMap",            0, aiTextureType_NONE, "", 0 },
+		{ aiTextureType_CLEARCOAT,         "clearcoatRoughnessMap",   1, aiTextureType_NONE, "", 0 },
+		{ aiTextureType_CLEARCOAT,         "clearcoatNormalMap",      2, aiTextureType_HEIGHT, "texture_normal", 0 },
 
-		// Sheen extension
+		// KHR_materials_sheen
 		{ aiTextureType_SHEEN,             "sheenColorMap",     0, aiTextureType_NONE, "", 0 },
 		{ aiTextureType_SHEEN,             "sheenRoughnessMap", 1, aiTextureType_NONE, "", 0 },
 
-		// Transmission
+		// KHR_materials_transmission
 		{ aiTextureType_TRANSMISSION,      "transmissionMap",   0, aiTextureType_NONE, "", 0 },
 
-		// IOR (if mapped to a texture in future)
+		// KHR_materials_volume
+		{ aiTextureType_TRANSMISSION,      "thicknessMap",      1, aiTextureType_NONE, "", 0 },
+
+		// KHR_materials_ior (if mapped to a texture)
 		{ aiTextureType_REFLECTION,        "iorMap",            0, aiTextureType_NONE, "", 0 },
 
+		// KHR_materials_specular
+		{ aiTextureType_SPECULAR,          "specularFactorMap", 0, aiTextureType_NONE, "", 0 },
+		{ aiTextureType_SPECULAR,          "specularColorMap",  1, aiTextureType_NONE, "", 0 },
+
+		// KHR_materials_anisotropy
+		{ aiTextureType_REFLECTION,        "anisotropyMap",     1, aiTextureType_NONE, "", 0 },
+
+		// KHR_materials_iridescence
+		{ aiTextureType_REFLECTION,        "iridescenceMap",    2, aiTextureType_NONE, "", 0 },
+		{ aiTextureType_REFLECTION,        "iridescenceThicknessMap", 3, aiTextureType_NONE, "", 0 },
+
 		// Legacy ADS types as fallbacks
-		{ aiTextureType_DIFFUSE,           "texture_diffuse",   0, aiTextureType_NONE,       "",                0 },
-		{ aiTextureType_SPECULAR,          "texture_specular",  0, aiTextureType_NONE,       "",                0 },
-		{ aiTextureType_HEIGHT,            "texture_normal",    0, aiTextureType_NORMALS,    "normalMap",       0 },
-		{ aiTextureType_DISPLACEMENT,      "texture_height",    0, aiTextureType_NONE,       "",                0 }
+		{ aiTextureType_DIFFUSE,           "texture_diffuse",   0, aiTextureType_NONE, "", 0 },
+		{ aiTextureType_SPECULAR,          "texture_specular",  0, aiTextureType_NONE, "", 0 },
+		{ aiTextureType_HEIGHT,            "texture_normal",    0, aiTextureType_NORMALS, "normalMap", 0 },
+		{ aiTextureType_DISPLACEMENT,      "texture_height",    0, aiTextureType_NONE, "", 0 }
 	};
 
 	void debugMaterialTextures(aiMaterial* material, const std::string& materialName);

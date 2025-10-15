@@ -437,6 +437,70 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("clearcoatRoughnessMap", 23);
 	_prog->setUniformValue("clearcoatNormalMap", 24);
 
+	// KHR_materials_specular
+	_prog->setUniformValue("specularFactorMap", 25);
+	_prog->setUniformValue("hasSpecularFactorMap", _material.hasSpecularFactorMap());
+
+	_prog->setUniformValue("specularColorMap", 26);
+	_prog->setUniformValue("hasSpecularColorMap", _material.hasSpecularColorMap());
+
+	// KHR_materials_anisotropy
+	_prog->setUniformValue("anisotropyMap", 27);
+	_prog->setUniformValue("hasAnisotropyMap", _material.hasAnisotropyMap());
+
+	// KHR_materials_iridescence
+	_prog->setUniformValue("iridescenceMap", 28);
+	_prog->setUniformValue("hasIridescenceMap", _material.hasIridescenceMap());
+
+	_prog->setUniformValue("iridescenceThicknessMap", 29);
+	_prog->setUniformValue("hasIridescenceThicknessMap", _material.hasIridescenceThicknessMap());
+
+	// KHR_materials_volume
+	_prog->setUniformValue("thicknessMap", 30);
+	_prog->setUniformValue("hasThicknessMap", _material.hasThicknessMap());
+
+	// KHR_materials_specular (2 uniforms)
+	_prog->setUniformValue("pbrLighting.specularFactor",
+		_material.specularFactor());
+	_prog->setUniformValue("pbrLighting.specularColorFactor",
+		_material.specularColorFactor());
+
+	// KHR_materials_anisotropy (2 uniforms)
+	_prog->setUniformValue("pbrLighting.anisotropyStrength",
+		_material.anisotropyStrength());
+	_prog->setUniformValue("pbrLighting.anisotropyRotation",
+		_material.anisotropyRotation());
+
+	// KHR_materials_iridescence (4 uniforms)
+	_prog->setUniformValue("pbrLighting.iridescenceFactor",
+		_material.iridescenceFactor());
+	_prog->setUniformValue("pbrLighting.iridescenceIor",
+		_material.iridescenceIor());
+	_prog->setUniformValue("pbrLighting.iridescenceThicknessMin",
+		_material.iridescenceThicknessMin());
+	_prog->setUniformValue("pbrLighting.iridescenceThicknessMax",
+		_material.iridescenceThicknessMax());
+
+	// KHR_materials_volume (3 uniforms)
+	_prog->setUniformValue("pbrLighting.thicknessFactor",
+		_material.thicknessFactor());
+	_prog->setUniformValue("pbrLighting.attenuationDistance",
+		_material.attenuationDistance());
+	_prog->setUniformValue("pbrLighting.attenuationColor",
+		_material.attenuationColor());
+
+	// KHR_materials_dispersion (1 uniform)
+	_prog->setUniformValue("pbrLighting.dispersion",
+		_material.dispersion());
+
+	// KHR_materials_unlit (1 uniform)
+	_prog->setUniformValue("pbrLighting.unlit",
+		_material.isUnlit());
+
+	// KHR_materials_emissive_strength (1 uniform - top level, not in struct)
+	_prog->setUniformValue("emissiveStrength",
+		_material.emissiveStrength());
+
 	_prog->setUniformValue("heightScale", _heightPBRMapScale);
 	_prog->setUniformValue("hasAlbedoMap", _hasAlbedoPBRMap);
 	_prog->setUniformValue("hasMetallicMap", _hasMetallicPBRMap);

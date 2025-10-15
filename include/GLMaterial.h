@@ -183,6 +183,77 @@ public:
 	int metallicRoughnessTexCoord() const;
 	void setMetallicRoughnessTexCoord(int coord);
 
+	// --- KHR_materials_specular ---
+	void setSpecularFactor(float factor) { m_specularFactor = factor; }
+	float specularFactor() const { return m_specularFactor; }
+	void setSpecularColorFactor(const QVector3D& color) { m_specularColorFactor = color; }
+	QVector3D specularColorFactor() const { return m_specularColorFactor; }
+	
+	void setSpecularFactorMap(const QString& path) { m_specularFactorMap = path; }
+	QString specularFactorMap() const { return m_specularFactorMap; }
+	bool hasSpecularFactorMap() const { return !m_specularFactorMap.isEmpty(); }
+	void setSpecularFactorTextureId(unsigned int id) { m_specularFactorTextureId = id; }
+	unsigned int specularFactorTextureId() const { return m_specularFactorTextureId; }
+
+	void setSpecularColorMap(const QString& path) { m_specularColorMap = path; }
+	QString specularColorMap() const { return m_specularColorMap; }
+	bool hasSpecularColorMap() const { return !m_specularColorMap.isEmpty(); }
+	void setSpecularColorTextureId(unsigned int id) { m_specularColorTextureId = id; }
+	unsigned int specularColorTextureId() const { return m_specularColorTextureId; }
+
+	// --- KHR_materials_anisotropy ---
+	void setAnisotropyStrength(float strength) { m_anisotropyStrength = strength; }
+	float anisotropyStrength() const { return m_anisotropyStrength; }
+	void setAnisotropyRotation(float rotation) { m_anisotropyRotation = rotation; }
+	float anisotropyRotation() const { return m_anisotropyRotation; }
+	void setAnisotropyMap(const QString& path) { m_anisotropyMap = path; }
+	QString anisotropyMap() const { return m_anisotropyMap; }
+	bool hasAnisotropyMap() const { return !m_anisotropyMap.isEmpty(); }
+	void setAnisotropyTextureId(unsigned int id) { m_anisotropyTextureId = id; }
+	int anisotropyTextureId() const { return m_anisotropyTextureId; }
+
+	// --- KHR_materials_iridescence ---
+	void setIridescenceFactor(float factor) { m_iridescenceFactor = factor; }
+	float iridescenceFactor() const { return m_iridescenceFactor; }
+	void setIridescenceIor(float ior) { m_iridescenceIor = ior; }
+	float iridescenceIor() const { return m_iridescenceIor; }
+	void setIridescenceThicknessMin(float min) { m_iridescenceThicknessMin = min; }
+	float iridescenceThicknessMin() const { return m_iridescenceThicknessMin; }
+	void setIridescenceThicknessMax(float max) { m_iridescenceThicknessMax = max; }
+	float iridescenceThicknessMax() const { return m_iridescenceThicknessMax; }
+	void setIridescenceMap(const QString& path) { m_iridescenceMap = path; }
+	QString iridescenceMap() const { return m_iridescenceMap; }
+	bool hasIridescenceMap() const { return !m_iridescenceMap.isEmpty(); }
+	void setIridescenceTextureId(unsigned int id) { m_iridescenceTextureId = id; }
+	int iridescenceTextureId() const { return m_iridescenceTextureId; }
+	void setIridescenceThicknessMap(const QString& path) { m_iridescenceThicknessMap = path; }
+	QString iridescenceThicknessMap() const { return m_iridescenceThicknessMap; }
+	bool hasIridescenceThicknessMap() const { return !m_iridescenceThicknessMap.isEmpty(); }
+	void setIridescenceThicknessTextureId(unsigned int id) { m_iridescenceThicknessTextureId = id; }
+	int iridescenceThicknessTextureId() const { return m_iridescenceThicknessTextureId; }
+
+	// --- KHR_materials_volume ---
+	void setThicknessFactor(float thickness) { m_thicknessFactor = thickness; }
+	float thicknessFactor() const { return m_thicknessFactor; }
+	void setAttenuationDistance(float distance) { m_attenuationDistance = distance; }
+	float attenuationDistance() const { return m_attenuationDistance; }
+	void setAttenuationColor(const QVector3D& color) { m_attenuationColor = color; }
+	QVector3D attenuationColor() const { return m_attenuationColor; }
+	void setThicknessMap(const QString& path) { m_thicknessMap = path; }
+	QString thicknessMap() const { return m_thicknessMap; }
+	bool hasThicknessMap() const { return !m_thicknessMap.isEmpty(); }
+	void setThicknessTextureId(unsigned int id) { m_thicknessTextureId = id; }
+	int thicknessTextureId() const { return m_thicknessTextureId; }
+
+	
+	// --- KHR_materials_dispersion ---
+	void setDispersion(float dispersion) { m_dispersion = dispersion; }
+	float dispersion() const { return m_dispersion; }
+
+	// --- KHR_materials_unlit ---
+	void setUnlit(bool unlit) { m_unlit = unlit; }
+	bool isUnlit() const { return m_unlit; }
+
 	// --- Map path API (used by TextureMappingPanel) ---
 	QString albedoMapPath() const;
 	void setAlbedoMap(const QString& path);
@@ -593,6 +664,46 @@ private:
 	QString _clearcoatColorMapPath;
 	QString _clearcoatRoughnessMapPath;
 	QString _clearcoatNormalMapPath;
+
+	// KHR_materials_specular
+	float m_specularFactor = 1.0f;
+	QVector3D m_specularColorFactor = QVector3D(1.0f, 1.0f, 1.0f);
+	QString m_specularFactorMap;
+	unsigned int m_specularFactorTextureId = 0;
+	QString m_specularColorMap;
+	unsigned int m_specularColorTextureId = 0;
+
+	// KHR_materials_anisotropy
+	float m_anisotropyStrength = 0.0f;
+	float m_anisotropyRotation = 0.0f;
+	QString m_anisotropyMap;
+	unsigned int m_anisotropyTextureId = 0;
+
+	// KHR_materials_iridescence
+	float m_iridescenceFactor = 0.0f;
+	float m_iridescenceIor = 1.3f;
+	float m_iridescenceThicknessMin = 100.0f;
+	float m_iridescenceThicknessMax = 400.0f;
+	QString m_iridescenceMap;
+	unsigned int m_iridescenceTextureId = 0;
+	QString m_iridescenceThicknessMap;
+	unsigned int m_iridescenceThicknessTextureId = 0;
+
+	// KHR_materials_volume
+	float m_thicknessFactor = 0.0f;
+	float m_attenuationDistance = std::numeric_limits<float>::infinity();
+	QVector3D m_attenuationColor = QVector3D(1.0f, 1.0f, 1.0f);
+	QString m_thicknessMap;
+	unsigned int m_thicknessTextureId = 0;
+
+	// KHR_materials_emissive_strength
+	float m_emissiveStrength = 1.0f;
+
+	// KHR_materials_dispersion
+	float m_dispersion = 0.0f;
+
+	// KHR_materials_unlit
+	bool m_unlit = false;
 
 	// Material-wide UV transform (panel + preview)
 	float _uvTilingU = 1.0f, _uvTilingV = 1.0f;

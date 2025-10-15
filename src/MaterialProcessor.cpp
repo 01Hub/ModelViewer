@@ -216,10 +216,98 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
         mat.setTransmission(std::clamp(value, 0.0f, 1.0f));
     }
 
-    // === Rendering Hints ===
+    // Volume (KHR_materials_volume)
+    if (AI_SUCCESS == material->Get("$mat.gltf.thicknessFactor", 0, 0, value))
+    {
+        mat.setThicknessFactor(std::max(value, 0.0f));
+    }
 
+    if (AI_SUCCESS == material->Get("$mat.gltf.attenuationDistance", 0, 0, value))
+    {
+        mat.setAttenuationDistance(std::max(value, 0.0f));
+    }
+
+    if (AI_SUCCESS == material->Get("$mat.gltf.attenuationColor", 0, 0, color))
+    {
+        mat.setAttenuationColor(QVector3D(color.r, color.g, color.b));
+    }
+
+    // IOR (KHR_materials_ior) - May override the basic IOR
+    if (AI_SUCCESS == material->Get("$mat.gltf.ior", 0, 0, value))
+    {
+        mat.setIOR(std::clamp(value, 1.0f, 3.0f));
+    }
+
+    // Specular (KHR_materials_specular)
+    if (AI_SUCCESS == material->Get("$mat.gltf.specularFactor", 0, 0, value))
+    {
+        mat.setSpecularFactor(std::clamp(value, 0.0f, 1.0f));
+    }
+
+    if (AI_SUCCESS == material->Get("$mat.gltf.specularColorFactor", 0, 0, color))
+    {
+        mat.setSpecularColorFactor(QVector3D(color.r, color.g, color.b));
+    }
+
+    // Anisotropy (KHR_materials_anisotropy)
+    if (AI_SUCCESS == material->Get("$mat.gltf.anisotropyStrength", 0, 0, value))
+    {
+        mat.setAnisotropyStrength(std::clamp(value, 0.0f, 1.0f));
+    }
+
+    if (AI_SUCCESS == material->Get("$mat.gltf.anisotropyRotation", 0, 0, value))
+    {
+        mat.setAnisotropyRotation(value);
+    }
+
+    // Iridescence (KHR_materials_iridescence)
+    if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceFactor", 0, 0, value))
+    {
+        mat.setIridescenceFactor(std::clamp(value, 0.0f, 1.0f));
+    }
+
+    if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceIor", 0, 0, value))
+    {
+        mat.setIridescenceIor(std::clamp(value, 1.0f, 3.0f));
+    }
+
+    if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceThicknessMinimum", 0, 0, value))
+    {
+        mat.setIridescenceThicknessMin(std::max(value, 0.0f));
+    }
+
+    if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceThicknessMaximum", 0, 0, value))
+    {
+        mat.setIridescenceThicknessMax(std::max(value, 0.0f));
+    }
+
+    // Emissive Strength (KHR_materials_emissive_strength)
+    if (AI_SUCCESS == material->Get("$mat.gltf.emissiveStrength", 0, 0, value))
+    {
+        mat.setEmissiveStrength(std::max(value, 0.0f));
+    }
+
+    // Dispersion (KHR_materials_dispersion)
+    if (AI_SUCCESS == material->Get("$mat.gltf.dispersion", 0, 0, value))
+    {
+        mat.setDispersion(std::max(value, 0.0f));
+    }
+
+    // Unlit (KHR_materials_unlit)
+    if (AI_SUCCESS == material->Get("$mat.gltf.unlit", 0, 0, intValue))
+    {
+        mat.setUnlit(intValue != 0);
+    }
+
+    // === Rendering Hints ===
     // Two-sided material
     if (AI_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, intValue))
+    {
+        mat.setTwoSided(intValue != 0);
+    }
+
+    // Also check glTF double-sided property
+    if (AI_SUCCESS == material->Get("$mat.gltf.doubleSided", 0, 0, intValue))
     {
         mat.setTwoSided(intValue != 0);
     }
@@ -262,6 +350,23 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
         else
         {
             mat.setBlendMode(GLMaterial::BlendMode::Opaque);
+        }
+
+        // Base color factor (alternative glTF property)
+        if (AI_SUCCESS == material->Get("$mat.gltf.pbrMetallicRoughness.baseColorFactor", 0, 0, color))
+        {
+            mat.setAlbedoColor(QVector3D(color.r, color.g, color.b));
+        }
+
+        // Metallic and roughness factors (alternative glTF property)
+        if (AI_SUCCESS == material->Get("$mat.gltf.pbrMetallicRoughness.metallicFactor", 0, 0, value))
+        {
+            mat.setMetalness(std::clamp(value, 0.0f, 1.0f));
+        }
+
+        if (AI_SUCCESS == material->Get("$mat.gltf.pbrMetallicRoughness.roughnessFactor", 0, 0, value))
+        {
+            mat.setRoughness(std::clamp(value, 0.01f, 1.0f));
         }
     }
     
@@ -501,6 +606,11 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
             mat.setOpacityTextureId(tex.id);
             mat.setOpacityMap(QString(tex.path.C_Str()));
         }
+        else if (tex.type == "aoMap")
+        {
+            mat.setOcclusionTextureId(tex.id);
+            mat.setAOMap(QString(tex.path.C_Str()));
+        }
         else if (tex.type == "texture_diffuse")
         {
             mat.setAlbedoTextureId(tex.id);
@@ -564,12 +674,48 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
             mat.setTransmissionTextureId(tex.id);
             mat.setTransmissionMap(QString(tex.path.C_Str()));
 		}
+        // KHR_materials_volume
+        else if (tex.type == "thicknessMap")
+        {
+            mat.setThicknessTextureId(tex.id);
+            mat.setThicknessMap(QString(tex.path.C_Str()));
+        }
         // ioR map
         else if (tex.type == "iorMap")
         {
             mat.setIORTextureId(tex.id);
             mat.setIORMap(QString(tex.path.C_Str()));
 		}
+        // KHR_materials_specular
+        else if (tex.type == "specularFactorMap")
+        {
+            mat.setSpecularFactorTextureId(tex.id);
+            mat.setSpecularFactorMap(QString(tex.path.C_Str()));
+            }
+        else if (tex.type == "specularColorMap")
+        {
+            mat.setSpecularColorTextureId(tex.id);
+            mat.setSpecularColorMap(QString(tex.path.C_Str()));
+            }
+
+            // KHR_materials_anisotropy
+        else if (tex.type == "anisotropyMap")
+        {
+            mat.setAnisotropyTextureId(tex.id);
+            mat.setAnisotropyMap(QString(tex.path.C_Str()));
+            }
+
+            // KHR_materials_iridescence
+        else if (tex.type == "iridescenceMap")
+        {
+            mat.setIridescenceTextureId(tex.id);
+            mat.setIridescenceMap(QString(tex.path.C_Str()));
+            }
+        else if (tex.type == "iridescenceThicknessMap")
+        {
+            mat.setIridescenceThicknessTextureId(tex.id);
+            mat.setIridescenceThicknessMap(QString(tex.path.C_Str()));
+        }
 	}
 }
 

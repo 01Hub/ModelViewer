@@ -124,6 +124,29 @@ uniform bool hasClearcoatMap = false;
 uniform bool hasClearcoatRoughnessMap = false;
 uniform bool hasClearcoatNormalMap = false;
 
+// KHR_materials_specular
+uniform sampler2D specularFactorMap;
+uniform sampler2D specularColorMap;
+uniform bool hasSpecularFactorMap = false;
+uniform bool hasSpecularColorMap = false;
+
+// KHR_materials_anisotropy
+uniform sampler2D anisotropyMap;
+uniform bool hasAnisotropyMap = false;
+
+// KHR_materials_iridescence
+uniform sampler2D iridescenceMap;
+uniform sampler2D iridescenceThicknessMap;
+uniform bool hasIridescenceMap = false;
+uniform bool hasIridescenceThicknessMap = false;
+
+// KHR_materials_volume
+uniform sampler2D thicknessMap;
+uniform bool hasThicknessMap = false;
+
+// KHR_materials_emissive_strength (uses existing texture_emissive)
+uniform float emissiveStrength = 1.0;
+
 uniform bool envMapEnabled;
 uniform mat3 envMapRotationMatrix;
 uniform bool shadowsEnabled;
@@ -202,6 +225,31 @@ struct PBRLighting {
 	float sheenRoughness;
 	float clearcoat;
 	float clearcoatRoughness;
+
+	// KHR_materials_specular
+	float specularFactor;
+	vec3 specularColorFactor;
+	
+	// KHR_materials_anisotropy
+	float anisotropyStrength;
+	float anisotropyRotation;
+	
+	// KHR_materials_iridescence
+	float iridescenceFactor;
+	float iridescenceIor;
+	float iridescenceThicknessMin;
+	float iridescenceThicknessMax;
+	
+	// KHR_materials_volume
+	float thicknessFactor;
+	float attenuationDistance;
+	vec3 attenuationColor;
+	
+	// KHR_materials_dispersion
+	float dispersion;
+	
+	// KHR_materials_unlit
+	bool unlit;
 };
 uniform PBRLighting pbrLighting;
 
@@ -236,6 +284,11 @@ float   geometryCharlie(float NdotV, float roughness);
 vec3    calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo);
 vec3    calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness);
 vec3    calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, float clearcoatRoughness, vec3 clearcoatNormal);
+
+// ==== NEW glTF EXTENSION FUNCTIONS ====
+vec3	calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotropyStrength, float anisotropyRotation, float roughness, vec3 F0);
+vec3	calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridescenceIor, float thickness);
+vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, vec3 attenuationColor, float attenuationDistance);
 
 float   calculateShadow(vec4 fragPosLightSpace);
 // Function to fetch shadow value with variable kernel size
@@ -424,6 +477,13 @@ void main()
 
 			// Sample environment
 			vec3 envColor = texture(envMap, R).rgb;
+
+			// Apply volume attenuation if available
+			if (pbrLighting.attenuationDistance > 0.0) {
+				float pathLength = length(g_position - cameraPos);
+				envColor = calculateVolumeAttenuation(envColor, pathLength, 
+					pbrLighting.attenuationColor, pbrLighting.attenuationDistance);
+			}
 
 			// Blend transmission into RGB
 			fragColor.rgb = mix(fragColor.rgb, envColor, transmissionFactor);
@@ -659,6 +719,19 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	float clearcoatRoughness;
 	vec3  clearcoatNormal;
 
+	// New glTF extension parameters
+	float specularFactor;
+	vec3 specularColorFactor;
+	float anisotropyStrength;
+	float anisotropyRotation;
+	float iridescenceFactor;
+	float iridescenceIor;
+	float iridescenceThickness;
+	float thicknessFactor;
+	float attenuationDistance;
+	vec3 attenuationColor;
+	bool unlit;
+
 	vec3 N; vec3 V; vec3 L;
 
 	if (lockLightAndCamera) {
@@ -686,6 +759,19 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		clearcoat         = pbrLighting.clearcoat;
 		clearcoatRoughness= pbrLighting.clearcoatRoughness;
 		clearcoatNormal   = normalize(normal);
+
+		specularFactor = pbrLighting.specularFactor;
+		specularColorFactor = pbrLighting.specularColorFactor;
+		anisotropyStrength = pbrLighting.anisotropyStrength;
+		anisotropyRotation = pbrLighting.anisotropyRotation;
+		iridescenceFactor = pbrLighting.iridescenceFactor;
+		iridescenceIor = pbrLighting.iridescenceIor;
+		iridescenceThickness = (pbrLighting.iridescenceThicknessMin + pbrLighting.iridescenceThicknessMax) * 0.5;
+		thicknessFactor = pbrLighting.thicknessFactor;
+		attenuationDistance = pbrLighting.attenuationDistance;
+		attenuationColor = pbrLighting.attenuationColor;
+		unlit = pbrLighting.unlit;
+
 	} else {
 		// Normal map / Parallax
 		if (hasNormalMap)  N = calcBumpedNormal(normalMap, g_texCoord2d) * side;
@@ -796,26 +882,101 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		clearcoat          = hasClearcoatMap ? texture(clearcoatMap, clippedTexCoord).r : pbrLighting.clearcoat;
 		clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, clippedTexCoord).r : pbrLighting.clearcoatRoughness;
 		clearcoatNormal    = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, clippedTexCoord) * side : N;
+
+		// Specular (KHR_materials_specular)
+		specularFactor = hasSpecularFactorMap ? texture(specularFactorMap, clippedTexCoord).a : pbrLighting.specularFactor;
+		specularColorFactor = hasSpecularColorMap ? texture(specularColorMap, clippedTexCoord).rgb : pbrLighting.specularColorFactor;
+		
+		// Anisotropy (KHR_materials_anisotropy)
+		if (hasAnisotropyMap) {
+			vec3 anisoData = texture(anisotropyMap, clippedTexCoord).rgb;
+			anisotropyStrength = length(anisoData.rg);
+			anisotropyRotation = atan(anisoData.g, anisoData.r);
+		} else {
+			anisotropyStrength = pbrLighting.anisotropyStrength;
+			anisotropyRotation = pbrLighting.anisotropyRotation;
+		}
+		
+		// Iridescence (KHR_materials_iridescence)
+		iridescenceFactor = hasIridescenceMap ? texture(iridescenceMap, clippedTexCoord).r : pbrLighting.iridescenceFactor;
+		iridescenceIor = pbrLighting.iridescenceIor;
+		if (hasIridescenceThicknessMap) {
+			float thicknessNorm = texture(iridescenceThicknessMap, clippedTexCoord).g;
+			iridescenceThickness = mix(pbrLighting.iridescenceThicknessMin, pbrLighting.iridescenceThicknessMax, thicknessNorm);
+		} else {
+			iridescenceThickness = (pbrLighting.iridescenceThicknessMin + pbrLighting.iridescenceThicknessMax) * 0.5;
+		}
+		
+		// Volume (KHR_materials_volume)
+		thicknessFactor = hasThicknessMap ? texture(thicknessMap, clippedTexCoord).g : pbrLighting.thicknessFactor;
+		attenuationDistance = pbrLighting.attenuationDistance;
+		attenuationColor = pbrLighting.attenuationColor;
+		
+		// Unlit
+		unlit = pbrLighting.unlit;
 	}
 
-	// --- F0 with metallic + transmission Fresnel
-	vec3 F0 = mix(vec3(0.04), albedo, metallic);
+	// Early out for unlit materials
+	if (unlit) {
+		vec3 unlitColor = albedo;
+		
+		// Apply emissive
+		vec3 emissive_L = material.emission * emissiveStrength;
+		if (hasEmissiveTexture) emissive_L = texture(texture_emissive, clippedTexCoord).rgb * emissiveStrength;
+		
+		unlitColor += emissive_L;
+		
+		if (hdrToneMapping) unlitColor = applyToneMapping(unlitColor * iblExposure);
+		if (gammaCorrection) unlitColor = pow(unlitColor, vec3(1.0 / screenGamma));
+		
+		return vec4(unlitColor, 1.0);
+	}
+
+	// F0 calculation with specular extension support
+	vec3 F0 = vec3(0.04);
+	
+	// Apply KHR_materials_specular
+	if (specularFactor > 0.0) {
+		F0 = mix(vec3(0.0), vec3(0.08) * specularColorFactor, specularFactor);
+	}
+	
+	// Mix with albedo for metals
+	F0 = mix(F0, albedo, metallic);
+	
+	// Transmission IOR override
 	if (transmission > 0.0) {
 		float f0_from_ior = pow((ior - 1.0) / (ior + 1.0), 2.0);
 		F0 = mix(F0, vec3(f0_from_ior), transmission);
 	}
 	if (metallic < 0.1) F0 = max(F0, vec3(0.04));
 
+	// Apply iridescence to F0
+	if (iridescenceFactor > 0.0) {
+		vec3 iridescenceF0 = calculateIridescence(N, V, iridescenceFactor, iridescenceIor, iridescenceThickness);
+		F0 = mix(F0, iridescenceF0, iridescenceFactor);
+	}
+
+	// Setup tangent space for anisotropy
+	vec3 T = normalize(g_tangent - dot(g_tangent, N) * N);
+	vec3 B = normalize(cross(N, T));
+
 	// --- Direct BRDF (GGX/Smith/Schlick)
 	vec3 H = normalize(V + L);
-	float NDF = distributionGGX(N, H, roughness);
-	float G   = geometrySmith(N, V, L, roughness);
-	vec3  F   = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
-
-	vec3  specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0), 0.001);
+	vec3 specBRDF;
+	if (anisotropyStrength > 0.0) {
+		// Use anisotropic BRDF
+		specBRDF = calculateAnisotropy(N, V, L, T, B, anisotropyStrength, anisotropyRotation, roughness, F0);
+	} else {
+		// Standard isotropic GGX
+		float NDF = distributionGGX(N, H, roughness);
+		float G = geometrySmith(N, V, L, roughness);
+		vec3 F = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
+		specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0), 0.001);
+	}
+	
 	specBRDF *= 1.5;
 
-	vec3 kS = F;
+	vec3 kS = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
 	float NdotL = max(dot(N, L), 0.0);
@@ -1043,6 +1204,84 @@ vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, float clearcoat
 
 	return clearcoatBRDF * clearcoat * NdotL;
 }
+
+// ==== NEW GLTF EXTENSION IMPLEMENTATIONS ====
+// KHR_materials_anisotropy
+vec3 calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotropyStrength, float anisotropyRotation, float roughness, vec3 F0)
+{
+	// Rotate tangent by anisotropy rotation
+	float cosRot = cos(anisotropyRotation);
+	float sinRot = sin(anisotropyRotation);
+	vec3 T_rot = cosRot * T + sinRot * B;
+	vec3 B_rot = -sinRot * T + cosRot * B;
+	
+	vec3 H = normalize(V + L);
+	float NdotH = max(dot(N, H), 0.0);
+	float TdotH = dot(T_rot, H);
+	float BdotH = dot(B_rot, H);
+	float NdotV = max(dot(N, V), 0.0);
+	float NdotL = max(dot(N, L), 0.0);
+	
+	// Anisotropic roughness
+	float at = max(roughness * (1.0 + anisotropyStrength), 0.001);
+	float ab = max(roughness * (1.0 - anisotropyStrength), 0.001);
+	
+	// Anisotropic GGX distribution
+	float a2 = at * ab;
+	float denom = TdotH * TdotH / (at * at) + BdotH * BdotH / (ab * ab) + NdotH * NdotH;
+	float D = 1.0 / (PI * a2 * denom * denom);
+	
+	// Use standard Smith geometry
+	float G = geometrySmith(N, V, L, roughness);
+	
+	// Fresnel
+	vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
+	
+	vec3 specular = (D * G * F) / max(4.0 * NdotV * NdotL, 0.001);
+	return specular * NdotL;
+}
+
+// KHR_materials_iridescence
+vec3 calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridescenceIor, float thickness)
+{
+	float NdotV = max(dot(N, V), 0.0);
+	
+	// Simplified thin-film interference
+	// Wavelengths for RGB (approximation)
+	vec3 wavelengths = vec3(650.0, 510.0, 475.0); // nm (R, G, B)
+	
+	// Optical path difference
+	float opticalPath = 2.0 * iridescenceIor * thickness;
+	
+	// Phase shift for each wavelength
+	vec3 phase = 2.0 * PI * opticalPath / wavelengths;
+	
+	// Interference pattern
+	vec3 interference = 0.5 + 0.5 * cos(phase);
+	
+	// Apply Fresnel-like modulation
+	float fresnel = pow(1.0 - NdotV, 5.0);
+	
+	// Base iridescent color
+	vec3 iridescenceColor = interference * mix(1.0, fresnel, 0.5);
+	
+	return iridescenceColor * iridescenceFactor;
+}
+
+// KHR_materials_volume
+vec3 calculateVolumeAttenuation(vec3 transmittedLight, float distance, vec3 attenuationColor, float attenuationDistance)
+{
+	if (attenuationDistance <= 0.0) {
+		return transmittedLight;
+	}
+	
+	// Beer-Lambert law
+	vec3 attenuation = -log(max(attenuationColor, vec3(0.001))) / attenuationDistance;
+	vec3 transmittance = exp(-attenuation * distance);
+	
+	return transmittedLight * transmittance;
+}
+
 
 // ----------------------------------------------------------------------------
 float calculateShadow(vec4 fragPosLightSpace)
