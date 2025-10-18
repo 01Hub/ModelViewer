@@ -1,39 +1,6 @@
-# File produced by Open Asset Import Library (http://www.assimp.sf.net)
-# (assimp v5.4.0)
-
-newmtl $Material_0
-Kd 0.800000012 0.800000012 0.800000012
-Ka 0 0 0
-Ks 0.800000012 0.800000012 0.800000012
-Ke 0 0 0
-d 1
-Ns 76.8000031
-illum 2
-
-newmtl $Material_1
-Kd 0.800000012 0.800000012 0.800000012
-Ka 0 0 0
-Ks 0.800000012 0.800000012 0.800000012
-Ke 0 0 0
-d 1
-Ns 76.8000031
-illum 2
-
-newmtl $Material_2
-Kd 0.800000012 0.800000012 0.800000012
-Ka 0 0 0
-Ks 0.800000012 0.800000012 0.800000012
-Ke 0 0 0
-d 1
-Ns 76.8000031
-illum 2
-
-newmtl $Material_3
-Kd 0.800000012 0.800000012 0.800000012
-Ka 0 0 0
-Ks 0.800000012 0.800000012 0.800000012
-Ke 0 0 0
-d 1
-Ns 76.8000031
-illum 2
-
+# Exported by Open CASCADE Technology [dev.opencascade.org]
+newmtl Material_1
+Ka 0.200001 0.200001 0.225001
+Kd 0.550000 0.550000 0.550000
+Ks 0.988929 0.988929 0.988929
+Ns 900.000000
