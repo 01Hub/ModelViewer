@@ -154,6 +154,7 @@ uniform bool selfShadowsEnabled;
 uniform float shadowSamples;
 uniform vec3 cameraPos;
 uniform mat4 viewMatrix;
+uniform mat4 modelMatrix;
 uniform bool sectionActive;
 uniform int displayMode;
 uniform int renderingMode;
@@ -1014,8 +1015,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		vec3 kSibl = Fibl;
 		vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
 
-		vec3 I = normalize(cameraPos - g_reflectionPosition);
-		vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);
+		//vec3 I = normalize(cameraPos - g_reflectionPosition);
+		//vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);
+		//R = normalize(R);
+
+		vec3 R = reflect(-V, N);
+		R = envMapRotationMatrix * R;
 		R = normalize(R);
 
 		const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
@@ -1481,8 +1486,8 @@ void applyEnvironmentMapping(float alphaIn)
 
     // 3) ADS reflection with exposure
     if (renderingMode == 0) {
-		vec3 R = refract(-I, N, 1.0);
-		R = envMapRotationMatrix * -R;
+		vec3 R = reflect(-I, N);
+		R = envMapRotationMatrix * R;
 		float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
 		float NdotV = max(dot(-I, N), 0.0);
 	
