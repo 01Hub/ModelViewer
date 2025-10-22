@@ -515,7 +515,7 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
 
 	QMatrix4x4 envMapRot;
-	envMapRot.rotate(90, 1, 0, 0);
+	envMapRot.rotate(-90, 1, 0, 0);
 	_fgShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
 
 	_debugShader->bind();

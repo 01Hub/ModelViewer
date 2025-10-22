@@ -38,11 +38,16 @@ This approach failed in our turntable viewer because:
 
 ## Solution
 
-### Correct Implementation
+### Correct Implementation (Hybrid Approach)
+
+The optimal solution uses a **hybrid approach** that combines directional stability (for rotation) with subtle positional awareness (for panning):
 
 ```glsl
-// Use unified camera view direction instead of position-based vectors
-vec3 V = normalize(cameraViewDir);  // Camera's forward direction
+// Hybrid: Direction-based with positional influence for panning
+vec3 V_base = normalize(cameraDir);  // Unified view direction (for rotation)
+vec3 offset = normalize(cameraPos - g_reflectionPosition);  // Positional offset (for panning)
+vec3 V = normalize(V_base + offset * 0.3);  // Blend factor: 0.3 is the sweet spot
+
 vec3 N = normalize(g_reflectionNormal);
 vec3 R = reflect(V, N);
 R = normalize(R);
@@ -51,27 +56,45 @@ R = normalize(R);
 vec3 envColor = textureLod(envMap, R, lod).rgb;
 ```
 
+**Blend Factor Guidelines:**
+- **0.0**: Pure direction-based (rotation works, panning has no effect on reflections)
+- **0.1-0.2**: Very subtle panning influence (product visualization)
+- **0.3-0.4**: Balanced (recommended for CAD viewers) ✓
+- **0.5-0.7**: Strong position awareness (architectural walkthroughs)
+
+The value **0.3** provides the optimal balance where:
+- Camera rotation updates reflections naturally and correctly
+- Camera panning causes subtle, realistic reflection changes
+- No coordinate space artifacts or face mapping issues
+
 ### Key Shader Uniforms
 
 ```glsl
 uniform vec3 cameraDir;  // Camera's view direction (from GLCamera::_viewDir)
+uniform vec3 cameraPos;  // Camera's position (from GLCamera::_position)
 ```
 
 ### C++ Setup
 
 ```cpp
-// In rendering code, pass camera's view direction
+// In rendering code, pass both camera direction and position
 QVector3D camDir = _primaryCamera->getViewDir();
+QVector3D camPos = _primaryCamera->getPosition();
+
 shader->setUniformValue("cameraDir", camDir);
+shader->setUniformValue("cameraPos", camPos);
 ```
 
 ## Why This Works
 
 ### 1. Turntable Paradigm Compatibility
-In a turntable viewer, users think "the object rotates" rather than "I orbit around it." Using a unified view direction respects this mental model. All surface points reflect based on a consistent viewing direction rather than spatially-varying vectors.
+In a turntable viewer, users think "the object rotates" rather than "I orbit around it." The hybrid approach respects this mental model by:
+- Using a unified base direction for rotation stability
+- Adding subtle positional influence for panning realism
+- Avoiding the extreme spatial variation of pure position-based approaches
 
 ### 2. Coordinate Space Alignment
-The camera's view direction (`_viewDir`) is already in Z-up world space, matching:
+Both the camera's view direction (`_viewDir`) and position (`_position`) are in Z-up world space, matching:
 - How normals are defined (`g_reflectionNormal`)
 - How the skybox geometry is displayed (with 90° X-rotation)
 - The reflection vector computation
@@ -79,7 +102,16 @@ The camera's view direction (`_viewDir`) is already in Z-up world space, matchin
 No additional coordinate transformations are needed because everything stays in the same space.
 
 ### 3. Natural Reflection Behavior
-Reflections update correctly as the camera rotates, showing different parts of the environment based on surface orientation and viewing angle, but without the artifacts caused by position-dependent calculations.
+Reflections update correctly as the camera rotates and pans:
+- **Rotation**: Dominated by the unified direction (`V_base`), providing stable and correct environment mapping
+- **Panning**: Influenced by the positional offset with a 0.3 blend factor, adding subtle parallax-like changes
+- The blend provides the best of both approaches without the artifacts of either extreme
+
+### 4. Adjustable Balance
+The blend factor can be tuned based on application needs:
+- Lower values (0.1-0.2) for applications where rotation dominates
+- Higher values (0.4-0.5) for applications needing stronger position awareness
+- Sweet spot at 0.3 for typical turntable CAD viewers
 
 ## What Doesn't Work
 
@@ -111,11 +143,14 @@ R = envMapRotationMatrix * R;  // Rotates the reflection, sampling wrong content
 ## Implementation Notes
 
 ### For PBR Workflow
-The same approach works for both direct lighting and IBL:
+The same hybrid approach works for both direct lighting and IBL:
 
 ```glsl
 // In calculatePBRLighting()
-vec3 V = normalize(cameraDir);  // Unified view direction
+vec3 V_base = normalize(cameraDir);
+vec3 offset = normalize(cameraPos - g_reflectionPosition);
+vec3 V = normalize(V_base + offset * 0.3);  // Hybrid approach
+
 vec3 L = normalize(lightSource.position);
 
 // Standard PBR BRDF calculations
@@ -131,7 +166,10 @@ vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
 ### For ADS (Blinn-Phong) Workflow
 ```glsl
 // In shadeBlinnPhong()
-vec3 V = normalize(cameraDir);
+vec3 V_base = normalize(cameraDir);
+vec3 offset = normalize(cameraPos - g_reflectionPosition);
+vec3 V = normalize(V_base + offset * 0.3);  // Hybrid approach
+
 vec3 L = normalize(lightSource.position - g_position);
 vec3 H = normalize(L + V);
 

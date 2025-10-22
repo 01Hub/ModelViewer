@@ -1016,10 +1016,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		vec3 kSibl = Fibl;
 		vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
 
-		
-		vec3 V = normalize(cameraDir);  // The direction camera is looking
+		// Base direction (works for rotation)
+		vec3 V_base = normalize(cameraDir);
+		// Add positional offset (for panning awareness)
+		vec3 offset = normalize(cameraPos - g_reflectionPosition);
+		vec3 V = normalize(V_base - offset * 0.3);  // Blend factor adjustable
 		vec3 N = normalize(g_reflectionNormal);
-		vec3 R = reflect(V, N);		
+		vec3 R = reflect(V, N);
 		R = normalize(R);
 
 		const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
@@ -1484,9 +1487,13 @@ void applyEnvironmentMapping(float alphaIn)
     }
 
     // 3) ADS reflection with exposure
-    if (renderingMode == 0) {
-		vec3 R = reflect(-I, N);
-		R = envMapRotationMatrix * R;
+    if (renderingMode == 0) {		
+		vec3 offset = normalize(cameraPos - g_reflectionPosition);
+		vec3 I_offset = normalize(I - offset * 0.3);  // Blend factor adjustable
+		vec3 R = reflect(-I_offset, N);
+		R = envMapRotationMatrix * -R;
+		R = normalize(R);
+		
 		float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
 		float NdotV = max(dot(-I, N), 0.0);
 	
