@@ -153,6 +153,7 @@ uniform bool shadowsEnabled;
 uniform bool selfShadowsEnabled;
 uniform float shadowSamples;
 uniform vec3 cameraPos;
+uniform vec3 cameraDir;
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
 uniform bool sectionActive;
@@ -1015,12 +1016,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		vec3 kSibl = Fibl;
 		vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
 
-		//vec3 I = normalize(cameraPos - g_reflectionPosition);
-		//vec3 R = refract(-I, normalize(-g_reflectionNormal), 1.0f);
-		//R = normalize(R);
-
-		vec3 R = reflect(-V, N);
-		R = envMapRotationMatrix * R;
+		
+		vec3 V = normalize(cameraDir);  // The direction camera is looking
+		vec3 N = normalize(g_reflectionNormal);
+		vec3 R = reflect(V, N);		
 		R = normalize(R);
 
 		const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
@@ -1435,7 +1434,7 @@ void applyEnvironmentMapping(float alphaIn)
     }
 
     float a = clamp(alphaIn, 0.0, 1.0);
-    vec3 I = normalize(g_reflectionPosition - cameraPos);
+    vec3 I = normalize(cameraDir);
     vec3 N = normalize(g_reflectionNormal);
 
     // 1) Transmission with exposure control

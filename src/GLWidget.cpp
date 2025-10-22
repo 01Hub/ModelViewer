@@ -3843,7 +3843,8 @@ void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 
 void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 {
-	QVector3D camPos = _primaryCamera->getPosition();
+	QVector3D camPos = camera->getPosition();
+	QVector3D camDir = camera->getViewDir();
 
 	prog->setUniformValue("lightSource.position",
 		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
@@ -3860,6 +3861,7 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	prog->setUniformValue("shadowsEnabled", showShadows);
 	prog->setUniformValue("selfShadowsEnabled", _selfShadowsEnabled);
 	prog->setUniformValue("cameraPos", camPos);
+	prog->setUniformValue("cameraDir", camDir);
 	prog->setUniformValue("lightPos",
 		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	prog->setUniformValue("modelMatrix", _modelMatrix);
