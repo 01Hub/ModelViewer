@@ -106,6 +106,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(doubleSpinBoxRepeatT, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatT);
 	connect(doubleSpinBoxSkyBoxFOV, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setSkyBoxFOV);
 	connect(doubleSpinBoxFloorOffset, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorOffsetPercent);
+	connect(checkBoxSkyBoxBlurred, &QCheckBox::toggled, _glWidget, &GLWidget::blurSkyBox);
 	connect(checkBoxSkyBoxHDRI, &QCheckBox::toggled, _glWidget, &GLWidget::setSkyBoxTextureHDRI);
 	connect(checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &ModelViewer::loadSkyBoxPresetMaps);
 	connect(comboBoxSkyBoxMaps, &QComboBox::currentIndexChanged, this,

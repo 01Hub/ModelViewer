@@ -100,6 +100,7 @@ public:
 	void showSelfShadows(bool show);
 	void showEnvironment(bool show);
 	void showSkyBox(bool show);
+	void blurSkyBox(bool blur);
 	void showReflections(bool show);
 	void showFloor(bool show);
 	void showFloorTexture(bool show);
@@ -541,6 +542,7 @@ private:
 	bool _floorDisplayed;
 	bool _floorTextureDisplayed;
 	bool _skyBoxEnabled;
+	bool _skyBoxBlurred;
 
 	bool _lowResEnabled;
 	bool _lockLightAndCamera;

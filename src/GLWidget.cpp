@@ -230,6 +230,7 @@ _assimpModelLoader(nullptr)
 	}
 
 	_skyBoxEnabled = false;
+	_skyBoxBlurred = false;
 	_skyBoxFOV = 45.0f;
 	_skyBoxTextureHDRI = false;
 	_gammaCorrection = false;
@@ -1593,6 +1594,12 @@ void GLWidget::showSkyBox(bool show)
 	_skyBoxEnabled = show;
 	_fgShader->bind();
 	_fgShader->setUniformValue("skyBoxEnabled", _skyBoxEnabled);
+	update();
+}
+
+void GLWidget::blurSkyBox(bool blur)
+{
+	_skyBoxBlurred = blur;
 	update();
 }
 
@@ -3409,7 +3416,8 @@ void GLWidget::loadIrradianceMap()
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
 		glViewport(0, 0, mipWidth, mipHeight);
 
-		float roughness = (float)mip / (float)(maxMipLevels - 1);
+		//float roughness = (float)mip / (float)(maxMipLevels - 1);
+		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
 		_prefilterShader->bind();
 		_prefilterShader->setUniformValue("roughness", roughness);
 		for (unsigned int i = 0; i < 6; ++i)
@@ -3626,13 +3634,15 @@ void GLWidget::drawSkyBox()
 {
 	_skyBox->setProg(_skyBoxShader.get());
 	_skyBoxShader->bind();
+	_skyBoxShader->setUniformValue("skybox", _skyBoxBlurred ? 3 : 1);
 	QMatrix4x4 projection;
 	projection.perspective(_skyBoxFOV, (float)width() / (float)height(), 0.1f, 100.0f);
 	QMatrix4x4 view = _viewMatrix;
 	// Remove translation
 	view.setColumn(3, QVector4D(0, 0, 0, 1));
 	QMatrix4x4 model;
-	model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
+	if(!_skyBoxBlurred) 
+		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
 	_skyBoxShader->setUniformValue("modelMatrix", model);
 	_skyBoxShader->setUniformValue("viewMatrix", view);
 	_skyBoxShader->setUniformValue("projectionMatrix", projection);
