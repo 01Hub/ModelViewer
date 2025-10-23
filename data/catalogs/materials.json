@@ -7412,7 +7412,7 @@
           "metalness": 0.0,
           "roughness": 0.05,
           "ior": 1.52,
-          "transmission": 0.9,
+          "transmission": 1.0,
           "clearcoat": null,
           "clearcoatRoughness": null,
           "sheenColor": null,
