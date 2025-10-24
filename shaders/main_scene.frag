@@ -761,7 +761,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		sheenRoughness    = pbrLighting.sheenRoughness;
 		clearcoat         = pbrLighting.clearcoat;
 		clearcoatRoughness= pbrLighting.clearcoatRoughness;
-		clearcoatNormal   = normalize(normal);
+		clearcoatNormal   = normalize(g_reflectionNormal);
 
 		specularFactor = pbrLighting.specularFactor;
 		specularColorFactor = pbrLighting.specularColorFactor;
@@ -1004,7 +1004,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(N, V, L, sheenColor, sheenRoughness) : vec3(0.0);
 	vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(g_reflectionNormal, cameraDir, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
 	// Treat clearcoat as specular-like
-	directSpecular_L += clearcoat_L;
+	//directSpecular_L += clearcoat_L;
+	directSpecular_L += clearcoat_L * lightSource.specular;  // Scale by light's specular component
 
 	// --- IBL (diffuse + specular)        
 	vec3 irradiance = texture(irradianceMap, N).rgb;
@@ -1083,7 +1084,22 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
 	}
 
-	vec3 clearcoatIBL_L = (clearcoat > 0.0) ? calculateClearcoatIBL(g_reflectionNormal, cameraDir, clearcoatNormal, clearcoatRoughness, clearcoat) : vec3(0.0);
+	// Calculate clearcoat Fresnel to attenuate base material
+	vec3 F0_clearcoat = vec3(0.04);
+	float clearcoatFresnel = fresnelSchlick(max(dot(clearcoatNormal, cameraDir), 0.0), F0_clearcoat).r;
+	float clearcoatAttenuation = mix(1.0, 1.0 - clearcoat * clearcoatFresnel, 0.5);
+
+	// Apply to base specular
+	vec3 V_base = normalize(cameraDir);
+	vec3 offset = normalize(cameraPos - g_reflectionPosition);
+	vec3 V_hybrid = normalize(V_base - offset * 0.3);
+
+	vec3 clearcoatIBL_L = (clearcoat > 0.0) 
+		? calculateClearcoatIBL(g_reflectionNormal, V_hybrid, clearcoatNormal, clearcoatRoughness, clearcoat)
+		: vec3(0.0);
+
+	// Attenuate base reflection where clearcoat is strong
+	ambient_L *= clearcoatAttenuation;
 	ambient_L += clearcoatIBL_L;
 
 	// --- Emission
@@ -1196,37 +1212,46 @@ vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughnes
 }
 
 // Calculate clearcoat contribution
-vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, float clearcoatRoughness, vec3 clearcoatNormal)
+vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, 
+                        float clearcoatRoughness, vec3 clearcoatNormal)
 {
-    vec3 H = normalize(V + L);
+    // Ensure all three are normalized
+    vec3 V_norm = normalize(V);
+    vec3 L_norm = normalize(L);
+    vec3 N_norm = normalize(clearcoatNormal);
+    
+    vec3 H = normalize(V_norm + L_norm);
 
-    float NdotL = clamp(dot(clearcoatNormal, L), 0.0, 1.0);
-    float NdotV = clamp(dot(clearcoatNormal, V), 0.0, 1.0);
-    float NdotH = clamp(dot(clearcoatNormal, H), 0.0, 1.0);
-    float VdotH = clamp(dot(V, H), 0.0, 1.0);
+    float NdotL = max(dot(N_norm, L_norm), 0.0);  // Remove clamp, use max
+    float NdotV = max(dot(N_norm, V_norm), 0.0);
+    float NdotH = max(dot(N_norm, H), 0.0);
+    float VdotH = max(dot(V_norm, H), 0.0);
 
-    // Fresnel term for clear coat (fixed IOR = 1.5 -> F0 ~ 0.04)
-    vec3 F0_clearcoat = vec3(0.04);
+    // Fresnel with proper IOR (1.5 for automotive clearcoat)
+    vec3 F0_clearcoat = vec3(0.04);  // Corresponds to IOR 1.5
     vec3 F = fresnelSchlick(VdotH, F0_clearcoat);
 
     // GGX distribution and Smith geometry
-    float D = distributionGGX(clearcoatNormal, H, clearcoatRoughness);
-    float G = geometrySmith(clearcoatNormal, V, L, clearcoatRoughness);
+    float D = distributionGGX(N_norm, H, clearcoatRoughness);
+    float G = geometrySmith(N_norm, V_norm, L_norm, clearcoatRoughness);
 
-    // BRDF term
-    vec3 clearcoatBRDF = (D * G * F) / max(4.0 * NdotV * NdotL, 0.001);
+    // BRDF calculation
+    float denominator = max(4.0 * NdotV * NdotL, 0.001);
+    vec3 clearcoatBRDF = (D * G * F) / denominator;
 
-    // Optional grazing angle boost for realism
-    float grazingBoost = mix(1.0, 1.5, pow(1.0 - NdotV, 5.0));
-    //clearcoatBRDF *= grazingBoost;
+    // Optional: Grazing boost (add subtle glow at oblique angles)
+    // Uncomment if desired for more pronounced rim lighting
+    // float grazingBoost = mix(1.0, 1.5, pow(1.0 - NdotV, 5.0));
+    // clearcoatBRDF *= grazingBoost;
 
-    // Final scaled result
+    // Final result
     return clearcoatBRDF * clearcoat * NdotL;
 }
 
 vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal, float clearcoatRoughness, float clearcoat)
 {
-    vec3 R = reflect(V, N);
+    // Use clearcoatNormal for reflection, not base normal N
+    vec3 R = reflect(V, N); 
     R = normalize(R);
 
     float MAX_LOD = textureQueryLevels(prefilterMap) - 1.0;
@@ -1234,17 +1259,21 @@ vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal, float clearcoat
 
     vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
     vec3 F0_clearcoat = vec3(0.04);
-    float dotNV = clamp(dot(N, V), 0.0, 1.0);
+    
+    // ALSO FIX: Use clearcoatNormal for Fresnel dot product
+    float dotNV = clamp(dot(clearcoatNormal, V), 0.0, 1.0);
     vec2 brdf = texture(brdfLUT, vec2(dotNV, clearcoatRoughness)).rg;
     vec3 F = fresnelSchlick(dotNV, F0_clearcoat);
 
     vec3 specIBL = prefilteredColor * (F * brdf.x + brdf.y);	
-	
-	float fresnelDim = pow(1.0 - dotNV, 5.0); // stronger at grazing
-	float iblAttenuation = mix(1.0, 0.3, clearcoatRoughness); // less reflection for rough coats
-	float globalScale = 0.2;                                          // Overall strength control
     
-	return specIBL * clearcoat * iblAttenuation * globalScale;
+    float fresnelDim = pow(1.0 - dotNV, 5.0);
+    float iblAttenuation = mix(1.0, 0.3, clearcoatRoughness);
+    
+    // Make globalScale adjustable and more reasonable
+    float globalScale = 0.5;
+    
+    return specIBL * clearcoat * iblAttenuation * globalScale;
 }
 
 // ==== NEW GLTF EXTENSION IMPLEMENTATIONS ====
