@@ -286,6 +286,7 @@ float   geometryCharlie(float NdotV, float roughness);
 vec3    calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo);
 vec3    calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness);
 vec3    calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, float clearcoatRoughness, vec3 clearcoatNormal);
+vec3    calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal, float clearcoatRoughness, float clearcoat);
 
 // ==== NEW glTF EXTENSION FUNCTIONS ====
 vec3	calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotropyStrength, float anisotropyRotation, float roughness, vec3 F0);
@@ -1001,7 +1002,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// --- Extra lobes
 	vec3 transmission_L = (transmission > 0.0) ? calculateTransmission(N, V, L, transmission, ior, albedo) : vec3(0.0);
 	vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(N, V, L, sheenColor, sheenRoughness) : vec3(0.0);
-	vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(clearcoatNormal, V, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
+	vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(g_reflectionNormal, cameraDir, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
 	// Treat clearcoat as specular-like
 	directSpecular_L += clearcoat_L;
 
@@ -1081,6 +1082,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		float boostedAO = mix(1.0, ambientOcclusion, 0.8);
 		ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
 	}
+
+	vec3 clearcoatIBL_L = (clearcoat > 0.0) ? calculateClearcoatIBL(g_reflectionNormal, cameraDir, clearcoatNormal, clearcoatRoughness, clearcoat) : vec3(0.0);
+	ambient_L += clearcoatIBL_L;
 
 	// --- Emission
 	vec3 emissive_L = material.emission;
@@ -1194,22 +1198,53 @@ vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughnes
 // Calculate clearcoat contribution
 vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, float clearcoatRoughness, vec3 clearcoatNormal)
 {
-	vec3 H = normalize(V + L);
-	float NdotL = clamp(dot(clearcoatNormal, L), 0.0, 1.0);
-	float NdotV = clamp(dot(clearcoatNormal, V), 0.0, 1.0);
-	float NdotH = clamp(dot(clearcoatNormal, H), 0.0, 1.0);
-	float VdotH = clamp(dot(V, H), 0.0, 1.0);
+    vec3 H = normalize(V + L);
 
-	// Clearcoat uses a fixed IOR of 1.5 (typical for automotive clearcoat)
-	vec3 F0_clearcoat = vec3(0.04); // F0 for IOR 1.5
-	vec3 F = fresnelSchlick(VdotH, F0_clearcoat);
+    float NdotL = clamp(dot(clearcoatNormal, L), 0.0, 1.0);
+    float NdotV = clamp(dot(clearcoatNormal, V), 0.0, 1.0);
+    float NdotH = clamp(dot(clearcoatNormal, H), 0.0, 1.0);
+    float VdotH = clamp(dot(V, H), 0.0, 1.0);
 
-	float D = distributionGGX(clearcoatNormal, H, clearcoatRoughness);
-	float G = geometrySmith(clearcoatNormal, V, L, clearcoatRoughness);
+    // Fresnel term for clear coat (fixed IOR = 1.5 -> F0 ~ 0.04)
+    vec3 F0_clearcoat = vec3(0.04);
+    vec3 F = fresnelSchlick(VdotH, F0_clearcoat);
 
-	vec3 clearcoatBRDF = (D * G * F) / (4.0 * NdotV * NdotL + 0.001);
+    // GGX distribution and Smith geometry
+    float D = distributionGGX(clearcoatNormal, H, clearcoatRoughness);
+    float G = geometrySmith(clearcoatNormal, V, L, clearcoatRoughness);
 
-	return clearcoatBRDF * clearcoat * NdotL;
+    // BRDF term
+    vec3 clearcoatBRDF = (D * G * F) / max(4.0 * NdotV * NdotL, 0.001);
+
+    // Optional grazing angle boost for realism
+    float grazingBoost = mix(1.0, 1.5, pow(1.0 - NdotV, 5.0));
+    //clearcoatBRDF *= grazingBoost;
+
+    // Final scaled result
+    return clearcoatBRDF * clearcoat * NdotL;
+}
+
+vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal, float clearcoatRoughness, float clearcoat)
+{
+    vec3 R = reflect(V, N);
+    R = normalize(R);
+
+    float MAX_LOD = textureQueryLevels(prefilterMap) - 1.0;
+    float lod = clearcoatRoughness * MAX_LOD;
+
+    vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+    vec3 F0_clearcoat = vec3(0.04);
+    float dotNV = clamp(dot(N, V), 0.0, 1.0);
+    vec2 brdf = texture(brdfLUT, vec2(dotNV, clearcoatRoughness)).rg;
+    vec3 F = fresnelSchlick(dotNV, F0_clearcoat);
+
+    vec3 specIBL = prefilteredColor * (F * brdf.x + brdf.y);	
+	
+	float fresnelDim = pow(1.0 - dotNV, 5.0); // stronger at grazing
+	float iblAttenuation = mix(1.0, 0.3, clearcoatRoughness); // less reflection for rough coats
+	float globalScale = 0.2;                                          // Overall strength control
+    
+	return specIBL * clearcoat * iblAttenuation * globalScale;
 }
 
 // ==== NEW GLTF EXTENSION IMPLEMENTATIONS ====
