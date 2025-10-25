@@ -1214,66 +1214,67 @@ vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughnes
 vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, 
                         float clearcoatRoughness, vec3 clearcoatNormal)
 {
-    // Ensure all three are normalized
     vec3 V_norm = normalize(V);
     vec3 L_norm = normalize(L);
     vec3 N_norm = normalize(clearcoatNormal);
     
     vec3 H = normalize(V_norm + L_norm);
-
-    float NdotL = max(dot(N_norm, L_norm), 0.0);  // Remove clamp, use max
+    float NdotL = max(dot(N_norm, L_norm), 0.0);
     float NdotV = max(dot(N_norm, V_norm), 0.0);
     float NdotH = max(dot(N_norm, H), 0.0);
     float VdotH = max(dot(V_norm, H), 0.0);
-
-    // Fresnel with proper IOR (1.5 for automotive clearcoat)
-    vec3 F0_clearcoat = vec3(0.04);  // Corresponds to IOR 1.5
+    
+    // Modulate roughness by normal detail (bumpy areas = rougher)
+    vec3 normalVariation = normalize(clearcoatNormal) - normalize(N);
+    float bumpiness = length(normalVariation) * 0.5;  // 0 to ~0.5
+    float modulatedRoughness = mix(clearcoatRoughness, clearcoatRoughness * 1.5, bumpiness);
+    modulatedRoughness = clamp(modulatedRoughness, 0.02, 1.0);
+    
+    vec3 F0_clearcoat = vec3(0.04);
     vec3 F = fresnelSchlick(VdotH, F0_clearcoat);
-
-    // GGX distribution and Smith geometry
-    float D = distributionGGX(N_norm, H, clearcoatRoughness);
-    float G = geometrySmith(N_norm, V_norm, L_norm, clearcoatRoughness);
-
-    // BRDF calculation
+    
+    float D = distributionGGX(N_norm, H, modulatedRoughness);
+    float G = geometrySmith(N_norm, V_norm, L_norm, modulatedRoughness);
+    
     float denominator = max(4.0 * NdotV * NdotL, 0.001);
     vec3 clearcoatBRDF = (D * G * F) / denominator;
-
-    // Optional: Grazing boost (add subtle glow at oblique angles)
-    // Uncomment if desired for more pronounced rim lighting
-    float grazingBoost = mix(1.0, 1.5, pow(1.0 - NdotV, 5.0));
-    clearcoatBRDF *= grazingBoost;
-
-    // Final result
+        
     return clearcoatBRDF * clearcoat * NdotL;
 }
 
-vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal, float clearcoatRoughness, float clearcoat)
+vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal, 
+                           float clearcoatRoughness, float clearcoat)
 {
-    vec3 R = reflect(V, N);
+    vec3 R = reflect(V, N);  // Stable reflection from base normal
     R = normalize(R);
-
+    
     float MAX_LOD = textureQueryLevels(prefilterMap) - 1.0;
-    float lod = clearcoatRoughness * MAX_LOD;
-
+    
+    // Modulate roughness by normal detail
+    vec3 normalVariation = normalize(clearcoatNormal) - normalize(N);
+    float bumpiness = length(normalVariation) * 0.5;
+    float modulatedRoughness = mix(clearcoatRoughness, clearcoatRoughness * 1.5, bumpiness);
+    modulatedRoughness = clamp(modulatedRoughness, 0.02, 1.0);
+    
+    float lod = modulatedRoughness * MAX_LOD;
+    
     vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+    
     vec3 F0_clearcoat = vec3(0.04);
     float dotNV = clamp(dot(clearcoatNormal, V), 0.0, 1.0);
-    vec2 brdf = texture(brdfLUT, vec2(dotNV, clearcoatRoughness)).rg;
-    vec3 F = fresnelSchlick(dotNV, F0_clearcoat);
-
-	vec3 fresnelTerm = F * brdf.x + brdf.y;  // The shiny coating effect
-    vec3 environmentTerm = prefilteredColor;  // The reflected environment
-
-	float coatingBrightness = 0.2;     // Keep strong for plastic appearance
-    float environmentIntensity = 0.2;  // Keep subtle for less mirror effect
-
-    vec3 specIBL = mix((environmentTerm * environmentIntensity), (fresnelTerm * coatingBrightness), 0.5);
-	
-	float fresnelDim = pow(1.0 - dotNV, 5.0); // stronger at grazing
-	float iblAttenuation = mix(1.0, 0.3, clearcoatRoughness); // less reflection for rough coats
-	float globalScale = 0.5;                                          // Overall strength control
     
-	return specIBL * clearcoat * fresnelDim * iblAttenuation * globalScale;
+    vec2 brdf = texture(brdfLUT, vec2(dotNV, modulatedRoughness)).rg;
+    vec3 F = fresnelSchlick(dotNV, F0_clearcoat);
+    
+    // Simplified: proper BRDF lookup replaces environment weighting
+    vec3 specIBL = prefilteredColor * (F * brdf.x + brdf.y);
+    
+    // Fresnel effect: more transparent at grazing (natural Fresnel, no boost)
+    // This lets normal detail show through
+    float iblAttenuation = mix(1.0, 0.3, modulatedRoughness);
+    float globalScale = 0.5;
+    
+    return specIBL * clearcoat * iblAttenuation * globalScale;
 }
 
 // ==== NEW GLTF EXTENSION IMPLEMENTATIONS ====
