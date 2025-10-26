@@ -5,6 +5,8 @@
 #include "AssImpMesh.h"
 #include <QOpenGLFunctions_4_5_Core>
 
+class GLTFMetadataExtractor;
+
 class MaterialProcessor : public QOpenGLFunctions_4_5_Core
 {
 public:
@@ -30,6 +32,12 @@ public:
 	bool checkImageForAlpha(const QImage& image);
 
 	void synthesizeADSAliases(std::vector<Texture>& textures);
+
+	void setGLTFMetadata(GLTFMetadataExtractor* extractor, int materialIndex)
+	{
+		_glTFMetadataExtractor = extractor;
+		_currentMaterialIndex = materialIndex;
+	}
 
 private:
 	void setShadingModel(GLMaterial& mat, aiShadingMode shadingModel);
@@ -116,4 +124,8 @@ private:
 	std::vector<Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
 
 	std::string _folderPath; // Directory where textures are located
+
+	private:
+		GLTFMetadataExtractor* _glTFMetadataExtractor = nullptr;
+		int _currentMaterialIndex = -1;
 };

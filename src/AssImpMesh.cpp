@@ -175,8 +175,12 @@ void AssImpMesh::setupMesh()
 		normals.push_back(v.Normal.y);
 		normals.push_back(v.Normal.z);
 
-		texCoords.push_back(v.TexCoords.x);
-		texCoords.push_back(v.TexCoords.y);
+		// Extract all 4 texCoord sets
+		for (int i = 0; i < 4; i++)
+		{
+			texCoords.push_back(v.TexCoords[i].x);
+			texCoords.push_back(v.TexCoords[i].y);
+		}
 
 		tangents.push_back(v.Tangent.x);
 		tangents.push_back(v.Tangent.y);
@@ -291,6 +295,18 @@ void AssImpMesh::setupMesh()
 		{
 			_hasClearcoatNormalPBRMap = true;
 		}
+	}
+
+	size_t numVertices = _vertices.size();
+	qDebug() << "Mesh name:" << _name;
+	qDebug() << "=== BUFFER LAYOUT DEBUG ===";
+	qDebug() << "Num vertices:" << numVertices;
+	qDebug() << "Num floats in texCoords vector:" << texCoords.size();
+	qDebug() << "Expected (4 sets x 2 floats x numVertices):" << 4 * 2 * numVertices;
+	qDebug() << "First 16 texCoord values:";
+	for (int i = 0; i < std::min(16, (int)texCoords.size()); i++)
+	{
+		qDebug() << "  [" << i << "]:" << texCoords[i];
 	}
 
 	initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
@@ -733,7 +749,7 @@ void AssImpMesh::serialize(QDataStream& out) const
 	for (const Vertex& v : _vertices) {
 		out << v.Position.x << v.Position.y << v.Position.z;
 		out << v.Normal.x << v.Normal.y << v.Normal.z;
-		out << v.TexCoords.x << v.TexCoords.y;
+		out << v.TexCoords[0].x << v.TexCoords[0].y;
 		out << v.Tangent.x << v.Tangent.y << v.Tangent.z;
 		out << v.Bitangent.x << v.Bitangent.y << v.Bitangent.z;
 	}
@@ -778,7 +794,7 @@ void AssImpMesh::deserialize(QDataStream& in)
 		Vertex v;
 		in >> v.Position.x >> v.Position.y >> v.Position.z;
 		in >> v.Normal.x >> v.Normal.y >> v.Normal.z;
-		in >> v.TexCoords.x >> v.TexCoords.y;
+		in >> v.TexCoords[0].x >> v.TexCoords[0].y;
 		in >> v.Tangent.x >> v.Tangent.y >> v.Tangent.z;
 		in >> v.Bitangent.x >> v.Bitangent.y >> v.Bitangent.z;
 		_vertices.push_back(v);

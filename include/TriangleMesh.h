@@ -264,7 +264,10 @@ protected:
 	QOpenGLBuffer _indexBuffer;
 	QOpenGLBuffer _positionBuffer;
 	QOpenGLBuffer _normalBuffer;
-	QOpenGLBuffer _texCoordBuffer;
+	QOpenGLBuffer _texCoord0Buffer;
+	QOpenGLBuffer _texCoord1Buffer;
+	QOpenGLBuffer _texCoord2Buffer;
+	QOpenGLBuffer _texCoord3Buffer;
 	QOpenGLBuffer _tangentBuf;
 	QOpenGLBuffer _bitangentBuf;
 

@@ -1,5 +1,4 @@
-
-#include "config.h"
+﻿#include "config.h"
 #include "Point.h"
 #include "TriangleBaldwinWeber.h"
 #include "TriangleMesh.h"
@@ -74,14 +73,20 @@ _hasTextureAlpha(false)
 	_indexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
 	_positionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_normalBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_texCoordBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_texCoord0Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_texCoord1Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_texCoord2Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_texCoord3Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_tangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_bitangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 
 	_indexBuffer.create();
 	_positionBuffer.create();
 	_normalBuffer.create();
-	_texCoordBuffer.create();
+	_texCoord0Buffer.create();
+	_texCoord1Buffer.create();
+	_texCoord2Buffer.create();
+	_texCoord3Buffer.create();
 	_tangentBuf.create();
 	_bitangentBuf.create();
 
@@ -151,14 +156,14 @@ void TriangleMesh::initBuffers(
 	_normalBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
 	_normalBuffer.allocate(normals->data(), static_cast<int>(normals->size() * sizeof(float)));
 
-	if (_texCoords.size())
+	/*if (_texCoords.size())
 	{
-		_buffers.push_back(_texCoordBuffer);
-		_texCoordBuffer.bind();
-		_texCoordBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-		_texCoordBuffer.allocate(_texCoords.data(), static_cast<int>(_texCoords.size() * sizeof(float)));
+		_buffers.push_back(_texCoord0Buffer);
+		_texCoord0Buffer.bind();
+		_texCoord0Buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_texCoord0Buffer.allocate(_texCoords.data(), static_cast<int>(_texCoords.size() * sizeof(float)));
 		_memorySize += _texCoords.size() * sizeof(float);
-	}
+	}*/
 
 	if (_tangents.size())
 	{
@@ -199,11 +204,84 @@ void TriangleMesh::initBuffers(
 	// Tex coords
 	if (_texCoords.size())
 	{
-		_texCoordBuffer.bind();
-		//glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 0, 0);
-		//glEnableVertexAttribArray(2);  // Tex coord
+		size_t numVertices = _indices.size() > 0 ? _indices.size() : 0;
+		// If we're here, texCoords was populated with 8 floats per vertex
+
+		// Extract 4 separate texCoord sets from the interleaved buffer
+		std::vector<float> texCoord0, texCoord1, texCoord2, texCoord3;
+		texCoord0.reserve(numVertices * 2);
+		texCoord1.reserve(numVertices * 2);
+		texCoord2.reserve(numVertices * 2);
+		texCoord3.reserve(numVertices * 2);
+
+		// Deinterleave: every 8 floats = one vertex's 4 sets
+		for (size_t i = 0; i < _texCoords.size(); i += 8)
+		{
+			// Set 0
+			texCoord0.push_back(_texCoords[i + 0]);
+			texCoord0.push_back(_texCoords[i + 1]);
+			// Set 1
+			texCoord1.push_back(_texCoords[i + 2]);
+			texCoord1.push_back(_texCoords[i + 3]);
+			// Set 2
+			texCoord2.push_back(_texCoords[i + 4]);
+			texCoord2.push_back(_texCoords[i + 5]);
+			// Set 3
+			texCoord3.push_back(_texCoords[i + 6]);
+			texCoord3.push_back(_texCoords[i + 7]);
+		}
+
+		// Create separate VBOs for each texCoord set
+		_buffers.push_back(_texCoord0Buffer);
+		_texCoord0Buffer.bind();
+		_texCoord0Buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_texCoord0Buffer.allocate(texCoord0.data(), static_cast<int>(texCoord0.size() * sizeof(float)));
+		_memorySize += texCoord0.size() * sizeof(float);
+
+		_buffers.push_back(_texCoord1Buffer);
+		_texCoord1Buffer.bind();
+		_texCoord1Buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_texCoord1Buffer.allocate(texCoord1.data(), static_cast<int>(texCoord1.size() * sizeof(float)));
+		_memorySize += texCoord1.size() * sizeof(float);
+
+		_buffers.push_back(_texCoord2Buffer);
+		_texCoord2Buffer.bind();
+		_texCoord2Buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_texCoord2Buffer.allocate(texCoord2.data(), static_cast<int>(texCoord2.size() * sizeof(float)));
+		_memorySize += texCoord2.size() * sizeof(float);
+
+		_buffers.push_back(_texCoord3Buffer);
+		_texCoord3Buffer.bind();
+		_texCoord3Buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_texCoord3Buffer.allocate(texCoord3.data(), static_cast<int>(texCoord3.size() * sizeof(float)));
+		_memorySize += texCoord3.size() * sizeof(float);
+
+		// Set up vertex attributes (stride = 0 for each, since they're now separate)
+		_texCoord0Buffer.bind();
 		_prog->enableAttributeArray("texCoord2d");
-		_prog->setAttributeBuffer("texCoord2d", GL_FLOAT, 0, 2);
+		_prog->setAttributeBuffer("texCoord2d", GL_FLOAT, 0, 2, 0);
+
+		// These will be enabled when shader supports them:
+		if (_prog->attributeLocation("texCoord1") != -1)
+		{
+			_texCoord1Buffer.bind();
+			_prog->enableAttributeArray("texCoord1");
+			_prog->setAttributeBuffer("texCoord1", GL_FLOAT, 0, 2, 0);
+		}
+
+		if (_prog->attributeLocation("texCoord2") != -1)
+		{
+			_texCoord2Buffer.bind();
+			_prog->enableAttributeArray("texCoord2");
+			_prog->setAttributeBuffer("texCoord2", GL_FLOAT, 0, 2, 0);
+		}
+
+		if (_prog->attributeLocation("texCoord3") != -1)
+		{
+			_texCoord3Buffer.bind();
+			_prog->enableAttributeArray("texCoord3");
+			_prog->setAttributeBuffer("texCoord3", GL_FLOAT, 0, 2, 0);
+		}
 	}
 
 	if (_tangents.size())
@@ -288,7 +366,7 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 	// Tex coords
 	if (_texCoords.size())
 	{
-		_texCoordBuffer.bind();
+		_texCoord0Buffer.bind();
 		_prog->enableAttributeArray("texCoord2d");
 		_prog->setAttributeBuffer("texCoord2d", GL_FLOAT, 0, 2);
 	}

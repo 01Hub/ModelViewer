@@ -8,8 +8,12 @@
 #include <vector>
 
 #include "AssImpMesh.h"
-#include "TriangleMesh.h"
 #include "BoundingBox.h"
+#include "GLTFMetadataExtractor.h"
+#include "MaterialProcessor.h"
+#include "MeshAnalyzer.h"
+#include "TriangleMesh.h"
+#include "UVGenerator.h"
 #include <assimp/Importer.hpp>
 #include <assimp/postprocess.h>
 #include <assimp/ProgressHandler.hpp>
@@ -31,9 +35,6 @@
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_Location.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
-#include "MaterialProcessor.h"
-#include "MeshAnalyzer.h"
-#include "UVGenerator.h"
 
 
 class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
@@ -173,4 +174,7 @@ private:
 
 	bool _autoScale = true; // Automatically scale the model to fit the scene's coordinate system
 	bool _autoOrient = true; // Automatically orient the model to match the scene's coordinate system
+
+	GLTFMetadataExtractor _glTFMetadataExtractor;
+	std::string _currentGLTFPath;  // Store path for material processor
 };

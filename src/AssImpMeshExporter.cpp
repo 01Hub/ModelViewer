@@ -91,7 +91,7 @@ aiMesh* AssImpMeshExporter::createMesh(const std::vector<Vertex>& vertices, cons
         const auto& v = vertices[i];
         mesh->mVertices[i] = aiVector3D(v.Position.x, v.Position.y, v.Position.z);
         mesh->mNormals[i] = aiVector3D(v.Normal.x, v.Normal.y, v.Normal.z);
-        mesh->mTextureCoords[0][i] = aiVector3D(v.TexCoords.s, v.TexCoords.t, 0.0f);
+        mesh->mTextureCoords[0][i] = aiVector3D(v.TexCoords[0].s, v.TexCoords[0].t, 0.0f);
         mesh->mColors[0][i] = aiColor4D(v.Color.r, v.Color.g, v.Color.b, v.Color.a);
     }
 

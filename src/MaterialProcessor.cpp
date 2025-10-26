@@ -1,6 +1,6 @@
 #include "MaterialProcessor.h"
 #include "Utils.h"
-
+#include "GLTFMetadataExtractor.h"
 #include <string>
 
 using namespace std;
@@ -567,6 +567,64 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
     // Now create ADS aliases from PBR maps for backward compatibility
     synthesizeADSAliases(textures);
 
+    // === NEW: Apply glTF metadata to textures ===
+    if (_glTFMetadataExtractor && _currentMaterialIndex >= 0)
+    {
+        auto materialMetadata = _glTFMetadataExtractor->getMaterialTextureMetadata(_currentMaterialIndex);
+
+        // Map from material role names to actual material/texture paths for matching
+        std::map<std::string, std::vector<std::string>> roleToTextureTypes = {
+            {"baseColor", {"albedoMap", "texture_diffuse"}},
+            {"normal", {"normalMap", "texture_normal"}},
+            {"metallicRoughness", {"metallicMap", "roughnessMap", "texture_specular"}},
+            {"occlusion", {"aoMap"}},
+            {"emissive", {"emissiveMap", "texture_emissive"}},
+            {"clearcoat", {"clearcoatMap"}},
+            {"clearcoatRoughness", {"clearcoatRoughnessMap"}},
+            {"clearcoatNormal", {"clearcoatNormalMap"}},
+            {"sheenColor", {"sheenColorMap"}},
+            {"sheenRoughness", {"sheenRoughnessMap"}},
+            {"transmission", {"transmissionMap"}},
+            {"thickness", {"thicknessMap"}},
+            {"specularFactor", {"specularFactorMap"}},
+            {"specularColor", {"specularColorMap"}},
+            {"iridescence", {"iridescenceMap"}},
+            {"iridescenceThickness", {"iridescenceThicknessMap"}},
+            {"anisotropy", {"anisotropyMap"}}
+        };
+
+        for (auto& tex : textures)
+        {
+            // Find which role this texture belongs to
+            for (const auto& rolePair : roleToTextureTypes)
+            {
+                const std::string& role = rolePair.first;
+                const auto& textureTypes = rolePair.second;
+
+                // Check if this texture matches any of the types for this role
+                if (std::find(textureTypes.begin(), textureTypes.end(), tex.type) != textureTypes.end())
+                {
+                    // Check if we have metadata for this role
+                    if (materialMetadata.find(role) != materialMetadata.end())
+                    {
+                        const TextureMetadata& metadata = materialMetadata[role];
+                        tex.texCoordIndex = metadata.texCoordIndex;
+                        tex.scale = metadata.scale;
+                        tex.offset = metadata.offset;
+                        tex.rotation = metadata.rotation;
+
+                        qDebug() << "MaterialProcessor: Applied glTF metadata to" << QString::fromStdString(tex.type)
+                            << "- texCoord:" << metadata.texCoordIndex
+                            << "scale: (" << metadata.scale.x << "," << metadata.scale.y << ")"
+                            << "offset: (" << metadata.offset.x << "," << metadata.offset.y << ")"
+                            << "rotation:" << metadata.rotation;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
 	// update material maps based on loaded textures
 	// for each texture type, assign to material if found
     for (const auto& tex : textures)
@@ -760,6 +818,10 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
             alias.type = typeName;        // requested uniform name
             alias.path = lt.path;
 			alias.hasAlpha = lt.hasAlpha; // reuse alpha info
+            alias.texCoordIndex = 0;              // <- NEW
+            alias.scale = glm::vec2(1.0f);        // <- NEW
+            alias.offset = glm::vec2(0.0f);       // <- NEW
+            alias.rotation = 0.0f;                // <- NEW
             textures.push_back(alias);
             _loadedTextures.push_back(alias); // register alias to avoid re-creating later
             //std::cout << lt << std::endl;
@@ -774,6 +836,10 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
     texture.type = typeName;
     texture.path = aiString(textureFilePath);
 	texture.hasAlpha = hasAlpha; // Store alpha info for later use
+    texture.texCoordIndex = 0;           // <- DEFAULT: TEXCOORD_0
+    texture.scale = glm::vec2(1.0f);     // <- DEFAULT: Identity scale
+    texture.offset = glm::vec2(0.0f);    // <- DEFAULT: No offset
+    texture.rotation = 0.0f;              // <- DEFAULT: No rotation
     textures.push_back(texture);
     _loadedTextures.push_back(texture);
 

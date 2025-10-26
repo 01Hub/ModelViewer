@@ -56,7 +56,7 @@ bool UVGenerator::generateAngleBased(
     {
         glm::vec2 finalUV = uvs[i];
         applyUVTransforms(finalUV, config);
-        vertices[i].TexCoords = finalUV;
+        vertices[i].TexCoords[0] = finalUV;
     }
 
     return true;
@@ -99,7 +99,7 @@ bool UVGenerator::generateCylindrical(
 
         glm::vec2 uv(u * config.cylindricalScale, v);
         applyUVTransforms(uv, config);
-        vertex.TexCoords = uv;
+        vertex.TexCoords[0] = uv;
     }
 
     // Step 2: Handle seam-crossing triangles by duplicating vertices
@@ -116,9 +116,9 @@ bool UVGenerator::generateCylindrical(
             unsigned int i2 = indices[3 * t + 2];
 
             // Get UV coordinates
-            float u0 = vertices[i0].TexCoords.x;
-            float u1 = vertices[i1].TexCoords.x;
-            float u2 = vertices[i2].TexCoords.x;
+            float u0 = vertices[i0].TexCoords[0].x;
+            float u1 = vertices[i1].TexCoords[0].x;
+            float u2 = vertices[i2].TexCoords[0].x;
 
             // Check if triangle crosses the seam (0/1 boundary)
             float maxU = std::max({ u0, u1, u2 });
@@ -135,7 +135,7 @@ bool UVGenerator::generateCylindrical(
                     if (u < 0.5f) // Vertex is on the "left" side of seam, needs to be moved right
                     {
                         Vertex dup = vertices[originalIdx];
-                        dup.TexCoords.x += 1.0f; // Shift u to maintain continuity
+                        dup.TexCoords[0].x += 1.0f; // Shift u to maintain continuity
 
                         // Don't apply transforms again - they were already applied
                         // The transformed coordinates should maintain the offset
@@ -389,9 +389,9 @@ bool UVGenerator::generateSpherical(
                 while (finalUV.x > 1.0f) finalUV.x -= 1.0f;
                 finalUV.y = glm::clamp(finalUV.y, 0.0f, 1.0f);
 
-                newVertex.TexCoords = glm::vec2(finalUV.x * config.sphericalScale,
+                newVertex.TexCoords[0] = glm::vec2(finalUV.x * config.sphericalScale,
                     finalUV.y * config.sphericalScale);
-                applyUVTransforms(newVertex.TexCoords, config);
+                applyUVTransforms(newVertex.TexCoords[0], config);
 
                 finalVertices.push_back(newVertex);
                 newTriIndices[j] = static_cast<unsigned int>(finalVertices.size() - 1);
@@ -452,9 +452,9 @@ bool UVGenerator::generateSpherical(
             while (uv.x > 1.0f) uv.x -= 1.0f;
             uv.y = glm::clamp(uv.y, 0.0f, 1.0f);
 
-            vertices[i].TexCoords = glm::vec2(uv.x * config.sphericalScale,
+            vertices[i].TexCoords[0] = glm::vec2(uv.x * config.sphericalScale,
                 uv.y * config.sphericalScale);
-            applyUVTransforms(vertices[i].TexCoords, config);
+            applyUVTransforms(vertices[i].TexCoords[0], config);
         }
     }
 
@@ -558,7 +558,7 @@ bool UVGenerator::generatePlanar(
         applyUVTransforms(uv, config);
 
         // Assign to vertex
-        vertex.TexCoords = uv;
+        vertex.TexCoords[0] = uv;
     }
 
     return true;
@@ -668,7 +668,7 @@ bool UVGenerator::generateAngleBasedSmartUV(
         for (int i = 0; i < 3; ++i)
         {
             Vertex v = vertices[tri.indices[i]];
-            v.TexCoords = uvSet[i];
+            v.TexCoords[0] = uvSet[i];
             newIndices.push_back(static_cast<unsigned int>(newVertices.size()));
             newVertices.push_back(v);
         }
@@ -684,7 +684,7 @@ bool UVGenerator::generateAngleBasedSmartUV(
             positions[i] = newVertices[i].Position;
 
         for (size_t i = 0; i < newVertices.size(); ++i)
-            packedUVs[i] = newVertices[i].TexCoords;
+            packedUVs[i] = newVertices[i].TexCoords[0];
 
         packWithXAtlas(packedUVs, newIndices, positions);
 
@@ -692,7 +692,7 @@ bool UVGenerator::generateAngleBasedSmartUV(
         for (size_t i = 0; i < newVertices.size(); ++i)
         {
             applyUVTransforms(packedUVs[i], config);
-            newVertices[i].TexCoords = packedUVs[i];
+            newVertices[i].TexCoords[0] = packedUVs[i];
         }
     }
     else
@@ -700,7 +700,7 @@ bool UVGenerator::generateAngleBasedSmartUV(
         // Apply transforms without packing
         for (auto& v : newVertices)
         {
-            applyUVTransforms(v.TexCoords, config);
+            applyUVTransforms(v.TexCoords[0], config);
         }
     }
 

@@ -133,8 +133,8 @@ void TangentGenerator::calculateTangentsFromTriangles(
         glm::vec3 edge1 = v1.Position - v0.Position;
         glm::vec3 edge2 = v2.Position - v0.Position;
 
-        glm::vec2 deltaUV1 = v1.TexCoords - v0.TexCoords;
-        glm::vec2 deltaUV2 = v2.TexCoords - v0.TexCoords;
+        glm::vec2 deltaUV1 = v1.TexCoords[0] - v0.TexCoords[0];
+        glm::vec2 deltaUV2 = v2.TexCoords[0] - v0.TexCoords[0];
 
         // Calculate tangent and bitangent
         float det = deltaUV1.x * deltaUV2.y - deltaUV1.y * deltaUV2.x;
@@ -239,7 +239,7 @@ namespace
     {
         const auto* data = (MikkTSpaceUserData*)context->m_pUserData;
         int idx = (*data->indices)[faceIdx * 3 + vertIdx];
-        const glm::vec2& uv = (*data->vertices)[idx].TexCoords;
+        const glm::vec2& uv = (*data->vertices)[idx].TexCoords[0];
         outUV[0] = uv.x; outUV[1] = uv.y;
     }
 

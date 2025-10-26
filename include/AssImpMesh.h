@@ -28,10 +28,15 @@ struct Vertex
 	// bitangent
 	glm::vec3 Bitangent;
 	// TexCoords
-	glm::vec2 TexCoords;
+	glm::vec2 TexCoords[4];
 };
 
-static_assert(sizeof(Vertex) == sizeof(float) * (3 + 3 + 2 + 3 + 3 + 4),
+inline glm::vec2 getTexCoord(const Vertex& v, int index = 0)
+{
+	return (index >= 0 && index < 4) ? v.TexCoords[index] : glm::vec2(0.0f);
+}
+
+static_assert(sizeof(Vertex) == sizeof(float) * (3 + 3 + 8 + 3 + 3 + 4),
 	"Vertex struct has unexpected padding - meshopt stride will be incorrect");
 
 
@@ -40,15 +45,20 @@ struct Texture
 	unsigned int id;
 	std::string type;
 	aiString path;
-	bool hasAlpha = false; // Indicates if the texture has an alpha channel
+	bool hasAlpha = false;
 
-	// print for debugging
+	// KHR_texture_transform support
+	int texCoordIndex = 0;           // Which TEXCOORD to use (0-3, default 0)
+	glm::vec2 scale = glm::vec2(1.0f);      // Tiling/scale
+	glm::vec2 offset = glm::vec2(0.0f);     // UV offset
+	float rotation = 0.0f;                  // Rotation in radians
+
 	friend std::ostream& operator<<(std::ostream& os, const Texture& texture)
 	{
-		os << "Id: " << texture.id << " type: " << texture.type << " path: " << texture.path.C_Str();
+		os << "Id: " << texture.id << " type: " << texture.type
+			<< " texCoordIndex: " << texture.texCoordIndex;
 		return os;
 	}
-
 };
 
 class AssImpMesh : public TriangleMesh

@@ -40,9 +40,8 @@ void Plane::buildMesh(QVector3D center, float xsize, float ysize, int xdivs, int
 {
 	std::vector<float> p(3 * (xdivs + 1) * (ydivs + 1));
 	std::vector<float> n(3 * (xdivs + 1) * (ydivs + 1));
-	std::vector<float> tex(2 * (xdivs + 1) * (ydivs + 1));
+	std::vector<float> tex(8 * (xdivs + 1) * (ydivs + 1));  // Changed: 8 floats per vertex (4 texture coordinates)
 	std::vector<unsigned int> el(6 * xdivs * ydivs);
-
 	float x2 = xsize / 2.0f;
 	float y2 = ysize / 2.0f;
 	float iFactor = (float)ysize / ydivs;
@@ -51,9 +50,11 @@ void Plane::buildMesh(QVector3D center, float xsize, float ysize, int xdivs, int
 	float texj = tmax / xdivs;
 	float x, y;
 	int vidx = 0, tidx = 0;
-	for (int i = 0; i <= ydivs; i++) {
+	for (int i = 0; i <= ydivs; i++)
+	{
 		y = iFactor * i - y2;
-		for (int j = 0; j <= xdivs; j++) {
+		for (int j = 0; j <= xdivs; j++)
+		{
 			x = jFactor * j - x2;
 			p[vidx] = center.x() + x;
 			p[vidx + 1] = center.y() + y;
@@ -62,11 +63,19 @@ void Plane::buildMesh(QVector3D center, float xsize, float ysize, int xdivs, int
 			n[vidx + 1] = 0.0f;
 			n[vidx + 2] = -1.0f;
 
-			tex[tidx] = j * texi;
-			tex[tidx + 1] = i * texj;
+			// Calculate base texture coordinates
+			float texS = j * texi;
+			float texT = i * texj;
+
+			// Store all 4 texture coordinate sets (for KHR compatibility)
+			for (int texIdx = 0; texIdx < 4; texIdx++)
+			{
+				tex[tidx + texIdx * 2] = texS;
+				tex[tidx + texIdx * 2 + 1] = texT;
+			}
 
 			vidx += 3;
-			tidx += 2;
+			tidx += 8;  // Changed: Advance by 8 floats (4 coordinates x 2 components)
 		}
 	}
 
