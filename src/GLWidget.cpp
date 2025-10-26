@@ -1568,24 +1568,32 @@ void GLWidget::setHatchTexture(const QString& path)
 void GLWidget::showAxis(bool show)
 {
 	_showAxis = show;
+	_fgShader->bind();
+	_fgShader->setUniformValue("showAxis", _showAxis);
 	update();
 }
 
 void GLWidget::showShadows(bool show)
 {
 	_shadowsEnabled = show;
+	_fgShader->bind();
+	_fgShader->setUniformValue("shadowsEnabled", _shadowsEnabled);
 	update();
 }
 
 void GLWidget::showSelfShadows(bool show)
 {
 	_selfShadowsEnabled = show;		
+	_fgShader->bind();
+	_fgShader->setUniformValue("selfShadowsEnabled", _selfShadowsEnabled);
 	update();
 }
 
 void GLWidget::showEnvironment(bool show)
 {
 	_envMapEnabled = show;
+	_fgShader->bind();
+	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
 	update();
 }
 
@@ -1600,12 +1608,16 @@ void GLWidget::showSkyBox(bool show)
 void GLWidget::blurSkyBox(bool blur)
 {
 	_skyBoxBlurred = blur;
+	_fgShader->bind();
+	_fgShader->setUniformValue("skyBoxBlurred", _skyBoxBlurred);
 	update();
 }
 
 void GLWidget::showReflections(bool show)
 {
 	_reflectionsEnabled = show;
+	_fgShader->bind();
+	_fgShader->setUniformValue("reflectionsEnabled", _reflectionsEnabled);
 	update();
 }
 
