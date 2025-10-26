@@ -285,6 +285,7 @@ float   distributionCharlie(vec3 N, vec3 H, float roughness);
 float   geometryCharlie(float NdotV, float roughness);
 vec3    calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo);
 vec3    calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness);
+vec3    calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor);
 vec3    calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, float clearcoatRoughness, vec3 clearcoatNormal);
 vec3    calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal, float clearcoatRoughness, float clearcoat);
 
@@ -1001,7 +1002,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	// --- Extra lobes
 	vec3 transmission_L = (transmission > 0.0) ? calculateTransmission(N, V, L, transmission, ior, albedo) : vec3(0.0);
-	vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(N, V, L, sheenColor, sheenRoughness) : vec3(0.0);
+	vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(g_reflectionNormal, cameraDir, L, sheenColor, sheenRoughness) : vec3(0.0);
 	vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(g_reflectionNormal, cameraDir, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
 	// Treat clearcoat as specular-like
 	directSpecular_L += clearcoat_L  * lightSource.specular;  // Scale by light's specular component;
@@ -1100,6 +1101,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// Attenuate base reflection where clearcoat is strong
 	ambient_L *= clearcoatAttenuation;
 	ambient_L += clearcoatIBL_L;
+
+	vec3 sheenIBL_L = (length(sheenColor) > 0.0)
+    ? calculateSheenIBL(g_reflectionNormal, V_hybrid, sheenRoughness, sheenColor)
+    : vec3(0.0);
+	ambient_L += sheenIBL_L;
 
 	// --- Emission
 	vec3 emissive_L = material.emission;
@@ -1208,6 +1214,33 @@ vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughnes
 	vec3 sheenBRDF = sheenColor * D * G / (4.0 * NdotV * NdotL + 0.001);
 
 	return sheenBRDF * NdotL;
+}
+
+vec3 calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor)
+{
+    // Use stable reflection direction like clearcoat
+    vec3 R = reflect(V, N);  // Base normal for consistency
+    R = normalize(R);
+    
+    float MAX_LOD = textureQueryLevels(prefilterMap) - 1.0;
+    float lod = sheenRoughness * MAX_LOD;
+    
+    vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+    
+    // Sheen Fresnel at grazing - very strong (that's the point of sheen)
+    float dotNV = clamp(dot(N, V), 0.0, 1.0);
+    float sheenFresnel = pow(1.0 - dotNV, 3.0); // More aggressive than clearcoat
+    
+    // Charlie geometry for the normal
+    float G = geometryCharlie(dotNV, sheenRoughness);
+    
+    // Soft, colored reflection (characteristic of fabric)
+    vec3 sheenIBL = prefilteredColor * sheenColor * G * sheenFresnel;
+    
+    float grazingPower = 2.0; // Sheen peaks at grazing
+    float grazing = pow(1.0 - dotNV, grazingPower);
+    
+    return sheenIBL * mix(0.3, 1.0, grazing);  // Boost at grazing
 }
 
 // Calculate clearcoat contribution
