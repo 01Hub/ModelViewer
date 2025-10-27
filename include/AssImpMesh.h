@@ -36,7 +36,7 @@ inline glm::vec2 getTexCoord(const Vertex& v, int index = 0)
 	return (index >= 0 && index < 4) ? v.TexCoords[index] : glm::vec2(0.0f);
 }
 
-static_assert(sizeof(Vertex) == sizeof(float) * (3 + 3 + 8 + 3 + 3 + 4),
+static_assert(sizeof(Vertex) == sizeof(float) * (4 + 3 + 3 + 3 + 3 + 8),
 	"Vertex struct has unexpected padding - meshopt stride will be incorrect");
 
 
@@ -48,7 +48,7 @@ struct Texture
 	bool hasAlpha = false;
 
 	// KHR_texture_transform support
-	int texCoordIndex = 0;           // Which TEXCOORD to use (0-3, default 0)
+	int texCoordIndex = 0;					// Which TEXCOORD to use (0-3, default 0)
 	glm::vec2 scale = glm::vec2(1.0f);      // Tiling/scale
 	glm::vec2 offset = glm::vec2(0.0f);     // UV offset
 	float rotation = 0.0f;                  // Rotation in radians
@@ -57,6 +57,11 @@ struct Texture
 	{
 		os << "Id: " << texture.id << " type: " << texture.type
 			<< " texCoordIndex: " << texture.texCoordIndex;
+		os << " path: " << texture.path.C_Str();
+		os << " hasAlpha: " << texture.hasAlpha;
+		os << " scale: (" << texture.scale.x << ", " << texture.scale.y << ")";
+		os << " offset: (" << texture.offset.x << ", " << texture.offset.y << ")";
+		os << " rotation: " << texture.rotation;
 		return os;
 	}
 };

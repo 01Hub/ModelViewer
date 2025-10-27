@@ -2,7 +2,7 @@
 
 layout(location = 0) in vec3 vertexPosition;
 layout(location = 1) in vec3 vertexNormal;
-layout(location = 2) in vec2 texCoord2d;
+layout(location = 2) in vec2 texCoord0;
 layout(location = 3) in vec3 vertexTangent;
 layout(location = 4) in vec3 vertexBitangent;
 
@@ -28,7 +28,7 @@ out float v_clipDist;
 
 out vec3 v_normal;
 out vec3 v_position;
-out vec2 v_texCoord2d;
+out vec2 v_texCoord0;
 out vec3 v_tangent;
 out vec3 v_bitangent;
 out vec3 v_tangentLightPos;
@@ -52,7 +52,7 @@ void main()
     v_normal     = normalize(normalMatrix * vertexNormal);                       // normal vector
     //v_normal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
     v_position   = vec3(modelMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
-    v_texCoord2d = texCoord2d;
+    v_texCoord0 = texCoord0;
     v_tangent = normalize(normalMatrix * vertexTangent);
     v_bitangent = normalize(normalMatrix * vertexBitangent);
 
@@ -66,7 +66,7 @@ void main()
     // Shadow mapping
     vs_out_shadow.FragPos = vec3(modelMatrix * vec4(vertexPosition, 1.0));
     vs_out_shadow.Normal = normalize(mat3(transpose(inverse(modelMatrix))) * vertexNormal);
-    vs_out_shadow.TexCoords = v_texCoord2d;
+    vs_out_shadow.TexCoords = v_texCoord0;
     vs_out_shadow.FragPosLightSpace = lightSpaceMatrix * vec4(vs_out_shadow.FragPos, 1.0);
     vs_out_shadow.cameraPos = cameraPos;
     vs_out_shadow.lightPos = lightPos;

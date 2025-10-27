@@ -308,6 +308,19 @@ void AssImpMesh::setupMesh()
 	{
 		qDebug() << "  [" << i << "]:" << texCoords[i];
 	}
+	// output the texture metadata for debugging
+	qDebug() << "=== TEXTURE METADATA DEBUG ===";
+	for (size_t i = 0; i < _textures.size(); i++)
+	{
+		const Texture& tex = _textures[i];
+		qDebug() << "Texture [" << i << "] Type:" << QString::fromStdString(tex.type)
+			<< " ID:" << tex.id
+			<< " HasAlpha:" << tex.hasAlpha
+			<< " TexCoordIndex:" << tex.texCoordIndex
+			<< " Scale:" << tex.scale.x << "," << tex.scale.y
+			<< " Offset:" << tex.offset.x << "," << tex.offset.y
+			<< " Rotation (radians):" << tex.rotation;
+	}
 
 	initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
 	computeBounds();

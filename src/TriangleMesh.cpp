@@ -156,15 +156,6 @@ void TriangleMesh::initBuffers(
 	_normalBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
 	_normalBuffer.allocate(normals->data(), static_cast<int>(normals->size() * sizeof(float)));
 
-	/*if (_texCoords.size())
-	{
-		_buffers.push_back(_texCoord0Buffer);
-		_texCoord0Buffer.bind();
-		_texCoord0Buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
-		_texCoord0Buffer.allocate(_texCoords.data(), static_cast<int>(_texCoords.size() * sizeof(float)));
-		_memorySize += _texCoords.size() * sizeof(float);
-	}*/
-
 	if (_tangents.size())
 	{
 		_buffers.push_back(_tangentBuf);
@@ -200,6 +191,22 @@ void TriangleMesh::initBuffers(
 	//glEnableVertexAttribArray(1);  // Normal
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+	if (_tangents.size())
+	{
+		_tangentBuf.bind();
+		//glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
+		//glEnableVertexAttribArray(3);  // Tangents
+		_prog->enableAttributeArray("vertexTangent");
+		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
+	}
+
+	if (_bitangents.size())
+	{
+		_bitangentBuf.bind();
+		_prog->enableAttributeArray("vertexBitangent");
+		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
+	}
 
 	// Tex coords
 	if (_texCoords.size())
@@ -256,48 +263,23 @@ void TriangleMesh::initBuffers(
 		_texCoord3Buffer.allocate(texCoord3.data(), static_cast<int>(texCoord3.size() * sizeof(float)));
 		_memorySize += texCoord3.size() * sizeof(float);
 
-		// Set up vertex attributes (stride = 0 for each, since they're now separate)
+		// Set up vertex attributes (stride = 0 for each, since they're separate)
 		_texCoord0Buffer.bind();
-		_prog->enableAttributeArray("texCoord2d");
-		_prog->setAttributeBuffer("texCoord2d", GL_FLOAT, 0, 2, 0);
-
-		// These will be enabled when shader supports them:
-		if (_prog->attributeLocation("texCoord1") != -1)
-		{
-			_texCoord1Buffer.bind();
-			_prog->enableAttributeArray("texCoord1");
-			_prog->setAttributeBuffer("texCoord1", GL_FLOAT, 0, 2, 0);
-		}
-
-		if (_prog->attributeLocation("texCoord2") != -1)
-		{
-			_texCoord2Buffer.bind();
-			_prog->enableAttributeArray("texCoord2");
-			_prog->setAttributeBuffer("texCoord2", GL_FLOAT, 0, 2, 0);
-		}
-
-		if (_prog->attributeLocation("texCoord3") != -1)
-		{
-			_texCoord3Buffer.bind();
-			_prog->enableAttributeArray("texCoord3");
-			_prog->setAttributeBuffer("texCoord3", GL_FLOAT, 0, 2, 0);
-		}
-	}
-
-	if (_tangents.size())
-	{
-		_tangentBuf.bind();
-		//glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
-		//glEnableVertexAttribArray(3);  // Tangents
-		_prog->enableAttributeArray("vertexTangent");
-		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
-	}
-
-	if (_bitangents.size())
-	{
-		_bitangentBuf.bind();
-		_prog->enableAttributeArray("vertexBitangent");
-		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
+		_prog->enableAttributeArray("texCoord0");
+		_prog->setAttributeBuffer("texCoord0", GL_FLOAT, 0, 2, 0);
+		
+		_texCoord1Buffer.bind();
+		_prog->enableAttributeArray("texCoord1");
+		_prog->setAttributeBuffer("texCoord1", GL_FLOAT, 0, 2, 0);
+		
+		_texCoord2Buffer.bind();
+		_prog->enableAttributeArray("texCoord2");
+		_prog->setAttributeBuffer("texCoord2", GL_FLOAT, 0, 2, 0);
+		
+		_texCoord3Buffer.bind();
+		_prog->enableAttributeArray("texCoord3");
+		_prog->setAttributeBuffer("texCoord3", GL_FLOAT, 0, 2, 0);
+		
 	}
 
 	_vertexArrayObject.release();
@@ -367,8 +349,20 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 	if (_texCoords.size())
 	{
 		_texCoord0Buffer.bind();
-		_prog->enableAttributeArray("texCoord2d");
-		_prog->setAttributeBuffer("texCoord2d", GL_FLOAT, 0, 2);
+		_prog->enableAttributeArray("texCoord0");
+		_prog->setAttributeBuffer("texCoord0", GL_FLOAT, 0, 2);
+
+		_texCoord1Buffer.bind();
+		_prog->enableAttributeArray("texCoord1");
+		_prog->setAttributeBuffer("texCoord1", GL_FLOAT, 0, 2);
+
+		_texCoord2Buffer.bind();
+		_prog->enableAttributeArray("texCoord2");
+		_prog->setAttributeBuffer("texCoord2", GL_FLOAT, 0, 2);
+		
+		_texCoord3Buffer.bind();
+		_prog->enableAttributeArray("texCoord3");
+		_prog->setAttributeBuffer("texCoord3", GL_FLOAT, 0, 2);
 	}
 
 	// Tangents

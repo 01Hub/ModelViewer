@@ -5,7 +5,7 @@
 
 in vec3 g_position;
 in vec3 g_normal;
-in vec2 g_texCoord2d;
+in vec2 g_texCoord0;
 in vec3 g_tangent;
 in vec3 g_bitangent;
 noperspective in vec3 g_edgeDistance;
@@ -365,7 +365,7 @@ void main()
 	if(displayMode == 0 || displayMode == 3) // shaded
 	{
 		if(texEnabled == true)
-			fragColor = v_color * texture2D(texUnit, g_texCoord2d);
+			fragColor = v_color * texture2D(texUnit, g_texCoord0);
 		else
 			fragColor = v_color;
 	}
@@ -389,7 +389,7 @@ void main()
 		}
 
 		if (texEnabled == true)
-			v_color *= texture2D(texUnit, g_texCoord2d);
+			v_color *= texture2D(texUnit, g_texCoord0);
 
 		// Adaptive overlay color based on base diffuse
 		vec3 baseColor = material.diffuse;
@@ -423,11 +423,11 @@ void main()
 
 			// Priority: dedicated opacity map > fallbacks
 			if (hasOpacityMap) {
-				float opVal = sampleOpacityMap(g_texCoord2d);
+				float opVal = sampleOpacityMap(g_texCoord0);
 				testAlpha *= opVal;
 			} else {
 				// fallback to albedo/diffuse alpha or legacy opacity texture
-				float fallback = sampleFallbackOpacity(g_texCoord2d);
+				float fallback = sampleFallbackOpacity(g_texCoord0);
 				testAlpha *= fallback;
 			}
 
@@ -439,9 +439,9 @@ void main()
 			float alphaVal = opacity;
 
 			if (hasOpacityMap) {
-				alphaVal *= sampleOpacityMap(g_texCoord2d);
+				alphaVal *= sampleOpacityMap(g_texCoord0);
 			} else {
-				alphaVal *= sampleFallbackOpacity(g_texCoord2d);
+				alphaVal *= sampleFallbackOpacity(g_texCoord0);
 			}
 
 			// clamp and optionally apply any opacityScale/bias global (if desired)
@@ -467,7 +467,7 @@ void main()
 		float transmissionFactor = pbrLighting.transmission;
 
 		if (hasTransmissionMap) {
-			float mapVal = texture(transmissionMap, g_texCoord2d).r;
+			float mapVal = texture(transmissionMap, g_texCoord0).r;
 			transmissionFactor *= mapVal;
 		}
 
@@ -579,7 +579,7 @@ void main()
 		{
 			// Interpolate background gradient color
 			//backgroundColor = calculateBackgroundColor();
-			backgroundColor = texture2D(texUnit, g_texCoord2d).rgb;	
+			backgroundColor = texture2D(texUnit, g_texCoord0).rgb;	
 		}
 		
 		// Blend floor color with background gradient
@@ -590,11 +590,11 @@ void main()
 
 vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
-	vec2 clippedTexCoord = g_texCoord2d;
+	vec2 clippedTexCoord = g_texCoord0;
 
 	// --- Normal / Parallax (same as before) ---
 	if (hasNormalTexture)
-		normal = calcBumpedNormal(texture_normal, g_texCoord2d);
+		normal = calcBumpedNormal(texture_normal, g_texCoord0);
 
 	if (hasHeightTexture) {		
 		vec3 n = normalize(g_normal);
@@ -604,11 +604,11 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 		vec3 viewDirWorld = normalize(cameraPos - g_position);
 		vec3 viewDirTangent = TBN * viewDirWorld;
-		clippedTexCoord = parallaxOcclusionMapping(g_texCoord2d, viewDirTangent, texture_height, heightScale);
+		clippedTexCoord = parallaxOcclusionMapping(g_texCoord0, viewDirTangent, texture_height, heightScale);
 
 		if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
 				clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
-			clippedTexCoord = g_texCoord2d; // discard;
+			clippedTexCoord = g_texCoord0; // discard;
 
 		normal = calcBumpedNormal(texture_normal, clippedTexCoord);
 	}
@@ -746,7 +746,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		L = normalize(lightSource.position + cameraPos);
 	}
 
-	vec2 clippedTexCoord = g_texCoord2d;
+	vec2 clippedTexCoord = g_texCoord0;
 	vec4 textureColor = vec4(1.0);
 
 	// --- Material source: uniforms-only (renderMode==1) vs texture-driven (renderMode!=1)
@@ -778,7 +778,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	} else {
 		// Normal map / Parallax
-		if (hasNormalMap)  N = calcBumpedNormal(normalMap, g_texCoord2d) * side;
+		if (hasNormalMap)  N = calcBumpedNormal(normalMap, g_texCoord0) * side;
 		else               N = normalize(normal);
 
 		if (hasHeightMap) {
@@ -791,10 +791,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			vec3 viewDirWorld   = normalize(cameraPos - g_position);
 			vec3 viewDirTangent = TBN * viewDirWorld;
 
-			clippedTexCoord = parallaxOcclusionMapping(g_texCoord2d, viewDirTangent, heightMap, heightScale);
+			clippedTexCoord = parallaxOcclusionMapping(g_texCoord0, viewDirTangent, heightMap, heightScale);
 			if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
 					clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
-				clippedTexCoord = g_texCoord2d; // discard;
+				clippedTexCoord = g_texCoord0; // discard;
 
 			N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
 		}
@@ -1651,12 +1651,12 @@ void applyEnvironmentMapping(float alphaIn)
 // Easy trick to get tangent-normals to world-space to keep PBR code simplified.
 vec3 getNormalFromMap()
 {
-	vec3 tangentNormal = texture(normalMap, g_texCoord2d).xyz * 2.0 - 1.0;
+	vec3 tangentNormal = texture(normalMap, g_texCoord0).xyz * 2.0 - 1.0;
 
 	vec3 Q1  = dFdx(g_position);
 	vec3 Q2  = dFdy(g_position);
-	vec2 st1 = dFdx(g_texCoord2d);
-	vec2 st2 = dFdy(g_texCoord2d);
+	vec2 st1 = dFdx(g_texCoord0);
+	vec2 st2 = dFdy(g_texCoord0);
 
 	vec3 N   = normalize(g_normal);
 	vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
@@ -1668,12 +1668,12 @@ vec3 getNormalFromMap()
 
 mat3 getTBNFromMap()
 {
-	vec3 tangentNormal = texture(normalMap, g_texCoord2d).xyz * 2.0 - 1.0;
+	vec3 tangentNormal = texture(normalMap, g_texCoord0).xyz * 2.0 - 1.0;
 
 	vec3 Q1  = dFdx(g_position);
 	vec3 Q2  = dFdy(g_position);
-	vec2 st1 = dFdx(g_texCoord2d);
-	vec2 st2 = dFdy(g_texCoord2d);
+	vec2 st1 = dFdx(g_texCoord0);
+	vec2 st2 = dFdy(g_texCoord0);
 
 	vec3 N   = normalize(g_normal);
 	vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
