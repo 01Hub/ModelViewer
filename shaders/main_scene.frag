@@ -473,11 +473,11 @@ void main()
 
 		if (transmissionFactor > 0.0) {
 			vec3 N = normalize(g_normal);
-			vec3 V = normalize(cameraPos - g_position);
+			vec3 V = normalize(cameraDir);
 
 			// Refract ray into environment
 			float ior = (pbrLighting.ior > 0.0) ? pbrLighting.ior : 1.5;
-			vec3 R = refract(-V, N, 1.0 / ior);
+			vec3 R = refract(V, N, 1.0 / ior);
 
 			// Sample environment
 			vec3 envColor = texture(envMap, R).rgb;
@@ -565,12 +565,12 @@ void main()
 		vec3 backgroundColor;
 		if (skyBoxEnabled) 
 		{			
-			vec3 N = normalize(g_normal);
-			vec3 V = normalize(cameraPos - g_position);
+			vec3 N = normalize(g_reflectionNormal);
+			vec3 V = normalize(cameraDir);
 
 			// Refract ray into environment
 			float ior = 1.5; // IOR of glass
-			vec3 R = refract(-V, N, 1.0 / ior);
+			vec3 R = refract(V, N, 1.0 / ior);
 
 			// Sample environment
 			vec3 backgroundColor = texture(envMap, R).rgb;
@@ -1541,7 +1541,7 @@ void applyEnvironmentMapping(float alphaIn)
     // 1) Transmission with exposure control
     if (pbrLighting.transmission > 0.0) {
         float eta = max(1e-3, pbrLighting.ior);
-        vec3 R = refract(normalize(g_reflectionPosition - cameraPos), normalize(g_reflectionNormal), 1.0 / eta);
+        vec3 R = refract(normalize(cameraDir), normalize(g_reflectionNormal), 1.0 / eta);
         R = envMapRotationMatrix * R;
         R = normalize(R);
 
