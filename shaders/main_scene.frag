@@ -976,7 +976,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	// Apply iridescence to F0
 	if (iridescenceFactor > 0.0) {
-		vec3 iridescenceF0 = calculateIridescence(N, V, iridescenceFactor, iridescenceIor, iridescenceThickness);
+		vec3 iridescenceF0 = calculateIridescence(normalize(g_reflectionNormal), normalize(cameraDir), iridescenceFactor, iridescenceIor, iridescenceThickness);
 		F0 = mix(F0, iridescenceF0, iridescenceFactor);
 	}
 
