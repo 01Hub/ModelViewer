@@ -48,6 +48,15 @@ private:
 
 	unsigned int textureFromFile(const char* path, bool& hasAlpha);
 
+private:
+	/**
+	 * Attempt to load texture using glTF metadata fallback path
+	 * Called when assimp fails to load from its path
+	 * @param textureType The assimp texture type name
+	 * @return Full path to texture file from glTF metadata, or empty string if not found
+	 */
+	std::string tryFallbackTextureLoading(const std::string& textureType);
+
 	// Each entry: primary type + uniform name, and an optional fallback type+uniform name
 	struct TextureSlotMapping
 	{

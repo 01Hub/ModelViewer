@@ -17,6 +17,8 @@ struct TextureMetadata
     glm::vec2 scale = glm::vec2(1.0f);      // Tiling scale
     glm::vec2 offset = glm::vec2(0.0f);     // UV offset
     float rotation = 0.0f;                   // Rotation in radians
+    std::string filePath = "";               // Full resolved path to texture file
+    std::string uri = "";                    // Original URI from glTF (relative path)
 
     bool hasTransform = false;       // Whether KHR_texture_transform was applied
 };
@@ -82,7 +84,22 @@ public:
     bool hasTextureMetadata(int textureIndex) const;
 
     /**
-    * 
+     * Get the full file path for a texture (useful for fallback loading)
+     * @param textureIndex Index from glTF texture array
+     * @return Full resolved path to texture file, empty string if not found
+     */
+    std::string getTextureFilePath(int textureIndex) const;
+
+    /**
+     * Get file path for a specific texture role in a material (e.g., "baseColor", "normal")
+     * @param materialIndex Index from glTF material array
+     * @param role Texture role name ("baseColor", "normal", "emissive", etc.)
+     * @return Full resolved path to texture file, empty string if not found
+     */
+    std::string getMaterialTextureFilePath(int materialIndex, const std::string& role) const;
+
+    /**
+    *
     */
     ScalarMetadata getScalarMetadata(int materialIndex) const;
 
@@ -101,6 +118,8 @@ private:
 
     std::map<int, ScalarMetadata> _materialScalars;
 
+    std::string _glTFDirectoryPath;  // Directory containing the glTF file (for resolving relative texture paths)
+
     /**
      * Helper: Parse a single texture info object from JSON
      * Handles both direct properties and KHR_texture_transform extension
@@ -116,6 +135,16 @@ private:
      * Helper: Extract texCoord index from texture info object
      */
     int extractTexCoordIndex(const QJsonObject& textureInfoObj);
+
+    /**
+     * Helper: Extract texture URI from a texture index (looks up textures[] and images[] arrays)
+     */
+    std::string extractTextureURI(const QJsonObject& root, int textureIndex);
+
+    /**
+     * Helper: Resolve a texture URI to a full file path relative to glTF directory
+     */
+    std::string resolveTexturePath(const std::string& uri) const;
 
     /**
      * Helper: Parse all materials and build material->texture mappings

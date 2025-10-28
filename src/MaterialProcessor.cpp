@@ -541,6 +541,74 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, bool& hasAlpha
     return textureID;
 }
 
+std::string MaterialProcessor::tryFallbackTextureLoading(const std::string& textureType)
+{
+    if (!_glTFMetadataExtractor || _currentMaterialIndex < 0)
+        return "";
+
+    // Map texture type names to glTF material roles
+    static const std::map<std::string, std::vector<std::string>> typeToRoles = {
+        // PBR Core
+        {"albedoMap", {"baseColor"}},
+        {"texture_diffuse", {"baseColor"}},
+        {"normalMap", {"normal"}},
+        {"texture_normal", {"normal"}},
+        {"metallicMap", {"metallicRoughness"}},
+        {"roughnessMap", {"metallicRoughness"}},
+        {"texture_specular", {"metallicRoughness"}},
+        {"emissiveMap", {"emissive"}},
+        {"texture_emissive", {"emissive"}},
+        {"aoMap", {"occlusion"}},
+
+        // KHR_materials_clearcoat
+        {"clearcoatMap", {"clearcoat"}},
+        {"clearcoatRoughnessMap", {"clearcoatRoughness"}},
+        {"clearcoatNormalMap", {"clearcoatNormal"}},
+
+        // KHR_materials_sheen
+        {"sheenColorMap", {"sheenColor"}},
+        {"sheenRoughnessMap", {"sheenRoughness"}},
+
+        // KHR_materials_transmission
+        {"transmissionMap", {"transmission"}},
+
+        // KHR_materials_volume
+        {"thicknessMap", {"thickness"}},
+
+        // KHR_materials_specular
+        {"specularFactorMap", {"specularFactor"}},
+        {"specularColorMap", {"specularColor"}},
+
+        // KHR_materials_anisotropy
+        {"anisotropyMap", {"anisotropy"}},
+
+        // KHR_materials_iridescence
+        {"iridescenceMap", {"iridescence"}},
+        {"iridescenceThicknessMap", {"iridescenceThickness"}},
+    };
+
+    auto it = typeToRoles.find(textureType);
+    if (it == typeToRoles.end())
+        return "";
+
+    for (const auto& role : it->second)
+    {
+        std::string path = _glTFMetadataExtractor->getMaterialTextureFilePath(
+            _currentMaterialIndex, role);
+
+        if (!path.empty())
+        {
+            qDebug() << "MaterialProcessor: Found fallback texture for"
+                << QString::fromStdString(textureType)
+                << "via role" << QString::fromStdString(role)
+                << "path:" << QString::fromStdString(path);
+            return path;
+        }
+    }
+
+    return "";
+}
+
 void MaterialProcessor::debugMaterialTextures(aiMaterial* material, const std::string& materialName)
 {
     std::cout << "=== Material: " << materialName << " ===" << std::endl;
@@ -840,62 +908,124 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
 {
     std::vector<Texture> textures;
 
-    if (mat->GetTextureCount(type) <= slotIndex)
-        return textures;
-
+    // STEP 1: Try to get texture from assimp
+    std::string textureFilePath;
     aiString str;
-    if (mat->GetTexture(type, slotIndex, &str) != AI_SUCCESS)
-        return textures;
+    bool foundInAssimp = false;
 
-    std::string textureFilePath = this->_folderPath + '/' + string(str.C_Str());    
-    std::replace(textureFilePath.begin(), textureFilePath.end(), '\\', '/');
-    // If same path+type already loaded -> reuse
+    if (mat->GetTextureCount(type) > slotIndex)
+    {
+        if (mat->GetTexture(type, slotIndex, &str) == AI_SUCCESS)
+        {
+            foundInAssimp = true;
+            textureFilePath = this->_folderPath + '/' + string(str.C_Str());
+            std::replace(textureFilePath.begin(), textureFilePath.end(), '\\', '/');
+        }
+    }
+
+    // STEP 2: If assimp didn't have it, try glTF metadata
+    if (!foundInAssimp && _glTFMetadataExtractor && _currentMaterialIndex >= 0)
+    {
+        qDebug() << "MaterialProcessor: Texture type" << QString::fromStdString(typeName)
+            << "not found in assimp - checking glTF metadata...";
+
+        std::string fallbackPath = tryFallbackTextureLoading(typeName);
+        if (!fallbackPath.empty())
+        {
+            qDebug() << "MaterialProcessor: Found texture in glTF metadata:"
+                << QString::fromStdString(fallbackPath);
+            textureFilePath = fallbackPath;
+            foundInAssimp = true;  // Set to true so we continue processing
+        }
+    }
+
+    // STEP 3: If still not found, return empty
+    if (!foundInAssimp)
+    {
+        qDebug() << "MaterialProcessor: Texture type" << QString::fromStdString(typeName)
+            << "not found in assimp or glTF metadata";
+        return textures;  // Return empty, no texture found anywhere
+    }
+
+    // STEP 4: Check cache - exact path + type match
     for (const auto& lt : _loadedTextures)
     {
         if (string(lt.path.C_Str()) == textureFilePath && lt.type == typeName)
         {
             textures.push_back(lt);
-            //std::cout << lt << std::endl;
+            qDebug() << "MaterialProcessor: Found cached texture" << QString::fromStdString(typeName);
             return textures;
         }
     }
 
-    // If same path loaded but with different uniform name -> reuse its GPU id
+    // STEP 5: Check cache - same path, different type (reuse GPU ID)
     for (const auto& lt : _loadedTextures)
     {
         if (string(lt.path.C_Str()) == textureFilePath && lt.type != typeName)
         {
             Texture alias;
-            alias.id = lt.id;           // reuse GPU texture
-            alias.type = typeName;        // requested uniform name
+            alias.id = lt.id;
+            alias.type = typeName;
             alias.path = lt.path;
-			alias.hasAlpha = lt.hasAlpha; // reuse alpha info
-            alias.texCoordIndex = 0;              // <- NEW
-            alias.scale = glm::vec2(1.0f);        // <- NEW
-            alias.offset = glm::vec2(0.0f);       // <- NEW
-            alias.rotation = 0.0f;                // <- NEW
+            alias.hasAlpha = lt.hasAlpha;
+            alias.texCoordIndex = 0;
+            alias.scale = glm::vec2(1.0f);
+            alias.offset = glm::vec2(0.0f);
+            alias.rotation = 0.0f;
             textures.push_back(alias);
-            _loadedTextures.push_back(alias); // register alias to avoid re-creating later
-            //std::cout << lt << std::endl;
+            _loadedTextures.push_back(alias);
+            qDebug() << "MaterialProcessor: Created texture alias for" << QString::fromStdString(typeName);
             return textures;
         }
     }
 
-    // Not loaded at all: load from file
+    // STEP 6: Not in cache - try loading from file (with fallback if first attempt fails)
     Texture texture;
-	bool hasAlpha = false;    
+    bool hasAlpha = false;
+
+    // Try assimp path first
+    qDebug() << "MaterialProcessor: Attempting to load texture from:"
+        << QString::fromStdString(textureFilePath);
     texture.id = textureFromFile(textureFilePath.c_str(), hasAlpha);
+
+    // If that failed, try fallback (in case assimp path is wrong but glTF path is correct)
+    if (texture.id == 0 && _glTFMetadataExtractor && _currentMaterialIndex >= 0)
+    {
+        qWarning() << "MaterialProcessor: Failed to load from:"
+            << QString::fromStdString(textureFilePath);
+        qWarning() << "  Attempting fallback load using glTF metadata...";
+
+        std::string fallbackPath = tryFallbackTextureLoading(typeName);
+        if (!fallbackPath.empty() && fallbackPath != textureFilePath)
+        {
+            qDebug() << "MaterialProcessor: Trying fallback path:"
+                << QString::fromStdString(fallbackPath);
+
+            texture.id = textureFromFile(fallbackPath.c_str(), hasAlpha);
+
+            if (texture.id != 0)
+            {
+                qDebug() << "MaterialProcessor: Successfully loaded from glTF fallback path";
+                textureFilePath = fallbackPath;
+            }
+            else
+            {
+                qWarning() << "MaterialProcessor: Fallback path also failed";
+            }
+        }
+    }
+
+    // Store the texture (even if loading failed - texture.id will be 0)
     texture.type = typeName;
     texture.path = aiString(textureFilePath);
-	texture.hasAlpha = hasAlpha; // Store alpha info for later use
-    texture.texCoordIndex = 0;           // <- DEFAULT: TEXCOORD_0
-    texture.scale = glm::vec2(1.0f);     // <- DEFAULT: Identity scale
-    texture.offset = glm::vec2(0.0f);    // <- DEFAULT: No offset
-    texture.rotation = 0.0f;              // <- DEFAULT: No rotation
+    texture.hasAlpha = hasAlpha;
+    texture.texCoordIndex = 0;
+    texture.scale = glm::vec2(1.0f);
+    texture.offset = glm::vec2(0.0f);
+    texture.rotation = 0.0f;
+
     textures.push_back(texture);
     _loadedTextures.push_back(texture);
-
-    //std::cout << texture << std::endl;
 
     return textures;
 }

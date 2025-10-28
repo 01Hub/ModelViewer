@@ -25,6 +25,19 @@ bool GLTFMetadataExtractor::parseGLTFFile(const std::string& filePath)
     QByteArray data = file.readAll();
     file.close();
 
+    // Extract directory path from filePath (everything up to the last '/' or '\')
+    size_t lastSlash = filePath.find_last_of("/\\");
+    if (lastSlash != std::string::npos)
+    {
+        _glTFDirectoryPath = filePath.substr(0, lastSlash + 1);
+    }
+    else
+    {
+        _glTFDirectoryPath = "./";
+    }
+
+    qDebug() << "GLTFMetadataExtractor: glTF directory path:" << QString::fromStdString(_glTFDirectoryPath);
+
     QJsonDocument doc = QJsonDocument::fromJson(data);
     if (!doc.isObject())
     {
@@ -82,6 +95,32 @@ std::map<std::string, TextureMetadata> GLTFMetadataExtractor::getMaterialTexture
 bool GLTFMetadataExtractor::hasTextureMetadata(int textureIndex) const
 {
     return _textureMetadata.find(textureIndex) != _textureMetadata.end();
+}
+
+std::string GLTFMetadataExtractor::getTextureFilePath(int textureIndex) const
+{
+    auto it = _textureMetadata.find(textureIndex);
+    if (it != _textureMetadata.end())
+    {
+        return it->second.filePath;
+    }
+    return ""; // Return empty string if not found
+}
+
+std::string GLTFMetadataExtractor::getMaterialTextureFilePath(int materialIndex, const std::string& role) const
+{
+    auto matIt = _materialTextures.find(materialIndex);
+    if (matIt != _materialTextures.end())
+    {
+        auto roleIt = matIt->second.find(role);
+        if (roleIt != matIt->second.end())
+        {
+            // roleIt->second is std::pair<int, TextureMetadata>
+            const TextureMetadata& metadata = roleIt->second.second;
+            return metadata.filePath;
+        }
+    }
+    return ""; // Return empty string if not found
 }
 
 ScalarMetadata GLTFMetadataExtractor::getScalarMetadata(int materialIndex) const
@@ -183,6 +222,63 @@ int GLTFMetadataExtractor::extractTexCoordIndex(const QJsonObject& textureInfoOb
     return 0; // Default to TEXCOORD_0
 }
 
+std::string GLTFMetadataExtractor::extractTextureURI(const QJsonObject& root, int textureIndex)
+{
+    // Look up the texture index in the "textures" array
+    if (!root.contains("textures"))
+        return "";
+
+    QJsonArray texturesArray = root["textures"].toArray();
+    if (textureIndex < 0 || textureIndex >= texturesArray.size())
+        return "";
+
+    QJsonObject textureObj = texturesArray[textureIndex].toObject();
+
+    // Get the image index from the texture
+    if (!textureObj.contains("source"))
+        return "";
+
+    int imageIndex = textureObj["source"].toInt(-1);
+    if (imageIndex < 0)
+        return "";
+
+    // Look up the image index in the "images" array
+    if (!root.contains("images"))
+        return "";
+
+    QJsonArray imagesArray = root["images"].toArray();
+    if (imageIndex >= imagesArray.size())
+        return "";
+
+    QJsonObject imageObj = imagesArray[imageIndex].toObject();
+
+    // Get the URI from the image
+    if (imageObj.contains("uri"))
+    {
+        return imageObj["uri"].toString().toStdString();
+    }
+
+    return "";
+}
+
+std::string GLTFMetadataExtractor::resolveTexturePath(const std::string& uri) const
+{
+    if (uri.empty())
+        return "";
+
+    // If URI is already an absolute path or starts with http, return as is
+    if (uri[0] == '/' || uri.substr(0, 7) == "http://" || uri.substr(0, 8) == "https://")
+        return uri;
+
+    // Otherwise, concatenate with glTF directory path
+    std::string resolved = _glTFDirectoryPath + uri;
+
+    // Normalize path separators to forward slashes
+    std::replace(resolved.begin(), resolved.end(), '\\', '/');
+
+    return resolved;
+}
+
 void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
 {
     if (!root.contains("materials"))
@@ -210,10 +306,17 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                 if (texIndex >= 0)
                 {
                     TextureMetadata metadata = parseTextureInfo(baseColorTexInfo);
+                    // Extract URI and resolve full path
+                    metadata.uri = extractTextureURI(root, texIndex);
+                    metadata.filePath = resolveTexturePath(metadata.uri);
+                    // Extract URI and resolve full path
+                    metadata.uri = extractTextureURI(root, texIndex);
+                    metadata.filePath = resolveTexturePath(metadata.uri);
                     materialTextures["baseColor"] = std::make_pair(texIndex, metadata);
                     _textureMetadata[texIndex] = metadata;
                     qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "baseColor texture" << texIndex
-                        << "texCoord:" << metadata.texCoordIndex;
+                        << "texCoord:" << metadata.texCoordIndex
+                        << "path:" << QString::fromStdString(metadata.filePath);
                 }
             }
 
@@ -225,10 +328,17 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                 if (texIndex >= 0)
                 {
                     TextureMetadata metadata = parseTextureInfo(metalRoughTexInfo);
+                    // Extract URI and resolve full path
+                    metadata.uri = extractTextureURI(root, texIndex);
+                    metadata.filePath = resolveTexturePath(metadata.uri);
+                    // Extract URI and resolve full path
+                    metadata.uri = extractTextureURI(root, texIndex);
+                    metadata.filePath = resolveTexturePath(metadata.uri);
                     materialTextures["metallicRoughness"] = std::make_pair(texIndex, metadata);
                     _textureMetadata[texIndex] = metadata;
                     qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "metallicRoughness texture" << texIndex
-                        << "texCoord:" << metadata.texCoordIndex;
+                        << "texCoord:" << metadata.texCoordIndex
+                        << "path:" << QString::fromStdString(metadata.filePath);
                 }
             }
         }
@@ -241,6 +351,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
             if (texIndex >= 0)
             {
                 TextureMetadata metadata = parseTextureInfo(normalTexInfo);
+                // Extract URI and resolve full path
+                metadata.uri = extractTextureURI(root, texIndex);
+                metadata.filePath = resolveTexturePath(metadata.uri);
                 materialTextures["normal"] = std::make_pair(texIndex, metadata);
                 _textureMetadata[texIndex] = metadata;
                 qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "normal texture" << texIndex
@@ -256,6 +369,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
             if (texIndex >= 0)
             {
                 TextureMetadata metadata = parseTextureInfo(aoTexInfo);
+                // Extract URI and resolve full path
+                metadata.uri = extractTextureURI(root, texIndex);
+                metadata.filePath = resolveTexturePath(metadata.uri);
                 materialTextures["occlusion"] = std::make_pair(texIndex, metadata);
                 _textureMetadata[texIndex] = metadata;
                 qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "occlusion texture" << texIndex
@@ -271,6 +387,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
             if (texIndex >= 0)
             {
                 TextureMetadata metadata = parseTextureInfo(emissiveTexInfo);
+                // Extract URI and resolve full path
+                metadata.uri = extractTextureURI(root, texIndex);
+                metadata.filePath = resolveTexturePath(metadata.uri);
                 materialTextures["emissive"] = std::make_pair(texIndex, metadata);
                 _textureMetadata[texIndex] = metadata;
                 qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "emissive texture" << texIndex
@@ -294,6 +413,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["clearcoat"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "clearcoat texture" << texIndex;
@@ -307,6 +429,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["clearcoatRoughness"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "clearcoatRoughness texture" << texIndex;
@@ -320,6 +445,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["clearcoatNormal"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "clearcoatNormal texture" << texIndex;
@@ -339,6 +467,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["sheenColor"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "sheenColor texture" << texIndex;
@@ -352,6 +483,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["sheenRoughness"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "sheenRoughness texture" << texIndex;
@@ -371,6 +505,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["transmission"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "transmission texture" << texIndex;
@@ -390,6 +527,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["thickness"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "thickness texture" << texIndex;
@@ -409,6 +549,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["specularFactor"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "specularFactor texture" << texIndex;
@@ -422,6 +565,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["specularColor"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "specularColor texture" << texIndex;
@@ -441,6 +587,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["iridescence"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "iridescence texture" << texIndex;
@@ -454,6 +603,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["iridescenceThickness"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "iridescenceThickness texture" << texIndex;
@@ -473,6 +625,9 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     if (texIndex >= 0)
                     {
                         TextureMetadata metadata = parseTextureInfo(texInfo);
+                        // Extract URI and resolve full path
+                        metadata.uri = extractTextureURI(root, texIndex);
+                        metadata.filePath = resolveTexturePath(metadata.uri);
                         materialTextures["anisotropy"] = std::make_pair(texIndex, metadata);
                         _textureMetadata[texIndex] = metadata;
                         qDebug() << "GLTFMetadataExtractor: Material" << matIdx << "anisotropy texture" << texIndex;
@@ -480,7 +635,7 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                 }
             }
 
-			// Parse the scalar properties if needed
+            // Parse the scalar properties if needed
             ScalarMetadata scalars;
 
             // --- KHR_materials_volume ---
