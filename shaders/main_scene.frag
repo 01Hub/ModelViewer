@@ -465,7 +465,6 @@ void main()
 	// Keep alpha from opacity logic above.
 	if (renderingMode == 1) { // PBR mode
 		float transmissionFactor = pbrLighting.transmission;
-
 		if (hasTransmissionMap) {
 			float mapVal = texture(transmissionMap, g_texCoord0).r;
 			transmissionFactor *= mapVal;
@@ -473,28 +472,45 @@ void main()
 
 		if (transmissionFactor > 0.0) {
 			vec3 N = normalize(g_reflectionNormal);
-			//vec3 V = normalize(cameraDir);
+
+			// Base view direction from turntable camera
 			vec3 V_base = normalize(cameraDir);
-			// Add positional offset (for panning awareness)
+
+			// Offset to simulate panning effect
 			vec3 offset = normalize(cameraPos - g_reflectionPosition);
 			vec3 V = normalize(V_base - offset * 0.3);
 
-			// Refract ray into environment
-			float ior = (pbrLighting.ior > 0.0) ? pbrLighting.ior : 1.5;
-			vec3 R = refract(V, N, 1.0 / ior);
+			// Ensure correct orientation for refraction
+			if (dot(N, V) < 0.0) N = -N;
 
-			// Sample environment
-			vec3 envColor = texture(envMap, R).rgb;
+			float ior = (pbrLighting.ior > 0.0) ? pbrLighting.ior : 1.5;
+			vec3 R = refract(V, N, 1.0 / ior);			
+			if (length(R) < 0.001) {
+				R = reflect(V, N); // fallback to reflection
+			}
+
+
+			// Sample environment map
+			//vec3 envColor = texture(envMap, R).rgb;
+			float lod = max(pbrLighting.roughness, 0.1) * 3.0;
+			vec3 envColor = textureLod(envMap, R, lod).rgb;
 
 			// Apply volume attenuation if available
 			if (pbrLighting.attenuationDistance > 0.0) {
 				float pathLength = length(g_position - cameraPos);
-				envColor = calculateVolumeAttenuation(envColor, pathLength, 
-					pbrLighting.attenuationColor, pbrLighting.attenuationDistance);
+				envColor = calculateVolumeAttenuation(
+					envColor,
+					pathLength,
+					pbrLighting.attenuationColor,
+					pbrLighting.attenuationDistance
+				);
 			}
 
-			// Blend transmission into RGB
-			fragColor.rgb = mix(fragColor.rgb, envColor, transmissionFactor);
+			float NdotV = clamp(dot(N, V), 0.0, 1.0);
+			float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
+			float fresnel = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
+			float transmissionWeight = transmissionFactor * (1.0 - fresnel);
+			fragColor.rgb = envColor * transmissionWeight + fragColor.rgb * (1.0 - transmissionWeight);
 		}
 	}
 
