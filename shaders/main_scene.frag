@@ -472,8 +472,12 @@ void main()
 		}
 
 		if (transmissionFactor > 0.0) {
-			vec3 N = normalize(g_normal);
-			vec3 V = normalize(cameraDir);
+			vec3 N = normalize(g_reflectionNormal);
+			//vec3 V = normalize(cameraDir);
+			vec3 V_base = normalize(cameraDir);
+			// Add positional offset (for panning awareness)
+			vec3 offset = normalize(cameraPos - g_reflectionPosition);
+			vec3 V = normalize(V_base - offset * 0.3);
 
 			// Refract ray into environment
 			float ior = (pbrLighting.ior > 0.0) ? pbrLighting.ior : 1.5;
@@ -1001,9 +1005,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
 
 	// --- Extra lobes
-	vec3 transmission_L = (transmission > 0.0) ? calculateTransmission(N, V, L, transmission, ior, albedo) : vec3(0.0);
-	vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(g_reflectionNormal, cameraDir, L, sheenColor, sheenRoughness) : vec3(0.0);
-	vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(g_reflectionNormal, cameraDir, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
+	vec3 cDir = normalize(cameraDir);
+	vec3 rNorm = normalize(g_reflectionNormal);
+	vec3 transmission_L = (transmission > 0.0) ? calculateTransmission(rNorm, cDir, L, transmission, ior, albedo) : vec3(0.0);
+	vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(rNorm, cDir, L, sheenColor, sheenRoughness) : vec3(0.0);
+	vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(rNorm, cDir, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
 	// Treat clearcoat as specular-like
 	directSpecular_L += clearcoat_L  * lightSource.specular;  // Scale by light's specular component;
 
@@ -1189,7 +1195,7 @@ vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior
 	float forwardScatter = max(0.0, NdotL) * 0.5; // Light from front (subsurface)
 
 	// Add thickness approximation (can make this a uniform)
-	float thickness = 0.1; // Adjust based on model
+	float thickness = pbrLighting.thicknessFactor;//0.1; // Adjust based on model
 	float attenuationFactor = exp(-thickness * (1.0 - transmission));
 
 	vec3 transmissionColor = albedo * transmittance * attenuationFactor * (backScatter + forwardScatter);
@@ -1535,13 +1541,19 @@ void applyEnvironmentMapping(float alphaIn)
     }
 
     float a = clamp(alphaIn, 0.0, 1.0);
-    vec3 I = normalize(cameraDir);
+    vec3 I_base = normalize(cameraDir);
     vec3 N = normalize(g_reflectionNormal);
+	vec3 offset = normalize(cameraPos - g_reflectionPosition);
+	vec3 I = normalize(I_base - offset * 0.3);
 
     // 1) Transmission with exposure control
     if (pbrLighting.transmission > 0.0) {
         float eta = max(1e-3, pbrLighting.ior);
-        vec3 R = refract(normalize(cameraDir), normalize(g_reflectionNormal), 1.0 / eta);
+		vec3 V_base = normalize(cameraDir);
+		// Add positional offset (for panning awareness)
+		vec3 offset = normalize(cameraPos - g_reflectionPosition);
+		vec3 V = normalize(V_base - offset * 0.3);
+        vec3 R = refract(V, normalize(g_reflectionNormal), 1.0 / eta);
         R = envMapRotationMatrix * R;
         R = normalize(R);
 
