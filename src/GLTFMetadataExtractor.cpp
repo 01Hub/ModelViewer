@@ -46,7 +46,8 @@ bool GLTFMetadataExtractor::parseGLTFFile(const std::string& filePath)
     parseMaterials(root);
 
     qDebug() << "GLTFMetadataExtractor: Successfully parsed glTF metadata"
-        << "(" << _textureMetadata.size() << "textures)";
+        << "(" << _textureMetadata.size() << "textures)"
+        << "(" << _materialScalars.size() << "scalars)";
 
     return true;
 }
@@ -82,6 +83,17 @@ bool GLTFMetadataExtractor::hasTextureMetadata(int textureIndex) const
 {
     return _textureMetadata.find(textureIndex) != _textureMetadata.end();
 }
+
+ScalarMetadata GLTFMetadataExtractor::getScalarMetadata(int materialIndex) const
+{
+    auto it = _materialScalars.find(materialIndex);
+    if (it != _materialScalars.end())
+    {
+        return it->second;
+    }
+    return ScalarMetadata(); // default values
+}
+
 
 void GLTFMetadataExtractor::clear()
 {
@@ -467,6 +479,134 @@ void GLTFMetadataExtractor::parseMaterials(const QJsonObject& root)
                     }
                 }
             }
+
+			// Parse the scalar properties if needed
+            ScalarMetadata scalars;
+
+            // --- KHR_materials_volume ---
+            if (extensions.contains("KHR_materials_volume"))
+            {
+                QJsonObject volume = extensions["KHR_materials_volume"].toObject();
+
+                if (volume.contains("thicknessFactor"))
+                    scalars.thicknessFactor = static_cast<float>(volume["thicknessFactor"].toDouble());
+
+                if (volume.contains("attenuationDistance"))
+                    scalars.attenuationDistance = static_cast<float>(volume["attenuationDistance"].toDouble());
+
+                if (volume.contains("attenuationColor"))
+                {
+                    QJsonArray colorArray = volume["attenuationColor"].toArray();
+                    if (colorArray.size() == 3)
+                    {
+                        scalars.attenuationColor = glm::vec3(
+                            static_cast<float>(colorArray[0].toDouble()),
+                            static_cast<float>(colorArray[1].toDouble()),
+                            static_cast<float>(colorArray[2].toDouble())
+                        );
+                    }
+                }
+            }
+
+            // --- KHR_materials_transmission ---
+            if (extensions.contains("KHR_materials_transmission"))
+            {
+                QJsonObject transmission = extensions["KHR_materials_transmission"].toObject();
+
+                if (transmission.contains("transmissionFactor"))
+                    scalars.transmissionFactor = static_cast<float>(transmission["transmissionFactor"].toDouble());
+            }
+
+            // --- KHR_materials_ior ---
+            if (extensions.contains("KHR_materials_ior"))
+            {
+                QJsonObject ior = extensions["KHR_materials_ior"].toObject();
+
+                if (ior.contains("ior"))
+                    scalars.ior = static_cast<float>(ior["ior"].toDouble());
+            }
+
+            // --- KHR_materials_clearcoat ---
+            if (extensions.contains("KHR_materials_clearcoat"))
+            {
+                QJsonObject clearcoat = extensions["KHR_materials_clearcoat"].toObject();
+
+                if (clearcoat.contains("clearcoatFactor"))
+                    scalars.clearcoatFactor = static_cast<float>(clearcoat["clearcoatFactor"].toDouble());
+
+                if (clearcoat.contains("clearcoatRoughnessFactor"))
+                    scalars.clearcoatRoughness = static_cast<float>(clearcoat["clearcoatRoughnessFactor"].toDouble());
+            }
+
+            // --- KHR_materials_sheen ---
+            if (extensions.contains("KHR_materials_sheen"))
+            {
+                QJsonObject sheen = extensions["KHR_materials_sheen"].toObject();
+
+                if (sheen.contains("sheenRoughnessFactor"))
+                    scalars.sheenRoughness = static_cast<float>(sheen["sheenRoughnessFactor"].toDouble());
+            }
+
+            // --- KHR_materials_specular ---
+            if (extensions.contains("KHR_materials_specular"))
+            {
+                QJsonObject specular = extensions["KHR_materials_specular"].toObject();
+
+                if (specular.contains("specularFactor"))
+                    scalars.specularFactor = static_cast<float>(specular["specularFactor"].toDouble());
+
+                if (specular.contains("specularColorFactor"))
+                {
+                    QJsonArray colorArray = specular["specularColorFactor"].toArray();
+                    if (colorArray.size() == 3)
+                    {
+                        scalars.specularColorFactor = glm::vec3(
+                            static_cast<float>(colorArray[0].toDouble()),
+                            static_cast<float>(colorArray[1].toDouble()),
+                            static_cast<float>(colorArray[2].toDouble())
+                        );
+                    }
+                }
+            }
+
+            // --- KHR_materials_iridescence ---
+            if (extensions.contains("KHR_materials_iridescence"))
+            {
+                QJsonObject iridescence = extensions["KHR_materials_iridescence"].toObject();
+
+                if (iridescence.contains("iridescenceFactor"))
+                    scalars.iridescenceFactor = static_cast<float>(iridescence["iridescenceFactor"].toDouble());
+
+                if (iridescence.contains("iridescenceIor"))
+                    scalars.iridescenceIor = static_cast<float>(iridescence["iridescenceIor"].toDouble());
+
+                if (iridescence.contains("iridescenceThicknessMinimum"))
+                    scalars.iridescenceThicknessMin = static_cast<float>(iridescence["iridescenceThicknessMinimum"].toDouble());
+
+                if (iridescence.contains("iridescenceThicknessMaximum"))
+                    scalars.iridescenceThicknessMax = static_cast<float>(iridescence["iridescenceThicknessMaximum"].toDouble());
+            }
+
+            // --- KHR_materials_anisotropy ---
+            if (extensions.contains("KHR_materials_anisotropy"))
+            {
+                QJsonObject anisotropy = extensions["KHR_materials_anisotropy"].toObject();
+
+                if (anisotropy.contains("anisotropyStrength"))
+                    scalars.anisotropyStrength = static_cast<float>(anisotropy["anisotropyStrength"].toDouble());
+
+                if (anisotropy.contains("anisotropyRotation"))
+                    scalars.anisotropyRotation = static_cast<float>(anisotropy["anisotropyRotation"].toDouble());
+            }
+
+            // --- KHR_materials_unlit ---
+            if (extensions.contains("KHR_materials_unlit"))
+            {
+                scalars.unlit = true;
+            }
+
+            // Store the scalar metadata
+            _materialScalars[matIdx] = scalars;
         }
 
         // Store all textures for this material

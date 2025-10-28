@@ -21,6 +21,27 @@ struct TextureMetadata
     bool hasTransform = false;       // Whether KHR_texture_transform was applied
 };
 
+struct ScalarMetadata
+{
+    float thicknessFactor = 0.0f;
+    float attenuationDistance = 0.0f;
+    glm::vec3 attenuationColor = glm::vec3(1.0f); // default white
+    float ior = 1.5f;
+    float transmissionFactor = 0.0f;
+    float clearcoatFactor = 0.0f;
+    float clearcoatRoughness = 0.0f;
+    float sheenRoughness = 0.0f;
+    float specularFactor = 0.0f;
+    glm::vec3 specularColorFactor = glm::vec3(1.0f);
+    float iridescenceFactor = 0.0f;
+    float iridescenceIor = 1.3f;
+    float iridescenceThicknessMin = 100.0f;
+    float iridescenceThicknessMax = 400.0f;
+    float anisotropyStrength = 0.0f;
+    float anisotropyRotation = 0.0f;
+    bool unlit = false;
+};
+
 /**
  * Extracts glTF metadata from .gltf JSON files
  * Focuses on:
@@ -61,6 +82,11 @@ public:
     bool hasTextureMetadata(int textureIndex) const;
 
     /**
+    * 
+    */
+    ScalarMetadata getScalarMetadata(int materialIndex) const;
+
+    /**
      * Clear all cached metadata
      */
     void clear();
@@ -72,6 +98,8 @@ private:
     // Maps: material index -> (role -> texture info)
     // role: "baseColor", "normal", "emissive", etc.
     std::map<int, std::map<std::string, std::pair<int, TextureMetadata>>> _materialTextures;
+
+    std::map<int, ScalarMetadata> _materialScalars;
 
     /**
      * Helper: Parse a single texture info object from JSON

@@ -217,17 +217,17 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
     }
 
     // Volume (KHR_materials_volume)
-    if (AI_SUCCESS == material->Get("$mat.gltf.thicknessFactor", 0, 0, value))
+    if (AI_SUCCESS == material->Get(AI_MATKEY_VOLUME_THICKNESS_FACTOR, value))
     {
         mat.setThicknessFactor(std::max(value, 0.0f));
     }
 
-    if (AI_SUCCESS == material->Get("$mat.gltf.attenuationDistance", 0, 0, value))
+    if (AI_SUCCESS == material->Get(AI_MATKEY_VOLUME_ATTENUATION_DISTANCE, value))
     {
         mat.setAttenuationDistance(std::max(value, 0.0f));
     }
 
-    if (AI_SUCCESS == material->Get("$mat.gltf.attenuationColor", 0, 0, color))
+    if (AI_SUCCESS == material->Get(AI_MATKEY_VOLUME_ATTENUATION_COLOR, color))
     {
         mat.setAttenuationColor(QVector3D(color.r, color.g, color.b));
     }
@@ -239,7 +239,7 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
     }
 
     // Specular (KHR_materials_specular)
-    if (AI_SUCCESS == material->Get("$mat.gltf.specularFactor", 0, 0, value))
+    if (AI_SUCCESS == material->Get(AI_MATKEY_SPECULAR_FACTOR, value))
     {
         mat.setSpecularFactor(std::clamp(value, 0.0f, 1.0f));
     }
@@ -255,7 +255,7 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
         mat.setAnisotropyStrength(std::clamp(value, 0.0f, 1.0f));
     }
 
-    if (AI_SUCCESS == material->Get("$mat.gltf.anisotropyRotation", 0, 0, value))
+    if (AI_SUCCESS == material->Get(AI_MATKEY_ANISOTROPY_ROTATION, value))
     {
         mat.setAnisotropyRotation(value);
     }
@@ -282,7 +282,7 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
     }
 
     // Emissive Strength (KHR_materials_emissive_strength)
-    if (AI_SUCCESS == material->Get("$mat.gltf.emissiveStrength", 0, 0, value))
+    if (AI_SUCCESS == material->Get(AI_MATKEY_EMISSIVE_INTENSITY, value))
     {
         mat.setEmissiveStrength(std::max(value, 0.0f));
     }
@@ -369,6 +369,58 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
             mat.setRoughness(std::clamp(value, 0.01f, 1.0f));
         }
     }
+
+	// Add any parsed information from GLTFMetadataExtractor if available
+    ScalarMetadata scalars;
+    if (_glTFMetadataExtractor && _currentMaterialIndex >= 0)
+    {
+        scalars = _glTFMetadataExtractor->getScalarMetadata(_currentMaterialIndex);
+    }
+
+    mat.setThicknessFactor(scalars.thicknessFactor);
+    mat.setAttenuationDistance(scalars.attenuationDistance);
+    mat.setAttenuationColor(QVector3D(
+        scalars.attenuationColor.r,
+        scalars.attenuationColor.g,
+        scalars.attenuationColor.b
+    ));
+    mat.setIOR(scalars.ior);
+    mat.setTransmission(scalars.transmissionFactor);
+    mat.setClearcoat(scalars.clearcoatFactor);
+    mat.setClearcoatRoughness(scalars.clearcoatRoughness);
+    mat.setSheenRoughness(scalars.sheenRoughness);
+    mat.setSpecularFactor(scalars.specularFactor);
+    mat.setSpecularColorFactor(QVector3D(
+        scalars.specularColorFactor.r,
+        scalars.specularColorFactor.g,
+        scalars.specularColorFactor.b
+    ));
+    mat.setIridescenceFactor(scalars.iridescenceFactor);
+    mat.setIridescenceIor(scalars.iridescenceIor);
+    mat.setIridescenceThicknessMin(scalars.iridescenceThicknessMin);
+    mat.setIridescenceThicknessMax(scalars.iridescenceThicknessMax);
+    mat.setAnisotropyStrength(scalars.anisotropyStrength);
+    mat.setAnisotropyRotation(scalars.anisotropyRotation);
+    mat.setUnlit(scalars.unlit);
+
+    qDebug() << "MaterialProcessor: Applied scalar metadata:"
+        << "\nthicknessFactor =" << scalars.thicknessFactor
+        << "\nattenuationDistance =" << scalars.attenuationDistance
+        << "\nattenuationColor =" << scalars.attenuationColor.r << scalars.attenuationColor.g << scalars.attenuationColor.b
+        << "\nior =" << scalars.ior
+        << "\ntransmissionFactor =" << scalars.transmissionFactor
+        << "\nclearcoatFactor =" << scalars.clearcoatFactor
+        << "\nclearcoatRoughness =" << scalars.clearcoatRoughness
+        << "\nsheenRoughness =" << scalars.sheenRoughness
+        << "\nspecularFactor =" << scalars.specularFactor
+        << "\nspecularColorFactor =" << scalars.specularColorFactor.r << scalars.specularColorFactor.g << scalars.specularColorFactor.b
+        << "\niridescenceFactor =" << scalars.iridescenceFactor
+        << "\niridescenceIor =" << scalars.iridescenceIor
+        << "\niridescenceThicknessMin =" << scalars.iridescenceThicknessMin
+        << "\niridescenceThicknessMax =" << scalars.iridescenceThicknessMax
+        << "\nanisotropyStrength =" << scalars.anisotropyStrength
+        << "\nanisotropyRotation =" << scalars.anisotropyRotation
+        << "\nunlit =" << scalars.unlit;
     
     // === Validation and Consistency Checks ===
     validateMaterialConsistency(mat);
