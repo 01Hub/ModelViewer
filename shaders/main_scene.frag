@@ -284,10 +284,6 @@ vec3    fresnelSchlickIOR(float cosTheta, float ior);
 float   distributionCharlie(vec3 N, vec3 H, float roughness);
 float   geometryCharlie(float NdotV, float roughness);
 vec3    calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo);
-float	validateAndClampIOR(float ior);
-vec3	calculateRefractedDirection(vec3 viewDir, vec3 normal, float ior);
-float	calculateTransmittanceFresnel(vec3 viewDir, vec3 normal, float ior);
-
 vec3    calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness);
 vec3    calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor);
 vec3    calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, float clearcoatRoughness, vec3 clearcoatNormal);
@@ -467,7 +463,7 @@ void main()
 	// --- TRANSMISSION HANDLING (PBR only) ---
 	// Transmission affects color, NOT alpha.
 	// Keep alpha from opacity logic above.
-	if (renderingMode == 1 && !floorRendering) { // PBR mode, not floor
+	if (renderingMode == 1) { // PBR mode
 		float transmissionFactor = pbrLighting.transmission;
 
 		if (hasTransmissionMap) {
@@ -476,25 +472,19 @@ void main()
 		}
 
 		if (transmissionFactor > 0.0) {
-			// CORRECTED: Calculate proper view direction
-			// From fragment position looking toward camera
-			vec3 N = normalize(g_normal);
-			vec3 V = normalize(cameraPos - g_position); // FIX: was normalize(cameraDir)
-			
-			// Get and validate IOR
-			float ior = validateAndClampIOR(pbrLighting.ior);
+			vec3 N = normalize(g_reflectionNormal);
+			//vec3 V = normalize(cameraDir);
+			vec3 V_base = normalize(cameraDir);
+			// Add positional offset (for panning awareness)
+			vec3 offset = normalize(cameraPos - g_reflectionPosition);
+			vec3 V = normalize(V_base - offset * 0.3);
 
-			// Calculate refracted ray direction
-			vec3 refractDir = calculateRefractedDirection(-V, N, ior);
+			// Refract ray into environment
+			float ior = (pbrLighting.ior > 0.0) ? pbrLighting.ior : 1.5;
+			vec3 R = refract(V, N, 1.0 / ior);
 
-			// Sample environment in refracted direction
-			vec3 envColor = texture(envMap, refractDir).rgb;
-
-			// ADDED: Fresnel term - controls transmission amount based on view angle
-			float fresnel = calculateTransmittanceFresnel(-V, N, ior);
-			
-			// Modulate transmission by Fresnel (more transmission at normal incidence)
-			float transmittance = fresnel * transmissionFactor;
+			// Sample environment
+			vec3 envColor = texture(envMap, R).rgb;
 
 			// Apply volume attenuation if available
 			if (pbrLighting.attenuationDistance > 0.0) {
@@ -503,9 +493,8 @@ void main()
 					pbrLighting.attenuationColor, pbrLighting.attenuationDistance);
 			}
 
-			// Blend transmission into RGB (keeping alpha from opacity)
-			// Use mix() to smoothly interpolate based on transmittance
-			fragColor.rgb = mix(fragColor.rgb, envColor, transmittance);
+			// Blend transmission into RGB
+			fragColor.rgb = mix(fragColor.rgb, envColor, transmissionFactor);
 		}
 	}
 
@@ -971,7 +960,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	// Apply iridescence to F0
 	if (iridescenceFactor > 0.0) {
-		vec3 iridescenceF0 = calculateIridescence(N, V, iridescenceFactor, iridescenceIor, iridescenceThickness);
+		vec3 iridescenceF0 = calculateIridescence(normalize(g_reflectionNormal), normalize(cameraPos - g_position), 
+		iridescenceFactor, iridescenceIor, iridescenceThickness);
 		F0 = mix(F0, iridescenceF0, iridescenceFactor);
 	}
 
@@ -1016,9 +1006,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
 
 	// --- Extra lobes
-	vec3 transmission_L = (transmission > 0.0) ? calculateTransmission(N, V, L, transmission, ior, albedo) : vec3(0.0);
-	vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(g_reflectionNormal, cameraDir, L, sheenColor, sheenRoughness) : vec3(0.0);
-	vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(g_reflectionNormal, cameraDir, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
+	vec3 cDir = normalize(cameraDir);
+	vec3 rNorm = normalize(g_reflectionNormal);
+	vec3 transmission_L = (transmission > 0.0) ? calculateTransmission(rNorm, cDir, L, transmission, ior, albedo) : vec3(0.0);
+	vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(rNorm, cDir, L, sheenColor, sheenRoughness) : vec3(0.0);
+	vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(rNorm, cDir, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
 	// Treat clearcoat as specular-like
 	directSpecular_L += clearcoat_L  * lightSource.specular;  // Scale by light's specular component;
 
@@ -1162,14 +1154,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 // IOR-based Fresnel calculation
 vec3 fresnelSchlickIOR(float cosTheta, float ior)
 {
-	// Calculate F0 (reflectance at normal incidence) from IOR
 	float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-	
-	// Clamp to prevent invalid values
-	f0 = clamp(f0, 0.0, 1.0);
-	cosTheta = clamp(cosTheta, 0.0, 1.0);
-	
-	// Schlick's approximation: adds grazing angle boost
 	return vec3(f0) + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
 }
 
@@ -1211,72 +1196,13 @@ vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior
 	float forwardScatter = max(0.0, NdotL) * 0.5; // Light from front (subsurface)
 
 	// Add thickness approximation (can make this a uniform)
-	float thickness = pbrLighting.thicknessFactor; // Adjust based on model
+	float thickness = max(0.01, pbrLighting.thicknessFactor);
 	float attenuationFactor = exp(-thickness * (1.0 - transmission));
 
 	vec3 transmissionColor = albedo * transmittance * attenuationFactor * (backScatter + forwardScatter);
 
 	return transmissionColor;
 }
-
-// Ensures IOR is physically meaningful
-// Valid range: 1.0 (air/vacuum) to ~4.0 (germanium)
-float validateAndClampIOR(float ior)
-{
-	// Default to glass if not specified or invalid
-	if (ior <= 0.0) return 1.5;
-	
-	// Clamp to physically plausible range
-	// Below 1.0 would allow light to speed up (impossible)
-	// Above 4.0 is extreme (near-opaque at grazing angles)
-	return clamp(ior, 1.0, 4.0);
-}
-
-// Properly calculates refracted ray direction for transmission
-// Returns the refracted ray direction in world space
-vec3 calculateRefractedDirection(vec3 viewDir, vec3 normal, float ior)
-{
-	// Make sure inputs are normalized
-	vec3 V = normalize(viewDir);
-	vec3 N = normalize(normal);
-	
-	// eta = IOR_outside / IOR_inside
-	// For entering glass from air: eta = 1.0 / 1.5
-	float eta = 1.0 / validateAndClampIOR(ior);
-	
-	// Calculate refracted direction
-	// refract(incident, normal, eta) returns vec3(0) if total internal reflection occurs
-	vec3 refracted = refract(V, N, eta);
-	
-	// Handle total internal reflection (rare in typical scenarios)
-	// Fall back to reflection if refraction fails
-	if (length(refracted) < 0.001) {
-		refracted = reflect(V, N);
-	}
-	
-	return normalize(refracted);
-}
-
-// Calculates what fraction of light is transmitted vs reflected
-// Uses IOR to determine reflectance at different angles
-float calculateTransmittanceFresnel(vec3 viewDir, vec3 normal, float ior)
-{
-	vec3 V = normalize(viewDir);
-	vec3 N = normalize(normal);
-	
-	float cosTheta = abs(dot(V, N));
-	cosTheta = clamp(cosTheta, 0.0, 1.0);
-	
-	// Get reflectance from Fresnel-IOR
-	vec3 reflectance = fresnelSchlickIOR(cosTheta, ior);
-	float reflectanceValue = (reflectance.r + reflectance.g + reflectance.b) / 3.0;
-	
-	// Transmittance = 1 - Reflectance
-	// More transmission when looking head-on (cosTheta = 1)
-	// Less transmission at grazing angles (cosTheta = 0)
-	return 1.0 - reflectanceValue;
-}
-
 
 // Calculate sheen contribution (for fabric-like materials)
 vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness)
@@ -1430,28 +1356,30 @@ vec3 calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotrop
 // KHR_materials_iridescence
 vec3 calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridescenceIor, float thickness)
 {
-	float NdotV = max(dot(N, V), 0.0);
-	
-	// Simplified thin-film interference
-	// Wavelengths for RGB (approximation)
-	vec3 wavelengths = vec3(650.0, 510.0, 475.0); // nm (R, G, B)
-	
-	// Optical path difference
-	float opticalPath = 2.0 * iridescenceIor * thickness;
-	
-	// Phase shift for each wavelength
-	vec3 phase = 2.0 * PI * opticalPath / wavelengths;
-	
-	// Interference pattern
-	vec3 interference = 0.5 + 0.5 * cos(phase);
-	
-	// Apply Fresnel-like modulation
-	float fresnel = pow(1.0 - NdotV, 5.0);
-	
-	// Base iridescent color
-	vec3 iridescenceColor = interference * mix(1.0, fresnel, 0.5);
-	
-	return iridescenceColor * iridescenceFactor;
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
+    
+    // Wavelengths for RGB (approximation in nm)
+    vec3 wavelengths = vec3(650.0, 510.0, 475.0); // R, G, B
+    
+    // Optical path difference (thin-film interference)
+    float opticalPath = 2.0 * iridescenceIor * thickness;
+    
+    // Phase shift for each wavelength
+    vec3 phase = 2.0 * PI * opticalPath / wavelengths;
+    
+    // Thin-film interference pattern (creates rainbow colors)
+    vec3 interference = 0.5 + 0.5 * cos(phase);
+    
+    // Fresnel modulation: stronger effect at grazing angles
+    float fresnel = pow(1.0 - NdotV, 3.0);
+    
+    // Boost visibility: iridescence should be prominent
+    vec3 iridescenceColor = interference * (0.6 + 0.4 * fresnel);
+    
+    // Angle-dependent intensity: peaks at grazing angle
+    float angleBoost = mix(0.3, 1.5, pow(1.0 - NdotV, 2.0));
+    
+    return iridescenceColor * angleBoost;
 }
 
 // KHR_materials_volume
@@ -1616,13 +1544,19 @@ void applyEnvironmentMapping(float alphaIn)
     }
 
     float a = clamp(alphaIn, 0.0, 1.0);
-    vec3 I = normalize(cameraDir);
+    vec3 I_base = normalize(cameraDir);
     vec3 N = normalize(g_reflectionNormal);
+	vec3 offset = normalize(cameraPos - g_reflectionPosition);
+	vec3 I = normalize(I_base - offset * 0.3);
 
     // 1) Transmission with exposure control
     if (pbrLighting.transmission > 0.0) {
         float eta = max(1e-3, pbrLighting.ior);
-        vec3 R = refract(normalize(cameraDir), normalize(g_reflectionNormal), 1.0 / eta);
+		vec3 V_base = normalize(cameraDir);
+		// Add positional offset (for panning awareness)
+		vec3 offset = normalize(cameraPos - g_reflectionPosition);
+		vec3 V = normalize(V_base - offset * 0.3);
+        vec3 R = refract(V, normalize(g_reflectionNormal), 1.0 / eta);
         R = envMapRotationMatrix * R;
         R = normalize(R);
 
