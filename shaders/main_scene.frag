@@ -1142,7 +1142,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	// Add iridescence as a final color overlay
 	if (iridescenceFactor > 0.0) {
-		vec3 R = reflect(-normalize(cameraDir), normalize(g_reflectionNormal));
+		vec3 R = reflect(normalize(cameraDir), normalize(g_reflectionNormal));
 		vec3 iridEnv = textureLod(prefilterMap, R, 0.0).rgb * envMapExposure * 0.4;
     
 		// Additive blend: iridescence tints the highlights/reflections
