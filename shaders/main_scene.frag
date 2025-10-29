@@ -958,11 +958,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 	if (metallic < 0.1) F0 = max(F0, vec3(0.04));
 
+	vec3 iridescenceF0 = vec3(0.0);
 	// Apply iridescence to F0
 	if (iridescenceFactor > 0.0) {
-		vec3 iridescenceF0 = calculateIridescence(normalize(g_reflectionNormal), normalize(cameraPos - g_position), 
+		iridescenceF0 = calculateIridescence(normalize(g_reflectionNormal), normalize(cameraDir), 
 		iridescenceFactor, iridescenceIor, iridescenceThickness);
-		F0 = mix(F0, iridescenceF0, iridescenceFactor);
+		F0 = mix(F0, iridescenceF0, iridescenceFactor * 0.4);
 	}
 
 	// Setup tangent space for anisotropy
@@ -1138,6 +1139,16 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	vec3 outRGB = baseNoSpec_L + specOnly_L; // override opacity
+
+	// Add iridescence as a final color overlay
+	if (iridescenceFactor > 0.0) {
+		vec3 R = reflect(-normalize(cameraDir), normalize(g_reflectionNormal));
+		vec3 iridEnv = textureLod(prefilterMap, R, 0.0).rgb * envMapExposure * 0.4;
+    
+		// Additive blend: iridescence tints the highlights/reflections
+		vec3 iridOut = iridescenceF0 * iridEnv * iridescenceFactor;
+		outRGB = outRGB + iridOut * 0.25;  // Subtle 25% additive overlay
+	}
 
 	// --- Tone map & gamma once, at the end
 	//vec3 outRGB = composed_L;
@@ -1354,32 +1365,58 @@ vec3 calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotrop
 }
 
 // KHR_materials_iridescence
+// KHR_materials_iridescence - Physically accurate thin-film interference
 vec3 calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridescenceIor, float thickness)
 {
     float NdotV = clamp(dot(N, V), 0.0, 1.0);
     
-    // Wavelengths for RGB (approximation in nm)
-    vec3 wavelengths = vec3(650.0, 510.0, 475.0); // R, G, B
+    // Base material IOR (from transmission or default dielectric)
+    float outsideIor = 1.0; // Air
+    float baseIor = pbrLighting.ior; // Base material IOR
     
-    // Optical path difference (thin-film interference)
-    float opticalPath = 2.0 * iridescenceIor * thickness;
+    // === Fresnel at air/film interface ===
+    float R0_film = pow((outsideIor - iridescenceIor) / (outsideIor + iridescenceIor), 2.0);
+    float R_film = R0_film + (1.0 - R0_film) * pow(1.0 - NdotV, 5.0);
+    
+    // === Fresnel at film/substrate interface ===
+    float R0_base = pow((iridescenceIor - baseIor) / (iridescenceIor + baseIor), 2.0);
+    float R_base = R0_base + (1.0 - R0_base) * pow(1.0 - NdotV, 5.0);
+    
+    // === Optical path length (angle-dependent) ===
+    // Path length increases at grazing angles
+    float cosTheta2 = sqrt(1.0 - pow((outsideIor / iridescenceIor) * sqrt(1.0 - NdotV * NdotV), 2.0));
+    float opticalPath = 2.0 * iridescenceIor * thickness * cosTheta2;
+    
+    // === Wavelength-dependent interference ===
+    // RGB wavelengths in nanometers
+    vec3 wavelengths = vec3(650.0, 510.0, 475.0);
     
     // Phase shift for each wavelength
-    vec3 phase = 2.0 * PI * opticalPath / wavelengths;
+    vec3 phase = (2.0 * PI * opticalPath) / wavelengths;
     
-    // Thin-film interference pattern (creates rainbow colors)
-    vec3 interference = 0.5 + 0.5 * cos(phase);
+    // === Thin-film interference formula ===
+    // Accounts for multiple reflections between interfaces
+    vec3 reflectance1 = vec3(R_film);
+    vec3 reflectance2 = vec3(R_base);
     
-    // Fresnel modulation: stronger effect at grazing angles
-    float fresnel = pow(1.0 - NdotV, 3.0);
+    // Interference between the two reflected waves
+    vec3 interference = reflectance1 + reflectance2 - 
+                       2.0 * sqrt(reflectance1 * reflectance2) * cos(phase);
     
-    // Boost visibility: iridescence should be prominent
-    vec3 iridescenceColor = interference * (0.6 + 0.4 * fresnel);
+    // Normalize to 0-1 range
+    interference = clamp(interference, 0.0, 1.0);
     
-    // Angle-dependent intensity: peaks at grazing angle
-    float angleBoost = mix(0.3, 1.5, pow(1.0 - NdotV, 2.0));
+    // Convert to color shift (subtle, not overpowering)
+    vec3 iridescenceColor = 0.5 + 0.5 * cos(phase + vec3(0.0, 2.09, 4.19)); // RGB offsets
     
-    return iridescenceColor * angleBoost;
+    // Blend between interference pattern and color shift
+    iridescenceColor = mix(iridescenceColor, interference, 0.5);
+    
+    // Viewing angle modulation (stronger at grazing angles)
+    float fresnelMod = pow(1.0 - NdotV, 2.0);
+    iridescenceColor *= (0.5 + 0.5 * fresnelMod);
+    
+    return iridescenceColor;
 }
 
 // KHR_materials_volume
