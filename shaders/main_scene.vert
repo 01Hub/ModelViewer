@@ -3,8 +3,11 @@
 layout(location = 0) in vec3 vertexPosition;
 layout(location = 1) in vec3 vertexNormal;
 layout(location = 2) in vec2 texCoord0;
-layout(location = 3) in vec3 vertexTangent;
-layout(location = 4) in vec3 vertexBitangent;
+layout(location = 3) in vec2 texCoord1;
+layout(location = 4) in vec2 texCoord2;
+layout(location = 5) in vec2 texCoord3;
+layout(location = 6) in vec3 vertexTangent;
+layout(location = 7) in vec3 vertexBitangent;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -29,6 +32,9 @@ out float v_clipDist;
 out vec3 v_normal;
 out vec3 v_position;
 out vec2 v_texCoord0;
+out vec2 v_texCoord1;
+out vec2 v_texCoord2;
+out vec2 v_texCoord3;
 out vec3 v_tangent;
 out vec3 v_bitangent;
 out vec3 v_tangentLightPos;
@@ -53,6 +59,9 @@ void main()
     //v_normal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
     v_position   = vec3(modelMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
     v_texCoord0 = texCoord0;
+    v_texCoord1 = texCoord1;
+    v_texCoord2 = texCoord2;
+    v_texCoord3 = texCoord3;
     v_tangent = normalize(normalMatrix * vertexTangent);
     v_bitangent = normalize(normalMatrix * vertexBitangent);
 
@@ -89,12 +98,4 @@ void main()
     v_tangentLightPos = TBN * lightPos;
     v_tangentViewPos  = TBN * cameraPos;
     v_tangentFragPos  = TBN * v_position;
-
-    // Moved this to geometry shader
-    /*
-    gl_ClipDistance[0] = clipDistX;
-    gl_ClipDistance[1] = clipDistY;
-    gl_ClipDistance[2] = clipDistZ;
-    gl_ClipDistance[3] = clipDist;
-    */
 }

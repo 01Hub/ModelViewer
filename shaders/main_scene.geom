@@ -8,12 +8,18 @@ layout(triangle_strip, max_vertices=6) out;
 in vec3 v_position[];
 in vec3 v_normal[];
 in vec2 v_texCoord0[];
+in vec2 v_texCoord1[];
+in vec2 v_texCoord2[];
+in vec2 v_texCoord3[];
 in vec3 v_tangent[];
 in vec3 v_bitangent[];
 
 out vec3 g_normal;
 out vec3 g_position;
 out vec2 g_texCoord0;
+out vec2 g_texCoord1;
+out vec2 g_texCoord2;
+out vec2 g_texCoord3;
 out vec3 g_tangent;
 out vec3 g_bitangent;
 
@@ -105,6 +111,9 @@ void main()
         g_edgeDistance = vec3( ha, 0, 0 );
         g_normal = v_normal[0];
         g_texCoord0 = v_texCoord0[0];
+        g_texCoord1 = v_texCoord1[0];
+        g_texCoord2 = v_texCoord2[0];
+        g_texCoord3 = v_texCoord3[0];
         g_position = v_position[0];
         gl_Position = gl_in[0].gl_Position;
         g_clipDistX = v_clipDistX[0];
@@ -121,6 +130,9 @@ void main()
         g_edgeDistance = vec3( 0, hb, 0 );
         g_normal = v_normal[1];
         g_texCoord0 = v_texCoord0[1];
+        g_texCoord1 = v_texCoord1[1];
+        g_texCoord2 = v_texCoord2[1];
+        g_texCoord3 = v_texCoord3[1];
         g_position = v_position[1];
         gl_Position = gl_in[1].gl_Position;
         g_clipDistX = v_clipDistX[1];
@@ -137,6 +149,9 @@ void main()
         g_edgeDistance = vec3( 0, 0, hc );
         g_normal = v_normal[2];
         g_texCoord0 = v_texCoord0[2];
+        g_texCoord1 = v_texCoord1[2];
+        g_texCoord2 = v_texCoord2[2];
+        g_texCoord3 = v_texCoord3[2];
         g_position = v_position[2];
         gl_Position = gl_in[2].gl_Position;
         g_clipDistX = v_clipDistX[2];
@@ -158,6 +173,9 @@ void main()
         {
             g_normal = v_normal[i];
             g_texCoord0 = v_texCoord0[i];
+            g_texCoord1 = v_texCoord1[i];
+            g_texCoord2 = v_texCoord2[i];
+            g_texCoord3 = v_texCoord3[i];
             g_position = v_position[i];
             gl_Position = gl_in[i].gl_Position;
 

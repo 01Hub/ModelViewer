@@ -6,6 +6,9 @@
 in vec3 g_position;
 in vec3 g_normal;
 in vec2 g_texCoord0;
+in vec2 g_texCoord1;
+in vec2 g_texCoord2;
+in vec2 g_texCoord3;
 in vec3 g_tangent;
 in vec3 g_bitangent;
 noperspective in vec3 g_edgeDistance;
