@@ -1,6 +1,5 @@
 #include "MaterialProcessor.h"
 #include "Utils.h"
-#include "GLTFMetadataExtractor.h"
 #include <string>
 
 using namespace std;
@@ -370,58 +369,6 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
         }
     }
 
-	// Add any parsed information from GLTFMetadataExtractor if available
-    ScalarMetadata scalars;
-    if (_glTFMetadataExtractor && _currentMaterialIndex >= 0)
-    {
-        scalars = _glTFMetadataExtractor->getScalarMetadata(_currentMaterialIndex);
-    }
-
-    mat.setThicknessFactor(scalars.thicknessFactor);
-    mat.setAttenuationDistance(scalars.attenuationDistance);
-    mat.setAttenuationColor(QVector3D(
-        scalars.attenuationColor.r,
-        scalars.attenuationColor.g,
-        scalars.attenuationColor.b
-    ));
-    mat.setIOR(scalars.ior);
-    mat.setTransmission(scalars.transmissionFactor);
-    mat.setClearcoat(scalars.clearcoatFactor);
-    mat.setClearcoatRoughness(scalars.clearcoatRoughness);
-    mat.setSheenRoughness(scalars.sheenRoughness);
-    mat.setSpecularFactor(scalars.specularFactor);
-    mat.setSpecularColorFactor(QVector3D(
-        scalars.specularColorFactor.r,
-        scalars.specularColorFactor.g,
-        scalars.specularColorFactor.b
-    ));
-    mat.setIridescenceFactor(scalars.iridescenceFactor);
-    mat.setIridescenceIor(scalars.iridescenceIor);
-    mat.setIridescenceThicknessMin(scalars.iridescenceThicknessMin);
-    mat.setIridescenceThicknessMax(scalars.iridescenceThicknessMax);
-    mat.setAnisotropyStrength(scalars.anisotropyStrength);
-    mat.setAnisotropyRotation(scalars.anisotropyRotation);
-    mat.setUnlit(scalars.unlit);
-
-    qDebug() << "MaterialProcessor: Applied scalar metadata:"
-        << "\nthicknessFactor =" << scalars.thicknessFactor
-        << "\nattenuationDistance =" << scalars.attenuationDistance
-        << "\nattenuationColor =" << scalars.attenuationColor.r << scalars.attenuationColor.g << scalars.attenuationColor.b
-        << "\nior =" << scalars.ior
-        << "\ntransmissionFactor =" << scalars.transmissionFactor
-        << "\nclearcoatFactor =" << scalars.clearcoatFactor
-        << "\nclearcoatRoughness =" << scalars.clearcoatRoughness
-        << "\nsheenRoughness =" << scalars.sheenRoughness
-        << "\nspecularFactor =" << scalars.specularFactor
-        << "\nspecularColorFactor =" << scalars.specularColorFactor.r << scalars.specularColorFactor.g << scalars.specularColorFactor.b
-        << "\niridescenceFactor =" << scalars.iridescenceFactor
-        << "\niridescenceIor =" << scalars.iridescenceIor
-        << "\niridescenceThicknessMin =" << scalars.iridescenceThicknessMin
-        << "\niridescenceThicknessMax =" << scalars.iridescenceThicknessMax
-        << "\nanisotropyStrength =" << scalars.anisotropyStrength
-        << "\nanisotropyRotation =" << scalars.anisotropyRotation
-        << "\nunlit =" << scalars.unlit;
-    
     // === Validation and Consistency Checks ===
     validateMaterialConsistency(mat);
 }
@@ -541,73 +488,6 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, bool& hasAlpha
     return textureID;
 }
 
-std::string MaterialProcessor::tryFallbackTextureLoading(const std::string& textureType)
-{
-    if (!_glTFMetadataExtractor || _currentMaterialIndex < 0)
-        return "";
-
-    // Map texture type names to glTF material roles
-    static const std::map<std::string, std::vector<std::string>> typeToRoles = {
-        // PBR Core
-        {"albedoMap", {"baseColor"}},
-        {"texture_diffuse", {"baseColor"}},
-        {"normalMap", {"normal"}},
-        {"texture_normal", {"normal"}},
-        {"metallicMap", {"metallicRoughness"}},
-        {"roughnessMap", {"metallicRoughness"}},
-        {"texture_specular", {"metallicRoughness"}},
-        {"emissiveMap", {"emissive"}},
-        {"texture_emissive", {"emissive"}},
-        {"aoMap", {"occlusion"}},
-
-        // KHR_materials_clearcoat
-        {"clearcoatMap", {"clearcoat"}},
-        {"clearcoatRoughnessMap", {"clearcoatRoughness"}},
-        {"clearcoatNormalMap", {"clearcoatNormal"}},
-
-        // KHR_materials_sheen
-        {"sheenColorMap", {"sheenColor"}},
-        {"sheenRoughnessMap", {"sheenRoughness"}},
-
-        // KHR_materials_transmission
-        {"transmissionMap", {"transmission"}},
-
-        // KHR_materials_volume
-        {"thicknessMap", {"thickness"}},
-
-        // KHR_materials_specular
-        {"specularFactorMap", {"specularFactor"}},
-        {"specularColorMap", {"specularColor"}},
-
-        // KHR_materials_anisotropy
-        {"anisotropyMap", {"anisotropy"}},
-
-        // KHR_materials_iridescence
-        {"iridescenceMap", {"iridescence"}},
-        {"iridescenceThicknessMap", {"iridescenceThickness"}},
-    };
-
-    auto it = typeToRoles.find(textureType);
-    if (it == typeToRoles.end())
-        return "";
-
-    for (const auto& role : it->second)
-    {
-        std::string path = _glTFMetadataExtractor->getMaterialTextureFilePath(
-            _currentMaterialIndex, role);
-
-        if (!path.empty())
-        {
-            qDebug() << "MaterialProcessor: Found fallback texture for"
-                << QString::fromStdString(textureType)
-                << "via role" << QString::fromStdString(role)
-                << "path:" << QString::fromStdString(path);
-            return path;
-        }
-    }
-
-    return "";
-}
 
 void MaterialProcessor::debugMaterialTextures(aiMaterial* material, const std::string& materialName)
 {
@@ -660,6 +540,51 @@ void MaterialProcessor::debugMaterialTextures(aiMaterial* material, const std::s
     std::cout << "========================" << std::endl;
 }
 
+void MaterialProcessor::extractUVTransform(
+    aiMaterial* mat,
+    aiTextureType type,
+    unsigned int slotIndex,
+    Texture& texture)
+{
+    // 1. Get UV coordinate set index (which TEXCOORD_N to use)
+    int uvwsrc = 0;
+    if (mat->Get(AI_MATKEY_UVWSRC(type, slotIndex), uvwsrc) == AI_SUCCESS)
+    {
+        texture.texCoordIndex = uvwsrc;
+    }
+    else
+    {
+        texture.texCoordIndex = 0; // Default to TEXCOORD_0
+    }
+
+    // 2. Get UV transform (scale, offset, rotation)
+    aiUVTransform uvTransform;
+    unsigned int max = sizeof(aiUVTransform);
+
+    if (aiGetMaterialFloatArray(mat, AI_MATKEY_UVTRANSFORM(type, slotIndex),
+        (float*)&uvTransform, &max) == aiReturn_SUCCESS)
+    {
+        // Successfully retrieved transform
+        texture.scale = glm::vec2(uvTransform.mScaling.x, uvTransform.mScaling.y);
+        texture.offset = glm::vec2(uvTransform.mTranslation.x, uvTransform.mTranslation.y);
+        texture.rotation = uvTransform.mRotation;
+
+        // Debug output (optional)
+        std::cout << "UV Transform for " << texture.type << ":\n"
+                  << "  TexCoord: " << texture.texCoordIndex << "\n"
+                  << "  Scale: (" << texture.scale.x << ", " << texture.scale.y << ")\n"
+                  << "  Offset: (" << texture.offset.x << ", " << texture.offset.y << ")\n"
+                  << "  Rotation: " << texture.rotation << " rad\n";
+    }
+    else
+    {
+        // No transform specified - use identity defaults
+        texture.scale = glm::vec2(1.0f, 1.0f);
+        texture.offset = glm::vec2(0.0f, 0.0f);
+        texture.rotation = 0.0f;
+    }
+}
+
 // Sets the texture maps for a material based on the defined texture mappings.
 void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture>& textures, GLMaterial& mat)
 {
@@ -687,164 +612,183 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
     // Now create ADS aliases from PBR maps for backward compatibility
     synthesizeADSAliases(textures);
 
-    // === NEW: Apply glTF metadata to textures ===
-    if (_glTFMetadataExtractor && _currentMaterialIndex >= 0)
-    {
-        auto materialMetadata = _glTFMetadataExtractor->getMaterialTextureMetadata(_currentMaterialIndex);
-
-        // Map from material role names to actual material/texture paths for matching
-        std::map<std::string, std::vector<std::string>> roleToTextureTypes = {
-            {"baseColor", {"albedoMap", "texture_diffuse"}},
-            {"normal", {"normalMap", "texture_normal"}},
-            {"metallicRoughness", {"metallicMap", "roughnessMap", "texture_specular"}},
-            {"occlusion", {"aoMap"}},
-            {"emissive", {"emissiveMap", "texture_emissive"}},
-            {"clearcoat", {"clearcoatMap"}},
-            {"clearcoatRoughness", {"clearcoatRoughnessMap"}},
-            {"clearcoatNormal", {"clearcoatNormalMap"}},
-            {"sheenColor", {"sheenColorMap"}},
-            {"sheenRoughness", {"sheenRoughnessMap"}},
-            {"transmission", {"transmissionMap"}},
-            {"thickness", {"thicknessMap"}},
-            {"specularFactor", {"specularFactorMap"}},
-            {"specularColor", {"specularColorMap"}},
-            {"iridescence", {"iridescenceMap"}},
-            {"iridescenceThickness", {"iridescenceThicknessMap"}},
-            {"anisotropy", {"anisotropyMap"}}
-        };
-
-        for (auto& tex : textures)
-        {
-            // Find which role this texture belongs to
-            for (const auto& rolePair : roleToTextureTypes)
-            {
-                const std::string& role = rolePair.first;
-                const auto& textureTypes = rolePair.second;
-
-                // Check if this texture matches any of the types for this role
-                if (std::find(textureTypes.begin(), textureTypes.end(), tex.type) != textureTypes.end())
-                {
-                    // Check if we have metadata for this role
-                    if (materialMetadata.find(role) != materialMetadata.end())
-                    {
-                        const TextureMetadata& metadata = materialMetadata[role];
-                        tex.texCoordIndex = metadata.texCoordIndex;
-                        tex.scale = metadata.scale;
-                        tex.offset = metadata.offset;
-                        tex.rotation = metadata.rotation;
-
-                        qDebug() << "MaterialProcessor: Applied glTF metadata to" << QString::fromStdString(tex.type)
-                            << "- texCoord:" << metadata.texCoordIndex
-                            << "scale: (" << metadata.scale.x << "," << metadata.scale.y << ")"
-                            << "offset: (" << metadata.offset.x << "," << metadata.offset.y << ")"
-                            << "rotation:" << metadata.rotation;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
 	// update material maps based on loaded textures
 	// for each texture type, assign to material if found
+    auto toQVector2D = [](const glm::vec2& v) { return QVector2D(v.x, v.y); };
     for (const auto& tex : textures)
     {
         if (tex.type == "albedoMap")
         {
             mat.setAlbedoTextureId(tex.id);
             mat.setAlbedoMap(QString(tex.path.C_Str()));
+            mat.setAlbedoTexCoord(tex.texCoordIndex);
+            mat.setAlbedoTexScale(toQVector2D(tex.scale));
+            mat.setAlbedoTexOffset(toQVector2D(tex.offset));
+            mat.setAlbedoTexRotation(tex.rotation);
         }
         else if (tex.type == "normalMap")
         {
             mat.setNormalTextureId(tex.id);
             mat.setNormalMap(QString(tex.path.C_Str()));
+            mat.setNormalTexCoord(tex.texCoordIndex);
+            mat.setNormalTexScale(toQVector2D(tex.scale));
+            mat.setNormalTexOffset(toQVector2D(tex.offset));
+            mat.setNormalTexRotation(tex.rotation);
         }
         else if (tex.type == "metallicMap")
         {
             mat.setMetallicTextureId(tex.id);
             mat.setMetallicMap(QString(tex.path.C_Str()));
+            mat.setMetallicTexCoord(tex.texCoordIndex);
+            mat.setMetallicTexScale(toQVector2D(tex.scale));
+            mat.setMetallicTexOffset(toQVector2D(tex.offset));
+            mat.setMetallicTexRotation(tex.rotation);
         }
         else if (tex.type == "roughnessMap")
         {
             mat.setRoughnessTextureId(tex.id);
             mat.setRoughnessMap(QString(tex.path.C_Str()));
+            mat.setRoughnessTexCoord(tex.texCoordIndex);
+            mat.setRoughnessTexScale(toQVector2D(tex.scale));
+            mat.setRoughnessTexOffset(toQVector2D(tex.offset));
+            mat.setRoughnessTexRotation(tex.rotation);
         }
         else if (tex.type == "emissiveMap")
         {
             mat.setEmissiveTextureId(tex.id);
             mat.setEmissiveMap(QString(tex.path.C_Str()));
+            mat.setEmissiveTexCoord(tex.texCoordIndex);
+            mat.setEmissiveTexScale(toQVector2D(tex.scale));
+            mat.setEmissiveTexOffset(toQVector2D(tex.offset));
+            mat.setEmissiveTexRotation(tex.rotation);
         }
         else if (tex.type == "heightMap")
         {
             mat.setHeightTextureId(tex.id);
             mat.setHeightMap(QString(tex.path.C_Str()));
+            mat.setHeightTexCoord(tex.texCoordIndex);
+            mat.setHeightTexScale(toQVector2D(tex.scale));
+            mat.setHeightTexOffset(toQVector2D(tex.offset));
+            mat.setHeightTexRotation(tex.rotation);
         }
         else if (tex.type == "opacityMap")
         {
             mat.setOpacityTextureId(tex.id);
             mat.setOpacityMap(QString(tex.path.C_Str()));
+            mat.setOpacityTexCoord(tex.texCoordIndex);
+            mat.setOpacityTexScale(toQVector2D(tex.scale));
+            mat.setOpacityTexOffset(toQVector2D(tex.offset));
+            mat.setOpacityTexRotation(tex.rotation);
         }
         else if (tex.type == "aoMap")
         {
             mat.setOcclusionTextureId(tex.id);
             mat.setAOMap(QString(tex.path.C_Str()));
+            mat.setOcclusionTexCoord(tex.texCoordIndex);
+            mat.setOcclusionTexScale(toQVector2D(tex.scale));
+            mat.setOcclusionTexOffset(toQVector2D(tex.offset));
+            mat.setOcclusionTexRotation(tex.rotation);
         }
         else if (tex.type == "texture_diffuse")
         {
             mat.setAlbedoTextureId(tex.id);
             mat.setAlbedoMap(QString(tex.path.C_Str()));
+            mat.setAlbedoTexCoord(tex.texCoordIndex);
+            mat.setAlbedoTexScale(toQVector2D(tex.scale));
+            mat.setAlbedoTexOffset(toQVector2D(tex.offset));
+            mat.setAlbedoTexRotation(tex.rotation);
         }
         else if (tex.type == "texture_normal")
         {
             mat.setNormalTextureId(tex.id);
             mat.setNormalMap(QString(tex.path.C_Str()));
+            mat.setNormalTexCoord(tex.texCoordIndex);
+            mat.setNormalTexScale(toQVector2D(tex.scale));
+            mat.setNormalTexOffset(toQVector2D(tex.offset));
+            mat.setNormalTexRotation(tex.rotation);
         }
         else if (tex.type == "texture_specular")
         {
             mat.setMetallicTextureId(tex.id);
             mat.setMetallicMap(QString(tex.path.C_Str()));
+            mat.setMetallicTexCoord(tex.texCoordIndex);
+            mat.setMetallicTexScale(toQVector2D(tex.scale));
+            mat.setMetallicTexOffset(toQVector2D(tex.offset));
+            mat.setMetallicTexRotation(tex.rotation);
         }
         else if (tex.type == "texture_emissive")
         {
             mat.setEmissiveTextureId(tex.id);
             mat.setEmissiveMap(QString(tex.path.C_Str()));
+            mat.setEmissiveTexCoord(tex.texCoordIndex);
+            mat.setEmissiveTexScale(toQVector2D(tex.scale));
+            mat.setEmissiveTexOffset(toQVector2D(tex.offset));
+            mat.setEmissiveTexRotation(tex.rotation);
         }
         else if (tex.type == "texture_height")
         {
             mat.setHeightTextureId(tex.id);
             mat.setHeightMap(QString(tex.path.C_Str()));
+            mat.setHeightTexCoord(tex.texCoordIndex);
+            mat.setHeightTexScale(toQVector2D(tex.scale));
+            mat.setHeightTexOffset(toQVector2D(tex.offset));
+            mat.setHeightTexRotation(tex.rotation);
         }
         else if (tex.type == "texture_opacity")
         {
             mat.setOpacityTextureId(tex.id);
             mat.setOpacityMap(QString(tex.path.C_Str()));
+            mat.setOpacityTexCoord(tex.texCoordIndex);
+            mat.setOpacityTexScale(toQVector2D(tex.scale));
+            mat.setOpacityTexOffset(toQVector2D(tex.offset));
+            mat.setOpacityTexRotation(tex.rotation);
 		}
         // sheen
         else if (tex.type == "sheenColorMap")
         {
             mat.setSheenColorTextureId(tex.id);
             mat.setSheenColorMap(QString(tex.path.C_Str()));
+            mat.setSheenColorTexCoord(tex.texCoordIndex);
+            mat.setSheenColorTexScale(toQVector2D(tex.scale));
+            mat.setSheenColorTexOffset(toQVector2D(tex.offset));
+            mat.setSheenColorTexRotation(tex.rotation);
 		}
         else if (tex.type == "sheenRoughnessMap")
         {
             mat.setSheenRoughnessTextureId(tex.id);
             mat.setSheenRoughnessMap(QString(tex.path.C_Str()));
+            mat.setSheenRoughnessTexCoord(tex.texCoordIndex);
+            mat.setSheenRoughnessTexScale(toQVector2D(tex.scale));
+            mat.setSheenRoughnessTexOffset(toQVector2D(tex.offset));
+            mat.setSheenRoughnessTexRotation(tex.rotation);
         }
         // clearcoat
         else if (tex.type == "clearcoatMap")
         {
             mat.setClearcoatColorTextureId(tex.id);
             mat.setClearcoatColorMap(QString(tex.path.C_Str()));
+            mat.setClearcoatColorTexCoord(tex.texCoordIndex);
+            mat.setClearcoatColorTexScale(toQVector2D(tex.scale));
+            mat.setClearcoatColorTexOffset(toQVector2D(tex.offset));
+            mat.setClearcoatColorTexRotation(tex.rotation);
         }
         else if (tex.type == "clearcoatRoughnessMap")
         {
             mat.setClearcoatRoughnessTextureId(tex.id);
             mat.setClearcoatRoughnessMap(QString(tex.path.C_Str()));
+            mat.setClearcoatRoughnessTexCoord(tex.texCoordIndex);
+            mat.setClearcoatRoughnessTexScale(toQVector2D(tex.scale));
+            mat.setClearcoatRoughnessTexOffset(toQVector2D(tex.offset));
+            mat.setClearcoatRoughnessTexRotation(tex.rotation);
         }
         else if (tex.type == "clearcoatNormalMap")
         {
             mat.setClearcoatNormalTextureId(tex.id);
             mat.setClearcoatNormalMap(QString(tex.path.C_Str()));
+            mat.setClearcoatNormalTexCoord(tex.texCoordIndex);
+            mat.setClearcoatNormalTexScale(toQVector2D(tex.scale));
+            mat.setClearcoatNormalTexOffset(toQVector2D(tex.offset));
+            mat.setClearcoatNormalTexRotation(tex.rotation);
 		}
         // transmission
         else if (tex.type == "transmissionMap")
@@ -863,6 +807,10 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
         {
             mat.setIORTextureId(tex.id);
             mat.setIORMap(QString(tex.path.C_Str()));
+            mat.setIorTexCoord(tex.texCoordIndex);
+            mat.setIorTexScale(toQVector2D(tex.scale));
+            mat.setIorTexOffset(toQVector2D(tex.offset));
+            mat.setIorTexRotation(tex.rotation);
 		}
         // KHR_materials_specular
         else if (tex.type == "specularFactorMap")
@@ -908,124 +856,77 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
 {
     std::vector<Texture> textures;
 
-    // STEP 1: Try to get texture from assimp
-    std::string textureFilePath;
+    if (mat->GetTextureCount(type) <= slotIndex)
+        return textures;
+
     aiString str;
-    bool foundInAssimp = false;
+    if (mat->GetTexture(type, slotIndex, &str) != AI_SUCCESS)
+        return textures;
 
-    if (mat->GetTextureCount(type) > slotIndex)
-    {
-        if (mat->GetTexture(type, slotIndex, &str) == AI_SUCCESS)
-        {
-            foundInAssimp = true;
-            textureFilePath = this->_folderPath + '/' + string(str.C_Str());
-            std::replace(textureFilePath.begin(), textureFilePath.end(), '\\', '/');
-        }
-    }
+    std::string textureFilePath = this->_folderPath + '/' + string(str.C_Str());
+    std::replace(textureFilePath.begin(), textureFilePath.end(), '\\', '/');
 
-    // STEP 2: If assimp didn't have it, try glTF metadata
-    if (!foundInAssimp && _glTFMetadataExtractor && _currentMaterialIndex >= 0)
-    {
-        qDebug() << "MaterialProcessor: Texture type" << QString::fromStdString(typeName)
-            << "not found in assimp - checking glTF metadata...";
+    // Extract UV transform FIRST (before checking cache)
+    Texture newTexture;
+    newTexture.type = typeName;
+    newTexture.path = aiString(textureFilePath);
+    extractUVTransform(mat, type, slotIndex, newTexture);
 
-        std::string fallbackPath = tryFallbackTextureLoading(typeName);
-        if (!fallbackPath.empty())
-        {
-            qDebug() << "MaterialProcessor: Found texture in glTF metadata:"
-                << QString::fromStdString(fallbackPath);
-            textureFilePath = fallbackPath;
-            foundInAssimp = true;  // Set to true so we continue processing
-        }
-    }
+    // Lambda to compare UV transform metadata
+    auto uvTransformMatches = [](const Texture& a, const Texture& b) {
+        return a.texCoordIndex == b.texCoordIndex &&
+            std::abs(a.scale.x - b.scale.x) < 0.0001f &&
+            std::abs(a.scale.y - b.scale.y) < 0.0001f &&
+            std::abs(a.offset.x - b.offset.x) < 0.0001f &&
+            std::abs(a.offset.y - b.offset.y) < 0.0001f &&
+            std::abs(a.rotation - b.rotation) < 0.0001f;
+        };
 
-    // STEP 3: If still not found, return empty
-    if (!foundInAssimp)
-    {
-        qDebug() << "MaterialProcessor: Texture type" << QString::fromStdString(typeName)
-            << "not found in assimp or glTF metadata";
-        return textures;  // Return empty, no texture found anywhere
-    }
-
-    // STEP 4: Check cache - exact path + type match
+    // Check 1: Exact match (path + type + UV metadata)
     for (const auto& lt : _loadedTextures)
     {
-        if (string(lt.path.C_Str()) == textureFilePath && lt.type == typeName)
+        if (string(lt.path.C_Str()) == textureFilePath &&
+            lt.type == typeName &&
+            uvTransformMatches(lt, newTexture))
         {
+            // Perfect match - reuse everything
             textures.push_back(lt);
-            qDebug() << "MaterialProcessor: Found cached texture" << QString::fromStdString(typeName);
             return textures;
         }
     }
 
-    // STEP 5: Check cache - same path, different type (reuse GPU ID)
+    // Check 2: Same path, but different type OR different UV metadata
+    // In this case, reuse GPU texture ID but create new entry with different metadata
     for (const auto& lt : _loadedTextures)
     {
-        if (string(lt.path.C_Str()) == textureFilePath && lt.type != typeName)
+        if (string(lt.path.C_Str()) == textureFilePath)
         {
+            // Found same texture file - reuse GPU ID but apply new metadata
             Texture alias;
-            alias.id = lt.id;
-            alias.type = typeName;
-            alias.path = lt.path;
-            alias.hasAlpha = lt.hasAlpha;
-            alias.texCoordIndex = 0;
-            alias.scale = glm::vec2(1.0f);
-            alias.offset = glm::vec2(0.0f);
-            alias.rotation = 0.0f;
+            alias.id = lt.id;                    // Reuse GPU texture
+            alias.type = typeName;               // New type name
+            alias.path = lt.path;                // Same path
+            alias.hasAlpha = lt.hasAlpha;        // Same alpha info
+
+            // Use the NEW UV transform metadata (from newTexture)
+            alias.texCoordIndex = newTexture.texCoordIndex;
+            alias.scale = newTexture.scale;
+            alias.offset = newTexture.offset;
+            alias.rotation = newTexture.rotation;
+
             textures.push_back(alias);
-            _loadedTextures.push_back(alias);
-            qDebug() << "MaterialProcessor: Created texture alias for" << QString::fromStdString(typeName);
+            _loadedTextures.push_back(alias);    // Cache this variant
             return textures;
         }
     }
 
-    // STEP 6: Not in cache - try loading from file (with fallback if first attempt fails)
-    Texture texture;
+    // Check 3: Not loaded at all - load from file
     bool hasAlpha = false;
+    newTexture.id = textureFromFile(textureFilePath.c_str(), hasAlpha);
+    newTexture.hasAlpha = hasAlpha;
 
-    // Try assimp path first
-    qDebug() << "MaterialProcessor: Attempting to load texture from:"
-        << QString::fromStdString(textureFilePath);
-    texture.id = textureFromFile(textureFilePath.c_str(), hasAlpha);
-
-    // If that failed, try fallback (in case assimp path is wrong but glTF path is correct)
-    if (texture.id == 0 && _glTFMetadataExtractor && _currentMaterialIndex >= 0)
-    {
-        qWarning() << "MaterialProcessor: Failed to load from:"
-            << QString::fromStdString(textureFilePath);
-        qWarning() << "  Attempting fallback load using glTF metadata...";
-
-        std::string fallbackPath = tryFallbackTextureLoading(typeName);
-        if (!fallbackPath.empty() && fallbackPath != textureFilePath)
-        {
-            qDebug() << "MaterialProcessor: Trying fallback path:"
-                << QString::fromStdString(fallbackPath);
-
-            texture.id = textureFromFile(fallbackPath.c_str(), hasAlpha);
-
-            if (texture.id != 0)
-            {
-                qDebug() << "MaterialProcessor: Successfully loaded from glTF fallback path";
-                textureFilePath = fallbackPath;
-            }
-            else
-            {
-                qWarning() << "MaterialProcessor: Fallback path also failed";
-            }
-        }
-    }
-
-    // Store the texture (even if loading failed - texture.id will be 0)
-    texture.type = typeName;
-    texture.path = aiString(textureFilePath);
-    texture.hasAlpha = hasAlpha;
-    texture.texCoordIndex = 0;
-    texture.scale = glm::vec2(1.0f);
-    texture.offset = glm::vec2(0.0f);
-    texture.rotation = 0.0f;
-
-    textures.push_back(texture);
-    _loadedTextures.push_back(texture);
+    textures.push_back(newTexture);
+    _loadedTextures.push_back(newTexture);
 
     return textures;
 }

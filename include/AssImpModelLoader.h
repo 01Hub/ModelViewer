@@ -9,7 +9,6 @@
 
 #include "AssImpMesh.h"
 #include "BoundingBox.h"
-#include "GLTFMetadataExtractor.h"
 #include "MaterialProcessor.h"
 #include "MeshAnalyzer.h"
 #include "TriangleMesh.h"
@@ -175,6 +174,4 @@ private:
 	bool _autoScale = true; // Automatically scale the model to fit the scene's coordinate system
 	bool _autoOrient = true; // Automatically orient the model to match the scene's coordinate system
 
-	GLTFMetadataExtractor _glTFMetadataExtractor;
-	std::string _currentGLTFPath;  // Store path for material processor
 };

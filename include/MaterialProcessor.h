@@ -1,11 +1,12 @@
 #pragma once
 
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 #include <assimp/scene.h>
 #include "GLMaterial.h"
 #include "AssImpMesh.h"
 #include <QOpenGLFunctions_4_5_Core>
 
-class GLTFMetadataExtractor;
 
 class MaterialProcessor : public QOpenGLFunctions_4_5_Core
 {
@@ -33,12 +34,6 @@ public:
 
 	void synthesizeADSAliases(std::vector<Texture>& textures);
 
-	void setGLTFMetadata(GLTFMetadataExtractor* extractor, int materialIndex)
-	{
-		_glTFMetadataExtractor = extractor;
-		_currentMaterialIndex = materialIndex;
-	}
-
 private:
 	void setShadingModel(GLMaterial& mat, aiShadingMode shadingModel);
 	void setBlendMode(GLMaterial& mat, aiBlendMode blendMode);
@@ -49,14 +44,6 @@ private:
 	unsigned int textureFromFile(const char* path, bool& hasAlpha);
 
 private:
-	/**
-	 * Attempt to load texture using glTF metadata fallback path
-	 * Called when assimp fails to load from its path
-	 * @param textureType The assimp texture type name
-	 * @return Full path to texture file from glTF metadata, or empty string if not found
-	 */
-	std::string tryFallbackTextureLoading(const std::string& textureType);
-
 	// Each entry: primary type + uniform name, and an optional fallback type+uniform name
 	struct TextureSlotMapping
 	{
@@ -129,12 +116,16 @@ private:
 
 	void debugMaterialTextures(aiMaterial* material, const std::string& materialName);
 
+	void extractUVTransform(
+		aiMaterial* mat,
+		aiTextureType type,
+		unsigned int slotIndex,
+		Texture& texture);
 
+	
+
+private:
 	std::vector<Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
 
 	std::string _folderPath; // Directory where textures are located
-
-	private:
-		GLTFMetadataExtractor* _glTFMetadataExtractor = nullptr;
-		int _currentMaterialIndex = -1;
 };

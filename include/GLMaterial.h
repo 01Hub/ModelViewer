@@ -7,6 +7,15 @@
 class GLMaterial
 {
 public:
+
+	struct TextureTransform
+	{
+		int texCoord = 0;
+		QVector2D texScale = QVector2D(1.0f, 1.0f);
+		QVector2D texOffset = QVector2D(0.0f, 0.0f);
+		float texRotation = 0.0f;
+	};
+
 	enum class PredefinedMaterials
 	{
 		BRASS, BRONZE, COPPER, GOLD, SILVER, CHROME,
@@ -174,14 +183,199 @@ public:
 	void setTransmissionTextureId(int id);
 
 	// Texture coordinate sets for multi-UV support
-	int albedoTexCoord() const;
-	void setAlbedoTexCoord(int coord);
+	int albedoTexCoord() const { return _albedoTexTransform.texCoord; }
+	void setAlbedoTexCoord(int coord) { _albedoTexTransform.texCoord = coord; }
 
-	int normalTexCoord() const;
-	void setNormalTexCoord(int coord);
+	QVector2D albedoTexScale() const { return _albedoTexTransform.texScale; }
+	void setAlbedoTexScale(const QVector2D& scale) { _albedoTexTransform.texScale = scale; }
 
-	int metallicRoughnessTexCoord() const;
-	void setMetallicRoughnessTexCoord(int coord);
+	QVector2D albedoTexOffset() const { return _albedoTexTransform.texOffset; }
+	void setAlbedoTexOffset(const QVector2D& offset) { _albedoTexTransform.texOffset = offset; }
+
+	float albedoTexRotation() const { return _albedoTexTransform.texRotation; }
+	void setAlbedoTexRotation(float rotation) { _albedoTexTransform.texRotation = rotation; }
+
+
+	int metallicTexCoord() const { return _metallicTexTransform.texCoord; }
+	void setMetallicTexCoord(int coord) { _metallicTexTransform.texCoord = coord; }
+
+	QVector2D metallicTexScale() const { return _metallicTexTransform.texScale; }
+	void setMetallicTexScale(const QVector2D& scale) { _metallicTexTransform.texScale = scale; }
+
+	QVector2D metallicTexOffset() const { return _metallicTexTransform.texOffset; }
+	void setMetallicTexOffset(const QVector2D& offset) { _metallicTexTransform.texOffset = offset; }
+
+	float metallicTexRotation() const { return _metallicTexTransform.texRotation; }
+	void setMetallicTexRotation(float rotation) { _metallicTexTransform.texRotation = rotation; }
+
+
+	int normalTexCoord() const { return _normalTexTransform.texCoord; }
+	void setNormalTexCoord(int coord) { _normalTexTransform.texCoord = coord; }
+
+	QVector2D normalTexScale() const { return _normalTexTransform.texScale; }
+	void setNormalTexScale(const QVector2D& scale) { _normalTexTransform.texScale = scale; }
+
+	QVector2D normalTexOffset() const { return _normalTexTransform.texOffset; }
+	void setNormalTexOffset(const QVector2D& offset) { _normalTexTransform.texOffset = offset; }
+
+	float normalTexRotation() const { return _normalTexTransform.texRotation; }
+	void setNormalTexRotation(float rotation) { _normalTexTransform.texRotation = rotation; }
+
+
+	int metallicRoughnessTexCoord() const { return _metallicRoughnessTexTransform.texCoord; }
+	void setMetallicRoughnessTexCoord(int coord) { _metallicRoughnessTexTransform.texCoord = coord; }
+
+	QVector2D metallicRoughnessTexScale() const { return _metallicRoughnessTexTransform.texScale; }
+	void setMetallicRoughnessTexScale(const QVector2D& scale) { _metallicRoughnessTexTransform.texScale = scale; }
+
+	QVector2D metallicRoughnessTexOffset() const { return _metallicRoughnessTexTransform.texOffset; }
+	void setMetallicRoughnessTexOffset(const QVector2D& offset) { _metallicRoughnessTexTransform.texOffset = offset; }
+
+	float metallicRoughnessTexRotation() const { return _metallicRoughnessTexTransform.texRotation; }
+	void setMetallicRoughnessTexRotation(float rotation) { _metallicRoughnessTexTransform.texRotation = rotation; }
+
+
+	int roughnessTexCoord() const { return _roughnessTexTransform.texCoord; }
+	void setRoughnessTexCoord(int coord) { _roughnessTexTransform.texCoord = coord; }
+
+	QVector2D roughnessTexScale() const { return _roughnessTexTransform.texScale; }
+	void setRoughnessTexScale(const QVector2D& scale) { _roughnessTexTransform.texScale = scale; }
+
+	QVector2D roughnessTexOffset() const { return _roughnessTexTransform.texOffset; }
+	void setRoughnessTexOffset(const QVector2D& offset) { _roughnessTexTransform.texOffset = offset; }
+
+	float roughnessTexRotation() const { return _roughnessTexTransform.texRotation; }
+	void setRoughnessTexRotation(float rotation) { _roughnessTexTransform.texRotation = rotation; }
+
+
+	int occlusionTexCoord() const { return _occlusionTexTransform.texCoord; }
+	void setOcclusionTexCoord(int coord) { _occlusionTexTransform.texCoord = coord; }
+
+	QVector2D occlusionTexScale() const { return _occlusionTexTransform.texScale; }
+	void setOcclusionTexScale(const QVector2D& scale) { _occlusionTexTransform.texScale = scale; }
+
+	QVector2D occlusionTexOffset() const { return _occlusionTexTransform.texOffset; }
+	void setOcclusionTexOffset(const QVector2D& offset) { _occlusionTexTransform.texOffset = offset; }
+
+	float occlusionTexRotation() const { return _occlusionTexTransform.texRotation; }
+	void setOcclusionTexRotation(float rotation) { _occlusionTexTransform.texRotation = rotation; }
+
+
+	int emissiveTexCoord() const { return _emissiveTexTransform.texCoord; }
+	void setEmissiveTexCoord(int coord) { _emissiveTexTransform.texCoord = coord; }
+
+	QVector2D emissiveTexScale() const { return _emissiveTexTransform.texScale; }
+	void setEmissiveTexScale(const QVector2D& scale) { _emissiveTexTransform.texScale = scale; }
+
+	QVector2D emissiveTexOffset() const { return _emissiveTexTransform.texOffset; }
+	void setEmissiveTexOffset(const QVector2D& offset) { _emissiveTexTransform.texOffset = offset; }
+
+	float emissiveTexRotation() const { return _emissiveTexTransform.texRotation; }
+	void setEmissiveTexRotation(float rotation) { _emissiveTexTransform.texRotation = rotation; }
+
+
+	int opacityTexCoord() const { return _opacityTexTransform.texCoord; }
+	void setOpacityTexCoord(int coord) { _opacityTexTransform.texCoord = coord; }
+
+	QVector2D opacityTexScale() const { return _opacityTexTransform.texScale; }
+	void setOpacityTexScale(const QVector2D& scale) { _opacityTexTransform.texScale = scale; }
+
+	QVector2D opacityTexOffset() const { return _opacityTexTransform.texOffset; }
+	void setOpacityTexOffset(const QVector2D& offset) { _opacityTexTransform.texOffset = offset; }
+
+	float opacityTexRotation() const { return _opacityTexTransform.texRotation; }
+	void setOpacityTexRotation(float rotation) { _opacityTexTransform.texRotation = rotation; }
+
+
+	int heightTexCoord() const { return _heightTexTransform.texCoord; }
+	void setHeightTexCoord(int coord) { _heightTexTransform.texCoord = coord; }
+
+	QVector2D heightTexScale() const { return _heightTexTransform.texScale; }
+	void setHeightTexScale(const QVector2D& scale) { _heightTexTransform.texScale = scale; }
+
+	QVector2D heightTexOffset() const { return _heightTexTransform.texOffset; }
+	void setHeightTexOffset(const QVector2D& offset) { _heightTexTransform.texOffset = offset; }
+
+	float heightTexRotation() const { return _heightTexTransform.texRotation; }
+	void setHeightTexRotation(float rotation) { _heightTexTransform.texRotation = rotation; }
+
+
+	int clearcoatColorTexCoord() const { return _clearcoatColorTexTransform.texCoord; }
+	void setClearcoatColorTexCoord(int coord) { _clearcoatColorTexTransform.texCoord = coord; }
+
+	QVector2D clearcoatColorTexScale() const { return _clearcoatColorTexTransform.texScale; }
+	void setClearcoatColorTexScale(const QVector2D& scale) { _clearcoatColorTexTransform.texScale = scale; }
+
+	QVector2D clearcoatColorTexOffset() const { return _clearcoatColorTexTransform.texOffset; }
+	void setClearcoatColorTexOffset(const QVector2D& offset) { _clearcoatColorTexTransform.texOffset = offset; }
+
+	float clearcoatColorTexRotation() const { return _clearcoatColorTexTransform.texRotation; }
+	void setClearcoatColorTexRotation(float rotation) { _clearcoatColorTexTransform.texRotation = rotation; }
+
+
+	int clearcoatRoughnessTexCoord() const { return _clearcoatRoughnessTexTransform.texCoord; }
+	void setClearcoatRoughnessTexCoord(int coord) { _clearcoatRoughnessTexTransform.texCoord = coord; }
+
+	QVector2D clearcoatRoughnessTexScale() const { return _clearcoatRoughnessTexTransform.texScale; }
+	void setClearcoatRoughnessTexScale(const QVector2D& scale) { _clearcoatRoughnessTexTransform.texScale = scale; }
+
+	QVector2D clearcoatRoughnessTexOffset() const { return _clearcoatRoughnessTexTransform.texOffset; }
+	void setClearcoatRoughnessTexOffset(const QVector2D& offset) { _clearcoatRoughnessTexTransform.texOffset = offset; }
+
+	float clearcoatRoughnessTexRotation() const { return _clearcoatRoughnessTexTransform.texRotation; }
+	void setClearcoatRoughnessTexRotation(float rotation) { _clearcoatRoughnessTexTransform.texRotation = rotation; }
+
+
+	int clearcoatNormalTexCoord() const { return _clearcoatNormalTexTransform.texCoord; }
+	void setClearcoatNormalTexCoord(int coord) { _clearcoatNormalTexTransform.texCoord = coord; }
+
+	QVector2D clearcoatNormalTexScale() const { return _clearcoatNormalTexTransform.texScale; }
+	void setClearcoatNormalTexScale(const QVector2D& scale) { _clearcoatNormalTexTransform.texScale = scale; }
+
+	QVector2D clearcoatNormalTexOffset() const { return _clearcoatNormalTexTransform.texOffset; }
+	void setClearcoatNormalTexOffset(const QVector2D& offset) { _clearcoatNormalTexTransform.texOffset = offset; }
+
+	float clearcoatNormalTexRotation() const { return _clearcoatNormalTexTransform.texRotation; }
+	void setClearcoatNormalTexRotation(float rotation) { _clearcoatNormalTexTransform.texRotation = rotation; }
+
+
+	int sheenColorTexCoord() const { return _sheenColorTexTransform.texCoord; }
+	void setSheenColorTexCoord(int coord) { _sheenColorTexTransform.texCoord = coord; }
+
+	QVector2D sheenColorTexScale() const { return _sheenColorTexTransform.texScale; }
+	void setSheenColorTexScale(const QVector2D& scale) { _sheenColorTexTransform.texScale = scale; }
+
+	QVector2D sheenColorTexOffset() const { return _sheenColorTexTransform.texOffset; }
+	void setSheenColorTexOffset(const QVector2D& offset) { _sheenColorTexTransform.texOffset = offset; }
+
+	float sheenColorTexRotation() const { return _sheenColorTexTransform.texRotation; }
+	void setSheenColorTexRotation(float rotation) { _sheenColorTexTransform.texRotation = rotation; }
+
+
+	int sheenRoughnessTexCoord() const { return _sheenRoughnessTexTransform.texCoord; }
+	void setSheenRoughnessTexCoord(int coord) { _sheenRoughnessTexTransform.texCoord = coord; }
+
+	QVector2D sheenRoughnessTexScale() const { return _sheenRoughnessTexTransform.texScale; }
+	void setSheenRoughnessTexScale(const QVector2D& scale) { _sheenRoughnessTexTransform.texScale = scale; }
+
+	QVector2D sheenRoughnessTexOffset() const { return _sheenRoughnessTexTransform.texOffset; }
+	void setSheenRoughnessTexOffset(const QVector2D& offset) { _sheenRoughnessTexTransform.texOffset = offset; }
+
+	float sheenRoughnessTexRotation() const { return _sheenRoughnessTexTransform.texRotation; }
+	void setSheenRoughnessTexRotation(float rotation) { _sheenRoughnessTexTransform.texRotation = rotation; }
+
+
+	int iorTexCoord() const { return _iorTexTransform.texCoord; }
+	void setIorTexCoord(int coord) { _iorTexTransform.texCoord = coord; }
+
+	QVector2D iorTexScale() const { return _iorTexTransform.texScale; }
+	void setIorTexScale(const QVector2D& scale) { _iorTexTransform.texScale = scale; }
+
+	QVector2D iorTexOffset() const { return _iorTexTransform.texOffset; }
+	void setIorTexOffset(const QVector2D& offset) { _iorTexTransform.texOffset = offset; }
+
+	float iorTexRotation() const { return _iorTexTransform.texRotation; }
+	void setIorTexRotation(float rotation) { _iorTexTransform.texRotation = rotation; }
 
 	// --- KHR_materials_specular ---
 	void setSpecularFactor(float factor) { m_specularFactor = factor; }
@@ -648,6 +842,22 @@ private:
 	int _normalTexCoord;
 	int _metallicRoughnessTexCoord;
 
+	TextureTransform _albedoTexTransform;
+	TextureTransform _metallicTexTransform;
+	TextureTransform _normalTexTransform;
+	TextureTransform _metallicRoughnessTexTransform;
+	TextureTransform _roughnessTexTransform;
+	TextureTransform _occlusionTexTransform;
+	TextureTransform _emissiveTexTransform;
+	TextureTransform _opacityTexTransform;
+	TextureTransform _heightTexTransform;
+	TextureTransform _clearcoatColorTexTransform;
+	TextureTransform _clearcoatRoughnessTexTransform;
+	TextureTransform _clearcoatNormalTexTransform;
+	TextureTransform _sheenColorTexTransform;
+	TextureTransform _sheenRoughnessTexTransform;
+	TextureTransform _iorTexTransform;
+
 	// Map paths (UI-facing; your renderer/texture manager can translate these to GL)
 	QString _albedoMapPath;
 	QString _normalMapPath;
@@ -835,18 +1045,6 @@ inline void GLMaterial::setIORTextureId(int id) { _iorTextureId = id; }
 inline int GLMaterial::transmissionTextureId() const { return _transmissionTextureId; }
 
 inline void GLMaterial::setTransmissionTextureId(int id) { _transmissionTextureId = id; }
-
-inline int GLMaterial::albedoTexCoord() const { return _albedoTexCoord; }
-
-inline void GLMaterial::setAlbedoTexCoord(int coord) { _albedoTexCoord = coord; }
-
-inline int GLMaterial::normalTexCoord() const { return _normalTexCoord; }
-
-inline void GLMaterial::setNormalTexCoord(int coord) { _normalTexCoord = coord; }
-
-inline int GLMaterial::metallicRoughnessTexCoord() const { return _metallicRoughnessTexCoord; }
-
-inline void GLMaterial::setMetallicRoughnessTexCoord(int coord) { _metallicRoughnessTexCoord = coord; }
 
 // Albedo
 inline QString GLMaterial::albedoMapPath() const { return _albedoMapPath; }

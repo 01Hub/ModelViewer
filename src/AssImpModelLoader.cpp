@@ -176,32 +176,8 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		_selectedUVMethod = UVMethod::None; // No UVs needed, reset to None
 	}
 
-
 	// Retrieve the directory path of the filepath
 	this->_texturePath = path.substr(0, path.find_last_of('/'));
-
-	// === NEW: Parse glTF metadata if it's a glTF file ===
-	std::string fileExt = path.substr(path.find_last_of("."));
-	std::transform(fileExt.begin(), fileExt.end(), fileExt.begin(), ::tolower);
-
-	if (fileExt == ".gltf")
-	{
-		qDebug() << "AssImpModelLoader: Detected .gltf file, extracting metadata...";
-		if (_glTFMetadataExtractor.parseGLTFFile(path))
-		{
-			_currentGLTFPath = path;
-			qDebug() << "AssImpModelLoader: glTF metadata extraction successful";
-		}
-		else
-		{
-			qWarning() << "AssImpModelLoader: Failed to parse glTF metadata";
-		}
-	}
-	else
-	{
-		_glTFMetadataExtractor.clear();
-		_currentGLTFPath = "";
-	}
 
 	// Set batch size based on number of meshes;
 	int batchSize = std::clamp(_sceneStats.meshCount / 10, 5, 100);
@@ -441,10 +417,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		// Normal: texture_normalN
 
 		_materialProcessor.setFolderPath(this->_texturePath);
-
-		// === NEW: Pass glTF metadata to material processor ===
-		_materialProcessor.setGLTFMetadata(&_glTFMetadataExtractor, mesh->mMaterialIndex);
-
+		
 		// ADS and PBR Maps
 		_materialProcessor.setTextureMaps(material, textures, mat);
 
