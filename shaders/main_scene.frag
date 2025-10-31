@@ -1181,7 +1181,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 specBRDF;
 	if (anisotropyStrength > 0.0) {
 		// Use anisotropic BRDF
-		specBRDF = calculateAnisotropy(N, V, L, T, B, anisotropyStrength, anisotropyRotation, roughness, F0);
+		specBRDF = calculateAnisotropy(normalize(g_reflectionNormal), normalize(cameraDir), L, T, B, anisotropyStrength, anisotropyRotation, roughness, F0);
 	} else {
 		// Standard isotropic GGX
 		float NDF = distributionGGX(N, H, roughness);
