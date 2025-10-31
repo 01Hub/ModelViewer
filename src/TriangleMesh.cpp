@@ -578,82 +578,158 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("albedoTexTransform.offset", _material.albedoTexOffset());
 	_prog->setUniformValue("albedoTexTransform.scale", _material.albedoTexScale());
 	_prog->setUniformValue("albedoTexTransform.rotation", _material.albedoTexRotation());
+
+	// Legacy diffuse map transform
+	_prog->setUniformValue("diffuseTextureTransform.texCoordIndex", _material.albedoTexCoord());
+	_prog->setUniformValue("diffuseTextureTransform.offset", _material.albedoTexOffset());
+	_prog->setUniformValue("diffuseTextureTransform.scale", _material.albedoTexScale());
+	_prog->setUniformValue("diffuseTextureTransform.rotation", _material.albedoTexRotation());
+
+	// Metallic map transform
 	_prog->setUniformValue("metallicTexTransform.texCoordIndex", _material.metallicTexCoord());
 	_prog->setUniformValue("metallicTexTransform.offset", _material.metallicTexOffset());
 	_prog->setUniformValue("metallicTexTransform.scale", _material.metallicTexScale());
 	_prog->setUniformValue("metallicTexTransform.rotation", _material.metallicTexRotation());
+
+	// Legacy specular map transform
+	_prog->setUniformValue("specularTextureTransform.texCoordIndex", _material.metallicTexCoord());
+	_prog->setUniformValue("specularTextureTransform.offset", _material.metallicTexOffset());
+	_prog->setUniformValue("specularTextureTransform.scale", _material.metallicTexScale());
+	_prog->setUniformValue("specularTextureTransform.rotation", _material.metallicTexRotation());
+
+	// Roughness map transform
 	_prog->setUniformValue("roughnessTexTransform.texCoordIndex", _material.roughnessTexCoord());
 	_prog->setUniformValue("roughnessTexTransform.offset", _material.roughnessTexOffset());
 	_prog->setUniformValue("roughnessTexTransform.scale", _material.roughnessTexScale());
 	_prog->setUniformValue("roughnessTexTransform.rotation", _material.roughnessTexRotation());
+
+	// Normal map transform
 	_prog->setUniformValue("normalTexTransform.texCoordIndex", _material.normalTexCoord());
 	_prog->setUniformValue("normalTexTransform.offset", _material.normalTexOffset());
 	_prog->setUniformValue("normalTexTransform.scale", _material.normalTexScale());
 	_prog->setUniformValue("normalTexTransform.rotation", _material.normalTexRotation());
+
+	// Legacy normal map transform
+	_prog->setUniformValue("normalTextureTransform.texCoordIndex", _material.normalTexCoord());
+	_prog->setUniformValue("normalTextureTransform.offset", _material.normalTexOffset());
+	_prog->setUniformValue("normalTextureTransform.scale", _material.normalTexScale());
+	_prog->setUniformValue("normalTextureTransform.rotation", _material.normalTexRotation());
+
+	// Occlusion map transform
 	_prog->setUniformValue("aoTexTransform.texCoordIndex", _material.occlusionTexCoord());
 	_prog->setUniformValue("aoTexTransform.offset", _material.occlusionTexOffset());
 	_prog->setUniformValue("aoTexTransform.scale", _material.occlusionTexScale());
 	_prog->setUniformValue("aoTexTransform.rotation", _material.occlusionTexRotation());
+
+	// Emissive map transform
 	_prog->setUniformValue("emissiveTexTransform.texCoordIndex", _material.emissiveTexCoord());
 	_prog->setUniformValue("emissiveTexTransform.offset", _material.emissiveTexOffset());
 	_prog->setUniformValue("emissiveTexTransform.scale", _material.emissiveTexScale());
 	_prog->setUniformValue("emissiveTexTransform.rotation", _material.emissiveTexRotation());
+
+	// Legacy emissive map transform
+	_prog->setUniformValue("emissiveTextureTransform.texCoordIndex", _material.emissiveTexCoord());
+	_prog->setUniformValue("emissiveTextureTransform.offset", _material.emissiveTexOffset());
+	_prog->setUniformValue("emissiveTextureTransform.scale", _material.emissiveTexScale());
+	_prog->setUniformValue("emissiveTextureTransform.rotation", _material.emissiveTexRotation());
+
+	// Height map transform
 	_prog->setUniformValue("heightTexTransform.texCoordIndex", _material.heightTexCoord());
 	_prog->setUniformValue("heightTexTransform.offset", _material.heightTexOffset());
 	_prog->setUniformValue("heightTexTransform.scale", _material.heightTexScale());
 	_prog->setUniformValue("heightTexTransform.rotation", _material.heightTexRotation());
+
+	// Legacy height map transform
+	_prog->setUniformValue("heightTextureTransform.texCoordIndex", _material.heightTexCoord());
+	_prog->setUniformValue("heightTextureTransform.offset", _material.heightTexOffset());
+	_prog->setUniformValue("heightTextureTransform.scale", _material.heightTexScale());
+	_prog->setUniformValue("heightTextureTransform.rotation", _material.heightTexRotation());
+
+	// Opacity map transform
 	_prog->setUniformValue("opacityTexTransform.texCoordIndex", _material.opacityTexCoord());
 	_prog->setUniformValue("opacityTexTransform.offset", _material.opacityTexOffset());
 	_prog->setUniformValue("opacityTexTransform.scale", _material.opacityTexScale());
 	_prog->setUniformValue("opacityTexTransform.rotation", _material.opacityTexRotation());
+
+	// Legacy opacity map transform
+	_prog->setUniformValue("opacityTextureTransform.texCoordIndex", _material.opacityTexCoord());
+	_prog->setUniformValue("opacityTextureTransform.offset", _material.opacityTexOffset());
+	_prog->setUniformValue("opacityTextureTransform.scale", _material.opacityTexScale());
+	_prog->setUniformValue("opacityTextureTransform.rotation", _material.opacityTexRotation());
+
+	// Transmission map transform
 	//_prog->setUniformValue("transmissionTexTransform.texCoordIndex", _material.transmissionTexCoord());
 	//_prog->setUniformValue("transmissionTexTransform.offset", _material.transmissionTexOffset());
 	//_prog->setUniformValue("transmissionTexTransform.scale", _material.transmissionTexScale());
 	//_prog->setUniformValue("transmissionTexTransform.rotation", _material.transmissionTexRotation());
+
+	// IOR map transform
 	_prog->setUniformValue("iorTexTransform.texCoordIndex", _material.iorTexCoord());
 	_prog->setUniformValue("iorTexTransform.offset", _material.iorTexOffset());
 	_prog->setUniformValue("iorTexTransform.scale", _material.iorTexScale());
 	_prog->setUniformValue("iorTexTransform.rotation", _material.iorTexRotation());
+
+	// Sheen map transforms
 	_prog->setUniformValue("sheenColorTexTransform.texCoordIndex", _material.sheenColorTexCoord());
 	_prog->setUniformValue("sheenColorTexTransform.offset", _material.sheenColorTexOffset());
 	_prog->setUniformValue("sheenColorTexTransform.scale", _material.sheenColorTexScale());
 	_prog->setUniformValue("sheenColorTexTransform.rotation", _material.sheenColorTexRotation());
+
+	// Sheen roughness map transform
 	_prog->setUniformValue("sheenRoughnessTexTransform.texCoordIndex", _material.sheenRoughnessTexCoord());
 	_prog->setUniformValue("sheenRoughnessTexTransform.offset", _material.sheenRoughnessTexOffset());
 	_prog->setUniformValue("sheenRoughnessTexTransform.scale", _material.sheenRoughnessTexScale());
 	_prog->setUniformValue("sheenRoughnessTexTransform.rotation", _material.sheenRoughnessTexRotation());
+
+	// Clearcoat map transforms
 	_prog->setUniformValue("clearcoatTexTransform.texCoordIndex", _material.clearcoatColorTexCoord());
 	_prog->setUniformValue("clearcoatTexTransform.offset", _material.clearcoatColorTexCoord());
 	_prog->setUniformValue("clearcoatTexTransform.scale", _material.clearcoatColorTexCoord());
 	_prog->setUniformValue("clearcoatTexTransform.rotation", _material.clearcoatColorTexCoord());
+
+	// Clearcoat roughness map transform
 	_prog->setUniformValue("clearcoatRoughnessTexTransform.texCoordIndex", _material.clearcoatRoughnessTexCoord());
 	_prog->setUniformValue("clearcoatRoughnessTexTransform.offset", _material.clearcoatRoughnessTexOffset());
 	_prog->setUniformValue("clearcoatRoughnessTexTransform.scale", _material.clearcoatRoughnessTexScale());
 	_prog->setUniformValue("clearcoatRoughnessTexTransform.rotation", _material.clearcoatRoughnessTexRotation());
+
+	// Clearcoat normal map transform
 	_prog->setUniformValue("clearcoatNormalTexTransform.texCoordIndex", _material.clearcoatNormalTexCoord());
 	_prog->setUniformValue("clearcoatNormalTexTransform.offset", _material.clearcoatNormalTexOffset());
 	_prog->setUniformValue("clearcoatNormalTexTransform.scale", _material.clearcoatNormalTexScale());
 	_prog->setUniformValue("clearcoatNormalTexTransform.rotation", _material.clearcoatNormalTexRotation());
+
+	// KHR_materials_specular
 	//_prog->setUniformValue("specularFactorTexTransform.texCoordIndex", _material.specularFactorTexCoord());
 	//_prog->setUniformValue("specularFactorTexTransform.offset", _material.specularFactorTexOffset());
 	//_prog->setUniformValue("specularFactorTexTransform.scale", _material.specularFactorTexScale());
 	//_prog->setUniformValue("specularFactorTexTransform.rotation", _material.specularFactorTexRotation());
+	
+	// KHR_materials_specular
 	//_prog->setUniformValue("specularColorTexTransform.texCoordIndex", _material.specularColorTexCoord());
 	//_prog->setUniformValue("specularColorTexTransform.offset", _material.specularColorTexOffset());
 	//_prog->setUniformValue("specularColorTexTransform.scale", _material.specularColorTexScale());
 	//_prog->setUniformValue("specularColorTexTransform.rotation", _material.specularColorTexRotation());
+
+	// KHR_materials_anisotropy
 	_prog->setUniformValue("anisotropyTexTransform.texCoordIndex", _material.anisotropyTexCoord());
 	_prog->setUniformValue("anisotropyTexTransform.offset", _material.anisotropyTexOffset());
 	_prog->setUniformValue("anisotropyTexTransform.scale", _material.anisotropyTexScale());
 	_prog->setUniformValue("anisotropyTexTransform.rotation", _material.anisotropyTexRotation());
+
+	// KHR_materials_iridescence
 	//_prog->setUniformValue("iridescenceTexTransform.texCoordIndex", _material.iridescenceTexCoord());
 	//_prog->setUniformValue("iridescenceTexTransform.offset", _material.iridescenceTexOffset());
 	//_prog->setUniformValue("iridescenceTexTransform.scale", _material.iridescenceTexScale());
 	//_prog->setUniformValue("iridescenceTexTransform.rotation", _material.iridescenceTexRotation());
+	
+	// KHR_materials_iridescence
 	//_prog->setUniformValue("iridescenceThicknessTexTransform.texCoordIndex", _material.iridescenceThicknessTexCoord());
 	//_prog->setUniformValue("iridescenceThicknessTexTransform.offset", _material.iridescenceThicknessTexOffset());
 	//_prog->setUniformValue("iridescenceThicknessTexTransform.scale", _material.iridescenceThicknessTexScale());
 	//_prog->setUniformValue("iridescenceThicknessTexTransform.rotation", _material.iridescenceThicknessTexRotation());
+	
+	// KHR_materials_volume
 	//_prog->setUniformValue("thicknessTexTransform.texCoordIndex", _material.thicknessTexCoord());
 	//_prog->setUniformValue("thicknessTexTransform.offset", _material.thicknessTexOffset());
 	//_prog->setUniformValue("thicknessTexTransform.scale", _material.thicknessTexScale());

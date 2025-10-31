@@ -165,6 +165,7 @@ uniform TextureTransform normalTexTransform;
 uniform TextureTransform heightTexTransform;
 uniform TextureTransform aoTexTransform;
 uniform TextureTransform opacityTexTransform;
+uniform TextureTransform emissiveTexTransform;
 uniform TextureTransform transmissionTexTransform;
 uniform TextureTransform iorTexTransform;
 uniform TextureTransform sheenColorTexTransform;
@@ -180,8 +181,9 @@ uniform TextureTransform iridescenceThicknessTexTransform;
 uniform TextureTransform thicknessTexTransform;
 
 // Legacy ADS texture transforms
-uniform TextureTransform diffuseTexTransform;
-uniform TextureTransform emissiveTexTransform;
+uniform TextureTransform diffuseTextureTransform;
+uniform TextureTransform specularTextureTransform;
+uniform TextureTransform emissiveTextureTransform;
 uniform TextureTransform normalTextureTransform;
 uniform TextureTransform heightTextureTransform;
 uniform TextureTransform opacityTextureTransform;
@@ -314,6 +316,7 @@ vec2    getNormalUV();
 vec2    getHeightUV();
 vec2    getAOUV();
 vec2    getOpacityUV();
+vec2	getEmissiveUV();
 vec2    getTransmissionUV();
 vec2    getIORUV();
 vec2    getSheenColorUV();
@@ -329,8 +332,9 @@ vec2    getIridescenceThicknessUV();
 vec2    getThicknessUV();
 
 // Legacy ADS
-vec2    getDiffuseUV();
-vec2    getEmissiveUV();
+vec2    getDiffuseTextureUV();
+vec2    getSpecularTextureUV();
+vec2    getEmissiveTextureUV();
 vec2    getNormalTextureUV();
 vec2    getHeightTextureUV();
 vec2    getOpacityTextureUV();
@@ -725,6 +729,10 @@ vec2 getOpacityUV() {
     return getTransformedUV(opacityTexTransform.texCoordIndex, opacityTexTransform);
 }
 
+vec2 getEmissiveUV() {
+    return getTransformedUV(emissiveTexTransform.texCoordIndex, emissiveTexTransform);
+}
+
 vec2 getTransmissionUV() {
     return getTransformedUV(transmissionTexTransform.texCoordIndex, transmissionTexTransform);
 }
@@ -778,12 +786,16 @@ vec2 getThicknessUV() {
 }
 
 // Legacy ADS texture UV functions
-vec2 getDiffuseUV() {
-    return getTransformedUV(diffuseTexTransform.texCoordIndex, diffuseTexTransform);
+vec2 getDiffuseTextureUV() {
+    return getTransformedUV(diffuseTextureTransform.texCoordIndex, diffuseTextureTransform);
 }
 
-vec2 getEmissiveUV() {
-    return getTransformedUV(emissiveTexTransform.texCoordIndex, emissiveTexTransform);
+vec2 getSpecularTextureUV(){
+	return getTransformedUV(specularTextureTransform.texCoordIndex, specularTextureTransform);
+}
+
+vec2 getEmissiveTextureUV() {
+    return getTransformedUV(emissiveTextureTransform.texCoordIndex, emissiveTextureTransform);
 }
 
 vec2 getNormalTextureUV() {
@@ -798,13 +810,15 @@ vec2 getOpacityTextureUV() {
     return getTransformedUV(opacityTextureTransform.texCoordIndex, opacityTextureTransform);
 }
 
+
+// ========== LEGACY BLINN-PHONG SHADING FUNCTION ==========
 vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
 	vec2 clippedTexCoord = g_texCoord0;
 
 	// --- Normal / Parallax (same as before) ---
 	if (hasNormalTexture)
-		normal = calcBumpedNormal(texture_normal, getNormalUV());
+		normal = calcBumpedNormal(texture_normal, getNormalTextureUV());
 
 	if (hasHeightTexture) {		
 		vec3 n = normalize(g_normal);
@@ -814,11 +828,11 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 		vec3 viewDirWorld = normalize(cameraPos - g_position);
 		vec3 viewDirTangent = TBN * viewDirWorld;
-		clippedTexCoord = parallaxOcclusionMapping(g_texCoord0, viewDirTangent, texture_height, heightScale);
+		clippedTexCoord = parallaxOcclusionMapping(getHeightTextureUV(), viewDirTangent, texture_height, heightScale);
 
 		if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
 				clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
-			clippedTexCoord = g_texCoord0; // discard;
+			clippedTexCoord = getNormalTextureUV(); // discard;
 
 		normal = calcBumpedNormal(texture_normal, clippedTexCoord);
 	}
@@ -845,14 +859,14 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	vec3 matEmissive = mat.emission;
 
 	if (hasDiffuseTexture) {
-		vec4 d = texture(texture_diffuse, clippedTexCoord);
+		vec4 d = texture(texture_diffuse, getDiffuseTextureUV());
 		matAmbient = d.rgb;
 		matDiffuse = d.rgb * nDotVP;
 	}
 	if (hasSpecularTexture)
-		matSpecular = texture(texture_specular, clippedTexCoord).rgb * pf;
+		matSpecular = texture(texture_specular, getSpecularTextureUV()).rgb * pf;
 	if (hasEmissiveTexture)
-		matEmissive = texture(texture_emissive, clippedTexCoord).rgb;
+		matEmissive = texture(texture_emissive, getEmissiveTextureUV()).rgb;
 
 	// --- Build lighting buckets ---
 	vec3 ambient = source.ambient * matAmbient * model.ambient;
@@ -1001,10 +1015,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			vec3 viewDirWorld   = normalize(cameraPos - g_position);
 			vec3 viewDirTangent = TBN * viewDirWorld;
 
-			clippedTexCoord = parallaxOcclusionMapping(g_texCoord0, viewDirTangent, heightMap, heightScale);
+			clippedTexCoord = parallaxOcclusionMapping(getHeightUV(), viewDirTangent, heightMap, heightScale);
 			if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
 					clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
-				clippedTexCoord = g_texCoord0; // discard;
+				clippedTexCoord = getNormalUV(); // discard;
 
 			N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
 		}
