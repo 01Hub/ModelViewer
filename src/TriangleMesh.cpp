@@ -642,10 +642,10 @@ void TriangleMesh::setupUniforms()
 	//_prog->setUniformValue("specularColorTexTransform.offset", _material.specularColorTexOffset());
 	//_prog->setUniformValue("specularColorTexTransform.scale", _material.specularColorTexScale());
 	//_prog->setUniformValue("specularColorTexTransform.rotation", _material.specularColorTexRotation());
-	//_prog->setUniformValue("anisotropyTexTransform.texCoordIndex", _material.anisotropyTexCoord());
-	//_prog->setUniformValue("anisotropyTexTransform.offset", _material.anisotropyTexOffset());
-	//_prog->setUniformValue("anisotropyTexTransform.scale", _material.anisotropyTexScale());
-	//_prog->setUniformValue("anisotropyTexTransform.rotation", _material.anisotropyTexRotation());
+	_prog->setUniformValue("anisotropyTexTransform.texCoordIndex", _material.anisotropyTexCoord());
+	_prog->setUniformValue("anisotropyTexTransform.offset", _material.anisotropyTexOffset());
+	_prog->setUniformValue("anisotropyTexTransform.scale", _material.anisotropyTexScale());
+	_prog->setUniformValue("anisotropyTexTransform.rotation", _material.anisotropyTexRotation());
 	//_prog->setUniformValue("iridescenceTexTransform.texCoordIndex", _material.iridescenceTexCoord());
 	//_prog->setUniformValue("iridescenceTexTransform.offset", _material.iridescenceTexOffset());
 	//_prog->setUniformValue("iridescenceTexTransform.scale", _material.iridescenceTexScale());

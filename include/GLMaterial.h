@@ -405,6 +405,15 @@ public:
 	bool hasAnisotropyMap() const { return !m_anisotropyMap.isEmpty(); }
 	void setAnisotropyTextureId(unsigned int id) { m_anisotropyTextureId = id; }
 	int anisotropyTextureId() const { return m_anisotropyTextureId; }
+	void setAnisotropyTexCoord(int coord) { _anisotropyTexTransform.texCoord = coord; }
+	int anisotropyTexCoord() const { return _anisotropyTexTransform.texCoord; }
+	void setAnisotropyTexScale(const QVector2D& scale) { _anisotropyTexTransform.texScale = scale; }
+	QVector2D anisotropyTexScale() const { return _anisotropyTexTransform.texScale; }
+	void setAnisotropyTexOffset(const QVector2D& offset) { _anisotropyTexTransform.texOffset = offset; }
+	QVector2D anisotropyTexOffset() const { return _anisotropyTexTransform.texOffset; }
+	void setAnisotropyTexRotation(float rotation) { _anisotropyTexTransform.texRotation = rotation; }
+	float anisotropyTexRotation() const { return _anisotropyTexTransform.texRotation; }
+
 
 	// --- KHR_materials_iridescence ---
 	void setIridescenceFactor(float factor) { m_iridescenceFactor = factor; }
@@ -857,6 +866,8 @@ private:
 	TextureTransform _sheenColorTexTransform;
 	TextureTransform _sheenRoughnessTexTransform;
 	TextureTransform _iorTexTransform;
+	TextureTransform _transmissionTexTransform;
+	TextureTransform _anisotropyTexTransform;
 
 	// Map paths (UI-facing; your renderer/texture manager can translate these to GL)
 	QString _albedoMapPath;

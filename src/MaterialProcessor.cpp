@@ -567,14 +567,7 @@ void MaterialProcessor::extractUVTransform(
         // Successfully retrieved transform
         texture.scale = glm::vec2(uvTransform.mScaling.x, uvTransform.mScaling.y);
         texture.offset = glm::vec2(uvTransform.mTranslation.x, uvTransform.mTranslation.y);
-        texture.rotation = uvTransform.mRotation;
-
-        // Debug output (optional)
-        std::cout << "UV Transform for " << texture.type << ":\n"
-                  << "  TexCoord: " << texture.texCoordIndex << "\n"
-                  << "  Scale: (" << texture.scale.x << ", " << texture.scale.y << ")\n"
-                  << "  Offset: (" << texture.offset.x << ", " << texture.offset.y << ")\n"
-                  << "  Rotation: " << texture.rotation << " rad\n";
+        texture.rotation = uvTransform.mRotation;        
     }
     else
     {
@@ -583,6 +576,13 @@ void MaterialProcessor::extractUVTransform(
         texture.offset = glm::vec2(0.0f, 0.0f);
         texture.rotation = 0.0f;
     }
+
+    // Debug output (optional)
+    std::cout << "UV Transform for " << texture.type << ":\n"
+        << "  TexCoord: " << texture.texCoordIndex << "\n"
+        << "  Scale: (" << texture.scale.x << ", " << texture.scale.y << ")\n"
+        << "  Offset: (" << texture.offset.x << ", " << texture.offset.y << ")\n"
+        << "  Rotation: " << texture.rotation << " rad\n";
 }
 
 // Sets the texture maps for a material based on the defined texture mappings.
@@ -828,8 +828,12 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
         else if (tex.type == "anisotropyMap")
         {
             mat.setAnisotropyTextureId(tex.id);
-            mat.setAnisotropyMap(QString(tex.path.C_Str()));
-            }
+            mat.setAnisotropyMap(QString(tex.path.C_Str()));    
+			mat.setAnisotropyTexCoord(tex.texCoordIndex);
+            mat.setAnisotropyTexScale(toQVector2D(tex.scale));
+            mat.setAnisotropyTexOffset(toQVector2D(tex.offset));
+			mat.setAnisotropyTexRotation(tex.rotation);
+        }
 
             // KHR_materials_iridescence
         else if (tex.type == "iridescenceMap")
