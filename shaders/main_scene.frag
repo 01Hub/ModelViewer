@@ -804,7 +804,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 	// --- Normal / Parallax (same as before) ---
 	if (hasNormalTexture)
-		normal = calcBumpedNormal(texture_normal, g_texCoord0);
+		normal = calcBumpedNormal(texture_normal, getNormalUV());
 
 	if (hasHeightTexture) {		
 		vec3 n = normalize(g_normal);
@@ -988,7 +988,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	} else {
 		// Normal map / Parallax
-		if (hasNormalMap)  N = calcBumpedNormal(normalMap, getNormalTextureUV()) * side;
+		if (hasNormalMap)  N = calcBumpedNormal(normalMap, getNormalUV()) * side;
 		else               N = normalize(normal);
 
 		if (hasHeightMap) {
@@ -1181,7 +1181,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 specBRDF;
 	if (anisotropyStrength > 0.0) {
 		// Use anisotropic BRDF
-		specBRDF = calculateAnisotropy(N, V, L, T, B, anisotropyStrength, anisotropyRotation, roughness, F0);
+		specBRDF = calculateAnisotropy(normalize(g_reflectionNormal), normalize(cameraDir), L, T, B, anisotropyStrength, anisotropyRotation, roughness, F0);
 	} else {
 		// Standard isotropic GGX
 		float NDF = distributionGGX(N, H, roughness);
