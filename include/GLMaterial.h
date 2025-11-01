@@ -1,4 +1,4 @@
-#ifndef GLMATERIAL_H
+﻿#ifndef GLMATERIAL_H
 #define GLMATERIAL_H
 
 #include <QVector3D>
@@ -7,6 +7,8 @@
 class GLMaterial
 {
 public:
+
+	friend std::ostream& operator<<(std::ostream& os, const GLMaterial& m);
 
 	struct TextureTransform
 	{
@@ -365,17 +367,26 @@ public:
 	void setSheenRoughnessTexRotation(float rotation) { _sheenRoughnessTexTransform.texRotation = rotation; }
 
 
+	// IOR texture transform
 	int iorTexCoord() const { return _iorTexTransform.texCoord; }
 	void setIorTexCoord(int coord) { _iorTexTransform.texCoord = coord; }
-
 	QVector2D iorTexScale() const { return _iorTexTransform.texScale; }
 	void setIorTexScale(const QVector2D& scale) { _iorTexTransform.texScale = scale; }
-
 	QVector2D iorTexOffset() const { return _iorTexTransform.texOffset; }
 	void setIorTexOffset(const QVector2D& offset) { _iorTexTransform.texOffset = offset; }
-
 	float iorTexRotation() const { return _iorTexTransform.texRotation; }
 	void setIorTexRotation(float rotation) { _iorTexTransform.texRotation = rotation; }
+
+	// Transmission texture transform
+	int transmissionTexCoord() const { return _transmissionTexTransform.texCoord; }
+	void setTransmissionTexCoord(int coord) { _transmissionTexTransform.texCoord = coord; }
+	QVector2D transmissionTexScale() const { return _transmissionTexTransform.texScale; }
+	void setTransmissionTexScale(const QVector2D& scale) { _transmissionTexTransform.texScale = scale; }
+	QVector2D transmissionTexOffset() const { return _transmissionTexTransform.texOffset; }
+	void setTransmissionTexOffset(const QVector2D & offset) { _transmissionTexTransform.texOffset = offset; }
+	float transmissionTexRotation() const { return _transmissionTexTransform.texRotation; }
+	void setTransmissionTexRotation(float rotation) { _transmissionTexTransform.texRotation = rotation; }
+
 
 	// --- KHR_materials_specular ---
 	void setSpecularFactor(float factor) { m_specularFactor = factor; }
@@ -387,13 +398,29 @@ public:
 	QString specularFactorMap() const { return m_specularFactorMap; }
 	bool hasSpecularFactorMap() const { return !m_specularFactorMap.isEmpty(); }
 	void setSpecularFactorTextureId(unsigned int id) { m_specularFactorTextureId = id; }
-	unsigned int specularFactorTextureId() const { return m_specularFactorTextureId; }
+	unsigned int specularFactorTextureId() const { return m_specularFactorTextureId; }	
+	void setSpecularFactorTexCoord(int coord) { _specularFactorTexTransform.texCoord = coord; }
+	int specularFactorTexCoord() const { return _specularFactorTexTransform.texCoord; }
+	QVector2D specularFactorTexScale() const { return _specularFactorTexTransform.texScale; }
+	void setSpecularFactorTexScale(const QVector2D& scale) { _specularFactorTexTransform.texScale = scale; }
+	QVector2D specularFactorTexOffset() const { return _specularFactorTexTransform.texOffset; }
+	void setSpecularFactorTexOffset(const QVector2D& offset) { _specularFactorTexTransform.texOffset = offset; }
+	float specularFactorTexRotation() const { return _specularFactorTexTransform.texRotation; }
+	void setSpecularFactorTexRotation(float rotation) { _specularFactorTexTransform.texRotation = rotation; }
 
 	void setSpecularColorMap(const QString& path) { m_specularColorMap = path; }
 	QString specularColorMap() const { return m_specularColorMap; }
 	bool hasSpecularColorMap() const { return !m_specularColorMap.isEmpty(); }
 	void setSpecularColorTextureId(unsigned int id) { m_specularColorTextureId = id; }
 	unsigned int specularColorTextureId() const { return m_specularColorTextureId; }
+	void setSpecularColorTexCoord(int coord) { _specularColorTexTransform.texCoord = coord; }
+	int specularColorTexCoord() const { return _specularColorTexTransform.texCoord; }
+	QVector2D specularColorTexScale() const { return _specularColorTexTransform.texScale; }
+	void setSpecularColorTexScale(const QVector2D& scale) { _specularColorTexTransform.texScale = scale; }
+	QVector2D specularColorTexOffset() const { return _specularColorTexTransform.texOffset; }
+	void setSpecularColorTexOffset(const QVector2D& offset) { _specularColorTexTransform.texOffset = offset; }
+	float specularColorTexRotation() const { return _specularColorTexTransform.texRotation; }
+	void setSpecularColorTexRotation(float rotation) { _specularColorTexTransform.texRotation = rotation; }
 
 	// --- KHR_materials_anisotropy ---
 	void setAnisotropyStrength(float strength) { m_anisotropyStrength = strength; }
@@ -429,11 +456,28 @@ public:
 	bool hasIridescenceMap() const { return !m_iridescenceMap.isEmpty(); }
 	void setIridescenceTextureId(unsigned int id) { m_iridescenceTextureId = id; }
 	int iridescenceTextureId() const { return m_iridescenceTextureId; }
+	void setIridescenceTexCoord(int coord) { _iridescenceTexTransform.texCoord = coord; }
+	int iridescenceTexCoord() const { return _iridescenceTexTransform.texCoord; }
+	QVector2D iridescenceTexScale() const { return _iridescenceTexTransform.texScale; }
+	void setIridescenceTexScale(const QVector2D& scale) { _iridescenceTexTransform.texScale = scale; }
+	QVector2D iridescenceTexOffset() const { return _iridescenceTexTransform.texOffset; }
+	void setIridescenceTexOffset(const QVector2D& offset) { _iridescenceTexTransform.texOffset = offset; }
+	float iridescenceTexRotation() const { return _iridescenceTexTransform.texRotation; }
+	void setIridescenceTexRotation(float rotation) { _iridescenceTexTransform.texRotation = rotation; }
+
 	void setIridescenceThicknessMap(const QString& path) { m_iridescenceThicknessMap = path; }
 	QString iridescenceThicknessMap() const { return m_iridescenceThicknessMap; }
 	bool hasIridescenceThicknessMap() const { return !m_iridescenceThicknessMap.isEmpty(); }
 	void setIridescenceThicknessTextureId(unsigned int id) { m_iridescenceThicknessTextureId = id; }
 	int iridescenceThicknessTextureId() const { return m_iridescenceThicknessTextureId; }
+	void setIridescenceThicknessTexCoord(int coord) { _iridescenceThicknessTexTransform.texCoord = coord; }
+	int iridescenceThicknessTexCoord() const { return _iridescenceThicknessTexTransform.texCoord; }
+	void setIridescenceThicknessTexScale(const QVector2D& scale) { _iridescenceThicknessTexTransform.texScale = scale; }
+	QVector2D iridescenceThicknessTexScale() const { return _iridescenceThicknessTexTransform.texScale; }
+	void setIridescenceThicknessTexOffset(const QVector2D& offset) { _iridescenceThicknessTexTransform.texOffset = offset; }
+	QVector2D iridescenceThicknessTexOffset() const { return _iridescenceThicknessTexTransform.texOffset; }
+	void setIridescenceThicknessTexRotation(float rotation) { _iridescenceThicknessTexTransform.texRotation = rotation; }
+	float iridescenceThicknessTexRotation() const { return _iridescenceThicknessTexTransform.texRotation; }
 
 	// --- KHR_materials_volume ---
 	void setThicknessFactor(float thickness) { m_thicknessFactor = thickness; }
@@ -447,6 +491,16 @@ public:
 	bool hasThicknessMap() const { return !m_thicknessMap.isEmpty(); }
 	void setThicknessTextureId(unsigned int id) { m_thicknessTextureId = id; }
 	int thicknessTextureId() const { return m_thicknessTextureId; }
+	void setThicknessTexCoord(int coord) { _thicknessTexTransform.texCoord = coord; }
+	int thicknessTexCoord() const { return _thicknessTexTransform.texCoord; }
+	void setThicknessTexScale(const QVector2D& scale) { _thicknessTexTransform.texScale = scale; }
+	QVector2D thicknessTexScale() const { return _thicknessTexTransform.texScale; }
+	void setThicknessTexOffset(const QVector2D& offset) { _thicknessTexTransform.texOffset = offset; }
+	QVector2D thicknessTexOffset() const { return _thicknessTexTransform.texOffset; }
+	void setThicknessTexRotation(float rotation) { _thicknessTexTransform.texRotation = rotation; }
+	float thicknessTexRotation() const { return _thicknessTexTransform.texRotation; }
+
+	
 
 	
 	// --- KHR_materials_dispersion ---
@@ -868,6 +922,12 @@ private:
 	TextureTransform _iorTexTransform;
 	TextureTransform _transmissionTexTransform;
 	TextureTransform _anisotropyTexTransform;
+	TextureTransform _iridescenceTexTransform;
+	TextureTransform _iridescenceThicknessTexTransform;
+	TextureTransform _thicknessTexTransform;
+	TextureTransform _specularFactorTexTransform;
+	TextureTransform _specularColorTexTransform;
+
 
 	// Map paths (UI-facing; your renderer/texture manager can translate these to GL)
 	QString _albedoMapPath;

@@ -1,6 +1,10 @@
-#include "GLMaterial.h"
+﻿#include "GLMaterial.h"
 #include <cmath>
 #include <QVector>
+#include <iostream>
+#include <iomanip>
+#include <string>
+#include <limits>
 
 GLMaterial::GLMaterial()
 {
@@ -3829,4 +3833,169 @@ void GLMaterial::deserialize(QDataStream& in)
 }
 
 
+
+
+// Helper to print QVector2D / QVector3D concisely
+static inline void printVec2(std::ostream& os, const QVector2D& v)
+{
+	os << "(" << v.x() << ", " << v.y() << ")";
+}
+static inline void printVec3(std::ostream& os, const QVector3D& v)
+{
+	os << "(" << v.x() << ", " << v.y() << ", " << v.z() << ")";
+}
+
+std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
+{
+	// Formatting
+	os << std::boolalpha;
+	os << std::fixed << std::setprecision(4);
+
+	os << "GLMaterial {\n";
+
+	// --- Legacy/primary colors and params
+	os << "  _ambient: "; printVec3(os, m._ambient); os << "\n";
+	os << "  _diffuse: "; printVec3(os, m._diffuse); os << "\n";
+	os << "  _specular: "; printVec3(os, m._specular); os << "\n";
+	os << "  _emissive: "; printVec3(os, m._emissive); os << "  (emissiveStrength=" << m._emissiveStrength << ")\n";
+	os << "  _shininess: " << m._shininess << "\n";
+	os << "  _metallic (legacy flag): " << m._metallic << "\n";
+
+	// --- PBR properties
+	os << "  _albedoColor: "; printVec3(os, m._albedoColor); os << "\n";
+	os << "  _metalness: " << m._metalness << "\n";
+	os << "  _roughness: " << m._roughness << "\n";
+	os << "  _opacity: " << m._opacity << "\n";
+
+	// --- Advanced PBR / extras
+	os << "  _ior: " << m._ior << "\n";
+	os << "  _clearcoat: " << m._clearcoat << "  _clearcoatRoughness: " << m._clearcoatRoughness << "\n";
+	os << "  _sheenColor: "; printVec3(os, m._sheenColor); os << "  _sheenRoughness: " << m._sheenRoughness << "\n";
+	os << "  _transmission: " << m._transmission << "\n";
+
+	// --- Rendering flags
+	os << "  _shadingModel: " << static_cast<int>(m._shadingModel) << "\n";
+	os << "  _blendMode: " << static_cast<int>(m._blendMode) << "\n";
+	os << "  _twoSided: " << m._twoSided << "\n";
+	os << "  _wireframe: " << m._wireframe << "\n";
+	os << "  _alphaThreshold: " << m._alphaThreshold << "\n";
+	os << "  _hasTextureAlpha: " << m._hasTextureAlpha << "\n";
+
+	// --- Texture IDs (ints)
+	os << "  Texture IDs (logical slots):\n";
+	os << "    _albedoTextureId: " << m._albedoTextureId << "\n";
+	os << "    _metallicTextureId: " << m._metallicTextureId << "\n";
+	os << "    _roughnessTextureId: " << m._roughnessTextureId << "\n";
+	os << "    _normalTextureId: " << m._normalTextureId << "\n";
+	os << "    _occlusionTextureId: " << m._occlusionTextureId << "\n";
+	os << "    _emissiveTextureId: " << m._emissiveTextureId << "\n";
+	os << "    _opacityTextureId: " << m._opacityTextureId << "\n";
+	os << "    _heightTextureId: " << m._heightTextureId << "\n";
+	os << "    _sheenColorTextureId: " << m._sheenColorTextureId << "\n";
+	os << "    _sheenRoughnessTextureId: " << m._sheenRoughnessTextureId << "\n";
+	os << "    _clearcoatColorTextureId: " << m._clearcoatColorTextureId << "\n";
+	os << "    _clearcoatRoughnessTextureId: " << m._clearcoatRoughnessTextureId << "\n";
+	os << "    _clearcoatNormalTextureId: " << m._clearcoatNormalTextureId << "\n";
+	os << "    _iorTextureId: " << m._iorTextureId << "\n";
+	os << "    _transmissionTextureId: " << m._transmissionTextureId << "\n";
+	os << "    _invertOpacityTexture: " << m._invertOpacityTexture << "\n";
+
+	// --- Texture coordinate sets / transforms
+	auto printTT = [&os](const GLMaterial::TextureTransform& t) {
+		os << "{texCoord=" << t.texCoord << ", texScale=";
+		printVec2(os, t.texScale);
+		os << ", texOffset="; printVec2(os, t.texOffset);
+		os << ", texRotation=" << t.texRotation << "}";
+		};
+
+	os << "  _albedoTexTransform: "; printTT(m._albedoTexTransform); os << "\n";
+	os << "  _metallicTexTransform: "; printTT(m._metallicTexTransform); os << "\n";
+	os << "  _normalTexTransform: "; printTT(m._normalTexTransform); os << "\n";
+	os << "  _metallicRoughnessTexTransform: "; printTT(m._metallicRoughnessTexTransform); os << "\n";
+	os << "  _roughnessTexTransform: "; printTT(m._roughnessTexTransform); os << "\n";
+	os << "  _occlusionTexTransform: "; printTT(m._occlusionTexTransform); os << "\n";
+	os << "  _emissiveTexTransform: "; printTT(m._emissiveTexTransform); os << "\n";
+	os << "  _opacityTexTransform: "; printTT(m._opacityTexTransform); os << "\n";
+	os << "  _heightTexTransform: "; printTT(m._heightTexTransform); os << "\n";
+	os << "  _clearcoatColorTexTransform: "; printTT(m._clearcoatColorTexTransform); os << "\n";
+	os << "  _clearcoatRoughnessTexTransform: "; printTT(m._clearcoatRoughnessTexTransform); os << "\n";
+	os << "  _clearcoatNormalTexTransform: "; printTT(m._clearcoatNormalTexTransform); os << "\n";
+	os << "  _sheenColorTexTransform: "; printTT(m._sheenColorTexTransform); os << "\n";
+	os << "  _sheenRoughnessTexTransform: "; printTT(m._sheenRoughnessTexTransform); os << "\n";
+	os << "  _iorTexTransform: "; printTT(m._iorTexTransform); os << "\n";
+	os << "  _transmissionTexTransform: "; printTT(m._transmissionTexTransform); os << "\n";
+	os << "  _anisotropyTexTransform: "; printTT(m._anisotropyTexTransform); os << "\n";
+
+	// --- Map paths (QString -> std::string)
+	auto q = [](const QString& s)->std::string { return s.toStdString(); };
+	os << "  Map paths:\n";
+	os << "    _albedoMapPath: " << q(m._albedoMapPath) << "\n";
+	os << "    _normalMapPath: " << q(m._normalMapPath) << "\n";
+	os << "    _emissiveMapPath: " << q(m._emissiveMapPath) << "\n";
+	os << "    _metallicMapPath: " << q(m._metallicMapPath) << "\n";
+	os << "    _roughnessMapPath: " << q(m._roughnessMapPath) << "\n";
+	os << "    _aoMapPath: " << q(m._aoMapPath) << "\n";
+	os << "    _opacityMapPath: " << q(m._opacityMapPath) << "\n";
+	os << "    _heightMapPath: " << q(m._heightMapPath) << "\n";
+	os << "    _transmissionMapPath: " << q(m._transmissionMapPath) << "\n";
+	os << "    _iorMapPath: " << q(m._iorMapPath) << "\n";
+	os << "    _sheenColorMapPath: " << q(m._sheenColorMapPath) << "\n";
+	os << "    _sheenRoughnessMapPath: " << q(m._sheenRoughnessMapPath) << "\n";
+	os << "    _clearcoatColorMapPath: " << q(m._clearcoatColorMapPath) << "\n";
+	os << "    _clearcoatRoughnessMapPath: " << q(m._clearcoatRoughnessMapPath) << "\n";
+	os << "    _clearcoatNormalMapPath: " << q(m._clearcoatNormalMapPath) << "\n";
+
+	// --- KHR extension fields (specular, anisotropy, iridescence, volume, etc.)
+	os << "  KHR_specular: m_specularFactor: " << m.m_specularFactor
+		<< " m_specularColorFactor: "; printVec3(os, m.m_specularColorFactor); os << "\n";
+	os << "    m_specularFactorMap: " << q(m.m_specularFactorMap)
+		<< " m_specularFactorTextureId: " << m.m_specularFactorTextureId << "\n";
+	os << "    m_specularColorMap: " << q(m.m_specularColorMap)
+		<< " m_specularColorTextureId: " << m.m_specularColorTextureId << "\n";
+
+	os << "  KHR_anisotropy: strength=" << m.m_anisotropyStrength
+		<< " rotation=" << m.m_anisotropyRotation
+		<< " map=" << q(m.m_anisotropyMap) << " texId=" << m.m_anisotropyTextureId << "\n";
+
+	os << "  KHR_iridescence: factor=" << m.m_iridescenceFactor
+		<< " ior=" << m.m_iridescenceIor
+		<< " thicknessMin=" << m.m_iridescenceThicknessMin
+		<< " thicknessMax=" << m.m_iridescenceThicknessMax
+		<< " map=" << q(m.m_iridescenceMap)
+		<< " texId=" << m.m_iridescenceTextureId << "\n";
+	os << "    thicknessMap=" << q(m.m_iridescenceThicknessMap)
+		<< " thicknessTexId=" << m.m_iridescenceThicknessTextureId << "\n";
+
+	os << "  KHR_volume: thicknessFactor=" << m.m_thicknessFactor
+		<< " attenuationDistance=";
+	if (std::isfinite(m.m_attenuationDistance)) os << m.m_attenuationDistance;
+	else os << "inf";
+	os << " attenuationColor="; printVec3(os, m.m_attenuationColor);
+	os << " thicknessMap=" << q(m.m_thicknessMap) << " texId=" << m.m_thicknessTextureId << "\n";
+
+	os << "  KHR_emissive_strength: " << m.m_emissiveStrength << "\n";
+	os << "  KHR_dispersion: " << m.m_dispersion << "\n";
+	os << "  KHR_unlit: " << m.m_unlit << "\n";
+
+	// --- UV tiling/offset
+	os << "  UV tiling: (" << m._uvTilingU << ", " << m._uvTilingV << ")"
+		<< " UV offset: (" << m._uvOffsetU << ", " << m._uvOffsetV << ")\n";
+
+	// --- Channel packings (inspect fields)
+	auto printPacking = [&os](const GLMaterial::ChannelPacking& p) {
+		os << "{channel=" << p.channel << ", invert=" << p.invert
+			<< ", scale=" << p.scale << ", bias=" << p.bias << "}";
+		};
+	os << "  _metallicPacking: "; printPacking(m._metallicPacking); os << "\n";
+	os << "  _roughnessPacking: "; printPacking(m._roughnessPacking); os << "\n";
+	os << "  _aoPacking: "; printPacking(m._aoPacking); os << "\n";
+	os << "  _opacityPacking: "; printPacking(m._opacityPacking); os << "\n";
+
+	os << "}\n";
+
+	// Restore floatfield? (optional)
+	// os.unsetf(std::ios_base::floatfield);
+
+	return os;
+}
 
