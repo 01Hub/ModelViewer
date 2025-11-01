@@ -1331,7 +1331,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	ambient_L += clearcoatIBL_L;
 
 	vec3 sheenIBL_L = (length(sheenColor) > 0.0)
-    ? calculateSheenIBL(g_reflectionNormal, V_hybrid, sheenRoughness, sheenColor)
+    ? calculateSheenIBL(N, V, sheenRoughness, sheenColor)
     : vec3(0.0);
 	ambient_L += sheenIBL_L;
 
@@ -1426,7 +1426,7 @@ vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior
 	float backScatter = max(0.0, -NdotL) * 0.8; // Light from behind
 	float forwardScatter = max(0.0, NdotL) * 0.5; // Light from front (subsurface)
 
-	// Add thickness approximation (can make this a uniform)
+	// Add thickness approximation
 	float thickness = max(0.01, pbrLighting.thicknessFactor);
 	float attenuationFactor = exp(-thickness * (1.0 - transmission));
 
@@ -1584,7 +1584,6 @@ vec3 calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotrop
 	return specular * NdotL;
 }
 
-// KHR_materials_iridescence
 // KHR_materials_iridescence - Physically accurate thin-film interference
 vec3 calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridescenceIor, float thickness)
 {
@@ -2004,13 +2003,20 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 // http://ogldev.atspace.co.uk/www/tutorial26/tutorial26.html
 vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 {
-	vec3 normal = normalize(g_normal);
-	vec3 tangent = normalize(g_tangent - dot(g_tangent, normal) * normal);
-	vec3 bitangent = normalize(cross(normal, tangent));
-	mat3 TBN = mat3(tangent, bitangent, normal);
-
 	vec3 bumpMapNormal = texture(map, texCoord).rgb;
-	bumpMapNormal = 2.0 * bumpMapNormal - 1.0;
+    bumpMapNormal = 2.0 * bumpMapNormal - 1.0;
+    
+    // Compute TBN from position and UV derivatives
+    vec3 Q1  = dFdx(g_position);
+    vec3 Q2  = dFdy(g_position);
+    vec2 st1 = dFdx(texCoord);  // Derivatives of transformed UV
+    vec2 st2 = dFdy(texCoord);  // Derivatives of transformed UV
+    
+    vec3 N = normalize(g_normal);
+    vec3 T = normalize(Q1*st2.t - Q2*st1.t);
+    vec3 B = -normalize(cross(N, T));
+    mat3 TBN = mat3(T, B, N);
+   
 	// Uncomment the next line if normal maps need Y flipped
 	// bumpMapNormal.y = -bumpMapNormal.y;
 	return normalize(TBN * bumpMapNormal);
