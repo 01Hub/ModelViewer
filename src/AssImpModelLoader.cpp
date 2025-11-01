@@ -418,11 +418,13 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 
 		_materialProcessor.setFolderPath(this->_texturePath);
 		
-		// ADS and PBR Maps
-		_materialProcessor.setTextureMaps(material, textures, mat);
-
 		//Set color and material
 		_materialProcessor.setColorAndMaterial(material, mat);
+
+		_materialProcessor.applyGltfMaterialExtensionsToMaterial(QString::fromStdString(_path), scene, mesh->mMaterialIndex, mat);
+
+		// ADS and PBR Maps
+		_materialProcessor.setTextureMaps(material, textures, mat);
 	}
 
 	// Return a mesh object created from the extracted mesh data
@@ -436,6 +438,10 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
 	}
 	
+	qDebug() << "Mesh with material: " << meshName << " processed.";
+	// Material and textures details
+	std::cout << mat;	
+
 	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
 	return newMesh;
 }
