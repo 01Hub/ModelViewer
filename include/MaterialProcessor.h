@@ -34,6 +34,12 @@ public:
 
 	void synthesizeADSAliases(std::vector<Texture>& textures);
 
+	void applyGltfMaterialExtensionsToMaterial(
+		const QString& gltfPath,
+		const aiScene* scene,
+		unsigned int materialIndex,
+		GLMaterial& outMaterial);
+
 private:
 	void setShadingModel(GLMaterial& mat, aiShadingMode shadingModel);
 	void setBlendMode(GLMaterial& mat, aiBlendMode blendMode);
