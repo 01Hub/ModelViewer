@@ -3595,7 +3595,7 @@ void GLWidget::drawFloor()
 	glDepthMask(GL_TRUE);
 
 	QMatrix4x4 model;
-	float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent);
+	float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent) - 0.001; // Added 0.001 offset to avoid Z fighting
 	float floorGap = fabs(floorPos - lowestModelZ());
 	float offset = ((lowestModelZ()) - floorGap) * 2.0f;
 	model.scale(1.0f, 1.0f, -1.0f);
