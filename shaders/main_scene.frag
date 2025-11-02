@@ -146,6 +146,7 @@ uniform bool hasIridescenceThicknessMap = false;
 // KHR_materials_volume
 uniform sampler2D thicknessMap;
 uniform bool hasThicknessMap = false;
+uniform bool hasThicknessAlpha = false;
 
 // KHR_materials_emissive_strength (uses existing texture_emissive)
 uniform float emissiveStrength = 1.0;
@@ -366,7 +367,7 @@ vec3    calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal, float clearc
 // ==== NEW glTF EXTENSION FUNCTIONS ====
 vec3	calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotropyStrength, float anisotropyRotation, float roughness, vec3 F0);
 vec3	calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridescenceIor, float thickness);
-vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, vec3 attenuationColor, float attenuationDistance);
+vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance);
 
 float   calculateShadow(vec4 fragPosLightSpace);
 // Function to fetch shadow value with variable kernel size
@@ -1639,15 +1640,17 @@ vec3 calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridesc
 }
 
 // KHR_materials_volume
-vec3 calculateVolumeAttenuation(vec3 transmittedLight, float distance, vec3 attenuationColor, float attenuationDistance)
+vec3 calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance)
 {
 	if (attenuationDistance <= 0.0) {
 		return transmittedLight;
 	}
 	
-	// Beer-Lambert law
-	vec3 attenuation = -log(max(attenuationColor, vec3(0.001))) / attenuationDistance;
-	vec3 transmittance = exp(-attenuation * distance);
+	float d = max(attenuationDistance, 1e-6);
+    float t = max(thickness, 1e-6);
+
+    // Beer–Lambert law
+    vec3 transmittance = exp(-attenuationColor * (t / d));
 	
 	return transmittedLight * transmittance;
 }
