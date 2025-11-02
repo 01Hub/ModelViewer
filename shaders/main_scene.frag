@@ -562,11 +562,13 @@ void main()
 			vec3 envColor = texture(envMap, R).rgb;
 
 			// Apply volume attenuation if available
-			if (pbrLighting.attenuationDistance > 0.0) {
+			// Compute per-pixel thickness
+			vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
+			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.r;
+			float thickness = pbrLighting.thicknessFactor * thicknessSample;
 				float pathLength = length(g_position - cameraPos);
-				envColor = calculateVolumeAttenuation(envColor, pathLength, 
+			envColor = calculateVolumeAttenuation(envColor, pathLength, thickness,
 					pbrLighting.attenuationColor, pbrLighting.attenuationDistance);
-			}
 
 			// Blend transmission into RGB
 			fragColor.rgb = mix(fragColor.rgb, envColor, transmissionFactor);
