@@ -343,7 +343,6 @@ vec2    getOpacityTextureUV();
 vec4    shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
 vec4    calculatePBRLighting(int renderMode, float side);
 
-void    applyEnvironmentMapping(float alpha);
 vec3    getNormalFromMap();
 mat3    getTBNFromMap();
 float   distributionGGX(vec3 N, vec3 H, float roughness);
@@ -573,11 +572,6 @@ void main()
 			// Blend transmission into RGB
 			fragColor.rgb = mix(fragColor.rgb, envColor, transmissionFactor);
 		}
-	}
-
-	// Apply environment mapping (outside floorRendering block)
-	if(envMapEnabled && displayMode == 3) {
-		applyEnvironmentMapping(finalAlpha); // Pass the correct alpha
 	}
 
 	if (selected) // with glow
@@ -921,6 +915,69 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 	vec3 composed;   
 	composed   = baseNoSpec + specOnly;
+
+	// ADS reflection with exposure
+    if (envMapEnabled) {		
+		vec3 I = normalize(cameraDir);
+		vec3 N = normalize(g_reflectionNormal);
+		vec3 offset = normalize(cameraPos - g_reflectionPosition);
+		vec3 I_offset = normalize(I - offset * 0.3);  // Blend factor adjustable
+		vec3 R = reflect(-I_offset, N);
+		R = envMapRotationMatrix * -R;
+		R = normalize(R);
+		
+		float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
+		float NdotV = max(dot(-I, N), 0.0);
+	
+		// Gentler fresnel powers
+		float nonMetallicFresnelPower = mix(2.0, 3.5, 1.0 - specLum); // Reduced
+		float metallicFresnelPower = 1.2; // Reduced
+		float fresnelPower = mix(nonMetallicFresnelPower, metallicFresnelPower, pbrLighting.metallic);
+		float fresnel = pow(1.0 - NdotV, fresnelPower);
+	
+		// Limit grazing angle effect
+		float grazingLimit = mix(0.6, 0.9, pbrLighting.metallic); // Metals can handle more
+		fresnel = clamp(fresnel, 0.0, grazingLimit);
+	
+		float surfaceRoughness = 1.0 - (material.shininess / 128.0);
+		float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
+	
+		// Reduced base strengths
+		float metallicStrength = mix(0.2, 0.4, specLum);
+		float glossyStrength = mix(0.25, 0.5, specLum);
+		float diffuseStrength = mix(0.02, 0.12, specLum);
+	
+		bool isHighSpecular = specLum > 0.5;
+		bool isDiffuseDominant = dot(material.diffuse, vec3(0.299,0.587,0.114)) > specLum*2.0;
+		float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
+		float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, pbrLighting.metallic);
+	
+		// Additional roughness damping for very rough surfaces
+		float roughnessDamping = mix(0.3, 1.0, 1.0 - surfaceRoughness);
+		float reflectionStrength = clamp(baseReflectionStrength * fresnel * roughnessReduction * roughnessDamping, 0.0, 0.5);
+	
+		// === IMPROVED GRAZING LOD ===
+		// Material-aware grazing influence: smooth metals/mirrors avoid extra blur
+		float grazingInfluence = surfaceRoughness * (1.0 - pbrLighting.metallic * 0.8);
+	
+		// Grazing factor for LOD adjustment
+		float grazingFactor = pow(1.0 - NdotV, mix(1.8, 2.5, surfaceRoughness));
+	
+		// Base LOD from roughness
+		float baseLOD = surfaceRoughness * 7.0;
+	
+		// Extra grazing blur, but only for rough dielectrics
+		float grazingLOD = grazingFactor * grazingInfluence * 4.0; // Scaled to match 7.0 max
+	
+		// Combine: mirrors/smooth metals keep sharp reflections
+		float envLOD = clamp(baseLOD + grazingLOD, 0.0, 7.0);
+		// ========================
+	
+		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
+		envColor *= envMapExposure;
+		envColor = applyToneMapping(envColor * iblExposure);
+		composed += envColor * reflectionStrength;		
+	}
 
 	// --- Tone/gamma ---
 	if (hdrToneMapping)
@@ -1363,6 +1420,36 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	vec3 outRGB = baseNoSpec_L + specOnly_L; // override opacity
 
+
+	//	Transmission with exposure control
+    if (pbrLighting.transmission > 0.0) {
+        float eta = max(1e-3, pbrLighting.ior);
+		vec3 V_base = normalize(cameraDir);
+		// Add positional offset (for panning awareness)
+		vec3 offset = normalize(cameraPos - g_reflectionPosition);
+		vec3 V = normalize(V_base - offset * 0.3);
+        vec3 R = refract(V, normalize(g_reflectionNormal), 1.0 / eta);
+        R = envMapRotationMatrix * R;
+        R = normalize(R);
+
+        float tRough = max(pbrLighting.roughness, 0.1);
+        vec3 envColor = textureLod(envMap, R, tRough * 3.0).rgb;
+        
+        // Apply exposure
+        envColor *= envMapExposure;
+        
+        // Apply tone mapping
+        envColor = applyToneMapping(envColor * iblExposure);
+
+        float NdotV = clamp(dot(normalize(g_reflectionNormal), normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
+        float f0 = pow((pbrLighting.ior - 1.0) / (pbrLighting.ior + 1.0), 2.0);
+        float F = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
+
+        float w = clamp(pbrLighting.transmission * F * (1.0 - pbrLighting.roughness), 0.0, 0.8);
+        vec3 filtered = envColor * pbrLighting.albedo;
+        fragColor.rgb = mix(fragColor.rgb, filtered, w);        
+    }
+
 	// Add iridescence as a final color overlay
 	if (iridescenceFactor > 0.0) {
 		vec3 R = reflect(normalize(cameraDir), normalize(g_reflectionNormal));
@@ -1795,132 +1882,6 @@ vec2 parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap,
     float weight = afterDepth / (afterDepth - beforeDepth);
 
     return prevTexCoords * weight + currentTexCoords * (1.0 - weight);
-}
-
-
-void applyEnvironmentMapping(float alphaIn)
-{
-    if (renderingMode != 0 && pbrLighting.transmission <= 0.0) {
-        return;
-    }
-
-    float a = clamp(alphaIn, 0.0, 1.0);
-    vec3 I_base = normalize(cameraDir);
-    vec3 N = normalize(g_reflectionNormal);
-	vec3 offset = normalize(cameraPos - g_reflectionPosition);
-	vec3 I = normalize(I_base - offset * 0.3);
-
-    // 1) Transmission with exposure control
-    if (pbrLighting.transmission > 0.0) {
-        float eta = max(1e-3, pbrLighting.ior);
-		vec3 V_base = normalize(cameraDir);
-		// Add positional offset (for panning awareness)
-		vec3 offset = normalize(cameraPos - g_reflectionPosition);
-		vec3 V = normalize(V_base - offset * 0.3);
-        vec3 R = refract(V, normalize(g_reflectionNormal), 1.0 / eta);
-        R = envMapRotationMatrix * R;
-        R = normalize(R);
-
-        float tRough = max(pbrLighting.roughness, 0.1);
-        vec3 envColor = textureLod(envMap, R, tRough * 3.0).rgb;
-        
-        // Apply exposure
-        envColor *= envMapExposure;
-        
-        // Apply tone mapping
-        envColor = applyToneMapping(envColor * iblExposure);
-
-        float NdotV = clamp(dot(normalize(g_reflectionNormal), normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
-        float f0 = pow((pbrLighting.ior - 1.0) / (pbrLighting.ior + 1.0), 2.0);
-        float F = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
-
-        float w = clamp(pbrLighting.transmission * F * (1.0 - pbrLighting.roughness), 0.0, 0.8);
-        vec3 filtered = envColor * pbrLighting.albedo;
-        fragColor.rgb = mix(fragColor.rgb, filtered, w);
-        return;
-    }
-
-    // 2) Regular transparency with exposure
-    if (a < 1.0 && !floorRendering) {
-        float refrAmt = max(0.05, 1.0 - a);
-        vec3 R = refract(I, N, refrAmt);
-        R = envMapRotationMatrix * R;
-        R = normalize(R);
-
-        vec3 envColor = texture(envMap, R).rgb;
-        
-        // Apply exposure
-        envColor *= envMapExposure;
-        
-        // Apply tone mapping  
-        envColor = applyToneMapping(envColor * iblExposure);
-        
-        float envStrength = (1.0 - a) * 0.7;
-        fragColor.rgb = mix(fragColor.rgb, envColor, envStrength);
-        return;
-    }
-
-    // 3) ADS reflection with exposure
-    if (renderingMode == 0) {		
-		vec3 offset = normalize(cameraPos - g_reflectionPosition);
-		vec3 I_offset = normalize(I - offset * 0.3);  // Blend factor adjustable
-		vec3 R = reflect(-I_offset, N);
-		R = envMapRotationMatrix * -R;
-		R = normalize(R);
-		
-		float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
-		float NdotV = max(dot(-I, N), 0.0);
-	
-		// Gentler fresnel powers
-		float nonMetallicFresnelPower = mix(2.0, 3.5, 1.0 - specLum); // Reduced
-		float metallicFresnelPower = 1.2; // Reduced
-		float fresnelPower = mix(nonMetallicFresnelPower, metallicFresnelPower, pbrLighting.metallic);
-		float fresnel = pow(1.0 - NdotV, fresnelPower);
-	
-		// Limit grazing angle effect
-		float grazingLimit = mix(0.6, 0.9, pbrLighting.metallic); // Metals can handle more
-		fresnel = clamp(fresnel, 0.0, grazingLimit);
-	
-		float surfaceRoughness = 1.0 - (material.shininess / 128.0);
-		float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
-	
-		// Reduced base strengths
-		float metallicStrength = mix(0.2, 0.4, specLum);
-		float glossyStrength = mix(0.25, 0.5, specLum);
-		float diffuseStrength = mix(0.02, 0.12, specLum);
-	
-		bool isHighSpecular = specLum > 0.5;
-		bool isDiffuseDominant = dot(material.diffuse, vec3(0.299,0.587,0.114)) > specLum*2.0;
-		float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
-		float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, pbrLighting.metallic);
-	
-		// Additional roughness damping for very rough surfaces
-		float roughnessDamping = mix(0.3, 1.0, 1.0 - surfaceRoughness);
-		float reflectionStrength = clamp(baseReflectionStrength * fresnel * roughnessReduction * roughnessDamping, 0.0, 0.5);
-	
-		// === IMPROVED GRAZING LOD ===
-		// Material-aware grazing influence: smooth metals/mirrors avoid extra blur
-		float grazingInfluence = surfaceRoughness * (1.0 - pbrLighting.metallic * 0.8);
-	
-		// Grazing factor for LOD adjustment
-		float grazingFactor = pow(1.0 - NdotV, mix(1.8, 2.5, surfaceRoughness));
-	
-		// Base LOD from roughness
-		float baseLOD = surfaceRoughness * 7.0;
-	
-		// Extra grazing blur, but only for rough dielectrics
-		float grazingLOD = grazingFactor * grazingInfluence * 4.0; // Scaled to match 7.0 max
-	
-		// Combine: mirrors/smooth metals keep sharp reflections
-		float envLOD = clamp(baseLOD + grazingLOD, 0.0, 7.0);
-		// ========================
-	
-		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
-		envColor *= envMapExposure;
-		envColor = applyToneMapping(envColor * iblExposure);
-		fragColor.rgb += envColor * reflectionStrength;
-		return;
-	}
 }
 
 // ----------------------------------------------------------------------------
