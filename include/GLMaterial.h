@@ -499,6 +499,8 @@ public:
 	QVector2D thicknessTexOffset() const { return _thicknessTexTransform.texOffset; }
 	void setThicknessTexRotation(float rotation) { _thicknessTexTransform.texRotation = rotation; }
 	float thicknessTexRotation() const { return _thicknessTexTransform.texRotation; }
+	void setHasThicknessAlpha(bool hasAlpha) { _hasThicknessAlpha = hasAlpha; }
+	bool hasThicknessAlpha() const { return _hasThicknessAlpha; }
 
 	
 
@@ -976,6 +978,7 @@ private:
 	QVector3D m_attenuationColor = QVector3D(1.0f, 1.0f, 1.0f);
 	QString m_thicknessMap;
 	unsigned int m_thicknessTextureId = 0;
+	bool _hasThicknessAlpha = false;
 
 	// KHR_materials_emissive_strength
 	float m_emissiveStrength = 1.0f;

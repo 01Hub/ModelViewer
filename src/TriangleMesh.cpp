@@ -529,7 +529,10 @@ void TriangleMesh::setupUniforms()
 
 	// KHR_materials_volume
 	_prog->setUniformValue("thicknessMap", 30);
+	bool hasThicknessMap = _material.hasThicknessMap();
 	_prog->setUniformValue("hasThicknessMap", _material.hasThicknessMap());
+	bool hasThicknessAlpa = _material.hasThicknessAlpha();
+	_prog->setUniformValue("hasThicknessAlpha", _material.hasThicknessAlpha());
 
 	// KHR_materials_specular (2 uniforms)
 	_prog->setUniformValue("pbrLighting.specularFactor",

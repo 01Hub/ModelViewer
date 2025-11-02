@@ -1160,6 +1160,9 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
             textures.push_back(candidate);
             _loadedTextures.push_back(candidate);
 
+            if(type == "thicknessMap")
+                mat.setHasThicknessAlpha(hasAlpha);
+
             qDebug() << "Loaded extension texture:" << QString::fromStdString(textureFilePath)
                 << "type:" << QString::fromStdString(type)
                 << "id:" << candidate.id;
@@ -1387,6 +1390,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 			mat.setThicknessTexScale(toQVector2D(tex.scale));
 			mat.setThicknessTexOffset(toQVector2D(tex.offset));
 			mat.setThicknessTexRotation(tex.rotation);
+			mat.setHasThicknessAlpha(tex.hasAlpha);
 		}
 		// ioR map
 		else if (tex.type == "iorMap")
