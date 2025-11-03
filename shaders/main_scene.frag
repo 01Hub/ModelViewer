@@ -343,6 +343,10 @@ vec2    getOpacityTextureUV();
 vec4    shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
 vec4    calculatePBRLighting(int renderMode, float side);
 
+float	samplePackedChannelValue(sampler2D tex, bool hasTexture, vec2 uv,
+                               int channel, int invert, float scale, float bias,
+                               float fallback);
+
 vec3    getNormalFromMap();
 mat3    getTBNFromMap();
 float   distributionGGX(vec3 N, vec3 H, float roughness);
@@ -351,6 +355,7 @@ float   geometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3    fresnelSchlick(float cosTheta, vec3 F0);
 vec3    fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
 vec2    parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale);
+vec2	applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, bool enabled);
 vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
 
 // Advanced PBR Functions
@@ -784,21 +789,9 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	if (hasNormalTexture)
 		normal = calcBumpedNormal(texture_normal, getNormalTextureUV());
 
-	if (hasHeightTexture) {		
-		vec3 n = normalize(g_normal);
-		vec3 t = normalize(g_tangent - dot(g_tangent, n) * n);
-		vec3 b = normalize(cross(n, t));
-		mat3 TBN = mat3(t, b, n);
-
-		vec3 viewDirWorld = normalize(cameraPos - g_position);
-		vec3 viewDirTangent = TBN * viewDirWorld;
-		clippedTexCoord = parallaxOcclusionMapping(getHeightTextureUV(), viewDirTangent, texture_height, heightScale);
-
-		if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
-				clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
-			clippedTexCoord = getNormalTextureUV(); // discard;
-
-		normal = calcBumpedNormal(texture_normal, clippedTexCoord);
+	if (hasHeightTexture) {
+		clippedTexCoord = applyParallaxMapping(getHeightUV(), texture_height, heightScale, hasHeightTexture);
+		normal = calcBumpedNormal(normalMap, clippedTexCoord);
 	}
 
 	// --- Lighting vectors ---
@@ -987,15 +980,34 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 attenuationColor;
 	bool unlit;
 
-	vec3 N; vec3 V; vec3 L;
+	vec3 N;
+	vec3 V_direct;
+	vec3 L;
+
+	// Pre-compute reflection view (used by IBL, clearcoat, transmission)
+	vec3 V_reflect_base = normalize(cameraDir);
+	vec3 V_reflect_offset = normalize(cameraPos - g_reflectionPosition);
+	vec3 V_reflect = normalize(V_reflect_base - V_reflect_offset * 0.3);
 
 	if (lockLightAndCamera) {
-		V = normalize(lightSource.position - g_position);
+		V_direct = normalize(lightSource.position - g_position);
 		L = normalize(lightSource.position);
 	} else {
-		V = normalize(lightSource.position + cameraPos - g_position);
+		V_direct = normalize(lightSource.position + cameraPos - g_position);
 		L = normalize(lightSource.position + cameraPos);
 	}
+
+	// Optional shadows affecting direct terms
+	float lightShadowFactor = 0.0;
+	if (shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering)) {
+		float s = calculateShadowVariableKernel(
+				fs_in_shadow.FragPosLightSpace,
+				fs_in_shadow.FragPos,
+				fs_in_shadow.lightPos
+				);
+		lightShadowFactor = clamp(s, 0.0, 0.85); // a bit stronger on direct light
+	}
+	float lightFactor = 1.0 - lightShadowFactor;
 
 	vec2 clippedTexCoord = g_texCoord0;
 	vec4 textureColor = vec4(1.0);
@@ -1033,20 +1045,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		else               N = normalize(normal);
 
 		if (hasHeightMap) {
-			// TBN for parallax
-			vec3 n = normalize(g_normal);
-			vec3 t = normalize(g_tangent - dot(g_tangent, n) * n);
-			vec3 b = normalize(cross(n, t));
-			mat3 TBN = mat3(t, b, n);
-
-			vec3 viewDirWorld   = normalize(cameraPos - g_position);
-			vec3 viewDirTangent = TBN * viewDirWorld;
-
-			clippedTexCoord = parallaxOcclusionMapping(getHeightUV(), viewDirTangent, heightMap, heightScale);
-			if (clippedTexCoord.x < 0.0 || clippedTexCoord.x > 1.0 ||
-					clippedTexCoord.y < 0.0 || clippedTexCoord.y > 1.0)
-				clippedTexCoord = getNormalUV(); // discard;
-
+			clippedTexCoord = applyParallaxMapping(getHeightUV(), heightMap, heightScale, hasHeightMap);
 			N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
 		}
 
@@ -1071,56 +1070,24 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		// --- packed-channel aware PBR sampling ---
 		// Note: pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
 		// is assumed to return a value in [0,1] for valid channel indices 0..3.
-		// For a different fallback for ch < 0, modify accordingly.
+		// For a different fallback for ch < 0, modify accordingly.		
 		// Metallic
-		float sampledMetal = 0.0;
-		if (hasMetallicMap) {
-			vec4 metalTex = texture(metallicMap, getMetallicUV());
-			// if metallicChannel < 0, fall back to using red channel (common default)
-			if (metallicChannel >= 0) {
-				sampledMetal = pickChannel(metalTex, metallicChannel, metallicInvert, metallicScale, metallicBias);
-			} else {
-				sampledMetal = metalTex.r * metallicScale + metallicBias;
-				if (metallicInvert != 0) sampledMetal = 1.0 - sampledMetal;
-				sampledMetal = clamp(sampledMetal, 0.0, 1.0);
-			}
-			metallic = sampledMetal;
-		} else {
-			metallic = pbrLighting.metallic;
-		}
+		metallic = samplePackedChannelValue(metallicMap, hasMetallicMap, getMetallicUV(),
+										   metallicChannel, metallicInvert, 
+										   metallicScale, metallicBias, 
+										   pbrLighting.metallic);
 
 		// Roughness
-		float sampledRough = 0.0;
-		if (hasRoughnessMap) {
-			vec4 roughTex = texture(roughnessMap, getRoughnessUV());
-			if (roughnessChannel >= 0) {
-				sampledRough = pickChannel(roughTex, roughnessChannel, roughnessInvert, roughnessScale, roughnessBias);
-			} else {
-				sampledRough = roughTex.r * roughnessScale + roughnessBias;
-				if (roughnessInvert != 0) sampledRough = 1.0 - sampledRough;
-				sampledRough = clamp(sampledRough, 0.0, 1.0);
-			}
-			roughness = sampledRough;
-		} else {
-			roughness = pbrLighting.roughness;
-		}
+		roughness = samplePackedChannelValue(roughnessMap, hasRoughnessMap, getRoughnessUV(),
+											roughnessChannel, roughnessInvert,
+											roughnessScale, roughnessBias,
+											pbrLighting.roughness);
 		roughness = clamp(roughness, 0.02, 1.0);
 
 		// Ambient Occlusion
-		float sampledAO = 1.0;
-		if (hasAOMap) {
-			vec4 aoTex = texture(aoMap, getAOUV());
-			if (aoChannel >= 0) {
-				sampledAO = pickChannel(aoTex, aoChannel, aoInvert, aoScale, aoBias);
-			} else {
-				sampledAO = aoTex.r * aoScale + aoBias;
-				if (aoInvert != 0) sampledAO = 1.0 - sampledAO;
-				sampledAO = clamp(sampledAO, 0.0, 1.0);
-			}
-			ambientOcclusion = sampledAO;
-		} else {
-			ambientOcclusion = pbrLighting.ambientOcclusion;
-		}
+		ambientOcclusion = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
+												   aoChannel, aoInvert, aoScale, aoBias,
+												   pbrLighting.ambientOcclusion);
 
 		transmission     = hasTransmissionMap ? texture(transmissionMap, getTransmissionUV()).r : pbrLighting.transmission;
 
@@ -1128,11 +1095,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		if (hasSheenColorMap) {
 			vec3 sc = texture(sheenColorMap, getSheenColorUV()).rgb;
-			sheenColor =  sc;
+			sheenColor =  sc;			
 		} else {
 			sheenColor = pbrLighting.sheenColor;
 		}
 		sheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, getSheenRoughnessUV()).r : pbrLighting.sheenRoughness;
+		sheenRoughness = max(sheenRoughness, 0.2);  // Minimum 0.2 to broaden lobe
 
 		clearcoat          = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r : pbrLighting.clearcoat;
 		clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).r : pbrLighting.clearcoatRoughness;
@@ -1216,9 +1184,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// Setup tangent space for anisotropy
 	vec3 T = normalize(g_tangent - dot(g_tangent, N) * N);
 	vec3 B = normalize(cross(N, T));
-
+		
 	// --- Direct BRDF (GGX/Smith/Schlick)
-	vec3 H = normalize(V + L);
+	vec3 H = normalize(V_direct + L);
 	vec3 specBRDF;
 	if (anisotropyStrength > 0.0) {
 		// Use anisotropic BRDF
@@ -1226,29 +1194,17 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	} else {
 		// Standard isotropic GGX
 		float NDF = distributionGGX(N, H, roughness);
-		float G = geometrySmith(N, V, L, roughness);
-		vec3 F = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
-		specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0), 0.001);
+		float G = geometrySmith(N, V_direct, L, roughness);
+		vec3 F = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0);
+		specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V_direct), 0.0) * max(dot(N, L), 0.0), 0.001);
 	}
-	
+
 	specBRDF *= 1.5;
 
-	vec3 kS = fresnelSchlick(clamp(dot(H, V), 0.0, 1.0), F0);
+	vec3 kS = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0);
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
 	float NdotL = max(dot(N, L), 0.0);
-
-	// Optional shadows affecting direct terms
-	float lightShadowFactor = 0.0;
-	if (shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering)) {
-		float s = calculateShadowVariableKernel(
-				fs_in_shadow.FragPosLightSpace,
-				fs_in_shadow.FragPos,
-				fs_in_shadow.lightPos
-				);
-		lightShadowFactor = clamp(s, 0.0, 0.85); // a bit stronger on direct light
-	}
-	float lightFactor = 1.0 - lightShadowFactor;
 
 	vec3 directDiffuse_L  = kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
 	vec3 directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
@@ -1256,31 +1212,25 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// --- Extra lobes
 	vec3 cDir = normalize(cameraDir);
 	vec3 rNorm = normalize(g_reflectionNormal);
-	vec3 transmission_L = (transmission > 0.0) ? calculateTransmission(rNorm, cDir, L, transmission, ior, albedo) : vec3(0.0);
-	vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(rNorm, cDir, L, sheenColor, sheenRoughness) : vec3(0.0);
-	vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(rNorm, cDir, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
+	vec3 transmission_L = (transmission > 0.0) ? calculateTransmission(N, V_direct, L, transmission, ior, albedo) : vec3(0.0);
+	vec3 sheen_L        = (length(sheenColor) > 0.0) ? calculateSheen(N, V_direct, L, sheenColor, sheenRoughness) : vec3(0.0);
+	vec3 clearcoat_L    = (clearcoat > 0.0) ? calculateClearcoat(N, V_direct, L, clearcoat, clearcoatRoughness, clearcoatNormal) : vec3(0.0);
 	// Treat clearcoat as specular-like
 	directSpecular_L += clearcoat_L  * lightSource.specular;  // Scale by light's specular component;
 
 	// --- IBL (diffuse + specular)        
 	vec3 irradiance = texture(irradianceMap, N).rgb;
 	vec3 diffuseIBL_L = irradiance * albedo;
-	vec3 ambient_L;
+	vec3 ambient_L = vec3(0.0);
 
 	if (envMapEnabled) {
-		float dotNV = max(dot(N, V), 0.0);
+		float dotNV = max(dot(N, V_direct), 0.0);
 		vec3 Fibl = fresnelSchlickRoughness(dotNV, F0, roughness);
 		vec3 kSibl = Fibl;
 		vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
 
-		// Base direction (works for rotation)
-		vec3 V_base = normalize(cameraDir);
-		// Add positional offset (for panning awareness)
-		vec3 offset = normalize(cameraPos - g_reflectionPosition);
-		vec3 V = normalize(V_base - offset * 0.3);  // Blend factor adjustable
-		vec3 N = normalize(g_reflectionNormal);
-		vec3 R = reflect(V, N);
-		R = normalize(R);
+		// Use cached reflection view
+		vec3 R = reflect(V_reflect, g_reflectionNormal);
 
 		const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
 
@@ -1333,7 +1283,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		ambient_L = (kDibl * diffuseIBL_L) * diffuseAO + specIBL_L * specularAO;
 	} else {
-		vec3 kS0 = fresnelSchlick(max(dot(N, V), 0.0), F0);
+		vec3 kS0 = fresnelSchlick(max(dot(N, V_direct), 0.0), F0);
 		vec3 kD0 = (vec3(1.0) - kS0) * (1.0 - metallic);
 		float boostedAO = mix(1.0, ambientOcclusion, 0.8);
 		ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
@@ -1345,12 +1295,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	float clearcoatAttenuation = mix(1.0, 1.0 - clearcoat * clearcoatFresnel, 0.5);
 
 	// Apply to base specular
-	vec3 V_base = normalize(cameraDir);
-	vec3 offset = normalize(cameraPos - g_reflectionPosition);
-	vec3 V_hybrid = normalize(V_base - offset * 0.3);
-
+	// Use cached reflection view
 	vec3 clearcoatIBL_L = (clearcoat > 0.0) 
-		? calculateClearcoatIBL(g_reflectionNormal, V_hybrid, clearcoatNormal, clearcoatRoughness, clearcoat)
+		? calculateClearcoatIBL(g_reflectionNormal, V_reflect, clearcoatNormal, clearcoatRoughness, clearcoat)
 		: vec3(0.0);
 
 	// Attenuate base reflection where clearcoat is strong
@@ -1358,7 +1305,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	ambient_L += clearcoatIBL_L;
 
 	vec3 sheenIBL_L = (length(sheenColor) > 0.0)
-    ? calculateSheenIBL(N, V, sheenRoughness, sheenColor)
+    ? calculateSheenIBL(g_normal, V_direct, sheenRoughness, sheenColor)
     : vec3(0.0);
 	ambient_L += sheenIBL_L;
 
@@ -1397,14 +1344,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	if (transmissionFactor > 0.0) {
-		vec3 N = normalize(g_reflectionNormal);
-		vec3 V_base = normalize(cameraDir);
-		vec3 offset = normalize(cameraPos - g_reflectionPosition);
-		vec3 V = normalize(V_base - offset * 0.3);
+		vec3 N_trans = normalize(g_reflectionNormal);
 
+		// Refract ray into environment
 		float ior = max(1e-3, pbrLighting.ior);
-		vec3 R = refract(V, N, 1.0 / ior);
-		R = normalize(R);
+		vec3 R = refract(V_reflect, N_trans, 1.0 / ior);
 
 		// Use roughness-based LOD for environment sampling
 		float tRough = max(pbrLighting.roughness, 0.1);
@@ -1435,7 +1379,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	// Add iridescence as a final color overlay
 	if (iridescenceFactor > 0.0) {
-		vec3 R = reflect(normalize(cameraDir), normalize(g_reflectionNormal));
+		vec3 R = reflect(V_reflect, normalize(g_reflectionNormal));
 		vec3 iridEnv = textureLod(prefilterMap, R, 0.0).rgb * envMapExposure * 0.4;
     
 		// Additive blend: iridescence tints the highlights/reflections
@@ -1452,6 +1396,25 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		outRGB = pow(outRGB, vec3(1.0 / screenGamma));
 
 	return vec4(outRGB, 1.0);
+}
+
+float samplePackedChannelValue(sampler2D tex, bool hasTexture, vec2 uv,
+                               int channel, int invert, float scale, float bias,
+                               float fallback)
+{
+    if (!hasTexture) return fallback;
+    
+    vec4 texel = texture(tex, uv);
+    float val;
+    
+    if (channel >= 0) {
+        val = pickChannel(texel, channel, invert, scale, bias);
+    } else {
+        val = texel.r * scale + bias;
+        if (invert != 0) val = 1.0 - val;
+    }
+    
+    return clamp(val, 0.0, 1.0);
 }
 
 
@@ -1828,6 +1791,32 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
     shadow = pow(shadow, shadowGammaCorrection);
 
     return shadow;
+}
+
+// Parallax mapping function
+vec2 applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, bool enabled)
+{
+    if (!enabled) return baseUV;
+    
+    // Build TBN matrix
+    vec3 n = normalize(g_normal);
+    vec3 t = normalize(g_tangent - dot(g_tangent, n) * n);
+    vec3 b = normalize(cross(n, t));
+    mat3 TBN = mat3(t, b, n);
+    
+    // Transform view direction to tangent space
+    vec3 viewDirWorld = normalize(cameraPos - g_position);
+    vec3 viewDirTangent = TBN * viewDirWorld;
+    
+    // Apply parallax mapping
+    vec2 parallaxUV = parallaxOcclusionMapping(baseUV, viewDirTangent, heightMap, heightScale);
+    
+    // Clamp to UV bounds
+    if (parallaxUV.x < 0.0 || parallaxUV.x > 1.0 ||
+        parallaxUV.y < 0.0 || parallaxUV.y > 1.0)
+        parallaxUV = baseUV;
+    
+    return parallaxUV;
 }
 
 // Function for parallax mapping to simulate depth displacement
