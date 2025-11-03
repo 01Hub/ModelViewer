@@ -529,49 +529,16 @@ void main()
 	// Apply the final alpha (outside floorRendering block)
 	fragColor.a = finalAlpha;
 
+	// Transmission
+	if(renderingMode == 1){
+		if(pbrLighting.transmission > 0.0){
+			fragColor.a = mix(finalAlpha, 1.0 - pbrLighting.transmission, 0.5);
+		}
+	}
+
 	// Premultiply for blending (non-floor; floor path already premultiplies)
 	if (!floorRendering) {
 		fragColor.rgb *= finalAlpha;
-	}
-
-	// --- TRANSMISSION HANDLING (PBR only) ---
-	// Transmission affects color, NOT alpha.
-	// Keep alpha from opacity logic above.
-	if (renderingMode == 1) { // PBR mode
-		float transmissionFactor = pbrLighting.transmission;
-
-		if (hasTransmissionMap) {
-			float mapVal = texture(transmissionMap, getTransmissionUV()).r;
-			transmissionFactor *= mapVal;
-		}
-
-		if (transmissionFactor > 0.0) {
-			vec3 N = normalize(g_reflectionNormal);
-			//vec3 V = normalize(cameraDir);
-			vec3 V_base = normalize(cameraDir);
-			// Add positional offset (for panning awareness)
-			vec3 offset = normalize(cameraPos - g_reflectionPosition);
-			vec3 V = normalize(V_base - offset * 0.3);
-
-			// Refract ray into environment
-			float ior = (pbrLighting.ior > 0.0) ? pbrLighting.ior : 1.5;
-			vec3 R = refract(V, N, 1.0 / ior);
-
-			// Sample environment
-			vec3 envColor = texture(envMap, R).rgb;
-
-			// Apply volume attenuation if available					
-			// Compute per-pixel thickness
-			vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
-			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.r;
-			float thickness = pbrLighting.thicknessFactor * thicknessSample;
-			float pathLength = length(g_position - cameraPos);
-			envColor = calculateVolumeAttenuation(envColor, pathLength, thickness,
-				pbrLighting.attenuationColor, pbrLighting.attenuationDistance);			
-
-			// Blend transmission into RGB
-			fragColor.rgb = mix(fragColor.rgb, envColor, transmissionFactor);
-		}
 	}
 
 	if (selected) // with glow
@@ -973,15 +940,15 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		float envLOD = clamp(baseLOD + grazingLOD, 0.0, 7.0);
 		// ========================
 	
-		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
-		envColor *= envMapExposure;
-		envColor = applyToneMapping(envColor * iblExposure);
+		vec3 envColor = textureLod(envMap, R, envLOD).rgb;		
 		composed += envColor * reflectionStrength;		
 	}
 
 	// --- Tone/gamma ---
-	if (hdrToneMapping)
+	if (hdrToneMapping){
+		composed *= envMapExposure;
 		composed = applyToneMapping(composed * iblExposure);
+	}
 	if (gammaCorrection)
 		composed = pow(composed, vec3(1.0 / screenGamma));
 
@@ -1420,35 +1387,51 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	vec3 outRGB = baseNoSpec_L + specOnly_L; // override opacity
 
+	
+	float transmissionFactor = pbrLighting.transmission;
 
-	//	Transmission with exposure control
-    if (pbrLighting.transmission > 0.0) {
-        float eta = max(1e-3, pbrLighting.ior);
+	// Apply transmission map if available
+	if (hasTransmissionMap) {
+		float mapVal = texture(transmissionMap, getTransmissionUV()).r;
+		transmissionFactor *= mapVal;
+	}
+
+	if (transmissionFactor > 0.0) {
+		vec3 N = normalize(g_reflectionNormal);
 		vec3 V_base = normalize(cameraDir);
-		// Add positional offset (for panning awareness)
 		vec3 offset = normalize(cameraPos - g_reflectionPosition);
 		vec3 V = normalize(V_base - offset * 0.3);
-        vec3 R = refract(V, normalize(g_reflectionNormal), 1.0 / eta);
-        R = envMapRotationMatrix * R;
-        R = normalize(R);
 
-        float tRough = max(pbrLighting.roughness, 0.1);
-        vec3 envColor = textureLod(envMap, R, tRough * 3.0).rgb;
-        
-        // Apply exposure
-        envColor *= envMapExposure;
-        
-        // Apply tone mapping
-        envColor = applyToneMapping(envColor * iblExposure);
+		float ior = max(1e-3, pbrLighting.ior);
+		vec3 R = refract(V, N, 1.0 / ior);
+		R = normalize(R);
 
-        float NdotV = clamp(dot(normalize(g_reflectionNormal), normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
-        float f0 = pow((pbrLighting.ior - 1.0) / (pbrLighting.ior + 1.0), 2.0);
-        float F = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
+		// Use roughness-based LOD for environment sampling
+		float tRough = max(pbrLighting.roughness, 0.1);
+		vec3 envColor = textureLod(prefilterMap, R, tRough * 3.0).rgb;
 
-        float w = clamp(pbrLighting.transmission * F * (1.0 - pbrLighting.roughness), 0.0, 0.8);
-        vec3 filtered = envColor * pbrLighting.albedo;
-        fragColor.rgb = mix(fragColor.rgb, filtered, w);        
-    }
+		// Apply volume attenuation if thickness map is available
+		if (hasThicknessMap) {
+			vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
+			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.r;
+			float thickness = pbrLighting.thicknessFactor * thicknessSample;
+			float pathLength = length(g_position - cameraPos);
+			envColor = calculateVolumeAttenuation(envColor, pathLength, thickness,
+				pbrLighting.attenuationColor, pbrLighting.attenuationDistance);
+		}
+				
+		// Fresnel term
+		float NdotV = clamp(dot(N, normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
+		float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
+		float F = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
+
+		// Final blend weight
+		float w = clamp(transmissionFactor * F * (1.0 - pbrLighting.roughness), 0.0, 0.8);
+		vec3 filtered = envColor * pbrLighting.albedo;
+
+		// Blend into final color
+		outRGB = mix(outRGB, filtered, w);
+	}
 
 	// Add iridescence as a final color overlay
 	if (iridescenceFactor > 0.0) {
@@ -1460,10 +1443,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		outRGB = outRGB + iridOut * 0.25;  // Subtle 25% additive overlay
 	}
 
-	// --- Tone map & gamma once, at the end
-	//vec3 outRGB = composed_L;
-	if (hdrToneMapping) outRGB = applyToneMapping(outRGB * iblExposure);
-	if (gammaCorrection) outRGB = pow(outRGB, vec3(1.0 / screenGamma));
+	// --- Tone map & gamma once, at the end	
+	if (hdrToneMapping) {
+		outRGB *= envMapExposure;
+		outRGB = applyToneMapping(outRGB * iblExposure);
+	}
+	if (gammaCorrection) 
+		outRGB = pow(outRGB, vec3(1.0 / screenGamma));
 
 	return vec4(outRGB, 1.0);
 }
