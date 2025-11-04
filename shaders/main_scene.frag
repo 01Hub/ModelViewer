@@ -362,6 +362,7 @@ vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
 vec3    fresnelSchlickIOR(float cosTheta, float ior);
 float   distributionCharlie(vec3 N, vec3 H, float roughness);
 float   geometryCharlie(float NdotV, float roughness);
+float	D_Charlie(float roughness, float NoH);
 vec3    calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo);
 vec3    calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness);
 vec3    calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor);
@@ -1104,6 +1105,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		clearcoat          = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r : pbrLighting.clearcoat;
 		clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).r : pbrLighting.clearcoatRoughness;
+		clearcoatRoughness = clamp(clearcoatRoughness, 0.089, 1.0);
 		clearcoatNormal    = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side : N;
 
 		// Specular (KHR_materials_specular)
@@ -1317,6 +1319,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 baseNoSpec_L = emissive_L + ambient_L + directDiffuse_L + transmission_L + sheen_L;
 	vec3 specOnly_L   = directSpecular_L; // (spec IBL already inside 'ambient_L')
 
+	if (sheenColor != vec3(0.0)) {
+		float NoH = clamp(dot(N, H), 0.0, 1.0);
+		float sheenD = D_Charlie(sheenRoughness, NoH);
+		vec3 sheenBRDF = sheenD * sheenColor;
+		specOnly_L += sheenBRDF * NdotL;
+	}
+
 	// --- Floor override (non-reflected) ---
 	if (floorRendering && !isReflectedPass) {
 		float fa = clamp(u_floorAlpha, 0.0, 1.0);
@@ -1444,6 +1453,13 @@ float geometryCharlie(float NdotV, float roughness)
 	float alpha = roughness * roughness;
 	float sinTheta = sqrt(1.0 - NdotV * NdotV);
 	return NdotV / (NdotV + alpha * sinTheta);
+}
+
+// Charlie D function variant for sheen IBL
+float D_Charlie(float roughness, float NoH) {
+    float invAlpha = 1.0 / max(roughness, 0.001);
+    float sin2h = max(1.0 - NoH * NoH, 0.0078125);
+    return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
 }
 
 // Calculate transmission contribution
