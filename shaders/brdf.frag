@@ -1,6 +1,6 @@
 #version 450 core
 
-out vec2 fragColor;
+out vec3 fragColor;
 in vec2 texCoords;
 
 const float PI = 3.14159265359;
@@ -66,8 +66,15 @@ float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 
     return ggx1 * ggx2;
 }
+
+float D_Charlie(float roughness, float NoH) {
+    float invAlpha = 1.0 / max(roughness, 0.001);
+    float sin2h = max(1.0 - NoH * NoH, 0.0078125);
+    return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
+}
+
 // ----------------------------------------------------------------------------
-vec2 IntegrateBRDF(float NdotV, float roughness)
+vec3 IntegrateBRDF(float NdotV, float roughness)
 {
     vec3 V;
     V.x = sqrt(1.0 - NdotV*NdotV);
@@ -76,6 +83,7 @@ vec2 IntegrateBRDF(float NdotV, float roughness)
 
     float A = 0.0;
     float B = 0.0;
+    float sheenAccum = 0.0;
 
     vec3 N = vec3(0.0, 0.0, 1.0);
 
@@ -100,15 +108,18 @@ vec2 IntegrateBRDF(float NdotV, float roughness)
 
             A += (1.0 - Fc) * G_Vis;
             B += Fc * G_Vis;
+            float sheenD = D_Charlie(roughness, NdotH);
+            sheenAccum += sheenD * NdotL; // weighted by cosine
         }
     }
     A /= float(SAMPLE_COUNT);
     B /= float(SAMPLE_COUNT);
-    return vec2(A, B);
+    sheenAccum /= float(SAMPLE_COUNT);
+    return vec3(A, B, sheenAccum);
 }
 // ----------------------------------------------------------------------------
 void main()
 {
-    vec2 integratedBRDF = IntegrateBRDF(texCoords.x, texCoords.y);
+    vec3 integratedBRDF = IntegrateBRDF(texCoords.x, texCoords.y);
     fragColor = integratedBRDF;
 }
