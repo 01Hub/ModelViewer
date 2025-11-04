@@ -1324,6 +1324,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		float sheenD = D_Charlie(sheenRoughness, NoH);
 		vec3 sheenBRDF = sheenD * sheenColor;
 		specOnly_L += sheenBRDF * NdotL;
+		vec3 R = reflect(V_reflect, g_reflectionNormal);
+		vec3 prefilteredEnv = textureLod(prefilterMap, R, sheenRoughness * 8.0).rgb;
+		vec3 dfg = texture(brdfLUT, vec2(dot(N, V_direct), sheenRoughness)).rgb;
+		vec3 sheenIBL = dfg.b * prefilteredEnv * sheenColor;
+		specOnly_L += sheenIBL;
 	}
 
 	// --- Floor override (non-reflected) ---
