@@ -859,7 +859,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	if (floorRendering && !isReflectedPass) {
 		float fa = clamp(u_floorAlpha, 0.0, 1.0);
 
-		// View-angle term to avoid “whiteout” when looking straight down
+		// View-angle term to avoid "whiteout" when looking straight down
 		vec3 Nf = normalize(gl_FrontFacing ? g_normal : -g_normal);
 		vec3 Vf = normalize(cameraPos - g_position);
 		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
@@ -1244,7 +1244,6 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// IRIDESCENCE LAYER
 	// ============================================================================
 	vec3 iridescenceF0 = vec3(0.0);
-	vec3 iridescence_L = vec3(0.0);
 
 	// Load iridescence properties
 	iridescenceFactor = hasIridescenceMap ? texture(iridescenceMap, getIridescenceUV()).r : pbrLighting.iridescenceFactor;
@@ -1258,9 +1257,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	if (iridescenceFactor > 0.0) {
-		iridescenceF0 = calculateIridescence(normalize(g_reflectionNormal), normalize(cameraDir), 
-			iridescenceFactor, iridescenceIor, iridescenceThickness);
-		F0 = mix(F0, iridescenceF0, iridescenceFactor * 0.4);
+		iridescenceF0 = calculateIridescence(N, V_direct,
+			iridescenceFactor, iridescenceIor, iridescenceThickness);							
+		F0 = mix(F0, iridescenceF0, iridescenceFactor * 0.4);	
 	}
 
 	// ============================================================================
@@ -1412,19 +1411,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		// Blend into final color
 		outRGB = mix(outRGB, filtered, w);
-	}
-
-	// ============================================================================
-	// IRIDESCENCE OVERLAY
-	// ============================================================================
-	if (iridescenceFactor > 0.0) {
-		vec3 R_irid = reflect(V_reflect, normalize(g_reflectionNormal));
-		vec3 iridEnv = textureLod(prefilterMap, R_irid, 0.0).rgb * envMapExposure * 0.4;
-
-		// Additive blend: iridescence tints the highlights/reflections
-		vec3 iridOut = iridescenceF0 * iridEnv * iridescenceFactor;
-		outRGB = outRGB + iridOut * 0.25;  // Subtle 25% additive overlay
-	}
+	}	
 
 	// ============================================================================
 	// TONE MAPPING & GAMMA CORRECTION
@@ -1673,58 +1660,91 @@ vec3 calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotrop
 	return specular * NdotL;
 }
 
-// KHR_materials_iridescence - Physically accurate thin-film interference
-vec3 calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridescenceIor, float thickness)
+// ============================================================================
+// IRIDESCENCE - Following KHR_materials_iridescence glTF spec
+// ============================================================================
+// Inputs:
+//   outsideIor: 1.0 (air)
+//   iridescenceIor: thin film IOR (typically 1.3-1.8)
+//   baseIor: substrate IOR (from pbrLighting.ior)
+//   baseF0: base Fresnel reflectance BEFORE iridescence (vec3(0.04) for dielectric)
+//   iridescenceThickness: thickness in nanometers
+//   cosTheta1: dot(normal, viewDirection) - cosine of viewing angle
+// ============================================================================
+
+vec3 calculateIridescence(vec3 normal, vec3 viewDir, float factor, float iorFilm, float thickness)
 {
-    float NdotV = clamp(dot(N, V), 0.0, 1.0);
+    float outsideIor = 1.0;  // Air
+    float baseIor = pbrLighting.ior;  // Substrate IOR
     
-    // Base material IOR (from transmission or default dielectric)
-    float outsideIor = 1.0; // Air
-    float baseIor = pbrLighting.ior; // Base material IOR
+    // Base F0 for dielectric (NOT blended with metallic yet)
+    vec3 baseF0 = vec3(0.04);
     
-    // === Fresnel at air/film interface ===
-    float R0_film = pow((outsideIor - iridescenceIor) / (outsideIor + iridescenceIor), 2.0);
-    float R_film = R0_film + (1.0 - R0_film) * pow(1.0 - NdotV, 5.0);
+    // Viewing angle
+    float cosTheta1 = clamp(dot(normal, viewDir), 0.0, 1.0);
     
-    // === Fresnel at film/substrate interface ===
-    float R0_base = pow((iridescenceIor - baseIor) / (iridescenceIor + baseIor), 2.0);
-    float R_base = R0_base + (1.0 - R0_base) * pow(1.0 - NdotV, 5.0);
+    // ===== Snell's Law: Compute refraction into film =====
+    float sinTheta1 = sqrt(1.0 - cosTheta1 * cosTheta1);
+    float sinTheta2 = sinTheta1 * outsideIor / iorFilm;
     
-    // === Optical path length (angle-dependent) ===
-    // Path length increases at grazing angles
-    float cosTheta2 = sqrt(1.0 - pow((outsideIor / iridescenceIor) * sqrt(1.0 - NdotV * NdotV), 2.0));
-    float opticalPath = 2.0 * iridescenceIor * thickness * cosTheta2;
+    // Check total internal reflection
+    if (sinTheta2 > 1.0) {
+        return baseF0;  // Total internal reflection, no iridescence
+    }
     
-    // === Wavelength-dependent interference ===
-    // RGB wavelengths in nanometers
-    vec3 wavelengths = vec3(650.0, 510.0, 475.0);
+    float cosTheta2 = sqrt(1.0 - sinTheta2 * sinTheta2);
     
-    // Phase shift for each wavelength
-    vec3 phase = (2.0 * PI * opticalPath) / wavelengths;
+    // ===== Fresnel at air-film interface =====
+    float rs_air_film = (outsideIor - iorFilm) / (outsideIor + iorFilm);
+    float rp_air_film = (baseIor * cosTheta1 - iorFilm * cosTheta2) / (baseIor * cosTheta1 + iorFilm * cosTheta2);
     
-    // === Thin-film interference formula ===
-    // Accounts for multiple reflections between interfaces
-    vec3 reflectance1 = vec3(R_film);
-    vec3 reflectance2 = vec3(R_base);
+    float Rs_air_film = rs_air_film * rs_air_film;
+    float Rp_air_film = rp_air_film * rp_air_film;
     
-    // Interference between the two reflected waves
-    vec3 interference = reflectance1 + reflectance2 - 
-                       2.0 * sqrt(reflectance1 * reflectance2) * cos(phase);
+    // ===== Fresnel at film-substrate interface =====
+    float cosTheta3_base = sqrt(1.0 - sinTheta2 * sinTheta2 * (baseIor * baseIor) / (iorFilm * iorFilm));
     
-    // Normalize to 0-1 range
-    interference = clamp(interference, 0.0, 1.0);
+    float rs_film_base = (iorFilm - baseIor) / (iorFilm + baseIor);
+    float rp_film_base = (baseIor * cosTheta2 - iorFilm * cosTheta3_base) / (baseIor * cosTheta2 + iorFilm * cosTheta3_base);
     
-    // Convert to color shift (subtle, not overpowering)
-    vec3 iridescenceColor = 0.5 + 0.5 * cos(phase + vec3(0.0, 2.09, 4.19)); // RGB offsets
+    float Rs_film_base = rs_film_base * rs_film_base;
+    float Rp_film_base = rp_film_base * rp_film_base;
     
-    // Blend between interference pattern and color shift
-    iridescenceColor = mix(iridescenceColor, interference, 0.5);
+    // ===== Optical path difference =====
+    float opticalPath = 2.0 * iorFilm * thickness * cosTheta2;
     
-    // Viewing angle modulation (stronger at grazing angles)
-    float fresnelMod = pow(1.0 - NdotV, 2.0);
-    iridescenceColor *= (0.5 + 0.5 * fresnelMod);
+    // ===== Wavelength-dependent phase for RGB =====
+    vec3 wavelengths = vec3(650.0, 510.0, 475.0);  // Red, Green, Blue (nm)
+    vec3 phase = (2.0 * PI / wavelengths) * opticalPath;
     
-    return iridescenceColor;
+    // ===== Airy formula for s-polarization (perpendicular) =====
+    vec3 r_s = sqrt(vec3(Rs_air_film) * vec3(Rs_film_base));
+    vec3 denominator_s = 1.0 + vec3(Rs_air_film * Rs_film_base) - 2.0 * r_s * cos(phase);
+    vec3 numerator_s = vec3(Rs_air_film) + vec3(Rs_film_base) - 2.0 * r_s * cos(phase);
+    vec3 Ris = numerator_s / (denominator_s + 0.001);
+    
+    // ===== Airy formula for p-polarization (parallel) =====
+    vec3 r_p = sqrt(vec3(Rp_air_film) * vec3(Rp_film_base));
+    vec3 denominator_p = 1.0 + vec3(Rp_air_film * Rp_film_base) - 2.0 * r_p * cos(phase);
+    vec3 numerator_p = vec3(Rp_air_film) + vec3(Rp_film_base) - 2.0 * r_p * cos(phase);
+    vec3 Rip = numerator_p / (denominator_p + 0.001);
+    
+    // ===== Average polarizations (unpolarized light) =====
+    vec3 iridescence = (Ris + Rip) * 0.5;
+    iridescence = clamp(iridescence, 0.0, 1.0);
+    
+    // ===== Map phase to color =====
+    vec3 colorShift = vec3(
+        sin(phase.r) * 0.5 + 0.5,
+        sin(phase.g + 2.0944) * 0.5 + 0.5,  // 120° offset
+        sin(phase.b + 4.1888) * 0.5 + 0.5   // 240° offset
+    );
+    
+    // ===== Blend with base F0 =====
+    // Iridescence modulates the Fresnel term
+    vec3 iridescenceF0 = mix(baseF0, colorShift, iridescence);
+    
+    return iridescenceF0;
 }
 
 // KHR_materials_volume

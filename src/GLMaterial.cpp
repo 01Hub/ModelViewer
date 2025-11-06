@@ -3899,6 +3899,10 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "    _iorTextureId: " << m._iorTextureId << "\n";
 	os << "    _transmissionTextureId: " << m._transmissionTextureId << "\n";
 	os << "    _invertOpacityTexture: " << m._invertOpacityTexture << "\n";
+	os << "    _iridescenceTextureId: " << m.m_iridescenceTextureId << "\n";
+	os << "    _anisotropyTextureId: " << m.m_anisotropyTextureId << "\n";
+
+
 
 	// --- Texture coordinate sets / transforms
 	auto printTT = [&os](const GLMaterial::TextureTransform& t) {
@@ -3925,6 +3929,7 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "  _iorTexTransform: "; printTT(m._iorTexTransform); os << "\n";
 	os << "  _transmissionTexTransform: "; printTT(m._transmissionTexTransform); os << "\n";
 	os << "  _anisotropyTexTransform: "; printTT(m._anisotropyTexTransform); os << "\n";
+	os << "  _iridescenceTexTransform: "; printTT(m._iridescenceTexTransform); os << "\n";
 
 	// --- Map paths (QString -> std::string)
 	auto q = [](const QString& s)->std::string { return s.toStdString(); };
@@ -3944,6 +3949,8 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "    _clearcoatColorMapPath: " << q(m._clearcoatColorMapPath) << "\n";
 	os << "    _clearcoatRoughnessMapPath: " << q(m._clearcoatRoughnessMapPath) << "\n";
 	os << "    _clearcoatNormalMapPath: " << q(m._clearcoatNormalMapPath) << "\n";
+	os << "    _anisotropyMapPath: " << q(m.m_anisotropyMap) << "\n";
+	os << "    _iridescenceMapPath: " << q(m.m_iridescenceMap) << "\n";
 
 	// --- KHR extension fields (specular, anisotropy, iridescence, volume, etc.)
 	os << "  KHR_specular: m_specularFactor: " << m.m_specularFactor
