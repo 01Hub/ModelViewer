@@ -1258,8 +1258,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	if (iridescenceFactor > 0.0) {
 		iridescenceF0 = calculateIridescence(N, V_direct,
-			iridescenceFactor, iridescenceIor, iridescenceThickness);							
-		F0 = mix(F0, iridescenceF0, iridescenceFactor * 0.4);	
+			iridescenceFactor, iridescenceIor, iridescenceThickness);		
+		float grazingFactor = pow(1.0 - dot(N, V_direct), 1.0);
+		float blendFactor = iridescenceFactor * (0.1 + 0.9 * grazingFactor); 
+		F0 = mix(F0, max(F0, iridescenceF0), blendFactor);
 	}
 
 	// ============================================================================
@@ -1673,18 +1675,22 @@ vec3 calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridesc
     
     float cosTheta2 = sqrt(1.0 - sinTheta2 * sinTheta2);
     
+    float R01 = pow((outsideIor - iridescenceIor) / (outsideIor + iridescenceIor), 2.0);
+    float R12 = pow((iridescenceIor - baseIor) / (iridescenceIor + baseIor), 2.0);
+    
     float opticalPath = 2.0 * iridescenceIor * thickness * cosTheta2;
     vec3 phase = (2.0 * 3.14159 / vec3(650.0, 510.0, 475.0)) * opticalPath;
     
-    // ===== Just use the vibrant rainbow colors directly =====
-    vec3 iridescenceColor = vec3(
-        sin(phase.r + 0.0) * 0.5 + 0.5,
-        sin(phase.g + 2.0944) * 0.5 + 0.5,
-        sin(phase.b + 4.1888) * 0.5 + 0.5
-    );
+    vec3 r = sqrt(vec3(R01) * vec3(R12));
+    vec3 cos_phase = cos(phase);
     
-    // ===== Simple boost =====
-    iridescenceColor = iridescenceColor * 2.0;
+    vec3 numerator = vec3(R01) + vec3(R12) - 2.0 * r * cos_phase;
+    vec3 denominator = 1.0 + vec3(R01 * R12) - 2.0 * r * cos_phase;
+    vec3 iridescenceColor = numerator / (denominator + 0.0001);
+    iridescenceColor = clamp(iridescenceColor, 0.0, 1.0);
+    
+    // ===== Much higher boost =====
+    iridescenceColor = iridescenceColor * 5.0;
     
     return clamp(iridescenceColor, 0.0, 1.0);
 }
