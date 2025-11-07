@@ -636,151 +636,6 @@ void main()
 	} 
 }
 
-// ========== CORE TEXTURE TRANSFORM FUNCTION ==========
-vec2 getTransformedUV(int texCoordIndex, TextureTransform transform) 
-{
-    // Step 1: Select the appropriate base UV coordinate set
-    vec2 uv;
-    switch(texCoordIndex) {
-        case 1: uv = g_texCoord1; break;
-        case 2: uv = g_texCoord2; break;
-        case 3: uv = g_texCoord3; break;
-        default: uv = g_texCoord0; break; // case 0 and fallback
-    }
-    
-    // Step 2: Apply KHR_texture_transform
-    // Order: rotation (around 0.5, 0.5) -> scale -> offset
-    
-    // Rotation is applied around the center point (0.5, 0.5)
-    const vec2 pivot = vec2(0.5, 0.5);
-    uv -= pivot;
-    
-    // Apply rotation matrix
-    float cosR = cos(transform.rotation);
-    float sinR = sin(transform.rotation);
-    mat2 rotMat = mat2(cosR, sinR, -sinR, cosR);
-    uv = rotMat * uv;
-    
-    // Translate back from pivot
-    uv += pivot;
-    
-    // Apply scale and offset
-    uv = uv * transform.scale + transform.offset;
-    
-    return uv;
-}
-
-// ========== CONVENIENCE FUNCTIONS FOR EACH TEXTURE TYPE ==========
-vec2 getAlbedoUV() {
-    return getTransformedUV(albedoTexTransform.texCoordIndex, albedoTexTransform);
-}
-
-vec2 getMetallicUV() {
-    return getTransformedUV(metallicTexTransform.texCoordIndex, metallicTexTransform);
-}
-
-vec2 getRoughnessUV() {
-    return getTransformedUV(roughnessTexTransform.texCoordIndex, roughnessTexTransform);
-}
-
-vec2 getNormalUV() {
-    return getTransformedUV(normalTexTransform.texCoordIndex, normalTexTransform);
-}
-
-vec2 getHeightUV() {
-    return getTransformedUV(heightTexTransform.texCoordIndex, heightTexTransform);
-}
-
-vec2 getAOUV() {
-    return getTransformedUV(aoTexTransform.texCoordIndex, aoTexTransform);
-}
-
-vec2 getOpacityUV() {
-    return getTransformedUV(opacityTexTransform.texCoordIndex, opacityTexTransform);
-}
-
-vec2 getEmissiveUV() {
-    return getTransformedUV(emissiveTexTransform.texCoordIndex, emissiveTexTransform);
-}
-
-vec2 getTransmissionUV() {
-    return getTransformedUV(transmissionTexTransform.texCoordIndex, transmissionTexTransform);
-}
-
-vec2 getIORUV() {
-    return getTransformedUV(iorTexTransform.texCoordIndex, iorTexTransform);
-}
-
-vec2 getSheenColorUV() {
-    return getTransformedUV(sheenColorTexTransform.texCoordIndex, sheenColorTexTransform);
-}
-
-vec2 getSheenRoughnessUV() {
-    return getTransformedUV(sheenRoughnessTexTransform.texCoordIndex, sheenRoughnessTexTransform);
-}
-
-vec2 getClearcoatUV() {
-    return getTransformedUV(clearcoatTexTransform.texCoordIndex, clearcoatTexTransform);
-}
-
-vec2 getClearcoatRoughnessUV() {
-    return getTransformedUV(clearcoatRoughnessTexTransform.texCoordIndex, clearcoatRoughnessTexTransform);
-}
-
-vec2 getClearcoatNormalUV() {
-    return getTransformedUV(clearcoatNormalTexTransform.texCoordIndex, clearcoatNormalTexTransform);
-}
-
-vec2 getSpecularFactorUV() {
-    return getTransformedUV(specularFactorTexTransform.texCoordIndex, specularFactorTexTransform);
-}
-
-vec2 getSpecularColorUV() {
-    return getTransformedUV(specularColorTexTransform.texCoordIndex, specularColorTexTransform);
-}
-
-vec2 getAnisotropyUV() {
-    return getTransformedUV(anisotropyTexTransform.texCoordIndex, anisotropyTexTransform);
-}
-
-vec2 getIridescenceUV() {
-    return getTransformedUV(iridescenceTexTransform.texCoordIndex, iridescenceTexTransform);
-}
-
-vec2 getIridescenceThicknessUV() {
-    return getTransformedUV(iridescenceThicknessTexTransform.texCoordIndex, iridescenceThicknessTexTransform);
-}
-
-vec2 getThicknessUV() {
-    return getTransformedUV(thicknessTexTransform.texCoordIndex, thicknessTexTransform);
-}
-
-// Legacy ADS texture UV functions
-vec2 getDiffuseTextureUV() {
-    return getTransformedUV(diffuseTextureTransform.texCoordIndex, diffuseTextureTransform);
-}
-
-vec2 getSpecularTextureUV(){
-	return getTransformedUV(specularTextureTransform.texCoordIndex, specularTextureTransform);
-}
-
-vec2 getEmissiveTextureUV() {
-    return getTransformedUV(emissiveTextureTransform.texCoordIndex, emissiveTextureTransform);
-}
-
-vec2 getNormalTextureUV() {
-    return getTransformedUV(normalTextureTransform.texCoordIndex, normalTextureTransform);
-}
-
-vec2 getHeightTextureUV() {
-    return getTransformedUV(heightTextureTransform.texCoordIndex, heightTextureTransform);
-}
-
-vec2 getOpacityTextureUV() {
-    return getTransformedUV(opacityTextureTransform.texCoordIndex, opacityTextureTransform);
-}
-
-
 // ========== LEGACY BLINN-PHONG SHADING FUNCTION ==========
 vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
@@ -1428,6 +1283,150 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	return vec4(outRGB, 1.0);
 
+}
+
+// ========== CORE TEXTURE TRANSFORM FUNCTION ==========
+vec2 getTransformedUV(int texCoordIndex, TextureTransform transform) 
+{
+    // Step 1: Select the appropriate base UV coordinate set
+    vec2 uv;
+    switch(texCoordIndex) {
+        case 1: uv = g_texCoord1; break;
+        case 2: uv = g_texCoord2; break;
+        case 3: uv = g_texCoord3; break;
+        default: uv = g_texCoord0; break; // case 0 and fallback
+    }
+    
+    // Step 2: Apply KHR_texture_transform
+    // Order: rotation (around 0.5, 0.5) -> scale -> offset
+    
+    // Rotation is applied around the center point (0.5, 0.5)
+    const vec2 pivot = vec2(0.5, 0.5);
+    uv -= pivot;
+    
+    // Apply rotation matrix
+    float cosR = cos(transform.rotation);
+    float sinR = sin(transform.rotation);
+    mat2 rotMat = mat2(cosR, sinR, -sinR, cosR);
+    uv = rotMat * uv;
+    
+    // Translate back from pivot
+    uv += pivot;
+    
+    // Apply scale and offset
+    uv = uv * transform.scale + transform.offset;
+    
+    return uv;
+}
+
+// ========== CONVENIENCE FUNCTIONS FOR EACH TEXTURE TYPE ==========
+vec2 getAlbedoUV() {
+    return getTransformedUV(albedoTexTransform.texCoordIndex, albedoTexTransform);
+}
+
+vec2 getMetallicUV() {
+    return getTransformedUV(metallicTexTransform.texCoordIndex, metallicTexTransform);
+}
+
+vec2 getRoughnessUV() {
+    return getTransformedUV(roughnessTexTransform.texCoordIndex, roughnessTexTransform);
+}
+
+vec2 getNormalUV() {
+    return getTransformedUV(normalTexTransform.texCoordIndex, normalTexTransform);
+}
+
+vec2 getHeightUV() {
+    return getTransformedUV(heightTexTransform.texCoordIndex, heightTexTransform);
+}
+
+vec2 getAOUV() {
+    return getTransformedUV(aoTexTransform.texCoordIndex, aoTexTransform);
+}
+
+vec2 getOpacityUV() {
+    return getTransformedUV(opacityTexTransform.texCoordIndex, opacityTexTransform);
+}
+
+vec2 getEmissiveUV() {
+    return getTransformedUV(emissiveTexTransform.texCoordIndex, emissiveTexTransform);
+}
+
+vec2 getTransmissionUV() {
+    return getTransformedUV(transmissionTexTransform.texCoordIndex, transmissionTexTransform);
+}
+
+vec2 getIORUV() {
+    return getTransformedUV(iorTexTransform.texCoordIndex, iorTexTransform);
+}
+
+vec2 getSheenColorUV() {
+    return getTransformedUV(sheenColorTexTransform.texCoordIndex, sheenColorTexTransform);
+}
+
+vec2 getSheenRoughnessUV() {
+    return getTransformedUV(sheenRoughnessTexTransform.texCoordIndex, sheenRoughnessTexTransform);
+}
+
+vec2 getClearcoatUV() {
+    return getTransformedUV(clearcoatTexTransform.texCoordIndex, clearcoatTexTransform);
+}
+
+vec2 getClearcoatRoughnessUV() {
+    return getTransformedUV(clearcoatRoughnessTexTransform.texCoordIndex, clearcoatRoughnessTexTransform);
+}
+
+vec2 getClearcoatNormalUV() {
+    return getTransformedUV(clearcoatNormalTexTransform.texCoordIndex, clearcoatNormalTexTransform);
+}
+
+vec2 getSpecularFactorUV() {
+    return getTransformedUV(specularFactorTexTransform.texCoordIndex, specularFactorTexTransform);
+}
+
+vec2 getSpecularColorUV() {
+    return getTransformedUV(specularColorTexTransform.texCoordIndex, specularColorTexTransform);
+}
+
+vec2 getAnisotropyUV() {
+    return getTransformedUV(anisotropyTexTransform.texCoordIndex, anisotropyTexTransform);
+}
+
+vec2 getIridescenceUV() {
+    return getTransformedUV(iridescenceTexTransform.texCoordIndex, iridescenceTexTransform);
+}
+
+vec2 getIridescenceThicknessUV() {
+    return getTransformedUV(iridescenceThicknessTexTransform.texCoordIndex, iridescenceThicknessTexTransform);
+}
+
+vec2 getThicknessUV() {
+    return getTransformedUV(thicknessTexTransform.texCoordIndex, thicknessTexTransform);
+}
+
+// Legacy ADS texture UV functions
+vec2 getDiffuseTextureUV() {
+    return getTransformedUV(diffuseTextureTransform.texCoordIndex, diffuseTextureTransform);
+}
+
+vec2 getSpecularTextureUV(){
+	return getTransformedUV(specularTextureTransform.texCoordIndex, specularTextureTransform);
+}
+
+vec2 getEmissiveTextureUV() {
+    return getTransformedUV(emissiveTextureTransform.texCoordIndex, emissiveTextureTransform);
+}
+
+vec2 getNormalTextureUV() {
+    return getTransformedUV(normalTextureTransform.texCoordIndex, normalTextureTransform);
+}
+
+vec2 getHeightTextureUV() {
+    return getTransformedUV(heightTextureTransform.texCoordIndex, heightTextureTransform);
+}
+
+vec2 getOpacityTextureUV() {
+    return getTransformedUV(opacityTextureTransform.texCoordIndex, opacityTextureTransform);
 }
 
 float samplePackedChannelValue(sampler2D tex, bool hasTexture, vec2 uv,
