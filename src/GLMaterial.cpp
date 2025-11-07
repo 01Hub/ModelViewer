@@ -3899,8 +3899,8 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "    _iorTextureId: " << m._iorTextureId << "\n";
 	os << "    _transmissionTextureId: " << m._transmissionTextureId << "\n";
 	os << "    _invertOpacityTexture: " << m._invertOpacityTexture << "\n";
-	os << "    _iridescenceTextureId: " << m.m_iridescenceTextureId << "\n";
-	os << "    _anisotropyTextureId: " << m.m_anisotropyTextureId << "\n";
+	os << "    _iridescenceTextureId: " << m._iridescenceTextureId << "\n";
+	os << "    _anisotropyTextureId: " << m._anisotropyTextureId << "\n";
 
 
 
@@ -3949,40 +3949,40 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "    _clearcoatColorMapPath: " << q(m._clearcoatColorMapPath) << "\n";
 	os << "    _clearcoatRoughnessMapPath: " << q(m._clearcoatRoughnessMapPath) << "\n";
 	os << "    _clearcoatNormalMapPath: " << q(m._clearcoatNormalMapPath) << "\n";
-	os << "    _anisotropyMapPath: " << q(m.m_anisotropyMap) << "\n";
-	os << "    _iridescenceMapPath: " << q(m.m_iridescenceMap) << "\n";
+	os << "    _anisotropyMapPath: " << q(m._anisotropyMap) << "\n";
+	os << "    _iridescenceMapPath: " << q(m._iridescenceMap) << "\n";
 
 	// --- KHR extension fields (specular, anisotropy, iridescence, volume, etc.)
-	os << "  KHR_specular: m_specularFactor: " << m.m_specularFactor
-		<< " m_specularColorFactor: "; printVec3(os, m.m_specularColorFactor); os << "\n";
-	os << "    m_specularFactorMap: " << q(m.m_specularFactorMap)
-		<< " m_specularFactorTextureId: " << m.m_specularFactorTextureId << "\n";
-	os << "    m_specularColorMap: " << q(m.m_specularColorMap)
-		<< " m_specularColorTextureId: " << m.m_specularColorTextureId << "\n";
+	os << "  KHR_specular: _specularFactor: " << m._specularFactor
+		<< " _specularColorFactor: "; printVec3(os, m._specularColorFactor); os << "\n";
+	os << "    _specularFactorMap: " << q(m._specularFactorMap)
+		<< " _specularFactorTextureId: " << m._specularFactorTextureId << "\n";
+	os << "    _specularColorMap: " << q(m._specularColorMap)
+		<< " _specularColorTextureId: " << m._specularColorTextureId << "\n";
 
-	os << "  KHR_anisotropy: strength=" << m.m_anisotropyStrength
-		<< " rotation=" << m.m_anisotropyRotation
-		<< " map=" << q(m.m_anisotropyMap) << " texId=" << m.m_anisotropyTextureId << "\n";
+	os << "  KHR_anisotropy: strength=" << m._anisotropyStrength
+		<< " rotation=" << m._anisotropyRotation
+		<< " map=" << q(m._anisotropyMap) << " texId=" << m._anisotropyTextureId << "\n";
 
-	os << "  KHR_iridescence: factor=" << m.m_iridescenceFactor
-		<< " ior=" << m.m_iridescenceIor
-		<< " thicknessMin=" << m.m_iridescenceThicknessMin
-		<< " thicknessMax=" << m.m_iridescenceThicknessMax
-		<< " map=" << q(m.m_iridescenceMap)
-		<< " texId=" << m.m_iridescenceTextureId << "\n";
-	os << "    thicknessMap=" << q(m.m_iridescenceThicknessMap)
-		<< " thicknessTexId=" << m.m_iridescenceThicknessTextureId << "\n";
+	os << "  KHR_iridescence: factor=" << m._iridescenceFactor
+		<< " ior=" << m._iridescenceIor
+		<< " thicknessMin=" << m._iridescenceThicknessMin
+		<< " thicknessMax=" << m._iridescenceThicknessMax
+		<< " map=" << q(m._iridescenceMap)
+		<< " texId=" << m._iridescenceTextureId << "\n";
+	os << "    thicknessMap=" << q(m._iridescenceThicknessMap)
+		<< " thicknessTexId=" << m._iridescenceThicknessTextureId << "\n";
 
-	os << "  KHR_volume: thicknessFactor=" << m.m_thicknessFactor
+	os << "  KHR_volume: thicknessFactor=" << m._thicknessFactor
 		<< " attenuationDistance=";
-	if (std::isfinite(m.m_attenuationDistance)) os << m.m_attenuationDistance;
+	if (std::isfinite(m._attenuationDistance)) os << m._attenuationDistance;
 	else os << "inf";
-	os << " attenuationColor="; printVec3(os, m.m_attenuationColor);
-	os << " thicknessMap=" << q(m.m_thicknessMap) << " texId=" << m.m_thicknessTextureId << "\n";
+	os << " attenuationColor="; printVec3(os, m._attenuationColor);
+	os << " thicknessMap=" << q(m._thicknessMap) << " texId=" << m._thicknessTextureId << "\n";
 
-	os << "  KHR_emissive_strength: " << m.m_emissiveStrength << "\n";
-	os << "  KHR_dispersion: " << m.m_dispersion << "\n";
-	os << "  KHR_unlit: " << m.m_unlit << "\n";
+	os << "  KHR_emissive_strength: " << m._emissiveStrength << "\n";
+	os << "  KHR_dispersion: " << m._dispersion << "\n";
+	os << "  KHR_unlit: " << m._unlit << "\n";
 
 	// --- UV tiling/offset
 	os << "  UV tiling: (" << m._uvTilingU << ", " << m._uvTilingV << ")"

@@ -389,16 +389,16 @@ public:
 
 
 	// --- KHR_materials_specular ---
-	void setSpecularFactor(float factor) { m_specularFactor = factor; }
-	float specularFactor() const { return m_specularFactor; }
-	void setSpecularColorFactor(const QVector3D& color) { m_specularColorFactor = color; }
-	QVector3D specularColorFactor() const { return m_specularColorFactor; }
+	void setSpecularFactor(float factor) { _specularFactor = factor; }
+	float specularFactor() const { return _specularFactor; }
+	void setSpecularColorFactor(const QVector3D& color) { _specularColorFactor = color; }
+	QVector3D specularColorFactor() const { return _specularColorFactor; }
 	
-	void setSpecularFactorMap(const QString& path) { m_specularFactorMap = path; }
-	QString specularFactorMap() const { return m_specularFactorMap; }
-	bool hasSpecularFactorMap() const { return !m_specularFactorMap.isEmpty(); }
-	void setSpecularFactorTextureId(unsigned int id) { m_specularFactorTextureId = id; }
-	unsigned int specularFactorTextureId() const { return m_specularFactorTextureId; }	
+	void setSpecularFactorMap(const QString& path) { _specularFactorMap = path; }
+	QString specularFactorMap() const { return _specularFactorMap; }
+	bool hasSpecularFactorMap() const { return !_specularFactorMap.isEmpty(); }
+	void setSpecularFactorTextureId(unsigned int id) { _specularFactorTextureId = id; }
+	unsigned int specularFactorTextureId() const { return _specularFactorTextureId; }	
 	void setSpecularFactorTexCoord(int coord) { _specularFactorTexTransform.texCoord = coord; }
 	int specularFactorTexCoord() const { return _specularFactorTexTransform.texCoord; }
 	QVector2D specularFactorTexScale() const { return _specularFactorTexTransform.texScale; }
@@ -408,11 +408,11 @@ public:
 	float specularFactorTexRotation() const { return _specularFactorTexTransform.texRotation; }
 	void setSpecularFactorTexRotation(float rotation) { _specularFactorTexTransform.texRotation = rotation; }
 
-	void setSpecularColorMap(const QString& path) { m_specularColorMap = path; }
-	QString specularColorMap() const { return m_specularColorMap; }
-	bool hasSpecularColorMap() const { return !m_specularColorMap.isEmpty(); }
-	void setSpecularColorTextureId(unsigned int id) { m_specularColorTextureId = id; }
-	unsigned int specularColorTextureId() const { return m_specularColorTextureId; }
+	void setSpecularColorMap(const QString& path) { _specularColorMap = path; }
+	QString specularColorMap() const { return _specularColorMap; }
+	bool hasSpecularColorMap() const { return !_specularColorMap.isEmpty(); }
+	void setSpecularColorTextureId(unsigned int id) { _specularColorTextureId = id; }
+	unsigned int specularColorTextureId() const { return _specularColorTextureId; }
 	void setSpecularColorTexCoord(int coord) { _specularColorTexTransform.texCoord = coord; }
 	int specularColorTexCoord() const { return _specularColorTexTransform.texCoord; }
 	QVector2D specularColorTexScale() const { return _specularColorTexTransform.texScale; }
@@ -423,15 +423,15 @@ public:
 	void setSpecularColorTexRotation(float rotation) { _specularColorTexTransform.texRotation = rotation; }
 
 	// --- KHR_materials_anisotropy ---
-	void setAnisotropyStrength(float strength) { m_anisotropyStrength = strength; }
-	float anisotropyStrength() const { return m_anisotropyStrength; }
-	void setAnisotropyRotation(float rotation) { m_anisotropyRotation = rotation; }
-	float anisotropyRotation() const { return m_anisotropyRotation; }
-	void setAnisotropyMap(const QString& path) { m_anisotropyMap = path; }
-	QString anisotropyMap() const { return m_anisotropyMap; }
-	bool hasAnisotropyMap() const { return !m_anisotropyMap.isEmpty(); }
-	void setAnisotropyTextureId(unsigned int id) { m_anisotropyTextureId = id; }
-	int anisotropyTextureId() const { return m_anisotropyTextureId; }
+	void setAnisotropyStrength(float strength) { _anisotropyStrength = strength; }
+	float anisotropyStrength() const { return _anisotropyStrength; }
+	void setAnisotropyRotation(float rotation) { _anisotropyRotation = rotation; }
+	float anisotropyRotation() const { return _anisotropyRotation; }
+	void setAnisotropyMap(const QString& path) { _anisotropyMap = path; }
+	QString anisotropyMap() const { return _anisotropyMap; }
+	bool hasAnisotropyMap() const { return !_anisotropyMap.isEmpty(); }
+	void setAnisotropyTextureId(unsigned int id) { _anisotropyTextureId = id; }
+	int anisotropyTextureId() const { return _anisotropyTextureId; }
 	void setAnisotropyTexCoord(int coord) { _anisotropyTexTransform.texCoord = coord; }
 	int anisotropyTexCoord() const { return _anisotropyTexTransform.texCoord; }
 	void setAnisotropyTexScale(const QVector2D& scale) { _anisotropyTexTransform.texScale = scale; }
@@ -443,19 +443,19 @@ public:
 
 
 	// --- KHR_materials_iridescence ---
-	void setIridescenceFactor(float factor) { m_iridescenceFactor = factor; }
-	float iridescenceFactor() const { return m_iridescenceFactor; }
-	void setIridescenceIor(float ior) { m_iridescenceIor = ior; }
-	float iridescenceIor() const { return m_iridescenceIor; }
-	void setIridescenceThicknessMin(float min) { m_iridescenceThicknessMin = min; }
-	float iridescenceThicknessMin() const { return m_iridescenceThicknessMin; }
-	void setIridescenceThicknessMax(float max) { m_iridescenceThicknessMax = max; }
-	float iridescenceThicknessMax() const { return m_iridescenceThicknessMax; }
-	void setIridescenceMap(const QString& path) { m_iridescenceMap = path; }
-	QString iridescenceMap() const { return m_iridescenceMap; }
-	bool hasIridescenceMap() const { return !m_iridescenceMap.isEmpty(); }
-	void setIridescenceTextureId(unsigned int id) { m_iridescenceTextureId = id; }
-	int iridescenceTextureId() const { return m_iridescenceTextureId; }
+	void setIridescenceFactor(float factor) { _iridescenceFactor = factor; }
+	float iridescenceFactor() const { return _iridescenceFactor; }
+	void setIridescenceIor(float ior) { _iridescenceIor = ior; }
+	float iridescenceIor() const { return _iridescenceIor; }
+	void setIridescenceThicknessMin(float min) { _iridescenceThicknessMin = min; }
+	float iridescenceThicknessMin() const { return _iridescenceThicknessMin; }
+	void setIridescenceThicknessMax(float max) { _iridescenceThicknessMax = max; }
+	float iridescenceThicknessMax() const { return _iridescenceThicknessMax; }
+	void setIridescenceMap(const QString& path) { _iridescenceMap = path; }
+	QString iridescenceMap() const { return _iridescenceMap; }
+	bool hasIridescenceMap() const { return !_iridescenceMap.isEmpty(); }
+	void setIridescenceTextureId(unsigned int id) { _iridescenceTextureId = id; }
+	int iridescenceTextureId() const { return _iridescenceTextureId; }
 	void setIridescenceTexCoord(int coord) { _iridescenceTexTransform.texCoord = coord; }
 	int iridescenceTexCoord() const { return _iridescenceTexTransform.texCoord; }
 	QVector2D iridescenceTexScale() const { return _iridescenceTexTransform.texScale; }
@@ -465,11 +465,11 @@ public:
 	float iridescenceTexRotation() const { return _iridescenceTexTransform.texRotation; }
 	void setIridescenceTexRotation(float rotation) { _iridescenceTexTransform.texRotation = rotation; }
 
-	void setIridescenceThicknessMap(const QString& path) { m_iridescenceThicknessMap = path; }
-	QString iridescenceThicknessMap() const { return m_iridescenceThicknessMap; }
-	bool hasIridescenceThicknessMap() const { return !m_iridescenceThicknessMap.isEmpty(); }
-	void setIridescenceThicknessTextureId(unsigned int id) { m_iridescenceThicknessTextureId = id; }
-	int iridescenceThicknessTextureId() const { return m_iridescenceThicknessTextureId; }
+	void setIridescenceThicknessMap(const QString& path) { _iridescenceThicknessMap = path; }
+	QString iridescenceThicknessMap() const { return _iridescenceThicknessMap; }
+	bool hasIridescenceThicknessMap() const { return !_iridescenceThicknessMap.isEmpty(); }
+	void setIridescenceThicknessTextureId(unsigned int id) { _iridescenceThicknessTextureId = id; }
+	int iridescenceThicknessTextureId() const { return _iridescenceThicknessTextureId; }
 	void setIridescenceThicknessTexCoord(int coord) { _iridescenceThicknessTexTransform.texCoord = coord; }
 	int iridescenceThicknessTexCoord() const { return _iridescenceThicknessTexTransform.texCoord; }
 	void setIridescenceThicknessTexScale(const QVector2D& scale) { _iridescenceThicknessTexTransform.texScale = scale; }
@@ -480,17 +480,17 @@ public:
 	float iridescenceThicknessTexRotation() const { return _iridescenceThicknessTexTransform.texRotation; }
 
 	// --- KHR_materials_volume ---
-	void setThicknessFactor(float thickness) { m_thicknessFactor = thickness; }
-	float thicknessFactor() const { return m_thicknessFactor; }
-	void setAttenuationDistance(float distance) { m_attenuationDistance = distance; }
-	float attenuationDistance() const { return m_attenuationDistance; }
-	void setAttenuationColor(const QVector3D& color) { m_attenuationColor = color; }
-	QVector3D attenuationColor() const { return m_attenuationColor; }
-	void setThicknessMap(const QString& path) { m_thicknessMap = path; }
-	QString thicknessMap() const { return m_thicknessMap; }
-	bool hasThicknessMap() const { return !m_thicknessMap.isEmpty(); }
-	void setThicknessTextureId(unsigned int id) { m_thicknessTextureId = id; }
-	int thicknessTextureId() const { return m_thicknessTextureId; }
+	void setThicknessFactor(float thickness) { _thicknessFactor = thickness; }
+	float thicknessFactor() const { return _thicknessFactor; }
+	void setAttenuationDistance(float distance) { _attenuationDistance = distance; }
+	float attenuationDistance() const { return _attenuationDistance; }
+	void setAttenuationColor(const QVector3D& color) { _attenuationColor = color; }
+	QVector3D attenuationColor() const { return _attenuationColor; }
+	void setThicknessMap(const QString& path) { _thicknessMap = path; }
+	QString thicknessMap() const { return _thicknessMap; }
+	bool hasThicknessMap() const { return !_thicknessMap.isEmpty(); }
+	void setThicknessTextureId(unsigned int id) { _thicknessTextureId = id; }
+	int thicknessTextureId() const { return _thicknessTextureId; }
 	void setThicknessTexCoord(int coord) { _thicknessTexTransform.texCoord = coord; }
 	int thicknessTexCoord() const { return _thicknessTexTransform.texCoord; }
 	void setThicknessTexScale(const QVector2D& scale) { _thicknessTexTransform.texScale = scale; }
@@ -506,12 +506,12 @@ public:
 
 	
 	// --- KHR_materials_dispersion ---
-	void setDispersion(float dispersion) { m_dispersion = dispersion; }
-	float dispersion() const { return m_dispersion; }
+	void setDispersion(float dispersion) { _dispersion = dispersion; }
+	float dispersion() const { return _dispersion; }
 
 	// --- KHR_materials_unlit ---
-	void setUnlit(bool unlit) { m_unlit = unlit; }
-	bool isUnlit() const { return m_unlit; }
+	void setUnlit(bool unlit) { _unlit = unlit; }
+	bool isUnlit() const { return _unlit; }
 
 	// --- Map path API (used by TextureMappingPanel) ---
 	QString albedoMapPath() const;
@@ -863,9 +863,6 @@ private:
 	float _roughness;
 	float _opacity;
 
-	// Enhanced emissive
-	float _emissiveStrength;
-
 	// Advanced PBR properties
 	float _ior; // Index of refraction
 	float _clearcoat;
@@ -949,45 +946,45 @@ private:
 	QString _clearcoatNormalMapPath;
 
 	// KHR_materials_specular
-	float m_specularFactor = 1.0f;
-	QVector3D m_specularColorFactor = QVector3D(1.0f, 1.0f, 1.0f);
-	QString m_specularFactorMap;
-	unsigned int m_specularFactorTextureId = 0;
-	QString m_specularColorMap;
-	unsigned int m_specularColorTextureId = 0;
+	float _specularFactor = 1.0f;
+	QVector3D _specularColorFactor = QVector3D(1.0f, 1.0f, 1.0f);
+	QString _specularFactorMap;
+	unsigned int _specularFactorTextureId = 0;
+	QString _specularColorMap;
+	unsigned int _specularColorTextureId = 0;
 
 	// KHR_materials_anisotropy
-	float m_anisotropyStrength = 0.0f;
-	float m_anisotropyRotation = 0.0f;
-	QString m_anisotropyMap;
-	unsigned int m_anisotropyTextureId = 0;
+	float _anisotropyStrength = 0.0f;
+	float _anisotropyRotation = 0.0f;
+	QString _anisotropyMap;
+	unsigned int _anisotropyTextureId = 0;
 
 	// KHR_materials_iridescence
-	float m_iridescenceFactor = 0.0f;
-	float m_iridescenceIor = 1.3f;
-	float m_iridescenceThicknessMin = 100.0f;
-	float m_iridescenceThicknessMax = 400.0f;
-	QString m_iridescenceMap;
-	unsigned int m_iridescenceTextureId = 0;
-	QString m_iridescenceThicknessMap;
-	unsigned int m_iridescenceThicknessTextureId = 0;
+	float _iridescenceFactor = 0.0f;
+	float _iridescenceIor = 1.3f;
+	float _iridescenceThicknessMin = 100.0f;
+	float _iridescenceThicknessMax = 400.0f;
+	QString _iridescenceMap;
+	unsigned int _iridescenceTextureId = 0;
+	QString _iridescenceThicknessMap;
+	unsigned int _iridescenceThicknessTextureId = 0;
 
 	// KHR_materials_volume
-	float m_thicknessFactor = 0.0f;
-	float m_attenuationDistance = std::numeric_limits<float>::infinity();
-	QVector3D m_attenuationColor = QVector3D(1.0f, 1.0f, 1.0f);
-	QString m_thicknessMap;
-	unsigned int m_thicknessTextureId = 0;
+	float _thicknessFactor = 0.0f;
+	float _attenuationDistance = std::numeric_limits<float>::infinity();
+	QVector3D _attenuationColor = QVector3D(1.0f, 1.0f, 1.0f);
+	QString _thicknessMap;
+	unsigned int _thicknessTextureId = 0;
 	bool _hasThicknessAlpha = false;
 
 	// KHR_materials_emissive_strength
-	float m_emissiveStrength = 1.0f;
+	float _emissiveStrength = 1.0f;
 
 	// KHR_materials_dispersion
-	float m_dispersion = 0.0f;
+	float _dispersion = 0.0f;
 
 	// KHR_materials_unlit
-	bool m_unlit = false;
+	bool _unlit = false;
 
 	// Material-wide UV transform (panel + preview)
 	float _uvTilingU = 1.0f, _uvTilingV = 1.0f;
