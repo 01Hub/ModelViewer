@@ -222,9 +222,35 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
     }
 
     // Transmission (for glass-like materials)
+    // === TRANSMISSION TO OPACITY CONVERSION ===
+    // Convert transmission materials to opacity-based transparency
+    // This leverages the existing smooth opacity/blend pipeline
     if (AI_SUCCESS == material->Get(AI_MATKEY_TRANSMISSION_FACTOR, value))
     {
-        mat.setTransmission(std::clamp(value, 0.0f, 1.0f));
+        float transmissionFactor = std::clamp(value, 0.0f, 1.0f);
+
+        if (transmissionFactor > 0.0f)
+        {
+            // Convert transmission to opacity: high transmission = low opacity
+            // transmission=1.0 -> opacity=0.0 (fully transparent)
+            // transmission=0.5 -> opacity=0.5 (half transparent)
+            // transmission=0.0 -> opacity=1.0 (opaque)
+            float transmissionAsOpacity = 1.0f - transmissionFactor;
+
+            // Apply to final opacity (use the more transparent interpretation if both exist)
+            finalOpacity = std::min(finalOpacity, transmissionAsOpacity);
+
+            // Force blend mode for transmission materials
+            mat.setBlendMode(GLMaterial::BlendMode::Alpha);
+
+            // Set the converted opacity
+            mat.setOpacity(std::clamp(finalOpacity, 0.15f, 1.0f));
+
+            mat.setTransmission(value);
+
+            qDebug() << "Transmission material converted: transmission=" << transmissionFactor
+                << " -> opacity=" << finalOpacity;
+        }
     }
 
     // Volume (KHR_materials_volume)
@@ -340,7 +366,7 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
     if (material->Get("$mat.gltf.alphaMode", 0, 0, alphaModeStr) == AI_SUCCESS)
     {
         std::string mode = alphaModeStr.C_Str();
-        if (mode == "BLEND")
+        if (mode == "BLEND" || mat.transmission() > 0.0)
         {
             mat.setBlendMode(GLMaterial::BlendMode::Alpha);
         }

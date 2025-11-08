@@ -536,14 +536,7 @@ void main()
 
 	// Apply the final alpha (outside floorRendering block)
 	fragColor.a = finalAlpha;
-
-	// Transmission
-	if(renderingMode == 1){
-		if(pbrLighting.transmission > 0.0){
-			fragColor.a = mix(finalAlpha, 1.0 - pbrLighting.transmission, 0.5);
-		}
-	}
-
+		
 	// Premultiply for blending (non-floor; floor path already premultiplies)
 	if (!floorRendering) {
 		fragColor.rgb *= finalAlpha;
@@ -1222,48 +1215,38 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 outRGB = baseNoSpec_L + specOnly_L;
 
 	// ============================================================================
-	// TRANSMISSION VOLUME & REFRACTION
+	// ENHANCE TRANSMISSION VISUALS WITH FRESNEL + VOLUME ATTENUATION
 	// ============================================================================
-	float transmissionFactor = pbrLighting.transmission;
-
-	// Apply transmission map if available
-	if (hasTransmissionMap) {
-		float mapVal = texture(transmissionMap, getTransmissionUV()).r;
-		transmissionFactor *= mapVal;
-	}
-
-	if (transmissionFactor > 0.0) {
-		vec3 N_trans = normalize(g_reflectionNormal);
-
-		// Refract ray into environment
-		float ior_trans = max(1e-3, pbrLighting.ior);
-		vec3 R_trans = refract(V_reflect, N_trans, 1.0 / ior_trans);
-
-		// Use roughness-based LOD for environment sampling
-		float tRough = max(pbrLighting.roughness, 0.1);
-		vec3 envColor = textureLod(prefilterMap, R_trans, tRough * 3.0).rgb;
-
-		// Apply volume attenuation if thickness map is available
+	// Apply IOR-based effects to enhance glass-like appearance
+	if (ior > 1.0f) {
+		// Fresnel effect
+		float NdotV = clamp(dot(N, V_direct), 0.0, 1.0);
+		float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
+		float fresnel = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
+    
+		float desaturation = mix(0.95, 1.0, fresnel);
+		outRGB *= desaturation;
+    
+		// ============================================================================
+		// VOLUME ATTENUATION - MODULATED BY TRANSMISSION
+		// ============================================================================
+		float thickness = thicknessFactor;
+    
 		if (hasThicknessMap) {
 			vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
 			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.r;
-			float thickness = pbrLighting.thicknessFactor * thicknessSample;
-			float pathLength = length(g_position - cameraPos);
-			envColor = calculateVolumeAttenuation(envColor, pathLength, thickness,
-				pbrLighting.attenuationColor, pbrLighting.attenuationDistance);
+			thickness = thicknessFactor * thicknessSample;
 		}
-			
-		// Fresnel term
-		float NdotV_trans = clamp(dot(N, normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
-		float f0_trans = pow((ior_trans - 1.0) / (ior_trans + 1.0), 2.0);
-		float F_trans = f0_trans + (1.0 - f0_trans) * pow(1.0 - NdotV_trans, 5.0);
-
-		// Final blend weight
-		float w = clamp(transmissionFactor * F_trans * (1.0 - pbrLighting.roughness), 0.0, 0.8);
-		vec3 filtered = envColor * pbrLighting.albedo;
-
-		// Blend into final color
-		outRGB = mix(outRGB, filtered, w);
+    
+		// Use transmission as a weight for how much attenuation shows
+		if (thickness > 0.0 && attenuationDistance > 0.0 && transmission > 0.0) {
+			float pathLength = length(g_position - cameraPos);
+			float attenuation = exp(-thickness * pathLength / (attenuationDistance * 3.0));
+        
+			// Transmission modulates the color tint strength (more transmission = more color visible)
+			vec3 colorTint = mix(outRGB, outRGB * attenuationColor, (1.0 - attenuation) * transmission);
+			outRGB = colorTint;
+		}
 	}
 
 	// ============================================================================
