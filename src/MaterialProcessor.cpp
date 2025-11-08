@@ -687,7 +687,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
             if (iorJ.contains("ior"))
             {
                 float v = static_cast<float>(iorJ.value("ior").toDouble(1.5));
-                mat.setIOR(qBound(1.0f, v, 5.0f)); // plausible clamp
+                mat.setIOR(qBound(1.0f, v, 5.0f));
                 appliedAny = true;
             }
         }
@@ -908,26 +908,19 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
                 mat.setDispersion(qMax(0.0f, v));
                 appliedAny = true;
             }
-            // additional dispersion properties could be parsed as needed
         }
 
         return appliedAny;
         };
 
-    // Primary: try index mapping
     int jsonCount = jsonMaterials.size();
-    int idx = static_cast<int>(materialIndex);
-    if (idx >= 0 && idx < jsonCount)
+    if (jsonCount == 0)
     {
-        QJsonObject matObj = jsonMaterials.at(idx).toObject();
-        if (applyExtensionsFromJsonMaterial(matObj, outMaterial))
-        {
-            qDebug() << "Applied KHR materials extensions to material index" << idx;
-            return;
-        }
+        return;
     }
-
-    // Fallback: name-based mapping
+       
+    // This is robust to Assimp reordering materials. We get the material name
+    // from Assimp and match it against the glTF JSON by name.
     aiString aiName;
     if (scene->mMaterials[materialIndex]->Get(AI_MATKEY_NAME, aiName) == AI_SUCCESS)
     {
@@ -939,14 +932,29 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
                 QJsonObject matObj = jsonMaterials.at(j).toObject();
                 QString jname = matObj.value("name").toString();
                 if (!jname.isEmpty() && jname == name)
-                {
+                {                    
                     if (applyExtensionsFromJsonMaterial(matObj, outMaterial))
                     {
-                        qDebug() << "Applied KHR materials extensions to material (name)" << name;
-                        return;
-                    }
+                        qDebug() << "Applied KHR materials extensions to material (name)" << name;                        
+                    }                    
+                    return;
                 }
-            }
+            }            
+        }
+    }
+
+    // This handles edge cases where material names might not match.
+    // Only try this if we couldn't find by name.
+
+    int idx = static_cast<int>(materialIndex);
+    if (idx >= 0 && idx < jsonCount)
+    {
+        qDebug() << "  Name-based lookup failed, trying index-based fallback:" << idx;
+        QJsonObject matObj = jsonMaterials.at(idx).toObject();
+        if (applyExtensionsFromJsonMaterial(matObj, outMaterial))
+        {
+            qDebug() << "Applied KHR materials extensions to material index" << idx;
+            return;
         }
     }
 
@@ -1046,11 +1054,11 @@ void MaterialProcessor::extractUVTransform(
     }
 
     // Debug output (optional)
-    std::cout << "UV Transform for " << texture.type << ":\n"
+    /*std::cout << "UV Transform for " << texture.type << ":\n"
         << "  TexCoord: " << texture.texCoordIndex << "\n"
         << "  Scale: (" << texture.scale.x << ", " << texture.scale.y << ")\n"
         << "  Offset: (" << texture.offset.x << ", " << texture.offset.y << ")\n"
-        << "  Rotation: " << texture.rotation << " rad\n";
+        << "  Rotation: " << texture.rotation << " rad\n";*/
 }
 
 // Sets the texture maps for a material based on the defined texture mappings.
@@ -1163,9 +1171,9 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
             if(type == "thicknessMap")
                 mat.setHasThicknessAlpha(hasAlpha);
 
-            qDebug() << "Loaded extension texture:" << QString::fromStdString(textureFilePath)
+            /*qDebug() << "Loaded extension texture:" << QString::fromStdString(textureFilePath)
                 << "type:" << QString::fromStdString(type)
-                << "id:" << candidate.id;
+                << "id:" << candidate.id;*/
 
             return true;
         };
