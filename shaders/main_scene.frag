@@ -374,6 +374,8 @@ vec3	calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotrop
 vec3	calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridescenceIor, float thickness);
 vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance);
 
+vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0);
+
 float   calculateShadow(vec4 fragPosLightSpace);
 // Function to fetch shadow value with variable kernel size
 float   calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos);
@@ -938,7 +940,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 											roughnessChannel, roughnessInvert,
 											roughnessScale, roughnessBias,
 											pbrLighting.roughness);
-		roughness = clamp(roughness, 0.02, 1.0);
+		roughness = clamp(roughness, 0.001, 1.0);
 
 		// Ambient Occlusion
 		ambientOcclusion = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
@@ -1049,7 +1051,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	sheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, getSheenRoughnessUV()).r : pbrLighting.sheenRoughness;
-	sheenRoughness = max(sheenRoughness, 0.2);  // Minimum 0.2 to broaden lobe
+	sheenRoughness = max(sheenRoughness, 0.0001);  // Minimum to broaden lobe
 
 	vec3 sheen_L = vec3(0.0);
 	vec3 sheenIBL_L = vec3(0.0);
@@ -1112,11 +1114,32 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	if (iridescenceFactor > 0.0) {
-		iridescenceF0 = calculateIridescence(N, V_direct,
-			iridescenceFactor, iridescenceIor, iridescenceThickness);		
-		float grazingFactor = pow(1.0 - dot(N, V_direct), 1.0);
-		float blendFactor = iridescenceFactor * (0.1 + 0.9 * grazingFactor); 
-		F0 = mix(F0, max(F0, iridescenceF0), blendFactor);
+		// Use viewing direction, not light direction!
+		vec3 V_view = normalize(V_direct);
+		float NdotV_view = clamp(dot(N, V_view), 0.0, 1.0);
+			
+		// Compute iridescence for dielectric path
+		vec3 iridFresnel_dielectric = evalIridescence(
+			1.0,                           // outsideIOR (air)
+			iridescenceIor,
+			NdotV_view,
+			iridescenceThickness,
+			vec3(0.04)                     // dielectric F0
+		);
+		
+		// Compute iridescence for metallic path
+		vec3 metallicF0 = mix(albedo, vec3(0.5), 0.2);
+		vec3 iridFresnel_metallic = evalIridescence(
+			1.0,                           // outsideIOR (air)
+			iridescenceIor,
+			NdotV_view,
+			iridescenceThickness,
+			metallicF0                         // metallic uses base color
+		);
+		
+		// Blend both paths based on metallicness, then blend in to F0
+		vec3 iridescenceF0 = mix(iridFresnel_dielectric, iridFresnel_metallic, metallic);
+		F0 = mix(F0, iridescenceF0, iridescenceFactor);		
 	}
 
 	// ============================================================================
@@ -1137,30 +1160,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		vec3 R = reflect(V_reflect, g_reflectionNormal);
 
 		const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
-
-		// --- Grazing control params (tweak these) ---
-		// How strongly to soften/attenuate reflections at grazing angles
-		float grazingPower = mix(1.8, 2.5, roughness); // Vary with roughness
-
-		// KEY FIX: Only apply grazing blur for rough dielectrics
-		// Smooth metals and mirrors (low roughness, high metallic) should maintain sharpness
-		float grazingInfluence = roughness * (1.0 - metallic * 0.8); // Reduced for metals
-		float extraLodFactor = 0.6 * grazingInfluence; // Scale the effect
-
-		float grazingSpecReduce = mix(0.8, 0.5, metallic); // Metals handle grazing better
-		// ------------------------------------------------
-
-		// Compute a grazing factor: 0 at face-on, 1 at grazing (dotNV -> 0)
-		float grazing = pow(1.0 - dotNV, grazingPower); // smooth curve
-
-		// Base LOD from roughness
-		float baseLod = roughness * MAX_REFLECTION_LOD;
-
-		// Add grazing blur ONLY when appropriate (rough dielectrics)
-		float grazingLod = grazing * extraLodFactor * (1.0 - roughness) * MAX_REFLECTION_LOD;
-
-		// Combine: mirrors/smooth metals mostly ignore grazingLod
-		float lod = baseLod + grazingLod;
+		
+		float lod = roughness * MAX_REFLECTION_LOD;
 		lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
 
 		vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
@@ -1170,12 +1171,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		vec2 brdf = texture(brdfLUT, vec2(dotNV, roughness)).rg;
 		specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
-
-		// Attenuate specular IBL at grazing angles to counter overly strong Fresnel at glancing view
-		// This reduces the specular intensity smoothly as grazing -> 1.
-		float grazingAtten = mix(1.0, 1.0 - grazingSpecReduce, grazing);
-		specIBL_L *= grazingAtten;
-
+				
 		// Apply exposure to diffuse IBL too
 		diffuseIBL_L = irradiance * albedo;
 
@@ -1268,7 +1264,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		// Blend into final color
 		outRGB = mix(outRGB, filtered, w);
-	}	
+	}
 
 	// ============================================================================
 	// TONE MAPPING & GAMMA CORRECTION
@@ -1694,6 +1690,118 @@ vec3 calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridesc
     return clamp(iridescenceColor, 0.0, 1.0);
 }
 
+
+// ============================================================================
+// KHRONOS IRIDESCENCE - HELPERS & CONVERSION FUNCTIONS
+// ============================================================================
+
+const float M_PI = 3.14159265359;
+const mat3 XYZ_TO_REC709 = mat3(
+     3.2404542, -0.9692660,  0.0556434,
+    -1.5371385,  1.8760108, -0.2040259,
+    -0.4985314,  0.0415560,  1.0572252
+);
+
+// Helper: square a value (you may already have this)
+float sq(float a) { return a * a; }
+vec3 sq(vec3 a) { return a * a; }
+
+// Fresnel0 to IOR conversion
+vec3 Fresnel0ToIor(vec3 fresnel0) {
+    vec3 sqrtF0 = sqrt(fresnel0);
+    return (vec3(1.0) + sqrtF0) / (vec3(1.0) - sqrtF0);
+}
+
+// IOR to Fresnel0 conversion (vec3 version)
+vec3 IorToFresnel0(vec3 transmittedIor, float incidentIor) {
+    return sq((transmittedIor - vec3(incidentIor)) / (transmittedIor + vec3(incidentIor)));
+}
+
+// IOR to Fresnel0 conversion (float version)
+float IorToFresnel0(float transmittedIor, float incidentIor) {
+    return sq((transmittedIor - incidentIor) / (transmittedIor + incidentIor));
+}
+
+// Schlick Fresnel for iridescence calculations
+float F_Schlick_Iridescence(float f0, float cosTheta) {
+    return f0 + (1.0 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+vec3 F_Schlick_Iridescence(vec3 f0, float cosTheta) {
+    return f0 + (vec3(1.0) - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+// CRITICAL: XYZ sensitivity curves -> RGB (makes colors vibrant!)
+vec3 evalSensitivity(float OPD, vec3 shift) {
+    float phase = 2.0 * M_PI * OPD * 1.0e-9;
+    vec3 val = vec3(5.4856e-13, 4.4201e-13, 5.2481e-13);
+    vec3 pos = vec3(1.6810e+06, 1.7953e+06, 2.2084e+06);
+    vec3 var = vec3(4.3278e+09, 9.3046e+09, 6.6121e+09);
+
+    vec3 xyz = val * sqrt(2.0 * M_PI * var) * cos(pos * phase + shift) * exp(-sq(phase) * var);
+    xyz.x += 9.7470e-14 * sqrt(2.0 * M_PI * 4.5282e+09) * cos(2.2399e+06 * phase + shift[0]) * exp(-4.5282e+09 * sq(phase));
+    xyz /= 1.0685e-7;
+
+    vec3 srgb = XYZ_TO_REC709 * xyz;
+    return srgb;
+}
+
+vec3 evalIridescence(float outsideIOR, float eta2, float cosTheta1, 
+                     float thinFilmThickness, vec3 baseF0) {
+    vec3 I;
+
+    float iridescenceIor = mix(outsideIOR, eta2, smoothstep(0.0, 0.03, thinFilmThickness));
+    float sinTheta2Sq = sq(outsideIOR / iridescenceIor) * (1.0 - sq(cosTheta1));
+
+    float cosTheta2Sq = 1.0 - sinTheta2Sq;
+    if (cosTheta2Sq < 0.0) {
+        return vec3(1.0);
+    }
+
+    float cosTheta2 = sqrt(cosTheta2Sq);
+
+    // First interface
+    float R0 = IorToFresnel0(iridescenceIor, outsideIOR);
+    float R12 = F_Schlick_Iridescence(R0, cosTheta1);
+    float R21 = R12;
+    float T121 = 1.0 - R12;
+    float phi12 = 0.0;
+    if (iridescenceIor < outsideIOR) phi12 = M_PI;
+    float phi21 = M_PI - phi12;
+
+    // Second interface
+    vec3 baseIOR = Fresnel0ToIor(clamp(baseF0, 0.0, 0.9999));
+    vec3 R1 = IorToFresnel0(baseIOR, iridescenceIor);
+    vec3 R23 = F_Schlick_Iridescence(R1, cosTheta2);
+    vec3 phi23 = vec3(0.0);
+    if (baseIOR[0] < iridescenceIor) phi23[0] = M_PI;
+    if (baseIOR[1] < iridescenceIor) phi23[1] = M_PI;
+    if (baseIOR[2] < iridescenceIor) phi23[2] = M_PI;
+
+    // Optical path difference
+    float OPD = 2.0 * iridescenceIor * thinFilmThickness * cosTheta2;
+    vec3 phi = vec3(phi21) + phi23;
+
+    // Compound terms
+    vec3 R123 = clamp(R12 * R23, 1e-5, 0.9999);
+    vec3 r123 = sqrt(R123);
+    vec3 Rs = sq(T121) * R23 / (vec3(1.0) - R123);
+
+    // DC term
+    vec3 C0 = R12 + Rs;
+    I = C0;
+
+    // Higher order interference
+    vec3 Cm = Rs - T121;
+    for (int m = 1; m <= 2; ++m)
+    {
+        Cm *= r123;
+        vec3 Sm = 2.0 * evalSensitivity(float(m) * OPD, float(m) * phi);
+        I += Cm * Sm;
+    }
+
+    return max(I, vec3(0.0));
+}
 
 // KHR_materials_volume
 vec3 calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance)
