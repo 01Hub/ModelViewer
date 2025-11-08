@@ -1215,38 +1215,47 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 outRGB = baseNoSpec_L + specOnly_L;
 
 	// ============================================================================
-	// ENHANCE TRANSMISSION VISUALS WITH FRESNEL + VOLUME ATTENUATION
+	// TRANSMISSION VOLUME & REFRACTION
 	// ============================================================================
-	// Apply IOR-based effects to enhance glass-like appearance
-	if (ior > 1.0f) {
-		// Fresnel effect
-		float NdotV = clamp(dot(N, V_direct), 0.0, 1.0);
-		float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-		float fresnel = f0 + (1.0 - f0) * pow(1.0 - NdotV, 5.0);
+	float transmissionFactor = pbrLighting.transmission;
+
+	if (hasTransmissionMap) {
+		float mapVal = texture(transmissionMap, getTransmissionUV()).r;
+		transmissionFactor *= mapVal;
+	}
+
+	if (transmissionFactor > 0.0) {
+		vec3 N_trans = normalize(g_reflectionNormal);
+		float ior_trans = max(1e-3, pbrLighting.ior);
+		vec3 R_trans = refract(V_reflect, N_trans, 1.0 / ior_trans);
     
-		float desaturation = mix(0.95, 1.0, fresnel);
-		outRGB *= desaturation;
+		float tRough = max(pbrLighting.roughness, 0.1);
+		vec3 envColor = textureLod(prefilterMap, R_trans, tRough * 3.0).rgb;
     
-		// ============================================================================
-		// VOLUME ATTENUATION - MODULATED BY TRANSMISSION
-		// ============================================================================
-		float thickness = thicknessFactor;
+		float NdotV_trans = clamp(dot(N, normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
+		float F_trans = F0.r + (1.0 - F0.r) * pow(1.0 - NdotV_trans, 5.0);
     
+		float thickness = pbrLighting.thicknessFactor;
 		if (hasThicknessMap) {
 			vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
 			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.r;
-			thickness = thicknessFactor * thicknessSample;
+			thickness *= thicknessSample;
 		}
     
-		// Use transmission as a weight for how much attenuation shows
-		if (thickness > 0.0 && attenuationDistance > 0.0 && transmission > 0.0) {
-			float pathLength = length(g_position - cameraPos);
-			float attenuation = exp(-thickness * pathLength / (attenuationDistance * 3.0));
-        
-			// Transmission modulates the color tint strength (more transmission = more color visible)
-			vec3 colorTint = mix(outRGB, outRGB * attenuationColor, (1.0 - attenuation) * transmission);
-			outRGB = colorTint;
+		if (thickness > 0.0 && pbrLighting.attenuationDistance > 0.0) {
+			float pathLength = thickness;
+			envColor = calculateVolumeAttenuation(envColor, pathLength, thickness,
+				pbrLighting.attenuationColor, pbrLighting.attenuationDistance);
 		}
+    
+		// If no thickness defined, use higher default boost
+		float thicknessBoost = (thickness > 0.001) ? (1.0 + thickness * 2.0) : 2.5;
+    
+		float w = transmissionFactor * F_trans * (1.0 - pbrLighting.roughness * 0.2);
+		w *= thicknessBoost;
+    
+		vec3 filtered = envColor * pbrLighting.albedo;
+		outRGB = mix(outRGB, filtered, clamp(w, 0.0, 1.0));
 	}
 
 	// ============================================================================
