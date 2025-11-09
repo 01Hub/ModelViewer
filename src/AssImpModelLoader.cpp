@@ -421,7 +421,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		//Set color and material
 		_materialProcessor.setColorAndMaterial(material, mat);
 		// GLTF Extensions
-		_materialProcessor.applyGltfMaterialExtensionsToMaterial(QString::fromStdString(_path), scene, mesh->mMaterialIndex, mat);
+		_materialProcessor.applyGltfMaterialExtensionsToMaterial(QString::fromStdString(_path), scene, mesh->mMaterialIndex, mat, textures);
 		// ADS and PBR Maps
 		_materialProcessor.setTextureMaps(material, textures, mat);
 	}

@@ -38,7 +38,8 @@ public:
 		const QString& gltfPath,
 		const aiScene* scene,
 		unsigned int materialIndex,
-		GLMaterial& outMaterial);
+		GLMaterial& outMaterial,
+		std::vector<Texture>& outTextures);
 
 private:
 	void setShadingModel(GLMaterial& mat, aiShadingMode shadingModel);

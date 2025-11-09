@@ -524,7 +524,8 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
     const QString& gltfPath,
     const aiScene* scene,
     unsigned int materialIndex,
-    GLMaterial& outMaterial)
+    GLMaterial& outMaterial,
+    std::vector<Texture>& outTextures)
 {
     if (!scene)
     {
@@ -591,11 +592,31 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
         };
 
     // Utility: texture index -> image URI (external .gltf only)
+    // Handles both standard textures and EXT_texture_webp wrapped textures
     auto resolveTextureUri = [&](int texIndex) -> QString {
         if (texIndex < 0 || texIndex >= jsonTextures.size()) return QString();
         QJsonObject texObj = jsonTextures.at(texIndex).toObject();
-        if (!texObj.contains("source")) return QString();
-        int imgIndex = texObj.value("source").toInt(-1);
+
+        int imgIndex = -1;
+
+        // Try EXT_texture_webp extension first
+        if (texObj.contains("extensions"))
+        {
+            QJsonObject extObj = texObj.value("extensions").toObject();
+            if (extObj.contains("EXT_texture_webp"))
+            {
+                QJsonObject webpObj = extObj.value("EXT_texture_webp").toObject();
+                imgIndex = webpObj.value("source").toInt(-1);
+            }
+        }
+
+        // Fallback to standard "source" property
+        if (imgIndex < 0 && texObj.contains("source"))
+        {
+            imgIndex = texObj.value("source").toInt(-1);
+        }
+
+        // Resolve image
         if (imgIndex < 0 || imgIndex >= jsonImages.size()) return QString();
         QJsonObject imgObj = jsonImages.at(imgIndex).toObject();
         if (imgObj.contains("uri") && imgObj.value("uri").isString())
@@ -603,6 +624,248 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
             return resolveUri(imgObj.value("uri").toString());
         }
         return QString();
+        };
+
+    // Helper to extract UV transform from a texture object
+    auto extractTextureTransform = [](const QJsonObject& texObj) -> std::tuple<int, glm::vec2, glm::vec2, float> {
+        int texCoord = texObj.value("texCoord").toInt(0);
+        glm::vec2 scale(1.0f, 1.0f);
+        glm::vec2 offset(0.0f, 0.0f);
+        float rotation = 0.0f;
+
+        // Check for KHR_texture_transform extension
+        if (texObj.contains("extensions"))
+        {
+            QJsonObject ext = texObj.value("extensions").toObject();
+            if (ext.contains("KHR_texture_transform"))
+            {
+                QJsonObject transform = ext.value("KHR_texture_transform").toObject();
+
+                if (transform.contains("scale") && transform.value("scale").isArray())
+                {
+                    QJsonArray s = transform.value("scale").toArray();
+                    if (s.size() >= 2)
+                    {
+                        scale.x = static_cast<float>(s.at(0).toDouble(1.0));
+                        scale.y = static_cast<float>(s.at(1).toDouble(1.0));
+                    }
+                }
+
+                if (transform.contains("offset") && transform.value("offset").isArray())
+                {
+                    QJsonArray o = transform.value("offset").toArray();
+                    if (o.size() >= 2)
+                    {
+                        offset.x = static_cast<float>(o.at(0).toDouble(0.0));
+                        offset.y = static_cast<float>(o.at(1).toDouble(0.0));
+                    }
+                }
+
+                if (transform.contains("rotation"))
+                {
+                    rotation = static_cast<float>(transform.value("rotation").toDouble(0.0));
+                }
+            }
+        }
+
+        return std::make_tuple(texCoord, scale, offset, rotation);
+        };
+
+    static const std::map<std::string, std::string> textureTypeMapping = {
+        // Base PBR textures
+        {"baseColor", "albedoMap"},
+        {"albedoMap", "albedoMap"},
+        {"normal", "normalMap"},
+        {"normalMap", "normalMap"},
+        {"metallicRoughness", "metallicRoughnessMap"},
+        {"metallicRoughnessMap", "metallicRoughnessMap"},
+        {"metallic", "metallicMap"},
+        {"metallicMap", "metallicMap"},
+        {"roughness", "roughnessMap"},
+        {"roughnessMap", "roughnessMap"},
+        {"occlusion", "occlusionMap"},
+        {"occlusionMap", "occlusionMap"},
+        {"ambientOcclusion", "occlusionMap"},
+        {"ao", "occlusionMap"},
+        {"emissive", "emissiveMap"},
+        {"emissiveMap", "emissiveMap"},
+        {"opacity", "opacityMap"},
+        {"opacityMap", "opacityMap"},
+        {"height", "heightMap"},
+        {"heightMap", "heightMap"},
+
+        // Extensions
+        {"transmission", "transmissionMap"},
+        {"transmissionMap", "transmissionMap"},
+        {"thickness", "thicknessMap"},
+        {"thicknessMap", "thicknessMap"},
+        {"ior", "iorMap"},
+        {"iorMap", "iorMap"},
+
+        // Sheen
+        {"sheenColor", "sheenColorMap"},
+        {"sheenColorMap", "sheenColorMap"},
+        {"sheenRoughness", "sheenRoughnessMap"},
+        {"sheenRoughnessMap", "sheenRoughnessMap"},
+
+        // Clearcoat
+        {"clearcoatColor", "clearcoatColorMap"},
+        {"clearcoatColorMap", "clearcoatColorMap"},
+        {"clearcoatRoughness", "clearcoatRoughnessMap"},
+        {"clearcoatRoughnessMap", "clearcoatRoughnessMap"},
+        {"clearcoatNormal", "clearcoatNormalMap"},
+        {"clearcoatNormalMap", "clearcoatNormalMap"},
+
+        // Anisotropy & Iridescence
+        {"anisotropy", "anisotropyMap"},
+        {"anisotropyMap", "anisotropyMap"},
+        {"iridescence", "iridescenceMap"},
+        {"iridescenceMap", "iridescenceMap"},
+        {"iridescenceThickness", "iridescenceThicknessMap"},
+        {"iridescenceThicknessMap", "iridescenceThicknessMap"},
+
+        // Specular
+        {"specularFactor", "specularFactorMap"},
+        {"specularFactorMap", "specularFactorMap"},
+        {"specularColor", "specularColorMap"},
+        {"specularColorMap", "specularColorMap"},
+    };
+
+    auto loadAndAddTexture = [&](const QString& texturePath,
+        const std::string& mapType,
+        int texCoord,
+        const glm::vec2& scale,
+        const glm::vec2& offset,
+        float rotation,
+        std::vector<Texture>& textures) -> bool {
+            if (texturePath.isEmpty()) return false;
+
+            // Look up the texture type
+            auto it = textureTypeMapping.find(mapType);
+            if (it == textureTypeMapping.end())
+            {
+                qWarning() << "Unknown texture type:" << QString::fromStdString(mapType);
+                return false;
+            }
+
+            std::string textureType = it->second;  // Get the mapped type name
+
+            // Load the texture file
+            bool hasAlpha = false;
+            unsigned int texID = textureFromFile(texturePath.toStdString().c_str(), hasAlpha);
+
+            if (texID == 0) return false;
+
+            // Create Texture struct with all metadata
+            Texture texture;
+            texture.id = texID;
+            texture.path = aiString(texturePath.toStdString().c_str());
+            texture.type = textureType;
+            texture.hasAlpha = hasAlpha;
+            texture.texCoordIndex = texCoord;
+            texture.scale = scale;
+            texture.offset = offset;
+            texture.rotation = rotation;
+
+            // Add to vector
+            textures.push_back(texture);
+
+            qDebug() << "  ✓ Loaded" << QString::fromStdString(mapType)
+                << "texture:" << texturePath;
+
+            return true;
+        };
+
+    
+    // Helper: Load base PBR textures from glTF JSON
+    // Replace the existing loadPbrTexturesFromJson lambda with this:
+
+    auto loadPbrTexturesFromJson = [&](const QJsonObject& matObj, GLMaterial& mat) -> void {
+
+        if (!matObj.contains("pbrMetallicRoughness"))
+            return;
+
+        QJsonObject pbr = matObj.value("pbrMetallicRoughness").toObject();
+
+        // Base Color Texture
+        if (pbr.contains("baseColorTexture"))
+        {
+            QJsonObject baseColorTexObj = pbr.value("baseColorTexture").toObject();
+            int texIndex = baseColorTexObj.value("index").toInt(-1);
+            if (texIndex >= 0)
+            {
+                QString uri = resolveTextureUri(texIndex);
+                auto [texCoord, scale, offset, rotation] = extractTextureTransform(baseColorTexObj);
+                if (loadAndAddTexture(uri, "baseColor", texCoord, scale, offset, rotation, outTextures))
+                {
+                    qDebug() << "  ✓ Loaded baseColor texture:" << uri;
+                }
+            }
+        }
+
+        // Normal Texture
+        if (matObj.contains("normalTexture"))
+        {
+            QJsonObject normalTexObj = matObj.value("normalTexture").toObject();
+            int texIndex = normalTexObj.value("index").toInt(-1);
+            if (texIndex >= 0)
+            {
+                QString uri = resolveTextureUri(texIndex);
+                auto [texCoord, scale, offset, rotation] = extractTextureTransform(normalTexObj);
+                if (loadAndAddTexture(uri, "normal", texCoord, scale, offset, rotation, outTextures))
+                {
+                    qDebug() << "  ✓ Loaded normal texture:" << uri;
+                }
+            }
+        }
+
+        // Metallic/Roughness Texture
+        if (pbr.contains("metallicRoughnessTexture"))
+        {
+            QJsonObject mrTexObj = pbr.value("metallicRoughnessTexture").toObject();
+            int texIndex = mrTexObj.value("index").toInt(-1);
+            if (texIndex >= 0)
+            {
+                QString uri = resolveTextureUri(texIndex);
+                auto [texCoord, scale, offset, rotation] = extractTextureTransform(mrTexObj);
+                if (loadAndAddTexture(uri, "metallicRoughness", texCoord, scale, offset, rotation, outTextures))
+                {
+                    qDebug() << "  ✓ Loaded metallicRoughness texture:" << uri;
+                }
+            }
+        }
+
+        // Occlusion Texture
+        if (matObj.contains("occlusionTexture"))
+        {
+            QJsonObject occTexObj = matObj.value("occlusionTexture").toObject();
+            int texIndex = occTexObj.value("index").toInt(-1);
+            if (texIndex >= 0)
+            {
+                QString uri = resolveTextureUri(texIndex);
+                auto [texCoord, scale, offset, rotation] = extractTextureTransform(occTexObj);
+                if (loadAndAddTexture(uri, "occlusion", texCoord, scale, offset, rotation, outTextures))
+                {
+                    qDebug() << "  ✓ Loaded occlusion texture:" << uri;
+                }
+            }
+        }
+
+        // Emissive Texture
+        if (matObj.contains("emissiveTexture"))
+        {
+            QJsonObject emissiveTexObj = matObj.value("emissiveTexture").toObject();
+            int texIndex = emissiveTexObj.value("index").toInt(-1);
+            if (texIndex >= 0)
+            {
+                QString uri = resolveTextureUri(texIndex);
+                auto [texCoord, scale, offset, rotation] = extractTextureTransform(emissiveTexObj);
+                if (loadAndAddTexture(uri, "emissive", texCoord, scale, offset, rotation, outTextures))
+                {
+                    qDebug() << "  ✓ Loaded emissive texture:" << uri;
+                }
+            }
+        }
         };
 
     // Helper: apply KHR extensions present in the material JSON object to the GLMaterial.
@@ -645,13 +908,13 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
             // thicknessTexture
             if (vol.contains("thicknessTexture") && vol.value("thicknessTexture").isObject())
             {
-                QJsonObject tt = vol.value("thicknessTexture").toObject();
-                int texIndex = tt.value("index").toInt(-1);
+                QJsonObject texObj = vol.value("thicknessTexture").toObject();
+                int texIndex = texObj.value("index").toInt(-1);
                 if (texIndex >= 0)
                 {
-                    mat.setThicknessTextureId(static_cast<unsigned int>(texIndex));
                     QString uri = resolveTextureUri(texIndex);
-                    if (!uri.isEmpty()) mat.setThicknessMap(uri);
+                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+                    loadAndAddTexture(uri, "thickness", texCoord, scale, offset, rotation, outTextures);
                     appliedAny = true;
                 }
             }
@@ -670,14 +933,13 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
             // transmissionTexture
             if (trans.contains("transmissionTexture") && trans.value("transmissionTexture").isObject())
             {
-                QJsonObject tt = trans.value("transmissionTexture").toObject();
-                int texIndex = tt.value("index").toInt(-1);
+                QJsonObject texObj = trans.value("transmissionTexture").toObject();
+                int texIndex = texObj.value("index").toInt(-1);
                 if (texIndex >= 0)
                 {
-                    // reuse thickness map fields? keep both separate in GLMaterial if possible.
-                    mat.setTransmissionTextureId(static_cast<unsigned int>(texIndex));
                     QString uri = resolveTextureUri(texIndex);
-                    if (!uri.isEmpty()) mat.setTransmissionMap(uri);
+                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+                    loadAndAddTexture(uri, "transmission", texCoord, scale, offset, rotation, outTextures);
                     appliedAny = true;
                 }
             }
@@ -720,12 +982,13 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
             }
             if (sp.contains("specularTexture") && sp.value("specularTexture").isObject())
             {
-                int texIndex = sp.value("specularTexture").toObject().value("index").toInt(-1);
+                QJsonObject texObj = sp.value("specularTexture").toObject();
+                int texIndex = texObj.value("index").toInt(-1);
                 if (texIndex >= 0)
                 {
-                    mat.setSpecularColorTextureId(static_cast<unsigned int>(texIndex));
                     QString uri = resolveTextureUri(texIndex);
-                    if (!uri.isEmpty()) mat.setSpecularColorMap(uri);
+                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+                    loadAndAddTexture(uri, "specularFactor", texCoord, scale, offset, rotation, outTextures);
                     appliedAny = true;
                 }
             }
@@ -758,14 +1021,15 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
                     appliedAny = true;
                 }
             }
-            if (cc.contains("clearcoatNormalTexture") && cc.value("clearcoatNormalTexture").isObject())
+            if (cc.contains("clearcoatTexture") && cc.value("clearcoatTexture").isObject())
             {
-                int texIndex = cc.value("clearcoatNormalTexture").toObject().value("index").toInt(-1);
+                QJsonObject texObj = cc.value("clearcoatTexture").toObject();
+                int texIndex = texObj.value("index").toInt(-1);
                 if (texIndex >= 0)
                 {
-                    mat.setClearcoatNormalTextureId(static_cast<unsigned int>(texIndex));
                     QString uri = resolveTextureUri(texIndex);
-                    if (!uri.isEmpty()) mat.setClearcoatNormalMap(uri);
+                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+                    loadAndAddTexture(uri, "clearcoatColor", texCoord, scale, offset, rotation, outTextures);
                     appliedAny = true;
                 }
             }
@@ -796,12 +1060,13 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
             }
             if (sh.contains("sheenColorTexture") && sh.value("sheenColorTexture").isObject())
             {
-                int texIndex = sh.value("sheenColorTexture").toObject().value("index").toInt(-1);
+                QJsonObject texObj = sh.value("sheenColorTexture").toObject();
+                int texIndex = texObj.value("index").toInt(-1);
                 if (texIndex >= 0)
                 {
-                    mat.setSheenColorTextureId(static_cast<unsigned int>(texIndex));
                     QString uri = resolveTextureUri(texIndex);
-                    if (!uri.isEmpty()) mat.setSheenColorMap(uri);
+                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+                    loadAndAddTexture(uri, "sheenColor", texCoord, scale, offset, rotation, outTextures);
                     appliedAny = true;
                 }
             }
@@ -837,12 +1102,13 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
             }
             if (ir.contains("iridescenceThicknessTexture") && ir.value("iridescenceThicknessTexture").isObject())
             {
-                int texIndex = ir.value("iridescenceThicknessTexture").toObject().value("index").toInt(-1);
+                QJsonObject texObj = ir.value("iridescenceThicknessTexture").toObject();
+                int texIndex = texObj.value("index").toInt(-1);
                 if (texIndex >= 0)
                 {
-                    mat.setIridescenceThicknessTextureId(static_cast<unsigned int>(texIndex));
                     QString uri = resolveTextureUri(texIndex);
-                    if (!uri.isEmpty()) mat.setIridescenceThicknessMap(uri);
+                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+                    loadAndAddTexture(uri, "iridescenceThickness", texCoord, scale, offset, rotation, outTextures);
                     appliedAny = true;
                 }
             }
@@ -866,12 +1132,13 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
             }
             if (an.contains("anisotropyTexture") && an.value("anisotropyTexture").isObject())
             {
-                int texIndex = an.value("anisotropyTexture").toObject().value("index").toInt(-1);
+                QJsonObject texObj = an.value("anisotropyTexture").toObject();
+                int texIndex = texObj.value("index").toInt(-1);
                 if (texIndex >= 0)
                 {
-                    mat.setAnisotropyTextureId(static_cast<unsigned int>(texIndex));
                     QString uri = resolveTextureUri(texIndex);
-                    if (!uri.isEmpty()) mat.setAnisotropyMap(uri);
+                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+                    loadAndAddTexture(uri, "anisotropy", texCoord, scale, offset, rotation, outTextures);
                     appliedAny = true;
                 }
             }
@@ -935,14 +1202,20 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
                 QJsonObject matObj = jsonMaterials.at(j).toObject();
                 QString jname = matObj.value("name").toString();
                 if (!jname.isEmpty() && jname == name)
-                {                    
+                {
+                    qDebug() << "Processing material:" << name;
+
+                    // Load base PBR textures (with EXT_texture_webp support)
+                    loadPbrTexturesFromJson(matObj, outMaterial);
+
+                    // Apply KHR extensions on top
                     if (applyExtensionsFromJsonMaterial(matObj, outMaterial))
                     {
-                        qDebug() << "Applied KHR materials extensions to material (name)" << name;                        
-                    }                    
+                        qDebug() << "Applied KHR materials extensions to material (name)" << name;
+                    }
                     return;
                 }
-            }            
+            }
         }
     }
 
@@ -954,6 +1227,11 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
     {
         qDebug() << "  Name-based lookup failed, trying index-based fallback:" << idx;
         QJsonObject matObj = jsonMaterials.at(idx).toObject();
+
+        // Load base PBR textures
+        loadPbrTexturesFromJson(matObj, outMaterial);
+
+        // Apply extensions
         if (applyExtensionsFromJsonMaterial(matObj, outMaterial))
         {
             qDebug() << "Applied KHR materials extensions to material index" << idx;
