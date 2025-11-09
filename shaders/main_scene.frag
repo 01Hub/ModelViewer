@@ -528,7 +528,7 @@ void main()
 
 			// clamp and optionally apply any opacityScale/bias global (if desired)
 			finalAlpha = clamp(alphaVal, 0.0, 1.0);
-
+			
 			// Note: do NOT discard here. Transparent fragments are blended.
 			// Depth write/disabling and render-order must be handled on the GL side.
 		}
@@ -1218,7 +1218,6 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// TRANSMISSION VOLUME & REFRACTION
 	// ============================================================================
 	float transmissionFactor = pbrLighting.transmission;
-
 	if (hasTransmissionMap) {
 		float mapVal = texture(transmissionMap, getTransmissionUV()).r;
 		transmissionFactor *= mapVal;
@@ -1227,37 +1226,39 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (transmissionFactor > 0.0) {
 		vec3 N_trans = normalize(g_reflectionNormal);
 		float ior_trans = max(1e-3, pbrLighting.ior);
-		vec3 R_trans = refract(V_reflect, N_trans, 1.0 / ior_trans);
-    
-		float tRough = max(pbrLighting.roughness, 0.1);
-		vec3 envColor = textureLod(prefilterMap, R_trans, tRough * 3.0).rgb;
-    
-		float NdotV_trans = clamp(dot(N, normalize(cameraPos - g_reflectionPosition)), 0.0, 1.0);
-		float F_trans = F0.r + (1.0 - F0.r) * pow(1.0 - NdotV_trans, 5.0);
-    
-		float thickness = pbrLighting.thicknessFactor;
+		
+		vec3 refractionVector = refract(-V_reflect, N_trans, 1.0 / ior_trans);
+		
+		float thickness = thicknessFactor;
 		if (hasThicknessMap) {
 			vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
 			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.r;
 			thickness *= thicknessSample;
 		}
-    
-		if (thickness > 0.0 && pbrLighting.attenuationDistance > 0.0) {
-			float pathLength = thickness;
-			envColor = calculateVolumeAttenuation(envColor, pathLength, thickness,
-				pbrLighting.attenuationColor, pbrLighting.attenuationDistance);
+		
+		vec3 modelScale;
+		modelScale.x = length(vec3(modelMatrix[0].xyz));
+		modelScale.y = length(vec3(modelMatrix[1].xyz));
+		modelScale.z = length(vec3(modelMatrix[2].xyz));
+		
+		vec3 transmissionRay = normalize(refractionVector) * thickness * modelScale;
+		float transmissionRayLength = length(transmissionRay);
+		
+		float tRough = max(roughness, 0.1);
+		vec3 envColor = textureLod(prefilterMap, normalize(refractionVector), tRough * 3.0).rgb;
+		
+		if (transmissionRayLength > 0.0 && attenuationDistance > 0.0) {
+			vec3 transmittance = pow(attenuationColor, 
+				vec3(transmissionRayLength / attenuationDistance));
+			envColor *= transmittance;
 		}
-    
-		// If no thickness defined, use higher default boost
-		float thicknessBoost = (thickness > 0.001) ? (1.0 + thickness * 2.0) : 2.5;
-    
-		float w = transmissionFactor * F_trans * (1.0 - pbrLighting.roughness * 0.2);
-		w *= thicknessBoost;
-    
-		vec3 filtered = envColor * pbrLighting.albedo;
-		outRGB = mix(outRGB, filtered, clamp(w, 0.0, 1.0));
+		
+		vec3 transmissionColor = envColor * albedo;
+		
+		// For transmission materials, blend between normal shading and transmission
+		outRGB = mix(outRGB, transmissionColor, transmissionFactor);
 	}
-
+	
 	// ============================================================================
 	// TONE MAPPING & GAMMA CORRECTION
 	// ============================================================================
