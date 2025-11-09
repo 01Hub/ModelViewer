@@ -1822,11 +1822,7 @@ bool TriangleMesh::isTransparent() const
 
 bool TriangleMesh::needsDepthMaskOff() const
 {
-	return isTransparent() &&
-		!_hasOpacityADSMap &&
-		!_hasOpacityPBRMap &&
-		!_hasTextureAlpha &&
-		!_hasTransmissionPBRMap;  // uniform-only transparency
+	return (_material.opacity() < 0.999f);  // uniform-only transparency
 }
 
 
