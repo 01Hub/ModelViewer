@@ -1684,6 +1684,13 @@ void MaterialProcessor::synthesizeADSAliases(std::vector<Texture>& textures)
                 alias.path = tex.path;
                 alias.type = adsName;
 
+                // UV transform metadata
+                alias.scale = tex.scale;
+                alias.offset = tex.offset;
+                alias.rotation = tex.rotation;
+                alias.texCoordIndex = tex.texCoordIndex;
+                alias.hasAlpha = tex.hasAlpha;
+
                 textures.push_back(alias);
                 _loadedTextures.push_back(alias); // register to global cache so future loads reuse
                 break;
