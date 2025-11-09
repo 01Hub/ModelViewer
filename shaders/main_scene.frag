@@ -347,8 +347,8 @@ float	samplePackedChannelValue(sampler2D tex, bool hasTexture, vec2 uv,
                                int channel, int invert, float scale, float bias,
                                float fallback);
 
-vec3    getNormalFromMap();
-mat3    getTBNFromMap();
+vec3    getNormalFromMap(sampler2D map);
+mat3    getTBNFromMap(sampler2D map);
 float   distributionGGX(vec3 N, vec3 H, float roughness);
 float   geometrySchlickGGX(float NdotV, float roughness);
 float   geometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
@@ -1980,14 +1980,14 @@ vec2 parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap,
 
 // ----------------------------------------------------------------------------
 // Easy trick to get tangent-normals to world-space to keep PBR code simplified.
-vec3 getNormalFromMap()
+vec3 getNormalFromMap(sampler2D map)
 {
-	vec3 tangentNormal = texture(normalMap, g_texCoord0).xyz * 2.0 - 1.0;
+	vec3 tangentNormal = texture(map, getNormalUV()).xyz * 2.0 - 1.0;
 
 	vec3 Q1  = dFdx(g_position);
 	vec3 Q2  = dFdy(g_position);
-	vec2 st1 = dFdx(g_texCoord0);
-	vec2 st2 = dFdy(g_texCoord0);
+	vec2 st1 = dFdx(getNormalUV());
+	vec2 st2 = dFdy(getNormalUV());
 
 	vec3 N   = normalize(g_normal);
 	vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
@@ -1997,14 +1997,14 @@ vec3 getNormalFromMap()
 	return normalize(TBN * tangentNormal);
 }
 
-mat3 getTBNFromMap()
+mat3 getTBNFromMap(sampler2D map)
 {
-	vec3 tangentNormal = texture(normalMap, g_texCoord0).xyz * 2.0 - 1.0;
+	vec3 tangentNormal = texture(map, getNormalUV()).xyz * 2.0 - 1.0;
 
 	vec3 Q1  = dFdx(g_position);
 	vec3 Q2  = dFdy(g_position);
-	vec2 st1 = dFdx(g_texCoord0);
-	vec2 st2 = dFdy(g_texCoord0);
+	vec2 st1 = dFdx(getNormalUV());
+	vec2 st2 = dFdy(getNormalUV());
 
 	vec3 N   = normalize(g_normal);
 	vec3 T  = normalize(Q1*st2.t - Q2*st1.t);
@@ -2063,24 +2063,17 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 // http://ogldev.atspace.co.uk/www/tutorial26/tutorial26.html
 vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 {
+	vec3 normal = normalize(g_normal);
+	vec3 tangent = normalize(g_tangent - dot(g_tangent, normal) * normal);
+	vec3 bitangent = normalize(cross(normal, tangent));
+	mat3 TBN = mat3(tangent, bitangent, normal);
+
 	vec3 bumpMapNormal = texture(map, texCoord).rgb;
-    bumpMapNormal = 2.0 * bumpMapNormal - 1.0;
-    
-    // Compute TBN from position and UV derivatives
-    vec3 Q1  = dFdx(g_position);
-    vec3 Q2  = dFdy(g_position);
-    vec2 st1 = dFdx(texCoord);  // Derivatives of transformed UV
-    vec2 st2 = dFdy(texCoord);  // Derivatives of transformed UV
-    
-    vec3 N = normalize(g_normal);
-    vec3 T = normalize(Q1*st2.t - Q2*st1.t);
-    vec3 B = -normalize(cross(N, T));
-    mat3 TBN = mat3(T, B, N);
-   
-	// Uncomment the next line if normal maps need Y flipped
-	// bumpMapNormal.y = -bumpMapNormal.y;
+	bumpMapNormal = 2.0 * bumpMapNormal - 1.0;
+	
 	return normalize(TBN * bumpMapNormal);
 }
+
 
 vec2 calculateBackgroundUV() {
 	vec2 ndc = (gl_FragCoord.xy / u_screenSize) * 2.0 - 1.0;
