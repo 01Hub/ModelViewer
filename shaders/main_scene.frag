@@ -913,7 +913,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		N = normalize(normal);
 		albedo = pbrLighting.albedo;
 		metallic = pbrLighting.metallic;
-		roughness = clamp(pbrLighting.roughness, 0.02, 1.0);
+		roughness = clamp(pbrLighting.roughness, 0.001, 1.0);
 		ambientOcclusion = pbrLighting.ambientOcclusion;
 		transmission = pbrLighting.transmission;
 		ior = pbrLighting.ior;
@@ -981,9 +981,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			metallicChannel, metallicInvert,
 			metallicScale, metallicBias,
 			isGLTFMaterial ? 1.0 : pbrLighting.metallic // fallback if no texture
-		);	
-				
-		//metallic = isGLTFMaterial ? texMetallic * pbrLighting.metallic : texMetallic;
+		);		
 		metallic = mix(texMetallic, pbrLighting.metallic * texMetallic, blendFactor);
 		metallic = clamp(metallic, 0.0, 1.0);
 
@@ -992,8 +990,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			roughnessChannel, roughnessInvert,
 			roughnessScale, roughnessBias,
 			isGLTFMaterial ? 1.0 : pbrLighting.roughness // fallback if no texture
-		);				
-		//roughness = isGLTFMaterial ? texRoughness * pbrLighting.roughness : texRoughness;
+		);
 		roughness = mix(texRoughness, pbrLighting.roughness * texRoughness, blendFactor);
 		roughness = clamp(roughness, 0.001, 1.0);
 
@@ -1030,8 +1027,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		vec3 unlitColor = albedo;
 
 		// Apply emissive
-		vec3 emissive_L = material.emission * emissiveStrength;
-		if (hasEmissiveTexture) emissive_L = texture(texture_emissive, getEmissiveUV()).rgb * emissiveStrength;
+		vec3 emissive_L = material.emission;
+		vec3 texEmissive = vec3(1.0);
+		texEmissive = hasEmissiveTexture ? texture(texture_emissive, getEmissiveUV()).rgb : material.emission;
+		emissive_L = mix(texEmissive, material.emission * texEmissive, blendFactor);
+		
+		// Apply emissive strength
+		emissive_L *= emissiveStrength;
 
 		unlitColor += emissive_L;
 
@@ -1281,8 +1283,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// EMISSION
 	// ============================================================================
 	vec3 emissive_L = material.emission;
-	vec3 texEmissive = vec3(0.0);
-	if (hasEmissiveTexture) texEmissive = texture(texture_emissive, getEmissiveUV()).rgb;
+	vec3 texEmissive = vec3(1.0);
+	texEmissive = hasEmissiveTexture ? texture(texture_emissive, getEmissiveUV()).rgb : material.emission;
 	emissive_L = mix(texEmissive, material.emission * texEmissive, blendFactor);
 
 	// Apply emissive strength
