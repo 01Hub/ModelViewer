@@ -757,6 +757,8 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("hasClearcoatRoughnessMap", _hasClearcoatRoughnessPBRMap);
 	_prog->setUniformValue("hasClearcoatNormalMap", _hasClearcoatNormalPBRMap);
 
+	_prog->setUniformValue("isGLTFMaterial", _material.isGLTFMaterial());
+
 	// send channel-packing uniforms now that samplers are bound to units
 	// Uniform naming: <base>Channel, <base>Invert, <base>Scale, <base>Bias
 	auto sendPackingUniform = [this](const QString& key, const char* base) {

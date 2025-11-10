@@ -424,6 +424,13 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		_materialProcessor.applyGltfMaterialExtensionsToMaterial(QString::fromStdString(_path), scene, mesh->mMaterialIndex, mat, textures);
 		// ADS and PBR Maps
 		_materialProcessor.setTextureMaps(material, textures, mat);
+
+		// Set if material is gltf
+		if(_path.find(".gltf") != std::string::npos || _path.find(".glb") != std::string::npos)
+		{
+			mat.setIsGLTFMaterial(true);
+			qDebug() << "GLTF Material Loaded";
+		}
 	}
 
 	// Return a mesh object created from the extracted mesh data

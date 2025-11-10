@@ -839,6 +839,9 @@ public:
 	// Serialize the GLMaterial into a QVariantMap suitable for JSON writing
 	QVariantMap toVariantMap() const;
 
+	bool isGLTFMaterial() const;
+	void setIsGLTFMaterial(bool isGLTF);
+
 private:
 	void setAlbedoFromADS();
 	void updateConsistency(); // Ensure consistency between legacy and PBR properties
@@ -994,7 +997,8 @@ private:
 	ChannelPacking _roughnessPacking;  // default G
 	ChannelPacking _aoPacking;         // default B
 	ChannelPacking _opacityPacking;    // default A (or R if A not present)
-	
+
+	bool _isGLTFMaterial = false; // Whether this material was loaded from a glTF file	
 };
 
 // Inline implementations for performance-critical getters
@@ -1415,5 +1419,8 @@ inline QVector3D GLMaterial::getF0() const
 		);
 	}
 }
+
+inline bool GLMaterial::isGLTFMaterial() const { return _isGLTFMaterial; }
+inline void GLMaterial::setIsGLTFMaterial(bool isGLTF) { _isGLTFMaterial = isGLTF; }
 
 #endif // GLMATERIAL_H

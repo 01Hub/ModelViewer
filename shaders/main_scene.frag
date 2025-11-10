@@ -190,6 +190,7 @@ uniform TextureTransform normalTextureTransform;
 uniform TextureTransform heightTextureTransform;
 uniform TextureTransform opacityTextureTransform;
 
+uniform bool isGLTFMaterial;
 
 uniform bool envMapEnabled;
 uniform mat3 envMapRotationMatrix;
@@ -904,6 +905,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec2 clippedTexCoord = g_texCoord0;
 	vec4 textureColor = vec4(1.0);
 
+	float blendFactor = float(isGLTFMaterial);
+
 	// --- Material source: uniforms-only (renderMode==1) vs texture-driven (renderMode!=1)
 	if (renderMode == 1)
 	{
@@ -977,27 +980,35 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		float texMetallic = samplePackedChannelValue(metallicMap, hasMetallicMap, getMetallicUV(),
 			metallicChannel, metallicInvert,
 			metallicScale, metallicBias,
-			1.0 // fallback if no texture
-		);
-		metallic = clamp(pbrLighting.metallic * texMetallic, 0.0, 1.0);
-
+			isGLTFMaterial ? 1.0 : pbrLighting.metallic // fallback if no texture
+		);	
+				
+		//metallic = isGLTFMaterial ? texMetallic * pbrLighting.metallic : texMetallic;
+		metallic = mix(texMetallic, pbrLighting.metallic * texMetallic, blendFactor);
+		metallic = clamp(metallic, 0.0, 1.0);
 
 		// Roughness
 		float texRoughness = samplePackedChannelValue(roughnessMap, hasRoughnessMap, getRoughnessUV(),
 			roughnessChannel, roughnessInvert,
 			roughnessScale, roughnessBias,
-			1.0 // fallback if no texture
-		);
-		roughness = clamp(pbrLighting.roughness * texRoughness, 0.05, 1.0);
+			isGLTFMaterial ? 1.0 : pbrLighting.roughness // fallback if no texture
+		);				
+		//roughness = isGLTFMaterial ? texRoughness * pbrLighting.roughness : texRoughness;
+		roughness = mix(texRoughness, pbrLighting.roughness * texRoughness, blendFactor);
+		roughness = clamp(roughness, 0.001, 1.0);
 
 		// Ambient Occlusion
-		ambientOcclusion = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
+		float texAO = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
 			aoChannel, aoInvert, aoScale, aoBias,
-			pbrLighting.ambientOcclusion);
+			isGLTFMaterial ? 1.0 : pbrLighting.ambientOcclusion);
+		ambientOcclusion = mix(texAO, pbrLighting.ambientOcclusion * texAO, blendFactor);
 
 		// Specular (KHR_materials_specular)
-		specularFactor = hasSpecularFactorMap ? texture(specularFactorMap, getSpecularFactorUV()).a : pbrLighting.specularFactor;
-		specularColorFactor = hasSpecularColorMap ? texture(specularColorMap, getSpecularColorUV()).rgb : pbrLighting.specularColorFactor;
+		float texSpecularFactor = hasSpecularFactorMap ? texture(specularFactorMap, getSpecularFactorUV()).a : 1.0;
+		specularFactor = mix(texSpecularFactor, pbrLighting.specularFactor * texSpecularFactor, blendFactor);
+		
+		vec3 texSpecularColor = hasSpecularColorMap ? texture(specularColorMap, getSpecularColorUV()).rgb : vec3(1.0);
+		specularColorFactor = mix(texSpecularColor, pbrLighting.specularColorFactor * texSpecularColor, blendFactor);
 
 		// Anisotropy (KHR_materials_anisotropy)
 		if (hasAnisotropyMap)
@@ -1089,7 +1100,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// ============================================================================
 	// TRANSMISSION LAYER
 	// ============================================================================
-	transmission = hasTransmissionMap ? texture(transmissionMap, getTransmissionUV()).r : pbrLighting.transmission;
+	float texTransmission = hasTransmissionMap ? texture(transmissionMap, getTransmissionUV()).r : 0.0;
+	transmission = mix(texTransmission, pbrLighting.transmission * texTransmission, blendFactor);
 	ior = hasIORMap ? texture(iorMap, getIORUV()).r : pbrLighting.ior;
 
 	vec3 transmission_L = vec3(0.0);
@@ -1104,14 +1116,15 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (hasSheenColorMap)
 	{
 		vec3 sc = texture(sheenColorMap, getSheenColorUV()).rgb;
-		sheenColor = sc;
+		sheenColor = mix(sc, pbrLighting.sheenColor * sc, blendFactor);
 	}
 	else
 	{
 		sheenColor = pbrLighting.sheenColor;
 	}
 
-	sheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, getSheenRoughnessUV()).r : pbrLighting.sheenRoughness;
+	float texSheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, getSheenRoughnessUV()).r : 1.0;
+	sheenRoughness = mix(texSheenRoughness, pbrLighting.sheenRoughness * texSheenRoughness, blendFactor);
 	sheenRoughness = max(sheenRoughness, 0.0001);  // Minimum to broaden lobe
 
 	vec3 sheen_L = vec3(0.0);
@@ -1137,8 +1150,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// ============================================================================
 	// CLEARCOAT LAYER
 	// ============================================================================
-	clearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r : pbrLighting.clearcoat;
-	clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).r : pbrLighting.clearcoatRoughness;
+	float texClearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r : 1.0;
+	clearcoat = mix(texClearcoat, pbrLighting.clearcoat * texClearcoat, blendFactor);
+	float texClearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).r : 1.0;
+	clearcoatRoughness = mix(texClearcoatRoughness, pbrLighting.clearcoatRoughness * texClearcoatRoughness, blendFactor);
 	clearcoatRoughness = clamp(clearcoatRoughness, 0.089, 1.0);
 	clearcoatNormal = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side : N;
 
@@ -1166,7 +1181,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 iridescenceF0 = vec3(0.0);
 
 	// Load iridescence properties
-	iridescenceFactor = hasIridescenceMap ? texture(iridescenceMap, getIridescenceUV()).r : pbrLighting.iridescenceFactor;
+	float texIridescence = hasIridescenceMap ? texture(iridescenceMap, getIridescenceUV()).r : 1.0;
+	iridescenceFactor = mix(texIridescence, pbrLighting.iridescenceFactor * texIridescence, blendFactor);
 	iridescenceIor = pbrLighting.iridescenceIor;
 
 	if (hasIridescenceThicknessMap)
@@ -1265,7 +1281,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// EMISSION
 	// ============================================================================
 	vec3 emissive_L = material.emission;
-	if (hasEmissiveTexture) emissive_L = texture(texture_emissive, getEmissiveUV()).rgb;
+	vec3 texEmissive = vec3(0.0);
+	if (hasEmissiveTexture) texEmissive = texture(texture_emissive, getEmissiveUV()).rgb;
+	emissive_L = mix(texEmissive, material.emission * texEmissive, blendFactor);
 
 	// Apply emissive strength
 	emissive_L *= emissiveStrength;
@@ -1317,7 +1335,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		{
 			vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
 			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.r;
-			thickness *= thicknessSample;
+			thickness = mix(thicknessSample, pbrLighting.thicknessFactor * thicknessSample, blendFactor);
 		}
 
 		vec3 modelScale;
