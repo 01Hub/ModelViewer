@@ -3394,6 +3394,13 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	if (m.contains("clearcoatRoughness")) mat._clearcoatRoughness = readFloat(m.value("clearcoatRoughness"), mat._clearcoatRoughness);
 	if (m.contains("sheenColor"))       mat._sheenColor = readVec3(m.value("sheenColor"), mat._sheenColor);
 	if (m.contains("sheenRoughness"))   mat._sheenRoughness = readFloat(m.value("sheenRoughness"), mat._sheenRoughness);
+	// KHR_materials_iridescence
+	if (m.contains("iridescence"))      mat._iridescenceFactor = qBound(0.0f, readFloat(m.value("iridescence"), mat._iridescenceFactor), 1.0f);
+	if (m.contains("iridescenceFactor")) mat._iridescenceFactor = qBound(0.0f, readFloat(m.value("iridescenceFactor"), mat._iridescenceFactor), 1.0f);
+	if (m.contains("iridescenceIor"))   mat._iridescenceIor = readFloat(m.value("iridescenceIor"), mat._iridescenceIor);
+	if (m.contains("iridescenceThicknessMin")) mat._iridescenceThicknessMin = readFloat(m.value("iridescenceThicknessMin"), mat._iridescenceThicknessMin);
+	if (m.contains("iridescenceThicknessMax")) mat._iridescenceThicknessMax = readFloat(m.value("iridescenceThicknessMax"), mat._iridescenceThicknessMax);
+
 
 	// energy-conserving factor / extra PBR attributes if present
 	if (m.contains("metallicFactor"))   mat._metalness = qBound(0.0f, readFloat(m.value("metallicFactor"), mat._metalness), 1.0f); // alternate key
@@ -3421,6 +3428,9 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	if (m.contains("clearcoatColorMapPath"))      mat._clearcoatColorMapPath = m.value("clearcoatColorMapPath").toString();
 	if (m.contains("clearcoatRoughnessMapPath"))  mat._clearcoatRoughnessMapPath = m.value("clearcoatRoughnessMapPath").toString();
 	if (m.contains("clearcoatNormalMapPath"))     mat._clearcoatNormalMapPath = m.value("clearcoatNormalMapPath").toString();
+	// KHR_materials_iridescence texture maps
+	if (m.contains("iridescenceMapPath"))         mat._iridescenceMap = m.value("iridescenceMapPath").toString();
+	if (m.contains("iridescenceThicknessMapPath")) mat._iridescenceThicknessMap = m.value("iridescenceThicknessMapPath").toString();
 
 	// ---------------- Texture IDs (numeric slot IDs if texture manager uses them) ----------------
 	if (m.contains("albedoTextureId"))            mat._albedoTextureId = m.value("albedoTextureId").toInt();
@@ -3432,6 +3442,9 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	if (m.contains("heightTextureId"))            mat._heightTextureId = m.value("heightTextureId").toInt();
 	if (m.contains("transmissionTextureId"))      mat._transmissionTextureId = m.value("transmissionTextureId").toInt();
 	if (m.contains("iorTextureId"))               mat._iorTextureId = m.value("iorTextureId").toInt();
+	// KHR_materials_iridescence texture IDs
+	if (m.contains("iridescenceTextureId"))       mat._iridescenceTextureId = m.value("iridescenceTextureId").toInt();
+	if (m.contains("iridescenceThicknessTextureId")) mat._iridescenceThicknessTextureId = m.value("iridescenceThicknessTextureId").toInt();
 
 	// ---------------- Texcoord indices ----------------
 	if (m.contains("albedoTexCoord"))             mat._albedoTexCoord = m.value("albedoTexCoord").toInt();
@@ -3552,6 +3565,12 @@ QVariantMap GLMaterial::toVariantMap() const
 	m.insert("clearcoatRoughness", QVariant(clearcoatRoughness()));
 	m.insert("sheenColor", vec3ToList(sheenColor()));
 	m.insert("sheenRoughness", QVariant(sheenRoughness()));
+	// KHR_materials_iridescence
+	m.insert("iridescence", QVariant(iridescenceFactor()));
+	m.insert("iridescenceFactor", QVariant(iridescenceFactor()));
+	m.insert("iridescenceIor", QVariant(iridescenceIor()));
+	m.insert("iridescenceThicknessMin", QVariant(iridescenceThicknessMin()));
+	m.insert("iridescenceThicknessMax", QVariant(iridescenceThicknessMax()));
 
 	// --- Texture path slots (strings) ---
 	m.insert("albedoMapPath", QVariant(albedoMapPath()));
@@ -3568,6 +3587,9 @@ QVariantMap GLMaterial::toVariantMap() const
 	m.insert("clearcoatColorMapPath", QVariant(clearcoatColorMapPath()));
 	m.insert("clearcoatRoughnessMapPath", QVariant(clearcoatRoughnessMapPath()));
 	m.insert("clearcoatNormalMapPath", QVariant(clearcoatNormalMapPath()));
+	// KHR_materials_iridescence texture maps
+	m.insert("iridescenceMapPath", QVariant(iridescenceMap()));
+	m.insert("iridescenceThicknessMapPath", QVariant(iridescenceThicknessMap()));
 
 	// --- Texture ids (numeric) ---
 	m.insert("albedoTextureId", QVariant(albedoTextureId()));
@@ -3578,6 +3600,9 @@ QVariantMap GLMaterial::toVariantMap() const
 	m.insert("opacityTextureId", QVariant(opacityTextureId()));
 	m.insert("heightTextureId", QVariant(heightTextureId()));
 	m.insert("transmissionTextureId", QVariant(transmissionTextureId()));
+	// KHR_materials_iridescence texture IDs
+	m.insert("iridescenceTextureId", QVariant(iridescenceTextureId()));
+	m.insert("iridescenceThicknessTextureId", QVariant(iridescenceThicknessTextureId()));
 
 	// --- Texcoord indices ---
 	m.insert("albedoTexCoord", QVariant(albedoTexCoord()));
