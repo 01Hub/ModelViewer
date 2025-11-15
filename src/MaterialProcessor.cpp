@@ -1009,18 +1009,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
                 float v = static_cast<float>(cc.value("clearcoatRoughnessFactor").toDouble(0.0));
                 mat.setClearcoatRoughness(qBound(0.0f, v, 1.0f));
                 appliedAny = true;
-            }
-            if (cc.contains("clearcoatTexture") && cc.value("clearcoatTexture").isObject())
-            {
-                int texIndex = cc.value("clearcoatTexture").toObject().value("index").toInt(-1);
-                if (texIndex >= 0)
-                {
-                    mat.setClearcoatColorTextureId(static_cast<unsigned int>(texIndex));
-                    QString uri = resolveTextureUri(texIndex);
-                    if (!uri.isEmpty()) mat.setClearcoatColorMap(uri);
-                    appliedAny = true;
-                }
-            }
+            }           
             if (cc.contains("clearcoatTexture") && cc.value("clearcoatTexture").isObject())
             {
                 QJsonObject texObj = cc.value("clearcoatTexture").toObject();
