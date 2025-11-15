@@ -63,6 +63,12 @@ uniform float uTransmission;
 uniform float uIOR;
 uniform float uSpecular;
 
+// ----- KHR_materials_iridescence -----
+uniform float uIridescence;
+uniform float uIridescenceIOR;
+uniform float uIridescenceThicknessMin;
+uniform float uIridescenceThicknessMax;
+
 // ----- Texture samplers -----
 uniform sampler2D uAlbedoMap;
 uniform sampler2D uMetalnessMap;
@@ -87,7 +93,7 @@ uniform bool uUseHeightMap;     // NEW
 // ----- Extra controls -----
 uniform float uAOIntensity;
 uniform vec3  uEmissiveColor;
-uniform float uEmissiveIntensity;
+uniform float uEmissiveStrength;
 uniform vec2  uUVScale;
 uniform float uNormalIntensity;
 uniform float uHeightIntensity; // NEW (e.g. 0.03 .. 0.06)
@@ -176,6 +182,59 @@ float pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
     return clamp(c, 0.0, 1.0);
 }
 
+// ----- Iridescence: Thin-film interference -----
+// Calculates iridescent color based on view angle and film thickness
+// Uses a lookup table approach for thin-film interference colors
+vec3 evaluateIridescence(float NdotV, float iridescenceFactor, float iridescenceThickness)
+{
+    // Clamp to meaningful range
+    NdotV = clamp(NdotV, 0.0, 1.0);
+    iridescenceThickness = clamp(iridescenceThickness, 0.0, 1.0);
+
+    // Optical path difference based on view angle and thickness
+    // At grazing angles (NdotV ~ 0), we get different interference patterns
+    float opticalPathDifference = mix(iridescenceThickness, iridescenceThickness * 2.0, NdotV);
+
+    // Map view angle to hue shift (0-1 creates rainbow effect)
+    // Closer to view-normal = blue/purple, grazing angles = red/yellow
+    float hueShift = 1.0 - NdotV;
+
+    // Combine: where NdotV is small (grazing), we're in warm colors
+    // where NdotV is large (face-on), we're in cool colors
+    float phase = opticalPathDifference + hueShift;
+    phase = fract(phase * 2.0); // wrap to [0,1]
+
+    // Create rainbow-like color transitions
+    // This mimics the color progression seen in soap bubbles and oil films
+    vec3 iridColor;
+    
+    if (phase < 0.25) {
+        // Red to Magenta
+        iridColor = mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 1.0), phase / 0.25);
+    }
+    else if (phase < 0.5) {
+        // Magenta to Blue
+        iridColor = mix(vec3(1.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), (phase - 0.25) / 0.25);
+    }
+    else if (phase < 0.75) {
+        // Blue to Cyan/Green
+        iridColor = mix(vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 1.0), (phase - 0.5) / 0.25);
+    }
+    else {
+        // Cyan to Yellow
+        iridColor = mix(vec3(0.0, 1.0, 1.0), vec3(1.0, 1.0, 0.0), (phase - 0.75) / 0.25);
+    }
+
+    // Add some saturation variation based on optical path
+    float saturation = 0.8 + 0.2 * sin(phase * 6.28);
+    iridColor = mix(vec3(0.5), iridColor, saturation);
+
+    // Boost intensity slightly for visibility
+    iridColor *= 1.2;
+
+    return iridColor;
+}
+
 
 void main()
 {
@@ -236,7 +295,7 @@ void main()
         }
         else if (uTexViewMode == 8) {                // Emissive (as color)
             vec3 e = uUseEmissiveMap ? texture(uEmissiveMap, uv).rgb : vec3(0.0);
-            outCol = e * uEmissiveColor * uEmissiveIntensity;
+            outCol = e * uEmissiveColor * uEmissiveStrength;
         }
 
         // Apply exposure / tonemap for consistent preview look
@@ -272,7 +331,9 @@ void main()
 
     vec3 emissive = vec3(0.0);
     if (uUseEmissiveMap) {
-        emissive = texture(uEmissiveMap, uv).rgb * uEmissiveColor * uEmissiveIntensity;
+        emissive = texture(uEmissiveMap, uv).rgb * uEmissiveColor * uEmissiveStrength;
+    } else {
+        emissive = uEmissiveColor * uEmissiveStrength;
     }
 
     // ----- Normal mapping uses parallaxed UVs -----
@@ -333,6 +394,28 @@ void main()
         float NdotV = max(dot(N, V), 0.0);
         float sheen = pow(clamp(1.0 - NdotV, 0.0, 1.0), 2.0);
         color += uSheenColor * sheen * 0.5;
+    }
+
+    // ----- Iridescence (thin-film interference) -----
+    if (uIridescence > 0.001)
+    {
+        float NdotV = max(dot(N, V), 0.001);
+        
+        // Interpolate thickness between min and max based on viewing angle
+        // Grazing angles (low NdotV) use thicker film regions (more interference)
+        float thickness = mix(uIridescenceThicknessMin, uIridescenceThicknessMax, NdotV);
+        
+        // Normalize thickness to [0,1] range for the iridescence function
+        // Assume typical thickness range is ~100-500nm, map to [0,1]
+        float normalizedThickness = (thickness - uIridescenceThicknessMin) / 
+                                    max(uIridescenceThicknessMax - uIridescenceThicknessMin, 0.001);
+        
+        // Evaluate iridescent color based on view angle and thickness
+        vec3 iridColor = evaluateIridescence(NdotV, uIridescence, normalizedThickness);
+        
+        // Blend iridescence: stronger at grazing angles, subtle at face-on
+        float iridIntensity = uIridescence * (1.0 - NdotV);
+        color = mix(color, color + iridColor * 0.6, iridIntensity);
     }
 
     // ----- Transmission (simple tint) -----

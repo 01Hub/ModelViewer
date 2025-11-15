@@ -445,6 +445,12 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("uTransmission", _currentMaterial.transmission());
 	_shader->setUniformValue("uIOR", _currentMaterial.ior());
 	_shader->setUniformValue("uSpecular", _currentMaterial.specular());
+	_shader->setUniformValue("uEmissive", _currentMaterial.emissive());
+	_shader->setUniformValue("uEmissiveStrength", _currentMaterial.emissiveStrength());
+	_shader->setUniformValue("uIridescence", _currentMaterial.iridescenceFactor());
+	_shader->setUniformValue("uIridescenceIOR", _currentMaterial.iridescenceIor());
+	_shader->setUniformValue("uIridescenceThicknessMin", _currentMaterial.iridescenceThicknessMin());
+	_shader->setUniformValue("uIridescenceThicknessMax", _currentMaterial.iridescenceThicknessMax());
 
 	// Texture support
 	// after your glActiveTexture/glBindTexture block
@@ -487,9 +493,7 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("uNormalIntensity", 1.0f);
 	_shader->setUniformValue("uAOIntensity", 1.0f);
 	_shader->setUniformValue("uHeightIntensity", 0.04f);
-	_shader->setUniformValue("uEmissiveColor", QVector3D(1, 1, 1));
-	_shader->setUniformValue("uEmissiveIntensity", 1.0f);
-
+	
 	// ----- CHANNEL PACKING: send packing params to shader -----
 	// expects these uniform names in the frag shader:
 	//
