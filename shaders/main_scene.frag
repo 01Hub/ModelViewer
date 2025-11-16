@@ -1008,6 +1008,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			aoChannel, aoInvert, aoScale, aoBias,
 			isGLTFMaterial ? 1.0 : pbrLighting.ambientOcclusion);
 		ambientOcclusion = mix(texAO, pbrLighting.ambientOcclusion * texAO, blendFactor);
+		ambientOcclusion = clamp(ambientOcclusion, 0.05, 1.0); // prevent total blackout
 
 		// Specular (KHR_materials_specular)
 		float texSpecularFactor = hasSpecularFactorMap ? texture(specularFactorMap, getSpecularFactorUV()).a : 1.0;
@@ -1146,7 +1147,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (length(sheenColor) > 0.0)
 	{
 		sheen_L = calculateSheen(N, V_direct, L, sheenColor, sheenRoughness);
-		sheenIBL_L = calculateSheenIBL(g_normal, V_direct, sheenRoughness, sheenColor);
+		sheenIBL_L = calculateSheenIBL(g_reflectionNormal, V_reflect, sheenRoughness, sheenColor);
 
 		// Additional sheen BRDF contribution
 		float NoH = clamp(dot(N, H), 0.0, 1.0);
@@ -1157,6 +1158,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		vec3 R = reflect(V_reflect, g_reflectionNormal);
 		vec3 prefilteredEnv = textureLod(prefilterMap, R, sheenRoughness * 8.0).rgb;
 		vec3 dfg = texture(brdfLUT, vec2(dot(N, V_direct), sheenRoughness)).rgb;
+		dfg = max(dfg, vec3(0.0));
 		sheenIBL_L += dfg.b * prefilteredEnv * sheenColor;
 	}
 
@@ -1265,11 +1267,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
 
 		vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+		prefilteredColor = max(prefilteredColor, vec3(0.0)); // clamp negatives
 
 		// Apply envMapExposure to specular IBL
 		prefilteredColor *= envMapExposure;
 
 		vec2 brdf = texture(brdfLUT, vec2(dotNV, roughness)).rg;
+		brdf = max(brdf, vec2(0.0));
 		specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
 
 		// Apply exposure to diffuse IBL too
@@ -1654,50 +1658,91 @@ vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior
 }
 
 // Calculate sheen contribution (for fabric-like materials)
+// ------------------------
+// Improved calculateSheen
+// Returns a radiance contribution (already multiplied by NdotL), so the caller
+// can add it directly to outgoing radiance: Lo += calculateSheen(...);
 vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness)
 {
-	vec3 H = normalize(V + L);
-	float NdotL = clamp(dot(N, L), 0.0, 1.0);
-	float NdotV = clamp(dot(N, V), 0.0, 1.0);
-	float NdotH = clamp(dot(N, H), 0.0, 1.0);
-	float VdotH = clamp(dot(V, H), 0.0, 1.0);
+    // Half vector and common dot products
+    vec3 H = normalize(V + L);
+    float NdotL = clamp(dot(N, L), 0.0, 1.0);
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
+    float VdotH  = clamp(dot(V, H), 0.0, 1.0);
 
-	// Charlie distribution and geometry
-	float D = distributionCharlie(N, H, sheenRoughness);
-	float G = geometryCharlie(NdotV, sheenRoughness) * geometryCharlie(NdotL, sheenRoughness);
+    if (NdotL <= 0.0 || NdotV <= 0.0)
+        return vec3(0.0);
 
-	// Sheen BRDF
-	vec3 sheenBRDF = sheenColor * D * G / (4.0 * NdotV * NdotL + 0.001);
+    // Remap roughness — many Charlie implementations expect squared mapping
+    float r = clamp(sheenRoughness, 0.0, 1.0);
+    float mappedRough = max(0.002, r * r);
 
-	return sheenBRDF * NdotL;
+    // Charlie distribution & geometry (use your existing functions)
+    float D = distributionCharlie(N, H, mappedRough);
+    float G = geometryCharlie(NdotV, mappedRough) * geometryCharlie(NdotL, mappedRough);
+
+    // Fresnel — colored sheen: Schlick with V·H (F0 = sheenColor)
+    vec3 F = fresnelSchlick(VdotH, sheenColor);
+
+    // Safe denominator to avoid spikes at grazing
+    float denom = max(4.0 * NdotV * NdotL, 1e-5);
+
+    // Microfacet-like sheen BRDF (reflectance)
+    vec3 sheenBRDF = (D * G / denom) * F;
+
+    // Sheen is primarily a dielectric effect — attenuate on metals
+    sheenBRDF *= (1.0 - pbrLighting.metallic);
+
+    // Return radiance contribution for this light (multiply by NdotL here to match current shader style)
+    return sheenBRDF * NdotL;
 }
 
+
+// ------------------------
+// Improved calculateSheenIBL
+// Uses your prefiltered env map (prefilterMap) and brdfLUT (sampler2D brdfLUT).
+// Returns a radiance contribution that can be added directly to Lo.
 vec3 calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor)
 {
-	// Use stable reflection direction like clearcoat
-	vec3 R = reflect(V, N);  // Base normal for consistency
-	R = normalize(R);
+    // Compute stable reflection direction consistent with your shader (you used reflect(V, N))
+    vec3 R = reflect(V, N);
+    R = normalize(R);
 
-	float MAX_LOD = textureQueryLevels(prefilterMap) - 1.0;
-	float lod = sheenRoughness * MAX_LOD;
+    // Prefilter sampling LOD
+    float MAX_LOD = max(textureQueryLevels(prefilterMap) - 1.0, 0.0);
+    float lod = clamp(sheenRoughness, 0.0, 1.0) * MAX_LOD;
 
-	vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+    // Sample environment (prefiltered reflection)
+    vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+	prefilteredColor = max(prefilteredColor, vec3(0.0)); // clamp negatives
 
-	// Sheen Fresnel at grazing - very strong (that's the point of sheen)
-	float dotNV = clamp(dot(N, V), 0.001, 1.0);
-	float sheenFresnel = pow(1.0 - dotNV, 3.0); // More aggressive than clearcoat
+    // N·V used for LUT indexing/split-sum mapping
+    float dotNV = clamp(dot(N, V), 0.0, 1.0);
 
-	// Charlie geometry for the normal
-	float G = geometryCharlie(dotNV, sheenRoughness);
+    // Roughness remap to match Charlie direct term
+    float r = clamp(sheenRoughness, 0.0, 1.0);
+    float mappedRough = max(0.002, r * r);
 
-	// Soft, colored reflection (characteristic of fabric)
-	vec3 sheenIBL = prefilteredColor * sheenColor * G * sheenFresnel;
+    // Fresnel for sheen on IBL path — use roughness-aware Schlick
+    vec3 F_sheen = fresnelSchlickRoughness(dotNV, sheenColor, sheenRoughness);
 
-	float grazingPower = 2.0; // Sheen peaks at grazing
-	float grazing = pow(1.0 - dotNV, grazingPower);
+    // Geometry factor (Charlie) — single-term using NdotV is OK for IBL
+    float G = geometryCharlie(dotNV, mappedRough);
 
-	return sheenIBL * mix(0.3, 1.0, grazing);  // Boost at grazing
+    // Directional-albedo / BRDF integration factor from the split-sum LUT (blue channel)
+    // brdfLUT is declared as: uniform sampler2D brdfLUT;
+    float E = texture(brdfLUT, vec2(dotNV, mappedRough)).b;
+	
+    // Combine: prefiltered radiance * sheen color & BRDF terms * directional albedo
+    vec3 sheenIBL = prefilteredColor * sheenColor * G * F_sheen * E;
+
+    // Attenuate for metallics
+    sheenIBL *= (1.0 - pbrLighting.metallic);
+
+    // Return IBL radiance contribution (already includes env sample)
+    return sheenIBL;
 }
+
 
 // Calculate clearcoat contribution
 vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat,
@@ -1775,12 +1820,14 @@ vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal,
 
     // Sample prefiltered environment (cubemap) using reflection vector + lod
     vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+	prefilteredColor = max(prefilteredColor, vec3(0.0)); // clamp negatives
 
     // Fresnel inputs: use N·V with coat normal (common IBL approximation)
     float dotNV = clamp(dot(N, V_norm), 0.0, 1.0);
 
     // Sample BRDF LUT (expects NdotV, roughness)
     vec2 brdf = texture(brdfLUT, vec2(dotNV, modulatedRoughness)).rg;
+	brdf = max(brdf, vec2(0.0));
 
     // Fresnel for coat (dielectric F0)
     vec3 F0_clearcoat = vec3(0.04);
@@ -2337,17 +2384,33 @@ vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, vec3 F90, float roughness)
 }
 
 // http://ogldev.atspace.co.uk/www/tutorial26/tutorial26.html
+// Robust calcBumpedNormal: uses provided mesh tangent & bitangent, preserves handedness
 vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 {
-	vec3 normal = normalize(g_normal);
-	vec3 tangent = normalize(g_tangent - dot(g_tangent, normal) * normal);
-	vec3 bitangent = normalize(cross(normal, tangent));
-	mat3 TBN = mat3(tangent, bitangent, normal);
+    // base geometric normal (world space)
+    vec3 N = normalize(g_normal);
 
-	vec3 bumpMapNormal = texture(map, texCoord).rgb;
-	bumpMapNormal = 2.0 * bumpMapNormal - 1.0;
+    // Use mesh-provided tangent and bitangent if available
+    // Make tangent orthogonal to normal
+    vec3 T = normalize(g_tangent - dot(g_tangent, N) * N);
 
-	return normalize(TBN * bumpMapNormal);
+    // Prefer using the provided bitangent (g_bitangent) instead of computing cross(N, T)
+    // but orthogonalize it too
+    vec3 B = normalize(g_bitangent - dot(g_bitangent, N) * N);
+
+    // Ensure T, B, N form a right-handed basis; if not, flip B
+    float handedness = sign(dot(cross(T, B), N));
+    if (handedness < 0.0) {
+        B = -B;
+    }
+
+    mat3 TBN = mat3(T, B, N);
+
+    vec3 bumpMapNormal = texture(map, texCoord).rgb;
+    bumpMapNormal = bumpMapNormal * 2.0 - 1.0;
+
+    vec3 Nw = normalize(TBN * bumpMapNormal);
+    return Nw;
 }
 
 
