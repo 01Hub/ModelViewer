@@ -778,16 +778,22 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		R = normalize(R);
 
 		float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
+		float diffuseLum = dot(material.diffuse, vec3(0.299, 0.587, 0.114));
+	
+		// Derive metallic-like factor from ADS: metals have high spec/low diff
+		float adsMetallic = specLum / (specLum + diffuseLum + 0.001);
+		adsMetallic = clamp(adsMetallic, 0.0, 1.0);
+
 		float NdotV = max(dot(-I, N), 0.0);
 
 		// Gentler fresnel powers
 		float nonMetallicFresnelPower = mix(2.0, 3.5, 1.0 - specLum); // Reduced
 		float metallicFresnelPower = 1.2; // Reduced
-		float fresnelPower = mix(nonMetallicFresnelPower, metallicFresnelPower, pbrLighting.metallic);
+		float fresnelPower = mix(nonMetallicFresnelPower, metallicFresnelPower, adsMetallic);
 		float fresnel = pow(1.0 - NdotV, fresnelPower);
 
 		// Limit grazing angle effect
-		float grazingLimit = mix(0.6, 0.9, pbrLighting.metallic); // Metals can handle more
+		float grazingLimit = mix(0.6, 0.9, adsMetallic); // Metals can handle more
 		fresnel = clamp(fresnel, 0.0, grazingLimit);
 
 		float surfaceRoughness = 1.0 - (material.shininess / 128.0);
@@ -801,7 +807,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		bool isHighSpecular = specLum > 0.5;
 		bool isDiffuseDominant = dot(material.diffuse, vec3(0.299, 0.587, 0.114)) > specLum * 2.0;
 		float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
-		float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, pbrLighting.metallic);
+		float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, adsMetallic);
 
 		// Additional roughness damping for very rough surfaces
 		float roughnessDamping = mix(0.3, 1.0, 1.0 - surfaceRoughness);
@@ -809,7 +815,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 		// === IMPROVED GRAZING LOD ===
 		// Material-aware grazing influence: smooth metals/mirrors avoid extra blur
-		float grazingInfluence = surfaceRoughness * (1.0 - pbrLighting.metallic * 0.8);
+		float grazingInfluence = surfaceRoughness * (1.0 - adsMetallic * 0.8);
 
 		// Grazing factor for LOD adjustment
 		float grazingFactor = pow(1.0 - NdotV, mix(1.8, 2.5, surfaceRoughness));
