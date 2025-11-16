@@ -1165,7 +1165,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// ============================================================================
 	clearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r * pbrLighting.clearcoat : pbrLighting.clearcoat;
 	clearcoat = clamp(clearcoat, 0.0, 1.0);
-	clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).r * pbrLighting.clearcoatRoughness : pbrLighting.clearcoatRoughness;
+	clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).g * pbrLighting.clearcoatRoughness : pbrLighting.clearcoatRoughness;
 	clearcoatRoughness = clamp(clearcoatRoughness, 0.089, 1.0);
 	clearcoatNormal = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side : N;
 
@@ -1701,70 +1701,103 @@ vec3 calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor)
 
 // Calculate clearcoat contribution
 vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat,
-	float clearcoatRoughness, vec3 clearcoatNormal)
+    float clearcoatRoughness, vec3 clearcoatNormal)
 {
-	vec3 V_norm = normalize(V);
-	vec3 L_norm = normalize(L);
-	vec3 N_norm = normalize(clearcoatNormal);
+    // --- Early out if coat disabled
+    clearcoat = clamp(clearcoat, 0.0, 1.0);
+    if (clearcoat <= 0.0) return vec3(0.0);
 
-	vec3 H = normalize(V_norm + L_norm);
-	float NdotL = max(dot(N_norm, L_norm), 0.0);
-	float NdotV = max(dot(N_norm, V_norm), 0.0);
-	float NdotH = max(dot(N_norm, H), 0.0);
-	float VdotH = max(dot(V_norm, H), 0.0);
+    // clearcoatRoughness should already be (factor * texture.r) on the caller side
+    float rough = clamp(clearcoatRoughness, 0.02, 1.0);
 
-	// Modulate roughness by normal detail (bumpy areas = rougher)
-	vec3 normalVariation = normalize(clearcoatNormal) - normalize(N);
-	float bumpiness = length(normalVariation) * 0.5;  // 0 to ~0.5
-	float modulatedRoughness = mix(clearcoatRoughness, clearcoatRoughness * 1.5, bumpiness);
-	modulatedRoughness = clamp(modulatedRoughness, 0.02, 1.0);
+    vec3 V_norm = normalize(V);
+    vec3 L_norm = normalize(L);
 
-	vec3 F0_clearcoat = vec3(0.04);
-	vec3 F = fresnelSchlick(VdotH, F0_clearcoat);
+    // IMPORTANT: clearcoatNormal must be tangent->world (same space as 'N')
+    vec3 N_norm = normalize(clearcoatNormal);
 
-	float D = distributionGGX(N_norm, H, modulatedRoughness);
-	float G = geometrySmith(N_norm, V_norm, L_norm, modulatedRoughness);
+    vec3 H = normalize(V_norm + L_norm);
+    float NdotL = max(dot(N_norm, L_norm), 0.0);
+    float NdotV = max(dot(N_norm, V_norm), 0.0);
+    float VdotH = max(dot(V_norm, H), 0.0);
 
-	float denominator = max(4.0 * NdotV * NdotL, 0.001);
-	vec3 clearcoatBRDF = (D * G * F) / denominator;
+    // Modulate roughness by normal detail (optional artistic tweak)
+    vec3 normalVariation = normalize(clearcoatNormal) - normalize(N);
+    float bumpiness = length(normalVariation) * 0.5;
+    float modulatedRoughness = clamp(mix(rough, rough * 1.5, bumpiness), 0.02, 1.0);
 
-	return clearcoatBRDF * clearcoat * NdotL;
+    // Dielectric coat F0 (achromatic)
+    vec3 F0_clearcoat = vec3(0.04);
+    vec3 F = fresnelSchlick(VdotH, F0_clearcoat);
+
+    float D = distributionGGX(N_norm, H, modulatedRoughness);
+    float G = geometrySmith(N_norm, V_norm, L_norm, modulatedRoughness);
+
+    float denominator = max(4.0 * NdotV * NdotL, 1e-4);
+    vec3 clearcoatBRDF = (D * G * F) / denominator;
+
+    // The function returns energy scaled by clearcoat mask and NdotL
+    return clearcoatBRDF * clearcoat * NdotL;
 }
 
+
+// Improved calculateClearcoatIBL
 vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal,
-	float clearcoatRoughness, float clearcoat)
+    float clearcoatRoughness, float clearcoat)
 {
-	vec3 R = reflect(V, N);  // Stable reflection from base normal
-	R = normalize(R);
+    // --- Prepare / normalize inputs
+    vec3 V_norm = normalize(V);
+    // Use the coat normal for coat reflection & dot products (preferred)
+    vec3 N_coat = normalize(clearcoatNormal);
 
-	float MAX_LOD = textureQueryLevels(prefilterMap) - 1.0;
+    // If you intentionally want "stable" reflection using base normal
+    // (to reduce popping when clearcoat normal differs a lot), uncomment below:
+    vec3 R = reflect(V_norm, normalize(N)); // stable reflection choice
+    // Otherwise use coat normal (more correct per clearcoat semantics):
+    //vec3 R = reflect(V_norm, N_coat);
+    R = normalize(R);
 
-	// Modulate roughness by normal detail
-	vec3 normalVariation = normalize(clearcoatNormal) - normalize(N);
-	float bumpiness = length(normalVariation) * 0.5;
-	float modulatedRoughness = mix(clearcoatRoughness, clearcoatRoughness * 1.5, bumpiness);
-	modulatedRoughness = clamp(modulatedRoughness, 0.02, 1.0);
+    // Safely compute MAX_LOD (ensure non-negative)
+    float maxLevels = textureQueryLevels(prefilterMap);
+    float MAX_LOD = max(maxLevels - 1.0, 0.0);
 
-	float lod = modulatedRoughness * MAX_LOD;
+    // Modulate roughness by normal detail (optional artistic tweak)
+    vec3 normalVariation = N_coat - normalize(N); // N should be in same space as N_coat
+    float bumpiness = length(normalVariation) * 0.5;
+    float modulatedRoughness = mix(clearcoatRoughness, clearcoatRoughness * 1.5, bumpiness);
+    modulatedRoughness = clamp(modulatedRoughness, 0.02, 1.0);
 
-	vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+    // Map roughness to LOD. Many engines use linear; some use squared mapping.
+    // Choose mapping consistent with your prefilter generation:
+    //float lod = modulatedRoughness * MAX_LOD;         // linear
+    float lod = (modulatedRoughness * modulatedRoughness) * MAX_LOD; // perceptual-ish		
+    lod = clamp(lod, 0.0, MAX_LOD);
 
-	vec3 F0_clearcoat = vec3(0.04);
-	float dotNV = clamp(dot(clearcoatNormal, V), 0.0, 1.0);
+    // Sample prefiltered environment (cubemap) using reflection vector + lod
+    vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
 
-	vec2 brdf = texture(brdfLUT, vec2(dotNV, modulatedRoughness)).rg;
-	vec3 F = fresnelSchlick(dotNV, F0_clearcoat);
+    // Fresnel inputs: use N·V with coat normal (common IBL approximation)
+    float dotNV = clamp(dot(N, V_norm), 0.0, 1.0);
 
-	// Simplified: proper BRDF lookup replaces environment weighting
-	vec3 specIBL = prefilteredColor * (F * brdf.x + brdf.y);
+    // Sample BRDF LUT (expects NdotV, roughness)
+    vec2 brdf = texture(brdfLUT, vec2(dotNV, modulatedRoughness)).rg;
 
-	// Fresnel effect: more transparent at grazing (natural Fresnel, no boost)
-	// This lets normal detail show through
-	float iblAttenuation = mix(1.0, 0.3, modulatedRoughness);
-	float globalScale = 0.5;
+    // Fresnel for coat (dielectric F0)
+    vec3 F0_clearcoat = vec3(0.04);
+    vec3 F = fresnelSchlickRoughness(dotNV, F0_clearcoat, modulatedRoughness);
 
-	return specIBL * clearcoat * iblAttenuation * globalScale;
+    // Compose: prefilteredColor * (F * scale + bias) per standard split-sum approx.
+    vec3 specIBL = prefilteredColor * (F * brdf.x + brdf.y);
+
+    // Optional attenuation / artistic scaling:
+    float iblAttenuation = mix(0.4, 0.25, modulatedRoughness); // reduces IBL at high roughness
+    // You may calibrate or remove this; it's an artistic tweak.
+    float globalScale = 0.2; // calibrate to your environment exposure
+
+    // Multiply by clearcoat mask
+    return specIBL * clearcoat * iblAttenuation * globalScale;
 }
+
 
 // ==== NEW GLTF EXTENSION IMPLEMENTATIONS ====
 // KHR_materials_anisotropy
