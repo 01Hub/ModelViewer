@@ -1037,7 +1037,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		// Apply emissive
 		vec3 emissive_L = material.emission;
-		if (hasEmissiveTexture) emissive_L = texture(texture_emissive, getEmissiveUV()).rgb * emissiveStrength;
+		if (hasEmissiveTexture) emissive_L = texture(texture_emissive, getEmissiveUV()).rgb * material.emission;
 
 		// Apply emissive strength
 		emissive_L *= emissiveStrength;
@@ -1298,7 +1298,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// EMISSION
 	// ============================================================================
 	vec3 emissive_L = material.emission;
-	if (hasEmissiveTexture) emissive_L = texture(texture_emissive, getEmissiveUV()).rgb;
+	if (hasEmissiveTexture) emissive_L = texture(texture_emissive, getEmissiveUV()).rgb * material.emission;
 
 	// Apply emissive strength
 	emissive_L *= emissiveStrength;
