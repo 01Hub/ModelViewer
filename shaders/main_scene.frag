@@ -1130,15 +1130,15 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (hasSheenColorMap)
 	{
 		vec3 sc = texture(sheenColorMap, getSheenColorUV()).rgb;
-		sheenColor = sc;
+		sheenColor = sc * pbrLighting.sheenColor;
 	}
 	else
 	{
 		sheenColor = pbrLighting.sheenColor;
 	}
-
-	sheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, getSheenRoughnessUV()).r : pbrLighting.sheenRoughness;
-	sheenRoughness = max(sheenRoughness, 0.0001);  // Minimum to broaden lobe
+	sheenColor = clamp(sheenColor, vec3(0.0), vec3(1.0));
+	sheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, getSheenRoughnessUV()).r * pbrLighting.sheenRoughness : pbrLighting.sheenRoughness;
+	sheenRoughness = clamp(sheenRoughness, 0.0001, 1.0);
 
 	vec3 sheen_L = vec3(0.0);
 	vec3 sheenIBL_L = vec3(0.0);
@@ -1163,8 +1163,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// ============================================================================
 	// CLEARCOAT LAYER (WITH F90)
 	// ============================================================================
-	clearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r : pbrLighting.clearcoat;
-	clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).r : pbrLighting.clearcoatRoughness;
+	clearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r * pbrLighting.clearcoat : pbrLighting.clearcoat;
+	clearcoat = clamp(clearcoat, 0.0, 1.0);
+	clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).r * pbrLighting.clearcoatRoughness : pbrLighting.clearcoatRoughness;
 	clearcoatRoughness = clamp(clearcoatRoughness, 0.089, 1.0);
 	clearcoatNormal = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side : N;
 
@@ -1683,7 +1684,7 @@ vec3 calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor)
 	vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
 
 	// Sheen Fresnel at grazing - very strong (that's the point of sheen)
-	float dotNV = clamp(dot(N, V), 0.0, 1.0);
+	float dotNV = clamp(dot(N, V), 0.001, 1.0);
 	float sheenFresnel = pow(1.0 - dotNV, 3.0); // More aggressive than clearcoat
 
 	// Charlie geometry for the normal
