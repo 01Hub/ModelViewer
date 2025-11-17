@@ -357,9 +357,7 @@ float   distributionGGX(vec3 N, vec3 H, float roughness);
 float   geometrySchlickGGX(float NdotV, float roughness);
 float   geometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3    fresnelSchlick(float cosTheta, vec3 F0);
-vec3	fresnelSchlick(float cosTheta, vec3 F0, vec3 F90);
 vec3    fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
-vec3    fresnelSchlickRoughness(float cosTheta, vec3 F0, vec3 F90, float roughness);
 vec2    parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale);
 vec2	applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, bool enabled);
 vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
@@ -1054,14 +1052,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// ============================================================================
 	// BASE LAYER - F0 and Material Foundation (WITH F90)
 	// ============================================================================
-	vec3 F0 = vec3(0.04);
-	vec3 F90 = vec3(1.0);  // Standard for all material types
+	vec3 F0 = vec3(0.04);	
 
 	// Apply KHR_materials_specular
 	if (specularFactor > 0.0)
 	{
-		F0 = F0 * 2.0 * specularColorFactor * specularFactor;
-		F90 = vec3(1.0);
+		F0 = F0 * 2.0 * specularColorFactor * specularFactor;		
 	}
 
 	// Mix with albedo for metals
@@ -1072,8 +1068,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (transmission > 0.0)
 	{
 		float f0_from_ior = pow((ior - 1.0) / (ior + 1.0), 2.0);
-		F0 = mix(F0, vec3(f0_from_ior), transmission);
-		F90 = vec3(1.0);
+		F0 = mix(F0, vec3(f0_from_ior), transmission);		
 	}
 	if (metallic < 0.1) F0 = max(F0, vec3(0.04));
 
@@ -1098,14 +1093,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		float NDF = distributionGGX(N, H, roughness);
 		float G = geometrySmith(N, V_direct, L, roughness);
 		// UPDATED: Added F90 parameter
-		vec3 F = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0, F90);
+		vec3 F = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0);
 		specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V_direct), 0.0) * max(dot(N, L), 0.0), 0.001);
 	}
 
 	specBRDF *= 1.5;
 
 	// UPDATED: Added F90 parameter
-	vec3 kS = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0, F90);
+	vec3 kS = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0);
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
 	float NdotL = max(dot(N, L), 0.0);
@@ -1181,10 +1176,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		clearcoatIBL_L = calculateClearcoatIBL(g_reflectionNormal, V_reflect, clearcoatNormal, clearcoatRoughness, clearcoat);
 
 		// Calculate clearcoat Fresnel to attenuate base material
-		vec3 F0_clearcoat = vec3(0.04);
-		vec3 F90_clearcoat = vec3(1.0);
+		vec3 F0_clearcoat = vec3(0.04);		
 		// UPDATED: Added F90 parameter
-		float clearcoatFresnel = fresnelSchlick(max(dot(clearcoatNormal, cameraDir), 0.0), F0_clearcoat, F90_clearcoat).r;
+		float clearcoatFresnel = fresnelSchlick(max(dot(clearcoatNormal, cameraDir), 0.0), F0_clearcoat).r;
 		clearcoatAttenuation = mix(1.0, 1.0 - clearcoat * clearcoatFresnel, 0.5);
 	}
 
@@ -1254,7 +1248,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	{
 		float dotNV = max(dot(N, V_direct), 0.0);
 		// UPDATED: Added F90 parameter
-		vec3 Fibl = fresnelSchlickRoughness(dotNV, F0, F90, roughness);
+		vec3 Fibl = fresnelSchlickRoughness(dotNV, F0, roughness);
 		vec3 kSibl = Fibl;
 		vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
 
@@ -1287,7 +1281,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	else
 	{
 		// UPDATED: Added F90 parameter
-		vec3 kS0 = fresnelSchlick(max(dot(N, V_direct), 0.0), F0, F90);
+		vec3 kS0 = fresnelSchlick(max(dot(N, V_direct), 0.0), F0);
 		vec3 kD0 = (vec3(1.0) - kS0) * (1.0 - metallic);
 		float boostedAO = mix(1.0, ambientOcclusion, 0.8);
 		ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
@@ -2366,21 +2360,10 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
 	return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
-
-vec3 fresnelSchlick(float cosTheta, vec3 F0, vec3 F90)
-{
-    return F0 + (F90 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-}
-
 // ----------------------------------------------------------------------------
 vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
 {
 	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
-}
-
-vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, vec3 F90, float roughness)
-{
-    return F0 + (F90 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
 // http://ogldev.atspace.co.uk/www/tutorial26/tutorial26.html
