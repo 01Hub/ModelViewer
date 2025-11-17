@@ -357,7 +357,7 @@ float   distributionGGX(vec3 N, vec3 H, float roughness);
 float   geometrySchlickGGX(float NdotV, float roughness);
 float   geometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3    fresnelSchlick(float cosTheta, vec3 F0);
-vec3    fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness);
+vec3    fresnelSchlick(float cosTheta, vec3 F0, vec3 F90);
 vec2    parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale);
 vec2	applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, bool enabled);
 vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
@@ -1050,7 +1050,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	// ============================================================================
-	// BASE LAYER - F0 and Material Foundation (WITH F90)
+	// BASE LAYER - F0 and Material Foundation
 	// ============================================================================
 	vec3 F0 = vec3(0.04);	
 
@@ -1062,8 +1062,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	// Mix with albedo for metals
 	F0 = mix(F0, albedo, metallic);
-	// F90 remains 1.0 for all materials
-
+	
 	// Transmission IOR override
 	if (transmission > 0.0)
 	{
@@ -1077,7 +1076,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 B = normalize(cross(N, T));
 
 	// ============================================================================
-	// DIFFUSE & SPECULAR BASE LAYER (WITH F90)
+	// DIFFUSE & SPECULAR BASE LAYER
 	// ============================================================================
 	vec3 H = normalize(V_direct + L);
 
@@ -1091,15 +1090,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	{
 		// Standard isotropic GGX
 		float NDF = distributionGGX(N, H, roughness);
-		float G = geometrySmith(N, V_direct, L, roughness);
-		// UPDATED: Added F90 parameter
+		float G = geometrySmith(N, V_direct, L, roughness);		
 		vec3 F = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0);
 		specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V_direct), 0.0) * max(dot(N, L), 0.0), 0.001);
 	}
 
 	specBRDF *= 1.5;
 
-	// UPDATED: Added F90 parameter
 	vec3 kS = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0);
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
@@ -1158,7 +1155,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	// ============================================================================
-	// CLEARCOAT LAYER (WITH F90)
+	// CLEARCOAT LAYER
 	// ============================================================================
 	clearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r * pbrLighting.clearcoat : pbrLighting.clearcoat;
 	clearcoat = clamp(clearcoat, 0.0, 1.0);
@@ -1177,7 +1174,6 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		// Calculate clearcoat Fresnel to attenuate base material
 		vec3 F0_clearcoat = vec3(0.04);		
-		// UPDATED: Added F90 parameter
 		float clearcoatFresnel = fresnelSchlick(max(dot(clearcoatNormal, cameraDir), 0.0), F0_clearcoat).r;
 		clearcoatAttenuation = mix(1.0, 1.0 - clearcoat * clearcoatFresnel, 0.5);
 	}
@@ -1186,7 +1182,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	directSpecular_L += clearcoat_L * lightSource.specular;
 
 	// ============================================================================
-	// IRIDESCENCE LAYER (WITH F90)
+	// IRIDESCENCE LAYER
 	// ============================================================================
 	vec3 iridescenceF0 = vec3(0.0);
 
@@ -1237,7 +1233,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	// ============================================================================
-	// IBL - IMAGE BASED LIGHTING (WITH F90)
+	// IBL - IMAGE BASED LIGHTING
 	// ============================================================================
 	vec3 irradiance = texture(irradianceMap, N).rgb;
 	vec3 diffuseIBL_L = irradiance * albedo;
@@ -1247,41 +1243,38 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (envMapEnabled)
 	{
 		float dotNV = max(dot(N, V_direct), 0.0);
-		// UPDATED: Added F90 parameter
-		vec3 Fibl = fresnelSchlickRoughness(dotNV, F0, roughness);
+	
+		// Compute effective F90 based on roughness
+		vec3 F90_effective = max(vec3(1.0 - roughness), F0);
+	
+		// Use standard fresnelSchlick with the computed F90
+		vec3 Fibl = fresnelSchlick(dotNV, F0, F90_effective);
+	
 		vec3 kSibl = Fibl;
 		vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
-
+	
 		// Use cached reflection view
 		vec3 R = reflect(V_reflect, g_reflectionNormal);
-
 		const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
-
 		float lod = roughness * MAX_REFLECTION_LOD;
 		lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
-
 		vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
-		prefilteredColor = max(prefilteredColor, vec3(0.0)); // clamp negatives
-
-		// Apply envMapExposure to specular IBL
+		prefilteredColor = max(prefilteredColor, vec3(0.0));
 		prefilteredColor *= envMapExposure;
-
+	
 		vec2 brdf = texture(brdfLUT, vec2(dotNV, roughness)).rg;
 		brdf = max(brdf, vec2(0.0));
+	
 		specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
-
-		// Apply exposure to diffuse IBL too
+	
 		diffuseIBL_L = irradiance * albedo;
-
 		float diffuseAO = mix(1.0, ambientOcclusion, 0.6);
 		float specularAO = mix(1.0, ambientOcclusion, 0.2);
-
 		ambient_L = (kDibl * diffuseIBL_L) * diffuseAO + specIBL_L * specularAO;
 	}
 	else
 	{
-		// UPDATED: Added F90 parameter
-		vec3 kS0 = fresnelSchlick(max(dot(N, V_direct), 0.0), F0);
+		vec3 kS0 = fresnelSchlick(max(dot(N, V_direct), 0.0), F0, vec3(1.0));
 		vec3 kD0 = (vec3(1.0) - kS0) * (1.0 - metallic);
 		float boostedAO = mix(1.0, ambientOcclusion, 0.8);
 		ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
@@ -1718,7 +1711,7 @@ vec3 calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor)
     float mappedRough = max(0.002, r * r);
 
     // Fresnel for sheen on IBL path — use roughness-aware Schlick
-    vec3 F_sheen = fresnelSchlickRoughness(dotNV, sheenColor, sheenRoughness);
+    vec3 F_sheen = fresnelSchlick(dotNV, sheenColor);
 
     // Geometry factor (Charlie) — single-term using NdotV is OK for IBL
     float G = geometryCharlie(dotNV, mappedRough);
@@ -1825,7 +1818,7 @@ vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal,
 
     // Fresnel for coat (dielectric F0)
     vec3 F0_clearcoat = vec3(0.04);
-    vec3 F = fresnelSchlickRoughness(dotNV, F0_clearcoat, modulatedRoughness);
+    vec3 F = fresnelSchlick(dotNV, F0_clearcoat);
 
     // Compose: prefilteredColor * (F * scale + bias) per standard split-sum approx.
     vec3 specIBL = prefilteredColor * (F * brdf.x + brdf.y);
@@ -2358,13 +2351,14 @@ float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
 // ----------------------------------------------------------------------------
 vec3 fresnelSchlick(float cosTheta, vec3 F0)
 {
-	return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+	return fresnelSchlick(cosTheta, F0, vec3(1.0));
 }
-// ----------------------------------------------------------------------------
-vec3 fresnelSchlickRoughness(float cosTheta, vec3 F0, float roughness)
+
+vec3 fresnelSchlick(float cosTheta, vec3 F0, vec3 F90)
 {
-	return F0 + (max(vec3(1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+	return F0 + (F90 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
+
 
 // http://ogldev.atspace.co.uk/www/tutorial26/tutorial26.html
 // Robust calcBumpedNormal: uses provided mesh tangent & bitangent, preserves handedness
