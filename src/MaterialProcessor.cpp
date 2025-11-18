@@ -6,149 +6,149 @@ using namespace std;
 
 MaterialProcessor::MaterialProcessor() : _folderPath("")
 {
-    initializeOpenGLFunctions();
+	initializeOpenGLFunctions();
 }
 
 MaterialProcessor::MaterialProcessor(std::string& folderPath) : _folderPath(folderPath)
 {
-    initializeOpenGLFunctions();
+	initializeOpenGLFunctions();
 }
 
 void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& mat)
 {
-    if (!material)
-    {
-        setDefaultMaterial(mat);
-        return;
-    }
+	if (!material)
+	{
+		setDefaultMaterial(mat);
+		return;
+	}
 
 	// debugging: print material name
-    /*for (unsigned int i = 0; i < material->mNumProperties; ++i)
-    {
-        const aiMaterialProperty* prop = material->mProperties[i];
-        std::cout << "Property: " << prop->mKey.C_Str() << std::endl;
-    }*/
+	/*for (unsigned int i = 0; i < material->mNumProperties; ++i)
+	{
+		const aiMaterialProperty* prop = material->mProperties[i];
+		std::cout << "Property: " << prop->mKey.C_Str() << std::endl;
+	}*/
 
-    /*for (unsigned int i = 0; i < material->mNumProperties; ++i)
-    {
-        const aiMaterialProperty* prop = material->mProperties[i];
-        std::cout << "Property: key=\"" << prop->mKey.C_Str()
-            << "\" index=" << prop->mIndex
-            << " type=" << (int)prop->mType
-            << " dataLen=" << prop->mDataLength
-            << " semantic=" << prop->mSemantic
-            << std::endl;
-    }*/
+	/*for (unsigned int i = 0; i < material->mNumProperties; ++i)
+	{
+		const aiMaterialProperty* prop = material->mProperties[i];
+		std::cout << "Property: key=\"" << prop->mKey.C_Str()
+			<< "\" index=" << prop->mIndex
+			<< " type=" << (int)prop->mType
+			<< " dataLen=" << prop->mDataLength
+			<< " semantic=" << prop->mSemantic
+			<< std::endl;
+	}*/
 
 
 
-    // Initialize default values
-    aiColor3D color(0.f, 0.f, 0.f);
-    float value = 0.0f;
-    int intValue = 0;
+	// Initialize default values
+	aiColor3D color(0.f, 0.f, 0.f);
+	float value = 0.0f;
+	int intValue = 0;
 
-    // === PBR Material Properties ===
+	// === PBR Material Properties ===
 
-    // Albedo/Base Color (prioritize PBR over legacy diffuse)
-    if (AI_SUCCESS == material->Get(AI_MATKEY_BASE_COLOR, color) ||
-        AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, color))
-    {
-        mat.setAlbedoColor(QVector3D(color.r, color.g, color.b));
-        mat.setDiffuse(QVector3D(color.r, color.g, color.b)); // Legacy compatibility
-    }
-    else
-    {
-        mat.setAlbedoColor(QVector3D(0.8f, 0.8f, 0.8f));
-        mat.setDiffuse(QVector3D(0.8f, 0.8f, 0.8f));
-    }
+	// Albedo/Base Color (prioritize PBR over legacy diffuse)
+	if (AI_SUCCESS == material->Get(AI_MATKEY_BASE_COLOR, color) ||
+		AI_SUCCESS == material->Get(AI_MATKEY_COLOR_DIFFUSE, color))
+	{
+		mat.setAlbedoColor(QVector3D(color.r, color.g, color.b));
+		mat.setDiffuse(QVector3D(color.r, color.g, color.b)); // Legacy compatibility
+	}
+	else
+	{
+		mat.setAlbedoColor(QVector3D(0.8f, 0.8f, 0.8f));
+		mat.setDiffuse(QVector3D(0.8f, 0.8f, 0.8f));
+	}
 
-    // Metallic Factor
-    if (AI_SUCCESS == material->Get(AI_MATKEY_METALLIC_FACTOR, value))
-    {
-        mat.setMetalness(std::clamp(value, 0.0f, 1.0f));
-    }
-    else
-    {
-        // Fallback: derive from specular color for legacy materials
-        if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, color))
-        {
-            mat.setSpecular(QVector3D(color.r, color.g, color.b));
+	// Metallic Factor
+	if (AI_SUCCESS == material->Get(AI_MATKEY_METALLIC_FACTOR, value))
+	{
+		mat.setMetalness(std::clamp(value, 0.0f, 1.0f));
+	}
+	else
+	{
+		// Fallback: derive from specular color for legacy materials
+		if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_SPECULAR, color))
+		{
+			mat.setSpecular(QVector3D(color.r, color.g, color.b));
 
-            // Convert specular to metallic approximation
-            bool isGrayscale = (std::abs(color.r - color.g) < 0.01f &&
-                std::abs(color.g - color.b) < 0.01f);
-            float intensity = 0.299f * color.r + 0.587f * color.g + 0.114f * color.b;
+			// Convert specular to metallic approximation
+			bool isGrayscale = (std::abs(color.r - color.g) < 0.01f &&
+				std::abs(color.g - color.b) < 0.01f);
+			float intensity = 0.299f * color.r + 0.587f * color.g + 0.114f * color.b;
 
-            if (isGrayscale && intensity > 0.9f)
-            {
-                mat.setMetalness(0.8f); // Likely metallic
-            }
-            else if (intensity > 0.5f)
-            {
-                mat.setMetalness(0.3f); // Semi-metallic
-            }
-            else
-            {
-                mat.setMetalness(0.0f); // Dielectric
-            }
-        }
-        else
-        {
-            mat.setSpecular(QVector3D(0.04f, 0.04f, 0.04f)); // Default dielectric F0
-            mat.setMetalness(0.0f);
-        }
-    }
+			if (isGrayscale && intensity > 0.9f)
+			{
+				mat.setMetalness(0.8f); // Likely metallic
+			}
+			else if (intensity > 0.5f)
+			{
+				mat.setMetalness(0.3f); // Semi-metallic
+			}
+			else
+			{
+				mat.setMetalness(0.0f); // Dielectric
+			}
+		}
+		else
+		{
+			mat.setSpecular(QVector3D(0.04f, 0.04f, 0.04f)); // Default dielectric F0
+			mat.setMetalness(0.0f);
+		}
+	}
 
-    // Roughness Factor
-    if (AI_SUCCESS == material->Get(AI_MATKEY_ROUGHNESS_FACTOR, value))
-    {
-        mat.setRoughness(std::clamp(value, 0.01f, 1.0f)); // Avoid zero roughness
-    }
-    else if (AI_SUCCESS == material->Get(AI_MATKEY_SHININESS, value))
-    {
-        // Convert shininess to roughness (Phong to PBR approximation)
-        float roughness = std::sqrt(2.0f / (value + 2.0f));
-        mat.setRoughness(std::clamp(roughness, 0.01f, 1.0f));
-    }
-    else
-    {
-        mat.setRoughness(0.8f); // Default medium roughness
-    }
+	// Roughness Factor
+	if (AI_SUCCESS == material->Get(AI_MATKEY_ROUGHNESS_FACTOR, value))
+	{
+		mat.setRoughness(std::clamp(value, 0.01f, 1.0f)); // Avoid zero roughness
+	}
+	else if (AI_SUCCESS == material->Get(AI_MATKEY_SHININESS, value))
+	{
+		// Convert shininess to roughness (Phong to PBR approximation)
+		float roughness = std::sqrt(2.0f / (value + 2.0f));
+		mat.setRoughness(std::clamp(roughness, 0.01f, 1.0f));
+	}
+	else
+	{
+		mat.setRoughness(0.8f); // Default medium roughness
+	}
 
-    // === Additional Material Properties ===
+	// === Additional Material Properties ===
 
-    // Ambient (for legacy lighting models)
-    if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, color))
-    {
-        mat.setAmbient(QVector3D(color.r, color.g, color.b));
-    }
-    else
-    {
-        // Derive ambient from albedo with reduced intensity
-        QVector3D albedo = mat.getAlbedoColor();
-        mat.setAmbient(albedo * 0.1f);
-    }
+	// Ambient (for legacy lighting models)
+	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_AMBIENT, color))
+	{
+		mat.setAmbient(QVector3D(color.r, color.g, color.b));
+	}
+	else
+	{
+		// Derive ambient from albedo with reduced intensity
+		QVector3D albedo = mat.getAlbedoColor();
+		mat.setAmbient(albedo * 0.1f);
+	}
 
-    // Emissive
-    if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
-    {
-        mat.setEmissive(QVector3D(color.r, color.g, color.b));
+	// Emissive
+	if (AI_SUCCESS == material->Get(AI_MATKEY_COLOR_EMISSIVE, color))
+	{
+		mat.setEmissive(QVector3D(color.r, color.g, color.b));
 
-        // Set emissive strength if available
-        if (AI_SUCCESS == material->Get(AI_MATKEY_EMISSIVE_INTENSITY, value))
-        {
-            mat.setEmissiveStrength(value);
-        }
-    }
-    else
-    {
-        mat.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
-        mat.setEmissiveStrength(1.0f);
-    }
+		// Set emissive strength if available
+		if (AI_SUCCESS == material->Get(AI_MATKEY_EMISSIVE_INTENSITY, value))
+		{
+			mat.setEmissiveStrength(value);
+		}
+	}
+	else
+	{
+		mat.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
+		mat.setEmissiveStrength(1.0f);
+	}
 
 	// Opacity/Transparency
 	// --- Opacity / Transparency ---
-    // MTL: d = opacity ; Tr = transparency
+	// MTL: d = opacity ; Tr = transparency
 	float dVal = 1.0f;  bool hasD = (material->Get(AI_MATKEY_OPACITY, dVal) == AI_SUCCESS);
 	float trVal = 0.0f;  bool hasTr = (material->Get(AI_MATKEY_TRANSPARENCYFACTOR, trVal) == AI_SUCCESS);
 
@@ -161,7 +161,7 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
 	// Use the most transparent interpretation when both are present
 	float finalOpacity = std::min(fromD, fromTr);
 
-    if(finalOpacity == 0)
+	if (finalOpacity == 0)
 		finalOpacity = 1.0f; // Avoid fully transparent materials by default
 
 	// No "opacity == 0 -> 1" fallback; 0.0 is valid (fully transparent)
@@ -173,285 +173,285 @@ void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& ma
 		mat.setBlendMode(GLMaterial::BlendMode::Alpha);
 	}
 
-    // Blend mode for transparency
-    if (finalOpacity < 1.0f)
-    {
-        // Determine blend mode based on material properties
-        if (AI_SUCCESS == material->Get(AI_MATKEY_BLEND_FUNC, intValue))
-        {
-            setBlendMode(mat, static_cast<aiBlendMode>(intValue));
-        }
-        else
-        {
-            // Default to alpha blending for transparent materials
-            mat.setBlendMode(GLMaterial::BlendMode::Alpha);
-        }
-    }
+	// Blend mode for transparency
+	if (finalOpacity < 1.0f)
+	{
+		// Determine blend mode based on material properties
+		if (AI_SUCCESS == material->Get(AI_MATKEY_BLEND_FUNC, intValue))
+		{
+			setBlendMode(mat, static_cast<aiBlendMode>(intValue));
+		}
+		else
+		{
+			// Default to alpha blending for transparent materials
+			mat.setBlendMode(GLMaterial::BlendMode::Alpha);
+		}
+	}
 
-    // Index of Refraction (IOR)
-    if (AI_SUCCESS == material->Get(AI_MATKEY_REFRACTI, value))
-    {
-        mat.setIOR(std::clamp(value, 1.0f, 3.0f)); // Physically plausible range
-    }
-    else
-    {
-        mat.setIOR(1.5f); // Default glass IOR
-    }
+	// Index of Refraction (IOR)
+	if (AI_SUCCESS == material->Get(AI_MATKEY_REFRACTI, value))
+	{
+		mat.setIOR(std::clamp(value, 1.0f, 3.0f)); // Physically plausible range
+	}
+	else
+	{
+		mat.setIOR(1.5f); // Default glass IOR
+	}
 
-    // === Advanced Properties ===
+	// === Advanced Properties ===
 
-    // Clearcoat (if supported by your material system)
-    if (AI_SUCCESS == material->Get(AI_MATKEY_CLEARCOAT_FACTOR, value))
-    {
-        mat.setClearcoat(std::clamp(value, 0.0f, 1.0f));		
-        if (AI_SUCCESS == material->Get(AI_MATKEY_CLEARCOAT_ROUGHNESS_FACTOR, value))
-        {
-            mat.setClearcoatRoughness(std::clamp(value, 0.0f, 1.0f));            
-        }		
-    }
+	// Clearcoat (if supported by your material system)
+	if (AI_SUCCESS == material->Get(AI_MATKEY_CLEARCOAT_FACTOR, value))
+	{
+		mat.setClearcoat(std::clamp(value, 0.0f, 1.0f));
+		if (AI_SUCCESS == material->Get(AI_MATKEY_CLEARCOAT_ROUGHNESS_FACTOR, value))
+		{
+			mat.setClearcoatRoughness(std::clamp(value, 0.0f, 1.0f));
+		}
+	}
 
-    // Sheen (for fabric-like materials)
-    if (AI_SUCCESS == material->Get(AI_MATKEY_SHEEN_COLOR_FACTOR, color))
-    {
-        mat.setSheenColor(QVector3D(color.r, color.g, color.b));
+	// Sheen (for fabric-like materials)
+	if (AI_SUCCESS == material->Get(AI_MATKEY_SHEEN_COLOR_FACTOR, color))
+	{
+		mat.setSheenColor(QVector3D(color.r, color.g, color.b));
 
-        if (AI_SUCCESS == material->Get(AI_MATKEY_SHEEN_ROUGHNESS_FACTOR, value))
-        {
-            mat.setSheenRoughness(std::clamp(value, 0.0f, 1.0f));
-        }
-    }
+		if (AI_SUCCESS == material->Get(AI_MATKEY_SHEEN_ROUGHNESS_FACTOR, value))
+		{
+			mat.setSheenRoughness(std::clamp(value, 0.0f, 1.0f));
+		}
+	}
 
-    // Transmission (for glass-like materials)
-    // === TRANSMISSION TO OPACITY CONVERSION ===
-    // Convert transmission materials to opacity-based transparency
-    // This leverages the existing smooth opacity/blend pipeline
-    if (AI_SUCCESS == material->Get(AI_MATKEY_TRANSMISSION_FACTOR, value))
-    {
-        mat.setTransmission(std::clamp(value, 0.0f, 1.0f));
-    }
+	// Transmission (for glass-like materials)
+	// === TRANSMISSION TO OPACITY CONVERSION ===
+	// Convert transmission materials to opacity-based transparency
+	// This leverages the existing smooth opacity/blend pipeline
+	if (AI_SUCCESS == material->Get(AI_MATKEY_TRANSMISSION_FACTOR, value))
+	{
+		mat.setTransmission(std::clamp(value, 0.0f, 1.0f));
+	}
 
-    // Volume (KHR_materials_volume)
-    if (AI_SUCCESS == material->Get(AI_MATKEY_VOLUME_THICKNESS_FACTOR, value))
-    {
-        mat.setThicknessFactor(std::max(value, 0.0f));
-    }
+	// Volume (KHR_materials_volume)
+	if (AI_SUCCESS == material->Get(AI_MATKEY_VOLUME_THICKNESS_FACTOR, value))
+	{
+		mat.setThicknessFactor(std::max(value, 0.0f));
+	}
 
-    if (AI_SUCCESS == material->Get(AI_MATKEY_VOLUME_ATTENUATION_DISTANCE, value))
-    {
-        mat.setAttenuationDistance(std::max(value, 0.0f));
-    }
+	if (AI_SUCCESS == material->Get(AI_MATKEY_VOLUME_ATTENUATION_DISTANCE, value))
+	{
+		mat.setAttenuationDistance(std::max(value, 0.0f));
+	}
 
-    if (AI_SUCCESS == material->Get(AI_MATKEY_VOLUME_ATTENUATION_COLOR, color))
-    {
-        mat.setAttenuationColor(QVector3D(color.r, color.g, color.b));
-    }
+	if (AI_SUCCESS == material->Get(AI_MATKEY_VOLUME_ATTENUATION_COLOR, color))
+	{
+		mat.setAttenuationColor(QVector3D(color.r, color.g, color.b));
+	}
 
-    // IOR (KHR_materials_ior) - May override the basic IOR
-    if (AI_SUCCESS == material->Get("$mat.gltf.ior", 0, 0, value))
-    {
-        mat.setIOR(std::clamp(value, 1.0f, 3.0f));
-    }
+	// IOR (KHR_materials_ior) - May override the basic IOR
+	if (AI_SUCCESS == material->Get("$mat.gltf.ior", 0, 0, value))
+	{
+		mat.setIOR(std::clamp(value, 1.0f, 3.0f));
+	}
 
-    // Specular (KHR_materials_specular)
-    if (AI_SUCCESS == material->Get(AI_MATKEY_SPECULAR_FACTOR, value))
-    {
-        mat.setSpecularFactor(std::clamp(value, 0.0f, 1.0f));
-    }
+	// Specular (KHR_materials_specular)
+	if (AI_SUCCESS == material->Get(AI_MATKEY_SPECULAR_FACTOR, value))
+	{
+		mat.setSpecularFactor(std::clamp(value, 0.0f, 1.0f));
+	}
 
-    if (AI_SUCCESS == material->Get("$mat.gltf.specularColorFactor", 0, 0, color))
-    {
-        mat.setSpecularColorFactor(QVector3D(color.r, color.g, color.b));
-    }
+	if (AI_SUCCESS == material->Get("$mat.gltf.specularColorFactor", 0, 0, color))
+	{
+		mat.setSpecularColorFactor(QVector3D(color.r, color.g, color.b));
+	}
 
-    // Anisotropy (KHR_materials_anisotropy)
-    if (AI_SUCCESS == material->Get("$mat.gltf.anisotropyStrength", 0, 0, value))
-    {
-        mat.setAnisotropyStrength(std::clamp(value, 0.0f, 1.0f));
-    }
+	// Anisotropy (KHR_materials_anisotropy)
+	if (AI_SUCCESS == material->Get("$mat.gltf.anisotropyStrength", 0, 0, value))
+	{
+		mat.setAnisotropyStrength(std::clamp(value, 0.0f, 1.0f));
+	}
 
-    if (AI_SUCCESS == material->Get(AI_MATKEY_ANISOTROPY_ROTATION, value))
-    {
-        mat.setAnisotropyRotation(value);
-    }
+	if (AI_SUCCESS == material->Get(AI_MATKEY_ANISOTROPY_ROTATION, value))
+	{
+		mat.setAnisotropyRotation(value);
+	}
 
-    // Iridescence (KHR_materials_iridescence)
-    if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceFactor", 0, 0, value))
-    {
-        mat.setIridescenceFactor(std::clamp(value, 0.0f, 1.0f));
-    }
+	// Iridescence (KHR_materials_iridescence)
+	if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceFactor", 0, 0, value))
+	{
+		mat.setIridescenceFactor(std::clamp(value, 0.0f, 1.0f));
+	}
 
-    if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceIor", 0, 0, value))
-    {
-        mat.setIridescenceIor(std::clamp(value, 1.0f, 3.0f));
-    }
+	if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceIor", 0, 0, value))
+	{
+		mat.setIridescenceIor(std::clamp(value, 1.0f, 3.0f));
+	}
 
-    if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceThicknessMinimum", 0, 0, value))
-    {
-        mat.setIridescenceThicknessMin(std::max(value, 0.0f));
-    }
+	if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceThicknessMinimum", 0, 0, value))
+	{
+		mat.setIridescenceThicknessMin(std::max(value, 0.0f));
+	}
 
-    if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceThicknessMaximum", 0, 0, value))
-    {
-        mat.setIridescenceThicknessMax(std::max(value, 0.0f));
-    }
+	if (AI_SUCCESS == material->Get("$mat.gltf.iridescenceThicknessMaximum", 0, 0, value))
+	{
+		mat.setIridescenceThicknessMax(std::max(value, 0.0f));
+	}
 
-    // Emissive Strength (KHR_materials_emissive_strength)
-    if (AI_SUCCESS == material->Get(AI_MATKEY_EMISSIVE_INTENSITY, value))
-    {
-        mat.setEmissiveStrength(std::max(value, 0.0f));
-    }
+	// Emissive Strength (KHR_materials_emissive_strength)
+	if (AI_SUCCESS == material->Get(AI_MATKEY_EMISSIVE_INTENSITY, value))
+	{
+		mat.setEmissiveStrength(std::max(value, 0.0f));
+	}
 
-    // Dispersion (KHR_materials_dispersion)
-    if (AI_SUCCESS == material->Get("$mat.gltf.dispersion", 0, 0, value))
-    {
-        mat.setDispersion(std::max(value, 0.0f));
-    }
+	// Dispersion (KHR_materials_dispersion)
+	if (AI_SUCCESS == material->Get("$mat.gltf.dispersion", 0, 0, value))
+	{
+		mat.setDispersion(std::max(value, 0.0f));
+	}
 
-    // Unlit (KHR_materials_unlit)
-    if (AI_SUCCESS == material->Get("$mat.gltf.unlit", 0, 0, intValue))
-    {
-        mat.setUnlit(intValue != 0);
-    }
+	// Unlit (KHR_materials_unlit)
+	if (AI_SUCCESS == material->Get("$mat.gltf.unlit", 0, 0, intValue))
+	{
+		mat.setUnlit(intValue != 0);
+	}
 
-    // === Rendering Hints ===
-    // Two-sided material
-    if (AI_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, intValue))
-    {
-        mat.setTwoSided(intValue != 0);
-    }
+	// === Rendering Hints ===
+	// Two-sided material
+	if (AI_SUCCESS == material->Get(AI_MATKEY_TWOSIDED, intValue))
+	{
+		mat.setTwoSided(intValue != 0);
+	}
 
-    // Also check glTF double-sided property
-    if (AI_SUCCESS == material->Get("$mat.gltf.doubleSided", 0, 0, intValue))
-    {
-        mat.setTwoSided(intValue != 0);
-    }
+	// Also check glTF double-sided property
+	if (AI_SUCCESS == material->Get("$mat.gltf.doubleSided", 0, 0, intValue))
+	{
+		mat.setTwoSided(intValue != 0);
+	}
 
-    // Wireframe mode
-    if (AI_SUCCESS == material->Get(AI_MATKEY_ENABLE_WIREFRAME, intValue))
-    {
-        mat.setWireframe(intValue != 0);
-    }
+	// Wireframe mode
+	if (AI_SUCCESS == material->Get(AI_MATKEY_ENABLE_WIREFRAME, intValue))
+	{
+		mat.setWireframe(intValue != 0);
+	}
 
-    // Shading model
-    if (AI_SUCCESS == material->Get(AI_MATKEY_SHADING_MODEL, intValue))
-    {
-        setShadingModel(mat, static_cast<aiShadingMode>(intValue));
-    }
+	// Shading model
+	if (AI_SUCCESS == material->Get(AI_MATKEY_SHADING_MODEL, intValue))
+	{
+		setShadingModel(mat, static_cast<aiShadingMode>(intValue));
+	}
 
 	// Alpha cutoff for transparency for glTF materials
-    aiString alphaModeStr;
-    if (material->Get("$mat.gltf.alphaMode", 0, 0, alphaModeStr) == AI_SUCCESS)
-    {
-        std::string mode = alphaModeStr.C_Str();
-        if (mode == "BLEND")
-        {
-            mat.setBlendMode(GLMaterial::BlendMode::Alpha);
-        }
-        else if (mode == "MASK")
-        {
-            mat.setBlendMode(GLMaterial::BlendMode::Masked);
+	aiString alphaModeStr;
+	if (material->Get("$mat.gltf.alphaMode", 0, 0, alphaModeStr) == AI_SUCCESS)
+	{
+		std::string mode = alphaModeStr.C_Str();
+		if (mode == "BLEND")
+		{
+			mat.setBlendMode(GLMaterial::BlendMode::Alpha);
+		}
+		else if (mode == "MASK")
+		{
+			mat.setBlendMode(GLMaterial::BlendMode::Masked);
 
-            float cutoff = 0.5f; // Default value
-            if (material->Get("$mat.gltf.alphaCutoff", 0, 0, cutoff) == AI_SUCCESS)
-            {
-                mat.setAlphaThreshold(cutoff);
-            }
-            else
-            {
-                mat.setAlphaThreshold(0.5f); // Fallback
-            }
-        }
-        else
-        {
-            mat.setBlendMode(GLMaterial::BlendMode::Opaque);
-        }
+			float cutoff = 0.5f; // Default value
+			if (material->Get("$mat.gltf.alphaCutoff", 0, 0, cutoff) == AI_SUCCESS)
+			{
+				mat.setAlphaThreshold(cutoff);
+			}
+			else
+			{
+				mat.setAlphaThreshold(0.5f); // Fallback
+			}
+		}
+		else
+		{
+			mat.setBlendMode(GLMaterial::BlendMode::Opaque);
+		}
 
-        // Base color factor (alternative glTF property)
-        if (AI_SUCCESS == material->Get("$mat.gltf.pbrMetallicRoughness.baseColorFactor", 0, 0, color))
-        {
-            mat.setAlbedoColor(QVector3D(color.r, color.g, color.b));
-        }
+		// Base color factor (alternative glTF property)
+		if (AI_SUCCESS == material->Get("$mat.gltf.pbrMetallicRoughness.baseColorFactor", 0, 0, color))
+		{
+			mat.setAlbedoColor(QVector3D(color.r, color.g, color.b));
+		}
 
-        // Metallic and roughness factors (alternative glTF property)
-        if (AI_SUCCESS == material->Get("$mat.gltf.pbrMetallicRoughness.metallicFactor", 0, 0, value))
-        {
-            mat.setMetalness(std::clamp(value, 0.0f, 1.0f));
-        }
+		// Metallic and roughness factors (alternative glTF property)
+		if (AI_SUCCESS == material->Get("$mat.gltf.pbrMetallicRoughness.metallicFactor", 0, 0, value))
+		{
+			mat.setMetalness(std::clamp(value, 0.0f, 1.0f));
+		}
 
-        if (AI_SUCCESS == material->Get("$mat.gltf.pbrMetallicRoughness.roughnessFactor", 0, 0, value))
-        {
-            mat.setRoughness(std::clamp(value, 0.01f, 1.0f));
-        }
-    }
+		if (AI_SUCCESS == material->Get("$mat.gltf.pbrMetallicRoughness.roughnessFactor", 0, 0, value))
+		{
+			mat.setRoughness(std::clamp(value, 0.01f, 1.0f));
+		}
+	}
 
-    // === Validation and Consistency Checks ===
-    validateMaterialConsistency(mat);
+	// === Validation and Consistency Checks ===
+	validateMaterialConsistency(mat);
 }
 
 void MaterialProcessor::setShadingModel(GLMaterial& mat, aiShadingMode shadingModel)
 {
-    switch (shadingModel)
-    {
-    case aiShadingMode_Flat:
-        mat.setShadingModel(GLMaterial::ShadingModel::Unlit);
-        break;
-    case aiShadingMode_Phong:
-    case aiShadingMode_Blinn:
-        mat.setShadingModel(GLMaterial::ShadingModel::BlinnPhong);
-        break;
-    case aiShadingMode_PBR_BRDF:
-        mat.setShadingModel(GLMaterial::ShadingModel::PBR);
-        break;
-    case aiShadingMode_Unlit:
-        mat.setShadingModel(GLMaterial::ShadingModel::Unlit);
-        break;
-    default:
-        mat.setShadingModel(GLMaterial::ShadingModel::PBR); // Default to PBR
-        break;
-    }
+	switch (shadingModel)
+	{
+	case aiShadingMode_Flat:
+		mat.setShadingModel(GLMaterial::ShadingModel::Unlit);
+		break;
+	case aiShadingMode_Phong:
+	case aiShadingMode_Blinn:
+		mat.setShadingModel(GLMaterial::ShadingModel::BlinnPhong);
+		break;
+	case aiShadingMode_PBR_BRDF:
+		mat.setShadingModel(GLMaterial::ShadingModel::PBR);
+		break;
+	case aiShadingMode_Unlit:
+		mat.setShadingModel(GLMaterial::ShadingModel::Unlit);
+		break;
+	default:
+		mat.setShadingModel(GLMaterial::ShadingModel::PBR); // Default to PBR
+		break;
+	}
 }
 
 void MaterialProcessor::setBlendMode(GLMaterial& mat, aiBlendMode blendMode)
 {
-    switch (blendMode)
-    {
-    case aiBlendMode_Additive:
-        mat.setBlendMode(GLMaterial::BlendMode::Additive);
-        break;
-    case aiBlendMode_Default:
-    default:
-        mat.setBlendMode(GLMaterial::BlendMode::Alpha);
-        break;
-    }
+	switch (blendMode)
+	{
+	case aiBlendMode_Additive:
+		mat.setBlendMode(GLMaterial::BlendMode::Additive);
+		break;
+	case aiBlendMode_Default:
+	default:
+		mat.setBlendMode(GLMaterial::BlendMode::Alpha);
+		break;
+	}
 }
 
 void MaterialProcessor::validateMaterialConsistency(GLMaterial& mat)
 {
-    // Ensure metallic materials have appropriate F0 values
-    if (mat.getMetalness() > 0.5f)
-    {
-        QVector3D albedo = mat.getAlbedoColor();
-        // For metals, F0 should be derived from albedo, not be the default dielectric value
-        mat.setSpecular(albedo);
-    }
+	// Ensure metallic materials have appropriate F0 values
+	if (mat.getMetalness() > 0.5f)
+	{
+		QVector3D albedo = mat.getAlbedoColor();
+		// For metals, F0 should be derived from albedo, not be the default dielectric value
+		mat.setSpecular(albedo);
+	}
 
-    // Ensure rough metals don't have unrealistic specular values
-    if (mat.getMetalness() > 0.8f && mat.getRoughness() < 0.1f)
-    {
-        // Very smooth metals are rare in practice
-        mat.setRoughness(std::max(0.1f, mat.getRoughness()));
-    }
+	// Ensure rough metals don't have unrealistic specular values
+	if (mat.getMetalness() > 0.8f && mat.getRoughness() < 0.1f)
+	{
+		// Very smooth metals are rare in practice
+		mat.setRoughness(std::max(0.1f, mat.getRoughness()));
+	}
 
-    // Validate opacity consistency
-    if (mat.getOpacity() < 1.0f && mat.getTransmission() > 0.0f)
-    {
-        // For transmitted materials, opacity and transmission should be consistent
-        float totalTransparency = 1.0f - mat.getOpacity() + mat.getTransmission();
-        if (totalTransparency > 1.0f)
-        {
-            mat.setTransmission(1.0f - (1.0f - mat.getOpacity()));
-        }
-    }
+	// Validate opacity consistency
+	if (mat.getOpacity() < 1.0f && mat.getTransmission() > 0.0f)
+	{
+		// For transmitted materials, opacity and transmission should be consistent
+		float totalTransparency = 1.0f - mat.getOpacity() + mat.getTransmission();
+		if (totalTransparency > 1.0f)
+		{
+			mat.setTransmission(1.0f - (1.0f - mat.getOpacity()));
+		}
+	}
 }
 
 void MaterialProcessor::setDefaultMaterial(GLMaterial& mat)
@@ -461,46 +461,46 @@ void MaterialProcessor::setDefaultMaterial(GLMaterial& mat)
 
 unsigned int MaterialProcessor::textureFromFile(const char* path, bool& hasAlpha)
 {
-    //Generate texture ID and load texture data
-    unsigned int textureID;
-    glGenTextures(1, &textureID);
+	//Generate texture ID and load texture data
+	unsigned int textureID;
+	glGenTextures(1, &textureID);
 
-    QImage texImage;
-    bool imageHasAlpha = false;
+	QImage texImage;
+	bool imageHasAlpha = false;
 
-    if (!texImage.load(QString(path)))
-    { // Load first image from file
-        qWarning("MaterialProcessor::textureFromFile - Could not read image file, using single-color instead.");
-        QImage dummy(128, 128, QImage::Format_ARGB32);
-        dummy.fill(Qt::white);
-        texImage = dummy;
-        imageHasAlpha = false;        
-    }
-    else
-    {
-        texImage = convertToGLFormat(texImage);
-        // Check for meaningful alpha channel
-        if (texImage.hasAlphaChannel())
-        {
-            imageHasAlpha = checkImageForAlpha(texImage);
-        }
-    }
+	if (!texImage.load(QString(path)))
+	{ // Load first image from file
+		qWarning("MaterialProcessor::textureFromFile - Could not read image file, using single-color instead.");
+		QImage dummy(128, 128, QImage::Format_ARGB32);
+		dummy.fill(Qt::white);
+		texImage = dummy;
+		imageHasAlpha = false;
+	}
+	else
+	{
+		texImage = convertToGLFormat(texImage);
+		// Check for meaningful alpha channel
+		if (texImage.hasAlphaChannel())
+		{
+			imageHasAlpha = checkImageForAlpha(texImage);
+		}
+	}
 
 	hasAlpha = imageHasAlpha;
 
-    // Assign texture to ID
-    glBindTexture(GL_TEXTURE_2D, textureID);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texImage.width(), texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, texImage.bits());
-    glGenerateMipmap(GL_TEXTURE_2D);
+	// Assign texture to ID
+	glBindTexture(GL_TEXTURE_2D, textureID);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texImage.width(), texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, texImage.bits());
+	glGenerateMipmap(GL_TEXTURE_2D);
 
-    // Parameters
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-    glBindTexture(GL_TEXTURE_2D, 0);
+	// Parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glBindTexture(GL_TEXTURE_2D, 0);
 
-    return textureID;
+	return textureID;
 }
 
 
@@ -521,715 +521,763 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, bool& hasAlpha
 */
 
 void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
-    const QString& gltfPath,
-    const aiScene* scene,
-    unsigned int materialIndex,
-    GLMaterial& outMaterial,
-    std::vector<Texture>& outTextures)
+	const QString& gltfPath,
+	const aiScene* scene,
+	unsigned int materialIndex,
+	GLMaterial& outMaterial,
+	std::vector<Texture>& outTextures)
 {
-    if (!scene)
-    {
-        qWarning() << "applyGltfMaterialExtensionsToMaterial: scene is null";
-        return;
-    }
+	if (!scene)
+	{
+		qWarning() << "applyGltfMaterialExtensionsToMaterial: scene is null";
+		return;
+	}
 
-    // Early skip for non-.gltf paths
-    if (!gltfPath.endsWith(".gltf", Qt::CaseInsensitive))
-    {
-        return;
-    }
+	// Early skip for non-.gltf paths
+	if (!gltfPath.endsWith(".gltf", Qt::CaseInsensitive))
+	{
+		return;
+	}
 
-    if (materialIndex >= static_cast<unsigned int>(scene->mNumMaterials))
-    {
-        qWarning() << "applyGltfMaterialExtensionsToMaterial: materialIndex out of range:" << materialIndex;
-        return;
-    }
+	if (materialIndex >= static_cast<unsigned int>(scene->mNumMaterials))
+	{
+		qWarning() << "applyGltfMaterialExtensionsToMaterial: materialIndex out of range:" << materialIndex;
+		return;
+	}
 
-    // simple cached JSON per file
-    static QHash<QString, QJsonDocument> s_gltfJsonCache;
-    QJsonDocument doc;
-    if (s_gltfJsonCache.contains(gltfPath))
-    {
-        doc = s_gltfJsonCache.value(gltfPath);
-    }
-    else
-    {
-        QFile f(gltfPath);
-        if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
-        {
-            qWarning() << "applyGltfMaterialExtensionsToMaterial: cannot open glTF:" << gltfPath;
-            return;
-        }
-        QByteArray bytes = f.readAll();
-        f.close();
+	// simple cached JSON per file
+	static QHash<QString, QJsonDocument> s_gltfJsonCache;
+	QJsonDocument doc;
+	if (s_gltfJsonCache.contains(gltfPath))
+	{
+		doc = s_gltfJsonCache.value(gltfPath);
+	}
+	else
+	{
+		QFile f(gltfPath);
+		if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+		{
+			qWarning() << "applyGltfMaterialExtensionsToMaterial: cannot open glTF:" << gltfPath;
+			return;
+		}
+		QByteArray bytes = f.readAll();
+		f.close();
 
-        QJsonParseError perr;
-        doc = QJsonDocument::fromJson(bytes, &perr);
-        if (perr.error != QJsonParseError::NoError)
-        {
-            qWarning() << "applyGltfMaterialExtensionsToMaterial: JSON parse error:" << perr.errorString();
-            return;
-        }
-        s_gltfJsonCache.insert(gltfPath, doc);
-    }
+		QJsonParseError perr;
+		doc = QJsonDocument::fromJson(bytes, &perr);
+		if (perr.error != QJsonParseError::NoError)
+		{
+			qWarning() << "applyGltfMaterialExtensionsToMaterial: JSON parse error:" << perr.errorString();
+			return;
+		}
+		s_gltfJsonCache.insert(gltfPath, doc);
+	}
 
-    if (!doc.isObject())
-    {
-        qWarning() << "applyGltfMaterialExtensionsToMaterial: invalid JSON root for" << gltfPath;
-        return;
-    }
+	if (!doc.isObject())
+	{
+		qWarning() << "applyGltfMaterialExtensionsToMaterial: invalid JSON root for" << gltfPath;
+		return;
+	}
 
-    QJsonObject root = doc.object();
-    QJsonArray jsonMaterials = root.value("materials").toArray();
-    QJsonArray jsonTextures = root.value("textures").toArray();
-    QJsonArray jsonImages = root.value("images").toArray();
+	QJsonObject root = doc.object();
+	QJsonArray jsonMaterials = root.value("materials").toArray();
+	QJsonArray jsonTextures = root.value("textures").toArray();
+	QJsonArray jsonImages = root.value("images").toArray();
 
-    // Utility: resolve a relative image URI against the gltf file path (returns data: URIs as-is)
-    auto resolveUri = [&](const QString& uri) -> QString {
-        if (uri.startsWith("data:")) return uri;
-        QFileInfo fi(gltfPath);
-        return QDir(fi.absolutePath()).absoluteFilePath(uri);
-        };
+	// Utility: resolve a relative image URI against the gltf file path (returns data: URIs as-is)
+	auto resolveUri = [&](const QString& uri) -> QString {
+		if (uri.startsWith("data:")) return uri;
+		QFileInfo fi(gltfPath);
+		return QDir(fi.absolutePath()).absoluteFilePath(uri);
+		};
 
-    // Utility: texture index -> image URI (external .gltf only)
-    // Handles both standard textures and EXT_texture_webp wrapped textures
-    auto resolveTextureUri = [&](int texIndex) -> QString {
-        if (texIndex < 0 || texIndex >= jsonTextures.size()) return QString();
-        QJsonObject texObj = jsonTextures.at(texIndex).toObject();
+	// Utility: texture index -> image URI (external .gltf only)
+	// Handles both standard textures and EXT_texture_webp wrapped textures
+	auto resolveTextureUri = [&](int texIndex) -> QString {
+		if (texIndex < 0 || texIndex >= jsonTextures.size()) return QString();
+		QJsonObject texObj = jsonTextures.at(texIndex).toObject();
 
-        int imgIndex = -1;
+		int imgIndex = -1;
 
-        // Try EXT_texture_webp extension first
-        if (texObj.contains("extensions"))
-        {
-            QJsonObject extObj = texObj.value("extensions").toObject();
-            if (extObj.contains("EXT_texture_webp"))
-            {
-                QJsonObject webpObj = extObj.value("EXT_texture_webp").toObject();
-                imgIndex = webpObj.value("source").toInt(-1);
-            }
-        }
+		// Try EXT_texture_webp extension first
+		if (texObj.contains("extensions"))
+		{
+			QJsonObject extObj = texObj.value("extensions").toObject();
+			if (extObj.contains("EXT_texture_webp"))
+			{
+				QJsonObject webpObj = extObj.value("EXT_texture_webp").toObject();
+				imgIndex = webpObj.value("source").toInt(-1);
+			}
+		}
 
-        // Fallback to standard "source" property
-        if (imgIndex < 0 && texObj.contains("source"))
-        {
-            imgIndex = texObj.value("source").toInt(-1);
-        }
+		// Fallback to standard "source" property
+		if (imgIndex < 0 && texObj.contains("source"))
+		{
+			imgIndex = texObj.value("source").toInt(-1);
+		}
 
-        // Resolve image
-        if (imgIndex < 0 || imgIndex >= jsonImages.size()) return QString();
-        QJsonObject imgObj = jsonImages.at(imgIndex).toObject();
-        if (imgObj.contains("uri") && imgObj.value("uri").isString())
-        {
-            return resolveUri(imgObj.value("uri").toString());
-        }
-        return QString();
-        };
+		// Resolve image
+		if (imgIndex < 0 || imgIndex >= jsonImages.size()) return QString();
+		QJsonObject imgObj = jsonImages.at(imgIndex).toObject();
+		if (imgObj.contains("uri") && imgObj.value("uri").isString())
+		{
+			return resolveUri(imgObj.value("uri").toString());
+		}
+		return QString();
+		};
 
-    // Helper to extract UV transform from a texture object
-    auto extractTextureTransform = [](const QJsonObject& texObj) -> std::tuple<int, glm::vec2, glm::vec2, float> {
-        int texCoord = texObj.value("texCoord").toInt(0);
-        glm::vec2 scale(1.0f, 1.0f);
-        glm::vec2 offset(0.0f, 0.0f);
-        float rotation = 0.0f;
+	// Helper to extract UV transform from a texture object
+	auto extractTextureTransform = [](const QJsonObject& texObj) -> std::tuple<int, glm::vec2, glm::vec2, float> {
+		int texCoord = texObj.value("texCoord").toInt(0);
+		glm::vec2 scale(1.0f, 1.0f);
+		glm::vec2 offset(0.0f, 0.0f);
+		float rotation = 0.0f;
 
-        // Check for KHR_texture_transform extension
-        if (texObj.contains("extensions"))
-        {
-            QJsonObject ext = texObj.value("extensions").toObject();
-            if (ext.contains("KHR_texture_transform"))
-            {
-                QJsonObject transform = ext.value("KHR_texture_transform").toObject();
+		// Check for KHR_texture_transform extension
+		if (texObj.contains("extensions"))
+		{
+			QJsonObject ext = texObj.value("extensions").toObject();
+			if (ext.contains("KHR_texture_transform"))
+			{
+				QJsonObject transform = ext.value("KHR_texture_transform").toObject();
 
-                if (transform.contains("scale") && transform.value("scale").isArray())
-                {
-                    QJsonArray s = transform.value("scale").toArray();
-                    if (s.size() >= 2)
-                    {
-                        scale.x = static_cast<float>(s.at(0).toDouble(1.0));
-                        scale.y = static_cast<float>(s.at(1).toDouble(1.0));
-                    }
-                }
+				if (transform.contains("scale") && transform.value("scale").isArray())
+				{
+					QJsonArray s = transform.value("scale").toArray();
+					if (s.size() >= 2)
+					{
+						scale.x = static_cast<float>(s.at(0).toDouble(1.0));
+						scale.y = static_cast<float>(s.at(1).toDouble(1.0));
+					}
+				}
 
-                if (transform.contains("offset") && transform.value("offset").isArray())
-                {
-                    QJsonArray o = transform.value("offset").toArray();
-                    if (o.size() >= 2)
-                    {
-                        offset.x = static_cast<float>(o.at(0).toDouble(0.0));
-                        offset.y = static_cast<float>(o.at(1).toDouble(0.0));
-                    }
-                }
+				if (transform.contains("offset") && transform.value("offset").isArray())
+				{
+					QJsonArray o = transform.value("offset").toArray();
+					if (o.size() >= 2)
+					{
+						offset.x = static_cast<float>(o.at(0).toDouble(0.0));
+						offset.y = static_cast<float>(o.at(1).toDouble(0.0));
+					}
+				}
 
-                if (transform.contains("rotation"))
-                {
-                    rotation = static_cast<float>(transform.value("rotation").toDouble(0.0));
-                }
-            }
-        }
+				if (transform.contains("rotation"))
+				{
+					rotation = static_cast<float>(transform.value("rotation").toDouble(0.0));
+				}
+			}
+		}
 
-        return std::make_tuple(texCoord, scale, offset, rotation);
-        };
+		return std::make_tuple(texCoord, scale, offset, rotation);
+		};
 
-    static const std::map<std::string, std::string> textureTypeMapping = {
-        // Base PBR textures
-        {"baseColor", "albedoMap"},
-        {"albedoMap", "albedoMap"},
-        {"normal", "normalMap"},
-        {"normalMap", "normalMap"},
-        {"metallicRoughness", "metallicRoughnessMap"},
-        {"metallicRoughnessMap", "metallicRoughnessMap"},
-        {"metallic", "metallicMap"},
-        {"metallicMap", "metallicMap"},
-        {"roughness", "roughnessMap"},
-        {"roughnessMap", "roughnessMap"},
-        {"occlusion", "occlusionMap"},
-        {"occlusionMap", "occlusionMap"},
-        {"ambientOcclusion", "occlusionMap"},
-        {"ao", "occlusionMap"},
-        {"emissive", "emissiveMap"},
-        {"emissiveMap", "emissiveMap"},
-        {"opacity", "opacityMap"},
-        {"opacityMap", "opacityMap"},
-        {"height", "heightMap"},
-        {"heightMap", "heightMap"},
+	static const std::map<std::string, std::string> textureTypeMapping = {
+		// Base PBR textures
+		{"baseColor", "albedoMap"},
+		{"albedoMap", "albedoMap"},
+		{"normal", "normalMap"},
+		{"normalMap", "normalMap"},
+		{"metallicRoughness", "metallicRoughnessMap"},
+		{"metallicRoughnessMap", "metallicRoughnessMap"},
+		{"metallic", "metallicMap"},
+		{"metallicMap", "metallicMap"},
+		{"roughness", "roughnessMap"},
+		{"roughnessMap", "roughnessMap"},
+		{"occlusion", "occlusionMap"},
+		{"occlusionMap", "occlusionMap"},
+		{"ambientOcclusion", "occlusionMap"},
+		{"ao", "occlusionMap"},
+		{"emissive", "emissiveMap"},
+		{"emissiveMap", "emissiveMap"},
+		{"opacity", "opacityMap"},
+		{"opacityMap", "opacityMap"},
+		{"height", "heightMap"},
+		{"heightMap", "heightMap"},
 
-        // Extensions
-        {"transmission", "transmissionMap"},
-        {"transmissionMap", "transmissionMap"},
-        {"thickness", "thicknessMap"},
-        {"thicknessMap", "thicknessMap"},
-        {"ior", "iorMap"},
-        {"iorMap", "iorMap"},
+		// Extensions
+		{"transmission", "transmissionMap"},
+		{"transmissionMap", "transmissionMap"},
+		{"thickness", "thicknessMap"},
+		{"thicknessMap", "thicknessMap"},
+		{"ior", "iorMap"},
+		{"iorMap", "iorMap"},
 
-        // Sheen
-        {"sheenColor", "sheenColorMap"},
-        {"sheenColorMap", "sheenColorMap"},
-        {"sheenRoughness", "sheenRoughnessMap"},
-        {"sheenRoughnessMap", "sheenRoughnessMap"},
+		// Sheen
+		{"sheenColor", "sheenColorMap"},
+		{"sheenColorMap", "sheenColorMap"},
+		{"sheenRoughness", "sheenRoughnessMap"},
+		{"sheenRoughnessMap", "sheenRoughnessMap"},
 
-        // Clearcoat
-        {"clearcoatColor", "clearcoatColorMap"},
-        {"clearcoatColorMap", "clearcoatColorMap"},
-        {"clearcoatRoughness", "clearcoatRoughnessMap"},
-        {"clearcoatRoughnessMap", "clearcoatRoughnessMap"},
-        {"clearcoatNormal", "clearcoatNormalMap"},
-        {"clearcoatNormalMap", "clearcoatNormalMap"},
+		// Clearcoat
+		{"clearcoatColor", "clearcoatColorMap"},
+		{"clearcoatColorMap", "clearcoatColorMap"},
+		{"clearcoatRoughness", "clearcoatRoughnessMap"},
+		{"clearcoatRoughnessMap", "clearcoatRoughnessMap"},
+		{"clearcoatNormal", "clearcoatNormalMap"},
+		{"clearcoatNormalMap", "clearcoatNormalMap"},
 
-        // Anisotropy & Iridescence
-        {"anisotropy", "anisotropyMap"},
-        {"anisotropyMap", "anisotropyMap"},
-        {"iridescence", "iridescenceMap"},
-        {"iridescenceMap", "iridescenceMap"},
-        {"iridescenceThickness", "iridescenceThicknessMap"},
-        {"iridescenceThicknessMap", "iridescenceThicknessMap"},
+		// Anisotropy & Iridescence
+		{"anisotropy", "anisotropyMap"},
+		{"anisotropyMap", "anisotropyMap"},
+		{"iridescence", "iridescenceMap"},
+		{"iridescenceMap", "iridescenceMap"},
+		{"iridescenceThickness", "iridescenceThicknessMap"},
+		{"iridescenceThicknessMap", "iridescenceThicknessMap"},
 
-        // Specular
-        {"specularFactor", "specularFactorMap"},
-        {"specularFactorMap", "specularFactorMap"},
-        {"specularColor", "specularColorMap"},
-        {"specularColorMap", "specularColorMap"},
-    };
+		// Specular
+		{"specularFactor", "specularFactorMap"},
+		{"specularFactorMap", "specularFactorMap"},
+		{"specularColor", "specularColorMap"},
+		{"specularColorMap", "specularColorMap"},
+	};
 
-    auto loadAndAddTexture = [&](const QString& texturePath,
-        const std::string& mapType,
-        int texCoord,
-        const glm::vec2& scale,
-        const glm::vec2& offset,
-        float rotation,
-        std::vector<Texture>& textures) -> bool {
-            if (texturePath.isEmpty()) return false;
+	auto loadAndAddTexture = [&](const QString& texturePath,
+		const std::string& mapType,
+		int texCoord,
+		const glm::vec2& scale,
+		const glm::vec2& offset,
+		float rotation,
+		std::vector<Texture>& textures) -> bool {
+			if (texturePath.isEmpty()) return false;
 
-            // Look up the texture type
-            auto it = textureTypeMapping.find(mapType);
-            if (it == textureTypeMapping.end())
-            {
-                qWarning() << "Unknown texture type:" << QString::fromStdString(mapType);
-                return false;
-            }
+			// Look up the texture type
+			auto it = textureTypeMapping.find(mapType);
+			if (it == textureTypeMapping.end())
+			{
+				qWarning() << "Unknown texture type:" << QString::fromStdString(mapType);
+				return false;
+			}
 
-            std::string textureType = it->second;  // Get the mapped type name
+			std::string textureType = it->second;  // Get the mapped type name
+			std::string textureFilePathStd = texturePath.toStdString();
 
-            // Load the texture file
-            bool hasAlpha = false;
-            unsigned int texID = textureFromFile(texturePath.toStdString().c_str(), hasAlpha);
+			// Lambda to compare UV transform metadata (same as in loadMaterialTextures)
+			auto uvTransformMatches = [](const Texture& a, const Texture& b) {
+				return a.texCoordIndex == b.texCoordIndex &&
+					std::abs(a.scale.x - b.scale.x) < 0.0001f &&
+					std::abs(a.scale.y - b.scale.y) < 0.0001f &&
+					std::abs(a.offset.x - b.offset.x) < 0.0001f &&
+					std::abs(a.offset.y - b.offset.y) < 0.0001f &&
+					std::abs(a.rotation - b.rotation) < 0.0001f;
+				};
 
-            if (texID == 0) return false;
+			// Create a temporary texture struct with the new metadata for comparison
+			Texture newTexture;
+			newTexture.type = textureType;
+			newTexture.path = aiString(textureFilePathStd.c_str());
+			newTexture.texCoordIndex = texCoord;
+			newTexture.scale = scale;
+			newTexture.offset = offset;
+			newTexture.rotation = rotation;
 
-            // Create Texture struct with all metadata
-            Texture texture;
-            texture.id = texID;
-            texture.path = aiString(texturePath.toStdString().c_str());
-            texture.type = textureType;
-            texture.hasAlpha = hasAlpha;
-            texture.texCoordIndex = texCoord;
-            texture.scale = scale;
-            texture.offset = offset;
-            texture.rotation = rotation;
+			// CHECK 1: Exact match (path + type + UV metadata) - perfect reuse
+			for (const auto& lt : _loadedTextures)
+			{
+				if (string(lt.path.C_Str()) == textureFilePathStd &&
+					lt.type == textureType &&
+					uvTransformMatches(lt, newTexture))
+				{
+					// Perfect match - reuse everything
+					textures.push_back(lt);
+					return true;
+				}
+			}
 
-            // Add to vector
-            textures.push_back(texture);
+			// CHECK 2: Same path, but different type OR different UV metadata
+			// In this case, reuse GPU texture ID but create new entry with different metadata
+			for (const auto& lt : _loadedTextures)
+			{
+				if (string(lt.path.C_Str()) == textureFilePathStd)
+				{
+					// Found same texture file - reuse GPU ID but apply new metadata
+					Texture alias;
+					alias.id = lt.id;                    // Reuse GPU texture
+					alias.type = textureType;            // New type name
+					alias.path = lt.path;                // Same path
+					alias.hasAlpha = lt.hasAlpha;        // Same alpha info
 
-            qDebug() << "  ✓ Loaded" << QString::fromStdString(mapType)
-                << "texture:" << texturePath;
+					// Use the NEW UV transform metadata
+					alias.texCoordIndex = newTexture.texCoordIndex;
+					alias.scale = newTexture.scale;
+					alias.offset = newTexture.offset;
+					alias.rotation = newTexture.rotation;
 
-            return true;
-        };
+					textures.push_back(alias);
+					_loadedTextures.push_back(alias);    // Cache this variant
+					return true;
+				}
+			}
 
-    
-    // Helper: Load base PBR textures from glTF JSON
-    // Replace the existing loadPbrTexturesFromJson lambda with this:
+			// CHECK 3: Not loaded at all - load from file
+			bool hasAlpha = false;
+			unsigned int texID = textureFromFile(texturePath.toStdString().c_str(), hasAlpha);
 
-    auto loadPbrTexturesFromJson = [&](const QJsonObject& matObj, GLMaterial& mat) -> void {
+			if (texID == 0) return false;
 
-        if (!matObj.contains("pbrMetallicRoughness"))
-            return;
+			// Create Texture struct with all metadata
+			newTexture.id = texID;
+			newTexture.hasAlpha = hasAlpha;
 
-        QJsonObject pbr = matObj.value("pbrMetallicRoughness").toObject();
+			// Add to both vectors
+			textures.push_back(newTexture);
+			_loadedTextures.push_back(newTexture);    // Cache for future reuse
 
-        // Base Color Texture
-        if (pbr.contains("baseColorTexture"))
-        {
-            QJsonObject baseColorTexObj = pbr.value("baseColorTexture").toObject();
-            int texIndex = baseColorTexObj.value("index").toInt(-1);
-            if (texIndex >= 0)
-            {
-                QString uri = resolveTextureUri(texIndex);
-                auto [texCoord, scale, offset, rotation] = extractTextureTransform(baseColorTexObj);
-                if (loadAndAddTexture(uri, "baseColor", texCoord, scale, offset, rotation, outTextures))
-                {
-                    qDebug() << "  ✓ Loaded baseColor texture:" << uri;
-                }
-            }
-        }
+			return true;
+		};
 
-        // Normal Texture
-        if (matObj.contains("normalTexture"))
-        {
-            QJsonObject normalTexObj = matObj.value("normalTexture").toObject();
-            int texIndex = normalTexObj.value("index").toInt(-1);
-            if (texIndex >= 0)
-            {
-                QString uri = resolveTextureUri(texIndex);
-                auto [texCoord, scale, offset, rotation] = extractTextureTransform(normalTexObj);
-                if (loadAndAddTexture(uri, "normal", texCoord, scale, offset, rotation, outTextures))
-                {
-                    qDebug() << "  ✓ Loaded normal texture:" << uri;
-                }
-            }
-        }
+	// Helper: Load base PBR textures from glTF JSON
+	// Replace the existing loadPbrTexturesFromJson lambda with this:
 
-        // Metallic/Roughness Texture
-        if (pbr.contains("metallicRoughnessTexture"))
-        {
-            QJsonObject mrTexObj = pbr.value("metallicRoughnessTexture").toObject();
-            int texIndex = mrTexObj.value("index").toInt(-1);
-            if (texIndex >= 0)
-            {
-                QString uri = resolveTextureUri(texIndex);
-                auto [texCoord, scale, offset, rotation] = extractTextureTransform(mrTexObj);
-                if (loadAndAddTexture(uri, "metallicRoughness", texCoord, scale, offset, rotation, outTextures))
-                {
-                    qDebug() << "  ✓ Loaded metallicRoughness texture:" << uri;
-                }
-            }
-        }
+	auto loadPbrTexturesFromJson = [&](const QJsonObject& matObj, GLMaterial& mat) -> void {
 
-        // Occlusion Texture
-        if (matObj.contains("occlusionTexture"))
-        {
-            QJsonObject occTexObj = matObj.value("occlusionTexture").toObject();
-            int texIndex = occTexObj.value("index").toInt(-1);
-            if (texIndex >= 0)
-            {
-                QString uri = resolveTextureUri(texIndex);
-                auto [texCoord, scale, offset, rotation] = extractTextureTransform(occTexObj);
-                if (loadAndAddTexture(uri, "occlusion", texCoord, scale, offset, rotation, outTextures))
-                {
-                    qDebug() << "  ✓ Loaded occlusion texture:" << uri;
-                }
-            }
-        }
+		if (!matObj.contains("pbrMetallicRoughness"))
+			return;
 
-        // Emissive Texture
-        if (matObj.contains("emissiveTexture"))
-        {
-            QJsonObject emissiveTexObj = matObj.value("emissiveTexture").toObject();
-            int texIndex = emissiveTexObj.value("index").toInt(-1);
-            if (texIndex >= 0)
-            {
-                QString uri = resolveTextureUri(texIndex);
-                auto [texCoord, scale, offset, rotation] = extractTextureTransform(emissiveTexObj);
-                if (loadAndAddTexture(uri, "emissive", texCoord, scale, offset, rotation, outTextures))
-                {
-                    qDebug() << "  ✓ Loaded emissive texture:" << uri;
-                }
-            }
-        }
-        };
+		QJsonObject pbr = matObj.value("pbrMetallicRoughness").toObject();
 
-    // Helper: apply KHR extensions present in the material JSON object to the GLMaterial.
-    // Returns true if any extension was applied (for logging)
-    auto applyExtensionsFromJsonMaterial = [&](const QJsonObject& matObj, GLMaterial& mat) -> bool {
-        bool appliedAny = false;
-        if (!matObj.contains("extensions")) return false;
-        QJsonObject extRoot = matObj.value("extensions").toObject();
+		// Base Color Texture
+		if (pbr.contains("baseColorTexture"))
+		{
+			QJsonObject baseColorTexObj = pbr.value("baseColorTexture").toObject();
+			int texIndex = baseColorTexObj.value("index").toInt(-1);
+			if (texIndex >= 0)
+			{
+				QString uri = resolveTextureUri(texIndex);
+				auto [texCoord, scale, offset, rotation] = extractTextureTransform(baseColorTexObj);
+				if (loadAndAddTexture(uri, "baseColor", texCoord, scale, offset, rotation, outTextures))
+				{
+					qDebug() << "  ✓ Loaded baseColor texture:" << uri;
+				}
+			}
+		}
 
-        // --- KHR_materials_volume ---
-        if (extRoot.contains("KHR_materials_volume") && extRoot.value("KHR_materials_volume").isObject())
-        {
-            QJsonObject vol = extRoot.value("KHR_materials_volume").toObject();
-            if (vol.contains("thicknessFactor"))
-            {
-                float v = static_cast<float>(vol.value("thicknessFactor").toDouble(0.0));
-                mat.setThicknessFactor(qMax(0.0f, v));
-                appliedAny = true;
-            }
-            if (vol.contains("attenuationDistance"))
-            {
-                float v = static_cast<float>(vol.value("attenuationDistance").toDouble(0.0));
-                mat.setAttenuationDistance(qMax(0.0f, v));
-                appliedAny = true;
-            }
-            if (vol.contains("attenuationColor") && vol.value("attenuationColor").isArray())
-            {
-                QJsonArray a = vol.value("attenuationColor").toArray();
-                if (a.size() >= 3)
-                {
-                    QVector3D c(
-                        static_cast<float>(a.at(0).toDouble(1.0)),
-                        static_cast<float>(a.at(1).toDouble(1.0)),
-                        static_cast<float>(a.at(2).toDouble(1.0))
-                    );
-                    mat.setAttenuationColor(c);
-                    appliedAny = true;
-                }
-            }
-            // thicknessTexture
-            if (vol.contains("thicknessTexture") && vol.value("thicknessTexture").isObject())
-            {
-                QJsonObject texObj = vol.value("thicknessTexture").toObject();
-                int texIndex = texObj.value("index").toInt(-1);
-                if (texIndex >= 0)
-                {
-                    QString uri = resolveTextureUri(texIndex);
-                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-                    loadAndAddTexture(uri, "thickness", texCoord, scale, offset, rotation, outTextures);
-                    appliedAny = true;
-                }
-            }
-        }
+		// Normal Texture
+		if (matObj.contains("normalTexture"))
+		{
+			QJsonObject normalTexObj = matObj.value("normalTexture").toObject();
+			int texIndex = normalTexObj.value("index").toInt(-1);
+			if (texIndex >= 0)
+			{
+				QString uri = resolveTextureUri(texIndex);
+				auto [texCoord, scale, offset, rotation] = extractTextureTransform(normalTexObj);
+				if (loadAndAddTexture(uri, "normal", texCoord, scale, offset, rotation, outTextures))
+				{
+					qDebug() << "  ✓ Loaded normal texture:" << uri;
+				}
+			}
+		}
 
-        // --- KHR_materials_transmission ---
-        if (extRoot.contains("KHR_materials_transmission") && extRoot.value("KHR_materials_transmission").isObject())
-        {
-            QJsonObject trans = extRoot.value("KHR_materials_transmission").toObject();
-            if (trans.contains("transmissionFactor"))
-            {
-                float v = static_cast<float>(trans.value("transmissionFactor").toDouble(0.0));
-                mat.setTransmission(qBound(0.0f, v, 1.0f));
-                appliedAny = true;
-            }
-            // transmissionTexture
-            if (trans.contains("transmissionTexture") && trans.value("transmissionTexture").isObject())
-            {
-                QJsonObject texObj = trans.value("transmissionTexture").toObject();
-                int texIndex = texObj.value("index").toInt(-1);
-                if (texIndex >= 0)
-                {
-                    QString uri = resolveTextureUri(texIndex);
-                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-                    loadAndAddTexture(uri, "transmission", texCoord, scale, offset, rotation, outTextures);
-                    appliedAny = true;
-                }
-            }
-        }
+		// Metallic/Roughness Texture
+		if (pbr.contains("metallicRoughnessTexture"))
+		{
+			QJsonObject mrTexObj = pbr.value("metallicRoughnessTexture").toObject();
+			int texIndex = mrTexObj.value("index").toInt(-1);
+			if (texIndex >= 0)
+			{
+				QString uri = resolveTextureUri(texIndex);
+				auto [texCoord, scale, offset, rotation] = extractTextureTransform(mrTexObj);
+				if (loadAndAddTexture(uri, "metallicRoughness", texCoord, scale, offset, rotation, outTextures))
+				{
+					qDebug() << "  ✓ Loaded metallicRoughness texture:" << uri;
+				}
+			}
+		}
 
-        // --- KHR_materials_ior ---
-        if (extRoot.contains("KHR_materials_ior") && extRoot.value("KHR_materials_ior").isObject())
-        {
-            QJsonObject iorJ = extRoot.value("KHR_materials_ior").toObject();
-            if (iorJ.contains("ior"))
-            {
-                float v = static_cast<float>(iorJ.value("ior").toDouble(1.5));
-                mat.setIOR(qBound(1.0f, v, 5.0f));
-                appliedAny = true;
-            }
-        }
+		// Occlusion Texture
+		if (matObj.contains("occlusionTexture"))
+		{
+			QJsonObject occTexObj = matObj.value("occlusionTexture").toObject();
+			int texIndex = occTexObj.value("index").toInt(-1);
+			if (texIndex >= 0)
+			{
+				QString uri = resolveTextureUri(texIndex);
+				auto [texCoord, scale, offset, rotation] = extractTextureTransform(occTexObj);
+				if (loadAndAddTexture(uri, "occlusion", texCoord, scale, offset, rotation, outTextures))
+				{
+					qDebug() << "  ✓ Loaded occlusion texture:" << uri;
+				}
+			}
+		}
 
-        // --- KHR_materials_specular ---
-        if (extRoot.contains("KHR_materials_specular") && extRoot.value("KHR_materials_specular").isObject())
-        {
-            QJsonObject sp = extRoot.value("KHR_materials_specular").toObject();
-            if (sp.contains("specularFactor"))
-            {
-                float v = static_cast<float>(sp.value("specularFactor").toDouble(1.0));
-                mat.setSpecularFactor(qBound(0.0f, v, 1.0f));
-                appliedAny = true;
-            }
-            if (sp.contains("specularColorFactor") && sp.value("specularColorFactor").isArray())
-            {
-                QJsonArray a = sp.value("specularColorFactor").toArray();
-                if (a.size() >= 3)
-                {
-                    mat.setSpecularColorFactor(QVector3D(
-                        static_cast<float>(a.at(0).toDouble(1.0)),
-                        static_cast<float>(a.at(1).toDouble(1.0)),
-                        static_cast<float>(a.at(2).toDouble(1.0))
-                    ));
-                    appliedAny = true;
-                }
-            }
-            if (sp.contains("specularTexture") && sp.value("specularTexture").isObject())
-            {
-                QJsonObject texObj = sp.value("specularTexture").toObject();
-                int texIndex = texObj.value("index").toInt(-1);
-                if (texIndex >= 0)
-                {
-                    QString uri = resolveTextureUri(texIndex);
-                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-                    loadAndAddTexture(uri, "specularFactor", texCoord, scale, offset, rotation, outTextures);
-                    appliedAny = true;
-                }
-            }
-        }
+		// Emissive Texture
+		if (matObj.contains("emissiveTexture"))
+		{
+			QJsonObject emissiveTexObj = matObj.value("emissiveTexture").toObject();
+			int texIndex = emissiveTexObj.value("index").toInt(-1);
+			if (texIndex >= 0)
+			{
+				QString uri = resolveTextureUri(texIndex);
+				auto [texCoord, scale, offset, rotation] = extractTextureTransform(emissiveTexObj);
+				if (loadAndAddTexture(uri, "emissive", texCoord, scale, offset, rotation, outTextures))
+				{
+					qDebug() << "  ✓ Loaded emissive texture:" << uri;
+				}
+			}
+		}
+		};
 
-        // --- KHR_materials_clearcoat ---
-        if (extRoot.contains("KHR_materials_clearcoat") && extRoot.value("KHR_materials_clearcoat").isObject())
-        {
-            QJsonObject cc = extRoot.value("KHR_materials_clearcoat").toObject();
-            if (cc.contains("clearcoatFactor"))
-            {
-                float v = static_cast<float>(cc.value("clearcoatFactor").toDouble(0.0));
-                mat.setClearcoat(qBound(0.0f, v, 1.0f));
-                appliedAny = true;
-            }
-            if (cc.contains("clearcoatRoughnessFactor"))
-            {
-                float v = static_cast<float>(cc.value("clearcoatRoughnessFactor").toDouble(0.0));
-                mat.setClearcoatRoughness(qBound(0.0f, v, 1.0f));
-                appliedAny = true;
-            }           
-            if (cc.contains("clearcoatTexture") && cc.value("clearcoatTexture").isObject())
-            {
-                QJsonObject texObj = cc.value("clearcoatTexture").toObject();
-                int texIndex = texObj.value("index").toInt(-1);
-                if (texIndex >= 0)
-                {
-                    QString uri = resolveTextureUri(texIndex);
-                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-                    loadAndAddTexture(uri, "clearcoatColor", texCoord, scale, offset, rotation, outTextures);
-                    appliedAny = true;
-                }
-            }
-        }
+	// Helper: apply KHR extensions present in the material JSON object to the GLMaterial.
+	// Returns true if any extension was applied (for logging)
+	auto applyExtensionsFromJsonMaterial = [&](const QJsonObject& matObj, GLMaterial& mat) -> bool {
+		bool appliedAny = false;
+		if (!matObj.contains("extensions")) return false;
+		QJsonObject extRoot = matObj.value("extensions").toObject();
 
-        // --- KHR_materials_sheen ---
-        if (extRoot.contains("KHR_materials_sheen") && extRoot.value("KHR_materials_sheen").isObject())
-        {
-            QJsonObject sh = extRoot.value("KHR_materials_sheen").toObject();
-            if (sh.contains("sheenColorFactor") && sh.value("sheenColorFactor").isArray())
-            {
-                QJsonArray a = sh.value("sheenColorFactor").toArray();
-                if (a.size() >= 3)
-                {
-                    mat.setSheenColor(QVector3D(
-                        static_cast<float>(a.at(0).toDouble(0.0)),
-                        static_cast<float>(a.at(1).toDouble(0.0)),
-                        static_cast<float>(a.at(2).toDouble(0.0))
-                    ));
-                    appliedAny = true;
-                }
-            }
-            if (sh.contains("sheenRoughnessFactor"))
-            {
-                float v = static_cast<float>(sh.value("sheenRoughnessFactor").toDouble(0.0));
-                mat.setSheenRoughness(qBound(0.0f, v, 1.0f));
-                appliedAny = true;
-            }
-            if (sh.contains("sheenColorTexture") && sh.value("sheenColorTexture").isObject())
-            {
-                QJsonObject texObj = sh.value("sheenColorTexture").toObject();
-                int texIndex = texObj.value("index").toInt(-1);
-                if (texIndex >= 0)
-                {
-                    QString uri = resolveTextureUri(texIndex);
-                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-                    loadAndAddTexture(uri, "sheenColor", texCoord, scale, offset, rotation, outTextures);
-                    appliedAny = true;
-                }
-            }
-        }
+		// --- KHR_materials_volume ---
+		if (extRoot.contains("KHR_materials_volume") && extRoot.value("KHR_materials_volume").isObject())
+		{
+			QJsonObject vol = extRoot.value("KHR_materials_volume").toObject();
+			if (vol.contains("thicknessFactor"))
+			{
+				float v = static_cast<float>(vol.value("thicknessFactor").toDouble(0.0));
+				mat.setThicknessFactor(qMax(0.0f, v));
+				appliedAny = true;
+			}
+			if (vol.contains("attenuationDistance"))
+			{
+				float v = static_cast<float>(vol.value("attenuationDistance").toDouble(0.0));
+				mat.setAttenuationDistance(qMax(0.0f, v));
+				appliedAny = true;
+			}
+			if (vol.contains("attenuationColor") && vol.value("attenuationColor").isArray())
+			{
+				QJsonArray a = vol.value("attenuationColor").toArray();
+				if (a.size() >= 3)
+				{
+					QVector3D c(
+						static_cast<float>(a.at(0).toDouble(1.0)),
+						static_cast<float>(a.at(1).toDouble(1.0)),
+						static_cast<float>(a.at(2).toDouble(1.0))
+					);
+					mat.setAttenuationColor(c);
+					appliedAny = true;
+				}
+			}
+			// thicknessTexture
+			if (vol.contains("thicknessTexture") && vol.value("thicknessTexture").isObject())
+			{
+				QJsonObject texObj = vol.value("thicknessTexture").toObject();
+				int texIndex = texObj.value("index").toInt(-1);
+				if (texIndex >= 0)
+				{
+					QString uri = resolveTextureUri(texIndex);
+					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+					loadAndAddTexture(uri, "thickness", texCoord, scale, offset, rotation, outTextures);
+					appliedAny = true;
+				}
+			}
+		}
 
-        // --- KHR_materials_iridescence ---
-        if (extRoot.contains("KHR_materials_iridescence") && extRoot.value("KHR_materials_iridescence").isObject())
-        {
-            QJsonObject ir = extRoot.value("KHR_materials_iridescence").toObject();
-            if (ir.contains("iridescenceFactor"))
-            {
-                float v = static_cast<float>(ir.value("iridescenceFactor").toDouble(0.0));
-                mat.setIridescenceFactor(qBound(0.0f, v, 1.0f));
-                appliedAny = true;
-            }
-            if (ir.contains("iridescenceIor"))
-            {
-                float v = static_cast<float>(ir.value("iridescenceIor").toDouble(1.0));
-                mat.setIridescenceIor(qMax(0.0f, v));
-                appliedAny = true;
-            }
-            if (ir.contains("iridescenceThicknessMinimum"))
-            {
-                float v = static_cast<float>(ir.value("iridescenceThicknessMinimum").toDouble(0.0));
-                mat.setIridescenceThicknessMin(qMax(0.0f, v));
-                appliedAny = true;
-            }
-            if (ir.contains("iridescenceThicknessMaximum"))
-            {
-                float v = static_cast<float>(ir.value("iridescenceThicknessMaximum").toDouble(0.0));
-                mat.setIridescenceThicknessMax(qMax(0.0f, v));
-                appliedAny = true;
-            }
-            if (ir.contains("iridescenceThicknessTexture") && ir.value("iridescenceThicknessTexture").isObject())
-            {
-                QJsonObject texObj = ir.value("iridescenceThicknessTexture").toObject();
-                int texIndex = texObj.value("index").toInt(-1);
-                if (texIndex >= 0)
-                {
-                    QString uri = resolveTextureUri(texIndex);
-                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-                    loadAndAddTexture(uri, "iridescenceThickness", texCoord, scale, offset, rotation, outTextures);
-                    appliedAny = true;
-                }
-            }
-        }
+		// --- KHR_materials_transmission ---
+		if (extRoot.contains("KHR_materials_transmission") && extRoot.value("KHR_materials_transmission").isObject())
+		{
+			QJsonObject trans = extRoot.value("KHR_materials_transmission").toObject();
+			if (trans.contains("transmissionFactor"))
+			{
+				float v = static_cast<float>(trans.value("transmissionFactor").toDouble(0.0));
+				mat.setTransmission(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			// transmissionTexture
+			if (trans.contains("transmissionTexture") && trans.value("transmissionTexture").isObject())
+			{
+				QJsonObject texObj = trans.value("transmissionTexture").toObject();
+				int texIndex = texObj.value("index").toInt(-1);
+				if (texIndex >= 0)
+				{
+					QString uri = resolveTextureUri(texIndex);
+					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+					loadAndAddTexture(uri, "transmission", texCoord, scale, offset, rotation, outTextures);
+					appliedAny = true;
+				}
+			}
+		}
 
-        // --- KHR_materials_anisotropy ---
-        if (extRoot.contains("KHR_materials_anisotropy") && extRoot.value("KHR_materials_anisotropy").isObject())
-        {
-            QJsonObject an = extRoot.value("KHR_materials_anisotropy").toObject();
-            if (an.contains("anisotropyStrength"))
-            {
-                float v = static_cast<float>(an.value("anisotropyStrength").toDouble(0.0));
-                mat.setAnisotropyStrength(qBound(0.0f, v, 1.0f));
-                appliedAny = true;
-            }
-            if (an.contains("anisotropyRotation"))
-            {
-                float v = static_cast<float>(an.value("anisotropyRotation").toDouble(0.0));
-                mat.setAnisotropyRotation(v);
-                appliedAny = true;
-            }
-            if (an.contains("anisotropyTexture") && an.value("anisotropyTexture").isObject())
-            {
-                QJsonObject texObj = an.value("anisotropyTexture").toObject();
-                int texIndex = texObj.value("index").toInt(-1);
-                if (texIndex >= 0)
-                {
-                    QString uri = resolveTextureUri(texIndex);
-                    auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-                    loadAndAddTexture(uri, "anisotropy", texCoord, scale, offset, rotation, outTextures);
-                    appliedAny = true;
-                }
-            }
-        }
+		// --- KHR_materials_ior ---
+		if (extRoot.contains("KHR_materials_ior") && extRoot.value("KHR_materials_ior").isObject())
+		{
+			QJsonObject iorJ = extRoot.value("KHR_materials_ior").toObject();
+			if (iorJ.contains("ior"))
+			{
+				float v = static_cast<float>(iorJ.value("ior").toDouble(1.5));
+				mat.setIOR(qBound(1.0f, v, 5.0f));
+				appliedAny = true;
+			}
+		}
 
-        // --- KHR_materials_emissive_strength ---
-        if (extRoot.contains("KHR_materials_emissive_strength"))
-        {
-            QJsonValue v = extRoot.value("KHR_materials_emissive_strength");
-            if (v.isObject())
-            {
-                float es = static_cast<float>(v.toObject().value("emissiveStrength").toDouble(1.0));
-                mat.setEmissiveStrength(qMax(0.0f, es));
-                appliedAny = true;
-            }
-            else if (v.isDouble())
-            {
-                mat.setEmissiveStrength(qMax(0.0f, static_cast<float>(v.toDouble())));
-                appliedAny = true;
-            }
-        }
+		// --- KHR_materials_specular ---
+		if (extRoot.contains("KHR_materials_specular") && extRoot.value("KHR_materials_specular").isObject())
+		{
+			QJsonObject sp = extRoot.value("KHR_materials_specular").toObject();
+			if (sp.contains("specularFactor"))
+			{
+				float v = static_cast<float>(sp.value("specularFactor").toDouble(1.0));
+				mat.setSpecularFactor(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (sp.contains("specularColorFactor") && sp.value("specularColorFactor").isArray())
+			{
+				QJsonArray a = sp.value("specularColorFactor").toArray();
+				if (a.size() >= 3)
+				{
+					mat.setSpecularColorFactor(QVector3D(
+						static_cast<float>(a.at(0).toDouble(1.0)),
+						static_cast<float>(a.at(1).toDouble(1.0)),
+						static_cast<float>(a.at(2).toDouble(1.0))
+					));
+					appliedAny = true;
+				}
+			}
+			if (sp.contains("specularTexture") && sp.value("specularTexture").isObject())
+			{
+				QJsonObject texObj = sp.value("specularTexture").toObject();
+				int texIndex = texObj.value("index").toInt(-1);
+				if (texIndex >= 0)
+				{
+					QString uri = resolveTextureUri(texIndex);
+					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+					loadAndAddTexture(uri, "specularFactor", texCoord, scale, offset, rotation, outTextures);
+					appliedAny = true;
+				}
+			}
+		}
 
-        // --- KHR_materials_unlit ---
-        if (extRoot.contains("KHR_materials_unlit"))
-        {
-            mat.setUnlit(true);
-            appliedAny = true;
-        }
+		// --- KHR_materials_clearcoat ---
+		if (extRoot.contains("KHR_materials_clearcoat") && extRoot.value("KHR_materials_clearcoat").isObject())
+		{
+			QJsonObject cc = extRoot.value("KHR_materials_clearcoat").toObject();
+			if (cc.contains("clearcoatFactor"))
+			{
+				float v = static_cast<float>(cc.value("clearcoatFactor").toDouble(0.0));
+				mat.setClearcoat(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (cc.contains("clearcoatRoughnessFactor"))
+			{
+				float v = static_cast<float>(cc.value("clearcoatRoughnessFactor").toDouble(0.0));
+				mat.setClearcoatRoughness(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (cc.contains("clearcoatTexture") && cc.value("clearcoatTexture").isObject())
+			{
+				QJsonObject texObj = cc.value("clearcoatTexture").toObject();
+				int texIndex = texObj.value("index").toInt(-1);
+				if (texIndex >= 0)
+				{
+					QString uri = resolveTextureUri(texIndex);
+					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+					loadAndAddTexture(uri, "clearcoatColor", texCoord, scale, offset, rotation, outTextures);
+					appliedAny = true;
+				}
+			}
+		}
 
-        // --- KHR_materials_dispersion (experimental/non-standard) ---
-        if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
-        {
-            QJsonObject d = extRoot.value("KHR_materials_dispersion").toObject();
-            if (d.contains("dispersionFactor"))
-            {
-                float v = static_cast<float>(d.value("dispersionFactor").toDouble(0.0));
-                mat.setDispersion(qMax(0.0f, v));
-                appliedAny = true;
-            }
-        }
+		// --- KHR_materials_sheen ---
+		if (extRoot.contains("KHR_materials_sheen") && extRoot.value("KHR_materials_sheen").isObject())
+		{
+			QJsonObject sh = extRoot.value("KHR_materials_sheen").toObject();
+			if (sh.contains("sheenColorFactor") && sh.value("sheenColorFactor").isArray())
+			{
+				QJsonArray a = sh.value("sheenColorFactor").toArray();
+				if (a.size() >= 3)
+				{
+					mat.setSheenColor(QVector3D(
+						static_cast<float>(a.at(0).toDouble(0.0)),
+						static_cast<float>(a.at(1).toDouble(0.0)),
+						static_cast<float>(a.at(2).toDouble(0.0))
+					));
+					appliedAny = true;
+				}
+			}
+			if (sh.contains("sheenRoughnessFactor"))
+			{
+				float v = static_cast<float>(sh.value("sheenRoughnessFactor").toDouble(0.0));
+				mat.setSheenRoughness(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (sh.contains("sheenColorTexture") && sh.value("sheenColorTexture").isObject())
+			{
+				QJsonObject texObj = sh.value("sheenColorTexture").toObject();
+				int texIndex = texObj.value("index").toInt(-1);
+				if (texIndex >= 0)
+				{
+					QString uri = resolveTextureUri(texIndex);
+					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+					loadAndAddTexture(uri, "sheenColor", texCoord, scale, offset, rotation, outTextures);
+					appliedAny = true;
+				}
+			}
+		}
 
-        return appliedAny;
-        };
+		// --- KHR_materials_iridescence ---
+		if (extRoot.contains("KHR_materials_iridescence") && extRoot.value("KHR_materials_iridescence").isObject())
+		{
+			QJsonObject ir = extRoot.value("KHR_materials_iridescence").toObject();
+			if (ir.contains("iridescenceFactor"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceFactor").toDouble(0.0));
+				mat.setIridescenceFactor(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (ir.contains("iridescenceIor"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceIor").toDouble(1.0));
+				mat.setIridescenceIor(qMax(0.0f, v));
+				appliedAny = true;
+			}
+			if (ir.contains("iridescenceThicknessMinimum"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceThicknessMinimum").toDouble(0.0));
+				mat.setIridescenceThicknessMin(qMax(0.0f, v));
+				appliedAny = true;
+			}
+			if (ir.contains("iridescenceThicknessMaximum"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceThicknessMaximum").toDouble(0.0));
+				mat.setIridescenceThicknessMax(qMax(0.0f, v));
+				appliedAny = true;
+			}
+			if (ir.contains("iridescenceThicknessTexture") && ir.value("iridescenceThicknessTexture").isObject())
+			{
+				QJsonObject texObj = ir.value("iridescenceThicknessTexture").toObject();
+				int texIndex = texObj.value("index").toInt(-1);
+				if (texIndex >= 0)
+				{
+					QString uri = resolveTextureUri(texIndex);
+					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+					loadAndAddTexture(uri, "iridescenceThickness", texCoord, scale, offset, rotation, outTextures);
+					appliedAny = true;
+				}
+			}
+		}
 
-    int jsonCount = jsonMaterials.size();
-    if (jsonCount == 0)
-    {
-        return;
-    }
-       
-    // This is robust to Assimp reordering materials. We get the material name
-    // from Assimp and match it against the glTF JSON by name.
-    aiString aiName;
-    if (scene->mMaterials[materialIndex]->Get(AI_MATKEY_NAME, aiName) == AI_SUCCESS)
-    {
-        QString name = QString::fromUtf8(aiName.C_Str());
-        if (!name.isEmpty())
-        {
-            for (int j = 0; j < jsonCount; ++j)
-            {
-                QJsonObject matObj = jsonMaterials.at(j).toObject();
-                QString jname = matObj.value("name").toString();
-                if (!jname.isEmpty() && jname == name)
-                {
-                    qDebug() << "Processing material:" << name;
+		// --- KHR_materials_anisotropy ---
+		if (extRoot.contains("KHR_materials_anisotropy") && extRoot.value("KHR_materials_anisotropy").isObject())
+		{
+			QJsonObject an = extRoot.value("KHR_materials_anisotropy").toObject();
+			if (an.contains("anisotropyStrength"))
+			{
+				float v = static_cast<float>(an.value("anisotropyStrength").toDouble(0.0));
+				mat.setAnisotropyStrength(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (an.contains("anisotropyRotation"))
+			{
+				float v = static_cast<float>(an.value("anisotropyRotation").toDouble(0.0));
+				mat.setAnisotropyRotation(v);
+				appliedAny = true;
+			}
+			if (an.contains("anisotropyTexture") && an.value("anisotropyTexture").isObject())
+			{
+				QJsonObject texObj = an.value("anisotropyTexture").toObject();
+				int texIndex = texObj.value("index").toInt(-1);
+				if (texIndex >= 0)
+				{
+					QString uri = resolveTextureUri(texIndex);
+					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+					loadAndAddTexture(uri, "anisotropy", texCoord, scale, offset, rotation, outTextures);
+					appliedAny = true;
+				}
+			}
+		}
 
-                    // Load base PBR textures (with EXT_texture_webp support)
-                    loadPbrTexturesFromJson(matObj, outMaterial);
+		// --- KHR_materials_emissive_strength ---
+		if (extRoot.contains("KHR_materials_emissive_strength"))
+		{
+			QJsonValue v = extRoot.value("KHR_materials_emissive_strength");
+			if (v.isObject())
+			{
+				float es = static_cast<float>(v.toObject().value("emissiveStrength").toDouble(1.0));
+				mat.setEmissiveStrength(qMax(0.0f, es));
+				appliedAny = true;
+			}
+			else if (v.isDouble())
+			{
+				mat.setEmissiveStrength(qMax(0.0f, static_cast<float>(v.toDouble())));
+				appliedAny = true;
+			}
+		}
 
-                    // Apply KHR extensions on top
-                    if (applyExtensionsFromJsonMaterial(matObj, outMaterial))
-                    {
-                        qDebug() << "Applied KHR materials extensions to material (name)" << name;
-                    }
-                    return;
-                }
-            }
-        }
-    }
+		// --- KHR_materials_unlit ---
+		if (extRoot.contains("KHR_materials_unlit"))
+		{
+			mat.setUnlit(true);
+			appliedAny = true;
+		}
 
-    // This handles edge cases where material names might not match.
-    // Only try this if we couldn't find by name.
+		// --- KHR_materials_dispersion (experimental/non-standard) ---
+		if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
+		{
+			QJsonObject d = extRoot.value("KHR_materials_dispersion").toObject();
+			if (d.contains("dispersionFactor"))
+			{
+				float v = static_cast<float>(d.value("dispersionFactor").toDouble(0.0));
+				mat.setDispersion(qMax(0.0f, v));
+				appliedAny = true;
+			}
+		}
 
-    int idx = static_cast<int>(materialIndex);
-    if (idx >= 0 && idx < jsonCount)
-    {
-        qDebug() << "  Name-based lookup failed, trying index-based fallback:" << idx;
-        QJsonObject matObj = jsonMaterials.at(idx).toObject();
+		return appliedAny;
+		};
 
-        // Load base PBR textures
-        loadPbrTexturesFromJson(matObj, outMaterial);
+	int jsonCount = jsonMaterials.size();
+	if (jsonCount == 0)
+	{
+		return;
+	}
 
-        // Apply extensions
-        if (applyExtensionsFromJsonMaterial(matObj, outMaterial))
-        {
-            qDebug() << "Applied KHR materials extensions to material index" << idx;
-            return;
-        }
-    }
+	// This is robust to Assimp reordering materials. We get the material name
+	// from Assimp and match it against the glTF JSON by name.
+	aiString aiName;
+	if (scene->mMaterials[materialIndex]->Get(AI_MATKEY_NAME, aiName) == AI_SUCCESS)
+	{
+		QString name = QString::fromUtf8(aiName.C_Str());
+		if (!name.isEmpty())
+		{
+			for (int j = 0; j < jsonCount; ++j)
+			{
+				QJsonObject matObj = jsonMaterials.at(j).toObject();
+				QString jname = matObj.value("name").toString();
+				if (!jname.isEmpty() && jname == name)
+				{
+					qDebug() << "Processing material:" << name;
 
-    // nothing found — silently return
-    // qDebug() << "No KHR materials extensions found for materialIndex" << materialIndex;
+					// Load base PBR textures (with EXT_texture_webp support)
+					loadPbrTexturesFromJson(matObj, outMaterial);
+
+					// Apply KHR extensions on top
+					if (applyExtensionsFromJsonMaterial(matObj, outMaterial))
+					{
+						qDebug() << "Applied KHR materials extensions to material (name)" << name;
+					}
+					return;
+				}
+			}
+		}
+	}
+
+	// This handles edge cases where material names might not match.
+	// Only try this if we couldn't find by name.
+
+	int idx = static_cast<int>(materialIndex);
+	if (idx >= 0 && idx < jsonCount)
+	{
+		qDebug() << "  Name-based lookup failed, trying index-based fallback:" << idx;
+		QJsonObject matObj = jsonMaterials.at(idx).toObject();
+
+		// Load base PBR textures
+		loadPbrTexturesFromJson(matObj, outMaterial);
+
+		// Apply extensions
+		if (applyExtensionsFromJsonMaterial(matObj, outMaterial))
+		{
+			qDebug() << "Applied KHR materials extensions to material index" << idx;
+			return;
+		}
+	}
+
+	// nothing found — silently return
+	// qDebug() << "No KHR materials extensions found for materialIndex" << materialIndex;
 }
 
 
@@ -1237,98 +1285,98 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 
 void MaterialProcessor::debugMaterialTextures(aiMaterial* material, const std::string& materialName)
 {
-    std::cout << "=== Material: " << materialName << " ===" << std::endl;
+	std::cout << "=== Material: " << materialName << " ===" << std::endl;
 
-    auto getTextureTypeName = [](int type) -> const char* {
-        switch (type)
-        {
-        case aiTextureType_DIFFUSE: return "DIFFUSE";
-        case aiTextureType_SPECULAR: return "SPECULAR";
-        case aiTextureType_AMBIENT: return "AMBIENT";
-        case aiTextureType_EMISSIVE: return "EMISSIVE";
-        case aiTextureType_HEIGHT: return "HEIGHT";
-        case aiTextureType_NORMALS: return "NORMALS";
-        case aiTextureType_SHININESS: return "SHININESS";
-        case aiTextureType_OPACITY: return "OPACITY";
-        case aiTextureType_DISPLACEMENT: return "DISPLACEMENT";
-        case aiTextureType_LIGHTMAP: return "LIGHTMAP";
-        case aiTextureType_REFLECTION: return "REFLECTION";
-        case aiTextureType_BASE_COLOR: return "BASE_COLOR";
-        case aiTextureType_NORMAL_CAMERA: return "NORMAL_CAMERA";
-        case aiTextureType_EMISSION_COLOR: return "EMISSION_COLOR";
-        case aiTextureType_METALNESS: return "METALNESS";
-        case aiTextureType_DIFFUSE_ROUGHNESS: return "DIFFUSE_ROUGHNESS";
-        case aiTextureType_AMBIENT_OCCLUSION: return "AMBIENT_OCCLUSION";
-        case aiTextureType_SHEEN: return "SHEEN";
-        case aiTextureType_CLEARCOAT: return "CLEARCOAT";
-        case aiTextureType_TRANSMISSION: return "TRANSMISSION";
-        case aiTextureType_UNKNOWN: return "UNKNOWN";
-        default: return "OTHER";
-        }
-        };
+	auto getTextureTypeName = [](int type) -> const char* {
+		switch (type)
+		{
+		case aiTextureType_DIFFUSE: return "DIFFUSE";
+		case aiTextureType_SPECULAR: return "SPECULAR";
+		case aiTextureType_AMBIENT: return "AMBIENT";
+		case aiTextureType_EMISSIVE: return "EMISSIVE";
+		case aiTextureType_HEIGHT: return "HEIGHT";
+		case aiTextureType_NORMALS: return "NORMALS";
+		case aiTextureType_SHININESS: return "SHININESS";
+		case aiTextureType_OPACITY: return "OPACITY";
+		case aiTextureType_DISPLACEMENT: return "DISPLACEMENT";
+		case aiTextureType_LIGHTMAP: return "LIGHTMAP";
+		case aiTextureType_REFLECTION: return "REFLECTION";
+		case aiTextureType_BASE_COLOR: return "BASE_COLOR";
+		case aiTextureType_NORMAL_CAMERA: return "NORMAL_CAMERA";
+		case aiTextureType_EMISSION_COLOR: return "EMISSION_COLOR";
+		case aiTextureType_METALNESS: return "METALNESS";
+		case aiTextureType_DIFFUSE_ROUGHNESS: return "DIFFUSE_ROUGHNESS";
+		case aiTextureType_AMBIENT_OCCLUSION: return "AMBIENT_OCCLUSION";
+		case aiTextureType_SHEEN: return "SHEEN";
+		case aiTextureType_CLEARCOAT: return "CLEARCOAT";
+		case aiTextureType_TRANSMISSION: return "TRANSMISSION";
+		case aiTextureType_UNKNOWN: return "UNKNOWN";
+		default: return "OTHER";
+		}
+		};
 
-    // Check MUCH wider range - some extensions might use higher type numbers
-    for (int type = 0; type <= 50; type++)
-    {  // Expanded range
-        aiTextureType texType = static_cast<aiTextureType>(type);
-        unsigned int count = material->GetTextureCount(texType);
-        if (count > 0)
-        {
-            std::cout << "Type " << type << " (" << getTextureTypeName(type) << "): " << count << " textures" << std::endl;
-            for (unsigned int i = 0; i < count; i++)
-            {
-                aiString path;
-                material->GetTexture(texType, i, &path);
-                std::cout << "  [" << i << "]: " << path.C_Str() << std::endl;
-            }
-        }
-    }
-    std::cout << "========================" << std::endl;
+	// Check MUCH wider range - some extensions might use higher type numbers
+	for (int type = 0; type <= 50; type++)
+	{  // Expanded range
+		aiTextureType texType = static_cast<aiTextureType>(type);
+		unsigned int count = material->GetTextureCount(texType);
+		if (count > 0)
+		{
+			std::cout << "Type " << type << " (" << getTextureTypeName(type) << "): " << count << " textures" << std::endl;
+			for (unsigned int i = 0; i < count; i++)
+			{
+				aiString path;
+				material->GetTexture(texType, i, &path);
+				std::cout << "  [" << i << "]: " << path.C_Str() << std::endl;
+			}
+		}
+	}
+	std::cout << "========================" << std::endl;
 }
 
 void MaterialProcessor::extractUVTransform(
-    aiMaterial* mat,
-    aiTextureType type,
-    unsigned int slotIndex,
-    Texture& texture)
+	aiMaterial* mat,
+	aiTextureType type,
+	unsigned int slotIndex,
+	Texture& texture)
 {
-    // 1. Get UV coordinate set index (which TEXCOORD_N to use)
-    int uvwsrc = 0;
-    if (mat->Get(AI_MATKEY_UVWSRC(type, slotIndex), uvwsrc) == AI_SUCCESS)
-    {
-        texture.texCoordIndex = uvwsrc;
-    }
-    else
-    {
-        texture.texCoordIndex = 0; // Default to TEXCOORD_0
-    }
+	// 1. Get UV coordinate set index (which TEXCOORD_N to use)
+	int uvwsrc = 0;
+	if (mat->Get(AI_MATKEY_UVWSRC(type, slotIndex), uvwsrc) == AI_SUCCESS)
+	{
+		texture.texCoordIndex = uvwsrc;
+	}
+	else
+	{
+		texture.texCoordIndex = 0; // Default to TEXCOORD_0
+	}
 
-    // 2. Get UV transform (scale, offset, rotation)
-    aiUVTransform uvTransform;
-    unsigned int max = sizeof(aiUVTransform);
+	// 2. Get UV transform (scale, offset, rotation)
+	aiUVTransform uvTransform;
+	unsigned int max = sizeof(aiUVTransform);
 
-    if (aiGetMaterialFloatArray(mat, AI_MATKEY_UVTRANSFORM(type, slotIndex),
-        (float*)&uvTransform, &max) == aiReturn_SUCCESS)
-    {
-        // Successfully retrieved transform
-        texture.scale = glm::vec2(uvTransform.mScaling.x, uvTransform.mScaling.y);
-        texture.offset = glm::vec2(uvTransform.mTranslation.x, uvTransform.mTranslation.y);
-        texture.rotation = uvTransform.mRotation;        
-    }
-    else
-    {
-        // No transform specified - use identity defaults
-        texture.scale = glm::vec2(1.0f, 1.0f);
-        texture.offset = glm::vec2(0.0f, 0.0f);
-        texture.rotation = 0.0f;
-    }
+	if (aiGetMaterialFloatArray(mat, AI_MATKEY_UVTRANSFORM(type, slotIndex),
+		(float*)&uvTransform, &max) == aiReturn_SUCCESS)
+	{
+		// Successfully retrieved transform
+		texture.scale = glm::vec2(uvTransform.mScaling.x, uvTransform.mScaling.y);
+		texture.offset = glm::vec2(uvTransform.mTranslation.x, uvTransform.mTranslation.y);
+		texture.rotation = uvTransform.mRotation;
+	}
+	else
+	{
+		// No transform specified - use identity defaults
+		texture.scale = glm::vec2(1.0f, 1.0f);
+		texture.offset = glm::vec2(0.0f, 0.0f);
+		texture.rotation = 0.0f;
+	}
 
-    // Debug output (optional)
-    /*std::cout << "UV Transform for " << texture.type << ":\n"
-        << "  TexCoord: " << texture.texCoordIndex << "\n"
-        << "  Scale: (" << texture.scale.x << ", " << texture.scale.y << ")\n"
-        << "  Offset: (" << texture.offset.x << ", " << texture.offset.y << ")\n"
-        << "  Rotation: " << texture.rotation << " rad\n";*/
+	// Debug output (optional)
+	/*std::cout << "UV Transform for " << texture.type << ":\n"
+		<< "  TexCoord: " << texture.texCoordIndex << "\n"
+		<< "  Scale: (" << texture.scale.x << ", " << texture.scale.y << ")\n"
+		<< "  Offset: (" << texture.offset.x << ", " << texture.offset.y << ")\n"
+		<< "  Rotation: " << texture.rotation << " rad\n";*/
 }
 
 // Sets the texture maps for a material based on the defined texture mappings.
@@ -1337,116 +1385,116 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 
 	//debugMaterialTextures(material, material->GetName().C_Str());
 
-    auto addTextureIfMissing = [&](std::vector<Texture>& textures,
-        const QString& qpath,
-        const std::string& type,
-        int texCoordIndex = 0,
-        const glm::vec2& scale = glm::vec2(1.0f),
-        const glm::vec2& offset = glm::vec2(0.0f),
-        float rotation = 0.0f) -> bool {
+	auto addTextureIfMissing = [&](std::vector<Texture>& textures,
+		const QString& qpath,
+		const std::string& type,
+		int texCoordIndex = 0,
+		const glm::vec2& scale = glm::vec2(1.0f),
+		const glm::vec2& offset = glm::vec2(0.0f),
+		float rotation = 0.0f) -> bool {
 
-            if (qpath.isEmpty()) return false;
-            std::string pathUtf8 = qpath.toStdString();
+			if (qpath.isEmpty()) return false;
+			std::string pathUtf8 = qpath.toStdString();
 
-            // Avoid duplicates in 'textures' (path + type)
-            for (const auto& t : textures)
-            {
-                std::string existingPath = t.path.C_Str();
-                if (existingPath == pathUtf8 && t.type == type)
-                {
-                    return false;
-                }
-            }
+			// Avoid duplicates in 'textures' (path + type)
+			for (const auto& t : textures)
+			{
+				std::string existingPath = t.path.C_Str();
+				if (existingPath == pathUtf8 && t.type == type)
+				{
+					return false;
+				}
+			}
 
-            // Build candidate Texture with UV metadata (like loadMaterialTextures does)
-            Texture candidate;
-            candidate.type = type;
-            candidate.path = aiString(pathUtf8);
-            candidate.texCoordIndex = texCoordIndex;
-            candidate.scale = scale;
-            candidate.offset = offset;
-            candidate.rotation = rotation;
+			// Build candidate Texture with UV metadata (like loadMaterialTextures does)
+			Texture candidate;
+			candidate.type = type;
+			candidate.path = aiString(pathUtf8);
+			candidate.texCoordIndex = texCoordIndex;
+			candidate.scale = scale;
+			candidate.offset = offset;
+			candidate.rotation = rotation;
 
-            // UV transform comparator (same as in loadMaterialTextures)
-            auto uvTransformMatches = [](const Texture& a, const Texture& b) {
-                return a.texCoordIndex == b.texCoordIndex &&
-                    std::abs(a.scale.x - b.scale.x) < 0.0001f &&
-                    std::abs(a.scale.y - b.scale.y) < 0.0001f &&
-                    std::abs(a.offset.x - b.offset.x) < 0.0001f &&
-                    std::abs(a.offset.y - b.offset.y) < 0.0001f &&
-                    std::abs(a.rotation - b.rotation) < 0.0001f;
-                };
+			// UV transform comparator (same as in loadMaterialTextures)
+			auto uvTransformMatches = [](const Texture& a, const Texture& b) {
+				return a.texCoordIndex == b.texCoordIndex &&
+					std::abs(a.scale.x - b.scale.x) < 0.0001f &&
+					std::abs(a.scale.y - b.scale.y) < 0.0001f &&
+					std::abs(a.offset.x - b.offset.x) < 0.0001f &&
+					std::abs(a.offset.y - b.offset.y) < 0.0001f &&
+					std::abs(a.rotation - b.rotation) < 0.0001f;
+				};
 
-            // Check 1: exact match (path + type + UV metadata) => reuse whole Texture
-            for (const auto& lt : _loadedTextures)
-            {
-                if (std::string(lt.path.C_Str()) == pathUtf8 &&
-                    lt.type == type &&
-                    uvTransformMatches(lt, candidate))
-                {
-                    textures.push_back(lt); // reuse existing
-                    return true;
-                }
-            }
+			// Check 1: exact match (path + type + UV metadata) => reuse whole Texture
+			for (const auto& lt : _loadedTextures)
+			{
+				if (std::string(lt.path.C_Str()) == pathUtf8 &&
+					lt.type == type &&
+					uvTransformMatches(lt, candidate))
+				{
+					textures.push_back(lt); // reuse existing
+					return true;
+				}
+			}
 
-            // Check 2: same path but different type or different UV metadata
-            // reuse GPU texture id but create new entry with candidate metadata
-            for (const auto& lt : _loadedTextures)
-            {
-                if (std::string(lt.path.C_Str()) == pathUtf8)
-                {
-                    Texture alias;
-                    alias.id = lt.id;                 // reuse GPU texture id
-                    alias.type = type;                // new type
-                    alias.path = lt.path;             // same path
-                    alias.hasAlpha = lt.hasAlpha;     // same alpha info
+			// Check 2: same path but different type or different UV metadata
+			// reuse GPU texture id but create new entry with candidate metadata
+			for (const auto& lt : _loadedTextures)
+			{
+				if (std::string(lt.path.C_Str()) == pathUtf8)
+				{
+					Texture alias;
+					alias.id = lt.id;                 // reuse GPU texture id
+					alias.type = type;                // new type
+					alias.path = lt.path;             // same path
+					alias.hasAlpha = lt.hasAlpha;     // same alpha info
 
-                    // use candidate's UV metadata
-                    alias.texCoordIndex = candidate.texCoordIndex;
-                    alias.scale = candidate.scale;
-                    alias.offset = candidate.offset;
-                    alias.rotation = candidate.rotation;
+					// use candidate's UV metadata
+					alias.texCoordIndex = candidate.texCoordIndex;
+					alias.scale = candidate.scale;
+					alias.offset = candidate.offset;
+					alias.rotation = candidate.rotation;
 
-                    textures.push_back(alias);
-                    _loadedTextures.push_back(alias); // cache this variant
-                    return true;
-                }
-            }
+					textures.push_back(alias);
+					_loadedTextures.push_back(alias); // cache this variant
+					return true;
+				}
+			}
 
-            // Check 3: not loaded yet -> try to load from disk (uses existing textureFromFile)
-            // Resolve file path: qpath may be absolute (from applyGltf) or relative.
-            std::string textureFilePath = pathUtf8;
-            if (!QFile::exists(QString::fromStdString(textureFilePath)))
-            {
-                // try relative to _folderPath (your existing convention in loadMaterialTextures)
-                if (!_folderPath.empty())
-                {
-                    std::string tryPath = _folderPath + '/' + textureFilePath;
-                    std::replace(tryPath.begin(), tryPath.end(), '\\', '/');
-                    if (QFile::exists(QString::fromStdString(tryPath)))
-                    {
-                        textureFilePath = tryPath;
-                    }
-                }
-            }
+			// Check 3: not loaded yet -> try to load from disk (uses existing textureFromFile)
+			// Resolve file path: qpath may be absolute (from applyGltf) or relative.
+			std::string textureFilePath = pathUtf8;
+			if (!QFile::exists(QString::fromStdString(textureFilePath)))
+			{
+				// try relative to _folderPath (your existing convention in loadMaterialTextures)
+				if (!_folderPath.empty())
+				{
+					std::string tryPath = _folderPath + '/' + textureFilePath;
+					std::replace(tryPath.begin(), tryPath.end(), '\\', '/');
+					if (QFile::exists(QString::fromStdString(tryPath)))
+					{
+						textureFilePath = tryPath;
+					}
+				}
+			}
 
-            bool hasAlpha = false;
-            candidate.id = textureFromFile(textureFilePath.c_str(), hasAlpha);
-            candidate.hasAlpha = hasAlpha;
+			bool hasAlpha = false;
+			candidate.id = textureFromFile(textureFilePath.c_str(), hasAlpha);
+			candidate.hasAlpha = hasAlpha;
 
-            // push and cache
-            textures.push_back(candidate);
-            _loadedTextures.push_back(candidate);
+			// push and cache
+			textures.push_back(candidate);
+			_loadedTextures.push_back(candidate);
 
-            if(type == "thicknessMap")
-                mat.setHasThicknessAlpha(hasAlpha);
+			if (type == "thicknessMap")
+				mat.setHasThicknessAlpha(hasAlpha);
 
-            /*qDebug() << "Loaded extension texture:" << QString::fromStdString(textureFilePath)
-                << "type:" << QString::fromStdString(type)
-                << "id:" << candidate.id;*/
+			/*qDebug() << "Loaded extension texture:" << QString::fromStdString(textureFilePath)
+				<< "type:" << QString::fromStdString(type)
+				<< "id:" << candidate.id;*/
 
-            return true;
-        };
+			return true;
+		};
 
 
 
@@ -1732,238 +1780,238 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		}
 	}
 
-    // === Add extension maps discovered by applyGltfMaterialExtensionsToMaterial (stored in GLMaterial) ===
-    // We assume applyGltfMaterialExtensionsToMaterial() was called earlier (before setTextureMaps)
-    // and populated mat.setXxxMap(...) and mat.setXxxTextureId(...) where appropriate.
-    // transmission
-    addTextureIfMissing(textures, mat.transmissionMapPath(), "transmissionMap", /*texCoord*/mat.transmissionTexCoord(),
-        /*scale*/glm::vec2(mat.transmissionTexScale().x(), mat.transmissionTexScale().y()),
-        /*offset*/glm::vec2(mat.transmissionTexOffset().x(), mat.transmissionTexOffset().y()),
-        /*rotation*/mat.transmissionTexRotation());
+	// === Add extension maps discovered by applyGltfMaterialExtensionsToMaterial (stored in GLMaterial) ===
+	// We assume applyGltfMaterialExtensionsToMaterial() was called earlier (before setTextureMaps)
+	// and populated mat.setXxxMap(...) and mat.setXxxTextureId(...) where appropriate.
+	// transmission
+	addTextureIfMissing(textures, mat.transmissionMapPath(), "transmissionMap", /*texCoord*/mat.transmissionTexCoord(),
+		/*scale*/glm::vec2(mat.transmissionTexScale().x(), mat.transmissionTexScale().y()),
+		/*offset*/glm::vec2(mat.transmissionTexOffset().x(), mat.transmissionTexOffset().y()),
+		/*rotation*/mat.transmissionTexRotation());
 
-    // volume / thickness
-    addTextureIfMissing(textures, mat.thicknessMap(), "thicknessMap", /*texCoord*/mat.thicknessTexCoord(),
-        /*scale*/glm::vec2(mat.thicknessTexScale().x(), mat.thicknessTexScale().y()),
-        /*offset*/glm::vec2(mat.thicknessTexOffset().x(), mat.thicknessTexOffset().y()),
-        /*rotation*/mat.thicknessTexRotation());
+	// volume / thickness
+	addTextureIfMissing(textures, mat.thicknessMap(), "thicknessMap", /*texCoord*/mat.thicknessTexCoord(),
+		/*scale*/glm::vec2(mat.thicknessTexScale().x(), mat.thicknessTexScale().y()),
+		/*offset*/glm::vec2(mat.thicknessTexOffset().x(), mat.thicknessTexOffset().y()),
+		/*rotation*/mat.thicknessTexRotation());
 
-    // clearcoat maps
-    addTextureIfMissing(textures, mat.clearcoatColorMapPath(), "clearcoatMap", mat.clearcoatColorTexCoord(),
-        glm::vec2(mat.clearcoatColorTexScale().x(), mat.clearcoatColorTexScale().y()),
-        glm::vec2(mat.clearcoatColorTexOffset().x(), mat.clearcoatColorTexOffset().y()),
-        mat.clearcoatColorTexRotation());
+	// clearcoat maps
+	addTextureIfMissing(textures, mat.clearcoatColorMapPath(), "clearcoatMap", mat.clearcoatColorTexCoord(),
+		glm::vec2(mat.clearcoatColorTexScale().x(), mat.clearcoatColorTexScale().y()),
+		glm::vec2(mat.clearcoatColorTexOffset().x(), mat.clearcoatColorTexOffset().y()),
+		mat.clearcoatColorTexRotation());
 
-    addTextureIfMissing(textures, mat.clearcoatNormalMapPath(), "clearcoatNormalMap", mat.clearcoatNormalTexCoord(),
-        glm::vec2(mat.clearcoatNormalTexScale().x(), mat.clearcoatNormalTexScale().y()),
-        glm::vec2(mat.clearcoatNormalTexOffset().x(), mat.clearcoatNormalTexOffset().y()),
-        mat.clearcoatNormalTexRotation());
+	addTextureIfMissing(textures, mat.clearcoatNormalMapPath(), "clearcoatNormalMap", mat.clearcoatNormalTexCoord(),
+		glm::vec2(mat.clearcoatNormalTexScale().x(), mat.clearcoatNormalTexScale().y()),
+		glm::vec2(mat.clearcoatNormalTexOffset().x(), mat.clearcoatNormalTexOffset().y()),
+		mat.clearcoatNormalTexRotation());
 
-    // sheen maps
-    addTextureIfMissing(textures, mat.sheenColorMapPath(), "sheenColorMap", mat.sheenColorTexCoord(),
-        glm::vec2(mat.sheenColorTexScale().x(), mat.sheenColorTexScale().y()),
-        glm::vec2(mat.sheenColorTexOffset().x(), mat.sheenColorTexOffset().y()),
-        mat.sheenColorTexRotation());
+	// sheen maps
+	addTextureIfMissing(textures, mat.sheenColorMapPath(), "sheenColorMap", mat.sheenColorTexCoord(),
+		glm::vec2(mat.sheenColorTexScale().x(), mat.sheenColorTexScale().y()),
+		glm::vec2(mat.sheenColorTexOffset().x(), mat.sheenColorTexOffset().y()),
+		mat.sheenColorTexRotation());
 
-    addTextureIfMissing(textures, mat.sheenRoughnessMapPath(), "sheenRoughnessMap", mat.sheenRoughnessTexCoord(),
-        glm::vec2(mat.sheenRoughnessTexScale().x(), mat.sheenRoughnessTexScale().y()),
-        glm::vec2(mat.sheenRoughnessTexOffset().x(), mat.sheenRoughnessTexOffset().y()),
-        mat.sheenRoughnessTexRotation());
+	addTextureIfMissing(textures, mat.sheenRoughnessMapPath(), "sheenRoughnessMap", mat.sheenRoughnessTexCoord(),
+		glm::vec2(mat.sheenRoughnessTexScale().x(), mat.sheenRoughnessTexScale().y()),
+		glm::vec2(mat.sheenRoughnessTexOffset().x(), mat.sheenRoughnessTexOffset().y()),
+		mat.sheenRoughnessTexRotation());
 
-    // iridescence maps
-    addTextureIfMissing(textures, mat.iridescenceMap(), "iridescenceMap", mat.iridescenceTexCoord(),
-        glm::vec2(mat.iridescenceTexScale().x(), mat.iridescenceTexScale().y()),
-        glm::vec2(mat.iridescenceTexOffset().x(), mat.iridescenceTexOffset().y()),
-        mat.iridescenceTexRotation());
+	// iridescence maps
+	addTextureIfMissing(textures, mat.iridescenceMap(), "iridescenceMap", mat.iridescenceTexCoord(),
+		glm::vec2(mat.iridescenceTexScale().x(), mat.iridescenceTexScale().y()),
+		glm::vec2(mat.iridescenceTexOffset().x(), mat.iridescenceTexOffset().y()),
+		mat.iridescenceTexRotation());
 
-    addTextureIfMissing(textures, mat.iridescenceThicknessMap(), "iridescenceThicknessMap", mat.iridescenceThicknessTexCoord(),
-        glm::vec2(mat.iridescenceThicknessTexScale().x(), mat.iridescenceThicknessTexScale().y()),
-        glm::vec2(mat.iridescenceThicknessTexOffset().x(), mat.iridescenceThicknessTexOffset().y()),
-        mat.iridescenceThicknessTexRotation());
+	addTextureIfMissing(textures, mat.iridescenceThicknessMap(), "iridescenceThicknessMap", mat.iridescenceThicknessTexCoord(),
+		glm::vec2(mat.iridescenceThicknessTexScale().x(), mat.iridescenceThicknessTexScale().y()),
+		glm::vec2(mat.iridescenceThicknessTexOffset().x(), mat.iridescenceThicknessTexOffset().y()),
+		mat.iridescenceThicknessTexRotation());
 
-    // anisotropy map
-    addTextureIfMissing(textures, mat.anisotropyMap(), "anisotropyMap", mat.anisotropyTexCoord(),
-        glm::vec2(mat.anisotropyTexScale().x(), mat.anisotropyTexScale().y()),
-        glm::vec2(mat.anisotropyTexOffset().x(), mat.anisotropyTexOffset().y()),
-        mat.anisotropyTexRotation());
+	// anisotropy map
+	addTextureIfMissing(textures, mat.anisotropyMap(), "anisotropyMap", mat.anisotropyTexCoord(),
+		glm::vec2(mat.anisotropyTexScale().x(), mat.anisotropyTexScale().y()),
+		glm::vec2(mat.anisotropyTexOffset().x(), mat.anisotropyTexOffset().y()),
+		mat.anisotropyTexRotation());
 
-    // ior map
-    addTextureIfMissing(textures, mat.iorMapPath(), "iorMap", mat.iorTexCoord(),
-        glm::vec2(mat.iorTexScale().x(), mat.iorTexScale().y()),
-        glm::vec2(mat.iorTexOffset().x(), mat.iorTexOffset().y()),
-        mat.iorTexRotation());
+	// ior map
+	addTextureIfMissing(textures, mat.iorMapPath(), "iorMap", mat.iorTexCoord(),
+		glm::vec2(mat.iorTexScale().x(), mat.iorTexScale().y()),
+		glm::vec2(mat.iorTexOffset().x(), mat.iorTexOffset().y()),
+		mat.iorTexRotation());
 
-    // specular maps (KHR_materials_specular)
-    addTextureIfMissing(textures, mat.specularFactorMap(), "specularFactorMap", mat.specularFactorTexCoord());
-    //addTextureIfMissing(textures, mat.specularColorMap(), "specularColorMap", mat.specularColorTexCoord());
+	// specular maps (KHR_materials_specular)
+	addTextureIfMissing(textures, mat.specularFactorMap(), "specularFactorMap", mat.specularFactorTexCoord());
+	//addTextureIfMissing(textures, mat.specularColorMap(), "specularColorMap", mat.specularColorTexCoord());
 
-    // transmission map (already added above as 'transmissionMap' but we try again to be robust)
-    addTextureIfMissing(textures, mat.transmissionMapPath(), "transmissionMap", mat.transmissionTexCoord());
+	// transmission map (already added above as 'transmissionMap' but we try again to be robust)
+	addTextureIfMissing(textures, mat.transmissionMapPath(), "transmissionMap", mat.transmissionTexCoord());
 }
 
 
 // Checks all material textures of a given type and loads the textures if they're not loaded yet.
 // The required info is returned as a Texture struct.
 std::vector<Texture> MaterialProcessor::loadMaterialTextures(
-    aiMaterial* mat,
-    aiTextureType type,
-    const std::string& typeName,
-    unsigned int slotIndex)
+	aiMaterial* mat,
+	aiTextureType type,
+	const std::string& typeName,
+	unsigned int slotIndex)
 {
-    std::vector<Texture> textures;
+	std::vector<Texture> textures;
 
-    if (mat->GetTextureCount(type) <= slotIndex)
-        return textures;
+	if (mat->GetTextureCount(type) <= slotIndex)
+		return textures;
 
-    aiString str;
-    if (mat->GetTexture(type, slotIndex, &str) != AI_SUCCESS)
-        return textures;
+	aiString str;
+	if (mat->GetTexture(type, slotIndex, &str) != AI_SUCCESS)
+		return textures;
 
-    std::string textureFilePath = this->_folderPath + '/' + string(str.C_Str());
-    std::replace(textureFilePath.begin(), textureFilePath.end(), '\\', '/');
+	std::string textureFilePath = this->_folderPath + '/' + string(str.C_Str());
+	std::replace(textureFilePath.begin(), textureFilePath.end(), '\\', '/');
 
-    // Extract UV transform FIRST (before checking cache)
-    Texture newTexture;
-    newTexture.type = typeName;
-    newTexture.path = aiString(textureFilePath);
-    extractUVTransform(mat, type, slotIndex, newTexture);
+	// Extract UV transform FIRST (before checking cache)
+	Texture newTexture;
+	newTexture.type = typeName;
+	newTexture.path = aiString(textureFilePath);
+	extractUVTransform(mat, type, slotIndex, newTexture);
 
-    // Lambda to compare UV transform metadata
-    auto uvTransformMatches = [](const Texture& a, const Texture& b) {
-        return a.texCoordIndex == b.texCoordIndex &&
-            std::abs(a.scale.x - b.scale.x) < 0.0001f &&
-            std::abs(a.scale.y - b.scale.y) < 0.0001f &&
-            std::abs(a.offset.x - b.offset.x) < 0.0001f &&
-            std::abs(a.offset.y - b.offset.y) < 0.0001f &&
-            std::abs(a.rotation - b.rotation) < 0.0001f;
-        };
+	// Lambda to compare UV transform metadata
+	auto uvTransformMatches = [](const Texture& a, const Texture& b) {
+		return a.texCoordIndex == b.texCoordIndex &&
+			std::abs(a.scale.x - b.scale.x) < 0.0001f &&
+			std::abs(a.scale.y - b.scale.y) < 0.0001f &&
+			std::abs(a.offset.x - b.offset.x) < 0.0001f &&
+			std::abs(a.offset.y - b.offset.y) < 0.0001f &&
+			std::abs(a.rotation - b.rotation) < 0.0001f;
+		};
 
-    // Check 1: Exact match (path + type + UV metadata)
-    for (const auto& lt : _loadedTextures)
-    {
-        if (string(lt.path.C_Str()) == textureFilePath &&
-            lt.type == typeName &&
-            uvTransformMatches(lt, newTexture))
-        {
-            // Perfect match - reuse everything
-            textures.push_back(lt);
-            return textures;
-        }
-    }
+	// Check 1: Exact match (path + type + UV metadata)
+	for (const auto& lt : _loadedTextures)
+	{
+		if (string(lt.path.C_Str()) == textureFilePath &&
+			lt.type == typeName &&
+			uvTransformMatches(lt, newTexture))
+		{
+			// Perfect match - reuse everything
+			textures.push_back(lt);
+			return textures;
+		}
+	}
 
-    // Check 2: Same path, but different type OR different UV metadata
-    // In this case, reuse GPU texture ID but create new entry with different metadata
-    for (const auto& lt : _loadedTextures)
-    {
-        if (string(lt.path.C_Str()) == textureFilePath)
-        {
-            // Found same texture file - reuse GPU ID but apply new metadata
-            Texture alias;
-            alias.id = lt.id;                    // Reuse GPU texture
-            alias.type = typeName;               // New type name
-            alias.path = lt.path;                // Same path
-            alias.hasAlpha = lt.hasAlpha;        // Same alpha info
+	// Check 2: Same path, but different type OR different UV metadata
+	// In this case, reuse GPU texture ID but create new entry with different metadata
+	for (const auto& lt : _loadedTextures)
+	{
+		if (string(lt.path.C_Str()) == textureFilePath)
+		{
+			// Found same texture file - reuse GPU ID but apply new metadata
+			Texture alias;
+			alias.id = lt.id;                    // Reuse GPU texture
+			alias.type = typeName;               // New type name
+			alias.path = lt.path;                // Same path
+			alias.hasAlpha = lt.hasAlpha;        // Same alpha info
 
-            // Use the NEW UV transform metadata (from newTexture)
-            alias.texCoordIndex = newTexture.texCoordIndex;
-            alias.scale = newTexture.scale;
-            alias.offset = newTexture.offset;
-            alias.rotation = newTexture.rotation;
+			// Use the NEW UV transform metadata (from newTexture)
+			alias.texCoordIndex = newTexture.texCoordIndex;
+			alias.scale = newTexture.scale;
+			alias.offset = newTexture.offset;
+			alias.rotation = newTexture.rotation;
 
-            textures.push_back(alias);
-            _loadedTextures.push_back(alias);    // Cache this variant
-            return textures;
-        }
-    }
+			textures.push_back(alias);
+			_loadedTextures.push_back(alias);    // Cache this variant
+			return textures;
+		}
+	}
 
-    // Check 3: Not loaded at all - load from file
-    bool hasAlpha = false;
-    newTexture.id = textureFromFile(textureFilePath.c_str(), hasAlpha);
-    newTexture.hasAlpha = hasAlpha;
+	// Check 3: Not loaded at all - load from file
+	bool hasAlpha = false;
+	newTexture.id = textureFromFile(textureFilePath.c_str(), hasAlpha);
+	newTexture.hasAlpha = hasAlpha;
 
-    textures.push_back(newTexture);
-    _loadedTextures.push_back(newTexture);
+	textures.push_back(newTexture);
+	_loadedTextures.push_back(newTexture);
 
-    return textures;
+	return textures;
 }
 
 bool MaterialProcessor::checkImageForAlpha(const QImage& image)
 {
-    // Quick check: if no alpha channel, definitely no transparency
-    if (!image.hasAlphaChannel())
-    {
-        return false;
-    }
+	// Quick check: if no alpha channel, definitely no transparency
+	if (!image.hasAlphaChannel())
+	{
+		return false;
+	}
 
-    // Sample some pixels to check for non-opaque alpha values
-    // For performance, we don't need to check every single pixel
-    int step = std::max(1, image.width() / 32); // Sample every 32nd pixel
+	// Sample some pixels to check for non-opaque alpha values
+	// For performance, we don't need to check every single pixel
+	int step = std::max(1, image.width() / 32); // Sample every 32nd pixel
 
-    for (int y = 0; y < image.height(); y += step)
-    {
-        for (int x = 0; x < image.width(); x += step)
-        {
-            QRgb pixel = image.pixel(x, y);
-            int alpha = qAlpha(pixel);
-            if (alpha < 254)
-            { // 254 to account for compression artifacts
-                return true;
-            }
-        }
-    }
-    return false;
+	for (int y = 0; y < image.height(); y += step)
+	{
+		for (int x = 0; x < image.width(); x += step)
+		{
+			QRgb pixel = image.pixel(x, y);
+			int alpha = qAlpha(pixel);
+			if (alpha < 254)
+			{ // 254 to account for compression artifacts
+				return true;
+			}
+		}
+	}
+	return false;
 }
 
 void MaterialProcessor::synthesizeADSAliases(std::vector<Texture>& textures)
 {
-    // map PBR uniform -> ADS uniform we want to create if missing
-    static const std::vector<std::pair<std::string, std::string>> pbrToAds = {
-        { "albedoMap",   "texture_diffuse" },
-        { "normalMap",   "texture_normal"  },
-        { "emissiveMap", "texture_emissive"},
-        { "metallicMap", "texture_specular"},
-        { "roughnessMap","texture_specular"}, // rough idea: share with specular slot
-        { "heightMap",   "texture_height"  },
-        { "opacityMap",  "texture_opacity" },
-    };
+	// map PBR uniform -> ADS uniform we want to create if missing
+	static const std::vector<std::pair<std::string, std::string>> pbrToAds = {
+		{ "albedoMap",   "texture_diffuse" },
+		{ "normalMap",   "texture_normal"  },
+		{ "emissiveMap", "texture_emissive"},
+		{ "metallicMap", "texture_specular"},
+		{ "roughnessMap","texture_specular"}, // rough idea: share with specular slot
+		{ "heightMap",   "texture_height"  },
+		{ "opacityMap",  "texture_opacity" },
+	};
 
-    // quick helpers to test existence
-    auto hasType = [&](const std::string& t) {
-        for (const auto& tex : textures) if (tex.type == t) return true;
-        return false;
-        };
+	// quick helpers to test existence
+	auto hasType = [&](const std::string& t) {
+		for (const auto& tex : textures) if (tex.type == t) return true;
+		return false;
+		};
 
-    // for each mapping, if PBR is present but ADS is missing -> create alias entry
-    for (auto& map : pbrToAds)
-    {
-        const std::string& pbrName = map.first;
-        const std::string& adsName = map.second;
+	// for each mapping, if PBR is present but ADS is missing -> create alias entry
+	for (auto& map : pbrToAds)
+	{
+		const std::string& pbrName = map.first;
+		const std::string& adsName = map.second;
 
-        if (hasType(adsName)) continue; // ADS already present -> skip
+		if (hasType(adsName)) continue; // ADS already present -> skip
 
-        // find first PBR texture with pbrName
-        for (const auto& tex : textures)
-        {
-            if (tex.type == pbrName)
-            {
-                // produce alias (reuse id and path)
-                Texture alias;
-                alias.id = tex.id;
-                alias.path = tex.path;
-                alias.type = adsName;
+		// find first PBR texture with pbrName
+		for (const auto& tex : textures)
+		{
+			if (tex.type == pbrName)
+			{
+				// produce alias (reuse id and path)
+				Texture alias;
+				alias.id = tex.id;
+				alias.path = tex.path;
+				alias.type = adsName;
 
-                // UV transform metadata
-                alias.scale = tex.scale;
-                alias.offset = tex.offset;
-                alias.rotation = tex.rotation;
-                alias.texCoordIndex = tex.texCoordIndex;
-                alias.hasAlpha = tex.hasAlpha;
+				// UV transform metadata
+				alias.scale = tex.scale;
+				alias.offset = tex.offset;
+				alias.rotation = tex.rotation;
+				alias.texCoordIndex = tex.texCoordIndex;
+				alias.hasAlpha = tex.hasAlpha;
 
-                textures.push_back(alias);
-                _loadedTextures.push_back(alias); // register to global cache so future loads reuse
-                break;
-            }
-        }
-    }
+				textures.push_back(alias);
+				_loadedTextures.push_back(alias); // register to global cache so future loads reuse
+				break;
+			}
+		}
+	}
 }
 
 
