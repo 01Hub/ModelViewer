@@ -380,6 +380,8 @@ vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thi
 
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0);
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0, vec3 baseF90);
+vec3	calculateIridescenceBRDF(vec3 N, vec3 V, vec3 L, float roughness, float iridescenceFactor, float iridescenceIor, float iridescenceThickness, vec3 albedo, float metallic);
+vec3	calculateIridescenceIBL(vec3 N, vec3 V_direct, vec3 V_reflect, vec3 reflectionNormal, float roughness, float iridescenceFactor, float iridescenceIor, float iridescenceThickness, vec3 albedo, float metallic);
 
 float   calculateShadow(vec4 fragPosLightSpace);
 // Function to fetch shadow value with variable kernel size
@@ -1232,6 +1234,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		F0 = mix(F0, iridescenceF0, iridescenceFactor);
 	}
 
+	directSpecular_L += calculateIridescenceBRDF(N, V_direct, L, roughness,
+		iridescenceFactor, iridescenceIor,
+		iridescenceThickness, albedo, metallic);
+
 	// ============================================================================
 	// IBL - IMAGE BASED LIGHTING
 	// ============================================================================
@@ -1284,6 +1290,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	ambient_L *= clearcoatAttenuation;
 	ambient_L += clearcoatIBL_L;
 	ambient_L += sheenIBL_L;
+	ambient_L += calculateIridescenceIBL(
+			N, V_direct, V_reflect, g_reflectionNormal,
+			roughness, iridescenceFactor, iridescenceIor,
+			iridescenceThickness, albedo, metallic);
 
 	// ============================================================================
 	// EMISSION
@@ -2090,6 +2100,102 @@ vec3 evalIridescence(float outsideIOR, float eta2, float cosTheta1,
 		I += Cm * Sm;
 	}
 	return max(I, vec3(0.0));
+}
+
+vec3 calculateIridescenceBRDF(
+    vec3 N, vec3 V, vec3 L, float roughness,
+    float iridescenceFactor, float iridescenceIor,
+    float iridescenceThickness, vec3 albedo, float metallic
+) {
+    if (iridescenceFactor <= 0.0) return vec3(0.0);
+
+    // Half vector
+    vec3 H = normalize(V + L);
+    float NdotL = max(dot(N, L), 0.0);
+    float NdotV = max(dot(N, V), 0.0);
+    float VdotH = max(dot(V, H), 0.0);
+
+    // Fresnel for dielectric path
+    vec3 iridFresnel_dielectric = evalIridescence(
+        1.0,                // outsideIOR (air)
+        iridescenceIor,     // film IOR
+        VdotH,              // use V·H for Fresnel
+        iridescenceThickness,
+        vec3(0.04),         // dielectric F0
+        vec3(1.0)           // F90
+    );
+
+    // Fresnel for metallic path
+    vec3 metallicF0 = mix(albedo, vec3(0.5), 0.2);
+    vec3 iridFresnel_metallic = evalIridescence(
+        1.0,
+        iridescenceIor,
+        VdotH,
+        iridescenceThickness,
+        metallicF0,
+        vec3(1.0)
+    );
+
+    // Blend dielectric and metallic based on metallic factor
+    vec3 F_irid = mix(iridFresnel_dielectric, iridFresnel_metallic, metallic);
+
+    // Microfacet terms
+    float D_irid = distributionGGX(N, H, roughness);
+    float G_irid = geometrySmith(N, V, L, roughness);
+
+    // BRDF
+    vec3 iridescenceBRDF = (D_irid * G_irid * F_irid) / max(4.0 * NdotV * NdotL, 1e-4);
+    return iridescenceBRDF * NdotL * iridescenceFactor;
+}
+
+vec3 calculateIridescenceIBL(
+    vec3 N, vec3 V_direct, vec3 V_reflect, vec3 reflectionNormal,
+    float roughness, float iridescenceFactor, float iridescenceIor,
+    float iridescenceThickness, vec3 albedo, float metallic
+) {
+    if (iridescenceFactor <= 0.0 || !envMapEnabled) return vec3(0.0);
+
+    // Reflection vector for environment sampling
+    vec3 R = reflect(V_reflect, reflectionNormal);
+    R = normalize(R);
+
+    // Fresnel angle term for IBL
+    float dotNV = clamp(dot(N, V_direct), 0.0, 1.0);
+
+    // Prefiltered environment lookup
+    float MAX_LOD = textureQueryLevels(prefilterMap) - 1.0;
+    float lod = roughness * MAX_LOD; // or iridescence-specific roughness
+    vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+
+    // Fresnel for dielectric path
+    vec3 F_irid_dielectric = evalIridescence(
+        1.0,                // outsideIOR (air)
+        iridescenceIor,     // film IOR
+        dotNV,              // N·V for IBL Fresnel
+        iridescenceThickness,
+        vec3(0.04),         // dielectric F0
+        vec3(1.0)           // F90
+    );
+
+    // Fresnel for metallic path
+    vec3 metallicF0 = mix(albedo, vec3(0.5), 0.2);
+    vec3 F_irid_metallic = evalIridescence(
+        1.0,
+        iridescenceIor,
+        dotNV,
+        iridescenceThickness,
+        metallicF0,
+        vec3(1.0)
+    );
+
+    // Blend dielectric and metallic Fresnel
+    vec3 F_irid_IBL = mix(F_irid_dielectric, F_irid_metallic, metallic);
+
+    // BRDF LUT for split-sum approximation
+    vec2 brdf = texture(brdfLUT, vec2(dotNV, roughness)).rg;
+
+    // Combine IBL contribution
+    return prefilteredColor * (F_irid_IBL * brdf.x + brdf.y) * iridescenceFactor;
 }
 
 // KHR_materials_volume
