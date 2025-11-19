@@ -1,6 +1,14 @@
 ﻿#include "MaterialProcessor.h"
 #include "Utils.h"
 #include <string>
+#include <QFile>
+#include <QFileInfo>
+#include <QDir>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QHash>
+#include <QDebug>
 
 using namespace std;
 
@@ -459,7 +467,7 @@ void MaterialProcessor::setDefaultMaterial(GLMaterial& mat)
 	mat = GLMaterial::DEFAULT_MAT();
 }
 
-unsigned int MaterialProcessor::textureFromFile(const char* path, bool& hasAlpha)
+unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture)
 {
 	//Generate texture ID and load texture data
 	unsigned int textureID;
@@ -468,9 +476,9 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, bool& hasAlpha
 	QImage texImage;
 	bool imageHasAlpha = false;
 
-	if (!texImage.load(QString(path)))
+	if (!texImage.load(QString(texture.path.c_str())))
 	{ // Load first image from file
-		qWarning("MaterialProcessor::textureFromFile - Could not read image file, using single-color instead.");
+		qWarning("MaterialProcessor::createTextureOnGPU - Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, QImage::Format_ARGB32);
 		dummy.fill(Qt::white);
 		texImage = dummy;
@@ -486,8 +494,9 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, bool& hasAlpha
 		}
 	}
 
-	hasAlpha = imageHasAlpha;
-
+	texture.id = textureID;
+	texture.hasAlpha = imageHasAlpha;
+	
 	// Assign texture to ID
 	glBindTexture(GL_TEXTURE_2D, textureID);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texImage.width(), texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, texImage.bits());
@@ -503,15 +512,6 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, bool& hasAlpha
 	return textureID;
 }
 
-
-#include <QFile>
-#include <QFileInfo>
-#include <QDir>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QHash>
-#include <QDebug>
 /*
  Comprehensive per-material reader for many KHR_materials_* extensions.
  - Only for external .gltf files (no embedded bufferView/.glb handling here)
@@ -519,13 +519,12 @@ unsigned int MaterialProcessor::textureFromFile(const char* path, bool& hasAlpha
  - Mapping: JSON materials[] index -> aiScene material index; fallback to name-based match
  - Resolves textures -> images[].uri (external path) for thickness/specular/iridescence maps etc.
 */
-
 void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 	const QString& gltfPath,
 	const aiScene* scene,
 	unsigned int materialIndex,
 	GLMaterial& outMaterial,
-	std::vector<Texture>& outTextures)
+	std::vector<GLMaterial::Texture>& outTextures)
 {
 	if (!scene)
 	{
@@ -737,7 +736,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		const glm::vec2& scale,
 		const glm::vec2& offset,
 		float rotation,
-		std::vector<Texture>& textures) -> bool {
+		std::vector<GLMaterial::Texture>& textures) -> bool {
 			if (texturePath.isEmpty()) return false;
 
 			// Look up the texture type
@@ -752,7 +751,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			std::string textureFilePathStd = texturePath.toStdString();
 
 			// Lambda to compare UV transform metadata (same as in loadMaterialTextures)
-			auto uvTransformMatches = [](const Texture& a, const Texture& b) {
+			auto uvTransformMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
 				return a.texCoordIndex == b.texCoordIndex &&
 					std::abs(a.scale.x - b.scale.x) < 0.0001f &&
 					std::abs(a.scale.y - b.scale.y) < 0.0001f &&
@@ -762,9 +761,9 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				};
 
 			// Create a temporary texture struct with the new metadata for comparison
-			Texture newTexture;
+			GLMaterial::Texture newTexture;
 			newTexture.type = textureType;
-			newTexture.path = aiString(textureFilePathStd.c_str());
+			newTexture.path = textureFilePathStd;
 			newTexture.texCoordIndex = texCoord;
 			newTexture.scale = scale;
 			newTexture.offset = offset;
@@ -773,7 +772,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			// CHECK 1: Exact match (path + type + UV metadata) - perfect reuse
 			for (const auto& lt : _loadedTextures)
 			{
-				if (string(lt.path.C_Str()) == textureFilePathStd &&
+				if (string(lt.path) == textureFilePathStd &&
 					lt.type == textureType &&
 					uvTransformMatches(lt, newTexture))
 				{
@@ -787,10 +786,10 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			// In this case, reuse GPU texture ID but create new entry with different metadata
 			for (const auto& lt : _loadedTextures)
 			{
-				if (string(lt.path.C_Str()) == textureFilePathStd)
+				if (string(lt.path) == textureFilePathStd)
 				{
 					// Found same texture file - reuse GPU ID but apply new metadata
-					Texture alias;
+					GLMaterial::Texture alias;
 					alias.id = lt.id;                    // Reuse GPU texture
 					alias.type = textureType;            // New type name
 					alias.path = lt.path;                // Same path
@@ -808,15 +807,10 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				}
 			}
 
-			// CHECK 3: Not loaded at all - load from file
-			bool hasAlpha = false;
-			unsigned int texID = textureFromFile(texturePath.toStdString().c_str(), hasAlpha);
+			// CHECK 3: Not loaded at all - load from file			
+			unsigned int texID = createTextureOnGPU(newTexture);
 
 			if (texID == 0) return false;
-
-			// Create Texture struct with all metadata
-			newTexture.id = texID;
-			newTexture.hasAlpha = hasAlpha;
 
 			// Add to both vectors
 			textures.push_back(newTexture);
@@ -1338,7 +1332,7 @@ void MaterialProcessor::extractUVTransform(
 	aiMaterial* mat,
 	aiTextureType type,
 	unsigned int slotIndex,
-	Texture& texture)
+	GLMaterial::Texture& texture)
 {
 	// 1. Get UV coordinate set index (which TEXCOORD_N to use)
 	int uvwsrc = 0;
@@ -1380,12 +1374,12 @@ void MaterialProcessor::extractUVTransform(
 }
 
 // Sets the texture maps for a material based on the defined texture mappings.
-void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture>& textures, GLMaterial& mat)
+void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMaterial::Texture>& textures, GLMaterial& mat)
 {
 
 	//debugMaterialTextures(material, material->GetName().C_Str());
 
-	auto addTextureIfMissing = [&](std::vector<Texture>& textures,
+	auto addTextureIfMissing = [&](std::vector<GLMaterial::Texture>& textures,
 		const QString& qpath,
 		const std::string& type,
 		int texCoordIndex = 0,
@@ -1399,7 +1393,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 			// Avoid duplicates in 'textures' (path + type)
 			for (const auto& t : textures)
 			{
-				std::string existingPath = t.path.C_Str();
+				std::string existingPath = t.path;
 				if (existingPath == pathUtf8 && t.type == type)
 				{
 					return false;
@@ -1407,16 +1401,16 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 			}
 
 			// Build candidate Texture with UV metadata (like loadMaterialTextures does)
-			Texture candidate;
+			GLMaterial::Texture candidate;
 			candidate.type = type;
-			candidate.path = aiString(pathUtf8);
+			candidate.path = pathUtf8;
 			candidate.texCoordIndex = texCoordIndex;
 			candidate.scale = scale;
 			candidate.offset = offset;
 			candidate.rotation = rotation;
 
 			// UV transform comparator (same as in loadMaterialTextures)
-			auto uvTransformMatches = [](const Texture& a, const Texture& b) {
+			auto uvTransformMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
 				return a.texCoordIndex == b.texCoordIndex &&
 					std::abs(a.scale.x - b.scale.x) < 0.0001f &&
 					std::abs(a.scale.y - b.scale.y) < 0.0001f &&
@@ -1428,7 +1422,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 			// Check 1: exact match (path + type + UV metadata) => reuse whole Texture
 			for (const auto& lt : _loadedTextures)
 			{
-				if (std::string(lt.path.C_Str()) == pathUtf8 &&
+				if (std::string(lt.path) == pathUtf8 &&
 					lt.type == type &&
 					uvTransformMatches(lt, candidate))
 				{
@@ -1441,9 +1435,9 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 			// reuse GPU texture id but create new entry with candidate metadata
 			for (const auto& lt : _loadedTextures)
 			{
-				if (std::string(lt.path.C_Str()) == pathUtf8)
+				if (std::string(lt.path) == pathUtf8)
 				{
-					Texture alias;
+					GLMaterial::Texture alias;
 					alias.id = lt.id;                 // reuse GPU texture id
 					alias.type = type;                // new type
 					alias.path = lt.path;             // same path
@@ -1461,7 +1455,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 				}
 			}
 
-			// Check 3: not loaded yet -> try to load from disk (uses existing textureFromFile)
+			// Check 3: not loaded yet -> try to load from disk (uses existing createTextureOnGPU)
 			// Resolve file path: qpath may be absolute (from applyGltf) or relative.
 			std::string textureFilePath = pathUtf8;
 			if (!QFile::exists(QString::fromStdString(textureFilePath)))
@@ -1477,17 +1471,15 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 					}
 				}
 			}
-
-			bool hasAlpha = false;
-			candidate.id = textureFromFile(textureFilePath.c_str(), hasAlpha);
-			candidate.hasAlpha = hasAlpha;
+						
+			createTextureOnGPU(candidate);			
 
 			// push and cache
 			textures.push_back(candidate);
 			_loadedTextures.push_back(candidate);
 
 			if (type == "thicknessMap")
-				mat.setHasThicknessAlpha(hasAlpha);
+				mat.setHasThicknessAlpha(candidate.hasAlpha);
 
 			/*qDebug() << "Loaded extension texture:" << QString::fromStdString(textureFilePath)
 				<< "type:" << QString::fromStdString(type)
@@ -1527,7 +1519,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		if (tex.type == "albedoMap")
 		{
 			mat.setAlbedoTextureId(tex.id);
-			mat.setAlbedoMap(QString(tex.path.C_Str()));
+			mat.setAlbedoMap(QString(tex.path.c_str()));
 			mat.setAlbedoTexCoord(tex.texCoordIndex);
 			mat.setAlbedoTexScale(toQVector2D(tex.scale));
 			mat.setAlbedoTexOffset(toQVector2D(tex.offset));
@@ -1536,7 +1528,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "normalMap")
 		{
 			mat.setNormalTextureId(tex.id);
-			mat.setNormalMap(QString(tex.path.C_Str()));
+			mat.setNormalMap(QString(tex.path.c_str()));
 			mat.setNormalTexCoord(tex.texCoordIndex);
 			mat.setNormalTexScale(toQVector2D(tex.scale));
 			mat.setNormalTexOffset(toQVector2D(tex.offset));
@@ -1545,7 +1537,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "metallicMap")
 		{
 			mat.setMetallicTextureId(tex.id);
-			mat.setMetallicMap(QString(tex.path.C_Str()));
+			mat.setMetallicMap(QString(tex.path.c_str()));
 			mat.setMetallicTexCoord(tex.texCoordIndex);
 			mat.setMetallicTexScale(toQVector2D(tex.scale));
 			mat.setMetallicTexOffset(toQVector2D(tex.offset));
@@ -1554,7 +1546,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "roughnessMap")
 		{
 			mat.setRoughnessTextureId(tex.id);
-			mat.setRoughnessMap(QString(tex.path.C_Str()));
+			mat.setRoughnessMap(QString(tex.path.c_str()));
 			mat.setRoughnessTexCoord(tex.texCoordIndex);
 			mat.setRoughnessTexScale(toQVector2D(tex.scale));
 			mat.setRoughnessTexOffset(toQVector2D(tex.offset));
@@ -1563,7 +1555,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "emissiveMap")
 		{
 			mat.setEmissiveTextureId(tex.id);
-			mat.setEmissiveMap(QString(tex.path.C_Str()));
+			mat.setEmissiveMap(QString(tex.path.c_str()));
 			mat.setEmissiveTexCoord(tex.texCoordIndex);
 			mat.setEmissiveTexScale(toQVector2D(tex.scale));
 			mat.setEmissiveTexOffset(toQVector2D(tex.offset));
@@ -1572,7 +1564,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "heightMap")
 		{
 			mat.setHeightTextureId(tex.id);
-			mat.setHeightMap(QString(tex.path.C_Str()));
+			mat.setHeightMap(QString(tex.path.c_str()));
 			mat.setHeightTexCoord(tex.texCoordIndex);
 			mat.setHeightTexScale(toQVector2D(tex.scale));
 			mat.setHeightTexOffset(toQVector2D(tex.offset));
@@ -1581,7 +1573,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "opacityMap")
 		{
 			mat.setOpacityTextureId(tex.id);
-			mat.setOpacityMap(QString(tex.path.C_Str()));
+			mat.setOpacityMap(QString(tex.path.c_str()));
 			mat.setOpacityTexCoord(tex.texCoordIndex);
 			mat.setOpacityTexScale(toQVector2D(tex.scale));
 			mat.setOpacityTexOffset(toQVector2D(tex.offset));
@@ -1590,7 +1582,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "aoMap")
 		{
 			mat.setOcclusionTextureId(tex.id);
-			mat.setAOMap(QString(tex.path.C_Str()));
+			mat.setAOMap(QString(tex.path.c_str()));
 			mat.setOcclusionTexCoord(tex.texCoordIndex);
 			mat.setOcclusionTexScale(toQVector2D(tex.scale));
 			mat.setOcclusionTexOffset(toQVector2D(tex.offset));
@@ -1599,7 +1591,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "texture_diffuse")
 		{
 			mat.setAlbedoTextureId(tex.id);
-			mat.setAlbedoMap(QString(tex.path.C_Str()));
+			mat.setAlbedoMap(QString(tex.path.c_str()));
 			mat.setAlbedoTexCoord(tex.texCoordIndex);
 			mat.setAlbedoTexScale(toQVector2D(tex.scale));
 			mat.setAlbedoTexOffset(toQVector2D(tex.offset));
@@ -1608,7 +1600,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "texture_normal")
 		{
 			mat.setNormalTextureId(tex.id);
-			mat.setNormalMap(QString(tex.path.C_Str()));
+			mat.setNormalMap(QString(tex.path.c_str()));
 			mat.setNormalTexCoord(tex.texCoordIndex);
 			mat.setNormalTexScale(toQVector2D(tex.scale));
 			mat.setNormalTexOffset(toQVector2D(tex.offset));
@@ -1617,7 +1609,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "texture_specular")
 		{
 			mat.setMetallicTextureId(tex.id);
-			mat.setMetallicMap(QString(tex.path.C_Str()));
+			mat.setMetallicMap(QString(tex.path.c_str()));
 			mat.setMetallicTexCoord(tex.texCoordIndex);
 			mat.setMetallicTexScale(toQVector2D(tex.scale));
 			mat.setMetallicTexOffset(toQVector2D(tex.offset));
@@ -1626,7 +1618,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "texture_emissive")
 		{
 			mat.setEmissiveTextureId(tex.id);
-			mat.setEmissiveMap(QString(tex.path.C_Str()));
+			mat.setEmissiveMap(QString(tex.path.c_str()));
 			mat.setEmissiveTexCoord(tex.texCoordIndex);
 			mat.setEmissiveTexScale(toQVector2D(tex.scale));
 			mat.setEmissiveTexOffset(toQVector2D(tex.offset));
@@ -1635,7 +1627,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "texture_height")
 		{
 			mat.setHeightTextureId(tex.id);
-			mat.setHeightMap(QString(tex.path.C_Str()));
+			mat.setHeightMap(QString(tex.path.c_str()));
 			mat.setHeightTexCoord(tex.texCoordIndex);
 			mat.setHeightTexScale(toQVector2D(tex.scale));
 			mat.setHeightTexOffset(toQVector2D(tex.offset));
@@ -1644,7 +1636,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "texture_opacity")
 		{
 			mat.setOpacityTextureId(tex.id);
-			mat.setOpacityMap(QString(tex.path.C_Str()));
+			mat.setOpacityMap(QString(tex.path.c_str()));
 			mat.setOpacityTexCoord(tex.texCoordIndex);
 			mat.setOpacityTexScale(toQVector2D(tex.scale));
 			mat.setOpacityTexOffset(toQVector2D(tex.offset));
@@ -1654,7 +1646,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "sheenColorMap")
 		{
 			mat.setSheenColorTextureId(tex.id);
-			mat.setSheenColorMap(QString(tex.path.C_Str()));
+			mat.setSheenColorMap(QString(tex.path.c_str()));
 			mat.setSheenColorTexCoord(tex.texCoordIndex);
 			mat.setSheenColorTexScale(toQVector2D(tex.scale));
 			mat.setSheenColorTexOffset(toQVector2D(tex.offset));
@@ -1663,7 +1655,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "sheenRoughnessMap")
 		{
 			mat.setSheenRoughnessTextureId(tex.id);
-			mat.setSheenRoughnessMap(QString(tex.path.C_Str()));
+			mat.setSheenRoughnessMap(QString(tex.path.c_str()));
 			mat.setSheenRoughnessTexCoord(tex.texCoordIndex);
 			mat.setSheenRoughnessTexScale(toQVector2D(tex.scale));
 			mat.setSheenRoughnessTexOffset(toQVector2D(tex.offset));
@@ -1673,7 +1665,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "clearcoatMap")
 		{
 			mat.setClearcoatColorTextureId(tex.id);
-			mat.setClearcoatColorMap(QString(tex.path.C_Str()));
+			mat.setClearcoatColorMap(QString(tex.path.c_str()));
 			mat.setClearcoatColorTexCoord(tex.texCoordIndex);
 			mat.setClearcoatColorTexScale(toQVector2D(tex.scale));
 			mat.setClearcoatColorTexOffset(toQVector2D(tex.offset));
@@ -1682,7 +1674,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "clearcoatRoughnessMap")
 		{
 			mat.setClearcoatRoughnessTextureId(tex.id);
-			mat.setClearcoatRoughnessMap(QString(tex.path.C_Str()));
+			mat.setClearcoatRoughnessMap(QString(tex.path.c_str()));
 			mat.setClearcoatRoughnessTexCoord(tex.texCoordIndex);
 			mat.setClearcoatRoughnessTexScale(toQVector2D(tex.scale));
 			mat.setClearcoatRoughnessTexOffset(toQVector2D(tex.offset));
@@ -1691,7 +1683,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "clearcoatNormalMap")
 		{
 			mat.setClearcoatNormalTextureId(tex.id);
-			mat.setClearcoatNormalMap(QString(tex.path.C_Str()));
+			mat.setClearcoatNormalMap(QString(tex.path.c_str()));
 			mat.setClearcoatNormalTexCoord(tex.texCoordIndex);
 			mat.setClearcoatNormalTexScale(toQVector2D(tex.scale));
 			mat.setClearcoatNormalTexOffset(toQVector2D(tex.offset));
@@ -1701,7 +1693,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "transmissionMap")
 		{
 			mat.setTransmissionTextureId(tex.id);
-			mat.setTransmissionMap(QString(tex.path.C_Str()));
+			mat.setTransmissionMap(QString(tex.path.c_str()));
 			mat.setTransmissionTexCoord(tex.texCoordIndex);
 			mat.setTransmissionTexScale(toQVector2D(tex.scale));
 			mat.setTransmissionTexOffset(toQVector2D(tex.offset));
@@ -1711,7 +1703,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "thicknessMap")
 		{
 			mat.setThicknessTextureId(tex.id);
-			mat.setThicknessMap(QString(tex.path.C_Str()));
+			mat.setThicknessMap(QString(tex.path.c_str()));
 			mat.setThicknessTexCoord(tex.texCoordIndex);
 			mat.setThicknessTexScale(toQVector2D(tex.scale));
 			mat.setThicknessTexOffset(toQVector2D(tex.offset));
@@ -1722,7 +1714,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "iorMap")
 		{
 			mat.setIORTextureId(tex.id);
-			mat.setIORMap(QString(tex.path.C_Str()));
+			mat.setIORMap(QString(tex.path.c_str()));
 			mat.setIorTexCoord(tex.texCoordIndex);
 			mat.setIorTexScale(toQVector2D(tex.scale));
 			mat.setIorTexOffset(toQVector2D(tex.offset));
@@ -1732,7 +1724,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "specularFactorMap")
 		{
 			mat.setSpecularFactorTextureId(tex.id);
-			mat.setSpecularFactorMap(QString(tex.path.C_Str()));
+			mat.setSpecularFactorMap(QString(tex.path.c_str()));
 			mat.setSpecularFactorTexCoord(tex.texCoordIndex);
 			mat.setSpecularFactorTexScale(toQVector2D(tex.scale));
 			mat.setSpecularFactorTexOffset(toQVector2D(tex.offset));
@@ -1741,7 +1733,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "specularColorMap")
 		{
 			mat.setSpecularColorTextureId(tex.id);
-			mat.setSpecularColorMap(QString(tex.path.C_Str()));
+			mat.setSpecularColorMap(QString(tex.path.c_str()));
 			mat.setSpecularColorTexCoord(tex.texCoordIndex);
 			mat.setSpecularColorTexScale(toQVector2D(tex.scale));
 			mat.setSpecularColorTexOffset(toQVector2D(tex.offset));
@@ -1752,7 +1744,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "anisotropyMap")
 		{
 			mat.setAnisotropyTextureId(tex.id);
-			mat.setAnisotropyMap(QString(tex.path.C_Str()));
+			mat.setAnisotropyMap(QString(tex.path.c_str()));
 			mat.setAnisotropyTexCoord(tex.texCoordIndex);
 			mat.setAnisotropyTexScale(toQVector2D(tex.scale));
 			mat.setAnisotropyTexOffset(toQVector2D(tex.offset));
@@ -1763,7 +1755,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "iridescenceMap")
 		{
 			mat.setIridescenceTextureId(tex.id);
-			mat.setIridescenceMap(QString(tex.path.C_Str()));
+			mat.setIridescenceMap(QString(tex.path.c_str()));
 			mat.setIridescenceTexCoord(tex.texCoordIndex);
 			mat.setIridescenceTexScale(toQVector2D(tex.scale));
 			mat.setIridescenceTexOffset(toQVector2D(tex.offset));
@@ -1772,7 +1764,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 		else if (tex.type == "iridescenceThicknessMap")
 		{
 			mat.setIridescenceThicknessTextureId(tex.id);
-			mat.setIridescenceThicknessMap(QString(tex.path.C_Str()));
+			mat.setIridescenceThicknessMap(QString(tex.path.c_str()));
 			mat.setIridescenceThicknessTexCoord(tex.texCoordIndex);
 			mat.setIridescenceThicknessTexScale(toQVector2D(tex.scale));
 			mat.setIridescenceThicknessTexOffset(toQVector2D(tex.offset));
@@ -1851,13 +1843,13 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<Texture
 
 // Checks all material textures of a given type and loads the textures if they're not loaded yet.
 // The required info is returned as a Texture struct.
-std::vector<Texture> MaterialProcessor::loadMaterialTextures(
+std::vector<GLMaterial::Texture> MaterialProcessor::loadMaterialTextures(
 	aiMaterial* mat,
 	aiTextureType type,
 	const std::string& typeName,
 	unsigned int slotIndex)
 {
-	std::vector<Texture> textures;
+	std::vector<GLMaterial::Texture> textures;
 
 	if (mat->GetTextureCount(type) <= slotIndex)
 		return textures;
@@ -1870,13 +1862,13 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
 	std::replace(textureFilePath.begin(), textureFilePath.end(), '\\', '/');
 
 	// Extract UV transform FIRST (before checking cache)
-	Texture newTexture;
+	GLMaterial::Texture newTexture;
 	newTexture.type = typeName;
-	newTexture.path = aiString(textureFilePath);
+	newTexture.path = textureFilePath;
 	extractUVTransform(mat, type, slotIndex, newTexture);
 
 	// Lambda to compare UV transform metadata
-	auto uvTransformMatches = [](const Texture& a, const Texture& b) {
+	auto uvTransformMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
 		return a.texCoordIndex == b.texCoordIndex &&
 			std::abs(a.scale.x - b.scale.x) < 0.0001f &&
 			std::abs(a.scale.y - b.scale.y) < 0.0001f &&
@@ -1888,7 +1880,7 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
 	// Check 1: Exact match (path + type + UV metadata)
 	for (const auto& lt : _loadedTextures)
 	{
-		if (string(lt.path.C_Str()) == textureFilePath &&
+		if (string(lt.path.c_str()) == textureFilePath &&
 			lt.type == typeName &&
 			uvTransformMatches(lt, newTexture))
 		{
@@ -1902,10 +1894,10 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
 	// In this case, reuse GPU texture ID but create new entry with different metadata
 	for (const auto& lt : _loadedTextures)
 	{
-		if (string(lt.path.C_Str()) == textureFilePath)
+		if (string(lt.path.c_str()) == textureFilePath)
 		{
 			// Found same texture file - reuse GPU ID but apply new metadata
-			Texture alias;
+			GLMaterial::Texture alias;
 			alias.id = lt.id;                    // Reuse GPU texture
 			alias.type = typeName;               // New type name
 			alias.path = lt.path;                // Same path
@@ -1923,10 +1915,8 @@ std::vector<Texture> MaterialProcessor::loadMaterialTextures(
 		}
 	}
 
-	// Check 3: Not loaded at all - load from file
-	bool hasAlpha = false;
-	newTexture.id = textureFromFile(textureFilePath.c_str(), hasAlpha);
-	newTexture.hasAlpha = hasAlpha;
+	// Check 3: Not loaded at all - load from file	
+	createTextureOnGPU(newTexture);	
 
 	textures.push_back(newTexture);
 	_loadedTextures.push_back(newTexture);
@@ -1961,7 +1951,7 @@ bool MaterialProcessor::checkImageForAlpha(const QImage& image)
 	return false;
 }
 
-void MaterialProcessor::synthesizeADSAliases(std::vector<Texture>& textures)
+void MaterialProcessor::synthesizeADSAliases(std::vector<GLMaterial::Texture>& textures)
 {
 	// map PBR uniform -> ADS uniform we want to create if missing
 	static const std::vector<std::pair<std::string, std::string>> pbrToAds = {
@@ -1994,7 +1984,7 @@ void MaterialProcessor::synthesizeADSAliases(std::vector<Texture>& textures)
 			if (tex.type == pbrName)
 			{
 				// produce alias (reuse id and path)
-				Texture alias;
+				GLMaterial::Texture alias;
 				alias.id = tex.id;
 				alias.path = tex.path;
 				alias.type = adsName;

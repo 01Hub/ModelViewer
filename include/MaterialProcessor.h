@@ -18,13 +18,13 @@ public:
 
 	void setColorAndMaterial(aiMaterial* material, GLMaterial& mat);
 	void setDefaultMaterial(GLMaterial& mat);
-	void setTextureMaps(aiMaterial* material, std::vector<Texture>& textures, GLMaterial& mat);
+	void setTextureMaps(aiMaterial* material, std::vector<GLMaterial::Texture>& textures, GLMaterial& mat);
 
 	void clearLoadedTextures() { _loadedTextures.clear(); }
 
 	// Checks all material textures of a given type and loads the textures if they're not loaded yet.
 	// The required info is returned as a Texture struct.    
-	std::vector<Texture> loadMaterialTextures(
+	std::vector<GLMaterial::Texture> loadMaterialTextures(
 		aiMaterial* mat,
 		aiTextureType type,
 		const std::string& typeName,
@@ -32,23 +32,22 @@ public:
 
 	bool checkImageForAlpha(const QImage& image);
 
-	void synthesizeADSAliases(std::vector<Texture>& textures);
+	void synthesizeADSAliases(std::vector<GLMaterial::Texture>& textures);
 
 	void applyGltfMaterialExtensionsToMaterial(
 		const QString& gltfPath,
 		const aiScene* scene,
 		unsigned int materialIndex,
 		GLMaterial& outMaterial,
-		std::vector<Texture>& outTextures);
+		std::vector<GLMaterial::Texture>& outTextures);
 
 private:
 	void setShadingModel(GLMaterial& mat, aiShadingMode shadingModel);
 	void setBlendMode(GLMaterial& mat, aiBlendMode blendMode);
 
-
 	void validateMaterialConsistency(GLMaterial& mat);
 
-	unsigned int textureFromFile(const char* path, bool& hasAlpha);
+	unsigned int createTextureOnGPU(GLMaterial::Texture& texture);
 
 private:
 	// Each entry: primary type + uniform name, and an optional fallback type+uniform name
@@ -127,12 +126,12 @@ private:
 		aiMaterial* mat,
 		aiTextureType type,
 		unsigned int slotIndex,
-		Texture& texture);
+		GLMaterial::Texture& texture);
 
 	
 
 private:
-	std::vector<Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
+	std::vector<GLMaterial::Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
 
 	std::string _folderPath; // Directory where textures are located
 };
