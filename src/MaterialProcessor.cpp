@@ -12,6 +12,44 @@
 
 using namespace std;
 
+// Convert glTF wrap mode constant to OpenGL
+static GLenum convertGltfWrapMode(int gltfWrap)
+{
+	switch (gltfWrap)
+	{
+	case 33071:  return GL_CLAMP_TO_EDGE;
+	case 10497:  return GL_REPEAT;
+	case 33648:  return GL_MIRRORED_REPEAT;
+	default:     return GL_REPEAT;
+	}
+}
+
+// Convert glTF magFilter constant to OpenGL
+static GLenum convertGltfMagFilter(int gltfFilter)
+{
+	switch (gltfFilter)
+	{
+	case 9728:   return GL_NEAREST;
+	case 9729:   return GL_LINEAR;
+	default:     return GL_LINEAR;
+	}
+}
+
+// Convert glTF minFilter constant to OpenGL
+static GLenum convertGltfMinFilter(int gltfFilter)
+{
+	switch (gltfFilter)
+	{
+	case 9728:   return GL_NEAREST;
+	case 9729:   return GL_LINEAR;
+	case 9984:   return GL_NEAREST_MIPMAP_NEAREST;
+	case 9985:   return GL_LINEAR_MIPMAP_NEAREST;
+	case 9986:   return GL_NEAREST_MIPMAP_LINEAR;
+	case 9987:   return GL_LINEAR_MIPMAP_LINEAR;
+	default:     return GL_LINEAR_MIPMAP_LINEAR;
+	}
+}
+
 MaterialProcessor::MaterialProcessor() : _folderPath("")
 {
 	initializeOpenGLFunctions();
@@ -503,10 +541,10 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture)
 	glGenerateMipmap(GL_TEXTURE_2D);
 
 	// Parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture.wrapS);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture.wrapT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, texture.minFilter);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texture.magFilter);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	return textureID;
@@ -582,6 +620,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 	QJsonArray jsonMaterials = root.value("materials").toArray();
 	QJsonArray jsonTextures = root.value("textures").toArray();
 	QJsonArray jsonImages = root.value("images").toArray();
+	QJsonArray jsonSamplers = root.value("samplers").toArray();
 
 	// Utility: resolve a relative image URI against the gltf file path (returns data: URIs as-is)
 	auto resolveUri = [&](const QString& uri) -> QString {
@@ -625,51 +664,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		return QString();
 		};
 
-	// Helper to extract UV transform from a texture object
-	auto extractTextureTransform = [](const QJsonObject& texObj) -> std::tuple<int, glm::vec2, glm::vec2, float> {
-		int texCoord = texObj.value("texCoord").toInt(0);
-		glm::vec2 scale(1.0f, 1.0f);
-		glm::vec2 offset(0.0f, 0.0f);
-		float rotation = 0.0f;
-
-		// Check for KHR_texture_transform extension
-		if (texObj.contains("extensions"))
-		{
-			QJsonObject ext = texObj.value("extensions").toObject();
-			if (ext.contains("KHR_texture_transform"))
-			{
-				QJsonObject transform = ext.value("KHR_texture_transform").toObject();
-
-				if (transform.contains("scale") && transform.value("scale").isArray())
-				{
-					QJsonArray s = transform.value("scale").toArray();
-					if (s.size() >= 2)
-					{
-						scale.x = static_cast<float>(s.at(0).toDouble(1.0));
-						scale.y = static_cast<float>(s.at(1).toDouble(1.0));
-					}
-				}
-
-				if (transform.contains("offset") && transform.value("offset").isArray())
-				{
-					QJsonArray o = transform.value("offset").toArray();
-					if (o.size() >= 2)
-					{
-						offset.x = static_cast<float>(o.at(0).toDouble(0.0));
-						offset.y = static_cast<float>(o.at(1).toDouble(0.0));
-					}
-				}
-
-				if (transform.contains("rotation"))
-				{
-					rotation = static_cast<float>(transform.value("rotation").toDouble(0.0));
-				}
-			}
-		}
-
-		return std::make_tuple(texCoord, scale, offset, rotation);
-		};
-
+	
 	static const std::map<std::string, std::string> textureTypeMapping = {
 		// Base PBR textures
 		{"baseColor", "albedoMap"},
@@ -730,91 +725,69 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		{"specularColorMap", "specularColorMap"},
 	};
 
-	auto loadAndAddTexture = [&](const QString& texturePath,
-		const std::string& mapType,
-		int texCoord,
-		const glm::vec2& scale,
-		const glm::vec2& offset,
-		float rotation,
+	auto loadAndAddTexture = [&](GLMaterial::Texture& newTexture,
 		std::vector<GLMaterial::Texture>& textures) -> bool {
-			if (texturePath.isEmpty()) return false;
 
-			// Look up the texture type
-			auto it = textureTypeMapping.find(mapType);
-			if (it == textureTypeMapping.end())
-			{
-				qWarning() << "Unknown texture type:" << QString::fromStdString(mapType);
-				return false;
-			}
+			if (newTexture.path.empty()) return false;
 
-			std::string textureType = it->second;  // Get the mapped type name
-			std::string textureFilePathStd = texturePath.toStdString();
-
-			// Lambda to compare UV transform metadata (same as in loadMaterialTextures)
-			auto uvTransformMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
+			// Lambda to compare full metadata
+			auto metadataMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
 				return a.texCoordIndex == b.texCoordIndex &&
 					std::abs(a.scale.x - b.scale.x) < 0.0001f &&
 					std::abs(a.scale.y - b.scale.y) < 0.0001f &&
 					std::abs(a.offset.x - b.offset.x) < 0.0001f &&
 					std::abs(a.offset.y - b.offset.y) < 0.0001f &&
-					std::abs(a.rotation - b.rotation) < 0.0001f;
+					std::abs(a.rotation - b.rotation) < 0.0001f &&
+					a.wrapS == b.wrapS &&
+					a.wrapT == b.wrapT &&
+					a.magFilter == b.magFilter &&
+					a.minFilter == b.minFilter;
 				};
 
-			// Create a temporary texture struct with the new metadata for comparison
-			GLMaterial::Texture newTexture;
-			newTexture.type = textureType;
-			newTexture.path = textureFilePathStd;
-			newTexture.texCoordIndex = texCoord;
-			newTexture.scale = scale;
-			newTexture.offset = offset;
-			newTexture.rotation = rotation;
-
-			// CHECK 1: Exact match (path + type + UV metadata) - perfect reuse
+			// Check 1: Exact match
 			for (const auto& lt : _loadedTextures)
 			{
-				if (string(lt.path) == textureFilePathStd &&
-					lt.type == textureType &&
-					uvTransformMatches(lt, newTexture))
+				if (lt.path == newTexture.path &&
+					lt.type == newTexture.type &&
+					metadataMatches(lt, newTexture))
 				{
-					// Perfect match - reuse everything
 					textures.push_back(lt);
 					return true;
 				}
 			}
 
-			// CHECK 2: Same path, but different type OR different UV metadata
-			// In this case, reuse GPU texture ID but create new entry with different metadata
+			// Check 2: Same path, different metadata - create alias
 			for (const auto& lt : _loadedTextures)
 			{
-				if (string(lt.path) == textureFilePathStd)
+				if (lt.path == newTexture.path)
 				{
-					// Found same texture file - reuse GPU ID but apply new metadata
 					GLMaterial::Texture alias;
-					alias.id = lt.id;                    // Reuse GPU texture
-					alias.type = textureType;            // New type name
-					alias.path = lt.path;                // Same path
-					alias.hasAlpha = lt.hasAlpha;        // Same alpha info
+					alias.id = lt.id;
+					alias.path = lt.path;
+					alias.type = newTexture.type;
+					alias.hasAlpha = lt.hasAlpha;
 
-					// Use the NEW UV transform metadata
+					// Use NEW metadata
 					alias.texCoordIndex = newTexture.texCoordIndex;
 					alias.scale = newTexture.scale;
 					alias.offset = newTexture.offset;
 					alias.rotation = newTexture.rotation;
+					alias.wrapS = newTexture.wrapS;
+					alias.wrapT = newTexture.wrapT;
+					alias.magFilter = newTexture.magFilter;
+					alias.minFilter = newTexture.minFilter;
 
 					textures.push_back(alias);
-					_loadedTextures.push_back(alias);    // Cache this variant
+					_loadedTextures.push_back(alias);
 					return true;
 				}
 			}
 
-			// CHECK 3: Not loaded at all - load from file			
-			unsigned int texID = createTextureOnGPU(newTexture);
+			// Check 3: Not loaded - load from disk
+			createTextureOnGPU(newTexture);
 
-			if (texID == 0) return false;
-
-			// Add to both vectors
 			textures.push_back(newTexture);
-			_loadedTextures.push_back(newTexture);    // Cache for future reuse
+			_loadedTextures.push_back(newTexture);
 
 			return true;
 		};
@@ -837,8 +810,14 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			if (texIndex >= 0)
 			{
 				QString uri = resolveTextureUri(texIndex);
-				auto [texCoord, scale, offset, rotation] = extractTextureTransform(baseColorTexObj);
-				if (loadAndAddTexture(uri, "baseColor", texCoord, scale, offset, rotation, outTextures))
+
+				GLMaterial::Texture tex;
+				tex.type = "baseColor";
+				tex.path = uri.toStdString();
+
+				extractTextureMetadataFromJson(baseColorTexObj, jsonSamplers, tex);
+
+				if (loadAndAddTexture(tex, outTextures))
 				{
 					qDebug() << "  ✓ Loaded baseColor texture:" << uri;
 				}
@@ -853,8 +832,14 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			if (texIndex >= 0)
 			{
 				QString uri = resolveTextureUri(texIndex);
-				auto [texCoord, scale, offset, rotation] = extractTextureTransform(normalTexObj);
-				if (loadAndAddTexture(uri, "normal", texCoord, scale, offset, rotation, outTextures))
+
+				GLMaterial::Texture tex;
+				tex.type = "normalMap";
+				tex.path = uri.toStdString();
+
+				extractTextureMetadataFromJson(normalTexObj, jsonSamplers, tex);
+
+				if (loadAndAddTexture(tex, outTextures))
 				{
 					qDebug() << "  ✓ Loaded normal texture:" << uri;
 				}
@@ -869,8 +854,14 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			if (texIndex >= 0)
 			{
 				QString uri = resolveTextureUri(texIndex);
-				auto [texCoord, scale, offset, rotation] = extractTextureTransform(mrTexObj);
-				if (loadAndAddTexture(uri, "metallicRoughness", texCoord, scale, offset, rotation, outTextures))
+
+				GLMaterial::Texture tex;
+				tex.type = "metallicRoughnessMap";
+				tex.path = uri.toStdString();
+
+				extractTextureMetadataFromJson(mrTexObj, jsonSamplers, tex);
+
+				if (loadAndAddTexture(tex, outTextures))
 				{
 					qDebug() << "  ✓ Loaded metallicRoughness texture:" << uri;
 				}
@@ -885,8 +876,14 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			if (texIndex >= 0)
 			{
 				QString uri = resolveTextureUri(texIndex);
-				auto [texCoord, scale, offset, rotation] = extractTextureTransform(occTexObj);
-				if (loadAndAddTexture(uri, "occlusion", texCoord, scale, offset, rotation, outTextures))
+
+				GLMaterial::Texture tex;
+				tex.type = "occlusionMap";
+				tex.path = uri.toStdString();
+
+				extractTextureMetadataFromJson(occTexObj, jsonSamplers, tex);
+
+				if (loadAndAddTexture(tex, outTextures))
 				{
 					qDebug() << "  ✓ Loaded occlusion texture:" << uri;
 				}
@@ -901,8 +898,14 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			if (texIndex >= 0)
 			{
 				QString uri = resolveTextureUri(texIndex);
-				auto [texCoord, scale, offset, rotation] = extractTextureTransform(emissiveTexObj);
-				if (loadAndAddTexture(uri, "emissive", texCoord, scale, offset, rotation, outTextures))
+
+				GLMaterial::Texture tex;
+				tex.type = "emissiveMap";
+				tex.path = uri.toStdString();
+
+				extractTextureMetadataFromJson(emissiveTexObj, jsonSamplers, tex);
+
+				if (loadAndAddTexture(tex, outTextures))
 				{
 					qDebug() << "  ✓ Loaded emissive texture:" << uri;
 				}
@@ -947,7 +950,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 					appliedAny = true;
 				}
 			}
-			// thicknessTexture
+			// thicknessTexture	
 			if (vol.contains("thicknessTexture") && vol.value("thicknessTexture").isObject())
 			{
 				QJsonObject texObj = vol.value("thicknessTexture").toObject();
@@ -955,9 +958,17 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				if (texIndex >= 0)
 				{
 					QString uri = resolveTextureUri(texIndex);
-					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-					loadAndAddTexture(uri, "thickness", texCoord, scale, offset, rotation, outTextures);
-					appliedAny = true;
+
+					GLMaterial::Texture tex;
+					tex.type = "thicknessTexture";
+					tex.path = uri.toStdString();
+
+					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
+
+					if (loadAndAddTexture(tex, outTextures))
+					{
+						qDebug() << "  ✓ Loaded thicknessTexture texture:" << uri;
+					}
 				}
 			}
 		}
@@ -980,9 +991,17 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				if (texIndex >= 0)
 				{
 					QString uri = resolveTextureUri(texIndex);
-					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-					loadAndAddTexture(uri, "transmission", texCoord, scale, offset, rotation, outTextures);
-					appliedAny = true;
+
+					GLMaterial::Texture tex;
+					tex.type = "transmissionTexture";
+					tex.path = uri.toStdString();
+
+					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
+
+					if (loadAndAddTexture(tex, outTextures))
+					{
+						qDebug() << "  ✓ Loaded transmissionTexture texture:" << uri;
+					}
 				}
 			}
 		}
@@ -1029,9 +1048,17 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				if (texIndex >= 0)
 				{
 					QString uri = resolveTextureUri(texIndex);
-					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-					loadAndAddTexture(uri, "specularFactor", texCoord, scale, offset, rotation, outTextures);
-					appliedAny = true;
+
+					GLMaterial::Texture tex;
+					tex.type = "specularTexture";
+					tex.path = uri.toStdString();
+
+					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
+
+					if (loadAndAddTexture(tex, outTextures))
+					{
+						qDebug() << "  ✓ Loaded specularTexture texture:" << uri;
+					}
 				}
 			}
 		}
@@ -1059,9 +1086,17 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				if (texIndex >= 0)
 				{
 					QString uri = resolveTextureUri(texIndex);
-					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-					loadAndAddTexture(uri, "clearcoatColor", texCoord, scale, offset, rotation, outTextures);
-					appliedAny = true;
+
+					GLMaterial::Texture tex;
+					tex.type = "clearcoatTexture";
+					tex.path = uri.toStdString();
+
+					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
+
+					if (loadAndAddTexture(tex, outTextures))
+					{
+						qDebug() << "  ✓ Loaded clearcoatTexture texture:" << uri;
+					}
 				}
 			}
 		}
@@ -1096,9 +1131,17 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				if (texIndex >= 0)
 				{
 					QString uri = resolveTextureUri(texIndex);
-					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-					loadAndAddTexture(uri, "sheenColor", texCoord, scale, offset, rotation, outTextures);
-					appliedAny = true;
+
+					GLMaterial::Texture tex;
+					tex.type = "sheenColorTexture";
+					tex.path = uri.toStdString();
+
+					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
+
+					if (loadAndAddTexture(tex, outTextures))
+					{
+						qDebug() << "  ✓ Loaded sheenColorTexture texture:" << uri;
+					}
 				}
 			}
 		}
@@ -1138,9 +1181,17 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				if (texIndex >= 0)
 				{
 					QString uri = resolveTextureUri(texIndex);
-					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-					loadAndAddTexture(uri, "iridescenceThickness", texCoord, scale, offset, rotation, outTextures);
-					appliedAny = true;
+
+					GLMaterial::Texture tex;
+					tex.type = "iridescenceThicknessTexture";
+					tex.path = uri.toStdString();
+
+					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
+
+					if (loadAndAddTexture(tex, outTextures))
+					{
+						qDebug() << "  ✓ Loaded iridescenceThicknessTexture texture:" << uri;
+					}
 				}
 			}
 		}
@@ -1168,9 +1219,17 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				if (texIndex >= 0)
 				{
 					QString uri = resolveTextureUri(texIndex);
-					auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-					loadAndAddTexture(uri, "anisotropy", texCoord, scale, offset, rotation, outTextures);
-					appliedAny = true;
+
+					GLMaterial::Texture tex;
+					tex.type = "anisotropyTexture";
+					tex.path = uri.toStdString();
+
+					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
+
+					if (loadAndAddTexture(tex, outTextures))
+					{
+						qDebug() << "  ✓ Loaded anisotropyTexture texture:" << uri;
+					}
 				}
 			}
 		}
@@ -1328,13 +1387,13 @@ void MaterialProcessor::debugMaterialTextures(aiMaterial* material, const std::s
 	std::cout << "========================" << std::endl;
 }
 
-void MaterialProcessor::extractUVTransform(
+void MaterialProcessor::extractTextureMetadataFromAssimp(
 	aiMaterial* mat,
 	aiTextureType type,
 	unsigned int slotIndex,
 	GLMaterial::Texture& texture)
 {
-	// 1. Get UV coordinate set index (which TEXCOORD_N to use)
+	// === Extract texCoord index ===
 	int uvwsrc = 0;
 	if (mat->Get(AI_MATKEY_UVWSRC(type, slotIndex), uvwsrc) == AI_SUCCESS)
 	{
@@ -1342,29 +1401,67 @@ void MaterialProcessor::extractUVTransform(
 	}
 	else
 	{
-		texture.texCoordIndex = 0; // Default to TEXCOORD_0
+		texture.texCoordIndex = 0;
 	}
 
-	// 2. Get UV transform (scale, offset, rotation)
+	// === Extract UV transform ===
 	aiUVTransform uvTransform;
 	unsigned int max = sizeof(aiUVTransform);
 
 	if (aiGetMaterialFloatArray(mat, AI_MATKEY_UVTRANSFORM(type, slotIndex),
 		(float*)&uvTransform, &max) == aiReturn_SUCCESS)
 	{
-		// Successfully retrieved transform
 		texture.scale = glm::vec2(uvTransform.mScaling.x, uvTransform.mScaling.y);
 		texture.offset = glm::vec2(uvTransform.mTranslation.x, uvTransform.mTranslation.y);
 		texture.rotation = uvTransform.mRotation;
 	}
 	else
 	{
-		// No transform specified - use identity defaults
 		texture.scale = glm::vec2(1.0f, 1.0f);
 		texture.offset = glm::vec2(0.0f, 0.0f);
 		texture.rotation = 0.0f;
 	}
 
+	// === Extract sampler metadata from Assimp ===
+	// Try to get sampler index
+	unsigned int samplerIndex = 0;
+	texture.wrapS = GL_REPEAT;
+	texture.wrapT = GL_REPEAT;
+	texture.magFilter = GL_LINEAR;
+	texture.minFilter = GL_LINEAR_MIPMAP_LINEAR;
+
+	// Check if Assimp provides sampler data (newer versions)
+	/*if (mat->Get(AI_MATKEY_TEXTURE_SAMPLER(type, slotIndex), samplerIndex) == AI_SUCCESS)
+	{
+		// Assimp found sampler - try to extract wrap modes
+		// Note: This may or may not be supported depending on Assimp version
+
+		// Try to get wrapS (aiTextureOp enums)
+		int wrapSVal = 0;
+		if (mat->Get(AI_MATKEY_TEXWRAP_U(type, slotIndex), wrapSVal) == AI_SUCCESS)
+		{
+			// aiTextureMapMode_Wrap = 0, aiTextureMapMode_Clamp = 1, aiTextureMapMode_Mirror = 2
+			switch (wrapSVal)
+			{
+			case aiTextureMapMode_Wrap:   texture.wrapS = GL_REPEAT; break;
+			case aiTextureMapMode_Clamp:  texture.wrapS = GL_CLAMP_TO_EDGE; break;
+			case aiTextureMapMode_Mirror: texture.wrapS = GL_MIRRORED_REPEAT; break;
+			default: texture.wrapS = GL_REPEAT;
+			}
+		}
+
+		int wrapTVal = 0;
+		if (mat->Get(AI_MATKEY_TEXWRAP_V(type, slotIndex), wrapTVal) == AI_SUCCESS)
+		{
+			switch (wrapTVal)
+			{
+			case aiTextureMapMode_Wrap:   texture.wrapT = GL_REPEAT; break;
+			case aiTextureMapMode_Clamp:  texture.wrapT = GL_CLAMP_TO_EDGE; break;
+			case aiTextureMapMode_Mirror: texture.wrapT = GL_MIRRORED_REPEAT; break;
+			default: texture.wrapT = GL_REPEAT;
+			}
+		}
+	}*/
 	// Debug output (optional)
 	/*std::cout << "UV Transform for " << texture.type << ":\n"
 		<< "  TexCoord: " << texture.texCoordIndex << "\n"
@@ -1373,6 +1470,81 @@ void MaterialProcessor::extractUVTransform(
 		<< "  Rotation: " << texture.rotation << " rad\n";*/
 }
 
+void MaterialProcessor::extractTextureMetadataFromJson(
+	const QJsonObject& texObj,
+	const QJsonArray& jsonSamplers,
+	GLMaterial::Texture& texture)
+{
+	// === Extract texCoord ===
+	texture.texCoordIndex = texObj.value("texCoord").toInt(0);
+
+	// === Extract transform (KHR_texture_transform) ===
+	texture.scale = glm::vec2(1.0f, 1.0f);
+	texture.offset = glm::vec2(0.0f, 0.0f);
+	texture.rotation = 0.0f;
+
+	if (texObj.contains("extensions"))
+	{
+		QJsonObject ext = texObj.value("extensions").toObject();
+		if (ext.contains("KHR_texture_transform"))
+		{
+			QJsonObject transform = ext.value("KHR_texture_transform").toObject();
+
+			// Scale
+			if (transform.contains("scale") && transform.value("scale").isArray())
+			{
+				QJsonArray s = transform.value("scale").toArray();
+				if (s.size() >= 2)
+				{
+					texture.scale.x = static_cast<float>(s.at(0).toDouble(1.0));
+					texture.scale.y = static_cast<float>(s.at(1).toDouble(1.0));
+				}
+			}
+
+			// Offset
+			if (transform.contains("offset") && transform.value("offset").isArray())
+			{
+				QJsonArray o = transform.value("offset").toArray();
+				if (o.size() >= 2)
+				{
+					texture.offset.x = static_cast<float>(o.at(0).toDouble(0.0));
+					texture.offset.y = static_cast<float>(o.at(1).toDouble(0.0));
+				}
+			}
+
+			// Rotation
+			if (transform.contains("rotation"))
+			{
+				texture.rotation = static_cast<float>(transform.value("rotation").toDouble(0.0));
+			}
+		}
+	}
+
+	// === Extract sampler metadata ===
+	texture.wrapS = GL_REPEAT;
+	texture.wrapT = GL_REPEAT;
+	texture.magFilter = GL_LINEAR;
+	texture.minFilter = GL_LINEAR_MIPMAP_LINEAR;
+
+	int samplerIndex = texObj.value("sampler").toInt();
+
+	if (samplerIndex >= 0 && samplerIndex < jsonSamplers.size())
+	{
+		QJsonObject samplerObj = jsonSamplers.at(samplerIndex).toObject();
+
+		int wrapSVal = samplerObj.value("wrapS").toInt();
+		texture.wrapS = convertGltfWrapMode(wrapSVal);
+
+		int wrapTVal = samplerObj.value("wrapT").toInt();
+		texture.wrapT = convertGltfWrapMode(wrapTVal);
+
+		int magVal = samplerObj.value("magFilter").toInt();
+		texture.magFilter = convertGltfMagFilter(magVal);
+
+		int minVal = samplerObj.value("minFilter").toInt();
+		texture.minFilter = convertGltfMinFilter(minVal);
+	}
+}
 // Sets the texture maps for a material based on the defined texture mappings.
 void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMaterial::Texture>& textures, GLMaterial& mat)
 {
@@ -1410,13 +1582,17 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 			candidate.rotation = rotation;
 
 			// UV transform comparator (same as in loadMaterialTextures)
-			auto uvTransformMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
+			auto metadataMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
 				return a.texCoordIndex == b.texCoordIndex &&
 					std::abs(a.scale.x - b.scale.x) < 0.0001f &&
 					std::abs(a.scale.y - b.scale.y) < 0.0001f &&
 					std::abs(a.offset.x - b.offset.x) < 0.0001f &&
 					std::abs(a.offset.y - b.offset.y) < 0.0001f &&
-					std::abs(a.rotation - b.rotation) < 0.0001f;
+					std::abs(a.rotation - b.rotation) < 0.0001f &&
+					a.wrapS == b.wrapS &&
+					a.wrapT == b.wrapT &&
+					a.magFilter == b.magFilter &&
+					a.minFilter == b.minFilter;
 				};
 
 			// Check 1: exact match (path + type + UV metadata) => reuse whole Texture
@@ -1424,7 +1600,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 			{
 				if (std::string(lt.path) == pathUtf8 &&
 					lt.type == type &&
-					uvTransformMatches(lt, candidate))
+					metadataMatches(lt, candidate))
 				{
 					textures.push_back(lt); // reuse existing
 					return true;
@@ -1865,7 +2041,7 @@ std::vector<GLMaterial::Texture> MaterialProcessor::loadMaterialTextures(
 	GLMaterial::Texture newTexture;
 	newTexture.type = typeName;
 	newTexture.path = textureFilePath;
-	extractUVTransform(mat, type, slotIndex, newTexture);
+	extractTextureMetadataFromAssimp(mat, type, slotIndex, newTexture);
 
 	// Lambda to compare UV transform metadata
 	auto uvTransformMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
@@ -1995,6 +2171,11 @@ void MaterialProcessor::synthesizeADSAliases(std::vector<GLMaterial::Texture>& t
 				alias.rotation = tex.rotation;
 				alias.texCoordIndex = tex.texCoordIndex;
 				alias.hasAlpha = tex.hasAlpha;
+
+				alias.wrapS = tex.wrapS;
+				alias.wrapT = tex.wrapT;
+				alias.magFilter = tex.magFilter;
+				alias.minFilter = tex.minFilter;
 
 				textures.push_back(alias);
 				_loadedTextures.push_back(alias); // register to global cache so future loads reuse

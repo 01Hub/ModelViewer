@@ -122,13 +122,17 @@ private:
 
 	void debugMaterialTextures(aiMaterial* material, const std::string& materialName);
 
-	void extractUVTransform(
+	// Extract texture metadata from Assimp
+	void extractTextureMetadataFromAssimp(
 		aiMaterial* mat,
 		aiTextureType type,
 		unsigned int slotIndex,
 		GLMaterial::Texture& texture);
 
-	
+	// Extract texture metadata from glTF JSON
+	void extractTextureMetadataFromJson(const QJsonObject& texObj,
+		const QJsonArray& jsonSamplers,
+		GLMaterial::Texture& texture);
 
 private:
 	std::vector<GLMaterial::Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.

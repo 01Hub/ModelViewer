@@ -8,6 +8,8 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <QOpenGLFunctions_4_5_Core>
+
 
 class GLMaterial
 {
@@ -27,6 +29,11 @@ public:
 		glm::vec2 scale = glm::vec2(1.0f);      // Tiling/scale
 		glm::vec2 offset = glm::vec2(0.0f);     // UV offset
 		float rotation = 0.0f;                  // Rotation in radians
+
+		GLenum wrapS = GL_REPEAT;
+		GLenum wrapT = GL_REPEAT;
+		GLenum magFilter = GL_LINEAR;
+		GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR;
 
 		friend std::ostream& operator<<(std::ostream& os, const Texture& texture)
 		{
