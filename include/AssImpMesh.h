@@ -40,39 +40,13 @@ static_assert(sizeof(Vertex) == sizeof(float) * (4 + 3 + 3 + 3 + 3 + 8),
 	"Vertex struct has unexpected padding - meshopt stride will be incorrect");
 
 
-struct Texture
-{
-	unsigned int id;
-	std::string type;
-	aiString path;
-	bool hasAlpha = false;
-
-	// KHR_texture_transform support
-	int texCoordIndex = 0;					// Which TEXCOORD to use (0-3, default 0)
-	glm::vec2 scale = glm::vec2(1.0f);      // Tiling/scale
-	glm::vec2 offset = glm::vec2(0.0f);     // UV offset
-	float rotation = 0.0f;                  // Rotation in radians
-
-	friend std::ostream& operator<<(std::ostream& os, const Texture& texture)
-	{
-		os << "Id: " << texture.id << " type: " << texture.type
-			<< " texCoordIndex: " << texture.texCoordIndex;
-		os << " path: " << texture.path.C_Str();
-		os << " hasAlpha: " << texture.hasAlpha;
-		os << " scale: (" << texture.scale.x << ", " << texture.scale.y << ")";
-		os << " offset: (" << texture.offset.x << ", " << texture.offset.y << ")";
-		os << " rotation: " << texture.rotation;
-		return os;
-	}
-};
-
 class AssImpMesh : public TriangleMesh
 {
 public:
 
 	/*  Functions  */
 	// Constructor
-	AssImpMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Texture> textures, GLMaterial material);
+	AssImpMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<GLMaterial::Texture> textures, GLMaterial material);
 	~AssImpMesh();
 	virtual TriangleMesh* clone();
 	void render();
@@ -81,7 +55,7 @@ public:
 
     std::vector<unsigned int> indices() const;
 
-    std::vector<Texture> textures() const;
+    std::vector<GLMaterial::Texture> textures() const;
 
 	void getMeshData(std::vector<Vertex>& vertices,
 		std::vector<unsigned int>& indices) const;
@@ -143,7 +117,7 @@ private:
 	/*  Mesh Data  */
 	std::vector<Vertex> _vertices;
 	std::vector<unsigned int> _indices;
-	std::vector<Texture> _textures;
+	std::vector<GLMaterial::Texture> _textures;
 
 	struct PrecomputedTexture
 	{

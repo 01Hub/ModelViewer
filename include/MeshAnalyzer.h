@@ -1,8 +1,10 @@
 #pragma once
 #include <glm/glm.hpp>
 #include <optional>
+#include <iostream>
 #include <algorithm>
-
+#undef max
+#undef min
 
 // Forward declaration
 struct aiMesh;

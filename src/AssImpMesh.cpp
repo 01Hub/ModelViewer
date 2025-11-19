@@ -14,7 +14,7 @@ GLenum AssImpMesh::_currentFrontFace;
 
 /*  Functions  */
 // Constructor
-AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")
+AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")
 {
 	_currentBoundShader = nullptr;
 	_currentBlendEnabled = false;
@@ -37,7 +37,7 @@ AssImpMesh::~AssImpMesh()
 {
 	/*if (_textures.size())
 	{
-		for (const Texture &t : _textures)
+		for (const GLMaterial::Texture &t : _textures)
 		{
 			glDeleteTextures(1, &t.id);
 		}
@@ -312,7 +312,7 @@ void AssImpMesh::setupMesh()
 	qDebug() << "=== TEXTURE METADATA DEBUG ===";
 	for (size_t i = 0; i < _textures.size(); i++)
 	{
-		const Texture& tex = _textures[i];
+		const GLMaterial::Texture& tex = _textures[i];
 		qDebug() << "Texture [" << i << "] Type:" << QString::fromStdString(tex.type)
 			<< " ID:" << tex.id
 			<< " HasAlpha:" << tex.hasAlpha
@@ -567,9 +567,9 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 {
 	// If mesh already has explicit paths for textures, do nothing
 	bool hasAnyPath = false;
-	for (const Texture& t : _textures)
+	for (const GLMaterial::Texture& t : _textures)
 	{
-		if (!QString::fromUtf8(t.path.C_Str()).isEmpty()) { hasAnyPath = true; break; }
+		if (!QString::fromUtf8(t.path).isEmpty()) { hasAnyPath = true; break; }
 	}
 	if (hasAnyPath) return;
 
@@ -584,10 +584,10 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 		if (path.isEmpty()) return;
 
 		// make path absolute attempt is caller's responsibility; we just store what material had.
-		Texture t;
+		GLMaterial::Texture t;
 		t.id = 0;
 		t.type = outType;
-		t.path = qstrToAiString(path);
+		t.path = path.toStdString();
 		// Optionally detect alpha channel (light-weight check)
 		bool hasAlpha = false;
 		GLuint id = createGLTextureFromFile(path, hasAlpha);
@@ -596,7 +596,7 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 
 		_textures.push_back(t);
 		qDebug() << "syncTexturesFromMaterialIfNeeded: added texture type=" << QString::fromStdString(t.type)
-			<< " path=" << QString::fromUtf8(t.path.C_Str()) << " hasAlpha=" << hasAlpha;
+			<< " path=" << QString::fromUtf8(t.path) << " hasAlpha=" << hasAlpha;
 		};
 
 	// Map GLMaterial variant keys -> mesh texture type strings used throughout AssImpMesh
@@ -724,7 +724,7 @@ vector<unsigned int> AssImpMesh::indices() const
     return _indices;
 }
 
-vector<Texture> AssImpMesh::textures() const
+vector<GLMaterial::Texture> AssImpMesh::textures() const
 {
     return _textures;
 }
@@ -775,11 +775,11 @@ void AssImpMesh::serialize(QDataStream& out) const
 
 	// Write textures (paths and types as QString)
 	out << static_cast<quint32>(_textures.size());
-	for (const Texture& t : _textures)
+	for (const GLMaterial::Texture& t : _textures)
 	{
 		// convert std::string (Assimp) to QString explicitly using UTF-8
 		QString qtype = QString::fromUtf8(t.type.c_str());
-		QString qpath = QString::fromUtf8(t.path.C_Str());
+		QString qpath = QString::fromUtf8(t.path);
 		out << qtype;
 		out << qpath;		
 	}
@@ -838,7 +838,7 @@ void AssImpMesh::deserialize(QDataStream& in)
 			qWarning() << "AssImpMesh::deserialize: failed reading texture entry" << i << "pos" << (in.device() ? in.device()->pos() : -1);
 			return;
 		}
-		Texture t;
+		GLMaterial::Texture t;
 		t.type = typeQ.toStdString();
 		t.path = pathQ.toStdString();
 		t.id = 0; // must be reloaded via TextureManager later
@@ -850,8 +850,8 @@ void AssImpMesh::deserialize(QDataStream& in)
 
 	// --- Ensure deserialized texture paths get actual GL texture IDs and keep material in sync ---	
 	// Helper lambda: convert our Texture.type -> update GLMaterial
-	auto updateMaterialFromTexture = [this](const Texture& tex) {
-		QString qpath = QString::fromUtf8(tex.path.C_Str()).trimmed();
+	auto updateMaterialFromTexture = [this](const GLMaterial::Texture& tex) {
+		QString qpath = QString::fromUtf8(tex.path).trimmed();
 		if (qpath.isEmpty()) return;
 
 		const std::string ttype = tex.type;
@@ -936,8 +936,8 @@ void AssImpMesh::deserialize(QDataStream& in)
 	// Iterate existing _textures vector:
 	for (size_t i = 0; i < _textures.size(); ++i)
 	{
-		Texture& t = _textures[i];
-		QString path = QString::fromUtf8(t.path.C_Str()).trimmed();
+		GLMaterial::Texture& t = _textures[i];
+		QString path = QString::fromUtf8(t.path).trimmed();
 
 		// If there is a path but id==0, create GL texture now
 		if (!path.isEmpty() && t.id == 0)
@@ -970,9 +970,9 @@ void AssImpMesh::deserialize(QDataStream& in)
 
 	// If we didn't find any _textures entries but material has paths, try the material-based sync
 	bool meshHasAnyPath = false;
-	for (const Texture& tt : _textures)
+	for (const GLMaterial::Texture& tt : _textures)
 	{
-		if (!QString::fromUtf8(tt.path.C_Str()).isEmpty()) { meshHasAnyPath = true; break; }
+		if (!QString::fromUtf8(tt.path).isEmpty()) { meshHasAnyPath = true; break; }
 	}
 	if (!meshHasAnyPath)
 	{
@@ -1139,7 +1139,7 @@ void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
 {
 	//glDeleteTextures(1, &_diffuseADSMap);
 	_diffuseADSMap = diffuseTex;
-	Texture t;
+	GLMaterial::Texture t;
 	t.id = diffuseTex;
 	t.type = "texture_diffuse";
 	t.path = ""; // No path for OpenGL texture handles
@@ -1153,7 +1153,7 @@ void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
 {
 	//glDeleteTextures(1, &_specularADSMap);
 	_specularADSMap = specularTex;
-	Texture t;
+	GLMaterial::Texture t;
 	t.id = specularTex;
 	t.type = "texture_specular";
 	t.path = ""; // No path for OpenGL texture handles
@@ -1167,7 +1167,7 @@ void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
 {
 	//glDeleteTextures(1, &_emissiveADSMap);
 	_emissiveADSMap = emissiveTex;
-	Texture t;
+	GLMaterial::Texture t;
 	t.id = emissiveTex;
 	t.type = "texture_emissive";
 	t.path = ""; // No path for OpenGL texture handles
@@ -1181,7 +1181,7 @@ void AssImpMesh::setNormalADSMap(unsigned int normalTex)
 {
 	//glDeleteTextures(1, &_normalADSMap);
 	_normalADSMap = normalTex;
-	Texture t;
+	GLMaterial::Texture t;
 	t.id = normalTex;
 	t.type = "texture_normal";
 	t.path = ""; // No path for OpenGL texture handles
@@ -1195,7 +1195,7 @@ void AssImpMesh::setHeightADSMap(unsigned int heightTex)
 {
 	//glDeleteTextures(1, &_heightADSMap);
 	_heightADSMap = heightTex;
-	Texture t;
+	GLMaterial::Texture t;
 	t.id = heightTex;
 	t.type = "texture_height";
 	t.path = ""; // No path for OpenGL texture handles
@@ -1209,7 +1209,7 @@ void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 {
 	//glDeleteTextures(1, &_opacityADSMap);
 	_opacityADSMap = opacityTex;
-	Texture t;
+	GLMaterial::Texture t;
 	t.id = opacityTex;
 	t.type = "texture_opacity";
 	t.path = ""; // No path for OpenGL texture handles
@@ -1338,7 +1338,7 @@ void AssImpMesh::replaceOrAppendTexture(const std::string& type, GLuint id, bool
 			return;
 		}
 	}
-	Texture t; t.id = id; t.type = type; t.hasAlpha = hasAlpha;
+	GLMaterial::Texture t; t.id = id; t.type = type; t.hasAlpha = hasAlpha;
 	_textures.push_back(t);
 }
 

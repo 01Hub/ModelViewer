@@ -18,6 +18,9 @@
 #include <QMessageBox>
 #include <QStyleFactory>
 
+#include <iostream>
+#include <algorithm>
+
 constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes
 
 GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent),

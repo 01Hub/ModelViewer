@@ -3,12 +3,43 @@
 
 #include <QVector3D>
 #include <QString>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <fstream>
+#include <sstream>
+#include <iostream>
 
 class GLMaterial
 {
 public:
 
 	friend std::ostream& operator<<(std::ostream& os, const GLMaterial& m);
+
+	struct Texture
+	{
+		unsigned int id;
+		std::string type;
+		std::string path;
+		bool hasAlpha = false;
+
+		// KHR_texture_transform support
+		int texCoordIndex = 0;					// Which TEXCOORD to use (0-3, default 0)
+		glm::vec2 scale = glm::vec2(1.0f);      // Tiling/scale
+		glm::vec2 offset = glm::vec2(0.0f);     // UV offset
+		float rotation = 0.0f;                  // Rotation in radians
+
+		friend std::ostream& operator<<(std::ostream& os, const Texture& texture)
+		{
+			os << "Id: " << texture.id << " type: " << texture.type
+				<< " texCoordIndex: " << texture.texCoordIndex;
+			os << " path: " << texture.path;
+			os << " hasAlpha: " << texture.hasAlpha;
+			os << " scale: (" << texture.scale.x << ", " << texture.scale.y << ")";
+			os << " offset: (" << texture.offset.x << ", " << texture.offset.y << ")";
+			os << " rotation: " << texture.rotation;
+			return os;
+		}
+	};
 
 	struct TextureTransform
 	{

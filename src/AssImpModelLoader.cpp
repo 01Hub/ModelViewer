@@ -255,7 +255,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	// Data to fill
 	vector<Vertex> vertices;
 	vector<unsigned int> indices;
-	vector<Texture> textures;
+	vector<GLMaterial::Texture> textures;
 	
 	_needsUVGeneration = false;
 
