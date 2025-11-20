@@ -12,44 +12,6 @@
 
 using namespace std;
 
-// Convert glTF wrap mode constant to OpenGL
-static GLenum convertGltfWrapMode(int gltfWrap)
-{
-	switch (gltfWrap)
-	{
-	case 33071:  return GL_CLAMP_TO_EDGE;
-	case 10497:  return GL_REPEAT;
-	case 33648:  return GL_MIRRORED_REPEAT;
-	default:     return GL_REPEAT;
-	}
-}
-
-// Convert glTF magFilter constant to OpenGL
-static GLenum convertGltfMagFilter(int gltfFilter)
-{
-	switch (gltfFilter)
-	{
-	case 9728:   return GL_NEAREST;
-	case 9729:   return GL_LINEAR;
-	default:     return GL_LINEAR;
-	}
-}
-
-// Convert glTF minFilter constant to OpenGL
-static GLenum convertGltfMinFilter(int gltfFilter)
-{
-	switch (gltfFilter)
-	{
-	case 9728:   return GL_NEAREST;
-	case 9729:   return GL_LINEAR;
-	case 9984:   return GL_NEAREST_MIPMAP_NEAREST;
-	case 9985:   return GL_LINEAR_MIPMAP_NEAREST;
-	case 9986:   return GL_NEAREST_MIPMAP_LINEAR;
-	case 9987:   return GL_LINEAR_MIPMAP_LINEAR;
-	default:     return GL_LINEAR_MIPMAP_LINEAR;
-	}
-}
-
 MaterialProcessor::MaterialProcessor() : _folderPath("")
 {
 	initializeOpenGLFunctions();
@@ -534,7 +496,7 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture)
 
 	texture.id = textureID;
 	texture.hasAlpha = imageHasAlpha;
-	
+
 	// Assign texture to ID
 	glBindTexture(GL_TEXTURE_2D, textureID);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texImage.width(), texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, texImage.bits());
@@ -664,7 +626,93 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		return QString();
 		};
 
-	
+	// Helper: get sampler params (wrapS, wrapT, magFilter, minFilter) for a texture index.
+	// Returns tuple<GLenum wrapS, GLenum wrapT, GLenum magFilter, GLenum minFilter>
+	auto getSamplerParams = [&](int texIndex) -> std::tuple<GLenum, GLenum, GLenum, GLenum> {
+		// glTF defaults:
+		const GLenum DEFAULT_WRAP_S = static_cast<GLenum>(10497); // GL_REPEAT
+		const GLenum DEFAULT_WRAP_T = static_cast<GLenum>(10497); // GL_REPEAT
+		const GLenum DEFAULT_MAG = static_cast<GLenum>(9729);     // GL_LINEAR
+		const GLenum DEFAULT_MIN = static_cast<GLenum>(9987);     // GL_LINEAR_MIPMAP_LINEAR
+
+		GLenum wrapS = DEFAULT_WRAP_S;
+		GLenum wrapT = DEFAULT_WRAP_T;
+		GLenum magFilter = DEFAULT_MAG;
+		GLenum minFilter = DEFAULT_MIN;
+
+		if (texIndex < 0 || texIndex >= jsonTextures.size()) return { wrapS, wrapT, magFilter, minFilter };
+		QJsonObject texObj = jsonTextures.at(texIndex).toObject();
+		if (!texObj.contains("sampler")) return { wrapS, wrapT, magFilter, minFilter };
+
+		int samplerIndex = texObj.value("sampler").toInt(-1);
+		if (samplerIndex < 0 || samplerIndex >= jsonSamplers.size()) return { wrapS, wrapT, magFilter, minFilter };
+
+		QJsonObject samplerObj = jsonSamplers.at(samplerIndex).toObject();
+
+		if (samplerObj.contains("wrapS") && samplerObj.value("wrapS").isDouble())
+		{
+			wrapS = static_cast<GLenum>(samplerObj.value("wrapS").toInt());
+		}
+		if (samplerObj.contains("wrapT") && samplerObj.value("wrapT").isDouble())
+		{
+			wrapT = static_cast<GLenum>(samplerObj.value("wrapT").toInt());
+		}
+		if (samplerObj.contains("magFilter") && samplerObj.value("magFilter").isDouble())
+		{
+			magFilter = static_cast<GLenum>(samplerObj.value("magFilter").toInt());
+		}
+		if (samplerObj.contains("minFilter") && samplerObj.value("minFilter").isDouble())
+		{
+			minFilter = static_cast<GLenum>(samplerObj.value("minFilter").toInt());
+		}
+		return { wrapS, wrapT, magFilter, minFilter };
+		};
+
+	// Helper to extract UV transform from a texture object
+	auto extractTextureTransform = [](const QJsonObject& texObj) -> std::tuple<int, glm::vec2, glm::vec2, float> {
+		int texCoord = texObj.value("texCoord").toInt(0);
+		glm::vec2 scale(1.0f, 1.0f);
+		glm::vec2 offset(0.0f, 0.0f);
+		float rotation = 0.0f;
+
+		// Check for KHR_texture_transform extension
+		if (texObj.contains("extensions"))
+		{
+			QJsonObject ext = texObj.value("extensions").toObject();
+			if (ext.contains("KHR_texture_transform"))
+			{
+				QJsonObject transform = ext.value("KHR_texture_transform").toObject();
+
+				if (transform.contains("scale") && transform.value("scale").isArray())
+				{
+					QJsonArray s = transform.value("scale").toArray();
+					if (s.size() >= 2)
+					{
+						scale.x = static_cast<float>(s.at(0).toDouble(1.0));
+						scale.y = static_cast<float>(s.at(1).toDouble(1.0));
+					}
+				}
+
+				if (transform.contains("offset") && transform.value("offset").isArray())
+				{
+					QJsonArray o = transform.value("offset").toArray();
+					if (o.size() >= 2)
+					{
+						offset.x = static_cast<float>(o.at(0).toDouble(0.0));
+						offset.y = static_cast<float>(o.at(1).toDouble(0.0));
+					}
+				}
+
+				if (transform.contains("rotation"))
+				{
+					rotation = static_cast<float>(transform.value("rotation").toDouble(0.0));
+				}
+			}
+		}
+
+		return std::make_tuple(texCoord, scale, offset, rotation);
+		};
+
 	static const std::map<std::string, std::string> textureTypeMapping = {
 		// Base PBR textures
 		{"baseColor", "albedoMap"},
@@ -725,13 +773,32 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		{"specularColorMap", "specularColorMap"},
 	};
 
-	auto loadAndAddTexture = [&](GLMaterial::Texture& newTexture,
+	auto loadAndAddTexture = [&](const QString& texturePath,
+		const std::string& mapType,
+		int texCoord,
+		const glm::vec2& scale,
+		const glm::vec2& offset,
+		float rotation,
+		GLenum wrapS,
+		GLenum wrapT,
+		GLenum magFilter,
+		GLenum minFilter,
 		std::vector<GLMaterial::Texture>& textures) -> bool {
+			if (texturePath.isEmpty()) return false;
 
-			if (newTexture.path.empty()) return false;
+			// Look up the texture type
+			auto it = textureTypeMapping.find(mapType);
+			if (it == textureTypeMapping.end())
+			{
+				qWarning() << "Unknown texture type:" << QString::fromStdString(mapType);
+				return false;
+			}
 
-			// Lambda to compare full metadata
-			auto metadataMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
+			std::string textureType = it->second;  // Get the mapped type name
+			std::string textureFilePathStd = texturePath.toStdString();
+
+			// Lambda to compare UV transform + sampler metadata (same as in loadMaterialTextures)
+			auto uvAndSamplerMatches = [&](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
 				return a.texCoordIndex == b.texCoordIndex &&
 					std::abs(a.scale.x - b.scale.x) < 0.0001f &&
 					std::abs(a.scale.y - b.scale.y) < 0.0001f &&
@@ -744,534 +811,429 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 					a.minFilter == b.minFilter;
 				};
 
-			// Check 1: Exact match
+			// Create a temporary texture struct with the new metadata for comparison
+			GLMaterial::Texture newTexture;
+			newTexture.type = textureType;
+			newTexture.path = textureFilePathStd;
+			newTexture.texCoordIndex = texCoord;
+			newTexture.scale = scale;
+			newTexture.offset = offset;
+			newTexture.rotation = rotation;
+
+			// NEW: set sampler metadata on the texture struct
+			newTexture.wrapS = wrapS;
+			newTexture.wrapT = wrapT;
+			newTexture.magFilter = magFilter;
+			newTexture.minFilter = minFilter;
+
+			// CHECK 1: Exact match (path + type + UV metadata + sampler) - perfect reuse
 			for (const auto& lt : _loadedTextures)
 			{
-				if (lt.path == newTexture.path &&
-					lt.type == newTexture.type &&
-					metadataMatches(lt, newTexture))
+				if (std::string(lt.path) == textureFilePathStd &&
+					lt.type == textureType &&
+					uvAndSamplerMatches(lt, newTexture))
 				{
+					// Perfect match - reuse everything
 					textures.push_back(lt);
 					return true;
 				}
 			}
 
-			// Check 2: Same path, different metadata - create alias
+			// CHECK 2: Same path, same sampler (reuse GPU texture id but different type OR different UV metadata)
 			for (const auto& lt : _loadedTextures)
 			{
-				if (lt.path == newTexture.path)
+				if (std::string(lt.path) == textureFilePathStd)
 				{
-					GLMaterial::Texture alias;
-					alias.id = lt.id;
-					alias.path = lt.path;
-					alias.type = newTexture.type;
-					alias.hasAlpha = lt.hasAlpha;
+					// Only reuse GPU ID if sampler matches exactly; otherwise do NOT reuse.
+					bool samplerMatches =
+						(lt.wrapS == newTexture.wrapS) &&
+						(lt.wrapT == newTexture.wrapT) &&
+						(lt.magFilter == newTexture.magFilter) &&
+						(lt.minFilter == newTexture.minFilter);
 
-					// Use NEW metadata
-					alias.texCoordIndex = newTexture.texCoordIndex;
-					alias.scale = newTexture.scale;
-					alias.offset = newTexture.offset;
-					alias.rotation = newTexture.rotation;
-					alias.wrapS = newTexture.wrapS;
-					alias.wrapT = newTexture.wrapT;
-					alias.magFilter = newTexture.magFilter;
-					alias.minFilter = newTexture.minFilter;
+					if (samplerMatches)
+					{
+						// Reuse GPU texture ID but create new metadata entry
+						GLMaterial::Texture alias;
+						alias.id = lt.id;                    // Reuse GPU texture
+						alias.type = textureType;            // New type name
+						alias.path = lt.path;                // Same path
+						alias.hasAlpha = lt.hasAlpha;        // Same alpha info
 
-					textures.push_back(alias);
-					_loadedTextures.push_back(alias);
-					return true;
+						// Use the NEW UV transform metadata
+						alias.texCoordIndex = newTexture.texCoordIndex;
+						alias.scale = newTexture.scale;
+						alias.offset = newTexture.offset;
+						alias.rotation = newTexture.rotation;
+
+						// Preserve sampler metadata (they match)
+						alias.wrapS = newTexture.wrapS;
+						alias.wrapT = newTexture.wrapT;
+						alias.magFilter = newTexture.magFilter;
+						alias.minFilter = newTexture.minFilter;
+
+						textures.push_back(alias);
+						_loadedTextures.push_back(alias);    // Cache this variant
+						return true;
+					}
+					// if sampler doesn't match, keep searching (we will create a new GPU texture below)
 				}
 			}
 
-			// Check 3: Not loaded - load from disk
-			createTextureOnGPU(newTexture);
+			// CHECK 3: Not loaded at all (or sampler mismatch) - load from file (will create a new GPU texture)
+			// Make sure to store the sampler metadata on the newTexture before uploading
+			unsigned int texID = 0;
+			// Ensure newTexture.id is set by createTextureOnGPU (which should use wrap/mag/min when creating GL sampler)
+			newTexture.id = 0; // init
 
+			// createTextureOnGPU must examine newTexture.wrapS/wrapT/magFilter/minFilter when creating the GL sampler
+			texID = createTextureOnGPU(newTexture); // assume this function sets newTexture.id (or returns id)
+			if (texID == 0) return false;
+
+			// If createTextureOnGPU didn't set newTexture.id, set from returned texID
+			newTexture.id = texID;
+
+			// Add to both vectors
 			textures.push_back(newTexture);
-			_loadedTextures.push_back(newTexture);
+			_loadedTextures.push_back(newTexture);    // Cache for future reuse
 
 			return true;
 		};
 
 	// Helper: Load base PBR textures from glTF JSON
 	// Replace the existing loadPbrTexturesFromJson lambda with this:
-
-	auto loadPbrTexturesFromJson = [&](const QJsonObject& matObj, GLMaterial& mat) -> void {
-
-		if (!matObj.contains("pbrMetallicRoughness"))
-			return;
-
-		QJsonObject pbr = matObj.value("pbrMetallicRoughness").toObject();
-
-		// Base Color Texture
-		if (pbr.contains("baseColorTexture"))
-		{
-			QJsonObject baseColorTexObj = pbr.value("baseColorTexture").toObject();
-			int texIndex = baseColorTexObj.value("index").toInt(-1);
-			if (texIndex >= 0)
+	// Refactored loadPbrTexturesFromJson using a small helper lambda + lookup list
+		auto loadPbrTexturesFromJson = [&](const QJsonObject& matObj, GLMaterial& mat) -> void {
+			// If no PBR object, nothing to do for baseColor/metallicRoughness entries
+			QJsonObject pbr;
+			if (matObj.contains("pbrMetallicRoughness") && matObj.value("pbrMetallicRoughness").isObject())
 			{
-				QString uri = resolveTextureUri(texIndex);
-
-				GLMaterial::Texture tex;
-				tex.type = "baseColor";
-				tex.path = uri.toStdString();
-
-				extractTextureMetadataFromJson(baseColorTexObj, jsonSamplers, tex);
-
-				if (loadAndAddTexture(tex, outTextures))
-				{
-					qDebug() << "  ✓ Loaded baseColor texture:" << uri;
-				}
+				pbr = matObj.value("pbrMetallicRoughness").toObject();
 			}
-		}
 
-		// Normal Texture
-		if (matObj.contains("normalTexture"))
-		{
-			QJsonObject normalTexObj = matObj.value("normalTexture").toObject();
-			int texIndex = normalTexObj.value("index").toInt(-1);
-			if (texIndex >= 0)
+			// Helper that processes one texture slot given a parent JSON object and a key within it.
+			// parentObj: JSON object that may contain the texture descriptor (e.g. pbr or matObj)
+			// jsonKey: the key under parentObj that contains the texture object (e.g. "baseColorTexture")
+			// mapType: string used for mapping to your internal texture type (e.g. "baseColor", "normal")
+			auto processTextureSlot = [&](const QJsonObject& parentObj, const QString& jsonKey, const std::string& mapType) {
+				if (!parentObj.contains(jsonKey) || !parentObj.value(jsonKey).isObject()) return;
+
+				QJsonObject texObj = parentObj.value(jsonKey).toObject();
+				int texIndex = texObj.value("index").toInt(-1);
+				if (texIndex < 0) return;
+
+				// resolve URI (handles EXT_texture_webp via resolveTextureUri)
+				QString uri = resolveTextureUri(texIndex);
+				if (uri.isEmpty()) return;
+
+				// extract transform and sampler then load
+				auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+				auto [wrapS, wrapT, magF, minF] = getSamplerParams(texIndex);
+
+				if (loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures))
+				{
+					qDebug() << "  ✓ Loaded" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
+				}
+				};
+
+			// pbr-specific slots (parent = pbr)
+			if (!pbr.isEmpty())
 			{
-				QString uri = resolveTextureUri(texIndex);
-
-				GLMaterial::Texture tex;
-				tex.type = "normalMap";
-				tex.path = uri.toStdString();
-
-				extractTextureMetadataFromJson(normalTexObj, jsonSamplers, tex);
-
-				if (loadAndAddTexture(tex, outTextures))
-				{
-					qDebug() << "  ✓ Loaded normal texture:" << uri;
-				}
+				processTextureSlot(pbr, "baseColorTexture", "baseColor");
+				processTextureSlot(pbr, "metallicRoughnessTexture", "metallicRoughness");
 			}
-		}
 
-		// Metallic/Roughness Texture
-		if (pbr.contains("metallicRoughnessTexture"))
-		{
-			QJsonObject mrTexObj = pbr.value("metallicRoughnessTexture").toObject();
-			int texIndex = mrTexObj.value("index").toInt(-1);
-			if (texIndex >= 0)
-			{
-				QString uri = resolveTextureUri(texIndex);
+			// material-level slots (parent = matObj)
+			processTextureSlot(matObj, "normalTexture", "normal");
+			processTextureSlot(matObj, "occlusionTexture", "occlusion");
+			processTextureSlot(matObj, "emissiveTexture", "emissive");
 
-				GLMaterial::Texture tex;
-				tex.type = "metallicRoughnessMap";
-				tex.path = uri.toStdString();
+			// If you later want to add more pbr-level or material-level slots, just call processTextureSlot with the parent
+			// e.g. processTextureSlot(matObj, "heightTexture", "height");
+			};
 
-				extractTextureMetadataFromJson(mrTexObj, jsonSamplers, tex);
 
-				if (loadAndAddTexture(tex, outTextures))
-				{
-					qDebug() << "  ✓ Loaded metallicRoughness texture:" << uri;
-				}
-			}
-		}
-
-		// Occlusion Texture
-		if (matObj.contains("occlusionTexture"))
-		{
-			QJsonObject occTexObj = matObj.value("occlusionTexture").toObject();
-			int texIndex = occTexObj.value("index").toInt(-1);
-			if (texIndex >= 0)
-			{
-				QString uri = resolveTextureUri(texIndex);
-
-				GLMaterial::Texture tex;
-				tex.type = "occlusionMap";
-				tex.path = uri.toStdString();
-
-				extractTextureMetadataFromJson(occTexObj, jsonSamplers, tex);
-
-				if (loadAndAddTexture(tex, outTextures))
-				{
-					qDebug() << "  ✓ Loaded occlusion texture:" << uri;
-				}
-			}
-		}
-
-		// Emissive Texture
-		if (matObj.contains("emissiveTexture"))
-		{
-			QJsonObject emissiveTexObj = matObj.value("emissiveTexture").toObject();
-			int texIndex = emissiveTexObj.value("index").toInt(-1);
-			if (texIndex >= 0)
-			{
-				QString uri = resolveTextureUri(texIndex);
-
-				GLMaterial::Texture tex;
-				tex.type = "emissiveMap";
-				tex.path = uri.toStdString();
-
-				extractTextureMetadataFromJson(emissiveTexObj, jsonSamplers, tex);
-
-				if (loadAndAddTexture(tex, outTextures))
-				{
-					qDebug() << "  ✓ Loaded emissive texture:" << uri;
-				}
-			}
-		}
-		};
-
-	// Helper: apply KHR extensions present in the material JSON object to the GLMaterial.
+		// Helper: apply KHR extensions present in the material JSON object to the GLMaterial.
 	// Returns true if any extension was applied (for logging)
-	auto applyExtensionsFromJsonMaterial = [&](const QJsonObject& matObj, GLMaterial& mat) -> bool {
-		bool appliedAny = false;
-		if (!matObj.contains("extensions")) return false;
-		QJsonObject extRoot = matObj.value("extensions").toObject();
+		auto applyExtensionsFromJsonMaterial = [&](const QJsonObject& matObj, GLMaterial& mat) -> bool {
+			bool appliedAny = false;
+			if (!matObj.contains("extensions")) return false;
+			QJsonObject extRoot = matObj.value("extensions").toObject();
 
-		// --- KHR_materials_volume ---
-		if (extRoot.contains("KHR_materials_volume") && extRoot.value("KHR_materials_volume").isObject())
-		{
-			QJsonObject vol = extRoot.value("KHR_materials_volume").toObject();
-			if (vol.contains("thicknessFactor"))
+			// Small helper to process a texture entry found inside an extension object.
+			// extObj: the extension object (e.g. extRoot["KHR_materials_sheen"].toObject())
+			// jsonKey: the key inside extObj that holds the texture descriptor (e.g. "sheenColorTexture")
+			// mapType: the internal mapType used by loadAndAddTexture (e.g. "sheenColor")
+			auto processExtensionTextureSlot = [&](const QJsonObject& extObj, const QString& jsonKey, const std::string& mapType) {
+				if (!extObj.contains(jsonKey) || !extObj.value(jsonKey).isObject()) return false;
+				QJsonObject texObj = extObj.value(jsonKey).toObject();
+				int texIndex = texObj.value("index").toInt(-1);
+				if (texIndex < 0) return false;
+
+				QString uri = resolveTextureUri(texIndex);
+				if (uri.isEmpty()) return false;
+
+				auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+				auto [wrapS, wrapT, magF, minF] = getSamplerParams(texIndex);
+				bool ok = loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures);
+				if (ok) qDebug() << "  ✓ Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
+				return ok;
+				};
+
+			// --- KHR_materials_volume ---
+			if (extRoot.contains("KHR_materials_volume") && extRoot.value("KHR_materials_volume").isObject())
 			{
-				float v = static_cast<float>(vol.value("thicknessFactor").toDouble(0.0));
-				mat.setThicknessFactor(qMax(0.0f, v));
-				appliedAny = true;
-			}
-			if (vol.contains("attenuationDistance"))
-			{
-				float v = static_cast<float>(vol.value("attenuationDistance").toDouble(0.0));
-				mat.setAttenuationDistance(qMax(0.0f, v));
-				appliedAny = true;
-			}
-			if (vol.contains("attenuationColor") && vol.value("attenuationColor").isArray())
-			{
-				QJsonArray a = vol.value("attenuationColor").toArray();
-				if (a.size() >= 3)
+				QJsonObject vol = extRoot.value("KHR_materials_volume").toObject();
+				if (vol.contains("thicknessFactor"))
 				{
-					QVector3D c(
-						static_cast<float>(a.at(0).toDouble(1.0)),
-						static_cast<float>(a.at(1).toDouble(1.0)),
-						static_cast<float>(a.at(2).toDouble(1.0))
-					);
-					mat.setAttenuationColor(c);
+					float v = static_cast<float>(vol.value("thicknessFactor").toDouble(0.0));
+					mat.setThicknessFactor(qMax(0.0f, v));
+					appliedAny = true;
+				}
+				if (vol.contains("attenuationDistance"))
+				{
+					float v = static_cast<float>(vol.value("attenuationDistance").toDouble(0.0));
+					mat.setAttenuationDistance(qMax(0.0f, v));
+					appliedAny = true;
+				}
+				if (vol.contains("attenuationColor") && vol.value("attenuationColor").isArray())
+				{
+					QJsonArray a = vol.value("attenuationColor").toArray();
+					if (a.size() >= 3)
+					{
+						QVector3D c(
+							static_cast<float>(a.at(0).toDouble(1.0)),
+							static_cast<float>(a.at(1).toDouble(1.0)),
+							static_cast<float>(a.at(2).toDouble(1.0))
+						);
+						mat.setAttenuationColor(c);
+						appliedAny = true;
+					}
+				}
+				// thicknessTexture
+				if (processExtensionTextureSlot(vol, "thicknessTexture", "thickness"))
+				{
 					appliedAny = true;
 				}
 			}
-			// thicknessTexture	
-			if (vol.contains("thicknessTexture") && vol.value("thicknessTexture").isObject())
+
+			// --- KHR_materials_transmission ---
+			if (extRoot.contains("KHR_materials_transmission") && extRoot.value("KHR_materials_transmission").isObject())
 			{
-				QJsonObject texObj = vol.value("thicknessTexture").toObject();
-				int texIndex = texObj.value("index").toInt(-1);
-				if (texIndex >= 0)
+				QJsonObject trans = extRoot.value("KHR_materials_transmission").toObject();
+				if (trans.contains("transmissionFactor"))
 				{
-					QString uri = resolveTextureUri(texIndex);
-
-					GLMaterial::Texture tex;
-					tex.type = "thicknessTexture";
-					tex.path = uri.toStdString();
-
-					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
-
-					if (loadAndAddTexture(tex, outTextures))
-					{
-						qDebug() << "  ✓ Loaded thicknessTexture texture:" << uri;
-					}
+					float v = static_cast<float>(trans.value("transmissionFactor").toDouble(0.0));
+					mat.setTransmission(qBound(0.0f, v, 1.0f));
+					appliedAny = true;
 				}
-			}
-		}
-
-		// --- KHR_materials_transmission ---
-		if (extRoot.contains("KHR_materials_transmission") && extRoot.value("KHR_materials_transmission").isObject())
-		{
-			QJsonObject trans = extRoot.value("KHR_materials_transmission").toObject();
-			if (trans.contains("transmissionFactor"))
-			{
-				float v = static_cast<float>(trans.value("transmissionFactor").toDouble(0.0));
-				mat.setTransmission(qBound(0.0f, v, 1.0f));
-				appliedAny = true;
-			}
-			// transmissionTexture
-			if (trans.contains("transmissionTexture") && trans.value("transmissionTexture").isObject())
-			{
-				QJsonObject texObj = trans.value("transmissionTexture").toObject();
-				int texIndex = texObj.value("index").toInt(-1);
-				if (texIndex >= 0)
+				if (processExtensionTextureSlot(trans, "transmissionTexture", "transmission"))
 				{
-					QString uri = resolveTextureUri(texIndex);
-
-					GLMaterial::Texture tex;
-					tex.type = "transmissionTexture";
-					tex.path = uri.toStdString();
-
-					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
-
-					if (loadAndAddTexture(tex, outTextures))
-					{
-						qDebug() << "  ✓ Loaded transmissionTexture texture:" << uri;
-					}
-				}
-			}
-		}
-
-		// --- KHR_materials_ior ---
-		if (extRoot.contains("KHR_materials_ior") && extRoot.value("KHR_materials_ior").isObject())
-		{
-			QJsonObject iorJ = extRoot.value("KHR_materials_ior").toObject();
-			if (iorJ.contains("ior"))
-			{
-				float v = static_cast<float>(iorJ.value("ior").toDouble(1.5));
-				mat.setIOR(qBound(1.0f, v, 5.0f));
-				appliedAny = true;
-			}
-		}
-
-		// --- KHR_materials_specular ---
-		if (extRoot.contains("KHR_materials_specular") && extRoot.value("KHR_materials_specular").isObject())
-		{
-			QJsonObject sp = extRoot.value("KHR_materials_specular").toObject();
-			if (sp.contains("specularFactor"))
-			{
-				float v = static_cast<float>(sp.value("specularFactor").toDouble(1.0));
-				mat.setSpecularFactor(qBound(0.0f, v, 1.0f));
-				appliedAny = true;
-			}
-			if (sp.contains("specularColorFactor") && sp.value("specularColorFactor").isArray())
-			{
-				QJsonArray a = sp.value("specularColorFactor").toArray();
-				if (a.size() >= 3)
-				{
-					mat.setSpecularColorFactor(QVector3D(
-						static_cast<float>(a.at(0).toDouble(1.0)),
-						static_cast<float>(a.at(1).toDouble(1.0)),
-						static_cast<float>(a.at(2).toDouble(1.0))
-					));
 					appliedAny = true;
 				}
 			}
-			if (sp.contains("specularTexture") && sp.value("specularTexture").isObject())
+
+			// --- KHR_materials_ior ---
+			if (extRoot.contains("KHR_materials_ior") && extRoot.value("KHR_materials_ior").isObject())
 			{
-				QJsonObject texObj = sp.value("specularTexture").toObject();
-				int texIndex = texObj.value("index").toInt(-1);
-				if (texIndex >= 0)
+				QJsonObject iorJ = extRoot.value("KHR_materials_ior").toObject();
+				if (iorJ.contains("ior"))
 				{
-					QString uri = resolveTextureUri(texIndex);
-
-					GLMaterial::Texture tex;
-					tex.type = "specularTexture";
-					tex.path = uri.toStdString();
-
-					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
-
-					if (loadAndAddTexture(tex, outTextures))
-					{
-						qDebug() << "  ✓ Loaded specularTexture texture:" << uri;
-					}
-				}
-			}
-		}
-
-		// --- KHR_materials_clearcoat ---
-		if (extRoot.contains("KHR_materials_clearcoat") && extRoot.value("KHR_materials_clearcoat").isObject())
-		{
-			QJsonObject cc = extRoot.value("KHR_materials_clearcoat").toObject();
-			if (cc.contains("clearcoatFactor"))
-			{
-				float v = static_cast<float>(cc.value("clearcoatFactor").toDouble(0.0));
-				mat.setClearcoat(qBound(0.0f, v, 1.0f));
-				appliedAny = true;
-			}
-			if (cc.contains("clearcoatRoughnessFactor"))
-			{
-				float v = static_cast<float>(cc.value("clearcoatRoughnessFactor").toDouble(0.0));
-				mat.setClearcoatRoughness(qBound(0.0f, v, 1.0f));
-				appliedAny = true;
-			}
-			if (cc.contains("clearcoatTexture") && cc.value("clearcoatTexture").isObject())
-			{
-				QJsonObject texObj = cc.value("clearcoatTexture").toObject();
-				int texIndex = texObj.value("index").toInt(-1);
-				if (texIndex >= 0)
-				{
-					QString uri = resolveTextureUri(texIndex);
-
-					GLMaterial::Texture tex;
-					tex.type = "clearcoatTexture";
-					tex.path = uri.toStdString();
-
-					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
-
-					if (loadAndAddTexture(tex, outTextures))
-					{
-						qDebug() << "  ✓ Loaded clearcoatTexture texture:" << uri;
-					}
-				}
-			}
-		}
-
-		// --- KHR_materials_sheen ---
-		if (extRoot.contains("KHR_materials_sheen") && extRoot.value("KHR_materials_sheen").isObject())
-		{
-			QJsonObject sh = extRoot.value("KHR_materials_sheen").toObject();
-			if (sh.contains("sheenColorFactor") && sh.value("sheenColorFactor").isArray())
-			{
-				QJsonArray a = sh.value("sheenColorFactor").toArray();
-				if (a.size() >= 3)
-				{
-					mat.setSheenColor(QVector3D(
-						static_cast<float>(a.at(0).toDouble(0.0)),
-						static_cast<float>(a.at(1).toDouble(0.0)),
-						static_cast<float>(a.at(2).toDouble(0.0))
-					));
+					float v = static_cast<float>(iorJ.value("ior").toDouble(1.5));
+					mat.setIOR(qBound(1.0f, v, 5.0f));
 					appliedAny = true;
 				}
 			}
-			if (sh.contains("sheenRoughnessFactor"))
+
+			// --- KHR_materials_specular ---
+			if (extRoot.contains("KHR_materials_specular") && extRoot.value("KHR_materials_specular").isObject())
 			{
-				float v = static_cast<float>(sh.value("sheenRoughnessFactor").toDouble(0.0));
-				mat.setSheenRoughness(qBound(0.0f, v, 1.0f));
-				appliedAny = true;
-			}
-			if (sh.contains("sheenColorTexture") && sh.value("sheenColorTexture").isObject())
-			{
-				QJsonObject texObj = sh.value("sheenColorTexture").toObject();
-				int texIndex = texObj.value("index").toInt(-1);
-				if (texIndex >= 0)
+				QJsonObject sp = extRoot.value("KHR_materials_specular").toObject();
+				if (sp.contains("specularFactor"))
 				{
-					QString uri = resolveTextureUri(texIndex);
-
-					GLMaterial::Texture tex;
-					tex.type = "sheenColorTexture";
-					tex.path = uri.toStdString();
-
-					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
-
-					if (loadAndAddTexture(tex, outTextures))
+					float v = static_cast<float>(sp.value("specularFactor").toDouble(1.0));
+					mat.setSpecularFactor(qBound(0.0f, v, 1.0f));
+					appliedAny = true;
+				}
+				if (sp.contains("specularColorFactor") && sp.value("specularColorFactor").isArray())
+				{
+					QJsonArray a = sp.value("specularColorFactor").toArray();
+					if (a.size() >= 3)
 					{
-						qDebug() << "  ✓ Loaded sheenColorTexture texture:" << uri;
+						mat.setSpecularColorFactor(QVector3D(
+							static_cast<float>(a.at(0).toDouble(1.0)),
+							static_cast<float>(a.at(1).toDouble(1.0)),
+							static_cast<float>(a.at(2).toDouble(1.0))
+						));
+						appliedAny = true;
 					}
 				}
-			}
-		}
-
-		// --- KHR_materials_iridescence ---
-		if (extRoot.contains("KHR_materials_iridescence") && extRoot.value("KHR_materials_iridescence").isObject())
-		{
-			QJsonObject ir = extRoot.value("KHR_materials_iridescence").toObject();
-			if (ir.contains("iridescenceFactor"))
-			{
-				float v = static_cast<float>(ir.value("iridescenceFactor").toDouble(0.0));
-				mat.setIridescenceFactor(qBound(0.0f, v, 1.0f));
-				appliedAny = true;
-			}
-			if (ir.contains("iridescenceIor"))
-			{
-				float v = static_cast<float>(ir.value("iridescenceIor").toDouble(1.0));
-				mat.setIridescenceIor(qMax(0.0f, v));
-				appliedAny = true;
-			}
-			if (ir.contains("iridescenceThicknessMinimum"))
-			{
-				float v = static_cast<float>(ir.value("iridescenceThicknessMinimum").toDouble(0.0));
-				mat.setIridescenceThicknessMin(qMax(0.0f, v));
-				appliedAny = true;
-			}
-			if (ir.contains("iridescenceThicknessMaximum"))
-			{
-				float v = static_cast<float>(ir.value("iridescenceThicknessMaximum").toDouble(0.0));
-				mat.setIridescenceThicknessMax(qMax(0.0f, v));
-				appliedAny = true;
-			}
-			if (ir.contains("iridescenceThicknessTexture") && ir.value("iridescenceThicknessTexture").isObject())
-			{
-				QJsonObject texObj = ir.value("iridescenceThicknessTexture").toObject();
-				int texIndex = texObj.value("index").toInt(-1);
-				if (texIndex >= 0)
+				if (processExtensionTextureSlot(sp, "specularTexture", "specularFactor"))
 				{
-					QString uri = resolveTextureUri(texIndex);
-
-					GLMaterial::Texture tex;
-					tex.type = "iridescenceThicknessTexture";
-					tex.path = uri.toStdString();
-
-					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
-
-					if (loadAndAddTexture(tex, outTextures))
-					{
-						qDebug() << "  ✓ Loaded iridescenceThicknessTexture texture:" << uri;
-					}
+					appliedAny = true;
 				}
 			}
-		}
 
-		// --- KHR_materials_anisotropy ---
-		if (extRoot.contains("KHR_materials_anisotropy") && extRoot.value("KHR_materials_anisotropy").isObject())
-		{
-			QJsonObject an = extRoot.value("KHR_materials_anisotropy").toObject();
-			if (an.contains("anisotropyStrength"))
+			// --- KHR_materials_clearcoat ---
+			if (extRoot.contains("KHR_materials_clearcoat") && extRoot.value("KHR_materials_clearcoat").isObject())
 			{
-				float v = static_cast<float>(an.value("anisotropyStrength").toDouble(0.0));
-				mat.setAnisotropyStrength(qBound(0.0f, v, 1.0f));
-				appliedAny = true;
-			}
-			if (an.contains("anisotropyRotation"))
-			{
-				float v = static_cast<float>(an.value("anisotropyRotation").toDouble(0.0));
-				mat.setAnisotropyRotation(v);
-				appliedAny = true;
-			}
-			if (an.contains("anisotropyTexture") && an.value("anisotropyTexture").isObject())
-			{
-				QJsonObject texObj = an.value("anisotropyTexture").toObject();
-				int texIndex = texObj.value("index").toInt(-1);
-				if (texIndex >= 0)
+				QJsonObject cc = extRoot.value("KHR_materials_clearcoat").toObject();
+				if (cc.contains("clearcoatFactor"))
 				{
-					QString uri = resolveTextureUri(texIndex);
-
-					GLMaterial::Texture tex;
-					tex.type = "anisotropyTexture";
-					tex.path = uri.toStdString();
-
-					extractTextureMetadataFromJson(texObj, jsonSamplers, tex);
-
-					if (loadAndAddTexture(tex, outTextures))
-					{
-						qDebug() << "  ✓ Loaded anisotropyTexture texture:" << uri;
-					}
+					float v = static_cast<float>(cc.value("clearcoatFactor").toDouble(0.0));
+					mat.setClearcoat(qBound(0.0f, v, 1.0f));
+					appliedAny = true;
+				}
+				if (cc.contains("clearcoatRoughnessFactor"))
+				{
+					float v = static_cast<float>(cc.value("clearcoatRoughnessFactor").toDouble(0.0));
+					mat.setClearcoatRoughness(qBound(0.0f, v, 1.0f));
+					appliedAny = true;
+				}
+				// clearcoatTexture -> we map to clearcoatColorMap in your system
+				if (processExtensionTextureSlot(cc, "clearcoatTexture", "clearcoatColor"))
+				{
+					appliedAny = true;
+				}
+				// clearcoatNormal is typically an object with "index" etc. same as other textures
+				if (processExtensionTextureSlot(cc, "clearcoatNormalTexture", "clearcoatNormal"))
+				{
+					appliedAny = true;
 				}
 			}
-		}
 
-		// --- KHR_materials_emissive_strength ---
-		if (extRoot.contains("KHR_materials_emissive_strength"))
-		{
-			QJsonValue v = extRoot.value("KHR_materials_emissive_strength");
-			if (v.isObject())
+			// --- KHR_materials_sheen ---
+			if (extRoot.contains("KHR_materials_sheen") && extRoot.value("KHR_materials_sheen").isObject())
 			{
-				float es = static_cast<float>(v.toObject().value("emissiveStrength").toDouble(1.0));
-				mat.setEmissiveStrength(qMax(0.0f, es));
-				appliedAny = true;
+				QJsonObject sh = extRoot.value("KHR_materials_sheen").toObject();
+				if (sh.contains("sheenColorFactor") && sh.value("sheenColorFactor").isArray())
+				{
+					QJsonArray a = sh.value("sheenColorFactor").toArray();
+					if (a.size() >= 3)
+					{
+						mat.setSheenColor(QVector3D(
+							static_cast<float>(a.at(0).toDouble(0.0)),
+							static_cast<float>(a.at(1).toDouble(0.0)),
+							static_cast<float>(a.at(2).toDouble(0.0))
+						));
+						appliedAny = true;
+					}
+				}
+				if (sh.contains("sheenRoughnessFactor"))
+				{
+					float v = static_cast<float>(sh.value("sheenRoughnessFactor").toDouble(0.0));
+					mat.setSheenRoughness(qBound(0.0f, v, 1.0f));
+					appliedAny = true;
+				}
+				if (processExtensionTextureSlot(sh, "sheenColorTexture", "sheenColor"))
+				{
+					appliedAny = true;
+				}
+				if (processExtensionTextureSlot(sh, "sheenRoughnessTexture", "sheenRoughness"))
+				{
+					appliedAny = true;
+				}
 			}
-			else if (v.isDouble())
+
+			// --- KHR_materials_iridescence ---
+			if (extRoot.contains("KHR_materials_iridescence") && extRoot.value("KHR_materials_iridescence").isObject())
 			{
-				mat.setEmissiveStrength(qMax(0.0f, static_cast<float>(v.toDouble())));
-				appliedAny = true;
+				QJsonObject ir = extRoot.value("KHR_materials_iridescence").toObject();
+				if (ir.contains("iridescenceFactor"))
+				{
+					float v = static_cast<float>(ir.value("iridescenceFactor").toDouble(0.0));
+					mat.setIridescenceFactor(qBound(0.0f, v, 1.0f));
+					appliedAny = true;
+				}
+				if (ir.contains("iridescenceIor"))
+				{
+					float v = static_cast<float>(ir.value("iridescenceIor").toDouble(1.0));
+					mat.setIridescenceIor(qMax(0.0f, v));
+					appliedAny = true;
+				}
+				if (ir.contains("iridescenceThicknessMinimum"))
+				{
+					float v = static_cast<float>(ir.value("iridescenceThicknessMinimum").toDouble(0.0));
+					mat.setIridescenceThicknessMin(qMax(0.0f, v));
+					appliedAny = true;
+				}
+				if (ir.contains("iridescenceThicknessMaximum"))
+				{
+					float v = static_cast<float>(ir.value("iridescenceThicknessMaximum").toDouble(0.0));
+					mat.setIridescenceThicknessMax(qMax(0.0f, v));
+					appliedAny = true;
+				}
+				if (processExtensionTextureSlot(ir, "iridescenceThicknessTexture", "iridescenceThickness"))
+				{
+					appliedAny = true;
+				}
+				if (processExtensionTextureSlot(ir, "iridescenceTexture", "iridescence"))
+				{
+					appliedAny = true;
+				}
 			}
-		}
+
+			// --- KHR_materials_anisotropy ---
+			if (extRoot.contains("KHR_materials_anisotropy") && extRoot.value("KHR_materials_anisotropy").isObject())
+			{
+				QJsonObject an = extRoot.value("KHR_materials_anisotropy").toObject();
+				if (an.contains("anisotropyStrength"))
+				{
+					float v = static_cast<float>(an.value("anisotropyStrength").toDouble(0.0));
+					mat.setAnisotropyStrength(qBound(0.0f, v, 1.0f));
+					appliedAny = true;
+				}
+				if (an.contains("anisotropyRotation"))
+				{
+					float v = static_cast<float>(an.value("anisotropyRotation").toDouble(0.0));
+					mat.setAnisotropyRotation(v);
+					appliedAny = true;
+				}
+				if (processExtensionTextureSlot(an, "anisotropyTexture", "anisotropy"))
+				{
+					appliedAny = true;
+				}
+			}
+
+			// --- KHR_materials_emissive_strength ---
+			if (extRoot.contains("KHR_materials_emissive_strength"))
+			{
+				QJsonValue v = extRoot.value("KHR_materials_emissive_strength");
+				if (v.isObject())
+				{
+					float es = static_cast<float>(v.toObject().value("emissiveStrength").toDouble(1.0));
+					mat.setEmissiveStrength(qMax(0.0f, es));
+					appliedAny = true;
+				}
+				else if (v.isDouble())
+				{
+					mat.setEmissiveStrength(qMax(0.0f, static_cast<float>(v.toDouble())));
+					appliedAny = true;
+				}
+			}
 
 		// --- KHR_materials_unlit ---
-		if (extRoot.contains("KHR_materials_unlit"))
-		{
-			mat.setUnlit(true);
-			appliedAny = true;
-		}
-
-		// --- KHR_materials_dispersion (experimental/non-standard) ---
-		if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
-		{
-			QJsonObject d = extRoot.value("KHR_materials_dispersion").toObject();
-			if (d.contains("dispersionFactor"))
+			if (extRoot.contains("KHR_materials_unlit"))
 			{
-				float v = static_cast<float>(d.value("dispersionFactor").toDouble(0.0));
-				mat.setDispersion(qMax(0.0f, v));
+				mat.setUnlit(true);
 				appliedAny = true;
 			}
-		}
 
-		return appliedAny;
-		};
+		// --- KHR_materials_dispersion (experimental/non-standard) ---
+			if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
+			{
+				QJsonObject d = extRoot.value("KHR_materials_dispersion").toObject();
+				if (d.contains("dispersionFactor"))
+				{
+					float v = static_cast<float>(d.value("dispersionFactor").toDouble(0.0));
+					mat.setDispersion(qMax(0.0f, v));
+					appliedAny = true;
+				}
+			}
+
+			return appliedAny;
+			};
+
 
 	int jsonCount = jsonMaterials.size();
 	if (jsonCount == 0)
@@ -1387,13 +1349,13 @@ void MaterialProcessor::debugMaterialTextures(aiMaterial* material, const std::s
 	std::cout << "========================" << std::endl;
 }
 
-void MaterialProcessor::extractTextureMetadataFromAssimp(
+void MaterialProcessor::extractUVTransform(
 	aiMaterial* mat,
 	aiTextureType type,
 	unsigned int slotIndex,
 	GLMaterial::Texture& texture)
 {
-	// === Extract texCoord index ===
+	// 1. Get UV coordinate set index (which TEXCOORD_N to use)
 	int uvwsrc = 0;
 	if (mat->Get(AI_MATKEY_UVWSRC(type, slotIndex), uvwsrc) == AI_SUCCESS)
 	{
@@ -1401,67 +1363,29 @@ void MaterialProcessor::extractTextureMetadataFromAssimp(
 	}
 	else
 	{
-		texture.texCoordIndex = 0;
+		texture.texCoordIndex = 0; // Default to TEXCOORD_0
 	}
 
-	// === Extract UV transform ===
+	// 2. Get UV transform (scale, offset, rotation)
 	aiUVTransform uvTransform;
 	unsigned int max = sizeof(aiUVTransform);
 
 	if (aiGetMaterialFloatArray(mat, AI_MATKEY_UVTRANSFORM(type, slotIndex),
 		(float*)&uvTransform, &max) == aiReturn_SUCCESS)
 	{
+		// Successfully retrieved transform
 		texture.scale = glm::vec2(uvTransform.mScaling.x, uvTransform.mScaling.y);
 		texture.offset = glm::vec2(uvTransform.mTranslation.x, uvTransform.mTranslation.y);
 		texture.rotation = uvTransform.mRotation;
 	}
 	else
 	{
+		// No transform specified - use identity defaults
 		texture.scale = glm::vec2(1.0f, 1.0f);
 		texture.offset = glm::vec2(0.0f, 0.0f);
 		texture.rotation = 0.0f;
 	}
 
-	// === Extract sampler metadata from Assimp ===
-	// Try to get sampler index
-	unsigned int samplerIndex = 0;
-	texture.wrapS = GL_REPEAT;
-	texture.wrapT = GL_REPEAT;
-	texture.magFilter = GL_LINEAR;
-	texture.minFilter = GL_LINEAR_MIPMAP_LINEAR;
-
-	// Check if Assimp provides sampler data (newer versions)
-	/*if (mat->Get(AI_MATKEY_TEXTURE_SAMPLER(type, slotIndex), samplerIndex) == AI_SUCCESS)
-	{
-		// Assimp found sampler - try to extract wrap modes
-		// Note: This may or may not be supported depending on Assimp version
-
-		// Try to get wrapS (aiTextureOp enums)
-		int wrapSVal = 0;
-		if (mat->Get(AI_MATKEY_TEXWRAP_U(type, slotIndex), wrapSVal) == AI_SUCCESS)
-		{
-			// aiTextureMapMode_Wrap = 0, aiTextureMapMode_Clamp = 1, aiTextureMapMode_Mirror = 2
-			switch (wrapSVal)
-			{
-			case aiTextureMapMode_Wrap:   texture.wrapS = GL_REPEAT; break;
-			case aiTextureMapMode_Clamp:  texture.wrapS = GL_CLAMP_TO_EDGE; break;
-			case aiTextureMapMode_Mirror: texture.wrapS = GL_MIRRORED_REPEAT; break;
-			default: texture.wrapS = GL_REPEAT;
-			}
-		}
-
-		int wrapTVal = 0;
-		if (mat->Get(AI_MATKEY_TEXWRAP_V(type, slotIndex), wrapTVal) == AI_SUCCESS)
-		{
-			switch (wrapTVal)
-			{
-			case aiTextureMapMode_Wrap:   texture.wrapT = GL_REPEAT; break;
-			case aiTextureMapMode_Clamp:  texture.wrapT = GL_CLAMP_TO_EDGE; break;
-			case aiTextureMapMode_Mirror: texture.wrapT = GL_MIRRORED_REPEAT; break;
-			default: texture.wrapT = GL_REPEAT;
-			}
-		}
-	}*/
 	// Debug output (optional)
 	/*std::cout << "UV Transform for " << texture.type << ":\n"
 		<< "  TexCoord: " << texture.texCoordIndex << "\n"
@@ -1470,81 +1394,6 @@ void MaterialProcessor::extractTextureMetadataFromAssimp(
 		<< "  Rotation: " << texture.rotation << " rad\n";*/
 }
 
-void MaterialProcessor::extractTextureMetadataFromJson(
-	const QJsonObject& texObj,
-	const QJsonArray& jsonSamplers,
-	GLMaterial::Texture& texture)
-{
-	// === Extract texCoord ===
-	texture.texCoordIndex = texObj.value("texCoord").toInt(0);
-
-	// === Extract transform (KHR_texture_transform) ===
-	texture.scale = glm::vec2(1.0f, 1.0f);
-	texture.offset = glm::vec2(0.0f, 0.0f);
-	texture.rotation = 0.0f;
-
-	if (texObj.contains("extensions"))
-	{
-		QJsonObject ext = texObj.value("extensions").toObject();
-		if (ext.contains("KHR_texture_transform"))
-		{
-			QJsonObject transform = ext.value("KHR_texture_transform").toObject();
-
-			// Scale
-			if (transform.contains("scale") && transform.value("scale").isArray())
-			{
-				QJsonArray s = transform.value("scale").toArray();
-				if (s.size() >= 2)
-				{
-					texture.scale.x = static_cast<float>(s.at(0).toDouble(1.0));
-					texture.scale.y = static_cast<float>(s.at(1).toDouble(1.0));
-				}
-			}
-
-			// Offset
-			if (transform.contains("offset") && transform.value("offset").isArray())
-			{
-				QJsonArray o = transform.value("offset").toArray();
-				if (o.size() >= 2)
-				{
-					texture.offset.x = static_cast<float>(o.at(0).toDouble(0.0));
-					texture.offset.y = static_cast<float>(o.at(1).toDouble(0.0));
-				}
-			}
-
-			// Rotation
-			if (transform.contains("rotation"))
-			{
-				texture.rotation = static_cast<float>(transform.value("rotation").toDouble(0.0));
-			}
-		}
-	}
-
-	// === Extract sampler metadata ===
-	texture.wrapS = GL_REPEAT;
-	texture.wrapT = GL_REPEAT;
-	texture.magFilter = GL_LINEAR;
-	texture.minFilter = GL_LINEAR_MIPMAP_LINEAR;
-
-	int samplerIndex = texObj.value("sampler").toInt();
-
-	if (samplerIndex >= 0 && samplerIndex < jsonSamplers.size())
-	{
-		QJsonObject samplerObj = jsonSamplers.at(samplerIndex).toObject();
-
-		int wrapSVal = samplerObj.value("wrapS").toInt();
-		texture.wrapS = convertGltfWrapMode(wrapSVal);
-
-		int wrapTVal = samplerObj.value("wrapT").toInt();
-		texture.wrapT = convertGltfWrapMode(wrapTVal);
-
-		int magVal = samplerObj.value("magFilter").toInt();
-		texture.magFilter = convertGltfMagFilter(magVal);
-
-		int minVal = samplerObj.value("minFilter").toInt();
-		texture.minFilter = convertGltfMinFilter(minVal);
-	}
-}
 // Sets the texture maps for a material based on the defined texture mappings.
 void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMaterial::Texture>& textures, GLMaterial& mat)
 {
@@ -1582,17 +1431,13 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 			candidate.rotation = rotation;
 
 			// UV transform comparator (same as in loadMaterialTextures)
-			auto metadataMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
+			auto uvTransformMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
 				return a.texCoordIndex == b.texCoordIndex &&
 					std::abs(a.scale.x - b.scale.x) < 0.0001f &&
 					std::abs(a.scale.y - b.scale.y) < 0.0001f &&
 					std::abs(a.offset.x - b.offset.x) < 0.0001f &&
 					std::abs(a.offset.y - b.offset.y) < 0.0001f &&
-					std::abs(a.rotation - b.rotation) < 0.0001f &&
-					a.wrapS == b.wrapS &&
-					a.wrapT == b.wrapT &&
-					a.magFilter == b.magFilter &&
-					a.minFilter == b.minFilter;
+					std::abs(a.rotation - b.rotation) < 0.0001f;
 				};
 
 			// Check 1: exact match (path + type + UV metadata) => reuse whole Texture
@@ -1600,7 +1445,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 			{
 				if (std::string(lt.path) == pathUtf8 &&
 					lt.type == type &&
-					metadataMatches(lt, candidate))
+					uvTransformMatches(lt, candidate))
 				{
 					textures.push_back(lt); // reuse existing
 					return true;
@@ -1647,8 +1492,8 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 					}
 				}
 			}
-						
-			createTextureOnGPU(candidate);			
+
+			createTextureOnGPU(candidate);
 
 			// push and cache
 			textures.push_back(candidate);
@@ -2041,7 +1886,7 @@ std::vector<GLMaterial::Texture> MaterialProcessor::loadMaterialTextures(
 	GLMaterial::Texture newTexture;
 	newTexture.type = typeName;
 	newTexture.path = textureFilePath;
-	extractTextureMetadataFromAssimp(mat, type, slotIndex, newTexture);
+	extractUVTransform(mat, type, slotIndex, newTexture);
 
 	// Lambda to compare UV transform metadata
 	auto uvTransformMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
@@ -2092,7 +1937,7 @@ std::vector<GLMaterial::Texture> MaterialProcessor::loadMaterialTextures(
 	}
 
 	// Check 3: Not loaded at all - load from file	
-	createTextureOnGPU(newTexture);	
+	createTextureOnGPU(newTexture);
 
 	textures.push_back(newTexture);
 	_loadedTextures.push_back(newTexture);
@@ -2171,11 +2016,6 @@ void MaterialProcessor::synthesizeADSAliases(std::vector<GLMaterial::Texture>& t
 				alias.rotation = tex.rotation;
 				alias.texCoordIndex = tex.texCoordIndex;
 				alias.hasAlpha = tex.hasAlpha;
-
-				alias.wrapS = tex.wrapS;
-				alias.wrapT = tex.wrapT;
-				alias.magFilter = tex.magFilter;
-				alias.minFilter = tex.minFilter;
 
 				textures.push_back(alias);
 				_loadedTextures.push_back(alias); // register to global cache so future loads reuse
