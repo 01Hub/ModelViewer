@@ -5,6 +5,7 @@
 
 in vec3 g_position;
 in vec3 g_normal;
+in vec4 g_color;
 in vec2 g_texCoord0;
 in vec2 g_texCoord1;
 in vec2 g_texCoord2;
@@ -26,6 +27,8 @@ in GS_OUT_SHADOW{
 	vec3 cameraPos;
 	vec3 lightPos;
 } fs_in_shadow;
+
+uniform bool hasVertexColors;
 
 uniform float opacity;
 uniform bool texEnabled;
@@ -566,6 +569,10 @@ void main()
 	// Apply the final alpha (outside floorRendering block)
 	fragColor.a = finalAlpha;
 
+	// Apply vertex color alpha modulation
+	if(hasVertexColors)
+		fragColor.a *= g_color.a;
+
 	// Premultiply for blending (non-floor; floor path already premultiplies)
 	if (!floorRendering)
 	{
@@ -706,6 +713,10 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		matAmbient = d.rgb;
 		matDiffuse = d.rgb * nDotVP;
 	}
+
+	if(hasVertexColors)
+		matDiffuse *= g_color.rgb;
+
 	if (hasSpecularTexture)
 		matSpecular = texture(texture_specular, getSpecularTextureUV()).rgb * pf;
 	if (hasEmissiveTexture)
@@ -980,6 +991,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		{
 			albedo = pbrLighting.albedo;
 		}
+
+		if(hasVertexColors)
+			albedo *= g_color.rgb;
 
 		// --- packed-channel aware PBR sampling ---
 		// Note: pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)

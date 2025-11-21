@@ -158,7 +158,7 @@ void Cone::setParameters(float radius, float height, unsigned int nSlices, unsig
 		idx += 3;
 	}
 
-	initBuffers(&el, &p, &n, &tex, &tg, &bt);
+	initBuffers(&el, &p, &n, nullptr, &tex, &tg, &bt);
 	computeBounds();
 }
 

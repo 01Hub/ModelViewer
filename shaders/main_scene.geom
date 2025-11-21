@@ -7,6 +7,7 @@ layout(triangle_strip, max_vertices=6) out;
 
 in vec3 v_position[];
 in vec3 v_normal[];
+in vec4 v_color[];
 in vec2 v_texCoord0[];
 in vec2 v_texCoord1[];
 in vec2 v_texCoord2[];
@@ -16,6 +17,7 @@ in vec3 v_bitangent[];
 
 out vec3 g_normal;
 out vec3 g_position;
+out vec4 g_color;
 out vec2 g_texCoord0;
 out vec2 g_texCoord1;
 out vec2 g_texCoord2;
@@ -110,6 +112,7 @@ void main()
         // Send the triangle along with the edge distances
         g_edgeDistance = vec3( ha, 0, 0 );
         g_normal = v_normal[0];
+        g_color = v_color[0];
         g_texCoord0 = v_texCoord0[0];
         g_texCoord1 = v_texCoord1[0];
         g_texCoord2 = v_texCoord2[0];
@@ -129,6 +132,7 @@ void main()
 
         g_edgeDistance = vec3( 0, hb, 0 );
         g_normal = v_normal[1];
+        g_color  = v_color[1];
         g_texCoord0 = v_texCoord0[1];
         g_texCoord1 = v_texCoord1[1];
         g_texCoord2 = v_texCoord2[1];
@@ -148,6 +152,7 @@ void main()
 
         g_edgeDistance = vec3( 0, 0, hc );
         g_normal = v_normal[2];
+        g_color  = v_color[2];
         g_texCoord0 = v_texCoord0[2];
         g_texCoord1 = v_texCoord1[2];
         g_texCoord2 = v_texCoord2[2];
@@ -172,6 +177,7 @@ void main()
         for(int i=0; i<gl_in.length(); i++)
         {
             g_normal = v_normal[i];
+            g_color  = v_color[i];
             g_texCoord0 = v_texCoord0[i];
             g_texCoord1 = v_texCoord1[i];
             g_texCoord2 = v_texCoord2[i];

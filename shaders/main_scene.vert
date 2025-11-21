@@ -2,12 +2,13 @@
 
 layout(location = 0) in vec3 vertexPosition;
 layout(location = 1) in vec3 vertexNormal;
-layout(location = 2) in vec2 texCoord0;
-layout(location = 3) in vec2 texCoord1;
-layout(location = 4) in vec2 texCoord2;
-layout(location = 5) in vec2 texCoord3;
-layout(location = 6) in vec3 vertexTangent;
-layout(location = 7) in vec3 vertexBitangent;
+layout(location = 2) in vec4 vertexColor;
+layout(location = 3) in vec2 texCoord0;
+layout(location = 4) in vec2 texCoord1;
+layout(location = 5) in vec2 texCoord2;
+layout(location = 6) in vec2 texCoord3;
+layout(location = 7) in vec3 vertexTangent;
+layout(location = 8) in vec3 vertexBitangent;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -29,8 +30,9 @@ out float v_clipDistY;
 out float v_clipDistZ;
 out float v_clipDist;
 
-out vec3 v_normal;
 out vec3 v_position;
+out vec3 v_normal;
+out vec4 v_color;
 out vec2 v_texCoord0;
 out vec2 v_texCoord1;
 out vec2 v_texCoord2;
@@ -54,10 +56,10 @@ out VS_OUT_SHADOW {
 } vs_out_shadow;
 
 void main()
-{
-    v_normal     = normalize(normalMatrix * vertexNormal);                       // normal vector
-    //v_normal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
+{    
     v_position   = vec3(modelMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
+    v_normal     = normalize(normalMatrix * vertexNormal);                       // normal vector
+    v_color      = vertexColor;
     v_texCoord0 = texCoord0;
     v_texCoord1 = texCoord1;
     v_texCoord2 = texCoord2;

@@ -87,7 +87,7 @@ _radius(radius)
 		}
 	}
 
-	initBuffers(&el, &p, &n, &tex, &tg, &bt);
+	initBuffers(&el, &p, &n, nullptr, &tex, &tg, &bt);
 	computeBounds();
 }
 

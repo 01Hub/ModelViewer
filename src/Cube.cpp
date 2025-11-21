@@ -132,7 +132,7 @@ void Cube::setSize(const float& size)
 		20,21,22,20,22,23
 	};
 
-	initBuffers(&el, &p, &n, &tex, &t, &bt);
+	initBuffers(&el, &p, &n, nullptr, &tex, &t, &bt);
 
 	_boundingSphere.setCenter(0, 0, 0);
 	_boundingSphere.setRadius(sqrt(3) * (size / 2));

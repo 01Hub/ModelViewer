@@ -126,6 +126,6 @@ void ParametricSurface::buildMesh()
 		}
 	}
 
-	initBuffers(&el, &p, &n, &tex, &tg, &bt);
+	initBuffers(&el, &p, &n, nullptr, &tex, &tg, &bt);
 	computeBounds();
 }

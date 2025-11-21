@@ -246,6 +246,7 @@ protected: // methods
 		std::vector<unsigned int>* indices,
 		std::vector<float>* points,
 		std::vector<float>* normals,
+		std::vector<float>* colors = nullptr,
 		std::vector<float>* texCoords = nullptr,
 		std::vector<float>* tangents = nullptr,
 		std::vector<float>* bitangents = nullptr
@@ -264,6 +265,7 @@ protected:
 	QOpenGLBuffer _indexBuffer;
 	QOpenGLBuffer _positionBuffer;
 	QOpenGLBuffer _normalBuffer;
+	QOpenGLBuffer _colorBuffer;
 	QOpenGLBuffer _texCoord0Buffer;
 	QOpenGLBuffer _texCoord1Buffer;
 	QOpenGLBuffer _texCoord2Buffer;
@@ -349,11 +351,14 @@ protected:
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;
 	std::vector<float> _normals;
+	std::vector<float> _colors;
 	std::vector<float> _tangents;
 	std::vector<float> _bitangents;
 	std::vector<float> _texCoords;
 	std::vector<float> _trsfpoints;
 	std::vector<float> _trsfnormals;
+
+	bool _hasVertexColors;
 
 	// Individual transformation components
 	float _transX;

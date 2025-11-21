@@ -61,7 +61,8 @@ _hasClearcoatPBRMap(false),
 _hasClearcoatRoughnessPBRMap(false),
 _hasClearcoatNormalPBRMap(false),
 _opacityPBRMapInverted(false),
-_hasTextureAlpha(false)
+_hasTextureAlpha(false),
+_hasVertexColors(false)
 {
 	setAutoIncrName(name);
 	_memorySize = 0;
@@ -73,6 +74,7 @@ _hasTextureAlpha(false)
 	_indexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
 	_positionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_normalBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_colorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_texCoord0Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_texCoord1Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_texCoord2Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
@@ -83,6 +85,7 @@ _hasTextureAlpha(false)
 	_indexBuffer.create();
 	_positionBuffer.create();
 	_normalBuffer.create();
+	_colorBuffer.create();
 	_texCoord0Buffer.create();
 	_texCoord1Buffer.create();
 	_texCoord2Buffer.create();
@@ -113,6 +116,7 @@ void TriangleMesh::initBuffers(
 	std::vector<unsigned int>* indices,
 	std::vector<float>* points,
 	std::vector<float>* normals,
+	std::vector<float>* colors,
 	std::vector<float>* texCoords,
 	std::vector<float>* tangents,
 	std::vector<float>* bitangents)
@@ -128,6 +132,12 @@ void TriangleMesh::initBuffers(
 
 	// build the triangles for selection
 	buildTriangles();
+
+	if (colors)
+	{
+		_colors = *colors;
+		_hasVertexColors = true;
+	}
 
 	if (texCoords)
 		_texCoords = *texCoords;
@@ -155,6 +165,16 @@ void TriangleMesh::initBuffers(
 	_normalBuffer.bind();
 	_normalBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
 	_normalBuffer.allocate(normals->data(), static_cast<int>(normals->size() * sizeof(float)));
+
+
+	if(_colors.size())
+	{
+		_buffers.push_back(_colorBuffer);
+		_colorBuffer.bind();
+		_colorBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_colorBuffer.allocate(_colors.data(), static_cast<int>(_colors.size() * sizeof(float)));
+		_memorySize += _colors.size() * sizeof(float);
+	}
 
 	if (_tangents.size())
 	{
@@ -191,6 +211,13 @@ void TriangleMesh::initBuffers(
 	//glEnableVertexAttribArray(1);  // Normal
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+	if (_hasVertexColors)
+	{
+		_colorBuffer.bind();
+		_prog->enableAttributeArray("vertexColor");
+		_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
+	}
 
 	if (_tangents.size())
 	{
@@ -345,6 +372,15 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
+	// Color
+	if (_colors.size())
+	{
+		_hasVertexColors = true;
+		_colorBuffer.bind();
+		_prog->enableAttributeArray("vertexColor");
+		_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
+	}
+
 	// Tex coords
 	if (_texCoords.size())
 	{
@@ -444,6 +480,7 @@ void TriangleMesh::setupTextures()
 void TriangleMesh::setupUniforms()
 {
 	_prog->bind();
+	_prog->setUniformValue("hasVertexColors", _hasVertexColors);
 	_prog->setUniformValue("texEnabled", _hasTexture);
 	_prog->setUniformValue("texUnit", 0);
 	_prog->setUniformValue("material.ambient", _material.ambient());

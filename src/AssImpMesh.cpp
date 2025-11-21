@@ -161,6 +161,7 @@ void AssImpMesh::setupMesh()
 	// ============================================
 	std::vector<float> points;
 	std::vector<float> normals;
+	std::vector<float> colors;
 	std::vector<float> texCoords;
 	std::vector<float> tangents;
 	std::vector<float> bitangents;
@@ -174,7 +175,13 @@ void AssImpMesh::setupMesh()
 		normals.push_back(v.Normal.x);
 		normals.push_back(v.Normal.y);
 		normals.push_back(v.Normal.z);
-
+				
+		colors.reserve(_vertices.size() * 4);
+		colors.push_back(v.Color.r);
+		colors.push_back(v.Color.g);
+		colors.push_back(v.Color.b);
+		colors.push_back(v.Color.a);
+		
 		// Extract all 4 texCoord sets
 		for (int i = 0; i < 4; i++)
 		{
@@ -322,7 +329,7 @@ void AssImpMesh::setupMesh()
 			<< " Rotation (radians):" << tex.rotation;
 	}
 
-	initBuffers(&_indices, &points, &normals, &texCoords, &tangents, &bitangents);
+	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents);
 	computeBounds();
 }
 

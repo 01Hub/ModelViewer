@@ -95,5 +95,5 @@ void Plane::buildMesh(QVector3D center, float xsize, float ysize, int xdivs, int
 		}
 	}
 
-	initBuffers(&el, &p, &n, &tex);
+	initBuffers(&el, &p, &n, nullptr, &tex);
 }
