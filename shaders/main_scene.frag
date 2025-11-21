@@ -1052,6 +1052,22 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	// ============================================================================
+	// LIGHT ACCUMULATION VARIABLES
+	// ============================================================================
+	vec3 directDiffuse_L = vec3(0.0);
+	vec3 directSpecular_L = vec3(0.0);
+	vec3 transmission_L = vec3(0.0);
+	vec3 sheen_L = vec3(0.0);
+	vec3 sheenIBL_L = vec3(0.0);
+	vec3 clearcoat_L = vec3(0.0);
+	vec3 clearcoatIBL_L = vec3(0.0);
+	vec3 iridescence_BRDF_L = vec3(0.0);
+	vec3 iridescence_IBL_L = vec3(0.0);
+	vec3 ambient_L = vec3(0.0);
+	vec3 emissive_L = vec3(0.0);
+	float clearcoatAttenuation = 1.0;
+
+	// ============================================================================
 	// BASE LAYER - F0 and Material Foundation
 	// ============================================================================
 	vec3 F0 = vec3(0.04);	
@@ -1078,7 +1094,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 B = normalize(cross(N, T));
 
 	// ============================================================================
-	// DIFFUSE & SPECULAR BASE LAYER
+	// LAYER 1: DIFFUSE & SPECULAR BASE LAYER (DIRECT LIGHTING)
 	// ============================================================================
 	vec3 H = normalize(V_direct + L);
 
@@ -1104,23 +1120,22 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	float NdotL = max(dot(N, L), 0.0);
 
-	vec3 directDiffuse_L = kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
-	vec3 directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
+	directDiffuse_L = kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
+	directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
 
 	// ============================================================================
-	// TRANSMISSION LAYER
+	// LAYER 2: TRANSMISSION
 	// ============================================================================
 	transmission = hasTransmissionMap ? texture(transmissionMap, getTransmissionUV()).r : pbrLighting.transmission;
 	ior = hasIORMap ? texture(iorMap, getIORUV()).r : pbrLighting.ior;
 
-	vec3 transmission_L = vec3(0.0);
 	if (transmission > 0.0)
 	{
 		transmission_L = calculateTransmission(N, V_direct, L, transmission, ior, albedo);
 	}
 
 	// ============================================================================
-	// SHEEN LAYER
+	// LAYER 3: SHEEN
 	// ============================================================================
 	if (hasSheenColorMap)
 	{
@@ -1135,15 +1150,16 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	sheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, getSheenRoughnessUV()).r * pbrLighting.sheenRoughness : pbrLighting.sheenRoughness;
 	sheenRoughness = clamp(sheenRoughness, 0.0001, 1.0);
 
-	vec3 sheen_L = vec3(0.0);
-	vec3 sheenIBL_L = vec3(0.0);
-
 	if (length(sheenColor) > 0.0)
 	{
+		// Direct sheen
 		sheen_L = calculateSheen(N, V_direct, L, sheenColor, sheenRoughness);
+
+		// Sheen IBL
 		sheenIBL_L = calculateSheenIBL(g_reflectionNormal, V_reflect, sheenRoughness, sheenColor);
 
 		// Additional sheen BRDF contribution
+		H = normalize(V_direct + L);
 		float NoH = clamp(dot(N, H), 0.0, 1.0);
 		float sheenD = D_Charlie(sheenRoughness, NoH);
 		vec3 sheenBRDF = sheenD * sheenColor;
@@ -1157,17 +1173,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	// ============================================================================
-	// CLEARCOAT LAYER
+	// LAYER 4: CLEARCOAT
 	// ============================================================================
 	clearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r * pbrLighting.clearcoat : pbrLighting.clearcoat;
 	clearcoat = clamp(clearcoat, 0.0, 1.0);
 	clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).g * pbrLighting.clearcoatRoughness : pbrLighting.clearcoatRoughness;
 	clearcoatRoughness = clamp(clearcoatRoughness, 0.089, 1.0);
 	clearcoatNormal = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side : N;
-
-	vec3 clearcoat_L = vec3(0.0);
-	vec3 clearcoatIBL_L = vec3(0.0);
-	float clearcoatAttenuation = 1.0;
 
 	if (clearcoat > 0.0)
 	{
@@ -1180,15 +1192,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		clearcoatAttenuation = mix(1.0, 1.0 - clearcoat * clearcoatFresnel, 0.5);
 	}
 
-	// Treat clearcoat as specular-like
+	// Treat clearcoat as specular-like (outside if block, as per original)
 	directSpecular_L += clearcoat_L * lightSource.specular;
 
 	// ============================================================================
-	// IRIDESCENCE LAYER
+	// LAYER 5: IRIDESCENCE
 	// ============================================================================
-	vec3 iridescenceF0 = vec3(0.0);
-
-	// Load iridescence properties
 	iridescenceFactor = hasIridescenceMap ? texture(iridescenceMap, getIridescenceUV()).r : pbrLighting.iridescenceFactor;
 	iridescenceIor = pbrLighting.iridescenceIor;
 
@@ -1232,19 +1241,18 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		// Blend both paths based on metallicness, then blend in to F0
 		vec3 iridescenceF0 = mix(iridFresnel_dielectric, iridFresnel_metallic, metallic);
 		F0 = mix(F0, iridescenceF0, iridescenceFactor);
+
+		directSpecular_L += calculateIridescenceBRDF(N, V_direct, L, roughness,
+			iridescenceFactor, iridescenceIor,
+			iridescenceThickness, albedo, metallic);
 	}
 
-	directSpecular_L += calculateIridescenceBRDF(N, V_direct, L, roughness,
-		iridescenceFactor, iridescenceIor,
-		iridescenceThickness, albedo, metallic);
-
 	// ============================================================================
-	// IBL - IMAGE BASED LIGHTING
+	// LAYER 6: IMAGE BASED LIGHTING (IBL) - AMBIENT
 	// ============================================================================
 	vec3 irradiance = texture(irradianceMap, N).rgb;
 	vec3 diffuseIBL_L = irradiance * albedo;
 	vec3 specIBL_L = vec3(0.0);
-	vec3 ambient_L = vec3(0.0);
 
 	if (envMapEnabled)
 	{
@@ -1273,7 +1281,6 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	
 		specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
 	
-		diffuseIBL_L = irradiance * albedo;
 		float diffuseAO = mix(1.0, ambientOcclusion, 0.6);
 		float specularAO = mix(1.0, ambientOcclusion, 0.2);
 		ambient_L = (kDibl * diffuseIBL_L) * diffuseAO + specIBL_L * specularAO;
@@ -1296,18 +1303,17 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			iridescenceThickness, albedo, metallic);
 
 	// ============================================================================
-	// EMISSION
+	// LAYER 7: EMISSION
 	// ============================================================================
-	vec3 emissive_L = material.emission;
+	emissive_L = material.emission;
 	if (hasEmissiveTexture) emissive_L = texture(texture_emissive, getEmissiveUV()).rgb * material.emission;
 
 	// Apply emissive strength
 	emissive_L *= emissiveStrength;
 
 	// ============================================================================
-	// LAYER COMPOSITION
+	// CONSOLIDATE: COMBINE ALL LIGHT LAYERS
 	// ============================================================================
-	// Split into "non-specular" bucket vs "specular-only"
 	vec3 baseNoSpec_L = emissive_L + ambient_L + directDiffuse_L + transmission_L + sheen_L;
 	vec3 specOnly_L = directSpecular_L; // (spec IBL already inside 'ambient_L')
 
