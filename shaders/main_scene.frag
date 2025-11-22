@@ -1030,7 +1030,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		vec3 texSpecularColor = hasSpecularColorMap ? texture(specularColorMap, getSpecularColorUV()).rgb : vec3(1.0);
 		specularColorFactor = mix(texSpecularColor, pbrLighting.specularColorFactor * texSpecularColor, blendFactor);
-		
+				
 		// Anisotropy (KHR_materials_anisotropy)
 		if (hasAnisotropyMap)
 		{
@@ -1103,6 +1103,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 	if (metallic < 0.1) F0 = max(F0, vec3(0.04));
 
+	// ============================================================================
+	// COMPUTE F90 FOR FRESNEL (KHR_materials_specular)
+	// ============================================================================
+	vec3 F90_dielectric = vec3(specularFactor);  // Already contains factor * texture.a
+	vec3 F90 = mix(F90_dielectric, vec3(1.0), metallic);
+
 	// Setup tangent space for anisotropy
 	vec3 T = normalize(g_tangent - dot(g_tangent, N) * N);
 	vec3 B = normalize(cross(N, T));
@@ -1123,13 +1129,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		// Standard isotropic GGX
 		float NDF = distributionGGX(N, H, roughness);
 		float G = geometrySmith(N, V_direct, L, roughness);		
-		vec3 F = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0);
+		vec3 F = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0, F90);
 		specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V_direct), 0.0) * max(dot(N, L), 0.0), 0.001);
 	}
 
 	specBRDF *= 1.5;
 
-	vec3 kS = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0);
+	vec3 kS = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0, F90);
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
 	float NdotL = max(dot(N, L), 0.0);
