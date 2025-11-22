@@ -932,7 +932,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 
 				if (loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures))
 				{
-					qDebug() << "  ✓ Loaded" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
+					qDebug() << "  Loaded" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
 				}
 				};
 
@@ -976,7 +976,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
 				auto [wrapS, wrapT, magF, minF] = getSamplerParams(texIndex);
 				bool ok = loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures);
-				if (ok) qDebug() << "  ✓ Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
+				if (ok) qDebug() << "  Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
 				return ok;
 				};
 
@@ -1291,7 +1291,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		}
 	}
 
-	// nothing found — silently return
+	// nothing found - silently return
 	// qDebug() << "No KHR materials extensions found for materialIndex" << materialIndex;
 }
 
