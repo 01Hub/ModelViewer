@@ -377,7 +377,30 @@ vec3    calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, float clearc
 vec3    calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal, float clearcoatRoughness, float clearcoat);
 
 // ==== NEW glTF EXTENSION FUNCTIONS ====
+
+// ==== KHR Anisotropy
+float	V_GGX_anisotropic(float NdotL, float NdotV, float BdotV, float TdotV, float TdotL, float BdotL, float at, float ab);
+float	D_GGX_anisotropic(float NdotH, float TdotH, float BdotH, float at, float ab);
 vec3	calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotropyStrength, float anisotropyRotation, float roughness, vec3 F0);
+
+// ============================================================================
+// HELPER: Decode anisotropy texture data
+// Call this BEFORE calling calculateAnisotropy
+// ============================================================================
+struct AnisotropyData
+{
+    float strength;      // Final strength (texture x uniform)
+    float rotation;      // Final rotation (texture direction rotated by uniform)
+    vec2 direction;      // Texture direction in [-1,1] (before rotation)
+};
+
+AnisotropyData decodeAnisotropyTexture(
+    vec3 texelRGB,                           // Raw texture data
+    float uniformStrength,                   // Uniform strength parameter
+    float uniformRotation,                   // Uniform rotation in radians
+    bool hasTexture
+);
+
 vec3	calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridescenceIor, float thickness);
 vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance);
 
@@ -1032,17 +1055,29 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		specularColorFactor = mix(texSpecularColor, pbrLighting.specularColorFactor * texSpecularColor, blendFactor);
 				
 		// Anisotropy (KHR_materials_anisotropy)
+		AnisotropyData anisoData;    
 		if (hasAnisotropyMap)
 		{
-			vec3 anisoData = texture(anisotropyMap, getAnisotropyUV()).rgb;
-			anisotropyStrength = length(anisoData.rg);
-			anisotropyRotation = atan(anisoData.g, anisoData.r);
+			vec3 anisoTexel = texture(anisotropyMap, getAnisotropyUV()).rgb;
+			anisoData = decodeAnisotropyTexture(
+				anisoTexel,
+				pbrLighting.anisotropyStrength,
+				pbrLighting.anisotropyRotation,
+				true
+			);
 		}
 		else
 		{
-			anisotropyStrength = pbrLighting.anisotropyStrength;
-			anisotropyRotation = pbrLighting.anisotropyRotation;
+			anisoData = decodeAnisotropyTexture(
+				vec3(1.0, 0.5, 1.0),  // Default texture value
+				pbrLighting.anisotropyStrength,
+				pbrLighting.anisotropyRotation,
+				false
+			);
 		}
+    
+		anisotropyStrength = anisoData.strength;
+		anisotropyRotation = anisoData.rotation;
 	}
 
 	// Early out for unlit materials
@@ -1122,7 +1157,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (anisotropyStrength > 0.0)
 	{
 		// Use anisotropic BRDF
-		specBRDF = calculateAnisotropy(normalize(g_reflectionNormal), normalize(cameraDir), L, T, B, anisotropyStrength, anisotropyRotation, roughness, F0);
+		specBRDF = calculateAnisotropy(N, V_direct, L, T, B, anisotropyStrength, anisotropyRotation, roughness, F0);
 	}
 	else
 	{
@@ -1696,7 +1731,7 @@ vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughnes
     if (NdotL <= 0.0 || NdotV <= 0.0)
         return vec3(0.0);
 
-    // Remap roughness — many Charlie implementations expect squared mapping
+    // Remap roughness - many Charlie implementations expect squared mapping
     float r = clamp(sheenRoughness, 0.0, 1.0);
     float mappedRough = max(0.002, r * r);
 
@@ -1704,7 +1739,7 @@ vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughnes
     float D = distributionCharlie(N, H, mappedRough);
     float G = geometryCharlie(NdotV, mappedRough) * geometryCharlie(NdotL, mappedRough);
 
-    // Fresnel — colored sheen: Schlick with V·H (F0 = sheenColor)
+    // Fresnel - colored sheen: Schlick with V.H (F0 = sheenColor)
     vec3 F = fresnelSchlick(VdotH, sheenColor);
 
     // Safe denominator to avoid spikes at grazing
@@ -1713,7 +1748,7 @@ vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughnes
     // Microfacet-like sheen BRDF (reflectance)
     vec3 sheenBRDF = (D * G / denom) * F;
 
-    // Sheen is primarily a dielectric effect — attenuate on metals
+    // Sheen is primarily a dielectric effect - attenuate on metals
     sheenBRDF *= (1.0 - pbrLighting.metallic);
 
     // Return radiance contribution for this light (multiply by NdotL here to match current shader style)
@@ -1739,17 +1774,17 @@ vec3 calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor)
     vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
 	prefilteredColor = max(prefilteredColor, vec3(0.0)); // clamp negatives
 
-    // N·V used for LUT indexing/split-sum mapping
+    // N.V used for LUT indexing/split-sum mapping
     float dotNV = clamp(dot(N, V), 0.0, 1.0);
 
     // Roughness remap to match Charlie direct term
     float r = clamp(sheenRoughness, 0.0, 1.0);
     float mappedRough = max(0.002, r * r);
 
-    // Fresnel for sheen on IBL path — use roughness-aware Schlick
+    // Fresnel for sheen on IBL path - use roughness-aware Schlick
     vec3 F_sheen = fresnelSchlick(dotNV, sheenColor);
 
-    // Geometry factor (Charlie) — single-term using NdotV is OK for IBL
+    // Geometry factor (Charlie) - single-term using NdotV is OK for IBL
     float G = geometryCharlie(dotNV, mappedRough);
 
     // Directional-albedo / BRDF integration factor from the split-sum LUT (blue channel)
@@ -1845,7 +1880,7 @@ vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal,
     vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
 	prefilteredColor = max(prefilteredColor, vec3(0.0)); // clamp negatives
 
-    // Fresnel inputs: use N·V with coat normal (common IBL approximation)
+    // Fresnel inputs: use N.V with coat normal (common IBL approximation)
     float dotNV = clamp(dot(N, V_norm), 0.0, 1.0);
 
     // Sample BRDF LUT (expects NdotV, roughness)
@@ -1870,40 +1905,152 @@ vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal,
 
 
 // ==== NEW GLTF EXTENSION IMPLEMENTATIONS ====
-// KHR_materials_anisotropy
-vec3 calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotropyStrength, float anisotropyRotation, float roughness, vec3 F0)
+
+// NEW: Anisotropic visibility/masking function (Khronos spec line 174-181)
+float V_GGX_anisotropic(float NdotL, float NdotV, float BdotV, float TdotV,
+    float TdotL, float BdotL, float at, float ab)
 {
-	// Rotate tangent by anisotropy rotation
-	float cosRot = cos(anisotropyRotation);
-	float sinRot = sin(anisotropyRotation);
-	vec3 T_rot = cosRot * T + sinRot * B;
-	vec3 B_rot = -sinRot * T + cosRot * B;
-
-	vec3 H = normalize(V + L);
-	float NdotH = max(dot(N, H), 0.0);
-	float TdotH = dot(T_rot, H);
-	float BdotH = dot(B_rot, H);
-	float NdotV = max(dot(N, V), 0.0);
-	float NdotL = max(dot(N, L), 0.0);
-
-	// Anisotropic roughness
-	float at = max(roughness * (1.0 + anisotropyStrength), 0.001);
-	float ab = max(roughness * (1.0 - anisotropyStrength), 0.001);
-
-	// Anisotropic GGX distribution
-	float a2 = at * ab;
-	float denom = TdotH * TdotH / (at * at) + BdotH * BdotH / (ab * ab) + NdotH * NdotH;
-	float D = 1.0 / (PI * a2 * denom * denom);
-
-	// Use standard Smith geometry
-	float G = geometrySmith(N, V, L, roughness);
-
-	// Fresnel
-	vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
-
-	vec3 specular = (D * G * F) / max(4.0 * NdotV * NdotL, 0.001);
-	return specular * NdotL;
+    float GGXV = NdotL * length(vec3(at * TdotV, ab * BdotV, NdotV));
+    float GGXL = NdotV * length(vec3(at * TdotL, ab * BdotL, NdotL));
+    float v = 0.5 / (GGXV + GGXL);
+    return clamp(v, 0.0, 1.0);
 }
+
+// NEW: Anisotropic GGX normal distribution (Khronos spec line 166-172)
+float D_GGX_anisotropic(float NdotH, float TdotH, float BdotH, float at, float ab)
+{
+    const float PI = 3.141592653589793;
+    float a2 = at * ab;
+    vec3 f = vec3(ab * TdotH, at * BdotH, a2 * NdotH);
+    float w2 = a2 / dot(f, f);
+    return a2 * w2 * w2 / PI;
+}
+
+AnisotropyData decodeAnisotropyTexture(
+    vec3 texelRGB,                           // Raw texture data
+    float uniformStrength,                   // Uniform strength parameter
+    float uniformRotation,                   // Uniform rotation in radians
+    bool hasTexture
+) {
+    AnisotropyData result;
+    
+    if (!hasTexture)
+    {
+        // Default: direction (1,0) = +X axis, full strength
+        result.direction = vec2(1.0, 0.0);
+        result.strength = uniformStrength;
+        result.rotation = uniformRotation;
+        return result;
+    }
+    
+    // ====== SPEC-COMPLIANT TEXTURE DECODING (Line 82) ======
+    // Red [0,1] -> X [-1,1], Green [0,1] -> Y [-1,1], Blue = strength [0,1]
+    
+    result.direction = texelRGB.rg * 2.0 - 1.0;  // [0,1] -> [-1,1]
+    result.direction = normalize(result.direction); // Unit vector in tangent space
+    
+    // Blue channel is strength, multiply by uniform
+    result.strength = texelRGB.b * uniformStrength;
+    result.strength = clamp(result.strength, 0.0, 1.0);
+    
+    // Direction rotation: apply uniform rotation to texture direction
+    // (Spec line 131-132: rotate the direction vector by the rotation matrix)
+    float c = cos(uniformRotation);
+    float s = sin(uniformRotation);
+    vec2 rotated = vec2(
+        c * result.direction.x - s * result.direction.y,
+        s * result.direction.x + c * result.direction.y
+    );
+    
+    // Convert 2D rotated direction to rotation angle for T/B rotation
+    result.rotation = atan(rotated.y, rotated.x);
+    
+    return result;
+}
+
+vec3 calculateAnisotropy(
+    vec3 N, vec3 V, vec3 L,
+    vec3 T, vec3 B,
+    float anisotropyStrength,  // In [0,1], strength of anisotropic effect
+    float anisotropyRotation,   // In radians, rotation of anisotropy direction
+    float roughness,            // Base roughness [0,1]
+    vec3 F0                     // Fresnel base color
+) {
+    const float PI = 3.141592653589793;
+
+    // Clamp strength to valid range [0,1]
+    anisotropyStrength = clamp(anisotropyStrength, 0.0, 1.0);
+
+    // SPEC-COMPLIANT: Compute alpha roughness values
+    // Formula (Spec line 88-94):
+    //   materialAlphaRoughness = materialRoughness^2
+    //   directionAlphaRoughness = mix(materialAlphaRoughness, 1.0, strength^2)
+    //   ab = materialAlphaRoughness (perpendicular direction stays same)
+    //   at = directionAlphaRoughness (parallel direction gets rougher)
+    
+    float a = roughness * roughness;  // materialAlphaRoughness
+    float strength_sq = anisotropyStrength * anisotropyStrength;
+    float at = mix(a, 1.0, strength_sq);  // Use mix formula
+    float ab = a;                         // Bitangent uses base roughness
+
+    // Prevent degenerate values
+    at = max(at, 0.0001);
+    ab = max(ab, 0.0001);
+
+    // ========================================================================
+    // Apply anisotropy rotation to tangent/bitangent
+    // (Spec line 129-137: rotate the anisotropy direction, then transform to world)
+    // ========================================================================
+    float c = cos(anisotropyRotation);
+    float s = sin(anisotropyRotation);
+    vec3 T_aniso = c * T + s * B;  // Rotate tangent
+    vec3 B_aniso = -s * T + c * B; // Rotate bitangent (perpendicular)
+    
+    // Ensure orthonormality after rotation
+    T_aniso = normalize(T_aniso);
+    B_aniso = normalize(cross(N, T_aniso));
+
+    // ========================================================================
+    // Compute required dot products
+    // ========================================================================
+    vec3 H = normalize(V + L);
+    
+    // Essential dot products
+    float NdotH = clamp(dot(N, H), 0.0, 1.0);
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
+    float NdotL = clamp(dot(N, L), 0.0, 1.0);
+    
+    // Anisotropic-specific dot products (with rotated T and B)
+    float TdotV = dot(T_aniso, V);
+    float BdotV = dot(B_aniso, V);
+    float TdotL = dot(T_aniso, L);
+    float BdotL = dot(B_aniso, L);
+    float TdotH = dot(T_aniso, H);
+    float BdotH = dot(B_aniso, H);
+
+    // ========================================================================
+    // Compute anisotropic BRDF components
+    // ========================================================================
+    
+    // Fresnel (same as isotropic)
+    float VdotH = clamp(dot(V, H), 0.0, 1.0);
+    vec3 F = fresnelSchlick(VdotH, F0);  // Default F90=1.0
+    
+    // Distribution: Anisotropic GGX
+    float D = D_GGX_anisotropic(NdotH, TdotH, BdotH, at, ab);
+    
+    // Visibility: Anisotropic Smith
+    float V_vis = V_GGX_anisotropic(NdotL, NdotV, BdotV, TdotV, TdotL, BdotL, at, ab);
+
+    // ========================================================================
+    // Cook-Torrance: (D * V * F) / (4 * NdotL * NdotV) but V already includes denominator
+    // ========================================================================
+    vec3 specular = D * V_vis * F;
+
+    // Return with NdotL multiplier for energy conservation
+    return specular * NdotL;
+}
+
 
 vec3 calculateIridescence(vec3 N, vec3 V, float iridescenceFactor, float iridescenceIor, float thickness)
 {
@@ -2145,7 +2292,7 @@ vec3 calculateIridescenceBRDF(
     vec3 iridFresnel_dielectric = evalIridescence(
         1.0,                // outsideIOR (air)
         iridescenceIor,     // film IOR
-        VdotH,              // use V·H for Fresnel
+        VdotH,              // use V.H for Fresnel
         iridescenceThickness,
         vec3(0.04),         // dielectric F0
         vec3(1.0)           // F90
@@ -2197,7 +2344,7 @@ vec3 calculateIridescenceIBL(
     vec3 F_irid_dielectric = evalIridescence(
         1.0,                // outsideIOR (air)
         iridescenceIor,     // film IOR
-        dotNV,              // N·V for IBL Fresnel
+        dotNV,              // N.V for IBL Fresnel
         iridescenceThickness,
         vec3(0.04),         // dielectric F0
         vec3(1.0)           // F90
