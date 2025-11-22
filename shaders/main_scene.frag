@@ -1203,7 +1203,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 	sheenColor = clamp(sheenColor, vec3(0.0), vec3(1.0));
 	sheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, getSheenRoughnessUV()).r * pbrLighting.sheenRoughness : pbrLighting.sheenRoughness;
-	sheenRoughness = clamp(sheenRoughness, 0.0001, 1.0);
+	sheenRoughness = clamp(sheenRoughness, 0.0, 1.0);
 
 	if (length(sheenColor) > 0.0)
 	{
@@ -1213,18 +1213,16 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		// Sheen IBL
 		sheenIBL_L = calculateSheenIBL(g_reflectionNormal, V_reflect, sheenRoughness, sheenColor);
 
-		// Additional sheen BRDF contribution
-		H = normalize(V_direct + L);
-		float NoH = clamp(dot(N, H), 0.0, 1.0);
-		float sheenD = D_Charlie(sheenRoughness, NoH);
-		vec3 sheenBRDF = sheenD * sheenColor;
-		sheen_L += sheenBRDF * NdotL;
-
-		vec3 R = reflect(V_reflect, g_reflectionNormal);
-		vec3 prefilteredEnv = textureLod(prefilterMap, R, sheenRoughness * 8.0).rgb;
-		vec3 dfg = texture(brdfLUT, vec2(dot(N, V_direct), sheenRoughness)).rgb;
-		dfg = max(dfg, vec3(0.0));
-		sheenIBL_L += dfg.b * prefilteredEnv * sheenColor;
+		// Sheen detail contribution from texture variations
+        // This preserves fine fiber/stripe details from sheenRoughness texture
+        H = normalize(V_direct + L);
+        float NoH = clamp(dot(N, H), 0.0, 1.0);
+        float sheenD = D_Charlie(sheenRoughness, NoH);
+        
+        // Apply modest detail enhancement (don't double-contribute)
+        // Scale by 0.3 to blend with the function's complete BRDF
+        vec3 sheenDetail = sheenD * sheenColor * 0.5 * NdotL;
+        sheen_L += sheenDetail;
 	}
 
 	// ============================================================================
@@ -1233,7 +1231,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	clearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r * pbrLighting.clearcoat : pbrLighting.clearcoat;
 	clearcoat = clamp(clearcoat, 0.0, 1.0);
 	clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).g * pbrLighting.clearcoatRoughness : pbrLighting.clearcoatRoughness;
-	clearcoatRoughness = clamp(clearcoatRoughness, 0.089, 1.0);
+	clearcoatRoughness = clamp(clearcoatRoughness, 0.0, 1.0);
 	clearcoatNormal = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side : N;
 
 	if (clearcoat > 0.0)
@@ -1243,7 +1241,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		// Calculate clearcoat Fresnel to attenuate base material
 		vec3 F0_clearcoat = vec3(0.04);		
-		float clearcoatFresnel = fresnelSchlick(max(dot(clearcoatNormal, cameraDir), 0.0), F0_clearcoat).r;
+		float clearcoatFresnel = fresnelSchlick(max(dot(clearcoatNormal, V_direct), 0.0), F0_clearcoat).r;
 		clearcoatAttenuation = mix(1.0, 1.0 - clearcoat * clearcoatFresnel, 0.5);
 	}
 
@@ -1733,7 +1731,7 @@ vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughnes
 
     // Remap roughness - many Charlie implementations expect squared mapping
     float r = clamp(sheenRoughness, 0.0, 1.0);
-    float mappedRough = max(0.002, r * r);
+    float mappedRough = max(0.0, r * r);
 
     // Charlie distribution & geometry (use your existing functions)
     float D = distributionCharlie(N, H, mappedRough);
@@ -1760,44 +1758,49 @@ vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughnes
 // Improved calculateSheenIBL
 // Uses your prefiltered env map (prefilterMap) and brdfLUT (sampler2D brdfLUT).
 // Returns a radiance contribution that can be added directly to Lo.
+// Improved calculateSheenIBL with texture detail preservation
 vec3 calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor)
 {
-    // Compute stable reflection direction consistent with your shader (you used reflect(V, N))
-    vec3 R = reflect(V, N);
+    vec3 V_norm = normalize(V);
+    vec3 R = reflect(V_norm, N);
     R = normalize(R);
 
-    // Prefilter sampling LOD
-    float MAX_LOD = max(textureQueryLevels(prefilterMap) - 1.0, 0.0);
-    float lod = clamp(sheenRoughness, 0.0, 1.0) * MAX_LOD;
-
-    // Sample environment (prefiltered reflection)
-    vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
-	prefilteredColor = max(prefilteredColor, vec3(0.0)); // clamp negatives
-
-    // N.V used for LUT indexing/split-sum mapping
-    float dotNV = clamp(dot(N, V), 0.0, 1.0);
+    float maxLevels = textureQueryLevels(prefilterMap);
+    float MAX_LOD = max(maxLevels - 1.0, 0.0);
 
     // Roughness remap to match Charlie direct term
     float r = clamp(sheenRoughness, 0.0, 1.0);
-    float mappedRough = max(0.002, r * r);
+    float mappedRough = r * r;  // Keep squared mapping, no min clamp
 
-    // Fresnel for sheen on IBL path - use roughness-aware Schlick
+    // Enhanced LOD calculation: preserve texture detail with lower LOD
+    // Use aggressive detail preservation similar to inline code (sheenRoughness * 8.0 approach)
+    // but scaled to MAX_LOD instead of hardcoded 8.0
+    float detailPreservation = mix(1.0, 0.3, mappedRough);  // Higher detail at low roughness
+    float lod = mappedRough * MAX_LOD * detailPreservation;
+    lod = clamp(lod, 0.0, MAX_LOD);
+
+    // Sample prefiltered environment
+    vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+    prefilteredColor = max(prefilteredColor, vec3(0.0));
+
+    // N.V for BRDF LUT
+    float dotNV = clamp(dot(N, V_norm), 0.0, 1.0);
+
+    // Fresnel for sheen
     vec3 F_sheen = fresnelSchlick(dotNV, sheenColor);
 
-    // Geometry factor (Charlie) - single-term using NdotV is OK for IBL
+    // Geometry factor (Charlie) - captures proper microfacet attenuation
     float G = geometryCharlie(dotNV, mappedRough);
 
-    // Directional-albedo / BRDF integration factor from the split-sum LUT (blue channel)
-    // brdfLUT is declared as: uniform sampler2D brdfLUT;
+    // Directional-albedo from BRDF LUT (blue channel for sheen)
     float E = texture(brdfLUT, vec2(dotNV, mappedRough)).b;
-	
-    // Combine: prefiltered radiance * sheen color & BRDF terms * directional albedo
+
+    // Complete microfacet sheen BRDF: prefiltered * BRDF components
     vec3 sheenIBL = prefilteredColor * sheenColor * G * F_sheen * E;
 
     // Attenuate for metallics
     sheenIBL *= (1.0 - pbrLighting.metallic);
 
-    // Return IBL radiance contribution (already includes env sample)
     return sheenIBL;
 }
 
@@ -1811,7 +1814,7 @@ vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat,
     if (clearcoat <= 0.0) return vec3(0.0);
 
     // clearcoatRoughness should already be (factor * texture.r) on the caller side
-    float rough = clamp(clearcoatRoughness, 0.02, 1.0);
+    float rough = clamp(clearcoatRoughness, 0.0, 1.0);
 
     vec3 V_norm = normalize(V);
     vec3 L_norm = normalize(L);
@@ -1827,7 +1830,7 @@ vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat,
     // Modulate roughness by normal detail (optional artistic tweak)
     vec3 normalVariation = normalize(clearcoatNormal) - normalize(N);
     float bumpiness = length(normalVariation) * 0.5;
-    float modulatedRoughness = clamp(mix(rough, rough * 1.5, bumpiness), 0.02, 1.0);
+    float modulatedRoughness = clamp(mix(rough, rough * 1.5, bumpiness), 0.0, 1.0);
 
     // Dielectric coat F0 (achromatic)
     vec3 F0_clearcoat = vec3(0.04);
@@ -1868,7 +1871,7 @@ vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal,
     vec3 normalVariation = N_coat - normalize(N); // N should be in same space as N_coat
     float bumpiness = length(normalVariation) * 0.5;
     float modulatedRoughness = mix(clearcoatRoughness, clearcoatRoughness * 1.5, bumpiness);
-    modulatedRoughness = clamp(modulatedRoughness, 0.02, 1.0);
+    modulatedRoughness = clamp(modulatedRoughness, 0.0, 1.0);
 
     // Map roughness to LOD. Many engines use linear; some use squared mapping.
     // Choose mapping consistent with your prefilter generation:
@@ -1897,7 +1900,7 @@ vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal,
     // Optional attenuation / artistic scaling:
     float iblAttenuation = mix(0.4, 0.25, modulatedRoughness); // reduces IBL at high roughness
     // You may calibrate or remove this; it's an artistic tweak.
-    float globalScale = 0.2; // calibrate to your environment exposure
+    float globalScale = 0.12; // calibrate to your environment exposure
 
     // Multiply by clearcoat mask
     return specIBL * clearcoat * iblAttenuation * globalScale;
