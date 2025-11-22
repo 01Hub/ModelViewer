@@ -740,16 +740,16 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("clearcoatNormalTexTransform.rotation", _material.clearcoatNormalTexRotation());
 
 	// KHR_materials_specular
-	//_prog->setUniformValue("specularFactorTexTransform.texCoordIndex", _material.specularFactorTexCoord());
-	//_prog->setUniformValue("specularFactorTexTransform.offset", _material.specularFactorTexOffset());
-	//_prog->setUniformValue("specularFactorTexTransform.scale", _material.specularFactorTexScale());
-	//_prog->setUniformValue("specularFactorTexTransform.rotation", _material.specularFactorTexRotation());
+	_prog->setUniformValue("specularFactorTexTransform.texCoordIndex", _material.specularFactorTexCoord());
+	_prog->setUniformValue("specularFactorTexTransform.offset", _material.specularFactorTexOffset());
+	_prog->setUniformValue("specularFactorTexTransform.scale", _material.specularFactorTexScale());
+	_prog->setUniformValue("specularFactorTexTransform.rotation", _material.specularFactorTexRotation());
 	
 	// KHR_materials_specular
-	//_prog->setUniformValue("specularColorTexTransform.texCoordIndex", _material.specularColorTexCoord());
-	//_prog->setUniformValue("specularColorTexTransform.offset", _material.specularColorTexOffset());
-	//_prog->setUniformValue("specularColorTexTransform.scale", _material.specularColorTexScale());
-	//_prog->setUniformValue("specularColorTexTransform.rotation", _material.specularColorTexRotation());
+	_prog->setUniformValue("specularColorTexTransform.texCoordIndex", _material.specularColorTexCoord());
+	_prog->setUniformValue("specularColorTexTransform.offset", _material.specularColorTexOffset());
+	_prog->setUniformValue("specularColorTexTransform.scale", _material.specularColorTexScale());
+	_prog->setUniformValue("specularColorTexTransform.rotation", _material.specularColorTexRotation());
 
 	// KHR_materials_anisotropy
 	_prog->setUniformValue("anisotropyTexTransform.texCoordIndex", _material.anisotropyTexCoord());
@@ -758,22 +758,22 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("anisotropyTexTransform.rotation", _material.anisotropyTexRotation());
 
 	// KHR_materials_iridescence
-	//_prog->setUniformValue("iridescenceTexTransform.texCoordIndex", _material.iridescenceTexCoord());
-	//_prog->setUniformValue("iridescenceTexTransform.offset", _material.iridescenceTexOffset());
-	//_prog->setUniformValue("iridescenceTexTransform.scale", _material.iridescenceTexScale());
-	//_prog->setUniformValue("iridescenceTexTransform.rotation", _material.iridescenceTexRotation());
+	_prog->setUniformValue("iridescenceTexTransform.texCoordIndex", _material.iridescenceTexCoord());
+	_prog->setUniformValue("iridescenceTexTransform.offset", _material.iridescenceTexOffset());
+	_prog->setUniformValue("iridescenceTexTransform.scale", _material.iridescenceTexScale());
+	_prog->setUniformValue("iridescenceTexTransform.rotation", _material.iridescenceTexRotation());
 	
 	// KHR_materials_iridescence
-	//_prog->setUniformValue("iridescenceThicknessTexTransform.texCoordIndex", _material.iridescenceThicknessTexCoord());
-	//_prog->setUniformValue("iridescenceThicknessTexTransform.offset", _material.iridescenceThicknessTexOffset());
-	//_prog->setUniformValue("iridescenceThicknessTexTransform.scale", _material.iridescenceThicknessTexScale());
-	//_prog->setUniformValue("iridescenceThicknessTexTransform.rotation", _material.iridescenceThicknessTexRotation());
+	_prog->setUniformValue("iridescenceThicknessTexTransform.texCoordIndex", _material.iridescenceThicknessTexCoord());
+	_prog->setUniformValue("iridescenceThicknessTexTransform.offset", _material.iridescenceThicknessTexOffset());
+	_prog->setUniformValue("iridescenceThicknessTexTransform.scale", _material.iridescenceThicknessTexScale());
+	_prog->setUniformValue("iridescenceThicknessTexTransform.rotation", _material.iridescenceThicknessTexRotation());
 	
 	// KHR_materials_volume
-	//_prog->setUniformValue("thicknessTexTransform.texCoordIndex", _material.thicknessTexCoord());
-	//_prog->setUniformValue("thicknessTexTransform.offset", _material.thicknessTexOffset());
-	//_prog->setUniformValue("thicknessTexTransform.scale", _material.thicknessTexScale());
-	//_prog->setUniformValue("thicknessTexTransform.rotation", _material.thicknessTexRotation());
+	_prog->setUniformValue("thicknessTexTransform.texCoordIndex", _material.thicknessTexCoord());
+	_prog->setUniformValue("thicknessTexTransform.offset", _material.thicknessTexOffset());
+	_prog->setUniformValue("thicknessTexTransform.scale", _material.thicknessTexScale());
+	_prog->setUniformValue("thicknessTexTransform.rotation", _material.thicknessTexRotation());
 
 
 	_prog->setUniformValue("heightScale", _heightPBRMapScale);
