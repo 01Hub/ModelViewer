@@ -1149,28 +1149,74 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 B = normalize(cross(N, T));
 
 	// ============================================================================
-	// LAYER 1: DIFFUSE & SPECULAR BASE LAYER (DIRECT LIGHTING)
+	// PRE-LAYER: IRIDESCENCE - Compute F0/F90 before using in BRDFs
+	// ============================================================================
+	vec3 F0_iridescent = F0;
+	vec3 F90_iridescent = F90;
+
+	iridescenceFactor = hasIridescenceMap ? texture(iridescenceMap, getIridescenceUV()).r : pbrLighting.iridescenceFactor;
+	iridescenceIor = pbrLighting.iridescenceIor;
+
+	// Use MAX thickness per KHR spec, not average
+	if (hasIridescenceThicknessMap)
+	{
+		float thicknessNorm = texture(iridescenceThicknessMap, getIridescenceThicknessUV()).g;
+		iridescenceThickness = mix(pbrLighting.iridescenceThicknessMin, pbrLighting.iridescenceThicknessMax, thicknessNorm);
+	}
+	else
+	{
+		iridescenceThickness = pbrLighting.iridescenceThicknessMax;
+	}
+
+	if (iridescenceFactor > 0.001)
+	{		
+		float NdotV_view = clamp(dot(N, normalize(V_direct)), 0.0, 1.0);
+		
+		vec3 iridFresnel_dielectric = evalIridescence(
+			1.0,                              // outsideIOR (air)
+			iridescenceIor,
+			NdotV_view,
+			iridescenceThickness,
+			vec3(0.04),                       // dielectric F0
+			vec3(1.0)                         // F90
+		);
+
+		vec3 metallicF0 = mix(vec3(0.5), albedo, metallic);
+		vec3 iridFresnel_metallic = evalIridescence(
+			1.0,                              // outsideIOR (air)
+			iridescenceIor,
+			NdotV_view,
+			iridescenceThickness,
+			metallicF0,                       // metallic F0
+			vec3(1.0)                         // F90
+		);
+
+		vec3 F0_irid = mix(iridFresnel_dielectric, iridFresnel_metallic, metallic);
+		F0_iridescent = mix(F0, F0_irid, iridescenceFactor);
+		F90_iridescent = mix(F90, vec3(1.0), iridescenceFactor);
+	}
+
+	// ============================================================================
+	// DIFFUSE & SPECULAR BASE LAYER (DIRECT LIGHTING)
 	// ============================================================================
 	vec3 H = normalize(V_direct + L);
 
 	vec3 specBRDF;
 	if (anisotropyStrength > 0.0)
 	{
-		// Use anisotropic BRDF
-		specBRDF = calculateAnisotropy(N, V_direct, L, T, B, anisotropyStrength, anisotropyRotation, roughness, F0);
+		specBRDF = calculateAnisotropy(N, V_direct, L, T, B, anisotropyStrength, anisotropyRotation, roughness, F0_iridescent);
 	}
 	else
 	{
-		// Standard isotropic GGX
 		float NDF = distributionGGX(N, H, roughness);
 		float G = geometrySmith(N, V_direct, L, roughness);		
-		vec3 F = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0, F90);
+		vec3 F = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0_iridescent, F90_iridescent);
 		specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V_direct), 0.0) * max(dot(N, L), 0.0), 0.001);
 	}
 
 	specBRDF *= 1.5;
 
-	vec3 kS = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0, F90);
+	vec3 kS = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0_iridescent, F90_iridescent);
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
 	float NdotL = max(dot(N, L), 0.0);
@@ -1179,7 +1225,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
 
 	// ============================================================================
-	// LAYER 2: TRANSMISSION
+	// TRANSMISSION
 	// ============================================================================
 	transmission = hasTransmissionMap ? texture(transmissionMap, getTransmissionUV()).r : pbrLighting.transmission;
 	ior = hasIORMap ? texture(iorMap, getIORUV()).r : pbrLighting.ior;
@@ -1190,7 +1236,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	// ============================================================================
-	// LAYER 3: SHEEN
+	// SHEEN
 	// ============================================================================
 	if (hasSheenColorMap)
 	{
@@ -1226,7 +1272,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	// ============================================================================
-	// LAYER 4: CLEARCOAT
+	// CLEARCOAT
 	// ============================================================================
 	clearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r * pbrLighting.clearcoat : pbrLighting.clearcoat;
 	clearcoat = clamp(clearcoat, 0.0, 1.0);
@@ -1248,60 +1294,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// Treat clearcoat as specular-like (outside if block, as per original)
 	directSpecular_L += clearcoat_L * lightSource.specular;
 
-	// ============================================================================
-	// LAYER 5: IRIDESCENCE
-	// ============================================================================
-	iridescenceFactor = hasIridescenceMap ? texture(iridescenceMap, getIridescenceUV()).r : pbrLighting.iridescenceFactor;
-	iridescenceIor = pbrLighting.iridescenceIor;
-
-	if (hasIridescenceThicknessMap)
-	{
-		float thicknessNorm = texture(iridescenceThicknessMap, getIridescenceThicknessUV()).g;
-		iridescenceThickness = mix(pbrLighting.iridescenceThicknessMin, pbrLighting.iridescenceThicknessMax, thicknessNorm);
-	}
-	else
-	{
-		iridescenceThickness = (pbrLighting.iridescenceThicknessMin + pbrLighting.iridescenceThicknessMax) * 0.5;
-	}
-
-	if (iridescenceFactor > 0.0)
-	{
-		// Use viewing direction, not light direction!
-		vec3 V_view = normalize(V_direct);
-		float NdotV_view = clamp(dot(N, V_view), 0.0, 1.0);
-
-		// Compute iridescence for dielectric path with F90
-		vec3 iridFresnel_dielectric = evalIridescence(
-			1.0,                           // outsideIOR (air)
-			iridescenceIor,
-			NdotV_view,
-			iridescenceThickness,
-			vec3(0.04),                    // dielectric F0
-			vec3(1.0)                      // F90
-		);
-
-		// Compute iridescence for metallic path with F90
-		vec3 metallicF0 = mix(albedo, vec3(0.5), 0.2);
-		vec3 iridFresnel_metallic = evalIridescence(
-			1.0,                           // outsideIOR (air)
-			iridescenceIor,
-			NdotV_view,
-			iridescenceThickness,
-			metallicF0,                    // metallic F0
-			vec3(1.0)                      // F90
-		);
-
-		// Blend both paths based on metallicness, then blend in to F0
-		vec3 iridescenceF0 = mix(iridFresnel_dielectric, iridFresnel_metallic, metallic);
-		F0 = mix(F0, iridescenceF0, iridescenceFactor);
-
-		directSpecular_L += calculateIridescenceBRDF(N, V_direct, L, roughness,
-			iridescenceFactor, iridescenceIor,
-			iridescenceThickness, albedo, metallic);
-	}
 
 	// ============================================================================
-	// LAYER 6: IMAGE BASED LIGHTING (IBL) - AMBIENT
+	// IMAGE BASED LIGHTING (IBL) - AMBIENT
 	// ============================================================================
 	vec3 irradiance = texture(irradianceMap, N).rgb;
 	vec3 diffuseIBL_L = irradiance * albedo;
@@ -1312,10 +1307,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		float dotNV = max(dot(N, V_direct), 0.0);
 	
 		// Compute effective F90 based on roughness
-		vec3 F90_effective = max(vec3(1.0 - roughness), F0);
+		vec3 F90_effective = max(vec3(1.0 - roughness), F0_iridescent);
 	
 		// Use standard fresnelSchlick with the computed F90
-		vec3 Fibl = fresnelSchlick(dotNV, F0, F90_effective);
+		vec3 Fibl = fresnelSchlick(dotNV, F0_iridescent, F90_effective);
 	
 		vec3 kSibl = Fibl;
 		vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
@@ -1349,14 +1344,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// Apply clearcoat IBL attenuation
 	ambient_L *= clearcoatAttenuation;
 	ambient_L += clearcoatIBL_L;
-	ambient_L += sheenIBL_L;
-	ambient_L += calculateIridescenceIBL(
-			N, V_direct, V_reflect, g_reflectionNormal,
-			roughness, iridescenceFactor, iridescenceIor,
-			iridescenceThickness, albedo, metallic);
+	ambient_L += sheenIBL_L;	
 
 	// ============================================================================
-	// LAYER 7: EMISSION
+	// EMISSION
 	// ============================================================================
 	emissive_L = material.emission;
 	if (hasEmissiveTexture) emissive_L = texture(texture_emissive, getEmissiveUV()).rgb * material.emission;
