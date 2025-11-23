@@ -32,11 +32,16 @@ private:
 	QDoubleSpinBox* metalnessSpin;
 	QDoubleSpinBox* roughnessSpin;
 	QDoubleSpinBox* opacitySpin;
-	QDoubleSpinBox* iorSpin;
+	QDoubleSpinBox* emissiveSpin;	
+	QDoubleSpinBox* iridescenceFactorSpin;
+	QDoubleSpinBox* iridescenceIorSpin;
+	QDoubleSpinBox* iridescenceThicknessMinSpin;
+	QDoubleSpinBox* iridescenceThicknessMaxSpin;
 	QDoubleSpinBox* clearcoatSpin;
 	QDoubleSpinBox* clearcoatRoughnessSpin;
 	QPushButton* sheenColorButton;
 	QDoubleSpinBox* sheenRoughnessSpin;
+	QDoubleSpinBox* iorSpin;
 	QDoubleSpinBox* transmissionSpin;
 	QDoubleSpinBox* alphaThresholdSpin;
 

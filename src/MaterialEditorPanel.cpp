@@ -90,11 +90,40 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	opacitySpin->setSingleStep(0.01);
 	formLayout->addRow("Opacity:", opacitySpin);
 
-	iorSpin = new QDoubleSpinBox();
-	iorSpin->setRange(1.0, 3.0);
-	iorSpin->setSingleStep(0.01);
-	iorSpin->setValue(1.5); // Default IOR
-	formLayout->addRow("IOR:", iorSpin);
+	emissiveSpin = new QDoubleSpinBox();
+	emissiveSpin->setRange(1.0, 10.0);
+	emissiveSpin->setSingleStep(0.1);
+	formLayout->addRow("Emissive Intensity:", emissiveSpin);
+
+	iridescenceFactorSpin = new QDoubleSpinBox();
+	iridescenceFactorSpin->setRange(0.0, 1.0);
+	iridescenceFactorSpin->setSingleStep(0.01);
+	iridescenceFactorSpin->setValue(0.0); // Default no iridescence
+	iridescenceFactorSpin->setDecimals(2);
+	formLayout->addRow("Iridescence Factor:", iridescenceFactorSpin);
+
+	iridescenceIorSpin = new QDoubleSpinBox();
+	iridescenceIorSpin->setRange(1.0, 2.5);
+	iridescenceIorSpin->setValue(1.5); // Default IOR
+	iridescenceIorSpin->setSingleStep(0.01);
+	iridescenceIorSpin->setDecimals(2);
+	formLayout->addRow("Iridescence IOR:", iridescenceIorSpin);
+
+	iridescenceThicknessMinSpin = new QDoubleSpinBox();
+	iridescenceThicknessMinSpin->setRange(0.0, 500.0);
+	iridescenceThicknessMinSpin->setValue(100.0); // Default min thickness
+	iridescenceThicknessMinSpin->setSingleStep(10.0);
+	iridescenceThicknessMinSpin->setDecimals(1);
+	iridescenceThicknessMinSpin->setSuffix(" nm");
+	formLayout->addRow("Iridescence Thickness Min:", iridescenceThicknessMinSpin);
+
+	iridescenceThicknessMaxSpin = new QDoubleSpinBox();
+	iridescenceThicknessMaxSpin->setRange(50.0, 1500.0);
+	iridescenceThicknessMaxSpin->setValue(400.0); // Default max thickness
+	iridescenceThicknessMaxSpin->setSingleStep(10.0);
+	iridescenceThicknessMaxSpin->setDecimals(1);
+	iridescenceThicknessMaxSpin->setSuffix(" nm");
+	formLayout->addRow("Iridescence Thickness Max:", iridescenceThicknessMaxSpin);
 
 	clearcoatSpin = new QDoubleSpinBox();
 	clearcoatSpin->setRange(0.0, 1.0);
@@ -116,6 +145,12 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	sheenRoughnessSpin->setValue(0.0); // Default sheen roughness
 	formLayout->addRow("Sheen Roughness:", sheenRoughnessSpin);
 
+	iorSpin = new QDoubleSpinBox();
+	iorSpin->setRange(1.0, 3.0);
+	iorSpin->setSingleStep(0.01);
+	iorSpin->setValue(1.5); // Default IOR
+	formLayout->addRow("IOR:", iorSpin);
+
 	transmissionSpin = new QDoubleSpinBox();
 	transmissionSpin->setRange(0.0, 1.0);
 	transmissionSpin->setSingleStep(0.01);
@@ -127,8 +162,6 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	alphaThresholdSpin->setSingleStep(0.01);
 	alphaThresholdSpin->setValue(0.5); // Default alpha threshold
 	formLayout->addRow("Alpha Threshold:", alphaThresholdSpin);
-
-
 
 	shadingCombo = new QComboBox();
 	shadingCombo->addItems({ "Unlit", "Blinn-Phong", "PBR", "Toon" });
@@ -201,9 +234,35 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(iorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(emissiveSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
-			_currentMaterial.setIOR(val);
+			_currentMaterial.setEmissiveStrength(val);
+			previewWidget->setMaterial(_currentMaterial);
+			emit materialChanged(_currentMaterial);
+		});
+
+	// Iridescence connections
+	connect(iridescenceFactorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+		this, [=](double val) {
+			_currentMaterial.setIridescenceFactor(val);
+			previewWidget->setMaterial(_currentMaterial);
+			emit materialChanged(_currentMaterial);
+		});
+	connect(iridescenceIorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+		this, [=](double val) {
+			_currentMaterial.setIridescenceIor(val);
+			previewWidget->setMaterial(_currentMaterial);
+			emit materialChanged(_currentMaterial);
+		});
+	connect(iridescenceThicknessMinSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+		this, [=](double val) {
+			_currentMaterial.setIridescenceThicknessMin(val);
+			previewWidget->setMaterial(_currentMaterial);
+			emit materialChanged(_currentMaterial);
+		});
+	connect(iridescenceThicknessMaxSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+		this, [=](double val) {
+			_currentMaterial.setIridescenceThicknessMax(val);
 			previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
@@ -241,6 +300,13 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	connect(sheenRoughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setSheenRoughness(val);
+			previewWidget->setMaterial(_currentMaterial);
+			emit materialChanged(_currentMaterial);
+		});
+
+	connect(iorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+		this, [=](double val) {
+			_currentMaterial.setIOR(val);
 			previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
@@ -662,7 +728,11 @@ void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)
 	metalnessSpin->setValue(mat.metalness());
 	roughnessSpin->setValue(mat.roughness());
 	opacitySpin->setValue(mat.opacity());
-	iorSpin->setValue(mat.ior());
+	emissiveSpin->setValue(mat.emissiveStrength());
+	iridescenceFactorSpin->setValue(mat.iridescenceFactor());
+	iridescenceIorSpin->setValue(mat.iridescenceIor());
+	iridescenceThicknessMinSpin->setValue(mat.iridescenceThicknessMin());
+	iridescenceThicknessMaxSpin->setValue(mat.iridescenceThicknessMax());
 	clearcoatSpin->setValue(mat.clearcoat());
 	clearcoatRoughnessSpin->setValue(mat.clearcoatRoughness());
 	sheenRoughnessSpin->setValue(mat.sheenRoughness());
@@ -674,6 +744,7 @@ void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)
 	);
 	sheenColorButton->setStyleSheet(makeButtonStyleSheet(sheenColor));
 
+	iorSpin->setValue(mat.ior());
 	transmissionSpin->setValue(mat.transmission());
 	alphaThresholdSpin->setValue(mat.alphaThreshold());
 
