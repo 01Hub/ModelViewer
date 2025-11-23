@@ -475,8 +475,9 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture)
 
 	QImage texImage;
 	bool imageHasAlpha = false;
-
-	if (!texImage.load(QString(texture.path.c_str())))
+	QString mixedPath = QString(texture.path.c_str()); // Handle possible percent-encoding in file paths
+	QString decodedPath = QUrl::fromPercentEncoding(mixedPath.toUtf8());
+	if (!texImage.load(decodedPath))
 	{ // Load first image from file
 		qWarning("MaterialProcessor::createTextureOnGPU - Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, QImage::Format_ARGB32);
