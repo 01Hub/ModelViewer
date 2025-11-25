@@ -1046,6 +1046,18 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				}
 			}
 
+			// --- KHR_materials dispersion ---
+			if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
+			{
+				QJsonObject disp = extRoot.value("KHR_materials_dispersion").toObject();
+				if (disp.contains("dispersion"))
+				{
+					float v = static_cast<float>(disp.value("dispersion").toDouble(0.0));
+					mat.setDispersion(qMax(0.0f, v));
+					appliedAny = true;
+				}
+			}
+
 			// --- KHR_materials_specular ---
 			if (extRoot.contains("KHR_materials_specular") && extRoot.value("KHR_materials_specular").isObject())
 			{
