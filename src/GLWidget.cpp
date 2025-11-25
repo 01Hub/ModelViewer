@@ -1,4 +1,4 @@
-
+﻿
 #include "ClippingPlanesEditor.h"
 #include "Cone.h"
 #include "config.h"
@@ -421,6 +421,8 @@ GLWidget::~GLWidget()
 	glDeleteFramebuffers(1, &_skyboxFBO);
 	glDeleteTextures(1, &_skyboxColorTexture);
 	glDeleteRenderbuffers(1, &_skyboxDepthBuffer);
+
+	cleanupTransmissionBuffer();
 }
 
 void GLWidget::retranslateUI()
@@ -495,6 +497,9 @@ void GLWidget::initializeGL()
 	// Shadow mapping
 	loadFloor();
 
+	createWhiteTexture();
+	initTransmissionBuffer();
+
 	float size = 15;
 	_axisCone = new Cone(_axisShader.get(), _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
 
@@ -513,6 +518,8 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("irradianceMap", 3);
 	_fgShader->setUniformValue("prefilterMap", 4);
 	_fgShader->setUniformValue("brdfLUT", 5);
+	_fgShader->setUniformValue("transmissionSceneTexture", 8);
+	_fgShader->setUniformValue("transmissionDepthTexture", 9);
 	_fgShader->setUniformValue("shadowSamples", 27.0f);
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
@@ -564,6 +571,8 @@ void GLWidget::resizeGL(int width, int height)
 	_textShader->bind();
 	_textShader->setUniformValue("projection", projection);
 	_textShader->release();
+
+	resizeTransmissionBuffer(width, height);
 
 	update();
 }
@@ -3500,6 +3509,9 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
 
+	if (_transmissionEnabled)
+		renderToTransmissionBuffer(topColor, botColor);
+
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
@@ -3513,6 +3525,10 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	glViewport(0, 0, width(), height());
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
+
+	if (_transmissionEnabled)
+		renderToTransmissionBuffer(topColor, botColor);
+
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
 	// Render orthographic views with ortho view camera
@@ -4478,6 +4494,13 @@ void GLWidget::render(GLCamera* camera)
 		drawFloor();
 	}
 
+	// Bind transmission texture for shader sampling
+	glActiveTexture(GL_TEXTURE8);  // Use a dedicated texture unit
+	glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
+
+	glActiveTexture(GL_TEXTURE9);  // For depth-based calculations (Phase 2)
+	glBindTexture(GL_TEXTURE_2D, _transmissionDepthTexture);
+
 	// --- 4) Transparent meshes (with clipping) ---
 	_fgShader->bind();
 	setCommonUniforms(_fgShader.get(), camera);
@@ -4934,6 +4957,191 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 	return m;
 }
 
+void GLWidget::initTransmissionBuffer()
+{
+	// Called once during widget initialization (e.g., in initializeGL or constructor)
+	_transmissionTextureWidth = width();
+	_transmissionTextureHeight = height();
+
+	// Create FBO
+	glGenFramebuffers(1, &_transmissionFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, _transmissionFBO);
+
+	// --- Create COLOR texture (RGBA32F for precision) ---
+	glGenTextures(1, &_transmissionColorTexture);
+	glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F,
+		_transmissionTextureWidth, _transmissionTextureHeight,
+		0, GL_RGBA, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+		GL_TEXTURE_2D, _transmissionColorTexture, 0);
+
+	// --- Create DEPTH texture (DEPTH32F) ---
+	glGenTextures(1, &_transmissionDepthTexture);
+	glBindTexture(GL_TEXTURE_2D, _transmissionDepthTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F,
+		_transmissionTextureWidth, _transmissionTextureHeight,
+		0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+		GL_TEXTURE_2D, _transmissionDepthTexture, 0);
+
+	// --- Verify FBO is complete ---
+	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (status != GL_FRAMEBUFFER_COMPLETE)
+	{
+		qWarning() << "Transmission FBO incomplete! Status:" << status;
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void GLWidget::resizeTransmissionBuffer(int width, int height)
+{
+	// Called from resizeGL() whenever window size changes
+	if (_transmissionTextureWidth == width && _transmissionTextureHeight == height)
+		return; // No resize needed
+
+	_transmissionTextureWidth = width;
+	_transmissionTextureHeight = height;
+
+	// Recreate color texture
+	glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height,
+		0, GL_RGBA, GL_FLOAT, nullptr);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	// Recreate depth texture
+	glBindTexture(GL_TEXTURE_2D, _transmissionDepthTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, width, height,
+		0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void GLWidget::createWhiteTexture()
+{
+	unsigned char white[] = { 255, 255, 255, 255 };
+	glGenTextures(1, &_whiteTexture);
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, white);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+void GLWidget::renderToTransmissionBuffer(const QColor& topColor, const QColor& botColor)
+{
+	if (!_transmissionEnabled)
+		return;
+
+	resizeTransmissionBuffer(width(), height());
+
+	// --- SETUP STATE ---
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+	glDisable(GL_CULL_FACE);
+	glFrontFace(GL_CCW);
+	glDisable(GL_POLYGON_OFFSET_FILL);
+	glDepthMask(GL_TRUE);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glStencilMask(0xFF);
+	glDisable(GL_STENCIL_TEST);
+
+	// --- BIND FBO ---
+	glBindFramebuffer(GL_FRAMEBUFFER, _transmissionFBO);
+	glViewport(0, 0, _transmissionTextureWidth, _transmissionTextureHeight);
+
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	// --- Setup matrices ---
+	_viewMatrix.setToIdentity();
+	_viewMatrix = _primaryCamera->getViewMatrix();
+	_projectionMatrix = _primaryCamera->getProjectionMatrix();
+	_modelViewMatrix = _viewMatrix * _modelMatrix;
+
+	// --- RENDER 1: BACKGROUND (gradient or skybox) ---
+	if (_skyBoxEnabled)
+	{
+		glDisable(GL_DEPTH_TEST);
+		glDepthMask(GL_FALSE);
+		drawSkyBox();
+		glEnable(GL_DEPTH_TEST);
+		glDepthMask(GL_TRUE);
+	}
+	else
+	{
+		// Render gradient background (same as main framebuffer)
+		glDisable(GL_DEPTH_TEST);
+		glDepthMask(GL_FALSE);
+		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
+			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
+		glEnable(GL_DEPTH_TEST);
+		glDepthMask(GL_TRUE);
+	}
+
+	// --- RENDER 2: OPAQUE MESHES (with clipping) ---
+	glActiveTexture(GL_TEXTURE8);
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);  // Any valid texture works
+
+	glActiveTexture(GL_TEXTURE9);
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);  // Any valid texture works
+
+	glActiveTexture(GL_TEXTURE0);
+
+	_fgShader->bind();
+	setCommonUniforms(_fgShader.get(), _primaryCamera);
+	drawMeshesWithClipping(_fgShader.get(), false); // opaque pass only
+	_fgShader->release();
+
+	// --- RENDER 3: SECTION CAPS ---
+	if (_cappingEnabled &&
+		(_clipYZEnabled || _clipZXEnabled || _clipXYEnabled))
+	{
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(1.0f, 1.0f);
+		drawSectionCapping();
+		glDisable(GL_POLYGON_OFFSET_FILL);
+	}
+
+	// --- RENDER 4: FLOOR ---
+	if (_displayMode == DisplayMode::REALSHADED &&
+		_floorDisplayed &&
+		!_meshStore.empty())
+	{
+		drawFloor();
+	}
+
+	// --- UNBIND FBO ---
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+	glViewport(0, 0, width(), height());
+}
+
+void GLWidget::cleanupTransmissionBuffer()
+{
+	if (_transmissionFBO != 0)
+	{
+		glDeleteFramebuffers(1, &_transmissionFBO);
+		_transmissionFBO = 0;
+	}
+	if (_transmissionColorTexture != 0)
+	{
+		glDeleteTextures(1, &_transmissionColorTexture);
+		_transmissionColorTexture = 0;
+	}
+	if (_transmissionDepthTexture != 0)
+	{
+		glDeleteTextures(1, &_transmissionDepthTexture);
+		_transmissionDepthTexture = 0;
+	}
+}
 
 void GLWidget::checkAndStopTimers()
 {

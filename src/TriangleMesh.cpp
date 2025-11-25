@@ -1856,6 +1856,7 @@ bool TriangleMesh::isTransparent() const
 {	
 	return (_material.opacity() < 0.999f) ||
 		_hasTextureAlpha || _hasOpacityADSMap || _hasOpacityPBRMap ||
+		_hasTransmissionPBRMap || _material.transmission() > 0.0f ||
 		(_material.blendMode() == GLMaterial::BlendMode::Alpha);
 }
 

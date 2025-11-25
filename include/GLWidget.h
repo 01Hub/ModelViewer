@@ -436,6 +436,16 @@ private:
 
 	static GLMaterial resolveMaterialTextures(GLWidget* w, const GLMaterial& src);
 
+	// --- Transmission Buffer Methods ---
+	void initTransmissionBuffer(); 
+	void renderToTransmissionBuffer(const QColor& topColor, const QColor& botColor);
+	void cleanupTransmissionBuffer();
+	void resizeTransmissionBuffer(int width, int height);
+
+	GLuint _whiteTexture = 0;
+	void createWhiteTexture();
+
+
 private:
 	ViewToolbar* _viewToolbar;
 
@@ -603,6 +613,14 @@ private:
 	unsigned int			 _skyboxFBO = 0;
 	unsigned int			 _skyboxColorTexture = 0;
 	unsigned int			 _skyboxDepthBuffer = 0;
+
+	// --- Transmission Buffer Resources ---
+	GLuint _transmissionFBO = 0;              // Framebuffer object
+	GLuint _transmissionColorTexture = 0;     // RGBA32F: opaque scene capture
+	GLuint _transmissionDepthTexture = 0;     // DEPTH32F: for Phase 2 calculations
+	int _transmissionTextureWidth = 0;        // Current FBO width
+	int _transmissionTextureHeight = 0;       // Current FBO height
+	bool _transmissionEnabled = true;         // Toggle for feature
 
 	QImage					 _floorTexImage;
 	float                    _floorSize;

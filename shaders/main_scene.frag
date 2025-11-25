@@ -62,6 +62,10 @@ uniform float shadowTransitionRange;
 uniform float shadowGammaCorrection;
 uniform float shadowSizeScale;
 
+// Transmission map
+uniform sampler2D transmissionSceneTexture;  // _transmissionColorTexture
+uniform sampler2D transmissionDepthTexture;  // _transmissionDepthTexture
+
 uniform float u_floorAlpha = 0.95;
 uniform float u_floorSpecularScale = 0.6;  // scale specular on floor [0..1]
 uniform float u_floorFresnelDampen = 0.5;  // how much to dampen spec at normal incidence [0..1]
@@ -686,6 +690,16 @@ void main()
 		fragColor.rgb = mix(fragColor.rgb, backgroundColor, clamp(bgMix, 0.0, 1.0));
 		fragColor.a *= (1.0 - fadeFactor) * opacity;
 	}
+
+	/*vec2 screenUV = gl_FragCoord.xy / vec2(u_screenSize.x, u_screenSize.y);    
+    // Just output what's captured in the transmission texture
+    vec3 capturedScene = texture(transmissionSceneTexture, screenUV).rgb;
+    fragColor = vec4(capturedScene, 1.0);
+	return;
+
+	float depth = texture(transmissionDepthTexture, screenUV).r;
+    fragColor = vec4(vec3(1.0 - depth), 1.0);
+	return;*/
 }
 
 // ========== LEGACY BLINN-PHONG SHADING FUNCTION ==========
