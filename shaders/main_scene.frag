@@ -411,6 +411,10 @@ vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFi
 vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance);
 vec3	sampleScreenSpaceRefraction(vec3 refractDir, float roughness, vec3 N, vec3 V, 
                                  float thickness, vec3 attenuationColor, float attenuationDistance);
+vec3	sampleScreenSpaceRefractionPerChannel(vec3 refractDir_R, vec3 refractDir_G, vec3 refractDir_B,
+                                           float roughness, vec3 N, vec3 V, 
+                                           float thickness, vec3 attenuationColor, float attenuationDistance);
+
 float	iorToF0(float ior);
 float	fresnelVolumeEntering(float f0, float NdotH);
 float	fresnelVolumeExiting(float f0, float etaRatio, float NdotH);
@@ -1386,7 +1390,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 outRGB = baseNoSpec_L + specOnly_L;
 
 	// ============================================================================
-	// TRANSMISSION VOLUME & REFRACTION (Phase 2)
+	// TRANSMISSION VOLUME & REFRACTION WITH DISPERSION
 	// ============================================================================
 	float transmissionFactor = pbrLighting.transmission;
 	if (hasTransmissionMap)
@@ -1399,7 +1403,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	{
 		vec3 N_trans = normalize(g_reflectionNormal);
 		float ior_trans = max(1.3, pbrLighting.ior);
-		float iorIncident = 1.0;  // Assume light enters from air
+		float iorIncident = 1.0;  // Light enters from air
 
 		// --- THICKNESS CALCULATION ---
 		float thickness = thicknessFactor;
@@ -1410,28 +1414,67 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			thickness *= thicknessSample;
 		}
 
-		// --- REFRACTION DIRECTION (Snell's Law) ---
-		// For volume: proper refraction accounting for IOR difference
-		float eta = iorIncident / ior_trans;
-		vec3 refractionVector = refract(V_reflect, N_trans, eta);
+		// --- DISPERSION PARAMETER (from KHR_materials_dispersion) ---
+		float dispersion = pbrLighting.dispersion;  // 20/Abbe number
 		
-		// Handle total internal reflection case
-		if (length(refractionVector) < 0.01)
-		{
-			// Total internal reflection - fallback to reflection
-			refractionVector = reflect(-V_reflect, N_trans);
-		}
-
-		// --- SCREEN-SPACE REFRACTION WITH VOLUME ATTENUATION ---
-		vec3 transmittedLight = sampleScreenSpaceRefraction(
-			refractionVector, 
-			roughness, 
-			N_trans, 
-			V_reflect,
-			thickness,
-			attenuationColor,
-			attenuationDistance
+		// --- CALCULATE PER-CHANNEL IOR ---
+		// Abbe number variation: halfSpread = (ior - 1) * 0.025 * dispersion
+		float halfSpread = (ior_trans - 1.0) * 0.025 * dispersion;
+		vec3 iors = vec3(
+			ior_trans - halfSpread,  // Red channel (lowest IOR)
+			ior_trans,               // Green channel (medium IOR)
+			ior_trans + halfSpread   // Blue channel (highest IOR)
 		);
+		
+		// Clamp IORs to valid range
+		iors = max(iors, vec3(1.001));
+		
+		vec3 transmittedLight;
+		
+		if (dispersion > 0.0)
+		{
+			// --- DISPERSION MODE: Three separate refraction passes ---
+			vec3 refractDir_R = refract(-V_reflect, N_trans, iorIncident / iors.r);
+			vec3 refractDir_G = refract(-V_reflect, N_trans, iorIncident / iors.g);
+			vec3 refractDir_B = refract(-V_reflect, N_trans, iorIncident / iors.b);
+			
+			// Handle total internal reflection for each channel
+			if (length(refractDir_R) < 0.01) refractDir_R = reflect(V_reflect, N_trans);
+			if (length(refractDir_G) < 0.01) refractDir_G = reflect(V_reflect, N_trans);
+			if (length(refractDir_B) < 0.01) refractDir_B = reflect(V_reflect, N_trans);
+
+			// Sample per-channel with self-refraction protection
+			transmittedLight = sampleScreenSpaceRefractionPerChannel(
+				refractDir_R, refractDir_G, refractDir_B,
+				roughness,
+				N_trans,
+				V_reflect,
+				thickness,
+				attenuationColor,
+				attenuationDistance
+			);
+		}
+		else
+		{
+			// --- NO DISPERSION: Single channel ---
+			float eta = iorIncident / ior_trans;
+			vec3 refractionVector = refract(-V_reflect, N_trans, eta);
+			
+			if (length(refractionVector) < 0.01)
+			{
+				refractionVector = reflect(V_reflect, N_trans);
+			}
+			
+			transmittedLight = sampleScreenSpaceRefraction(
+				refractionVector,
+				roughness,
+				N_trans,
+				V_reflect,
+				thickness,
+				attenuationColor,
+				attenuationDistance
+			);
+		}
 
 		// Apply base color tinting to transmitted light
 		vec3 transmissionColor = transmittedLight * albedo;
@@ -2260,6 +2303,81 @@ vec3 sampleScreenSpaceRefraction(vec3 refractDir, float roughness, vec3 N, vec3 
     }
     
     return transmittedLight;
+}
+
+// ============================================================================
+// Dispersion Helper: Per-Channel Refraction
+// ============================================================================
+
+vec3 sampleScreenSpaceRefractionPerChannel(vec3 refractDir_R, vec3 refractDir_G, vec3 refractDir_B,
+                                           float roughness, vec3 N, vec3 V, 
+                                           float thickness, vec3 attenuationColor, float attenuationDistance)
+{
+    vec2 screenUV = gl_FragCoord.xy / u_screenSize;
+    float surfaceDepth = texture(transmissionDepthTexture, screenUV).r;
+    
+    float baseRefractStrength = mix(0.08, 0.02, roughness);
+    
+    // --- Sample all three channels ---
+    vec2 refractedUV_R = screenUV + refractDir_R.xy * baseRefractStrength;
+    vec2 refractedUV_G = screenUV + refractDir_G.xy * baseRefractStrength;
+    vec2 refractedUV_B = screenUV + refractDir_B.xy * baseRefractStrength;
+    
+    // --- Self-refraction protection: check all channels ---
+    // If ANY channel would self-refract, fallback ALL to direct view (conservative)
+    float refractedDepth_R = texture(transmissionDepthTexture, refractedUV_R).r;
+    float refractedDepth_G = texture(transmissionDepthTexture, refractedUV_G).r;
+    float refractedDepth_B = texture(transmissionDepthTexture, refractedUV_B).r;
+    
+    // If each channel self-refracts, fallback THAT CHANNEL ONLY
+	if (abs(refractedDepth_R - surfaceDepth) < 1.0)
+		refractedUV_R = screenUV;
+
+	if (abs(refractedDepth_G - surfaceDepth) < 1.0)
+		refractedUV_G = screenUV;
+
+	if (abs(refractedDepth_B - surfaceDepth) < 1.0)
+		refractedUV_B = screenUV;
+    
+    // Clamp all to screen bounds
+    refractedUV_R = clamp(refractedUV_R, 0.0, 1.0);
+    refractedUV_G = clamp(refractedUV_G, 0.0, 1.0);
+    refractedUV_B = clamp(refractedUV_B, 0.0, 1.0);
+    
+    // Sample three channels
+    vec3 transmittedLight_R = texture(transmissionSceneTexture, refractedUV_R).rgb;
+    vec3 transmittedLight_G = texture(transmissionSceneTexture, refractedUV_G).rgb;
+    vec3 transmittedLight_B = texture(transmissionSceneTexture, refractedUV_B).rgb;
+    
+    // --- Apply attenuation to all channels ---
+    if (thickness > 0.0 && attenuationDistance > 0.0)
+    {
+        vec3 transmittance = pow(attenuationColor, vec3(thickness / attenuationDistance));
+        transmittedLight_R *= transmittance;
+        transmittedLight_G *= transmittance;
+        transmittedLight_B *= transmittance;
+    }
+    
+    // --- Edge fallback for all channels ---
+    if (refractedUV_R != clamp(refractedUV_R, 0.01, 0.99))
+    {
+        vec3 centerSample = texture(transmissionSceneTexture, screenUV).rgb;
+        transmittedLight_R = mix(centerSample, transmittedLight_R, 0.5);
+    }
+    if (refractedUV_G != clamp(refractedUV_G, 0.01, 0.99))
+    {
+        vec3 centerSample = texture(transmissionSceneTexture, screenUV).rgb;
+        transmittedLight_G = mix(centerSample, transmittedLight_G, 0.5);
+    }
+    if (refractedUV_B != clamp(refractedUV_B, 0.01, 0.99))
+    {
+        vec3 centerSample = texture(transmissionSceneTexture, screenUV).rgb;
+        transmittedLight_B = mix(centerSample, transmittedLight_B, 0.5);
+    }
+    
+    // --- Composite: extract R from Red channel, G from Green, B from Blue ---
+    // This creates the chromatic aberration effect
+    return vec3(transmittedLight_R.r, transmittedLight_G.g, transmittedLight_B.b);
 }
 
 // ============================================================================
