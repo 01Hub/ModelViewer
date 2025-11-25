@@ -614,11 +614,12 @@ void GLWidget::paintGL()
 	}
 
 	// For testing rendered shadow map
-	/*_debugShader.bind();
-	_debugShader.setUniformValue("near_plane", 1.0f);
-	_debugShader.setUniformValue("far_plane", _viewRange);
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _shadowMap);
+	/*_debugShader->bind();
+	_debugShader->setUniformValue("near_plane", 1.0f);
+	_debugShader->setUniformValue("far_plane", _viewRange);
+	_debugShader->setUniformValue("u_screenSize", QVector2D(width(), height()));
+	_debugShader->setUniformValue("transmissionColorTexture", 8);
+	_debugShader->setUniformValue("transmissionDepthTexture", 9);	
 	renderQuad();*/
 
 	//_brdfShader->bind();
