@@ -698,10 +698,10 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("opacityTextureTransform.rotation", _material.opacityTexRotation());
 
 	// Transmission map transform
-	//_prog->setUniformValue("transmissionTexTransform.texCoordIndex", _material.transmissionTexCoord());
-	//_prog->setUniformValue("transmissionTexTransform.offset", _material.transmissionTexOffset());
-	//_prog->setUniformValue("transmissionTexTransform.scale", _material.transmissionTexScale());
-	//_prog->setUniformValue("transmissionTexTransform.rotation", _material.transmissionTexRotation());
+	_prog->setUniformValue("transmissionTexTransform.texCoordIndex", _material.transmissionTexCoord());
+	_prog->setUniformValue("transmissionTexTransform.offset", _material.transmissionTexOffset());
+	_prog->setUniformValue("transmissionTexTransform.scale", _material.transmissionTexScale());
+	_prog->setUniformValue("transmissionTexTransform.rotation", _material.transmissionTexRotation());
 
 	// IOR map transform
 	_prog->setUniformValue("iorTexTransform.texCoordIndex", _material.iorTexCoord());
