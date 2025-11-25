@@ -1410,7 +1410,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		if (hasThicknessMap)
 		{
 			vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
-			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.r;
+			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.g;
 			thickness *= thicknessSample;
 		}
 
