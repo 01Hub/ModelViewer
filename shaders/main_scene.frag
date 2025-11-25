@@ -409,6 +409,12 @@ vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFi
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0, vec3 baseF90);
 
 vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance);
+vec3	sampleScreenSpaceRefraction(vec3 refractDir, float roughness, vec3 N, vec3 V, 
+                                 float thickness, vec3 attenuationColor, float attenuationDistance);
+float	iorToF0(float ior);
+float	fresnelVolumeEntering(float f0, float NdotH);
+float	fresnelVolumeExiting(float f0, float etaRatio, float NdotH);
+float	calculateVolumeFresnel(float ior, float iorIncident, float NdotV);
 
 float   calculateShadow(vec4 fragPosLightSpace);
 // Function to fetch shadow value with variable kernel size
@@ -690,16 +696,6 @@ void main()
 		fragColor.rgb = mix(fragColor.rgb, backgroundColor, clamp(bgMix, 0.0, 1.0));
 		fragColor.a *= (1.0 - fadeFactor) * opacity;
 	}
-
-	/*vec2 screenUV = gl_FragCoord.xy / vec2(u_screenSize.x, u_screenSize.y);    
-    // Just output what's captured in the transmission texture
-    vec3 capturedScene = texture(transmissionSceneTexture, screenUV).rgb;
-    fragColor = vec4(capturedScene, 1.0);
-	return;
-
-	float depth = texture(transmissionDepthTexture, screenUV).r;
-    fragColor = vec4(vec3(1.0 - depth), 1.0);
-	return;*/
 }
 
 // ========== LEGACY BLINN-PHONG SHADING FUNCTION ==========
@@ -1390,7 +1386,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 outRGB = baseNoSpec_L + specOnly_L;
 
 	// ============================================================================
-	// TRANSMISSION VOLUME & REFRACTION
+	// TRANSMISSION VOLUME & REFRACTION (Phase 2)
 	// ============================================================================
 	float transmissionFactor = pbrLighting.transmission;
 	if (hasTransmissionMap)
@@ -1402,10 +1398,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (transmissionFactor > 0.0)
 	{
 		vec3 N_trans = normalize(g_reflectionNormal);
-		float ior_trans = max(1e-3, pbrLighting.ior);
+		float ior_trans = max(1.3, pbrLighting.ior);
+		float iorIncident = 1.0;  // Assume light enters from air
 
-		vec3 refractionVector = refract(-V_reflect, N_trans, 1.0 / ior_trans);
-
+		// --- THICKNESS CALCULATION ---
 		float thickness = thicknessFactor;
 		if (hasThicknessMap)
 		{
@@ -1414,28 +1410,43 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			thickness *= thicknessSample;
 		}
 
-		vec3 modelScale;
-		modelScale.x = length(vec3(modelMatrix[0].xyz));
-		modelScale.y = length(vec3(modelMatrix[1].xyz));
-		modelScale.z = length(vec3(modelMatrix[2].xyz));
-
-		vec3 transmissionRay = normalize(refractionVector) * thickness * modelScale;
-		float transmissionRayLength = length(transmissionRay);
-
-		float tRough = max(roughness, 0.1);
-		vec3 envColor = textureLod(prefilterMap, normalize(refractionVector), tRough * 3.0).rgb;
-
-		if (transmissionRayLength > 0.0 && attenuationDistance > 0.0)
+		// --- REFRACTION DIRECTION (Snell's Law) ---
+		// For volume: proper refraction accounting for IOR difference
+		float eta = iorIncident / ior_trans;
+		vec3 refractionVector = refract(V_reflect, N_trans, eta);
+		
+		// Handle total internal reflection case
+		if (length(refractionVector) < 0.01)
 		{
-			vec3 transmittance = pow(attenuationColor,
-				vec3(transmissionRayLength / attenuationDistance));
-			envColor *= transmittance;
+			// Total internal reflection - fallback to reflection
+			refractionVector = reflect(-V_reflect, N_trans);
 		}
 
-		vec3 transmissionColor = envColor * albedo;
+		// --- SCREEN-SPACE REFRACTION WITH VOLUME ATTENUATION ---
+		vec3 transmittedLight = sampleScreenSpaceRefraction(
+			refractionVector, 
+			roughness, 
+			N_trans, 
+			V_reflect,
+			thickness,
+			attenuationColor,
+			attenuationDistance
+		);
 
-		// For transmission materials, blend between normal shading and transmission
-		outRGB = mix(outRGB, transmissionColor, transmissionFactor);
+		// Apply base color tinting to transmitted light
+		vec3 transmissionColor = transmittedLight * albedo;
+
+		// --- FRESNEL BLENDING (Volume-Aware) ---
+		float NdotV = max(dot(N_trans, -V_reflect), 0.001);
+		float fresnel = calculateVolumeFresnel(ior_trans, iorIncident, NdotV);
+		
+		// At grazing angles (fresnel ~1.0), show more reflection
+		// At normal incidence, show more transmission
+		vec3 reflectionColor = outRGB;  // Current specular reflection
+		vec3 finalTransmission = mix(transmissionColor, reflectionColor, fresnel);
+
+		// Blend with base shading based on transmission factor
+		outRGB = mix(outRGB, finalTransmission, transmissionFactor);
 	}
 
 	// ============================================================================
@@ -2208,6 +2219,96 @@ vec3 calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thi
 	vec3 transmittance = exp(-attenuationColor * (t / d));
 
 	return transmittedLight * transmittance;
+}
+
+// ============================================================================
+// Screen-Space Refraction Helper (Volume-Aware)
+// ============================================================================
+vec3 sampleScreenSpaceRefraction(vec3 refractDir, float roughness, vec3 N, vec3 V, 
+                                 float thickness, vec3 attenuationColor, float attenuationDistance)
+{
+    vec2 screenUV = gl_FragCoord.xy / u_screenSize;
+    float surfaceDepth = texture(transmissionDepthTexture, screenUV).r;
+    
+    float baseRefractStrength = mix(0.08, 0.02, roughness);
+    vec2 refractedUV = screenUV + refractDir.xy * baseRefractStrength;
+    refractedUV = clamp(refractedUV, 0.0, 1.0);
+    
+    // --- NEW: Check if refracted UV points to transmission object itself ---
+    float refractedDepth = texture(transmissionDepthTexture, refractedUV).r;
+    
+    // If refracted UV has similar depth to surface, we're sampling the object itself
+    // Use center sample instead
+    if (abs(refractedDepth - surfaceDepth) < 1)  // Permissible depth difference threshold
+    {
+        refractedUV = screenUV;  // Fall back to direct view
+    }
+    
+    vec3 transmittedLight = texture(transmissionSceneTexture, refractedUV).rgb;
+    
+    // Volume attenuation
+    if (thickness > 0.0 && attenuationDistance > 0.0)
+    {
+        vec3 transmittance = pow(attenuationColor, vec3(thickness / attenuationDistance));
+        transmittedLight *= transmittance;
+    }
+    
+    if (refractedUV != clamp(refractedUV, 0.01, 0.99))
+    {
+        vec3 centerSample = texture(transmissionSceneTexture, screenUV).rgb;
+        transmittedLight = mix(centerSample, transmittedLight, 0.5);
+    }
+    
+    return transmittedLight;
+}
+
+// ============================================================================
+// Volume Fresnel Calculation (KHR_materials_volume)
+// ============================================================================
+
+// Calculate F0 from IOR (dielectric Fresnel at normal incidence)
+float iorToF0(float ior)
+{
+    return sq((ior - 1.0) / (ior + 1.0));
+}
+
+// Case 1: Light enters medium with higher IOR (eta_o >= eta_i)
+float fresnelVolumeEntering(float f0, float NdotH)
+{
+    return f0 + (1.0 - f0) * pow(clamp(1.0 - NdotH, 0.0, 1.0), 5.0);
+}
+
+// Case 2: Light exits medium (eta_o < eta_i) without total internal reflection
+float fresnelVolumeExiting(float f0, float etaRatio, float NdotH)
+{
+    // eta_ratio = eta_i / eta_o
+    float sinThetaO_sq = etaRatio * etaRatio * (1.0 - NdotH * NdotH);
+    
+    // Check for total internal reflection
+    if (sinThetaO_sq >= 1.0)
+        return 1.0;  // Total internal reflection
+    
+    float cosThetaO = sqrt(1.0 - sinThetaO_sq);
+    return f0 + (1.0 - f0) * pow(clamp(1.0 - cosThetaO, 0.0, 1.0), 5.0);
+}
+
+// Determine which Fresnel case applies
+float calculateVolumeFresnel(float ior, float iorIncident, float NdotV)
+{
+    float f0 = iorToF0(ior);
+    float etaRatio = iorIncident / ior;
+    
+    if (etaRatio <= 1.0)
+    {
+        // Case 1: Entering denser medium (air -> glass)
+        return fresnelVolumeEntering(f0, NdotV);
+    }
+    else
+    {
+        // Case 2: Exiting or between denser media
+        // Case 3: Handled inside (returns 1.0 for TIR)
+        return fresnelVolumeExiting(f0, etaRatio, NdotV);
+    }
 }
 
 
