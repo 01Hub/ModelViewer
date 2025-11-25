@@ -385,7 +385,7 @@ private:
 	void setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera);
 
 	void drawSectionCapping();
-	void drawFloor();
+	void drawFloor(const bool& drawReflection = true);
 	void drawSkyBox();
 	void drawVertexNormals();
 	void drawFaceNormals();
@@ -438,7 +438,7 @@ private:
 
 	// --- Transmission Buffer Methods ---
 	void initTransmissionBuffer(); 
-	void renderToTransmissionBuffer(const QColor& topColor, const QColor& botColor);
+	void renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor);
 	void cleanupTransmissionBuffer();
 	void resizeTransmissionBuffer(int width, int height);
 

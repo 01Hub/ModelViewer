@@ -3511,7 +3511,7 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 		renderToShadowBuffer();
 
 	if (_transmissionEnabled)
-		renderToTransmissionBuffer(topColor, botColor);
+		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -3528,7 +3528,7 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 		renderToShadowBuffer();
 
 	if (_transmissionEnabled)
-		renderToTransmissionBuffer(topColor, botColor);
+		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
@@ -3574,7 +3574,7 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	splitScreen();
 }
 
-void GLWidget::drawFloor()
+void GLWidget::drawFloor(const bool& drawReflection)
 {
 	//https://open.gl/depthstencils
 	glEnable(GL_STENCIL_TEST);
@@ -3609,6 +3609,7 @@ void GLWidget::drawFloor()
 	glDisable(GL_BLEND);
 	glDisable(GL_CULL_FACE);
 
+	
 	// Draw model reflection
 	glStencilFunc(GL_EQUAL, 1, 0xFF);
 	glStencilMask(0x00);
@@ -3623,7 +3624,7 @@ void GLWidget::drawFloor()
 
 	_fgShader->bind();
 	_fgShader->setUniformValue("modelMatrix", model);
-	if (_reflectionsEnabled)
+	if (_reflectionsEnabled && drawReflection)
 	{
 		_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
 		drawMesh(_fgShader.get());
@@ -5037,7 +5038,7 @@ void GLWidget::createWhiteTexture()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 }
 
-void GLWidget::renderToTransmissionBuffer(const QColor& topColor, const QColor& botColor)
+void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor)
 {
 	if (!_transmissionEnabled)
 		return;
@@ -5115,9 +5116,10 @@ void GLWidget::renderToTransmissionBuffer(const QColor& topColor, const QColor& 
 	// --- RENDER 4: FLOOR ---
 	if (_displayMode == DisplayMode::REALSHADED &&
 		_floorDisplayed &&
-		!_meshStore.empty())
+		!_meshStore.empty() &&
+		camera != _orthoViewsCamera)
 	{
-		drawFloor();
+		drawFloor(false);
 	}
 
 	// --- UNBIND FBO ---
