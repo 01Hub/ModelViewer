@@ -1854,10 +1854,22 @@ void TriangleMesh::invertOpacityPBRMap(bool invert)
 
 bool TriangleMesh::isTransparent() const
 {	
+	// If it has transmission, it's ALWAYS transparent (exclude from FBO)
+	if (_material.transmission() > 0.0f)
+		return true;
+	// If it's OPAQUE, it's NOT transparent
+	if (_material.blendMode() == GLMaterial::BlendMode::Opaque)
+		return false;
+	// If it has BLEND mode (not MASK or OPAQUE), it's transparent
+	if (_material.blendMode() == GLMaterial::BlendMode::Alpha)  // BLEND mode
+		return true;
+	// If it's masked, it's NOT transparent (exclude from FBO)
+	if (_material.blendMode() == GLMaterial::BlendMode::Masked)
+		return false;
+
 	return (_material.opacity() < 0.999f) ||
 		_hasTextureAlpha || _hasOpacityADSMap || _hasOpacityPBRMap ||
-		_hasTransmissionPBRMap || _material.transmission() > 0.0f ||
-		(_material.blendMode() == GLMaterial::BlendMode::Alpha);
+		_hasTransmissionPBRMap || _material.transmission() > 0.0f;
 }
 
 bool TriangleMesh::needsDepthMaskOff() const
