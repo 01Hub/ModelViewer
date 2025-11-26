@@ -3918,6 +3918,10 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	prog->setUniformValue("iblExposure", _iblExposure);
 	prog->setUniformValue("toneMapMode", static_cast<int>(_toneMappingMode));
 
+	prog->setUniformValue("transmissionFramebufferSize",
+		QVector2D(_transmissionTextureWidth, _transmissionTextureHeight));
+
+
 	bindIBLTextures();
 }
 
@@ -4965,6 +4969,13 @@ void GLWidget::initTransmissionBuffer()
 	_transmissionTextureWidth = width();
 	_transmissionTextureHeight = height();
 
+	if (_transmissionFBO != 0)
+		glDeleteFramebuffers(1, &_transmissionFBO);
+	if (_transmissionColorTexture != 0)
+		glDeleteTextures(1, &_transmissionColorTexture);
+	if (_transmissionDepthTexture != 0)
+		glDeleteTextures(1, &_transmissionDepthTexture);
+
 	// Create FBO
 	glGenFramebuffers(1, &_transmissionFBO);
 	glBindFramebuffer(GL_FRAMEBUFFER, _transmissionFBO);
@@ -4972,9 +4983,14 @@ void GLWidget::initTransmissionBuffer()
 	// --- Create COLOR texture (RGBA32F for precision) ---
 	glGenTextures(1, &_transmissionColorTexture);
 	glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F,
-		_transmissionTextureWidth, _transmissionTextureHeight,
-		0, GL_RGBA, GL_FLOAT, nullptr);
+	// Allocate storage with mipmaps
+	// Calculate number of mip levels: log2(max(width, height)) + 1
+	int maxDim = std::max(_transmissionTextureWidth, _transmissionTextureHeight);
+	int numMips = (int)std::floor(std::log2(maxDim)) + 1;
+
+	// Allocate texture storage with mipmaps
+	glTexStorage2D(GL_TEXTURE_2D, numMips, GL_RGBA32F,
+		_transmissionTextureWidth, _transmissionTextureHeight);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -4994,6 +5010,9 @@ void GLWidget::initTransmissionBuffer()
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
 		GL_TEXTURE_2D, _transmissionDepthTexture, 0);
+
+	GLenum drawBuffers[] = { GL_COLOR_ATTACHMENT0 };
+	glDrawBuffers(1, drawBuffers);
 
 	// --- Verify FBO is complete ---
 	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
@@ -5015,17 +5034,7 @@ void GLWidget::resizeTransmissionBuffer(int width, int height)
 	_transmissionTextureWidth = width;
 	_transmissionTextureHeight = height;
 
-	// Recreate color texture
-	glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA32F, width, height,
-		0, GL_RGBA, GL_FLOAT, nullptr);
-	glBindTexture(GL_TEXTURE_2D, 0);
-
-	// Recreate depth texture
-	glBindTexture(GL_TEXTURE_2D, _transmissionDepthTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, width, height,
-		0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
-	glBindTexture(GL_TEXTURE_2D, 0);
+	initTransmissionBuffer();
 }
 
 void GLWidget::createWhiteTexture()
@@ -5121,6 +5130,11 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	{
 		drawFloor(false);
 	}
+
+	// IMPORTANT: After rendering, generate mipmaps
+	glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, 0);
 
 	// --- UNBIND FBO ---
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());

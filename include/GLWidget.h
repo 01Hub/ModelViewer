@@ -620,6 +620,7 @@ private:
 	GLuint _transmissionDepthTexture = 0;     // DEPTH32F: for Phase 2 calculations
 	int _transmissionTextureWidth = 0;        // Current FBO width
 	int _transmissionTextureHeight = 0;       // Current FBO height
+	int _transmissionMipLevels = 0;			  // Number of mip levels
 	bool _transmissionEnabled = true;         // Toggle for feature
 
 	QImage					 _floorTexImage;

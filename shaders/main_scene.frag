@@ -65,6 +65,7 @@ uniform float shadowSizeScale;
 // Transmission map
 uniform sampler2D transmissionSceneTexture;  // _transmissionColorTexture
 uniform sampler2D transmissionDepthTexture;  // _transmissionDepthTexture
+uniform vec2	  transmissionFramebufferSize;
 
 uniform float u_floorAlpha = 0.95;
 uniform float u_floorSpecularScale = 0.6;  // scale specular on floor [0..1]
@@ -208,6 +209,7 @@ uniform vec3 cameraPos;
 uniform vec3 cameraDir;
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
+uniform mat4 projectionMatrix;
 uniform bool sectionActive;
 uniform int displayMode;
 uniform int renderingMode;
@@ -405,21 +407,27 @@ AnisotropyData decodeAnisotropyTexture(
     bool hasTexture
 );
 
+// KHR Iridescence
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0);
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0, vec3 baseF90);
 
+// KHR IOR, Transmission, and Volume
 vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance);
-vec3	sampleScreenSpaceRefraction(vec3 refractDir, float roughness, vec3 N, vec3 V, 
-                                 float thickness, vec3 attenuationColor, float attenuationDistance);
-vec3	sampleScreenSpaceRefractionPerChannel(vec3 refractDir_R, vec3 refractDir_G, vec3 refractDir_B,
-                                           float roughness, vec3 N, vec3 V, 
-                                           float thickness, vec3 attenuationColor, float attenuationDistance);
-
 float	iorToF0(float ior);
 float	fresnelVolumeEntering(float f0, float NdotH);
 float	fresnelVolumeExiting(float f0, float etaRatio, float NdotH);
 float	calculateVolumeFresnel(float ior, float iorIncident, float NdotV);
+float	applyIorToRoughness(float roughness, float ior);
+vec3	getVolumeTransmissionRay(vec3 n, vec3 v, float thickness, float ior, mat4 modelMatrix);
+vec3	getTransmissionSample(vec2 fragCoord, float roughness, float ior);
+vec3	getIBLVolumeRefraction(vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor, 
+		                       vec3 position, mat4 modelMatrix, float ior, float thickness, 
+		                       vec3 attenuationColor, float attenuationDistance);
+vec3	getIBLVolumeRefractionPerChannel(vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor,
+                                      vec3 position, mat4 modelMatrix, vec3 iors, float thickness,
+                                      vec3 attenuationColor, float attenuationDistance);
 
+// Shadow
 float   calculateShadow(vec4 fragPosLightSpace);
 // Function to fetch shadow value with variable kernel size
 float   calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos);
@@ -1390,107 +1398,87 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 outRGB = baseNoSpec_L + specOnly_L;
 
 	// ============================================================================
-	// TRANSMISSION VOLUME & REFRACTION WITH DISPERSION
-	// ============================================================================
-	float transmissionFactor = pbrLighting.transmission;
-	if (hasTransmissionMap)
-	{
-		float mapVal = texture(transmissionMap, getTransmissionUV()).r;
-		transmissionFactor *= mapVal;
-	}
+    // TRANSMISSION VOLUME & REFRACTION WITH DISPERSION (Mipmapped)
+    // ============================================================================
+    float transmissionFactor = pbrLighting.transmission;
+    if (hasTransmissionMap)
+    {
+        float mapVal = texture(transmissionMap, getTransmissionUV()).r;
+        transmissionFactor *= mapVal;
+    }
 
-	if (transmissionFactor > 0.0)
-	{
-		vec3 N_trans = normalize(g_reflectionNormal);
-		float ior_trans = max(1.3, pbrLighting.ior);
-		float iorIncident = 1.0;  // Light enters from air
-
-		// --- THICKNESS CALCULATION ---
-		float thickness = thicknessFactor;
-		if (hasThicknessMap)
-		{
-			vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
-			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.g;
-			thickness *= thicknessSample;
-		}
-
-		// --- DISPERSION PARAMETER (from KHR_materials_dispersion) ---
-		float dispersion = pbrLighting.dispersion;  // 20/Abbe number
-		
-		// --- CALCULATE PER-CHANNEL IOR ---
-		// Abbe number variation: halfSpread = (ior - 1) * 0.025 * dispersion
-		float halfSpread = (ior_trans - 1.0) * 0.025 * dispersion;
-		vec3 iors = vec3(
-			ior_trans - halfSpread,  // Red channel (lowest IOR)
-			ior_trans,               // Green channel (medium IOR)
-			ior_trans + halfSpread   // Blue channel (highest IOR)
-		);
-		
-		// Clamp IORs to valid range
-		iors = max(iors, vec3(1.001));
-		
-		vec3 transmittedLight;
-		
-		if (dispersion > 0.0)
-		{
-			// --- DISPERSION MODE: Three separate refraction passes ---
-			vec3 refractDir_R = refract(-V_reflect, N_trans, iorIncident / iors.r);
-			vec3 refractDir_G = refract(-V_reflect, N_trans, iorIncident / iors.g);
-			vec3 refractDir_B = refract(-V_reflect, N_trans, iorIncident / iors.b);
-			
-			// Handle total internal reflection for each channel
-			if (length(refractDir_R) < 0.01) refractDir_R = reflect(V_reflect, N_trans);
-			if (length(refractDir_G) < 0.01) refractDir_G = reflect(V_reflect, N_trans);
-			if (length(refractDir_B) < 0.01) refractDir_B = reflect(V_reflect, N_trans);
-
-			// Sample per-channel with self-refraction protection
-			transmittedLight = sampleScreenSpaceRefractionPerChannel(
-				refractDir_R, refractDir_G, refractDir_B,
-				roughness,
-				N_trans,
-				V_reflect,
-				thickness,
-				attenuationColor,
-				attenuationDistance
-			);
-		}
-		else
-		{
-			// --- NO DISPERSION: Single channel ---
-			float eta = iorIncident / ior_trans;
-			vec3 refractionVector = refract(-V_reflect, N_trans, eta);
-			
-			if (length(refractionVector) < 0.01)
-			{
-				refractionVector = reflect(V_reflect, N_trans);
-			}
-			
-			transmittedLight = sampleScreenSpaceRefraction(
-				refractionVector,
-				roughness,
-				N_trans,
-				V_reflect,
-				thickness,
-				attenuationColor,
-				attenuationDistance
-			);
-		}
-
-		// Apply base color tinting to transmitted light
-		vec3 transmissionColor = transmittedLight * albedo;
-
-		// --- FRESNEL BLENDING (Volume-Aware) ---
-		float NdotV = max(dot(N_trans, -V_reflect), 0.001);
-		float fresnel = calculateVolumeFresnel(ior_trans, iorIncident, NdotV);
-		
-		// At grazing angles (fresnel ~1.0), show more reflection
-		// At normal incidence, show more transmission
-		vec3 reflectionColor = outRGB;  // Current specular reflection
-		vec3 finalTransmission = mix(transmissionColor, reflectionColor, fresnel);
-
-		// Blend with base shading based on transmission factor
-		outRGB = mix(outRGB, finalTransmission, transmissionFactor);
-	}
+    if (transmissionFactor > 0.0)
+    {
+        vec3 N_trans = normalize(g_reflectionNormal);
+        float ior_trans = max(1.3, pbrLighting.ior);
+        
+        // --- THICKNESS CALCULATION ---
+        float thickness = thicknessFactor;
+        if (hasThicknessMap)
+        {
+            vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
+            float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.g;
+            thickness *= thicknessSample;
+        }
+        
+        // --- DISPERSION PARAMETER ---
+        float dispersion = pbrLighting.dispersion;
+        
+        vec3 transmittedLight;
+        
+        if (dispersion > 0.0)
+        {
+            // --- DISPERSION MODE: Per-channel refraction with different IORs ---
+            float halfSpread = (ior_trans - 1.0) * 0.025 * dispersion;
+            vec3 iors = vec3(
+                ior_trans - halfSpread,  // Red (lowest IOR)
+                ior_trans,               // Green (medium IOR)
+                ior_trans + halfSpread   // Blue (highest IOR)
+            );
+            iors = max(iors, vec3(1.001));  // Clamp to valid range
+            
+            // Get per-channel refraction with proper 3D projection
+            transmittedLight = getIBLVolumeRefractionPerChannel(
+                N_trans, 
+                normalize(-V_reflect),  // View direction
+                roughness,
+                albedo,
+                g_position,             // World position
+                modelMatrix,
+                iors,
+                thickness,
+                attenuationColor,
+                attenuationDistance
+            );
+        }
+        else
+        {
+            // --- NO DISPERSION: Single channel with 3D projection ---
+            transmittedLight = getIBLVolumeRefraction(
+                N_trans,
+                normalize(-V_reflect),  // View direction
+                roughness,
+                albedo,
+                g_position,             // World position
+                modelMatrix,
+                ior_trans,
+                thickness,
+                attenuationColor,
+                attenuationDistance
+            );
+        }
+        
+        // --- FRESNEL BLENDING ---
+        float NdotV = max(dot(N_trans, -V_reflect), 0.001);
+        float fresnel = calculateVolumeFresnel(ior_trans, 1.0, NdotV);
+        
+        // Blend reflection and transmission
+        vec3 reflectionColor = outRGB;
+        vec3 finalTransmission = mix(transmittedLight, reflectionColor, fresnel);
+        
+        // Apply transmission factor
+        outRGB = mix(outRGB, finalTransmission, transmissionFactor);
+    }
 
 	// ============================================================================
 	// TONE MAPPING & GAMMA CORRECTION
@@ -2264,121 +2252,6 @@ vec3 calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thi
 	return transmittedLight * transmittance;
 }
 
-// ============================================================================
-// Screen-Space Refraction Helper (Volume-Aware)
-// ============================================================================
-vec3 sampleScreenSpaceRefraction(vec3 refractDir, float roughness, vec3 N, vec3 V, 
-                                 float thickness, vec3 attenuationColor, float attenuationDistance)
-{
-    vec2 screenUV = gl_FragCoord.xy / u_screenSize;
-    float surfaceDepth = texture(transmissionDepthTexture, screenUV).r;
-    
-    float baseRefractStrength = mix(0.08, 0.02, roughness);
-    vec2 refractedUV = screenUV + refractDir.xy * baseRefractStrength;
-    refractedUV = clamp(refractedUV, 0.0, 1.0);
-    
-    // --- NEW: Check if refracted UV points to transmission object itself ---
-    float refractedDepth = texture(transmissionDepthTexture, refractedUV).r;
-    
-    // If refracted UV has similar depth to surface, we're sampling the object itself
-    // Use center sample instead
-    if (abs(refractedDepth - surfaceDepth) < 1)  // Permissible depth difference threshold
-    {
-        refractedUV = screenUV;  // Fall back to direct view
-    }
-    
-    vec3 transmittedLight = texture(transmissionSceneTexture, refractedUV).rgb;
-    
-    // Volume attenuation
-    if (thickness > 0.0 && attenuationDistance > 0.0)
-    {
-        vec3 transmittance = pow(attenuationColor, vec3(thickness / attenuationDistance));
-        transmittedLight *= transmittance;
-    }
-    
-    if (refractedUV != clamp(refractedUV, 0.01, 0.99))
-    {
-        vec3 centerSample = texture(transmissionSceneTexture, screenUV).rgb;
-        transmittedLight = mix(centerSample, transmittedLight, 0.5);
-    }
-    
-    return transmittedLight;
-}
-
-// ============================================================================
-// Dispersion Helper: Per-Channel Refraction
-// ============================================================================
-
-vec3 sampleScreenSpaceRefractionPerChannel(vec3 refractDir_R, vec3 refractDir_G, vec3 refractDir_B,
-                                           float roughness, vec3 N, vec3 V, 
-                                           float thickness, vec3 attenuationColor, float attenuationDistance)
-{
-    vec2 screenUV = gl_FragCoord.xy / u_screenSize;
-    float surfaceDepth = texture(transmissionDepthTexture, screenUV).r;
-    
-    float baseRefractStrength = mix(0.08, 0.02, roughness);
-    
-    // --- Sample all three channels ---
-    vec2 refractedUV_R = screenUV + refractDir_R.xy * baseRefractStrength;
-    vec2 refractedUV_G = screenUV + refractDir_G.xy * baseRefractStrength;
-    vec2 refractedUV_B = screenUV + refractDir_B.xy * baseRefractStrength;
-    
-    // --- Self-refraction protection: check all channels ---
-    // If ANY channel would self-refract, fallback ALL to direct view (conservative)
-    float refractedDepth_R = texture(transmissionDepthTexture, refractedUV_R).r;
-    float refractedDepth_G = texture(transmissionDepthTexture, refractedUV_G).r;
-    float refractedDepth_B = texture(transmissionDepthTexture, refractedUV_B).r;
-    
-    // If each channel self-refracts, fallback THAT CHANNEL ONLY
-	if (abs(refractedDepth_R - surfaceDepth) < 1.0)
-		refractedUV_R = screenUV;
-
-	if (abs(refractedDepth_G - surfaceDepth) < 1.0)
-		refractedUV_G = screenUV;
-
-	if (abs(refractedDepth_B - surfaceDepth) < 1.0)
-		refractedUV_B = screenUV;
-    
-    // Clamp all to screen bounds
-    refractedUV_R = clamp(refractedUV_R, 0.0, 1.0);
-    refractedUV_G = clamp(refractedUV_G, 0.0, 1.0);
-    refractedUV_B = clamp(refractedUV_B, 0.0, 1.0);
-    
-    // Sample three channels
-    vec3 transmittedLight_R = texture(transmissionSceneTexture, refractedUV_R).rgb;
-    vec3 transmittedLight_G = texture(transmissionSceneTexture, refractedUV_G).rgb;
-    vec3 transmittedLight_B = texture(transmissionSceneTexture, refractedUV_B).rgb;
-    
-    // --- Apply attenuation to all channels ---
-    if (thickness > 0.0 && attenuationDistance > 0.0)
-    {
-        vec3 transmittance = pow(attenuationColor, vec3(thickness / attenuationDistance));
-        transmittedLight_R *= transmittance;
-        transmittedLight_G *= transmittance;
-        transmittedLight_B *= transmittance;
-    }
-    
-    // --- Edge fallback for all channels ---
-    if (refractedUV_R != clamp(refractedUV_R, 0.01, 0.99))
-    {
-        vec3 centerSample = texture(transmissionSceneTexture, screenUV).rgb;
-        transmittedLight_R = mix(centerSample, transmittedLight_R, 0.5);
-    }
-    if (refractedUV_G != clamp(refractedUV_G, 0.01, 0.99))
-    {
-        vec3 centerSample = texture(transmissionSceneTexture, screenUV).rgb;
-        transmittedLight_G = mix(centerSample, transmittedLight_G, 0.5);
-    }
-    if (refractedUV_B != clamp(refractedUV_B, 0.01, 0.99))
-    {
-        vec3 centerSample = texture(transmissionSceneTexture, screenUV).rgb;
-        transmittedLight_B = mix(centerSample, transmittedLight_B, 0.5);
-    }
-    
-    // --- Composite: extract R from Red channel, G from Green, B from Blue ---
-    // This creates the chromatic aberration effect
-    return vec3(transmittedLight_R.r, transmittedLight_G.g, transmittedLight_B.b);
-}
 
 // ============================================================================
 // Volume Fresnel Calculation (KHR_materials_volume)
@@ -2427,6 +2300,130 @@ float calculateVolumeFresnel(float ior, float iorIncident, float NdotV)
         // Case 3: Handled inside (returns 1.0 for TIR)
         return fresnelVolumeExiting(f0, etaRatio, NdotV);
     }
+}
+
+// ============================================================================
+// Helper: Apply IOR to Roughness (for LOD calculation)
+// ============================================================================
+float applyIorToRoughness(float roughness, float ior)
+{
+    // Scale roughness with IOR so that an IOR of 1.0 results in no microfacet refraction and
+    // an IOR of 1.5 results in the default amount of microfacet refraction.
+    return roughness * clamp(ior * 2.0 - 2.0, 0.0, 1.0);
+}
+
+// ============================================================================
+// Calculate 3D Transmission Ray Exit Point
+// ============================================================================
+vec3 getVolumeTransmissionRay(vec3 n, vec3 v, float thickness, float ior, mat4 modelMatrix)
+{
+    // Direction of refracted light (Snell's law)
+    vec3 refractionVector = refract(-v, normalize(n), 1.0 / ior);
+    
+    // Compute rotation-independent scaling of the model matrix
+    vec3 modelScale;
+    modelScale.x = length(vec3(modelMatrix[0].xyz));
+    modelScale.y = length(vec3(modelMatrix[1].xyz));
+    modelScale.z = length(vec3(modelMatrix[2].xyz));
+    
+    // The thickness is specified in local space
+    // Returns the world-space displacement vector
+    return normalize(refractionVector) * thickness * modelScale;
+}
+
+// ============================================================================
+// Sample Transmission with Roughness LOD
+// ============================================================================
+vec3 getTransmissionSample(vec2 fragCoord, float roughness, float ior)
+{
+    // Calculate LOD based on roughness and IOR
+    // Higher roughness and/or higher IOR = access lower (blurred) mip levels
+    float framebufferLod = log2(transmissionFramebufferSize.x) * applyIorToRoughness(roughness, ior);
+    
+    // Sample with automatic mipmap interpolation
+    vec3 transmittedLight = textureLod(transmissionSceneTexture, fragCoord.xy, framebufferLod).rgb;
+    
+    return transmittedLight;
+}
+
+// ============================================================================
+// Main Transmission Ray Tracing Function
+// ============================================================================
+vec3 getIBLVolumeRefraction(vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor, 
+                            vec3 position, mat4 modelMatrix, float ior, float thickness, 
+                            vec3 attenuationColor, float attenuationDistance)
+{
+    // Calculate 3D transmission ray (refracted path through volume)
+    vec3 transmissionRay = getVolumeTransmissionRay(n, v, thickness, ior, modelMatrix);
+    
+    // Calculate exit point in world space
+    vec3 refractedRayExit = position + transmissionRay;
+    
+    // Project exit point to screen space
+    vec4 ndcPos = projectionMatrix * viewMatrix * vec4(refractedRayExit, 1.0);
+    vec2 refractionCoords = ndcPos.xy / ndcPos.w;
+    refractionCoords += 1.0;
+    refractionCoords /= 2.0;
+    
+    // Get transmission ray length for attenuation
+    float transmissionRayLength = length(transmissionRay);
+    
+    // Sample framebuffer at projected coordinates with roughness LOD
+    vec3 transmittedLight = getTransmissionSample(refractionCoords, perceptualRoughness, ior);
+    
+    // Apply volume attenuation (Beer's law)
+    if (transmissionRayLength > 0.0 && attenuationDistance > 0.0)
+    {
+        vec3 transmittance = pow(attenuationColor, vec3(transmissionRayLength / attenuationDistance));
+        transmittedLight *= transmittance;
+    }
+    
+    // Apply base color tinting
+    transmittedLight *= baseColor;
+    
+    return transmittedLight;
+}
+
+// ============================================================================
+// Per-Channel Transmission for Dispersion
+// ============================================================================
+vec3 getIBLVolumeRefractionPerChannel(vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor,
+                                      vec3 position, mat4 modelMatrix, vec3 iors, float thickness,
+                                      vec3 attenuationColor, float attenuationDistance)
+{
+    vec3 transmittedLight = vec3(0.0);
+    
+    // Process each channel (R, G, B) with different IOR
+    for (int i = 0; i < 3; i++)
+    {
+        float ior = iors[i];
+        
+        // Get transmission ray for this channel
+        vec3 transmissionRay = getVolumeTransmissionRay(n, v, thickness, ior, modelMatrix);
+        vec3 refractedRayExit = position + transmissionRay;
+        float transmissionRayLength = length(transmissionRay);
+        
+        // Project to screen space
+        vec4 ndcPos = projectionMatrix * viewMatrix * vec4(refractedRayExit, 1.0);
+        vec2 refractionCoords = ndcPos.xy / ndcPos.w;
+        refractionCoords += 1.0;
+        refractionCoords /= 2.0;
+        
+        // Sample with LOD for this channel's IOR
+        vec3 sampledLight = getTransmissionSample(refractionCoords, perceptualRoughness, ior);
+        
+        // Apply attenuation
+        if (transmissionRayLength > 0.0 && attenuationDistance > 0.0)
+        {
+            vec3 transmittance = pow(attenuationColor, vec3(transmissionRayLength / attenuationDistance));
+            sampledLight *= transmittance;
+        }
+        
+        // Extract channel component for chromatic aberration effect
+        transmittedLight[i] = sampledLight[i] * baseColor[i];
+    }
+    
+    return transmittedLight;
 }
 
 
