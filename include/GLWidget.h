@@ -221,6 +221,9 @@ public:
 	void setAnisotropicFilteringLevel(int level) { _anisotropicFilteringLevel = level; }
 	int getAnisotropicFilteringLevel() const { return _anisotropicFilteringLevel; }
 
+	void setTransmissionEnabled(const bool& enabled) { _transmissionEnabled = enabled; }
+	bool isTransmissionEnabled() const { return _transmissionEnabled; }
+
 public:
 	float getXTran() const;
 	void setXTran(const float& xTran);
