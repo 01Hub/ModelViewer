@@ -1267,7 +1267,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 	sheenColor = clamp(sheenColor, vec3(0.0), vec3(1.0));
 	sheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, getSheenRoughnessUV()).r * pbrLighting.sheenRoughness : pbrLighting.sheenRoughness;
-	sheenRoughness = clamp(sheenRoughness, 0.0, 1.0);
+	sheenRoughness = clamp(sheenRoughness, 0.001, 1.0);
 
 	if (length(sheenColor) > 0.0)
 	{
@@ -1295,7 +1295,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	clearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r * pbrLighting.clearcoat : pbrLighting.clearcoat;
 	clearcoat = clamp(clearcoat, 0.0, 1.0);
 	clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).g * pbrLighting.clearcoatRoughness : pbrLighting.clearcoatRoughness;
-	clearcoatRoughness = clamp(clearcoatRoughness, 0.0, 1.0);
+	clearcoatRoughness = clamp(clearcoatRoughness, 0.001, 1.0);
 	clearcoatNormal = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side : N;
 
 	if (clearcoat > 0.0)
@@ -1410,7 +1410,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
     if (transmissionFactor > 0.0)
     {
         vec3 N_trans = normalize(g_reflectionNormal);
-        float ior_trans = max(1.3, pbrLighting.ior);
+
+        if (dot(N_trans, -V_reflect) < 0.0)
+		{
+			N_trans = -N_trans;  // Flip normal to face viewer
+		}
+    
+		float ior_trans = max(1.3, pbrLighting.ior);		
         
         // --- THICKNESS CALCULATION ---
         float thickness = thicknessFactor;
