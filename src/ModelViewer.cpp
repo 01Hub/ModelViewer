@@ -459,6 +459,7 @@ QString ModelViewer::getSupportedQtImagesFilter()
 
 void ModelViewer::updateDisplayList()
 {
+	_glWidget->setTransmissionEnabled(false);
 	if(_glWidget->getMeshStore().empty())
 	{
 		listWidgetModel->clear();
@@ -473,6 +474,8 @@ void ModelViewer::updateDisplayList()
 	bool oldState = listWidgetModel->blockSignals(true);
 	for (TriangleMesh* mesh : store)
 	{
+		if(mesh->getMaterial().hasTransmission())
+			_glWidget->setTransmissionEnabled(true);
 		item = new QListWidgetItem(mesh->getName());
 		item->setFlags(item->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsEditable); // set checkable flag
 		// AND initialize check state
