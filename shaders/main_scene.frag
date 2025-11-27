@@ -1143,7 +1143,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// Apply KHR_materials_specular
 	if (specularFactor > 0.0)
 	{
-		F0 = F0 * 2.0 * specularColorFactor * specularFactor;		
+		F0 = F0 * specularColorFactor * specularFactor;		
 	}
 
 	// Mix with albedo for metals
@@ -1231,8 +1231,6 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		vec3 F = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0_iridescent, F90_iridescent);
 		specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V_direct), 0.0) * max(dot(N, L), 0.0), 0.001);
 	}
-
-	specBRDF *= 1.5;
 
 	vec3 kS = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0_iridescent, F90_iridescent);
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
