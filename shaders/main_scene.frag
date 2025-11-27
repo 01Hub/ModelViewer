@@ -1231,7 +1231,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		vec3 F = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0_iridescent, F90_iridescent);
 		specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V_direct), 0.0) * max(dot(N, L), 0.0), 0.001);
 	}
-
+	
 	vec3 kS = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0_iridescent, F90_iridescent);
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
@@ -1281,9 +1281,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
         float NoH = clamp(dot(N, H), 0.0, 1.0);
         float sheenD = D_Charlie(sheenRoughness, NoH);
         
-        // Apply modest detail enhancement (don't double-contribute)
-        // Scale by 0.3 to blend with the function's complete BRDF
-        vec3 sheenDetail = sheenD * sheenColor * 0.5 * NdotL;
+        // Apply modest detail enhancement (don't double-contribute)        
+        vec3 sheenDetail = sheenD * sheenColor * NdotL;
         sheen_L += sheenDetail;
 	}
 
