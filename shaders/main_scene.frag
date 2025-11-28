@@ -379,7 +379,11 @@ vec3    fresnelSchlickIOR(float cosTheta, float ior);
 float   distributionCharlie(vec3 N, vec3 H, float roughness);
 float   geometryCharlie(float NdotV, float roughness);
 float	D_Charlie(float roughness, float NoH);
-vec3    calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo);
+
+float	max3(vec3 v);
+float	V_Sheen(float NdotL, float NdotV, float sheenRoughness);
+float	lambdaSheen(float cosTheta, float alphaG);
+float	lambdaSheenNumericHelper(float x, float alphaG);
 vec3    calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness);
 vec3    calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor);
 vec3    calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, float clearcoatRoughness, vec3 clearcoatNormal);
@@ -415,6 +419,7 @@ vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFi
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0, vec3 baseF90);
 
 // KHR IOR, Transmission, and Volume
+vec3    calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo);
 vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance);
 float	iorToF0(float ior);
 float	fresnelVolumeEntering(float f0, float NdotH);
@@ -946,12 +951,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (lockLightAndCamera)
 	{
 		V_direct = normalize(lightSource.position - g_position);
-		L = normalize(lightSource.position);
+		L = normalize(lightSource.position - g_position);
 	}
 	else
 	{
 		V_direct = normalize(lightSource.position + cameraPos - g_position);
-		L = normalize(lightSource.position + cameraPos);
+		L = normalize(lightSource.position + cameraPos - g_position);
 	}
 
 	// Optional shadows affecting direct terms
@@ -1060,14 +1065,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			isGLTFMaterial ? 1.0 : pbrLighting.roughness // fallback if no texture
 		);
 		roughness = mix(texRoughness, pbrLighting.roughness * texRoughness, blendFactor);
-		roughness = clamp(roughness, 0.001, 1.0);
+		roughness = clamp(roughness, 0.0001, 1.0);
 
 		// Ambient Occlusion
 		float texAO = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
 			aoChannel, aoInvert, aoScale, aoBias,
 			isGLTFMaterial ? 1.0 : pbrLighting.ambientOcclusion);
 		ambientOcclusion = mix(texAO, pbrLighting.ambientOcclusion * texAO, blendFactor);
-		ambientOcclusion = clamp(ambientOcclusion, 0.05, 1.0); // prevent total blackout
+		ambientOcclusion = clamp(ambientOcclusion, 0.0001, 1.0); // prevent total blackout
 
 		// Specular (KHR_materials_specular)
 		float texSpecularFactor = hasSpecularFactorMap ? texture(specularFactorMap, getSpecularFactorUV()).a : 1.0;
@@ -1268,7 +1273,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 	sheenColor = clamp(sheenColor, vec3(0.0), vec3(1.0));
 	sheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, getSheenRoughnessUV()).r * pbrLighting.sheenRoughness : pbrLighting.sheenRoughness;
-	sheenRoughness = clamp(sheenRoughness, 0.001, 1.0);
+	sheenRoughness = clamp(sheenRoughness, 0.0001, 1.0);
 
 	if (length(sheenColor) > 0.0)
 	{
@@ -1276,17 +1281,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		sheen_L = calculateSheen(N, V_direct, L, sheenColor, sheenRoughness);
 
 		// Sheen IBL
-		sheenIBL_L = calculateSheenIBL(g_reflectionNormal, V_reflect, sheenRoughness, sheenColor);
-
-		// Sheen detail contribution from texture variations
-        // This preserves fine fiber/stripe details from sheenRoughness texture
-        H = normalize(V_direct + L);
-        float NoH = clamp(dot(N, H), 0.0, 1.0);
-        float sheenD = D_Charlie(sheenRoughness, NoH);
-        
-        // Apply modest detail enhancement (don't double-contribute)        
-        vec3 sheenDetail = sheenD * sheenColor * NdotL;
-        sheen_L += sheenDetail;
+		sheenIBL_L = calculateSheenIBL(g_reflectionNormal, V_reflect, sheenRoughness, sheenColor);		
 	}
 
 	// ============================================================================
@@ -1295,7 +1290,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	clearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r * pbrLighting.clearcoat : pbrLighting.clearcoat;
 	clearcoat = clamp(clearcoat, 0.0, 1.0);
 	clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).g * pbrLighting.clearcoatRoughness : pbrLighting.clearcoatRoughness;
-	clearcoatRoughness = clamp(clearcoatRoughness, 0.001, 1.0);
+	clearcoatRoughness = clamp(clearcoatRoughness, 0.0001, 1.0);
 	clearcoatNormal = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side : N;
 
 	if (clearcoat > 0.0)
@@ -1359,10 +1354,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
 	}
 
-	// Apply clearcoat IBL attenuation
-	ambient_L *= clearcoatAttenuation;
-	ambient_L += clearcoatIBL_L;
-	ambient_L += sheenIBL_L;	
+	// Apply all the IBL elements to ambient
+    ambient_L *= clearcoatAttenuation;
+    ambient_L += clearcoatIBL_L;    
+    ambient_L += sheenIBL_L;	
 
 	// ============================================================================
 	// EMISSION
@@ -1734,121 +1729,125 @@ float D_Charlie(float roughness, float NoH)
 	return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
 }
 
-// Calculate transmission contribution
-vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo)
+// ============================================================================
+// KHR_materials_sheen: Visibility Function with lambdaSheen Approximation
+// ============================================================================
+
+float lambdaSheenNumericHelper(float x, float alphaG)
 {
-	if (transmission <= 0.0) return vec3(0.0);
-
-	vec3 H = normalize(V + L);
-	float VdotH = clamp(dot(V, H), 0.0, 1.0);
-	float NdotL = clamp(dot(N, L), -1.0, 1.0);
-	float NdotV = clamp(dot(N, V), 0.0, 1.0);
-
-	// Calculate proper Fresnel for transmission
-	float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-	float fresnel = f0 + (1.0 - f0) * pow(1.0 - abs(VdotH), 5.0);
-	float transmittance = (1.0 - fresnel) * transmission;
-
-	// Improved transmission with both forward and back scattering
-	float backScatter = max(0.0, -NdotL) * 0.8; // Light from behind
-	float forwardScatter = max(0.0, NdotL) * 0.5; // Light from front (subsurface)
-
-	// Add thickness approximation
-	float thickness = max(0.01, pbrLighting.thicknessFactor);
-	float attenuationFactor = exp(-thickness * (1.0 - transmission));
-
-	vec3 transmissionColor = albedo * transmittance * attenuationFactor * (backScatter + forwardScatter);
-
-	return transmissionColor;
+    float oneMinusAlphaSq = (1.0 - alphaG) * (1.0 - alphaG);
+    float a = mix(21.5473, 25.3245, oneMinusAlphaSq);
+    float b = mix(3.82987, 3.32435, oneMinusAlphaSq);
+    float c = mix(0.19823, 0.16801, oneMinusAlphaSq);
+    float d = mix(-1.97760, -1.27393, oneMinusAlphaSq);
+    float e = mix(-4.32054, -4.85967, oneMinusAlphaSq);
+    return a / (1.0 + b * pow(x, c)) + d * x + e;
 }
 
-// Calculate sheen contribution (for fabric-like materials)
-// ------------------------
-// Improved calculateSheen
-// Returns a radiance contribution (already multiplied by NdotL), so the caller
-// can add it directly to outgoing radiance: Lo += calculateSheen(...);
+
+float lambdaSheen(float cosTheta, float alphaG)
+{
+    if (abs(cosTheta) < 0.5)
+    {
+        return exp(lambdaSheenNumericHelper(cosTheta, alphaG));
+    }
+    else
+    {
+        return exp(2.0 * lambdaSheenNumericHelper(0.5, alphaG) - 
+                   lambdaSheenNumericHelper(1.0 - cosTheta, alphaG));
+    }
+}
+
+float V_Sheen(float NdotL, float NdotV, float sheenRoughness)
+{
+    sheenRoughness = max(sheenRoughness, 0.000001);
+    float alphaG = sheenRoughness * sheenRoughness;
+
+    return clamp(1.0 / ((1.0 + lambdaSheen(NdotV, alphaG) + 
+                        lambdaSheen(NdotL, alphaG)) *
+                        (4.0 * NdotV * NdotL)), 0.0, 1.0);
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+float max3(vec3 v)
+{
+    return max(max(v.x, v.y), v.z);
+}
+
+// ============================================================================
+// KHR-compliant direct sheen calculation
+// Formula: f_sheen = D_charlie(alpha, h) * V_sheen(NdotL, NdotV, alpha) * sheenColor
+// sheenColor is already the complete color contribution (no metallic interaction)
+// ============================================================================
 vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness)
 {
-    // Half vector and common dot products
     vec3 H = normalize(V + L);
     float NdotL = clamp(dot(N, L), 0.0, 1.0);
     float NdotV = clamp(dot(N, V), 0.0, 1.0);
-    float VdotH  = clamp(dot(V, H), 0.0, 1.0);
+    float NdotH = clamp(dot(N, H), 0.0, 1.0);
 
+    // Early exit for backfacing
     if (NdotL <= 0.0 || NdotV <= 0.0)
         return vec3(0.0);
 
-    // Remap roughness - many Charlie implementations expect squared mapping
-    float r = clamp(sheenRoughness, 0.0, 1.0);
-    float mappedRough = max(0.0, r * r);
+    // Clamp roughness to safe range
+    float sheenRoughFinal = clamp(sheenRoughness, 0.000001, 1.0);
 
-    // Charlie distribution & geometry (use your existing functions)
-    float D = distributionCharlie(N, H, mappedRough);
-    float G = geometryCharlie(NdotV, mappedRough) * geometryCharlie(NdotL, mappedRough);
+    // D_Charlie distribution
+    float D = D_Charlie(sheenRoughFinal, NdotH);
+    
+    // V_Sheen visibility (KHR-compliant, handles grazing angles correctly)
+    float V_sheen = V_Sheen(NdotL, NdotV, sheenRoughFinal);
+    
+    // Sheen BRDF = D * V * sheenColor
+    // (No Fresnel term - sheen color is already the full diffuse contribution)
+    vec3 sheenBRDF = sheenColor * D * V_sheen;
 
-    // Fresnel - colored sheen: Schlick with V.H (F0 = sheenColor)
-    vec3 F = fresnelSchlick(VdotH, sheenColor);
-
-    // Safe denominator to avoid spikes at grazing
-    float denom = max(4.0 * NdotV * NdotL, 1e-5);
-
-    // Microfacet-like sheen BRDF (reflectance)
-    vec3 sheenBRDF = (D * G / denom) * F;
-
-    // Sheen is primarily a dielectric effect - attenuate on metals
-    sheenBRDF *= (1.0 - pbrLighting.metallic);
-
-    // Return radiance contribution for this light (multiply by NdotL here to match current shader style)
+    // Return: includes NdotL weighting for proper irradiance
     return sheenBRDF * NdotL;
 }
 
 
-// ------------------------
-// Improved calculateSheenIBL
-// Uses your prefiltered env map (prefilterMap) and brdfLUT (sampler2D brdfLUT).
-// Returns a radiance contribution that can be added directly to Lo.
-// Improved calculateSheenIBL with texture detail preservation
+// ============================================================================
+// KHR-compliant sheen IBL calculation
+// Formula: f_sheen_ibl = (L_ibl * sheenColor) * E_sheen
+// where E_sheen is the directional-albedo from BRDF LUT (pre-integrated D*V)
+// NO separate Fresnel or Geometry - both are in E_sheen already
+// ============================================================================
 vec3 calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor)
 {
-    vec3 V_norm = normalize(V);
+    // Clamp roughness to safe range
+    float sheenRoughFinal = clamp(sheenRoughness, 0.000001, 1.0);
+    
+    // Correct V direction (negative for reflection calculation - KHR spec)
+    vec3 V_norm = normalize(-V);
+    
+    // Reflection vector from view direction
     vec3 R = reflect(V_norm, N);
     R = normalize(R);
 
+    // LOD calculation for prefiltered environment map
     float maxLevels = textureQueryLevels(prefilterMap);
     float MAX_LOD = max(maxLevels - 1.0, 0.0);
-
-    // Roughness remap to match Charlie direct term
-    float r = clamp(sheenRoughness, 0.0, 1.0);
-    float mappedRough = r * r;  // Keep squared mapping, no min clamp
-
-    // Enhanced LOD calculation: preserve texture detail with lower LOD
-    // Use aggressive detail preservation similar to inline code (sheenRoughness * 8.0 approach)
-    // but scaled to MAX_LOD instead of hardcoded 8.0
-    float detailPreservation = mix(1.0, 0.3, mappedRough);  // Higher detail at low roughness
-    float lod = mappedRough * MAX_LOD * detailPreservation;
+    float lod = sheenRoughFinal * MAX_LOD;
     lod = clamp(lod, 0.0, MAX_LOD);
 
-    // Sample prefiltered environment
-    vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
-    prefilteredColor = max(prefilteredColor, vec3(0.0));
+    // Sample prefiltered environment map
+    vec3 prefilteredLight = textureLod(prefilterMap, R, lod).rgb;
+    prefilteredLight = max(prefilteredLight, vec3(0.0));
 
-    // N.V for BRDF LUT
-    float dotNV = clamp(dot(N, V_norm), 0.0, 1.0);
+    // BRDF LUT sampling for sheen directional-albedo
+    // Blue channel contains pre-integrated D_charlie * V_sheen
+    float NdotV_val = clamp(dot(N, V_norm), 0.0, 1.0);
+    vec2 brdfCoord = clamp(vec2(NdotV_val, sheenRoughFinal), vec2(0.0), vec2(1.0));
+    float E_sheen = texture(brdfLUT, brdfCoord).b;
 
-    // Fresnel for sheen
-    vec3 F_sheen = fresnelSchlick(dotNV, sheenColor);
-
-    // Geometry factor (Charlie) - captures proper microfacet attenuation
-    float G = geometryCharlie(dotNV, mappedRough);
-
-    // Directional-albedo from BRDF LUT (blue channel for sheen)
-    float E = texture(brdfLUT, vec2(dotNV, mappedRough)).b;
-
-    // Complete microfacet sheen BRDF: prefiltered * BRDF components
-    vec3 sheenIBL = prefilteredColor * sheenColor * G * F_sheen * E;
-
-    // Attenuate for metallics
-    sheenIBL *= (1.0 - pbrLighting.metallic);
+    // KHR formula: only multiply by sheenColor and E_sheen
+    // BRDF LUT already includes all BRDF integration (D * V)
+    vec3 sheenIBL = prefilteredLight * sheenColor * E_sheen;
 
     return sheenIBL;
 }
@@ -2240,6 +2239,33 @@ vec3 evalIridescence(float outsideIOR, float eta2, float cosTheta1,
 	return max(I, vec3(0.0));
 }
 
+// KHR_material_transmission
+vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo)
+{
+	if (transmission <= 0.0) return vec3(0.0);
+
+	vec3 H = normalize(V + L);
+	float VdotH = clamp(dot(V, H), 0.0, 1.0);
+	float NdotL = clamp(dot(N, L), -1.0, 1.0);
+	float NdotV = clamp(dot(N, V), 0.0, 1.0);
+
+	// Calculate proper Fresnel for transmission
+	float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
+	float fresnel = f0 + (1.0 - f0) * pow(1.0 - abs(VdotH), 5.0);
+	float transmittance = (1.0 - fresnel) * transmission;
+
+	// Improved transmission with both forward and back scattering
+	float backScatter = max(0.0, -NdotL) * 0.8; // Light from behind
+	float forwardScatter = max(0.0, NdotL) * 0.5; // Light from front (subsurface)
+
+	// Add thickness approximation
+	float thickness = max(0.01, pbrLighting.thicknessFactor);
+	float attenuationFactor = exp(-thickness * (1.0 - transmission));
+
+	vec3 transmissionColor = albedo * transmittance * attenuationFactor * (backScatter + forwardScatter);
+
+	return transmissionColor;
+}
 
 // KHR_materials_volume
 vec3 calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance)

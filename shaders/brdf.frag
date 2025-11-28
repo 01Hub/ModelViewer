@@ -73,6 +73,45 @@ float D_Charlie(float roughness, float NoH) {
     return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
 }
 
+// ============================================================================
+// KHR_materials_sheen: Visibility Function with lambdaSheen Approximation
+// Reference: Estevez & Kulla, "Production Friendly Microfacet Sheen BRDF"
+// ============================================================================
+
+float lambdaSheenNumericHelper(float x, float alphaG)
+{
+    float oneMinusAlphaSq = (1.0 - alphaG) * (1.0 - alphaG);
+    float a = mix(21.5473, 25.3245, oneMinusAlphaSq);
+    float b = mix(3.82987, 3.32435, oneMinusAlphaSq);
+    float c = mix(0.19823, 0.16801, oneMinusAlphaSq);
+    float d = mix(-1.97760, -1.27393, oneMinusAlphaSq);
+    float e = mix(-4.32054, -4.85967, oneMinusAlphaSq);
+    return a / (1.0 + b * pow(x, c)) + d * x + e;
+}
+
+float lambdaSheen(float cosTheta, float alphaG)
+{
+    if (abs(cosTheta) < 0.5)
+    {
+        return exp(lambdaSheenNumericHelper(cosTheta, alphaG));
+    }
+    else
+    {
+        return exp(2.0 * lambdaSheenNumericHelper(0.5, alphaG) - 
+                   lambdaSheenNumericHelper(1.0 - cosTheta, alphaG));
+    }
+}
+
+float V_Sheen(float NdotL, float NdotV, float sheenRoughness)
+{
+    sheenRoughness = max(sheenRoughness, 0.000001);
+    float alphaG = sheenRoughness * sheenRoughness;
+
+    return clamp(1.0 / ((1.0 + lambdaSheen(NdotV, alphaG) + 
+                        lambdaSheen(NdotL, alphaG)) *
+                        (4.0 * NdotV * NdotL)), 0.0, 1.0);
+}
+
 // ----------------------------------------------------------------------------
 vec3 IntegrateBRDF(float NdotV, float roughness)
 {
@@ -108,8 +147,11 @@ vec3 IntegrateBRDF(float NdotV, float roughness)
 
             A += (1.0 - Fc) * G_Vis;
             B += Fc * G_Vis;
+            // KHR_materials_sheen: Integrate D_Charlie * V_Sheen for proper directional-albedo
             float sheenD = D_Charlie(roughness, NdotH);
-            sheenAccum += sheenD * NdotL; // weighted by cosine
+            float sheenV = V_Sheen(NdotL, NdotV, roughness);
+            float sheenF = pow(1.0 - VdotH, 5.0);  // Add Fresnel term
+            sheenAccum += sheenD * sheenV * sheenF * NdotL;  // D * V * F * cosine
         }
     }
     A /= float(SAMPLE_COUNT);
@@ -117,6 +159,8 @@ vec3 IntegrateBRDF(float NdotV, float roughness)
     sheenAccum /= float(SAMPLE_COUNT);
     return vec3(A, B, sheenAccum);
 }
+
+
 // ----------------------------------------------------------------------------
 void main()
 {
