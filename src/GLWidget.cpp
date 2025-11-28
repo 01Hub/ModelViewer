@@ -241,7 +241,7 @@ _assimpModelLoader(nullptr)
 	_hdrToneMapping = false;
 	_envMapExposure = 1.0f;
 	_iblExposure = 1.0f;
-	_toneMappingMode = HDRToneMapMode::ACESToneMapping;
+	_toneMappingMode = HDRToneMapMode::ACES_Narkowicz;
 
 	_lowResEnabled = false;
 	_lockLightAndCamera = true;

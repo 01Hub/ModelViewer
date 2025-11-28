@@ -273,7 +273,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>428</width>
-                   <height>735</height>
+                   <height>738</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1016,8 +1016,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>167</width>
-                   <height>164</height>
+                   <width>428</width>
+                   <height>738</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1182,8 +1182,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>98</width>
-                   <height>28</height>
+                   <width>428</width>
+                   <height>738</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1212,8 +1212,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>98</width>
-                   <height>28</height>
+                   <width>428</width>
+                   <height>738</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1249,8 +1249,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>219</width>
-                   <height>534</height>
+                   <width>428</width>
+                   <height>738</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1627,7 +1627,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>428</width>
-                   <height>735</height>
+                   <height>738</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -2301,21 +2301,36 @@
                                </size>
                               </property>
                               <property name="currentIndex">
-                               <number>1</number>
+                               <number>0</number>
                               </property>
                               <item>
                                <property name="text">
-                                <string>Reinhard</string>
+                                <string>ACES Narkowicz</string>
                                </property>
                               </item>
                               <item>
                                <property name="text">
-                                <string>ACES</string>
+                                <string>ACES Hill</string>
+                               </property>
+                              </item>
+                              <item>
+                               <property name="text">
+                                <string>ACES Hill Exposure Boost</string>
+                               </property>
+                              </item>
+                              <item>
+                               <property name="text">
+                                <string>Khronos PBR Neutral</string>
                                </property>
                               </item>
                               <item>
                                <property name="text">
                                 <string>Uncharted 2</string>
+                               </property>
+                              </item>
+                              <item>
+                               <property name="text">
+                                <string>Reinhard</string>
                                </property>
                               </item>
                              </widget>

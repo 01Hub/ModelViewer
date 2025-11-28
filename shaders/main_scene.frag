@@ -223,7 +223,10 @@ uniform float screenGamma = 2.2;
 
 uniform float envMapExposure = 1.0;
 uniform float iblExposure = 1.0;
-uniform int toneMapMode = 1; // 0=Reinhard, 1=ACES, 2=Uncharted2
+
+// 0=ACES_Narkowicz, 1=ACES_Hill, 2=AECS_Hill_Exposure_Boost, 
+// 3=KhronosPbrNeutral, 4=Uncharted2, 5=Reinhard(Linear)
+uniform int toneMapMode = 0; 
 
 uniform bool skyBoxEnabled;
 uniform sampler2D skyboxColorTexture;
@@ -443,9 +446,9 @@ vec3 acesToneMapping(vec3 color);
 vec3 uncharted2ToneMapping(vec3 color);
 vec3 applyToneMapping(vec3 color);
 
-vec3 srgbToLinear(vec3 c);
-vec3 linearToSrgb(vec3 c);
-float saturationSRGB(vec3 c);
+vec3 sRGBToLinear(vec3 c);
+vec3 linearTosRGB(vec3 c);
+float sRGBSaturation(vec3 c);
 float readMaskChannel(vec4 texel, int channel);
 vec3 computeBaseColor(vec2 uv,
 	vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
@@ -811,7 +814,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		// Scale specular; keep non-spec premultiplied
 		vec3 floorRGB = baseNoSpec * fa + specOnly * (u_floorSpecularScale * fresDampen);
 
-		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB * iblExposure);
+		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB);
 		if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
 		return vec4(floorRGB, fa);
 	}
@@ -891,7 +894,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	if (hdrToneMapping)
 	{
 		composed *= envMapExposure;
-		composed = applyToneMapping(composed * iblExposure);
+		composed = applyToneMapping(composed);
 	}
 	if (gammaCorrection)
 		composed = pow(composed, vec3(1.0 / screenGamma));
@@ -1113,7 +1116,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		unlitColor += emissive_L;
 
-		if (hdrToneMapping) unlitColor = applyToneMapping(unlitColor * iblExposure);
+		if (hdrToneMapping) unlitColor = applyToneMapping(unlitColor);
 		if (gammaCorrection) unlitColor = pow(unlitColor, vec3(1.0 / screenGamma));
 
 		return vec4(unlitColor, 1.0);
@@ -1387,7 +1390,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		vec3 floorRGB_L = baseNoSpec_L * fa + specOnly_L * (u_floorSpecularScale * fresDampen);
 
-		if (hdrToneMapping) floorRGB_L = applyToneMapping(floorRGB_L * iblExposure);
+		if (hdrToneMapping) floorRGB_L = applyToneMapping(floorRGB_L);
 		if (gammaCorrection) floorRGB_L = pow(floorRGB_L, vec3(1.0 / screenGamma));
 		return vec4(floorRGB_L, fa);
 	}
@@ -1489,7 +1492,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (hdrToneMapping)
 	{
 		outRGB *= envMapExposure;
-		outRGB = applyToneMapping(outRGB * iblExposure);
+		outRGB = applyToneMapping(outRGB);
 	}
 	if (gammaCorrection)
 	{
@@ -2749,16 +2752,16 @@ vec3 calculateBackgroundColor()
 }
 
 // sRGB <-> Linear helpers (fast-enough approximations)
-vec3 srgbToLinear(vec3 c)
+vec3 sRGBToLinear(vec3 c)
 {
 	return pow(c, vec3(2.2));
 }
-vec3 linearToSrgb(vec3 c)
+vec3 linearTosRGB(vec3 c)
 {
 	return pow(c, vec3(1.0 / 2.2));
 }
 
-float saturationSRGB(vec3 c)
+float sRGBSaturation(vec3 c)
 {
 	float mx = max(max(c.r, c.g), c.b);
 	float mn = min(min(c.r, c.g), c.b);
@@ -2788,9 +2791,9 @@ vec3 computeBaseColor(vec2 uv,
 	vec3 vtx_sRGB = useVertexColor ? vertexColor_sRGB : vec3(1.0);
 
 	// Convert to linear for math
-	vec3 base_L = srgbToLinear(base_sRGB);
-	vec3 tex_L = srgbToLinear(tex_sRGB);
-	vec3 vtx_L = srgbToLinear(vtx_sRGB);
+	vec3 base_L = sRGBToLinear(base_sRGB);
+	vec3 tex_L = sRGBToLinear(tex_sRGB);
+	vec3 vtx_L = sRGBToLinear(vtx_sRGB);
 
 	vec3 out_L;
 
@@ -2821,7 +2824,7 @@ vec3 computeBaseColor(vec2 uv,
 		else
 		{
 			// AutoGray (default): only tint grayscale texels
-			float sat = saturationSRGB(tex_sRGB);        // in sRGB is fine for detection
+			float sat = sRGBSaturation(tex_sRGB);        // in sRGB is fine for detection
 			float grayMask = 1.0 - smoothstep(grayEpsilon, grayEpsilon * 4.0, sat);
 			// Use linear luminance for intensity
 			float lum = dot(tex_L, vec3(0.2126, 0.7152, 0.0722));
@@ -2906,14 +2909,83 @@ float sampleFallbackOpacity(vec2 uv)
 	return clamp(val, 0.0, 1.0);
 }
 
-vec3 acesToneMapping(vec3 color)
+
+// ============================================================================
+// Tone Mapping
+// ============================================================================
+
+// sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT
+const mat3 ACESInputMat = mat3
+(
+    0.59719, 0.07600, 0.02840,
+    0.35458, 0.90834, 0.13383,
+    0.04823, 0.01566, 0.83777
+);
+
+
+// ODT_SAT => XYZ => D60_2_D65 => sRGB
+const mat3 ACESOutputMat = mat3
+(
+    1.60475, -0.10208, -0.00327,
+    -0.53108,  1.10813, -0.07276,
+    -0.07367, -0.00605,  1.07602
+);
+
+// ACES tone map (faster approximation)
+// see: https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+vec3 toneMapACES_Narkowicz(vec3 color)
 {
-	const float a = 2.51;
-	const float b = 0.03;
-	const float c = 2.43;
-	const float d = 0.59;
-	const float e = 0.14;
-	return clamp((color * (a * color + b)) / (color * (c * color + d) + e), 0.0, 1.0);
+    const float A = 2.51;
+    const float B = 0.03;
+    const float C = 2.43;
+    const float D = 0.59;
+    const float E = 0.14;
+    return clamp((color * (A * color + B)) / (color * (C * color + D) + E), 0.0, 1.0);
+}
+
+// ACES filmic tone map approximation
+// see https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
+vec3 RRTAndODTFit(vec3 color)
+{
+    vec3 a = color * (color + 0.0245786) - 0.000090537;
+    vec3 b = color * (0.983729 * color + 0.4329510) + 0.238081;
+    return a / b;
+}
+
+vec3 toneMapACES_Hill(vec3 color)
+{
+    color = ACESInputMat * color;
+
+    // Apply RRT and ODT
+    color = RRTAndODTFit(color);
+
+    color = ACESOutputMat * color;
+
+    // Clamp to [0, 1]
+    color = clamp(color, 0.0, 1.0);
+
+    return color;
+}
+
+// Khronos PBR neutral tone mapping
+vec3 toneMap_KhronosPbrNeutral( vec3 color )
+{
+    const float startCompression = 0.8 - 0.04;
+    const float desaturation = 0.15;
+
+    float x = min(color.r, min(color.g, color.b));
+    float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+    color -= offset;
+
+    float peak = max(color.r, max(color.g, color.b));
+    if (peak < startCompression) return color;
+
+    const float d = 1. - startCompression;
+    float newPeak = 1. - d * d / (peak + d - startCompression);
+    color *= newPeak / peak;
+
+    float g = 1. - 1. / (desaturation * (peak - newPeak) + 1.);
+    return mix(color, newPeak * vec3(1, 1, 1), g);
 }
 
 vec3 uncharted2ToneMapping(vec3 color)
@@ -2935,17 +3007,37 @@ vec3 applyToneMapping(vec3 color)
 {
 	if (!hdrToneMapping) return color;
 
-	if (toneMapMode == 1)
+	color *= iblExposure;
+
+	if (toneMapMode == 0)
 	{
-		return acesToneMapping(color);
+		color = toneMapACES_Narkowicz(color);
+	}	
+	else if (toneMapMode == 1)
+	{
+		color = toneMapACES_Hill(color);
 	}
 	else if (toneMapMode == 2)
 	{
-		return uncharted2ToneMapping(color);
+		// boost exposure as discussed in https://github.com/mrdoob/three.js/pull/19621
+		// this factor is based on the exposure correction of Krzysztof Narkowicz in his
+		// implemetation of ACES tone mapping
+		color /= 0.6;
+		color = toneMapACES_Hill(color);
+	}
+	else if (toneMapMode == 3)
+	{
+		color = toneMap_KhronosPbrNeutral(color);
+	}
+	else if (toneMapMode == 4)
+	{
+		color = uncharted2ToneMapping(color);		
 	}
 	else
 	{
 		// Default Reinhard
-		return color / (color + vec3(1.0));
+		color = color / (color + vec3(1.0));
 	}
+
+	return color;
 }

@@ -37,7 +37,7 @@ enum class RenderingMode { ADS_PHONG, PBR_DIRECT_LIGHTING, PBR_TEXTURED_LIGHTING
 enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT };
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
 enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3,  GRID = 4, DIAGONAL_CROSS = 5 };
-enum class HDRToneMapMode { Reinhard, ACESToneMapping , Uncharted2ToneMapping };
+enum class HDRToneMapMode { ACES_Narkowicz, ACES_Hill, AECS_Hill_Exposure_Boost, KhronosPbrNeutral, Uncharted2ToneMapping, Reinhard};
 
 class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 {
