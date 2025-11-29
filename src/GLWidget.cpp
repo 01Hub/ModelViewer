@@ -518,8 +518,8 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("irradianceMap", 3);
 	_fgShader->setUniformValue("prefilterMap", 4);
 	_fgShader->setUniformValue("brdfLUT", 5);
-	_fgShader->setUniformValue("transmissionSceneTexture", 8);
-	_fgShader->setUniformValue("transmissionDepthTexture", 9);
+	_fgShader->setUniformValue("transmissionSceneTexture", 7);
+	_fgShader->setUniformValue("transmissionDepthTexture", 8);
 	_fgShader->setUniformValue("shadowSamples", 27.0f);
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
@@ -4501,10 +4501,10 @@ void GLWidget::render(GLCamera* camera)
 	}
 
 	// Bind transmission texture for shader sampling
-	glActiveTexture(GL_TEXTURE8);  // Use a dedicated texture unit
+	glActiveTexture(GL_TEXTURE7);  // Use a dedicated texture unit
 	glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
 
-	glActiveTexture(GL_TEXTURE9);  // For depth-based calculations (Phase 2)
+	glActiveTexture(GL_TEXTURE8);  // For depth-based calculations (Phase 2)
 	glBindTexture(GL_TEXTURE_2D, _transmissionDepthTexture);
 
 	// --- 4) Transparent meshes (with clipping) ---
@@ -5102,10 +5102,10 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	}
 
 	// --- RENDER 2: OPAQUE MESHES (with clipping) ---
-	glActiveTexture(GL_TEXTURE8);
+	glActiveTexture(GL_TEXTURE7);
 	glBindTexture(GL_TEXTURE_2D, _whiteTexture);  // Any valid texture works
 
-	glActiveTexture(GL_TEXTURE9);
+	glActiveTexture(GL_TEXTURE8);
 	glBindTexture(GL_TEXTURE_2D, _whiteTexture);  // Any valid texture works
 
 	glActiveTexture(GL_TEXTURE0);
@@ -6580,14 +6580,8 @@ void GLWidget::setDisplayMode(DisplayMode mode)
 
 void GLWidget::setTransmissionEnabled(const bool& enabled)
 {
-	_transmissionEnabled = enabled;
-	// delete the transmission texture and fbo to force re-creation
-	if (_transmissionFBO != 0)
-		glDeleteFramebuffers(1, &_transmissionFBO);
-	if (_transmissionColorTexture != 0)
-		glDeleteTextures(1, &_transmissionColorTexture);
-	if (_transmissionDepthTexture != 0)
-		glDeleteTextures(1, &_transmissionDepthTexture);
+	_transmissionEnabled = enabled;	
+	initTransmissionBuffer();
 	update();
 }
 
