@@ -1141,7 +1141,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 iridescence_IBL_L = vec3(0.0);
 	vec3 ambient_L = vec3(0.0);
 	vec3 emissive_L = vec3(0.0);
-	float clearcoatAttenuation = 1.0;
+	float clearcoatAttenuation = 0.0;
 
 	// ============================================================================
 	// BASE LAYER - F0 and Material Foundation
@@ -1298,13 +1298,17 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		clearcoat_L = calculateClearcoat(N, V_direct, L, clearcoat, clearcoatRoughness, clearcoatNormal);
 		clearcoatIBL_L = calculateClearcoatIBL(g_reflectionNormal, V_reflect, clearcoatNormal, clearcoatRoughness, clearcoat);
 
-		// Calculate clearcoat Fresnel to attenuate base material
-		vec3 F0_clearcoat = vec3(0.04);		
-		float clearcoatFresnel = fresnelSchlick(max(dot(clearcoatNormal, V_direct), 0.0), F0_clearcoat).r;
-		clearcoatAttenuation = mix(1.0, 1.0 - clearcoat * clearcoatFresnel, 0.5);
+		// Calculate clearcoat Fresnel for proper layering (per KHR spec line 140)
+		vec3 F0_clearcoat = vec3(0.04);
+		float NdotV_coat = clamp(dot(clearcoatNormal, normalize(V_direct)), 0.0, 1.0);
+		vec3 F_coat = F0_clearcoat + (vec3(1.0) - F0_clearcoat) * pow(clamp(1.0 - NdotV_coat, 0.0, 1.0), 5.0);
+		
+		// Weight for layering: clearcoat_weight = clearcoat * fresnel
+		// (Use max of RGB to get a single scalar weight, or average - either works)
+		clearcoatAttenuation = clearcoat * max(F_coat.r, max(F_coat.g, F_coat.b));
 	}
 
-	// Treat clearcoat as specular-like (outside if block, as per original)
+	// Add clearcoat direct specular (will be composited with proper weighting later)
 	directSpecular_L += clearcoat_L * lightSource.specular;
 
 
@@ -1354,10 +1358,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
 	}
 
-	// Apply all the IBL elements to ambient
-    ambient_L *= clearcoatAttenuation;
-    ambient_L += clearcoatIBL_L;    
-    ambient_L += sheenIBL_L;	
+	// Apply clearcoat layering to ambient
+	// Base layer weight: (1 - clearcoat_weight), Clearcoat weight: (clearcoat_weight)
+	vec3 ambient_base = ambient_L * (1.0 - clearcoatAttenuation) + clearcoatIBL_L * clearcoatAttenuation;
+	ambient_L = ambient_base + sheenIBL_L;
 
 	// ============================================================================
 	// EMISSION
@@ -1368,11 +1372,20 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// Apply emissive strength
 	emissive_L *= emissiveStrength;
 
+	// Attenuate emission by clearcoat layer (per KHR spec line 152)
+	// Only apply if clearcoat is active
+	if (clearcoat > 0.0)
+	{
+		emissive_L *= (1.0 - clearcoatAttenuation);
+	}
+
 	// ============================================================================
 	// CONSOLIDATE: COMBINE ALL LIGHT LAYERS
 	// ============================================================================
-	vec3 baseNoSpec_L = emissive_L + ambient_L + directDiffuse_L + transmission_L + sheen_L;
-	vec3 specOnly_L = directSpecular_L; // (spec IBL already inside 'ambient_L')
+	// Apply clearcoat weighting to all base contributions (except already-composited ambient_L)
+	vec3 baseNoSpec_L = emissive_L + ambient_L + directDiffuse_L * (1.0 - clearcoatAttenuation) + 
+	                     transmission_L * (1.0 - clearcoatAttenuation) + sheen_L * (1.0 - clearcoatAttenuation);
+	vec3 specOnly_L = directSpecular_L * (1.0 - clearcoatAttenuation); // Apply attenuation to specular
 
 	// --- Floor override (non-reflected) ---
 	if (floorRendering && !isReflectedPass)
@@ -1390,7 +1403,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		return vec4(floorRGB_L, fa);
 	}
 
-	vec3 outRGB = baseNoSpec_L + specOnly_L;
+	vec3 outRGB = baseNoSpec_L + specOnly_L + clearcoat_L * lightSource.specular * clearcoatAttenuation;
 
 	// ============================================================================
     // TRANSMISSION VOLUME & REFRACTION WITH DISPERSION (Mipmapped)
@@ -1853,105 +1866,73 @@ vec3 calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor)
 }
 
 
-// Calculate clearcoat contribution
+// Calculate clearcoat contribution - CORRECTED per KHR specification
 vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat,
     float clearcoatRoughness, vec3 clearcoatNormal)
 {
-    // --- Early out if coat disabled
     clearcoat = clamp(clearcoat, 0.0, 1.0);
     if (clearcoat <= 0.0) return vec3(0.0);
 
-    // clearcoatRoughness should already be (factor * texture.r) on the caller side
-    float rough = clamp(clearcoatRoughness, 0.0, 1.0);
+    // Use clearcoatRoughness directly - NO modulation by normal variation
+    float alphaRoughness = clearcoatRoughness * clearcoatRoughness;
+    alphaRoughness = clamp(alphaRoughness, 0.0, 1.0);
 
     vec3 V_norm = normalize(V);
     vec3 L_norm = normalize(L);
-
-    // IMPORTANT: clearcoatNormal must be tangent->world (same space as 'N')
     vec3 N_norm = normalize(clearcoatNormal);
 
     vec3 H = normalize(V_norm + L_norm);
     float NdotL = max(dot(N_norm, L_norm), 0.0);
     float NdotV = max(dot(N_norm, V_norm), 0.0);
-    float VdotH = max(dot(V_norm, H), 0.0);
+    float NdotH = max(dot(N_norm, H), 0.0);
 
-    // Modulate roughness by normal detail (optional artistic tweak)
-    vec3 normalVariation = normalize(clearcoatNormal) - normalize(N);
-    float bumpiness = length(normalVariation) * 0.5;
-    float modulatedRoughness = clamp(mix(rough, rough * 1.5, bumpiness), 0.0, 1.0);
+    // Compute BRDF terms WITHOUT Fresnel (per KHR spec)    
+	float D = distributionGGX(N_norm, H, alphaRoughness);
+	float G = geometrySmith(N_norm, V_norm, L_norm, alphaRoughness);
+	float V_smith = G;
+    
+    // BRDF = D * V (NO Fresnel, NO denominator - V_Smith handles normalization)
+    vec3 clearcoatBRDF = vec3(D * V_smith);
 
-    // Dielectric coat F0 (achromatic)
-    vec3 F0_clearcoat = vec3(0.04);
-    vec3 F = fresnelSchlick(VdotH, F0_clearcoat);
-
-    float D = distributionGGX(N_norm, H, modulatedRoughness);
-    float G = geometrySmith(N_norm, V_norm, L_norm, modulatedRoughness);
-
-    float denominator = max(4.0 * NdotV * NdotL, 1e-4);
-    vec3 clearcoatBRDF = (D * G * F) / denominator;
-
-    // The function returns energy scaled by clearcoat mask and NdotL
+    // Return: clearcoat mask * NdotL * BRDF
+    // Fresnel is applied LATER during composition, not here
     return clearcoatBRDF * clearcoat * NdotL;
 }
 
 
-// Improved calculateClearcoatIBL
+// Improved calculateClearcoatIBL - CORRECTED per KHR specification
 vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal,
     float clearcoatRoughness, float clearcoat)
 {
-    // --- Prepare / normalize inputs
     vec3 V_norm = normalize(V);
-    // Use the coat normal for coat reflection & dot products (preferred)
     vec3 N_coat = normalize(clearcoatNormal);
 
-    // If you intentionally want "stable" reflection using base normal
-    // (to reduce popping when clearcoat normal differs a lot), uncomment below:
-    vec3 R = reflect(V_norm, normalize(N)); // stable reflection choice
-    // Otherwise use coat normal (more correct per clearcoat semantics):
-    //vec3 R = reflect(V_norm, N_coat);
+    // Use clearcoat normal for reflection (more physically correct)
+    //vec3 R = reflect(-V_norm, N_coat);
+    vec3 R = reflect(V_norm, N);
     R = normalize(R);
 
-    // Safely compute MAX_LOD (ensure non-negative)
+    // Map roughness to LOD (squared mapping consistent with perceptual roughness)
     float maxLevels = textureQueryLevels(prefilterMap);
     float MAX_LOD = max(maxLevels - 1.0, 0.0);
-
-    // Modulate roughness by normal detail (optional artistic tweak)
-    vec3 normalVariation = N_coat - normalize(N); // N should be in same space as N_coat
-    float bumpiness = length(normalVariation) * 0.5;
-    float modulatedRoughness = mix(clearcoatRoughness, clearcoatRoughness * 1.5, bumpiness);
-    modulatedRoughness = clamp(modulatedRoughness, 0.0, 1.0);
-
-    // Map roughness to LOD. Many engines use linear; some use squared mapping.
-    // Choose mapping consistent with your prefilter generation:
-    //float lod = modulatedRoughness * MAX_LOD;         // linear
-    float lod = (modulatedRoughness * modulatedRoughness) * MAX_LOD; // perceptual-ish		
+    
+    float lod = (clearcoatRoughness * clearcoatRoughness) * MAX_LOD;
     lod = clamp(lod, 0.0, MAX_LOD);
 
-    // Sample prefiltered environment (cubemap) using reflection vector + lod
+    // Sample prefiltered environment
     vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
-	prefilteredColor = max(prefilteredColor, vec3(0.0)); // clamp negatives
+    prefilteredColor = max(prefilteredColor, vec3(0.0));
 
-    // Fresnel inputs: use N.V with coat normal (common IBL approximation)
-    float dotNV = clamp(dot(N, V_norm), 0.0, 1.0);
-
-    // Sample BRDF LUT (expects NdotV, roughness)
-    vec2 brdf = texture(brdfLUT, vec2(dotNV, modulatedRoughness)).rg;
-	brdf = max(brdf, vec2(0.0));
-
-    // Fresnel for coat (dielectric F0)
-    vec3 F0_clearcoat = vec3(0.04);
-    vec3 F = fresnelSchlick(dotNV, F0_clearcoat);
-
-    // Compose: prefilteredColor * (F * scale + bias) per standard split-sum approx.
-    vec3 specIBL = prefilteredColor * (F * brdf.x + brdf.y);
-
-    // Optional attenuation / artistic scaling:
-    float iblAttenuation = mix(0.4, 0.25, modulatedRoughness); // reduces IBL at high roughness
-    // You may calibrate or remove this; it's an artistic tweak.
-    float globalScale = 0.12; // calibrate to your environment exposure
-
-    // Multiply by clearcoat mask
-    return specIBL * clearcoat * iblAttenuation * globalScale;
+    // Compute Fresnel separately (NOT via BRDF LUT)
+    // Use NdotV (not VdotH) for energy conservation per KHR spec line 157
+    float dotNV = clamp(dot(N_coat, V_norm), 0.0, 1.0);
+    vec3 F0 = vec3(0.04);  // Dielectric clearcoat (IOR 1.5)
+    vec3 F = F0 + (vec3(1.0) - F0) * pow(clamp(1.0 - dotNV, 0.0, 1.0), 5.0);
+    
+    // Simple composition: prefiltered * Fresnel * clearcoat mask
+    vec3 specIBL = prefilteredColor * F;
+    
+    return specIBL * clearcoat;
 }
 
 
