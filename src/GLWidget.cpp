@@ -3380,6 +3380,10 @@ void GLWidget::loadIrradianceMap()
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
+	GLint envMapWidth = 512; // fallback
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_TEXTURE_WIDTH, &envMapWidth);
+
 	glViewport(0, 0, irradianceSize, irradianceSize); // don't forget to configure the viewport to the capture dimensions.
 	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 	for (unsigned int i = 0; i < 6; ++i)
@@ -3403,26 +3407,30 @@ void GLWidget::loadIrradianceMap()
 	//std::cout << "GLWidget::loadIrradianceMap : _prefilterMap = " << _prefilterMap << std::endl;
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
 	constexpr int prefilterSize = 256;
-	for (unsigned int i = 0; i < 6; ++i)
+	unsigned int maxMipLevels = static_cast<unsigned int>(std::log2(prefilterSize)) + 1;
+
+	// Step 1: Allocate ALL mip levels with correct sizing
+	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
-		if (_skyBoxTextureHDRI)
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F, prefilterSize, prefilterSize, 0, GL_RGB, GL_FLOAT, nullptr);
-		else
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, prefilterSize, prefilterSize, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+		unsigned int mipSize = static_cast<unsigned int>(prefilterSize * std::pow(0.5, mip));
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			if (_skyBoxTextureHDRI)
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F, mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
+			else
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB16F, mipSize, mipSize, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+		}
 	}
+
+	// Step 2: Set texture parameters BEFORE rendering
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR); // be sure to set minifcation filter to mip_linear
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-	// generate mipmaps for the cubemap so OpenGL automatically allocates the required memory.
-	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
-
-	// Apply anisotropic filtering to the cubemap.
 	glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
 
-	// PBR: run a quasi monte-carlo simulation on the environment lighting to create a prefilter (cube)map.
-	// ----------------------------------------------------------------------------------------------------
+	// Step 3: Render to mips
 	_skyBox->setProg(_prefilterShader.get());
 	_prefilterShader->bind();
 	_prefilterShader->setUniformValue("environmentMap", 1);
@@ -3431,20 +3439,18 @@ void GLWidget::loadIrradianceMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
-	unsigned int maxMipLevels = static_cast<unsigned int>(std::log2(prefilterSize)) + 1;
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
-		// reisze framebuffer according to mip-level size.
 		unsigned int mipWidth = prefilterSize * std::pow(0.5, mip);
 		unsigned int mipHeight = prefilterSize * std::pow(0.5, mip);
 		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
 		glViewport(0, 0, mipWidth, mipHeight);
 
-		//float roughness = (float)mip / (float)(maxMipLevels - 1);
 		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
 		_prefilterShader->bind();
 		_prefilterShader->setUniformValue("roughness", roughness);
+		_prefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
 		for (unsigned int i = 0; i < 6; ++i)
 		{
 			_prefilterShader->bind();
@@ -3453,11 +3459,11 @@ void GLWidget::loadIrradianceMap()
 			model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
 			_prefilterShader->setUniformValue("modelMatrix", model);
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _prefilterMap, mip);
-
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			_skyBox->render();
 		}
 	}
+
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
 
 	// PBR: generate a 2D LUT from the BRDF equations used.
