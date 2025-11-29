@@ -4879,36 +4879,16 @@
       "label": "Clearcoat Materials",
       "items": [
         {
-          "ambient": [
-            0.18,
-            0.06,
-            0.08
-          ],
-          "diffuse": [
-            0.45,
-            0.12,
-            0.18
-          ],
-          "specular": [
-            0.75,
-            0.65,
-            0.68
-          ],
-          "emissive": [
-            0.0,
-            0.0,
-            0.0
-          ],
-          "shininess": 0.18,
+          "ambient": [ 0.271058, 0.0, 0.067765 ],
+          "diffuse": [ 0.501961, 0.0, 0.125490 ],
+          "specular": [ 1.0, 0.20, 0.40 ],
+          "emissive": [ 0.0, 0.0, 0.0 ],
+          "shininess": 0.15,
           "metallic": false,
           "opacity": 1.0,
-          "albedo": [
-            0.45,
-            0.12,
-            0.18
-          ],
-          "metalness": 0.0,
-          "roughness": 0.25,
+          "albedo": [ 0.501961, 0.0, 0.125490 ],
+          "metalness": 0.50,
+          "roughness": 0.15,
           "ior": 1.5,
           "transmission": null,
           "clearcoat": 1.0,
