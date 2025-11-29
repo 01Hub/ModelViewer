@@ -6578,6 +6578,19 @@ void GLWidget::setDisplayMode(DisplayMode mode)
 	emit displayModeChanged(static_cast<int>(_displayMode));
 }
 
+void GLWidget::setTransmissionEnabled(const bool& enabled)
+{
+	_transmissionEnabled = enabled;
+	// delete the transmission texture and fbo to force re-creation
+	if (_transmissionFBO != 0)
+		glDeleteFramebuffers(1, &_transmissionFBO);
+	if (_transmissionColorTexture != 0)
+		glDeleteTextures(1, &_transmissionColorTexture);
+	if (_transmissionDepthTexture != 0)
+		glDeleteTextures(1, &_transmissionDepthTexture);
+	update();
+}
+
 float GLWidget::getZScale() const
 {
 	return _zScale;
@@ -6657,6 +6670,7 @@ void GLWidget::setYTran(const float& yTran)
 {
 	_yTran = yTran;
 }
+
 
 float GLWidget::getXTran() const
 {

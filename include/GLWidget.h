@@ -221,7 +221,7 @@ public:
 	void setAnisotropicFilteringLevel(int level) { _anisotropicFilteringLevel = level; }
 	int getAnisotropicFilteringLevel() const { return _anisotropicFilteringLevel; }
 
-	void setTransmissionEnabled(const bool& enabled) { _transmissionEnabled = enabled; }
+	void setTransmissionEnabled(const bool& enabled);
 	bool isTransmissionEnabled() const { return _transmissionEnabled; }
 
 public:
