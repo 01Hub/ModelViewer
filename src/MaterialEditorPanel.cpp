@@ -157,6 +157,27 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	transmissionSpin->setValue(0.0); // Default transmission
 	formLayout->addRow("Transmission:", transmissionSpin);
 
+	thicknessSpin = new QDoubleSpinBox();
+	thicknessSpin->setRange(0.01, 10.0);
+	thicknessSpin->setSingleStep(0.1);
+	thicknessSpin->setValue(0.01); // Default thickness
+	formLayout->addRow("Thickness:", thicknessSpin);
+
+	attenuationDistanceSpin = new QDoubleSpinBox();
+	attenuationDistanceSpin->setRange(0.0, 100.0);
+	attenuationDistanceSpin->setSingleStep(0.1);
+	attenuationDistanceSpin->setValue(10.0); // Default attenuation distance
+	formLayout->addRow("Attenuation Distance:", attenuationDistanceSpin);
+
+	attenuationColorButton = new QPushButton("Pick Attenuation Color");
+	formLayout->addRow("Attenuation Color:", attenuationColorButton);
+
+	dispersionSpin = new QDoubleSpinBox();
+	dispersionSpin->setRange(0.0, 1.0);
+	dispersionSpin->setSingleStep(0.01);
+	dispersionSpin->setValue(0.0); // Default dispersion
+	formLayout->addRow("Dispersion:", dispersionSpin);
+
 	alphaThresholdSpin = new QDoubleSpinBox();
 	alphaThresholdSpin->setRange(0.0, 1.0);
 	alphaThresholdSpin->setSingleStep(0.01);
@@ -314,6 +335,43 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	connect(transmissionSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setTransmission(val);
+			previewWidget->setMaterial(_currentMaterial);
+			emit materialChanged(_currentMaterial);
+		});
+
+	connect(thicknessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+		this, [=](double val) {
+			_currentMaterial.setThicknessFactor(val);
+			previewWidget->setMaterial(_currentMaterial);
+			emit materialChanged(_currentMaterial);
+		});
+
+	connect(attenuationDistanceSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+		this, [=](double val) {
+			_currentMaterial.setAttenuationDistance(val);
+			previewWidget->setMaterial(_currentMaterial);
+			emit materialChanged(_currentMaterial);
+		});
+
+	connect(attenuationColorButton, &QPushButton::clicked, this, [=]() {
+		QColor attenuationColor(
+			int(_currentMaterial.attenuationColor().x() * 255),
+			int(_currentMaterial.attenuationColor().y() * 255),
+			int(_currentMaterial.attenuationColor().z() * 255)
+		);
+		QColor c = QColorDialog::getColor(attenuationColor, this, "Select Attenuation Color");
+		if (c.isValid())
+		{
+			_currentMaterial.setAttenuationColor(QVector3D(c.redF(), c.greenF(), c.blueF()));
+			previewWidget->setMaterial(_currentMaterial);
+			attenuationColorButton->setStyleSheet(makeButtonStyleSheet(c));
+			emit materialChanged(_currentMaterial);
+		}
+		});
+
+	connect(dispersionSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+		this, [=](double val) {
+			_currentMaterial.setDispersion(val);
 			previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
@@ -746,6 +804,15 @@ void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)
 
 	iorSpin->setValue(mat.ior());
 	transmissionSpin->setValue(mat.transmission());
+	thicknessSpin->setValue(mat.thicknessFactor());
+	attenuationDistanceSpin->setValue(mat.attenuationDistance());
+	QColor attenuationColor(
+		int(mat.attenuationColor().x() * 255),
+		int(mat.attenuationColor().y() * 255),
+		int(mat.attenuationColor().z() * 255)
+	);
+	attenuationColorButton->setStyleSheet(makeButtonStyleSheet(attenuationColor));
+	dispersionSpin->setValue(mat.dispersion());
 	alphaThresholdSpin->setValue(mat.alphaThreshold());
 
 	shadingCombo->setCurrentIndex(static_cast<int>(mat.shadingModel()));

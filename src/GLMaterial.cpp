@@ -3388,10 +3388,18 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	}
 
 	if (m.contains("roughness"))        mat._roughness = qBound(0.0f, readFloat(m.value("roughness"), mat._roughness), 1.0f);
+	// KHR_materials_transmission
 	if (m.contains("ior"))              mat._ior = readFloat(m.value("ior"), mat._ior);
 	if (m.contains("transmission"))     mat._transmission = readFloat(m.value("transmission"), mat._transmission);
+	if (m.contains("thickness")) mat._thicknessFactor = readFloat(m.value("thickness"), mat._thicknessFactor);
+	if (m.contains("attenuationDistance")) mat._attenuationDistance = readFloat(m.value("attenuationDistance"), mat._attenuationDistance);
+	if (m.contains("attenuationColor"))  mat._attenuationColor = readVec3(m.value("attenuationColor"), mat._attenuationColor);
+	if (m.contains("dispersion")) 	  mat._dispersion = readFloat(m.value("dispersion"), mat._dispersion);
+
+	// KHR_materials_clearcoat
 	if (m.contains("clearcoat"))        mat._clearcoat = readFloat(m.value("clearcoat"), mat._clearcoat);
 	if (m.contains("clearcoatRoughness")) mat._clearcoatRoughness = readFloat(m.value("clearcoatRoughness"), mat._clearcoatRoughness);
+	// KHR_materials_sheen
 	if (m.contains("sheenColor"))       mat._sheenColor = readVec3(m.value("sheenColor"), mat._sheenColor);
 	if (m.contains("sheenRoughness"))   mat._sheenRoughness = readFloat(m.value("sheenRoughness"), mat._sheenRoughness);
 	// KHR_materials_iridescence
@@ -3561,6 +3569,10 @@ QVariantMap GLMaterial::toVariantMap() const
 	m.insert("roughness", QVariant(roughness()));
 	m.insert("ior", QVariant(ior()));
 	m.insert("transmission", QVariant(transmission()));
+	m.insert("thickness", QVariant(thicknessFactor()));
+	m.insert("attenuationDistance", QVariant(attenuationDistance()));
+	m.insert("attenuationColor", vec3ToList(attenuationColor()));
+	m.insert("dispersion", QVariant(dispersion()));
 	m.insert("clearcoat", QVariant(clearcoat()));
 	m.insert("clearcoatRoughness", QVariant(clearcoatRoughness()));
 	m.insert("sheenColor", vec3ToList(sheenColor()));

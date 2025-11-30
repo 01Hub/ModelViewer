@@ -43,6 +43,10 @@ private:
 	QDoubleSpinBox* sheenRoughnessSpin;
 	QDoubleSpinBox* iorSpin;
 	QDoubleSpinBox* transmissionSpin;
+	QDoubleSpinBox* thicknessSpin;
+	QDoubleSpinBox* attenuationDistanceSpin;
+	QPushButton* attenuationColorButton;
+	QDoubleSpinBox* dispersionSpin;
 	QDoubleSpinBox* alphaThresholdSpin;
 
 	QComboBox* shadingCombo;
