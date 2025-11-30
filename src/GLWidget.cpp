@@ -2266,6 +2266,8 @@ void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const GLMateria
 		{
 			TriangleMesh* mesh = _meshStore[id];
 			mesh->setMaterial(mat);
+			if(mat.hasTransmission())
+				setTransmissionEnabled(true);
 		}
 		catch (const std::exception& ex)
 		{
