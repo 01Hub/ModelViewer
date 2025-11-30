@@ -1260,9 +1260,21 @@ inline bool GLMaterial::isMetallic() const
 }
 
 inline bool GLMaterial::isTransparent() const
-{
-	return _opacity < 1.0f || _transmission > 0.0f ||
-		_blendMode == BlendMode::Alpha || _blendMode == BlendMode::Additive;
+{	
+	// If it has transmission, it's ALWAYS transparent (exclude from FBO)
+	if (_transmission > 0.0f)
+		return true;
+	// If it's OPAQUE, it's NOT transparent
+	if (_blendMode == GLMaterial::BlendMode::Opaque)
+		return false;
+	// If it has BLEND mode (not MASK or OPAQUE), it's transparent
+	if (_blendMode == GLMaterial::BlendMode::Alpha)  // BLEND mode
+		return true;
+	// If it's masked, it's NOT transparent (exclude from FBO)
+	if (_blendMode == GLMaterial::BlendMode::Masked)
+		return false;
+
+	return (_opacity < 1.0) || _hasTextureAlpha || _transmission > 0.0f;
 }
 
 inline bool GLMaterial::isEmissive() const
