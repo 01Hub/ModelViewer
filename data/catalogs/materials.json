@@ -11911,7 +11911,7 @@
       "label": "Clearcoat Materials"
     },
     {
-      "id": "transmission_materials",
+      "id": "alpha_materials",
       "items": [
         {
           "albedo": [
@@ -11968,7 +11968,7 @@
             0.9,
             0.9
           ],
-          "transmission": 0.85,
+          "transmission": 0,
           "transmissionMapPath": null,
           "twoSided": null,
           "uvOffsetU": null,
@@ -12032,7 +12032,7 @@
             0.95,
             1
           ],
-          "transmission": 0.3,
+          "transmission": 0,
           "transmissionMapPath": null,
           "twoSided": null,
           "uvOffsetU": null,
@@ -12096,7 +12096,7 @@
             0.8,
             0.8
           ],
-          "transmission": 0.8,
+          "transmission": 0,
           "transmissionMapPath": null,
           "twoSided": null,
           "uvOffsetU": null,
@@ -12160,8 +12160,826 @@
             0.9,
             0.9
           ],
-          "transmission": 1,
+          "transmission": 0,
           "transmissionMapPath": null,
+          "twoSided": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null
+        },
+        {
+          "albedo": [
+            0.9,
+            0.95,
+            1
+          ],
+          "albedoMapPath": null,
+          "alphaThreshold": null,
+          "ambient": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "aoMapPath": null,
+          "blendMode": "Alpha",
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.05,
+            0.05,
+            0.05
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 1.33,
+          "iorMapPath": null,
+          "iridescence": 0.95,
+          "iridescenceIor": 1.4,
+          "iridescenceThicknessMax": 500,
+          "iridescenceThicknessMin": 80,
+          "key": "IRIDESCENT_SOAP_BUBBLE",
+          "metallic": false,
+          "metallicMapPath": null,
+          "metalness": 0,
+          "name": "Iridescent Soap Bubble",
+          "normalMapPath": null,
+          "opacity": 0.05,
+          "opacityMapPath": null,
+          "roughness": 0.005,
+          "roughnessMapPath": null,
+          "shadingModel": "PBR",
+          "sheenColor": [
+            1,
+            0.8,
+            1
+          ],
+          "sheenColorMapPath": null,
+          "sheenRoughness": 0.01,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.01,
+          "specular": [
+            0.98,
+            0.98,
+            0.98
+          ],
+          "transmission": 0.95,
+          "transmissionMapPath": null,
+          "twoSided": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null
+        }
+      ],
+      "label": "Alpha Materials"
+    },
+    {
+      "id": "transmission_materials",
+      "items": [
+        {
+          "albedo": [
+            0.7,
+            0.9,
+            0.7
+          ],
+          "albedoMapPath": null,
+          "alphaThreshold": null,
+          "ambient": [
+            0.02,
+            0.05,
+            0.02
+          ],
+          "aoMapPath": null,
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.1,
+            0.3,
+            0.1
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 1.52,
+          "iorMapPath": null,
+          "key": "COLORED_GLASS_GREEN_TRANSMISSION",
+          "metallic": false,
+          "metallicMapPath": null,
+          "metalness": 0,
+          "name": "Colored Glass (Green)",
+          "normalMapPath": null,
+          "opacity": 1.0,
+          "opacityMapPath": null,
+          "roughness": 0.02,
+          "roughnessMapPath": null,
+          "shadingModel": "PBR",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.02,
+          "specular": [
+            0.9,
+            0.9,
+            0.9
+          ],
+          "transmission": 1.0,
+          "transmissionMapPath": null,
+          "thickness": 2.5,
+          "attenuationColor": [
+            0.98,
+            0.99,
+            1.0
+          ],
+          "attenuationDistance": 15.0,
+          "dispersion": {
+            "shortIor": 1.522,
+            "midIor": 1.518,
+            "longIor": 1.514
+          },
+          "twoSided": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null
+        },
+        {
+          "albedo": [
+            0.98,
+            0.98,
+            1.0
+          ],
+          "albedoMapPath": null,
+          "alphaThreshold": null,
+          "ambient": [
+            0.03,
+            0.03,
+            0.03
+          ],
+          "aoMapPath": null,
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.9,
+            0.9,
+            0.95
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 1.544,
+          "iorMapPath": null,
+          "key": "CRYSTAL_QUARTZ_TRANSMISSION",
+          "metallic": false,
+          "metallicMapPath": null,
+          "metalness": 0,
+          "name": "Crystal Quartz",
+          "normalMapPath": null,
+          "opacity": 1.0,
+          "opacityMapPath": null,
+          "roughness": 0.01,
+          "roughnessMapPath": null,
+          "shadingModel": "PBR",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.03,
+          "specular": [
+            0.95,
+            0.95,
+            1.0
+          ],
+          "transmission": 0.95,
+          "transmissionMapPath": null,
+          "thickness": 3.5,
+          "attenuationColor": [
+            1.0,
+            0.98,
+            0.96
+          ],
+          "attenuationDistance": 20.0,
+          "dispersion": {
+            "shortIor": 1.628,
+            "midIor": 1.62,
+            "longIor": 1.612
+          },
+          "twoSided": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null
+        },
+        {
+          "albedo": [
+            0.95,
+            0.95,
+            0.95
+          ],
+          "albedoMapPath": null,
+          "alphaThreshold": null,
+          "ambient": [
+            0.05,
+            0.05,
+            0.05
+          ],
+          "aoMapPath": null,
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.1,
+            0.1,
+            0.1
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 1.52,
+          "iorMapPath": null,
+          "key": "FROSTED_GLASS_TRANSMISSION",
+          "metallic": false,
+          "metallicMapPath": null,
+          "metalness": 0,
+          "name": "Frosted Glass - Translucent",
+          "normalMapPath": null,
+          "opacity": 1.0,
+          "opacityMapPath": null,
+          "roughness": 0.35,
+          "roughnessMapPath": null,
+          "shadingModel": "PBR",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.05,
+          "specular": [
+            0.8,
+            0.8,
+            0.8
+          ],
+          "transmission": 0.6,
+          "transmissionMapPath": null,
+          "thickness": 5.0,
+          "attenuationColor": [
+            0.95,
+            0.95,
+            0.98
+          ],
+          "attenuationDistance": 4.0,
+          "subsurface": true,
+          "twoSided": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null
+        },
+        {
+          "albedo": [
+            0.95,
+            0.95,
+            0.95
+          ],
+          "albedoMapPath": null,
+          "alphaThreshold": null,
+          "ambient": [
+            0.02,
+            0.02,
+            0.02
+          ],
+          "aoMapPath": null,
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.1,
+            0.1,
+            0.1
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 1.52,
+          "iorMapPath": null,
+          "key": "GLASS_TRANSMISSION",
+          "metallic": false,
+          "metallicMapPath": null,
+          "metalness": 0,
+          "name": "Glass",
+          "normalMapPath": null,
+          "opacity": 1.0,
+          "opacityMapPath": null,
+          "roughness": 0.03,
+          "roughnessMapPath": null,
+          "shadingModel": "PBR",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.02,
+          "specular": [
+            0.9,
+            0.9,
+            0.9
+          ],
+          "transmission": 1.0,
+          "transmissionMapPath": null,
+          "thickness": 2.0,
+          "attenuationColor": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "attenuationDistance": 100.0,
+          "twoSided": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null
+        },
+        {
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "albedoMapPath": null,
+          "alphaThreshold": null,
+          "ambient": [
+            0.03,
+            0.03,
+            0.03
+          ],
+          "aoMapPath": null,
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.1,
+            0.1,
+            0.1
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 1.62,
+          "iorMapPath": null,
+          "key": "LEAD_CRYSTAL",
+          "metallic": false,
+          "metallicMapPath": null,
+          "metalness": 0,
+          "name": "Lead Crystal",
+          "normalMapPath": null,
+          "opacity": 1.0,
+          "opacityMapPath": null,
+          "roughness": 0.005,
+          "roughnessMapPath": null,
+          "shadingModel": "PBR",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.01,
+          "specular": [
+            0.98,
+            0.96,
+            0.94
+          ],
+          "transmission": 1.0,
+          "transmissionMapPath": null,
+          "thickness": 4.0,
+          "attenuationColor": [
+            1.0,
+            0.98,
+            0.96
+          ],
+          "attenuationDistance": 30.0,
+          "dispersion": {
+            "shortIor": 1.628,
+            "midIor": 1.62,
+            "longIor": 1.612
+          },
+          "twoSided": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null
+        },
+        {
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "albedoMapPath": null,
+          "alphaThreshold": null,
+          "ambient": [
+            0.02,
+            0.02,
+            0.02
+          ],
+          "aoMapPath": null,
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 2.417,
+          "iorMapPath": null,
+          "key": "DIAMOND",
+          "metallic": false,
+          "metallicMapPath": null,
+          "metalness": 0,
+          "name": "Diamond (Gem)",
+          "normalMapPath": null,
+          "opacity": 1.0,
+          "opacityMapPath": null,
+          "roughness": 0.0,
+          "roughnessMapPath": null,
+          "shadingModel": "PBR",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.0,
+          "specular": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "transmission": 1.0,
+          "transmissionMapPath": null,
+          "thickness": 1.2,
+          "attenuationColor": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "attenuationDistance": 200.0,
+          "dispersion": {
+            "shortIor": 2.452,
+            "midIor": 2.417,
+            "longIor": 2.386
+          },
+          "twoSided": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null
+        },
+        {
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "albedoMapPath": null,
+          "alphaThreshold": null,
+          "ambient": [
+            0.01,
+            0.01,
+            0.01
+          ],
+          "aoMapPath": null,
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 1.33,
+          "iorMapPath": null,
+          "key": "SOAP_BUBBLE",
+          "metallic": false,
+          "metallicMapPath": null,
+          "metalness": 0,
+          "name": "Soap Bubble (Iridescent Thin Film)",
+          "normalMapPath": null,
+          "opacity": 1.0,
+          "opacityMapPath": null,
+          "roughness": 0.0,
+          "roughnessMapPath": null,
+          "shadingModel": "PBR",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.0,
+          "specular": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "transmission": 1.0,
+          "transmissionMapPath": null,
+          "thickness": 0.05,
+          "attenuationColor": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "attenuationDistance": 50.0,
+          "iridescence": true,
+          "iridescenceIor": 1.3,
+          "iridescenceThicknessMin": 200.0,
+          "iridescenceThicknessMax": 500.0,
+          "twoSided": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null
+        },
+        {
+          "albedo": [
+            1.0,
+            0.6,
+            0.1
+          ],
+          "albedoMapPath": null,
+          "alphaThreshold": null,
+          "ambient": [
+            0.02,
+            0.01,
+            0.01
+          ],
+          "aoMapPath": null,
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.1,
+            0.05,
+            0.03
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 1.49,
+          "iorMapPath": null,
+          "key": "AMBER_GLASS",
+          "metallic": false,
+          "metallicMapPath": null,
+          "metalness": 0,
+          "name": "Amber Glass",
+          "normalMapPath": null,
+          "opacity": 1.0,
+          "opacityMapPath": null,
+          "roughness": 0.04,
+          "roughnessMapPath": null,
+          "shadingModel": "PBR",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.02,
+          "specular": [
+            0.95,
+            0.9,
+            0.85
+          ],
+          "transmission": 0.98,
+          "transmissionMapPath": null,
+          "thickness": 3.0,
+          "attenuationColor": [
+            1.0,
+            0.75,
+            0.3
+          ],
+          "attenuationDistance": 10.0,
+          "twoSided": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null
+        },
+        {
+          "albedo": [
+            0.15,
+            0.25,
+            0.9
+          ],
+          "albedoMapPath": null,
+          "alphaThreshold": null,
+          "ambient": [
+            0.02,
+            0.02,
+            0.03
+          ],
+          "aoMapPath": null,
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.05,
+            0.05,
+            0.15
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 1.77,
+          "iorMapPath": null,
+          "key": "SAPPHIRE_BLUE",
+          "metallic": false,
+          "metallicMapPath": null,
+          "metalness": 0,
+          "name": "Blue Sapphire",
+          "normalMapPath": null,
+          "opacity": 1.0,
+          "opacityMapPath": null,
+          "roughness": 0.03,
+          "roughnessMapPath": null,
+          "shadingModel": "PBR",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.02,
+          "specular": [
+            0.95,
+            0.95,
+            1.0
+          ],
+          "transmission": 0.95,
+          "transmissionMapPath": null,
+          "thickness": 3.0,
+          "attenuationColor": [
+            0.3,
+            0.4,
+            1.0
+          ],
+          "attenuationDistance": 2.0,
+          "dispersion": {
+            "shortIor": 1.782,
+            "midIor": 1.77,
+            "longIor": 1.761
+          },
+          "twoSided": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null
+        },
+        {
+          "albedo": [
+            0.9,
+            0.95,
+            1.0
+          ],
+          "albedoMapPath": null,
+          "alphaThreshold": null,
+          "ambient": [
+            0.01,
+            0.02,
+            0.03
+          ],
+          "aoMapPath": null,
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.05,
+            0.06,
+            0.08
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 1.31,
+          "iorMapPath": null,
+          "key": "ICE_TRANSMISSION",
+          "metallic": false,
+          "metallicMapPath": null,
+          "metalness": 0,
+          "name": "Ice",
+          "normalMapPath": null,
+          "opacity": 1.0,
+          "opacityMapPath": null,
+          "roughness": 0.1,
+          "roughnessMapPath": null,
+          "shadingModel": "PBR",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.02,
+          "specular": [
+            0.9,
+            0.95,
+            1.0
+          ],
+          "transmission": 0.95,
+          "transmissionMapPath": null,
+          "thickness": 2.0,
+          "attenuationColor": [
+            0.85,
+            0.95,
+            1.0
+          ],
+          "attenuationDistance": 3.0,
           "twoSided": null,
           "uvOffsetU": null,
           "uvOffsetV": null,
@@ -12820,79 +13638,7 @@
           "uvTilingU": null,
           "uvTilingV": null,
           "wireframe": null
-        },
-        {
-          "albedo": [
-            0.9,
-            0.95,
-            1
-          ],
-          "albedoMapPath": null,
-          "alphaThreshold": null,
-          "ambient": [
-            0.01,
-            0.01,
-            0.01
-          ],
-          "aoMapPath": null,
-          "blendMode": "Alpha",
-          "clearcoat": null,
-          "clearcoatColorMapPath": null,
-          "clearcoatNormalMapPath": null,
-          "clearcoatRoughness": null,
-          "clearcoatRoughnessMapPath": null,
-          "diffuse": [
-            0.05,
-            0.05,
-            0.05
-          ],
-          "emissive": [
-            0,
-            0,
-            0
-          ],
-          "emissiveStrength": null,
-          "heightMapPath": null,
-          "ior": 1.33,
-          "iorMapPath": null,
-          "iridescence": 0.95,
-          "iridescenceIor": 1.4,
-          "iridescenceThicknessMax": 500,
-          "iridescenceThicknessMin": 80,
-          "key": "IRIDESCENT_SOAP_BUBBLE",
-          "metallic": false,
-          "metallicMapPath": null,
-          "metalness": 0,
-          "name": "Iridescent Soap Bubble",
-          "normalMapPath": null,
-          "opacity": 0.05,
-          "opacityMapPath": null,
-          "roughness": 0.005,
-          "roughnessMapPath": null,
-          "shadingModel": "PBR",
-          "sheenColor": [
-            1,
-            0.8,
-            1
-          ],
-          "sheenColorMapPath": null,
-          "sheenRoughness": 0.01,
-          "sheenRoughnessMapPath": null,
-          "shininess": 0.01,
-          "specular": [
-            0.98,
-            0.98,
-            0.98
-          ],
-          "transmission": 0.95,
-          "transmissionMapPath": null,
-          "twoSided": null,
-          "uvOffsetU": null,
-          "uvOffsetV": null,
-          "uvTilingU": null,
-          "uvTilingV": null,
-          "wireframe": null
-        },
+        },        
         {
           "albedo": [
             0.12,
@@ -13026,71 +13772,7 @@
           "uvTilingU": null,
           "uvTilingV": null,
           "wireframe": null
-        },
-        {
-          "albedo": [
-            0.98,
-            0.98,
-            0.98
-          ],
-          "albedoMapPath": null,
-          "alphaThreshold": null,
-          "ambient": [
-            0.02,
-            0.02,
-            0.02
-          ],
-          "aoMapPath": null,
-          "blendMode": "Alpha",
-          "clearcoat": null,
-          "clearcoatColorMapPath": null,
-          "clearcoatNormalMapPath": null,
-          "clearcoatRoughness": null,
-          "clearcoatRoughnessMapPath": null,
-          "diffuse": [
-            0.9,
-            0.9,
-            0.9
-          ],
-          "emissive": [
-            0,
-            0,
-            0
-          ],
-          "emissiveStrength": null,
-          "heightMapPath": null,
-          "ior": 2.42,
-          "iorMapPath": null,
-          "key": "DIAMOND",
-          "metallic": false,
-          "metallicMapPath": null,
-          "metalness": 0,
-          "name": "Diamond",
-          "normalMapPath": null,
-          "opacity": 0.8,
-          "opacityMapPath": null,
-          "roughness": 0.01,
-          "roughnessMapPath": null,
-          "shadingModel": "PBR",
-          "sheenColor": null,
-          "sheenColorMapPath": null,
-          "sheenRoughness": null,
-          "sheenRoughnessMapPath": null,
-          "shininess": 0.02,
-          "specular": [
-            1,
-            1,
-            1
-          ],
-          "transmission": 0.2,
-          "transmissionMapPath": null,
-          "twoSided": null,
-          "uvOffsetU": null,
-          "uvOffsetV": null,
-          "uvTilingU": null,
-          "uvTilingV": null,
-          "wireframe": null
-        },
+        },        
         {
           "albedo": [
             0.95,
