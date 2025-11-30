@@ -214,6 +214,7 @@ uniform bool sectionActive;
 uniform int displayMode;
 uniform int renderingMode;
 uniform bool selected;
+uniform bool selectionHighlighting;
 uniform vec4 reflectColor;
 uniform bool floorRendering;
 uniform bool lockLightAndCamera = true;
@@ -629,7 +630,7 @@ void main()
 		fragColor.rgb *= finalAlpha;
 	}
 
-	if (selected) // with glow
+	if (selected && selectionHighlighting) // with glow
 	{
 		// Compute lighting
 		vec3 norm = normalize(gl_FrontFacing ? g_normal : -g_normal);

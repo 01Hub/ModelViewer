@@ -147,6 +147,7 @@ _assimpModelLoader(nullptr)
 	_previousProjection = GLCamera::ProjectionType::ORTHOGRAPHIC;
 
 	_autoFitViewOnUpdate = true;
+	_selectionHighlighting = true;
 
 	_primaryCamera = new GLCamera(width(), height(), _viewRange, _FOV);
 	_primaryCamera->setView(GLCamera::ViewProjection::SE_ISOMETRIC_VIEW);
@@ -524,6 +525,7 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
 	_fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
+	_fgShader->setUniformValue("selectionHighlighting", _selectionHighlighting);
 
 	QMatrix4x4 envMapRot;
 	envMapRot.rotate(-90, 1, 0, 0);
@@ -1196,6 +1198,13 @@ void GLWidget::fitAll()
 void GLWidget::setAutoFitViewOnUpdate(bool update)
 {
 	_autoFitViewOnUpdate = update;
+}
+
+void GLWidget::setSelectionHighlighting(bool highlight)
+{
+	_selectionHighlighting = highlight;
+	_fgShader->setUniformValue("selectionHighlighting", _selectionHighlighting);
+	update();
 }
 
 void GLWidget::beginWindowZoom()
@@ -3922,7 +3931,8 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	prog->setUniformValue("screenGamma", _screenGamma);
 	prog->setUniformValue("envMapExposure", _envMapExposure);
 	prog->setUniformValue("iblExposure", _iblExposure);
-	prog->setUniformValue("toneMapMode", static_cast<int>(_toneMappingMode));
+	prog->setUniformValue("toneMapMode", static_cast<int>(_toneMappingMode));	
+	prog->setUniformValue("selectionHighlighting", _selectionHighlighting);
 
 	prog->setUniformValue("transmissionFramebufferSize",
 		QVector2D(_transmissionTextureWidth, _transmissionTextureHeight));

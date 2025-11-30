@@ -61,6 +61,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	flayout->addWidget(_glWidget, 1);
 
 	connect(checkBoxAutoFitView, &QCheckBox::toggled, _glWidget, &GLWidget::setAutoFitViewOnUpdate);
+	connect(checkBoxSelectionHighlight, &QCheckBox::toggled, _glWidget, &GLWidget::setSelectionHighlighting);
 	connect(_glWidget, &GLWidget::singleSelectionDone, this, &ModelViewer::setListRow);
 	connect(_glWidget, &GLWidget::sweepSelectionDone, this, &ModelViewer::setListRows);
 	connect(_glWidget, &GLWidget::floorShown, checkBoxFloor, &QCheckBox::setChecked);

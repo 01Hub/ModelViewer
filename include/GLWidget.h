@@ -326,6 +326,7 @@ public slots:
 	void checkAndStopTimers();
 	void fitAll();
 	void setAutoFitViewOnUpdate(bool update);
+	void setSelectionHighlighting(bool highlight);
 	void performKeyboardNav();
 	void disableLowRes();
 	void lockLightAndCamera(bool lock);
@@ -485,6 +486,7 @@ private:
 	float _FOV;
 
 	bool _autoFitViewOnUpdate;
+	bool _selectionHighlighting;
 
 	QPoint _leftButtonPoint;
 	QPoint _rightButtonPoint;
