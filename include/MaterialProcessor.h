@@ -37,7 +37,9 @@ public:
 	void applyGltfMaterialExtensionsToMaterial(
 		const QString& gltfPath,
 		const aiScene* scene,
-		unsigned int materialIndex,
+		const QString& nodeName,
+		const aiMesh* currentMesh, 
+		int materialIndex,
 		GLMaterial& outMaterial,
 		std::vector<GLMaterial::Texture>& outTextures);
 

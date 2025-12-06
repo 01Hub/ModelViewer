@@ -161,7 +161,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			msgBox.exec();
 
 			if (msgBox.clickedButton() == noButton)
-			{
+			{				
 				qDebug() << "User chose not to generate UVs, using None method.";
 				_selectedUVMethod = UVMethod::None;
 			}
@@ -213,7 +213,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-		AssImpMesh* myMesh = processMesh(mesh, scene, i, scene->mNumMeshes, globalTransform);
+		AssImpMesh* myMesh = processMesh(mesh, scene, i, scene->mNumMeshes, globalTransform, node->mName.C_Str());
 
 		_meshes.push_back(myMesh);            // full mesh store
 
@@ -250,7 +250,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 }
 
 
-AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform)
+AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform, const char* nodeName)
 {
 	// Data to fill
 	vector<Vertex> vertices;
@@ -421,7 +421,14 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		//Set color and material
 		_materialProcessor.setColorAndMaterial(material, mat);
 		// GLTF Extensions
-		_materialProcessor.applyGltfMaterialExtensionsToMaterial(QString::fromStdString(_path), scene, mesh->mMaterialIndex, mat, textures);
+		_materialProcessor.applyGltfMaterialExtensionsToMaterial(
+			QString::fromStdString(_path),
+			scene,
+			QString::fromUtf8(nodeName),
+			mesh,
+			mesh->mMaterialIndex,
+			mat,
+			textures);
 		// ADS and PBR Maps
 		_materialProcessor.setTextureMaps(material, textures, mat);
 

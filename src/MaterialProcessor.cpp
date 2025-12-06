@@ -523,7 +523,9 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture)
 void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 	const QString& gltfPath,
 	const aiScene* scene,
-	unsigned int materialIndex,
+	const QString& nodeName,
+	const aiMesh* currentMesh,
+	int materialIndex,
 	GLMaterial& outMaterial,
 	std::vector<GLMaterial::Texture>& outTextures)
 {
@@ -584,6 +586,8 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 	QJsonArray jsonTextures = root.value("textures").toArray();
 	QJsonArray jsonImages = root.value("images").toArray();
 	QJsonArray jsonSamplers = root.value("samplers").toArray();
+	QJsonArray jsonNodes = root.value("nodes").toArray();
+	QJsonArray jsonMeshes = root.value("meshes").toArray();
 
 	// Utility: resolve a relative image URI against the gltf file path (returns data: URIs as-is)
 	auto resolveUri = [&](const QString& uri) -> QString {
@@ -904,348 +908,348 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 	// Helper: Load base PBR textures from glTF JSON
 	// Replace the existing loadPbrTexturesFromJson lambda with this:
 	// Refactored loadPbrTexturesFromJson using a small helper lambda + lookup list
-		auto loadPbrTexturesFromJson = [&](const QJsonObject& matObj, GLMaterial& mat) -> void {
-			// If no PBR object, nothing to do for baseColor/metallicRoughness entries
-			QJsonObject pbr;
-			if (matObj.contains("pbrMetallicRoughness") && matObj.value("pbrMetallicRoughness").isObject())
+	auto loadPbrTexturesFromJson = [&](const QJsonObject& matObj, GLMaterial& mat) -> void {
+		// If no PBR object, nothing to do for baseColor/metallicRoughness entries
+		QJsonObject pbr;
+		if (matObj.contains("pbrMetallicRoughness") && matObj.value("pbrMetallicRoughness").isObject())
+		{
+			pbr = matObj.value("pbrMetallicRoughness").toObject();
+		}
+
+		// Helper that processes one texture slot given a parent JSON object and a key within it.
+		// parentObj: JSON object that may contain the texture descriptor (e.g. pbr or matObj)
+		// jsonKey: the key under parentObj that contains the texture object (e.g. "baseColorTexture")
+		// mapType: string used for mapping to your internal texture type (e.g. "baseColor", "normal")
+		auto processTextureSlot = [&](const QJsonObject& parentObj, const QString& jsonKey, const std::string& mapType) {
+			if (!parentObj.contains(jsonKey) || !parentObj.value(jsonKey).isObject()) return;
+
+			QJsonObject texObj = parentObj.value(jsonKey).toObject();
+			int texIndex = texObj.value("index").toInt(-1);
+			if (texIndex < 0) return;
+
+			// resolve URI (handles EXT_texture_webp via resolveTextureUri)
+			QString uri = resolveTextureUri(texIndex);
+			if (uri.isEmpty()) return;
+
+			// extract transform and sampler then load
+			auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+			auto [wrapS, wrapT, magF, minF] = getSamplerParams(texIndex);
+
+			if (loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures))
 			{
-				pbr = matObj.value("pbrMetallicRoughness").toObject();
+				qDebug() << "  Loaded" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
 			}
-
-			// Helper that processes one texture slot given a parent JSON object and a key within it.
-			// parentObj: JSON object that may contain the texture descriptor (e.g. pbr or matObj)
-			// jsonKey: the key under parentObj that contains the texture object (e.g. "baseColorTexture")
-			// mapType: string used for mapping to your internal texture type (e.g. "baseColor", "normal")
-			auto processTextureSlot = [&](const QJsonObject& parentObj, const QString& jsonKey, const std::string& mapType) {
-				if (!parentObj.contains(jsonKey) || !parentObj.value(jsonKey).isObject()) return;
-
-				QJsonObject texObj = parentObj.value(jsonKey).toObject();
-				int texIndex = texObj.value("index").toInt(-1);
-				if (texIndex < 0) return;
-
-				// resolve URI (handles EXT_texture_webp via resolveTextureUri)
-				QString uri = resolveTextureUri(texIndex);
-				if (uri.isEmpty()) return;
-
-				// extract transform and sampler then load
-				auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-				auto [wrapS, wrapT, magF, minF] = getSamplerParams(texIndex);
-
-				if (loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures))
-				{
-					qDebug() << "  Loaded" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
-				}
-				};
-
-			// pbr-specific slots (parent = pbr)
-			if (!pbr.isEmpty())
-			{
-				processTextureSlot(pbr, "baseColorTexture", "baseColor");
-				processTextureSlot(pbr, "metallicRoughnessTexture", "metallicRoughness");
-			}
-
-			// material-level slots (parent = matObj)
-			processTextureSlot(matObj, "normalTexture", "normal");
-			processTextureSlot(matObj, "occlusionTexture", "occlusion");
-			processTextureSlot(matObj, "emissiveTexture", "emissive");
-
-			// If you later want to add more pbr-level or material-level slots, just call processTextureSlot with the parent
-			// e.g. processTextureSlot(matObj, "heightTexture", "height");
 			};
 
+		// pbr-specific slots (parent = pbr)
+		if (!pbr.isEmpty())
+		{
+			processTextureSlot(pbr, "baseColorTexture", "baseColor");
+			processTextureSlot(pbr, "metallicRoughnessTexture", "metallicRoughness");
+		}
 
-		// Helper: apply KHR extensions present in the material JSON object to the GLMaterial.
+		// material-level slots (parent = matObj)
+		processTextureSlot(matObj, "normalTexture", "normal");
+		processTextureSlot(matObj, "occlusionTexture", "occlusion");
+		processTextureSlot(matObj, "emissiveTexture", "emissive");
+
+		// If you later want to add more pbr-level or material-level slots, just call processTextureSlot with the parent
+		// e.g. processTextureSlot(matObj, "heightTexture", "height");
+		};
+
+
+	// Helper: apply KHR extensions present in the material JSON object to the GLMaterial.
 	// Returns true if any extension was applied (for logging)
-		auto applyExtensionsFromJsonMaterial = [&](const QJsonObject& matObj, GLMaterial& mat) -> bool {
-			bool appliedAny = false;
-			if (!matObj.contains("extensions")) return false;
-			QJsonObject extRoot = matObj.value("extensions").toObject();
+	auto applyExtensionsFromJsonMaterial = [&](const QJsonObject& matObj, GLMaterial& mat) -> bool {
+		bool appliedAny = false;
+		if (!matObj.contains("extensions")) return false;
+		QJsonObject extRoot = matObj.value("extensions").toObject();
 
-			// Small helper to process a texture entry found inside an extension object.
-			// extObj: the extension object (e.g. extRoot["KHR_materials_sheen"].toObject())
-			// jsonKey: the key inside extObj that holds the texture descriptor (e.g. "sheenColorTexture")
-			// mapType: the internal mapType used by loadAndAddTexture (e.g. "sheenColor")
-			auto processExtensionTextureSlot = [&](const QJsonObject& extObj, const QString& jsonKey, const std::string& mapType) {
-				if (!extObj.contains(jsonKey) || !extObj.value(jsonKey).isObject()) return false;
-				QJsonObject texObj = extObj.value(jsonKey).toObject();
-				int texIndex = texObj.value("index").toInt(-1);
-				if (texIndex < 0) return false;
+		// Small helper to process a texture entry found inside an extension object.
+		// extObj: the extension object (e.g. extRoot["KHR_materials_sheen"].toObject())
+		// jsonKey: the key inside extObj that holds the texture descriptor (e.g. "sheenColorTexture")
+		// mapType: the internal mapType used by loadAndAddTexture (e.g. "sheenColor")
+		auto processExtensionTextureSlot = [&](const QJsonObject& extObj, const QString& jsonKey, const std::string& mapType) {
+			if (!extObj.contains(jsonKey) || !extObj.value(jsonKey).isObject()) return false;
+			QJsonObject texObj = extObj.value(jsonKey).toObject();
+			int texIndex = texObj.value("index").toInt(-1);
+			if (texIndex < 0) return false;
 
-				QString uri = resolveTextureUri(texIndex);
-				if (uri.isEmpty()) return false;
+			QString uri = resolveTextureUri(texIndex);
+			if (uri.isEmpty()) return false;
 
-				auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
-				auto [wrapS, wrapT, magF, minF] = getSamplerParams(texIndex);
-				bool ok = loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures);
-				if (ok) qDebug() << "  Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
-				return ok;
-				};
+			auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+			auto [wrapS, wrapT, magF, minF] = getSamplerParams(texIndex);
+			bool ok = loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures);
+			if (ok) qDebug() << "  Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
+			return ok;
+			};
 
-			// --- KHR_materials_volume ---
-			if (extRoot.contains("KHR_materials_volume") && extRoot.value("KHR_materials_volume").isObject())
+		// --- KHR_materials_volume ---
+		if (extRoot.contains("KHR_materials_volume") && extRoot.value("KHR_materials_volume").isObject())
+		{
+			QJsonObject vol = extRoot.value("KHR_materials_volume").toObject();
+			if (vol.contains("thicknessFactor"))
 			{
-				QJsonObject vol = extRoot.value("KHR_materials_volume").toObject();
-				if (vol.contains("thicknessFactor"))
-				{
-					float v = static_cast<float>(vol.value("thicknessFactor").toDouble(0.0));
-					mat.setThicknessFactor(qMax(0.0f, v));
-					appliedAny = true;
-				}
-				if (vol.contains("attenuationDistance"))
-				{
-					float v = static_cast<float>(vol.value("attenuationDistance").toDouble(0.0));
-					mat.setAttenuationDistance(qMax(0.0f, v));
-					appliedAny = true;
-				}
-				if (vol.contains("attenuationColor") && vol.value("attenuationColor").isArray())
-				{
-					QJsonArray a = vol.value("attenuationColor").toArray();
-					if (a.size() >= 3)
-					{
-						QVector3D c(
-							static_cast<float>(a.at(0).toDouble(1.0)),
-							static_cast<float>(a.at(1).toDouble(1.0)),
-							static_cast<float>(a.at(2).toDouble(1.0))
-						);
-						mat.setAttenuationColor(c);
-						appliedAny = true;
-					}
-				}
-				// thicknessTexture
-				if (processExtensionTextureSlot(vol, "thicknessTexture", "thickness"))
-				{
-					appliedAny = true;
-				}
-			}
-
-			// --- KHR_materials_transmission ---
-			if (extRoot.contains("KHR_materials_transmission") && extRoot.value("KHR_materials_transmission").isObject())
-			{
-				QJsonObject trans = extRoot.value("KHR_materials_transmission").toObject();
-				if (trans.contains("transmissionFactor"))
-				{
-					float v = static_cast<float>(trans.value("transmissionFactor").toDouble(0.0));
-					mat.setTransmission(qBound(0.0f, v, 1.0f));
-					appliedAny = true;
-				}
-				if (processExtensionTextureSlot(trans, "transmissionTexture", "transmission"))
-				{
-					appliedAny = true;
-				}
-			}
-
-			// --- KHR_materials_ior ---
-			if (extRoot.contains("KHR_materials_ior") && extRoot.value("KHR_materials_ior").isObject())
-			{
-				QJsonObject iorJ = extRoot.value("KHR_materials_ior").toObject();
-				if (iorJ.contains("ior"))
-				{
-					float v = static_cast<float>(iorJ.value("ior").toDouble(1.5));
-					mat.setIOR(qBound(1.0f, v, 5.0f));
-					appliedAny = true;
-				}
-			}
-
-			// --- KHR_materials dispersion ---
-			if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
-			{
-				QJsonObject disp = extRoot.value("KHR_materials_dispersion").toObject();
-				if (disp.contains("dispersion"))
-				{
-					float v = static_cast<float>(disp.value("dispersion").toDouble(0.0));
-					mat.setDispersion(qMax(0.0f, v));
-					appliedAny = true;
-				}
-			}
-
-			// --- KHR_materials_specular ---
-			if (extRoot.contains("KHR_materials_specular") && extRoot.value("KHR_materials_specular").isObject())
-			{
-				QJsonObject sp = extRoot.value("KHR_materials_specular").toObject();
-				if (sp.contains("specularFactor"))
-				{
-					float v = static_cast<float>(sp.value("specularFactor").toDouble(1.0));
-					mat.setSpecularFactor(qBound(0.0f, v, 1.0f));
-					appliedAny = true;
-				}
-				if (sp.contains("specularColorFactor") && sp.value("specularColorFactor").isArray())
-				{
-					QJsonArray a = sp.value("specularColorFactor").toArray();
-					if (a.size() >= 3)
-					{
-						mat.setSpecularColorFactor(QVector3D(
-							static_cast<float>(a.at(0).toDouble(1.0)),
-							static_cast<float>(a.at(1).toDouble(1.0)),
-							static_cast<float>(a.at(2).toDouble(1.0))
-						));
-						appliedAny = true;
-					}
-				}
-				if (processExtensionTextureSlot(sp, "specularTexture", "specularFactor"))
-				{
-					appliedAny = true;
-				}
-			}
-
-			// --- KHR_materials_clearcoat ---
-			if (extRoot.contains("KHR_materials_clearcoat") && extRoot.value("KHR_materials_clearcoat").isObject())
-			{
-				QJsonObject cc = extRoot.value("KHR_materials_clearcoat").toObject();
-				if (cc.contains("clearcoatFactor"))
-				{
-					float v = static_cast<float>(cc.value("clearcoatFactor").toDouble(0.0));
-					mat.setClearcoat(qBound(0.0f, v, 1.0f));
-					appliedAny = true;
-				}
-				if (cc.contains("clearcoatRoughnessFactor"))
-				{
-					float v = static_cast<float>(cc.value("clearcoatRoughnessFactor").toDouble(0.0));
-					mat.setClearcoatRoughness(qBound(0.0f, v, 1.0f));
-					appliedAny = true;
-				}
-				// clearcoatTexture -> we map to clearcoatColorMap in your system
-				if (processExtensionTextureSlot(cc, "clearcoatTexture", "clearcoatColor"))
-				{
-					appliedAny = true;
-				}
-				// clearcoatNormal is typically an object with "index" etc. same as other textures
-				if (processExtensionTextureSlot(cc, "clearcoatNormalTexture", "clearcoatNormal"))
-				{
-					appliedAny = true;
-				}
-			}
-
-			// --- KHR_materials_sheen ---
-			if (extRoot.contains("KHR_materials_sheen") && extRoot.value("KHR_materials_sheen").isObject())
-			{
-				QJsonObject sh = extRoot.value("KHR_materials_sheen").toObject();
-				if (sh.contains("sheenColorFactor") && sh.value("sheenColorFactor").isArray())
-				{
-					QJsonArray a = sh.value("sheenColorFactor").toArray();
-					if (a.size() >= 3)
-					{
-						mat.setSheenColor(QVector3D(
-							static_cast<float>(a.at(0).toDouble(0.0)),
-							static_cast<float>(a.at(1).toDouble(0.0)),
-							static_cast<float>(a.at(2).toDouble(0.0))
-						));
-						appliedAny = true;
-					}
-				}
-				if (sh.contains("sheenRoughnessFactor"))
-				{
-					float v = static_cast<float>(sh.value("sheenRoughnessFactor").toDouble(0.0));
-					mat.setSheenRoughness(qBound(0.0f, v, 1.0f));
-					appliedAny = true;
-				}
-				if (processExtensionTextureSlot(sh, "sheenColorTexture", "sheenColor"))
-				{
-					appliedAny = true;
-				}
-				if (processExtensionTextureSlot(sh, "sheenRoughnessTexture", "sheenRoughness"))
-				{
-					appliedAny = true;
-				}
-			}
-
-			// --- KHR_materials_iridescence ---
-			if (extRoot.contains("KHR_materials_iridescence") && extRoot.value("KHR_materials_iridescence").isObject())
-			{
-				QJsonObject ir = extRoot.value("KHR_materials_iridescence").toObject();
-				if (ir.contains("iridescenceFactor"))
-				{
-					float v = static_cast<float>(ir.value("iridescenceFactor").toDouble(0.0));
-					mat.setIridescenceFactor(qBound(0.0f, v, 1.0f));
-					appliedAny = true;
-				}
-				if (ir.contains("iridescenceIor"))
-				{
-					float v = static_cast<float>(ir.value("iridescenceIor").toDouble(1.0));
-					mat.setIridescenceIor(qMax(0.0f, v));
-					appliedAny = true;
-				}
-				if (ir.contains("iridescenceThicknessMinimum"))
-				{
-					float v = static_cast<float>(ir.value("iridescenceThicknessMinimum").toDouble(0.0));
-					mat.setIridescenceThicknessMin(qMax(0.0f, v));
-					appliedAny = true;
-				}
-				if (ir.contains("iridescenceThicknessMaximum"))
-				{
-					float v = static_cast<float>(ir.value("iridescenceThicknessMaximum").toDouble(0.0));
-					mat.setIridescenceThicknessMax(qMax(0.0f, v));
-					appliedAny = true;
-				}
-				if (processExtensionTextureSlot(ir, "iridescenceThicknessTexture", "iridescenceThickness"))
-				{
-					appliedAny = true;
-				}
-				if (processExtensionTextureSlot(ir, "iridescenceTexture", "iridescence"))
-				{
-					appliedAny = true;
-				}
-			}
-
-			// --- KHR_materials_anisotropy ---
-			if (extRoot.contains("KHR_materials_anisotropy") && extRoot.value("KHR_materials_anisotropy").isObject())
-			{
-				QJsonObject an = extRoot.value("KHR_materials_anisotropy").toObject();
-				if (an.contains("anisotropyStrength"))
-				{
-					float v = static_cast<float>(an.value("anisotropyStrength").toDouble(0.0));
-					mat.setAnisotropyStrength(qBound(0.0f, v, 1.0f));
-					appliedAny = true;
-				}
-				if (an.contains("anisotropyRotation"))
-				{
-					float v = static_cast<float>(an.value("anisotropyRotation").toDouble(0.0));
-					mat.setAnisotropyRotation(v);
-					appliedAny = true;
-				}
-				if (processExtensionTextureSlot(an, "anisotropyTexture", "anisotropy"))
-				{
-					appliedAny = true;
-				}
-			}
-
-			// --- KHR_materials_emissive_strength ---
-			if (extRoot.contains("KHR_materials_emissive_strength"))
-			{
-				QJsonValue v = extRoot.value("KHR_materials_emissive_strength");
-				if (v.isObject())
-				{
-					float es = static_cast<float>(v.toObject().value("emissiveStrength").toDouble(1.0));
-					mat.setEmissiveStrength(qMax(0.0f, es));
-					appliedAny = true;
-				}
-				else if (v.isDouble())
-				{
-					mat.setEmissiveStrength(qMax(0.0f, static_cast<float>(v.toDouble())));
-					appliedAny = true;
-				}
-			}
-
-		// --- KHR_materials_unlit ---
-			if (extRoot.contains("KHR_materials_unlit"))
-			{
-				mat.setUnlit(true);
+				float v = static_cast<float>(vol.value("thicknessFactor").toDouble(0.0));
+				mat.setThicknessFactor(qMax(0.0f, v));
 				appliedAny = true;
 			}
-
-		// --- KHR_materials_dispersion (experimental/non-standard) ---
-			if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
+			if (vol.contains("attenuationDistance"))
 			{
-				QJsonObject d = extRoot.value("KHR_materials_dispersion").toObject();
-				if (d.contains("dispersionFactor"))
+				float v = static_cast<float>(vol.value("attenuationDistance").toDouble(0.0));
+				mat.setAttenuationDistance(qMax(0.0f, v));
+				appliedAny = true;
+			}
+			if (vol.contains("attenuationColor") && vol.value("attenuationColor").isArray())
+			{
+				QJsonArray a = vol.value("attenuationColor").toArray();
+				if (a.size() >= 3)
 				{
-					float v = static_cast<float>(d.value("dispersionFactor").toDouble(0.0));
-					mat.setDispersion(qMax(0.0f, v));
+					QVector3D c(
+						static_cast<float>(a.at(0).toDouble(1.0)),
+						static_cast<float>(a.at(1).toDouble(1.0)),
+						static_cast<float>(a.at(2).toDouble(1.0))
+					);
+					mat.setAttenuationColor(c);
 					appliedAny = true;
 				}
 			}
+			// thicknessTexture
+			if (processExtensionTextureSlot(vol, "thicknessTexture", "thickness"))
+			{
+				appliedAny = true;
+			}
+		}
 
-			return appliedAny;
-			};
+		// --- KHR_materials_transmission ---
+		if (extRoot.contains("KHR_materials_transmission") && extRoot.value("KHR_materials_transmission").isObject())
+		{
+			QJsonObject trans = extRoot.value("KHR_materials_transmission").toObject();
+			if (trans.contains("transmissionFactor"))
+			{
+				float v = static_cast<float>(trans.value("transmissionFactor").toDouble(0.0));
+				mat.setTransmission(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (processExtensionTextureSlot(trans, "transmissionTexture", "transmission"))
+			{
+				appliedAny = true;
+			}
+		}
+
+		// --- KHR_materials_ior ---
+		if (extRoot.contains("KHR_materials_ior") && extRoot.value("KHR_materials_ior").isObject())
+		{
+			QJsonObject iorJ = extRoot.value("KHR_materials_ior").toObject();
+			if (iorJ.contains("ior"))
+			{
+				float v = static_cast<float>(iorJ.value("ior").toDouble(1.5));
+				mat.setIOR(qBound(1.0f, v, 5.0f));
+				appliedAny = true;
+			}
+		}
+
+		// --- KHR_materials dispersion ---
+		if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
+		{
+			QJsonObject disp = extRoot.value("KHR_materials_dispersion").toObject();
+			if (disp.contains("dispersion"))
+			{
+				float v = static_cast<float>(disp.value("dispersion").toDouble(0.0));
+				mat.setDispersion(qMax(0.0f, v));
+				appliedAny = true;
+			}
+		}
+
+		// --- KHR_materials_specular ---
+		if (extRoot.contains("KHR_materials_specular") && extRoot.value("KHR_materials_specular").isObject())
+		{
+			QJsonObject sp = extRoot.value("KHR_materials_specular").toObject();
+			if (sp.contains("specularFactor"))
+			{
+				float v = static_cast<float>(sp.value("specularFactor").toDouble(1.0));
+				mat.setSpecularFactor(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (sp.contains("specularColorFactor") && sp.value("specularColorFactor").isArray())
+			{
+				QJsonArray a = sp.value("specularColorFactor").toArray();
+				if (a.size() >= 3)
+				{
+					mat.setSpecularColorFactor(QVector3D(
+						static_cast<float>(a.at(0).toDouble(1.0)),
+						static_cast<float>(a.at(1).toDouble(1.0)),
+						static_cast<float>(a.at(2).toDouble(1.0))
+					));
+					appliedAny = true;
+				}
+			}
+			if (processExtensionTextureSlot(sp, "specularTexture", "specularFactor"))
+			{
+				appliedAny = true;
+			}
+		}
+
+		// --- KHR_materials_clearcoat ---
+		if (extRoot.contains("KHR_materials_clearcoat") && extRoot.value("KHR_materials_clearcoat").isObject())
+		{
+			QJsonObject cc = extRoot.value("KHR_materials_clearcoat").toObject();
+			if (cc.contains("clearcoatFactor"))
+			{
+				float v = static_cast<float>(cc.value("clearcoatFactor").toDouble(0.0));
+				mat.setClearcoat(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (cc.contains("clearcoatRoughnessFactor"))
+			{
+				float v = static_cast<float>(cc.value("clearcoatRoughnessFactor").toDouble(0.0));
+				mat.setClearcoatRoughness(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			// clearcoatTexture -> we map to clearcoatColorMap in your system
+			if (processExtensionTextureSlot(cc, "clearcoatTexture", "clearcoatColor"))
+			{
+				appliedAny = true;
+			}
+			// clearcoatNormal is typically an object with "index" etc. same as other textures
+			if (processExtensionTextureSlot(cc, "clearcoatNormalTexture", "clearcoatNormal"))
+			{
+				appliedAny = true;
+			}
+		}
+
+		// --- KHR_materials_sheen ---
+		if (extRoot.contains("KHR_materials_sheen") && extRoot.value("KHR_materials_sheen").isObject())
+		{
+			QJsonObject sh = extRoot.value("KHR_materials_sheen").toObject();
+			if (sh.contains("sheenColorFactor") && sh.value("sheenColorFactor").isArray())
+			{
+				QJsonArray a = sh.value("sheenColorFactor").toArray();
+				if (a.size() >= 3)
+				{
+					mat.setSheenColor(QVector3D(
+						static_cast<float>(a.at(0).toDouble(0.0)),
+						static_cast<float>(a.at(1).toDouble(0.0)),
+						static_cast<float>(a.at(2).toDouble(0.0))
+					));
+					appliedAny = true;
+				}
+			}
+			if (sh.contains("sheenRoughnessFactor"))
+			{
+				float v = static_cast<float>(sh.value("sheenRoughnessFactor").toDouble(0.0));
+				mat.setSheenRoughness(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (processExtensionTextureSlot(sh, "sheenColorTexture", "sheenColor"))
+			{
+				appliedAny = true;
+			}
+			if (processExtensionTextureSlot(sh, "sheenRoughnessTexture", "sheenRoughness"))
+			{
+				appliedAny = true;
+			}
+		}
+
+		// --- KHR_materials_iridescence ---
+		if (extRoot.contains("KHR_materials_iridescence") && extRoot.value("KHR_materials_iridescence").isObject())
+		{
+			QJsonObject ir = extRoot.value("KHR_materials_iridescence").toObject();
+			if (ir.contains("iridescenceFactor"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceFactor").toDouble(0.0));
+				mat.setIridescenceFactor(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (ir.contains("iridescenceIor"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceIor").toDouble(1.0));
+				mat.setIridescenceIor(qMax(0.0f, v));
+				appliedAny = true;
+			}
+			if (ir.contains("iridescenceThicknessMinimum"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceThicknessMinimum").toDouble(0.0));
+				mat.setIridescenceThicknessMin(qMax(0.0f, v));
+				appliedAny = true;
+			}
+			if (ir.contains("iridescenceThicknessMaximum"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceThicknessMaximum").toDouble(0.0));
+				mat.setIridescenceThicknessMax(qMax(0.0f, v));
+				appliedAny = true;
+			}
+			if (processExtensionTextureSlot(ir, "iridescenceThicknessTexture", "iridescenceThickness"))
+			{
+				appliedAny = true;
+			}
+			if (processExtensionTextureSlot(ir, "iridescenceTexture", "iridescence"))
+			{
+				appliedAny = true;
+			}
+		}
+
+		// --- KHR_materials_anisotropy ---
+		if (extRoot.contains("KHR_materials_anisotropy") && extRoot.value("KHR_materials_anisotropy").isObject())
+		{
+			QJsonObject an = extRoot.value("KHR_materials_anisotropy").toObject();
+			if (an.contains("anisotropyStrength"))
+			{
+				float v = static_cast<float>(an.value("anisotropyStrength").toDouble(0.0));
+				mat.setAnisotropyStrength(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+			if (an.contains("anisotropyRotation"))
+			{
+				float v = static_cast<float>(an.value("anisotropyRotation").toDouble(0.0));
+				mat.setAnisotropyRotation(v);
+				appliedAny = true;
+			}
+			if (processExtensionTextureSlot(an, "anisotropyTexture", "anisotropy"))
+			{
+				appliedAny = true;
+			}
+		}
+
+		// --- KHR_materials_emissive_strength ---
+		if (extRoot.contains("KHR_materials_emissive_strength"))
+		{
+			QJsonValue v = extRoot.value("KHR_materials_emissive_strength");
+			if (v.isObject())
+			{
+				float es = static_cast<float>(v.toObject().value("emissiveStrength").toDouble(1.0));
+				mat.setEmissiveStrength(qMax(0.0f, es));
+				appliedAny = true;
+			}
+			else if (v.isDouble())
+			{
+				mat.setEmissiveStrength(qMax(0.0f, static_cast<float>(v.toDouble())));
+				appliedAny = true;
+			}
+		}
+
+		// --- KHR_materials_unlit ---
+		if (extRoot.contains("KHR_materials_unlit"))
+		{
+			mat.setUnlit(true);
+			appliedAny = true;
+		}
+
+		// --- KHR_materials_dispersion (experimental/non-standard) ---
+		if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
+		{
+			QJsonObject d = extRoot.value("KHR_materials_dispersion").toObject();
+			if (d.contains("dispersionFactor"))
+			{
+				float v = static_cast<float>(d.value("dispersionFactor").toDouble(0.0));
+				mat.setDispersion(qMax(0.0f, v));
+				appliedAny = true;
+			}
+		}
+
+		return appliedAny;
+		};
 
 
 	int jsonCount = jsonMaterials.size();
@@ -1254,55 +1258,193 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		return;
 	}
 
-	// This is robust to Assimp reordering materials. We get the material name
-	// from Assimp and match it against the glTF JSON by name.
+	// ===== FIND ACTUAL MESH INDEX IN SCENE =====	
+	int actualMeshIndex = materialIndex;
+	if (scene && currentMesh)
+	{
+		for (unsigned int idx = 0; idx < scene->mNumMeshes; ++idx)
+		{			
+			if (scene->mMeshes[idx] == currentMesh)
+			{
+				actualMeshIndex = static_cast<int>(idx);				
+				break;
+			}			
+		}
+	}
+
+	if (actualMeshIndex < 0)
+	{
+		qWarning() << "Could not find mesh in scene";
+		return;
+	}
+
+	int gltfMaterialIndex = -1;
+
+	QString lookupKey = nodeName;
+	if (lookupKey.isEmpty())
+	{
+		for (unsigned int idx = 0; idx < scene->mNumMeshes; ++idx)
+		{
+			if (scene->mMeshes[idx] == currentMesh)
+			{
+				lookupKey = QString::number(idx);
+				break;
+			}
+		}
+	}
+
+	// ===== STRATEGY A: Find by material NAME (from Assimp) - ONLY if name is unique =====
 	aiString aiName;
 	if (scene->mMaterials[materialIndex]->Get(AI_MATKEY_NAME, aiName) == AI_SUCCESS)
 	{
 		QString name = QString::fromUtf8(aiName.C_Str());
 		if (!name.isEmpty())
 		{
+			// Count how many materials have this name
+			int nameMatchCount = 0;
+			int nameMatchIndex = -1;
+
 			for (int j = 0; j < jsonCount; ++j)
 			{
-				QJsonObject matObj = jsonMaterials.at(j).toObject();
-				QString jname = matObj.value("name").toString();
+				QString jname = jsonMaterials.at(j).toObject().value("name").toString();
 				if (!jname.isEmpty() && jname == name)
 				{
-					qDebug() << "Processing material:" << name;
+					nameMatchCount++;
+					nameMatchIndex = j;
+				}
+			}
 
-					// Load base PBR textures (with EXT_texture_webp support)
-					loadPbrTexturesFromJson(matObj, outMaterial);
+			// Only use name-based lookup if the name is UNIQUE
+			if (nameMatchCount == 1)
+			{
+				gltfMaterialIndex = nameMatchIndex;
+				qDebug() << "NAME MATCH (unique): Found material by name:" << name;
+			}
+			else if (nameMatchCount > 1)
+			{
+				qDebug() << "NAME AMBIGUOUS: Material name '" << name << "' appears" << nameMatchCount << "times - skipping to index-based lookup";
+			}
+		}
+	}
 
-					// Apply KHR extensions on top
-					if (applyExtensionsFromJsonMaterial(matObj, outMaterial))
+	// ===== Only run remaining strategies if name-based lookup FAILED =====
+	if (gltfMaterialIndex < 0)
+	{
+		// ===== STRATEGY B: Find by NODE name =====
+		for (int nodeIdx = 0; nodeIdx < jsonNodes.size(); ++nodeIdx)
+		{
+			QJsonObject node = jsonNodes.at(nodeIdx).toObject();
+			if (node.value("name").toString() == lookupKey && node.contains("mesh"))
+			{
+				int nodeMeshIndex = node.value("mesh").toInt(-1);
+				if (nodeMeshIndex >= 0 && nodeMeshIndex < jsonMeshes.size())
+				{
+					QJsonArray prims = jsonMeshes.at(nodeMeshIndex).toObject().value("primitives").toArray();
+					if (!prims.isEmpty())
 					{
-						qDebug() << "Applied KHR materials extensions to material (name)" << name;
+						int matIdx = prims.at(0).toObject().value("material").toInt(-1);
+						if (matIdx >= 0 && matIdx < jsonCount)
+						{
+							gltfMaterialIndex = matIdx;
+							break;
+						}
 					}
-					return;
+				}
+			}
+		}
+
+		// ===== STRATEGY C: Find by MESH name, with index tie-breaker =====
+		if (gltfMaterialIndex < 0)
+		{
+			QList<int> matchingGltfMeshIndices;
+			for (int meshIdx = 0; meshIdx < jsonMeshes.size(); ++meshIdx)
+			{
+				if (jsonMeshes.at(meshIdx).toObject().value("name").toString() == lookupKey)
+				{
+					matchingGltfMeshIndices.append(meshIdx);
+				}
+			}
+
+			if (!matchingGltfMeshIndices.isEmpty())
+			{
+				if (matchingGltfMeshIndices.size() == 1)
+				{
+					int meshIdx = matchingGltfMeshIndices.at(0);
+					QJsonArray prims = jsonMeshes.at(meshIdx).toObject().value("primitives").toArray();
+					if (!prims.isEmpty())
+					{
+						int matIdx = prims.at(0).toObject().value("material").toInt(-1);
+						if (matIdx >= 0 && matIdx < jsonCount)
+						{
+							gltfMaterialIndex = matIdx;
+						}
+					}
+				}
+				else if (matchingGltfMeshIndices.size() > 1)
+				{
+					if (actualMeshIndex < jsonMeshes.size() && matchingGltfMeshIndices.contains(actualMeshIndex))
+					{
+						QJsonArray prims = jsonMeshes.at(actualMeshIndex).toObject().value("primitives").toArray();
+						if (!prims.isEmpty())
+						{
+							int matIdx = prims.at(0).toObject().value("material").toInt(-1);
+							if (matIdx >= 0 && matIdx < jsonCount)
+							{
+								gltfMaterialIndex = matIdx;
+							}
+						}
+					}
+					else if (matchingGltfMeshIndices.size() > actualMeshIndex)
+					{
+						int meshIdx = matchingGltfMeshIndices.at(actualMeshIndex % matchingGltfMeshIndices.size());
+						QJsonArray prims = jsonMeshes.at(meshIdx).toObject().value("primitives").toArray();
+						if (!prims.isEmpty())
+						{
+							int matIdx = prims.at(0).toObject().value("material").toInt(-1);
+							if (matIdx >= 0 && matIdx < jsonCount)
+							{
+								gltfMaterialIndex = matIdx;
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// ===== STRATEGY D: Use direct index match =====
+		if (gltfMaterialIndex < 0 && actualMeshIndex < jsonMeshes.size())
+		{
+			QJsonArray prims = jsonMeshes.at(actualMeshIndex).toObject().value("primitives").toArray();
+			if (!prims.isEmpty())
+			{
+				int matIdx = prims.at(0).toObject().value("material").toInt(-1);
+				if (matIdx >= 0 && matIdx < jsonCount)
+				{
+					gltfMaterialIndex = matIdx;
 				}
 			}
 		}
 	}
 
-	// This handles edge cases where material names might not match.
-	// Only try this if we couldn't find by name.
-
-	int idx = static_cast<int>(materialIndex);
-	if (idx >= 0 && idx < jsonCount)
+	// ===== FINAL LOADING (single code path for all strategies) =====
+	if (gltfMaterialIndex < 0)
 	{
-		qDebug() << "  Name-based lookup failed, trying index-based fallback:" << idx;
-		QJsonObject matObj = jsonMaterials.at(idx).toObject();
+		qWarning() << "Could not find glTF material for mesh:" << lookupKey;
+		return;
+	}
 
-		// Load base PBR textures
-		loadPbrTexturesFromJson(matObj, outMaterial);
-
-		// Apply extensions
-		if (applyExtensionsFromJsonMaterial(matObj, outMaterial))
+	QJsonObject matObj = jsonMaterials.at(gltfMaterialIndex).toObject();
+	if (matObj.contains("extensions"))
+	{
+		QJsonObject ext = matObj.value("extensions").toObject();
+		if (ext.contains("KHR_materials_transmission"))
 		{
-			qDebug() << "Applied KHR materials extensions to material index" << idx;
-			return;
+			QJsonObject trans = ext.value("KHR_materials_transmission").toObject();
 		}
 	}
+
+	loadPbrTexturesFromJson(matObj, outMaterial);
+	applyExtensionsFromJsonMaterial(matObj, outMaterial);
 
 	// nothing found - silently return
 	// qDebug() << "No KHR materials extensions found for materialIndex" << materialIndex;
@@ -1514,11 +1656,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 
 			if (type == "thicknessMap")
 				mat.setHasThicknessAlpha(candidate.hasAlpha);
-
-			/*qDebug() << "Loaded extension texture:" << QString::fromStdString(textureFilePath)
-				<< "type:" << QString::fromStdString(type)
-				<< "id:" << candidate.id;*/
-
+			
 			return true;
 		};
 
