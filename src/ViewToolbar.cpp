@@ -343,6 +343,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _projToggleButton->setIcon(QIcon(":/icons/res/Ortho.png"));
     _projToggleButton->setIconSize(QSize(48, 48));
     _projToggleButton->setToolTip(tr("Toggle Projection"));
+    _projToggleButton->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_P));
     _mainLayout->addWidget(_projToggleButton);
 
     connect(_projToggleButton, &QToolButton::toggled, this, [this](bool checked) {
