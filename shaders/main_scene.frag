@@ -912,7 +912,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	float	roughness;
 	float	ambientOcclusion;
 	float	transmission;
-	float	ior = pbrLighting.ior;
+	float	ior;
 	vec3	sheenColor;
 	float	sheenRoughness;
 	float	clearcoat;
@@ -962,134 +962,130 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	float blendFactor = float(isGLTFMaterial);
 
-	// --- Material source: uniforms-only (renderMode==1) vs texture-driven (renderMode!=1)
-	if (renderMode == 1)
+	// --- Initialize material properties from uniforms ---	
+	N = normalize(normal);
+	albedo = pbrLighting.albedo;
+	metallic = pbrLighting.metallic;
+	roughness = clamp(pbrLighting.roughness, 0.001, 1.0);
+	ambientOcclusion = pbrLighting.ambientOcclusion;
+	transmission = pbrLighting.transmission;	
+	ior = pbrLighting.ior;
+	sheenColor = pbrLighting.sheenColor;
+	sheenRoughness = pbrLighting.sheenRoughness;
+	clearcoat = pbrLighting.clearcoat;
+	clearcoatRoughness = pbrLighting.clearcoatRoughness;
+	clearcoatNormal = normalize(g_reflectionNormal);
+	specularFactor = pbrLighting.specularFactor;
+	specularColorFactor = pbrLighting.specularColorFactor;
+	anisotropyStrength = pbrLighting.anisotropyStrength;
+	anisotropyRotation = pbrLighting.anisotropyRotation;
+	iridescenceFactor = pbrLighting.iridescenceFactor;
+	iridescenceIor = pbrLighting.iridescenceIor;
+	iridescenceThickness = (pbrLighting.iridescenceThicknessMin + pbrLighting.iridescenceThicknessMax) * 0.5;
+	thicknessFactor = pbrLighting.thicknessFactor;
+	attenuationDistance = pbrLighting.attenuationDistance;
+	attenuationColor = pbrLighting.attenuationColor;
+	unlit = pbrLighting.unlit;
+
+	
+	// Normal map / Parallax
+	if (hasNormalMap)  N = calcBumpedNormal(normalMap, getNormalUV()) * side;
+	else               N = normalize(normal);
+
+	if (hasHeightMap)
 	{
-		N = normalize(normal);
-		albedo = pbrLighting.albedo;
-		metallic = pbrLighting.metallic;
-		roughness = clamp(pbrLighting.roughness, 0.001, 1.0);
-		ambientOcclusion = pbrLighting.ambientOcclusion;
-		transmission = pbrLighting.transmission;		
-		sheenColor = pbrLighting.sheenColor;
-		sheenRoughness = pbrLighting.sheenRoughness;
-		clearcoat = pbrLighting.clearcoat;
-		clearcoatRoughness = pbrLighting.clearcoatRoughness;
-		clearcoatNormal = normalize(g_reflectionNormal);
+		clippedTexCoord = applyParallaxMapping(getHeightUV(), heightMap, heightScale, hasHeightMap);
+		N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
+	}
 
-		specularFactor = pbrLighting.specularFactor;
-		specularColorFactor = pbrLighting.specularColorFactor;
-		anisotropyStrength = pbrLighting.anisotropyStrength;
-		anisotropyRotation = pbrLighting.anisotropyRotation;
-		iridescenceFactor = pbrLighting.iridescenceFactor;
-		iridescenceIor = pbrLighting.iridescenceIor;
-		iridescenceThickness = (pbrLighting.iridescenceThicknessMin + pbrLighting.iridescenceThicknessMax) * 0.5;
-		thicknessFactor = pbrLighting.thicknessFactor;
-		attenuationDistance = pbrLighting.attenuationDistance;
-		attenuationColor = pbrLighting.attenuationColor;
-		unlit = pbrLighting.unlit;
-
+	// Albedo (grayscale-tint logic via computeBaseColor)
+	if (hasAlbedoMap)
+	{
+		textureColor = texture(albedoMap, getAlbedoUV());
+		vec3 texRGB_L = pow(textureColor.rgb, vec3(2.2));
+		float colorDeviation = length(pbrLighting.albedo - vec3(1.0));
+		if (colorDeviation < 0.1)
+		{
+			albedo = texRGB_L;
+		}
+		else
+		{
+			albedo = computeBaseColor(getAlbedoUV(),
+				pbrLighting.albedo, // sRGB in function; it converts internally
+				albedoMap,
+				hasAlbedoMap,
+				vec3(1.0), false);
+		}
 	}
 	else
 	{
-		// Normal map / Parallax
-		if (hasNormalMap)  N = calcBumpedNormal(normalMap, getNormalUV()) * side;
-		else               N = normalize(normal);
-
-		if (hasHeightMap)
-		{
-			clippedTexCoord = applyParallaxMapping(getHeightUV(), heightMap, heightScale, hasHeightMap);
-			N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
-		}
-
-		// Albedo (grayscale-tint logic via computeBaseColor)
-		if (hasAlbedoMap)
-		{
-			textureColor = texture(albedoMap, getAlbedoUV());
-			vec3 texRGB_L = pow(textureColor.rgb, vec3(2.2));
-			float colorDeviation = length(pbrLighting.albedo - vec3(1.0));
-			if (colorDeviation < 0.1)
-			{
-				albedo = texRGB_L;
-			}
-			else
-			{
-				albedo = computeBaseColor(getAlbedoUV(),
-					pbrLighting.albedo, // sRGB in function; it converts internally
-					albedoMap,
-					hasAlbedoMap,
-					vec3(1.0), false);
-			}
-		}
-		else
-		{
-			albedo = pbrLighting.albedo;
-		}
-
-		if(hasVertexColors)
-			albedo *= g_color.rgb;
-
-		// --- packed-channel aware PBR sampling ---
-		// Note: pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
-		// is assumed to return a value in [0,1] for valid channel indices 0..3.
-		// For a different fallback for ch < 0, modify accordingly.		
-		// Metallic
-		float texMetallic = samplePackedChannelValue(metallicMap, hasMetallicMap, getMetallicUV(),
-			metallicChannel, metallicInvert,
-			metallicScale, metallicBias,
-			isGLTFMaterial ? 1.0 : pbrLighting.metallic // fallback if no texture
-		);
-		metallic = mix(texMetallic, pbrLighting.metallic * texMetallic, blendFactor);
-		metallic = clamp(metallic, 0.0, 1.0);
-
-		// Roughness
-		float texRoughness = samplePackedChannelValue(roughnessMap, hasRoughnessMap, getRoughnessUV(),
-			roughnessChannel, roughnessInvert,
-			roughnessScale, roughnessBias,
-			isGLTFMaterial ? 1.0 : pbrLighting.roughness // fallback if no texture
-		);
-		roughness = mix(texRoughness, pbrLighting.roughness * texRoughness, blendFactor);
-		roughness = clamp(roughness, 0.0001, 1.0);
-
-		// Ambient Occlusion
-		float texAO = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
-			aoChannel, aoInvert, aoScale, aoBias,
-			isGLTFMaterial ? 1.0 : pbrLighting.ambientOcclusion);
-		ambientOcclusion = mix(texAO, pbrLighting.ambientOcclusion * texAO, blendFactor);
-		ambientOcclusion = clamp(ambientOcclusion, 0.0001, 1.0); // prevent total blackout
-
-		// Specular (KHR_materials_specular)
-		float texSpecularFactor = hasSpecularFactorMap ? texture(specularFactorMap, getSpecularFactorUV()).a : 1.0;
-		specularFactor = mix(texSpecularFactor, pbrLighting.specularFactor * texSpecularFactor, blendFactor);
-
-		vec3 texSpecularColor = hasSpecularColorMap ? texture(specularColorMap, getSpecularColorUV()).rgb : vec3(1.0);
-		specularColorFactor = mix(texSpecularColor, pbrLighting.specularColorFactor * texSpecularColor, blendFactor);
-				
-		// Anisotropy (KHR_materials_anisotropy)
-		AnisotropyData anisoData;    
-		if (hasAnisotropyMap)
-		{
-			vec3 anisoTexel = texture(anisotropyMap, getAnisotropyUV()).rgb;
-			anisoData = decodeAnisotropyTexture(
-				anisoTexel,
-				pbrLighting.anisotropyStrength,
-				pbrLighting.anisotropyRotation,
-				true
-			);
-		}
-		else
-		{
-			anisoData = decodeAnisotropyTexture(
-				vec3(1.0, 0.5, 1.0),  // Default texture value
-				pbrLighting.anisotropyStrength,
-				pbrLighting.anisotropyRotation,
-				false
-			);
-		}
-    
-		anisotropyStrength = anisoData.strength;
-		anisotropyRotation = anisoData.rotation;
+		albedo = pbrLighting.albedo;
 	}
+
+	if(hasVertexColors)
+		albedo *= g_color.rgb;
+
+	// --- packed-channel aware PBR sampling ---
+	// Note: pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
+	// is assumed to return a value in [0,1] for valid channel indices 0..3.
+	// For a different fallback for ch < 0, modify accordingly.		
+	// Metallic
+	float texMetallic = samplePackedChannelValue(metallicMap, hasMetallicMap, getMetallicUV(),
+		metallicChannel, metallicInvert,
+		metallicScale, metallicBias,
+		isGLTFMaterial ? 1.0 : pbrLighting.metallic // fallback if no texture
+	);
+	metallic = mix(texMetallic, pbrLighting.metallic * texMetallic, blendFactor);
+	metallic = clamp(metallic, 0.0, 1.0);
+
+	// Roughness
+	float texRoughness = samplePackedChannelValue(roughnessMap, hasRoughnessMap, getRoughnessUV(),
+		roughnessChannel, roughnessInvert,
+		roughnessScale, roughnessBias,
+		isGLTFMaterial ? 1.0 : pbrLighting.roughness // fallback if no texture
+	);
+	roughness = mix(texRoughness, pbrLighting.roughness * texRoughness, blendFactor);
+	roughness = clamp(roughness, 0.0001, 1.0);
+
+	// Ambient Occlusion
+	float texAO = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
+		aoChannel, aoInvert, aoScale, aoBias,
+		isGLTFMaterial ? 1.0 : pbrLighting.ambientOcclusion);
+	ambientOcclusion = mix(texAO, pbrLighting.ambientOcclusion * texAO, blendFactor);
+	ambientOcclusion = clamp(ambientOcclusion, 0.0001, 1.0); // prevent total blackout
+
+	// Specular (KHR_materials_specular)
+	float texSpecularFactor = hasSpecularFactorMap ? texture(specularFactorMap, getSpecularFactorUV()).a : 1.0;
+	specularFactor = mix(texSpecularFactor, pbrLighting.specularFactor * texSpecularFactor, blendFactor);
+
+	vec3 texSpecularColor = hasSpecularColorMap ? texture(specularColorMap, getSpecularColorUV()).rgb : vec3(1.0);
+	specularColorFactor = mix(texSpecularColor, pbrLighting.specularColorFactor * texSpecularColor, blendFactor);
+				
+	// Anisotropy (KHR_materials_anisotropy)
+	AnisotropyData anisoData;    
+	if (hasAnisotropyMap)
+	{
+		vec3 anisoTexel = texture(anisotropyMap, getAnisotropyUV()).rgb;
+		anisoData = decodeAnisotropyTexture(
+			anisoTexel,
+			pbrLighting.anisotropyStrength,
+			pbrLighting.anisotropyRotation,
+			true
+		);
+	}
+	else
+	{
+		anisoData = decodeAnisotropyTexture(
+			vec3(1.0, 0.5, 1.0),  // Default texture value
+			pbrLighting.anisotropyStrength,
+			pbrLighting.anisotropyRotation,
+			false
+		);
+	}
+    
+	anisotropyStrength = anisoData.strength;
+	anisotropyRotation = anisoData.rotation;
+	
 
 	// Early out for unlit materials
 	if (unlit)
