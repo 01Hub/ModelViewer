@@ -1193,8 +1193,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			iridescenceIor,
 			NdotV_view,
 			iridescenceThickness,
-			vec3(0.04),                       // dielectric F0
-			vec3(1.0)                         // F90
+			F0,								  // dielectric F0
+			F90_dielectric                    // F90
 		);
 				
 		vec3 iridFresnel_metallic = evalIridescence(
@@ -1471,16 +1471,40 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             );
         }
         
-        // --- FRESNEL BLENDING ---
-        float NdotV = max(dot(N_trans, -V_reflect), 0.001);
-        float fresnel = calculateVolumeFresnel(ior_trans, 1.0, NdotV);
-        
-        // Blend reflection and transmission
-        vec3 reflectionColor = outRGB;
-        vec3 finalTransmission = mix(transmittedLight, reflectionColor, fresnel);
-        
-        // Apply transmission factor
-        outRGB = mix(outRGB, finalTransmission, transmissionFactor);
+        // --- FRESNEL BLENDING WITH IRIDESCENCE ---
+		float NdotV = max(dot(N_trans, -V_reflect), 0.001);
+
+		vec3 blendFresnel = vec3(1.0);  // Blending Fresnel (1.0 = full reflection, 0.0 = full transmission)
+
+		if (iridescenceFactor > 0.001)
+		{
+			// Use iridescent Fresnel for blending - matches KHR spec
+			// This makes iridescence act as a wavelength-dependent reflectance
+			vec3 iridFresnel_dielectric = evalIridescence(
+				1.0,                    // outsideIOR (air)
+				iridescenceIor,
+				NdotV,
+				iridescenceThickness,
+				vec3(pow((ior_trans - 1.0) / (ior_trans + 1.0), 2.0))  // base dielectric F0
+			);
+    
+			// Blend between volume Fresnel and iridescent Fresnel based on iridescence strength
+			float volumeFresnel = calculateVolumeFresnel(ior_trans, 1.0, NdotV);
+			blendFresnel = mix(vec3(volumeFresnel), iridFresnel_dielectric, iridescenceFactor);
+		}
+		else
+		{
+			// No iridescence - use standard volume Fresnel
+			float volumeFresnel = calculateVolumeFresnel(ior_trans, 1.0, NdotV);
+			blendFresnel = vec3(volumeFresnel);
+		}
+
+		// Blend reflection and transmission using the Fresnel (which may be iridescent)
+		vec3 reflectionColor = outRGB;
+		vec3 finalTransmission = mix(transmittedLight, reflectionColor, blendFresnel);
+
+		// Apply transmission factor
+		outRGB = mix(outRGB, finalTransmission, transmissionFactor);
     }
 
 	// ============================================================================
