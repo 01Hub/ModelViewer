@@ -217,7 +217,6 @@ uniform bool selected;
 uniform bool selectionHighlighting;
 uniform vec4 reflectColor;
 uniform bool floorRendering;
-uniform bool lockLightAndCamera = true;
 uniform bool hdrToneMapping = false;
 uniform bool gammaCorrection = false;
 uniform float screenGamma = 2.2;
@@ -736,16 +735,9 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 	// --- Lighting vectors ---
 	vec3 lightDir, viewDir;
-	if (lockLightAndCamera)
-	{
-		lightDir = normalize(source.position - g_position);
+	
 		viewDir = normalize(vec3(0, 0, 1));
-	}
-	else
-	{
-		lightDir = normalize(source.position + cameraPos - g_position);
-		viewDir = normalize(cameraPos);
-	}
+	lightDir = normalize(source.position - g_position);	
 
 	vec3 halfVector = normalize(lightDir + viewDir);
 	float nDotVP = max(dot(normal, normalize(lightDir + viewDir)), 0.0);
@@ -949,16 +941,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 V_reflect_offset = normalize(cameraPos - g_reflectionPosition);
 	vec3 V_reflect = normalize(V_reflect_base - V_reflect_offset * 0.3);
 
-	if (lockLightAndCamera)
-	{
-		V_direct = normalize(lightSource.position - g_position);
+	V_direct = normalize(vec3(0, 0, 1));
 		L = normalize(lightSource.position - g_position);
-	}
-	else
-	{
-		V_direct = normalize(lightSource.position + cameraPos - g_position);
-		L = normalize(lightSource.position + cameraPos - g_position);
-	}
 
 	// Optional shadows affecting direct terms
 	float lightShadowFactor = 0.0;
