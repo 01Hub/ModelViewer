@@ -2438,11 +2438,8 @@ float calculateShadow(vec4 fragPosLightSpace)
 	float currentDepth = projCoords.z;
 
 	vec3 normal = normalize(fs_in_shadow.Normal);
-	vec3 lightDir;
-	if (lockLightAndCamera)
-		lightDir = normalize(lightSource.position);
-	else
-		lightDir = normalize(lightSource.position + fs_in_shadow.cameraPos);
+	vec3 lightDir = normalize(lightSource.position);
+	
 	//float bias = max(0.05 * (1.0 - dot(normal, lightDir)), 0.005);
 	float bias = clamp(0.005 * tan(acos(dot(normal, lightDir))), 0.005, 0.05);
 
