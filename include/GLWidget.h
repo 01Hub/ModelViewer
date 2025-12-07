@@ -328,8 +328,7 @@ public slots:
 	void setAutoFitViewOnUpdate(bool update);
 	void setSelectionHighlighting(bool highlight);
 	void performKeyboardNav();
-	void disableLowRes();
-	void lockLightAndCamera(bool lock);
+	void disableLowRes();	
 	void setFloorTexRepeatS(double floorTexRepeatS);
 	void setFloorTexRepeatT(double floorTexRepeatT);
 	void setFloorOffsetPercent(double value);
@@ -560,8 +559,7 @@ private:
 	bool _skyBoxBlurred;
 
 	bool _lowResEnabled;
-	bool _lockLightAndCamera;
-
+	
 	unsigned int _shadowWidth;
 	unsigned int _shadowHeight;
 

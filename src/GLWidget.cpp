@@ -244,8 +244,7 @@ _assimpModelLoader(nullptr)
 	_iblExposure = 1.0f;
 	_toneMappingMode = HDRToneMapMode::ACES_Narkowicz;
 
-	_lowResEnabled = false;
-	_lockLightAndCamera = true;
+	_lowResEnabled = false;	
 	_showLights = false;
 
 	_shadowWidth = 1024 * 4;
@@ -523,8 +522,7 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("transmissionDepthTexture", 8);
 	_fgShader->setUniformValue("shadowSamples", 27.0f);
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
-	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
-	_fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
+	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));	
 	_fgShader->setUniformValue("selectionHighlighting", _selectionHighlighting);
 
 	QMatrix4x4 envMapRot;
@@ -4446,9 +4444,7 @@ void GLWidget::drawLights()
 	model.translate(_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_lightCubeShader->bind();
 	_lightCubeShader->setUniformValue("modelMatrix", model);
-	QMatrix4x4 viewMat = _viewMatrix;
-	if (!_lockLightAndCamera)
-		viewMat.setColumn(3, QVector4D(0, 0, 0, 1));
+	QMatrix4x4 viewMat = _viewMatrix;	
 	_lightCubeShader->setUniformValue("viewMatrix", viewMat);
 	_lightCubeShader->setUniformValue("projectionMatrix", _projectionMatrix);
 	_lightCubeShader->setUniformValue("lightColor", _diffuseLight.toVector3D());
@@ -4540,7 +4536,7 @@ void GLWidget::render(GLCamera* camera)
 
 void GLWidget::renderToShadowBuffer()
 {
-	if (!_shadowMapNeedsInitialization && _lockLightAndCamera)
+	if (!_shadowMapNeedsInitialization)
 		return;
 	_shadowMapNeedsInitialization = false;
 
@@ -4565,10 +4561,8 @@ void GLWidget::renderToShadowBuffer()
 
 	// Light looks at scene center
 	QVector3D lightDir;
-	if (_lockLightAndCamera)	
-		lightDir = QVector3D(center.x(), center.y(), 0);	
-	else	
-		lightDir = _primaryCamera->getPosition();
+	
+	lightDir = QVector3D(center.x(), center.y(), 0);	
 	
 	lightView.lookAt(lightPos, lightDir, QVector3D(0.0, 1.0, 0.0));
 
@@ -5228,16 +5222,6 @@ void GLWidget::checkAndStopTimers()
 void GLWidget::disableLowRes()
 {
 	_lowResEnabled = false;
-	update();
-}
-
-void GLWidget::lockLightAndCamera(bool lock)
-{
-	_lockLightAndCamera = lock;
-	_shadowMapNeedsInitialization = true; // Force re-initialization of shadow map
-	_fgShader->bind();
-	_fgShader->setUniformValue("lockLightAndCamera", _lockLightAndCamera);
-	_fgShader->release();
 	update();
 }
 

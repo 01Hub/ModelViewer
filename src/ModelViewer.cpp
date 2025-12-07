@@ -101,8 +101,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this);
 	connect(shortcut, &QShortcut::activated, this, &ModelViewer::onFileExport);
-
-	connect(checkBoxLockLightCamera, &QCheckBox::toggled, _glWidget, &GLWidget::lockLightAndCamera);
+		
 	connect(doubleSpinBoxRepeatS, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatS);
 	connect(doubleSpinBoxRepeatT, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatT);
 	connect(doubleSpinBoxSkyBoxFOV, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setSkyBoxFOV);

@@ -291,7 +291,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>428</width>
+                   <width>525</width>
                    <height>735</height>
                   </rect>
                  </property>
@@ -1035,8 +1035,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>428</width>
-                   <height>735</height>
+                   <width>167</width>
+                   <height>164</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1201,8 +1201,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>428</width>
-                   <height>735</height>
+                   <width>98</width>
+                   <height>28</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1231,8 +1231,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>428</width>
-                   <height>735</height>
+                   <width>98</width>
+                   <height>28</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1268,8 +1268,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>428</width>
-                   <height>735</height>
+                   <width>219</width>
+                   <height>534</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1645,7 +1645,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>428</width>
+                   <width>525</width>
                    <height>735</height>
                   </rect>
                  </property>
@@ -1882,22 +1882,6 @@
                        <property name="spacing">
                         <number>5</number>
                        </property>
-                       <item>
-                        <widget class="QCheckBox" name="checkBoxLockLightCamera">
-                         <property name="toolTip">
-                          <string>Lock light and camera together</string>
-                         </property>
-                         <property name="layoutDirection">
-                          <enum>Qt::LayoutDirection::LeftToRight</enum>
-                         </property>
-                         <property name="text">
-                          <string>Lock Light and Camera</string>
-                         </property>
-                         <property name="checked">
-                          <bool>true</bool>
-                         </property>
-                        </widget>
-                       </item>
                        <item>
                         <widget class="QCheckBox" name="checkBoxShowLights">
                          <property name="text">
@@ -2603,7 +2587,6 @@
   <tabstop>sliderLightPosX</tabstop>
   <tabstop>sliderLightPosY</tabstop>
   <tabstop>sliderLightPosZ</tabstop>
-  <tabstop>checkBoxLockLightCamera</tabstop>
   <tabstop>checkBoxShowLights</tabstop>
   <tabstop>doubleSpinBoxRepeatS</tabstop>
   <tabstop>doubleSpinBoxRepeatT</tabstop>
