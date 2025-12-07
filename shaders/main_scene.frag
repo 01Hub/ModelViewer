@@ -1409,7 +1409,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			N_trans = -N_trans;  // Flip normal to face viewer
 		}
     
-		float ior_trans = max(1.3, pbrLighting.ior);		
+		float ior_trans = pbrLighting.ior;		
         
         // --- THICKNESS CALCULATION ---
         float thickness = thicknessFactor;
