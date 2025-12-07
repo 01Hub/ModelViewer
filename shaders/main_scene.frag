@@ -736,7 +736,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	// --- Lighting vectors ---
 	vec3 lightDir, viewDir;
 	
-		viewDir = normalize(vec3(0, 0, 1));
+	viewDir = normalize(vec3(0, 0, 1));
 	lightDir = normalize(source.position - g_position);	
 
 	vec3 halfVector = normalize(lightDir + viewDir);
@@ -942,7 +942,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 V_reflect = normalize(V_reflect_base - V_reflect_offset * 0.3);
 
 	V_direct = normalize(vec3(0, 0, 1));
-		L = normalize(lightSource.position - g_position);
+	L = normalize(lightSource.position - g_position);
 
 	// Optional shadows affecting direct terms
 	float lightShadowFactor = 0.0;
@@ -1133,22 +1133,26 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// ============================================================================
 	vec3 F0 = vec3(0.04);	
 
-	// Apply KHR_materials_specular
-	if (specularFactor > 0.0)
+	// Apply KHR_materials_ior and KHR_materials_specular for dielectrics
+	if (metallic < 0.02)  // Only for non-metallic/dielectric materials
 	{
-		F0 = F0 * specularColorFactor * specularFactor;		
+		// First compute the base dielectric F0 from IOR
+		float f0_from_ior = pow((ior - 1.0) / (ior + 1.0), 2.0);
+    
+		if (specularFactor > 0.0)  // KHR_materials_specular is present
+		{
+			// Apply specular extension: multiply base F0 by color and factor
+			F0 = vec3(f0_from_ior) * specularColorFactor * specularFactor;
+		}
+		else  // No KHR_materials_specular, use IOR directly
+		{
+			F0 = vec3(f0_from_ior);
+			F0 = max(F0, vec3(0.04));
+		}
 	}
 
 	// Mix with albedo for metals
-	F0 = mix(F0, albedo, metallic);
-	
-	// Transmission IOR override
-	if (transmission > 0.0)
-	{
-		float f0_from_ior = pow((ior - 1.0) / (ior + 1.0), 2.0);
-		F0 = mix(F0, vec3(f0_from_ior), transmission);		
-	}
-	if (metallic < 0.1) F0 = max(F0, vec3(0.04));
+	F0 = mix(F0, albedo, metallic);	
 
 	// ============================================================================
 	// COMPUTE F90 FOR FRESNEL (KHR_materials_specular)
@@ -1389,7 +1393,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	vec3 outRGB = baseNoSpec_L + specOnly_L + clearcoat_L * lightSource.specular * clearcoatAttenuation;
-
+	
 	// ============================================================================
     // TRANSMISSION VOLUME & REFRACTION WITH DISPERSION (Mipmapped)
     // ============================================================================
