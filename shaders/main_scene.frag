@@ -912,7 +912,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	float	roughness;
 	float	ambientOcclusion;
 	float	transmission;
-	float	ior;
+	float	ior = pbrLighting.ior;
 	vec3	sheenColor;
 	float	sheenRoughness;
 	float	clearcoat;
@@ -970,8 +970,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		metallic = pbrLighting.metallic;
 		roughness = clamp(pbrLighting.roughness, 0.001, 1.0);
 		ambientOcclusion = pbrLighting.ambientOcclusion;
-		transmission = pbrLighting.transmission;
-		ior = pbrLighting.ior;
+		transmission = pbrLighting.transmission;		
 		sheenColor = pbrLighting.sheenColor;
 		sheenRoughness = pbrLighting.sheenRoughness;
 		clearcoat = pbrLighting.clearcoat;
@@ -1131,7 +1130,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// ============================================================================
 	// BASE LAYER - F0 and Material Foundation
 	// ============================================================================
-	vec3 F0 = vec3(0.04);	
+	vec3 F0 = vec3(0.04);		
 
 	// Apply KHR_materials_ior and KHR_materials_specular for dielectrics
 	if (metallic < 0.02)  // Only for non-metallic/dielectric materials
