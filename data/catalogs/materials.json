@@ -4879,9 +4879,9 @@
       "items": [
         {
           "albedo": [
-            0.78,
-            0.15,
-            0.12
+            1.0,
+            0.0,
+            0.0
           ],
           "albedoMapPath": null,
           "alphaThreshold": null,
@@ -4898,9 +4898,9 @@
           "clearcoatRoughness": 0.1,
           "clearcoatRoughnessMapPath": null,
           "diffuse": [
-            0.78,
-            0.15,
-            0.12
+            1.0,
+            0.0,
+            0.0
           ],
           "emissive": [
             0,
@@ -4914,7 +4914,7 @@
           "key": "CAR_PAINT_METALLIC_RED",
           "metallic": false,
           "metallicMapPath": null,
-          "metalness": 0.45,
+          "metalness": 0.9,
           "name": "Car Paint Metallic Red",
           "normalMapPath": null,
           "opacity": 1,
@@ -4984,7 +4984,7 @@
           "key": "CAR_PAINT_METALLIC_DEEP_RED",
           "metallic": false,
           "metallicMapPath": null,
-          "metalness": 0.8399999737739563,
+          "metalness": 0.8,
           "name": "Car Paint Metallic Deep Red",
           "normalMapPath": null,
           "opacity": 1,
@@ -5021,9 +5021,9 @@
         },
         {
           "albedo": [
-            0.431373,
+            0.4,
             0,
-            0.039216
+            0
           ],
           "albedoMapPath": null,
           "alphaThreshold": null,
@@ -5040,9 +5040,9 @@
           "clearcoatRoughness": 0.04,
           "clearcoatRoughnessMapPath": null,
           "diffuse": [
-            0.431373,
+            0.4,
             0,
-            0.039216
+            0
           ],
           "emissive": [
             0,
@@ -5376,7 +5376,7 @@
           "key": "CAR_PAINT_METALLIC_CHERRY_BURGUNDY",
           "metallic": false,
           "metallicMapPath": null,
-          "metalness": 0.75,
+          "metalness": 1.0,
           "name": "Car Paint Metallic Cherry Burgundy",
           "normalMapPath": null,
           "opacity": 1,
@@ -5436,7 +5436,7 @@
           "key": "CAR_PAINT_METALLIC_GREEN",
           "metallic": false,
           "metallicMapPath": null,
-          "metalness": 0.3,
+          "metalness": 1.0,
           "name": "Car Paint Metallic Green",
           "normalMapPath": null,
           "opacity": 1,
@@ -5624,7 +5624,7 @@
           "key": "CAR_PAINT_METALLIC_BLUE",
           "metallic": false,
           "metallicMapPath": null,
-          "metalness": 0.3,
+          "metalness": 0.75,
           "name": "Car Paint Metallic Blue",
           "normalMapPath": null,
           "opacity": 1,
@@ -5653,9 +5653,9 @@
         },
         {
           "albedo": [
-            0.15,
-            0.35,
-            0.75
+            0.05,
+            0.14,
+            0.3
           ],
           "albedoMapPath": null,
           "alphaThreshold": null,
@@ -5672,9 +5672,9 @@
           "clearcoatRoughness": 0.08,
           "clearcoatRoughnessMapPath": null,
           "diffuse": [
-            0.15,
-            0.35,
-            0.75
+            0.05,
+            0.14,
+            0.3
           ],
           "emissive": [
             0,
@@ -5891,7 +5891,7 @@
           "metallicMapPath": "",
           "metallicRoughnessTexCoord": 0,
           "metallicTextureId": 0,
-          "metalness": 0.6000000238418579,
+          "metalness": 1.0,
           "name": "Car Paint Metallic Midnight Blue",
           "normalMapPath": "",
           "normalTexCoord": 0,
@@ -5971,7 +5971,7 @@
           "key": "CAR_PAINT_METALLIC_PURPLE",
           "metallic": false,
           "metallicMapPath": null,
-          "metalness": 0.6,
+          "metalness": 1.0,
           "name": "Car Paint Metallic Purple",
           "normalMapPath": null,
           "opacity": 1,
@@ -6036,7 +6036,7 @@
           "key": "CAR_PAINT_METALLIC_YELLOW_BRIGHT",
           "metallic": true,
           "metallicMapPath": null,
-          "metalness": 1,
+          "metalness": 0.8,
           "name": "Car Paint Metallic Sunshine Yellow",
           "normalMapPath": null,
           "opacity": 1,
@@ -7072,7 +7072,7 @@
           "albedo": [
             1,
             0.498039,
-            0.4
+            0.313725
           ],
           "albedoMapPath": null,
           "alphaThreshold": null,
@@ -7091,7 +7091,7 @@
           "diffuse": [
             1,
             0.498039,
-            0.4
+            0.313725
           ],
           "emissive": [
             0,
@@ -7134,9 +7134,9 @@
         },
         {
           "albedo": [
-            0.85,
-            0.08,
-            0.08
+            1.0,
+            0.031372,
+            0.0
           ],
           "albedoMapPath": null,
           "alphaThreshold": null,
@@ -7153,9 +7153,9 @@
           "clearcoatRoughness": 0.02,
           "clearcoatRoughnessMapPath": null,
           "diffuse": [
-            0.85,
-            0.08,
-            0.08
+            1.0,
+            0.031372,
+            0.0
           ],
           "emissive": [
             0,
@@ -7322,9 +7322,9 @@
         },
         {
           "albedo": [
-            0.8,
-            0.95,
-            0.85
+            0.596078,
+            1.0,
+            0.596078
           ],
           "albedoMapPath": null,
           "alphaThreshold": null,
@@ -7341,9 +7341,9 @@
           "clearcoatRoughness": 0.15,
           "clearcoatRoughnessMapPath": null,
           "diffuse": [
-            0.8,
-            0.95,
-            0.85
+            0.596078,
+            1.0,
+            0.596078
           ],
           "emissive": [
             0,
