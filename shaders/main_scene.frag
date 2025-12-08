@@ -928,6 +928,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	float	iridescenceIor;
 	float	iridescenceThickness;
 	float	thicknessFactor;
+	float	dispersion;
 	float	attenuationDistance;
 	vec3	attenuationColor;
 	bool	unlit;
@@ -983,6 +984,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	iridescenceIor = pbrLighting.iridescenceIor;
 	iridescenceThickness = (pbrLighting.iridescenceThicknessMin + pbrLighting.iridescenceThicknessMax) * 0.5;
 	thicknessFactor = pbrLighting.thicknessFactor;
+	dispersion = pbrLighting.dispersion;
 	attenuationDistance = pbrLighting.attenuationDistance;
 	attenuationColor = pbrLighting.attenuationColor;
 	unlit = pbrLighting.unlit;
@@ -1419,9 +1421,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
             thickness *= thicknessSample;
         }
         
-        // --- DISPERSION PARAMETER ---
-        float dispersion = pbrLighting.dispersion;
-        
+        // --- DISPERSION PARAMETER ---                
         vec3 transmittedLight;
         
         if (dispersion > 0.0)
