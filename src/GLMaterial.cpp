@@ -3909,6 +3909,14 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "  _clearcoat: " << m._clearcoat << "  _clearcoatRoughness: " << m._clearcoatRoughness << "\n";
 	os << "  _sheenColor: "; printVec3(os, m._sheenColor); os << "  _sheenRoughness: " << m._sheenRoughness << "\n";
 	os << "  _transmission: " << m._transmission << "\n";
+	os << "  _thicknessFactor: " << m._thicknessFactor << "\n";
+	os << "  _attenuationDistance: " << m._attenuationDistance << "  _attenuationColor: "; printVec3(os, m._attenuationColor); os << "\n";
+	os << "  _dispersion: " << m._dispersion << "\n";
+	// KHR_materials_iridescence
+	os << "  _iridescenceFactor: " << m._iridescenceFactor << "  _iridescenceIor: " << m._iridescenceIor << "\n";
+	os << "  _iridescenceThicknessMin: " << m._iridescenceThicknessMin << "  _iridescenceThicknessMax: " << m._iridescenceThicknessMax << "\n";
+
+
 
 	// --- Rendering flags
 	os << "  _shadingModel: " << static_cast<int>(m._shadingModel) << "\n";
