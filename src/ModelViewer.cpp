@@ -154,13 +154,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
 	toolBox->setItemEnabled(0, true);
-	toolBox->setItemEnabled(1, false);
-	toolBox->setItemEnabled(2, false);
+	toolBox->setItemEnabled(1, false);	
 	toolBox->setCurrentIndex(0);
-
-	connect(sliderTransparencyPBR, &QSlider::valueChanged, this, &ModelViewer::on_sliderTransparency_valueChanged);
-	connect(pushButtonDefaultMatlsPBR, &QPushButton::clicked, this, &ModelViewer::on_pushButtonDefaultMatls_clicked);
-
+	
 	connect(Ui_ModelViewer::materialPreviewWidget, &MaterialEditorPanel::materialChanged, this, &ModelViewer::setMaterialToSelectedItems);
 
 	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::applyTexturesTriggered, this, &ModelViewer::setTexturesToSelectedItems);
@@ -380,10 +376,7 @@ void ModelViewer::updateControls()
 {
 	sliderShine->blockSignals(true);
 	sliderTransparency->blockSignals(true);
-	sliderMetallic->blockSignals(true);
-	sliderRoughness->blockSignals(true);
-	sliderTransparencyPBR->blockSignals(true);
-
+	
 	QColor col;
 	QString qss;
 	QVector4D ambientLight = _glWidget->getAmbientLight();
@@ -422,21 +415,9 @@ void ModelViewer::updateControls()
 		qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
 		pushButtonMaterialEmissive->setStyleSheet(qss);
 	}
-	// PBR Direct Lighting
-	if (radioButtonDLPBR->isChecked())
-	{
-		col.setRgbF(_material.albedoColor().x(), _material.albedoColor().y(), _material.albedoColor().z());
-		qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-		pushButtonAlbedoColor->setStyleSheet(qss);
-		sliderMetallic->setValue((int)(_material.metalness() * 1000));
-		sliderRoughness->setValue((int)(_material.roughness() * 1000));
-		sliderTransparencyPBR->setValue((int)(_material.opacity() * 1000));
-	}
+	
 	sliderShine->blockSignals(false);
 	sliderTransparency->blockSignals(false);
-	sliderMetallic->blockSignals(false);
-	sliderRoughness->blockSignals(false);
-	sliderTransparencyPBR->blockSignals(false);
 }
 
 QString ModelViewer::getSupportedQtImagesFilter()
@@ -1057,31 +1038,27 @@ void ModelViewer::showVisualizationModelPage()
 	if (radioButtonADSL->isChecked())
 	{
 		toolBox->setCurrentIndex(0);
-	}
-	if (radioButtonDLPBR->isChecked())
-	{
-		toolBox->setCurrentIndex(1);
-	}
+	}	
 	if (radioButtonTXPBR->isChecked())
 	{
-		toolBox->setCurrentIndex(2);
+		toolBox->setCurrentIndex(1);
 	}
 }
 
 void ModelViewer::showPredefinedMaterialsPage()
 {
-	toolBox->setCurrentIndex(3);
+	toolBox->setCurrentIndex(2);
 }
 
 void ModelViewer::showTransformationsPage()
 {
-	toolBox->setCurrentIndex(4);
+	toolBox->setCurrentIndex(3);
 	updateTransformationValues();
 }
 
 void ModelViewer::showEnvironmentPage()
 {
-	toolBox->setCurrentIndex(5);
+	toolBox->setCurrentIndex(4);
 }
 
 void ModelViewer::on_pushButtonDefaultLights_clicked()
@@ -1107,16 +1084,6 @@ void ModelViewer::on_pushButtonApplyADSColors_clicked()
 	updateControls();
 }
 
-void ModelViewer::on_pushButtonDefaultMatls_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		_material.setOpacity(1.0f);
-		setMaterialToSelectedItems(GLMaterial::DEFAULT_MAT());
-		_glWidget->updateView();
-		updateControls();
-	}
-}
 
 void ModelViewer::on_pushButtonApplyTransformations_clicked()
 {
@@ -1300,39 +1267,6 @@ void ModelViewer::on_sliderLightPosZ_valueChanged(int)
 		static_cast<float>(sliderLightPosZ->value())));
 	_glWidget->updateView();
 }
-
-void ModelViewer::on_sliderTransparency_valueChanged(int value)
-{
-	if (checkForActiveSelection())
-	{
-		// Lambda for mapping slider [50..1000] -> opacity
-		auto mapSliderToOpacity = [](int s) -> float {
-			if (s >= 1000)
-			{
-				return 1.0f; // only at max
-			}
-			// Normalize rest of slider (50 -> 999) to [0..1]
-			float t = float(s - 50) / float(999 - 50);
-			// Smooth fade from 0.5 -> 0.005
-			return 0.5f - (0.5f - 0.005f) * (1.0f - t);
-			};
-
-		float opacity = mapSliderToOpacity(value);
-
-		_material.setOpacity(opacity);
-		for (int id : getSelectedIDs())
-		{
-			TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
-			if (mesh)
-			{
-				mesh->setOpacity(opacity);
-			}
-		}
-
-		_glWidget->updateView();
-	}
-}
-
 
 void ModelViewer::on_sliderShine_valueChanged(int value)
 {
@@ -1812,27 +1746,16 @@ void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 	if (radioButtonADSL->isChecked())
 	{
 		toolBox->setItemEnabled(0, true);
-		toolBox->setItemEnabled(1, false);
-		toolBox->setItemEnabled(2, false);
+		toolBox->setItemEnabled(1, false);		
 		toolBox->setCurrentIndex(0);
-		_glWidget->setRenderingMode(RenderingMode::ADS_PHONG);
-	}
-	if (radioButtonDLPBR->isChecked())
-	{
-		toolBox->setItemEnabled(0, false);
-		toolBox->setItemEnabled(1, true);
-		toolBox->setItemEnabled(2, false);
-		toolBox->setCurrentIndex(1);
-		_glWidget->setRenderingMode(RenderingMode::PBR_DIRECT_LIGHTING);
-		switchToRealisticRendering();
-	}
+		_glWidget->setRenderingMode(RenderingMode::ADS_BLINN_PHONG);
+	}	
 	if (radioButtonTXPBR->isChecked())
 	{
-		toolBox->setItemEnabled(0, false);
-		toolBox->setItemEnabled(1, false);
-		toolBox->setItemEnabled(2, true);
-		toolBox->setCurrentIndex(2);
-		_glWidget->setRenderingMode(RenderingMode::PBR_TEXTURED_LIGHTING);
+		toolBox->setItemEnabled(0, false);	
+		toolBox->setItemEnabled(1, true);
+		toolBox->setCurrentIndex(1);
+		_glWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);
 		switchToRealisticRendering();
 	}
 	updateControls();
@@ -1847,47 +1770,6 @@ void ModelViewer::onDisplayModeChanged(int mode)
 	checkBoxSelfShadows->setChecked(checked);
 	checkBoxReflections->setChecked(checked);
 	checkBoxFloor->setChecked(checked);
-}
-
-void ModelViewer::on_pushButtonAlbedoColor_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.albedoColor().x(), _material.albedoColor().y(), _material.albedoColor().z()), this, "Albedo Color");
-		if (c.isValid())
-		{
-			QApplication::setOverrideCursor(Qt::WaitCursor);
-			_material.setAlbedoColor(QVector3D(c.red() / 255.0f, c.green() / 255.0f, c.blue() / 255.0f));
-
-			std::vector<int> ids = getSelectedIDs();
-			_glWidget->setMaterialToObjects(ids, _material);
-			_glWidget->updateView();
-			updateControls();
-			QApplication::restoreOverrideCursor();
-		}
-	}
-}
-
-void ModelViewer::on_sliderMetallic_valueChanged(int value)
-{
-	_material.setMetalness(value / 1000.0f);
-	if (listWidgetModel->count())
-	{
-		std::vector<int> ids = getSelectedIDs();
-		_glWidget->setPBRMetallic(ids, _material.metalness());
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_sliderRoughness_valueChanged(int value)
-{
-	_material.setRoughness(value / 1000.0f);
-	if (listWidgetModel->count())
-	{
-		std::vector<int> ids = getSelectedIDs();
-		_glWidget->setPBRRoughness(ids, _material.roughness());
-		_glWidget->updateView();
-	}
 }
 
 void ModelViewer::on_checkBoxDiffuseTex_toggled(bool checked)

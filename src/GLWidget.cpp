@@ -174,7 +174,7 @@ _assimpModelLoader(nullptr)
 	_lightOffsetZ = 0.0f;
 
 	_displayMode = DisplayMode::SHADED;
-	_renderingMode = RenderingMode::ADS_PHONG;
+	_renderingMode = RenderingMode::ADS_BLINN_PHONG;
 
 	_multiViewActive = false;
 
@@ -3609,7 +3609,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_fgShader->setUniformValue("envMapEnabled", false);
 	_fgShader->setUniformValue("floorRendering", true);
 	_fgShader->setUniformValue("isReflectedPass", true);
-	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
+	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
 	_fgShader->setUniformValue("u_topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
 	_fgShader->setUniformValue("u_botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
 	_fgShader->setUniformValue("u_screenSize", QVector2D(width(), height()));
@@ -3653,7 +3653,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glCullFace(GL_FRONT);
 	_fgShader->bind();
 	_fgShader->setUniformValue("envMapEnabled", false);	
-	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_PHONG));
+	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
 	_fgShader->setUniformValue("shadowSamples", 18.0f);
 	_fgShader->setUniformValue("isReflectedPass", false);
 	_fgShader->setUniformValue("u_topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));

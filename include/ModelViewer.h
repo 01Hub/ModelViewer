@@ -98,8 +98,7 @@ private slots:
 	void lightingType_toggled(QAbstractButton *, bool);
 		
 	void on_pushButtonDefaultLights_clicked();
-	void on_pushButtonApplyADSColors_clicked();
-	void on_pushButtonDefaultMatls_clicked();
+	void on_pushButtonApplyADSColors_clicked();	
 	void on_pushButtonApplyTransformations_clicked();
 	void on_pushButtonBakeTransformations_clicked();
 	void on_pushButtonResetTransformations_clicked();	
@@ -112,8 +111,7 @@ private slots:
 	void on_pushButtonMaterialEmissive_clicked();
 	void on_sliderLightPosX_valueChanged(int);
 	void on_sliderLightPosY_valueChanged(int);
-	void on_sliderLightPosZ_valueChanged(int);
-	void on_sliderTransparency_valueChanged(int value);
+	void on_sliderLightPosZ_valueChanged(int);	
 	void on_sliderShine_valueChanged(int value);
 
 	void onFileImport();
@@ -136,10 +134,7 @@ private slots:
 	void on_toolBox_currentChanged(int index);
 
 	void on_pushButtonSkyBoxTex_clicked();
-	void on_pushButtonAlbedoColor_clicked();
-	void on_sliderMetallic_valueChanged(int value);
-	void on_sliderRoughness_valueChanged(int value);
-
+	
 	void on_checkBoxDiffuseTex_toggled(bool checked);
 	void on_pushButtonDiffuseTexture_clicked();
 	void on_toolButtonClearDiffuseTex_clicked();

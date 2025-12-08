@@ -33,7 +33,7 @@ class ModelViewer;
 enum class ViewMode { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK, ISOMETRIC, DIMETRIC, TRIMETRIC, NONE };
 enum class ViewProjection { ORTHOGRAPHIC, PERSPECTIVE };
 enum class DisplayMode { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
-enum class RenderingMode { ADS_PHONG, PBR_DIRECT_LIGHTING, PBR_TEXTURED_LIGHTING };
+enum class RenderingMode { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING };
 enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT };
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
 enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3,  GRID = 4, DIAGONAL_CROSS = 5 };
