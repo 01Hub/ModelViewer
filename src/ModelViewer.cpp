@@ -612,6 +612,31 @@ void ModelViewer::mouseMoveEvent(QMouseEvent* event)
 	QWidget::mouseMoveEvent(event);
 }
 
+void ModelViewer::closeEvent(QCloseEvent* event)
+{
+	if (_documentModified)
+	{
+		auto ret = QMessageBox::question(this, tr("Unsaved Changes"),
+			tr("The document has unsaved changes. Do you want to save before closing?"),
+			QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
+			QMessageBox::Yes);
+		if (ret == QMessageBox::Yes)
+		{
+			if (!save())
+			{
+				event->ignore();
+				return;
+			}
+		}
+		else if (ret == QMessageBox::Cancel)
+		{
+			event->ignore();
+			return;
+		}
+	}
+	event->accept();
+}
+
 void ModelViewer::setCurrentFile(const QString& fileName)
 {
 	_currentFile = fileName;
@@ -658,7 +683,16 @@ void ModelViewer::setDocumentModified(bool modified)
 
 bool ModelViewer::save()
 {
-	if (_currentFile.isEmpty()) {
+	// If current file's extension is not .mvf, call saveAs
+	// this way, user cannot accidentally overwrite non-mvf files
+	QString ext = QFileInfo(_currentFile).suffix();
+	if (ext.toLower() != "mvf")
+	{
+		return saveAs();
+	}
+	
+	if (_currentFile.isEmpty())
+	{
 		return saveAs();
 	}
 

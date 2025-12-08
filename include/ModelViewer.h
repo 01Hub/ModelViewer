@@ -170,6 +170,7 @@ protected:
 	void dropEvent(QDropEvent* event);
 	void resizeEvent(QResizeEvent* event);
 	void mouseMoveEvent(QMouseEvent* event);
+	void closeEvent(QCloseEvent* event);
 
 private:
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);

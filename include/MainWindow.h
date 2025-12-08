@@ -33,8 +33,6 @@ public:
 
 	ModelViewer* createMdiChild();
 
-	void checkSaveAndClose(ModelViewer* viewer);
-
 	void setGraphicsInfo(const QString& info)
 	{
 		_graphicsInfo = info;

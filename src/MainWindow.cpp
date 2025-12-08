@@ -163,21 +163,6 @@ ModelViewer* MainWindow::createMdiChild()
 	return viewer;
 }
 
-void MainWindow::checkSaveAndClose(ModelViewer* viewer)
-{
-	QMessageBox::StandardButton button =
-		QMessageBox::question(this, tr("Document modified"), tr("Do you want to save?"), QMessageBox::StandardButtons(QMessageBox::Yes |
-			QMessageBox::No | QMessageBox::Cancel));
-	if (button == QMessageBox::Yes)
-	{
-		viewer->save();
-		viewer->parentWidget()->close();
-	}
-	else if (button == QMessageBox::No)
-	{
-		viewer->parentWidget()->close();
-	}
-}
 
 MainWindow::~MainWindow()
 {
@@ -359,8 +344,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	{
 		writeSettings();
 		event->accept();
-	}
-	qApp->exit();
+		qApp->exit();
+	}	
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event)
@@ -459,12 +444,7 @@ void MainWindow::cancelFileLoading()
 void MainWindow::closeSubWindow()
 {
 	ModelViewer* viewer = activeMdiChild();
-	if (viewer->documentModified())
-	{
-		checkSaveAndClose(viewer);
-	}
-	else
-		viewer->parentWidget()->close();
+	viewer->parentWidget()->close();
 }
 
 void MainWindow::closeAllSubWindows()
@@ -475,12 +455,7 @@ void MainWindow::closeAllSubWindows()
 		ModelViewer* viewer = dynamic_cast<ModelViewer*>(sub->widget());
 		if (viewer)
 		{
-			if (viewer->documentModified())
-			{
-				checkSaveAndClose(viewer);
-			}
-			else
-				viewer->parentWidget()->close();
+			viewer->parentWidget()->close();
 		}
 	}
 }
