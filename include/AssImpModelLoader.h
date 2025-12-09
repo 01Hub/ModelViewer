@@ -139,7 +139,7 @@ private:
 	static aiMatrix4x4 glmToAiMatrix(const glm::mat4& mat);
 
 	// Automatic orientation and scaling of the model to fit the scene's coordinate system.
-	void applyCoordinateSystemTransformations(const bool rotate, const bool scale, const std::string& filePath);
+	void applyCoordinateSystemTransformations(const std::string& filePath);
 	void applyTransformToNode(aiNode* node, const glm::mat4& transform);
 	glm::mat4 getCoordinateSystemTransform(const aiScene* scene, const std::string& filePath);
 	glm::mat4 getCoordinateSystemFromFileType(const std::string& fileExtension);
@@ -173,5 +173,6 @@ private:
 
 	bool _autoScale = true; // Automatically scale the model to fit the scene's coordinate system
 	bool _autoOrient = true; // Automatically orient the model to match the scene's coordinate system
-
+	float _appliedScale = 1.0f;
+	glm::mat4 _appliedTransform = glm::mat4(1.0f);
 };

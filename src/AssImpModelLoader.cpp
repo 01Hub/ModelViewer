@@ -126,7 +126,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_sceneStats = collectSceneMeshInfo(_scene);
 
 	// check if auto scaling is active and apply it
-	applyCoordinateSystemTransformations(_autoOrient, _autoScale, path);
+	applyCoordinateSystemTransformations(path);
 
 	bool modelHasMissingUVs = false;
 	for (unsigned int i = 0; i < _scene->mNumMeshes; ++i)
@@ -431,6 +431,9 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 			textures);
 		// ADS and PBR Maps
 		_materialProcessor.setTextureMaps(material, textures, mat);
+
+		// Scale parameters based on model scale
+		mat.setThicknessFactor(mat.thicknessFactor() * _appliedScale);				
 
 		// Set if material is gltf
 		if(_path.find(".gltf") != std::string::npos || _path.find(".glb") != std::string::npos)
@@ -764,27 +767,27 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 	return info;
 }
 
-void AssImpModelLoader::applyCoordinateSystemTransformations(const bool rotate, const bool scale, const std::string& path)
+void AssImpModelLoader::applyCoordinateSystemTransformations(const std::string& path)
 {
 	if (_autoScale || _autoOrient)
 	{
-		glm::mat4 finalTransform = glm::mat4(1.0f);
+		_appliedTransform = glm::mat4(1.0f);
 
 		// Apply only coordinate system conversion
 		if (_autoOrient)
 		{
 			glm::mat4 coordTransform = getCoordinateSystemTransform(_scene, path);
-			finalTransform = coordTransform;			
+			_appliedTransform = coordTransform;
 		}
 
 		// Apply scaling separately
 		if (_autoScale)
 		{
-			float scale = calculateConditionalScale(_sceneStats.maxDimension);			
-			finalTransform = glm::scale(finalTransform, glm::vec3(scale));
+			_appliedScale = calculateConditionalScale(_sceneStats.maxDimension);			
+			_appliedTransform = glm::scale(_appliedTransform, glm::vec3(_appliedScale));
 		}
 
-		applyTransformToNode(_scene->mRootNode, finalTransform);
+		applyTransformToNode(_scene->mRootNode, _appliedTransform);
 	}
 }
 
