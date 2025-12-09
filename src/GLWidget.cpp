@@ -6725,75 +6725,91 @@ void GLWidget::showContextMenu(const QPoint& pos)
 	if (QApplication::keyboardModifiers() != Qt::ControlModifier)
 	{
 		// Create menu and insert some actions
-		QMenu myMenu;
+		QMenu contextMenu;
 		QListWidget* listWidgetModel = _viewer->getListModel();
 		if (listWidgetModel->selectedItems().count() != 0 &&
 			(_visibleSwapped ? _hiddenObjectsIds.size() != 0 : _displayedObjectsIds.size() != 0))
 		{
-			myMenu.addAction(tr("Center Screen"), _viewer, &ModelViewer::centerScreen);
+			contextMenu.addAction(tr("Center Screen"), _viewer, &ModelViewer::centerScreen);
 			QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
 			if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
 			{
-				myMenu.addAction(tr("Center Object List"), this, &GLWidget::centerDisplayList);
+				contextMenu.addAction(tr("Center Object List"), this, &GLWidget::centerDisplayList);
 			}
-			myMenu.addSeparator();
+			contextMenu.addSeparator();
 			if (_visibleSwapped)
-				myMenu.addAction(tr("Show"), _viewer, &ModelViewer::showSelectedItems);
+				contextMenu.addAction(tr("Show"), _viewer, &ModelViewer::showSelectedItems);
 			else
-				myMenu.addAction(tr("Hide"), _viewer, &ModelViewer::hideSelectedItems);
+				contextMenu.addAction(tr("Hide"), _viewer, &ModelViewer::hideSelectedItems);
 			if (_displayedObjectsIds.size() > 1)
-				myMenu.addAction(tr("Show Only"), _viewer, &ModelViewer::showOnlySelectedItems);
-			myMenu.addSeparator();
-			myMenu.addAction(tr("Visualization Settings"), _viewer, &ModelViewer::showVisualizationModelPage);
-			myMenu.addAction(tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);			
-			myMenu.addSeparator();			
-			myMenu.addAction(tr("Generate UVs"), _viewer, &ModelViewer::generateUVsForSelectedItems);
-			myMenu.addAction(tr("Duplicate"), _viewer, &ModelViewer::duplicateSelectedItems);
-			myMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedItems);			
-			myMenu.addSeparator();
-			myMenu.addAction(tr("Mesh Info"), _viewer, &ModelViewer::displaySelectedMeshInfo);
+				contextMenu.addAction(tr("Show Only"), _viewer, &ModelViewer::showOnlySelectedItems);
+			contextMenu.addSeparator();
+			contextMenu.addAction(tr("Visualization Settings"), _viewer, &ModelViewer::showVisualizationModelPage);
+			contextMenu.addAction(tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);			
+			contextMenu.addSeparator();			
+			contextMenu.addAction(tr("Generate UVs"), _viewer, &ModelViewer::generateUVsForSelectedItems);
+			contextMenu.addAction(tr("Duplicate"), _viewer, &ModelViewer::duplicateSelectedItems);
+			contextMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedItems);			
+			contextMenu.addSeparator();
+			contextMenu.addAction(tr("Mesh Info"), _viewer, &ModelViewer::displaySelectedMeshInfo);
 		}
 		else
 		{
 			QAction* action = nullptr;
 			if ((!_visibleSwapped && _displayedObjectsIds.size() != 0) || (_visibleSwapped && _hiddenObjectsIds.size() != 0))
 			{
-				myMenu.addAction(QIcon(":/icons/res/fit-all.png"), tr("Fit All"), this, &GLWidget::fitAll);
+				contextMenu.addAction(QIcon(":/icons/res/fit-all.png"), tr("Fit All"), this, &GLWidget::fitAll);
 
-				action = myMenu.addAction(QIcon(":/icons/res/window-zoom.png"), tr("Zoom Area"));
+				action = contextMenu.addAction(QIcon(":/icons/res/window-zoom.png"), tr("Zoom Area"));
 				action->setCheckable(true);
 				connect(action, &QAction::triggered, this, &GLWidget::beginWindowZoom);
 
-				action = myMenu.addAction(QIcon(":/icons/res/zoomview.png"), tr("Zoom"));
+				// View manipulation actions				
+				contextMenu.addSeparator();
+
+				// If any of the view modes are active, add a menu item named select to disable them
+				if (_viewZooming || _viewPanning || _viewRotating)
+				{
+					contextMenu.addSeparator();
+					action = contextMenu.addAction(QIcon(":/icons/res/select.png"), tr("Select"));
+					connect(action, &QAction::triggered, this, [this]() {
+						setZoomingActive(false);
+						setPanningActive(false);
+						setRotationActive(false);
+						setCursor(QCursor(Qt::ArrowCursor));
+						});
+				}
+				action = contextMenu.addAction(QIcon(":/icons/res/zoomview.png"), tr("Zoom"));
 				connect(action, &QAction::triggered, this, [this]() {
 					setZoomingActive(true);
 					});
 
-				action = myMenu.addAction(QIcon(":/icons/res/panview.png"), tr("Pan"));
+				action = contextMenu.addAction(QIcon(":/icons/res/panview.png"), tr("Pan"));
 				connect(action, &QAction::triggered, this, [this]() {
 					setPanningActive(true);
 					});
 
-				action = myMenu.addAction(QIcon(":/icons/res/rotateview.png"), tr("Rotate"));
+				action = contextMenu.addAction(QIcon(":/icons/res/rotateview.png"), tr("Rotate"));
 				connect(action, &QAction::triggered, this, [this]() {
 					setRotationActive(true);
-					});
-			}
-			myMenu.addSeparator();
+					});								
+
+				contextMenu.addSeparator();
+			}			
 
 			if (_hiddenObjectsIds.size() != 0)
 			{
-				action = myMenu.addAction(QIcon(":/icons/res/showall.png"), tr("Show All"), _viewer, &ModelViewer::showAllItems);
+				action = contextMenu.addAction(QIcon(":/icons/res/showall.png"), tr("Show All"), _viewer, &ModelViewer::showAllItems);
 				action->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_A));
 			}
 			if (_displayedObjectsIds.size() != 0)
 			{
-				action = myMenu.addAction(QIcon(":/icons/res/hideall.png"), tr("Hide All"), _viewer, &ModelViewer::hideAllItems);
+				action = contextMenu.addAction(QIcon(":/icons/res/hideall.png"), tr("Hide All"), _viewer, &ModelViewer::hideAllItems);
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_A));
 			}
 			if (_hiddenObjectsIds.size() != 0)
 			{
-				action = myMenu.addAction(QIcon(":/icons/res/swapvisible.png"), tr("Swap Visible"));
+				action = contextMenu.addAction(QIcon(":/icons/res/swapvisible.png"), tr("Swap Visible"));
 				action->setCheckable(true);
 				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_S));
 				action->setChecked(_visibleSwapped);				
@@ -6801,11 +6817,11 @@ void GLWidget::showContextMenu(const QPoint& pos)
 					swapVisible(enabled);
 					});
 			}
-			myMenu.addSeparator();
-			myMenu.addAction(tr("Background Color"), this, &GLWidget::setBackgroundColor);
+			contextMenu.addSeparator();
+			contextMenu.addAction(tr("Background Color"), this, &GLWidget::setBackgroundColor);
 		}
 		// Show context menu at handling position
-		myMenu.exec(mapToGlobal(pos));
+		contextMenu.exec(mapToGlobal(pos));
 	}
 }
 

@@ -68,6 +68,7 @@
         <file>res/camera_first_person.png</file>
         <file>res/camera_fly.png</file>
         <file>res/camera_orbit.png</file>
+        <file>res/select.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>
