@@ -961,28 +961,22 @@ float AssImpModelLoader::calculateConditionalScale(const float& maxDimension)
 		return 1.0f; // Avoid division by zero
 	}
 
-	// No scaling needed if already in target range [1, 100000]
-	if (maxDimension >= 1.0f && maxDimension <= 100000.0f)
+	constexpr float MIN_DIMENSION = 0.01f;
+	constexpr float MAX_DIMENSION = 100000.0f;
+
+	if (maxDimension < MIN_DIMENSION)
 	{
-		return 1.0f;
+		// Scale up to minimum
+		return MIN_DIMENSION / maxDimension;
+	}
+	else if (maxDimension > MAX_DIMENSION)
+	{
+		// Scale down to maximum
+		return MAX_DIMENSION / maxDimension;
 	}
 
-	float scale = 1.0f;
-
-	if (maxDimension < 1.0f)
-	{
-		// Scale up small models to bring them into range
-		float logScale = std::ceil(std::log10(10.0f / maxDimension));
-		scale = std::pow(10.0f, logScale);
-	}
-	else if (maxDimension > 100000.0f)
-	{
-		// Scale down large models to bring them into range
-		float logScale = std::ceil(std::log10(maxDimension / 100000.0f));
-		scale = 1.0f / std::pow(10.0f, logScale);
-	}
-
-	return scale;
+	// Already in acceptable range
+	return 1.0f;
 }
 
 glm::mat4 AssImpModelLoader::aiMatrixToGlm(const aiMatrix4x4& from)
