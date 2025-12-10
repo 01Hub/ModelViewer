@@ -133,7 +133,7 @@ void GLCamera::updateProjectionMatrix(void)
 	float aspect = w / h;
 
 	// Clamp view range to avoid problems with tiny scenes
-	float viewRange = std::max(_viewRange, 0.1f); // <- adjust threshold if needed
+	float viewRange = std::max(_viewRange, 0.0001f); // <- adjust threshold if needed
 	float halfRange = viewRange * 0.5f;
 
 	if (_projectionType == ProjectionType::ORTHOGRAPHIC)
