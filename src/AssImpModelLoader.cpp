@@ -433,7 +433,8 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		_materialProcessor.setTextureMaps(material, textures, mat);
 
 		// Scale parameters based on model scale
-		mat.setThicknessFactor(mat.thicknessFactor() * _appliedScale);				
+		mat.setThicknessFactor(mat.thicknessFactor() * _appliedScale);	
+		mat.setAttenuationDistance(mat.attenuationDistance()* _appliedScale);
 
 		// Set if material is gltf
 		if(_path.find(".gltf") != std::string::npos || _path.find(".glb") != std::string::npos)
@@ -966,16 +967,17 @@ float AssImpModelLoader::calculateConditionalScale(const float& maxDimension)
 
 	if (maxDimension < MIN_DIMENSION)
 	{
-		// Scale up to minimum
-		return MIN_DIMENSION / maxDimension;
+		// Use double precision for calculation to avoid rounding errors
+		double scale = static_cast<double>(MIN_DIMENSION) / static_cast<double>(maxDimension);
+		return static_cast<float>(scale);
 	}
 	else if (maxDimension > MAX_DIMENSION)
 	{
-		// Scale down to maximum
-		return MAX_DIMENSION / maxDimension;
+		// Use double precision for calculation to avoid rounding errors
+		double scale = static_cast<double>(MAX_DIMENSION) / static_cast<double>(maxDimension);
+		return static_cast<float>(scale);
 	}
 
-	// Already in acceptable range
 	return 1.0f;
 }
 
