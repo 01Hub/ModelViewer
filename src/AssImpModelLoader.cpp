@@ -670,23 +670,23 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 	if (!scene || !scene->HasMeshes() || !scene->mRootNode)
 		return info;
 
-	// Initialize bounding box with invalid bounds
 	bool firstVertex = true;
 	double minX = DBL_MAX, maxX = -DBL_MAX;
 	double minY = DBL_MAX, maxY = -DBL_MAX;
 	double minZ = DBL_MAX, maxZ = -DBL_MAX;
 
+	float minMeshDimension = std::numeric_limits<float>::max();
+	float maxMeshDimension = 0.0f;
+
 	std::unordered_set<unsigned int> processedMeshes;
 
 	std::function<void(const aiNode*, const glm::mat4&)> collectFromNode;
 	collectFromNode = [&](const aiNode* node, const glm::mat4& parentTransform) {
-		// Convert aiMatrix4x4 to glm::mat4
 		glm::mat4 nodeTransform = parentTransform * aiMatrixToGlm(node->mTransformation);
 
 		for (unsigned int i = 0; i < node->mNumMeshes; ++i)
 		{
 			unsigned int meshIndex = node->mMeshes[i];
-			// Prevent double-counting if mesh is referenced by multiple nodes
 			if (!processedMeshes.insert(meshIndex).second)
 				continue;
 
@@ -704,10 +704,13 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 				info.largestMeshName = mesh->mName.C_Str();
 			}
 
-			// Calculate bounding box for this mesh
+			// Track per-mesh bounding box
+			double meshMinX = DBL_MAX, meshMaxX = -DBL_MAX;
+			double meshMinY = DBL_MAX, meshMaxY = -DBL_MAX;
+			double meshMinZ = DBL_MAX, meshMaxZ = -DBL_MAX;
+
 			for (unsigned int j = 0; j < mesh->mNumVertices; ++j)
 			{
-				// Transform vertex to world space
 				glm::vec4 vertex = nodeTransform * glm::vec4(
 					mesh->mVertices[j].x,
 					mesh->mVertices[j].y,
@@ -719,7 +722,7 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 				double y = static_cast<double>(vertex.y);
 				double z = static_cast<double>(vertex.z);
 
-				// Update bounding box limits
+				// Update scene bounding box
 				if (firstVertex)
 				{
 					minX = maxX = x;
@@ -736,7 +739,25 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 					minZ = std::min(minZ, z);
 					maxZ = std::max(maxZ, z);
 				}
+
+				// Update mesh bounding box
+				meshMinX = std::min(meshMinX, x);
+				meshMaxX = std::max(meshMaxX, x);
+				meshMinY = std::min(meshMinY, y);
+				meshMaxY = std::max(meshMaxY, y);
+				meshMinZ = std::min(meshMinZ, z);
+				meshMaxZ = std::max(meshMaxZ, z);
 			}
+
+			// Calculate this mesh's dimensions
+			double meshSizeX = meshMaxX - meshMinX;
+			double meshSizeY = meshMaxY - meshMinY;
+			double meshSizeZ = meshMaxZ - meshMinZ;
+			float meshMaxDim = static_cast<float>(std::max({ meshSizeX, meshSizeY, meshSizeZ }));
+
+			// Track smallest and largest across all meshes
+			minMeshDimension = std::min(minMeshDimension, meshMaxDim);
+			maxMeshDimension = std::max(maxMeshDimension, meshMaxDim);
 		}
 
 		for (unsigned int i = 0; i < node->mNumChildren; ++i)
@@ -747,21 +768,16 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 
 	collectFromNode(scene->mRootNode, glm::mat4(1.0f));
 
-	// Set the bounding box limits
 	if (!firstVertex)
 	{
 		info.boundingBox.setLimits(minX, minY, minZ, maxX, maxY, maxZ);
-
-		// Calculate max dimension
-		double sizeX = maxX - minX;
-		double sizeY = maxY - minY;
-		double sizeZ = maxZ - minZ;
-		info.maxDimension = static_cast<float>(std::max({ sizeX, sizeY, sizeZ }));
+		info.minDimension = minMeshDimension;
+		info.maxDimension = maxMeshDimension;
 	}
 	else
 	{
-		// No vertices found, set default bounding box
 		info.boundingBox.setLimits(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+		info.minDimension = 0.0f;
 		info.maxDimension = 0.0f;
 	}
 
@@ -784,7 +800,7 @@ void AssImpModelLoader::applyCoordinateSystemTransformations(const std::string& 
 		// Apply scaling separately
 		if (_autoScale)
 		{
-			_appliedScale = calculateConditionalScale(_sceneStats.maxDimension);			
+			_appliedScale = calculateConditionalScale(_sceneStats.minDimension, _sceneStats.maxDimension);
 			_appliedTransform = glm::scale(_appliedTransform, glm::vec3(_appliedScale));
 		}
 
@@ -955,7 +971,7 @@ glm::mat4 AssImpModelLoader::getCoordinateSystemFromFileType(const std::string& 
 	return transform;
 }
 
-float AssImpModelLoader::calculateConditionalScale(const float& maxDimension)
+float AssImpModelLoader::calculateConditionalScale(const float& minDimension, const float& maxDimension)
 {
 	if (maxDimension < 1e-6f)
 	{
@@ -965,17 +981,24 @@ float AssImpModelLoader::calculateConditionalScale(const float& maxDimension)
 	constexpr float MIN_DIMENSION = 0.01f;
 	constexpr float MAX_DIMENSION = 100000.0f;
 
-	if (maxDimension < MIN_DIMENSION)
+	// Always scale up if minimum dimension is below threshold
+	if (minDimension < MIN_DIMENSION)
 	{
-		// Use double precision for calculation to avoid rounding errors
-		double scale = static_cast<double>(MIN_DIMENSION) / static_cast<double>(maxDimension);
+		double scale = static_cast<double>(MIN_DIMENSION) / static_cast<double>(minDimension);
 		return static_cast<float>(scale);
 	}
-	else if (maxDimension > MAX_DIMENSION)
+
+	// Scale down only if it doesn't push minimum dimension below threshold
+	if (maxDimension > MAX_DIMENSION)
 	{
-		// Use double precision for calculation to avoid rounding errors
-		double scale = static_cast<double>(MAX_DIMENSION) / static_cast<double>(maxDimension);
-		return static_cast<float>(scale);
+		double proposedScale = static_cast<double>(MAX_DIMENSION) / static_cast<double>(maxDimension);
+		double scaledMinDimension = static_cast<double>(minDimension) * proposedScale;
+
+		// Only apply scale if minimum dimension stays within bounds
+		if (scaledMinDimension >= MIN_DIMENSION)
+		{
+			return static_cast<float>(proposedScale);
+		}
 	}
 
 	return 1.0f;

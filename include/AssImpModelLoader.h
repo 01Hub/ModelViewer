@@ -74,6 +74,7 @@ struct SceneMeshInfo
 	int largestMeshTriangles = 0;
 	BoundingBox boundingBox;
 	float maxDimension = 0.0f;
+	float minDimension = 0.0f;
 };
 
 
@@ -143,7 +144,7 @@ private:
 	void applyTransformToNode(aiNode* node, const glm::mat4& transform);
 	glm::mat4 getCoordinateSystemTransform(const aiScene* scene, const std::string& filePath);
 	glm::mat4 getCoordinateSystemFromFileType(const std::string& fileExtension);
-	float calculateConditionalScale(const float& maxDimension);
+	float calculateConditionalScale(const float& minDimension, const float& maxDimension);
 		
 private:
 	QOpenGLShaderProgram* _prog;
