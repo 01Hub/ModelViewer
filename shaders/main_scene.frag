@@ -1250,47 +1250,50 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
 	float NdotL = max(dot(N, L), 0.0);
-	float NdotL_backlit = max(dot(-N, L), 0.0);
-
+	
 	// Sample diffuse transmission factor and color
 	float diffuseTrans_factor = diffuseTransmissionFactor;                      
 	vec3 diffuseTrans_color = diffuseTransmissionColorFactor;                   
-	if (hasDiffuseTransmissionMap)                                              
-	{                                                                           
+	if (hasDiffuseTransmissionMap) 
+	{
 		diffuseTrans_factor *= texture(diffuseTransmissionMap, getDiffuseTransmissionUV()).a;  		
 	}                                                                           
-	if (hasDiffuseTransmissionColorMap)                                         
-	{                                                                           
+	if (hasDiffuseTransmissionColorMap) 
+	{
 		diffuseTrans_color *= texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb; 		
 	}                                                                           
 
-	// Compute diffuse BTDF (transmitted diffuse light)
-	vec3 l_diffuse_btdf = diffuseTrans_color / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL_backlit * lightFactor;  
+	// Front-lit diffuse
+	vec3 l_diffuse = kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
 
-	// Mix normal diffuse and transmission based on diffuse transmission factor
-	vec3 diffuse_combined = mix(kD * albedo / PI, l_diffuse_btdf, diffuseTrans_factor);
+	// Reduce by transmission factor
+	l_diffuse = l_diffuse * (1.0 - diffuseTrans_factor);
 
-	// Apply volume attenuation to diffuse transmission if KHR_materials_volume is present
-	if (thicknessFactor > 0.0 && diffuseTrans_factor > 0.0)
-	{                                                      
-		// Compute transmission distance through the volume
-		vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-		vec3 transmissionRay = refractDir * thicknessFactor;
-		float transmissionDistance = length(transmissionRay); 
+	// Back-lit transmission (only if light comes from back)
+	vec3 l_diffuse_btdf = vec3(0.0);
+	if (dot(N, L) < 0.0) 
+	{
+		float diffuseNdotL = max(dot(-N, L), 0.0);
+		l_diffuse_btdf = (lightSource.ambient + lightSource.diffuse + lightSource.specular) * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
     
-		// Apply Beer's Law attenuation
-		vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
-		l_diffuse_btdf *= transmittance;
-		diffuse_combined = mix(kD * albedo / PI, l_diffuse_btdf, diffuseTrans_factor); 
+		if (thicknessFactor > 0.0) 
+		{
+			vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
+			vec3 transmissionRay = refractDir * thicknessFactor;
+			float transmissionDistance = length(transmissionRay);
+			vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
+			l_diffuse_btdf *= transmittance;
+		}
+    
+		l_diffuse += l_diffuse_btdf * diffuseTrans_factor;
 	}
 
-	// Apply transmission override (if specular transmission is active, it overrides diffuse transmission)
-	if (transmission > 0.0)  
-	{                       
-		diffuse_combined = mix(diffuse_combined, kD * albedo / PI, transmission);  
-	}                       
+	if (transmission > 0.0) 
+	{
+		l_diffuse = mix(l_diffuse, kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor, transmission);  
+	}
 
-	directDiffuse_L = diffuse_combined * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
+	directDiffuse_L = l_diffuse;
 	directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
 
 	// ============================================================================
@@ -1362,6 +1365,37 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// ============================================================================
 	vec3 irradiance = texture(irradianceMap, N).rgb;
 	vec3 diffuseIBL_L = irradiance * albedo;
+
+	// Diffuse transmission IBL
+	if (diffuseTransmissionFactor > 0.0) 
+	{ 
+		vec3 diffuseTransmissionIBL = texture(irradianceMap, -N).rgb * diffuseTransmissionColorFactor;
+    
+		// Sample BOTH textures like in punctual light
+		float diffuseTrans_factor = diffuseTransmissionFactor;
+		if (hasDiffuseTransmissionMap) 
+		{
+			diffuseTrans_factor *= texture(diffuseTransmissionMap, getDiffuseTransmissionUV()).a;
+		}
+    
+		if (hasDiffuseTransmissionColorMap) 
+		{
+			diffuseTransmissionIBL *= texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;
+		}
+    
+		if (thicknessFactor > 0.0) 
+		{
+			vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
+			vec3 transmissionRay = refractDir * thicknessFactor;
+			float transmissionDistance = length(transmissionRay);
+			vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
+			diffuseTransmissionIBL *= transmittance;
+		}
+    
+		// Use the locally modulated factor, not the uniform
+		diffuseIBL_L = mix(diffuseIBL_L, diffuseTransmissionIBL, diffuseTrans_factor);
+	}
+
 	vec3 specIBL_L = vec3(0.0);
 
 	if (envMapEnabled)
