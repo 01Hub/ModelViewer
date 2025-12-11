@@ -571,6 +571,10 @@ void TriangleMesh::setupUniforms()
 	bool hasThicknessAlpa = _material.hasThicknessAlpha();
 	_prog->setUniformValue("hasThicknessAlpha", _material.hasThicknessAlpha());
 
+	// KHR_materials_scattering
+	_prog->setUniformValue("multiScatterColor", _material.multiScatterColor());
+	_prog->setUniformValue("hasVolumeScattering", _material.hasVolumeScattering());
+
 	// KHR_materials_specular (2 uniforms)
 	_prog->setUniformValue("pbrLighting.specularFactor",
 		_material.specularFactor());

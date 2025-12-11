@@ -581,6 +581,12 @@ public:
 	void setUnlit(bool unlit) { _unlit = unlit; }
 	bool isUnlit() const { return _unlit; }
 
+	// --- KHR_materials_scattering ---
+	void setMultiScatterColor(const QVector3D& color) { _multiScatterColor = color; }
+	QVector3D multiScatterColor() const { return _multiScatterColor; }
+	void setHasVolumeScattering(bool hasVolumeScattering) { _hasVolumeScattering = hasVolumeScattering; }
+	bool hasVolumeScattering() const { return _hasVolumeScattering; }
+
 	// --- Map path API (used by TextureMappingPanel) ---
 	QString albedoMapPath() const;
 	void setAlbedoMap(const QString& path);
@@ -1065,6 +1071,10 @@ private:
 	unsigned int _diffuseTransmissionTextureId = 0;
 	QString _diffuseTransmissionColorMap;
 	unsigned int _diffuseTransmissionColorTextureId = 0;
+
+	// KHR_materials_scattering
+	QVector3D _multiScatterColor = QVector3D(1.0f, 1.0f, 1.0f);  // Default: white (no scattering effect)
+	bool _hasVolumeScattering = false;
 
 	// Material-wide UV transform (panel + preview)
 	float _uvTilingU = 1.0f, _uvTilingV = 1.0f;

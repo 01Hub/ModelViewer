@@ -162,6 +162,10 @@ uniform sampler2D thicknessMap;
 uniform bool hasThicknessMap = false;
 uniform bool hasThicknessAlpha = false;
 
+// KHR_materials_scatter
+uniform vec3 multiScatterColor;
+uniform bool hasVolumeScattering;
+
 struct TextureTransform
 {
 	vec2 scale;
@@ -448,6 +452,9 @@ vec3	getIBLVolumeRefraction(vec3 n, vec3 v, float perceptualRoughness, vec3 base
 vec3	getIBLVolumeRefractionPerChannel(vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor,
                                       vec3 position, mat4 modelMatrix, vec3 iors, float thickness,
                                       vec3 attenuationColor, float attenuationDistance);
+
+// KHR scatter
+vec3	multiToSingleScatter();
 
 // Shadow
 float   calculateShadow(vec4 fragPosLightSpace);
@@ -1260,40 +1267,66 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}                                                                           
 	if (hasDiffuseTransmissionColorMap) 
 	{
-		diffuseTrans_color *= texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb; 		
+		diffuseTrans_color *= texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;  		
 	}                                                                           
 
-	// Front-lit diffuse
-	vec3 l_diffuse = kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
-
-	// Reduce by transmission factor
-	l_diffuse = l_diffuse * (1.0 - diffuseTrans_factor);
-
-	// Back-lit transmission (only if light comes from back)
-	vec3 l_diffuse_btdf = vec3(0.0);
-	if (dot(N, L) < 0.0) 
+	if (hasVolumeScattering && thicknessFactor > 0.0) 
 	{
-		float diffuseNdotL = max(dot(-N, L), 0.0);
-		l_diffuse_btdf = (lightSource.ambient + lightSource.diffuse + lightSource.specular) * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
+		// scatter.frag approach: REPLACE front diffuse with transmission color
+		vec3 singleScatter = multiToSingleScatter();
+		vec3 l_diffuse = (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * (diffuseTrans_color / PI) * lightFactor * singleScatter;
     
-		if (thicknessFactor > 0.0) 
+		vec3 l_diffuse_btdf = vec3(0.0);
+		if (dot(N, L) < 0.0) 
 		{
-			vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-			vec3 transmissionRay = refractDir * thicknessFactor;
-			float transmissionDistance = length(transmissionRay);
-			vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
-			l_diffuse_btdf *= transmittance;
+			float diffuseNdotL = max(dot(-N, L), 0.0);
+			l_diffuse_btdf = (lightSource.ambient + lightSource.diffuse + lightSource.specular) * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
+        
+			if (thicknessFactor > 0.0) 
+			{
+				vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
+				vec3 transmissionRay = refractDir * thicknessFactor;
+				float transmissionDistance = length(transmissionRay);
+				vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
+				l_diffuse_btdf *= transmittance;
+			}
+        
+			l_diffuse += l_diffuse_btdf * (1.0 - singleScatter) * singleScatter;
 		}
+		l_diffuse *= diffuseTrans_factor;
+		directDiffuse_L = l_diffuse;
     
-		l_diffuse += l_diffuse_btdf * diffuseTrans_factor;
+	} else 
+	{
+		// pbr.frag approach: original code (no scatter)
+		vec3 l_diffuse = kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
+		l_diffuse = l_diffuse * (1.0 - diffuseTrans_factor);
+    
+		vec3 l_diffuse_btdf = vec3(0.0);
+		if (dot(N, L) < 0.0)
+		{
+			float diffuseNdotL = max(dot(-N, L), 0.0);
+			l_diffuse_btdf = (lightSource.ambient + lightSource.diffuse + lightSource.specular) * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
+        
+			if (thicknessFactor > 0.0) 
+			{
+				vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
+				vec3 transmissionRay = refractDir * thicknessFactor;
+				float transmissionDistance = length(transmissionRay);
+				vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
+				l_diffuse_btdf *= transmittance;
+			}
+        
+			l_diffuse += l_diffuse_btdf * diffuseTrans_factor;
+		}
+		directDiffuse_L = l_diffuse;
 	}
 
 	if (transmission > 0.0) 
 	{
-		l_diffuse = mix(l_diffuse, kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor, transmission);  
+		directDiffuse_L = mix(directDiffuse_L, kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor, transmission);  
 	}
 
-	directDiffuse_L = l_diffuse;
 	directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
 
 	// ============================================================================
@@ -1369,31 +1402,43 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// Diffuse transmission IBL
 	if (diffuseTransmissionFactor > 0.0) 
 	{ 
-		vec3 diffuseTransmissionIBL = texture(irradianceMap, -N).rgb * diffuseTransmissionColorFactor;
+		vec3 diffuseTransmissionIBL_back = texture(irradianceMap, -N).rgb * diffuseTransmissionColorFactor;
+		vec3 diffuseTransmissionIBL_front = texture(irradianceMap, N).rgb * diffuseTransmissionColorFactor;
     
-		// Sample BOTH textures like in punctual light
+		// Sample textures
 		float diffuseTrans_factor = diffuseTransmissionFactor;
 		if (hasDiffuseTransmissionMap) 
 		{
 			diffuseTrans_factor *= texture(diffuseTransmissionMap, getDiffuseTransmissionUV()).a;
 		}
-    
 		if (hasDiffuseTransmissionColorMap) 
 		{
-			diffuseTransmissionIBL *= texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;
+			vec3 colorTexSample = texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;
+			diffuseTransmissionIBL_back *= colorTexSample;
+			diffuseTransmissionIBL_front *= colorTexSample;
 		}
     
+		// Apply volume attenuation to back only
 		if (thicknessFactor > 0.0) 
 		{
 			vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
 			vec3 transmissionRay = refractDir * thicknessFactor;
 			float transmissionDistance = length(transmissionRay);
 			vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
-			diffuseTransmissionIBL *= transmittance;
+			diffuseTransmissionIBL_back *= transmittance;
 		}
     
-		// Use the locally modulated factor, not the uniform
-		diffuseIBL_L = mix(diffuseIBL_L, diffuseTransmissionIBL, diffuseTrans_factor);
+		if (hasVolumeScattering && thicknessFactor > 0.0) 
+		{
+			// scatter.frag approach
+			vec3 singleScatter = multiToSingleScatter();
+			diffuseIBL_L = diffuseTransmissionIBL_front * singleScatter + diffuseTransmissionIBL_back * (1.0 - singleScatter) * singleScatter;
+			diffuseIBL_L = diffuseIBL_L * diffuseTrans_factor;
+		} else 
+		{
+			// pbr.frag approach (no scatter)
+			diffuseIBL_L = mix(diffuseIBL_L, diffuseTransmissionIBL_back, diffuseTrans_factor);
+		}
 	}
 
 	vec3 specIBL_L = vec3(0.0);
@@ -2549,6 +2594,14 @@ vec3 getIBLVolumeRefractionPerChannel(vec3 n, vec3 v, float perceptualRoughness,
     }
     
     return transmittedLight;
+}
+
+// KHR_materials_volume_scatter: Convert multi-scatter color to single scatter ratio
+// Based on glTF 2.0 specification
+vec3 multiToSingleScatter() 
+{
+    vec3 s = 4.09712 + 4.20863 * multiScatterColor - sqrt(9.59217 + 41.6808 * multiScatterColor + 17.7126 * multiScatterColor * multiScatterColor);
+    return 1.0 - s * s;
 }
 
 

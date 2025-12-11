@@ -1028,6 +1028,30 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			}
 		}
 
+		// --- KHR_materials_volume_scatter ---
+		if (extRoot.contains("KHR_materials_volume_scatter") && extRoot.value("KHR_materials_volume_scatter").isObject())
+		{
+			QJsonObject scatter = extRoot.value("KHR_materials_volume_scatter").toObject();
+
+			// multiscatterColor (default: [1.0, 1.0, 1.0])
+			if (scatter.contains("multiscatterColor") && scatter.value("multiscatterColor").isArray())
+			{
+				QJsonArray a = scatter.value("multiscatterColor").toArray();
+				if (a.size() >= 3)
+				{
+					QVector3D multiScatterColor(
+						static_cast<float>(a.at(0).toDouble(1.0)),
+						static_cast<float>(a.at(1).toDouble(1.0)),
+						static_cast<float>(a.at(2).toDouble(1.0))
+					);
+					mat.setMultiScatterColor(multiScatterColor);
+					mat.setHasVolumeScattering(true);
+					qDebug() << "KHR_materials_volume_scatter: multiscatterColor=" << multiScatterColor;
+					appliedAny = true;
+				}
+			}
+		}
+
 		// --- KHR_materials_transmission ---
 		if (extRoot.contains("KHR_materials_transmission") && extRoot.value("KHR_materials_transmission").isObject())
 		{
