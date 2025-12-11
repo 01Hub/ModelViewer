@@ -614,9 +614,9 @@ void TriangleMesh::setupUniforms()
 		_material.emissiveStrength());
 
 	// KHR_materials_diffues_transmission
-	_prog->setUniformValue("diffuseTransmissionFactor",
+	_prog->setUniformValue("pbrLighting.diffuseTransmissionFactor",
 		_material.diffuseTransmissionFactor());
-	_prog->setUniformValue("diffuseTransmissionColorFactor",
+	_prog->setUniformValue("pbrLighting.diffuseTransmissionColorFactor",
 		_material.diffuseTransmissionColorFactor());
 	// Diffuse Transmission Map
 	_prog->setUniformValue("hasDiffuseTransmissionMap",
