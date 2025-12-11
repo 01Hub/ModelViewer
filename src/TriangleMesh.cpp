@@ -609,8 +609,8 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("pbrLighting.unlit",
 		_material.isUnlit());
 
-	// KHR_materials_emissive_strength (1 uniform - top level, not in struct)
-	_prog->setUniformValue("emissiveStrength",
+	// KHR_materials_emissive_strength (1 uniform)
+	_prog->setUniformValue("pbrLighting.emissiveStrength",
 		_material.emissiveStrength());
 
 	// KHR_materials_diffues_transmission

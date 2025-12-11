@@ -156,9 +156,6 @@ uniform sampler2D thicknessMap;
 uniform bool hasThicknessMap = false;
 uniform bool hasThicknessAlpha = false;
 
-// KHR_materials_emissive_strength (uses existing texture_emissive)
-uniform float emissiveStrength = 1.0;
-
 struct TextureTransform
 {
 	vec2 scale;
@@ -311,6 +308,9 @@ struct PBRLighting
 
 	// KHR_materials_unlit
 	bool unlit;
+
+	// KHR_emissive_strength
+	float emissiveStrength;
 };
 uniform PBRLighting pbrLighting;
 
@@ -932,6 +932,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	float	attenuationDistance;
 	vec3	attenuationColor;
 	bool	unlit;
+	float	emissiveStrength;
 
 	vec3	N;
 	vec3	V_direct;
@@ -988,6 +989,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	attenuationDistance = pbrLighting.attenuationDistance;
 	attenuationColor = pbrLighting.attenuationColor;
 	unlit = pbrLighting.unlit;
+	emissiveStrength = pbrLighting.emissiveStrength;
 
 	
 	// Normal map / Parallax
