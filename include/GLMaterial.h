@@ -540,7 +540,37 @@ public:
 	void setHasThicknessAlpha(bool hasAlpha) { _hasThicknessAlpha = hasAlpha; }
 	bool hasThicknessAlpha() const { return _hasThicknessAlpha; }
 
-	
+	// -- KHR_matwerials_diffuse_transmission ---
+	void setDiffuseTransmissionFactor(float transmission) { _diffuseTransmissionFactor = transmission; }
+	float diffuseTransmissionFactor() const { return _diffuseTransmissionFactor; }
+	void setDiffuseTransmissionColorFactor(const QVector3D& color) { _diffuseTransmissionColorFactor = color; }
+	QVector3D diffuseTransmissionColorFactor() const { return _diffuseTransmissionColorFactor; }
+	void setDiffuseTransmissionMap(const QString& path) { _diffuseTransmissionMap = path; }
+	QString diffuseTransmissionMap() const { return _diffuseTransmissionMap; }
+	bool hasDiffuseTransmissionMap() const { return !_diffuseTransmissionMap.isEmpty(); }
+	void setDiffuseTransmissionTextureId(unsigned int id) { _diffuseTransmissionTextureId = id; }
+	int diffuseTransmissionTextureId() const { return _diffuseTransmissionTextureId; }
+	void setDiffuseTransmissionTexCoord(int coord) { _diffuseTransmissionTexTransform.texCoord = coord; }
+	int diffuseTransmissionTexCoord() const { return _diffuseTransmissionTexTransform.texCoord; }
+	QVector2D diffuseTransmissionTexScale() const { return _diffuseTransmissionTexTransform.texScale; }
+	void setDiffuseTransmissionTexScale(const QVector2D& scale) { _diffuseTransmissionTexTransform.texScale = scale; }
+	QVector2D diffuseTransmissionTexOffset() const { return _diffuseTransmissionTexTransform.texOffset; }
+	void setDiffuseTransmissionTexOffset(const QVector2D& offset) { _diffuseTransmissionTexTransform.texOffset = offset; }
+	float diffuseTransmissionTexRotation() const { return _diffuseTransmissionTexTransform.texRotation; }
+	void setDiffuseTransmissionTexRotation(float rotation) { _diffuseTransmissionTexTransform.texRotation = rotation; }
+	void setDiffuseTransmissionColorMap(const QString& path) { _diffuseTransmissionColorMap = path; }
+	QString diffuseTransmissionColorMap() const { return _diffuseTransmissionColorMap; }
+	bool hasDiffuseTransmissionColorMap() const { return !_diffuseTransmissionColorMap.isEmpty(); }
+	void setDiffuseTransmissionColorTextureId(unsigned int id) { _diffuseTransmissionColorTextureId = id; }
+	int diffuseTransmissionColorTextureId() const { return _diffuseTransmissionColorTextureId; }
+	void setDiffuseTransmissionColorTexCoord(int coord) { _diffuseTransmissionColorTexTransform.texCoord = coord; }
+	int diffuseTransmissionColorTexCoord() const { return _diffuseTransmissionColorTexTransform.texCoord; }
+	QVector2D diffuseTransmissionColorTexScale() const { return _diffuseTransmissionColorTexTransform.texScale; }
+	void setDiffuseTransmissionColorTexScale(const QVector2D& scale) { _diffuseTransmissionColorTexTransform.texScale = scale; }
+	QVector2D diffuseTransmissionColorTexOffset() const { return _diffuseTransmissionColorTexTransform.texOffset; }
+	void setDiffuseTransmissionColorTexOffset(const QVector2D& offset) { _diffuseTransmissionColorTexTransform.texOffset = offset; }
+	float diffuseTransmissionColorTexRotation() const { return _diffuseTransmissionColorTexTransform.texRotation; }
+	void setDiffuseTransmissionColorTexRotation(float rotation) { _diffuseTransmissionColorTexTransform.texRotation = rotation; }
 
 	
 	// --- KHR_materials_dispersion ---
@@ -967,7 +997,8 @@ private:
 	TextureTransform _thicknessTexTransform;
 	TextureTransform _specularFactorTexTransform;
 	TextureTransform _specularColorTexTransform;
-
+	TextureTransform _diffuseTransmissionTexTransform;
+	TextureTransform _diffuseTransmissionColorTexTransform;
 
 	// Map paths (UI-facing; your renderer/texture manager can translate these to GL)
 	QString _albedoMapPath;
@@ -1026,6 +1057,14 @@ private:
 
 	// KHR_materials_unlit
 	bool _unlit = false;
+
+	// KHR_materials_diffuse_transmission
+	float _diffuseTransmissionFactor = 0.0f;
+	QVector3D _diffuseTransmissionColorFactor = QVector3D(1.0f, 1.0f, 1.0f);
+	QString _diffuseTransmissionMap;
+	unsigned int _diffuseTransmissionTextureId = 0;
+	QString _diffuseTransmissionColorMap;
+	unsigned int _diffuseTransmissionColorTextureId = 0;
 
 	// Material-wide UV transform (panel + preview)
 	float _uvTilingU = 1.0f, _uvTilingV = 1.0f;

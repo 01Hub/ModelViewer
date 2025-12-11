@@ -613,6 +613,21 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("emissiveStrength",
 		_material.emissiveStrength());
 
+	// KHR_materials_diffues_transmission
+	_prog->setUniformValue("diffuseTransmissionFactor",
+		_material.diffuseTransmissionFactor());
+	_prog->setUniformValue("diffuseTransmissionColorFactor",
+		_material.diffuseTransmissionColorFactor());
+	// Diffuse Transmission Map
+	_prog->setUniformValue("hasDiffuseTransmissionMap",
+		_material.hasDiffuseTransmissionMap());
+	_prog->setUniformValue("diffuseTransmissionMap", 31);
+	
+	// Diffuse Transmission Color Map
+	_prog->setUniformValue("hasDiffuseTransmissionColorMap",
+		_material.hasDiffuseTransmissionColorMap());
+	_prog->setUniformValue("diffuseTransmissionColorMap", 9);
+
 	// Texture transform uniforms
 	_prog->setUniformValue("albedoTexTransform.texCoordIndex", _material.albedoTexCoord());
 	_prog->setUniformValue("albedoTexTransform.offset", _material.albedoTexOffset());
@@ -774,6 +789,16 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("thicknessTexTransform.offset", _material.thicknessTexOffset());
 	_prog->setUniformValue("thicknessTexTransform.scale", _material.thicknessTexScale());
 	_prog->setUniformValue("thicknessTexTransform.rotation", _material.thicknessTexRotation());
+
+	// KHR_materials_diffues_transmission
+	_prog->setUniformValue("diffuseTransmissionTexTransform.texCoordIndex", _material.diffuseTransmissionTexCoord());
+	_prog->setUniformValue("diffuseTransmissionTexTransform.offset", _material.diffuseTransmissionTexOffset());
+	_prog->setUniformValue("diffuseTransmissionTexTransform.scale", _material.diffuseTransmissionTexScale());
+	_prog->setUniformValue("diffuseTransmissionTexTransform.rotation", _material.diffuseTransmissionTexRotation());
+	_prog->setUniformValue("diffuseTransmissionColorTexTransform.texCoordIndex", _material.diffuseTransmissionColorTexCoord());
+	_prog->setUniformValue("diffuseTransmissionColorTexTransform.offset", _material.diffuseTransmissionColorTexOffset());
+	_prog->setUniformValue("diffuseTransmissionColorTexTransform.scale", _material.diffuseTransmissionColorTexScale());
+	_prog->setUniformValue("diffuseTransmissionColorTexTransform.rotation", _material.diffuseTransmissionColorTexRotation());
 
 
 	_prog->setUniformValue("heightScale", _heightPBRMapScale);

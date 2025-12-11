@@ -776,6 +776,12 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		{"specularFactorMap", "specularFactorMap"},
 		{"specularColor", "specularColorMap"},
 		{"specularColorMap", "specularColorMap"},
+
+		// Diffuse Transmission
+		{"diffuseTransmission", "diffuseTransmissionMap"},
+		{"diffuseTransmissionMap", "diffuseTransmissionMap"},
+		{"diffuseTransmissionColor", "diffuseTransmissionColorMap"},
+		{"diffuseTransmissionColorMap", "diffuseTransmissionColorMap"},
 	};
 
 	auto loadAndAddTexture = [&](const QString& texturePath,
@@ -1236,7 +1242,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			appliedAny = true;
 		}
 
-		// --- KHR_materials_dispersion (experimental/non-standard) ---
+		// --- KHR_materials_dispersion
 		if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
 		{
 			QJsonObject d = extRoot.value("KHR_materials_dispersion").toObject();
@@ -1247,6 +1253,48 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				appliedAny = true;
 			}
 		}
+
+		// --- KHR_materials_diffuse_transmission ---
+		if (extRoot.contains("KHR_materials_diffuse_transmission") && extRoot.value("KHR_materials_diffuse_transmission").isObject())
+		{
+			QJsonObject dt = extRoot.value("KHR_materials_diffuse_transmission").toObject();
+
+			// diffuseTransmissionFactor (default: 0.0, range: [0, 1])
+			if (dt.contains("diffuseTransmissionFactor"))
+			{
+				float v = static_cast<float>(dt.value("diffuseTransmissionFactor").toDouble(0.0));
+				mat.setDiffuseTransmissionFactor(qBound(0.0f, v, 1.0f));
+				appliedAny = true;
+			}
+
+			// diffuseTransmissionColorFactor (default: [1.0, 1.0, 1.0])
+			if (dt.contains("diffuseTransmissionColorFactor") && dt.value("diffuseTransmissionColorFactor").isArray())
+			{
+				QJsonArray a = dt.value("diffuseTransmissionColorFactor").toArray();
+				if (a.size() >= 3)
+				{
+					mat.setDiffuseTransmissionColorFactor(QVector3D(
+						static_cast<float>(a.at(0).toDouble(1.0)),
+						static_cast<float>(a.at(1).toDouble(1.0)),
+						static_cast<float>(a.at(2).toDouble(1.0))
+					));
+					appliedAny = true;
+				}
+			}
+
+			// diffuseTransmissionTexture (alpha channel contains the factor)
+			if (processExtensionTextureSlot(dt, "diffuseTransmissionTexture", "diffuseTransmission"))
+			{
+				appliedAny = true;
+			}
+
+			// diffuseTransmissionColorTexture (RGB channels in sRGB)
+			if (processExtensionTextureSlot(dt, "diffuseTransmissionColorTexture", "diffuseTransmissionColor"))
+			{
+				appliedAny = true;
+			}
+		}
+		
 
 		return appliedAny;
 		};
@@ -2010,6 +2058,19 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 
 	// transmission map (already added above as 'transmissionMap' but we try again to be robust)
 	addTextureIfMissing(textures, mat.transmissionMapPath(), "transmissionMap", mat.transmissionTexCoord());
+
+	// diffuse transmission maps
+	addTextureIfMissing(textures, mat.diffuseTransmissionMap(), "diffuseTransmissionMap",
+		/*texCoord*/mat.diffuseTransmissionTexCoord(),
+		/*scale*/glm::vec2(mat.diffuseTransmissionTexScale().x(), mat.diffuseTransmissionTexScale().y()),
+		/*offset*/glm::vec2(mat.diffuseTransmissionTexOffset().x(), mat.diffuseTransmissionTexOffset().y()),
+		/*rotation*/mat.diffuseTransmissionTexRotation());
+
+	addTextureIfMissing(textures, mat.diffuseTransmissionColorMap(), "diffuseTransmissionColorMap",
+		/*texCoord*/mat.diffuseTransmissionColorTexCoord(),
+		/*scale*/glm::vec2(mat.diffuseTransmissionColorTexScale().x(), mat.diffuseTransmissionColorTexScale().y()),
+		/*offset*/glm::vec2(mat.diffuseTransmissionColorTexOffset().x(), mat.diffuseTransmissionColorTexOffset().y()),
+		/*rotation*/mat.diffuseTransmissionColorTexRotation());
 }
 
 

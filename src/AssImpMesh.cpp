@@ -520,6 +520,14 @@ void AssImpMesh::cacheTextureBindings()
 			addBinding("thicknessMap" /*+ std::to_string(thicknessNr)*/, GL_TEXTURE30);
 			thicknessNr++;
 		}
+		else if (texture.type == "diffuseTransmissionMap")
+		{
+			addBinding("diffuseTransmissionMap", GL_TEXTURE31);
+		}
+		else if (texture.type == "diffuseTransmissionColorMap")
+		{
+			addBinding("diffuseTransmissionColorMap", GL_TEXTURE9);
+		}
 	}
 
 	_textureBindingsDirty = false;
@@ -630,6 +638,8 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 	pushIfPresent("iridescenceMapPath", "iridescenceMap");
 	pushIfPresent("iridescenceThicknessMapPath", "iridescenceThicknessMap");
 	pushIfPresent("thicknessMapPath", "thicknessMap");
+	pushIfPresent("diffuseTransmissionMapPath", "diffuseTransmissionMap");
+	pushIfPresent("diffuseTransmissionColorMapPath", "diffuseTransmissionColorMap");
 
 
 	// Also add common legacy ADS keys (in case materials were saved using legacy names)

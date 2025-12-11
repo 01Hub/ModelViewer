@@ -4029,6 +4029,15 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "  KHR_dispersion: " << m._dispersion << "\n";
 	os << "  KHR_unlit: " << m._unlit << "\n";
 
+	// KHR_materials_diffuse_transmission
+	os << "  KHR_diffuse_transmission: "
+		<< "diffuseTransmissionFactor=" << m._diffuseTransmissionFactor
+		<< " diffuseTransmissionColorFactor="; printVec3(os, m._diffuseTransmissionColorFactor);
+	os << " diffuseTransmissionMap=" << q(m._diffuseTransmissionMap) << "\n"
+		<< " diffuseTransmissionTexId=" << m._diffuseTransmissionTextureId << "\n";
+	os << "diffuseTransmissionColorMap=" << q(m._diffuseTransmissionColorMap) << "\n"
+		<< " diffuseTransmissionColorTexId=" << m._diffuseTransmissionColorTextureId << "\n";
+
 	// --- UV tiling/offset
 	os << "  UV tiling: (" << m._uvTilingU << ", " << m._uvTilingV << ")"
 		<< " UV offset: (" << m._uvOffsetU << ", " << m._uvOffsetV << ")\n";
