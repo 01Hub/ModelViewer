@@ -151,6 +151,12 @@ uniform sampler2D iridescenceThicknessMap;
 uniform bool hasIridescenceMap = false;
 uniform bool hasIridescenceThicknessMap = false;
 
+// KHR_materials_diffuse_transmission
+uniform sampler2D diffuseTransmissionMap;
+uniform sampler2D diffuseTransmissionColorMap; 
+uniform bool hasDiffuseTransmissionMap = false;
+uniform bool hasDiffuseTransmissionColorMap = false;
+
 // KHR_materials_volume
 uniform sampler2D thicknessMap;
 uniform bool hasThicknessMap = false;
@@ -185,6 +191,8 @@ uniform TextureTransform specularColorTexTransform;
 uniform TextureTransform anisotropyTexTransform;
 uniform TextureTransform iridescenceTexTransform;
 uniform TextureTransform iridescenceThicknessTexTransform;
+uniform TextureTransform diffuseTransmissionTexTransform;
+uniform TextureTransform diffuseTransmissionColorTexTransform;
 uniform TextureTransform thicknessTexTransform;
 
 // Legacy ADS texture transforms
@@ -306,6 +314,10 @@ struct PBRLighting
 	// KHR_materials_dispersion
 	float dispersion;
 
+	// KHR_materials_diffuse_transmission
+	float diffuseTransmissionFactor;
+	vec3 diffuseTransmissionColorFactor;
+
 	// KHR_materials_unlit
 	bool unlit;
 
@@ -347,6 +359,8 @@ vec2    getAnisotropyUV();
 vec2    getIridescenceUV();
 vec2    getIridescenceThicknessUV();
 vec2    getThicknessUV();
+vec2    getDiffuseTransmissionUV();
+vec2    getDiffuseTransmissionColorUV();
 
 // Legacy ADS
 vec2    getDiffuseTextureUV();
@@ -678,8 +692,8 @@ void main()
 		if (fadeFactor >= 1.0)
 			discard;
 		// Blend floor color with the background gradient
-	// View-angle modulation: reduce background mix when looking straight down
-	// NdotV in world (front/back already handled above)
+		// View-angle modulation: reduce background mix when looking straight down
+		// NdotV in world (front/back already handled above)
 		vec3 N_main = normalize(gl_FrontFacing ? g_normal : -g_normal);
 		vec3 V_main = normalize(cameraPos - g_position);
 		float NdotV_main = clamp(dot(N_main, V_main), 0.0, 1.0);
@@ -932,6 +946,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	float	attenuationDistance;
 	vec3	attenuationColor;
 	bool	unlit;
+	float	diffuseTransmissionFactor;
+	vec3	diffuseTransmissionColorFactor;
 	float	emissiveStrength;
 
 	vec3	N;
@@ -989,6 +1005,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	attenuationDistance = pbrLighting.attenuationDistance;
 	attenuationColor = pbrLighting.attenuationColor;
 	unlit = pbrLighting.unlit;
+	diffuseTransmissionFactor = pbrLighting.diffuseTransmissionFactor;
+	diffuseTransmissionColorFactor = pbrLighting.diffuseTransmissionColorFactor;
 	emissiveStrength = pbrLighting.emissiveStrength;
 
 	
@@ -1232,8 +1250,47 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
 	float NdotL = max(dot(N, L), 0.0);
+	float NdotL_backlit = max(dot(-N, L), 0.0);
 
-	directDiffuse_L = kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
+	// Sample diffuse transmission factor and color
+	float diffuseTrans_factor = diffuseTransmissionFactor;                      
+	vec3 diffuseTrans_color = diffuseTransmissionColorFactor;                   
+	if (hasDiffuseTransmissionMap)                                              
+	{                                                                           
+		diffuseTrans_factor *= texture(diffuseTransmissionMap, getDiffuseTransmissionUV()).a;  		
+	}                                                                           
+	if (hasDiffuseTransmissionColorMap)                                         
+	{                                                                           
+		diffuseTrans_color *= texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb; 		
+	}                                                                           
+
+	// Compute diffuse BTDF (transmitted diffuse light)
+	vec3 l_diffuse_btdf = diffuseTrans_color / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL_backlit * lightFactor;  
+
+	// Mix normal diffuse and transmission based on diffuse transmission factor
+	vec3 diffuse_combined = mix(kD * albedo / PI, l_diffuse_btdf, diffuseTrans_factor);
+
+	// Apply volume attenuation to diffuse transmission if KHR_materials_volume is present
+	if (thicknessFactor > 0.0 && diffuseTrans_factor > 0.0)
+	{                                                      
+		// Compute transmission distance through the volume
+		vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
+		vec3 transmissionRay = refractDir * thicknessFactor;
+		float transmissionDistance = length(transmissionRay); 
+    
+		// Apply Beer's Law attenuation
+		vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
+		l_diffuse_btdf *= transmittance;
+		diffuse_combined = mix(kD * albedo / PI, l_diffuse_btdf, diffuseTrans_factor); 
+	}
+
+	// Apply transmission override (if specular transmission is active, it overrides diffuse transmission)
+	if (transmission > 0.0)  
+	{                       
+		diffuse_combined = mix(diffuse_combined, kD * albedo / PI, transmission);  
+	}                       
+
+	directDiffuse_L = diffuse_combined * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
 	directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
 
 	// ============================================================================
@@ -1661,6 +1718,17 @@ vec2 getThicknessUV()
 {
 	return getTransformedUV(thicknessTexTransform.texCoordIndex, thicknessTexTransform);
 }
+
+vec2 getDiffuseTransmissionUV()
+{
+	return getTransformedUV(diffuseTransmissionTexTransform.texCoordIndex, diffuseTransmissionTexTransform);
+}
+
+vec2 getDiffuseTransmissionColorUV()
+{
+	return getTransformedUV(diffuseTransmissionColorTexTransform.texCoordIndex, diffuseTransmissionColorTexTransform);
+}
+
 
 // Legacy ADS texture UV functions
 vec2 getDiffuseTextureUV()
