@@ -1990,6 +1990,24 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 			mat.setIridescenceThicknessTexOffset(toQVector2D(tex.offset));
 			mat.setIridescenceThicknessTexRotation(tex.rotation);
 		}
+		else if (tex.type == "diffuseTransmissionMap")
+		{
+			mat.setDiffuseTransmissionTextureId(tex.id);
+			mat.setDiffuseTransmissionMap(QString(tex.path.c_str()));
+			mat.setDiffuseTransmissionTexCoord(tex.texCoordIndex);
+			mat.setDiffuseTransmissionTexScale(toQVector2D(tex.scale));
+			mat.setDiffuseTransmissionTexOffset(toQVector2D(tex.offset));
+			mat.setDiffuseTransmissionTexRotation(tex.rotation);
+		}
+		else if (tex.type == "diffuseTransmissionColorMap")
+		{
+			mat.setDiffuseTransmissionColorTextureId(tex.id);
+			mat.setDiffuseTransmissionColorMap(QString(tex.path.c_str()));
+			mat.setDiffuseTransmissionColorTexCoord(tex.texCoordIndex);
+			mat.setDiffuseTransmissionColorTexScale(toQVector2D(tex.scale));
+			mat.setDiffuseTransmissionColorTexOffset(toQVector2D(tex.offset));
+			mat.setDiffuseTransmissionColorTexRotation(tex.rotation);
+		}
 	}
 
 	// === Add extension maps discovered by applyGltfMaterialExtensionsToMaterial (stored in GLMaterial) ===
