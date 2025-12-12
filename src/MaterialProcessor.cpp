@@ -1621,6 +1621,322 @@ void MaterialProcessor::extractUVTransform(
 		<< "  Rotation: " << texture.rotation << " rad\n";*/
 }
 
+
+std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& gltfPath)
+{
+	std::vector<GPULight> lights;
+
+	// Early skip for non-.gltf paths
+	if (!gltfPath.endsWith(".gltf", Qt::CaseInsensitive))
+	{
+		return lights;
+	}
+
+	// Reuse the existing JSON cache
+	static QHash<QString, QJsonDocument> s_gltfJsonCache;
+	QJsonDocument doc;
+
+	if (s_gltfJsonCache.contains(gltfPath))
+	{
+		doc = s_gltfJsonCache.value(gltfPath);
+	}
+	else
+	{
+		QFile f(gltfPath);
+		if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+		{
+			qWarning() << "parseKHRLightsPunctual: cannot open glTF:" << gltfPath;
+			return lights;
+		}
+		QByteArray bytes = f.readAll();
+		f.close();
+
+		QJsonParseError perr;
+		doc = QJsonDocument::fromJson(bytes, &perr);
+		if (perr.error != QJsonParseError::NoError)
+		{
+			qWarning() << "parseKHRLightsPunctual: JSON parse error:" << perr.errorString();
+			return lights;
+		}
+		s_gltfJsonCache.insert(gltfPath, doc);
+	}
+
+	if (!doc.isObject())
+	{
+		qWarning() << "parseKHRLightsPunctual: invalid JSON root for" << gltfPath;
+		return lights;
+	}
+
+	QJsonObject root = doc.object();
+
+	// Check for KHR_lights_punctual extension at root level
+	if (!root.contains("extensions"))
+	{
+		return lights;  // No extensions at all
+	}
+
+	QJsonObject extensions = root.value("extensions").toObject();
+	if (!extensions.contains("KHR_lights_punctual"))
+	{
+		return lights;  // No lights extension
+	}
+
+	QJsonObject lightsExt = extensions.value("KHR_lights_punctual").toObject();
+	if (!lightsExt.contains("lights") || !lightsExt.value("lights").isArray())
+	{
+		return lights;  // No lights array
+	}
+
+	QJsonArray lightsArray = lightsExt.value("lights").toArray();
+	QJsonArray nodesArray = root.value("nodes").toArray();
+
+	qDebug() << "========================================";
+	qDebug() << "parseKHRLightsPunctual: Found" << lightsArray.size() << "lights in glTF";
+	qDebug() << "========================================";
+
+	// Parse each light WITH its node transform
+	for (int lightIdx = 0; lightIdx < lightsArray.size(); ++lightIdx)
+	{
+		QJsonObject lightDef = lightsArray.at(lightIdx).toObject();
+		GPULight light = {};
+
+		// === Parse light type (REQUIRED) ===
+		if (!lightDef.contains("type"))
+		{
+			qWarning() << "  Light" << lightIdx << ": missing required 'type' field";
+			continue;
+		}
+
+		QString typeStr = lightDef.value("type").toString();
+		if (typeStr == "directional")
+		{
+			light.type = static_cast<int>(LightType::Directional);
+		}
+		else if (typeStr == "point")
+		{
+			light.type = static_cast<int>(LightType::Point);
+		}
+		else if (typeStr == "spot")
+		{
+			light.type = static_cast<int>(LightType::Spot);
+		}
+		else
+		{
+			qWarning() << "  Light" << lightIdx << ": unknown type" << typeStr;
+			continue;
+		}
+
+		// === Parse color (default: white) ===
+		light.color = glm::vec3(1.0f);
+		if (lightDef.contains("color") && lightDef.value("color").isArray())
+		{
+			QJsonArray colorArray = lightDef.value("color").toArray();
+			if (colorArray.size() >= 3)
+			{
+				light.color.x = static_cast<float>(colorArray.at(0).toDouble(1.0));
+				light.color.y = static_cast<float>(colorArray.at(1).toDouble(1.0));
+				light.color.z = static_cast<float>(colorArray.at(2).toDouble(1.0));
+			}
+		}
+
+		// === Parse intensity (default: 1.0) ===
+		light.intensity = 1.0f;
+		if (lightDef.contains("intensity"))
+		{
+			light.intensity = static_cast<float>(lightDef.value("intensity").toDouble(1.0));
+		}
+
+		// === Parse range (default: 0 = infinite) ===
+		light.range = 0.0f;
+		if (lightDef.contains("range"))
+		{
+			light.range = static_cast<float>(lightDef.value("range").toDouble(0.0));
+		}
+
+		// === Parse spot angles (only if type == spot) ===
+		if (light.type == static_cast<int>(LightType::Spot))
+		{
+			if (lightDef.contains("spot") && lightDef.value("spot").isObject())
+			{
+				QJsonObject spotDef = lightDef.value("spot").toObject();
+
+				float innerAngle = 0.0f;
+				if (spotDef.contains("innerConeAngle"))
+				{
+					innerAngle = static_cast<float>(spotDef.value("innerConeAngle").toDouble(0.0));
+				}
+				light.innerConeCos = std::cos(innerAngle);
+
+				float outerAngle = glm::pi<float>() / 4.0f;  // π/4 default
+				if (spotDef.contains("outerConeAngle"))
+				{
+					outerAngle = static_cast<float>(spotDef.value("outerConeAngle").toDouble(glm::pi<float>() / 4.0f));
+				}
+				light.outerConeCos = std::cos(outerAngle);
+			}
+			else
+			{
+				// Spot without explicit angles - use defaults
+				light.innerConeCos = std::cos(0.0f);
+				light.outerConeCos = std::cos(glm::pi<float>() / 4.0f);
+			}
+		}
+		else
+		{
+			// Non-spot lights don't use cone angles
+			light.innerConeCos = std::cos(0.0f);
+			light.outerConeCos = std::cos(glm::pi<float>() / 4.0f);
+		}
+
+		// === Find which node has this light and read its MATRIX transform ===
+		light.position = glm::vec3(0.0f);
+		light.direction = glm::vec3(0.0f, 0.0f, -1.0f);  // Default direction
+
+		for (int nodeIdx = 0; nodeIdx < nodesArray.size(); ++nodeIdx)
+		{
+			QJsonObject nodeDef = nodesArray.at(nodeIdx).toObject();
+
+			// Check if this node references this light
+			bool hasLight = false;
+			if (nodeDef.contains("extensions"))
+			{
+				QJsonObject nodeExt = nodeDef.value("extensions").toObject();
+				if (nodeExt.contains("KHR_lights_punctual"))
+				{
+					QJsonObject lightExt = nodeExt.value("KHR_lights_punctual").toObject();
+					if (lightExt.contains("light") && lightExt.value("light").toInt(-1) == lightIdx)
+					{
+						hasLight = true;
+					}
+				}
+			}
+
+			if (hasLight)
+			{
+				// === Read node matrix (4x4, column-major) ===
+				glm::mat4 nodeTransform(1.0f);
+
+				if (nodeDef.contains("matrix") && nodeDef.value("matrix").isArray())
+				{
+					QJsonArray matrixArray = nodeDef.value("matrix").toArray();
+
+					if (matrixArray.size() == 16)
+					{
+						// Column-major order: fill column by column
+						for (int row = 0; row < 4; ++row)
+						{
+							for (int col = 0; col < 4; ++col)
+							{
+								int idx = col * 4 + row;  // Column-major index
+								nodeTransform[col][row] = static_cast<float>(matrixArray.at(idx).toDouble(0.0));
+							}
+						}
+					}
+				}
+				else if (nodeDef.contains("translation") || nodeDef.contains("rotation") || nodeDef.contains("scale"))
+				{
+					// Fallback: build from TRS if matrix not present
+					glm::vec3 translation(0.0f);
+					if (nodeDef.contains("translation") && nodeDef.value("translation").isArray())
+					{
+						QJsonArray transArray = nodeDef.value("translation").toArray();
+						if (transArray.size() >= 3)
+						{
+							translation.x = static_cast<float>(transArray.at(0).toDouble(0.0));
+							translation.y = static_cast<float>(transArray.at(1).toDouble(0.0));
+							translation.z = static_cast<float>(transArray.at(2).toDouble(0.0));
+						}
+					}
+
+					glm::quat rotation(1.0f, 0.0f, 0.0f, 0.0f);  // identity
+					if (nodeDef.contains("rotation") && nodeDef.value("rotation").isArray())
+					{
+						QJsonArray rotArray = nodeDef.value("rotation").toArray();
+						if (rotArray.size() >= 4)
+						{
+							rotation.x = static_cast<float>(rotArray.at(0).toDouble(0.0));
+							rotation.y = static_cast<float>(rotArray.at(1).toDouble(0.0));
+							rotation.z = static_cast<float>(rotArray.at(2).toDouble(0.0));
+							rotation.w = static_cast<float>(rotArray.at(3).toDouble(1.0));
+						}
+					}
+
+					glm::vec3 scale(1.0f);
+					if (nodeDef.contains("scale") && nodeDef.value("scale").isArray())
+					{
+						QJsonArray scaleArray = nodeDef.value("scale").toArray();
+						if (scaleArray.size() >= 3)
+						{
+							scale.x = static_cast<float>(scaleArray.at(0).toDouble(1.0));
+							scale.y = static_cast<float>(scaleArray.at(1).toDouble(1.0));
+							scale.z = static_cast<float>(scaleArray.at(2).toDouble(1.0));
+						}
+					}
+
+					nodeTransform = glm::mat4(1.0f);
+					nodeTransform = glm::translate(nodeTransform, translation);
+					nodeTransform *= glm::mat4_cast(rotation);
+					nodeTransform = glm::scale(nodeTransform, scale);
+				}
+
+				// === Extract position from matrix ===
+				light.position = glm::vec3(nodeTransform[3][0], nodeTransform[3][1], nodeTransform[3][2]);
+
+				// === Extract direction by rotating (0, 0, -1) through the matrix ===
+				glm::vec3 localDir(0.0f, 0.0f, -1.0f);
+				glm::vec4 worldDir4 = nodeTransform * glm::vec4(localDir, 0.0f);
+				light.direction = glm::normalize(glm::vec3(worldDir4));
+
+				break;
+			}
+		}
+
+		// === Enhanced debug output with all light parameters ===
+		QString lightTypeStr;
+		if (light.type == static_cast<int>(LightType::Directional))
+		{
+			lightTypeStr = "Directional";
+		}
+		else if (light.type == static_cast<int>(LightType::Point))
+		{
+			lightTypeStr = "Point";
+		}
+		else if (light.type == static_cast<int>(LightType::Spot))
+		{
+			lightTypeStr = "Spot";
+		}
+		else
+		{
+			lightTypeStr = "Unknown";
+		}
+
+		qDebug() << "";
+		qDebug() << "Light" << lightIdx << ":";
+		qDebug() << "  Type:        " << lightTypeStr;
+		qDebug() << "  Color:       (" << light.color.x << "," << light.color.y << "," << light.color.z << ")";
+		qDebug() << "  Intensity:   " << light.intensity;
+		qDebug() << "  Range:       " << (light.range == 0.0f ? QString("infinite") : QString::number(light.range));
+		qDebug() << "  Position:    (" << light.position.x << "," << light.position.y << "," << light.position.z << ")";
+		qDebug() << "  Direction:   (" << light.direction.x << "," << light.direction.y << "," << light.direction.z << ")";
+
+		if (light.type == static_cast<int>(LightType::Spot))
+		{
+			float innerAngleDeg = glm::degrees(std::acos(glm::clamp(light.innerConeCos, -1.0f, 1.0f)));
+			float outerAngleDeg = glm::degrees(std::acos(glm::clamp(light.outerConeCos, -1.0f, 1.0f)));
+			qDebug() << "  Inner Cone:  " << innerAngleDeg << "degrees";
+			qDebug() << "  Outer Cone:  " << outerAngleDeg << "degrees";
+		}
+
+		lights.push_back(light);
+	}
+
+	qDebug() << "========================================";
+	qDebug() << "Total lights parsed:" << lights.size();
+	qDebug() << "========================================";
+
+	return lights;
+}
+
 // Sets the texture maps for a material based on the defined texture mappings.
 void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMaterial::Texture>& textures, GLMaterial& mat)
 {

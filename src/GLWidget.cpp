@@ -410,6 +410,11 @@ GLWidget::~GLWidget()
 	if (_lightCube)
 		delete _lightCube;
 
+	if (glLights)
+	{
+		glLights->cleanup();
+	}
+
 	_axisVBO.destroy();
 	_axisVAO.destroy();
 
@@ -476,6 +481,22 @@ void GLWidget::initializeGL()
 	connect(_assimpModelLoader, &AssImpModelLoader::verticesProcessed, this, &GLWidget::showMeshLoadingProgress);
 	connect(_assimpModelLoader, &AssImpModelLoader::nodeProcessed, this, &GLWidget::showModelLoadingProgress);
 	connect(this, &GLWidget::loadingAssImpModelCancelled, _assimpModelLoader, &AssImpModelLoader::cancelLoading);
+
+	glLights = std::make_unique<GLLights>();
+	// Connect lights loading
+	connect(_assimpModelLoader, &AssImpModelLoader::lightsLoaded,
+		this, [this](const std::vector<GPULight>& lights) {
+			if (!lights.empty())
+			{
+				glLights->setLights(lights);
+				qDebug() << "GLWidget: Received" << lights.size() << "lights";
+			}
+			else
+			{				
+				glLights->createFallbackLight(glm::vec3(_lightPosition.x(), _lightPosition.y(), _lightPosition.z()));
+				qDebug() << "GLWidget: No lights received, using fallback";
+			}
+		});
 
 	const std::string path = std::string(MODELVIEWER_DATA_DIR) + "/";
 	// Text rendering
@@ -591,6 +612,8 @@ void GLWidget::paintGL()
 
 		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
+
+		glLights->bind(_fgShader->programId());
 
 		_modelMatrix.setToIdentity();
 		if (_multiViewActive)

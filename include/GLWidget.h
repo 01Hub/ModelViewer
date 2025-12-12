@@ -16,6 +16,7 @@
 #include <QRubberBand>
 #include "ViewToolbar.h"
 #include "SceneUtils.h"
+#include "GLLights.h"
 
 /* Custom OpenGL Viewer Widget */
 
@@ -735,6 +736,8 @@ private:
 	QString _hatchTexturePath;
 
 	AdaptiveShadowMapper shadowMapper;
+
+	std::unique_ptr<GLLights> glLights;
 };
 
 #endif

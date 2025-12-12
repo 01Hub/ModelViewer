@@ -35,6 +35,8 @@
 #include <XCAFDoc_Location.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 
+#include "GLLights.h"
+
 
 class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
 {
@@ -118,6 +120,7 @@ signals:
 	void meshBatchReady(std::vector<AssImpMesh*> batch);
 	void loadingFinished(bool successFlag, const aiScene* scene);
 	void loadingCancelled();
+	void lightsLoaded(const std::vector<GPULight>& lights);
 
 public slots:
 	void processFileReadProgress(float percentage);

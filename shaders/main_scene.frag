@@ -271,6 +271,28 @@ struct LightModel
 };
 uniform LightModel lightModel;
 
+const int LightType_Directional = 0;
+const int LightType_Point = 1;
+const int LightType_Spot = 2;
+const int MAX_LIGHTS = 16;
+
+uniform int lightCount;
+
+struct PunctualLight {
+    vec3 direction;
+    float range;
+    vec3 color;
+    float intensity;
+    vec3 position;
+    float innerConeCos;
+    float outerConeCos;
+    int type;
+};
+
+layout(std140, binding = 3) uniform LightBlock {
+    PunctualLight lights[MAX_LIGHTS];
+};
+
 struct Material
 {
 	vec3  emission;

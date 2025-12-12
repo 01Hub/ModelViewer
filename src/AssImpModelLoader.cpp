@@ -182,10 +182,10 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	// Set batch size based on number of meshes;
 	int batchSize = std::clamp(_sceneStats.meshCount / 10, 5, 100);
 	_batchSize = batchSize;
-	
+
 	// Process ASSIMP's root node recursively	
 	this->processNode(0, _scene->mRootNode, _scene, aiMatrix4x4());
-
+	
 	// Flush any remaining meshes in batch
 	if (!_currentBatch.empty())
 	{
@@ -195,6 +195,22 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 	if (_progressiveLoading)
 		emit loadingFinished(true, _scene);
+
+	// === Parse KHR_lights_punctual extension ===
+	std::vector<GPULight> parsedLights;
+	QString gltfPath = QString::fromStdString(path);
+
+	if (gltfPath.endsWith(".gltf", Qt::CaseInsensitive))
+	{
+		parsedLights = _materialProcessor.parseKHRLightsPunctual(gltfPath);
+		if (!parsedLights.empty())
+		{
+			qDebug() << "AssImpModelLoader: Loaded" << parsedLights.size() << "KHR lights with transforms";
+		}
+	}
+
+	// Emit lights for GLWidget to handle
+	emit lightsLoaded(parsedLights);
 }
 
 
@@ -440,7 +456,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		if(_path.find(".gltf") != std::string::npos || _path.find(".glb") != std::string::npos)
 		{
 			mat.setIsGLTFMaterial(true);
-			qDebug() << "GLTF Material Loaded";
+			//qDebug() << "GLTF Material Loaded";
 		}
 	}
 
@@ -455,9 +471,9 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
 	}
 	
-	qDebug() << "Mesh with material: " << meshName << " processed.";
+	//qDebug() << "Mesh with material: " << meshName << " processed.";
 	// Material and textures details
-	std::cout << mat;	
+	//std::cout << mat;	
 
 	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
 	return newMesh;

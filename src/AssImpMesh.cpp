@@ -304,30 +304,30 @@ void AssImpMesh::setupMesh()
 		}
 	}
 
-	size_t numVertices = _vertices.size();
-	qDebug() << "Mesh name:" << _name;
-	qDebug() << "=== BUFFER LAYOUT DEBUG ===";
-	qDebug() << "Num vertices:" << numVertices;
-	qDebug() << "Num floats in texCoords vector:" << texCoords.size();
-	qDebug() << "Expected (4 sets x 2 floats x numVertices):" << 4 * 2 * numVertices;
-	qDebug() << "First 16 texCoord values:";
-	for (int i = 0; i < std::min(16, (int)texCoords.size()); i++)
-	{
-		qDebug() << "  [" << i << "]:" << texCoords[i];
-	}
-	// output the texture metadata for debugging
-	qDebug() << "=== TEXTURE METADATA DEBUG ===";
-	for (size_t i = 0; i < _textures.size(); i++)
-	{
-		const GLMaterial::Texture& tex = _textures[i];
-		qDebug() << "Texture [" << i << "] Type:" << QString::fromStdString(tex.type)
-			<< " ID:" << tex.id
-			<< " HasAlpha:" << tex.hasAlpha
-			<< " TexCoordIndex:" << tex.texCoordIndex
-			<< " Scale:" << tex.scale.x << "," << tex.scale.y
-			<< " Offset:" << tex.offset.x << "," << tex.offset.y
-			<< " Rotation (radians):" << tex.rotation;
-	}
+	//size_t numVertices = _vertices.size();
+	//qDebug() << "Mesh name:" << _name;
+	//qDebug() << "=== BUFFER LAYOUT DEBUG ===";
+	//qDebug() << "Num vertices:" << numVertices;
+	//qDebug() << "Num floats in texCoords vector:" << texCoords.size();
+	//qDebug() << "Expected (4 sets x 2 floats x numVertices):" << 4 * 2 * numVertices;
+	//qDebug() << "First 16 texCoord values:";
+	//for (int i = 0; i < std::min(16, (int)texCoords.size()); i++)
+	//{
+	//	qDebug() << "  [" << i << "]:" << texCoords[i];
+	//}
+	//// output the texture metadata for debugging
+	//qDebug() << "=== TEXTURE METADATA DEBUG ===";
+	//for (size_t i = 0; i < _textures.size(); i++)
+	//{
+	//	const GLMaterial::Texture& tex = _textures[i];
+	//	qDebug() << "Texture [" << i << "] Type:" << QString::fromStdString(tex.type)
+	//		<< " ID:" << tex.id
+	//		<< " HasAlpha:" << tex.hasAlpha
+	//		<< " TexCoordIndex:" << tex.texCoordIndex
+	//		<< " Scale:" << tex.scale.x << "," << tex.scale.y
+	//		<< " Offset:" << tex.offset.x << "," << tex.offset.y
+	//		<< " Rotation (radians):" << tex.rotation;
+	//}
 
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents);
 	computeBounds();

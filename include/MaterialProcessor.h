@@ -2,9 +2,11 @@
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/quaternion.hpp>
 #include <assimp/scene.h>
 #include "GLMaterial.h"
 #include "AssImpMesh.h"
+#include "GLLights.h"
 #include <QOpenGLFunctions_4_5_Core>
 
 
@@ -42,6 +44,8 @@ public:
 		int materialIndex,
 		GLMaterial& outMaterial,
 		std::vector<GLMaterial::Texture>& outTextures);
+
+	std::vector<GPULight> parseKHRLightsPunctual(const QString& gltfPath);
 
 private:
 	void setShadingModel(GLMaterial& mat, aiShadingMode shadingModel);
@@ -134,6 +138,6 @@ private:
 
 private:
 	std::vector<GLMaterial::Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
-
 	std::string _folderPath; // Directory where textures are located
+
 };
