@@ -1404,20 +1404,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	{ 
 		vec3 diffuseTransmissionIBL_back = texture(irradianceMap, -N).rgb * diffuseTransmissionColorFactor;
 		vec3 diffuseTransmissionIBL_front = texture(irradianceMap, N).rgb * diffuseTransmissionColorFactor;
-    
-		// Sample textures
-		float diffuseTrans_factor = diffuseTransmissionFactor;
-		if (hasDiffuseTransmissionMap) 
-		{
-			diffuseTrans_factor *= texture(diffuseTransmissionMap, getDiffuseTransmissionUV()).a;
-		}
-		if (hasDiffuseTransmissionColorMap) 
-		{
-			vec3 colorTexSample = texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;
-			diffuseTransmissionIBL_back *= colorTexSample;
-			diffuseTransmissionIBL_front *= colorTexSample;
-		}
-    
+    	
+		diffuseTransmissionIBL_back *= diffuseTrans_color;
+		diffuseTransmissionIBL_front *= diffuseTrans_color;
+	
 		// Apply volume attenuation to back only
 		if (thicknessFactor > 0.0) 
 		{
