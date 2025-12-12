@@ -1257,6 +1257,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
 
 	float NdotL = max(dot(N, L), 0.0);
+
+
+	// Calculate the light source component - single light as of now.
+	vec3 lightSourceComponent = lightSource.ambient + lightSource.diffuse + lightSource.specular;
 	
 	// Sample diffuse transmission factor and color
 	float diffuseTrans_factor = diffuseTransmissionFactor;                      
@@ -1274,13 +1278,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	{
 		// scatter.frag approach: REPLACE front diffuse with transmission color
 		vec3 singleScatter = multiToSingleScatter();
-		vec3 l_diffuse = (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * (diffuseTrans_color / PI) * lightFactor * singleScatter;
+		vec3 l_diffuse = lightSourceComponent * NdotL * (diffuseTrans_color / PI) * lightFactor * singleScatter;
     
 		vec3 l_diffuse_btdf = vec3(0.0);
 		if (dot(N, L) < 0.0) 
 		{
 			float diffuseNdotL = max(dot(-N, L), 0.0);
-			l_diffuse_btdf = (lightSource.ambient + lightSource.diffuse + lightSource.specular) * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
+			l_diffuse_btdf = lightSourceComponent * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
         
 			if (thicknessFactor > 0.0) 
 			{
@@ -1299,14 +1303,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	} else 
 	{
 		// pbr.frag approach: original code (no scatter)
-		vec3 l_diffuse = kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
+		vec3 l_diffuse = kD * albedo / PI * lightSourceComponent * NdotL * lightFactor;
 		l_diffuse = l_diffuse * (1.0 - diffuseTrans_factor);
     
 		vec3 l_diffuse_btdf = vec3(0.0);
 		if (dot(N, L) < 0.0)
 		{
 			float diffuseNdotL = max(dot(-N, L), 0.0);
-			l_diffuse_btdf = (lightSource.ambient + lightSource.diffuse + lightSource.specular) * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
+			l_diffuse_btdf = lightSourceComponent * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
         
 			if (thicknessFactor > 0.0) 
 			{
@@ -1324,10 +1328,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	if (transmission > 0.0) 
 	{
-		directDiffuse_L = mix(directDiffuse_L, kD * albedo / PI * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor, transmission);  
+		directDiffuse_L = mix(directDiffuse_L, kD * albedo / PI * lightSourceComponent * NdotL * lightFactor, transmission);  
 	}
 
-	directSpecular_L = specBRDF * (lightSource.ambient + lightSource.diffuse + lightSource.specular) * NdotL * lightFactor;
+	directSpecular_L = specBRDF * lightSourceComponent * NdotL * lightFactor;
 
 	// ============================================================================
 	// TRANSMISSION
