@@ -490,6 +490,8 @@ void GLWidget::initializeGL()
 	// Connect lights loading
 	connect(_assimpModelLoader, &AssImpModelLoader::lightsLoaded,
 		this, [this](const std::vector<GPULight>& lights) {			
+			_originalParsedLights.clear();
+			_currentRepositionedLights.clear();
 			_originalParsedLights = lights;
 			_originalBoundingRadius = _boundingSphere.getRadius();
 			_fgShader->bind();
