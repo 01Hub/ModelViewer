@@ -120,6 +120,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		}
 	);
 	connect(checkBoxShowLights, &QCheckBox::toggled, _glWidget, &GLWidget::showLights);
+	connect(checkBoxDefaultLights, &QCheckBox::toggled, _glWidget, &GLWidget::useDefaultLights);
+	connect(checkBoxPunctualLights, &QCheckBox::toggled, _glWidget, &GLWidget::usePunctualLights);
+	connect(checkBoxIBL, &QCheckBox::toggled, _glWidget, &GLWidget::useIBL);	
 
 	connect(Ui_ModelViewer::comboBoxShadowQuality, &QComboBox::currentIndexChanged, this,
 		[this](int index) {

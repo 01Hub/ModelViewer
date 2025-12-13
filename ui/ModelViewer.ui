@@ -281,8 +281,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>462</width>
-                   <height>796</height>
+                   <width>525</width>
+                   <height>777</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1025,8 +1025,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>462</width>
-                   <height>796</height>
+                   <width>525</width>
+                   <height>777</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1055,8 +1055,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>462</width>
-                   <height>796</height>
+                   <width>525</width>
+                   <height>777</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1092,8 +1092,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>462</width>
-                   <height>796</height>
+                   <width>525</width>
+                   <height>777</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -1469,8 +1469,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>462</width>
-                   <height>796</height>
+                   <width>525</width>
+                   <height>777</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -1706,6 +1706,36 @@
                        <property name="spacing">
                         <number>5</number>
                        </property>
+                       <item>
+                        <widget class="QCheckBox" name="checkBoxDefaultLights">
+                         <property name="text">
+                          <string>Default Lights</string>
+                         </property>
+                         <property name="checked">
+                          <bool>true</bool>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QCheckBox" name="checkBoxPunctualLights">
+                         <property name="text">
+                          <string>Punctual Lights</string>
+                         </property>
+                         <property name="checked">
+                          <bool>true</bool>
+                         </property>
+                        </widget>
+                       </item>
+                       <item>
+                        <widget class="QCheckBox" name="checkBoxIBL">
+                         <property name="text">
+                          <string>IBL</string>
+                         </property>
+                         <property name="checked">
+                          <bool>true</bool>
+                         </property>
+                        </widget>
+                       </item>
                        <item>
                         <widget class="QCheckBox" name="checkBoxShowLights">
                          <property name="text">

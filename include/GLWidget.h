@@ -343,6 +343,9 @@ public slots:
 	void setEnvMapExposure(double exposure);
 	void setIBLExposure(double exposure);
 	void showLights(bool showLights);
+	void useDefaultLights(bool useDefaultLights);
+	void usePunctualLights(bool usePunctualLights);
+	void useIBL(bool useIBL);
 	void showFileReadingProgress(float percent);
 	void showMeshLoadingProgress(float percent);
 	void showModelLoadingProgress(int nodeNum, int totalNodes, int totalMeshes, bool uvProcessed);
@@ -707,6 +710,9 @@ private:
 	Cube* _lightCube;
 	Sphere* _lightSphere;
 	bool _showLights;
+	bool _useDefaultLights;
+	bool _usePunctualLights;
+	bool _useIBL;
 
 	std::unique_ptr<ShaderProgram> _debugShader;
 

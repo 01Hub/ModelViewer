@@ -247,6 +247,9 @@ _assimpModelLoader(nullptr)
 
 	_lowResEnabled = false;	
 	_showLights = false;
+	_useDefaultLights = true;
+	_usePunctualLights = true;
+	_useIBL = true;
 
 	_shadowWidth = 1024 * 4;
 	_shadowHeight = 1024 * 4;
@@ -4022,6 +4025,9 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	prog->setUniformValue("transmissionFramebufferSize",
 		QVector2D(_transmissionTextureWidth, _transmissionTextureHeight));
 
+	prog->setUniformValue("useDefaultLights", _useDefaultLights);
+	prog->setUniformValue("usePunctualLights", _usePunctualLights);
+	prog->setUniformValue("useIBL", _useIBL);
 
 	bindIBLTextures();
 }
@@ -6491,6 +6497,24 @@ bool GLWidget::areLightsShown() const
 void GLWidget::showLights(bool showLights)
 {
 	_showLights = showLights;
+	update();
+}
+
+void GLWidget::useDefaultLights(bool useDefaultLights)
+{
+	_useDefaultLights = useDefaultLights;	
+	update();
+}
+
+void GLWidget::usePunctualLights(bool usePunctualLights)
+{
+	_usePunctualLights = usePunctualLights;
+	update();
+}
+
+void GLWidget::useIBL(bool useIBL)
+{
+	_useIBL = useIBL;
 	update();
 }
 

@@ -76,6 +76,7 @@ uniform float u_floorFresnelDampen = 0.5;  // how much to dampen spec at normal 
 uniform samplerCube irradianceMap;
 uniform samplerCube prefilterMap;
 uniform sampler2D brdfLUT;
+uniform bool useIBL;
 
 // material parameters
 uniform sampler2D albedoMap;
@@ -278,6 +279,8 @@ const int MAX_LIGHTS = 16;
 
 uniform int lightCount;
 uniform bool hasPunctualLights;
+uniform bool useDefaultLights;
+uniform bool usePunctualLights;
 
 struct PunctualLight
 {
@@ -813,8 +816,14 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 	// --- Build lighting buckets ---
 	vec3 ambient = source.ambient * matAmbient * model.ambient;
-	vec3 diffuse = source.diffuse * matDiffuse;
-	vec3 specular = source.specular * matSpecular;
+	vec3 diffuse = vec3(0.0);
+	vec3 specular = vec3(0.0);
+	
+	if (useDefaultLights)
+	{
+		diffuse = source.diffuse * matDiffuse;
+		specular = source.specular * matSpecular;
+	}
 
 	vec3 baseNoSpec, specOnly;
 	vec3 sceneColor = matEmissive + ambient;
@@ -867,7 +876,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	composed = baseNoSpec + specOnly;
 
 	// ADS reflection with exposure
-	if (envMapEnabled)
+	if (useIBL && envMapEnabled)
 	{
 		vec3 I = normalize(cameraDir);
 		vec3 N = normalize(g_reflectionNormal);
@@ -1306,7 +1315,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	ior = hasIORMap ? texture(iorMap, getIORUV()).r : pbrLighting.ior;
 
 	// === Punctual lights (KHR_lights_punctual) ===
-	if (hasPunctualLights)
+	if (hasPunctualLights && usePunctualLights)
 	{
 		for (int i = 0; i < lightCount; ++i)
 		{
@@ -1469,7 +1478,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			}
 		}
 	}
-	else
+	else if(useDefaultLights)
 	{
 		// ========================================================================
 		// FALLBACK: Single legacy light - Apply SAME logic as punctual lights
@@ -1616,87 +1625,86 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// ============================================================================
 	// IMAGE BASED LIGHTING (IBL) - AMBIENT
 	// ============================================================================
-	vec3 irradiance = texture(irradianceMap, N).rgb;
-	vec3 diffuseIBL_L = irradiance * albedo;
-
-	// Diffuse transmission IBL
-	if (diffuseTransmissionFactor > 0.0)
+	if (useIBL)
 	{
-		vec3 diffuseTransmissionIBL_back = texture(irradianceMap, -N).rgb * diffuseTransmissionColorFactor;
-		vec3 diffuseTransmissionIBL_front = texture(irradianceMap, N).rgb * diffuseTransmissionColorFactor;
+		vec3 irradiance = texture(irradianceMap, N).rgb;
+		vec3 diffuseIBL_L = irradiance * albedo;
 
-		diffuseTransmissionIBL_back *= diffuseTrans_color;
-		diffuseTransmissionIBL_front *= diffuseTrans_color;
-
-		// Apply volume attenuation to back only
-		if (thicknessFactor > 0.0)
+		// Diffuse transmission IBL
+		if (diffuseTransmissionFactor > 0.0)
 		{
-			vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-			vec3 transmissionRay = refractDir * thicknessFactor;
-			float transmissionDistance = length(transmissionRay);
-			vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
-			diffuseTransmissionIBL_back *= transmittance;
+			vec3 diffuseTransmissionIBL_back = texture(irradianceMap, -N).rgb * diffuseTransmissionColorFactor;
+			vec3 diffuseTransmissionIBL_front = texture(irradianceMap, N).rgb * diffuseTransmissionColorFactor;
+
+			diffuseTransmissionIBL_back *= diffuseTrans_color;
+			diffuseTransmissionIBL_front *= diffuseTrans_color;
+
+			// Apply volume attenuation to back only
+			if (thicknessFactor > 0.0)
+			{
+				vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
+				vec3 transmissionRay = refractDir * thicknessFactor;
+				float transmissionDistance = length(transmissionRay);
+				vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
+				diffuseTransmissionIBL_back *= transmittance;
+			}
+
+			if (hasVolumeScattering && thicknessFactor > 0.0)
+			{
+				vec3 singleScatter = multiToSingleScatter();
+				diffuseIBL_L = diffuseTransmissionIBL_front * singleScatter + diffuseTransmissionIBL_back * (1.0 - singleScatter) * singleScatter;
+				diffuseIBL_L = diffuseIBL_L * diffuseTrans_factor;
+			}
+			else
+			{
+				diffuseIBL_L = mix(diffuseIBL_L, diffuseTransmissionIBL_back, diffuseTrans_factor);
+			}
 		}
 
-		if (hasVolumeScattering && thicknessFactor > 0.0)
+		vec3 specIBL_L = vec3(0.0);
+
+		if (envMapEnabled)
 		{
-			// scatter.frag approach
-			vec3 singleScatter = multiToSingleScatter();
-			diffuseIBL_L = diffuseTransmissionIBL_front * singleScatter + diffuseTransmissionIBL_back * (1.0 - singleScatter) * singleScatter;
-			diffuseIBL_L = diffuseIBL_L * diffuseTrans_factor;
+			float dotNV = max(dot(N, V_direct), 0.0);
+			vec3 F90_effective = max(vec3(1.0 - roughness), F0_iridescent);
+			vec3 Fibl = fresnelSchlick(dotNV, F0_iridescent, F90_effective);
+			vec3 kSibl = Fibl;
+			vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
+
+			vec3 R = reflect(V_reflect, g_reflectionNormal);
+			const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
+			float lod = roughness * MAX_REFLECTION_LOD;
+			lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
+			vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+			prefilteredColor = max(prefilteredColor, vec3(0.0));
+			prefilteredColor *= envMapExposure;
+
+			vec2 brdf = texture(brdfLUT, vec2(dotNV, roughness)).rg;
+			brdf = max(brdf, vec2(0.0));
+
+			specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
+
+			float diffuseAO = mix(1.0, ambientOcclusion, 0.6);
+			float specularAO = mix(1.0, ambientOcclusion, 0.2);
+			ambient_L = (kDibl * diffuseIBL_L) * diffuseAO + specIBL_L * specularAO;
 		}
 		else
 		{
-			// pbr.frag approach (no scatter)
-			diffuseIBL_L = mix(diffuseIBL_L, diffuseTransmissionIBL_back, diffuseTrans_factor);
+			vec3 kS0 = fresnelSchlick(max(dot(N, V_direct), 0.0), F0, vec3(1.0));
+			vec3 kD0 = (vec3(1.0) - kS0) * (1.0 - metallic);
+			float boostedAO = mix(1.0, ambientOcclusion, 0.8);
+			ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
 		}
-	}
 
-	vec3 specIBL_L = vec3(0.0);
-
-	if (envMapEnabled)
-	{
-		float dotNV = max(dot(N, V_direct), 0.0);
-
-		// Compute effective F90 based on roughness
-		vec3 F90_effective = max(vec3(1.0 - roughness), F0_iridescent);
-
-		// Use standard fresnelSchlick with the computed F90
-		vec3 Fibl = fresnelSchlick(dotNV, F0_iridescent, F90_effective);
-
-		vec3 kSibl = Fibl;
-		vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
-
-		// Use cached reflection view
-		vec3 R = reflect(V_reflect, g_reflectionNormal);
-		const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
-		float lod = roughness * MAX_REFLECTION_LOD;
-		lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
-		vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
-		prefilteredColor = max(prefilteredColor, vec3(0.0));
-		prefilteredColor *= envMapExposure;
-
-		vec2 brdf = texture(brdfLUT, vec2(dotNV, roughness)).rg;
-		brdf = max(brdf, vec2(0.0));
-
-		specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
-
-		float diffuseAO = mix(1.0, ambientOcclusion, 0.6);
-		float specularAO = mix(1.0, ambientOcclusion, 0.2);
-		ambient_L = (kDibl * diffuseIBL_L) * diffuseAO + specIBL_L * specularAO;
+		// Apply clearcoat layering to ambient
+		vec3 ambient_base = ambient_L * (1.0 - clearcoatAttenuation) + clearcoatIBL_L * clearcoatAttenuation;
+		ambient_L = ambient_base + sheenIBL_L;
 	}
 	else
 	{
-		vec3 kS0 = fresnelSchlick(max(dot(N, V_direct), 0.0), F0, vec3(1.0));
-		vec3 kD0 = (vec3(1.0) - kS0) * (1.0 - metallic);
-		float boostedAO = mix(1.0, ambientOcclusion, 0.8);
-		ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
+		// No IBL - only direct lighting
+		ambient_L = vec3(0.0);
 	}
-
-	// Apply clearcoat layering to ambient
-	// Base layer weight: (1 - clearcoat_weight), Clearcoat weight: (clearcoat_weight)
-	vec3 ambient_base = ambient_L * (1.0 - clearcoatAttenuation) + clearcoatIBL_L * clearcoatAttenuation;
-	ambient_L = ambient_base + sheenIBL_L;
 
 	// ============================================================================
 	// EMISSION
