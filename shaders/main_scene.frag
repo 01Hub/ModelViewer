@@ -277,6 +277,7 @@ const int LightType_Spot = 2;
 const int MAX_LIGHTS = 16;
 
 uniform int lightCount;
+uniform bool hasPunctualLights;
 
 struct PunctualLight
 {
@@ -1298,8 +1299,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		diffuseTrans_color *= texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;
 	}
 
+	// ============================================================================
+	// TRANSMISSION - Sample once, use for both punctual and fallback
+	// ============================================================================
+	transmission = hasTransmissionMap ? texture(transmissionMap, getTransmissionUV()).r : pbrLighting.transmission;
+	ior = hasIORMap ? texture(iorMap, getIORUV()).r : pbrLighting.ior;
+
 	// === Punctual lights (KHR_lights_punctual) ===
-	if (lightCount > 0)
+	if (hasPunctualLights)
 	{
 		for (int i = 0; i < lightCount; ++i)
 		{
@@ -1362,7 +1369,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			}
 
 			vec3 l_dir = normalize(pointToLight);
-			float NdotL_light = dot(N, l_dir);
+			float NdotL_light = max(dot(N, l_dir), 0.0);
 
 			// ====================================================================
 			// DIFFUSE with Transmission & Scattering (same logic as single light)
@@ -1452,25 +1459,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			// ====================================================================
 			// TRANSMISSION (KHR_materials_transmission) - Per Light
 			// ====================================================================
-
-			// Sample transmission and IOR for this light
-			float transmission_light = pbrLighting.transmission;
-			float ior_light = pbrLighting.ior;
-
-			if (hasTransmissionMap)
-			{
-				transmission_light *= texture(transmissionMap, getTransmissionUV()).r;
-			}
-
-			if (hasIORMap)
-			{
-				ior_light = texture(iorMap, getIORUV()).r;
-			}
-
+					
 			// Calculate transmission for this light
-			if (transmission_light > 0.0)
+			if (transmission > 0.0)
 			{
-				vec3 l_transmission = calculateTransmission(N, V_direct, l_dir, transmission_light, ior_light, albedo);
+				vec3 l_transmission = calculateTransmission(N, V_direct, l_dir, transmission, ior, albedo);
 				l_transmission *= lightIntensity * lightFactor;
 				transmission_L += l_transmission;
 			}
@@ -1561,22 +1554,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		// ====================================================================
 		// TRANSMISSION (same as punctual)
 		// ====================================================================
-		float transmission_light = pbrLighting.transmission;
-		float ior_light = pbrLighting.ior;
-
-		if (hasTransmissionMap)
+		if (transmission > 0.0)
 		{
-			transmission_light *= texture(transmissionMap, getTransmissionUV()).r;
-		}
-
-		if (hasIORMap)
-		{
-			ior_light = texture(iorMap, getIORUV()).r;
-		}
-
-		if (transmission_light > 0.0)
-		{
-			transmission_L = calculateTransmission(N, V_direct, L, transmission_light, ior_light, albedo);
+			transmission_L = calculateTransmission(N, V_direct, L, transmission, ior, albedo);
 		}
 	}
 
