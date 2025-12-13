@@ -1,10 +1,20 @@
 #version 450 core
 
+in VS_OUT {
+    vec3 fragPos;
+    vec3 normal;
+} fs_in;
+
 out vec4 fragColor;
 
 uniform vec3 lightColor;
+uniform float intensity;
+uniform float intensityScale;
 
 void main()
 {
-    fragColor = vec4(lightColor, 1.0f); // set alle 4 vector values to 1.0
+    // Apply intensity as per KHR spec
+    vec3 scaledColor = lightColor * intensity * intensityScale;
+    vec3 finalColor = scaledColor;
+    fragColor = vec4(finalColor, 1.0);
 }
