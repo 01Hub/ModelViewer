@@ -1489,7 +1489,7 @@
                   <property name="bottomMargin">
                    <number>2</number>
                   </property>
-                  <item row="0" column="0">
+                  <item row="1" column="0">
                    <widget class="QFrame" name="envFrame">
                     <property name="sizePolicy">
                      <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
@@ -1514,27 +1514,11 @@
                       <number>1</number>
                      </property>
                      <item>
-                      <widget class="QPushButton" name="pushButtonDefaultLights">
-                       <property name="sizePolicy">
-                        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
-                         <horstretch>0</horstretch>
-                         <verstretch>0</verstretch>
-                        </sizepolicy>
-                       </property>
-                       <property name="toolTip">
-                        <string>Reset to default light and material</string>
-                       </property>
-                       <property name="text">
-                        <string>Reset Lights</string>
-                       </property>
-                      </widget>
-                     </item>
-                     <item>
                       <layout class="QHBoxLayout" name="horizontalLayout_15">
                        <item>
                         <widget class="QGroupBox" name="groupBox_14">
                          <property name="title">
-                          <string>Light Position</string>
+                          <string>Default Light Position</string>
                          </property>
                          <property name="flat">
                           <bool>true</bool>
@@ -1555,59 +1539,8 @@
                           <property name="spacing">
                            <number>5</number>
                           </property>
-                          <item row="3" column="2">
-                           <widget class="QSlider" name="sliderLightPosZ">
-                            <property name="minimum">
-                             <number>-100</number>
-                            </property>
-                            <property name="maximum">
-                             <number>100</number>
-                            </property>
-                            <property name="value">
-                             <number>0</number>
-                            </property>
-                            <property name="orientation">
-                             <enum>Qt::Orientation::Horizontal</enum>
-                            </property>
-                            <property name="invertedAppearance">
-                             <bool>false</bool>
-                            </property>
-                            <property name="invertedControls">
-                             <bool>false</bool>
-                            </property>
-                            <property name="tickPosition">
-                             <enum>QSlider::TickPosition::NoTicks</enum>
-                            </property>
-                            <property name="tickInterval">
-                             <number>0</number>
-                            </property>
-                           </widget>
-                          </item>
                           <item row="1" column="2">
                            <widget class="QSlider" name="sliderLightPosX">
-                            <property name="minimum">
-                             <number>-200</number>
-                            </property>
-                            <property name="maximum">
-                             <number>200</number>
-                            </property>
-                            <property name="orientation">
-                             <enum>Qt::Orientation::Horizontal</enum>
-                            </property>
-                           </widget>
-                          </item>
-                          <item row="1" column="1">
-                           <widget class="QLabel" name="lightPosX">
-                            <property name="text">
-                             <string>X</string>
-                            </property>
-                            <property name="alignment">
-                             <set>Qt::AlignmentFlag::AlignCenter</set>
-                            </property>
-                           </widget>
-                          </item>
-                          <item row="2" column="2">
-                           <widget class="QSlider" name="sliderLightPosY">
                             <property name="minimum">
                              <number>-200</number>
                             </property>
@@ -1639,6 +1572,57 @@
                             </property>
                            </widget>
                           </item>
+                          <item row="1" column="1">
+                           <widget class="QLabel" name="lightPosX">
+                            <property name="text">
+                             <string>X</string>
+                            </property>
+                            <property name="alignment">
+                             <set>Qt::AlignmentFlag::AlignCenter</set>
+                            </property>
+                           </widget>
+                          </item>
+                          <item row="2" column="2">
+                           <widget class="QSlider" name="sliderLightPosY">
+                            <property name="minimum">
+                             <number>-200</number>
+                            </property>
+                            <property name="maximum">
+                             <number>200</number>
+                            </property>
+                            <property name="orientation">
+                             <enum>Qt::Orientation::Horizontal</enum>
+                            </property>
+                           </widget>
+                          </item>
+                          <item row="3" column="2">
+                           <widget class="QSlider" name="sliderLightPosZ">
+                            <property name="minimum">
+                             <number>-100</number>
+                            </property>
+                            <property name="maximum">
+                             <number>100</number>
+                            </property>
+                            <property name="value">
+                             <number>0</number>
+                            </property>
+                            <property name="orientation">
+                             <enum>Qt::Orientation::Horizontal</enum>
+                            </property>
+                            <property name="invertedAppearance">
+                             <bool>false</bool>
+                            </property>
+                            <property name="invertedControls">
+                             <bool>false</bool>
+                            </property>
+                            <property name="tickPosition">
+                             <enum>QSlider::TickPosition::NoTicks</enum>
+                            </property>
+                            <property name="tickInterval">
+                             <number>0</number>
+                            </property>
+                           </widget>
+                          </item>
                          </layout>
                         </widget>
                        </item>
@@ -1651,7 +1635,7 @@
                           </size>
                          </property>
                          <property name="title">
-                          <string>Light Colours</string>
+                          <string>Default Light Colours</string>
                          </property>
                          <property name="flat">
                           <bool>true</bool>
@@ -1702,48 +1686,20 @@
                       </layout>
                      </item>
                      <item>
-                      <layout class="QHBoxLayout" name="horizontalLayout_18">
-                       <property name="spacing">
-                        <number>5</number>
+                      <widget class="QPushButton" name="pushButtonDefaultLights">
+                       <property name="sizePolicy">
+                        <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+                         <horstretch>0</horstretch>
+                         <verstretch>0</verstretch>
+                        </sizepolicy>
                        </property>
-                       <item>
-                        <widget class="QCheckBox" name="checkBoxDefaultLights">
-                         <property name="text">
-                          <string>Default Lights</string>
-                         </property>
-                         <property name="checked">
-                          <bool>true</bool>
-                         </property>
-                        </widget>
-                       </item>
-                       <item>
-                        <widget class="QCheckBox" name="checkBoxPunctualLights">
-                         <property name="text">
-                          <string>Punctual Lights</string>
-                         </property>
-                         <property name="checked">
-                          <bool>true</bool>
-                         </property>
-                        </widget>
-                       </item>
-                       <item>
-                        <widget class="QCheckBox" name="checkBoxIBL">
-                         <property name="text">
-                          <string>IBL</string>
-                         </property>
-                         <property name="checked">
-                          <bool>true</bool>
-                         </property>
-                        </widget>
-                       </item>
-                       <item>
-                        <widget class="QCheckBox" name="checkBoxShowLights">
-                         <property name="text">
-                          <string>Show Lights</string>
-                         </property>
-                        </widget>
-                       </item>
-                      </layout>
+                       <property name="toolTip">
+                        <string>Reset to default light and material</string>
+                       </property>
+                       <property name="text">
+                        <string>Reset Lights</string>
+                       </property>
+                      </widget>
                      </item>
                      <item>
                       <widget class="QGroupBox" name="groupBox_2">
@@ -2347,6 +2303,58 @@
                     </layout>
                    </widget>
                   </item>
+                  <item row="0" column="0">
+                   <widget class="QGroupBox" name="groupBoxLights">
+                    <property name="title">
+                     <string>Lighting</string>
+                    </property>
+                    <layout class="QGridLayout" name="gridLayout_18" rowstretch="0,0,0">
+                     <property name="topMargin">
+                      <number>1</number>
+                     </property>
+                     <property name="spacing">
+                      <number>5</number>
+                     </property>
+                     <item row="1" column="1">
+                      <widget class="QCheckBox" name="checkBoxShowLights">
+                       <property name="text">
+                        <string>Show Lights</string>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="1">
+                      <widget class="QCheckBox" name="checkBoxPunctualLights">
+                       <property name="text">
+                        <string>Punctual Lights</string>
+                       </property>
+                       <property name="checked">
+                        <bool>true</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="0" column="0">
+                      <widget class="QCheckBox" name="checkBoxDefaultLights">
+                       <property name="text">
+                        <string>Default Lights</string>
+                       </property>
+                       <property name="checked">
+                        <bool>true</bool>
+                       </property>
+                      </widget>
+                     </item>
+                     <item row="1" column="0">
+                      <widget class="QCheckBox" name="checkBoxIBL">
+                       <property name="text">
+                        <string>Environment IBL</string>
+                       </property>
+                       <property name="checked">
+                        <bool>true</bool>
+                       </property>
+                      </widget>
+                     </item>
+                    </layout>
+                   </widget>
+                  </item>
                  </layout>
                 </widget>
                </widget>
@@ -2428,14 +2436,12 @@
   <tabstop>doubleSpinBoxSZ</tabstop>
   <tabstop>pushButtonApplyTransformations</tabstop>
   <tabstop>pushButtonResetTransformations</tabstop>
-  <tabstop>pushButtonDefaultLights</tabstop>
   <tabstop>pushButtonLightAmbient</tabstop>
   <tabstop>pushButtonLightDiffuse</tabstop>
   <tabstop>pushButtonLightSpecular</tabstop>
   <tabstop>sliderLightPosX</tabstop>
   <tabstop>sliderLightPosY</tabstop>
   <tabstop>sliderLightPosZ</tabstop>
-  <tabstop>checkBoxShowLights</tabstop>
   <tabstop>doubleSpinBoxRepeatS</tabstop>
   <tabstop>doubleSpinBoxRepeatT</tabstop>
   <tabstop>doubleSpinBoxScreenGamma</tabstop>

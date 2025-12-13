@@ -1110,6 +1110,11 @@ void ModelViewer::on_pushButtonDefaultLights_clicked()
 	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;	
 	sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
 
+	checkBoxDefaultLights->setChecked(true);
+	checkBoxPunctualLights->setChecked(true);
+	checkBoxIBL->setChecked(true);
+	checkBoxShowLights->setChecked(false);
+
 	_glWidget->updateView();
 	updateControls();
 }
