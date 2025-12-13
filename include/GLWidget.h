@@ -739,10 +739,10 @@ private:
 
 	AdaptiveShadowMapper shadowMapper;
 
-	std::unique_ptr<GLLights> glLights;
-	std::vector<GPULight> _parsedLights;
+	std::unique_ptr<GLLights> glLights;	
+	std::vector<GPULight> _originalParsedLights;      // ORIGINAL - never modified
+	std::vector<GPULight> _currentRepositionedLights; // Working copy
 	float _originalBoundingRadius = 1.0f;
-	std::vector<GPULight> _currentRepositionedLights;
 };
 
 #endif

@@ -486,15 +486,20 @@ void GLWidget::initializeGL()
 	glLights = std::make_unique<GLLights>();
 	// Connect lights loading
 	connect(_assimpModelLoader, &AssImpModelLoader::lightsLoaded,
-		this, [this](const std::vector<GPULight>& lights) {
-			_parsedLights = lights;  // Store original unscaled lights
+		this, [this](const std::vector<GPULight>& lights) {			
+			_originalParsedLights = lights;
 			_originalBoundingRadius = _boundingSphere.getRadius();
+			_fgShader->bind();
 			if (!lights.empty())
 			{
+				_fgShader->setUniformValue("lightCount", (int)lights.size());
+				_fgShader->setUniformValue("hasPunctualLights", true);
 				qDebug() << "GLWidget: Received" << lights.size() << "lights";
 			}
 			else
 			{
+				_fgShader->setUniformValue("lightCount", 1);
+				_fgShader->setUniformValue("hasPunctualLights", false);
 				qDebug() << "GLWidget: No lights received, will use fallback";
 			}			
 		});
@@ -1541,38 +1546,47 @@ void GLWidget::updateFloorPlane()
 	_lightPosition.setZ(highestModelZ() + halfObjectSize * 1.5f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
 	_floorPlane->setPlane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
 
-	// === Reposition punctual lights: translate + scale by radius ===
-	if (!_parsedLights.empty())
+	// === Reposition punctual lights from ORIGINAL positions ===
+	if (!_originalParsedLights.empty())
 	{
-		std::vector<GPULight> repositionedLights = _parsedLights;
-		_currentRepositionedLights = _parsedLights;
+		// START FROM ORIGINALS every frame
+		_currentRepositionedLights = _originalParsedLights;
 
-		// Calculate radius scaling factor (how much object has grown/shrunk)
+		// Calculate radius scaling factor
 		float radiusScaleFactor = 1.0f;
 		if (_originalBoundingRadius > 0.0f)
 		{
 			radiusScaleFactor = halfObjectSize / _originalBoundingRadius;
 		}
 
-		// Reposition each light
-		for (auto& light : repositionedLights)
-		{
-			// Scale light position by radius change, then translate to bounding sphere center
-			light.position.x = light.position.x * radiusScaleFactor + static_cast<float>(_floorCenter.x());
-			light.position.y = light.position.y * radiusScaleFactor + static_cast<float>(_floorCenter.y());
-			light.position.z = light.position.z * radiusScaleFactor + static_cast<float>(_floorCenter.z());
+		// Current bounding sphere center
+		glm::vec3 currentCenter(
+			static_cast<float>(_floorCenter.x()),
+			static_cast<float>(_floorCenter.y()),
+			static_cast<float>(_floorCenter.z())
+		);
 
-			// Scale light range by radius change (if range is specified)
+		// Reposition each light FROM ORIGINALS
+		for (auto& light : _currentRepositionedLights)
+		{
+			// Scale position by radius change, then translate to center
+			light.position.x = light.position.x * radiusScaleFactor + currentCenter.x;
+			light.position.y = light.position.y * radiusScaleFactor + currentCenter.y;
+			light.position.z = light.position.z * radiusScaleFactor + currentCenter.z;
+
+			// Scale light range by radius change
 			if (light.range > 0.0f)
 			{
 				light.range *= radiusScaleFactor;
 			}
 		}
 
-		glLights->setLights(repositionedLights);
+		glLights->setLights(_currentRepositionedLights);
 
-		qDebug() << "updateFloorPlane: Repositioned" << repositionedLights.size()
-			<< "lights. Radius scale factor:" << radiusScaleFactor;
+		qDebug() << "updateFloorPlane: Repositioned" << _currentRepositionedLights.size()
+			<< "lights. Radius scale factor:" << radiusScaleFactor
+			<< "Original radius:" << _originalBoundingRadius
+			<< "Current radius:" << halfObjectSize;
 	}
 	else
 	{
