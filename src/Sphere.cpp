@@ -21,8 +21,8 @@ _radius(radius)
 	std::vector<float> tg(3 * nVerts);
 	// Bitangents
 	std::vector<float> bt(3 * nVerts);
-	// Tex coords
-	std::vector<float> tex(2 * nVerts);
+	// Tex coords - 4 UV sets = 8 floats per vertex
+	std::vector<float> tex(8 * nVerts);
 	// Elements
 	std::vector<unsigned int> el(elements);
 
@@ -32,50 +32,90 @@ _radius(radius)
 	float phiFac = glm::pi<float>() / _stacks;
 	float nx, ny, nz, tx, ty, tz, s, t;
 	unsigned int idx = 0, tIdx = 0;
-	for (unsigned int i = 0; i <= _slices; i++) {
+
+	for (unsigned int i = 0; i <= _slices; i++)
+	{
 		theta = i * thetaFac;
 		s = (float)i / _slices * _sMax;
-		for (unsigned int j = 0; j <= _stacks; j++) {
+
+		for (unsigned int j = 0; j <= _stacks; j++)
+		{
 			phi = j * phiFac;
 			t = (float)j / _stacks * _tMax;
+
 			nx = sinf(phi) * cosf(theta);
 			ny = sinf(phi) * sinf(theta);
 			nz = cosf(phi);
+
 			tx = -sinf(phi);
 			ty = 0;
 			tz = cos(phi);
+
 			QVector3D bi = QVector3D::crossProduct(QVector3D(nx, ny, nz), QVector3D(tx, ty, tz));
-			p[idx] = radius * nx; p[idx + 1] = radius * ny; p[idx + 2] = radius * nz;
-			n[idx] = nx; n[idx + 1] = ny; n[idx + 2] = nz;
-			tg[idx] = tx; tg[idx + 1] = ty; tg[idx + 2] = tz;
-			bt[idx] = bi.x(); bt[idx + 1] = bi.y(); bt[idx + 2] = bi.z();
+
+			p[idx] = radius * nx;
+			p[idx + 1] = radius * ny;
+			p[idx + 2] = radius * nz;
+
+			n[idx] = nx;
+			n[idx + 1] = ny;
+			n[idx + 2] = nz;
+
+			tg[idx] = tx;
+			tg[idx + 1] = ty;
+			tg[idx + 2] = tz;
+
+			bt[idx] = bi.x();
+			bt[idx + 1] = bi.y();
+			bt[idx + 2] = bi.z();
+
 			idx += 3;
 
-			tex[tIdx] = s;
+			// TEXCOORD_0
+			tex[tIdx + 0] = s;
 			tex[tIdx + 1] = t;
-			tIdx += 2;
+
+			// TEXCOORD_1 (same as TEXCOORD_0, modify if needed)
+			tex[tIdx + 2] = s;
+			tex[tIdx + 3] = t;
+
+			// TEXCOORD_2 (same as TEXCOORD_0, modify if needed)
+			tex[tIdx + 4] = s;
+			tex[tIdx + 5] = t;
+
+			// TEXCOORD_3 (same as TEXCOORD_0, modify if needed)
+			tex[tIdx + 6] = s;
+			tex[tIdx + 7] = t;
+
+			tIdx += 8;  // Increment by 8 (4 UV sets * 2 floats)
 		}
 	}
 
 	// Generate the element list
 	idx = 0;
-	for (unsigned int i = 0; i < _slices; i++) {
+	for (unsigned int i = 0; i < _slices; i++)
+	{
 		unsigned int stackStart = i * (_stacks + 1);
 		unsigned int nextStackStart = (i + 1) * (_stacks + 1);
-		for (unsigned int j = 0; j < _stacks; j++) {
-			if (j == 0) {
+
+		for (unsigned int j = 0; j < _stacks; j++)
+		{
+			if (j == 0)
+			{
 				el[idx] = stackStart;
 				el[idx + 1] = stackStart + 1;
 				el[idx + 2] = nextStackStart + 1;
 				idx += 3;
 			}
-			else if (j == _stacks - 1) {
+			else if (j == _stacks - 1)
+			{
 				el[idx] = stackStart + j;
 				el[idx + 1] = stackStart + j + 1;
 				el[idx + 2] = nextStackStart + j;
 				idx += 3;
 			}
-			else {
+			else
+			{
 				el[idx] = stackStart + j;
 				el[idx + 1] = stackStart + j + 1;
 				el[idx + 2] = nextStackStart + j + 1;
