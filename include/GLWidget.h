@@ -26,6 +26,7 @@ class AssImpModelLoader;
 class Plane;
 class Cube;
 class Cone;
+class Sphere;
 
 class AssImpModelLoader;
 
@@ -704,6 +705,7 @@ private:
 	Cone* _axisCone;
 
 	Cube* _lightCube;
+	Sphere* _lightSphere;
 	bool _showLights;
 
 	std::unique_ptr<ShaderProgram> _debugShader;
@@ -738,6 +740,9 @@ private:
 	AdaptiveShadowMapper shadowMapper;
 
 	std::unique_ptr<GLLights> glLights;
+	std::vector<GPULight> _parsedLights;
+	float _originalBoundingRadius = 1.0f;
+	std::vector<GPULight> _currentRepositionedLights;
 };
 
 #endif

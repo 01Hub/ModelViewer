@@ -3,6 +3,7 @@
 #include "Cone.h"
 #include "config.h"
 #include "Cube.h"
+#include "Sphere.h"
 #include "GLWidget.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
@@ -486,16 +487,16 @@ void GLWidget::initializeGL()
 	// Connect lights loading
 	connect(_assimpModelLoader, &AssImpModelLoader::lightsLoaded,
 		this, [this](const std::vector<GPULight>& lights) {
+			_parsedLights = lights;  // Store original unscaled lights
+			_originalBoundingRadius = _boundingSphere.getRadius();
 			if (!lights.empty())
 			{
-				glLights->setLights(lights);
 				qDebug() << "GLWidget: Received" << lights.size() << "lights";
 			}
 			else
-			{				
-				glLights->createFallbackLight(glm::vec3(_lightPosition.x(), _lightPosition.y(), _lightPosition.z()));
-				qDebug() << "GLWidget: No lights received, using fallback";
-			}
+			{
+				qDebug() << "GLWidget: No lights received, will use fallback";
+			}			
 		});
 
 	const std::string path = std::string(MODELVIEWER_DATA_DIR) + "/";
@@ -613,7 +614,9 @@ void GLWidget::paintGL()
 		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
 
+		_fgShader->bind();
 		glLights->bind(_fgShader->programId());
+		_fgShader->setUniformValue("lightCount", glLights->getLightCount());
 
 		_modelMatrix.setToIdentity();
 		if (_multiViewActive)
@@ -1530,13 +1533,57 @@ void GLWidget::updateFloorPlane()
 		_floorSize = _boundingBox.getZSize();
 	else
 		_floorSize = (std::max(_boundingBox.getYSize(), _boundingBox.getXSize())) / 1.25f;
-	
+
 	_floorCenter = _boundingSphere.getCenter();
 	_lightCube->setSize(halfObjectSize * 0.1f);
 	_lightPosition.setX(_floorCenter.x() + halfObjectSize * 0.5f + _lightOffsetX);
 	_lightPosition.setY(_floorCenter.y() + halfObjectSize * 0.5f + _lightOffsetY);
 	_lightPosition.setZ(highestModelZ() + halfObjectSize * 1.5f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
 	_floorPlane->setPlane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
+
+	// === Reposition punctual lights: translate + scale by radius ===
+	if (!_parsedLights.empty())
+	{
+		std::vector<GPULight> repositionedLights = _parsedLights;
+		_currentRepositionedLights = _parsedLights;
+
+		// Calculate radius scaling factor (how much object has grown/shrunk)
+		float radiusScaleFactor = 1.0f;
+		if (_originalBoundingRadius > 0.0f)
+		{
+			radiusScaleFactor = halfObjectSize / _originalBoundingRadius;
+		}
+
+		// Reposition each light
+		for (auto& light : repositionedLights)
+		{
+			// Scale light position by radius change, then translate to bounding sphere center
+			light.position.x = light.position.x * radiusScaleFactor + static_cast<float>(_floorCenter.x());
+			light.position.y = light.position.y * radiusScaleFactor + static_cast<float>(_floorCenter.y());
+			light.position.z = light.position.z * radiusScaleFactor + static_cast<float>(_floorCenter.z());
+
+			// Scale light range by radius change (if range is specified)
+			if (light.range > 0.0f)
+			{
+				light.range *= radiusScaleFactor;
+			}
+		}
+
+		glLights->setLights(repositionedLights);
+
+		qDebug() << "updateFloorPlane: Repositioned" << repositionedLights.size()
+			<< "lights. Radius scale factor:" << radiusScaleFactor;
+	}
+	else
+	{
+		// Fallback light
+		glLights->createFallbackLight(glm::vec3(
+			static_cast<float>(_lightPosition.x()),
+			static_cast<float>(_lightPosition.y()),
+			static_cast<float>(_lightPosition.z())
+		));
+	}
+
 	updateClippingPlane();
 }
 
@@ -3280,6 +3327,7 @@ void GLWidget::createCappingPlanes()
 void GLWidget::createLights()
 {
 	_lightCube = new Cube(_lightCubeShader.get(), 10);
+	_lightSphere = new Sphere(_lightCubeShader.get(), 1, 16, 16);
 }
 
 void GLWidget::loadFloor()
@@ -4470,8 +4518,39 @@ void GLWidget::drawLights()
 	QMatrix4x4 viewMat = _viewMatrix;	
 	_lightCubeShader->setUniformValue("viewMatrix", viewMat);
 	_lightCubeShader->setUniformValue("projectionMatrix", _projectionMatrix);
-	_lightCubeShader->setUniformValue("lightColor", _diffuseLight.toVector3D());
+	_lightCubeShader->setUniformValue("lightColor", _diffuseLight.toVector3D());	
+	_lightCubeShader->setUniformValue("intensity", 1.0f);
+	_lightCubeShader->setUniformValue("intensityScale", 1.0f);  // Tune brightness
 	_lightCube->render();
+
+	// Draw punctual lights
+	if (!_currentRepositionedLights.empty())
+	{
+		for (const auto& light : _currentRepositionedLights)
+		{
+			// === Apply intensity with log scale ===
+			float normalizedIntensity = std::log10(light.intensity + 1.0f);
+			normalizedIntensity = std::min(normalizedIntensity, 3.0f);
+
+			// Multiply color * intensity in C++
+			glm::vec3 emissiveColor = light.color * normalizedIntensity;
+
+			QMatrix4x4 lightModel;
+			lightModel.translate(light.position.x, light.position.y, light.position.z);
+			lightModel.scale(_boundingSphere.getRadius() * 0.05f);
+
+			_lightCubeShader->bind();
+			_lightCubeShader->setUniformValue("modelMatrix", lightModel);
+			_lightCubeShader->setUniformValue("viewMatrix", viewMat);
+			_lightCubeShader->setUniformValue("projectionMatrix", _projectionMatrix);
+			_lightCubeShader->setUniformValue("lightColor",
+				QVector3D(light.color.x, light.color.y, light.color.z));
+			_lightCubeShader->setUniformValue("intensity", normalizedIntensity);
+			_lightCubeShader->setUniformValue("intensityScale", 1.0f);  // Tune brightness
+
+			_lightSphere->render();
+		}
+	}
 }
 
 void GLWidget::bindIBLTextures()
