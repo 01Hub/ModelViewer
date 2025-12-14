@@ -40,6 +40,23 @@ vec2 Hammersley(uint i, uint N)
 	return vec2(float(i)/float(N), RadicalInverse_VdC(i));
 }
 // ----------------------------------------------------------------------------
+// Frisvad's method for building continuous orthonormal basis
+// No discontinuities at poles - solves bright spot artifacts
+void buildOrthonormalBasis(vec3 N, out vec3 T, out vec3 B)
+{
+    if (N.z < -0.9999999f) {
+        // N pointing in -Z direction
+        T = vec3(0.0f, -1.0f, 0.0f);
+        B = vec3(-1.0f, 0.0f, 0.0f);
+    } else {
+        float a = 1.0f / (1.0f + N.z);
+        float b = -N.x * N.y * a;
+        T = vec3(1.0f - N.x * N.x * a, b, -N.x);
+        B = vec3(b, 1.0f - N.y * N.y * a, -N.y);
+    }
+}
+
+// ----------------------------------------------------------------------------
 vec3 ImportanceSampleGGX(vec2 Xi, vec3 N, float roughness)
 {
 	float a = roughness*roughness;
@@ -55,9 +72,9 @@ vec3 ImportanceSampleGGX(vec2 Xi, vec3 N, float roughness)
 	H.z = cosTheta;
 
 	// from tangent-space H vector to world-space sample vector
-	vec3 up          = abs(N.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0);
-	vec3 tangent   = normalize(cross(up, N));
-	vec3 bitangent = cross(N, tangent);
+	// FIXED: Use Frisvad's method for continuous tangent space
+	vec3 tangent, bitangent;
+	buildOrthonormalBasis(N, tangent, bitangent);
 
 	vec3 sampleVec = tangent * H.x + bitangent * H.y + N * H.z;
 	return normalize(sampleVec);
