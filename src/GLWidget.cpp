@@ -803,8 +803,7 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
 				width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
 		}
-
-		glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+				
 		stbi_image_free(data);
 		continue;
 
@@ -815,6 +814,9 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 			return;
 		}
 	}
+
+	// Generate mipmaps ONCE after all 6 faces are loaded
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
 	// Setup sampler parameters
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
