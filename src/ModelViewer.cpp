@@ -1806,12 +1806,17 @@ void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 
 void ModelViewer::onDisplayModeChanged(int mode)
 {
-	bool checked = (mode == static_cast<int>(DisplayMode::REALSHADED));
-	checkBoxEnvMapping->setChecked(checked);
-	checkBoxShadowMapping->setChecked(checked);
-	checkBoxSelfShadows->setChecked(checked);
-	checkBoxReflections->setChecked(checked);
-	checkBoxFloor->setChecked(checked);
+	bool realShaded = (mode == static_cast<int>(DisplayMode::REALSHADED));
+	bool pbrLighting = (_glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING);
+	checkBoxEnvMapping->setChecked(realShaded);
+	checkBoxShadowMapping->setChecked(realShaded);
+	checkBoxSelfShadows->setChecked(realShaded);
+	checkBoxReflections->setChecked(realShaded);
+	checkBoxFloor->setChecked(realShaded);
+	checkBoxSkyBoxHDRI->setChecked(realShaded && pbrLighting);
+	checkBoxHDRToneMapping->setChecked(realShaded && pbrLighting);
+	checkBoxGammaCorrection->setChecked(realShaded && pbrLighting);
+	_glWidget->setSkyBoxTextureHDRI(realShaded && pbrLighting);
 }
 
 void ModelViewer::on_checkBoxDiffuseTex_toggled(bool checked)
