@@ -1897,8 +1897,9 @@ vec2 getTransformedUV(int texCoordIndex, TextureTransform transform)
 	uv -= pivot;
 
 	// Apply rotation matrix
-	float cosR = cos(transform.rotation);
-	float sinR = sin(transform.rotation);
+	float angle = -transform.rotation;
+	float cosR = cos(angle);
+	float sinR = sin(angle);
 	mat2 rotMat = mat2(cosR, sinR, -sinR, cosR);
 	uv = rotMat * uv;
 
