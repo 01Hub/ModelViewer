@@ -3570,6 +3570,17 @@ void GLWidget::loadIrradianceMap()
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
 
+	glDisable(GL_BLEND);
+	glDisable(GL_SCISSOR_TEST);
+	glDisable(GL_STENCIL_TEST);
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LEQUAL);
+	glDepthMask(GL_TRUE);
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glDisable(GL_CULL_FACE);
+
 	// PBR: set up projection and view matrices for capturing data onto the 6 cubemap face directions
 	// ----------------------------------------------------------------------------------------------
 	QMatrix4x4 captureProjection;
@@ -3596,7 +3607,7 @@ void GLWidget::loadIrradianceMap()
 		if (_skyBoxTextureHDRI)
 			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F, irradianceSize, irradianceSize, 0, GL_RGB, GL_FLOAT, nullptr);
 		else
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, irradianceSize, irradianceSize, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, irradianceSize, irradianceSize, 0, GL_RGB, GL_HALF_FLOAT, nullptr);
 	}
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -3631,7 +3642,14 @@ void GLWidget::loadIrradianceMap()
 		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
 		_irradianceShader->setUniformValue("modelMatrix", model);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _irradianceMap, 0);
+		GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+		{
+			qWarning() << "Irradiance FBO incomplete at face" << i << "Status:" << fboStatus;
+			continue;
+		}
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 		_skyBox->render();
 	}
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
@@ -3655,7 +3673,7 @@ void GLWidget::loadIrradianceMap()
 			if (_skyBoxTextureHDRI)
 				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F, mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
 			else
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB16F, mipSize, mipSize, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB16F, mipSize, mipSize, 0, GL_RGB, GL_HALF_FLOAT, nullptr);
 		}
 	}
 
@@ -3696,7 +3714,14 @@ void GLWidget::loadIrradianceMap()
 			model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
 			_prefilterShader->setUniformValue("modelMatrix", model);
 			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _prefilterMap, mip);
+			GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+			{
+				qWarning() << "Prefilter FBO incomplete at mip" << mip << "face" << i << "Status:" << fboStatus;
+				continue;
+			}
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 			_skyBox->render();
 		}
 	}
