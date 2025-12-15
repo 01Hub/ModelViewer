@@ -217,6 +217,7 @@ public:
 	void setSkyBoxTextureFolder(QString folder);
 	bool loadCubemapFromSingleHDR(const QString& filePath);
 	bool convertEquirectangularToCubemap(const QString& filePath);
+	bool convertEquirectangularToCubemapQuad(const QString& filePath);
 
 	void renderConversionCube();
 
@@ -453,6 +454,8 @@ private:
 	GLuint _whiteTexture = 0;
 	void createWhiteTexture();
 
+	void generateCubemapMipmaps(GLuint cubemapTexture);
+
 
 private:
 	ViewToolbar* _viewToolbar;
@@ -611,6 +614,8 @@ private:
 	std::unique_ptr<ShaderProgram> _clippedMeshShader;
 	std::unique_ptr<ShaderProgram> _selectionShader;
 	std::unique_ptr<ShaderProgram> _equirectToCubeShader;
+	std::unique_ptr<ShaderProgram> _equirectToCubeQuadShader;
+	std::unique_ptr<ShaderProgram> _downsampleShader;
 
 	unsigned int             _environmentMap;
 	unsigned int             _shadowMap;

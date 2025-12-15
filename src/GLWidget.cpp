@@ -1021,11 +1021,14 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 
 	// 2. Create cubemap texture
 	int cubeSize = 1024; // Adjust resolution as needed
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	for (int mip = 0; mip < static_cast<int>(std::log2(cubeSize)) + 1; ++mip)
+	{
+		int mipSize = cubeSize >> mip;
 	for (int i = 0; i < 6; ++i)
 	{
-		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
-			cubeSize, cubeSize, 0, GL_RGB, GL_FLOAT, nullptr);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
+				mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
+	}
 	}
 
 	// 3. Setup framebuffer
@@ -1089,6 +1092,131 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 	return true;
 }
 
+
+bool GLWidget::convertEquirectangularToCubemapQuad(const QString& filePath)
+{
+	// 1. Load equirectangular HDR as 2D texture
+	int imgWidth, imgHeight, channels;
+	stbi_set_flip_vertically_on_load(true);
+	float* data = stbi_loadf(filePath.toStdString().c_str(), &imgWidth, &imgHeight, &channels, 0);
+
+	if (!data || imgWidth != 2 * imgHeight)
+	{
+		qWarning() << "Invalid equirectangular HDR file:" << filePath;
+		if (data) stbi_image_free(data);
+		return false;
+	}
+
+	// Create temporary 2D texture for equirectangular source
+	GLuint equirectTexture;
+	glGenTextures(1, &equirectTexture);
+	glBindTexture(GL_TEXTURE_2D, equirectTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, imgWidth, imgHeight, 0, GL_RGB, GL_FLOAT, data);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	stbi_image_free(data);
+
+	/// 2. Create cubemap texture - allocate mip 0 for all faces first
+	int cubeSize = 1024;  // Base resolution - adjust if needed
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+
+	for (int i = 0; i < 6; ++i)
+	{
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
+			cubeSize, cubeSize, 0, GL_RGB, GL_FLOAT, nullptr);
+	}
+
+	qDebug() << "Converting equirectangular to cubemap" << cubeSize << "x" << cubeSize;
+
+	// 3. Create simple full-screen quad
+	float quadVertices[] = {
+		-1.0f, -1.0f,
+		 1.0f, -1.0f,
+		 1.0f,  1.0f,
+		-1.0f,  1.0f
+	};
+
+	unsigned int quadIndices[] = {
+		0, 1, 2,
+		0, 2, 3
+	};
+
+	GLuint quadVAO, quadVBO, quadEBO;
+	glGenVertexArrays(1, &quadVAO);
+	glGenBuffers(1, &quadVBO);
+	glGenBuffers(1, &quadEBO);
+
+	glBindVertexArray(quadVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quadEBO);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadIndices), quadIndices, GL_STATIC_DRAW);
+
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	// 4. Setup framebuffer
+	GLuint framebuffer, depthBuffer;
+	glGenFramebuffers(1, &framebuffer);
+	glGenRenderbuffers(1, &depthBuffer);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+	glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, cubeSize, cubeSize);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+
+	_equirectToCubeQuadShader->bind();
+	glViewport(0, 0, cubeSize, cubeSize);
+
+	// Bind equirectangular texture
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, equirectTexture);
+	_equirectToCubeQuadShader->setUniformValue("u_equirectangularMap", 0);
+
+	// 6. Render each cubemap face
+	for (int i = 0; i < 6; ++i)
+	{
+		_equirectToCubeQuadShader->setUniformValue("u_faceIndex", i);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _environmentMap, 0);
+
+		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE)
+		{
+			qWarning() << "Framebuffer incomplete for face" << i;
+			continue;
+		}
+
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		glBindVertexArray(quadVAO);
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+	}
+
+	// 7. Setup cubemap parameters and generate mipmaps
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+
+	// 8. Cleanup
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+	glDeleteFramebuffers(1, &framebuffer);
+	glDeleteRenderbuffers(1, &depthBuffer);
+	glDeleteTextures(1, &equirectTexture);
+	glDeleteBuffers(1, &quadVBO);
+	glDeleteBuffers(1, &quadEBO);
+	glDeleteVertexArrays(1, &quadVAO);
+
+	qDebug() << "Equirectangular to cubemap conversion complete";
+	return true;
+}
 void GLWidget::renderConversionCube()
 {
 	if (_conversionCubeVAO == 0)
@@ -3317,6 +3445,14 @@ void GLWidget::createShaderPrograms()
 	_equirectToCubeShader = std::make_unique<ShaderProgram>();
 	_equirectToCubeShader->setObjectName("_equirectToCubeShader");
 	_equirectToCubeShader->loadCompileAndLinkShaderFromFile( path + "shaders/equirect_to_cube.vert", path + "shaders/equirect_to_cube.frag");
+	// Equirectangular to Cube Quad conversion shader
+	_equirectToCubeQuadShader = std::make_unique<ShaderProgram>();
+	_equirectToCubeQuadShader->setObjectName("_equirectToCubeQuadShader");
+	_equirectToCubeQuadShader->loadCompileAndLinkShaderFromFile(path + "shaders/equirect_to_cube_quad.vert", path + "shaders/equirect_to_cube_quad.frag");
+	// Downsample shader program
+	_downsampleShader = std::make_unique<ShaderProgram>();
+	_downsampleShader->setObjectName("_downsampleShader");
+	_downsampleShader->loadCompileAndLinkShaderFromFile(path + "shaders/downsample_cubemap.vert", path + "shaders/downsample_cubemap.frag");
 
 
 	// Shadow Depth quad shader program - for debugging
@@ -5186,6 +5322,148 @@ void GLWidget::createWhiteTexture()
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, white);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+}
+
+void GLWidget::generateCubemapMipmaps(GLuint cubemapTexture)
+{
+	// Calculate mip count based on environment map resolution
+	// Query actual cubemap resolution at runtime
+	GLint baseSize = 0;
+	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+	glGetTextureLevelParameteriv(cubemapTexture, 0, GL_TEXTURE_WIDTH, &baseSize);
+
+	qDebug() << "Cubemap resolution:" << baseSize << "x" << baseSize;
+
+	int maxMipLevels = static_cast<int>(std::log2(baseSize)) + 1;
+
+	qDebug() << "Generating" << maxMipLevels << "mip levels for cubemap";
+
+	// Create temporary FBO for rendering to mip levels
+	GLuint mipmapFBO;
+	GLuint mipmapRBO;
+	glGenFramebuffers(1, &mipmapFBO);
+	glGenRenderbuffers(1, &mipmapRBO);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, mipmapFBO);
+	glBindRenderbuffer(GL_RENDERBUFFER, mipmapRBO);
+
+	// Setup projection matrix (90 degree FOV for cubemap, 1:1 aspect ratio)
+	QMatrix4x4 captureProjection;
+	captureProjection.perspective(90.0f, 1.0f, 0.1f, 10.0f);
+
+	// Setup view matrices for each cubemap face (must match environment capture order)
+	QMatrix4x4 captureViews[] = {
+		// +X face
+		[]() {
+			QMatrix4x4 m;
+			m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f));
+			return m;
+		}(),
+			// -X face
+			[]() {
+				QMatrix4x4 m;
+				m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(-1.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f));
+				return m;
+			}(),
+				// +Y face
+				[]() {
+					QMatrix4x4 m;
+					m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f));
+					return m;
+				}(),
+					// -Y face
+					[]() {
+						QMatrix4x4 m;
+						m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f), QVector3D(0.0f, 0.0f, -1.0f));
+						return m;
+					}(),
+						// +Z face
+						[]() {
+							QMatrix4x4 m;
+							m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(0.0f, -1.0f, 0.0f));
+							return m;
+						}(),
+							// -Z face
+							[]() {
+								QMatrix4x4 m;
+								m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, -1.0f), QVector3D(0.0f, -1.0f, 0.0f));
+								return m;
+							}()
+	};
+
+	_skyBox->setProg(_downsampleShader.get());
+
+	// Bind shader and set static uniforms
+	_downsampleShader->bind();
+	_downsampleShader->setUniformValue("projection", captureProjection);
+
+	// Bind source cubemap to texture unit 0
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+	_downsampleShader->setUniformValue("sourceMap", 0);
+
+	// Generate each mip level
+	for (int mip = 1; mip < maxMipLevels; ++mip)
+	{
+		int mipSize = baseSize >> mip;  // Bitshift divide by 2^mip
+
+		qDebug() << "Generating mip level" << mip << "(" << mipSize << "x" << mipSize << ")";
+
+		// Resize renderbuffer for depth attachment
+		glBindRenderbuffer(GL_RENDERBUFFER, mipmapRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipSize, mipSize);
+
+		// Set viewport to target mip size
+		glViewport(0, 0, mipSize, mipSize);
+
+		// Set which source mip level to sample from
+		_downsampleShader->setUniformValue("currentMipLevel", mip - 1);
+
+		// Render to all 6 faces of this mip level
+		for (int face = 0; face < 6; ++face)
+		{
+			// Attach this mip level of this face to framebuffer
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				GL_TEXTURE_CUBE_MAP_POSITIVE_X + face, cubemapTexture, mip);
+
+			// Verify framebuffer is complete
+			GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			if (status != GL_FRAMEBUFFER_COMPLETE)
+			{
+				qWarning() << "Framebuffer incomplete at mip" << mip << "face" << face;
+				continue;
+			}
+
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+			// Set view matrix for this face
+			_downsampleShader->setUniformValue("view", captureViews[face]);
+
+			// Render the cube
+			_skyBox->render();
+		}
+	}
+
+	// Restore state - MORE AGGRESSIVE
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+	glBindRenderbuffer(GL_RENDERBUFFER, 0);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glActiveTexture(GL_TEXTURE0);
+	glUseProgram(0);
+
+	// Reset viewport to current widget size
+	glViewport(0, 0, width(), height());
+
+	// Force rebind environment map to ensure it's in correct state
+	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemapTexture);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	qDebug() << "Mipmap generation complete";
 }
 
 void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor)
