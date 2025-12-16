@@ -2139,7 +2139,7 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 			mat.setOpacityTexOffset(toQVector2D(tex.offset));
 			mat.setOpacityTexRotation(tex.rotation);
 		}
-		else if (tex.type == "aoMap")
+		else if (tex.type == "aoMap" || tex.type == "occlusionMap")
 		{
 			mat.setOcclusionTextureId(tex.id);
 			mat.setAOMap(QString(tex.path.c_str()));
