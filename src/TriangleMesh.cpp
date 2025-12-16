@@ -742,9 +742,9 @@ void TriangleMesh::setupUniforms()
 
 	// Clearcoat map transforms
 	_prog->setUniformValue("clearcoatTexTransform.texCoordIndex", _material.clearcoatColorTexCoord());
-	_prog->setUniformValue("clearcoatTexTransform.offset", _material.clearcoatColorTexCoord());
-	_prog->setUniformValue("clearcoatTexTransform.scale", _material.clearcoatColorTexCoord());
-	_prog->setUniformValue("clearcoatTexTransform.rotation", _material.clearcoatColorTexCoord());
+	_prog->setUniformValue("clearcoatTexTransform.offset", _material.clearcoatColorTexOffset());
+	_prog->setUniformValue("clearcoatTexTransform.scale", _material.clearcoatColorTexScale());
+	_prog->setUniformValue("clearcoatTexTransform.rotation", _material.clearcoatColorTexRotation());
 
 	// Clearcoat roughness map transform
 	_prog->setUniformValue("clearcoatRoughnessTexTransform.texCoordIndex", _material.clearcoatRoughnessTexCoord());
