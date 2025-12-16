@@ -675,7 +675,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 
 	// Helper to extract UV transform from a texture object
 	auto extractTextureTransform = [](const QJsonObject& texObj) -> std::tuple<int, glm::vec2, glm::vec2, float> {
-		int texCoord = texObj.value("texCoord").toInt(0);
+		int texCoord = texObj.value("texCoord").toInt(0);  // Default from texture object
 		glm::vec2 scale(1.0f, 1.0f);
 		glm::vec2 offset(0.0f, 0.0f);
 		float rotation = 0.0f;
@@ -687,6 +687,12 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			if (ext.contains("KHR_texture_transform"))
 			{
 				QJsonObject transform = ext.value("KHR_texture_transform").toObject();
+
+				// Check if texCoord is specified INSIDE the extension (overrides texture level)
+				if (transform.contains("texCoord"))
+				{
+					texCoord = transform.value("texCoord").toInt(texCoord);
+				}
 
 				if (transform.contains("scale") && transform.value("scale").isArray())
 				{
