@@ -21,7 +21,8 @@ public:
 	void setColorAndMaterial(aiMaterial* material, GLMaterial& mat);
 	void setDefaultMaterial(GLMaterial& mat);
 	void setTextureMaps(aiMaterial* material, std::vector<GLMaterial::Texture>& textures, GLMaterial& mat);
-
+	void setTextureTransforms(const std::vector<GLMaterial::Texture>& textures, GLMaterial& mat);
+	void addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial::Texture>& textures);
 	void clearLoadedTextures() { _loadedTextures.clear(); }
 
 	// Checks all material textures of a given type and loads the textures if they're not loaded yet.

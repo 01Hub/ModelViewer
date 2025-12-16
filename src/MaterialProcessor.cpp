@@ -1324,7 +1324,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				appliedAny = true;
 			}
 		}
-		
+
 
 		return appliedAny;
 		};
@@ -1341,12 +1341,12 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 	if (scene && currentMesh)
 	{
 		for (unsigned int idx = 0; idx < scene->mNumMeshes; ++idx)
-		{			
+		{
 			if (scene->mMeshes[idx] == currentMesh)
 			{
-				actualMeshIndex = static_cast<int>(idx);				
+				actualMeshIndex = static_cast<int>(idx);
 				break;
-			}			
+			}
 		}
 	}
 
@@ -1949,113 +1949,6 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 
 	//debugMaterialTextures(material, material->GetName().C_Str());
 
-	auto addTextureIfMissing = [&](std::vector<GLMaterial::Texture>& textures,
-		const QString& qpath,
-		const std::string& type,
-		int texCoordIndex = 0,
-		const glm::vec2& scale = glm::vec2(1.0f),
-		const glm::vec2& offset = glm::vec2(0.0f),
-		float rotation = 0.0f) -> bool {
-
-			if (qpath.isEmpty()) return false;
-			std::string pathUtf8 = qpath.toStdString();
-
-			// Avoid duplicates in 'textures' (path + type)
-			for (const auto& t : textures)
-			{
-				std::string existingPath = t.path;
-				if (existingPath == pathUtf8 && t.type == type)
-				{
-					return false;
-				}
-			}
-
-			// Build candidate Texture with UV metadata (like loadMaterialTextures does)
-			GLMaterial::Texture candidate;
-			candidate.type = type;
-			candidate.path = pathUtf8;
-			candidate.texCoordIndex = texCoordIndex;
-			candidate.scale = scale;
-			candidate.offset = offset;
-			candidate.rotation = rotation;
-
-			// UV transform comparator (same as in loadMaterialTextures)
-			auto uvTransformMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
-				return a.texCoordIndex == b.texCoordIndex &&
-					std::abs(a.scale.x - b.scale.x) < 0.0001f &&
-					std::abs(a.scale.y - b.scale.y) < 0.0001f &&
-					std::abs(a.offset.x - b.offset.x) < 0.0001f &&
-					std::abs(a.offset.y - b.offset.y) < 0.0001f &&
-					std::abs(a.rotation - b.rotation) < 0.0001f;
-				};
-
-			// Check 1: exact match (path + type + UV metadata) => reuse whole Texture
-			for (const auto& lt : _loadedTextures)
-			{
-				if (std::string(lt.path) == pathUtf8 &&
-					lt.type == type &&
-					uvTransformMatches(lt, candidate))
-				{
-					textures.push_back(lt); // reuse existing
-					return true;
-				}
-			}
-
-			// Check 2: same path but different type or different UV metadata
-			// reuse GPU texture id but create new entry with candidate metadata
-			for (const auto& lt : _loadedTextures)
-			{
-				if (std::string(lt.path) == pathUtf8)
-				{
-					GLMaterial::Texture alias;
-					alias.id = lt.id;                 // reuse GPU texture id
-					alias.type = type;                // new type
-					alias.path = lt.path;             // same path
-					alias.hasAlpha = lt.hasAlpha;     // same alpha info
-
-					// use candidate's UV metadata
-					alias.texCoordIndex = candidate.texCoordIndex;
-					alias.scale = candidate.scale;
-					alias.offset = candidate.offset;
-					alias.rotation = candidate.rotation;
-
-					textures.push_back(alias);
-					_loadedTextures.push_back(alias); // cache this variant
-					return true;
-				}
-			}
-
-			// Check 3: not loaded yet -> try to load from disk (uses existing createTextureOnGPU)
-			// Resolve file path: qpath may be absolute (from applyGltf) or relative.
-			std::string textureFilePath = pathUtf8;
-			if (!QFile::exists(QString::fromStdString(textureFilePath)))
-			{
-				// try relative to _folderPath (your existing convention in loadMaterialTextures)
-				if (!_folderPath.empty())
-				{
-					std::string tryPath = _folderPath + '/' + textureFilePath;
-					std::replace(tryPath.begin(), tryPath.end(), '\\', '/');
-					if (QFile::exists(QString::fromStdString(tryPath)))
-					{
-						textureFilePath = tryPath;
-					}
-				}
-			}
-
-			createTextureOnGPU(candidate);
-
-			// push and cache
-			textures.push_back(candidate);
-			_loadedTextures.push_back(candidate);
-
-			if (type == "thicknessMap")
-				mat.setHasThicknessAlpha(candidate.hasAlpha);
-			
-			return true;
-		};
-
-
-
 	// existing mapping loop that calls loadMaterialTextures(...) for all entries
 	for (const auto& mapping : textureMappings)
 	{
@@ -2077,9 +1970,21 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 	// Now create ADS aliases from PBR maps for backward compatibility
 	synthesizeADSAliases(textures);
 
-	// update material maps based on loaded textures
-	// for each texture type, assign to material if found
+	// === Apply texture transforms to material ===
+	setTextureTransforms(textures, mat);
+
+	// Finally, assign extension textures to material maps
+	addExtensionMaps(mat, textures);
+}
+
+// This method takes a vector of loaded textures and applies their properties to the material
+void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Texture>& textures, GLMaterial& mat)
+{
+	// Helper to convert glm::vec2 to QVector2D
 	auto toQVector2D = [](const glm::vec2& v) { return QVector2D(v.x, v.y); };
+
+	// Update material maps based on loaded textures
+	// For each texture type, assign to material if found
 	for (const auto& tex : textures)
 	{
 		if (tex.type == "albedoMap")
@@ -2355,6 +2260,114 @@ void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMater
 			mat.setDiffuseTransmissionColorTexRotation(tex.rotation);
 		}
 	}
+}
+
+void MaterialProcessor::addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial::Texture>& textures)
+{
+	auto addTextureIfMissing = [&](std::vector<GLMaterial::Texture>& textures,
+		const QString& qpath,
+		const std::string& type,
+		int texCoordIndex = 0,
+		const glm::vec2& scale = glm::vec2(1.0f),
+		const glm::vec2& offset = glm::vec2(0.0f),
+		float rotation = 0.0f) -> bool {
+
+			if (qpath.isEmpty()) return false;
+			std::string pathUtf8 = qpath.toStdString();
+
+			// Avoid duplicates in 'textures' (path + type)
+			for (const auto& t : textures)
+			{
+				std::string existingPath = t.path;
+				if (existingPath == pathUtf8 && t.type == type)
+				{
+					return false;
+				}
+			}
+
+			// Build candidate Texture with UV metadata (like loadMaterialTextures does)
+			GLMaterial::Texture candidate;
+			candidate.type = type;
+			candidate.path = pathUtf8;
+			candidate.texCoordIndex = texCoordIndex;
+			candidate.scale = scale;
+			candidate.offset = offset;
+			candidate.rotation = rotation;
+
+			// UV transform comparator (same as in loadMaterialTextures)
+			auto uvTransformMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
+				return a.texCoordIndex == b.texCoordIndex &&
+					std::abs(a.scale.x - b.scale.x) < 0.0001f &&
+					std::abs(a.scale.y - b.scale.y) < 0.0001f &&
+					std::abs(a.offset.x - b.offset.x) < 0.0001f &&
+					std::abs(a.offset.y - b.offset.y) < 0.0001f &&
+					std::abs(a.rotation - b.rotation) < 0.0001f;
+				};
+
+			// Check 1: exact match (path + type + UV metadata) => reuse whole Texture
+			for (const auto& lt : _loadedTextures)
+			{
+				if (std::string(lt.path) == pathUtf8 &&
+					lt.type == type &&
+					uvTransformMatches(lt, candidate))
+				{
+					textures.push_back(lt); // reuse existing
+					return true;
+				}
+			}
+
+			// Check 2: same path but different type or different UV metadata
+			// reuse GPU texture id but create new entry with candidate metadata
+			for (const auto& lt : _loadedTextures)
+			{
+				if (std::string(lt.path) == pathUtf8)
+				{
+					GLMaterial::Texture alias;
+					alias.id = lt.id;                 // reuse GPU texture id
+					alias.type = type;                // new type
+					alias.path = lt.path;             // same path
+					alias.hasAlpha = lt.hasAlpha;     // same alpha info
+
+					// use candidate's UV metadata
+					alias.texCoordIndex = candidate.texCoordIndex;
+					alias.scale = candidate.scale;
+					alias.offset = candidate.offset;
+					alias.rotation = candidate.rotation;
+
+					textures.push_back(alias);
+					_loadedTextures.push_back(alias); // cache this variant
+					return true;
+				}
+			}
+
+			// Check 3: not loaded yet -> try to load from disk (uses existing createTextureOnGPU)
+			// Resolve file path: qpath may be absolute (from applyGltf) or relative.
+			std::string textureFilePath = pathUtf8;
+			if (!QFile::exists(QString::fromStdString(textureFilePath)))
+			{
+				// try relative to _folderPath (your existing convention in loadMaterialTextures)
+				if (!_folderPath.empty())
+				{
+					std::string tryPath = _folderPath + '/' + textureFilePath;
+					std::replace(tryPath.begin(), tryPath.end(), '\\', '/');
+					if (QFile::exists(QString::fromStdString(tryPath)))
+					{
+						textureFilePath = tryPath;
+					}
+				}
+			}
+
+			createTextureOnGPU(candidate);
+
+			// push and cache
+			textures.push_back(candidate);
+			_loadedTextures.push_back(candidate);
+
+			if (type == "thicknessMap")
+				mat.setHasThicknessAlpha(candidate.hasAlpha);
+
+			return true;
+		};
 
 	// === Add extension maps discovered by applyGltfMaterialExtensionsToMaterial (stored in GLMaterial) ===
 	// We assume applyGltfMaterialExtensionsToMaterial() was called earlier (before setTextureMaps)
