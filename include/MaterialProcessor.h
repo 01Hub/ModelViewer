@@ -46,6 +46,12 @@ public:
 		GLMaterial& outMaterial,
 		std::vector<GLMaterial::Texture>& outTextures);
 
+	std::tuple<int, glm::vec2, glm::vec2, float> extractKHRTextureTransform(const QJsonObject& texObj);
+	void applyKHRTextureTransformsToMaterial(
+		const GLMaterial::Texture& texture,
+		const std::string& mapType,
+		GLMaterial& outMaterial);
+
 	std::vector<GPULight> parseKHRLightsPunctual(const QString& gltfPath);
 
 private:
