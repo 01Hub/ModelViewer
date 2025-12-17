@@ -459,7 +459,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		{
 			// ADS and PBR Maps from Assimp
 			_materialProcessor.setTextureMaps(material, textures, mat);
-		}		
+		}
 	}
 
 	// Return a mesh object created from the extracted mesh data
