@@ -436,28 +436,31 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		
 		//Set color and material
 		_materialProcessor.setColorAndMaterial(material, mat);
-		// GLTF Extensions
-		_materialProcessor.applyGltfMaterialExtensionsToMaterial(
-			QString::fromStdString(_path),
-			scene,
-			QString::fromUtf8(nodeName),
-			mesh,
-			mesh->mMaterialIndex,
-			mat,
-			textures);
-		// ADS and PBR Maps
-		_materialProcessor.setTextureMaps(material, textures, mat);
+
+		bool isGltf = (_path.find(".gltf") != std::string::npos || _path.find(".glb") != std::string::npos);
+		// GLTF Core and Extensions
+		if (isGltf)
+		{
+			_materialProcessor.applyGltfMaterialExtensionsToMaterial(
+				QString::fromStdString(_path),
+				scene,
+				QString::fromUtf8(nodeName),
+				mesh,
+				mesh->mMaterialIndex,
+				mat,
+				textures);
+			mat.setIsGLTFMaterial(true);
+			//qDebug() << "GLTF Material Loaded";
+		}
+		else
+		{
+			// ADS and PBR Maps from Assimp
+			_materialProcessor.setTextureMaps(material, textures, mat);
+		}
 
 		// Scale parameters based on model scale
 		mat.setThicknessFactor(mat.thicknessFactor() * _appliedScale);	
 		mat.setAttenuationDistance(mat.attenuationDistance()* _appliedScale);
-
-		// Set if material is gltf
-		if(_path.find(".gltf") != std::string::npos || _path.find(".glb") != std::string::npos)
-		{
-			mat.setIsGLTFMaterial(true);
-			//qDebug() << "GLTF Material Loaded";
-		}
 	}
 
 	// Return a mesh object created from the extracted mesh data
