@@ -908,7 +908,9 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		if (!pbr.isEmpty())
 		{
 			processTextureSlot(pbr, "baseColorTexture", "baseColor");
-			processTextureSlot(pbr, "metallicRoughnessTexture", "metallicRoughness");
+			// Load metallicRoughnessTexture TWICE with different mapTypes
+			processTextureSlot(pbr, "metallicRoughnessTexture", "metallic");     // First load for metallic
+			processTextureSlot(pbr, "metallicRoughnessTexture", "roughness");    // Second load for roughness
 		}
 
 		// material-level slots (parent = matObj)
@@ -1080,6 +1082,10 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			{
 				appliedAny = true;
 			}
+			if (processExtensionTextureSlot(sp, "specularColorTexture", "specularColor"))
+			{
+				appliedAny = true;
+			}
 		}
 
 		// --- KHR_materials_clearcoat ---
@@ -1100,6 +1106,11 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			}
 			// clearcoatTexture -> we map to clearcoatColorMap in your system
 			if (processExtensionTextureSlot(cc, "clearcoatTexture", "clearcoatColor"))
+			{
+				appliedAny = true;
+			}
+			// clearcoatRoughnessTexture is separate from clearcoatTexture
+			if (processExtensionTextureSlot(cc, "clearcoatRoughnessTexture", "clearcoatRoughness"))
 			{
 				appliedAny = true;
 			}
@@ -1467,6 +1478,27 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 	}
 
 	QJsonObject matObj = jsonMaterials.at(gltfMaterialIndex).toObject();
+
+	// Extract base PBR scalar factors from pbrMetallicRoughness
+	if (matObj.contains("pbrMetallicRoughness") && matObj.value("pbrMetallicRoughness").isObject())
+	{
+		QJsonObject pbr = matObj.value("pbrMetallicRoughness").toObject();
+
+		if (pbr.contains("metallicFactor"))
+		{
+			float v = static_cast<float>(pbr.value("metallicFactor").toDouble(0.0));
+			outMaterial.setMetalness(qBound(0.0f, v, 1.0f));
+			qDebug() << "  Loaded pbrMetallicRoughness.metallicFactor:" << v;
+		}
+
+		if (pbr.contains("roughnessFactor"))
+		{
+			float v = static_cast<float>(pbr.value("roughnessFactor").toDouble(0.5));
+			outMaterial.setRoughness(qBound(0.01f, v, 1.0f));
+			qDebug() << "  Loaded pbrMetallicRoughness.roughnessFactor:" << v;
+		}
+	}
+
 	if (matObj.contains("extensions"))
 	{
 		QJsonObject ext = matObj.value("extensions").toObject();
@@ -1478,6 +1510,15 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 
 	loadPbrTexturesFromJson(matObj, outMaterial);
 	applyExtensionsFromJsonMaterial(matObj, outMaterial);
+
+	// Now create ADS aliases from PBR maps for backward compatibility
+	synthesizeADSAliases(outTextures);
+
+	// === Apply texture transforms to material ===
+	setTextureTransforms(outTextures, outMaterial);
+
+	// Finally, assign extension textures to material maps
+	addExtensionMaps(outMaterial, outTextures);
 
 	// nothing found - silently return
 	// qDebug() << "No KHR materials extensions found for materialIndex" << materialIndex;
@@ -2206,6 +2247,31 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setNormalTexOffset(toQVector2D(tex.offset));
 			mat.setNormalTexRotation(tex.rotation);
 		}
+		else if (tex.type == "metallicRoughnessMap")
+		{
+			GLMaterial::ChannelPacking metalPacking;			
+			// Metallic-Roughness is a COMBINED texture (one image)
+			// Metallic is in B channel, Roughness is in G channel
+			mat.setMetallicTextureId(tex.id);
+			mat.setMetallicMap(QString(tex.path.c_str()));
+			mat.setMetallicTexCoord(tex.texCoordIndex);
+			mat.setMetallicTexScale(toQVector2D(tex.scale));
+			mat.setMetallicTexOffset(toQVector2D(tex.offset));
+			mat.setMetallicTexRotation(tex.rotation);			
+			metalPacking.channel = 2;
+			mat.setPackingFor("metallic", metalPacking);
+
+			// ALSO set Roughness to the same texture (it's the same image!)
+			GLMaterial::ChannelPacking roughPacking;
+			mat.setRoughnessTextureId(tex.id);
+			mat.setRoughnessMap(QString(tex.path.c_str()));
+			mat.setRoughnessTexCoord(tex.texCoordIndex);
+			mat.setRoughnessTexScale(toQVector2D(tex.scale));
+			mat.setRoughnessTexOffset(toQVector2D(tex.offset));
+			mat.setRoughnessTexRotation(tex.rotation);
+			roughPacking.channel = 1;
+			mat.setPackingFor("roughness", roughPacking);			
+		}
 		else if (tex.type == "metallicMap")
 		{
 			mat.setMetallicTextureId(tex.id);
@@ -2223,7 +2289,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setRoughnessTexScale(toQVector2D(tex.scale));
 			mat.setRoughnessTexOffset(toQVector2D(tex.offset));
 			mat.setRoughnessTexRotation(tex.rotation);
-		}
+		}		
 		else if (tex.type == "emissiveMap")
 		{
 			mat.setEmissiveTextureId(tex.id);
@@ -2259,6 +2325,9 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setOcclusionTexScale(toQVector2D(tex.scale));
 			mat.setOcclusionTexOffset(toQVector2D(tex.offset));
 			mat.setOcclusionTexRotation(tex.rotation);
+			GLMaterial::ChannelPacking occlusionPacking;
+			occlusionPacking.channel = 0;  // Red channel for occlusion
+			mat.setPackingFor("ao", occlusionPacking);
 		}
 		else if (tex.type == "texture_diffuse")
 		{
