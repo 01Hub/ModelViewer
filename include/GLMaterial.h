@@ -407,13 +407,13 @@ public:
 
 	// IOR texture transform
 	int iorTexCoord() const { return _iorTexTransform.texCoord; }
-	void setIorTexCoord(int coord) { _iorTexTransform.texCoord = coord; }
+	void setIORTexCoord(int coord) { _iorTexTransform.texCoord = coord; }
 	QVector2D iorTexScale() const { return _iorTexTransform.texScale; }
-	void setIorTexScale(const QVector2D& scale) { _iorTexTransform.texScale = scale; }
+	void setIORTexScale(const QVector2D& scale) { _iorTexTransform.texScale = scale; }
 	QVector2D iorTexOffset() const { return _iorTexTransform.texOffset; }
-	void setIorTexOffset(const QVector2D& offset) { _iorTexTransform.texOffset = offset; }
+	void setIORTexOffset(const QVector2D& offset) { _iorTexTransform.texOffset = offset; }
 	float iorTexRotation() const { return _iorTexTransform.texRotation; }
-	void setIorTexRotation(float rotation) { _iorTexTransform.texRotation = rotation; }
+	void setIORTexRotation(float rotation) { _iorTexTransform.texRotation = rotation; }
 
 	// Transmission texture transform
 	int transmissionTexCoord() const { return _transmissionTexTransform.texCoord; }

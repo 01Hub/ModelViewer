@@ -2339,10 +2339,10 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 		{
 			mat.setIORTextureId(tex.id);
 			mat.setIORMap(QString(tex.path.c_str()));
-			mat.setIorTexCoord(tex.texCoordIndex);
-			mat.setIorTexScale(toQVector2D(tex.scale));
-			mat.setIorTexOffset(toQVector2D(tex.offset));
-			mat.setIorTexRotation(tex.rotation);
+			mat.setIORTexCoord(tex.texCoordIndex);
+			mat.setIORTexScale(toQVector2D(tex.scale));
+			mat.setIORTexOffset(toQVector2D(tex.offset));
+			mat.setIORTexRotation(tex.rotation);
 		}
 		// KHR_materials_specular
 		else if (tex.type == "specularFactorMap")
