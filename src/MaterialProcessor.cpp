@@ -674,7 +674,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		};
 
 	// Helper to extract UV transform from a texture object
-	auto extractTextureTransform = [](const QJsonObject& texObj) -> std::tuple<int, glm::vec2, glm::vec2, float> {
+	auto extractKHRTextureTransform = [](const QJsonObject& texObj) -> std::tuple<int, glm::vec2, glm::vec2, float> {
 		int texCoord = texObj.value("texCoord").toInt(0);  // Default from texture object
 		glm::vec2 scale(1.0f, 1.0f);
 		glm::vec2 offset(0.0f, 0.0f);
@@ -944,7 +944,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			if (uri.isEmpty()) return;
 
 			// extract transform and sampler then load
-			auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+			auto [texCoord, scale, offset, rotation] = extractKHRTextureTransform(texObj);
 			auto [wrapS, wrapT, magF, minF] = getSamplerParams(texIndex);
 
 			if (loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures))
@@ -990,7 +990,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			QString uri = resolveTextureUri(texIndex);
 			if (uri.isEmpty()) return false;
 
-			auto [texCoord, scale, offset, rotation] = extractTextureTransform(texObj);
+			auto [texCoord, scale, offset, rotation] = extractKHRTextureTransform(texObj);
 			auto [wrapS, wrapT, magF, minF] = getSamplerParams(texIndex);
 			bool ok = loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures);
 			if (ok) qDebug() << "  Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
