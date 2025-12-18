@@ -1572,6 +1572,12 @@ std::tuple<int, glm::vec2, glm::vec2, float> MaterialProcessor::extractKHRTextur
 		}
 	}
 
+	qDebug() << "KHR Parse Result:"
+		<< "texCoord:" << texCoord
+		<< "scale:" << scale.x << scale.y
+		<< "offset:" << offset.x << offset.y
+		<< "rotation:" << rotation;
+
 	return std::make_tuple(texCoord, scale, offset, rotation);
 }
 
@@ -1862,11 +1868,11 @@ void MaterialProcessor::extractUVTransform(
 	}
 
 	// Debug output (optional)
-	/*std::cout << "UV Transform for " << texture.type << ":\n"
+	std::cout << "UV Transform for " << texture.type << ":\n"
 		<< "  TexCoord: " << texture.texCoordIndex << "\n"
 		<< "  Scale: (" << texture.scale.x << ", " << texture.scale.y << ")\n"
 		<< "  Offset: (" << texture.offset.x << ", " << texture.offset.y << ")\n"
-		<< "  Rotation: " << texture.rotation << " rad\n";*/
+		<< "  Rotation: " << texture.rotation << " rad\n";
 }
 
 
