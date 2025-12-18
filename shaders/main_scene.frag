@@ -1890,24 +1890,17 @@ vec2 getTransformedUV(int texCoordIndex, TextureTransform transform)
 	}
 
 	// Step 2: Apply KHR_texture_transform
-	// Order: scale -> rotation (around 0.5, 0.5) -> offset
+	// Order: scale -> rotation -> offset
 	
 	//Scale
 	uv = uv * transform.scale;
 
-	// Rotation is applied around the center point (0.5, 0.5)
-	const vec2 pivot = vec2(0.5, 0.5);
-	uv -= pivot;
-
 	// Apply rotation matrix
-	float angle = -transform.rotation;
+	float angle = transform.rotation;
 	float cosR = cos(angle);
 	float sinR = sin(angle);
 	mat2 rotMat = mat2(cosR, sinR, -sinR, cosR);
 	uv = rotMat * uv;
-
-	// Translate back from pivot
-	uv += pivot;
 
 	// Apply offset
 	uv = uv + transform.offset;
