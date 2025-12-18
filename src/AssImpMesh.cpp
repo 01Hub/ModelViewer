@@ -326,7 +326,10 @@ void AssImpMesh::setupMesh()
 			<< " TexCoordIndex:" << tex.texCoordIndex
 			<< " Scale:" << tex.scale.x << "," << tex.scale.y
 			<< " Offset:" << tex.offset.x << "," << tex.offset.y
-			<< " Rotation (radians):" << tex.rotation;
+			<< " Rotation (radians):" << tex.rotation
+			<< " WrapS:" << tex.wrapS
+			<< " WrapT:" << tex.wrapT;
+
 	}
 
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents);
