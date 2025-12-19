@@ -119,6 +119,8 @@ uniform int   opacityInvert;
 uniform float opacityScale;
 uniform float opacityBias;
 
+uniform bool twoSided;
+
 // Advanced PBR Material Properties
 uniform sampler2D transmissionMap;
 uniform sampler2D iorMap;
@@ -521,6 +523,11 @@ void main()
 	vec4 v_color_front;
 	vec4 v_color_back;
 	vec4 v_color;
+
+	if (!twoSided && !gl_FrontFacing)
+	{
+		discard;
+	}
 
 	if (isReflectedPass)
 	{
@@ -1890,24 +1897,17 @@ vec2 getTransformedUV(int texCoordIndex, TextureTransform transform)
 	}
 
 	// Step 2: Apply KHR_texture_transform
-	// Order: scale -> rotation (around 0.5, 0.5) -> offset
+	// Order: scale -> rotation -> offset
 	
 	//Scale
 	uv = uv * transform.scale;
 
-	// Rotation is applied around the center point (0.5, 0.5)
-	const vec2 pivot = vec2(0.5, 0.5);
-	uv -= pivot;
-
 	// Apply rotation matrix
-	float angle = -transform.rotation;
+	float angle = transform.rotation;
 	float cosR = cos(angle);
 	float sinR = sin(angle);
 	mat2 rotMat = mat2(cosR, sinR, -sinR, cosR);
 	uv = rotMat * uv;
-
-	// Translate back from pivot
-	uv += pivot;
 
 	// Apply offset
 	uv = uv + transform.offset;

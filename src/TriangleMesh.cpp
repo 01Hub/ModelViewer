@@ -527,6 +527,8 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("grayEpsilon", _material.albedoTint.grayEps);
 	_prog->setUniformValue("useVertexColor", _material.albedoTint.useVertexColor);
 	_prog->setUniformValue("tintMaskChannel", _material.albedoTint.maskChannel);
+
+	_prog->setUniformValue("twoSided", _material.twoSided());
 	
 	// PBR Texture Maps
 	_prog->setUniformValue("albedoMap", 10);
