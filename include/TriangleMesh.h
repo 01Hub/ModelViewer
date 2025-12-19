@@ -175,7 +175,7 @@ public:
 
 	virtual bool hasClearcoatPBRMap() const;
 	virtual void enableClearcoatPBRMap(bool hasClearcoatMap);
-	virtual void setClearcoatPBRMap(unsigned int clearcoatMap);
+	virtual void setClearcoatPBRMap(unsigned int clearcoatColorMap);
 
 	virtual bool hasClearcoatRoughnessPBRMap() const;
 	virtual void enableClearcoatRoughnessPBRMap(bool hasClearcoatRoughnessMap);

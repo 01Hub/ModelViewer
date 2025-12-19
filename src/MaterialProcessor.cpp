@@ -899,7 +899,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 
 			if (loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures))
 			{			
-				//applyKHRTextureTransformsToMaterial(outTextures.back(), mapType, mat);
+				applyKHRTextureTransformsToMaterial(outTextures.back(), mapType, mat);
 				qDebug() << "  Loaded" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
 			}
 			};
@@ -948,7 +948,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			bool ok = loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures);
 			if (ok)
 			{
-				//applyKHRTextureTransformsToMaterial(outTextures.back(), mapType, mat);
+				applyKHRTextureTransformsToMaterial(outTextures.back(), mapType, mat);
 				qDebug() << "  Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
 			}
 			return ok;
@@ -1657,7 +1657,7 @@ void MaterialProcessor::applyKHRTextureTransformsToMaterial(
 		outMaterial.setSheenRoughnessTexOffset(QVector2D(texture.offset.x, texture.offset.y));
 		outMaterial.setSheenRoughnessTexRotation(texture.rotation);
 	}
-	else if (mapType == "clearcoatMap")
+	else if (mapType == "clearcoatColorMap")
 	{
 		outMaterial.setClearcoatColorTextureId(texture.id);
 		outMaterial.setClearcoatColorMap(texturePath);
@@ -2409,7 +2409,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setSheenRoughnessTexRotation(tex.rotation);
 		}
 		// clearcoat
-		else if (tex.type == "clearcoatMap")
+		else if (tex.type == "clearcoatColorMap")
 		{
 			mat.setClearcoatColorTextureId(tex.id);
 			mat.setClearcoatColorMap(QString(tex.path.c_str()));
@@ -2661,7 +2661,7 @@ void MaterialProcessor::addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial
 		/*rotation*/mat.thicknessTexRotation());
 
 	// clearcoat maps
-	addTextureIfMissing(textures, mat.clearcoatColorMapPath(), "clearcoatMap", mat.clearcoatColorTexCoord(),
+	addTextureIfMissing(textures, mat.clearcoatColorMapPath(), "clearcoatColorMap", mat.clearcoatColorTexCoord(),
 		glm::vec2(mat.clearcoatColorTexScale().x(), mat.clearcoatColorTexScale().y()),
 		glm::vec2(mat.clearcoatColorTexOffset().x(), mat.clearcoatColorTexOffset().y()),
 		mat.clearcoatColorTexRotation());

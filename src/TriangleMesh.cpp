@@ -544,7 +544,7 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("iorMap", 19);
 	_prog->setUniformValue("sheenColorMap", 20);
 	_prog->setUniformValue("sheenRoughnessMap", 21);
-	_prog->setUniformValue("clearcoatMap", 22);
+	_prog->setUniformValue("clearcoatColorMap", 22);
 	_prog->setUniformValue("clearcoatRoughnessMap", 23);
 	_prog->setUniformValue("clearcoatNormalMap", 24);
 
@@ -1751,10 +1751,10 @@ void TriangleMesh::enableClearcoatPBRMap(bool hasClearcoatMap)
 	markUniformsDirty();
 }
 
-void TriangleMesh::setClearcoatPBRMap(unsigned int clearcoatMap)
+void TriangleMesh::setClearcoatPBRMap(unsigned int clearcoatColorMap)
 {
 	glDeleteTextures(1, &_clearcoatPBRMap);
-	_clearcoatPBRMap = clearcoatMap;
+	_clearcoatPBRMap = clearcoatColorMap;
 	_hasClearcoatPBRMap = true;
 	markTexturesDirty();
 	markUniformsDirty();

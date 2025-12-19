@@ -98,7 +98,7 @@ private:
 		{ aiTextureType_EMISSION_COLOR,    "emissiveMap",       0, aiTextureType_EMISSIVE,   "texture_emissive", 0 },
 
 		// KHR_materials_clearcoat
-		{ aiTextureType_CLEARCOAT,         "clearcoatMap",            0, aiTextureType_NONE, "", 0 },
+		{ aiTextureType_CLEARCOAT,         "clearcoatColorMap",            0, aiTextureType_NONE, "", 0 },
 		{ aiTextureType_CLEARCOAT,         "clearcoatRoughnessMap",   1, aiTextureType_NONE, "", 0 },
 		{ aiTextureType_CLEARCOAT,         "clearcoatNormalMap",      2, aiTextureType_HEIGHT, "texture_normal", 0 },
 

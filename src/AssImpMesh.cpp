@@ -290,7 +290,7 @@ void AssImpMesh::setupMesh()
 		{
 			_hasSheenRoughnessPBRMap = true;
 		}
-		if (name == "clearcoatMap")
+		if (name == "clearcoatColorMap")
 		{
 			_hasClearcoatPBRMap = true;
 		}
@@ -477,9 +477,9 @@ void AssImpMesh::cacheTextureBindings()
 			addBinding("sheenRoughnessMap" /*+ std::to_string(sheenRoughnessNr)*/, GL_TEXTURE21);
 			sheenRoughnessNr++;
 		}
-		else if (texture.type == "clearcoatMap")
+		else if (texture.type == "clearcoatColorMap")
 		{
-			addBinding("clearcoatMap" /*+ std::to_string(clearcoatNr)*/, GL_TEXTURE22);
+			addBinding("clearcoatColorMap" /*+ std::to_string(clearcoatNr)*/, GL_TEXTURE22);
 			clearcoatNr++;
 		}
 		else if (texture.type == "clearcoatRoughnessMap")
@@ -631,7 +631,7 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 	pushIfPresent("iorMapPath", "iorMap");
 	pushIfPresent("sheenColorMapPath", "sheenColorMap");
 	pushIfPresent("sheenRoughnessMapPath", "sheenRoughnessMap");
-	pushIfPresent("clearcoatColorMapPath", "clearcoatMap");
+	pushIfPresent("clearcoatColorMapPath", "clearcoatColorMap");
 	pushIfPresent("clearcoatRoughnessMapPath", "clearcoatRoughnessMap");
 	pushIfPresent("clearcoatNormalMapPath", "clearcoatNormalMap");
 	// New glTF extension textures
@@ -935,7 +935,7 @@ void AssImpMesh::deserialize(QDataStream& in)
 			_material.setSheenRoughnessTextureId(tex.id);
 			_material.setSheenRoughnessMap(qpath);
 		}
-		else if (ttype == "clearcoatMap")
+		else if (ttype == "clearcoatColorMap")
 		{
 			_material.setClearcoatColorTextureId(tex.id);
 			_material.setClearcoatColorMap(qpath);
@@ -1101,11 +1101,11 @@ void AssImpMesh::setIORPBRMap(unsigned int iorMap)
 	markUniformsDirty();
 }
 
-void AssImpMesh::setClearcoatPBRMap(unsigned int clearcoatMap)
+void AssImpMesh::setClearcoatPBRMap(unsigned int clearcoatColorMap)
 {
 	//glDeleteTextures(1, &_clearcoatPBRMap);
-	_clearcoatPBRMap = clearcoatMap;
-	replaceOrAppendTexture("clearcoatMap", clearcoatMap, false);
+	_clearcoatPBRMap = clearcoatColorMap;
+	replaceOrAppendTexture("clearcoatColorMap", clearcoatColorMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
 }

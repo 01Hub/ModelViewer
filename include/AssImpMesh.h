@@ -76,7 +76,7 @@ public:
 	void setHeightPBRMap(unsigned int heightMap) override;
 	void setOpacityPBRMap(unsigned int opacityMap) override;
 	void setIORPBRMap(unsigned int iorMap) override;
-	void setClearcoatPBRMap(unsigned int clearcoatMap) override;
+	void setClearcoatPBRMap(unsigned int clearcoatColorMap) override;
 	void setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap) override;
 	void setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap) override;
 	void setSheenColorPBRMap(unsigned int sheenMap) override;

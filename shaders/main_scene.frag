@@ -126,7 +126,7 @@ uniform sampler2D transmissionMap;
 uniform sampler2D iorMap;
 uniform sampler2D sheenColorMap;
 uniform sampler2D sheenRoughnessMap;
-uniform sampler2D clearcoatMap;
+uniform sampler2D clearcoatColorMap;
 uniform sampler2D clearcoatRoughnessMap;
 uniform sampler2D clearcoatNormalMap;
 
@@ -1604,7 +1604,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// ============================================================================
 	// CLEARCOAT
 	// ============================================================================
-	clearcoat = hasClearcoatMap ? texture(clearcoatMap, getClearcoatUV()).r * pbrLighting.clearcoat : pbrLighting.clearcoat;
+	clearcoat = hasClearcoatMap ? texture(clearcoatColorMap, getClearcoatUV()).r * pbrLighting.clearcoat : pbrLighting.clearcoat;
 	clearcoat = clamp(clearcoat, 0.0, 1.0);
 	clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).g * pbrLighting.clearcoatRoughness : pbrLighting.clearcoatRoughness;
 	clearcoatRoughness = clamp(clearcoatRoughness, 0.0001, 1.0);
