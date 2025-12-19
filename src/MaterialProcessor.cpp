@@ -1104,18 +1104,18 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				mat.setClearcoatRoughness(qBound(0.0f, v, 1.0f));
 				appliedAny = true;
 			}
-			// clearcoatTexture -> we map to clearcoatColorMap in your system
-			if (processExtensionTextureSlot(cc, "clearcoatTexture", "clearcoatColor"))
+			// clearcoatTexture
+			if (processExtensionTextureSlot(cc, "clearcoatTexture", "clearcoatColorMap"))
 			{
 				appliedAny = true;
 			}
 			// clearcoatRoughnessTexture is separate from clearcoatTexture
-			if (processExtensionTextureSlot(cc, "clearcoatRoughnessTexture", "clearcoatRoughness"))
+			if (processExtensionTextureSlot(cc, "clearcoatRoughnessTexture", "clearcoatRoughnessMap"))
 			{
 				appliedAny = true;
 			}
 			// clearcoatNormal is typically an object with "index" etc. same as other textures
-			if (processExtensionTextureSlot(cc, "clearcoatNormalTexture", "clearcoatNormal"))
+			if (processExtensionTextureSlot(cc, "clearcoatNormalTexture", "clearcoatNormalMap"))
 			{
 				appliedAny = true;
 			}
@@ -1144,11 +1144,11 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				mat.setSheenRoughness(qBound(0.0f, v, 1.0f));
 				appliedAny = true;
 			}
-			if (processExtensionTextureSlot(sh, "sheenColorTexture", "sheenColor"))
+			if (processExtensionTextureSlot(sh, "sheenColorTexture", "sheenColorMap"))
 			{
 				appliedAny = true;
 			}
-			if (processExtensionTextureSlot(sh, "sheenRoughnessTexture", "sheenRoughness"))
+			if (processExtensionTextureSlot(sh, "sheenRoughnessTexture", "sheenRoughnessMap"))
 			{
 				appliedAny = true;
 			}
@@ -1182,11 +1182,11 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				mat.setIridescenceThicknessMax(qMax(0.0f, v));
 				appliedAny = true;
 			}
-			if (processExtensionTextureSlot(ir, "iridescenceThicknessTexture", "iridescenceThickness"))
+			if (processExtensionTextureSlot(ir, "iridescenceThicknessTexture", "iridescenceThicknessMap"))
 			{
 				appliedAny = true;
 			}
-			if (processExtensionTextureSlot(ir, "iridescenceTexture", "iridescence"))
+			if (processExtensionTextureSlot(ir, "iridescenceTexture", "iridescenceMap"))
 			{
 				appliedAny = true;
 			}
@@ -1208,7 +1208,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 				mat.setAnisotropyRotation(v);
 				appliedAny = true;
 			}
-			if (processExtensionTextureSlot(an, "anisotropyTexture", "anisotropy"))
+			if (processExtensionTextureSlot(an, "anisotropyTexture", "anisotropyMap"))
 			{
 				appliedAny = true;
 			}
@@ -1279,13 +1279,13 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			}
 
 			// diffuseTransmissionTexture (alpha channel contains the factor)
-			if (processExtensionTextureSlot(dt, "diffuseTransmissionTexture", "diffuseTransmission"))
+			if (processExtensionTextureSlot(dt, "diffuseTransmissionTexture", "diffuseTransmissionMap"))
 			{
 				appliedAny = true;
 			}
 
 			// diffuseTransmissionColorTexture (RGB channels in sRGB)
-			if (processExtensionTextureSlot(dt, "diffuseTransmissionColorTexture", "diffuseTransmissionColor"))
+			if (processExtensionTextureSlot(dt, "diffuseTransmissionColorTexture", "diffuseTransmissionColorMap"))
 			{
 				appliedAny = true;
 			}
