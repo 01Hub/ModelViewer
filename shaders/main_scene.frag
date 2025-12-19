@@ -119,6 +119,8 @@ uniform int   opacityInvert;
 uniform float opacityScale;
 uniform float opacityBias;
 
+uniform bool twoSided;
+
 // Advanced PBR Material Properties
 uniform sampler2D transmissionMap;
 uniform sampler2D iorMap;
@@ -521,6 +523,11 @@ void main()
 	vec4 v_color_front;
 	vec4 v_color_back;
 	vec4 v_color;
+
+	if (!twoSided && !gl_FrontFacing)
+	{
+		discard;
+	}
 
 	if (isReflectedPass)
 	{
