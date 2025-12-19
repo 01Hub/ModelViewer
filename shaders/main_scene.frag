@@ -524,7 +524,7 @@ void main()
 	vec4 v_color_back;
 	vec4 v_color;
 
-	if (!twoSided && !gl_FrontFacing)
+	if (!twoSided && !gl_FrontFacing && !floorRendering)
 	{
 		discard;
 	}
