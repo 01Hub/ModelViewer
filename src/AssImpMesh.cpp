@@ -452,7 +452,7 @@ void AssImpMesh::cacheTextureBindings()
 			addBinding("roughnessMap" /*+ std::to_string(roughnessNr)*/, GL_TEXTURE16);
 			roughnessNr++;
 		}
-		else if (texture.type == "aoMap")
+		else if (texture.type == "aoMap" || texture.type == "occlusionMap")
 		{
 			addBinding("aoMap" /*+ std::to_string(aoNr)*/, GL_TEXTURE17);
 			aoNr++;
@@ -624,6 +624,7 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 	pushIfPresent("metallicMapPath", "metallicMap");      // metallic
 	pushIfPresent("roughnessMapPath", "roughnessMap");     // roughness
 	pushIfPresent("aoMapPath", "aoMap");            // ao / lightmap
+	pushIfPresent("occlusionMapPath", "aoMap");            // ao / lightmap
 	pushIfPresent("emissiveMapPath", "emissiveMap");      // emissive
 	pushIfPresent("opacityMapPath", "opacityMap");       // opacity/alpha
 	pushIfPresent("heightMapPath", "heightMap");        // height
