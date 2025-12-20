@@ -807,23 +807,23 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("diffuseTransmissionColorTexTransform.rotation", _material.diffuseTransmissionColorTexRotation());
 
 
-	_prog->setUniformValue("heightScale", _heightPBRMapScale);
-	_prog->setUniformValue("hasAlbedoMap", _hasAlbedoPBRMap);
-	_prog->setUniformValue("hasMetallicMap", _hasMetallicPBRMap);
-	_prog->setUniformValue("hasEmissiveMap", _hasEmissivePBRMap);
-	_prog->setUniformValue("hasRoughnessMap", _hasRoughnessPBRMap);
-	_prog->setUniformValue("hasNormalMap", _hasNormalPBRMap);
-	_prog->setUniformValue("hasAOMap", _hasAOPBRMap);
-	_prog->setUniformValue("hasOpacityMap", _hasOpacityPBRMap);
-	_prog->setUniformValue("opacityMapInverted", _opacityPBRMapInverted);
-	_prog->setUniformValue("hasHeightMap", _hasHeightPBRMap);
-	_prog->setUniformValue("hasTransmissionMap", _hasTransmissionPBRMap);
-	_prog->setUniformValue("hasIORMap", _hasIORPBRMap);
-	_prog->setUniformValue("hasSheenColorMap", _hasSheenColorPBRMap);
-	_prog->setUniformValue("hasSheenRoughnessMap", _hasSheenRoughnessPBRMap);
-	_prog->setUniformValue("hasClearcoatMap", _hasClearcoatPBRMap);
-	_prog->setUniformValue("hasClearcoatRoughnessMap", _hasClearcoatRoughnessPBRMap);
-	_prog->setUniformValue("hasClearcoatNormalMap", _hasClearcoatNormalPBRMap);
+	_prog->setUniformValue("heightScale", _material.heightTexScale());
+	_prog->setUniformValue("hasAlbedoMap", _material.hasAlbedoMap());
+	_prog->setUniformValue("hasMetallicMap", _material.hasMetallicMap());
+	_prog->setUniformValue("hasEmissiveMap", _material.hasEmissiveMap());
+	_prog->setUniformValue("hasRoughnessMap", _material.hasRoughnessMap());
+	_prog->setUniformValue("hasNormalMap", _material.hasNormalMap());
+	_prog->setUniformValue("hasAOMap", _material.hasAOMap());
+	_prog->setUniformValue("hasOpacityMap", _material.hasOpacityMap());
+	_prog->setUniformValue("opacityMapInverted", _material.isOpacityMapInverted());
+	_prog->setUniformValue("hasHeightMap", _material.hasHeightMap());
+	_prog->setUniformValue("hasTransmissionMap", _material.hasTransmissionMap());
+	_prog->setUniformValue("hasIORMap", _material.hasIORMap());
+	_prog->setUniformValue("hasSheenColorMap", _material.hasSheenColorMap());
+	_prog->setUniformValue("hasSheenRoughnessMap", _material.hasSheenRoughnessMap());
+	_prog->setUniformValue("hasClearcoatMap", _material.hasClearcoatColorMap());
+	_prog->setUniformValue("hasClearcoatRoughnessMap", _material.hasClearcoatRoughnessMap());
+	_prog->setUniformValue("hasClearcoatNormalMap", _material.hasClearcoatNormalMap());
 
 	_prog->setUniformValue("isGLTFMaterial", _material.isGLTFMaterial());
 
