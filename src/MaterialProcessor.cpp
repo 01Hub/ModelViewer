@@ -22,7 +22,7 @@ MaterialProcessor::MaterialProcessor(std::string& folderPath) : _folderPath(fold
 	initializeOpenGLFunctions();
 }
 
-void MaterialProcessor::setColorAndMaterial(aiMaterial* material, GLMaterial& mat)
+void MaterialProcessor::processAssimpColorAndMaterial(aiMaterial* material, GLMaterial& mat)
 {
 	if (!material)
 	{
@@ -520,7 +520,7 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture)
  - Mapping: JSON materials[] index -> aiScene material index; fallback to name-based match
  - Resolves textures -> images[].uri (external path) for thickness/specular/iridescence maps etc.
 */
-void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
+void MaterialProcessor::processGltf2CoreAndExtensions(
 	const QString& gltfPath,
 	const aiScene* scene,
 	const QString& nodeName,
@@ -531,7 +531,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 {
 	if (!scene)
 	{
-		qWarning() << "applyGltfMaterialExtensionsToMaterial: scene is null";
+		qWarning() << "processGltf2CoreAndExtensions: scene is null";
 		return;
 	}
 
@@ -543,7 +543,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 
 	if (materialIndex >= static_cast<unsigned int>(scene->mNumMaterials))
 	{
-		qWarning() << "applyGltfMaterialExtensionsToMaterial: materialIndex out of range:" << materialIndex;
+		qWarning() << "processGltf2CoreAndExtensions: materialIndex out of range:" << materialIndex;
 		return;
 	}
 
@@ -559,7 +559,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		QFile f(gltfPath);
 		if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
 		{
-			qWarning() << "applyGltfMaterialExtensionsToMaterial: cannot open glTF:" << gltfPath;
+			qWarning() << "processGltf2CoreAndExtensions: cannot open glTF:" << gltfPath;
 			return;
 		}
 		QByteArray bytes = f.readAll();
@@ -569,7 +569,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		doc = QJsonDocument::fromJson(bytes, &perr);
 		if (perr.error != QJsonParseError::NoError)
 		{
-			qWarning() << "applyGltfMaterialExtensionsToMaterial: JSON parse error:" << perr.errorString();
+			qWarning() << "processGltf2CoreAndExtensions: JSON parse error:" << perr.errorString();
 			return;
 		}
 		s_gltfJsonCache.insert(gltfPath, doc);
@@ -577,7 +577,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 
 	if (!doc.isObject())
 	{
-		qWarning() << "applyGltfMaterialExtensionsToMaterial: invalid JSON root for" << gltfPath;
+		qWarning() << "processGltf2CoreAndExtensions: invalid JSON root for" << gltfPath;
 		return;
 	}
 
@@ -1669,11 +1669,11 @@ void MaterialProcessor::extractUVTransform(
 	}
 
 	// Debug output (optional)
-	std::cout << "UV Transform for " << texture.type << ":\n"
+	/*std::cout << "UV Transform for " << texture.type << ":\n"
 		<< "  TexCoord: " << texture.texCoordIndex << "\n"
 		<< "  Scale: (" << texture.scale.x << ", " << texture.scale.y << ")\n"
 		<< "  Offset: (" << texture.offset.x << ", " << texture.offset.y << ")\n"
-		<< "  Rotation: " << texture.rotation << " rad\n";
+		<< "  Rotation: " << texture.rotation << " rad\n";*/
 }
 
 
@@ -1993,7 +1993,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 }
 
 // Sets the texture maps for a material based on the defined texture mappings.
-void MaterialProcessor::setTextureMaps(aiMaterial* material, std::vector<GLMaterial::Texture>& textures, GLMaterial& mat)
+void MaterialProcessor::processAssimpTextureMaps(aiMaterial* material, std::vector<GLMaterial::Texture>& textures, GLMaterial& mat)
 {
 
 	//debugMaterialTextures(material, material->GetName().C_Str());
@@ -2446,8 +2446,8 @@ void MaterialProcessor::addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial
 			return true;
 		};
 
-	// === Add extension maps discovered by applyGltfMaterialExtensionsToMaterial (stored in GLMaterial) ===
-	// We assume applyGltfMaterialExtensionsToMaterial() was called earlier (before setTextureMaps)
+	// === Add extension maps discovered by processGltf2CoreAndExtensions (stored in GLMaterial) ===
+	// We assume processGltf2CoreAndExtensions() was called earlier (before processAssimpTextureMaps)
 	// and populated mat.setXxxMap(...) and mat.setXxxTextureId(...) where appropriate.
 	// transmission
 	addTextureIfMissing(textures, mat.transmissionMapPath(), "transmissionMap", /*texCoord*/mat.transmissionTexCoord(),

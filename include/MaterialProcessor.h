@@ -18,9 +18,9 @@ public:
 
 	void setFolderPath(const std::string& folderPath) { _folderPath = folderPath; }
 
-	void setColorAndMaterial(aiMaterial* material, GLMaterial& mat);
+	void processAssimpColorAndMaterial(aiMaterial* material, GLMaterial& mat);
 	void setDefaultMaterial(GLMaterial& mat);
-	void setTextureMaps(aiMaterial* material, std::vector<GLMaterial::Texture>& textures, GLMaterial& mat);
+	void processAssimpTextureMaps(aiMaterial* material, std::vector<GLMaterial::Texture>& textures, GLMaterial& mat);
 	void setTextureTransforms(const std::vector<GLMaterial::Texture>& textures, GLMaterial& mat);
 	void addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial::Texture>& textures);
 	void clearLoadedTextures() { _loadedTextures.clear(); }
@@ -37,7 +37,7 @@ public:
 
 	void synthesizeADSAliases(std::vector<GLMaterial::Texture>& textures);
 
-	void applyGltfMaterialExtensionsToMaterial(
+	void processGltf2CoreAndExtensions(
 		const QString& gltfPath,
 		const aiScene* scene,
 		const QString& nodeName,
