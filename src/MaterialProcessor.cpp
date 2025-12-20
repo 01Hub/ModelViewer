@@ -898,8 +898,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			auto [wrapS, wrapT, magF, minF] = getSamplerParams(texIndex);
 
 			if (loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures))
-			{			
-				applyKHRTextureTransformsToMaterial(outTextures.back(), mapType, mat);
+			{	
 				qDebug() << "  Loaded" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
 			}
 			};
@@ -948,7 +947,6 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			bool ok = loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures);
 			if (ok)
 			{
-				applyKHRTextureTransformsToMaterial(outTextures.back(), mapType, mat);
 				qDebug() << "  Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
 			}
 			return ok;
@@ -1581,203 +1579,6 @@ std::tuple<int, glm::vec2, glm::vec2, float> MaterialProcessor::extractKHRTextur
 	return std::make_tuple(texCoord, scale, offset, rotation);
 }
 
-void MaterialProcessor::applyKHRTextureTransformsToMaterial(
-	const GLMaterial::Texture& texture,
-	const std::string& mapType,
-	GLMaterial& outMaterial)
-{
-	// Helper to convert path to QString
-	const QString texturePath = QString(texture.path.c_str());
-
-	qDebug() << "applyKHRTextureTransformsToMaterial called:";
-	qDebug() << "  mapType:" << QString::fromStdString(mapType);
-	qDebug() << "  texture.id:" << texture.id;
-	qDebug() << "  texture.rotation:" << texture.rotation;
-
-	if (mapType == "baseColor" || mapType == "albedoMap")
-	{
-		outMaterial.setAlbedoTextureId(texture.id);
-		outMaterial.setAlbedoMap(texturePath);
-		outMaterial.setAlbedoTexCoord(texture.texCoordIndex);
-		outMaterial.setAlbedoTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setAlbedoTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setAlbedoTexRotation(texture.rotation);
-	}
-	else if (mapType == "metallicRoughness" || mapType == "metallicMap")
-	{
-		outMaterial.setMetallicTextureId(texture.id);
-		outMaterial.setMetallicMap(texturePath);
-		outMaterial.setMetallicTexCoord(texture.texCoordIndex);
-		outMaterial.setMetallicTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setMetallicTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setMetallicTexRotation(texture.rotation);
-	}
-	else if (mapType == "normal" || mapType == "normalMap")
-	{
-		outMaterial.setNormalTextureId(texture.id);
-		outMaterial.setNormalMap(texturePath);
-		outMaterial.setNormalTexCoord(texture.texCoordIndex);
-		outMaterial.setNormalTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setNormalTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setNormalTexRotation(texture.rotation);
-	}
-	else if (mapType == "occlusion" || mapType == "occlusionMap")
-	{
-		outMaterial.setOcclusionTextureId(texture.id);
-		outMaterial.setAOMap(texturePath);
-		outMaterial.setOcclusionTexCoord(texture.texCoordIndex);
-		outMaterial.setOcclusionTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setOcclusionTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setOcclusionTexRotation(texture.rotation);
-	}
-	else if (mapType == "emissive" || mapType == "emissiveMap")
-	{
-		outMaterial.setEmissiveTextureId(texture.id);
-		outMaterial.setEmissiveMap(texturePath);
-		outMaterial.setEmissiveTexCoord(texture.texCoordIndex);
-		outMaterial.setEmissiveTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setEmissiveTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setEmissiveTexRotation(texture.rotation);
-	}
-	else if (mapType == "sheenColorMap")
-	{
-		outMaterial.setSheenColorTextureId(texture.id);
-		outMaterial.setSheenColorMap(texturePath);
-		outMaterial.setSheenColorTexCoord(texture.texCoordIndex);
-		outMaterial.setSheenColorTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setSheenColorTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setSheenColorTexRotation(texture.rotation);
-	}
-	else if (mapType == "sheenRoughnessMap")
-	{
-		outMaterial.setSheenRoughnessTextureId(texture.id);
-		outMaterial.setSheenRoughnessMap(texturePath);
-		outMaterial.setSheenRoughnessTexCoord(texture.texCoordIndex);
-		outMaterial.setSheenRoughnessTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setSheenRoughnessTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setSheenRoughnessTexRotation(texture.rotation);
-	}
-	else if (mapType == "clearcoatColorMap")
-	{
-		outMaterial.setClearcoatColorTextureId(texture.id);
-		outMaterial.setClearcoatColorMap(texturePath);
-		outMaterial.setClearcoatColorTexCoord(texture.texCoordIndex);
-		outMaterial.setClearcoatColorTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setClearcoatColorTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setClearcoatColorTexRotation(texture.rotation);
-	}
-	else if (mapType == "clearcoatRoughnessMap")
-	{
-		outMaterial.setClearcoatRoughnessTextureId(texture.id);
-		outMaterial.setClearcoatRoughnessMap(texturePath);
-		outMaterial.setClearcoatRoughnessTexCoord(texture.texCoordIndex);
-		outMaterial.setClearcoatRoughnessTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setClearcoatRoughnessTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setClearcoatRoughnessTexRotation(texture.rotation);
-	}
-	else if (mapType == "clearcoatNormalMap")
-	{
-		outMaterial.setClearcoatNormalTextureId(texture.id);
-		outMaterial.setClearcoatNormalMap(texturePath);
-		outMaterial.setClearcoatNormalTexCoord(texture.texCoordIndex);
-		outMaterial.setClearcoatNormalTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setClearcoatNormalTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setClearcoatNormalTexRotation(texture.rotation);
-	}
-	else if (mapType == "transmissionMap")
-	{
-		outMaterial.setTransmissionTextureId(texture.id);
-		outMaterial.setTransmissionMap(texturePath);
-		outMaterial.setTransmissionTexCoord(texture.texCoordIndex);
-		outMaterial.setTransmissionTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setTransmissionTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setTransmissionTexRotation(texture.rotation);
-	}
-	else if (mapType == "thicknessMap")
-	{
-		outMaterial.setThicknessTextureId(texture.id);
-		outMaterial.setThicknessMap(texturePath);
-		outMaterial.setThicknessTexCoord(texture.texCoordIndex);
-		outMaterial.setThicknessTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setThicknessTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setThicknessTexRotation(texture.rotation);
-	}
-	else if (mapType == "iorMap")
-	{
-		outMaterial.setIORTextureId(texture.id);
-		outMaterial.setIORMap(texturePath);
-		outMaterial.setIORTexCoord(texture.texCoordIndex);
-		outMaterial.setIORTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setIORTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setIORTexRotation(texture.rotation);
-	}
-	else if (mapType == "specularFactorMap")
-	{
-		outMaterial.setSpecularFactorTextureId(texture.id);
-		outMaterial.setSpecularFactorMap(texturePath);
-		outMaterial.setSpecularFactorTexCoord(texture.texCoordIndex);
-		outMaterial.setSpecularFactorTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setSpecularFactorTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setSpecularFactorTexRotation(texture.rotation);
-	}
-	else if (mapType == "specularColorMap")
-	{
-		outMaterial.setSpecularColorTextureId(texture.id);
-		outMaterial.setSpecularColorMap(texturePath);
-		outMaterial.setSpecularColorTexCoord(texture.texCoordIndex);
-		outMaterial.setSpecularColorTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setSpecularColorTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setSpecularColorTexRotation(texture.rotation);
-	}
-	else if (mapType == "anisotropyMap")
-	{
-		outMaterial.setAnisotropyTextureId(texture.id);
-		outMaterial.setAnisotropyMap(texturePath);
-		outMaterial.setAnisotropyTexCoord(texture.texCoordIndex);
-		outMaterial.setAnisotropyTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setAnisotropyTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setAnisotropyTexRotation(texture.rotation);
-	}
-	else if (mapType == "iridescenceMap")
-	{
-		outMaterial.setIridescenceTextureId(texture.id);
-		outMaterial.setIridescenceMap(texturePath);
-		outMaterial.setIridescenceTexCoord(texture.texCoordIndex);
-		outMaterial.setIridescenceTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setIridescenceTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setIridescenceTexRotation(texture.rotation);
-	}
-	else if (mapType == "iridescenceThicknessMap")
-	{
-		outMaterial.setIridescenceThicknessTextureId(texture.id);
-		outMaterial.setIridescenceThicknessMap(texturePath);
-		outMaterial.setIridescenceThicknessTexCoord(texture.texCoordIndex);
-		outMaterial.setIridescenceThicknessTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setIridescenceThicknessTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setIridescenceThicknessTexRotation(texture.rotation);
-	}
-	else if (mapType == "diffuseTransmissionMap")
-	{
-		outMaterial.setDiffuseTransmissionTextureId(texture.id);
-		outMaterial.setDiffuseTransmissionMap(texturePath);
-		outMaterial.setDiffuseTransmissionTexCoord(texture.texCoordIndex);
-		outMaterial.setDiffuseTransmissionTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setDiffuseTransmissionTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setDiffuseTransmissionTexRotation(texture.rotation);
-	}
-	else if (mapType == "diffuseTransmissionColorMap")
-	{
-		outMaterial.setDiffuseTransmissionColorTextureId(texture.id);
-		outMaterial.setDiffuseTransmissionColorMap(texturePath);
-		outMaterial.setDiffuseTransmissionColorTexCoord(texture.texCoordIndex);
-		outMaterial.setDiffuseTransmissionColorTexScale(QVector2D(texture.scale.x, texture.scale.y));
-		outMaterial.setDiffuseTransmissionColorTexOffset(QVector2D(texture.offset.x, texture.offset.y));
-		outMaterial.setDiffuseTransmissionColorTexRotation(texture.rotation);
-	}
-}
-
-
-
 
 void MaterialProcessor::debugMaterialTextures(aiMaterial* material, const std::string& materialName)
 {
@@ -2255,7 +2056,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 		}
 		else if (tex.type == "metallicRoughnessMap")
 		{
-			GLMaterial::ChannelPacking metalPacking;			
+			GLMaterial::ChannelPacking metalPacking;
 			// Metallic-Roughness is a COMBINED texture (one image)
 			// Metallic is in B channel, Roughness is in G channel
 			mat.setMetallicTextureId(tex.id);
@@ -2263,7 +2064,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setMetallicTexCoord(tex.texCoordIndex);
 			mat.setMetallicTexScale(toQVector2D(tex.scale));
 			mat.setMetallicTexOffset(toQVector2D(tex.offset));
-			mat.setMetallicTexRotation(tex.rotation);			
+			mat.setMetallicTexRotation(tex.rotation);
 			metalPacking.channel = 2;
 			mat.setPackingFor("metallic", metalPacking);
 
@@ -2276,7 +2077,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setRoughnessTexOffset(toQVector2D(tex.offset));
 			mat.setRoughnessTexRotation(tex.rotation);
 			roughPacking.channel = 1;
-			mat.setPackingFor("roughness", roughPacking);			
+			mat.setPackingFor("roughness", roughPacking);
 		}
 		else if (tex.type == "metallicMap")
 		{
