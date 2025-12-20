@@ -499,13 +499,13 @@ void GLWidget::initializeGL()
 			{
 				_fgShader->setUniformValue("lightCount", (int)lights.size());
 				_fgShader->setUniformValue("hasPunctualLights", true);
-				qDebug() << "GLWidget: Received" << lights.size() << "lights";
+				//qDebug() << "GLWidget: Received" << lights.size() << "lights";
 			}
 			else
 			{
 				_fgShader->setUniformValue("lightCount", 1);
 				_fgShader->setUniformValue("hasPunctualLights", false);
-				qDebug() << "GLWidget: No lights received, will use fallback";
+				//qDebug() << "GLWidget: No lights received, will use fallback";
 			}			
 		});
 
@@ -1718,10 +1718,10 @@ void GLWidget::updateFloorPlane()
 
 		glLights->setLights(_currentRepositionedLights);
 
-		qDebug() << "updateFloorPlane: Repositioned" << _currentRepositionedLights.size()
+		/*qDebug() << "updateFloorPlane: Repositioned" << _currentRepositionedLights.size()
 			<< "lights. Radius scale factor:" << radiusScaleFactor
 			<< "Original radius:" << _originalBoundingRadius
-			<< "Current radius:" << halfObjectSize;
+			<< "Current radius:" << halfObjectSize;*/
 	}
 	else
 	{

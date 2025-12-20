@@ -205,7 +205,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		parsedLights = _materialProcessor.parseKHRLightsPunctual(gltfPath);
 		if (!parsedLights.empty())
 		{
-			qDebug() << "AssImpModelLoader: Loaded" << parsedLights.size() << "KHR lights with transforms";
+			//qDebug() << "AssImpModelLoader: Loaded" << parsedLights.size() << "KHR lights with transforms";
 		}
 	}
 
@@ -473,9 +473,10 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
 	}
 	
-	qDebug() << "Mesh with material: " << meshName << " processed.";
+	
 	// Material and textures details
-	std::cout << mat;	
+	//qDebug() << "Mesh with material: " << meshName << " processed.";
+	//std::cout << mat;	
 
 	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
 	return newMesh;

@@ -899,7 +899,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 
 			if (loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures))
 			{	
-				qDebug() << "  Loaded" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
+				//qDebug() << "  Loaded" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
 			}
 			};
 
@@ -947,7 +947,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			bool ok = loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures);
 			if (ok)
 			{
-				qDebug() << "  Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
+				//qDebug() << "  Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
 			}
 			return ok;
 			};
@@ -1007,7 +1007,7 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 					);
 					mat.setMultiScatterColor(multiScatterColor);
 					mat.setHasVolumeScattering(true);
-					qDebug() << "KHR_materials_volume_scatter: multiscatterColor=" << multiScatterColor;
+					//qDebug() << "KHR_materials_volume_scatter: multiscatterColor=" << multiScatterColor;
 					appliedAny = true;
 				}
 			}
@@ -1360,11 +1360,11 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 			if (nameMatchCount == 1)
 			{
 				gltfMaterialIndex = nameMatchIndex;
-				qDebug() << "NAME MATCH (unique): Found material by name:" << name;
+				//qDebug() << "NAME MATCH (unique): Found material by name:" << name;
 			}
 			else if (nameMatchCount > 1)
 			{
-				qDebug() << "NAME AMBIGUOUS: Material name '" << name << "' appears" << nameMatchCount << "times - skipping to index-based lookup";
+				//qDebug() << "NAME AMBIGUOUS: Material name '" << name << "' appears" << nameMatchCount << "times - skipping to index-based lookup";
 			}
 		}
 	}
@@ -1486,14 +1486,14 @@ void MaterialProcessor::applyGltfMaterialExtensionsToMaterial(
 		{
 			float v = static_cast<float>(pbr.value("metallicFactor").toDouble(0.0));
 			outMaterial.setMetalness(qBound(0.0f, v, 1.0f));
-			qDebug() << "  Loaded pbrMetallicRoughness.metallicFactor:" << v;
+			//qDebug() << "  Loaded pbrMetallicRoughness.metallicFactor:" << v;
 		}
 
 		if (pbr.contains("roughnessFactor"))
 		{
 			float v = static_cast<float>(pbr.value("roughnessFactor").toDouble(0.5));
 			outMaterial.setRoughness(qBound(0.01f, v, 1.0f));
-			qDebug() << "  Loaded pbrMetallicRoughness.roughnessFactor:" << v;
+			//qDebug() << "  Loaded pbrMetallicRoughness.roughnessFactor:" << v;
 		}
 	}
 
@@ -1570,11 +1570,11 @@ std::tuple<int, glm::vec2, glm::vec2, float> MaterialProcessor::extractKHRTextur
 		}
 	}
 
-	qDebug() << "KHR Parse Result:"
+	/*qDebug() << "KHR Parse Result:"
 		<< "texCoord:" << texCoord
 		<< "scale:" << scale.x << scale.y
 		<< "offset:" << offset.x << offset.y
-		<< "rotation:" << rotation;
+		<< "rotation:" << rotation;*/
 
 	return std::make_tuple(texCoord, scale, offset, rotation);
 }
@@ -1745,9 +1745,9 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 	QJsonArray lightsArray = lightsExt.value("lights").toArray();
 	QJsonArray nodesArray = root.value("nodes").toArray();
 
-	qDebug() << "========================================";
-	qDebug() << "parseKHRLightsPunctual: Found" << lightsArray.size() << "lights in glTF";
-	qDebug() << "========================================";
+	//qDebug() << "========================================";
+	//qDebug() << "parseKHRLightsPunctual: Found" << lightsArray.size() << "lights in glTF";
+	//qDebug() << "========================================";
 
 	// Parse each light WITH its node transform
 	for (int lightIdx = 0; lightIdx < lightsArray.size(); ++lightIdx)
@@ -1965,29 +1965,29 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 			lightTypeStr = "Unknown";
 		}
 
-		qDebug() << "";
-		qDebug() << "Light" << lightIdx << ":";
-		qDebug() << "  Type:        " << lightTypeStr;
-		qDebug() << "  Color:       (" << light.color.x << "," << light.color.y << "," << light.color.z << ")";
-		qDebug() << "  Intensity:   " << light.intensity;
-		qDebug() << "  Range:       " << (light.range == 0.0f ? QString("infinite") : QString::number(light.range));
-		qDebug() << "  Position:    (" << light.position.x << "," << light.position.y << "," << light.position.z << ")";
-		qDebug() << "  Direction:   (" << light.direction.x << "," << light.direction.y << "," << light.direction.z << ")";
+		//qDebug() << "";
+		//qDebug() << "Light" << lightIdx << ":";
+		//qDebug() << "  Type:        " << lightTypeStr;
+		//qDebug() << "  Color:       (" << light.color.x << "," << light.color.y << "," << light.color.z << ")";
+		//qDebug() << "  Intensity:   " << light.intensity;
+		//qDebug() << "  Range:       " << (light.range == 0.0f ? QString("infinite") : QString::number(light.range));
+		//qDebug() << "  Position:    (" << light.position.x << "," << light.position.y << "," << light.position.z << ")";
+		//qDebug() << "  Direction:   (" << light.direction.x << "," << light.direction.y << "," << light.direction.z << ")";
 
 		if (light.type == static_cast<int>(LightType::Spot))
 		{
 			float innerAngleDeg = glm::degrees(std::acos(glm::clamp(light.innerConeCos, -1.0f, 1.0f)));
 			float outerAngleDeg = glm::degrees(std::acos(glm::clamp(light.outerConeCos, -1.0f, 1.0f)));
-			qDebug() << "  Inner Cone:  " << innerAngleDeg << "degrees";
-			qDebug() << "  Outer Cone:  " << outerAngleDeg << "degrees";
+			//qDebug() << "  Inner Cone:  " << innerAngleDeg << "degrees";
+			//qDebug() << "  Outer Cone:  " << outerAngleDeg << "degrees";
 		}
 
 		lights.push_back(light);
 	}
 
-	qDebug() << "========================================";
-	qDebug() << "Total lights parsed:" << lights.size();
-	qDebug() << "========================================";
+	//qDebug() << "========================================";
+	//qDebug() << "Total lights parsed:" << lights.size();
+	//qDebug() << "========================================";
 
 	return lights;
 }
