@@ -826,7 +826,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	vec3 diffuse = vec3(0.0);
 	vec3 specular = vec3(0.0);
 	
-	if (useDefaultLights)
+	if (useDefaultLights || floorRendering)
 	{
 		diffuse = source.diffuse * matDiffuse;
 		specular = source.specular * matSpecular;
@@ -835,7 +835,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	vec3 baseNoSpec, specOnly;
 	vec3 sceneColor = matEmissive + ambient;
 
-	if (shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering))
+	if (useDefaultLights && shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering))
 	{
 		float shadowFactor = calculateShadowVariableKernel(
 			fs_in_shadow.FragPosLightSpace,
@@ -1012,7 +1012,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	// Optional shadows affecting direct terms
 	float lightShadowFactor = 0.0;
-	if (shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering))
+	if (useDefaultLights && shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering))
 	{
 		float s = calculateShadowVariableKernel(
 			fs_in_shadow.FragPosLightSpace,
@@ -1485,7 +1485,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			}
 		}
 	}
-	else if(useDefaultLights)
+	else if(useDefaultLights || floorRendering)
 	{
 		// ========================================================================
 		// FALLBACK: Single legacy light - Apply SAME logic as punctual lights

@@ -7013,9 +7013,6 @@ bool GLWidget::isShaded() const
 
 void GLWidget::setDisplayMode(DisplayMode mode)
 {
-	if (_displayMode == mode)
-		return;
-
 	_displayMode = mode;
 
 	if (_viewToolbar)
