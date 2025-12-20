@@ -1123,7 +1123,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		isGLTFMaterial ? 1.0 : pbrLighting.ambientOcclusion);
 	ambientOcclusion = mix(texAO, pbrLighting.ambientOcclusion * texAO, blendFactor);
 	ambientOcclusion = clamp(ambientOcclusion, 0.0001, 1.0); // prevent total blackout
-
+	
 	// Specular (KHR_materials_specular)
 	float texSpecularFactor = hasSpecularFactorMap ? texture(specularFactorMap, getSpecularFactorUV()).a : 1.0;
 	specularFactor = mix(texSpecularFactor, pbrLighting.specularFactor * texSpecularFactor, blendFactor);
@@ -1690,17 +1690,16 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			brdf = max(brdf, vec2(0.0));
 
 			specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
-
-			float diffuseAO = mix(1.0, ambientOcclusion, 0.6);
-			float specularAO = mix(1.0, ambientOcclusion, 0.2);
-			ambient_L = (kDibl * diffuseIBL_L) * diffuseAO + specIBL_L * specularAO;
+			
+			// Multiply ambient occlusion
+			ambient_L = (kDibl * diffuseIBL_L + specIBL_L) * ambientOcclusion;
 		}
 		else
 		{
 			vec3 kS0 = fresnelSchlick(max(dot(N, V_direct), 0.0), F0, vec3(1.0));
-			vec3 kD0 = (vec3(1.0) - kS0) * (1.0 - metallic);
-			float boostedAO = mix(1.0, ambientOcclusion, 0.8);
-			ambient_L = (kD0 * diffuseIBL_L) * boostedAO;
+			vec3 kD0 = (vec3(1.0) - kS0) * (1.0 - metallic);			
+			// Multiply ambient occlusion
+			ambient_L = (kD0 * diffuseIBL_L) * ambientOcclusion;
 		}
 
 		// Apply clearcoat layering to ambient
@@ -1710,7 +1709,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	else
 	{
 		// No IBL - only direct lighting
-		ambient_L = vec3(0.0);
+		ambient_L = vec3(0.0);		
 	}
 
 	// ============================================================================
