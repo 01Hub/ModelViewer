@@ -949,10 +949,10 @@ private:
 	float _transmission;
 
 	// Rendering properties
-	ShadingModel _shadingModel;
-	BlendMode _blendMode;
-	bool _twoSided;
-	bool _wireframe;
+	ShadingModel _shadingModel = ShadingModel::PBR;
+	BlendMode _blendMode = BlendMode::Opaque;
+	bool _twoSided = true;
+	bool _wireframe = false;
 	float _alphaThreshold = 0.5f; // For masked blend mode
 
 	bool _hasTextureAlpha = false; // Whether the albedo texture has an alpha channel

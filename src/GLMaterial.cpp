@@ -2954,7 +2954,7 @@ GLMaterial GLMaterial::DEFAULT_MAT()
 
 	mat.setShadingModel(ShadingModel::PBR);
 	mat.setBlendMode(BlendMode::Opaque);
-	mat.setTwoSided(false);
+	mat.setTwoSided(true);
 
 	mat.updateConsistency();
 	return mat;
