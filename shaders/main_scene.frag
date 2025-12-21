@@ -563,11 +563,8 @@ void main()
 
 	float mixVal; // overlay line
 	if (displayMode == 0 || displayMode == 3) // shaded
-	{
-		if (texEnabled == true)
-			fragColor = v_color * texture2D(texUnit, g_texCoord0);
-		else
-			fragColor = v_color;
+	{	
+		fragColor = v_color;
 	}
 	else if (displayMode == 1) // wireframe
 	{
@@ -620,7 +617,7 @@ void main()
 	float finalAlpha = fragColor.a; // Start with whatever alpha the rendering functions set
 
 	if (!floorRendering)
-	{
+	{		
 		if (blendMode == 0)
 		{
 			// OPAQUE: ignore alpha maps, always fully opaque
@@ -719,6 +716,8 @@ void main()
 
 	if (floorRendering)
 	{
+		if (texEnabled == true)
+			fragColor = v_color * texture2D(texUnit, g_texCoord0);
 		// Compute distance-based blending factor
 		float distance = length(g_position - u_screenCenter);
 
@@ -746,7 +745,7 @@ void main()
 		float bgMix = fadeFactor * angleMod;
 
 		// Get background color
-		vec3 backgroundColor;
+		vec3 backgroundColor = vec3(1.0);
 		if (skyBoxEnabled)
 		{
 			vec3 N = normalize(g_reflectionNormal);
@@ -759,11 +758,10 @@ void main()
 			// Sample environment
 			vec3 backgroundColor = texture(envMap, R).rgb;
 		}
-		else
+		else if (texEnabled == true)
 		{
-			// Interpolate background gradient color
-			//backgroundColor = calculateBackgroundColor();
-			backgroundColor = texture2D(texUnit, g_texCoord0).rgb;
+			// Interpolate background gradient color			
+			backgroundColor = texture2D(texUnit, g_texCoord0).rgb;			
 		}
 
 		// Blend floor color with background gradient
