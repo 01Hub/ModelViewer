@@ -186,6 +186,7 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 
 	shadingCombo = new QComboBox();
 	shadingCombo->addItems({ "Unlit", "Blinn-Phong", "PBR", "Toon" });
+	shadingCombo->setCurrentIndex(2); // Default to PBR
 	formLayout->addRow("Shading Model:", shadingCombo);
 
 	blendCombo = new QComboBox();
@@ -193,6 +194,7 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	formLayout->addRow("Blend Mode:", blendCombo);
 
 	twoSidedCheck = new QCheckBox();
+	twoSidedCheck->setChecked(true);
 	formLayout->addRow("Two-Sided:", twoSidedCheck);
 
 	wireframeCheck = new QCheckBox();
