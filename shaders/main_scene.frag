@@ -593,11 +593,28 @@ void main()
 			mixVal = exp2(-2.0f * (x * x));
 		}
 
-		if (texEnabled == true)
-			v_color *= texture2D(texUnit, g_texCoord0);
+		// Adaptive overlay color based on unlighted base color (works for both ADS and PBR)
+		vec3 baseColor;
+		if (renderingMode == 0)
+		{
+			// ADS mode - sample texture for overlay calculation
+			baseColor = hasDiffuseTexture ? texture(texture_diffuse, getDiffuseTextureUV()).rgb : material.diffuse;
+		}
+		else
+		{
+			// PBR mode - sample texture for overlay calculation
+			baseColor = hasAlbedoMap ? texture(albedoMap, getAlbedoUV()).rgb : pbrLighting.albedo;
+		}
+				
+		// Apply directional lighting to baseColor
+		vec4 shaded;				
+		vec3 normal = normalize(g_normal);
+		vec3 lightDir = normalize(lightSource.position - g_position);
+		float diff = max(dot(normal, lightDir), 0.0);
+		vec3 ambient = lightSource.ambient * baseColor;
+		vec3 diffuse = lightSource.diffuse * baseColor * diff;
+		shaded = vec4(ambient + diffuse, 1.0);
 
-		// Adaptive overlay color based on base diffuse
-		vec3 baseColor = material.diffuse;
 		float brightness = dot(baseColor, vec3(0.2126, 0.7152, 0.0722));
 
 		vec3 overlayColor;
@@ -615,7 +632,7 @@ void main()
 		}
 		overlayColor = clamp(overlayColor, 0.0, 1.0);
 
-		fragColor = mix(v_color, vec4(overlayColor, 1.0), mixVal);
+		fragColor = mix(shaded, vec4(overlayColor, 1.0), mixVal);
 	}
 
 	// UNIFIED BLEND MODE AWARE OPACITY CALCULATION
