@@ -613,8 +613,7 @@ void main()
 		float diff = max(dot(normal, lightDir), 0.0);
 		vec3 ambient = lightSource.ambient * baseColor;
 		vec3 diffuse = lightSource.diffuse * baseColor * diff;
-		shaded = vec4(ambient + diffuse, 1.0);
-
+		shaded = vec4(ambient + diffuse, 1.0);				
 		float brightness = dot(baseColor, vec3(0.2126, 0.7152, 0.0722));
 
 		vec3 overlayColor;
