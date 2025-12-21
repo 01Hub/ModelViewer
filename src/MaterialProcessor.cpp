@@ -1537,12 +1537,14 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 				static_cast<float>(emissive.at(2).toDouble(0.0))
 			);
 			outMaterial.setEmissive(emissiveColor);
+			outMaterial.setEmissiveStrength(1.0f);
 			//qDebug() << "  Loaded emissiveFactor:" << emissiveColor;
 		}
 	}
 	else
 	{
 		outMaterial.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
+		outMaterial.setEmissiveStrength(1.0f);
 	}
 
 	// === 4. Normal Texture Scale ===
@@ -1576,6 +1578,9 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			outMaterial.setOcclusionStrength(1.0f);
 		}
 	}
+
+	// ========== Default IOR ==========
+	outMaterial.setIOR(1.5f); // Default IOR for non-metals in glTF
 
 	// ========== PBR METALLIC ROUGHNESS ==========
 
@@ -1613,6 +1618,10 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			// Default per glTF spec
 			outMaterial.setAlbedoColor(QVector3D(1.0f, 1.0f, 1.0f));
 			outMaterial.setDiffuse(QVector3D(1.0f, 1.0f, 1.0f));
+			outMaterial.setAmbient(QVector3D(0.1f, 0.1f, 0.1f));
+			outMaterial.setSpecular(QVector3D(0.04f, 0.04f, 0.04f));
+			outMaterial.setMetalness(1.0f);
+			outMaterial.setRoughness(1.0f);
 		}
 
 		if (pbr.contains("metallicFactor"))
