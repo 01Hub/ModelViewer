@@ -575,6 +575,7 @@ void main()
 	}
 	else // wireshaded
 	{
+		fragColor = v_color;
 		// Find the smallest distance
 		float d = min(g_edgeDistance.x, g_edgeDistance.y);
 		d = min(d, g_edgeDistance.z);
@@ -592,46 +593,25 @@ void main()
 			float x = d - (Line.Width - 1.0f);
 			mixVal = exp2(-2.0f * (x * x));
 		}
-
-		// Adaptive overlay color based on unlighted base color (works for both ADS and PBR)
-		vec3 baseColor;
-		if (renderingMode == 0)
-		{
-			// ADS mode - sample texture for overlay calculation
-			baseColor = hasDiffuseTexture ? texture(texture_diffuse, getDiffuseTextureUV()).rgb : material.diffuse;
-		}
-		else
-		{
-			// PBR mode - sample texture for overlay calculation
-			baseColor = hasAlbedoMap ? texture(albedoMap, getAlbedoUV()).rgb : pbrLighting.albedo;
-		}
-				
-		// Apply directional lighting to baseColor
-		vec4 shaded;				
-		vec3 normal = normalize(g_normal);
-		vec3 lightDir = normalize(lightSource.position - g_position);
-		float diff = max(dot(normal, lightDir), 0.0);
-		vec3 ambient = lightSource.ambient * baseColor;
-		vec3 diffuse = lightSource.diffuse * baseColor * diff;
-		shaded = vec4(ambient + diffuse, 1.0);				
-		float brightness = dot(baseColor, vec3(0.2126, 0.7152, 0.0722));
+						
+		float brightness = dot(fragColor.rgb, vec3(0.2126, 0.7152, 0.0722));
 
 		vec3 overlayColor;
 		if (brightness < 0.2)
 		{
-			overlayColor = baseColor + vec3(0.6); // brighten dark
+			overlayColor = fragColor.rgb + vec3(0.6); // brighten dark
 		}
 		else if (brightness > 0.8)
 		{
-			overlayColor = baseColor * 0.3; // darken bright
+			overlayColor = fragColor.rgb * 0.3; // darken bright
 		}
 		else
 		{
-			overlayColor = brightness > 0.5 ? baseColor * 0.5 : baseColor + vec3(0.4);
+			overlayColor = brightness > 0.5 ? fragColor.rgb * 0.5 : fragColor.rgb + vec3(0.4);
 		}
 		overlayColor = clamp(overlayColor, 0.0, 1.0);
 
-		fragColor = mix(shaded, vec4(overlayColor, 1.0), mixVal);
+		fragColor = mix(fragColor, vec4(overlayColor, 1.0), mixVal);
 	}
 
 	// UNIFIED BLEND MODE AWARE OPACITY CALCULATION
