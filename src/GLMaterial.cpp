@@ -3751,6 +3751,165 @@ void GLMaterial::setPackingFor(const QString& key, const ChannelPacking& p)
 	// Unknown key: ignore (or assert)
 }
 
+// Material validation
+bool GLMaterial::isValid() const
+{
+	// Check if all material properties are within valid ranges
+
+	// Check color components (should be 0.0 to 1.0)
+	auto isColorValid = [](const QVector3D& color) {
+		return color.x() >= 0.0f && color.x() <= 1.0f &&
+			color.y() >= 0.0f && color.y() <= 1.0f &&
+			color.z() >= 0.0f && color.z() <= 1.0f;
+		};
+
+	// Traditional Phong/Blinn-Phong checks
+	if (!isColorValid(_ambient)) return false;
+	if (!isColorValid(_diffuse)) return false;
+	if (!isColorValid(_specular)) return false;
+	if (!isColorValid(_emissive)) return false;
+
+	// Shininess should be positive
+	if (_shininess < 0.0f || _shininess > 128.0f) return false;
+
+	// PBR material checks
+	if (!isColorValid(_albedoColor)) return false;
+	if (!isColorValid(_emissive)) return false;
+
+	// PBR parameters should be in valid ranges
+	if (_metalness < 0.0f || _metalness > 1.0f) return false;
+	if (_roughness < 0.0f || _roughness > 1.0f) return false;
+	if (_opacity < 0.0f || _opacity > 1.0f) return false;
+	if (_transmission < 0.0f || _transmission > 1.0f) return false;
+	if (_ior < 1.0f || _ior > 3.0f) return false; // Reasonable IOR range
+
+	return true;
+}
+void GLMaterial::validateAndFix()
+{
+	// Clamp color components to valid range [0.0, 1.0]
+	auto clampColor = [](float& component) {
+		component = qBound(0.0f, component, 1.0f);
+		};
+
+	// Fix traditional material properties (assuming they are QVector3D members)
+	_ambient.setX(qBound(0.0f, _ambient.x(), 1.0f));
+	_ambient.setY(qBound(0.0f, _ambient.y(), 1.0f));
+	_ambient.setZ(qBound(0.0f, _ambient.z(), 1.0f));
+
+	_diffuse.setX(qBound(0.0f, _diffuse.x(), 1.0f));
+	_diffuse.setY(qBound(0.0f, _diffuse.y(), 1.0f));
+	_diffuse.setZ(qBound(0.0f, _diffuse.z(), 1.0f));
+
+	_specular.setX(qBound(0.0f, _specular.x(), 1.0f));
+	_specular.setY(qBound(0.0f, _specular.y(), 1.0f));
+	_specular.setZ(qBound(0.0f, _specular.z(), 1.0f));
+
+	_emissive.setX(qBound(0.0f, _emissive.x(), 1.0f));
+	_emissive.setY(qBound(0.0f, _emissive.y(), 1.0f));
+	_emissive.setZ(qBound(0.0f, _emissive.z(), 1.0f));
+
+	// Fix shininess (0 to 128 for OpenGL)
+	_shininess = qBound(0.0f, _shininess, 128.0f);
+
+	// Fix PBR properties
+	_albedoColor.setZ(qBound(0.0f, _albedoColor.z(), 1.0f));
+	_albedoColor.setX(qBound(0.0f, _albedoColor.x(), 1.0f));
+	_albedoColor.setY(qBound(0.0f, _albedoColor.y(), 1.0f));
+
+	_emissive.setX(qBound(0.0f, _emissive.x(), 1.0f));
+	_emissive.setY(qBound(0.0f, _emissive.y(), 1.0f));
+	_emissive.setZ(qBound(0.0f, _emissive.z(), 1.0f));
+
+	// Clamp PBR parameters
+	_metalness = qBound(0.0f, _metalness, 1.0f);
+	_roughness = qBound(0.04f, _roughness, 1.0f); // Minimum 0.04 to prevent artifacts
+	_opacity = qBound(0.0f, _opacity, 1.0f);
+	_transmission = qBound(0.0f, _transmission, 1.0f);
+	_ior = qBound(1.0f, _ior, 3.0f);
+}
+
+// Conversion utilities
+void GLMaterial::convertToBlinnPhong()
+{
+	// Convert PBR material to Blinn-Phong approximation
+
+	// Use albedo as diffuse color
+	_diffuse = _albedoColor;
+
+	// Set ambient to a fraction of diffuse (typically 0.1-0.3)
+	float ambientFactor = 0.2f;
+	_ambient = _diffuse * ambientFactor;
+
+	// Convert metalness and roughness to specular properties
+	if (_metalness > 0.5f)
+	{
+		// Metallic: use albedo as specular color, reduce diffuse
+		_specular = _albedoColor * 0.9f;
+
+		// Metals have very little diffuse reflection
+		_diffuse *= (1.0f - _metalness) * 0.1f;
+	}
+	else
+	{
+		// Dielectric: white/gray specular, keep diffuse
+		float specularIntensity = 0.04f + (1.0f - _roughness) * 0.96f;
+		_specular = QVector3D(specularIntensity, specularIntensity, specularIntensity);
+	}
+
+	// Convert roughness to shininess (inverse relationship)
+	// Roughness 0.0 = shininess 128, roughness 1.0 = shininess 1
+	_shininess = (1.0f - _roughness) * 127.0f + 1.0f;
+
+	// Set shading model to traditional
+	_shadingModel = ShadingModel::BlinnPhong;
+}
+
+void GLMaterial::convertToPBR()
+{
+	// Convert Blinn-Phong material to PBR approximation
+
+	// Use diffuse as base albedo
+	_albedoColor = _diffuse;
+
+	// Determine if material is metallic based on specular color
+	float specularLuminance = 0.299f * _specular.x() + 0.587f * _specular.y() + 0.114f * _specular.z();
+	float diffuseLuminance = 0.299f * _diffuse.x() + 0.587f * _diffuse.y() + 0.114f * _diffuse.z();
+
+	if (specularLuminance > 0.9f && diffuseLuminance < 0.1f)
+	{
+		// Likely metallic - high specular, low diffuse
+		_metalness = 1.0f;
+		_albedoColor = _specular;
+	}
+	else if (specularLuminance > 0.5f)
+	{
+		// Partially metallic
+		_metalness = qBound(0.0f, (specularLuminance - 0.04f) / 0.96f, 1.0f);
+		// Blend between diffuse and specular for albedo
+		_albedoColor = _diffuse * (1.0f - _metalness) + _specular * _metalness;
+	}
+	else
+	{
+		// Dielectric material
+		_metalness = 0.0f;
+		_albedoColor = _diffuse;
+	}
+
+	// Convert shininess to roughness (inverse relationship)
+	// Shininess 128 = roughness 0.04, shininess 1 = roughness 1.0
+	_roughness = 1.0f - ((_shininess - 1.0f) / 127.0f);
+	_roughness = qBound(0.04f, _roughness, 1.0f);
+
+
+	// Set reasonable defaults for other PBR properties
+	_transmission = 0.0f;
+	_ior = 1.5f; // Common default IOR
+
+	// Set shading model to PBR
+	_shadingModel = ShadingModel::PBR;
+}
+
 // GLMaterial.cpp
 #include <QDataStream>
 #include <QDebug>
