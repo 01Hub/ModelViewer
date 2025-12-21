@@ -1354,6 +1354,11 @@ void TriangleMesh::setScaling(const QVector3D& scale)
 	_scaleX = scale.x();
 	_scaleY = scale.y();
 	_scaleZ = scale.z();
+	
+	// Apply scale to material properties that depend on scale
+	float appliedScale = (_scaleX + _scaleY + _scaleZ) / 3.0f;	
+	_material.setThicknessFactor(_material.thicknessFactor() * appliedScale);
+	_material.setAttenuationDistance(_material.attenuationDistance() * appliedScale);
 }
 
 QMatrix4x4 TriangleMesh::getTransformation() const
