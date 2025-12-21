@@ -1477,23 +1477,164 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 
 	QJsonObject matObj = jsonMaterials.at(gltfMaterialIndex).toObject();
 
+	// ========== CORE GLTF 2.0 MATERIAL PROPERTIES ==========
+
+	// === 1. Double-Sided (defaults to false per glTF spec) ===
+	if (matObj.contains("doubleSided"))
+	{
+		bool doubleSided = matObj.value("doubleSided").toBool(false);
+		outMaterial.setTwoSided(doubleSided);
+		//qDebug() << "  Loaded doubleSided:" << doubleSided;
+	}
+	else
+	{
+		outMaterial.setTwoSided(false);
+	}
+
+	// === 2. Alpha Mode and Alpha Cutoff ===
+	if (matObj.contains("alphaMode"))
+	{
+		QString alphaMode = matObj.value("alphaMode").toString("OPAQUE");
+		if (alphaMode == "OPAQUE")
+		{
+			outMaterial.setBlendMode(GLMaterial::BlendMode::Opaque);
+			outMaterial.setOpacity(1.0f);
+		}
+		else if (alphaMode == "MASK")
+		{
+			outMaterial.setBlendMode(GLMaterial::BlendMode::Masked);
+			if (matObj.contains("alphaCutoff"))
+			{
+				float cutoff = static_cast<float>(matObj.value("alphaCutoff").toDouble(0.5));
+				outMaterial.setAlphaThreshold(qBound(0.0f, cutoff, 1.0f));
+			}
+			else
+			{
+				outMaterial.setAlphaThreshold(0.5f);
+			}
+		}
+		else if (alphaMode == "BLEND")
+		{
+			outMaterial.setBlendMode(GLMaterial::BlendMode::Alpha);
+		}
+	}
+	else
+	{
+		// Default to OPAQUE per glTF spec
+		outMaterial.setBlendMode(GLMaterial::BlendMode::Opaque);
+		outMaterial.setOpacity(1.0f);
+	}
+
+	// === 3. Emissive Factor (RGB array, defaults to [0, 0, 0]) ===
+	if (matObj.contains("emissiveFactor") && matObj.value("emissiveFactor").isArray())
+	{
+		QJsonArray emissive = matObj.value("emissiveFactor").toArray();
+		if (emissive.size() >= 3)
+		{
+			QVector3D emissiveColor(
+				static_cast<float>(emissive.at(0).toDouble(0.0)),
+				static_cast<float>(emissive.at(1).toDouble(0.0)),
+				static_cast<float>(emissive.at(2).toDouble(0.0))
+			);
+			outMaterial.setEmissive(emissiveColor);
+			//qDebug() << "  Loaded emissiveFactor:" << emissiveColor;
+		}
+	}
+	else
+	{
+		outMaterial.setEmissive(QVector3D(0.0f, 0.0f, 0.0f));
+	}
+
+	// === 4. Normal Texture Scale ===
+	if (matObj.contains("normalTexture") && matObj.value("normalTexture").isObject())
+	{
+		QJsonObject normalTex = matObj.value("normalTexture").toObject();
+		if (normalTex.contains("scale"))
+		{
+			float scale = static_cast<float>(normalTex.value("scale").toDouble(1.0));
+			outMaterial.setNormalScale(scale);
+			//qDebug() << "  Loaded normalTexture.scale:" << scale;
+		}
+		else
+		{
+			outMaterial.setNormalScale(1.0f);
+		}
+	}
+
+	// === 5. Occlusion Texture Strength ===
+	if (matObj.contains("occlusionTexture") && matObj.value("occlusionTexture").isObject())
+	{
+		QJsonObject occlusionTex = matObj.value("occlusionTexture").toObject();
+		if (occlusionTex.contains("strength"))
+		{
+			float strength = static_cast<float>(occlusionTex.value("strength").toDouble(1.0));
+			outMaterial.setOcclusionStrength(qBound(0.0f, strength, 1.0f));
+			//qDebug() << "  Loaded occlusionTexture.strength:" << strength;
+		}
+		else
+		{
+			outMaterial.setOcclusionStrength(1.0f);
+		}
+	}
+
+	// ========== PBR METALLIC ROUGHNESS ==========
+
 	// Extract base PBR scalar factors from pbrMetallicRoughness
 	if (matObj.contains("pbrMetallicRoughness") && matObj.value("pbrMetallicRoughness").isObject())
 	{
 		QJsonObject pbr = matObj.value("pbrMetallicRoughness").toObject();
 
+		// === 6. Base Color Factor (RGBA array, defaults to [1, 1, 1, 1]) ===
+		if (pbr.contains("baseColorFactor") && pbr.value("baseColorFactor").isArray())
+		{
+			QJsonArray baseColor = pbr.value("baseColorFactor").toArray();
+			if (baseColor.size() >= 3)
+			{
+				QVector3D albedo(
+					static_cast<float>(baseColor.at(0).toDouble(1.0)),
+					static_cast<float>(baseColor.at(1).toDouble(1.0)),
+					static_cast<float>(baseColor.at(2).toDouble(1.0))
+				);
+				outMaterial.setAlbedoColor(albedo);
+				outMaterial.setDiffuse(albedo); // Legacy compatibility
+
+				// Extract alpha component (4th element)
+				if (baseColor.size() >= 4)
+				{
+					float alpha = static_cast<float>(baseColor.at(3).toDouble(1.0));
+					outMaterial.setOpacity(qBound(0.0f, alpha, 1.0f));
+				}
+
+				//qDebug() << "  Loaded baseColorFactor:" << albedo;
+			}
+		}
+		else
+		{
+			// Default per glTF spec
+			outMaterial.setAlbedoColor(QVector3D(1.0f, 1.0f, 1.0f));
+			outMaterial.setDiffuse(QVector3D(1.0f, 1.0f, 1.0f));
+		}
+
 		if (pbr.contains("metallicFactor"))
 		{
-			float v = static_cast<float>(pbr.value("metallicFactor").toDouble(0.0));
+			float v = static_cast<float>(pbr.value("metallicFactor").toDouble(1.0));
 			outMaterial.setMetalness(qBound(0.0f, v, 1.0f));
 			//qDebug() << "  Loaded pbrMetallicRoughness.metallicFactor:" << v;
+		}
+		else
+		{
+			outMaterial.setMetalness(1.0f); // Default per glTF spec
 		}
 
 		if (pbr.contains("roughnessFactor"))
 		{
-			float v = static_cast<float>(pbr.value("roughnessFactor").toDouble(0.5));
+			float v = static_cast<float>(pbr.value("roughnessFactor").toDouble(1.0));
 			outMaterial.setRoughness(qBound(0.01f, v, 1.0f));
 			//qDebug() << "  Loaded pbrMetallicRoughness.roughnessFactor:" << v;
+		}
+		else
+		{
+			outMaterial.setRoughness(1.0f); // Default per glTF spec
 		}
 	}
 
