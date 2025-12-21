@@ -317,7 +317,9 @@ struct PBRLighting
 	vec3 albedo;
 	float metallic;
 	float roughness;
+	float normalScale;
 	float ambientOcclusion;
+	float occlusionStrength;
 	// Advanced PBR Properties
 	float transmission;
 	float ior;
@@ -972,7 +974,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3	albedo;
 	float	metallic;
 	float	roughness;
+	float	normalScale;
 	float	ambientOcclusion;
+	float	occlusionStrength;
 	float	transmission;
 	float	ior;
 	vec3	sheenColor;
@@ -1033,7 +1037,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	albedo = pbrLighting.albedo;
 	metallic = pbrLighting.metallic;
 	roughness = clamp(pbrLighting.roughness, 0.001, 1.0);
+	normalScale = pbrLighting.normalScale;
 	ambientOcclusion = pbrLighting.ambientOcclusion;
+	occlusionStrength = pbrLighting.occlusionStrength;
 	transmission = pbrLighting.transmission;
 	ior = pbrLighting.ior;
 	sheenColor = pbrLighting.sheenColor;
@@ -1061,6 +1067,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// Normal map / Parallax
 	if (hasNormalMap)  N = calcBumpedNormal(normalMap, getNormalUV()) * side;
 	else               N = normalize(normal);
+
+	 // Apply scale to XY only
+     N.xy *= normalScale;
+     N = normalize(N);
 
 	if (hasHeightMap)
 	{
@@ -1123,6 +1133,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		isGLTFMaterial ? 1.0 : pbrLighting.ambientOcclusion);
 	ambientOcclusion = mix(texAO, pbrLighting.ambientOcclusion * texAO, blendFactor);
 	ambientOcclusion = clamp(ambientOcclusion, 0.0001, 1.0); // prevent total blackout
+	ambientOcclusion = mix(1.0, ambientOcclusion, occlusionStrength);
 	
 	// Specular (KHR_materials_specular)
 	float texSpecularFactor = hasSpecularFactorMap ? texture(specularFactorMap, getSpecularFactorUV()).a : 1.0;

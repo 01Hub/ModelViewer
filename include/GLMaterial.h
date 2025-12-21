@@ -177,6 +177,12 @@ public:
 	float alphaThreshold() const { return _alphaThreshold; }
 	void setAlphaThreshold(float threshold) { _alphaThreshold = threshold; }
 
+	float normalScale() const { return _normalScale; }
+	void setNormalScale(float scale) { _normalScale = scale; }
+
+	float occlusionStrength() const { return _occlusionStrength; }
+	void setOcclusionStrength(float strength) { _occlusionStrength = strength; }
+
 	// Texture slot identifiers (for use with texture manager)
 	int albedoTextureId() const { return _albedoTextureId; }
 	void setAlbedoTextureId(int id) { _albedoTextureId = id; }
@@ -1022,6 +1028,9 @@ private:
 	float _alphaThreshold = 0.5f; // For masked blend mode
 
 	bool _hasTextureAlpha = false; // Whether the albedo texture has an alpha channel
+
+	float _normalScale = 1.0f;
+	float _occlusionStrength = 1.0f;
 
 	// Texture IDs (managed externally)
 	int _albedoTextureId = 0;

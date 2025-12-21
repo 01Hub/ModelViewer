@@ -509,7 +509,9 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("pbrLighting.albedo", _material.albedoColor());
 	_prog->setUniformValue("pbrLighting.metallic", _material.metalness());
 	_prog->setUniformValue("pbrLighting.roughness", _material.roughness());
+	_prog->setUniformValue("pbrLighting.normalScale", _material.normalScale());
 	_prog->setUniformValue("pbrLighting.ambientOcclusion", 1.0f);
+	_prog->setUniformValue("pbrLighting.occlusionStrength", _material.occlusionStrength());
 	_prog->setUniformValue("pbrLighting.transmission", _material.transmission());
 	_prog->setUniformValue("pbrLighting.ior", _material.ior());
 	_prog->setUniformValue("pbrLighting.sheenColor", _material.sheenColor());
