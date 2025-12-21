@@ -1536,6 +1536,27 @@ std::tuple<int, glm::vec2, glm::vec2, float> MaterialProcessor::extractKHRTextur
 		if (ext.contains("KHR_texture_transform"))
 		{
 			QJsonObject transform = ext.value("KHR_texture_transform").toObject();
+			// glTF 2.0 spec: UV coordinates originate at upper-left (image-space).
+			// Non-traditional approach: No image Y-flip at load (per KHR Sample Viewer).
+			// Transform values read as-is from glTF; coordinate compensation applied in shader.
+			// Shader applies: UV.y flip and rotation negation to convert from glTF image-space
+			// to OpenGL space. This is documented in Assimp's implementation:
+			// "transform.mRotation = -prop.TextureTransformExt_t.rotation; // must be negated"
+			// Reference: assimp/code/AssetLib/glTF2/glTF2Importer.cpp
+			if (transform.contains("rotation"))
+			{
+				rotation = static_cast<float>(transform.value("rotation").toDouble(0.0));
+			}
+
+			if (transform.contains("offset") && transform.value("offset").isArray())
+			{
+				QJsonArray o = transform.value("offset").toArray();
+				if (o.size() >= 2)
+				{
+					offset.x = static_cast<float>(o.at(0).toDouble(0.0));
+					offset.y = static_cast<float>(o.at(1).toDouble(0.0));
+				}
+			}
 
 			// Check if texCoord is specified INSIDE the extension (overrides texture level)
 			if (transform.contains("texCoord"))

@@ -1895,14 +1895,27 @@ vec2 getTransformedUV(int texCoordIndex, TextureTransform transform)
 	default: uv = g_texCoord0; break; // case 0 and fallback
 	}
 
+	// glTF 2.0 spec defines UV coordinates with origin at upper-left corner (0,0).
+	// KHR_texture_transform operates in this image-space coordinate system.
+	// Since images are not Y-flipped during load (matching KHR Sample Viewer),
+	// we flip UV.y here and negate rotation to maintain spec compliance.	
+	// Non-traditional approach: No image Y-flip at load (per KHR Sample Viewer).
+	// Coordinate system compensation applied in shader:
+	//   - UV.y flip: glTF operates in image-space (top-left origin)
+	//   - Rotation negation: glTF rotates around origin (0,0), not image center
+	// This matches Assimp's documented KHR_texture_transform coordinate conversion.
+	// Reference: assimp/code/AssetLib/glTF2/glTF2Importer.cpp
+	//   "transform.mRotation = -prop.TextureTransformExt_t.rotation; // must be negated"
+	uv = vec2(uv.x, 1.0 - uv.y); 
+	float angle = -transform.rotation;
+
 	// Step 2: Apply KHR_texture_transform
 	// Order: scale -> rotation -> offset
 	
 	//Scale
 	uv = uv * transform.scale;
 
-	// Apply rotation matrix
-	float angle = transform.rotation;
+	// Apply rotation matrix	
 	float cosR = cos(angle);
 	float sinR = sin(angle);
 	mat2 rotMat = mat2(cosR, sinR, -sinR, cosR);
