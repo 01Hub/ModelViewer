@@ -433,10 +433,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		// Normal: texture_normalN
 
 		_materialProcessor.setFolderPath(this->_texturePath);
-		
-		//Set color and material
-		_materialProcessor.processAssimpColorAndMaterial(material, mat);
-
+				
 		bool isGltf = (_path.find(".gltf") != std::string::npos || _path.find(".glb") != std::string::npos);
 		// GLTF Core and Extensions
 		if (isGltf)
@@ -457,6 +454,8 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		}
 		else
 		{
+			//Set color and material
+			_materialProcessor.processAssimpColorAndMaterial(material, mat);
 			// ADS and PBR Maps from Assimp
 			_materialProcessor.processAssimpTextureMaps(material, textures, mat);
 		}
