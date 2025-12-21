@@ -596,8 +596,18 @@ void main()
 		if (texEnabled == true)
 			v_color *= texture2D(texUnit, g_texCoord0);
 
-		// Adaptive overlay color based on base diffuse
-		vec3 baseColor = material.diffuse;
+		// Adaptive overlay color based on unlighted base color (works for both ADS and PBR)
+		vec3 baseColor;
+		if (renderingMode == 0)
+		{
+			// ADS mode - sample texture for overlay calculation
+			baseColor = hasDiffuseTexture ? texture(texture_diffuse, getDiffuseTextureUV()).rgb : material.diffuse;
+		}
+		else
+		{
+			// PBR mode - sample texture for overlay calculation
+			baseColor = hasAlbedoMap ? texture(albedoMap, getAlbedoUV()).rgb : pbrLighting.albedo;
+		}
 		float brightness = dot(baseColor, vec3(0.2126, 0.7152, 0.0722));
 
 		vec3 overlayColor;
