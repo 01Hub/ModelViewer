@@ -526,11 +526,13 @@ void main()
 	vec4 v_color_back;
 	vec4 v_color;
 
+	// Discard backfaces if not twoSided and not floor
 	if (!twoSided && !gl_FrontFacing && !floorRendering)
 	{
 		discard;
 	}
 
+	// Early discard for reflected pass beyond fade start
 	if (isReflectedPass)
 	{
 		float distance = length(g_position - u_screenCenter);
@@ -538,6 +540,7 @@ void main()
 			discard;
 	}
 
+	// Choose rendering path - ADS vs PBR
 	if (renderingMode == 0)
 	{
 		v_color_front = shadeBlinnPhong(lightSource, lightModel, material, g_position, g_normal);
@@ -549,26 +552,28 @@ void main()
 		v_color_back = calculatePBRLighting(renderingMode, -1.0f);
 	}
 
+	// Two-sided coloring
 	if (gl_FrontFacing)
 	{
 		v_color = v_color_front;
 	}
 	else
 	{
-		if (sectionActive)
+		if (sectionActive) // lighten backfaces in section mode
 			v_color = v_color_back + 0.15f;
 		else
 			v_color = v_color_back;
 	}
 
+	// Display modes - this needs to be computed before the alpha
 	float mixVal; // overlay line
 	if (displayMode == 0 || displayMode == 3) // shaded
 	{	
-		fragColor = v_color;
+		fragColor = v_color; // fully shaded
 	}
 	else if (displayMode == 1) // wireframe
 	{
-		fragColor = vec4(v_color.rgb, 0.75f);
+		fragColor = vec4(v_color.rgb, 0.75f); // semi-transparent shaded
 	}
 	else // wireshaded
 	{
@@ -608,7 +613,7 @@ void main()
 		}
 		overlayColor = clamp(overlayColor, 0.0, 1.0);
 
-		fragColor = mix(fragColor, vec4(overlayColor, 1.0), mixVal);
+		fragColor = mix(fragColor, vec4(overlayColor, 1.0), mixVal); // overlay line
 	}
 
 	// UNIFIED BLEND MODE AWARE OPACITY CALCULATION
@@ -616,7 +621,7 @@ void main()
 	// Skip for floor rendering - it handles its own alpha
 	float finalAlpha = fragColor.a; // Start with whatever alpha the rendering functions set
 
-	if (!floorRendering)
+	if (!floorRendering) // Bypass alpha for floor
 	{		
 		if (blendMode == 0)
 		{
@@ -680,6 +685,7 @@ void main()
 		fragColor.rgb *= finalAlpha;
 	}
 
+	// Selection highlighting
 	if (selected && selectionHighlighting) // with glow
 	{
 		// Compute lighting
@@ -711,9 +717,10 @@ void main()
 		fragColor = vec4(finalColor, alpha);
 
 		if (displayMode == 2)
-			fragColor = mix(fragColor, Line.Color, mixVal);
+			fragColor = mix(fragColor, Line.Color, mixVal); // overlay line for wire-shaded mode
 	}
 
+	// Finally, handle floor rendering fade-out and background blending
 	if (floorRendering)
 	{
 		if (texEnabled == true)
