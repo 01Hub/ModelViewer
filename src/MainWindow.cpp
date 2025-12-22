@@ -4,6 +4,7 @@
 
 #include "ModelViewerApplication.h"
 #include "MainWindow.h"
+#include "QuickHelpDialog.h"
 #include "ui_MainWindow.h"
 #include "ModelViewer.h"
 #include "ThemeManager.h"
@@ -289,6 +290,24 @@ void MainWindow::on_actionExit_triggered(bool /*checked*/)
 	qApp->exit();
 }
 
+void MainWindow::on_actionQuick_Help_triggered()
+{
+	// Create as a member variable or use static to keep one instance
+	static QuickHelpDialog* helpDialog = nullptr;
+
+	if (!helpDialog)
+	{
+		helpDialog = new QuickHelpDialog(this);
+		helpDialog->setAttribute(Qt::WA_DeleteOnClose);
+		connect(helpDialog, &QObject::destroyed, []() {
+			helpDialog = nullptr; // Reset pointer when dialog is closed
+			});
+	}
+
+	helpDialog->show();
+	helpDialog->raise();
+	helpDialog->activateWindow();
+}
 void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 {
 	unsigned int assimpMajor = aiGetVersionMajor();

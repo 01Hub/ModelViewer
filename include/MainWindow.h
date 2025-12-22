@@ -61,6 +61,7 @@ protected:
 
 protected slots:
 	void on_actionExit_triggered(bool checked = false);
+	void on_actionQuick_Help_triggered();
 	void on_actionAbout_triggered(bool checked = false);
 	void on_actionAbout_Qt_triggered(bool checked = false);
 

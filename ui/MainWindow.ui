@@ -93,6 +93,8 @@
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionQuick_Help"/>
+    <addaction name="separator"/>
     <addaction name="actionAbout"/>
     <addaction name="actionAbout_Qt"/>
    </widget>
@@ -337,6 +339,14 @@
   <action name="actionSettings">
    <property name="text">
     <string>Settings</string>
+   </property>
+  </action>
+  <action name="actionQuick_Help">
+   <property name="text">
+    <string>Quick Help</string>
+   </property>
+   <property name="shortcut">
+    <string>F1</string>
    </property>
   </action>
  </widget>
