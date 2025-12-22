@@ -124,6 +124,20 @@ void main()
         g_clipDistZ = v_clipDistZ[0];
         g_clipDist =  v_clipDist[0];
 
+        g_tangent = v_tangent[0];
+        g_bitangent = v_bitangent[0];
+        g_reflectionPosition = v_reflectionPosition[0];
+        g_reflectionNormal = v_reflectionNormal[0];
+        g_tangentLightPos = v_tangentLightPos[0];
+        g_tangentViewPos = v_tangentViewPos[0];
+        g_tangentFragPos = v_tangentFragPos[0];
+        gs_out_shadow.FragPos = gs_in_shadow[0].FragPos;
+        gs_out_shadow.Normal = gs_in_shadow[0].Normal;
+        gs_out_shadow.TexCoords = gs_in_shadow[0].TexCoords;
+        gs_out_shadow.FragPosLightSpace = gs_in_shadow[0].FragPosLightSpace;
+        gs_out_shadow.cameraPos = gs_in_shadow[0].cameraPos;
+        gs_out_shadow.lightPos = gs_in_shadow[0].lightPos;
+
         gl_ClipDistance[0] = g_clipDistX;
         gl_ClipDistance[1] = g_clipDistY;
         gl_ClipDistance[2] = g_clipDistZ;
@@ -144,6 +158,20 @@ void main()
         g_clipDistZ = v_clipDistZ[1];
         g_clipDist =  v_clipDist[1];
 
+        g_tangent = v_tangent[1];
+        g_bitangent = v_bitangent[1];
+        g_reflectionPosition = v_reflectionPosition[1];
+        g_reflectionNormal = v_reflectionNormal[1];
+        g_tangentLightPos = v_tangentLightPos[1];
+        g_tangentViewPos = v_tangentViewPos[1];
+        g_tangentFragPos = v_tangentFragPos[1];
+        gs_out_shadow.FragPos = gs_in_shadow[1].FragPos;
+        gs_out_shadow.Normal = gs_in_shadow[1].Normal;
+        gs_out_shadow.TexCoords = gs_in_shadow[1].TexCoords;
+        gs_out_shadow.FragPosLightSpace = gs_in_shadow[1].FragPosLightSpace;
+        gs_out_shadow.cameraPos = gs_in_shadow[1].cameraPos;
+        gs_out_shadow.lightPos = gs_in_shadow[1].lightPos;
+
         gl_ClipDistance[0] = g_clipDistX;
         gl_ClipDistance[1] = g_clipDistY;
         gl_ClipDistance[2] = g_clipDistZ;
@@ -163,6 +191,20 @@ void main()
         g_clipDistY = v_clipDistY[2];
         g_clipDistZ = v_clipDistZ[2];
         g_clipDist =  v_clipDist[2];
+
+        g_tangent = v_tangent[2];
+        g_bitangent = v_bitangent[2];
+        g_reflectionPosition = v_reflectionPosition[2];
+        g_reflectionNormal = v_reflectionNormal[2];
+        g_tangentLightPos = v_tangentLightPos[2];
+        g_tangentViewPos = v_tangentViewPos[2];
+        g_tangentFragPos = v_tangentFragPos[2];
+        gs_out_shadow.FragPos = gs_in_shadow[2].FragPos;
+        gs_out_shadow.Normal = gs_in_shadow[2].Normal;
+        gs_out_shadow.TexCoords = gs_in_shadow[2].TexCoords;
+        gs_out_shadow.FragPosLightSpace = gs_in_shadow[2].FragPosLightSpace;
+        gs_out_shadow.cameraPos = gs_in_shadow[2].cameraPos;
+        gs_out_shadow.lightPos = gs_in_shadow[2].lightPos;
 
         gl_ClipDistance[0] = g_clipDistX;
         gl_ClipDistance[1] = g_clipDistY;
