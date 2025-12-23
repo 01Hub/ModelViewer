@@ -5,6 +5,7 @@
 #include "ModelViewerApplication.h"
 #include "MainWindow.h"
 #include "QuickHelpDialog.h"
+#include "TutorialDialog.h"
 #include "ui_MainWindow.h"
 #include "ModelViewer.h"
 #include "ThemeManager.h"
@@ -308,6 +309,14 @@ void MainWindow::on_actionQuick_Help_triggered()
 	helpDialog->raise();
 	helpDialog->activateWindow();
 }
+
+void MainWindow::on_actionTutorial_triggered()
+{
+	TutorialDialog* tutorial = new TutorialDialog(this);
+	tutorial->setAttribute(Qt::WA_DeleteOnClose);
+	tutorial->show(); // Non-modal so users can follow along
+}
+
 void MainWindow::on_actionAbout_triggered(bool /*checked*/)
 {
 	unsigned int assimpMajor = aiGetVersionMajor();
