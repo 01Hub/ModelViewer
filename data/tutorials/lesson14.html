@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 14: Tips & Workflows - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html" class='active'>14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 14 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 100%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 14: Tips & Workflows</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>This final lesson covers useful tips, shortcuts, and professional workflows that will make you more productive in ModelViewer.</p>
+
+        <h2>Navigation Tips</h2>
+        <ul>
+            <li><b>Lost in Space?</b> Press <kbd>F</kbd> to fit all objects in view instantly.</li>
+            <li><b>Quick Pan to Point:</b> Middle-click (don't drag) to recenter view on a specific point.</li>
+            <li><b>Zoom to Mouse:</b> The mouse wheel zoom focuses on your current cursor position.</li>
+            <li><b>Smooth Inertia:</b> Quick mouse gestures create smooth inertial motion for fluid viewing.</li>
+            <li><b>Stop Movement:</b> Click any mouse button to instantly stop inertial motion.</li>
+        </ul>
+
+        <h2>Selection Tricks</h2>
+        <ul>
+            <li><b>Deselect Fast:</b> Press <kbd>Esc</kbd> to clear all current selections.</li>
+            <li><b>Search Objects:</b> Use the search box above the Object List to filter items by name.</li>
+            <li><b>Center on Selection:</b> Right-click → 'Center Screen' to frame only the selected objects.</li>
+            <li><b>Scroll to Selection:</b> Right-click → 'Center Object List' to automatically scroll the list to your selected item.</li>
+        </ul>
+
+        <h2>Visibility Workflows</h2>
+        <ul>
+            <li><b>Quick Focus:</b> Select parts and press <kbd>Shift+Space</kbd> to isolate them immediately.</li>
+            <li><b>Compare Alternates:</b> Hide one design, work on another, then use <kbd>Alt+S</kbd> to swap visibility and compare the two.</li>
+            <li><b>Progressive Reveal:</b> Hide all objects, then show groups one by one to build up an understanding of complex assemblies.</li>
+        </ul>
+
+        <h2>Camera and View Tips</h2>
+        <ul>
+            <li><b>Quick Camera Switch:</b> Press <kbd>1</kbd>, <kbd>2</kbd>, or <kbd>3</kbd> to switch camera modes instantly.</li>
+            <li><b>Standard Views:</b> Use toolbar buttons for instant Top, Front, or Left views.</li>
+            <li><b>Presentation View:</b> Combine Isometric view, Perspective projection, and Realistic mode.</li>
+            <li><b>Technical View:</b> Use Front view, Orthographic projection, and Shaded mode.</li>
+            <li><b>Analysis View:</b> Use Wireframe or WireShaded mode to inspect mesh topology.</li>
+        </ul>
+
+        <h2>Material Workflow</h2>
+        <ol>
+            <li>Start with basic colors in <b>Shaded mode</b>.</li>
+            <li>Switch to <b>Realistic mode</b> to see PBR rendering.</li>
+            <li>Adjust <b>metallic and roughness</b> values to define surface types.</li>
+            <li>Add <b>textures</b> (albedo, normal, roughness) for detail.</li>
+            <li>Enable <b>IBL</b> (Image-Based Lighting) for final environmental lighting.</li>
+            <li>Fine-tune <b>exposure and tone mapping</b> for the final look.</li>
+        </ol>
+
+        <h2>Keyboard Efficiency</h2>
+        <p>Master these shortcuts for maximum speed:</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Task</th>
+                    <th>Shortcut</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Fit all</td><td><kbd>F</kbd></td></tr>
+                <tr><td>Hide selected</td><td><kbd>Space</kbd></td></tr>
+                <tr><td>Show only</td><td><kbd>Shift+Space</kbd></td></tr>
+                <tr><td>Swap visible</td><td><kbd>Alt+S</kbd></td></tr>
+                <tr><td>Delete</td><td><kbd>Delete</kbd></td></tr>
+                <tr><td>Deselect all</td><td><kbd>Esc</kbd></td></tr>
+                <tr><td>Import</td><td><kbd>Ctrl+Shift+I</kbd></td></tr>
+                <tr><td>Export</td><td><kbd>Ctrl+Shift+E</kbd></td></tr>
+                <tr><td>Camera modes</td><td><kbd>1</kbd> / <kbd>2</kbd> / <kbd>3</kbd></td></tr>
+            </tbody>
+        </table>
+
+        <h2>Pro Workflows</h2>
+        <h3>Mechanical Assembly Inspection</h3>
+        <ol>
+            <li>Open the assembly in <b>Multi-View mode</b>.</li>
+            <li>Use <b>clipping planes</b> to see internal components.</li>
+            <li>Enable <b>WireShaded</b> to see clear part boundaries.</li>
+            <li>Use <b>'Show Only'</b> to isolate specific subsystems for study.</li>
+        </ol>
+
+        <h3>Architectural Walkthrough</h3>
+        <ol>
+            <li>Switch to <b>First Person camera mode</b> (<kbd>3</kbd>).</li>
+            <li>Enable <b>IBL</b> with an architectural HDRI environment.</li>
+            <li>Turn on <b>floor plane</b> and <b>shadows</b>.</li>
+            <li>Use <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> keys to walk through the spaces naturally.</li>
+        </ol>
+
+        <h3>Product Rendering</h3>
+        <ol>
+            <li>Use <b>Realistic display mode</b>.</li>
+            <li>Carefully tune <b>PBR material</b> properties.</li>
+            <li>Enable <b>IBL</b> with a studio lighting HDRI map.</li>
+            <li>Adjust <b>exposure</b> for proper brightness.</li>
+            <li>Use the <b>floor plane</b> with reflections enabled.</li>
+            <li>Frame the shot using <b>perspective projection</b>.</li>
+        </ol>
+
+        <h2>Troubleshooting Quick Fixes</h2>
+        <ul>
+            <li><b>Black screen:</b> Check if the object is listed in the Object List; it may need lighting or be positioned far from the camera.</li>
+            <li><b>Flashing textures:</b> Check if UVs exist; if not, try 'Generate UVs'.</li>
+            <li><b>Weird shading:</b> Enable 'Show Normals' to diagnose reversed faces or normal issues.</li>
+            <li><b>Can't select:</b> Press <kbd>Esc</kbd> to cancel any active special view mode.</li>
+            <li><b>Model disappeared:</b> Press <kbd>F</kbd> to fit all objects back into the view.</li>
+            <li><b>Slow performance:</b> Switch to Shaded mode and hide unused objects.</li>
+        </ul>
+
+        <h2>Customization</h2>
+        <ul>
+            <li><b>Background Color:</b> Right-click → 'Background Color' to set a custom viewport color.</li>
+            <li><b>Theme:</b> Go to File → Settings to switch between Light, Dark, or System themes.</li>
+            <li><b>Language:</b> File → Settings to change the interface language.</li>
+            <li><b>Quality vs Performance:</b> Use File → Settings to adjust MSAA and anisotropic filtering.</li>
+        </ul>
+
+        <h2>File Organization</h2>
+        <ul>
+            <li>Use the <b>Recent Files</b> menu (File → Recent) for quick access to your work.</li>
+            <li>Save working sessions as <b>.mvf</b> files to preserve camera positions, visibility, and settings.</li>
+            <li>Keep <b>texture files</b> in the same folder as your models for automatic path finding.</li>
+            <li>Use <b>descriptive names</b> in the object list (double-click to rename).</li>
+        </ul>
+
+        <h2>Learning More</h2>
+        <ul>
+            <li><b>Help Menu:</b> Press <kbd>F1</kbd> or go to Help → Quick Help for an instant reference.</li>
+            <li><b>Experiment:</b> Try all features with different test models to see how they behave.</li>
+            <li><b>Settings:</b> Explore File → Settings for additional hidden options.</li>
+            <li><b>Context Menus:</b> Right-click everywhere to discover context-sensitive options.</li>
+        </ul>
+
+        <h2>Final Thoughts</h2>
+        <p>ModelViewer is a powerful tool with many features. The key to mastery is practice:</p>
+        <ul>
+            <li>Start with basic navigation and selection.</li>
+            <li>Gradually explore display modes and camera modes.</li>
+            <li>Learn visibility management for complex scenes.</li>
+            <li>Experiment with materials and lighting.</li>
+            <li>Discover your own workflows.</li>
+        </ul>
+        <p><b>You've completed the tutorial!</b> You now have the knowledge to effectively use ModelViewer. Keep experimenting and discovering new techniques.</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson13.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <span class='nav-button disabled'>Tutorial Complete ✔</span>
+        </div>
+    </div>
+</body>
+</html>

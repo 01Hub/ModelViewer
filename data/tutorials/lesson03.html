@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 3: Basic Navigation - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html" class='active'>3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 3 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 21.42%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 3: Basic Navigation</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Navigating the 3D viewport is essential for examining your models from all angles. ModelViewer provides intuitive mouse and keyboard controls for smooth navigation.</p>
+
+        <h2>Mouse Navigation</h2>
+        <p>The primary way to navigate the viewport:</p>
+        
+        <div class="step">
+            <div class="step-title">Step 1: Rotating the View</div>
+            <div class="step-content">
+                Hold the <kbd>Middle Mouse Button</kbd> and drag to rotate the camera around your model.<br/>
+                <b>Alternative:</b> Hold <kbd>Ctrl</kbd> + <kbd>Left Mouse Button</kbd> and drag.
+            </div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_03_rotate_gesture.png" alt="Illustration showing middle mouse button rotation gesture with arrow indicators" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Screenshot: tutorial_03_rotate_gesture.png (400x300)</div>
+            <span class="screenshot-caption">Illustration showing middle mouse button rotation gesture with arrow indicators</span>
+        </div>
+
+        <div class="note note-tip">
+            The rotation uses inertial scrolling - if you move quickly and release, the view will continue to rotate smoothly and slow down gradually.
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Panning the View</div>
+            <div class="step-content">
+                Hold the <kbd>Right Mouse Button</kbd> and drag to move the camera side-to-side and up-down.<br/>
+                <b>Alternative:</b> Hold <kbd>Ctrl</kbd> + <kbd>Right Mouse Button</kbd> and drag.
+            </div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_03_pan_gesture.png" alt="Illustration showing right mouse button panning gesture" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Screenshot: tutorial_03_pan_gesture.png (400x300)</div>
+            <span class="screenshot-caption">Illustration showing right mouse button panning gesture</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 3: Zooming the View</div>
+            <div class="step-content">
+                Use the <kbd>Mouse Wheel</kbd> to zoom in and out.<br/>
+                <b>Alternative:</b> Hold <kbd>Ctrl</kbd> + <kbd>Middle Mouse Button</kbd> and drag vertically.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_03_zoom_gesture.png" alt="Illustration showing mouse wheel zoom" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Screenshot: tutorial_03_zoom_gesture.png (400x300)</div>
+            <span class="screenshot-caption">Illustration showing mouse wheel zoom</span>
+        </div>
+
+        <div class="note note-info">
+            The zoom is centered on your mouse position, so point at what you want to zoom towards before scrolling.
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 4: Quick Center Pan</div>
+            <div class="step-content">
+                Click the <kbd>Middle Mouse Button</kbd> (press and release, don't drag) to pan the view to center on a new point.
+            </div>
+        </div>
+
+        <h2>Keyboard Navigation</h2>
+        <p>For precise control and extended navigation:</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Keys</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td><kbd>W</kbd> / <kbd>A</kbd> / <kbd>S</kbd> / <kbd>D</kbd></td><td>Move camera (behavior depends on camera mode)</td></tr>
+                <tr><td><kbd>I</kbd> / <kbd>K</kbd></td><td>Rotate around X-axis (pitch up/down)</td></tr>
+                <tr><td><kbd>J</kbd> / <kbd>L</kbd></td><td>Rotate around Y-axis (yaw left/right)</td></tr>
+                <tr><td><kbd>M</kbd> / <kbd>N</kbd></td><td>Rotate around Z-axis (roll clockwise/counter-clockwise)</td></tr>
+                <tr><td><kbd>X</kbd> / <kbd>Z</kbd></td><td>Zoom in/out (Orbit mode only)</td></tr>
+                <tr><td><kbd>F</kbd></td><td>Fit all objects in view</td></tr>
+            </tbody>
+        </table>
+
+        <div class="note note-tip">
+            Hold the navigation keys continuously for smooth, continuous movement.
+        </div>
+
+        <h2>Using the View Toolbar</h2>
+        <p>The toolbar provides an alternative way to activate navigation modes:</p>
+        
+        <div class="step">
+            <div class="step-title">Step 1: Reveal the Toolbar</div>
+            <div class="step-content">Move your mouse to the bottom edge of the viewport to reveal the toolbar.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_03_toolbar_revealed.png" alt="View toolbar appearing at bottom of viewport" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:150px;">Screenshot: tutorial_03_toolbar_revealed.png (600x150)</div>
+            <span class="screenshot-caption">View toolbar appearing at bottom of viewport</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Click Navigation Mode</div>
+            <div class="step-content">Click Rotate, Pan, or Zoom button to activate that mode.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 3: Use Left Mouse Button</div>
+            <div class="step-content">
+                Once a mode is active, use the <kbd>Left Mouse Button</kbd> to perform that action. The cursor changes to indicate the active mode.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_03_mode_cursors.png" alt="Different cursor icons for Rotate, Pan, and Zoom modes" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:200px;">Screenshot: tutorial_03_mode_cursors.png (500x200)</div>
+            <span class="screenshot-caption">Different cursor icons for Rotate, Pan, and Zoom modes</span>
+        </div>
+
+        <div class="note note-info">
+            Press <kbd>Esc</kbd> to cancel any active navigation mode and return to normal selection mode.
+        </div>
+
+        <h2>Fitting Objects to View</h2>
+        <p>The 'Fit All' feature is one of the most useful navigation tools:</p>
+
+        <div class="step">
+            <div class="step-title">Step 1: Press F Key</div>
+            <div class="step-content">Simply press <kbd>F</kbd> to automatically frame all visible objects in the viewport.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Or Use Toolbar</div>
+            <div class="step-content">Click the 'Fit All' button in the view toolbar.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_03_fit_all_before.png" alt="Before Fit All: Object partially visible and off-center" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:350px;">Screenshot: tutorial_03_fit_all_before.png (600x350)</div>
+            <span class="screenshot-caption">Before Fit All: Object partially visible and off-center</span>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_03_fit_all_after.png" alt="After Fit All: Object perfectly centered and sized to fit viewport" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:350px;">Screenshot: tutorial_03_fit_all_after.png (600x350)</div>
+            <span class="screenshot-caption">After Fit All: Object perfectly centered and sized to fit viewport</span>
+        </div>
+
+        <div class="note note-tip">
+            Use Fit All whenever you feel lost in the 3D space or after hiding/showing objects to reframe your view.
+        </div>
+
+        <h2>Practice Exercise</h2>
+        <p><b>Try this exercise to master basic navigation:</b></p>
+        <ol>
+            <li>Open any 3D model</li>
+            <li>Use middle mouse to rotate the view 360 degrees around the model</li>
+            <li>Use right mouse to pan the model to different corners of the screen</li>
+            <li>Zoom in very close to see surface details</li>
+            <li>Press <kbd>F</kbd> to reset and fit all</li>
+            <li>Try the keyboard navigation keys (W/A/S/D, I/J/K/L)</li>
+            <li>Activate Rotate mode from toolbar and use left mouse to rotate</li>
+        </ol>
+        <p>Practice until these movements feel natural!</p>
+
+        <div class="lesson-navigation">
+            <a href='lesson02.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson04.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 8: Manipulating Objects - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html" class='active'>8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 8 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 57.143%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 8: Manipulating Objects</h1>
+        </div>
+
+        <h2>Accessing Transformations</h2>
+        <p>Use the Transformations tab in the left panel or right-click selected objects.</p>
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_08_transform_panel.png" alt="Transformation panel showing translate, rotate, and scale controls" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_08_transform_panel.png</div>
+        </div>
+
+        <h2>Translation, Rotation, and Scaling</h2>
+        <div class="step">
+            <div class="step-title">Translation</div>
+            <div class="step-content">Move objects along X, Y, or Z by entering DX, DY, DZ values.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_08_translate.png" alt="Object position before and after translation" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_08_translate.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Rotation</div>
+            <div class="step-content">Rotate around axes (degrees). Applied in order: X, then Y, then Z.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_08_rotate.png" alt="Object before and after rotation" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_08_rotate.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Scale</div>
+            <div class="step-content">Factors >1 enlarge; <1 shrink. Uniform values maintain proportions.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_08_scale.png" alt="Object at different scale factors" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_08_scale.png</div>
+        </div>
+
+        <h2>Duplicating</h2>
+        <p>Create copies via Right-Click → Duplicate. Use transformations to separate the copy from the original.</p>
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_08_duplicate.png" alt="Original object and its duplicate positioned nearby" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_08_duplicate.png</div>
+        </div>
+
+        <div class="note note-warning">
+            <b>Baking Transformations:</b> Clicking 'Bake' permanently applies transformations to mesh vertices. This cannot be undone!
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson07.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson09.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 10: Lighting & Environment - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html" class='active'>10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 10 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 71.42%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 10: Lighting & Environment</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Proper lighting is essential for realistic visualization. ModelViewer offers multiple lighting options including default lights, punctual lights, and Image-Based Lighting (IBL).</p>
+
+        <h2>Environment Panel</h2>
+        <p>Access lighting controls:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open Environment Tab</div>
+            <div class="step-content">Click the 'Environment' tab in the left panel.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_10_environment_panel.png" alt="Environment panel showing lighting and environment settings" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:500px;">Screenshot: tutorial_10_environment_panel.png (300x500)</div>
+            <span class="screenshot-caption">Environment panel showing lighting and environment settings</span>
+        </div>
+
+        <h2>Default Lights</h2>
+        <p>Simple three-point lighting setup:</p>
+                <div class="step">
+            <div class="step-title">Step 1: Enable Default Lights</div>
+            <div class="step-content">Check 'Use Default Lights' checkbox.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Adjust Light Position</div>
+            <div class="step-content">Use the sliders to position the light source in X, Y, and Z.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Light Properties</div>
+            <div class="step-content">The default light includes ambient, diffuse, and specular components that automatically illuminate your scene.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_10_default_lights.png" alt="Object lit with default lights showing clear form definition" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_10_default_lights.png (700x450)</div>
+            <span class="screenshot-caption">Object lit with default lights showing clear form definition</span>
+        </div>
+
+        <h2>Punctual Lights (glTF Lights)</h2>
+        <p>Scene lights from glTF models:</p>
+                <div class="step">
+            <div class="step-title">Step 1: Enable Punctual Lights</div>
+            <div class="step-content">Check 'Use Punctual Lights' when working with glTF models that include lights.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Light Types</div>
+            <div class="step-content">
+                • <b>Point lights:</b> Emit in all directions from a point<br/>
+                • <b>Spot lights:</b> Directional cone of light<br/>
+                • <b>Directional lights:</b> Parallel rays like sunlight
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Show Lights</div>
+            <div class="step-content">Check 'Show Lights' to display light position indicators in the viewport.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_10_punctual_lights.png" alt="Scene with multiple punctual lights and their position indicators" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_10_punctual_lights.png (700x450)</div>
+            <span class="screenshot-caption">Scene with multiple punctual lights and their position indicators</span>
+        </div>
+
+        <h2>Image-Based Lighting (IBL)</h2>
+        <p>Realistic environmental lighting from HDRI images:</p>
+                <div class="step">
+            <div class="step-title">Step 1: Enable IBL</div>
+            <div class="step-content">Check 'Use IBL' checkbox.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Select Environment Map</div>
+            <div class="step-content">Choose an HDRI image from the dropdown menu, or load a custom one.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Adjust Exposure</div>
+            <div class="step-content">Use 'IBL Exposure' slider to control the intensity of environmental lighting.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_10_ibl_lighting.png" alt="Metallic objects showing reflections from IBL environment" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_10_ibl_lighting.png (700x450)</div>
+            <span class="screenshot-caption">Metallic objects showing reflections from IBL environment</span>
+        </div>
+
+        <div class="note note-tip">
+            IBL provides both lighting AND reflections. It's essential for realistic metallic and glass materials.
+        </div>
+
+        <h2>SkyBox</h2>
+        <p>Visual environment background:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Enable SkyBox</div>
+            <div class="step-content">Check 'Enable SkyBox' in the Environment panel.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Select Map</div>
+            <div class="step-content">Choose from preset HDR environments or load custom cubemap.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Blur Option</div>
+            <div class="step-content">Check 'Blur SkyBox' for a softer, less distracting background.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 4: FOV Adjustment</div>
+            <div class="step-content">Adjust 'SkyBox FOV' to control how much of the environment is visible.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_10_skybox.png" alt="Scene with visible SkyBox environment in background" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_10_skybox.png (700x450)</div>
+            <span class="screenshot-caption">Scene with visible SkyBox environment in background</span>
+        </div>
+
+        <h2>Shadows</h2>
+        <p>Add depth with shadow mapping:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Enable Shadows</div>
+            <div class="step-content">Check 'Enable Shadows' in the Environment panel.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Adjust Quality</div>
+            <div class="step-content">Use 'Shadow Quality' dropdown: Low, Medium, High, or Ultra. Higher quality creates softer, more realistic shadows but is slower.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Self-Shadows</div>
+            <div class="step-content">Enable 'Self-Shadows' for objects to cast shadows on themselves.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_10_shadows.png" alt="Object with and without shadows for comparison" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:350px;">Screenshot: tutorial_10_shadows.png (700x350)</div>
+            <span class="screenshot-caption">Object with and without shadows for comparison</span>
+        </div>
+
+        <h2>Floor Plane</h2>
+        <p>Add a floor for shadows and reflections:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Enable Floor</div>
+            <div class="step-content">Check 'Show Floor' checkbox.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Adjust Position</div>
+            <div class="step-content">Use 'Floor Offset' slider to position floor relative to model.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Texture</div>
+            <div class="step-content">Floor can show a checkerboard texture. Adjust 'Repeat S' and 'Repeat T' to control texture tiling.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_10_floor.png" alt="Model on floor plane with shadows and reflections" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_10_floor.png (700x450)</div>
+            <span class="screenshot-caption">Model on floor plane with shadows and reflections</span>
+        </div>
+
+        <h2>HDR and Tone Mapping</h2>
+        <p>For realistic high dynamic range rendering:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Enable HDR Tone Mapping</div>
+            <div class="step-content">Check 'HDR Tone Mapping' for proper handling of bright highlights.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Select Algorithm</div>
+            <div class="step-content">Choose tone mapping mode: Reinhard, ACES, Filmic, etc.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Adjust Exposure</div>
+            <div class="step-content">Use 'Env Map Exposure' to control overall brightness.</div>
+        </div>
+
+        <div class="note note-info">
+            Tone mapping converts HDR values to displayable range while preserving detail in both shadows and highlights.
+        </div>
+
+        <h2>Gamma Correction</h2>
+        <p>Ensure proper color display:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Enable Gamma Correction</div>
+            <div class="step-content">Check 'Gamma Correction' for accurate colors.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Screen Gamma</div>
+            <div class="step-content">Set 'Screen Gamma' to 2.2 (standard for most monitors).</div>
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson09.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson11.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

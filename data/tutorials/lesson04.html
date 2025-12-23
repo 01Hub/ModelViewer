@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 4: Selecting Objects - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html" class='active'>4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 4 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 28.57%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 4: Selecting Objects</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Selection is fundamental to working with models in ModelViewer. You need to select objects before you can manipulate, hide, or modify them.</p>
+
+        <h2>Single Selection</h2>
+        <p>The most basic selection method:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Click an Object</div>
+            <div class="step-content">Simply <kbd>Left Click</kbd> on any object in the 3D viewport to select it.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Visual Feedback</div>
+            <div class="step-content">Selected objects are highlighted with a colored outline in the viewport and their entry in the object list is also highlighted.</div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_04_single_selection.png" alt="Object selected showing highlight outline and selection in object list" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_04_single_selection.png (700x450)</div>
+            <span class="screenshot-caption">Object selected showing highlight outline and selection in object list</span>
+        </div>
+
+        <div class="note note-info">
+            Clicking on an already selected object will deselect it (toggle selection).
+        </div>
+
+        <h2>Multiple Selection - Rubber Band</h2>
+        <p>Select multiple objects at once:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Click and Drag</div>
+            <div class="step-content"><kbd>Left Click</kbd> and hold, then drag to create a selection rectangle (rubber band).</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Encompass Objects</div>
+            <div class="step-content">Any object that falls within the rectangle will be selected.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Release</div>
+            <div class="step-content">Release the mouse button to confirm the selection.</div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_04_rubber_band.png" alt="Rubber band selection rectangle being dragged across multiple objects" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_04_rubber_band.png (700x450)</div>
+            <span class="screenshot-caption">Rubber band selection rectangle being dragged across multiple objects</span>
+        </div>
+
+        <div class="note note-tip">
+            The rubber band selection is great for selecting groups of objects quickly.
+        </div>
+
+        <h2>Selecting from Object List</h2>
+        <p>An alternative selection method using the side panel:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Locate Object</div>
+            <div class="step-content">Find the object in the Object List panel on the left side.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Click Name</div>
+            <div class="step-content">Click on the object's name to select it. The viewport will update to show the selection.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_04_list_selection.png" alt="Object list showing selected item highlighted" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Screenshot: tutorial_04_list_selection.png (300x400)</div>
+            <span class="screenshot-caption">Object list showing selected item highlighted</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 3: Multi-Select in List</div>
+            <div class="step-content">Hold <kbd>Ctrl</kbd> and click multiple items to add to selection.<br/>Hold <kbd>Shift</kbd> and click to select a range of items.</div>
+        </div>
+
+        
+
+        <h2>Search and Select</h2>
+        <p>For scenes with many objects:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Use Search Box</div>
+            <div class="step-content">Type in the search box above the object list to filter objects by name.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Objects Appear/Hide</div>
+            <div class="step-content">Only objects matching your search will be shown in the list.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Select from Filtered List</div>
+            <div class="step-content">Click on the objects you want to select from the filtered results.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_04_search_filter.png" alt="Search box with text and filtered object list showing matching results" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Screenshot: tutorial_04_search_filter.png (300x400)</div>
+            <span class="screenshot-caption">Search box with text and filtered object list showing matching results</span>
+        </div>
+
+        <div class="note note-tip">
+            Clear the search box to show all objects again.
+        </div>
+
+        <h2>Deselecting</h2>
+        <p>There are several ways to clear selection:</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Method</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Click on selected object</td><td>Toggles that object off</td></tr>
+                <tr><td>Click empty space in viewport</td><td>Deselects all objects</td></tr>
+                <tr><td>Press <kbd>Esc</kbd></td><td>Deselects all objects</td></tr>
+                <tr><td>Click different object</td><td>Selects new object, deselects previous</td></tr>
+            </tbody>
+        </table>
+
+        <h2>Selection Highlighting</h2>
+        <p>Control how selection is displayed:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Toggle Highlighting</div>
+            <div class="step-content">Use the 'Selection Highlight' checkbox in the left panel to turn selection highlighting on or off.</div>
+        </div>
+
+        <div class="note note-info">
+            Even with highlighting off, you can still see which objects are selected in the object list.
+        </div>
+
+        <h2>Working with Selected Objects</h2>
+        <p>Once objects are selected, you can:</p>
+        <ul>
+            <li>Hide/Show them (<kbd>Space</kbd> key)</li>
+            <li>Delete them (<kbd>Delete</kbd> key)</li>
+            <li>Transform them (Move, Rotate, Scale)</li>
+            <li>Change their materials and colors</li>
+            <li>Apply textures</li>
+            <li>Duplicate them</li>
+            <li>Center the view on them</li>
+        </ul>
+
+        <h2>Context Menu Actions</h2>
+        <p>Right-click on selected objects for quick actions:</p>
+        
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_04_context_menu.png" alt="Context menu showing options for selected objects" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Screenshot: tutorial_04_context_menu.png (300x400)</div>
+            <span class="screenshot-caption">Context menu showing options for selected objects</span>
+        </div>
+
+        <h2>Practice Exercise</h2>
+        <p><b>Try this exercise:</b></p>
+        <ol>
+            <li>Import or open a model with multiple parts</li>
+            <li>Practice clicking individual objects to select them</li>
+            <li>Try rubber band selection to select multiple objects at once</li>
+            <li>Use <kbd>Ctrl</kbd>+Click to add objects to your selection one by one</li>
+            <li>Select objects from the object list</li>
+            <li>Use the search box to find specific objects by name</li>
+            <li>Practice deselecting using different methods</li>
+            <li>Right-click on a selection to see available actions</li>
+        </ol>
+
+        <div class="lesson-navigation">
+            <a href='lesson03.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson05.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

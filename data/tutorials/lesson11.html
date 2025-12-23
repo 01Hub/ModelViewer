@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 11: Working with Visibility - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html" class='active'>11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 11 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 78.57%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 11: Working with Visibility</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Managing object visibility is crucial for working with complex scenes. ModelViewer provides multiple ways to control what's shown and hidden.</p>
+
+        <h2>Basic Hide/Show</h2>
+        <p>Control individual object visibility:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Using Checkboxes</div>
+            <div class="step-content">In the Object List, each object has a checkbox. Check = visible, unchecked = hidden.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Using Keyboard</div>
+            <div class="step-content">Select objects and press <kbd>Space</kbd> to toggle their visibility.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Using Context Menu</div>
+            <div class="step-content">Right-click selected objects and choose 'Hide' or 'Show'.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_11_checkboxes.png" alt="Object list with some checkboxes checked and some unchecked" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:400px;">Screenshot: tutorial_11_checkboxes.png (300x400)</div>
+            <span class="screenshot-caption">Object list with some checkboxes checked and some unchecked</span>
+        </div>
+
+        <h2>Show Only Selected</h2>
+        <p>Focus on specific objects:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Select Objects</div>
+            <div class="step-content">Select the objects you want to focus on.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Show Only</div>
+            <div class="step-content">Press <kbd>Shift+Space</kbd> or right-click → 'Show Only'.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Result</div>
+            <div class="step-content">All other objects are hidden, leaving only your selection visible.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_11_show_only.png" alt="Complex assembly with just a few selected parts visible" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_11_show_only.png (700x450)</div>
+            <span class="screenshot-caption">Complex assembly with just a few selected parts visible</span>
+        </div>
+
+        <div class="note note-tip">
+            Use 'Show Only' when working on specific components in large assemblies. This reduces visual clutter and improves performance.
+        </div>
+
+        <h2>Show/Hide All</h2>
+        <p>Quickly affect all objects:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Show All</div>
+            <div class="step-content">Press <kbd>Shift+A</kbd> or right-click → 'Show All' to make everything visible.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Hide All</div>
+            <div class="step-content">Press <kbd>Alt+A</kbd> or right-click → 'Hide All' to hide everything.</div>
+        </div>
+
+        <h2>Swap Visible</h2>
+        <p>Invert visibility state:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Activate Swap</div>
+            <div class="step-content">Press <kbd>Alt+S</kbd> or click 'Swap Visible' button in the toolbar.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: What Happens</div>
+            <div class="step-content">Currently visible objects become hidden, and hidden objects become visible.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Use Case</div>
+            <div class="step-content">Perfect for inspecting internal parts of assemblies or alternating between different design options.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_11_swap_visible.png" alt="Before and after swapping visible state" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:350px;">Screenshot: tutorial_11_swap_visible.png (700x350)</div>
+            <span class="screenshot-caption">Before and after swapping visible state</span>
+        </div>
+
+        <div class="note note-tip">
+            The 'Swap Visible' button in the toolbar shows the current state. When active, hidden objects are being displayed instead of visible ones.
+        </div>
+
+        <h2>Visual Indicators</h2>
+        <p>How to tell what's hidden:</p>
+        <ul>
+            <li>Hidden objects appear grayed out in the Object List.</li>
+            <li>Hidden objects' checkboxes are unchecked.</li>
+            <li>When 'Swap Visible' is active, the role of visible/hidden is reversed.</li>
+        </ul>
+
+        <h2>Working with Hidden Objects</h2>
+        <p>Hidden objects are still in memory:</p>
+        <ul>
+            <li>They can be selected from the Object List.</li>
+            <li>You can apply materials, transformations, etc., to hidden objects.</li>
+            <li>They count towards memory usage.</li>
+            <li>They don't affect rendering performance (since they're not drawn).</li>
+            <li>Use 'Delete' to actually remove objects from the scene.</li>
+        </ul>
+
+        <h2>Workflow Example</h2>
+        <p><b>Scenario:</b> You have a car model and want to inspect the engine.</p>
+        <ol>
+            <li>Select all body panels (hood, fenders, doors).</li>
+            <li>Press <kbd>Space</kbd> to hide them.</li>
+            <li>The engine is now visible and accessible.</li>
+            <li>When done, press <kbd>Shift+A</kbd> to show all again.</li>
+        </ol>
+        <p><b>Alternative approach:</b></p>
+        <ol>
+            <li>Select just the engine components.</li>
+            <li>Press <kbd>Shift+Space</kbd> to show only the engine.</li>
+            <li>Work on the engine.</li>
+            <li>Press <kbd>Shift+A</kbd> to show everything again.</li>
+        </ol>
+
+        <div class="lesson-navigation">
+            <a href='lesson10.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson12.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 9: Materials & Textures - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html" class='active'>9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 9 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 64.28%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 9: Materials & Textures</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Materials and textures control how objects appear. ModelViewer supports both traditional ADS materials and modern PBR (Physically Based Rendering) materials.</p>
+
+        <h2>Material Editor</h2>
+        <p>Access the material editor from the left panel:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Select Objects</div>
+            <div class="step-content">Select one or more objects to apply materials to.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Open Material Tab</div>
+            <div class="step-content">Click the 'Material' tab in the left panel.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_09_material_panel.png" alt="Material editor panel showing ADS and PBR properties" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:500px;">Screenshot: tutorial_09_material_panel.png (300x500)</div>
+            <span class="screenshot-caption">Material editor panel showing ADS and PBR properties</span>
+        </div>
+
+        <h2>Basic Material Properties (ADS)</h2>
+        <p>Traditional Ambient-Diffuse-Specular material model:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Diffuse Color</div>
+            <div class="step-content">The base color of the object. Click the color box to open the color picker.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Ambient Color</div>
+            <div class="step-content">Color in shadowed areas. Usually same as diffuse but darker.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Specular Color</div>
+            <div class="step-content">Color of highlights. Usually white or light gray.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 4: Shininess</div>
+            <div class="step-content">Controls specular highlight size. Higher = smaller, sharper highlights.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_09_ads_materials.png" alt="Objects with different ADS material properties" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:400px;">Screenshot: tutorial_09_ads_materials.png (700x400)</div>
+            <span class="screenshot-caption">Objects with different ADS material properties</span>
+        </div>
+
+        <h2>PBR Material Properties</h2>
+        <p>Modern physically-based materials for realistic rendering:</p>
+                <div class="step">
+            <div class="step-title">Step 1: Base Color/Albedo</div>
+            <div class="step-content">The surface color without lighting effects.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Metallic</div>
+            <div class="step-content">0.0 = non-metal (dielectric), 1.0 = pure metal. Controls how light reflects.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Roughness</div>
+            <div class="step-content">0.0 = perfectly smooth mirror, 1.0 = completely rough/matte.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 4: Ambient Occlusion (AO)</div>
+            <div class="step-content">Simulates shadows in crevices and corners. Usually from a texture map.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_09_pbr_materials.png" alt="Spheres showing different metallic and roughness values in a grid" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:500px;">Screenshot: tutorial_09_pbr_materials.png (700x500)</div>
+            <span class="screenshot-caption">Spheres showing different metallic and roughness values in a grid</span>
+        </div>
+
+        <h2>Applying Textures</h2>
+        <p>Add image-based detail to surfaces:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open Texture Tab</div>
+            <div class="step-content">Click the 'Textures' tab in the left panel.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Load Texture Images</div>
+            <div class="step-content">Click 'Browse' buttons to select texture files (PNG, JPG, TGA, etc.) for different maps.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Texture Types</div>
+            <div class="step-content">
+                <b>ADS Workflow:</b><br/>
+                • Diffuse map - Base color<br/>
+                • Normal map - Surface details<br/>
+                • Specular map - Highlight variation<br/>
+                • Height/Bump map - Surface displacement<br/><br/>
+                <b>PBR Workflow:</b><br/>
+                • Albedo/Base Color map<br/>
+                • Normal map<br/>
+                • Metallic map<br/>
+                • Roughness map<br/>
+                • AO map<br/>
+                • Height map
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 4: Apply Textures</div>
+            <div class="step-content">Click 'Apply' to apply loaded textures to selected objects.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_09_texture_maps.png" alt="Texture mapping panel showing different texture slots" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:500px;">Screenshot: tutorial_09_texture_maps.png (300x500)</div>
+            <span class="screenshot-caption">Texture mapping panel showing different texture slots</span>
+        </div>
+
+        <h2>Generating UV Coordinates</h2>
+        <p>Some models don't have UV coordinates (required for textures):</p>
+        <div class="step">
+            <div class="step-title">Step 1: Select Objects</div>
+            <div class="step-content">Select objects that need UV coordinates.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Generate UVs</div>
+            <div class="step-content">Right-click → 'Generate UVs' to automatically create texture coordinates.</div>
+        </div>
+
+        <div class="note note-info">
+            UV generation uses various algorithms. Results vary depending on geometry. You may need to use external 3D software for complex UV unwrapping.
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_09_uv_generation.png" alt="Object before and after UV generation with texture applied" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:350px;">Screenshot: tutorial_09_uv_generation.png (700x350)</div>
+            <span class="screenshot-caption">Object before and after UV generation with texture applied</span>
+        </div>
+
+        <h2>Material Presets</h2>
+        <p>Quick starting points:</p>
+        <ul>
+            <li><b>Plastic:</b> Low metallic (0.0), medium roughness (0.4-0.6)</li>
+            <li><b>Metal:</b> High metallic (0.9-1.0), low roughness (0.1-0.3)</li>
+            <li><b>Wood:</b> Low metallic (0.0), high roughness (0.7-0.9)</li>
+            <li><b>Glass:</b> Low metallic, very low roughness, enable transmission</li>
+        </ul>
+
+        <div class="lesson-navigation">
+            <a href='lesson08.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson10.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

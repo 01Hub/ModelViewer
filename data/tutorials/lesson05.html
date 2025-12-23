@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 5: View Modes - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html" class='active'>5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 5 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 35.714285714285715%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 5: View Modes</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>View modes let you quickly orient your camera to standard positions, perfect for technical drawings, presentations, or examining models from specific angles.</p>
+
+        <h2>Accessing View Modes</h2>
+        <p>View modes are available from the View Toolbar:</p>
+
+        <div class="step">
+            <div class="step-title">Step 1: Show Toolbar</div>
+            <div class="step-content">Move your mouse to the bottom edge of the viewport to reveal the toolbar.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Find View Buttons</div>
+            <div class="step-content">Look for buttons labeled 'Top', 'Front', 'Left', etc., and the 'Axonometric View' dropdown button.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_05_toolbar_views.png" alt="View toolbar with orthographic and axonometric view buttons highlighted" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_toolbar_views.png</div>
+            <span class="screenshot-caption">View toolbar with orthographic and axonometric view buttons highlighted</span>
+        </div>
+
+        <h2>Orthographic Views</h2>
+        <p>Six standard orthographic views:</p>
+
+        <div class="step">
+            <div class="step-title">Step 1: Top View</div>
+            <div class="step-content">Click 'Top' to view the model from directly above (looking down the Z-axis).</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_05_top_view.png" alt="Model shown in top view" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_top_view.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Front View</div>
+            <div class="step-content">Click 'Front' to view from the front (looking along the Y-axis).</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_05_front_view.png" alt="Model shown in front view" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_front_view.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 3: Left View</div>
+            <div class="step-content">Click 'Left' to view from the left side (looking along the X-axis).</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 4: Additional Views</div>
+            <div class="step-content">Also available: 'Bottom', 'Rear', and 'Right' views for complete coverage.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_05_six_views.png" alt="Grid showing all six orthographic views" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_six_views.png</div>
+            <span class="screenshot-caption">Grid showing all six orthographic views</span>
+        </div>
+
+        <div class="note note-info">
+            Orthographic views are particularly useful for technical drawings and measurements as they show true dimensions without perspective distortion.
+        </div>
+
+        <h2>Axonometric Views</h2>
+        <p>Three-dimensional standard views:</p>
+
+        <div class="step">
+            <div class="step-title">Step 1: Isometric View</div>
+            <div class="step-content">Click the Axonometric button and select 'Isometric'. This shows the model at equal angles (120°) between all three axes.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_05_isometric.png" alt="Model in isometric view showing equal axis angles" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_isometric.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Dimetric View</div>
+            <div class="step-content">Select 'Dimetric' for a view where two axes are equally foreshortened.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_05_dimetric.png" alt="Model in dimetric view" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_dimetric.png</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 3: Trimetric View</div>
+            <div class="step-content">Select 'Trimetric' for a view where all three axes are foreshortened differently.</div>
+        </div>
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_05_trimetric.png" alt="Model in trimetric view" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_trimetric.png</div>
+        </div>
+
+        <div class="note note-tip">
+            Axonometric views are great for technical illustrations and engineering drawings as they show 3D structure while maintaining parallel lines.
+        </div>
+
+        <h2>Projection Toggle</h2>
+        <p>Switch between orthographic and perspective projection:</p>
+
+        <div class="step">
+            <div class="step-title">Step 1: Find Toggle Button</div>
+            <div class="step-content">Look for the projection toggle button in the toolbar (shows camera icon).</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Orthographic vs Perspective</div>
+            <div class="step-content">
+                <b>Orthographic:</b> Parallel lines stay parallel, no vanishing point. Objects same size regardless of distance.<br/>
+                <b>Perspective:</b> Realistic view with vanishing points. Distant objects appear smaller.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_05_ortho_vs_persp.png" alt="Side-by-side comparison: Orthographic (left) and Perspective (right) projection" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_ortho_vs_persp.png</div>
+            <span class="screenshot-caption">Side-by-side comparison: Orthographic (left) and Perspective (right) projection</span>
+        </div>
+
+        <div class="note note-tip">
+            Use Orthographic for technical work and measurements. Use Perspective for realistic presentations and visualization.
+        </div>
+
+        <h2>Multi-View Mode</h2>
+        <p>See multiple views simultaneously:</p>
+
+        <div class="step">
+            <div class="step-title">Step 1: Enable Multi-View</div>
+            <div class="step-content">Click the 'Multi-View' toggle button in the toolbar.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Four Viewports</div>
+            <div class="step-content">The viewport splits into four: Top, Front, Right, and Isometric views.</div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 3: Independent Navigation</div>
+            <div class="step-content">You can navigate independently in each viewport. Selection is synchronized across all views.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_05_multiview.png" alt="Four-viewport layout showing Top, Front, Right, and Isometric views" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_05_multiview.png</div>
+            <span class="screenshot-caption">Four-viewport layout showing Top, Front, Right, and Isometric views</span>
+        </div>
+
+        <div class="note note-info">
+            Multi-view mode is excellent for precision modeling work and understanding complex geometries.
+        </div>
+
+        <h2>View Animation</h2>
+        <p>When switching views:</p>
+        <ul>
+            <li>The camera smoothly animates to the new position</li>
+            <li>This helps you maintain orientation and context</li>
+            <li>You can interrupt the animation by interacting with the view</li>
+        </ul>
+
+        <h2>Use Cases</h2>
+        <p><b>Top/Front/Side Views:</b> Checking alignment, dimensions, symmetry</p>
+        <p><b>Isometric View:</b> General 3D overview, presentations, default starting view</p>
+        <p><b>Dimetric/Trimetric:</b> Technical illustrations, engineering drawings</p>
+        <p><b>Multi-View:</b> Precision modeling, CAD work, complex assemblies</p>
+
+        <h2>Practice Exercise</h2>
+        <p><b>Try this exercise:</b></p>
+        <ol>
+            <li>Open a model (preferably mechanical or architectural)</li>
+            <li>Cycle through all six orthographic views (Top, Front, Left, Bottom, Rear, Right)</li>
+            <li>Switch to Isometric view</li>
+            <li>Try Dimetric and Trimetric views</li>
+            <li>Toggle between Orthographic and Perspective projection</li>
+            <li>Enable Multi-View mode and practice navigating in each viewport</li>
+            <li>Return to single viewport mode</li>
+            <li>Notice how each view mode is useful for different purposes</li>
+        </ol>
+
+        <h2>Keyboard Shortcuts</h2>
+        <table>
+            <thead><tr><th>Key</th><th>View</th></tr></thead>
+            <tbody>
+                <tr><td><kbd>1</kbd></td><td>Front</td></tr>
+                <tr><td><kbd>3</kbd></td><td>Right</td></tr>
+                <tr><td><kbd>7</kbd></td><td>Top</td></tr>
+                <tr><td><kbd>9</kbd></td><td>Isometric</td></tr>
+                <tr><td><kbd>5</kbd></td><td>Toggle Perspective/Ortho</td></tr>
+                <tr><td><kbd>Ctrl+M</kbd></td><td>Multi-View Mode</td></tr>
+            </tbody>
+        </table>
+
+        <div class="lesson-navigation">
+            <a href='lesson04.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson06.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

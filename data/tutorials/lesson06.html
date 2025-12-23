@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 6: Camera Modes - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html" class='active'>6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 6 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 42.857%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 6: Camera Modes</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Camera modes change how you navigate through 3D space. ModelViewer offers three distinct camera modes, each designed for different purposes.</p>
+
+        <h2>Switching Camera Modes</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Using Keyboard</div>
+            <div class="step-content">Press <kbd>1</kbd> for Orbit, <kbd>2</kbd> for Fly, or <kbd>3</kbd> for First Person mode.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Using Toolbar</div>
+            <div class="step-content">Click the 'Camera Modes' button in the view toolbar and select from the menu.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_06_camera_menu.png" alt="Camera modes dropdown menu showing Orbit, Fly, and First Person options" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_06_camera_menu.png</div>
+            <span class="screenshot-caption">Camera modes dropdown menu showing Orbit, Fly, and First Person options</span>
+        </div>
+
+        <div class="note note-info">
+            The toolbar button updates its icon to show which camera mode is currently active.
+        </div>
+
+        <h2>Orbit Mode (Key: 1)</h2>
+        <p><b>Best for:</b> Examining objects, CAD work, general model inspection.</p>
+        <div class="step">
+            <div class="step-title">Mouse Controls</div>
+            <div class="step-content">
+                • <b>Middle Mouse Drag:</b> Rotate around the model<br/>
+                • <b>Right Mouse Drag:</b> Pan the view<br/>
+                • <b>Mouse Wheel:</b> Zoom in/out
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Keyboard Controls</div>
+            <div class="step-content">
+                • <kbd>W/S</kbd>: Pan up/down<br/>
+                • <kbd>A/D</kbd>: Pan left/right<br/>
+                • <kbd>X/Z</kbd>: Zoom in/out<br/>
+                • <kbd>I/K</kbd>: Rotate pitch (up/down)<br/>
+                • <kbd>J/L</kbd>: Rotate yaw (left/right)<br/>
+                • <kbd>M/N</kbd>: Rotate roll
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_06_orbit_mode.png" alt="Orbit mode showing camera rotating around a centered model with rotation arc" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_06_orbit_mode.png</div>
+            <span class="screenshot-caption">Orbit mode showing camera rotating around a centered model with rotation arc</span>
+        </div>
+
+        <h2>Fly Mode (Key: 2)</h2>
+        <p><b>Best for:</b> Exploring large scenes, architectural walkthroughs, terrain navigation.</p>
+        <div class="step">
+            <div class="step-title">Keyboard Controls</div>
+            <div class="step-content">
+                • <kbd>W/S</kbd>: Move forward/backward<br/>
+                • <kbd>A/D</kbd>: Strafe left/right<br/>
+                • <kbd>Q/E</kbd>: Move down/up (altitude)
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_06_fly_mode.png" alt="Fly mode showing camera path through a scene with direction indicators" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_06_fly_mode.png</div>
+            <span class="screenshot-caption">Fly mode showing camera path through a scene with direction indicators</span>
+        </div>
+
+        <h2>First Person Mode (Key: 3)</h2>
+        <p><b>Best for:</b> Ground-level navigation, walking simulations, architectural interiors.</p>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_06_firstperson_mode.png" alt="First person mode showing ground-level view with horizon line" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none;">Screenshot: tutorial_06_firstperson_mode.png</div>
+            <span class="screenshot-caption">First person mode showing ground-level view with horizon line</span>
+        </div>
+
+        <h2>Comparison Chart</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Feature</th>
+                    <th>Orbit</th>
+                    <th>Fly</th>
+                    <th>First Person</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>Best For</td><td>Object inspection</td><td>Scene exploration</td><td>Ground navigation</td></tr>
+                <tr><td>Model Centered</td><td>Yes</td><td>No</td><td>No</td></tr>
+                <tr><td>Vertical Movement</td><td>Pan only</td><td>Q/E keys</td><td>None</td></tr>
+                <tr><td>Pitch Limit</td><td>No limit</td><td>±89°</td><td>±60°</td></tr>
+            </tbody>
+        </table>
+
+        <div class="lesson-navigation">
+            <a href='lesson05.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson07.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

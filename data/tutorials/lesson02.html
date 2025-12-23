@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 2: Opening Models - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html" class='active'>2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 2 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 14.28%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 2: Opening Models</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>ModelViewer supports a wide variety of 3D file formats. Let's learn how to open and import models into the application.</p>
+
+        <h2>Supported File Formats</h2>
+        <ul>
+            <li><b>Mesh Formats:</b> OBJ, STL, PLY, glTF (.gltf, .glb), FBX, 3DS, DAE (Collada), Blender (.blend), and many more via Assimp library</li>
+            <li><b>CAD Formats:</b> STEP (.stp, .step), IGES (.igs, .iges), BREP (.brep) via OpenCASCADE library</li>
+            <li><b>Native Format:</b> MVF (.mvf) - ModelViewer's own format for saving complete scenes</li>
+        </ul>
+
+        <h2>Method 1: Using the Menu</h2>
+        <p>The standard way to open files:</p>
+        
+        <div class="step">
+            <div class="step-title">Step 1: Click File → Open</div>
+            <div class="step-content">
+                Navigate to the File menu in the menu bar and click Open, or press <kbd>Ctrl+O</kbd>
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_02_file_menu.png" alt="File menu showing Open option highlighted" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:300px; height:250px;">Screenshot: tutorial_02_file_menu.png (300x250)</div>
+            <span class="screenshot-caption">File menu showing Open option highlighted</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Select Your File</div>
+            <div class="step-content">
+                A file dialog will appear. Navigate to your 3D model file and select it.
+            </div>
+        </div>
+
+        
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_02_file_dialog.png" alt="File open dialog showing various 3D file formats" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:400px;">Screenshot: tutorial_02_file_dialog.png (600x400)</div>
+            <span class="screenshot-caption">File open dialog showing various 3D file formats</span>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 3: Wait for Loading</div>
+            <div class="step-content">
+                The model will load with a progress bar showing the status. For large files, this may take a moment.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_02_loading_progress.png" alt="Progress bar showing model loading" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:150px;">Screenshot: tutorial_02_loading_progress.png (500x150)</div>
+            <span class="screenshot-caption">Progress bar showing model loading</span>
+        </div>
+
+        <div class="note note-tip">
+            You can cancel the loading process by clicking the 'Cancel Loading' button in the status bar.
+        </div>
+
+        <h2>Method 2: Drag and Drop</h2>
+        <p>The fastest way to open files:</p>
+
+        <div class="step">
+            <div class="step-title">Step 1: Locate Your File</div>
+            <div class="step-content">
+                Find the 3D model file in your file explorer (Windows Explorer, Finder, Nautilus, etc.)
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Drag to Window</div>
+            <div class="step-content">
+                Simply drag the file and drop it anywhere in the ModelViewer window.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_02_drag_drop.png" alt="Demonstrating drag and drop of a 3D file onto the ModelViewer window" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:600px; height:400px;">Screenshot: tutorial_02_drag_drop.png (600x400)</div>
+            <span class="screenshot-caption">Demonstrating drag and drop of a 3D file onto the ModelViewer window</span>
+        </div>
+
+        <div class="note note-info">
+            You can drag and drop multiple files at once. Each will open in a new session.
+        </div>
+
+        <h2>Method 3: Recent Files</h2>
+        <p>Quickly reopen files you've worked with recently:</p>
+
+        <div class="step">
+            <div class="step-title">Step 1: Access Recent Menu</div>
+            <div class="step-content">
+                Go to File → Recent... to see a list of recently opened files.
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Select File</div>
+            <div class="step-content">
+                Click on any file in the list to open it immediately.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_02_recent_files.png" alt="Recent files menu showing list of previously opened models" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Screenshot: tutorial_02_recent_files.png (400x300)</div>
+            <span class="screenshot-caption">Recent files menu showing list of previously opened models</span>
+        </div>
+
+        <h2>Importing Additional Models</h2>
+        <p>You can add models to an existing scene:</p>
+
+        <div class="step">
+            <div class="step-title">Step 1: Use File → Import</div>
+            <div class="step-content">
+                Click File → Import or press <kbd>Ctrl+Shift+I</kbd>
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 2: Select Models</div>
+            <div class="step-content">
+                Choose one or more files to add to your current scene.
+            </div>
+        </div>
+
+        <div class="step">
+            <div class="step-title">Step 3: Models Are Combined</div>
+            <div class="step-content">
+                The new models will be added to your object list and appear in the viewport.
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_02_multiple_models.png" alt="Viewport showing multiple imported models with object list displaying all items" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_02_multiple_models.png (700x450)</div>
+            <span class="screenshot-caption">Viewport showing multiple imported models with object list displaying all items</span>
+        </div>
+
+        <div class="note note-tip">
+            Use Import when you want to work with multiple models in the same scene. Use Open when you want to start fresh with a new model.
+        </div>
+
+        <h2>Progressive Loading</h2>
+        <p>For large files, ModelViewer uses progressive loading:</p>
+        <ul>
+            <li>Objects appear as they are loaded</li>
+            <li>You can interact with objects that have already loaded</li>
+            <li>The progress bar shows overall completion</li>
+            <li>You can cancel at any time</li>
+        </ul>
+
+        <div class="note note-info">
+            After opening a file, the viewport automatically frames the model using 'Fit All' so you can see it completely. Press <kbd>F</kbd> at any time to fit all objects in view.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson01.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson03.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

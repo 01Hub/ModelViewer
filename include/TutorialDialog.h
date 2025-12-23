@@ -29,21 +29,8 @@ private:
     void populateLessonList();
     void updateNavigationButtons();
 
-    // Lesson content generators
-    QString createLesson1_GettingStarted();
-    QString createLesson2_OpeningModels();
-    QString createLesson3_BasicNavigation();
-    QString createLesson4_SelectingObjects();
-    QString createLesson5_ViewModes();
-    QString createLesson6_CameraModes();
-    QString createLesson7_DisplayModes();
-    QString createLesson8_ManipulatingObjects();
-    QString createLesson9_MaterialsAndTextures();
-    QString createLesson10_LightingAndEnvironment();
-    QString createLesson11_WorkingWithVisibility();
-    QString createLesson12_AdvancedFeatures();
-    QString createLesson13_PerformanceOptimization();
-    QString createLesson14_TipsAndTricks();
+    QString loadHtmlFile(const QString& fileName);
+    QString getTutorialPath() const;
 
     // Helper methods
     QString createStyledHtml(const QString& title, const QString& content);

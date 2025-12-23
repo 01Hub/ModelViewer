@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 12: Advanced Features - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html" class='active'>12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 12 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 85.71%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 12: Advanced Features</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>ModelViewer includes several advanced features for specialized visualization and analysis tasks.</p>
+
+        <h2>Clipping Planes / Section View</h2>
+        <p>Cut through models to see internal structure:</p>
+                <div class="step">
+            <div class="step-title">Step 1: Enable Section View</div>
+            <div class="step-content">Click the 'Section View' button in the view toolbar.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Clipping Plane Editor</div>
+            <div class="step-content">A control panel appears with options for XY, YZ, and ZX clipping planes.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Activate Planes</div>
+            <div class="step-content">Enable individual planes and use sliders to position them through the model.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 4: Flip Direction</div>
+            <div class="step-content">Use 'Flip' buttons to reverse which side is cut away.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_12_clipping_planes.png" alt="Model cut by clipping plane showing internal structure" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_12_clipping_planes.png (700x450)</div>
+            <span class="screenshot-caption">Model cut by clipping plane showing internal structure</span>
+        </div>
+
+        <div class="note note-tip">
+            Use clipping planes to inspect internal features, analyze cross-sections, or create cutaway views for presentations.
+        </div>
+
+        <h2>Window Zoom</h2>
+        <p>Zoom precisely into a specific area:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Activate Window Zoom</div>
+            <div class="step-content">Click 'Window Zoom' button in toolbar or right-click → 'Zoom Area'.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Draw Rectangle</div>
+            <div class="step-content">Click and drag to draw a rectangle around the area you want to magnify.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Zoom Executes</div>
+            <div class="step-content">Release the mouse button and the view zooms to fit your selected area.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_12_window_zoom.png" alt="Rectangle being drawn for window zoom with result" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:350px;">Screenshot: tutorial_12_window_zoom.png (700x350)</div>
+            <span class="screenshot-caption">Rectangle being drawn for window zoom with result</span>
+        </div>
+
+        <h2>Normal Visualization</h2>
+        <p>Display surface normals for debugging:</p>
+                <div class="step">
+            <div class="step-title">Step 1: Vertex Normals</div>
+            <div class="step-content">Enable 'Show Vertex Normals' to display normal vectors at each vertex.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Face Normals</div>
+            <div class="step-content">Enable 'Show Face Normals' to display normal vectors for each polygon face.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Use Case</div>
+            <div class="step-content">Helps diagnose shading problems, reversed faces, or normal map issues.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_12_normals.png" alt="Model with visible normal vectors shown as lines" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_12_normals.png (700x450)</div>
+            <span class="screenshot-caption">Model with visible normal vectors shown as lines</span>
+        </div>
+
+        <h2>Multiple Sessions</h2>
+        <p>Work with multiple models simultaneously:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Open New Session</div>
+            <div class="step-content">File → New or <kbd>Ctrl+N</kbd> creates a new viewer window.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Arrange Windows</div>
+            <div class="step-content">Use Window menu to Tile, Cascade, or arrange custom layouts.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Independent Views</div>
+            <div class="step-content">Each session has its own camera, display settings, and object list.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_12_multiple_sessions.png" alt="Multiple viewer windows tiled showing different models" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:800px; height:500px;">Screenshot: tutorial_12_multiple_sessions.png (800x500)</div>
+            <span class="screenshot-caption">Multiple viewer windows tiled showing different models</span>
+        </div>
+
+        <h2>Saving Scenes</h2>
+        <p>Save your complete scene with all settings:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Save Project</div>
+            <div class="step-content">File → Save or <kbd>Ctrl+S</kbd> saves to ModelViewer's .mvf format.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: What's Saved</div>
+            <div class="step-content">
+                • All models and their geometry<br/>
+                • Materials and textures<br/>
+                • Transformations<br/>
+                • Visibility states<br/>
+                • Camera position<br/>
+                • Display settings
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Reopen Later</div>
+            <div class="step-content">File → Open and select your .mvf file to restore the complete scene.</div>
+        </div>
+
+        <h2>Exporting</h2>
+        <p>Export models to different formats:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Select Objects</div>
+            <div class="step-content">Select the objects you want to export (or leave all selected for full export).</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: File → Export</div>
+            <div class="step-content">Or press <kbd>Ctrl+Shift+E</kbd>.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Choose Format</div>
+            <div class="step-content">Select target format (OBJ, STL, PLY, etc.) and location.</div>
+        </div>
+
+        <div class="note note-info">
+            Export preserves geometry but may not export all material properties depending on the target format's capabilities.
+        </div>
+
+        <h2>Mesh Information</h2>
+        <p>View detailed statistics about objects:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Select Object</div>
+            <div class="step-content">Select a single object in the list or viewport.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Mesh Info</div>
+            <div class="step-content">Right-click → 'Mesh Info' to see detailed statistics.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Information Shown</div>
+            <div class="step-content">
+                • Vertex count<br/>
+                • Triangle/polygon count<br/>
+                • Bounding box dimensions<br/>
+                • Surface area<br/>
+                • Memory usage
+            </div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_12_mesh_info.png" alt="Mesh information dialog showing statistics" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:400px; height:300px;">Screenshot: tutorial_12_mesh_info.png (400x300)</div>
+            <span class="screenshot-caption">Mesh information dialog showing statistics</span>
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson11.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson13.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>

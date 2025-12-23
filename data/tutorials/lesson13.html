@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 13: Performance Optimization - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials & Textures</a>
+            <a href="lesson10.html">10. Lighting & Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html" class='active'>13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips & Workflows</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 13 of 14</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 92.86%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 13: Performance Optimization</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>Working with large models requires optimization strategies. Here's how to maintain smooth performance even with complex scenes.</p>
+
+        <h2>Understanding Performance</h2>
+        <p>Several factors affect rendering speed:</p>
+        <ul>
+            <li><b>Polygon Count:</b> More polygons equal slower rendering.</li>
+            <li><b>Display Mode:</b> Realistic mode is significantly slower than Shaded or Wireframe.</li>
+            <li><b>Number of Objects:</b> High object counts increase system overhead.</li>
+            <li><b>Texture Size:</b> Large textures consume more memory and GPU bandwidth.</li>
+            <li><b>Lighting Complexity:</b> Shadows and Image-Based Lighting (IBL) are computationally expensive.</li>
+            <li><b>Screen Resolution:</b> Higher resolutions require more pixels to be computed.</li>
+        </ul>
+
+        <h2>Automatic Optimizations</h2>
+        <p>ModelViewer includes built-in features to help manage performance:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Low-Res Preview</div>
+            <div class="step-content">For models larger than 50MB, a simplified version is automatically shown during navigation (rotation, panning, zooming). Full detail returns when movement stops.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Progressive Loading</div>
+            <div class="step-content">Large files load progressively, allowing you to begin working before the entire model is fully loaded.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: View Frustum Culling</div>
+            <div class="step-content">Objects outside the camera's current field of view are not rendered, though they remain in memory.</div>
+        </div>
+
+        <h2>Manual Optimization Strategies</h2>
+        <p>Techniques you can use to improve responsiveness:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Switch Display Modes</div>
+            <div class="step-content">
+                Use Shaded or Wireframe mode while modeling or transforming. Save Realistic mode for final reviews.<br>
+                <b>Performance ranking (Fastest to Slowest):</b> Wireframe > Shaded > WireShaded > Realistic.
+            </div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Hide Unnecessary Objects</div>
+            <div class="step-content">Hide objects you aren't currently working on. Hidden objects aren't rendered, freeing GPU resources. Use 'Show Only' to isolate components in large assemblies.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Reduce Shadow Quality</div>
+            <div class="step-content">In Environment settings, lower Shadow Quality (Ultra → High → Medium → Low) or disable shadows entirely during heavy work.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 4: Disable IBL/Reflections</div>
+            <div class="step-content">Turn off Image-Based Lighting and environment reflections when they aren't strictly needed for the current task.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 5: Use Orthographic Projection</div>
+            <div class="step-content">Orthographic projection is slightly faster than perspective, making it ideal for technical work.</div>
+        </div>
+
+        <h2>Settings Optimization</h2>
+        <p>Configure global rendering quality:</p>
+        <div class="step">
+            <div class="step-title">Step 1: MSAA Level</div>
+            <div class="step-content">In <b>File → Settings → Rendering</b>, lower MSAA (anti-aliasing) samples (8x → 4x → 2x → Off) if the framerate is poor.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Anisotropic Filtering</div>
+            <div class="step-content">Reduce the filtering level (16x → 8x → 4x → 2x) to lower texture processing load.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_13_settings.png" alt="Settings dialog showing rendering quality options" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <div class="screenshot-placeholder" style="display:none; width:500px; height:400px;">Screenshot: tutorial_13_settings.png (500x400)</div>
+            <span class="screenshot-caption">Settings dialog showing rendering quality options</span>
+        </div>
+
+        <h2>Working with Large Files</h2>
+        <p>Strategies for massive models:</p>
+        <ol>
+            <li><b>Import Selectively:</b> If possible, import only the specific parts you need.</li>
+            <li><b>Use Low-Poly Versions:</b> Maintain separate low-poly versions for active modeling work.</li>
+            <li><b>Work in Sections:</b> Use clipping planes to focus on and render only one area at a time.</li>
+            <li><b>Wait for Load:</b> Let files load completely before initiating heavy interaction.</li>
+            <li><b>Close Unused Sessions:</b> Every open viewer window consumes system resources.</li>
+        </ol>
+
+        <h2>Memory Management</h2>
+        <p>Monitor and manage system resources:</p>
+        <div class="step">
+            <div class="step-title">Step 1: Memory Indicators</div>
+            <div class="step-content">Monitor the status bar for memory usage warnings.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Delete Unused Objects</div>
+            <div class="step-content">Permanently delete objects you don't need rather than just hiding them, as hidden objects still occupy RAM and VRAM.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Texture Sizes</div>
+            <div class="step-content">Use appropriately sized textures; 4K textures are often unnecessary for small objects. Consider 2K or 1K textures for better performance.</div>
+        </div>
+
+        <h2>Performance Checklist</h2>
+        <p>If experiencing slowdown, try these in order:</p>
+        <ol>
+            <li>Switch to Shaded or Wireframe display mode.</li>
+            <li>Hide objects not currently needed.</li>
+            <li>Disable shadows temporarily.</li>
+            <li>Turn off IBL and environment maps.</li>
+            <li>Lower MSAA setting in Settings.</li>
+            <li>Use Orthographic projection.</li>
+            <li>Close unnecessary viewer sessions.</li>
+            <li>Reduce texture sizes.</li>
+            <li>Consider working with a lower-poly version.</li>
+        </ol>
+
+        <div class="note note-tip">
+            For extreme cases (over 100 million polygons), consider splitting the model into separate files or using dedicated CAD software for the heaviest geometry work.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson12.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <a href='lesson14.html' class='nav-button'>Next Lesson →</a>
+        </div>
+    </div>
+</body>
+</html>
