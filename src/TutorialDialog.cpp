@@ -1,10 +1,16 @@
 ﻿#include "TutorialDialog.h"
+#include "config.h"
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QSplitter>
 #include <QApplication>
 #include <QScreen>
 #include <QScrollBar>
+#include <QFile>
+#include <QImage>
+#include <QPainter>
+#include <QBuffer>
+#include <QFont>
 
 TutorialDialog::TutorialDialog(QWidget* parent)
     : QDialog(parent)
@@ -2153,12 +2159,65 @@ QString TutorialDialog::createStep(int stepNumber, const QString& title, const Q
 QString TutorialDialog::createScreenshotPlaceholder(const QString& filename, const QString& caption,
     int width, int height)
 {
+    // Try to load image from data directory
+    QString imagePath = QString(MODELVIEWER_DATA_DIR) + "/data/tutorials/screenshots/" + filename;
+    QImage image;
+
+    if (QFile::exists(imagePath))
+    {
+        // Load actual screenshot
+        if (image.load(imagePath))
+        {
+            // Scale image if needed to fit within max dimensions while preserving aspect ratio
+            if (image.width() > width || image.height() > height)
+            {
+                image = image.scaled(width * 1.5, height * 1.5, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            }
+        }
+        else
+        {
+            // File exists but couldn't be loaded - create error placeholder
+            image = QImage(width, height, QImage::Format_RGB32);
+            image.fill(QColor(255, 240, 240)); // Light red background
+
+            QPainter painter(&image);
+            painter.setPen(QColor(180, 0, 0)); // Dark red text
+            QFont font = painter.font();
+            font.setPointSize(12);
+            font.setBold(true);
+            painter.setFont(font);
+            painter.drawText(image.rect(), Qt::AlignCenter,
+                QString("Failed to load:\n%1").arg(filename));
+        }
+    }
+    else
+    {
+        // File doesn't exist - create simple placeholder
+        image = QImage(width, height, QImage::Format_RGB32);
+        image.fill(Qt::white);
+
+        QPainter painter(&image);
+        painter.setPen(QColor(160, 160, 160)); // Gray text
+        QFont font = painter.font();
+        font.setPointSize(14);
+        painter.setFont(font);
+        painter.drawText(image.rect(), Qt::AlignCenter, "Screenshot");
+    }
+
+    // Convert image to base64 data URL for embedding in HTML
+    QByteArray byteArray;
+    QBuffer buffer(&byteArray);
+    buffer.open(QIODevice::WriteOnly);
+    image.save(&buffer, "PNG");
+    QString base64Image = QString::fromLatin1(byteArray.toBase64());
+
     return QString(
-        "<div class='screenshot' style='width:%1px; height:%2px;'>"
-        "<div class='screenshot-filename'>📷 %3</div>"
-        "<div class='screenshot-caption'>%4</div>"
+        "<div style='text-align:center; margin: 20px 0;'>"
+        "<img src='data:image/png;base64,%1' alt='%2' "
+        "style='max-width:100%%; width:auto; border:1px solid #ddd; border-radius:4px;'/>"
+        "<div style='font-style:italic; color:#666; margin-top:3px; font-size:9pt;'>%4</div>"
         "</div>"
-    ).arg(width).arg(height).arg(filename, caption);
+    ).arg(base64Image, caption).arg(caption);
 }
 
 QString TutorialDialog::createNote(const QString& noteType, const QString& content)
