@@ -312,9 +312,75 @@ void MainWindow::on_actionQuick_Help_triggered()
 
 void MainWindow::on_actionTutorial_triggered()
 {
-	TutorialDialog* tutorial = new TutorialDialog(this);
-	tutorial->setAttribute(Qt::WA_DeleteOnClose);
-	tutorial->show(); // Non-modal so users can follow along
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+
+	// Check if user has saved a preference
+	QString tutorialMode = settings.value("tutorial/displayMode", "ask").toString();
+
+	if (tutorialMode == "ask")
+	{
+		// Ask user which method they prefer
+		QMessageBox msgBox(this);
+		msgBox.setWindowTitle(tr("Tutorial Display Method"));
+		msgBox.setText(tr("How would you like to view the tutorial?"));
+		msgBox.setInformativeText(tr("Choose between an integrated dialog or opening in your web browser."));
+		msgBox.setIcon(QMessageBox::Question);
+
+		QPushButton* dialogButton = msgBox.addButton(tr("Dialog Window"), QMessageBox::AcceptRole);
+		QPushButton* browserButton = msgBox.addButton(tr("Web Browser"), QMessageBox::AcceptRole);
+		msgBox.addButton(QMessageBox::Cancel);
+
+		QCheckBox* rememberCheckbox = new QCheckBox(tr("Remember my choice"), &msgBox);
+		msgBox.setCheckBox(rememberCheckbox);
+
+		msgBox.exec();
+
+		if (msgBox.clickedButton() == dialogButton)
+		{
+			tutorialMode = "dialog";
+			if (rememberCheckbox->isChecked())
+			{
+				settings.setValue("tutorial/displayMode", "dialog");
+			}
+		}
+		else if (msgBox.clickedButton() == browserButton)
+		{
+			tutorialMode = "browser";
+			if (rememberCheckbox->isChecked())
+			{
+				settings.setValue("tutorial/displayMode", "browser");
+			}
+		}
+		else
+		{
+			// User cancelled
+			return;
+		}
+	}
+
+	// Open tutorial based on chosen mode
+	if (tutorialMode == "dialog")
+	{
+		TutorialDialog* tutorial = new TutorialDialog(this);
+		tutorial->setAttribute(Qt::WA_DeleteOnClose);
+		tutorial->show();
+	}
+	else if (tutorialMode == "browser")
+	{
+		QString tutorialPath = QString(MODELVIEWER_DATA_DIR) + "/data/tutorials/index.html";
+		QFile tutorialFile(tutorialPath);
+
+		if (tutorialFile.exists())
+		{
+			QDesktopServices::openUrl(QUrl::fromLocalFile(tutorialPath));
+		}
+		else
+		{
+			QMessageBox::warning(this, tr("Tutorial Not Found"),
+				tr("Tutorial file not found at:\n%1\n\n"
+					"Please ensure the tutorial files are installed correctly.").arg(tutorialPath));
+		}
+	}
 }
 
 void MainWindow::on_actionAbout_triggered(bool /*checked*/)
