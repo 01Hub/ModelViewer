@@ -13,6 +13,12 @@
       "default-features": false,
       "features": [ "linguist", "designer" ]
     },
+    {
+      "name": "qtimageformats",
+      "default-features": false
+    },    
+    "libwebp",
+    "libjpeg-turbo",
     "assimp",
     "freetype",
     "glm",

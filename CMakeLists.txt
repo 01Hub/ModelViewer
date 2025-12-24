@@ -16,6 +16,17 @@ endif()
 
 find_package(Qt6 COMPONENTS Core Gui OpenGLWidgets Widgets LinguistTools)
 
+# Optional: WebEngine - just check for it, don't link yet
+find_package(Qt6 COMPONENTS WebEngineWidgets QUIET)
+
+if(Qt6WebEngineWidgets_FOUND)
+    message(STATUS "Qt WebEngine found - tutorials will use WebEngine")
+    set(HAVE_WEBENGINE TRUE)
+else()
+    message(WARNING "Qt WebEngine not found - tutorials will use QTextBrowser")
+    set(HAVE_WEBENGINE FALSE)
+endif()
+
 if(Qt6_FOUND)
     set(QT_VERSION_MAJOR 6)
     set(QT_TRANSLATE_NAMESPACE Qt6)
@@ -25,6 +36,77 @@ endif()
 
 message("Using Qt${QT_VERSION_MAJOR}")
 
+find_package(WebP CONFIG REQUIRED)
+
+# ============================================================================
+# Define vcpkg plugins directory (different for debug/release)
+# ============================================================================
+if(DEFINED VCPKG_INSTALLED_DIR)
+    if(DEFINED VCPKG_TARGET_TRIPLET)
+        set(VCPKG_BASE "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}")
+    else()
+        set(VCPKG_BASE "${VCPKG_INSTALLED_DIR}/x64-windows")
+    endif()
+    
+    # For debug builds, plugins are in debug/Qt6/plugins
+    # For release builds, plugins are in Qt6/plugins
+    if(CMAKE_BUILD_TYPE MATCHES "Debug")
+        set(QT_VCPKG_PLUGINS_DIR "${VCPKG_BASE}/debug/Qt6/plugins")
+        set(DEBUG_SUFFIX "d")
+    else()
+        set(QT_VCPKG_PLUGINS_DIR "${VCPKG_BASE}/Qt6/plugins")
+        set(DEBUG_SUFFIX "")
+    endif()
+    
+    message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
+    message(STATUS "VCPKG_TARGET_TRIPLET: ${VCPKG_TARGET_TRIPLET}")
+    message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
+    message(STATUS "Qt plugins directory: ${QT_VCPKG_PLUGINS_DIR}")
+    
+    # Check if directory exists and list plugins
+    if(EXISTS "${QT_VCPKG_PLUGINS_DIR}/imageformats")
+        message(STATUS "Image format plugins found!")
+        file(GLOB IMAGEFORMAT_PLUGINS "${QT_VCPKG_PLUGINS_DIR}/imageformats/*.dll")
+        message(STATUS "Available plugins:")
+        foreach(PLUGIN ${IMAGEFORMAT_PLUGINS})
+            get_filename_component(PLUGIN_NAME ${PLUGIN} NAME)
+            message(STATUS "  ${PLUGIN_NAME}")
+        endforeach()
+    else()
+        message(WARNING "Image format plugins directory not found: ${QT_VCPKG_PLUGINS_DIR}/imageformats")
+    endif()
+else()
+    message(WARNING "VCPKG_INSTALLED_DIR not defined")
+endif()
+
+# ============================================================================
+# Function to deploy image format plugins
+# ============================================================================
+function(deploy_image_plugin TARGET_NAME PLUGIN_NAME)
+    if(NOT DEFINED QT_VCPKG_PLUGINS_DIR)
+        return()
+    endif()
+    
+    # Plugin file with appropriate suffix
+    set(PLUGIN_FILE "${PLUGIN_NAME}${DEBUG_SUFFIX}.dll")
+    set(PLUGIN_SOURCE "${QT_VCPKG_PLUGINS_DIR}/imageformats/${PLUGIN_FILE}")
+    
+    if(EXISTS "${PLUGIN_SOURCE}")
+        add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory 
+                "$<TARGET_FILE_DIR:${TARGET_NAME}>/plugins/imageformats"
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${PLUGIN_SOURCE}"
+                "$<TARGET_FILE_DIR:${TARGET_NAME}>/plugins/imageformats/${PLUGIN_FILE}"
+            COMMENT "Copying image format plugin: ${PLUGIN_FILE}"
+            VERBATIM
+        )
+        message(STATUS "Will deploy plugin: ${PLUGIN_FILE}")
+    else()
+        message(WARNING "Plugin not found: ${PLUGIN_SOURCE}")
+    endif()
+endfunction()
+
 include(GNUInstallDirs)
 
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -33,12 +115,14 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
-# Don't use AUTOUIC - we'll handle UI files manually
 
 # Handle UI files manually
 file(GLOB ui_sources ui/*.ui)
 qt6_wrap_ui(ui_wrapped ${ui_sources})
 
+# ============================================================================
+# CREATE THE TARGET - This must come before any target_* commands
+# ============================================================================
 add_executable(ModelViewer)
 
 set(APP_VERSION_MAJOR 1)
@@ -78,12 +162,8 @@ foreach(_ts ${TS_FILES})
 endforeach()
 
 # Generate/update translation files using lupdate
-# Make sure UI files are processed first so ui_*.h files exist
-# Custom target to update translations for Qt6
 add_custom_target(update_translations
-    # First ensure UI files are processed
     COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target ModelViewer --parallel 1 || true
-    # Then run lupdate on all source files including generated UI headers
     COMMAND ${Qt6_LUPDATE_EXECUTABLE}
         ${sources} ${ui_sources}
         -ts ${TS_FILES}
@@ -97,7 +177,6 @@ qt6_add_lrelease(ModelViewer
     TS_FILES ${TS_FILES}
     QM_FILES_OUTPUT_VARIABLE QM_FILES
 )
-
 
 # Debug: Print QM files list
 message(STATUS "QM_FILES will be: ${QM_FILES}")
@@ -119,7 +198,7 @@ qt_add_resources(translation_resources ${TRANSLATIONS_QRC})
 target_sources(ModelViewer
     PRIVATE
         ${sources}
-        ${ui_wrapped}  # Use the manually wrapped UI files
+        ${ui_wrapped}
         ModelViewer.qrc
         ${translation_resources}
 )
@@ -131,22 +210,51 @@ target_include_directories(ModelViewer
         ${OpenCASCADE_INCLUDE_DIR}
 )
 
+# ============================================================================
+# Link libraries - NOW the target exists
+# ============================================================================
 target_link_libraries(ModelViewer
     PRIVATE
         assimp::assimp
         Freetype::Freetype
         glm::glm
         meshoptimizer::meshoptimizer
-        Qt::Core
-        Qt::Gui
-        $<$<EQUAL:${QT_VERSION_MAJOR},6>:Qt::OpenGLWidgets>
-        $<$<EQUAL:${QT_VERSION_MAJOR},5>:Qt::OpenGL>
-        Qt::Widgets
+        Qt6::Core
+        Qt6::Gui
+        Qt6::OpenGLWidgets        
+        Qt6::Widgets        
         ${OpenCASCADE_FoundationClasses_LIBRARIES}
         ${OpenCASCADE_ModelingData_LIBRARIES}
         ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}
         ${OpenCASCADE_DataExchange_LIBRARIES}
         ${OpenCASCADE_ApplicationFramework_LIBRARIES}
+)
+
+# basic usage
+target_link_libraries(ModelViewer PRIVATE WebP::webp WebP::webpdecoder WebP::webpdemux)
+
+# Add WebEngine if found
+if(HAVE_WEBENGINE)
+    target_compile_definitions(ModelViewer PRIVATE HAVE_WEBENGINE)
+    target_link_libraries(ModelViewer PRIVATE Qt6::WebEngineWidgets)
+endif()
+
+# ============================================================================
+# Deploy image format plugins - MUST BE AFTER add_executable()
+# ============================================================================
+deploy_image_plugin(ModelViewer "qwebp")
+deploy_image_plugin(ModelViewer "qjpeg")
+deploy_image_plugin(ModelViewer "qgif")
+deploy_image_plugin(ModelViewer "qico")
+deploy_image_plugin(ModelViewer "qtiff")
+deploy_image_plugin(ModelViewer "qwbmp")
+
+# Create qt.conf
+add_custom_command(TARGET ModelViewer POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "[Paths]" > "$<TARGET_FILE_DIR:ModelViewer>/qt.conf"
+    COMMAND ${CMAKE_COMMAND} -E echo "Plugins = plugins" >> "$<TARGET_FILE_DIR:ModelViewer>/qt.conf"
+    COMMENT "Creating qt.conf"
+    VERBATIM
 )
 
 if(WIN32)
