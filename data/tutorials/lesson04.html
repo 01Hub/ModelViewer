@@ -48,15 +48,15 @@
         </div>
         <div class="step">
             <div class="step-title">Step 2: Visual Feedback</div>
-            <div class="step-content">Selected objects are highlighted with a colored outline in the viewport and their entry in the object list is also highlighted.</div>
+            <div class="step-content">Selected objects are highlighted with a glowing color in the viewport and their entry in the object list is also highlighted.</div>
         </div>
 
         
 
         <div class="screenshot-container">
-            <img src="screenshots/tutorial_04_single_selection.png" alt="Object selected showing highlight outline and selection in object list" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
+            <img src="screenshots/tutorial_04_single_selection.png" alt="Object selected showing glowing highlight and selection in object list" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-block';">
             <div class="screenshot-placeholder" style="display:none; width:700px; height:450px;">Screenshot: tutorial_04_single_selection.png (700x450)</div>
-            <span class="screenshot-caption">Object selected showing highlight outline and selection in object list</span>
+            <span class="screenshot-caption">Object selected showing glowing highlight color and selection in object list</span>
         </div>
 
         <div class="note note-info">
@@ -122,11 +122,11 @@
         </div>
         <div class="step">
             <div class="step-title">Step 2: Objects Appear/Hide</div>
-            <div class="step-content">Only objects matching your search will be shown in the list.</div>
+            <div class="step-content">Only objects matching your search will be highlighted in the list. If no match is found the search box will show a red silhouette</div>
         </div>
         <div class="step">
             <div class="step-title">Step 3: Select from Filtered List</div>
-            <div class="step-content">Click on the objects you want to select from the filtered results.</div>
+            <div class="step-content">Filtered objects will automatically be selected from the filtered results.</div>
         </div>
 
         <div class="screenshot-container">
@@ -149,10 +149,10 @@
                 </tr>
             </thead>
             <tbody>
-                <tr><td>Click on selected object</td><td>Toggles that object off</td></tr>
-                <tr><td>Click empty space in viewport</td><td>Deselects all objects</td></tr>
+                <tr><td>Click on selected object</td><td>Deselects that object</td></tr>
+                <tr><td>Click empty space in viewport</td><td>Selected objects stay selected</td></tr>
                 <tr><td>Press <kbd>Esc</kbd></td><td>Deselects all objects</td></tr>
-                <tr><td>Click different object</td><td>Selects new object, deselects previous</td></tr>
+                <tr><td>Click different object</td><td>Adds that object to existing list of seleced objects</td></tr>
             </tbody>
         </table>
 
@@ -164,7 +164,8 @@
         </div>
 
         <div class="note note-info">
-            Even with highlighting off, you can still see which objects are selected in the object list.
+            Even with highlighting off, you can still see which objects are selected in the object list. 
+			This helps to eliminate the selection visual to visualize the real-time change of visuals of the selected objects in case of color, material, or texture application.
         </div>
 
         <h2>Working with Selected Objects</h2>
