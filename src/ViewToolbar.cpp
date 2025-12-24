@@ -368,6 +368,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _multiBtn->setToolTip(tr("Toggle Multi-View"));
     _multiBtn->setCheckable(true);
     _multiBtn->setAutoRaise(true);
+    _multiBtn->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_M));
     _mainLayout->addWidget(_multiBtn);
     connect(_multiBtn, &QToolButton::toggled, this, [this](bool checked) { emit multiViewToggled(checked); });
 
