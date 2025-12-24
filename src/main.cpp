@@ -94,5 +94,15 @@ int main(int argc, char** argv)
 #endif // DEBUG
 */
 
+	QList<QByteArray> formats = QImageReader::supportedImageFormats();
+	if (formats.contains("webp"))
+	{
+		qDebug() << "WebP support is available";
+	}
+	else
+	{
+		qDebug() << "WebP support is NOT available";
+	}
+
 	return app.exec();
 }
