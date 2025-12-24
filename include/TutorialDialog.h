@@ -3,9 +3,30 @@
 
 #include <QDialog>
 #include <QListWidget>
-#include <QTextBrowser>
 #include <QPushButton>
 #include <QSplitter>
+#include <QUrl>
+
+#ifdef HAVE_WEBENGINE
+#include <QWebEngineView>
+#include <QWebEnginePage>
+
+// Custom page to intercept link clicks
+class TutorialWebPage : public QWebEnginePage
+{
+    Q_OBJECT
+public:
+    explicit TutorialWebPage(QObject* parent = nullptr);
+
+protected:
+    bool acceptNavigationRequest(const QUrl& url, NavigationType type, bool isMainFrame) override;
+
+signals:
+    void linkClicked(const QUrl& url);
+};
+#else
+#include <QTextBrowser>
+#endif
 
 class TutorialDialog : public QDialog
 {
@@ -13,46 +34,44 @@ class TutorialDialog : public QDialog
 
 public:
     explicit TutorialDialog(QWidget* parent = nullptr);
-    ~TutorialDialog() override = default;
-
-    // Public method to jump to specific lesson
-    void showLesson(int lessonIndex);
+    ~TutorialDialog() = default;
 
 private slots:
     void onLessonSelected(QListWidgetItem* current, QListWidgetItem* previous);
     void onPreviousClicked();
     void onNextClicked();
-    void onCloseClicked();
+    void onLinkClicked(const QUrl& url);
 
 private:
     void setupUI();
     void populateLessonList();
+    void loadLesson(int listIndex);  // listIndex includes the index page
+    void loadIndexPage();
     void updateNavigationButtons();
 
-    QString loadHtmlFile(const QString& fileName);
-    QString getTutorialPath() const;
+    QString getTutorialBasePath() const;
+    QString getLessonPath(int lessonIndex) const;  // lessonIndex is 1-14 for lessons, -1 for index
+    QString getLessonTitle(int lessonIndex) const;
+    QString loadHtmlFile(const QString& filename);
+    void showError(const QString& title, const QString& message);
 
-    // Helper methods
-    QString createStyledHtml(const QString& title, const QString& content);
-    QString createSection(const QString& heading, const QString& content);
-    QString createStep(int stepNumber, const QString& title, const QString& description);
-    QString createScreenshotPlaceholder(const QString& filename, const QString& caption,
-        int width = 600, int height = 400);
-    QString createNote(const QString& noteType, const QString& content);
-    QString createKeyboardKey(const QString& key);
-    QString createTable(const QStringList& headers, const QList<QStringList>& rows);
-
-    // UI Components
-    QSplitter* m_splitter;
     QListWidget* m_lessonList;
-    QTextBrowser* m_contentBrowser;
+
+#ifdef HAVE_WEBENGINE
+    QWebEngineView* m_webView;
+    TutorialWebPage* m_webPage;
+#else
+    QTextBrowser* m_textBrowser;
+#endif
+
     QPushButton* m_previousButton;
     QPushButton* m_nextButton;
     QPushButton* m_closeButton;
+    QSplitter* m_splitter;
 
-    // Lesson management
-    QStringList m_lessonTitles;
-    int m_currentLessonIndex;
+    int m_currentListIndex;  // Current position in list (0=index, 1-14=lessons)
+    static constexpr int TOTAL_LESSONS = 14;
+    static constexpr int TOTAL_LIST_ITEMS = TOTAL_LESSONS + 1;  // Include index page
 };
 
 #endif // TUTORIALDIALOG_H
