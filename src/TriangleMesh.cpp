@@ -557,6 +557,24 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("specularColorMap", 26);
 	_prog->setUniformValue("hasSpecularColorMap", _material.hasSpecularColorMap());
 
+	// KHR_materials_pbrSpecularGlossiness
+	_prog->setUniformValue("diffuseMap", 10);
+	_prog->setUniformValue("specularGlossinessMap", 25);
+	_prog->setUniformValue("hasDiffuseMap", _material.hasDiffuseMap());
+	_prog->setUniformValue("hasSpecularGlossinessMap", _material.hasSpecularGlossinessMap());
+	_prog->setUniformValue("useSpecularGlossiness", _material.getUseSpecularGlossiness());
+
+	// KHR_materials_pbrSpecularGlossiness - Factor values
+	QVector3D diffuseFactor = _material.hasDiffuseMap() ?
+		QVector3D(1.0f, 1.0f, 1.0f) : _material.diffuseColor();
+	QVector3D specularFactor = _material.hasDiffuseMap() ?
+		QVector3D(1.0f, 1.0f, 1.0f) : _material.specularColor();
+	float glossinessFactor = _material.glossinessFactor();
+
+	_prog->setUniformValue("diffuseFactor", diffuseFactor);
+	_prog->setUniformValue("specularColor", specularFactor);
+	_prog->setUniformValue("glossinessFactor", glossinessFactor);
+
 	// KHR_materials_anisotropy
 	_prog->setUniformValue("anisotropyMap", 27);
 	_prog->setUniformValue("hasAnisotropyMap", _material.hasAnisotropyMap());
@@ -773,6 +791,18 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("specularColorTexTransform.offset", _material.specularColorTexOffset());
 	_prog->setUniformValue("specularColorTexTransform.scale", _material.specularColorTexScale());
 	_prog->setUniformValue("specularColorTexTransform.rotation", _material.specularColorTexRotation());
+
+	// KHR_materials_pbrSpecularGlossiness - Diffuse map transform
+	_prog->setUniformValue("diffuseTexTransform.texCoordIndex", _material.diffuseTexCoord());
+	_prog->setUniformValue("diffuseTexTransform.offset", _material.diffuseTexOffset());
+	_prog->setUniformValue("diffuseTexTransform.scale", _material.diffuseTexScale());
+	_prog->setUniformValue("diffuseTexTransform.rotation", _material.diffuseTexRotation());
+
+	// KHR_materials_pbrSpecularGlossiness - Specular-Glossiness map transform
+	_prog->setUniformValue("specularGlossinessTexTransform.texCoordIndex", _material.specularGlossinessTexCoord());
+	_prog->setUniformValue("specularGlossinessTexTransform.offset", _material.specularGlossinessTexOffset());
+	_prog->setUniformValue("specularGlossinessTexTransform.scale", _material.specularGlossinessTexScale());
+	_prog->setUniformValue("specularGlossinessTexTransform.rotation", _material.specularGlossinessTexRotation());
 
 	// KHR_materials_anisotropy
 	_prog->setUniformValue("anisotropyTexTransform.texCoordIndex", _material.anisotropyTexCoord());
@@ -1091,6 +1121,7 @@ void TriangleMesh::deleteTextures()
 	glDeleteTextures(1, &_clearcoatPBRMap);
 	glDeleteTextures(1, &_clearcoatRoughnessPBRMap);
 	glDeleteTextures(1, &_clearcoatNormalPBRMap);
+	glDeleteTextures(1, &_specularGlossinessMap);
 }
 
 TriangleMesh::~TriangleMesh()
@@ -1890,6 +1921,15 @@ void TriangleMesh::invertOpacityPBRMap(bool invert)
 	markUniformsDirty();
 }
 
+// KHR_materials_pbrSpecularGlossiness
+void TriangleMesh::setSpecularGlossinessMap(unsigned int sgMap)
+{
+	glDeleteTextures(1, &_specularGlossinessMap);
+	_specularGlossinessMap = sgMap;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
 bool TriangleMesh::isTransparent() const
 {	
 	// If it has transmission, it's ALWAYS transparent (exclude from FBO)
@@ -2028,6 +2068,14 @@ void TriangleMesh::clearClearcoatNormalPBRMap()
 	markUniformsDirty();
 }
 
+void TriangleMesh::clearSpecularGlossinessMap()
+{
+	glDeleteTextures(1, &_specularGlossinessMap);
+	_specularGlossinessMap = 0;
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
 
 void TriangleMesh::clearAllPBRMaps()
 {
@@ -2059,6 +2107,8 @@ void TriangleMesh::clearAllPBRMaps()
 	_clearcoatRoughnessPBRMap = 0;
 	glDeleteTextures(1, &_clearcoatNormalPBRMap);
 	_clearcoatNormalPBRMap = 0;
+	glDeleteTextures(1, &_specularGlossinessMap);
+	_specularGlossinessMap = 0;
 
 	markTexturesDirty();
 	markUniformsDirty();

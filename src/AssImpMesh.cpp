@@ -304,7 +304,7 @@ void AssImpMesh::setupMesh()
 		}
 	}
 
-	/*
+	
 	size_t numVertices = _vertices.size();
 	qDebug() << "Mesh name:" << _name;
 	qDebug() << "=== BUFFER LAYOUT DEBUG ===";
@@ -332,7 +332,7 @@ void AssImpMesh::setupMesh()
 			<< " WrapT:" << tex.wrapT;
 
 	}
-	*/
+	
 
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents);
 	computeBounds();
@@ -357,6 +357,7 @@ void AssImpMesh::cacheTextureBindings()
 	int anisotropyNr = 1;
 	int iridescenceNr = 1, iridescenceThicknessNr = 1;
 	int thicknessNr = 1;
+	int diffuseSpecGlossNr = 1, specularGlossinessNr = 1;
 
 	for (size_t i = 0; i < _textures.size(); ++i)
 	{
@@ -504,6 +505,19 @@ void AssImpMesh::cacheTextureBindings()
 		{
 			addBinding("specularColorMap" /*+ std::to_string(specularColorNr)*/, GL_TEXTURE26);
 			specularColorNr++;
+		}		
+		else if (texture.type == "diffuseMap") // === KHR_materials_pbrSpecularGlossiness ===
+		{
+			addBinding("diffuseMap" /*+ std::to_string(diffuseSpecGlossNr)*/, GL_TEXTURE10);
+			diffuseSpecGlossNr++;
+			_hasTextureAlpha = texture.hasAlpha;
+		}
+		else if (texture.type == "specularGlossinessMap")
+		{
+			// GL_TEXTURE25 is reused (mutually exclusive with specularFactorMap)
+			// The shader checks hasSpecularGlossinessMap to determine which to use
+			addBinding("specularGlossinessMap" /*+ std::to_string(specularGlossinessNr)*/, GL_TEXTURE25);
+			specularGlossinessNr++;
 		}
 		else if (texture.type == "anisotropyMap")
 		{

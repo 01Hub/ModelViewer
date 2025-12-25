@@ -112,6 +112,7 @@ public:
 	virtual void setHeightPBRMap(unsigned int heightMap);
 	virtual void setOpacityPBRMap(unsigned int opacityMap);
 	virtual void invertOpacityPBRMap(bool invert);
+	virtual void setSpecularGlossinessMap(unsigned int sgMap);
 
 	virtual unsigned int getAlbedoPBRMap() const { return _albedoPBRMap; }
 	virtual unsigned int getNormalPBRMap() const { return _normalPBRMap; }
@@ -202,6 +203,7 @@ public:
 	virtual void clearClearcoatPBRMap();
 	virtual void clearClearcoatRoughnessPBRMap();
 	virtual void clearClearcoatNormalPBRMap();
+	virtual void clearSpecularGlossinessMap();
 
 	virtual void clearAllPBRMaps();
 	
@@ -326,6 +328,8 @@ protected:
 	unsigned int _clearcoatPBRMap;
 	unsigned int _clearcoatRoughnessPBRMap;
 	unsigned int _clearcoatNormalPBRMap;
+	// KHR_materials_pbrSpecularGlossiness
+	unsigned int _specularGlossinessMap = 0;
 	bool _hasAlbedoPBRMap;
 	bool _hasMetallicPBRMap;
 	bool _hasEmissivePBRMap;

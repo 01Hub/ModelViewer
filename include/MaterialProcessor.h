@@ -137,6 +137,7 @@ private:
 		unsigned int slotIndex,
 		GLMaterial::Texture& texture);
 
+	void convertSpecularGlossinessToDielectric(GLMaterial& mat);
 
 
 private:

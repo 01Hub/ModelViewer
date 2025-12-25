@@ -4105,9 +4105,8 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "    _invertOpacityTexture: " << m._invertOpacityTexture << "\n";
 	os << "    _iridescenceTextureId: " << m._iridescenceTextureId << "\n";
 	os << "    _anisotropyTextureId: " << m._anisotropyTextureId << "\n";
-
-
-
+	os << "    _iridescenceThicknessTextureId: " << m._iridescenceThicknessTextureId << "\n";
+	
 	// --- Texture coordinate sets / transforms
 	auto printTT = [&os](const GLMaterial::TextureTransform& t) {
 		os << "{texCoord=" << t.texCoord << ", texScale=";
@@ -4155,6 +4154,9 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "    _clearcoatNormalMapPath: " << q(m._clearcoatNormalMapPath) << "\n";
 	os << "    _anisotropyMapPath: " << q(m._anisotropyMap) << "\n";
 	os << "    _iridescenceMapPath: " << q(m._iridescenceMap) << "\n";
+	os << "    _iridescenceThicknessMapPath: " << q(m._iridescenceThicknessMap) << "\n";
+	os << "    _diffuseMapPath: " << q(m._diffuseMap) << "\n";
+	os << "    _specularGlossinessMapPath: " << q(m._specularGlossinessMap) << "\n";
 
 	// --- KHR extension fields (specular, anisotropy, iridescence, volume, etc.)
 	os << "  KHR_specular: _specularFactor: " << m._specularFactor
@@ -4163,6 +4165,18 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 		<< " _specularFactorTextureId: " << m._specularFactorTextureId << "\n";
 	os << "    _specularColorMap: " << q(m._specularColorMap)
 		<< " _specularColorTextureId: " << m._specularColorTextureId << "\n";
+
+	// KHR_pbr_specular_glossiness
+	os << "  KHR_specular_glossiness: _diffuseFactor: "; printVec3(os, m._diffuseColor);
+	os << " _glossinessFactor: " << m._glossinessFactor << "\n";
+	os << "    _diffuseMap: " << q(m._diffuseMap)
+		<< " _diffuseTextureId: " << m._diffuseTextureId << "\n";
+	os << "    _specularGlossinessMap: " << q(m._specularGlossinessMap)
+		<< " _specularGlossinessTextureId: " << m._specularGlossinessTextureId << "\n";
+	os << "    _diffuseColor: "; printVec3(os, m._diffuseColor); os << "\n";
+	os << "    _specularColor: "; printVec3(os, m._specularColor); os << "\n";
+	os << "    _useSpecularGlossiness: " << m._useSpecularGlossiness << "\n";
+	
 
 	os << "  KHR_anisotropy: strength=" << m._anisotropyStrength
 		<< " rotation=" << m._anisotropyRotation

@@ -466,6 +466,51 @@ public:
 	float specularColorTexRotation() const { return _specularColorTexTransform.texRotation; }
 	void setSpecularColorTexRotation(float rotation) { _specularColorTexTransform.texRotation = rotation; }
 
+	// --- KHR_materials_pbrSpecularGlossiness ---
+
+	// Factor uniforms
+	void setDiffuseColor(const QVector3D& color) { _diffuseColor = color; }
+	QVector3D diffuseColor() const { return _diffuseColor; }
+
+	void setSpecularColor(const QVector3D& color) { _specularColor = color; }
+	QVector3D specularColor() const { return _specularColor; }
+
+	void setGlossinessFactor(float glossiness) { _glossinessFactor = qBound(0.0f, glossiness, 1.0f); }
+	float glossinessFactor() const { return _glossinessFactor; }
+
+	void setUseSpecularGlossiness(bool use) { _useSpecularGlossiness = use; }
+	bool getUseSpecularGlossiness() const { return _useSpecularGlossiness; }
+
+	// Diffuse texture
+	void setDiffuseMap(const QString& path) { _diffuseMap = path; }
+	QString diffuseMap() const { return _diffuseMap; }
+	bool hasDiffuseMap() const { return !_diffuseMap.isEmpty(); }
+	void setDiffuseTextureId(unsigned int id) { _diffuseTextureId = id; }
+	unsigned int diffuseTextureId() const { return _diffuseTextureId; }
+	void setDiffuseTexCoord(int coord) { _diffuseTexTransform.texCoord = coord; }
+	int diffuseTexCoord() const { return _diffuseTexTransform.texCoord; }
+	QVector2D diffuseTexScale() const { return _diffuseTexTransform.texScale; }
+	void setDiffuseTexScale(const QVector2D& scale) { _diffuseTexTransform.texScale = scale; }
+	QVector2D diffuseTexOffset() const { return _diffuseTexTransform.texOffset; }
+	void setDiffuseTexOffset(const QVector2D& offset) { _diffuseTexTransform.texOffset = offset; }
+	float diffuseTexRotation() const { return _diffuseTexTransform.texRotation; }
+	void setDiffuseTexRotation(float rotation) { _diffuseTexTransform.texRotation = rotation; }
+
+	// Specular-Glossiness packed texture (RGB spec sRGB, A gloss linear)
+	void setSpecularGlossinessMap(const QString& path) { _specularGlossinessMap = path; }
+	QString specularGlossinessMap() const { return _specularGlossinessMap; }
+	bool hasSpecularGlossinessMap() const { return !_specularGlossinessMap.isEmpty(); }
+	void setSpecularGlossinessTextureId(unsigned int id) { _specularGlossinessTextureId = id; }
+	unsigned int specularGlossinessTextureId() const { return _specularGlossinessTextureId; }
+	void setSpecularGlossinessTexCoord(int coord) { _specularGlossinessTexTransform.texCoord = coord; }
+	int specularGlossinessTexCoord() const { return _specularGlossinessTexTransform.texCoord; }
+	QVector2D specularGlossinessTexScale() const { return _specularGlossinessTexTransform.texScale; }
+	void setSpecularGlossinessTexScale(const QVector2D& scale) { _specularGlossinessTexTransform.texScale = scale; }
+	QVector2D specularGlossinessTexOffset() const { return _specularGlossinessTexTransform.texOffset; }
+	void setSpecularGlossinessTexOffset(const QVector2D& offset) { _specularGlossinessTexTransform.texOffset = offset; }
+	float specularGlossinessTexRotation() const { return _specularGlossinessTexTransform.texRotation; }
+	void setSpecularGlossinessTexRotation(float rotation) { _specularGlossinessTexTransform.texRotation = rotation; }
+
 	// --- KHR_materials_anisotropy ---
 	void setAnisotropyStrength(float strength) { _anisotropyStrength = strength; }
 	float anisotropyStrength() const { return _anisotropyStrength; }
@@ -1080,6 +1125,8 @@ private:
 	TextureTransform _specularColorTexTransform;
 	TextureTransform _diffuseTransmissionTexTransform;
 	TextureTransform _diffuseTransmissionColorTexTransform;
+	TextureTransform _diffuseTexTransform;
+	TextureTransform _specularGlossinessTexTransform;
 
 	// Map paths (UI-facing; your renderer/texture manager can translate these to GL)
 	QString _albedoMapPath;
@@ -1105,6 +1152,16 @@ private:
 	unsigned int _specularFactorTextureId = 0;
 	QString _specularColorMap;
 	unsigned int _specularColorTextureId = 0;
+
+	// KHR_materials_pbrSpecularGlossiness
+	QVector3D _diffuseColor = QVector3D(1.0f, 1.0f, 1.0f);
+	QVector3D _specularColor = QVector3D(1.0f, 1.0f, 1.0f);
+	float _glossinessFactor = 1.0f;
+	bool _useSpecularGlossiness = false;
+	QString _diffuseMap;
+	unsigned int _diffuseTextureId = 0;
+	QString _specularGlossinessMap;
+	unsigned int _specularGlossinessTextureId = 0;
 
 	// KHR_materials_anisotropy
 	float _anisotropyStrength = 0.0f;

@@ -144,6 +144,17 @@ uniform sampler2D specularColorMap;
 uniform bool hasSpecularFactorMap = false;
 uniform bool hasSpecularColorMap = false;
 
+// KHR_materials_pbrSpecularGlossiness
+uniform sampler2D diffuseMap;
+uniform sampler2D specularGlossinessMap;
+uniform bool hasDiffuseMap = false;
+uniform bool hasSpecularGlossinessMap = false;
+// Flag to indicate this material uses spec-glossiness workflow
+uniform bool useSpecularGlossiness = false;
+uniform vec3 diffuseFactor;
+uniform vec3 specularColor;
+uniform float glossinessFactor;
+
 // KHR_materials_anisotropy
 uniform sampler2D anisotropyMap;
 uniform bool hasAnisotropyMap = false;
@@ -201,6 +212,8 @@ uniform TextureTransform iridescenceThicknessTexTransform;
 uniform TextureTransform diffuseTransmissionTexTransform;
 uniform TextureTransform diffuseTransmissionColorTexTransform;
 uniform TextureTransform thicknessTexTransform;
+uniform TextureTransform diffuseTexTransform;
+uniform TextureTransform specularGlossinessTexTransform;
 
 // Legacy ADS texture transforms
 uniform TextureTransform diffuseTextureTransform;
@@ -397,6 +410,12 @@ vec2    getIridescenceThicknessUV();
 vec2    getThicknessUV();
 vec2    getDiffuseTransmissionUV();
 vec2    getDiffuseTransmissionColorUV();
+
+// KHR pbrSpecularGlossiness
+vec2	getDiffuseUV();
+vec2	getSpecularGlossinessUV();
+
+
 
 // Legacy ADS
 vec2    getDiffuseTextureUV();
@@ -1106,42 +1125,69 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (hasVertexColors)
 		albedo *= g_color.rgb;
 
-	// --- packed-channel aware PBR sampling ---
-	// Note: pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
-	// is assumed to return a value in [0,1] for valid channel indices 0..3.
-	// For a different fallback for ch < 0, modify accordingly.		
-	// Metallic
-	float texMetallic = samplePackedChannelValue(metallicMap, hasMetallicMap, getMetallicUV(),
-		metallicChannel, metallicInvert,
-		metallicScale, metallicBias,
-		isGLTFMaterial ? 1.0 : pbrLighting.metallic // fallback if no texture
-	);
-	metallic = mix(texMetallic, pbrLighting.metallic * texMetallic, blendFactor);
-	metallic = clamp(metallic, 0.0, 1.0);
+	vec3 specularGlossSpecular = vec3(1.0);
+	if (useSpecularGlossiness)
+	{
+		specularGlossSpecular = specularColor;
+		float glossinessVal = glossinessFactor;
+	
+		// Sample diffuse with proper conversions
+		if (hasDiffuseMap)
+		{
+			albedo = texture(diffuseMap, getDiffuseUV()).rgb;
+		}
+		else
+		{
+			albedo = diffuseFactor;
+		}
+	
+		if (hasSpecularGlossinessMap)
+		{
+			vec4 sampledSpecGloss = texture(specularGlossinessMap, getSpecularGlossinessUV());
+			specularGlossSpecular *= sampledSpecGloss.rgb;
+			glossinessVal *= sampledSpecGloss.a;
+		}
+	
+		metallic = 0.0;
+		roughness = 1.0 - glossinessVal;
+		roughness = clamp(roughness, 0.04, 1.0);
+	}
+	else  // Metallic-Roughness workflow
+	{
+		// --- packed-channel aware PBR sampling ---
+		// Metallic
+		float texMetallic = samplePackedChannelValue(metallicMap, hasMetallicMap, getMetallicUV(),
+			metallicChannel, metallicInvert,
+			metallicScale, metallicBias,
+			isGLTFMaterial ? 1.0 : pbrLighting.metallic
+		);
+		metallic = mix(texMetallic, pbrLighting.metallic * texMetallic, blendFactor);
+		metallic = clamp(metallic, 0.0, 1.0);
 
-	// Roughness
-	float texRoughness = samplePackedChannelValue(roughnessMap, hasRoughnessMap, getRoughnessUV(),
-		roughnessChannel, roughnessInvert,
-		roughnessScale, roughnessBias,
-		isGLTFMaterial ? 1.0 : pbrLighting.roughness // fallback if no texture
-	);
-	roughness = mix(texRoughness, pbrLighting.roughness * texRoughness, blendFactor);
-	roughness = clamp(roughness, 0.0001, 1.0);
+		// Roughness
+		float texRoughness = samplePackedChannelValue(roughnessMap, hasRoughnessMap, getRoughnessUV(),
+			roughnessChannel, roughnessInvert,
+			roughnessScale, roughnessBias,
+			isGLTFMaterial ? 1.0 : pbrLighting.roughness
+		);
+		roughness = mix(texRoughness, pbrLighting.roughness * texRoughness, blendFactor);
+		roughness = clamp(roughness, 0.0001, 1.0);
 
-	// Ambient Occlusion
+		// Specular (KHR_materials_specular)
+		float texSpecularFactor = hasSpecularFactorMap ? texture(specularFactorMap, getSpecularFactorUV()).a : 1.0;
+		specularFactor = mix(texSpecularFactor, pbrLighting.specularFactor * texSpecularFactor, blendFactor);
+
+		vec3 texSpecularColor = hasSpecularColorMap ? texture(specularColorMap, getSpecularColorUV()).rgb : vec3(1.0);
+		specularColorFactor = mix(texSpecularColor, pbrLighting.specularColorFactor * texSpecularColor, blendFactor);
+	}
+
+	// Ambient Occlusion (applies to both)
 	float texAO = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
 		aoChannel, aoInvert, aoScale, aoBias,
 		isGLTFMaterial ? 1.0 : pbrLighting.ambientOcclusion);
 	ambientOcclusion = mix(texAO, pbrLighting.ambientOcclusion * texAO, blendFactor);
-	ambientOcclusion = clamp(ambientOcclusion, 0.0001, 1.0); // prevent total blackout
+	ambientOcclusion = clamp(ambientOcclusion, 0.0001, 1.0);
 	ambientOcclusion = mix(1.0, ambientOcclusion, occlusionStrength);
-	
-	// Specular (KHR_materials_specular)
-	float texSpecularFactor = hasSpecularFactorMap ? texture(specularFactorMap, getSpecularFactorUV()).a : 1.0;
-	specularFactor = mix(texSpecularFactor, pbrLighting.specularFactor * texSpecularFactor, blendFactor);
-
-	vec3 texSpecularColor = hasSpecularColorMap ? texture(specularColorMap, getSpecularColorUV()).rgb : vec3(1.0);
-	specularColorFactor = mix(texSpecularColor, pbrLighting.specularColorFactor * texSpecularColor, blendFactor);
 
 	// Anisotropy (KHR_materials_anisotropy)
 	AnisotropyData anisoData;
@@ -1216,7 +1262,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		// First compute the base dielectric F0 from IOR
 		float f0_from_ior = pow((ior - 1.0) / (ior + 1.0), 2.0);
 
-		if (specularFactor > 0.0)  // KHR_materials_specular is present
+		if (useSpecularGlossiness)
+		{
+			// For spec-gloss: use specular directly as F0
+			F0 = specularGlossSpecular;
+		}
+		else if (specularFactor > 0.0)  // KHR_materials_specular is present
 		{
 			// Apply specular extension: multiply base F0 by color and factor
 			F0 = vec3(f0_from_ior) * specularColorFactor * specularFactor;
@@ -2054,6 +2105,17 @@ vec2 getDiffuseTransmissionColorUV()
 {
 	return getTransformedUV(diffuseTransmissionColorTexTransform.texCoordIndex, diffuseTransmissionColorTexTransform);
 }
+
+vec2 getDiffuseUV()
+{
+	return getTransformedUV(diffuseTexTransform.texCoordIndex, diffuseTexTransform);
+}
+
+vec2 getSpecularGlossinessUV()
+{
+	return getTransformedUV(specularGlossinessTexTransform.texCoordIndex, specularGlossinessTexTransform);
+}
+
 
 
 // Legacy ADS texture UV functions

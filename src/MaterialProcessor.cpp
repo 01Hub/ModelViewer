@@ -733,6 +733,12 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		{"specularColor", "specularColorMap"},
 		{"specularColorMap", "specularColorMap"},
 
+		// Specular-Glossiness (add to existing textureTypeMapping)
+		{"diffuse", "diffuseMap"},
+		{"diffuseMap", "diffuseMap"},
+		{"specularGlossiness", "specularGlossinessMap"},
+		{"specularGlossinessMap", "specularGlossinessMap"},
+
 		// Diffuse Transmission
 		{"diffuseTransmission", "diffuseTransmissionMap"},
 		{"diffuseTransmissionMap", "diffuseTransmissionMap"},
@@ -1081,6 +1087,93 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 				appliedAny = true;
 			}
 			if (processExtensionTextureSlot(sp, "specularColorTexture", "specularColor"))
+			{
+				appliedAny = true;
+			}
+		}
+
+		// --- KHR_materials_pbrSpecularGlossiness ---
+		if (extRoot.contains("KHR_materials_pbrSpecularGlossiness") &&
+			extRoot.value("KHR_materials_pbrSpecularGlossiness").isObject())
+		{
+			QJsonObject sg = extRoot.value("KHR_materials_pbrSpecularGlossiness").toObject();
+
+			mat.setUseSpecularGlossiness(true);
+			appliedAny = true;
+
+			// diffuseColor [r, g, b] - default [1.0, 1.0, 1.0]
+			if (sg.contains("diffuseFactor") && sg.value("diffuseFactor").isArray())
+			{
+				QJsonArray a = sg.value("diffuseFactor").toArray();
+				if (a.size() >= 3)
+				{
+					mat.setDiffuseColor(QVector3D(
+						static_cast<float>(a.at(0).toDouble(1.0)),
+						static_cast<float>(a.at(1).toDouble(1.0)),
+						static_cast<float>(a.at(2).toDouble(1.0))
+					));
+				}
+			}
+			else
+			{
+				mat.setDiffuseColor(QVector3D(1.0f, 1.0f, 1.0f));
+			}
+
+			// specularColor [r, g, b] - default [1.0, 1.0, 1.0]
+			if (sg.contains("specularFactor") && sg.value("specularFactor").isArray())
+			{
+				QJsonArray a = sg.value("specularFactor").toArray();
+				if (a.size() >= 3)
+				{
+					mat.setSpecularColor(QVector3D(
+						static_cast<float>(a.at(0).toDouble(1.0)),
+						static_cast<float>(a.at(1).toDouble(1.0)),
+						static_cast<float>(a.at(2).toDouble(1.0))
+					));
+				}
+			}
+			else
+			{
+				mat.setSpecularColor(QVector3D(1.0f, 1.0f, 1.0f));
+			}
+
+			// glossinessFactor - default 1.0 (perfectly smooth)
+			if (sg.contains("glossinessFactor"))
+			{
+				float v = static_cast<float>(sg.value("glossinessFactor").toDouble(1.0));
+				mat.setGlossinessFactor(qBound(0.0f, v, 1.0f));
+			}
+			else
+			{
+				mat.setGlossinessFactor(1.0f);
+			}
+
+			// diffuseTexture
+			if (processExtensionTextureSlot(sg, "diffuseTexture", "diffuseMap"))
+			{
+				appliedAny = true;
+				// This ensures the texture appears in the right slot for both PBR and ADS
+				GLMaterial::Texture adsDiffuseAlias;
+				if (!outTextures.empty())
+				{
+					// Find the just-added diffuseMap texture
+					for (auto& tex : outTextures)
+					{
+						if (tex.type == "diffuseMap")
+						{
+							// Create a duplicate entry with ADS type name
+							adsDiffuseAlias = tex;
+							adsDiffuseAlias.type = "texture_diffuse";
+							outTextures.push_back(adsDiffuseAlias);
+							break;
+						}
+					}
+				}
+			}
+
+			// specularGlossinessTexture - packed as RGBA
+			// RGB = specular (sRGB), A = glossiness (linear)
+			if (processExtensionTextureSlot(sg, "specularGlossinessTexture", "specularGlossinessMap"))
 			{
 				appliedAny = true;
 			}
@@ -1668,6 +1761,9 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 	// Finally, assign extension textures to material maps
 	addExtensionMaps(outMaterial, outTextures);
 
+	// After all extension processing, convert spec-glossiness if present
+	convertSpecularGlossinessToDielectric(outMaterial);
+
 	// nothing found - silently return
 	// qDebug() << "No KHR materials extensions found for materialIndex" << materialIndex;
 }
@@ -1845,6 +1941,43 @@ void MaterialProcessor::extractUVTransform(
 		<< "  Scale: (" << texture.scale.x << ", " << texture.scale.y << ")\n"
 		<< "  Offset: (" << texture.offset.x << ", " << texture.offset.y << ")\n"
 		<< "  Rotation: " << texture.rotation << " rad\n";*/
+}
+
+void MaterialProcessor::convertSpecularGlossinessToDielectric(GLMaterial& mat)
+{
+    if (!mat.getUseSpecularGlossiness())
+        return;
+    
+    // CRITICAL: If textures are loaded, skip C++ conversion
+    // Let the shader do it with actual sampled texture values
+    if (mat.hasDiffuseMap() && mat.hasSpecularGlossinessMap())
+    {
+        qDebug() << "SpecGloss with TEXTURES - skipping C++ conversion, shader will convert";
+        // Don't convert factors - shader will sample textures and convert
+        // Just ensure the flag is set
+        mat.setUseSpecularGlossiness(true);
+        return;  // ← EXIT EARLY
+    }
+    
+    // Only do factor-based conversion if NO TEXTURES are present
+    qDebug() << "SpecGloss FACTORS ONLY - doing C++ conversion";
+    
+    QVector3D diffuse = mat.diffuseColor();
+    QVector3D specular = mat.specularColor();
+    float glossiness = mat.glossinessFactor();
+    
+    float maxSpecular = std::max({specular.x(), specular.y(), specular.z()});
+    
+    QVector3D convertedDiffuse = diffuse * (1.0f - maxSpecular);
+    
+    float roughness = (1.0f - glossiness) * (1.0f - glossiness);
+    roughness = std::clamp(roughness, 0.01f, 1.0f);
+    
+    mat.setAlbedoColor(convertedDiffuse);
+    mat.setMetalness(0.0f);
+    mat.setRoughness(roughness);
+    mat.setSpecularColorFactor(specular);
+    mat.setSpecularFactor(1.0f);
 }
 
 
@@ -2457,6 +2590,33 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setSpecularColorTexScale(toQVector2D(tex.scale));
 			mat.setSpecularColorTexOffset(toQVector2D(tex.offset));
 			mat.setSpecularColorTexRotation(tex.rotation);
+		}
+
+		// KHR_materials_pbrSpecularGlossiness
+		else if (tex.type == "diffuseMap")
+		{
+			mat.setDiffuseTextureId(tex.id);
+			mat.setDiffuseMap(QString(tex.path.c_str()));
+			mat.setDiffuseTexCoord(tex.texCoordIndex);
+			mat.setDiffuseTexScale(toQVector2D(tex.scale));
+			mat.setDiffuseTexOffset(toQVector2D(tex.offset));
+			mat.setDiffuseTexRotation(tex.rotation);
+			// Also set albedo for PBR rendering
+			mat.setAlbedoTextureId(tex.id);
+			mat.setAlbedoMap(QString(tex.path.c_str()));
+			mat.setAlbedoTexCoord(tex.texCoordIndex);
+			mat.setAlbedoTexScale(toQVector2D(tex.scale));
+			mat.setAlbedoTexOffset(toQVector2D(tex.offset));
+			mat.setAlbedoTexRotation(tex.rotation);
+		}
+		else if (tex.type == "specularGlossinessMap")
+		{
+			mat.setSpecularGlossinessTextureId(tex.id);
+			mat.setSpecularGlossinessMap(QString(tex.path.c_str()));
+			mat.setSpecularGlossinessTexCoord(tex.texCoordIndex);
+			mat.setSpecularGlossinessTexScale(toQVector2D(tex.scale));
+			mat.setSpecularGlossinessTexOffset(toQVector2D(tex.offset));
+			mat.setSpecularGlossinessTexRotation(tex.rotation);
 		}
 
 		// KHR_materials_anisotropy

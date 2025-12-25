@@ -474,8 +474,8 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	
 	
 	// Material and textures details
-	//qDebug() << "Mesh with material: " << meshName << " processed.";
-	//std::cout << mat;	
+	qDebug() << "Mesh with material: " << meshName << " processed.";
+	std::cout << mat;	
 
 	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
 	return newMesh;
