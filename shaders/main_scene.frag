@@ -1143,14 +1143,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	
 		if (hasSpecularGlossinessMap)
 		{
-			vec4 sampledSpecGloss = texture(specularGlossinessMap, getSpecularGlossinessUV());
-			specularGlossSpecular *= sampledSpecGloss.rgb;
+			vec4 sampledSpecGloss = texture(specularGlossinessMap, getSpecularGlossinessUV());			
+			specularGlossSpecular *= sampledSpecGloss.rgb;			
 			glossinessVal *= sampledSpecGloss.a;
 		}
 	
 		metallic = 0.0;
 		roughness = 1.0 - glossinessVal;
-		roughness = clamp(roughness, 0.04, 1.0);
+		roughness = clamp(roughness, 0.0, 1.0);
 	}
 	else  // Metallic-Roughness workflow
 	{
@@ -1265,7 +1265,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		if (useSpecularGlossiness)
 		{
 			// For spec-gloss: use specular directly as F0
-			F0 = specularGlossSpecular;
+			F0 = clamp(specularGlossSpecular, vec3(0.0), vec3(1.0));
 		}
 		else if (specularFactor > 0.0)  // KHR_materials_specular is present
 		{
