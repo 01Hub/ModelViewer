@@ -4176,6 +4176,7 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "    _diffuseColor: "; printVec3(os, m._diffuseColor); os << "\n";
 	os << "    _specularColor: "; printVec3(os, m._specularColor); os << "\n";
 	os << "    _useSpecularGlossiness: " << m._useSpecularGlossiness << "\n";
+	os << "    _hasSpecularGlossinessMap: " << m.hasSpecularGlossinessMap() << "\n";
 	
 
 	os << "  KHR_anisotropy: strength=" << m._anisotropyStrength
