@@ -567,7 +567,7 @@ void TriangleMesh::setupUniforms()
 	// KHR_materials_pbrSpecularGlossiness - Factor values
 	QVector3D diffuseFactor = _material.hasDiffuseMap() ?
 		QVector3D(1.0f, 1.0f, 1.0f) : _material.diffuseColor();
-	QVector3D specularFactor = _material.hasDiffuseMap() ?
+	QVector3D specularFactor = _material.hasSpecularGlossinessMap() ?
 		QVector3D(1.0f, 1.0f, 1.0f) : _material.specularColor();
 	float glossinessFactor = _material.glossinessFactor();
 
