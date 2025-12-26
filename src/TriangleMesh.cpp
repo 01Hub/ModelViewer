@@ -481,6 +481,7 @@ void TriangleMesh::setupUniforms()
 {
 	_prog->bind();
 	_prog->setUniformValue("hasVertexColors", _hasVertexColors);
+	_prog->setUniformValue("hasNegativeScale", _hasNegativeScale);
 	_prog->setUniformValue("texEnabled", _hasTexture);
 	_prog->setUniformValue("texUnit", 0);
 	_prog->setUniformValue("material.ambient", _material.ambient());

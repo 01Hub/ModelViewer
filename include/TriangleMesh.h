@@ -101,6 +101,9 @@ public:
 	void bakeTransformations();
 	void resetTransformations();
 
+	void setHasNegativeScale(bool hasNegativeScale) { _hasNegativeScale = hasNegativeScale; };
+	bool hasNegativeScale() const { return _hasNegativeScale; }
+
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
 	virtual void setAlbedoPBRMap(unsigned int albedoMap);
@@ -363,6 +366,8 @@ protected:
 	std::vector<float> _trsfnormals;
 
 	bool _hasVertexColors;
+
+	bool _hasNegativeScale = false;
 
 	// Individual transformation components
 	float _transX;

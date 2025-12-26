@@ -291,6 +291,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 			mesh->mNumVertices, mesh->mNumFaces);
 	}
 
+	bool hasNegativeScale = false;
 	for (unsigned int i = 0; i < nbVertices; i++)
 	{
 		step++;
@@ -299,6 +300,15 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		// Compute the normal matrix as the inverse transpose of the transformation matrix
 		aiMatrix3x3 normalMatrix = aiMatrix3x3(transform);
 		normalMatrix = normalMatrix.Inverse().Transpose();
+
+		// Detect negative scale by computing determinant of the 3x3 transform
+		glm::mat3 glmTransform = glm::mat3(
+			transform.a1, transform.a2, transform.a3,
+			transform.b1, transform.b2, transform.b3,
+			transform.c1, transform.c2, transform.c3
+		);
+		float determinant = glm::determinant(glmTransform);
+		hasNegativeScale = determinant < 0.0f;
 
 		// Transform Position
 		aiVector3D pos = mesh->mVertices[i];
@@ -312,6 +322,13 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 			aiVector3D normal = mesh->mNormals[i];
 			aiVector3D transformedNormal = normalMatrix * normal;
 			transformedNormal.Normalize();
+
+			// Flip normal if negative scale detected
+			if (hasNegativeScale)
+			{
+				transformedNormal = -transformedNormal;
+			}
+
 			vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
 		}
 		else if (!generatedNormals.empty())
@@ -321,6 +338,11 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 			aiVector3D aiNormal(normal.x, normal.y, normal.z);
 			aiVector3D transformedNormal = normalMatrix * aiNormal;
 			transformedNormal.Normalize();
+			// Flip normal if negative scale detected
+			if (hasNegativeScale)
+			{
+				transformedNormal = -transformedNormal;
+			}
 			vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
 		}
 		else
@@ -330,6 +352,11 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 			aiVector3D upVector(0.0f, 1.0f, 0.0f);
 			aiVector3D transformedUp = normalMatrix * upVector;
 			transformedUp.Normalize();
+			// Flip normal if negative scale detected
+			if (hasNegativeScale)
+			{
+				transformedUp = -transformedUp;
+			}
 			vertex.Normal = glm::vec3(transformedUp.x, transformedUp.y, transformedUp.z);
 		}
 
@@ -360,6 +387,11 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 				aiVector3D tangent = mesh->mTangents[i];
 				aiVector3D transformedTangent = normalMatrix * tangent;
 				transformedTangent.Normalize();
+				// Flip tangent if negative scale detected
+				if (hasNegativeScale)
+				{
+					transformedTangent = -transformedTangent;
+				}
 				vertex.Tangent = glm::vec3(transformedTangent.x, transformedTangent.y, transformedTangent.z);
 			}
 
@@ -369,6 +401,11 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 				aiVector3D bitangent = mesh->mBitangents[i];
 				aiVector3D transformedBitangent = normalMatrix * bitangent;
 				transformedBitangent.Normalize();
+				// Flip bitangent if negative scale detected
+				if (hasNegativeScale)
+				{
+					transformedBitangent = -transformedBitangent;
+				}
 				vertex.Bitangent = glm::vec3(transformedBitangent.x, transformedBitangent.y, transformedBitangent.z);
 			}
 		}
@@ -478,6 +515,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	std::cout << mat;	
 
 	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
+	newMesh->setHasNegativeScale(hasNegativeScale);
 	return newMesh;
 }
 

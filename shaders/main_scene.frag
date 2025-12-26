@@ -29,6 +29,7 @@ in GS_OUT_SHADOW{
 } fs_in_shadow;
 
 uniform bool hasVertexColors;
+uniform bool hasNegativeScale;
 
 uniform float opacity;
 uniform bool texEnabled;
@@ -545,8 +546,15 @@ void main()
 	vec4 v_color_back;
 	vec4 v_color;
 
-	// Discard backfaces if not twoSided and not floor
-	if (!twoSided && !gl_FrontFacing && !floorRendering)
+	// Discard backfaces if not twoSided
+	bool isFrontFacing = gl_FrontFacing;
+
+	if (hasNegativeScale)
+	{
+		isFrontFacing = !isFrontFacing;  // Invert because negative scale reverses winding
+	}
+
+	if (!twoSided && !isFrontFacing)
 	{
 		discard;
 	}
