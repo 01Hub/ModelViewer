@@ -148,7 +148,9 @@ private:
 	glm::mat4 getCoordinateSystemTransform(const aiScene* scene, const std::string& filePath);
 	glm::mat4 getCoordinateSystemFromFileType(const std::string& fileExtension);
 	float calculateConditionalScale(const float& minDimension, const float& maxDimension);
-		
+	// Parse glTF primitive modes and store them in the map
+	void parseGltfPrimitiveModes(const QString& gltfPath);
+			
 private:
 	QOpenGLShaderProgram* _prog;
 	std::string _path;
@@ -179,4 +181,7 @@ private:
 	bool _autoOrient = true; // Automatically orient the model to match the scene's coordinate system
 	float _appliedScale = 1.0f;
 	glm::mat4 _appliedTransform = glm::mat4(1.0f);
+
+	// Map from mesh index to primitive mode (from glTF)
+	std::unordered_map<unsigned int, GLenum> _gltfMeshPrimitiveModes;
 };

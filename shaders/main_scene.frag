@@ -31,6 +31,8 @@ in GS_OUT_SHADOW{
 uniform bool hasVertexColors;
 uniform bool hasNegativeScale;
 
+uniform int primitiveMode;  // 0=POINTS, 1=LINES, 2=LINE_LOOP, 3=LINE_STRIP, 4+=TRIANGLES
+
 uniform float opacity;
 uniform bool texEnabled;
 uniform sampler2D texUnit;

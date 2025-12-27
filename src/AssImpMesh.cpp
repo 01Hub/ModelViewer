@@ -93,7 +93,32 @@ void AssImpMesh::render()
 	if (isTransparent() && needsDepthMaskOff()) glDepthMask(GL_FALSE);
 
 	_vertexArrayObject.bind();
-	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, nullptr);
+
+	// Adjust vertex count based on primitive mode
+	GLsizei drawCount = _nVerts;
+
+	// For point rendering, use point size
+	if (_primitiveMode == GL_POINTS)
+	{
+		glEnable(GL_PROGRAM_POINT_SIZE);
+		glPointSize(3.0f);
+	}
+
+	// For line rendering, use line width
+	if (_primitiveMode == GL_LINES || _primitiveMode == GL_LINE_STRIP || _primitiveMode == GL_LINE_LOOP)
+	{
+		glLineWidth(1.5f);
+	}
+
+	// Draw the mesh
+	glDrawElements(_primitiveMode, drawCount, GL_UNSIGNED_INT, nullptr);
+	
+	// Reset point size
+	if (_primitiveMode == GL_POINTS)
+	{
+		glDisable(GL_PROGRAM_POINT_SIZE);
+	}
+
 	_vertexArrayObject.release();
 
 	if (isTransparent()) glDepthMask(prevDepthMask); // restore immediately
@@ -107,6 +132,12 @@ void AssImpMesh::optimizeMesh()
 	// ============================================
 	// MESH OPTIMIZATION (before splitting arrays)
 	// ============================================
+	// Check if this is a valid triangle mesh
+	if (_indices.empty() || (_indices.size() % 3 != 0))
+	{
+		// Not a triangle mesh - skip meshoptimizer
+		return;
+	}
 	if (_indices.size() > 300 && _vertices.size() > 100)
 	{
 		//qDebug("Optimizing mesh %s with %zu vertices and %zu indices...", qPrintable(_name), _vertices.size(), _indices.size());

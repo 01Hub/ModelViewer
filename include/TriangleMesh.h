@@ -20,6 +20,17 @@ public:
 
 	virtual TriangleMesh* clone() = 0;
 
+	// Setter for primitive mode (from glTF)
+	void setPrimitiveMode(GLenum mode)
+	{
+		_primitiveMode = mode;
+	}
+
+	GLenum getPrimitiveMode() const
+	{
+		return _primitiveMode;
+	}
+
 	virtual void render();
 	virtual void select()
 	{
@@ -368,6 +379,9 @@ protected:
 	bool _hasVertexColors;
 
 	bool _hasNegativeScale = false;
+
+	// Primitive mode from glTF (GL_POINTS=0, GL_LINES=1, GL_LINE_STRIP=3, GL_TRIANGLE_STRIP=5, GL_TRIANGLES=4)
+	GLenum _primitiveMode = GL_TRIANGLES;  // Default to triangles for backward compatibility
 
 	// Individual transformation components
 	float _transX;

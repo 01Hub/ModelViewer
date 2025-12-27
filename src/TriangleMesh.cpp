@@ -480,6 +480,19 @@ void TriangleMesh::setupTextures()
 void TriangleMesh::setupUniforms()
 {
 	_prog->bind();
+	GLint modeValue = 0;
+	switch (_primitiveMode)
+	{
+	case GL_POINTS:         modeValue = 0; break;
+	case GL_LINES:          modeValue = 1; break;
+	case GL_LINE_LOOP:      modeValue = 2; break;
+	case GL_LINE_STRIP:     modeValue = 3; break;
+	case GL_TRIANGLES:      modeValue = 4; break;
+	case GL_TRIANGLE_STRIP: modeValue = 5; break;
+	case GL_TRIANGLE_FAN:   modeValue = 6; break;
+	default:                modeValue = 4; break;
+	}
+	_prog->setUniformValue("primitiveMode", modeValue);
 	_prog->setUniformValue("hasVertexColors", _hasVertexColors);
 	_prog->setUniformValue("hasNegativeScale", _hasNegativeScale);
 	_prog->setUniformValue("texEnabled", _hasTexture);

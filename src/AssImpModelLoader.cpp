@@ -123,6 +123,13 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		return;
 	}
 
+	// === Parse glTF primitive modes ===
+	QString qPath = QString::fromStdString(path);
+	if (qPath.endsWith(".gltf", Qt::CaseInsensitive))
+	{
+		parseGltfPrimitiveModes(qPath);
+	}
+
 	_sceneStats = collectSceneMeshInfo(_scene);
 
 	// check if auto scaling is active and apply it
@@ -228,8 +235,8 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
-		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];
-		AssImpMesh* myMesh = processMesh(mesh, scene, i, scene->mNumMeshes, globalTransform, node->mName.C_Str());
+		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];		
+		AssImpMesh* myMesh = processMesh(mesh, scene, node->mMeshes[i], scene->mNumMeshes, globalTransform, node->mName.C_Str());
 
 		_meshes.push_back(myMesh);            // full mesh store
 
@@ -516,6 +523,15 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 
 	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
 	newMesh->setHasNegativeScale(hasNegativeScale);
+
+	// Set glTF primitive mode if available
+	if (_gltfMeshPrimitiveModes.find(meshIndex) != _gltfMeshPrimitiveModes.end())
+	{
+		GLenum mode = _gltfMeshPrimitiveModes[meshIndex];
+		newMesh->setPrimitiveMode(mode);
+		qDebug() << "Set primitive mode for mesh" << meshIndex << "to" << mode;
+	}
+
 	return newMesh;
 }
 
@@ -1058,6 +1074,74 @@ float AssImpModelLoader::calculateConditionalScale(const float& minDimension, co
 	}
 
 	return 1.0f;
+}
+
+void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
+{
+	_gltfMeshPrimitiveModes.clear();
+
+	QFile file(gltfPath);
+	if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+	{
+		qWarning() << "Failed to open glTF file for primitive mode parsing:" << gltfPath;
+		return;
+	}
+
+	QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+	file.close();
+
+	if (!doc.isObject())
+	{
+		qWarning() << "Invalid glTF JSON structure";
+		return;
+	}
+
+	QJsonObject root = doc.object();
+	QJsonArray meshesArray = root["meshes"].toArray();
+
+	unsigned int meshIndex = 0;
+	for (const QJsonValue& meshValue : meshesArray)
+	{
+		QJsonObject meshObj = meshValue.toObject();
+		QJsonArray primitives = meshObj["primitives"].toArray();
+
+		if (!primitives.isEmpty())
+		{
+			// Take mode from first primitive of the mesh
+			QJsonObject firstPrimitive = primitives[0].toObject();
+
+			// glTF primitive modes:
+			// 0 = POINTS
+			// 1 = LINES
+			// 2 = LINE_LOOP
+			// 3 = LINE_STRIP
+			// 4 = TRIANGLES
+			// 5 = TRIANGLE_STRIP
+			// 6 = TRIANGLE_FAN
+
+			int mode = firstPrimitive["mode"].toInt(4);  // Default to TRIANGLES (4)
+
+			// Convert glTF mode to OpenGL constant
+			GLenum glMode = GL_TRIANGLES;  // Default
+			switch (mode)
+			{
+			case 0: glMode = GL_POINTS; break;
+			case 1: glMode = GL_LINES; break;
+			case 2: glMode = GL_LINE_LOOP; break;
+			case 3: glMode = GL_LINE_STRIP; break;
+			case 4: glMode = GL_TRIANGLES; break;
+			case 5: glMode = GL_TRIANGLE_STRIP; break;
+			case 6: glMode = GL_TRIANGLE_FAN; break;
+			default: glMode = GL_TRIANGLES; break;
+			}
+
+			_gltfMeshPrimitiveModes[meshIndex] = glMode;
+
+			qDebug() << "Mesh" << meshIndex << "primitive mode:" << mode << "(" << glMode << ")";
+		}
+
+		++meshIndex;
+	}
 }
 
 glm::mat4 AssImpModelLoader::aiMatrixToGlm(const aiMatrix4x4& from)
