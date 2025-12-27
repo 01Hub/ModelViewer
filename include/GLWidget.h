@@ -408,6 +408,7 @@ private:
 	void renderToShadowBuffer();
 	int processSelection(const QPoint& pixel);
 	void renderQuad();
+	void renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode);
 
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
 		float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle);

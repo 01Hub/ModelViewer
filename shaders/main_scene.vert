@@ -58,7 +58,15 @@ out VS_OUT_SHADOW {
 void main()
 {    
     v_position   = vec3(modelMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
-    v_normal     = normalize(normalMatrix * vertexNormal);                       // normal vector
+    vec3 transformedNormal = normalMatrix * vertexNormal;
+    if (length(transformedNormal) < 0.01)
+    {
+        v_normal = vec3(0.0, 0.0, 0.0);  // Keep it zero
+    }
+    else
+    {
+        v_normal = normalize(transformedNormal);  // Only normalize if non-zero
+    }
     v_color      = vertexColor;
     v_texCoord0 = texCoord0;
     v_texCoord1 = texCoord1;
@@ -76,7 +84,11 @@ void main()
 
     // Shadow mapping
     vs_out_shadow.FragPos = vec3(modelMatrix * vec4(vertexPosition, 1.0));
-    vs_out_shadow.Normal = normalize(mat3(transpose(inverse(modelMatrix))) * vertexNormal);
+    vec3 shadowNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
+    if (length(shadowNormal) < 0.01)
+        vs_out_shadow.Normal = vec3(0.0);
+    else
+        vs_out_shadow.Normal = normalize(shadowNormal);
     vs_out_shadow.TexCoords = v_texCoord0;
     vs_out_shadow.FragPosLightSpace = lightSpaceMatrix * vec4(vs_out_shadow.FragPos, 1.0);
     vs_out_shadow.cameraPos = cameraPos;
@@ -84,12 +96,20 @@ void main()
 
     // Cube environment mapping
     v_reflectionPosition = vec3(modelMatrix * vec4(vertexPosition, 1.0));
-    v_reflectionNormal = normalize(mat3(transpose(inverse(modelMatrix))) * vertexNormal);
+    vec3 reflNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
+    if (length(reflNormal) < 0.01)
+        v_reflectionNormal = vec3(0.0);
+    else
+        v_reflectionNormal = normalize(reflNormal);
 
     // Depth mapping
     vec3 T = normalize((mat3(modelViewMatrix)) * vertexTangent);
     //vec3 B = normalize((mat3(modelViewMatrix)) * vertexBitangent);
-    vec3 N = normalize((mat3(modelViewMatrix)) * vertexNormal);
+    vec3 N = mat3(modelViewMatrix) * vertexNormal;
+    if (length(N) < 0.01)
+        N = vec3(0.0);
+    else
+        N = normalize(N);
     vec3 B = cross(N, T);
     if (dot(cross(N, T), B) < 0.0f)
     {

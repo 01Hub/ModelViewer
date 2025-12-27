@@ -1103,8 +1103,7 @@ void TriangleMesh::render()
 	}
 	_vertexArrayObject.bind();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
-	_vertexArrayObject.release();
-	_prog->release();
+	_vertexArrayObject.release();	
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 	glDisable(GL_BLEND);

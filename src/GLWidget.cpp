@@ -3392,7 +3392,7 @@ void GLWidget::createShaderPrograms()
 	// Per fragment lighting
 	_fgShader = std::make_unique<ShaderProgram>(); _fgShader->setObjectName("_fgShader");
     _fgShader->loadCompileAndLinkShaderFromFile(path + "shaders/main_scene.vert",
-        path + "shaders/main_scene.frag", path + "shaders/main_scene.geom");
+        path + "shaders/main_scene.frag");
 	// Axis
 	_axisShader = std::make_unique<ShaderProgram>(); _axisShader->setObjectName("_axisShader");
 	_axisShader->loadCompileAndLinkShaderFromFile(path + "shaders/axis.vert", path + "shaders/axis.frag");
@@ -4008,7 +4008,8 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 		if (auto* mesh = _meshStore.at(id))
 		{
 			mesh->setProg(prog);
-			mesh->render();             // render must NOT disable depth writes here
+			//mesh->render();             // render must NOT disable depth writes here
+			renderMeshWithDisplayMode(mesh, _displayMode);
 		}
 	}
 
@@ -4026,7 +4027,8 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 		if (auto* mesh = _meshStore.at(it.second))
 		{
 			mesh->setProg(prog);
-			mesh->render();             // render must preserve writes-off for this pass
+			//mesh->render();             // render must preserve writes-off for this pass
+			renderMeshWithDisplayMode(mesh, _displayMode);
 		}
 	}
 
@@ -4053,7 +4055,8 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog)
 			if (!mesh->isTransparent())
 			{
 				mesh->setProg(prog);
-				mesh->render();
+				//mesh->render();
+				renderMeshWithDisplayMode(mesh, _displayMode);
 			}
 		}
 	}
@@ -4102,7 +4105,8 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog)
 		if (auto* mesh = _meshStore.at(it.second))
 		{
 			mesh->setProg(prog);
-			mesh->render();
+			//mesh->render();
+			renderMeshWithDisplayMode(mesh, _displayMode);
 		}
 	}
 
@@ -4113,8 +4117,8 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog)
 void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 	bool transparentPass)
 {
-	glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
-	glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
+	//glPolygonMode(GL_FRONT_AND_BACK, _displayMode == DisplayMode::WIREFRAME ? GL_LINE : GL_FILL);
+	//glLineWidth(_displayMode == DisplayMode::WIREFRAME ? 1.25 : 1.0);
 
 	// https://stackoverflow.com/questions/16901829/how-to-clip-only-intersection-not-union-of-clipping-planes
 	// If any clipping is active
@@ -5040,6 +5044,79 @@ void GLWidget::renderQuad()
 	glBindVertexArray(_quadVAO);
 	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	glBindVertexArray(0);
+}
+
+void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
+{
+	_fgShader->bind();
+	GLint modelViewLoc;
+	GLint prog = 0;
+	switch (mode)
+	{
+		// ============================================
+	case DisplayMode::SHADED:
+	case DisplayMode::REALSHADED:
+		// ============================================
+		// SHADED: Solid rendering only
+		// ============================================
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		_fgShader->bind();
+		mesh->render();
+		break;
+
+		// ============================================
+	case DisplayMode::WIREFRAME:
+		// ============================================
+		// WIREFRAME: Lines only
+		// ============================================
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glLineWidth(1.25f);
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		_fgShader->bind();
+		mesh->render();
+		break;
+
+		// ============================================
+	case DisplayMode::WIRESHADED:
+		// Pass 1: Solid
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		_fgShader->bind();
+		_fgShader->setUniformValue("isWireframePass", false);
+		mesh->render();
+				
+		// Pass 2: Wireframe overlay
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glLineWidth(1.25f);
+		glEnable(GL_POLYGON_OFFSET_FILL);
+		glPolygonOffset(-1.0f, -1.0f);
+
+		_fgShader->bind();		
+		_fgShader->setUniformValue("isWireframePass", true);
+		mesh->render();
+
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		_fgShader->setUniformValue("isWireframePass", false);
+		break;
+
+	default:
+		// Safety fallback: solid rendering
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glLineWidth(1.0f);
+		glDisable(GL_POLYGON_OFFSET_FILL);
+		_fgShader->bind();
+		mesh->render();
+		break;
+	}
+
+	// Reset to default state (important!)
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	glLineWidth(1.0f);
+	glDisable(GL_POLYGON_OFFSET_FILL);
+
+	_fgShader->release();
 }
 
 void GLWidget::gradientBackground(float top_r, float top_g, float top_b, float top_a,

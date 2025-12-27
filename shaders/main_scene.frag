@@ -3,23 +3,22 @@
 
 // Adpated from https://learnopengl.com/
 
-in vec3 g_position;
-in vec3 g_normal;
-in vec4 g_color;
-in vec2 g_texCoord0;
-in vec2 g_texCoord1;
-in vec2 g_texCoord2;
-in vec2 g_texCoord3;
-in vec3 g_tangent;
-in vec3 g_bitangent;
-noperspective in vec3 g_edgeDistance;
-in vec3 g_reflectionPosition;
-in vec3 g_reflectionNormal;
-in vec3 g_tangentLightPos;
-in vec3 g_tangentViewPos;
-in vec3 g_tangentFragPos;
+in vec3 v_position;
+in vec3 v_normal;
+in vec4 v_color;
+in vec2 v_texCoord0;
+in vec2 v_texCoord1;
+in vec2 v_texCoord2;
+in vec2 v_texCoord3;
+in vec3 v_tangent;
+in vec3 v_bitangent;
+in vec3 v_reflectionPosition;
+in vec3 v_reflectionNormal;
+in vec3 v_tangentLightPos;
+in vec3 v_tangentViewPos;
+in vec3 v_tangentFragPos;
 
-in GS_OUT_SHADOW{
+in VS_OUT_SHADOW{
 	vec3 FragPos;
 	vec3 Normal;
 	vec2 TexCoords;
@@ -241,6 +240,7 @@ uniform mat4 projectionMatrix;
 uniform bool sectionActive;
 uniform int displayMode;
 uniform int renderingMode;
+uniform bool isWireframePass;
 uniform bool selected;
 uniform bool selectionHighlighting;
 uniform vec4 reflectColor;
@@ -564,7 +564,7 @@ void main()
 	// Early discard for reflected pass beyond fade start
 	if (isReflectedPass)
 	{
-		float distance = length(g_position - u_screenCenter);
+		float distance = length(v_position - u_screenCenter);
 		if (distance > fadeStart)
 			discard;
 	}
@@ -572,8 +572,8 @@ void main()
 	// Choose rendering path - ADS vs PBR
 	if (renderingMode == 0)
 	{
-		v_color_front = shadeBlinnPhong(lightSource, lightModel, material, g_position, g_normal);
-		v_color_back = shadeBlinnPhong(lightSource, lightModel, material, g_position, -g_normal);
+		v_color_front = shadeBlinnPhong(lightSource, lightModel, material, v_position, v_normal);
+		v_color_back = shadeBlinnPhong(lightSource, lightModel, material, v_position, -v_normal);
 	}
 	else
 	{
@@ -594,55 +594,35 @@ void main()
 			v_color = v_color_back;
 	}
 
+	fragColor = v_color; // Start with default shaded color	
+
 	// Display modes - this needs to be computed before the alpha
-	float mixVal; // overlay line
-	if (displayMode == 0 || displayMode == 3) // shaded
-	{	
-		fragColor = v_color; // fully shaded
-	}
-	else if (displayMode == 1) // wireframe
+	if (displayMode == 1) // wireframe
 	{
 		fragColor = vec4(v_color.rgb, 0.75f); // semi-transparent shaded
 	}
-	else // wireshaded
+	else if (displayMode == 2) // wireshaded
 	{
 		fragColor = v_color;
-		// Find the smallest distance
-		float d = min(g_edgeDistance.x, g_edgeDistance.y);
-		d = min(d, g_edgeDistance.z);
-
-		if (d < Line.Width - 1.0f)
+		if (isWireframePass)
 		{
-			mixVal = 1.0f;
-		}
-		else if (d > Line.Width + 1.0f)
-		{
-			mixVal = 0.0f;
-		}
-		else
-		{
-			float x = d - (Line.Width - 1.0f);
-			mixVal = exp2(-2.0f * (x * x));
-		}
-						
-		float brightness = dot(fragColor.rgb, vec3(0.2126, 0.7152, 0.0722));
-
-		vec3 overlayColor;
-		if (brightness < 0.2)
-		{
-			overlayColor = fragColor.rgb + vec3(0.6); // brighten dark
-		}
-		else if (brightness > 0.8)
-		{
-			overlayColor = fragColor.rgb * 0.3; // darken bright
-		}
-		else
-		{
-			overlayColor = brightness > 0.5 ? fragColor.rgb * 0.5 : fragColor.rgb + vec3(0.4);
-		}
-		overlayColor = clamp(overlayColor, 0.0, 1.0);
-
-		fragColor = mix(fragColor, vec4(overlayColor, 1.0), mixVal); // overlay line
+			float brightness = dot(fragColor.rgb, vec3(0.2126, 0.7152, 0.0722));
+			vec3 overlayColor;
+			if (brightness < 0.2)
+			{
+				overlayColor = fragColor.rgb + vec3(0.6);
+			}
+			else if (brightness > 0.8)
+			{
+				overlayColor = fragColor.rgb * 0.3;
+			}
+			else
+			{
+				overlayColor = brightness > 0.5 ? fragColor.rgb * 0.5 : fragColor.rgb + vec3(0.4);
+			}
+			overlayColor = clamp(overlayColor, 0.0, 1.0);
+			fragColor = vec4(overlayColor, 1.0);
+		}		
 	}
 
 	// UNIFIED BLEND MODE AWARE OPACITY CALCULATION
@@ -706,7 +686,7 @@ void main()
 
 	// Apply vertex color alpha modulation
 	if (hasVertexColors)
-		fragColor.a *= g_color.a;
+		fragColor.a *= v_color.a;
 
 	// Premultiply for blending (non-floor; floor path already premultiplies)
 	if (!floorRendering)
@@ -718,7 +698,7 @@ void main()
 	if (selected && selectionHighlighting) // with glow
 	{
 		// Compute lighting
-		vec3 norm = normalize(gl_FrontFacing ? g_normal : -g_normal);
+		vec3 norm = normalize(gl_FrontFacing ? v_normal : -v_normal);
 		vec3 lightDir = normalize(lightSource.position);
 		float diff = max(dot(norm, lightDir), 0.0);
 
@@ -743,19 +723,16 @@ void main()
 		// Mix base color with the glow
 		vec3 finalColor = mix(lightened, glowColor, 0.5); // blend base and glow color
 
-		fragColor = vec4(finalColor, alpha);
-
-		if (displayMode == 2)
-			fragColor = mix(fragColor, Line.Color, mixVal); // overlay line for wire-shaded mode
+		fragColor = vec4(finalColor, alpha);		
 	}
 
 	// Finally, handle floor rendering fade-out and background blending
 	if (floorRendering)
 	{
 		if (texEnabled == true)
-			fragColor = v_color * texture2D(texUnit, g_texCoord0);
+			fragColor = v_color * texture2D(texUnit, v_texCoord0);
 		// Compute distance-based blending factor
-		float distance = length(g_position - u_screenCenter);
+		float distance = length(v_position - u_screenCenter);
 
 		// Set fade parameters first, before any calculations
 		// Early discard for pixels beyond fade range
@@ -769,8 +746,8 @@ void main()
 		// Blend floor color with the background gradient
 		// View-angle modulation: reduce background mix when looking straight down
 		// NdotV in world (front/back already handled above)
-		vec3 N_main = normalize(gl_FrontFacing ? g_normal : -g_normal);
-		vec3 V_main = normalize(cameraPos - g_position);
+		vec3 N_main = normalize(gl_FrontFacing ? v_normal : -v_normal);
+		vec3 V_main = normalize(cameraPos - v_position);
 		float NdotV_main = clamp(dot(N_main, V_main), 0.0, 1.0);
 
 		// Reduce background contribution when NdotV is high (top view).
@@ -784,7 +761,7 @@ void main()
 		vec3 backgroundColor = vec3(1.0);
 		if (skyBoxEnabled)
 		{
-			vec3 N = normalize(g_reflectionNormal);
+			vec3 N = normalize(v_reflectionNormal);
 			vec3 V = normalize(cameraDir);
 
 			// Refract ray into environment
@@ -797,7 +774,7 @@ void main()
 		else if (texEnabled == true)
 		{
 			// Interpolate background gradient color			
-			backgroundColor = texture2D(texUnit, g_texCoord0).rgb;			
+			backgroundColor = texture2D(texUnit, v_texCoord0).rgb;			
 		}
 
 		// Blend floor color with background gradient
@@ -809,7 +786,7 @@ void main()
 // ========== LEGACY BLINN-PHONG SHADING FUNCTION ==========
 vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
-	vec2 clippedTexCoord = g_texCoord0;
+	vec2 clippedTexCoord = v_texCoord0;
 
 	// --- Normal / Parallax (same as before) ---
 	if (hasNormalTexture)
@@ -825,7 +802,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	vec3 lightDir, viewDir;
 
 	viewDir = normalize(vec3(0, 0, 1));
-	lightDir = normalize(source.position - g_position);
+	lightDir = normalize(source.position - v_position);
 
 	vec3 halfVector = normalize(lightDir + viewDir);
 	float nDotVP = max(dot(normal, normalize(lightDir + viewDir)), 0.0);
@@ -846,7 +823,12 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	}
 
 	if (hasVertexColors)
-		matDiffuse *= g_color.rgb;
+		matDiffuse *= v_color.rgb;
+
+	if (length(normal) < 0.01)
+	{		
+		return vec4(matDiffuse, 1.0);  // Actual object color, unlit
+	}
 
 	if (hasSpecularTexture)
 		matSpecular = texture(texture_specular, getSpecularTextureUV()).rgb * pf;
@@ -897,8 +879,8 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		float fa = clamp(u_floorAlpha, 0.0, 1.0);
 
 		// View-angle term to avoid "whiteout" when looking straight down
-		vec3 Nf = normalize(gl_FrontFacing ? g_normal : -g_normal);
-		vec3 Vf = normalize(cameraPos - g_position);
+		vec3 Nf = normalize(gl_FrontFacing ? v_normal : -v_normal);
+		vec3 Vf = normalize(cameraPos - v_position);
 		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
 		// Fresnel-like dampening of spec when NdotV is high (looking straight down)
 		float fresDampen = mix(1.0 - u_floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
@@ -918,8 +900,8 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	if (useIBL && envMapEnabled)
 	{
 		vec3 I = normalize(cameraDir);
-		vec3 N = normalize(g_reflectionNormal);
-		vec3 offset = normalize(cameraPos - g_reflectionPosition);
+		vec3 N = normalize(v_reflectionNormal);
+		vec3 offset = normalize(cameraPos - v_reflectionPosition);
 		vec3 I_offset = normalize(I - offset * 0.3);  // Blend factor adjustable
 		vec3 R = reflect(-I_offset, N);
 		R = envMapRotationMatrix * -R;
@@ -999,7 +981,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 // Calculate PBR lighting based on the render mode
 vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = back
 {
-	vec3	normal = g_normal * side;
+	vec3	normal = v_normal * side;
 
 	vec3	albedo;
 	float	metallic;
@@ -1038,11 +1020,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	// Pre-compute reflection view (used by IBL, clearcoat, transmission)
 	vec3 V_reflect_base = normalize(cameraDir);
-	vec3 V_reflect_offset = normalize(cameraPos - g_reflectionPosition);
+	vec3 V_reflect_offset = normalize(cameraPos - v_reflectionPosition);
 	vec3 V_reflect = normalize(V_reflect_base - V_reflect_offset * 0.3);
 
 	V_direct = normalize(vec3(0, 0, 1));
-	L = normalize(lightSource.position - g_position);
+	L = normalize(lightSource.position - v_position);
 
 	// Optional shadows affecting direct terms
 	float lightShadowFactor = 0.0;
@@ -1057,7 +1039,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 	float lightFactor = 1.0 - lightShadowFactor;
 
-	vec2 clippedTexCoord = g_texCoord0;
+	vec2 clippedTexCoord = v_texCoord0;
 	vec4 textureColor = vec4(1.0);
 
 	float blendFactor = float(isGLTFMaterial);
@@ -1076,7 +1058,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	sheenRoughness = pbrLighting.sheenRoughness;
 	clearcoat = pbrLighting.clearcoat;
 	clearcoatRoughness = pbrLighting.clearcoatRoughness;
-	clearcoatNormal = normalize(g_reflectionNormal);
+	clearcoatNormal = normalize(v_reflectionNormal);
 	specularFactor = pbrLighting.specularFactor;
 	specularColorFactor = pbrLighting.specularColorFactor;
 	anisotropyStrength = pbrLighting.anisotropyStrength;
@@ -1133,7 +1115,14 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 
 	if (hasVertexColors)
-		albedo *= g_color.rgb;
+		albedo *= v_color.rgb;
+
+
+	if (length(v_normal) < 0.01)
+	{
+		// Return actual base color without PBR lighting
+		return vec4(albedo, 1.0);
+	}
 
 	vec3 specularGlossSpecular = vec3(1.0);
 	if (useSpecularGlossiness)
@@ -1299,7 +1288,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 F90 = mix(F90_dielectric, vec3(1.0), metallic);
 
 	// Setup tangent space for anisotropy
-	vec3 T = normalize(g_tangent - dot(g_tangent, N) * N);
+	vec3 T = normalize(v_tangent - dot(v_tangent, N) * N);
 	vec3 B = normalize(cross(N, T));
 
 	// ============================================================================
@@ -1410,7 +1399,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			if (light.type != LightType_Directional)
 			{
 				// Point or Spot light
-				pointToLight = light.position - g_position;
+				pointToLight = light.position - v_position;
 				float distance = length(pointToLight);
 
 				// Range attenuation
@@ -1671,7 +1660,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		sheen_L = calculateSheen(N, V_direct, L, sheenColor, sheenRoughness);
 
 		// Sheen IBL
-		sheenIBL_L = calculateSheenIBL(g_reflectionNormal, V_reflect, sheenRoughness, sheenColor);
+		sheenIBL_L = calculateSheenIBL(v_reflectionNormal, V_reflect, sheenRoughness, sheenColor);
 	}
 
 	// ============================================================================
@@ -1686,7 +1675,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (clearcoat > 0.0)
 	{
 		clearcoat_L = calculateClearcoat(N, V_direct, L, clearcoat, clearcoatRoughness, clearcoatNormal);
-		clearcoatIBL_L = calculateClearcoatIBL(g_reflectionNormal, V_reflect, clearcoatNormal, clearcoatRoughness, clearcoat);
+		clearcoatIBL_L = calculateClearcoatIBL(v_reflectionNormal, V_reflect, clearcoatNormal, clearcoatRoughness, clearcoat);
 
 		// Calculate clearcoat Fresnel for proper layering (per KHR spec line 140)
 		vec3 F0_clearcoat = vec3(0.04);
@@ -1751,7 +1740,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			vec3 kSibl = Fibl;
 			vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
 
-			vec3 R = reflect(V_reflect, g_reflectionNormal);
+			vec3 R = reflect(V_reflect, v_reflectionNormal);
 			const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
 			float lod = roughness * MAX_REFLECTION_LOD;
 			lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
@@ -1813,8 +1802,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (floorRendering && !isReflectedPass)
 	{
 		float fa = clamp(u_floorAlpha, 0.0, 1.0);
-		vec3 Nf = normalize(gl_FrontFacing ? g_normal : -g_normal);
-		vec3 Vf = normalize(cameraPos - g_position);
+		vec3 Nf = normalize(gl_FrontFacing ? v_normal : -v_normal);
+		vec3 Vf = normalize(cameraPos - v_position);
 		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
 		float fresDampen = mix(1.0 - u_floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
 
@@ -1839,7 +1828,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	if (transmissionFactor > 0.0)
 	{
-		vec3 N_trans = normalize(g_reflectionNormal);
+		vec3 N_trans = normalize(v_reflectionNormal);
 
 		if (dot(N_trans, -V_reflect) < 0.0)
 		{
@@ -1877,7 +1866,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 				normalize(-V_reflect),  // View direction
 				roughness,
 				albedo,
-				g_position,             // World position
+				v_position,             // World position
 				modelMatrix,
 				iors,
 				thickness,
@@ -1893,7 +1882,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 				normalize(-V_reflect),  // View direction
 				roughness,
 				albedo,
-				g_position,             // World position
+				v_position,             // World position
 				modelMatrix,
 				ior_trans,
 				thickness,
@@ -1962,10 +1951,10 @@ vec2 getTransformedUV(int texCoordIndex, TextureTransform transform)
 	vec2 uv;
 	switch (texCoordIndex)
 	{
-	case 1: uv = g_texCoord1; break;
-	case 2: uv = g_texCoord2; break;
-	case 3: uv = g_texCoord3; break;
-	default: uv = g_texCoord0; break; // case 0 and fallback
+	case 1: uv = v_texCoord1; break;
+	case 2: uv = v_texCoord2; break;
+	case 3: uv = v_texCoord3; break;
+	default: uv = v_texCoord0; break; // case 0 and fallback
 	}
 
 	// glTF 2.0 spec defines UV coordinates with origin at upper-left corner (0,0).
@@ -3030,13 +3019,13 @@ vec2 applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, b
 	if (!enabled) return baseUV;
 
 	// Build TBN matrix
-	vec3 n = normalize(g_normal);
-	vec3 t = normalize(g_tangent - dot(g_tangent, n) * n);
+	vec3 n = normalize(v_normal);
+	vec3 t = normalize(v_tangent - dot(v_tangent, n) * n);
 	vec3 b = normalize(cross(n, t));
 	mat3 TBN = mat3(t, b, n);
 
 	// Transform view direction to tangent space
-	vec3 viewDirWorld = normalize(cameraPos - g_position);
+	vec3 viewDirWorld = normalize(cameraPos - v_position);
 	vec3 viewDirTangent = TBN * viewDirWorld;
 
 	// Apply parallax mapping
@@ -3096,12 +3085,12 @@ vec3 getNormalFromMap(sampler2D map)
 {
 	vec3 tangentNormal = texture(map, getNormalUV()).xyz * 2.0 - 1.0;
 
-	vec3 Q1 = dFdx(g_position);
-	vec3 Q2 = dFdy(g_position);
+	vec3 Q1 = dFdx(v_position);
+	vec3 Q2 = dFdy(v_position);
 	vec2 st1 = dFdx(getNormalUV());
 	vec2 st2 = dFdy(getNormalUV());
 
-	vec3 N = normalize(g_normal);
+	vec3 N = normalize(v_normal);
 	vec3 T = normalize(Q1 * st2.t - Q2 * st1.t);
 	vec3 B = -normalize(cross(N, T));
 	mat3 TBN = mat3(T, B, N);
@@ -3113,12 +3102,12 @@ mat3 getTBNFromMap(sampler2D map)
 {
 	vec3 tangentNormal = texture(map, getNormalUV()).xyz * 2.0 - 1.0;
 
-	vec3 Q1 = dFdx(g_position);
-	vec3 Q2 = dFdy(g_position);
+	vec3 Q1 = dFdx(v_position);
+	vec3 Q2 = dFdy(v_position);
 	vec2 st1 = dFdx(getNormalUV());
 	vec2 st2 = dFdy(getNormalUV());
 
-	vec3 N = normalize(g_normal);
+	vec3 N = normalize(v_normal);
 	vec3 T = normalize(Q1 * st2.t - Q2 * st1.t);
 	vec3 B = -normalize(cross(N, T));
 	mat3 TBN = mat3(T, B, N);
@@ -3178,15 +3167,15 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0, vec3 F90)
 vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 {
 	// base geometric normal (world space)
-	vec3 N = normalize(g_normal);
+	vec3 N = normalize(v_normal);
 
 	// Use mesh-provided tangent and bitangent if available
 	// Make tangent orthogonal to normal
-	vec3 T = normalize(g_tangent - dot(g_tangent, N) * N);
+	vec3 T = normalize(v_tangent - dot(v_tangent, N) * N);
 
-	// Prefer using the provided bitangent (g_bitangent) instead of computing cross(N, T)
+	// Prefer using the provided bitangent (v_bitangent) instead of computing cross(N, T)
 	// but orthogonalize it too
-	vec3 B = normalize(g_bitangent - dot(g_bitangent, N) * N);
+	vec3 B = normalize(v_bitangent - dot(v_bitangent, N) * N);
 
 	// Ensure T, B, N form a right-handed basis; if not, flip B
 	float handedness = sign(dot(cross(T, B), N));

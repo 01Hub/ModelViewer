@@ -282,6 +282,15 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	
 	_needsUVGeneration = false;
 
+	bool isNonTrianglePrimitive = false;
+	if (_gltfMeshPrimitiveModes.find(meshIndex) != _gltfMeshPrimitiveModes.end())
+	{
+		GLenum mode = _gltfMeshPrimitiveModes[meshIndex];
+		isNonTrianglePrimitive = (mode != GL_TRIANGLES &&
+			mode != GL_TRIANGLE_STRIP &&
+			mode != GL_TRIANGLE_FAN);
+	}
+
 	// Walk through each of the mesh's vertices
 	int step = 0;
 	unsigned int nbVertices = mesh->mNumVertices;
@@ -354,17 +363,25 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		}
 		else
 		{
-			// Fallback for points, lines, or invalid geometry
-			// Use transformed up vector instead of position
-			aiVector3D upVector(0.0f, 1.0f, 0.0f);
-			aiVector3D transformedUp = normalMatrix * upVector;
-			transformedUp.Normalize();
-			// Flip normal if negative scale detected
-			if (hasNegativeScale)
+			if (isNonTrianglePrimitive)
 			{
-				transformedUp = -transformedUp;
+				// Points, lines, etc. - use null normal to indicate "no lighting"
+				vertex.Normal = glm::vec3(0.0f, 0.0f, 0.0f);				
 			}
-			vertex.Normal = glm::vec3(transformedUp.x, transformedUp.y, transformedUp.z);
+			else
+			{
+				// Fallback for points, lines, or invalid geometry
+				// Use transformed up vector instead of position
+				aiVector3D upVector(0.0f, 1.0f, 0.0f);
+				aiVector3D transformedUp = normalMatrix * upVector;
+				transformedUp.Normalize();
+				// Flip normal if negative scale detected
+				if (hasNegativeScale)
+				{
+					transformedUp = -transformedUp;
+				}
+				vertex.Normal = glm::vec3(transformedUp.x, transformedUp.y, transformedUp.z);
+			}
 		}
 
 		// Texture Coordinates - Extract ALL available sets (0-3)
