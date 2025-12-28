@@ -268,6 +268,7 @@ public:
 	void setLightOffset(const QVector3D& offset);
 
 	bool isShaded() const;
+	DisplayMode getDisplayMode() const;
 	void setDisplayMode(DisplayMode mode);
 
 	bool isVertexNormalsShown() const;

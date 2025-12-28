@@ -7088,6 +7088,11 @@ bool GLWidget::isShaded() const
 	return _displayMode == DisplayMode::SHADED;
 }
 
+DisplayMode GLWidget::getDisplayMode() const
+{
+	return _displayMode;
+}
+
 void GLWidget::setDisplayMode(DisplayMode mode)
 {
 	_displayMode = mode;
