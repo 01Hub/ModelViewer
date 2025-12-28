@@ -112,6 +112,7 @@ private slots:
 	void on_sliderLightPosX_valueChanged(int);
 	void on_sliderLightPosY_valueChanged(int);
 	void on_sliderLightPosZ_valueChanged(int);	
+	void on_sliderTransparency_valueChanged(int value);
 	void on_sliderShine_valueChanged(int value);
 
 	void onFileImport();
