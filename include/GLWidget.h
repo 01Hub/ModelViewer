@@ -267,6 +267,8 @@ public:
 	QVector3D getLightPosition() const;
 	void setLightOffset(const QVector3D& offset);
 
+	float getFloorSize() const { return _floorSize; }
+
 	bool isShaded() const;
 	DisplayMode getDisplayMode() const;
 	void setDisplayMode(DisplayMode mode);
