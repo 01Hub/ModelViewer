@@ -154,11 +154,26 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 			doubleSpinBoxIBLExposure->setValue(0.0);
 			doubleSpinBoxScreenGamma->setValue(2.2);
 		});
-
+		
 	connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
 	toolBox->setItemEnabled(0, true);
 	toolBox->setItemEnabled(1, false);	
 	toolBox->setCurrentIndex(0);
+
+	// Shortcut to toggle lighting mode
+	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), this);
+	connect(shortcut, &QShortcut::activated, this, [this] {
+		auto* checked = qobject_cast<QRadioButton*>(buttonGroupLighting->checkedButton());
+		if (!checked)
+			return;
+
+		// assuming exactly two buttons in the group
+		const auto buttons = buttonGroupLighting->buttons();
+		QAbstractButton* other =
+			(buttons[0] == checked) ? buttons[1] : buttons[0];
+		other->setChecked(true);   // or other->click();
+		});
+
 	
 	connect(Ui_ModelViewer::materialPreviewWidget, &MaterialEditorPanel::materialChanged, this, &ModelViewer::setMaterialToSelectedItems);
 
@@ -1779,6 +1794,8 @@ void ModelViewer::on_pushButtonSkyBoxTex_clicked()
 
 void ModelViewer::switchToRealisticRendering()
 {
+	if(_glWidget->getDisplayMode() == DisplayMode::REALSHADED)
+		return;
 	QToolTip::showText(groupBoxVisModel->mapToGlobal(groupBoxVisModel->pos()), "Switching to Realistic Display Mode", this);
 	_glWidget->setDisplayMode(DisplayMode::REALSHADED);	
 }
