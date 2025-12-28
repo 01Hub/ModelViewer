@@ -295,8 +295,11 @@ void ModelViewer::setTransformation()
 		QVector3D scale(doubleSpinBoxSX->value(), doubleSpinBoxSY->value(), doubleSpinBoxSZ->value());
 		_glWidget->setTransformation(ids, translate, rotate, scale);
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
-		sliderLightPosX->setRange(-range, range);
-		sliderLightPosY->setRange(-range, range);
+		float offset = _glWidget->getFloorSize() * 1.25f;
+		sliderLightPosX->setRange(-range, range - offset);
+		sliderLightPosX->setValue((sliderLightPosX->maximum() + sliderLightPosX->minimum()) / 2);
+		sliderLightPosY->setRange(-range, range - offset);
+		sliderLightPosY->setValue((sliderLightPosY->maximum() + sliderLightPosY->minimum()) / 2);
 		sliderLightPosZ->setRange(-range / 3, range / 2);
 		sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
 		QApplication::restoreOverrideCursor();
@@ -332,8 +335,11 @@ void ModelViewer::resetTransformation()
 		doubleSpinBoxSZ->setValue(1.0f);
 		_glWidget->resetTransformation(ids);
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
-		sliderLightPosX->setRange(-range, range);
-		sliderLightPosY->setRange(-range, range);
+		float offset = _glWidget->getFloorSize() * 1.25f;
+		sliderLightPosX->setRange(-range, range - offset);
+		sliderLightPosX->setValue((sliderLightPosX->maximum() + sliderLightPosX->minimum()) / 2);
+		sliderLightPosY->setRange(-range, range - offset);
+		sliderLightPosY->setValue((sliderLightPosY->maximum() + sliderLightPosY->minimum()) / 2);
 		sliderLightPosZ->setRange(-range / 3, range / 2);
 		sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
 		QApplication::restoreOverrideCursor();
@@ -1119,8 +1125,8 @@ void ModelViewer::on_pushButtonDefaultLights_clicked()
 	_glWidget->setDiffuseLight({ 1.0f, 1.0f, 1.0f, 1.0f });
 	_glWidget->setSpecularLight({ 0.5f, 0.5f, 0.5f, 1.0f });
 
-	sliderLightPosX->setValue(0);
-	sliderLightPosY->setValue(0);
+	sliderLightPosX->setValue((sliderLightPosX->maximum() + sliderLightPosX->minimum()) / 2);
+	sliderLightPosY->setValue((sliderLightPosY->maximum() + sliderLightPosY->minimum()) / 2);
 
 	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;	
 	sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
@@ -1390,10 +1396,13 @@ void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
 
 		_glWidget->setDisplayList(ids);
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
-		sliderLightPosX->setRange(-range, range);
-		sliderLightPosY->setRange(-range, range);
-		sliderLightPosZ->setRange(-range/3, range/2);
-		sliderLightPosZ->setValue((-range / 3 + range / 2)/2);
+		float offset = _glWidget->getFloorSize() * 1.25f;
+		sliderLightPosX->setRange(-range, range - offset);
+		sliderLightPosX->setValue((sliderLightPosX->maximum() + sliderLightPosX->minimum()) / 2);
+		sliderLightPosY->setRange(-range, range - offset);
+		sliderLightPosY->setValue((sliderLightPosY->maximum() + sliderLightPosY->minimum()) / 2);
+		sliderLightPosZ->setRange(-range / 3, range / 2);
+		sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
 	}
 }
 
