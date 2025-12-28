@@ -702,7 +702,7 @@ void main()
 		vec3 lightDir = normalize(lightSource.position);
 		float diff = max(dot(norm, lightDir), 0.0);
 
-		vec3 viewDir = normalize(cameraPos);
+		vec3 viewDir = normalize(cameraDir);
 		vec3 reflectDir = reflect(-lightDir, norm);
 		float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
 
@@ -747,7 +747,7 @@ void main()
 		// View-angle modulation: reduce background mix when looking straight down
 		// NdotV in world (front/back already handled above)
 		vec3 N_main = normalize(gl_FrontFacing ? v_normal : -v_normal);
-		vec3 V_main = normalize(cameraPos - v_position);
+		vec3 V_main = normalize(cameraDir);
 		float NdotV_main = clamp(dot(N_main, V_main), 0.0, 1.0);
 
 		// Reduce background contribution when NdotV is high (top view).
