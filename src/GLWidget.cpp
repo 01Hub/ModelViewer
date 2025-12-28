@@ -1676,9 +1676,9 @@ void GLWidget::updateFloorPlane()
 
 	_floorCenter = _boundingSphere.getCenter();
 	_lightCube->setSize(halfObjectSize * 0.1f);
-	_lightPosition.setX(_floorCenter.x() + halfObjectSize * 0.5f + _lightOffsetX);
-	_lightPosition.setY(_floorCenter.y() + halfObjectSize * 0.5f + _lightOffsetY);
-	_lightPosition.setZ(highestModelZ() + halfObjectSize * 1.5f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
+	_lightPosition.setX(_floorCenter.x() + _floorSize * 1.25 + _lightOffsetX);
+	_lightPosition.setY(_floorCenter.y() + _floorSize * 1.25 + _lightOffsetY);
+	_lightPosition.setZ(highestModelZ() + halfObjectSize * 5.0f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
 	_floorPlane->setPlane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
 
 	// === Reposition punctual lights from ORIGINAL positions ===
@@ -3528,6 +3528,14 @@ void GLWidget::loadFloor()
 
 	_floorSize = _boundingSphere.getRadius();
 	_floorCenter = _boundingSphere.getCenter();
+	float halfObjectSize = _boundingSphere.getRadius();
+	if (_boundingBox.getZSize() >= _boundingBox.getXSize() && _boundingBox.getZSize() >= _boundingBox.getYSize())
+		_floorSize = _boundingBox.getZSize();
+	else
+		_floorSize = (std::max(_boundingBox.getYSize(), _boundingBox.getXSize())) / 1.25f;
+	_lightCube->setSize(halfObjectSize * 0.1f);
+	_lightPosition.setX(_floorCenter.x() + _floorSize * 1.25 + _lightOffsetX);
+	_lightPosition.setY(_floorCenter.y() + _floorSize * 1.25 + _lightOffsetY);
 	_lightPosition.setZ(_floorSize + _lightOffsetZ);
 	_floorPlane = new Plane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, -_floorSize - (_floorSize * 0.05f), 1, 1);
 
@@ -4860,7 +4868,7 @@ void GLWidget::renderToShadowBuffer()
 	// Use scene bounding sphere for orthographic projection
 	// This ensures the frustum always encompasses the entire scene
 	float orthoSize = radius * 4.0f;
-	float margin = orthoSize * 1.0f; // 150% margin
+	float margin = orthoSize * 3.0f; // 300% margin
 	float totalSize = orthoSize + margin;
 
 	lightProjection.ortho(
