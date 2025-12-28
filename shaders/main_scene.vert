@@ -25,11 +25,6 @@ uniform vec3 lightPos;
 // user defined clip plane
 uniform vec4 clipPlane;
 
-out float v_clipDistX;
-out float v_clipDistY;
-out float v_clipDistZ;
-out float v_clipDist;
-
 out vec3 v_position;
 out vec3 v_normal;
 out vec4 v_color;
@@ -57,7 +52,8 @@ out VS_OUT_SHADOW {
 
 void main()
 {    
-    v_position   = vec3(modelMatrix * vec4(vertexPosition, 1));              // vertex pos in eye coords
+    vec4 worldPos = modelMatrix * vec4(vertexPosition, 1.0);
+    v_position   = vec3(worldPos);              // vertex pos in eye coords
     vec3 transformedNormal = normalMatrix * vertexNormal;
     if (length(transformedNormal) < 0.01)
     {
@@ -72,18 +68,22 @@ void main()
     v_texCoord1 = texCoord1;
     v_texCoord2 = texCoord2;
     v_texCoord3 = texCoord3;
-    v_tangent = normalize(normalMatrix * vertexTangent);
-    v_bitangent = normalize(normalMatrix * vertexBitangent);
+    vec3 transformedTangent = normalMatrix * vertexTangent;
+    if (length(transformedTangent) < 0.01)
+        v_tangent = vec3(0.0);
+    else
+        v_tangent = normalize(transformedTangent);
 
-    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(vertexPosition, 1);
+    vec3 transformedBitangent = normalMatrix * vertexBitangent;
+    if (length(transformedBitangent) < 0.01)
+        v_bitangent = vec3(0.0);
+    else
+        v_bitangent = normalize(transformedBitangent);
 
-    v_clipDistX = dot(clipPlaneX, modelViewMatrix* vec4(vertexPosition, 1));
-    v_clipDistY = dot(clipPlaneY, modelViewMatrix* vec4(vertexPosition, 1));
-    v_clipDistZ = dot(clipPlaneZ, modelViewMatrix* vec4(vertexPosition, 1));
-    v_clipDist = dot(clipPlane, modelViewMatrix* vec4(vertexPosition, 1));
+    gl_Position = projectionMatrix * viewMatrix * worldPos;
 
     // Shadow mapping
-    vs_out_shadow.FragPos = vec3(modelMatrix * vec4(vertexPosition, 1.0));
+    vs_out_shadow.FragPos = vec3(worldPos);
     vec3 shadowNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
     if (length(shadowNormal) < 0.01)
         vs_out_shadow.Normal = vec3(0.0);
@@ -95,7 +95,7 @@ void main()
     vs_out_shadow.lightPos = lightPos;
 
     // Cube environment mapping
-    v_reflectionPosition = vec3(modelMatrix * vec4(vertexPosition, 1.0));
+    v_reflectionPosition = vec3(worldPos);
     vec3 reflNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
     if (length(reflNormal) < 0.01)
         v_reflectionNormal = vec3(0.0);
@@ -103,21 +103,34 @@ void main()
         v_reflectionNormal = normalize(reflNormal);
 
     // Depth mapping
-    vec3 T = normalize((mat3(modelViewMatrix)) * vertexTangent);
-    //vec3 B = normalize((mat3(modelViewMatrix)) * vertexBitangent);
+    vec3 T = mat3(modelViewMatrix) * vertexTangent;
+    if (length(T) < 0.01)
+        T = vec3(0.0);
+    else
+        T = normalize(T);
+
     vec3 N = mat3(modelViewMatrix) * vertexNormal;
     if (length(N) < 0.01)
         N = vec3(0.0);
     else
         N = normalize(N);
-    vec3 B = cross(N, T);
-    if (dot(cross(N, T), B) < 0.0f)
+
+    vec3 B = normalize(cross(N, T));  // Safe now, N and T are valid
+    if (length(N) > 0.01 && length(T) > 0.01)  // Only check if both valid
     {
-        T = T * -1.0f;
+        if (dot(cross(N, T), B) < 0.0)
+            T = -T;
     }
     mat3 TBN = transpose(mat3(T, B, N));
 
     v_tangentLightPos = TBN * lightPos;
     v_tangentViewPos  = TBN * cameraPos;
     v_tangentFragPos  = TBN * v_position;
+
+    // Assign clip distances for hardware clipping   
+    gl_ClipDistance[0] = dot(clipPlaneX, modelViewMatrix* vec4(vertexPosition, 1));
+    gl_ClipDistance[1] = dot(clipPlaneY, modelViewMatrix* vec4(vertexPosition, 1));
+    gl_ClipDistance[2] = dot(clipPlaneZ, modelViewMatrix* vec4(vertexPosition, 1));
+    gl_ClipDistance[3] = dot(clipPlane, modelViewMatrix* vec4(vertexPosition, 1));  
+
 }
