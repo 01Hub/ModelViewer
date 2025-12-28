@@ -811,7 +811,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 	// --- Material terms ---
 	vec3 matAmbient = mat.ambient;
-	vec3 matDiffuse = mat.diffuse * nDotVP;
+	vec3 matDiffuse = mat.diffuse;
 	vec3 matSpecular = mat.specular * pf;
 	vec3 matEmissive = mat.emission;
 
@@ -819,7 +819,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	{
 		vec4 d = texture(texture_diffuse, getDiffuseTextureUV());
 		matAmbient = d.rgb;
-		matDiffuse = d.rgb * nDotVP;
+		matDiffuse = d.rgb;
 	}
 
 	if (hasVertexColors)
@@ -829,6 +829,9 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	{		
 		return vec4(matDiffuse, 1.0);  // Actual object color, unlit
 	}
+
+	// Geometry term
+	matDiffuse  *= nDotVP;
 
 	if (hasSpecularTexture)
 		matSpecular = texture(texture_specular, getSpecularTextureUV()).rgb * pf;
