@@ -1841,7 +1841,11 @@ void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 		toolBox->setItemEnabled(0, false);	
 		toolBox->setItemEnabled(1, true);
 		toolBox->setCurrentIndex(1);
-		_glWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);
+		_glWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);		
+		checkBoxSkyBoxHDRI->setChecked(true);
+		checkBoxHDRToneMapping->setChecked(true);
+		checkBoxGammaCorrection->setChecked(true);
+		_glWidget->setSkyBoxTextureHDRI(true);
 		switchToRealisticRendering();
 	}
 	updateControls();
