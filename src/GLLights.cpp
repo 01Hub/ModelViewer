@@ -90,6 +90,9 @@ void GLLights::createUBO()
     if (uboHandle == 0)
     {
         glGenBuffers(1, &uboHandle);
+        glBindBuffer(GL_UNIFORM_BUFFER, uboHandle);
+        glBufferData(GL_UNIFORM_BUFFER, MAX_LIGHTS * sizeof(GPULight), nullptr, GL_DYNAMIC_DRAW);
+        glBindBuffer(GL_UNIFORM_BUFFER, 0);
     }
 }
 
@@ -104,9 +107,9 @@ void GLLights::uploadData()
 
     size_t dataSize = lightCount * sizeof(GPULight);
 
-    glBindBuffer(GL_COPY_WRITE_BUFFER, uboHandle);
-    glBufferData(GL_COPY_WRITE_BUFFER, dataSize, lights.data(), GL_DYNAMIC_DRAW);
-    glBindBuffer(GL_COPY_WRITE_BUFFER, 0);
+    glBindBuffer(GL_UNIFORM_BUFFER, uboHandle);
+    glBufferSubData(GL_UNIFORM_BUFFER, 0, dataSize, lights.data());
+    glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
     //qDebug() << "GLLights::uploadData: Uploaded" << lightCount << "light(s) to GPU";
 }
