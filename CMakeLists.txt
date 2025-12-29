@@ -36,8 +36,6 @@ endif()
 
 message("Using Qt${QT_VERSION_MAJOR}")
 
-find_package(WebP CONFIG REQUIRED)
-
 # ============================================================================
 # Define vcpkg plugins directory (different for debug/release)
 # ============================================================================
@@ -229,9 +227,6 @@ target_link_libraries(ModelViewer
         ${OpenCASCADE_DataExchange_LIBRARIES}
         ${OpenCASCADE_ApplicationFramework_LIBRARIES}
 )
-
-# basic usage
-target_link_libraries(ModelViewer PRIVATE WebP::webp WebP::webpdecoder WebP::webpdemux)
 
 # Add WebEngine if found
 if(HAVE_WEBENGINE)
