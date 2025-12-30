@@ -32,6 +32,8 @@ public:
 	}
 
 	virtual void render();
+	virtual void renderShadow(); // Lightweight render for shadow mapping
+
 	virtual void select()
 	{
 		_selected = true;

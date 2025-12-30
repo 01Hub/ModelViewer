@@ -3496,8 +3496,7 @@ void GLWidget::loadFloor()
 		glGenTextures(1, &_shadowMap);
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, _shadowMap);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
-		glGenerateMipmap(GL_TEXTURE_2D);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);		
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
@@ -4928,8 +4927,8 @@ void GLWidget::renderToShadowBuffer()
 				if (mesh)
 				{
 					mesh->setProg(_shadowMappingShader.get());
-					mesh->getVAO().bind();
-					glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
+					mesh->getVAO().bind();					
+					mesh->renderShadow();
 					mesh->getVAO().release();
 				}
 			}
@@ -5328,7 +5327,7 @@ unsigned int GLWidget::getOrLoadTextureCached(const QString& path)
 		return it->second;
 	}
 	makeCurrent(); // ensure this context
-	unsigned int tex = loadTextureFromFile(path.toStdString().c_str());
+	unsigned int tex = loadTextureFromFile(path.toStdString().c_str(), false);
 	_texCache.emplace(path, tex);
 	_texRefCount[tex] = 1;
 	return tex;
@@ -6539,13 +6538,13 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 }
 
 
-unsigned int GLWidget::loadTextureFromFile(char const* path)
+unsigned int GLWidget::loadTextureFromFile(char const* path, const bool& flipY)
 {
 	unsigned int textureID;
 	glGenTextures(1, &textureID);
 	
 	int width, height, nrComponents;
-	stbi_set_flip_vertically_on_load(true);
+	stbi_set_flip_vertically_on_load(flipY);
 	unsigned char* data = stbi_load(path, &width, &height, &nrComponents, 0);
 	if (data)
 	{

@@ -1109,6 +1109,30 @@ void TriangleMesh::render()
 	glDisable(GL_BLEND);
 }
 
+// Render the mesh for shadow mapping
+void TriangleMesh::renderShadow()
+{
+	if (!_vertexArrayObject.isCreated())
+		return;
+
+	// Handle negative scaling (important for shadow mapping!)
+	if ((_scaleX < 0 && _scaleY > 0 && _scaleZ > 0) ||
+		(_scaleX > 0 && _scaleY < 0 && _scaleZ > 0) ||
+		(_scaleX > 0 && _scaleY > 0 && _scaleZ < 0) ||
+		(_scaleX < 0 && _scaleY < 0 && _scaleZ < 0))
+	{
+		glFrontFace(GL_CW);
+	}
+	else
+	{
+		glFrontFace(GL_CCW);
+	}
+
+	_vertexArrayObject.bind();
+	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
+	_vertexArrayObject.release();
+}
+
 void TriangleMesh::deleteTextures()
 {
 	//std::cout << "TriangleMesh::deleteTextures : _texture = " << _texture << std::endl;
