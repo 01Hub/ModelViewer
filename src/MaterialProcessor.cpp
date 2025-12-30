@@ -1952,7 +1952,7 @@ void MaterialProcessor::convertSpecularGlossinessToDielectric(GLMaterial& mat)
     // Let the shader do it with actual sampled texture values
     if (mat.hasDiffuseMap() && mat.hasSpecularGlossinessMap())
     {
-        qDebug() << "SpecGloss with TEXTURES - skipping C++ conversion, shader will convert";
+        //qDebug() << "SpecGloss with TEXTURES - skipping C++ conversion, shader will convert";
         // Don't convert factors - shader will sample textures and convert
         // Just ensure the flag is set
         mat.setUseSpecularGlossiness(true);
@@ -1960,7 +1960,7 @@ void MaterialProcessor::convertSpecularGlossinessToDielectric(GLMaterial& mat)
     }
     
     // Only do factor-based conversion if NO TEXTURES are present
-    qDebug() << "SpecGloss FACTORS ONLY - doing C++ conversion";
+    //qDebug() << "SpecGloss FACTORS ONLY - doing C++ conversion";
     
     QVector3D diffuse = mat.diffuseColor();
     QVector3D specular = mat.specularColor();

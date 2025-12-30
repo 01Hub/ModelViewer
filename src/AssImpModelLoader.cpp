@@ -169,7 +169,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 			if (msgBox.clickedButton() == noButton)
 			{				
-				qDebug() << "User chose not to generate UVs, using None method.";
+				//qDebug() << "User chose not to generate UVs, using None method.";
 				_selectedUVMethod = UVMethod::None;
 			}
 			else if (msgBox.clickedButton() == changeSettingsButton)
@@ -534,9 +534,11 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	}
 	
 	
+#ifdef __DEBUG__
 	// Material and textures details
 	qDebug() << "Mesh with material: " << meshName << " processed.";
 	std::cout << mat;	
+#endif
 
 	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
 	newMesh->setHasNegativeScale(hasNegativeScale);
@@ -546,7 +548,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	{
 		GLenum mode = _gltfMeshPrimitiveModes[meshIndex];
 		newMesh->setPrimitiveMode(mode);
-		qDebug() << "Set primitive mode for mesh" << meshIndex << "to" << mode;
+		//qDebug() << "Set primitive mode for mesh" << meshIndex << "to" << mode;
 	}
 
 	return newMesh;
@@ -1154,7 +1156,7 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 
 			_gltfMeshPrimitiveModes[meshIndex] = glMode;
 
-			qDebug() << "Mesh" << meshIndex << "primitive mode:" << mode << "(" << glMode << ")";
+			//qDebug() << "Mesh" << meshIndex << "primitive mode:" << mode << "(" << glMode << ")";
 		}
 
 		++meshIndex;

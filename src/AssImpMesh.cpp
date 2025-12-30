@@ -335,7 +335,7 @@ void AssImpMesh::setupMesh()
 		}
 	}
 
-	
+#ifdef __DEBUG__
 	size_t numVertices = _vertices.size();
 	qDebug() << "Mesh name:" << _name;
 	qDebug() << "=== BUFFER LAYOUT DEBUG ===";
@@ -363,7 +363,7 @@ void AssImpMesh::setupMesh()
 			<< " WrapT:" << tex.wrapT;
 
 	}
-	
+#endif
 
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents);
 	computeBounds();
