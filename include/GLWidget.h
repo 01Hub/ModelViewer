@@ -388,6 +388,9 @@ private:
 	void loadEnvMap();
 	void loadIrradianceMap();
 	void loadFloor();
+	void applyFloorPlaneMaterialSettings();
+	void updateMainLightPosition(float halfObjectSize);
+	float updateFloorGeometry();
 		
 	void drawMesh(QOpenGLShaderProgram* prog);
 

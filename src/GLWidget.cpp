@@ -1556,7 +1556,7 @@ void GLWidget::triggerShadowRecomputation()
 
 	_shadowMapNeedsInitialization = true;
 	makeCurrent();
-	loadFloor();
+	loadFloor();	
 }
 
 void GLWidget::setShadowQuality(AdaptiveShadowMapper::QualityLevel quality)
@@ -1668,39 +1668,34 @@ void GLWidget::updateBoundingBox()
 
 void GLWidget::updateFloorPlane()
 {
-	float halfObjectSize = _boundingSphere.getRadius();
-	if (_boundingBox.getZSize() >= _boundingBox.getXSize() && _boundingBox.getZSize() >= _boundingBox.getYSize())
-		_floorSize = _boundingBox.getZSize();
-	else
-		_floorSize = (std::max(_boundingBox.getYSize(), _boundingBox.getXSize())) / 1.25f;
+	// Use helper to update floor geometry
+	float halfObjectSize = updateFloorGeometry();
 
-	_floorCenter = _boundingSphere.getCenter();
-	_lightCube->setSize(halfObjectSize * 0.1f);
-	_lightPosition.setX(_floorCenter.x() + _floorSize * 1.25 + _lightOffsetX);
-	_lightPosition.setY(_floorCenter.y() + _floorSize * 1.25 + _lightOffsetY);
-	_lightPosition.setZ(highestModelZ() + halfObjectSize * 5.0f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
+	// Use helper to set main light position (now consistent with loadFloor)
+	updateMainLightPosition(halfObjectSize);
+
 	_floorPlane->setPlane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
+
+	// Use helper to apply common material/texture settings
+	applyFloorPlaneMaterialSettings();
 
 	// === Reposition punctual lights from ORIGINAL positions ===
 	if (!_originalParsedLights.empty())
 	{
 		// START FROM ORIGINALS every frame
 		_currentRepositionedLights = _originalParsedLights;
-
 		// Calculate radius scaling factor
 		float radiusScaleFactor = 1.0f;
 		if (_originalBoundingRadius > 0.0f)
 		{
 			radiusScaleFactor = halfObjectSize / _originalBoundingRadius;
 		}
-
 		// Current bounding sphere center
 		glm::vec3 currentCenter(
 			static_cast<float>(_floorCenter.x()),
 			static_cast<float>(_floorCenter.y()),
 			static_cast<float>(_floorCenter.z())
 		);
-
 		// Reposition each light FROM ORIGINALS
 		for (auto& light : _currentRepositionedLights)
 		{
@@ -1708,20 +1703,16 @@ void GLWidget::updateFloorPlane()
 			light.position.x = light.position.x * radiusScaleFactor + currentCenter.x;
 			light.position.y = light.position.y * radiusScaleFactor + currentCenter.y;
 			light.position.z = light.position.z * radiusScaleFactor + currentCenter.z;
-
 			// Scale light range by radius change
 			if (light.range > 0.0f)
 			{
 				light.range *= radiusScaleFactor;
 			}
+			// Scale intensity to compensate for distance change
+			// Using squared factor to account for inverse-square law
+			light.intensity *= (radiusScaleFactor * radiusScaleFactor);
 		}
-
 		glLights->setLights(_currentRepositionedLights);
-
-		/*qDebug() << "updateFloorPlane: Repositioned" << _currentRepositionedLights.size()
-			<< "lights. Radius scale factor:" << radiusScaleFactor
-			<< "Original radius:" << _originalBoundingRadius
-			<< "Current radius:" << halfObjectSize;*/
 	}
 	else
 	{
@@ -1732,7 +1723,6 @@ void GLWidget::updateFloorPlane()
 			static_cast<float>(_lightPosition.z())
 		));
 	}
-
 	updateClippingPlane();
 }
 
@@ -3378,11 +3368,15 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 		}
 	}
 
+	// Reset light offsets when model transformations are reset
+	_lightOffsetX = 0.0f;
+	_lightOffsetY = 0.0f;
+	_lightOffsetZ = 0.0f;
+
 	updateBoundingSphere();
 	updateBoundingBox();
-	triggerShadowRecomputation();
-	updateFloorPlane();
 	fitAll();
+	triggerShadowRecomputation();
 }
 
 void GLWidget::createShaderPrograms()
@@ -3488,19 +3482,18 @@ void GLWidget::createLights()
 }
 
 void GLWidget::loadFloor()
-{	
+{
 	// configure depth map FBO
 	// -----------------------
 	// create depth texture
 	if (_shadowMap == 0 || _shadowMapNeedsInitialization)
 	{
-		if(_shadowMap != 0)
+		if (_shadowMap != 0)
 		{
 			glDeleteTextures(1, &_shadowMap);
 			_shadowMap = 0;
 		}
 		glGenTextures(1, &_shadowMap);
-		//std::cout << "GLWidget::loadFloor : _shadowMap = " << _shadowMap << std::endl;
 		glActiveTexture(GL_TEXTURE2);
 		glBindTexture(GL_TEXTURE_2D, _shadowMap);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F, _shadowWidth, _shadowHeight, 0, GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
@@ -3513,7 +3506,6 @@ void GLWidget::loadFloor()
 		glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, borderColor);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
-
 		// attach depth texture as FBO's depth buffer
 		glGenFramebuffers(1, &_shadowMapFBO);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
@@ -3526,18 +3518,31 @@ void GLWidget::loadFloor()
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
 	}
 
-	_floorSize = _boundingSphere.getRadius();
-	_floorCenter = _boundingSphere.getCenter();
-	float halfObjectSize = _boundingSphere.getRadius();
-	if (_boundingBox.getZSize() >= _boundingBox.getXSize() && _boundingBox.getZSize() >= _boundingBox.getYSize())
-		_floorSize = _boundingBox.getZSize();
-	else
-		_floorSize = (std::max(_boundingBox.getYSize(), _boundingBox.getXSize())) / 1.25f;
-	_lightCube->setSize(halfObjectSize * 0.1f);
-	_lightPosition.setX(_floorCenter.x() + _floorSize * 1.25 + _lightOffsetX);
-	_lightPosition.setY(_floorCenter.y() + _floorSize * 1.25 + _lightOffsetY);
-	_lightPosition.setZ(_floorSize + _lightOffsetZ);
-	_floorPlane = new Plane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, -_floorSize - (_floorSize * 0.05f), 1, 1);
+	// Use helper to update floor geometry
+	float halfObjectSize = updateFloorGeometry();
+
+	// Use helper to set main light position
+	updateMainLightPosition(halfObjectSize);
+
+	float floorPlaneCoeff = _meshStore.empty() ? -_floorSize - (_floorSize * 0.05f) : lowestModelZ() - (_floorSize * _floorOffsetPercent);
+
+	// FIX: Delete old floor plane to prevent memory leak
+	if (_floorPlane != nullptr)
+	{
+		delete _floorPlane;
+		_floorPlane = nullptr;
+	}
+
+	_floorPlane = new Plane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, floorPlaneCoeff, 1, 1);
+
+	// Use helper to apply common material/texture settings
+	applyFloorPlaneMaterialSettings();
+}
+
+void GLWidget::applyFloorPlaneMaterialSettings()
+{
+	if (_floorPlane == nullptr)
+		return;
 
 	_floorPlane->setAmbientMaterial(QVector3D(0.0f, 0.0f, 0.0f));
 	_floorPlane->setDiffuseMaterial(QVector3D(1.0f, 1.0f, 1.0f));
@@ -3545,6 +3550,35 @@ void GLWidget::loadFloor()
 	_floorPlane->setShininess(16.0f);
 	_floorPlane->enableTexture(_floorTextureDisplayed);
 	_floorPlane->setTexureImage(_floorTexImage);
+}
+
+void GLWidget::updateMainLightPosition(float halfObjectSize)
+{
+	_lightPosition.setX(_floorCenter.x() + _floorSize * 1.25 + _lightOffsetX);
+	_lightPosition.setY(_floorCenter.y() + _floorSize * 1.25 + _lightOffsetY);
+
+	if (_meshStore.empty())
+		_lightPosition.setZ(_floorSize + _lightOffsetZ);
+	else
+	{
+		float highestZ = highestModelZ();
+		_lightPosition.setZ(highestZ + halfObjectSize * 5.0f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
+	}
+}
+
+float GLWidget::updateFloorGeometry()
+{
+	float halfObjectSize = _boundingSphere.getRadius();
+	_floorCenter = _boundingSphere.getCenter();
+
+	if (_boundingBox.getZSize() >= _boundingBox.getXSize() && _boundingBox.getZSize() >= _boundingBox.getYSize())
+		_floorSize = _boundingBox.getZSize();
+	else
+		_floorSize = (std::max(_boundingBox.getYSize(), _boundingBox.getXSize())) / 1.25f;
+
+	_lightCube->setSize(halfObjectSize * 0.1f);
+
+	return halfObjectSize;
 }
 
 void GLWidget::loadEnvMap()
