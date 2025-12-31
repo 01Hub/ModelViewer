@@ -495,9 +495,29 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 
 		_materialProcessor.setFolderPath(this->_texturePath);
 				
-		bool isGltf = (_path.find(".gltf") != std::string::npos || _path.find(".glb") != std::string::npos);
-		// GLTF Core and Extensions
-		if (isGltf)
+		// Determine file type
+		bool isGlb = (_path.find(".glb") != std::string::npos);
+		bool isGltf = (_path.find(".gltf") != std::string::npos && !isGlb);  // exclude .glb
+
+		if (isGlb)
+		{
+			// GLB: Dedicated processor that handles embedded textures + metadata
+			_materialProcessor.processGLBMaterial(
+				QString::fromStdString(_path),
+				scene,
+				mesh,
+				mesh->mMaterialIndex,
+				mat,
+				textures);
+
+			// Scale parameters based on model scale
+			mat.setThicknessFactor(mat.thicknessFactor() * _appliedScale);
+			mat.setAttenuationDistance(mat.attenuationDistance() * _appliedScale);
+			mat.setIsGLTFMaterial(true);
+
+			qDebug() << "GLB Material Loaded with" << textures.size() << "textures";
+		}
+		else if (isGltf)
 		{
 			_materialProcessor.processGltf2CoreAndExtensions(
 				QString::fromStdString(_path),
@@ -532,13 +552,10 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	{
 		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
 	}
-	
-	
-#ifdef __DEBUG__
+
 	// Material and textures details
 	qDebug() << "Mesh with material: " << meshName << " processed.";
 	std::cout << mat;	
-#endif
 
 	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
 	newMesh->setHasNegativeScale(hasNegativeScale);

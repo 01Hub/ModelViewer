@@ -1768,6 +1768,1194 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 	// qDebug() << "No KHR materials extensions found for materialIndex" << materialIndex;
 }
 
+void MaterialProcessor::processGLBMaterial(
+	const QString& glbPath,
+	const aiScene* scene,
+	const aiMesh* mesh,
+	int materialIndex,
+	GLMaterial& outMaterial,
+	std::vector<GLMaterial::Texture>& outTextures)
+{
+	// Static cache to avoid reloading the same GLB multiple times
+	static QHash<QString, std::pair<QString, std::vector<uint8_t>>> glbCache;
+
+	// === Extract JSON and binary buffer from GLB (or use cache) ===
+	QString jsonString;
+	std::vector<uint8_t> binaryBuffer;
+
+	if (glbCache.contains(glbPath))
+	{
+		auto cached = glbCache.value(glbPath);
+		jsonString = cached.first;
+		binaryBuffer = cached.second;
+		qDebug() << "processGLBMaterial: Using cached GLB data for" << glbPath;
+	}
+	else
+	{
+		QFile file(glbPath);
+		if (!file.open(QIODevice::ReadOnly))
+		{
+			qWarning() << "processGLBMaterial: Cannot open GLB file:" << glbPath;
+			return;
+		}
+
+		QByteArray header = file.read(12);
+		if (header.size() < 12)
+		{
+			qWarning() << "processGLBMaterial: File too small";
+			file.close();
+			return;
+		}
+
+		uint32_t magic = *reinterpret_cast<const uint32_t*>(header.constData());
+		if (magic != 0x46546C67)
+		{
+			qWarning() << "processGLBMaterial: Invalid GLB magic";
+			file.close();
+			return;
+		}
+
+		uint32_t version = *reinterpret_cast<const uint32_t*>(header.constData() + 4);
+		if (version != 2)
+		{
+			qWarning() << "processGLBMaterial: Unsupported GLB version:" << version;
+			file.close();
+			return;
+		}
+
+		while (!file.atEnd())
+		{
+			QByteArray chunkHeader = file.read(8);
+			if (chunkHeader.size() < 8) break;
+
+			uint32_t chunkSize = *reinterpret_cast<const uint32_t*>(chunkHeader.constData());
+			uint32_t chunkType = *reinterpret_cast<const uint32_t*>(chunkHeader.constData() + 4);
+
+			QByteArray chunkData = file.read(chunkSize);
+			if (chunkData.size() != static_cast<int>(chunkSize)) break;
+
+			if (chunkType == 0x4E4F534A)  // JSON
+			{
+				jsonString = QString::fromUtf8(chunkData);
+			}
+			else if (chunkType == 0x004E4942)  // BIN
+			{
+				binaryBuffer.resize(chunkSize);
+				std::memcpy(binaryBuffer.data(), chunkData.constData(), chunkSize);
+			}
+		}
+		file.close();
+
+		if (!jsonString.isEmpty() && !binaryBuffer.empty())
+		{
+			glbCache.insert(glbPath, { jsonString, binaryBuffer });
+		}
+	}
+
+	if (jsonString.isEmpty() || binaryBuffer.empty())
+	{
+		qWarning() << "processGLBMaterial: Failed to extract JSON or binary from GLB";
+		return;
+	}
+
+	// Parse JSON
+	QJsonParseError perr;
+	QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
+	if (perr.error != QJsonParseError::NoError)
+	{
+		qWarning() << "processGLBMaterial: JSON parse error:" << perr.errorString();
+		return;
+	}
+
+	QJsonObject root = doc.object();
+	QJsonArray jsonMaterials = root.value("materials").toArray();
+	QJsonArray jsonTextures = root.value("textures").toArray();
+	QJsonArray jsonImages = root.value("images").toArray();
+	QJsonArray jsonBufferViews = root.value("bufferViews").toArray();
+	QJsonArray jsonSamplers = root.value("samplers").toArray();
+
+	if (jsonMaterials.isEmpty())
+	{
+		qWarning() << "processGLBMaterial: No materials in GLB JSON";
+		return;
+	}
+
+	// === Use the CORRECT material index ===
+	if (materialIndex < 0 || materialIndex >= jsonMaterials.size())
+	{
+		qWarning() << "processGLBMaterial: Material index" << materialIndex << "out of range";
+		materialIndex = 0;  // Fallback to first material
+	}
+
+	QJsonObject matObj = jsonMaterials.at(materialIndex).toObject();
+	qDebug() << "processGLBMaterial: Processing material" << materialIndex << "from" << jsonMaterials.size() << "total materials";
+
+	// === Helper to get sampler parameters ===
+	auto getSamplerParams = [&](int texIndex) -> std::tuple<GLenum, GLenum, GLenum, GLenum> {
+		// glTF defaults
+		const GLenum DEFAULT_WRAP_S = 10497;      // GL_REPEAT
+		const GLenum DEFAULT_WRAP_T = 10497;      // GL_REPEAT
+		const GLenum DEFAULT_MAG = 9729;          // GL_LINEAR
+		const GLenum DEFAULT_MIN = 9987;          // GL_LINEAR_MIPMAP_LINEAR
+
+		GLenum wrapS = DEFAULT_WRAP_S;
+		GLenum wrapT = DEFAULT_WRAP_T;
+		GLenum magFilter = DEFAULT_MAG;
+		GLenum minFilter = DEFAULT_MIN;
+
+		if (texIndex < 0 || texIndex >= jsonTextures.size())
+			return { wrapS, wrapT, magFilter, minFilter };
+
+		QJsonObject texObj = jsonTextures.at(texIndex).toObject();
+		if (!texObj.contains("sampler"))
+			return { wrapS, wrapT, magFilter, minFilter };
+
+		int samplerIdx = texObj.value("sampler").toInt(-1);
+		if (samplerIdx < 0 || samplerIdx >= jsonSamplers.size())
+			return { wrapS, wrapT, magFilter, minFilter };
+
+		QJsonObject samplerObj = jsonSamplers.at(samplerIdx).toObject();
+
+		if (samplerObj.contains("wrapS"))
+			wrapS = static_cast<GLenum>(samplerObj.value("wrapS").toInt(DEFAULT_WRAP_S));
+		if (samplerObj.contains("wrapT"))
+			wrapT = static_cast<GLenum>(samplerObj.value("wrapT").toInt(DEFAULT_WRAP_T));
+		if (samplerObj.contains("magFilter"))
+			magFilter = static_cast<GLenum>(samplerObj.value("magFilter").toInt(DEFAULT_MAG));
+		if (samplerObj.contains("minFilter"))
+			minFilter = static_cast<GLenum>(samplerObj.value("minFilter").toInt(DEFAULT_MIN));
+
+		qDebug() << "processGLBMaterial: Texture" << texIndex << "→ Sampler" << samplerIdx
+			<< "wrapS:" << wrapS << "wrapT:" << wrapT << "magFilter:" << magFilter << "minFilter:" << minFilter;
+
+		return { wrapS, wrapT, magFilter, minFilter };
+		};
+
+	// === Load all images from binary buffer into GPU memory ===
+	std::map<int, GLMaterial::Texture> loadedImages;
+
+	for (int imgIdx = 0; imgIdx < jsonImages.size(); ++imgIdx)
+	{
+		QJsonObject imgObj = jsonImages.at(imgIdx).toObject();
+		int bufferViewIdx = imgObj.value("bufferView").toInt(-1);
+
+		if (bufferViewIdx < 0 || bufferViewIdx >= jsonBufferViews.size())
+		{
+			qWarning() << "processGLBMaterial: Image" << imgIdx << "has invalid bufferView";
+			continue;
+		}
+
+		QJsonObject bvObj = jsonBufferViews.at(bufferViewIdx).toObject();
+		int byteOffset = bvObj.value("byteOffset").toInt(0);
+		int byteLength = bvObj.value("byteLength").toInt(-1);
+
+		if (byteLength <= 0 || byteOffset + byteLength > static_cast<int>(binaryBuffer.size()))
+		{
+			qWarning() << "processGLBMaterial: Invalid bufferView range for image" << imgIdx;
+			continue;
+		}
+
+		// Extract image bytes from binary buffer
+		QByteArray imageData(reinterpret_cast<const char*>(binaryBuffer.data() + byteOffset), byteLength);
+
+		// Load image from bytes
+		QImage qImg;
+		if (!qImg.loadFromData(reinterpret_cast<const uchar*>(imageData.constData()), imageData.size()))
+		{
+			qWarning() << "processGLBMaterial: Failed to load image" << imgIdx << "from binary buffer";
+			continue;
+		}
+
+		// Prepare for OpenGL
+		qImg = convertToGLFormat(qImg);
+
+		// Upload to GPU with DEFAULT samplers (will be overridden per texture)
+		unsigned int textureID;
+		glGenTextures(1, &textureID);
+		glBindTexture(GL_TEXTURE_2D, textureID);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, qImg.width(), qImg.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, qImg.bits());
+		glGenerateMipmap(GL_TEXTURE_2D);
+
+		// Default sampler settings
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		// Store with placeholder type (will store sampler info when assigned)
+		GLMaterial::Texture tex;
+		tex.id = textureID;
+		tex.type = "";
+		tex.path = (glbPath.toStdString() + "_img_" + std::to_string(imgIdx));
+		tex.scale = glm::vec2(1.0f);
+		tex.offset = glm::vec2(0.0f);
+		tex.rotation = 0.0f;
+		tex.texCoordIndex = 0;
+		tex.hasAlpha = qImg.hasAlphaChannel();
+		// Default sampler values
+		tex.wrapS = GL_REPEAT;
+		tex.wrapT = GL_REPEAT;
+		tex.magFilter = GL_LINEAR;
+		tex.minFilter = GL_LINEAR_MIPMAP_LINEAR;
+
+		loadedImages[imgIdx] = tex;
+
+		qDebug() << "processGLBMaterial: Loaded image" << imgIdx << "→ GPU textureID" << textureID;
+	}
+
+	// === Process material with Assimp ===
+	if (scene && materialIndex < static_cast<int>(scene->mNumMaterials))
+	{
+		processAssimpColorAndMaterial(scene->mMaterials[materialIndex], outMaterial);
+	}
+
+	// === Extract PBR factors from GLB JSON (for this specific material) ===
+	// This replicates the exact logic from processGltf2CoreAndExtensions (lines 1680-1741)
+
+	if (matObj.contains("pbrMetallicRoughness") && matObj.value("pbrMetallicRoughness").isObject())
+	{
+		QJsonObject pbr = matObj.value("pbrMetallicRoughness").toObject();
+
+		// Base Color Factor (RGBA array, defaults to [1, 1, 1, 1])
+		if (pbr.contains("baseColorFactor") && pbr.value("baseColorFactor").isArray())
+		{
+			QJsonArray baseColor = pbr.value("baseColorFactor").toArray();
+			if (baseColor.size() >= 3)
+			{
+				QVector3D albedo(
+					static_cast<float>(baseColor.at(0).toDouble(1.0)),
+					static_cast<float>(baseColor.at(1).toDouble(1.0)),
+					static_cast<float>(baseColor.at(2).toDouble(1.0))
+				);
+				outMaterial.setAlbedoColor(albedo);
+				outMaterial.setDiffuse(albedo); // Legacy compatibility
+
+				// Extract alpha component (4th element)
+				if (baseColor.size() >= 4)
+				{
+					float alpha = static_cast<float>(baseColor.at(3).toDouble(1.0));
+					outMaterial.setOpacity(qBound(0.0f, alpha, 1.0f));
+				}
+
+				qDebug() << "processGLBMaterial: Material" << materialIndex << "baseColorFactor:" << albedo;
+			}
+		}
+		else
+		{
+			// Default per glTF spec
+			outMaterial.setAlbedoColor(QVector3D(1.0f, 1.0f, 1.0f));
+			outMaterial.setDiffuse(QVector3D(1.0f, 1.0f, 1.0f));
+			outMaterial.setAmbient(QVector3D(0.1f, 0.1f, 0.1f));
+			outMaterial.setSpecular(QVector3D(0.04f, 0.04f, 0.04f));
+			outMaterial.setMetalness(1.0f);
+			outMaterial.setRoughness(1.0f);
+		}
+
+		// === Metallic Factor (defaults to 1.0 per glTF spec) ===
+		if (pbr.contains("metallicFactor"))
+		{
+			float v = static_cast<float>(pbr.value("metallicFactor").toDouble(1.0));
+			outMaterial.setMetalness(qBound(0.0f, v, 1.0f));
+			qDebug() << "processGLBMaterial: Material" << materialIndex << "metallicFactor:" << v;
+		}
+		else
+		{
+			outMaterial.setMetalness(1.0f); // Default per glTF spec
+			qDebug() << "processGLBMaterial: Material" << materialIndex << "metallicFactor (default): 1.0";
+		}
+
+		// === Roughness Factor (defaults to 1.0 per glTF spec) ===
+		if (pbr.contains("roughnessFactor"))
+		{
+			float v = static_cast<float>(pbr.value("roughnessFactor").toDouble(1.0));
+			outMaterial.setRoughness(qBound(0.01f, v, 1.0f));
+			qDebug() << "processGLBMaterial: Material" << materialIndex << "roughnessFactor:" << v;
+		}
+		else
+		{
+			outMaterial.setRoughness(1.0f); // Default per glTF spec
+			qDebug() << "processGLBMaterial: Material" << materialIndex << "roughnessFactor (default): 1.0";
+		}
+	}
+
+	// === Extract root-level material properties from GLB JSON ===
+
+	// Double-sided
+	if (matObj.contains("doubleSided"))
+	{
+		bool doubleSided = matObj.value("doubleSided").toBool(false);
+		outMaterial.setTwoSided(doubleSided);
+		qDebug() << "processGLBMaterial: Material" << materialIndex << "doubleSided:" << doubleSided;
+	}
+
+	// Alpha mode
+	if (matObj.contains("alphaMode"))
+	{
+		QString alphaMode = matObj.value("alphaMode").toString("OPAQUE");
+		if (alphaMode == "OPAQUE")
+		{
+			outMaterial.setBlendMode(GLMaterial::BlendMode::Opaque);
+		}
+		else if (alphaMode == "MASK")
+		{
+			outMaterial.setBlendMode(GLMaterial::BlendMode::Masked);
+			if (matObj.contains("alphaCutoff"))
+			{
+				float cutoff = static_cast<float>(matObj.value("alphaCutoff").toDouble(0.5));
+				outMaterial.setAlphaThreshold(qBound(0.0f, cutoff, 1.0f));
+			}
+		}
+		else if (alphaMode == "BLEND")
+		{
+			outMaterial.setBlendMode(GLMaterial::BlendMode::Alpha);
+		}
+		qDebug() << "processGLBMaterial: Material" << materialIndex << "alphaMode:" << alphaMode;
+	}
+
+	// Emissive factor
+	if (matObj.contains("emissiveFactor") && matObj.value("emissiveFactor").isArray())
+	{
+		QJsonArray emissive = matObj.value("emissiveFactor").toArray();
+		if (emissive.size() >= 3)
+		{
+			QVector3D emissiveColor(
+				static_cast<float>(emissive.at(0).toDouble(0.0)),
+				static_cast<float>(emissive.at(1).toDouble(0.0)),
+				static_cast<float>(emissive.at(2).toDouble(0.0))
+			);
+			outMaterial.setEmissive(emissiveColor);
+			qDebug() << "processGLBMaterial: Material" << materialIndex << "emissiveFactor:" << emissiveColor;
+		}
+	}
+
+	// Normal texture scale
+	if (matObj.contains("normalTexture") && matObj.value("normalTexture").isObject())
+	{
+		QJsonObject normalTex = matObj.value("normalTexture").toObject();
+		if (normalTex.contains("scale"))
+		{
+			float scale = static_cast<float>(normalTex.value("scale").toDouble(1.0));
+			outMaterial.setNormalScale(scale);
+		}
+	}
+
+	// Occlusion strength
+	if (matObj.contains("occlusionTexture") && matObj.value("occlusionTexture").isObject())
+	{
+		QJsonObject occlusionTex = matObj.value("occlusionTexture").toObject();
+		if (occlusionTex.contains("strength"))
+		{
+			float strength = static_cast<float>(occlusionTex.value("strength").toDouble(1.0));
+			outMaterial.setOcclusionStrength(qBound(0.0f, strength, 1.0f));
+		}
+	}
+
+	// === Helper to add texture with correct type and UV transform ===
+	auto addTextureWithType = [&](int texIdx, int imageIdx, const std::string& typeString, const QJsonObject& texRefObj) {
+		if (loadedImages.find(imageIdx) == loadedImages.end())
+		{
+			qWarning() << "processGLBMaterial: Image index" << imageIdx << "not in loaded images";
+			return;
+		}
+
+		GLMaterial::Texture tex = loadedImages[imageIdx];
+		tex.type = typeString;
+
+		// === Apply sampler settings ===
+		auto [wrapS, wrapT, magFilter, minFilter] = getSamplerParams(texIdx);
+
+		glBindTexture(GL_TEXTURE_2D, tex.id);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, static_cast<GLint>(wrapS));
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, static_cast<GLint>(wrapT));
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, static_cast<GLint>(magFilter));
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, static_cast<GLint>(minFilter));
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		tex.wrapS = wrapS;
+		tex.wrapT = wrapT;
+		tex.magFilter = magFilter;
+		tex.minFilter = minFilter;
+
+		// Extract KHR_texture_transform if present
+		if (texRefObj.contains("extensions"))
+		{
+			QJsonObject ext = texRefObj.value("extensions").toObject();
+			if (ext.contains("KHR_texture_transform"))
+			{
+				QJsonObject transform = ext.value("KHR_texture_transform").toObject();
+
+				if (transform.contains("scale") && transform.value("scale").isArray())
+				{
+					QJsonArray scaleArr = transform.value("scale").toArray();
+					if (scaleArr.size() >= 2)
+					{
+						tex.scale.x = static_cast<float>(scaleArr.at(0).toDouble(1.0));
+						tex.scale.y = static_cast<float>(scaleArr.at(1).toDouble(1.0));
+					}
+				}
+
+				if (transform.contains("offset") && transform.value("offset").isArray())
+				{
+					QJsonArray offsetArr = transform.value("offset").toArray();
+					if (offsetArr.size() >= 2)
+					{
+						tex.offset.x = static_cast<float>(offsetArr.at(0).toDouble(0.0));
+						tex.offset.y = static_cast<float>(offsetArr.at(1).toDouble(0.0));
+					}
+				}
+
+				if (transform.contains("rotation"))
+				{
+					tex.rotation = static_cast<float>(transform.value("rotation").toDouble(0.0));
+				}
+
+				if (transform.contains("texCoord"))
+				{
+					tex.texCoordIndex = transform.value("texCoord").toInt(0);
+				}
+			}
+		}
+
+		if (texRefObj.contains("texCoord"))
+		{
+			tex.texCoordIndex = texRefObj.value("texCoord").toInt(0);
+		}
+
+		outTextures.push_back(tex);
+		_loadedTextures.push_back(tex);
+
+		qDebug() << "processGLBMaterial: Added texture" << imageIdx << "type:" << QString::fromStdString(typeString)
+			<< "scale:(" << tex.scale.x << "," << tex.scale.y << ")"
+			<< "offset:(" << tex.offset.x << "," << tex.offset.y << ")";
+		};
+
+	// === Map texture references from material to loaded images ===
+
+	// Root-level textures
+	if (matObj.contains("normalTexture") && matObj.value("normalTexture").isObject())
+	{
+		QJsonObject texRef = matObj.value("normalTexture").toObject();
+		int texIdx = texRef.value("index").toInt(-1);
+		if (texIdx >= 0 && texIdx < jsonTextures.size())
+		{
+			int imgIdx = jsonTextures.at(texIdx).toObject().value("source").toInt(-1);
+			if (imgIdx >= 0)
+			{
+				qDebug() << "Material" << materialIndex << ": normalTexture references texture" << texIdx << "→ image" << imgIdx;
+				addTextureWithType(texIdx, imgIdx, "normalMap", texRef);
+			}
+		}
+	}
+
+	if (matObj.contains("occlusionTexture") && matObj.value("occlusionTexture").isObject())
+	{
+		QJsonObject texRef = matObj.value("occlusionTexture").toObject();
+		int texIdx = texRef.value("index").toInt(-1);
+		if (texIdx >= 0 && texIdx < jsonTextures.size())
+		{
+			int imgIdx = jsonTextures.at(texIdx).toObject().value("source").toInt(-1);
+			if (imgIdx >= 0)
+			{
+				qDebug() << "Material" << materialIndex << ": occlusionTexture references texture" << texIdx << "→ image" << imgIdx;
+				addTextureWithType(texIdx, imgIdx, "occlusionMap", texRef);
+			}
+		}
+	}
+
+	if (matObj.contains("emissiveTexture") && matObj.value("emissiveTexture").isObject())
+	{
+		QJsonObject texRef = matObj.value("emissiveTexture").toObject();
+		int texIdx = texRef.value("index").toInt(-1);
+		if (texIdx >= 0 && texIdx < jsonTextures.size())
+		{
+			int imgIdx = jsonTextures.at(texIdx).toObject().value("source").toInt(-1);
+			if (imgIdx >= 0)
+			{
+				qDebug() << "Material" << materialIndex << ": emissiveTexture references texture" << texIdx << "→ image" << imgIdx;
+				addTextureWithType(texIdx, imgIdx, "emissiveMap", texRef);
+			}
+		}
+	}
+
+	// PBR metallic-roughness textures (NESTED inside pbrMetallicRoughness)
+	if (matObj.contains("pbrMetallicRoughness") && matObj.value("pbrMetallicRoughness").isObject())
+	{
+		QJsonObject pbr = matObj.value("pbrMetallicRoughness").toObject();
+
+		// Base color
+		if (pbr.contains("baseColorTexture") && pbr.value("baseColorTexture").isObject())
+		{
+			QJsonObject texRef = pbr.value("baseColorTexture").toObject();
+			int texIdx = texRef.value("index").toInt(-1);
+			if (texIdx >= 0 && texIdx < jsonTextures.size())
+			{
+				int imgIdx = jsonTextures.at(texIdx).toObject().value("source").toInt(-1);
+				if (imgIdx >= 0)
+				{
+					qDebug() << "Material" << materialIndex << ": baseColorTexture references texture" << texIdx << "→ image" << imgIdx;
+					addTextureWithType(texIdx, imgIdx, "albedoMap", texRef);
+				}
+			}
+		}
+
+		// Metallic-Roughness (combined)
+		if (pbr.contains("metallicRoughnessTexture") && pbr.value("metallicRoughnessTexture").isObject())
+		{
+			QJsonObject texRef = pbr.value("metallicRoughnessTexture").toObject();
+			int texIdx = texRef.value("index").toInt(-1);
+			if (texIdx >= 0 && texIdx < jsonTextures.size())
+			{
+				int imgIdx = jsonTextures.at(texIdx).toObject().value("source").toInt(-1);
+				if (imgIdx >= 0)
+				{
+					qDebug() << "Material" << materialIndex << ": metallicRoughnessTexture references texture" << texIdx << "→ image" << imgIdx;					
+					addTextureWithType(texIdx, imgIdx, "metallicMap", texRef);
+					addTextureWithType(texIdx, imgIdx, "roughnessMap", texRef);
+				}
+			}
+		}
+	}
+
+	// === Extract KHR extensions directly from this material's JSON ===
+	if (matObj.contains("extensions"))
+	{
+		QJsonObject extRoot = matObj.value("extensions").toObject();
+
+		// KHR_materials_transmission
+		if (extRoot.contains("KHR_materials_transmission") && extRoot.value("KHR_materials_transmission").isObject())
+		{
+			QJsonObject trans = extRoot.value("KHR_materials_transmission").toObject();
+			if (trans.contains("transmissionFactor"))
+			{
+				float v = static_cast<float>(trans.value("transmissionFactor").toDouble(0.0));
+				outMaterial.setTransmission(qBound(0.0f, v, 1.0f));
+			}
+		}
+
+		// KHR_materials_ior
+		if (extRoot.contains("KHR_materials_ior") && extRoot.value("KHR_materials_ior").isObject())
+		{
+			QJsonObject iorJ = extRoot.value("KHR_materials_ior").toObject();
+			if (iorJ.contains("ior"))
+			{
+				float v = static_cast<float>(iorJ.value("ior").toDouble(1.5));
+				outMaterial.setIOR(qBound(1.0f, v, 5.0f));
+			}
+		}
+
+		// KHR_materials_volume
+		if (extRoot.contains("KHR_materials_volume") && extRoot.value("KHR_materials_volume").isObject())
+		{
+			QJsonObject vol = extRoot.value("KHR_materials_volume").toObject();
+			if (vol.contains("thicknessFactor"))
+			{
+				float v = static_cast<float>(vol.value("thicknessFactor").toDouble(0.0));
+				outMaterial.setThicknessFactor(qMax(0.0f, v));
+			}
+			if (vol.contains("attenuationDistance"))
+			{
+				float v = static_cast<float>(vol.value("attenuationDistance").toDouble(0.0));
+				outMaterial.setAttenuationDistance(qMax(0.0f, v));
+			}
+			if (vol.contains("attenuationColor") && vol.value("attenuationColor").isArray())
+			{
+				QJsonArray a = vol.value("attenuationColor").toArray();
+				if (a.size() >= 3)
+				{
+					outMaterial.setAttenuationColor(QVector3D(
+						static_cast<float>(a.at(0).toDouble(1.0)),
+						static_cast<float>(a.at(1).toDouble(1.0)),
+						static_cast<float>(a.at(2).toDouble(1.0))
+					));
+				}
+			}
+		}
+
+		// KHR_materials_clearcoat
+		if (extRoot.contains("KHR_materials_clearcoat") && extRoot.value("KHR_materials_clearcoat").isObject())
+		{
+			QJsonObject cc = extRoot.value("KHR_materials_clearcoat").toObject();
+			if (cc.contains("clearcoatFactor"))
+			{
+				float v = static_cast<float>(cc.value("clearcoatFactor").toDouble(0.0));
+				outMaterial.setClearcoat(qBound(0.0f, v, 1.0f));
+			}
+			if (cc.contains("clearcoatRoughnessFactor"))
+			{
+				float v = static_cast<float>(cc.value("clearcoatRoughnessFactor").toDouble(0.0));
+				outMaterial.setClearcoatRoughness(qBound(0.0f, v, 1.0f));
+			}
+		}
+
+		// KHR_materials_sheen
+		if (extRoot.contains("KHR_materials_sheen") && extRoot.value("KHR_materials_sheen").isObject())
+		{
+			QJsonObject sh = extRoot.value("KHR_materials_sheen").toObject();
+			if (sh.contains("sheenColorFactor") && sh.value("sheenColorFactor").isArray())
+			{
+				QJsonArray a = sh.value("sheenColorFactor").toArray();
+				if (a.size() >= 3)
+				{
+					outMaterial.setSheenColor(QVector3D(
+						static_cast<float>(a.at(0).toDouble(0.0)),
+						static_cast<float>(a.at(1).toDouble(0.0)),
+						static_cast<float>(a.at(2).toDouble(0.0))
+					));
+				}
+			}
+			if (sh.contains("sheenRoughnessFactor"))
+			{
+				float v = static_cast<float>(sh.value("sheenRoughnessFactor").toDouble(0.0));
+				outMaterial.setSheenRoughness(qBound(0.0f, v, 1.0f));
+			}
+		}
+
+		// KHR_materials_specular
+		if (extRoot.contains("KHR_materials_specular") && extRoot.value("KHR_materials_specular").isObject())
+		{
+			QJsonObject sp = extRoot.value("KHR_materials_specular").toObject();
+			if (sp.contains("specularFactor"))
+			{
+				float v = static_cast<float>(sp.value("specularFactor").toDouble(1.0));
+				outMaterial.setSpecularFactor(qBound(0.0f, v, 1.0f));
+			}
+			if (sp.contains("specularColorFactor") && sp.value("specularColorFactor").isArray())
+			{
+				QJsonArray a = sp.value("specularColorFactor").toArray();
+				if (a.size() >= 3)
+				{
+					outMaterial.setSpecularColorFactor(QVector3D(
+						static_cast<float>(a.at(0).toDouble(1.0)),
+						static_cast<float>(a.at(1).toDouble(1.0)),
+						static_cast<float>(a.at(2).toDouble(1.0))
+					));
+				}
+			}
+		}
+
+		// KHR_materials_anisotropy
+		if (extRoot.contains("KHR_materials_anisotropy") && extRoot.value("KHR_materials_anisotropy").isObject())
+		{
+			QJsonObject an = extRoot.value("KHR_materials_anisotropy").toObject();
+			if (an.contains("anisotropyStrength"))
+			{
+				float v = static_cast<float>(an.value("anisotropyStrength").toDouble(0.0));
+				outMaterial.setAnisotropyStrength(qBound(0.0f, v, 1.0f));
+			}
+			if (an.contains("anisotropyRotation"))
+			{
+				float v = static_cast<float>(an.value("anisotropyRotation").toDouble(0.0));
+				outMaterial.setAnisotropyRotation(v);
+			}
+		}
+
+		// KHR_materials_iridescence
+		if (extRoot.contains("KHR_materials_iridescence") && extRoot.value("KHR_materials_iridescence").isObject())
+		{
+			QJsonObject ir = extRoot.value("KHR_materials_iridescence").toObject();
+			if (ir.contains("iridescenceFactor"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceFactor").toDouble(0.0));
+				outMaterial.setIridescenceFactor(qBound(0.0f, v, 1.0f));
+			}
+			if (ir.contains("iridescenceIor"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceIor").toDouble(1.0));
+				outMaterial.setIridescenceIor(qMax(0.0f, v));
+			}
+			if (ir.contains("iridescenceThicknessMinimum"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceThicknessMinimum").toDouble(0.0));
+				outMaterial.setIridescenceThicknessMin(qMax(0.0f, v));
+			}
+			if (ir.contains("iridescenceThicknessMaximum"))
+			{
+				float v = static_cast<float>(ir.value("iridescenceThicknessMaximum").toDouble(0.0));
+				outMaterial.setIridescenceThicknessMax(qMax(0.0f, v));
+			}
+		}
+
+		// KHR_materials_emissive_strength
+		if (extRoot.contains("KHR_materials_emissive_strength"))
+		{
+			QJsonValue v = extRoot.value("KHR_materials_emissive_strength");
+			if (v.isObject())
+			{
+				float es = static_cast<float>(v.toObject().value("emissiveStrength").toDouble(1.0));
+				outMaterial.setEmissiveStrength(qMax(0.0f, es));
+			}
+			else if (v.isDouble())
+			{
+				outMaterial.setEmissiveStrength(qMax(0.0f, static_cast<float>(v.toDouble())));
+			}
+		}
+
+		// KHR_materials_unlit
+		if (extRoot.contains("KHR_materials_unlit"))
+		{
+			outMaterial.setUnlit(true);
+		}
+
+		// KHR_materials_dispersion
+		if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
+		{
+			QJsonObject d = extRoot.value("KHR_materials_dispersion").toObject();
+			if (d.contains("dispersion"))
+			{
+				float v = static_cast<float>(d.value("dispersion").toDouble(0.0));
+				outMaterial.setDispersion(qMax(0.0f, v));
+			}
+		}
+
+		// KHR_materials_diffuse_transmission
+		if (extRoot.contains("KHR_materials_diffuse_transmission") && extRoot.value("KHR_materials_diffuse_transmission").isObject())
+		{
+			QJsonObject dt = extRoot.value("KHR_materials_diffuse_transmission").toObject();
+			if (dt.contains("diffuseTransmissionFactor"))
+			{
+				float v = static_cast<float>(dt.value("diffuseTransmissionFactor").toDouble(0.0));
+				outMaterial.setDiffuseTransmissionFactor(qBound(0.0f, v, 1.0f));
+			}
+			if (dt.contains("diffuseTransmissionColorFactor") && dt.value("diffuseTransmissionColorFactor").isArray())
+			{
+				QJsonArray a = dt.value("diffuseTransmissionColorFactor").toArray();
+				if (a.size() >= 3)
+				{
+					outMaterial.setDiffuseTransmissionColorFactor(QVector3D(
+						static_cast<float>(a.at(0).toDouble(1.0)),
+						static_cast<float>(a.at(1).toDouble(1.0)),
+						static_cast<float>(a.at(2).toDouble(1.0))
+					));
+				}
+			}
+		}
+	}
+
+	// === Apply texture transforms and assign to material ===
+	setTextureTransforms(outTextures, outMaterial);
+
+	// === Create ADS aliases from PBR textures for backwards compatibility ===
+	synthesizeADSAliases(outTextures);
+
+	// Re-apply texture transforms after ADS alias creation
+	setTextureTransforms(outTextures, outMaterial);
+
+	outMaterial.setIsGLTFMaterial(true);
+
+	qDebug() << "processGLBMaterial: Successfully processed material" << materialIndex << "with" << outTextures.size() << "textures";
+}
+
+void MaterialProcessor::applyGltfExtensionsFromJsonString(
+	const QString& jsonString,
+	GLMaterial& outMaterial)
+{
+	// Parse JSON from GLB or other source
+	QJsonParseError perr;
+	QJsonDocument doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
+
+	if (perr.error != QJsonParseError::NoError)
+	{
+		qWarning() << "applyGltfExtensionsFromJsonString: JSON parse error:" << perr.errorString();
+		return;
+	}
+
+	if (!doc.isObject())
+	{
+		return;
+	}
+
+	QJsonObject root = doc.object();
+	QJsonArray jsonMaterials = root.value("materials").toArray();
+
+	if (jsonMaterials.isEmpty())
+	{
+		return;
+	}
+
+	// For GLB, use first material (or you can match by name if needed)
+	QJsonObject matObj = jsonMaterials.at(0).toObject();
+
+	// === Extract core glTF 2.0 properties (no textures) ===
+
+	// Double-sided
+	if (matObj.contains("doubleSided"))
+	{
+		outMaterial.setTwoSided(matObj.value("doubleSided").toBool(false));
+	}
+
+	// Alpha mode
+	if (matObj.contains("alphaMode"))
+	{
+		QString alphaMode = matObj.value("alphaMode").toString("OPAQUE");
+		if (alphaMode == "OPAQUE")
+		{
+			outMaterial.setBlendMode(GLMaterial::BlendMode::Opaque);
+			outMaterial.setOpacity(1.0f);
+		}
+		else if (alphaMode == "MASK")
+		{
+			outMaterial.setBlendMode(GLMaterial::BlendMode::Masked);
+			if (matObj.contains("alphaCutoff"))
+			{
+				float cutoff = static_cast<float>(matObj.value("alphaCutoff").toDouble(0.5));
+				outMaterial.setAlphaThreshold(qBound(0.0f, cutoff, 1.0f));
+			}
+		}
+		else if (alphaMode == "BLEND")
+		{
+			outMaterial.setBlendMode(GLMaterial::BlendMode::Alpha);
+		}
+	}
+
+	// Emissive factor
+	if (matObj.contains("emissiveFactor") && matObj.value("emissiveFactor").isArray())
+	{
+		QJsonArray emissive = matObj.value("emissiveFactor").toArray();
+		if (emissive.size() >= 3)
+		{
+			outMaterial.setEmissive(QVector3D(
+				static_cast<float>(emissive.at(0).toDouble(0.0)),
+				static_cast<float>(emissive.at(1).toDouble(0.0)),
+				static_cast<float>(emissive.at(2).toDouble(0.0))
+			));
+		}
+	}
+
+	// PBR metallic/roughness factors
+	if (matObj.contains("pbrMetallicRoughness") && matObj.value("pbrMetallicRoughness").isObject())
+	{
+		QJsonObject pbr = matObj.value("pbrMetallicRoughness").toObject();
+
+		// Base color
+		if (pbr.contains("baseColorFactor") && pbr.value("baseColorFactor").isArray())
+		{
+			QJsonArray baseColor = pbr.value("baseColorFactor").toArray();
+			if (baseColor.size() >= 3)
+			{
+				QVector3D albedo(
+					static_cast<float>(baseColor.at(0).toDouble(1.0)),
+					static_cast<float>(baseColor.at(1).toDouble(1.0)),
+					static_cast<float>(baseColor.at(2).toDouble(1.0))
+				);
+				outMaterial.setAlbedoColor(albedo);
+
+				if (baseColor.size() >= 4)
+				{
+					float alpha = static_cast<float>(baseColor.at(3).toDouble(1.0));
+					outMaterial.setOpacity(qBound(0.0f, alpha, 1.0f));
+				}
+			}
+		}
+
+		// Metallic factor
+		if (pbr.contains("metallicFactor"))
+		{
+			float v = static_cast<float>(pbr.value("metallicFactor").toDouble(1.0));
+			outMaterial.setMetalness(qBound(0.0f, v, 1.0f));
+		}
+
+		// Roughness factor
+		if (pbr.contains("roughnessFactor"))
+		{
+			float v = static_cast<float>(pbr.value("roughnessFactor").toDouble(1.0));
+			outMaterial.setRoughness(qBound(0.01f, v, 1.0f));
+		}
+	}
+
+	// Normal scale
+	if (matObj.contains("normalTexture") && matObj.value("normalTexture").isObject())
+	{
+		QJsonObject normalTex = matObj.value("normalTexture").toObject();
+		if (normalTex.contains("scale"))
+		{
+			float scale = static_cast<float>(normalTex.value("scale").toDouble(1.0));
+			outMaterial.setNormalScale(scale);
+		}
+	}
+
+	// Occlusion strength
+	if (matObj.contains("occlusionTexture") && matObj.value("occlusionTexture").isObject())
+	{
+		QJsonObject occlusionTex = matObj.value("occlusionTexture").toObject();
+		if (occlusionTex.contains("strength"))
+		{
+			float strength = static_cast<float>(occlusionTex.value("strength").toDouble(1.0));
+			outMaterial.setOcclusionStrength(qBound(0.0f, strength, 1.0f));
+		}
+	}
+
+	// === KHR Extension scalar values (NO texture loading) ===
+	if (!matObj.contains("extensions"))
+	{
+		return;
+	}
+
+	QJsonObject extRoot = matObj.value("extensions").toObject();
+
+	// KHR_materials_volume
+	if (extRoot.contains("KHR_materials_volume") && extRoot.value("KHR_materials_volume").isObject())
+	{
+		QJsonObject vol = extRoot.value("KHR_materials_volume").toObject();
+		if (vol.contains("thicknessFactor"))
+		{
+			outMaterial.setThicknessFactor(qMax(0.0f, static_cast<float>(vol.value("thicknessFactor").toDouble(0.0))));
+		}
+		if (vol.contains("attenuationDistance"))
+		{
+			outMaterial.setAttenuationDistance(qMax(0.0f, static_cast<float>(vol.value("attenuationDistance").toDouble(0.0))));
+		}
+		if (vol.contains("attenuationColor") && vol.value("attenuationColor").isArray())
+		{
+			QJsonArray a = vol.value("attenuationColor").toArray();
+			if (a.size() >= 3)
+			{
+				outMaterial.setAttenuationColor(QVector3D(
+					static_cast<float>(a.at(0).toDouble(1.0)),
+					static_cast<float>(a.at(1).toDouble(1.0)),
+					static_cast<float>(a.at(2).toDouble(1.0))
+				));
+			}
+		}
+	}
+
+	// KHR_materials_transmission
+	if (extRoot.contains("KHR_materials_transmission") && extRoot.value("KHR_materials_transmission").isObject())
+	{
+		QJsonObject trans = extRoot.value("KHR_materials_transmission").toObject();
+		if (trans.contains("transmissionFactor"))
+		{
+			outMaterial.setTransmission(qBound(0.0f, static_cast<float>(trans.value("transmissionFactor").toDouble(0.0)), 1.0f));
+		}
+	}
+
+	// KHR_materials_ior
+	if (extRoot.contains("KHR_materials_ior") && extRoot.value("KHR_materials_ior").isObject())
+	{
+		QJsonObject iorJ = extRoot.value("KHR_materials_ior").toObject();
+		if (iorJ.contains("ior"))
+		{
+			outMaterial.setIOR(qBound(1.0f, static_cast<float>(iorJ.value("ior").toDouble(1.5)), 5.0f));
+		}
+	}
+
+	// KHR_materials_clearcoat
+	if (extRoot.contains("KHR_materials_clearcoat") && extRoot.value("KHR_materials_clearcoat").isObject())
+	{
+		QJsonObject cc = extRoot.value("KHR_materials_clearcoat").toObject();
+		if (cc.contains("clearcoatFactor"))
+		{
+			outMaterial.setClearcoat(qBound(0.0f, static_cast<float>(cc.value("clearcoatFactor").toDouble(0.0)), 1.0f));
+		}
+		if (cc.contains("clearcoatRoughnessFactor"))
+		{
+			outMaterial.setClearcoatRoughness(qBound(0.0f, static_cast<float>(cc.value("clearcoatRoughnessFactor").toDouble(0.0)), 1.0f));
+		}
+	}
+
+	// KHR_materials_sheen
+	if (extRoot.contains("KHR_materials_sheen") && extRoot.value("KHR_materials_sheen").isObject())
+	{
+		QJsonObject sh = extRoot.value("KHR_materials_sheen").toObject();
+		if (sh.contains("sheenColorFactor") && sh.value("sheenColorFactor").isArray())
+		{
+			QJsonArray a = sh.value("sheenColorFactor").toArray();
+			if (a.size() >= 3)
+			{
+				outMaterial.setSheenColor(QVector3D(
+					static_cast<float>(a.at(0).toDouble(0.0)),
+					static_cast<float>(a.at(1).toDouble(0.0)),
+					static_cast<float>(a.at(2).toDouble(0.0))
+				));
+			}
+		}
+		if (sh.contains("sheenRoughnessFactor"))
+		{
+			outMaterial.setSheenRoughness(qBound(0.0f, static_cast<float>(sh.value("sheenRoughnessFactor").toDouble(0.0)), 1.0f));
+		}
+	}
+
+	// KHR_materials_specular
+	if (extRoot.contains("KHR_materials_specular") && extRoot.value("KHR_materials_specular").isObject())
+	{
+		QJsonObject sp = extRoot.value("KHR_materials_specular").toObject();
+		if (sp.contains("specularFactor"))
+		{
+			outMaterial.setSpecularFactor(qBound(0.0f, static_cast<float>(sp.value("specularFactor").toDouble(1.0)), 1.0f));
+		}
+		if (sp.contains("specularColorFactor") && sp.value("specularColorFactor").isArray())
+		{
+			QJsonArray a = sp.value("specularColorFactor").toArray();
+			if (a.size() >= 3)
+			{
+				outMaterial.setSpecularColorFactor(QVector3D(
+					static_cast<float>(a.at(0).toDouble(1.0)),
+					static_cast<float>(a.at(1).toDouble(1.0)),
+					static_cast<float>(a.at(2).toDouble(1.0))
+				));
+			}
+		}
+	}
+
+	// KHR_materials_anisotropy
+	if (extRoot.contains("KHR_materials_anisotropy") && extRoot.value("KHR_materials_anisotropy").isObject())
+	{
+		QJsonObject an = extRoot.value("KHR_materials_anisotropy").toObject();
+		if (an.contains("anisotropyStrength"))
+		{
+			outMaterial.setAnisotropyStrength(qBound(0.0f, static_cast<float>(an.value("anisotropyStrength").toDouble(0.0)), 1.0f));
+		}
+		if (an.contains("anisotropyRotation"))
+		{
+			outMaterial.setAnisotropyRotation(static_cast<float>(an.value("anisotropyRotation").toDouble(0.0)));
+		}
+	}
+
+	// KHR_materials_iridescence
+	if (extRoot.contains("KHR_materials_iridescence") && extRoot.value("KHR_materials_iridescence").isObject())
+	{
+		QJsonObject ir = extRoot.value("KHR_materials_iridescence").toObject();
+		if (ir.contains("iridescenceFactor"))
+		{
+			outMaterial.setIridescenceFactor(qBound(0.0f, static_cast<float>(ir.value("iridescenceFactor").toDouble(0.0)), 1.0f));
+		}
+		if (ir.contains("iridescenceIor"))
+		{
+			outMaterial.setIridescenceIor(qMax(0.0f, static_cast<float>(ir.value("iridescenceIor").toDouble(1.0))));
+		}
+		if (ir.contains("iridescenceThicknessMinimum"))
+		{
+			outMaterial.setIridescenceThicknessMin(qMax(0.0f, static_cast<float>(ir.value("iridescenceThicknessMinimum").toDouble(0.0))));
+		}
+		if (ir.contains("iridescenceThicknessMaximum"))
+		{
+			outMaterial.setIridescenceThicknessMax(qMax(0.0f, static_cast<float>(ir.value("iridescenceThicknessMaximum").toDouble(0.0))));
+		}
+	}
+
+	// KHR_materials_emissive_strength
+	if (extRoot.contains("KHR_materials_emissive_strength"))
+	{
+		QJsonValue v = extRoot.value("KHR_materials_emissive_strength");
+		if (v.isObject())
+		{
+			float es = static_cast<float>(v.toObject().value("emissiveStrength").toDouble(1.0));
+			outMaterial.setEmissiveStrength(qMax(0.0f, es));
+		}
+		else if (v.isDouble())
+		{
+			outMaterial.setEmissiveStrength(qMax(0.0f, static_cast<float>(v.toDouble())));
+		}
+	}
+
+	// KHR_materials_unlit
+	if (extRoot.contains("KHR_materials_unlit"))
+	{
+		outMaterial.setUnlit(true);
+	}
+
+	// KHR_materials_dispersion
+	if (extRoot.contains("KHR_materials_dispersion") && extRoot.value("KHR_materials_dispersion").isObject())
+	{
+		QJsonObject d = extRoot.value("KHR_materials_dispersion").toObject();
+		if (d.contains("dispersion"))
+		{
+			outMaterial.setDispersion(qMax(0.0f, static_cast<float>(d.value("dispersion").toDouble(0.0))));
+		}
+	}
+
+	// KHR_materials_diffuse_transmission
+	if (extRoot.contains("KHR_materials_diffuse_transmission") && extRoot.value("KHR_materials_diffuse_transmission").isObject())
+	{
+		QJsonObject dt = extRoot.value("KHR_materials_diffuse_transmission").toObject();
+		if (dt.contains("diffuseTransmissionFactor"))
+		{
+			outMaterial.setDiffuseTransmissionFactor(qBound(0.0f, static_cast<float>(dt.value("diffuseTransmissionFactor").toDouble(0.0)), 1.0f));
+		}
+		if (dt.contains("diffuseTransmissionColorFactor") && dt.value("diffuseTransmissionColorFactor").isArray())
+		{
+			QJsonArray a = dt.value("diffuseTransmissionColorFactor").toArray();
+			if (a.size() >= 3)
+			{
+				outMaterial.setDiffuseTransmissionColorFactor(QVector3D(
+					static_cast<float>(a.at(0).toDouble(1.0)),
+					static_cast<float>(a.at(1).toDouble(1.0)),
+					static_cast<float>(a.at(2).toDouble(1.0))
+				));
+			}
+		}
+	}
+}
+
+QString MaterialProcessor::extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer)
+{
+	QFile file(glbPath);
+	if (!file.open(QIODevice::ReadOnly))
+	{
+		qWarning() << "GLBTextureLoader: Cannot open file:" << glbPath;
+		return QString();
+	}
+
+	// Read GLB header (12 bytes)
+	QByteArray header = file.read(12);
+	if (header.size() < 12)
+	{
+		qWarning() << "GLBTextureLoader: File too small";
+		file.close();
+		return QString();
+	}
+
+	// Validate magic
+	uint32_t magic = *reinterpret_cast<const uint32_t*>(header.constData());
+	if (magic != 0x46546C67)  // "glTF"
+	{
+		qWarning() << "GLBTextureLoader: Invalid GLB magic";
+		file.close();
+		return QString();
+	}
+
+	// Read version
+	uint32_t version = *reinterpret_cast<const uint32_t*>(header.constData() + 4);
+	if (version != 2)
+	{
+		qWarning() << "GLBTextureLoader: Unsupported GLB version:" << version;
+		file.close();
+		return QString();
+	}
+
+	// Iterate through chunks
+	QString jsonString;
+	while (!file.atEnd())
+	{
+		QByteArray chunkHeader = file.read(8);
+		if (chunkHeader.size() < 8)
+			break;
+
+		uint32_t chunkSize = *reinterpret_cast<const uint32_t*>(chunkHeader.constData());
+		uint32_t chunkType = *reinterpret_cast<const uint32_t*>(chunkHeader.constData() + 4);
+
+		QByteArray chunkData = file.read(chunkSize);
+		if (chunkData.size() != static_cast<int>(chunkSize))
+			break;
+
+		// JSON chunk: 0x4E4F534A
+		if (chunkType == 0x4E4F534A)
+		{
+			jsonString = QString::fromUtf8(chunkData);
+		}
+		// BIN chunk: 0x004E4942
+		else if (chunkType == 0x004E4942)
+		{
+			outBinaryBuffer.resize(chunkSize);
+			std::memcpy(outBinaryBuffer.data(), chunkData.constData(), chunkSize);
+		}
+	}
+
+	file.close();
+	return jsonString;
+}
+
+
 std::tuple<int, glm::vec2, glm::vec2, float> MaterialProcessor::extractKHRTextureTransform(const QJsonObject& texObj)
 {
 	int texCoord = texObj.value("texCoord").toInt(0);  // Default from texture object

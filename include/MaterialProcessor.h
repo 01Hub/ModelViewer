@@ -46,6 +46,21 @@ public:
 		GLMaterial& outMaterial,
 		std::vector<GLMaterial::Texture>& outTextures);
 
+	void processGLBMaterial(
+		const QString& glbPath,
+		const aiScene* scene,
+		const aiMesh* mesh,
+		int materialIndex,
+		GLMaterial& outMaterial,
+		std::vector<GLMaterial::Texture>& outTextures);
+
+	void applyGltfExtensionsFromJsonString(
+		const QString& jsonString,
+		GLMaterial& outMaterial);
+
+	QString extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer);
+
+
 	std::tuple<int, glm::vec2, glm::vec2, float> extractKHRTextureTransform(const QJsonObject& texObj);
 	
 	std::vector<GPULight> parseKHRLightsPunctual(const QString& gltfPath);
