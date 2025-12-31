@@ -556,7 +556,7 @@ void main()
 		isFrontFacing = !isFrontFacing;  // Invert because negative scale reverses winding
 	}
 
-	if (!twoSided && !isFrontFacing)
+	if (!twoSided && !isFrontFacing && !floorRendering)
 	{
 		discard;
 	}
