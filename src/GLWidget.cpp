@@ -3925,9 +3925,15 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glDepthMask(GL_TRUE);
 
 	QMatrix4x4 model;
-	float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent) - 0.001; // Added 0.001 offset to avoid Z fighting
+
+	// calculate zFighting offset based on model size
+	float zFightingOffset = std::min((_boundingSphere.getRadius() / 100.0f), 0.001f);	
+	qDebug() << "GLWidget::drawFloor: zFightingOffset =" << zFightingOffset;
+	// Position the model just below the floor plane to avoid Z-fighting
+	float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent);
 	float floorGap = fabs(floorPos - lowestModelZ());
-	float offset = ((lowestModelZ()) - floorGap) * 2.0f;
+	float offset = (((lowestModelZ()) - floorGap) * 2.0f) - zFightingOffset; // Add offset to avoid Z fighting;
+	qDebug() << "GLWidget::drawFloor: floorPos =" << floorPos << ", offset =" << offset;
 	model.scale(1.0f, 1.0f, -1.0f);
 	model.translate(0.0f, 0.0f, -offset);
 
