@@ -125,7 +125,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 	// === Parse glTF primitive modes ===
 	QString qPath = QString::fromStdString(path);
-	if (qPath.endsWith(".gltf", Qt::CaseInsensitive))
+	if (qPath.endsWith(".gltf", Qt::CaseInsensitive) || qPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
 		parseGltfPrimitiveModes(qPath);
 	}
@@ -207,7 +207,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	std::vector<GPULight> parsedLights;
 	QString gltfPath = QString::fromStdString(path);
 
-	if (gltfPath.endsWith(".gltf", Qt::CaseInsensitive))
+	if (gltfPath.endsWith(".gltf", Qt::CaseInsensitive) || gltfPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
 		parsedLights = _materialProcessor.parseKHRLightsPunctual(gltfPath);
 		if (!parsedLights.empty())
@@ -1098,22 +1098,58 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 {
 	_gltfMeshPrimitiveModes.clear();
 
-	QFile file(gltfPath);
-	if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+	bool isGLB = gltfPath.endsWith(".glb", Qt::CaseInsensitive);
+	bool isGLTF = gltfPath.endsWith(".gltf", Qt::CaseInsensitive);
+
+	if (!isGLB && !isGLTF)
 	{
-		qWarning() << "Failed to open glTF file for primitive mode parsing:" << gltfPath;
+		qWarning() << "parseGltfPrimitiveModes: Not a glTF file:" << gltfPath;
 		return;
 	}
 
-	QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-	file.close();
+	QJsonDocument doc;
 
-	if (!doc.isObject())
+	// ===== HANDLE GLB FILES =====
+	if (isGLB)
 	{
-		qWarning() << "Invalid glTF JSON structure";
-		return;
+		std::vector<uint8_t> glbBinaryBuffer;
+		QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer);
+
+		if (jsonString.isEmpty())
+		{
+			qWarning() << "parseGltfPrimitiveModes: Failed to extract JSON from GLB:" << gltfPath;
+			return;
+		}
+
+		QJsonParseError perr;
+		doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
+		if (perr.error != QJsonParseError::NoError)
+		{
+			qWarning() << "parseGltfPrimitiveModes: JSON parse error in GLB:" << perr.errorString();
+			return;
+		}
+	}
+	// ===== HANDLE GLTF FILES =====
+	else
+	{
+		QFile file(gltfPath);
+		if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+		{
+			qWarning() << "Failed to open glTF file for primitive mode parsing:" << gltfPath;
+			return;
+		}
+
+		doc = QJsonDocument::fromJson(file.readAll());
+		file.close();
+
+		if (!doc.isObject())
+		{
+			qWarning() << "Invalid glTF JSON structure";
+			return;
+		}
 	}
 
+	// ===== PARSE PRIMITIVE MODES (same for both GLTF and GLB) =====
 	QJsonObject root = doc.object();
 	QJsonArray meshesArray = root["meshes"].toArray();
 
@@ -1125,22 +1161,15 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 
 		if (!primitives.isEmpty())
 		{
-			// Take mode from first primitive of the mesh
 			QJsonObject firstPrimitive = primitives[0].toObject();
 
 			// glTF primitive modes:
-			// 0 = POINTS
-			// 1 = LINES
-			// 2 = LINE_LOOP
-			// 3 = LINE_STRIP
-			// 4 = TRIANGLES
-			// 5 = TRIANGLE_STRIP
-			// 6 = TRIANGLE_FAN
+			// 0 = POINTS,  1 = LINES,  2 = LINE_LOOP,  3 = LINE_STRIP
+			// 4 = TRIANGLES,  5 = TRIANGLE_STRIP,  6 = TRIANGLE_FAN
 
-			int mode = firstPrimitive["mode"].toInt(4);  // Default to TRIANGLES (4)
+			int mode = firstPrimitive["mode"].toInt(4);  // Default to TRIANGLES
 
-			// Convert glTF mode to OpenGL constant
-			GLenum glMode = GL_TRIANGLES;  // Default
+			GLenum glMode = GL_TRIANGLES;
 			switch (mode)
 			{
 			case 0: glMode = GL_POINTS; break;
@@ -1154,8 +1183,6 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 			}
 
 			_gltfMeshPrimitiveModes[meshIndex] = glMode;
-
-			//qDebug() << "Mesh" << meshIndex << "primitive mode:" << mode << "(" << glMode << ")";
 		}
 
 		++meshIndex;

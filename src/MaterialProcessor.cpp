@@ -12,6 +12,12 @@
 
 using namespace std;
 
+// Initialize static cache
+QHash<QString, QJsonDocument> MaterialProcessor::s_gltfJsonCache;
+QHash<QString, QJsonDocument> MaterialProcessor::s_glbJsonCache;
+QHash<QString, std::vector<uint8_t>> MaterialProcessor::s_glbBinaryCache;
+QHash<QString, bool> MaterialProcessor::s_glbImagesLoaded;
+
 MaterialProcessor::MaterialProcessor() : _folderPath("")
 {
 	initializeOpenGLFunctions();
@@ -629,13 +635,6 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		qWarning() << "processGltf2CoreAndExtensions: materialIndex out of range:" << materialIndex;
 		return;
 	}
-
-	// simple cached JSON per file
-	// Caches for both .gltf and .glb
-	static QHash<QString, QJsonDocument> s_gltfJsonCache;	
-	static QHash<QString, QJsonDocument> s_glbJsonCache;
-	static QHash<QString, std::vector<uint8_t>> s_glbBinaryCache;
-	static QHash<QString, bool> s_glbImagesLoaded;  // Track if images uploaded to GPU
 
 	QJsonDocument doc;
 	std::vector<uint8_t> glbBinaryBuffer;
@@ -2283,62 +2282,91 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 {
 	std::vector<GPULight> lights;
 
-	// Early skip for non-.gltf paths
-	if (!gltfPath.endsWith(".gltf", Qt::CaseInsensitive))
+	bool isGLB = gltfPath.endsWith(".glb", Qt::CaseInsensitive);
+	bool isGLTF = gltfPath.endsWith(".gltf", Qt::CaseInsensitive);
+
+	if (!isGLB && !isGLTF)
 	{
+		qWarning() << "parseKHRLightsPunctual: Not a glTF file:" << gltfPath;
 		return lights;
 	}
 
-	// Reuse the existing JSON cache
-	static QHash<QString, QJsonDocument> s_gltfJsonCache;
 	QJsonDocument doc;
 
-	if (s_gltfJsonCache.contains(gltfPath))
+	// ===== HANDLE GLB FILES =====
+	if (isGLB)
 	{
-		doc = s_gltfJsonCache.value(gltfPath);
+		// JSON should be cached from processGltf2CoreAndExtensions
+		if (s_glbJsonCache.contains(gltfPath))
+		{
+			doc = s_glbJsonCache.value(gltfPath);
+			//qDebug() << "parseKHRLightsPunctual: Using cached GLB JSON for:" << path;
+		}
+		else
+		{
+			// If not cached yet, extract it now
+			std::vector<uint8_t> glbBinaryBuffer;
+			QString jsonString = extractJsonFromGLB(gltfPath, glbBinaryBuffer);
+
+			if (jsonString.isEmpty())
+			{
+				qWarning() << "parseKHRLightsPunctual: Failed to extract JSON from GLB:" << gltfPath;
+				return lights;
+			}
+
+			QJsonParseError perr;
+			doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
+			if (perr.error != QJsonParseError::NoError)
+			{
+				qWarning() << "parseKHRLightsPunctual: JSON parse error in GLB:" << perr.errorString();
+				return lights;
+			}
+
+			// Cache for future use
+			s_glbJsonCache.insert(gltfPath, doc);
+		}
 	}
+	// ===== HANDLE GLTF FILES =====
 	else
 	{
-		QFile f(gltfPath);
-		if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+		QFile file(gltfPath);
+		if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
 		{
-			qWarning() << "parseKHRLightsPunctual: cannot open glTF:" << gltfPath;
+			qWarning() << "Cannot open glTF file for lights parsing:" << gltfPath;
 			return lights;
 		}
-		QByteArray bytes = f.readAll();
-		f.close();
 
 		QJsonParseError perr;
-		doc = QJsonDocument::fromJson(bytes, &perr);
+		doc = QJsonDocument::fromJson(file.readAll(), &perr);
+		file.close();
+
 		if (perr.error != QJsonParseError::NoError)
 		{
-			qWarning() << "parseKHRLightsPunctual: JSON parse error:" << perr.errorString();
+			qWarning() << "parseKHRLightsPunctual: JSON parse error in GLTF:" << perr.errorString();
 			return lights;
 		}
-		s_gltfJsonCache.insert(gltfPath, doc);
 	}
 
+	// ===== PARSE LIGHTS (same for both GLTF and GLB) =====
 	if (!doc.isObject())
 	{
-		qWarning() << "parseKHRLightsPunctual: invalid JSON root for" << gltfPath;
+		qWarning() << "Invalid glTF/GLB JSON structure for lights";
 		return lights;
 	}
 
 	QJsonObject root = doc.object();
 
-	// Check for KHR_lights_punctual extension at root level
+	// Check for extensions
 	if (!root.contains("extensions"))
-	{
-		return lights;  // No extensions at all
-	}
+		return lights;
 
 	QJsonObject extensions = root.value("extensions").toObject();
-	if (!extensions.contains("KHR_lights_punctual"))
-	{
-		return lights;  // No lights extension
-	}
 
-	QJsonObject lightsExt = extensions.value("KHR_lights_punctual").toObject();
+	// Check for KHR_lights_punctual
+	if (!extensions.contains("KHR_lights_punctual"))
+		return lights;
+
+	QJsonObject lightsExt = extensions.value("KHR_lights_punctual").toObject();	
 	if (!lightsExt.contains("lights") || !lightsExt.value("lights").isArray())
 	{
 		return lights;  // No lights array

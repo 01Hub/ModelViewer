@@ -46,7 +46,7 @@ public:
 		GLMaterial& outMaterial,
 		std::vector<GLMaterial::Texture>& outTextures);
 
-	QString extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer);
+	static QString extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer);
 
 
 	std::tuple<int, glm::vec2, glm::vec2, float> extractKHRTextureTransform(const QJsonObject& texObj);
@@ -150,4 +150,10 @@ private:
 	std::vector<GLMaterial::Texture> _loadedTextures;	// Stores all the textures loaded so far, optimization to make sure textures aren't loaded more than once.
 	std::string _folderPath; // Directory where textures are located
 
+	// simple cached JSON per file
+	// Caches for both .gltf and .glb
+	static QHash<QString, QJsonDocument> s_gltfJsonCache;
+	static QHash<QString, QJsonDocument> s_glbJsonCache;
+	static QHash<QString, std::vector<uint8_t>> s_glbBinaryCache;
+	static QHash<QString, bool> s_glbImagesLoaded;  // Track if images uploaded to GPU
 };
