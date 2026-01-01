@@ -31,7 +31,6 @@ int main(int argc, char** argv)
 	// app.setStyle(QStyleFactory::create("windows"));
 #endif
 
-
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	// Set the language based on settings or system locale
 	QString langCode = settings.value("App/Language").toString();
@@ -103,6 +102,18 @@ int main(int argc, char** argv)
 	{
 		qDebug() << "WebP support is NOT available";
 	}
+
+#ifdef NDEBUG
+	// Suppress stdout/stderr in Release builds
+#ifdef _WIN32
+	std::ofstream devNull("NUL");
+#else
+	std::ofstream devNull("/dev/null");
+#endif
+
+	std::cout.rdbuf(devNull.rdbuf());
+	std::cerr.rdbuf(devNull.rdbuf());
+#endif
 
 	return app.exec();
 }
