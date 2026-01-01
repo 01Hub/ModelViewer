@@ -12,12 +12,6 @@
 
 using namespace std;
 
-// Initialize static cache
-QHash<QString, QJsonDocument> MaterialProcessor::s_gltfJsonCache;
-QHash<QString, QJsonDocument> MaterialProcessor::s_glbJsonCache;
-QHash<QString, std::vector<uint8_t>> MaterialProcessor::s_glbBinaryCache;
-QHash<QString, bool> MaterialProcessor::s_glbImagesLoaded;
-
 MaterialProcessor::MaterialProcessor() : _folderPath("")
 {
 	initializeOpenGLFunctions();
@@ -2062,6 +2056,13 @@ QString MaterialProcessor::extractJsonFromGLB(const QString& glbPath, std::vecto
 
 	file.close();
 	return jsonString;
+}
+
+void MaterialProcessor::clearGLBCaches()
+{
+	s_glbJsonCache.clear();
+	s_glbBinaryCache.clear();
+	s_glbImagesLoaded.clear();
 }
 
 

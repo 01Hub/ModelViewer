@@ -48,6 +48,7 @@ public:
 
 	static QString extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer);
 
+	void clearGLBCaches();
 
 	std::tuple<int, glm::vec2, glm::vec2, float> extractKHRTextureTransform(const QJsonObject& texObj);
 	
@@ -152,8 +153,8 @@ private:
 
 	// simple cached JSON per file
 	// Caches for both .gltf and .glb
-	static QHash<QString, QJsonDocument> s_gltfJsonCache;
-	static QHash<QString, QJsonDocument> s_glbJsonCache;
-	static QHash<QString, std::vector<uint8_t>> s_glbBinaryCache;
-	static QHash<QString, bool> s_glbImagesLoaded;  // Track if images uploaded to GPU
+	QHash<QString, QJsonDocument> s_gltfJsonCache;
+	QHash<QString, QJsonDocument> s_glbJsonCache;
+	QHash<QString, std::vector<uint8_t>> s_glbBinaryCache;
+	QHash<QString, bool> s_glbImagesLoaded;  // Track if images uploaded to GPU
 };
