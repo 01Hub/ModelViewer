@@ -499,25 +499,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 		bool isGlb = (_path.find(".glb") != std::string::npos);
 		bool isGltf = (_path.find(".gltf") != std::string::npos && !isGlb);  // exclude .glb
 
-		if (isGlb)
-		{
-			// GLB: Dedicated processor that handles embedded textures + metadata
-			_materialProcessor.processGLBMaterial(
-				QString::fromStdString(_path),
-				scene,
-				mesh,
-				mesh->mMaterialIndex,
-				mat,
-				textures);
-
-			// Scale parameters based on model scale
-			mat.setThicknessFactor(mat.thicknessFactor() * _appliedScale);
-			mat.setAttenuationDistance(mat.attenuationDistance() * _appliedScale);
-			mat.setIsGLTFMaterial(true);
-
-			qDebug() << "GLB Material Loaded with" << textures.size() << "textures";
-		}
-		else if (isGltf)
+		if (isGltf || isGlb)
 		{
 			_materialProcessor.processGltf2CoreAndExtensions(
 				QString::fromStdString(_path),

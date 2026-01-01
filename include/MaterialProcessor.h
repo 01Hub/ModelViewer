@@ -46,18 +46,6 @@ public:
 		GLMaterial& outMaterial,
 		std::vector<GLMaterial::Texture>& outTextures);
 
-	void processGLBMaterial(
-		const QString& glbPath,
-		const aiScene* scene,
-		const aiMesh* mesh,
-		int materialIndex,
-		GLMaterial& outMaterial,
-		std::vector<GLMaterial::Texture>& outTextures);
-
-	void applyGltfExtensionsFromJsonString(
-		const QString& jsonString,
-		GLMaterial& outMaterial);
-
 	QString extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer);
 
 
@@ -71,7 +59,10 @@ private:
 
 	void validateMaterialConsistency(GLMaterial& mat);
 
-	unsigned int createTextureOnGPU(GLMaterial::Texture& texture);
+	unsigned int createTextureOnGPU(GLMaterial::Texture& texture,
+		const std::vector<uint8_t>* glbBinaryBuffer = nullptr,
+		const QJsonArray* jsonBufferViews = nullptr,
+		const QJsonArray* jsonImages = nullptr);
 
 private:
 	// Each entry: primary type + uniform name, and an optional fallback type+uniform name
