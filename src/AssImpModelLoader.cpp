@@ -76,11 +76,13 @@ vector<AssImpMesh*> AssImpModelLoader::getMeshes() const
 /*  Functions   */
 // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
 void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
-{
+{	
 	_progressiveLoading = progressiveLoading;
 	_loadingCancelled = false;
 	_path = std::string(path);
 	_meshes.clear();	
+
+	_materialProcessor.clearGLBCaches();
 	_materialProcessor.clearLoadedTextures();
 
 	_importer.FreeScene(); // Free any previously loaded scene
