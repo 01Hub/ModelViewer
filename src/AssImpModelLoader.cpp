@@ -169,7 +169,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 			if (msgBox.clickedButton() == noButton)
 			{				
-				//qDebug() << "User chose not to generate UVs, using None method.";
+				qDebug() << "User chose not to generate UVs, using None method.";
 				_selectedUVMethod = UVMethod::None;
 			}
 			else if (msgBox.clickedButton() == changeSettingsButton)
@@ -212,7 +212,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		parsedLights = _materialProcessor.parseKHRLightsPunctual(gltfPath);
 		if (!parsedLights.empty())
 		{
-			//qDebug() << "AssImpModelLoader: Loaded" << parsedLights.size() << "KHR lights with transforms";
+			qDebug() << "AssImpModelLoader: Loaded" << parsedLights.size() << "KHR lights with transforms";
 		}
 	}
 
@@ -513,7 +513,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 			mat.setThicknessFactor(mat.thicknessFactor()* _appliedScale);
 			mat.setAttenuationDistance(mat.attenuationDistance()* _appliedScale);
 			mat.setIsGLTFMaterial(true);
-			//qDebug() << "GLTF Material Loaded";
+			qDebug() << "GLTF Material Loaded";
 		}
 		else
 		{
@@ -547,7 +547,7 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	{
 		GLenum mode = _gltfMeshPrimitiveModes[meshIndex];
 		newMesh->setPrimitiveMode(mode);
-		//qDebug() << "Set primitive mode for mesh" << meshIndex << "to" << mode;
+		qDebug() << "Set primitive mode for mesh" << meshIndex << "to" << mode;
 	}
 
 	return newMesh;

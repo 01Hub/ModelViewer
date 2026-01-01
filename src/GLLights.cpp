@@ -20,7 +20,7 @@ void GLLights::setLights(const std::vector<GPULight>& lightsData)
     {
         lightCount = MAX_LIGHTS;
         lights.resize(lightCount);
-        //qWarning() << "GLLights::setLights: Clamping light count to" << MAX_LIGHTS;
+        qWarning() << "GLLights::setLights: Clamping light count to" << MAX_LIGHTS;
     }
 
     if (lightCount > 0)
@@ -28,7 +28,7 @@ void GLLights::setLights(const std::vector<GPULight>& lightsData)
         uploadData();
     }
 
-    //qDebug() << "GLLights::setLights: Set" << lightCount << "lights with transforms applied";
+    qDebug() << "GLLights::setLights: Set" << lightCount << "lights with transforms applied";
 }
 
 void GLLights::createFallbackLight(const glm::vec3& position)
@@ -52,8 +52,8 @@ void GLLights::createFallbackLight(const glm::vec3& position)
 
     uploadData();
 
-    //qDebug() << "GLLights::createFallbackLight: Created fallback point light at"
-        //<< position.x << "," << position.y << "," << position.z;
+    qDebug() << "GLLights::createFallbackLight: Created fallback point light at"
+        << position.x << "," << position.y << "," << position.z;
 }
 
 void GLLights::bind(GLuint shaderProgram, const char* blockName)
@@ -111,5 +111,5 @@ void GLLights::uploadData()
     glBufferSubData(GL_UNIFORM_BUFFER, 0, dataSize, lights.data());
     glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-    //qDebug() << "GLLights::uploadData: Uploaded" << lightCount << "light(s) to GPU";
+    qDebug() << "GLLights::uploadData: Uploaded" << lightCount << "light(s) to GPU";
 }

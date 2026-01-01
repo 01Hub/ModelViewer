@@ -1132,7 +1132,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 
 			if (loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures))
 			{	
-				//qDebug() << "  Loaded" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
+				qDebug() << "  Loaded" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
 			}
 			};
 
@@ -1180,7 +1180,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			bool ok = loadAndAddTexture(uri, mapType, texCoord, scale, offset, rotation, wrapS, wrapT, magF, minF, outTextures);
 			if (ok)
 			{
-				//qDebug() << "  Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
+				qDebug() << "  Loaded extension texture" << jsonKey << "->" << QString::fromStdString(mapType) << ":" << uri;
 			}
 			return ok;
 			};
@@ -1240,7 +1240,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					);
 					mat.setMultiScatterColor(multiScatterColor);
 					mat.setHasVolumeScattering(true);
-					//qDebug() << "KHR_materials_volume_scatter: multiscatterColor=" << multiScatterColor;
+					qDebug() << "KHR_materials_volume_scatter: multiscatterColor=" << multiScatterColor;
 					appliedAny = true;
 				}
 			}
@@ -1680,11 +1680,11 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			if (nameMatchCount == 1)
 			{
 				gltfMaterialIndex = nameMatchIndex;
-				//qDebug() << "NAME MATCH (unique): Found material by name:" << name;
+				qDebug() << "NAME MATCH (unique): Found material by name:" << name;
 			}
 			else if (nameMatchCount > 1)
 			{
-				//qDebug() << "NAME AMBIGUOUS: Material name '" << name << "' appears" << nameMatchCount << "times - skipping to index-based lookup";
+				qDebug() << "NAME AMBIGUOUS: Material name '" << name << "' appears" << nameMatchCount << "times - skipping to index-based lookup";
 			}
 		}
 	}
@@ -1804,7 +1804,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 	{
 		bool doubleSided = matObj.value("doubleSided").toBool(false);
 		outMaterial.setTwoSided(doubleSided);
-		//qDebug() << "  Loaded doubleSided:" << doubleSided;
+		qDebug() << "  Loaded doubleSided:" << doubleSided;
 	}
 	else
 	{
@@ -1858,7 +1858,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			);
 			outMaterial.setEmissive(emissiveColor);
 			outMaterial.setEmissiveStrength(1.0f);
-			//qDebug() << "  Loaded emissiveFactor:" << emissiveColor;
+			qDebug() << "  Loaded emissiveFactor:" << emissiveColor;
 		}
 	}
 	else
@@ -1875,7 +1875,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		{
 			float scale = static_cast<float>(normalTex.value("scale").toDouble(1.0));
 			outMaterial.setNormalScale(scale);
-			//qDebug() << "  Loaded normalTexture.scale:" << scale;
+			qDebug() << "  Loaded normalTexture.scale:" << scale;
 		}
 		else
 		{
@@ -1891,7 +1891,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		{
 			float strength = static_cast<float>(occlusionTex.value("strength").toDouble(1.0));
 			outMaterial.setOcclusionStrength(qBound(0.0f, strength, 1.0f));
-			//qDebug() << "  Loaded occlusionTexture.strength:" << strength;
+			qDebug() << "  Loaded occlusionTexture.strength:" << strength;
 		}
 		else
 		{
@@ -1930,7 +1930,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					outMaterial.setOpacity(qBound(0.0f, alpha, 1.0f));
 				}
 
-				//qDebug() << "  Loaded baseColorFactor:" << albedo;
+				qDebug() << "  Loaded baseColorFactor:" << albedo;
 			}
 		}
 		else
@@ -1948,7 +1948,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		{
 			float v = static_cast<float>(pbr.value("metallicFactor").toDouble(1.0));
 			outMaterial.setMetalness(qBound(0.0f, v, 1.0f));
-			//qDebug() << "  Loaded pbrMetallicRoughness.metallicFactor:" << v;
+			qDebug() << "  Loaded pbrMetallicRoughness.metallicFactor:" << v;
 		}
 		else
 		{
@@ -1959,7 +1959,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		{
 			float v = static_cast<float>(pbr.value("roughnessFactor").toDouble(1.0));
 			outMaterial.setRoughness(qBound(0.01f, v, 1.0f));
-			//qDebug() << "  Loaded pbrMetallicRoughness.roughnessFactor:" << v;
+			qDebug() << "  Loaded pbrMetallicRoughness.roughnessFactor:" << v;
 		}
 		else
 		{
@@ -2249,7 +2249,7 @@ void MaterialProcessor::convertSpecularGlossinessToDielectric(GLMaterial& mat)
     // Let the shader do it with actual sampled texture values
     if (mat.hasDiffuseMap() && mat.hasSpecularGlossinessMap())
     {
-        //qDebug() << "SpecGloss with TEXTURES - skipping C++ conversion, shader will convert";
+        qDebug() << "SpecGloss with TEXTURES - skipping C++ conversion, shader will convert";
         // Don't convert factors - shader will sample textures and convert
         // Just ensure the flag is set
         mat.setUseSpecularGlossiness(true);
@@ -2257,7 +2257,7 @@ void MaterialProcessor::convertSpecularGlossinessToDielectric(GLMaterial& mat)
     }
     
     // Only do factor-based conversion if NO TEXTURES are present
-    //qDebug() << "SpecGloss FACTORS ONLY - doing C++ conversion";
+    qDebug() << "SpecGloss FACTORS ONLY - doing C++ conversion";
     
     QVector3D diffuse = mat.diffuseColor();
     QVector3D specular = mat.specularColor();
@@ -2300,7 +2300,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 		if (s_glbJsonCache.contains(gltfPath))
 		{
 			doc = s_glbJsonCache.value(gltfPath);
-			//qDebug() << "parseKHRLightsPunctual: Using cached GLB JSON for:" << path;
+			qDebug() << "parseKHRLightsPunctual: Using cached GLB JSON for:" << gltfPath;
 		}
 		else
 		{
@@ -2375,9 +2375,9 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 	QJsonArray lightsArray = lightsExt.value("lights").toArray();
 	QJsonArray nodesArray = root.value("nodes").toArray();
 
-	//qDebug() << "========================================";
-	//qDebug() << "parseKHRLightsPunctual: Found" << lightsArray.size() << "lights in glTF";
-	//qDebug() << "========================================";
+	qDebug() << "========================================";
+	qDebug() << "parseKHRLightsPunctual: Found" << lightsArray.size() << "lights in glTF";
+	qDebug() << "========================================";
 
 	// Parse each light WITH its node transform
 	for (int lightIdx = 0; lightIdx < lightsArray.size(); ++lightIdx)
@@ -2595,29 +2595,29 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 			lightTypeStr = "Unknown";
 		}
 
-		//qDebug() << "";
-		//qDebug() << "Light" << lightIdx << ":";
-		//qDebug() << "  Type:        " << lightTypeStr;
-		//qDebug() << "  Color:       (" << light.color.x << "," << light.color.y << "," << light.color.z << ")";
-		//qDebug() << "  Intensity:   " << light.intensity;
-		//qDebug() << "  Range:       " << (light.range == 0.0f ? QString("infinite") : QString::number(light.range));
-		//qDebug() << "  Position:    (" << light.position.x << "," << light.position.y << "," << light.position.z << ")";
-		//qDebug() << "  Direction:   (" << light.direction.x << "," << light.direction.y << "," << light.direction.z << ")";
+		qDebug() << "";
+		qDebug() << "Light" << lightIdx << ":";
+		qDebug() << "  Type:        " << lightTypeStr;
+		qDebug() << "  Color:       (" << light.color.x << "," << light.color.y << "," << light.color.z << ")";
+		qDebug() << "  Intensity:   " << light.intensity;
+		qDebug() << "  Range:       " << (light.range == 0.0f ? QString("infinite") : QString::number(light.range));
+		qDebug() << "  Position:    (" << light.position.x << "," << light.position.y << "," << light.position.z << ")";
+		qDebug() << "  Direction:   (" << light.direction.x << "," << light.direction.y << "," << light.direction.z << ")";
 
 		if (light.type == static_cast<int>(LightType::Spot))
 		{
 			float innerAngleDeg = glm::degrees(std::acos(glm::clamp(light.innerConeCos, -1.0f, 1.0f)));
 			float outerAngleDeg = glm::degrees(std::acos(glm::clamp(light.outerConeCos, -1.0f, 1.0f)));
-			//qDebug() << "  Inner Cone:  " << innerAngleDeg << "degrees";
-			//qDebug() << "  Outer Cone:  " << outerAngleDeg << "degrees";
+			qDebug() << "  Inner Cone:  " << innerAngleDeg << "degrees";
+			qDebug() << "  Outer Cone:  " << outerAngleDeg << "degrees";
 		}
 
 		lights.push_back(light);
 	}
 
-	//qDebug() << "========================================";
-	//qDebug() << "Total lights parsed:" << lights.size();
-	//qDebug() << "========================================";
+	qDebug() << "========================================";
+	qDebug() << "Total lights parsed:" << lights.size();
+	qDebug() << "========================================";
 
 	return lights;
 }
@@ -2631,10 +2631,10 @@ void MaterialProcessor::processAssimpTextureMaps(aiMaterial* material, std::vect
 	// existing mapping loop that calls loadMaterialTextures(...) for all entries
 	for (const auto& mapping : textureMappings)
 	{
-		//std::cout << mapping << std::endl;
+		std::cout << mapping << std::endl;
 		// try primary
 		auto maps = loadMaterialTextures(material, mapping.primaryType, mapping.primaryName, mapping.slotIndex);
-		//std::cout << "Loaded " << maps.size() << " textures for " << mapping.primaryName << std::endl;
+		std::cout << "Loaded " << maps.size() << " textures for " << mapping.primaryName << std::endl;
 		textures.insert(textures.end(), maps.begin(), maps.end());
 
 		// optionally, also try explicit fallback as a separate load (safe because

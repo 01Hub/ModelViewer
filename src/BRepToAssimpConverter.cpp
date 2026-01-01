@@ -1007,8 +1007,8 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshes(const TopTo
 		}
 	}
 
-	//std::cout << "Processing " << faceGroup.Extent() << " faces. Shape-level color found: "
-		//<< (hasShapeColor ? "YES" : "NO") << std::endl;
+	std::cout << "Processing " << faceGroup.Extent() << " faces. Shape-level color found: "
+		<< (hasShapeColor ? "YES" : "NO") << std::endl;
 
 	for (int f = 1; f <= faceGroup.Extent(); ++f)
 	{
@@ -1016,7 +1016,7 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshes(const TopTo
 		Quantity_Color faceColor;
 		bool hasFaceColor = false;
 
-		//std::cout << "Processing face " << f << "/" << faceGroup.Extent() << std::endl;
+		std::cout << "Processing face " << f << "/" << faceGroup.Extent() << std::endl;
 
 		// Try to get face-specific color first
 		if (!colorTool.IsNull())
@@ -1035,20 +1035,20 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshes(const TopTo
 		{
 			faceColor = shapeColor;
 			hasFaceColor = true;
-			//std::cout << "Using shape-level color for face " << f << std::endl;
+			std::cout << "Using shape-level color for face " << f << std::endl;
 		}
 
 		// Final fallback to gray
 		if (!hasFaceColor)
 		{
 			faceColor = Quantity_NOC_GRAY95;
-			//std::cout << "Using default gray color for face " << f << std::endl;
+			std::cout << "Using default gray color for face " << f << std::endl;
 		}
 
 		colorFaceGroups[faceColor].push_back(face);
 	}
 
-	//std::cout << "Grouped faces into " << colorFaceGroups.size() << " color groups" << std::endl;
+	std::cout << "Grouped faces into " << colorFaceGroups.size() << " color groups" << std::endl;
 
 	std::vector<aiMesh*> meshes;
 
@@ -1057,8 +1057,8 @@ std::vector<aiMesh*> BRepToAssimpConverter::convertFaceGroupToMeshes(const TopTo
 		const Quantity_Color& color = entry.first;
 		const std::vector<TopoDS_Face>& faces = entry.second;
 
-		//std::cout << "Creating mesh for color (" << color.Red() << ", " << color.Green()
-			//<< ", " << color.Blue() << ") with " << faces.size() << " faces" << std::endl;
+		std::cout << "Creating mesh for color (" << color.Red() << ", " << color.Green()
+			<< ", " << color.Blue() << ") with " << faces.size() << " faces" << std::endl;
 
 		TopTools_IndexedMapOfShape faceMap;
 		for (const TopoDS_Face& face : faces)
@@ -1161,8 +1161,8 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 	static const XCAFDoc_ColorType surfaceTypes[] = { XCAFDoc_ColorSurf };
 	static const XCAFDoc_ColorType otherTypes[] = { XCAFDoc_ColorCurv, XCAFDoc_ColorGen };
 
-	//std::cout << "=== Color Search Priority System ===" << std::endl;
-	//std::cout << "Shape type: " << shapeTypeToString(shape.ShapeType()) << std::endl;
+	std::cout << "=== Color Search Priority System ===" << std::endl;
+	std::cout << "Shape type: " << shapeTypeToString(shape.ShapeType()) << std::endl;
 
 	// PRIORITY 1: Face-level surface colors (HIGHEST)
 	if (shape.ShapeType() == TopAbs_FACE)
@@ -1170,14 +1170,14 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 		// Try direct face surface color first
 		if (colorTool->GetColor(shape, XCAFDoc_ColorSurf, outColor))
 		{
-			//std::cout << "P1: Found FACE surface color: " << colorToString(outColor) << std::endl;
+			std::cout << "P1: Found FACE surface color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 
 		// Try face instance color
 		if (colorTool->GetInstanceColor(shape, XCAFDoc_ColorSurf, outColor))
 		{
-			//std::cout << "P1: Found FACE instance surface color: " << colorToString(outColor) << std::endl;
+			std::cout << "P1: Found FACE instance surface color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1190,7 +1190,7 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 		{
 			if (colorTool->GetColor(instanceLabel, type, outColor))
 			{
-				//std::cout << "P2: Found instance surface color: " << colorToString(outColor) << std::endl;
+				std::cout << "P2: Found instance surface color: " << colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1200,7 +1200,7 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 		{
 			if (colorTool->GetColor(instanceLabel, type, outColor))
 			{
-				//std::cout << "P2: Found instance " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
+				std::cout << "P2: Found instance " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1211,12 +1211,12 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 	{
 		if (colorTool->GetColor(shape, type, outColor))
 		{
-			//std::cout << "P3: Found shape surface color: " << colorToString(outColor) << std::endl;
+			std::cout << "P3: Found shape surface color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 		if (colorTool->GetInstanceColor(shape, type, outColor))
 		{
-			//std::cout << "P3: Found shape instance surface color: " << colorToString(outColor) << std::endl;
+			std::cout << "P3: Found shape instance surface color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1225,12 +1225,12 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 	{
 		if (colorTool->GetColor(shape, type, outColor))
 		{
-			//std::cout << "P3: Found shape " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
+			std::cout << "P3: Found shape " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 		if (colorTool->GetInstanceColor(shape, type, outColor))
 		{
-			//std::cout << "P3: Found shape instance " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
+			std::cout << "P3: Found shape instance " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1242,7 +1242,7 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 		{
 			if (colorTool->GetColor(defLabel, type, outColor))
 			{
-				//std::cout << "P4: Found definition surface color: " << colorToString(outColor) << std::endl;
+				std::cout << "P4: Found definition surface color: " << colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1251,7 +1251,7 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 		{
 			if (colorTool->GetColor(defLabel, type, outColor))
 			{
-				//std::cout << "P4: Found definition " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
+				std::cout << "P4: Found definition " << colorTypeToString(type) << " color: " << colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1262,7 +1262,7 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 	{
 		if (searchParentLabelsForColor(colorTool, defLabel, outColor))
 		{
-			//std::cout << "P5: Found inherited color from parent: " << colorToString(outColor) << std::endl;
+			std::cout << "P5: Found inherited color from parent: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1271,7 +1271,7 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 	{
 		if (searchParentLabelsForColor(colorTool, instanceLabel, outColor))
 		{
-			//std::cout << "P5: Found inherited color from instance parent: " << colorToString(outColor) << std::endl;
+			std::cout << "P5: Found inherited color from instance parent: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1297,7 +1297,7 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 	// PRIORITY 6: Reverse lookup through all colors (REAL API version)
 	if (searchAllColorsForAssociation(colorTool, shape, defLabel, instanceLabel, outColor))
 	{
-		//std::cout << "P6: Found color via comprehensive search: " << colorToString(outColor) << std::endl;
+		std::cout << "P6: Found color via comprehensive search: " << colorToString(outColor) << std::endl;
 		return true;
 	}
 
@@ -1321,12 +1321,12 @@ bool BRepToAssimpConverter::getComprehensiveColor(
 	{
 		if (searchChildLabelsForColor(colorTool, defLabel, outColor))
 		{
-			//std::cout << "P7: Found color in child labels: " << colorToString(outColor) << std::endl;
+			std::cout << "P7: Found color in child labels: " << colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
 
-	//std::cout << "No color found through priority system" << std::endl;
+	std::cout << "No color found through priority system" << std::endl;
 	return false;
 }
 
@@ -1439,8 +1439,8 @@ bool BRepToAssimpConverter::searchChildLabelsForColor(
 	{
 		if (colorTool->GetColor(parentLabel, type, outColor))
 		{
-			//std::cout << "Found color in current label (" << colorTypeToString(type) << "): "
-			//	<< colorToString(outColor) << std::endl;
+			std::cout << "Found color in current label (" << colorTypeToString(type) << "): "
+				<< colorToString(outColor) << std::endl;
 			return true;
 		}
 	}
@@ -1451,7 +1451,7 @@ bool BRepToAssimpConverter::searchChildLabelsForColor(
 	{
 		TDF_Label childLabel = childIter.Value();
 
-		//std::cout << "Searching child label: " << getLabelPath(childLabel) << std::endl;
+		std::cout << "Searching child label: " << getLabelPath(childLabel) << std::endl;
 
 		if (searchChildLabelsForColor(colorTool, childLabel, outColor))
 			return true;
@@ -1476,14 +1476,14 @@ bool BRepToAssimpConverter::searchParentLabelsForColor(
 
 	while (!currentLabel.IsRoot() && level < maxLevels)
 	{
-		//std::cout << "  Checking parent level " << level << ": " << getLabelPath(currentLabel) << std::endl;
+		std::cout << "  Checking parent level " << level << ": " << getLabelPath(currentLabel) << std::endl;
 
 		// Check for colors at this parent level
 		for (XCAFDoc_ColorType type : colorTypes)
 		{
 			if (colorTool->GetColor(currentLabel, type, outColor))
 			{
-				//std::cout << "  Found parent color at level " << level << std::endl;
+				std::cout << "  Found parent color at level " << level << std::endl;
 				return true;
 			}
 		}
@@ -1510,7 +1510,7 @@ bool BRepToAssimpConverter::searchAllColorsForAssociation(
 	if (colorLabels.IsEmpty())
 		return false;
 
-	//std::cout << "  Searching through " << colorLabels.Length() << " color labels" << std::endl;
+	std::cout << "  Searching through " << colorLabels.Length() << " color labels" << std::endl;
 
 	// Get shape tool for label-to-shape resolution
 	Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(colorLabels.Value(1).Root());
@@ -1524,7 +1524,7 @@ bool BRepToAssimpConverter::searchAllColorsForAssociation(
 		Quantity_Color tempColor;
 		if (!colorTool->GetColor(colorLabel, tempColor)) continue;
 
-		//std::cout << "  Checking color " << i << ": " << colorToString(tempColor) << std::endl;
+		std::cout << "  Checking color " << i << ": " << colorToString(tempColor) << std::endl;
 
 		// Method A: Check if this color label is associated with our shape
 		// by testing if our labels have this color set
@@ -1546,7 +1546,7 @@ bool BRepToAssimpConverter::searchAllColorsForAssociation(
 						if (colorsEqual(tempColor, labelColor))
 						{
 							outColor = tempColor;
-							//std::cout << "    Found matching color via defLabel IsSet check" << std::endl;
+							std::cout << "    Found matching color via defLabel IsSet check" << std::endl;
 							return true;
 						}
 					}
@@ -1567,7 +1567,7 @@ bool BRepToAssimpConverter::searchAllColorsForAssociation(
 						if (colorsEqual(tempColor, labelColor))
 						{
 							outColor = tempColor;
-							//std::cout << "    Found matching color via instanceLabel IsSet check" << std::endl;
+							std::cout << "    Found matching color via instanceLabel IsSet check" << std::endl;
 							return true;
 						}
 					}
@@ -1603,8 +1603,8 @@ bool BRepToAssimpConverter::searchShapeLabelForTargetWithColor(
 		{
 			if (colorTool->GetColor(shapeLabel, type, outColor))
 			{
-				//std::cout << "Found color for target shape via label " << getLabelPath(shapeLabel)
-				//	<< " (" << colorTypeToString(type) << "): " << colorToString(outColor) << std::endl;
+				std::cout << "Found color for target shape via label " << getLabelPath(shapeLabel)
+					<< " (" << colorTypeToString(type) << "): " << colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1614,8 +1614,8 @@ bool BRepToAssimpConverter::searchShapeLabelForTargetWithColor(
 		{
 			if (colorTool->GetColor(labelShape, type, outColor))
 			{
-				//std::cout << "Found color for target shape via shape comparison (" << colorTypeToString(type) << "): "
-				//	<< colorToString(outColor) << std::endl;
+				std::cout << "Found color for target shape via shape comparison (" << colorTypeToString(type) << "): "
+					<< colorToString(outColor) << std::endl;
 				return true;
 			}
 		}
@@ -1696,12 +1696,12 @@ bool BRepToAssimpConverter::findColorInXCAFDocument(
 	TDF_LabelSequence freeShapes;
 	shapeTool->GetFreeShapes(freeShapes);
 
-	//std::cout << "Searching through " << freeShapes.Length() << " free shapes in XCAF document" << std::endl;
+	std::cout << "Searching through " << freeShapes.Length() << " free shapes in XCAF document" << std::endl;
 
 	for (Standard_Integer i = 1; i <= freeShapes.Length(); ++i)
 	{
 		TDF_Label shapeLabel = freeShapes.Value(i);
-		//std::cout << "Checking shape label: " << getLabelPath(shapeLabel) << std::endl;
+		std::cout << "Checking shape label: " << getLabelPath(shapeLabel) << std::endl;
 
 		// Check if this label has our target shape and get its color
 		if (searchShapeLabelForTargetWithColor(shapeTool, colorTool, shapeLabel, targetShape, outColor))
@@ -1737,9 +1737,9 @@ bool BRepToAssimpConverter::searchShapeLabelForTarget(
 		{
 			if (colorTool->GetColor(shapeLabel, type, outColor))
 			{
-				//std::cout << "Found color for target shape via label " << getLabelPath(shapeLabel)
-				//	<< " (" << colorTypeToString(type) << "): "
-				//	<< outColor.Red() << ", " << outColor.Green() << ", " << outColor.Blue() << std::endl;
+				std::cout << "Found color for target shape via label " << getLabelPath(shapeLabel)
+					<< " (" << colorTypeToString(type) << "): "
+					<< outColor.Red() << ", " << outColor.Green() << ", " << outColor.Blue() << std::endl;
 				return true;
 			}
 		}
@@ -1749,8 +1749,8 @@ bool BRepToAssimpConverter::searchShapeLabelForTarget(
 		{
 			if (colorTool->GetColor(labelShape, type, outColor))
 			{
-				//std::cout << "Found color for target shape via shape comparison (" << colorTypeToString(type) << "): "
-				//	<< outColor.Red() << ", " << outColor.Green() << ", " << outColor.Blue() << std::endl;
+				std::cout << "Found color for target shape via shape comparison (" << colorTypeToString(type) << "): "
+					<< outColor.Red() << ", " << outColor.Green() << ", " << outColor.Blue() << std::endl;
 				return true;
 			}
 		}

@@ -386,17 +386,17 @@ GLWidget::~GLWidget()
 
 	cleanUpShaders();
 
-	//std::cout << "GLWidget::~GLWidget : _environmentMap = " << _environmentMap << std::endl;
+	std::cout << "GLWidget::~GLWidget : _environmentMap = " << _environmentMap << std::endl;
 	glDeleteTextures(1, &_environmentMap);
-	//std::cout << "GLWidget::~GLWidget : _shadowMap = " << _shadowMap << std::endl;
+	std::cout << "GLWidget::~GLWidget : _shadowMap = " << _shadowMap << std::endl;
 	glDeleteTextures(1, &_shadowMap);
-	//std::cout << "GLWidget::~GLWidget : _irradianceMap = " << _irradianceMap << std::endl;
+	std::cout << "GLWidget::~GLWidget : _irradianceMap = " << _irradianceMap << std::endl;
 	glDeleteTextures(1, &_irradianceMap);
-	//std::cout << "GLWidget::~GLWidget : _prefilterMap = " << _prefilterMap << std::endl;
+	std::cout << "GLWidget::~GLWidget : _prefilterMap = " << _prefilterMap << std::endl;
 	glDeleteTextures(1, &_prefilterMap);
-	//std::cout << "GLWidget::~GLWidget : _brdfLUTTexture = " << _brdfLUTTexture << std::endl;
+	std::cout << "GLWidget::~GLWidget : _brdfLUTTexture = " << _brdfLUTTexture << std::endl;
 	glDeleteTextures(1, &_brdfLUTTexture);
-	//std::cout << "GLWidget::~GLWidget : _cappingTexture = " << _cappingTexture << std::endl;
+	std::cout << "GLWidget::~GLWidget : _cappingTexture = " << _cappingTexture << std::endl;
 	glDeleteTextures(1, &_cappingTexture);
 
 	if (_clippingPlaneXY)
@@ -499,13 +499,13 @@ void GLWidget::initializeGL()
 			{
 				_fgShader->setUniformValue("lightCount", (int)lights.size());
 				_fgShader->setUniformValue("hasPunctualLights", true);
-				//qDebug() << "GLWidget: Received" << lights.size() << "lights";
+				qDebug() << "GLWidget: Received" << lights.size() << "lights";
 			}
 			else
 			{
 				_fgShader->setUniformValue("lightCount", 1);
 				_fgShader->setUniformValue("hasPunctualLights", false);
-				//qDebug() << "GLWidget: No lights received, will use fallback";
+				qDebug() << "GLWidget: No lights received, will use fallback";
 			}			
 		});
 
@@ -5009,7 +5009,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 					if (mesh)
 					{
 						QColor pickColor = indexToColor(i + 1);
-						//qDebug() << "Id " << i << "Pick Color" << pickColor;
+						qDebug() << "Id " << i << "Pick Color" << pickColor;
 						_selectionShader->bind();
 
 						const float r = pickColor.redF();
@@ -5040,7 +5040,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 			for (size_t i = 0; i < res.size(); i += 4)
 			{
 				QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
-				//qDebug() << "ReadPixel Color" << col;
+				qDebug() << "ReadPixel Color" << col;
 				unsigned int colId = colorToIndex(col);
 				if (colId != 0)
 					voteCount[colId - 1]++;

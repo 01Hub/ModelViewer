@@ -48,7 +48,7 @@ void BoundingSphere::addSphere(const BoundingSphere& other)
 		{
 			if (_radius == smallerRadius) // this sphere is smaller
 			{
-				//qDebug() << "This sphere is smaller";
+				qDebug() << "This sphere is smaller";
 				// make other sphere the bounding sphere
 				_center = other._center;
 				_radius = other._radius;
@@ -58,7 +58,7 @@ void BoundingSphere::addSphere(const BoundingSphere& other)
 		}
 		else // intersecting or touching or spaced
 		{
-			//qDebug() << "Intersecting/Touching/Spaced";
+			qDebug() << "Intersecting/Touching/Spaced";
 			QVector3D toThisEnd = (_center - other._center).normalized();
 			QVector3D toOtherEnd = (other._center - _center).normalized();
 
