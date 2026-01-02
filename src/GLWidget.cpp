@@ -6361,7 +6361,8 @@ void GLWidget::onInertiaTimer()
 		_currentTranslation = _primaryCamera->getPosition();
 
 		// Decay inertia
-		_inertiaZoomVelocity *= _inertiaDamping * 0.5f;
+		_inertiaZoomVelocity *= _inertiaDamping * 0.1f;
+		_inertiaZoomPanVelocity *= _inertiaDamping * 0.1f;
 
 		if (std::abs(_inertiaZoomVelocity) > 0.001f)
 			active = true;
