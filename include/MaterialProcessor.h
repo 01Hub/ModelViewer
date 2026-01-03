@@ -7,6 +7,7 @@
 #include "GLMaterial.h"
 #include "AssImpMesh.h"
 #include "GLLights.h"
+#include "KTX2Loader.h"
 #include <QOpenGLFunctions_4_5_Core>
 
 
@@ -157,4 +158,7 @@ private:
 	QHash<QString, QJsonDocument> s_glbJsonCache;
 	QHash<QString, std::vector<uint8_t>> s_glbBinaryCache;
 	QHash<QString, bool> s_glbImagesLoaded;  // Track if images uploaded to GPU
+	
+	KTX2Loader ktx2Loader;
+	GPUCapabilities gpuCapabilities;
 };

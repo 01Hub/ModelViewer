@@ -7,6 +7,9 @@ find_package(Freetype REQUIRED)
 find_package(glm REQUIRED)
 find_package(OpenCASCADE REQUIRED)
 find_package(meshoptimizer REQUIRED)
+find_package(basisu CONFIG REQUIRED)
+
+message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 
 if(NOT OpenCASCADE_FOUND)
     message(FATAL_ERROR "Cannot build the executable without OpenCASCADE. Please set the variable OpenCASCADE_DIR.")
@@ -206,6 +209,7 @@ target_include_directories(ModelViewer
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_BINARY_DIR}
         ${OpenCASCADE_INCLUDE_DIR}
+        ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include
 )
 
 # ============================================================================
@@ -221,6 +225,7 @@ target_link_libraries(ModelViewer
         Qt6::Gui
         Qt6::OpenGLWidgets        
         Qt6::Widgets        
+        basisu::basisu_encoder
         ${OpenCASCADE_FoundationClasses_LIBRARIES}
         ${OpenCASCADE_ModelingData_LIBRARIES}
         ${OpenCASCADE_ModelingAlgorithms_LIBRARIES}

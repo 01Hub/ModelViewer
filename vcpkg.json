@@ -16,7 +16,11 @@
     {
       "name": "qtimageformats",
       "default-features": false
-    },    
+    },
+    {
+      "name": "basisu",
+      "default-features": false
+    },
     "libwebp",
     "libjpeg-turbo",
     "assimp",

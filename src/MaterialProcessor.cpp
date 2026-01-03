@@ -15,11 +15,26 @@ using namespace std;
 MaterialProcessor::MaterialProcessor() : _folderPath("")
 {
 	initializeOpenGLFunctions();
+	// Initialize KTX2 loader with OpenGL context
+	if (!ktx2Loader.initializeOpenGL())
+	{
+		qWarning() << "Failed to initialize KTX2 loader";
+	}
+
+	// Detect GPU capabilities once at startup
+	gpuCapabilities = KTX2Loader::detectGPUCapabilities();
 }
 
 MaterialProcessor::MaterialProcessor(std::string& folderPath) : _folderPath(folderPath)
 {
 	initializeOpenGLFunctions();
+	// Initialize KTX2 loader with OpenGL context
+    if (!ktx2Loader.initializeOpenGL()) {
+        qWarning() << "Failed to initialize KTX2 loader";
+    }
+    
+    // Detect GPU capabilities once at startup
+    gpuCapabilities = KTX2Loader::detectGPUCapabilities();
 }
 
 void MaterialProcessor::processAssimpColorAndMaterial(aiMaterial* material, GLMaterial& mat)
@@ -809,24 +824,47 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 	auto resolveTextureUri = [&](int texIndex) -> QString {
 		if (texIndex < 0 || texIndex >= jsonTextures.size()) return QString();
 		QJsonObject texObj = jsonTextures.at(texIndex).toObject();
-
 		int imgIndex = -1;
 
-		// Try EXT_texture_webp extension first
+		// ============================================================
+		// Priority order for texture variants
+		// ============================================================
+
+		// Try KHR_texture_basisu extension FIRST (highest priority - most optimized)
 		if (texObj.contains("extensions"))
 		{
 			QJsonObject extObj = texObj.value("extensions").toObject();
-			if (extObj.contains("EXT_texture_webp"))
+
+			if (extObj.contains("KHR_texture_basisu"))
+			{
+				QJsonObject basisuObj = extObj.value("KHR_texture_basisu").toObject();
+				imgIndex = basisuObj.value("source").toInt(-1);
+				if (imgIndex >= 0)
+				{
+					qDebug() << "resolveTextureUri: Found KHR_texture_basisu for texture" << texIndex << ", imgIndex=" << imgIndex;
+				}
+			}
+
+			// Fall back to EXT_texture_webp if KHR_texture_basisu not found
+			if (imgIndex < 0 && extObj.contains("EXT_texture_webp"))
 			{
 				QJsonObject webpObj = extObj.value("EXT_texture_webp").toObject();
 				imgIndex = webpObj.value("source").toInt(-1);
+				if (imgIndex >= 0)
+				{
+					qDebug() << "resolveTextureUri: Found EXT_texture_webp for texture" << texIndex << ", imgIndex=" << imgIndex;
+				}
 			}
 		}
 
-		// Fallback to standard "source" property
+		// Fall back to standard "source" property if no extensions found
 		if (imgIndex < 0 && texObj.contains("source"))
 		{
 			imgIndex = texObj.value("source").toInt(-1);
+			if (imgIndex >= 0)
+			{
+				qDebug() << "resolveTextureUri: Using standard source for texture" << texIndex << ", imgIndex=" << imgIndex;
+			}
 		}
 
 		if (imgIndex < 0) return QString();
@@ -1076,13 +1114,42 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			// Ensure newTexture.id is set by createTextureOnGPU (which should use wrap/mag/min when creating GL sampler)
 			newTexture.id = 0; // init
 
-			// createTextureOnGPU must examine newTexture.wrapS/wrapT/magFilter/minFilter when creating the GL sampler
-			// assume this function sets newTexture.id (or returns id)
-			texID = createTextureOnGPU(newTexture,
-				isGLB ? &glbBinaryBuffer : nullptr,
-				isGLB ? &jsonBufferViews : nullptr,
-				isGLB ? &jsonImages : nullptr);
-			if (texID == 0) return false;
+			if (texturePath.endsWith(".ktx2", Qt::CaseInsensitive))
+			{
+				TranscodedTexture transcodedTexture;
+				if (!ktx2Loader.loadKTX2(textureFilePathStd, transcodedTexture, gpuCapabilities, mapType))
+				{
+					qWarning() << "Failed to load KTX2 file:" << texturePath;
+					return false;
+				}
+
+				texID = ktx2Loader.uploadToGPU(transcodedTexture);
+				if (texID == 0)
+				{
+					qWarning() << "Failed to upload KTX2 texture to GPU";
+					return false;
+				}
+
+				// APPLY SAMPLER SETTINGS TO KTX2 TEXTURE
+				glBindTexture(GL_TEXTURE_2D, texID);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT);
+				glBindTexture(GL_TEXTURE_2D, 0);
+
+				qDebug() << "KTX2 texture loaded, GPU ID:" << texID;
+			}
+			else
+			{
+				// createTextureOnGPU must examine newTexture.wrapS/wrapT/magFilter/minFilter when creating the GL sampler
+				// assume this function sets newTexture.id (or returns id)
+				texID = createTextureOnGPU(newTexture,
+					isGLB ? &glbBinaryBuffer : nullptr,
+					isGLB ? &jsonBufferViews : nullptr,
+					isGLB ? &jsonImages : nullptr);
+				if (texID == 0) return false;
+			}
 
 			// If createTextureOnGPU didn't set newTexture.id, set from returned texID
 			newTexture.id = texID;
