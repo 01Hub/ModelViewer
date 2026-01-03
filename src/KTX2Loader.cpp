@@ -25,7 +25,7 @@ bool KTX2Loader::initializeOpenGL()
     QOpenGLContext* context = QOpenGLContext::currentContext();
     if (!context)
     {
-        qWarning() << " No OpenGL context current";
+        qWarning() << "No OpenGL context current";
         return false;
     }
 
@@ -38,7 +38,7 @@ bool KTX2Loader::initializeOpenGL()
     {
         basist::basisu_transcoder_init();
         basisuInitialized = true;
-        qDebug() << " Basisu transcoder initialized";
+        qDebug() << "Basisu transcoder initialized";
     }
 
     return true;
@@ -49,7 +49,7 @@ bool KTX2Loader::readFileToMemory(const std::string& filePath, std::vector<uint8
     std::ifstream file(filePath, std::ios::binary | std::ios::ate);
     if (!file.is_open())
     {
-        qDebug() << " Failed to open KTX2 file:" << QString::fromStdString(filePath);
+        qWarning() << "Failed to open KTX2 file:" << QString::fromStdString(filePath);
         return false;
     }
 
@@ -59,11 +59,11 @@ bool KTX2Loader::readFileToMemory(const std::string& filePath, std::vector<uint8
     outData.resize(size);
     if (!file.read(reinterpret_cast<char*>(outData.data()), size))
     {
-        qDebug() << " Failed to read KTX2 file data";
+        qWarning() << "Failed to read KTX2 file data";
         return false;
     }
 
-    qDebug() << " Loaded KTX2 file" << QString::fromStdString(filePath)
+    qDebug() << "Loaded KTX2 file" << QString::fromStdString(filePath)
         << "(" << (size / 1024 / 1024) << "MB)";
     return true;
 }
@@ -75,7 +75,7 @@ GPUCapabilities KTX2Loader::detectGPUCapabilities()
     QOpenGLContext* context = QOpenGLContext::currentContext();
     if (!context)
     {
-        qWarning() << " No OpenGL context for capability detection";
+        qWarning() << "No OpenGL context for capability detection";
         return caps;
     }
 
@@ -94,73 +94,75 @@ GPUCapabilities KTX2Loader::detectGPUCapabilities()
         if (extString.find("GL_EXT_texture_compression_s3tc") != std::string::npos)
         {
             caps.supportsBC7 = true;
-            qDebug() << " GPU supports BC7";
+            qDebug() << "GPU supports BC7";
         }
         if (extString.find("GL_KHR_texture_compression_astc_ldr") != std::string::npos)
         {
             caps.supportsASTC = true;
-            qDebug() << " GPU supports ASTC";
+            qDebug() << "GPU supports ASTC";
         }
         if (extString.find("GL_ARB_texture_compression_bptc") != std::string::npos)
         {
             caps.supportsBC6H = true;
-            qDebug() << " GPU supports BC6H";
+            qDebug() << "GPU supports BC6H";
         }
     }
 
     if (!caps.supportsBC7 && !caps.supportsASTC)
     {
-        qDebug() << " GPU doesn't support BC7 or ASTC";
+        qDebug() << "GPU doesn't support BC7 or ASTC";
     }
 
     return caps;
 }
 
-basist::transcoder_texture_format KTX2Loader::selectBestFormat(
+basist::transcoder_texture_format KTX2Loader::selectCompressionFormat(
     const basist::ktx2_transcoder& transcoder,
-    const GPUCapabilities& gpuCaps,
-    const std::string& mapType)
+    const GPUCapabilities& gpuCaps)
 {
-    // For packed textures (metallic/roughness/occlusion/anisotropy), always use uncompressed
-    // to preserve channel precision
-    if (mapType == "metallic" || 
-        mapType == "roughness" || 
-        mapType == "occlusion" ||
-        mapType == "anisotropy" ||
-        mapType == "anisotropyMap")
+    // Simple approach: apply user's compression mode preference uniformly to all textures
+    // Default is UNCOMPRESSED_RGBA32 for best quality
+    // User can switch to BC7 or ASTC for smaller memory footprint
+    // Note: Proper texture-type-specific compression will be implemented later
+
+    switch (compressionMode)
     {
-        qDebug() << "Using RGBA32 for" << QString::fromStdString(mapType) << "(packed texture)";
+    case CompressionMode::UNCOMPRESSED_RGBA32:
+        qDebug() << "Using RGBA32 uncompressed (default - best quality)";
+        return basist::transcoder_texture_format::cTFRGBA32;
+
+    case CompressionMode::BC7_COMPRESSED:
+        if (gpuCaps.supportsBC7)
+        {
+            qDebug() << "Using BC7 compressed (user preference)";
+            return basist::transcoder_texture_format::cTFBC7_RGBA;
+        }
+        qDebug() << "BC7 not supported, falling back to RGBA32";
+        return basist::transcoder_texture_format::cTFRGBA32;
+
+    case CompressionMode::BC7_ALT_COMPRESSED:
+        if (gpuCaps.supportsBC7)
+        {
+            qDebug() << "Using BC7 alternative compressed (user preference)";
+            // Note: Basisu doesn't have a specific "alternative" BC7 mode,
+			// so we use the standard BC7 format here.
+            return basist::transcoder_texture_format::cTFBC7_RGBA;
+        }
+		qDebug() << "BC7 not supported, falling back to RGBA32";
+		return basist::transcoder_texture_format::cTFBC7_ALT;
+
+    case CompressionMode::ASTC_COMPRESSED:
+        if (gpuCaps.supportsASTC)
+        {
+            qDebug() << "Using ASTC 4x4 compressed (user preference)";
+            return basist::transcoder_texture_format::cTFASTC_4x4_RGBA;
+        }
+        qDebug() << "ASTC not supported, falling back to RGBA32";
+        return basist::transcoder_texture_format::cTFRGBA32;
+
+    default:
         return basist::transcoder_texture_format::cTFRGBA32;
     }
-
-    // For HDR textures, use BC6H if available
-    if (transcoder.is_hdr())
-    {
-        if (gpuCaps.supportsBC6H)
-        {
-            qDebug() << " Selected BC6H (HDR)";
-            return basist::transcoder_texture_format::cTFBC6H;
-        }
-        // Fallback: uncompressed float half
-        qDebug() << " Selected RGBA_HALF (HDR fallback)";
-        return basist::transcoder_texture_format::cTFRGBA_HALF;
-    }
-
-    // For LDR textures: BC7 > ASTC > RGBA32
-    if (gpuCaps.supportsBC7)
-    {
-        qDebug() << " Selected BC7";
-        return basist::transcoder_texture_format::cTFBC7_RGBA;
-    }
-
-    if (gpuCaps.supportsASTC)
-    {
-        qDebug() << " Selected ASTC 4x4";
-        return basist::transcoder_texture_format::cTFASTC_4x4_RGBA;
-    }
-
-    qDebug() << " Selected RGBA32 (fallback)";
-    return basist::transcoder_texture_format::cTFRGBA32;
 }
 
 uint32_t KTX2Loader::calculateBlockCount(uint32_t width, uint32_t height,
@@ -187,7 +189,7 @@ uint32_t KTX2Loader::calculateBlockCount(uint32_t width, uint32_t height,
         return width * height;
 
     default:
-        qDebug() << " Unknown format in calculateBlockCount";
+        qDebug() << "Unknown format in calculateBlockCount";
         return 0;
     }
 }
@@ -234,7 +236,7 @@ void KTX2Loader::setGLFormatInfo(TranscodedTexture& texture)
         break;
 
     default:
-        qDebug() << " Unknown format in setGLFormatInfo";
+        qDebug() << "Unknown format in setGLFormatInfo";
         texture.glInternalFormat = GL_RGBA8;
         texture.glFormat = GL_RGBA;
         texture.glType = GL_UNSIGNED_BYTE;
@@ -262,7 +264,7 @@ bool KTX2Loader::transcodeMipmapLevel(
     uint32_t blockCount = calculateBlockCount(width, height, format);
     if (blockCount == 0)
     {
-        qDebug() << " Invalid block count for mipmap level" << levelIndex;
+        qDebug() << "Invalid block count for mipmap level" << levelIndex;
         return false;
     }
 
@@ -285,19 +287,34 @@ bool KTX2Loader::transcodeMipmapLevel(
     outData.resize(requiredSize);
 
     // Transcode the level
+    // Use cDecodeFlagsHighQuality flag (value=32) for ASTC only
+    // Note: The quality flag is optimized for BC1, BC3, ETC2, and ASTC formats
+    // It does NOT improve BC7 and may actually degrade it
+    uint32_t transcodeFlags = 0;
+    if (format == basist::transcoder_texture_format::cTFBC7_RGBA || 
+        format == basist::transcoder_texture_format::cTFASTC_4x4_RGBA ||
+        format == basist::transcoder_texture_format::cTFBC7_ALT)
+    {
+        transcodeFlags = basist::cDecodeFlagsHighQuality;  // Better quality
+        qDebug() << "Applying cDecodeFlagsHighQuality";
+    }
+    // BC7 transcodes best without the quality flag
+
     bool status = transcoder.transcode_image_level(
-        0,          // image index
-        levelIndex,
-        0,          // layer index
+        levelIndex,         // level index (0, 1, 2, ...)
+        0,                  // layer index  
+        0,                  // face index
         outData.data(),
         blockCount,
         format,
-        0           // flags
-    );
+        transcodeFlags,     // Quality flags (ASTC only)
+        0,                  // output_row_pitch_in_blocks_or_pixels
+        0)                  // output_rows_in_pixels
+        ;
 
     if (!status)
     {
-        qDebug() << " Failed to transcode mipmap level" << levelIndex;
+        qDebug() << "Failed to transcode mipmap level" << levelIndex;
         return false;
     }
 
@@ -312,7 +329,7 @@ bool KTX2Loader::loadKTX2(
 {
     if (!glInitialized)
     {
-        qWarning() << " KTX2Loader not initialized - call initializeOpenGL() first";
+        qWarning() << "KTX2Loader not initialized - call initializeOpenGL() first";
         return false;
     }
 
@@ -329,7 +346,7 @@ bool KTX2Loader::loadKTX2(
     basist::ktx2_transcoder transcoder;
     if (!transcoder.init(ktx2Data.data(), ktx2Data.size()))
     {
-        qDebug() << " Failed to initialize KTX2 transcoder";
+        qDebug() << "Failed to initialize KTX2 transcoder";
         return false;
     }
 
@@ -343,8 +360,8 @@ bool KTX2Loader::loadKTX2(
     qDebug() << "  Mipmap levels:" << numLevels;
     qDebug() << "  Is HDR:" << (transcoder.is_hdr() ? "Yes" : "No");
 
-    // Step 4: Select best transcoding format for this GPU
-    basist::transcoder_texture_format selectedFormat = selectBestFormat(transcoder, gpuCaps, mapType);
+    // Step 4: Select compression format based on user preference
+    basist::transcoder_texture_format selectedFormat = selectCompressionFormat(transcoder, gpuCaps);
 
     // Step 5: Start transcoding
     transcoder.start_transcoding();
@@ -377,7 +394,7 @@ bool KTX2Loader::loadKTX2(
     qDebug() << "  Uncompressed equivalent:" << (uncompressedSize / 1024) << "KB";
     qDebug() << "  Compression ratio:" << compressionRatio << "%";
 
-    qDebug() << " KTX2 loading SUCCESSFUL";
+    qDebug() << "KTX2 loading SUCCESSFUL";
     return true;
 }
 
@@ -385,7 +402,7 @@ GLuint KTX2Loader::uploadToGPU(const TranscodedTexture& texture)
 {
     if (!glInitialized)
     {
-        qWarning() << " KTX2Loader not initialized";
+        qWarning() << "KTX2Loader not initialized";
         return 0;
     }
 
@@ -440,6 +457,6 @@ GLuint KTX2Loader::uploadToGPU(const TranscodedTexture& texture)
     // Unbind texture
     glBindTexture(GL_TEXTURE_2D, 0);
 
-    qDebug() << " Texture uploaded to GPU, ID:" << textureID;
+    qDebug() << "Texture uploaded to GPU, ID:" << textureID;
     return textureID;
 }

@@ -8,6 +8,15 @@
 #include <string>
 #include <memory>
 
+// User-selectable compression mode for rendering quality
+enum class CompressionMode
+{
+    UNCOMPRESSED_RGBA32,    // Best quality (default)
+    BC7_COMPRESSED,         // Good quality, smaller memory
+	BC7_ALT_COMPRESSED,     // Alternative BC7 mode
+    ASTC_COMPRESSED         // Good quality, smaller memory
+};
+
 // Represents a transcoded texture ready for GPU upload
 struct TranscodedTexture
 {
@@ -71,21 +80,36 @@ public:
     // Detect GPU capabilities (queries OpenGL)
     static GPUCapabilities detectGPUCapabilities();
 
+    // Set compression mode (affects quality vs memory trade-off)
+    void setCompressionMode(CompressionMode mode)
+    {
+        compressionMode = mode;
+        qDebug() << "KTX2 compression mode set to:" << (int)mode;
+    }
+
+    // Get current compression mode
+    CompressionMode getCompressionMode() const
+    {
+        return compressionMode;
+    }
+
 private:
     bool basisuInitialized = false;
     bool glInitialized = false;
+    CompressionMode compressionMode = CompressionMode::UNCOMPRESSED_RGBA32;
 
     // Helper to read file into memory
     bool readFileToMemory(const std::string& filePath, std::vector<uint8_t>& outData);
 
-    // Determine best transcoding format for this GPU
-    basist::transcoder_texture_format selectBestFormat(
+    // Select transcoding format based on user's compression mode preference
+    // Default is uncompressed. User can choose BC7 or ASTC for smaller memory.
+    basist::transcoder_texture_format selectCompressionFormat(
         const basist::ktx2_transcoder& transcoder,
-        const GPUCapabilities& gpuCaps,
-        const std::string& mapType = "baseColor"
+        const GPUCapabilities& gpuCaps
     );
 
     // Transcode a single mipmap level
+    // Uses cTFHighQuality flag for BC7/ASTC to improve compression quality
     bool transcodeMipmapLevel(
         basist::ktx2_transcoder& transcoder,
         uint32_t levelIndex,
