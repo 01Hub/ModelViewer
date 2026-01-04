@@ -643,7 +643,7 @@ void MaterialEditorPanel::onSaveButtonClicked()
 				}
 				else
 				{
-					// This is a user key — confirm overwrite (save helper will also ask). Ask user if want to overwrite:
+					// This is a user key - confirm overwrite (save helper will also ask). Ask user if want to overwrite:
 					QMessageBox::StandardButton overwriteReply =
 						QMessageBox::question(this,
 							tr("Overwrite User Material?"),
@@ -665,7 +665,7 @@ void MaterialEditorPanel::onSaveButtonClicked()
 			}
 			else
 			{
-				// key not present anywhere — accept
+				// key not present anywhere - accept
 				key = enteredKey;
 				break;
 			}
@@ -743,7 +743,7 @@ void MaterialEditorPanel::onSaveButtonClicked()
 	bool saved = MaterialLibraryWidget::saveUserMaterialToUserLocation(groupLabel, key, name, mat, this, &err);
 	if (!saved)
 	{
-		// if user cancelled overwrite, err may be "User cancelled overwrite" — only show error if real error
+		// if user cancelled overwrite, err may be "User cancelled overwrite" - only show error if real error
 		if (!err.isEmpty() && err != QStringLiteral("User cancelled overwrite"))
 		{
 			QMessageBox::warning(this, tr("Save Material Failed"), err);

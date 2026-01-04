@@ -754,7 +754,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					// Store in global cache - loadAndAddTexture will find it
 					_loadedTextures.push_back(tex);
 
-					qDebug() << "processGltf2CoreAndExtensions: Pre-loaded GLB image" << imgIdx << "→ GPU textureID" << textureID;
+					qDebug() << "processGltf2CoreAndExtensions: Pre-loaded GLB image" << imgIdx << "GPU textureID" << textureID;
 				}
 			}
 
@@ -2321,7 +2321,7 @@ void MaterialProcessor::convertSpecularGlossinessToDielectric(GLMaterial& mat)
         // Don't convert factors - shader will sample textures and convert
         // Just ensure the flag is set
         mat.setUseSpecularGlossiness(true);
-        return;  // ← EXIT EARLY
+        return;  // EXIT EARLY
     }
     
     // Only do factor-based conversion if NO TEXTURES are present
@@ -2520,7 +2520,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 				}
 				light.innerConeCos = std::cos(innerAngle);
 
-				float outerAngle = glm::pi<float>() / 4.0f;  // π/4 default
+				float outerAngle = glm::pi<float>() / 4.0f;  // pi/4 default
 				if (spotDef.contains("outerConeAngle"))
 				{
 					outerAngle = static_cast<float>(spotDef.value("outerConeAngle").toDouble(glm::pi<float>() / 4.0f));

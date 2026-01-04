@@ -268,7 +268,7 @@ bool MaterialLibraryWidget::loadAllMaterials(const QString& jsonPath, QString* e
 	QString userErr;
 	if (!mergeUserMaterialsFromUserLocation(&userErr))
 	{
-		// Don’t treat as fatal — just warn
+		// Dont treat as fatal - just warn
 		qWarning() << "User materials overlay failed:" << userErr;
 	}
 
