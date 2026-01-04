@@ -262,73 +262,80 @@ deploy_image_plugin(ModelViewer "qtiff")
 deploy_image_plugin(ModelViewer "qwbmp")
 
 # ============================================================================
-# Deploy libwebp libraries and their dependencies (optional, non-fatal)
+# Deploy WebP libraries and their dependencies (optional, non-fatal) Windows only
 # ============================================================================
 
-if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
-    if(CMAKE_BUILD_TYPE MATCHES "Debug")
-        set(LIBWEBP_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin")
-    else()
-        set(LIBWEBP_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
-    endif()
-    
+if(WIN32)
+    if(DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+        if(CMAKE_BUILD_TYPE MATCHES "Debug")
+            set(LIBWEBP_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin")
+        else()
+            set(LIBWEBP_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
+        endif()
+        
     # Check if WebP libraries exist - only deploy if available
-    if(EXISTS "${LIBWEBP_BIN_DIR}/libwebp.dll")
-        message(STATUS "WebP libraries found in vcpkg, will deploy")
-        
-        # List of WebP libraries AND their dependencies to deploy
-        set(LIBWEBP_DLLS 
-            "libwebp.dll"
-            "libwebpdecoder.dll"
-            "libwebpdemux.dll"
-            "libwebpmux.dll"
-            "libsharpyuv.dll"
-        )
-        
-        foreach(WEBP_DLL ${LIBWEBP_DLLS})
-            set(WEBP_DLL_SOURCE "${LIBWEBP_BIN_DIR}/${WEBP_DLL}")
+        if(EXISTS "${LIBWEBP_BIN_DIR}/libwebp.dll")
+            message(STATUS "WebP libraries found in vcpkg, will deploy (Windows only)")
             
-            if(EXISTS "${WEBP_DLL_SOURCE}")
-                # Copy to bin/ directory
-                add_custom_command(TARGET ModelViewer POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${WEBP_DLL_SOURCE}"
-                        "$<TARGET_FILE_DIR:ModelViewer>/${WEBP_DLL}"
-                    VERBATIM
-                )
+        # List of WebP libraries AND their dependencies to deploy
+            set(LIBWEBP_DLLS 
+                "libwebp.dll"
+                "libwebpdecoder.dll"
+                "libwebpdemux.dll"
+                "libwebpmux.dll"
+                "libsharpyuv.dll"
+            )
+            
+            foreach(WEBP_DLL ${LIBWEBP_DLLS})
+                set(WEBP_DLL_SOURCE "${LIBWEBP_BIN_DIR}/${WEBP_DLL}")
                 
-                # Also copy to plugins/imageformats/
-                add_custom_command(TARGET ModelViewer POST_BUILD
-                    COMMAND ${CMAKE_COMMAND} -E make_directory
-                        "$<TARGET_FILE_DIR:ModelViewer>/plugins/imageformats"
-                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                        "${WEBP_DLL_SOURCE}"
-                        "$<TARGET_FILE_DIR:ModelViewer>/plugins/imageformats/${WEBP_DLL}"
-                    VERBATIM
-                )
-                
-                message(STATUS "Will deploy: ${WEBP_DLL}")
-            else()
-                message(WARNING "WebP library not found (optional): ${WEBP_DLL_SOURCE}")
-                # Non-fatal - just skip this DLL, don't stop the build
-            endif()
-        endforeach()
-    else()
+                if(EXISTS "${WEBP_DLL_SOURCE}")
+                    # Copy to bin/ directory
+                    add_custom_command(TARGET ModelViewer POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${WEBP_DLL_SOURCE}"
+                            "$<TARGET_FILE_DIR:ModelViewer>/${WEBP_DLL}"
+                        VERBATIM
+                    )
+                    
+                    # Also copy to plugins/imageformats/
+                    add_custom_command(TARGET ModelViewer POST_BUILD
+                        COMMAND ${CMAKE_COMMAND} -E make_directory
+                            "$<TARGET_FILE_DIR:ModelViewer>/plugins/imageformats"
+                        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                            "${WEBP_DLL_SOURCE}"
+                            "$<TARGET_FILE_DIR:ModelViewer>/plugins/imageformats/${WEBP_DLL}"
+                        VERBATIM
+                    )
+                    
+                    message(STATUS "Will deploy: ${WEBP_DLL}")
+                else()
+                    message(WARNING "WebP library not found (optional): ${WEBP_DLL_SOURCE}")
+                endif()
+            endforeach()
+        else()
         message(STATUS "WebP libraries not found in vcpkg - WebP support will not be available")
         # Non-fatal - build continues without WebP
+        endif()
     endif()
 else()
-    message(WARNING "VCPKG paths not defined - skipping WebP deployment")
-    # Non-fatal - build continues
+    # Linux / macOS: Qt finds plugins and libraries through standard paths
+    message(STATUS "Non-Windows platform detected - skipping WebP DLL deployment (not needed)")
 endif()
 
-# Create qt.conf
-add_custom_command(TARGET ModelViewer POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E echo "[Paths]" > "$<TARGET_FILE_DIR:ModelViewer>/qt.conf"
-    COMMAND ${CMAKE_COMMAND} -E echo "Plugins = ../plugins" >> "$<TARGET_FILE_DIR:ModelViewer>/qt.conf"
-    COMMENT "Creating qt.conf"
-    VERBATIM
-)
+
+# ============================================================================
+# Create qt.conf - Windows only
+# ============================================================================
+
+if(WIN32)
+    add_custom_command(TARGET ModelViewer POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "[Paths]" > "$<TARGET_FILE_DIR:ModelViewer>/qt.conf"
+        COMMAND ${CMAKE_COMMAND} -E echo "Plugins = ../plugins" >> "$<TARGET_FILE_DIR:ModelViewer>/qt.conf"
+        COMMENT "Creating qt.conf (Windows only)"
+        VERBATIM
+    )
+endif()
 
 if(WIN32)
     target_sources(ModelViewer
@@ -339,10 +346,12 @@ endif()
 
 install(TARGETS ModelViewer)
 
-# Install qt.conf so Qt knows where to find plugins
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/qt.conf"
-        DESTINATION "${CMAKE_INSTALL_BINDIR}"
-)
+# Install qt.conf - Windows only
+if(WIN32)
+    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/qt.conf"
+            DESTINATION "${CMAKE_INSTALL_BINDIR}"
+    )
+endif()
 
 # Install translation files only if they exist
 if(QM_FILES)
@@ -364,22 +373,24 @@ install(DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/plugins"
         OPTIONAL
 )
 
-# Explicitly install WebP libraries
-if(CMAKE_BUILD_TYPE MATCHES "Debug")
-    set(LIBWEBP_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin")
-else()
-    set(LIBWEBP_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
+# Install WebP libraries - Windows only
+if(WIN32 AND DEFINED VCPKG_INSTALLED_DIR AND DEFINED VCPKG_TARGET_TRIPLET)
+    if(CMAKE_BUILD_TYPE MATCHES "Debug")
+        set(LIBWEBP_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/debug/bin")
+    else()
+        set(LIBWEBP_BIN_DIR "${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/bin")
+    endif()
+    
+    install(FILES 
+        "${LIBWEBP_BIN_DIR}/libwebp.dll"
+        "${LIBWEBP_BIN_DIR}/libwebpdecoder.dll"
+        "${LIBWEBP_BIN_DIR}/libwebpdemux.dll"
+        "${LIBWEBP_BIN_DIR}/libwebpmux.dll"
+        "${LIBWEBP_BIN_DIR}/libsharpyuv.dll"
+        DESTINATION "${CMAKE_INSTALL_BINDIR}"
+        OPTIONAL
+    )
 endif()
-
-install(FILES 
-    "${LIBWEBP_BIN_DIR}/libwebp.dll"
-    "${LIBWEBP_BIN_DIR}/libwebpdecoder.dll"
-    "${LIBWEBP_BIN_DIR}/libwebpdemux.dll"
-    "${LIBWEBP_BIN_DIR}/libwebpmux.dll"
-    "${LIBWEBP_BIN_DIR}/libsharpyuv.dll"
-    DESTINATION "${CMAKE_INSTALL_BINDIR}"
-    OPTIONAL
-)
 
 if(WIN32)
    install(TARGETS ModelViewer
