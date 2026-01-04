@@ -15,7 +15,8 @@
     },
     {
       "name": "qtimageformats",
-      "default-features": false
+      "default-features": false,
+      "features": [ "webp" ]
     },
     {
       "name": "basisu",
