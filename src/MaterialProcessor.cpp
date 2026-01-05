@@ -1928,6 +1928,12 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			}
 		}
 
+		qDebug() << "Loaded" << outTextures.size() << "textures total";
+		for (const auto& t : outTextures)
+		{
+			qDebug() << "  Texture type:" << t.type.c_str() << "path:" << t.path.c_str();
+		}
+
 
 		return appliedAny;
 		};
@@ -3301,7 +3307,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setIridescenceThicknessTexCoord(tex.texCoordIndex);
 			mat.setIridescenceThicknessTexScale(toQVector2D(tex.scale));
 			mat.setIridescenceThicknessTexOffset(toQVector2D(tex.offset));
-			mat.setIridescenceThicknessTexRotation(tex.rotation);
+			mat.setIridescenceThicknessTexRotation(tex.rotation);			
 		}
 		else if (tex.type == "diffuseTransmissionMap")
 		{
