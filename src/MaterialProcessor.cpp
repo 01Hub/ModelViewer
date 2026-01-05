@@ -923,13 +923,16 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 						continue;
 					}
 
+					// Check alpha before conversion
+					bool hasAlpha = qImg.hasAlphaChannel();  // Check original image
+
 					// Prepare for OpenGL
 					qImg = convertToGLFormat(qImg);
 
 					// Create texture struct with embedded marker (not a file path)
 					GLMaterial::Texture tex;
 					tex.path = "glb://image_" + std::to_string(imgIdx);  // Marker for GLB embedded image
-					tex.hasAlpha = qImg.hasAlphaChannel();
+					tex.hasAlpha = hasAlpha;
 					tex.scale = glm::vec2(1.0f);
 					tex.offset = glm::vec2(0.0f);
 					tex.rotation = 0.0f;
