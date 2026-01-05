@@ -3,6 +3,7 @@
 
 #include <QVector3D>
 #include <QString>
+#include <QImage>
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <fstream>
@@ -34,6 +35,8 @@ public:
 		GLenum wrapT = GL_REPEAT;
 		GLenum magFilter = GL_LINEAR;
 		GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR;
+
+		QImage imageData;
 
 		friend std::ostream& operator<<(std::ostream& os, const Texture& texture)
 		{

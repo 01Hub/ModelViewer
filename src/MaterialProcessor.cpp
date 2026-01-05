@@ -494,9 +494,9 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture,
 	// ===== HANDLE GLB IMAGES =====
 	if (pathStr.startsWith("glb://") && glbBinaryBuffer != nullptr)
 	{
-		// Extract image index from path "glb://0"
+		// Extract image index from path "glb://image_0"
 		bool ok = false;
-		int imageIdx = pathStr.mid(6).toInt(&ok);
+		int imageIdx = pathStr.mid(12).toInt(&ok);
 
 		if (!ok || imageIdx < 0 || jsonImages == nullptr || imageIdx >= jsonImages->size())
 		{
@@ -592,6 +592,7 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture,
 
 	texture.id = textureID;
 	texture.hasAlpha = imageHasAlpha;
+	texture.imageData = texImage;
 
 	// Assign texture to ID
 	glBindTexture(GL_TEXTURE_2D, textureID);
@@ -607,6 +608,206 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture,
 
 	return textureID;
 }
+
+/**
+ * Populates an Assimp scene's mTextures array from cached pre-loaded texture data.
+ * Called internally by ensureAssimpSceneTexturesValid() for GLB files.
+ *
+ * @param scene Mutable scene to populate
+ * @param glbPath Path to GLB file (for tracking/logging)
+ * @param expectedImageCount Number of images expected (from JSON metadata)
+ */
+void MaterialProcessor::populateAssimpSceneFromGLBCache(aiScene* scene,
+	const QString& glbPath)
+{
+	if (!scene)
+	{
+		qWarning() << "MaterialProcessor::populateAssimpSceneFromGLBCache - scene is null";
+		return;
+	}
+
+	// Check if we have tracked indices for this GLB
+	if (!s_glbImageIndices.contains(glbPath))
+	{
+		qWarning() << "MaterialProcessor: No tracked indices for GLB:" << glbPath;
+		return;
+	}
+
+	const auto& trackedIndices = s_glbImageIndices[glbPath];
+
+	if (trackedIndices.empty())
+	{
+		qDebug() << "MaterialProcessor: GLB has no images:" << glbPath;
+		scene->mNumTextures = 0;
+		scene->mTextures = nullptr;
+		return;
+	}
+
+	// Safety: Check if already synced
+	if (s_glbScenesSynced.contains(glbPath) && s_glbScenesSynced[glbPath])
+	{
+		qDebug() << "MaterialProcessor: GLB scene already synced:" << glbPath;
+		return;
+	}
+
+	// Allocate texture array in scene based on ACTUAL number of tracked images
+	size_t numImages = trackedIndices.size();
+	scene->mNumTextures = static_cast<unsigned int>(numImages);
+	scene->mTextures = new aiTexture * [scene->mNumTextures];
+
+	// Initialize all pointers to null (safe state)
+	for (unsigned int i = 0; i < scene->mNumTextures; ++i)
+	{
+		scene->mTextures[i] = nullptr;
+	}
+
+	qDebug() << "MaterialProcessor: Populating Assimp scene with" << numImages << "tracked GLB images";
+
+	// Iterate through tracked indices and populate textures
+	for (unsigned int i = 0; i < scene->mNumTextures; ++i)
+	{
+		// Get the actual index in _loadedTextures
+		size_t cachedIdx = trackedIndices[i];
+
+		// Safety check
+		if (cachedIdx >= _loadedTextures.size())
+		{
+			qWarning() << "MaterialProcessor: Tracked index" << cachedIdx
+				<< "is out of bounds (max:" << _loadedTextures.size() - 1 << ")";
+			aiTexture* aiTex = new aiTexture();
+			aiTex->mWidth = 1;
+			aiTex->mHeight = 1;
+			aiTex->pcData = new aiTexel[1];
+			aiTex->pcData[0].r = 255;
+			aiTex->pcData[0].g = 255;
+			aiTex->pcData[0].b = 255;
+			aiTex->pcData[0].a = 255;
+			scene->mTextures[i] = aiTex;
+			continue;
+		}
+
+		const GLMaterial::Texture& cachedTex = _loadedTextures[cachedIdx];
+		aiTexture* aiTex = new aiTexture();
+
+		if (!cachedTex.imageData.isNull())
+		{
+			// Convert QImage to RGBA format for consistency
+			QImage img = cachedTex.imageData.convertToFormat(QImage::Format_RGBA8888);
+
+			if (!img.isNull())
+			{
+				aiTex->mWidth = static_cast<unsigned int>(img.width());
+				aiTex->mHeight = static_cast<unsigned int>(img.height());
+				aiTex->mFilename.Set(cachedTex.path.c_str());
+
+				// Allocate and copy pixel data
+				size_t pixelCount = static_cast<size_t>(img.width()) * img.height();
+				aiTex->pcData = new aiTexel[pixelCount];
+
+				if (aiTex->pcData)
+				{
+					// Copy RGBA data directly
+					std::memcpy(aiTex->pcData, img.bits(), img.sizeInBytes());
+					qDebug() << "MaterialProcessor: Populated Assimp texture" << i
+						<< "from cache (index" << cachedIdx << "):"
+						<< QString::fromStdString(cachedTex.path);
+				}
+				else
+				{
+					qWarning() << "MaterialProcessor: Failed to allocate memory for texture" << i;
+					delete aiTex;
+					aiTex = new aiTexture();  // Create dummy
+					aiTex->mWidth = 1;
+					aiTex->mHeight = 1;
+					aiTex->pcData = new aiTexel[1];
+					aiTex->pcData[0].r = 255;
+					aiTex->pcData[0].g = 255;
+					aiTex->pcData[0].b = 255;
+					aiTex->pcData[0].a = 255;
+				}
+			}
+			else
+			{
+				qWarning() << "MaterialProcessor: Cached QImage invalid for texture" << i;
+				// Create white 1x1 dummy
+				aiTex->mWidth = 1;
+				aiTex->mHeight = 1;
+				aiTex->pcData = new aiTexel[1];
+				aiTex->pcData[0].r = 255;
+				aiTex->pcData[0].g = 255;
+				aiTex->pcData[0].b = 255;
+				aiTex->pcData[0].a = 255;
+			}
+		}
+		else
+		{
+			qWarning() << "MaterialProcessor: No cached QImage data for texture" << i
+				<< "from index" << cachedIdx;
+			// Create white 1x1 dummy
+			aiTex->mWidth = 1;
+			aiTex->mHeight = 1;
+			aiTex->pcData = new aiTexel[1];
+			aiTex->pcData[0].r = 255;
+			aiTex->pcData[0].g = 255;
+			aiTex->pcData[0].b = 255;
+			aiTex->pcData[0].a = 255;
+		}
+
+		scene->mTextures[i] = aiTex;
+	}
+
+	// Mark as synced
+	s_glbScenesSynced[glbPath] = true;
+	qDebug() << "MaterialProcessor: Synced Assimp scene textures for:" << glbPath
+		<< "(" << numImages << "textures)";
+}
+
+/**
+ * Validates Assimp scene's existing texture data.
+ * Called internally for GLTF and other formats.
+ * Does NOT modify textures, only validates and logs issues.
+ */
+ void MaterialProcessor::validateAssimpSceneTextures(aiScene* scene)
+ {
+	 if (!scene)
+		 return;
+
+	 // Check for inconsistent state
+	 if ((scene->mNumTextures > 0 && scene->mTextures == nullptr) ||
+		 (scene->mNumTextures == 0 && scene->mTextures != nullptr))
+	 {
+		 qWarning() << "MaterialProcessor: Assimp scene has inconsistent texture state."
+			 << "mNumTextures:" << scene->mNumTextures
+			 << "mTextures nullptr:" << (scene->mTextures == nullptr);
+		 return;
+	 }
+
+	 // Validate individual textures
+	 if (scene->mTextures != nullptr)
+	 {
+		 for (unsigned int i = 0; i < scene->mNumTextures; ++i)
+		 {
+			 const aiTexture* tex = scene->mTextures[i];
+			 if (tex == nullptr)
+			 {
+				 qDebug() << "MaterialProcessor: Texture" << i << "is null";
+				 continue;
+			 }
+
+			 // Basic sanity checks
+			 if (tex->mWidth == 0 || tex->mHeight == 0)
+			 {
+				 qWarning() << "MaterialProcessor: Texture" << i << "has zero dimensions";
+			 }
+
+			 if (tex->mWidth > 0 && tex->mHeight > 0 && tex->pcData == nullptr)
+			 {
+				 qWarning() << "MaterialProcessor: Texture" << i
+					 << "has dimensions but no pixel data";
+			 }
+		 }
+	 }
+ }
 
 /*
  Comprehensive per-material reader for many KHR_materials_* extensions.
@@ -685,6 +886,8 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			QJsonObject root = doc.object();
 			QJsonArray jsonImages = root.value("images").toArray();
 			QJsonArray jsonBufferViews = root.value("bufferViews").toArray();
+			QJsonArray jsonTextures = root.value("textures").toArray();
+			QJsonArray jsonSamplers = root.value("samplers").toArray();
 
 			if (!glbBinaryBuffer.empty())
 			{
@@ -732,10 +935,60 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					tex.rotation = 0.0f;
 					tex.texCoordIndex = 0;
 					tex.type = "";
-					tex.wrapS = GL_REPEAT;
-					tex.wrapT = GL_REPEAT;
-					tex.magFilter = GL_LINEAR;
-					tex.minFilter = GL_LINEAR_MIPMAP_LINEAR;
+					
+					// Find which texture(s) reference this image and get their sampler params
+					GLenum wrapS = GL_REPEAT;              // defaults
+					GLenum wrapT = GL_REPEAT;
+					GLenum magFilter = GL_LINEAR;
+					GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR;
+
+					// Look through all textures to find those that reference this image
+					for (int texIndex = 0; texIndex < jsonTextures.size(); ++texIndex)
+					{
+						QJsonObject texObj = jsonTextures.at(texIndex).toObject();
+
+						// Check if this texture references our image (handling extensions + standard source)
+						int refImgIdx = -1;
+
+						// Check extensions first (KHR_texture_basisu, EXT_texture_webp)
+						if (texObj.contains("extensions"))
+						{
+							QJsonObject extObj = texObj.value("extensions").toObject();
+							if (extObj.contains("KHR_texture_basisu"))
+								refImgIdx = extObj.value("KHR_texture_basisu").toObject().value("source").toInt(-1);
+							else if (extObj.contains("EXT_texture_webp"))
+								refImgIdx = extObj.value("EXT_texture_webp").toObject().value("source").toInt(-1);
+						}
+
+						// Fall back to standard source
+						if (refImgIdx < 0 && texObj.contains("source"))
+							refImgIdx = texObj.value("source").toInt(-1);
+
+						if (refImgIdx == imgIdx)
+						{
+							// This texture references our image - get its sampler params
+							int samplerIndex = texObj.value("sampler").toInt(-1);
+							if (samplerIndex >= 0 && samplerIndex < jsonSamplers.size())
+							{
+								QJsonObject samplerObj = jsonSamplers.at(samplerIndex).toObject();
+
+								if (samplerObj.contains("wrapS"))
+									wrapS = static_cast<GLenum>(samplerObj.value("wrapS").toInt());
+								if (samplerObj.contains("wrapT"))
+									wrapT = static_cast<GLenum>(samplerObj.value("wrapT").toInt());
+								if (samplerObj.contains("magFilter"))
+									magFilter = static_cast<GLenum>(samplerObj.value("magFilter").toInt());
+								if (samplerObj.contains("minFilter"))
+									minFilter = static_cast<GLenum>(samplerObj.value("minFilter").toInt());
+							}
+							break;  // Use first matching texture's sampler
+						}
+					}
+
+					tex.wrapS = wrapS;
+					tex.wrapT = wrapT;
+					tex.magFilter = magFilter;
+					tex.minFilter = minFilter;
 
 					// Upload to GPU
 					unsigned int textureID;
@@ -743,16 +996,18 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					glBindTexture(GL_TEXTURE_2D, textureID);
 					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, qImg.width(), qImg.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, qImg.bits());
 					glGenerateMipmap(GL_TEXTURE_2D);
-					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, tex.wrapS);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, tex.wrapT);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, tex.minFilter);
+					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, tex.magFilter);
 					glBindTexture(GL_TEXTURE_2D, 0);
 
 					tex.id = textureID;
+					tex.imageData = qImg;
 
 					// Store in global cache - loadAndAddTexture will find it
 					_loadedTextures.push_back(tex);
+					s_glbImageIndices[gltfPath].push_back(_loadedTextures.size() - 1);
 
 					qDebug() << "processGltf2CoreAndExtensions: Pre-loaded GLB image" << imgIdx << "GPU textureID" << textureID;
 				}
@@ -873,7 +1128,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		if (isGLB)
 		{
 			// Return marker for GLB images
-			return "glb://" + QString::number(imgIndex);
+			return "glb://image_" + QString::number(imgIndex);
 		}
 
 		// GLTF: resolve file URI (existing logic)
@@ -2130,6 +2385,8 @@ void MaterialProcessor::clearGLBCaches()
 	s_glbJsonCache.clear();
 	s_glbBinaryCache.clear();
 	s_glbImagesLoaded.clear();
+	s_glbScenesSynced.clear();
+	s_glbImageIndices.clear();
 }
 
 
@@ -3252,6 +3509,51 @@ void MaterialProcessor::addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial
 		/*rotation*/mat.diffuseTransmissionColorTexRotation());
 }
 
+
+void MaterialProcessor::ensureAssimpSceneTexturesValid(aiScene* scene,
+	const QString& sourceFilePath)
+{
+	if (!scene)
+	{
+		qWarning() << "MaterialProcessor::ensureAssimpSceneTexturesValid - scene is null";
+		return;
+	}
+
+	// Determine file format
+	bool isGLB = sourceFilePath.endsWith(".glb", Qt::CaseInsensitive);
+	bool isGLTF = sourceFilePath.endsWith(".gltf", Qt::CaseInsensitive);
+
+	if (isGLB)
+	{
+		// For GLB: Retrieve image count from cached JSON and populate
+		if (s_glbJsonCache.contains(sourceFilePath))
+		{
+			QJsonDocument doc = s_glbJsonCache.value(sourceFilePath);
+			QJsonObject root = doc.object();
+			QJsonArray jsonImages = root.value("images").toArray();
+
+			qDebug() << "ensureAssimpSceneTexturesValid: GLB" << sourceFilePath
+				<< "- jsonImages.size()=" << jsonImages.size()
+				<< "_loadedTextures.size()=" << _loadedTextures.size();
+
+			populateAssimpSceneFromGLBCache(scene, sourceFilePath);
+		}
+		else
+		{
+			qWarning() << "MaterialProcessor: No cached JSON for GLB file:" << sourceFilePath;
+		}
+	}
+	else if (isGLTF)
+	{
+		// For GLTF: Validate existing textures
+		validateAssimpSceneTextures(scene);
+	}
+	else
+	{
+		// For other formats: Validate existing textures
+		validateAssimpSceneTextures(scene);
+	}
+}
 
 // Checks all material textures of a given type and loads the textures if they're not loaded yet.
 // The required info is returned as a Texture struct.

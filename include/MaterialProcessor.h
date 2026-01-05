@@ -26,6 +26,19 @@ public:
 	void addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial::Texture>& textures);
 	void clearLoadedTextures() { _loadedTextures.clear(); }
 
+	/**
+	 * Ensures Assimp scene has valid texture data before deep copying or merging.
+	 * For GLB files: Populates mTextures from pre-loaded cached data
+	 * For other formats: Validates existing texture data
+	 *
+	 * MUST be called with non-const scene pointer after processGltf2CoreAndExtensions()
+	 *
+	 * @param scene Mutable Assimp scene to validate/populate
+	 * @param sourceFilePath Path to source file (determines handling strategy)
+	 */
+	void ensureAssimpSceneTexturesValid(aiScene* scene, const QString& sourceFilePath);
+
+
 	// Checks all material textures of a given type and loads the textures if they're not loaded yet.
 	// The required info is returned as a Texture struct.    
 	std::vector<GLMaterial::Texture> loadMaterialTextures(
@@ -65,6 +78,10 @@ private:
 		const std::vector<uint8_t>* glbBinaryBuffer = nullptr,
 		const QJsonArray* jsonBufferViews = nullptr,
 		const QJsonArray* jsonImages = nullptr);
+
+	void populateAssimpSceneFromGLBCache(aiScene* scene,
+		const QString& glbPath);
+	void validateAssimpSceneTextures(aiScene* scene);
 
 private:
 	// Each entry: primary type + uniform name, and an optional fallback type+uniform name
@@ -158,6 +175,8 @@ private:
 	QHash<QString, QJsonDocument> s_glbJsonCache;
 	QHash<QString, std::vector<uint8_t>> s_glbBinaryCache;
 	QHash<QString, bool> s_glbImagesLoaded;  // Track if images uploaded to GPU
+	QHash<QString, bool> s_glbScenesSynced;  // Track which scenes have been synced
+	QHash<QString, std::vector<size_t>> s_glbImageIndices; // Maps: glbPath -> list of indices in _loadedTextures
 	
 	KTX2Loader ktx2Loader;
 	GPUCapabilities gpuCapabilities;
