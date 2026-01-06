@@ -1708,9 +1708,14 @@ void GLWidget::updateFloorPlane()
 			{
 				light.range *= radiusScaleFactor;
 			}
-			// Scale intensity to compensate for distance change
-			// Using squared factor to account for inverse-square law
-			light.intensity *= (radiusScaleFactor * radiusScaleFactor);
+			
+			// Scale intensity to compensate for distance change (inverse-square law)
+			// Only for point and spot lights, NOT directional lights
+			// Directional lights are infinitely far and don't lose power with distance
+			if (light.type != static_cast<int>(LightType::Directional))
+			{
+				light.intensity *= (radiusScaleFactor * radiusScaleFactor);
+			}
 		}
 		glLights->setLights(_currentRepositionedLights);
 	}
