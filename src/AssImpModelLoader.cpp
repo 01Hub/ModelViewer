@@ -511,12 +511,12 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 				mesh->mMaterialIndex,
 				mat,
 				textures);
-			if (isGlb)
-			{
-				_materialProcessor.ensureAssimpSceneTexturesValid(
-					const_cast<aiScene*>(scene),
-					QString::fromStdString(_path));
-			}
+			
+			// Ensure scene textures are valid for deep copy / merging
+			_materialProcessor.ensureAssimpSceneTexturesValid(
+				const_cast<aiScene*>(scene),
+				QString::fromStdString(_path));
+			
 			// Scale parameters based on model scale
 			mat.setThicknessFactor(mat.thicknessFactor()* _appliedScale);
 			mat.setAttenuationDistance(mat.attenuationDistance()* _appliedScale);

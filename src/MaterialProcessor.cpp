@@ -563,6 +563,28 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture,
 			}
 		}
 	}
+	// ===== HANDLE DATA URI IMAGES =====
+	else if (pathStr.startsWith("data:"))
+	{
+		auto [success, decodedImage] = decodeDataUri(pathStr);
+
+		if (!success)
+		{
+			qWarning() << "createTextureOnGPU: Failed to decode data URI, using white fallback";
+			QImage dummy(128, 128, QImage::Format_ARGB32);
+			dummy.fill(Qt::white);
+			texImage = dummy;
+			imageHasAlpha = false;
+		}
+		else
+		{
+			texImage = convertToGLFormat(decodedImage);
+			if (texImage.hasAlphaChannel())
+			{
+				imageHasAlpha = checkImageForAlpha(texImage);
+			}
+		}
+	}
 	// ===== HANDLE REGULAR FILE IMAGES =====
 	else
 	{
@@ -807,6 +829,66 @@ void MaterialProcessor::populateAssimpSceneFromGLBCache(aiScene* scene,
 			 }
 		 }
 	 }
+ }
+
+ std::pair<bool, QImage> MaterialProcessor::decodeDataUri(const QString& dataUri)
+ {
+	 // Expected format: data:image/jpeg;base64,/9j/4AAQSkZJRg...
+	 if (!dataUri.startsWith("data:"))
+	 {
+		 qWarning() << "decodeDataUri: Invalid data URI scheme";
+		 return { false, QImage() };
+	 }
+
+	 // Remove "data:" prefix
+	 QString dataUriContent = dataUri.mid(5);  // Skip "data:"
+
+	 // Split on comma to separate metadata from payload
+	 int commaIdx = dataUriContent.indexOf(',');
+	 if (commaIdx < 0)
+	 {
+		 qWarning() << "decodeDataUri: Invalid data URI format (no comma separator)";
+		 return { false, QImage() };
+	 }
+
+	 // Extract MIME type and encoding
+	 // Format: "image/jpeg;base64" or "image/png;base64" etc.
+	 QString metadata = dataUriContent.left(commaIdx);
+	 QString payload = dataUriContent.mid(commaIdx + 1);
+
+	 // Check encoding (must be base64)
+	 if (!metadata.endsWith("base64", Qt::CaseInsensitive))
+	 {
+		 qWarning() << "decodeDataUri: Unsupported encoding (expected base64):" << metadata;
+		 return { false, QImage() };
+	 }
+
+	 // Decode base64
+	 QByteArray base64Data = payload.toUtf8();
+	 QByteArray binaryData = QByteArray::fromBase64(base64Data);
+
+	 if (binaryData.isEmpty())
+	 {
+		 qWarning() << "decodeDataUri: Failed to decode base64 payload";
+		 return { false, QImage() };
+	 }
+
+	 // Load image from binary data
+	 QImage image;
+	 if (!image.loadFromData(reinterpret_cast<const uchar*>(binaryData.constData()),
+		 binaryData.size()))
+	 {
+		 qWarning() << "decodeDataUri: Failed to load image from decoded data"
+			 << "(size:" << binaryData.size() << "bytes)";
+		 return { false, QImage() };
+	 }
+
+	 // Extract MIME type for logging
+	 QString mimeType = metadata.left(metadata.indexOf(';'));
+	 qDebug() << "decodeDataUri: Successfully decoded" << mimeType
+		 << "(" << image.width() << "x" << image.height() << ")";
+
+	 return { true, image };
  }
 
 /*
@@ -1415,6 +1497,13 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			// Add to both vectors
 			textures.push_back(newTexture);
 			_loadedTextures.push_back(newTexture);    // Cache for future reuse
+
+			// Track embedded glTF textures (data: URIs) for scene sync
+			if (texturePath.startsWith("data:"))
+			{
+				s_glbImageIndices[gltfPath].push_back(_loadedTextures.size() - 1);
+				qDebug() << "Tracked embedded image for" << gltfPath;
+			}
 
 			return true;
 		};
@@ -3554,8 +3643,17 @@ void MaterialProcessor::ensureAssimpSceneTexturesValid(aiScene* scene,
 	}
 	else if (isGLTF)
 	{
-		// For GLTF: Validate existing textures
-		validateAssimpSceneTextures(scene);
+		// Check if this embedded glTF has pre-loaded textures (data: URIs)
+		if (s_glbImageIndices.contains(sourceFilePath) && !s_glbImageIndices[sourceFilePath].empty())
+		{
+			qDebug() << "ensureAssimpSceneTexturesValid: Found embedded glTF images for" << sourceFilePath;
+			populateAssimpSceneFromGLBCache(scene, sourceFilePath);
+		}
+		else
+		{
+			// For GLTF: Validate existing textures
+			validateAssimpSceneTextures(scene);
+		}
 	}
 	else
 	{

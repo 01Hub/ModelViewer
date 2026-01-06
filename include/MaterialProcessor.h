@@ -83,6 +83,9 @@ private:
 		const QString& glbPath);
 	void validateAssimpSceneTextures(aiScene* scene);
 
+	// Returns: pair<success, QImage>
+	std::pair<bool, QImage> decodeDataUri(const QString& dataUri);
+
 private:
 	// Each entry: primary type + uniform name, and an optional fallback type+uniform name
 	struct TextureSlotMapping
