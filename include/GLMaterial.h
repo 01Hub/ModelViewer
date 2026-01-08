@@ -442,6 +442,7 @@ public:
 	QVector3D specularColorFactor() const { return _specularColorFactor; }
 
 	void setSpecularFactorMap(const QString& path) { _specularFactorMap = path; }
+	void clearSpecularFactorMap() { _specularFactorMap.clear(); }
 	QString specularFactorMap() const { return _specularFactorMap; }
 	bool hasSpecularFactorMap() const { return !_specularFactorMap.isEmpty(); }
 	void setSpecularFactorTextureId(unsigned int id) { _specularFactorTextureId = id; }
@@ -456,6 +457,7 @@ public:
 	void setSpecularFactorTexRotation(float rotation) { _specularFactorTexTransform.texRotation = rotation; }
 
 	void setSpecularColorMap(const QString& path) { _specularColorMap = path; }
+	void clearSpecularColorMap() { _specularColorMap.clear(); }
 	QString specularColorMap() const { return _specularColorMap; }
 	bool hasSpecularColorMap() const { return !_specularColorMap.isEmpty(); }
 	void setSpecularColorTextureId(unsigned int id) { _specularColorTextureId = id; }
@@ -520,6 +522,7 @@ public:
 	void setAnisotropyRotation(float rotation) { _anisotropyRotation = rotation; }
 	float anisotropyRotation() const { return _anisotropyRotation; }
 	void setAnisotropyMap(const QString& path) { _anisotropyMap = path; }
+	void clearAnisotropyMap() { _anisotropyMap.clear(); }
 	QString anisotropyMap() const { return _anisotropyMap; }
 	bool hasAnisotropyMap() const { return !_anisotropyMap.isEmpty(); }
 	void setAnisotropyTextureId(unsigned int id) { _anisotropyTextureId = id; }
@@ -544,6 +547,7 @@ public:
 	void setIridescenceThicknessMax(float max) { _iridescenceThicknessMax = max; }
 	float iridescenceThicknessMax() const { return _iridescenceThicknessMax; }
 	void setIridescenceMap(const QString& path) { _iridescenceMap = path; }
+	void clearIridescenceMap() { _iridescenceMap.clear(); }
 	QString iridescenceMap() const { return _iridescenceMap; }
 	bool hasIridescenceMap() const { return !_iridescenceMap.isEmpty(); }
 	void setIridescenceTextureId(unsigned int id) { _iridescenceTextureId = id; }
@@ -558,6 +562,7 @@ public:
 	void setIridescenceTexRotation(float rotation) { _iridescenceTexTransform.texRotation = rotation; }
 
 	void setIridescenceThicknessMap(const QString& path) { _iridescenceThicknessMap = path; }
+	void clearIridescenceThicknessMap() { _iridescenceThicknessMap.clear(); }
 	QString iridescenceThicknessMap() const { return _iridescenceThicknessMap; }
 	bool hasIridescenceThicknessMap() const { return !_iridescenceThicknessMap.isEmpty(); }
 	void setIridescenceThicknessTextureId(unsigned int id) { _iridescenceThicknessTextureId = id; }
@@ -579,6 +584,7 @@ public:
 	void setAttenuationColor(const QVector3D& color) { _attenuationColor = color; }
 	QVector3D attenuationColor() const { return _attenuationColor; }
 	void setThicknessMap(const QString& path) { _thicknessMap = path; }
+	void clearThicknessMap() { _thicknessMap.clear(); }
 	QString thicknessMap() const { return _thicknessMap; }
 	bool hasThicknessMap() const { return !_thicknessMap.isEmpty(); }
 	void setThicknessTextureId(unsigned int id) { _thicknessTextureId = id; }
@@ -594,12 +600,13 @@ public:
 	void setHasThicknessAlpha(bool hasAlpha) { _hasThicknessAlpha = hasAlpha; }
 	bool hasThicknessAlpha() const { return _hasThicknessAlpha; }
 
-	// -- KHR_matwerials_diffuse_transmission ---
+	// -- KHR_materials_diffuse_transmission ---
 	void setDiffuseTransmissionFactor(float transmission) { _diffuseTransmissionFactor = transmission; }
 	float diffuseTransmissionFactor() const { return _diffuseTransmissionFactor; }
 	void setDiffuseTransmissionColorFactor(const QVector3D& color) { _diffuseTransmissionColorFactor = color; }
 	QVector3D diffuseTransmissionColorFactor() const { return _diffuseTransmissionColorFactor; }
 	void setDiffuseTransmissionMap(const QString& path) { _diffuseTransmissionMap = path; }
+	void clearDiffuseTransmissionMap() { _diffuseTransmissionMap.clear(); }
 	QString diffuseTransmissionMap() const { return _diffuseTransmissionMap; }
 	bool hasDiffuseTransmissionMap() const { return !_diffuseTransmissionMap.isEmpty(); }
 	void setDiffuseTransmissionTextureId(unsigned int id) { _diffuseTransmissionTextureId = id; }
@@ -612,7 +619,9 @@ public:
 	void setDiffuseTransmissionTexOffset(const QVector2D& offset) { _diffuseTransmissionTexTransform.texOffset = offset; }
 	float diffuseTransmissionTexRotation() const { return _diffuseTransmissionTexTransform.texRotation; }
 	void setDiffuseTransmissionTexRotation(float rotation) { _diffuseTransmissionTexTransform.texRotation = rotation; }
+	
 	void setDiffuseTransmissionColorMap(const QString& path) { _diffuseTransmissionColorMap = path; }
+	void clearDiffuseTransmissionColorMap() { _diffuseTransmissionColorMap.clear(); }
 	QString diffuseTransmissionColorMap() const { return _diffuseTransmissionColorMap; }
 	bool hasDiffuseTransmissionColorMap() const { return !_diffuseTransmissionColorMap.isEmpty(); }
 	void setDiffuseTransmissionColorTextureId(unsigned int id) { _diffuseTransmissionColorTextureId = id; }

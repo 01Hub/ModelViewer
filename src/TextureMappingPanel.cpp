@@ -28,15 +28,15 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
 {
     _ui->setupUi(this);
     _preview = qobject_cast<MaterialPreviewWidget*>(_ui->previewWidget);
-	_preview->setPreviewProfile(PreviewProfile::TextureAuthoring);
+    _preview->setPreviewProfile(PreviewProfile::TextureAuthoring);
 
     _checkerIcon = makeCheckerIcon();
     registerMaps();
     connectSignals();
-        
-    const MaterialsMap& mats = MaterialTextureLibrary::instance().materials();    
+
+    const MaterialsMap& mats = MaterialTextureLibrary::instance().materials();
     MaterialScanner::populateWithMaterials(_ui->treeWidgetPresetTextures, mats);
-        
+
     QTimer::singleShot(0, this, [this] {
         // Find first material item (not category)
         for (int i = 0; i < _ui->treeWidgetPresetTextures->topLevelItemCount(); ++i)
@@ -73,7 +73,7 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
     _ui->spinOU->setSingleStep(0.1);
     _ui->spinOV->setSingleStep(0.1);
 
-	// Initialize the material to default values and bind it    
+    // Initialize the material to default values and bind it    
     bindMaterial(new GLMaterial());
 }
 
@@ -85,7 +85,7 @@ TextureMappingPanel::~TextureMappingPanel()
 // ---------------- public ----------------
 void TextureMappingPanel::bindMaterial(GLMaterial* material)
 {
-    _material = material;    
+    _material = material;
 
     // reflect current textures -> button icons
     for (auto it = _maps.begin(); it != _maps.end(); ++it)
@@ -95,12 +95,12 @@ void TextureMappingPanel::bindMaterial(GLMaterial* material)
         else                applyButtonImageIcon(it.value(), path);
     }
 
-	_ui->spinTU->setValue(_material->uvTilingU());
-	_ui->spinTV->setValue(_material->uvTilingV());
-	_ui->spinOU->setValue(_material->uvOffsetU());
-	_ui->spinOV->setValue(_material->uvOffsetV());
-        
-	_preview->setMaterial(*_material);
+    _ui->spinTU->setValue(_material->uvTilingU());
+    _ui->spinTV->setValue(_material->uvTilingV());
+    _ui->spinOU->setValue(_material->uvOffsetU());
+    _ui->spinOV->setValue(_material->uvOffsetV());
+
+    _preview->setMaterial(*_material);
     updatePreview();
 }
 
@@ -133,7 +133,7 @@ void TextureMappingPanel::registerMaps()
     _maps.insert("roughness", { _ui->btnRoughness,   _ui->lblRoughness,   _ui->gearRoughness,"roughness" });
     _maps.insert("ao", { _ui->btnAO,          _ui->lblAO,          _ui->gearAO,       "ao" });
     _maps.insert("opacity", { _ui->btnOpacity,     _ui->lblOpacity,     _ui->gearOpacity,  "opacity" });
-	_maps.insert("height", { _ui->btnHeight,      _ui->lblHeight,      nullptr,           "height" });
+    _maps.insert("height", { _ui->btnHeight,      _ui->lblHeight,      nullptr,           "height" });
     _maps.insert("transmission", { _ui->btnTransmission,_ui->lblTransmission,nullptr,           "transmission" });
     _maps.insert("ior", { _ui->btnIOR,         _ui->lblIOR,         nullptr,           "ior" });
 
@@ -145,6 +145,24 @@ void TextureMappingPanel::registerMaps()
     _maps.insert("cc_color", { _ui->btnCCColor,     _ui->lblCCColor,     nullptr,           "cc_color" });
     _maps.insert("cc_rough", { _ui->btnCCRough,     _ui->lblCCRough,     nullptr,           "cc_rough" });
     _maps.insert("cc_normal", { _ui->btnCCNormal,    _ui->lblCCNormal,    nullptr,           "cc_normal" });
+
+    // Iridescence
+    _maps.insert("iridescence", { _ui->btnIridColor,    _ui->lblIridColor,    nullptr,           "iridescence" });
+    _maps.insert("iridescence_thickness", { _ui->btnIridRough,    _ui->lblIridRough,    nullptr,           "iridescence_thickness" });
+
+    // Specular
+    _maps.insert("specular_factor", { _ui->btnSpecFactorColor,    _ui->lblSpecFactorColor,    nullptr,           "specular_factor" });
+    _maps.insert("specular_color", { _ui->btnSpecColorColor,     _ui->lblSpecColorColor,     nullptr,           "specular_color" });
+
+    // Anisotropy
+    _maps.insert("anisotropy", { _ui->btnAnisotropyColor,    _ui->lblAnisotropyColor,    nullptr,           "anisotropy" });
+
+    // Diffuse Transmission
+    _maps.insert("diffuse_transmission", { _ui->btnDiffuseTrans,      _ui->lblDiffuseTrans,      nullptr,           "diffuse_transmission" });
+    _maps.insert("diffuse_transmission_color", { _ui->btnDiffuseTransColor, _ui->lblDiffuseTransColor, nullptr,           "diffuse_transmission_color" });
+
+    // Volume
+    _maps.insert("thickness", { _ui->btnThicknessColor,   _ui->lblThicknessColor,   nullptr,           "thickness" });
 }
 
 void TextureMappingPanel::connectSignals()
@@ -160,15 +178,15 @@ void TextureMappingPanel::connectSignals()
                 if (it.value().button == btn) { k = it.key(); break; }
             if (k.isEmpty()) return;
 
-			QString texFolder = _lastUsedFolder;
+            QString texFolder = _lastUsedFolder;
             if (texFolder.isEmpty())
             {
                 const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
                 texFolder = path + "textures/materials/";
             }
-            
+
             const QString file = QFileDialog::getOpenFileName(
-                this, tr("Select %1 Map").arg(k.at(0).toUpper() + k.mid(1)), 
+                this, tr("Select %1 Map").arg(k.at(0).toUpper() + k.mid(1)),
                 texFolder,
                 tr("Images (*.png *.jpg *.jpeg *.tga *.bmp *.hdr *.exr)"));
             if (file.isEmpty()) return;
@@ -261,7 +279,7 @@ void TextureMappingPanel::connectSignals()
 
             applyMaterialPreset(materialName);
         });
-   
+
     connect(_ui->lineEditSearchPreset, &QLineEdit::textChanged,
         this, [this](const QString& text) {
             bool searchEmpty = text.trimmed().isEmpty();
@@ -301,7 +319,7 @@ void TextureMappingPanel::connectSignals()
                 }
             }
         });
-        
+
     connect(_ui->pushButtonClearAllMaps, &QPushButton::clicked, this, &TextureMappingPanel::clearAllMaps);
 }
 
@@ -364,7 +382,7 @@ void TextureMappingPanel::setMapPath(const QString& key, const QString& file)
         _material->setOpacityMap(file);
         _material->setBlendMode(GLMaterial::BlendMode::Alpha);
     }
-	else if (key == "height")    _material->setHeightMap(file);
+    else if (key == "height")    _material->setHeightMap(file);
     else if (key == "transmission") _material->setTransmissionMap(file);
     else if (key == "ior")          _material->setIORMap(file);
     else if (key == "sheen_color")  _material->setSheenColorMap(file);
@@ -372,6 +390,14 @@ void TextureMappingPanel::setMapPath(const QString& key, const QString& file)
     else if (key == "cc_color")     _material->setClearcoatColorMap(file);
     else if (key == "cc_rough")     _material->setClearcoatRoughnessMap(file);
     else if (key == "cc_normal")    _material->setClearcoatNormalMap(file);
+    else if (key == "iridescence")           _material->setIridescenceMap(file);
+    else if (key == "iridescence_thickness") _material->setIridescenceThicknessMap(file);
+    else if (key == "specular_factor")       _material->setSpecularFactorMap(file);
+    else if (key == "specular_color")        _material->setSpecularColorMap(file);
+    else if (key == "anisotropy")            _material->setAnisotropyMap(file);
+    else if (key == "diffuse_transmission")  _material->setDiffuseTransmissionMap(file);
+    else if (key == "diffuse_transmission_color") _material->setDiffuseTransmissionColorMap(file);
+    else if (key == "thickness")             _material->setThicknessMap(file);
 }
 
 void TextureMappingPanel::clearMap(const QString& key)
@@ -384,12 +410,12 @@ void TextureMappingPanel::clearMap(const QString& key)
     else if (key == "metallic")  _material->clearMetallicMap();
     else if (key == "roughness") _material->clearRoughnessMap();
     else if (key == "ao")        _material->clearAOMap();
-    else if (key == "opacity") 
-    { 
-        _material->clearOpacityMap(); 
+    else if (key == "opacity")
+    {
+        _material->clearOpacityMap();
         _material->setBlendMode(GLMaterial::BlendMode::Opaque);
     }
-	else if (key == "height")    _material->clearHeightMap();
+    else if (key == "height")    _material->clearHeightMap();
     else if (key == "transmission") _material->clearTransmissionMap();
     else if (key == "ior")          _material->clearIORMap();
     else if (key == "sheen_color")  _material->clearSheenColorMap();
@@ -397,6 +423,14 @@ void TextureMappingPanel::clearMap(const QString& key)
     else if (key == "cc_color")     _material->clearClearcoatColorMap();
     else if (key == "cc_rough")     _material->clearClearcoatRoughnessMap();
     else if (key == "cc_normal")    _material->clearClearcoatNormalMap();
+    else if (key == "iridescence")           _material->clearIridescenceMap();
+    else if (key == "iridescence_thickness") _material->clearIridescenceThicknessMap();
+    else if (key == "specular_factor")       _material->clearSpecularFactorMap();
+    else if (key == "specular_color")        _material->clearSpecularColorMap();
+    else if (key == "anisotropy")            _material->clearAnisotropyMap();
+    else if (key == "diffuse_transmission")  _material->clearDiffuseTransmissionMap();
+    else if (key == "diffuse_transmission_color") _material->clearDiffuseTransmissionColorMap();
+    else if (key == "thickness")             _material->clearThicknessMap();
 }
 
 void TextureMappingPanel::clearAllMaps()
@@ -416,7 +450,7 @@ void TextureMappingPanel::clearAllMaps()
         if (slot.button)
         {
             applyButtonEmptyIcon(const_cast<MapSlot&>(slot));
-        }       
+        }
     }
 
     // After clearing, refresh preview and emit changed so UI/host can react
@@ -435,7 +469,7 @@ QString TextureMappingPanel::mapPath(const QString& key) const
     if (key == "roughness")      return _material->roughnessMapPath();
     if (key == "ao")             return _material->aoMapPath();
     if (key == "opacity")        return _material->opacityMapPath();
-	if (key == "height")         return _material->heightMapPath();
+    if (key == "height")         return _material->heightMapPath();
     if (key == "transmission")   return _material->transmissionMapPath();
     if (key == "ior")            return _material->iorMapPath();
     if (key == "sheen_color")    return _material->sheenColorMapPath();
@@ -443,6 +477,14 @@ QString TextureMappingPanel::mapPath(const QString& key) const
     if (key == "cc_color")       return _material->clearcoatColorMapPath();
     if (key == "cc_rough")       return _material->clearcoatRoughnessMapPath();
     if (key == "cc_normal")      return _material->clearcoatNormalMapPath();
+    if (key == "iridescence")           return _material->iridescenceMap();
+    if (key == "iridescence_thickness") return _material->iridescenceThicknessMap();
+    if (key == "specular_factor")       return _material->specularFactorMap();
+    if (key == "specular_color")        return _material->specularColorMap();
+    if (key == "anisotropy")            return _material->anisotropyMap();
+    if (key == "diffuse_transmission")  return _material->diffuseTransmissionMap();
+    if (key == "diffuse_transmission_color") return _material->diffuseTransmissionColorMap();
+    if (key == "thickness")             return _material->thicknessMap();
     return {};
 }
 
@@ -511,7 +553,7 @@ void TextureMappingPanel::applyMaterialPreset(const QString& presetName)
 
     const TextureMap texs = mats.value(presetName);
 
-	// Get the path of the first tex (for initial folder)    
+    // Get the path of the first tex (for initial folder)    
     for (auto it = texs.constBegin(); it != texs.constEnd(); ++it)
     {
         const QString& path = it.value();
@@ -520,7 +562,7 @@ void TextureMappingPanel::applyMaterialPreset(const QString& presetName)
             _lastUsedFolder = QFileInfo(path).absolutePath();
             break;
         }
-    }    
+    }
 
     // --- 1) If packed AORM meta is present, apply it to AO/Roughness/Metallic only ---
     bool appliedPackedAORM = false;
@@ -662,4 +704,3 @@ bool TextureMappingPanel::eventFilter(QObject* obj, QEvent* ev)
 
     return QWidget::eventFilter(obj, ev);
 }
-
