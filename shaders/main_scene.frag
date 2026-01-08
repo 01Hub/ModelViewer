@@ -87,12 +87,14 @@ uniform sampler2D metallicMap;
 uniform sampler2D roughnessMap;
 uniform sampler2D heightMap;
 uniform sampler2D aoMap;
+uniform sampler2D emissiveMap;
 uniform sampler2D opacityMap;
 uniform bool hasAlbedoMap;
 uniform bool hasMetallicMap;
 uniform bool hasRoughnessMap;
 uniform bool hasNormalMap;
 uniform bool hasAOMap;
+uniform bool hasEmissiveMap;
 uniform bool hasHeightMap;
 uniform float heightScale = 0.08;
 uniform bool hasOpacityMap;
@@ -387,6 +389,9 @@ uniform int   tintMaskChannel = 0; // 0=R, 1=G, 2=B, 3=A
 const float PI = 3.14159265359;
 
 layout(location = 0) out vec4 fragColor;
+
+float	guardFactorScalar(float factor, float threshold);
+vec3	guardFactorColor(vec3 factor, float threshold);
 
 vec2	getTransformedUV(int texCoordIndex, TextureTransform transform);
 
@@ -1163,7 +1168,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			metallicScale, metallicBias,
 			isGLTFMaterial ? 1.0 : pbrLighting.metallic
 		);
-		metallic = mix(texMetallic, pbrLighting.metallic * texMetallic, blendFactor);
+		float metallicFactor = blendFactor > 0.5 ? pbrLighting.metallic : guardFactorScalar(pbrLighting.metallic, 0.01);
+		metallic = mix(texMetallic, metallicFactor * texMetallic, blendFactor);
 		metallic = clamp(metallic, 0.0, 1.0);
 
 		// Roughness
@@ -1224,7 +1230,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 		// Apply emissive
 		vec3 emissive_L = material.emission;
-		if (hasEmissiveTexture) emissive_L = texture(texture_emissive, getEmissiveUV()).rgb * material.emission;
+		if (hasEmissiveMap)
+		{
+			vec3 emission = material.emission;
+			vec3 emissionFactor = guardFactorColor(emission, 0.01);
+			emissive_L = texture(emissiveMap, getEmissiveUV()).rgb * emissionFactor;
+		}
 
 		// Apply emissive strength
 		emissive_L *= emissiveStrength;
@@ -1373,11 +1384,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	vec3 diffuseTrans_color = diffuseTransmissionColorFactor;
 	if (hasDiffuseTransmissionMap)
 	{
-		diffuseTrans_factor *= texture(diffuseTransmissionMap, getDiffuseTransmissionUV()).a;
+		float dtf = guardFactorScalar(diffuseTransmissionFactor, 0.01);
+		diffuseTrans_factor = dtf * texture(diffuseTransmissionMap, getDiffuseTransmissionUV()).a;
 	}
 	if (hasDiffuseTransmissionColorMap)
 	{
-		diffuseTrans_color *= texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;
+		vec3 dtc = guardFactorColor(diffuseTransmissionColorFactor, 0.01);
+		diffuseTrans_color = dtc * texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;
 	}
 
 	// ============================================================================
@@ -1647,14 +1660,25 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (hasSheenColorMap)
 	{
 		vec3 sc = texture(sheenColorMap, getSheenColorUV()).rgb;
-		sheenColor = sc * pbrLighting.sheenColor;
+		vec3 sheenFactor = guardFactorColor(pbrLighting.sheenColor, 0.01);
+		sheenColor = sc * sheenFactor;
 	}
 	else
 	{
 		sheenColor = pbrLighting.sheenColor;
 	}
 	sheenColor = clamp(sheenColor, vec3(0.0), vec3(1.0));
-	sheenRoughness = hasSheenRoughnessMap ? texture(sheenRoughnessMap, getSheenRoughnessUV()).r * pbrLighting.sheenRoughness : pbrLighting.sheenRoughness;
+	
+	if (hasSheenRoughnessMap)
+	{
+		float sr = texture(sheenRoughnessMap, getSheenRoughnessUV()).r;
+		float sheenRoughFactor = guardFactorScalar(pbrLighting.sheenRoughness, 0.01);
+		sheenRoughness = sr * sheenRoughFactor;
+	}
+	else
+	{
+		sheenRoughness = pbrLighting.sheenRoughness;
+	}
 	sheenRoughness = clamp(sheenRoughness, 0.0001, 1.0);
 
 	if (length(sheenColor) > 0.0)
@@ -1669,10 +1693,30 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// ============================================================================
 	// CLEARCOAT
 	// ============================================================================
-	clearcoat = hasClearcoatMap ? texture(clearcoatColorMap, getClearcoatUV()).r * pbrLighting.clearcoat : pbrLighting.clearcoat;
+	if (hasClearcoatMap)
+	{
+		float cc = texture(clearcoatColorMap, getClearcoatUV()).r;
+		float clearcoatFactor = guardFactorScalar(pbrLighting.clearcoat, 0.01);
+		clearcoat = cc * clearcoatFactor;
+	}
+	else
+	{
+		clearcoat = pbrLighting.clearcoat;
+	}
 	clearcoat = clamp(clearcoat, 0.0, 1.0);
-	clearcoatRoughness = hasClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).g * pbrLighting.clearcoatRoughness : pbrLighting.clearcoatRoughness;
+
+	if (hasClearcoatRoughnessMap)
+	{
+		float ccr = texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).g;
+		float ccRoughFactor = guardFactorScalar(pbrLighting.clearcoatRoughness, 0.01);
+		clearcoatRoughness = ccr * ccRoughFactor;
+	}
+	else
+	{
+		clearcoatRoughness = pbrLighting.clearcoatRoughness;
+	}
 	clearcoatRoughness = clamp(clearcoatRoughness, 0.0001, 1.0);
+
 	clearcoatNormal = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side : N;
 
 	if (clearcoat > 0.0)
@@ -1781,7 +1825,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// EMISSION
 	// ============================================================================
 	emissive_L = material.emission;
-	if (hasEmissiveTexture) emissive_L = texture(texture_emissive, getEmissiveUV()).rgb * material.emission;
+	if (hasEmissiveMap) 
+	{
+		vec3 emission = material.emission;
+		vec3 emissionFactor = guardFactorColor(emission, 0.01);
+		emissive_L = texture(emissiveMap, getEmissiveUV()).rgb * emissionFactor;
+	}
 
 	// Apply emissive strength
 	emissive_L *= emissiveStrength;
@@ -1846,7 +1895,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		{
 			vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
 			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.g;
-			thickness *= thicknessSample;
+			float thicknessFactor_safe = guardFactorScalar(thicknessFactor, 0.01);
+			thickness = thicknessFactor_safe * thicknessSample;
 		}
 
 		// --- DISPERSION PARAMETER ---                
@@ -1946,6 +1996,23 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	return vec4(outRGB, 1.0);
 }
 
+// ============================================================================
+// GUARD HELPERS: Prevent texture nullification by zero factors
+// ============================================================================
+
+// Guard a scalar factor (e.g., roughness, metallic, sheen roughness)
+// Returns the factor if non-zero, otherwise returns 1.0 (neutral)
+float guardFactorScalar(float factor, float threshold)
+{
+    return factor < threshold ? 1.0 : factor;
+}
+
+// Guard a color/vector factor (e.g., sheenColor, specularColor)
+// Returns the factor if non-black, otherwise returns white (neutral)
+vec3 guardFactorColor(vec3 factor, float threshold)
+{
+    return length(factor) < threshold ? vec3(1.0) : factor;
+}
 
 // ========== CORE TEXTURE TRANSFORM FUNCTION ==========
 vec2 getTransformedUV(int texCoordIndex, TextureTransform transform)
