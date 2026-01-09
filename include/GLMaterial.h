@@ -18,6 +18,36 @@ public:
 
 	friend std::ostream& operator<<(std::ostream& os, const GLMaterial& m);
 
+	// ============================================================================
+	// Texture Type Enumeration (20 texture types)
+	// ============================================================================
+	enum class TextureType
+	{
+		Metallic,                    // 0
+		Roughness,                   // 1
+		Normal,                      // 2
+		Emissive,                    // 3
+		Height,                      // 4
+		Transmission,                // 5
+		IOR,                         // 6
+		SheenColor,                  // 7
+		SheenRoughness,              // 8
+		ClearcoatColor,              // 9
+		ClearcoatRoughness,          // 10
+		ClearcoatNormal,             // 11
+		Iridescence,                 // 12
+		IridescenceThickness,        // 13
+		SpecularFactor,              // 14
+		SpecularColor,               // 15
+		Anisotropy,                  // 16
+		DiffuseTransmission,         // 17
+		DiffuseTransmissionColor,    // 18
+		Thickness,                   // 19
+
+		// Sentinel - used for array sizing
+		Count
+	};
+
 	struct Texture
 	{
 		unsigned int id;
@@ -47,6 +77,8 @@ public:
 			os << " scale: (" << texture.scale.x << ", " << texture.scale.y << ")";
 			os << " offset: (" << texture.offset.x << ", " << texture.offset.y << ")";
 			os << " rotation: " << texture.rotation;
+			os << " wrapS: " << texture.wrapS << " wrapT: " << texture.wrapT;
+			os << " magFilter: " << texture.magFilter << " minFilter: " << texture.minFilter;
 			return os;
 		}
 	};
@@ -108,6 +140,36 @@ public:
 	GLMaterial();
 	GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic = true, float opacity = 1.0f);
 	GLMaterial(QVector3D albedo, float metalness, float roughness, float opacity = 1.0f);
+	~GLMaterial();
+
+	// ============================================================================
+	// Unified Texture API (TextureType-based)
+	// ============================================================================
+
+	/// Set complete texture data for a texture type
+	/// @param type The texture type (from TextureType enum)
+	/// @param texture The Texture instance containing all metadata, samplers, and transforms
+	void setTexture(TextureType type, const Texture& texture);
+
+	/// Get const reference to texture data
+	/// @param type The texture type
+	/// @return Const reference to the Texture instance
+	const Texture& texture(TextureType type) const;
+
+	/// Get non-const reference to texture data (for modification)
+	/// @param type The texture type
+	/// @return Non-const reference to the Texture instance
+	Texture& texture(TextureType type);
+
+	/// Helper: Convert TextureType enum to friendly string name
+	/// @param type The texture type
+	/// @return Friendly name (e.g., "Metallic", "Roughness", etc.)
+	static QString textureTypeToString(TextureType type);
+
+	/// Helper: Convert friendly string name to TextureType enum
+	/// @param name The friendly name
+	/// @return TextureType enum value, or TextureType::Count if not found
+	static TextureType stringToTextureType(const QString& name);
 
 	// Legacy Phong/Blinn properties
 	QVector3D ambient() const { return _ambient; }
@@ -1055,6 +1117,11 @@ private:
 
 
 private:
+	// ============================================================================
+	// Unified Texture Array (20 textures)
+	// ============================================================================
+	std::array<Texture, static_cast<size_t>(TextureType::Count)> _textures;
+
 	// Legacy Phong/Blinn properties
 	QVector3D _ambient;
 	QVector3D _diffuse;

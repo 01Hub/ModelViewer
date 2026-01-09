@@ -110,6 +110,94 @@ GLMaterial::GLMaterial(QVector3D albedo, float metalness, float roughness, float
 	updateConsistency();
 }
 
+GLMaterial::~GLMaterial()
+{
+}
+
+// ============================================================================
+// Unified Texture Setters/Getters
+// ============================================================================
+
+void GLMaterial::setTexture(TextureType type, const Texture& texture)
+{
+	Q_ASSERT(static_cast<size_t>(type) < static_cast<size_t>(TextureType::Count));
+	_textures[static_cast<size_t>(type)] = texture;
+}
+
+const GLMaterial::Texture& GLMaterial::texture(TextureType type) const
+{
+	Q_ASSERT(static_cast<size_t>(type) < static_cast<size_t>(TextureType::Count));
+	return _textures[static_cast<size_t>(type)];
+}
+
+GLMaterial::Texture& GLMaterial::texture(TextureType type)
+{
+	Q_ASSERT(static_cast<size_t>(type) < static_cast<size_t>(TextureType::Count));
+	return _textures[static_cast<size_t>(type)];
+}
+
+// ============================================================================
+// TextureType to String Helper
+// ============================================================================
+
+QString GLMaterial::textureTypeToString(TextureType type)
+{
+	switch (type)
+	{
+	case TextureType::Metallic:                  return "Metallic";
+	case TextureType::Roughness:                 return "Roughness";
+	case TextureType::Normal:                    return "Normal";
+	case TextureType::Emissive:                  return "Emissive";
+	case TextureType::Height:                    return "Height";
+	case TextureType::Transmission:              return "Transmission";
+	case TextureType::IOR:                       return "IOR";
+	case TextureType::SheenColor:                return "SheenColor";
+	case TextureType::SheenRoughness:            return "SheenRoughness";
+	case TextureType::ClearcoatColor:            return "ClearcoatColor";
+	case TextureType::ClearcoatRoughness:        return "ClearcoatRoughness";
+	case TextureType::ClearcoatNormal:           return "ClearcoatNormal";
+	case TextureType::Iridescence:               return "Iridescence";
+	case TextureType::IridescenceThickness:      return "IridescenceThickness";
+	case TextureType::SpecularFactor:            return "SpecularFactor";
+	case TextureType::SpecularColor:             return "SpecularColor";
+	case TextureType::Anisotropy:                return "Anisotropy";
+	case TextureType::DiffuseTransmission:       return "DiffuseTransmission";
+	case TextureType::DiffuseTransmissionColor:  return "DiffuseTransmissionColor";
+	case TextureType::Thickness:                 return "Thickness";
+	case TextureType::Count:
+	default:                                     return "Unknown";
+	}
+}
+
+// ============================================================================
+// String to TextureType Helper
+// ============================================================================
+
+GLMaterial::TextureType GLMaterial::stringToTextureType(const QString& name)
+{
+	if (name == "Metallic")                  return TextureType::Metallic;
+	if (name == "Roughness")                 return TextureType::Roughness;
+	if (name == "Normal")                    return TextureType::Normal;
+	if (name == "Emissive")                  return TextureType::Emissive;
+	if (name == "Height")                    return TextureType::Height;
+	if (name == "Transmission")              return TextureType::Transmission;
+	if (name == "IOR")                       return TextureType::IOR;
+	if (name == "SheenColor")                return TextureType::SheenColor;
+	if (name == "SheenRoughness")            return TextureType::SheenRoughness;
+	if (name == "ClearcoatColor")            return TextureType::ClearcoatColor;
+	if (name == "ClearcoatRoughness")        return TextureType::ClearcoatRoughness;
+	if (name == "ClearcoatNormal")           return TextureType::ClearcoatNormal;
+	if (name == "Iridescence")               return TextureType::Iridescence;
+	if (name == "IridescenceThickness")      return TextureType::IridescenceThickness;
+	if (name == "SpecularFactor")            return TextureType::SpecularFactor;
+	if (name == "SpecularColor")             return TextureType::SpecularColor;
+	if (name == "Anisotropy")                return TextureType::Anisotropy;
+	if (name == "DiffuseTransmission")       return TextureType::DiffuseTransmission;
+	if (name == "DiffuseTransmissionColor")  return TextureType::DiffuseTransmissionColor;
+	if (name == "Thickness")                 return TextureType::Thickness;
+
+	return TextureType::Count;  // Invalid/unknown type
+}
 
 
 void GLMaterial::setAmbient(const QVector3D& ambient)
