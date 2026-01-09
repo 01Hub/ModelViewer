@@ -23,29 +23,34 @@ public:
 	// ============================================================================
 	enum class TextureType
 	{
-		Metallic,                    // 0
-		Roughness,                   // 1
-		Normal,                      // 2
-		Emissive,                    // 3
-		Height,                      // 4
-		Transmission,                // 5
-		IOR,                         // 6
-		SheenColor,                  // 7
-		SheenRoughness,              // 8
-		ClearcoatColor,              // 9
-		ClearcoatRoughness,          // 10
-		ClearcoatNormal,             // 11
-		Iridescence,                 // 12
-		IridescenceThickness,        // 13
-		SpecularFactor,              // 14
-		SpecularColor,               // 15
-		Anisotropy,                  // 16
-		DiffuseTransmission,         // 17
-		DiffuseTransmissionColor,    // 18
-		Thickness,                   // 19
+		Albedo,                         // 0  - Base color / diffuse
+		Metallic,                       // 1
+		Roughness,                      // 2
+		Normal,                         // 3
+		AmbientOcclusion,               // 4  - AO
+		Opacity,                        // 5
+		Emissive,                       // 6
+		Height,                         // 7
+		Transmission,                   // 8
+		IOR,                            // 9
+		SheenColor,                     // 10
+		SheenRoughness,                 // 11
+		ClearcoatColor,                 // 12
+		ClearcoatRoughness,             // 13
+		ClearcoatNormal,                // 14
+		Iridescence,                    // 15
+		IridescenceThickness,           // 16
+		SpecularFactor,                 // 17
+		SpecularColor,                  // 18
+		Anisotropy,                     // 19
+		DiffuseTransmission,            // 20
+		DiffuseTransmissionColor,       // 21
+		Thickness,                      // 22
+		Diffuse,                        // 23 - PBR Specular Glossiness
+		SpecularGlossiness,             // 24 - PBR Specular Glossiness
 
-		// Sentinel - used for array sizing
-		Count
+		// Sentinel
+		Count                           // 25 total types
 	};
 
 	struct Texture
@@ -1114,7 +1119,7 @@ private:
 	void ensureADSConsistency(); // Ensure ambient, diffuse, specular are consistent with albedo
 	void convertPBRtoADS();
 	void assignAutoPackingForPath(const QString& path);
-
+	void syncTextureParameters();
 
 private:
 	// ============================================================================

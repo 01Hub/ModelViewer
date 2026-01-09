@@ -122,6 +122,7 @@ void GLMaterial::setTexture(TextureType type, const Texture& texture)
 {
 	Q_ASSERT(static_cast<size_t>(type) < static_cast<size_t>(TextureType::Count));
 	_textures[static_cast<size_t>(type)] = texture;
+	syncTextureParameters();
 }
 
 const GLMaterial::Texture& GLMaterial::texture(TextureType type) const
@@ -139,64 +140,72 @@ GLMaterial::Texture& GLMaterial::texture(TextureType type)
 // ============================================================================
 // TextureType to String Helper
 // ============================================================================
-
 QString GLMaterial::textureTypeToString(TextureType type)
 {
 	switch (type)
 	{
-	case TextureType::Metallic:                  return "Metallic";
-	case TextureType::Roughness:                 return "Roughness";
-	case TextureType::Normal:                    return "Normal";
-	case TextureType::Emissive:                  return "Emissive";
-	case TextureType::Height:                    return "Height";
-	case TextureType::Transmission:              return "Transmission";
-	case TextureType::IOR:                       return "IOR";
-	case TextureType::SheenColor:                return "SheenColor";
-	case TextureType::SheenRoughness:            return "SheenRoughness";
-	case TextureType::ClearcoatColor:            return "ClearcoatColor";
-	case TextureType::ClearcoatRoughness:        return "ClearcoatRoughness";
-	case TextureType::ClearcoatNormal:           return "ClearcoatNormal";
-	case TextureType::Iridescence:               return "Iridescence";
-	case TextureType::IridescenceThickness:      return "IridescenceThickness";
-	case TextureType::SpecularFactor:            return "SpecularFactor";
-	case TextureType::SpecularColor:             return "SpecularColor";
-	case TextureType::Anisotropy:                return "Anisotropy";
-	case TextureType::DiffuseTransmission:       return "DiffuseTransmission";
-	case TextureType::DiffuseTransmissionColor:  return "DiffuseTransmissionColor";
-	case TextureType::Thickness:                 return "Thickness";
+	case TextureType::Albedo:                   return "Albedo";
+	case TextureType::Metallic:                 return "Metallic";
+	case TextureType::Roughness:                return "Roughness";
+	case TextureType::Normal:                   return "Normal";
+	case TextureType::AmbientOcclusion:         return "AmbientOcclusion";
+	case TextureType::Opacity:                  return "Opacity";
+	case TextureType::Emissive:                 return "Emissive";
+	case TextureType::Height:                   return "Height";
+	case TextureType::Transmission:             return "Transmission";
+	case TextureType::IOR:                      return "IOR";
+	case TextureType::SheenColor:               return "SheenColor";
+	case TextureType::SheenRoughness:           return "SheenRoughness";
+	case TextureType::ClearcoatColor:           return "ClearcoatColor";
+	case TextureType::ClearcoatRoughness:       return "ClearcoatRoughness";
+	case TextureType::ClearcoatNormal:          return "ClearcoatNormal";
+	case TextureType::Iridescence:              return "Iridescence";
+	case TextureType::IridescenceThickness:     return "IridescenceThickness";
+	case TextureType::SpecularFactor:           return "SpecularFactor";
+	case TextureType::SpecularColor:            return "SpecularColor";
+	case TextureType::Anisotropy:               return "Anisotropy";
+	case TextureType::DiffuseTransmission:      return "DiffuseTransmission";
+	case TextureType::DiffuseTransmissionColor: return "DiffuseTransmissionColor";
+	case TextureType::Thickness:                return "Thickness";
+	case TextureType::Diffuse:                  return "Diffuse";
+	case TextureType::SpecularGlossiness:       return "SpecularGlossiness";
 	case TextureType::Count:
-	default:                                     return "Unknown";
+	default:                                    return "Unknown";
 	}
 }
 
 // ============================================================================
 // String to TextureType Helper
 // ============================================================================
-
 GLMaterial::TextureType GLMaterial::stringToTextureType(const QString& name)
 {
-	if (name == "Metallic")                  return TextureType::Metallic;
-	if (name == "Roughness")                 return TextureType::Roughness;
-	if (name == "Normal")                    return TextureType::Normal;
-	if (name == "Emissive")                  return TextureType::Emissive;
-	if (name == "Height")                    return TextureType::Height;
-	if (name == "Transmission")              return TextureType::Transmission;
-	if (name == "IOR")                       return TextureType::IOR;
-	if (name == "SheenColor")                return TextureType::SheenColor;
-	if (name == "SheenRoughness")            return TextureType::SheenRoughness;
-	if (name == "ClearcoatColor")            return TextureType::ClearcoatColor;
-	if (name == "ClearcoatRoughness")        return TextureType::ClearcoatRoughness;
-	if (name == "ClearcoatNormal")           return TextureType::ClearcoatNormal;
-	if (name == "Iridescence")               return TextureType::Iridescence;
-	if (name == "IridescenceThickness")      return TextureType::IridescenceThickness;
-	if (name == "SpecularFactor")            return TextureType::SpecularFactor;
-	if (name == "SpecularColor")             return TextureType::SpecularColor;
-	if (name == "Anisotropy")                return TextureType::Anisotropy;
-	if (name == "DiffuseTransmission")       return TextureType::DiffuseTransmission;
-	if (name == "DiffuseTransmissionColor")  return TextureType::DiffuseTransmissionColor;
-	if (name == "Thickness")                 return TextureType::Thickness;
+	if (name == "Albedo")                   return TextureType::Albedo;
+	if (name == "Metallic")                 return TextureType::Metallic;
+	if (name == "Roughness")                return TextureType::Roughness;
+	if (name == "Normal")                   return TextureType::Normal;
+	if (name == "AmbientOcclusion")         return TextureType::AmbientOcclusion;
+	if (name == "Opacity")                  return TextureType::Opacity;
+	if (name == "Emissive")                 return TextureType::Emissive;
+	if (name == "Height")                   return TextureType::Height;
+	if (name == "Transmission")             return TextureType::Transmission;
+	if (name == "IOR")                      return TextureType::IOR;
+	if (name == "SheenColor")               return TextureType::SheenColor;
+	if (name == "SheenRoughness")           return TextureType::SheenRoughness;
+	if (name == "ClearcoatColor")           return TextureType::ClearcoatColor;
+	if (name == "ClearcoatRoughness")       return TextureType::ClearcoatRoughness;
+	if (name == "ClearcoatNormal")          return TextureType::ClearcoatNormal;
+	if (name == "Iridescence")              return TextureType::Iridescence;
+	if (name == "IridescenceThickness")     return TextureType::IridescenceThickness;
+	if (name == "SpecularFactor")           return TextureType::SpecularFactor;
+	if (name == "SpecularColor")            return TextureType::SpecularColor;
+	if (name == "Anisotropy")               return TextureType::Anisotropy;
+	if (name == "DiffuseTransmission")      return TextureType::DiffuseTransmission;
+	if (name == "DiffuseTransmissionColor") return TextureType::DiffuseTransmissionColor;
+	if (name == "Thickness")                return TextureType::Thickness;
+	if (name == "Diffuse")                  return TextureType::Diffuse;
+	if (name == "SpecularGlossiness")       return TextureType::SpecularGlossiness;
 
-	return TextureType::Count;  // Invalid/unknown type
+	return TextureType::Count;
 }
 
 
@@ -3363,6 +3372,289 @@ void GLMaterial::assignAutoPackingForPath(const QString& path)
 	single.pack->invert = false;
 	single.pack->scale = 1.0f;
 	single.pack->bias = 0.0f;
+}
+
+// ---------------------- END: Robust updateConsistency + helper ----------------------
+
+// Sync internal texture parameters to UI-exposed properties
+void GLMaterial::syncTextureParameters()
+{
+	// Albedo / Base Color Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Albedo)];
+		_albedoTextureId = static_cast<int>(tex.id);
+		_albedoMapPath = QString::fromStdString(tex.path);
+		_albedoTexCoord = tex.texCoordIndex;
+		_albedoTexTransform.texCoord = tex.texCoordIndex;
+		_albedoTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_albedoTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_albedoTexTransform.texRotation = tex.rotation;
+	}
+
+	// Metallic Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Metallic)];
+		_metallicTextureId = static_cast<int>(tex.id);
+		_metallicMapPath = QString::fromStdString(tex.path);
+		_metallicTexTransform.texCoord = tex.texCoordIndex;
+		_metallicTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_metallicTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_metallicTexTransform.texRotation = tex.rotation;
+	}
+
+	// Roughness Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Roughness)];
+		_roughnessTextureId = static_cast<int>(tex.id);
+		_roughnessMapPath = QString::fromStdString(tex.path);
+		_roughnessTexTransform.texCoord = tex.texCoordIndex;
+		_roughnessTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_roughnessTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_roughnessTexTransform.texRotation = tex.rotation;
+	}
+
+	// Normal Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Normal)];
+		_normalTextureId = static_cast<int>(tex.id);
+		_normalMapPath = QString::fromStdString(tex.path);
+		_normalTexCoord = tex.texCoordIndex;
+		_normalTexTransform.texCoord = tex.texCoordIndex;
+		_normalTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_normalTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_normalTexTransform.texRotation = tex.rotation;
+	}
+
+	// Ambient Occlusion (AO) Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::AmbientOcclusion)];
+		_occlusionTextureId = static_cast<int>(tex.id);
+		_aoMapPath = QString::fromStdString(tex.path);
+		_occlusionTexTransform.texCoord = tex.texCoordIndex;
+		_occlusionTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_occlusionTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_occlusionTexTransform.texRotation = tex.rotation;
+	}
+
+	// Opacity Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Opacity)];
+		_opacityTextureId = static_cast<int>(tex.id);
+		_opacityMapPath = QString::fromStdString(tex.path);
+		_opacityTexTransform.texCoord = tex.texCoordIndex;
+		_opacityTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_opacityTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_opacityTexTransform.texRotation = tex.rotation;
+	}
+
+	// Emissive Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Emissive)];
+		_emissiveTextureId = static_cast<int>(tex.id);
+		_emissiveMapPath = QString::fromStdString(tex.path);
+		_emissiveTexTransform.texCoord = tex.texCoordIndex;
+		_emissiveTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_emissiveTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_emissiveTexTransform.texRotation = tex.rotation;
+	}
+
+	// Height Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Height)];
+		_heightTextureId = static_cast<int>(tex.id);
+		_heightMapPath = QString::fromStdString(tex.path);
+		_heightTexTransform.texCoord = tex.texCoordIndex;
+		_heightTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_heightTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_heightTexTransform.texRotation = tex.rotation;
+	}
+
+	// Transmission Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Transmission)];
+		_transmissionTextureId = static_cast<int>(tex.id);
+		_transmissionMapPath = QString::fromStdString(tex.path);
+		_transmissionTexTransform.texCoord = tex.texCoordIndex;
+		_transmissionTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_transmissionTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_transmissionTexTransform.texRotation = tex.rotation;
+	}
+
+	// IOR Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::IOR)];
+		_iorTextureId = static_cast<int>(tex.id);
+		_iorMapPath = QString::fromStdString(tex.path);
+		_iorTexTransform.texCoord = tex.texCoordIndex;
+		_iorTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_iorTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_iorTexTransform.texRotation = tex.rotation;
+	}
+
+	// Sheen Color Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::SheenColor)];
+		_sheenColorTextureId = static_cast<int>(tex.id);
+		_sheenColorMapPath = QString::fromStdString(tex.path);
+		_sheenColorTexTransform.texCoord = tex.texCoordIndex;
+		_sheenColorTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_sheenColorTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_sheenColorTexTransform.texRotation = tex.rotation;
+	}
+
+	// Sheen Roughness Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::SheenRoughness)];
+		_sheenRoughnessTextureId = static_cast<int>(tex.id);
+		_sheenRoughnessMapPath = QString::fromStdString(tex.path);
+		_sheenRoughnessTexTransform.texCoord = tex.texCoordIndex;
+		_sheenRoughnessTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_sheenRoughnessTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_sheenRoughnessTexTransform.texRotation = tex.rotation;
+	}
+
+	// Clearcoat Color Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::ClearcoatColor)];
+		_clearcoatColorTextureId = static_cast<int>(tex.id);
+		_clearcoatColorMapPath = QString::fromStdString(tex.path);
+		_clearcoatColorTexTransform.texCoord = tex.texCoordIndex;
+		_clearcoatColorTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_clearcoatColorTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_clearcoatColorTexTransform.texRotation = tex.rotation;
+	}
+
+	// Clearcoat Roughness Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::ClearcoatRoughness)];
+		_clearcoatRoughnessTextureId = static_cast<int>(tex.id);
+		_clearcoatRoughnessMapPath = QString::fromStdString(tex.path);
+		_clearcoatRoughnessTexTransform.texCoord = tex.texCoordIndex;
+		_clearcoatRoughnessTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_clearcoatRoughnessTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_clearcoatRoughnessTexTransform.texRotation = tex.rotation;
+	}
+
+	// Clearcoat Normal Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::ClearcoatNormal)];
+		_clearcoatNormalTextureId = static_cast<int>(tex.id);
+		_clearcoatNormalMapPath = QString::fromStdString(tex.path);
+		_clearcoatNormalTexTransform.texCoord = tex.texCoordIndex;
+		_clearcoatNormalTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_clearcoatNormalTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_clearcoatNormalTexTransform.texRotation = tex.rotation;
+	}
+
+	// Iridescence Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Iridescence)];
+		_iridescenceTextureId = static_cast<unsigned int>(tex.id);
+		_iridescenceMap = QString::fromStdString(tex.path);
+		_iridescenceTexTransform.texCoord = tex.texCoordIndex;
+		_iridescenceTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_iridescenceTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_iridescenceTexTransform.texRotation = tex.rotation;
+	}
+
+	// Iridescence Thickness Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::IridescenceThickness)];
+		_iridescenceThicknessTextureId = static_cast<unsigned int>(tex.id);
+		_iridescenceThicknessMap = QString::fromStdString(tex.path);
+		_iridescenceThicknessTexTransform.texCoord = tex.texCoordIndex;
+		_iridescenceThicknessTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_iridescenceThicknessTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_iridescenceThicknessTexTransform.texRotation = tex.rotation;
+	}
+
+	// Specular Factor Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::SpecularFactor)];
+		_specularFactorTextureId = static_cast<unsigned int>(tex.id);
+		_specularFactorMap = QString::fromStdString(tex.path);
+		_specularFactorTexTransform.texCoord = tex.texCoordIndex;
+		_specularFactorTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_specularFactorTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_specularFactorTexTransform.texRotation = tex.rotation;
+	}
+
+	// Specular Color Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::SpecularColor)];
+		_specularColorTextureId = static_cast<unsigned int>(tex.id);
+		_specularColorMap = QString::fromStdString(tex.path);
+		_specularColorTexTransform.texCoord = tex.texCoordIndex;
+		_specularColorTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_specularColorTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_specularColorTexTransform.texRotation = tex.rotation;
+	}
+
+	// Anisotropy Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Anisotropy)];
+		_anisotropyTextureId = static_cast<unsigned int>(tex.id);
+		_anisotropyMap = QString::fromStdString(tex.path);
+		_anisotropyTexTransform.texCoord = tex.texCoordIndex;
+		_anisotropyTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_anisotropyTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_anisotropyTexTransform.texRotation = tex.rotation;
+	}
+
+	// Diffuse Transmission Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::DiffuseTransmission)];
+		_diffuseTransmissionTextureId = static_cast<unsigned int>(tex.id);
+		_diffuseTransmissionMap = QString::fromStdString(tex.path);
+		_diffuseTransmissionTexTransform.texCoord = tex.texCoordIndex;
+		_diffuseTransmissionTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_diffuseTransmissionTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_diffuseTransmissionTexTransform.texRotation = tex.rotation;
+	}
+
+	// Diffuse Transmission Color Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::DiffuseTransmissionColor)];
+		_diffuseTransmissionColorTextureId = static_cast<unsigned int>(tex.id);
+		_diffuseTransmissionColorMap = QString::fromStdString(tex.path);
+		_diffuseTransmissionColorTexTransform.texCoord = tex.texCoordIndex;
+		_diffuseTransmissionColorTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_diffuseTransmissionColorTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_diffuseTransmissionColorTexTransform.texRotation = tex.rotation;
+	}
+
+	// Thickness Texture
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Thickness)];
+		_thicknessTextureId = static_cast<unsigned int>(tex.id);
+		_thicknessMap = QString::fromStdString(tex.path);
+		_thicknessTexTransform.texCoord = tex.texCoordIndex;
+		_thicknessTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_thicknessTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_thicknessTexTransform.texRotation = tex.rotation;
+	}
+
+	// Diffuse Texture (PBR Specular Glossiness)
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::Diffuse)];
+		_diffuseTextureId = static_cast<unsigned int>(tex.id);
+		_diffuseMap = QString::fromStdString(tex.path);
+		_diffuseTexTransform.texCoord = tex.texCoordIndex;
+		_diffuseTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_diffuseTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_diffuseTexTransform.texRotation = tex.rotation;
+	}
+
+	// Specular Glossiness Texture (PBR Specular Glossiness)
+	{
+		const auto& tex = _textures[static_cast<size_t>(TextureType::SpecularGlossiness)];
+		_specularGlossinessTextureId = static_cast<unsigned int>(tex.id);
+		_specularGlossinessMap = QString::fromStdString(tex.path);
+		_specularGlossinessTexTransform.texCoord = tex.texCoordIndex;
+		_specularGlossinessTexTransform.texScale = QVector2D(tex.scale.x, tex.scale.y);
+		_specularGlossinessTexTransform.texOffset = QVector2D(tex.offset.x, tex.offset.y);
+		_specularGlossinessTexTransform.texRotation = tex.rotation;
+	}
 }
 
 
