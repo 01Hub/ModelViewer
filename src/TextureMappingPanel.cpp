@@ -67,12 +67,6 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
         }
     }
 
-    // pleasant stepping for UV
-    _ui->spinTU->setSingleStep(0.1);
-    _ui->spinTV->setSingleStep(0.1);
-    _ui->spinOU->setSingleStep(0.1);
-    _ui->spinOV->setSingleStep(0.1);
-
     // Initialize the material to default values and bind it    
     bindMaterial(new GLMaterial());
 }
@@ -94,11 +88,6 @@ void TextureMappingPanel::bindMaterial(GLMaterial* material)
         if (path.isEmpty()) applyButtonEmptyIcon(it.value());
         else                applyButtonImageIcon(it.value(), path);
     }
-
-    _ui->spinTU->setValue(_material->uvTilingU());
-    _ui->spinTV->setValue(_material->uvTilingV());
-    _ui->spinOU->setValue(_material->uvOffsetU());
-    _ui->spinOV->setValue(_material->uvOffsetV());
 
     _preview->setMaterial(*_material);
     updatePreview();
@@ -223,18 +212,6 @@ void TextureMappingPanel::connectSignals()
 
     for (auto it = _maps.begin(); it != _maps.end(); ++it)
         wire(it.key());
-
-    // UV
-    auto uv = [this] { onUVChanged(); };
-    connect(_ui->spinTU, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [uv](double) { uv(); });
-    connect(_ui->spinTV, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [uv](double) { uv(); });
-    connect(_ui->spinOU, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [uv](double) { uv(); });
-    connect(_ui->spinOV, qOverload<double>(&QDoubleSpinBox::valueChanged), this, [uv](double) { uv(); });
-    connect(_ui->btnUVReset, &QToolButton::clicked, this, [this] {
-        _ui->spinTU->setValue(1.0); _ui->spinTV->setValue(1.0);
-        _ui->spinOU->setValue(0.0); _ui->spinOV->setValue(0.0);
-        onUVChanged();
-        });
 
     // Preview controls
     connect(_ui->comboShape, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) { updatePreview(); });
@@ -518,19 +495,6 @@ void TextureMappingPanel::openPackingDialogFor(const QString& key)
     }
 }
 
-
-// ---------------- UV + preview ----------------
-void TextureMappingPanel::onUVChanged()
-{
-    if (_material)
-    {
-        // Adapt to your GLMaterial API:
-        _material->setUVTiling(_ui->spinTU->value(), _ui->spinTV->value());
-        _material->setUVOffset(_ui->spinOU->value(), _ui->spinOV->value());
-    }
-    updatePreview();
-    emit materialChanged(_material);
-}
 
 void TextureMappingPanel::updatePreview()
 {

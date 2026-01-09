@@ -69,9 +69,7 @@ private:
 
     // Channel packing hook
     void openPackingDialogFor(const QString& key);
-
-    // UV + preview
-    void onUVChanged();
+           
     void updatePreview();
 
     void applyMaterialPreset(const QString& presetName);
