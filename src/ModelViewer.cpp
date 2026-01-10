@@ -1520,10 +1520,17 @@ void ModelViewer::onFileImport()
 		_lastOpenedDir = QFileInfo(fileNames.first()).absolutePath();
 	}
 
+	importFiles(fileNames);
+}
+
+void ModelViewer::importFiles(QStringList& fileNames)
+{
 	// Load selected files
-	if (!fileNames.isEmpty()) {
+	if (!fileNames.isEmpty())
+	{
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		for (const QString& fileName : std::as_const(fileNames)) {
+		for (const QString& fileName : std::as_const(fileNames))
+		{
 			loadFile(fileName);
 		}
 		_documentModified = true;

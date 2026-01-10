@@ -116,6 +116,7 @@ private slots:
 	void on_sliderShine_valueChanged(int value);
 
 	void onFileImport();
+	void importFiles(QStringList& fileNames);
 	void onFileExport();
 	
 	void on_checkBoxSelectAll_stateChanged(int arg1);
