@@ -3096,7 +3096,9 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setAlbedoTexCoord(tex.texCoordIndex);
 			mat.setAlbedoTexScale(toQVector2D(tex.scale));
 			mat.setAlbedoTexOffset(toQVector2D(tex.offset));
-			mat.setAlbedoTexRotation(tex.rotation);			
+			mat.setAlbedoTexRotation(tex.rotation);		
+			auto type = GLMaterial::stringToTextureType("Albedo");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "normalMap")
 		{
@@ -3106,6 +3108,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setNormalTexScale(toQVector2D(tex.scale));
 			mat.setNormalTexOffset(toQVector2D(tex.offset));
 			mat.setNormalTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Normal");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "metallicRoughnessMap")
 		{
@@ -3120,6 +3124,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setMetallicTexRotation(tex.rotation);
 			metalPacking.channel = 2;
 			mat.setPackingFor("metallic", metalPacking);
+			auto type = GLMaterial::stringToTextureType("Metallic");
+			mat.setTexture(type, tex);
 
 			// ALSO set Roughness to the same texture (it's the same image!)
 			GLMaterial::ChannelPacking roughPacking;
@@ -3131,6 +3137,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setRoughnessTexRotation(tex.rotation);
 			roughPacking.channel = 1;
 			mat.setPackingFor("roughness", roughPacking);
+			type = GLMaterial::stringToTextureType("Roughness");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "metallicMap")
 		{
@@ -3140,6 +3148,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setMetallicTexScale(toQVector2D(tex.scale));
 			mat.setMetallicTexOffset(toQVector2D(tex.offset));
 			mat.setMetallicTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Metallic");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "roughnessMap")
 		{
@@ -3149,6 +3159,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setRoughnessTexScale(toQVector2D(tex.scale));
 			mat.setRoughnessTexOffset(toQVector2D(tex.offset));
 			mat.setRoughnessTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Roughness");
+			mat.setTexture(type, tex);
 		}		
 		else if (tex.type == "emissiveMap")
 		{
@@ -3158,6 +3170,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setEmissiveTexScale(toQVector2D(tex.scale));
 			mat.setEmissiveTexOffset(toQVector2D(tex.offset));
 			mat.setEmissiveTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Emissive");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "heightMap")
 		{
@@ -3167,6 +3181,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setHeightTexScale(toQVector2D(tex.scale));
 			mat.setHeightTexOffset(toQVector2D(tex.offset));
 			mat.setHeightTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Height");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "opacityMap")
 		{
@@ -3176,6 +3192,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setOpacityTexScale(toQVector2D(tex.scale));
 			mat.setOpacityTexOffset(toQVector2D(tex.offset));
 			mat.setOpacityTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Opacity");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "aoMap" || tex.type == "occlusionMap")
 		{
@@ -3188,6 +3206,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			GLMaterial::ChannelPacking occlusionPacking;
 			occlusionPacking.channel = 0;  // Red channel for occlusion
 			mat.setPackingFor("ao", occlusionPacking);
+			auto type = GLMaterial::stringToTextureType("AmbientOcclusion");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "texture_diffuse")
 		{
@@ -3197,6 +3217,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setAlbedoTexScale(toQVector2D(tex.scale));
 			mat.setAlbedoTexOffset(toQVector2D(tex.offset));
 			mat.setAlbedoTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Albedo");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "texture_normal")
 		{
@@ -3206,6 +3228,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setNormalTexScale(toQVector2D(tex.scale));
 			mat.setNormalTexOffset(toQVector2D(tex.offset));
 			mat.setNormalTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Normal");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "texture_specular")
 		{
@@ -3215,6 +3239,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setMetallicTexScale(toQVector2D(tex.scale));
 			mat.setMetallicTexOffset(toQVector2D(tex.offset));
 			mat.setMetallicTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Metallic");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "texture_emissive")
 		{
@@ -3224,6 +3250,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setEmissiveTexScale(toQVector2D(tex.scale));
 			mat.setEmissiveTexOffset(toQVector2D(tex.offset));
 			mat.setEmissiveTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Emissive");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "texture_height")
 		{
@@ -3233,6 +3261,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setHeightTexScale(toQVector2D(tex.scale));
 			mat.setHeightTexOffset(toQVector2D(tex.offset));
 			mat.setHeightTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Height");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "texture_opacity")
 		{
@@ -3242,6 +3272,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setOpacityTexScale(toQVector2D(tex.scale));
 			mat.setOpacityTexOffset(toQVector2D(tex.offset));
 			mat.setOpacityTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Opacity");
+			mat.setTexture(type, tex);
 		}
 		// sheen
 		else if (tex.type == "sheenColorMap")
@@ -3252,6 +3284,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setSheenColorTexScale(toQVector2D(tex.scale));
 			mat.setSheenColorTexOffset(toQVector2D(tex.offset));
 			mat.setSheenColorTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("SheenColor");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "sheenRoughnessMap")
 		{
@@ -3261,6 +3295,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setSheenRoughnessTexScale(toQVector2D(tex.scale));
 			mat.setSheenRoughnessTexOffset(toQVector2D(tex.offset));
 			mat.setSheenRoughnessTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("SheenRoughness");
+			mat.setTexture(type, tex);
 		}
 		// clearcoat
 		else if (tex.type == "clearcoatColorMap")
@@ -3271,6 +3307,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setClearcoatColorTexScale(toQVector2D(tex.scale));
 			mat.setClearcoatColorTexOffset(toQVector2D(tex.offset));
 			mat.setClearcoatColorTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("ClearcoatColor");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "clearcoatRoughnessMap")
 		{
@@ -3280,6 +3318,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setClearcoatRoughnessTexScale(toQVector2D(tex.scale));
 			mat.setClearcoatRoughnessTexOffset(toQVector2D(tex.offset));
 			mat.setClearcoatRoughnessTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("ClearcoatRoughness");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "clearcoatNormalMap")
 		{
@@ -3289,6 +3329,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setClearcoatNormalTexScale(toQVector2D(tex.scale));
 			mat.setClearcoatNormalTexOffset(toQVector2D(tex.offset));
 			mat.setClearcoatNormalTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("ClearcoatNormal");
+			mat.setTexture(type, tex);
 		}
 		// transmission
 		else if (tex.type == "transmissionMap")
@@ -3299,6 +3341,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setTransmissionTexScale(toQVector2D(tex.scale));
 			mat.setTransmissionTexOffset(toQVector2D(tex.offset));
 			mat.setTransmissionTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Transmission");
+			mat.setTexture(type, tex);
 		}
 		// KHR_materials_volume
 		else if (tex.type == "thicknessMap")
@@ -3310,6 +3354,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setThicknessTexOffset(toQVector2D(tex.offset));
 			mat.setThicknessTexRotation(tex.rotation);
 			mat.setHasThicknessAlpha(tex.hasAlpha);
+			auto type = GLMaterial::stringToTextureType("Thickness");
+			mat.setTexture(type, tex);
 		}
 		// ioR map
 		else if (tex.type == "iorMap")
@@ -3320,6 +3366,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setIORTexScale(toQVector2D(tex.scale));
 			mat.setIORTexOffset(toQVector2D(tex.offset));
 			mat.setIORTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("IOR");
+			mat.setTexture(type, tex);
 		}
 		// KHR_materials_specular
 		else if (tex.type == "specularFactorMap")
@@ -3330,6 +3378,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setSpecularFactorTexScale(toQVector2D(tex.scale));
 			mat.setSpecularFactorTexOffset(toQVector2D(tex.offset));
 			mat.setSpecularFactorTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("SpecularFactor");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "specularColorMap")
 		{
@@ -3339,6 +3389,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setSpecularColorTexScale(toQVector2D(tex.scale));
 			mat.setSpecularColorTexOffset(toQVector2D(tex.offset));
 			mat.setSpecularColorTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("SpecularColor");
+			mat.setTexture(type, tex);
 		}
 
 		// KHR_materials_pbrSpecularGlossiness
@@ -3357,6 +3409,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setAlbedoTexScale(toQVector2D(tex.scale));
 			mat.setAlbedoTexOffset(toQVector2D(tex.offset));
 			mat.setAlbedoTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Diffuse");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "specularGlossinessMap")
 		{
@@ -3366,6 +3420,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setSpecularGlossinessTexScale(toQVector2D(tex.scale));
 			mat.setSpecularGlossinessTexOffset(toQVector2D(tex.offset));
 			mat.setSpecularGlossinessTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("SpecularGlossiness");
+			mat.setTexture(type, tex);
 		}
 
 		// KHR_materials_anisotropy
@@ -3377,6 +3433,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setAnisotropyTexScale(toQVector2D(tex.scale));
 			mat.setAnisotropyTexOffset(toQVector2D(tex.offset));
 			mat.setAnisotropyTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Anisotropy");
+			mat.setTexture(type, tex);
 		}
 
 		// KHR_materials_iridescence
@@ -3388,6 +3446,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setIridescenceTexScale(toQVector2D(tex.scale));
 			mat.setIridescenceTexOffset(toQVector2D(tex.offset));
 			mat.setIridescenceTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("Iridescence");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "iridescenceThicknessMap")
 		{
@@ -3396,7 +3456,9 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setIridescenceThicknessTexCoord(tex.texCoordIndex);
 			mat.setIridescenceThicknessTexScale(toQVector2D(tex.scale));
 			mat.setIridescenceThicknessTexOffset(toQVector2D(tex.offset));
-			mat.setIridescenceThicknessTexRotation(tex.rotation);			
+			mat.setIridescenceThicknessTexRotation(tex.rotation);	
+			auto type = GLMaterial::stringToTextureType("IridescenceThickness");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "diffuseTransmissionMap")
 		{
@@ -3406,6 +3468,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setDiffuseTransmissionTexScale(toQVector2D(tex.scale));
 			mat.setDiffuseTransmissionTexOffset(toQVector2D(tex.offset));
 			mat.setDiffuseTransmissionTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("DiffuseTransmission");
+			mat.setTexture(type, tex);
 		}
 		else if (tex.type == "diffuseTransmissionColorMap")
 		{
@@ -3415,6 +3479,8 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			mat.setDiffuseTransmissionColorTexScale(toQVector2D(tex.scale));
 			mat.setDiffuseTransmissionColorTexOffset(toQVector2D(tex.offset));
 			mat.setDiffuseTransmissionColorTexRotation(tex.rotation);
+			auto type = GLMaterial::stringToTextureType("DiffuseTransmissionColor");
+			mat.setTexture(type, tex);
 		}
 	}
 }
