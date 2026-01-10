@@ -5384,7 +5384,19 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 	if (m.hasSheenRoughnessMap()) m.setSheenRoughnessTextureId(w->getOrLoadTextureCached(m.sheenRoughnessMapPath()));
 	if (m.hasClearcoatColorMap()) m.setClearcoatColorTextureId(w->getOrLoadTextureCached(m.clearcoatColorMapPath()));
 	if (m.hasClearcoatRoughnessMap()) m.setClearcoatRoughnessTextureId(w->getOrLoadTextureCached(m.clearcoatRoughnessMapPath()));
-	if (m.hasClearcoatNormalMap()) m.setClearcoatNormalTextureId(w->getOrLoadTextureCached(m.clearcoatNormalMapPath()));
+	if (m.hasClearcoatNormalMap()) m.setClearcoatNormalTextureId(w->getOrLoadTextureCached(m.clearcoatNormalMapPath()));	
+	if (m.hasIridescenceMap()) m.setIridescenceTextureId(w->getOrLoadTextureCached(m.iridescenceMap()));
+	if (m.hasIridescenceThicknessMap()) m.setIridescenceThicknessTextureId(w->getOrLoadTextureCached(m.iridescenceThicknessMap()));
+	if (m.hasSpecularColorMap()) m.setSpecularColorTextureId(w->getOrLoadTextureCached(m.specularColorMap()));
+	if (m.hasSpecularFactorMap()) m.setSpecularFactorTextureId(w->getOrLoadTextureCached(m.specularFactorMap()));
+	if (m.hasAnisotropyMap()) m.setAnisotropyTextureId(w->getOrLoadTextureCached(m.anisotropyMap()));
+	if (m.hasThicknessMap()) m.setThicknessTextureId(w->getOrLoadTextureCached(m.thicknessMap()));
+	if (m.hasDiffuseMap()) m.setDiffuseTextureId(w->getOrLoadTextureCached(m.diffuseMap()));
+	if (m.hasDiffuseTransmissionMap()) m.setDiffuseTransmissionTextureId(w->getOrLoadTextureCached(m.diffuseTransmissionMap()));
+	if (m.hasDiffuseTransmissionColorMap()) m.setDiffuseTransmissionColorTextureId(w->getOrLoadTextureCached(m.diffuseTransmissionColorMap()));
+	if (m.hasSpecularGlossinessMap()) m.setSpecularGlossinessTextureId(w->getOrLoadTextureCached(m.specularGlossinessMap()));	
+	
+	m.syncTextureParameters();
 
 	return m;
 }

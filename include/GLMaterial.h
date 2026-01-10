@@ -51,13 +51,13 @@ public:
 
 		// Sentinel
 		Count                           // 25 total types
-	};
+	};	
 
 	struct Texture
 	{
-		unsigned int id;
-		std::string type;
-		std::string path;
+		unsigned int id = 0;
+		std::string type = "";
+		std::string path = "";
 		bool hasAlpha = false;
 
 		// KHR_texture_transform support
@@ -255,48 +255,48 @@ public:
 
 	// Texture slot identifiers (for use with texture manager)
 	int albedoTextureId() const { return _albedoTextureId; }
-	void setAlbedoTextureId(int id) { _albedoTextureId = id; }
+	void setAlbedoTextureId(int id) { _albedoTextureId = id; _textures[static_cast<size_t>(TextureType::Albedo)].id = id; }
 
 	int metallicTextureId() const { return _metallicTextureId; }
-	void setMetallicTextureId(int id) { _metallicTextureId = id; }
+	void setMetallicTextureId(int id) { _metallicTextureId = id; _textures[static_cast<size_t>(TextureType::Metallic)].id = id; }
 
 	int roughnessTextureId() const { return _roughnessTextureId; }
-	void setRoughnessTextureId(int id) { _roughnessTextureId = id; }
+	void setRoughnessTextureId(int id) { _roughnessTextureId = id; _textures[static_cast<size_t>(TextureType::Roughness)].id = id; }
 
 	int normalTextureId() const { return _normalTextureId; }
-	void setNormalTextureId(int id) { _normalTextureId = id; }
+	void setNormalTextureId(int id) { _normalTextureId = id;  _textures[static_cast<size_t>(TextureType::Normal)].id = id; }
 
 	int emissiveTextureId() const { return _emissiveTextureId; }
-	void setEmissiveTextureId(int id) { _emissiveTextureId = id; }
+	void setEmissiveTextureId(int id) { _emissiveTextureId = id; _textures[static_cast<size_t>(TextureType::Emissive)].id = id; }
 
 	int occlusionTextureId() const { return _occlusionTextureId; }
-	void setOcclusionTextureId(int id) { _occlusionTextureId = id; }
+	void setOcclusionTextureId(int id) { _occlusionTextureId = id; _textures[static_cast<size_t>(TextureType::AmbientOcclusion)].id = id; }
 
 	int opacityTextureId() const { return _opacityTextureId; }
-	void setOpacityTextureId(int id) { _opacityTextureId = id; }
+	void setOpacityTextureId(int id) { _opacityTextureId = id; _textures[static_cast<size_t>(TextureType::Opacity)].id = id; }
 
 	int heightTextureId() const { return _heightTextureId; }
-	void setHeightTextureId(int id) { _heightTextureId = id; }
+	void setHeightTextureId(int id) { _heightTextureId = id; _textures[static_cast<size_t>(TextureType::Height)].id = id; }
 
 	int clearcoatColorTextureId() const { return _clearcoatColorTextureId; }
-	void setClearcoatColorTextureId(int id) { _clearcoatColorTextureId = id; }
+	void setClearcoatColorTextureId(int id) { _clearcoatColorTextureId = id; _textures[static_cast<size_t>(TextureType::ClearcoatColor)].id = id; }
 
 	int clearcoatRoughnessTextureId() const { return _clearcoatRoughnessTextureId; }
-	void setClearcoatRoughnessTextureId(int id) { _clearcoatRoughnessTextureId = id; }
+	void setClearcoatRoughnessTextureId(int id) { _clearcoatRoughnessTextureId = id; _textures[static_cast<size_t>(TextureType::ClearcoatRoughness)].id = id; }
 
 	int clearcoatNormalTextureId() const { return _clearcoatNormalTextureId; }
-	void setClearcoatNormalTextureId(int id) { _clearcoatNormalTextureId = id; }
+	void setClearcoatNormalTextureId(int id) { _clearcoatNormalTextureId = id; _textures[static_cast<size_t>(TextureType::ClearcoatNormal)].id = id; }
 
 	int sheenColorTextureId() const { return _sheenColorTextureId; }
-	void setSheenColorTextureId(int id) { _sheenColorTextureId = id; }
+	void setSheenColorTextureId(int id) { _sheenColorTextureId = id; _textures[static_cast<size_t>(TextureType::SheenColor)].id = id; }
 	int sheenRoughnessTextureId() const { return _sheenRoughnessTextureId; }
-	void setSheenRoughnessTextureId(int id) { _sheenRoughnessTextureId = id; }
+	void setSheenRoughnessTextureId(int id) { _sheenRoughnessTextureId = id; _textures[static_cast<size_t>(TextureType::SheenRoughness)].id = id; }
 
 	int iorTextureId() const { return _iorTextureId; }
-	void setIORTextureId(int id) { _iorTextureId = id; }
+	void setIORTextureId(int id) { _iorTextureId = id; _textures[static_cast<size_t>(TextureType::IOR)].id = id; }
 
 	int transmissionTextureId() const { return _transmissionTextureId; }
-	void setTransmissionTextureId(int id) { _transmissionTextureId = id; }
+	void setTransmissionTextureId(int id) { _transmissionTextureId = id; _textures[static_cast<size_t>(TextureType::Transmission)].id = id; }
 
 	// Texture coordinate sets for multi-UV support
 	int albedoTexCoord() const { return _albedoTexTransform.texCoord; }
@@ -512,7 +512,7 @@ public:
 	void clearSpecularFactorMap() { _specularFactorMap.clear(); }
 	QString specularFactorMap() const { return _specularFactorMap; }
 	bool hasSpecularFactorMap() const { return !_specularFactorMap.isEmpty(); }
-	void setSpecularFactorTextureId(unsigned int id) { _specularFactorTextureId = id; }
+	void setSpecularFactorTextureId(unsigned int id) { _specularFactorTextureId = id; _textures[static_cast<size_t>(TextureType::SpecularFactor)].id = id; }
 	unsigned int specularFactorTextureId() const { return _specularFactorTextureId; }
 	void setSpecularFactorTexCoord(int coord) { _specularFactorTexTransform.texCoord = coord; }
 	int specularFactorTexCoord() const { return _specularFactorTexTransform.texCoord; }
@@ -527,7 +527,7 @@ public:
 	void clearSpecularColorMap() { _specularColorMap.clear(); }
 	QString specularColorMap() const { return _specularColorMap; }
 	bool hasSpecularColorMap() const { return !_specularColorMap.isEmpty(); }
-	void setSpecularColorTextureId(unsigned int id) { _specularColorTextureId = id; }
+	void setSpecularColorTextureId(unsigned int id) { _specularColorTextureId = id; _textures[static_cast<size_t>(TextureType::SpecularColor)].id = id; }
 	unsigned int specularColorTextureId() const { return _specularColorTextureId; }
 	void setSpecularColorTexCoord(int coord) { _specularColorTexTransform.texCoord = coord; }
 	int specularColorTexCoord() const { return _specularColorTexTransform.texCoord; }
@@ -557,7 +557,7 @@ public:
 	void setDiffuseMap(const QString& path) { _diffuseMap = path; }
 	QString diffuseMap() const { return _diffuseMap; }
 	bool hasDiffuseMap() const { return !_diffuseMap.isEmpty(); }
-	void setDiffuseTextureId(unsigned int id) { _diffuseTextureId = id; }
+	void setDiffuseTextureId(unsigned int id) { _diffuseTextureId = id; _textures[static_cast<size_t>(TextureType::Diffuse)].id = id; }
 	unsigned int diffuseTextureId() const { return _diffuseTextureId; }
 	void setDiffuseTexCoord(int coord) { _diffuseTexTransform.texCoord = coord; }
 	int diffuseTexCoord() const { return _diffuseTexTransform.texCoord; }
@@ -572,7 +572,7 @@ public:
 	void setSpecularGlossinessMap(const QString& path) { _specularGlossinessMap = path; }
 	QString specularGlossinessMap() const { return _specularGlossinessMap; }
 	bool hasSpecularGlossinessMap() const { return !_specularGlossinessMap.isEmpty(); }
-	void setSpecularGlossinessTextureId(unsigned int id) { _specularGlossinessTextureId = id; }
+	void setSpecularGlossinessTextureId(unsigned int id) { _specularGlossinessTextureId = id; _textures[static_cast<size_t>(TextureType::SpecularGlossiness)].id = id; }
 	unsigned int specularGlossinessTextureId() const { return _specularGlossinessTextureId; }
 	void setSpecularGlossinessTexCoord(int coord) { _specularGlossinessTexTransform.texCoord = coord; }
 	int specularGlossinessTexCoord() const { return _specularGlossinessTexTransform.texCoord; }
@@ -592,7 +592,7 @@ public:
 	void clearAnisotropyMap() { _anisotropyMap.clear(); }
 	QString anisotropyMap() const { return _anisotropyMap; }
 	bool hasAnisotropyMap() const { return !_anisotropyMap.isEmpty(); }
-	void setAnisotropyTextureId(unsigned int id) { _anisotropyTextureId = id; }
+	void setAnisotropyTextureId(unsigned int id) { _anisotropyTextureId = id; _textures[static_cast<size_t>(TextureType::Anisotropy)].id = id; }
 	int anisotropyTextureId() const { return _anisotropyTextureId; }
 	void setAnisotropyTexCoord(int coord) { _anisotropyTexTransform.texCoord = coord; }
 	int anisotropyTexCoord() const { return _anisotropyTexTransform.texCoord; }
@@ -617,7 +617,7 @@ public:
 	void clearIridescenceMap() { _iridescenceMap.clear(); }
 	QString iridescenceMap() const { return _iridescenceMap; }
 	bool hasIridescenceMap() const { return !_iridescenceMap.isEmpty(); }
-	void setIridescenceTextureId(unsigned int id) { _iridescenceTextureId = id; }
+	void setIridescenceTextureId(unsigned int id) { _iridescenceTextureId = id; _textures[static_cast<size_t>(TextureType::Iridescence)].id = id; }
 	int iridescenceTextureId() const { return _iridescenceTextureId; }
 	void setIridescenceTexCoord(int coord) { _iridescenceTexTransform.texCoord = coord; }
 	int iridescenceTexCoord() const { return _iridescenceTexTransform.texCoord; }
@@ -632,7 +632,7 @@ public:
 	void clearIridescenceThicknessMap() { _iridescenceThicknessMap.clear(); }
 	QString iridescenceThicknessMap() const { return _iridescenceThicknessMap; }
 	bool hasIridescenceThicknessMap() const { return !_iridescenceThicknessMap.isEmpty(); }
-	void setIridescenceThicknessTextureId(unsigned int id) { _iridescenceThicknessTextureId = id; }
+	void setIridescenceThicknessTextureId(unsigned int id) { _iridescenceThicknessTextureId = id; _textures[static_cast<size_t>(TextureType::IridescenceThickness)].id = id; }
 	int iridescenceThicknessTextureId() const { return _iridescenceThicknessTextureId; }
 	void setIridescenceThicknessTexCoord(int coord) { _iridescenceThicknessTexTransform.texCoord = coord; }
 	int iridescenceThicknessTexCoord() const { return _iridescenceThicknessTexTransform.texCoord; }
@@ -654,7 +654,7 @@ public:
 	void clearThicknessMap() { _thicknessMap.clear(); }
 	QString thicknessMap() const { return _thicknessMap; }
 	bool hasThicknessMap() const { return !_thicknessMap.isEmpty(); }
-	void setThicknessTextureId(unsigned int id) { _thicknessTextureId = id; }
+	void setThicknessTextureId(unsigned int id) { _thicknessTextureId = id; _textures[static_cast<size_t>(TextureType::Thickness)].id = id; }
 	int thicknessTextureId() const { return _thicknessTextureId; }
 	void setThicknessTexCoord(int coord) { _thicknessTexTransform.texCoord = coord; }
 	int thicknessTexCoord() const { return _thicknessTexTransform.texCoord; }
@@ -676,7 +676,7 @@ public:
 	void clearDiffuseTransmissionMap() { _diffuseTransmissionMap.clear(); }
 	QString diffuseTransmissionMap() const { return _diffuseTransmissionMap; }
 	bool hasDiffuseTransmissionMap() const { return !_diffuseTransmissionMap.isEmpty(); }
-	void setDiffuseTransmissionTextureId(unsigned int id) { _diffuseTransmissionTextureId = id; }
+	void setDiffuseTransmissionTextureId(unsigned int id) { _diffuseTransmissionTextureId = id; _textures[static_cast<size_t>(TextureType::DiffuseTransmission)].id = id; }
 	int diffuseTransmissionTextureId() const { return _diffuseTransmissionTextureId; }
 	void setDiffuseTransmissionTexCoord(int coord) { _diffuseTransmissionTexTransform.texCoord = coord; }
 	int diffuseTransmissionTexCoord() const { return _diffuseTransmissionTexTransform.texCoord; }
@@ -686,12 +686,12 @@ public:
 	void setDiffuseTransmissionTexOffset(const QVector2D& offset) { _diffuseTransmissionTexTransform.texOffset = offset; }
 	float diffuseTransmissionTexRotation() const { return _diffuseTransmissionTexTransform.texRotation; }
 	void setDiffuseTransmissionTexRotation(float rotation) { _diffuseTransmissionTexTransform.texRotation = rotation; }
-	
+
 	void setDiffuseTransmissionColorMap(const QString& path) { _diffuseTransmissionColorMap = path; }
 	void clearDiffuseTransmissionColorMap() { _diffuseTransmissionColorMap.clear(); }
 	QString diffuseTransmissionColorMap() const { return _diffuseTransmissionColorMap; }
 	bool hasDiffuseTransmissionColorMap() const { return !_diffuseTransmissionColorMap.isEmpty(); }
-	void setDiffuseTransmissionColorTextureId(unsigned int id) { _diffuseTransmissionColorTextureId = id; }
+	void setDiffuseTransmissionColorTextureId(unsigned int id) { _diffuseTransmissionColorTextureId = id; _textures[static_cast<size_t>(TextureType::DiffuseTransmissionColor)].id = id; }
 	int diffuseTransmissionColorTextureId() const { return _diffuseTransmissionColorTextureId; }
 	void setDiffuseTransmissionColorTexCoord(int coord) { _diffuseTransmissionColorTexTransform.texCoord = coord; }
 	int diffuseTransmissionColorTexCoord() const { return _diffuseTransmissionColorTexTransform.texCoord; }
@@ -825,6 +825,8 @@ public:
 	ChannelPacking packingFor(const QString& key) const;
 	void setPackingFor(const QString& key, const ChannelPacking& p);
 
+	void syncTextureParameters();
+
 	// Convenience methods
 	bool isMetallic() const
 	{
@@ -868,7 +870,7 @@ public:
 	void convertToPBR();
 
 	// Get Fresnel reflectance at normal incidence
-	QVector3D getF0() const 
+	QVector3D getF0() const
 	{
 		// F0 is the base reflectivity at normal incidence
 
@@ -1119,7 +1121,6 @@ private:
 	void ensureADSConsistency(); // Ensure ambient, diffuse, specular are consistent with albedo
 	void convertPBRtoADS();
 	void assignAutoPackingForPath(const QString& path);
-	void syncTextureParameters();
 
 private:
 	// ============================================================================

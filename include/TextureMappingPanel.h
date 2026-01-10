@@ -15,9 +15,10 @@
 #include <QVector3D>
 #include <QDataStream>
 #include <QFileDialog>
+#include <QColorDialog>
 
+#include "GLMaterial.h"
 
-class GLMaterial;
 class MaterialPreviewWidget;
 
 namespace Ui { class TextureMappingPanel; }
@@ -29,17 +30,16 @@ public:
     explicit TextureMappingPanel(QWidget* parent = nullptr);
     ~TextureMappingPanel() override;
 
-    // Provide the material we’re editing
+    // Provide the material we're editing
     void bindMaterial(GLMaterial* material);
 
-	GLMaterial* material() const { return _material; }
+    GLMaterial* material() const { return _material; }
 
-	void onTintParamsChanged();
+    void onTintParamsChanged();
 
 signals:
     void materialChanged(const GLMaterial* material);
-	void applyTexturesTriggered(const GLMaterial& material);
-    
+    void applyTexturesTriggered(const GLMaterial& material);
 
 protected:
     bool eventFilter(QObject* obj, QEvent* ev) override;
@@ -47,10 +47,14 @@ protected:
 private:
     struct MapSlot
     {
-        QPushButton* button = nullptr;   // square thumbnail button
-        QLabel* label = nullptr;   // text under the button
-        QToolButton* gear = nullptr;   // optional (null if not packable)
-        QString      key;                // e.g., "albedo", "roughness"
+        QPushButton* button = nullptr;           // square thumbnail button
+        QLabel* label = nullptr;                 // text under the button
+        QToolButton* gear = nullptr;             // optional channel packing gear
+        QToolButton* transformButton = nullptr;  // transform/sampler button
+        QDoubleSpinBox* factorSpinBox = nullptr; // numeric factor spin box
+        QPushButton* colorPickerButton = nullptr; // color picker for color factors
+        QString key;                             // e.g., "albedo", "roughness"
+        GLMaterial::TextureType type;            // enum type
     };
 
     // --- helpers ---
@@ -61,15 +65,26 @@ private:
     QIcon makeIconFromFile(const QString& file, int edge = 90) const;
     static QIcon makeCheckerIcon(int w = 90, int h = 90, int cell = 8);
 
-    // GLMaterial sync (rename to your exact API in the .cpp body)
+    // Helper: map string key to TextureType enum
+    GLMaterial::TextureType keyToTextureType(const QString& key) const;
+
+    // GLMaterial sync
     void setMapPath(const QString& key, const QString& file);
     void clearMap(const QString& key);
     void clearAllMaps();
     QString mapPath(const QString& key) const;
 
+    // Load factor values from material into UI spin boxes
+    void loadFactorValuesFromMaterial();
+
     // Channel packing hook
     void openPackingDialogFor(const QString& key);
-           
+
+    // Slot handlers for new functionality
+    void onColorPickerClicked(GLMaterial::TextureType type);
+    void onFactorChanged(GLMaterial::TextureType type);
+    void onTransformButtonClicked(GLMaterial::TextureType type);
+
     void updatePreview();
 
     void applyMaterialPreset(const QString& presetName);
@@ -82,5 +97,5 @@ private:
     QHash<QString, MapSlot> _maps;   // by key
     QIcon _checkerIcon;
 
-	QString _lastUsedFolder;
+    QString _lastUsedFolder;
 };

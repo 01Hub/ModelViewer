@@ -1099,6 +1099,42 @@ bool MaterialPreviewWidget::shouldReload(const QString& path, const GpuTexCache&
 }
 
 
+// Add this helper function BEFORE syncTextureFromMaterial():
+
+static GLMaterial::TextureType samplerNameToTextureType(const char* uniformSamplerName)
+{
+	if (std::strcmp(uniformSamplerName, "uAlbedoMap") == 0) return GLMaterial::TextureType::Albedo;
+	else if (std::strcmp(uniformSamplerName, "uMetalnessMap") == 0) return GLMaterial::TextureType::Metallic;
+	else if (std::strcmp(uniformSamplerName, "uRoughnessMap") == 0) return GLMaterial::TextureType::Roughness;
+	else if (std::strcmp(uniformSamplerName, "uNormalMap") == 0) return GLMaterial::TextureType::Normal;
+	else if (std::strcmp(uniformSamplerName, "uAOMap") == 0) return GLMaterial::TextureType::AmbientOcclusion;
+	else if (std::strcmp(uniformSamplerName, "uHeightMap") == 0) return GLMaterial::TextureType::Height;
+	else if (std::strcmp(uniformSamplerName, "uOpacityMap") == 0) return GLMaterial::TextureType::Opacity;
+	else if (std::strcmp(uniformSamplerName, "uEmissiveMap") == 0) return GLMaterial::TextureType::Emissive;
+	else if (std::strcmp(uniformSamplerName, "uSheenColorMap") == 0) return GLMaterial::TextureType::SheenColor;
+	else if (std::strcmp(uniformSamplerName, "uSheenRoughnessMap") == 0) return GLMaterial::TextureType::SheenRoughness;
+	else if (std::strcmp(uniformSamplerName, "uClearcoatColorMap") == 0) return GLMaterial::TextureType::ClearcoatColor;
+	else if (std::strcmp(uniformSamplerName, "uClearcoatRoughnessMap") == 0) return GLMaterial::TextureType::ClearcoatRoughness;
+	else if (std::strcmp(uniformSamplerName, "uClearcoatNormalMap") == 0) return GLMaterial::TextureType::ClearcoatNormal;
+	else if (std::strcmp(uniformSamplerName, "uIORMap") == 0) return GLMaterial::TextureType::IOR;
+	else if (std::strcmp(uniformSamplerName, "uTransmissionMap") == 0) return GLMaterial::TextureType::Transmission;
+	else if (std::strcmp(uniformSamplerName, "uIridescenceMap") == 0) return GLMaterial::TextureType::Iridescence;
+	else if (std::strcmp(uniformSamplerName, "uIridescenceThicknessMap") == 0) return GLMaterial::TextureType::IridescenceThickness;
+	else if (std::strcmp(uniformSamplerName, "uSpecularFactorMap") == 0) return GLMaterial::TextureType::SpecularFactor;
+	else if (std::strcmp(uniformSamplerName, "uSpecularColorMap") == 0) return GLMaterial::TextureType::SpecularColor;
+	else if (std::strcmp(uniformSamplerName, "uAnisotropyMap") == 0) return GLMaterial::TextureType::Anisotropy;
+	else if (std::strcmp(uniformSamplerName, "uDiffuseTransmissionMap") == 0) return GLMaterial::TextureType::DiffuseTransmission;
+	else if (std::strcmp(uniformSamplerName, "uDiffuseTransmissionColorMap") == 0) return GLMaterial::TextureType::DiffuseTransmissionColor;
+	else if (std::strcmp(uniformSamplerName, "uThicknessMap") == 0) return GLMaterial::TextureType::Thickness;
+	else if (std::strcmp(uniformSamplerName, "uDiffuseMap") == 0) return GLMaterial::TextureType::Diffuse;
+	else if (std::strcmp(uniformSamplerName, "uSpecularGlossinessMap") == 0) return GLMaterial::TextureType::SpecularGlossiness;
+	return GLMaterial::TextureType::Albedo;
+}
+
+// ============================================================================
+// REPLACE the entire syncTextureFromMaterial function with this:
+// ============================================================================
+
 void MaterialPreviewWidget::syncTextureFromMaterial(
 	GpuTexCache& cache,
 	const QString& path,
@@ -1109,7 +1145,6 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 {
 	if (shouldReload(path, cache))
 	{
-		// delete old texture
 		if (cache.id)
 		{
 			glDeleteTextures(1, &cache.id);
@@ -1125,14 +1160,14 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 				4);
 		}
 
-		// update metadata
 		cache.lastPath = path;
 		QFileInfo fi(path);
 		cache.lastModified = fi.exists() ? fi.lastModified() : QDateTime();
 		cache.lastSize = fi.exists() ? fi.size() : -1;
 	}
 
-	if(std::strcmp(uniformSamplerName, "uAlbedoMap") == 0)
+	// Set legacy IDs
+	if (std::strcmp(uniformSamplerName, "uAlbedoMap") == 0)
 		_currentMaterial.setAlbedoTextureId(cache.id);
 	else if (std::strcmp(uniformSamplerName, "uMetalnessMap") == 0)
 		_currentMaterial.setMetallicTextureId(cache.id);
@@ -1162,8 +1197,34 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 		_currentMaterial.setIORTextureId(cache.id);
 	else if (std::strcmp(uniformSamplerName, "uTransmissionMap") == 0)
 		_currentMaterial.setTransmissionTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uIridescenceMap") == 0)
+		_currentMaterial.setIridescenceTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uIridescenceThicknessMap") == 0)
+		_currentMaterial.setIridescenceThicknessTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uSpecularFactorMap") == 0)
+		_currentMaterial.setSpecularFactorTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uSpecularColorMap") == 0)
+		_currentMaterial.setSpecularColorTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uAnisotropyMap") == 0)
+		_currentMaterial.setAnisotropyTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uDiffuseTransmissionMap") == 0)
+		_currentMaterial.setDiffuseTransmissionTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uDiffuseTransmissionColorMap") == 0)
+		_currentMaterial.setDiffuseTransmissionColorTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uThicknessMap") == 0)
+		_currentMaterial.setThicknessTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uDiffuseMap") == 0)
+		_currentMaterial.setDiffuseTextureId(cache.id);
+	else if (std::strcmp(uniformSamplerName, "uSpecularGlossinessMap") == 0)
+		_currentMaterial.setSpecularGlossinessTextureId(cache.id);
 
-	// bind and set uniforms
+	// Sync GPU ID and path to unified storage
+	GLMaterial::TextureType type = samplerNameToTextureType(uniformSamplerName);
+	auto tex = _currentMaterial.texture(type);
+	tex.id = cache.id;
+	tex.path = path.toStdString();
+	_currentMaterial.setTexture(type, tex);
+
 	glActiveTexture(GL_TEXTURE0 + texUnit);
 	glBindTexture(GL_TEXTURE_2D, cache.id ? cache.id : 0);
 	_shader->setUniformValue(uniformSamplerName, texUnit);

@@ -1388,7 +1388,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			newTexture.offset = offset;
 			newTexture.rotation = rotation;
 
-			// NEW: set sampler metadata on the texture struct
+			// Set sampler metadata on the texture struct
 			newTexture.wrapS = wrapS;
 			newTexture.wrapT = wrapT;
 			newTexture.magFilter = magFilter;
