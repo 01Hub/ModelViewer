@@ -823,7 +823,8 @@ void MainWindow::updateRecentFileActions()
 		QAction* act = recentFileActs[i];
 		act->setText(tr("&%1 %2").arg(i + 1).arg(fileName));
 		act->setData(filePath);
-		act->setStatusTip(filePath); 
+		act->setStatusTip(tr("%1 -> Shift-click to import into active document").arg(filePath));
+		act->setToolTip(tr("Click to open • Shift-click to import into active window"));
 		act->setVisible(true);
 	}
 
@@ -842,30 +843,50 @@ void MainWindow::removeFromRecentFiles(const QString& fileName)
 
 void MainWindow::openRecentFile()
 {
-    if (const QAction* action = qobject_cast<const QAction*>(sender()))
-    {
-        QString filePath = action->data().toString();
-        if (!QFile::exists(filePath))
-        {
-            QMessageBox::StandardButton reply = QMessageBox::question(
-                this,
-                tr("File Not Found"),
-                tr("The file '%1' no longer exists. Would you like to remove it from the recent files?").arg(filePath),
-                QMessageBox::Yes | QMessageBox::No
-            );
+	QAction* action = qobject_cast<QAction*>(sender());
+	if (!action)
+		return;
 
-            if (reply == QMessageBox::Yes)
-            {
-                removeFromRecentFiles(filePath);
-                updateRecentFileActions();
-            }
-            return;
-        }
+	const QString filePath = action->data().toString();
+	if (filePath.isEmpty())
+		return;
 
-        QApplication::setOverrideCursor(Qt::WaitCursor);
-        openFile(filePath);
-        QApplication::restoreOverrideCursor();
-        MainWindow::mainWindow()->activateWindow();
-        QApplication::alert(MainWindow::mainWindow());
-    }
+	if (!QFile::exists(filePath))
+	{
+		QMessageBox::StandardButton reply = QMessageBox::question(
+			this,
+			tr("File Not Found"),
+			tr("The file '%1' no longer exists. Would you like to remove it from the recent files?")
+			.arg(filePath),
+			QMessageBox::Yes | QMessageBox::No
+		);
+
+		if (reply == QMessageBox::Yes)
+		{
+			removeFromRecentFiles(filePath);
+			updateRecentFileActions();
+		}
+		return;
+	}
+
+	const bool shiftPressed =
+		QApplication::keyboardModifiers() & Qt::ShiftModifier;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	if (shiftPressed && activeMdiChild())
+	{
+		// SHIFT -> Import into active document
+		activeMdiChild()->loadFile(filePath);
+	}
+	else
+	{
+		// Default -> Open as new document
+		openFile(filePath);
+	}
+
+	QApplication::restoreOverrideCursor();
+	activateWindow();
+	QApplication::alert(this);
 }
+
