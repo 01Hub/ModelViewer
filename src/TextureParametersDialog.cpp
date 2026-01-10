@@ -14,9 +14,7 @@ TextureParametersDialog::TextureParametersDialog(QWidget* parent)
     initializeSamplerMappings();
 
     // Set reasonable window properties
-    setWindowTitle("Texture Parameters");
-    setMinimumWidth(480);
-    setMinimumHeight(550);
+    setWindowTitle("Texture Parameters");   
 }
 
 TextureParametersDialog::~TextureParametersDialog()
