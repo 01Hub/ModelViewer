@@ -6558,49 +6558,114 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 }
 
 
-unsigned int GLWidget::loadTextureFromFile(char const* path, 
+unsigned int GLWidget::loadTextureFromFile(
+	const char* path,
 	GLenum wrapS, GLenum wrapT,
-	GLenum minFilter, GLenum magFilter, 
+	GLenum minFilter, GLenum magFilter,
 	bool flipY)
 {
-	unsigned int textureID;
+	GLuint textureID = 0;
+
+	// Load image using Qt
+	QImageReader reader(path);
+	reader.setAutoTransform(true); // respects EXIF orientation
+
+	QImage image = reader.read();
+	if (image.isNull())
+	{
+		qWarning() << "Texture failed to load:" << path
+			<< reader.errorString();
+		return 0;
+	}
+
+	// Optional vertical flip (OpenGL vs Qt coordinate difference)
+	if (flipY)
+		image = image.mirrored(false, true);
+
+	GLenum internalFormat = GL_RGBA8;
+	GLenum dataFormat = GL_RGBA;
+	GLenum dataType = GL_UNSIGNED_BYTE;
+
+	QImage glImage;
+
+	switch (image.format())
+	{
+	case QImage::Format_RGB888:
+		glImage = image;
+		internalFormat = GL_RGB8;
+		dataFormat = GL_RGB;
+		break;
+
+	case QImage::Format_RGBA8888:
+	case QImage::Format_RGBA8888_Premultiplied:
+		glImage = image;
+		internalFormat = GL_RGBA8;
+		dataFormat = GL_RGBA;
+		break;
+
+	case QImage::Format_Grayscale8:
+		glImage = image;
+		internalFormat = GL_R8;
+		dataFormat = GL_RED;
+		break;
+
+	case QImage::Format_Indexed8:
+		glImage = image.convertToFormat(QImage::Format_RGBA8888);
+		internalFormat = GL_RGBA8;
+		dataFormat = GL_RGBA;
+		break;
+
+	default:
+		// Fallback for uncommon formats (ARGB32, RGB32, etc.)
+		glImage = image.convertToFormat(QImage::Format_RGBA8888);
+		internalFormat = GL_RGBA8;
+		dataFormat = GL_RGBA;
+		break;
+	}
+
+	// Create OpenGL texture
 	glGenTextures(1, &textureID);
-	
-	int width, height, nrComponents;
-	stbi_set_flip_vertically_on_load(flipY);
-	unsigned char* data = stbi_load(path, &width, &height, &nrComponents, 0);
-	if (data)
+	glBindTexture(GL_TEXTURE_2D, textureID);
+
+	glTexImage2D(
+		GL_TEXTURE_2D,
+		0,
+		internalFormat,
+		glImage.width(),
+		glImage.height(),
+		0,
+		dataFormat,
+		dataType,
+		glImage.constBits()
+	);
+
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	// Texture parameters
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
+
+	// Anisotropic filtering (if supported)
+	bool hasAnisotropy =
+		context()->hasExtension("GL_EXT_texture_filter_anisotropic");
+
+	if (hasAnisotropy)
 	{
-		GLenum format = GL_RGBA;
-		if (nrComponents == 1)
-			format = GL_RED;
-		else if (nrComponents == 2)
-			format = GL_RG;
-		else if (nrComponents == 3)
-			format = GL_RGB;
-		else if (nrComponents == 4)
-			format = GL_RGBA;
+		GLfloat maxAniso = 0.0f;
+		glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
 
-		glBindTexture(GL_TEXTURE_2D, textureID);
-		glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
-		glGenerateMipmap(GL_TEXTURE_2D);
+		GLfloat aniso = qMin(_anisotropicFilteringLevel, maxAniso);
 
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
-
-		// Apply anisotropic filtering if supported
-		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
-
-		stbi_image_free(data);
-	}
-	else
-	{
-		std::cout << "Texture failed to load at path: " << path << std::endl;
-		stbi_image_free(data);
+		glTexParameterf(
+			GL_TEXTURE_2D,
+			GL_TEXTURE_MAX_ANISOTROPY_EXT,
+			aniso
+		);
 	}
 
+	glBindTexture(GL_TEXTURE_2D, 0);
 	return textureID;
 }
 
