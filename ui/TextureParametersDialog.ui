@@ -223,7 +223,7 @@
         <item>
          <widget class="QLabel" name="lblRotation">
           <property name="text">
-           <string>Rotation (rad):</string>
+           <string>Rotation (deg):</string>
           </property>
          </widget>
         </item>
@@ -236,10 +236,10 @@
            <number>3</number>
           </property>
           <property name="minimum">
-           <double>0.000000000000000</double>
+           <double>-180.000000000000000</double>
           </property>
           <property name="maximum">
-           <double>6.283000000000000</double>
+           <double>180.000000000000000</double>
           </property>
           <property name="singleStep">
            <double>0.100000000000000</double>

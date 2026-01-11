@@ -53,7 +53,7 @@ void TextureParametersDialog::setTransform(const TextureTransform& transform)
     _ui->spinScaleV->setValue(transform.texScale.y());
     _ui->spinOffsetU->setValue(transform.texOffset.x());
     _ui->spinOffsetV->setValue(transform.texOffset.y());
-    _ui->spinRotation->setValue(transform.texRotation);
+	_ui->spinRotation->setValue(transform.texRotation * 180.0f / M_PI);
     _ui->spinTexCoord->setValue(transform.texCoord);
 
     _ui->spinScaleU->blockSignals(false);
@@ -69,7 +69,7 @@ TextureParametersDialog::TextureTransform TextureParametersDialog::getTransform(
     TextureTransform transform;
     transform.texScale = QVector2D(_ui->spinScaleU->value(), _ui->spinScaleV->value());
     transform.texOffset = QVector2D(_ui->spinOffsetU->value(), _ui->spinOffsetV->value());
-    transform.texRotation = static_cast<float>(_ui->spinRotation->value());
+    transform.texRotation = static_cast<float>(_ui->spinRotation->value()) * M_PI / 180.0f;
     transform.texCoord = _ui->spinTexCoord->value();
     return transform;
 }

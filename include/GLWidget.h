@@ -441,7 +441,10 @@ private:
 	QRect getViewportFromPoint(const QPoint& pixel);
 	QRect getClientRectFromPoint(const QPoint& pixel);
 	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
-	unsigned int loadTextureFromFile(const char* path, const bool& flipY = true);
+	unsigned int loadTextureFromFile(const char* path,
+		GLenum wrapS = GL_REPEAT, GLenum wrapT = GL_REPEAT,
+		GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR, GLenum magFilter = GL_LINEAR,
+		bool flipY = false);
 	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
 		
 	void onMeshBatchReady(const std::vector<AssImpMesh*>& batch);
