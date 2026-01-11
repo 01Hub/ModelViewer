@@ -1,26 +1,25 @@
 ﻿
 #include "ClippingPlanesEditor.h"
 #include "Cone.h"
-#include "config.h"
 #include "Cube.h"
-#include "Sphere.h"
 #include "GLWidget.h"
+#include "LanguageManager.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
 #include "ModelViewerApplication.h"
-#include "LanguageManager.h"
+#include "PathUtils.h"
 #include "Plane.h"
 #include "Point.h"
+#include "Sphere.h"
 #include "Sphere.h"
 #include "stb_image.h"
 #include "TextRenderer.h"
 #include "Utils.h"
-#include <QMenu>
+#include <algorithm>
+#include <iostream>
 #include <QMessageBox>
 #include <QStyleFactory>
 
-#include <iostream>
-#include <algorithm>
 
 constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes
 
@@ -222,7 +221,7 @@ _assimpModelLoader(nullptr)
 	_floorOffsetPercent = 0.0f;
 
 	// Floor texture
-	if (!_texBuffer.load(QString(MODELVIEWER_DATA_DIR) + "/" + "textures/envmap/floor/Grey-White-Checkered-Squares1800x1800.jpg"))
+	if (!_texBuffer.load(PathUtils::getDataDirectory() + "/" + "textures/envmap/floor/Grey-White-Checkered-Squares1800x1800.jpg"))
 	{ // Load first image from file
 		qWarning("GLWidget::loadFloor - Could not read image file, using single-color instead.");
 		QImage dummy(128, 128, QImage::Format_ARGB32);
@@ -509,7 +508,7 @@ void GLWidget::initializeGL()
 			}			
 		});
 
-	const std::string path = std::string(MODELVIEWER_DATA_DIR) + "/";
+	const std::string path = PathUtils::getDataDirectory().toStdString() + "/";
 	// Text rendering
 	_textShader->bind();
 	_textRenderer = new TextRenderer(_textShader.get(), width(), height());
@@ -3386,7 +3385,7 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 
 void GLWidget::createShaderPrograms()
 {
-    const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
+    const QString path = PathUtils::getDataDirectory() + "/";
 	// Foreground objects shader program
 	// Per fragment lighting
 	_fgShader = std::make_unique<ShaderProgram>(); _fgShader->setObjectName("_fgShader");
@@ -3461,7 +3460,7 @@ void GLWidget::createShaderPrograms()
 
 void GLWidget::createCappingPlanes()
 {
-    const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
+    const QString path = PathUtils::getDataDirectory() + "/";
 	_clippingPlaneXY = new Plane(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneYZ = new Plane(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
 	_clippingPlaneZX = new Plane(_clippingPlaneShader.get(), QVector3D(0, 0, 0), 1000, 1000, 1, 1);
@@ -3587,7 +3586,7 @@ float GLWidget::updateFloorGeometry()
 
 void GLWidget::loadEnvMap()
 {	
-    const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
+    const QString path = PathUtils::getDataDirectory() + "/";
 
 	_skyBox = new Cube(_skyBoxShader.get(), 1);
 	_skyBoxShader->bind();

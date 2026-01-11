@@ -1,19 +1,16 @@
-#include <QApplication>
-#include <QStyleFactory>
-#include <QDebug>
-#include <QOpenGLFunctions>
-#include <QFileInfo>
-
-#include "ModelViewerApplication.h"
+#include "LanguageManager.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
-#include "LanguageManager.h"
-
+#include "ModelViewerApplication.h"
 #include <iostream>
-#include <string>
+#include <QApplication>
+#include <QDebug>
+#include <QFileInfo>
+#include <QOpenGLFunctions>
+#include <QStyleFactory>
 #include <sstream>
+#include <string>
 
-#include <config.h>
 
 int main(int argc, char** argv)
 {

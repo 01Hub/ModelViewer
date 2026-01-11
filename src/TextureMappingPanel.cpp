@@ -1,29 +1,27 @@
-#include "TextureMappingPanel.h"
-#include "ui_TextureMappingPanel.h"
-
-#include <QFileDialog>
-#include <QMenu>
-#include <QPainter>
-#include <QPushButton>
-#include <QToolButton>
-#include <QLabel>
-#include <QDoubleSpinBox>
-#include <QComboBox>
-#include <QSlider>
-#include <QDragEnterEvent>
-#include <QDropEvent>
-#include <QMimeData>
-#include <QUrl>
-#include <QMessageBox>
-#include <QColorDialog>
-#include <QTimer>
-
-#include "config.h"
+#include "ChannelPackingEditorDialog.h"
 #include "GLMaterial.h"
 #include "MaterialPreviewWidget.h"
-#include "ChannelPackingEditorDialog.h"
 #include "MaterialTextureLibrary.h"
+#include "PathUtils.h"
+#include "TextureMappingPanel.h"
 #include "TextureParametersDialog.h"
+#include "ui_TextureMappingPanel.h"
+#include <QColorDialog>
+#include <QComboBox>
+#include <QDoubleSpinBox>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QFileDialog>
+#include <QLabel>
+#include <QMenu>
+#include <QMessageBox>
+#include <QMimeData>
+#include <QPainter>
+#include <QPushButton>
+#include <QSlider>
+#include <QTimer>
+#include <QToolButton>
+#include <QUrl>
 
 // ============================================================================
 // Constructor / Destructor
@@ -408,7 +406,7 @@ void TextureMappingPanel::connectSignals()
 			QString texFolder = _lastUsedFolder;
 			if (texFolder.isEmpty())
 			{
-				const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
+				const QString path = PathUtils::getDataDirectory() + "/";
 				texFolder = path + "textures/materials/";
 			}
 

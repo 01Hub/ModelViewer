@@ -1,4 +1,4 @@
-
+﻿
 #include <QMessageBox>
 #include <QFileDialog>
 
@@ -17,7 +17,7 @@
 #include <QMdiSubWindow>
 #include <assimp/version.h>
 
-#include "config.h"
+#include "PathUtils.h"
 
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 #include <QWinTaskbarProgress>
@@ -157,7 +157,7 @@ void MainWindow::retranslateUI()
 ModelViewer* MainWindow::createMdiChild()
 {
 	ModelViewer* viewer = new ModelViewer(ui->mdiArea);
-	QString lastOpenedDir = MODELVIEWER_DATA_DIR + QString("/test-models");
+	QString lastOpenedDir = PathUtils::getDataDirectory() + QString("/test-models");
 	viewer->setLastOpenedDir(lastOpenedDir);
 	viewer->setAttribute(Qt::WA_DeleteOnClose);
 	_viewers.append(viewer);
@@ -367,7 +367,7 @@ void MainWindow::on_actionTutorial_triggered()
 	}
 	else if (tutorialMode == "browser")
 	{
-		QString tutorialPath = QString(MODELVIEWER_DATA_DIR) + "/data/tutorials/index.html";
+		QString tutorialPath = PathUtils::getDataDirectory() + "/data/tutorials/index.html";
 		QFile tutorialFile(tutorialPath);
 
 		if (tutorialFile.exists())
@@ -824,7 +824,7 @@ void MainWindow::updateRecentFileActions()
 		act->setText(tr("&%1 %2").arg(i + 1).arg(fileName));
 		act->setData(filePath);
 		act->setStatusTip(tr("%1 -> Shift-click to import into active document").arg(filePath));
-		act->setToolTip(tr("Click to open � Shift-click to import into active window"));
+		act->setToolTip(tr("Click to open • Shift-click to import into active window"));
 		act->setVisible(true);
 	}
 

@@ -1,15 +1,15 @@
-﻿#include "TutorialDialog.h"
-#include "config.h"
-#include <QVBoxLayout>
-#include <QHBoxLayout>
+﻿#include "PathUtils.h"
+#include "TutorialDialog.h"
 #include <QApplication>
-#include <QScreen>
-#include <QFile>
-#include <QMessageBox>
-#include <QDir>
-#include <QTextStream>
-#include <QRegularExpression>
 #include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QHBoxLayout>
+#include <QMessageBox>
+#include <QRegularExpression>
+#include <QScreen>
+#include <QTextStream>
+#include <QVBoxLayout>
 
 #ifdef HAVE_WEBENGINE
 // ============================================================================
@@ -196,7 +196,7 @@ void TutorialDialog::populateLessonList()
 
 QString TutorialDialog::getTutorialBasePath() const
 {
-    return QString(MODELVIEWER_DATA_DIR) + "/data/tutorials";
+    return PathUtils::getDataDirectory() + "/data/tutorials";
 }
 
 QString TutorialDialog::getLessonPath(int lessonIndex) const

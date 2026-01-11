@@ -1,7 +1,7 @@
 ﻿#include "MaterialPreviewWidget.h"
 #include <vector>
 #include <cmath>
-#include "config.h"
+#include "PathUtils.h"
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QPainter>
@@ -312,7 +312,7 @@ void MaterialPreviewWidget::initializeGL()
 	initializeOpenGLFunctions();
 	glEnable(GL_DEPTH_TEST);
 
-	const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
+	const QString path = PathUtils::getDataDirectory() + "/";
 
 	_shader = std::make_unique<ShaderProgram>(); _shader->setObjectName("_shader");
 	_shader->loadCompileAndLinkShaderFromFile(path + "shaders/preview_swatch.vert",

@@ -2,7 +2,7 @@
 #include "ui_ClippingPlanesEditor.h"
 #include "LanguageManager.h"
 #include "GLWidget.h"
-#include "config.h"
+#include "PathUtils.h"
 #include <QKeyEvent>
 #include <QColorDialog>
 #include <QFileDialog>
@@ -273,7 +273,7 @@ void ClippingPlanesEditor::on_pushButtonHatchColor_clicked()
 
 void ClippingPlanesEditor::on_pushButtonTexture_clicked()
 {
-	const QString path = QString(MODELVIEWER_DATA_DIR) + "/";
+	const QString path = PathUtils::getDataDirectory() + "/";
 	QString filePath = QFileDialog::getOpenFileName(this, tr("Select Hatch Texture"), QString(path + "textures/patterns"),
 		tr("Image Files (*.png *.jpg *.bmp)"));
 	if (!filePath.isEmpty())

@@ -1,9 +1,8 @@
 #include "MaterialTextureLibrary.h"
-#include <QStandardPaths>
-#include <QDir>
+#include "PathUtils.h"
 #include <QDebug>
-
-#include "config.h"
+#include <QDir>
+#include <QStandardPaths>
 
 MaterialTextureLibrary& MaterialTextureLibrary::instance()
 {
@@ -13,7 +12,7 @@ MaterialTextureLibrary& MaterialTextureLibrary::instance()
 
 MaterialTextureLibrary::MaterialTextureLibrary()
 {
-    QString appPath = MODELVIEWER_DATA_DIR;
+    QString appPath = PathUtils::getDataDirectory();
     QString root = appPath + "/textures/materials/";
 
     if (!QDir(root).exists())

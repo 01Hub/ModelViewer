@@ -13,7 +13,7 @@
 #include <QSysInfo>
 #include <QSaveFile>
 #include <QMessageBox>
-#include "config.h"
+#include "PathUtils.h"
 
 
 QMap<QString, std::function<GLMaterial()>> MaterialLibraryWidget::s_materialMap;
@@ -801,7 +801,7 @@ void MaterialLibraryWidget::populateMaterials()
 		QString err;
 		// try to load using default jsonPath (if set), else try hardcoded DATADIR path
 		QString pathToTry = s_jsonPath;
-		if (pathToTry.isEmpty()) pathToTry = QString(MODELVIEWER_DATA_DIR) + "/data/catalogs/materials.json";
+		if (pathToTry.isEmpty()) pathToTry = PathUtils::getDataDirectory() + "/data/catalogs/materials.json";
 		loadAllMaterials(pathToTry, &err);
 	}
 

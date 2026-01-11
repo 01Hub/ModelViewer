@@ -130,10 +130,21 @@ set(APP_VERSION_MAJOR 1)
 set(APP_VERSION_MINOR 2)
 set(APP_VERSION_PATCH 3)
 
+
+if(WIN32)
+    # Windows: will compute at runtime relative to exe
+    set(USE_RELATIVE_DATA_DIR TRUE)
+    set(DATA_DIR_VALUE "${PROJECT_NAME}")
+else()
+    # Linux: absolute path from make install
+    set(USE_RELATIVE_DATA_DIR FALSE)
+    set(DATA_DIR_VALUE "${CMAKE_INSTALL_FULL_DATAROOTDIR}/${PROJECT_NAME}")
+endif()
+
 configure_file(
-  "${CMAKE_CURRENT_SOURCE_DIR}/config.h.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/config.h"
-  @ONLY
+    "${CMAKE_CURRENT_SOURCE_DIR}/config.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/config.h"
+    @ONLY
 )
 
 file(GLOB sources src/*.cpp src/*.cxx src/*.c include/*.h include/*.hxx)
