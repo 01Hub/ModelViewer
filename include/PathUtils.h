@@ -9,7 +9,7 @@ namespace PathUtils
 {
     inline QString getDataDirectory()
     {
-#ifdef USE_RELATIVE_DATA_DIR
+#if USE_RELATIVE_DATA_DIR
         // Windows: compute relative to exe at runtime
         return QDir(QApplication::applicationDirPath()).absoluteFilePath("../share/") + QString(MODELVIEWER_DATA_DIR);
 #else

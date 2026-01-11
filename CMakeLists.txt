@@ -133,11 +133,11 @@ set(APP_VERSION_PATCH 3)
 
 if(WIN32)
     # Windows: will compute at runtime relative to exe
-    set(USE_RELATIVE_DATA_DIR TRUE)
+    set(USE_RELATIVE_DATA_DIR 1)
     set(DATA_DIR_VALUE "${PROJECT_NAME}")
 else()
     # Linux: absolute path from make install
-    set(USE_RELATIVE_DATA_DIR FALSE)
+    set(USE_RELATIVE_DATA_DIR 0)
     set(DATA_DIR_VALUE "${CMAKE_INSTALL_FULL_DATAROOTDIR}/${PROJECT_NAME}")
 endif()
 
