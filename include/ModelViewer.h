@@ -26,6 +26,7 @@ public:
 
 	void setMaterialToSelectedItems(const GLMaterial& mat);
 	void setTexturesToSelectedItems(const GLMaterial& mat);
+	void setTextureSamplersToSelectedItems(const GLMaterial* material, GLMaterial::TextureType type);
 	
 	void setTransformation();
 	void bakeTransformations();
@@ -90,6 +91,7 @@ public slots:
 	void showPredefinedMaterialsPage();
 	void showTransformationsPage();	
 	void onDisplayModeChanged(int mode);
+	void onTextureCacheCleared();
 
 private slots:
 	void setListRow(int index);

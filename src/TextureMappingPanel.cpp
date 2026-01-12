@@ -573,7 +573,13 @@ void TextureMappingPanel::connectSignals()
 			}
 		});
 
-	connect(_ui->pushButtonClearAllMaps, &QPushButton::clicked, this, &TextureMappingPanel::clearAllMaps);
+	connect(_ui->pushButtonClearAllMaps, &QPushButton::clicked, this, &TextureMappingPanel::clearAllMaps);	
+	connect(_ui->pushButtonClearTextureCache, &QPushButton::clicked, this, [this] {
+		clearAllMaps();
+		QMessageBox::information(nullptr, QObject::tr("Texture Cache Cleared"),
+			QObject::tr("The texture cache has been cleared."));
+		emit textureCacheClearRequested();
+		});
 }
 
 // ============================================================================
@@ -1056,6 +1062,9 @@ void TextureMappingPanel::onTransformButtonClicked(GLMaterial::TextureType type)
 
 		// Store in material (cascades to unified storage via setTexture)
 		_material->setTexture(type, tex);
+
+		// Emit signal for sampler change
+		emit textureSamplerChanged(_material, type);
 
 		// Update preview
 		updatePreview();

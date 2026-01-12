@@ -41,6 +41,35 @@ enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
 enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3,  GRID = 4, DIAGONAL_CROSS = 5 };
 enum class HDRToneMapMode { ACES_Narkowicz, ACES_Hill, AECS_Hill_Exposure_Boost, KhronosPbrNeutral, Uncharted2ToneMapping, Reinhard};
 
+struct TextureSamplerSettings
+{
+	GLenum wrapS = GL_REPEAT;
+	GLenum wrapT = GL_REPEAT;
+	GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR;
+	GLenum magFilter = GL_LINEAR;
+
+	bool operator==(const TextureSamplerSettings& other) const
+	{
+		return wrapS == other.wrapS &&
+			wrapT == other.wrapT &&
+			minFilter == other.minFilter &&
+			magFilter == other.magFilter;
+	}
+};
+
+struct CachedTextureEntry
+{
+	QImage image;
+	int imageWidth = 0;
+	int imageHeight = 0;
+	int imageComponents = 0;
+	GLenum imageFormat = GL_RGBA;
+
+	GLuint lastGPUTexture = 0;
+	TextureSamplerSettings lastSamplerSettings;
+	int refCount = 0;
+};
+
 class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 {
 	friend class ClippingPlanesEditor;
@@ -150,7 +179,10 @@ public:
 	void clearADSTexMaps(const std::vector<int>& ids);
 
 	void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat);
-	void setTexturesToObjects(const std::vector<int>& ids, const GLMaterial& mat);
+	void setTexturesToObjects(const std::vector<int>& ids, const GLMaterial& mat);	
+	void synchronizeTextureCache(const GLMaterial* material, GLMaterial::TextureType type);
+	void clearTextureCache();
+
 	void setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col);
 	void setPBRMetallic(const std::vector<int>& ids, const float& val);
 	void setPBRRoughness(const std::vector<int>& ids, const float& val);
@@ -449,7 +481,9 @@ private:
 		
 	void onMeshBatchReady(const std::vector<AssImpMesh*>& batch);
 
-	unsigned int getOrLoadTextureCached(const QString& path);
+	GLuint createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers);
+	unsigned int getOrLoadTextureCached(const QString& path,
+		const TextureSamplerSettings& samplers = TextureSamplerSettings());
 	void retainTexture(unsigned int texId);
 	void releaseTexture(unsigned int texId);
 
@@ -744,7 +778,7 @@ private:
 	bool _progressiveLoadingEnabled = false;
 
 	// --- Texture cache: path -> GL texture id (per GLWidget context)
-	std::unordered_map<QString, unsigned int> _texCache;
+	std::unordered_map<QString, CachedTextureEntry> _texCache;
 	// Reference counts so we can release when maps are cleared
 	std::unordered_map<unsigned int, int> _texRefCount;
 

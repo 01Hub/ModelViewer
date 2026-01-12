@@ -183,6 +183,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 				setTexturesToSelectedItems(*mat);
 			}
 		});
+	connect(textureMappingPanel, &TextureMappingPanel::textureSamplerChanged,
+		this, &ModelViewer::setTextureSamplersToSelectedItems);
+
+	connect(textureMappingPanel, &TextureMappingPanel::textureCacheClearRequested,
+		this, &ModelViewer::onTextureCacheCleared);
 
 	_hasADSDiffuseTex = false;
 	_hasADSSpecularTex = false;
@@ -1710,6 +1715,12 @@ void ModelViewer::setTexturesToSelectedItems(const GLMaterial& mat)
 	}
 }
 
+void ModelViewer::setTextureSamplersToSelectedItems(const GLMaterial* material, GLMaterial::TextureType type)
+{
+	if (!_glWidget) return;
+	_glWidget->synchronizeTextureCache(material, type);
+}
+
 void ModelViewer::on_checkBoxSelectAll_stateChanged(int arg1)
 {
 	if (arg1 != Qt::PartiallyChecked)
@@ -1869,6 +1880,14 @@ void ModelViewer::onDisplayModeChanged(int mode)
 	checkBoxHDRToneMapping->setChecked(checkBoxSkyBoxHDRI->isChecked());
 	checkBoxGammaCorrection->setChecked(checkBoxSkyBoxHDRI->isChecked());
 	_glWidget->setSkyBoxTextureHDRI(checkBoxSkyBoxHDRI->isChecked());
+}
+
+void ModelViewer::onTextureCacheCleared()
+{
+	if (_glWidget)
+	{
+		_glWidget->clearTextureCache();
+	}
 }
 
 void ModelViewer::on_checkBoxDiffuseTex_toggled(bool checked)

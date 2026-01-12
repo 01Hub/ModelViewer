@@ -15,6 +15,13 @@ TextureParametersDialog::TextureParametersDialog(QWidget* parent)
 
     // Set reasonable window properties
     setWindowTitle("Texture Parameters");   
+
+    connect(_ui->btnDefault, &QPushButton::clicked, this, [this]() {
+        // Reset to default values
+        TextureTransform defaultTransform;
+        SamplerSettings defaultSamplers;
+        setAllParameters(defaultTransform, defaultSamplers);
+		});
 }
 
 TextureParametersDialog::~TextureParametersDialog()

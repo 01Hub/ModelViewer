@@ -40,6 +40,8 @@ public:
 signals:
     void materialChanged(const GLMaterial* material);
     void applyTexturesTriggered(const GLMaterial& material);
+    void textureSamplerChanged(const GLMaterial* material, GLMaterial::TextureType type);
+	void textureCacheClearRequested();
 
 protected:
     bool eventFilter(QObject* obj, QEvent* ev) override;

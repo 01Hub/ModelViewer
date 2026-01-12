@@ -104,6 +104,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="pushButtonClearTextureCache">
+        <property name="text">
+         <string>Clear Texture Cache</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QPushButton" name="pushButtonApply">
         <property name="text">
          <string>Apply to Selection</string>
@@ -128,7 +135,7 @@
          <property name="geometry">
           <rect>
            <x>0</x>
-           <y>-946</y>
+           <y>0</y>
            <width>300</width>
            <height>3066</height>
           </rect>

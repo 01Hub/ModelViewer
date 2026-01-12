@@ -2505,6 +2505,37 @@ void GLWidget::setTexturesToObjects(const std::vector<int>& ids, const GLMateria
 	}
 }
 
+void GLWidget::synchronizeTextureCache(const GLMaterial* material, GLMaterial::TextureType type)
+{
+	if (!material) return;
+
+	const GLMaterial::Texture& matTex = material->texture(type);
+	if (matTex.path.empty()) return;
+
+	TextureSamplerSettings samplers{
+		matTex.wrapS,
+		matTex.wrapT,
+		matTex.minFilter,
+		matTex.magFilter
+	};
+
+	makeCurrent();
+	getOrLoadTextureCached(QString::fromStdString(matTex.path), samplers);
+}
+
+void GLWidget::clearTextureCache()
+{
+	for (auto& entry : _texCache)
+	{
+		if (entry.second.lastGPUTexture != 0)
+		{
+			glDeleteTextures(1, &entry.second.lastGPUTexture);
+		}
+	}
+	_texCache.clear();
+	_texRefCount.clear();
+}
+
 void GLWidget::setPBRAlbedoColor(const std::vector<int>& ids, const QColor& col)
 {
 	for (int id : ids)
@@ -5324,20 +5355,84 @@ void GLWidget::onMeshBatchReady(const std::vector<AssImpMesh*>& batch)
 	_viewer->updateDisplayList();
 }
 
-unsigned int GLWidget::getOrLoadTextureCached(const QString& path)
+GLuint GLWidget::createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers)
+{
+	GLuint textureID;
+	glGenTextures(1, &textureID);
+
+	glBindTexture(GL_TEXTURE_2D, textureID);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(), 0,
+		GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
+	glGenerateMipmap(GL_TEXTURE_2D);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, samplers.wrapS);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, samplers.wrapT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, samplers.minFilter);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, samplers.magFilter);
+	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
+
+	return textureID;
+}
+
+unsigned int GLWidget::getOrLoadTextureCached(
+	const QString& path,
+	const TextureSamplerSettings& samplers)
 {
 	if (path.isEmpty()) return 0;
+
 	auto it = _texCache.find(path);
+
+	// Cache hit - image exists
 	if (it != _texCache.end())
 	{
-		retainTexture(it->second);
-		return it->second;
+		CachedTextureEntry& entry = it->second;
+
+		// Exact match (same image + same samplers)
+		if (entry.lastGPUTexture != 0 && entry.lastSamplerSettings == samplers)
+		{
+			retainTexture(entry.lastGPUTexture);
+			return entry.lastGPUTexture;
+		}
+
+		// Same image, different samplers - create new GPU texture from cached image
+		if (!entry.image.isNull())
+		{
+			makeCurrent();
+			GLuint newTexID = createGPUTextureFromImage(entry.image, samplers);
+			if (newTexID != 0)
+			{
+				entry.lastGPUTexture = newTexID;
+				entry.lastSamplerSettings = samplers;
+				_texRefCount[newTexID] = 1;
+				return newTexID;
+			}
+		}
 	}
-	makeCurrent(); // ensure this context
-	unsigned int tex = loadTextureFromFile(path.toStdString().c_str(), false);
-	_texCache.emplace(path, tex);
-	_texRefCount[tex] = 1;
-	return tex;
+
+	// Cache miss - image not cached, load from disk
+	makeCurrent();
+	GLuint texID = loadTextureFromFile(
+		path.toStdString().c_str(),
+		samplers.wrapS,
+		samplers.wrapT,
+		samplers.minFilter,
+		samplers.magFilter,
+		false);
+
+	if (texID == 0) return 0;
+
+	// Cache the image for future use with different samplers
+	CachedTextureEntry newEntry;
+	newEntry.image = QImage(path);  // Cache the image
+	newEntry.lastGPUTexture = texID;
+	newEntry.lastSamplerSettings = samplers;
+	newEntry.imageWidth = newEntry.image.width();
+	newEntry.imageHeight = newEntry.image.height();
+
+	_texCache[path] = newEntry;
+	_texRefCount[texID] = 1;
+
+	return texID;
 }
 
 void GLWidget::retainTexture(unsigned int texId)
@@ -5358,7 +5453,7 @@ void GLWidget::releaseTexture(unsigned int texId)
 		// remove from path map too
 		for (auto pit = _texCache.begin(); pit != _texCache.end(); )
 		{
-			if (pit->second == texId) pit = _texCache.erase(pit); else ++pit;
+			if (pit->second.lastGPUTexture == texId) pit = _texCache.erase(pit); else ++pit;
 		}
 		glDeleteTextures(1, &texId);
 		_texRefCount.erase(texId);
@@ -5367,33 +5462,159 @@ void GLWidget::releaseTexture(unsigned int texId)
 
 GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 {
-	GLMaterial m = src; // copy
-	if (m.hasAlbedoMap())    m.setAlbedoTextureId(w->getOrLoadTextureCached(m.albedoMapPath()));
-	if (m.hasMetallicMap())  m.setMetallicTextureId(w->getOrLoadTextureCached(m.metallicMapPath()));
-	if (m.hasRoughnessMap()) m.setRoughnessTextureId(w->getOrLoadTextureCached(m.roughnessMapPath()));
-	if (m.hasNormalMap())    m.setNormalTextureId(w->getOrLoadTextureCached(m.normalMapPath()));
-	if (m.hasAOMap())    m.setOcclusionTextureId(w->getOrLoadTextureCached(m.aoMapPath()));
-	if (m.hasOpacityMap())   m.setOpacityTextureId(w->getOrLoadTextureCached(m.opacityMapPath()));
-	if (m.hasHeightMap())    m.setHeightTextureId(w->getOrLoadTextureCached(m.heightMapPath()));
-	if (m.hasEmissiveMap())  m.setEmissiveTextureId(w->getOrLoadTextureCached(m.emissiveMapPath()));
-	if (m.hasTransmissionMap()) m.setTransmissionTextureId(w->getOrLoadTextureCached(m.transmissionMapPath()));
-	if (m.hasIORMap()) m.setIORTextureId(w->getOrLoadTextureCached(m.iorMapPath()));
-	if (m.hasSheenColorMap()) m.setSheenColorTextureId(w->getOrLoadTextureCached(m.sheenColorMapPath()));
-	if (m.hasSheenRoughnessMap()) m.setSheenRoughnessTextureId(w->getOrLoadTextureCached(m.sheenRoughnessMapPath()));
-	if (m.hasClearcoatColorMap()) m.setClearcoatColorTextureId(w->getOrLoadTextureCached(m.clearcoatColorMapPath()));
-	if (m.hasClearcoatRoughnessMap()) m.setClearcoatRoughnessTextureId(w->getOrLoadTextureCached(m.clearcoatRoughnessMapPath()));
-	if (m.hasClearcoatNormalMap()) m.setClearcoatNormalTextureId(w->getOrLoadTextureCached(m.clearcoatNormalMapPath()));	
-	if (m.hasIridescenceMap()) m.setIridescenceTextureId(w->getOrLoadTextureCached(m.iridescenceMap()));
-	if (m.hasIridescenceThicknessMap()) m.setIridescenceThicknessTextureId(w->getOrLoadTextureCached(m.iridescenceThicknessMap()));
-	if (m.hasSpecularColorMap()) m.setSpecularColorTextureId(w->getOrLoadTextureCached(m.specularColorMap()));
-	if (m.hasSpecularFactorMap()) m.setSpecularFactorTextureId(w->getOrLoadTextureCached(m.specularFactorMap()));
-	if (m.hasAnisotropyMap()) m.setAnisotropyTextureId(w->getOrLoadTextureCached(m.anisotropyMap()));
-	if (m.hasThicknessMap()) m.setThicknessTextureId(w->getOrLoadTextureCached(m.thicknessMap()));
-	if (m.hasDiffuseMap()) m.setDiffuseTextureId(w->getOrLoadTextureCached(m.diffuseMap()));
-	if (m.hasDiffuseTransmissionMap()) m.setDiffuseTransmissionTextureId(w->getOrLoadTextureCached(m.diffuseTransmissionMap()));
-	if (m.hasDiffuseTransmissionColorMap()) m.setDiffuseTransmissionColorTextureId(w->getOrLoadTextureCached(m.diffuseTransmissionColorMap()));
-	if (m.hasSpecularGlossinessMap()) m.setSpecularGlossinessTextureId(w->getOrLoadTextureCached(m.specularGlossinessMap()));	
-	
+	GLMaterial m = src;
+
+	if (m.hasAlbedoMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Albedo);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setAlbedoTextureId(w->getOrLoadTextureCached(m.albedoMapPath(), samplers));
+	}
+	if (m.hasMetallicMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Metallic);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setMetallicTextureId(w->getOrLoadTextureCached(m.metallicMapPath(), samplers));
+	}
+	if (m.hasRoughnessMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Roughness);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setRoughnessTextureId(w->getOrLoadTextureCached(m.roughnessMapPath(), samplers));
+	}
+	if (m.hasNormalMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Normal);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setNormalTextureId(w->getOrLoadTextureCached(m.normalMapPath(), samplers));
+	}
+	if (m.hasAOMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::AmbientOcclusion);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setOcclusionTextureId(w->getOrLoadTextureCached(m.aoMapPath(), samplers));
+	}
+	if (m.hasOpacityMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Opacity);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setOpacityTextureId(w->getOrLoadTextureCached(m.opacityMapPath(), samplers));
+	}
+	if (m.hasHeightMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Height);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setHeightTextureId(w->getOrLoadTextureCached(m.heightMapPath(), samplers));
+	}
+	if (m.hasEmissiveMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Emissive);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setEmissiveTextureId(w->getOrLoadTextureCached(m.emissiveMapPath(), samplers));
+	}
+	if (m.hasTransmissionMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Transmission);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setTransmissionTextureId(w->getOrLoadTextureCached(m.transmissionMapPath(), samplers));
+	}
+	if (m.hasIORMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::IOR);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setIORTextureId(w->getOrLoadTextureCached(m.iorMapPath(), samplers));
+	}
+	if (m.hasSheenColorMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SheenColor);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setSheenColorTextureId(w->getOrLoadTextureCached(m.sheenColorMapPath(), samplers));
+	}
+	if (m.hasSheenRoughnessMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SheenRoughness);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setSheenRoughnessTextureId(w->getOrLoadTextureCached(m.sheenRoughnessMapPath(), samplers));
+	}
+	if (m.hasClearcoatColorMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::ClearcoatColor);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setClearcoatColorTextureId(w->getOrLoadTextureCached(m.clearcoatColorMapPath(), samplers));
+	}
+	if (m.hasClearcoatRoughnessMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::ClearcoatRoughness);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setClearcoatRoughnessTextureId(w->getOrLoadTextureCached(m.clearcoatRoughnessMapPath(), samplers));
+	}
+	if (m.hasClearcoatNormalMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::ClearcoatNormal);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setClearcoatNormalTextureId(w->getOrLoadTextureCached(m.clearcoatNormalMapPath(), samplers));
+	}
+	if (m.hasIridescenceMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Iridescence);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setIridescenceTextureId(w->getOrLoadTextureCached(m.iridescenceMap(), samplers));
+	}
+	if (m.hasIridescenceThicknessMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::IridescenceThickness);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setIridescenceThicknessTextureId(w->getOrLoadTextureCached(m.iridescenceThicknessMap(), samplers));
+	}
+	if (m.hasSpecularColorMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SpecularColor);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setSpecularColorTextureId(w->getOrLoadTextureCached(m.specularColorMap(), samplers));
+	}
+	if (m.hasSpecularFactorMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SpecularFactor);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setSpecularFactorTextureId(w->getOrLoadTextureCached(m.specularFactorMap(), samplers));
+	}
+	if (m.hasAnisotropyMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Anisotropy);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setAnisotropyTextureId(w->getOrLoadTextureCached(m.anisotropyMap(), samplers));
+	}
+	if (m.hasThicknessMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Thickness);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setThicknessTextureId(w->getOrLoadTextureCached(m.thicknessMap(), samplers));
+	}
+	if (m.hasDiffuseMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Diffuse);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setDiffuseTextureId(w->getOrLoadTextureCached(m.diffuseMap(), samplers));
+	}
+	if (m.hasDiffuseTransmissionMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::DiffuseTransmission);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setDiffuseTransmissionTextureId(w->getOrLoadTextureCached(m.diffuseTransmissionMap(), samplers));
+	}
+	if (m.hasDiffuseTransmissionColorMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::DiffuseTransmissionColor);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setDiffuseTransmissionColorTextureId(w->getOrLoadTextureCached(m.diffuseTransmissionColorMap(), samplers));
+	}
+	if (m.hasSpecularGlossinessMap())
+	{
+		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SpecularGlossiness);
+		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
+		m.setSpecularGlossinessTextureId(w->getOrLoadTextureCached(m.specularGlossinessMap(), samplers));
+	}
+
 	m.syncTextureParameters();
 
 	return m;
