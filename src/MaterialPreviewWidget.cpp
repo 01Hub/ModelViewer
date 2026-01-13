@@ -365,7 +365,7 @@ void MaterialPreviewWidget::initializeGL()
 	glGenTextures(1, &_textOverlayTexture);
 
 	// Clear cached texture IDs so they reload with the new context
-	//clearTextureCache();
+	clearTextureCache();
 
 	// Force texture recreation on next paint
 	_textTextureNeedsUpdate = true;		
@@ -1294,21 +1294,21 @@ void MaterialPreviewWidget::syncAllTexturesFromMaterial()
 
 void MaterialPreviewWidget::clearTextureCache()
 {
-	_albedoTex.id = 0;
-	_metallicTex.id = 0;
-	_roughnessTex.id = 0;
-	_normalTex.id = 0;
-	_aoTex.id = 0;
-	_heightTex.id = 0;
-	_opacityTex.id = 0;
-	_emissiveTex.id = 0;
-	_sheenColorTex.id = 0;
-	_sheenRoughnessTex.id = 0;
-	_clearcoatColorTex.id = 0;
-	_clearcoatRoughnessTex.id = 0;
-	_clearcoatNormalTex.id = 0;
-	_transmissionTex.id = 0;
-	_iorTex.id = 0;
+	_albedoTex = GpuTexCache();      // Reset entire struct
+	_metallicTex = GpuTexCache();
+	_roughnessTex = GpuTexCache();
+	_normalTex = GpuTexCache();
+	_aoTex = GpuTexCache();
+	_heightTex = GpuTexCache();
+	_opacityTex = GpuTexCache();
+	_emissiveTex = GpuTexCache();
+	_sheenColorTex = GpuTexCache();
+	_sheenRoughnessTex = GpuTexCache();
+	_clearcoatColorTex = GpuTexCache();
+	_clearcoatRoughnessTex = GpuTexCache();
+	_clearcoatNormalTex = GpuTexCache();
+	_transmissionTex = GpuTexCache();
+	_iorTex = GpuTexCache();
 }
 
 void MaterialPreviewWidget::initializeOverlayShader()
