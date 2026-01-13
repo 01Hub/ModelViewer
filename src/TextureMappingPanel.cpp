@@ -32,6 +32,12 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
 	, _ui(new Ui::TextureMappingPanel)
 {
 	_ui->setupUi(this);
+
+	// Enable right-click context menu
+	setContextMenuPolicy(Qt::CustomContextMenu);
+	connect(this, &QWidget::customContextMenuRequested,
+		this, &TextureMappingPanel::onContextMenu);
+
 	_preview = qobject_cast<MaterialPreviewWidget*>(_ui->previewWidget);
 	_preview->setPreviewProfile(PreviewProfile::TextureAuthoring);
 
@@ -120,6 +126,14 @@ void TextureMappingPanel::onTintParamsChanged()
 
 	emit materialChanged(m);
 }
+
+void TextureMappingPanel::onContextMenu(const QPoint& pos)
+{
+	QMenu menu;
+	menu.addAction("Detach", this, &TextureMappingPanel::detachRequested);
+	menu.exec(mapToGlobal(pos));
+}
+
 
 // ============================================================================
 // Registry / Wiring

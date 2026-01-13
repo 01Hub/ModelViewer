@@ -231,12 +231,18 @@ private:
 	int _skyBoxLDRIIndex = 0;
 	int _skyBoxHDRIIndex = 0;
 
+	QPointer<QDialog> _detachedTextureDialog;  // Stores the floating dialog
+	QWidget* _textureOriginalParent = nullptr; // Stores where panel came from
+
 private:
 	bool checkForActiveSelection();
 	bool hasSelection() const;
 	std::vector<int> getSelectedIDs() const;
 	void updateControls();
 	QString getSupportedQtImagesFilter();	
+
+	void detachTexturePanel();
+	void reattachTexturePanel();
 };
 
 #endif

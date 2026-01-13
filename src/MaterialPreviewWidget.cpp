@@ -287,6 +287,13 @@ MaterialPreviewWidget::MaterialPreviewWidget(QWidget* parent)
 MaterialPreviewWidget::~MaterialPreviewWidget()
 {
 	makeCurrent();
+
+	// Clean up overlay resources
+	if (_overlayVAO) glDeleteVertexArrays(1, &_overlayVAO);
+	if (_overlayVBO) glDeleteBuffers(1, &_overlayVBO);
+	if (_textOverlayTexture) glDeleteTextures(1, &_textOverlayTexture);
+	_overlayShader.reset();  //Properly destroy shader
+
 	destroyMesh(_sphere);
 	destroyMesh(_cube);
 	destroyMesh(_cylinder);
@@ -356,6 +363,12 @@ void MaterialPreviewWidget::initializeGL()
 
 	// Generate texture
 	glGenTextures(1, &_textOverlayTexture);
+
+	// Clear cached texture IDs so they reload with the new context
+	//clearTextureCache();
+
+	// Force texture recreation on next paint
+	_textTextureNeedsUpdate = true;		
 }
 
 
@@ -1279,9 +1292,30 @@ void MaterialPreviewWidget::syncAllTexturesFromMaterial()
 		14, "uTransmissionMap", "uUseTransmissionMap", false);
 }
 
+void MaterialPreviewWidget::clearTextureCache()
+{
+	_albedoTex.id = 0;
+	_metallicTex.id = 0;
+	_roughnessTex.id = 0;
+	_normalTex.id = 0;
+	_aoTex.id = 0;
+	_heightTex.id = 0;
+	_opacityTex.id = 0;
+	_emissiveTex.id = 0;
+	_sheenColorTex.id = 0;
+	_sheenRoughnessTex.id = 0;
+	_clearcoatColorTex.id = 0;
+	_clearcoatRoughnessTex.id = 0;
+	_clearcoatNormalTex.id = 0;
+	_transmissionTex.id = 0;
+	_iorTex.id = 0;
+}
+
 void MaterialPreviewWidget::initializeOverlayShader()
 {
-	_overlayShader = new QOpenGLShaderProgram(this);
+	// Destroy old shader (if context was recreated)
+	_overlayShader.reset();
+	_overlayShader = std::make_unique<QOpenGLShaderProgram>(this);
 
 	// Simple vertex shader for overlay
 	const char* vertexShaderSource = R"(
@@ -1563,6 +1597,7 @@ void MaterialPreviewWidget::wheelEvent(QWheelEvent* e)
 void MaterialPreviewWidget::showEvent(QShowEvent* e)
 {
 	QOpenGLWidget::showEvent(e);
+	setFocus();
 	startOverlayHint(); // restart each time the widget becomes visible
 }
 

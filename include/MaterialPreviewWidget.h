@@ -91,6 +91,8 @@ private:
         bool srgb);
 	void syncAllTexturesFromMaterial();
 
+    void clearTextureCache();
+
 private:
     std::unique_ptr<ShaderProgram> _shader;
     GLuint vao = 0;
@@ -163,7 +165,7 @@ private:
 	PreviewProfile _profile = PreviewProfile::MaterialShowcase;
 
     GLuint _textOverlayTexture = 0;
-    QOpenGLShaderProgram* _overlayShader = nullptr;
+    std::unique_ptr<QOpenGLShaderProgram> _overlayShader;
     GLuint _overlayVAO = 0;
     GLuint _overlayVBO = 0;
     bool _textTextureNeedsUpdate = true;

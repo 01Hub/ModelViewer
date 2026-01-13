@@ -174,6 +174,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	
 	connect(Ui_ModelViewer::materialPreviewWidget, &MaterialEditorPanel::materialChanged, this, &ModelViewer::setMaterialToSelectedItems);
 
+	connect(textureMappingPanel, &TextureMappingPanel::detachRequested,
+		this, &ModelViewer::detachTexturePanel);
 	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::applyTexturesTriggered, this, &ModelViewer::setTexturesToSelectedItems);
 	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::materialChanged, this,
 		[this](const GLMaterial* mat) 
@@ -464,6 +466,79 @@ QString ModelViewer::getSupportedQtImagesFilter()
 	return filter;
 }
 
+void ModelViewer::detachTexturePanel()
+{
+	// Sanity check: is panel valid?
+	if (!textureMappingPanel)
+	{
+		return;
+	}
+
+	// Prevent double-detach
+	if (_detachedTextureDialog)
+	{
+		_detachedTextureDialog->raise();
+		_detachedTextureDialog->activateWindow();
+		return;
+	}
+
+	// Save original parent for reattaching
+	_textureOriginalParent = textureMappingPanel->parentWidget();
+
+	// Create floating dialog
+	_detachedTextureDialog = new QDialog(this);
+	_detachedTextureDialog->setWindowTitle("Texture Mapping");
+	_detachedTextureDialog->setWindowFlags(Qt::Window | Qt::Tool);
+
+	// Create layout for dialog
+	QVBoxLayout* layout = new QVBoxLayout(_detachedTextureDialog);
+	layout->setContentsMargins(0, 0, 0, 0);
+
+	// REPARENT the panel: take it out of toolbox, put it in dialog
+	textureMappingPanel->setParent(_detachedTextureDialog);
+	layout->addWidget(textureMappingPanel);
+
+	_detachedTextureDialog->setAttribute(Qt::WA_StyledBackground, true);
+	textureMappingPanel->setFocus();  // Set initial focus
+
+	// Position and show
+	QRect myGeometry = this->frameGeometry();
+	QPoint screenPos = mapToGlobal(QPoint(myGeometry.width(), 0));
+	_detachedTextureDialog->move(screenPos.x() + 20, screenPos.y());
+	_detachedTextureDialog->resize(420, 700);
+	_detachedTextureDialog->show();
+
+	// When user closes the floating dialog, reattach
+	connect(_detachedTextureDialog, &QDialog::finished,
+		this, &ModelViewer::reattachTexturePanel);
+}
+
+void ModelViewer::reattachTexturePanel()
+{
+	// If not detached, nothing to do
+	if (!_detachedTextureDialog)
+	{
+		return;
+	}
+
+	// Close the floating dialog
+	if (_detachedTextureDialog)
+	{
+		_detachedTextureDialog->deleteLater();  // Schedule for deletion
+		_detachedTextureDialog = nullptr;
+	}
+
+	// REPARENT back: remove from dialog, put back in original parent
+	if (textureMappingPanel && _textureOriginalParent)
+	{
+		textureMappingPanel->setParent(_textureOriginalParent);
+
+		// The panel should automatically reappear in its original location
+		// (Qt layout system takes care of this)
+		textureMappingPanel->show();
+	}
+}
+
 void ModelViewer::updateDisplayList()
 {
 	_glWidget->setTransmissionEnabled(false);
@@ -660,6 +735,14 @@ void ModelViewer::closeEvent(QCloseEvent* event)
 			return;
 		}
 	}
+
+	// Clean up floating dialog if it exists
+	if (_detachedTextureDialog)
+	{
+		_detachedTextureDialog->close();
+		_detachedTextureDialog = nullptr;
+	}
+
 	event->accept();
 }
 

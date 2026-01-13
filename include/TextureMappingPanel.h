@@ -42,6 +42,10 @@ signals:
     void applyTexturesTriggered(const GLMaterial& material);
     void textureSamplerChanged(const GLMaterial* material, GLMaterial::TextureType type);
 	void textureCacheClearRequested();
+	void detachRequested();
+
+private slots:
+    void onContextMenu(const QPoint& pos);
 
 protected:
     bool eventFilter(QObject* obj, QEvent* ev) override;
