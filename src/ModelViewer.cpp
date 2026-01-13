@@ -187,9 +187,14 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		});
 	connect(textureMappingPanel, &TextureMappingPanel::textureSamplerChanged,
 		this, &ModelViewer::setTextureSamplersToSelectedItems);
-
 	connect(textureMappingPanel, &TextureMappingPanel::textureCacheClearRequested,
 		this, &ModelViewer::onTextureCacheCleared);
+	QShortcut* detachShortcut = new QShortcut(
+		QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T),  // Ctrl+Shift+T
+		textureMappingPanel
+	);
+	connect(detachShortcut, &QShortcut::activated,
+		this, &ModelViewer::detachTexturePanel);
 
 	_hasADSDiffuseTex = false;
 	_hasADSSpecularTex = false;
@@ -498,15 +503,36 @@ void ModelViewer::detachTexturePanel()
 	textureMappingPanel->setParent(_detachedTextureDialog);
 	layout->addWidget(textureMappingPanel);
 
-	_detachedTextureDialog->setAttribute(Qt::WA_StyledBackground, true);
-	textureMappingPanel->setFocus();  // Set initial focus
+	// Position floating window
+	QScreen* screen = QGuiApplication::primaryScreen();
+	QRect screenGeom = screen->availableGeometry();
 
-	// Position and show
 	QRect myGeometry = this->frameGeometry();
-	QPoint screenPos = mapToGlobal(QPoint(myGeometry.width(), 0));
-	_detachedTextureDialog->move(screenPos.x() + 20, screenPos.y());
-	_detachedTextureDialog->resize(420, 700);
+	int x = myGeometry.right() + 20;
+	int y = myGeometry.top();
+
+	// Clamp to screen bounds
+	if (x + 420 > screenGeom.right())
+	{
+		x = screenGeom.right() - textureMappingPanel->width();  // Fit within screen
+	}
+	if (y + 700 > screenGeom.bottom())
+	{
+		y = screenGeom.bottom() - textureMappingPanel->height();
+	}
+	if (x < screenGeom.left())
+	{
+		x = screenGeom.left();
+	}
+	if (y < screenGeom.top())
+	{
+		y = screenGeom.top();
+	}
+
+	_detachedTextureDialog->move(x, y);
+	_detachedTextureDialog->resize(420, height() * 0.95);
 	_detachedTextureDialog->show();
+	textureMappingPanel->setDetached(true);
 
 	// When user closes the floating dialog, reattach
 	connect(_detachedTextureDialog, &QDialog::finished,
@@ -515,27 +541,32 @@ void ModelViewer::detachTexturePanel()
 
 void ModelViewer::reattachTexturePanel()
 {
-	// If not detached, nothing to do
 	if (!_detachedTextureDialog)
 	{
 		return;
 	}
 
-	// Close the floating dialog
-	if (_detachedTextureDialog)
-	{
-		_detachedTextureDialog->deleteLater();  // Schedule for deletion
-		_detachedTextureDialog = nullptr;
-	}
+	_detachedTextureDialog->disconnect();
+	_detachedTextureDialog->deleteLater();
+	_detachedTextureDialog = nullptr;
 
-	// REPARENT back: remove from dialog, put back in original parent
 	if (textureMappingPanel && _textureOriginalParent)
 	{
+		// Reparent back
 		textureMappingPanel->setParent(_textureOriginalParent);
 
-		// The panel should automatically reappear in its original location
-		// (Qt layout system takes care of this)
+		// Get the grid layout and re-add with proper stretch settings
+		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_textureOriginalParent->layout());
+		if (gridLayout)
+		{
+			gridLayout->addWidget(textureMappingPanel, 0, 0);
+			gridLayout->setColumnStretch(0, 1);  // Make it stretch horizontally
+			gridLayout->setRowStretch(0, 1);     // Make it stretch vertically
+		}
+
 		textureMappingPanel->show();
+		_textureOriginalParent->layout()->update();
+		textureMappingPanel->setDetached(false);
 	}
 }
 

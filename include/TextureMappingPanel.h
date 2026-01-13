@@ -36,6 +36,9 @@ public:
     GLMaterial* material() const { return _material; }
 
     void onTintParamsChanged();
+    	
+	bool isDetached() const { return _detached; }
+	void setDetached(bool detached);
 
 signals:
     void materialChanged(const GLMaterial* material);
@@ -104,4 +107,6 @@ private:
     QIcon _checkerIcon;
 
     QString _lastUsedFolder;
+
+	bool _detached = false;
 };

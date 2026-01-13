@@ -37,6 +37,7 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
 	setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(this, &QWidget::customContextMenuRequested,
 		this, &TextureMappingPanel::onContextMenu);
+	connect(_ui->toolButtonDetach, &QToolButton::clicked, this, &TextureMappingPanel::detachRequested);
 
 	_preview = qobject_cast<MaterialPreviewWidget*>(_ui->previewWidget);
 	_preview->setPreviewProfile(PreviewProfile::TextureAuthoring);
@@ -127,8 +128,22 @@ void TextureMappingPanel::onTintParamsChanged()
 	emit materialChanged(m);
 }
 
+void TextureMappingPanel::setDetached(bool detached)
+{
+	_detached = detached;
+	_ui->toolButtonDetach->setVisible(!_detached);
+}
+
 void TextureMappingPanel::onContextMenu(const QPoint& pos)
 {
+	// Only show context menu if right-clicked on the panel itself,
+	// not on any child widget
+	QWidget* widget = childAt(pos);
+	if (widget != nullptr && widget != this)
+	{
+		// Clicked on a child widget, don't show menu
+		return;
+	}
 	QMenu menu;
 	menu.addAction("Detach", this, &TextureMappingPanel::detachRequested);
 	menu.exec(mapToGlobal(pos));
