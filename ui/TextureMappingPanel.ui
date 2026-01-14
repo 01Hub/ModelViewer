@@ -3060,7 +3060,11 @@ Roughness</string>
         <string> Detach from panel</string>
        </property>
        <property name="text">
-        <string>^</string>
+        <string/>
+       </property>
+       <property name="icon">
+        <iconset resource="../ModelViewer.qrc">
+         <normaloff>:/icons/res/detach.png</normaloff>:/icons/res/detach.png</iconset>
        </property>
       </widget>
      </item>
@@ -3089,6 +3093,8 @@ Roughness</string>
    <container>1</container>
   </customwidget>
  </customwidgets>
- <resources/>
+ <resources>
+  <include location="../ModelViewer.qrc"/>
+ </resources>
  <connections/>
 </ui>
