@@ -87,11 +87,11 @@
         </property>
         <item>
          <widget class="QComboBox" name="comboShape">
-          <property name="maximumSize">
-           <size>
-            <width>140</width>
-            <height>16777215</height>
-           </size>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
           </property>
           <item>
            <property name="text">
@@ -122,11 +122,11 @@
         </item>
         <item>
          <widget class="QComboBox" name="comboEnv">
-          <property name="maximumSize">
-           <size>
-            <width>140</width>
-            <height>16777215</height>
-           </size>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
           </property>
           <item>
            <property name="text">
@@ -489,6 +489,12 @@
       </item>
       <item>
        <widget class="QScrollArea" name="scrollArea">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>400</height>
+         </size>
+        </property>
         <property name="frameShape">
          <enum>QFrame::Shape::NoFrame</enum>
         </property>
