@@ -172,7 +172,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		});
 
 	
-	connect(Ui_ModelViewer::materialPreviewWidget, &MaterialEditorPanel::materialChanged, this, &ModelViewer::setMaterialToSelectedItems);
+	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialEditorPanel::materialChanged, this, &ModelViewer::setMaterialToSelectedItems);
+	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialEditorPanel::detachRequested,
+		this, &ModelViewer::detachMaterialPanel);
 
 	connect(textureMappingPanel, &TextureMappingPanel::detachRequested,
 		this, &ModelViewer::detachTexturePanel);
@@ -514,7 +516,7 @@ void ModelViewer::detachTexturePanel()
 	// Clamp to screen bounds
 	if (x + 420 > screenGeom.right())
 	{
-		x = screenGeom.right() - textureMappingPanel->width();  // Fit within screen
+		x = screenGeom.right() - textureMappingPanel->width() - 40;  // Fit within screen
 	}
 	if (y + 700 > screenGeom.bottom())
 	{
@@ -567,6 +569,91 @@ void ModelViewer::reattachTexturePanel()
 		textureMappingPanel->show();
 		_textureOriginalParent->layout()->update();
 		textureMappingPanel->setDetached(false);
+	}
+}
+
+void ModelViewer::detachMaterialPanel()
+{
+	// Sanity check: is panel valid?
+	if (!predefinedMaterialsPanel)
+	{
+		return;
+	}
+	// Prevent double-detach
+	if (_detachedMaterialDialog)
+	{
+		_detachedMaterialDialog->raise();
+		_detachedMaterialDialog->activateWindow();
+		return;
+	}
+	// Save original parent for reattaching
+	_materialOriginalParent = predefinedMaterialsPanel->parentWidget();
+	// Create floating dialog
+	_detachedMaterialDialog = new QDialog(this);
+	_detachedMaterialDialog->setWindowTitle("Predefined Materials");
+	_detachedMaterialDialog->setWindowFlags(Qt::Window | Qt::Tool);
+	// Create layout for dialog
+	QVBoxLayout* layout = new QVBoxLayout(_detachedMaterialDialog);
+	layout->setContentsMargins(0, 0, 0, 0);
+	// REPARENT the panel: take it out of toolbox, put it in dialog
+	predefinedMaterialsPanel->setParent(_detachedMaterialDialog);
+	layout->addWidget(predefinedMaterialsPanel);
+	// Position floating window
+	QScreen* screen = QGuiApplication::primaryScreen();
+	QRect screenGeom = screen->availableGeometry();
+	QRect myGeometry = this->frameGeometry();
+	int x = myGeometry.right() + 20;
+	int y = myGeometry.top();
+	// Clamp to screen bounds
+	if (x + 420 > screenGeom.right())
+	{
+		x = screenGeom.right() - predefinedMaterialsPanel->width() - 40;  // Fit within screen
+	}
+	if (y + 700 > screenGeom.bottom())
+	{
+		y = screenGeom.bottom() - predefinedMaterialsPanel->height();
+	}
+	if (x < screenGeom.left())
+	{
+		x = screenGeom.left();
+	}
+	if (y < screenGeom.top())
+	{
+		y = screenGeom.top();
+	}
+	_detachedMaterialDialog->move(x, y);
+	_detachedMaterialDialog->resize(420, height() * 0.95);
+	_detachedMaterialDialog->show();
+	predefinedMaterialsPanel->setDetached(true);
+	// When user closes the floating dialog, reattach
+	connect(_detachedMaterialDialog, &QDialog::finished,
+		this, &ModelViewer::reattachMaterialPanel);
+}
+
+void ModelViewer::reattachMaterialPanel()
+{
+	if (!_detachedMaterialDialog)
+	{
+		return;
+	}
+	_detachedMaterialDialog->disconnect();
+	_detachedMaterialDialog->deleteLater();
+	_detachedMaterialDialog = nullptr;
+	if (predefinedMaterialsPanel && _materialOriginalParent)
+	{
+		// Reparent back
+		predefinedMaterialsPanel->setParent(_materialOriginalParent);
+		// Get the grid layout and re-add with proper stretch settings
+		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_materialOriginalParent->layout());
+		if (gridLayout)
+		{
+			gridLayout->addWidget(predefinedMaterialsPanel, 0, 0);
+			gridLayout->setColumnStretch(0, 1);  // Make it stretch horizontally
+			gridLayout->setRowStretch(0, 1);     // Make it stretch vertically
+		}
+		predefinedMaterialsPanel->show();
+		_materialOriginalParent->layout()->update();
+		predefinedMaterialsPanel->setDetached(false);
 	}
 }
 

@@ -132,6 +132,7 @@ void TextureMappingPanel::setDetached(bool detached)
 {
 	_detached = detached;
 	_ui->toolButtonDetach->setVisible(!_detached);
+	_ui->lineSeparator->setVisible(!_detached);
 }
 
 void TextureMappingPanel::onContextMenu(const QPoint& pos)

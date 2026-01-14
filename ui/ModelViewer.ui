@@ -1076,7 +1076,7 @@
                    <number>2</number>
                   </property>
                   <item row="0" column="0">
-                   <widget class="MaterialEditorPanel" name="materialPreviewWidget" native="true">
+                   <widget class="MaterialEditorPanel" name="predefinedMaterialsPanel" native="true">
                     <property name="sizePolicy">
                      <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                       <horstretch>0</horstretch>

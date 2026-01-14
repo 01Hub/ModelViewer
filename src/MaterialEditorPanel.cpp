@@ -11,12 +11,35 @@
 #include <QLineEdit>
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
+#include <QScrollArea>
 #include <functional>
 
 MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	: QWidget(parent)
 {
+	QHBoxLayout* toolbarLayout = new QHBoxLayout();
+	toolbarLayout->setContentsMargins(2, 2, 2, 2);
+	toolbarLayout->setSpacing(4);
+
+	detachButton = new QToolButton(this);
+	detachButton->setToolTip("Detach from panel");
+	detachButton->setIcon(QIcon(":/icons/res/detach.png"));
+	detachButton->setIconSize(QSize(16, 16));
+	detachButton->setAutoRaise(true);
+
+	toolbarLayout->addWidget(detachButton, 0, Qt::AlignLeft);
+	toolbarLayout->addSpacing(40);
+	toolbarLayout->addStretch();
+
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
+
+	mainLayout->addLayout(toolbarLayout, 0);
+
+	// Optional: Add separator
+	separator = new QFrame(this);
+	separator->setFrameShape(QFrame::HLine);
+	separator->setFrameShadow(QFrame::Sunken);
+	mainLayout->addWidget(separator, 0);
 
 	// Top section with search, tree view, and preview
 	QLineEdit* searchEdit = new QLineEdit(this);
@@ -200,21 +223,33 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	wireframeCheck = new QCheckBox();
 	formLayout->addRow("Wireframe:", wireframeCheck);
 
+	// Scroll area for properties
+	QScrollArea* scrollArea = new QScrollArea(this);
+	scrollArea->setWidgetResizable(true);
+
+	QWidget* propertiesContainer = new QWidget();
+	propertiesContainer->setLayout(formLayout);
+	scrollArea->setWidget(propertiesContainer);
+
+	mainLayout->addWidget(scrollArea, 1);
+
+	// Buttons
 	applyButton = new QPushButton("Apply");
 	saveButton = new QPushButton("Save");
 	deleteButton = new QPushButton("Delete");
 
-	QHBoxLayout* buttonRowLayout = new QHBoxLayout;
+	QHBoxLayout* buttonRowLayout = new QHBoxLayout();
 	buttonRowLayout->addWidget(applyButton);
 	buttonRowLayout->addWidget(saveButton);
 	buttonRowLayout->addWidget(deleteButton);
 
-	formLayout->addRow(buttonRowLayout);
-
-	mainLayout->addLayout(formLayout);
+	mainLayout->addLayout(buttonRowLayout, 0);
 	setLayout(mainLayout);
 
 	// Connections
+	connect(detachButton, &QToolButton::clicked,
+		this, &MaterialEditorPanel::onDetachButtonClicked);
+
 	connect(treeWidget, &MaterialLibraryWidget::materialSelected,
 		this, &MaterialEditorPanel::onMaterialSelected);
 
@@ -771,6 +806,18 @@ void MaterialEditorPanel::onSaveButtonClicked()
 void MaterialEditorPanel::onDeleteButtonClicked()
 {
 	treeWidget->deleteSelectedMaterial();
+}
+
+void MaterialEditorPanel::setDetached(bool detached)
+{
+	_detached = detached;
+	detachButton->setVisible(!_detached);
+	separator->setVisible(!_detached);
+}
+
+void MaterialEditorPanel::onDetachButtonClicked()
+{
+	emit detachRequested();
 }
 
 void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)

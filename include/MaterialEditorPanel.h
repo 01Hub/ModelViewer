@@ -6,6 +6,7 @@
 #include <QDoubleSpinBox>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QToolButton>
 #include "MaterialLibraryWidget.h"
 #include "MaterialPreviewWidget.h"
 
@@ -18,11 +19,16 @@ public:
 	void onSaveButtonClicked();
 	void onDeleteButtonClicked();
 
+	bool isDetached() const { return _detached; }
+	void setDetached(bool detached);
+
 signals:
 	void materialChanged(const GLMaterial& mat);
+	void detachRequested();
 
 private slots:
 	void onMaterialSelected(const GLMaterial& mat);
+	void onDetachButtonClicked();
 
 private:
 	MaterialLibraryWidget* treeWidget;
@@ -57,6 +63,10 @@ private:
 	QPushButton* applyButton;
 	QPushButton* saveButton;
 	QPushButton* deleteButton;
+	QToolButton* detachButton;
+	QFrame* separator;
 
 	GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
+
+	bool _detached = false;
 };
