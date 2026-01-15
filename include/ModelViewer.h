@@ -234,7 +234,11 @@ private:
 	QPointer<QDialog> _detachedTextureDialog;  // Stores the floating dialog
 	QWidget* _textureOriginalParent = nullptr; // Stores where panel came from
 	QPointer<QDialog> _detachedMaterialDialog; // Stores the floating dialog
-	QWidget* _materialOriginalParent = nullptr; // Stores where panel came from
+	QWidget* _materialOriginalParent = nullptr; // Stores where panel came from	
+	int _texturePageIndex = -1;
+	QString _texturePageLabel;
+	int _materialPageIndex = -1;
+	QString _materialPageLabel;
 
 private:
 	bool checkForActiveSelection();

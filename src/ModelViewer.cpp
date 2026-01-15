@@ -31,7 +31,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_textureDirOpenedFirstTime = true;
 
 	setupUi(this);
-
+	
 	setAttribute(Qt::WA_DeleteOnClose);
 
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
@@ -153,8 +153,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		});
 		
 	connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
-	toolBox->setItemEnabled(0, true);
-	toolBox->setItemEnabled(1, false);	
+
+	int indexADS = toolBox->indexOf(toolBox->findChild<QWidget*>("pageADSSettings"));
+	int indexPBR = toolBox->indexOf(toolBox->findChild<QWidget*>("pageTextureMapping"));
+	toolBox->setItemEnabled(indexADS, true);
+	toolBox->setItemEnabled(indexPBR, false);	
 	toolBox->setCurrentIndex(0);
 
 	// Shortcut to toggle lighting mode
@@ -475,13 +478,8 @@ QString ModelViewer::getSupportedQtImagesFilter()
 
 void ModelViewer::detachTexturePanel()
 {
-	// Sanity check: is panel valid?
-	if (!textureMappingPanel)
-	{
-		return;
-	}
+	if (!textureMappingPanel || !toolBox) return;
 
-	// Prevent double-detach
 	if (_detachedTextureDialog)
 	{
 		_detachedTextureDialog->raise();
@@ -489,171 +487,158 @@ void ModelViewer::detachTexturePanel()
 		return;
 	}
 
-	// Save original parent for reattaching
-	_textureOriginalParent = textureMappingPanel->parentWidget();
+	// Find and remove from toolbox
+	_texturePageIndex = toolBox->indexOf(textureMappingPanel->parentWidget());
+	if (_texturePageIndex >= 0)
+	{
+		_texturePageLabel = toolBox->itemText(_texturePageIndex);
+		toolBox->removeItem(_texturePageIndex);
+	}
 
 	// Create floating dialog
 	_detachedTextureDialog = new QDialog(this);
-	_detachedTextureDialog->setWindowTitle("Texture Mapping");
+	_detachedTextureDialog->setWindowTitle("PBR Texture Settings");
 	_detachedTextureDialog->setWindowFlags(Qt::Window | Qt::Tool);
 
-	// Create layout for dialog
 	QVBoxLayout* layout = new QVBoxLayout(_detachedTextureDialog);
 	layout->setContentsMargins(0, 0, 0, 0);
 
-	// REPARENT the panel: take it out of toolbox, put it in dialog
+	_textureOriginalParent = textureMappingPanel->parentWidget();
 	textureMappingPanel->setParent(_detachedTextureDialog);
 	layout->addWidget(textureMappingPanel);
 
-	// Position floating window
+	// Position and show...
 	QScreen* screen = QGuiApplication::primaryScreen();
 	QRect screenGeom = screen->availableGeometry();
-
 	QRect myGeometry = this->frameGeometry();
 	int x = myGeometry.right() + 20;
 	int y = myGeometry.top();
-
-	// Clamp to screen bounds
-	if (x + 420 > screenGeom.right())
-	{
-		x = screenGeom.right() - textureMappingPanel->width() - 40;  // Fit within screen
-	}
-	if (y + 700 > screenGeom.bottom())
-	{
-		y = screenGeom.bottom() - textureMappingPanel->height();
-	}
-	if (x < screenGeom.left())
-	{
-		x = screenGeom.left();
-	}
-	if (y < screenGeom.top())
-	{
-		y = screenGeom.top();
-	}
+	if (x + 420 > screenGeom.right()) x = screenGeom.right() - textureMappingPanel->width() - 40; // Fit within screen;
+	if (y + 700 > screenGeom.bottom()) y = screenGeom.bottom() - textureMappingPanel->height();
+	if (x < screenGeom.left()) x = screenGeom.left();
+	if (y < screenGeom.top()) y = screenGeom.top();
 
 	_detachedTextureDialog->move(x, y);
 	_detachedTextureDialog->resize(420, height() * 0.95);
 	_detachedTextureDialog->show();
 	textureMappingPanel->setDetached(true);
 
-	// When user closes the floating dialog, reattach
 	connect(_detachedTextureDialog, &QDialog::finished,
 		this, &ModelViewer::reattachTexturePanel);
 }
 
 void ModelViewer::reattachTexturePanel()
 {
-	if (!_detachedTextureDialog)
-	{
-		return;
-	}
+	if (!_detachedTextureDialog || !toolBox) return;
 
 	_detachedTextureDialog->disconnect();
 	_detachedTextureDialog->deleteLater();
 	_detachedTextureDialog = nullptr;
 
-	if (textureMappingPanel && _textureOriginalParent)
+	if (textureMappingPanel && _textureOriginalParent && _texturePageIndex >= 0)
 	{
-		// Reparent back
-		textureMappingPanel->setParent(_textureOriginalParent);
+		// Re-insert page into toolbox
+		toolBox->insertItem(_texturePageIndex, _textureOriginalParent, _texturePageLabel);
 
-		// Get the grid layout and re-add with proper stretch settings
+		textureMappingPanel->setParent(_textureOriginalParent);
 		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_textureOriginalParent->layout());
 		if (gridLayout)
 		{
 			gridLayout->addWidget(textureMappingPanel, 0, 0);
-			gridLayout->setColumnStretch(0, 1);  // Make it stretch horizontally
-			gridLayout->setRowStretch(0, 1);     // Make it stretch vertically
+			gridLayout->setColumnStretch(0, 1);
+			gridLayout->setRowStretch(0, 1);
 		}
 
 		textureMappingPanel->show();
-		_textureOriginalParent->layout()->update();
+		_textureOriginalParent->show();
 		textureMappingPanel->setDetached(false);
+		
+		bool shouldActivate = radioButtonTXPBR->isChecked();
+		if (shouldActivate)
+		{
+			toolBox->setCurrentIndex(_texturePageIndex);
+			toolBox->setItemEnabled(_texturePageIndex, true); // Enable only if PBR is selected
+		}
 	}
 }
 
 void ModelViewer::detachMaterialPanel()
 {
-	// Sanity check: is panel valid?
-	if (!predefinedMaterialsPanel)
-	{
-		return;
-	}
-	// Prevent double-detach
+	if (!predefinedMaterialsPanel || !toolBox) return;
+
 	if (_detachedMaterialDialog)
 	{
 		_detachedMaterialDialog->raise();
 		_detachedMaterialDialog->activateWindow();
 		return;
 	}
-	// Save original parent for reattaching
-	_materialOriginalParent = predefinedMaterialsPanel->parentWidget();
+
+	// Find and remove from toolbox
+	_materialPageIndex = toolBox->indexOf(predefinedMaterialsPanel->parentWidget());
+	if (_materialPageIndex >= 0)
+	{
+		_materialPageLabel = toolBox->itemText(_materialPageIndex);
+		toolBox->removeItem(_materialPageIndex);  // ← REMOVES TAB
+	}
+
 	// Create floating dialog
 	_detachedMaterialDialog = new QDialog(this);
 	_detachedMaterialDialog->setWindowTitle("Predefined Materials");
 	_detachedMaterialDialog->setWindowFlags(Qt::Window | Qt::Tool);
-	// Create layout for dialog
+
 	QVBoxLayout* layout = new QVBoxLayout(_detachedMaterialDialog);
 	layout->setContentsMargins(0, 0, 0, 0);
-	// REPARENT the panel: take it out of toolbox, put it in dialog
+
+	_materialOriginalParent = predefinedMaterialsPanel->parentWidget();
 	predefinedMaterialsPanel->setParent(_detachedMaterialDialog);
 	layout->addWidget(predefinedMaterialsPanel);
-	// Position floating window
+
+	// Position and show...
 	QScreen* screen = QGuiApplication::primaryScreen();
 	QRect screenGeom = screen->availableGeometry();
 	QRect myGeometry = this->frameGeometry();
 	int x = myGeometry.right() + 20;
 	int y = myGeometry.top();
-	// Clamp to screen bounds
-	if (x + 420 > screenGeom.right())
-	{
-		x = screenGeom.right() - predefinedMaterialsPanel->width() - 40;  // Fit within screen
-	}
-	if (y + 700 > screenGeom.bottom())
-	{
-		y = screenGeom.bottom() - predefinedMaterialsPanel->height();
-	}
-	if (x < screenGeom.left())
-	{
-		x = screenGeom.left();
-	}
-	if (y < screenGeom.top())
-	{
-		y = screenGeom.top();
-	}
+	if (x + 420 > screenGeom.right()) x = screenGeom.right() - predefinedMaterialsPanel->width() - 40;  // Fit within screen;
+	if (y + 700 > screenGeom.bottom()) y = screenGeom.bottom() - predefinedMaterialsPanel->height();
+	if (x < screenGeom.left()) x = screenGeom.left();
+	if (y < screenGeom.top()) y = screenGeom.top();
+
 	_detachedMaterialDialog->move(x, y);
 	_detachedMaterialDialog->resize(420, height() * 0.95);
 	_detachedMaterialDialog->show();
 	predefinedMaterialsPanel->setDetached(true);
-	// When user closes the floating dialog, reattach
+
 	connect(_detachedMaterialDialog, &QDialog::finished,
 		this, &ModelViewer::reattachMaterialPanel);
 }
 
 void ModelViewer::reattachMaterialPanel()
 {
-	if (!_detachedMaterialDialog)
-	{
-		return;
-	}
+	if (!_detachedMaterialDialog || !toolBox) return;
+
 	_detachedMaterialDialog->disconnect();
 	_detachedMaterialDialog->deleteLater();
 	_detachedMaterialDialog = nullptr;
-	if (predefinedMaterialsPanel && _materialOriginalParent)
+
+	if (predefinedMaterialsPanel && _materialOriginalParent && _materialPageIndex >= 0)
 	{
-		// Reparent back
+		// Re-insert page into toolbox
+		toolBox->insertItem(_materialPageIndex, _materialOriginalParent, _materialPageLabel);
+
 		predefinedMaterialsPanel->setParent(_materialOriginalParent);
-		// Get the grid layout and re-add with proper stretch settings
 		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_materialOriginalParent->layout());
 		if (gridLayout)
 		{
 			gridLayout->addWidget(predefinedMaterialsPanel, 0, 0);
-			gridLayout->setColumnStretch(0, 1);  // Make it stretch horizontally
-			gridLayout->setRowStretch(0, 1);     // Make it stretch vertically
+			gridLayout->setColumnStretch(0, 1);
+			gridLayout->setRowStretch(0, 1);
 		}
+
 		predefinedMaterialsPanel->show();
-		_materialOriginalParent->layout()->update();
+		_materialOriginalParent->show();
 		predefinedMaterialsPanel->setDetached(false);
+		toolBox->setCurrentIndex(_materialPageIndex);
 	}
 }
 
@@ -2045,18 +2030,21 @@ void ModelViewer::switchToRealisticRendering()
 
 void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 {
+	int indexADS = toolBox->indexOf(toolBox->findChild<QWidget*>("pageADSSettings"));
+	int indexPBR = toolBox->indexOf(toolBox->findChild<QWidget*>("pageTextureMapping"));
+
 	if (radioButtonADSL->isChecked())
 	{
-		toolBox->setItemEnabled(0, true);
-		toolBox->setItemEnabled(1, false);		
-		toolBox->setCurrentIndex(0);
+		toolBox->setItemEnabled(indexADS, true);
+		toolBox->setItemEnabled(indexPBR, false);		
+		toolBox->setCurrentIndex(indexADS);
 		_glWidget->setRenderingMode(RenderingMode::ADS_BLINN_PHONG);
 	}	
 	if (radioButtonTXPBR->isChecked())
 	{
-		toolBox->setItemEnabled(0, false);	
-		toolBox->setItemEnabled(1, true);
-		toolBox->setCurrentIndex(1);
+		toolBox->setItemEnabled(indexADS, false);	
+		toolBox->setItemEnabled(indexPBR, true);
+		toolBox->setCurrentIndex(indexPBR);
 		_glWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);		
 		checkBoxSkyBoxHDRI->setChecked(true);
 		checkBoxHDRToneMapping->setChecked(true);
