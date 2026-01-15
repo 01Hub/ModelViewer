@@ -522,9 +522,9 @@ void MaterialPreviewWidget::paintGL()
 		// channel (use -1 for none; shader will handle)
 		_shader->setUniformValue(QString("%1Channel").arg(uniformBase).toUtf8().constData(), p.channel);
 		// invert as int
-		_shader->setUniformValue(QString("%1Invert").arg(uniformBase).toUtf8().constData(), p.invert ? 1 : 0);
-		_shader->setUniformValue(QString("%1Scale").arg(uniformBase).toUtf8().constData(), p.scale);
-		_shader->setUniformValue(QString("%1Bias").arg(uniformBase).toUtf8().constData(), p.bias);
+		_shader->setUniformValue(QString("%1ChannelInvert").arg(uniformBase).toUtf8().constData(), p.invert ? 1 : 0);
+		_shader->setUniformValue(QString("%1ChannelScale").arg(uniformBase).toUtf8().constData(), p.scale);
+		_shader->setUniformValue(QString("%1ChannelBias").arg(uniformBase).toUtf8().constData(), p.bias);
 		};
 
 	// call for each logical packable map
@@ -532,6 +532,27 @@ void MaterialPreviewWidget::paintGL()
 	sendPacking("roughness", "uRoughness");
 	sendPacking("ao", "uAO");
 	sendPacking("opacity", "uOpacity");
+
+	// ----- Send texture transforms (scale, offset, rotation) -----
+	auto sendTextureTransforms = [this](const char* baseName, GLMaterial::TextureType type) {
+		auto tex = _currentMaterial.texture(type);
+		_shader->setUniformValue(QString("%1Scale").arg(baseName).toUtf8().constData(),
+			QVector2D(tex.scale.x, tex.scale.y));
+		_shader->setUniformValue(QString("%1Offset").arg(baseName).toUtf8().constData(),
+			QVector2D(tex.offset.x, tex.offset.y));
+		_shader->setUniformValue(QString("%1Rotation").arg(baseName).toUtf8().constData(),
+			tex.rotation);
+		};
+
+	// Send transforms for each texture type
+	sendTextureTransforms("uAlbedo", GLMaterial::TextureType::Albedo);
+	sendTextureTransforms("uNormal", GLMaterial::TextureType::Normal);
+	sendTextureTransforms("uMetalness", GLMaterial::TextureType::Metallic);
+	sendTextureTransforms("uRoughness", GLMaterial::TextureType::Roughness);
+	sendTextureTransforms("uAO", GLMaterial::TextureType::AmbientOcclusion);
+	sendTextureTransforms("uHeight", GLMaterial::TextureType::Height);
+	sendTextureTransforms("uOpacity", GLMaterial::TextureType::Opacity);
+	sendTextureTransforms("uEmissive", GLMaterial::TextureType::Emissive);
 
 	// Set up texture samplers
 	_shader->setUniformValue("uAlbedoMap", 0);

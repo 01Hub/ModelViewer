@@ -77,7 +77,7 @@ uniform sampler2D uNormalMap;
 uniform sampler2D uOpacityMap;
 uniform sampler2D uAOMap;
 uniform sampler2D uEmissiveMap;
-uniform sampler2D uHeightMap;   // NEW
+uniform sampler2D uHeightMap;  
 
 // ----- Enable flags -----
 uniform bool uUseAlbedoMap;
@@ -88,7 +88,7 @@ uniform bool uUseOpacityMap;
 uniform bool uOpacityInverted;
 uniform bool uUseAOMap;
 uniform bool uUseEmissiveMap;
-uniform bool uUseHeightMap;     // NEW
+uniform bool uUseHeightMap;     
 
 // ----- Extra controls -----
 uniform float uAOIntensity;
@@ -96,7 +96,62 @@ uniform vec3  uEmissiveColor;
 uniform float uEmissiveStrength;
 uniform vec2  uUVScale;
 uniform float uNormalIntensity;
-uniform float uHeightIntensity; // NEW (e.g. 0.03 .. 0.06)
+uniform float uHeightIntensity; // (e.g. 0.03 .. 0.06)
+
+// ----- Texture transforms (scale, offset, rotation) -----
+uniform vec2  uAlbedoScale;
+uniform vec2  uAlbedoOffset;
+uniform float uAlbedoRotation;
+
+uniform vec2  uNormalScale;
+uniform vec2  uNormalOffset;
+uniform float uNormalRotation;
+
+uniform vec2  uMetalnessScale;
+uniform vec2  uMetalnessOffset;
+uniform float uMetalnessRotation;
+
+uniform vec2  uRoughnessScale;
+uniform vec2  uRoughnessOffset;
+uniform float uRoughnessRotation;
+
+uniform vec2  uAOScale;
+uniform vec2  uAOOffset;
+uniform float uAORotation;
+
+uniform vec2  uHeightScale;
+uniform vec2  uHeightOffset;
+uniform float uHeightRotation;
+
+uniform vec2  uOpacityScale;
+uniform vec2  uOpacityOffset;
+uniform float uOpacityRotation;
+
+uniform vec2  uEmissiveScale;
+uniform vec2  uEmissiveOffset;
+uniform float uEmissiveRotation;
+
+// channel packing uniforms (for packed textures like ORM/AORM)
+uniform int   uMetalnessChannel;
+uniform int   uMetalnessChannelInvert;
+uniform float uMetalnessChannelScale;
+uniform float uMetalnessChannelBias;
+
+uniform int   uRoughnessChannel;
+uniform int   uRoughnessChannelInvert;
+uniform float uRoughnessChannelScale;
+uniform float uRoughnessChannelBias;
+
+uniform int   uAOChannel;
+uniform int   uAOChannelInvert;
+uniform float uAOChannelScale;
+uniform float uAOChannelBias;
+
+uniform int   uOpacityChannel;
+uniform int   uOpacityChannelInvert;
+uniform float uOpacityChannelScale;
+uniform float uOpacityChannelBias;
+
 
 // ---------- Helpers ----------
 
@@ -118,6 +173,26 @@ vec3 getNormalFromMap(vec2 uv)
     return normalize(TBN * nTS);
 }
 
+// Apply scale, offset, and rotation to UV coordinates
+vec2 applyTextureTransform(vec2 uv, vec2 scale, vec2 offset, float rotation)
+{
+    // Center around 0.5
+    uv -= 0.5;
+    
+    // Apply scale
+    uv *= scale;
+    
+    // Apply rotation (assuming rotation is in radians)
+    float c = cos(rotation);
+    float s = sin(rotation);
+    uv = mat2(c, -s, s, c) * uv;
+    
+    // Apply offset and recenter
+    uv += 0.5 + offset;
+    
+    return uv;
+}
+
 // Very cheap parallax (single-layer offset mapping).
 // Offsets UVs along the view direction in tangent space.
 vec2 parallaxUV(vec2 uv, vec3 Vworld, vec3 Nworld, vec4 tangentW)
@@ -130,7 +205,7 @@ vec2 parallaxUV(vec2 uv, vec3 Vworld, vec3 Nworld, vec4 tangentW)
     vec3 Vts = normalize(transpose(TBN) * Vworld);
 
     // height in [0,1] -> center around 0
-    float h = texture(uHeightMap, uv).r;
+    float h = texture(uHeightMap, applyTextureTransform(uv, uHeightScale, uHeightOffset, uHeightRotation)).r;
     float height = (h - 0.5) * uHeightIntensity;
 
     // Offset proportional to view slope
@@ -144,27 +219,6 @@ vec3 hemisphereAmbient(vec3 N, vec3 sky, vec3 ground)
     float t = clamp(N.y * 0.5 + 0.5, 0.0, 1.0); // -1..+1 -> 0..1
     return mix(ground, sky, t);
 }
-
-// channel packing uniforms (for packed textures like ORM/AORM)
-uniform int   uMetalnessChannel;
-uniform int   uMetalnessInvert;
-uniform float uMetalnessScale;
-uniform float uMetalnessBias;
-
-uniform int   uRoughnessChannel;
-uniform int   uRoughnessInvert;
-uniform float uRoughnessScale;
-uniform float uRoughnessBias;
-
-uniform int   uAOChannel;
-uniform int   uAOInvert;
-uniform float uAOScale;
-uniform float uAOBias;
-
-uniform int   uOpacityChannel;
-uniform int   uOpacityInvert;
-uniform float uOpacityScale;
-uniform float uOpacityBias;
 
 // pick a single channel from a vec4 using an integer selector (0=r,1=g,2=b,3=a).
 // invertFlag is 0 or 1. scale & bias allow simple remapping (scale * value + bias).
@@ -248,7 +302,8 @@ void main()
 
     // ----- Parallax: adjust UVs BEFORE sampling any map -----
     if (uUseHeightMap) {
-        uv = parallaxUV(uv, V, Ngeom, vTangentW);
+        vec2 heightUv = applyTextureTransform(uv, uHeightScale, uHeightOffset, uHeightRotation);
+        uv = parallaxUV(heightUv, V, Ngeom, vTangentW);
         // Optional: keep inside 0..1 (useful for preview, avoids wrap artifacts)
         uv = clamp(uv, vec2(0.0), vec2(1.0));
     }
@@ -259,42 +314,42 @@ void main()
 
         vec3 outCol = vec3(0.0);
         if (uTexViewMode == 1) {                     // Albedo
-            vec3 base = uUseAlbedoMap ? texture(uAlbedoMap, uv).rgb : uAlbedo;
+            vec3 base = uUseAlbedoMap ? texture(uAlbedoMap, applyTextureTransform(uv, uAlbedoScale, uAlbedoOffset, uAlbedoRotation)).rgb : uAlbedo;
             outCol = clamp(base, 0.0, 1.0);
         }
         else if (uTexViewMode == 2) {                // Metalness
             //float m = uUseMetalnessMap ? texture(uMetalnessMap, uv).r : uMetalness;
-            vec4 metalTex = texture(uMetalnessMap, uv);
-            float m = uUseMetalnessMap ? pickChannel(metalTex, uMetalnessChannel, uMetalnessInvert, uMetalnessScale, uMetalnessBias) : uMetalness;
+            vec4 metalTex = texture(uMetalnessMap, applyTextureTransform(uv, uMetalnessScale, uMetalnessOffset, uMetalnessRotation));
+            float m = uUseMetalnessMap ? pickChannel(metalTex, uMetalnessChannel, uMetalnessChannelInvert, uMetalnessChannelScale, uMetalnessChannelBias) : uMetalness;
             outCol = vec3(m);
         }
         else if (uTexViewMode == 3) {                // Roughness
             //float r = uUseRoughnessMap ? texture(uRoughnessMap, uv).r : uRoughness;
-            vec4 roughTex = texture(uRoughnessMap, uv);
-            float r = uUseRoughnessMap ? pickChannel(roughTex, uRoughnessChannel, uRoughnessInvert, uRoughnessScale, uRoughnessBias) : uRoughness;
+            vec4 roughTex = texture(uRoughnessMap, applyTextureTransform(uv, uRoughnessScale, uRoughnessOffset, uRoughnessRotation));
+            float r = uUseRoughnessMap ? pickChannel(roughTex, uRoughnessChannel, uRoughnessChannelInvert, uRoughnessChannelScale, uRoughnessChannelBias) : uRoughness;
             outCol = vec3(r);
         }
         else if (uTexViewMode == 4) {                // Normal (tangent space)
-            vec3 nTS = uUseNormalMap ? (texture(uNormalMap, uv).xyz * 2.0 - 1.0) : vec3(0,0,1);
+            vec3 nTS = uUseNormalMap ? (texture(uNormalMap, applyTextureTransform(uv, uNormalScale, uNormalOffset, uNormalRotation)).xyz * 2.0 - 1.0) : vec3(0,0,1);
             // visualize tangent normals mapped to 0..1
             outCol = nTS * 0.5 + 0.5;
         }
         else if (uTexViewMode == 5) {                // Ambient Occlusion
             //float ao = uUseAOMap ? texture(uAOMap, uv).r : 1.0;
-            vec4 aoTex    = texture(uAOMap, uv);
-            float ao    = uUseAOMap ? pickChannel(aoTex, uAOChannel, uAOInvert, uAOScale, uAOBias) : 1.0;
+            vec4 aoTex    = texture(uAOMap, applyTextureTransform(uv, uAOScale, uAOOffset, uAORotation));
+            float ao    = uUseAOMap ? pickChannel(aoTex, uAOChannel, uAOChannelInvert, uAOChannelScale, uAOChannelBias) : 1.0;
             outCol = vec3(ao);
         }
         else if (uTexViewMode == 6) {                // Height
-            float h = uUseHeightMap ? texture(uHeightMap, uv).r : 0.5;
+            float h = uUseHeightMap ? texture(uHeightMap, applyTextureTransform(uv, uHeightScale, uHeightOffset, uHeightRotation)).r : 0.5;
             outCol = vec3(h);
         }
         else if (uTexViewMode == 7) {                // Opacity
-            float a = uUseOpacityMap ? texture(uOpacityMap, uv).r : uOpacity;
+            float a = uUseOpacityMap ? texture(uOpacityMap, applyTextureTransform(uv, uOpacityScale, uOpacityOffset, uOpacityRotation)).r : uOpacity;
             outCol = vec3(a);
         }
         else if (uTexViewMode == 8) {                // Emissive (as color)
-            vec3 e = uUseEmissiveMap ? texture(uEmissiveMap, uv).rgb : vec3(0.0);
+            vec3 e = uUseEmissiveMap ? texture(uEmissiveMap, applyTextureTransform(uv, uEmissiveScale, uEmissiveOffset, uEmissiveRotation)).rgb : vec3(0.0);
             outCol = e * uEmissiveColor * uEmissiveStrength;
         }
 
@@ -316,28 +371,28 @@ void main()
 
 
     // ----- Sample or fallback using parallaxed UVs -----
-    vec3  albedo    = uUseAlbedoMap    ? texture(uAlbedoMap,    uv).rgb : uAlbedo;
+    vec3  albedo = uUseAlbedoMap ? texture(uAlbedoMap, applyTextureTransform(uv, uAlbedoScale, uAlbedoOffset, uAlbedoRotation)).rgb : uAlbedo;
     albedo = clamp(albedo, vec3(0.01), vec3(1.0));
 
-    vec4 metalTex = texture(uMetalnessMap, uv);
-    vec4 roughTex = texture(uRoughnessMap, uv);
-    vec4 aoTex    = texture(uAOMap, uv);
-    vec4 opTex    = texture(uOpacityMap, uv);
+    vec4 metalTex = texture(uMetalnessMap, applyTextureTransform(uv, uMetalnessScale, uMetalnessOffset, uMetalnessRotation));
+    vec4 roughTex = texture(uRoughnessMap, applyTextureTransform(uv, uRoughnessScale, uRoughnessOffset, uRoughnessRotation));
+    vec4 aoTex    = texture(uAOMap, applyTextureTransform(uv, uAOScale, uAOOffset, uAORotation));
+    vec4 opTex    = texture(uOpacityMap, applyTextureTransform(uv, uOpacityScale, uOpacityOffset, uOpacityRotation));
 
-    float metalness = uUseMetalnessMap ? pickChannel(metalTex, uMetalnessChannel, uMetalnessInvert, uMetalnessScale, uMetalnessBias) : uMetalness;
-    float roughness = uUseRoughnessMap ? pickChannel(roughTex, uRoughnessChannel, uRoughnessInvert, uRoughnessScale, uRoughnessBias) : uRoughness;
-    float ao    = uUseAOMap ? pickChannel(aoTex, uAOChannel, uAOInvert, uAOScale, uAOBias) : 1.0;
-    float opacity = uUseOpacityMap ? pickChannel(opTex, uOpacityChannel, uOpacityInvert, uOpacityScale, uOpacityBias) : uOpacity;
+    float metalness = uUseMetalnessMap ? pickChannel(metalTex, uMetalnessChannel, uMetalnessChannelInvert, uMetalnessChannelScale, uMetalnessChannelBias) : uMetalness;
+    float roughness = uUseRoughnessMap ? pickChannel(roughTex, uRoughnessChannel, uRoughnessChannelInvert, uRoughnessChannelScale, uRoughnessChannelBias) : uRoughness;
+    float ao    = uUseAOMap ? pickChannel(aoTex, uAOChannel, uAOChannelInvert, uAOChannelScale, uAOChannelBias) : 1.0;
+    float opacity = uUseOpacityMap ? pickChannel(opTex, uOpacityChannel, uOpacityChannelInvert, uOpacityChannelScale, uOpacityChannelBias) : uOpacity;
 
     vec3 emissive = vec3(0.0);
     if (uUseEmissiveMap) {
-        emissive = texture(uEmissiveMap, uv).rgb * uEmissiveColor * uEmissiveStrength;
+        emissive = texture(uEmissiveMap, applyTextureTransform(uv, uEmissiveScale, uEmissiveOffset, uEmissiveRotation)).rgb * uEmissiveColor * uEmissiveStrength;
     } else {
         emissive = uEmissiveColor * uEmissiveStrength;
     }
 
     // ----- Normal mapping uses parallaxed UVs -----
-    vec3 N = getNormalFromMap(uv);
+    vec3 N = getNormalFromMap(applyTextureTransform(uv, uNormalScale, uNormalOffset, uNormalRotation));
 
     // ----- Metal vs dielectric split -----
     vec3 dielectricDiffuse  = albedo;
