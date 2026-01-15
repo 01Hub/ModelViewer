@@ -175,21 +175,18 @@ vec3 getNormalFromMap(vec2 uv)
 
 // Apply scale, offset, and rotation to UV coordinates
 vec2 applyTextureTransform(vec2 uv, vec2 scale, vec2 offset, float rotation)
-{
-    // Center around 0.5
-    uv -= 0.5;
-    
+{    
     // Apply scale
     uv *= scale;
     
     // Apply rotation (assuming rotation is in radians)
     float c = cos(rotation);
     float s = sin(rotation);
-    uv = mat2(c, -s, s, c) * uv;
+    uv = mat2(c, -s, s, c) * uv; 
     
-    // Apply offset and recenter
-    uv += 0.5 + offset;
-    
+    // Apply offset
+    uv += offset;
+
     return uv;
 }
 
