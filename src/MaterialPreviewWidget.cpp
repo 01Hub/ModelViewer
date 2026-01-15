@@ -1117,7 +1117,8 @@ void MaterialPreviewWidget::stopSpin()
 }
 
 
-bool MaterialPreviewWidget::shouldReload(const QString& path, const GpuTexCache& cache)
+bool MaterialPreviewWidget::shouldReload(const QString& path, const GpuTexCache& cache,
+	GLint wrapS, GLint wrapT, GLint minFilter, GLint magFilter)
 {
 	if (path.isEmpty()) return cache.id != 0; // need to delete if we used to have one
 	if (path != cache.lastPath) return true;
@@ -1129,7 +1130,17 @@ bool MaterialPreviewWidget::shouldReload(const QString& path, const GpuTexCache&
 	if (fi.lastModified() != cache.lastModified) return true;
 	if (fi.size() != cache.lastSize) return true;
 
-	return false; // same path + same mtime + same size => keep current GL texture
+	// Check sampler changes
+	if (wrapS != cache.lastWrapS)
+		return true;
+	if (wrapT != cache.lastWrapT)
+		return true;
+	if (minFilter != cache.lastMinFilter)
+		return true;
+	if (magFilter != cache.lastMagFilter)
+		return true;
+
+	return false;
 }
 
 
@@ -1177,7 +1188,9 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 	const char* uniformUseName,
 	bool srgb)
 {
-	if (shouldReload(path, cache))
+	GLMaterial::TextureType type = samplerNameToTextureType(uniformSamplerName);
+	const auto& texData = _currentMaterial.texture(type);
+	if (shouldReload(path, cache, texData.wrapS, texData.wrapT, texData.minFilter, texData.magFilter))
 	{
 		if (cache.id)
 		{
@@ -1187,17 +1200,29 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 
 		if (!path.isEmpty())
 		{
+			GLMaterial::TextureType type = samplerNameToTextureType(uniformSamplerName);
+			const auto& texData = _currentMaterial.texture(type);
 			cache.id = TextureUtil::loadTexture2DFromFile(
 				path.toUtf8().constData(),
-				srgb, true, GL_REPEAT,
-				GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR,
+				srgb, true, 
+				texData.wrapS,           // Use material's wrap S
+				texData.wrapT,           // Use material's wrap T
+				texData.minFilter,       // Use material's min filter
+				texData.magFilter,       // Use material's mag filter
 				4);
+
+			qDebug() << "Texture reloaded with ID" << cache.id;
 		}
 
 		cache.lastPath = path;
 		QFileInfo fi(path);
 		cache.lastModified = fi.exists() ? fi.lastModified() : QDateTime();
 		cache.lastSize = fi.exists() ? fi.size() : -1;
+
+		cache.lastWrapS = texData.wrapS;
+		cache.lastWrapT = texData.wrapT;
+		cache.lastMinFilter = texData.minFilter;
+		cache.lastMagFilter = texData.magFilter;
 	}
 
 	// Set legacy IDs
@@ -1253,11 +1278,14 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 		_currentMaterial.setSpecularGlossinessTextureId(cache.id);
 
 	// Sync GPU ID and path to unified storage
-	GLMaterial::TextureType type = samplerNameToTextureType(uniformSamplerName);
-	auto tex = _currentMaterial.texture(type);
+	type = samplerNameToTextureType(uniformSamplerName);
+	GLMaterial::Texture tex = texData;
 	tex.id = cache.id;
-	tex.path = path.toStdString();
+	tex.path = path.toStdString();	
 	_currentMaterial.setTexture(type, tex);
+
+	// Apply sampler parameters to the GPU texture that was just loaded
+	applySamplerParametersToTexture(cache.id, _currentMaterial.texture(type));
 
 	glActiveTexture(GL_TEXTURE0 + texUnit);
 	glBindTexture(GL_TEXTURE_2D, cache.id ? cache.id : 0);
@@ -1330,6 +1358,60 @@ void MaterialPreviewWidget::clearTextureCache()
 	_clearcoatNormalTex = GpuTexCache();
 	_transmissionTex = GpuTexCache();
 	_iorTex = GpuTexCache();
+}
+
+void MaterialPreviewWidget::updateTextureSamplers(GLMaterial::TextureType type, GLint wrapS, GLint wrapT, GLint minFilter, GLint magFilter, float aniso)
+{
+	GLMaterial::Texture& tex = _currentMaterial.texture(type);
+
+	tex.wrapS = wrapS;
+	tex.wrapT = wrapT;
+	tex.minFilter = minFilter;
+	tex.magFilter = magFilter;
+
+	makeCurrent();
+	// Force cache invalidation so texture reloads with new parameters
+	GpuTexCache* cacheToInvalidate = nullptr;
+	switch (type)
+	{
+	case GLMaterial::TextureType::Albedo:               cacheToInvalidate = &_albedoTex; break;
+	case GLMaterial::TextureType::Metallic:             cacheToInvalidate = &_metallicTex; break;
+	case GLMaterial::TextureType::Roughness:            cacheToInvalidate = &_roughnessTex; break;
+	case GLMaterial::TextureType::Normal:               cacheToInvalidate = &_normalTex; break;
+	case GLMaterial::TextureType::AmbientOcclusion:     cacheToInvalidate = &_aoTex; break;
+	case GLMaterial::TextureType::Height:               cacheToInvalidate = &_heightTex; break;
+	case GLMaterial::TextureType::Opacity:              cacheToInvalidate = &_opacityTex; break;
+	case GLMaterial::TextureType::Emissive:             cacheToInvalidate = &_emissiveTex; break;
+	case GLMaterial::TextureType::SheenColor:           cacheToInvalidate = &_sheenColorTex; break;
+	case GLMaterial::TextureType::SheenRoughness:       cacheToInvalidate = &_sheenRoughnessTex; break;
+	case GLMaterial::TextureType::ClearcoatColor:       cacheToInvalidate = &_clearcoatColorTex; break;
+	case GLMaterial::TextureType::ClearcoatRoughness:   cacheToInvalidate = &_clearcoatRoughnessTex; break;
+	case GLMaterial::TextureType::ClearcoatNormal:      cacheToInvalidate = &_clearcoatNormalTex; break;
+	case GLMaterial::TextureType::IOR:                  cacheToInvalidate = &_iorTex; break;
+	case GLMaterial::TextureType::Transmission:         cacheToInvalidate = &_transmissionTex; break;
+	default:
+		return;
+	}
+
+	// Delete the cached texture and invalidate so it reloads with new parameters
+	if (cacheToInvalidate && cacheToInvalidate->id != 0)
+	{
+		glDeleteTextures(1, &cacheToInvalidate->id);
+		cacheToInvalidate->id = 0;
+		cacheToInvalidate->lastPath = "";  // Force reload on next sync
+	}
+}
+
+void MaterialPreviewWidget::applySamplerParametersToTexture(GLuint textureId, const GLMaterial::Texture& tex)
+{
+	if (textureId == 0) return;
+
+	glBindTexture(GL_TEXTURE_2D, textureId);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, tex.wrapS);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, tex.wrapT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, tex.minFilter);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, tex.magFilter);
+	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 void MaterialPreviewWidget::initializeOverlayShader()

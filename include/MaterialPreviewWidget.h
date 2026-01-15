@@ -23,6 +23,12 @@ struct GpuTexCache
     QString lastPath;
     QDateTime lastModified;   // local time or UTC; stay consistent
     qint64 lastSize = -1;
+
+    // Track sampler parameters
+    GLint lastWrapS = GL_REPEAT;
+    GLint lastWrapT = GL_REPEAT;
+    GLint lastMinFilter = GL_LINEAR_MIPMAP_LINEAR;
+    GLint lastMagFilter = GL_LINEAR;
 };
 
 class MaterialPreviewWidget : public QOpenGLWidget, protected QOpenGLFunctions_4_5_Core
@@ -50,7 +56,17 @@ public:
 	PreviewShape currentShape() const { return _currentShape; }
 
     void setPreviewRotation(float pitchDeg, float yawDeg);
-    
+
+    void updateTextureSamplers(GLMaterial::TextureType type,
+        GLint wrapS = GL_REPEAT,
+		GLint wrapT = GL_REPEAT,
+        GLint minFilter = GL_LINEAR_MIPMAP_LINEAR,
+        GLint magFilter = GL_LINEAR,
+        float aniso = 0.0f);
+
+    void applySamplerParametersToTexture(GLuint textureId, const GLMaterial::Texture& tex);
+
+    GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
 protected:
     void initializeGL() override;
     void resizeGL(int w, int h) override;
@@ -80,7 +96,8 @@ private:
     void startSpin(float velPitchDegPerSec, float velYawDegPerSec);
     void stopSpin();
 
-    bool shouldReload(const QString& path, const GpuTexCache& cache);
+    bool shouldReload(const QString& path, const GpuTexCache& cache,
+        GLint wrapS, GLint wrapT, GLint minFilter, GLint magFilter);
 
     void syncTextureFromMaterial(
         GpuTexCache& cache,
@@ -104,7 +121,7 @@ private:
     QMatrix4x4 proj;
     QMatrix4x4 view;
 
-    GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
+    
     
     GpuTexCache _albedoTex;
 	GpuTexCache _metallicTex;

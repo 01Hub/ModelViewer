@@ -10,13 +10,14 @@ namespace TextureUtil
     // - path: file path
     // - srgb: true for color maps (albedo/emissive), false for data maps (metal/rough/AO/etc.)
     // - genMips: generate mipmaps
-    // - wrap: GL_REPEAT / GL_CLAMP_TO_EDGE
+    // - wrapS/T: GL_REPEAT / GL_CLAMP_TO_EDGE
     // - minFilter/magFilter: typical pair is GL_LINEAR_MIPMAP_LINEAR / GL_LINEAR
     // - aniso: desired anisotropy level (0 = off); will be clamped to hardware max if supported
     inline GLuint loadTexture2DFromFile(const char* path,
         bool srgb = true,
         bool genMips = true,
-        GLint wrap = GL_REPEAT,
+        GLint wrapS = GL_REPEAT,
+        GLint wrapT = GL_REPEAT,
         GLint minFilter = GL_LINEAR_MIPMAP_LINEAR,
         GLint magFilter = GL_LINEAR,
         float aniso = 0.0f)
@@ -62,13 +63,14 @@ namespace TextureUtil
 
         f->glTexImage2D(GL_TEXTURE_2D, 0, internalFmt, w, h, 0, externalFmt, GL_UNSIGNED_BYTE, data);
 
-        if (genMips)        {
-            
+        if (genMips)
+        {
+
             f->glGenerateMipmap(GL_TEXTURE_2D);
         }
 
-        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrap);
-        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrap);
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS);
+        f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT);
         f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, genMips ? minFilter : GL_LINEAR);
         f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
 

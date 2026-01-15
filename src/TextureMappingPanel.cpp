@@ -537,6 +537,25 @@ void TextureMappingPanel::connectSignals()
 			_preview->setTextureViewMode(static_cast<TexViewMode>(idx));
 		});
 
+	connect(this, &TextureMappingPanel::textureSamplerChanged,
+		this, [this](const GLMaterial* material, GLMaterial::TextureType type) {
+			if (!_preview || !material)
+				return;
+
+			// Get texture data from material (contains updated sampler parameters)
+			auto tex = material->texture(type);
+
+			// Apply sampler parameters to preview widget
+			// This updates the GPU texture sampler without reloading image data
+			_preview->updateTextureSamplers(
+				type,
+				tex.wrapS,      // Wrap mode S
+				tex.wrapT,      // Wrap mode T
+				tex.minFilter,  // Min filter (GL_LINEAR, GL_NEAREST, etc.)
+				tex.magFilter,  // Mag filter (GL_LINEAR, GL_NEAREST, etc.)
+				4.0f);          // Anisotropy level
+		});
+
 	connect(_ui->pushButtonApply, &QPushButton::clicked, this, [this]() {
 		emit applyTexturesTriggered(*_material);
 		});
@@ -1092,12 +1111,12 @@ void TextureMappingPanel::onTransformButtonClicked(GLMaterial::TextureType type)
 
 		// Store in material (cascades to unified storage via setTexture)
 		_material->setTexture(type, tex);
+				
+		// Update preview
+		updatePreview();		
 
 		// Emit signal for sampler change
 		emit textureSamplerChanged(_material, type);
-
-		// Update preview
-		updatePreview();
 		emit materialChanged(_material);
 	}
 }
@@ -1140,7 +1159,7 @@ void TextureMappingPanel::updatePreview()
 	if (!_preview) return;
 	_preview->setPreviewShape(static_cast<PreviewShape>(_ui->comboShape->currentIndex()));
 	_preview->setEnvironment(static_cast<EnvMode>(_ui->comboEnv->currentIndex()));
-	_preview->setExposureEV(_ui->sliderExposure->value() / 10.0f);
+	_preview->setExposureEV(_ui->sliderExposure->value() / 10.0f);		
 	_preview->update();
 }
 
