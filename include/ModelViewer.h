@@ -219,6 +219,11 @@ private:
 	int _materialPageIndex = -1;
 	QString _materialPageLabel;
 
+	QPointer<QDialog> _detachedTransformationsDialog; // Stores the floating dialog
+	QWidget* _transformationsOriginalParent = nullptr; // Stores where panel came from
+	int _transformationsPageIndex = -1;
+	QString _transformationsPageLabel;
+
 private:
 	bool checkForActiveSelection();
 	bool hasSelection() const;
@@ -232,6 +237,8 @@ private:
 	void reattachTexturePanel();
 	void detachMaterialPanel();
 	void reattachMaterialPanel();
+	void detachTransformationsPanel();
+	void reattachTransformationsPanel();
 };
 
 #endif

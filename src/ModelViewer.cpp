@@ -6,6 +6,7 @@
 #include "MeshProperties.h"
 #include "ModelViewer.h"
 #include "ModelViewerApplication.h"
+#include "ObjectTransformPanel.h"
 #include "PathUtils.h"
 #include "TextureMappingPanel.h"
 #include "TriangleMesh.h"
@@ -32,7 +33,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_textureDirOpenedFirstTime = true;
 
 	setupUi(this);
-	
+
 	setAttribute(Qt::WA_DeleteOnClose);
 
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
@@ -58,137 +59,135 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	flayout->setContentsMargins(0, 0, 0, 0);
 	flayout->addWidget(_glWidget, 1);
 
-	if (adsMaterialSettingsPanel)
-	{
-		adsMaterialSettingsPanel->initialize(this, _glWidget, &_material);
+	adsMaterialSettingsPanel->initialize(this, _glWidget, &_material);
 
-		// Connect panel signals to ModelViewer slots
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialAmbientChanged,
-			this, [this](const QVector3D& color) {
-				if (hasSelection())
+	// Connect panel signals to ModelViewer slots
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialAmbientChanged,
+		this, [this](const QVector3D& color) {
+			if (hasSelection())
+			{
+				setMaterialToSelectedItems(_material);
+				_glWidget->updateView();
+			}
+		});
+
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialDiffuseChanged,
+		this, [this](const QVector3D& color) {
+			if (hasSelection())
+			{
+				setMaterialToSelectedItems(_material);
+				_glWidget->updateView();
+			}
+		});
+
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialSpecularChanged,
+		this, [this](const QVector3D& color) {
+			if (hasSelection())
+			{
+				setMaterialToSelectedItems(_material);
+				_glWidget->updateView();
+			}
+		});
+
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialEmissiveChanged,
+		this, [this](const QVector3D& color) {
+			if (hasSelection())
+			{
+				setMaterialToSelectedItems(_material);
+				_glWidget->updateView();
+			}
+		});
+
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityChanged,
+		this, [this](float opacity) {
+			if (hasSelection())
+			{
+				for (int id : getSelectedIDs())
 				{
-					setMaterialToSelectedItems(_material);
-					_glWidget->updateView();
+					TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
+					if (mesh)
+						mesh->setOpacity(opacity);
 				}
-			});
+				_glWidget->updateView();
+			}
+		});
 
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialDiffuseChanged,
-			this, [this](const QVector3D& color) {
-				if (hasSelection())
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::shininessChanged,
+		this, [this](int shine) {
+			if (hasSelection())
+			{
+				for (int id : getSelectedIDs())
 				{
-					setMaterialToSelectedItems(_material);
-					_glWidget->updateView();
+					TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
+					if (mesh)
+						mesh->setShininess(shine);
 				}
-			});
-
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialSpecularChanged,
-			this, [this](const QVector3D& color) {
-				if (hasSelection())
-				{
-					setMaterialToSelectedItems(_material);
-					_glWidget->updateView();
-				}
-			});
-
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialEmissiveChanged,
-			this, [this](const QVector3D& color) {
-				if (hasSelection())
-				{
-					setMaterialToSelectedItems(_material);
-					_glWidget->updateView();
-				}
-			});
-
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityChanged,
-			this, [this](float opacity) {
-				if (hasSelection())
-				{
-					for (int id : getSelectedIDs())
-					{
-						TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
-						if (mesh)
-							mesh->setOpacity(opacity);
-					}
-					_glWidget->updateView();
-				}
-			});
-
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::shininessChanged,
-			this, [this](int shine) {
-				if (hasSelection())
-				{
-					for (int id : getSelectedIDs())
-					{
-						TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
-						if (mesh)
-							mesh->setShininess(shine);
-					}
-					_glWidget->updateView();
-				}
-			});
-
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyColorToSelectionRequested,
-			this, &ModelViewer::on_pushButtonApplyADSColors_clicked);
-
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::defaultMaterialsRequested,
-			this, [this]() {
-				updateControls();
-			});
-
-		// conenct the different textures 
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::diffuseTextureChanged,
-			this, [this](const QString& path) {
-				if (hasSelection())
-					_glWidget->setADSDiffuseTexMap(getSelectedIDs(), path);
 				_glWidget->updateView();
-			});
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::specularTextureChanged,
-			this, [this](const QString& path) {
-				if (hasSelection())
-					_glWidget->setADSSpecularTexMap(getSelectedIDs(), path);
-				_glWidget->updateView();
-			});
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::normalTextureChanged,
-			this, [this](const QString& path) {
-				if (hasSelection())
-					_glWidget->setADSNormalTexMap(getSelectedIDs(), path);
-				_glWidget->updateView();
-			});
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::emissiveTextureChanged,
-			this, [this](const QString& path) {
-				if (hasSelection())
-					_glWidget->setADSEmissiveTexMap(getSelectedIDs(), path);
-				_glWidget->updateView();
-			});
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::heightTextureChanged,
-			this, [this](const QString& path) {
-				if (hasSelection())
-					_glWidget->setADSHeightTexMap(getSelectedIDs(), path);
-				_glWidget->updateView();
-			});
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityTextureChanged,
-			this, [this](const QString& path) {
-				if (hasSelection())
-					_glWidget->setADSOpacityTexMap(getSelectedIDs(), path);
-				_glWidget->updateView();
-			});
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityTextureInverted,
-			this, [this](bool inverted) {
-				if (hasSelection())
-					_glWidget->invertADSOpacityTexMap(getSelectedIDs(), inverted);
-				_glWidget->updateView();
-			});
+			}
+		});
 
-		// connect apply/clear buttons
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyTexturesRequested,
-			this, &ModelViewer::on_pushButtonApplyADSTexture_clicked);
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyColorToSelectionRequested,
+		this, &ModelViewer::on_pushButtonApplyADSColors_clicked);
 
-		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::clearTexturesRequested,
-			this, &ModelViewer::on_pushButtonClearADSTextures_clicked);
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::defaultMaterialsRequested,
+		this, [this]() {
+			updateControls();
+		});
 
-		connect(Ui_ModelViewer::adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::detachRequested,
-			this, &ModelViewer::detachADSMaterialPanel);
-	}
+	// conenct the different textures 
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::diffuseTextureChanged,
+		this, [this](const QString& path) {
+			if (hasSelection())
+				_glWidget->setADSDiffuseTexMap(getSelectedIDs(), path);
+			_glWidget->updateView();
+		});
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::specularTextureChanged,
+		this, [this](const QString& path) {
+			if (hasSelection())
+				_glWidget->setADSSpecularTexMap(getSelectedIDs(), path);
+			_glWidget->updateView();
+		});
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::normalTextureChanged,
+		this, [this](const QString& path) {
+			if (hasSelection())
+				_glWidget->setADSNormalTexMap(getSelectedIDs(), path);
+			_glWidget->updateView();
+		});
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::emissiveTextureChanged,
+		this, [this](const QString& path) {
+			if (hasSelection())
+				_glWidget->setADSEmissiveTexMap(getSelectedIDs(), path);
+			_glWidget->updateView();
+		});
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::heightTextureChanged,
+		this, [this](const QString& path) {
+			if (hasSelection())
+				_glWidget->setADSHeightTexMap(getSelectedIDs(), path);
+			_glWidget->updateView();
+		});
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityTextureChanged,
+		this, [this](const QString& path) {
+			if (hasSelection())
+				_glWidget->setADSOpacityTexMap(getSelectedIDs(), path);
+			_glWidget->updateView();
+		});
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityTextureInverted,
+		this, [this](bool inverted) {
+			if (hasSelection())
+				_glWidget->invertADSOpacityTexMap(getSelectedIDs(), inverted);
+			_glWidget->updateView();
+		});
+
+	// connect apply/clear buttons
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyTexturesRequested,
+		this, &ModelViewer::on_pushButtonApplyADSTexture_clicked);
+
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::clearTexturesRequested,
+		this, &ModelViewer::on_pushButtonClearADSTextures_clicked);
+
+	connect(Ui_ModelViewer::adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::detachRequested,
+		this, &ModelViewer::detachADSMaterialPanel);
+
 
 	connect(checkBoxAutoFitView, &QCheckBox::toggled, _glWidget, &GLWidget::setAutoFitViewOnUpdate);
 	connect(checkBoxSelectionHighlight, &QCheckBox::toggled, _glWidget, &GLWidget::setSelectionHighlighting);
@@ -231,7 +230,24 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E), this);
 	connect(shortcut, &QShortcut::activated, this, &ModelViewer::onFileExport);
-		
+
+
+	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::applyTransformationsRequested,
+		this, &ModelViewer::setTransformation);
+
+	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::bakeTransformationsRequested,
+		this, &ModelViewer::bakeTransformations);
+
+	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::resetTransformationsRequested,
+		this, [this]() {
+			resetTransformation();
+			objectTransformPanel->resetAllValues();
+		});
+
+	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::detachRequested,
+		this, [this]() { detachTransformationsPanel(); });
+
+
 	connect(doubleSpinBoxRepeatS, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatS);
 	connect(doubleSpinBoxRepeatT, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatT);
 	connect(doubleSpinBoxSkyBoxFOV, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setSkyBoxFOV);
@@ -241,18 +257,18 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &ModelViewer::loadSkyBoxPresetMaps);
 	connect(comboBoxSkyBoxMaps, &QComboBox::currentIndexChanged, this,
 		[&](const int& index) {
-			QString selectedPath = comboBoxSkyBoxMaps->itemData(index).toString();			
+			QString selectedPath = comboBoxSkyBoxMaps->itemData(index).toString();
 			if (selectedPath != "")
-			{				
-				if(isVisible())
+			{
+				if (isVisible())
 					_glWidget->setSkyBoxTextureFolder(selectedPath);
-			}			
+			}
 		}
 	);
 	connect(checkBoxShowLights, &QCheckBox::toggled, _glWidget, &GLWidget::showLights);
 	connect(checkBoxDefaultLights, &QCheckBox::toggled, _glWidget, &GLWidget::useDefaultLights);
 	connect(checkBoxPunctualLights, &QCheckBox::toggled, _glWidget, &GLWidget::usePunctualLights);
-	connect(checkBoxIBL, &QCheckBox::toggled, _glWidget, &GLWidget::useIBL);	
+	connect(checkBoxIBL, &QCheckBox::toggled, _glWidget, &GLWidget::useIBL);
 
 	connect(Ui_ModelViewer::comboBoxShadowQuality, &QComboBox::currentIndexChanged, this,
 		[this](int index) {
@@ -263,7 +279,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(checkBoxHDRToneMapping, &QCheckBox::toggled, _glWidget, &GLWidget::enableHDRToneMapping);
 	connect(checkBoxGammaCorrection, &QCheckBox::toggled, _glWidget, &GLWidget::enableGammaCorrection);
 	connect(doubleSpinBoxScreenGamma, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setScreenGamma);
-	
+
 	connect(comboBoxHDRToneMappingMode, &QComboBox::currentIndexChanged, this,
 		[this](int index) {
 			_glWidget->setHDRToneMappingMode(static_cast<HDRToneMapMode>(index));
@@ -284,13 +300,13 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 			doubleSpinBoxIBLExposure->setValue(0.0);
 			doubleSpinBoxScreenGamma->setValue(2.2);
 		});
-		
+
 	connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
 
 	int indexADS = toolBox->indexOf(toolBox->findChild<QWidget*>("pageADSSettings"));
 	int indexPBR = toolBox->indexOf(toolBox->findChild<QWidget*>("pageTextureMapping"));
 	toolBox->setItemEnabled(indexADS, true);
-	toolBox->setItemEnabled(indexPBR, false);	
+	toolBox->setItemEnabled(indexPBR, false);
 	toolBox->setCurrentIndex(0);
 
 	// Shortcut to toggle lighting mode
@@ -307,7 +323,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		other->setChecked(true);   // or other->click();
 		});
 
-	
+
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialEditorPanel::materialChanged, this, &ModelViewer::setMaterialToSelectedItems);
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialEditorPanel::detachRequested,
 		this, &ModelViewer::detachMaterialPanel);
@@ -316,10 +332,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		this, &ModelViewer::detachTexturePanel);
 	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::applyTexturesTriggered, this, &ModelViewer::setTexturesToSelectedItems);
 	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::materialChanged, this,
-		[this](const GLMaterial* mat) 
-		{
+		[this](const GLMaterial* mat) {
 			if (hasSelection())
-			{				
+			{
 				setTexturesToSelectedItems(*mat);
 			}
 		});
@@ -437,9 +452,9 @@ void ModelViewer::setTransformation()
 	{
 		QApplication::setOverrideCursor(Qt::WaitCursor);
 		std::vector<int> ids = getSelectedIDs();
-		QVector3D translate(doubleSpinBoxDX->value(), doubleSpinBoxDY->value(), doubleSpinBoxDZ->value());
-		QVector3D rotate(doubleSpinBoxRX->value(), doubleSpinBoxRY->value(), doubleSpinBoxRZ->value());
-		QVector3D scale(doubleSpinBoxSX->value(), doubleSpinBoxSY->value(), doubleSpinBoxSZ->value());
+		QVector3D translate = objectTransformPanel->getTranslation();
+		QVector3D rotate = objectTransformPanel->getRotation();
+		QVector3D scale = objectTransformPanel->getScale();
 		_glWidget->setTransformation(ids, translate, rotate, scale);
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 		float offset = _glWidget->getFloorSize() * 1.25f;
@@ -458,8 +473,8 @@ void ModelViewer::bakeTransformations()
 	if (checkForActiveSelection())
 	{
 		QApplication::setOverrideCursor(Qt::WaitCursor);
-		std::vector<int> ids = getSelectedIDs();		
-		_glWidget->bakeTransformation(ids);		
+		std::vector<int> ids = getSelectedIDs();
+		_glWidget->bakeTransformation(ids);
 		QMessageBox::information(this, tr("Action Complete"), tr("Baked the applied transformations into the mesh vertices"));
 		QApplication::restoreOverrideCursor();
 	}
@@ -471,15 +486,9 @@ void ModelViewer::resetTransformation()
 	{
 		QApplication::setOverrideCursor(Qt::WaitCursor);
 		std::vector<int> ids = getSelectedIDs();
-		doubleSpinBoxDX->setValue(0.0f);
-		doubleSpinBoxDY->setValue(0.0f);
-		doubleSpinBoxDZ->setValue(0.0f);
-		doubleSpinBoxRX->setValue(0.0f);
-		doubleSpinBoxRY->setValue(0.0f);
-		doubleSpinBoxRZ->setValue(0.0f);
-		doubleSpinBoxSX->setValue(1.0f);
-		doubleSpinBoxSY->setValue(1.0f);
-		doubleSpinBoxSZ->setValue(1.0f);
+		// Reset panel values
+		objectTransformPanel->resetAllValues();
+		// Reset transformations
 		_glWidget->resetTransformation(ids);
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 		float offset = _glWidget->getFloorSize() * 1.25f;
@@ -506,19 +515,11 @@ void ModelViewer::updateTransformationValues()
 			if (mesh)
 			{
 				QVector3D trans = mesh->getTranslation();
-				doubleSpinBoxDX->setValue(trans.x());
-				doubleSpinBoxDY->setValue(trans.y());
-				doubleSpinBoxDZ->setValue(trans.z());
-
-				QVector3D rot = mesh->getRotation();
-				doubleSpinBoxRX->setValue(rot.x());
-				doubleSpinBoxRY->setValue(rot.y());
-				doubleSpinBoxRZ->setValue(rot.z());
-
+				QVector3D rot = mesh->getRotation();				
 				QVector3D scale = mesh->getScaling();
-				doubleSpinBoxSX->setValue(scale.x());
-				doubleSpinBoxSY->setValue(scale.y());
-				doubleSpinBoxSZ->setValue(scale.z());
+				objectTransformPanel->setTranslationValues(trans);
+				objectTransformPanel->setRotationValues(rot);
+				objectTransformPanel->setScaleValues(scale);
 			}
 		}
 	}
@@ -530,21 +531,11 @@ void ModelViewer::updateTransformationValues()
 
 void ModelViewer::resetTransformationValues()
 {
-	doubleSpinBoxDX->setValue(0.0f);
-	doubleSpinBoxDY->setValue(0.0f);
-	doubleSpinBoxDZ->setValue(0.0f);
-
-	doubleSpinBoxRX->setValue(0.0f);
-	doubleSpinBoxRY->setValue(0.0f);
-	doubleSpinBoxRZ->setValue(0.0f);
-
-	doubleSpinBoxSX->setValue(1.0f);
-	doubleSpinBoxSY->setValue(1.0f);
-	doubleSpinBoxSZ->setValue(1.0f);
+	objectTransformPanel->resetAllValues();
 }
 
 void ModelViewer::updateControls()
-{	
+{
 	QColor col;
 	QString qss;
 	QVector4D ambientLight = _glWidget->getAmbientLight();
@@ -566,7 +557,7 @@ void ModelViewer::updateControls()
 	{
 		adsMaterialSettingsPanel->updateMaterialButtonStyles();
 		adsMaterialSettingsPanel->updateMaterialPropertySliders();
-	}	
+	}
 }
 
 QString ModelViewer::getSupportedQtImagesFilter()
@@ -736,7 +727,7 @@ void ModelViewer::reattachTexturePanel()
 		textureMappingPanel->show();
 		_textureOriginalParent->show();
 		textureMappingPanel->setDetached(false);
-		
+
 		bool shouldActivate = radioButtonTXPBR->isChecked();
 		if (shouldActivate)
 		{
@@ -769,7 +760,7 @@ void ModelViewer::detachMaterialPanel()
 	_detachedMaterialDialog = new QDialog(this);
 	_detachedMaterialDialog->setWindowTitle("Predefined Materials");
 	_detachedMaterialDialog->setWindowFlags(Qt::Window | Qt::Tool);
-	
+
 	QVBoxLayout* layout = new QVBoxLayout(_detachedMaterialDialog);
 	layout->setContentsMargins(6, 6, 6, 6);
 
@@ -826,14 +817,88 @@ void ModelViewer::reattachMaterialPanel()
 	}
 }
 
+void ModelViewer::detachTransformationsPanel()
+{
+	if (objectTransformPanel->isDetached() || !toolBox)	return;
+
+	if(_detachedTransformationsDialog)
+	{
+		_detachedTransformationsDialog->raise();
+		_detachedTransformationsDialog->activateWindow();
+		return;
+	}
+	// Find and remove from toolbox
+	_transformationsPageIndex = toolBox->indexOf(objectTransformPanel->parentWidget());
+	if (_transformationsPageIndex >= 0)
+	{
+		_transformationsPageLabel = toolBox->itemText(_transformationsPageIndex);
+		toolBox->removeItem(_transformationsPageIndex);
+	}
+	// Create floating dialog
+	_detachedTransformationsDialog = new QDialog(this);
+	_detachedTransformationsDialog->setWindowTitle("Object Transformations");
+	_detachedTransformationsDialog->setWindowFlags(Qt::Window | Qt::Tool);
+	QVBoxLayout* layout = new QVBoxLayout(_detachedTransformationsDialog);
+	layout->setContentsMargins(6, 6, 6, 6);
+	_transformationsOriginalParent = objectTransformPanel->parentWidget();
+	objectTransformPanel->setParent(_detachedTransformationsDialog);
+	layout->addWidget(objectTransformPanel);
+	// Position and show...
+	QScreen* screen = QGuiApplication::primaryScreen();
+	QRect screenGeom = screen->availableGeometry();
+	QRect myGeometry = this->frameGeometry();
+	int x = myGeometry.right() + 20;
+	int y = myGeometry.top();
+	if (x + 420 > screenGeom.right()) x = screenGeom.right() - objectTransformPanel->width() - 40;  // Fit within screen;
+	if (y + 700 > screenGeom.bottom()) y = screenGeom.bottom() - objectTransformPanel->height();
+	if (x < screenGeom.left()) x = screenGeom.left();
+	if (y < screenGeom.top()) y = screenGeom.top();
+	_detachedTransformationsDialog->move(x, y);
+	_detachedTransformationsDialog->resize(420, std::min(objectTransformPanel->height(), static_cast<int>(height() * 0.95)));
+	_detachedTransformationsDialog->show();
+	objectTransformPanel->setDetached(true);
+	connect(_detachedTransformationsDialog, &QDialog::finished,
+		this, &ModelViewer::reattachTransformationsPanel);
+}
+
+void ModelViewer::reattachTransformationsPanel()
+{
+	if (!_detachedTransformationsDialog || !toolBox) return;
+	_detachedTransformationsDialog->disconnect();
+	_detachedTransformationsDialog->deleteLater();
+	_detachedTransformationsDialog = nullptr;
+	if (objectTransformPanel && _transformationsOriginalParent && _transformationsPageIndex >= 0)
+	{
+		// Re-insert page into toolbox
+		toolBox->insertItem(_transformationsPageIndex, _transformationsOriginalParent, _transformationsPageLabel);
+		objectTransformPanel->setParent(_transformationsOriginalParent);
+		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_transformationsOriginalParent->layout());
+		if (gridLayout)
+		{
+			gridLayout->addWidget(objectTransformPanel, 0, 0);
+			gridLayout->setColumnStretch(0, 1);
+			gridLayout->setRowStretch(0, 1);
+		}
+		objectTransformPanel->show();
+		_transformationsOriginalParent->show();
+		objectTransformPanel->setDetached(false);
+		bool shouldActivate = listWidgetModel->selectedItems().count() >= 1;
+		if (shouldActivate)
+		{
+			toolBox->setCurrentIndex(_transformationsPageIndex);
+			toolBox->setItemEnabled(_transformationsPageIndex, true); // Enable only if at least one object is selected
+		}
+	}
+}
+
 void ModelViewer::updateDisplayList()
 {
 	_glWidget->setTransmissionEnabled(false);
-	if(_glWidget->getMeshStore().empty())
+	if (_glWidget->getMeshStore().empty())
 	{
 		listWidgetModel->clear();
 		return;
-	}	
+	}
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	listWidgetModel->clear();
 	std::vector<TriangleMesh*> store = _glWidget->getMeshStore();
@@ -843,7 +908,7 @@ void ModelViewer::updateDisplayList()
 	bool oldState = listWidgetModel->blockSignals(true);
 	for (TriangleMesh* mesh : store)
 	{
-		if(mesh->getMaterial().hasTransmission())
+		if (mesh->getMaterial().hasTransmission())
 			_glWidget->setTransmissionEnabled(true);
 		item = new QListWidgetItem(mesh->getName());
 		item->setFlags(item->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsEditable); // set checkable flag
@@ -887,7 +952,7 @@ void ModelViewer::showEvent(QShowEvent*)
 void ModelViewer::keyPressEvent(QKeyEvent* event)
 {
 	if (event->modifiers() == Qt::ControlModifier)
-	{		
+	{
 		if (event->key() == Qt::Key_A)
 		{
 			selectAll();
@@ -896,7 +961,7 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 	else if (event->modifiers() == Qt::AltModifier)
 	{
 		if (event->key() == Qt::Key_A)
-			hideAllItems();		
+			hideAllItems();
 		if (event->key() == Qt::Key_C)
 			centerScreen();
 	}
@@ -906,7 +971,7 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 			showAllItems();
 	}
 	else
-	{		
+	{
 	}
 
 	QWidget::keyPressEvent(event);
@@ -955,7 +1020,7 @@ void ModelViewer::dropEvent(QDropEvent* event)
 		}
 		else
 		{
-			if(extn == "mvf")
+			if (extn == "mvf")
 				loadFromFile(fileName);
 			else
 			{
@@ -972,7 +1037,7 @@ void ModelViewer::dropEvent(QDropEvent* event)
 				QString errMsg;
 				_progressiveLoadingEnabled = settings.value("checkProgressiveLoading", true).toBool();
 				bool success = _glWidget->loadAssImpModel(fileName, method, errMsg, _progressiveLoadingEnabled);
-				if(!success)
+				if (!success)
 				{
 					QMessageBox::critical(this, tr("Error"), tr("Failed to load model: ") + fileName + "\n" + errMsg);
 					continue;
@@ -1048,7 +1113,7 @@ QString ModelViewer::currentFile() const
 
 void ModelViewer::importModel()
 {
-	onFileImport();		
+	onFileImport();
 }
 
 void ModelViewer::exportModel()
@@ -1070,9 +1135,12 @@ bool ModelViewer::hasRedo()
 void ModelViewer::setDocumentModified(bool modified)
 {
 	_documentModified = modified;
-	if (modified) {
+	if (modified)
+	{
 		setWindowTitle(tr("%1*").arg(QFileInfo(_currentFile).fileName()));
-	} else {
+	}
+	else
+	{
 		setWindowTitle(tr("%1").arg(QFileInfo(_currentFile).fileName()));
 	}
 }
@@ -1086,20 +1154,22 @@ bool ModelViewer::save()
 	{
 		return saveAs();
 	}
-	
+
 	if (_currentFile.isEmpty())
 	{
 		return saveAs();
 	}
 
-	if (saveToFile(_currentFile)) {
+	if (saveToFile(_currentFile))
+	{
 		_documentSaved = true;
 		_documentModified = false;
 		MainWindow::showStatusMessage(tr("File saved"), 2000);
 		setWindowTitle(tr("%1").arg(QFileInfo(_currentFile).fileName()));
 		return true;
 	}
-	else {
+	else
+	{
 		QMessageBox::critical(this, tr("Error"), tr("Failed to save file: %1").arg(_currentFile));
 		return false;
 	}
@@ -1125,9 +1195,12 @@ bool ModelViewer::saveAs()
 void ModelViewer::setDocumentSaved(bool saved)
 {
 	_documentSaved = saved;
-	if (saved) {
+	if (saved)
+	{
 		setWindowTitle(tr("%1").arg(QFileInfo(_currentFile).fileName()));
-	} else {
+	}
+	else
+	{
 		setWindowTitle(tr("%1*").arg(QFileInfo(_currentFile).fileName()));
 	}
 }
@@ -1160,15 +1233,15 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		// Create menu and insert some actions
 		QMenu myMenu;
 
-		myMenu.addAction(tr("Center Screen"),          this, &ModelViewer::centerScreen);
+		myMenu.addAction(tr("Center Screen"), this, &ModelViewer::centerScreen);
 		myMenu.addAction(tr("Visualization Settings"), this, &ModelViewer::showVisualizationModelPage);
-		myMenu.addAction(tr("Transformations"),        this, &ModelViewer::showTransformationsPage);
-		myMenu.addAction(tr("Hide"),				   this, &ModelViewer::hideSelectedItems);
-		myMenu.addAction(tr("Show"),				   this, &ModelViewer::showSelectedItems);
-		myMenu.addAction(tr("Show Only"),              this, &ModelViewer::showOnlySelectedItems);
-		myMenu.addAction(tr("Duplicate"),              this, &ModelViewer::duplicateSelectedItems);
-		myMenu.addAction(tr("Delete"),                 this, &ModelViewer::deleteSelectedItems);
-		myMenu.addAction(tr("Mesh Info"),              this, &ModelViewer::displaySelectedMeshInfo);
+		myMenu.addAction(tr("Transformations"), this, &ModelViewer::showTransformationsPage);
+		myMenu.addAction(tr("Hide"), this, &ModelViewer::hideSelectedItems);
+		myMenu.addAction(tr("Show"), this, &ModelViewer::showSelectedItems);
+		myMenu.addAction(tr("Show Only"), this, &ModelViewer::showOnlySelectedItems);
+		myMenu.addAction(tr("Duplicate"), this, &ModelViewer::duplicateSelectedItems);
+		myMenu.addAction(tr("Delete"), this, &ModelViewer::deleteSelectedItems);
+		myMenu.addAction(tr("Mesh Info"), this, &ModelViewer::displaySelectedMeshInfo);
 
 		// Show context menu at handling position
 		myMenu.exec(listWidgetModel->mapToGlobal(pos));
@@ -1251,13 +1324,13 @@ void ModelViewer::generateUVsForSelectedItems()
 			// User clicked OK - get the selected method and config
 			UVMethod method = dialog.getSelectedMethod();
 			UVConfig config = dialog.getUVConfig();
-			
+
 			bool success = _glWidget->generateUVsForMeshes(selected, method, config, error);
 			if (success)
 			{
 				MainWindow::showStatusMessage(QString("UVs generated using %1 method")
 					.arg(dialog.getMethodName(method)));
-			}				
+			}
 			else
 			{
 				QMessageBox::critical(this, "Error", "Failed to generate UVs.\n" + error);
@@ -1468,7 +1541,7 @@ void ModelViewer::showVisualizationModelPage()
 	if (radioButtonADSL->isChecked())
 	{
 		toolBox->setCurrentIndex(0);
-	}	
+	}
 	if (radioButtonTXPBR->isChecked())
 	{
 		toolBox->setCurrentIndex(1);
@@ -1500,7 +1573,7 @@ void ModelViewer::on_pushButtonDefaultLights_clicked()
 	sliderLightPosX->setValue((sliderLightPosX->maximum() + sliderLightPosX->minimum()) / 2);
 	sliderLightPosY->setValue((sliderLightPosY->maximum() + sliderLightPosY->minimum()) / 2);
 
-	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;	
+	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 	sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
 
 	checkBoxDefaultLights->setChecked(true);
@@ -1533,7 +1606,7 @@ void ModelViewer::on_pushButtonBakeTransformations_clicked()
 	QMessageBox::StandardButton reply;
 	reply = QMessageBox::question(this, tr("Bake Transformations"),
 		tr("This operation will bake the transformations into the mesh vertices and cannot be undone.\n"
-		"Do you want to proceed?"),
+			"Do you want to proceed?"),
 		QMessageBox::Yes | QMessageBox::No);
 
 	if (reply == QMessageBox::Yes)
@@ -1545,7 +1618,7 @@ void ModelViewer::on_pushButtonBakeTransformations_clicked()
 	else
 	{
 		// Cancel the operation
-	}	
+	}
 }
 
 void ModelViewer::on_pushButtonResetTransformations_clicked()
@@ -1730,7 +1803,8 @@ void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 	QString finalName = name;
 	int dupCnt = 1;
 	std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
-	do {
+	do
+	{
 		for (TriangleMesh* msh : meshes)
 		{
 			if (msh->getName() == finalName)
@@ -1752,14 +1826,14 @@ void ModelViewer::loadSkyBoxPresetMaps()
 {
 	bool isHDRI = checkBoxSkyBoxHDRI->isChecked();
 	QString appPath = PathUtils::getDataDirectory();
-	QString texPath = appPath + (isHDRI ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes/LDRI");	
-	
+	QString texPath = appPath + (isHDRI ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes/LDRI");
+
 	int index = comboBoxSkyBoxMaps->currentIndex();
 	if (isHDRI)
 		_skyBoxLDRIIndex = std::max(0, index); // Store previous state index before switching
 	else
 		_skyBoxHDRIIndex = std::max(0, index);
-	
+
 	comboBoxSkyBoxMaps->clear();
 
 	QDir dir(texPath);
@@ -1778,10 +1852,10 @@ void ModelViewer::loadSkyBoxPresetMaps()
 	else
 		comboBoxSkyBoxMaps->setCurrentIndex(_skyBoxLDRIIndex);
 
-	if(_skyBoxHDRIIndex == 0 || _skyBoxLDRIIndex == 0)
+	if (_skyBoxHDRIIndex == 0 || _skyBoxLDRIIndex == 0)
 	{
 		QString selectedPath;
-		if(isHDRI)
+		if (isHDRI)
 			selectedPath = comboBoxSkyBoxMaps->itemData(_skyBoxHDRIIndex).toString();
 		else
 			selectedPath = comboBoxSkyBoxMaps->itemData(_skyBoxLDRIIndex).toString();
@@ -1801,13 +1875,15 @@ void ModelViewer::onFileImport()
 	QStringList supportedExtensions = ModelViewerApplication::supportedImportExtensions();
 	fileDialog.setNameFilters(supportedExtensions);
 
-	if (supportedExtensions.contains(_lastSelectedFilter)) {
+	if (supportedExtensions.contains(_lastSelectedFilter))
+	{
 		fileDialog.selectNameFilter(_lastSelectedFilter);
 	}
 
 	// Run dialog
 	QStringList fileNames;
-	if (fileDialog.exec()) {
+	if (fileDialog.exec())
+	{
 		fileNames = fileDialog.selectedFiles();
 		_lastSelectedFilter = fileDialog.selectedNameFilter();
 		_lastOpenedDir = QFileInfo(fileNames.first()).absolutePath();
@@ -1846,7 +1922,8 @@ void ModelViewer::onFileExport()
 	QMap<QString, QString> filterToExtension; // Map filter -> extension
 
 	// Build filters and track extensions
-	for (unsigned int i = 0; i < exporter.GetExportFormatCount(); ++i) {
+	for (unsigned int i = 0; i < exporter.GetExportFormatCount(); ++i)
+	{
 		const aiExportFormatDesc* desc = exporter.GetExportFormatDescription(i);
 		QString ext = QString::fromUtf8(desc->fileExtension);
 		QString descStr = QString::fromUtf8(desc->description);
@@ -1867,11 +1944,13 @@ void ModelViewer::onFileExport()
 	QString selectedFilter;
 	QString fileName = QFileDialog::getSaveFileName(this, tr("Export Model"), _lastOpenedDir, filters.join(";;"), &selectedFilter);
 
-	if (!fileName.isEmpty()) {
+	if (!fileName.isEmpty())
+	{
 		QString extToAppend = filterToExtension[selectedFilter];
 
 		// Append extension only if not present already
-		if (!extToAppend.isEmpty() && !fileName.endsWith("." + extToAppend, Qt::CaseInsensitive)) {
+		if (!extToAppend.isEmpty() && !fileName.endsWith("." + extToAppend, Qt::CaseInsensitive))
+		{
 			fileName += "." + extToAppend;
 		}
 
@@ -1886,21 +1965,21 @@ void ModelViewer::onFileExport()
 		// Check the user settings
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		bool exportScene = settings.value("radioButtonExportScene", true).toBool();
-		
+
 		aiReturn res = aiReturn_FAILURE;
 		if (exportScene)
 		{
 			// Export the original aiScene
 			res = exporter.exportScene(_glWidget->getAssImpScene(), fileName.toStdString());
 			qDebug() << "Exporting scene result:" << res;
-		}			
+		}
 		else
 		{
 			// Export the meshes loaded in the scene
 			res = exporter.exportMeshes(assImpMeshes, fileName.toStdString());
 			qDebug() << "Exporting meshes result:" << res;
 		}
-		
+
 		if (res == aiReturn_SUCCESS)
 			QMessageBox::information(this, tr("Information"), tr("Exported"));
 		else
@@ -1918,7 +1997,7 @@ bool ModelViewer::loadFile(const QString& fileName)
 	if (QFileInfo(fileName).suffix().toLower() == "mvf")
 	{
 		// Load MVF file
-		success = loadFromFile(fileName);		
+		success = loadFromFile(fileName);
 	}
 	else
 	{
@@ -1941,7 +2020,7 @@ bool ModelViewer::loadFile(const QString& fileName)
 	{
 		updateDisplayList();
 
-		listWidgetModel->scrollToTop();		
+		listWidgetModel->scrollToTop();
 
 		_documentModified = true;
 
@@ -1957,7 +2036,7 @@ bool ModelViewer::loadFile(const QString& fileName)
 
 		return false;
 	}
-	
+
 
 	return false;
 }
@@ -2127,10 +2206,10 @@ void ModelViewer::on_pushButtonSkyBoxTex_clicked()
 
 void ModelViewer::switchToRealisticRendering()
 {
-	if(_glWidget->getDisplayMode() == DisplayMode::REALSHADED)
+	if (_glWidget->getDisplayMode() == DisplayMode::REALSHADED)
 		return;
 	QToolTip::showText(groupBoxVisModel->mapToGlobal(groupBoxVisModel->pos()), "Switching to Realistic Display Mode", this);
-	_glWidget->setDisplayMode(DisplayMode::REALSHADED);	
+	_glWidget->setDisplayMode(DisplayMode::REALSHADED);
 }
 
 void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
@@ -2141,16 +2220,16 @@ void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 	if (radioButtonADSL->isChecked())
 	{
 		toolBox->setItemEnabled(indexADS, true);
-		toolBox->setItemEnabled(indexPBR, false);		
+		toolBox->setItemEnabled(indexPBR, false);
 		toolBox->setCurrentIndex(indexADS);
 		_glWidget->setRenderingMode(RenderingMode::ADS_BLINN_PHONG);
-	}	
+	}
 	if (radioButtonTXPBR->isChecked())
 	{
-		toolBox->setItemEnabled(indexADS, false);	
+		toolBox->setItemEnabled(indexADS, false);
 		toolBox->setItemEnabled(indexPBR, true);
 		toolBox->setCurrentIndex(indexPBR);
-		_glWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);		
+		_glWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);
 		checkBoxSkyBoxHDRI->setChecked(true);
 		checkBoxHDRToneMapping->setChecked(true);
 		checkBoxGammaCorrection->setChecked(true);
@@ -2162,9 +2241,9 @@ void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 }
 
 void ModelViewer::onDisplayModeChanged(int mode)
-{	
+{
 	bool realShaded = (mode == static_cast<int>(DisplayMode::REALSHADED));
-	bool pbrLighting = (_glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING);	
+	bool pbrLighting = (_glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING);
 	checkBoxEnvMapping->setChecked(realShaded || pbrLighting);
 	checkBoxShadowMapping->setChecked(realShaded);
 	checkBoxSelfShadows->setChecked(realShaded);
@@ -2276,7 +2355,7 @@ UVDialogResult ModelViewer::askUserForUVMethod(QWidget* parent)
 	UVDialogResult result;
 
 	UVPromptDialog dialog(parent);
-	
+
 	if (dialog.exec() == QDialog::Accepted)
 	{
 		UVPromptDialog::Choice choice = dialog.selectedChoice();
