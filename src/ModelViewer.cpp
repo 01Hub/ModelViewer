@@ -1,4 +1,5 @@
-﻿#include "AssImpModelLoader.h"
+﻿#include "ADSMaterialSettingsPanel.h"
+#include "AssImpModelLoader.h"
 #include "GLWidget.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
@@ -56,6 +57,138 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	QVBoxLayout* flayout = new QVBoxLayout(glframe);
 	flayout->setContentsMargins(0, 0, 0, 0);
 	flayout->addWidget(_glWidget, 1);
+
+	if (adsMaterialSettingsPanel)
+	{
+		adsMaterialSettingsPanel->initialize(this, _glWidget, &_material);
+
+		// Connect panel signals to ModelViewer slots
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialAmbientChanged,
+			this, [this](const QVector3D& color) {
+				if (hasSelection())
+				{
+					setMaterialToSelectedItems(_material);
+					_glWidget->updateView();
+				}
+			});
+
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialDiffuseChanged,
+			this, [this](const QVector3D& color) {
+				if (hasSelection())
+				{
+					setMaterialToSelectedItems(_material);
+					_glWidget->updateView();
+				}
+			});
+
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialSpecularChanged,
+			this, [this](const QVector3D& color) {
+				if (hasSelection())
+				{
+					setMaterialToSelectedItems(_material);
+					_glWidget->updateView();
+				}
+			});
+
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialEmissiveChanged,
+			this, [this](const QVector3D& color) {
+				if (hasSelection())
+				{
+					setMaterialToSelectedItems(_material);
+					_glWidget->updateView();
+				}
+			});
+
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityChanged,
+			this, [this](float opacity) {
+				if (hasSelection())
+				{
+					for (int id : getSelectedIDs())
+					{
+						TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
+						if (mesh)
+							mesh->setOpacity(opacity);
+					}
+					_glWidget->updateView();
+				}
+			});
+
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::shininessChanged,
+			this, [this](int shine) {
+				if (hasSelection())
+				{
+					for (int id : getSelectedIDs())
+					{
+						TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
+						if (mesh)
+							mesh->setShininess(shine);
+					}
+					_glWidget->updateView();
+				}
+			});
+
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyColorToSelectionRequested,
+			this, &ModelViewer::on_pushButtonApplyADSColors_clicked);
+
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::defaultMaterialsRequested,
+			this, [this]() {
+				updateControls();
+			});
+
+		// conenct the different textures 
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::diffuseTextureChanged,
+			this, [this](const QString& path) {
+				if (hasSelection())
+					_glWidget->setADSDiffuseTexMap(getSelectedIDs(), path);
+				_glWidget->updateView();
+			});
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::specularTextureChanged,
+			this, [this](const QString& path) {
+				if (hasSelection())
+					_glWidget->setADSSpecularTexMap(getSelectedIDs(), path);
+				_glWidget->updateView();
+			});
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::normalTextureChanged,
+			this, [this](const QString& path) {
+				if (hasSelection())
+					_glWidget->setADSNormalTexMap(getSelectedIDs(), path);
+				_glWidget->updateView();
+			});
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::emissiveTextureChanged,
+			this, [this](const QString& path) {
+				if (hasSelection())
+					_glWidget->setADSEmissiveTexMap(getSelectedIDs(), path);
+				_glWidget->updateView();
+			});
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::heightTextureChanged,
+			this, [this](const QString& path) {
+				if (hasSelection())
+					_glWidget->setADSHeightTexMap(getSelectedIDs(), path);
+				_glWidget->updateView();
+			});
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityTextureChanged,
+			this, [this](const QString& path) {
+				if (hasSelection())
+					_glWidget->setADSOpacityTexMap(getSelectedIDs(), path);
+				_glWidget->updateView();
+			});
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityTextureInverted,
+			this, [this](bool inverted) {
+				if (hasSelection())
+					_glWidget->invertADSOpacityTexMap(getSelectedIDs(), inverted);
+				_glWidget->updateView();
+			});
+
+		// connect apply/clear buttons
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyTexturesRequested,
+			this, &ModelViewer::on_pushButtonApplyADSTexture_clicked);
+
+		connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::clearTexturesRequested,
+			this, &ModelViewer::on_pushButtonClearADSTextures_clicked);
+
+		connect(Ui_ModelViewer::adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::detachRequested,
+			this, &ModelViewer::detachADSMaterialPanel);
+	}
 
 	connect(checkBoxAutoFitView, &QCheckBox::toggled, _glWidget, &GLWidget::setAutoFitViewOnUpdate);
 	connect(checkBoxSelectionHighlight, &QCheckBox::toggled, _glWidget, &GLWidget::setSelectionHighlighting);
@@ -411,10 +544,7 @@ void ModelViewer::resetTransformationValues()
 }
 
 void ModelViewer::updateControls()
-{
-	sliderShine->blockSignals(true);
-	sliderTransparency->blockSignals(true);
-	
+{	
 	QColor col;
 	QString qss;
 	QVector4D ambientLight = _glWidget->getAmbientLight();
@@ -434,28 +564,9 @@ void ModelViewer::updateControls()
 	// ADS Lighting
 	if (radioButtonADSL->isChecked())
 	{
-		sliderShine->setValue((int)_material.shininess());
-		sliderTransparency->setValue((int)(1000 * _material.opacity()));
-
-		col.setRgbF(_material.ambient().x(), _material.ambient().y(), _material.ambient().z());
-		qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-		pushButtonMaterialAmbient->setStyleSheet(qss);
-
-		col.setRgbF(_material.diffuse().x(), _material.diffuse().y(), _material.diffuse().z());
-		qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-		pushButtonMaterialDiffuse->setStyleSheet(qss);
-
-		col.setRgbF(_material.specular().x(), _material.specular().y(), _material.specular().z());
-		qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-		pushButtonMaterialSpecular->setStyleSheet(qss);
-
-		col.setRgbF(_material.emissive().x(), _material.emissive().y(), _material.emissive().z());
-		qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-		pushButtonMaterialEmissive->setStyleSheet(qss);
-	}
-	
-	sliderShine->blockSignals(false);
-	sliderTransparency->blockSignals(false);
+		adsMaterialSettingsPanel->updateMaterialButtonStyles();
+		adsMaterialSettingsPanel->updateMaterialPropertySliders();
+	}	
 }
 
 QString ModelViewer::getSupportedQtImagesFilter()
@@ -474,6 +585,79 @@ QString ModelViewer::getSupportedQtImagesFilter()
 		filter += ";;" + fil;
 	}
 	return filter;
+}
+
+void ModelViewer::detachADSMaterialPanel()
+{
+	if (!adsMaterialSettingsPanel || !toolBox) return;
+	if (_detachedADSMaterialDialog)
+	{
+		_detachedADSMaterialDialog->raise();
+		_detachedADSMaterialDialog->activateWindow();
+		return;
+	}
+	// Find and remove from toolbox
+	_adsMaterialPageIndex = toolBox->indexOf(adsMaterialSettingsPanel->parentWidget());
+	if (_adsMaterialPageIndex >= 0)
+	{
+		_adsMaterialPageLabel = toolBox->itemText(_adsMaterialPageIndex);
+		toolBox->removeItem(_adsMaterialPageIndex);
+	}
+	// Create floating dialog
+	_detachedADSMaterialDialog = new QDialog(this);
+	_detachedADSMaterialDialog->setWindowTitle("ADS Material Settings");
+	_detachedADSMaterialDialog->setWindowFlags(Qt::Window | Qt::Tool);
+	QVBoxLayout* layout = new QVBoxLayout(_detachedADSMaterialDialog);
+	layout->setContentsMargins(0, 0, 0, 0);
+	_adsMaterialOriginalParent = adsMaterialSettingsPanel->parentWidget();
+	adsMaterialSettingsPanel->setParent(_detachedADSMaterialDialog);
+	layout->addWidget(adsMaterialSettingsPanel);
+	// Position and show...
+	QScreen* screen = QGuiApplication::primaryScreen();
+	QRect screenGeom = screen->availableGeometry();
+	QRect myGeometry = this->frameGeometry();
+	int x = myGeometry.right() + 20;
+	int y = myGeometry.top();
+	if (x + 420 > screenGeom.right()) x = screenGeom.right() - adsMaterialSettingsPanel->width() - 40;  // Fit within screen;
+	if (y + 700 > screenGeom.bottom()) y = screenGeom.bottom() - adsMaterialSettingsPanel->height();
+	if (x < screenGeom.left()) x = screenGeom.left();
+	if (y < screenGeom.top()) y = screenGeom.top();
+	_detachedADSMaterialDialog->move(x, y);
+	_detachedADSMaterialDialog->resize(420, std::min(adsMaterialSettingsPanel->height(), static_cast<int>(height() * 0.95)));
+	_detachedADSMaterialDialog->show();
+	adsMaterialSettingsPanel->setDetached(true);
+	connect(_detachedADSMaterialDialog, &QDialog::finished,
+		this, &ModelViewer::reattachADSMaterialPanel);
+}
+
+void ModelViewer::reattachADSMaterialPanel()
+{
+	if (!_detachedADSMaterialDialog || !toolBox) return;
+	_detachedADSMaterialDialog->disconnect();
+	_detachedADSMaterialDialog->deleteLater();
+	_detachedADSMaterialDialog = nullptr;
+	if (adsMaterialSettingsPanel && _adsMaterialOriginalParent && _adsMaterialPageIndex >= 0)
+	{
+		// Re-insert page into toolbox
+		toolBox->insertItem(_adsMaterialPageIndex, _adsMaterialOriginalParent, _adsMaterialPageLabel);
+		adsMaterialSettingsPanel->setParent(_adsMaterialOriginalParent);
+		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_adsMaterialOriginalParent->layout());
+		if (gridLayout)
+		{
+			gridLayout->addWidget(adsMaterialSettingsPanel, 0, 0);
+			gridLayout->setColumnStretch(0, 1);
+			gridLayout->setRowStretch(0, 1);
+		}
+		adsMaterialSettingsPanel->show();
+		_adsMaterialOriginalParent->show();
+		adsMaterialSettingsPanel->setDetached(false);
+		bool shouldActivate = radioButtonADSL->isChecked();
+		if (shouldActivate)
+		{
+			toolBox->setCurrentIndex(_adsMaterialPageIndex);
+			toolBox->setItemEnabled(_adsMaterialPageIndex, true); // Enable only if ADS is selected
+		}
+	}
 }
 
 void ModelViewer::detachTexturePanel()
@@ -519,7 +703,7 @@ void ModelViewer::detachTexturePanel()
 	if (y < screenGeom.top()) y = screenGeom.top();
 
 	_detachedTextureDialog->move(x, y);
-	_detachedTextureDialog->resize(420, height() * 0.95);
+	_detachedTextureDialog->resize(420, std::min(textureMappingPanel->height(), static_cast<int>(height() * 0.95)));
 	_detachedTextureDialog->show();
 	textureMappingPanel->setDetached(true);
 
@@ -605,7 +789,7 @@ void ModelViewer::detachMaterialPanel()
 	if (y < screenGeom.top()) y = screenGeom.top();
 
 	_detachedMaterialDialog->move(x, y);
-	_detachedMaterialDialog->resize(420, height() * 0.95);
+	_detachedMaterialDialog->resize(420, std::min(predefinedMaterialsPanel->height(), static_cast<int>(height() * 0.95)));
 	_detachedMaterialDialog->show();
 	predefinedMaterialsPanel->setDetached(true);
 
@@ -1415,86 +1599,6 @@ void ModelViewer::on_pushButtonLightSpecular_clicked()
 	}
 }
 
-void ModelViewer::on_pushButtonMaterialAmbient_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.ambient().x(), _material.ambient().y(), _material.ambient().z()), this, "Ambient Material Color");
-		if (c.isValid())
-		{
-			_material.setAmbient(QVector3D(
-				static_cast<float>(c.redF()),
-				static_cast<float>(c.greenF()),
-				static_cast<float>(c.blueF()))
-			);
-			setMaterialToSelectedItems(_material);
-
-			updateControls();
-			_glWidget->updateView();
-		}
-	}
-}
-
-void ModelViewer::on_pushButtonMaterialDiffuse_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.diffuse().x(), _material.diffuse().y(), _material.diffuse().z()), this, "Diffuse Material Color");
-		if (c.isValid())
-		{
-			_material.setDiffuse(QVector3D(
-				static_cast<float>(c.redF()),
-				static_cast<float>(c.greenF()),
-				static_cast<float>(c.blueF()))
-			);
-			setMaterialToSelectedItems(_material);
-
-			updateControls();
-			_glWidget->updateView();
-		}
-	}
-}
-
-void ModelViewer::on_pushButtonMaterialSpecular_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.specular().x(), _material.specular().y(), _material.specular().z()), this, "Specular Material Color");
-		if (c.isValid())
-		{
-			_material.setSpecular(QVector3D(
-				static_cast<float>(c.redF()),
-				static_cast<float>(c.greenF()),
-				static_cast<float>(c.blueF()))
-			);
-			setMaterialToSelectedItems(_material);
-
-			updateControls();
-			_glWidget->updateView();
-		}
-	}
-}
-
-void ModelViewer::on_pushButtonMaterialEmissive_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QColor c = QColorDialog::getColor(QColor::fromRgbF(_material.emissive().x(), _material.emissive().y(), _material.emissive().z()), this, "Emissive Material Color");
-		if (c.isValid())
-		{
-			_material.setEmissive(QVector3D(
-				static_cast<float>(c.redF()),
-				static_cast<float>(c.greenF()),
-				static_cast<float>(c.blueF()))
-			);
-			setMaterialToSelectedItems(_material);
-
-			updateControls();
-			_glWidget->updateView();
-		}
-	}
-}
-
 void ModelViewer::on_sliderLightPosX_valueChanged(int)
 {
 	_glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
@@ -1606,6 +1710,7 @@ void ModelViewer::on_listWidgetModel_itemSelectionChanged()
 			_glWidget->deselect(rowId);
 	}
 	_glWidget->update();
+	adsMaterialSettingsPanel->setSelectionState(hasSelection());
 	updateSelectionStatusMessage();
 }
 
@@ -2079,389 +2184,6 @@ void ModelViewer::onTextureCacheCleared()
 	}
 }
 
-void ModelViewer::on_checkBoxDiffuseTex_toggled(bool checked)
-{
-	if (checkForActiveSelection())
-	{
-		_hasADSDiffuseTex = checked;
-		std::vector<int> ids = getSelectedIDs();
-		_glWidget->enableADSDiffuseTexMap(ids, checked);
-		_glWidget->updateView();
-	}
-	else
-	{
-		checkBoxDiffuseTex->blockSignals(true);
-		checkBoxDiffuseTex->setChecked(!checked);
-		pushButtonDiffuseTexture->setEnabled(!checked);
-		labelDiffuseTexture->setEnabled(!checked);
-		toolButtonClearDiffuseTex->setEnabled(!checked);
-		checkBoxDiffuseTex->blockSignals(false);
-	}
-}
-
-void ModelViewer::on_pushButtonDiffuseTexture_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QString appPath = PathUtils::getDataDirectory();
-		QString dirPath = appPath + "/textures/lightmaps";
-		QString filter = getSupportedQtImagesFilter();
-		QString fileName = QFileDialog::getOpenFileName(
-			this,
-			"Choose an image for ADS Diffuse texture",
-			_textureDirOpenedFirstTime ? dirPath : _lastOpenedDir,
-			filter);
-		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-		if (fileName != "")
-		{
-			_diffuseADSTexture = fileName;
-			_textureDirOpenedFirstTime = false;
-			QPixmap img; img.load(fileName);
-			if (!img.isNull())
-			{
-				QApplication::setOverrideCursor(Qt::WaitCursor);
-				labelDiffuseTexture->setPixmap(img);
-				std::vector<int> ids = getSelectedIDs();
-				_glWidget->enableADSDiffuseTexMap(ids, _hasADSDiffuseTex);
-				_glWidget->setADSDiffuseTexMap(ids, fileName);
-				_glWidget->updateView();
-				QApplication::restoreOverrideCursor();
-			}
-		}
-	}
-}
-
-void ModelViewer::on_toolButtonClearDiffuseTex_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		std::vector<int> ids = getSelectedIDs();
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		_glWidget->clearADSDiffuseTexMap(ids);
-		_glWidget->updateView();
-		QApplication::restoreOverrideCursor();
-	}
-}
-
-void ModelViewer::on_checkBoxSpecularTex_toggled(bool checked)
-{
-	if (checkForActiveSelection())
-	{
-		_hasADSSpecularTex = checked;
-		std::vector<int> ids = getSelectedIDs();
-		_glWidget->enableADSSpecularTexMap(ids, checked);
-		_glWidget->updateView();
-	}
-	else
-	{
-		checkBoxSpecularTex->blockSignals(true);
-		checkBoxSpecularTex->setChecked(!checked);
-		pushButtonSpecularTexture->setEnabled(!checked);
-		labelSpecularTexture->setEnabled(!checked);
-		toolButtonClearSpecularTex->setEnabled(!checked);
-		checkBoxSpecularTex->blockSignals(false);
-	}
-}
-
-void ModelViewer::on_pushButtonSpecularTexture_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QString appPath = PathUtils::getDataDirectory();
-		QString dirPath = appPath + "/textures/lightmaps";
-		QString filter = getSupportedQtImagesFilter();
-		QString fileName = QFileDialog::getOpenFileName(
-			this,
-			"Choose an image for ADS Specular texture",
-			_textureDirOpenedFirstTime ? dirPath : _lastOpenedDir,
-			filter);
-		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-		if (fileName != "")
-		{
-			_specularADSTexture = fileName;
-			_textureDirOpenedFirstTime = false;
-			QPixmap img; img.load(fileName);
-			if (!img.isNull())
-			{
-				QApplication::setOverrideCursor(Qt::WaitCursor);
-				labelSpecularTexture->setPixmap(img);
-				std::vector<int> ids = getSelectedIDs();
-				_glWidget->enableADSSpecularTexMap(ids, _hasADSSpecularTex);
-				_glWidget->setADSSpecularTexMap(ids, fileName);
-				_glWidget->updateView();
-				QApplication::restoreOverrideCursor();
-			}
-		}
-	}
-}
-
-void ModelViewer::on_toolButtonClearSpecularTex_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		std::vector<int> ids = getSelectedIDs();
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		_glWidget->clearADSSpecularTexMap(ids);
-		_glWidget->updateView();
-		QApplication::restoreOverrideCursor();
-	}
-}
-
-void ModelViewer::on_checkBoxEmissiveTex_toggled(bool checked)
-{
-	if (checkForActiveSelection())
-	{
-		_hasADSEmissiveTex = checked;
-		std::vector<int> ids = getSelectedIDs();
-		_glWidget->enableADSEmissiveTexMap(ids, checked);
-		_glWidget->updateView();
-	}
-	else
-	{
-		checkBoxEmissiveTex->blockSignals(true);
-		checkBoxEmissiveTex->setChecked(!checked);
-		pushButtonEmissiveTexture->setEnabled(!checked);
-		labelEmissiveTexture->setEnabled(!checked);
-		toolButtonClearEmissiveTex->setEnabled(!checked);
-		checkBoxEmissiveTex->blockSignals(false);
-	}
-}
-
-void ModelViewer::on_pushButtonEmissiveTexture_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QString appPath = PathUtils::getDataDirectory();
-		QString dirPath = appPath + "/textures/lightmaps";
-		QString filter = getSupportedQtImagesFilter();
-		QString fileName = QFileDialog::getOpenFileName(
-			this,
-			"Choose an image for ADS Emissive texture",
-			_textureDirOpenedFirstTime ? dirPath : _lastOpenedDir,
-			filter);
-		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-		if (fileName != "")
-		{
-			_emissiveADSTexture = fileName;
-			_textureDirOpenedFirstTime = false;
-			QPixmap img; img.load(fileName);
-			if (!img.isNull())
-			{
-				QApplication::setOverrideCursor(Qt::WaitCursor);
-				labelEmissiveTexture->setPixmap(img);
-				std::vector<int> ids = getSelectedIDs();
-				_glWidget->enableADSEmissiveTexMap(ids, _hasADSEmissiveTex);
-				_glWidget->setADSEmissiveTexMap(ids, fileName);
-				_glWidget->updateView();
-				QApplication::restoreOverrideCursor();
-			}
-		}
-	}
-}
-
-void ModelViewer::on_toolButtonClearEmissiveTex_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		std::vector<int> ids = getSelectedIDs();
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		_glWidget->clearADSEmissiveTexMap(ids);
-		_glWidget->updateView();
-		QApplication::restoreOverrideCursor();
-	}
-}
-
-void ModelViewer::on_checkBoxNormalTex_toggled(bool checked)
-{
-	if (checkForActiveSelection())
-	{
-		_hasADSNormalTex = checked;
-		std::vector<int> ids = getSelectedIDs();
-		_glWidget->enableADSNormalTexMap(ids, checked);
-		_glWidget->updateView();
-	}
-	else
-	{
-		checkBoxNormalTex->blockSignals(true);
-		checkBoxNormalTex->setChecked(!checked);
-		pushButtonNormalTexture->setEnabled(!checked);
-		labelNormalTexture->setEnabled(!checked);
-		toolButtonClearNormalTex->setEnabled(!checked);
-		checkBoxNormalTex->blockSignals(false);
-	}
-}
-
-void ModelViewer::on_pushButtonNormalTexture_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QString appPath = PathUtils::getDataDirectory();
-		QString dirPath = appPath + "/textures/lightmaps";
-		QString filter = getSupportedQtImagesFilter();
-		QString fileName = QFileDialog::getOpenFileName(
-			this,
-			"Choose an image for ADS Normal texture",
-			_textureDirOpenedFirstTime ? dirPath : _lastOpenedDir,
-			filter);
-		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-		if (fileName != "")
-		{
-			_normalADSTexture = fileName;
-			_textureDirOpenedFirstTime = false;
-			QPixmap img; img.load(fileName);
-			if (!img.isNull())
-			{
-				QApplication::setOverrideCursor(Qt::WaitCursor);
-				labelNormalTexture->setPixmap(img);
-				std::vector<int> ids = getSelectedIDs();
-				_glWidget->enableADSNormalTexMap(ids, _hasADSNormalTex);
-				_glWidget->setADSNormalTexMap(ids, fileName);
-				_glWidget->updateView();
-				QApplication::restoreOverrideCursor();
-			}
-		}
-	}
-}
-
-void ModelViewer::on_toolButtonClearNormalTex_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		std::vector<int> ids = getSelectedIDs();
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		_glWidget->clearADSNormalTexMap(ids);
-		_glWidget->updateView();
-		QApplication::restoreOverrideCursor();
-	}
-}
-
-void ModelViewer::on_checkBoxHeightTex_toggled(bool checked)
-{
-	if (checkForActiveSelection())
-	{
-		_hasADSHeightTex = checked;
-		std::vector<int> ids = getSelectedIDs();
-		_glWidget->enableADSHeightTexMap(ids, checked);
-		_glWidget->updateView();
-	}
-	else
-	{
-		checkBoxHeightTex->blockSignals(true);
-		checkBoxHeightTex->setChecked(!checked);
-		pushButtonHeightTexture->setEnabled(!checked);
-		labelHeightTexture->setEnabled(!checked);
-		toolButtonClearHeightTex->setEnabled(!checked);
-		checkBoxHeightTex->blockSignals(false);
-	}
-}
-
-void ModelViewer::on_pushButtonHeightTexture_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QString appPath = PathUtils::getDataDirectory();
-		QString dirPath = appPath + "/textures/lightmaps";
-		QString filter = getSupportedQtImagesFilter();
-		QString fileName = QFileDialog::getOpenFileName(
-			this,
-			"Choose an image for ADS Height texture",
-			_textureDirOpenedFirstTime ? dirPath : _lastOpenedDir,
-			filter);
-		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-		if (fileName != "")
-		{
-			_heightADSTexture = fileName;
-			_textureDirOpenedFirstTime = false;
-			QPixmap img; img.load(fileName);
-			if (!img.isNull())
-			{
-				QApplication::setOverrideCursor(Qt::WaitCursor);
-				labelHeightTexture->setPixmap(img);
-				std::vector<int> ids = getSelectedIDs();
-				_glWidget->enableADSHeightTexMap(ids, _hasADSHeightTex);
-				_glWidget->setADSHeightTexMap(ids, fileName);
-				_glWidget->updateView();
-				QApplication::restoreOverrideCursor();
-			}
-		}
-	}
-}
-
-void ModelViewer::on_toolButtonClearHeightTex_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		std::vector<int> ids = getSelectedIDs();
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		_glWidget->clearADSHeightTexMap(ids);
-		_glWidget->updateView();
-		QApplication::restoreOverrideCursor();
-	}
-}
-
-void ModelViewer::on_checkBoxOpacityTex_toggled(bool checked)
-{
-	if (checkForActiveSelection())
-	{
-		_hasADSOpacityTex = checked;
-		std::vector<int> ids = getSelectedIDs();
-		_glWidget->enableADSOpacityTexMap(ids, checked);
-		_glWidget->updateView();
-	}
-	else
-	{
-		checkBoxOpacityTex->blockSignals(true);
-		checkBoxOpacityTex->setChecked(!checked);
-		checkBoxOpacInvert->setEnabled(!checked);
-		pushButtonOpacityTexture->setEnabled(!checked);
-		labelOpacityTexture->setEnabled(!checked);
-		toolButtonClearOpacityTex->setEnabled(!checked);
-		checkBoxOpacityTex->blockSignals(false);
-	}
-}
-
-void ModelViewer::on_checkBoxOpacInvert_toggled(bool inverted)
-{
-	if (checkForActiveSelection())
-	{
-		//_hasADSOpacityTex = checked;
-		std::vector<int> ids = getSelectedIDs();
-		_glWidget->invertADSOpacityTexMap(ids, inverted);
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_pushButtonOpacityTexture_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		QString appPath = PathUtils::getDataDirectory();
-		QString dirPath = appPath + "/textures/lightmaps";
-		QString filter = getSupportedQtImagesFilter();
-		QString fileName = QFileDialog::getOpenFileName(
-			this,
-			"Choose an image for ADS Opacity texture",
-			_textureDirOpenedFirstTime ? dirPath : _lastOpenedDir,
-			filter);
-		_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-		if (fileName != "")
-		{
-			_opacityADSTexture = fileName;
-			_textureDirOpenedFirstTime = false;
-			QPixmap img; img.load(fileName);
-			if (!img.isNull())
-			{
-				QApplication::setOverrideCursor(Qt::WaitCursor);
-				labelOpacityTexture->setPixmap(img);
-				std::vector<int> ids = getSelectedIDs();
-				_glWidget->enableADSOpacityTexMap(ids, _hasADSHeightTex);
-				_glWidget->setADSOpacityTexMap(ids, fileName);
-				_glWidget->updateView();
-				QApplication::restoreOverrideCursor();
-			}
-		}
-	}
-}
 
 void ModelViewer::on_toolButtonClearOpacityTex_clicked()
 {

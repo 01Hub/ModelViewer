@@ -106,11 +106,7 @@ private slots:
 	void on_pushButtonResetTransformations_clicked();	
 	void on_pushButtonLightAmbient_clicked();
 	void on_pushButtonLightDiffuse_clicked();
-	void on_pushButtonLightSpecular_clicked();
-	void on_pushButtonMaterialAmbient_clicked();
-	void on_pushButtonMaterialDiffuse_clicked();
-	void on_pushButtonMaterialSpecular_clicked();
-	void on_pushButtonMaterialEmissive_clicked();
+	void on_pushButtonLightSpecular_clicked();	
 	void on_sliderLightPosX_valueChanged(int);
 	void on_sliderLightPosY_valueChanged(int);
 	void on_sliderLightPosZ_valueChanged(int);	
@@ -139,29 +135,6 @@ private slots:
 
 	void on_pushButtonSkyBoxTex_clicked();
 	
-	void on_checkBoxDiffuseTex_toggled(bool checked);
-	void on_pushButtonDiffuseTexture_clicked();
-	void on_toolButtonClearDiffuseTex_clicked();
-
-	void on_checkBoxSpecularTex_toggled(bool checked);
-	void on_pushButtonSpecularTexture_clicked();
-	void on_toolButtonClearSpecularTex_clicked();
-
-	void on_checkBoxEmissiveTex_toggled(bool checked);
-	void on_pushButtonEmissiveTexture_clicked();
-	void on_toolButtonClearEmissiveTex_clicked();
-
-	void on_checkBoxNormalTex_toggled(bool checked);
-	void on_pushButtonNormalTexture_clicked();
-	void on_toolButtonClearNormalTex_clicked();
-
-	void on_checkBoxHeightTex_toggled(bool checked);
-	void on_pushButtonHeightTexture_clicked();
-	void on_toolButtonClearHeightTex_clicked();
-
-	void on_checkBoxOpacityTex_toggled(bool checked);
-	void on_checkBoxOpacInvert_toggled(bool inverted);
-	void on_pushButtonOpacityTexture_clicked();
 	void on_toolButtonClearOpacityTex_clicked();
 
 	void on_pushButtonApplyADSTexture_clicked();
@@ -231,12 +204,18 @@ private:
 	int _skyBoxLDRIIndex = 0;
 	int _skyBoxHDRIIndex = 0;
 
+	QPointer<QDialog> _detachedADSMaterialDialog;// Stores the floating dialog
+	QWidget* _adsMaterialOriginalParent = nullptr; // Stores where panel came from
+	int _adsMaterialPageIndex = -1;
+	QString _adsMaterialPageLabel;
+
 	QPointer<QDialog> _detachedTextureDialog;  // Stores the floating dialog
 	QWidget* _textureOriginalParent = nullptr; // Stores where panel came from
-	QPointer<QDialog> _detachedMaterialDialog; // Stores the floating dialog
-	QWidget* _materialOriginalParent = nullptr; // Stores where panel came from	
 	int _texturePageIndex = -1;
 	QString _texturePageLabel;
+
+	QPointer<QDialog> _detachedMaterialDialog; // Stores the floating dialog
+	QWidget* _materialOriginalParent = nullptr; // Stores where panel came from		
 	int _materialPageIndex = -1;
 	QString _materialPageLabel;
 
@@ -247,6 +226,8 @@ private:
 	void updateControls();
 	QString getSupportedQtImagesFilter();	
 
+	void detachADSMaterialPanel();
+	void reattachADSMaterialPanel();
 	void detachTexturePanel();
 	void reattachTexturePanel();
 	void detachMaterialPanel();
