@@ -14,246 +14,33 @@
 #include <QScrollArea>
 #include <functional>
 
+#include "ui_MaterialEditorPanel.h"
+
 MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
-	: QWidget(parent)
+	: QWidget(parent), ui(std::make_unique<Ui::MaterialEditorPanel>())
 {
-	QHBoxLayout* toolbarLayout = new QHBoxLayout();
-	toolbarLayout->setContentsMargins(2, 2, 2, 2);
-	toolbarLayout->setSpacing(4);
+	// Setup UI from .ui file
+	ui->setupUi(this);
 
-	detachButton = new QToolButton(this);
-	detachButton->setToolTip("Detach from panel");
-	detachButton->setIcon(QIcon(":/icons/res/detach.png"));
-	detachButton->setIconSize(QSize(16, 16));
-	detachButton->setAutoRaise(true);
+	// Set initial preview shape and settings
+	ui->previewWidget->setPreviewShape(PreviewShape::Sphere);  // Default to Sphere
+	ui->previewWidget->setPreviewProfile(PreviewProfile::MaterialShowcase);
+	ui->previewWidget->setMaterial(_currentMaterial);
 
-	toolbarLayout->addWidget(detachButton, 0, Qt::AlignLeft);
-	toolbarLayout->addSpacing(40);
-	toolbarLayout->addStretch();
-
-	QVBoxLayout* mainLayout = new QVBoxLayout(this);
-
-	mainLayout->addLayout(toolbarLayout, 0);
-
-	// Optional: Add separator
-	separator = new QFrame(this);
-	separator->setFrameShape(QFrame::HLine);
-	separator->setFrameShadow(QFrame::Sunken);
-	mainLayout->addWidget(separator, 0);
-
-	// Top section with search, tree view, and preview
-	QLineEdit* searchEdit = new QLineEdit(this);
-	searchEdit->setPlaceholderText("Search materials...");
-	searchEdit->setClearButtonEnabled(true);
-	searchEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-
-	treeWidget = new MaterialLibraryWidget(this);
-	treeWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-	treeWidget->setMinimumWidth(150);
-
-	QVBoxLayout* leftLayout = new QVBoxLayout();
-	leftLayout->setContentsMargins(0, 0, 0, 0);
-	leftLayout->setSpacing(6);
-	leftLayout->addWidget(searchEdit, 0);
-	leftLayout->addWidget(treeWidget, 1);
-
-	// Create a container widget for the left layout to ensure proper resizing
-	QWidget* leftWidget = new QWidget(this);
-	leftWidget->setLayout(leftLayout);
-	leftWidget->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-
-	// Preview section
-	QVBoxLayout* previewLayout = new QVBoxLayout();
-	previewLayout->setContentsMargins(0, 0, 0, 0);
-	previewLayout->setSpacing(6);
-
-	// Model selection combo box
-	modelCombo = new QComboBox();
-	modelCombo->addItems({ "Sphere", "Cube", "Cylinder", "Plane", "Teapot" });
-	connect(modelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [=](int index) {
-		previewWidget->setPreviewShape(static_cast<PreviewShape>(index));
+	// Connect modelCombo to preview - MUST come AFTER initialization
+	connect(ui->modelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+		this, [this](int index) {
+			ui->previewWidget->setPreviewShape(static_cast<PreviewShape>(index));
 		});
 
-	// Material preview widget
-	previewWidget = new MaterialPreviewWidget(this);
-	previewWidget->setPreviewProfile(PreviewProfile::MaterialShowcase);
-	previewWidget->setMinimumSize(200, 200);
-	previewWidget->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
-	previewWidget->setMaximumHeight(200);
-
-	previewLayout->addWidget(previewWidget, 0, Qt::AlignTop);
-	previewLayout->addWidget(modelCombo, 0, Qt::AlignTop);
-
-	QHBoxLayout* topLayout = new QHBoxLayout();
-	topLayout->setContentsMargins(0, 0, 0, 0);
-	topLayout->setSpacing(8);
-
-	topLayout->addWidget(leftWidget, /*stretch=*/3);
-	topLayout->addLayout(previewLayout, /*stretch=*/1);
-
-	mainLayout->addLayout(topLayout);
-
-	// Property editors
-	QFormLayout* formLayout = new QFormLayout();
-	albedoButton = new QPushButton("Pick Albedo Color");
-	formLayout->addRow("Albedo:", albedoButton);
-
-	metalnessSpin = new QDoubleSpinBox();
-	metalnessSpin->setRange(0.0, 1.0);
-	metalnessSpin->setSingleStep(0.01);
-	formLayout->addRow("Metalness:", metalnessSpin);
-
-	roughnessSpin = new QDoubleSpinBox();
-	roughnessSpin->setRange(0.0, 1.0);
-	roughnessSpin->setSingleStep(0.01);
-	formLayout->addRow("Roughness:", roughnessSpin);
-
-	opacitySpin = new QDoubleSpinBox();
-	opacitySpin->setRange(0.0, 1.0);
-	opacitySpin->setSingleStep(0.01);
-	formLayout->addRow("Opacity:", opacitySpin);
-
-	emissiveSpin = new QDoubleSpinBox();
-	emissiveSpin->setRange(1.0, 10.0);
-	emissiveSpin->setSingleStep(0.1);
-	formLayout->addRow("Emissive Intensity:", emissiveSpin);
-
-	iridescenceFactorSpin = new QDoubleSpinBox();
-	iridescenceFactorSpin->setRange(0.0, 1.0);
-	iridescenceFactorSpin->setSingleStep(0.01);
-	iridescenceFactorSpin->setValue(0.0); // Default no iridescence
-	iridescenceFactorSpin->setDecimals(2);
-	formLayout->addRow("Iridescence Factor:", iridescenceFactorSpin);
-
-	iridescenceIorSpin = new QDoubleSpinBox();
-	iridescenceIorSpin->setRange(1.0, 2.5);
-	iridescenceIorSpin->setValue(1.5); // Default IOR
-	iridescenceIorSpin->setSingleStep(0.01);
-	iridescenceIorSpin->setDecimals(2);
-	formLayout->addRow("Iridescence IOR:", iridescenceIorSpin);
-
-	iridescenceThicknessMinSpin = new QDoubleSpinBox();
-	iridescenceThicknessMinSpin->setRange(0.0, 500.0);
-	iridescenceThicknessMinSpin->setValue(100.0); // Default min thickness
-	iridescenceThicknessMinSpin->setSingleStep(10.0);
-	iridescenceThicknessMinSpin->setDecimals(1);
-	iridescenceThicknessMinSpin->setSuffix(" nm");
-	formLayout->addRow("Iridescence Thickness Min:", iridescenceThicknessMinSpin);
-
-	iridescenceThicknessMaxSpin = new QDoubleSpinBox();
-	iridescenceThicknessMaxSpin->setRange(50.0, 1500.0);
-	iridescenceThicknessMaxSpin->setValue(400.0); // Default max thickness
-	iridescenceThicknessMaxSpin->setSingleStep(10.0);
-	iridescenceThicknessMaxSpin->setDecimals(1);
-	iridescenceThicknessMaxSpin->setSuffix(" nm");
-	formLayout->addRow("Iridescence Thickness Max:", iridescenceThicknessMaxSpin);
-
-	clearcoatSpin = new QDoubleSpinBox();
-	clearcoatSpin->setRange(0.0, 1.0);
-	clearcoatSpin->setSingleStep(0.01);
-	clearcoatSpin->setValue(0.0); // Default clearcoat
-	formLayout->addRow("Clearcoat:", clearcoatSpin);
-
-	clearcoatRoughnessSpin = new QDoubleSpinBox();
-	clearcoatRoughnessSpin->setRange(0.0, 1.0);
-	clearcoatRoughnessSpin->setSingleStep(0.01);
-	clearcoatRoughnessSpin->setValue(0.0); // Default clearcoat roughness
-	formLayout->addRow("Clearcoat Roughness:", clearcoatRoughnessSpin);
-
-	sheenColorButton = new QPushButton("Pick Sheen Color");
-	formLayout->addRow("Sheen Color:", sheenColorButton);
-	sheenRoughnessSpin = new QDoubleSpinBox();
-	sheenRoughnessSpin->setRange(0.0, 1.0);
-	sheenRoughnessSpin->setSingleStep(0.01);
-	sheenRoughnessSpin->setValue(0.0); // Default sheen roughness
-	formLayout->addRow("Sheen Roughness:", sheenRoughnessSpin);
-
-	iorSpin = new QDoubleSpinBox();
-	iorSpin->setRange(1.0, 3.0);
-	iorSpin->setSingleStep(0.01);
-	iorSpin->setValue(1.5); // Default IOR
-	formLayout->addRow("IOR:", iorSpin);
-
-	transmissionSpin = new QDoubleSpinBox();
-	transmissionSpin->setRange(0.0, 1.0);
-	transmissionSpin->setSingleStep(0.01);
-	transmissionSpin->setValue(0.0); // Default transmission
-	formLayout->addRow("Transmission:", transmissionSpin);
-
-	thicknessSpin = new QDoubleSpinBox();
-	thicknessSpin->setRange(0.01, 10.0);
-	thicknessSpin->setSingleStep(0.1);
-	thicknessSpin->setValue(0.01); // Default thickness
-	formLayout->addRow("Thickness:", thicknessSpin);
-
-	attenuationDistanceSpin = new QDoubleSpinBox();
-	attenuationDistanceSpin->setRange(0.0, 100.0);
-	attenuationDistanceSpin->setSingleStep(0.1);
-	attenuationDistanceSpin->setValue(10.0); // Default attenuation distance
-	formLayout->addRow("Attenuation Distance:", attenuationDistanceSpin);
-
-	attenuationColorButton = new QPushButton("Pick Attenuation Color");
-	formLayout->addRow("Attenuation Color:", attenuationColorButton);
-
-	dispersionSpin = new QDoubleSpinBox();
-	dispersionSpin->setRange(0.0, 1.0);
-	dispersionSpin->setSingleStep(0.01);
-	dispersionSpin->setValue(0.0); // Default dispersion
-	formLayout->addRow("Dispersion:", dispersionSpin);
-
-	alphaThresholdSpin = new QDoubleSpinBox();
-	alphaThresholdSpin->setRange(0.0, 1.0);
-	alphaThresholdSpin->setSingleStep(0.01);
-	alphaThresholdSpin->setValue(0.5); // Default alpha threshold
-	formLayout->addRow("Alpha Threshold:", alphaThresholdSpin);
-
-	shadingCombo = new QComboBox();
-	shadingCombo->addItems({ "Unlit", "Blinn-Phong", "PBR", "Toon" });
-	shadingCombo->setCurrentIndex(2); // Default to PBR
-	formLayout->addRow("Shading Model:", shadingCombo);
-
-	blendCombo = new QComboBox();
-	blendCombo->addItems({ "Opaque", "Masked", "Alpha", "Additive", "Multiply" });
-	formLayout->addRow("Blend Mode:", blendCombo);
-
-	twoSidedCheck = new QCheckBox();
-	twoSidedCheck->setChecked(true);
-	formLayout->addRow("Two-Sided:", twoSidedCheck);
-
-	wireframeCheck = new QCheckBox();
-	formLayout->addRow("Wireframe:", wireframeCheck);
-
-	// Scroll area for properties
-	QScrollArea* scrollArea = new QScrollArea(this);
-	scrollArea->setWidgetResizable(true);
-
-	QWidget* propertiesContainer = new QWidget();
-	propertiesContainer->setLayout(formLayout);
-	scrollArea->setWidget(propertiesContainer);
-
-	mainLayout->addWidget(scrollArea, 1);
-
-	// Buttons
-	applyButton = new QPushButton("Apply");
-	saveButton = new QPushButton("Save");
-	deleteButton = new QPushButton("Delete");
-
-	QHBoxLayout* buttonRowLayout = new QHBoxLayout();
-	buttonRowLayout->addWidget(applyButton);
-	buttonRowLayout->addWidget(saveButton);
-	buttonRowLayout->addWidget(deleteButton);
-
-	mainLayout->addLayout(buttonRowLayout, 0);
-	setLayout(mainLayout);
-
 	// Connections
-	connect(detachButton, &QToolButton::clicked,
+	connect(ui->detachButton, &QToolButton::clicked,
 		this, &MaterialEditorPanel::onDetachButtonClicked);
 
-	connect(treeWidget, &MaterialLibraryWidget::materialSelected,
+	connect(ui->treeWidget, &MaterialLibraryWidget::materialSelected,
 		this, &MaterialEditorPanel::onMaterialSelected);
 
-	connect(albedoButton, &QPushButton::clicked, this, [=]() {
+	connect(ui->albedoButton, &QPushButton::clicked, this, [=]() {
 		QColor albedoColor(
 			int(_currentMaterial.albedoColor().x() * 255),
 			int(_currentMaterial.albedoColor().y() * 255),
@@ -264,82 +51,82 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 		{
 			_currentMaterial.setAlbedoColor(QVector3D(c.redF(), c.greenF(), c.blueF()));
 			_currentMaterial.convertToBlinnPhong();
-			previewWidget->setMaterial(_currentMaterial);
-			albedoButton->setStyleSheet(makeButtonStyleSheet(c));
+			ui->previewWidget->setMaterial(_currentMaterial);
+			ui->albedoButton->setStyleSheet(makeButtonStyleSheet(c));
 			emit materialChanged(_currentMaterial);
 		}
 		});
 
-	connect(metalnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->metalnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setMetalness(val);
 			_currentMaterial.convertToBlinnPhong();
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(roughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->roughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setRoughness(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(opacitySpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->opacitySpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setOpacity(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(emissiveSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->emissiveSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setEmissiveStrength(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
 	// Iridescence connections
-	connect(iridescenceFactorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->iridescenceFactorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setIridescenceFactor(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
-	connect(iridescenceIorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->iridescenceIorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setIridescenceIor(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
-	connect(iridescenceThicknessMinSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->iridescenceThicknessMinSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setIridescenceThicknessMin(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
-	connect(iridescenceThicknessMaxSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->iridescenceThicknessMaxSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setIridescenceThicknessMax(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(clearcoatSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->clearcoatSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setClearcoat(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(clearcoatRoughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->clearcoatRoughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setClearcoatRoughness(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(sheenColorButton, &QPushButton::clicked, this, [=]() {
+	connect(ui->sheenColorButton, &QPushButton::clicked, this, [=]() {
 		QColor sheenColor(
 			int(_currentMaterial.sheenColor().x() * 255),
 			int(_currentMaterial.sheenColor().y() * 255),
@@ -349,48 +136,48 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 		if (c.isValid())
 		{
 			_currentMaterial.setSheenColor(QVector3D(c.redF(), c.greenF(), c.blueF()));
-			previewWidget->setMaterial(_currentMaterial);
-			sheenColorButton->setStyleSheet(makeButtonStyleSheet(c));
+			ui->previewWidget->setMaterial(_currentMaterial);
+			ui->sheenColorButton->setStyleSheet(makeButtonStyleSheet(c));
 			emit materialChanged(_currentMaterial);
 		}
 		});
 
-	connect(sheenRoughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->sheenRoughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setSheenRoughness(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(iorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->iorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setIOR(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(transmissionSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->transmissionSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setTransmission(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(thicknessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->thicknessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setThicknessFactor(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(attenuationDistanceSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->attenuationDistanceSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setAttenuationDistance(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(attenuationColorButton, &QPushButton::clicked, this, [=]() {
+	connect(ui->attenuationColorButton, &QPushButton::clicked, this, [=]() {
 		QColor attenuationColor(
 			int(_currentMaterial.attenuationColor().x() * 255),
 			int(_currentMaterial.attenuationColor().y() * 255),
@@ -400,65 +187,65 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 		if (c.isValid())
 		{
 			_currentMaterial.setAttenuationColor(QVector3D(c.redF(), c.greenF(), c.blueF()));
-			previewWidget->setMaterial(_currentMaterial);
-			attenuationColorButton->setStyleSheet(makeButtonStyleSheet(c));
+			ui->previewWidget->setMaterial(_currentMaterial);
+			ui->attenuationColorButton->setStyleSheet(makeButtonStyleSheet(c));
 			emit materialChanged(_currentMaterial);
 		}
 		});
 
-	connect(dispersionSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->dispersionSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setDispersion(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(alphaThresholdSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+	connect(ui->alphaThresholdSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
 		this, [=](double val) {
 			_currentMaterial.setAlphaThreshold(val);
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
 
-	connect(shadingCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+	connect(ui->shadingCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
 		this, [=](int idx) {
 			_currentMaterial.setShadingModel(static_cast<GLMaterial::ShadingModel>(idx));
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(blendCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+	connect(ui->blendCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
 		this, [=](int idx) {
 			_currentMaterial.setBlendMode(static_cast<GLMaterial::BlendMode>(idx));
-			previewWidget->setMaterial(_currentMaterial);
+			ui->previewWidget->setMaterial(_currentMaterial);
 			emit materialChanged(_currentMaterial);
 		});
 
-	connect(twoSidedCheck, &QCheckBox::toggled, this, [=](bool checked) {
+	connect(ui->twoSidedCheck, &QCheckBox::toggled, this, [=](bool checked) {
 		_currentMaterial.setTwoSided(checked);
-		previewWidget->setMaterial(_currentMaterial);
+		ui->previewWidget->setMaterial(_currentMaterial);
 		emit materialChanged(_currentMaterial);
 		});
 
-	connect(wireframeCheck, &QCheckBox::toggled, this, [=](bool checked) {
+	connect(ui->wireframeCheck, &QCheckBox::toggled, this, [=](bool checked) {
 		_currentMaterial.setWireframe(checked);
-		previewWidget->setMaterial(_currentMaterial);
+		ui->previewWidget->setMaterial(_currentMaterial);
 		emit materialChanged(_currentMaterial);
 		});
 
-	connect(applyButton, &QPushButton::clicked, this, [=]() {
+	connect(ui->applyButton, &QPushButton::clicked, this, [=]() {
 		// Apply the current material settings to the preview widget
-		previewWidget->setMaterial(_currentMaterial);
+		ui->previewWidget->setMaterial(_currentMaterial);
 		emit materialChanged(_currentMaterial);
 		});
 
-	connect(saveButton, &QPushButton::clicked, this, [=]() {
+	connect(ui->saveButton, &QPushButton::clicked, this, [=]() {
 		onSaveButtonClicked();
 		emit materialChanged(_currentMaterial);
 		});
 
-	connect(deleteButton, &QPushButton::clicked, this, [=]() {
+	connect(ui->deleteButton, &QPushButton::clicked, this, [=]() {
 		onDeleteButtonClicked();
 		emit materialChanged(_currentMaterial);
 		});
@@ -468,8 +255,8 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	// -------------------------
 	// The lambda below will recursively check items and show/hide them based on the search text.
 	// Modified to show children when parent matches, even if children don't match the search term.
-	connect(searchEdit, &QLineEdit::textChanged, this, [this, searchEdit](const QString& text) {
-		QTreeWidget* tw = qobject_cast<QTreeWidget*>(treeWidget);
+	connect(ui->searchEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
+		QTreeWidget* tw = qobject_cast<QTreeWidget*>(ui->treeWidget);
 		if (!tw) return;
 		const QString needle = text.trimmed().toLower();
 		const bool hasFilter = !needle.isEmpty();
@@ -537,20 +324,20 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 		// Red border when no matches and query non-empty; reset otherwise.
 		if (!hasFilter)
 		{
-			searchEdit->setStyleSheet("");
-			searchEdit->setToolTip("");
+			ui->searchEdit->setStyleSheet("");
+			ui->searchEdit->setToolTip("");
 		}
 		else if (matchCount == 0)
 		{
-			searchEdit->setStyleSheet("QLineEdit { border: 1px solid #e53935; }");
-			searchEdit->setToolTip("No matches");
+			ui->searchEdit->setStyleSheet("QLineEdit { border: 1px solid #e53935; }");
+			ui->searchEdit->setToolTip("No matches");
 		}
 		else
 		{
-			searchEdit->setStyleSheet("");
-			searchEdit->setToolTip("");
+			ui->searchEdit->setStyleSheet("");
+			ui->searchEdit->setToolTip("");
 		}
-		});
+		});	
 }
 
 void MaterialEditorPanel::onSaveButtonClicked()
@@ -563,9 +350,9 @@ void MaterialEditorPanel::onSaveButtonClicked()
 	QString name;
 	QString groupLabel;
 
-	if (treeWidget)
+	if (ui->treeWidget)
 	{
-		QList<QTreeWidgetItem*> sel = treeWidget->selectedItems();
+		QList<QTreeWidgetItem*> sel = ui->treeWidget->selectedItems();
 		if (!sel.isEmpty())
 		{
 			QTreeWidgetItem* item = sel.first();
@@ -793,7 +580,7 @@ void MaterialEditorPanel::onSaveButtonClicked()
 	Q_EMIT MaterialRegistry::instance().materialsChanged();
 
 	// Make the new/updated material the current selection
-	auto* lib = qobject_cast<MaterialLibraryWidget*>(treeWidget);
+	auto* lib = qobject_cast<MaterialLibraryWidget*>(ui->treeWidget);
 	if (lib)
 	{
 		lib->selectMaterialByKey(key);
@@ -805,14 +592,14 @@ void MaterialEditorPanel::onSaveButtonClicked()
 
 void MaterialEditorPanel::onDeleteButtonClicked()
 {
-	treeWidget->deleteSelectedMaterial();
+	ui->treeWidget->deleteSelectedMaterial();
 }
 
 void MaterialEditorPanel::setDetached(bool detached)
 {
 	_detached = detached;
-	detachButton->setVisible(!_detached);
-	separator->setVisible(!_detached);
+	ui->detachButton->setVisible(!_detached);
+	ui->separator->setVisible(!_detached);
 }
 
 void MaterialEditorPanel::onDetachButtonClicked()
@@ -823,51 +610,51 @@ void MaterialEditorPanel::onDetachButtonClicked()
 void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)
 {
 	_currentMaterial = mat;
-	previewWidget->setMaterial(mat);
+	ui->previewWidget->setMaterial(mat);
 
 	QColor albedoColor(
 		int(mat.albedoColor().x() * 255),
 		int(mat.albedoColor().y() * 255),
 		int(mat.albedoColor().z() * 255)
 	);
-	albedoButton->setStyleSheet(makeButtonStyleSheet(albedoColor));
+	ui->albedoButton->setStyleSheet(makeButtonStyleSheet(albedoColor));
 
-	metalnessSpin->setValue(mat.metalness());
-	roughnessSpin->setValue(mat.roughness());
-	opacitySpin->setValue(mat.opacity());
-	emissiveSpin->setValue(mat.emissiveStrength());
-	iridescenceFactorSpin->setValue(mat.iridescenceFactor());
-	iridescenceIorSpin->setValue(mat.iridescenceIor());
-	iridescenceThicknessMinSpin->setValue(mat.iridescenceThicknessMin());
-	iridescenceThicknessMaxSpin->setValue(mat.iridescenceThicknessMax());
-	clearcoatSpin->setValue(mat.clearcoat());
-	clearcoatRoughnessSpin->setValue(mat.clearcoatRoughness());
-	sheenRoughnessSpin->setValue(mat.sheenRoughness());
+	ui->metalnessSpin->setValue(mat.metalness());
+	ui->roughnessSpin->setValue(mat.roughness());
+	ui->opacitySpin->setValue(mat.opacity());
+	ui->emissiveSpin->setValue(mat.emissiveStrength());
+	ui->iridescenceFactorSpin->setValue(mat.iridescenceFactor());
+	ui->iridescenceIorSpin->setValue(mat.iridescenceIor());
+	ui->iridescenceThicknessMinSpin->setValue(mat.iridescenceThicknessMin());
+	ui->iridescenceThicknessMaxSpin->setValue(mat.iridescenceThicknessMax());
+	ui->clearcoatSpin->setValue(mat.clearcoat());
+	ui->clearcoatRoughnessSpin->setValue(mat.clearcoatRoughness());
+	ui->sheenRoughnessSpin->setValue(mat.sheenRoughness());
 
 	QColor sheenColor(
 		int(mat.sheenColor().x() * 255),
 		int(mat.sheenColor().y() * 255),
 		int(mat.sheenColor().z() * 255)
 	);
-	sheenColorButton->setStyleSheet(makeButtonStyleSheet(sheenColor));
+	ui->sheenColorButton->setStyleSheet(makeButtonStyleSheet(sheenColor));
 
-	iorSpin->setValue(mat.ior());
-	transmissionSpin->setValue(mat.transmission());
-	thicknessSpin->setValue(mat.thicknessFactor());
-	attenuationDistanceSpin->setValue(mat.attenuationDistance());
+	ui->iorSpin->setValue(mat.ior());
+	ui->transmissionSpin->setValue(mat.transmission());
+	ui->thicknessSpin->setValue(mat.thicknessFactor());
+	ui->attenuationDistanceSpin->setValue(mat.attenuationDistance());
 	QColor attenuationColor(
 		int(mat.attenuationColor().x() * 255),
 		int(mat.attenuationColor().y() * 255),
 		int(mat.attenuationColor().z() * 255)
 	);
-	attenuationColorButton->setStyleSheet(makeButtonStyleSheet(attenuationColor));
-	dispersionSpin->setValue(mat.dispersion());
-	alphaThresholdSpin->setValue(mat.alphaThreshold());
+	ui->attenuationColorButton->setStyleSheet(makeButtonStyleSheet(attenuationColor));
+	ui->dispersionSpin->setValue(mat.dispersion());
+	ui->alphaThresholdSpin->setValue(mat.alphaThreshold());
 
-	shadingCombo->setCurrentIndex(static_cast<int>(mat.shadingModel()));
-	blendCombo->setCurrentIndex(static_cast<int>(mat.blendMode()));
-	twoSidedCheck->setChecked(mat.twoSided());
-	wireframeCheck->setChecked(mat.wireframe());
+	ui->shadingCombo->setCurrentIndex(static_cast<int>(mat.shadingModel()));
+	ui->blendCombo->setCurrentIndex(static_cast<int>(mat.blendMode()));
+	ui->twoSidedCheck->setChecked(mat.twoSided());
+	ui->wireframeCheck->setChecked(mat.wireframe());
 
 	emit materialChanged(_currentMaterial);
 }

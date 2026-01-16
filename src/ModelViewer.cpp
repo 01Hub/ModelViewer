@@ -608,7 +608,7 @@ void ModelViewer::detachADSMaterialPanel()
 	_detachedADSMaterialDialog->setWindowTitle("ADS Material Settings");
 	_detachedADSMaterialDialog->setWindowFlags(Qt::Window | Qt::Tool);
 	QVBoxLayout* layout = new QVBoxLayout(_detachedADSMaterialDialog);
-	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setContentsMargins(6, 6, 6, 6);
 	_adsMaterialOriginalParent = adsMaterialSettingsPanel->parentWidget();
 	adsMaterialSettingsPanel->setParent(_detachedADSMaterialDialog);
 	layout->addWidget(adsMaterialSettingsPanel);
@@ -685,7 +685,7 @@ void ModelViewer::detachTexturePanel()
 	_detachedTextureDialog->setWindowFlags(Qt::Window | Qt::Tool);
 
 	QVBoxLayout* layout = new QVBoxLayout(_detachedTextureDialog);
-	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setContentsMargins(6, 6, 6, 6);
 
 	_textureOriginalParent = textureMappingPanel->parentWidget();
 	textureMappingPanel->setParent(_detachedTextureDialog);
@@ -762,16 +762,16 @@ void ModelViewer::detachMaterialPanel()
 	if (_materialPageIndex >= 0)
 	{
 		_materialPageLabel = toolBox->itemText(_materialPageIndex);
-		toolBox->removeItem(_materialPageIndex);  // ← REMOVES TAB
+		toolBox->removeItem(_materialPageIndex);
 	}
 
 	// Create floating dialog
 	_detachedMaterialDialog = new QDialog(this);
 	_detachedMaterialDialog->setWindowTitle("Predefined Materials");
 	_detachedMaterialDialog->setWindowFlags(Qt::Window | Qt::Tool);
-
+	
 	QVBoxLayout* layout = new QVBoxLayout(_detachedMaterialDialog);
-	layout->setContentsMargins(0, 0, 0, 0);
+	layout->setContentsMargins(6, 6, 6, 6);
 
 	_materialOriginalParent = predefinedMaterialsPanel->parentWidget();
 	predefinedMaterialsPanel->setParent(_detachedMaterialDialog);

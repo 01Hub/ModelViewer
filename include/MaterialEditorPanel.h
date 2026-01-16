@@ -10,6 +10,12 @@
 #include "MaterialLibraryWidget.h"
 #include "MaterialPreviewWidget.h"
 
+// Forward declaration for ui file
+namespace Ui
+{
+	class MaterialEditorPanel;
+}
+
 class MaterialEditorPanel : public QWidget
 {
 	Q_OBJECT
@@ -31,42 +37,9 @@ private slots:
 	void onDetachButtonClicked();
 
 private:
-	MaterialLibraryWidget* treeWidget;
-	MaterialPreviewWidget* previewWidget;
-	QComboBox* modelCombo;
-	QPushButton* albedoButton;
-	QDoubleSpinBox* metalnessSpin;
-	QDoubleSpinBox* roughnessSpin;
-	QDoubleSpinBox* opacitySpin;
-	QDoubleSpinBox* emissiveSpin;	
-	QDoubleSpinBox* iridescenceFactorSpin;
-	QDoubleSpinBox* iridescenceIorSpin;
-	QDoubleSpinBox* iridescenceThicknessMinSpin;
-	QDoubleSpinBox* iridescenceThicknessMaxSpin;
-	QDoubleSpinBox* clearcoatSpin;
-	QDoubleSpinBox* clearcoatRoughnessSpin;
-	QPushButton* sheenColorButton;
-	QDoubleSpinBox* sheenRoughnessSpin;
-	QDoubleSpinBox* iorSpin;
-	QDoubleSpinBox* transmissionSpin;
-	QDoubleSpinBox* thicknessSpin;
-	QDoubleSpinBox* attenuationDistanceSpin;
-	QPushButton* attenuationColorButton;
-	QDoubleSpinBox* dispersionSpin;
-	QDoubleSpinBox* alphaThresholdSpin;
-
-	QComboBox* shadingCombo;
-	QComboBox* blendCombo;
-	QCheckBox* twoSidedCheck;
-	QCheckBox* wireframeCheck;
-
-	QPushButton* applyButton;
-	QPushButton* saveButton;
-	QPushButton* deleteButton;
-	QToolButton* detachButton;
-	QFrame* separator;
-
+	
 	GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
-
 	bool _detached = false;
+
+	std::unique_ptr<Ui::MaterialEditorPanel> ui;
 };
