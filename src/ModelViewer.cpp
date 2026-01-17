@@ -193,8 +193,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(checkBoxSelectionHighlight, &QCheckBox::toggled, _glWidget, &GLWidget::setSelectionHighlighting);
 	connect(_glWidget, &GLWidget::singleSelectionDone, this, &ModelViewer::setListRow);
 	connect(_glWidget, &GLWidget::sweepSelectionDone, this, &ModelViewer::setListRows);
-	connect(_glWidget, &GLWidget::floorShown, checkBoxFloor, &QCheckBox::setChecked);
-
+	
 	listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
 	connect(listWidgetModel, &ModelObjectList::customContextMenuRequested, this, &ModelViewer::showContextMenu);
 
@@ -247,60 +246,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::detachRequested,
 		this, [this]() { detachTransformationsPanel(); });
 
-
-	connect(doubleSpinBoxRepeatS, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatS);
-	connect(doubleSpinBoxRepeatT, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorTexRepeatT);
-	connect(doubleSpinBoxSkyBoxFOV, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setSkyBoxFOV);
-	connect(doubleSpinBoxFloorOffset, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setFloorOffsetPercent);
-	connect(checkBoxSkyBoxBlurred, &QCheckBox::toggled, _glWidget, &GLWidget::blurSkyBox);
-	connect(checkBoxSkyBoxHDRI, &QCheckBox::toggled, _glWidget, &GLWidget::setSkyBoxTextureHDRI);
-	connect(checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &ModelViewer::loadSkyBoxPresetMaps);
-	connect(comboBoxSkyBoxMaps, &QComboBox::currentIndexChanged, this,
-		[&](const int& index) {
-			QString selectedPath = comboBoxSkyBoxMaps->itemData(index).toString();
-			if (selectedPath != "")
-			{
-				if (isVisible())
-					_glWidget->setSkyBoxTextureFolder(selectedPath);
-			}
-		}
-	);
-	connect(checkBoxShowLights, &QCheckBox::toggled, _glWidget, &GLWidget::showLights);
-	connect(checkBoxDefaultLights, &QCheckBox::toggled, _glWidget, &GLWidget::useDefaultLights);
-	connect(checkBoxPunctualLights, &QCheckBox::toggled, _glWidget, &GLWidget::usePunctualLights);
-	connect(checkBoxIBL, &QCheckBox::toggled, _glWidget, &GLWidget::useIBL);
-
-	connect(Ui_ModelViewer::comboBoxShadowQuality, &QComboBox::currentIndexChanged, this,
-		[this](int index) {
-			_glWidget->setShadowQuality(static_cast<AdaptiveShadowMapper::QualityLevel>(index));
-			_glWidget->update();
-		});
-
-	connect(checkBoxHDRToneMapping, &QCheckBox::toggled, _glWidget, &GLWidget::enableHDRToneMapping);
-	connect(checkBoxGammaCorrection, &QCheckBox::toggled, _glWidget, &GLWidget::enableGammaCorrection);
-	connect(doubleSpinBoxScreenGamma, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setScreenGamma);
-
-	connect(comboBoxHDRToneMappingMode, &QComboBox::currentIndexChanged, this,
-		[this](int index) {
-			_glWidget->setHDRToneMappingMode(static_cast<HDRToneMapMode>(index));
-		});
-
-	connect(doubleSpinBoxEnvMapExposure, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setEnvMapExposure);
-	connect(doubleSpinBoxIBLExposure, &QDoubleSpinBox::valueChanged, _glWidget, &GLWidget::setIBLExposure);
-
-	connect(pushButtonDefaultEnvValues, &QPushButton::clicked, this,
-		[this]() {
-			doubleSpinBoxSkyBoxFOV->setValue(45.0);
-			comboBoxShadowQuality->setCurrentIndex(1);
-			doubleSpinBoxFloorOffset->setValue(0.0);
-			doubleSpinBoxRepeatS->setValue(1.0);
-			doubleSpinBoxRepeatT->setValue(1.0);
-			comboBoxHDRToneMappingMode->setCurrentIndex(0);
-			doubleSpinBoxEnvMapExposure->setValue(0.0);
-			doubleSpinBoxIBLExposure->setValue(0.0);
-			doubleSpinBoxScreenGamma->setValue(2.2);
-		});
-
 	connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
 
 	int indexADS = toolBox->indexOf(toolBox->findChild<QWidget*>("pageADSSettings"));
@@ -349,6 +294,14 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(detachShortcut, &QShortcut::activated,
 		this, &ModelViewer::detachTexturePanel);
 
+	visualizationEnvironmentPanel->initialize(this, _glWidget);
+
+	connect(_glWidget, QOverload<int>::of(&GLWidget::displayModeChanged),
+		visualizationEnvironmentPanel, QOverload<int>::of(&VisualizationEnvironmentPanel::onDisplayModeChanged));
+
+	connect(Ui_ModelViewer::visualizationEnvironmentPanel, &VisualizationEnvironmentPanel::detachRequested,
+		this, &ModelViewer::detachEnvironmentPanel);
+
 	_hasADSDiffuseTex = false;
 	_hasADSSpecularTex = false;
 	_hasADSEmissiveTex = false;
@@ -372,8 +325,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		retranslateUi(this);
 		retranslateUI();  // if needed
 		});
-
-	loadSkyBoxPresetMaps();
 }
 
 ModelViewer::~ModelViewer()
@@ -458,12 +409,7 @@ void ModelViewer::setTransformation()
 		_glWidget->setTransformation(ids, translate, rotate, scale);
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 		float offset = _glWidget->getFloorSize() * 1.25f;
-		sliderLightPosX->setRange(-range, range - offset);
-		sliderLightPosX->setValue((sliderLightPosX->maximum() + sliderLightPosX->minimum()) / 2);
-		sliderLightPosY->setRange(-range, range - offset);
-		sliderLightPosY->setValue((sliderLightPosY->maximum() + sliderLightPosY->minimum()) / 2);
-		sliderLightPosZ->setRange(-range / 3, range / 2);
-		sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
+		visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
 		QApplication::restoreOverrideCursor();
 	}
 }
@@ -492,12 +438,7 @@ void ModelViewer::resetTransformation()
 		_glWidget->resetTransformation(ids);
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 		float offset = _glWidget->getFloorSize() * 1.25f;
-		sliderLightPosX->setRange(-range, range - offset);
-		sliderLightPosX->setValue((sliderLightPosX->maximum() + sliderLightPosX->minimum()) / 2);
-		sliderLightPosY->setRange(-range, range - offset);
-		sliderLightPosY->setValue((sliderLightPosY->maximum() + sliderLightPosY->minimum()) / 2);
-		sliderLightPosZ->setRange(-range / 3, range / 2);
-		sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
+		visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
 		QApplication::restoreOverrideCursor();
 	}
 }
@@ -536,22 +477,7 @@ void ModelViewer::resetTransformationValues()
 
 void ModelViewer::updateControls()
 {
-	QColor col;
-	QString qss;
-	QVector4D ambientLight = _glWidget->getAmbientLight();
-	col.setRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
-	qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-	pushButtonLightAmbient->setStyleSheet(qss);
-
-	QVector4D diffuseLight = _glWidget->getDiffuseLight();
-	col.setRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
-	qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-	pushButtonLightDiffuse->setStyleSheet(qss);
-
-	QVector4D specularLight = _glWidget->getSpecularLight();
-	col.setRgbF(specularLight.x(), specularLight.y(), specularLight.z());
-	qss = QString("background-color: %1;color: %2").arg(col.name(), col.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-	pushButtonLightSpecular->setStyleSheet(qss);
+	visualizationEnvironmentPanel->updateButtonStyles();
 	// ADS Lighting
 	if (radioButtonADSL->isChecked())
 	{
@@ -888,6 +814,83 @@ void ModelViewer::reattachTransformationsPanel()
 			toolBox->setCurrentIndex(_transformationsPageIndex);
 			toolBox->setItemEnabled(_transformationsPageIndex, true); // Enable only if at least one object is selected
 		}
+	}
+}
+
+void ModelViewer::detachEnvironmentPanel()
+{
+	if (!visualizationEnvironmentPanel || !toolBox) return;
+
+	if (_detachedEnvironmentDialog)
+	{
+		_detachedEnvironmentDialog->raise();
+		_detachedEnvironmentDialog->activateWindow();
+		return;
+	}
+
+	// Find and remove from toolbox
+	_environmentPageIndex = toolBox->indexOf(visualizationEnvironmentPanel->parentWidget());
+	if (_environmentPageIndex >= 0)
+	{
+		_environmentPageLabel = toolBox->itemText(_environmentPageIndex);
+		toolBox->removeItem(_environmentPageIndex);
+	}
+
+	// Create floating dialog
+	_detachedEnvironmentDialog = new QDialog(this);
+	_detachedEnvironmentDialog->setWindowTitle("Predefined Materials");
+	_detachedEnvironmentDialog->setWindowFlags(Qt::Window | Qt::Tool);
+
+	QVBoxLayout* layout = new QVBoxLayout(_detachedEnvironmentDialog);
+	layout->setContentsMargins(6, 6, 6, 6);
+
+	_environmentOriginalParent = visualizationEnvironmentPanel->parentWidget();
+	visualizationEnvironmentPanel->setParent(_detachedEnvironmentDialog);
+	layout->addWidget(visualizationEnvironmentPanel);
+
+	// Position and show...
+	QScreen* screen = QGuiApplication::primaryScreen();
+	QRect screenGeom = screen->availableGeometry();
+	QRect myGeometry = this->frameGeometry();
+	int x = myGeometry.right() + 20;
+	int y = myGeometry.top();
+	if (x + 420 > screenGeom.right()) x = screenGeom.right() - visualizationEnvironmentPanel->width() - 40;  // Fit within screen;
+	if (y + 700 > screenGeom.bottom()) y = screenGeom.bottom() - visualizationEnvironmentPanel->height();
+	if (x < screenGeom.left()) x = screenGeom.left();
+	if (y < screenGeom.top()) y = screenGeom.top();
+
+	_detachedEnvironmentDialog->move(x, y);
+	_detachedEnvironmentDialog->resize(420, std::min(visualizationEnvironmentPanel->height(), static_cast<int>(height() * 0.95)));
+	_detachedEnvironmentDialog->show();
+	visualizationEnvironmentPanel->setDetached(true);
+
+	connect(_detachedEnvironmentDialog, &QDialog::finished,
+		this, &ModelViewer::reattachEnvironmentPanel);
+}
+
+void ModelViewer::reattachEnvironmentPanel()
+{
+	if (!_detachedEnvironmentDialog || !toolBox) return;
+	_detachedEnvironmentDialog->disconnect();
+	_detachedEnvironmentDialog->deleteLater();
+	_detachedEnvironmentDialog = nullptr;
+	if (visualizationEnvironmentPanel && _environmentOriginalParent && _environmentPageIndex >= 0)
+	{
+		// Re-insert page into toolbox
+		toolBox->insertItem(_environmentPageIndex, _environmentOriginalParent, _environmentPageLabel);
+		visualizationEnvironmentPanel->setParent(_environmentOriginalParent);
+		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_environmentOriginalParent->layout());
+		if (gridLayout)
+		{
+			gridLayout->addWidget(visualizationEnvironmentPanel, 0, 0);
+			gridLayout->setColumnStretch(0, 1);
+			gridLayout->setRowStretch(0, 1);
+		}
+		visualizationEnvironmentPanel->show();
+		_environmentOriginalParent->show();
+		visualizationEnvironmentPanel->setDetached(false);					
+		toolBox->setCurrentIndex(_environmentPageIndex);
+		toolBox->setItemEnabled(_environmentPageIndex, true);
 	}
 }
 
@@ -1564,27 +1567,6 @@ void ModelViewer::showEnvironmentPage()
 	toolBox->setCurrentIndex(4);
 }
 
-void ModelViewer::on_pushButtonDefaultLights_clicked()
-{
-	_glWidget->setAmbientLight({ 0.0f, 0.0f, 0.0f, 1.0f });
-	_glWidget->setDiffuseLight({ 1.0f, 1.0f, 1.0f, 1.0f });
-	_glWidget->setSpecularLight({ 0.5f, 0.5f, 0.5f, 1.0f });
-
-	sliderLightPosX->setValue((sliderLightPosX->maximum() + sliderLightPosX->minimum()) / 2);
-	sliderLightPosY->setValue((sliderLightPosY->maximum() + sliderLightPosY->minimum()) / 2);
-
-	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
-	sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
-
-	checkBoxDefaultLights->setChecked(true);
-	checkBoxPunctualLights->setChecked(true);
-	checkBoxIBL->setChecked(true);
-	checkBoxShowLights->setChecked(false);
-
-	_glWidget->updateView();
-	updateControls();
-}
-
 void ModelViewer::on_pushButtonApplyADSColors_clicked()
 {
 	setMaterialToSelectedItems(_material);
@@ -1625,75 +1607,6 @@ void ModelViewer::on_pushButtonResetTransformations_clicked()
 {
 	resetTransformation();
 	_glWidget->update();
-}
-
-void ModelViewer::on_pushButtonLightAmbient_clicked()
-{
-	QVector4D ambientLight = _glWidget->getAmbientLight();
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z()), this, "Ambient Light Color");
-	if (c.isValid())
-	{
-		_glWidget->setAmbientLight({ static_cast<float>(c.redF()),
-									 static_cast<float>(c.greenF()),
-									 static_cast<float>(c.blueF()),
-									 static_cast<float>(c.alphaF()) });
-		updateControls();
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_pushButtonLightDiffuse_clicked()
-{
-	QVector4D diffuseLight = _glWidget->getDiffuseLight();
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z()), this, "Diffuse Light Color");
-	if (c.isValid())
-	{
-		_glWidget->setDiffuseLight({ static_cast<float>(c.redF()),
-									 static_cast<float>(c.greenF()),
-									 static_cast<float>(c.blueF()),
-									 static_cast<float>(c.alphaF()) });
-		updateControls();
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_pushButtonLightSpecular_clicked()
-{
-	QVector4D specularLight = _glWidget->getSpecularLight();
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(specularLight.x(), specularLight.y(), specularLight.z()), this, "Specular Light Color");
-	if (c.isValid())
-	{
-		_glWidget->setSpecularLight({ static_cast<float>(c.redF()),
-									  static_cast<float>(c.greenF()),
-									  static_cast<float>(c.blueF()),
-									  static_cast<float>(c.alphaF()) });
-		updateControls();
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_sliderLightPosX_valueChanged(int)
-{
-	_glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
-		static_cast<float>(sliderLightPosY->value()),
-		static_cast<float>(sliderLightPosZ->value())));
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_sliderLightPosY_valueChanged(int)
-{
-	_glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
-		static_cast<float>(sliderLightPosY->value()),
-		static_cast<float>(sliderLightPosZ->value())));
-	_glWidget->updateView();
-}
-
-void ModelViewer::on_sliderLightPosZ_valueChanged(int)
-{
-	_glWidget->setLightOffset(QVector3D(static_cast<float>(sliderLightPosX->value()),
-		static_cast<float>(sliderLightPosY->value()),
-		static_cast<float>(sliderLightPosZ->value())));
-	_glWidget->updateView();
 }
 
 void ModelViewer::on_sliderTransparency_valueChanged(int value)
@@ -1762,12 +1675,7 @@ void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
 		_glWidget->setDisplayList(ids);
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 		float offset = _glWidget->getFloorSize() * 1.25f;
-		sliderLightPosX->setRange(-range, range - offset);
-		sliderLightPosX->setValue((sliderLightPosX->maximum() + sliderLightPosX->minimum()) / 2);
-		sliderLightPosY->setRange(-range, range - offset);
-		sliderLightPosY->setValue((sliderLightPosY->maximum() + sliderLightPosY->minimum()) / 2);
-		sliderLightPosZ->setRange(-range / 3, range / 2);
-		sliderLightPosZ->setValue((-range / 3 + range / 2) / 2);
+		visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
 	}
 }
 
@@ -1820,52 +1728,6 @@ void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 	} while (duplicate);
 	mesh->setName(finalName);
 	updateDisplayList();
-}
-
-void ModelViewer::loadSkyBoxPresetMaps()
-{
-	bool isHDRI = checkBoxSkyBoxHDRI->isChecked();
-	QString appPath = PathUtils::getDataDirectory();
-	QString texPath = appPath + (isHDRI ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes/LDRI");
-
-	int index = comboBoxSkyBoxMaps->currentIndex();
-	if (isHDRI)
-		_skyBoxLDRIIndex = std::max(0, index); // Store previous state index before switching
-	else
-		_skyBoxHDRIIndex = std::max(0, index);
-
-	comboBoxSkyBoxMaps->clear();
-
-	QDir dir(texPath);
-	QStringList folderList = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
-
-	bool oldState = comboBoxSkyBoxMaps->blockSignals(true);
-	for (const QString& folderName : folderList)
-	{
-		QString fullPath = dir.absoluteFilePath(folderName);
-		comboBoxSkyBoxMaps->addItem(folderName, fullPath);
-	}
-	comboBoxSkyBoxMaps->blockSignals(oldState);
-
-	if (isHDRI)
-		comboBoxSkyBoxMaps->setCurrentIndex(_skyBoxHDRIIndex);
-	else
-		comboBoxSkyBoxMaps->setCurrentIndex(_skyBoxLDRIIndex);
-
-	if (_skyBoxHDRIIndex == 0 || _skyBoxLDRIIndex == 0)
-	{
-		QString selectedPath;
-		if (isHDRI)
-			selectedPath = comboBoxSkyBoxMaps->itemData(_skyBoxHDRIIndex).toString();
-		else
-			selectedPath = comboBoxSkyBoxMaps->itemData(_skyBoxLDRIIndex).toString();
-
-		if (selectedPath != "")
-		{
-			if (isVisible())
-				_glWidget->setSkyBoxTextureFolder(selectedPath);
-		}
-	}
 }
 
 void ModelViewer::onFileImport()
@@ -2113,94 +1975,11 @@ void ModelViewer::on_checkBoxSelectAll_stateChanged(int arg1)
 	}
 }
 
-void ModelViewer::on_checkBoxShadowMapping_toggled(bool checked)
-{
-	_glWidget->showShadows(checked);
-	_glWidget->update();
-}
-
-void ModelViewer::on_checkBoxSelfShadows_toggled(bool checked)
-{
-	_glWidget->showSelfShadows(checked);
-	_glWidget->update();
-}
-
-void ModelViewer::on_checkBoxEnvMapping_toggled(bool checked)
-{
-	_glWidget->showEnvironment(checked);
-	_glWidget->update();
-}
-
-void ModelViewer::on_checkBoxSkyBox_toggled(bool checked)
-{
-	_glWidget->showSkyBox(checked);
-	_glWidget->update();
-}
-
-void ModelViewer::on_checkBoxReflections_toggled(bool checked)
-{
-	_glWidget->showReflections(checked);
-	_glWidget->update();
-}
-
-void ModelViewer::on_checkBoxFloor_toggled(bool checked)
-{
-	_glWidget->showFloor(checked);
-	_glWidget->update();
-}
-
-void ModelViewer::on_checkBoxFloorTexture_toggled(bool checked)
-{
-	_glWidget->showFloorTexture(checked);
-	_glWidget->update();
-}
-
-void ModelViewer::on_pushButtonFloorTexture_clicked()
-{
-	QString appPath = PathUtils::getDataDirectory();
-	QImage buf;
-	QString filter = getSupportedQtImagesFilter();
-	QString fileName = QFileDialog::getOpenFileName(
-		this,
-		"Choose an image for texture",
-		appPath + "/textures/envmap/floor",
-		filter);
-	_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
-	if (fileName != "")
-	{
-		if (!buf.load(fileName))
-		{ // Load first image from file
-			qWarning("ModelViewer::on_pushButtonFloorTexture_clicked - Could not read image file, using single-color instead.");
-			QImage dummy(128, 128, QImage::Format_ARGB32);
-			dummy.fill(1);
-			buf = dummy;
-		}
-		_glWidget->setFloorTexture(buf);
-		_glWidget->update();
-	}
-}
-
 void ModelViewer::on_toolBox_currentChanged(int index)
 {
 	if (index == 3) // Transformations page
 	{
 		updateTransformationValues();
-	}
-}
-
-
-void ModelViewer::on_pushButtonSkyBoxTex_clicked()
-{
-	QString texpath = checkBoxSkyBoxHDRI->isChecked() ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes/LDRI";
-	QString appPath = PathUtils::getDataDirectory();
-	QString dir = QFileDialog::getExistingDirectory(this, tr("Select Skybox Texture Folder"),
-		appPath + texpath,
-		QFileDialog::ShowDirsOnly
-		| QFileDialog::DontResolveSymlinks);
-	if (dir != "")
-	{
-		_lastOpenedDir = dir;
-		_glWidget->setSkyBoxTextureFolder(_lastOpenedDir);
 	}
 }
 
@@ -2230,9 +2009,7 @@ void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 		toolBox->setItemEnabled(indexPBR, true);
 		toolBox->setCurrentIndex(indexPBR);
 		_glWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);
-		checkBoxSkyBoxHDRI->setChecked(true);
-		checkBoxHDRToneMapping->setChecked(true);
-		checkBoxGammaCorrection->setChecked(true);
+		visualizationEnvironmentPanel->setPBRLightingMode(true);
 		_glWidget->setSkyBoxTextureHDRI(true);
 		switchToRealisticRendering();
 	}
@@ -2241,18 +2018,8 @@ void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 }
 
 void ModelViewer::onDisplayModeChanged(int mode)
-{
-	bool realShaded = (mode == static_cast<int>(DisplayMode::REALSHADED));
-	bool pbrLighting = (_glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING);
-	checkBoxEnvMapping->setChecked(realShaded || pbrLighting);
-	checkBoxShadowMapping->setChecked(realShaded);
-	checkBoxSelfShadows->setChecked(realShaded);
-	checkBoxReflections->setChecked(realShaded);
-	checkBoxFloor->setChecked(realShaded);
-	checkBoxSkyBoxHDRI->setChecked(checkBoxSkyBoxHDRI->isChecked() || (realShaded && pbrLighting));
-	checkBoxHDRToneMapping->setChecked(checkBoxSkyBoxHDRI->isChecked());
-	checkBoxGammaCorrection->setChecked(checkBoxSkyBoxHDRI->isChecked());
-	_glWidget->setSkyBoxTextureHDRI(checkBoxSkyBoxHDRI->isChecked());
+{	
+	visualizationEnvironmentPanel->onDisplayModeChanged(mode);	
 }
 
 void ModelViewer::onTextureCacheCleared()
@@ -2262,7 +2029,6 @@ void ModelViewer::onTextureCacheCleared()
 		_glWidget->clearTextureCache();
 	}
 }
-
 
 void ModelViewer::on_toolButtonClearOpacityTex_clicked()
 {

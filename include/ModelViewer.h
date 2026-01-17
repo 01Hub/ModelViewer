@@ -73,6 +73,12 @@ public:
 	// For UV generation dialog user selection
 	static UVDialogResult askUserForUVMethod(QWidget* parent);
 
+	// Skybox index accessors for VisualizationEnvironmentPanel
+	int getSkyBoxLDRIIndex() const { return _skyBoxLDRIIndex; }
+	int getSkyBoxHDRIIndex() const { return _skyBoxHDRIIndex; }
+	void setSkyBoxLDRIIndex(int index) { _skyBoxLDRIIndex = index; }
+	void setSkyBoxHDRIIndex(int index) { _skyBoxHDRIIndex = index; }
+
 public slots:
     void updateDisplayList();
     void updateSelectionStatusMessage();
@@ -99,17 +105,10 @@ private slots:
 	void showContextMenu(const QPoint& pos);	
 	void lightingType_toggled(QAbstractButton *, bool);
 		
-	void on_pushButtonDefaultLights_clicked();
 	void on_pushButtonApplyADSColors_clicked();	
 	void on_pushButtonApplyTransformations_clicked();
 	void on_pushButtonBakeTransformations_clicked();
 	void on_pushButtonResetTransformations_clicked();	
-	void on_pushButtonLightAmbient_clicked();
-	void on_pushButtonLightDiffuse_clicked();
-	void on_pushButtonLightSpecular_clicked();	
-	void on_sliderLightPosX_valueChanged(int);
-	void on_sliderLightPosY_valueChanged(int);
-	void on_sliderLightPosZ_valueChanged(int);	
 	void on_sliderTransparency_valueChanged(int value);
 	void on_sliderShine_valueChanged(int value);
 
@@ -123,18 +122,8 @@ private slots:
 	void on_listWidgetModel_itemSelectionChanged();
 	void itemEdited(QWidget* widget, QAbstractItemDelegate::EndEditHint hint);
 
-	void on_checkBoxShadowMapping_toggled(bool checked);
-	void on_checkBoxSelfShadows_toggled(bool checked);
-	void on_checkBoxEnvMapping_toggled(bool checked);
-	void on_checkBoxSkyBox_toggled(bool checked);
-	void on_checkBoxReflections_toggled(bool checked);
-	void on_checkBoxFloor_toggled(bool checked);
-	void on_checkBoxFloorTexture_toggled(bool checked);
-	void on_pushButtonFloorTexture_clicked();
 	void on_toolBox_currentChanged(int index);
-
-	void on_pushButtonSkyBoxTex_clicked();
-	
+		
 	void on_toolButtonClearOpacityTex_clicked();
 
 	void on_pushButtonApplyADSTexture_clicked();
@@ -150,8 +139,7 @@ protected:
 	void closeEvent(QCloseEvent* event);
 
 private:
-	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
-	void loadSkyBoxPresetMaps();
+	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);	
 
 private:
 	GLWidget* _glWidget;
@@ -224,6 +212,11 @@ private:
 	int _transformationsPageIndex = -1;
 	QString _transformationsPageLabel;
 
+	QPointer<QDialog> _detachedEnvironmentDialog; // Stores the floating dialog
+	QWidget* _environmentOriginalParent = nullptr; // Stores where panel came from
+	int _environmentPageIndex = -1;
+	QString _environmentPageLabel;
+
 private:
 	bool checkForActiveSelection();
 	bool hasSelection() const;
@@ -239,6 +232,8 @@ private:
 	void reattachMaterialPanel();
 	void detachTransformationsPanel();
 	void reattachTransformationsPanel();
+	void detachEnvironmentPanel();
+	void reattachEnvironmentPanel();
 };
 
 #endif
