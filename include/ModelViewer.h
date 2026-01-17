@@ -105,13 +105,8 @@ private slots:
 	void showContextMenu(const QPoint& pos);	
 	void lightingType_toggled(QAbstractButton *, bool);
 		
-	void on_pushButtonApplyADSColors_clicked();	
-	void on_pushButtonApplyTransformations_clicked();
-	void on_pushButtonBakeTransformations_clicked();
-	void on_pushButtonResetTransformations_clicked();	
-	void on_sliderTransparency_valueChanged(int value);
-	void on_sliderShine_valueChanged(int value);
-
+	void applyADSColors();	
+	
 	void onFileImport();
 	void importFiles(QStringList& fileNames);
 	void onFileExport();
@@ -126,8 +121,8 @@ private slots:
 		
 	void on_toolButtonClearOpacityTex_clicked();
 
-	void on_pushButtonApplyADSTexture_clicked();
-	void on_pushButtonClearADSTextures_clicked();
+	void applyADSTextures();
+	void clearADSTextures();
 		
 protected:
 	void showEvent(QShowEvent* event);

@@ -127,7 +127,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		});
 
 	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyColorToSelectionRequested,
-		this, &ModelViewer::on_pushButtonApplyADSColors_clicked);
+		this, &ModelViewer::applyADSColors);
 
 	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::defaultMaterialsRequested,
 		this, [this]() {
@@ -180,10 +180,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	// connect apply/clear buttons
 	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyTexturesRequested,
-		this, &ModelViewer::on_pushButtonApplyADSTexture_clicked);
+		this, &ModelViewer::applyADSTextures);
 
 	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::clearTexturesRequested,
-		this, &ModelViewer::on_pushButtonClearADSTextures_clicked);
+		this, &ModelViewer::clearADSTextures);
 
 	connect(Ui_ModelViewer::adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::detachRequested,
 		this, &ModelViewer::detachADSMaterialPanel);
@@ -410,19 +410,36 @@ void ModelViewer::setTransformation()
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 		float offset = _glWidget->getFloorSize() * 1.25f;
 		visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
+		_glWidget->update();
 		QApplication::restoreOverrideCursor();
 	}
 }
 
 void ModelViewer::bakeTransformations()
 {
-	if (checkForActiveSelection())
+	// Ask the user whether they really want to perform this irreversible operation
+	QMessageBox::StandardButton reply;
+	reply = QMessageBox::question(this, tr("Bake Transformations"),
+		tr("This operation will bake the transformations into the mesh vertices and cannot be undone.\n"
+			"Do you want to proceed?"),
+		QMessageBox::Yes | QMessageBox::No);
+
+	if (reply == QMessageBox::Yes)
 	{
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		std::vector<int> ids = getSelectedIDs();
-		_glWidget->bakeTransformation(ids);
-		QMessageBox::information(this, tr("Action Complete"), tr("Baked the applied transformations into the mesh vertices"));
-		QApplication::restoreOverrideCursor();
+		// Proceed with baking transformations
+		if (checkForActiveSelection())
+		{
+			QApplication::setOverrideCursor(Qt::WaitCursor);
+			std::vector<int> ids = getSelectedIDs();
+			_glWidget->bakeTransformation(ids);
+			QMessageBox::information(this, tr("Action Complete"), tr("Baked the applied transformations into the mesh vertices"));
+			QApplication::restoreOverrideCursor();
+			_glWidget->update();
+		}		
+	}
+	else
+	{
+		// Cancel the operation
 	}
 }
 
@@ -439,6 +456,7 @@ void ModelViewer::resetTransformation()
 		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
 		float offset = _glWidget->getFloorSize() * 1.25f;
 		visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
+		_glWidget->update();
 		QApplication::restoreOverrideCursor();
 	}
 }
@@ -1567,82 +1585,11 @@ void ModelViewer::showEnvironmentPage()
 	toolBox->setCurrentIndex(4);
 }
 
-void ModelViewer::on_pushButtonApplyADSColors_clicked()
+void ModelViewer::applyADSColors()
 {
 	setMaterialToSelectedItems(_material);
 	_glWidget->updateView();
 	updateControls();
-}
-
-
-void ModelViewer::on_pushButtonApplyTransformations_clicked()
-{
-	setTransformation();
-	_glWidget->update();
-}
-
-void ModelViewer::on_pushButtonBakeTransformations_clicked()
-{
-	// Ask the user whether they really want to perform this irreversible operation
-
-	QMessageBox::StandardButton reply;
-	reply = QMessageBox::question(this, tr("Bake Transformations"),
-		tr("This operation will bake the transformations into the mesh vertices and cannot be undone.\n"
-			"Do you want to proceed?"),
-		QMessageBox::Yes | QMessageBox::No);
-
-	if (reply == QMessageBox::Yes)
-	{
-		// Proceed with baking transformations
-		bakeTransformations();
-		_glWidget->update();
-	}
-	else
-	{
-		// Cancel the operation
-	}
-}
-
-void ModelViewer::on_pushButtonResetTransformations_clicked()
-{
-	resetTransformation();
-	_glWidget->update();
-}
-
-void ModelViewer::on_sliderTransparency_valueChanged(int value)
-{
-	if (checkForActiveSelection())
-	{
-		_material.setOpacity((float)value / 1000.0f);
-		for (int id : getSelectedIDs())
-		{
-			TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
-			if (mesh)
-			{
-				mesh->setOpacity((float)value / 1000.0f);
-			}
-		}
-
-		_glWidget->updateView();
-	}
-}
-
-void ModelViewer::on_sliderShine_valueChanged(int value)
-{
-	if (checkForActiveSelection())
-	{
-		_material.setShininess(value);
-		for (int id : getSelectedIDs())
-		{
-			TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
-			if (mesh)
-			{
-				mesh->setShininess(value);
-			}
-		}
-
-		_glWidget->updateView();
-	}
 }
 
 void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
@@ -2042,7 +1989,7 @@ void ModelViewer::on_toolButtonClearOpacityTex_clicked()
 	}
 }
 
-void ModelViewer::on_pushButtonApplyADSTexture_clicked()
+void ModelViewer::applyADSTextures()
 {
 	bool allOK = true;
 	if (!_hasADSDiffuseTex || (_hasADSDiffuseTex && _diffuseADSTexture == ""))
@@ -2104,7 +2051,7 @@ void ModelViewer::on_pushButtonApplyADSTexture_clicked()
 	}
 }
 
-void ModelViewer::on_pushButtonClearADSTextures_clicked()
+void ModelViewer::clearADSTextures()
 {
 	if (checkForActiveSelection())
 	{
