@@ -21,6 +21,18 @@
    <string>ADS Material Settings</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
+   <property name="leftMargin">
+    <number>2</number>
+   </property>
+   <property name="topMargin">
+    <number>2</number>
+   </property>
+   <property name="rightMargin">
+    <number>2</number>
+   </property>
+   <property name="bottomMargin">
+    <number>2</number>
+   </property>
    <item row="4" column="0">
     <widget class="QGroupBox" name="groupBox_7">
      <property name="title">
