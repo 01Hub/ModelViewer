@@ -1358,6 +1358,7 @@ void TriangleMesh::resetTransformations()
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
+	buildTriangles();
 	computeBounds();
 }
 
