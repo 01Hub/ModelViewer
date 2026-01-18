@@ -3587,15 +3587,15 @@ void GLWidget::applyFloorPlaneMaterialSettings()
 
 void GLWidget::updateMainLightPosition(float halfObjectSize)
 {
-	_lightPosition.setX(_floorCenter.x() + _floorSize * 1.25 + _lightOffsetX);
-	_lightPosition.setY(_floorCenter.y() + _floorSize * 1.25 + _lightOffsetY);
+	_lightPosition.setX(_floorCenter.x() + _floorSize * 1.25);
+	_lightPosition.setY(_floorCenter.y() + _floorSize * 1.25);
 
 	if (_meshStore.empty())
-		_lightPosition.setZ(_floorSize + _lightOffsetZ);
+		_lightPosition.setZ(_floorSize);
 	else
 	{
 		float highestZ = highestModelZ();
-		_lightPosition.setZ(highestZ + halfObjectSize * 5.0f + (_floorSize * _floorOffsetPercent) + _lightOffsetZ);
+		_lightPosition.setZ(highestZ + halfObjectSize * 5.0f + (_floorSize * _floorOffsetPercent));
 	}
 }
 
