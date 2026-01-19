@@ -2701,6 +2701,9 @@ void MaterialProcessor::convertSpecularGlossinessToDielectric(GLMaterial& mat)
 }
 
 
+
+// FIXED parseKHRLightsPunctual function for MaterialProcessor.cpp
+// This version properly walks the parent chain to get world transforms
 std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& gltfPath)
 {
 	std::vector<GPULight> lights;
@@ -2789,7 +2792,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 	if (!extensions.contains("KHR_lights_punctual"))
 		return lights;
 
-	QJsonObject lightsExt = extensions.value("KHR_lights_punctual").toObject();	
+	QJsonObject lightsExt = extensions.value("KHR_lights_punctual").toObject();
 	if (!lightsExt.contains("lights") || !lightsExt.value("lights").isArray())
 	{
 		return lights;  // No lights array
@@ -2802,7 +2805,127 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 	qDebug() << "parseKHRLightsPunctual: Found" << lightsArray.size() << "lights in glTF";
 	qDebug() << "========================================";
 
-	// Parse each light WITH its node transform
+	// ===== BUILD PARENT MAP FOR SCENE GRAPH =====
+	// Maps node index to parent node index (-1 if root)
+	std::map<int, int> nodeParentMap;
+	std::map<int, glm::mat4> nodeTransformMap;  // Cache transforms
+
+	// First pass: build parent relationships
+	for (int nodeIdx = 0; nodeIdx < nodesArray.size(); ++nodeIdx)
+	{
+		QJsonObject nodeDef = nodesArray.at(nodeIdx).toObject();
+
+		// Extract TRS or matrix for this node
+		glm::mat4 nodeTransform(1.0f);
+
+		if (nodeDef.contains("matrix") && nodeDef.value("matrix").isArray())
+		{
+			QJsonArray matrixArray = nodeDef.value("matrix").toArray();
+			if (matrixArray.size() == 16)
+			{
+				// Column-major order: fill column by column
+				for (int row = 0; row < 4; ++row)
+				{
+					for (int col = 0; col < 4; ++col)
+					{
+						int idx = col * 4 + row;  // Column-major index
+						nodeTransform[col][row] = static_cast<float>(matrixArray.at(idx).toDouble(0.0));
+					}
+				}
+			}
+		}
+		else if (nodeDef.contains("translation") || nodeDef.contains("rotation") || nodeDef.contains("scale"))
+		{
+			// Fallback: build from TRS if matrix not present
+			glm::vec3 translation(0.0f);
+			if (nodeDef.contains("translation") && nodeDef.value("translation").isArray())
+			{
+				QJsonArray transArray = nodeDef.value("translation").toArray();
+				if (transArray.size() >= 3)
+				{
+					translation.x = static_cast<float>(transArray.at(0).toDouble(0.0));
+					translation.y = static_cast<float>(transArray.at(1).toDouble(0.0));
+					translation.z = static_cast<float>(transArray.at(2).toDouble(0.0));
+				}
+			}
+
+			glm::quat rotation(1.0f, 0.0f, 0.0f, 0.0f);  // identity
+			if (nodeDef.contains("rotation") && nodeDef.value("rotation").isArray())
+			{
+				QJsonArray rotArray = nodeDef.value("rotation").toArray();
+				if (rotArray.size() >= 4)
+				{
+					rotation.x = static_cast<float>(rotArray.at(0).toDouble(0.0));
+					rotation.y = static_cast<float>(rotArray.at(1).toDouble(0.0));
+					rotation.z = static_cast<float>(rotArray.at(2).toDouble(0.0));
+					rotation.w = static_cast<float>(rotArray.at(3).toDouble(1.0));
+				}
+			}
+
+			glm::vec3 scale(1.0f);
+			if (nodeDef.contains("scale") && nodeDef.value("scale").isArray())
+			{
+				QJsonArray scaleArray = nodeDef.value("scale").toArray();
+				if (scaleArray.size() >= 3)
+				{
+					scale.x = static_cast<float>(scaleArray.at(0).toDouble(1.0));
+					scale.y = static_cast<float>(scaleArray.at(1).toDouble(1.0));
+					scale.z = static_cast<float>(scaleArray.at(2).toDouble(1.0));
+				}
+			}
+
+			nodeTransform = glm::mat4(1.0f);
+			nodeTransform = glm::translate(nodeTransform, translation);
+			nodeTransform *= glm::mat4_cast(rotation);
+			nodeTransform = glm::scale(nodeTransform, scale);
+		}
+
+		nodeTransformMap[nodeIdx] = nodeTransform;
+		nodeParentMap[nodeIdx] = -1;  // Default: no parent
+	}
+
+	// Second pass: find parent-child relationships
+	for (int nodeIdx = 0; nodeIdx < nodesArray.size(); ++nodeIdx)
+	{
+		QJsonObject nodeDef = nodesArray.at(nodeIdx).toObject();
+
+		if (nodeDef.contains("children") && nodeDef.value("children").isArray())
+		{
+			QJsonArray childrenArray = nodeDef.value("children").toArray();
+			for (int i = 0; i < childrenArray.size(); ++i)
+			{
+				int childIdx = childrenArray.at(i).toInt(-1);
+				if (childIdx >= 0 && childIdx < nodesArray.size())
+				{
+					nodeParentMap[childIdx] = nodeIdx;  // Mark child's parent
+				}
+			}
+		}
+	}
+
+	// ===== HELPER: Get world transform by traversing parent chain =====
+	auto getWorldTransform = [&](int nodeIdx) -> glm::mat4 {
+		glm::mat4 worldTransform(1.0f);
+		int currentIdx = nodeIdx;
+
+		// Collect all parent nodes up the chain
+		std::vector<int> nodeChain;
+		while (currentIdx >= 0)
+		{
+			nodeChain.push_back(currentIdx);
+			currentIdx = nodeParentMap[currentIdx];
+		}
+
+		// Apply transforms from root to node (reverse order)
+		for (int i = static_cast<int>(nodeChain.size()) - 1; i >= 0; --i)
+		{
+			worldTransform = worldTransform * nodeTransformMap[nodeChain[i]];
+		}
+
+		return worldTransform;
+		};
+
+	// Parse each light WITH its WORLD transform
 	for (int lightIdx = 0; lightIdx < lightsArray.size(); ++lightIdx)
 	{
 		QJsonObject lightDef = lightsArray.at(lightIdx).toObject();
@@ -2896,7 +3019,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 			light.outerConeCos = std::cos(glm::pi<float>() / 4.0f);
 		}
 
-		// === Find which node has this light and read its MATRIX transform ===
+		// === Find which node has this light and read its WORLD transform ===
 		light.position = glm::vec3(0.0f);
 		light.direction = glm::vec3(0.0f, 0.0f, -1.0f);  // Default direction
 
@@ -2921,78 +3044,15 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 
 			if (hasLight)
 			{
-				// === Read node matrix (4x4, column-major) ===
-				glm::mat4 nodeTransform(1.0f);
+				// === FIX: Get WORLD transform by walking parent chain ===
+				glm::mat4 worldTransform = getWorldTransform(nodeIdx);
 
-				if (nodeDef.contains("matrix") && nodeDef.value("matrix").isArray())
-				{
-					QJsonArray matrixArray = nodeDef.value("matrix").toArray();
-
-					if (matrixArray.size() == 16)
-					{
-						// Column-major order: fill column by column
-						for (int row = 0; row < 4; ++row)
-						{
-							for (int col = 0; col < 4; ++col)
-							{
-								int idx = col * 4 + row;  // Column-major index
-								nodeTransform[col][row] = static_cast<float>(matrixArray.at(idx).toDouble(0.0));
-							}
-						}
-					}
-				}
-				else if (nodeDef.contains("translation") || nodeDef.contains("rotation") || nodeDef.contains("scale"))
-				{
-					// Fallback: build from TRS if matrix not present
-					glm::vec3 translation(0.0f);
-					if (nodeDef.contains("translation") && nodeDef.value("translation").isArray())
-					{
-						QJsonArray transArray = nodeDef.value("translation").toArray();
-						if (transArray.size() >= 3)
-						{
-							translation.x = static_cast<float>(transArray.at(0).toDouble(0.0));
-							translation.y = static_cast<float>(transArray.at(1).toDouble(0.0));
-							translation.z = static_cast<float>(transArray.at(2).toDouble(0.0));
-						}
-					}
-
-					glm::quat rotation(1.0f, 0.0f, 0.0f, 0.0f);  // identity
-					if (nodeDef.contains("rotation") && nodeDef.value("rotation").isArray())
-					{
-						QJsonArray rotArray = nodeDef.value("rotation").toArray();
-						if (rotArray.size() >= 4)
-						{
-							rotation.x = static_cast<float>(rotArray.at(0).toDouble(0.0));
-							rotation.y = static_cast<float>(rotArray.at(1).toDouble(0.0));
-							rotation.z = static_cast<float>(rotArray.at(2).toDouble(0.0));
-							rotation.w = static_cast<float>(rotArray.at(3).toDouble(1.0));
-						}
-					}
-
-					glm::vec3 scale(1.0f);
-					if (nodeDef.contains("scale") && nodeDef.value("scale").isArray())
-					{
-						QJsonArray scaleArray = nodeDef.value("scale").toArray();
-						if (scaleArray.size() >= 3)
-						{
-							scale.x = static_cast<float>(scaleArray.at(0).toDouble(1.0));
-							scale.y = static_cast<float>(scaleArray.at(1).toDouble(1.0));
-							scale.z = static_cast<float>(scaleArray.at(2).toDouble(1.0));
-						}
-					}
-
-					nodeTransform = glm::mat4(1.0f);
-					nodeTransform = glm::translate(nodeTransform, translation);
-					nodeTransform *= glm::mat4_cast(rotation);
-					nodeTransform = glm::scale(nodeTransform, scale);
-				}
-
-				// === Extract position from matrix ===
-				light.position = glm::vec3(nodeTransform[3][0], nodeTransform[3][1], nodeTransform[3][2]);
+				// === Extract world position from matrix ===
+				light.position = glm::vec3(worldTransform[3][0], worldTransform[3][1], worldTransform[3][2]);
 
 				// === Extract direction by rotating (0, 0, -1) through the matrix ===
 				glm::vec3 localDir(0.0f, 0.0f, -1.0f);
-				glm::vec4 worldDir4 = nodeTransform * glm::vec4(localDir, 0.0f);
+				glm::vec4 worldDir4 = worldTransform * glm::vec4(localDir, 0.0f);
 				light.direction = glm::normalize(glm::vec3(worldDir4));
 
 				break;
