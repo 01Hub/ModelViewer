@@ -218,6 +218,31 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		}
 	}
 
+	if (!parsedLights.empty() && (_autoScale || _autoOrient))
+	{
+		for (auto& light : parsedLights)
+		{
+			// Transform position (with translation)
+			glm::vec4 transformedPos = _appliedTransform * glm::vec4(light.position, 1.0f);
+			light.position = glm::vec3(transformedPos);
+
+			// Transform direction (no translation)
+			glm::vec4 transformedDir = _appliedTransform * glm::vec4(light.direction, 0.0f);
+			light.direction = glm::normalize(glm::vec3(transformedDir));
+
+			// Extract scale from transform matrix
+			glm::vec3 scale(
+				glm::length(glm::vec3(_appliedTransform[0])),
+				glm::length(glm::vec3(_appliedTransform[1])),
+				glm::length(glm::vec3(_appliedTransform[2]))
+			);
+			float avgScale = (scale.x + scale.y + scale.z) / 3.0f;
+			light.range *= avgScale;
+		}
+
+		qDebug() << "Transformed" << parsedLights.size() << "punctual lights";
+	}
+
 	// Emit lights for GLWidget to handle
 	emit lightsLoaded(parsedLights);
 }
