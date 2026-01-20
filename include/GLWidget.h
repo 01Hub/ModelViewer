@@ -423,7 +423,9 @@ private:
 	void applyFloorPlaneMaterialSettings();
 	void updateMainLightPosition(float halfObjectSize);
 	float updateFloorGeometry();
-		
+	
+	void updatePunctualLights();  // Update lights based on bounding sphere changes
+			
 	void drawMesh(QOpenGLShaderProgram* prog);
 
 	void drawOpaqueMeshes(QOpenGLShaderProgram* prog);
@@ -798,6 +800,13 @@ private:
 	std::vector<GPULight> _originalParsedLights;      // ORIGINAL - never modified
 	std::vector<GPULight> _currentRepositionedLights; // Working copy
 	float _originalBoundingRadius = 1.0f;
+
+	// Light repositioning based on model transformation
+	struct LightRepositioningBasis
+	{
+		glm::vec3 baselineCenter;
+		float baselineRadius;
+	} _lightRepoBasis;
 };
 
 #endif

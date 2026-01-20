@@ -487,11 +487,11 @@ void GLWidget::initializeGL()
 	glLights = std::make_unique<GLLights>();
 	// Connect lights loading
 	connect(_assimpModelLoader, &AssImpModelLoader::lightsLoaded,
-		this, [this](const std::vector<GPULight>& lights) {			
+		this, [this](const std::vector<GPULight>& lights) {
 			_originalParsedLights.clear();
 			_currentRepositionedLights.clear();
-			_originalParsedLights = lights;
-			_originalBoundingRadius = _boundingSphere.getRadius();
+			_originalParsedLights = lights;				
+
 			_fgShader->bind();
 			if (!lights.empty())
 			{
@@ -504,7 +504,7 @@ void GLWidget::initializeGL()
 				_fgShader->setUniformValue("lightCount", 1);
 				_fgShader->setUniformValue("hasPunctualLights", false);
 				qDebug() << "GLWidget: No lights received, will use fallback";
-			}			
+			}
 		});
 
 	const std::string path = PathUtils::getDataDirectory().toStdString() + "/";
@@ -1504,11 +1504,36 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 		}
 	}
 	_displayedObjectsMemSize = memSize;
+
+	// Calculate real bounding sphere
 	updateBoundingSphere();
 	updateBoundingBox();
+
+	// ===== CAPTURE BASELINE HERE - NOW BOUNDING SPHERE IS REAL =====
+	// Only capture if lights are present and baseline not yet set
+	if (!_originalParsedLights.empty() && _lightRepoBasis.baselineRadius <= 0.0f)
+	{
+		_lightRepoBasis.baselineCenter = glm::vec3(
+			static_cast<float>(_boundingSphere.getCenter().x()),
+			static_cast<float>(_boundingSphere.getCenter().y()),
+			static_cast<float>(_boundingSphere.getCenter().z())
+		);
+		_lightRepoBasis.baselineRadius = _boundingSphere.getRadius();
+
+		qDebug() << "Light repositioning basis captured in setDisplayList:";
+		qDebug() << "  Baseline center: (" << _lightRepoBasis.baselineCenter.x
+			<< ", " << _lightRepoBasis.baselineCenter.y
+			<< ", " << _lightRepoBasis.baselineCenter.z << ")";
+		qDebug() << "  Baseline radius: " << _lightRepoBasis.baselineRadius;
+	}
+	// ================================================================
+
+	// Now update lights based on baseline
+	updatePunctualLights();
+
 	triggerShadowRecomputation();
 	updateFloorPlane();
-	
+
 	if (_autoFitViewOnUpdate)
 		fitAll();
 
@@ -1677,55 +1702,16 @@ void GLWidget::updateFloorPlane()
 	// Use helper to apply common material/texture settings
 	applyFloorPlaneMaterialSettings();
 
-	// === Reposition punctual lights from ORIGINAL positions ===
-	if (!_originalParsedLights.empty())
+	// Create fallback light if no punctual lights available
+	if (_originalParsedLights.empty())
 	{
-		// START FROM ORIGINALS every frame
-		_currentRepositionedLights = _originalParsedLights;
-		// Calculate radius scaling factor
-		float radiusScaleFactor = 1.0f;
-		if (_originalBoundingRadius > 0.0f)
-		{
-			radiusScaleFactor = halfObjectSize / _originalBoundingRadius;
-		}
-		// Current bounding sphere center
-		glm::vec3 currentCenter(
-			static_cast<float>(_floorCenter.x()),
-			static_cast<float>(_floorCenter.y()),
-			static_cast<float>(_floorCenter.z())
-		);
-		// Reposition each light FROM ORIGINALS
-		for (auto& light : _currentRepositionedLights)
-		{
-			// Scale position by radius change, then translate to center
-			light.position.x = light.position.x * radiusScaleFactor + currentCenter.x;
-			light.position.y = light.position.y * radiusScaleFactor + currentCenter.y;
-			light.position.z = light.position.z * radiusScaleFactor + currentCenter.z;
-			// Scale light range by radius change
-			if (light.range > 0.0f)
-			{
-				light.range *= radiusScaleFactor;
-			}
-			
-			// Scale intensity to compensate for distance change (inverse-square law)
-			// Only for point and spot lights, NOT directional lights
-			// Directional lights are infinitely far and don't lose power with distance
-			if (light.type != static_cast<int>(LightType::Directional))
-			{
-				light.intensity *= (radiusScaleFactor * radiusScaleFactor);
-			}
-		}
-		glLights->setLights(_currentRepositionedLights);
-	}
-	else
-	{
-		// Fallback light
 		glLights->createFallbackLight(glm::vec3(
 			static_cast<float>(_lightPosition.x()),
 			static_cast<float>(_lightPosition.y()),
 			static_cast<float>(_lightPosition.z())
 		));
 	}
+
 	updateClippingPlane();
 }
 
@@ -3366,6 +3352,7 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 
 	updateBoundingSphere();
 	updateBoundingBox();
+	updatePunctualLights();
 	triggerShadowRecomputation();
 	updateFloorPlane();
 	fitAll();
@@ -3409,6 +3396,7 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 
 	updateBoundingSphere();
 	updateBoundingBox();
+	updatePunctualLights();
 	fitAll();
 	triggerShadowRecomputation();
 }
@@ -3612,6 +3600,61 @@ float GLWidget::updateFloorGeometry()
 	_lightCube->setSize(halfObjectSize * 0.1f);
 
 	return halfObjectSize;
+}
+
+void GLWidget::updatePunctualLights()
+{
+	if (_originalParsedLights.empty() || _lightRepoBasis.baselineRadius <= 0.0f)
+	{
+		qDebug() << "updatePunctualLights: SKIPPED (no lights or invalid baseline)";
+		return;
+	}
+
+	// Start with original positions
+	_currentRepositionedLights = _originalParsedLights;
+
+	// Get current bounding sphere state
+	glm::vec3 currentCenter(
+		static_cast<float>(_boundingSphere.getCenter().x()),
+		static_cast<float>(_boundingSphere.getCenter().y()),
+		static_cast<float>(_boundingSphere.getCenter().z())
+	);
+	float currentRadius = _boundingSphere.getRadius();
+
+	// Compute deltas from baseline
+	glm::vec3 centerDelta = currentCenter - _lightRepoBasis.baselineCenter;
+	float radiusDelta = currentRadius / _lightRepoBasis.baselineRadius;
+
+	qDebug() << "updatePunctualLights:";
+	qDebug() << "  Baseline: center=(" << _lightRepoBasis.baselineCenter.x
+		<< "," << _lightRepoBasis.baselineCenter.y
+		<< "," << _lightRepoBasis.baselineCenter.z << ") radius=" << _lightRepoBasis.baselineRadius;
+	qDebug() << "  Current:  center=(" << currentCenter.x
+		<< "," << currentCenter.y
+		<< "," << currentCenter.z << ") radius=" << currentRadius;
+	qDebug() << "  Delta: centerDelta=(" << centerDelta.x
+		<< "," << centerDelta.y
+		<< "," << centerDelta.z << ") radiusDelta=" << radiusDelta;
+
+	// Apply delta-based transformation to each light
+	for (auto& light : _currentRepositionedLights)
+	{
+		glm::vec3 offsetFromBaseline = light.position - _lightRepoBasis.baselineCenter;
+		glm::vec3 scaledOffset = offsetFromBaseline * radiusDelta;
+		light.position = _lightRepoBasis.baselineCenter + scaledOffset + centerDelta;
+
+		if (light.range > 0.0f)
+		{
+			light.range *= radiusDelta;
+		}
+
+		if (light.type != static_cast<int>(LightType::Directional))
+		{
+			light.intensity *= (radiusDelta * radiusDelta);
+		}
+	}
+
+	glLights->setLights(_currentRepositionedLights);
 }
 
 void GLWidget::loadEnvMap()
