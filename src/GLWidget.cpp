@@ -1519,6 +1519,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 			static_cast<float>(_boundingSphere.getCenter().z())
 		);
 		_lightRepoBasis.baselineRadius = _boundingSphere.getRadius();
+		_lightRepoBasis.accumulatedRotation = glm::mat4(1.0f);
 
 		qDebug() << "Light repositioning basis captured in setDisplayList:";
 		qDebug() << "  Baseline center: (" << _lightRepoBasis.baselineCenter.x
@@ -3350,6 +3351,21 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 		}
 	}
 
+	// If all meshes selected = model-level transformation
+	bool isModelLevelTransform = (ids.size() == _meshStore.size());
+
+	if (isModelLevelTransform)
+	{
+		// Build rotation matrix from Euler angles (same as mesh transformation)
+		// rot is QVector3D(x, y, z) in degrees
+		glm::mat4 rotX = glm::rotate(glm::mat4(1.0f), glm::radians(rot.x()), glm::vec3(1, 0, 0));
+		glm::mat4 rotY = glm::rotate(glm::mat4(1.0f), glm::radians(rot.y()), glm::vec3(0, 1, 0));
+		glm::mat4 rotZ = glm::rotate(glm::mat4(1.0f), glm::radians(rot.z()), glm::vec3(0, 0, 1));
+
+		// Apply rotation in same order as meshes (Z * Y * X)
+		_lightRepoBasis.accumulatedRotation = rotZ * rotY * rotX;		
+	}
+
 	updateBoundingSphere();
 	updateBoundingBox();
 	updatePunctualLights();
@@ -3393,6 +3409,7 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	_lightOffsetX = 0.0f;
 	_lightOffsetY = 0.0f;
 	_lightOffsetZ = 0.0f;
+	_lightRepoBasis.accumulatedRotation = glm::mat4(1.0f);  // Reset to identity
 
 	updateBoundingSphere();
 	updateBoundingBox();
@@ -3606,7 +3623,6 @@ void GLWidget::updatePunctualLights()
 {
 	if (_originalParsedLights.empty() || _lightRepoBasis.baselineRadius <= 0.0f)
 	{
-		qDebug() << "updatePunctualLights: SKIPPED (no lights or invalid baseline)";
 		return;
 	}
 
@@ -3625,29 +3641,31 @@ void GLWidget::updatePunctualLights()
 	glm::vec3 centerDelta = currentCenter - _lightRepoBasis.baselineCenter;
 	float radiusDelta = currentRadius / _lightRepoBasis.baselineRadius;
 
-	qDebug() << "updatePunctualLights:";
-	qDebug() << "  Baseline: center=(" << _lightRepoBasis.baselineCenter.x
-		<< "," << _lightRepoBasis.baselineCenter.y
-		<< "," << _lightRepoBasis.baselineCenter.z << ") radius=" << _lightRepoBasis.baselineRadius;
-	qDebug() << "  Current:  center=(" << currentCenter.x
-		<< "," << currentCenter.y
-		<< "," << currentCenter.z << ") radius=" << currentRadius;
-	qDebug() << "  Delta: centerDelta=(" << centerDelta.x
-		<< "," << centerDelta.y
-		<< "," << centerDelta.z << ") radiusDelta=" << radiusDelta;
-
-	// Apply delta-based transformation to each light
-	for (auto& light : _currentRepositionedLights)
+	
+	// Apply transformations to each light
+	for (int i = 0; i < _currentRepositionedLights.size(); ++i)
 	{
-		glm::vec3 offsetFromBaseline = light.position - _lightRepoBasis.baselineCenter;
-		glm::vec3 scaledOffset = offsetFromBaseline * radiusDelta;
-		light.position = _lightRepoBasis.baselineCenter + scaledOffset + centerDelta;
+		auto& light = _currentRepositionedLights[i];
 
+		// STEP 1: Get offset from baseline center
+		glm::vec3 offsetFromBaseline = light.position - _lightRepoBasis.baselineCenter;
+
+		// STEP 2: ROTATION - Apply rotation matrix to offset
+		glm::vec3 rotatedOffset = glm::vec3(_lightRepoBasis.accumulatedRotation * glm::vec4(offsetFromBaseline, 0.0f));
+
+		// STEP 3: RADIAL SCALING - Scale the rotated offset by radius delta
+		glm::vec3 scaledOffset = rotatedOffset * radiusDelta;
+
+		// STEP 4: TRANSLATION - Apply translation and return to world space
+		light.position = _lightRepoBasis.baselineCenter + scaledOffset + centerDelta;
+				
+		// Scale range by radius delta (only scaling affects range)
 		if (light.range > 0.0f)
 		{
 			light.range *= radiusDelta;
 		}
 
+		// Scale intensity (inverse-square law) for point and spot lights only
 		if (light.type != static_cast<int>(LightType::Directional))
 		{
 			light.intensity *= (radiusDelta * radiusDelta);

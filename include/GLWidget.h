@@ -806,6 +806,7 @@ private:
 	{
 		glm::vec3 baselineCenter;
 		float baselineRadius;
+		glm::mat4 accumulatedRotation;
 	} _lightRepoBasis;
 };
 
