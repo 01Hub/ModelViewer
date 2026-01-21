@@ -100,5 +100,17 @@ int main(int argc, char** argv)
 		qDebug() << "WebP support is NOT available";
 	}
 
+#ifdef NDEBUG
+	// Suppress stdout/stderr in Release builds
+#ifdef _WIN32
+	std::ofstream devNull("NUL");
+#else
+	std::ofstream devNull("/dev/null");
+#endif
+
+	std::cout.rdbuf(devNull.rdbuf());
+	std::cerr.rdbuf(devNull.rdbuf());
+#endif
+
 	return app.exec();
 }

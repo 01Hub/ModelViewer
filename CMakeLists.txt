@@ -251,6 +251,17 @@ if(HAVE_WEBENGINE)
 endif()
 
 
+if(CMAKE_BUILD_TYPE MATCHES "Release")
+    target_compile_definitions(ModelViewer PRIVATE
+        QT_NO_DEBUG_OUTPUT
+        QT_NO_WARNING_OUTPUT
+        QT_NO_INFO_OUTPUT
+        QT_NO_CRITICAL_OUTPUT
+        NDEBUG
+    )
+endif()
+
+
 # ============================================================================
 # Deploy image format plugins - MUST BE AFTER add_executable()
 # ============================================================================
