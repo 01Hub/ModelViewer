@@ -4927,12 +4927,15 @@ void GLWidget::render(GLCamera* camera)
 		drawFloor();
 	}
 
-	// Bind transmission texture for shader sampling
-	glActiveTexture(GL_TEXTURE7);  // Use a dedicated texture unit
-	glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
+	if (camera == _primaryCamera)
+	{
+		// Bind transmission texture for shader sampling
+		glActiveTexture(GL_TEXTURE7);  // Use a dedicated texture unit
+		glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
 
-	glActiveTexture(GL_TEXTURE8);  // For depth-based calculations (Phase 2)
-	glBindTexture(GL_TEXTURE_2D, _transmissionDepthTexture);
+		glActiveTexture(GL_TEXTURE8);  // For depth-based calculations (Phase 2)
+		glBindTexture(GL_TEXTURE_2D, _transmissionDepthTexture);
+	}
 
 	// --- 4) Transparent meshes (with clipping) ---
 	_fgShader->bind();
@@ -6815,6 +6818,12 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 	QVector4D worldStart = inv * ndcStart;
 	QVector4D worldEnd = inv * ndcEnd;
 	
+	// Check if not inf or NaN before homogeneous divide
+	if (worldStart.w() == 0.0f || std::isnan(worldStart.w()) || std::isinf(worldStart.w()))
+		return QVector3D(0, 0, 0);
+	if (worldEnd.w() == 0.0f || std::isnan(worldEnd.w()) || std::isinf(worldEnd.w()))
+		return QVector3D(0, 0, 0);
+
 	if (worldStart.w() != 0.0f) worldStart /= worldStart.w();
 	if (worldEnd.w() != 0.0f) worldEnd /= worldEnd.w();
 
