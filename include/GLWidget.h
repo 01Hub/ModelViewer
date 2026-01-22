@@ -38,8 +38,8 @@ enum class DisplayMode { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
 enum class RenderingMode { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING };
 enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT };
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
-enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3,  GRID = 4, DIAGONAL_CROSS = 5 };
-enum class HDRToneMapMode { ACES_Narkowicz, ACES_Hill, AECS_Hill_Exposure_Boost, KhronosPbrNeutral, Uncharted2ToneMapping, Reinhard};
+enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3, GRID = 4, DIAGONAL_CROSS = 5 };
+enum class HDRToneMapMode { ACES_Narkowicz, ACES_Hill, AECS_Hill_Exposure_Boost, KhronosPbrNeutral, Uncharted2ToneMapping, Reinhard };
 
 struct TextureSamplerSettings
 {
@@ -72,7 +72,6 @@ struct CachedTextureEntry
 
 class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 {
-	friend class ClippingPlanesEditor;
 	Q_OBJECT
 public:
 	GLWidget(QWidget* parent = 0, const char* name = 0);
@@ -93,7 +92,7 @@ public:
 	void setZoomingActive(bool active);
 
 	void setCornerAxisPosition(CornerAxisPosition position) { _cornerAxisPosition = position; }
- 
+
 	void beginWindowZoom();
 	void performWindowZoom();
 
@@ -134,6 +133,7 @@ public:
 	void blurSkyBox(bool blur);
 	void showReflections(bool show);
 	void showFloor(bool show);
+	bool isFloorShown() { return _floorDisplayed; }
 	void showFloorTexture(bool show);
 	void setFloorTexture(QImage img);
 
@@ -145,7 +145,7 @@ public:
 	void select(int id);
 	void deselect(int id);
 
-	bool loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading = false);	
+	bool loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading = false);
 
 	bool generateUVsForMeshes(const std::vector<int>& ids, const UVMethod& uvMethod, const UVConfig& uvConfig, QString& error);
 
@@ -179,7 +179,7 @@ public:
 	void clearADSTexMaps(const std::vector<int>& ids);
 
 	void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat);
-	void setTexturesToObjects(const std::vector<int>& ids, const GLMaterial& mat);	
+	void setTexturesToObjects(const std::vector<int>& ids, const GLMaterial& mat);
 	void synchronizeTextureCache(const GLMaterial* material, GLMaterial::TextureType type);
 	void clearTextureCache();
 
@@ -233,11 +233,11 @@ public:
 	void enablePBRClearcoatTexMap(const std::vector<int>& ids, const bool& enable);
 	void setPBRClearcoatTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRClearcoatTexMap(const std::vector<int>& ids);
-	
+
 	void enablePBRClearcoatRoughnessTexMap(const std::vector<int>& ids, const bool& enable);
 	void setPBRClearcoatRoughnessTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRClearcoatRoughnessTexMap(const std::vector<int>& ids);
-	
+
 	void enablePBRClearcoatNormalTexMap(const std::vector<int>& ids, const bool& enable);
 	void setPBRClearcoatNormalTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRClearcoatNormalTexMap(const std::vector<int>& ids);
@@ -319,7 +319,7 @@ public:
 
 	QColor getBgTopColor() const;
 	void setBgTopColor(const QColor& bgTopColor);
-	
+
 
 	QColor getBgBotColor() const;
 	void setBgBotColor(const QColor& bgBotColor);
@@ -329,6 +329,30 @@ public:
 
 	RenderingMode getRenderingMode() const;
 	void setRenderingMode(const RenderingMode& renderingMode);
+
+	void setCappingPlanesEnabled(const bool& enabled) { _cappingEnabled = enabled; }
+	bool cappingPlanesEnabled() const { return _cappingEnabled; }
+
+	void setYZClippingEnabled(const bool& enabled) { _clipYZEnabled = enabled; }
+	bool yzClippingEnabled() const { return _clipYZEnabled; }
+	void setZXClippingEnabled(const bool& enabled) { _clipZXEnabled = enabled; }
+	bool zxClippingEnabled() const { return _clipZXEnabled; }
+	void setXYClippingEnabled(const bool& enabled) { _clipXYEnabled = enabled; }
+	bool xyClippingEnabled() const { return _clipXYEnabled; }
+
+	void setClippingXFlipped(const bool& flipped) { _clipXFlipped = flipped; }
+	bool clippingXFlipped() const { return _clipXFlipped; }
+	void setClippingYFlipped(const bool& flipped) { _clipYFlipped = flipped; }
+	bool clippingYFlipped() const { return _clipYFlipped; }
+	void setClippingZFlipped(const bool& flipped) { _clipZFlipped = flipped; }
+	bool clippingZFlipped() const { return _clipZFlipped; }
+
+	void setClippingXCoeff(const float& coeff) { _clipXCoeff = coeff; }
+	float clippingXCoeff() const { return _clipXCoeff; }
+	void setClippingYCoeff(const float& coeff) { _clipYCoeff = coeff; }
+	float clippingYCoeff() const { return _clipYCoeff; }
+	void setClippingZCoeff(const float& coeff) { _clipZCoeff = coeff; }
+	float clippingZCoeff() const { return _clipZCoeff; }
 
 	bool getHdrToneMapping() const;
 	bool getGammaCorrection() const;
@@ -366,7 +390,7 @@ public slots:
 	void setAutoFitViewOnUpdate(bool update);
 	void setSelectionHighlighting(bool highlight);
 	void performKeyboardNav();
-	void disableLowRes();	
+	void disableLowRes();
 	void setFloorTexRepeatS(double floorTexRepeatS);
 	void setFloorTexRepeatT(double floorTexRepeatT);
 	void setFloorOffsetPercent(double value);
@@ -387,12 +411,12 @@ public slots:
 	void showModelLoadingProgress(int nodeNum, int totalNodes, int totalMeshes, bool uvProcessed);
 	void swapVisible(bool checked);
 	void cancelAssImpModelLoading();
-	
+
 private slots:
 	void showContextMenu(const QPoint& pos);
 	void centerDisplayList();
 	void setBackgroundColor();
-	
+
 protected:
 	void initializeGL();
 	void createCappingPlanes();
@@ -413,24 +437,24 @@ protected:
 	void closeEvent(QCloseEvent* event);
 
 private:
-	
+
 	void createShaderPrograms();
 	void createLights();
-	
+
 	void loadEnvMap();
 	void loadIrradianceMap();
 	void loadFloor();
 	void applyFloorPlaneMaterialSettings();
 	void updateMainLightPosition(float halfObjectSize);
 	float updateFloorGeometry();
-	
+
 	void updatePunctualLights();  // Update lights based on bounding sphere changes
-			
+
 	void drawMesh(QOpenGLShaderProgram* prog);
 
 	void drawOpaqueMeshes(QOpenGLShaderProgram* prog);
 	void drawTransparentMeshes(QOpenGLShaderProgram* prog);
-	void drawMeshesWithClipping(QOpenGLShaderProgram* prog,	bool transparentPass);
+	void drawMeshesWithClipping(QOpenGLShaderProgram* prog, bool transparentPass);
 	void setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera);
 
 	void drawSectionCapping();
@@ -462,7 +486,7 @@ private:
 	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
 	void fitBoxToScreen(const BoundingBox& box);
 
-		
+
 	void convertClickToRay(const QPoint& pixel, const QRect& viewport, GLCamera* camera, QVector3D& orig, QVector3D& dir);
 	int clickSelect(const QPoint& pixel);
 	QList<int> sweepSelect(const QPoint& pixel);
@@ -480,7 +504,7 @@ private:
 		GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR, GLenum magFilter = GL_LINEAR,
 		bool flipY = false);
 	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
-		
+
 	void onMeshBatchReady(const std::vector<AssImpMesh*>& batch);
 
 	GLuint createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers);
@@ -492,7 +516,7 @@ private:
 	static GLMaterial resolveMaterialTextures(GLWidget* w, const GLMaterial& src);
 
 	// --- Transmission Buffer Methods ---
-	void initTransmissionBuffer(); 
+	void initTransmissionBuffer();
 	void renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor);
 	void cleanupTransmissionBuffer();
 	void resizeTransmissionBuffer(int width, int height);
@@ -557,11 +581,11 @@ private:
 	QVector2D _inertiaRotateVelocity;
 	QTimer* _inertiaTimer = nullptr;
 	float _inertiaDamping = 0.8f; // Damping factor (tweak as needed)
-	
+
 	bool _mouseMovedSincePress = false;
 	qint64 _lastMouseMoveTime = 0;
 
-    QRubberBand* _rubberBand;
+	QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;
 	QVector3D _rubberBandPan;
 	GLfloat _rubberBandZoomRatio;
@@ -572,7 +596,8 @@ private:
 	unsigned int _selectionRBO;
 	unsigned int _selectionDBO;
 
-	enum class SelectionMode {
+	enum class SelectionMode
+	{
 		RayOnly,
 		ColorOnly,
 		Hybrid // Try ray, fallback to color
@@ -613,7 +638,7 @@ private:
 	bool _skyBoxBlurred;
 
 	bool _lowResEnabled;
-	
+
 	unsigned int _shadowWidth;
 	unsigned int _shadowHeight;
 
@@ -692,7 +717,7 @@ private:
 
 	std::unique_ptr<ShaderProgram> _bgShader;
 	QOpenGLVertexArrayObject _bgVAO;
-	
+
 	std::unique_ptr<ShaderProgram> _bgSplitShader;
 	QOpenGLVertexArrayObject _bgSplitVAO;
 	QOpenGLBuffer _bgSplitVBO;
@@ -712,7 +737,7 @@ private:
 	QVBoxLayout* _editorLayout;
 	QFormLayout* _lowerLayout;
 	QFormLayout* _upperLayout;
-		
+
 	ClippingPlanesEditor* _clippingPlanesEditor;
 	Plane* _clippingPlaneXY;
 	Plane* _clippingPlaneYZ;
@@ -774,7 +799,7 @@ private:
 
 	unsigned long long _displayedObjectsMemSize;
 
-    AssImpModelLoader* _assimpModelLoader;	
+	AssImpModelLoader* _assimpModelLoader;
 	const aiScene* _assimpScene = nullptr;
 	aiScene* _globalScene = nullptr; // Merged scene from multiple files
 	bool _progressiveLoadingEnabled = false;
@@ -796,7 +821,7 @@ private:
 
 	AdaptiveShadowMapper shadowMapper;
 
-	std::unique_ptr<GLLights> glLights;	
+	std::unique_ptr<GLLights> glLights;
 	std::vector<GPULight> _originalParsedLights;      // ORIGINAL - never modified
 	std::vector<GPULight> _currentRepositionedLights; // Working copy
 	float _originalBoundingRadius = 1.0f;

@@ -144,71 +144,70 @@ void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
 
 void ClippingPlanesEditor::on_checkBoxXY_toggled(bool checked)
 {
-	_glView->_clipYZEnabled = checked;
+	_glView->setYZClippingEnabled(checked);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxYZ_toggled(bool checked)
 {
-	_glView->_clipZXEnabled = checked;
+	_glView->setZXClippingEnabled(checked);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxZX_toggled(bool checked)
 {
-	_glView->_clipXYEnabled = checked;
+	_glView->setXYClippingEnabled(checked);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxFlipXY_toggled(bool checked)
 {
-	_glView->_clipXFlipped = checked;
+	_glView->setClippingXFlipped(checked);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxFlipYZ_toggled(bool checked)
 {
-	_glView->_clipYFlipped = checked;
+	_glView->setClippingYFlipped(checked);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxFlipZX_toggled(bool checked)
 {
-	_glView->_clipZFlipped = checked;
+	_glView->setClippingXFlipped(checked);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxCapping_toggled(bool checked)
 {
-	_glView->_cappingEnabled = checked;
-	_glView->showFloor(!checked);
+	_glView->setCappingPlanesEnabled(checked);	
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxXYCoeff_valueChanged(double val)
 {
-	_glView->_clipXCoeff = val;
+	_glView->setClippingXCoeff(val);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxYZCoeff_valueChanged(double val)
 {
-	_glView->_clipYCoeff = val;
+	_glView->setClippingYCoeff(val);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxZXCoeff_valueChanged(double val)
 {
-	_glView->_clipZCoeff = val;
+	_glView->setClippingZCoeff(val);
 	_glView->updateClippingPlane();
 	_glView->update();
 }

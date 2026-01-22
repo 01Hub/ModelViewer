@@ -4938,7 +4938,7 @@ void GLWidget::render(GLCamera* camera)
 
 	// --- 3) Floor ---
 	if (_displayMode == DisplayMode::REALSHADED &&
-		_floorDisplayed &&
+		_floorDisplayed && !_cappingEnabled &&
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
@@ -5990,7 +5990,7 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 
 	// --- RENDER 4: FLOOR ---
 	if (_displayMode == DisplayMode::REALSHADED &&
-		_floorDisplayed &&
+		_floorDisplayed && !_cappingEnabled &&
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
