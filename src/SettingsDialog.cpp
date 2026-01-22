@@ -1,7 +1,8 @@
+#include "LanguageManager.h"
+#include "Logger.h"
 #include "SettingsDialog.h"
 #include "ui_SettingsDialog.h"
 #include <QMessageBox>
-#include "LanguageManager.h"
 #include <QTimer>
 
 SettingsDialog::SettingsDialog(QWidget *parent) :
@@ -282,6 +283,7 @@ void SettingsDialog::applySettings()
     settings.setValue("showRenderStatsCheckBox", debug_showRenderStats);
     settings.setValue("showOpenGLInfoCheckBox", debug_showOpenGLInfo);
     settings.setValue("enableLoggingCheckBox", debug_enableLogging);
+	settings.setValue("enableConsoleCheckBox", debug_enableConsoleOutput);
     settings.setValue("logLevelComboBox", debug_logLevelIndex);
     settings.setValue("checkOpenGLErrorsCheckBox", debug_checkOpenGLErrors);
     settings.setValue("validateShadersCheckBox", debug_validateShaders);
@@ -418,7 +420,8 @@ void SettingsDialog::setDefaultValues()
     ui->showMemoryUsageCheckBox->setChecked(false);
     ui->showRenderStatsCheckBox->setChecked(false);
     ui->showOpenGLInfoCheckBox->setChecked(false);
-    ui->enableLoggingCheckBox->setChecked(false);
+    ui->enableLoggingCheckBox->setChecked(false);    
+	ui->enableConsoleCheckBox->setChecked(false);
     ui->logLevelComboBox->setCurrentText("Warning");
 
     ui->checkOpenGLErrorsCheckBox->setChecked(false);
@@ -621,6 +624,8 @@ void SettingsDialog::loadSettings()
     ui->showOpenGLInfoCheckBox->setChecked(bVal);
     bVal = settings.value("enableLoggingCheckBox", ui->enableLoggingCheckBox->isChecked()).toBool();
     ui->enableLoggingCheckBox->setChecked(bVal);
+	bVal = settings.value("enableConsoleCheckBox", ui->enableConsoleCheckBox->isChecked()).toBool();
+	ui->enableConsoleCheckBox->setChecked(bVal);
     iVal = settings.value("logLevelComboBox", ui->logLevelComboBox->currentIndex()).toInt();
     ui->logLevelComboBox->setCurrentIndex(iVal);
     bVal = settings.value("checkOpenGLErrorsCheckBox", ui->checkOpenGLErrorsCheckBox->isChecked()).toBool();
@@ -728,6 +733,7 @@ void SettingsDialog::saveSettings()
     settings.setValue("showRenderStatsCheckBox", ui->showRenderStatsCheckBox->isChecked());
     settings.setValue("showOpenGLInfoCheckBox", ui->showOpenGLInfoCheckBox->isChecked());
     settings.setValue("enableLoggingCheckBox", ui->enableLoggingCheckBox->isChecked());
+	settings.setValue("enableConsoleCheckBox", ui->enableConsoleCheckBox->isChecked());
     settings.setValue("logLevelComboBox", ui->logLevelComboBox->currentIndex());
     settings.setValue("checkOpenGLErrorsCheckBox", ui->checkOpenGLErrorsCheckBox->isChecked());
     settings.setValue("validateShadersCheckBox", ui->validateShadersCheckBox->isChecked());
@@ -818,7 +824,7 @@ void SettingsDialog::restoreDefaults()
         ui->comboBoxOpenGLVersion, ui->checkBoxVSync, ui->checkShaderHotReload,
         ui->checkShowFPS, ui->checkLegacyOpenGL, ui->spinBoxThreads,
         ui->showFpsCheckBox, ui->showMemoryUsageCheckBox, ui->showRenderStatsCheckBox,
-        ui->showOpenGLInfoCheckBox, ui->enableLoggingCheckBox, ui->logLevelComboBox,
+        ui->showOpenGLInfoCheckBox, ui->enableLoggingCheckBox, ui->enableConsoleCheckBox, ui->logLevelComboBox,
         ui->checkOpenGLErrorsCheckBox, ui->validateShadersCheckBox, ui->profileRenderingCheckBox,
         ui->clearCacheButton, ui->resetSettingsButton
     };
@@ -1329,12 +1335,20 @@ void SettingsDialog::on_showOpenGLInfoCheckBox_stateChanged()
 
 void SettingsDialog::on_enableLoggingCheckBox_stateChanged()
 {
-    debug_enableLogging = ui->enableLoggingCheckBox->isChecked();
+    debug_enableLogging = ui->enableLoggingCheckBox->isChecked();        
+    Logger::instance().setFileEnabled(debug_enableLogging);
+}
+
+void SettingsDialog::on_enableConsoleOutputCheckBox_stateChanged()
+{
+	debug_enableConsoleOutput = ui->enableConsoleCheckBox->isChecked();    
+    Logger::instance().setConsoleEnabled(debug_enableConsoleOutput);
 }
 
 void SettingsDialog::on_logLevelComboBox_currentIndexChanged()
 {
     debug_logLevelIndex = ui->logLevelComboBox->currentIndex();
+    Logger::instance().setMinimumLevel(static_cast<Logger::LogLevel>(debug_logLevelIndex));
 }
 
 void SettingsDialog::on_checkOpenGLErrorsCheckBox_stateChanged()

@@ -1,4 +1,5 @@
 #include "LanguageManager.h"
+#include "logger.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
 #include "ModelViewerApplication.h"
@@ -37,6 +38,16 @@ int main(int argc, char** argv)
 	}
 	// Load the language settings
 	LanguageManager::instance().loadLanguage(langCode);
+
+	// Initialize logger with optional custom max file size
+	Logger::instance().initialize(15 * 1024 * 1024);  // 15 MB per file
+
+	bool consoleLogging = settings.value("enableConsoleCheckBox", false).toBool();
+	Logger::instance().setConsoleEnabled(consoleLogging);
+	bool fileLogging = settings.value("enableLoggingCheckBox", false).toBool();
+	Logger::instance().setFileEnabled(fileLogging);
+	int logLevel = settings.value("logLevelComboBox", 1).toInt();
+	Logger::instance().setMinimumLevel(static_cast<Logger::LogLevel>(logLevel));
 
 	MainWindow* mw = MainWindow::mainWindow();		
 	ModelViewer* viewer = mw->createMdiChild();
@@ -100,17 +111,10 @@ int main(int argc, char** argv)
 		qDebug() << "WebP support is NOT available";
 	}
 
-#ifdef NDEBUG
-	// Suppress stdout/stderr in Release builds
-#ifdef _WIN32
-	std::ofstream devNull("NUL");
-#else
-	std::ofstream devNull("/dev/null");
-#endif
+	int result = app.exec();
 
-	std::cout.rdbuf(devNull.rdbuf());
-	std::cerr.rdbuf(devNull.rdbuf());
-#endif
+	// Shutdown logger when exiting (restores original stream buffers)
+	Logger::instance().shutdown();
 
-	return app.exec();
+	return result;
 }
