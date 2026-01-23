@@ -256,7 +256,7 @@ private slots:
     void on_showRenderStatsCheckBox_stateChanged();
     void on_showOpenGLInfoCheckBox_stateChanged();
     void on_enableLoggingCheckBox_stateChanged();
-	void on_enableConsoleOutputCheckBox_stateChanged();
+	void on_enableConsoleCheckBox_stateChanged();
     void on_logLevelComboBox_currentIndexChanged();
     void on_checkOpenGLErrorsCheckBox_stateChanged();
     void on_validateShadersCheckBox_stateChanged();

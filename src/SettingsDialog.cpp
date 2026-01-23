@@ -1339,9 +1339,9 @@ void SettingsDialog::on_enableLoggingCheckBox_stateChanged()
     Logger::instance().setFileEnabled(debug_enableLogging);
 }
 
-void SettingsDialog::on_enableConsoleOutputCheckBox_stateChanged()
+void SettingsDialog::on_enableConsoleCheckBox_stateChanged()
 {
-	debug_enableConsoleOutput = ui->enableConsoleCheckBox->isChecked();    
+	debug_enableConsoleOutput = ui->enableConsoleCheckBox->isChecked();    	
     Logger::instance().setConsoleEnabled(debug_enableConsoleOutput);
 }
 
