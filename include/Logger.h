@@ -23,17 +23,17 @@
 class LoggerStreamBuffer : public std::streambuf
 {
 public:
-	explicit LoggerStreamBuffer(class Logger& logger, bool isError = false);
-	~LoggerStreamBuffer();
+    explicit LoggerStreamBuffer(class Logger& logger, bool isError = false);
+    ~LoggerStreamBuffer();
 
 protected:
-	int overflow(int c) override;
-	int sync() override;
+    int overflow(int c) override;
+    int sync() override;
 
 private:
-	Logger& logger;
-	bool isError;
-	std::string buffer;
+    Logger& logger;
+    bool isError;
+    std::string buffer;
 };
 
 /**
@@ -50,141 +50,152 @@ private:
  */
 class Logger : public QObject
 {
-	Q_OBJECT
+    Q_OBJECT
 
 public:
-	enum LogLevel
-	{
-		Debug = 0,
-		Info,
-		Warning,
-		Error
-	};
+    enum LogLevel
+    {
+        Debug = 0,
+        Info,
+        Warning,
+        Error
+    };
 
-	/**
-	 * @brief Get singleton instance
-	 */
-	static Logger& instance();
+    /**
+     * @brief Get singleton instance
+     */
+    static Logger& instance();
 
-	/**
-	 * @brief Qt message handler - installed automatically by initialize()
-	 * Redirects qDebug, qWarning, qCritical, qFatal to logger
-	 */
-	static void qtMessageHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg);
+    /**
+     * @brief Qt message handler - installed automatically by initialize()
+     * Redirects qDebug, qWarning, qCritical, qFatal to logger
+     */
+    static void qtMessageHandler(QtMsgType type, const QMessageLogContext& context, const QString& msg);
 
-	/**
-	 * @brief Initialize logger with settings
-	 * @param maxFileSizeBytes Maximum size per log file before rotation (default 10 MB)
-	 *
-	 * Automatically installs Qt message handler to capture qDebug, qWarning, qCritical output.
-	 * Also redirects std::cout and std::cerr to logger.
-	 */
-	void initialize(qint64 maxFileSizeBytes = 10 * 1024 * 1024);
+    /**
+     * @brief Initialize logger with settings
+     * @param maxFileSizeBytes Maximum size per log file before rotation (default 10 MB)
+     *
+     * Automatically installs Qt message handler to capture qDebug, qWarning, qCritical output.
+     * Also redirects std::cout and std::cerr to logger.
+     */
+    void initialize(qint64 maxFileSizeBytes = 10 * 1024 * 1024);
 
-	/**
-	 * @brief Shutdown logger and flush all pending messages
-	 */
-	void shutdown();
+    /**
+     * @brief Shutdown logger and flush all pending messages
+     */
+    void shutdown();
 
-	// Logging API
-	void debug(const QString& message, const QString& context = "");
-	void info(const QString& message, const QString& context = "");
-	void warning(const QString& message, const QString& context = "");
-	void error(const QString& message, const QString& context = "");
+    // Logging API
+    void debug(const QString& message, const QString& context = "");
+    void info(const QString& message, const QString& context = "");
+    void warning(const QString& message, const QString& context = "");
+    void error(const QString& message, const QString& context = "");
 
-	/**
-	 * @brief Internal log function (used by qt message handler and direct calls)
-	 */
-	void log(LogLevel level, const QString& message, const QString& context = "");
+    /**
+     * @brief Internal log function (used by qt message handler and direct calls)
+     */
+    void log(LogLevel level, const QString& message, const QString& context = "");
 
-	/**
-	 * @brief Load settings from configuration
-	 */
-	void loadSettings();
+    /**
+     * @brief Load settings from configuration
+     */
+    void loadSettings();
 
-	/**
-	 * @brief Set console output enabled/disabled
-	 */
-	void setConsoleEnabled(bool enabled);
+    /**
+     * @brief Set console output enabled/disabled
+     */
+    void setConsoleEnabled(bool enabled);
 
-	/**
-	 * @brief Set file output enabled/disabled
-	 */
-	void setFileEnabled(bool enabled);
+    /**
+     * @brief Set file output enabled/disabled
+     */
+    void setFileEnabled(bool enabled);
 
-	/**
-	 * @brief Set minimum log level to output
-	 */
-	void setMinimumLevel(LogLevel level);
+    /**
+     * @brief Set minimum log level to output
+     */
+    void setMinimumLevel(LogLevel level);
 
-	/**
-	 * @brief Get current log directory path
-	 */
-	QString getLogDirectory() const;
+    /**
+     * @brief Show or hide the console window (Windows only)
+     */
+    void setConsoleWindowVisible(bool visible);
+
+    /**
+     * @brief Get current log directory path
+     */
+    QString getLogDirectory() const;
 
 private:
-	// Private constructor for singleton
-	Logger();
-	~Logger();
+    // Private constructor for singleton
+    Logger();
+    ~Logger();
 
-	// Prevent copy/move
-	Logger(const Logger&) = delete;
-	Logger& operator=(const Logger&) = delete;
+    // Prevent copy/move
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
 
-	// Internal logging
-	void flushQueue(); // Background worker slot
-	QString levelToString(LogLevel level) const;
-	QString formatLogMessage(LogLevel level, const QString& message, const QString& context) const;
+    // Internal logging
+    void flushQueue(); // Background worker slot
+    QString levelToString(LogLevel level) const;
+    QString formatLogMessage(LogLevel level, const QString& message, const QString& context) const;
 
-	// File handling
-	QString getLogDirectory();
-	QString generateLogFilename(int suffix = -1) const;
-	bool openLogFile();
-	bool writeToFile(const QString& formattedMessage);
-	void rotateLogFileIfNeeded();
-	void ensureLogDirectoryExists();
+    // File handling
+    QString getLogDirectory();
+    QString generateLogFilename(int suffix = -1) const;
+    bool openLogFile();
+    bool writeToFile(const QString& formattedMessage);
+    void rotateLogFileIfNeeded();
+    void ensureLogDirectoryExists();
 
-	// Worker thread slots
+    // Console management (Windows only)
+    void spawnConsole();
+
+    // Worker thread slots
 private slots:
-	void processQueue();
+    void processQueue();
 
 private:
-	// Message queue for async logging
-	struct LogMessage
-	{
-		LogLevel level;
-		QString message;
-		QString context;
-		QDateTime timestamp;
-	};
+    // Message queue for async logging
+    struct LogMessage
+    {
+        LogLevel level;
+        QString message;
+        QString context;
+        QDateTime timestamp;
+    };
 
-	QQueue<LogMessage> messageQueue;
-	QMutex queueMutex;
+    QQueue<LogMessage> messageQueue;
+    QMutex queueMutex;
 
-	// Worker thread for file I/O
-	QThread* workerThread;
-	bool isRunning;
+    // Worker thread for file I/O
+    QThread* workerThread;
+    bool isRunning;
 
-	// File output management
-	QFile currentLogFile;
-	QString currentLogFilePath;
-	QString baseTimestamp;      // e.g., "2025-01-21_14-30-45"
-	int currentFileSuffix;      // 0 for initial, 1+ for rotated files
-	qint64 maxFileSize;
-	qint64 currentFileSize;
+    // File output management
+    QFile currentLogFile;
+    QString currentLogFilePath;
+    QString baseTimestamp;      // e.g., "2025-01-21_14-30-45"
+    int currentFileSuffix;      // 0 for initial, 1+ for rotated files
+    qint64 maxFileSize;
+    qint64 currentFileSize;
 
-	// Settings
-	bool consoleEnabled;
-	bool fileEnabled;
-	LogLevel minimumLevel;
+    // Settings
+    bool consoleEnabled;
+    bool fileEnabled;
+    LogLevel minimumLevel;
 
-	// Stream redirection
-	LoggerStreamBuffer* coutBuffer;
-	LoggerStreamBuffer* cerrBuffer;
-	std::streambuf* oldCoutBuffer;
-	std::streambuf* oldCerrBuffer;
+    // Stream redirection
+    LoggerStreamBuffer* coutBuffer;
+    LoggerStreamBuffer* cerrBuffer;
+    std::streambuf* oldCoutBuffer;
+    std::streambuf* oldCerrBuffer;
 
-	// Processing flag to prevent redundant invocations
-	bool processingPending;
-	QMutex processingMutex;
+    // Processing flag to prevent redundant invocations
+    bool processingPending;
+    QMutex processingMutex;
+
+    // Console state tracking
+    bool consoleAllocated;  // Track if console has been allocated
 };
