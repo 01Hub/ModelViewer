@@ -20,6 +20,8 @@ VisualizationEnvironmentPanel::VisualizationEnvironmentPanel(QWidget* parent)
 	ui->setupUi(this);
 	setAttribute(Qt::WA_DeleteOnClose);
 	ui->scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		
+	QTimer::singleShot(0, this, &VisualizationEnvironmentPanel::onLoadSkyBoxPresetMaps);
 }
 
 VisualizationEnvironmentPanel::~VisualizationEnvironmentPanel() = default;
@@ -121,14 +123,11 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	bool skyBoxHDRIEnabled = skyBoxEnabled && ui->checkBoxSkyBoxHDRI->isChecked();
 	bool floorTextureEnabled = floorEnabled && ui->checkBoxFloorTexture->isChecked();
 
-	// Skybox dependencies
-	ui->checkBoxSkyBoxHDRI->setEnabled(skyBoxEnabled);
+	// Skybox dependencies	
 	ui->checkBoxSkyBoxBlurred->setEnabled(skyBoxEnabled);
-	ui->doubleSpinBoxSkyBoxFOV->setEnabled(skyBoxEnabled);
-	ui->comboBoxSkyBoxMaps->setEnabled(skyBoxEnabled);
-	ui->pushButtonSkyBoxTex->setEnabled(skyBoxEnabled);
 	ui->labelFOV->setEnabled(skyBoxEnabled);
-
+	ui->doubleSpinBoxSkyBoxFOV->setEnabled(skyBoxEnabled);	
+	
 	// Floor dependencies
 	ui->checkBoxReflections->setEnabled(floorEnabled);
 	ui->checkBoxFloorTexture->setEnabled(floorEnabled);

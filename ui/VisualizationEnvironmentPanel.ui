@@ -8,7 +8,7 @@
     <x>0</x>
     <y>0</y>
     <width>450</width>
-    <height>698</height>
+    <height>699</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -116,8 +116,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>436</width>
-        <height>886</height>
+        <width>434</width>
+        <height>876</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout">
@@ -353,7 +353,7 @@
                <item>
                 <widget class="QCheckBox" name="checkBoxSkyBoxHDRI">
                  <property name="enabled">
-                  <bool>false</bool>
+                  <bool>true</bool>
                  </property>
                  <property name="text">
                   <string>HDRI</string>
@@ -428,9 +428,6 @@
                </item>
                <item>
                 <widget class="QComboBox" name="comboBoxSkyBoxMaps">
-                 <property name="enabled">
-                  <bool>false</bool>
-                 </property>
                  <property name="maximumSize">
                   <size>
                    <width>150</width>
@@ -442,7 +439,7 @@
                <item>
                 <widget class="QPushButton" name="pushButtonSkyBoxTex">
                  <property name="enabled">
-                  <bool>false</bool>
+                  <bool>true</bool>
                  </property>
                  <property name="text">
                   <string>Select Custom Map</string>
