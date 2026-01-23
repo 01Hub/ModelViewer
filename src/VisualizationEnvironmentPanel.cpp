@@ -388,8 +388,7 @@ void VisualizationEnvironmentPanel::onSkyBoxHDRIChanged(bool checked)
 	if (!_glWidget)
 		return;
 
-	_glWidget->setSkyBoxTextureHDRI(checked);
-	// Note: onLoadSkyBoxPresetMaps is connected to this signal and will be called
+	_glWidget->setSkyBoxTextureHDRI(checked);	
 }
 
 void VisualizationEnvironmentPanel::onSkyBoxBlurredChanged(bool checked)
@@ -753,6 +752,7 @@ void VisualizationEnvironmentPanel::setPBRLightingMode(bool enable)
 
 	// Trigger updates
 	onSkyBoxHDRIChanged(true);
+	reloadSkyBoxPresets();
 	_glWidget->enableHDRToneMapping(true);
 	_glWidget->enableGammaCorrection(true);
 
