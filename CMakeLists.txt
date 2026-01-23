@@ -224,6 +224,13 @@ target_include_directories(ModelViewer
 )
 
 # ============================================================================
+# Set target properties
+# ============================================================================
+if(WIN32)
+    set_target_properties(ModelViewer PROPERTIES WIN32_EXECUTABLE ON)
+endif()
+
+# ============================================================================
 # Link libraries - NOW the target exists
 # ============================================================================
 target_link_libraries(ModelViewer
