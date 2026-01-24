@@ -370,8 +370,10 @@ GLWidget::~GLWidget()
 	{
 		delete a;
 	}
-	if (_primaryCamera)	delete _primaryCamera;
-	if (_orthoViewsCamera) delete _orthoViewsCamera;
+	if (_primaryCamera)
+		delete _primaryCamera;
+	if (_orthoViewsCamera)
+		delete _orthoViewsCamera;
 
 	if (_globalScene)
 	{
@@ -382,61 +384,100 @@ GLWidget::~GLWidget()
 	if (_assimpModelLoader)
 		delete _assimpModelLoader;
 
-	cleanUpShaders();
-
-	// cleanup fullscreen quad
-	if (_fsTriVAO != 0)
+	// ===== CRITICAL: Ensure context is current before GL calls =====
+	if (context() && context()->isValid())
 	{
-		glDeleteBuffers(1, &_fsTriVBO);
-		glDeleteVertexArrays(1, &_fsTriVAO);
+		makeCurrent();
+
+		cleanUpShaders();
+
+		// Delete textures
+		glDeleteTextures(1, &_environmentMap);
+		glDeleteTextures(1, &_shadowMap);
+		glDeleteTextures(1, &_irradianceMap);
+		glDeleteTextures(1, &_prefilterMap);
+		glDeleteTextures(1, &_brdfLUTTexture);
+		glDeleteTextures(1, &_cappingTexture);
+
+		// Delete framebuffers and renderbuffers
+		if (_skyboxFBO != 0)
+			glDeleteFramebuffers(1, &_skyboxFBO);
+		if (_shadowMapFBO != 0)
+			glDeleteFramebuffers(1, &_shadowMapFBO);
+		if (_selectionFBO != 0)
+			glDeleteFramebuffers(1, &_selectionFBO);
+
+		glDeleteRenderbuffers(1, &_skyboxDepthBuffer);
+		if (_selectionRBO != 0)
+			glDeleteRenderbuffers(1, &_selectionRBO);
+		if (_selectionDBO != 0)
+			glDeleteRenderbuffers(1, &_selectionDBO);
+
+		// Destroy Qt wrapper types
+		_axisVBO.destroy();
+		_axisVAO.destroy();
+		_bgSplitVBO.destroy();
+		_bgSplitVAO.destroy();
+		_bgVAO.destroy();
+
+		// Delete fullscreen quad
+		if (_fsTriVAO != 0)
+		{
+			glDeleteBuffers(1, &_fsTriVBO);
+			glDeleteVertexArrays(1, &_fsTriVAO);
+			_fsTriVAO = 0;
+			_fsTriVBO = 0;
+		}
+
+		// Delete quad mesh
+		if (_quadVAO != 0)
+		{
+			glDeleteBuffers(1, &_quadVBO);
+			glDeleteVertexArrays(1, &_quadVAO);
+			_quadVAO = 0;
+			_quadVBO = 0;
+		}
+
+		// Delete conversion cube
+		if (_conversionCubeVAO != 0)
+		{
+			glDeleteBuffers(1, &_conversionCubeVBO);
+			glDeleteVertexArrays(1, &_conversionCubeVAO);
+			_conversionCubeVAO = 0;
+			_conversionCubeVBO = 0;
+		}
+
+		// Delete scene objects
+		if (_clippingPlaneXY)
+			delete _clippingPlaneXY;
+		if (_clippingPlaneYZ)
+			delete _clippingPlaneYZ;
+		if (_clippingPlaneZX)
+			delete _clippingPlaneZX;
+		if (_floorPlane)
+			delete _floorPlane;
+		if (_axisCone)
+			delete _axisCone;
+		if (_skyBox)
+			delete _skyBox;
+		if (_lightCube)
+			delete _lightCube;
+
+		if (glLights)
+		{
+			glLights->cleanup();
+		}
+
+		cleanupTransmissionBuffer();
+
+		doneCurrent();  // Release context
+
+		qInfo() << "GLWidget::~GLWidget - OpenGL resources cleaned up successfully.";
 	}
-
-	std::cout << "GLWidget::~GLWidget : _environmentMap = " << _environmentMap << std::endl;
-	glDeleteTextures(1, &_environmentMap);
-	std::cout << "GLWidget::~GLWidget : _shadowMap = " << _shadowMap << std::endl;
-	glDeleteTextures(1, &_shadowMap);
-	std::cout << "GLWidget::~GLWidget : _irradianceMap = " << _irradianceMap << std::endl;
-	glDeleteTextures(1, &_irradianceMap);
-	std::cout << "GLWidget::~GLWidget : _prefilterMap = " << _prefilterMap << std::endl;
-	glDeleteTextures(1, &_prefilterMap);
-	std::cout << "GLWidget::~GLWidget : _brdfLUTTexture = " << _brdfLUTTexture << std::endl;
-	glDeleteTextures(1, &_brdfLUTTexture);
-	std::cout << "GLWidget::~GLWidget : _cappingTexture = " << _cappingTexture << std::endl;
-	glDeleteTextures(1, &_cappingTexture);
-
-	if (_clippingPlaneXY)
-		delete _clippingPlaneXY;
-	if (_clippingPlaneYZ)
-		delete _clippingPlaneYZ;
-	if (_clippingPlaneZX)
-		delete _clippingPlaneZX;
-	if (_floorPlane)
-		delete _floorPlane;
-	if (_axisCone)
-		delete _axisCone;
-	if (_skyBox)
-		delete _skyBox;
-	if (_lightCube)
-		delete _lightCube;
-
-	if (glLights)
+	else
 	{
-		glLights->cleanup();
+		qWarning() << "GLWidget::~GLWidget - No valid OpenGL context for cleanup.";
 	}
-
-	_axisVBO.destroy();
-	_axisVAO.destroy();
-
-	_bgSplitVBO.destroy();
-	_bgSplitVAO.destroy();
-
-	_bgVAO.destroy();
-
-	glDeleteFramebuffers(1, &_skyboxFBO);
-	glDeleteTextures(1, &_skyboxColorTexture);
-	glDeleteRenderbuffers(1, &_skyboxDepthBuffer);
-
-	cleanupTransmissionBuffer();
 }
 
 void GLWidget::retranslateUI()
