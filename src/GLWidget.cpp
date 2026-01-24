@@ -384,6 +384,13 @@ GLWidget::~GLWidget()
 
 	cleanUpShaders();
 
+	// cleanup fullscreen quad
+	if (_fsTriVAO != 0)
+	{
+		glDeleteBuffers(1, &_fsTriVBO);
+		glDeleteVertexArrays(1, &_fsTriVAO);
+	}
+
 	std::cout << "GLWidget::~GLWidget : _environmentMap = " << _environmentMap << std::endl;
 	glDeleteTextures(1, &_environmentMap);
 	std::cout << "GLWidget::~GLWidget : _shadowMap = " << _shadowMap << std::endl;
@@ -477,6 +484,7 @@ void GLWidget::initializeGL()
 	makeCurrent();
 
 	createShaderPrograms();
+	createFullscreenTriangle();
 
 	_assimpModelLoader = new AssImpModelLoader(_fgShader.get());
 	connect(_assimpModelLoader, &AssImpModelLoader::fileReadProcessed, this, &GLWidget::showFileReadingProgress);
@@ -3444,12 +3452,12 @@ void GLWidget::createShaderPrograms()
 	// Sky Box
 	_skyBoxShader = std::make_unique<ShaderProgram>(); _skyBoxShader->setObjectName("_skyBoxShader");
 	_skyBoxShader->loadCompileAndLinkShaderFromFile(path + "shaders/skybox.vert", path + "shaders/skybox.frag");
-	// Irradiance Map
+	// Irradiance Map (now uses fullscreen triangle)
 	_irradianceShader = std::make_unique<ShaderProgram>(); _irradianceShader->setObjectName("_irradianceShader");
-	_irradianceShader->loadCompileAndLinkShaderFromFile(path + "shaders/skybox.vert", path + "shaders/irradiance_convolution.frag");
-	// Prefilter Map
+	_irradianceShader->loadCompileAndLinkShaderFromFile(path + "shaders/fullscreen_triangle.vert", path + "shaders/irradiance_convolution.frag");
+	// Prefilter Map (now uses fullscreen triangle)
 	_prefilterShader = std::make_unique<ShaderProgram>(); _prefilterShader->setObjectName("_prefilterShader");
-	_prefilterShader->loadCompileAndLinkShaderFromFile(path + "shaders/skybox.vert", path + "shaders/prefilter.frag");
+	_prefilterShader->loadCompileAndLinkShaderFromFile(path + "shaders/fullscreen_triangle.vert", path + "shaders/prefilter.frag");
 	// BRDF LUT Map
 	_brdfShader = std::make_unique<ShaderProgram>(); _brdfShader->setObjectName("_brdfShader");
 	_brdfShader->loadCompileAndLinkShaderFromFile(path + "shaders/brdf.vert", path + "shaders/brdf.frag");
@@ -3518,6 +3526,98 @@ void GLWidget::createLights()
 {
 	_lightCube = new Cube(_lightCubeShader.get(), 10);
 	_lightSphere = new Sphere(_lightCubeShader.get(), 1, 16, 16);
+}
+
+void GLWidget::createFullscreenTriangle()
+{
+	// Fullscreen triangle vertices in clip space
+	// Forms a triangle that covers entire viewport
+	const float verts[6] = {
+		-1.0f, -1.0f,  // Bottom-left
+		 3.0f, -1.0f,  // Bottom-right (extends past viewport)
+		-1.0f,  3.0f   // Top-left (extends past viewport)
+	};
+
+	glGenVertexArrays(1, &_fsTriVAO);
+	glGenBuffers(1, &_fsTriVBO);
+
+	glBindVertexArray(_fsTriVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, _fsTriVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STATIC_DRAW);
+
+	// Set up vertex attribute: 2D position at location 0
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	_fsTriInitialized = true;
+}
+
+void GLWidget::drawFullscreenTriangle()
+{
+	if (!_fsTriInitialized)
+	{
+		qWarning() << "Fullscreen triangle not initialized!";
+		return;
+	}
+
+	glBindVertexArray(_fsTriVAO);
+	glDrawArrays(GL_TRIANGLES, 0, 3);
+	glBindVertexArray(0);
+}
+
+void GLWidget::setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex)
+{
+	auto setM = [prog](const QVector3D& U, const QVector3D& V, const QVector3D& W) {
+		QMatrix3x3 m;
+		m(0, 0) = U.x(); m(1, 0) = U.y(); m(2, 0) = U.z();
+		m(0, 1) = V.x(); m(1, 1) = V.y(); m(2, 1) = V.z();
+		m(0, 2) = W.x(); m(1, 2) = W.y(); m(2, 2) = W.z();
+		prog->setUniformValue("uFaceBasis", m);
+		};
+
+	// Basis vectors with 90° X-axis rotation applied
+	// (Same rotation as: model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f)))
+	switch (faceIndex)
+	{
+	case 0: // Right (+X)
+		setM(QVector3D(0.0f, 1.0f, 0.0f),
+			QVector3D(0.0f, 0.0f, 1.0f),
+			QVector3D(1.0f, 0.0f, 0.0f));
+		break;
+
+	case 1: // Left (-X)
+		setM(QVector3D(0.0f, -1.0f, 0.0f),
+			QVector3D(0.0f, 0.0f, 1.0f),
+			QVector3D(-1.0f, 0.0f, 0.0f));
+		break;
+
+	case 2: // Top (+Y)
+		setM(QVector3D(1.0f, 0.0f, 0.0f),
+			QVector3D(0.0f, -1.0f, 0.0f),
+			QVector3D(0.0f, 0.0f, -1.0f));
+		break;
+
+	case 3: // Bottom (-Y)
+		setM(QVector3D(1.0f, 0.0f, 0.0f),
+			QVector3D(0.0f, 1.0f, 0.0f),
+			QVector3D(0.0f, 0.0f, 1.0f));
+		break;
+
+	case 4: // Front (+Z)
+		setM(QVector3D(1.0f, 0.0f, 0.0f),
+			QVector3D(0.0f, 0.0f, 1.0f),
+			QVector3D(0.0f, -1.0f, 0.0f));
+		break;
+
+	case 5: // Back (-Z)
+		setM(QVector3D(-1.0f, 0.0f, 0.0f),
+			QVector3D(0.0f, 0.0f, 1.0f),
+			QVector3D(0.0f, 1.0f, 0.0f));
+		break;
+	}
 }
 
 void GLWidget::loadFloor()
@@ -3694,8 +3794,7 @@ void GLWidget::loadEnvMap()
 
 void GLWidget::loadIrradianceMap()
 {
-	// PBR: setup framebuffer
-	// ----------------------
+	// Setup framebuffer for offscreen rendering
 	unsigned int captureFBO;
 	unsigned int captureRBO;
 	glGenFramebuffers(1, &captureFBO);
@@ -3706,6 +3805,7 @@ void GLWidget::loadIrradianceMap()
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
 	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
 
+	// Save GL state
 	glDisable(GL_BLEND);
 	glDisable(GL_SCISSOR_TEST);
 	glDisable(GL_STENCIL_TEST);
@@ -3717,33 +3817,22 @@ void GLWidget::loadIrradianceMap()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glDisable(GL_CULL_FACE);
 
-	// PBR: set up projection and view matrices for capturing data onto the 6 cubemap face directions
-	// ----------------------------------------------------------------------------------------------
-	QMatrix4x4 captureProjection;
-	captureProjection.perspective(90.0f, 1.0f, 0.1f, 10.0f);
-	QMatrix4x4 view1, view2, view3, view4, view5, view6;
-	view1.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f));
-	view2.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(-1.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f));
-	view3.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f));
-	view4.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f), QVector3D(0.0f, 0.0f, -1.0f));
-	view5.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(0.0f, -1.0f, 0.0f));
-	view6.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, -1.0f), QVector3D(0.0f, -1.0f, 0.0f));
-	QMatrix4x4 captureViews[] = { view1, view2, view3, view4, view5, view6 };
-
-	// PBR: create an irradiance cubemap, and re-scale capture FBO to irradiance scale.
-	// --------------------------------------------------------------------------------
+	// Create irradiance cubemap
 	if (_irradianceMap)
 		glDeleteTextures(1, &_irradianceMap);
 	glGenTextures(1, &_irradianceMap);
 	//std::cout << "GLWidget::loadIrradianceMap : _irradianceMap = " << _irradianceMap << std::endl;
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
+
 	constexpr int irradianceSize = 64;
 	for (unsigned int i = 0; i < 6; ++i)
-	{		
+	{
 		if (_skyBoxTextureHDRI)
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F, irradianceSize, irradianceSize, 0, GL_RGB, GL_FLOAT, nullptr);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
+				irradianceSize, irradianceSize, 0, GL_RGB, GL_FLOAT, nullptr);
 		else
-			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F, irradianceSize, irradianceSize, 0, GL_RGB, GL_HALF_FLOAT, nullptr);
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB16F,
+				irradianceSize, irradianceSize, 0, GL_RGB, GL_HALF_FLOAT, nullptr);
 	}
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -3751,69 +3840,72 @@ void GLWidget::loadIrradianceMap()
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
+	// Setup framebuffer for irradiance rendering
 	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
 	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, irradianceSize, irradianceSize);
 
-	// PBR: solve diffuse integral by convolution to create an irradiance (cube)map.
-	// -----------------------------------------------------------------------------
-	_skyBox->setProg(_irradianceShader.get());
+	// ==== IRRADIANCE PASS: Use fullscreen triangle ====
 	_irradianceShader->bind();
 	_irradianceShader->setUniformValue("environmentMap", 1);
-	_irradianceShader->setUniformValue("projectionMatrix", captureProjection);
+	_irradianceShader->setUniformValue("uResolution", QVector2D(irradianceSize, irradianceSize));
+
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
-	GLint envMapWidth = 512; // fallback
-	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
-	glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_TEXTURE_WIDTH, &envMapWidth);
-
-	glViewport(0, 0, irradianceSize, irradianceSize); // don't forget to configure the viewport to the capture dimensions.
+	glViewport(0, 0, irradianceSize, irradianceSize);
 	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+
 	for (unsigned int i = 0; i < 6; ++i)
 	{
-		_irradianceShader->bind();
-		_irradianceShader->setUniformValue("viewMatrix", captureViews[i]);		
-		QMatrix4x4 model;
-		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
-		_irradianceShader->setUniformValue("modelMatrix", model);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _irradianceMap, 0);
+		// Bind this face to the framebuffer
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _irradianceMap, 0);
+
 		GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 		if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
 		{
 			qWarning() << "Irradiance FBO incomplete at face" << i << "Status:" << fboStatus;
 			continue;
 		}
+
+		// Set per-face basis matrix
+		_irradianceShader->bind();
+		setIBLFaceBasis(_irradianceShader.get(), i);
+
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-		_skyBox->render();
+
+		// Draw fullscreen triangle (not the cube!)
+		drawFullscreenTriangle();
 	}
+
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
 
-	// PBR: create a pre-filter cubemap, and re-scale capture FBO to pre-filter scale.
-	// --------------------------------------------------------------------------------
+	// ==== PREFILTER PASS: Create prefilter cubemap ====
 	if (_prefilterMap)
 		glDeleteTextures(1, &_prefilterMap);
 	glGenTextures(1, &_prefilterMap);
-	//std::cout << "GLWidget::loadIrradianceMap : _prefilterMap = " << _prefilterMap << std::endl;
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
+
 	constexpr int prefilterSize = 256;
 	unsigned int maxMipLevels = static_cast<unsigned int>(std::log2(prefilterSize)) + 1;
 
-	// Step 1: Allocate ALL mip levels with correct sizing
+	// Allocate all mip levels upfront
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
 		unsigned int mipSize = static_cast<unsigned int>(prefilterSize * std::pow(0.5, mip));
 		for (unsigned int i = 0; i < 6; ++i)
 		{
 			if (_skyBoxTextureHDRI)
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F, mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
+					mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
 			else
-				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB16F, mipSize, mipSize, 0, GL_RGB, GL_HALF_FLOAT, nullptr);
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB16F,
+					mipSize, mipSize, 0, GL_RGB, GL_HALF_FLOAT, nullptr);
 		}
 	}
 
-	// Step 2: Set texture parameters BEFORE rendering
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
@@ -3821,44 +3913,60 @@ void GLWidget::loadIrradianceMap()
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
 
-	// Step 3: Render to mips
-	_skyBox->setProg(_prefilterShader.get());
+	// Get environment map resolution for importance sampling
+	GLint envMapWidth = 512;
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_TEXTURE_WIDTH, &envMapWidth);
+
+	// Render each mip level with fullscreen triangle
 	_prefilterShader->bind();
 	_prefilterShader->setUniformValue("environmentMap", 1);
-	_prefilterShader->setUniformValue("projectionMatrix", captureProjection);
+	_prefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
+
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
 		unsigned int mipWidth = prefilterSize * std::pow(0.5, mip);
 		unsigned int mipHeight = prefilterSize * std::pow(0.5, mip);
+
+		// Resize renderbuffer for this mip level
 		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
 		glViewport(0, 0, mipWidth, mipHeight);
 
+		// Set roughness for this mip level
 		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
 		_prefilterShader->bind();
 		_prefilterShader->setUniformValue("roughness", roughness);
-		_prefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
+		_prefilterShader->setUniformValue("uResolution", QVector2D(mipWidth, mipHeight));
+
 		for (unsigned int i = 0; i < 6; ++i)
 		{
-			_prefilterShader->bind();
-			_prefilterShader->setUniformValue("viewMatrix", captureViews[i]);
-			QMatrix4x4 model;
-			model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
-			_prefilterShader->setUniformValue("modelMatrix", model);
-			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _prefilterMap, mip);
+			// Bind this mip level of this face to framebuffer
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _prefilterMap, mip);
+
 			GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 			if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
 			{
-				qWarning() << "Prefilter FBO incomplete at mip" << mip << "face" << i << "Status:" << fboStatus;
+				qWarning() << "Prefilter FBO incomplete at mip" << mip << "face" << i
+					<< "Status:" << fboStatus;
 				continue;
 			}
+
+			// Set per-face basis matrix
+			_prefilterShader->bind();
+			setIBLFaceBasis(_prefilterShader.get(), i);
+
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-			_skyBox->render();
+
+			// Draw fullscreen triangle (not the cube!)
+			drawFullscreenTriangle();
 		}
 	}
 
@@ -3894,13 +4002,17 @@ void GLWidget::loadIrradianceMap()
 
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
 
-	// bind pre-computed IBL data
+	// Bind pre-computed IBL data to texture units
 	glActiveTexture(GL_TEXTURE3);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
 	glActiveTexture(GL_TEXTURE4);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
 	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
+
+	// Cleanup temporary FBO
+	glDeleteFramebuffers(1, &captureFBO);
+	glDeleteRenderbuffers(1, &captureRBO);
 }
 
 void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)

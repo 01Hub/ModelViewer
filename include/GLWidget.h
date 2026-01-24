@@ -441,6 +441,11 @@ private:
 	void createShaderPrograms();
 	void createLights();
 
+	// Fullscreen triangle methods for IBL
+	void createFullscreenTriangle();
+	void drawFullscreenTriangle();
+	void setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex);
+
 	void loadEnvMap();
 	void loadIrradianceMap();
 	void loadFloor();
@@ -765,6 +770,9 @@ private:
 
 	Plane* _floorPlane;
 	Cube* _skyBox;
+	GLuint _fsTriVAO = 0;          // Fullscreen triangle VAO
+	GLuint _fsTriVBO = 0;          // Fullscreen triangle VBO
+	bool _fsTriInitialized = false; // Track initialization state
 	std::vector<QString> _skyBoxFaces;
 	float _skyBoxFOV;
 	bool  _skyBoxTextureHDRI;

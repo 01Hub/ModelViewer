@@ -1,7 +1,10 @@
 #version 450 core
+
 out vec4 fragColor;
-in vec3 worldPos;
+
 uniform samplerCube environmentMap;
+uniform mat3 uFaceBasis;     // Columns: U (right), V (up), W (forward)
+uniform vec2 uResolution;    // Render target size (e.g., 64x64)
 
 const float PI = 3.14159265359;
 const float TWO_PI = 2.0 * PI;
@@ -9,10 +12,16 @@ const float HALF_PI = 0.5 * PI;
 
 void main()
 {
-    vec3 N = normalize(worldPos);
-    vec3 irradiance = vec3(0.0);
+    // Compute normalized clip-space coordinates [-1, 1]
+    vec2 uv = (gl_FragCoord.xy / uResolution) * 2.0 - 1.0;
     
-    // Build tangent space using Frisvad's method - continuous everywhere
+    // Per-fragment direction derived from basis + clip coordinates
+    vec3 N = normalize(uFaceBasis * vec3(uv, 1.0));
+
+    // Invert Y to match cubemap convention
+    N.y = -N.y;
+
+    // Build orthonormal tangent frame using Frisvad's method
     vec3 T, B;
     if (N.z < -0.9999999f) 
     {
@@ -71,6 +80,8 @@ void main()
     int numThetaSteps = int(ceil(HALF_PI / sampleDelta));
     float totalSamples = float(numPhiSteps * numThetaSteps);
     
+    // Hemisphere sampling with cosine weighting
+    vec3 irradiance = vec3(0.0);
     for(int iPhi = 0; iPhi < numPhiSteps; ++iPhi)
     {
         float phi = float(iPhi) * sampleDelta;
@@ -78,12 +89,24 @@ void main()
         {
             float theta = float(iTheta) * sampleDelta;
             
-            vec3 tangentSample = vec3(sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta));
-            vec3 sampleVec = tangentSample.x * T + tangentSample.y * B + tangentSample.z * N;
+            // Spherical to Cartesian in tangent space
+            vec3 tangentSample = vec3(
+                sin(theta) * cos(phi),
+                sin(theta) * sin(phi),
+                cos(theta)
+            );
+            
+            // Transform from tangent space to world space
+            vec3 sampleVec = tangentSample.x * T + 
+                            tangentSample.y * B + 
+                            tangentSample.z * N;
+            
+            // Sample environment and accumulate with cosine weighting
             irradiance += texture(environmentMap, sampleVec).rgb * cos(theta) * sin(theta);
         }
     }
     
+    // Normalize by integral (PI) and sample count
     irradiance = PI * irradiance / totalSamples;
     fragColor = vec4(irradiance, 1.0);
 }
