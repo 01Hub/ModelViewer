@@ -1,5 +1,5 @@
 #include "LanguageManager.h"
-#include "logger.h"
+#include "Logger.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
 #include "ModelViewerApplication.h"
