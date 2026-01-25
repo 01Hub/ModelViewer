@@ -22,6 +22,8 @@ class MaterialEditorPanel : public QWidget
 public:
 	explicit MaterialEditorPanel(QWidget* parent = nullptr);
 
+	~MaterialEditorPanel();
+
 	void onSaveButtonClicked();
 	void onDeleteButtonClicked();
 

@@ -340,6 +340,8 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 		});	
 }
 
+MaterialEditorPanel::~MaterialEditorPanel() = default;
+
 void MaterialEditorPanel::onSaveButtonClicked()
 {
 	// current material instance from editor
