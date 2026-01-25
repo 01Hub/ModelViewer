@@ -1937,6 +1937,18 @@ void GLWidget::removeFromDisplay(int index)
 			emit visibleSwapped(_visibleSwapped);
 		}
 	}
+	// If display list is empty, clear punctual lights
+	if (_displayedObjectsIds.empty())
+	{
+		_originalParsedLights.clear();
+		_currentRepositionedLights.clear();
+		_lightRepoBasis.baselineRadius = 0.0f;  // Reset baseline
+		glLights->createFallbackLight(glm::vec3(
+			static_cast<float>(_lightPosition.x()),
+			static_cast<float>(_lightPosition.y()),
+			static_cast<float>(_lightPosition.z())
+		));		
+	}
 }
 
 void GLWidget::centerScreen(std::vector<int> selectedIDs)
