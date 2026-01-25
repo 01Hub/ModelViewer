@@ -48,6 +48,7 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
 
 SettingsDialog::~SettingsDialog()
 {
+	blockSignals(true);
     saveSettings();
     delete ui;
 }
@@ -114,7 +115,7 @@ void SettingsDialog::setMaxAnisotropy(int maxAnisotropy)
 void SettingsDialog::onOkClicked()
 {
 	applySettings();
-	QDialog::accept();
+    QTimer::singleShot(0, this, &QDialog::accept);
 }
 
 void SettingsDialog::onCancelClicked()
@@ -640,6 +641,8 @@ void SettingsDialog::loadSettings()
 
 void SettingsDialog::saveSettings()
 {
+    if (!ui) return;
+
 	qDebug() << "Saving settings to QSettings...";
     QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
     settings.setValue("comboBoxTheme", ui->comboBoxTheme->currentIndex());
