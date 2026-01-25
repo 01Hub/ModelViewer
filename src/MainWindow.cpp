@@ -537,8 +537,10 @@ void MainWindow::cancelFileLoading()
 
 void MainWindow::closeSubWindow()
 {
-	ModelViewer* viewer = activeMdiChild();
+	ModelViewer* viewer = activeMdiChild();	
 	viewer->parentWidget()->close();
+	// Remove from the list
+	_viewers.removeAll(viewer);
 }
 
 void MainWindow::closeAllSubWindows()
@@ -615,7 +617,7 @@ void MainWindow::on_actionSettings_triggered()
 		if (!_viewers.empty())
 		{
 			for (ModelViewer* viewer : _viewers)
-			{
+			{				
 				int anIsoVals[] = {1, 2, 4, 8, 16};
 				int idx = settingsDialog->renderingAnisotropyIndex();
 				viewer->getGLView()->setAnisotropicFilteringLevel(anIsoVals[idx]);
@@ -711,7 +713,8 @@ void MainWindow::updateMenus()
 	//copyAct->setEnabled(hasSelection);
 #endif
 
-	ui->menuEdit->menuAction()->setVisible(hasMdiChild);
+	ui->actionUndo->setVisible(hasMdiChild);
+	ui->actionRedo->setVisible(hasMdiChild);
 	if (hasMdiChild)
 	{
 		ui->actionUndo->setEnabled(activeMdiChild()->hasUndo());
