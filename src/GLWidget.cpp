@@ -6983,6 +6983,10 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 		QVector4D modelCenterWorld(viewCenter.x(), viewCenter.y(), viewCenter.z(), 1.0f);
 		QVector4D modelCenterClip = projection * view * modelCenterWorld;
 		ndcZ = modelCenterClip.w() != 0.0f ? modelCenterClip.z() / modelCenterClip.w() : 0.0f;
+		
+		// Clamp NDC Z to between -0.99 and 0.99 to avoid 
+		// extreme values causing panning direction inversion
+		ndcZ = qBound(-0.99f, ndcZ, 0.99f);
 	}
 
 	// Convert screen points to NDC
