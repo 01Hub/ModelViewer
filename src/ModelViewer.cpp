@@ -8,6 +8,7 @@
 #include "ModelViewerApplication.h"
 #include "ObjectTransformPanel.h"
 #include "PathUtils.h"
+#include "SelectionCommand.h"
 #include "TextureMappingPanel.h"
 #include "TriangleMesh.h"
 #include <assimp/Importer.hpp>
@@ -33,6 +34,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_textureDirOpenedFirstTime = true;
 
 	setupUi(this);
+
+	// Initialize undo stack
+	m_undoStack = new QUndoStack(this);
+	m_undoStack->setUndoLimit(50);  // Keep last 50 operations
 
 	setAttribute(Qt::WA_DeleteOnClose);
 
@@ -218,7 +223,20 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		searchBox->setStyleSheet((anySelected || searchBox->text() == "") ? "" : "QLineEdit { border: 2px solid red; }");
 		});
 
-	connect(listWidgetModel, &ModelObjectList::selectionUpdated, this, &ModelViewer::on_listWidgetModel_itemSelectionChanged);
+	connect(listWidgetModel, &ModelObjectList::selectionUpdated, this, [this]() {
+		// If signals are blocked, it's programmatic (from setSelectionWithoutUndo)
+		if (listWidgetModel->signalsBlocked())
+		{
+			// Just sync, no undo
+			on_listWidgetModel_itemSelectionChanged();
+			return;
+		}
+
+		// User action - create undo command
+		std::vector<int> ids = getSelectedIDs();
+		QSet<int> newSelection(ids.begin(), ids.end());
+		setSelectionWithUndo(newSelection);
+		});
 
 
 	QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), listWidgetModel);
@@ -355,46 +373,52 @@ void ModelViewer::deselectAll()
 
 void ModelViewer::setListRow(int index)
 {
-	if (index != -1)
+	if (index == -1)
+		return;
+
+	std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+	TriangleMesh* mesh = meshes.at(index);
+
+	// Build new selection set
+	QSet<int> newSelection;
+	std::vector<int> currentIDs = getSelectedIDs();
+	newSelection = QSet<int>(currentIDs.begin(), currentIDs.end());
+
+	if (mesh->isSelected())
 	{
-		bool oldState = listWidgetModel->blockSignals(true);
-		std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
-		TriangleMesh* mesh = meshes.at(index);
-		QListWidgetItem* item = listWidgetModel->item(index);
-		if (mesh->isSelected())
-		{
-			item->setSelected(false);
-		}
+		// Toggle off
+		newSelection.remove(index);
+	}
+	else
+	{		
+		newSelection.insert(index);
+	}
+
+	// Apply selection with undo support
+	setSelectionWithUndo(newSelection);
+
+	// Update transformation panel if needed
+	if (toolBox->currentIndex() == 4)
+	{
+		if (newSelection.size() == 1)
+			updateTransformationValues();
 		else
-		{
-			item->setSelected(true);
-			listWidgetModel->setCurrentItem(item);
-		}
-		if (toolBox->currentIndex() == 4)
-		{
-			if (listWidgetModel->selectedItems().count() == 1)
-				updateTransformationValues();
-			else
-				resetTransformationValues();
-		}
-		listWidgetModel->blockSignals(oldState);
-		on_listWidgetModel_itemSelectionChanged();
+			resetTransformationValues();
 	}
 }
 
 void ModelViewer::setListRows(QList<int> indices)
 {
-	if (indices.count())
-	{
-		bool oldState = listWidgetModel->blockSignals(true);
-		for (int index : indices)
-		{
-			QListWidgetItem* item = listWidgetModel->item(index);
-			item->setSelected(true);
-		}
-		listWidgetModel->blockSignals(oldState);
-		on_listWidgetModel_itemSelectionChanged();
-	}
+	if (indices.isEmpty())
+		return;
+
+	// Build selection set from indices
+	QSet<int> newSelection;
+	for (int index : indices)
+		newSelection.insert(index);
+
+	// Apply selection with undo support
+	setSelectionWithUndo(newSelection);
 }
 
 void ModelViewer::setTransformation()
@@ -1141,17 +1165,6 @@ void ModelViewer::exportModel()
 {
 	onFileExport();
 }
-
-bool ModelViewer::hasUndo()
-{
-	return false;
-}
-
-bool ModelViewer::hasRedo()
-{
-	return false;
-}
-
 
 void ModelViewer::setDocumentModified(bool modified)
 {
@@ -2114,4 +2127,59 @@ UVDialogResult ModelViewer::askUserForUVMethod(QWidget* parent)
 	}
 
 	return result;
+}
+
+bool ModelViewer::hasUndo() const
+{
+	return m_undoStack && m_undoStack->canUndo();
+}
+
+bool ModelViewer::hasRedo() const
+{
+	return m_undoStack && m_undoStack->canRedo();
+}
+
+void ModelViewer::undo()
+{
+	if (m_undoStack)
+		m_undoStack->undo();
+}
+
+void ModelViewer::redo()
+{
+	if (m_undoStack)
+		m_undoStack->redo();
+}
+
+void ModelViewer::setSelectionWithUndo(const QSet<int>& newSelection)
+{
+	// Create and push the undo command
+	// Note: push() automatically calls redo() on the command
+	m_undoStack->push(new SelectionCommand(this, _glWidget, newSelection));
+}
+
+void ModelViewer::setSelectionWithoutUndo(const QSet<int>& selection)
+{
+	// Block signals to prevent triggering selection changed handlers
+	bool oldState = listWidgetModel->blockSignals(true);
+
+	// Clear current selection
+	listWidgetModel->clearSelection();
+
+	// Apply new selection
+	for (int id : selection)
+	{
+		if (id >= 0 && id < listWidgetModel->count())
+		{
+			QListWidgetItem* item = listWidgetModel->item(id);
+			if (item)
+				item->setSelected(true);
+		}
+	}
+
+	// Restore signals
+	listWidgetModel->blockSignals(oldState);
+
+	// Manually sync to GLWidget
+	on_listWidgetModel_itemSelectionChanged();
 }

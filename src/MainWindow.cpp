@@ -103,6 +103,29 @@ MainWindow::MainWindow(QWidget* parent)
 		"window"));
 	connect(previousAct, &QAction::triggered, ui->mdiArea, &QMdiArea::activatePreviousSubWindow);
 
+	// Connect undo/redo actions
+	connect(ui->actionUndo, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->undo();
+		});
+
+	connect(ui->actionRedo, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->redo();
+		});
+
+	// Update menus when undo stack changes
+	connect(ui->mdiArea, &QMdiArea::subWindowActivated, this, [this]() {
+		updateMenus();
+
+		// Connect to the new child's undo stack
+		if (activeMdiChild() && activeMdiChild()->getUndoStack())
+		{
+			connect(activeMdiChild()->getUndoStack(), &QUndoStack::indexChanged,
+				this, &MainWindow::updateMenus, Qt::UniqueConnection);
+		}
+		});
+
 	updateMenus();
 
 	readSettings();
@@ -719,6 +742,35 @@ void MainWindow::updateMenus()
 	{
 		ui->actionUndo->setEnabled(activeMdiChild()->hasUndo());
 		ui->actionRedo->setEnabled(activeMdiChild()->hasRedo());
+	}
+	// Undo/Redo actions
+	ui->actionUndo->setVisible(hasMdiChild);
+	ui->actionRedo->setVisible(hasMdiChild);
+
+	if (hasMdiChild && activeMdiChild()->getUndoStack())
+	{
+		QUndoStack* stack = activeMdiChild()->getUndoStack();
+
+		// Update with descriptive text
+		if (stack->canUndo())
+			ui->actionUndo->setText(tr("&Undo %1").arg(stack->undoText()));
+		else
+			ui->actionUndo->setText(tr("&Undo"));
+
+		if (stack->canRedo())
+			ui->actionRedo->setText(tr("&Redo %1").arg(stack->redoText()));
+		else
+			ui->actionRedo->setText(tr("&Redo"));
+
+		ui->actionUndo->setEnabled(stack->canUndo());
+		ui->actionRedo->setEnabled(stack->canRedo());
+	}
+	else
+	{
+		ui->actionUndo->setText(tr("&Undo"));
+		ui->actionRedo->setText(tr("&Redo"));
+		ui->actionUndo->setEnabled(false);
+		ui->actionRedo->setEnabled(false);
 	}
 }
 

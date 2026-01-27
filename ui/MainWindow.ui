@@ -301,6 +301,9 @@
    <property name="statusTip">
     <string>Undo the last action</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+Z</string>
+   </property>
   </action>
   <action name="actionRedo">
    <property name="icon">
@@ -311,6 +314,9 @@
    </property>
    <property name="statusTip">
     <string>Redo the last action</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+Y</string>
    </property>
   </action>
   <action name="actionFileClose">

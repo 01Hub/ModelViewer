@@ -8,6 +8,8 @@
 #include "UVPromptDialog.h"
 #include "AssImpModelLoader.h"
 
+#include <QUndoStack>
+
 struct UVDialogResult
 {
 	UVMethod method = UVMethod::None;
@@ -27,7 +29,7 @@ public:
 	void setMaterialToSelectedItems(const GLMaterial& mat);
 	void setTexturesToSelectedItems(const GLMaterial& mat);
 	void setTextureSamplersToSelectedItems(const GLMaterial* material, GLMaterial::TextureType type);
-	
+
 	void setTransformation();
 	void bakeTransformations();
 	void resetTransformation();
@@ -44,7 +46,7 @@ public:
 
 	static QString getLastSelectedFilter();
 	static void setLastSelectedFilter(const QString& lastSelectedFilter);
-		
+
 	void setCurrentFile(const QString& fileName);
 	QString currentFile() const;
 
@@ -56,8 +58,6 @@ public:
 	bool saveToFile(const QString& fileName);
 	bool loadFromFile(const QString& fileName);
 
-	bool hasUndo();
-	bool hasRedo();
 	bool documentModified() const { return _documentModified; }
 	void setDocumentModified(bool modified = true);
 
@@ -79,11 +79,27 @@ public:
 	void setSkyBoxLDRIIndex(int index) { _skyBoxLDRIIndex = index; }
 	void setSkyBoxHDRIIndex(int index) { _skyBoxHDRIIndex = index; }
 
+	// Undo/Redo interface (called by MainWindow)
+	bool hasUndo() const;
+	bool hasRedo() const;
+	void undo();
+	void redo();
+
+	// Undo stack access
+	QUndoStack* getUndoStack() const { return m_undoStack; }
+
+	// Selection helpers (used by SelectionCommand)
+	void setSelectionWithUndo(const QSet<int>& newSelection);
+	void setSelectionWithoutUndo(const QSet<int>& selection);
+
+	bool hasSelection() const;
+	std::vector<int> getSelectedIDs() const;
+
 public slots:
-    void updateDisplayList();
-    void updateSelectionStatusMessage();
-    void showAllItems();
-    void showSelectedItems();
+	void updateDisplayList();
+	void updateSelectionStatusMessage();
+	void showAllItems();
+	void showSelectedItems();
 	void showOnlySelectedItems();
 	void hideAllItems();
 	void hideSelectedItems();
@@ -95,22 +111,22 @@ public slots:
 	void showVisualizationModelPage();
 	void showEnvironmentPage();
 	void showPredefinedMaterialsPage();
-	void showTransformationsPage();	
+	void showTransformationsPage();
 	void onDisplayModeChanged(int mode);
 	void onTextureCacheCleared();
 
 private slots:
 	void setListRow(int index);
 	void setListRows(QList<int> indices);
-	void showContextMenu(const QPoint& pos);	
-	void lightingType_toggled(QAbstractButton *, bool);
-		
-	void applyADSColors();	
-	
+	void showContextMenu(const QPoint& pos);
+	void lightingType_toggled(QAbstractButton*, bool);
+
+	void applyADSColors();
+
 	void onFileImport();
 	void importFiles(QStringList& fileNames);
 	void onFileExport();
-	
+
 	void on_checkBoxSelectAll_stateChanged(int arg1);
 
 	void on_listWidgetModel_itemChanged(QListWidgetItem*);
@@ -118,12 +134,12 @@ private slots:
 	void itemEdited(QWidget* widget, QAbstractItemDelegate::EndEditHint hint);
 
 	void on_toolBox_currentChanged(int index);
-		
+
 	void on_toolButtonClearOpacityTex_clicked();
 
 	void applyADSTextures();
 	void clearADSTextures();
-		
+
 protected:
 	void showEvent(QShowEvent* event);
 	void keyPressEvent(QKeyEvent* event);
@@ -134,7 +150,22 @@ protected:
 	void closeEvent(QCloseEvent* event);
 
 private:
-	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);	
+	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
+	bool checkForActiveSelection();
+	
+	void updateControls();
+	QString getSupportedQtImagesFilter();
+
+	void detachADSMaterialPanel();
+	void reattachADSMaterialPanel();
+	void detachTexturePanel();
+	void reattachTexturePanel();
+	void detachMaterialPanel();
+	void reattachMaterialPanel();
+	void detachTransformationsPanel();
+	void reattachTransformationsPanel();
+	void detachEnvironmentPanel();
+	void reattachEnvironmentPanel();
 
 private:
 	GLWidget* _glWidget;
@@ -182,7 +213,7 @@ private:
 	bool _progressiveLoadingEnabled = false;
 
 	static QString _lastOpenedDir;
-	static QString _lastSelectedFilter;	
+	static QString _lastSelectedFilter;
 
 	int _skyBoxLDRIIndex = 0;
 	int _skyBoxHDRIIndex = 0;
@@ -212,23 +243,7 @@ private:
 	int _environmentPageIndex = -1;
 	QString _environmentPageLabel;
 
-private:
-	bool checkForActiveSelection();
-	bool hasSelection() const;
-	std::vector<int> getSelectedIDs() const;
-	void updateControls();
-	QString getSupportedQtImagesFilter();	
-
-	void detachADSMaterialPanel();
-	void reattachADSMaterialPanel();
-	void detachTexturePanel();
-	void reattachTexturePanel();
-	void detachMaterialPanel();
-	void reattachMaterialPanel();
-	void detachTransformationsPanel();
-	void reattachTransformationsPanel();
-	void detachEnvironmentPanel();
-	void reattachEnvironmentPanel();
+	QUndoStack* m_undoStack;
 };
 
 #endif
