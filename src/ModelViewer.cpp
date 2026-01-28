@@ -1,5 +1,6 @@
 ﻿#include "ADSMaterialSettingsPanel.h"
 #include "AssImpModelLoader.h"
+#include "DeleteMeshCommand.h"
 #include "GLWidget.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
@@ -37,11 +38,14 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	// Initialize undo stack
 	m_undoStack = new QUndoStack(this);
-	m_undoStack->setUndoLimit(50);  // Keep last 50 operations
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	int maxUndo = settings.value("spinBoxUndoLimit", 50).toInt(); // Keep last 50 operations as default
+	m_undoStack->setUndoLimit(maxUndo);
+
+	setupUndoStackMonitoring();
 
 	setAttribute(Qt::WA_DeleteOnClose);
-
-	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		
 	int values[] = { 0, 2, 4, 8, 16, 32 };
 	int samples = values[settings.value("msaaComboBox", 4).toInt()];
 
@@ -347,6 +351,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 ModelViewer::~ModelViewer()
 {
+	if (m_undoStack)
+	{
+		disconnect(m_undoStack, nullptr, this, nullptr);  // Prevent callbacks
+		m_undoStack->clear();
+	}
 	if (_glWidget)
 	{
 		delete _glWidget;
@@ -936,6 +945,108 @@ void ModelViewer::reattachEnvironmentPanel()
 	}
 }
 
+void ModelViewer::setupUndoStackMonitoring()
+{
+	// Connect to stack changes
+	connect(m_undoStack, &QUndoStack::indexChanged,
+		this, &ModelViewer::onUndoStackChanged);
+
+	// Initialize cache
+	m_lastStackCount = 0;
+	m_cachedReferencedUuids.clear();
+}
+
+void ModelViewer::onUndoStackChanged()
+{
+	if (!m_undoStack || !_glWidget)
+		return;
+
+	int currentCount = m_undoStack->count();
+
+	// Only cleanup when stack size changes (commands added/purged)
+	// Not on every undo/redo (which just changes index)
+	if (currentCount != m_lastStackCount)
+	{
+		// Check if commands were purged (count decreased)
+		// or if this is the first operation (count increased from 0)
+		bool shouldCleanup = (currentCount < m_lastStackCount) ||
+			(m_lastStackCount == 0 && currentCount > 0);
+
+		if (shouldCleanup)
+		{
+			cleanupOrphanedMeshes();
+		}
+		else
+		{
+			// Count increased - command was added
+			// Update cache incrementally instead of full scan
+
+			// Get the newly added command (at current index - 1)
+			int newCmdIndex = m_undoStack->index() - 1;
+			if (newCmdIndex >= 0 && newCmdIndex < m_undoStack->count())
+			{
+				const QUndoCommand* cmd = m_undoStack->command(newCmdIndex);
+
+				// If it's a DeleteCommand, add its UUIDs to cache
+				if (const auto* delCmd = dynamic_cast<const DeleteMeshCommand*>(cmd))
+				{
+					m_cachedReferencedUuids.unite(delCmd->getReferencedUuids());
+				}
+			}
+		}
+
+		m_lastStackCount = currentCount;
+	}
+}
+
+void ModelViewer::cleanupOrphanedMeshes()
+{
+	// Get current set of referenced UUIDs by scanning stack
+	QSet<QUuid> currentlyReferenced = scanStackForReferencedUuids();
+
+	// Find UUIDs that were in cache but no longer referenced
+	QSet<QUuid> orphaned = m_cachedReferencedUuids - currentlyReferenced;
+
+	if (!orphaned.isEmpty())
+	{
+		// Permanently delete orphaned meshes from recycle bin
+		for (const QUuid& uuid : orphaned)
+		{
+			_glWidget->permanentlyDeleteFromBin(uuid);
+		}
+
+		qDebug() << "Cleaned up" << orphaned.size()
+			<< "orphaned mesh(es) from recycle bin";
+	}
+
+	// Update cache
+	m_cachedReferencedUuids = currentlyReferenced;
+}
+
+QSet<QUuid> ModelViewer::scanStackForReferencedUuids()
+{
+	QSet<QUuid> referenced;
+
+	// Scan all commands in the undo stack
+	int count = m_undoStack->count();
+	for (int i = 0; i < count; ++i)
+	{
+		const QUndoCommand* cmd = m_undoStack->command(i);
+
+		// Check if it's a DeleteCommand
+		if (const auto* delCmd = dynamic_cast<const DeleteMeshCommand*>(cmd))
+		{
+			referenced.unite(delCmd->getReferencedUuids());
+		}
+
+		// Optional: Could also check other command types if needed
+		// For example, MaterialCommand might want to prevent deletion
+		// of meshes it references, but this is probably not necessary
+	}
+
+	return referenced;
+}
+
 void ModelViewer::updateDisplayList()
 {
 	_glWidget->setTransmissionEnabled(false);
@@ -1311,38 +1422,38 @@ void ModelViewer::duplicateSelectedItems()
 
 void ModelViewer::deleteSelectedItems()
 {
-	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
-	if (!selectedItems.isEmpty())
+	if (!checkForActiveSelection())
+		return;
+
+	QMessageBox::StandardButton reply = QMessageBox::question(
+		this,
+		tr("Delete"),
+		tr("Delete selected item(s)?"),
+		QMessageBox::Yes | QMessageBox::No
+	);
+
+	if (reply != QMessageBox::Yes)
+		return;
+
+	// Get UUIDs of selected meshes
+	std::vector<int> indices = getSelectedIDs();
+	QVector<QUuid> uuidsToDelete;
+
+	for (int index : indices)
 	{
-		if (QMessageBox::question(this, tr("Confirmation"), tr("Delete selection?")) == QMessageBox::Yes)
-		{
-			QApplication::setOverrideCursor(Qt::WaitCursor);
-			hideSelectedItems();
-			bool oldState = listWidgetModel->blockSignals(true);
-			int rowId = 0;
-			for (QListWidgetItem* item : selectedItems)
-			{
-				rowId = listWidgetModel->row(item);
-
-				// Remove the displayed object
-				_glWidget->removeFromDisplay(rowId);
-
-				// Get curent item on selected row
-				QListWidgetItem* curItem = listWidgetModel->takeItem(rowId);
-				// And remove it
-				delete curItem;
-			}
-			listWidgetModel->blockSignals(oldState);
-			if (listWidgetModel->count())
-			{
-				listWidgetModel->setCurrentRow(rowId, QItemSelectionModel::Clear);
-				QListWidgetItem* item = listWidgetModel->item(rowId);
-				on_listWidgetModel_itemChanged(item);
-			}
-			_glWidget->update();
-			QApplication::restoreOverrideCursor();
-		}
+		QUuid uuid = _glWidget->getUuidByIndex(index);
+		if (!uuid.isNull())
+			uuidsToDelete.append(uuid);
 	}
+
+	if (uuidsToDelete.isEmpty())
+		return;
+
+	// Push delete command (will move to recycle bin)
+	m_undoStack->push(new DeleteMeshCommand(this, _glWidget, uuidsToDelete));
+
+	// Update UI
+	updateControls();
 }
 
 #include "UVGenerationDialog.h"

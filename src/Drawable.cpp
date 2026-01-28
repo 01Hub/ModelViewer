@@ -5,6 +5,7 @@ unsigned int Drawable::_count = 0;
 Drawable::Drawable(QOpenGLShaderProgram* prog) : _prog(prog), _selected(false)
 {
 	initializeOpenGLFunctions();
+	_uuid = QUuid::createUuid();
 	_count++;
 }
 

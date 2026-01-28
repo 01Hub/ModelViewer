@@ -503,6 +503,152 @@ void GLWidget::cleanUpShaders()
 {	
 }
 
+void GLWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
+{
+	// Find mesh in _meshStore
+	TriangleMesh* mesh = nullptr;
+	int index = -1;
+
+	for (size_t i = 0; i < _meshStore.size(); ++i)
+	{
+		if (_meshStore[i]->uuid() == uuid)
+		{
+			mesh = _meshStore[i];
+			index = static_cast<int>(i);
+			break;
+		}
+	}
+
+	if (!mesh)
+	{
+		qWarning() << "GLWidget::moveToRecycleBin - Mesh not found:" << uuid;
+		return;
+	}
+
+	// Remove from _meshStore (but don't delete)
+	_meshStore.erase(_meshStore.begin() + index);
+
+	// Also remove from displayed/hidden lists
+	auto it = std::find(_displayedObjectsIds.begin(),
+		_displayedObjectsIds.end(), index);
+	if (it != _displayedObjectsIds.end())
+		_displayedObjectsIds.erase(it);
+
+	it = std::find(_hiddenObjectsIds.begin(),
+		_hiddenObjectsIds.end(), index);
+	if (it != _hiddenObjectsIds.end())
+		_hiddenObjectsIds.erase(it);
+
+	// Adjust indices in displayed/hidden lists
+	// All indices > removed index need to be decremented
+	for (int& id : _displayedObjectsIds)
+	{
+		if (id > index)
+			id--;
+	}
+	for (int& id : _hiddenObjectsIds)
+	{
+		if (id > index)
+			id--;
+	}
+
+	// Add to recycle bin
+	RecycleBinEntry entry;
+	entry.mesh = mesh;
+	entry.originalIndex = originalIndex;
+	entry.deletedAt = QDateTime::currentDateTime();
+
+	_recycleBin[uuid] = entry;
+
+	qDebug() << "Moved mesh to recycle bin:" << mesh->getName()
+		<< "uuid:" << uuid;
+}
+
+bool GLWidget::restoreFromRecycleBin(const QUuid& uuid)
+{
+	if (!_recycleBin.contains(uuid))
+	{
+		qWarning() << "GLWidget::restoreFromRecycleBin - Mesh not in bin:" << uuid;
+		return false;
+	}
+
+	RecycleBinEntry entry = _recycleBin.take(uuid);
+	TriangleMesh* mesh = entry.mesh;
+
+	// Restore to end of _meshStore (simplest approach)
+	// Could use entry.originalIndex for smarter restoration
+	_meshStore.push_back(mesh);
+	int newIndex = static_cast<int>(_meshStore.size() - 1);
+
+	// Add to displayed objects
+	_displayedObjectsIds.push_back(newIndex);
+
+	qDebug() << "Restored mesh from recycle bin:" << mesh->getName()
+		<< "uuid:" << uuid << "at index:" << newIndex;
+
+	return true;
+}
+
+void GLWidget::permanentlyDeleteFromBin(const QUuid& uuid)
+{
+	if (!_recycleBin.contains(uuid))
+		return;
+
+	RecycleBinEntry entry = _recycleBin.take(uuid);
+	TriangleMesh* mesh = entry.mesh;
+
+	qDebug() << "Permanently deleting mesh:" << mesh->getName()
+		<< "uuid:" << uuid;
+
+	// Actually destroy the mesh
+	delete mesh;
+}
+
+bool GLWidget::isInRecycleBin(const QUuid& uuid) const
+{
+	return _recycleBin.contains(uuid);
+}
+
+QVector<QUuid> GLWidget::getRecycleBinUuids() const
+{
+	return _recycleBin.keys().toVector();
+}
+
+TriangleMesh* GLWidget::getMeshByUuid(const QUuid& uuid) const
+{
+	// Check in _meshStore first
+	for (TriangleMesh* mesh : _meshStore)
+	{
+		if (mesh->uuid() == uuid)
+			return mesh;
+	}
+
+	// Check in recycle bin
+	if (_recycleBin.contains(uuid))
+		return _recycleBin[uuid].mesh;
+
+	return nullptr;
+}
+
+int GLWidget::getIndexByUuid(const QUuid& uuid) const
+{
+	for (size_t i = 0; i < _meshStore.size(); ++i)
+	{
+		if (_meshStore[i]->uuid() == uuid)
+			return static_cast<int>(i);
+	}
+
+	return -1;  // Not found or in recycle bin
+}
+
+QUuid GLWidget::getUuidByIndex(int index) const
+{
+	if (index >= 0 && index < static_cast<int>(_meshStore.size()))
+		return _meshStore[index]->uuid();
+
+	return QUuid();  // Invalid
+}
+
 void GLWidget::initializeGL()
 {
 	initializeOpenGLFunctions();

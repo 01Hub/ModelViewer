@@ -167,6 +167,12 @@ private:
 	void detachEnvironmentPanel();
 	void reattachEnvironmentPanel();
 
+	// Cleanup methods
+	void setupUndoStackMonitoring();
+	void onUndoStackChanged();
+	void cleanupOrphanedMeshes();
+	QSet<QUuid> scanStackForReferencedUuids();
+
 private:
 	GLWidget* _glWidget;
 
@@ -244,6 +250,9 @@ private:
 	QString _environmentPageLabel;
 
 	QUndoStack* m_undoStack;
+	// Cleanup optimization
+	int m_lastStackCount = 0;
+	QSet<QUuid> m_cachedReferencedUuids;  // Meshes referenced in undo stack
 };
 
 #endif

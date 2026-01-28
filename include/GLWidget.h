@@ -362,6 +362,20 @@ public:
 
 	void cleanUpShaders();
 
+	// Recycle bin operations (used by DeleteCommand)
+	void moveToRecycleBin(const QUuid& uuid, int originalIndex);
+	bool restoreFromRecycleBin(const QUuid& uuid);
+	void permanentlyDeleteFromBin(const QUuid& uuid);
+
+	// Query methods
+	bool isInRecycleBin(const QUuid& uuid) const;
+	QVector<QUuid> getRecycleBinUuids() const;
+
+	// UUID lookup methods
+	TriangleMesh* getMeshByUuid(const QUuid& uuid) const;
+	int getIndexByUuid(const QUuid& uuid) const;
+	QUuid getUuidByIndex(int index) const;
+
 	void serializeScene(QDataStream& out) const;
 	void deserializeScene(QDataStream& in);
 
@@ -841,6 +855,16 @@ private:
 		float baselineRadius;
 		glm::mat4 accumulatedRotation;
 	} _lightRepoBasis;
+
+	// Recycle bin (internal only - not exposed to user)
+	struct RecycleBinEntry
+	{
+		TriangleMesh* mesh;
+		int originalIndex;      // For potential smart restoration
+		QDateTime deletedAt;    // For debugging/logging
+	};
+
+	QMap<QUuid, RecycleBinEntry> _recycleBin;
 };
 
 #endif
