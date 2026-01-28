@@ -168,6 +168,7 @@ private slots:
     void on_checkRestoreLastFile_stateChanged();
     void on_checkTooltips_stateChanged();
     void on_checkConfirmExit_stateChanged();
+	void on_spinUndoLimit_valueChanged();
     void on_comboProjectionMode_currentIndexChanged();
     void on_comboDefaultView_currentIndexChanged();
     void on_comboDefaultProjection_currentIndexChanged();
@@ -280,6 +281,7 @@ private:
     bool general_restoreLastFile = false;
     bool general_showTooltips = true;
     bool general_confirmExit = false;
+	int general_undoLimit = 50;
 
     // Camera tab
     int camera_projectionModeIndex = 0;
