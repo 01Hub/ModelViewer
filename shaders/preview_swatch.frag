@@ -233,57 +233,147 @@ float pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
     return clamp(c, 0.0, 1.0);
 }
 
-// ----- Iridescence: Thin-film interference -----
-// Calculates iridescent color based on view angle and film thickness
-// Uses a lookup table approach for thin-film interference colors
-vec3 evaluateIridescence(float NdotV, float iridescenceFactor, float iridescenceThickness)
+// ============================================================================
+// IRIDESCENCE: Physics-based thin-film interference (KHR_materials_iridescence)
+// ============================================================================
+
+const float M_PI = 3.14159265359;
+const mat3 XYZ_TO_REC709 = mat3(
+	3.2404542, -0.9692660, 0.0556434,
+	-1.5371385, 1.8760108, -0.2040259,
+	-0.4985314, 0.0415560, 1.0572252
+);
+
+// Forward declaration for overloaded function
+vec3 evalIridescence(float outsideIOR, float eta2, float cosTheta1,
+	float thinFilmThickness, vec3 baseF0, vec3 baseF90);
+
+// Helper: square a value
+float sq(float a) { return a * a; }
+vec3 sq(vec3 a) { return a * a; }
+
+// Fresnel0 to IOR conversion
+vec3 Fresnel0ToIor(vec3 fresnel0)
 {
-    // Clamp to meaningful range
-    NdotV = clamp(NdotV, 0.0, 1.0);
-    iridescenceThickness = clamp(iridescenceThickness, 0.0, 1.0);
+	vec3 sqrtF0 = sqrt(fresnel0);
+	return (vec3(1.0) + sqrtF0) / (vec3(1.0) - sqrtF0);
+}
 
-    // Optical path difference based on view angle and thickness
-    // At grazing angles (NdotV ~ 0), we get different interference patterns
-    float opticalPathDifference = mix(iridescenceThickness, iridescenceThickness * 2.0, NdotV);
+// IOR to Fresnel0 conversion (vec3 version)
+vec3 IorToFresnel0(vec3 transmittedIor, float incidentIor)
+{
+	return sq((transmittedIor - vec3(incidentIor)) / (transmittedIor + vec3(incidentIor)));
+}
 
-    // Map view angle to hue shift (0-1 creates rainbow effect)
-    // Closer to view-normal = blue/purple, grazing angles = red/yellow
-    float hueShift = 1.0 - NdotV;
+// IOR to Fresnel0 conversion (float version)
+float IorToFresnel0(float transmittedIor, float incidentIor)
+{
+	return sq((transmittedIor - incidentIor) / (transmittedIor + incidentIor));
+}
 
-    // Combine: where NdotV is small (grazing), we're in warm colors
-    // where NdotV is large (face-on), we're in cool colors
-    float phase = opticalPathDifference + hueShift;
-    phase = fract(phase * 2.0); // wrap to [0,1]
+// Scalar Fresnel-Schlick with F90
+float F_Schlick_Iridescence(float f0, float cosTheta, float f90)
+{
+	return f0 + (f90 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
 
-    // Create rainbow-like color transitions
-    // This mimics the color progression seen in soap bubbles and oil films
-    vec3 iridColor;
-    
-    if (phase < 0.25) {
-        // Red to Magenta
-        iridColor = mix(vec3(1.0, 0.0, 0.0), vec3(1.0, 0.0, 1.0), phase / 0.25);
-    }
-    else if (phase < 0.5) {
-        // Magenta to Blue
-        iridColor = mix(vec3(1.0, 0.0, 1.0), vec3(0.0, 0.0, 1.0), (phase - 0.25) / 0.25);
-    }
-    else if (phase < 0.75) {
-        // Blue to Cyan/Green
-        iridColor = mix(vec3(0.0, 0.0, 1.0), vec3(0.0, 1.0, 1.0), (phase - 0.5) / 0.25);
-    }
-    else {
-        // Cyan to Yellow
-        iridColor = mix(vec3(0.0, 1.0, 1.0), vec3(1.0, 1.0, 0.0), (phase - 0.75) / 0.25);
-    }
+// Vector Fresnel-Schlick with F90
+vec3 F_Schlick_Iridescence(vec3 f0, float cosTheta, vec3 f90)
+{
+	return f0 + (f90 - f0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
 
-    // Add some saturation variation based on optical path
-    float saturation = 0.8 + 0.2 * sin(phase * 6.28);
-    iridColor = mix(vec3(0.5), iridColor, saturation);
+// Backward compatible versions (optional)
+float F_Schlick_Iridescence(float f0, float cosTheta)
+{
+	return F_Schlick_Iridescence(f0, cosTheta, 1.0);
+}
 
-    // Boost intensity slightly for visibility
-    iridColor *= 1.2;
+vec3 F_Schlick_Iridescence(vec3 f0, float cosTheta)
+{
+	return F_Schlick_Iridescence(f0, cosTheta, vec3(1.0));
+}
 
-    return iridColor;
+// CRITICAL: XYZ sensitivity curves -> RGB conversion
+// This maps CIE XYZ color space to sRGB, enabling accurate iridescent colors
+vec3 evalSensitivity(float OPD, vec3 shift)
+{
+	float phase = 2.0 * M_PI * OPD * 1.0e-9;
+	vec3 val = vec3(5.4856e-13, 4.4201e-13, 5.2481e-13);
+	vec3 pos = vec3(1.6810e+06, 1.7953e+06, 2.2084e+06);
+	vec3 var = vec3(4.3278e+09, 9.3046e+09, 6.6121e+09);
+
+	vec3 xyz = val * sqrt(2.0 * M_PI * var) * cos(pos * phase + shift) * exp(-sq(phase) * var);
+	xyz.x += 9.7470e-14 * sqrt(2.0 * M_PI * 4.5282e+09) * cos(2.2399e+06 * phase + shift[0]) * exp(-4.5282e+09 * sq(phase));
+	xyz /= 1.0685e-7;
+
+	vec3 srgb = XYZ_TO_REC709 * xyz;
+	return srgb;
+}
+
+// Full thin-film interference model (KHR_materials_iridescence spec-compliant)
+vec3 evalIridescence(float outsideIOR, float eta2, float cosTheta1,
+	float thinFilmThickness, vec3 baseF0, vec3 baseF90)
+{
+	vec3 I;
+	float iridescenceIor = mix(outsideIOR, eta2, smoothstep(0.0, 0.03, thinFilmThickness));
+	float sinTheta2Sq = sq(outsideIOR / iridescenceIor) * (1.0 - sq(cosTheta1));
+	float cosTheta2Sq = 1.0 - sinTheta2Sq;
+	if (cosTheta2Sq < 0.0)
+	{
+		return vec3(1.0);
+	}
+	float cosTheta2 = sqrt(cosTheta2Sq);
+
+	// First interface (air to iridescent film)
+	// F90 at air-film interface is always 1.0
+	float R0 = IorToFresnel0(iridescenceIor, outsideIOR);
+	float R12 = F_Schlick_Iridescence(R0, cosTheta1, 1.0);  // F90 = 1.0 for air interface
+	float R21 = R12;
+	float T121 = 1.0 - R12;
+	float phi12 = 0.0;
+	if (iridescenceIor < outsideIOR) phi12 = M_PI;
+	float phi21 = M_PI - phi12;
+
+	// Second interface (iridescent film to base material)
+	// F90 at film-base interface uses baseF90 from the base material
+	vec3 baseIOR = Fresnel0ToIor(clamp(baseF0, 0.0, 0.9999));
+	vec3 R1 = IorToFresnel0(baseIOR, iridescenceIor);
+	vec3 R23 = F_Schlick_Iridescence(R1, cosTheta2, baseF90);  // Use baseF90 for base material
+	vec3 phi23 = vec3(0.0);
+	if (baseIOR[0] < iridescenceIor) phi23[0] = M_PI;
+	if (baseIOR[1] < iridescenceIor) phi23[1] = M_PI;
+	if (baseIOR[2] < iridescenceIor) phi23[2] = M_PI;
+
+	// Optical path difference
+	float OPD = 2.0 * iridescenceIor * thinFilmThickness * cosTheta2;
+	vec3 phi = vec3(phi21) + phi23;
+
+	// Compound terms
+	vec3 R123 = clamp(R12 * R23, 1e-5, 0.9999);
+	vec3 r123 = sqrt(R123);
+	vec3 Rs = sq(T121) * R23 / (vec3(1.0) - R123);
+
+	// DC term
+	vec3 C0 = R12 + Rs;
+	I = C0;
+
+	// Higher order interference (2 iterations for richness)
+	vec3 Cm = Rs - T121;
+	for (int m = 1; m <= 2; ++m)
+	{
+		Cm *= r123;
+		vec3 Sm = 2.0 * evalSensitivity(float(m) * OPD, float(m) * phi);
+		I += Cm * Sm;
+	}
+	return max(I, vec3(0.0));
+}
+
+// Single-layer override (convenience) - must come AFTER full version definition
+vec3 evalIridescence(float outsideIOR, float eta2, float cosTheta1,
+	float thinFilmThickness, vec3 baseF0)
+{
+	return evalIridescence(outsideIOR, eta2, cosTheta1, thinFilmThickness, baseF0, vec3(1.0));
 }
 
 
@@ -457,17 +547,27 @@ void main()
         // Grazing angles (low NdotV) use thicker film regions (more interference)
         float thickness = mix(uIridescenceThicknessMin, uIridescenceThicknessMax, NdotV);
         
-        // Normalize thickness to [0,1] range for the iridescence function
-        // Assume typical thickness range is ~100-500nm, map to [0,1]
-        float normalizedThickness = (thickness - uIridescenceThicknessMin) / 
-                                    max(uIridescenceThicknessMax - uIridescenceThicknessMin, 0.001);
+        // Calculate baseF0 from material metalness and albedo
+        // Dielectrics use 0.04, metals use albedo color
+        vec3 baseF0 = mix(vec3(0.04), albedo, metalness);
         
-        // Evaluate iridescent color based on view angle and thickness
-        vec3 iridColor = evaluateIridescence(NdotV, uIridescence, normalizedThickness);
+        // Evaluate physically-based iridescent Fresnel
+        // This follows the KHR_materials_iridescence specification
+        vec3 iridFresnel = evalIridescence(
+            1.0,                        // outsideIOR (air)
+            uIridescenceIOR,            // eta2 (iridescent film IOR)
+            NdotV,                      // cosTheta1 (view angle)
+            thickness,                  // thinFilmThickness (actual nanometers)
+            baseF0                      // baseF0 (dielectric F0 or metallic albedo)
+        );
         
         // Blend iridescence: stronger at grazing angles, subtle at face-on
         float iridIntensity = uIridescence * (1.0 - NdotV);
-        color = mix(color, color + iridColor * 0.6, iridIntensity);
+        
+        // Scale iridescence to be visible while preserving its color information
+        // Don't clamp - let the actual color values through (they represent the rainbow)
+        vec3 boostedIrid = iridFresnel * 2.5;
+        color = mix(color, color + boostedIrid, iridIntensity);
     }
 
     // ----- Transmission (simple tint) -----
