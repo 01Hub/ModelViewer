@@ -92,6 +92,13 @@ public:
 	void setSelectionWithUndo(const QSet<int>& newSelection);
 	void setSelectionWithoutUndo(const QSet<int>& selection);
 
+	// Visibility helpers (used by VisibilityCommand)
+	QSet<QUuid> getVisibleUuids() const;
+	void setVisibilityWithUndo(const QSet<QUuid>& newVisibleUuids,
+		const QString& commandText);
+	void setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids);
+
+
 	bool hasSelection() const;
 	std::vector<int> getSelectedIDs() const;
 

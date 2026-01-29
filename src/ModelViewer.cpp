@@ -12,6 +12,7 @@
 #include "SelectionCommand.h"
 #include "TextureMappingPanel.h"
 #include "TriangleMesh.h"
+#include "VisibilityCommand.h"
 #include <assimp/Importer.hpp>
 #include <QApplication>
 #include <QColorDialog>
@@ -1486,81 +1487,114 @@ void ModelViewer::generateUVsForSelectedItems()
 
 void ModelViewer::hideAllItems()
 {
-	bool oldState = listWidgetModel->blockSignals(true);
-	for (int i = 0; i < listWidgetModel->count(); i++)
-	{
-		QListWidgetItem* item = listWidgetModel->item(i);
-		item->setCheckState(Qt::Unchecked);
-	}
-	listWidgetModel->blockSignals(oldState);
-	on_listWidgetModel_itemChanged(nullptr);
+	// Hide all meshes (empty visibility set)
+	QSet<QUuid> newVisible;  // Empty set
+
+	// Apply visibility with undo support
+	setVisibilityWithUndo(newVisible, tr("Hide All"));
+
+	// Turn off swap visible if it was on
 	if (_glWidget->isVisibleSwapped())
 		_glWidget->swapVisible(false);
 }
 
 void ModelViewer::hideSelectedItems()
 {
-	bool oldState = listWidgetModel->blockSignals(true);
-	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
-	for (QListWidgetItem* item : selectedItems)
+	if (!checkForActiveSelection())
+		return;
+
+	// Get current visibility
+	QSet<QUuid> currentlyVisible = getVisibleUuids();
+
+	// Get UUIDs of selected items to hide
+	std::vector<int> selectedIds = getSelectedIDs();
+	QSet<QUuid> toHide;
+	for (int id : selectedIds)
 	{
-		item->setCheckState(Qt::Unchecked);
-		item->setSelected(false);
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			toHide.insert(uuid);
 	}
-	listWidgetModel->blockSignals(oldState);
-	on_listWidgetModel_itemChanged(nullptr);
+
+	// Calculate new visibility (remove selected from visible set)
+	QSet<QUuid> newVisible = currentlyVisible - toHide;
+
+	// Apply visibility with undo support
+	setVisibilityWithUndo(newVisible, tr("Hide"));
+
+	// Clear selection (preserve existing behavior)
 	deselectAll();
 }
 
 void ModelViewer::showOnlySelectedItems()
 {
-	bool oldState = listWidgetModel->blockSignals(true);
-	for (int i = 0; i < listWidgetModel->count(); i++)
-	{
-		QListWidgetItem* item = listWidgetModel->item(i);
-		if (item->isSelected())
-		{
-			item->setCheckState(Qt::Checked);
-		}
-		else
-		{
-			item->setCheckState(Qt::Unchecked);
-		}
-	}
-	listWidgetModel->blockSignals(oldState);
-	on_listWidgetModel_itemChanged(nullptr);
+	if (!checkForActiveSelection())
+		return;
 
+	// Get UUIDs of selected items - these will be the ONLY visible ones
+	std::vector<int> selectedIds = getSelectedIDs();
+	QSet<QUuid> newVisible;
+	for (int id : selectedIds)
+	{
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			newVisible.insert(uuid);
+	}
+
+	// Apply visibility with undo support
+	setVisibilityWithUndo(newVisible, tr("Show Only"));
+
+	// Turn off swap visible if it was on
 	if (_glWidget->isVisibleSwapped())
 		_glWidget->swapVisible(false);
 }
 
 void ModelViewer::showAllItems()
 {
-	bool oldState = listWidgetModel->blockSignals(true);
-	for (int i = 0; i < listWidgetModel->count(); i++)
+	// Get all mesh UUIDs
+	QSet<QUuid> newVisible;
+	int meshCount = static_cast<int>(_glWidget->getMeshStore().size());
+
+	for (int i = 0; i < meshCount; ++i)
 	{
-		QListWidgetItem* item = listWidgetModel->item(i);
-		item->setCheckState(Qt::Checked);
+		QUuid uuid = _glWidget->getUuidByIndex(i);
+		if (!uuid.isNull())
+			newVisible.insert(uuid);
 	}
-	listWidgetModel->blockSignals(oldState);
-	on_listWidgetModel_itemChanged(nullptr);
+
+	// Apply visibility with undo support
+	setVisibilityWithUndo(newVisible, tr("Show All"));
+
+	// Turn off swap visible if it was on
 	if (_glWidget->isVisibleSwapped())
 		_glWidget->swapVisible(false);
 }
 
 void ModelViewer::showSelectedItems()
 {
-	bool oldState = listWidgetModel->blockSignals(true);
-	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
-	for (QListWidgetItem* item : selectedItems)
+	if (!checkForActiveSelection())
+		return;
+
+	// Get current visibility
+	QSet<QUuid> currentlyVisible = getVisibleUuids();
+
+	// Get UUIDs of selected items to show
+	std::vector<int> selectedIds = getSelectedIDs();
+	QSet<QUuid> toShow;
+	for (int id : selectedIds)
 	{
-		item->setCheckState(Qt::Checked);
-		item->setSelected(false);
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			toShow.insert(uuid);
 	}
-	if (_glWidget->isVisibleSwapped())
-		_glWidget->swapVisible(false);
-	listWidgetModel->blockSignals(oldState);
-	on_listWidgetModel_itemChanged(nullptr);
+
+	// Calculate new visibility (add selected to visible set)
+	QSet<QUuid> newVisible = currentlyVisible | toShow;
+
+	// Apply visibility with undo support
+	setVisibilityWithUndo(newVisible, tr("Show"));
+
+	// Clear selection (preserve existing behavior)
 	deselectAll();
 }
 
@@ -2294,3 +2328,57 @@ void ModelViewer::setSelectionWithoutUndo(const QSet<int>& selection)
 	// Manually sync to GLWidget
 	on_listWidgetModel_itemSelectionChanged();
 }
+
+QSet<QUuid> ModelViewer::getVisibleUuids() const
+{
+	std::vector<int> displayedIds = _glWidget->getDisplayedObjectsIds();
+	QSet<QUuid> visibleUuids;
+
+	for (int id : displayedIds)
+	{
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			visibleUuids.insert(uuid);
+	}
+
+	return visibleUuids;
+}
+
+void ModelViewer::setVisibilityWithUndo(const QSet<QUuid>& newVisibleUuids,
+	const QString& commandText)
+{
+	// Create and push the undo command
+	// Note: push() automatically calls redo() on the command
+	m_undoStack->push(new VisibilityCommand(this, _glWidget,
+		newVisibleUuids, commandText));
+}
+
+void ModelViewer::setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids)
+{
+	// Block signals to prevent triggering itemChanged handlers
+	bool oldState = listWidgetModel->blockSignals(true);
+
+	// Update check states for all items based on visibility set
+	for (int i = 0; i < listWidgetModel->count(); ++i)
+	{
+		QUuid uuid = _glWidget->getUuidByIndex(i);
+		QListWidgetItem* item = listWidgetModel->item(i);
+
+		if (visibleUuids.contains(uuid))
+		{
+			item->setCheckState(Qt::Checked);
+		}
+		else
+		{
+			item->setCheckState(Qt::Unchecked);
+		}
+	}
+
+	// Restore signals
+	listWidgetModel->blockSignals(oldState);
+
+	// Manually trigger visibility update
+	// This will update _displayedObjectsIds and _hiddenObjectsIds
+	on_listWidgetModel_itemChanged(nullptr);
+}
+
