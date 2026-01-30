@@ -101,7 +101,7 @@ public:
 	void setShadowQuality(AdaptiveShadowMapper::QualityLevel quality);
 	float calculateLightDistance();
 
-	void duplicateObjects(const std::vector<int>& ids);
+	QVector<QUuid> duplicateObjects(const std::vector<int>& ids);
 
 	void updateFloorPlane();
 	void updateBoundingSphere();
@@ -545,6 +545,7 @@ private:
 
 	void generateCubemapMipmaps(GLuint cubemapTexture);
 
+	QString generateUniqueMeshName(const QString& baseName);
 
 private:
 	ViewToolbar* _viewToolbar;

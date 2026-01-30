@@ -1,6 +1,7 @@
 ﻿#include "ADSMaterialSettingsPanel.h"
 #include "AssImpModelLoader.h"
 #include "DeleteMeshCommand.h"
+#include "DuplicateCommand.h"
 #include "GLWidget.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
@@ -466,6 +467,7 @@ void ModelViewer::bakeTransformations()
 			QApplication::setOverrideCursor(Qt::WaitCursor);
 			std::vector<int> ids = getSelectedIDs();
 			_glWidget->bakeTransformation(ids);
+			objectTransformPanel->resetAllValues();
 			QMessageBox::information(this, tr("Action Complete"), tr("Baked the applied transformations into the mesh vertices"));
 			QApplication::restoreOverrideCursor();
 			_glWidget->update();
@@ -1403,22 +1405,24 @@ void ModelViewer::centerScreen()
 void ModelViewer::duplicateSelectedItems()
 {
 	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
-	if (!selectedItems.isEmpty())
-	{
-		if (QMessageBox::question(this, tr("Confirmation"), tr("Duplicate selection?")) == QMessageBox::Yes)
-		{
-			QApplication::setOverrideCursor(Qt::WaitCursor);
-			std::vector<int> ids = getSelectedIDs();
-			_glWidget->duplicateObjects(ids);
-			updateDisplayList();
+	if (selectedItems.isEmpty())
+		return;
 
-			listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
-			listWidgetModel->currentItem()->setCheckState(Qt::Checked);
+	// No confirmation dialog - undo makes it safe
+	QApplication::setOverrideCursor(Qt::WaitCursor);
 
-			updateDisplayList();
-			QApplication::restoreOverrideCursor();
-		}
-	}
+	// Duplicate the selected meshes
+	std::vector<int> ids = getSelectedIDs();
+	QVector<QUuid> duplicatedUuids = _glWidget->duplicateObjects(ids);
+
+	// Create and push undo command
+	// Note: This will automatically call redo() which selects the duplicates
+	m_undoStack->push(new DuplicateCommand(this, _glWidget, duplicatedUuids));
+
+	// Update UI
+	updateDisplayList();
+
+	QApplication::restoreOverrideCursor();
 }
 
 void ModelViewer::deleteSelectedItems()
@@ -1623,6 +1627,21 @@ std::vector<int> ModelViewer::getSelectedIDs() const
 		ids.push_back(rowId);
 	}
 	return ids;
+}
+
+QSet<QUuid> ModelViewer::getSelectedUuids() const
+{
+	std::vector<int> selectedIds = getSelectedIDs();
+	QSet<QUuid> selectedUuids;
+
+	for (int id : selectedIds)
+	{
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			selectedUuids.insert(uuid);
+	}
+
+	return selectedUuids;
 }
 
 void ModelViewer::displaySelectedMeshInfo()
@@ -2327,6 +2346,21 @@ void ModelViewer::setSelectionWithoutUndo(const QSet<int>& selection)
 
 	// Manually sync to GLWidget
 	on_listWidgetModel_itemSelectionChanged();
+}
+
+void ModelViewer::setSelectionWithoutUndo(const QSet<QUuid>& uuids)
+{
+	// Convert UUIDs to indices
+	QSet<int> indices;
+	for (const QUuid& uuid : uuids)
+	{
+		int index = _glWidget->getIndexByUuid(uuid);
+		if (index >= 0)
+			indices.insert(index);
+	}
+
+	// Use existing implementation
+	setSelectionWithoutUndo(indices);
 }
 
 QSet<QUuid> ModelViewer::getVisibleUuids() const

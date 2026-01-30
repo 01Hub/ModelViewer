@@ -1792,21 +1792,41 @@ float GLWidget::calculateLightDistance()
 	return (lightPos - center).length();
 }
 
-void GLWidget::duplicateObjects(const std::vector<int>& ids)
+QVector<QUuid> GLWidget::duplicateObjects(const std::vector<int>& ids)
 {
+	QVector<QUuid> duplicatedUuids;
+
 	makeCurrent();
+
 	for (int id : ids)
 	{
-		TriangleMesh* mesh = _meshStore.at(id);
-		if (mesh)
+		TriangleMesh* originalMesh = _meshStore.at(id);
+		if (originalMesh)
 		{
-			TriangleMesh* newMesh = mesh->clone();
+			// Clone the mesh
+			TriangleMesh* newMesh = originalMesh->clone();
 			if (newMesh)
 			{
+				// Generate unique name with suffix
+				QString uniqueName = generateUniqueMeshName(originalMesh->getName());
+				newMesh->setName(uniqueName);
+
+				// Add to display
 				addToDisplay(newMesh);
+
+				// Store the UUID of the duplicated mesh
+				duplicatedUuids.append(newMesh->uuid());
+
+				qDebug() << "Duplicated mesh:" << originalMesh->getName()
+					<< "→" << uniqueName
+					<< "uuid:" << newMesh->uuid();
 			}
 		}
 	}
+
+	doneCurrent();
+
+	return duplicatedUuids;
 }
 
 void GLWidget::updateBoundingSphere()
@@ -3604,7 +3624,7 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 		try
 		{
 			TriangleMesh* mesh = _meshStore[id];
-			mesh->resetTransformations();
+			mesh->resetTransformations();			
 		}
 		catch (const std::exception& ex)
 		{
@@ -6222,6 +6242,50 @@ void GLWidget::generateCubemapMipmaps(GLuint cubemapTexture)
 	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	qDebug() << "Mipmap generation complete";
+}
+
+QString GLWidget::generateUniqueMeshName(const QString& baseName)
+{
+	// Check if base name already exists
+	bool nameExists = false;
+	for (const TriangleMesh* mesh : _meshStore)
+	{
+		if (mesh->getName() == baseName)
+		{
+			nameExists = true;
+			break;
+		}
+	}
+
+	// If base name doesn't exist, use it as-is
+	if (!nameExists)
+		return baseName;
+
+	// Find the next available number suffix
+	int counter = 2;
+	QString uniqueName;
+
+	while (true)
+	{
+		uniqueName = QString("%1 (%2)").arg(baseName).arg(counter);
+
+		bool exists = false;
+		for (const TriangleMesh* mesh : _meshStore)
+		{
+			if (mesh->getName() == uniqueName)
+			{
+				exists = true;
+				break;
+			}
+		}
+
+		if (!exists)
+			break;
+
+		counter++;
+	}
+
+	return uniqueName;
 }
 
 void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor)
