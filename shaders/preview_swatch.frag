@@ -561,13 +561,17 @@ void main()
             baseF0                      // baseF0 (dielectric F0 or metallic albedo)
         );
         
-        // Blend iridescence: stronger at grazing angles, subtle at face-on
+       // Blend iridescence: stronger at grazing angles, subtle at face-on
         float iridIntensity = uIridescence * (1.0 - NdotV);
         
-        // Scale iridescence to be visible while preserving its color information
-        // Don't clamp - let the actual color values through (they represent the rainbow)
-        vec3 boostedIrid = iridFresnel * 2.5;
-        color = mix(color, color + boostedIrid, iridIntensity);
+        // Extract the brightness of what we have
+        float lum = dot(color, vec3(0.299, 0.587, 0.114));
+
+        // Get the pure iridescent hue and apply it with the original brightness
+        vec3 iridColor = normalize(iridFresnel + vec3(0.001)) * max(lum, 0.3);
+
+        // Replace the color with the iridescence-tinted version
+        color = mix(color, iridColor * 1.0, iridIntensity * 1.0);
     }
 
     // ----- Transmission (simple tint) -----
