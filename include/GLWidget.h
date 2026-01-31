@@ -5,6 +5,7 @@
 #include "BoundingSphere.h"
 #include "GLCamera.h"
 #include "TriangleMesh.h"
+#include "TransformCommand.h"
 #include "ShaderProgram.h"
 #include "AssImpModelLoader.h"
 #include <math.h>
@@ -245,6 +246,8 @@ public:
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
 	void bakeTransformation(const std::vector<int>& ids);
 	void resetTransformation(const std::vector<int>& ids);
+	void applyTransforms(const QMap<int, TransformState>& transforms);
+
 	void setTexture(const std::vector<int>& ids, const QImage& texImage);
 	void setSkyBoxTextureFolder(QString folder);
 	bool loadCubemapFromSingleHDR(const QString& filePath);

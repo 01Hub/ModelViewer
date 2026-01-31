@@ -3645,6 +3645,67 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	triggerShadowRecomputation();
 }
 
+void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms)
+{
+	if (transforms.isEmpty())
+		return;
+
+	makeCurrent();
+
+	// Apply all transformations to individual meshes
+	for (auto it = transforms.begin(); it != transforms.end(); ++it)
+	{
+		int index = it.key();
+		const TransformState& state = it.value();
+
+		if (index >= 0 && index < static_cast<int>(_meshStore.size()))
+		{
+			TriangleMesh* mesh = _meshStore[index];
+			if (mesh)
+			{
+				mesh->setTranslation(state.translation);
+				mesh->setRotation(state.rotation);
+				mesh->setScaling(state.scale);
+			}
+		}
+	}
+
+	// Check if this is a model-level transformation
+	// (all meshes are being transformed)
+	bool isModelLevelTransform = (transforms.size() == static_cast<int>(_meshStore.size()));
+
+	if (isModelLevelTransform && !transforms.isEmpty())
+	{
+		// For model-level transforms, update light repositioning basis
+		// Use the transformation from the first mesh (they should all be the same)
+		const TransformState& state = transforms.first();
+
+		// Build rotation matrix from Euler angles
+		glm::mat4 rotX = glm::rotate(glm::mat4(1.0f),
+			glm::radians(state.rotation.x()),
+			glm::vec3(1, 0, 0));
+		glm::mat4 rotY = glm::rotate(glm::mat4(1.0f),
+			glm::radians(state.rotation.y()),
+			glm::vec3(0, 1, 0));
+		glm::mat4 rotZ = glm::rotate(glm::mat4(1.0f),
+			glm::radians(state.rotation.z()),
+			glm::vec3(0, 0, 1));
+
+		// Apply rotation in same order as meshes (Z * Y * X)
+		_lightRepoBasis.accumulatedRotation = rotZ * rotY * rotX;
+	}
+
+	// Update all dependent systems once
+	updateBoundingSphere();
+	updateBoundingBox();
+	updatePunctualLights();
+	triggerShadowRecomputation();
+	updateFloorPlane();
+	fitAll();
+
+	doneCurrent();
+}
+
 void GLWidget::createShaderPrograms()
 {
     const QString path = PathUtils::getDataDirectory() + "/";

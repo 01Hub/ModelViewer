@@ -12,6 +12,7 @@
 #include "PathUtils.h"
 #include "SelectionCommand.h"
 #include "TextureMappingPanel.h"
+#include "TransformCommand.h"
 #include "TriangleMesh.h"
 #include "VisibilityCommand.h"
 #include <assimp/Importer.hpp>
@@ -434,67 +435,141 @@ void ModelViewer::setListRows(QList<int> indices)
 
 void ModelViewer::setTransformation()
 {
-	if (checkForActiveSelection())
+	if (!checkForActiveSelection())
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	// Get transformation values from panel
+	QVector3D translate = objectTransformPanel->getTranslation();
+	QVector3D rotate = objectTransformPanel->getRotation();
+	QVector3D scale = objectTransformPanel->getScale();
+
+	// Get UUIDs of selected meshes
+	QVector<QUuid> uuids;
+	std::vector<int> ids = getSelectedIDs();
+	for (int id : ids)
 	{
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		std::vector<int> ids = getSelectedIDs();
-		QVector3D translate = objectTransformPanel->getTranslation();
-		QVector3D rotate = objectTransformPanel->getRotation();
-		QVector3D scale = objectTransformPanel->getScale();
-		_glWidget->setTransformation(ids, translate, rotate, scale);
-		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
-		float offset = _glWidget->getFloorSize() * 1.25f;
-		visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
-		_glWidget->update();
-		QApplication::restoreOverrideCursor();
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			uuids.append(uuid);
 	}
+
+	// Create and push transform command
+	// redo() will be called automatically and will apply the transformation
+	m_undoStack->push(new TransformCommand(
+		this, _glWidget, uuids, translate, rotate, scale
+	));
+
+	// Update UI (transformation already applied by command's redo())
+	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
+	float offset = _glWidget->getFloorSize() * 1.25f;
+	visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
+	_glWidget->update();
+
+	QApplication::restoreOverrideCursor();
 }
 
 void ModelViewer::bakeTransformations()
 {
-	// Ask the user whether they really want to perform this irreversible operation
-	QMessageBox::StandardButton reply;
-	reply = QMessageBox::question(this, tr("Bake Transformations"),
-		tr("This operation will bake the transformations into the mesh vertices and cannot be undone.\n"
-			"Do you want to proceed?"),
-		QMessageBox::Yes | QMessageBox::No);
+	if (!checkForActiveSelection())
+		return;
 
-	if (reply == QMessageBox::Yes)
+	// Updated warning dialog
+	QMessageBox::StandardButton reply = QMessageBox::question(
+		this,
+		tr("Bake Transformations"),
+		tr("This operation will permanently apply transformations to mesh vertices.\n"
+			"Transform undo/redo for these meshes will no longer work.\n"
+			"Other undo operations (selection, visibility, etc.) will still work.\n\n"
+			"Do you want to proceed?"),
+		QMessageBox::Yes | QMessageBox::No
+	);
+
+	if (reply != QMessageBox::Yes)
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	// Get selected mesh IDs and UUIDs
+	std::vector<int> ids = getSelectedIDs();
+	QVector<QUuid> bakedUuids;
+	for (int id : ids)
 	{
-		// Proceed with baking transformations
-		if (checkForActiveSelection())
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			bakedUuids.append(uuid);
+	}
+
+	// Bake the transformations
+	_glWidget->bakeTransformation(ids);
+
+	// Mark all TransformCommands affecting these meshes as obsolete
+	for (int i = 0; i < m_undoStack->count(); ++i)
+	{
+		const TransformCommand* cmd =
+			dynamic_cast<const TransformCommand*>(m_undoStack->command(i));
+		if (cmd && cmd->affectsAnyUuid(bakedUuids))
 		{
-			QApplication::setOverrideCursor(Qt::WaitCursor);
-			std::vector<int> ids = getSelectedIDs();
-			_glWidget->bakeTransformation(ids);
-			objectTransformPanel->resetAllValues();
-			QMessageBox::information(this, tr("Action Complete"), tr("Baked the applied transformations into the mesh vertices"));
-			QApplication::restoreOverrideCursor();
-			_glWidget->update();
-		}		
+			// Mark each baked mesh in the command
+			for (const QUuid& uuid : bakedUuids)
+			{
+				cmd->markMeshBaked(uuid);
+			}
+		}
 	}
-	else
-	{
-		// Cancel the operation
-	}
+
+	// Panel values already reset (you handled this!)
+
+	QMessageBox::information(
+		this,
+		tr("Action Complete"),
+		tr("Baked the applied transformations into the mesh vertices")
+	);
+
+	QApplication::restoreOverrideCursor();
+	_glWidget->update();
 }
 
 void ModelViewer::resetTransformation()
 {
-	if (checkForActiveSelection())
+	if (!checkForActiveSelection())
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	// Get UUIDs of selected meshes
+	QVector<QUuid> uuids;
+	std::vector<int> ids = getSelectedIDs();
+	for (int id : ids)
 	{
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		std::vector<int> ids = getSelectedIDs();
-		// Reset panel values
-		objectTransformPanel->resetAllValues();
-		// Reset transformations
-		_glWidget->resetTransformation(ids);
-		float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
-		float offset = _glWidget->getFloorSize() * 1.25f;
-		visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
-		_glWidget->update();
-		QApplication::restoreOverrideCursor();
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			uuids.append(uuid);
 	}
+
+	// Reset is transformation to identity values
+	QVector3D identity_trans(0, 0, 0);
+	QVector3D identity_rot(0, 0, 0);
+	QVector3D identity_scale(1, 1, 1);
+
+	// Create and push transform command with identity values
+	m_undoStack->push(new TransformCommand(
+		this, _glWidget, uuids,
+		identity_trans, identity_rot, identity_scale,
+		tr("Reset Transform")  // Different text for reset
+	));
+
+	// Reset panel values
+	objectTransformPanel->resetAllValues();
+
+	// Update UI
+	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
+	float offset = _glWidget->getFloorSize() * 1.25f;
+	visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
+	_glWidget->update();
+
+	QApplication::restoreOverrideCursor();
 }
 
 void ModelViewer::updateTransformationValues()
