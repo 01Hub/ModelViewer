@@ -376,6 +376,7 @@ public:
 
 	// UUID lookup methods
 	TriangleMesh* getMeshByUuid(const QUuid& uuid) const;
+	TriangleMesh* getMeshByIndex(int index) const;
 	int getIndexByUuid(const QUuid& uuid) const;
 	QUuid getUuidByIndex(int index) const;
 

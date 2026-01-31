@@ -630,6 +630,11 @@ TriangleMesh* GLWidget::getMeshByUuid(const QUuid& uuid) const
 	return nullptr;
 }
 
+TriangleMesh* GLWidget::getMeshByIndex(int index) const
+{
+	return getMeshByUuid(getUuidByIndex(index));
+}
+
 int GLWidget::getIndexByUuid(const QUuid& uuid) const
 {
 	for (size_t i = 0; i < _meshStore.size(); ++i)
