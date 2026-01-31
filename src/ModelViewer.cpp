@@ -311,14 +311,13 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	connect(textureMappingPanel, &TextureMappingPanel::detachRequested,
 		this, &ModelViewer::detachTexturePanel);
-	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::applyTexturesTriggered, this, &ModelViewer::setTexturesToSelectedItems);
-	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::materialChanged, this,
-		[this](const GLMaterial* mat) {
-			if (hasSelection())
-			{
-				setTexturesToSelectedItems(*mat);
-			}
-		});
+	
+	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::applyTexturesTriggered,
+		this, [this](const GLMaterial& mat) { onTexturesApplied(&mat); });
+
+	/*connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::materialChanged,
+		this, &ModelViewer::onTexturesApplied);*/
+
 	connect(textureMappingPanel, &TextureMappingPanel::textureSamplerChanged,
 		this, &ModelViewer::setTextureSamplersToSelectedItems);
 	connect(textureMappingPanel, &TextureMappingPanel::textureCacheClearRequested,
@@ -2388,6 +2387,29 @@ void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
 
 	m_undoStack->push(new SetMaterialCommand(
 		this, _glWidget, uuids, mat, materialName
+	));
+
+	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::onTexturesApplied(const GLMaterial* mat)
+{
+	if (!mat || !checkForActiveSelection())
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	QVector<QUuid> uuids;
+	std::vector<int> ids = getSelectedIDs();
+	for (int id : ids)
+	{
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			uuids.append(uuid);
+	}
+
+	m_undoStack->push(new ApplyTexturesCommand(
+		this, _glWidget, uuids, *mat  // Dereference pointer
 	));
 
 	QApplication::restoreOverrideCursor();

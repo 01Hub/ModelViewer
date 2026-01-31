@@ -571,18 +571,36 @@ void TextureMappingPanel::connectSignals()
 	connect(_ui->maskChannelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
 		this, &TextureMappingPanel::onTintParamsChanged);
 
-	connect(_ui->treeWidgetPresetTextures, &QTreeWidget::itemDoubleClicked,
+	// Single-click: Preview only
+	connect(_ui->treeWidgetPresetTextures, &QTreeWidget::itemClicked,
 		this, [this](QTreeWidgetItem* item, int column) {
 			Q_UNUSED(column);
-			if (!item) return;
-
-			// Only apply if it's a material item (has parent = category)
-			if (!item->parent()) return;
+			if (!item || !item->parent()) return;
 
 			QString materialName = item->data(0, Qt::UserRole).toString();
 			if (materialName.isEmpty()) return;
 
+			// Just preview, don't apply to mesh
+			QApplication::setOverrideCursor(Qt::WaitCursor);
 			applyMaterialPreset(materialName);
+			QApplication::restoreOverrideCursor();
+		});
+
+	// Double-click: Apply with undo (existing, modified)
+	connect(_ui->treeWidgetPresetTextures, &QTreeWidget::itemDoubleClicked,
+		this, [this](QTreeWidgetItem* item, int column) {
+			Q_UNUSED(column);
+			if (!item || !item->parent()) return;
+
+			QString materialName = item->data(0, Qt::UserRole).toString();
+			if (materialName.isEmpty()) return;
+
+			// Already previewed by single-click
+			// Just trigger apply for undo
+			if (_material)
+			{
+				emit applyTexturesTriggered(*_material);
+			}
 		});
 
 	connect(_ui->lineEditSearchPreset, &QLineEdit::textChanged,
