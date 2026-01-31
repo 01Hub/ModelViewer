@@ -32,6 +32,7 @@ public:
 
 signals:
 	void materialChanged(const GLMaterial& mat);
+	void materialApplied(const GLMaterial& mat);
 	void detachRequested();
 
 private slots:

@@ -237,7 +237,7 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	connect(ui->applyButton, &QPushButton::clicked, this, [=]() {
 		// Apply the current material settings to the preview widget
 		ui->previewWidget->setMaterial(_currentMaterial);
-		emit materialChanged(_currentMaterial);
+		emit materialApplied(_currentMaterial);
 		});
 
 	connect(ui->saveButton, &QPushButton::clicked, this, [=]() {
