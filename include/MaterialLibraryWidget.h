@@ -58,8 +58,7 @@ public:
 signals:
     void materialSelected(const GLMaterial &mat);
 
-private slots:
-    void onItemClicked(QTreeWidgetItem *item, int column);
+private slots:    
     void handleItemEntered(QTreeWidgetItem* item, int column);
 
 private:

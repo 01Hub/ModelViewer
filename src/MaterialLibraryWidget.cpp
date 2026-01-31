@@ -123,9 +123,6 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget* parent)
 
 	// Populate materials (JSON first, fallback to built-ins)
 	populateMaterials();
-
-	connect(this, &QTreeWidget::itemClicked,
-		this, &MaterialLibraryWidget::onItemClicked);
 	
 	connect(this, &QTreeWidget::itemSelectionChanged, this, [this]() {
 		if (selectedItems().isEmpty()) return;
@@ -771,23 +768,6 @@ void MaterialLibraryWidget::handleItemEntered(QTreeWidgetItem* item, int column)
 	else
 	{
 		item->setToolTip(column, QString()); // Clear tooltip if not needed
-	}
-}
-
-void MaterialLibraryWidget::onItemClicked(QTreeWidgetItem* item, int column)
-{
-	if (!item->childCount())
-	{
-		QString key = item->data(0, Qt::UserRole).toString();
-		if (s_materialMap.contains(key))
-		{
-			emit materialSelected(s_materialMap[key]());
-		}
-		else
-		{
-			emit materialSelected(GLMaterial::DEFAULT_MAT());
-		}
-
 	}
 }
 
