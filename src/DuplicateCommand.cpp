@@ -5,14 +5,15 @@
 DuplicateCommand::DuplicateCommand(ModelViewer* viewer,
     GLWidget* glWidget,
     const QVector<QUuid>& duplicatedUuids,
+    const QSet<QUuid>& originalSelection,
     const QString& text)
     : ModelViewerCommand(viewer, glWidget, text)
     , m_duplicatedUuids(duplicatedUuids)
+    , m_originalSelection(originalSelection)  // Use passed-in value
     , m_firstRedo(true)
 {
-    // Capture the selection state BEFORE auto-selecting duplicates
-    // This allows us to restore the original selection on undo
-    m_originalSelection = m_viewer->getSelectedUuids();
+    // Original selection is passed as parameter (captured before updateDisplayList)
+    // No need to capture it here
 }
 
 void DuplicateCommand::undo()
@@ -30,11 +31,11 @@ void DuplicateCommand::undo()
         }
     }
 
-    // Update view and UI
+    // Update view and UI FIRST (this rebuilds the list)
     m_glWidget->updateView();
     m_viewer->updateDisplayList();
 
-    // Restore the original selection (before duplication)
+    // THEN restore the original selection (after list is stable)
     m_viewer->setSelectionWithoutUndo(m_originalSelection);
 }
 
@@ -46,7 +47,8 @@ void DuplicateCommand::redo()
     if (m_firstRedo)
     {
         // First redo is called automatically by QUndoStack::push()
-        // But duplication has already happened, so just select the duplicates
+        // Duplication has already happened, list has already been updated
+        // Just select the duplicates
         m_firstRedo = false;
 
         // Auto-select the duplicates (without creating SelectionCommand)
@@ -61,11 +63,11 @@ void DuplicateCommand::redo()
         m_glWidget->restoreFromRecycleBin(uuid);
     }
 
-    // Update view and UI
+    // Update view and UI FIRST (this rebuilds the list)
     m_glWidget->updateView();
     m_viewer->updateDisplayList();
 
-    // Auto-select the restored duplicates
+    // THEN auto-select the restored duplicates (after list is stable)
     QSet<QUuid> duplicateSet(m_duplicatedUuids.begin(), m_duplicatedUuids.end());
     m_viewer->setSelectionWithoutUndo(duplicateSet);
 }

@@ -1408,19 +1408,21 @@ void ModelViewer::duplicateSelectedItems()
 	if (selectedItems.isEmpty())
 		return;
 
-	// No confirmation dialog - undo makes it safe
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
-	// Duplicate the selected meshes
 	std::vector<int> ids = getSelectedIDs();
+
+	// CAPTURE ORIGINAL SELECTION FIRST (before updateDisplayList)
+	QSet<QUuid> originalSelection = getSelectedUuids();
+
 	QVector<QUuid> duplicatedUuids = _glWidget->duplicateObjects(ids);
 
-	// Create and push undo command
-	// Note: This will automatically call redo() which selects the duplicates
-	m_undoStack->push(new DuplicateCommand(this, _glWidget, duplicatedUuids));
+	updateDisplayList();  // May clear selection, but we already saved it
 
-	// Update UI
-	updateDisplayList();
+	// PASS original selection to command
+	m_undoStack->push(new DuplicateCommand(
+		this, _glWidget, duplicatedUuids, originalSelection
+	));
 
 	QApplication::restoreOverrideCursor();
 }

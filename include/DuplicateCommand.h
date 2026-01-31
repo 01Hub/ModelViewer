@@ -25,14 +25,16 @@ public:
      * @param viewer The ModelViewer instance
      * @param glWidget The GLWidget instance
      * @param duplicatedUuids The UUIDs of the newly created duplicate meshes
+     * @param originalSelection The UUIDs that were selected before duplication
      * @param text Description (default: "Duplicate")
      *
      * Note: This constructor is called AFTER duplication has already occurred.
-     * It captures the current state for undo/redo purposes.
+     * It receives the original selection as a parameter (captured before duplication).
      */
     DuplicateCommand(ModelViewer* viewer,
         GLWidget* glWidget,
         const QVector<QUuid>& duplicatedUuids,
+        const QSet<QUuid>& originalSelection,
         const QString& text = QObject::tr("Duplicate"));
 
     void undo() override;
@@ -57,11 +59,8 @@ public:
 
 private:
     QVector<QUuid> m_duplicatedUuids;    // UUIDs of the duplicated meshes
-    QSet<QUuid> m_originalSelection;     // Selection before duplication
-
-    // QUndoStack automatically calls redo() on the command!
-    // But for duplicate, the meshes are already created before we make the command
-    bool m_firstRedo; // Flag to skip first redo call
+    QSet<QUuid> m_originalSelection;     // Selection before duplication (passed in)
+    bool m_firstRedo;                    // Flag to skip first redo call
 
     /**
      * @brief Convert UUIDs to current indices
