@@ -7,6 +7,7 @@
 #include "GLMaterial.h"
 #include "UVPromptDialog.h"
 #include "AssImpModelLoader.h"
+#include "SetMaterialCommand.h"
 
 #include <QUndoStack>
 
@@ -150,6 +151,9 @@ private slots:
 
 	void applyADSTextures();
 	void clearADSTextures();
+
+	void onPredefinedMaterialSelected(const GLMaterial& mat);
+	void onCustomMaterialApplied(const GLMaterial& mat);
 
 protected:
 	void showEvent(QShowEvent* event);

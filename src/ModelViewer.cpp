@@ -294,7 +294,18 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		});
 
 
-	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialEditorPanel::materialChanged, this, &ModelViewer::setMaterialToSelectedItems);
+	MaterialLibraryWidget* libraryWidget =
+		Ui_ModelViewer::predefinedMaterialsPanel->findChild<MaterialLibraryWidget*>("treeWidget");
+
+	if (libraryWidget)
+	{
+		connect(libraryWidget, &MaterialLibraryWidget::materialSelected,
+			this, &ModelViewer::onPredefinedMaterialSelected);
+	}
+
+	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialEditorPanel::materialApplied,
+		this, &ModelViewer::onCustomMaterialApplied);
+
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialEditorPanel::detachRequested,
 		this, &ModelViewer::detachMaterialPanel);
 
@@ -2315,6 +2326,71 @@ void ModelViewer::clearADSTextures()
 		_glWidget->updateView();
 		QApplication::restoreOverrideCursor();
 	}
+}
+
+void ModelViewer::onPredefinedMaterialSelected(const GLMaterial& mat)
+{	
+	if (!checkForActiveSelection())
+	{
+		qDebug() << "No active selection, returning";
+		return;
+	}
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	QVector<QUuid> uuids;
+	std::vector<int> ids = getSelectedIDs();
+	for (int id : ids)
+	{
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			uuids.append(uuid);
+	}
+
+	QString materialName;
+	MaterialEditorPanel* panel = Ui_ModelViewer::predefinedMaterialsPanel;
+	if (panel)
+	{
+		MaterialLibraryWidget* tree = panel->findChild<MaterialLibraryWidget*>("treeWidget");
+		if (tree && !tree->selectedItems().isEmpty())
+		{
+			materialName = tree->selectedItems().first()->text(0);
+		}
+	}
+		
+	m_undoStack->push(new SetMaterialCommand(
+		this, _glWidget, uuids, mat, materialName
+	));
+
+	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
+{
+	if (!checkForActiveSelection())
+	{
+		qDebug() << "No active selection, returning";
+		return;
+	}
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	QVector<QUuid> uuids;
+	std::vector<int> ids = getSelectedIDs();
+	for (int id : ids)
+	{
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			uuids.append(uuid);
+	}
+
+	QString materialName = "Custom Material";
+
+	m_undoStack->push(new SetMaterialCommand(
+		this, _glWidget, uuids, mat, materialName
+	));
+
+	QApplication::restoreOverrideCursor();
 }
 
 UVDialogResult ModelViewer::askUserForUVMethod(QWidget* parent)
