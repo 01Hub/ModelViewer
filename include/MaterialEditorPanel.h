@@ -36,6 +36,7 @@ signals:
 	void detachRequested();
 
 private slots:
+	void onMaterialPreview(const GLMaterial& mat);
 	void onMaterialSelected(const GLMaterial& mat);
 	void onDetachButtonClicked();
 

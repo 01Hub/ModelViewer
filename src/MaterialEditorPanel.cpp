@@ -37,6 +37,8 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 	connect(ui->detachButton, &QToolButton::clicked,
 		this, &MaterialEditorPanel::onDetachButtonClicked);
 
+	connect(ui->treeWidget, &MaterialLibraryWidget::materialPreview,
+		this, &MaterialEditorPanel::onMaterialPreview);
 	connect(ui->treeWidget, &MaterialLibraryWidget::materialSelected,
 		this, &MaterialEditorPanel::onMaterialSelected);
 
@@ -607,6 +609,12 @@ void MaterialEditorPanel::setDetached(bool detached)
 void MaterialEditorPanel::onDetachButtonClicked()
 {
 	emit detachRequested();
+}
+
+void MaterialEditorPanel::onMaterialPreview(const GLMaterial& mat)
+{
+	_currentMaterial = mat;
+	ui->previewWidget->setMaterial(mat);
 }
 
 void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)

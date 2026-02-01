@@ -131,6 +131,17 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget* parent)
 
 		QString key = item->data(0, Qt::UserRole).toString();
 		if (!key.isEmpty() && MaterialLibraryWidget::s_materialMap.contains(key))
+			emit materialPreview(MaterialLibraryWidget::s_materialMap[key]());
+		else
+			emit materialPreview(GLMaterial::DEFAULT_MAT()); 
+		});
+
+	// ADD itemDoubleClicked connection (after itemSelectionChanged):
+	connect(this, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item) {
+		if (!item) return;
+
+		QString key = item->data(0, Qt::UserRole).toString();
+		if (!key.isEmpty() && MaterialLibraryWidget::s_materialMap.contains(key))
 			emit materialSelected(MaterialLibraryWidget::s_materialMap[key]());
 		else
 			emit materialSelected(GLMaterial::DEFAULT_MAT());

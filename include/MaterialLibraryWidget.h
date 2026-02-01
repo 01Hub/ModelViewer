@@ -56,6 +56,7 @@ public:
 
 
 signals:
+    void materialPreview(const GLMaterial& mat);
     void materialSelected(const GLMaterial &mat);
 
 private slots:    
