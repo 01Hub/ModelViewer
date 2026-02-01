@@ -2685,6 +2685,8 @@ void GLWidget::clearADSTexMaps(const std::vector<int>& ids)
 			std::cout << "Exception in GLWidget::clearADSTexMaps\n" << ex.what() << std::endl;
 		}
 	}
+
+	updateView();
 }
 
 void GLWidget::setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat)

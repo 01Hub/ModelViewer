@@ -1036,6 +1036,7 @@ void TriangleMesh::clearOpacityADSMap()
 
 void TriangleMesh::clearAllADSMaps()
 {
+	// Delete all ADS maps
 	glDeleteTextures(1, &_diffuseADSMap);
 	_diffuseADSMap = 0;
 	glDeleteTextures(1, &_specularADSMap);
@@ -1046,6 +1047,18 @@ void TriangleMesh::clearAllADSMaps()
 	_normalADSMap = 0;
 	glDeleteTextures(1, &_heightADSMap);
 	_heightADSMap = 0;
+
+	// Disable all ADS maps
+	enableDiffuseADSMap(false);
+	enableSpecularADSMap(false);
+	enableEmissiveADSMap(false);
+	enableNormalADSMap(false);
+	enableHeightADSMap(false);
+	enableOpacityADSMap(false);
+
+	// Mark dirty to update shaders
+	markTexturesDirty();
+	markUniformsDirty();
 }
 
 GLMaterial TriangleMesh::getMaterial() const
