@@ -1,5 +1,8 @@
 ﻿#include "ADSMaterialSettingsPanel.h"
 #include "AssImpModelLoader.h"
+#include "ApplyTexturesCommand.h"
+#include "ApplyADSColorsCommand.h"
+#include "ApplyADSTexturesCommand.h"
 #include "DeleteMeshCommand.h"
 #include "DuplicateCommand.h"
 #include "GLWidget.h"
@@ -73,129 +76,21 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	adsMaterialSettingsPanel->initialize(this, _glWidget, &_material);
 
-	// Connect panel signals to ModelViewer slots
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialAmbientChanged,
-		this, [this](const QVector3D& color) {
-			if (hasSelection())
-			{
-				setMaterialToSelectedItems(_material);
-				_glWidget->updateView();
-			}
-		});
-
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialDiffuseChanged,
-		this, [this](const QVector3D& color) {
-			if (hasSelection())
-			{
-				setMaterialToSelectedItems(_material);
-				_glWidget->updateView();
-			}
-		});
-
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialSpecularChanged,
-		this, [this](const QVector3D& color) {
-			if (hasSelection())
-			{
-				setMaterialToSelectedItems(_material);
-				_glWidget->updateView();
-			}
-		});
-
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::materialEmissiveChanged,
-		this, [this](const QVector3D& color) {
-			if (hasSelection())
-			{
-				setMaterialToSelectedItems(_material);
-				_glWidget->updateView();
-			}
-		});
-
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityChanged,
-		this, [this](float opacity) {
-			if (hasSelection())
-			{
-				for (int id : getSelectedIDs())
-				{
-					TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
-					if (mesh)
-						mesh->setOpacity(opacity);
-				}
-				_glWidget->updateView();
-			}
-		});
-
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::shininessChanged,
-		this, [this](int shine) {
-			if (hasSelection())
-			{
-				for (int id : getSelectedIDs())
-				{
-					TriangleMesh* mesh = _glWidget->getMeshStore().at(id);
-					if (mesh)
-						mesh->setShininess(shine);
-				}
-				_glWidget->updateView();
-			}
-		});
-
+	// Connect panel signals to ModelViewer slots	
 	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyColorToSelectionRequested,
-		this, &ModelViewer::applyADSColors);
+		this, &ModelViewer::onADSColorsApplied);
+	
+	// connect apply/clear buttons
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyTexturesRequested,
+		this, &ModelViewer::onADSTexturesApplied);
+
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::clearTexturesRequested,
+		this, &ModelViewer::clearADSTextures);
 
 	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::defaultMaterialsRequested,
 		this, [this]() {
 			updateControls();
 		});
-
-	// conenct the different textures 
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::diffuseTextureChanged,
-		this, [this](const QString& path) {
-			if (hasSelection())
-				_glWidget->setADSDiffuseTexMap(getSelectedIDs(), path);
-			_glWidget->updateView();
-		});
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::specularTextureChanged,
-		this, [this](const QString& path) {
-			if (hasSelection())
-				_glWidget->setADSSpecularTexMap(getSelectedIDs(), path);
-			_glWidget->updateView();
-		});
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::normalTextureChanged,
-		this, [this](const QString& path) {
-			if (hasSelection())
-				_glWidget->setADSNormalTexMap(getSelectedIDs(), path);
-			_glWidget->updateView();
-		});
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::emissiveTextureChanged,
-		this, [this](const QString& path) {
-			if (hasSelection())
-				_glWidget->setADSEmissiveTexMap(getSelectedIDs(), path);
-			_glWidget->updateView();
-		});
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::heightTextureChanged,
-		this, [this](const QString& path) {
-			if (hasSelection())
-				_glWidget->setADSHeightTexMap(getSelectedIDs(), path);
-			_glWidget->updateView();
-		});
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityTextureChanged,
-		this, [this](const QString& path) {
-			if (hasSelection())
-				_glWidget->setADSOpacityTexMap(getSelectedIDs(), path);
-			_glWidget->updateView();
-		});
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacityTextureInverted,
-		this, [this](bool inverted) {
-			if (hasSelection())
-				_glWidget->invertADSOpacityTexMap(getSelectedIDs(), inverted);
-			_glWidget->updateView();
-		});
-
-	// connect apply/clear buttons
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyTexturesRequested,
-		this, &ModelViewer::applyADSTextures);
-
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::clearTexturesRequested,
-		this, &ModelViewer::clearADSTextures);
 
 	connect(Ui_ModelViewer::adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::detachRequested,
 		this, &ModelViewer::detachADSMaterialPanel);
@@ -1916,6 +1811,64 @@ void ModelViewer::itemEdited(QWidget* widget, QAbstractItemDelegate::EndEditHint
 		checkAndRenameModel(mesh, path);
 }
 
+GLMaterial ModelViewer::buildADSMaterialFromPanel() const
+{
+    GLMaterial mat;
+    
+    ADSMaterialSettingsPanel* adsPanel = 
+        qobject_cast<ADSMaterialSettingsPanel*>(Ui_ModelViewer::adsMaterialSettingsPanel);
+    
+    // Get texture paths from panel
+    QString diffusePath = adsPanel->getDiffuseTexturePath();
+    QString specularPath = adsPanel->getSpecularTexturePath();
+    QString normalPath = adsPanel->getNormalTexturePath();
+    QString emissivePath = adsPanel->getEmissiveTexturePath();
+    QString heightPath = adsPanel->getHeightTexturePath();
+    QString opacityPath = adsPanel->getOpacityTexturePath();
+    bool opacityInverted = adsPanel->isOpacityTextureInverted();
+    
+    // Set textures
+    if (!diffusePath.isEmpty())
+    {
+        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::Diffuse);
+        tex.path = diffusePath.toStdString();
+    }
+    
+    if (!specularPath.isEmpty())
+    {
+        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::SpecularGlossiness);
+        tex.path = specularPath.toStdString();
+    }
+    
+    if (!normalPath.isEmpty())
+    {
+        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::Normal);
+        tex.path = normalPath.toStdString();
+    }
+    
+    if (!emissivePath.isEmpty())
+    {
+        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::Emissive);
+        tex.path = emissivePath.toStdString();
+    }
+    
+    if (!heightPath.isEmpty())
+    {
+        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::Height);
+        tex.path = heightPath.toStdString();
+    }
+    
+    if (!opacityPath.isEmpty())
+    {
+        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::Opacity);
+        tex.path = opacityPath.toStdString();
+    }
+    
+    mat.setInvertOpacityMap(opacityInverted);
+    
+    return mat;
+}
+
 void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 {
 	bool duplicate = false;
@@ -2410,6 +2363,91 @@ void ModelViewer::onTexturesApplied(const GLMaterial* mat)
 
 	m_undoStack->push(new ApplyTexturesCommand(
 		this, _glWidget, uuids, *mat  // Dereference pointer
+	));
+
+	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::onADSColorsApplied()
+{
+	if (!checkForActiveSelection())
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	// Get current color values from panel (single source of truth!)
+	ADSMaterialSettingsPanel* adsPanel =
+		qobject_cast<ADSMaterialSettingsPanel*>(Ui_ModelViewer::adsMaterialSettingsPanel);
+
+	QVector3D ambient = adsPanel->getAmbientColor();
+	QVector3D diffuse = adsPanel->getDiffuseColor();
+	QVector3D specular = adsPanel->getSpecularColor();
+	QVector3D emissive = adsPanel->getEmissiveColor();
+	float opacity = adsPanel->getOpacity();
+	int shininess = adsPanel->getShininess();
+
+	// Get UUIDs of selected meshes
+	QVector<QUuid> uuids;
+	std::vector<int> ids = getSelectedIDs();
+	for (int id : ids)
+	{
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			uuids.append(uuid);
+	}
+
+	// Create and push command
+	m_undoStack->push(new ApplyADSColorsCommand(
+		this, _glWidget, uuids,
+		ambient, diffuse, specular, emissive, opacity, shininess
+	));
+
+	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::onADSTexturesApplied()
+{
+	if (!checkForActiveSelection())
+		return;
+
+	// Get texture paths from panel (using getters approach)
+	ADSMaterialSettingsPanel* adsPanel =
+		qobject_cast<ADSMaterialSettingsPanel*>(Ui_ModelViewer::adsMaterialSettingsPanel);
+
+	QString diffusePath = adsPanel->getDiffuseTexturePath();
+	QString specularPath = adsPanel->getSpecularTexturePath();
+	QString normalPath = adsPanel->getNormalTexturePath();
+	QString emissivePath = adsPanel->getEmissiveTexturePath();
+	QString heightPath = adsPanel->getHeightTexturePath();
+	QString opacityPath = adsPanel->getOpacityTexturePath();
+	bool opacityInverted = adsPanel->isOpacityTextureInverted();
+
+	// Check if at least diffuse texture is set
+	if (diffusePath.isEmpty())
+	{
+		QMessageBox::warning(this, tr("No Textures"),
+			tr("Please select at least a diffuse texture."));
+		return;
+	}
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	// Get UUIDs of selected meshes
+	QVector<QUuid> uuids;
+	std::vector<int> ids = getSelectedIDs();
+	for (int id : ids)
+	{
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			uuids.append(uuid);
+	}
+
+	// Create and push command with PATHS, not GLMaterial
+	m_undoStack->push(new ApplyADSTexturesCommand(
+		this, _glWidget, uuids,
+		diffusePath, specularPath, normalPath,
+		emissivePath, heightPath, opacityPath,
+		opacityInverted
 	));
 
 	QApplication::restoreOverrideCursor();

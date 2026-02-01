@@ -7,7 +7,6 @@
 #include "GLMaterial.h"
 #include "UVPromptDialog.h"
 #include "AssImpModelLoader.h"
-#include "ApplyTexturesCommand.h"
 #include "SetMaterialCommand.h"
 
 #include <QUndoStack>
@@ -158,6 +157,9 @@ private slots:
 
 	void onTexturesApplied(const GLMaterial* mat = nullptr);
 
+	void onADSColorsApplied();
+	void onADSTexturesApplied();
+
 protected:
 	void showEvent(QShowEvent* event);
 	void keyPressEvent(QKeyEvent* event);
@@ -168,9 +170,11 @@ protected:
 	void closeEvent(QCloseEvent* event);
 
 private:
+	GLMaterial buildADSMaterialFromPanel() const;
+
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
 	bool checkForActiveSelection();
-	
+			
 	void updateControls();
 	QString getSupportedQtImagesFilter();
 

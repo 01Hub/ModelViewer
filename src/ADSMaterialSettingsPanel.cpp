@@ -179,6 +179,73 @@ void ADSMaterialSettingsPanel::setDetached(bool detached)
     lineSeparator->setVisible(!_detached);
 }
 
+// Color getters
+QVector3D ADSMaterialSettingsPanel::getAmbientColor() const
+{
+    return _material ? _material->ambient() : QVector3D(0.2f, 0.2f, 0.2f);
+}
+
+QVector3D ADSMaterialSettingsPanel::getDiffuseColor() const
+{
+    return _material ? _material->diffuse() : QVector3D(0.8f, 0.8f, 0.8f);
+}
+
+QVector3D ADSMaterialSettingsPanel::getSpecularColor() const
+{
+    return _material ? _material->specular() : QVector3D(1.0f, 1.0f, 1.0f);
+}
+
+QVector3D ADSMaterialSettingsPanel::getEmissiveColor() const
+{
+    return _material ? _material->emissive() : QVector3D(0.0f, 0.0f, 0.0f);
+}
+
+float ADSMaterialSettingsPanel::getOpacity() const
+{
+    return sliderTransparency->value();
+}
+
+int ADSMaterialSettingsPanel::getShininess() const
+{    
+    return sliderShine->value();
+}
+
+// Texture path getters
+QString ADSMaterialSettingsPanel::getDiffuseTexturePath() const
+{
+    return _diffuseTexPath;
+}
+
+QString ADSMaterialSettingsPanel::getSpecularTexturePath() const
+{
+    return _specularTexPath;
+}
+
+QString ADSMaterialSettingsPanel::getNormalTexturePath() const
+{
+    return _normalTexPath;
+}
+
+QString ADSMaterialSettingsPanel::getEmissiveTexturePath() const
+{
+    return _emissiveTexPath;
+}
+
+QString ADSMaterialSettingsPanel::getHeightTexturePath() const
+{
+    return _heightTexPath;
+}
+
+QString ADSMaterialSettingsPanel::getOpacityTexturePath() const
+{
+    return _opacityTexPath;
+}
+
+bool ADSMaterialSettingsPanel::isOpacityTextureInverted() const
+{    
+    return checkBoxOpacInvert->isChecked();
+}
+
 // ============================================================================
 // Material Color Button Slots
 // ============================================================================

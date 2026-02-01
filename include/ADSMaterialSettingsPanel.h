@@ -37,6 +37,23 @@ public:
 	bool isDetached() const { return _detached; }
     void setDetached(bool detached);
 
+    // Color getters
+    QVector3D getAmbientColor() const;
+    QVector3D getDiffuseColor() const;
+    QVector3D getSpecularColor() const;
+    QVector3D getEmissiveColor() const;
+    float getOpacity() const;
+    int getShininess() const;
+
+    // Texture path getters
+    QString getDiffuseTexturePath() const;
+    QString getSpecularTexturePath() const;
+    QString getNormalTexturePath() const;
+    QString getEmissiveTexturePath() const;
+    QString getHeightTexturePath() const;
+    QString getOpacityTexturePath() const;
+    bool isOpacityTextureInverted() const;
+
 signals:
     // Material color signals
     void materialAmbientChanged(const QVector3D& color);
