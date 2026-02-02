@@ -64,6 +64,8 @@ signals:
     // Material property signals
     void opacityChanged(float opacity);
     void shininessChanged(int shine);
+    void opacitySliderReleased();
+    void shininessSliderReleased();
 
     // Texture signals
     void diffuseTextureChanged(const QString& path);

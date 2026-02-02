@@ -8,6 +8,49 @@
 #include <QImageReader>
 #include <QMessageBox>
 
+#include <cmath>
+
+namespace
+{
+
+    float sliderToOpacity(int sliderValue)
+    {
+        float t = static_cast<float>(sliderValue) / 1000.0f;
+
+        if (t <= 0.5f)
+        {
+            // Linear for 0.0-0.5 (clean seamless region)
+            return t;
+        }
+        else
+        {
+            // Quadratic for 0.5-1.0 (artifact region - COMPRESS)
+            float normalized = (t - 0.5f) / 0.5f;
+            float curved = normalized * normalized;  // x² compresses
+            return 0.5f + curved * 0.5f;
+        }
+    }
+
+    int opacityToSlider(float opacity)
+    {
+        float t;
+
+        if (opacity <= 0.5f)
+        {
+            t = opacity;
+        }
+        else
+        {
+            float normalized = (opacity - 0.5f) / 0.5f;
+            float uncurved = std::sqrt(normalized);  // Inverse of x²
+            t = 0.5f + uncurved * 0.5f;
+        }
+
+        return static_cast<int>(t * 1000.0f);
+    }
+
+} // namespace
+
 ADSMaterialSettingsPanel::ADSMaterialSettingsPanel(QWidget* parent)
     : QWidget(parent),
     _modelViewer(nullptr),
@@ -61,6 +104,10 @@ void ADSMaterialSettingsPanel::connectSignalsAndSlots()
     // Material property sliders
     connect(sliderTransparency, &QSlider::valueChanged, this, &ADSMaterialSettingsPanel::onTransparencyChanged);
     connect(sliderShine, &QSlider::valueChanged, this, &ADSMaterialSettingsPanel::onShineChanged);
+    connect(sliderTransparency, &QSlider::sliderReleased,
+        this, &ADSMaterialSettingsPanel::opacitySliderReleased);
+    connect(sliderShine, &QSlider::sliderReleased,
+        this, &ADSMaterialSettingsPanel::shininessSliderReleased);
 
     // Texture checkboxes
     connect(checkBoxDiffuseTex, &QCheckBox::toggled, this, &ADSMaterialSettingsPanel::onDiffuseTexToggled);
@@ -120,7 +167,7 @@ void ADSMaterialSettingsPanel::updateMaterialPropertySliders()
     _updateInProgress = true;
 
     // Update transparency slider and label
-    int opacityValue = static_cast<int>(_material->opacity() * 1000.0f);
+    int opacityValue = opacityToSlider(_material->opacity());
     sliderTransparency->blockSignals(true);
     sliderTransparency->setValue(opacityValue);
     sliderTransparency->blockSignals(false);
@@ -202,8 +249,7 @@ QVector3D ADSMaterialSettingsPanel::getEmissiveColor() const
 
 float ADSMaterialSettingsPanel::getOpacity() const
 {    
-    int sliderValue = sliderTransparency->value();
-    return static_cast<float>(sliderValue) / 1000.0f;	
+    return sliderToOpacity(sliderTransparency->value());
 }
 
 int ADSMaterialSettingsPanel::getShininess() const
@@ -352,7 +398,7 @@ void ADSMaterialSettingsPanel::onTransparencyChanged(int value)
     if (_updateInProgress || !_material || !_hasActiveSelection)
         return;
 
-    float opacity = static_cast<float>(value) / 1000.0f;
+    float opacity = sliderToOpacity(value);
     _material->setOpacity(opacity);
     valueOpacity->setText(QString::number(opacity, 'f', 2));
 

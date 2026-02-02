@@ -158,6 +158,8 @@ private slots:
 	void onTexturesApplied(const GLMaterial* mat = nullptr);
 
 	void onADSColorsApplied();
+	void onOpacitySliderReleased(); 
+	void onShininessSliderReleased();
 	void onADSTexturesApplied();
 
 protected:

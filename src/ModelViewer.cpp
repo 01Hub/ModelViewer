@@ -79,6 +79,12 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Connect panel signals to ModelViewer slots	
 	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyColorToSelectionRequested,
 		this, &ModelViewer::onADSColorsApplied);
+
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacitySliderReleased,
+		this, &ModelViewer::onOpacitySliderReleased);
+
+	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::shininessSliderReleased,
+		this, &ModelViewer::onShininessSliderReleased);
 	
 	// connect apply/clear buttons
 	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyTexturesRequested,
@@ -2397,6 +2403,80 @@ void ModelViewer::onADSColorsApplied()
 	}
 
 	// Create and push command
+	m_undoStack->push(new ApplyADSColorsCommand(
+		this, _glWidget, uuids,
+		ambient, diffuse, specular, emissive, opacity, shininess
+	));
+
+	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::onOpacitySliderReleased()
+{
+	if (!checkForActiveSelection())
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	// Get CURRENT state from panel (including new opacity!)
+	ADSMaterialSettingsPanel* adsPanel =
+		qobject_cast<ADSMaterialSettingsPanel*>(Ui_ModelViewer::adsMaterialSettingsPanel);
+
+	QVector3D ambient = adsPanel->getAmbientColor();
+	QVector3D diffuse = adsPanel->getDiffuseColor();
+	QVector3D specular = adsPanel->getSpecularColor();
+	QVector3D emissive = adsPanel->getEmissiveColor();
+	float opacity = adsPanel->getOpacity();        // ← New value
+	int shininess = adsPanel->getShininess();
+
+	// Get UUIDs
+	QVector<QUuid> uuids;
+	std::vector<int> ids = getSelectedIDs();
+	for (int id : ids)
+	{
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			uuids.append(uuid);
+	}
+
+	// Reuse ApplyADSColorsCommand! ✓
+	m_undoStack->push(new ApplyADSColorsCommand(
+		this, _glWidget, uuids,
+		ambient, diffuse, specular, emissive, opacity, shininess
+	));
+
+	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::onShininessSliderReleased()
+{
+	if (!checkForActiveSelection())
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	// Get CURRENT state from panel (including new shininess!)
+	ADSMaterialSettingsPanel* adsPanel =
+		qobject_cast<ADSMaterialSettingsPanel*>(Ui_ModelViewer::adsMaterialSettingsPanel);
+
+	QVector3D ambient = adsPanel->getAmbientColor();
+	QVector3D diffuse = adsPanel->getDiffuseColor();
+	QVector3D specular = adsPanel->getSpecularColor();
+	QVector3D emissive = adsPanel->getEmissiveColor();
+	float opacity = adsPanel->getOpacity();
+	int shininess = adsPanel->getShininess();      // ← New value
+
+	// Get UUIDs
+	QVector<QUuid> uuids;
+	std::vector<int> ids = getSelectedIDs();
+	for (int id : ids)
+	{
+		QUuid uuid = _glWidget->getUuidByIndex(id);
+		if (!uuid.isNull())
+			uuids.append(uuid);
+	}
+
+	// Reuse ApplyADSColorsCommand! ✓
 	m_undoStack->push(new ApplyADSColorsCommand(
 		this, _glWidget, uuids,
 		ambient, diffuse, specular, emissive, opacity, shininess
