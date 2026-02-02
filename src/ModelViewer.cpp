@@ -2404,7 +2404,7 @@ void ModelViewer::onADSColorsApplied()
 
 	// Create and push command
 	m_undoStack->push(new ApplyADSColorsCommand(
-		this, _glWidget, uuids,
+		this, _glWidget, adsPanel, uuids,
 		ambient, diffuse, specular, emissive, opacity, shininess
 	));
 
@@ -2441,7 +2441,7 @@ void ModelViewer::onOpacitySliderReleased()
 
 	// Reuse ApplyADSColorsCommand! ✓
 	m_undoStack->push(new ApplyADSColorsCommand(
-		this, _glWidget, uuids,
+		this, _glWidget, adsPanel, uuids,
 		ambient, diffuse, specular, emissive, opacity, shininess
 	));
 
@@ -2478,7 +2478,7 @@ void ModelViewer::onShininessSliderReleased()
 
 	// Reuse ApplyADSColorsCommand! ✓
 	m_undoStack->push(new ApplyADSColorsCommand(
-		this, _glWidget, uuids,
+		this, _glWidget, adsPanel, uuids,
 		ambient, diffuse, specular, emissive, opacity, shininess
 	));
 

@@ -37,6 +37,8 @@ public:
 	bool isDetached() const { return _detached; }
     void setDetached(bool detached);
 
+	GLMaterial* getMaterial() const { return _material; }
+
     // Color getters
     QVector3D getAmbientColor() const;
     QVector3D getDiffuseColor() const;

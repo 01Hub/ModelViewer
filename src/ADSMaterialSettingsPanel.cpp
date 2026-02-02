@@ -1,4 +1,4 @@
-#include "ADSMaterialSettingsPanel.h"
+ï»¿#include "ADSMaterialSettingsPanel.h"
 #include "GLWidget.h"
 #include "GLMaterial.h"
 #include "ModelViewer.h"
@@ -26,7 +26,7 @@ namespace
         {
             // Quadratic for 0.5-1.0 (artifact region - COMPRESS)
             float normalized = (t - 0.5f) / 0.5f;
-            float curved = normalized * normalized;  // x² compresses
+            float curved = normalized * normalized;  // xÂ² compresses
             return 0.5f + curved * 0.5f;
         }
     }
@@ -42,7 +42,7 @@ namespace
         else
         {
             float normalized = (opacity - 0.5f) / 0.5f;
-            float uncurved = std::sqrt(normalized);  // Inverse of x²
+            float uncurved = std::sqrt(normalized);  // Inverse of xÂ²
             t = 0.5f + uncurved * 0.5f;
         }
 

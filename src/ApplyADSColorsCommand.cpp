@@ -5,6 +5,7 @@
 
 ApplyADSColorsCommand::ApplyADSColorsCommand(ModelViewer* viewer,
     GLWidget* glWidget,
+    ADSMaterialSettingsPanel* adsPanel,
     const QVector<QUuid>& meshUuids,
     const QVector3D& ambient,
     const QVector3D& diffuse,
@@ -12,7 +13,7 @@ ApplyADSColorsCommand::ApplyADSColorsCommand(ModelViewer* viewer,
     const QVector3D& emissive,
     float opacity,
     int shininess)
-    : ModelViewerCommand(viewer, glWidget, QObject::tr("Apply ADS Colors"))
+	: ModelViewerCommand(viewer, glWidget, QObject::tr("Apply ADS Colors")), _adsPanel(adsPanel)
 {
     // Capture old colors before applying new ones
     for (const QUuid& uuid : meshUuids)
@@ -53,6 +54,30 @@ void ApplyADSColorsCommand::undo()
         return;
 
     applyColors(m_oldColors);
+
+    // Just update panel's material and refresh sliders
+    if (_adsPanel && !m_oldColors.isEmpty())
+    {
+        const ADSColors& colors = m_oldColors.first();
+
+        // Get panel's material and update it
+        GLMaterial* mat = _adsPanel->getMaterial();
+        if (mat)
+        {
+            mat->setOpacity(colors.opacity);
+            mat->setShininess(colors.shininess);
+            // Colors too if you want
+            mat->setAmbient(colors.ambient);
+            mat->setDiffuse(colors.diffuse);
+            mat->setSpecular(colors.specular);
+            mat->setEmissive(colors.emissive);
+        }
+
+		// Update color buttons
+		_adsPanel->updateMaterialButtonStyles();
+        // Update sliders to reflect material
+        _adsPanel->updateMaterialPropertySliders();
+    }
 }
 
 void ApplyADSColorsCommand::redo()
@@ -61,6 +86,27 @@ void ApplyADSColorsCommand::redo()
         return;
 
     applyColors(m_newColors);
+
+    if (_adsPanel && !m_newColors.isEmpty())
+    {
+        const ADSColors& colors = m_newColors.first();
+
+        GLMaterial* mat = _adsPanel->getMaterial();
+        if (mat)
+        {
+            mat->setOpacity(colors.opacity);
+            mat->setShininess(colors.shininess);
+            mat->setAmbient(colors.ambient);
+            mat->setDiffuse(colors.diffuse);
+            mat->setSpecular(colors.specular);
+            mat->setEmissive(colors.emissive);
+        }
+
+        // Update color buttons
+        _adsPanel->updateMaterialButtonStyles();
+		// Update sliders to reflect material
+        _adsPanel->updateMaterialPropertySliders();
+    }
 }
 
 void ApplyADSColorsCommand::applyColors(const QMap<QUuid, ADSColors>& colors)
@@ -98,6 +144,27 @@ void ApplyADSColorsCommand::applyColors(const QMap<QUuid, ADSColors>& colors)
     // Update view after all colors applied
     m_glWidget->updateView();
     m_glWidget->update();
+}
+
+void ApplyADSColorsCommand::updatePanel(const ADSColors& colors)
+{
+    if (!_adsPanel)
+        return;
+
+    // Update panel's internal material
+    GLMaterial* material = _adsPanel->getMaterial();  // Or however you access it
+    if (material)
+    {
+        material->setAmbient(colors.ambient);
+        material->setDiffuse(colors.diffuse);
+        material->setSpecular(colors.specular);
+        material->setEmissive(colors.emissive);
+        material->setOpacity(colors.opacity);
+        material->setShininess(colors.shininess);
+    }
+
+    // Update all sliders to reflect these values
+    _adsPanel->updateMaterialPropertySliders();
 }
 
 QSet<QUuid> ApplyADSColorsCommand::getReferencedUuids() const

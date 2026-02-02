@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ModelViewerCommand.h"
+#include "ADSMaterialSettingsPanel.h"
 #include <QMap>
 #include <QSet>
 #include <QUuid>
@@ -41,6 +42,7 @@ public:
      */
     ApplyADSColorsCommand(ModelViewer* viewer,
         GLWidget* glWidget,
+        ADSMaterialSettingsPanel* adsPanel,
         const QVector<QUuid>& meshUuids,
         const QVector3D& ambient,
         const QVector3D& diffuse,
@@ -84,6 +86,8 @@ private:
     QMap<QUuid, ADSColors> m_oldColors;  // Colors before command
     QMap<QUuid, ADSColors> m_newColors;  // Colors after command
 
+    ADSMaterialSettingsPanel* _adsPanel;
+
     /**
      * @brief Apply colors to meshes
      * @param colors Map of UUID to ADSColors
@@ -92,5 +96,7 @@ private:
      * meshes using mesh setters (setAmbient, setDiffuse, etc.).
      */
     void applyColors(const QMap<QUuid, ADSColors>& colors);
+
+    void updatePanel(const ADSColors& colors);
 };
 
