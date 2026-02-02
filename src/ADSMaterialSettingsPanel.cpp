@@ -201,8 +201,9 @@ QVector3D ADSMaterialSettingsPanel::getEmissiveColor() const
 }
 
 float ADSMaterialSettingsPanel::getOpacity() const
-{
-    return sliderTransparency->value();
+{    
+    int sliderValue = sliderTransparency->value();
+    return static_cast<float>(sliderValue) / 1000.0f;	
 }
 
 int ADSMaterialSettingsPanel::getShininess() const

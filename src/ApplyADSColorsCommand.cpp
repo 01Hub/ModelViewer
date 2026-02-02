@@ -87,13 +87,11 @@ void ApplyADSColorsCommand::applyColors(const QMap<QUuid, ADSColors>& colors)
             mat.setDiffuse(adsColors.diffuse);
             mat.setSpecular(adsColors.specular);
             mat.setEmissive(adsColors.emissive);
+			mat.setShininess(adsColors.shininess);
+			mat.setOpacity(adsColors.opacity);
 
             // Set material back to mesh
-            mesh->setMaterial(mat);
-
-            // Set opacity and shininess directly on mesh
-            mesh->setOpacity(adsColors.opacity);
-            mesh->setShininess(adsColors.shininess);
+            mesh->setMaterial(mat);          
         }
     }
 
