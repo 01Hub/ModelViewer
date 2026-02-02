@@ -615,6 +615,8 @@ void MaterialEditorPanel::onMaterialPreview(const GLMaterial& mat)
 {
 	_currentMaterial = mat;
 	ui->previewWidget->setMaterial(mat);
+
+	updateUI(mat);
 }
 
 void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)
@@ -622,6 +624,13 @@ void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)
 	_currentMaterial = mat;
 	ui->previewWidget->setMaterial(mat);
 
+	updateUI(mat);
+
+	emit materialChanged(_currentMaterial);
+}
+
+void MaterialEditorPanel::updateUI(const GLMaterial& mat)
+{
 	QColor albedoColor(
 		int(mat.albedoColor().x() * 255),
 		int(mat.albedoColor().y() * 255),
@@ -665,6 +674,4 @@ void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)
 	ui->blendCombo->setCurrentIndex(static_cast<int>(mat.blendMode()));
 	ui->twoSidedCheck->setChecked(mat.twoSided());
 	ui->wireframeCheck->setChecked(mat.wireframe());
-
-	emit materialChanged(_currentMaterial);
 }

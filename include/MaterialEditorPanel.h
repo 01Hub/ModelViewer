@@ -38,6 +38,7 @@ signals:
 private slots:
 	void onMaterialPreview(const GLMaterial& mat);
 	void onMaterialSelected(const GLMaterial& mat);
+	void updateUI(const GLMaterial& mat);
 	void onDetachButtonClicked();
 
 private:
