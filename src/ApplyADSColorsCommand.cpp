@@ -18,7 +18,7 @@ ApplyADSColorsCommand::ApplyADSColorsCommand(ModelViewer* viewer,
     // Capture old colors before applying new ones
     for (const QUuid& uuid : meshUuids)
     {
-        TriangleMesh* mesh = m_glWidget->getMeshByUuid(uuid);
+        TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid);
         if (mesh)
         {
             GLMaterial mat = mesh->getMaterial();
@@ -32,7 +32,7 @@ ApplyADSColorsCommand::ApplyADSColorsCommand(ModelViewer* viewer,
             oldColors.opacity = mat.opacity();
             oldColors.shininess = mat.shininess();
 
-            m_oldColors[uuid] = oldColors;
+            _oldColors[uuid] = oldColors;
 
             // Store new colors
             ADSColors newColors;
@@ -43,22 +43,22 @@ ApplyADSColorsCommand::ApplyADSColorsCommand(ModelViewer* viewer,
             newColors.opacity = opacity;
             newColors.shininess = shininess;
 
-            m_newColors[uuid] = newColors;
+            _newColors[uuid] = newColors;
         }
     }
 }
 
 void ApplyADSColorsCommand::undo()
 {
-    if (!m_viewer || !m_glWidget)
+    if (!_viewer || !_glWidget)
         return;
 
-    applyColors(m_oldColors);
+    applyColors(_oldColors);
 
     // Just update panel's material and refresh sliders
-    if (_adsPanel && !m_oldColors.isEmpty())
+    if (_adsPanel && !_oldColors.isEmpty())
     {
-        const ADSColors& colors = m_oldColors.first();
+        const ADSColors& colors = _oldColors.first();
 
         // Get panel's material and update it
         GLMaterial* mat = _adsPanel->getMaterial();
@@ -82,14 +82,14 @@ void ApplyADSColorsCommand::undo()
 
 void ApplyADSColorsCommand::redo()
 {
-    if (!m_viewer || !m_glWidget)
+    if (!_viewer || !_glWidget)
         return;
 
-    applyColors(m_newColors);
+    applyColors(_newColors);
 
-    if (_adsPanel && !m_newColors.isEmpty())
+    if (_adsPanel && !_newColors.isEmpty())
     {
-        const ADSColors& colors = m_newColors.first();
+        const ADSColors& colors = _newColors.first();
 
         GLMaterial* mat = _adsPanel->getMaterial();
         if (mat)
@@ -117,14 +117,14 @@ void ApplyADSColorsCommand::applyColors(const QMap<QUuid, ADSColors>& colors)
         const ADSColors& adsColors = it.value();
 
         // Get current index for this UUID
-        int index = m_glWidget->getIndexByUuid(uuid);
+        int index = _glWidget->getIndexByUuid(uuid);
         if (index < 0)
         {
             // Mesh was permanently deleted, skip
             continue;
         }
 
-        TriangleMesh* mesh = m_glWidget->getMeshByIndex(index);
+        TriangleMesh* mesh = _glWidget->getMeshByIndex(index);
         if (mesh)
         {
             // Get material and update colors
@@ -142,8 +142,8 @@ void ApplyADSColorsCommand::applyColors(const QMap<QUuid, ADSColors>& colors)
     }
 
     // Update view after all colors applied
-    m_glWidget->updateView();
-    m_glWidget->update();
+    _glWidget->updateView();
+    _glWidget->update();
 }
 
 void ApplyADSColorsCommand::updatePanel(const ADSColors& colors)
@@ -171,7 +171,7 @@ QSet<QUuid> ApplyADSColorsCommand::getReferencedUuids() const
 {
     QSet<QUuid> uuids;
 
-    for (auto it = m_oldColors.begin(); it != m_oldColors.end(); ++it)
+    for (auto it = _oldColors.begin(); it != _oldColors.end(); ++it)
     {
         uuids.insert(it.key());
     }

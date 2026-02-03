@@ -41,7 +41,7 @@ bool TutorialWebPage::acceptNavigationRequest(const QUrl& url, NavigationType ty
 
 TutorialDialog::TutorialDialog(QWidget* parent)
     : QDialog(parent)
-    , m_currentListIndex(0)
+    , _currentListIndex(0)
 {
     setupUI();
     populateLessonList();
@@ -55,7 +55,7 @@ TutorialDialog::TutorialDialog(QWidget* parent)
     resize(width, height);
 
     // Select index page by default (first item)
-    m_lessonList->setCurrentRow(0);
+    _lessonList->setCurrentRow(0);
 }
 
 void TutorialDialog::setupUI()
@@ -63,12 +63,12 @@ void TutorialDialog::setupUI()
     QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
     // Create splitter for lesson list and content
-    m_splitter = new QSplitter(Qt::Horizontal, this);
+    _splitter = new QSplitter(Qt::Horizontal, this);
 
     // Lesson list on the left
-    m_lessonList = new QListWidget();
-    m_lessonList->setMaximumWidth(300);
-    m_lessonList->setStyleSheet(
+    _lessonList = new QListWidget();
+    _lessonList->setMaximumWidth(300);
+    _lessonList->setStyleSheet(
         "QListWidget {"
         "    border: 1px solid palette(mid);"
         "    border-radius: 4px;"
@@ -92,26 +92,26 @@ void TutorialDialog::setupUI()
 #ifdef HAVE_WEBENGINE
     qDebug() << "Using QWebEngineView for tutorial display";
 
-    m_webView = new QWebEngineView();
-    m_webPage = new TutorialWebPage(this);
-    m_webView->setPage(m_webPage);
+    _webView = new QWebEngineView();
+    _webPage = new TutorialWebPage(this);
+    _webView->setPage(_webPage);
 
     // Connect custom page's linkClicked signal
-    connect(m_webPage, &TutorialWebPage::linkClicked,
+    connect(_webPage, &TutorialWebPage::linkClicked,
         this, &TutorialDialog::onLinkClicked);
 
-    m_splitter->addWidget(m_lessonList);
-    m_splitter->addWidget(m_webView);
+    _splitter->addWidget(_lessonList);
+    _splitter->addWidget(_webView);
 #else
     qDebug() << "Using QTextBrowser for tutorial display";
 
-    m_textBrowser = new QTextBrowser();
-    m_textBrowser->setOpenExternalLinks(false);
+    _textBrowser = new QTextBrowser();
+    _textBrowser->setOpenExternalLinks(false);
 
     // Set search paths for relative resources (images, CSS)
     QString basePath = getTutorialBasePath();
-    m_textBrowser->setSearchPaths(QStringList() << basePath);
-    m_textBrowser->setStyleSheet(R"(
+    _textBrowser->setSearchPaths(QStringList() << basePath);
+    _textBrowser->setStyleSheet(R"(
     QTextBrowser {
         background-color: white;
         color: black;
@@ -123,48 +123,48 @@ void TutorialDialog::setupUI()
 
 
     // Connect QTextBrowser's anchorClicked signal
-    connect(m_textBrowser, &QTextBrowser::anchorClicked,
+    connect(_textBrowser, &QTextBrowser::anchorClicked,
         this, &TutorialDialog::onLinkClicked);
 
-    m_splitter->addWidget(m_lessonList);
-    m_splitter->addWidget(m_textBrowser);
+    _splitter->addWidget(_lessonList);
+    _splitter->addWidget(_textBrowser);
 #endif
 
-    m_splitter->setStretchFactor(0, 0); // Lesson list doesn't stretch
-    m_splitter->setStretchFactor(1, 1); // Content stretches
+    _splitter->setStretchFactor(0, 0); // Lesson list doesn't stretch
+    _splitter->setStretchFactor(1, 1); // Content stretches
 
-    mainLayout->addWidget(m_splitter);
+    mainLayout->addWidget(_splitter);
 
     // Navigation buttons at bottom
     QHBoxLayout* buttonLayout = new QHBoxLayout();
 
-    m_previousButton = new QPushButton(tr("◀ Previous"), this);
-    m_previousButton->setMinimumWidth(120);
+    _previousButton = new QPushButton(tr("◀ Previous"), this);
+    _previousButton->setMinimumWidth(120);
 
-    buttonLayout->addWidget(m_previousButton);
+    buttonLayout->addWidget(_previousButton);
     buttonLayout->addStretch();
 
-    m_closeButton = new QPushButton(tr("Close"), this);
-    m_closeButton->setMinimumWidth(100);
+    _closeButton = new QPushButton(tr("Close"), this);
+    _closeButton->setMinimumWidth(100);
 
-    buttonLayout->addWidget(m_closeButton);
+    buttonLayout->addWidget(_closeButton);
     buttonLayout->addStretch();
 
-    m_nextButton = new QPushButton(tr("Next ▶"), this);
-    m_nextButton->setMinimumWidth(120);
+    _nextButton = new QPushButton(tr("Next ▶"), this);
+    _nextButton->setMinimumWidth(120);
 
-    buttonLayout->addWidget(m_nextButton);
+    buttonLayout->addWidget(_nextButton);
 
     mainLayout->addLayout(buttonLayout);
 
     // Connect signals
-    connect(m_lessonList, &QListWidget::currentItemChanged,
+    connect(_lessonList, &QListWidget::currentItemChanged,
         this, &TutorialDialog::onLessonSelected);
-    connect(m_previousButton, &QPushButton::clicked,
+    connect(_previousButton, &QPushButton::clicked,
         this, &TutorialDialog::onPreviousClicked);
-    connect(m_nextButton, &QPushButton::clicked,
+    connect(_nextButton, &QPushButton::clicked,
         this, &TutorialDialog::onNextClicked);
-    connect(m_closeButton, &QPushButton::clicked,
+    connect(_closeButton, &QPushButton::clicked,
         this, &QDialog::close);
 }
 
@@ -191,7 +191,7 @@ void TutorialDialog::populateLessonList()
         << tr("13. Performance Optimization")
         << tr("14. Tips & Workflows");
 
-    m_lessonList->addItems(items);
+    _lessonList->addItems(items);
 }
 
 QString TutorialDialog::getTutorialBasePath() const
@@ -268,9 +268,9 @@ void TutorialDialog::showError(const QString& title, const QString& message)
     ).arg(title, message);
 
 #ifdef HAVE_WEBENGINE
-    m_webView->setHtml(errorHtml);
+    _webView->setHtml(errorHtml);
 #else
-    m_textBrowser->setHtml(errorHtml);
+    _textBrowser->setHtml(errorHtml);
 #endif
 }
 
@@ -294,15 +294,15 @@ void TutorialDialog::loadIndexPage()
     // Load index page
 #ifdef HAVE_WEBENGINE
     QUrl indexUrl = QUrl::fromLocalFile(indexPath);
-    m_webView->setUrl(indexUrl);
+    _webView->setUrl(indexUrl);
     qDebug() << "Loading index page via QWebEngineView:" << indexUrl.toString();
 #else
     QUrl indexUrl = QUrl::fromLocalFile(indexPath);
-    m_textBrowser->setSource(indexUrl);
+    _textBrowser->setSource(indexUrl);
     qDebug() << "Loading index page via QTextBrowser:" << indexPath;
 #endif
 
-    m_currentListIndex = 0;
+    _currentListIndex = 0;
     updateNavigationButtons();
 }
 
@@ -341,22 +341,22 @@ void TutorialDialog::loadLesson(int listIndex)
     // Load the lesson
 #ifdef HAVE_WEBENGINE
     QUrl lessonUrl = QUrl::fromLocalFile(lessonPath);
-    m_webView->setUrl(lessonUrl);
+    _webView->setUrl(lessonUrl);
     qDebug() << "Loading lesson" << lessonNumber << "via QWebEngineView:" << lessonUrl.toString();
 #else
     QUrl lessonUrl = QUrl::fromLocalFile(lessonPath);
-    m_textBrowser->setSource(lessonUrl);
+    _textBrowser->setSource(lessonUrl);
     qDebug() << "Loading lesson" << lessonNumber << "via QTextBrowser:" << lessonPath;
 #endif
 
-    m_currentListIndex = listIndex;
+    _currentListIndex = listIndex;
     updateNavigationButtons();
 }
 
 void TutorialDialog::updateNavigationButtons()
 {
-    m_previousButton->setEnabled(m_currentListIndex > 0);
-    m_nextButton->setEnabled(m_currentListIndex < TOTAL_LIST_ITEMS - 1);
+    _previousButton->setEnabled(_currentListIndex > 0);
+    _nextButton->setEnabled(_currentListIndex < TOTAL_LIST_ITEMS - 1);
 }
 
 void TutorialDialog::onLessonSelected(QListWidgetItem* current, QListWidgetItem* previous)
@@ -368,23 +368,23 @@ void TutorialDialog::onLessonSelected(QListWidgetItem* current, QListWidgetItem*
         return;
     }
 
-    int listIndex = m_lessonList->row(current);
+    int listIndex = _lessonList->row(current);
     loadLesson(listIndex);
 }
 
 void TutorialDialog::onPreviousClicked()
 {
-    if (m_currentListIndex > 0)
+    if (_currentListIndex > 0)
     {
-        m_lessonList->setCurrentRow(m_currentListIndex - 1);
+        _lessonList->setCurrentRow(_currentListIndex - 1);
     }
 }
 
 void TutorialDialog::onNextClicked()
 {
-    if (m_currentListIndex < TOTAL_LIST_ITEMS - 1)
+    if (_currentListIndex < TOTAL_LIST_ITEMS - 1)
     {
-        m_lessonList->setCurrentRow(m_currentListIndex + 1);
+        _lessonList->setCurrentRow(_currentListIndex + 1);
     }
 }
 
@@ -405,7 +405,7 @@ void TutorialDialog::onLinkClicked(const QUrl& url)
     if (fileName == "index.html")
     {
         qDebug() << "Navigating to index page";
-        m_lessonList->setCurrentRow(0);  // Index is at position 0
+        _lessonList->setCurrentRow(0);  // Index is at position 0
         return;
     }
 
@@ -423,7 +423,7 @@ void TutorialDialog::onLinkClicked(const QUrl& url)
             if (lessonNum > 0 && lessonNum <= TOTAL_LESSONS)
             {
                 // Set list index (lesson 1 is at index 1, lesson 2 at index 2, etc.)
-                m_lessonList->setCurrentRow(lessonNum);
+                _lessonList->setCurrentRow(lessonNum);
             }
             else
             {

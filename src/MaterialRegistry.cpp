@@ -53,8 +53,8 @@ bool MaterialRegistry::loadFromJsonFile(const QString& path, QString* err)
     QJsonObject root = doc.object();
 
     // Expect either "groups" (array of groups) or a flat "materials" map
-    m_groups.clear();
-    m_rawByKey.clear();
+    _groups.clear();
+    _rawByKey.clear();
 
     if (root.contains(QStringLiteral("groups")) && root.value(QStringLiteral("groups")).isArray())
     {
@@ -85,11 +85,11 @@ bool MaterialRegistry::loadFromJsonFile(const QString& path, QString* err)
 
                     if (!item.key.isEmpty())
                     {
-                        m_rawByKey.insert(item.key, item.props);
+                        _rawByKey.insert(item.key, item.props);
                     }
                 }
             }
-            m_groups.append(grp);
+            _groups.append(grp);
         }
     }
     else if (root.contains(QStringLiteral("materials")) && root.value(QStringLiteral("materials")).isObject())
@@ -109,9 +109,9 @@ bool MaterialRegistry::loadFromJsonFile(const QString& path, QString* err)
                 item.props = jsonObjectToVariantMap(it.value().toObject());
             }
             all.items.append(item);
-            m_rawByKey.insert(item.key, item.props);
+            _rawByKey.insert(item.key, item.props);
         }
-        m_groups.append(all);
+        _groups.append(all);
     }
     else
     {
@@ -122,8 +122,8 @@ bool MaterialRegistry::loadFromJsonFile(const QString& path, QString* err)
 
     // Clear cache
     {
-        QMutexLocker locker(&m_cacheMutex);
-        m_cache.clear();
+        QMutexLocker locker(&_cacheMutex);
+        _cache.clear();
     }
 
     emit registryLoaded();
@@ -132,40 +132,40 @@ bool MaterialRegistry::loadFromJsonFile(const QString& path, QString* err)
 
 QList<MaterialRegistry::Group> MaterialRegistry::groups() const
 {
-    return m_groups;
+    return _groups;
 }
 
 bool MaterialRegistry::hasKey(const QString& key) const
 {
-    return m_rawByKey.contains(key);
+    return _rawByKey.contains(key);
 }
 
 GLMaterial MaterialRegistry::materialForKey(const QString& key)
 {
     // check cache
     {
-        QMutexLocker locker(&m_cacheMutex);
-        if (m_cache.contains(key))
+        QMutexLocker locker(&_cacheMutex);
+        if (_cache.contains(key))
         {
-            QSharedPointer<GLMaterial> ptr = m_cache.value(key);
+            QSharedPointer<GLMaterial> ptr = _cache.value(key);
             if (!ptr.isNull()) return *ptr;
         }
     }
 
     // build from raw props
-    if (!m_rawByKey.contains(key))
+    if (!_rawByKey.contains(key))
     {
         // Not found: return default material (call default ctor)
         return GLMaterial();
     }
-    QVariantMap props = m_rawByKey.value(key);
+    QVariantMap props = _rawByKey.value(key);
 
     GLMaterial mat = GLMaterial::fromVariantMap(props);
 
     // cache
     {
-        QMutexLocker locker(&m_cacheMutex);
-        m_cache.insert(key, QSharedPointer<GLMaterial>(new GLMaterial(mat)));
+        QMutexLocker locker(&_cacheMutex);
+        _cache.insert(key, QSharedPointer<GLMaterial>(new GLMaterial(mat)));
     }
 
     return mat;

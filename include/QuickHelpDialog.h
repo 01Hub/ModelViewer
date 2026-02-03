@@ -29,15 +29,15 @@ private:
     QString createSection(const QString& heading, const QString& content);
     QString createTable(const QStringList& headers, const QList<QStringList>& rows);
 
-    QTabWidget* m_tabWidget;
-    QTextBrowser* m_mouseControlsBrowser;
-    QTextBrowser* m_keyboardBrowser;
-    QTextBrowser* m_toolbarBrowser;
-    QTextBrowser* m_menuBrowser;
-    QTextBrowser* m_cameraBrowser;
-    QTextBrowser* m_displayBrowser;
-    QTextBrowser* m_tipsBrowser;
-    QPushButton* m_closeButton;
+    QTabWidget* _tabWidget;
+    QTextBrowser* _mouseControlsBrowser;
+    QTextBrowser* _keyboardBrowser;
+    QTextBrowser* _toolbarBrowser;
+    QTextBrowser* _menuBrowser;
+    QTextBrowser* _cameraBrowser;
+    QTextBrowser* _displayBrowser;
+    QTextBrowser* _tipsBrowser;
+    QPushButton* _closeButton;
 };
 
 #endif // QUICKHELPDIALOG_H

@@ -18,10 +18,10 @@ ApplyADSTexturesCommand::ApplyADSTexturesCommand(ModelViewer* viewer,
     // Capture old texture states
     for (const QUuid& uuid : meshUuids)
     {
-        int index = m_glWidget->getIndexByUuid(uuid);
+        int index = _glWidget->getIndexByUuid(uuid);
         if (index < 0) continue;
 
-        TriangleMesh* mesh = m_glWidget->getMeshByIndex(index);
+        TriangleMesh* mesh = _glWidget->getMeshByIndex(index);
         if (!mesh) continue;
 
         // Store old texture state
@@ -42,7 +42,7 @@ ApplyADSTexturesCommand::ApplyADSTexturesCommand(ModelViewer* viewer,
         oldTex.hasHeight = false;
         oldTex.hasOpacity = false;
 
-        m_oldTextures[uuid] = oldTex;
+        _oldTextures[uuid] = oldTex;
 
         // Store new texture state
         ADSTextures newTex;
@@ -60,24 +60,24 @@ ApplyADSTexturesCommand::ApplyADSTexturesCommand(ModelViewer* viewer,
         newTex.hasHeight = !heightPath.isEmpty();
         newTex.hasOpacity = !opacityPath.isEmpty();
 
-        m_newTextures[uuid] = newTex;
+        _newTextures[uuid] = newTex;
     }
 }
 
 void ApplyADSTexturesCommand::undo()
 {
-    if (!m_viewer || !m_glWidget)
+    if (!_viewer || !_glWidget)
         return;
 
-    applyTextures(m_oldTextures);
+    applyTextures(_oldTextures);
 }
 
 void ApplyADSTexturesCommand::redo()
 {
-    if (!m_viewer || !m_glWidget)
+    if (!_viewer || !_glWidget)
         return;
 
-    applyTextures(m_newTextures);
+    applyTextures(_newTextures);
 }
 
 void ApplyADSTexturesCommand::applyTextures(const QMap<QUuid, ADSTextures>& textures)
@@ -86,7 +86,7 @@ void ApplyADSTexturesCommand::applyTextures(const QMap<QUuid, ADSTextures>& text
     std::vector<int> ids;
     for (auto it = textures.begin(); it != textures.end(); ++it)
     {
-        int index = m_glWidget->getIndexByUuid(it.key());
+        int index = _glWidget->getIndexByUuid(it.key());
         if (index >= 0)
             ids.push_back(index);
     }
@@ -98,51 +98,51 @@ void ApplyADSTexturesCommand::applyTextures(const QMap<QUuid, ADSTextures>& text
     const ADSTextures& tex = textures.first();
 
     // Use the ORIGINAL ADS-specific methods that WORK!
-    m_glWidget->enableADSDiffuseTexMap(ids, tex.hasDiffuse);
+    _glWidget->enableADSDiffuseTexMap(ids, tex.hasDiffuse);
     if (tex.hasDiffuse)
     {
-        m_glWidget->setADSDiffuseTexMap(ids, tex.diffusePath);
+        _glWidget->setADSDiffuseTexMap(ids, tex.diffusePath);
     }
 
-    m_glWidget->enableADSSpecularTexMap(ids, tex.hasSpecular);
+    _glWidget->enableADSSpecularTexMap(ids, tex.hasSpecular);
     if (tex.hasSpecular)
     {
-        m_glWidget->setADSSpecularTexMap(ids, tex.specularPath);
+        _glWidget->setADSSpecularTexMap(ids, tex.specularPath);
     }
 
-    m_glWidget->enableADSNormalTexMap(ids, tex.hasNormal);
+    _glWidget->enableADSNormalTexMap(ids, tex.hasNormal);
     if (tex.hasNormal)
     {
-        m_glWidget->setADSNormalTexMap(ids, tex.normalPath);
+        _glWidget->setADSNormalTexMap(ids, tex.normalPath);
     }
 
-    m_glWidget->enableADSEmissiveTexMap(ids, tex.hasEmissive);
+    _glWidget->enableADSEmissiveTexMap(ids, tex.hasEmissive);
     if (tex.hasEmissive)
     {
-        m_glWidget->setADSEmissiveTexMap(ids, tex.emissivePath);
+        _glWidget->setADSEmissiveTexMap(ids, tex.emissivePath);
     }
 
-    m_glWidget->enableADSHeightTexMap(ids, tex.hasHeight);
+    _glWidget->enableADSHeightTexMap(ids, tex.hasHeight);
     if (tex.hasHeight)
     {
-        m_glWidget->setADSHeightTexMap(ids, tex.heightPath);
+        _glWidget->setADSHeightTexMap(ids, tex.heightPath);
     }
 
-    m_glWidget->enableADSOpacityTexMap(ids, tex.hasOpacity);
+    _glWidget->enableADSOpacityTexMap(ids, tex.hasOpacity);
     if (tex.hasOpacity)
     {
-        m_glWidget->setADSOpacityTexMap(ids, tex.opacityPath);
+        _glWidget->setADSOpacityTexMap(ids, tex.opacityPath);
     }
 
     // Update view
-    m_glWidget->updateView();
-    m_glWidget->update();
+    _glWidget->updateView();
+    _glWidget->update();
 }
 
 QSet<QUuid> ApplyADSTexturesCommand::getReferencedUuids() const
 {
     QSet<QUuid> uuids;
-    for (auto it = m_oldTextures.begin(); it != m_oldTextures.end(); ++it)
+    for (auto it = _oldTextures.begin(); it != _oldTextures.end(); ++it)
     {
         uuids.insert(it.key());
     }

@@ -22,18 +22,18 @@ void LanguageManager::loadLanguage(const QString& langCode)
     QString baseLang = langCode.section('_', 0, 0);
 
     // Uninstall existing
-    qApp->removeTranslator(&m_appTranslator);
-    qApp->removeTranslator(&m_qtTranslator);
+    qApp->removeTranslator(&_appTranslator);
+    qApp->removeTranslator(&_qtTranslator);
 
     bool loaded = false;
 
-    if (m_qtTranslator.load("qt_" + baseLang, qtPath))
+    if (_qtTranslator.load("qt_" + baseLang, qtPath))
     {
-        qApp->installTranslator(&m_qtTranslator);
+        qApp->installTranslator(&_qtTranslator);
     }
-    else if (m_qtTranslator.load("qt_" + langCode, qtPath))
+    else if (_qtTranslator.load("qt_" + langCode, qtPath))
     {
-        qApp->installTranslator(&m_qtTranslator);
+        qApp->installTranslator(&_qtTranslator);
     }
 
     QStringList candidates = {
@@ -42,9 +42,9 @@ void LanguageManager::loadLanguage(const QString& langCode)
     };
 
     for (const QString& file : candidates) {
-        if (m_appTranslator.load(file, appPath)) {
-            qApp->installTranslator(&m_appTranslator);
-            m_currentLanguage = langCode;
+        if (_appTranslator.load(file, appPath)) {
+            qApp->installTranslator(&_appTranslator);
+            _currentLanguage = langCode;
             loaded = true;
             break;
         }

@@ -31,10 +31,10 @@ public:
     // For cleanup system
     QSet<QUuid> getReferencedUuids() const
     {
-        return QSet<QUuid>(m_meshUuids.begin(), m_meshUuids.end());
+        return QSet<QUuid>(_meshUuids.begin(), _meshUuids.end());
     }
 
 private:
-    QVector<QUuid> m_meshUuids;
-    QMap<QUuid, int> m_originalIndices;  // Store original positions
+    QVector<QUuid> _meshUuids;
+    QMap<QUuid, int> _originalIndices;  // Store original positions
 };

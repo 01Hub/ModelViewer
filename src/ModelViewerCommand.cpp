@@ -6,7 +6,7 @@ ModelViewerCommand::ModelViewerCommand(ModelViewer* viewer,
     GLWidget* glWidget,
     const QString& text)
     : QUndoCommand(text)
-    , m_viewer(viewer)
-    , m_glWidget(glWidget)
+    , _viewer(viewer)
+    , _glWidget(glWidget)
 {
 }

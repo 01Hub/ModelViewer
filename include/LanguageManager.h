@@ -12,14 +12,14 @@ public:
     static LanguageManager& instance();
 
     void loadLanguage(const QString& langCode);
-    QString currentLanguage() const { return m_currentLanguage; }
+    QString currentLanguage() const { return _currentLanguage; }
 
 signals:
     void languageChanged();
 
 private:
     LanguageManager();
-    QTranslator m_appTranslator;
-    QTranslator m_qtTranslator;
-    QString m_currentLanguage;
+    QTranslator _appTranslator;
+    QTranslator _qtTranslator;
+    QString _currentLanguage;
 };

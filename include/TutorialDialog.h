@@ -55,21 +55,21 @@ private:
     QString loadHtmlFile(const QString& filename);
     void showError(const QString& title, const QString& message);
 
-    QListWidget* m_lessonList;
+    QListWidget* _lessonList;
 
 #ifdef HAVE_WEBENGINE
-    QWebEngineView* m_webView;
-    TutorialWebPage* m_webPage;
+    QWebEngineView* _webView;
+    TutorialWebPage* _webPage;
 #else
-    QTextBrowser* m_textBrowser;
+    QTextBrowser* _textBrowser;
 #endif
 
-    QPushButton* m_previousButton;
-    QPushButton* m_nextButton;
-    QPushButton* m_closeButton;
-    QSplitter* m_splitter;
+    QPushButton* _previousButton;
+    QPushButton* _nextButton;
+    QPushButton* _closeButton;
+    QSplitter* _splitter;
 
-    int m_currentListIndex;  // Current position in list (0=index, 1-14=lessons)
+    int _currentListIndex;  // Current position in list (0=index, 1-14=lessons)
     static constexpr int TOTAL_LESSONS = 14;
     static constexpr int TOTAL_LIST_ITEMS = TOTAL_LESSONS + 1;  // Include index page
 };

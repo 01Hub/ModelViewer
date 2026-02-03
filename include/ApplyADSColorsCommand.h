@@ -83,8 +83,8 @@ private:
         int shininess;
     };
 
-    QMap<QUuid, ADSColors> m_oldColors;  // Colors before command
-    QMap<QUuid, ADSColors> m_newColors;  // Colors after command
+    QMap<QUuid, ADSColors> _oldColors;  // Colors before command
+    QMap<QUuid, ADSColors> _newColors;  // Colors after command
 
     ADSMaterialSettingsPanel* _adsPanel;
 

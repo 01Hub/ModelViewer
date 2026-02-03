@@ -54,13 +54,13 @@ public:
      */
     QSet<QUuid> getReferencedUuids() const
     {
-        return QSet<QUuid>(m_duplicatedUuids.begin(), m_duplicatedUuids.end());
+        return QSet<QUuid>(_duplicatedUuids.begin(), _duplicatedUuids.end());
     }
 
 private:
-    QVector<QUuid> m_duplicatedUuids;    // UUIDs of the duplicated meshes
-    QSet<QUuid> m_originalSelection;     // Selection before duplication (passed in)
-    bool m_firstRedo;                    // Flag to skip first redo call
+    QVector<QUuid> _duplicatedUuids;    // UUIDs of the duplicated meshes
+    QSet<QUuid> _originalSelection;     // Selection before duplication (passed in)
+    bool _firstRedo;                    // Flag to skip first redo call
 
     /**
      * @brief Convert UUIDs to current indices

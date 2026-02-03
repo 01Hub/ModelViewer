@@ -49,8 +49,8 @@ private:
     MaterialRegistry(const MaterialRegistry&) = delete;
     MaterialRegistry& operator=(const MaterialRegistry&) = delete;
 
-    QList<Group> m_groups;
-    QMap<QString, QVariantMap> m_rawByKey;
-    mutable QMap<QString, QSharedPointer<GLMaterial>> m_cache;
-    mutable QMutex m_cacheMutex;
+    QList<Group> _groups;
+    QMap<QString, QVariantMap> _rawByKey;
+    mutable QMap<QString, QSharedPointer<GLMaterial>> _cache;
+    mutable QMutex _cacheMutex;
 };

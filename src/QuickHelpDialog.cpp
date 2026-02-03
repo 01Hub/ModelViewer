@@ -24,34 +24,34 @@ void QuickHelpDialog::setupUI()
 	QVBoxLayout* mainLayout = new QVBoxLayout(this);
 
 	// Create tab widget
-	m_tabWidget = new QTabWidget(this);
+	_tabWidget = new QTabWidget(this);
 
 	// Create browsers for each tab
-	m_mouseControlsBrowser = new QTextBrowser();
-	m_keyboardBrowser = new QTextBrowser();
-	m_toolbarBrowser = new QTextBrowser();
-	m_menuBrowser = new QTextBrowser();
-	m_cameraBrowser = new QTextBrowser();
-	m_displayBrowser = new QTextBrowser();
-	m_tipsBrowser = new QTextBrowser();
+	_mouseControlsBrowser = new QTextBrowser();
+	_keyboardBrowser = new QTextBrowser();
+	_toolbarBrowser = new QTextBrowser();
+	_menuBrowser = new QTextBrowser();
+	_cameraBrowser = new QTextBrowser();
+	_displayBrowser = new QTextBrowser();
+	_tipsBrowser = new QTextBrowser();
 
 	// Set open external links for all browsers
-	m_mouseControlsBrowser->setOpenExternalLinks(false);
-	m_keyboardBrowser->setOpenExternalLinks(false);
-	m_toolbarBrowser->setOpenExternalLinks(false);
-	m_menuBrowser->setOpenExternalLinks(false);
-	m_cameraBrowser->setOpenExternalLinks(false);
-	m_displayBrowser->setOpenExternalLinks(false);
-	m_tipsBrowser->setOpenExternalLinks(false);
+	_mouseControlsBrowser->setOpenExternalLinks(false);
+	_keyboardBrowser->setOpenExternalLinks(false);
+	_toolbarBrowser->setOpenExternalLinks(false);
+	_menuBrowser->setOpenExternalLinks(false);
+	_cameraBrowser->setOpenExternalLinks(false);
+	_displayBrowser->setOpenExternalLinks(false);
+	_tipsBrowser->setOpenExternalLinks(false);
 
 	// Add tabs
-	m_tabWidget->addTab(m_mouseControlsBrowser, tr("Mouse Controls"));
-	m_tabWidget->addTab(m_keyboardBrowser, tr("Keyboard Shortcuts"));
-	m_tabWidget->addTab(m_toolbarBrowser, tr("View Toolbar"));
-	m_tabWidget->addTab(m_cameraBrowser, tr("Camera Modes"));
-	m_tabWidget->addTab(m_displayBrowser, tr("Display Modes"));
-	m_tabWidget->addTab(m_menuBrowser, tr("Menu Shortcuts"));
-	m_tabWidget->addTab(m_tipsBrowser, tr("Tips & Tricks"));
+	_tabWidget->addTab(_mouseControlsBrowser, tr("Mouse Controls"));
+	_tabWidget->addTab(_keyboardBrowser, tr("Keyboard Shortcuts"));
+	_tabWidget->addTab(_toolbarBrowser, tr("View Toolbar"));
+	_tabWidget->addTab(_cameraBrowser, tr("Camera Modes"));
+	_tabWidget->addTab(_displayBrowser, tr("Display Modes"));
+	_tabWidget->addTab(_menuBrowser, tr("Menu Shortcuts"));
+	_tabWidget->addTab(_tipsBrowser, tr("Tips & Tricks"));
 
 	// Setup content for each tab
 	setupMouseControlsTab();
@@ -62,15 +62,15 @@ void QuickHelpDialog::setupUI()
 	setupMenuShortcutsTab();
 	setupTipsAndTricksTab();
 
-	mainLayout->addWidget(m_tabWidget);
+	mainLayout->addWidget(_tabWidget);
 
 	// Close button
 	QHBoxLayout* buttonLayout = new QHBoxLayout();
 	buttonLayout->addStretch();
-	m_closeButton = new QPushButton(tr("Close"), this);
-	m_closeButton->setMinimumWidth(100);
-	connect(m_closeButton, &QPushButton::clicked, this, &QDialog::accept);
-	buttonLayout->addWidget(m_closeButton);
+	_closeButton = new QPushButton(tr("Close"), this);
+	_closeButton->setMinimumWidth(100);
+	connect(_closeButton, &QPushButton::clicked, this, &QDialog::accept);
+	buttonLayout->addWidget(_closeButton);
 
 	mainLayout->addLayout(buttonLayout);
 }
@@ -102,7 +102,7 @@ void QuickHelpDialog::setupMouseControlsTab()
 			"<li><b>Large Models:</b> For models larger than 50MB, a low-resolution preview is shown during manipulation</li>"
 			"</ul>"));
 
-	m_mouseControlsBrowser->setHtml(createStyledHtml(tr("Mouse Controls"), content));
+	_mouseControlsBrowser->setHtml(createStyledHtml(tr("Mouse Controls"), content));
 }
 
 void QuickHelpDialog::setupKeyboardShortcutsTab()
@@ -167,7 +167,7 @@ void QuickHelpDialog::setupKeyboardShortcutsTab()
 			"<li>In Fly mode, pitch is limited to ±89 degrees</li>"
 			"</ul>"));
 
-	m_keyboardBrowser->setHtml(createStyledHtml(tr("Keyboard Shortcuts"), content));
+	_keyboardBrowser->setHtml(createStyledHtml(tr("Keyboard Shortcuts"), content));
 }
 
 void QuickHelpDialog::setupViewToolbarTab()
@@ -218,7 +218,7 @@ void QuickHelpDialog::setupViewToolbarTab()
 			"<li>Scroll buttons appear if toolbar is wider than viewport</li>"
 			"</ul>"));
 
-	m_toolbarBrowser->setHtml(createStyledHtml(tr("View Toolbar"), content));
+	_toolbarBrowser->setHtml(createStyledHtml(tr("View Toolbar"), content));
 }
 
 void QuickHelpDialog::setupCameraModesTab()
@@ -272,7 +272,7 @@ void QuickHelpDialog::setupCameraModesTab()
 			"<li>The toolbar button updates to show current mode</li>"
 			"</ul>"));
 
-	m_cameraBrowser->setHtml(createStyledHtml(tr("Camera Modes"), content));
+	_cameraBrowser->setHtml(createStyledHtml(tr("Camera Modes"), content));
 }
 
 void QuickHelpDialog::setupDisplayModesTab()
@@ -324,7 +324,7 @@ void QuickHelpDialog::setupDisplayModesTab()
 			"<li>For large models (>50MB), low-resolution preview is automatically enabled during manipulation</li>"
 			"</ul>"));
 
-	m_displayBrowser->setHtml(createStyledHtml(tr("Display Modes"), content));
+	_displayBrowser->setHtml(createStyledHtml(tr("Display Modes"), content));
 }
 
 void QuickHelpDialog::setupMenuShortcutsTab()
@@ -388,7 +388,7 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 	};
 	content += createTable({ tr("Action"), tr("Shortcut"), tr("Description") }, contextRows);
 
-	m_menuBrowser->setHtml(createStyledHtml(tr("Menu Shortcuts"), content));
+	_menuBrowser->setHtml(createStyledHtml(tr("Menu Shortcuts"), content));
 }
 
 void QuickHelpDialog::setupTipsAndTricksTab()
@@ -476,7 +476,7 @@ void QuickHelpDialog::setupTipsAndTricksTab()
 			"<li><b>Axis Position:</b> Configure corner axis triad position in Settings</li>"
 			"</ul>"));
 
-	m_tipsBrowser->setHtml(createStyledHtml(tr("Tips & Tricks"), content));
+	_tipsBrowser->setHtml(createStyledHtml(tr("Tips & Tricks"), content));
 }
 
 QString QuickHelpDialog::createStyledHtml(const QString& title,

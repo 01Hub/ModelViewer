@@ -96,9 +96,9 @@ public:
     void markMeshBaked(const QUuid& uuid) const;
 
 private:
-    QMap<QUuid, TransformState> m_oldStates;  // Transform states before command
-    QMap<QUuid, TransformState> m_newStates;  // Transform states after command
-    mutable QSet<QUuid> m_bakedMeshes;                // Meshes that have been baked
+    QMap<QUuid, TransformState> _oldStates;  // Transform states before command
+    QMap<QUuid, TransformState> _newStates;  // Transform states after command
+    mutable QSet<QUuid> _bakedMeshes;                // Meshes that have been baked
 
     /**
      * @brief Apply transformation states to meshes

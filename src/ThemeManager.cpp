@@ -8,16 +8,16 @@
 // Implementation
 ThemeManager::ThemeManager(QObject* parent)
 	: QObject(parent)
-	, m_currentTheme(System)
-	, m_settings(new QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName(), this))
+	, _currentTheme(System)
+	, _settings(new QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName(), this))
 {
 
 }
 
 void ThemeManager::setTheme(Theme theme)
 {
-	Theme oldTheme = m_currentTheme;
-	m_currentTheme = theme;
+	Theme oldTheme = _currentTheme;
+	_currentTheme = theme;
 
 	switch (theme)
 	{

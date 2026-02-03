@@ -48,12 +48,12 @@ public:
      */
     QSet<QUuid> getReferencedUuids() const
     {
-        return m_oldVisibleUuids | m_newVisibleUuids;
+        return _oldVisibleUuids | _newVisibleUuids;
     }
 
 private:
-    QSet<QUuid> m_oldVisibleUuids;  // Visible meshes before operation
-    QSet<QUuid> m_newVisibleUuids;  // Visible meshes after operation
+    QSet<QUuid> _oldVisibleUuids;  // Visible meshes before operation
+    QSet<QUuid> _newVisibleUuids;  // Visible meshes after operation
 
     /**
      * @brief Apply a visibility state

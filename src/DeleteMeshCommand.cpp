@@ -7,25 +7,25 @@ DeleteMeshCommand::DeleteMeshCommand(ModelViewer* viewer,
     const QVector<QUuid>& meshUuids,
     const QString& text)
     : ModelViewerCommand(viewer, glWidget, text)
-    , m_meshUuids(meshUuids)
+    , _meshUuids(meshUuids)
 {
     // Store original indices for each mesh
     for (const QUuid& uuid : meshUuids)
     {
-        int index = m_glWidget->getIndexByUuid(uuid);
+        int index = _glWidget->getIndexByUuid(uuid);
         if (index >= 0)
-            m_originalIndices[uuid] = index;
+            _originalIndices[uuid] = index;
     }
 }
 
 void DeleteMeshCommand::undo()
 {
     // Restore meshes from recycle bin
-    for (const QUuid& uuid : m_meshUuids)
+    for (const QUuid& uuid : _meshUuids)
     {
-        if (m_glWidget->isInRecycleBin(uuid))
+        if (_glWidget->isInRecycleBin(uuid))
         {
-            m_glWidget->restoreFromRecycleBin(uuid);
+            _glWidget->restoreFromRecycleBin(uuid);
         }
         else
         {
@@ -34,19 +34,19 @@ void DeleteMeshCommand::undo()
         }
     }
 
-    m_glWidget->updateView();
-    m_viewer->updateDisplayList();
+    _glWidget->updateView();
+    _viewer->updateDisplayList();
 }
 
 void DeleteMeshCommand::redo()
 {
     // Move meshes to recycle bin
-    for (const QUuid& uuid : m_meshUuids)
+    for (const QUuid& uuid : _meshUuids)
     {
-        int originalIndex = m_originalIndices.value(uuid, -1);
-        m_glWidget->moveToRecycleBin(uuid, originalIndex);
+        int originalIndex = _originalIndices.value(uuid, -1);
+        _glWidget->moveToRecycleBin(uuid, originalIndex);
     }
 
-    m_glWidget->updateView();
-    m_viewer->updateDisplayList();
+    _glWidget->updateView();
+    _viewer->updateDisplayList();
 }

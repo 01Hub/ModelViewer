@@ -45,8 +45,8 @@ private:
         bool hasOpacity;
     };
 
-    QMap<QUuid, ADSTextures> m_oldTextures;
-    QMap<QUuid, ADSTextures> m_newTextures;
+    QMap<QUuid, ADSTextures> _oldTextures;
+    QMap<QUuid, ADSTextures> _newTextures;
 
     void applyTextures(const QMap<QUuid, ADSTextures>& textures);
 };

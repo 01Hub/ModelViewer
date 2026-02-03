@@ -89,7 +89,7 @@ public:
 	void redo();
 
 	// Undo stack access
-	QUndoStack* getUndoStack() const { return m_undoStack; }
+	QUndoStack* getUndoStack() const { return _undoStack; }
 
 	// Selection helpers (used by SelectionCommand)
 	void setSelectionWithUndo(const QSet<int>& newSelection);
@@ -274,12 +274,12 @@ private:
 	int _environmentPageIndex = -1;
 	QString _environmentPageLabel;
 
-	QUndoStack* m_undoStack;
-	bool m_lastCanUndo = false;
-	bool m_lastCanRedo = false;
+	QUndoStack* _undoStack;
+	bool _lastCanUndo = false;
+	bool _lastCanRedo = false;
 	// Cleanup optimization
-	int m_lastStackCount = 0;
-	QSet<QUuid> m_cachedReferencedUuids;  // Meshes referenced in undo stack
+	int _lastStackCount = 0;
+	QSet<QUuid> _cachedReferencedUuids;  // Meshes referenced in undo stack
 };
 
 #endif

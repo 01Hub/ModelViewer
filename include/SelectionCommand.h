@@ -44,8 +44,8 @@ public:
     bool mergeWith(const QUndoCommand* other) override;
 
 private:
-    QSet<int> m_oldSelection;  // Selection state before command
-    QSet<int> m_newSelection;  // Selection state after command
+    QSet<int> _oldSelection;  // Selection state before command
+    QSet<int> _newSelection;  // Selection state after command
 
     /**
      * @brief Apply a selection set

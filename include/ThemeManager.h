@@ -38,7 +38,7 @@ public:
     explicit ThemeManager(QObject* parent = nullptr);
 
     void setTheme(Theme theme);
-    Theme currentTheme() const { return m_currentTheme; }
+    Theme currentTheme() const { return _currentTheme; }
 
     void applyThemeForColorScheme(bool isDarkMode);
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
@@ -69,7 +69,7 @@ private:
 
     QString getDarkExtrasStyleSheet() const;
 
-    Theme m_currentTheme;
-    QSettings* m_settings;
+    Theme _currentTheme;
+    QSettings* _settings;
 };
 

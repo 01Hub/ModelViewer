@@ -63,9 +63,9 @@ public:
     QSet<QUuid> getReferencedUuids() const;
 
 private:
-    QMap<QUuid, GLMaterial> m_oldMaterials;  // Materials before command
-    QMap<QUuid, GLMaterial> m_newMaterials;  // Materials after command
-    QString m_materialName;                   // For display in undo stack
+    QMap<QUuid, GLMaterial> _oldMaterials;  // Materials before command
+    QMap<QUuid, GLMaterial> _newMaterials;  // Materials after command
+    QString _materialName;                   // For display in undo stack
 
     /**
      * @brief Apply materials to meshes

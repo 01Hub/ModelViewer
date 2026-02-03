@@ -7,27 +7,27 @@ VisibilityCommand::VisibilityCommand(ModelViewer* viewer,
     const QSet<QUuid>& newVisibleUuids,
     const QString& text)
     : ModelViewerCommand(viewer, glWidget, text)
-    , m_newVisibleUuids(newVisibleUuids)
+    , _newVisibleUuids(newVisibleUuids)
 {
     // Capture the current visibility state before the change
-    m_oldVisibleUuids = m_viewer->getVisibleUuids();
+    _oldVisibleUuids = _viewer->getVisibleUuids();
 }
 
 void VisibilityCommand::undo()
 {
-    applyVisibility(m_oldVisibleUuids);
+    applyVisibility(_oldVisibleUuids);
 }
 
 void VisibilityCommand::redo()
 {
-    applyVisibility(m_newVisibleUuids);
+    applyVisibility(_newVisibleUuids);
 }
 
 void VisibilityCommand::applyVisibility(const QSet<QUuid>& visibleUuids)
 {
-    if (!m_viewer || !m_glWidget)
+    if (!_viewer || !_glWidget)
         return;
 
     // Use the non-undo version to prevent recursion
-    m_viewer->setVisibilityWithoutUndo(visibleUuids);
+    _viewer->setVisibilityWithoutUndo(visibleUuids);
 }

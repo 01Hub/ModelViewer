@@ -7,30 +7,30 @@ SelectionCommand::SelectionCommand(ModelViewer* viewer,
     const QSet<int>& newSelection,
     const QString& text)
     : ModelViewerCommand(viewer, glWidget, text)
-    , m_newSelection(newSelection)
+    , _newSelection(newSelection)
 {
     // Capture the current selection state before the change
-    std::vector<int> currentIDs = m_viewer->getSelectedIDs();
-    m_oldSelection = QSet<int>(currentIDs.begin(), currentIDs.end());
+    std::vector<int> currentIDs = _viewer->getSelectedIDs();
+    _oldSelection = QSet<int>(currentIDs.begin(), currentIDs.end());
 }
 
 void SelectionCommand::undo()
 {
-    applySelection(m_oldSelection);
+    applySelection(_oldSelection);
 }
 
 void SelectionCommand::redo()
 {
-    applySelection(m_newSelection);
+    applySelection(_newSelection);
 }
 
 void SelectionCommand::applySelection(const QSet<int>& selection)
 {
-    if (!m_viewer || !m_glWidget)
+    if (!_viewer || !_glWidget)
         return;
 
     // Use the non-undo version to prevent recursion
-    m_viewer->setSelectionWithoutUndo(selection);
+    _viewer->setSelectionWithoutUndo(selection);
 }
 
 bool SelectionCommand::mergeWith(const QUndoCommand* other)
@@ -47,7 +47,7 @@ bool SelectionCommand::mergeWith(const QUndoCommand* other)
 
     // Update the new selection to the latest one
     // This combines multiple rapid selections into one undo step
-    m_newSelection = otherCmd->m_newSelection;
+    _newSelection = otherCmd->_newSelection;
 
     return true;
     */

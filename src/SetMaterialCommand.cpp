@@ -10,43 +10,43 @@ SetMaterialCommand::SetMaterialCommand(ModelViewer* viewer,
     const QString& materialName,
     const QString& text)
     : ModelViewerCommand(viewer, glWidget, text)
-    , m_materialName(materialName)
+    , _materialName(materialName)
 {
     // Capture old materials before applying new
     for (const QUuid& uuid : meshUuids)
     {
-        TriangleMesh* mesh = m_glWidget->getMeshByUuid(uuid);
+        TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid);
         if (mesh)
         {
             // Store complete material state for undo
-            m_oldMaterials[uuid] = mesh->getMaterial();
+            _oldMaterials[uuid] = mesh->getMaterial();
 
             // Store new material state for redo
-            m_newMaterials[uuid] = newMaterial;
+            _newMaterials[uuid] = newMaterial;
         }
     }
 
     // Update command text with material name if provided
-    if (!m_materialName.isEmpty())
+    if (!_materialName.isEmpty())
     {
-        setText(QString("Set Material: %1").arg(m_materialName));
+        setText(QString("Set Material: %1").arg(_materialName));
     }
 }
 
 void SetMaterialCommand::undo()
 {
-    if (!m_viewer || !m_glWidget)
+    if (!_viewer || !_glWidget)
         return;
 
-    applyMaterials(m_oldMaterials);
+    applyMaterials(_oldMaterials);
 }
 
 void SetMaterialCommand::redo()
 {
-    if (!m_viewer || !m_glWidget)
+    if (!_viewer || !_glWidget)
         return;
 
-    applyMaterials(m_newMaterials);
+    applyMaterials(_newMaterials);
 }
 
 void SetMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materials)
@@ -57,14 +57,14 @@ void SetMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materials
         const GLMaterial& mat = it.value();
 
         // Get current index for this UUID
-        int index = m_glWidget->getIndexByUuid(uuid);
+        int index = _glWidget->getIndexByUuid(uuid);
         if (index < 0)
         {
             // Mesh was permanently deleted, skip
             continue;
         }
 
-        TriangleMesh* mesh = m_glWidget->getMeshByIndex(index);
+        TriangleMesh* mesh = _glWidget->getMeshByIndex(index);
         if (mesh)
         {
             // Apply material to mesh
@@ -73,14 +73,14 @@ void SetMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materials
             // Handle transmission flag if material has transmission
             if (mat.hasTransmission())
             {
-                m_glWidget->setTransmissionEnabled(true);
+                _glWidget->setTransmissionEnabled(true);
             }
         }
     }
 
     // Update view after all materials applied
-    m_glWidget->updateView();
-    m_glWidget->update();
+    _glWidget->updateView();
+    _glWidget->update();
 
     // Update material panel to reflect current state if needed
     // This ensures the UI stays in sync with mesh state
@@ -93,7 +93,7 @@ QSet<QUuid> SetMaterialCommand::getReferencedUuids() const
 {
     QSet<QUuid> uuids;
 
-    for (auto it = m_oldMaterials.begin(); it != m_oldMaterials.end(); ++it)
+    for (auto it = _oldMaterials.begin(); it != _oldMaterials.end(); ++it)
     {
         uuids.insert(it.key());
     }

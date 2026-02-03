@@ -13,32 +13,32 @@ ApplyTexturesCommand::ApplyTexturesCommand(ModelViewer* viewer,
     // Capture old materials before applying new textures
     for (const QUuid& uuid : meshUuids)
     {
-        TriangleMesh* mesh = m_glWidget->getMeshByUuid(uuid);
+        TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid);
         if (mesh)
         {
             // Store complete material state for undo
-            m_oldMaterials[uuid] = mesh->getMaterial();
+            _oldMaterials[uuid] = mesh->getMaterial();
 
             // Store new material state for redo
-            m_newMaterials[uuid] = newMaterial;
+            _newMaterials[uuid] = newMaterial;
         }
     }
 }
 
 void ApplyTexturesCommand::undo()
 {
-    if (!m_viewer || !m_glWidget)
+    if (!_viewer || !_glWidget)
         return;
 
-    applyTextures(m_oldMaterials);
+    applyTextures(_oldMaterials);
 }
 
 void ApplyTexturesCommand::redo()
 {
-    if (!m_viewer || !m_glWidget)
+    if (!_viewer || !_glWidget)
         return;
 
-    applyTextures(m_newMaterials);
+    applyTextures(_newMaterials);
 }
 
 void ApplyTexturesCommand::applyTextures(const QMap<QUuid, GLMaterial>& materials)
@@ -50,7 +50,7 @@ void ApplyTexturesCommand::applyTextures(const QMap<QUuid, GLMaterial>& material
         const GLMaterial& mat = it.value();
 
         // Get current index for this UUID
-        int index = m_glWidget->getIndexByUuid(uuid);
+        int index = _glWidget->getIndexByUuid(uuid);
         if (index < 0)
         {
             // Mesh was permanently deleted, skip
@@ -60,19 +60,19 @@ void ApplyTexturesCommand::applyTextures(const QMap<QUuid, GLMaterial>& material
         // Apply textures to this single mesh
         // setTexturesToObjects handles texture loading and GPU upload
         std::vector<int> singleMesh = { index };
-        m_glWidget->setTexturesToObjects(singleMesh, mat);
+        _glWidget->setTexturesToObjects(singleMesh, mat);
     }
 
     // Update view after all textures applied
-    m_glWidget->updateView();
-    m_glWidget->update();
+    _glWidget->updateView();
+    _glWidget->update();
 }
 
 QSet<QUuid> ApplyTexturesCommand::getReferencedUuids() const
 {
     QSet<QUuid> uuids;
 
-    for (auto it = m_oldMaterials.begin(); it != m_oldMaterials.end(); ++it)
+    for (auto it = _oldMaterials.begin(); it != _oldMaterials.end(); ++it)
     {
         uuids.insert(it.key());
     }

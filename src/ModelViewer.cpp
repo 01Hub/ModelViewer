@@ -43,29 +43,29 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	setupUi(this);
 
 	// Initialize undo stack
-	m_undoStack = new QUndoStack(this);
+	_undoStack = new QUndoStack(this);
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	int maxUndo = settings.value("spinBoxUndoLimit", 50).toInt(); // Keep last 50 operations as default
-	m_undoStack->setUndoLimit(maxUndo);
+	_undoStack->setUndoLimit(maxUndo);
 
 	// Detect when undo becomes unavailable
-	connect(m_undoStack, &QUndoStack::canUndoChanged,
+	connect(_undoStack, &QUndoStack::canUndoChanged,
 		this, [this](bool canUndo) {
-			if (m_lastCanUndo && !canUndo)  // Transition: true → false
+			if (_lastCanUndo && !canUndo)  // Transition: true → false
 			{
 				MainWindow::showStatusMessage("Nothing to undo", 2000);
 			}
-			m_lastCanUndo = canUndo;
+			_lastCanUndo = canUndo;
 		});
 
 	// Detect when redo becomes unavailable  
-	connect(m_undoStack, &QUndoStack::canRedoChanged,
+	connect(_undoStack, &QUndoStack::canRedoChanged,
 		this, [this](bool canRedo) {
-			if (m_lastCanRedo && !canRedo)  // Transition: true → false
+			if (_lastCanRedo && !canRedo)  // Transition: true → false
 			{
 				MainWindow::showStatusMessage("Nothing to redo", 2000);
 			}
-			m_lastCanRedo = canRedo;
+			_lastCanRedo = canRedo;
 		});
 
 	setupUndoStackMonitoring();
@@ -285,10 +285,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 ModelViewer::~ModelViewer()
 {
-	if (m_undoStack)
+	if (_undoStack)
 	{
-		disconnect(m_undoStack, nullptr, this, nullptr);  // Prevent callbacks
-		m_undoStack->clear();
+		disconnect(_undoStack, nullptr, this, nullptr);  // Prevent callbacks
+		_undoStack->clear();
 	}
 	if (_glWidget)
 	{
@@ -388,7 +388,7 @@ void ModelViewer::setTransformation()
 
 	// Create and push transform command
 	// redo() will be called automatically and will apply the transformation
-	m_undoStack->push(new TransformCommand(
+	_undoStack->push(new TransformCommand(
 		this, _glWidget, uuids, translate, rotate, scale
 	));
 
@@ -436,10 +436,10 @@ void ModelViewer::bakeTransformations()
 	_glWidget->bakeTransformation(ids);
 
 	// Mark all TransformCommands affecting these meshes as obsolete
-	for (int i = 0; i < m_undoStack->count(); ++i)
+	for (int i = 0; i < _undoStack->count(); ++i)
 	{
 		const TransformCommand* cmd =
-			dynamic_cast<const TransformCommand*>(m_undoStack->command(i));
+			dynamic_cast<const TransformCommand*>(_undoStack->command(i));
 		if (cmd && cmd->affectsAnyUuid(bakedUuids))
 		{
 			// Mark each baked mesh in the command
@@ -485,7 +485,7 @@ void ModelViewer::resetTransformation()
 	QVector3D identity_scale(1, 1, 1);
 
 	// Create and push transform command with identity values
-	m_undoStack->push(new TransformCommand(
+	_undoStack->push(new TransformCommand(
 		this, _glWidget, uuids,
 		identity_trans, identity_rot, identity_scale,
 		tr("Reset Transform")  // Different text for reset
@@ -957,29 +957,29 @@ void ModelViewer::reattachEnvironmentPanel()
 void ModelViewer::setupUndoStackMonitoring()
 {
 	// Connect to stack changes
-	connect(m_undoStack, &QUndoStack::indexChanged,
+	connect(_undoStack, &QUndoStack::indexChanged,
 		this, &ModelViewer::onUndoStackChanged);
 
 	// Initialize cache
-	m_lastStackCount = 0;
-	m_cachedReferencedUuids.clear();
+	_lastStackCount = 0;
+	_cachedReferencedUuids.clear();
 }
 
 void ModelViewer::onUndoStackChanged()
 {
-	if (!m_undoStack || !_glWidget)
+	if (!_undoStack || !_glWidget)
 		return;
 
-	int currentCount = m_undoStack->count();
+	int currentCount = _undoStack->count();
 
 	// Only cleanup when stack size changes (commands added/purged)
 	// Not on every undo/redo (which just changes index)
-	if (currentCount != m_lastStackCount)
+	if (currentCount != _lastStackCount)
 	{
 		// Check if commands were purged (count decreased)
 		// or if this is the first operation (count increased from 0)
-		bool shouldCleanup = (currentCount < m_lastStackCount) ||
-			(m_lastStackCount == 0 && currentCount > 0);
+		bool shouldCleanup = (currentCount < _lastStackCount) ||
+			(_lastStackCount == 0 && currentCount > 0);
 
 		if (shouldCleanup)
 		{
@@ -991,20 +991,20 @@ void ModelViewer::onUndoStackChanged()
 			// Update cache incrementally instead of full scan
 
 			// Get the newly added command (at current index - 1)
-			int newCmdIndex = m_undoStack->index() - 1;
-			if (newCmdIndex >= 0 && newCmdIndex < m_undoStack->count())
+			int newCmdIndex = _undoStack->index() - 1;
+			if (newCmdIndex >= 0 && newCmdIndex < _undoStack->count())
 			{
-				const QUndoCommand* cmd = m_undoStack->command(newCmdIndex);
+				const QUndoCommand* cmd = _undoStack->command(newCmdIndex);
 
 				// If it's a DeleteCommand, add its UUIDs to cache
 				if (const auto* delCmd = dynamic_cast<const DeleteMeshCommand*>(cmd))
 				{
-					m_cachedReferencedUuids.unite(delCmd->getReferencedUuids());
+					_cachedReferencedUuids.unite(delCmd->getReferencedUuids());
 				}
 			}
 		}
 
-		m_lastStackCount = currentCount;
+		_lastStackCount = currentCount;
 	}
 }
 
@@ -1014,7 +1014,7 @@ void ModelViewer::cleanupOrphanedMeshes()
 	QSet<QUuid> currentlyReferenced = scanStackForReferencedUuids();
 
 	// Find UUIDs that were in cache but no longer referenced
-	QSet<QUuid> orphaned = m_cachedReferencedUuids - currentlyReferenced;
+	QSet<QUuid> orphaned = _cachedReferencedUuids - currentlyReferenced;
 
 	if (!orphaned.isEmpty())
 	{
@@ -1029,7 +1029,7 @@ void ModelViewer::cleanupOrphanedMeshes()
 	}
 
 	// Update cache
-	m_cachedReferencedUuids = currentlyReferenced;
+	_cachedReferencedUuids = currentlyReferenced;
 }
 
 QSet<QUuid> ModelViewer::scanStackForReferencedUuids()
@@ -1037,10 +1037,10 @@ QSet<QUuid> ModelViewer::scanStackForReferencedUuids()
 	QSet<QUuid> referenced;
 
 	// Scan all commands in the undo stack
-	int count = m_undoStack->count();
+	int count = _undoStack->count();
 	for (int i = 0; i < count; ++i)
 	{
-		const QUndoCommand* cmd = m_undoStack->command(i);
+		const QUndoCommand* cmd = _undoStack->command(i);
 
 		// Check if it's a DeleteCommand
 		if (const auto* delCmd = dynamic_cast<const DeleteMeshCommand*>(cmd))
@@ -1426,7 +1426,7 @@ void ModelViewer::duplicateSelectedItems()
 	updateDisplayList();  // May clear selection, but we already saved it
 
 	// PASS original selection to command
-	m_undoStack->push(new DuplicateCommand(
+	_undoStack->push(new DuplicateCommand(
 		this, _glWidget, duplicatedUuids, originalSelection
 	));
 
@@ -1463,7 +1463,7 @@ void ModelViewer::deleteSelectedItems()
 		return;
 
 	// Push delete command (will move to recycle bin)
-	m_undoStack->push(new DeleteMeshCommand(this, _glWidget, uuidsToDelete));
+	_undoStack->push(new DeleteMeshCommand(this, _glWidget, uuidsToDelete));
 
 	// Update UI
 	updateControls();
@@ -2336,7 +2336,7 @@ void ModelViewer::onPredefinedMaterialSelected(const GLMaterial& mat)
 		}
 	}
 		
-	m_undoStack->push(new SetMaterialCommand(
+	_undoStack->push(new SetMaterialCommand(
 		this, _glWidget, uuids, mat, materialName
 	));
 
@@ -2364,7 +2364,7 @@ void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
 
 	QString materialName = "Custom Material";
 
-	m_undoStack->push(new SetMaterialCommand(
+	_undoStack->push(new SetMaterialCommand(
 		this, _glWidget, uuids, mat, materialName
 	));
 
@@ -2387,7 +2387,7 @@ void ModelViewer::onTexturesApplied(const GLMaterial* mat)
 			uuids.append(uuid);
 	}
 
-	m_undoStack->push(new ApplyTexturesCommand(
+	_undoStack->push(new ApplyTexturesCommand(
 		this, _glWidget, uuids, *mat  // Dereference pointer
 	));
 
@@ -2423,7 +2423,7 @@ void ModelViewer::onADSColorsApplied()
 	}
 
 	// Create and push command
-	m_undoStack->push(new ApplyADSColorsCommand(
+	_undoStack->push(new ApplyADSColorsCommand(
 		this, _glWidget, adsPanel, uuids,
 		ambient, diffuse, specular, emissive, opacity, shininess
 	));
@@ -2460,7 +2460,7 @@ void ModelViewer::onOpacitySliderReleased()
 	}
 
 	// Reuse ApplyADSColorsCommand! ✓
-	m_undoStack->push(new ApplyADSColorsCommand(
+	_undoStack->push(new ApplyADSColorsCommand(
 		this, _glWidget, adsPanel, uuids,
 		ambient, diffuse, specular, emissive, opacity, shininess
 	));
@@ -2497,7 +2497,7 @@ void ModelViewer::onShininessSliderReleased()
 	}
 
 	// Reuse ApplyADSColorsCommand! ✓
-	m_undoStack->push(new ApplyADSColorsCommand(
+	_undoStack->push(new ApplyADSColorsCommand(
 		this, _glWidget, adsPanel, uuids,
 		ambient, diffuse, specular, emissive, opacity, shininess
 	));
@@ -2543,7 +2543,7 @@ void ModelViewer::onADSTexturesApplied()
 	}
 
 	// Create and push command with PATHS, not GLMaterial
-	m_undoStack->push(new ApplyADSTexturesCommand(
+	_undoStack->push(new ApplyADSTexturesCommand(
 		this, _glWidget, uuids,
 		diffusePath, specularPath, normalPath,
 		emissivePath, heightPath, opacityPath,
@@ -2608,31 +2608,31 @@ UVDialogResult ModelViewer::askUserForUVMethod(QWidget* parent)
 
 bool ModelViewer::hasUndo() const
 {
-	return m_undoStack && m_undoStack->canUndo();
+	return _undoStack && _undoStack->canUndo();
 }
 
 bool ModelViewer::hasRedo() const
 {
-	return m_undoStack && m_undoStack->canRedo();
+	return _undoStack && _undoStack->canRedo();
 }
 
 void ModelViewer::undo()
 {
-	if (m_undoStack)
-		m_undoStack->undo();
+	if (_undoStack)
+		_undoStack->undo();
 }
 
 void ModelViewer::redo()
 {
-	if (m_undoStack)
-		m_undoStack->redo();
+	if (_undoStack)
+		_undoStack->redo();
 }
 
 void ModelViewer::setSelectionWithUndo(const QSet<int>& newSelection)
 {
 	// Create and push the undo command
 	// Note: push() automatically calls redo() on the command
-	m_undoStack->push(new SelectionCommand(this, _glWidget, newSelection));
+	_undoStack->push(new SelectionCommand(this, _glWidget, newSelection));
 }
 
 void ModelViewer::setSelectionWithoutUndo(const QSet<int>& selection)
@@ -2696,7 +2696,7 @@ void ModelViewer::setVisibilityWithUndo(const QSet<QUuid>& newVisibleUuids,
 {
 	// Create and push the undo command
 	// Note: push() automatically calls redo() on the command
-	m_undoStack->push(new VisibilityCommand(this, _glWidget,
+	_undoStack->push(new VisibilityCommand(this, _glWidget,
 		newVisibleUuids, commandText));
 }
 

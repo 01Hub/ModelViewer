@@ -63,8 +63,8 @@ public:
     QSet<QUuid> getReferencedUuids() const;
 
 private:
-    QMap<QUuid, GLMaterial> m_oldMaterials;  // Materials before command
-    QMap<QUuid, GLMaterial> m_newMaterials;  // Materials after command
+    QMap<QUuid, GLMaterial> _oldMaterials;  // Materials before command
+    QMap<QUuid, GLMaterial> _newMaterials;  // Materials after command
 
     /**
      * @brief Apply textures to meshes

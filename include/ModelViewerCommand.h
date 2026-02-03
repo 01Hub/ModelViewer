@@ -29,7 +29,7 @@ public:
     virtual ~ModelViewerCommand() = default;
 
 protected:
-    ModelViewer* m_viewer;
-    GLWidget* m_glWidget;
+    ModelViewer* _viewer;
+    GLWidget* _glWidget;
 };
 
