@@ -310,8 +310,11 @@ void MainWindow::setProgressValue(const int& value)
 
 void MainWindow::on_actionExit_triggered(bool /*checked*/)
 {
-	close();
-	qApp->exit();
+	if (canExit())
+	{
+		close();
+		qApp->exit();
+	}
 }
 
 void MainWindow::on_actionQuick_Help_triggered()
@@ -451,17 +454,16 @@ void MainWindow::showEvent(QShowEvent* event)
 }
 
 void MainWindow::closeEvent(QCloseEvent* event)
-{
-	closeAllSubWindows();
-	if (ui->mdiArea->currentSubWindow())
-	{
-		event->ignore();
-	}
-	else
+{	
+	if (canExit())
 	{
 		writeSettings();
 		event->accept();
-		qApp->exit();
+		qApp->exit();		
+	}
+	else
+	{
+		event->ignore();
 	}	
 }
 
@@ -832,6 +834,33 @@ QMdiSubWindow* MainWindow::findMdiChild(const QString& fileName) const
 			return window;
 	}
 	return nullptr;
+}
+
+bool MainWindow::canExit()
+{
+	QList<QMdiSubWindow*> windows = ui->mdiArea->subWindowList();
+
+	// Query each MDI child window
+	for (QMdiSubWindow* window : windows)
+	{
+		ModelViewer* child = qobject_cast<ModelViewer*>(window->widget());
+		if (child)
+		{
+			// Create a close event and let the child handle it
+			// This will trigger ModelViewer::closeEvent which shows the save dialog
+			QCloseEvent closeEvent;
+			child->closeEvent(&closeEvent);
+
+			// If the child rejected the close (user clicked Cancel), return false
+			if (!closeEvent.isAccepted())
+			{
+				return false;  // Exit cancelled - don't close application
+			}
+		}
+	}
+
+	// All children accepted the close event - safe to exit
+	return true;
 }
 
 bool MainWindow::hasRecentFiles()

@@ -65,6 +65,8 @@ public:
 	bool save();
 	bool saveAs();
 
+	void closeEvent(QCloseEvent* event);
+
 	void setDocumentSaved(bool saved = true);
 	bool isDocumentSaved() const { return _documentSaved; }
 
@@ -169,8 +171,7 @@ protected:
 	void dropEvent(QDropEvent* event);
 	void resizeEvent(QResizeEvent* event);
 	void mouseMoveEvent(QMouseEvent* event);
-	void closeEvent(QCloseEvent* event);
-
+	
 private:
 	GLMaterial buildADSMaterialFromPanel() const;
 

@@ -57,7 +57,7 @@ protected:
 	void showEvent(QShowEvent* event);
 	void closeEvent(QCloseEvent* event);
 	void dragEnterEvent(QDragEnterEvent* event);
-	void dropEvent(QDropEvent* event);
+	void dropEvent(QDropEvent* event);	
 
 protected slots:
 	void on_actionExit_triggered(bool checked = false);
@@ -99,6 +99,7 @@ private:
 	void setRecentFilesVisible(bool visible);
     ModelViewer* activeMdiChild() const;
     QMdiSubWindow* findMdiChild(const QString& fileName) const;
+	bool canExit();
 
 private:
 	enum { MaxRecentFiles = 15 };
