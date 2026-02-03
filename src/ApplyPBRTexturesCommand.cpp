@@ -1,9 +1,9 @@
-#include "ApplyTexturesCommand.h"
+#include "ApplyPBRTexturesCommand.h"
 #include "ModelViewer.h"
 #include "GLWidget.h"
 #include "TriangleMesh.h"
 
-ApplyTexturesCommand::ApplyTexturesCommand(ModelViewer* viewer,
+ApplyPBRTexturesCommand::ApplyPBRTexturesCommand(ModelViewer* viewer,
     GLWidget* glWidget,
     const QVector<QUuid>& meshUuids,
     const GLMaterial& newMaterial,
@@ -25,7 +25,7 @@ ApplyTexturesCommand::ApplyTexturesCommand(ModelViewer* viewer,
     }
 }
 
-void ApplyTexturesCommand::undo()
+void ApplyPBRTexturesCommand::undo()
 {
     if (!_viewer || !_glWidget)
         return;
@@ -33,7 +33,7 @@ void ApplyTexturesCommand::undo()
     applyTextures(_oldMaterials);
 }
 
-void ApplyTexturesCommand::redo()
+void ApplyPBRTexturesCommand::redo()
 {
     if (!_viewer || !_glWidget)
         return;
@@ -41,7 +41,7 @@ void ApplyTexturesCommand::redo()
     applyTextures(_newMaterials);
 }
 
-void ApplyTexturesCommand::applyTextures(const QMap<QUuid, GLMaterial>& materials)
+void ApplyPBRTexturesCommand::applyTextures(const QMap<QUuid, GLMaterial>& materials)
 {
     // Apply textures one mesh at a time using GLWidget's texture application
     for (auto it = materials.begin(); it != materials.end(); ++it)
@@ -68,7 +68,7 @@ void ApplyTexturesCommand::applyTextures(const QMap<QUuid, GLMaterial>& material
     _glWidget->update();
 }
 
-QSet<QUuid> ApplyTexturesCommand::getReferencedUuids() const
+QSet<QUuid> ApplyPBRTexturesCommand::getReferencedUuids() const
 {
     QSet<QUuid> uuids;
 

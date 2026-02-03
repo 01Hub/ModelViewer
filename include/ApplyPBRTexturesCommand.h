@@ -21,7 +21,7 @@
  * The command applies textures using GLWidget::setTexturesToObjects() which
  * handles texture loading, GPU upload, and material resolution automatically.
  */
-class ApplyTexturesCommand : public ModelViewerCommand
+class ApplyPBRTexturesCommand : public ModelViewerCommand
 {
 public:
     /**
@@ -39,7 +39,7 @@ public:
      * to be applied. The command will handle texture loading and GPU upload
      * via GLWidget::setTexturesToObjects().
      */
-    ApplyTexturesCommand(ModelViewer* viewer,
+    ApplyPBRTexturesCommand(ModelViewer* viewer,
         GLWidget* glWidget,
         const QVector<QUuid>& meshUuids,
         const GLMaterial& newMaterial,
@@ -50,7 +50,7 @@ public:
 
     /**
      * @brief Command ID for merging
-     * @return Unique ID for ApplyTexturesCommand (10)
+     * @return Unique ID for ApplyPBRTexturesCommand (10)
      */
     int id() const override { return 10; }
 

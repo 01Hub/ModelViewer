@@ -1,6 +1,6 @@
 ﻿#include "ADSMaterialSettingsPanel.h"
 #include "AssImpModelLoader.h"
-#include "ApplyTexturesCommand.h"
+#include "ApplyPBRTexturesCommand.h"
 #include "ApplyADSColorsCommand.h"
 #include "ApplyADSTexturesCommand.h"
 #include "DeleteMeshCommand.h"
@@ -2387,7 +2387,7 @@ void ModelViewer::onTexturesApplied(const GLMaterial* mat)
 			uuids.append(uuid);
 	}
 
-	_undoStack->push(new ApplyTexturesCommand(
+	_undoStack->push(new ApplyPBRTexturesCommand(
 		this, _glWidget, uuids, *mat  // Dereference pointer
 	));
 
