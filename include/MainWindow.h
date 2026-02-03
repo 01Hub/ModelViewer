@@ -1,12 +1,14 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QSettings>
 
 QT_BEGIN_NAMESPACE
 class QProgressBar;
 class QPushButton;
 class QMdiSubWindow;
 class QAction;
+
 #ifdef _WIN32
 class QWinTaskbarProgress;
 #endif //
@@ -51,6 +53,11 @@ public:
 	static void resetProgressBar();
 	static void hideProgressBar();
 	static void setProgressValue(const int& value);
+
+	static inline QString recentFilesKey() { return QStringLiteral("recentFileList"); }
+	static inline QString fileKey() { return QStringLiteral("file"); }
+	static QStringList readRecentFiles(QSettings& settings);
+	static void writeRecentFiles(const QStringList& files, QSettings& settings);
 
 protected:
 	MainWindow(QWidget* parent = Q_NULLPTR);

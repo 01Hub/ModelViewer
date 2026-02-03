@@ -63,6 +63,19 @@ int main(int argc, char** argv)
 		}
 	}
 
+	QStringList recentFiles = MainWindow::readRecentFiles(settings);
+	bool restoreLastOpenFile = settings.value("checkRestoreLastFile", false).toBool();
+	if (restoreLastOpenFile && !recentFiles.isEmpty())
+	{
+		QString lastFile = recentFiles.first();
+		QFileInfo fi(lastFile);
+		if (fi.exists())
+		{
+			mw->openFile(lastFile);
+			viewer->parentWidget()->close(); // close the first blank document
+		}
+	}
+
 	QOpenGLFunctions glFuncs(QOpenGLContext::currentContext());
 	auto logOpenGLInfo = [&glFuncs](auto& outputStream) {
 		std::map<std::string, GLenum> infoMap = {

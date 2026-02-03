@@ -215,10 +215,8 @@ void MainWindow::writeSettings()
 	settings.setValue("geometry", saveGeometry());
 }
 
-static inline QString recentFilesKey() { return QStringLiteral("recentFileList"); }
-static inline QString fileKey() { return QStringLiteral("file"); }
 
-static QStringList readRecentFiles(QSettings& settings)
+QStringList MainWindow::readRecentFiles(QSettings& settings)
 {
 	QStringList result;
 	const int count = settings.beginReadArray(recentFilesKey());
@@ -230,7 +228,7 @@ static QStringList readRecentFiles(QSettings& settings)
 	return result;
 }
 
-static void writeRecentFiles(const QStringList& files, QSettings& settings)
+void MainWindow::writeRecentFiles(const QStringList& files, QSettings& settings)
 {
 	const int count = files.size();
 	settings.beginWriteArray(recentFilesKey());
