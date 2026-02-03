@@ -231,6 +231,9 @@
            <property name="text">
             <string>Confirm on Exit</string>
            </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
           </widget>
          </item>
          <item row="6" column="0">
@@ -1325,7 +1328,7 @@
             <x>0</x>
             <y>0</y>
             <width>936</width>
-            <height>822</height>
+            <height>810</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_16">

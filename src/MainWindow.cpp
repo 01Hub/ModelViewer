@@ -311,8 +311,7 @@ void MainWindow::setProgressValue(const int& value)
 void MainWindow::on_actionExit_triggered(bool /*checked*/)
 {
 	if (canExit())
-	{
-		close();
+	{		
 		qApp->exit();
 	}
 }
@@ -838,6 +837,24 @@ QMdiSubWindow* MainWindow::findMdiChild(const QString& fileName) const
 
 bool MainWindow::canExit()
 {
+	// Check user preference for exit confirmation
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	bool confirmOnExit = settings.value("checkConfirmExit", true).toBool();
+	if (confirmOnExit)
+	{
+		QMessageBox::StandardButton reply = QMessageBox::question(
+			this,
+			tr("Confirm Exit"),
+			tr("Are you sure you want to exit the application?"),
+			QMessageBox::Yes | QMessageBox::No
+		);
+		if (reply != QMessageBox::Yes)
+		{
+			return false; // User chose not to exit
+		}
+	}
+
+	// Get the list of MDI child windows
 	QList<QMdiSubWindow*> windows = ui->mdiArea->subWindowList();
 
 	// Query each MDI child window
