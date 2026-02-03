@@ -48,6 +48,26 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	int maxUndo = settings.value("spinBoxUndoLimit", 50).toInt(); // Keep last 50 operations as default
 	m_undoStack->setUndoLimit(maxUndo);
 
+	// Detect when undo becomes unavailable
+	connect(m_undoStack, &QUndoStack::canUndoChanged,
+		this, [this](bool canUndo) {
+			if (m_lastCanUndo && !canUndo)  // Transition: true → false
+			{
+				MainWindow::showStatusMessage("Nothing to undo", 2000);
+			}
+			m_lastCanUndo = canUndo;
+		});
+
+	// Detect when redo becomes unavailable  
+	connect(m_undoStack, &QUndoStack::canRedoChanged,
+		this, [this](bool canRedo) {
+			if (m_lastCanRedo && !canRedo)  // Transition: true → false
+			{
+				MainWindow::showStatusMessage("Nothing to redo", 2000);
+			}
+			m_lastCanRedo = canRedo;
+		});
+
 	setupUndoStackMonitoring();
 
 	setAttribute(Qt::WA_DeleteOnClose);

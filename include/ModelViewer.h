@@ -274,6 +274,8 @@ private:
 	QString _environmentPageLabel;
 
 	QUndoStack* m_undoStack;
+	bool m_lastCanUndo = false;
+	bool m_lastCanRedo = false;
 	// Cleanup optimization
 	int m_lastStackCount = 0;
 	QSet<QUuid> m_cachedReferencedUuids;  // Meshes referenced in undo stack
