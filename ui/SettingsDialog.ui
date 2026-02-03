@@ -583,6 +583,36 @@
           <string>Viewport</string>
          </property>
          <layout class="QGridLayout" name="gridLayout_12">
+          <item row="6" column="0">
+           <widget class="QLabel" name="nearPlaneLabel">
+            <property name="text">
+             <string>Near Plane:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="2">
+           <widget class="QDoubleSpinBox" name="farPlaneSpinBox">
+            <property name="minimum">
+             <double>10.000000000000000</double>
+            </property>
+            <property name="maximum">
+             <double>10000.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>10.000000000000000</double>
+            </property>
+            <property name="value">
+             <double>1000.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="fieldOfViewLabel">
+            <property name="text">
+             <string>Field of View:</string>
+            </property>
+           </widget>
+          </item>
           <item row="0" column="0">
            <widget class="QCheckBox" name="showGridCheckBox">
             <property name="text">
@@ -593,30 +623,20 @@
             </property>
            </widget>
           </item>
-          <item row="1" column="0">
-           <widget class="QCheckBox" name="showCornerTrihedronCheckBox">
+          <item row="7" column="0">
+           <widget class="QLabel" name="farPlaneLabel">
             <property name="text">
-             <string>Show Corner Trihedron</string>
-            </property>
-            <property name="checked">
-             <bool>true</bool>
+             <string>Far Plane:</string>
             </property>
            </widget>
           </item>
-          <item row="2" column="0">
+          <item row="1" column="0">
            <widget class="QCheckBox" name="showCenterTrihedronCheckBox">
             <property name="text">
              <string>Show Center Trihedron</string>
             </property>
             <property name="checked">
              <bool>true</bool>
-            </property>
-           </widget>
-          </item>
-          <item row="2" column="1">
-           <widget class="QLabel" name="label_7">
-            <property name="text">
-             <string>Position</string>
             </property>
            </widget>
           </item>
@@ -673,17 +693,20 @@
             </property>
            </spacer>
           </item>
+          <item row="2" column="0">
+           <widget class="QCheckBox" name="showCornerTrihedronCheckBox">
+            <property name="text">
+             <string>Show Corner Trihedron</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
           <item row="4" column="0">
            <widget class="QCheckBox" name="showWireframeCheckBox">
             <property name="text">
              <string>Show Wireframe</string>
-            </property>
-           </widget>
-          </item>
-          <item row="5" column="0">
-           <widget class="QLabel" name="fieldOfViewLabel">
-            <property name="text">
-             <string>Field of View:</string>
             </property>
            </widget>
           </item>
@@ -697,13 +720,6 @@
             </property>
             <property name="value">
              <number>60</number>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="0">
-           <widget class="QLabel" name="nearPlaneLabel">
-            <property name="text">
-             <string>Near Plane:</string>
             </property>
            </widget>
           </item>
@@ -723,26 +739,10 @@
             </property>
            </widget>
           </item>
-          <item row="7" column="0">
-           <widget class="QLabel" name="farPlaneLabel">
+          <item row="2" column="1">
+           <widget class="QLabel" name="label_7">
             <property name="text">
-             <string>Far Plane:</string>
-            </property>
-           </widget>
-          </item>
-          <item row="7" column="2">
-           <widget class="QDoubleSpinBox" name="farPlaneSpinBox">
-            <property name="minimum">
-             <double>10.000000000000000</double>
-            </property>
-            <property name="maximum">
-             <double>10000.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>10.000000000000000</double>
-            </property>
-            <property name="value">
-             <double>1000.000000000000000</double>
+             <string>Position</string>
             </property>
            </widget>
           </item>
@@ -1328,7 +1328,7 @@
             <x>0</x>
             <y>0</y>
             <width>936</width>
-            <height>810</height>
+            <height>822</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_16">
@@ -2104,8 +2104,8 @@
   <tabstop>pushButtonBottomColor</tabstop>
   <tabstop>comboBoxGradientStyle</tabstop>
   <tabstop>showGridCheckBox</tabstop>
-  <tabstop>showCornerTrihedronCheckBox</tabstop>
   <tabstop>showCenterTrihedronCheckBox</tabstop>
+  <tabstop>showCornerTrihedronCheckBox</tabstop>
   <tabstop>comboBoxCornerTrihedronPosition</tabstop>
   <tabstop>showBoundingBoxCheckBox</tabstop>
   <tabstop>showWireframeCheckBox</tabstop>

@@ -671,8 +671,10 @@ void GLWidget::initializeGL()
 	int anIsoVals[] = { 1, 2, 4, 8, 16, 32 };
 	_anisotropicFilteringLevel = anIsoVals[settings.value("anisotropyComboBox", 4).toInt()];
 
-	_cornerAxisPosition = static_cast<CornerAxisPosition>(settings.value("comboBoxCornerTrihedronPosition", 1).toInt());
-	
+	_userShowAxisOverride = settings.value("showCenterTrihedronCheckBox", true).toBool();
+	_userShowCornerAxisOverride = settings.value("showCornerTrihedronCheckBox", true).toBool();
+	_cornerAxisPosition = static_cast<CornerAxisPosition>(settings.value("comboBoxCornerTrihedronPosition", 1).toInt());	
+		
 	makeCurrent();
 
 	createShaderPrograms();
@@ -4321,7 +4323,8 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _gradientStyle);
 	render(_primaryCamera);
-	drawCornerAxis(_cornerAxisPosition);
+	if(_userShowCornerAxisOverride)
+		drawCornerAxis(_cornerAxisPosition);
 }
 
 void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
@@ -5361,7 +5364,7 @@ void GLWidget::render(GLCamera* camera)
 	_fgShader->release();
 
 	// --- 5) Overlays ---
-	if (_showAxis)   drawAxis();
+	if (_showAxis && _userShowAxisOverride) drawAxis();
 	if (_showLights) drawLights();
 }
 

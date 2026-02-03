@@ -632,6 +632,8 @@ private:
 	bool _multiViewActive;
 
 	bool _showAxis;
+	bool _userShowAxisOverride;
+	bool _userShowCornerAxisOverride;
 
 	float _clipXCoeff;
 	float _clipYCoeff;
