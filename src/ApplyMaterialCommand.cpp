@@ -1,9 +1,9 @@
-#include "SetMaterialCommand.h"
+#include "ApplyMaterialCommand.h"
 #include "ModelViewer.h"
 #include "GLWidget.h"
 #include "TriangleMesh.h"
 
-SetMaterialCommand::SetMaterialCommand(ModelViewer* viewer,
+ApplyMaterialCommand::ApplyMaterialCommand(ModelViewer* viewer,
     GLWidget* glWidget,
     const QVector<QUuid>& meshUuids,
     const GLMaterial& newMaterial,
@@ -33,7 +33,7 @@ SetMaterialCommand::SetMaterialCommand(ModelViewer* viewer,
     }
 }
 
-void SetMaterialCommand::undo()
+void ApplyMaterialCommand::undo()
 {
     if (!_viewer || !_glWidget)
         return;
@@ -41,7 +41,7 @@ void SetMaterialCommand::undo()
     applyMaterials(_oldMaterials);
 }
 
-void SetMaterialCommand::redo()
+void ApplyMaterialCommand::redo()
 {
     if (!_viewer || !_glWidget)
         return;
@@ -49,7 +49,7 @@ void SetMaterialCommand::redo()
     applyMaterials(_newMaterials);
 }
 
-void SetMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materials)
+void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materials)
 {
     for (auto it = materials.begin(); it != materials.end(); ++it)
     {
@@ -89,7 +89,7 @@ void SetMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materials
     // but that depends on ModelViewer's implementation
 }
 
-QSet<QUuid> SetMaterialCommand::getReferencedUuids() const
+QSet<QUuid> ApplyMaterialCommand::getReferencedUuids() const
 {
     QSet<QUuid> uuids;
 

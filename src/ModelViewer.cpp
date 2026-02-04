@@ -2336,7 +2336,7 @@ void ModelViewer::onPredefinedMaterialSelected(const GLMaterial& mat)
 		}
 	}
 		
-	_undoStack->push(new SetMaterialCommand(
+	_undoStack->push(new ApplyMaterialCommand(
 		this, _glWidget, uuids, mat, materialName
 	));
 
@@ -2364,7 +2364,7 @@ void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
 
 	QString materialName = "Custom Material";
 
-	_undoStack->push(new SetMaterialCommand(
+	_undoStack->push(new ApplyMaterialCommand(
 		this, _glWidget, uuids, mat, materialName
 	));
 

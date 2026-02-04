@@ -20,7 +20,7 @@
  *
  * The command text shown in the undo stack includes the material name for clarity.
  */
-class SetMaterialCommand : public ModelViewerCommand
+class ApplyMaterialCommand : public ModelViewerCommand
 {
 public:
     /**
@@ -38,7 +38,7 @@ public:
      * If materialName is provided, the command text becomes "Set Material: Gold"
      * instead of just "Set Material", making the undo stack more informative.
      */
-    SetMaterialCommand(ModelViewer* viewer,
+    ApplyMaterialCommand(ModelViewer* viewer,
         GLWidget* glWidget,
         const QVector<QUuid>& meshUuids,
         const GLMaterial& newMaterial,
@@ -50,7 +50,7 @@ public:
 
     /**
      * @brief Command ID for merging
-     * @return Unique ID for SetMaterialCommand (9)
+     * @return Unique ID for ApplyMaterialCommand (9)
      */
     int id() const override { return 9; }
 

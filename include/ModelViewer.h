@@ -7,7 +7,7 @@
 #include "GLMaterial.h"
 #include "UVPromptDialog.h"
 #include "AssImpModelLoader.h"
-#include "SetMaterialCommand.h"
+#include "ApplyMaterialCommand.h"
 
 #include <QUndoStack>
 
