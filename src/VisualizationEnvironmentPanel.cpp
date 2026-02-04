@@ -414,6 +414,12 @@ void VisualizationEnvironmentPanel::onSkyBoxMapsChanged(int index)
 	if (!_glWidget || !ui)
 		return;
 
+	// Store current index based on HDRI/LDRI selection	
+	if (ui->checkBoxSkyBoxHDRI->isChecked())
+		_skyBoxHDRIIndex = std::max(0, index);
+	else
+		_skyBoxLDRIIndex = std::max(0, index);
+
 	QString selectedPath = ui->comboBoxSkyBoxMaps->itemData(index).toString();
 	if (!selectedPath.isEmpty())
 	{
@@ -655,14 +661,7 @@ void VisualizationEnvironmentPanel::reloadSkyBoxPresets()
 	bool isHDRI = ui->checkBoxSkyBoxHDRI->isChecked();
 	QString appPath = PathUtils::getDataDirectory();
 	QString texPath = appPath + (isHDRI ? "/textures/envmap/skyboxes/HDRI" : "/textures/envmap/skyboxes/LDRI");
-
-	// Store current index before clearing
-	int currentIndex = ui->comboBoxSkyBoxMaps->currentIndex();
-	if (isHDRI)
-		_skyBoxLDRIIndex = std::max(0, currentIndex);
-	else
-		_skyBoxHDRIIndex = std::max(0, currentIndex);
-
+	
 	// Update ModelViewer state
 	_modelViewer->setSkyBoxLDRIIndex(_skyBoxLDRIIndex);
 	_modelViewer->setSkyBoxHDRIIndex(_skyBoxHDRIIndex);
