@@ -2192,6 +2192,7 @@ void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 		toolBox->setItemEnabled(indexPBR, false);
 		toolBox->setCurrentIndex(indexADS);
 		_glWidget->setRenderingMode(RenderingMode::ADS_BLINN_PHONG);
+		visualizationEnvironmentPanel->setPBRLightingMode(false);
 	}
 	if (radioButtonTXPBR->isChecked())
 	{
