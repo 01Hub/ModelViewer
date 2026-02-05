@@ -1,26 +1,292 @@
 #pragma once
 
 #include <QObject>
+#include <QString>
 #include <vector>
 #include <assimp/scene.h>
 #include <assimp/Exporter.hpp>
+#include "TextureLocationManager.h"
 
 class GLMaterial;
-class AssImpMesh;
+class TriangleMesh;
 struct Vertex;
 
+/**
+ * @class AssImpMeshExporter
+ * @brief Enhanced glTF/mesh exporter with full PBR and texture support
+ *
+ * This class exports ModelViewer scenes to standard 3D formats (glTF, OBJ, FBX, etc.)
+ * with complete preservation of:
+ * - PBR material properties (metallic, roughness, transmission, etc.)
+ * - Texture references with automatic copying and deduplication
+ * - Per-mesh transformations (position, rotation, scale)
+ * - Advanced material extensions (clearcoat, sheen, iridescence, etc.)
+ *
+ * Features:
+ * - Automatic texture path resolution from multiple sources
+ * - Content-based texture deduplication (SHA256)
+ * - Portable output with relative texture paths
+ * - Proper Assimp scene hierarchy
+ * - Comprehensive logging for debugging
+ *
+ * Usage:
+ *   AssImpMeshExporter exporter;
+ *   AssImpMeshExporter::ExportSettings settings;
+ *   settings.outputDirectory = "/output/path";
+ *   settings.copyTextures = true;
+ *   settings.useRelativePaths = true;
+ *
+ *   aiReturn result = exporter.exportMeshes(meshStore, "scene.glb", settings);
+ *   if (result == aiReturn_SUCCESS) {
+ *       const auto& texPackage = exporter.getLastTexturePackage();
+ *       qDebug() << "Exported" << texPackage.textures.size() << "textures";
+ *   }
+ */
 class AssImpMeshExporter : public QObject
 {
     Q_OBJECT
 
 public:
+    /**
+     * @struct ExportSettings
+     * @brief Configuration options for export process
+     */
+    struct ExportSettings
+    {
+        QString outputDirectory;              ///< Base directory for output
+        bool copyTextures = true;             ///< Copy texture files to output
+        bool useRelativePaths = true;         ///< Use relative paths in glTF
+        bool deduplicateTextures = true;      ///< Remove duplicate textures
+        bool verbose = true;                  ///< Enable debug logging
+    };
+
     explicit AssImpMeshExporter(QObject* parent = nullptr);
+    ~AssImpMeshExporter() = default;
+
+    /**
+     * @brief Export a vector of TriangleMesh objects to a 3D file format
+     *
+     * This is the main export function. It:
+     * 1. Packages and copies all textures from materials
+     * 2. Creates Assimp mesh structures with vertex data
+     * 3. Creates materials with full PBR properties
+     * 4. Sets up proper scene hierarchy with transforms
+     * 5. Exports via Assimp to the target format (determined by extension)
+     *
+     * @param meshes Vector of TriangleMesh pointers to export
+     * @param exportPath Output file path (e.g., "scene.glb", "model.obj")
+     * @param settings Export configuration options
+     * @return aiReturn_SUCCESS on success, aiReturn_FAILURE on error
+     */
+    aiReturn exportMeshes(
+        const std::vector<TriangleMesh*>& meshes,
+        const QString& exportPath,
+        const ExportSettings& settings = ExportSettings());
+
+    /**
+     * @brief Export an existing Assimp scene
+     *
+     * Use this for exporting scenes that are already in Assimp format
+     * (e.g., from AssimpModelLoader)
+     *
+     * @param scene Assimp scene to export
+     * @param exportPath Output file path
+     * @return aiReturn_SUCCESS on success, aiReturn_FAILURE on error
+     */
     aiReturn exportScene(const aiScene* scene, const std::string& exportPath);
-    aiReturn exportMeshes(const std::vector<AssImpMesh*>& meshes, const std::string& exportPath);
+
+    /**
+     * Enhanced exportScene - Apply materials before export
+     *
+     * Signature 1: Basic material application only
+     * Takes the original mesh objects and applies their materials to the
+     * Assimp scene before exporting. Useful when you already have a scene
+     * and want to enrich it with material data.
+     */
+    aiReturn exportScene(
+        aiScene* scene,
+        const std::vector<TriangleMesh*>& meshes,
+        const std::string& exportPath);
+
+    /**
+     * Enhanced exportScene - Apply materials with texture packaging
+     *
+     * Signature 2: Material application + texture packaging
+     * Combines material application with automatic texture packaging,
+     * useful for creating self-contained, portable export bundles.
+     * All textures are copied to the output directory with proper deduplication.
+     */
+    aiReturn exportScene(
+        aiScene* scene,
+        const std::vector<TriangleMesh*>& meshes,
+        const std::string& exportPath,
+        const ExportSettings& settings);
+
+    /**
+     * @brief Get metadata about the last export's texture packaging
+     *
+     * Useful for debugging and understanding what textures were exported
+     * and how they were organized.
+     *
+     * @return Reference to TexturePackage from last export
+     */
+    const TexturePackage& getLastTexturePackage() const { return _lastTexturePackage; }
 
 private:
-    aiMesh* createMesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, const std::string& name);
-    aiMaterial* createMaterial(const GLMaterial& material);
-    aiScene* createScene(const std::vector<aiMesh*>& meshes, const std::vector<aiMaterial*>& materials);
-    const aiExportFormatDesc* findExportFormat(const std::string& filePath, Assimp::Exporter& exporter);
+    /**
+     * @brief Create an Assimp mesh from vertex/index data
+     *
+     * Populates positions, normals, UVs (first set), and vertex colors
+     *
+     * @param vertices Vertex data (includes position, normal, color, UVs)
+     * @param indices Triangle indices
+     * @param name Mesh name for identification
+     * @return Allocated aiMesh*, or nullptr on failure
+     */
+    aiMesh* createMesh(const std::vector<Vertex>& vertices,
+        const std::vector<unsigned int>& indices,
+        const std::string& name);
+
+    /**
+     * @brief Create an Assimp material from GLMaterial with full PBR
+     *
+     * Exports all properties: base color, metallic, roughness, transmission,
+     * IOR, clearcoat, sheen, emissive, normal scale, etc.
+     * Assigns texture paths from the texture package.
+     *
+     * @param material GLMaterial to convert
+     * @param texturePackage Resolved texture paths and mappings
+     * @return Allocated aiMaterial*, or nullptr on failure
+     */
+    aiMaterial* createMaterial(
+        const GLMaterial& material,
+        const TexturePackage& texturePackage,
+        const QString& exportFileLocation);
+
+    /**
+     * @brief Assign PBR properties to an Assimp material
+     *
+     * This includes all scalar properties: metalness, roughness, transmission,
+     * IOR, clearcoat, sheen, emissive strength, etc.
+     * Called by createMaterial().
+     *
+     * @param aiMat Target Assimp material to populate
+     * @param material Source GLMaterial
+     */
+    void assignPBRProperties(aiMaterial* aiMat, const GLMaterial& material);
+
+    /**
+     * @brief Assign texture references to an Assimp material
+     *
+     * Maps GLMaterial's 25 texture types to Assimp semantic types and
+     * uses resolved relative paths from the texture package.
+     * Called by createMaterial().
+     *
+     * @param aiMat Target Assimp material to populate
+     * @param material Source GLMaterial
+     * @param texturePackage Resolved texture paths and mappings
+     */
+    void assignTexturesToMaterial(
+        aiMaterial* aiMat,
+        const GLMaterial& material,
+        const TexturePackage& texturePackage,      
+        bool useEmbeddedTextures);
+
+    /**
+     * Helper: Apply materials from ModelViewer meshes to Assimp scene
+     *
+     * Internal method that:
+     * - Iterates through scene meshes paired with source mesh objects
+     * - Creates Assimp materials from GLMaterial data
+     * - Assigns textures using texture package mappings
+     * - Updates mesh material indices
+     *
+     * This centralizes material assignment logic for both export signatures.
+     */
+    void applyMaterialsToScene(
+        aiScene* scene,
+        const std::vector<TriangleMesh*>& meshes,
+        const QString& exportFileLocation);
+
+    /**
+     * Load image file and create embedded aiTexture
+     *
+     * Reads image from disk, converts to RGBA format,
+     * and creates an aiTexture structure with the pixel data embedded.
+     * This texture can then be attached to aiScene->mTextures for embedding
+     * in the exported file.
+     *
+     * @param imagePath Full path to the image file
+     * @return aiTexture with embedded data, or nullptr if load fails
+     */
+    aiTexture* createEmbeddedTexture(const QString& imagePath);
+
+    /**
+     * Embed all textures from scene materials into aiScene->mTextures
+     *
+     * This method:
+     * 1. Iterates through all materials in the scene
+     * 2. Collects unique texture file paths
+     * 3. Loads each texture file from disk
+     * 4. Creates aiTexture objects with embedded pixel data
+     * 5. Attaches to aiScene->mTextures array
+     *
+     * After calling this, the scene is ready for GLB export with
+     * embedded textures. Assimp will automatically include these
+     * textures in the binary GLB output.
+     *
+     * @param scene The Assimp scene to enrich
+     * @param texturePackage Texture file paths and locations
+     */
+    void embedTexturesInScene(
+        aiScene* scene,
+        const TexturePackage& texturePackage);
+
+    /**
+     * @brief Create an Assimp scene with proper hierarchy
+     *
+     * Sets up parent-child relationships and applies per-mesh transformations
+     *
+     * @param meshes Assimp meshes (ownership transferred to scene)
+     * @param materials Assimp materials (ownership transferred to scene)
+     * @param transforms Per-mesh transformation matrices
+     * @return Allocated aiScene*, caller must delete
+     */
+    aiScene* createScene(
+        const std::vector<aiMesh*>& meshes,
+        const std::vector<aiMaterial*>& materials,
+        const std::vector<class QMatrix4x4>& transforms);
+
+    /**
+     * @brief Find the appropriate Assimp exporter for a file extension
+     *
+     * @param filePath Output file path to determine format
+     * @param exporter Assimp exporter instance to query
+     * @return Pointer to aiExportFormatDesc, or nullptr if unsupported
+     */
+    const aiExportFormatDesc* findExportFormat(
+        const std::string& filePath,
+        Assimp::Exporter& exporter);
+
+    // === Logging utilities ===
+
+    /**
+     * @brief Log debug message (respects verbose setting)
+     */
+    void logMessage(const QString& msg);
+
+    /**
+     * @brief Log warning message
+     */
+    void logWarning(const QString& msg);
+
+    /**
+     * @brief Log error message (always logged)
+     */
+    void logError(const QString& msg);
+
+private:
+    TextureLocationManager _textureManager;
+    TexturePackage _lastTexturePackage;
+    ExportSettings _currentSettings;
 };

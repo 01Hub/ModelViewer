@@ -1825,7 +1825,7 @@ QVector<QUuid> GLWidget::duplicateObjects(const std::vector<int>& ids)
 				duplicatedUuids.append(newMesh->uuid());
 
 				qDebug() << "Duplicated mesh:" << originalMesh->getName()
-					<< "→" << uniqueName
+					<< "->" << uniqueName
 					<< "uuid:" << newMesh->uuid();
 			}
 		}

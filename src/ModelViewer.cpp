@@ -51,7 +51,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Detect when undo becomes unavailable
 	connect(_undoStack, &QUndoStack::canUndoChanged,
 		this, [this](bool canUndo) {
-			if (_lastCanUndo && !canUndo)  // Transition: true → false
+			if (_lastCanUndo && !canUndo)  // Transition: true -> false
 			{
 				MainWindow::showStatusMessage("Nothing to undo", 2000);
 			}
@@ -61,7 +61,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Detect when redo becomes unavailable  
 	connect(_undoStack, &QUndoStack::canRedoChanged,
 		this, [this](bool canRedo) {
-			if (_lastCanRedo && !canRedo)  // Transition: true → false
+			if (_lastCanRedo && !canRedo)  // Transition: true -> false
 			{
 				MainWindow::showStatusMessage("Nothing to redo", 2000);
 			}
@@ -2007,7 +2007,7 @@ void ModelViewer::onFileExport()
 		}
 
 		// Export
-		AssImpMeshExporter exporter;
+		AssImpMeshExporter exporter(this);
 		std::vector<TriangleMesh*> triMeshes = _glWidget->getMeshStore();
 		std::vector<AssImpMesh*> assImpMeshes;
 		for (TriangleMesh* triMesh : triMeshes)
@@ -2018,17 +2018,24 @@ void ModelViewer::onFileExport()
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		bool exportScene = settings.value("radioButtonExportScene", true).toBool();
 
+		// Export the meshes loaded in the scene
+		AssImpMeshExporter::ExportSettings expSettings;
+		expSettings.outputDirectory = QFileInfo(fileName).absolutePath();
+		expSettings.copyTextures = true;
+		expSettings.useRelativePaths = true;
+		expSettings.deduplicateTextures = true;
+		expSettings.verbose = true;
+
 		aiReturn res = aiReturn_FAILURE;
 		if (exportScene)
 		{
 			// Export the original aiScene
-			res = exporter.exportScene(_glWidget->getAssImpScene(), fileName.toStdString());
+			res = exporter.exportScene(_glWidget->getAssImpScene(), triMeshes, fileName.toStdString(), expSettings);
 			qDebug() << "Exporting scene result:" << res;
 		}
 		else
-		{
-			// Export the meshes loaded in the scene
-			res = exporter.exportMeshes(assImpMeshes, fileName.toStdString());
+		{			
+			res = exporter.exportMeshes(triMeshes, fileName, expSettings);
 			qDebug() << "Exporting meshes result:" << res;
 		}
 
@@ -2447,7 +2454,7 @@ void ModelViewer::onOpacitySliderReleased()
 	QVector3D diffuse = adsPanel->getDiffuseColor();
 	QVector3D specular = adsPanel->getSpecularColor();
 	QVector3D emissive = adsPanel->getEmissiveColor();
-	float opacity = adsPanel->getOpacity();        // ← New value
+	float opacity = adsPanel->getOpacity(); 
 	int shininess = adsPanel->getShininess();
 
 	// Get UUIDs
@@ -2460,7 +2467,7 @@ void ModelViewer::onOpacitySliderReleased()
 			uuids.append(uuid);
 	}
 
-	// Reuse ApplyADSColorsCommand! ✓
+	// Reuse ApplyADSColorsCommand!
 	_undoStack->push(new ApplyADSColorsCommand(
 		this, _glWidget, adsPanel, uuids,
 		ambient, diffuse, specular, emissive, opacity, shininess
@@ -2485,7 +2492,7 @@ void ModelViewer::onShininessSliderReleased()
 	QVector3D specular = adsPanel->getSpecularColor();
 	QVector3D emissive = adsPanel->getEmissiveColor();
 	float opacity = adsPanel->getOpacity();
-	int shininess = adsPanel->getShininess();      // ← New value
+	int shininess = adsPanel->getShininess();
 
 	// Get UUIDs
 	QVector<QUuid> uuids;
@@ -2497,7 +2504,7 @@ void ModelViewer::onShininessSliderReleased()
 			uuids.append(uuid);
 	}
 
-	// Reuse ApplyADSColorsCommand! ✓
+	// Reuse ApplyADSColorsCommand!
 	_undoStack->push(new ApplyADSColorsCommand(
 		this, _glWidget, adsPanel, uuids,
 		ambient, diffuse, specular, emissive, opacity, shininess

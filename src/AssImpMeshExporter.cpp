@@ -1,153 +1,1049 @@
 #include "AssImpMeshExporter.h"
+#include "TriangleMesh.h"
 #include "AssImpMesh.h"
 #include "GLMaterial.h"
 
 #include <QDebug>
+#include <QFileInfo>
+#include <QMatrix4x4>
 #include <algorithm>
 #include <memory>
+#include <set>
 
-AssImpMeshExporter::AssImpMeshExporter(QObject* parent) : QObject(parent) {}
-
-aiReturn AssImpMeshExporter::exportScene(const aiScene* scene, const std::string& exportPath)
+AssImpMeshExporter::AssImpMeshExporter(QObject* parent)
+    : QObject(parent)
 {
+}
+
+aiReturn AssImpMeshExporter::exportMeshes(
+    const std::vector<TriangleMesh*>& meshes,
+    const QString& exportPath,
+    const ExportSettings& settings)
+{
+    _currentSettings = settings;
+
+    logMessage(QString("=== AssImpMeshExporter::exportMeshes ==="));
+    logMessage(QString("Target: %1").arg(exportPath));
+    logMessage(QString("Output directory: %1").arg(settings.outputDirectory));
+
+    if (meshes.empty())
+    {
+        logError("No meshes to export");
+        return aiReturn_FAILURE;
+    }
+
+    // ===== STEP 1: Package textures =====
+    logMessage("Step 1: Packaging textures...");
+
+    if (settings.copyTextures)
+    {
+        _lastTexturePackage = _textureManager.packageTextures(
+            meshes,
+            settings.outputDirectory);
+
+        logMessage(QString("  -> Packaged %1 unique textures")
+            .arg(_lastTexturePackage.textures.size()));
+
+        if (_lastTexturePackage.totalSize > 0)
+        {
+            logMessage(QString("  -> Total texture size: %1 MB")
+                .arg(_lastTexturePackage.totalSize / (1024.0 * 1024.0), 0, 'f', 2));
+        }
+
+        if (_lastTexturePackage.duplicatesRemoved > 0)
+        {
+            logMessage(QString("  -> Removed %1 duplicate textures")
+                .arg(_lastTexturePackage.duplicatesRemoved));
+        }
+    }
+    else
+    {
+        logMessage("  -> Texture copying disabled");
+    }
+
+    // ===== STEP 2: Create Assimp structures =====
+    logMessage("Step 2: Creating Assimp structures...");
+
+    std::vector<aiMesh*> aiMeshes;
+    std::vector<aiMaterial*> aiMaterials;
+    std::vector<QMatrix4x4> transforms;
+
+    for (const auto* mesh : meshes)
+    {
+        if (!mesh) continue;
+
+        // Skip invisible meshes
+        /*if (!mesh->isVisible())
+        {
+            logMessage(QString("  -> Skipping invisible mesh: %1").arg(mesh->getName()));
+            continue;
+        }*/
+
+        // Extract vertex and index data
+        std::vector<Vertex> vertices;
+        std::vector<unsigned int> indices;
+
+        // Try to cast to AssImpMesh for direct access
+        if (auto assimpMesh = dynamic_cast<const AssImpMesh*>(mesh))
+        {
+            vertices = assimpMesh->vertices();
+            indices = assimpMesh->indices();
+        }
+        else
+        {
+            logWarning(QString("Non-AssImpMesh encountered: %1 - limited support")
+                .arg(mesh->getName()));
+            // Could implement fallback here if needed
+            continue;
+        }
+
+        if (vertices.empty() || indices.empty())
+        {
+            logWarning(QString("  -> Skipping empty mesh: %1")
+                .arg(mesh->getName()));
+            continue;
+        }
+
+        // Create Assimp mesh
+        aiMesh* aiMesh = createMesh(vertices, indices, mesh->getName().toStdString());
+        if (!aiMesh)
+        {
+            logError(QString("Failed to create Assimp mesh: %1").arg(mesh->getName()));
+            continue;
+        }
+
+        // Create material
+        aiMaterial* aiMat = createMaterial(mesh->getMaterial(), _lastTexturePackage, exportPath);
+        if (!aiMat)
+        {
+            logError(QString("Failed to create material for: %1").arg(mesh->getName()));
+            delete aiMesh;
+            continue;
+        }
+
+        aiMesh->mMaterialIndex = static_cast<unsigned int>(aiMaterials.size());
+
+        aiMeshes.push_back(aiMesh);
+        aiMaterials.push_back(aiMat);
+        transforms.push_back(mesh->getTransformation());
+
+        logMessage(QString("  -> Mesh added: %1 (%2 vertices, %3 indices)")
+            .arg(mesh->getName())
+            .arg(vertices.size())
+            .arg(indices.size()));
+    }
+
+    if (aiMeshes.empty())
+    {
+        logError("No valid meshes created");
+        return aiReturn_FAILURE;
+    }
+
+    logMessage(QString("  -> Total: %1 meshes, %2 materials")
+        .arg(aiMeshes.size())
+        .arg(aiMaterials.size()));
+
+    // ===== STEP 3: Create scene hierarchy =====
+    logMessage("Step 3: Creating scene hierarchy...");
+
+    std::unique_ptr<aiScene> scene(createScene(aiMeshes, aiMaterials, transforms));
+    if (!scene)
+    {
+        logError("Failed to create Assimp scene");
+        return aiReturn_FAILURE;
+    }
+
+    logMessage("  -> Scene hierarchy created");
+
+    // ===== STEP 4: Export via Assimp =====
+    logMessage("Step 4: Exporting to file...");
+
     Assimp::Exporter exporter;
-    const aiExportFormatDesc* format = findExportFormat(exportPath, exporter);
+    const aiExportFormatDesc* format = findExportFormat(exportPath.toStdString(), exporter);
+
     if (!format)
     {
-        qCritical() << "Unsupported export format for:" << QString::fromStdString(exportPath);
+        logError(QString("Unsupported export format: %1")
+            .arg(QFileInfo(exportPath).suffix()));
+        return aiReturn_FAILURE;
+    }
+
+    logMessage(QString("  -> Using format: %1 (%2)")
+        .arg(QString::fromLocal8Bit(format->description))
+        .arg(QString::fromLocal8Bit(format->id)));
+
+    aiReturn result = exporter.Export(scene.get(), format->id, exportPath.toStdString().c_str());
+
+    if (result != aiReturn_SUCCESS)
+    {
+        logError(QString("Assimp export failed: %1")
+            .arg(QString::fromLocal8Bit(exporter.GetErrorString())));
+        return result;
+    }
+
+    logMessage(QString("Export successful!"));
+    logMessage(QString("  -> File: %1").arg(exportPath));
+    logMessage(QString("  -> Meshes: %1").arg(aiMeshes.size()));
+    logMessage(QString("  -> Materials: %1").arg(aiMaterials.size()));
+    logMessage(QString("  -> Textures: %1").arg(_lastTexturePackage.textures.size()));
+
+    return aiReturn_SUCCESS;
+}
+
+aiReturn AssImpMeshExporter::exportScene(const aiScene* scene,
+    const std::string& exportPath)
+{
+    logMessage(QString("Exporting Assimp scene to: %1")
+        .arg(QString::fromStdString(exportPath)));
+
+    Assimp::Exporter exporter;
+    const aiExportFormatDesc* format = findExportFormat(exportPath, exporter);
+
+    if (!format)
+    {
+        logError(QString("Unsupported export format: %1")
+            .arg(QString::fromStdString(exportPath)));
         return aiReturn_FAILURE;
     }
 
     aiReturn result = exporter.Export(scene, format->id, exportPath.c_str());
+
     if (result != aiReturn_SUCCESS)
     {
-        qCritical() << "Export failed:" << exporter.GetErrorString();
+        logError(QString("Export failed: %1")
+            .arg(QString::fromLocal8Bit(exporter.GetErrorString())));
     }
     else
     {
-        qDebug() << "Export successful:" << QString::fromStdString(exportPath);
+        logMessage(QString("Export successful: %1")
+            .arg(QString::fromStdString(exportPath)));
     }
 
     return result;
 }
 
-aiReturn AssImpMeshExporter::exportMeshes(const std::vector<AssImpMesh*>& meshes, const std::string& exportPath)
+/**
+ * Enhanced exportScene method with material application
+ *
+ * This method now accepts the original mesh objects, applies their materials
+ * to the Assimp scene meshes, and then exports the enriched scene.
+ *
+ * @param scene The Assimp scene to export
+ * @param meshes The original ModelViewer mesh objects containing materials and properties
+ * @param exportPath The destination file path
+ * @return Assimp export result code
+ */
+aiReturn AssImpMeshExporter::exportScene(
+    aiScene* scene,
+    const std::vector<TriangleMesh*>& meshes,
+    const std::string& exportPath)
 {
-    std::vector<aiMesh*> aiMeshes;
-    std::vector<aiMaterial*> aiMaterials;
+    // Default settings with embedding enabled
+    ExportSettings settings;
+    settings.copyTextures = true;
+    settings.outputDirectory = ".";  // Won't be used for embedded export
 
-    for (AssImpMesh* mesh : meshes)
+    return exportScene(scene, meshes, exportPath, settings);
+}
+
+/**
+ * Overload: exportScene with texture packaging
+ *
+ * This version also handles texture packaging alongside material application,
+ * useful for self-contained exports.
+ */
+aiReturn AssImpMeshExporter::exportScene(
+    aiScene* scene,
+    const std::vector<TriangleMesh*>& meshes,
+    const std::string& exportPath,
+    const ExportSettings& settings)
+{
+    logMessage(QString("=== AssImpMeshExporter::exportScene (GLB with Embedded Textures) ==="));
+    logMessage(QString("Target: %1").arg(QString::fromStdString(exportPath)));
+    logMessage(QString("Output directory: %1").arg(settings.outputDirectory));
+
+    if (!scene)
     {
-        const auto& vertices = mesh->vertices();
-        const auto& indices = mesh->indices();
-
-        if (vertices.empty() || indices.empty()) {
-            qWarning() << "Skipping empty mesh";
-            continue;
-        }
-
-        aiMesh* aimesh = createMesh(vertices, indices, mesh->getName().toStdString());
-        if (!aimesh)
-            continue;
-
-        aiMaterial* mat = createMaterial(mesh->getMaterial());
-        aimesh->mMaterialIndex = static_cast<unsigned int>(aiMaterials.size());
-
-        aiMeshes.push_back(aimesh);
-        aiMaterials.push_back(mat);
-    }
-
-    std::unique_ptr<aiScene> scene(createScene(aiMeshes, aiMaterials));
-
-    Assimp::Exporter exporter;
-    const aiExportFormatDesc* format = findExportFormat(exportPath, exporter);
-    if (!format) {
-        qCritical() << "Unsupported export format for:" << QString::fromStdString(exportPath);
+        logError("Scene pointer is null");
         return aiReturn_FAILURE;
     }
 
-    aiReturn result = exporter.Export(scene.get(), format->id, exportPath.c_str());
-    if (result != aiReturn_SUCCESS) {
-        qCritical() << "Export failed:" << exporter.GetErrorString();
-    } else {
-        qDebug() << "Export successful:" << QString::fromStdString(exportPath);
+    if (scene->mNumMeshes == 0)
+    {
+        logError("Scene contains no meshes");
+        return aiReturn_FAILURE;
     }
 
-    return result;
+    _currentSettings = settings;
+
+    // ===== STEP 1: Package textures =====
+    if (settings.copyTextures && !meshes.empty())
+    {
+        logMessage("Step 1: Packaging textures...");
+
+        _lastTexturePackage = _textureManager.packageTextures(
+            meshes,
+            settings.outputDirectory);
+
+        logMessage(QString("  -> Packaged %1 unique textures")
+            .arg(_lastTexturePackage.textures.size()));
+
+        if (_lastTexturePackage.totalSize > 0)
+        {
+            logMessage(QString("  -> Total size: %1 MB")
+                .arg(_lastTexturePackage.totalSize / (1024.0 * 1024.0), 0, 'f', 2));
+        }
+    }
+    else
+    {
+        logMessage("Step 1: Texture copying disabled");
+    }
+
+    // ===== STEP 2: Apply materials to scene =====
+    logMessage("Step 2: Applying materials to scene...");
+    applyMaterialsToScene(scene, meshes, QString::fromStdString(exportPath));
+
+    // ===== STEP 3: Embed textures in scene (CRITICAL FOR GLB) =====
+    logMessage("Step 3: Embedding textures in scene...");
+
+    QString exportFilePath = QString::fromStdString(exportPath);
+    QFileInfo exportFileInfo(exportFilePath);
+    QString ext = exportFileInfo.suffix().toLower();
+
+    // Only embed for GLB export
+    if (ext == "glb" || ext == "gltf-binary")
+    {
+        embedTexturesInScene(scene, _lastTexturePackage);
+    }
+    else
+    {
+        logMessage("  -> Skipping texture embedding for non-binary format");
+    }
+
+    // ===== STEP 4: Export =====
+    logMessage("Step 4: Exporting scene...");
+
+    Assimp::Exporter exporter;
+    const aiExportFormatDesc* format = findExportFormat(exportPath, exporter);
+
+    if (!format)
+    {
+        logError(QString("Unsupported export format: %1")
+            .arg(QString::fromStdString(ext.toStdString())));
+        return aiReturn_FAILURE;
+    }
+
+    logMessage(QString("  -> Format: %1 (%2)")
+        .arg(QString::fromLocal8Bit(format->description))
+        .arg(QString::fromLocal8Bit(format->id)));
+
+    // Set export flags for GLB to embed textures
+    aiReturn result;
+    if (ext == "glb" || ext == "gltf-binary")
+    {
+        // Use glTF2 exporter with embedding
+        logMessage("  -> Exporting with embedded textures...");
+        result = exporter.Export(scene, "glb2", exportPath.c_str());
+    }
+    else
+    {
+        result = exporter.Export(scene, format->id, exportPath.c_str());
+    }
+
+    if (result != aiReturn_SUCCESS)
+    {
+        logError(QString("Export failed: %1")
+            .arg(QString::fromLocal8Bit(exporter.GetErrorString())));
+        return result;
+    }
+
+    logMessage(QString("Export successful!"));
+    logMessage(QString("  -> File: %1").arg(QString::fromStdString(exportPath)));
+    logMessage(QString("  -> Meshes: %1").arg(scene->mNumMeshes));
+    logMessage(QString("  -> Materials: %1").arg(scene->mNumMaterials));
+    logMessage(QString("  -> Embedded textures: %1").arg(scene->mNumTextures));
+
+    return aiReturn_SUCCESS;
 }
 
-aiMesh* AssImpMeshExporter::createMesh(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, const std::string& name)
+aiMesh* AssImpMeshExporter::createMesh(
+    const std::vector<Vertex>& vertices,
+    const std::vector<unsigned int>& indices,
+    const std::string& name)
 {
     auto mesh = new aiMesh();
-
-	mesh->mName = aiString(name.c_str());
+    mesh->mName = aiString(name.c_str());
     mesh->mNumVertices = static_cast<unsigned int>(vertices.size());
+
+    // Allocate vertex attributes
     mesh->mVertices = new aiVector3D[mesh->mNumVertices];
     mesh->mNormals = new aiVector3D[mesh->mNumVertices];
     mesh->mTextureCoords[0] = new aiVector3D[mesh->mNumVertices];
     mesh->mColors[0] = new aiColor4D[mesh->mNumVertices];
 
-    for (unsigned int i = 0; i < mesh->mNumVertices; ++i) {
+    // Copy vertex data
+    for (unsigned int i = 0; i < mesh->mNumVertices; ++i)
+    {
         const auto& v = vertices[i];
+
+        // Position
         mesh->mVertices[i] = aiVector3D(v.Position.x, v.Position.y, v.Position.z);
+
+        // Normal
         mesh->mNormals[i] = aiVector3D(v.Normal.x, v.Normal.y, v.Normal.z);
-        mesh->mTextureCoords[0][i] = aiVector3D(v.TexCoords[0].s, v.TexCoords[0].t, 0.0f);
+
+        // UV coordinates (first set)
+        mesh->mTextureCoords[0][i] = aiVector3D(v.TexCoords[0].x, v.TexCoords[0].y, 0.0f);
+
+        // Vertex color (RGBA)
         mesh->mColors[0][i] = aiColor4D(v.Color.r, v.Color.g, v.Color.b, v.Color.a);
     }
 
+    // Create faces from indices
     mesh->mNumFaces = static_cast<unsigned int>(indices.size() / 3);
     mesh->mFaces = new aiFace[mesh->mNumFaces];
 
-    for (unsigned int i = 0; i < mesh->mNumFaces; ++i) {
+    for (unsigned int i = 0; i < mesh->mNumFaces; ++i)
+    {
         aiFace& face = mesh->mFaces[i];
         face.mNumIndices = 3;
-        face.mIndices = new unsigned int[3]{
+        face.mIndices = new unsigned int[3] {
             indices[i * 3],
-            indices[i * 3 + 1],
-            indices[i * 3 + 2]
-        };
+                indices[i * 3 + 1],
+                indices[i * 3 + 2]
+            };
     }
 
     return mesh;
 }
 
-aiMaterial* AssImpMeshExporter::createMaterial(const GLMaterial& material)
+const aiExportFormatDesc* AssImpMeshExporter::findExportFormat(
+    const std::string& filePath,
+    Assimp::Exporter& exporter)
 {
-    auto aiMat = new aiMaterial();
+    // Extract file extension
+    size_t dotPos = filePath.find_last_of('.');
+    if (dotPos == std::string::npos)
+    {
+        return nullptr;
+    }
 
-    aiColor3D color;
+    std::string ext = filePath.substr(dotPos + 1);
 
-    color = aiColor3D(material.ambient().x(), material.ambient().y(), material.ambient().z());
-    aiMat->AddProperty(&color, 1, AI_MATKEY_COLOR_AMBIENT);
+    // Convert to lowercase
+    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
-    color = aiColor3D(material.diffuse().x(), material.diffuse().y(), material.diffuse().z());
-    aiMat->AddProperty(&color, 1, AI_MATKEY_COLOR_DIFFUSE);
+    // Search for matching exporter
+    for (unsigned int i = 0; i < exporter.GetExportFormatCount(); ++i)
+    {
+        const aiExportFormatDesc* fmt = exporter.GetExportFormatDescription(i);
+        if (fmt && ext == fmt->fileExtension)
+        {
+            return fmt;
+        }
+    }
 
-    color = aiColor3D(material.specular().x(), material.specular().y(), material.specular().z());
-    aiMat->AddProperty(&color, 1, AI_MATKEY_COLOR_SPECULAR);
+    return nullptr;
+}
 
-    color = aiColor3D(material.emissive().x(), material.emissive().y(), material.emissive().z());
-    aiMat->AddProperty(&color, 1, AI_MATKEY_COLOR_EMISSIVE);
+void AssImpMeshExporter::logMessage(const QString& msg)
+{
+    if (_currentSettings.verbose)
+    {
+        qDebug() << msg;
+    }
+}
 
-    float shininess = material.shininess();
-    aiMat->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
+void AssImpMeshExporter::logWarning(const QString& msg)
+{
+    if (_currentSettings.verbose)
+    {
+        qWarning() << msg;
+    }
+}
 
-    float opacity = material.opacity();
-    aiMat->AddProperty(&opacity, 1, AI_MATKEY_OPACITY);
+void AssImpMeshExporter::logError(const QString& msg)
+{
+    qCritical() << msg;
+}
+
+// ===== FILE: AssImpMeshExporter_Part2.cpp =====
+// This is the continuation of AssImpMeshExporter implementation
+// Include this in the same compilation unit or link with Part 1
+// Contains: Material creation, PBR properties, texture assignment, scene hierarchy
+
+#include "AssImpMeshExporter.h"
+#include "GLMaterial.h"
+#include "TriangleMesh.h"
+
+#include <QMatrix4x4>
+#include <QDebug>
+
+aiMaterial* AssImpMeshExporter::createMaterial(
+    const GLMaterial& material,
+    const TexturePackage& texturePackage,
+    const QString& exportFileLocation)  // NEW parameter
+{
+    aiMaterial* aiMat = new aiMaterial();
+
+    // ===== COLOR PROPERTIES =====
+    {
+        aiColor3D albedo(
+            static_cast<float>(material.albedoColor().x()),
+            static_cast<float>(material.albedoColor().y()),
+            static_cast<float>(material.albedoColor().z()));
+        aiMat->AddProperty(&albedo, 1, AI_MATKEY_COLOR_DIFFUSE);
+        aiMat->AddProperty(&albedo, 1, AI_MATKEY_BASE_COLOR);
+    }
+
+    // ===== METALLIC & ROUGHNESS =====
+    {
+        float metallic = material.metallic();
+        aiMat->AddProperty(&metallic, 1, AI_MATKEY_METALLIC_FACTOR);
+    }
+
+    {
+        float roughness = material.roughness();
+        aiMat->AddProperty(&roughness, 1, AI_MATKEY_ROUGHNESS_FACTOR);
+    }
+
+    // ===== TRANSPARENCY & IOR =====
+    {
+        float opacity = material.opacity();
+        aiMat->AddProperty(&opacity, 1, AI_MATKEY_OPACITY);
+    }
+
+    {
+        float ior = material.ior();
+        aiMat->AddProperty(&ior, 1, AI_MATKEY_REFRACTI);
+    }
+
+    // ===== TRANSMISSION =====
+    if (material.transmission() > 0.0f)
+    {
+        float transmission = material.transmission();
+        aiMat->AddProperty(&transmission, 1, AI_MATKEY_TRANSMISSION_FACTOR);
+    }
+
+    // ===== EMISSIVE =====
+    {
+        aiColor3D emissive(
+            static_cast<float>(material.emissive().x()),
+            static_cast<float>(material.emissive().y()),
+            static_cast<float>(material.emissive().z()));
+        aiMat->AddProperty(&emissive, 1, AI_MATKEY_COLOR_EMISSIVE);
+    }
+
+    {
+        float emissiveStrength = material.emissiveStrength();
+        aiMat->AddProperty(&emissiveStrength, 1, AI_MATKEY_EMISSIVE_INTENSITY);
+    }
+
+    // ===== NORMAL SCALE =====
+    {
+        float normalScale = material.normalScale();
+        aiMat->AddProperty(&normalScale, 1, AI_MATKEY_BUMPSCALING);
+    }
+
+    // ===== CLEARCOAT =====
+    if (material.clearcoat() > 0.0f)
+    {
+        float clearcoat = material.clearcoat();
+        aiMat->AddProperty(&clearcoat, 1, AI_MATKEY_CLEARCOAT_FACTOR);
+
+        float clearcoatRoughness = material.clearcoatRoughness();
+        aiMat->AddProperty(&clearcoatRoughness, 1, AI_MATKEY_CLEARCOAT_ROUGHNESS_FACTOR);
+    }
+
+    // ===== SHEEN =====
+    if (material.sheenColor().length() > 0.0f)
+    {
+        aiColor3D sheenColor(
+            static_cast<float>(material.sheenColor().x()),
+            static_cast<float>(material.sheenColor().y()),
+            static_cast<float>(material.sheenColor().z()));
+        aiMat->AddProperty(&sheenColor, 1, AI_MATKEY_SHEEN_COLOR_FACTOR);
+
+        float sheenRoughness = material.sheenRoughness();
+        aiMat->AddProperty(&sheenRoughness, 1, AI_MATKEY_SHEEN_ROUGHNESS_FACTOR);
+    }
+
+    // ===== LEGACY ADS =====
+    {
+        aiColor3D ambient(
+            static_cast<float>(material.ambient().x()),
+            static_cast<float>(material.ambient().y()),
+            static_cast<float>(material.ambient().z()));
+        aiMat->AddProperty(&ambient, 1, AI_MATKEY_COLOR_AMBIENT);
+    }
+
+    {
+        aiColor3D diffuse(
+            static_cast<float>(material.diffuse().x()),
+            static_cast<float>(material.diffuse().y()),
+            static_cast<float>(material.diffuse().z()));
+        aiMat->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_DIFFUSE);
+    }
+
+    {
+        aiColor3D specular(
+            static_cast<float>(material.specular().x()),
+            static_cast<float>(material.specular().y()),
+            static_cast<float>(material.specular().z()));
+        aiMat->AddProperty(&specular, 1, AI_MATKEY_COLOR_SPECULAR);
+    }
+
+    {
+        float shininess = material.shininess();
+        aiMat->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
+    }
+
+    // ===== TEXTURES (NEW: Pass exportFileLocation) =====
+    assignTexturesToMaterial(aiMat, material, texturePackage, true);
 
     return aiMat;
 }
 
-aiScene* AssImpMeshExporter::createScene(const std::vector<aiMesh*>& meshes, const std::vector<aiMaterial*>& materials)
+void AssImpMeshExporter::assignPBRProperties(
+    aiMaterial* aiMat,
+    const GLMaterial& material)
+{
+    // ===== BASE COLOR =====
+    {
+        aiColor3D albedo(
+            static_cast<float>(material.albedoColor().x()),
+            static_cast<float>(material.albedoColor().y()),
+            static_cast<float>(material.albedoColor().z()));
+        aiMat->AddProperty(&albedo, 1, AI_MATKEY_BASE_COLOR);
+    }
+
+    // ===== METALLIC & ROUGHNESS =====
+    {
+        float metallic = material.metalness();
+        aiMat->AddProperty(&metallic, 1, AI_MATKEY_METALLIC_FACTOR);
+    }
+
+    {
+        float roughness = material.roughness();
+        aiMat->AddProperty(&roughness, 1, AI_MATKEY_ROUGHNESS_FACTOR);
+    }
+
+    // ===== TRANSPARENCY =====
+    {
+        float opacity = material.opacity();
+        aiMat->AddProperty(&opacity, 1, AI_MATKEY_OPACITY);
+    }
+
+    // ===== IOR (Index of Refraction) =====
+    {
+        float ior = material.ior();
+        aiMat->AddProperty(&ior, 1, AI_MATKEY_REFRACTI);
+    }
+
+    // ===== TRANSMISSION (for glass and transparent materials) =====
+    if (material.transmission() > 0.0f)
+    {
+        float transmission = material.transmission();
+        aiMat->AddProperty(&transmission, 1, AI_MATKEY_TRANSMISSION_FACTOR);
+    }
+
+    // ===== EMISSIVE PROPERTIES =====
+    {
+        aiColor3D emissive(
+            static_cast<float>(material.emissive().x()),
+            static_cast<float>(material.emissive().y()),
+            static_cast<float>(material.emissive().z()));
+        aiMat->AddProperty(&emissive, 1, AI_MATKEY_COLOR_EMISSIVE);
+    }
+
+    {
+        float emissiveStrength = material.emissiveStrength();
+        aiMat->AddProperty(&emissiveStrength, 1, AI_MATKEY_EMISSIVE_INTENSITY);
+    }
+
+    // ===== NORMAL SCALE =====
+    {
+        float normalScale = material.normalScale();
+        aiMat->AddProperty(&normalScale, 1, AI_MATKEY_BUMPSCALING);
+    }
+
+    // ===== OCCLUSION STRENGTH =====
+    {
+        float aoStrength = material.occlusionStrength();
+        // Note: Assimp doesn't have a direct AO strength key, this is approximate
+        //aiMat->AddProperty(&aoStrength, 1, AI_MATKEY_GLOBAL_BASE_COLOR_FACTOR);
+    }
+
+    // ===== CLEARCOAT EXTENSION =====
+    if (material.clearcoat() > 0.0f)
+    {
+        float clearcoat = material.clearcoat();
+        aiMat->AddProperty(&clearcoat, 1, AI_MATKEY_CLEARCOAT_FACTOR);
+
+        float clearcoatRoughness = material.clearcoatRoughness();
+        aiMat->AddProperty(&clearcoatRoughness, 1, AI_MATKEY_CLEARCOAT_ROUGHNESS_FACTOR);
+    }
+
+    // ===== SHEEN EXTENSION =====
+    if (material.sheenColor().length() > 0.0f)
+    {
+        aiColor3D sheenColor(
+            static_cast<float>(material.sheenColor().x()),
+            static_cast<float>(material.sheenColor().y()),
+            static_cast<float>(material.sheenColor().z()));
+        aiMat->AddProperty(&sheenColor, 1, AI_MATKEY_SHEEN_COLOR_FACTOR);
+
+        float sheenRoughness = material.sheenRoughness();
+        aiMat->AddProperty(&sheenRoughness, 1, AI_MATKEY_SHEEN_ROUGHNESS_FACTOR);
+    }
+
+    // ===== LEGACY ADS (for backward compatibility) =====
+    {
+        aiColor3D ambient(
+            static_cast<float>(material.ambient().x()),
+            static_cast<float>(material.ambient().y()),
+            static_cast<float>(material.ambient().z()));
+        aiMat->AddProperty(&ambient, 1, AI_MATKEY_COLOR_AMBIENT);
+    }
+
+    {
+        aiColor3D diffuse(
+            static_cast<float>(material.diffuse().x()),
+            static_cast<float>(material.diffuse().y()),
+            static_cast<float>(material.diffuse().z()));
+        aiMat->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_DIFFUSE);
+    }
+
+    {
+        aiColor3D specular(
+            static_cast<float>(material.specular().x()),
+            static_cast<float>(material.specular().y()),
+            static_cast<float>(material.specular().z()));
+        aiMat->AddProperty(&specular, 1, AI_MATKEY_COLOR_SPECULAR);
+    }
+
+    {
+        float shininess = material.shininess();
+        aiMat->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
+    }
+}
+
+void AssImpMeshExporter::assignTexturesToMaterial(
+    aiMaterial* aiMat,
+    const GLMaterial& material,
+    const TexturePackage& texturePackage,
+    bool useEmbeddedTextures)
+{
+    logMessage(QString("  -> Assigning textures to material..."));
+
+    const std::vector<std::pair<GLMaterial::TextureType, aiTextureType>> textureMappings = {
+        {GLMaterial::TextureType::Albedo, aiTextureType_BASE_COLOR},
+        {GLMaterial::TextureType::Metallic, aiTextureType_METALNESS},
+        {GLMaterial::TextureType::Roughness, aiTextureType_DIFFUSE_ROUGHNESS},
+        {GLMaterial::TextureType::Normal, aiTextureType_NORMALS},
+        {GLMaterial::TextureType::AmbientOcclusion, aiTextureType_LIGHTMAP},
+        {GLMaterial::TextureType::Emissive, aiTextureType_EMISSIVE},
+        {GLMaterial::TextureType::Transmission, aiTextureType_TRANSMISSION},
+        {GLMaterial::TextureType::Opacity, aiTextureType_OPACITY},
+        {GLMaterial::TextureType::Height, aiTextureType_HEIGHT},
+        {GLMaterial::TextureType::ClearcoatColor, aiTextureType_CLEARCOAT},
+        {GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT},
+        {GLMaterial::TextureType::ClearcoatNormal, aiTextureType_CLEARCOAT},
+        {GLMaterial::TextureType::SheenColor, aiTextureType_SHEEN},
+        {GLMaterial::TextureType::SheenRoughness, aiTextureType_SHEEN},
+    };
+
+    for (const auto& [modelViewerType, assimpType] : textureMappings)
+    {
+        const auto& tex = material.texture(modelViewerType);
+        if (tex.path.empty())
+        {
+            continue;
+        }
+
+        QString originalPath = QString::fromStdString(tex.path);
+        auto it = texturePackage.pathMapping.find(originalPath);
+
+        if (it == texturePackage.pathMapping.end())
+        {
+            logWarning(QString("Texture not found in package: %1").arg(originalPath));
+            continue;
+        }
+
+        QString texturePath;
+
+        if (useEmbeddedTextures)
+        {
+            // For embedded textures, use the "*index" notation
+            // This will be resolved to the actual aiTexture in mTextures array
+            // For now, just use the relative path - Assimp will handle embedding
+            texturePath = it.value();
+        }
+        else
+        {
+            // For external textures, use relative path
+            texturePath = it.value();
+        }
+
+        texturePath = texturePath.replace("\\", "/");
+
+        aiString aiPath(texturePath.toStdString());
+        aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(assimpType, 0));
+
+        logMessage(QString("     -> %1: %2")
+            .arg(GLMaterial::textureTypeToString(modelViewerType))
+            .arg(texturePath));
+    }
+}
+
+/**
+ * Helper method: Apply materials from original meshes to Assimp scene meshes
+ *
+ * This method:
+ * 1. Iterates through scene meshes and corresponding ModelViewer mesh objects
+ * 2. Creates/updates Assimp materials from GLMaterial data
+ * 3. Assigns textures and PBR properties
+ * 4. Updates material indices in mesh references
+ *
+ * @param scene The Assimp scene whose materials will be updated
+ * @param meshes The original ModelViewer mesh objects
+ */
+ void AssImpMeshExporter::applyMaterialsToScene(
+     aiScene* scene,
+     const std::vector<TriangleMesh*>& meshes,
+     const QString& exportFileLocation)  // NEW parameter
+ {
+     if (!scene || meshes.empty())
+     {
+         logWarning("applyMaterialsToScene: Invalid input");
+         return;
+     }
+
+     unsigned int materialCount = std::min(static_cast<unsigned int>(meshes.size()), scene->mNumMeshes);
+     std::vector<aiMaterial*> newMaterials;
+     newMaterials.reserve(materialCount);
+
+     for (unsigned int i = 0; i < materialCount; ++i)
+     {
+         const TriangleMesh* mesh = meshes[i];
+         if (!mesh)
+         {
+             logWarning(QString("Mesh at index %1 is null").arg(i));
+             continue;
+         }
+
+         // Create material with export location context
+         const GLMaterial& glMat = mesh->getMaterial();
+         aiMaterial* aiMat = createMaterial(glMat, _lastTexturePackage, exportFileLocation);
+
+         if (!aiMat)
+         {
+             logError(QString("Failed to create material for: %1").arg(mesh->getName()));
+             continue;
+         }
+
+         newMaterials.push_back(aiMat);
+
+         if (i < scene->mNumMeshes && scene->mMeshes[i])
+         {
+             scene->mMeshes[i]->mMaterialIndex = static_cast<unsigned int>(newMaterials.size() - 1);
+             logMessage(QString("  -> Material applied: %1").arg(mesh->getName()));
+         }
+     }
+
+     // Replace scene materials
+     if (!newMaterials.empty())
+     {
+         for (unsigned int i = 0; i < scene->mNumMaterials; ++i)
+         {
+             delete scene->mMaterials[i];
+         }
+         delete[] scene->mMaterials;
+
+         scene->mNumMaterials = static_cast<unsigned int>(newMaterials.size());
+         scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
+         std::copy(newMaterials.begin(), newMaterials.end(), scene->mMaterials);
+
+         logMessage(QString("  -> Scene updated: %1 materials").arg(scene->mNumMaterials));
+     }
+ }
+
+ /**
+  * Load image file and return as aiTexture with embedded data
+  *
+  * This creates an Assimp texture object that contains the actual image data,
+  * ready to be embedded in the exported file.
+  */
+ aiTexture* AssImpMeshExporter::createEmbeddedTexture(const QString& imagePath)
+ {
+     QFileInfo fi(imagePath);
+
+     if (!fi.exists() || !fi.isFile())
+     {
+         logWarning(QString("Texture file not found: %1").arg(imagePath));
+         return nullptr;
+     }
+
+     // Read the file as binary data (keep original PNG/JPEG format)
+     QFile file(imagePath);
+     if (!file.open(QIODevice::ReadOnly))
+     {
+         logWarning(QString("Failed to open texture file: %1").arg(imagePath));
+         return nullptr;
+     }
+
+     QByteArray fileData = file.readAll();
+     file.close();
+
+     if (fileData.isEmpty())
+     {
+         logWarning(QString("Texture file is empty: %1").arg(imagePath));
+         return nullptr;
+     }
+
+     // Create Assimp texture for compressed data
+     aiTexture* texture = new aiTexture();
+
+     // Store filename
+     texture->mFilename = aiString(fi.fileName().toStdString());
+
+     // For compressed data: set mHeight = 0, mWidth = file size
+     texture->mHeight = 0;  // Indicates compressed format
+     texture->mWidth = static_cast<unsigned int>(fileData.size());
+
+     // Allocate and copy compressed data
+     texture->pcData = reinterpret_cast<aiTexel*>(new unsigned char[fileData.size()]);
+     memcpy(texture->pcData, fileData.data(), fileData.size());
+
+     // Set format hint based on file extension
+     QString ext = fi.suffix().toLower();
+     if (ext == "png")
+     {
+         texture->achFormatHint[0] = 'p';
+         texture->achFormatHint[1] = 'n';
+         texture->achFormatHint[2] = 'g';
+         texture->achFormatHint[3] = '\0';
+     }
+     else if (ext == "jpg" || ext == "jpeg")
+     {
+         texture->achFormatHint[0] = 'j';
+         texture->achFormatHint[1] = 'p';
+         texture->achFormatHint[2] = 'g';
+         texture->achFormatHint[3] = '\0';
+     }
+
+     logMessage(QString("  -> Embedded texture: %1 (%2 bytes)")
+         .arg(fi.fileName())
+         .arg(fileData.size()));
+
+     return texture;
+ }
+
+ /**
+  * Embed all textures from scene materials into aiScene->mTextures
+  *
+  * This walks through all materials, finds referenced texture files,
+  * loads them, and attaches to the scene so they get embedded in export.
+  */
+ void AssImpMeshExporter::embedTexturesInScene(
+     aiScene* scene,
+     const TexturePackage& texturePackage)
+ {
+     if (!scene)
+     {
+         logError("Scene is null");
+         return;
+     }
+
+     logMessage("Step: Embedding textures into scene...");
+
+     std::vector<aiTexture*> textures;
+     std::set<QString> processedPaths;  // Avoid duplicates
+
+     // Iterate through all materials and collect unique texture paths
+     for (unsigned int matIdx = 0; matIdx < scene->mNumMaterials; ++matIdx)
+     {
+         aiMaterial* mat = scene->mMaterials[matIdx];
+         if (!mat) continue;
+
+         // Check all standard texture types
+         const aiTextureType texTypes[] = {
+             aiTextureType_BASE_COLOR,
+             aiTextureType_NORMALS,
+             aiTextureType_METALNESS,
+             aiTextureType_DIFFUSE_ROUGHNESS,
+             aiTextureType_LIGHTMAP,
+             aiTextureType_EMISSIVE,
+             aiTextureType_TRANSMISSION,
+             aiTextureType_OPACITY,
+             aiTextureType_HEIGHT,
+             aiTextureType_CLEARCOAT,
+             aiTextureType_SHEEN
+         };
+
+         for (aiTextureType texType : texTypes)
+         {
+             aiString texPath;
+             if (mat->GetTexture(texType, 0, &texPath) == aiReturn_SUCCESS)
+             {
+                 QString path = QString::fromLocal8Bit(texPath.C_Str());
+
+                 // Skip if already processed
+                 if (processedPaths.count(path))
+                 {
+                     continue;
+                 }
+                 processedPaths.insert(path);
+
+                 QString fullPath = path;
+
+                 // Try to find in output directory by filename
+                 QFileInfo fi(path);
+                 QString candidate = _currentSettings.outputDirectory + "/textures/" + fi.fileName();
+                 if (QFileInfo(candidate).exists())
+                 {
+                     fullPath = candidate;
+                 }
+                 else
+                 {
+                     // Fallback: assume it's a direct path
+                     fullPath = path;
+                 }
+
+                 // Load and embed
+                 aiTexture* texture = createEmbeddedTexture(fullPath);
+                 if (texture)
+                 {
+                     textures.push_back(texture);
+                 }
+             }
+         }
+     }
+
+     // Attach textures to scene
+     if (!textures.empty())
+     {
+         scene->mNumTextures = static_cast<unsigned int>(textures.size());
+         scene->mTextures = new aiTexture * [scene->mNumTextures];
+         std::copy(textures.begin(), textures.end(), scene->mTextures);
+
+         logMessage(QString("  -> Embedded %1 textures in scene").arg(textures.size()));
+     }
+ }
+
+aiScene* AssImpMeshExporter::createScene(
+    const std::vector<aiMesh*>& meshes,
+    const std::vector<aiMaterial*>& materials,
+    const std::vector<QMatrix4x4>& transforms)
 {
     aiScene* scene = new aiScene();
 
-    // Set up meshes array
+    // Setup mesh array
     scene->mNumMeshes = static_cast<unsigned int>(meshes.size());
     scene->mMeshes = new aiMesh * [scene->mNumMeshes];
     std::copy(meshes.begin(), meshes.end(), scene->mMeshes);
 
-    // Set up materials array
+    // Setup material array
     scene->mNumMaterials = static_cast<unsigned int>(materials.size());
     scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
     std::copy(materials.begin(), materials.end(), scene->mMaterials);
@@ -155,8 +1051,9 @@ aiScene* AssImpMeshExporter::createScene(const std::vector<aiMesh*>& meshes, con
     // Create root node
     scene->mRootNode = new aiNode();
     scene->mRootNode->mName = aiString("RootNode");
+    scene->mRootNode->mTransformation = aiMatrix4x4();
 
-    // Create child nodes - one for each mesh
+    // Create child nodes (one per mesh) with transforms
     scene->mRootNode->mNumChildren = static_cast<unsigned int>(meshes.size());
     scene->mRootNode->mChildren = new aiNode * [scene->mRootNode->mNumChildren];
 
@@ -164,45 +1061,50 @@ aiScene* AssImpMeshExporter::createScene(const std::vector<aiMesh*>& meshes, con
     {
         aiNode* childNode = new aiNode();
 
-        // Give each node a unique name (important for OBJ export)
+        // Determine node name
         std::string nodeName = "Mesh_" + std::to_string(i);
         if (meshes[i]->mName.length > 0)
         {
-            nodeName = std::string(meshes[i]->mName.C_Str());			
-        }		
+            nodeName = std::string(meshes[i]->mName.C_Str());
+        }
         childNode->mName = aiString(nodeName);
 
         // Set parent relationship
         childNode->mParent = scene->mRootNode;
 
-        // Assign one mesh to this node
+        // Assign mesh
         childNode->mNumMeshes = 1;
         childNode->mMeshes = new unsigned int[1];
         childNode->mMeshes[0] = i;
 
-        // Set identity transformation matrix
-        childNode->mTransformation = aiMatrix4x4();
+        // ===== APPLY TRANSFORMATION (NEW) =====
+        if (i < transforms.size())
+        {
+            const auto& qmat = transforms[i];
+
+            // Convert QMatrix4x4 to aiMatrix4x4
+            // QMatrix4x4 is in column-major order
+            childNode->mTransformation = aiMatrix4x4(
+                qmat(0, 0), qmat(0, 1), qmat(0, 2), qmat(0, 3),
+                qmat(1, 0), qmat(1, 1), qmat(1, 2), qmat(1, 3),
+                qmat(2, 0), qmat(2, 1), qmat(2, 2), qmat(2, 3),
+                qmat(3, 0), qmat(3, 1), qmat(3, 2), qmat(3, 3)
+            );
+
+            logMessage(QString("  -> Transform applied to: %1")
+                .arg(QString::fromStdString(nodeName)));
+        }
+        else
+        {
+            childNode->mTransformation = aiMatrix4x4();
+        }
 
         scene->mRootNode->mChildren[i] = childNode;
     }
 
-    // Root node should not have meshes directly assigned
+    // Root node has no direct mesh assignments
     scene->mRootNode->mNumMeshes = 0;
     scene->mRootNode->mMeshes = nullptr;
 
     return scene;
-}
-
-const aiExportFormatDesc* AssImpMeshExporter::findExportFormat(const std::string& filePath, Assimp::Exporter& exporter)
-{
-    std::string ext = filePath.substr(filePath.find_last_of('.') + 1);
-    std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
-
-    for (unsigned int i = 0; i < exporter.GetExportFormatCount(); ++i) {
-        const aiExportFormatDesc* fmt = exporter.GetExportFormatDescription(i);
-        if (fmt && ext == fmt->fileExtension) {
-            return fmt;
-        }
-    }
-    return nullptr;
 }
