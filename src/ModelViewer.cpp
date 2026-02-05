@@ -287,7 +287,7 @@ ModelViewer::~ModelViewer()
 {
 	if (_undoStack)
 	{
-		disconnect(_undoStack, nullptr, this, nullptr);  // Prevent callbacks
+		disconnect(_undoStack, nullptr, nullptr, nullptr);  // Prevent callbacks
 		_undoStack->clear();
 	}
 	if (_glWidget)
@@ -1966,6 +1966,7 @@ void ModelViewer::importFiles(QStringList& fileNames)
 
 #include "AssImpMeshExporter.h"
 #include <AssImpMesh.h>
+#include "SceneUtils.h"
 void ModelViewer::onFileExport()
 {
 	Assimp::Exporter exporter;
@@ -2029,9 +2030,11 @@ void ModelViewer::onFileExport()
 		aiReturn res = aiReturn_FAILURE;
 		if (exportScene)
 		{
-			// Export the original aiScene
-			res = exporter.exportScene(_glWidget->getAssImpScene(), triMeshes, fileName.toStdString(), expSettings);
+			// Export a copy of the the original aiScene
+			aiScene* copyScene = SceneUtils::deepCopyScene(_glWidget->getAssImpScene());
+			res = exporter.exportScene(copyScene, triMeshes, fileName.toStdString(), expSettings);
 			qDebug() << "Exporting scene result:" << res;
+			delete copyScene;
 		}
 		else
 		{			
