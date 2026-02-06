@@ -669,6 +669,201 @@ aiMaterial* AssImpMeshExporter::createMaterial(
         aiMat->AddProperty(&emissive, 1, AI_MATKEY_COLOR_EMISSIVE);
     }
 
+    // ===== PHASE 1: BASIC GLTF PROPERTIES =====
+
+    // Alpha Mode
+    {
+        GLMaterial::BlendMode blendMode = material.blendMode();
+        aiString alphaModeStr;
+
+        if (blendMode == GLMaterial::BlendMode::Opaque)
+        {
+            alphaModeStr.Set("OPAQUE");
+        }
+        else if (blendMode == GLMaterial::BlendMode::Masked)
+        {
+            alphaModeStr.Set("MASK");
+            float alphaCutoff = material.alphaThreshold();
+            aiMat->AddProperty(&alphaCutoff, 1, "$mat.gltf.alphaCutoff", 0, 0);
+            logMessage(QString("     -> alphaMode: MASK, alphaCutoff: %1").arg(alphaCutoff));
+        }
+        else if (blendMode == GLMaterial::BlendMode::Alpha)
+        {
+            alphaModeStr.Set("BLEND");
+            logMessage(QString("     -> alphaMode: BLEND"));
+        }
+
+        aiMat->AddProperty(&alphaModeStr, "$mat.gltf.alphaMode", 0, 0);
+    }
+
+    // Double Sided
+    {
+        // Try to get the value - the exact method name may vary
+        bool twoSided = material.twoSided();
+        // Check if there's a method to get this - for now default to false
+        // This needs the actual GLMaterial header to determine correct getter
+        int twoSidedInt = twoSided ? 1 : 0;
+        aiMat->AddProperty(&twoSidedInt, 1, "$mat.gltf.doubleSided", 0, 0);
+        if (twoSided)
+        {
+            logMessage(QString("     -> doubleSided: true"));
+        }
+    }
+
+    // ===== PHASE 2: COMMON EXTENSIONS =====
+
+    // KHR_materials_ior
+    {
+        float ior = material.ior();
+        // Only write if different from default (1.5)
+        if (std::abs(ior - 1.5f) > 0.001f)
+        {
+            aiMat->AddProperty(&ior, 1, "$mat.gltf.ior", 0, 0);
+            logMessage(QString("     -> ior: %1").arg(ior));
+        }
+    }
+
+    // KHR_materials_emissive_strength    
+    {
+        float emissiveStrength = material.emissiveStrength();
+        if (std::abs(emissiveStrength - 1.0f) > 0.001f)
+        {
+            aiMat->AddProperty(&emissiveStrength, 1, "$mat.gltf.emissiveStrength", 0, 0);
+            logMessage(QString("     -> emissiveStrength: %1").arg(emissiveStrength));
+        }
+    }
+    
+
+    // ===== PHASE 3: ADVANCED EXTENSIONS =====
+
+    // KHR_materials_clearcoat    
+    {
+        float clearcoat = material.clearcoat();
+        if (clearcoat > 0.0f)
+        {
+            aiMat->AddProperty(&clearcoat, 1, "$mat.gltf.clearcoat.factor", 0, 0);
+
+            float clearcoatRoughness = material.clearcoatRoughness();
+            aiMat->AddProperty(&clearcoatRoughness, 1, "$mat.gltf.clearcoat.roughnessFactor", 0, 0);
+
+            logMessage(QString("     -> clearcoat: %1, roughness: %2")
+                .arg(clearcoat).arg(clearcoatRoughness));
+        }
+    }    
+
+    // KHR_materials_sheen    
+    {
+        QVector3D sheenColor = material.sheenColor();
+        if (sheenColor.length() > 0.0f)
+        {
+            aiColor3D color(sheenColor.x(), sheenColor.y(), sheenColor.z());
+            aiMat->AddProperty(&color, 1, "$mat.gltf.sheen.sheenColorFactor", 0, 0);
+
+            float sheenRoughness = material.sheenRoughness();
+            aiMat->AddProperty(&sheenRoughness, 1, "$mat.gltf.sheen.sheenRoughnessFactor", 0, 0);
+
+            logMessage(QString("     -> sheen: [%1, %2, %3], roughness: %4")
+                .arg(sheenColor.x()).arg(sheenColor.y()).arg(sheenColor.z())
+                .arg(sheenRoughness));
+        }
+    }    
+
+    // KHR_materials_iridescence    
+    {
+        float iridescence = material.iridescenceFactor();
+        if (iridescence > 0.0f)
+        {
+            aiMat->AddProperty(&iridescence, 1, "$mat.gltf.iridescence.iridescenceFactor", 0, 0);
+
+            float iridescenceIor = material.iridescenceIor();
+            aiMat->AddProperty(&iridescenceIor, 1, "$mat.gltf.iridescence.iridescenceIor", 0, 0);
+
+            float thicknessMin = material.iridescenceThicknessMin();
+            float thicknessMax = material.iridescenceThicknessMax();
+            aiMat->AddProperty(&thicknessMin, 1, "$mat.gltf.iridescence.iridescenceThicknessMinimum", 0, 0);
+            aiMat->AddProperty(&thicknessMax, 1, "$mat.gltf.iridescence.iridescenceThicknessMaximum", 0, 0);
+
+            logMessage(QString("     -> iridescence: %1, ior: %2, thickness: [%3, %4]")
+                .arg(iridescence).arg(iridescenceIor).arg(thicknessMin).arg(thicknessMax));
+        }
+    }
+
+    // ===== PHASE 4: SPECIALIZED EXTENSIONS =====
+
+    // KHR_materials_volume        
+    {
+        float thickness = material.thicknessFactor();
+        if (thickness > 0.0f)
+        {
+            aiMat->AddProperty(&thickness, 1, "$mat.gltf.volume.thicknessFactor", 0, 0);
+
+            float attenuationDist = material.attenuationDistance();
+            aiMat->AddProperty(&attenuationDist, 1, "$mat.gltf.volume.attenuationDistance", 0, 0);
+
+            QVector3D attenuationColor = material.attenuationColor();
+            aiColor3D attenColor(attenuationColor.x(), attenuationColor.y(), attenuationColor.z());
+            aiMat->AddProperty(&attenColor, 1, "$mat.gltf.volume.attenuationColor", 0, 0);
+
+            logMessage(QString("     -> volume: thickness=%1, attenuationDist=%2")
+                .arg(thickness).arg(attenuationDist));
+        }
+    }    
+
+    // KHR_materials_specular   
+    {
+        float specularFactor = material.specularFactor();
+        QVector3D specularColorFactor = material.specularColorFactor();
+
+        bool hasSpecular = (std::abs(specularFactor - 1.0f) > 0.001f) ||
+                          (specularColorFactor != QVector3D(1.0f, 1.0f, 1.0f));
+
+        if (hasSpecular)
+        {
+            aiMat->AddProperty(&specularFactor, 1, "$mat.gltf.specular.specularFactor", 0, 0);
+
+            aiColor3D color(specularColorFactor.x(), specularColorFactor.y(), specularColorFactor.z());
+            aiMat->AddProperty(&color, 1, "$mat.gltf.specular.specularColorFactor", 0, 0);
+
+            logMessage(QString("     -> specular: factor=%1").arg(specularFactor));
+        }
+    }
+
+    // KHR_materials_anisotropy    
+    {
+        float anisotropyStrength = material.anisotropyStrength();
+        if (anisotropyStrength > 0.0f)
+        {
+            aiMat->AddProperty(&anisotropyStrength, 1, "$mat.gltf.anisotropy.anisotropyStrength", 0, 0);
+
+            float anisotropyRotation = material.anisotropyRotation();
+            aiMat->AddProperty(&anisotropyRotation, 1, "$mat.gltf.anisotropy.anisotropyRotation", 0, 0);
+
+            logMessage(QString("     -> anisotropy: strength=%1, rotation=%2")
+                .arg(anisotropyStrength).arg(anisotropyRotation));
+        }
+    }
+
+    // KHR_materials_dispersion    
+    {
+        float dispersion = material.dispersion();
+        if (dispersion > 0.0f)
+        {
+            aiMat->AddProperty(&dispersion, 1, "$mat.gltf.dispersion", 0, 0);
+            logMessage(QString("     -> dispersion: %1").arg(dispersion));
+        }
+    }
+
+    // KHR_materials_unlit   
+    {
+        bool unlit = material.isUnlit();
+        if (unlit)
+        {
+            int unlitInt = 1;
+            aiMat->AddProperty(&unlitInt, 1, "$mat.gltf.unlit", 0, 0);
+            logMessage(QString("     -> unlit: true"));
+        }
+    }   
+
     {
         float emissiveStrength = material.emissiveStrength();
         aiMat->AddProperty(&emissiveStrength, 1, AI_MATKEY_EMISSIVE_INTENSITY);

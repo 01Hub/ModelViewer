@@ -703,43 +703,10 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         if (gltfJson.contains("samplers"))
             samplers = gltfJson["samplers"].toArray();
 
-        // Track which textures we've processed to write samplers
-        QMap<int, const GLMaterial::Texture*> textureToSourceMap;
+        // Clear Assimp's samplers - we'll create correct ones from source materials
+        samplers = QJsonArray();
 
-        // FIRST PASS: Track ALL textures from source materials for sampler updates
-        for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
-        {
-            if (!meshes[i]) continue;
-
-            const GLMaterial& glMat = meshes[i]->getMaterial();
-            QJsonObject mat = materials[i].toObject();
-
-            // Helper to track texture index from material
-            auto trackTexture = [&](const QJsonObject& parent, const QString& key, const GLMaterial::Texture& tex) {
-                if (!parent.contains(key)) return;
-                QJsonObject texInfo = parent[key].toObject();
-                int texIndex = texInfo.value("index").toInt(-1);
-                if (texIndex >= 0)
-                {
-                    textureToSourceMap[texIndex] = &tex;
-                }
-                };
-
-            // Track PBR textures
-            if (mat.contains("pbrMetallicRoughness"))
-            {
-                QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
-                trackTexture(pbr, "baseColorTexture", glMat.texture(GLMaterial::TextureType::Albedo));
-                trackTexture(pbr, "metallicRoughnessTexture", glMat.texture(GLMaterial::TextureType::Metallic));
-            }
-
-            // Track other textures
-            trackTexture(mat, "normalTexture", glMat.texture(GLMaterial::TextureType::Normal));
-            trackTexture(mat, "occlusionTexture", glMat.texture(GLMaterial::TextureType::AmbientOcclusion));
-            trackTexture(mat, "emissiveTexture", glMat.texture(GLMaterial::TextureType::Emissive));
-        }
-
-        // SECOND PASS: Write transforms for textures that need them
+        // PASS 1: Write transforms for textures that need them
         for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
         {
             if (!meshes[i]) continue;
@@ -812,84 +779,312 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             }
         }
 
-        // THIRD PASS: Create samplers from source materials
-        // Assimp doesn't handle samplers properly, so we create them ourselves
+        // CORRECT APPROACH: Map materials[i] -> meshes[i], update texture samplers
+        // Build deduplicated samplers based on actual source material properties
 
-        // Clear any samplers Assimp may have created (they're unreliable)
-        samplers = QJsonArray();
+        log("  Building samplers from source materials...", logCallback);
 
-        // Track unique sampler configurations to deduplicate
-        struct SamplerConfig
-        {
-            int magFilter;
-            int minFilter;
-            int wrapS;
-            int wrapT;
-
-            bool operator==(const SamplerConfig& other) const
-            {
-                return magFilter == other.magFilter &&
-                    minFilter == other.minFilter &&
-                    wrapS == other.wrapS &&
-                    wrapT == other.wrapT;
-            }
-        };
-
+        // Track unique sampler configurations
         QMap<QString, int> samplerConfigToIndex;  // hash -> sampler index
+        QVector<QJsonObject> createdSamplers;
 
-        // Process each tracked texture and create/assign samplers
-        for (auto it = textureToSourceMap.constBegin(); it != textureToSourceMap.constEnd(); ++it)
+        // Helper to get or create a sampler
+        auto getOrCreateSampler = [&](int mag, int min, int wrapS, int wrapT) -> int {
+            QString hash = QString("%1_%2_%3_%4").arg(mag).arg(min).arg(wrapS).arg(wrapT);
+
+            if (samplerConfigToIndex.contains(hash))
+            {
+                return samplerConfigToIndex[hash];
+            }
+
+            int idx = createdSamplers.size();
+            QJsonObject sampler;
+            sampler["magFilter"] = mag;
+            sampler["minFilter"] = min;
+            sampler["wrapS"] = wrapS;
+            sampler["wrapT"] = wrapT;
+            createdSamplers.append(sampler);
+            samplerConfigToIndex[hash] = idx;
+
+            log(QString("    Sampler[%1]: mag=%2, min=%3, wrapS=%4, wrapT=%5")
+                .arg(idx).arg(mag).arg(min).arg(wrapS).arg(wrapT), logCallback);
+
+            return idx;
+            };
+
+        // Helper to update texture sampler from source material texture
+        auto updateTextureSampler = [&](const QJsonObject& parent, const QString& key,
+            const GLMaterial::Texture& sourceTex) {
+                if (!parent.contains(key)) return;
+
+                int texIndex = parent[key].toObject().value("index").toInt(-1);
+                if (texIndex < 0 || texIndex >= textures.size()) return;
+
+                // Get or create sampler with source material's properties
+                int samplerIdx = getOrCreateSampler(
+                    sourceTex.magFilter,
+                    sourceTex.minFilter,
+                    sourceTex.wrapS,
+                    sourceTex.wrapT
+                );
+
+                // Update texture to reference this sampler
+                QJsonObject tex = textures[texIndex].toObject();
+                tex["sampler"] = samplerIdx;
+                textures[texIndex] = tex;
+
+                log(QString("    Material texture %1: texture[%2] -> sampler[%3]")
+                    .arg(key).arg(texIndex).arg(samplerIdx), logCallback);
+            };
+
+        // Process each material
+        for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
         {
-            int texIndex = it.key();
-            const GLMaterial::Texture* sourceTex = it.value();
+            if (!meshes[i]) continue;
 
-            if (texIndex >= textures.size()) continue;
+            const GLMaterial& glMat = meshes[i]->getMaterial();
+            QJsonObject mat = materials[i].toObject();
 
-            QJsonObject texture = textures[texIndex].toObject();
+            log(QString("  Material[%1]:").arg(i), logCallback);
 
-            // Create sampler config hash
-            QString configHash = QString("%1_%2_%3_%4")
-                .arg(sourceTex->magFilter)
-                .arg(sourceTex->minFilter)
-                .arg(sourceTex->wrapS)
-                .arg(sourceTex->wrapT);
-
-            int samplerIndex;
-
-            // Check if we already have this sampler configuration
-            if (samplerConfigToIndex.contains(configHash))
+            // Process PBR textures
+            if (mat.contains("pbrMetallicRoughness"))
             {
-                // Reuse existing sampler
-                samplerIndex = samplerConfigToIndex[configHash];
-            }
-            else
-            {
-                // Create new sampler
-                samplerIndex = samplers.size();
-                samplerConfigToIndex[configHash] = samplerIndex;
-
-                QJsonObject sampler;
-                sampler["magFilter"] = static_cast<int>(sourceTex->magFilter);
-                sampler["minFilter"] = static_cast<int>(sourceTex->minFilter);
-                sampler["wrapS"] = static_cast<int>(sourceTex->wrapS);
-                sampler["wrapT"] = static_cast<int>(sourceTex->wrapT);
-
-                samplers.append(sampler);
+                QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
+                updateTextureSampler(pbr, "baseColorTexture", glMat.texture(GLMaterial::TextureType::Albedo));
+                updateTextureSampler(pbr, "metallicRoughnessTexture", glMat.texture(GLMaterial::TextureType::Metallic));
             }
 
-            // Update texture to reference the sampler
-            texture["sampler"] = samplerIndex;
-            textures[texIndex] = texture;
+            // Process other textures
+            updateTextureSampler(mat, "normalTexture", glMat.texture(GLMaterial::TextureType::Normal));
+            updateTextureSampler(mat, "occlusionTexture", glMat.texture(GLMaterial::TextureType::AmbientOcclusion));
+            updateTextureSampler(mat, "emissiveTexture", glMat.texture(GLMaterial::TextureType::Emissive));
+
+            // ===== WRITE BASIC MATERIAL PROPERTIES =====
+            // Assimp may not handle these correctly, so we write them directly
+
+            // alphaMode and alphaCutoff
+            GLMaterial::BlendMode blendMode = glMat.blendMode();
+            if (blendMode == GLMaterial::BlendMode::Opaque)
+            {
+                mat["alphaMode"] = "OPAQUE";
+            }
+            else if (blendMode == GLMaterial::BlendMode::Masked)
+            {
+                mat["alphaMode"] = "MASK";
+                mat["alphaCutoff"] = static_cast<double>(glMat.alphaThreshold());
+            }
+            else if (blendMode == GLMaterial::BlendMode::Alpha)
+            {
+                mat["alphaMode"] = "BLEND";
+            }
+
+            // doubleSided
+            bool twoSided = glMat.twoSided();
+            if (twoSided)
+            {
+                mat["doubleSided"] = true;
+            }
+
+            // emissiveFactor
+            QVector3D emissive = glMat.emissive();
+            if (emissive.length() > 0.0f)
+            {
+                QJsonArray emissiveArray;
+                emissiveArray.append(static_cast<double>(emissive.x()));
+                emissiveArray.append(static_cast<double>(emissive.y()));
+                emissiveArray.append(static_cast<double>(emissive.z()));
+                mat["emissiveFactor"] = emissiveArray;
+            }
+
+            // ===== WRITE KHR EXTENSIONS FROM SOURCE MATERIAL =====
+            // Assimp doesn't handle these, so we write them directly to JSON
+
+            QJsonObject extensions = mat.value("extensions").toObject();
+            bool hasExtensions = false;
+
+            // KHR_materials_transmission
+            if (glMat.transmission() > 0.0f)
+            {
+                QJsonObject trans;
+                trans["transmissionFactor"] = static_cast<double>(glMat.transmission());
+
+                // Transmission texture
+                const auto& transTex = glMat.texture(GLMaterial::TextureType::Transmission);
+                if (!transTex.path.empty())
+                {
+                    // Find texture index for this texture
+                    // TODO: Implement texture lookup and add transmissionTexture
+                }
+
+                extensions["KHR_materials_transmission"] = trans;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_ior
+            float ior = glMat.ior();
+            if (std::abs(ior - 1.5f) > 0.001f)
+            {
+                QJsonObject iorExt;
+                iorExt["ior"] = static_cast<double>(ior);
+                extensions["KHR_materials_ior"] = iorExt;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_clearcoat
+            if (glMat.clearcoat() > 0.0f)
+            {
+                QJsonObject cc;
+                cc["clearcoatFactor"] = static_cast<double>(glMat.clearcoat());
+                cc["clearcoatRoughnessFactor"] = static_cast<double>(glMat.clearcoatRoughness());
+
+                // TODO: Add clearcoat textures
+
+                extensions["KHR_materials_clearcoat"] = cc;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_sheen
+            QVector3D sheenColor = glMat.sheenColor();
+            if (sheenColor.length() > 0.0f)
+            {
+                QJsonObject sheen;
+                QJsonArray sheenColorArray;
+                sheenColorArray.append(static_cast<double>(sheenColor.x()));
+                sheenColorArray.append(static_cast<double>(sheenColor.y()));
+                sheenColorArray.append(static_cast<double>(sheenColor.z()));
+                sheen["sheenColorFactor"] = sheenColorArray;
+                sheen["sheenRoughnessFactor"] = static_cast<double>(glMat.sheenRoughness());
+
+                extensions["KHR_materials_sheen"] = sheen;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_iridescence
+            if (glMat.iridescenceFactor() > 0.0f)
+            {
+                QJsonObject irid;
+                irid["iridescenceFactor"] = static_cast<double>(glMat.iridescenceFactor());
+                irid["iridescenceIor"] = static_cast<double>(glMat.iridescenceIor());
+                irid["iridescenceThicknessMinimum"] = static_cast<double>(glMat.iridescenceThicknessMin());
+                irid["iridescenceThicknessMaximum"] = static_cast<double>(glMat.iridescenceThicknessMax());
+
+                extensions["KHR_materials_iridescence"] = irid;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_volume
+            if (glMat.thicknessFactor() > 0.0f)
+            {
+                QJsonObject vol;
+                vol["thicknessFactor"] = static_cast<double>(glMat.thicknessFactor());
+                vol["attenuationDistance"] = static_cast<double>(glMat.attenuationDistance());
+
+                QVector3D attenColor = glMat.attenuationColor();
+                QJsonArray attenArray;
+                attenArray.append(static_cast<double>(attenColor.x()));
+                attenArray.append(static_cast<double>(attenColor.y()));
+                attenArray.append(static_cast<double>(attenColor.z()));
+                vol["attenuationColor"] = attenArray;
+
+                extensions["KHR_materials_volume"] = vol;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_specular
+            float specularFactor = glMat.specularFactor();
+            QVector3D specularColorFactor = glMat.specularColorFactor();
+            if (std::abs(specularFactor - 1.0f) > 0.001f ||
+                (specularColorFactor - QVector3D(1, 1, 1)).length() > 0.001f)
+            {
+                QJsonObject spec;
+                spec["specularFactor"] = static_cast<double>(specularFactor);
+
+                QJsonArray colorArray;
+                colorArray.append(static_cast<double>(specularColorFactor.x()));
+                colorArray.append(static_cast<double>(specularColorFactor.y()));
+                colorArray.append(static_cast<double>(specularColorFactor.z()));
+                spec["specularColorFactor"] = colorArray;
+
+                extensions["KHR_materials_specular"] = spec;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_anisotropy
+            if (glMat.anisotropyStrength() > 0.0f)
+            {
+                QJsonObject aniso;
+                aniso["anisotropyStrength"] = static_cast<double>(glMat.anisotropyStrength());
+                aniso["anisotropyRotation"] = static_cast<double>(glMat.anisotropyRotation());
+
+                extensions["KHR_materials_anisotropy"] = aniso;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_dispersion
+            if (glMat.dispersion() > 0.0f)
+            {
+                QJsonObject disp;
+                disp["dispersion"] = static_cast<double>(glMat.dispersion());
+                extensions["KHR_materials_dispersion"] = disp;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_emissive_strength
+            if (std::abs(glMat.emissiveStrength() - 1.0f) > 0.001f)
+            {
+                QJsonObject emissiveStr;
+                emissiveStr["emissiveStrength"] = static_cast<double>(glMat.emissiveStrength());
+                extensions["KHR_materials_emissive_strength"] = emissiveStr;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_unlit
+            if (glMat.isUnlit())
+            {
+                extensions["KHR_materials_unlit"] = QJsonObject();  // Empty object
+                hasExtensions = true;
+            }
+
+            // Write extensions back to material
+            if (hasExtensions)
+            {
+                mat["extensions"] = extensions;
+                materials[i] = mat;
+            }
+        }
+
+        // Replace samplers array with our created samplers
+        samplers = QJsonArray();
+        for (const auto& sampler : createdSamplers)
+        {
+            samplers.append(sampler);
+        }
+
+        // CRITICAL FIX: Remove invalid sampler references from textures
+        // If Assimp created textures with sampler indices that no longer exist,
+        // we need to remove those references to prevent "out of bounds" errors
+        for (int i = 0; i < textures.size(); ++i)
+        {
+            QJsonObject tex = textures[i].toObject();
+            if (tex.contains("sampler"))
+            {
+                int samplerIdx = tex.value("sampler").toInt(-1);
+                if (samplerIdx >= samplers.size())
+                {
+                    tex.remove("sampler");
+                    textures[i] = tex;
+                    log(QString("    Removed invalid sampler[%1] from texture[%2]")
+                        .arg(samplerIdx).arg(i), logCallback);
+                }
+            }
         }
 
         gltfJson["materials"] = materials;
+        gltfJson["samplers"] = samplers;
+        gltfJson["textures"] = textures;
 
-        if (samplers.size() > 0)
-        {
-            gltfJson["samplers"] = samplers;
-            gltfJson["textures"] = textures;
-            log(QString("  Created %1 sampler(s) from source materials").arg(samplers.size()), logCallback);
-        }
+        log(QString("  Final: %1 unique samplers created").arg(samplers.size()), logCallback);
 
         // FOURTH PASS: Deduplicate images
         // Assimp may create duplicate image entries for the same file
@@ -944,6 +1139,53 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     .arg(images.size())
                     .arg(deduplicatedImages.size()), logCallback);
             }
+        }
+
+        // ===== UPDATE extensionsUsed ARRAY =====
+        // Scan all materials to see which extensions are actually used
+        QSet<QString> usedExtensions;
+
+        materials = gltfJson.value("materials").toArray();
+        for (const QJsonValue& matVal : materials)
+        {
+            QJsonObject mat = matVal.toObject();
+            if (mat.contains("extensions"))
+            {
+                QJsonObject exts = mat.value("extensions").toObject();
+                for (const QString& extName : exts.keys())
+                {
+                    usedExtensions.insert(extName);
+                }
+            }
+        }
+
+        // Add to extensionsUsed array
+        if (!usedExtensions.isEmpty())
+        {
+            QJsonArray extensionsUsed;
+            if (gltfJson.contains("extensionsUsed"))
+            {
+                extensionsUsed = gltfJson["extensionsUsed"].toArray();
+            }
+
+            // Get existing extensions
+            QSet<QString> existing;
+            for (const QJsonValue& val : extensionsUsed)
+            {
+                existing.insert(val.toString());
+            }
+
+            // Add new ones
+            for (const QString& ext : usedExtensions)
+            {
+                if (!existing.contains(ext))
+                {
+                    extensionsUsed.append(ext);
+                    log(QString("  Added %1 to extensionsUsed").arg(ext), logCallback);
+                }
+            }
+
+            gltfJson["extensionsUsed"] = extensionsUsed;
         }
     }
 
