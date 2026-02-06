@@ -1,0 +1,113 @@
+#ifndef GLTF_POSTPROCESSOR_H
+#define GLTF_POSTPROCESSOR_H
+
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QFile>
+#include <QString>
+#include <vector>
+
+class TriangleMesh; // Forward declaration
+class GLMaterial;   // Forward declaration
+
+/**
+ * Post-process exported glTF JSON to add missing optional properties
+ *
+ * This ensures exported files are complete and robust, avoiding undefined
+ * behavior in various glTF importers (especially Assimp in release builds).
+ *
+ * The processor adds:
+ * - texCoord: 0 (default) to all texture references
+ * - scale: 1.0 to normalTexture
+ * - strength: 1.0 to occlusionTexture
+ * - Explicit filter and wrap modes to all samplers
+ * - Missing properties in KHR_texture_transform extensions (offset, rotation, scale)
+ * - KHR_texture_transform to extensionsUsed if transforms are present
+ */
+class GltfPostProcessor
+{
+public:
+    /**
+     * Post-process a glTF JSON object to add missing optional properties
+     *
+     * @param gltfJson The glTF JSON object to process (modified in place)
+     * @param logCallback Optional callback for logging (receives QString messages)
+     * @return true if any modifications were made
+     */
+    static bool postProcessGltfJson(QJsonObject& gltfJson,
+        std::function<void(const QString&)> logCallback = nullptr);
+
+    /**
+     * Post-process a glTF JSON object with actual texture transforms from source materials
+     *
+     * This version writes the actual transform values from the source materials,
+     * not just identity defaults. This is necessary because Assimp's glTF exporter
+     * doesn't convert AI_MATKEY_UVTRANSFORM to KHR_texture_transform.
+     *
+     * @param gltfJson The glTF JSON object to process (modified in place)
+     * @param meshes Source mesh objects with material data
+     * @param logCallback Optional callback for logging
+     * @return true if any modifications were made
+     */
+    static bool postProcessGltfJsonWithMaterials(
+        QJsonObject& gltfJson,
+        const std::vector<TriangleMesh*>& meshes,
+        std::function<void(const QString&)> logCallback = nullptr);
+
+    /**
+     * Post-process a glTF file on disk
+     *
+     * @param filePath Path to the .gltf file (not .glb)
+     * @param logCallback Optional callback for logging
+     * @return true if successful
+     */
+    static bool postProcessGltfFile(const QString& filePath,
+        std::function<void(const QString&)> logCallback = nullptr);
+
+    /**
+     * Post-process a glTF file with actual texture transform data from source materials
+     *
+     * @param filePath Path to the .gltf file
+     * @param meshes Source mesh objects with material data
+     * @param logCallback Optional callback for logging
+     * @return true if successful
+     */
+    static bool postProcessGltfFileWithMaterials(
+        const QString& filePath,
+        const std::vector<TriangleMesh*>& meshes,
+        std::function<void(const QString&)> logCallback = nullptr);
+
+    /**
+     * Post-process a GLB file on disk
+     *
+     * Reads the GLB, extracts JSON, post-processes it, and rewrites the GLB
+     *
+     * @param filePath Path to the .glb file
+     * @param logCallback Optional callback for logging
+     * @return true if successful
+     */
+    static bool postProcessGlbFile(const QString& filePath,
+        std::function<void(const QString&)> logCallback = nullptr);
+
+    /**
+     * Post-process a GLB file with actual texture transform data from source materials
+     *
+     * @param filePath Path to the .glb file
+     * @param meshes Source mesh objects with material data
+     * @param logCallback Optional callback for logging
+     * @return true if successful
+     */
+    static bool postProcessGlbFileWithMaterials(
+        const QString& filePath,
+        const std::vector<TriangleMesh*>& meshes,
+        std::function<void(const QString&)> logCallback = nullptr);
+
+private:
+    static bool fixTextureInfoWithTransforms(QJsonObject& parent, const QString& key);
+    static bool fixNormalTextureInfo(QJsonObject& parent, const QString& key);
+    static bool fixOcclusionTextureInfo(QJsonObject& parent, const QString& key);
+    static void log(const QString& message, std::function<void(const QString&)> callback);
+};
+
+#endif // GLTF_POSTPROCESSOR_H

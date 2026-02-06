@@ -2,8 +2,10 @@
 #include "TriangleMesh.h"
 #include "AssImpMesh.h"
 #include "GLMaterial.h"
+#include "GltfPostProcessor.h"
 
 #include <QDebug>
+#include <QDir>
 #include <QFileInfo>
 #include <QMatrix4x4>
 #include <algorithm>
@@ -35,6 +37,11 @@ aiReturn AssImpMeshExporter::exportMeshes(
     // ===== STEP 1: Package textures =====
     logMessage("Step 1: Packaging textures...");
 
+    // Check if this is a GLB export (for cleanup later)
+    QFileInfo exportFileInfo(exportPath);
+    QString ext = exportFileInfo.suffix().toLower();
+    bool isGLB = (ext == "glb" || ext == "gltf-binary");
+
     if (settings.copyTextures)
     {
         _lastTexturePackage = _textureManager.packageTextures(
@@ -54,6 +61,11 @@ aiReturn AssImpMeshExporter::exportMeshes(
         {
             logMessage(QString("  -> Removed %1 duplicate textures")
                 .arg(_lastTexturePackage.duplicatesRemoved));
+        }
+
+        if (isGLB)
+        {
+            logMessage("  -> Note: Textures will be embedded in GLB and folder will be cleaned up");
         }
     }
     else
@@ -187,6 +199,41 @@ aiReturn AssImpMeshExporter::exportMeshes(
     logMessage(QString("  -> Materials: %1").arg(aiMaterials.size()));
     logMessage(QString("  -> Textures: %1").arg(_lastTexturePackage.textures.size()));
 
+    // ===== STEP 5: Cleanup texture folder for GLB exports =====
+    if (isGLB && settings.copyTextures && !_lastTexturePackage.textures.empty())
+    {
+        logMessage("Step 5: Cleaning up texture folder (textures embedded in GLB)...");
+
+        QString texturesDir = settings.outputDirectory + "/textures";
+        QDir dir(texturesDir);
+
+        if (dir.exists())
+        {
+            // Remove all files in the textures directory
+            QStringList files = dir.entryList(QDir::Files);
+            int removedCount = 0;
+
+            for (const QString& file : files)
+            {
+                if (dir.remove(file))
+                {
+                    removedCount++;
+                }
+            }
+
+            // Remove the empty textures directory
+            if (dir.rmdir(texturesDir))
+            {
+                logMessage(QString("  -> Removed textures folder (%1 files cleaned up)")
+                    .arg(removedCount));
+            }
+            else
+            {
+                logWarning("  -> Could not remove textures folder");
+            }
+        }
+    }
+
     return aiReturn_SUCCESS;
 }
 
@@ -276,6 +323,12 @@ aiReturn AssImpMeshExporter::exportScene(
 
     _currentSettings = settings;
 
+    // Check if this is a GLB export (for embedding and cleanup)
+    QString exportFilePath = QString::fromStdString(exportPath);
+    QFileInfo exportFileInfo(exportFilePath);
+    QString ext = exportFileInfo.suffix().toLower();
+    bool isGLB = (ext == "glb" || ext == "gltf-binary");
+
     // ===== STEP 1: Package textures =====
     if (settings.copyTextures && !meshes.empty())
     {
@@ -293,6 +346,11 @@ aiReturn AssImpMeshExporter::exportScene(
             logMessage(QString("  -> Total size: %1 MB")
                 .arg(_lastTexturePackage.totalSize / (1024.0 * 1024.0), 0, 'f', 2));
         }
+
+        if (isGLB)
+        {
+            logMessage("  -> Note: Textures will be embedded in GLB and folder will be cleaned up");
+        }
     }
     else
     {
@@ -306,12 +364,8 @@ aiReturn AssImpMeshExporter::exportScene(
     // ===== STEP 3: Embed textures in scene (CRITICAL FOR GLB) =====
     logMessage("Step 3: Embedding textures in scene...");
 
-    QString exportFilePath = QString::fromStdString(exportPath);
-    QFileInfo exportFileInfo(exportFilePath);
-    QString ext = exportFileInfo.suffix().toLower();
-
-    // Only embed for GLB export
-    if (ext == "glb" || ext == "gltf-binary")
+    // Only embed for GLB export (ext already determined in STEP 1)
+    if (isGLB)
     {
         embedTexturesInScene(scene, _lastTexturePackage);
     }
@@ -362,6 +416,87 @@ aiReturn AssImpMeshExporter::exportScene(
     logMessage(QString("  -> Meshes: %1").arg(scene->mNumMeshes));
     logMessage(QString("  -> Materials: %1").arg(scene->mNumMaterials));
     logMessage(QString("  -> Embedded textures: %1").arg(scene->mNumTextures));
+
+    // ===== STEP 5: Post-process glTF/GLB to add missing optional properties and write transforms =====
+    logMessage("Step 5: Post-processing exported file with material transforms...");
+
+    auto logCallback = [this](const QString& msg) {
+        logMessage(msg);
+        };
+
+    if (isGLB)
+    {
+        if (GltfPostProcessor::postProcessGlbFileWithMaterials(exportFilePath, meshes, logCallback))
+        {
+            logMessage("  -> Post-processing complete");
+        }
+        else
+        {
+            logWarning("  -> Post-processing failed (file may still be valid)");
+        }
+    }
+    else if (ext == "gltf")
+    {
+        if (GltfPostProcessor::postProcessGltfFileWithMaterials(exportFilePath, meshes, logCallback))
+        {
+            logMessage("  -> Post-processing complete");
+        }
+        else
+        {
+            logWarning("  -> Post-processing failed (file may still be valid)");
+        }
+    }
+
+    // ===== STEP 6: Cleanup texture folder for GLB exports =====
+    // NOTE: Only delete textures folder if we're ONLY exporting GLB
+    // If a .gltf file might also exist, keep the textures folder
+    if (isGLB && settings.copyTextures && !_lastTexturePackage.textures.empty())
+    {
+        // Check if a .gltf file exists alongside this .glb
+        QString gltfPath = exportFilePath;
+        gltfPath.replace(".glb", ".gltf");
+
+        bool hasGltfFile = QFileInfo(gltfPath).exists();
+
+        if (!hasGltfFile)
+        {
+            // Safe to delete - only GLB exists
+            logMessage("Step 6: Cleaning up texture folder (textures embedded in GLB, no .gltf file)...");
+
+            QString texturesDir = settings.outputDirectory + "/textures";
+            QDir dir(texturesDir);
+
+            if (dir.exists())
+            {
+                // Remove all files in the textures directory
+                QStringList files = dir.entryList(QDir::Files);
+                int removedCount = 0;
+
+                for (const QString& file : files)
+                {
+                    if (dir.remove(file))
+                    {
+                        removedCount++;
+                    }
+                }
+
+                // Remove the empty textures directory
+                if (dir.rmdir(texturesDir))
+                {
+                    logMessage(QString("  -> Removed textures folder (%1 files cleaned up)")
+                        .arg(removedCount));
+                }
+                else
+                {
+                    logWarning("  -> Could not remove textures folder");
+                }
+            }
+        }
+        else
+        {
+            logMessage("Step 6: Keeping texture folder (needed for existing .gltf file)");
+        }
+    }
 
     return aiReturn_SUCCESS;
 }
@@ -790,9 +925,33 @@ void AssImpMeshExporter::assignTexturesToMaterial(
         aiString aiPath(texturePath.toStdString());
         aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(assimpType, 0));
 
-        logMessage(QString("     -> %1: %2")
+        // CRITICAL: Set texture coordinate set index (defaults to 0)
+        // Without this, release builds may use uninitialized memory
+        int uvIndex = tex.texCoordIndex;
+        aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(assimpType, 0));
+
+        // Set texture mapping mode to wrap (defaults)
+        int mappingModeU = aiTextureMapMode_Wrap;
+        int mappingModeV = aiTextureMapMode_Wrap;
+        aiMat->AddProperty(&mappingModeU, 1, AI_MATKEY_MAPPINGMODE_U(assimpType, 0));
+        aiMat->AddProperty(&mappingModeV, 1, AI_MATKEY_MAPPINGMODE_V(assimpType, 0));
+
+        // Set UV transform (scale, offset, rotation)
+        // This is critical for glTF export with KHR_texture_transform
+        aiUVTransform uvTransform;
+        uvTransform.mTranslation = aiVector2D(tex.offset.x, tex.offset.y);
+        uvTransform.mScaling = aiVector2D(tex.scale.x, tex.scale.y);
+        uvTransform.mRotation = tex.rotation;
+        aiMat->AddProperty(&uvTransform, 1, AI_MATKEY_UVTRANSFORM(assimpType, 0));
+
+        logMessage(QString("     -> %1: %2 (UV: scale=[%3,%4] offset=[%5,%6] rotation=%7)")
             .arg(GLMaterial::textureTypeToString(modelViewerType))
-            .arg(texturePath));
+            .arg(texturePath)
+            .arg(tex.scale.x)
+            .arg(tex.scale.y)
+            .arg(tex.offset.x)
+            .arg(tex.offset.y)
+            .arg(tex.rotation));
     }
 }
 
@@ -808,228 +967,228 @@ void AssImpMeshExporter::assignTexturesToMaterial(
  * @param scene The Assimp scene whose materials will be updated
  * @param meshes The original ModelViewer mesh objects
  */
- void AssImpMeshExporter::applyMaterialsToScene(
-     aiScene* scene,
-     const std::vector<TriangleMesh*>& meshes,
-     const QString& exportFileLocation)  // NEW parameter
- {
-     if (!scene || meshes.empty())
-     {
-         logWarning("applyMaterialsToScene: Invalid input");
-         return;
-     }
+void AssImpMeshExporter::applyMaterialsToScene(
+    aiScene* scene,
+    const std::vector<TriangleMesh*>& meshes,
+    const QString& exportFileLocation)  // NEW parameter
+{
+    if (!scene || meshes.empty())
+    {
+        logWarning("applyMaterialsToScene: Invalid input");
+        return;
+    }
 
-     unsigned int materialCount = std::min(static_cast<unsigned int>(meshes.size()), scene->mNumMeshes);
-     std::vector<aiMaterial*> newMaterials;
-     newMaterials.reserve(materialCount);
+    unsigned int materialCount = std::min(static_cast<unsigned int>(meshes.size()), scene->mNumMeshes);
+    std::vector<aiMaterial*> newMaterials;
+    newMaterials.reserve(materialCount);
 
-     for (unsigned int i = 0; i < materialCount; ++i)
-     {
-         const TriangleMesh* mesh = meshes[i];
-         if (!mesh)
-         {
-             logWarning(QString("Mesh at index %1 is null").arg(i));
-             continue;
-         }
+    for (unsigned int i = 0; i < materialCount; ++i)
+    {
+        const TriangleMesh* mesh = meshes[i];
+        if (!mesh)
+        {
+            logWarning(QString("Mesh at index %1 is null").arg(i));
+            continue;
+        }
 
-         // Create material with export location context
-         const GLMaterial& glMat = mesh->getMaterial();
-         aiMaterial* aiMat = createMaterial(glMat, _lastTexturePackage, exportFileLocation);
+        // Create material with export location context
+        const GLMaterial& glMat = mesh->getMaterial();
+        aiMaterial* aiMat = createMaterial(glMat, _lastTexturePackage, exportFileLocation);
 
-         if (!aiMat)
-         {
-             logError(QString("Failed to create material for: %1").arg(mesh->getName()));
-             continue;
-         }
+        if (!aiMat)
+        {
+            logError(QString("Failed to create material for: %1").arg(mesh->getName()));
+            continue;
+        }
 
-         newMaterials.push_back(aiMat);
+        newMaterials.push_back(aiMat);
 
-         if (i < scene->mNumMeshes && scene->mMeshes[i])
-         {
-             scene->mMeshes[i]->mMaterialIndex = static_cast<unsigned int>(newMaterials.size() - 1);
-             logMessage(QString("  -> Material applied: %1").arg(mesh->getName()));
-         }
-     }
+        if (i < scene->mNumMeshes && scene->mMeshes[i])
+        {
+            scene->mMeshes[i]->mMaterialIndex = static_cast<unsigned int>(newMaterials.size() - 1);
+            logMessage(QString("  -> Material applied: %1").arg(mesh->getName()));
+        }
+    }
 
-     // Replace scene materials
-     if (!newMaterials.empty())
-     {
-         for (unsigned int i = 0; i < scene->mNumMaterials; ++i)
-         {
-             delete scene->mMaterials[i];
-         }
-         delete[] scene->mMaterials;
+    // Replace scene materials
+    if (!newMaterials.empty())
+    {
+        for (unsigned int i = 0; i < scene->mNumMaterials; ++i)
+        {
+            delete scene->mMaterials[i];
+        }
+        delete[] scene->mMaterials;
 
-         scene->mNumMaterials = static_cast<unsigned int>(newMaterials.size());
-         scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
-         std::copy(newMaterials.begin(), newMaterials.end(), scene->mMaterials);
+        scene->mNumMaterials = static_cast<unsigned int>(newMaterials.size());
+        scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
+        std::copy(newMaterials.begin(), newMaterials.end(), scene->mMaterials);
 
-         logMessage(QString("  -> Scene updated: %1 materials").arg(scene->mNumMaterials));
-     }
- }
+        logMessage(QString("  -> Scene updated: %1 materials").arg(scene->mNumMaterials));
+    }
+}
 
- /**
-  * Load image file and return as aiTexture with embedded data
-  *
-  * This creates an Assimp texture object that contains the actual image data,
-  * ready to be embedded in the exported file.
-  */
- aiTexture* AssImpMeshExporter::createEmbeddedTexture(const QString& imagePath)
- {
-     QFileInfo fi(imagePath);
+/**
+ * Load image file and return as aiTexture with embedded data
+ *
+ * This creates an Assimp texture object that contains the actual image data,
+ * ready to be embedded in the exported file.
+ */
+aiTexture* AssImpMeshExporter::createEmbeddedTexture(const QString& imagePath)
+{
+    QFileInfo fi(imagePath);
 
-     if (!fi.exists() || !fi.isFile())
-     {
-         logWarning(QString("Texture file not found: %1").arg(imagePath));
-         return nullptr;
-     }
+    if (!fi.exists() || !fi.isFile())
+    {
+        logWarning(QString("Texture file not found: %1").arg(imagePath));
+        return nullptr;
+    }
 
-     // Read the file as binary data (keep original PNG/JPEG format)
-     QFile file(imagePath);
-     if (!file.open(QIODevice::ReadOnly))
-     {
-         logWarning(QString("Failed to open texture file: %1").arg(imagePath));
-         return nullptr;
-     }
+    // Read the file as binary data (keep original PNG/JPEG format)
+    QFile file(imagePath);
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        logWarning(QString("Failed to open texture file: %1").arg(imagePath));
+        return nullptr;
+    }
 
-     QByteArray fileData = file.readAll();
-     file.close();
+    QByteArray fileData = file.readAll();
+    file.close();
 
-     if (fileData.isEmpty())
-     {
-         logWarning(QString("Texture file is empty: %1").arg(imagePath));
-         return nullptr;
-     }
+    if (fileData.isEmpty())
+    {
+        logWarning(QString("Texture file is empty: %1").arg(imagePath));
+        return nullptr;
+    }
 
-     // Create Assimp texture for compressed data
-     aiTexture* texture = new aiTexture();
+    // Create Assimp texture for compressed data
+    aiTexture* texture = new aiTexture();
 
-     // Store filename
-     texture->mFilename = aiString(fi.fileName().toStdString());
+    // Store filename
+    texture->mFilename = aiString(fi.fileName().toStdString());
 
-     // For compressed data: set mHeight = 0, mWidth = file size
-     texture->mHeight = 0;  // Indicates compressed format
-     texture->mWidth = static_cast<unsigned int>(fileData.size());
+    // For compressed data: set mHeight = 0, mWidth = file size
+    texture->mHeight = 0;  // Indicates compressed format
+    texture->mWidth = static_cast<unsigned int>(fileData.size());
 
-     // Allocate and copy compressed data
-     texture->pcData = reinterpret_cast<aiTexel*>(new unsigned char[fileData.size()]);
-     memcpy(texture->pcData, fileData.data(), fileData.size());
+    // Allocate and copy compressed data
+    texture->pcData = reinterpret_cast<aiTexel*>(new unsigned char[fileData.size()]);
+    memcpy(texture->pcData, fileData.data(), fileData.size());
 
-     // Set format hint based on file extension
-     QString ext = fi.suffix().toLower();
-     if (ext == "png")
-     {
-         texture->achFormatHint[0] = 'p';
-         texture->achFormatHint[1] = 'n';
-         texture->achFormatHint[2] = 'g';
-         texture->achFormatHint[3] = '\0';
-     }
-     else if (ext == "jpg" || ext == "jpeg")
-     {
-         texture->achFormatHint[0] = 'j';
-         texture->achFormatHint[1] = 'p';
-         texture->achFormatHint[2] = 'g';
-         texture->achFormatHint[3] = '\0';
-     }
+    // Set format hint based on file extension
+    QString ext = fi.suffix().toLower();
+    if (ext == "png")
+    {
+        texture->achFormatHint[0] = 'p';
+        texture->achFormatHint[1] = 'n';
+        texture->achFormatHint[2] = 'g';
+        texture->achFormatHint[3] = '\0';
+    }
+    else if (ext == "jpg" || ext == "jpeg")
+    {
+        texture->achFormatHint[0] = 'j';
+        texture->achFormatHint[1] = 'p';
+        texture->achFormatHint[2] = 'g';
+        texture->achFormatHint[3] = '\0';
+    }
 
-     logMessage(QString("  -> Embedded texture: %1 (%2 bytes)")
-         .arg(fi.fileName())
-         .arg(fileData.size()));
+    logMessage(QString("  -> Embedded texture: %1 (%2 bytes)")
+        .arg(fi.fileName())
+        .arg(fileData.size()));
 
-     return texture;
- }
+    return texture;
+}
 
- /**
-  * Embed all textures from scene materials into aiScene->mTextures
-  *
-  * This walks through all materials, finds referenced texture files,
-  * loads them, and attaches to the scene so they get embedded in export.
-  */
- void AssImpMeshExporter::embedTexturesInScene(
-     aiScene* scene,
-     const TexturePackage& texturePackage)
- {
-     if (!scene)
-     {
-         logError("Scene is null");
-         return;
-     }
+/**
+ * Embed all textures from scene materials into aiScene->mTextures
+ *
+ * This walks through all materials, finds referenced texture files,
+ * loads them, and attaches to the scene so they get embedded in export.
+ */
+void AssImpMeshExporter::embedTexturesInScene(
+    aiScene* scene,
+    const TexturePackage& texturePackage)
+{
+    if (!scene)
+    {
+        logError("Scene is null");
+        return;
+    }
 
-     logMessage("Step: Embedding textures into scene...");
+    logMessage("Step: Embedding textures into scene...");
 
-     std::vector<aiTexture*> textures;
-     std::set<QString> processedPaths;  // Avoid duplicates
+    std::vector<aiTexture*> textures;
+    std::set<QString> processedPaths;  // Avoid duplicates
 
-     // Iterate through all materials and collect unique texture paths
-     for (unsigned int matIdx = 0; matIdx < scene->mNumMaterials; ++matIdx)
-     {
-         aiMaterial* mat = scene->mMaterials[matIdx];
-         if (!mat) continue;
+    // Define texture types to check
+    const aiTextureType texTypes[] = {
+        aiTextureType_BASE_COLOR,
+        aiTextureType_NORMALS,
+        aiTextureType_METALNESS,
+        aiTextureType_DIFFUSE_ROUGHNESS,
+        aiTextureType_LIGHTMAP,
+        aiTextureType_EMISSIVE,
+        aiTextureType_TRANSMISSION,
+        aiTextureType_OPACITY,
+        aiTextureType_HEIGHT,
+        aiTextureType_CLEARCOAT,
+        aiTextureType_SHEEN
+    };
 
-         // Check all standard texture types
-         const aiTextureType texTypes[] = {
-             aiTextureType_BASE_COLOR,
-             aiTextureType_NORMALS,
-             aiTextureType_METALNESS,
-             aiTextureType_DIFFUSE_ROUGHNESS,
-             aiTextureType_LIGHTMAP,
-             aiTextureType_EMISSIVE,
-             aiTextureType_TRANSMISSION,
-             aiTextureType_OPACITY,
-             aiTextureType_HEIGHT,
-             aiTextureType_CLEARCOAT,
-             aiTextureType_SHEEN
-         };
+    // Iterate through all materials and collect unique texture paths
+    for (unsigned int matIdx = 0; matIdx < scene->mNumMaterials; ++matIdx)
+    {
+        aiMaterial* mat = scene->mMaterials[matIdx];
+        if (!mat) continue;
 
-         for (aiTextureType texType : texTypes)
-         {
-             aiString texPath;
-             if (mat->GetTexture(texType, 0, &texPath) == aiReturn_SUCCESS)
-             {
-                 QString path = QString::fromLocal8Bit(texPath.C_Str());
+        for (aiTextureType texType : texTypes)
+        {
+            aiString texPath;
+            if (mat->GetTexture(texType, 0, &texPath) == aiReturn_SUCCESS)
+            {
+                QString path = QString::fromLocal8Bit(texPath.C_Str());
 
-                 // Skip if already processed
-                 if (processedPaths.count(path))
-                 {
-                     continue;
-                 }
-                 processedPaths.insert(path);
+                // Skip if already processed
+                if (processedPaths.count(path))
+                {
+                    continue;
+                }
+                processedPaths.insert(path);
 
-                 QString fullPath = path;
+                QString fullPath = path;
 
-                 // Try to find in output directory by filename
-                 QFileInfo fi(path);
-                 QString candidate = _currentSettings.outputDirectory + "/textures/" + fi.fileName();
-                 if (QFileInfo(candidate).exists())
-                 {
-                     fullPath = candidate;
-                 }
-                 else
-                 {
-                     // Fallback: assume it's a direct path
-                     fullPath = path;
-                 }
+                // Try to find in output directory by filename
+                QFileInfo fi(path);
+                QString candidate = _currentSettings.outputDirectory + "/textures/" + fi.fileName();
+                if (QFileInfo(candidate).exists())
+                {
+                    fullPath = candidate;
+                }
+                else
+                {
+                    // Fallback: assume it's a direct path
+                    fullPath = path;
+                }
 
-                 // Load and embed
-                 aiTexture* texture = createEmbeddedTexture(fullPath);
-                 if (texture)
-                 {
-                     textures.push_back(texture);
-                 }
-             }
-         }
-     }
+                // Load and embed
+                aiTexture* texture = createEmbeddedTexture(fullPath);
+                if (texture)
+                {
+                    textures.push_back(texture);
+                }
+            }
+        }
+    }
 
-     // Attach textures to scene
-     if (!textures.empty())
-     {
-         scene->mNumTextures = static_cast<unsigned int>(textures.size());
-         scene->mTextures = new aiTexture * [scene->mNumTextures];
-         std::copy(textures.begin(), textures.end(), scene->mTextures);
+    // Attach textures to scene
+    if (!textures.empty())
+    {
+        scene->mNumTextures = static_cast<unsigned int>(textures.size());
+        scene->mTextures = new aiTexture * [scene->mNumTextures];
+        std::copy(textures.begin(), textures.end(), scene->mTextures);
 
-         logMessage(QString("  -> Embedded %1 textures in scene").arg(textures.size()));
-     }
- }
+        logMessage(QString("  -> Embedded %1 textures in scene").arg(textures.size()));
+    }
+}
 
 aiScene* AssImpMeshExporter::createScene(
     const std::vector<aiMesh*>& meshes,
