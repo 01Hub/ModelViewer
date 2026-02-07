@@ -1289,9 +1289,14 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         }
     }
 
+    // FIX: Correct normalTexture.scale (Assimp doesn't export this correctly)
+    fixNormalTextureScale(gltfJson, meshes, logCallback);
+
     // Then do standard post-processing (fills in missing properties with defaults)
     return postProcessGltfJson(gltfJson, logCallback);
-}bool GltfPostProcessor::fixTextureInfoWithTransforms(QJsonObject& parent, const QString& key)
+}
+
+bool GltfPostProcessor::fixTextureInfoWithTransforms(QJsonObject& parent, const QString& key)
 {
     if (!parent.contains(key))
         return false;
@@ -1427,6 +1432,51 @@ bool GltfPostProcessor::fixOcclusionTextureInfo(QJsonObject& parent, const QStri
     if (fixTextureInfoWithTransforms(parent, key))
     {
         modified = true;
+    }
+
+    return modified;
+}
+
+bool GltfPostProcessor::fixNormalTextureScale(
+    QJsonObject& gltfJson,
+    const std::vector<TriangleMesh*>& meshes,
+    std::function<void(const QString&)> logCallback)
+{
+    bool modified = false;
+
+    if (!gltfJson.contains("materials") || meshes.empty())
+        return false;
+
+    QJsonArray materials = gltfJson["materials"].toArray();
+
+    for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
+    {
+        if (!meshes[i]) continue;
+
+        const GLMaterial& glMat = meshes[i]->getMaterial();
+        QJsonObject mat = materials[i].toObject();
+
+        // Fix normalTexture.scale if present
+        if (mat.contains("normalTexture"))
+        {
+            QJsonObject normalTex = mat["normalTexture"].toObject();
+            float normalScale = glMat.normalScale();
+
+            // Write the scale (always write it, overriding Assimp's incorrect value)
+            normalTex["scale"] = static_cast<double>(normalScale);
+            mat["normalTexture"] = normalTex;
+            materials[i] = mat;
+            modified = true;
+
+            log(QString("  -> Set normalTexture.scale to %1 for material %2")
+                .arg(normalScale).arg(i), logCallback);
+        }
+    }
+
+    if (modified)
+    {
+        gltfJson["materials"] = materials;  // CRITICAL: Write materials back!
+        log("  -> normalTexture.scale values updated", logCallback);
     }
 
     return modified;

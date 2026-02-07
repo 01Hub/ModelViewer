@@ -111,6 +111,10 @@ private:
     static bool fixTextureInfoWithTransforms(QJsonObject& parent, const QString& key);
     static bool fixNormalTextureInfo(QJsonObject& parent, const QString& key);
     static bool fixOcclusionTextureInfo(QJsonObject& parent, const QString& key);
+    static bool fixNormalTextureScale(
+        QJsonObject& gltfJson,
+        const std::vector<TriangleMesh*>& meshes,
+        std::function<void(const QString&)> logCallback);
     static void log(const QString& message, std::function<void(const QString&)> callback);
 };
 
