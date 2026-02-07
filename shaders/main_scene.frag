@@ -3236,31 +3236,51 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0, vec3 F90)
 // Robust calcBumpedNormal: uses provided mesh tangent & bitangent, preserves handedness
 vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 {
-	// base geometric normal (world space)
-	vec3 N = normalize(v_normal);
-
-	// Use mesh-provided tangent and bitangent if available
-	// Make tangent orthogonal to normal
-	vec3 T = normalize(v_tangent - dot(v_tangent, N) * N);
-
-	// Prefer using the provided bitangent (v_bitangent) instead of computing cross(N, T)
-	// but orthogonalize it too
-	vec3 B = normalize(v_bitangent - dot(v_bitangent, N) * N);
-
-	// Ensure T, B, N form a right-handed basis; if not, flip B
-	float handedness = sign(dot(cross(T, B), N));
-	if (handedness < 0.0)
-	{
-		B = -B;
-	}
-
-	mat3 TBN = mat3(T, B, N);
-
-	vec3 bumpMapNormal = texture(map, texCoord).rgb;
-	bumpMapNormal = bumpMapNormal * 2.0 - 1.0;
-
-	vec3 Nw = normalize(TBN * bumpMapNormal);
-	return Nw;
+    // base geometric normal (world space)
+    vec3 N = normalize(v_normal);
+    
+    // Check if we have valid tangent data
+    bool hasTangents = (length(v_tangent) > 0.01);
+    
+    vec3 T, B;
+    
+    if (hasTangents)
+    {
+        // Use mesh-provided tangent and bitangent
+        // Make tangent orthogonal to normal
+        T = normalize(v_tangent - dot(v_tangent, N) * N);
+        
+        // Prefer using the provided bitangent (v_bitangent) instead of computing cross(N, T)
+        // but orthogonalize it too
+        B = normalize(v_bitangent - dot(v_bitangent, N) * N);
+        
+        // Ensure T, B, N form a right-handed basis; if not, flip B
+        float handedness = sign(dot(cross(T, B), N));
+        if (handedness < 0.0)
+        {
+            B = -B;
+        }
+    }
+    else
+    {
+        // FALLBACK: Compute tangent space from screen-space derivatives
+        // This is the same technique as getNormalFromMap
+        vec3 Q1 = dFdx(v_position);
+        vec3 Q2 = dFdy(v_position);
+        vec2 st1 = dFdx(texCoord);
+        vec2 st2 = dFdy(texCoord);
+        
+        T = normalize(Q1 * st2.t - Q2 * st1.t);
+        B = -normalize(cross(N, T));
+    }
+    
+    mat3 TBN = mat3(T, B, N);
+    
+    vec3 bumpMapNormal = texture(map, texCoord).rgb;
+    bumpMapNormal = bumpMapNormal * 2.0 - 1.0;
+    
+    vec3 Nw = normalize(TBN * bumpMapNormal);
+    return Nw;
 }
 
 

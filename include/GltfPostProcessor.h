@@ -103,6 +103,10 @@ public:
         const std::vector<TriangleMesh*>& meshes,
         std::function<void(const QString&)> logCallback = nullptr);
 
+    static bool removeTangentAttributes(
+        QJsonObject& gltfJson,
+        std::function<void(const QString&)> logCallback = nullptr);
+
 private:
     static bool fixTextureInfoWithTransforms(QJsonObject& parent, const QString& key);
     static bool fixNormalTextureInfo(QJsonObject& parent, const QString& key);

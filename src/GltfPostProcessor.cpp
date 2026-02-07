@@ -684,12 +684,75 @@ bool GltfPostProcessor::postProcessGlbFileWithMaterials(
     return true;
 }
 
+// Remove TANGENT attributes from all mesh primitives
+// This works around an Assimp bug where glTF files with TANGENT attribute
+// fail to load correctly in release builds (UVs get corrupted)
+bool GltfPostProcessor::removeTangentAttributes(
+    QJsonObject& gltfJson,
+    std::function<void(const QString&)> logCallback)
+{
+    bool modified = false;
+
+    if (!gltfJson.contains("meshes"))
+        return false;
+
+    QJsonArray meshes = gltfJson["meshes"].toArray();
+
+    for (int i = 0; i < meshes.size(); ++i)
+    {
+        QJsonObject mesh = meshes[i].toObject();
+
+        if (!mesh.contains("primitives"))
+            continue;
+
+        QJsonArray primitives = mesh["primitives"].toArray();
+
+        for (int j = 0; j < primitives.size(); ++j)
+        {
+            QJsonObject prim = primitives[j].toObject();
+
+            if (!prim.contains("attributes"))
+                continue;
+
+            QJsonObject attributes = prim["attributes"].toObject();
+
+            // Remove TANGENT attribute if present
+            if (attributes.contains("TANGENT"))
+            {
+                attributes.remove("TANGENT");
+                prim["attributes"] = attributes;
+                primitives[j] = prim;
+                modified = true;
+
+                log(QString("  -> Removed TANGENT from mesh %1, primitive %2")
+                    .arg(i).arg(j), logCallback);
+            }
+        }
+
+        if (modified)
+        {
+            mesh["primitives"] = primitives;
+            meshes[i] = mesh;
+        }
+    }
+
+    if (modified)
+    {
+        gltfJson["meshes"] = meshes;
+        log("  -> TANGENT attributes removed from glTF", logCallback);
+    }
+
+    return modified;
+}
+
 bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     QJsonObject& gltfJson,
     const std::vector<TriangleMesh*>& meshes,
     std::function<void(const QString&)> logCallback)
 {
     log("=== glTF Post-Processor (with material transforms) ===", logCallback);
+
+    removeTangentAttributes(gltfJson, logCallback);
 
     // First, write actual transforms from source materials
     if (gltfJson.contains("materials") && !meshes.empty())
