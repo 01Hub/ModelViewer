@@ -190,7 +190,8 @@ private:
         aiMaterial* aiMat,
         const GLMaterial& material,
         const TexturePackage& texturePackage,      
-        bool useEmbeddedTextures);
+        bool useEmbeddedTextures,
+        const QString& exportFileLocation);
 
     /**
      * Helper: Apply materials from ModelViewer meshes to Assimp scene

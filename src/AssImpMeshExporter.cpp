@@ -723,7 +723,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
         }
     }
 
-    // KHR_materials_emissive_strength    
+    // KHR_materials_emissive_strength
     {
         float emissiveStrength = material.emissiveStrength();
         if (std::abs(emissiveStrength - 1.0f) > 0.001f)
@@ -732,11 +732,11 @@ aiMaterial* AssImpMeshExporter::createMaterial(
             logMessage(QString("     -> emissiveStrength: %1").arg(emissiveStrength));
         }
     }
-    
+
 
     // ===== PHASE 3: ADVANCED EXTENSIONS =====
 
-    // KHR_materials_clearcoat    
+    // KHR_materials_clearcoat
     {
         float clearcoat = material.clearcoat();
         if (clearcoat > 0.0f)
@@ -749,9 +749,9 @@ aiMaterial* AssImpMeshExporter::createMaterial(
             logMessage(QString("     -> clearcoat: %1, roughness: %2")
                 .arg(clearcoat).arg(clearcoatRoughness));
         }
-    }    
+    }
 
-    // KHR_materials_sheen    
+    // KHR_materials_sheen
     {
         QVector3D sheenColor = material.sheenColor();
         if (sheenColor.length() > 0.0f)
@@ -766,9 +766,9 @@ aiMaterial* AssImpMeshExporter::createMaterial(
                 .arg(sheenColor.x()).arg(sheenColor.y()).arg(sheenColor.z())
                 .arg(sheenRoughness));
         }
-    }    
+    }
 
-    // KHR_materials_iridescence    
+    // KHR_materials_iridescence
     {
         float iridescence = material.iridescenceFactor();
         if (iridescence > 0.0f)
@@ -790,7 +790,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
 
     // ===== PHASE 4: SPECIALIZED EXTENSIONS =====
 
-    // KHR_materials_volume        
+    // KHR_materials_volume
     {
         float thickness = material.thicknessFactor();
         if (thickness > 0.0f)
@@ -807,9 +807,9 @@ aiMaterial* AssImpMeshExporter::createMaterial(
             logMessage(QString("     -> volume: thickness=%1, attenuationDist=%2")
                 .arg(thickness).arg(attenuationDist));
         }
-    }    
+    }
 
-    // KHR_materials_specular   
+    // KHR_materials_specular
     {
         float specularFactor = material.specularFactor();
         QVector3D specularColorFactor = material.specularColorFactor();
@@ -828,7 +828,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
         }
     }
 
-    // KHR_materials_anisotropy    
+    // KHR_materials_anisotropy
     {
         float anisotropyStrength = material.anisotropyStrength();
         if (anisotropyStrength > 0.0f)
@@ -843,7 +843,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
         }
     }
 
-    // KHR_materials_dispersion    
+    // KHR_materials_dispersion
     {
         float dispersion = material.dispersion();
         if (dispersion > 0.0f)
@@ -853,7 +853,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
         }
     }
 
-    // KHR_materials_unlit   
+    // KHR_materials_unlit
     {
         bool unlit = material.isUnlit();
         if (unlit)
@@ -862,7 +862,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
             aiMat->AddProperty(&unlitInt, 1, "$mat.gltf.unlit", 0, 0);
             logMessage(QString("     -> unlit: true"));
         }
-    }   
+    }
 
     {
         float emissiveStrength = material.emissiveStrength();
@@ -929,7 +929,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
     }
 
     // ===== TEXTURES (NEW: Pass exportFileLocation) =====
-    assignTexturesToMaterial(aiMat, material, texturePackage, true);
+    assignTexturesToMaterial(aiMat, material, texturePackage, true, exportFileLocation);
 
     return aiMat;
 }
@@ -1062,26 +1062,73 @@ void AssImpMeshExporter::assignTexturesToMaterial(
     aiMaterial* aiMat,
     const GLMaterial& material,
     const TexturePackage& texturePackage,
-    bool useEmbeddedTextures)
+    bool useEmbeddedTextures,
+    const QString& exportFileLocation)
 {
     logMessage(QString("  -> Assigning textures to material..."));
 
-    const std::vector<std::pair<GLMaterial::TextureType, aiTextureType>> textureMappings = {
-        {GLMaterial::TextureType::Albedo, aiTextureType_BASE_COLOR},
-        {GLMaterial::TextureType::Metallic, aiTextureType_METALNESS},
-        {GLMaterial::TextureType::Roughness, aiTextureType_DIFFUSE_ROUGHNESS},
-        {GLMaterial::TextureType::Normal, aiTextureType_NORMALS},
-        {GLMaterial::TextureType::AmbientOcclusion, aiTextureType_LIGHTMAP},
-        {GLMaterial::TextureType::Emissive, aiTextureType_EMISSIVE},
-        {GLMaterial::TextureType::Transmission, aiTextureType_TRANSMISSION},
-        {GLMaterial::TextureType::Opacity, aiTextureType_OPACITY},
-        {GLMaterial::TextureType::Height, aiTextureType_HEIGHT},
-        {GLMaterial::TextureType::ClearcoatColor, aiTextureType_CLEARCOAT},
-        {GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT},
-        {GLMaterial::TextureType::ClearcoatNormal, aiTextureType_CLEARCOAT},
-        {GLMaterial::TextureType::SheenColor, aiTextureType_SHEEN},
-        {GLMaterial::TextureType::SheenRoughness, aiTextureType_SHEEN},
-    };
+    // Detect export format
+    QFileInfo fileInfo(exportFileLocation);
+    QString ext = fileInfo.suffix().toLower();
+    bool isGLTF = (ext == "gltf" || ext == "glb");
+
+    // IMPORTANT: glTF texture handling notes:
+    // 1. Metallic and Roughness MUST use the SAME texture (metallicRoughnessTexture)
+    //    - Blue channel = metallic
+    //    - Green channel = roughness
+    // 2. Opacity/transparency is in the ALPHA channel of baseColorTexture, NOT a separate texture
+
+    // Check if metallic and roughness use the same texture (for glTF)
+    const auto& metallicTex = material.texture(GLMaterial::TextureType::Metallic);
+    const auto& roughnessTex = material.texture(GLMaterial::TextureType::Roughness);
+    bool hasMetallicRoughness = !metallicTex.path.empty() || !roughnessTex.path.empty();
+
+    // For proper glTF export, metallic and roughness should point to the same texture
+    // If they're different (which shouldn't happen for glTF), use metallic texture
+    std::string metallicRoughnessPath = !metallicTex.path.empty() ? metallicTex.path : roughnessTex.path;
+
+    // Build texture mappings based on format
+    std::vector<std::pair<GLMaterial::TextureType, aiTextureType>> textureMappings;
+
+    if (isGLTF)
+    {
+        // glTF-specific mappings
+        textureMappings = {
+            {GLMaterial::TextureType::Albedo, aiTextureType_BASE_COLOR},
+            // Note: Metallic and Roughness are handled specially for glTF (combined texture)
+            {GLMaterial::TextureType::Normal, aiTextureType_NORMALS},
+            {GLMaterial::TextureType::AmbientOcclusion, aiTextureType_LIGHTMAP},
+            {GLMaterial::TextureType::Emissive, aiTextureType_EMISSIVE},
+            {GLMaterial::TextureType::Transmission, aiTextureType_TRANSMISSION},
+            // Note: Opacity is NOT a separate texture in glTF - it's in baseColorTexture alpha
+            {GLMaterial::TextureType::Height, aiTextureType_HEIGHT},
+            {GLMaterial::TextureType::ClearcoatColor, aiTextureType_CLEARCOAT},
+            {GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT},
+            {GLMaterial::TextureType::ClearcoatNormal, aiTextureType_CLEARCOAT},
+            {GLMaterial::TextureType::SheenColor, aiTextureType_SHEEN},
+            {GLMaterial::TextureType::SheenRoughness, aiTextureType_SHEEN},
+        };
+    }
+    else
+    {
+        // Other formats (OBJ, FBX, etc.) - use all textures including separate metallic/roughness/opacity
+        textureMappings = {
+            {GLMaterial::TextureType::Albedo, aiTextureType_BASE_COLOR},
+            {GLMaterial::TextureType::Metallic, aiTextureType_METALNESS},
+            {GLMaterial::TextureType::Roughness, aiTextureType_DIFFUSE_ROUGHNESS},
+            {GLMaterial::TextureType::Normal, aiTextureType_NORMALS},
+            {GLMaterial::TextureType::AmbientOcclusion, aiTextureType_LIGHTMAP},
+            {GLMaterial::TextureType::Emissive, aiTextureType_EMISSIVE},
+            {GLMaterial::TextureType::Transmission, aiTextureType_TRANSMISSION},
+            {GLMaterial::TextureType::Opacity, aiTextureType_OPACITY},  // Keep for non-glTF formats
+            {GLMaterial::TextureType::Height, aiTextureType_HEIGHT},
+            {GLMaterial::TextureType::ClearcoatColor, aiTextureType_CLEARCOAT},
+            {GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT},
+            {GLMaterial::TextureType::ClearcoatNormal, aiTextureType_CLEARCOAT},
+            {GLMaterial::TextureType::SheenColor, aiTextureType_SHEEN},
+            {GLMaterial::TextureType::SheenRoughness, aiTextureType_SHEEN},
+        };
+    }
 
     for (const auto& [modelViewerType, assimpType] : textureMappings)
     {
@@ -1147,6 +1194,48 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             .arg(tex.offset.x)
             .arg(tex.offset.y)
             .arg(tex.rotation));
+    }
+
+    // ===== METALLIC-ROUGHNESS COMBINED TEXTURE (glTF ONLY) =====
+    // In glTF, metallic and roughness MUST be in the same texture
+    // Blue channel = metallic, Green channel = roughness
+    // For other formats, they were already handled as separate textures above
+    if (isGLTF && hasMetallicRoughness)
+    {
+        QString originalPath = QString::fromStdString(metallicRoughnessPath);
+        auto it = texturePackage.pathMapping.find(originalPath);
+
+        if (it != texturePackage.pathMapping.end())
+        {
+            QString texturePath = it.value();
+            texturePath = texturePath.replace("\\", "/");
+
+            // Add as BOTH metalness and roughness textures
+            // Assimp should merge them into metallicRoughnessTexture
+            aiString aiPath(texturePath.toStdString());
+
+            // Use the metallic texture's properties (they should be the same for both)
+            const auto& refTex = !metallicTex.path.empty() ? metallicTex : roughnessTex;
+
+            // Add as metalness texture
+            aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_METALNESS, 0));
+            int uvIndex = refTex.texCoordIndex;
+            aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_METALNESS, 0));
+
+            // Add as roughness texture (same texture!)
+            aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE_ROUGHNESS, 0));
+            aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE_ROUGHNESS, 0));
+
+            // UV transforms
+            aiUVTransform uvTransform;
+            uvTransform.mTranslation = aiVector2D(refTex.offset.x, refTex.offset.y);
+            uvTransform.mScaling = aiVector2D(refTex.scale.x, refTex.scale.y);
+            uvTransform.mRotation = refTex.rotation;
+            aiMat->AddProperty(&uvTransform, 1, AI_MATKEY_UVTRANSFORM(aiTextureType_METALNESS, 0));
+            aiMat->AddProperty(&uvTransform, 1, AI_MATKEY_UVTRANSFORM(aiTextureType_DIFFUSE_ROUGHNESS, 0));
+
+            logMessage(QString("     -> metallicRoughnessTexture (glTF): %1").arg(texturePath));
+        }
     }
 }
 

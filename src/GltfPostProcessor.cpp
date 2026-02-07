@@ -897,6 +897,41 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 mat["emissiveFactor"] = emissiveArray;
             }
 
+            // pbrMetallicRoughness factors
+            if (mat.contains("pbrMetallicRoughness"))
+            {
+                QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
+
+                bool hasMetallicRoughnessTexture = pbr.contains("metallicRoughnessTexture");
+
+                // Handle metallicFactor
+                float metallicFactor = pbr.contains("metallicFactor") ?
+                    static_cast<float>(pbr["metallicFactor"].toDouble()) :
+                    glMat.metalness();
+
+                // CRITICAL: If texture exists but metallicFactor is 0, override to 1.0
+                // This handles cases where Assimp incorrectly exports metallicFactor: 0
+                if (hasMetallicRoughnessTexture && metallicFactor == 0.0f)
+                {
+                    metallicFactor = 1.0f;  // glTF default when texture exists
+                }
+
+                pbr["metallicFactor"] = static_cast<double>(metallicFactor);
+
+                // Handle roughnessFactor  
+                float roughnessFactor = pbr.contains("roughnessFactor") ?
+                    static_cast<float>(pbr["roughnessFactor"].toDouble()) :
+                    glMat.roughness();
+
+                // If texture exists and roughness is very low, it might be wrong
+                // But DON'T override - roughness can legitimately be 0 with a texture
+                // (The texture modulates the base roughness value)
+
+                pbr["roughnessFactor"] = static_cast<double>(roughnessFactor);
+
+                mat["pbrMetallicRoughness"] = pbr;
+            }
+
             // ===== WRITE KHR EXTENSIONS FROM SOURCE MATERIAL =====
             // Assimp doesn't handle these, so we write them directly to JSON
 
@@ -1050,8 +1085,10 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             if (hasExtensions)
             {
                 mat["extensions"] = extensions;
-                materials[i] = mat;
             }
+
+            // Always write material back (we may have modified pbrMetallicRoughness, alphaMode, etc.)
+            materials[i] = mat;
         }
 
         // Replace samplers array with our created samplers
