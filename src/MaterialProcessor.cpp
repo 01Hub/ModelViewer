@@ -125,13 +125,13 @@ void MaterialProcessor::processAssimpColorAndMaterial(aiMaterial* material, GLMa
 	// Roughness Factor
 	if (AI_SUCCESS == material->Get(AI_MATKEY_ROUGHNESS_FACTOR, value))
 	{
-		mat.setRoughness(std::clamp(value, 0.01f, 1.0f)); // Avoid zero roughness
+		mat.setRoughness(std::clamp(value, 0.0f, 1.0f));
 	}
 	else if (AI_SUCCESS == material->Get(AI_MATKEY_SHININESS, value))
 	{
 		// Convert shininess to roughness (Phong to PBR approximation)
 		float roughness = std::sqrt(2.0f / (value + 2.0f));
-		mat.setRoughness(std::clamp(roughness, 0.01f, 1.0f));
+		mat.setRoughness(std::clamp(roughness, 0.0f, 1.0f));
 	}
 	else
 	{
@@ -403,7 +403,7 @@ void MaterialProcessor::processAssimpColorAndMaterial(aiMaterial* material, GLMa
 
 		if (AI_SUCCESS == material->Get("$mat.gltf.pbrMetallicRoughness.roughnessFactor", 0, 0, value))
 		{
-			mat.setRoughness(std::clamp(value, 0.01f, 1.0f));
+			mat.setRoughness(std::clamp(value, 0.0f, 1.0f));
 		}
 	}
 
@@ -2372,7 +2372,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		if (pbr.contains("roughnessFactor"))
 		{
 			float v = static_cast<float>(pbr.value("roughnessFactor").toDouble(1.0));
-			outMaterial.setRoughness(qBound(0.01f, v, 1.0f));
+			outMaterial.setRoughness(qBound(0.0f, v, 1.0f));
 			qDebug() << "  Loaded pbrMetallicRoughness.roughnessFactor:" << v;
 		}
 		else

@@ -1292,6 +1292,12 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     // FIX: Correct normalTexture.scale (Assimp doesn't export this correctly)
     fixNormalTextureScale(gltfJson, meshes, logCallback);
 
+    // CRITICAL FIX: Correct KHR_materials_specular (or remove if default)
+    fixSpecularExtension(gltfJson, meshes, logCallback);
+
+	// CRITICAL FIX: Correct metallicFactor values (Assimp may set to 0 incorrectly)
+    fixMetallicFactor(gltfJson, meshes, logCallback);
+
     // Then do standard post-processing (fills in missing properties with defaults)
     return postProcessGltfJson(gltfJson, logCallback);
 }
@@ -1477,6 +1483,138 @@ bool GltfPostProcessor::fixNormalTextureScale(
     {
         gltfJson["materials"] = materials;  // CRITICAL: Write materials back!
         log("  -> normalTexture.scale values updated", logCallback);
+    }
+
+    return modified;
+}
+
+bool GltfPostProcessor::fixSpecularExtension(
+    QJsonObject& gltfJson,
+    const std::vector<TriangleMesh*>& meshes,
+    std::function<void(const QString&)> logCallback)
+{
+    bool modified = false;
+
+    if (!gltfJson.contains("materials") || meshes.empty())
+        return false;
+
+    QJsonArray materials = gltfJson["materials"].toArray();
+
+    for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
+    {
+        if (!meshes[i]) continue;
+
+        const GLMaterial& glMat = meshes[i]->getMaterial();
+        QJsonObject mat = materials[i].toObject();
+
+        // Check if material has KHR_materials_specular extension
+        if (mat.contains("extensions"))
+        {
+            QJsonObject extensions = mat["extensions"].toObject();
+
+            if (extensions.contains("KHR_materials_specular"))
+            {
+                QJsonObject specular = extensions["KHR_materials_specular"].toObject();
+
+                // Get the CORRECT values from GLMaterial
+                float specularFactor = glMat.specularFactor();
+                QVector3D specularColor = glMat.specularColorFactor();
+
+                // Check if this extension should even be exported
+                // Only export if values differ from defaults (1.0, [1.0, 1.0, 1.0])
+                bool isDefault = (std::abs(specularFactor - 1.0f) < 0.001f) &&
+                    (std::abs(specularColor.x() - 1.0f) < 0.001f) &&
+                    (std::abs(specularColor.y() - 1.0f) < 0.001f) &&
+                    (std::abs(specularColor.z() - 1.0f) < 0.001f);
+
+                if (isDefault)
+                {
+                    // Remove the extension entirely if it's just defaults
+                    extensions.remove("KHR_materials_specular");
+                    mat["extensions"] = extensions;
+
+                    // If no extensions left, remove the extensions object
+                    if (extensions.isEmpty())
+                    {
+                        mat.remove("extensions");
+                    }
+
+                    materials[i] = mat;
+                    modified = true;
+
+                    log(QString("  -> Removed default KHR_materials_specular from material %1").arg(i), logCallback);
+                }
+                else
+                {
+                    // Write the CORRECT values
+                    specular["specularFactor"] = static_cast<double>(specularFactor);
+
+                    QJsonArray colorArray;
+                    colorArray.append(static_cast<double>(specularColor.x()));
+                    colorArray.append(static_cast<double>(specularColor.y()));
+                    colorArray.append(static_cast<double>(specularColor.z()));
+                    specular["specularColorFactor"] = colorArray;
+
+                    extensions["KHR_materials_specular"] = specular;
+                    mat["extensions"] = extensions;
+                    materials[i] = mat;
+                    modified = true;
+
+                    log(QString("  -> Fixed KHR_materials_specular for material %1: factor=%2, color=[%3, %4, %5]")
+                        .arg(i).arg(specularFactor)
+                        .arg(specularColor.x()).arg(specularColor.y()).arg(specularColor.z()),
+                        logCallback);
+                }
+            }
+        }
+    }
+
+    if (modified)
+    {
+        gltfJson["materials"] = materials;
+    }
+
+    return modified;
+}
+
+bool GltfPostProcessor::fixMetallicFactor(
+    QJsonObject& gltfJson,
+    const std::vector<TriangleMesh*>& meshes,
+    std::function<void(const QString&)> logCallback)
+{
+    bool modified = false;
+
+    if (!gltfJson.contains("materials") || meshes.empty())
+        return false;
+
+    QJsonArray materials = gltfJson["materials"].toArray();
+
+    for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
+    {
+        if (!meshes[i]) continue;
+
+        const GLMaterial& glMat = meshes[i]->getMaterial();
+        QJsonObject mat = materials[i].toObject();
+
+        if (mat.contains("pbrMetallicRoughness"))
+        {
+            QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
+            float correctMetallic = glMat.metalness();  // Get the CORRECT value
+
+            // Write the correct metallicFactor
+            pbr["metallicFactor"] = static_cast<double>(correctMetallic);
+            mat["pbrMetallicRoughness"] = pbr;
+            materials[i] = mat;
+            modified = true;
+
+            log(QString("  -> Fixed metallicFactor to %1 for material %2")
+                .arg(correctMetallic).arg(i), logCallback);
+        }
+    }
+
+    if (modified)
+    {
+        gltfJson["materials"] = materials;
     }
 
     return modified;

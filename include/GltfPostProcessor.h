@@ -115,6 +115,14 @@ private:
         QJsonObject& gltfJson,
         const std::vector<TriangleMesh*>& meshes,
         std::function<void(const QString&)> logCallback);
+    static bool fixSpecularExtension(
+        QJsonObject& gltfJson,
+        const std::vector<TriangleMesh*>& meshes,
+        std::function<void(const QString&)> logCallback = nullptr);
+    static bool fixMetallicFactor(
+        QJsonObject& gltfJson,
+        const std::vector<TriangleMesh*>& meshes,
+        std::function<void(const QString&)> logCallback = nullptr);
     static void log(const QString& message, std::function<void(const QString&)> callback);
 };
 

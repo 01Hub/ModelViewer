@@ -633,7 +633,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
 
     // ===== METALLIC & ROUGHNESS =====
     {
-        float metallic = material.metallic();
+        float metallic = material.metalness();
         aiMat->AddProperty(&metallic, 1, AI_MATKEY_METALLIC_FACTOR);
     }
 
