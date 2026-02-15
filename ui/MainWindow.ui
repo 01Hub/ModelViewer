@@ -96,6 +96,9 @@
     <addaction name="actionQuick_Help"/>
     <addaction name="actionTutorial"/>
     <addaction name="separator"/>
+    <addaction name="actionView_Logs"/>
+    <addaction name="actionOpen_Logs_Folder"/>
+    <addaction name="separator"/>
     <addaction name="actionAbout"/>
     <addaction name="actionAbout_Qt"/>
    </widget>
@@ -362,6 +365,16 @@
    </property>
    <property name="shortcut">
     <string>Ctrl+F1</string>
+   </property>
+  </action>
+  <action name="actionView_Logs">
+   <property name="text">
+    <string>View Logs</string>
+   </property>
+  </action>
+  <action name="actionOpen_Logs_Folder">
+   <property name="text">
+    <string>Open Logs Folder</string>
    </property>
   </action>
  </widget>

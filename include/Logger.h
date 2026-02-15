@@ -141,8 +141,7 @@ private:
     QString levelToString(LogLevel level) const;
     QString formatLogMessage(LogLevel level, const QString& message, const QString& context) const;
 
-    // File handling
-    QString getLogDirectory();
+    // File handling    
     QString generateLogFilename(int suffix = -1) const;
     bool openLogFile();
     bool writeToFile(const QString& formattedMessage);

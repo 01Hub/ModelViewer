@@ -6,6 +6,7 @@
 #include "MainWindow.h"
 #include "QuickHelpDialog.h"
 #include "TutorialDialog.h"
+#include "Logger.h"
 #include "ui_MainWindow.h"
 #include "ModelViewer.h"
 #include "ThemeManager.h"
@@ -403,6 +404,40 @@ void MainWindow::on_actionTutorial_triggered()
 				tr("Tutorial file not found at:\n%1\n\n"
 					"Please ensure the tutorial files are installed correctly.").arg(tutorialPath));
 		}
+	}
+}
+
+#include "LogViewer.h"
+void MainWindow::on_actionView_Logs_triggered()
+{
+	// Create as a member variable or use static to keep one instance
+	static LogViewer* logViewer = nullptr;
+	if (!logViewer)
+	{
+		logViewer = new LogViewer(this);
+		logViewer->setAttribute(Qt::WA_DeleteOnClose);
+		connect(logViewer, &QObject::destroyed, []() {
+			logViewer = nullptr; // Reset pointer when dialog is closed
+			});
+	}
+	logViewer->show();
+	logViewer->raise();
+	logViewer->activateWindow();
+}
+
+void MainWindow::on_actionOpen_Logs_Folder_triggered()
+{
+	// Open the logs folder in the system file explorer
+	QString logsPath = Logger::instance().getLogDirectory();
+	if (QDir(logsPath).exists())
+	{
+		QDesktopServices::openUrl(QUrl::fromLocalFile(logsPath));
+	}
+	else
+	{
+		QMessageBox::warning(this, tr("Logs Folder Not Found"),
+			tr("The logs folder could not be found at:\n%1\n\n"
+				"Please ensure the application has permission to create and access the logs directory.").arg(logsPath));
 	}
 }
 

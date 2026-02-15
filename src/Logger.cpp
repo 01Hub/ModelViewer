@@ -115,6 +115,12 @@ Logger& Logger::instance()
     return *g_loggerInstance;
 }
 
+QString Logger::getLogDirectory() const
+{
+    QString appDataLocation = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    return appDataLocation + "/logs";
+}
+
 Logger::Logger()
     : workerThread(nullptr)
     , isRunning(false)
@@ -393,12 +399,6 @@ QString Logger::levelToString(LogLevel level) const
     default:
         return "UNKN ";
     }
-}
-
-QString Logger::getLogDirectory()
-{
-    QString appDataLocation = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-    return appDataLocation + "/logs";
 }
 
 void Logger::ensureLogDirectoryExists()
