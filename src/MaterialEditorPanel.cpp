@@ -1,6 +1,7 @@
 #include "MaterialEditorPanel.h"
 #include "MaterialRegistry.h" 
 #include "MaterialLibraryWidget.h"
+#include "LanguageManager.h"
 #include "Utils.h"
 
 #include <QInputDialog>
@@ -21,6 +22,10 @@ MaterialEditorPanel::MaterialEditorPanel(QWidget* parent)
 {
 	// Setup UI from .ui file
 	ui->setupUi(this);
+
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		ui->retranslateUi(this);
+		});
 
 	// Set initial preview shape and settings
 	ui->previewWidget->setPreviewShape(PreviewShape::Sphere);  // Default to Sphere

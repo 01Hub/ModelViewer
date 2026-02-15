@@ -1,6 +1,7 @@
 #include "VisualizationEnvironmentPanel.h"
 #include "ui_VisualizationEnvironmentPanel.h"
 #include "GLWidget.h"
+#include "LanguageManager.h"
 #include "ModelViewer.h"
 #include "PathUtils.h"
 #include <QColorDialog>
@@ -18,6 +19,11 @@ VisualizationEnvironmentPanel::VisualizationEnvironmentPanel(QWidget* parent)
 {
 	ui = std::make_unique<Ui::VisualizationEnvironmentPanel>();
 	ui->setupUi(this);
+
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		ui->retranslateUi(this);
+		});
+
 	setAttribute(Qt::WA_DeleteOnClose);
 	ui->scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		

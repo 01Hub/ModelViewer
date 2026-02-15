@@ -1,6 +1,7 @@
 ﻿#include "ADSMaterialSettingsPanel.h"
 #include "GLWidget.h"
 #include "GLMaterial.h"
+#include "LanguageManager.h"
 #include "ModelViewer.h"
 #include <QColorDialog>
 #include <QFileDialog>
@@ -62,6 +63,10 @@ ADSMaterialSettingsPanel::ADSMaterialSettingsPanel(QWidget* parent)
 {
     setupUi(this);
     setAttribute(Qt::WA_DeleteOnClose);
+
+    connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+        retranslateUi(this);
+        });
 }
 
 ADSMaterialSettingsPanel::~ADSMaterialSettingsPanel()

@@ -1,10 +1,15 @@
 #include "ObjectTransformPanel.h"
+#include "LanguageManager.h"
 #include "ui_ObjectTransformPanel.h"
 
 ObjectTransformPanel::ObjectTransformPanel(QWidget* parent)
 	: QWidget(parent), ui(std::make_unique<Ui::ObjectTransformPanel>())
 {
 	ui->setupUi(this);
+
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		ui->retranslateUi(this);
+		});
 
 	// Connect button signals
 	connect(ui->pushButtonApplyTransformations, &QPushButton::clicked,

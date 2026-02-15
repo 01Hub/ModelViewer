@@ -1,5 +1,6 @@
 #include "ChannelPackingEditorDialog.h"
 #include "GLMaterial.h"
+#include "LanguageManager.h"
 #include "MaterialPreviewWidget.h"
 #include "MaterialTextureLibrary.h"
 #include "PathUtils.h"
@@ -32,6 +33,10 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
 	, _ui(new Ui::TextureMappingPanel)
 {
 	_ui->setupUi(this);
+
+	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
+		_ui->retranslateUi(this);
+		});
 
 	// Enable right-click context menu
 	setContextMenuPolicy(Qt::CustomContextMenu);
