@@ -814,8 +814,15 @@ aiMaterial* AssImpMeshExporter::createMaterial(
         float specularFactor = material.specularFactor();
         QVector3D specularColorFactor = material.specularColorFactor();
 
+        // Check if we have specular textures
+        const auto& specularFactorTex = material.texture(GLMaterial::TextureType::SpecularFactor);
+        const auto& specularColorTex = material.texture(GLMaterial::TextureType::SpecularColor);
+        bool hasSpecularFactorTex = !specularFactorTex.path.empty();
+        bool hasSpecularColorTex = !specularColorTex.path.empty();
+
         bool hasSpecular = (std::abs(specularFactor - 1.0f) > 0.001f) ||
-                          (specularColorFactor != QVector3D(1.0f, 1.0f, 1.0f));
+            (specularColorFactor != QVector3D(1.0f, 1.0f, 1.0f)) ||
+            hasSpecularFactorTex || hasSpecularColorTex;
 
         if (hasSpecular)
         {
@@ -824,7 +831,29 @@ aiMaterial* AssImpMeshExporter::createMaterial(
             aiColor3D color(specularColorFactor.x(), specularColorFactor.y(), specularColorFactor.z());
             aiMat->AddProperty(&color, 1, "$mat.gltf.specular.specularColorFactor", 0, 0);
 
-            logMessage(QString("     -> specular: factor=%1").arg(specularFactor));
+            // Export specularTexture if present
+            if (hasSpecularFactorTex)
+            {
+                QString texPath = QString::fromStdString(specularFactorTex.path);
+                aiString aiTexPath(texPath.toStdString());
+                aiMat->AddProperty(&aiTexPath, "$mat.gltf.specular.specularTexture", 0, 0);
+                logMessage(QString("     -> specularTexture: %1").arg(texPath));
+            }
+
+            // Export specularColorTexture if present
+            if (hasSpecularColorTex)
+            {
+                QString texPath = QString::fromStdString(specularColorTex.path);
+                aiString aiTexPath(texPath.toStdString());
+                aiMat->AddProperty(&aiTexPath, "$mat.gltf.specular.specularColorTexture", 0, 0);
+                logMessage(QString("     -> specularColorTexture: %1").arg(texPath));
+            }
+
+            logMessage(QString("     -> specular: factor=%1, color=[%2,%3,%4]")
+                .arg(specularFactor)
+                .arg(specularColorFactor.x())
+                .arg(specularColorFactor.y())
+                .arg(specularColorFactor.z()));
         }
     }
 
@@ -1107,6 +1136,8 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             {GLMaterial::TextureType::ClearcoatNormal, aiTextureType_CLEARCOAT},
             {GLMaterial::TextureType::SheenColor, aiTextureType_SHEEN},
             {GLMaterial::TextureType::SheenRoughness, aiTextureType_SHEEN},
+            {GLMaterial::TextureType::SpecularFactor, aiTextureType_UNKNOWN},
+            {GLMaterial::TextureType::SpecularColor, aiTextureType_UNKNOWN}, 
         };
     }
     else
@@ -1415,7 +1446,8 @@ void AssImpMeshExporter::embedTexturesInScene(
         aiTextureType_OPACITY,
         aiTextureType_HEIGHT,
         aiTextureType_CLEARCOAT,
-        aiTextureType_SHEEN
+        aiTextureType_SHEEN,
+		aiTextureType_SPECULAR,
     };
 
     // Iterate through all materials and collect unique texture paths

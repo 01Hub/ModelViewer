@@ -123,6 +123,15 @@ private:
         QJsonObject& gltfJson,
         const std::vector<TriangleMesh*>& meshes,
         std::function<void(const QString&)> logCallback = nullptr);
+    static bool fixSpecularTextures(
+        QJsonObject& gltfJson,
+        const std::vector<TriangleMesh*>& meshes,
+        std::function<void(const QString&)> logCallback = nullptr);
+    static int findOrCreateTexture(
+        QJsonObject& gltfJson,
+        const QString& imagePath,
+        std::function<void(const QString&)> logCallback = nullptr);
+
     static void log(const QString& message, std::function<void(const QString&)> callback);
 };
 

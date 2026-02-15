@@ -1092,8 +1092,15 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             // KHR_materials_specular
             float specularFactor = glMat.specularFactor();
             QVector3D specularColorFactor = glMat.specularColorFactor();
-            if (std::abs(specularFactor - 1.0f) > 0.001f ||
-                (specularColorFactor - QVector3D(1, 1, 1)).length() > 0.001f)
+            QString specularFactorMap = glMat.specularFactorMap();
+            QString specularColorMap = glMat.specularColorMap();
+
+            bool hasSpecularExtension = (std::abs(specularFactor - 1.0f) > 0.001f) ||
+                (specularColorFactor - QVector3D(1, 1, 1)).length() > 0.001f ||
+                !specularFactorMap.isEmpty() ||
+                !specularColorMap.isEmpty();
+
+            if (hasSpecularExtension)
             {
                 QJsonObject spec;
                 spec["specularFactor"] = static_cast<double>(specularFactor);
@@ -1103,6 +1110,51 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 colorArray.append(static_cast<double>(specularColorFactor.y()));
                 colorArray.append(static_cast<double>(specularColorFactor.z()));
                 spec["specularColorFactor"] = colorArray;
+
+                // Add specularTexture if present
+                if (!specularFactorMap.isEmpty())
+                {                    
+                    int texIndex = findOrCreateTexture(gltfJson, specularFactorMap, logCallback);
+
+                    if (texIndex >= 0)
+                    {
+                        QJsonObject texInfo;
+                        texInfo["index"] = texIndex;
+                        spec["specularTexture"] = texInfo;
+                        log(QString("    -> Set spec[\"specularTexture\"] to index %1").arg(texIndex), logCallback);
+                    }
+                    else
+                    {
+                        log("    -> texIndex was negative, NOT adding specularTexture", logCallback);
+                    }
+                }
+
+                // Add specularColorTexture if present
+                if (!specularColorMap.isEmpty())
+                {                    
+                    int texIndex = findOrCreateTexture(gltfJson, specularColorMap, logCallback);
+
+                    if (texIndex >= 0)
+                    {
+                        QJsonObject texInfo;
+                        texInfo["index"] = texIndex;
+                        spec["specularColorTexture"] = texInfo;
+                        log(QString("    -> Set spec[\"specularColorTexture\"] to index %1").arg(texIndex), logCallback);
+                    }
+                    else
+                    {
+                        log("    -> texIndex was negative, NOT adding specularColorTexture", logCallback);
+                    }
+                }
+
+                if (spec.contains("specularTexture"))
+                {
+                    log(QString("  specularTexture: %1").arg(spec["specularTexture"].toObject().value("index").toInt(-999)), logCallback);
+                }
+                if (spec.contains("specularColorTexture"))
+                {
+                    log(QString("  specularColorTexture: %1").arg(spec["specularColorTexture"].toObject().value("index").toInt(-999)), logCallback);
+                }
 
                 extensions["KHR_materials_specular"] = spec;
                 hasExtensions = true;
@@ -1153,13 +1205,16 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             // Always write material back (we may have modified pbrMetallicRoughness, alphaMode, etc.)
             materials[i] = mat;
         }
-
+                
         // Replace samplers array with our created samplers
         samplers = QJsonArray();
         for (const auto& sampler : createdSamplers)
         {
             samplers.append(sampler);
         }
+                
+        // CRITICAL: Reload textures array to include any created by findOrCreateTexture
+        textures = gltfJson.value("textures").toArray();
 
         // CRITICAL FIX: Remove invalid sampler references from textures
         // If Assimp created textures with sampler indices that no longer exist,
@@ -1167,22 +1222,45 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         for (int i = 0; i < textures.size(); ++i)
         {
             QJsonObject tex = textures[i].toObject();
+
+            int source = tex.value("source").toInt(-1);
+            int samplerIdx = tex.value("sampler").toInt(-1);
+
+            log(QString("  Texture[%1]: source=%2, sampler=%3").arg(i).arg(source).arg(samplerIdx), logCallback);
+
             if (tex.contains("sampler"))
             {
-                int samplerIdx = tex.value("sampler").toInt(-1);
                 if (samplerIdx >= samplers.size())
                 {
+                    log(QString("    -> INVALID sampler index %1 (max is %2), REMOVING")
+                        .arg(samplerIdx).arg(samplers.size() - 1), logCallback);
                     tex.remove("sampler");
                     textures[i] = tex;
-                    log(QString("    Removed invalid sampler[%1] from texture[%2]")
-                        .arg(samplerIdx).arg(i), logCallback);
                 }
+                else
+                {
+                    log(QString("    -> Valid sampler index"), logCallback);
+                }
+            }
+            else
+            {
+                log(QString("    -> No sampler reference"), logCallback);
             }
         }
 
         gltfJson["materials"] = materials;
         gltfJson["samplers"] = samplers;
+        textures = gltfJson.value("textures").toArray();
         gltfJson["textures"] = textures;
+
+        // Verify what was actually written
+        QJsonArray finalTextures = gltfJson.value("textures").toArray();
+        for (int i = 0; i < finalTextures.size(); ++i)
+        {
+            QJsonObject tex = finalTextures[i].toObject();
+            int samplerIdx = tex.value("sampler").toInt(-1);
+            log(QString("  Final texture[%1] sampler: %2").arg(i).arg(samplerIdx), logCallback);
+        }
 
         log(QString("  Final: %1 unique samplers created").arg(samplers.size()), logCallback);
 
@@ -1220,6 +1298,8 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             // Update texture source references
             if (oldToNewIndex.size() != images.size())  // If we found duplicates
             {
+                textures = gltfJson.value("textures").toArray();
+
                 for (int i = 0; i < textures.size(); ++i)
                 {
                     QJsonObject texture = textures[i].toObject();
@@ -1231,7 +1311,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                         textures[i] = texture;
                     }
                 }
-
+                                
                 gltfJson["images"] = deduplicatedImages;
                 gltfJson["textures"] = textures;
 
@@ -1297,6 +1377,105 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
 	// CRITICAL FIX: Correct metallicFactor values (Assimp may set to 0 incorrectly)
     fixMetallicFactor(gltfJson, meshes, logCallback);
+        
+    if (gltfJson.contains("materials"))
+    {
+        QJsonArray mats = gltfJson["materials"].toArray();
+        for (int i = 0; i < mats.size(); ++i)
+        {
+            QJsonObject mat = mats[i].toObject();
+            log(QString("Material %1:").arg(i), logCallback);
+
+            if (mat.contains("extensions") && mat["extensions"].toObject().contains("KHR_materials_specular"))
+            {
+                QJsonObject spec = mat["extensions"].toObject()["KHR_materials_specular"].toObject();
+                if (spec.contains("specularTexture"))
+                {
+                    log(QString("  specularTexture index: %1").arg(spec["specularTexture"].toObject().value("index").toInt(-999)), logCallback);
+                }
+                if (spec.contains("specularColorTexture"))
+                {
+                    log(QString("  specularColorTexture index: %1").arg(spec["specularColorTexture"].toObject().value("index").toInt(-999)), logCallback);
+                }
+            }
+        }
+    }
+
+    log("=== FINAL TEXTURE VALIDATION ===", logCallback);
+    {
+        QJsonArray finalTextures = gltfJson.value("textures").toArray();
+        QJsonArray finalSamplers = gltfJson.value("samplers").toArray();
+        int maxSamplerIndex = finalSamplers.size() - 1;
+        bool anyFixed = false;
+
+        log(QString("  Samplers available: %1 (indices 0-%2)").arg(finalSamplers.size()).arg(maxSamplerIndex), logCallback);
+        log(QString("  Checking %1 textures...").arg(finalTextures.size()), logCallback);
+
+        for (int i = 0; i < finalTextures.size(); ++i)
+        {
+            QJsonObject tex = finalTextures[i].toObject();
+            bool needsFix = false;
+            int samplerIdx = -1;
+
+            if (tex.contains("sampler"))
+            {
+                samplerIdx = tex.value("sampler").toInt(-1);
+
+                // Check if sampler index is invalid
+                if (samplerIdx < 0 || samplerIdx > maxSamplerIndex)
+                {
+                    log(QString("  Texture[%1] has INVALID sampler index %2").arg(i).arg(samplerIdx), logCallback);
+                    needsFix = true;
+                }
+                else
+                {
+                    log(QString("  Texture[%1] sampler: %2 (valid)").arg(i).arg(samplerIdx), logCallback);
+                }
+            }
+            else
+            {
+                // Texture has NO sampler at all
+                log(QString("  Texture[%1] has NO sampler reference").arg(i), logCallback);
+                needsFix = true;
+            }
+
+            // Fix by assigning sampler 0
+            if (needsFix)
+            {
+                if (finalSamplers.size() > 0)
+                {
+                    log(QString("    -> Setting sampler to 0"), logCallback);
+                    tex["sampler"] = 0;
+                    finalTextures[i] = tex;
+                    anyFixed = true;
+                }
+                else
+                {
+                    log(QString("    -> WARNING: No samplers exist, cannot fix"), logCallback);
+                }
+            }
+        }
+
+        if (anyFixed)
+        {
+            log("  Writing fixed textures array back to gltfJson", logCallback);
+            gltfJson["textures"] = finalTextures;
+
+            // Verify the fix
+            log("  Verification:", logCallback);
+            QJsonArray verify = gltfJson.value("textures").toArray();
+            for (int i = 0; i < verify.size(); ++i)
+            {
+                QJsonObject tex = verify[i].toObject();
+                int samp = tex.value("sampler").toInt(-999);
+                log(QString("    Texture[%1] sampler: %2").arg(i).arg(samp), logCallback);
+            }
+        }
+        else
+        {
+            log("  All texture sampler references are valid", logCallback);
+        }
+    }
 
     // Then do standard post-processing (fills in missing properties with defaults)
     return postProcessGltfJson(gltfJson, logCallback);
@@ -1514,6 +1693,7 @@ bool GltfPostProcessor::fixSpecularExtension(
 
             if (extensions.contains("KHR_materials_specular"))
             {
+                // CRITICAL: Get the EXISTING specular object (preserves textures!)
                 QJsonObject specular = extensions["KHR_materials_specular"].toObject();
 
                 // Get the CORRECT values from GLMaterial
@@ -1521,15 +1701,18 @@ bool GltfPostProcessor::fixSpecularExtension(
                 QVector3D specularColor = glMat.specularColorFactor();
 
                 // Check if this extension should even be exported
-                // Only export if values differ from defaults (1.0, [1.0, 1.0, 1.0])
-                bool isDefault = (std::abs(specularFactor - 1.0f) < 0.001f) &&
+                bool isDefaultValues = (std::abs(specularFactor - 1.0f) < 0.001f) &&
                     (std::abs(specularColor.x() - 1.0f) < 0.001f) &&
                     (std::abs(specularColor.y() - 1.0f) < 0.001f) &&
                     (std::abs(specularColor.z() - 1.0f) < 0.001f);
 
-                if (isDefault)
+                // Check if there are textures
+                bool hasTextures = specular.contains("specularTexture") ||
+                    specular.contains("specularColorTexture");
+
+                if (isDefaultValues && !hasTextures)
                 {
-                    // Remove the extension entirely if it's just defaults
+                    // Remove the extension entirely if it's just defaults with no textures
                     extensions.remove("KHR_materials_specular");
                     mat["extensions"] = extensions;
 
@@ -1546,7 +1729,7 @@ bool GltfPostProcessor::fixSpecularExtension(
                 }
                 else
                 {
-                    // Write the CORRECT values
+                    // UPDATE the factor/color values while PRESERVING texture references
                     specular["specularFactor"] = static_cast<double>(specularFactor);
 
                     QJsonArray colorArray;
@@ -1555,6 +1738,7 @@ bool GltfPostProcessor::fixSpecularExtension(
                     colorArray.append(static_cast<double>(specularColor.z()));
                     specular["specularColorFactor"] = colorArray;
 
+                    // Write back the MODIFIED specular object (textures still intact!)
                     extensions["KHR_materials_specular"] = specular;
                     mat["extensions"] = extensions;
                     materials[i] = mat;
@@ -1618,4 +1802,238 @@ bool GltfPostProcessor::fixMetallicFactor(
     }
 
     return modified;
+}
+
+bool GltfPostProcessor::fixSpecularTextures(
+    QJsonObject& gltfJson,
+    const std::vector<TriangleMesh*>& meshes,
+    std::function<void(const QString&)> logCallback)
+{
+    log("=== SPECULAR TEXTURE FIX START ===", logCallback);
+    bool modified = false;
+
+    if (!gltfJson.contains("materials"))
+    {
+        log("  -> No materials in gltfJson", logCallback);
+        return false;
+    }
+
+    if (meshes.empty())
+    {
+        log("  -> No meshes provided", logCallback);
+        return false;
+    }
+
+    QJsonArray materials = gltfJson["materials"].toArray();
+
+    for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
+    {
+        if (!meshes[i])
+        {
+            log(QString("  -> Mesh %1 is null, skipping").arg(i), logCallback);
+            continue;
+        }
+
+        const GLMaterial& glMat = meshes[i]->getMaterial();
+
+        // DEBUG: Check what maps are set
+        QString specularFactorMap = glMat.specularFactorMap();
+        QString specularColorMap = glMat.specularColorMap();
+
+        log(QString("Material %1:").arg(i), logCallback);
+        log(QString("  specularFactorMap: '%1'").arg(specularFactorMap), logCallback);
+        log(QString("  specularColorMap: '%2'").arg(specularColorMap), logCallback);
+
+        if (specularFactorMap.isEmpty() && specularColorMap.isEmpty())
+        {
+            log("  -> No specular maps, skipping", logCallback);
+            continue;
+        }
+
+        QJsonObject mat = materials[i].toObject();
+
+        // Check if material has KHR_materials_specular extension
+        if (!mat.contains("extensions"))
+        {
+            log("  -> No extensions object, skipping", logCallback);
+            continue;
+        }
+
+        QJsonObject extensions = mat["extensions"].toObject();
+
+        if (!extensions.contains("KHR_materials_specular"))
+        {
+            log("  -> No KHR_materials_specular extension, skipping", logCallback);
+            continue;
+        }
+
+        QJsonObject specular = extensions["KHR_materials_specular"].toObject();
+        log("  -> Found KHR_materials_specular extension", logCallback);
+        bool specularModified = false;
+
+        // Add specularTexture if material has it
+        if (!specularFactorMap.isEmpty())
+        {
+            log(QString("  -> Processing specularTexture: %1").arg(specularFactorMap), logCallback);
+
+            int texIndex = findOrCreateTexture(gltfJson, specularFactorMap, logCallback);
+            log(QString("  -> findOrCreateTexture returned: %1").arg(texIndex), logCallback);
+
+            if (texIndex >= 0)
+            {
+                QJsonObject texInfo;
+                texInfo["index"] = texIndex;
+                specular["specularTexture"] = texInfo;
+                specularModified = true;
+
+                log(QString("  -> Added specularTexture with index %1").arg(texIndex), logCallback);
+            }
+            else
+            {
+                log("  -> Failed to find/create specularTexture", logCallback);
+            }
+        }
+
+        // Add specularColorTexture if material has it
+        if (!specularColorMap.isEmpty())
+        {
+            log(QString("  -> Processing specularColorTexture: %1").arg(specularColorMap), logCallback);
+
+            int texIndex = findOrCreateTexture(gltfJson, specularColorMap, logCallback);
+            log(QString("  -> findOrCreateTexture returned: %1").arg(texIndex), logCallback);
+
+            if (texIndex >= 0)
+            {
+                QJsonObject texInfo;
+                texInfo["index"] = texIndex;
+                specular["specularColorTexture"] = texInfo;
+                specularModified = true;
+
+                log(QString("  -> Added specularColorTexture with index %1").arg(texIndex), logCallback);
+            }
+            else
+            {
+                log("  -> Failed to find/create specularColorTexture", logCallback);
+            }
+        }
+
+        if (specularModified)
+        {
+            extensions["KHR_materials_specular"] = specular;
+            mat["extensions"] = extensions;
+            materials[i] = mat;
+            modified = true;
+
+            log(QString("  -> Modified material %1").arg(i), logCallback);
+        }
+    }
+
+    if (modified)
+    {
+        gltfJson["materials"] = materials;
+        log("  -> Updated materials array in gltfJson", logCallback);
+    }
+
+    log("=== SPECULAR TEXTURE FIX END ===", logCallback);
+    return modified;
+}
+
+// Helper function with extensive logging
+int GltfPostProcessor::findOrCreateTexture(
+    QJsonObject& gltfJson,
+    const QString& imagePath,
+    std::function<void(const QString&)> logCallback)
+{
+    log(QString("findOrCreateTexture called with: '%1'").arg(imagePath), logCallback);
+
+    // CRITICAL: Get fresh copies EVERY time
+    QJsonArray images = gltfJson.value("images").toArray();
+    QJsonArray textures = gltfJson.value("textures").toArray();
+
+    log(QString("  Current images count: %1").arg(images.size()), logCallback);
+    log(QString("  Current textures count: %1").arg(textures.size()), logCallback);
+
+    // Extract just the filename from the path
+    QString imageFileName = QFileInfo(imagePath).fileName();
+    log(QString("  Extracted filename: '%1'").arg(imageFileName), logCallback);
+
+    // Look for EXISTING texture that already references this image
+    // FIRST: Find the image index
+    int imageIndex = -1;
+    for (int i = 0; i < images.size(); ++i)
+    {
+        QJsonObject img = images[i].toObject();
+        QString uri = img.value("uri").toString();
+        log(QString("  Checking image %1: uri='%2'").arg(i).arg(uri), logCallback);
+
+        if (uri.endsWith(imageFileName))
+        {
+            imageIndex = i;
+            log(QString("  -> Found matching image at index %1").arg(i), logCallback);
+            break;
+        }
+    }
+
+    // If image not found, create it
+    if (imageIndex < 0)
+    {
+        QString newUri = "textures/" + imageFileName;
+        QJsonObject newImage;
+        newImage["uri"] = newUri;
+        images.append(newImage);
+        imageIndex = images.size() - 1;
+
+        // CRITICAL: Write back immediately
+        gltfJson["images"] = images;
+
+        log(QString("  -> Created new image at index %1 with uri='%2'").arg(imageIndex).arg(newUri), logCallback);
+    }
+
+    // NOW check if a texture already points to this image
+    for (int i = 0; i < textures.size(); ++i)
+    {
+        QJsonObject tex = textures[i].toObject();
+        int source = tex.value("source").toInt(-1);
+        if (source == imageIndex)
+        {
+            log(QString("  -> Found existing texture at index %1 pointing to image %2").arg(i).arg(imageIndex), logCallback);
+            return i;  // Reuse existing texture!
+        }
+    }
+
+    // Create NEW texture entry pointing to this image
+    QJsonObject newTexture;
+    newTexture["source"] = imageIndex;
+
+    // Add sampler if one exists
+    // Check if sampler exists and add it
+    if (gltfJson.contains("samplers"))
+    {
+        QJsonArray samplers = gltfJson["samplers"].toArray();
+        log(QString("  findOrCreateTexture: samplers array size = %1").arg(samplers.size()), logCallback);
+
+        if (samplers.size() > 0)
+        {
+            newTexture["sampler"] = 0; // Use first sampler
+            log("  -> Added sampler reference to texture (index 0)", logCallback);
+        }
+        else
+        {
+            log("  -> WARNING: No samplers exist, NOT adding sampler reference", logCallback);
+        }
+    }
+    else
+    {
+        log("  -> WARNING: No samplers array in gltfJson", logCallback);
+    }
+
+    textures.append(newTexture);
+    int textureIndex = textures.size() - 1;
+
+    // CRITICAL: Write back immediately
+    gltfJson["textures"] = textures;
+
+    log(QString("  -> Created new texture at index %1 pointing to image %2").arg(textureIndex).arg(imageIndex), logCallback);
+
+    return textureIndex;
 }
