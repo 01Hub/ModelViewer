@@ -81,7 +81,7 @@ public:
     aiReturn exportMeshes(
         const std::vector<TriangleMesh*>& meshes,
         const QString& exportPath,
-        const ExportSettings& settings = ExportSettings());
+        const ExportSettings& settings);
 
     /**
      * @brief Export an existing Assimp scene
