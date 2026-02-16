@@ -13,17 +13,17 @@ LogHighlighter::LogHighlighter(QTextDocument* parent)
     formats.timestamp.setForeground(QColor(128, 128, 128));
     formats.timestamp.setFontWeight(QFont::Bold);
 
-    // DEBUG - gray
-    formats.debug.setForeground(QColor(128, 128, 128));
+    // DEBUG - brown
+    formats.debug.setForeground(QColor(150, 75, 0));
 
-    // INFO - black
-    formats.info.setForeground(QColor(0, 0, 0));
+    // INFO - green
+    formats.info.setForeground(QColor(20, 220, 60));
 
     // WARNING - orange
     formats.warning.setForeground(QColor(255, 140, 0));
 
     // ERROR - red
-    formats.error.setForeground(QColor(220, 20, 60));
+    formats.error.setForeground(QColor(240, 20, 60));
     formats.error.setFontWeight(QFont::Bold);
 }
 
