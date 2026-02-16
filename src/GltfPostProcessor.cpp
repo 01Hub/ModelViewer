@@ -1120,6 +1120,20 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 attenArray.append(static_cast<double>(attenColor.z()));
                 vol["attenuationColor"] = attenArray;
 
+                // Add thicknessTexture if present
+                QString thicknessMap = glMat.thicknessMap();
+                if (!thicknessMap.isEmpty())
+                {
+                    int texIndex = findOrCreateTexture(gltfJson, thicknessMap);
+                    if (texIndex >= 0)
+                    {
+                        QJsonObject texInfo;
+                        texInfo["index"] = texIndex;
+                        vol["thicknessTexture"] = texInfo;
+                        log(QString("    -> Added thicknessTexture (index %1)").arg(texIndex), logCallback);
+                    }
+                }
+
                 extensions["KHR_materials_volume"] = vol;
                 hasExtensions = true;
             }
