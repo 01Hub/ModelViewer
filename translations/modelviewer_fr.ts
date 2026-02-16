@@ -4004,7 +4004,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="369"/>
         <source>  Center Screen</source>
-        <translation>Écran central</translation>
+        <translation>  Écran central</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="369"/>
@@ -4014,7 +4014,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="370"/>
         <source>  Center Object List</source>
-        <translation>Liste des objets du centre</translation>
+        <translation>  Liste des objets du centre</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="370"/>
@@ -4024,7 +4024,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="371"/>
         <source>  Hide/Show</source>
-        <translation>Masquer/afficher</translation>
+        <translation>  Masquer/afficher</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="371"/>
@@ -4034,7 +4034,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="372"/>
         <source>  Show Only</source>
-        <translation>Afficher seulement</translation>
+        <translation>  Afficher seulement</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="372"/>
@@ -4049,7 +4049,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="373"/>
         <source>  Visualization Settings</source>
-        <translation>Paramètres de visualisation</translation>
+        <translation>  Paramètres de visualisation</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="373"/>
@@ -4059,7 +4059,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="374"/>
         <source>  Transformations</source>
-        <translation>Transformations</translation>
+        <translation>  Transformations</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="374"/>
@@ -4069,7 +4069,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="375"/>
         <source>  Generate UVs</source>
-        <translation>Générer des UV</translation>
+        <translation>  Générer des UV</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="375"/>
@@ -4079,7 +4079,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="376"/>
         <source>  Duplicate</source>
-        <translation>Dupliquer</translation>
+        <translation>  Dupliquer</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="376"/>
@@ -4099,7 +4099,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="378"/>
         <source>  Mesh Info</source>
-        <translation>Mesh Info</translation>
+        <translation>  Mesh Info</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="378"/>
@@ -4114,7 +4114,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="381"/>
         <source>  Fit All</source>
-        <translation>Tout convient</translation>
+        <translation>  Tout convient</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="381"/>
@@ -4124,7 +4124,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="382"/>
         <source>  Zoom Area</source>
-        <translation>Zone de zoom</translation>
+        <translation>  Zone de zoom</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="382"/>
@@ -4134,7 +4134,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="383"/>
         <source>  Select/Zoom/Pan/Rotate</source>
-        <translation>Sélectionner/Zoom/Pan/Rotat</translation>
+        <translation>  Sélectionner/Zoom/Pan/Rotat</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="383"/>
@@ -4144,7 +4144,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="384"/>
         <source>  Show All</source>
-        <translation>Afficher tout</translation>
+        <translation>  Afficher tout</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="384"/>
@@ -4159,7 +4159,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="385"/>
         <source>  Hide All</source>
-        <translation>Cacher tout</translation>
+        <translation>  Cacher tout</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="385"/>
@@ -4174,7 +4174,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="386"/>
         <source>  Swap Visible</source>
-        <translation>Échange visible</translation>
+        <translation>  Échange visible</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="386"/>
@@ -5762,7 +5762,7 @@ Dureté</translation>
         <location filename="../ui/TextureMappingPanel.ui" line="2293"/>
         <location filename="../ui/TextureMappingPanel.ui" line="2509"/>
         <source>Channel Packing…</source>
-        <translation>Emballage des canaux..</translation>
+        <translation>Emballage des canaux...</translation>
     </message>
     <message>
         <location filename="../ui/TextureMappingPanel.ui" line="1857"/>
@@ -6119,7 +6119,7 @@ Dureté</translation>
         <location filename="../ui/TextureParametersDialog.ui" line="212"/>
         <location filename="../ui/TextureParametersDialog.ui" line="308"/>
         <source>U:</source>
-        <translation>OUI</translation>
+        <translation>U:</translation>
     </message>
     <message>
         <location filename="../ui/TextureParametersDialog.ui" line="219"/>

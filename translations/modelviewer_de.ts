@@ -3028,7 +3028,7 @@ Möchten Sie fortfahren?</translation>
         <location filename="../src/QuickHelpDialog.cpp" line="86"/>
         <location filename="../src/QuickHelpDialog.cpp" line="89"/>
         <source>N/A</source>
-        <translation>K.A.</translation>
+        <translation>K.A</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="86"/>
@@ -3402,7 +3402,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="163"/>
         <source>&lt;ul&gt;&lt;li&gt;Hold keys continuously for smooth navigation&lt;/li&gt;&lt;li&gt;Camera mode affects how W/A/S/D keys behave&lt;/li&gt;&lt;li&gt;In First Person mode, pitch is limited to ±60 degrees&lt;/li&gt;&lt;li&gt;In Fly mode, pitch is limited to ±89 degrees&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;li&gt;Hold Schlüssel kontinuierlich für glatte Navigation&lt;/li&gt;li&gt; Kameramodus beeinflusst die Verhaltensweise von W/A/S/D-Schlüsseln &lt;/li&gt;&gt;li&gt; Im Modus First Person ist die Tonhöhe auf ±60 Grad&lt;/li&gt;li&gt; begrenzt Im Fly-Modus ist die Tonhöhe auf ±89 Grad &lt;/li&gt;/ul&gt; begrenzt</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;Für eine reibungslose Navigation die Tasten gedrückt halten&lt;/li&gt;&lt;li&gt;Der Kameramodus beeinflusst das Verhalten der W/A/S/D-Tasten&lt;/li&gt;&lt;li&gt;Im Ego-Modus ist die Neigung auf ±60 Grad begrenzt&lt;/li&gt;&lt;li&gt;Im Flugmodus ist die Neigung auf ±89 Grad begrenzt&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="177"/>
@@ -3610,7 +3610,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="213"/>
         <source>&lt;ul&gt;&lt;li&gt;The toolbar automatically appears at the bottom of the viewport&lt;/li&gt;&lt;li&gt;Move mouse to bottom edge to reveal the toolbar&lt;/li&gt;&lt;li&gt;Toolbar hides after 2 seconds of inactivity&lt;/li&gt;&lt;li&gt;Toolbar remains visible when mouse is over it or menus are open&lt;/li&gt;&lt;li&gt;Scroll buttons appear if toolbar is wider than viewport&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt; &gt; &lt; &gt; &lt; &gt; &lt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; &gt; Die Symbolleiste erscheint automatisch am unteren Rand des Viewport&lt;/li&gt;li&gt;Move Maus zum unteren Rand, um die toolbar&lt;/li&gt;li&gt; zu enthüllen Symbolleiste versteckt nach 2 Sekunden von inaktivität&lt;/li&gt;li&gt; Symbolleiste bleibt sichtbar, wenn Maus über ihm ist oder Menüs sind open&lt;/li&gt;li&gt; Scroll-Tasten erscheinen, wenn die Symbolleiste breiter ist als Viewport&lt;/li&gt;/ul&gt;</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;Die Symbolleiste erscheint automatisch am unteren Rand des Ansichtsfensters.&lt;/li&gt;&lt;li&gt;Bewegen Sie den Mauszeiger an den unteren Rand, um die Symbolleiste anzuzeigen.&lt;/li&gt;&lt;li&gt;Die Symbolleiste wird nach 2 Sekunden Inaktivität ausgeblendet.&lt;/li&gt;&lt;li&gt;Die Symbolleiste bleibt sichtbar, wenn sich der Mauszeiger darüber befindet oder Menüs geöffnet sind.&lt;/li&gt;&lt;li&gt;Scrollschaltflächen werden angezeigt, wenn die Symbolleiste breiter als das Ansichtsfenster ist.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="228"/>
@@ -3620,7 +3620,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="229"/>
         <source>&lt;p&gt;&lt;b&gt;Best for:&lt;/b&gt; Examining objects from all angles, CAD-like viewing&lt;/p&gt;&lt;p&gt;&lt;b&gt;Behavior:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Camera orbits around the model center point&lt;/li&gt;&lt;li&gt;Rotation keeps the model in view&lt;/li&gt;&lt;li&gt;Up direction is always maintained&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/A/S/D:&lt;/b&gt; Pan the view (up/down/left/right)&lt;/li&gt;&lt;li&gt;&lt;b&gt;X/Z:&lt;/b&gt; Zoom in/out&lt;/li&gt;&lt;li&gt;&lt;b&gt;I/K:&lt;/b&gt; Rotate around X-axis&lt;/li&gt;&lt;li&gt;&lt;b&gt;J/L:&lt;/b&gt; Rotate around Y-axis&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;p&gt;b&gt;Best:&lt;/b&gt; Prüfung von Objekten aus allen Winkeln, CAD-ähnliche Betrachtung &lt;/p&gt;p&gt;&gt;&gt;b&gt;Behavior:&lt;/b&gt;/p&gt;ul&gt;li&gt; Kamera-Orbits rund um den Modellzentrumspunkt&lt;/li&gt;li&gt;Rotation hält das Modell in view&lt;/li&gt;&lt;li&gt; Aufwärtsrichtung ist immer aufrechterhalten worden &lt;/li&gt;li&gt;b&gt;W/A/S/D:&lt;/b&gt; Pan the view (up/down/left/right)&lt;/li&gt;li&gt;&gt;b&gt;X/Z:&lt;/b&gt; Abbildung 1</translation>
+        <translation>&lt;p&gt;&lt;b&gt;Ideal für:&lt;/b&gt; Untersuchung von Objekten aus allen Winkeln, CAD-ähnliche Ansicht&lt;/p&gt;&lt;p&gt;&lt;b&gt;Verhalten:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Die Kamera kreist um den Mittelpunkt des Modells.&lt;/li&gt;&lt;li&gt;Durch Drehen bleibt das Modell im Blickfeld.&lt;/li&gt;&lt;li&gt;Die Aufwärtsrichtung wird immer beibehalten.&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/A/S/D:&lt;/b&gt; Schwenken der Ansicht (oben/unten/links/rechts).&lt;/li&gt;&lt;li&gt;&lt;b&gt;X/Z:&lt;/b&gt; Vergrößern/Verkleinern.&lt;/li&gt;&lt;li&gt;&lt;b&gt;I/K:&lt;/b&gt; Drehen um die X-Achse.&lt;/li&gt;&lt;li&gt;&lt;b&gt;J/L:&lt;/b&gt; Drehen um die Y-Achse.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="241"/>
@@ -3630,7 +3630,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="242"/>
         <source>&lt;p&gt;&lt;b&gt;Best for:&lt;/b&gt; Free exploration of large scenes, architectural walkthroughs&lt;/p&gt;&lt;p&gt;&lt;b&gt;Behavior:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Camera moves freely through 3D space&lt;/li&gt;&lt;li&gt;Mouse controls look direction&lt;/li&gt;&lt;li&gt;No restrictions on viewing angle&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S:&lt;/b&gt; Move forward/backward in viewing direction&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D:&lt;/b&gt; Strafe left/right&lt;/li&gt;&lt;li&gt;&lt;b&gt;Q/E:&lt;/b&gt; Move down/up vertically&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mouse:&lt;/b&gt; Look around (pitch limited to ±89°)&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;p&gt;b&gt;Best:&lt;/b&gt; Freie Erkundung großer Szenen, architektonische Durchführungen&lt;/p&gt;&gt;p&gt;&gt;b&gt;Behavior:&lt;/b&gt;/p&gt;ul&gt;li&gt; Kamera bewegt sich frei durch 3D space&lt;/li&gt;li&gt; Mauskontrollen Blickrichtung &lt;/li&gt;li&gt; Keine Einschränkungen bei Betrachtungswinkel&lt;/li&gt;li&gt;b&gt;W/S:&lt;/b&gt; Vorwärts/Rückwärts in Blickrichtung &lt;/li&gt;li&gt;&gt;b&gt;A/D:&lt;/b&gt; Strafe links/rechts&lt;/li&gt;li&gt;b&gt;Q/E:&lt;/b&gt; Nach unten/auf vertikal &lt;/li&gt;li&gt;li&gt;b&gt;Mouse:&lt;/b&gt; Schauen Sie sich um (pitch limited to ±89°/li&gt;/ul&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;Ideal für:&lt;/b&gt; Freie Erkundung großer Szenen, Architekturrundgänge&lt;/p&gt;&lt;p&gt;&lt;b&gt;Verhalten:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Kamera bewegt sich frei im 3D-Raum&lt;/li&gt;&lt;li&gt;Blickrichtung wird mit der Maus gesteuert&lt;/li&gt;&lt;li&gt;Keine Einschränkungen des Betrachtungswinkels&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S:&lt;/b&gt; Vorwärts/Rückwärts in Blickrichtung bewegen&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D:&lt;/b&gt; Seitwärtsbewegung nach links/rechts&lt;/li&gt;&lt;li&gt;&lt;b&gt;Q/E:&lt;/b&gt; Vertikale Bewegung nach unten/oben&lt;/li&gt;&lt;li&gt;&lt;b&gt;Maus:&lt;/b&gt; Umsehen (Neigung auf ±89° begrenzt)&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="254"/>
@@ -3640,7 +3640,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="255"/>
         <source>&lt;p&gt;&lt;b&gt;Best for:&lt;/b&gt; Ground-level exploration, character perspective&lt;/p&gt;&lt;p&gt;&lt;b&gt;Behavior:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Similar to Fly mode but with constraints&lt;/li&gt;&lt;li&gt;Pitch restricted to ±60° (more natural for ground movement)&lt;/li&gt;&lt;li&gt;Typically used for walking simulations&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S:&lt;/b&gt; Move forward/backward&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D:&lt;/b&gt; Strafe left/right&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mouse:&lt;/b&gt; Look around (pitch limited to ±60°)&lt;/li&gt;&lt;li&gt;Note: No vertical Q/E movement in this mode&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;p&gt;b&gt;Best:&lt;/b&gt; Exploration von Bodenniveau, Charakterperspektive &lt;/p&gt;p&gt;&gt;b&gt;Behavior:&lt;/b&gt;/b&gt;/p&gt;&gt;ul&gt; Ähnlich wie Fly-Modus, jedoch mit Einschränkungen &lt;/li&gt;li&gt; Pitch begrenzt auf ±60° (natürlicher für Bodenbewegung)&lt;/li&gt;li&gt; Typischerweise verwendet für Gehsimulationen&lt;/li&gt;li&gt;&gt;b&gt; W/S: &lt;/b&gt; Vorwärts/hinausgehend &lt;/li&gt;&gt;li&gt;b&gt;A/D:&lt;/b&gt; Strafe links/rechts&lt;/li&gt;&gt;li&gt;b&gt;Mouse:&lt;/b&gt; Schauen Sie sich um (pitch limited to ±60°)&lt;/li&gt;li&gt; Hinweis: Keine vertikale Q/E-Bewegung in diesem Modus&lt;/li&gt;/ul&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;Ideal für:&lt;/b&gt; Erkundung am Boden, Charakterperspektive&lt;/p&gt;&lt;p&gt;&lt;b&gt;Verhalten:&lt;/b&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Ähnlich wie im Flugmodus, jedoch mit Einschränkungen&lt;/li&gt;&lt;li&gt;Neigung auf ±60° begrenzt (natürlicher für Bodenbewegungen)&lt;/li&gt;&lt;li&gt;Wird typischerweise für Gehsimulationen verwendet&lt;/li&gt;&lt;li&gt;&lt;b&gt;W/S:&lt;/b&gt; Vorwärts/Rückwärts bewegen&lt;/li&gt;&lt;li&gt;&lt;b&gt;A/D:&lt;/b&gt; Seitwärtsbewegung nach links/rechts&lt;/li&gt;&lt;li&gt;&lt;b&gt;Maus:&lt;/b&gt; Umsehen (Neigung auf ±60° begrenzt)&lt;/li&gt;&lt;li&gt;Hinweis: Keine vertikale Q/E-Bewegung in diesem Modus&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="267"/>
@@ -3650,7 +3650,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="268"/>
         <source>&lt;p&gt;You can switch between camera modes in several ways:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Press &lt;b&gt;1&lt;/b&gt;, &lt;b&gt;2&lt;/b&gt;, or &lt;b&gt;3&lt;/b&gt; on keyboard&lt;/li&gt;&lt;li&gt;Use the Camera Modes button on the View Toolbar&lt;/li&gt;&lt;li&gt;The toolbar button updates to show current mode&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;p&gt;Sie können zwischen Kameramodi auf verschiedene Weise umschalten:&lt;/p&gt;ul&gt;&gt;li&gt;Press &lt;b&gt;1&gt;/b&gt;, &lt;b&gt;/b&gt;/b&gt; oder &lt;b&gt;3&gt;/b&gt; auf Tastatur&lt;/li&gt; Verwenden Sie die Schaltfläche Kamerams auf der Ansicht Toolbar&lt;/li&gt;li&gt; Die Symbolleiste-Schaltfläche aktualisiert den aktuellen Modus&lt;/li&gt;/ul&gt;</translation>
+        <translation>&lt;p&gt;Sie können auf verschiedene Arten zwischen den Kameramodi wechseln:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;Drücken Sie &lt;b&gt;1&lt;/b&gt;, &lt;b&gt;2&lt;/b&gt; oder &lt;b&gt;3&lt;/b&gt; auf der Tastatur&lt;/li&gt;&lt;li&gt;Verwenden Sie die Schaltfläche „Kameramodi“ in der Ansichtssymbolleiste&lt;/li&gt;&lt;li&gt;Die Schaltfläche in der Symbolleiste wird aktualisiert und zeigt den aktuellen Modus an&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="282"/>
@@ -3761,7 +3761,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="308"/>
         <source>&lt;p&gt;The Realistic mode includes advanced rendering features:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;PBR Materials:&lt;/b&gt; Physically Based Rendering with metallic/roughness workflow&lt;/li&gt;&lt;li&gt;&lt;b&gt;Image-Based Lighting:&lt;/b&gt; Environmental lighting from HDRI maps&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shadows:&lt;/b&gt; Real-time shadow mapping with adjustable quality&lt;/li&gt;&lt;li&gt;&lt;b&gt;Reflections:&lt;/b&gt; Environment reflections on surfaces&lt;/li&gt;&lt;li&gt;&lt;b&gt;Advanced Materials:&lt;/b&gt; Support for transmission, clearcoat, sheen, iridescence, anisotropy&lt;/li&gt;&lt;li&gt;&lt;b&gt;HDR &amp; Tone Mapping:&lt;/b&gt; High dynamic range with multiple tone mapping algorithms&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gamma Correction:&lt;/b&gt; Proper color space handling&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;p&gt;Der Realistische Modus umfasst fortgeschrittene Rendering-Funktionen:&lt;/p&gt;ul&gt;&lt;li&gt;&gt;b&gt;PBR-Materialien:&lt;/b&gt; Physikalisch basierte Rendering mit metallischer/roughness workflow&lt;/li&gt;li&gt;&gt;b&gt;Image-Based Lighting:&lt;/b&gt; Umweltbeleuchtung von HDRI-Karten&lt;/li&gt;li&gt;b&gt;Schatten:&lt;/b&gt; Echtzeit-Schattenkartierungen mit einstellbarer Qualität &lt;/li&gt;li&gt;&gt;b&gt;Reflections:&lt;/b&gt; Umweltreflexionen auf Oberflächen&lt;/li&gt;li&gt;b&gt;Erweiterte Materialien:&lt;/b&gt; Unterstützung von Transmission, Klarlack, Glanz, Irideszenz, Anisotropy&lt;/li&gt;li&gt;li&gt;b&gt; HDR &amp; Ton Mapping:&lt;/b&gt; Hoher Dynamikbereich mit mehreren Tonabbildungsalgorithmen &lt;/li&gt;li&gt;li&gt;&gt;b&gt; Gamma-Korrektur:&lt;/b&gt; Richtige Farbraumhandhabung &lt;/li&gt;/ul&gt;</translation>
+        <translation>Der Realismus-Modus umfasst erweiterte Rendering-Funktionen:&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;b&gt;PBR-Materialien:&lt;/b&gt; Physikalisch basiertes Rendering mit Metall-/Rauheits-Workflow&lt;/li&gt;&lt;li&gt;&lt;b&gt;Bildbasierte Beleuchtung:&lt;/b&gt; Umgebungsbeleuchtung aus HDRI-Maps&lt;/li&gt;&lt;li&gt;&lt;b&gt;Schatten:&lt;/b&gt; Echtzeit-Schattenmapping mit einstellbarer Qualität&lt;/li&gt;&lt;li&gt;&lt;b&gt;Reflexionen:&lt;/b&gt; Umgebungsreflexionen auf Oberflächen&lt;/li&gt;&lt;li&gt;&lt;b&gt;Erweiterte Materialien:&lt;/b&gt; Unterstützung für Transmission, Klarlack, Glanz, Irisieren und Anisotropie&lt;/li&gt;&lt;li&gt;&lt;b&gt;HDR &amp; Tonwertkorrektur:&lt;/b&gt; Hoher Dynamikumfang mit mehreren Tonwertkorrekturalgorithmen&lt;/li&gt;&lt;li&gt;&lt;b&gt;Gammakorrektur:&lt;/b&gt; Korrekte Farbraumbehandlung&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="319"/>
@@ -3771,7 +3771,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="320"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Realistic mode&lt;/b&gt; is most demanding - may be slower on complex scenes&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shaded mode&lt;/b&gt; offers good balance of appearance and performance&lt;/li&gt;&lt;li&gt;&lt;b&gt;Wireframe mode&lt;/b&gt; is fastest but least visually informative&lt;/li&gt;&lt;li&gt;For large models (&gt;50MB), low-resolution preview is automatically enabled during manipulation&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;li&gt;b&gt;Realistic mode&lt;/b&gt; ist am anspruchsvollsten - kann auf komplexen Szenen langsamer sein &lt;/li&gt;li&gt;b&gt;Shaded mode&lt;/b&gt; bietet eine gute Balance von Aussehen und Leistung &lt;/li&gt;&gt;li&gt;b&gt;Wireframe mode&lt;/b&gt; ist am schnellsten, aber am wenigsten visuell informativ&lt;/li&gt;li&gt; Bei großen Modellen (&gt;50MB) wird die Vorschau mit niedriger Auflösung während der Manipulation &lt;/li&gt;/ul&gt; automatisch aktiviert</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Der realistische Modus&lt;/b&gt; ist am anspruchsvollsten und kann bei komplexen Szenen langsamer sein.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Der schattierte Modus&lt;/b&gt; bietet ein gutes Gleichgewicht zwischen Aussehen und Leistung.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Der Drahtgittermodus&lt;/b&gt; ist am schnellsten, bietet aber die geringste visuelle Information.&lt;/li&gt;&lt;li&gt;Bei großen Modellen (&gt;50 MB) wird während der Bearbeitung automatisch eine niedrigauflösende Vorschau aktiviert.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="334"/>
@@ -4005,7 +4005,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="369"/>
         <source>  Center Screen</source>
-        <translation>Hauptbildschirm</translation>
+        <translation>  Hauptbildschirm</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="369"/>
@@ -4015,7 +4015,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="370"/>
         <source>  Center Object List</source>
-        <translation>Hauptobjektliste</translation>
+        <translation>  Hauptobjektliste</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="370"/>
@@ -4025,7 +4025,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="371"/>
         <source>  Hide/Show</source>
-        <translation>Hide/Show</translation>
+        <translation>  Hide/Show</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="371"/>
@@ -4035,7 +4035,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="372"/>
         <source>  Show Only</source>
-        <translation>Nur</translation>
+        <translation>  Nur</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="372"/>
@@ -4050,7 +4050,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="373"/>
         <source>  Visualization Settings</source>
-        <translation>Visualisierungseinstellungen</translation>
+        <translation>  Visualisierungseinstellungen</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="373"/>
@@ -4060,7 +4060,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="374"/>
         <source>  Transformations</source>
-        <translation>Transformationen</translation>
+        <translation>  Transformationen</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="374"/>
@@ -4070,7 +4070,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="375"/>
         <source>  Generate UVs</source>
-        <translation>UV erzeugen</translation>
+        <translation>  UV erzeugen</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="375"/>
@@ -4080,7 +4080,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="376"/>
         <source>  Duplicate</source>
-        <translation>Duplikat</translation>
+        <translation>  Duplikat</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="376"/>
@@ -4100,7 +4100,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="378"/>
         <source>  Mesh Info</source>
-        <translation>Mesh Info</translation>
+        <translation>  Mesh Info</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="378"/>
@@ -4115,7 +4115,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="381"/>
         <source>  Fit All</source>
-        <translation>Alle anzeigen</translation>
+        <translation>  Alle anzeigen</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="381"/>
@@ -4125,7 +4125,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="382"/>
         <source>  Zoom Area</source>
-        <translation>Zoom Area</translation>
+        <translation>  Zoom Area</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="382"/>
@@ -4135,7 +4135,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="383"/>
         <source>  Select/Zoom/Pan/Rotate</source>
-        <translation>Auswahl/Zoom/Pan/Rotat</translation>
+        <translation>  Auswahl/Zoom/Pan/Rotat</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="383"/>
@@ -4145,7 +4145,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="384"/>
         <source>  Show All</source>
-        <translation>Alle anzeigen</translation>
+        <translation>  Alle anzeigen</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="384"/>
@@ -4160,7 +4160,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="385"/>
         <source>  Hide All</source>
-        <translation>Alles verbergen</translation>
+        <translation>  Alles verbergen</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="385"/>
@@ -4175,7 +4175,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="386"/>
         <source>  Swap Visible</source>
-        <translation>Swap Sichtbar</translation>
+        <translation>  Swap Sichtbar</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="386"/>
@@ -4205,7 +4205,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="399"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Opening Files:&lt;/b&gt; Drag and drop files directly onto the window, or use File → Open&lt;/li&gt;&lt;li&gt;&lt;b&gt;First View:&lt;/b&gt; Press &apos;F&apos; to frame your model perfectly in the viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Quick Navigation:&lt;/b&gt; Use Middle Mouse for rotation, Mouse Wheel for zoom, Right Mouse for pan&lt;/li&gt;&lt;li&gt;&lt;b&gt;Recent Files:&lt;/b&gt; Access recently opened files from File → Recent menu&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;li&gt;&gt;b&gt;Opening Files:&lt;/b&gt; Ziehen Sie Dateien direkt auf das Fenster oder verwenden Sie Datei → Open&lt;/li&gt;li&gt;&gt;&gt;b&gt;First View:&lt;/b&gt; Drücken Sie &apos;F&apos;, um Ihr Modell perfekt in den Viewport&lt;/li&gt;li&gt;&gt;b&gt;Quick Navigation:&lt;/b&gt; zu rahmen Mittlere Maus für Rotation, Mausrad für Zoom, Rechte Maus für pan&lt;/li&gt;li&gt;li&gt;b&gt;Recent Files:&lt;/b&gt; Zugriff vor kurzem geöffnete Dateien von Datei → Neueste Menü&lt;/li&gt;/ul&gt;</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Dateien öffnen:&lt;/b&gt; Ziehen Sie Dateien per Drag &amp; Drop direkt in das Fenster oder verwenden Sie Datei → Öffnen.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Erste Ansicht:&lt;/b&gt; Drücken Sie „F“, um Ihr Modell perfekt im Ansichtsfenster zu positionieren.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Schnelle Navigation:&lt;/b&gt; Verwenden Sie die mittlere Maustaste zum Drehen, das Mausrad zum Zoomen und die rechte Maustaste zum Verschieben.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Zuletzt geöffnete Dateien:&lt;/b&gt; Greifen Sie über das Menü Datei → Zuletzt geöffnete Dateien zu.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="406"/>
@@ -4215,7 +4215,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="407"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Single Select:&lt;/b&gt; Left-click on an object in the viewport&lt;/li&gt;&lt;li&gt;&lt;b&gt;Multi-Select:&lt;/b&gt; Drag a rubber band rectangle around multiple objects&lt;/li&gt;&lt;li&gt;&lt;b&gt;Toggle Selection:&lt;/b&gt; Click on an already selected object to deselect it&lt;/li&gt;&lt;li&gt;&lt;b&gt;Select from List:&lt;/b&gt; Use the object list panel on the left side&lt;/li&gt;&lt;li&gt;&lt;b&gt;Search Objects:&lt;/b&gt; Use the search box above the object list to filter by name&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;li&gt;&gt;b&gt;Single Select:&lt;/b&gt; Linksklick auf ein Objekt in der Ansicht&lt;/li&gt;li&gt;&gt;b&gt;Multi-Select:&lt;/b&gt; Ziehen Sie ein Gummiband Rechteck um mehrere Objekte&lt;/li&gt;li&gt;&gt;b&gt;Toggle Selection:&lt;/b&gt; Klicken Sie auf ein bereits ausgewähltes Objekt, um es &lt;/li&gt;li&gt;&gt;b&gt;Select aus Liste:&lt;/b&gt; Verwenden Sie das Objektlistenfeld auf der linken Seite&lt;/li&gt;li&gt;&gt;b&gt;Search Objects:&lt;/b&gt; Verwenden Sie das Suchfeld oberhalb der Objektliste, um nach Namen &lt;/li&gt;/ul&gt; zu filtern</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Einzelauswahl:&lt;/b&gt; Klicken Sie mit der linken Maustaste auf ein Objekt im Ansichtsfenster.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mehrfachauswahl:&lt;/b&gt; Ziehen Sie ein Rechteck um mehrere Objekte.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Auswahl umschalten:&lt;/b&gt; Klicken Sie auf ein bereits ausgewähltes Objekt, um die Auswahl aufzuheben.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Aus Liste auswählen:&lt;/b&gt; Verwenden Sie die Objektliste auf der linken Seite.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Objekte suchen:&lt;/b&gt; Verwenden Sie das Suchfeld über der Objektliste, um nach Namen zu filtern.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="415"/>
@@ -4225,7 +4225,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="416"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Hide Selected:&lt;/b&gt; Press Space to temporarily hide objects you don&apos;t need&lt;/li&gt;&lt;li&gt;&lt;b&gt;Isolate:&lt;/b&gt; Press Shift+Space to focus on selected objects only&lt;/li&gt;&lt;li&gt;&lt;b&gt;Swap Visible:&lt;/b&gt; Press Alt+S to see what&apos;s hidden (and hide what&apos;s visible)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Show All:&lt;/b&gt; Press Shift+A to bring everything back&lt;/li&gt;&lt;li&gt;&lt;b&gt;Visual Indicator:&lt;/b&gt; Hidden objects are grayed out in the object list&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;li&gt;&gt;b&gt;Hide Ausgewählt:&lt;/b&gt; Presseraum zum vorübergehenden Versteck von Objekten, die Sie nicht benötigen&lt;/li&gt;li&gt;&gt;b&gt;Isolat:&lt;/b&gt; Drücken Sie Shift+Space, um nur ausgewählte Objekte zu fokussieren &lt;/li&gt;li&gt;&gt;b&gt;Swap Sichtbar:&lt;/b&gt; Presse Alt+S zu sehen, was versteckt ist (und verbergen was sichtbar ist)&lt;/li&gt;li&gt;li&gt;b&gt;Alle anzeigen:&lt;/b&gt; Drücken Sie Shift+A, um alles zurück zu bringen &lt;/li&gt;li&gt;&gt;b&gt;Visual Indicator:&lt;/b&gt; Versteckte Objekte werden in der Objektliste &lt;/li&gt;/ul&gt; ausgegraut</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Ausgewählte ausblenden:&lt;/b&gt; Drücken Sie die Leertaste, um nicht benötigte Objekte vorübergehend auszublenden.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Isolieren:&lt;/b&gt; Drücken Sie Umschalt+Leertaste, um nur die ausgewählten Objekte anzuzeigen.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Sichtbare Objekte tauschen:&lt;/b&gt; Drücken Sie Alt+S, um die ausgeblendeten Objekte anzuzeigen (und die sichtbaren auszublenden).&lt;/li&gt;&lt;li&gt;&lt;b&gt;Alle anzeigen:&lt;/b&gt; Drücken Sie Umschalt+A, um alle Objekte wieder anzuzeigen.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Visuelle Anzeige:&lt;/b&gt; Ausgeblendete Objekte werden in der Objektliste grau dargestellt.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="424"/>
@@ -4235,7 +4235,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="425"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Multiple Sessions:&lt;/b&gt; File → New creates additional viewer windows&lt;/li&gt;&lt;li&gt;&lt;b&gt;Window Layouts:&lt;/b&gt; Use Window menu to tile or cascade multiple documents&lt;/li&gt;&lt;li&gt;&lt;b&gt;Multi-View Mode:&lt;/b&gt; Enable from toolbar to see four viewports simultaneously&lt;/li&gt;&lt;li&gt;&lt;b&gt;Standard Views:&lt;/b&gt; Use toolbar buttons for instant Top/Front/Side views&lt;/li&gt;&lt;li&gt;&lt;b&gt;Axonometric Views:&lt;/b&gt; Choose Isometric/Dimetric/Trimetric for technical drawings&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;li&gt;&gt;b&gt;Multiple Sessions:&lt;/b&gt; Datei → Neu erstellt zusätzliche Viewer windows&lt;/li&gt;li&gt;&gt;b&gt;Window Layouts:&lt;/b&gt; Verwenden Sie das Fenstermenü, um mehrere Dokumente zu tilgen oder zu kaskadieren&lt;/li&gt;li&gt;&gt;b&gt; Multi-View-Modus:&lt;/b&gt; Aus der Symbolleiste können vier Ansichten gleichzeitig &lt;/li&gt;li&gt;li&gt;b&gt; Standardansichten:&lt;/b&gt; Verwenden Sie die Symbolleiste-Tasten für Instant Top/Front/Side view&lt;/li&gt;li&gt;&gt;b&gt;Axonometric Ansichten:&lt;/b&gt; Wählen Sie Isometric/Dimetric/Trimetric für technische Zeichnungen&lt;/li&gt;/ul&gt;</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Mehrere Sitzungen:&lt;/b&gt; Datei → Neu erstellt zusätzliche Ansichtsfenster.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Fensterlayouts:&lt;/b&gt; Verwenden Sie das Menü „Fenster“, um mehrere Dokumente nebeneinander oder kaskadierend anzuzeigen.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Mehrere Ansichtsmodi:&lt;/b&gt; Aktivieren Sie diese Option in der Symbolleiste, um vier Ansichtsfenster gleichzeitig anzuzeigen.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Standardansichten:&lt;/b&gt; Verwenden Sie die Schaltflächen in der Symbolleiste für sofortige Draufsicht, Vorderansicht und Seitenansicht.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Axonometrische Ansichten:&lt;/b&gt; Wählen Sie isometrisch, dimetrisch oder trimetrisch für technische Zeichnungen.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="433"/>
@@ -4245,7 +4245,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="434"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Large Models:&lt;/b&gt; Automatic low-res preview during manipulation for models &gt;50MB&lt;/li&gt;&lt;li&gt;&lt;b&gt;Display Mode:&lt;/b&gt; Switch to Shaded or Wireframe for better performance&lt;/li&gt;&lt;li&gt;&lt;b&gt;Progressive Loading:&lt;/b&gt; Large files load progressively with status updates&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shadow Quality:&lt;/b&gt; Adjust in Environment settings if shadows are slow&lt;/li&gt;&lt;li&gt;&lt;b&gt;Hidden Objects:&lt;/b&gt; Hidden objects are still in memory but not rendered&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;li&gt;&gt;b&gt;Large Modelle:&lt;/b&gt; Automatische Low-res-Vorschau während der Manipulation für Modelle &gt;50MB&lt;/li&gt;li&gt;&gt;b&gt;Anzeigemodus:&lt;/b&gt; Schalten Sie auf schattierte oder Wireframe für bessere Leistung&lt;/li&gt;li&gt;&gt;b&gt;Progressive Loading:&lt;/b&gt; Große Dateien laden nach und nach mit Statusupdates&lt;/li&gt;li&gt;&gt;b&gt; Schattenqualität: &lt;/b&gt; Anpassung in Umgebungseinstellungen, wenn Schatten langsam&lt;/li&gt;li&gt;&gt;b&gt;Hidden Objects:&lt;/b&gt; Versteckte Objekte befinden sich noch im Speicher, werden aber nicht vervielfältigt &lt;/li&gt;/ul&gt;</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Große Modelle:&lt;/b&gt; Automatische Vorschau in niedriger Auflösung während der Bearbeitung für Modelle &gt;50 MB&lt;/li&gt;&lt;li&gt;&lt;b&gt;Anzeigemodus:&lt;/b&gt; Wechseln Sie für bessere Leistung zu Schattiert oder Drahtgittermodell&lt;/li&gt;&lt;li&gt;&lt;b&gt;Progressives Laden:&lt;/b&gt; Große Dateien werden schrittweise mit Statusaktualisierungen geladen&lt;/li&gt;&lt;li&gt;&lt;b&gt;Schattenqualität:&lt;/b&gt; Passen Sie die Schattenqualität in den Umgebungseinstellungen an, falls die Schatten langsam sind&lt;/li&gt;&lt;li&gt;&lt;b&gt;Ausgeblendete Objekte:&lt;/b&gt; Ausgeblendete Objekte befinden sich weiterhin im Speicher, werden aber nicht gerendert&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="442"/>
@@ -4255,7 +4255,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="443"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Visualization Settings:&lt;/b&gt; Right-click object → Visualization Settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Material Editor:&lt;/b&gt; Use the left panel to edit colors, roughness, metallic properties&lt;/li&gt;&lt;li&gt;&lt;b&gt;Texture Mapping:&lt;/b&gt; Apply textures through the Texture Mapping panel&lt;/li&gt;&lt;li&gt;&lt;b&gt;Environment:&lt;/b&gt; Enable SkyBox and IBL for realistic lighting&lt;/li&gt;&lt;li&gt;&lt;b&gt;Display Modes:&lt;/b&gt; Switch to Realistic mode to see full PBR materials&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;li&gt;&gt;b&gt;Visualization Settings:&lt;/b&gt; Rechtsklick Objekt → Visualisierungseinstellungen&lt;/li&gt;li&gt;b&gt;Material Editor:&lt;/b&gt; Verwenden Sie das linke Panel, um Farben, Rauheit, metallische Eigenschaften&lt;/li&gt;li&gt;&gt;b&gt;Text Mapping:&lt;/b&gt; zu bearbeiten Anwenden von Texturen durch das Texture Mapping Panel&lt;/li&gt;li&gt;&gt;b&gt;Umwelt:&lt;/b&gt; SkyBox und IBL für realistische Beleuchtung &lt;/li&gt;li&gt;li&gt;b&gt;Display-Modi:&lt;/b&gt; Wechseln Sie zum Realistischen Modus, um vollständige PBR-Materialien zu sehen &lt;/li&gt;/ul&gt;</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Visualisierungseinstellungen:&lt;/b&gt; Rechtsklick auf Objekt → Visualisierungseinstellungen&lt;/li&gt;&lt;li&gt;&lt;b&gt;Materialeditor:&lt;/b&gt; Im linken Bereich können Sie Farben, Rauheit und Metalleigenschaften bearbeiten.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Texturzuordnung:&lt;/b&gt; Texturen über das Texturzuordnungs-Panel anwenden.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Umgebung:&lt;/b&gt; Skybox und IBL für realistische Beleuchtung aktivieren.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Anzeigemodi:&lt;/b&gt; In den realistischen Modus wechseln, um die vollständigen PBR-Materialien anzuzeigen.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="451"/>
@@ -4265,7 +4265,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="452"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Clipping Planes:&lt;/b&gt; Use Section View to cut through models and see internals&lt;/li&gt;&lt;li&gt;&lt;b&gt;Transformations:&lt;/b&gt; Move, rotate, scale objects individually or in groups&lt;/li&gt;&lt;li&gt;&lt;b&gt;Floor Plane:&lt;/b&gt; Enable in Environment settings for shadow casting and reflections&lt;/li&gt;&lt;li&gt;&lt;b&gt;Shadows:&lt;/b&gt; Toggle real-time shadows in Environment settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Window Zoom:&lt;/b&gt; Zoom precisely into a specific region of interest&lt;/li&gt;&lt;li&gt;&lt;b&gt;UV Generation:&lt;/b&gt; Auto-generate texture coordinates for objects without UVs&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;li&gt;b&gt;Clipping Plans:&lt;/b&gt; Abschnitt Ansicht zum Durchschneiden von Modellen und siehe internes &lt;/li&gt;li&gt;&gt;b&gt;Transformationen:&lt;/b&gt; Objekte einzeln oder in Gruppen bewegen, rotieren, skaliert Bodenplan:&lt;/b&gt; Ermöglicht in Umgebungseinstellungen für Schattenguss und Reflexionen&lt;/li&gt;li&gt;&gt;b&gt;Shadows:&lt;/b&gt; Kippen von Echtzeit-Schatten in Umgebungseinstellungen&lt;/li&gt;li&gt;&gt;b&gt; Window Zoom:&lt;/b&gt; Genau in eine bestimmte Region von Interesse &lt;/li&gt;li&gt;li&gt;b&gt;UV Generation:&lt;/b&gt; Autogenerierte Texturkoordinaten für Objekte ohne UVs&lt;/li&gt;/ul&gt;</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Schnittebenen:&lt;/b&gt; Verwenden Sie die Schnittansicht, um Modelle zu durchschneiden und deren Innenleben zu betrachten.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Transformationen:&lt;/b&gt; Objekte einzeln oder in Gruppen verschieben, drehen und skalieren.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Bodenebene:&lt;/b&gt; In den Umgebungseinstellungen für Schattenwurf und Reflexionen aktivieren.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Schatten:&lt;/b&gt; Echtzeitschatten in den Umgebungseinstellungen aktivieren/deaktivieren.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Fensterzoom:&lt;/b&gt; Präzise in einen bestimmten Bereich hineinzoomen.&lt;/li&gt;&lt;li&gt;&lt;b&gt;UV-Generierung:&lt;/b&gt; Texturkoordinaten für Objekte ohne UVs automatisch generieren.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="461"/>
@@ -4275,7 +4275,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="462"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Lost Objects:&lt;/b&gt; Press &apos;F&apos; to fit all, or check if objects are hidden&lt;/li&gt;&lt;li&gt;&lt;b&gt;Stuck in Mode:&lt;/b&gt; Press Esc to cancel any active operation&lt;/li&gt;&lt;li&gt;&lt;b&gt;Can&apos;t Select:&lt;/b&gt; Make sure you&apos;re not in a view manipulation mode (check cursor)&lt;/li&gt;&lt;li&gt;&lt;b&gt;Black Screen:&lt;/b&gt; Check display mode and lighting settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Slow Performance:&lt;/b&gt; Try switching to Shaded mode or hiding some objects&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;li&gt;&gt;b&gt;Lost Objects:&lt;/b&gt; Drücken Sie &quot;F&quot;, um alle zu passen oder überprüfen Sie, ob Objekte versteckt sind &lt;/li&gt;li&gt;&gt;b&gt;Stuck im Modus:&lt;/b&gt; Drücken Sie esc, um jede aktive Operation abzubrechen &lt;/li&gt;li&gt;&gt;b&gt; Kann nicht auswählen:&lt;/b&gt; Stellen Sie sicher, dass Sie nicht in einem Ansichts-Manipulationsmodus (Check Cursor)&lt;/li&gt;&lt;li&gt;b&gt;Black Screen:&lt;/b&gt; Anzeigemodus prüfen und Beleuchtungseinstellungen &lt;/li&gt;li&gt;b&gt; Niedrige Leistung: &lt;/b&gt; Versuchen Sie, sich auf den Shaded-Modus zu schalten oder einige Objekte zu verstecken &lt;/li&gt;/ul&gt;</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Verlorene Objekte:&lt;/b&gt; Drücken Sie „F“, um alle Objekte anzuzeigen, oder prüfen Sie, ob Objekte ausgeblendet sind.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Im Modus festgefahren:&lt;/b&gt; Drücken Sie Esc, um die aktive Aktion abzubrechen.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Kann nicht auswählen:&lt;/b&gt; Stellen Sie sicher, dass Sie sich nicht im Ansichtsmanipulationsmodus befinden (Cursor prüfen).&lt;/li&gt;&lt;li&gt;&lt;b&gt;Schwarzer Bildschirm:&lt;/b&gt; Überprüfen Sie den Anzeigemodus und die Beleuchtungseinstellungen.&lt;/li&gt;&lt;li&gt;&lt;b&gt;Langsame Leistung:&lt;/b&gt; Versuchen Sie, in den Schattierungsmodus zu wechseln oder einige Objekte auszublenden.&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="470"/>
@@ -4285,7 +4285,7 @@ Möchten Sie fortfahren?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="471"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Settings:&lt;/b&gt; File → Settings to configure MSAA, anisotropic filtering, and theme&lt;/li&gt;&lt;li&gt;&lt;b&gt;Background:&lt;/b&gt; Right-click → Background Color to customize viewport background&lt;/li&gt;&lt;li&gt;&lt;b&gt;Theme:&lt;/b&gt; Choose between Light, Dark, or System theme in Settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Language:&lt;/b&gt; Change interface language in Settings dialog&lt;/li&gt;&lt;li&gt;&lt;b&gt;Axis Position:&lt;/b&gt; Configure corner axis triad position in Settings&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;li&gt;&gt;b&gt;Einstellungen:&lt;/b&gt; Datei → Einstellungen zum Konfigurieren von MSAA, anisotroper Filterung und Theme&lt;/li&gt;&lt;li&gt;b&gt;Background:&lt;/b&gt; Rechtsklick → Hintergrundfarbe zum Anpassen von Viewport Hintergrund&lt;/li&gt;li&gt;&gt;b&gt; Thema:&lt;/b&gt; Wählen Sie zwischen Light, Dark oder System Thema in Settings&lt;/li&gt;li&gt;&gt;b&gt;Sprache:&lt;/b&gt; Ändern Sie die Schnittstellensprache in den Einstellungen Dialog&lt;/li&gt;li&gt;b&gt;Axis Position:&lt;/b&gt; Konfigurieren von Eckachsen-Triad-Position in Einstellungen&lt;/li&gt;/ul&gt;</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Einstellungen:&lt;/b&gt; Datei → Einstellungen zum Konfigurieren von MSAA, anisotroper Filterung und Design&lt;/li&gt;&lt;li&gt;&lt;b&gt;Hintergrund:&lt;/b&gt; Rechtsklick → Hintergrundfarbe zum Anpassen des Ansichtsfensterhintergrunds&lt;/li&gt;&lt;li&gt;&lt;b&gt;Design:&lt;/b&gt; Wählen Sie in den Einstellungen zwischen Hell, Dunkel oder Systemdesign&lt;/li&gt;&lt;li&gt;&lt;b&gt;Sprache:&lt;/b&gt; Ändern Sie die Benutzeroberflächensprache im Dialogfeld „Einstellungen“&lt;/li&gt;&lt;li&gt;&lt;b&gt;Achsenposition:&lt;/b&gt; Konfigurieren Sie die Position der Eckachsen-Triaden in den Einstellungen&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
 </context>
 <context>
@@ -5758,7 +5758,7 @@ Rauheit</translation>
         <location filename="../ui/TextureMappingPanel.ui" line="2293"/>
         <location filename="../ui/TextureMappingPanel.ui" line="2509"/>
         <source>Channel Packing…</source>
-        <translation>Channel Packing..</translation>
+        <translation>Channel Packing...</translation>
     </message>
     <message>
         <location filename="../ui/TextureMappingPanel.ui" line="1857"/>
