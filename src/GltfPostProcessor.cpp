@@ -927,7 +927,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             // Assimp may not handle these correctly, so we write them directly
 
             // alphaMode and alphaCutoff
-            GLMaterial::BlendMode blendMode = glMat.blendMode();
+            GLMaterial::BlendMode blendMode = glMat.blendMode();            
             if (blendMode == GLMaterial::BlendMode::Opaque)
             {
                 mat["alphaMode"] = "OPAQUE";
@@ -980,6 +980,41 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 }
 
                 pbr["metallicFactor"] = static_cast<double>(metallicFactor);
+
+                // Handle baseColorFactor (including alpha for transparency)
+                // Preserve existing baseColorFactor if present
+                if (pbr.contains("baseColorFactor"))
+                {
+                    // Already has it - just make sure alpha is correct
+                    QJsonArray existing = pbr["baseColorFactor"].toArray();
+                    if (existing.size() >= 4)
+                    {
+                        // Update alpha channel
+                        existing[3] = static_cast<double>(glMat.opacity());
+                        pbr["baseColorFactor"] = existing;
+                    }
+                }
+                else
+                {
+                    // Only add if non-default
+                    QVector3D albedo = glMat.albedoColor();
+                    float opacity = glMat.opacity();
+
+                    bool isNonDefault = (std::abs(albedo.x() - 1.0f) > 0.001f) ||
+                        (std::abs(albedo.y() - 1.0f) > 0.001f) ||
+                        (std::abs(albedo.z() - 1.0f) > 0.001f) ||
+                        (opacity < 0.999f);
+
+                    if (isNonDefault)
+                    {
+                        QJsonArray baseColorArray;
+                        baseColorArray.append(static_cast<double>(albedo.x()));
+                        baseColorArray.append(static_cast<double>(albedo.y()));
+                        baseColorArray.append(static_cast<double>(albedo.z()));
+                        baseColorArray.append(static_cast<double>(opacity));
+                        pbr["baseColorFactor"] = baseColorArray;
+                    }
+                }
 
                 // Handle roughnessFactor  
                 float roughnessFactor = pbr.contains("roughnessFactor") ?
