@@ -3401,7 +3401,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="163"/>
         <source>&lt;ul&gt;&lt;li&gt;Hold keys continuously for smooth navigation&lt;/li&gt;&lt;li&gt;Camera mode affects how W/A/S/D keys behave&lt;/li&gt;&lt;li&gt;In First Person mode, pitch is limited to ±60 degrees&lt;/li&gt;&lt;li&gt;In Fly mode, pitch is limited to ±89 degrees&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>&lt;ul&gt;&lt;li&gt;Passer les clés en continu pour une navigation sans heurts&lt;/li&gt;&lt;li&gt; Le mode caméra influe sur le comportement des touches W/A/S/D&lt;/li&gt; En mode Première personne, la hauteur est limitée à ±60 degrés&lt;/li&gt;&lt;li&gt; En mode Fly, la hauteur est limitée à ±89 degrés&lt;/li&gt;&lt;/ul&gt;</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;Passer les clés en continu pour une navigation sans heurts&lt;/li&gt;&lt;li&gt; Le mode caméra influe sur le comportement des touches W/A/S/D&lt;/li&gt;&lt;li&gt; En mode Première personne, la hauteur est limitée à ±60 degrés&lt;/li&gt;&lt;li&gt; En mode Fly, la hauteur est limitée à ±89 degrés&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="177"/>
@@ -4254,7 +4254,7 @@ Tu veux poursuivre ?</translation>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="443"/>
         <source>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Visualization Settings:&lt;/b&gt; Right-click object → Visualization Settings&lt;/li&gt;&lt;li&gt;&lt;b&gt;Material Editor:&lt;/b&gt; Use the left panel to edit colors, roughness, metallic properties&lt;/li&gt;&lt;li&gt;&lt;b&gt;Texture Mapping:&lt;/b&gt; Apply textures through the Texture Mapping panel&lt;/li&gt;&lt;li&gt;&lt;b&gt;Environment:&lt;/b&gt; Enable SkyBox and IBL for realistic lighting&lt;/li&gt;&lt;li&gt;&lt;b&gt;Display Modes:&lt;/b&gt; Switch to Realistic mode to see full PBR materials&lt;/li&gt;&lt;/ul&gt;</source>
-        <translation>Paramètres de visualisation :&lt;/b&gt; Objet à clic droit → Paramètres de visualisation&lt;/li&gt;&lt;li&gt;&lt;b&gt;Éditeur du matériel:&lt;/b&gt; Utilisez le panneau gauche pour modifier les couleurs, la rugosité, les propriétés métalliques&lt;/li&gt;&lt;li&gt;&lt;b&gt;Cartographie textuelle:&lt;/b&gt; Appliquer les textures dans le panneau de cartographie des textures&lt;/li&gt;&lt;li&gt;&lt;b&gt;Environnement:&lt;/b&gt; Activer SkyBox et IPL pour un éclairage réaliste&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modes d&apos;affichage:&lt;/b&gt; Passez au mode réaliste pour voir les matériaux complets du PBR&lt;/li&gt;&lt;/ul&gt;</translation>
+        <translation>&lt;ul&gt;&lt;li&gt;&lt;b&gt;Paramètres de visualisation&#xa0;:&lt;/b&gt; Clic droit sur l’objet → Paramètres de visualisation&lt;/li&gt;&lt;li&gt;&lt;b&gt;Éditeur de matériaux&#xa0;:&lt;/b&gt; Utilisez le panneau de gauche pour modifier les couleurs, la rugosité et les propriétés métalliques&lt;/li&gt;&lt;li&gt;&lt;b&gt;Application de textures&#xa0;:&lt;/b&gt; Appliquez des textures via le panneau Application de textures&lt;/li&gt;&lt;li&gt;&lt;b&gt;Environnement&#xa0;:&lt;/b&gt; Activez SkyBox et IBL pour un éclairage réaliste&lt;/li&gt;&lt;li&gt;&lt;b&gt;Modes d’affichage&#xa0;:&lt;/b&gt; Passez en mode Réaliste pour afficher l’intégralité des matériaux PBR&lt;/li&gt;&lt;/ul&gt;</translation>
     </message>
     <message>
         <location filename="../src/QuickHelpDialog.cpp" line="451"/>
