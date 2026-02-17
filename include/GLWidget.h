@@ -302,6 +302,8 @@ public:
 	QVector3D getLightPosition() const;
 	void setLightOffset(const QVector3D& offset);
 
+	std::vector<GPULight> getParsedLights() const { return _originalParsedLights; }
+
 	float getFloorSize() const { return _floorSize; }
 
 	bool isShaded() const;

@@ -8,6 +8,8 @@
 #include <QString>
 #include <vector>
 
+#include "GLLights.h"
+
 class TriangleMesh; // Forward declaration
 class GLMaterial;   // Forward declaration
 
@@ -53,6 +55,7 @@ public:
     static bool postProcessGltfJsonWithMaterials(
         QJsonObject& gltfJson,
         const std::vector<TriangleMesh*>& meshes,
+        const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr);
 
     /**
@@ -76,6 +79,7 @@ public:
     static bool postProcessGltfFileWithMaterials(
         const QString& filePath,
         const std::vector<TriangleMesh*>& meshes,
+        const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr);
 
     /**
@@ -101,6 +105,17 @@ public:
     static bool postProcessGlbFileWithMaterials(
         const QString& filePath,
         const std::vector<TriangleMesh*>& meshes,
+        const std::vector<GPULight>& lights,
+        std::function<void(const QString&)> logCallback = nullptr);
+
+	/**
+	 * Write punctual light definitions from the source scene into the glTF JSON
+	 *
+	 * This adds a KHR_lights_punctual extension with light definitions based on the provided GPULight data.
+	 */
+    static bool writePunctualLights(
+        QJsonObject& gltfJson,
+        const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr);
 
     static bool removeTangentAttributes(

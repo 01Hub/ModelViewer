@@ -5,6 +5,9 @@
 #include <QJsonParseError>
 #include <QMap>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/quaternion.hpp>
+
 void GltfPostProcessor::log(const QString& message, std::function<void(const QString&)> callback)
 {
     if (callback)
@@ -501,6 +504,7 @@ bool GltfPostProcessor::postProcessGlbFile(const QString& filePath,
 bool GltfPostProcessor::postProcessGltfFileWithMaterials(
     const QString& filePath,
     const std::vector<TriangleMesh*>& meshes,
+    const std::vector<GPULight>& lights,
     std::function<void(const QString&)> logCallback)
 {
     QFile file(filePath);
@@ -525,7 +529,7 @@ bool GltfPostProcessor::postProcessGltfFileWithMaterials(
     QJsonObject gltfJson = doc.object();
 
     // Process with material transforms
-    postProcessGltfJsonWithMaterials(gltfJson, meshes, logCallback);
+    postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback);
 
     doc.setObject(gltfJson);
 
@@ -545,6 +549,7 @@ bool GltfPostProcessor::postProcessGltfFileWithMaterials(
 bool GltfPostProcessor::postProcessGlbFileWithMaterials(
     const QString& filePath,
     const std::vector<TriangleMesh*>& meshes,
+    const std::vector<GPULight>& lights,
     std::function<void(const QString&)> logCallback)
 {
     // Read GLB file
@@ -628,7 +633,7 @@ bool GltfPostProcessor::postProcessGlbFileWithMaterials(
     QJsonObject gltfJson = doc.object();
 
     // Post-process with material transforms
-    postProcessGltfJsonWithMaterials(gltfJson, meshes, logCallback);
+    postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback);
 
     // Reconstruct GLB with modified JSON
     doc.setObject(gltfJson);
@@ -681,6 +686,154 @@ bool GltfPostProcessor::postProcessGlbFileWithMaterials(
     file.close();
 
     log(QString("Successfully post-processed GLB with materials: %1").arg(filePath), logCallback);
+    return true;
+}
+
+bool GltfPostProcessor::writePunctualLights(
+    QJsonObject& gltfJson,
+    const std::vector<GPULight>& lights,
+    std::function<void(const QString&)> logCallback)
+{
+    if (lights.empty())
+        return false;
+
+    log(QString("Writing %1 punctual light(s)...").arg(lights.size()), logCallback);
+
+    QJsonArray lightsArray;
+    QJsonArray nodesArray = gltfJson.value("nodes").toArray();
+
+    for (size_t i = 0; i < lights.size(); ++i)
+    {
+        const GPULight& light = lights[i];
+
+        // --- Determine type string ---
+        QString typeStr;
+        LightType lt = static_cast<LightType>(light.type);
+        if (lt == LightType::Directional) typeStr = "directional";
+        else if (lt == LightType::Point)       typeStr = "point";
+        else if (lt == LightType::Spot)        typeStr = "spot";
+        else
+        {
+            log(QString("  Light %1: unknown type %2, skipping").arg(i).arg(light.type), logCallback);
+            continue;
+        }
+
+        // --- Build light definition ---
+        QJsonObject lightDef;
+        lightDef["type"] = typeStr;
+        lightDef["name"] = QString("light_%1").arg(i);
+        lightDef["intensity"] = static_cast<double>(light.intensity);
+
+        // Color (only write if non-white)
+        if (std::abs(light.color.x - 1.0f) > 0.001f ||
+            std::abs(light.color.y - 1.0f) > 0.001f ||
+            std::abs(light.color.z - 1.0f) > 0.001f)
+        {
+            QJsonArray colorArr;
+            colorArr.append(static_cast<double>(light.color.x));
+            colorArr.append(static_cast<double>(light.color.y));
+            colorArr.append(static_cast<double>(light.color.z));
+            lightDef["color"] = colorArr;
+        }
+
+        // Range (omit for directional or infinite/zero range)
+        if (lt != LightType::Directional && light.range > 0.0f)
+            lightDef["range"] = static_cast<double>(light.range);
+
+        // Spot cone angles (stored as cosines in GPULight, convert back to radians)
+        if (lt == LightType::Spot)
+        {
+            float innerAngle = std::acos(glm::clamp(light.innerConeCos, -1.0f, 1.0f));
+            float outerAngle = std::acos(glm::clamp(light.outerConeCos, -1.0f, 1.0f));
+            QJsonObject spotDef;
+            spotDef["innerConeAngle"] = static_cast<double>(innerAngle);
+            spotDef["outerConeAngle"] = static_cast<double>(outerAngle);
+            lightDef["spot"] = spotDef;
+        }
+
+        int lightIndex = lightsArray.size();
+        lightsArray.append(lightDef);
+
+        // --- Build a node for this light ---
+        // glTF lights live on nodes: position via translation, direction via rotation.
+        // Default light direction in glTF is -Z (0,0,-1).
+        QJsonObject lightNode;
+        lightNode["name"] = QString("light_node_%1").arg(i);
+
+        // Translation
+        QJsonArray translation;
+        translation.append(static_cast<double>(light.position.x));
+        translation.append(static_cast<double>(light.position.y));
+        translation.append(static_cast<double>(light.position.z));
+        lightNode["translation"] = translation;
+
+        // Rotation: from glTF default (-Z) to actual light direction
+        glm::vec3 defaultDir(0.0f, 0.0f, -1.0f);
+        glm::vec3 dir = glm::normalize(light.direction);
+        glm::quat rot = glm::rotation(defaultDir, dir);
+        QJsonArray rotation;
+        rotation.append(static_cast<double>(rot.x));
+        rotation.append(static_cast<double>(rot.y));
+        rotation.append(static_cast<double>(rot.z));
+        rotation.append(static_cast<double>(rot.w));
+        lightNode["rotation"] = rotation;
+
+        // KHR_lights_punctual reference on the node
+        QJsonObject nodeExt;
+        QJsonObject lightRef;
+        lightRef["light"] = lightIndex;
+        nodeExt["KHR_lights_punctual"] = lightRef;
+        lightNode["extensions"] = nodeExt;
+
+        int nodeIndex = nodesArray.size();
+        nodesArray.append(lightNode);
+
+        log(QString("  -> %1 light '%2' at node %3")
+            .arg(typeStr).arg(lightDef["name"].toString()).arg(nodeIndex), logCallback);
+    }
+
+    if (lightsArray.isEmpty())
+        return false;
+
+    // --- Write lights array to top-level extensions ---
+    QJsonObject topExtensions = gltfJson.value("extensions").toObject();
+    QJsonObject khrLights;
+    khrLights["lights"] = lightsArray;
+    topExtensions["KHR_lights_punctual"] = khrLights;
+    gltfJson["extensions"] = topExtensions;
+
+    // --- Write updated nodes array ---
+    gltfJson["nodes"] = nodesArray;
+
+    // --- Add light nodes to the first scene ---
+    if (gltfJson.contains("scenes"))
+    {
+        QJsonArray scenes = gltfJson["scenes"].toArray();
+        if (!scenes.isEmpty())
+        {
+            QJsonObject scene = scenes[0].toObject();
+            QJsonArray sceneNodes = scene.value("nodes").toArray();
+            int firstLightNode = nodesArray.size() - static_cast<int>(lightsArray.size());
+            for (int i = firstLightNode; i < nodesArray.size(); ++i)
+                sceneNodes.append(i);
+            scene["nodes"] = sceneNodes;
+            scenes[0] = scene;
+            gltfJson["scenes"] = scenes;
+        }
+    }
+
+    // --- Add KHR_lights_punctual to extensionsUsed ---
+    QJsonArray extensionsUsed = gltfJson.value("extensionsUsed").toArray();
+    bool listed = false;
+    for (const QJsonValue& v : extensionsUsed)
+        if (v.toString() == "KHR_lights_punctual") { listed = true; break; }
+    if (!listed)
+    {
+        extensionsUsed.append("KHR_lights_punctual");
+        gltfJson["extensionsUsed"] = extensionsUsed;
+    }
+
+    log(QString("  -> KHR_lights_punctual written (%1 lights)").arg(lightsArray.size()), logCallback);
     return true;
 }
 
@@ -748,6 +901,7 @@ bool GltfPostProcessor::removeTangentAttributes(
 bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     QJsonObject& gltfJson,
     const std::vector<TriangleMesh*>& meshes,
+    const std::vector<GPULight>& lights,
     std::function<void(const QString&)> logCallback)
 {
     log("=== glTF Post-Processor (with material transforms) ===", logCallback);
@@ -1525,6 +1679,10 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             log("  All texture sampler references are valid", logCallback);
         }
     }
+
+
+    if (!lights.empty())
+        writePunctualLights(gltfJson, lights, logCallback);
 
     // Then do standard post-processing (fills in missing properties with defaults)
     return postProcessGltfJson(gltfJson, logCallback);

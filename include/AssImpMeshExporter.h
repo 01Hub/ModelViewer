@@ -6,6 +6,7 @@
 #include <assimp/scene.h>
 #include <assimp/Exporter.hpp>
 #include "TextureLocationManager.h"
+#include "GLLights.h" 
 
 class GLMaterial;
 class TriangleMesh;
@@ -58,6 +59,7 @@ public:
         bool useRelativePaths = true;         ///< Use relative paths in glTF
         bool deduplicateTextures = true;      ///< Remove duplicate textures
         bool verbose = true;                  ///< Enable debug logging
+        std::vector<GPULight> lights;
     };
 
     explicit AssImpMeshExporter(QObject* parent = nullptr);

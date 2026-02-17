@@ -199,7 +199,29 @@ aiReturn AssImpMeshExporter::exportMeshes(
     logMessage(QString("  -> Materials: %1").arg(aiMaterials.size()));
     logMessage(QString("  -> Textures: %1").arg(_lastTexturePackage.textures.size()));
 
-    // ===== STEP 5: Cleanup texture folder for GLB exports =====
+    // ===== STEP 5: Post-process to add lights and fix materials =====
+    logMessage("Step 5: Post-processing exported file...");
+
+    auto logCallback = [this](const QString& msg) { logMessage(msg); };
+
+    if (isGLB)
+    {
+        if (GltfPostProcessor::postProcessGlbFileWithMaterials(
+            exportPath, meshes, settings.lights, logCallback))
+            logMessage("  -> Post-processing complete");
+        else
+            logWarning("  -> Post-processing failed (file may still be valid)");
+    }
+    else if (QFileInfo(exportPath).suffix().toLower() == "gltf")
+    {
+        if (GltfPostProcessor::postProcessGltfFileWithMaterials(
+            exportPath, meshes, settings.lights, logCallback))
+            logMessage("  -> Post-processing complete");
+        else
+            logWarning("  -> Post-processing failed (file may still be valid)");
+    }
+
+    // ===== STEP 6: Cleanup texture folder for GLB exports =====
     if (isGLB && settings.copyTextures && !_lastTexturePackage.textures.empty())
     {
         logMessage("Step 5: Cleaning up texture folder (textures embedded in GLB)...");
@@ -426,7 +448,7 @@ aiReturn AssImpMeshExporter::exportScene(
 
     if (isGLB)
     {
-        if (GltfPostProcessor::postProcessGlbFileWithMaterials(exportFilePath, meshes, logCallback))
+        if (GltfPostProcessor::postProcessGlbFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback))
         {
             logMessage("  -> Post-processing complete");
         }
@@ -437,7 +459,7 @@ aiReturn AssImpMeshExporter::exportScene(
     }
     else if (ext == "gltf")
     {
-        if (GltfPostProcessor::postProcessGltfFileWithMaterials(exportFilePath, meshes, logCallback))
+        if (GltfPostProcessor::postProcessGltfFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback))
         {
             logMessage("  -> Post-processing complete");
         }

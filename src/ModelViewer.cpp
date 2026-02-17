@@ -2026,6 +2026,7 @@ void ModelViewer::onFileExport()
 		expSettings.useRelativePaths = true;
 		expSettings.deduplicateTextures = true;
 		expSettings.verbose = true;
+		expSettings.lights = _glWidget->getParsedLights();
 
 		aiReturn res = aiReturn_FAILURE;
 		if (exportScene)
