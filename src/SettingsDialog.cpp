@@ -1,6 +1,7 @@
 #include "LanguageManager.h"
 #include "Logger.h"
 #include "SettingsDialog.h"
+#include "ModelViewerApplication.h"
 #include "ui_SettingsDialog.h"
 #include <QMessageBox>
 #include <QTimer>
@@ -323,6 +324,7 @@ void SettingsDialog::setDefaultValues()
     // Display tab
     ui->showBoundingBoxCheckBox->setChecked(false);    // No 'checked' property found
     ui->showCornerTrihedronCheckBox->setChecked(true); // Explicitly set to true
+	ui->showCenterTrihedronCheckBox->setChecked(true); // Explicitly set to true
     ui->comboBoxCornerTrihedronPosition->setCurrentIndex(1); // Explicitly set to 1
     ui->showGridCheckBox->setChecked(true);            // Explicitly set to true
     ui->showWireframeCheckBox->setChecked(false);      // No 'checked' property found
@@ -342,8 +344,18 @@ void SettingsDialog::setDefaultValues()
     ui->checkBackfaceCulling->setChecked(false);             // Not set
     ui->checkNormalMap->setChecked(false);                   // Not set
     ui->shaderModelComboBox->setCurrentIndex(0);             // "Blinn-Phong"
-    ui->msaaComboBox->setCurrentIndex(0);                // "1 (No MSAA)"
-    ui->anisotropyComboBox->setCurrentIndex(0);          // "1x (Off)"
+    	
+	int maxSamples = ModelViewerApplication::supportedMSAASamples();
+	if(maxSamples >= 4)
+        ui->msaaComboBox->setCurrentIndex(3);                    // "4x"    
+    else
+        ui->msaaComboBox->setCurrentIndex(0);                    // "1 (No MSAA)"
+    
+	int maxAnisotropy = ModelViewerApplication::supportedAnisotropicFilteringLevel();
+    if(maxAnisotropy >= 4)
+        ui->anisotropyComboBox->setCurrentIndex(3);              // "4x"
+	else
+        ui->anisotropyComboBox->setCurrentIndex(0);              // "1x (Off)"
 
     // Lighting
     ui->enableLightingCheckBox->setChecked(true);
