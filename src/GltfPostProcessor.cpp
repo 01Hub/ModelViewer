@@ -5,8 +5,7 @@
 #include <QJsonParseError>
 #include <QMap>
 
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/gtx/quaternion.hpp>
+#include <glm/gtc/quaternion.hpp>
 
 void GltfPostProcessor::log(const QString& message, std::function<void(const QString&)> callback)
 {
@@ -770,7 +769,24 @@ bool GltfPostProcessor::writePunctualLights(
         // Rotation: from glTF default (-Z) to actual light direction
         glm::vec3 defaultDir(0.0f, 0.0f, -1.0f);
         glm::vec3 dir = glm::normalize(light.direction);
-        glm::quat rot = glm::rotation(defaultDir, dir);
+        float dot = glm::dot(defaultDir, dir);
+
+        glm::quat rot;
+        if (dot >= 1.0f - 1e-6f)
+        {
+            rot = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);  // identity - already pointing -Z
+        }
+        else if (dot <= -1.0f + 1e-6f)
+        {
+            // Exactly opposite - 180° around any perpendicular axis
+            rot = glm::angleAxis(glm::pi<float>(), glm::vec3(1.0f, 0.0f, 0.0f));
+        }
+        else
+        {
+            glm::vec3 axis = glm::normalize(glm::cross(defaultDir, dir));
+            float angle = std::acos(dot);
+            rot = glm::angleAxis(angle, axis);
+        }
         QJsonArray rotation;
         rotation.append(static_cast<double>(rot.x));
         rotation.append(static_cast<double>(rot.y));
