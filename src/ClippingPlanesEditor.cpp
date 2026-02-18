@@ -322,5 +322,7 @@ void ClippingPlanesEditor::on_pushButtonDefaultValues_clicked()
 	doubleSpinBoxThickness->setValue(0.05);
 	doubleSpinBoxIntensity->setValue(1.0f);
 	pushButtonHatchColor->setStyleSheet("background-color: #000000; color: #FFFFFF;");
+	_glView->setHatchLineColor(QColor(0,0,0));
 	pushButtonTexture->setText(tr("Select Texture"));
+	pushButtonTexture->setIcon(QIcon());
 }
