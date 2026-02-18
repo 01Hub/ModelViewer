@@ -18,6 +18,7 @@ AssImpMeshExporter::AssImpMeshExporter(QObject* parent)
 }
 
 aiReturn AssImpMeshExporter::exportMeshes(
+    const aiScene* scene,
     const std::vector<TriangleMesh*>& meshes,
     const QString& exportPath,
     const ExportSettings& settings)
@@ -41,12 +42,43 @@ aiReturn AssImpMeshExporter::exportMeshes(
     QFileInfo exportFileInfo(exportPath);
     QString ext = exportFileInfo.suffix().toLower();
     bool isGLB = (ext == "glb" || ext == "gltf-binary");
+    bool isGLTF = (ext == "gltf");
 
     if (settings.copyTextures)
     {
+        // Extract embedded textures if source is GLB
+        if ((isGLB || isGLTF) && scene && scene->mNumTextures > 0)
+        {
+            logMessage("  Extracting embedded textures from source GLB...");
+            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory);
+
+            // Inject the embedded texture mappings into texturePackage
+            // This bypasses the resolveTexture mechanism for GLB textures
+            for (auto it = embeddedMapping.begin(); it != embeddedMapping.end(); ++it)
+            {
+                _lastTexturePackage.pathMapping[it.key()] = it.value();
+            }
+
+            logMessage(QString("  -> Injected %1 embedded texture mappings").arg(embeddedMapping.size()));
+        }
+
+        logMessage("Step 1b: Packaging textures...");
         _lastTexturePackage = _textureManager.packageTextures(
             meshes,
             settings.outputDirectory);
+
+        // Re-inject embedded mappings (in case packageTextures cleared the mapping)
+        if (scene && scene->mNumTextures > 0)
+        {
+            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory);
+            for (auto it = embeddedMapping.begin(); it != embeddedMapping.end(); ++it)
+            {
+                _lastTexturePackage.pathMapping[it.key()] = it.value();
+            }
+        }
+
+        logMessage(QString("  -> Total texture mappings: %1").arg(_lastTexturePackage.pathMapping.size()));
+
 
         logMessage(QString("  -> Packaged %1 unique textures")
             .arg(_lastTexturePackage.textures.size()));
@@ -158,8 +190,8 @@ aiReturn AssImpMeshExporter::exportMeshes(
     // ===== STEP 3: Create scene hierarchy =====
     logMessage("Step 3: Creating scene hierarchy...");
 
-    std::unique_ptr<aiScene> scene(createScene(aiMeshes, aiMaterials, transforms));
-    if (!scene)
+    std::unique_ptr<aiScene> newScene(createScene(aiMeshes, aiMaterials, transforms));
+    if (!newScene)
     {
         logError("Failed to create Assimp scene");
         return aiReturn_FAILURE;
@@ -184,7 +216,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
         .arg(QString::fromLocal8Bit(format->description))
         .arg(QString::fromLocal8Bit(format->id)));
 
-    aiReturn result = exporter.Export(scene.get(), format->id, exportPath.toStdString().c_str());
+    aiReturn result = exporter.Export(newScene.get(), format->id, exportPath.toStdString().c_str());
 
     if (result != aiReturn_SUCCESS)
     {
@@ -350,15 +382,44 @@ aiReturn AssImpMeshExporter::exportScene(
     QFileInfo exportFileInfo(exportFilePath);
     QString ext = exportFileInfo.suffix().toLower();
     bool isGLB = (ext == "glb" || ext == "gltf-binary");
+    bool isGLTF = (ext == "gltf");
 
     // ===== STEP 1: Package textures =====
     if (settings.copyTextures && !meshes.empty())
     {
         logMessage("Step 1: Packaging textures...");
 
+        // Extract embedded textures if source is GLB
+        if ((isGLB || isGLTF) && scene && scene->mNumTextures > 0)
+        {
+            logMessage("  Extracting embedded textures from source GLB...");
+            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory);
+
+            // Inject the embedded texture mappings into texturePackage
+            // This bypasses the resolveTexture mechanism for GLB textures
+            for (auto it = embeddedMapping.begin(); it != embeddedMapping.end(); ++it)
+            {
+                _lastTexturePackage.pathMapping[it.key()] = it.value();
+            }
+
+            logMessage(QString("  -> Injected %1 embedded texture mappings").arg(embeddedMapping.size()));
+        }
+
         _lastTexturePackage = _textureManager.packageTextures(
             meshes,
             settings.outputDirectory);
+
+        // Re-inject embedded mappings (in case packageTextures cleared the mapping)
+        if (scene && scene->mNumTextures > 0)
+        {
+            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory);
+            for (auto it = embeddedMapping.begin(); it != embeddedMapping.end(); ++it)
+            {
+                _lastTexturePackage.pathMapping[it.key()] = it.value();
+            }
+        }
+
+        logMessage(QString("  -> Total texture mappings: %1").arg(_lastTexturePackage.pathMapping.size()));
 
         logMessage(QString("  -> Packaged %1 unique textures")
             .arg(_lastTexturePackage.textures.size()));
@@ -1526,6 +1587,102 @@ void AssImpMeshExporter::embedTexturesInScene(
 
         logMessage(QString("  -> Embedded %1 textures in scene").arg(textures.size()));
     }
+}
+
+QMap<QString, QString> AssImpMeshExporter::extractEmbeddedTextures(
+    const aiScene* scene,
+    const QString& outputDirectory)
+{
+    QMap<QString, QString> textureMapping;  // glb://image_N -> textures/image_N.ext
+
+    if (!scene || scene->mNumTextures == 0)
+        return textureMapping;
+
+    QString texDir = outputDirectory + "/textures";
+    QDir().mkpath(texDir);
+
+    logMessage(QString("Extracting %1 embedded texture(s) from GLB...").arg(scene->mNumTextures));
+
+    for (unsigned int i = 0; i < scene->mNumTextures; ++i)
+    {
+        aiTexture* tex = scene->mTextures[i];
+        if (!tex) continue;
+
+        // Get format
+        QString format = QString::fromLocal8Bit(tex->achFormatHint);
+        if (format.isEmpty()) format = "png";
+
+        // Write with image_N naming to match MaterialProcessor's glb://image_N URIs
+        QString filename = QString("image_%1.%2").arg(i).arg(format);
+        QString outputPath = texDir + "/" + filename;
+
+        // Check if already exists
+        if (QFile::exists(outputPath))
+        {
+            logMessage(QString("  -> Skipping (already exists): %1").arg(filename));
+            // Still add to mapping even if file exists
+            QString glbUri = QString("glb://image_%1").arg(i);
+            QString relativePath = QString("textures/%1").arg(filename);
+            textureMapping[glbUri] = relativePath;
+            continue;
+        }
+
+        QFile file(outputPath);
+        if (!file.open(QIODevice::WriteOnly))
+        {
+            logWarning(QString("Failed to create texture file: %1").arg(outputPath));
+            continue;
+        }
+
+        bool success = false;
+
+        if (tex->mHeight == 0)
+        {
+            // Compressed
+            file.write(reinterpret_cast<const char*>(tex->pcData), tex->mWidth);
+            file.close();
+            success = true;
+            logMessage(QString("  -> Extracted: %1 (%2 bytes)").arg(filename).arg(tex->mWidth));
+        }
+        else
+        {
+            // Uncompressed RGBA
+            file.close();
+            QImage img(
+                reinterpret_cast<const uchar*>(tex->pcData),
+                tex->mWidth,
+                tex->mHeight,
+                tex->mWidth * 4,
+                QImage::Format_RGBA8888
+            );
+
+            if (img.save(outputPath, "PNG"))
+            {
+                success = true;
+                logMessage(QString("  -> Extracted: %1 (%2x%3 RGBA)").arg(filename).arg(tex->mWidth).arg(tex->mHeight));
+            }
+            else
+            {
+                logWarning(QString("Failed to save: %1").arg(filename));
+                QFile::remove(outputPath);
+            }
+        }
+
+        // Add to mapping if successful
+        if (success)
+        {
+            QString glbUri = QString("glb://image_%1").arg(i);
+            QString relativePath = QString("textures/%1").arg(filename);
+            textureMapping[glbUri] = relativePath;
+
+            logMessage(QString("  -> Mapped: %1 -> %2").arg(glbUri).arg(relativePath));
+        }
+    }
+
+    logMessage(QString("Extraction complete: %1 textures, %2 mappings")
+        .arg(scene->mNumTextures).arg(textureMapping.size()));
+
+    return textureMapping;
 }
 
 aiScene* AssImpMeshExporter::createScene(

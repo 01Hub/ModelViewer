@@ -81,6 +81,7 @@ public:
      * @return aiReturn_SUCCESS on success, aiReturn_FAILURE on error
      */
     aiReturn exportMeshes(
+        const aiScene* scene,
         const std::vector<TriangleMesh*>& meshes,
         const QString& exportPath,
         const ExportSettings& settings);
@@ -244,6 +245,15 @@ private:
     void embedTexturesInScene(
         aiScene* scene,
         const TexturePackage& texturePackage);
+
+    /**
+	* Extract embedded textures from an Assimp scene and save to disk
+	* This helps in exporting the textures embedded in a GLB file to separate image files on disk, 
+    * which can be useful for formats that don't support embedding.
+    */
+    QMap<QString, QString> extractEmbeddedTextures(
+        const aiScene* scene,
+        const QString& outputDirectory);
 
     /**
      * @brief Create an Assimp scene with proper hierarchy

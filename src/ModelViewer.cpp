@@ -2028,18 +2028,18 @@ void ModelViewer::onFileExport()
 		expSettings.verbose = true;
 		expSettings.lights = _glWidget->getParsedLights();
 
+		// Export a copy of the the original aiScene
+		aiScene* copyScene = SceneUtils::deepCopyScene(_glWidget->getAssImpScene());
 		aiReturn res = aiReturn_FAILURE;
 		if (exportScene)
-		{
-			// Export a copy of the the original aiScene
-			aiScene* copyScene = SceneUtils::deepCopyScene(_glWidget->getAssImpScene());
+		{			
 			res = exporter.exportScene(copyScene, triMeshes, fileName.toStdString(), expSettings);
 			qDebug() << "Exporting scene result:" << res;
 			delete copyScene;
 		}
 		else
 		{			
-			res = exporter.exportMeshes(triMeshes, fileName, expSettings);
+			res = exporter.exportMeshes(copyScene, triMeshes, fileName, expSettings);
 			qDebug() << "Exporting meshes result:" << res;
 		}
 
