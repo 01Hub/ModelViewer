@@ -147,6 +147,9 @@ public:
 	GLMaterial(QVector3D albedo, float metalness, float roughness, float opacity = 1.0f);
 	~GLMaterial();
 
+	void setName(const QString& name) { _name = name; }
+	QString name() const { return _name; }
+
 	// ============================================================================
 	// Unified Texture API (TextureType-based)
 	// ============================================================================
@@ -1123,6 +1126,8 @@ private:
 	void assignAutoPackingForPath(const QString& path);
 
 private:
+
+	QString _name;
 	// ============================================================================
 	// Unified Texture Array (20 textures)
 	// ============================================================================

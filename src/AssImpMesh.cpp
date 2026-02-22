@@ -651,6 +651,23 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 		t.id = 0;
 		t.type = outType;
 		t.path = path.toStdString();
+
+		// CRITICAL: Copy sampler values from material's texture array
+		// Find the matching texture type in material and copy its sampler settings
+		auto matTexType = GLMaterial::stringToTextureType(QString::fromStdString(outType));
+		if (matTexType != GLMaterial::TextureType::Count)
+		{
+			const auto& matTex = _material.texture(matTexType);
+			t.wrapS = matTex.wrapS;
+			t.wrapT = matTex.wrapT;
+			t.magFilter = matTex.magFilter;
+			t.minFilter = matTex.minFilter;
+			t.texCoordIndex = matTex.texCoordIndex;
+			t.scale = matTex.scale;
+			t.offset = matTex.offset;
+			t.rotation = matTex.rotation;
+		}
+
 		// Optionally detect alpha channel (light-weight check)
 		bool hasAlpha = false;
 		GLuint id = createGLTextureFromFile(path, hasAlpha);

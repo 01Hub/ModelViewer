@@ -45,6 +45,13 @@ void MaterialProcessor::processAssimpColorAndMaterial(aiMaterial* material, GLMa
 		return;
 	}
 
+	// Get material name from Assimp
+	aiString materialName;
+	if (AI_SUCCESS == material->Get(AI_MATKEY_NAME, materialName))
+	{
+		mat.setName(QString(materialName.C_Str()));
+	}
+
 	// debugging: print material name
 	/*for (unsigned int i = 0; i < material->mNumProperties; ++i)
 	{
@@ -2211,6 +2218,13 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 
 	QJsonObject matObj = jsonMaterials.at(gltfMaterialIndex).toObject();
 
+	// Store the material name
+	if (matObj.contains("name"))
+	{
+		QString materialName = matObj.value("name").toString();
+		outMaterial.setName(materialName);
+	}
+
 	// ========== CORE GLTF 2.0 MATERIAL PROPERTIES ==========
 
 	// === 1. Double-Sided (defaults to false per glTF spec) ===
@@ -3576,6 +3590,12 @@ void MaterialProcessor::addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial
 			candidate.scale = scale;
 			candidate.offset = offset;
 			candidate.rotation = rotation;
+			candidate.hasAlpha = false; 
+			candidate.wrapS = GL_REPEAT;
+			candidate.wrapT = GL_REPEAT;
+			candidate.magFilter = GL_LINEAR;
+			candidate.minFilter = GL_LINEAR_MIPMAP_LINEAR;
+
 
 			// UV transform comparator (same as in loadMaterialTextures)
 			auto uvTransformMatches = [](const GLMaterial::Texture& a, const GLMaterial::Texture& b) {
@@ -3616,6 +3636,12 @@ void MaterialProcessor::addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial
 					alias.scale = candidate.scale;
 					alias.offset = candidate.offset;
 					alias.rotation = candidate.rotation;
+
+					// Copy sampler values
+					alias.wrapS = lt.wrapS;
+					alias.wrapT = lt.wrapT;
+					alias.magFilter = lt.magFilter;
+					alias.minFilter = lt.minFilter;
 
 					textures.push_back(alias);
 					_loadedTextures.push_back(alias); // cache this variant
@@ -3859,6 +3885,12 @@ std::vector<GLMaterial::Texture> MaterialProcessor::loadMaterialTextures(
 			alias.offset = newTexture.offset;
 			alias.rotation = newTexture.rotation;
 
+			// Copy sampler values
+			alias.wrapS = lt.wrapS;
+			alias.wrapT = lt.wrapT;
+			alias.magFilter = lt.magFilter;
+			alias.minFilter = lt.minFilter;
+
 			textures.push_back(alias);
 			_loadedTextures.push_back(alias);    // Cache this variant
 			return textures;
@@ -3945,6 +3977,11 @@ void MaterialProcessor::synthesizeADSAliases(std::vector<GLMaterial::Texture>& t
 				alias.rotation = tex.rotation;
 				alias.texCoordIndex = tex.texCoordIndex;
 				alias.hasAlpha = tex.hasAlpha;
+
+				alias.wrapS = tex.wrapS;
+				alias.wrapT = tex.wrapT;
+				alias.magFilter = tex.magFilter;
+				alias.minFilter = tex.minFilter;
 
 				textures.push_back(alias);
 				_loadedTextures.push_back(alias); // register to global cache so future loads reuse

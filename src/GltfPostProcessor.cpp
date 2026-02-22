@@ -1431,6 +1431,9 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         {
             samplers.append(sampler);
         }
+
+        // CRITICAL: Write textures with sampler assignments to gltfJson first
+        gltfJson["textures"] = textures;
                 
         // CRITICAL: Reload textures array to include any created by findOrCreateTexture
         textures = gltfJson.value("textures").toArray();
@@ -1464,6 +1467,41 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             else
             {
                 log(QString("    -> No sampler reference"), logCallback);
+            }
+        }
+
+        // Restore original material names from source materials
+        QSet<QString> usedNames;
+        for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
+        {
+            if (!meshes[i]) continue;
+
+            const GLMaterial& sourceMat = meshes[i]->getMaterial();
+            QString originalName = sourceMat.name();
+
+            if (!originalName.isEmpty())
+            {
+                // Make name unique if it's already used
+                QString uniqueName = originalName;
+                int suffix = 1;
+                while (usedNames.contains(uniqueName))
+                {
+                    uniqueName = QString("%1_%2").arg(originalName).arg(suffix++);
+                }
+                usedNames.insert(uniqueName);
+
+                QJsonObject mat = materials[i].toObject();
+                mat["name"] = uniqueName;
+                materials[i] = mat;
+
+                if (uniqueName != originalName)
+                {
+                    log(QString("  Restored material %1 name: %2 (made unique)").arg(i).arg(uniqueName), logCallback);
+                }
+                else
+                {
+                    log(QString("  Restored material %1 name: %2").arg(i).arg(uniqueName), logCallback);
+                }
             }
         }
 
