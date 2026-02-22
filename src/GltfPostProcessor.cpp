@@ -1432,6 +1432,18 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             samplers.append(sampler);
         }
 
+        // CRITICAL: Merge textures - include any added by findOrCreateTexture during material processing
+        QJsonArray gltfTextures = gltfJson.value("textures").toArray();
+        if (gltfTextures.size() > textures.size())
+        {
+            // New textures were added by findOrCreateTexture - append them
+            for (int i = textures.size(); i < gltfTextures.size(); ++i)
+            {
+                textures.append(gltfTextures[i]);
+                log(QString("  Merged extension texture[%1] from findOrCreateTexture").arg(i), logCallback);
+            }
+        }
+
         // CRITICAL: Write textures with sampler assignments to gltfJson first
         gltfJson["textures"] = textures;
                 
