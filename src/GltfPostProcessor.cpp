@@ -1303,10 +1303,17 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             QJsonObject extensions = mat.value("extensions").toObject();
             bool hasExtensions = false;
 
-            if (glMat.transmission() > 0.0f)
+            if (glMat.transmission() > 0.0f || !glMat.transmissionMapPath().isEmpty())
             {
                 QJsonObject trans;
                 trans["transmissionFactor"] = static_cast<double>(glMat.transmission());
+
+                if (!glMat.transmissionMapPath().isEmpty())
+                {
+                    int ti = findOrCreateTexture(gltfJson, glMat.transmissionMapPath(), logCallback);
+                    if (ti >= 0) { QJsonObject t; t["index"] = ti; trans["transmissionTexture"] = t; }
+                }
+
                 extensions["KHR_materials_transmission"] = trans;
                 hasExtensions = true;
             }
@@ -1503,6 +1510,87 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 hasExtensions = true;
             }
 
+            // KHR_materials_volume_scatter
+            if (glMat.hasVolumeScattering())
+            {
+                QJsonObject scatter;
+                QVector3D msc = glMat.multiScatterColor();
+                QJsonArray mscArr;
+                mscArr.append(static_cast<double>(msc.x()));
+                mscArr.append(static_cast<double>(msc.y()));
+                mscArr.append(static_cast<double>(msc.z()));
+                scatter["multiscatterColor"] = mscArr;
+                extensions["KHR_materials_volume_scatter"] = scatter;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_diffuse_transmission
+            if (glMat.diffuseTransmissionFactor() > 0.0f
+                || !glMat.diffuseTransmissionMap().isEmpty()
+                || !glMat.diffuseTransmissionColorMap().isEmpty())
+            {
+                QJsonObject dt;
+                dt["diffuseTransmissionFactor"] = static_cast<double>(glMat.diffuseTransmissionFactor());
+
+                QVector3D dtc = glMat.diffuseTransmissionColorFactor();
+                QJsonArray dtcArr;
+                dtcArr.append(static_cast<double>(dtc.x()));
+                dtcArr.append(static_cast<double>(dtc.y()));
+                dtcArr.append(static_cast<double>(dtc.z()));
+                dt["diffuseTransmissionColorFactor"] = dtcArr;
+
+                if (!glMat.diffuseTransmissionMap().isEmpty())
+                {
+                    int ti = findOrCreateTexture(gltfJson, glMat.diffuseTransmissionMap(), logCallback);
+                    if (ti >= 0) { QJsonObject t; t["index"] = ti; dt["diffuseTransmissionTexture"] = t; }
+                }
+                if (!glMat.diffuseTransmissionColorMap().isEmpty())
+                {
+                    int ti = findOrCreateTexture(gltfJson, glMat.diffuseTransmissionColorMap(), logCallback);
+                    if (ti >= 0) { QJsonObject t; t["index"] = ti; dt["diffuseTransmissionColorTexture"] = t; }
+                }
+
+                extensions["KHR_materials_diffuse_transmission"] = dt;
+                hasExtensions = true;
+            }
+
+            // KHR_materials_pbrSpecularGlossiness
+            if (glMat.getUseSpecularGlossiness())
+            {
+                QJsonObject sg;
+
+                QVector3D diff = glMat.diffuseColor();
+                QJsonArray diffArr;
+                diffArr.append(static_cast<double>(diff.x()));
+                diffArr.append(static_cast<double>(diff.y()));
+                diffArr.append(static_cast<double>(diff.z()));
+                diffArr.append(static_cast<double>(glMat.opacity()));
+                sg["diffuseFactor"] = diffArr;
+
+                QVector3D spec = glMat.specularColor();
+                QJsonArray specArr;
+                specArr.append(static_cast<double>(spec.x()));
+                specArr.append(static_cast<double>(spec.y()));
+                specArr.append(static_cast<double>(spec.z()));
+                sg["specularFactor"] = specArr;
+
+                sg["glossinessFactor"] = static_cast<double>(glMat.glossinessFactor());
+
+                if (!glMat.diffuseMap().isEmpty())
+                {
+                    int ti = findOrCreateTexture(gltfJson, glMat.diffuseMap(), logCallback);
+                    if (ti >= 0) { QJsonObject t; t["index"] = ti; sg["diffuseTexture"] = t; }
+                }
+                if (!glMat.specularGlossinessMap().isEmpty())
+                {
+                    int ti = findOrCreateTexture(gltfJson, glMat.specularGlossinessMap(), logCallback);
+                    if (ti >= 0) { QJsonObject t; t["index"] = ti; sg["specularGlossinessTexture"] = t; }
+                }
+
+                extensions["KHR_materials_pbrSpecularGlossiness"] = sg;
+                hasExtensions = true;
+            }
+
             if (hasExtensions)
                 mat["extensions"] = extensions;
 
@@ -1542,6 +1630,136 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     updateTextureSampler(aniso, "anisotropyTexture", glMat.texture(GLMaterial::TextureType::Anisotropy));
 
                     exts["KHR_materials_anisotropy"] = aniso;
+                    mat["extensions"] = exts;
+                }
+            }
+
+            // --- Sheen texture index fix + transforms + samplers ---
+            {
+                QJsonObject exts = mat.value("extensions").toObject();
+                QJsonObject sheen = exts.value("KHR_materials_sheen").toObject();
+                if (!sheen.isEmpty())
+                {
+                    fixTextureIndex(sheen, "sheenColorTexture",     glMat.texture(GLMaterial::TextureType::SheenColor));
+                    fixTextureIndex(sheen, "sheenRoughnessTexture", glMat.texture(GLMaterial::TextureType::SheenRoughness));
+
+                    writeTransform(sheen, "sheenColorTexture",     glMat.texture(GLMaterial::TextureType::SheenColor));
+                    writeTransform(sheen, "sheenRoughnessTexture", glMat.texture(GLMaterial::TextureType::SheenRoughness));
+
+                    updateTextureSampler(sheen, "sheenColorTexture",     glMat.texture(GLMaterial::TextureType::SheenColor));
+                    updateTextureSampler(sheen, "sheenRoughnessTexture", glMat.texture(GLMaterial::TextureType::SheenRoughness));
+
+                    exts["KHR_materials_sheen"] = sheen;
+                    mat["extensions"] = exts;
+                }
+            }
+
+            // --- Iridescence texture index fix + transforms + samplers ---
+            {
+                QJsonObject exts = mat.value("extensions").toObject();
+                QJsonObject irid = exts.value("KHR_materials_iridescence").toObject();
+                if (!irid.isEmpty())
+                {
+                    fixTextureIndex(irid, "iridescenceTexture",          glMat.texture(GLMaterial::TextureType::Iridescence));
+                    fixTextureIndex(irid, "iridescenceThicknessTexture", glMat.texture(GLMaterial::TextureType::IridescenceThickness));
+
+                    writeTransform(irid, "iridescenceTexture",          glMat.texture(GLMaterial::TextureType::Iridescence));
+                    writeTransform(irid, "iridescenceThicknessTexture", glMat.texture(GLMaterial::TextureType::IridescenceThickness));
+
+                    updateTextureSampler(irid, "iridescenceTexture",          glMat.texture(GLMaterial::TextureType::Iridescence));
+                    updateTextureSampler(irid, "iridescenceThicknessTexture", glMat.texture(GLMaterial::TextureType::IridescenceThickness));
+
+                    exts["KHR_materials_iridescence"] = irid;
+                    mat["extensions"] = exts;
+                }
+            }
+
+            // --- Specular texture index fix + transforms + samplers ---
+            {
+                QJsonObject exts = mat.value("extensions").toObject();
+                QJsonObject spec = exts.value("KHR_materials_specular").toObject();
+                if (!spec.isEmpty())
+                {
+                    fixTextureIndex(spec, "specularTexture",      glMat.texture(GLMaterial::TextureType::SpecularFactor));
+                    fixTextureIndex(spec, "specularColorTexture", glMat.texture(GLMaterial::TextureType::SpecularColor));
+
+                    writeTransform(spec, "specularTexture",      glMat.texture(GLMaterial::TextureType::SpecularFactor));
+                    writeTransform(spec, "specularColorTexture", glMat.texture(GLMaterial::TextureType::SpecularColor));
+
+                    updateTextureSampler(spec, "specularTexture",      glMat.texture(GLMaterial::TextureType::SpecularFactor));
+                    updateTextureSampler(spec, "specularColorTexture", glMat.texture(GLMaterial::TextureType::SpecularColor));
+
+                    exts["KHR_materials_specular"] = spec;
+                    mat["extensions"] = exts;
+                }
+            }
+
+            // --- Volume texture index fix + transforms + samplers ---
+            {
+                QJsonObject exts = mat.value("extensions").toObject();
+                QJsonObject vol = exts.value("KHR_materials_volume").toObject();
+                if (!vol.isEmpty())
+                {
+                    fixTextureIndex(vol, "thicknessTexture", glMat.texture(GLMaterial::TextureType::Thickness));
+                    writeTransform(vol, "thicknessTexture",  glMat.texture(GLMaterial::TextureType::Thickness));
+                    updateTextureSampler(vol, "thicknessTexture", glMat.texture(GLMaterial::TextureType::Thickness));
+
+                    exts["KHR_materials_volume"] = vol;
+                    mat["extensions"] = exts;
+                }
+            }
+
+            // --- Transmission texture index fix + transforms + samplers ---
+            {
+                QJsonObject exts = mat.value("extensions").toObject();
+                QJsonObject trans = exts.value("KHR_materials_transmission").toObject();
+                if (!trans.isEmpty())
+                {
+                    fixTextureIndex(trans, "transmissionTexture", glMat.texture(GLMaterial::TextureType::Transmission));
+                    writeTransform(trans, "transmissionTexture",  glMat.texture(GLMaterial::TextureType::Transmission));
+                    updateTextureSampler(trans, "transmissionTexture", glMat.texture(GLMaterial::TextureType::Transmission));
+
+                    exts["KHR_materials_transmission"] = trans;
+                    mat["extensions"] = exts;
+                }
+            }
+
+            // --- Diffuse transmission texture index fix + transforms + samplers ---
+            {
+                QJsonObject exts = mat.value("extensions").toObject();
+                QJsonObject dt = exts.value("KHR_materials_diffuse_transmission").toObject();
+                if (!dt.isEmpty())
+                {
+                    fixTextureIndex(dt, "diffuseTransmissionTexture",      glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
+                    fixTextureIndex(dt, "diffuseTransmissionColorTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
+
+                    writeTransform(dt, "diffuseTransmissionTexture",      glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
+                    writeTransform(dt, "diffuseTransmissionColorTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
+
+                    updateTextureSampler(dt, "diffuseTransmissionTexture",      glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
+                    updateTextureSampler(dt, "diffuseTransmissionColorTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
+
+                    exts["KHR_materials_diffuse_transmission"] = dt;
+                    mat["extensions"] = exts;
+                }
+            }
+
+            // --- pbrSpecularGlossiness texture index fix + transforms + samplers ---
+            {
+                QJsonObject exts = mat.value("extensions").toObject();
+                QJsonObject sg = exts.value("KHR_materials_pbrSpecularGlossiness").toObject();
+                if (!sg.isEmpty())
+                {
+                    fixTextureIndex(sg, "diffuseTexture",            glMat.texture(GLMaterial::TextureType::Diffuse));
+                    fixTextureIndex(sg, "specularGlossinessTexture", glMat.texture(GLMaterial::TextureType::SpecularGlossiness));
+
+                    writeTransform(sg, "diffuseTexture",            glMat.texture(GLMaterial::TextureType::Diffuse));
+                    writeTransform(sg, "specularGlossinessTexture", glMat.texture(GLMaterial::TextureType::SpecularGlossiness));
+
+                    updateTextureSampler(sg, "diffuseTexture",            glMat.texture(GLMaterial::TextureType::Diffuse));
+                    updateTextureSampler(sg, "specularGlossinessTexture", glMat.texture(GLMaterial::TextureType::SpecularGlossiness));
+
+                    exts["KHR_materials_pbrSpecularGlossiness"] = sg;
                     mat["extensions"] = exts;
                 }
             }
@@ -1617,28 +1835,37 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         // aiMaterial objects per aiMesh, resulting in duplicate material entries in the
         // exported JSON.  Deduplicate them so each unique name appears only once.
         // This prevents MaterialProcessor from hitting NAME AMBIGUOUS when reloading.
+        // IMPORTANT: Only merge materials that are truly identical in content - same name
+        // is not sufficient (a model may have distinct materials that share a name).
         {
-            QMap<QString, int> nameToFirstIdx;   // canonical index per name
-            QMap<int, int>     oldToCanonical;    // remap old index -> canonical index
+            // Map from material JSON (as string) -> canonical index
+            QMap<QString, int> contentToFirstIdx;
+            QMap<int, int>     oldToCanonical;
             QJsonArray         dedupedMaterials;
 
             for (int i = 0; i < materials.size(); ++i)
             {
-                QString name = materials[i].toObject().value("name").toString();
-                if (!name.isEmpty() && nameToFirstIdx.contains(name))
+                QJsonObject matObj = materials[i].toObject();
+                QString name = matObj.value("name").toString();
+
+                // Serialize the full material JSON as the dedup key so that
+                // two materials are only merged when their content is identical.
+                QString contentKey = QJsonDocument(matObj).toJson(QJsonDocument::Compact);
+
+                if (!name.isEmpty() && contentToFirstIdx.contains(contentKey))
                 {
-                    // Duplicate: remap to the first occurrence
-                    oldToCanonical[i] = nameToFirstIdx[name];
+                    // Truly identical material: remap to the first occurrence
+                    oldToCanonical[i] = contentToFirstIdx[contentKey];
                     log(QString("  Dedup material[%1] '%2' -> canonical[%3]")
-                        .arg(i).arg(name).arg(nameToFirstIdx[name]), logCallback);
+                        .arg(i).arg(name).arg(contentToFirstIdx[contentKey]), logCallback);
                 }
                 else
                 {
                     int newIdx = dedupedMaterials.size();
                     oldToCanonical[i] = newIdx;
                     if (!name.isEmpty())
-                        nameToFirstIdx[name] = newIdx;
-                    dedupedMaterials.append(materials[i]);
+                        contentToFirstIdx[contentKey] = newIdx;
+                    dedupedMaterials.append(matObj);
                 }
             }
 
