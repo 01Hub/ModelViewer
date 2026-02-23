@@ -1126,7 +1126,21 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
                     if (correctImageIdx < 0)
                     {
-                        log(QString("    WARNING: No image found for '%1'").arg(sourceFilename), logCallback);
+                        // Image not exported by Assimp - create it via findOrCreateTexture
+                        int newTexIdx = findOrCreateTexture(gltfJson, sourcePath, logCallback);
+                        if (newTexIdx < 0)
+                        {
+                            log(QString("    WARNING: Could not create texture for '%1'").arg(sourceFilename), logCallback);
+                            return;
+                        }
+                        // Reload images/textures arrays since findOrCreateTexture may have modified gltfJson
+                        images = gltfJson.value("images").toArray();
+                        textures = gltfJson.value("textures").toArray();
+                        QJsonObject texInfo = parent[key].toObject();
+                        texInfo["index"] = newTexIdx;
+                        parent[key] = texInfo;
+                        log(QString("    Created missing image+texture for '%1' -> tex[%2]")
+                            .arg(sourceFilename).arg(newTexIdx), logCallback);
                         return;
                     }
 
@@ -1451,11 +1465,18 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 hasExtensions = true;
             }
 
-            if (glMat.anisotropyStrength() > 0.0f)
+            if (glMat.anisotropyStrength() > 0.0f || !glMat.anisotropyMap().isEmpty())
             {
                 QJsonObject aniso;
                 aniso["anisotropyStrength"] = static_cast<double>(glMat.anisotropyStrength());
                 aniso["anisotropyRotation"] = static_cast<double>(glMat.anisotropyRotation());
+
+                if (!glMat.anisotropyMap().isEmpty())
+                {
+                    int ti = findOrCreateTexture(gltfJson, glMat.anisotropyMap(), logCallback);
+                    if (ti >= 0) { QJsonObject t; t["index"] = ti; aniso["anisotropyTexture"] = t; }
+                }
+
                 extensions["KHR_materials_anisotropy"] = aniso;
                 hasExtensions = true;
             }
@@ -1506,6 +1527,21 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     updateTextureSampler(cc, "clearcoatNormalTexture", glMat.texture(GLMaterial::TextureType::ClearcoatNormal));
 
                     exts["KHR_materials_clearcoat"] = cc;
+                    mat["extensions"] = exts;
+                }
+            }
+
+            // --- Anisotropy texture index fix + transforms + samplers ---
+            {
+                QJsonObject exts = mat.value("extensions").toObject();
+                QJsonObject aniso = exts.value("KHR_materials_anisotropy").toObject();
+                if (!aniso.isEmpty())
+                {
+                    fixTextureIndex(aniso, "anisotropyTexture", glMat.texture(GLMaterial::TextureType::Anisotropy));
+                    writeTransform(aniso, "anisotropyTexture", glMat.texture(GLMaterial::TextureType::Anisotropy));
+                    updateTextureSampler(aniso, "anisotropyTexture", glMat.texture(GLMaterial::TextureType::Anisotropy));
+
+                    exts["KHR_materials_anisotropy"] = aniso;
                     mat["extensions"] = exts;
                 }
             }
