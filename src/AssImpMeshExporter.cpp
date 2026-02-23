@@ -704,6 +704,10 @@ aiMaterial* AssImpMeshExporter::createMaterial(
 {
     aiMaterial* aiMat = new aiMaterial();
 
+	// ==== NAME =====
+    aiString matName(material.name().toStdString());
+    aiMat->AddProperty(&matName, AI_MATKEY_NAME);
+
     // ===== COLOR PROPERTIES =====
     {
         aiColor3D albedo(
