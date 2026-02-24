@@ -276,12 +276,7 @@ void GLMaterial::setRoughness(float roughness)
 
 void GLMaterial::setOpacity(float opacity)
 {
-	_opacity = opacity;
-	// Auto-update blend mode based on opacity
-	if (opacity < 1.0f)
-		setBlendMode(BlendMode::Alpha);
-	else
-		setBlendMode(BlendMode::Opaque);
+	_opacity = opacity;	
 }
 
 GLMaterial GLMaterial::getPredefinedMaterial(GLMaterial::PredefinedMaterials type)

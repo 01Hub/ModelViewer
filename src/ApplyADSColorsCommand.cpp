@@ -137,7 +137,8 @@ void ApplyADSColorsCommand::applyColors(const QMap<QUuid, ADSColors>& colors)
 			mat.setOpacity(adsColors.opacity);
 
             // Set material back to mesh
-            mesh->setMaterial(mat);          
+            mesh->setMaterial(mat);      
+			mesh->setOpacity(adsColors.opacity);  // Ensure opacity is applied to mesh as well
         }
     }
 
