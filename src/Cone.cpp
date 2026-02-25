@@ -170,11 +170,11 @@ TriangleMesh* Cone::clone()
 void Cone::computeBounds()
 {
 	QList<float> xVals, yVals, zVals;
-	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
+	for (size_t i = 0; i < _trsfPoints.size(); i += 3)
 	{
-		xVals.push_back(_trsfpoints.at(i));
-		yVals.push_back(_trsfpoints.at(i + 1));
-		zVals.push_back(_trsfpoints.at(i + 2));
+		xVals.push_back(_trsfPoints.at(i));
+		yVals.push_back(_trsfPoints.at(i + 1));
+		zVals.push_back(_trsfPoints.at(i + 2));
 	}
 	std::sort(xVals.begin(), xVals.end(), std::less<float>());
 	std::sort(yVals.begin(), yVals.end(), std::less<float>());

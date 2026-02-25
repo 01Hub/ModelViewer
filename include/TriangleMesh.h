@@ -375,8 +375,10 @@ protected:
 	std::vector<float> _tangents;
 	std::vector<float> _bitangents;
 	std::vector<float> _texCoords;
-	std::vector<float> _trsfpoints;
-	std::vector<float> _trsfnormals;
+	std::vector<float> _trsfPoints;
+	std::vector<float> _trsfNormals;
+	std::vector<float> _trsfTangents;
+	std::vector<float> _trsfBitangents;
 
 	bool _hasVertexColors;
 

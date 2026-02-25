@@ -127,8 +127,11 @@ void TriangleMesh::initBuffers(
 
 	_indices = *indices;
 	_points = *points;
-	_trsfpoints = _points;
+	_trsfPoints = _points;
 	_normals = *normals;
+	_trsfNormals = _normals;
+	_trsfTangents.clear();  
+	_trsfBitangents.clear();
 
 	// build the triangles for selection
 	buildTriangles();
@@ -142,9 +145,15 @@ void TriangleMesh::initBuffers(
 	if (texCoords)
 		_texCoords = *texCoords;
 	if (tangents)
+	{
 		_tangents = *tangents;
+		_trsfTangents = _tangents;
+	}
 	if (bitangents)
+	{
 		_bitangents = *bitangents;
+		_trsfBitangents = _bitangents;
+	}
 
 	_memorySize = 0;
 	_memorySize = (_points.size() + _normals.size() + _indices.size()) * sizeof(float);
@@ -327,21 +336,21 @@ void TriangleMesh::buildTriangles()
 		for (size_t i = 0; i < _indices.size();)
 		{
 			// Vertex 1
-			QVector3D v1(_trsfpoints.at(offset * _indices.at(i) + 0), // x coordinate
-				_trsfpoints.at(offset * _indices.at(i) + 1),          // y coordinate
-				_trsfpoints.at(offset * _indices.at(i) + 2));         // z coordinate
+			QVector3D v1(_trsfPoints.at(offset * _indices.at(i) + 0), // x coordinate
+				_trsfPoints.at(offset * _indices.at(i) + 1),          // y coordinate
+				_trsfPoints.at(offset * _indices.at(i) + 2));         // z coordinate
 			i++;
 
 			// Vertex 2
-			QVector3D v2(_trsfpoints.at(offset * _indices.at(i) + 0), // x coordinate
-				_trsfpoints.at(offset * _indices.at(i) + 1),          // y coordinate
-				_trsfpoints.at(offset * _indices.at(i) + 2));         // z coordinate
+			QVector3D v2(_trsfPoints.at(offset * _indices.at(i) + 0), // x coordinate
+				_trsfPoints.at(offset * _indices.at(i) + 1),          // y coordinate
+				_trsfPoints.at(offset * _indices.at(i) + 2));         // z coordinate
 			i++;
 
 			// Vertex 3
-			QVector3D v3(_trsfpoints[offset * _indices.at(i) + 0], // x coordinate
-				_trsfpoints.at(offset * _indices.at(i) + 1),          // y coordinate
-				_trsfpoints.at(offset * _indices.at(i) + 2));         // z coordinate
+			QVector3D v3(_trsfPoints[offset * _indices.at(i) + 0], // x coordinate
+				_trsfPoints.at(offset * _indices.at(i) + 1),          // y coordinate
+				_trsfPoints.at(offset * _indices.at(i) + 2));         // z coordinate
 			i++;
 
 			_triangles.push_back(new TriangleMollerTrumbore(v1, v2, v3, this));
@@ -1205,9 +1214,9 @@ void TriangleMesh::computeBounds()
 {
 	// Ritter's algorithm
 	std::vector<QVector3D> aPoints;
-	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
+	for (size_t i = 0; i < _trsfPoints.size(); i += 3)
 	{
-		aPoints.push_back(QVector3D(_trsfpoints[i], _trsfpoints[i + 1], _trsfpoints[i + 2]));
+		aPoints.push_back(QVector3D(_trsfPoints[i], _trsfPoints[i + 1], _trsfPoints[i + 2]));
 	}
 	QVector3D xmin, xmax, ymin, ymax, zmin, zmax;
 	xmin = ymin = zmin = QVector3D(1, 1, 1) * INFINITY;
@@ -1308,9 +1317,9 @@ QRect TriangleMesh::projectedRect(const QMatrix4x4& modelView, const QMatrix4x4&
 	float yMin = std::numeric_limits<float>::max();
 	float yMax = std::numeric_limits<float>::lowest();
 
-	for (size_t i = 0; i < _trsfpoints.size(); i += 3)
+	for (size_t i = 0; i < _trsfPoints.size(); i += 3)
 	{
-		QVector3D point(_trsfpoints.at(i + 0), _trsfpoints.at(i + 1), _trsfpoints.at(i + 2));
+		QVector3D point(_trsfPoints.at(i + 0), _trsfPoints.at(i + 1), _trsfPoints.at(i + 2));
 		QVector3D projPoint = point.project(modelView, projection, viewport);
 
 		xMin = std::min(xMin, projPoint.x());
@@ -1335,14 +1344,16 @@ std::vector<float> TriangleMesh::getTexCoords() const
 
 std::vector<float> TriangleMesh::getTrsfPoints() const
 {
-	return _trsfpoints;
+	return _trsfPoints;
 }
 
 void TriangleMesh::bakeTransformations()
 {
 	// Transform the points as permanently
-	_points   = _trsfpoints ;
-	_normals = _trsfnormals;
+	_points   = _trsfPoints ;
+	_normals = _trsfNormals;
+	_tangents = _trsfTangents;    
+	_bitangents = _trsfBitangents;
 	resetTransformations();
 }
 
@@ -1354,11 +1365,15 @@ void TriangleMesh::resetTransformations()
 
 	_transformation.setToIdentity();
 
-	_trsfpoints.clear();
-	_trsfnormals.clear();
+	_trsfPoints.clear();
+	_trsfNormals.clear();
+	_trsfTangents.clear();  
+	_trsfBitangents.clear();
 
-	_trsfpoints = _points;
-	_trsfnormals = _normals;
+	_trsfPoints = _points;
+	_trsfNormals = _normals;
+	_trsfTangents = _tangents;     
+	_trsfBitangents = _bitangents; 
 
 	_prog->bind();
 	_positionBuffer.bind();
@@ -1370,6 +1385,24 @@ void TriangleMesh::resetTransformations()
 	_normalBuffer.allocate(_normals.data(), static_cast<int>(_normals.size() * sizeof(float)));
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+	// Reset tangent buffer
+	if (!_tangents.empty())
+	{
+		_tangentBuf.bind();
+		_tangentBuf.allocate(_tangents.data(), static_cast<int>(_tangents.size() * sizeof(float)));
+		_prog->enableAttributeArray("vertexTangent");
+		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
+	}
+
+	// Reset bitangent buffer
+	if (!_bitangents.empty())
+	{
+		_bitangentBuf.bind();
+		_bitangentBuf.allocate(_bitangents.data(), static_cast<int>(_bitangents.size() * sizeof(float)));
+		_prog->enableAttributeArray("vertexBitangent");
+		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
+	}
 
 	buildTriangles();
 	computeBounds();
@@ -1451,39 +1484,118 @@ QMatrix4x4 TriangleMesh::getTransformation() const
 void TriangleMesh::setupTransformation()
 {
 	_prog->bind();
-	_trsfpoints.clear();
-	_trsfnormals.clear();
+	_trsfPoints.clear();
+	_trsfNormals.clear();
+	_trsfTangents.clear();
+	_trsfBitangents.clear();
 
-	// transform points
+	// ============================================================================
+	// TRANSFORM POSITIONS
+	// ============================================================================
 	for (size_t i = 0; i < _points.size(); i += 3)
 	{
 		QVector3D p(_points[i + 0], _points[i + 1], _points[i + 2]);
 		QVector3D tp = _transformation.map(p);
-		_trsfpoints.push_back(tp.x());
-		_trsfpoints.push_back(tp.y());
-		_trsfpoints.push_back(tp.z());
+		_trsfPoints.push_back(tp.x());
+		_trsfPoints.push_back(tp.y());
+		_trsfPoints.push_back(tp.z());
 	}
 	_positionBuffer.bind();
-	_positionBuffer.allocate(_trsfpoints.data(), static_cast<int>(_trsfpoints.size() * sizeof(float)));
+	_positionBuffer.allocate(_trsfPoints.data(), static_cast<int>(_trsfPoints.size() * sizeof(float)));
 	_prog->enableAttributeArray("vertexPosition");
 	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
 
-	// transform normals
+	// ============================================================================
+	// TRANSFORM NORMALS
+	// ============================================================================
+	// Use inverse-transpose for proper normal transformation (handles non-uniform scaling)
 	for (size_t i = 0; i < _normals.size(); i += 3)
 	{
 		QVector3D n(_normals[i + 0], _normals[i + 1], _normals[i + 2]);
 		QMatrix4x4 rotMat = _transformation;
-		// use only the rotations
+		// Extract rotation/scale part only (zero out translation)
 		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
 		QVector3D tn = rotMat.map(n);
-		_trsfnormals.push_back(tn.x());
-		_trsfnormals.push_back(tn.y());
-		_trsfnormals.push_back(tn.z());
+		_trsfNormals.push_back(tn.x());
+		_trsfNormals.push_back(tn.y());
+		_trsfNormals.push_back(tn.z());
 	}
 	_normalBuffer.bind();
-	_normalBuffer.allocate(_trsfnormals.data(), static_cast<int>(_trsfnormals.size() * sizeof(float)));
+	_normalBuffer.allocate(_trsfNormals.data(), static_cast<int>(_trsfNormals.size() * sizeof(float)));
 	_prog->enableAttributeArray("vertexNormal");
 	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+
+	// ============================================================================
+	// TRANSFORM TANGENTS using inverse-transpose
+	// This is critical for normal mapping and anisotropy to work correctly
+	// ============================================================================
+	if (!_tangents.empty())
+	{
+		QMatrix4x4 rotMat = _transformation;
+		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
+
+		for (size_t i = 0; i < _tangents.size(); i += 3)
+		{
+			QVector3D t(_tangents[i + 0], _tangents[i + 1], _tangents[i + 2]);
+			QVector3D tt = rotMat.map(t);
+
+			// Renormalize after transformation to maintain unit length
+			// This is especially important for non-uniform scaling
+			float len = tt.length();
+			if (len > 0.001f)
+			{
+				tt.normalize();
+			}
+			else
+			{
+				tt = QVector3D(1.0f, 0.0f, 0.0f); // Fallback to default if degenerate
+			}
+
+			_trsfTangents.push_back(tt.x());
+			_trsfTangents.push_back(tt.y());
+			_trsfTangents.push_back(tt.z());
+		}
+
+		_tangentBuf.bind();
+		_tangentBuf.allocate(_trsfTangents.data(), static_cast<int>(_trsfTangents.size() * sizeof(float)));
+		_prog->enableAttributeArray("vertexTangent");
+		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
+	}
+
+	// ============================================================================
+	// TRANSFORM BITANGENTS using inverse-transpose
+	// ============================================================================
+	if (!_bitangents.empty())
+	{
+		QMatrix4x4 rotMat = _transformation;
+		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
+
+		for (size_t i = 0; i < _bitangents.size(); i += 3)
+		{
+			QVector3D b(_bitangents[i + 0], _bitangents[i + 1], _bitangents[i + 2]);
+			QVector3D tb = rotMat.map(b);
+
+			// Renormalize after transformation
+			float len = tb.length();
+			if (len > 0.001f)
+			{
+				tb.normalize();
+			}
+			else
+			{
+				tb = QVector3D(0.0f, 1.0f, 0.0f); // Fallback to default if degenerate
+			}
+
+			_trsfBitangents.push_back(tb.x());
+			_trsfBitangents.push_back(tb.y());
+			_trsfBitangents.push_back(tb.z());
+		}
+
+		_bitangentBuf.bind();
+		_bitangentBuf.allocate(_trsfBitangents.data(), static_cast<int>(_trsfBitangents.size() * sizeof(float)));
+		_prog->enableAttributeArray("vertexBitangent");
+		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
+	}
 
 	buildTriangles();
 	computeBounds();
@@ -2261,8 +2373,8 @@ void TriangleMesh::deserialize(QDataStream& in)
 	in >> _scaleX >> _scaleY >> _scaleZ;
 
 	// Recompute buffers and bounds
-	_trsfpoints = _points;
-	_trsfnormals = _normals;
+	_trsfPoints = _points;
+	_trsfNormals = _normals;
 	computeBounds();
 	buildTriangles();
 }
