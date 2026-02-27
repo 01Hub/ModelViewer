@@ -253,7 +253,8 @@ private:
     */
     QMap<QString, QString> extractEmbeddedTextures(
         const aiScene* scene,
-        const QString& outputDirectory);
+        const QString& outputDirectory,
+        const QString& textureSubfolder);
 
     /**
      * @brief Create an Assimp scene with proper hierarchy

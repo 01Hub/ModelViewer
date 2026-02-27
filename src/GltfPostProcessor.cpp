@@ -7,6 +7,9 @@
 
 #include <glm/gtc/quaternion.hpp>
 
+// Default texture subfolder name - overridden per export by postProcessGltfJsonWithMaterials
+QString GltfPostProcessor::_textureSubfolder = "textures";
+
 void GltfPostProcessor::log(const QString& message, std::function<void(const QString&)> callback)
 {
     if (callback)
@@ -504,7 +507,8 @@ bool GltfPostProcessor::postProcessGltfFileWithMaterials(
     const QString& filePath,
     const std::vector<TriangleMesh*>& meshes,
     const std::vector<GPULight>& lights,
-    std::function<void(const QString&)> logCallback)
+    std::function<void(const QString&)> logCallback,
+    const QString& textureSubfolder)
 {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly))
@@ -528,7 +532,7 @@ bool GltfPostProcessor::postProcessGltfFileWithMaterials(
     QJsonObject gltfJson = doc.object();
 
     // Process with material transforms
-    postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback);
+    postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback, textureSubfolder);
 
     doc.setObject(gltfJson);
 
@@ -549,7 +553,8 @@ bool GltfPostProcessor::postProcessGlbFileWithMaterials(
     const QString& filePath,
     const std::vector<TriangleMesh*>& meshes,
     const std::vector<GPULight>& lights,
-    std::function<void(const QString&)> logCallback)
+    std::function<void(const QString&)> logCallback,
+    const QString& textureSubfolder)
 {
     // Read GLB file
     QFile file(filePath);
@@ -632,7 +637,7 @@ bool GltfPostProcessor::postProcessGlbFileWithMaterials(
     QJsonObject gltfJson = doc.object();
 
     // Post-process with material transforms
-    postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback);
+    postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback, textureSubfolder);
 
     // Reconstruct GLB with modified JSON
     doc.setObject(gltfJson);
@@ -918,9 +923,13 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     QJsonObject& gltfJson,
     const std::vector<TriangleMesh*>& meshes,
     const std::vector<GPULight>& lights,
-    std::function<void(const QString&)> logCallback)
+    std::function<void(const QString&)> logCallback,
+    const QString& textureSubfolder)
 {
     log("=== glTF Post-Processor (with material transforms) ===", logCallback);
+
+    // Store for use by findOrCreateTexture throughout this processing pass
+    _textureSubfolder = textureSubfolder.isEmpty() ? "textures" : textureSubfolder;
 
     removeTangentAttributes(gltfJson, logCallback);
 
@@ -1640,13 +1649,13 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject sheen = exts.value("KHR_materials_sheen").toObject();
                 if (!sheen.isEmpty())
                 {
-                    fixTextureIndex(sheen, "sheenColorTexture",     glMat.texture(GLMaterial::TextureType::SheenColor));
+                    fixTextureIndex(sheen, "sheenColorTexture", glMat.texture(GLMaterial::TextureType::SheenColor));
                     fixTextureIndex(sheen, "sheenRoughnessTexture", glMat.texture(GLMaterial::TextureType::SheenRoughness));
 
-                    writeTransform(sheen, "sheenColorTexture",     glMat.texture(GLMaterial::TextureType::SheenColor));
+                    writeTransform(sheen, "sheenColorTexture", glMat.texture(GLMaterial::TextureType::SheenColor));
                     writeTransform(sheen, "sheenRoughnessTexture", glMat.texture(GLMaterial::TextureType::SheenRoughness));
 
-                    updateTextureSampler(sheen, "sheenColorTexture",     glMat.texture(GLMaterial::TextureType::SheenColor));
+                    updateTextureSampler(sheen, "sheenColorTexture", glMat.texture(GLMaterial::TextureType::SheenColor));
                     updateTextureSampler(sheen, "sheenRoughnessTexture", glMat.texture(GLMaterial::TextureType::SheenRoughness));
 
                     exts["KHR_materials_sheen"] = sheen;
@@ -1660,13 +1669,13 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject irid = exts.value("KHR_materials_iridescence").toObject();
                 if (!irid.isEmpty())
                 {
-                    fixTextureIndex(irid, "iridescenceTexture",          glMat.texture(GLMaterial::TextureType::Iridescence));
+                    fixTextureIndex(irid, "iridescenceTexture", glMat.texture(GLMaterial::TextureType::Iridescence));
                     fixTextureIndex(irid, "iridescenceThicknessTexture", glMat.texture(GLMaterial::TextureType::IridescenceThickness));
 
-                    writeTransform(irid, "iridescenceTexture",          glMat.texture(GLMaterial::TextureType::Iridescence));
+                    writeTransform(irid, "iridescenceTexture", glMat.texture(GLMaterial::TextureType::Iridescence));
                     writeTransform(irid, "iridescenceThicknessTexture", glMat.texture(GLMaterial::TextureType::IridescenceThickness));
 
-                    updateTextureSampler(irid, "iridescenceTexture",          glMat.texture(GLMaterial::TextureType::Iridescence));
+                    updateTextureSampler(irid, "iridescenceTexture", glMat.texture(GLMaterial::TextureType::Iridescence));
                     updateTextureSampler(irid, "iridescenceThicknessTexture", glMat.texture(GLMaterial::TextureType::IridescenceThickness));
 
                     exts["KHR_materials_iridescence"] = irid;
@@ -1680,13 +1689,13 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject spec = exts.value("KHR_materials_specular").toObject();
                 if (!spec.isEmpty())
                 {
-                    fixTextureIndex(spec, "specularTexture",      glMat.texture(GLMaterial::TextureType::SpecularFactor));
+                    fixTextureIndex(spec, "specularTexture", glMat.texture(GLMaterial::TextureType::SpecularFactor));
                     fixTextureIndex(spec, "specularColorTexture", glMat.texture(GLMaterial::TextureType::SpecularColor));
 
-                    writeTransform(spec, "specularTexture",      glMat.texture(GLMaterial::TextureType::SpecularFactor));
+                    writeTransform(spec, "specularTexture", glMat.texture(GLMaterial::TextureType::SpecularFactor));
                     writeTransform(spec, "specularColorTexture", glMat.texture(GLMaterial::TextureType::SpecularColor));
 
-                    updateTextureSampler(spec, "specularTexture",      glMat.texture(GLMaterial::TextureType::SpecularFactor));
+                    updateTextureSampler(spec, "specularTexture", glMat.texture(GLMaterial::TextureType::SpecularFactor));
                     updateTextureSampler(spec, "specularColorTexture", glMat.texture(GLMaterial::TextureType::SpecularColor));
 
                     exts["KHR_materials_specular"] = spec;
@@ -1701,7 +1710,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 if (!vol.isEmpty())
                 {
                     fixTextureIndex(vol, "thicknessTexture", glMat.texture(GLMaterial::TextureType::Thickness));
-                    writeTransform(vol, "thicknessTexture",  glMat.texture(GLMaterial::TextureType::Thickness));
+                    writeTransform(vol, "thicknessTexture", glMat.texture(GLMaterial::TextureType::Thickness));
                     updateTextureSampler(vol, "thicknessTexture", glMat.texture(GLMaterial::TextureType::Thickness));
 
                     exts["KHR_materials_volume"] = vol;
@@ -1716,7 +1725,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 if (!trans.isEmpty())
                 {
                     fixTextureIndex(trans, "transmissionTexture", glMat.texture(GLMaterial::TextureType::Transmission));
-                    writeTransform(trans, "transmissionTexture",  glMat.texture(GLMaterial::TextureType::Transmission));
+                    writeTransform(trans, "transmissionTexture", glMat.texture(GLMaterial::TextureType::Transmission));
                     updateTextureSampler(trans, "transmissionTexture", glMat.texture(GLMaterial::TextureType::Transmission));
 
                     exts["KHR_materials_transmission"] = trans;
@@ -1730,13 +1739,13 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject dt = exts.value("KHR_materials_diffuse_transmission").toObject();
                 if (!dt.isEmpty())
                 {
-                    fixTextureIndex(dt, "diffuseTransmissionTexture",      glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
+                    fixTextureIndex(dt, "diffuseTransmissionTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
                     fixTextureIndex(dt, "diffuseTransmissionColorTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
 
-                    writeTransform(dt, "diffuseTransmissionTexture",      glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
+                    writeTransform(dt, "diffuseTransmissionTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
                     writeTransform(dt, "diffuseTransmissionColorTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
 
-                    updateTextureSampler(dt, "diffuseTransmissionTexture",      glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
+                    updateTextureSampler(dt, "diffuseTransmissionTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
                     updateTextureSampler(dt, "diffuseTransmissionColorTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
 
                     exts["KHR_materials_diffuse_transmission"] = dt;
@@ -1750,13 +1759,13 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject sg = exts.value("KHR_materials_pbrSpecularGlossiness").toObject();
                 if (!sg.isEmpty())
                 {
-                    fixTextureIndex(sg, "diffuseTexture",            glMat.texture(GLMaterial::TextureType::Diffuse));
+                    fixTextureIndex(sg, "diffuseTexture", glMat.texture(GLMaterial::TextureType::Diffuse));
                     fixTextureIndex(sg, "specularGlossinessTexture", glMat.texture(GLMaterial::TextureType::SpecularGlossiness));
 
-                    writeTransform(sg, "diffuseTexture",            glMat.texture(GLMaterial::TextureType::Diffuse));
+                    writeTransform(sg, "diffuseTexture", glMat.texture(GLMaterial::TextureType::Diffuse));
                     writeTransform(sg, "specularGlossinessTexture", glMat.texture(GLMaterial::TextureType::SpecularGlossiness));
 
-                    updateTextureSampler(sg, "diffuseTexture",            glMat.texture(GLMaterial::TextureType::Diffuse));
+                    updateTextureSampler(sg, "diffuseTexture", glMat.texture(GLMaterial::TextureType::Diffuse));
                     updateTextureSampler(sg, "specularGlossinessTexture", glMat.texture(GLMaterial::TextureType::SpecularGlossiness));
 
                     exts["KHR_materials_pbrSpecularGlossiness"] = sg;
@@ -2641,7 +2650,7 @@ int GltfPostProcessor::findOrCreateTexture(
     // If image not found, create it
     if (imageIndex < 0)
     {
-        QString newUri = "textures/" + imageFileName;
+        QString newUri = _textureSubfolder + "/" + imageFileName;
         QJsonObject newImage;
         newImage["uri"] = newUri;
         images.append(newImage);

@@ -77,10 +77,12 @@ TextureMetadata TextureLocationManager::resolveTexture(const QString& path,
 
 TexturePackage TextureLocationManager::packageTextures(
     const std::vector<TriangleMesh*>& meshes,
-    const QString& outputDirectory)
+    const QString& outputDirectory,
+    const QString& textureSubfolder)
 {
     TexturePackage package;
-    package.textureDirectory = outputDirectory + "/textures";
+    package.textureSubfolder = textureSubfolder;
+    package.textureDirectory = outputDirectory + "/" + textureSubfolder;
 
     // Create textures directory
     QDir texDir(package.textureDirectory);
@@ -135,8 +137,7 @@ TexturePackage TextureLocationManager::packageTextures(
             {
                 // This is a duplicate - reuse existing output name
                 meta.outputName = hashMap[meta.hash];
-                meta.relativePath = "textures/" + meta.outputName;
-                package.duplicatesRemoved++;
+                meta.relativePath = textureSubfolder + "/" + meta.outputName;
 
                 qDebug() << "[TextureLocationManager] Duplicate texture detected:"
                     << QFileInfo(meta.resolvedPath).fileName()
@@ -154,7 +155,7 @@ TexturePackage TextureLocationManager::packageTextures(
 
                 if (QFile::copy(meta.resolvedPath, destPath))
                 {
-                    meta.relativePath = "textures/" + meta.outputName;
+                    meta.relativePath = textureSubfolder + "/" + meta.outputName;
                     package.totalSize += meta.fileSize;
                     hashMap[meta.hash] = meta.outputName;
 

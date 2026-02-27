@@ -27,7 +27,8 @@ struct TexturePackage
 {
     std::vector<TextureMetadata> textures;  ///< All packaged textures
     QMap<QString, QString> pathMapping;     ///< Original path -> output relative path
-    QString textureDirectory;                ///< Path to output textures directory
+    QString textureDirectory;               ///< Absolute path to output textures directory
+    QString textureSubfolder;               ///< Leaf folder name (e.g. "MyModel_textures")
     uint64_t totalSize = 0;                 ///< Total size of all textures
     int duplicatesRemoved = 0;              ///< Count of duplicates eliminated
 };
@@ -76,7 +77,8 @@ public:
      * @return TexturePackage with all metadata and path mappings
      */
     TexturePackage packageTextures(const std::vector<class TriangleMesh*>& meshes,
-        const QString& outputDirectory);
+        const QString& outputDirectory,
+        const QString& textureSubfolder);
 
     /**
      * @brief Check if two files are identical (by SHA256 hash)

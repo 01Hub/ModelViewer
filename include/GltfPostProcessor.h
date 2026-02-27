@@ -56,7 +56,8 @@ public:
         QJsonObject& gltfJson,
         const std::vector<TriangleMesh*>& meshes,
         const std::vector<GPULight>& lights,
-        std::function<void(const QString&)> logCallback = nullptr);
+        std::function<void(const QString&)> logCallback = nullptr,
+        const QString& textureSubfolder = "textures");
 
     /**
      * Post-process a glTF file on disk
@@ -80,7 +81,8 @@ public:
         const QString& filePath,
         const std::vector<TriangleMesh*>& meshes,
         const std::vector<GPULight>& lights,
-        std::function<void(const QString&)> logCallback = nullptr);
+        std::function<void(const QString&)> logCallback = nullptr,
+        const QString& textureSubfolder = "textures");
 
     /**
      * Post-process a GLB file on disk
@@ -106,7 +108,8 @@ public:
         const QString& filePath,
         const std::vector<TriangleMesh*>& meshes,
         const std::vector<GPULight>& lights,
-        std::function<void(const QString&)> logCallback = nullptr);
+        std::function<void(const QString&)> logCallback = nullptr,
+        const QString& textureSubfolder = "textures");
 
 	/**
 	 * Write punctual light definitions from the source scene into the glTF JSON
@@ -148,6 +151,9 @@ private:
         std::function<void(const QString&)> logCallback = nullptr);
 
     static void log(const QString& message, std::function<void(const QString&)> callback);
+
+private:
+    static QString _textureSubfolder;
 };
 
 #endif // GLTF_POSTPROCESSOR_H

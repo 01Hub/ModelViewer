@@ -43,6 +43,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     QString ext = exportFileInfo.suffix().toLower();
     bool isGLB = (ext == "glb" || ext == "gltf-binary");
     bool isGLTF = (ext == "gltf");
+    QString textureSubfolder = exportFileInfo.baseName() + "_textures";
 
     if (settings.copyTextures)
     {
@@ -50,7 +51,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
         if ((isGLB || isGLTF) && scene && scene->mNumTextures > 0)
         {
             logMessage("  Extracting embedded textures from source GLB...");
-            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory);
+            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory, textureSubfolder);
 
             // Inject the embedded texture mappings into texturePackage
             // This bypasses the resolveTexture mechanism for GLB textures
@@ -65,12 +66,13 @@ aiReturn AssImpMeshExporter::exportMeshes(
         logMessage("Step 1b: Packaging textures...");
         _lastTexturePackage = _textureManager.packageTextures(
             meshes,
-            settings.outputDirectory);
+            settings.outputDirectory,
+            textureSubfolder);
 
         // Re-inject embedded mappings (in case packageTextures cleared the mapping)
         if (scene && scene->mNumTextures > 0)
         {
-            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory);
+            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory, textureSubfolder);
             for (auto it = embeddedMapping.begin(); it != embeddedMapping.end(); ++it)
             {
                 _lastTexturePackage.pathMapping[it.key()] = it.value();
@@ -239,7 +241,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     if (isGLB)
     {
         if (GltfPostProcessor::postProcessGlbFileWithMaterials(
-            exportPath, meshes, settings.lights, logCallback))
+            exportPath, meshes, settings.lights, logCallback, textureSubfolder))
             logMessage("  -> Post-processing complete");
         else
             logWarning("  -> Post-processing failed (file may still be valid)");
@@ -247,7 +249,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     else if (QFileInfo(exportPath).suffix().toLower() == "gltf")
     {
         if (GltfPostProcessor::postProcessGltfFileWithMaterials(
-            exportPath, meshes, settings.lights, logCallback))
+            exportPath, meshes, settings.lights, logCallback, textureSubfolder))
             logMessage("  -> Post-processing complete");
         else
             logWarning("  -> Post-processing failed (file may still be valid)");
@@ -258,7 +260,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     {
         logMessage("Step 5: Cleaning up texture folder (textures embedded in GLB)...");
 
-        QString texturesDir = settings.outputDirectory + "/textures";
+        QString texturesDir = settings.outputDirectory + "/" + _lastTexturePackage.textureSubfolder;
         QDir dir(texturesDir);
 
         if (dir.exists())
@@ -270,9 +272,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
             for (const QString& file : files)
             {
                 if (dir.remove(file))
-                {
                     removedCount++;
-                }
             }
 
             // Remove the empty textures directory
@@ -291,9 +291,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     return aiReturn_SUCCESS;
 }
 
-aiReturn AssImpMeshExporter::exportScene(const aiScene* scene,
-    const std::string& exportPath)
-{
+/**
     logMessage(QString("Exporting Assimp scene to: %1")
         .arg(QString::fromStdString(exportPath)));
 
@@ -383,6 +381,7 @@ aiReturn AssImpMeshExporter::exportScene(
     QString ext = exportFileInfo.suffix().toLower();
     bool isGLB = (ext == "glb" || ext == "gltf-binary");
     bool isGLTF = (ext == "gltf");
+    QString textureSubfolder = exportFileInfo.baseName() + "_textures";
 
     // ===== STEP 1: Package textures =====
     if (settings.copyTextures && !meshes.empty())
@@ -393,7 +392,7 @@ aiReturn AssImpMeshExporter::exportScene(
         if ((isGLB || isGLTF) && scene && scene->mNumTextures > 0)
         {
             logMessage("  Extracting embedded textures from source GLB...");
-            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory);
+            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory, textureSubfolder);
 
             // Inject the embedded texture mappings into texturePackage
             // This bypasses the resolveTexture mechanism for GLB textures
@@ -407,12 +406,13 @@ aiReturn AssImpMeshExporter::exportScene(
 
         _lastTexturePackage = _textureManager.packageTextures(
             meshes,
-            settings.outputDirectory);
+            settings.outputDirectory,
+            textureSubfolder);
 
         // Re-inject embedded mappings (in case packageTextures cleared the mapping)
         if (scene && scene->mNumTextures > 0)
         {
-            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory);
+            QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, settings.outputDirectory, textureSubfolder);
             for (auto it = embeddedMapping.begin(); it != embeddedMapping.end(); ++it)
             {
                 _lastTexturePackage.pathMapping[it.key()] = it.value();
@@ -509,7 +509,7 @@ aiReturn AssImpMeshExporter::exportScene(
 
     if (isGLB)
     {
-        if (GltfPostProcessor::postProcessGlbFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback))
+        if (GltfPostProcessor::postProcessGlbFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback, textureSubfolder))
         {
             logMessage("  -> Post-processing complete");
         }
@@ -520,7 +520,7 @@ aiReturn AssImpMeshExporter::exportScene(
     }
     else if (ext == "gltf")
     {
-        if (GltfPostProcessor::postProcessGltfFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback))
+        if (GltfPostProcessor::postProcessGltfFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback, textureSubfolder))
         {
             logMessage("  -> Post-processing complete");
         }
@@ -546,7 +546,7 @@ aiReturn AssImpMeshExporter::exportScene(
             // Safe to delete - only GLB exists
             logMessage("Step 6: Cleaning up texture folder (textures embedded in GLB, no .gltf file)...");
 
-            QString texturesDir = settings.outputDirectory + "/textures";
+            QString texturesDir = settings.outputDirectory + "/" + _lastTexturePackage.textureSubfolder;
             QDir dir(texturesDir);
 
             if (dir.exists())
@@ -704,7 +704,7 @@ aiMaterial* AssImpMeshExporter::createMaterial(
 {
     aiMaterial* aiMat = new aiMaterial();
 
-	// ==== NAME =====
+    // ==== NAME =====
     aiString matName(material.name().toStdString());
     aiMat->AddProperty(&matName, AI_MATKEY_NAME);
 
@@ -1224,7 +1224,7 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             {GLMaterial::TextureType::SheenColor, aiTextureType_SHEEN},
             {GLMaterial::TextureType::SheenRoughness, aiTextureType_SHEEN},
             {GLMaterial::TextureType::SpecularFactor, aiTextureType_UNKNOWN},
-            {GLMaterial::TextureType::SpecularColor, aiTextureType_UNKNOWN}, 
+            {GLMaterial::TextureType::SpecularColor, aiTextureType_UNKNOWN},
         };
     }
     else
@@ -1534,7 +1534,7 @@ void AssImpMeshExporter::embedTexturesInScene(
         aiTextureType_HEIGHT,
         aiTextureType_CLEARCOAT,
         aiTextureType_SHEEN,
-		aiTextureType_SPECULAR,
+        aiTextureType_SPECULAR,
     };
 
     // Iterate through all materials and collect unique texture paths
@@ -1561,7 +1561,7 @@ void AssImpMeshExporter::embedTexturesInScene(
 
                 // Try to find in output directory by filename
                 QFileInfo fi(path);
-                QString candidate = _currentSettings.outputDirectory + "/textures/" + fi.fileName();
+                QString candidate = _currentSettings.outputDirectory + "/" + _lastTexturePackage.textureSubfolder + "/" + fi.fileName();
                 if (QFileInfo(candidate).exists())
                 {
                     fullPath = candidate;
@@ -1595,14 +1595,15 @@ void AssImpMeshExporter::embedTexturesInScene(
 
 QMap<QString, QString> AssImpMeshExporter::extractEmbeddedTextures(
     const aiScene* scene,
-    const QString& outputDirectory)
+    const QString& outputDirectory,
+    const QString& textureSubfolder)
 {
-    QMap<QString, QString> textureMapping;  // glb://image_N -> textures/image_N.ext
+    QMap<QString, QString> textureMapping;  // glb://image_N -> <subfolder>/image_N.ext
 
     if (!scene || scene->mNumTextures == 0)
         return textureMapping;
 
-    QString texDir = outputDirectory + "/textures";
+    QString texDir = outputDirectory + "/" + textureSubfolder;
     QDir().mkpath(texDir);
 
     logMessage(QString("Extracting %1 embedded texture(s) from GLB...").arg(scene->mNumTextures));
@@ -1626,7 +1627,7 @@ QMap<QString, QString> AssImpMeshExporter::extractEmbeddedTextures(
             logMessage(QString("  -> Skipping (already exists): %1").arg(filename));
             // Still add to mapping even if file exists
             QString glbUri = QString("glb://image_%1").arg(i);
-            QString relativePath = QString("textures/%1").arg(filename);
+            QString relativePath = QString("%1/%2").arg(textureSubfolder).arg(filename);
             textureMapping[glbUri] = relativePath;
             continue;
         }
@@ -1676,7 +1677,7 @@ QMap<QString, QString> AssImpMeshExporter::extractEmbeddedTextures(
         if (success)
         {
             QString glbUri = QString("glb://image_%1").arg(i);
-            QString relativePath = QString("textures/%1").arg(filename);
+            QString relativePath = QString("%1/%2").arg(textureSubfolder).arg(filename);
             textureMapping[glbUri] = relativePath;
 
             logMessage(QString("  -> Mapped: %1 -> %2").arg(glbUri).arg(relativePath));
