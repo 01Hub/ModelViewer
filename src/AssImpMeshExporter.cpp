@@ -490,7 +490,7 @@ aiReturn AssImpMeshExporter::exportScene(
 
     // Patch image names into GLB JSON so post-processor can match them
     if (isGLB && !embeddedTextureNames.isEmpty())
-        patchGlbImageNames(exportFilePath, embeddedTextureNames);
+        patchGlbImageNames(exportFilePath, embeddedTextureNames, scene);
 
     // ===== STEP 5: Post-process glTF/GLB to add missing optional properties and write transforms =====
     logMessage("Step 5: Post-processing exported file with material transforms...");
@@ -625,7 +625,8 @@ const aiExportFormatDesc* AssImpMeshExporter::findExportFormat(
 
 void AssImpMeshExporter::patchGlbImageNames(
     const QString& glbPath,
-    const QStringList& orderedNames)
+    const QStringList& orderedNames,
+    const aiScene* scene)
 {
     QFile file(glbPath);
     if (!file.open(QIODevice::ReadWrite))
@@ -660,17 +661,155 @@ void AssImpMeshExporter::patchGlbImageNames(
 
     QJsonObject root = doc.object();
     QJsonArray images = root.value("images").toArray();
+    QJsonArray textures = root.value("textures").toArray();
+    QJsonArray materials = root.value("materials").toArray();
 
-    bool patched = false;
+    // === CORRECT APPROACH: Derive image names from the Assimp-written JSON ===
+    //
+    // Problem: embedTexturesInScene() iterates texTypes[] in a fixed order (BASE_COLOR,
+    // NORMALS, METALNESS, ...) and builds embeddedNames[] in that order. But Assimp's GLB2
+    // writer serialises material texture slots in its own internal field order (e.g. METALNESS
+    // before NORMALS), so the binary image slots do NOT match the embeddedNames[] indices.
+    // Assigning embeddedNames[i] to binary slot i puts the wrong name on the wrong data,
+    // which the post-processor then uses to misroute texture indices.
+    //
+    // Fix: Walk the Assimp-written JSON. For each material slot (normalTexture,
+    // metallicRoughnessTexture, ...) we know both (a) the image index Assimp assigned and
+    // (b) what source path the aiScene holds for that slot. From the source path we can
+    // derive the correct filename. This builds an imageIndex->name map that is independent
+    // of iteration order.
+
+    // Map from well-known JSON slot key -> {aiTextureType, slot-index-in-type}
+    struct SlotInfo { aiTextureType type; unsigned int idx; };
+
+    // Standard PBR slots
+    const QMap<QString, SlotInfo> slotMap = {
+        { "baseColorTexture",         { aiTextureType_BASE_COLOR,        0 } },
+        { "metallicRoughnessTexture", { aiTextureType_METALNESS,         0 } },
+        { "normalTexture",            { aiTextureType_NORMALS,           0 } },
+        { "occlusionTexture",         { aiTextureType_LIGHTMAP,          0 } },
+        { "emissiveTexture",          { aiTextureType_EMISSIVE,          0 } },
+    };
+    // KHR extension texture slots
+    const QMap<QString, SlotInfo> extSlotMap = {
+        { "clearcoatTexture",          { aiTextureType_CLEARCOAT,    0 } },
+        { "clearcoatRoughnessTexture", { aiTextureType_CLEARCOAT,    1 } },
+        { "clearcoatNormalTexture",    { aiTextureType_CLEARCOAT,    2 } },
+        { "sheenColorTexture",         { aiTextureType_SHEEN,        0 } },
+        { "sheenRoughnessTexture",     { aiTextureType_SHEEN,        1 } },
+        { "transmissionTexture",       { aiTextureType_TRANSMISSION, 0 } },
+        { "specularTexture",           { aiTextureType_UNKNOWN,      0 } },
+        { "specularColorTexture",      { aiTextureType_UNKNOWN,      1 } },
+        { "anisotropyTexture",         { aiTextureType_UNKNOWN,      2 } },
+        { "diffuseTexture",            { aiTextureType_DIFFUSE,      0 } },
+        { "specularGlossinessTexture", { aiTextureType_SPECULAR,     0 } },
+    };
+
+    // Helper: get the source path Assimp stored for a given material/type/slot
+    auto getSourcePath = [&](unsigned int matIdx, aiTextureType type, unsigned int slotIdx) -> QString {
+        if (!scene || matIdx >= scene->mNumMaterials) return {};
+        aiString texPath;
+        if (scene->mMaterials[matIdx]->GetTexture(type, slotIdx, &texPath) == aiReturn_SUCCESS)
+            return QString::fromLocal8Bit(texPath.C_Str());
+        return {};
+        };
+
+    // Walk every JSON material, resolve imageIndex -> filename from the aiScene
+    QMap<int, QString> imageNameMap;
+
+    for (int mi = 0; mi < materials.size(); ++mi)
+    {
+        QJsonObject mat = materials[mi].toObject();
+
+        // Helper: given a texture reference object in the JSON, find which image index
+        // it points to and record its name from the aiScene.
+        auto resolveSlot = [&](const QString& slotKey, const QJsonObject& texRef,
+            bool isExtension) {
+                int texIdx = texRef.value("index").toInt(-1);
+                if (texIdx < 0 || texIdx >= textures.size()) return;
+
+                int imgIdx = textures[texIdx].toObject().value("source").toInt(-1);
+                if (imgIdx < 0 || imgIdx >= images.size()) return;
+
+                if (imageNameMap.contains(imgIdx)) return; // already resolved (shared texture)
+
+                const SlotInfo* info = nullptr;
+                if (!isExtension)
+                {
+                    auto it = slotMap.find(slotKey);
+                    if (it != slotMap.end()) info = &it.value();
+                }
+                else
+                {
+                    auto it = extSlotMap.find(slotKey);
+                    if (it != extSlotMap.end()) info = &it.value();
+                }
+                if (!info) return;
+
+                QString path = getSourcePath(static_cast<unsigned int>(mi), info->type, info->idx);
+                if (path.isEmpty()) return;
+
+                QString name = QFileInfo(path).fileName();
+                if (!name.isEmpty())
+                {
+                    imageNameMap[imgIdx] = name;
+                    logMessage(QString("  patchGlbImageNames: img[%1] <- '%2'  (slot %3)")
+                        .arg(imgIdx).arg(name).arg(slotKey));
+                }
+            };
+
+        // Standard PBR slots
+        QJsonObject pbr = mat.value("pbrMetallicRoughness").toObject();
+        for (const QString& key : { "baseColorTexture", "metallicRoughnessTexture" })
+        {
+            QJsonObject ref = pbr.value(key).toObject();
+            if (!ref.isEmpty()) resolveSlot(key, ref, false);
+        }
+        for (const QString& key : { "normalTexture", "occlusionTexture", "emissiveTexture" })
+        {
+            QJsonObject ref = mat.value(key).toObject();
+            if (!ref.isEmpty()) resolveSlot(key, ref, false);
+        }
+
+        // KHR extension slots
+        QJsonObject exts = mat.value("extensions").toObject();
+        for (const QString& extName : exts.keys())
+        {
+            QJsonObject extData = exts.value(extName).toObject();
+            for (const QString& key : extSlotMap.keys())
+            {
+                QJsonObject ref = extData.value(key).toObject();
+                if (!ref.isEmpty()) resolveSlot(key, ref, true);
+            }
+        }
+    }
+
+    // Fall back to orderedNames for any image slot not resolved via JSON
+    // (e.g. textures not referenced from any known material slot)
     for (int i = 0; i < images.size() && i < orderedNames.size(); ++i)
+    {
+        if (!imageNameMap.contains(i))
+        {
+            logMessage(QString("  patchGlbImageNames: img[%1] <- '%2'  (fallback)")
+                .arg(i).arg(orderedNames[i]));
+            imageNameMap[i] = orderedNames[i];
+        }
+    }
+
+    // Apply names to the JSON images array
+    bool patched = false;
+    for (int i = 0; i < images.size(); ++i)
     {
         QJsonObject img = images[i].toObject();
         // Only patch URI-less (embedded) images
         if (!img.contains("uri") || img.value("uri").toString().isEmpty())
         {
-            img["name"] = orderedNames[i];
-            images[i] = img;
-            patched = true;
+            if (imageNameMap.contains(i))
+            {
+                img["name"] = imageNameMap[i];
+                images[i] = img;
+                patched = true;
+            }
         }
     }
 

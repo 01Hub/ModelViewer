@@ -192,7 +192,7 @@ private:
     void assignTexturesToMaterial(
         aiMaterial* aiMat,
         const GLMaterial& material,
-        const TexturePackage& texturePackage,      
+        const TexturePackage& texturePackage,
         bool useEmbeddedTextures,
         const QString& exportFileLocation);
 
@@ -247,8 +247,8 @@ private:
         const TexturePackage& texturePackage);
 
     /**
-	* Extract embedded textures from an Assimp scene and save to disk
-	* This helps in exporting the textures embedded in a GLB file to separate image files on disk, 
+    * Extract embedded textures from an Assimp scene and save to disk
+    * This helps in exporting the textures embedded in a GLB file to separate image files on disk,
     * which can be useful for formats that don't support embedding.
     */
     QMap<QString, QString> extractEmbeddedTextures(
@@ -286,14 +286,18 @@ private:
     *
      * @brief Patch GLB file to update embedded texture names
      *
-     * After export, this method can be used to modify the GLB file's JSON chunk
-     * to update the names of embedded textures to match the original filenames.
-     * This is purely for improving readability and debugging of the GLB file.
+     * After export, walks the Assimp-written GLB JSON to derive the correct name for each
+     * binary image slot by reverse-mapping material texture slots -> aiScene source paths.
+     * This is necessary because Assimp's GLB2 writer serialises textures in its own internal
+     * field order, which does not match the iteration order used by embedTexturesInScene().
+     * Using orderedNames[] sequentially would put the wrong name on the wrong binary slot.
      *
-     * @param glbPath Path to the exported GLB file
-     * @param orderedNames List of original texture filenames in the order they were embedded
-	 */
-    void patchGlbImageNames(const QString& glbPath, const QStringList& orderedNames);
+     * @param glbPath     Path to the exported GLB file
+     * @param orderedNames Fallback list of filenames (used for any slot not resolvable via JSON)
+     * @param scene       The aiScene after export, used to look up source paths per slot
+     */
+    void patchGlbImageNames(const QString& glbPath, const QStringList& orderedNames,
+        const aiScene* scene);
 
 
     // === Logging utilities ===
