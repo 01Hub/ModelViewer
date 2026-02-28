@@ -1281,6 +1281,8 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             {GLMaterial::TextureType::SheenRoughness, aiTextureType_SHEEN},
             {GLMaterial::TextureType::SpecularFactor, aiTextureType_UNKNOWN},
             {GLMaterial::TextureType::SpecularColor, aiTextureType_UNKNOWN},
+            {GLMaterial::TextureType::Diffuse,            aiTextureType_DIFFUSE},
+            {GLMaterial::TextureType::SpecularGlossiness, aiTextureType_SPECULAR},
         };
     }
     else

@@ -1485,7 +1485,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             bool hasSpecular = (std::abs(specularFactor - 1.0f) > 0.001f) ||
                 (specularColor - QVector3D(1, 1, 1)).length() > 0.001f ||
                 !specularFactorMap.isEmpty() || !specularColorMap.isEmpty();
-            if (hasSpecular)
+            if (hasSpecular && !glMat.getUseSpecularGlossiness())
             {
                 QJsonObject spec;
                 spec["specularFactor"] = static_cast<double>(specularFactor);
