@@ -9,6 +9,7 @@
 
 // Default texture subfolder name - overridden per export by postProcessGltfJsonWithMaterials
 QString GltfPostProcessor::_textureSubfolder = "textures";
+QMap<QString, QString> GltfPostProcessor::_pathMapping;
 
 void GltfPostProcessor::log(const QString& message, std::function<void(const QString&)> callback)
 {
@@ -508,7 +509,8 @@ bool GltfPostProcessor::postProcessGltfFileWithMaterials(
     const std::vector<TriangleMesh*>& meshes,
     const std::vector<GPULight>& lights,
     std::function<void(const QString&)> logCallback,
-    const QString& textureSubfolder)
+    const QString& textureSubfolder,
+    const QMap<QString, QString>& pathMapping)
 {
     QFile file(filePath);
     if (!file.open(QIODevice::ReadOnly))
@@ -532,7 +534,7 @@ bool GltfPostProcessor::postProcessGltfFileWithMaterials(
     QJsonObject gltfJson = doc.object();
 
     // Process with material transforms
-    postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback, textureSubfolder);
+    postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback, textureSubfolder, pathMapping);
 
     doc.setObject(gltfJson);
 
@@ -554,7 +556,8 @@ bool GltfPostProcessor::postProcessGlbFileWithMaterials(
     const std::vector<TriangleMesh*>& meshes,
     const std::vector<GPULight>& lights,
     std::function<void(const QString&)> logCallback,
-    const QString& textureSubfolder)
+    const QString& textureSubfolder,
+    const QMap<QString, QString>& pathMapping)
 {
     // Read GLB file
     QFile file(filePath);
@@ -637,7 +640,7 @@ bool GltfPostProcessor::postProcessGlbFileWithMaterials(
     QJsonObject gltfJson = doc.object();
 
     // Post-process with material transforms
-    postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback, textureSubfolder);
+    postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback, textureSubfolder, pathMapping);
 
     // Reconstruct GLB with modified JSON
     doc.setObject(gltfJson);
@@ -924,12 +927,14 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     const std::vector<TriangleMesh*>& meshes,
     const std::vector<GPULight>& lights,
     std::function<void(const QString&)> logCallback,
-    const QString& textureSubfolder)
+    const QString& textureSubfolder,
+    const QMap<QString, QString>& pathMapping)
 {
     log("=== glTF Post-Processor (with material transforms) ===", logCallback);
 
     // Store for use by findOrCreateTexture throughout this processing pass
     _textureSubfolder = textureSubfolder.isEmpty() ? "textures" : textureSubfolder;
+    _pathMapping = pathMapping;
 
     removeTangentAttributes(gltfJson, logCallback);
 
@@ -1126,10 +1131,32 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     for (int ii = 0; ii < images.size(); ++ii)
                     {
                         QString imgUri = images[ii].toObject().value("uri").toString();
-                        if (QFileInfo(imgUri).fileName().compare(sourceFilename, Qt::CaseInsensitive) == 0)
+                        if (QFileInfo(imgUri).fileName().compare(sourceFilename, Qt::CaseInsensitive) == 0 ||
+                            QFileInfo(imgUri).completeBaseName().compare(sourceFilename, Qt::CaseInsensitive) == 0)
                         {
                             correctImageIdx = ii;
                             break;
+                        }
+                    }
+
+                    // GLB fallback: images have no URI, match by "name" field instead.
+                    // Resolve original path through pathMapping to get the packaged filename.
+                    if (correctImageIdx < 0 && !_pathMapping.isEmpty())
+                    {
+                        QString packagedRelPath = _pathMapping.value(sourcePath);
+                        QString packagedName = QFileInfo(packagedRelPath).fileName();
+                        if (!packagedName.isEmpty())
+                        {
+                            for (int ii = 0; ii < images.size(); ++ii)
+                            {
+                                QString imgName = images[ii].toObject().value("name").toString();
+                                if (!imgName.isEmpty() &&
+                                    QFileInfo(imgName).fileName().compare(packagedName, Qt::CaseInsensitive) == 0)
+                                {
+                                    correctImageIdx = ii;
+                                    break;
+                                }
+                            }
                         }
                     }
 
@@ -2639,11 +2666,34 @@ int GltfPostProcessor::findOrCreateTexture(
         QString uri = img.value("uri").toString();
         log(QString("  Checking image %1: uri='%2'").arg(i).arg(uri), logCallback);
 
-        if (uri.endsWith(imageFileName))
+        if (uri.endsWith(imageFileName) ||
+            QFileInfo(uri).completeBaseName().compare(imageFileName, Qt::CaseInsensitive) == 0)
         {
             imageIndex = i;
             log(QString("  -> Found matching image at index %1").arg(i), logCallback);
             break;
+        }
+    }
+
+    // GLB fallback: match by "name" field (URI is empty for embedded images)
+    if (imageIndex < 0 && !_pathMapping.isEmpty())
+    {
+        QString packagedRelPath = _pathMapping.value(imagePath);
+        QString packagedName = QFileInfo(packagedRelPath).fileName();
+        if (!packagedName.isEmpty())
+        {
+            for (int i = 0; i < images.size(); ++i)
+            {
+                QString imgName = images[i].toObject().value("name").toString();
+                if (!imgName.isEmpty() &&
+                    QFileInfo(imgName).fileName().compare(packagedName, Qt::CaseInsensitive) == 0)
+                {
+                    imageIndex = i;
+                    log(QString("  -> Found embedded image at index %1 by name '%2'")
+                        .arg(i).arg(packagedName), logCallback);
+                    break;
+                }
+            }
         }
     }
 

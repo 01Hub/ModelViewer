@@ -57,7 +57,8 @@ public:
         const std::vector<TriangleMesh*>& meshes,
         const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr,
-        const QString& textureSubfolder = "textures");
+        const QString& textureSubfolder = "textures",
+        const QMap<QString, QString>& pathMapping = {});
 
     /**
      * Post-process a glTF file on disk
@@ -82,7 +83,8 @@ public:
         const std::vector<TriangleMesh*>& meshes,
         const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr,
-        const QString& textureSubfolder = "textures");
+        const QString& textureSubfolder = "textures",
+        const QMap<QString, QString>& pathMapping = {});
 
     /**
      * Post-process a GLB file on disk
@@ -109,7 +111,8 @@ public:
         const std::vector<TriangleMesh*>& meshes,
         const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr,
-        const QString& textureSubfolder = "textures");
+        const QString& textureSubfolder = "textures",
+        const QMap<QString, QString>& pathMapping = {});
 
 	/**
 	 * Write punctual light definitions from the source scene into the glTF JSON
@@ -154,6 +157,7 @@ private:
 
 private:
     static QString _textureSubfolder;
+    static QMap<QString, QString> _pathMapping;
 };
 
 #endif // GLTF_POSTPROCESSOR_H

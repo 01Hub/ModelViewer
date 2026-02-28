@@ -242,7 +242,7 @@ private:
      * @param scene The Assimp scene to enrich
      * @param texturePackage Texture file paths and locations
      */
-    void embedTexturesInScene(
+    QStringList embedTexturesInScene(
         aiScene* scene,
         const TexturePackage& texturePackage);
 
@@ -281,6 +281,20 @@ private:
     const aiExportFormatDesc* findExportFormat(
         const std::string& filePath,
         Assimp::Exporter& exporter);
+
+    /*
+    *
+     * @brief Patch GLB file to update embedded texture names
+     *
+     * After export, this method can be used to modify the GLB file's JSON chunk
+     * to update the names of embedded textures to match the original filenames.
+     * This is purely for improving readability and debugging of the GLB file.
+     *
+     * @param glbPath Path to the exported GLB file
+     * @param orderedNames List of original texture filenames in the order they were embedded
+	 */
+    void patchGlbImageNames(const QString& glbPath, const QStringList& orderedNames);
+
 
     // === Logging utilities ===
 
