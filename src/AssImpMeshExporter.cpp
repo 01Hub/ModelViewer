@@ -7,6 +7,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QFileInfo>
+#include <QSet>
 #include <QMatrix4x4>
 #include <algorithm>
 #include <memory>
@@ -490,7 +491,8 @@ aiReturn AssImpMeshExporter::exportScene(
 
     // Patch image names into GLB JSON so post-processor can match them
     if (isGLB && !embeddedTextureNames.isEmpty())
-        patchGlbImageNames(exportFilePath, embeddedTextureNames, scene);
+        patchGlbImageNames(exportFilePath, embeddedTextureNames, scene,
+            _lastTexturePackage.textureDirectory);
 
     // ===== STEP 5: Post-process glTF/GLB to add missing optional properties and write transforms =====
     logMessage("Step 5: Post-processing exported file with material transforms...");
@@ -626,7 +628,8 @@ const aiExportFormatDesc* AssImpMeshExporter::findExportFormat(
 void AssImpMeshExporter::patchGlbImageNames(
     const QString& glbPath,
     const QStringList& orderedNames,
-    const aiScene* scene)
+    const aiScene* scene,
+    const QString& textureDirectory)
 {
     QFile file(glbPath);
     if (!file.open(QIODevice::ReadWrite))
@@ -701,6 +704,7 @@ void AssImpMeshExporter::patchGlbImageNames(
         { "specularTexture",           { aiTextureType_UNKNOWN,      0 } },
         { "specularColorTexture",      { aiTextureType_UNKNOWN,      1 } },
         { "anisotropyTexture",         { aiTextureType_UNKNOWN,      2 } },
+        { "thicknessTexture",          { aiTextureType_UNKNOWN,      3 } },
         { "diffuseTexture",            { aiTextureType_DIFFUSE,      0 } },
         { "specularGlossinessTexture", { aiTextureType_SPECULAR,     0 } },
     };
@@ -784,8 +788,7 @@ void AssImpMeshExporter::patchGlbImageNames(
         }
     }
 
-    // Fall back to orderedNames for any image slot not resolved via JSON
-    // (e.g. textures not referenced from any known material slot)
+    // Fill in names for existing images not resolved via JSON slot lookup
     for (int i = 0; i < images.size() && i < orderedNames.size(); ++i)
     {
         if (!imageNameMap.contains(i))
@@ -795,6 +798,133 @@ void AssImpMeshExporter::patchGlbImageNames(
             imageNameMap[i] = orderedNames[i];
         }
     }
+
+    // For any textures in orderedNames that Assimp didn't write a JSON image entry for
+    // (e.g. KHR_materials_volume thickness, KHR_materials_anisotropy — Assimp's GLB2 writer
+    // has no native support for these extensions, so it drops them from JSON even though
+    // they were embedded in mTextures[]).
+    // We identify missing ones by comparing orderedNames against imageNameMap coverage,
+    // then pull image bytes directly from scene->mTextures[] (authoritative, in-memory)
+    // rather than disk files which may be stale or missing for glb://image_N sources.
+    QByteArray extraBinData; // image bytes to append after the existing BIN chunk
+    if (orderedNames.size() > images.size() && scene && scene->mNumTextures > 0)
+    {
+        QJsonArray bufferViews = root.value("bufferViews").toArray();
+
+        // Find current end of BIN data — new images will start here
+        int binChunkHeaderOffset = jsonStart + jsonLen;
+        while (binChunkHeaderOffset % 4 != 0) binChunkHeaderOffset++;
+        quint32 existingBinLen = (binChunkHeaderOffset + 8 <= data.size())
+            ? *reinterpret_cast<const quint32*>(data.constData() + binChunkHeaderOffset)
+            : 0;
+        int nextByteOffset = static_cast<int>(existingBinLen);
+
+        // Build set of base filenames already covered by JSON image entries
+        QSet<QString> coveredNames;
+        for (auto it = imageNameMap.begin(); it != imageNameMap.end(); ++it)
+            coveredNames.insert(QFileInfo(it.value()).completeBaseName());
+
+        for (int i = 0; i < orderedNames.size(); ++i)
+        {
+            const QString& name = orderedNames[i];
+            QString baseName = QFileInfo(name).completeBaseName();
+
+            // Skip if already covered by an existing JSON image entry
+            if (coveredNames.contains(baseName)) continue;
+
+            // Find the matching aiTexture by base filename (mFilename is the leaf name
+            // set in createEmbeddedTexture, e.g. "image_1.jpeg" or "image_1.png")
+            QByteArray imgData;
+            QString imgName = name;
+            for (unsigned int ti = 0; ti < scene->mNumTextures; ++ti)
+            {
+                const aiTexture* tex = scene->mTextures[ti];
+                if (!tex || tex->mWidth == 0) continue;
+
+                QString texBase = QFileInfo(QString::fromLocal8Bit(tex->mFilename.C_Str()))
+                                      .completeBaseName();
+                if (texBase.compare(baseName, Qt::CaseInsensitive) != 0) continue;
+
+                if (tex->mHeight == 0)
+                {
+                    // Compressed image stored as raw bytes
+                    imgData = QByteArray(reinterpret_cast<const char*>(tex->pcData),
+                                         static_cast<int>(tex->mWidth));
+                    // Derive name with the real extension from format hint
+                    QString hint = QString::fromLocal8Bit(tex->achFormatHint).toLower();
+                    if (!hint.isEmpty() && hint != "png")
+                        imgName = baseName + "." + hint;
+                    else
+                        imgName = baseName + ".png";
+                }
+                break;
+            }
+
+            if (imgData.isEmpty())
+            {
+                // mTextures lookup failed — fall back to disk file
+                QString filePath = textureDirectory + "/" + name;
+                if (!QFile::exists(filePath))
+                    filePath = textureDirectory + "/" + QFileInfo(name).fileName();
+                if (QFile::exists(filePath))
+                {
+                    QFile f(filePath);
+                    if (f.open(QIODevice::ReadOnly))
+                    {
+                        imgData = f.readAll();
+                        f.close();
+                        imgName = QFileInfo(name).fileName();
+                    }
+                }
+            }
+
+            if (imgData.isEmpty())
+            {
+                logWarning(QString("patchGlbImageNames: no data for extra image %1: %2")
+                    .arg(i).arg(name));
+                continue;
+            }
+
+            // Detect MIME type from magic bytes
+            QString mimeType = "image/png";
+            if (imgData.size() >= 2 &&
+                static_cast<uchar>(imgData[0]) == 0xFF &&
+                static_cast<uchar>(imgData[1]) == 0xD8)
+                mimeType = "image/jpeg";
+
+            // Pad to 4-byte alignment
+            while (nextByteOffset % 4 != 0) { extraBinData.append('\0'); nextByteOffset++; }
+
+            // Create bufferView
+            QJsonObject newBv;
+            newBv["buffer"]     = 0;
+            newBv["byteOffset"] = nextByteOffset;
+            newBv["byteLength"] = imgData.size();
+            int newBvIdx = bufferViews.size();
+            bufferViews.append(newBv);
+
+            // Create image entry
+            QJsonObject newImg;
+            newImg["bufferView"] = newBvIdx;
+            newImg["mimeType"]   = mimeType;
+            newImg["name"]       = imgName;
+            images.append(newImg);
+            coveredNames.insert(QFileInfo(imgName).completeBaseName());
+
+            extraBinData.append(imgData);
+            nextByteOffset += imgData.size();
+
+            logMessage(QString("  patchGlbImageNames: appended img[%1] bufferView[%2] "
+                               "offset=%3 length=%4 name='%5' (from mTextures)")
+                       .arg(i).arg(newBvIdx)
+                       .arg(newBv["byteOffset"].toInt())
+                       .arg(imgData.size())
+                       .arg(imgName));
+        }
+
+        root["bufferViews"] = bufferViews;
+    }
+
 
     // Apply names to the JSON images array
     bool patched = false;
@@ -813,7 +943,7 @@ void AssImpMeshExporter::patchGlbImageNames(
         }
     }
 
-    if (!patched)
+    if (!patched && extraBinData.isEmpty())
         return;
 
     root["images"] = images;
@@ -826,7 +956,7 @@ void AssImpMeshExporter::patchGlbImageNames(
 
     // Reconstruct GLB bytes
     QByteArray newData;
-    newData.reserve(data.size() + newJson.size() - jsonLen);
+    newData.reserve(data.size() + newJson.size() - jsonLen + extraBinData.size());
 
     // Copy original header (12 bytes)
     newData.append(data.left(12));
@@ -838,11 +968,27 @@ void AssImpMeshExporter::patchGlbImageNames(
     newData.append(reinterpret_cast<const char*>(&chunkType), 4);
     newData.append(newJson);
 
-    // Append everything after the original JSON chunk (BIN chunk)
+    // Locate the original BIN chunk
     int afterJson = jsonStart + jsonLen;
-    // Align afterJson to 4-byte boundary (GLB chunks are 4-byte aligned)
     while (afterJson % 4 != 0) afterJson++;
-    newData.append(data.mid(afterJson));
+
+    if (!extraBinData.isEmpty() && afterJson + 8 <= data.size())
+    {
+        // Read existing BIN chunk header, append its data, then our extra data
+        quint32 oldBinLen = *reinterpret_cast<const quint32*>(data.constData() + afterJson);
+        quint32 binType = *reinterpret_cast<const quint32*>(data.constData() + afterJson + 4);
+
+        quint32 newBinLen = oldBinLen + static_cast<quint32>(extraBinData.size());
+        newData.append(reinterpret_cast<const char*>(&newBinLen), 4);
+        newData.append(reinterpret_cast<const char*>(&binType), 4);
+        newData.append(data.mid(afterJson + 8, static_cast<int>(oldBinLen)));
+        newData.append(extraBinData);
+    }
+    else
+    {
+        // No extra data — just copy BIN chunk as-is
+        newData.append(data.mid(afterJson));
+    }
 
     // Fix total length in GLB header
     quint32 totalLen = static_cast<quint32>(newData.size());
@@ -1398,60 +1544,64 @@ void AssImpMeshExporter::assignTexturesToMaterial(
     // If they're different (which shouldn't happen for glTF), use metallic texture
     std::string metallicRoughnessPath = !metallicTex.path.empty() ? metallicTex.path : roughnessTex.path;
 
-    // Build texture mappings based on format
-    std::vector<std::pair<GLMaterial::TextureType, aiTextureType>> textureMappings;
+    // Build texture mappings based on format.
+    // Each entry is {GLMaterial::TextureType, aiTextureType, slot-index}.
+    // The slot index matters for types shared by multiple logical slots
+    // (e.g. CLEARCOAT for clearcoat color/roughness/normal, UNKNOWN for specular/anisotropy).
+    struct TexMapping { GLMaterial::TextureType mvType; aiTextureType aiType; unsigned int slot; };
+    std::vector<TexMapping> textureMappings;
 
     if (isGLTF)
     {
-        // glTF-specific mappings
+        // glTF-specific mappings (Metallic/Roughness handled separately below)
         textureMappings = {
-            {GLMaterial::TextureType::Albedo, aiTextureType_BASE_COLOR},
-            // Note: Metallic and Roughness are handled specially for glTF (combined texture)
-            {GLMaterial::TextureType::Normal, aiTextureType_NORMALS},
-            {GLMaterial::TextureType::AmbientOcclusion, aiTextureType_LIGHTMAP},
-            {GLMaterial::TextureType::Emissive, aiTextureType_EMISSIVE},
-            {GLMaterial::TextureType::Transmission, aiTextureType_TRANSMISSION},
-            // Note: Opacity is NOT a separate texture in glTF - it's in baseColorTexture alpha
-            {GLMaterial::TextureType::Height, aiTextureType_HEIGHT},
-            {GLMaterial::TextureType::ClearcoatColor, aiTextureType_CLEARCOAT},
-            {GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT},
-            {GLMaterial::TextureType::ClearcoatNormal, aiTextureType_CLEARCOAT},
-            {GLMaterial::TextureType::SheenColor, aiTextureType_SHEEN},
-            {GLMaterial::TextureType::SheenRoughness, aiTextureType_SHEEN},
-            {GLMaterial::TextureType::SpecularFactor, aiTextureType_UNKNOWN},
-            {GLMaterial::TextureType::SpecularColor, aiTextureType_UNKNOWN},
-            {GLMaterial::TextureType::Diffuse,            aiTextureType_DIFFUSE},
-            {GLMaterial::TextureType::SpecularGlossiness, aiTextureType_SPECULAR},
+            {GLMaterial::TextureType::Albedo,             aiTextureType_BASE_COLOR,    0},
+            {GLMaterial::TextureType::Normal,             aiTextureType_NORMALS,       0},
+            {GLMaterial::TextureType::AmbientOcclusion,   aiTextureType_LIGHTMAP,      0},
+            {GLMaterial::TextureType::Emissive,           aiTextureType_EMISSIVE,      0},
+            {GLMaterial::TextureType::Transmission,       aiTextureType_TRANSMISSION,  0},
+            {GLMaterial::TextureType::Height,             aiTextureType_HEIGHT,        0},
+            {GLMaterial::TextureType::ClearcoatColor,     aiTextureType_CLEARCOAT,     0},
+            {GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT,     1},
+            {GLMaterial::TextureType::ClearcoatNormal,    aiTextureType_CLEARCOAT,     2},
+            {GLMaterial::TextureType::SheenColor,         aiTextureType_SHEEN,         0},
+            {GLMaterial::TextureType::SheenRoughness,     aiTextureType_SHEEN,         1},
+            {GLMaterial::TextureType::SpecularFactor,     aiTextureType_UNKNOWN,       0},
+            {GLMaterial::TextureType::SpecularColor,      aiTextureType_UNKNOWN,       1},
+            {GLMaterial::TextureType::Anisotropy,         aiTextureType_UNKNOWN,       2},
+            {GLMaterial::TextureType::Thickness,        aiTextureType_UNKNOWN,       3},
+            {GLMaterial::TextureType::Diffuse,            aiTextureType_DIFFUSE,       0},
+            {GLMaterial::TextureType::SpecularGlossiness, aiTextureType_SPECULAR,      0},
         };
     }
     else
     {
-        // Other formats (OBJ, FBX, etc.) - use all textures including separate metallic/roughness/opacity
+        // Other formats (OBJ, FBX, etc.)
         textureMappings = {
-            {GLMaterial::TextureType::Albedo, aiTextureType_BASE_COLOR},
-            {GLMaterial::TextureType::Metallic, aiTextureType_METALNESS},
-            {GLMaterial::TextureType::Roughness, aiTextureType_DIFFUSE_ROUGHNESS},
-            {GLMaterial::TextureType::Normal, aiTextureType_NORMALS},
-            {GLMaterial::TextureType::AmbientOcclusion, aiTextureType_LIGHTMAP},
-            {GLMaterial::TextureType::Emissive, aiTextureType_EMISSIVE},
-            {GLMaterial::TextureType::Transmission, aiTextureType_TRANSMISSION},
-            {GLMaterial::TextureType::Opacity, aiTextureType_OPACITY},  // Keep for non-glTF formats
-            {GLMaterial::TextureType::Height, aiTextureType_HEIGHT},
-            {GLMaterial::TextureType::ClearcoatColor, aiTextureType_CLEARCOAT},
-            {GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT},
-            {GLMaterial::TextureType::ClearcoatNormal, aiTextureType_CLEARCOAT},
-            {GLMaterial::TextureType::SheenColor, aiTextureType_SHEEN},
-            {GLMaterial::TextureType::SheenRoughness, aiTextureType_SHEEN},
+            {GLMaterial::TextureType::Albedo,             aiTextureType_BASE_COLOR,        0},
+            {GLMaterial::TextureType::Metallic,           aiTextureType_METALNESS,         0},
+            {GLMaterial::TextureType::Roughness,          aiTextureType_DIFFUSE_ROUGHNESS, 0},
+            {GLMaterial::TextureType::Normal,             aiTextureType_NORMALS,           0},
+            {GLMaterial::TextureType::AmbientOcclusion,   aiTextureType_LIGHTMAP,          0},
+            {GLMaterial::TextureType::Emissive,           aiTextureType_EMISSIVE,          0},
+            {GLMaterial::TextureType::Transmission,       aiTextureType_TRANSMISSION,      0},
+            {GLMaterial::TextureType::Opacity,            aiTextureType_OPACITY,           0},
+            {GLMaterial::TextureType::Height,             aiTextureType_HEIGHT,            0},
+            {GLMaterial::TextureType::ClearcoatColor,     aiTextureType_CLEARCOAT,         0},
+            {GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT,         1},
+            {GLMaterial::TextureType::ClearcoatNormal,    aiTextureType_CLEARCOAT,         2},
+            {GLMaterial::TextureType::SheenColor,         aiTextureType_SHEEN,             0},
+            {GLMaterial::TextureType::SheenRoughness,     aiTextureType_SHEEN,             1},
+            {GLMaterial::TextureType::Anisotropy,         aiTextureType_UNKNOWN,           2},
+            {GLMaterial::TextureType::Thickness,        aiTextureType_UNKNOWN,           3},
         };
     }
 
-    for (const auto& [modelViewerType, assimpType] : textureMappings)
+    for (const auto& mapping : textureMappings)
     {
-        const auto& tex = material.texture(modelViewerType);
+        const auto& tex = material.texture(mapping.mvType);
         if (tex.path.empty())
-        {
             continue;
-        }
 
         QString originalPath = QString::fromStdString(tex.path);
         auto it = texturePackage.pathMapping.find(originalPath);
@@ -1462,52 +1612,33 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             continue;
         }
 
-        QString texturePath;
-
-        if (useEmbeddedTextures)
-        {
-            // For embedded textures, use the "*index" notation
-            // This will be resolved to the actual aiTexture in mTextures array
-            // For now, just use the relative path - Assimp will handle embedding
-            texturePath = it.value();
-        }
-        else
-        {
-            // For external textures, use relative path
-            texturePath = it.value();
-        }
-
-        texturePath = texturePath.replace("\\", "/");
+        QString texturePath = it.value();
+        texturePath.replace("\\", "/");
+        const unsigned int slot = mapping.slot;
+        const aiTextureType aiType = mapping.aiType;
 
         aiString aiPath(texturePath.toStdString());
-        aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(assimpType, 0));
+        aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiType, slot));
 
-        // CRITICAL: Set texture coordinate set index (defaults to 0)
-        // Without this, release builds may use uninitialized memory
         int uvIndex = tex.texCoordIndex;
-        aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(assimpType, 0));
+        aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiType, slot));
 
-        // Set texture mapping mode to wrap (defaults)
         int mappingModeU = aiTextureMapMode_Wrap;
         int mappingModeV = aiTextureMapMode_Wrap;
-        aiMat->AddProperty(&mappingModeU, 1, AI_MATKEY_MAPPINGMODE_U(assimpType, 0));
-        aiMat->AddProperty(&mappingModeV, 1, AI_MATKEY_MAPPINGMODE_V(assimpType, 0));
+        aiMat->AddProperty(&mappingModeU, 1, AI_MATKEY_MAPPINGMODE_U(aiType, slot));
+        aiMat->AddProperty(&mappingModeV, 1, AI_MATKEY_MAPPINGMODE_V(aiType, slot));
 
-        // Set UV transform (scale, offset, rotation)
-        // This is critical for glTF export with KHR_texture_transform
         aiUVTransform uvTransform;
         uvTransform.mTranslation = aiVector2D(tex.offset.x, tex.offset.y);
         uvTransform.mScaling = aiVector2D(tex.scale.x, tex.scale.y);
         uvTransform.mRotation = tex.rotation;
-        aiMat->AddProperty(&uvTransform, 1, AI_MATKEY_UVTRANSFORM(assimpType, 0));
+        aiMat->AddProperty(&uvTransform, 1, AI_MATKEY_UVTRANSFORM(aiType, slot));
 
         logMessage(QString("     -> %1: %2 (UV: scale=[%3,%4] offset=[%5,%6] rotation=%7)")
-            .arg(GLMaterial::textureTypeToString(modelViewerType))
+            .arg(GLMaterial::textureTypeToString(mapping.mvType))
             .arg(texturePath)
-            .arg(tex.scale.x)
-            .arg(tex.scale.y)
-            .arg(tex.offset.x)
-            .arg(tex.offset.y)
+            .arg(tex.scale.x).arg(tex.scale.y)
+            .arg(tex.offset.x).arg(tex.offset.y)
             .arg(tex.rotation));
     }
 
@@ -1719,20 +1850,29 @@ QStringList AssImpMeshExporter::embedTexturesInScene(
     std::set<QString> processedPaths;  // Avoid duplicates
     QStringList embeddedNames;
 
-    // Define texture types to check
-    const aiTextureType texTypes[] = {
-        aiTextureType_BASE_COLOR,
-        aiTextureType_NORMALS,
-        aiTextureType_METALNESS,
-        aiTextureType_DIFFUSE_ROUGHNESS,
-        aiTextureType_LIGHTMAP,
-        aiTextureType_EMISSIVE,
-        aiTextureType_TRANSMISSION,
-        aiTextureType_OPACITY,
-        aiTextureType_HEIGHT,
-        aiTextureType_CLEARCOAT,
-        aiTextureType_SHEEN,
-        aiTextureType_SPECULAR,
+    // Define texture types + slot indices to check.
+    // Multi-slot types (CLEARCOAT, SHEEN, UNKNOWN) need each slot checked individually.
+    const std::pair<aiTextureType, unsigned int> texSlots[] = {
+        {aiTextureType_BASE_COLOR,        0},
+        {aiTextureType_NORMALS,           0},
+        {aiTextureType_METALNESS,         0},
+        {aiTextureType_DIFFUSE_ROUGHNESS, 0},
+        {aiTextureType_LIGHTMAP,          0},
+        {aiTextureType_EMISSIVE,          0},
+        {aiTextureType_TRANSMISSION,      0},
+        {aiTextureType_OPACITY,           0},
+        {aiTextureType_HEIGHT,            0},
+        {aiTextureType_CLEARCOAT,         0},  // clearcoatTexture
+        {aiTextureType_CLEARCOAT,         1},  // clearcoatRoughnessTexture
+        {aiTextureType_CLEARCOAT,         2},  // clearcoatNormalTexture
+        {aiTextureType_SHEEN,             0},  // sheenColorTexture
+        {aiTextureType_SHEEN,             1},  // sheenRoughnessTexture
+        {aiTextureType_UNKNOWN,           0},  // specularTexture
+        {aiTextureType_UNKNOWN,           1},  // specularColorTexture
+        {aiTextureType_UNKNOWN,           2},  // anisotropyTexture
+        {aiTextureType_UNKNOWN,           3},  // thicknessTexture (KHR_materials_volume)
+        {aiTextureType_SPECULAR,          0},  // specularGlossinessTexture
+        {aiTextureType_DIFFUSE,           0},  // diffuseTexture (specGloss)
     };
 
     // Iterate through all materials and collect unique texture paths
@@ -1741,10 +1881,10 @@ QStringList AssImpMeshExporter::embedTexturesInScene(
         aiMaterial* mat = scene->mMaterials[matIdx];
         if (!mat) continue;
 
-        for (aiTextureType texType : texTypes)
+        for (const auto& [texType, slotIdx] : texSlots)
         {
             aiString texPath;
-            if (mat->GetTexture(texType, 0, &texPath) == aiReturn_SUCCESS)
+            if (mat->GetTexture(texType, slotIdx, &texPath) == aiReturn_SUCCESS)
             {
                 QString path = QString::fromLocal8Bit(texPath.C_Str());
 

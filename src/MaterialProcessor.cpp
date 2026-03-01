@@ -726,8 +726,17 @@ void MaterialProcessor::populateAssimpSceneFromGLBCache(aiScene* scene,
 			if (!img.isNull())
 			{
 				aiTex->mWidth = static_cast<unsigned int>(img.width());
-				aiTex->mHeight = static_cast<unsigned int>(img.height());
-				aiTex->mFilename.Set(cachedTex.path.c_str());
+				aiTex->mHeight = static_cast<unsigned int>(img.height());				
+				// Extract the base name: "glb:///path/file.glb::image_1" -> "image_1"
+				//                        "glb://image_1" (legacy)       -> "image_1"
+				QString pathStr = QString::fromStdString(cachedTex.path);
+				QString leafName;
+				int colonIdx = pathStr.lastIndexOf("::");
+				if (colonIdx >= 0)
+					leafName = pathStr.mid(colonIdx + 2);  // "image_1"
+				else
+					leafName = pathStr.mid(pathStr.lastIndexOf('/') + 1);  // old-style fallback
+				aiTex->mFilename.Set(leafName.toStdString().c_str());
 
 				// Allocate and copy pixel data
 				size_t pixelCount = static_cast<size_t>(img.width()) * img.height();
@@ -1013,14 +1022,14 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					}
 
 					// Check alpha before conversion
-					bool hasAlpha = qImg.hasAlphaChannel();  // Check original image
+					bool hasAlpha = checkImageForAlpha(qImg);  // Check original image
 
 					// Prepare for OpenGL
 					qImg = convertToGLFormat(qImg);
 
 					// Create texture struct with embedded marker (not a file path)
-					GLMaterial::Texture tex;
-					tex.path = "glb://image_" + std::to_string(imgIdx);  // Marker for GLB embedded image
+					GLMaterial::Texture tex;					
+					tex.path = "glb://" + gltfPath.toStdString() + "::image_" + std::to_string(imgIdx);
 					tex.hasAlpha = hasAlpha;
 					tex.scale = glm::vec2(1.0f);
 					tex.offset = glm::vec2(0.0f);
@@ -1219,8 +1228,8 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		// ===== HANDLE GLB vs GLTF =====
 		if (isGLB)
 		{
-			// Return marker for GLB images
-			return "glb://image_" + QString::number(imgIndex);
+			// Return marker for GLB images			
+			return "glb://" + gltfPath + "::image_" + QString::number(imgIndex);
 		}
 
 		// GLTF: resolve file URI (existing logic)

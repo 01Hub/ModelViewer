@@ -2697,6 +2697,31 @@ int GltfPostProcessor::findOrCreateTexture(
         }
     }
 
+    // GLB name fallback: match imageFileName against base name of each image's "name" field.
+    // Handles cases like imagePath="glb://image_1" -> imageFileName="image_1",
+    // which should match an image with name="image_1.png".
+    if (imageIndex < 0)
+    {
+        QString imageBaseName = QFileInfo(imageFileName).completeBaseName();
+        if (imageBaseName.isEmpty()) imageBaseName = imageFileName; // no extension case
+
+        for (int i = 0; i < images.size(); ++i)
+        {
+            QString imgName = images[i].toObject().value("name").toString();
+            if (!imgName.isEmpty())
+            {
+                QString imgBase = QFileInfo(imgName).completeBaseName();
+                if (imgBase.compare(imageBaseName, Qt::CaseInsensitive) == 0)
+                {
+                    imageIndex = i;
+                    log(QString("  -> Found embedded image at index %1 by base name '%2'")
+                        .arg(i).arg(imageBaseName), logCallback);
+                    break;
+                }
+            }
+        }
+    }
+
     // If image not found, create it
     if (imageIndex < 0)
     {

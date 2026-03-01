@@ -297,7 +297,7 @@ private:
      * @param scene       The aiScene after export, used to look up source paths per slot
      */
     void patchGlbImageNames(const QString& glbPath, const QStringList& orderedNames,
-        const aiScene* scene);
+        const aiScene* scene, const QString& textureDirectory);
 
 
     // === Logging utilities ===
