@@ -128,6 +128,16 @@ public:
         QJsonObject& gltfJson,
         std::function<void(const QString&)> logCallback = nullptr);
 
+    /**
+    * Return a normalized path for the GLB file, ensuring consistent formatting across platforms
+     * This is important for the patchGlbImageNames function to correctly locate the GLB file
+     * and update its embedded texture names.
+     *
+     * @param path The original file path to the GLB file
+     * @return Normalized file path suitable for GLB patching
+    */
+    static QString normalisedGlbPath(const QString& path);
+
 private:
     static bool fixTextureInfoWithTransforms(QJsonObject& parent, const QString& key);
     static bool fixNormalTextureInfo(QJsonObject& parent, const QString& key);

@@ -299,7 +299,6 @@ private:
     void patchGlbImageNames(const QString& glbPath, const QStringList& orderedNames,
         const aiScene* scene, const QString& textureDirectory);
 
-
     // === Logging utilities ===
 
     /**

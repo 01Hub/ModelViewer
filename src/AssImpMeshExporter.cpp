@@ -695,18 +695,22 @@ void AssImpMeshExporter::patchGlbImageNames(
     };
     // KHR extension texture slots
     const QMap<QString, SlotInfo> extSlotMap = {
-        { "clearcoatTexture",          { aiTextureType_CLEARCOAT,    0 } },
-        { "clearcoatRoughnessTexture", { aiTextureType_CLEARCOAT,    1 } },
-        { "clearcoatNormalTexture",    { aiTextureType_CLEARCOAT,    2 } },
-        { "sheenColorTexture",         { aiTextureType_SHEEN,        0 } },
-        { "sheenRoughnessTexture",     { aiTextureType_SHEEN,        1 } },
-        { "transmissionTexture",       { aiTextureType_TRANSMISSION, 0 } },
-        { "specularTexture",           { aiTextureType_UNKNOWN,      0 } },
-        { "specularColorTexture",      { aiTextureType_UNKNOWN,      1 } },
-        { "anisotropyTexture",         { aiTextureType_UNKNOWN,      2 } },
-        { "thicknessTexture",          { aiTextureType_UNKNOWN,      3 } },
-        { "diffuseTexture",            { aiTextureType_DIFFUSE,      0 } },
-        { "specularGlossinessTexture", { aiTextureType_SPECULAR,     0 } },
+        { "clearcoatTexture",               { aiTextureType_CLEARCOAT,     0 } },
+        { "clearcoatRoughnessTexture",      { aiTextureType_CLEARCOAT,     1 } },
+        { "clearcoatNormalTexture",         { aiTextureType_CLEARCOAT,     2 } },
+        { "sheenColorTexture",              { aiTextureType_SHEEN,         0 } },
+        { "sheenRoughnessTexture",          { aiTextureType_SHEEN,         1 } },
+        { "transmissionTexture",            { aiTextureType_TRANSMISSION,  0 } },
+        { "specularTexture",                { aiTextureType_UNKNOWN,       0 } },
+        { "specularColorTexture",           { aiTextureType_UNKNOWN,       1 } },
+        { "anisotropyTexture",              { aiTextureType_UNKNOWN,       2 } },
+        { "thicknessTexture",               { aiTextureType_UNKNOWN,       3 } },
+        { "diffuseTexture",                 { aiTextureType_DIFFUSE,       0 } },
+        { "specularGlossinessTexture",      { aiTextureType_SPECULAR,      0 } },
+        { "iridescenceTexture",             { aiTextureType_UNKNOWN,       4 } },
+        { "iridescenceThicknessTexture",    { aiTextureType_UNKNOWN,       5 } },
+        { "diffuseTransmissionTexture",     { aiTextureType_UNKNOWN,       6 } },
+        { "diffuseTransmissionColorTexture",{ aiTextureType_UNKNOWN,       7 } },
     };
 
     // Helper: get the source path Assimp stored for a given material/type/slot
@@ -1569,9 +1573,15 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             {GLMaterial::TextureType::SpecularFactor,     aiTextureType_UNKNOWN,       0},
             {GLMaterial::TextureType::SpecularColor,      aiTextureType_UNKNOWN,       1},
             {GLMaterial::TextureType::Anisotropy,         aiTextureType_UNKNOWN,       2},
-            {GLMaterial::TextureType::Thickness,        aiTextureType_UNKNOWN,       3},
+            {GLMaterial::TextureType::Thickness,          aiTextureType_UNKNOWN,       3},
             {GLMaterial::TextureType::Diffuse,            aiTextureType_DIFFUSE,       0},
             {GLMaterial::TextureType::SpecularGlossiness, aiTextureType_SPECULAR,      0},
+            {GLMaterial::TextureType::Iridescence,        aiTextureType_UNKNOWN,       4},
+            {GLMaterial::TextureType::IridescenceThickness, aiTextureType_UNKNOWN,     5},
+            {GLMaterial::TextureType::DiffuseTransmission,      aiTextureType_UNKNOWN, 6},
+            {GLMaterial::TextureType::DiffuseTransmissionColor, aiTextureType_UNKNOWN, 7},
+
+
         };
     }
     else
@@ -1593,7 +1603,7 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             {GLMaterial::TextureType::SheenColor,         aiTextureType_SHEEN,             0},
             {GLMaterial::TextureType::SheenRoughness,     aiTextureType_SHEEN,             1},
             {GLMaterial::TextureType::Anisotropy,         aiTextureType_UNKNOWN,           2},
-            {GLMaterial::TextureType::Thickness,        aiTextureType_UNKNOWN,           3},
+            {GLMaterial::TextureType::Thickness,          aiTextureType_UNKNOWN,           3},
         };
     }
 
@@ -1604,7 +1614,7 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             continue;
 
         QString originalPath = QString::fromStdString(tex.path);
-        auto it = texturePackage.pathMapping.find(originalPath);
+        auto it = texturePackage.pathMapping.find(GltfPostProcessor::normalisedGlbPath(originalPath));
 
         if (it == texturePackage.pathMapping.end())
         {
@@ -1649,7 +1659,7 @@ void AssImpMeshExporter::assignTexturesToMaterial(
     if (isGLTF && hasMetallicRoughness)
     {
         QString originalPath = QString::fromStdString(metallicRoughnessPath);
-        auto it = texturePackage.pathMapping.find(originalPath);
+        auto it = texturePackage.pathMapping.find(GltfPostProcessor::normalisedGlbPath(originalPath));
 
         if (it != texturePackage.pathMapping.end())
         {
@@ -1873,6 +1883,10 @@ QStringList AssImpMeshExporter::embedTexturesInScene(
         {aiTextureType_UNKNOWN,           3},  // thicknessTexture (KHR_materials_volume)
         {aiTextureType_SPECULAR,          0},  // specularGlossinessTexture
         {aiTextureType_DIFFUSE,           0},  // diffuseTexture (specGloss)
+        {aiTextureType_UNKNOWN,           4},  // iridescenceTexture
+        {aiTextureType_UNKNOWN,           5},  // iridescenceThicknessTexture
+        {aiTextureType_UNKNOWN,           6},  // diffuseTransmissionTexture
+        {aiTextureType_UNKNOWN,           7},  // diffuseTransmissionColorTexture
     };
 
     // Iterate through all materials and collect unique texture paths

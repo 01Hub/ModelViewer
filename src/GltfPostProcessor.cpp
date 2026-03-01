@@ -1123,7 +1123,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
                     // Get just the filename from the full source path
                     QString sourcePath = QString::fromStdString(sourceTex.path);
-                    QString sourceFilename = QFileInfo(sourcePath).fileName();
+                    QString sourceFilename = QFileInfo(normalisedGlbPath(sourcePath)).fileName();
 
                     // Find the image index in the JSON images array with a matching filename
                     QJsonArray images = gltfJson.value("images").toArray();
@@ -1143,7 +1143,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     // Resolve original path through pathMapping to get the packaged filename.
                     if (correctImageIdx < 0 && !_pathMapping.isEmpty())
                     {
-                        QString packagedRelPath = _pathMapping.value(sourcePath);
+                        QString packagedRelPath = _pathMapping.value(normalisedGlbPath(sourcePath));
                         QString packagedName = QFileInfo(packagedRelPath).fileName();
                         if (!packagedName.isEmpty())
                         {
@@ -2181,6 +2181,13 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     return postProcessGltfJson(gltfJson, logCallback);
 }
 
+QString GltfPostProcessor::normalisedGlbPath(const QString& path)
+{
+    if (path.startsWith("glb://") && path.contains("::"))
+        return "glb://" + path.mid(path.lastIndexOf("::") + 2);
+    return path;
+}
+
 bool GltfPostProcessor::fixTextureInfoWithTransforms(QJsonObject& parent, const QString& key)
 {
     if (!parent.contains(key))
@@ -2654,7 +2661,7 @@ int GltfPostProcessor::findOrCreateTexture(
     log(QString("  Current textures count: %1").arg(textures.size()), logCallback);
 
     // Extract just the filename from the path
-    QString imageFileName = QFileInfo(imagePath).fileName();
+    QString imageFileName = QFileInfo(normalisedGlbPath(imagePath)).fileName();
     log(QString("  Extracted filename: '%1'").arg(imageFileName), logCallback);
 
     // Look for EXISTING texture that already references this image
@@ -2678,7 +2685,7 @@ int GltfPostProcessor::findOrCreateTexture(
     // GLB fallback: match by "name" field (URI is empty for embedded images)
     if (imageIndex < 0 && !_pathMapping.isEmpty())
     {
-        QString packagedRelPath = _pathMapping.value(imagePath);
+        QString packagedRelPath = _pathMapping.value(normalisedGlbPath(imagePath));
         QString packagedName = QFileInfo(packagedRelPath).fileName();
         if (!packagedName.isEmpty())
         {
