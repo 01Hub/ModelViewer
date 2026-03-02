@@ -96,6 +96,8 @@ public:
 
 	std::vector<AssImpMesh*> getMeshes() const;
 
+	glm::mat4 getGlobalSceneTransform() const { return _appliedTransform; }
+
 	QString getErrorMessage() const;
 
 	void setUVGenerationMethod(const UVMethod& uvMethod) { _selectedUVMethod = uvMethod; }
@@ -139,9 +141,7 @@ private:
 
 
 	static SceneMeshInfo collectSceneMeshInfo(const aiScene* scene);
-	static glm::mat4 aiMatrixToGlm(const aiMatrix4x4& from);
-	static aiMatrix4x4 glmToAiMatrix(const glm::mat4& mat);
-
+	
 	// Automatic orientation and scaling of the model to fit the scene's coordinate system.
 	void applyCoordinateSystemTransformations(const std::string& filePath);
 	void applyTransformToNode(aiNode* node, const glm::mat4& transform);

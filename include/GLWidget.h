@@ -151,6 +151,7 @@ public:
 	bool generateUVsForMeshes(const std::vector<int>& ids, const UVMethod& uvMethod, const UVConfig& uvConfig, QString& error);
 
 	aiScene* getAssImpScene() const { return _globalScene; }
+	glm::mat4 getGlobalSceneTransform() const { return _globalSceneTransform; }
 
 	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
 	void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);
@@ -833,6 +834,7 @@ private:
 	AssImpModelLoader* _assimpModelLoader;
 	const aiScene* _assimpScene = nullptr;
 	aiScene* _globalScene = nullptr; // Merged scene from multiple files
+	glm::mat4 _globalSceneTransform = glm::mat4(1.0f);
 	bool _progressiveLoadingEnabled = false;
 
 	// --- Texture cache: path -> GL texture id (per GLWidget context)

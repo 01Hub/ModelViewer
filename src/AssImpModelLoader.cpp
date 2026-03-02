@@ -805,7 +805,7 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 
 	std::function<void(const aiNode*, const glm::mat4&)> collectFromNode;
 	collectFromNode = [&](const aiNode* node, const glm::mat4& parentTransform) {
-		glm::mat4 nodeTransform = parentTransform * aiMatrixToGlm(node->mTransformation);
+		glm::mat4 nodeTransform = parentTransform * SceneUtils::aiMatrixToGlm(node->mTransformation);
 
 		for (unsigned int i = 0; i < node->mNumMeshes; ++i)
 		{
@@ -936,7 +936,7 @@ void AssImpModelLoader::applyTransformToNode(aiNode* node, const glm::mat4& tran
 	if (!node) return;
 
 	// Convert glm::mat4 to aiMatrix4x4
-	aiMatrix4x4 aiTransform = glmToAiMatrix(transform);
+	aiMatrix4x4 aiTransform = SceneUtils::glmToAiMatrix(transform);
 	
 	// Apply transformation to the node
 	node->mTransformation = aiTransform * node->mTransformation;
@@ -1221,25 +1221,3 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 		++meshIndex;
 	}
 }
-
-glm::mat4 AssImpModelLoader::aiMatrixToGlm(const aiMatrix4x4& from)
-{
-	return glm::mat4(
-		from.a1, from.b1, from.c1, from.d1,
-		from.a2, from.b2, from.c2, from.d2,
-		from.a3, from.b3, from.c3, from.d3,
-		from.a4, from.b4, from.c4, from.d4
-	);
-}
-
-aiMatrix4x4 AssImpModelLoader::glmToAiMatrix(const glm::mat4& mat)
-{
-	aiMatrix4x4 result;
-	result.a1 = mat[0][0]; result.a2 = mat[1][0]; result.a3 = mat[2][0]; result.a4 = mat[3][0];
-	result.b1 = mat[0][1]; result.b2 = mat[1][1]; result.b3 = mat[2][1]; result.b4 = mat[3][1];
-	result.c1 = mat[0][2]; result.c2 = mat[1][2]; result.c3 = mat[2][2]; result.c4 = mat[3][2];
-	result.d1 = mat[0][3]; result.d2 = mat[1][3]; result.d3 = mat[2][3]; result.d4 = mat[3][3];
-	return result;
-}
-
-

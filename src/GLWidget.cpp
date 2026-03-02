@@ -2261,6 +2261,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		}
 
 		_assimpScene = _assimpModelLoader->getScene();
+		_globalSceneTransform = _assimpModelLoader->getGlobalSceneTransform();
 
 		aiScene* copiedScene = SceneUtils::deepCopyScene(_assimpScene);
 		SceneUtils::mergeScene(&_globalScene, copiedScene);

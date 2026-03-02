@@ -2030,6 +2030,16 @@ void ModelViewer::onFileExport()
 
 		// Export a copy of the the original aiScene
 		aiScene* copyScene = SceneUtils::deepCopyScene(_glWidget->getAssImpScene());
+
+		// Apply inverse global transform to meshes before export, since AssImpExporter exports in world space and we want to preserve the original mesh data in our scene
+		glm::mat4 transform = _glWidget->getGlobalSceneTransform();
+		// Invert the transform
+		glm::mat4 inverseTransform = glm::inverse(transform);
+		// Apply to the root node of the scene, which will affect all meshes
+		aiNode* node = copyScene->mRootNode;
+		aiMatrix4x4 aiTransform = SceneUtils::glmToAiMatrix(inverseTransform);
+		node->mTransformation = aiTransform * node->mTransformation;
+
 		aiReturn res = aiReturn_FAILURE;
 		if (exportScene)
 		{			
