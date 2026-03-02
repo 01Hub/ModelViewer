@@ -2014,24 +2014,15 @@ void ModelViewer::onFileExport()
 		for (TriangleMesh* triMesh : triMeshes)
 			assImpMeshes.push_back(dynamic_cast<AssImpMesh*>(triMesh));
 
-
 		// Check the user settings
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 		bool exportScene = settings.value("radioButtonExportScene", true).toBool();
-
-		// Export the meshes loaded in the scene
-		AssImpMeshExporter::ExportSettings expSettings;
-		expSettings.outputDirectory = QFileInfo(fileName).absolutePath();
-		expSettings.copyTextures = true;
-		expSettings.useRelativePaths = true;
-		expSettings.deduplicateTextures = true;
-		expSettings.verbose = true;
-		expSettings.lights = _glWidget->getParsedLights();
-
+				
 		// Export a copy of the the original aiScene
 		aiScene* copyScene = SceneUtils::deepCopyScene(_glWidget->getAssImpScene());
 
-		// Apply inverse global transform to meshes before export, since AssImpExporter exports in world space and we want to preserve the original mesh data in our scene
+		// Apply inverse global transform to meshes before export, since we have applied 
+		// auto scaling and rotation based on the up vector of the model and user settings.
 		glm::mat4 transform = _glWidget->getGlobalSceneTransform();
 		// Invert the transform
 		glm::mat4 inverseTransform = glm::inverse(transform);
@@ -2039,6 +2030,37 @@ void ModelViewer::onFileExport()
 		aiNode* node = copyScene->mRootNode;
 		aiMatrix4x4 aiTransform = SceneUtils::glmToAiMatrix(inverseTransform);
 		node->mTransformation = aiTransform * node->mTransformation;
+
+		// Apply inverse transforms to the punctual lights as well
+		std::vector<GPULight> lights = _glWidget->getParsedLights();
+		for (GPULight& light : lights)
+		{
+			// Transform position (with translation)
+			glm::vec4 transformedPos = inverseTransform * glm::vec4(light.position, 1.0f);
+			light.position = glm::vec3(transformedPos);
+
+			// Transform direction (no translation)
+			glm::vec4 transformedDir = inverseTransform * glm::vec4(light.direction, 0.0f);
+			light.direction = glm::normalize(glm::vec3(transformedDir));
+
+			// Extract scale from transform matrix
+			glm::vec3 scale(
+				glm::length(glm::vec3(inverseTransform[0])),
+				glm::length(glm::vec3(inverseTransform[1])),
+				glm::length(glm::vec3(inverseTransform[2]))
+			);
+			float avgScale = (scale.x + scale.y + scale.z) / 3.0f;
+			light.range *= avgScale;
+		}
+
+		// Export the meshes loaded in the scene
+		AssImpMeshExporter::ExportSettings expSettings;
+		expSettings.outputDirectory = QFileInfo(fileName).absolutePath();
+		expSettings.copyTextures = true;
+		expSettings.useRelativePaths = true;
+		expSettings.deduplicateTextures = true;
+		expSettings.verbose = true;		
+		expSettings.lights = lights;
 
 		aiReturn res = aiReturn_FAILURE;
 		if (exportScene)
@@ -2054,7 +2076,7 @@ void ModelViewer::onFileExport()
 		}
 
 		if (res == aiReturn_SUCCESS)
-			QMessageBox::information(this, tr("Information"), tr("Exported"));
+			QMessageBox::information(this, tr("Information"), tr("Exported %1").arg(QFileInfo(fileName).fileName()));
 		else
 			QMessageBox::critical(this, tr("Error"), tr("Export failed!"));
 	}
