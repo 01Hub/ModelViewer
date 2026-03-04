@@ -938,6 +938,10 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
     removeTangentAttributes(gltfJson, logCallback);
 
+    // Track which JSON material indices have been patched, and by which source mesh
+    // (a material may be shared by multiple meshes - first mesh wins)
+    QMap<int, int> patchedMaterials;  // json material index -> source mesh index
+
     // First, write actual transforms from source materials
     if (gltfJson.contains("materials") && !meshes.empty())
     {
@@ -962,39 +966,69 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         // We iterate JSON meshes, find the source TriangleMesh by name,
         // then patch the corresponding JSON material using that mesh's GLMaterial.
 
-        // Build name -> mesh index lookup.
-        // Application mesh names are formatted as "ModelName (MeshName)" but the
-        // exported JSON mesh names are just "MeshName". We index by both the full
-        // name and the bare name extracted from inside the parentheses so that
-        // either form matches.
-        QMap<QString, int> meshNameToIdx;
+        // Build name -> ordered queue of source mesh indices.
+        //
+        // Application mesh names are "ModelName (MeshName)" but exported JSON mesh
+        // names are just "MeshName". We queue by both the full name and the bare
+        // name so either form matches.
+        //
+        // Using a queue (ordered list + cursor) rather than a single-value map
+        // correctly handles the case where multiple source meshes share the same
+        // name but carry different materials (e.g. 25 prisms each with a distinct
+        // IOR/dispersion value). Each JSON mesh dequeues one source mesh in order,
+        // so the Nth "Prism" JSON mesh gets the Nth "Prism" source mesh.
+        QMap<QString, QList<int>> meshNameToQueue;   // bare name -> ordered source indices
+        QMap<QString, int>        meshNameCursor;    // bare name -> next unconsumed index
+        QMap<QString, QString>    lastMatForKey;     // last queued material name per key
+
         for (int k = 0; k < static_cast<int>(meshes.size()); ++k)
         {
             if (!meshes[k]) continue;
             QString fullName = meshes[k]->getName();
             if (fullName.isEmpty()) continue;
 
-            // Index by full name (exact match first)
-            if (!meshNameToIdx.contains(fullName))
-                meshNameToIdx[fullName] = k;
-
-            // Also index by the bare name inside "ModelName (BareName)"
+            // Extract bare name inside "ModelName (BareName)"
+            QString bareName = fullName;
             int parenOpen = fullName.lastIndexOf('(');
             int parenClose = fullName.lastIndexOf(')');
             if (parenOpen >= 0 && parenClose > parenOpen)
+                bareName = fullName.mid(parenOpen + 1, parenClose - parenOpen - 1).trimmed();
+
+            // Instance deduplication: glTF instancing causes ModelViewer to create
+            // one TriangleMesh per node referencing a mesh, so N nodes sharing the
+            // same mesh+material produce N consecutive identical source entries.
+            // The exported JSON collapses those back to one mesh entry. We skip
+            // any source mesh whose material name matches the last queued entry
+            // for the same key, so the queue holds one entry per distinct material
+            // variant rather than one per node instance.
+            QString matName = meshes[k]->getMaterial().name();
+
+            // Queue by bare name (covers JSON mesh name lookups)
+            if (!bareName.isEmpty())
             {
-                QString bareName = fullName.mid(parenOpen + 1, parenClose - parenOpen - 1).trimmed();
-                if (!bareName.isEmpty() && !meshNameToIdx.contains(bareName))
-                    meshNameToIdx[bareName] = k;
+                if (!meshNameToQueue.contains(bareName) ||
+                    lastMatForKey.value(bareName) != matName)
+                {
+                    meshNameToQueue[bareName].append(k);
+                    lastMatForKey[bareName] = matName;
+                }
+            }
+
+            // Also queue by full name if it differs (fallback for exact-name match)
+            if (fullName != bareName)
+            {
+                if (!meshNameToQueue.contains(fullName) ||
+                    lastMatForKey.value(fullName) != matName)
+                {
+                    meshNameToQueue[fullName].append(k);
+                    lastMatForKey[fullName] = matName;
+                }
             }
         }
-        log(QString("  Built mesh-name lookup: %1 entries").arg(meshNameToIdx.size()), logCallback);
+        log(QString("  Built mesh-name queues: %1 name(s)").arg(meshNameToQueue.size()), logCallback);
 
-        // Track which JSON material indices have been patched, and by which source mesh
-        // (a material may be shared by multiple meshes - first mesh wins)
-        QMap<int, int> patchedMaterials;  // json material index -> source mesh index
-
-        // Iterate JSON meshes to determine the correct material->mesh mapping
+        // We may need to update the JSON meshes array (to redirect primitive material
+        // pointers when we clone a collapsed material slot). Work on a mutable copy.
         QJsonArray jsonMeshes = gltfJson.value("meshes").toArray();
         for (int j = 0; j < jsonMeshes.size(); ++j)
         {
@@ -1006,21 +1040,82 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             int matIdx = primitives[0].toObject().value("material").toInt(-1);
             if (matIdx < 0 || matIdx >= materials.size()) continue;
 
-            // Skip if this material slot was already claimed by an earlier mesh
-            if (patchedMaterials.contains(matIdx)) continue;
+            // Dequeue the next unconsumed source mesh for this name.
+            // Prefer exact full-name match first; fall back to bare name.
+            auto dequeue = [&](const QString& key) -> int {
+                if (!meshNameToQueue.contains(key)) return -1;
+                int& cursor = meshNameCursor[key];
+                const QList<int>& q = meshNameToQueue[key];
+                if (cursor >= q.size()) return -1;
+                return q[cursor++];
+                };
 
-            // Find the source TriangleMesh by name
-            int meshIdx = meshNameToIdx.value(meshName, -1);
+            int meshIdx = dequeue(meshName);
+            if (meshIdx < 0)
+            {
+                // Try bare name (JSON mesh names don't include the "ModelName (" prefix)
+                // already handled since we queue under bareName too, but try
+                // the full application name form just in case.
+                for (auto it = meshNameToQueue.begin(); it != meshNameToQueue.end(); ++it)
+                {
+                    QString key = it.key();
+                    if (key.endsWith("(" + meshName + ")") ||
+                        key.endsWith(" " + meshName + ")"))
+                    {
+                        meshIdx = dequeue(key);
+                        if (meshIdx >= 0) break;
+                    }
+                }
+            }
+
             if (meshIdx < 0)
             {
                 log(QString("  WARNING: no source mesh found for json mesh '%1'").arg(meshName), logCallback);
                 continue;
             }
 
-            patchedMaterials[matIdx] = meshIdx;
-            log(QString("  Mapped: json mesh[%1] '%2' -> material[%3] via source mesh[%4]")
-                .arg(j).arg(meshName).arg(matIdx).arg(meshIdx), logCallback);
+            if (!patchedMaterials.contains(matIdx))
+            {
+                // Material slot is free - claim it directly.
+                patchedMaterials[matIdx] = meshIdx;
+                log(QString("  Mapped: json mesh[%1] '%2' -> material[%3] via source mesh[%4]")
+                    .arg(j).arg(meshName).arg(matIdx).arg(meshIdx), logCallback);
+            }
+            else if (patchedMaterials[matIdx] == meshIdx)
+            {
+                // Same source mesh already owns this slot (two primitives in one mesh
+                // sharing a material) - nothing to do.
+                log(QString("  Shared: json mesh[%1] '%2' -> material[%3] (same source mesh[%4])")
+                    .arg(j).arg(meshName).arg(matIdx).arg(meshIdx), logCallback);
+            }
+            else
+            {
+                // Collision: this material slot is already owned by a DIFFERENT source
+                // mesh. Assimp collapsed two distinct source materials into one JSON
+                // slot. Clone the slot, redirect this mesh primitive to the clone,
+                // and claim the clone for our source mesh.
+                //
+                // This restores the correct 1-source-mesh : 1-material-slot mapping
+                // that the post-processor patching phase requires.
+                int clonedIdx = materials.size();
+                materials.append(materials[matIdx]);  // deep copy (QJsonValue is CoW)
+
+                // Redirect this JSON mesh's primitive to the cloned slot
+                QJsonObject prim0 = primitives[0].toObject();
+                prim0["material"] = clonedIdx;
+                primitives[0] = prim0;
+                jMesh["primitives"] = primitives;
+                jsonMeshes[j] = jMesh;
+
+                patchedMaterials[clonedIdx] = meshIdx;
+                log(QString("  Cloned: json mesh[%1] '%2' -> material[%3] cloned to [%4] for source mesh[%5]")
+                    .arg(j).arg(meshName).arg(matIdx).arg(clonedIdx).arg(meshIdx), logCallback);
+            }
         }
+
+        // Write back the (possibly updated) meshes array so primitive material
+        // redirections are visible to the rest of the pipeline.
+        gltfJson["meshes"] = jsonMeshes;
 
         // Helper: write KHR_texture_transform from a GLMaterial::Texture
         auto writeTransform = [&](QJsonObject& parent, const QString& key, const GLMaterial::Texture& tex) -> bool {
