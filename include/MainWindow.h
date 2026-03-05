@@ -20,6 +20,7 @@ namespace Ui
 }
 
 class ModelViewer;
+class QuickHelpDialog;
 
 class MainWindow : public QMainWindow
 {
@@ -131,4 +132,6 @@ private:
 
 	static int _viewerCount;
 	static MainWindow* _mainWindow;
+
+	static QuickHelpDialog* _helpDialog;
 };

@@ -4,6 +4,8 @@
 #include <QFont>
 #include <QApplication>
 #include <QScreen>
+#include <QSettings>
+#include <QSpacerItem>
 
 QuickHelpDialog::QuickHelpDialog(QWidget* parent)
 	: QDialog(parent)
@@ -64,14 +66,28 @@ void QuickHelpDialog::setupUI()
 
 	mainLayout->addWidget(_tabWidget);
 
-	// Close button
+	// Bottom row: checkbox (left) — stretch — Close (right)
 	QHBoxLayout* buttonLayout = new QHBoxLayout();
-	buttonLayout->addStretch();
+	_showOnStartupCheckBox = new QCheckBox(tr("Show on startup"), this);
+	connect(_showOnStartupCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		settings.setValue("showQuickHelpOnStartup", checked);
+		});
+
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	_showOnStartupCheckBox->setChecked(settings.value("showQuickHelpOnStartup", true).toBool());
+
+	// Add checkbox first (left)
+	buttonLayout->addWidget(_showOnStartupCheckBox);
+	// Add a stretch in the middle to push the next widget (Close) to the right
+	buttonLayout->addStretch(1);
+
 	_closeButton = new QPushButton(tr("Close"), this);
 	_closeButton->setMinimumWidth(100);
 	connect(_closeButton, &QPushButton::clicked, this, &QDialog::accept);
-	buttonLayout->addWidget(_closeButton);
 
+	// Add Close button (right)
+	buttonLayout->addWidget(_closeButton);
 	mainLayout->addLayout(buttonLayout);
 }
 

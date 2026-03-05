@@ -27,6 +27,7 @@
 
 int MainWindow::_viewerCount = 1;
 MainWindow* MainWindow::_mainWindow = nullptr;
+QuickHelpDialog* MainWindow::_helpDialog = nullptr;
 
 MainWindow::MainWindow(QWidget* parent)
 	: QMainWindow(parent)
@@ -150,6 +151,13 @@ MainWindow::MainWindow(QWidget* parent)
 		ui->retranslateUi(this);
 		retranslateUI();  // if needed
 		});
+
+	// Show the help dialog on first launch if the user has that setting enabled
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	if (settings.value("showQuickHelpOnStartup", true).toBool())
+	{
+		QTimer::singleShot(0, this, &MainWindow::on_actionQuick_Help_triggered);
+	}
 }
 
 void MainWindow::retranslateUI()
@@ -318,20 +326,18 @@ void MainWindow::on_actionExit_triggered(bool /*checked*/)
 void MainWindow::on_actionQuick_Help_triggered()
 {
 	// Create as a member variable or use static to keep one instance
-	static QuickHelpDialog* helpDialog = nullptr;
-
-	if (!helpDialog)
+	if (!_helpDialog)
 	{
-		helpDialog = new QuickHelpDialog(this);
-		helpDialog->setAttribute(Qt::WA_DeleteOnClose);
-		connect(helpDialog, &QObject::destroyed, []() {
-			helpDialog = nullptr; // Reset pointer when dialog is closed
+		_helpDialog = new QuickHelpDialog(this);
+		_helpDialog->setAttribute(Qt::WA_DeleteOnClose);
+		connect(_helpDialog, &QObject::destroyed, []() {
+			_helpDialog = nullptr; // Reset pointer when dialog is closed
 			});
 	}
 
-	helpDialog->show();
-	helpDialog->raise();
-	helpDialog->activateWindow();
+	_helpDialog->show();
+	_helpDialog->raise();
+	_helpDialog->activateWindow();
 }
 
 void MainWindow::on_actionTutorial_triggered()

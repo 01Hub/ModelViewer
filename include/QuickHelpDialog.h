@@ -5,6 +5,7 @@
 #include <QTabWidget>
 #include <QTextBrowser>
 #include <QPushButton>
+#include <QCheckBox>
 #include <QVBoxLayout>
 
 class QuickHelpDialog : public QDialog
@@ -38,6 +39,7 @@ private:
     QTextBrowser* _displayBrowser;
     QTextBrowser* _tipsBrowser;
     QPushButton* _closeButton;
+	QCheckBox* _showOnStartupCheckBox;
 };
 
 #endif // QUICKHELPDIALOG_H
