@@ -70,7 +70,7 @@
      <x>0</x>
      <y>0</y>
      <width>1298</width>
-     <height>33</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -219,6 +219,9 @@
    <property name="text">
     <string>Close</string>
    </property>
+   <property name="statusTip">
+    <string>Close the current document window</string>
+   </property>
   </action>
   <action name="actionClose_All">
    <property name="icon">
@@ -226,6 +229,9 @@
    </property>
    <property name="text">
     <string>Close All</string>
+   </property>
+   <property name="statusTip">
+    <string>Close all document windows</string>
    </property>
   </action>
   <action name="actionNext">
@@ -235,6 +241,9 @@
    <property name="text">
     <string>Next</string>
    </property>
+   <property name="statusTip">
+    <string>Activate the next sub window</string>
+   </property>
   </action>
   <action name="actionPrevious">
    <property name="icon">
@@ -242,6 +251,9 @@
    </property>
    <property name="text">
     <string>Previous</string>
+   </property>
+   <property name="statusTip">
+    <string>Activate the next previous window</string>
    </property>
   </action>
   <action name="actionOpen">
@@ -337,6 +349,9 @@
    <property name="text">
     <string>Export</string>
    </property>
+   <property name="statusTip">
+    <string>Export the scene</string>
+   </property>
    <property name="shortcut">
     <string>Ctrl+E</string>
    </property>
@@ -350,10 +365,16 @@
    <property name="text">
     <string>Settings</string>
    </property>
+   <property name="statusTip">
+    <string>Open the settings dialog</string>
+   </property>
   </action>
   <action name="actionQuick_Help">
    <property name="text">
     <string>Quick Help</string>
+   </property>
+   <property name="statusTip">
+    <string>Open the quick help dialog</string>
    </property>
    <property name="shortcut">
     <string>F1</string>
@@ -363,6 +384,9 @@
    <property name="text">
     <string>Tutorial</string>
    </property>
+   <property name="statusTip">
+    <string>Open the application tutorial</string>
+   </property>
    <property name="shortcut">
     <string>Ctrl+F1</string>
    </property>
@@ -371,10 +395,16 @@
    <property name="text">
     <string>View Logs</string>
    </property>
+   <property name="statusTip">
+    <string>Open the logs dialog</string>
+   </property>
   </action>
   <action name="actionOpen_Logs_Folder">
    <property name="text">
     <string>Open Logs Folder</string>
+   </property>
+   <property name="statusTip">
+    <string>Open the logs folder in the system explorer</string>
    </property>
   </action>
  </widget>
