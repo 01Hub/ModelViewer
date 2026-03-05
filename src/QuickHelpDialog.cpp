@@ -66,17 +66,24 @@ void QuickHelpDialog::setupUI()
 
 	mainLayout->addWidget(_tabWidget);
 
+	auto settings = std::make_shared<QSettings>(
+		QCoreApplication::organizationName(),
+		QCoreApplication::applicationName()
+	);
+
 	// Bottom row: checkbox (left) — stretch — Close (right)
 	QHBoxLayout* buttonLayout = new QHBoxLayout();
+
 	_showOnStartupCheckBox = new QCheckBox(tr("Show on startup"), this);
-	connect(_showOnStartupCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-		settings.setValue("showQuickHelpOnStartup", checked);
+	
+	//Read initial value once from the same settings instance
+	_showOnStartupCheckBox->setChecked(settings->value("showQuickHelpOnStartup", true).toBool());
+
+	// Capture shared_ptr to reuse the same instance in the writer
+	connect(_showOnStartupCheckBox, &QCheckBox::toggled, this, [settings](bool checked) {		
+		settings->setValue("showQuickHelpOnStartup", checked);
 		});
-
-	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-	_showOnStartupCheckBox->setChecked(settings.value("showQuickHelpOnStartup", true).toBool());
-
+	
 	// Add checkbox first (left)
 	buttonLayout->addWidget(_showOnStartupCheckBox);
 	// Add a stretch in the middle to push the next widget (Close) to the right
