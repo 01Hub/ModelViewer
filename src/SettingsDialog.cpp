@@ -168,6 +168,7 @@ void SettingsDialog::applySettings()
     settings.setValue("checkRestoreLastFile", general_restoreLastFile);
     settings.setValue("checkTooltips", general_showTooltips);
     settings.setValue("checkConfirmExit", general_confirmExit);
+	settings.setValue("checkTutorialLaunch", general_showTutorialLauncher);
 	settings.setValue("spinBoxUndoLimit", general_undoLimit);
 
     // Camera tab
@@ -306,6 +307,7 @@ void SettingsDialog::setDefaultValues()
     ui->comboBoxLanguage->setCurrentIndex(0);     // Default: "English"
     ui->checkPromptOverwrite->setChecked(true);   // Explicitly set to true
     ui->checkConfirmExit->setChecked(false);      // No 'checked' property found
+	ui->checkTutorialLaunch->setChecked(true);    // Explicitly set to true
 	ui->spinBoxUndoLimit->setValue(50);           // Explicitly set
 
     // Camera tab
@@ -469,6 +471,8 @@ void SettingsDialog::loadSettings()
     ui->checkTooltips->setChecked(bVal);
     bVal = settings.value("checkConfirmExit", ui->checkConfirmExit->isChecked()).toBool();
     ui->checkConfirmExit->setChecked(bVal);
+	bVal = settings.value("checkTutorialLaunch", ui->checkTutorialLaunch->isChecked()).toBool();
+	ui->checkTutorialLaunch->setChecked(bVal);
 	iVal = settings.value("spinBoxUndoLimit", ui->spinBoxUndoLimit->value()).toInt();
 	ui->spinBoxUndoLimit->setValue(iVal);
     iVal = settings.value("comboProjectionMode", ui->comboProjectionMode->currentIndex()).toInt();
@@ -667,6 +671,7 @@ void SettingsDialog::saveSettings()
     settings.setValue("checkRestoreLastFile", ui->checkRestoreLastFile->isChecked());
     settings.setValue("checkTooltips", ui->checkTooltips->isChecked());
     settings.setValue("checkConfirmExit", ui->checkConfirmExit->isChecked());
+	settings.setValue("checkTutorialLaunch", ui->checkTutorialLaunch->isChecked());
 	settings.setValue("spinBoxUndoLimit", ui->spinBoxUndoLimit->value());
     settings.setValue("comboProjectionMode", ui->comboProjectionMode->currentIndex());
     settings.setValue("comboDefaultView", ui->comboDefaultView->currentIndex());
@@ -814,7 +819,7 @@ void SettingsDialog::restoreDefaults()
     // List of all widgets that need to be restored
     QList<QWidget*> widgetsToRestore = {
         ui->comboBoxTheme, ui->comboBoxLanguage, ui->checkPromptOverwrite,
-		ui->checkRestoreLastFile, ui->checkTooltips, ui->checkConfirmExit, ui->spinBoxUndoLimit,
+		ui->checkRestoreLastFile, ui->checkTooltips, ui->checkConfirmExit, ui->checkTutorialLaunch, ui->spinBoxUndoLimit,
         ui->comboProjectionMode, ui->comboDefaultView, ui->comboDefaultProjection,
         ui->checkTrackball, ui->checkInvertZoom, ui->spinZoomFactor,
         ui->comboBoxBackgroundStyle, ui->pushButtonTopColor, ui->pushButtonBottomColor,
@@ -893,7 +898,17 @@ void SettingsDialog::on_checkConfirmExit_stateChanged()
     general_confirmExit = ui->checkConfirmExit->isChecked();
 }
 
-void SettingsDialog::on_spinUndoLimit_valueChanged()
+void SettingsDialog::on_checkTutorialLaunch_stateChanged()
+{
+	general_showTutorialLauncher = ui->checkTutorialLaunch->isChecked();
+    if (general_showTutorialLauncher)
+    {
+        QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+        settings.setValue("tutorial/displayMode", "ask");
+    }
+}
+
+void SettingsDialog::on_spinBoxUndoLimit_valueChanged()
 {
 	general_undoLimit = ui->spinBoxUndoLimit->value();
 }

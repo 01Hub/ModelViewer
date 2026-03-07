@@ -371,6 +371,7 @@ void MainWindow::on_actionTutorial_triggered()
 			if (rememberCheckbox->isChecked())
 			{
 				settings.setValue("tutorial/displayMode", "dialog");
+				settings.setValue("checkTutorialLaunch", false);
 			}
 		}
 		else if (msgBox.clickedButton() == browserButton)
@@ -379,6 +380,7 @@ void MainWindow::on_actionTutorial_triggered()
 			if (rememberCheckbox->isChecked())
 			{
 				settings.setValue("tutorial/displayMode", "browser");
+				settings.setValue("checkTutorialLaunch", false);
 			}
 		}
 		else
