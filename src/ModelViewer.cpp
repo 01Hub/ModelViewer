@@ -898,7 +898,7 @@ void ModelViewer::detachEnvironmentPanel()
 
 	// Create floating dialog
 	_detachedEnvironmentDialog = new QDialog(this);
-	_detachedEnvironmentDialog->setWindowTitle("Predefined Materials");
+	_detachedEnvironmentDialog->setWindowTitle("Visualization Environment Settings");
 	_detachedEnvironmentDialog->setWindowFlags(Qt::Window | Qt::Tool);
 
 	QVBoxLayout* layout = new QVBoxLayout(_detachedEnvironmentDialog);
