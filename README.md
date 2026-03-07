@@ -18,18 +18,20 @@ A professional-grade 3D viewer that reads and displays a comprehensive range of 
 
 ModelViewer supports a comprehensive range of visualization and rendering styles for different inspection and analysis needs:
 
-![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Slide1.PNG)
+<img width="4402" height="2128" alt="Slide1" src="https://github.com/user-attachments/assets/ab09ef98-b2f2-4db9-8490-79505025c851" />
 
 - **Solid Shading**: Standard surface rendering
 - **Wireframe**: Edge visualization for topology inspection
 - **Wireframe Overlay**: Wireframe on solid for combined visualization
 - **Vertex Colors**: Direct vertex color visualization from model data
-- **Normal Display**: Surface normal vectors (for debugging and analysis)
 - **ADS (Ambient-Diffuse-Specular)**: Traditional Phong-based lighting model
 
 ### Advanced Rendering Modes
+**Metallic Roughness, Transmission, and Volume**
+<img width="4400" height="2430" alt="Slide2" src="https://github.com/user-attachments/assets/1c6b2c74-f7bd-4c86-a0fc-ee12b5da38af" />
+**Sheen, Alpha Coverage**
+<img width="4400" height="2430" alt="Slide3" src="https://github.com/user-attachments/assets/2c245b12-7071-483e-8b21-bac1613a9cfd" />
 
-![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Slide2.PNG)
 
 - **Physically-Based Rendering (PBR)**: Full Cook-Torrance BRDF implementation with metallic/roughness workflows
 - **Split-Sum IBL**: Image-based lighting with irradiance and prefiltered environment maps
@@ -41,7 +43,8 @@ ModelViewer supports a comprehensive range of visualization and rendering styles
 
 ModelViewer implements comprehensive support for Khronos KHR material extensions, enabling advanced material rendering capabilities:
 
-![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Slide4.PNG)
+<img width="1920" height="1032" alt="Slide4" src="https://github.com/user-attachments/assets/f914735b-df56-4d31-99cc-444a3ddbc8fb" />
+
 
 **Supported KHR Material Extensions:**
 
@@ -88,7 +91,8 @@ ModelViewer implements comprehensive support for Khronos KHR material extensions
 - **Material Library**: Tree-based organization and management of materials
 - **Material Deduplication**: Intelligent identification and consolidation of duplicate materials
 - **Name-Based Material Matching**: Preservation of original material names across the import/export pipeline
-- **Material Variants**: Support for KHR_materials_variants for multiple material configurations
+
+<img width="543" height="974" alt="Screenshot 2026-03-07 220955" src="https://github.com/user-attachments/assets/31754ea7-db59-44ba-abac-a3b0421a530c" />
 
 ### Texture Management & Advanced Features
 
@@ -102,6 +106,8 @@ ModelViewer implements comprehensive support for Khronos KHR material extensions
   - Standard formats (PNG, JPG, TGA, BMP)
 - **Texture Transform**: Per-texture UV transformation with full KHR_texture_transform support
 - **Multi-Channel Support**: Independent handling of multiple texture sets and UV coordinates
+
+<img width="622" height="1003" alt="Screenshot 2026-03-07 221053" src="https://github.com/user-attachments/assets/5c563020-d61a-4c2d-9261-434fc94d5120" />
 
 ### CAD Support & Assembly Visualization
 
@@ -141,9 +147,10 @@ ModelViewer implements comprehensive support for Khronos KHR material extensions
 - **Smart Capping**: Automatic generation of capping geometry to close intersected surfaces
 - **Interactive Adjustment**: Real-time plane manipulation for dynamic sectioning
 
-![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Slide6.PNG)
+<img width="1920" height="1032" alt="Slide8" src="https://github.com/user-attachments/assets/3900171b-e33c-4033-8d2d-854c57c1eace" />
 
-![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Slide7.PNG)
+<img width="1920" height="1032" alt="Slide7" src="https://github.com/user-attachments/assets/9d8a876a-8748-434a-bc75-c7ae823050d6" />
+
 
 ### Multi-View Projection System
 
@@ -151,7 +158,7 @@ ModelViewer implements comprehensive support for Khronos KHR material extensions
 - **Standard Projections**: Front, back, top, bottom, left, right, isometric views
 - **Custom Configurations**: User-definable projection combinations
 
-![ScreenShot](https://github.com/sharjith/ModelViewer/blob/master/screenshots/Screenshot%202021-07-24%20223138.jpg)
+<img width="1920" height="1032" alt="Slide6" src="https://github.com/user-attachments/assets/3cb481c0-860d-4f99-a055-7b7aa11ceb1a" />
 
 ### Realistic PBR Rendering
 
