@@ -1,3 +1,12 @@
+---
+name: Bug report
+about: Create a report to help us improve
+title: ''
+labels: ''
+assignees: ''
+
+---
+
 ## 🐛 Bug Report
 
 Thanks for reporting a bug! Please fill in as much information as you can to help us understand and fix the issue.
