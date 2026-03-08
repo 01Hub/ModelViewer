@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ModelViewer - Professional 3D Model Viewer with Advanced Rendering</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 60px 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        header h1 {
+            font-size: 3em;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .feature-intro {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 40px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        .feature-intro p {
+            font-size: 1.05em;
+            color: #555;
+            margin-bottom: 20px;
+        }
+
+        .feature-showcase {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+
+        .showcase-item {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+        }
+
+        .showcase-item h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+            font-size: 1.2em;
+        }
+
+        .showcase-item img {
+            width: 100%;
+            height: auto;
+            border-radius: 4px;
+            margin: 15px 0;
+            display: block;
+            max-width: 100%;
+        }
+
+        section {
+            background: white;
+            padding: 40px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+        section h2 {
+            color: #667eea;
+            font-size: 2em;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        section h3 {
+            color: #764ba2;
+            font-size: 1.4em;
+            margin-top: 30px;
+            margin-bottom: 20px;
+        }
+
+        section img {
+            max-width: 100%;
+            height: auto;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+
+        ul {
+            margin-left: 20px;
+            margin-bottom: 20px;
+        }
+
+        li {
+            margin-bottom: 10px;
+            line-height: 1.8;
+        }
+
+        strong {
+            color: #333;
+            font-weight: 600;
+        }
+
+        code {
+            background: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 20px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 15px 0 20px 0;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        pre code {
+            background: none;
+            border: none;
+            padding: 0;
+            color: #f8f8f2;
+        }
+
+        a {
+            color: #667eea;
+            text-decoration: none;
+            transition: color 0.3s;
+        }
+
+        a:hover {
+            color: #764ba2;
+            text-decoration: underline;
+        }
+
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .gallery-item {
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        .gallery-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .gallery-item img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        img {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .requirements {
+            background: #f9f9f9;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .note {
+            background: #e8f4f8;
+            border-left: 4px solid #0288d1;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+            color: #0277bd;
+        }
+
+        .warning {
+            background: #fff3e0;
+            border-left: 4px solid #f57c00;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+            color: #e65100;
+        }
+
+        footer {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            text-align: center;
+            padding: 30px 20px;
+            margin-top: 50px;
+        }
+
+        footer p {
+            margin-bottom: 10px;
+        }
+
+        footer a {
+            color: #667eea;
+        }
+
+        footer a:hover {
+            color: #82b1ff;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 2em;
+            }
+
+            header p {
+                font-size: 1em;
+            }
+
+            section {
+                padding: 20px;
+            }
+
+            section h2 {
+                font-size: 1.6em;
+            }
+
+            .gallery {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .tech-stack {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .tech-item {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            border-top: 4px solid #667eea;
+        }
+
+        .tech-item h4 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .tech-item ul {
+            margin: 0;
+            padding-left: 20px;
+        }
+
+        .tech-item li {
+            margin-bottom: 8px;
+            font-size: 0.95em;
+        }
+
+        .toc {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+
+        .toc h3 {
+            margin-top: 0;
+            color: #667eea;
+        }
+
+        .toc ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .toc li {
+            margin: 8px 0;
+        }
+
+        .toc a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .toc a:hover {
+            text-decoration: underline;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .feature-card {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .feature-card strong {
+            color: #667eea;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .feature-card p {
+            font-size: 0.95em;
+            color: #555;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>ModelViewer</h1>
+        <p>OpenGL-based 3D Model Viewer with Advanced Rendering Capabilities</p>
+    </header>
+
+    <div class="container">
+        <div class="feature-intro">
+            <p>A professional-grade 3D viewer that reads and displays a comprehensive range of 3D file formats supported by Assimp (OBJ, FBX, COLLADA, BLEND, and more) and CAD formats, including STEP, IGES, and BRep files via OpenCASCADE. Features physically-based rendering (PBR), advanced material systems with Khronos KHR extensions, and sophisticated CAD visualization capabilities.</p>
+        </div>
+
+        <div class="feature-showcase">
+            <div class="showcase-item">
+                <h3>ADS Mode for CAD Visualization</h3>
+                <img src="https://github.com/user-attachments/assets/364c5cf4-34b5-4991-938c-d36ea05a8026" alt="Screenshot ADS Mode">
+            </div>
+            <div class="showcase-item">
+                <h3>PBR Mode for Advanced Visualization</h3>
+                <img width="1920" height="1032" src="https://github.com/user-attachments/assets/9b31b1fd-90ee-47c4-af3b-3cacae6f0f27" alt="Screenshot PBR Mode">
+            </div>
+        </div>
+
+        <!-- Features Overview Section -->
+        <section id="features">
+            <h2>Features Overview</h2>
+
+            <h3>Rendering Modes & Visualization</h3>
+            <p>ModelViewer supports a comprehensive range of visualization and rendering styles for different inspection and analysis needs:</p>
+            <img width="4402" height="2128" src="https://github.com/user-attachments/assets/ab09ef98-b2f2-4db9-8490-79505025c851" alt="Rendering Modes">
+            
+            <ul>
+                <li><strong>Solid Shading:</strong> Standard surface rendering</li>
+                <li><strong>Wireframe:</strong> Edge visualization for topology inspection</li>
+                <li><strong>Wireframe Overlay:</strong> Wireframe on solid for combined visualization</li>
+                <li><strong>Vertex Colors:</strong> Direct vertex color visualization from model data</li>
+                <li><strong>ADS (Ambient-Diffuse-Specular):</strong> Traditional Phong-based lighting model</li>
+            </ul>
+
+            <h3>Advanced Rendering Modes</h3>
+            
+            <h4>Metallic Roughness, Transmission, and Volume</h4>
+            <img width="4400" height="2430" src="https://github.com/user-attachments/assets/1c6b2c74-f7bd-4c86-a0fc-ee12b5da38af" alt="Advanced Rendering">
+            
+            <h4>Sheen, Alpha Coverage</h4>
+            <img width="4400" height="2430" src="https://github.com/user-attachments/assets/2c245b12-7071-483e-8b21-bac1613a9cfd" alt="Sheen and Alpha">
+
+            <ul>
+                <li><strong>Physically-Based Rendering (PBR):</strong> Full Cook-Torrance BRDF implementation with metallic/roughness workflows</li>
+                <li><strong>Split-Sum IBL:</strong> Image-based lighting with irradiance and prefiltered environment maps</li>
+                <li><strong>Shadow Mapping:</strong> PCF-based shadow filtering with support for directional, point, and spot lights</li>
+                <li><strong>Parallax/Bump Mapping:</strong> Height-based surface detail rendering</li>
+                <li><strong>Texture-Based PBR:</strong> Material properties driven by texture maps (albedo, normal, roughness, metallic, AO)</li>
+            </ul>
+
+            <h3>Material System & KHR Extensions</h3>
+            <p>ModelViewer implements comprehensive support for Khronos KHR material extensions, enabling advanced material rendering capabilities:</p>
+            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/f914735b-df56-4d31-99cc-444a3ddbc8fb" alt="Material System">
+
+            <h4>Supported KHR Material Extensions:</h4>
+            <ul>
+                <li><strong>KHR_materials_clearcoat:</strong> Multi-layer clearcoat materials with independent roughness control</li>
+                <li><strong>KHR_materials_sheen:</strong> Fabric-like materials with directional sheen highlights</li>
+                <li><strong>KHR_materials_transmission:</strong> Transparent materials with refraction and realistic light transmission</li>
+                <li><strong>KHR_materials_volume:</strong> Volumetric absorption for thick transparent materials with realistic light scattering</li>
+                <li><strong>KHR_materials_iridescence:</strong> Iridescent/interference-based color shifts (thin-film interference)</li>
+                <li><strong>KHR_materials_dispersion:</strong> Chromatic aberration with per-channel IOR for realistic prism effects</li>
+                <li><strong>KHR_materials_specular:</strong> Fine-grained specular intensity and color control</li>
+                <li><strong>KHR_materials_anisotropy:</strong> Directional surface reflection (brushed metals, fabrics)</li>
+                <li><strong>KHR_materials_diffuse_transmission:</strong> Subsurface scattering for translucent materials</li>
+                <li><strong>KHR_materials_pbrSpecularGlossiness:</strong> Legacy PBR specular/gloss workflow support</li>
+                <li><strong>KHR_lights_punctual:</strong> Multiple punctual light sources (directional, point, spot) with intensity control</li>
+            </ul>
+
+            <h4>Visual Demonstrations of KHR Material Extensions:</h4>
+            <div class="gallery">
+                <div class="gallery-item">
+                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/8172c364-957d-4111-9004-824c833cee5e" alt="KHR 1">
+                </div>
+                <div class="gallery-item">
+                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/199321ed-c816-4f36-b6b2-d965cc31f47d" alt="KHR 2">
+                </div>
+                <div class="gallery-item">
+                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/49bf6b81-62b1-4b9f-b454-17e6c9492b2c" alt="KHR 3">
+                </div>
+                <div class="gallery-item">
+                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/46030044-20db-418a-9273-d7d9dc254369" alt="KHR 4">
+                </div>
+                <div class="gallery-item">
+                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/bccf4eeb-36f9-404d-bd2f-c3f9df33e21e" alt="KHR 5">
+                </div>
+                <div class="gallery-item">
+                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/2de7a2c4-bb37-4305-b33a-88448653bd1b" alt="KHR 6">
+                </div>
+                <div class="gallery-item">
+                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/5d1f7be9-d423-4e94-a46c-a4c4371b1705" alt="KHR 7">
+                </div>
+                <div class="gallery-item">
+                    <img width="1280" height="720" src="https://github.com/user-attachments/assets/de876c17-ee6d-4aff-8e7e-38225b761ffa" alt="KHR 8">
+                </div>
+            </div>
+
+            <h4>KHR Punctual Lights Support:</h4>
+            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/81bfdaab-9e52-47c9-8aa9-fc61b2b36ab4" alt="Punctual Lights">
+
+            <h4>Texture Transform Support:</h4>
+            <ul>
+                <li><strong>KHR_texture_transform:</strong> Full implementation of UV coordinate transformations, including:
+                    <ul>
+                        <li>UV scaling and rotation</li>
+                        <li>Offset (translation) around pivot points</li>
+                        <li>Multi-UV coordinate set support</li>
+                        <li>Per-texture transform customization</li>
+                    </ul>
+                </li>
+            </ul>
+            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/636773f8-ba19-4d36-9572-c72fef2958cd" alt="Texture Transform">
+
+            <h3>Material Editor & Library System</h3>
+            <ul>
+                <li><strong>Interactive Material Editor Panel:</strong> Real-time material property adjustment with live preview</li>
+                <li><strong>Material Library:</strong> Tree-based organization and management of materials</li>
+                <li><strong>Material Deduplication:</strong> Intelligent identification and consolidation of duplicate materials</li>
+                <li><strong>Name-Based Material Matching:</strong> Preservation of original material names across the import/export pipeline</li>
+            </ul>
+            <img width="543" height="974" src="https://github.com/user-attachments/assets/31754ea7-db59-44ba-abac-a3b0421a530c" alt="Material Editor">
+
+            <h3>Texture Management & Advanced Features</h3>
+            <h4>Texture Processing:</h4>
+            <ul>
+                <li><strong>Automatic Embedding:</strong> Textures embedded directly into GLB exports for self-contained models</li>
+                <li><strong>Smart Texture Caching:</strong> Three-level lookup system (exact match → same image/different sampler → disk load) with sampler-aware cache keys</li>
+                <li><strong>Texture Format Support:</strong>
+                    <ul>
+                        <li>KTX2 and Basis Universal compressed textures</li>
+                        <li>WebP format with automatic plugin deployment</li>
+                        <li>Standard formats (PNG, JPG, TGA, BMP)</li>
+                    </ul>
+                </li>
+                <li><strong>Texture Transform:</strong> Per-texture UV transformation with full KHR_texture_transform support</li>
+                <li><strong>Multi-Channel Support:</strong> Independent handling of multiple texture sets and UV coordinates</li>
+            </ul>
+            <img width="622" height="1003" src="https://github.com/user-attachments/assets/5c563020-d61a-4c2d-9261-434fc94d5120" alt="Texture Management">
+
+            <h3>CAD Support & Assembly Visualization</h3>
+            <h4>OpenCASCADE Integration:</h4>
+            <ul>
+                <li><strong>Native STEP Support:</strong> Full parametric feature preservation</li>
+                <li><strong>IGES Files:</strong> Industry-standard CAD format support</li>
+                <li><strong>BRep Format:</strong> OpenCASCADE native boundary representation</li>
+                <li><strong>Assembly Hierarchies:</strong> Complete preservation of assembly structures with proper parent-child relationships</li>
+                <li><strong>Color Inheritance:</strong> Smart color extraction from XCAF color attributes with intelligent inheritance chains</li>
+                <li><strong>Property Preservation:</strong> Metadata and naming preserved across the import pipeline</li>
+            </ul>
+
+            <h4>Assimp Integration:</h4>
+            <ul>
+                <li><strong>Multi-Format Support:</strong> OBJ, FBX, COLLADA, Blend, VRML, and 30+ other formats</li>
+                <li><strong>Robust Loading:</strong> Handles malformed files gracefully with validation</li>
+                <li><strong>Mesh Post-Processing:</strong> Automatic tangent/bitangent computation with proper transformation math</li>
+                <li><strong>Negative Scale Handling:</strong> Correct detection and processing of flipped geometry via determinant-based matrix analysis</li>
+            </ul>
+
+            <h3>Export Capabilities</h3>
+            <ul>
+                <li><strong>GLB Export Pipeline:</strong> Complete round-trip export with:
+                    <ul>
+                        <li>Material preservation and deduplication</li>
+                        <li>Texture embedding with optimized packing</li>
+                        <li>KHR extension metadata preservation</li>
+                        <li>Correct handling of negative scales and transforms</li>
+                        <li>Sampler value preservation across materials</li>
+                    </ul>
+                </li>
+                <li><strong>Texture Embedding:</strong> Automatic embedding before export for portable model files</li>
+                <li><strong>Format-Agnostic Export:</strong> Support for exporting to multiple target formats</li>
+            </ul>
+
+            <h3>Section/Capping Tools</h3>
+            <h4>Advanced Sectioning:</h4>
+            <ul>
+                <li><strong>Single Plane Section:</strong> Cut models with arbitrary clipping planes</li>
+                <li><strong>Multiple Section Views:</strong> Simultaneous display of multiple cross-sections with automatic capping</li>
+                <li><strong>Smart Capping:</strong> Automatic generation of capping geometry to close intersected surfaces</li>
+                <li><strong>Interactive Adjustment:</strong> Real-time plane manipulation for dynamic sectioning</li>
+            </ul>
+            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/3900171b-e33c-4033-8d2d-854c57c1eace" alt="Section View 1">
+            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/9d8a876a-8748-434a-bc75-c7ae823050d6" alt="Section View 2">
+
+            <h3>Multi-View Projection System</h3>
+            <ul>
+                <li><strong>Multiple Synchronized Views:</strong> Side-by-side or grid-based orthographic projections</li>
+                <li><strong>Standard Projections:</strong> Front, back, top, bottom, left, right, isometric views</li>
+                <li><strong>Custom Configurations:</strong> User-definable projection combinations</li>
+            </ul>
+            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/3cb481c0-860d-4f99-a055-7b7aa11ceb1a" alt="Multi-View Projection">
+
+            <h3>Realistic PBR Rendering</h3>
+            <h4>Realistic Automotive Paint Rendering (Clearcoat & Iridescence):</h4>
+            <img width="1920" height="1032" src="https://github.com/user-attachments/assets/58f6ae47-3e7d-41b6-aa56-362c037fcd4c" alt="Automotive Paint">
+
+            <h3>User Interface & Tools</h3>
+            <h4>Detachable Panels:</h4>
+            <ul>
+                <li><strong>Texture Mapping Panel:</strong> Interactive UV transformation and texture coordinate visualization</li>
+                <li><strong>Material Editor Panel:</strong> Comprehensive material property adjustment interface</li>
+                <li><strong>Log Viewer:</strong> Real-time application logging with syntax highlighting, search, and filtering by log level</li>
+                <li><strong>Material Library Panel:</strong> Tree-based material organization and management</li>
+            </ul>
+
+            <h4>UI Features:</h4>
+            <ul>
+                <li><strong>Qt6 MDI Interface:</strong> Multiple document/model windows with tabbed organization</li>
+                <li><strong>Scrollable Toolbar:</strong> Customizable tool access with context-sensitive actions</li>
+                <li><strong>Theme Manager:</strong> Light and dark theme support with customizable color schemes</li>
+                <li><strong>Settings Dialog:</strong> Comprehensive application configuration and user preferences</li>
+                <li><strong>Tutorial System:</strong> Interactive guided introduction for new users</li>
+            </ul>
+
+            <h3>Advanced Camera & Navigation</h3>
+            <ul>
+                <li><strong>Orbital Camera:</strong> Smooth mouse-based model rotation and inspection</li>
+                <li><strong>Pan & Zoom:</strong> Intuitive view navigation with proper zoom mechanics</li>
+                <li><strong>Preset Views:</strong> Quick access to standard orthographic projections</li>
+                <li><strong>Light Manipulation:</strong> Independent light repositioning with delta-based targeting</li>
+                <li><strong>Perspective Correction:</strong> Proper NDC Z-clamping for accurate behavior at high zoom levels</li>
+                <li><strong>CAD Coordinate System:</strong> Native Z-up orientation matching industry CAD standards</li>
+            </ul>
+
+            <h3>Undo/Redo System</h3>
+            <ul>
+                <li><strong>Full Command History:</strong> Complete undo/redo stack for all editing operations</li>
+                <li><strong>Live Preview Updates:</strong> Synchronized UI panel updates on undo/redo actions</li>
+                <li><strong>Material Operations:</strong> Support for complex material editing operations with full history</li>
+            </ul>
+        </section>
+
+        <!-- Building Section -->
+        <section id="building">
+            <h2>Building the Code</h2>
+
+            <h3>Prerequisites</h3>
+            <div class="requirements">
+                <ul>
+                    <li><strong>CMake:</strong> Version 3.15 or above</li>
+                    <li><strong>Qt:</strong> Version 6.8 or above</li>
+                    <li><strong>Assimp:</strong> Version 5.0.1</li>
+                    <li><strong>GLM:</strong> Mathematics library</li>
+                    <li><strong>Freetype:</strong> Version 2.10.1</li>
+                    <li><strong>OpenCASCADE:</strong> Version 7.9</li>
+                    <li><strong>vcpkg:</strong> For Windows</li>
+                </ul>
+            </div>
+
+            <h3>Linux Build</h3>
+            <ol>
+                <li>Install the required dependencies using your package manager (e.g., apt, yum, etc.).</li>
+                <li>Clone the repository:
+                    <pre><code>git clone https://github.com/sharjith/ModelViewer-Qt.git
+cd ModelViewer-Qt</code></pre>
+                </li>
+                <li>Create a build directory and configure the project using CMake:
+                    <pre><code>mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release</code></pre>
+                </li>
+                <li>Build the project:
+                    <pre><code>make -j$(nproc)</code></pre>
+                </li>
+                <li>Run the application:
+                    <pre><code>./ModelViewer</code></pre>
+                </li>
+            </ol>
+
+            <h3>Windows Build</h3>
+            <ol>
+                <li>Install vcpkg if not already installed. Follow the instructions <a href="https://github.com/Microsoft/vcpkg">here</a>.</li>
+                <li>Use vcpkg to install the required dependencies:
+                    <pre><code>vcpkg install qt6-base assimp glm freetype:x64-windows opencascade:x64-windows</code></pre>
+                </li>
+                <li>Clone the repository:
+                    <pre><code>git clone https://github.com/sharjith/ModelViewer-Qt.git
+cd ModelViewer-Qt</code></pre>
+                </li>
+                <li>Create a build directory and configure the project using CMake with the vcpkg toolchain:
+                    <pre><code>mkdir build
+cd build
+cmake .. -DCMAKE_TOOLCHAIN_FILE=[path_to_vcpkg]/scripts/buildsystems/vcpkg.cmake -DCMAKE_BUILD_TYPE=Release</code></pre>
+                    Replace <code>[path_to_vcpkg]</code> with your vcpkg installation path.
+                </li>
+                <li>Build the project:
+                    <pre><code>cmake --build . --config Release</code></pre>
+                </li>
+                <li>Run the application:
+                    <pre><code>.\Release\ModelViewer.exe</code></pre>
+                </li>
+            </ol>
+
+            <h3>macOS Build</h3>
+            <ol>
+                <li>Install dependencies via Homebrew:
+                    <pre><code>brew install cmake qt@6 assimp glm freetype open-cascade</code></pre>
+                </li>
+                <li>Clone and build:
+                    <pre><code>git clone https://github.com/sharjith/ModelViewer-Qt.git
+cd ModelViewer-Qt
+mkdir build
+cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=$(brew --prefix qt@6)
+make -j$(sysctl -n hw.ncpu)
+./ModelViewer.app/Contents/MacOS/ModelViewer</code></pre>
+                </li>
+            </ol>
+
+            <h3>Troubleshooting</h3>
+            <h4>Common Build Issues</h4>
+            <div class="note">
+                <strong>OpenGL Context Not Available:</strong>
+                <ul>
+                    <li>Ensure your system has a compatible GPU with OpenGL 4.6+ support</li>
+                    <li>On Linux, verify GPU drivers are properly installed (glxinfo can help diagnose)</li>
+                </ul>
+            </div>
+            <div class="note">
+                <strong>Qt6 Configuration Issues:</strong>
+                <ul>
+                    <li>Verify Qt6 is properly installed: <code>qmake --version</code> should show Qt 6.8+</li>
+                    <li>On Linux, ensure <code>qt6-base-dev</code> is installed with OpenGL support</li>
+                    <li>On Windows, verify vcpkg Qt6 installation: <code>vcpkg list | grep qt6</code></li>
+                </ul>
+            </div>
+            <div class="note">
+                <strong>Assimp Version Mismatch:</strong>
+                <ul>
+                    <li>Ensure Assimp 5.0.1 or later is installed</li>
+                    <li>Incompatible versions may cause linking errors or runtime crashes</li>
+                    <li>Rebuild Assimp from source if package manager version is outdated</li>
+                </ul>
+            </div>
+            <div class="note">
+                <strong>OpenCASCADE Not Found:</strong>
+                <ul>
+                    <li>On Linux: Verify installation with <code>pkg-config --cflags --libs OpenCASCADE</code></li>
+                    <li>On Windows: Ensure vcpkg installation completed successfully</li>
+                    <li>Check CMake output for exact library names not found</li>
+                </ul>
+            </div>
+
+            <h4>Performance Tips</h4>
+            <ul>
+                <li>Use <strong>Release builds</strong> (<code>-DCMAKE_BUILD_TYPE=Release</code>) for best performance</li>
+                <li><strong>Reduce shadow map resolution</strong> if rendering is slow</li>
+                <li><strong>Disable unused KHR extensions</strong> in settings if not needed</li>
+                <li><strong>Use LOD variants</strong> for very large assemblies or point clouds</li>
+                <li><strong>Prefilter maps</strong> are computed on load; large environment maps may take time</li>
+            </ul>
+
+            <h4>Dependency Compatibility</h4>
+            <div class="requirements">
+                <strong>Recommended Versions:</strong>
+                <ul>
+                    <li>Qt: 6.8 or later</li>
+                    <li>Assimp: 5.0.1 or later (5.2+ recommended)</li>
+                    <li>OpenCASCADE: 7.9 or later</li>
+                    <li>CMake: 3.16 or later (3.24+ recommended)</li>
+                    <li>GLM: 0.9.9 or later</li>
+                </ul>
+            </div>
+            <div class="warning">
+                <strong>Known Issues:</strong>
+                <ul>
+                    <li>OpenCASCADE &lt; 7.8 may have compatibility issues</li>
+                    <li>Qt versions older than 6.6 lack some OpenGL optimizations</li>
+                    <li>MSVC 2019 or later recommended for Windows builds</li>
+                </ul>
+            </div>
+        </section>
+
+        <!-- Development Section -->
+        <section id="development">
+            <h2>Development & Contribution</h2>
+            <p>ModelViewer is built with modern C++ (C++17) and uses CMake as its build system. The project includes:</p>
+            <ul>
+                <li><strong>Comprehensive Shader System:</strong> Custom GLSL shader pipeline with hot-reloading support</li>
+                <li><strong>Qt6 Integration:</strong> Complete integration with Qt6 for UI, threading, and context management</li>
+                <li><strong>Assimp Post-Processing:</strong> Custom mesh processing for improved compatibility and quality</li>
+                <li><strong>OpenGL 4.6:</strong> Modern graphics pipeline with compute shader support</li>
+            </ul>
+        </section>
+
+        <!-- License Section -->
+        <section id="license">
+            <h2>License</h2>
+            <p>ModelViewer is licensed under the GNU General Public License v3.0 (GPL-3.0).</p>
+            <p>This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.</p>
+            <p>This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.</p>
+            <p>You should have received a copy of the GNU General Public License along with this program. If not, see <a href="https://www.gnu.org/licenses/">https://www.gnu.org/licenses/</a>.</p>
+            <p>For the full license text, see the <a href="https://github.com/sharjith/ModelViewer-Qt/blob/master/LICENSE">LICENSE</a> file in the repository root.</p>
+        </section>
+
+        <!-- Acknowledgments Section -->
+        <section id="acknowledgments">
+            <h2>Acknowledgments</h2>
+            <ul>
+                <li><a href="https://github.com/assimp/assimp">Assimp</a> - Asset import library</li>
+                <li><a href="https://www.opencascade.com/">OpenCASCADE</a> - CAD geometry kernel</li>
+                <li><a href="https://www.qt.io/">Qt</a> - GUI framework</li>
+                <li><a href="https://github.com/g-truc/glm">GLM</a> - Mathematics library</li>
+                <li><a href="https://www.khronos.org/">Khronos</a> - glTF and KHR extension specifications</li>
+            </ul>
+        </section>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 ModelViewer. Licensed under GPL-3.0.</p>
+        <p><a href="https://github.com/sharjith/ModelViewer-Qt">GitHub Repository</a> | <a href="https://www.khronos.org/gltf/">Khronos glTF</a></p>
+        <p>Professional 3D visualization with advanced rendering capabilities.</p>
+    </footer>
+</body>
+</html>
