@@ -726,8 +726,8 @@ void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 	ui->checkBoxSkyBoxHDRI->setChecked(ui->checkBoxSkyBoxHDRI->isChecked() || (realShaded && pbrLighting));
 
 	bool skyBoxHDRIChecked = ui->checkBoxSkyBoxHDRI->isChecked();
-	ui->checkBoxHDRToneMapping->setChecked(skyBoxHDRIChecked);
-	ui->checkBoxGammaCorrection->setChecked(skyBoxHDRIChecked);
+	ui->checkBoxHDRToneMapping->setChecked(skyBoxHDRIChecked && pbrLighting);
+	ui->checkBoxGammaCorrection->setChecked(skyBoxHDRIChecked && pbrLighting);
 
 	blockSignals(false);
 
@@ -748,8 +748,8 @@ void VisualizationEnvironmentPanel::setPBRLightingMode(bool enable)
 	ui->checkBoxGammaCorrection->blockSignals(true);
 
 	ui->checkBoxSkyBoxHDRI->setChecked(true);
-	ui->checkBoxHDRToneMapping->setChecked(true);
-	ui->checkBoxGammaCorrection->setChecked(true);
+	ui->checkBoxHDRToneMapping->setChecked(enable);
+	ui->checkBoxGammaCorrection->setChecked(enable);
 
 	ui->checkBoxSkyBoxHDRI->blockSignals(false);
 	ui->checkBoxHDRToneMapping->blockSignals(false);
@@ -758,8 +758,8 @@ void VisualizationEnvironmentPanel::setPBRLightingMode(bool enable)
 	// Trigger updates
 	onSkyBoxHDRIChanged(true);
 	reloadSkyBoxPresets();
-	_glWidget->enableHDRToneMapping(true);
-	_glWidget->enableGammaCorrection(true);
+	_glWidget->enableHDRToneMapping(enable);
+	_glWidget->enableGammaCorrection(enable);
 
 	updateControlDependencies();
 }
