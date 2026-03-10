@@ -67,9 +67,9 @@ ModelViewer implements comprehensive support for Khronos KHR material extensions
 <img width="1280" height="720" alt="KHR_3" src="https://github.com/user-attachments/assets/49bf6b81-62b1-4b9f-b454-17e6c9492b2c" />
 <img width="1280" height="720" alt="KHR_4" src="https://github.com/user-attachments/assets/46030044-20db-418a-9273-d7d9dc254369" />
 <img width="1280" height="720" alt="KHR_5" src="https://github.com/user-attachments/assets/bccf4eeb-36f9-404d-bd2f-c3f9df33e21e" />
-<img width="1280" height="720" alt="KHR_6" src="https://github.com/user-attachments/assets/2de7a2c4-bb37-4305-b33a-88448653bd1b" />
-<img width="1280" height="720" alt="KHR_7" src="https://github.com/user-attachments/assets/5d1f7be9-d423-4e94-a46c-a4c4371b1705" />
-<img width="1280" height="720" alt="KHR_8" src="https://github.com/user-attachments/assets/de876c17-ee6d-4aff-8e7e-38225b761ffa" />
+<img width="1280" height="720" alt="Slide6" src="https://github.com/user-attachments/assets/d04d9ae3-ba64-4fd2-ab58-a56e37f496bc" />
+<img width="1280" height="720" alt="Slide7" src="https://github.com/user-attachments/assets/789f32bd-83ac-411f-8275-e26d914c84c4" />
+<img width="1280" height="720" alt="Slide8" src="https://github.com/user-attachments/assets/922d394e-204e-4d6c-866c-26ffe5790066" />
 
 **KHR Punctual Lights Support:**
 <img width="1920" height="1032" alt="KHR_punctual" src="https://github.com/user-attachments/assets/81bfdaab-9e52-47c9-8aa9-fc61b2b36ab4" />
