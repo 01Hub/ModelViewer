@@ -116,7 +116,6 @@ ModelViewer implements comprehensive support for Khronos KHR material extensions
 - **Native STEP Support**: Full parametric feature preservation
 - **IGES Files**: Industry-standard CAD format support
 - **BRep Format**: OpenCASCADE native boundary representation
-- **Assembly Hierarchies**: Complete preservation of assembly structures with proper parent-child relationships
 - **Color Inheritance**: Smart color extraction from XCAF color attributes with intelligent inheritance chains
 - **Property Preservation**: Metadata and naming preserved across the import pipeline
 
@@ -156,7 +155,8 @@ ModelViewer implements comprehensive support for Khronos KHR material extensions
 
 - **Multiple Synchronized Views**: Side-by-side or grid-based orthographic projections
 - **Standard Projections**: Front, back, top, bottom, left, right, isometric views
-- **Custom Configurations**: User-definable projection combinations
+- **Anonometric Projections**: Isometric, Dimetric, and Trimetric
+- **Orthographic and Perspective Projections**
 
 <img width="1920" height="1032" alt="Slide6" src="https://github.com/user-attachments/assets/3cb481c0-860d-4f99-a055-7b7aa11ceb1a" />
 
@@ -182,6 +182,7 @@ ModelViewer implements comprehensive support for Khronos KHR material extensions
 - **Theme Manager**: Light and dark theme support with customizable color schemes
 - **Settings Dialog**: Comprehensive application configuration and user preferences
 - **Tutorial System**: Interactive guided introduction for new users
+- **Internationalization Support**: English, Spanish, French, Italian, and German
 
 ### Advanced Camera & Navigation
 
@@ -264,6 +265,8 @@ Ensure you have the following installed:
 - **GLM**: Mathematics library for graphics
 - **Freetype**: Version 2.10.1 or compatible (for text rendering)
 - **OpenCASCADE**: Version 7.9 or compatible (for CAD support)
+- **Mesh Optimizer**: Mesh optimization library
+- **Basis Universal™**: To support the intermediate .KTX2 file formats
 - **vcpkg**: Package manager (Windows builds)
 
 ### Linux Build
@@ -425,6 +428,8 @@ Ensure you have the following installed:
 - OpenCASCADE: 7.9 or later
 - CMake: 3.16 or later (3.24+ recommended)
 - GLM: 0.9.9 or later
+- MeshOptimizer
+- BasisU™
 
 **Known Issues:**
 - OpenCASCADE < 7.8 may have compatibility issues
