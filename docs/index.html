@@ -511,8 +511,7 @@
             <ul>
                 <li><strong>Native STEP Support:</strong> Full parametric feature preservation</li>
                 <li><strong>IGES Files:</strong> Industry-standard CAD format support</li>
-                <li><strong>BRep Format:</strong> OpenCASCADE native boundary representation</li>
-                <li><strong>Assembly Hierarchies:</strong> Complete preservation of assembly structures with proper parent-child relationships</li>
+                <li><strong>BRep Format:</strong> OpenCASCADE native boundary representation</li>                
                 <li><strong>Color Inheritance:</strong> Smart color extraction from XCAF color attributes with intelligent inheritance chains</li>
                 <li><strong>Property Preservation:</strong> Metadata and naming preserved across the import pipeline</li>
             </ul>
@@ -555,7 +554,8 @@
             <ul>
                 <li><strong>Multiple Synchronized Views:</strong> Side-by-side or grid-based orthographic projections</li>
                 <li><strong>Standard Projections:</strong> Front, back, top, bottom, left, right, isometric views</li>
-                <li><strong>Custom Configurations:</strong> User-definable projection combinations</li>
+                <li><strong>Anonometric Projections:</strong> Isometric, Dimetric, and Trimetric</li>
+                <li><strong>Orthographic and Perspective Projections</strong></li>
             </ul>
             <img width="1920" height="1032" src="https://github.com/user-attachments/assets/3cb481c0-860d-4f99-a055-7b7aa11ceb1a" alt="Multi-View Projection">
 
@@ -579,6 +579,7 @@
                 <li><strong>Theme Manager:</strong> Light and dark theme support with customizable color schemes</li>
                 <li><strong>Settings Dialog:</strong> Comprehensive application configuration and user preferences</li>
                 <li><strong>Tutorial System:</strong> Interactive guided introduction for new users</li>
+                <li><strong>Internationalization Support:</strong> English, Spanish, French, Italian, and German</li>
             </ul>
 
             <h3>Advanced Camera & Navigation</h3>
@@ -612,6 +613,8 @@
                     <li><strong>GLM:</strong> Mathematics library</li>
                     <li><strong>Freetype:</strong> Version 2.10.1</li>
                     <li><strong>OpenCASCADE:</strong> Version 7.9</li>
+                    <li><strong>Mesh Optimizer:</strong>Mesh optimization library</li>
+                    <li><strong>Basis Universal™<strong>: To support the intermediate .KTX2 file formats</li>
                     <li><strong>vcpkg:</strong> For Windows</li>
                 </ul>
             </div>
@@ -698,7 +701,7 @@ make -j$(sysctl -n hw.ncpu)
                 <ul>
                     <li>Ensure Assimp 5.0.1 or later is installed</li>
                     <li>Incompatible versions may cause linking errors or runtime crashes</li>
-                    <li>Rebuild Assimp from source if package manager version is outdated</li>
+                    <li>Rebuild Assimp from source if the package manager version is outdated</li>
                 </ul>
             </div>
             <div class="note">
