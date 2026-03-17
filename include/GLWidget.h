@@ -836,6 +836,8 @@ private:
 	aiScene* _globalScene = nullptr; // Merged scene from multiple files
 	glm::mat4 _globalSceneTransform = glm::mat4(1.0f);
 	bool _progressiveLoadingEnabled = false;
+	bool _cancelRequested = false;
+	bool _loadCancelled = false;
 
 	// --- Texture cache: path -> GL texture id (per GLWidget context)
 	std::unordered_map<QString, CachedTextureEntry> _texCache;

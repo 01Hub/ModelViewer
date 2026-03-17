@@ -2176,6 +2176,9 @@ void GLWidget::deselect(int id)
 bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
 {
 	_progressiveLoadingEnabled = progressiveLoading;	
+	_cancelRequested = false;
+	_loadCancelled = false;
+	MainWindow::clearFileLoadCancel();
 	bool success = false;
 
 	makeCurrent();
@@ -2232,6 +2235,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		// If user cancels the loading, we still need to set the success to true
 		// Store the connection to specifically disconnect the lambda later
 		QMetaObject::Connection connection = connect(this, &GLWidget::loadingAssImpModelCancelled, this, [this, &success, &error]() {
+			_loadCancelled = true;
 			if (_meshStore.size() > 0)			
 				success = true; // set success to true to avoid blocking the UI			
 			else 			
@@ -2244,13 +2248,23 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		_assimpModelLoader->setUVGenerationMethod(uvMethod);
 		_assimpModelLoader->loadModel(const_cast<GLchar*>(fileName.toStdString().c_str()), progressiveLoading);
 
+		if (_assimpModelLoader->getErrorMessage() == "Model loading cancelled by user.")
+		{
+			_loadCancelled = true;
+			error = _assimpModelLoader->getErrorMessage();
+		}
+
 		if(!progressiveLoading) // process all the meshes at once
 		{
 			std::vector<AssImpMesh*> meshes = _assimpModelLoader->getMeshes();
 			if (meshes.size() == 0)
 			{
-				success = false;
 				error = _assimpModelLoader->getErrorMessage();
+				success = false;
+				if (error == "Model loading cancelled by user.")
+				{
+					_loadCancelled = true;
+				}
 			}
 			else
 			{
@@ -2262,9 +2276,11 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 
 		_assimpScene = _assimpModelLoader->getScene();
 		_globalSceneTransform = _assimpModelLoader->getGlobalSceneTransform();
-
-		aiScene* copiedScene = SceneUtils::deepCopyScene(_assimpScene);
-		SceneUtils::mergeScene(&_globalScene, copiedScene);
+		if (_assimpScene)
+		{
+			aiScene* copiedScene = SceneUtils::deepCopyScene(_assimpScene);
+			SceneUtils::mergeScene(&_globalScene, copiedScene);
+		}
 
 		// Disconnect the signals to avoid repeated calls		
 		disconnect(_assimpModelLoader, &AssImpModelLoader::meshBatchReady, this, &GLWidget::onMeshBatchReady);
@@ -2273,10 +2289,28 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		// Disconnect the loadingAssImpModelCancelled with the lambda
 		disconnect(connection);
 	}
-		
-	MainWindow::showStatusMessage("");
+
+	if (_loadCancelled)
+	{
+		if (_meshStore.empty())
+		{
+			MainWindow::showStatusMessage(tr("Model loading cancelled"), 3000);
+		}
+		else
+		{
+			MainWindow::showStatusMessage(
+				tr("Model loading cancelled after importing %1 meshes").arg(_meshStore.size()),
+				4000);
+		}
+	}
+	else
+	{
+		MainWindow::showStatusMessage("");
+	}
+
 	MainWindow::setProgressValue(0);
 	MainWindow::hideProgressBar();
+	_cancelRequested = false;
 
 	return success;
 }
@@ -2369,8 +2403,15 @@ void GLWidget::swapVisible(bool checked)
 
 void GLWidget::cancelAssImpModelLoading()
 {
+	if (_cancelRequested)
+		return;
+
+	_cancelRequested = true;
+	MainWindow::requestFileLoadCancel();
+	MainWindow::setCancelButtonEnabled(false);
+	MainWindow::setCancelButtonText(tr("Cancelling..."));
+	MainWindow::showStatusMessage(tr("Cancelling model load..."));
 	emit loadingAssImpModelCancelled();	
-	QMessageBox::critical(this, tr("Cancelled"), tr("Model loading cancelled!\nModel may be loaded partially"));
 }
 
 void GLWidget::enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable)

@@ -43,8 +43,12 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
     IGESCAFControl_Reader cafReader;
     if (cafReader.ReadFile(path.c_str()) != IFSelect_RetDone)
     {
-        qCritical("Failed to read IGES file: %s", path.c_str());
         MainWindow::resetProgressBar();
+        if (MainWindow::isFileLoadCancelRequested())
+        {
+            return nullptr;
+        }
+        qCritical("Failed to read IGES file: %s", path.c_str());
         return nullptr;
     }
     MainWindow::resetProgressBar();

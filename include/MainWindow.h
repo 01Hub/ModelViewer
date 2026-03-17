@@ -54,6 +54,11 @@ public:
 	static void resetProgressBar();
 	static void hideProgressBar();
 	static void setProgressValue(const int& value);
+	static void setCancelButtonEnabled(bool enabled);
+	static void setCancelButtonText(const QString& text);
+	static void requestFileLoadCancel();
+	static void clearFileLoadCancel();
+	static bool isFileLoadCancelRequested();
 
 	static inline QString recentFilesKey() { return QStringLiteral("recentFileList"); }
 	static inline QString fileKey() { return QStringLiteral("file"); }
@@ -132,6 +137,7 @@ private:
 
 	static int _viewerCount;
 	static MainWindow* _mainWindow;
+	static bool _fileLoadCancelRequested;
 
 	static QuickHelpDialog* _helpDialog;
 };

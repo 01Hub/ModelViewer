@@ -21,6 +21,7 @@ public:
 
 	// Overridden methods
 	void Show(const Message_ProgressScope& theScope, const Standard_Boolean theForce) override;
+	Standard_Boolean UserBreak() override;
 
 	void Reset() override;
 

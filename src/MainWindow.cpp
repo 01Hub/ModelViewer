@@ -28,6 +28,7 @@
 int MainWindow::_viewerCount = 1;
 MainWindow* MainWindow::_mainWindow = nullptr;
 QuickHelpDialog* MainWindow::_helpDialog = nullptr;
+bool MainWindow::_fileLoadCancelRequested = false;
 
 MainWindow::MainWindow(QWidget* parent)
 	: QMainWindow(parent)
@@ -262,22 +263,30 @@ void MainWindow::showStatusMessage(const QString& message, int timeout)
 
 void MainWindow::showProgressBar(const bool showCancelButton)
 {
+	_fileLoadCancelRequested = false;
 	_mainWindow->_progressBar->show();
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 	_mainWindow->_windowsTaskbarProgress->show();
 #endif 
 	if (showCancelButton)
+	{
+		_mainWindow->_cancelTaskButton->setText(QObject::tr("Cancel Loading"));
+		_mainWindow->_cancelTaskButton->setEnabled(true);
 		_mainWindow->_cancelTaskButton->show();
+	}
 }
 
 void MainWindow::showIndeterminateProgressBar()
 {
+	_fileLoadCancelRequested = false;
 	_mainWindow->_progressBar->setRange(0, 0);
 	_mainWindow->_progressBar->show();	
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 	_mainWindow->_windowsTaskbarProgress->show();
 #endif 
 	_mainWindow->_cancelTaskButton->show();
+	_mainWindow->_cancelTaskButton->setText(QObject::tr("Cancel Loading"));
+	_mainWindow->_cancelTaskButton->setEnabled(true);
 }
 
 void MainWindow::resetProgressBar()
@@ -293,6 +302,9 @@ void MainWindow::hideProgressBar()
 	_mainWindow->_windowsTaskbarProgress->hide();
 #endif 
 	_mainWindow->_cancelTaskButton->hide();
+	_mainWindow->_cancelTaskButton->setText(QObject::tr("Cancel Loading"));
+	_mainWindow->_cancelTaskButton->setEnabled(true);
+	_fileLoadCancelRequested = false;
 }
 
 void MainWindow::setProgressValue(const int& value)
@@ -313,6 +325,31 @@ void MainWindow::setProgressValue(const int& value)
 	}
 	_mainWindow->_progressBar->update();
 	qApp->processEvents();
+}
+
+void MainWindow::setCancelButtonEnabled(bool enabled)
+{
+	_mainWindow->_cancelTaskButton->setEnabled(enabled);
+}
+
+void MainWindow::setCancelButtonText(const QString& text)
+{
+	_mainWindow->_cancelTaskButton->setText(text);
+}
+
+void MainWindow::requestFileLoadCancel()
+{
+	_fileLoadCancelRequested = true;
+}
+
+void MainWindow::clearFileLoadCancel()
+{
+	_fileLoadCancelRequested = false;
+}
+
+bool MainWindow::isFileLoadCancelRequested()
+{
+	return _fileLoadCancelRequested;
 }
 
 void MainWindow::on_actionExit_triggered(bool /*checked*/)

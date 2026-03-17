@@ -25,7 +25,7 @@ using namespace std;
 bool AssImpModelProgressHandler::Update(float percentage)
 {
 	emit fileReadProcessed(percentage);
-	return true;
+	return !(_cancelFlag && *_cancelFlag);
 }
 
 /*  Functions   */
@@ -42,6 +42,7 @@ AssImpModelLoader::AssImpModelLoader(QOpenGLShaderProgram* prog) : QObject(), _p
 	initializeOpenGLFunctions();
 	_loadingCancelled = false;
 	_progHandler = new AssImpModelProgressHandler();
+	_progHandler->setCancelFlag(&_loadingCancelled);
 	_importer.SetProgressHandler(_progHandler);
 	connect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
 
@@ -79,6 +80,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 {	
 	_progressiveLoading = progressiveLoading;
 	_loadingCancelled = false;
+	_errorMessage.clear();
 	_path = std::string(path);
 	_meshes.clear();	
 	_totalNodeCount = 0;
@@ -123,8 +125,26 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	// Check for errors
 	if (!_scene || _scene->mFlags == AI_SCENE_FLAGS_INCOMPLETE || !_scene->mRootNode) // if is Not Zero
 	{
+		if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+		{
+			_loadingCancelled = true;
+			_errorMessage = "Model loading cancelled by user.";
+			emit loadingCancelled();
+			return;
+		}
+
 		_errorMessage = _importer.GetErrorString();
 		cout << "ERROR::ASSIMP:: " << _importer.GetErrorString() << endl;
+		return;
+	}
+
+	// If cancellation arrived during a long importer read, stop before any
+	// post-read work (UV prompts, scene analysis, traversal) continues.
+	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+	{
+		_loadingCancelled = true;
+		_errorMessage = "Model loading cancelled by user.";
+		emit loadingCancelled();
 		return;
 	}
 
@@ -138,8 +158,24 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_sceneStats = collectSceneMeshInfo(_scene);
 	_totalNodeCount = countNodes(_scene->mRootNode);
 
+	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+	{
+		_loadingCancelled = true;
+		_errorMessage = "Model loading cancelled by user.";
+		emit loadingCancelled();
+		return;
+	}
+
 	// check if auto scaling is active and apply it
 	applyCoordinateSystemTransformations(path);
+
+	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+	{
+		_loadingCancelled = true;
+		_errorMessage = "Model loading cancelled by user.";
+		emit loadingCancelled();
+		return;
+	}
 
 	bool modelHasMissingUVs = false;
 	for (unsigned int i = 0; i < _scene->mNumMeshes; ++i)
@@ -153,6 +189,14 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	
 	if (modelHasMissingUVs)
 	{								
+		if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+		{
+			_loadingCancelled = true;
+			_errorMessage = "Model loading cancelled by user.";
+			emit loadingCancelled();
+			return;
+		}
+
 		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());				
 		bool remember = settings.value("RememberUVMethod", false).toBool();		
 		if (_sceneStats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV && remember)
@@ -195,6 +239,14 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	// Set batch size based on number of meshes;
 	int batchSize = std::clamp(_sceneStats.meshCount / 10, 5, 100);
 	_batchSize = batchSize;
+
+	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+	{
+		_loadingCancelled = true;
+		_errorMessage = "Model loading cancelled by user.";
+		emit loadingCancelled();
+		return;
+	}
 
 	// Process ASSIMP's root node recursively	
 	this->processNode(0, _scene->mRootNode, _scene, aiMatrix4x4());

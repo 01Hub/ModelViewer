@@ -20,6 +20,11 @@ void XCAFReadProgressIndicator::Show(const Message_ProgressScope& theScope, cons
     }
 }
 
+Standard_Boolean XCAFReadProgressIndicator::UserBreak()
+{
+    return MainWindow::isFileLoadCancelRequested() ? Standard_True : Standard_False;
+}
+
 void XCAFReadProgressIndicator::Reset()
 {
     myLastShownProgress = -1;

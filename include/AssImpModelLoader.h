@@ -42,6 +42,7 @@ class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandle
 {
 	Q_OBJECT
 public:
+	void setCancelFlag(const bool* cancelFlag) { _cancelFlag = cancelFlag; }
 	virtual bool Update(float percentage);
 
 	// Required by Qt system. TODO: Make sure it is fine
@@ -51,6 +52,9 @@ public:
 	}
 
 	using Assimp::ProgressHandler::operator new;
+
+private:
+	const bool* _cancelFlag = nullptr;
 
 signals:
 	void fileReadProcessed(float percent);

@@ -34,6 +34,11 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 	}
 	catch (const std::exception& e)
 	{
+		if (MainWindow::isFileLoadCancelRequested())
+		{
+			return nullptr;
+		}
+
 		qCritical("Failed to read STEP file: %s", e.what());
 		return nullptr;
 	}
@@ -128,6 +133,10 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 	if (!reader.ReadFile(filename.c_str()))
 	{
 		MainWindow::resetProgressBar();
+		if (MainWindow::isFileLoadCancelRequested())
+		{
+			throw std::runtime_error("Model loading cancelled by user.");
+		}
 		throw std::runtime_error("Cannot read STEP file");
 	}
 	MainWindow::resetProgressBar();
@@ -145,6 +154,10 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 
 	if (!reader.Transfer(doc, transferScope.Next()))
 	{
+		if (MainWindow::isFileLoadCancelRequested())
+		{
+			throw std::runtime_error("Model loading cancelled by user.");
+		}
 		throw std::runtime_error("Cannot transfer STEP data to XCAF document");
 	}
 #ifdef __DEBUG__

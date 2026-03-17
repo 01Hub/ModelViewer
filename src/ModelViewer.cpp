@@ -1204,6 +1204,10 @@ void ModelViewer::dropEvent(QDropEvent* event)
 				bool success = _glWidget->loadAssImpModel(fileName, method, errMsg, _progressiveLoadingEnabled);
 				if (!success)
 				{
+					if (errMsg == "Model loading cancelled by user.")
+					{
+						continue;
+					}
 					QMessageBox::critical(this, tr("Error"), tr("Failed to load model: ") + fileName + "\n" + errMsg);
 					continue;
 				}
@@ -2125,6 +2129,11 @@ bool ModelViewer::loadFile(const QString& fileName)
 	}
 	else
 	{
+		if (errMsg == "Model loading cancelled by user.")
+		{
+			return false;
+		}
+
 		QApplication::restoreOverrideCursor();
 		QMessageBox::critical(this, tr("Error"), QString(tr("Failed to load model %1")).arg(fileName) + "\n" + errMsg);
 		QApplication::setOverrideCursor(Qt::WaitCursor);
