@@ -683,7 +683,7 @@ void GLWidget::initializeGL()
 	_assimpModelLoader = new AssImpModelLoader(_fgShader.get());
 	connect(_assimpModelLoader, &AssImpModelLoader::fileReadProcessed, this, &GLWidget::showFileReadingProgress);
 	connect(_assimpModelLoader, &AssImpModelLoader::verticesProcessed, this, &GLWidget::showMeshLoadingProgress);
-	connect(_assimpModelLoader, &AssImpModelLoader::nodeProcessed, this, &GLWidget::showModelLoadingProgress);
+	connect(_assimpModelLoader, &AssImpModelLoader::nodeMeshProgressUpdated, this, &GLWidget::showNodeMeshLoadingProgress);
 	connect(this, &GLWidget::loadingAssImpModelCancelled, _assimpModelLoader, &AssImpModelLoader::cancelLoading);
 
 	glLights = std::make_unique<GLLights>();
@@ -2337,12 +2337,21 @@ void GLWidget::showMeshLoadingProgress(float /*percent*/)
 	makeCurrent();
 }
 
-void GLWidget::showModelLoadingProgress(int nodeNum, int totalNodes, int totalMeshes, bool uvProcessed)
+void GLWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed)
 {
 	QString statusMessage = (uvProcessed) ? tr("Generating UVs... ") : "";
-	statusMessage = statusMessage + QString(tr("Processing node: %1/%2  Total Meshes: %3")).arg(nodeNum).arg(totalNodes).arg(totalMeshes);
+	statusMessage += QString(tr("Processing node: %1/%2  Mesh: %3/%4"))
+		.arg(processedNodes)
+		.arg(totalNodes)
+		.arg(processedMeshes)
+		.arg(totalMeshes);
 	MainWindow::showStatusMessage(statusMessage);
-	MainWindow::setProgressValue((int)((float)nodeNum / (float)totalNodes * 100.0f));
+
+	if (totalNodes > 0)
+	{
+		MainWindow::setProgressValue(static_cast<int>((static_cast<float>(processedNodes) / static_cast<float>(totalNodes)) * 100.0f));
+	}
+
 	makeCurrent();
 }
 

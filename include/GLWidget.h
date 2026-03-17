@@ -429,7 +429,7 @@ public slots:
 	void useIBL(bool useIBL);
 	void showFileReadingProgress(float percent);
 	void showMeshLoadingProgress(float percent);
-	void showModelLoadingProgress(int nodeNum, int totalNodes, int totalMeshes, bool uvProcessed);
+	void showNodeMeshLoadingProgress(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
 	void swapVisible(bool checked);
 	void cancelAssImpModelLoading();
 

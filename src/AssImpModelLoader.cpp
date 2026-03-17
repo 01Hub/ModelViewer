@@ -81,6 +81,9 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_loadingCancelled = false;
 	_path = std::string(path);
 	_meshes.clear();	
+	_totalNodeCount = 0;
+	_processedNodeCount = 0;
+	_processedMeshCount = 0;
 
 	_materialProcessor.clearGLBCaches();
 	_materialProcessor.clearLoadedTextures();
@@ -133,6 +136,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	}
 
 	_sceneStats = collectSceneMeshInfo(_scene);
+	_totalNodeCount = countNodes(_scene->mRootNode);
 
 	// check if auto scaling is active and apply it
 	applyCoordinateSystemTransformations(path);
@@ -259,6 +263,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 
 	// Compute global transformation matrix for the current node
 	aiMatrix4x4 globalTransform = parentTransform * node->mTransformation;
+	++_processedNodeCount;
 
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
@@ -266,6 +271,13 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		AssImpMesh* myMesh = processMesh(mesh, scene, node->mMeshes[i], scene->mNumMeshes, globalTransform, node->mName.C_Str());
 
 		_meshes.push_back(myMesh);            // full mesh store
+		++_processedMeshCount;
+		emit nodeMeshProgressUpdated(
+			_processedNodeCount,
+			_totalNodeCount,
+			_processedMeshCount,
+			_sceneStats.meshCount,
+			_needsUVGeneration && _selectedUVMethod != UVMethod::None);
 
 
 		if (_progressiveLoading)
@@ -289,14 +301,24 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 
 		++nodeCounter;
 		processNode(nodeCounter, node->mChildren[i], scene, globalTransform);
-
-		if (!_needsUVGeneration && nodeCounter % 20 == 0)
-		{
-			emit nodeProcessed(i+1, node->mNumChildren, _sceneStats.meshCount, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
-		}
-		else
-			emit nodeProcessed(i+1, node->mNumChildren, _sceneStats.meshCount, _needsUVGeneration && _selectedUVMethod != UVMethod::None);
 	}
+
+	const bool uvProcessed = _needsUVGeneration && _selectedUVMethod != UVMethod::None;
+	emit nodeMeshProgressUpdated(_processedNodeCount, _totalNodeCount, _processedMeshCount, _sceneStats.meshCount, uvProcessed);
+}
+
+int AssImpModelLoader::countNodes(const aiNode* node) const
+{
+	if (!node)
+		return 0;
+
+	int count = 1;
+	for (unsigned int i = 0; i < node->mNumChildren; ++i)
+	{
+		count += countNodes(node->mChildren[i]);
+	}
+
+	return count;
 }
 
 

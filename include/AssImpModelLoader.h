@@ -118,7 +118,7 @@ public:
 signals:
 	void fileReadProcessed(float percent);
 	void verticesProcessed(float percent);
-	void nodeProcessed(int nodeNum, int totalNodes, int totalMeshes, bool uvProcessed);
+	void nodeMeshProgressUpdated(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
 	void meshBatchReady(std::vector<AssImpMesh*> batch);
 	void loadingFinished(bool successFlag, const aiScene* scene);
 	void loadingCancelled();
@@ -133,6 +133,8 @@ private:
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene, const aiMatrix4x4& parentTransform);
 
 	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform, const char* nodeName);
+
+	int countNodes(const aiNode* node) const;
 
 	void generateUVsForMesh(MeshAnalysis::AnalysisResult& analysis, aiMesh* mesh, std::vector<Vertex>& vertices, std::vector<std::seed_seq::result_type>& indices);
 
@@ -169,6 +171,9 @@ private:
 	const aiScene* _scene = nullptr; // Holds the loaded scene
 	
 	SceneMeshInfo _sceneStats; // Holds statistics about the scene
+	int _totalNodeCount = 0;
+	int _processedNodeCount = 0;
+	int _processedMeshCount = 0;
 
 	bool _progressiveLoading = false; // If true, emit progress signals during loading
 
