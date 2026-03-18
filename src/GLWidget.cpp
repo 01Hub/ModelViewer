@@ -680,7 +680,7 @@ void GLWidget::initializeGL()
 	createShaderPrograms();
 	createFullscreenTriangle();
 
-	_assimpModelLoader = new AssImpModelLoader(_fgShader.get());
+	_assimpModelLoader = new AssImpModelLoader();
 	connect(_assimpModelLoader, &AssImpModelLoader::fileReadProcessed, this, &GLWidget::showFileReadingProgress);
 	connect(_assimpModelLoader, &AssImpModelLoader::verticesProcessed, this, &GLWidget::showMeshLoadingProgress);
 	connect(_assimpModelLoader, &AssImpModelLoader::nodeMeshProgressUpdated, this, &GLWidget::showNodeMeshLoadingProgress);
@@ -2256,7 +2256,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 
 		if(!progressiveLoading) // process all the meshes at once
 		{
-			std::vector<AssImpMesh*> meshes = _assimpModelLoader->getMeshes();
+			std::vector<AssImpMeshData> meshes = _assimpModelLoader->getMeshes();
 			if (meshes.size() == 0)
 			{
 				error = _assimpModelLoader->getErrorMessage();
@@ -2269,8 +2269,11 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			else
 			{
 				success = true;
-				for (AssImpMesh* mesh : meshes)
+				for (const AssImpMeshData& meshData : meshes)
+				{
+					AssImpMesh* mesh = createMeshFromData(meshData);
 					addToDisplay(mesh);
+				}
 			}
 		}
 
@@ -5863,10 +5866,37 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 }
 
 
-void GLWidget::onMeshBatchReady(const std::vector<AssImpMesh*>& batch)
+AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 {
-	for (AssImpMesh* mesh : batch)
+	std::vector<GLMaterial::Texture> textures = meshData.textures;
+	for (GLMaterial::Texture& texture : textures)
 	{
+		if (texture.id != 0)
+			continue;
+
+		TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
+		if (!texture.path.empty())
+		{
+			texture.id = getOrLoadTextureCached(QString::fromStdString(texture.path), samplers);
+		}
+		else if (!texture.imageData.isNull())
+		{
+			texture.id = createGPUTextureFromImage(texture.imageData, samplers);
+		}
+	}
+
+	GLMaterial resolvedMaterial = resolveMaterialTextures(this, meshData.material);
+	auto* mesh = new AssImpMesh(_fgShader.get(), meshData.name, meshData.vertices, meshData.indices, textures, resolvedMaterial);
+	mesh->setHasNegativeScale(meshData.hasNegativeScale);
+	mesh->setPrimitiveMode(meshData.primitiveMode);
+	return mesh;
+}
+
+void GLWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
+{
+	for (const AssImpMeshData& meshData : batch)
+	{
+		AssImpMesh* mesh = createMeshFromData(meshData);
 		addToDisplay(mesh);				
 	}	
 	_viewer->updateDisplayList();

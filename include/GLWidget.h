@@ -531,7 +531,8 @@ private:
 		bool flipY = false);
 	void setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos);
 
-	void onMeshBatchReady(const std::vector<AssImpMesh*>& batch);
+	void onMeshBatchReady(const std::vector<AssImpMeshData>& batch);
+	AssImpMesh* createMeshFromData(const AssImpMeshData& meshData);
 
 	GLuint createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers);
 	unsigned int getOrLoadTextureCached(const QString& path,

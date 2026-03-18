@@ -84,13 +84,29 @@ struct SceneMeshInfo
 };
 
 
-class AssImpModelLoader : public QObject, public QOpenGLFunctions_4_5_Core
+struct AssImpMeshData
+{
+	QString name;
+	std::vector<Vertex> vertices;
+	std::vector<unsigned int> indices;
+	std::vector<GLMaterial::Texture> textures;
+	GLMaterial material;
+	GLenum primitiveMode = GL_TRIANGLES;
+	bool hasNegativeScale = false;
+};
+
+using AssImpMeshDataBatch = std::vector<AssImpMeshData>;
+
+Q_DECLARE_METATYPE(AssImpMeshData)
+Q_DECLARE_METATYPE(AssImpMeshDataBatch)
+
+class AssImpModelLoader : public QObject
 {
 	Q_OBJECT
 public:
 	/*  Functions   */
 	// Constructor, expects a filepath to a 3D model.
-	AssImpModelLoader(QOpenGLShaderProgram* prog);
+	AssImpModelLoader();
 
 	~AssImpModelLoader();
 
@@ -98,7 +114,7 @@ public:
 	// Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
 	void loadModel(std::string path, const bool& progressiveLoading = false);
 
-	std::vector<AssImpMesh*> getMeshes() const;
+	AssImpMeshDataBatch getMeshes() const;
 
 	glm::mat4 getGlobalSceneTransform() const { return _appliedTransform; }
 
@@ -123,7 +139,7 @@ signals:
 	void fileReadProcessed(float percent);
 	void verticesProcessed(float percent);
 	void nodeMeshProgressUpdated(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
-	void meshBatchReady(std::vector<AssImpMesh*> batch);
+	void meshBatchReady(AssImpMeshDataBatch batch);
 	void loadingFinished(bool successFlag, const aiScene* scene);
 	void loadingCancelled();
 	void lightsLoaded(const std::vector<GPULight>& lights);
@@ -136,7 +152,7 @@ private:
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene, const aiMatrix4x4& parentTransform);
 
-	AssImpMesh* processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform, const char* nodeName);
+	AssImpMeshData processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform, const char* nodeName);
 
 	int countNodes(const aiNode* node) const;
 
@@ -158,10 +174,9 @@ private:
 	void parseGltfPrimitiveModes(const QString& gltfPath);
 			
 private:
-	QOpenGLShaderProgram* _prog;
 	std::string _path;
 	/*  Model Data  */
-	std::vector<AssImpMesh*> _meshes;
+	AssImpMeshDataBatch _meshes;
 	std::string _texturePath;
 
 	Assimp::Importer _importer;
@@ -169,7 +184,7 @@ private:
 	QString _errorMessage;
 	bool _loadingCancelled;
 	
-	std::vector<AssImpMesh*> _currentBatch;
+	AssImpMeshDataBatch _currentBatch;
 	int _batchSize = 20;
 
 	const aiScene* _scene = nullptr; // Holds the loaded scene

@@ -30,7 +30,7 @@ bool AssImpModelProgressHandler::Update(float percentage)
 
 /*  Functions   */
 // Constructor, expects a filepath to a 3D model.
-AssImpModelLoader::AssImpModelLoader(QOpenGLShaderProgram* prog) : QObject(), _prog(prog),
+AssImpModelLoader::AssImpModelLoader() : QObject(),
 	_importer(),
 	_scene(nullptr),
 	_errorMessage(""),
@@ -39,7 +39,6 @@ AssImpModelLoader::AssImpModelLoader(QOpenGLShaderProgram* prog) : QObject(), _p
 	_autoScale(true),
 	_autoOrient(true)
 {
-	initializeOpenGLFunctions();
 	_loadingCancelled = false;
 	_progHandler = new AssImpModelProgressHandler();
 	_progHandler->setCancelFlag(&_loadingCancelled);
@@ -69,7 +68,7 @@ void AssImpModelLoader::cancelLoading()
 	_loadingCancelled = true;
 }
 
-vector<AssImpMesh*> AssImpModelLoader::getMeshes() const
+AssImpMeshDataBatch AssImpModelLoader::getMeshes() const
 {
 	return _meshes;
 }
@@ -320,7 +319,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];		
-		AssImpMesh* myMesh = processMesh(mesh, scene, node->mMeshes[i], scene->mNumMeshes, globalTransform, node->mName.C_Str());
+		AssImpMeshData myMesh = processMesh(mesh, scene, node->mMeshes[i], scene->mNumMeshes, globalTransform, node->mName.C_Str());
 
 		_meshes.push_back(myMesh);            // full mesh store
 		++_processedMeshCount;
@@ -374,7 +373,7 @@ int AssImpModelLoader::countNodes(const aiNode* node) const
 }
 
 
-AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform, const char* nodeName)
+AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, const int& meshIndex, const int& totalMeshes, const aiMatrix4x4& transform, const char* nodeName)
 {
 	// Data to fill
 	vector<Vertex> vertices;
@@ -646,18 +645,21 @@ AssImpMesh* AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene, c
 	qDebug() << "Mesh with material: " << meshName << " processed.";
 	std::cout << mat;	
 
-	AssImpMesh* newMesh =  new AssImpMesh(_prog, meshName, vertices, indices, textures, mat);	
-	newMesh->setHasNegativeScale(hasNegativeScale);
+	AssImpMeshData meshData;
+	meshData.name = meshName;
+	meshData.vertices = std::move(vertices);
+	meshData.indices = std::move(indices);
+	meshData.textures = std::move(textures);
+	meshData.material = mat;
+	meshData.hasNegativeScale = hasNegativeScale;
 
-	// Set glTF primitive mode if available
 	if (_gltfMeshPrimitiveModes.find(meshIndex) != _gltfMeshPrimitiveModes.end())
 	{
-		GLenum mode = _gltfMeshPrimitiveModes[meshIndex];
-		newMesh->setPrimitiveMode(mode);
-		qDebug() << "Set primitive mode for mesh" << meshIndex << "to" << mode;
+		meshData.primitiveMode = _gltfMeshPrimitiveModes[meshIndex];
+		qDebug() << "Set primitive mode for mesh" << meshIndex << "to" << meshData.primitiveMode;
 	}
 
-	return newMesh;
+	return meshData;
 }
 
 void AssImpModelLoader::generateUVsForMesh(MeshAnalysis::AnalysisResult& analysis, aiMesh* mesh, std::vector<Vertex>& vertices, std::vector<std::seed_seq::result_type>& indices)
