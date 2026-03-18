@@ -134,6 +134,8 @@ public:
 	const aiScene* getScene() const { return _scene; }
 
 	void freeScene();
+	void setImageTextureUploader(MaterialProcessor::ImageTextureUploadFn uploader);
+	void setKtx2TextureUploader(MaterialProcessor::Ktx2TextureUploadFn uploader);
 
 signals:
 	void fileReadProcessed(float percent);

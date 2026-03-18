@@ -58,6 +58,16 @@ AssImpModelLoader::~AssImpModelLoader()
 	_progHandler = nullptr;
 }
 
+void AssImpModelLoader::setImageTextureUploader(MaterialProcessor::ImageTextureUploadFn uploader)
+{
+	_materialProcessor.setImageTextureUploader(std::move(uploader));
+}
+
+void AssImpModelLoader::setKtx2TextureUploader(MaterialProcessor::Ktx2TextureUploadFn uploader)
+{
+	_materialProcessor.setKtx2TextureUploader(std::move(uploader));
+}
+
 void AssImpModelLoader::processFileReadProgress(float percentage)
 {
 	emit fileReadProcessed(percentage);

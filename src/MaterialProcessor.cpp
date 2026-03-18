@@ -14,27 +14,10 @@ using namespace std;
 
 MaterialProcessor::MaterialProcessor() : _folderPath("")
 {
-	initializeOpenGLFunctions();
-	// Initialize KTX2 loader with OpenGL context
-	if (!ktx2Loader.initializeOpenGL())
-	{
-		qWarning() << "Failed to initialize KTX2 loader";
-	}
-
-	// Detect GPU capabilities once at startup
-	gpuCapabilities = KTX2Loader::detectGPUCapabilities();
 }
 
 MaterialProcessor::MaterialProcessor(std::string& folderPath) : _folderPath(folderPath)
 {
-	initializeOpenGLFunctions();
-	// Initialize KTX2 loader with OpenGL context
-    if (!ktx2Loader.initializeOpenGL()) {
-        qWarning() << "Failed to initialize KTX2 loader";
-    }
-    
-    // Detect GPU capabilities once at startup
-    gpuCapabilities = KTX2Loader::detectGPUCapabilities();
 }
 
 void MaterialProcessor::processAssimpColorAndMaterial(aiMaterial* material, GLMaterial& mat)
@@ -489,7 +472,9 @@ void MaterialProcessor::setDefaultMaterial(GLMaterial& mat)
 	mat = GLMaterial::DEFAULT_MAT();
 }
 
-unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture,
+bool MaterialProcessor::decodeTextureImage(GLMaterial::Texture& texture,
+	QImage& outImage,
+	bool& outHasAlpha,
 	const std::vector<uint8_t>* glbBinaryBuffer,
 	const QJsonArray* jsonBufferViews,
 	const QJsonArray* jsonImages)
@@ -615,27 +600,35 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture,
 		}
 	}
 
-	//Generate texture ID and load texture data
-	unsigned int textureID;
-	glGenTextures(1, &textureID);
-
-	texture.id = textureID;
 	texture.hasAlpha = imageHasAlpha;
 	texture.imageData = texImage;
+	outImage = texImage;
+	outHasAlpha = imageHasAlpha;
+	return true;
+}
 
-	// Assign texture to ID
-	glBindTexture(GL_TEXTURE_2D, textureID);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texImage.width(), texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, texImage.bits());
-	glGenerateMipmap(GL_TEXTURE_2D);
+unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture,
+	const std::vector<uint8_t>* glbBinaryBuffer,
+	const QJsonArray* jsonBufferViews,
+	const QJsonArray* jsonImages)
+{
+	if (!_imageTextureUploader)
+	{
+		qWarning() << "MaterialProcessor::createTextureOnGPU - No image texture uploader configured";
+		return 0;
+	}
 
-	// Parameters
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture.wrapS);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture.wrapT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, texture.minFilter);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texture.magFilter);
-	glBindTexture(GL_TEXTURE_2D, 0);
+	QImage texImage;
+	bool imageHasAlpha = false;
+	if (!decodeTextureImage(texture, texImage, imageHasAlpha, glbBinaryBuffer, jsonBufferViews, jsonImages))
+	{
+		return 0;
+	}
 
-	return textureID;
+	texture.hasAlpha = imageHasAlpha;
+	texture.imageData = texImage;
+	texture.id = _imageTextureUploader(texture, texImage);
+	return texture.id;
 }
 
 /**
@@ -1091,20 +1084,19 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					tex.magFilter = magFilter;
 					tex.minFilter = minFilter;
 
-					// Upload to GPU
-					unsigned int textureID;
-					glGenTextures(1, &textureID);
-					glBindTexture(GL_TEXTURE_2D, textureID);
-					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, qImg.width(), qImg.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, qImg.bits());
-					glGenerateMipmap(GL_TEXTURE_2D);
-					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, tex.wrapS);
-					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, tex.wrapT);
-					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, tex.minFilter);
-					glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, tex.magFilter);
-					glBindTexture(GL_TEXTURE_2D, 0);
-
-					tex.id = textureID;
 					tex.imageData = qImg;
+					if (!_imageTextureUploader)
+					{
+						qWarning() << "processGltf2CoreAndExtensions: No image texture uploader configured for pre-loaded GLB image";
+						continue;
+					}
+
+					unsigned int textureID = _imageTextureUploader(tex, qImg);
+					if (textureID == 0)
+					{
+						qWarning() << "processGltf2CoreAndExtensions: Failed to upload pre-loaded GLB image" << imgIdx;
+						continue;
+					}
 
 					// Store in global cache - loadAndAddTexture will find it
 					_loadedTextures.push_back(tex);
@@ -1472,27 +1464,18 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 
 			if (texturePath.endsWith(".ktx2", Qt::CaseInsensitive))
 			{
-				TranscodedTexture transcodedTexture;
-				if (!ktx2Loader.loadKTX2(textureFilePathStd, transcodedTexture, gpuCapabilities, mapType))
+				if (!_ktx2TextureUploader)
+				{
+					qWarning() << "No KTX2 texture uploader configured for:" << texturePath;
+					return false;
+				}
+
+				texID = _ktx2TextureUploader(QString::fromStdString(textureFilePathStd), mapType, newTexture);
+				if (texID == 0)
 				{
 					qWarning() << "Failed to load KTX2 file:" << texturePath;
 					return false;
 				}
-
-				texID = ktx2Loader.uploadToGPU(transcodedTexture);
-				if (texID == 0)
-				{
-					qWarning() << "Failed to upload KTX2 texture to GPU";
-					return false;
-				}
-
-				// APPLY SAMPLER SETTINGS TO KTX2 TEXTURE
-				glBindTexture(GL_TEXTURE_2D, texID);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, minFilter);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapS);
-				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapT);
-				glBindTexture(GL_TEXTURE_2D, 0);
 
 				qDebug() << "KTX2 texture loaded, GPU ID:" << texID;
 			}

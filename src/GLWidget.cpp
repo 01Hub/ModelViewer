@@ -680,7 +680,21 @@ void GLWidget::initializeGL()
 	createShaderPrograms();
 	createFullscreenTriangle();
 
+	if (!_ktx2Loader.initializeOpenGL())
+	{
+		qWarning() << "GLWidget::initializeGL - Failed to initialize KTX2 loader";
+	}
+	_gpuCapabilities = KTX2Loader::detectGPUCapabilities();
+
 	_assimpModelLoader = new AssImpModelLoader();
+	_assimpModelLoader->setImageTextureUploader(
+		[this](GLMaterial::Texture& texture, const QImage& image) -> unsigned int {
+			return uploadDecodedTexture(texture, image);
+		});
+	_assimpModelLoader->setKtx2TextureUploader(
+		[this](const QString& path, const std::string& mapType, GLMaterial::Texture& texture) -> unsigned int {
+			return uploadKtx2Texture(path, mapType, texture);
+		});
 	connect(_assimpModelLoader, &AssImpModelLoader::fileReadProcessed, this, &GLWidget::showFileReadingProgress);
 	connect(_assimpModelLoader, &AssImpModelLoader::verticesProcessed, this, &GLWidget::showMeshLoadingProgress);
 	connect(_assimpModelLoader, &AssImpModelLoader::nodeMeshProgressUpdated, this, &GLWidget::showNodeMeshLoadingProgress);
@@ -5919,6 +5933,50 @@ GLuint GLWidget::createGPUTextureFromImage(const QImage& image, const TextureSam
 	glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
 
 	return textureID;
+}
+
+GLuint GLWidget::uploadDecodedTexture(GLMaterial::Texture& texture, const QImage& image)
+{
+	makeCurrent();
+
+	TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
+	GLuint textureId = createGPUTextureFromImage(image, samplers);
+	texture.id = textureId;
+	return textureId;
+}
+
+GLuint GLWidget::uploadKtx2Texture(const QString& path, const std::string& mapType, GLMaterial::Texture& texture)
+{
+	if (path.isEmpty())
+	{
+		return 0;
+	}
+
+	makeCurrent();
+
+	TranscodedTexture transcodedTexture;
+	if (!_ktx2Loader.loadKTX2(path.toStdString(), transcodedTexture, _gpuCapabilities, mapType))
+	{
+		qWarning() << "GLWidget::uploadKtx2Texture - Failed to load KTX2 file:" << path;
+		return 0;
+	}
+
+	GLuint textureId = _ktx2Loader.uploadToGPU(transcodedTexture);
+	if (textureId == 0)
+	{
+		qWarning() << "GLWidget::uploadKtx2Texture - Failed to upload KTX2 texture:" << path;
+		return 0;
+	}
+
+	glBindTexture(GL_TEXTURE_2D, textureId);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, texture.minFilter);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texture.magFilter);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture.wrapS);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture.wrapT);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	texture.id = textureId;
+	return textureId;
 }
 
 unsigned int GLWidget::getOrLoadTextureCached(

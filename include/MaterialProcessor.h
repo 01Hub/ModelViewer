@@ -4,16 +4,18 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <assimp/scene.h>
+#include <functional>
 #include "GLMaterial.h"
 #include "AssImpMesh.h"
 #include "GLLights.h"
-#include "KTX2Loader.h"
-#include <QOpenGLFunctions_4_5_Core>
 
 
-class MaterialProcessor : public QOpenGLFunctions_4_5_Core
+class MaterialProcessor
 {
 public:
+	using ImageTextureUploadFn = std::function<unsigned int(GLMaterial::Texture&, const QImage&)>;
+	using Ktx2TextureUploadFn = std::function<unsigned int(const QString&, const std::string&, GLMaterial::Texture&)>;
+
 	MaterialProcessor();
 	MaterialProcessor(std::string& folderPath);
 
@@ -68,6 +70,9 @@ public:
 	
 	std::vector<GPULight> parseKHRLightsPunctual(const QString& gltfPath);
 
+	void setImageTextureUploader(ImageTextureUploadFn uploader) { _imageTextureUploader = std::move(uploader); }
+	void setKtx2TextureUploader(Ktx2TextureUploadFn uploader) { _ktx2TextureUploader = std::move(uploader); }
+
 private:
 	void setShadingModel(GLMaterial& mat, aiShadingMode shadingModel);
 	void setBlendMode(GLMaterial& mat, aiBlendMode blendMode);
@@ -85,6 +90,12 @@ private:
 
 	// Returns: pair<success, QImage>
 	std::pair<bool, QImage> decodeDataUri(const QString& dataUri);
+	bool decodeTextureImage(GLMaterial::Texture& texture,
+		QImage& outImage,
+		bool& outHasAlpha,
+		const std::vector<uint8_t>* glbBinaryBuffer = nullptr,
+		const QJsonArray* jsonBufferViews = nullptr,
+		const QJsonArray* jsonImages = nullptr);
 
 private:
 	// Each entry: primary type + uniform name, and an optional fallback type+uniform name
@@ -180,7 +191,7 @@ private:
 	QHash<QString, bool> s_glbImagesLoaded;  // Track if images uploaded to GPU
 	QHash<QString, bool> s_glbScenesSynced;  // Track which scenes have been synced
 	QHash<QString, std::vector<size_t>> s_glbImageIndices; // Maps: glbPath -> list of indices in _loadedTextures
-	
-	KTX2Loader ktx2Loader;
-	GPUCapabilities gpuCapabilities;
+
+	ImageTextureUploadFn _imageTextureUploader;
+	Ktx2TextureUploadFn _ktx2TextureUploader;
 };

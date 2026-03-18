@@ -18,6 +18,7 @@
 #include "ViewToolbar.h"
 #include "SceneUtils.h"
 #include "GLLights.h"
+#include "KTX2Loader.h"
 
 /* Custom OpenGL Viewer Widget */
 
@@ -535,6 +536,8 @@ private:
 	AssImpMesh* createMeshFromData(const AssImpMeshData& meshData);
 
 	GLuint createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers);
+	GLuint uploadDecodedTexture(GLMaterial::Texture& texture, const QImage& image);
+	GLuint uploadKtx2Texture(const QString& path, const std::string& mapType, GLMaterial::Texture& texture);
 	unsigned int getOrLoadTextureCached(const QString& path,
 		const TextureSamplerSettings& samplers = TextureSamplerSettings());
 	void retainTexture(unsigned int texId);
@@ -833,6 +836,8 @@ private:
 	unsigned long long _displayedObjectsMemSize;
 
 	AssImpModelLoader* _assimpModelLoader;
+	KTX2Loader _ktx2Loader;
+	GPUCapabilities _gpuCapabilities;
 	const aiScene* _assimpScene = nullptr;
 	aiScene* _globalScene = nullptr; // Merged scene from multiple files
 	glm::mat4 _globalSceneTransform = glm::mat4(1.0f);
