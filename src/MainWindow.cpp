@@ -153,12 +153,6 @@ MainWindow::MainWindow(QWidget* parent)
 		retranslateUI();  // if needed
 		});
 
-	// Show the help dialog on first launch if the user has that setting enabled
-	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-	if (settings.value("showQuickHelpOnStartup", true).toBool())
-	{
-		QTimer::singleShot(0, this, &MainWindow::on_actionQuick_Help_triggered);
-	}
 }
 
 void MainWindow::retranslateUI()
@@ -431,6 +425,8 @@ void MainWindow::on_actionQuick_Help_triggered()
 	{
 		_helpDialog = new QuickHelpDialog(this);
 		_helpDialog->setAttribute(Qt::WA_DeleteOnClose);
+		_helpDialog->setModal(false);
+		_helpDialog->setWindowModality(Qt::NonModal);
 		connect(_helpDialog, &QObject::destroyed, []() {
 			_helpDialog = nullptr; // Reset pointer when dialog is closed
 			});
@@ -590,6 +586,13 @@ void MainWindow::showEvent(QShowEvent* event)
 		//_viewers[0]->getGLView()->setDisplayList(mod);
 		_viewers[0]->showMaximized();
 		_viewers[0]->updateDisplayList();
+
+		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		if (settings.value("showQuickHelpOnStartup", true).toBool())
+		{
+			QTimer::singleShot(150, this, &MainWindow::on_actionQuick_Help_triggered);
+		}
+
 		_bFirstTime = false;
 	}
 }
