@@ -8,7 +8,10 @@
 #include <QDebug>
 #include <QFileInfo>
 #include <QOpenGLFunctions>
+#include <QScreen>
+#include <QSplashScreen>
 #include <QStyleFactory>
+#include <memory>
 #include <sstream>
 #include <string>
 
@@ -18,6 +21,34 @@ int main(int argc, char** argv)
 	Q_INIT_RESOURCE(ModelViewer);
 
 	ModelViewerApplication app(argc, argv);
+
+	QPixmap splashPixmap(":/icons/res/Splashscreen.png");
+	std::unique_ptr<QSplashScreen> splash;
+	auto showSplashMessage = [&](const QString& message) {
+		if (!splash) return;
+		splash->showMessage(message,
+			Qt::AlignBottom | Qt::AlignHCenter,
+			Qt::white);
+		app.processEvents();
+	};
+
+	if (!splashPixmap.isNull())
+	{
+		QScreen* primaryScreen = app.primaryScreen();
+		if (primaryScreen)
+		{
+			const QSize screenSize = primaryScreen->availableGeometry().size();
+			const int maxSplashWidth = std::min(900, static_cast<int>(screenSize.width() * 0.5));
+			if (splashPixmap.width() > maxSplashWidth)
+			{
+				splashPixmap = splashPixmap.scaledToWidth(maxSplashWidth, Qt::SmoothTransformation);
+			}
+		}
+		splash = std::make_unique<QSplashScreen>(splashPixmap);
+		splash->setWindowFlag(Qt::WindowStaysOnTopHint);
+		splash->show();
+		showSplashMessage(QObject::tr("Starting ModelViewer..."));
+	}
 
 #if QT_VERSION_MAJOR == 6
 	// Disable allocation limit for images
@@ -37,9 +68,11 @@ int main(int argc, char** argv)
 		langCode = QLocale::system().name(); // e.g., "en_US"
 	}
 	// Load the language settings
+	showSplashMessage(QObject::tr("Loading language..."));
 	LanguageManager::instance().loadLanguage(langCode);
 
 	// Initialize logger with optional custom max file size
+	showSplashMessage(QObject::tr("Initializing logging..."));
 	Logger::instance().initialize(15 * 1024 * 1024);  // 15 MB per file
 
 	bool consoleLogging = settings.value("enableConsoleCheckBox", false).toBool();
@@ -49,9 +82,16 @@ int main(int argc, char** argv)
 	int logLevel = settings.value("logLevelComboBox", 1).toInt();
 	Logger::instance().setMinimumLevel(static_cast<Logger::LogLevel>(logLevel));
 
+	showSplashMessage(QObject::tr("Creating main window..."));
 	MainWindow* mw = MainWindow::mainWindow();		
+	showSplashMessage(QObject::tr("Preparing workspace..."));
 	ModelViewer* viewer = mw->createMdiChild();
 	mw->showMaximized();
+	if (splash)
+	{
+		showSplashMessage(QObject::tr("Ready"));
+		splash->finish(mw);
+	}
 	if (argc > 1)
 	{
 		QString fileName(argv[1]);
