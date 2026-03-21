@@ -18,6 +18,7 @@
 #include <iostream>
 #include <QMessageBox>
 #include <QStyleFactory>
+#include <QThread>
 
 
 constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes
@@ -680,6 +681,10 @@ void GLWidget::initializeGL()
 	createShaderPrograms();
 	createFullscreenTriangle();
 
+	qRegisterMetaType<AssImpMeshDataBatch>("AssImpMeshDataBatch");
+	qRegisterMetaType<const aiScene*>("const aiScene*");
+	qRegisterMetaType<std::vector<GPULight>>("std::vector<GPULight>");
+
 	if (!_ktx2Loader.initializeOpenGL())
 	{
 		qWarning() << "GLWidget::initializeGL - Failed to initialize KTX2 loader";
@@ -689,11 +694,44 @@ void GLWidget::initializeGL()
 	_assimpModelLoader = new AssImpModelLoader();
 	_assimpModelLoader->setImageTextureUploader(
 		[this](GLMaterial::Texture& texture, const QImage& image) -> unsigned int {
-			return uploadDecodedTexture(texture, image);
+			TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
+			if (QThread::currentThread() != this->thread())
+			{
+				unsigned int result = 0;
+				const QImage imageCopy = image;
+				QMetaObject::invokeMethod(this, [this, &result, imageCopy, samplers]() {
+					result = uploadDecodedTextureImage(imageCopy, samplers);
+					}, Qt::BlockingQueuedConnection);
+				return result;
+			}
+			return uploadDecodedTextureImage(image, samplers);
 		});
 	_assimpModelLoader->setKtx2TextureUploader(
 		[this](const QString& path, const std::string& mapType, GLMaterial::Texture& texture) -> unsigned int {
-			return uploadKtx2Texture(path, mapType, texture);
+			TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
+			if (QThread::currentThread() != this->thread())
+			{
+				unsigned int result = 0;
+				const QString pathCopy = path;
+				const std::string mapTypeCopy = mapType;
+				QMetaObject::invokeMethod(this, [this, &result, pathCopy, mapTypeCopy, samplers]() {
+					result = uploadKtx2TextureImage(pathCopy, mapTypeCopy, samplers);
+					}, Qt::BlockingQueuedConnection);
+				return result;
+			}
+			return uploadKtx2TextureImage(path, mapType, samplers);
+		});
+	_assimpModelLoader->setUVDecisionCallback(
+		[this](int totalTriangles, UVMethod currentMethod) -> UVMethod {
+			if (QThread::currentThread() != this->thread())
+			{
+				UVMethod result = currentMethod;
+				QMetaObject::invokeMethod(this, [this, totalTriangles, currentMethod, &result]() {
+					result = promptLargeModelUVDecision(totalTriangles, currentMethod);
+					}, Qt::BlockingQueuedConnection);
+				return result;
+			}
+			return promptLargeModelUVDecision(totalTriangles, currentMethod);
 		});
 	connect(_assimpModelLoader, &AssImpModelLoader::fileReadProcessed, this, &GLWidget::showFileReadingProgress);
 	connect(_assimpModelLoader, &AssImpModelLoader::verticesProcessed, this, &GLWidget::showMeshLoadingProgress);
@@ -713,13 +751,11 @@ void GLWidget::initializeGL()
 			{
 				_fgShader->setUniformValue("lightCount", (int)lights.size());
 				_fgShader->setUniformValue("hasPunctualLights", true);
-				qDebug() << "GLWidget: Received" << lights.size() << "lights";
 			}
 			else
 			{
 				_fgShader->setUniformValue("lightCount", 1);
 				_fgShader->setUniformValue("hasPunctualLights", false);
-				qDebug() << "GLWidget: No lights received, will use fallback";
 			}
 		});
 
@@ -2210,79 +2246,153 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 	MainWindow::showProgressBar();
 	if (_assimpModelLoader)
 	{
-		/*QMessageBox msgBox(this);
-		msgBox.setIcon( QMessageBox::Information);
-		msgBox.setText("Click Abort to stop file loading.");
-		msgBox.setWindowFlag(Qt::FramelessWindowHint,true);
-		msgBox.setModal(false);
-		float ph = geometry().height();
-		float px = geometry().x();
-		float py = geometry().y();
-		float dw = msgBox.width();
-		float dh = msgBox.height();
-		msgBox.setGeometry( px + 20, py+ph-4*dh, dw, dh );
-		QPushButton *abortButton = msgBox.addButton(QMessageBox::Abort);
-		connect(abortButton, &QPushButton::pressed, this, &GLWidget::cancelAssImpModelLoading);
-		msgBox.show();*/
-		
-
-		// connect AssimpModelLoader meshProcessed signal to addToDisplay slot
-		connect(_assimpModelLoader, &AssImpModelLoader::meshBatchReady, this, &GLWidget::onMeshBatchReady, Qt::DirectConnection);
-
-		// connect AssimpModelLoader loadingFinshed signal to a lambda sets the success value to true
-		connect(_assimpModelLoader, &AssImpModelLoader::loadingFinished,
-			this, [this, &success, &error](bool successFlag, const aiScene* scene) {
-				//finalizeLoading();				
-				success = successFlag;
-				if (!successFlag)
+		AssImpModelLoader* loadingWorker = new AssImpModelLoader();
+		loadingWorker->setUVDecisionCallback(
+			[this](int totalTriangles, UVMethod currentMethod) -> UVMethod {
+				if (QThread::currentThread() != this->thread())
 				{
-					error = _assimpModelLoader->getErrorMessage();
+					UVMethod result = currentMethod;
+					QMetaObject::invokeMethod(this, [this, totalTriangles, currentMethod, &result]() {
+						result = promptLargeModelUVDecision(totalTriangles, currentMethod);
+						}, Qt::BlockingQueuedConnection);
+					return result;
 				}
-				else
-				{	
-					// nullify the assimp scene pointer to avoid memory leaks
-					//_assimpModelLoader->freeScene(); // Free previous scene if exists
-					//scene = nullptr;					
-				}
+				return promptLargeModelUVDecision(totalTriangles, currentMethod);
 			});
 
-		// If user cancels the loading, we still need to set the success to true
-		// Store the connection to specifically disconnect the lambda later
-		QMetaObject::Connection connection = connect(this, &GLWidget::loadingAssImpModelCancelled, this, [this, &success, &error]() {
-			_loadCancelled = true;
-			if (_meshStore.size() > 0)			
-				success = true; // set success to true to avoid blocking the UI			
-			else 			
-				success = false; // if no meshes were loaded, set success to false
-			
-			error = "Model loading cancelled by user.";
-			});
-		
+		QEventLoop waitLoop;
+		QThread loadingThread;
+		bool loadingCompleted = false;
 
-		_assimpModelLoader->setUVGenerationMethod(uvMethod);
-		_assimpModelLoader->loadModel(const_cast<GLchar*>(fileName.toStdString().c_str()), progressiveLoading);
-
-		if (_assimpModelLoader->getErrorMessage() == "Model loading cancelled by user.")
-		{
-			_loadCancelled = true;
-			error = _assimpModelLoader->getErrorMessage();
-		}
-
-		if(!progressiveLoading) // process all the meshes at once
-		{
-			std::vector<AssImpMeshData> meshes = _assimpModelLoader->getMeshes();
-			if (meshes.size() == 0)
-			{
-				error = _assimpModelLoader->getErrorMessage();
-				success = false;
+		QMetaObject::Connection finishedConnection = connect(
+			loadingWorker,
+			&AssImpModelLoader::loadingFinished,
+			this,
+			[this, loadingWorker, &success, &error, &loadingCompleted, &waitLoop](bool successFlag, const aiScene* /*scene*/) {
+				loadingCompleted = true;
+				success = successFlag;
+				error = loadingWorker->getErrorMessage();
 				if (error == "Model loading cancelled by user.")
 				{
 					_loadCancelled = true;
 				}
-			}
-			else
+				waitLoop.quit();
+			},
+			Qt::QueuedConnection);
+
+		QMetaObject::Connection cancelledConnection = connect(
+			loadingWorker,
+			&AssImpModelLoader::loadingCancelled,
+			this,
+			[this, &error]() {
+				_loadCancelled = true;
+				error = "Model loading cancelled by user.";
+			},
+			Qt::QueuedConnection);
+
+		QMetaObject::Connection fileProgressConnection = connect(
+			loadingWorker,
+			&AssImpModelLoader::fileReadProcessed,
+			this,
+			&GLWidget::showFileReadingProgress,
+			Qt::QueuedConnection);
+
+		QMetaObject::Connection meshProgressConnection = connect(
+			loadingWorker,
+			&AssImpModelLoader::verticesProcessed,
+			this,
+			&GLWidget::showMeshLoadingProgress,
+			Qt::QueuedConnection);
+
+		QMetaObject::Connection nodeProgressConnection = connect(
+			loadingWorker,
+			&AssImpModelLoader::nodeMeshProgressUpdated,
+			this,
+			&GLWidget::showNodeMeshLoadingProgress,
+			Qt::QueuedConnection);
+
+		QMetaObject::Connection batchConnection = connect(
+			loadingWorker,
+			&AssImpModelLoader::meshBatchReady,
+			this,
+			&GLWidget::onMeshBatchReady,
+			Qt::BlockingQueuedConnection);
+
+		QMetaObject::Connection cancelRequestConnection = connect(
+			this,
+			&GLWidget::loadingAssImpModelCancelled,
+			loadingWorker,
+			&AssImpModelLoader::cancelLoading,
+			Qt::QueuedConnection);
+
+		QMetaObject::Connection lightsConnection = connect(
+			loadingWorker,
+			&AssImpModelLoader::lightsLoaded,
+			this,
+			[this](const std::vector<GPULight>& lights) {
+				_originalParsedLights.clear();
+				_currentRepositionedLights.clear();
+				_originalParsedLights = lights;
+
+				makeCurrent();
+				_fgShader->bind();
+				if (!lights.empty())
+				{
+					_fgShader->setUniformValue("lightCount", (int)lights.size());
+					_fgShader->setUniformValue("hasPunctualLights", true);
+				}
+				else
+				{
+					_fgShader->setUniformValue("lightCount", 1);
+					_fgShader->setUniformValue("hasPunctualLights", false);
+				}
+			},
+			Qt::QueuedConnection);
+
+		loadingWorker->moveToThread(&loadingThread);
+
+		loadingThread.start();
+		QMetaObject::invokeMethod(
+			loadingWorker,
+			[loadingWorker, fileName, uvMethod, progressiveLoading]() {
+				loadingWorker->setUVGenerationMethod(uvMethod);
+				loadingWorker->loadModel(fileName.toStdString(), progressiveLoading);
+			},
+			Qt::QueuedConnection);
+
+		waitLoop.exec();
+
+		loadingThread.quit();
+		loadingThread.wait();
+
+		if (!loadingCompleted)
+		{
+			success = false;
+			if (error.isEmpty())
 			{
-				success = true;
+				error = tr("Model loading did not finish correctly.");
+			}
+		}
+
+		makeCurrent();
+		std::vector<AssImpMeshData> meshes = loadingWorker->getMeshes();
+		if (meshes.empty())
+		{
+			if (error.isEmpty())
+			{
+				error = loadingWorker->getErrorMessage();
+			}
+			success = false;
+			if (error == "Model loading cancelled by user.")
+			{
+				_loadCancelled = true;
+			}
+		}
+		else
+		{
+			success = true;
+			if (!_progressiveLoadingEnabled)
+			{
 				for (const AssImpMeshData& meshData : meshes)
 				{
 					AssImpMesh* mesh = createMeshFromData(meshData);
@@ -2291,24 +2401,34 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			}
 		}
 
-		_assimpScene = _assimpModelLoader->getScene();
-		_globalSceneTransform = _assimpModelLoader->getGlobalSceneTransform();
+		_assimpScene = loadingWorker->getScene();
+		_globalSceneTransform = loadingWorker->getGlobalSceneTransform();
 		if (_assimpScene)
 		{
 			aiScene* copiedScene = SceneUtils::deepCopyScene(_assimpScene);
 			SceneUtils::mergeScene(&_globalScene, copiedScene);
 		}
+		_assimpScene = nullptr;
 
-		// Disconnect the signals to avoid repeated calls		
-		disconnect(_assimpModelLoader, &AssImpModelLoader::meshBatchReady, this, &GLWidget::onMeshBatchReady);
-		disconnect(_assimpModelLoader, &AssImpModelLoader::loadingFinished, this, nullptr);
+		disconnect(finishedConnection);
+		disconnect(cancelledConnection);
+		disconnect(fileProgressConnection);
+		disconnect(meshProgressConnection);
+		disconnect(nodeProgressConnection);
+		disconnect(batchConnection);
+		disconnect(cancelRequestConnection);
+		disconnect(lightsConnection);
 
-		// Disconnect the loadingAssImpModelCancelled with the lambda
-		disconnect(connection);
+		loadingWorker->moveToThread(this->thread());
+		delete loadingWorker;
 	}
 
 	if (_loadCancelled)
 	{
+		if (!_meshStore.empty())
+		{
+			success = true;
+		}
 		if (_meshStore.empty())
 		{
 			MainWindow::showStatusMessage(tr("Model loading cancelled"), 3000);
@@ -5885,35 +6005,218 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 	std::vector<GLMaterial::Texture> textures = meshData.textures;
 	for (GLMaterial::Texture& texture : textures)
 	{
-		if (texture.id != 0)
-			continue;
+		const QString originalPath = QString::fromStdString(texture.path);
 
 		TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
-		if (!texture.path.empty())
+		if (!texture.imageData.isNull())
 		{
-			texture.id = getOrLoadTextureCached(QString::fromStdString(texture.path), samplers);
+			const QString cacheKey = originalPath.isEmpty()
+				? QStringLiteral("embedded://%1/%2/%3")
+					.arg(meshData.name)
+					.arg(QString::fromStdString(texture.type))
+					.arg(textures.size())
+				: originalPath;
+			texture.id = getOrCreateTextureCached(cacheKey, texture.imageData, samplers);
 		}
-		else if (!texture.imageData.isNull())
+		else if (!texture.path.empty())
 		{
-			texture.id = createGPUTextureFromImage(texture.imageData, samplers);
+			const QString texturePath = QString::fromStdString(texture.path);
+			if (texturePath.endsWith(".ktx2", Qt::CaseInsensitive))
+			{
+				texture.id = getOrLoadKtx2TextureCached(texturePath, texture.type, samplers);
+			}
+			else
+			{
+				texture.id = getOrLoadTextureCached(texturePath, samplers);
+			}
+		}
+		else if (texture.id != 0)
+		{
+			// Keep externally prepared IDs only when there is no path/image payload to re-resolve.
 		}
 	}
 
-	GLMaterial resolvedMaterial = resolveMaterialTextures(this, meshData.material);
+	GLMaterial resolvedMaterial = meshData.material;
+	for (const GLMaterial::Texture& texture : textures)
+	{
+		const QString texturePath = QString::fromStdString(texture.path);
+		if (texture.type == "albedoMap" || texture.type == "texture_diffuse")
+		{
+			resolvedMaterial.setAlbedoTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setAlbedoMap(texturePath);
+		}
+		else if (texture.type == "metallicMap" || texture.type == "texture_specular")
+		{
+			resolvedMaterial.setMetallicTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setMetallicMap(texturePath);
+		}
+		else if (texture.type == "roughnessMap")
+		{
+			resolvedMaterial.setRoughnessTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setRoughnessMap(texturePath);
+		}
+		else if (texture.type == "normalMap" || texture.type == "texture_normal")
+		{
+			resolvedMaterial.setNormalTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setNormalMap(texturePath);
+		}
+		else if (texture.type == "aoMap")
+		{
+			resolvedMaterial.setOcclusionTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setAOMap(texturePath);
+		}
+		else if (texture.type == "opacityMap" || texture.type == "texture_opacity")
+		{
+			resolvedMaterial.setOpacityTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setOpacityMap(texturePath);
+		}
+		else if (texture.type == "heightMap" || texture.type == "texture_height")
+		{
+			resolvedMaterial.setHeightTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setHeightMap(texturePath);
+		}
+		else if (texture.type == "emissiveMap" || texture.type == "texture_emissive")
+		{
+			resolvedMaterial.setEmissiveTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setEmissiveMap(texturePath);
+		}
+		else if (texture.type == "transmissionMap")
+		{
+			resolvedMaterial.setTransmissionTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setTransmissionMap(texturePath);
+		}
+		else if (texture.type == "iorMap")
+		{
+			resolvedMaterial.setIORTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setIORMap(texturePath);
+		}
+		else if (texture.type == "sheenColorMap")
+		{
+			resolvedMaterial.setSheenColorTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setSheenColorMap(texturePath);
+		}
+		else if (texture.type == "sheenRoughnessMap")
+		{
+			resolvedMaterial.setSheenRoughnessTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setSheenRoughnessMap(texturePath);
+		}
+		else if (texture.type == "clearcoatColorMap")
+		{
+			resolvedMaterial.setClearcoatColorTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setClearcoatColorMap(texturePath);
+		}
+		else if (texture.type == "clearcoatRoughnessMap")
+		{
+			resolvedMaterial.setClearcoatRoughnessTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setClearcoatRoughnessMap(texturePath);
+		}
+		else if (texture.type == "clearcoatNormalMap")
+		{
+			resolvedMaterial.setClearcoatNormalTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setClearcoatNormalMap(texturePath);
+		}
+		else if (texture.type == "iridescenceMap")
+		{
+			resolvedMaterial.setIridescenceTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setIridescenceMap(texturePath);
+		}
+		else if (texture.type == "iridescenceThicknessMap")
+		{
+			resolvedMaterial.setIridescenceThicknessTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setIridescenceThicknessMap(texturePath);
+		}
+		else if (texture.type == "specularFactorMap")
+		{
+			resolvedMaterial.setSpecularFactorTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setSpecularFactorMap(texturePath);
+		}
+		else if (texture.type == "specularColorMap")
+		{
+			resolvedMaterial.setSpecularColorTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setSpecularColorMap(texturePath);
+		}
+		else if (texture.type == "anisotropyMap")
+		{
+			resolvedMaterial.setAnisotropyTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setAnisotropyMap(texturePath);
+		}
+		else if (texture.type == "thicknessMap")
+		{
+			resolvedMaterial.setThicknessTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setThicknessMap(texturePath);
+		}
+		else if (texture.type == "diffuseMap")
+		{
+			resolvedMaterial.setDiffuseTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setDiffuseMap(texturePath);
+		}
+		else if (texture.type == "diffuseTransmissionMap")
+		{
+			resolvedMaterial.setDiffuseTransmissionTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setDiffuseTransmissionMap(texturePath);
+		}
+		else if (texture.type == "diffuseTransmissionColorMap")
+		{
+			resolvedMaterial.setDiffuseTransmissionColorTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setDiffuseTransmissionColorMap(texturePath);
+		}
+		else if (texture.type == "specularGlossinessMap")
+		{
+			resolvedMaterial.setSpecularGlossinessTextureId(texture.id);
+			if (!texturePath.isEmpty()) resolvedMaterial.setSpecularGlossinessMap(texturePath);
+		}
+	}
 	auto* mesh = new AssImpMesh(_fgShader.get(), meshData.name, meshData.vertices, meshData.indices, textures, resolvedMaterial);
 	mesh->setHasNegativeScale(meshData.hasNegativeScale);
 	mesh->setPrimitiveMode(meshData.primitiveMode);
+	if (_progressiveLoadingEnabled)
+	{
+		GLMaterial progressiveResolved = resolveMaterialTextures(this, mesh->getMaterial());
+		mesh->setMaterial(progressiveResolved);
+		mesh->setTextureMaps(progressiveResolved);
+	}
 	return mesh;
 }
 
 void GLWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 {
+	makeCurrent();
 	for (const AssImpMeshData& meshData : batch)
 	{
 		AssImpMesh* mesh = createMeshFromData(meshData);
 		addToDisplay(mesh);				
 	}	
 	_viewer->updateDisplayList();
+}
+
+UVMethod GLWidget::promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod)
+{
+	QMessageBox msgBox(this);
+	msgBox.setWindowTitle(tr("Performance Warning!"));
+	msgBox.setText(tr("The model contains more than %1 triangles and the current method of UV generation is \"Smart UV\" which is time consuming.\nDo you want to continue generating the UV?")
+		.arg(totalTriangles));
+	msgBox.setIcon(QMessageBox::Question);
+
+	QPushButton* yesButton = msgBox.addButton(QMessageBox::Yes);
+	QPushButton* noButton = msgBox.addButton(QMessageBox::No);
+	QPushButton* changeSettingsButton = msgBox.addButton(tr("Change Settings"), QMessageBox::ActionRole);
+
+	msgBox.setDefaultButton(QMessageBox::Yes);
+	msgBox.exec();
+
+	if (msgBox.clickedButton() == noButton)
+	{
+		qDebug() << "User chose not to generate UVs, using None method.";
+		return UVMethod::None;
+	}
+
+	if (msgBox.clickedButton() == changeSettingsButton)
+	{
+		return ModelViewer::askUserForUVMethod(this).method;
+	}
+
+	Q_UNUSED(yesButton);
+	return currentMethod;
 }
 
 GLuint GLWidget::createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers)
@@ -5937,15 +6240,19 @@ GLuint GLWidget::createGPUTextureFromImage(const QImage& image, const TextureSam
 
 GLuint GLWidget::uploadDecodedTexture(GLMaterial::Texture& texture, const QImage& image)
 {
-	makeCurrent();
-
 	TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
-	GLuint textureId = createGPUTextureFromImage(image, samplers);
+	GLuint textureId = uploadDecodedTextureImage(image, samplers);
 	texture.id = textureId;
 	return textureId;
 }
 
-GLuint GLWidget::uploadKtx2Texture(const QString& path, const std::string& mapType, GLMaterial::Texture& texture)
+GLuint GLWidget::uploadDecodedTextureImage(const QImage& image, const TextureSamplerSettings& samplers)
+{
+	makeCurrent();
+	return createGPUTextureFromImage(image, samplers);
+}
+
+GLuint GLWidget::uploadKtx2TextureImage(const QString& path, const std::string& mapType, const TextureSamplerSettings& samplers)
 {
 	if (path.isEmpty())
 	{
@@ -5969,14 +6276,111 @@ GLuint GLWidget::uploadKtx2Texture(const QString& path, const std::string& mapTy
 	}
 
 	glBindTexture(GL_TEXTURE_2D, textureId);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, texture.minFilter);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, texture.magFilter);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, texture.wrapS);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, texture.wrapT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, samplers.minFilter);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, samplers.magFilter);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, samplers.wrapS);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, samplers.wrapT);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
+	return textureId;
+}
+
+GLuint GLWidget::uploadKtx2Texture(const QString& path, const std::string& mapType, GLMaterial::Texture& texture)
+{
+	TextureSamplerSettings samplers{ texture.wrapS, texture.wrapT, texture.minFilter, texture.magFilter };
+	GLuint textureId = uploadKtx2TextureImage(path, mapType, samplers);
 	texture.id = textureId;
 	return textureId;
+}
+
+unsigned int GLWidget::getOrCreateTextureCached(
+	const QString& cacheKey,
+	const QImage& image,
+	const TextureSamplerSettings& samplers)
+{
+	if (cacheKey.isEmpty() || image.isNull())
+	{
+		return 0;
+	}
+
+	auto it = _texCache.find(cacheKey);
+	if (it != _texCache.end())
+	{
+		CachedTextureEntry& entry = it->second;
+		if (entry.lastGPUTexture != 0 && entry.lastSamplerSettings == samplers)
+		{
+			retainTexture(entry.lastGPUTexture);
+			return entry.lastGPUTexture;
+		}
+
+		if (!entry.image.isNull())
+		{
+			makeCurrent();
+			GLuint newTexID = createGPUTextureFromImage(entry.image, samplers);
+			if (newTexID != 0)
+			{
+				entry.lastGPUTexture = newTexID;
+				entry.lastSamplerSettings = samplers;
+				_texRefCount[newTexID] = 1;
+				return newTexID;
+			}
+		}
+	}
+
+	makeCurrent();
+	GLuint texID = createGPUTextureFromImage(image, samplers);
+	if (texID == 0)
+	{
+		return 0;
+	}
+
+	CachedTextureEntry newEntry;
+	newEntry.image = image;
+	newEntry.lastGPUTexture = texID;
+	newEntry.lastSamplerSettings = samplers;
+	newEntry.imageWidth = image.width();
+	newEntry.imageHeight = image.height();
+
+	_texCache[cacheKey] = newEntry;
+	_texRefCount[texID] = 1;
+	return texID;
+}
+
+unsigned int GLWidget::getOrLoadKtx2TextureCached(
+	const QString& path,
+	const std::string& mapType,
+	const TextureSamplerSettings& samplers)
+{
+	if (path.isEmpty())
+	{
+		return 0;
+	}
+
+	const QString cacheKey = QStringLiteral("ktx2://%1::%2")
+		.arg(path, QString::fromStdString(mapType));
+
+	auto it = _texCache.find(cacheKey);
+	if (it != _texCache.end())
+	{
+		CachedTextureEntry& entry = it->second;
+		if (entry.lastGPUTexture != 0 && entry.lastSamplerSettings == samplers)
+		{
+			retainTexture(entry.lastGPUTexture);
+			return entry.lastGPUTexture;
+		}
+	}
+
+	GLuint texID = uploadKtx2TextureImage(path, mapType, samplers);
+	if (texID == 0)
+	{
+		return 0;
+	}
+
+	CachedTextureEntry& entry = _texCache[cacheKey];
+	entry.lastGPUTexture = texID;
+	entry.lastSamplerSettings = samplers;
+	_texRefCount[texID] = 1;
+	return texID;
 }
 
 unsigned int GLWidget::getOrLoadTextureCached(
@@ -6068,156 +6472,170 @@ void GLWidget::releaseTexture(unsigned int texId)
 GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 {
 	GLMaterial m = src;
+	auto resolveTexturePath = [w](const QString& path,
+		const std::string& mapType,
+		const TextureSamplerSettings& samplers) -> unsigned int
+	{
+		if (path.isEmpty())
+		{
+			return 0;
+		}
+		if (path.endsWith(".ktx2", Qt::CaseInsensitive))
+		{
+			return w->getOrLoadKtx2TextureCached(path, mapType, samplers);
+		}
+		return w->getOrLoadTextureCached(path, samplers);
+	};
 
 	if (m.hasAlbedoMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Albedo);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setAlbedoTextureId(w->getOrLoadTextureCached(m.albedoMapPath(), samplers));
+		m.setAlbedoTextureId(resolveTexturePath(m.albedoMapPath(), "albedoMap", samplers));
 	}
 	if (m.hasMetallicMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Metallic);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setMetallicTextureId(w->getOrLoadTextureCached(m.metallicMapPath(), samplers));
+		m.setMetallicTextureId(resolveTexturePath(m.metallicMapPath(), "metallicMap", samplers));
 	}
 	if (m.hasRoughnessMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Roughness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setRoughnessTextureId(w->getOrLoadTextureCached(m.roughnessMapPath(), samplers));
+		m.setRoughnessTextureId(resolveTexturePath(m.roughnessMapPath(), "roughnessMap", samplers));
 	}
 	if (m.hasNormalMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Normal);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setNormalTextureId(w->getOrLoadTextureCached(m.normalMapPath(), samplers));
+		m.setNormalTextureId(resolveTexturePath(m.normalMapPath(), "normalMap", samplers));
 	}
 	if (m.hasAOMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::AmbientOcclusion);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setOcclusionTextureId(w->getOrLoadTextureCached(m.aoMapPath(), samplers));
+		m.setOcclusionTextureId(resolveTexturePath(m.aoMapPath(), "aoMap", samplers));
 	}
 	if (m.hasOpacityMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Opacity);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setOpacityTextureId(w->getOrLoadTextureCached(m.opacityMapPath(), samplers));
+		m.setOpacityTextureId(resolveTexturePath(m.opacityMapPath(), "opacityMap", samplers));
 	}
 	if (m.hasHeightMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Height);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setHeightTextureId(w->getOrLoadTextureCached(m.heightMapPath(), samplers));
+		m.setHeightTextureId(resolveTexturePath(m.heightMapPath(), "heightMap", samplers));
 	}
 	if (m.hasEmissiveMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Emissive);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setEmissiveTextureId(w->getOrLoadTextureCached(m.emissiveMapPath(), samplers));
+		m.setEmissiveTextureId(resolveTexturePath(m.emissiveMapPath(), "emissiveMap", samplers));
 	}
 	if (m.hasTransmissionMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Transmission);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setTransmissionTextureId(w->getOrLoadTextureCached(m.transmissionMapPath(), samplers));
+		m.setTransmissionTextureId(resolveTexturePath(m.transmissionMapPath(), "transmissionMap", samplers));
 	}
 	if (m.hasIORMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::IOR);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setIORTextureId(w->getOrLoadTextureCached(m.iorMapPath(), samplers));
+		m.setIORTextureId(resolveTexturePath(m.iorMapPath(), "iorMap", samplers));
 	}
 	if (m.hasSheenColorMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SheenColor);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setSheenColorTextureId(w->getOrLoadTextureCached(m.sheenColorMapPath(), samplers));
+		m.setSheenColorTextureId(resolveTexturePath(m.sheenColorMapPath(), "sheenColorMap", samplers));
 	}
 	if (m.hasSheenRoughnessMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SheenRoughness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setSheenRoughnessTextureId(w->getOrLoadTextureCached(m.sheenRoughnessMapPath(), samplers));
+		m.setSheenRoughnessTextureId(resolveTexturePath(m.sheenRoughnessMapPath(), "sheenRoughnessMap", samplers));
 	}
 	if (m.hasClearcoatColorMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::ClearcoatColor);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setClearcoatColorTextureId(w->getOrLoadTextureCached(m.clearcoatColorMapPath(), samplers));
+		m.setClearcoatColorTextureId(resolveTexturePath(m.clearcoatColorMapPath(), "clearcoatColorMap", samplers));
 	}
 	if (m.hasClearcoatRoughnessMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::ClearcoatRoughness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setClearcoatRoughnessTextureId(w->getOrLoadTextureCached(m.clearcoatRoughnessMapPath(), samplers));
+		m.setClearcoatRoughnessTextureId(resolveTexturePath(m.clearcoatRoughnessMapPath(), "clearcoatRoughnessMap", samplers));
 	}
 	if (m.hasClearcoatNormalMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::ClearcoatNormal);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setClearcoatNormalTextureId(w->getOrLoadTextureCached(m.clearcoatNormalMapPath(), samplers));
+		m.setClearcoatNormalTextureId(resolveTexturePath(m.clearcoatNormalMapPath(), "clearcoatNormalMap", samplers));
 	}
 	if (m.hasIridescenceMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Iridescence);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setIridescenceTextureId(w->getOrLoadTextureCached(m.iridescenceMap(), samplers));
+		m.setIridescenceTextureId(resolveTexturePath(m.iridescenceMap(), "iridescenceMap", samplers));
 	}
 	if (m.hasIridescenceThicknessMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::IridescenceThickness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setIridescenceThicknessTextureId(w->getOrLoadTextureCached(m.iridescenceThicknessMap(), samplers));
+		m.setIridescenceThicknessTextureId(resolveTexturePath(m.iridescenceThicknessMap(), "iridescenceThicknessMap", samplers));
 	}
 	if (m.hasSpecularColorMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SpecularColor);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setSpecularColorTextureId(w->getOrLoadTextureCached(m.specularColorMap(), samplers));
+		m.setSpecularColorTextureId(resolveTexturePath(m.specularColorMap(), "specularColorMap", samplers));
 	}
 	if (m.hasSpecularFactorMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SpecularFactor);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setSpecularFactorTextureId(w->getOrLoadTextureCached(m.specularFactorMap(), samplers));
+		m.setSpecularFactorTextureId(resolveTexturePath(m.specularFactorMap(), "specularFactorMap", samplers));
 	}
 	if (m.hasAnisotropyMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Anisotropy);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setAnisotropyTextureId(w->getOrLoadTextureCached(m.anisotropyMap(), samplers));
+		m.setAnisotropyTextureId(resolveTexturePath(m.anisotropyMap(), "anisotropyMap", samplers));
 	}
 	if (m.hasThicknessMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Thickness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setThicknessTextureId(w->getOrLoadTextureCached(m.thicknessMap(), samplers));
+		m.setThicknessTextureId(resolveTexturePath(m.thicknessMap(), "thicknessMap", samplers));
 	}
 	if (m.hasDiffuseMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Diffuse);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setDiffuseTextureId(w->getOrLoadTextureCached(m.diffuseMap(), samplers));
+		m.setDiffuseTextureId(resolveTexturePath(m.diffuseMap(), "diffuseMap", samplers));
 	}
 	if (m.hasDiffuseTransmissionMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::DiffuseTransmission);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setDiffuseTransmissionTextureId(w->getOrLoadTextureCached(m.diffuseTransmissionMap(), samplers));
+		m.setDiffuseTransmissionTextureId(resolveTexturePath(m.diffuseTransmissionMap(), "diffuseTransmissionMap", samplers));
 	}
 	if (m.hasDiffuseTransmissionColorMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::DiffuseTransmissionColor);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setDiffuseTransmissionColorTextureId(w->getOrLoadTextureCached(m.diffuseTransmissionColorMap(), samplers));
+		m.setDiffuseTransmissionColorTextureId(resolveTexturePath(m.diffuseTransmissionColorMap(), "diffuseTransmissionColorMap", samplers));
 	}
 	if (m.hasSpecularGlossinessMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SpecularGlossiness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setSpecularGlossinessTextureId(w->getOrLoadTextureCached(m.specularGlossinessMap(), samplers));
+		m.setSpecularGlossinessTextureId(resolveTexturePath(m.specularGlossinessMap(), "specularGlossinessMap", samplers));
 	}
 
 	m.syncTextureParameters();

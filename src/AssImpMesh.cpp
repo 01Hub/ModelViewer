@@ -335,34 +335,6 @@ void AssImpMesh::setupMesh()
 		}
 	}
 
-	size_t numVertices = _vertices.size();
-	qDebug() << "Mesh name:" << _name;
-	qDebug() << "=== BUFFER LAYOUT DEBUG ===";
-	qDebug() << "Num vertices:" << numVertices;
-	qDebug() << "Num floats in texCoords vector:" << texCoords.size();
-	qDebug() << "Expected (4 sets x 2 floats x numVertices):" << 4 * 2 * numVertices;
-	qDebug() << "First 16 texCoord values:";
-	for (int i = 0; i < std::min(16, (int)texCoords.size()); i++)
-	{
-		qDebug() << "  [" << i << "]:" << texCoords[i];
-	}
-	// output the texture metadata for debugging
-	qDebug() << "=== TEXTURE METADATA DEBUG ===";
-	for (size_t i = 0; i < _textures.size(); i++)
-	{
-		const GLMaterial::Texture& tex = _textures[i];
-		qDebug() << "Texture [" << i << "] Type:" << QString::fromStdString(tex.type)
-			<< " ID:" << tex.id
-			<< " HasAlpha:" << tex.hasAlpha
-			<< " TexCoordIndex:" << tex.texCoordIndex
-			<< " Scale:" << tex.scale.x << "," << tex.scale.y
-			<< " Offset:" << tex.offset.x << "," << tex.offset.y
-			<< " Rotation (radians):" << tex.rotation
-			<< " WrapS:" << tex.wrapS
-			<< " WrapT:" << tex.wrapT;
-
-	}
-
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents);
 	computeBounds();
 }
@@ -1396,6 +1368,46 @@ void AssImpMesh::setTextureMaps(const GLMaterial& material)
 	{
 		_hasClearcoatNormalPBRMap = true;
 		setClearcoatNormalPBRMap(material.clearcoatNormalTextureId());
+	}
+	if (material.hasIridescenceMap())
+	{
+		replaceOrAppendTexture("iridescenceMap", material.iridescenceTextureId(), false);
+	}
+	if (material.hasIridescenceThicknessMap())
+	{
+		replaceOrAppendTexture("iridescenceThicknessMap", material.iridescenceThicknessTextureId(), false);
+	}
+	if (material.hasSpecularFactorMap())
+	{
+		replaceOrAppendTexture("specularFactorMap", material.specularFactorTextureId(), false);
+	}
+	if (material.hasSpecularColorMap())
+	{
+		replaceOrAppendTexture("specularColorMap", material.specularColorTextureId(), false);
+	}
+	if (material.hasAnisotropyMap())
+	{
+		replaceOrAppendTexture("anisotropyMap", material.anisotropyTextureId(), false);
+	}
+	if (material.hasThicknessMap())
+	{
+		replaceOrAppendTexture("thicknessMap", material.thicknessTextureId(), false);
+	}
+	if (material.hasDiffuseMap())
+	{
+		replaceOrAppendTexture("diffuseMap", material.diffuseTextureId(), false);
+	}
+	if (material.hasDiffuseTransmissionMap())
+	{
+		replaceOrAppendTexture("diffuseTransmissionMap", material.diffuseTransmissionTextureId(), false);
+	}
+	if (material.hasDiffuseTransmissionColorMap())
+	{
+		replaceOrAppendTexture("diffuseTransmissionColorMap", material.diffuseTransmissionColorTextureId(), false);
+	}
+	if (material.hasSpecularGlossinessMap())
+	{
+		replaceOrAppendTexture("specularGlossinessMap", material.specularGlossinessTextureId(), false);
 	}
 	if (material.isOpacityMapInverted())
 	{

@@ -39,7 +39,7 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 			return nullptr;
 		}
 
-		qCritical("Failed to read STEP file: %s", e.what());
+		qWarning("Failed to read STEP file: %s", e.what());
 		return nullptr;
 	}
 
@@ -53,7 +53,7 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 
 	if (labels.IsEmpty())
 	{
-		qCritical("No shapes found in STEP file");
+		qWarning("No shapes found in STEP file");
 		return nullptr;
 	}
 
@@ -93,7 +93,7 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 	// Finalize the scene
 	if (scene->mNumMeshes == 0)
 	{
-		qCritical("No meshes were generated during scene creation");
+		qWarning("No meshes were generated during scene creation");
 		delete scene;
 		return nullptr;
 	}

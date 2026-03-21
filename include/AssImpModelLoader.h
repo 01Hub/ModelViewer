@@ -105,6 +105,8 @@ class AssImpModelLoader : public QObject
 	Q_OBJECT
 public:
 	/*  Functions   */
+	using UVDecisionFn = std::function<UVMethod(int totalTriangles, UVMethod currentMethod)>;
+
 	// Constructor, expects a filepath to a 3D model.
 	AssImpModelLoader();
 
@@ -136,6 +138,7 @@ public:
 	void freeScene();
 	void setImageTextureUploader(MaterialProcessor::ImageTextureUploadFn uploader);
 	void setKtx2TextureUploader(MaterialProcessor::Ktx2TextureUploadFn uploader);
+	void setUVDecisionCallback(UVDecisionFn callback) { _uvDecisionCallback = std::move(callback); }
 
 signals:
 	void fileReadProcessed(float percent);
@@ -210,4 +213,5 @@ private:
 
 	// Map from mesh index to primitive mode (from glTF)
 	std::unordered_map<unsigned int, GLenum> _gltfMeshPrimitiveModes;
+	UVDecisionFn _uvDecisionCallback;
 };

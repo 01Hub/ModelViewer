@@ -10,6 +10,7 @@
 #include "AssImpModelLoader.h"
 #include <math.h>
 #include <QColor>
+#include <QEventLoop>
 #include <QFormLayout>
 #include <QImage>
 #include <QOpenGLFunctions_4_5_Core>
@@ -536,8 +537,17 @@ private:
 	AssImpMesh* createMeshFromData(const AssImpMeshData& meshData);
 
 	GLuint createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers);
+	GLuint uploadDecodedTextureImage(const QImage& image, const TextureSamplerSettings& samplers);
+	GLuint uploadKtx2TextureImage(const QString& path, const std::string& mapType, const TextureSamplerSettings& samplers);
 	GLuint uploadDecodedTexture(GLMaterial::Texture& texture, const QImage& image);
 	GLuint uploadKtx2Texture(const QString& path, const std::string& mapType, GLMaterial::Texture& texture);
+	UVMethod promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod);
+	unsigned int getOrCreateTextureCached(const QString& cacheKey,
+		const QImage& image,
+		const TextureSamplerSettings& samplers = TextureSamplerSettings());
+	unsigned int getOrLoadKtx2TextureCached(const QString& path,
+		const std::string& mapType,
+		const TextureSamplerSettings& samplers = TextureSamplerSettings());
 	unsigned int getOrLoadTextureCached(const QString& path,
 		const TextureSamplerSettings& samplers = TextureSamplerSettings());
 	void retainTexture(unsigned int texId);

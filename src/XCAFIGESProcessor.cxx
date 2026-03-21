@@ -48,7 +48,7 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
         {
             return nullptr;
         }
-        qCritical("Failed to read IGES file: %s", path.c_str());
+        qWarning("Failed to read IGES file: %s", path.c_str());
         return nullptr;
     }
     MainWindow::resetProgressBar();

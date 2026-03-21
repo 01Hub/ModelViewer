@@ -486,9 +486,18 @@ bool MaterialProcessor::decodeTextureImage(GLMaterial::Texture& texture,
 	// ===== HANDLE GLB IMAGES =====
 	if (pathStr.startsWith("glb://") && glbBinaryBuffer != nullptr)
 	{
-		// Extract image index from path "glb://image_0"
+		// Support both legacy "glb://image_0" and current "glb://<path>::image_0" forms.
 		bool ok = false;
-		int imageIdx = pathStr.mid(12).toInt(&ok);
+		int imageIdx = -1;
+		int markerIdx = pathStr.lastIndexOf("::image_");
+		if (markerIdx >= 0)
+		{
+			imageIdx = pathStr.mid(markerIdx + 8).toInt(&ok);
+		}
+		else if (pathStr.startsWith("glb://image_"))
+		{
+			imageIdx = pathStr.mid(12).toInt(&ok);
+		}
 
 		if (!ok || imageIdx < 0 || jsonImages == nullptr || imageIdx >= jsonImages->size())
 		{
@@ -612,12 +621,6 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture,
 	const QJsonArray* jsonBufferViews,
 	const QJsonArray* jsonImages)
 {
-	if (!_imageTextureUploader)
-	{
-		qWarning() << "MaterialProcessor::createTextureOnGPU - No image texture uploader configured";
-		return 0;
-	}
-
 	QImage texImage;
 	bool imageHasAlpha = false;
 	if (!decodeTextureImage(texture, texImage, imageHasAlpha, glbBinaryBuffer, jsonBufferViews, jsonImages))
@@ -627,7 +630,14 @@ unsigned int MaterialProcessor::createTextureOnGPU(GLMaterial::Texture& texture,
 
 	texture.hasAlpha = imageHasAlpha;
 	texture.imageData = texImage;
-	texture.id = _imageTextureUploader(texture, texImage);
+	if (_imageTextureUploader)
+	{
+		texture.id = _imageTextureUploader(texture, texImage);
+	}
+	else
+	{
+		texture.id = 0;
+	}
 	return texture.id;
 }
 
@@ -668,7 +678,6 @@ void MaterialProcessor::populateAssimpSceneFromGLBCache(aiScene* scene,
 	// Safety: Check if already synced
 	if (s_glbScenesSynced.contains(glbPath) && s_glbScenesSynced[glbPath])
 	{
-		qDebug() << "MaterialProcessor: GLB scene already synced:" << glbPath;
 		return;
 	}
 
@@ -682,8 +691,6 @@ void MaterialProcessor::populateAssimpSceneFromGLBCache(aiScene* scene,
 	{
 		scene->mTextures[i] = nullptr;
 	}
-
-	qDebug() << "MaterialProcessor: Populating Assimp scene with" << numImages << "tracked GLB images";
 
 	// Iterate through tracked indices and populate textures
 	for (unsigned int i = 0; i < scene->mNumTextures; ++i)
@@ -962,13 +969,11 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 
 			s_glbJsonCache.insert(gltfPath, doc);
 			s_glbBinaryCache.insert(gltfPath, glbBinaryBuffer);
-			qDebug() << "processGltf2CoreAndExtensions: Cached GLB JSON + binary for:" << gltfPath;
 		}
 		else
 		{
 			doc = s_glbJsonCache.value(gltfPath);
 			glbBinaryBuffer = s_glbBinaryCache.value(gltfPath);
-			qDebug() << "processGltf2CoreAndExtensions: Using cached GLB JSON + binary for:" << gltfPath;
 		}
 
 		// === PRE-LOAD GLB IMAGES INTO GPU - ONLY ONCE PER FILE ===
@@ -1085,33 +1090,27 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					tex.minFilter = minFilter;
 
 					tex.imageData = qImg;
-					if (!_imageTextureUploader)
+					unsigned int textureID = 0;
+					if (_imageTextureUploader)
 					{
-						qWarning() << "processGltf2CoreAndExtensions: No image texture uploader configured for pre-loaded GLB image";
-						continue;
+						textureID = _imageTextureUploader(tex, qImg);
 					}
 
-					unsigned int textureID = _imageTextureUploader(tex, qImg);
-					if (textureID == 0)
+					if (_imageTextureUploader && textureID == 0)
 					{
 						qWarning() << "processGltf2CoreAndExtensions: Failed to upload pre-loaded GLB image" << imgIdx;
 						continue;
 					}
 
+					tex.id = textureID;
+
 					// Store in global cache - loadAndAddTexture will find it
 					_loadedTextures.push_back(tex);
 					s_glbImageIndices[gltfPath].push_back(_loadedTextures.size() - 1);
-
-					qDebug() << "processGltf2CoreAndExtensions: Pre-loaded GLB image" << imgIdx << "GPU textureID" << textureID;
 				}
 			}
 
 			s_glbImagesLoaded.insert(gltfPath, true);
-			qDebug() << "processGltf2CoreAndExtensions: First time loading GLB images to GPU:" << gltfPath;
-		}
-		else
-		{
-			qDebug() << "processGltf2CoreAndExtensions: Skipping GLB image reloading, using _loadedTextures cache:" << gltfPath;
 		}
 	}
 	else  // isGLTF
@@ -1435,6 +1434,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 						alias.type = textureType;            // New type name
 						alias.path = lt.path;                // Same path
 						alias.hasAlpha = lt.hasAlpha;        // Same alpha info
+						alias.imageData = lt.imageData;      // Preserve decoded image for deferred UI-thread upload
 
 						// Use the NEW UV transform metadata
 						alias.texCoordIndex = newTexture.texCoordIndex;
@@ -1464,20 +1464,16 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 
 			if (texturePath.endsWith(".ktx2", Qt::CaseInsensitive))
 			{
-				if (!_ktx2TextureUploader)
+				if (_ktx2TextureUploader)
 				{
-					qWarning() << "No KTX2 texture uploader configured for:" << texturePath;
-					return false;
-				}
+					texID = _ktx2TextureUploader(QString::fromStdString(textureFilePathStd), mapType, newTexture);
+					if (texID == 0)
+					{
+						qWarning() << "Failed to load KTX2 file:" << texturePath;
+						return false;
+					}
 
-				texID = _ktx2TextureUploader(QString::fromStdString(textureFilePathStd), mapType, newTexture);
-				if (texID == 0)
-				{
-					qWarning() << "Failed to load KTX2 file:" << texturePath;
-					return false;
 				}
-
-				qDebug() << "KTX2 texture loaded, GPU ID:" << texID;
 			}
 			else
 			{
@@ -1487,10 +1483,10 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					isGLB ? &glbBinaryBuffer : nullptr,
 					isGLB ? &jsonBufferViews : nullptr,
 					isGLB ? &jsonImages : nullptr);
-				if (texID == 0) return false;
+				if (texID == 0 && newTexture.imageData.isNull()) return false;
 			}
 
-			// If createTextureOnGPU didn't set newTexture.id, set from returned texID
+			// If createTextureOnGPU didn't set newTexture.id, keep CPU-only payload and let UI finalize later.
 			newTexture.id = texID;
 
 			// Add to both vectors
@@ -1501,7 +1497,6 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			if (texturePath.startsWith("data:"))
 			{
 				s_glbImageIndices[gltfPath].push_back(_loadedTextures.size() - 1);
-				qDebug() << "Tracked embedded image for" << gltfPath;
 			}
 
 			return true;
@@ -2015,13 +2010,6 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 				appliedAny = true;
 			}
 		}
-
-		qDebug() << "Loaded" << outTextures.size() << "textures total";
-		for (const auto& t : outTextures)
-		{
-			qDebug() << "  Texture type:" << t.type.c_str() << "path:" << t.path.c_str();
-		}
-
 
 		return appliedAny;
 		};
@@ -3622,6 +3610,7 @@ void MaterialProcessor::addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial
 					alias.type = type;                // new type
 					alias.path = lt.path;             // same path
 					alias.hasAlpha = lt.hasAlpha;     // same alpha info
+					alias.imageData = lt.imageData;   // preserve decoded image for deferred UI-thread upload
 
 					// use candidate's UV metadata
 					alias.texCoordIndex = candidate.texCoordIndex;
@@ -3658,7 +3647,11 @@ void MaterialProcessor::addExtensionMaps(GLMaterial& mat, std::vector<GLMaterial
 				}
 			}
 
-			createTextureOnGPU(candidate);
+			unsigned int candidateTextureId = createTextureOnGPU(candidate);
+			if (candidateTextureId == 0 && candidate.imageData.isNull())
+			{
+				return false;
+			}
 
 			// push and cache
 			textures.push_back(candidate);
@@ -3870,6 +3863,7 @@ std::vector<GLMaterial::Texture> MaterialProcessor::loadMaterialTextures(
 			alias.type = typeName;               // New type name
 			alias.path = lt.path;                // Same path
 			alias.hasAlpha = lt.hasAlpha;        // Same alpha info
+			alias.imageData = lt.imageData;      // Preserve decoded image for deferred UI-thread upload
 
 			// Use the NEW UV transform metadata (from newTexture)
 			alias.texCoordIndex = newTexture.texCoordIndex;
@@ -3890,7 +3884,11 @@ std::vector<GLMaterial::Texture> MaterialProcessor::loadMaterialTextures(
 	}
 
 	// Check 3: Not loaded at all - load from file	
-	createTextureOnGPU(newTexture);
+	unsigned int newTextureId = createTextureOnGPU(newTexture);
+	if (newTextureId == 0 && newTexture.imageData.isNull())
+	{
+		return textures;
+	}
 
 	textures.push_back(newTexture);
 	_loadedTextures.push_back(newTexture);
@@ -3969,6 +3967,7 @@ void MaterialProcessor::synthesizeADSAliases(std::vector<GLMaterial::Texture>& t
 				alias.rotation = tex.rotation;
 				alias.texCoordIndex = tex.texCoordIndex;
 				alias.hasAlpha = tex.hasAlpha;
+				alias.imageData = tex.imageData;
 
 				alias.wrapS = tex.wrapS;
 				alias.wrapT = tex.wrapT;

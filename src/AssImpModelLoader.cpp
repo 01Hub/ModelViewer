@@ -139,11 +139,13 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			_loadingCancelled = true;
 			_errorMessage = "Model loading cancelled by user.";
 			emit loadingCancelled();
+			emit loadingFinished(false, nullptr);
 			return;
 		}
 
 		_errorMessage = _importer.GetErrorString();
 		cout << "ERROR::ASSIMP:: " << _importer.GetErrorString() << endl;
+		emit loadingFinished(false, nullptr);
 		return;
 	}
 
@@ -154,6 +156,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		_loadingCancelled = true;
 		_errorMessage = "Model loading cancelled by user.";
 		emit loadingCancelled();
+		emit loadingFinished(false, nullptr);
 		return;
 	}
 
@@ -172,6 +175,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		_loadingCancelled = true;
 		_errorMessage = "Model loading cancelled by user.";
 		emit loadingCancelled();
+		emit loadingFinished(false, nullptr);
 		return;
 	}
 
@@ -183,6 +187,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		_loadingCancelled = true;
 		_errorMessage = "Model loading cancelled by user.";
 		emit loadingCancelled();
+		emit loadingFinished(false, nullptr);
 		return;
 	}
 
@@ -203,6 +208,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			_loadingCancelled = true;
 			_errorMessage = "Model loading cancelled by user.";
 			emit loadingCancelled();
+			emit loadingFinished(false, nullptr);
 			return;
 		}
 
@@ -210,30 +216,37 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		bool remember = settings.value("RememberUVMethod", false).toBool();		
 		if (_sceneStats.totalTriangles > 100000 && _selectedUVMethod == UVMethod::AngleBasedSmartUV && remember)
 		{
-			QMessageBox msgBox;
-			msgBox.setWindowTitle(tr("Performance Warning!"));
-			msgBox.setText(tr("The model contains more than 100000 triangles and the current method of UV generation is \"Smart UV\" which is time consuming.\nDo you want to continue generating the UV?"));
-			msgBox.setIcon(QMessageBox::Question);
-
-			// Add custom buttons
-			QPushButton* yesButton = msgBox.addButton(QMessageBox::Yes);
-			QPushButton* noButton = msgBox.addButton(QMessageBox::No);
-			QPushButton* changeSettingsButton = msgBox.addButton(tr("Change Settings"), QMessageBox::ActionRole);
-
-			// Set default button
-			msgBox.setDefaultButton(QMessageBox::Yes);
-
-			// Execute and check result
-			msgBox.exec();
-
-			if (msgBox.clickedButton() == noButton)
-			{				
-				qDebug() << "User chose not to generate UVs, using None method.";
-				_selectedUVMethod = UVMethod::None;
+			if (_uvDecisionCallback)
+			{
+				_selectedUVMethod = _uvDecisionCallback(_sceneStats.totalTriangles, _selectedUVMethod);
 			}
-			else if (msgBox.clickedButton() == changeSettingsButton)
-			{				
-				_selectedUVMethod = ModelViewer::askUserForUVMethod(qApp->activeWindow()).method;
+			else
+			{
+				QMessageBox msgBox;
+				msgBox.setWindowTitle(tr("Performance Warning!"));
+				msgBox.setText(tr("The model contains more than 100000 triangles and the current method of UV generation is \"Smart UV\" which is time consuming.\nDo you want to continue generating the UV?"));
+				msgBox.setIcon(QMessageBox::Question);
+
+				// Add custom buttons
+				QPushButton* yesButton = msgBox.addButton(QMessageBox::Yes);
+				QPushButton* noButton = msgBox.addButton(QMessageBox::No);
+				QPushButton* changeSettingsButton = msgBox.addButton(tr("Change Settings"), QMessageBox::ActionRole);
+
+				// Set default button
+				msgBox.setDefaultButton(QMessageBox::Yes);
+
+				// Execute and check result
+				msgBox.exec();
+
+				if (msgBox.clickedButton() == noButton)
+				{				
+					qDebug() << "User chose not to generate UVs, using None method.";
+					_selectedUVMethod = UVMethod::None;
+				}
+				else if (msgBox.clickedButton() == changeSettingsButton)
+				{				
+					_selectedUVMethod = ModelViewer::askUserForUVMethod(qApp->activeWindow()).method;
+				}
 			}
 		}			
 	}
@@ -254,11 +267,20 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		_loadingCancelled = true;
 		_errorMessage = "Model loading cancelled by user.";
 		emit loadingCancelled();
+		emit loadingFinished(false, nullptr);
 		return;
 	}
 
 	// Process ASSIMP's root node recursively	
 	this->processNode(0, _scene->mRootNode, _scene, aiMatrix4x4());
+
+	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+	{
+		_loadingCancelled = true;
+		_errorMessage = "Model loading cancelled by user.";
+		emit loadingFinished(false, _scene);
+		return;
+	}
 	
 	// Flush any remaining meshes in batch
 	if (!_currentBatch.empty())
@@ -266,9 +288,6 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		emit meshBatchReady(std::move(_currentBatch));
 		_currentBatch.clear();
 	}
-
-	if (_progressiveLoading)
-		emit loadingFinished(true, _scene);
 
 	// === Parse KHR_lights_punctual extension ===
 	std::vector<GPULight> parsedLights;
@@ -305,11 +324,11 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			light.range *= avgScale;
 		}
 
-		qDebug() << "Transformed" << parsedLights.size() << "punctual lights";
 	}
 
 	// Emit lights for GLWidget to handle
 	emit lightsLoaded(parsedLights);
+	emit loadingFinished(true, _scene);
 }
 
 

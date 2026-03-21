@@ -4,6 +4,7 @@
 #include <glm/gtc/constants.hpp>
 #include <vector>
 #include <QOpenGLFunctions_4_5_Core>
+#include <QMetaType>
 
 enum class LightType
 {
@@ -28,6 +29,9 @@ struct GPULight
 
     glm::vec2 padding;        // 8 bytes (std140 alignment)
 };
+
+Q_DECLARE_METATYPE(GPULight)
+Q_DECLARE_METATYPE(std::vector<GPULight>)
 
 class GLLights : public QOpenGLFunctions_4_5_Core
 {

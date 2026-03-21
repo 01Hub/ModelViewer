@@ -256,13 +256,34 @@ QPushButton* MainWindow::cancelTaskButton()
 
 void MainWindow::showStatusMessage(const QString& message, int timeout)
 {
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, [message, timeout]() {
+			MainWindow::showStatusMessage(message, timeout);
+		}, Qt::QueuedConnection);
+		return;
+	}
 	_mainWindow->statusBar()->showMessage(message, timeout);
 	_mainWindow->statusBar()->update();
-	qApp->processEvents();
 }
 
 void MainWindow::showProgressBar(const bool showCancelButton)
 {
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, [showCancelButton]() {
+			MainWindow::showProgressBar(showCancelButton);
+		}, Qt::QueuedConnection);
+		return;
+	}
 	_fileLoadCancelRequested = false;
 	_mainWindow->_progressBar->show();
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
@@ -278,6 +299,17 @@ void MainWindow::showProgressBar(const bool showCancelButton)
 
 void MainWindow::showIndeterminateProgressBar()
 {
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, []() {
+			MainWindow::showIndeterminateProgressBar();
+		}, Qt::QueuedConnection);
+		return;
+	}
 	_fileLoadCancelRequested = false;
 	_mainWindow->_progressBar->setRange(0, 0);
 	_mainWindow->_progressBar->show();	
@@ -291,12 +323,34 @@ void MainWindow::showIndeterminateProgressBar()
 
 void MainWindow::resetProgressBar()
 {
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, []() {
+			MainWindow::resetProgressBar();
+		}, Qt::QueuedConnection);
+		return;
+	}
 	_mainWindow->_progressBar->reset();
 	_mainWindow->_progressBar->setRange(0, 100);	
 }
 
 void MainWindow::hideProgressBar()
 {
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, []() {
+			MainWindow::hideProgressBar();
+		}, Qt::QueuedConnection);
+		return;
+	}
 	_mainWindow->_progressBar->hide();
 #if defined _WIN32 && QT_VERSION_MAJOR == 5
 	_mainWindow->_windowsTaskbarProgress->hide();
@@ -309,6 +363,17 @@ void MainWindow::hideProgressBar()
 
 void MainWindow::setProgressValue(const int& value)
 {
+	if (!_mainWindow)
+	{
+		return;
+	}
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, [value]() {
+			MainWindow::setProgressValue(value);
+		}, Qt::QueuedConnection);
+		return;
+	}
 	if (value == 0)
 	{
 		_mainWindow->_progressBar->reset();
@@ -324,7 +389,6 @@ void MainWindow::setProgressValue(const int& value)
 #endif 
 	}
 	_mainWindow->_progressBar->update();
-	qApp->processEvents();
 }
 
 void MainWindow::setCancelButtonEnabled(bool enabled)
