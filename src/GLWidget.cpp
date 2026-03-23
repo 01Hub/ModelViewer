@@ -6,6 +6,7 @@
 #include "LanguageManager.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
+#include "SceneTreeWidget.h"
 #include "ModelViewerApplication.h"
 #include "PathUtils.h"
 #include "Plane.h"
@@ -2225,9 +2226,10 @@ void GLWidget::deselect(int id)
 
 bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
 {
-	_progressiveLoadingEnabled = progressiveLoading;	
+	_progressiveLoadingEnabled = progressiveLoading;
 	_cancelRequested = false;
 	_loadCancelled = false;
+	_pendingSceneUuids.clear();
 	MainWindow::clearFileLoadCancel();
 	bool success = false;
 
@@ -2397,6 +2399,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 				{
 					AssImpMesh* mesh = createMeshFromData(meshData);
 					addToDisplay(mesh);
+					_pendingSceneUuids.append(mesh->uuid());
 				}
 			}
 		}
@@ -2405,8 +2408,44 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 		_globalSceneTransform = loadingWorker->getGlobalSceneTransform();
 		if (_assimpScene)
 		{
+			// Populate the SceneGraph before the scene is deep-copied and merged,
+			// while the original aiNode* tree is still intact and unmodified.
+			if (success && !_pendingSceneUuids.isEmpty())
+			{
+				_viewer->sceneGraph()->appendFromScene(
+					_assimpScene, fileName, _pendingSceneUuids);
+			}
+			_pendingSceneUuids.clear();
+
+			// Record how many meshes were in _globalScene BEFORE merging.
+			// Each newly loaded TriangleMesh has a sceneIndex relative to its
+			// own per-model aiScene (0-based).  After mergeScene() appends the
+			// new model's meshes starting at oldMeshCount, those per-model
+			// indices become stale.  We fix them up here so that every
+			// TriangleMesh in _meshStore always holds its correct position in
+			// _globalScene->mMeshes[], which syncSceneToMeshStore() relies on.
+			const unsigned int oldMeshCount =
+				_globalScene ? _globalScene->mNumMeshes : 0u;
+
 			aiScene* copiedScene = SceneUtils::deepCopyScene(_assimpScene);
 			SceneUtils::mergeScene(&_globalScene, copiedScene);
+
+			// Offset the sceneIndices of the meshes that were just added.
+			// They are the last meshes.size() entries in _meshStore because
+			// addToDisplay() always appends.
+			if (oldMeshCount > 0 && !meshes.empty())
+			{
+				const int newCount = static_cast<int>(meshes.size());
+				const int storeSize = static_cast<int>(_meshStore.size());
+				const int firstNew  = storeSize - newCount;
+				for (int i = firstNew; i < storeSize; ++i)
+				{
+					TriangleMesh* tm = _meshStore[i];
+					if (tm && tm->getSceneIndex() >= 0)
+						tm->setSceneIndex(
+							static_cast<int>(oldMeshCount) + tm->getSceneIndex());
+				}
+			}
 		}
 		_assimpScene = nullptr;
 
@@ -6169,6 +6208,7 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 	auto* mesh = new AssImpMesh(_fgShader.get(), meshData.name, meshData.vertices, meshData.indices, textures, resolvedMaterial);
 	mesh->setHasNegativeScale(meshData.hasNegativeScale);
 	mesh->setPrimitiveMode(meshData.primitiveMode);
+	mesh->setSceneIndex(meshData.sceneIndex);
 	if (_progressiveLoadingEnabled)
 	{
 		GLMaterial progressiveResolved = resolveMaterialTextures(this, mesh->getMaterial());
@@ -6184,8 +6224,9 @@ void GLWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 	for (const AssImpMeshData& meshData : batch)
 	{
 		AssImpMesh* mesh = createMeshFromData(meshData);
-		addToDisplay(mesh);				
-	}	
+		addToDisplay(mesh);
+		_pendingSceneUuids.append(mesh->uuid());
+	}
 	_viewer->updateDisplayList();
 }
 
@@ -8679,15 +8720,18 @@ void GLWidget::showContextMenu(const QPoint& pos)
 	{
 		// Create menu and insert some actions
 		QMenu contextMenu;
-		QListWidget* listWidgetModel = _viewer->getListModel();
-		if (listWidgetModel->selectedItems().count() != 0 &&
+		SceneTreeWidget* treeWidgetModel = _viewer->getTreeModel();
+		if (treeWidgetModel->hasMeshSelection() &&
 			(_visibleSwapped ? _hiddenObjectsIds.size() != 0 : _displayedObjectsIds.size() != 0))
 		{
 			contextMenu.addAction(tr("Center Screen"), _viewer, &ModelViewer::centerScreen);
-			QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
-			if (selectedItems.count() <= 1 && selectedItems.at(0)->checkState() == Qt::Checked)
+			QList<QUuid> selUuids = treeWidgetModel->selectedMeshUuids();
+			if (selUuids.count() <= 1)
 			{
-				contextMenu.addAction(tr("Center Object List"), this, &GLWidget::centerDisplayList);
+				// Show "Center Object List" only when the selected mesh is visible
+				QSet<QUuid> visibleUuids = treeWidgetModel->getVisibleUuids();
+				if (selUuids.isEmpty() || visibleUuids.contains(selUuids.first()))
+					contextMenu.addAction(tr("Center Object List"), this, &GLWidget::centerDisplayList);
 			}
 			contextMenu.addSeparator();
 			if (_visibleSwapped)
@@ -8780,10 +8824,14 @@ void GLWidget::showContextMenu(const QPoint& pos)
 
 void GLWidget::centerDisplayList()
 {
-	QListWidget* listWidgetModel = _viewer->getListModel();
-	if (listWidgetModel)
+	SceneTreeWidget* treeWidgetModel = _viewer->getTreeModel();
+	if (treeWidgetModel && treeWidgetModel->hasMeshSelection())
 	{
-		listWidgetModel->scrollToItem(listWidgetModel->selectedItems().at(0));
+		// Scroll to the first selected leaf item
+		QList<QTreeWidgetItem*> sel = treeWidgetModel->selectedItems();
+		if (!sel.isEmpty())
+			treeWidgetModel->scrollToItem(sel.first(),
+			                              QAbstractItemView::PositionAtCenter);
 	}
 }
 

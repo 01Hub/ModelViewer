@@ -10,6 +10,9 @@
 #include <set>
 #include <map>
 
+#include <assimp/Importer.hpp>
+#include <assimp/scene.h>
+
 TextureLocationManager::TextureLocationManager()
 {
 }
@@ -23,6 +26,45 @@ TextureMetadata TextureLocationManager::resolveTexture(const QString& path,
     if (path.isEmpty())
     {
         return meta;  // Return empty metadata for empty path
+    }
+
+    // Step 0: Handle "glb://filepath::image_N" embedded-texture URIs.
+    // These are not real disk paths — the texture lives inside a GLB binary.
+    // Extract it to a session-scoped temp file on first access and cache the result.
+    if (path.startsWith("glb://") && path.contains("::"))
+    {
+        // Parse  "glb://D:/path/model.glb::image_3"
+        //         ^^^^^^ scheme  ^^^^^^^^ filepath  ^^^^^^^ image name
+        const QString afterScheme = path.mid(6);           // strip "glb://"
+        const int sepPos          = afterScheme.lastIndexOf("::");
+        const QString glbFilePath = afterScheme.left(sepPos);
+        const QString imageName   = afterScheme.mid(sepPos + 2); // e.g. "image_3"
+
+        // Extract the numeric index from "image_N"
+        int imageIndex = -1;
+        const int underPos = imageName.lastIndexOf('_');
+        if (underPos >= 0)
+        {
+            bool ok = false;
+            imageIndex = imageName.mid(underPos + 1).toInt(&ok);
+            if (!ok) imageIndex = -1;
+        }
+
+        if (imageIndex >= 0 && QFile::exists(glbFilePath))
+        {
+            QString tempPath;
+            if (extractGlbEmbeddedTexture(glbFilePath, imageIndex, tempPath))
+            {
+                meta.resolvedPath = tempPath;
+                meta.fileSize     = static_cast<uint64_t>(QFileInfo(tempPath).size());
+                meta.hash         = hashFile(tempPath);
+                return meta;
+            }
+        }
+
+        // Could not resolve — return empty metadata
+        qWarning() << "[TextureLocationManager] Could not extract embedded texture:" << path;
+        return meta;
     }
 
     // Step 1: Try path as provided
@@ -271,4 +313,103 @@ QString TextureLocationManager::generateUniqueFilename(
     qCritical() << "[TextureLocationManager] Cannot generate unique filename after 100000 attempts:"
         << originalFilename;
     return originalFilename + ".collision";
+}
+
+bool TextureLocationManager::extractGlbEmbeddedTexture(
+    const QString& glbFilePath,
+    int            imageIndex,
+    QString&       outTempPath)
+{
+    // Check the per-instance cache first
+    const QString cacheKey = glbFilePath + "::" + QString::number(imageIndex);
+    auto it = _glbEmbeddedCache.find(cacheKey);
+    if (it != _glbEmbeddedCache.end())
+    {
+        if (QFile::exists(it.value()))
+        {
+            outTempPath = it.value();
+            return true;
+        }
+        // Cached path was cleaned up — fall through and re-extract
+        _glbEmbeddedCache.erase(it);
+    }
+
+    // Load the source GLB with Assimp (no post-processing — we only need mTextures[])
+    Assimp::Importer importer;
+    const aiScene* scene = importer.ReadFile(glbFilePath.toStdString(), 0u);
+    if (!scene)
+    {
+        qWarning() << "[TextureLocationManager] Assimp failed to open for texture extraction:"
+                   << glbFilePath
+                   << QString::fromLocal8Bit(importer.GetErrorString());
+        return false;
+    }
+
+    if (imageIndex >= static_cast<int>(scene->mNumTextures))
+    {
+        qWarning() << "[TextureLocationManager] Image index" << imageIndex
+                   << "out of range (file has" << scene->mNumTextures
+                   << "embedded textures):" << glbFilePath;
+        return false;
+    }
+
+    const aiTexture* tex = scene->mTextures[imageIndex];
+    if (!tex)
+    {
+        qWarning() << "[TextureLocationManager] Null texture at index" << imageIndex
+                   << "in:" << glbFilePath;
+        return false;
+    }
+
+    // Build a deterministic temp file path using the source filename and index
+    const QString baseName = QFileInfo(glbFilePath).baseName();
+    QString format = QString::fromLocal8Bit(tex->achFormatHint);
+    if (format.isEmpty()) format = "png";
+    const QString tempDir  = QDir::tempPath() + "/ModelViewer_glb_cache";
+    QDir().mkpath(tempDir);
+    const QString tempFile = tempDir + "/" + baseName
+                             + "_image_" + QString::number(imageIndex)
+                             + "." + format;
+
+    if (!QFile::exists(tempFile))
+    {
+        QFile out(tempFile);
+        if (!out.open(QIODevice::WriteOnly))
+        {
+            qWarning() << "[TextureLocationManager] Cannot write temp texture:" << tempFile;
+            return false;
+        }
+
+        if (tex->mHeight == 0)
+        {
+            // Compressed blob — write raw bytes
+            out.write(reinterpret_cast<const char*>(tex->pcData),
+                      static_cast<qint64>(tex->mWidth));
+        }
+        else
+        {
+            // Uncompressed RGBA — encode as PNG
+            out.close();
+            QImage img(
+                reinterpret_cast<const uchar*>(tex->pcData),
+                static_cast<int>(tex->mWidth),
+                static_cast<int>(tex->mHeight),
+                static_cast<int>(tex->mWidth) * 4,
+                QImage::Format_RGBA8888);
+            if (!img.save(tempFile, "PNG"))
+            {
+                qWarning() << "[TextureLocationManager] Failed to save RGBA texture:" << tempFile;
+                QFile::remove(tempFile);
+                return false;
+            }
+        }
+
+        if (out.isOpen()) out.close();
+        qDebug() << "[TextureLocationManager] Extracted GLB embedded texture:"
+                 << glbFilePath << "image" << imageIndex << "->" << tempFile;
+    }
+
+    _glbEmbeddedCache[cacheKey] = tempFile;
+    outTempPath = tempFile;
+    return true;
 }

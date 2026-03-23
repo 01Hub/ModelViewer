@@ -407,6 +407,34 @@ aiReturn AssImpMeshExporter::exportScene(
             }
         }
 
+        // Add normalised-path aliases so the GltfPostProcessor's normalisedGlbPath()
+        // lookups ("glb://image_N") find the same entries as the full-path keys
+        // ("glb://D:/path/model.glb::image_N") that packageTextures stored.
+        // Without this, findOrCreateTexture() misses existing embedded textures and
+        // creates duplicate URI-based image entries pointing to temp files.
+        {
+            QList<QPair<QString, QString>> aliases;
+            for (auto it = _lastTexturePackage.pathMapping.constBegin();
+                 it != _lastTexturePackage.pathMapping.constEnd(); ++it)
+            {
+                const QString normKey = GltfPostProcessor::normalisedGlbPath(it.key());
+                if (normKey != it.key() &&
+                    !_lastTexturePackage.pathMapping.contains(normKey))
+                {
+                    aliases.append({normKey, it.value()});
+                }
+            }
+            for (const auto& p : aliases)
+            {
+                _lastTexturePackage.pathMapping[p.first] = p.second;
+                qDebug() << "[AssImpMeshExporter] Added normalised path alias:"
+                         << p.first << "->" << p.second;
+            }
+            if (!aliases.isEmpty())
+                logMessage(QString("  -> Added %1 normalised-path alias(es) for GLB embedded textures")
+                               .arg(aliases.size()));
+        }
+
         logMessage(QString("  -> Total texture mappings: %1").arg(_lastTexturePackage.pathMapping.size()));
 
         logMessage(QString("  -> Packaged %1 unique textures")
@@ -428,12 +456,32 @@ aiReturn AssImpMeshExporter::exportScene(
         logMessage("Step 1: Texture copying disabled");
     }
 
-    // ===== STEP 2: Apply materials to scene =====
-    logMessage("Step 2: Applying materials to scene...");
-    applyMaterialsToScene(scene, meshes, QString::fromStdString(exportPath));
+    // ===== STEP 2: Sync scene mesh count to surviving _meshStore entries =====
+    // _globalScene is never updated when the user deletes meshes, so the deep
+    // copy may contain stale aiMesh/aiNode entries.  Prune them here so that
+    // scene->mMeshes and the meshes vector are in 1-to-1 correspondence before
+    // applyMaterialsToScene() rebuilds the material array.
+    logMessage("Step 2: Syncing scene to mesh store...");
+    syncSceneToMeshStore(scene, meshes);
 
-    // ===== STEP 3: Embed textures in scene (CRITICAL FOR GLB) =====
-    logMessage("Step 3: Embedding textures in scene...");
+    // ===== STEP 3: Apply materials to scene =====
+    // syncSceneToMeshStore produces scene->mMeshes[] in ASCENDING sceneIndex order.
+    // _meshStore (and therefore `meshes`) is in traversal order, which may differ.
+    // Sort a local copy by sceneIndex so the positional assignment in
+    // applyMaterialsToScene correctly pairs each TriangleMesh with its aiMesh.
+    logMessage("Step 3: Applying materials to scene...");
+    {
+        std::vector<TriangleMesh*> sortedMeshes = meshes;
+        std::stable_sort(sortedMeshes.begin(), sortedMeshes.end(),
+            [](const TriangleMesh* a, const TriangleMesh* b)
+            {
+                return a->getSceneIndex() < b->getSceneIndex();
+            });
+        applyMaterialsToScene(scene, sortedMeshes, QString::fromStdString(exportPath));
+    }
+
+    // ===== STEP 4: Embed textures in scene (CRITICAL FOR GLB) =====
+    logMessage("Step 4: Embedding textures in scene...");
 
     QStringList embeddedTextureNames;
     // Only embed for GLB export (ext already determined in STEP 1)
@@ -446,8 +494,8 @@ aiReturn AssImpMeshExporter::exportScene(
         logMessage("  -> Skipping texture embedding for non-binary format");
     }
 
-    // ===== STEP 4: Export =====
-    logMessage("Step 4: Exporting scene...");
+    // ===== STEP 5: Export =====
+    logMessage("Step 5: Exporting scene...");
 
     Assimp::Exporter exporter;
     const aiExportFormatDesc* format = findExportFormat(exportPath, exporter);
@@ -494,8 +542,8 @@ aiReturn AssImpMeshExporter::exportScene(
         patchGlbImageNames(exportFilePath, embeddedTextureNames, scene,
             _lastTexturePackage.textureDirectory);
 
-    // ===== STEP 5: Post-process glTF/GLB to add missing optional properties and write transforms =====
-    logMessage("Step 5: Post-processing exported file with material transforms...");
+    // ===== STEP 6: Post-process glTF/GLB to add missing optional properties and write transforms =====
+    logMessage("Step 6: Post-processing exported file with material transforms...");
 
     auto logCallback = [this](const QString& msg) {
         logMessage(msg);
@@ -1614,7 +1662,13 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             continue;
 
         QString originalPath = QString::fromStdString(tex.path);
-        auto it = texturePackage.pathMapping.find(GltfPostProcessor::normalisedGlbPath(originalPath));
+
+        // Look up with the original path first (handles full "glb://filepath::image_N"
+        // URIs that packageTextures stores verbatim).  Fall back to the normalised form
+        // "glb://image_N" for any legacy entries injected by extractEmbeddedTextures.
+        auto it = texturePackage.pathMapping.find(originalPath);
+        if (it == texturePackage.pathMapping.end())
+            it = texturePackage.pathMapping.find(GltfPostProcessor::normalisedGlbPath(originalPath));
 
         if (it == texturePackage.pathMapping.end())
         {
@@ -1659,7 +1713,9 @@ void AssImpMeshExporter::assignTexturesToMaterial(
     if (isGLTF && hasMetallicRoughness)
     {
         QString originalPath = QString::fromStdString(metallicRoughnessPath);
-        auto it = texturePackage.pathMapping.find(GltfPostProcessor::normalisedGlbPath(originalPath));
+        auto it = texturePackage.pathMapping.find(originalPath);
+        if (it == texturePackage.pathMapping.end())
+            it = texturePackage.pathMapping.find(GltfPostProcessor::normalisedGlbPath(originalPath));
 
         if (it != texturePackage.pathMapping.end())
         {
@@ -1707,6 +1763,96 @@ void AssImpMeshExporter::assignTexturesToMaterial(
  * @param scene The Assimp scene whose materials will be updated
  * @param meshes The original ModelViewer mesh objects
  */
+void AssImpMeshExporter::syncSceneToMeshStore(
+    aiScene* scene,
+    const std::vector<TriangleMesh*>& meshes)
+{
+    if (!scene || !scene->mRootNode || meshes.empty())
+        return;
+
+    // Nothing to do if counts already match
+    if (scene->mNumMeshes == static_cast<unsigned int>(meshes.size()))
+        return;
+
+    logMessage(QString("syncSceneToMeshStore: scene has %1 meshes, meshStore has %2 — pruning stale entries")
+        .arg(scene->mNumMeshes).arg(meshes.size()));
+
+    // Build the set of original aiScene mesh indices that are still alive in _meshStore.
+    // Each TriangleMesh carries the index it was assigned at load time via setSceneIndex(),
+    // so this is an exact, name-independent match.
+    QSet<int> survivingSceneIndices;
+    for (const TriangleMesh* m : meshes)
+    {
+        int idx = m->getSceneIndex();
+        if (idx >= 0)
+            survivingSceneIndices.insert(idx);
+    }
+
+    // Build old-index → new-index map (-1 means the mesh was deleted)
+    std::vector<int> oldToNew(scene->mNumMeshes, -1);
+    std::vector<aiMesh*> keptMeshes;
+    keptMeshes.reserve(meshes.size());
+
+    for (unsigned int i = 0; i < scene->mNumMeshes; ++i)
+    {
+        aiMesh* m = scene->mMeshes[i];
+        if (m && survivingSceneIndices.contains(static_cast<int>(i)))
+        {
+            oldToNew[i] = static_cast<int>(keptMeshes.size());
+            keptMeshes.push_back(m);
+        }
+        else
+        {
+            // Free the stale aiMesh — it was deep-copied so we own it
+            delete m;
+            scene->mMeshes[i] = nullptr;
+        }
+    }
+
+    // Replace the mesh array with the pruned one
+    delete[] scene->mMeshes;
+    scene->mNumMeshes = static_cast<unsigned int>(keptMeshes.size());
+    scene->mMeshes = new aiMesh*[scene->mNumMeshes];
+    std::copy(keptMeshes.begin(), keptMeshes.end(), scene->mMeshes);
+
+    // Remap mesh index references in every aiNode, dropping deleted indices
+    std::function<void(aiNode*)> remapNode = [&](aiNode* node)
+    {
+        if (!node)
+            return;
+
+        std::vector<unsigned int> remapped;
+        remapped.reserve(node->mNumMeshes);
+
+        for (unsigned int i = 0; i < node->mNumMeshes; ++i)
+        {
+            unsigned int oldIdx = node->mMeshes[i];
+            if (oldIdx < oldToNew.size() && oldToNew[oldIdx] >= 0)
+                remapped.push_back(static_cast<unsigned int>(oldToNew[oldIdx]));
+            // else: index belonged to a deleted mesh — drop it silently
+        }
+
+        delete[] node->mMeshes;
+        node->mNumMeshes = static_cast<unsigned int>(remapped.size());
+        if (!remapped.empty())
+        {
+            node->mMeshes = new unsigned int[node->mNumMeshes];
+            std::copy(remapped.begin(), remapped.end(), node->mMeshes);
+        }
+        else
+        {
+            node->mMeshes = nullptr;
+        }
+
+        for (unsigned int c = 0; c < node->mNumChildren; ++c)
+            remapNode(node->mChildren[c]);
+    };
+
+    remapNode(scene->mRootNode);
+
+    logMessage(QString("syncSceneToMeshStore: pruned to %1 meshes").arg(scene->mNumMeshes));
+}
+
 void AssImpMeshExporter::applyMaterialsToScene(
     aiScene* scene,
     const std::vector<TriangleMesh*>& meshes,

@@ -1,6 +1,7 @@
 #include "DeleteMeshCommand.h"
 #include "GLWidget.h"
 #include "ModelViewer.h"
+#include "SceneGraph.h"
 
 DeleteMeshCommand::DeleteMeshCommand(ModelViewer* viewer,
     GLWidget* glWidget,
@@ -20,9 +21,11 @@ DeleteMeshCommand::DeleteMeshCommand(ModelViewer* viewer,
 
 void DeleteMeshCommand::undo()
 {
-    // Restore meshes from recycle bin
+    SceneGraph* sg = _viewer->sceneGraph();
+
     for (const QUuid& uuid : _meshUuids)
     {
+        // Restore mesh in the renderer's store
         if (_glWidget->isInRecycleBin(uuid))
         {
             _glWidget->restoreFromRecycleBin(uuid);
@@ -30,7 +33,13 @@ void DeleteMeshCommand::undo()
         else
         {
             qWarning() << "DeleteMeshCommand::undo - Mesh not in bin:" << uuid;
-            // Mesh was permanently deleted - can't restore
+        }
+
+        // Restore UUID in the SceneGraph at its original node and position
+        if (sg)
+        {
+            const SceneRemovalRecord& rec = _sceneRecords.value(uuid);
+            sg->restoreMeshUuid(rec.node, uuid, rec.position);
         }
     }
 
@@ -40,9 +49,19 @@ void DeleteMeshCommand::undo()
 
 void DeleteMeshCommand::redo()
 {
-    // Move meshes to recycle bin
+    SceneGraph* sg = _viewer->sceneGraph();
+
     for (const QUuid& uuid : _meshUuids)
     {
+        // Remove UUID from SceneGraph and record where it was for undo
+        if (sg)
+        {
+            SceneRemovalRecord rec;
+            rec.node = sg->removeMeshUuid(uuid, rec.position);
+            _sceneRecords[uuid] = rec;
+        }
+
+        // Move mesh to recycle bin in the renderer's store
         int originalIndex = _originalIndices.value(uuid, -1);
         _glWidget->moveToRecycleBin(uuid, originalIndex);
     }

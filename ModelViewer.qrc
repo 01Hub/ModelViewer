@@ -68,10 +68,13 @@
         <file>res/camera_first_person.png</file>
         <file>res/camera_fly.png</file>
         <file>res/camera_orbit.png</file>
-    <file>res/select.png</file>
-    <file>res/detach.png</file>
-    <file>res/Splashscreen.png</file>
-  </qresource>
+        <file>res/select.png</file>
+        <file>res/detach.png</file>
+        <file>res/Splashscreen.png</file>
+        <file>res/assembly.png</file>
+        <file>res/document-root.png</file>
+        <file>res/mesh.png</file>
+    </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>
         <file>themes/Eclippy.qss</file>

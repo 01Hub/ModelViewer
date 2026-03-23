@@ -93,6 +93,10 @@ struct AssImpMeshData
 	GLMaterial material;
 	GLenum primitiveMode = GL_TRIANGLES;
 	bool hasNegativeScale = false;
+	// Index of this mesh in aiScene::mMeshes[] at load time.
+	// Preserved so the exporter can match surviving meshes back to aiMesh
+	// entries without relying on name strings.
+	int sceneIndex = -1;
 };
 
 using AssImpMeshDataBatch = std::vector<AssImpMeshData>;

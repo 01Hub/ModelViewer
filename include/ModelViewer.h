@@ -5,6 +5,8 @@
 
 #include "GLWidget.h"
 #include "GLMaterial.h"
+#include "SceneGraph.h"
+#include "SceneTreeWidget.h"
 #include "UVPromptDialog.h"
 #include "AssImpModelLoader.h"
 #include "ApplyMaterialCommand.h"
@@ -25,7 +27,8 @@ public:
 
 	void retranslateUI();
 
-	GLWidget* getGLView() const { return _glWidget; }
+	GLWidget*    getGLView()    const { return _glWidget; }
+	SceneGraph*  sceneGraph()   const { return _sceneGraph; }
 
 	void setMaterialToSelectedItems(const GLMaterial& mat);
 	void setTexturesToSelectedItems(const GLMaterial& mat);
@@ -35,7 +38,7 @@ public:
 	void bakeTransformations();
 	void resetTransformation();
 
-	QListWidget* getListModel() { return listWidgetModel; }
+	SceneTreeWidget* getTreeModel() { return treeWidgetModel; }
 
 	void updateTransformationValues();
 	void resetTransformationValues();
@@ -143,9 +146,9 @@ private slots:
 
 	void on_checkBoxSelectAll_stateChanged(int arg1);
 
-	void on_listWidgetModel_itemChanged(QListWidgetItem*);
-	void on_listWidgetModel_itemSelectionChanged();
-	void itemEdited(QWidget* widget, QAbstractItemDelegate::EndEditHint hint);
+	void on_treeWidgetModel_visibilityChanged();
+	void on_treeWidgetModel_selectionChanged();
+	void on_treeWidgetModel_meshRenamed(const QUuid& uuid, const QString& newName);
 
 	void on_toolBox_currentChanged(int index);
 
@@ -199,7 +202,8 @@ private:
 	QSet<QUuid> scanStackForReferencedUuids();
 
 private:
-	GLWidget* _glWidget;
+	GLWidget*   _glWidget;
+	SceneGraph* _sceneGraph;
 
 	GLMaterial _material;
 

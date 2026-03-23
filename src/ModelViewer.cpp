@@ -11,6 +11,7 @@
 #include "MeshProperties.h"
 #include "ModelViewer.h"
 #include "ModelViewerApplication.h"
+#include "SceneTreeWidget.h"
 #include "ObjectTransformPanel.h"
 #include "PathUtils.h"
 #include "SelectionCommand.h"
@@ -41,6 +42,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_textureDirOpenedFirstTime = true;
 
 	setupUi(this);
+
+	// Scene graph — owns the node hierarchy mirroring the loaded aiScene tree.
+	_sceneGraph = new SceneGraph(this);
 
 	// Initialize undo stack
 	_undoStack = new QUndoStack(this);
@@ -126,37 +130,31 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(checkBoxSelectionHighlight, &QCheckBox::toggled, _glWidget, &GLWidget::setSelectionHighlighting);
 	connect(_glWidget, &GLWidget::singleSelectionDone, this, &ModelViewer::setListRow);
 	connect(_glWidget, &GLWidget::sweepSelectionDone, this, &ModelViewer::setListRows);
-	
-	listWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
-	connect(listWidgetModel, &ModelObjectList::customContextMenuRequested, this, &ModelViewer::showContextMenu);
 
-	// For item editing
-	connect(listWidgetModel->itemDelegate(), &QAbstractItemDelegate::closeEditor, this, &ModelViewer::itemEdited);
+	treeWidgetModel->setSceneGraph(_sceneGraph);
+	treeWidgetModel->setGLWidget(_glWidget);
 
+	treeWidgetModel->setContextMenuPolicy(Qt::CustomContextMenu);
+	connect(treeWidgetModel, &SceneTreeWidget::customContextMenuRequested, this, &ModelViewer::showContextMenu);
 
-	connect(searchBox, &QLineEdit::textChanged, listWidgetModel, [&](const QString& text) {
-		listWidgetModel->filterItems(text);
+	// Rename via tree widget's internal delegate handling
+	connect(treeWidgetModel, &SceneTreeWidget::meshRenamed,
+	        this, &ModelViewer::on_treeWidgetModel_meshRenamed);
 
-		// Optional: give visual feedback if no match
-		bool anySelected = false;
-		for (int i = 0; i < listWidgetModel->count(); ++i)
-		{
-			if (listWidgetModel->item(i)->isSelected())
-			{
-				anySelected = true;
-				break;
-			}
-		}
+	connect(searchBox, &QLineEdit::textChanged, treeWidgetModel, [&](const QString& text) {
+		treeWidgetModel->filterItems(text);
 
-		searchBox->setStyleSheet((anySelected || searchBox->text() == "") ? "" : "QLineEdit { border: 2px solid red; }");
+		// Visual feedback if no match
+		bool anySelected = treeWidgetModel->hasMeshSelection();
+		searchBox->setStyleSheet((anySelected || searchBox->text().isEmpty()) ? "" : "QLineEdit { border: 2px solid red; }");
 		});
 
-	connect(listWidgetModel, &ModelObjectList::selectionUpdated, this, [this]() {
+	connect(treeWidgetModel, &SceneTreeWidget::selectionUpdated, this, [this]() {
 		// If signals are blocked, it's programmatic (from setSelectionWithoutUndo)
-		if (listWidgetModel->signalsBlocked())
+		if (treeWidgetModel->signalsBlocked())
 		{
 			// Just sync, no undo
-			on_listWidgetModel_itemSelectionChanged();
+			on_treeWidgetModel_selectionChanged();
 			return;
 		}
 
@@ -166,8 +164,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		setSelectionWithUndo(newSelection);
 		});
 
+	connect(treeWidgetModel, &SceneTreeWidget::meshVisibilityChanged,
+	        this, &ModelViewer::on_treeWidgetModel_visibilityChanged);
 
-	QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), listWidgetModel);
+	QShortcut* shortcut = new QShortcut(QKeySequence(Qt::Key_Delete), treeWidgetModel);
 	connect(shortcut, &QShortcut::activated, this, &ModelViewer::deleteSelectedItems);
 
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), this);
@@ -303,15 +303,9 @@ void ModelViewer::retranslateUI()
 
 void ModelViewer::deselectAll()
 {
-	bool oldState = listWidgetModel->blockSignals(true);
-	QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-	for (QListWidgetItem* item : items)
-	{
-		item->setSelected(false);
-	}
+	treeWidgetModel->clearMeshSelection();
 	resetTransformationValues();
-	listWidgetModel->blockSignals(oldState);
-	on_listWidgetModel_itemSelectionChanged();
+	on_treeWidgetModel_selectionChanged();
 }
 
 void ModelViewer::setListRow(int index)
@@ -507,16 +501,14 @@ void ModelViewer::updateTransformationValues()
 {
 	try
 	{
-		QList<QListWidgetItem*> selected = listWidgetModel->selectedItems();
-		if (selected.count() > 0)
+		QList<QUuid> selected = treeWidgetModel->selectedMeshUuids();
+		if (!selected.isEmpty())
 		{
-			QListWidgetItem* item = selected.at(0);
-			std::vector<TriangleMesh*> meshStore = _glWidget->getMeshStore();
-			TriangleMesh* mesh = meshStore.at(listWidgetModel->row(item));
+			TriangleMesh* mesh = _glWidget->getMeshByUuid(selected.at(0));
 			if (mesh)
 			{
 				QVector3D trans = mesh->getTranslation();
-				QVector3D rot = mesh->getRotation();				
+				QVector3D rot = mesh->getRotation();
 				QVector3D scale = mesh->getScaling();
 				objectTransformPanel->setTranslationValues(trans);
 				objectTransformPanel->setRotationValues(rot);
@@ -868,7 +860,7 @@ void ModelViewer::reattachTransformationsPanel()
 		objectTransformPanel->show();
 		_transformationsOriginalParent->show();
 		objectTransformPanel->setDetached(false);
-		bool shouldActivate = listWidgetModel->selectedItems().count() >= 1;
+		bool shouldActivate = treeWidgetModel->hasMeshSelection();
 		if (shouldActivate)
 		{
 			toolBox->setCurrentIndex(_transformationsPageIndex);
@@ -1059,42 +1051,22 @@ QSet<QUuid> ModelViewer::scanStackForReferencedUuids()
 void ModelViewer::updateDisplayList()
 {
 	_glWidget->setTransmissionEnabled(false);
-	if (_glWidget->getMeshStore().empty())
-	{
-		listWidgetModel->clear();
-		return;
-	}
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-	listWidgetModel->clear();
-	std::vector<TriangleMesh*> store = _glWidget->getMeshStore();
-	std::vector<int> ids = _glWidget->getDisplayedObjectsIds();
-	int id = 0;
-	QListWidgetItem* item = nullptr;
-	bool oldState = listWidgetModel->blockSignals(true);
-	for (TriangleMesh* mesh : store)
+	for (TriangleMesh* mesh : _glWidget->getMeshStore())
 	{
 		if (mesh->getMaterial().hasTransmission())
+		{
 			_glWidget->setTransmissionEnabled(true);
-		item = new QListWidgetItem(mesh->getName());
-		item->setFlags(item->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsEditable); // set checkable flag
-		// AND initialize check state
-		if (std::count(ids.begin(), ids.end(), id))
-			item->setCheckState(Qt::Checked);
-		else
-			item->setCheckState(Qt::Unchecked);
-		listWidgetModel->addItem(item);
-		id++;
+			break;
+		}
 	}
 
-	QApplication::restoreOverrideCursor();
-
-	listWidgetModel->blockSignals(oldState);
-	on_listWidgetModel_itemChanged(item);
+	treeWidgetModel->rebuild();
+	on_treeWidgetModel_visibilityChanged();
 }
 
 void ModelViewer::updateSelectionStatusMessage()
 {
-	int count = listWidgetModel->selectedItems().count();
+	int count = static_cast<int>(treeWidgetModel->selectedMeshUuids().count());
 	if (count)
 	{
 		QString noun = count > 1 ? tr("objects") : tr("object");
@@ -1144,19 +1116,27 @@ void ModelViewer::keyPressEvent(QKeyEvent* event)
 
 void ModelViewer::selectAll()
 {
-	if (listWidgetModel->count())
+	if (treeWidgetModel->meshCount() > 0)
 	{
-		bool oldState = listWidgetModel->blockSignals(true);
-		for (int i = 0; i < listWidgetModel->count(); i++)
+		QSet<QUuid> toSelect;
+		if (_glWidget->isVisibleSwapped())
 		{
-			QListWidgetItem* item = listWidgetModel->item(i);
-			if (item->checkState() == (_glWidget->isVisibleSwapped() ? Qt::Unchecked : Qt::Checked))
+			// Visible-swapped mode: select the "hidden" meshes (unchecked)
+			const QSet<QUuid> visible = treeWidgetModel->getVisibleUuids();
+			const auto& store = _glWidget->getMeshStore();
+			for (size_t i = 0; i < store.size(); ++i)
 			{
-				item->setSelected(true);
+				QUuid uuid = _glWidget->getUuidByIndex(static_cast<int>(i));
+				if (!visible.contains(uuid)) toSelect.insert(uuid);
 			}
 		}
-		listWidgetModel->blockSignals(oldState);
-		on_listWidgetModel_itemSelectionChanged();
+		else
+		{
+			// Normal mode: select all visible (checked) meshes
+			toSelect = treeWidgetModel->getVisibleUuids();
+		}
+		treeWidgetModel->setSelectionByUuids(toSelect);
+		on_treeWidgetModel_selectionChanged();
 	}
 }
 
@@ -1212,11 +1192,6 @@ void ModelViewer::dropEvent(QDropEvent* event)
 					continue;
 				}
 			}
-
-			updateDisplayList();
-
-			listWidgetModel->setCurrentRow(listWidgetModel->count() - 1);
-			listWidgetModel->currentItem()->setCheckState(Qt::Checked);
 
 			updateDisplayList();
 		}
@@ -1386,24 +1361,70 @@ void ModelViewer::setLastSelectedFilter(const QString& lastSelectedFilter)
 void ModelViewer::showContextMenu(const QPoint& pos)
 {
 	setFocus();
-	if (listWidgetModel->selectedItems().count() != 0)
+
+	// Determine what was right-clicked
+	QTreeWidgetItem* clickedItem = treeWidgetModel->itemAt(pos);
+	const bool clickedAssembly = clickedItem
+	    && !clickedItem->data(0, SceneTreeWidget::IsLeafRole).toBool();
+
+	// When right-clicking an assembly item Qt may or may not have selected it
+	// depending on the existing selection.  Force-select it so the mesh ops
+	// below operate on the correct set of leaves.
+	if (clickedAssembly && clickedItem)
 	{
-		// Create menu and insert some actions
-		QMenu myMenu;
-
-		myMenu.addAction(tr("Center Screen"), this, &ModelViewer::centerScreen);
-		myMenu.addAction(tr("Visualization Settings"), this, &ModelViewer::showVisualizationModelPage);
-		myMenu.addAction(tr("Transformations"), this, &ModelViewer::showTransformationsPage);
-		myMenu.addAction(tr("Hide"), this, &ModelViewer::hideSelectedItems);
-		myMenu.addAction(tr("Show"), this, &ModelViewer::showSelectedItems);
-		myMenu.addAction(tr("Show Only"), this, &ModelViewer::showOnlySelectedItems);
-		myMenu.addAction(tr("Duplicate"), this, &ModelViewer::duplicateSelectedItems);
-		myMenu.addAction(tr("Delete"), this, &ModelViewer::deleteSelectedItems);
-		myMenu.addAction(tr("Mesh Info"), this, &ModelViewer::displaySelectedMeshInfo);
-
-		// Show context menu at handling position
-		myMenu.exec(listWidgetModel->mapToGlobal(pos));
+		// If the assembly is not already selected, make it the sole selection.
+		if (!clickedItem->isSelected())
+		{
+			treeWidgetModel->clearMeshSelection();
+			clickedItem->setSelected(true);
+			// onItemSelectionChanged will convert this to leaf selection
+		}
 	}
+
+	const bool hasMeshes = treeWidgetModel->hasMeshSelection();
+
+	if (!hasMeshes && !clickedAssembly) return;
+
+	QMenu myMenu;
+
+	// ---- Expand / Collapse section (assembly items only) -------------------
+	if (clickedAssembly && clickedItem->childCount() > 0)
+	{
+		// Single-level pair — most commonly used, so listed first
+		myMenu.addAction(tr("Expand"), treeWidgetModel,
+		    [this, clickedItem]() { treeWidgetModel->expandItem(clickedItem); });
+		myMenu.addAction(tr("Collapse"), treeWidgetModel,
+		    [this, clickedItem]() { treeWidgetModel->collapseOneLevel(clickedItem); });
+
+		myMenu.addSeparator();
+
+		// Recursive pair
+		myMenu.addAction(tr("Expand All Below"), treeWidgetModel,
+		    [this, clickedItem]() { treeWidgetModel->expandSubtree(clickedItem); });
+		myMenu.addAction(tr("Collapse All Below"), treeWidgetModel,
+		    [this, clickedItem]() { treeWidgetModel->collapseAllBelow(clickedItem); });
+
+		if (hasMeshes) myMenu.addSeparator();
+	}
+
+	// ---- Mesh operations (shown when leaves are selected) ------------------
+	if (hasMeshes)
+	{
+		myMenu.addAction(tr("Center Screen"),          this, &ModelViewer::centerScreen);
+		myMenu.addAction(tr("Visualization Settings"), this, &ModelViewer::showVisualizationModelPage);
+		myMenu.addAction(tr("Transformations"),        this, &ModelViewer::showTransformationsPage);
+		myMenu.addSeparator();
+		myMenu.addAction(tr("Hide"),      this, &ModelViewer::hideSelectedItems);
+		myMenu.addAction(tr("Show"),      this, &ModelViewer::showSelectedItems);
+		myMenu.addAction(tr("Show Only"), this, &ModelViewer::showOnlySelectedItems);
+		myMenu.addSeparator();
+		myMenu.addAction(tr("Duplicate"), this, &ModelViewer::duplicateSelectedItems);
+		myMenu.addAction(tr("Delete"),    this, &ModelViewer::deleteSelectedItems);
+		myMenu.addSeparator();
+		myMenu.addAction(tr("Mesh Info"), this, &ModelViewer::displaySelectedMeshInfo);
+	}
+
+	myMenu.exec(treeWidgetModel->mapMenuToGlobal(pos));
 }
 
 void ModelViewer::centerScreen()
@@ -1414,8 +1435,7 @@ void ModelViewer::centerScreen()
 
 void ModelViewer::duplicateSelectedItems()
 {
-	QList<QListWidgetItem*> selectedItems = listWidgetModel->selectedItems();
-	if (selectedItems.isEmpty())
+	if (!treeWidgetModel->hasMeshSelection())
 		return;
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
@@ -1626,19 +1646,12 @@ bool ModelViewer::checkForActiveSelection()
 
 bool ModelViewer::hasSelection() const
 {
-	return !listWidgetModel->selectedItems().isEmpty();
+	return treeWidgetModel->hasMeshSelection();
 }
 
 std::vector<int> ModelViewer::getSelectedIDs() const
 {
-	std::vector<int> ids;
-	QList<QListWidgetItem*> items = listWidgetModel->selectedItems();
-	for (QListWidgetItem* i : items)
-	{
-		int rowId = listWidgetModel->row(i);
-		ids.push_back(rowId);
-	}
-	return ids;
+	return treeWidgetModel->getSelectedIndices();
 }
 
 QSet<QUuid> ModelViewer::getSelectedUuids() const
@@ -1781,28 +1794,19 @@ void ModelViewer::applyADSColors()
 	updateControls();
 }
 
-void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
+void ModelViewer::on_treeWidgetModel_visibilityChanged()
 {
-	if (listWidgetModel->count())
+	if (treeWidgetModel->meshCount() > 0)
 	{
-		std::vector<int> ids;
-		for (int i = 0; i < listWidgetModel->count(); i++)
-		{
-			QListWidgetItem* item = listWidgetModel->item(i);
-			if (item->checkState() == Qt::Checked)
-			{
-				int rowId = listWidgetModel->row(item);
-				ids.push_back(rowId);
-			}
-		}
-
-		listWidgetModel->scrollToItem(item, QAbstractItemView::PositionAtCenter);
+		std::vector<int> ids = treeWidgetModel->getVisibleIndices();
 
 		// Update the tristate checkbox
 		checkBoxSelectAll->blockSignals(true);
-		if (ids.size() == 0)
+		const int total   = treeWidgetModel->meshCount();
+		const int visible = treeWidgetModel->visibleMeshCount();
+		if (visible == 0)
 			checkBoxSelectAll->setCheckState(Qt::Unchecked);
-		else if (ids.size() == static_cast<size_t>(listWidgetModel->count()))
+		else if (visible == total)
 			checkBoxSelectAll->setCheckState(Qt::Checked);
 		else
 			checkBoxSelectAll->setCheckState(Qt::PartiallyChecked);
@@ -1815,30 +1819,27 @@ void ModelViewer::on_listWidgetModel_itemChanged(QListWidgetItem* item)
 	}
 }
 
-void ModelViewer::on_listWidgetModel_itemSelectionChanged()
+void ModelViewer::on_treeWidgetModel_selectionChanged()
 {
-	for (int i = 0; i < listWidgetModel->count(); i++)
-	{
-		QListWidgetItem* item = listWidgetModel->item(i);
-		int rowId = listWidgetModel->row(item);
-		if (item->isSelected())
-			_glWidget->select(rowId);
-		else
-			_glWidget->deselect(rowId);
-	}
+	// Deselect everything in GLWidget first
+	const auto& store = _glWidget->getMeshStore();
+	for (size_t i = 0; i < store.size(); ++i)
+		_glWidget->deselect(static_cast<int>(i));
+
+	// Select the mesh-store indices of selected leaf items
+	for (int idx : treeWidgetModel->getSelectedIndices())
+		_glWidget->select(idx);
+
 	_glWidget->update();
 	adsMaterialSettingsPanel->setSelectionState(hasSelection());
 	updateSelectionStatusMessage();
 }
 
-void ModelViewer::itemEdited(QWidget* widget, QAbstractItemDelegate::EndEditHint /*hint*/)
+void ModelViewer::on_treeWidgetModel_meshRenamed(const QUuid& uuid, const QString& newName)
 {
-	const QString path = reinterpret_cast<QLineEdit*>(widget)->text();
-	int rowId = listWidgetModel->currentRow();
-	std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
-	TriangleMesh* mesh = meshes.at(rowId);
-	if (mesh->getName() != path)
-		checkAndRenameModel(mesh, path);
+	TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid);
+	if (mesh && mesh->getName() != newName)
+		checkAndRenameModel(mesh, newName);
 }
 
 GLMaterial ModelViewer::buildADSMaterialFromPanel() const
@@ -2119,7 +2120,7 @@ bool ModelViewer::loadFile(const QString& fileName)
 	{
 		updateDisplayList();
 
-		listWidgetModel->scrollToTop();
+		treeWidgetModel->scrollToTop();
 
 		_documentModified = true;
 
@@ -2199,16 +2200,23 @@ void ModelViewer::on_checkBoxSelectAll_stateChanged(int arg1)
 {
 	if (arg1 != Qt::PartiallyChecked)
 	{
-		if (listWidgetModel->count())
+		if (treeWidgetModel->meshCount() > 0)
 		{
-			bool oldState = listWidgetModel->blockSignals(true);
-			for (int i = 0; i < listWidgetModel->count(); i++)
+			Qt::CheckState cs = checkBoxSelectAll->checkState();
+			QSet<QUuid> visibleUuids;
+			if (cs == Qt::Checked)
 			{
-				QListWidgetItem* item = listWidgetModel->item(i);
-				item->setCheckState(checkBoxSelectAll->checkState());
+				// Make all meshes visible
+				const auto& store = _glWidget->getMeshStore();
+				for (size_t i = 0; i < store.size(); ++i)
+				{
+					QUuid uuid = _glWidget->getUuidByIndex(static_cast<int>(i));
+					if (!uuid.isNull()) visibleUuids.insert(uuid);
+				}
 			}
-			listWidgetModel->blockSignals(oldState);
-			on_listWidgetModel_itemChanged(nullptr);
+			// If Unchecked, visibleUuids stays empty (hide all)
+			treeWidgetModel->setVisibilityByUuids(visibleUuids);
+			on_treeWidgetModel_visibilityChanged();
 		}
 	}
 	else
@@ -2690,43 +2698,14 @@ void ModelViewer::setSelectionWithUndo(const QSet<int>& newSelection)
 
 void ModelViewer::setSelectionWithoutUndo(const QSet<int>& selection)
 {
-	// Block signals to prevent triggering selection changed handlers
-	bool oldState = listWidgetModel->blockSignals(true);
-
-	// Clear current selection
-	listWidgetModel->clearSelection();
-
-	// Apply new selection
-	for (int id : selection)
-	{
-		if (id >= 0 && id < listWidgetModel->count())
-		{
-			QListWidgetItem* item = listWidgetModel->item(id);
-			if (item)
-				item->setSelected(true);
-		}
-	}
-
-	// Restore signals
-	listWidgetModel->blockSignals(oldState);
-
-	// Manually sync to GLWidget
-	on_listWidgetModel_itemSelectionChanged();
+	treeWidgetModel->setSelectionByIndices(selection);
+	on_treeWidgetModel_selectionChanged();
 }
 
 void ModelViewer::setSelectionWithoutUndo(const QSet<QUuid>& uuids)
 {
-	// Convert UUIDs to indices
-	QSet<int> indices;
-	for (const QUuid& uuid : uuids)
-	{
-		int index = _glWidget->getIndexByUuid(uuid);
-		if (index >= 0)
-			indices.insert(index);
-	}
-
-	// Use existing implementation
-	setSelectionWithoutUndo(indices);
+	treeWidgetModel->setSelectionByUuids(uuids);
+	on_treeWidgetModel_selectionChanged();
 }
 
 QSet<QUuid> ModelViewer::getVisibleUuids() const
@@ -2755,30 +2734,7 @@ void ModelViewer::setVisibilityWithUndo(const QSet<QUuid>& newVisibleUuids,
 
 void ModelViewer::setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids)
 {
-	// Block signals to prevent triggering itemChanged handlers
-	bool oldState = listWidgetModel->blockSignals(true);
-
-	// Update check states for all items based on visibility set
-	for (int i = 0; i < listWidgetModel->count(); ++i)
-	{
-		QUuid uuid = _glWidget->getUuidByIndex(i);
-		QListWidgetItem* item = listWidgetModel->item(i);
-
-		if (visibleUuids.contains(uuid))
-		{
-			item->setCheckState(Qt::Checked);
-		}
-		else
-		{
-			item->setCheckState(Qt::Unchecked);
-		}
-	}
-
-	// Restore signals
-	listWidgetModel->blockSignals(oldState);
-
-	// Manually trigger visibility update
-	// This will update _displayedObjectsIds and _hiddenObjectsIds
-	on_listWidgetModel_itemChanged(nullptr);
+	treeWidgetModel->setVisibilityByUuids(visibleUuids);
+	on_treeWidgetModel_visibilityChanged();
 }
 

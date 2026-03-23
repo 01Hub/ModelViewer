@@ -117,6 +117,9 @@ public:
 	void setHasNegativeScale(bool hasNegativeScale) { _hasNegativeScale = hasNegativeScale; };
 	bool hasNegativeScale() const { return _hasNegativeScale; }
 
+	void setSceneIndex(int index) { _sceneIndex = index; }
+	int getSceneIndex() const { return _sceneIndex; }
+
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
 	virtual void setAlbedoPBRMap(unsigned int albedoMap);
@@ -386,6 +389,12 @@ protected:
 
 	// Primitive mode from glTF (GL_POINTS=0, GL_LINES=1, GL_LINE_STRIP=3, GL_TRIANGLE_STRIP=5, GL_TRIANGLES=4)
 	GLenum _primitiveMode = GL_TRIANGLES;  // Default to triangles for backward compatibility
+
+	// Original index into aiScene::mMeshes[] at load time.
+	// -1 for meshes not originating from an Assimp scene (parametric shapes, etc.).
+	// Used by the exporter to match surviving TriangleMesh objects back to aiMesh
+	// entries in the deep-copied scene without relying on name strings.
+	int _sceneIndex = -1;
 
 	// Individual transformation components
 	float _transX;

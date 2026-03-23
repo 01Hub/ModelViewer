@@ -108,4 +108,25 @@ private:
      */
     QString generateUniqueFilename(const QString& directory,
         const QString& originalFilename);
+
+    /**
+     * @brief Extract an embedded texture from a GLB/GLTF source file.
+     *
+     * Handles "glb://filepath::image_N" URIs.  The first call for a given
+     * source file loads all of its embedded textures into a per-session temp
+     * directory and caches the results.  Subsequent calls for the same
+     * (file, index) pair are served from the cache without re-loading.
+     *
+     * @param glbFilePath  Absolute path to the source .glb / .gltf file
+     * @param imageIndex   Zero-based embedded texture index within that file
+     * @param outTempPath  Receives the absolute path of the extracted temp file
+     * @return true on success, false if the source cannot be read or index is out of range
+     */
+    bool extractGlbEmbeddedTexture(const QString& glbFilePath,
+                                   int            imageIndex,
+                                   QString&       outTempPath);
+
+    /// Cache: "filepath::N" -> absolute path of the extracted temp file.
+    /// Populated lazily by extractGlbEmbeddedTexture().
+    QMap<QString, QString> _glbEmbeddedCache;
 };

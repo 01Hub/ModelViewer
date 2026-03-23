@@ -1,0 +1,47 @@
+#pragma once
+
+#include <QList>
+#include <QString>
+#include <QUuid>
+#include <assimp/matrix4x4.h>
+
+// ---------------------------------------------------------------------------
+// SceneNode
+//
+// A single node in the scene hierarchy mirror.  One SceneNode is created for
+// every aiNode encountered during model loading, plus one synthetic
+// (isSynthetic == true) wrapper node per imported file that sits above the
+// aiNode tree and carries the source filename as its display name.
+//
+// Ownership: SceneGraph owns all SceneNode instances and is responsible for
+// their allocation and deletion.  Raw pointers are used intentionally because
+// the tree is fully managed by SceneGraph — callers must not delete nodes.
+// ---------------------------------------------------------------------------
+struct SceneNode
+{
+    // Stable identity for this structural node (distinct from mesh UUIDs).
+    QUuid nodeUuid;
+
+    // Display name shown in the tree widget.
+    QString name;
+
+    // True only for the file-level wrapper node that sits above the aiNode
+    // tree.  Synthetic nodes have no corresponding aiNode in _globalScene.
+    bool isSynthetic = false;
+
+    // Absolute path of the source file.  Populated only on synthetic nodes.
+    QString sourceFile;
+
+    // Local transform copied from aiNode::mTransformation at build time.
+    // Identity matrix for synthetic nodes.
+    aiMatrix4x4 localTransform;
+
+    // Tree links — managed exclusively by SceneGraph.
+    SceneNode*        parent   = nullptr;
+    QList<SceneNode*> children;
+
+    // Ordered list of TriangleMesh UUIDs that belong to this node.
+    // Leaf nodes (those with meshes) carry entries here; pure assembly nodes
+    // (containers) have an empty list and rely on their children.
+    QList<QUuid> meshUuids;
+};

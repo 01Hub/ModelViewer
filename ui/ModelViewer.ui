@@ -222,15 +222,12 @@
                </layout>
               </item>
               <item>
-               <widget class="ModelObjectList" name="listWidgetModel">
+               <widget class="SceneTreeWidget" name="treeWidgetModel">
                 <property name="styleSheet">
                  <string notr="true"/>
                 </property>
                 <property name="selectionMode">
                  <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
-                </property>
-                <property name="layoutMode">
-                 <enum>QListView::LayoutMode::Batched</enum>
                 </property>
                </widget>
               </item>
@@ -463,9 +460,9 @@
  <layoutdefault spacing="6" margin="11"/>
  <customwidgets>
   <customwidget>
-   <class>ModelObjectList</class>
-   <extends>QListWidget</extends>
-   <header>ModelObjectList.h</header>
+   <class>SceneTreeWidget</class>
+   <extends>QTreeWidget</extends>
+   <header>SceneTreeWidget.h</header>
   </customwidget>
   <customwidget>
    <class>MaterialEditorPanel</class>
@@ -500,7 +497,7 @@
  </customwidgets>
  <tabstops>
   <tabstop>checkBoxSelectAll</tabstop>
-  <tabstop>listWidgetModel</tabstop>
+  <tabstop>treeWidgetModel</tabstop>
   <tabstop>radioButtonADSL</tabstop>
   <tabstop>radioButtonTXPBR</tabstop>
  </tabstops>

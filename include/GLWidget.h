@@ -774,6 +774,11 @@ private:
 	std::vector<TriangleMesh*> _meshStore;
 	std::vector<int> _displayedObjectsIds;
 	std::vector<int> _hiddenObjectsIds;
+
+	// Accumulates mesh UUIDs in DFS load order during a single loadAssImpModel
+	// call (both progressive and non-progressive paths).  Consumed by
+	// SceneGraph::appendFromScene() once loading completes, then cleared.
+	QList<QUuid> _pendingSceneUuids;
 	std::vector<int> _centerScreenObjectIDs;
 	bool _visibleSwapped;
 

@@ -213,6 +213,31 @@ private:
         const QString& exportFileLocation);
 
     /**
+     * @brief Remove stale mesh entries from a copied aiScene so it matches the
+     *        surviving TriangleMesh vector in _meshStore.
+     *
+     * When meshes are deleted by the user, _meshStore shrinks but _globalScene
+     * (and any deep copy of it) still contains the original mesh and node
+     * entries. Passing the mismatched arrays to applyMaterialsToScene() causes
+     * the last M-N scene meshes to keep their old (now out-of-bounds) material
+     * indices, which makes the Assimp exporter dereference freed memory.
+     *
+     * This method walks scene->mMeshes[], identifies entries whose names do not
+     * appear in the surviving TriangleMesh vector, removes them and frees their
+     * memory, and remaps all aiNode mesh index references accordingly.  After
+     * this call scene->mNumMeshes == meshes.size() and the two arrays are in
+     * 1-to-1 correspondence by position.
+     *
+     * Must be called BEFORE applyMaterialsToScene().
+     *
+     * @param scene   Deep-copied aiScene (modified in-place)
+     * @param meshes  Surviving TriangleMesh* from _meshStore
+     */
+    void syncSceneToMeshStore(
+        aiScene* scene,
+        const std::vector<TriangleMesh*>& meshes);
+
+    /**
      * Load image file and create embedded aiTexture
      *
      * Reads image from disk, converts to RGBA format,

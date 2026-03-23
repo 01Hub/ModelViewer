@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ModelViewerCommand.h"
+#include "SceneNode.h"
 #include <QVector>
 #include <QMap>
 #include <QUuid>
@@ -35,6 +36,15 @@ public:
     }
 
 private:
-    QVector<QUuid> _meshUuids;
-    QMap<QUuid, int> _originalIndices;  // Store original positions
+    QVector<QUuid>   _meshUuids;
+    QMap<QUuid, int> _originalIndices;  // Store original positions in _meshStore
+
+    // SceneGraph removal records — populated during the first redo() call so
+    // that undo() can put each UUID back in exactly the right node and position.
+    struct SceneRemovalRecord
+    {
+        SceneNode* node     = nullptr;
+        int        position = -1;
+    };
+    QMap<QUuid, SceneRemovalRecord> _sceneRecords;
 };

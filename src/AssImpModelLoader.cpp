@@ -681,6 +681,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	meshData.textures = std::move(textures);
 	meshData.material = mat;
 	meshData.hasNegativeScale = hasNegativeScale;
+	meshData.sceneIndex = meshIndex;
 
 	if (_gltfMeshPrimitiveModes.find(meshIndex) != _gltfMeshPrimitiveModes.end())
 	{

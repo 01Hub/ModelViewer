@@ -1,0 +1,120 @@
+#pragma once
+
+#include "SceneNode.h"
+
+#include <QHash>
+#include <QObject>
+#include <QString>
+#include <assimp/scene.h>
+
+// ---------------------------------------------------------------------------
+// SceneGraph
+//
+// Owns and manages the complete scene node hierarchy.  It is the canonical
+// data model for:
+//   - the tree widget (reads the hierarchy, connects to structureChanged)
+//   - the export path (calls reconstructAsScene() instead of walking
+//     _globalScene, which may contain stale / deleted meshes)
+//
+// Lifetime: owned by ModelViewer.  Neither GLWidget nor any command class
+// should hold or delete SceneGraph directly.
+//
+// Thread safety: all methods must be called from the main (UI) thread.
+// ---------------------------------------------------------------------------
+class SceneGraph : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit SceneGraph(QObject* parent = nullptr);
+    ~SceneGraph();
+
+    // -----------------------------------------------------------------------
+    // Build
+    // -----------------------------------------------------------------------
+
+    // Append one imported file's hierarchy to the scene.
+    //
+    // scene              — the aiScene* returned by AssImpModelLoader::getScene()
+    //                      BEFORE it is deep-copied and merged into _globalScene.
+    // sourceFile         — absolute path of the file that was loaded.
+    // meshUuidsInOrder   — UUIDs of every TriangleMesh created from this file,
+    //                      in the same DFS order that
+    //                      AssImpModelLoader::processNode() visited them.
+    //                      The cursor-based DFS inside buildSubtree() assigns
+    //                      these UUIDs to the matching aiNodes automatically.
+    void appendFromScene(const aiScene*      scene,
+                         const QString&      sourceFile,
+                         const QList<QUuid>& meshUuidsInOrder);
+
+    // Reset to an empty graph (e.g. on "New scene").
+    void clear();
+
+    // -----------------------------------------------------------------------
+    // Query
+    // -----------------------------------------------------------------------
+
+    // The invisible root node.  Its children are the per-file synthetic nodes.
+    // Do not display this node in the tree widget — use root()->children as
+    // the top-level items.
+    SceneNode* root() const { return _root; }
+
+    // Return the SceneNode that currently owns meshUuid, or nullptr if the
+    // mesh has been removed (moved to recycle bin) or does not exist.
+    SceneNode* findNodeForMesh(const QUuid& meshUuid) const;
+
+    // Recursively collect all mesh UUIDs under node, including descendants.
+    // The order follows a DFS pre-order traversal (node's own meshUuids first,
+    // then children left-to-right), which matches the original load order.
+    QList<QUuid> collectMeshUuids(const SceneNode* node) const;
+
+    // -----------------------------------------------------------------------
+    // Mutation  (called by undo/redo command classes)
+    // -----------------------------------------------------------------------
+
+    // Remove meshUuid from its owning node and deregister it from the lookup
+    // table.  The node itself is NOT deleted even if it becomes empty, so that
+    // undo (restoreMeshUuid) can safely put it back without needing to
+    // reconstruct the node.
+    //
+    // outPosition — receives the index the UUID held in node->meshUuids so
+    //               the caller can pass it back to restoreMeshUuid for an
+    //               exact restoration.
+    //
+    // Returns the owning SceneNode (caller must store it for undo), or nullptr
+    // if the UUID was not found.
+    SceneNode* removeMeshUuid(const QUuid& meshUuid, int& outPosition);
+
+    // Re-insert meshUuid into node->meshUuids at position and re-register it
+    // in the lookup table.  position is clamped to a valid range automatically
+    // in case sibling insertions/removals shifted the list since the removal.
+    void restoreMeshUuid(SceneNode* node, const QUuid& meshUuid, int position);
+
+signals:
+    // Emitted after any structural change (append, clear, remove, restore).
+    // The tree widget connects to this to rebuild or refresh its items.
+    void structureChanged();
+
+private:
+    // Recursively build a SceneNode subtree that mirrors ainode and its
+    // descendants.  cursor advances through uuids as mesh UUIDs are assigned
+    // to nodes — the traversal order must match processNode() exactly.
+    SceneNode* buildSubtree(const aiNode*       ainode,
+                            SceneNode*          parent,
+                            const QList<QUuid>& uuids,
+                            int&                cursor);
+
+    void collectUuidsRecursive(const SceneNode* node, QList<QUuid>& out) const;
+
+    // Delete node and all of its descendants.  Does not touch _meshUuidToNode;
+    // callers are responsible for clearing the hash before calling this.
+    void freeSubtree(SceneNode* node);
+
+    // Invisible root — never shown in the UI.
+    SceneNode* _root = nullptr;
+
+    // Fast O(1) lookup from mesh UUID to the SceneNode that owns it.
+    // Entries are added in appendFromScene / restoreMeshUuid and removed in
+    // removeMeshUuid / clear.
+    QHash<QUuid, SceneNode*> _meshUuidToNode;
+};
