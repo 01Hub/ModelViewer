@@ -322,7 +322,8 @@ private:
      * @param scene       The aiScene after export, used to look up source paths per slot
      */
     void patchGlbImageNames(const QString& glbPath, const QStringList& orderedNames,
-        const aiScene* scene, const QString& textureDirectory);
+        const aiScene* scene, const QString& textureDirectory,
+        QMap<QString, int>* embeddedIndexMapping = nullptr);
 
     // === Logging utilities ===
 
@@ -345,4 +346,5 @@ private:
     TextureLocationManager _textureManager;
     TexturePackage _lastTexturePackage;
     ExportSettings _currentSettings;
+    QMap<QString, int> _lastEmbeddedIndexMapping;
 };

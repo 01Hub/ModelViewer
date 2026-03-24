@@ -25,6 +25,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     const ExportSettings& settings)
 {
     _currentSettings = settings;
+    _lastEmbeddedIndexMapping.clear();
 
     logMessage(QString("=== AssImpMeshExporter::exportMeshes ==="));
     logMessage(QString("Target: %1").arg(exportPath));
@@ -243,7 +244,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     if (isGLB)
     {
         if (GltfPostProcessor::postProcessGlbFileWithMaterials(
-            exportPath, meshes, settings.lights, logCallback, textureSubfolder, _lastTexturePackage.pathMapping))
+            exportPath, meshes, settings.lights, logCallback, textureSubfolder, _lastTexturePackage.pathMapping, _lastEmbeddedIndexMapping))
             logMessage("  -> Post-processing complete");
         else
             logWarning("  -> Post-processing failed (file may still be valid)");
@@ -251,7 +252,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     else if (QFileInfo(exportPath).suffix().toLower() == "gltf")
     {
         if (GltfPostProcessor::postProcessGltfFileWithMaterials(
-            exportPath, meshes, settings.lights, logCallback, textureSubfolder, _lastTexturePackage.pathMapping))
+            exportPath, meshes, settings.lights, logCallback, textureSubfolder, _lastTexturePackage.pathMapping, _lastEmbeddedIndexMapping))
             logMessage("  -> Post-processing complete");
         else
             logWarning("  -> Post-processing failed (file may still be valid)");
@@ -418,17 +419,27 @@ aiReturn AssImpMeshExporter::exportScene(
                  it != _lastTexturePackage.pathMapping.constEnd(); ++it)
             {
                 const QString normKey = GltfPostProcessor::normalisedGlbPath(it.key());
-                if (normKey != it.key() &&
-                    !_lastTexturePackage.pathMapping.contains(normKey))
+                if (normKey != it.key())
                 {
                     aliases.append({normKey, it.value()});
                 }
             }
             for (const auto& p : aliases)
             {
+                const bool replacingExisting =
+                    _lastTexturePackage.pathMapping.contains(p.first) &&
+                    _lastTexturePackage.pathMapping.value(p.first) != p.second;
                 _lastTexturePackage.pathMapping[p.first] = p.second;
-                qDebug() << "[AssImpMeshExporter] Added normalised path alias:"
-                         << p.first << "->" << p.second;
+                if (replacingExisting)
+                {
+                    qDebug() << "[AssImpMeshExporter] Refreshed normalised path alias:"
+                             << p.first << "->" << p.second;
+                }
+                else
+                {
+                    qDebug() << "[AssImpMeshExporter] Added normalised path alias:"
+                             << p.first << "->" << p.second;
+                }
             }
             if (!aliases.isEmpty())
                 logMessage(QString("  -> Added %1 normalised-path alias(es) for GLB embedded textures")
@@ -540,7 +551,7 @@ aiReturn AssImpMeshExporter::exportScene(
     // Patch image names into GLB JSON so post-processor can match them
     if (isGLB && !embeddedTextureNames.isEmpty())
         patchGlbImageNames(exportFilePath, embeddedTextureNames, scene,
-            _lastTexturePackage.textureDirectory);
+            _lastTexturePackage.textureDirectory, &_lastEmbeddedIndexMapping);
 
     // ===== STEP 6: Post-process glTF/GLB to add missing optional properties and write transforms =====
     logMessage("Step 6: Post-processing exported file with material transforms...");
@@ -551,7 +562,7 @@ aiReturn AssImpMeshExporter::exportScene(
 
     if (isGLB)
     {
-        if (GltfPostProcessor::postProcessGlbFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback, textureSubfolder, _lastTexturePackage.pathMapping))
+        if (GltfPostProcessor::postProcessGlbFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback, textureSubfolder, _lastTexturePackage.pathMapping, _lastEmbeddedIndexMapping))
         {
             logMessage("  -> Post-processing complete");
         }
@@ -562,7 +573,7 @@ aiReturn AssImpMeshExporter::exportScene(
     }
     else if (ext == "gltf")
     {
-        if (GltfPostProcessor::postProcessGltfFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback, textureSubfolder, _lastTexturePackage.pathMapping))
+        if (GltfPostProcessor::postProcessGltfFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback, textureSubfolder, _lastTexturePackage.pathMapping, _lastEmbeddedIndexMapping))
         {
             logMessage("  -> Post-processing complete");
         }
@@ -677,7 +688,8 @@ void AssImpMeshExporter::patchGlbImageNames(
     const QString& glbPath,
     const QStringList& orderedNames,
     const aiScene* scene,
-    const QString& textureDirectory)
+    const QString& textureDirectory,
+    QMap<QString, int>* embeddedIndexMapping)
 {
     QFile file(glbPath);
     if (!file.open(QIODevice::ReadWrite))
@@ -772,6 +784,13 @@ void AssImpMeshExporter::patchGlbImageNames(
 
     // Walk every JSON material, resolve imageIndex -> filename from the aiScene
     QMap<int, QString> imageNameMap;
+    QMap<QString, QString> packagedToOriginalPath;
+    for (auto it = _lastTexturePackage.pathMapping.constBegin();
+         it != _lastTexturePackage.pathMapping.constEnd(); ++it)
+    {
+        if (!it.value().isEmpty() && !packagedToOriginalPath.contains(it.value()))
+            packagedToOriginalPath[it.value()] = it.key();
+    }
 
     for (int mi = 0; mi < materials.size(); ++mi)
     {
@@ -805,10 +824,41 @@ void AssImpMeshExporter::patchGlbImageNames(
                 QString path = getSourcePath(static_cast<unsigned int>(mi), info->type, info->idx);
                 if (path.isEmpty()) return;
 
+                QString authoritativePath = packagedToOriginalPath.value(path, path);
+                if (authoritativePath == path)
+                {
+                    const QString sourceFileName = QFileInfo(path).fileName();
+                    for (auto it = packagedToOriginalPath.constBegin();
+                         it != packagedToOriginalPath.constEnd(); ++it)
+                    {
+                        if (QFileInfo(it.key()).fileName().compare(sourceFileName, Qt::CaseInsensitive) == 0)
+                        {
+                            authoritativePath = it.value();
+                            break;
+                        }
+                    }
+                }
+
                 QString name = QFileInfo(path).fileName();
                 if (!name.isEmpty())
                 {
                     imageNameMap[imgIdx] = name;
+                    if (embeddedIndexMapping)
+                    {
+                        int authoritativeIndex = imgIdx;
+                        const QString normalizedPath = GltfPostProcessor::normalisedGlbPath(authoritativePath);
+                        if (normalizedPath.startsWith("glb://image_"))
+                        {
+                            bool ok = false;
+                            const int parsedIndex = normalizedPath.mid(QString("glb://image_").size()).toInt(&ok);
+                            if (ok)
+                                authoritativeIndex = parsedIndex;
+                        }
+
+                        (*embeddedIndexMapping)[authoritativePath] = authoritativeIndex;
+                        if (normalizedPath != authoritativePath && !embeddedIndexMapping->contains(normalizedPath))
+                            (*embeddedIndexMapping)[normalizedPath] = authoritativeIndex;
+                    }
                     logMessage(QString("  patchGlbImageNames: img[%1] <- '%2'  (slot %3)")
                         .arg(imgIdx).arg(name).arg(slotKey));
                 }

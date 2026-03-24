@@ -58,7 +58,8 @@ public:
         const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr,
         const QString& textureSubfolder = "textures",
-        const QMap<QString, QString>& pathMapping = {});
+        const QMap<QString, QString>& pathMapping = {},
+        const QMap<QString, int>& embeddedIndexMapping = {});
 
     /**
      * Post-process a glTF file on disk
@@ -84,7 +85,8 @@ public:
         const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr,
         const QString& textureSubfolder = "textures",
-        const QMap<QString, QString>& pathMapping = {});
+        const QMap<QString, QString>& pathMapping = {},
+        const QMap<QString, int>& embeddedIndexMapping = {});
 
     /**
      * Post-process a GLB file on disk
@@ -112,7 +114,8 @@ public:
         const std::vector<GPULight>& lights,
         std::function<void(const QString&)> logCallback = nullptr,
         const QString& textureSubfolder = "textures",
-        const QMap<QString, QString>& pathMapping = {});
+        const QMap<QString, QString>& pathMapping = {},
+        const QMap<QString, int>& embeddedIndexMapping = {});
 
 	/**
 	 * Write punctual light definitions from the source scene into the glTF JSON
@@ -168,6 +171,7 @@ private:
 private:
     static QString _textureSubfolder;
     static QMap<QString, QString> _pathMapping;
+    static QMap<QString, int> _embeddedIndexMapping;
 };
 
 #endif // GLTF_POSTPROCESSOR_H
