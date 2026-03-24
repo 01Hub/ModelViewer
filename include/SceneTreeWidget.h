@@ -119,6 +119,13 @@ public:
     /** Expand item one level: shows direct children; grandchildren untouched. */
     // (use the inherited QTreeWidget::expandItem() directly for this)
 
+    /**
+     * Expand item one level strictly: shows direct children but ensures
+     * those children are collapsed so their subtrees stay hidden.
+     * (Plain expandItem() shows previously-expanded grandchildren too.)
+     */
+    void expandOneLevel(QTreeWidgetItem* item);
+
     /** Expand item AND all of its descendants recursively. */
     void expandSubtree(QTreeWidgetItem* item);
 
@@ -152,6 +159,13 @@ public slots:
      */
     void rebuild();
 
+    /**
+     * Update the display name of a single mesh leaf without triggering a
+     * full rebuild.  Used by RenameMeshCommand redo/undo to apply or
+     * revert a rename efficiently.
+     */
+    void updateMeshName(const QUuid& uuid, const QString& name);
+
 signals:
     /** Emitted when the user changes the selection (not programmatic). */
     void selectionUpdated();
@@ -164,6 +178,7 @@ signals:
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
 
 private slots:
     void onItemChanged(QTreeWidgetItem* item, int column);
@@ -191,6 +206,10 @@ private:
 
     // Internal helper: collapse item and all its descendants
     void collapseSubtreeHelper(QTreeWidgetItem* item);
+
+    // Bulk assembly tristate + icon refresh (used after show/hide all)
+    void refreshAllAssemblyStates();
+    void refreshAssemblyBottomUp(QTreeWidgetItem* item);
 
     // Sync the item's icon to its current check-state
     void updateItemIcon(QTreeWidgetItem* item);

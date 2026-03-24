@@ -10,6 +10,7 @@
 #include "UVPromptDialog.h"
 #include "AssImpModelLoader.h"
 #include "ApplyMaterialCommand.h"
+#include "RenameMeshCommand.h"
 
 #include <QUndoStack>
 
@@ -179,6 +180,7 @@ private:
 	GLMaterial buildADSMaterialFromPanel() const;
 
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
+	QString computeUniqueName(TriangleMesh* exclude, const QString& name) const;
 	bool checkForActiveSelection();
 			
 	void updateControls();

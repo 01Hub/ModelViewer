@@ -4,6 +4,7 @@
 #include "ApplyADSColorsCommand.h"
 #include "ApplyADSTexturesCommand.h"
 #include "DeleteMeshCommand.h"
+#include "RenameMeshCommand.h"
 #include "DuplicateCommand.h"
 #include "GLWidget.h"
 #include "LanguageManager.h"
@@ -1391,9 +1392,9 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	if (clickedAssembly && clickedItem->childCount() > 0)
 	{
 		// Single-level pair — most commonly used, so listed first
-		myMenu.addAction(tr("Expand"), treeWidgetModel,
-		    [this, clickedItem]() { treeWidgetModel->expandItem(clickedItem); });
-		myMenu.addAction(tr("Collapse"), treeWidgetModel,
+		myMenu.addAction(tr("Expand First Level"), treeWidgetModel,
+		    [this, clickedItem]() { treeWidgetModel->expandOneLevel(clickedItem); });
+		myMenu.addAction(tr("Collapse First Level"), treeWidgetModel,
 		    [this, clickedItem]() { treeWidgetModel->collapseOneLevel(clickedItem); });
 
 		myMenu.addSeparator();
@@ -1838,8 +1839,19 @@ void ModelViewer::on_treeWidgetModel_selectionChanged()
 void ModelViewer::on_treeWidgetModel_meshRenamed(const QUuid& uuid, const QString& newName)
 {
 	TriangleMesh* mesh = _glWidget->getMeshByUuid(uuid);
-	if (mesh && mesh->getName() != newName)
-		checkAndRenameModel(mesh, newName);
+	if (!mesh) return;
+
+	// Capture old name before any mutation so the command can restore it.
+	const QString oldName   = mesh->getName();
+	const QString finalName = computeUniqueName(mesh, newName);
+
+	// Nothing to do if the resolved name matches the current one.
+	if (finalName == oldName) return;
+
+	_undoStack->push(new RenameMeshCommand(
+	    this, _glWidget, treeWidgetModel,
+	    uuid, oldName, finalName,
+	    tr("Rename \"%1\" to \"%2\"").arg(oldName, finalName)));
 }
 
 GLMaterial ModelViewer::buildADSMaterialFromPanel() const
@@ -1923,6 +1935,32 @@ void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
 	} while (duplicate);
 	mesh->setName(finalName);
 	updateDisplayList();
+}
+
+QString ModelViewer::computeUniqueName(TriangleMesh* exclude, const QString& name) const
+{
+	// Return a version of 'name' that does not collide with any existing mesh
+	// name, skipping 'exclude' (the mesh being renamed) so it doesn't conflict
+	// with itself.  Appends _1, _2, … until a free slot is found.
+	bool    duplicate = false;
+	QString finalName = name;
+	int     dupCnt    = 1;
+	const std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+	do
+	{
+		duplicate = false;
+		for (TriangleMesh* msh : meshes)
+		{
+			if (msh == exclude) continue;
+			if (msh->getName() == finalName)
+			{
+				duplicate = true;
+				finalName = QString("%1_%2").arg(name).arg(dupCnt++);
+				break;
+			}
+		}
+	} while (duplicate);
+	return finalName;
 }
 
 void ModelViewer::onFileImport()

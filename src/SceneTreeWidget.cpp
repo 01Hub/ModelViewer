@@ -8,9 +8,12 @@
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QLineEdit>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPixmap>
+#include <QProxyStyle>
 #include <QStyle>
+#include <QStyleOption>
 #include <QStyledItemDelegate>
 
 // ---------------------------------------------------------------------------
@@ -58,6 +61,44 @@ static const TreeIcons& treeIcons()
 }
 
 // ---------------------------------------------------------------------------
+// PlusMinusStyle
+//
+// Replaces the platform arrow branch indicator with a classic +/- box.
+// ---------------------------------------------------------------------------
+class PlusMinusStyle : public QProxyStyle
+{
+public:
+    using QProxyStyle::QProxyStyle;
+
+    void drawPrimitive(PrimitiveElement    pe,
+                       const QStyleOption* opt,
+                       QPainter*           p,
+                       const QWidget*      w) const override
+    {
+        if (pe == PE_IndicatorBranch && (opt->state & State_Children))
+        {
+            const int sz = 11;
+            QRect box = QRect(opt->rect.center() - QPoint(sz / 2, sz / 2),
+                              QSize(sz, sz));
+            p->save();
+            p->setPen(QPen(opt->palette.text().color(), 1));
+            p->setBrush(opt->palette.base());
+            p->drawRect(box);
+            // Horizontal bar
+            p->drawLine(box.left() + 2,  box.center().y(),
+                        box.right() - 2, box.center().y());
+            // Vertical bar only when closed (+)
+            if (!(opt->state & State_Open))
+                p->drawLine(box.center().x(), box.top() + 2,
+                            box.center().x(), box.bottom() - 2);
+            p->restore();
+            return;
+        }
+        QProxyStyle::drawPrimitive(pe, opt, p, w);
+    }
+};
+
+// ---------------------------------------------------------------------------
 // SceneTreeWidget
 // ---------------------------------------------------------------------------
 
@@ -72,6 +113,8 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     setAnimated(true);
     setRootIsDecorated(true);
     setUniformRowHeights(true);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    setStyle(new PlusMinusStyle(style()));              
 
     // --- item changed (check-state or text) ----------------------------------
     connect(this, &QTreeWidget::itemChanged,
@@ -230,9 +273,9 @@ void SceneTreeWidget::setVisibilityByUuids(const QSet<QUuid>& visibleUuids)
         updateItemIcon(it.value());
     }
 
-    // Update tristate and icons on all ancestors
-    for (int i = 0; i < topLevelItemCount(); ++i)
-        refreshCheckUpward(topLevelItem(i));
+    // Update tristate and icons on ALL assembly nodes (bottom-up),
+    // not just top-level items, so intermediate nodes are also correct
+    refreshAllAssemblyStates();
 
     blockSignals(false);
     _updatingTree = false;
@@ -434,8 +477,7 @@ void SceneTreeWidget::rebuild()
         it.value()->setCheckState(0, visible ? Qt::Checked : Qt::Unchecked);
         updateItemIcon(it.value());
     }
-    for (int i = 0; i < topLevelItemCount(); ++i)
-        refreshCheckUpward(topLevelItem(i));
+    refreshAllAssemblyStates();
 
     // ---- Restore selection --------------------------------------------------
     for (const QUuid& uuid : savedSelected)
@@ -484,6 +526,61 @@ void SceneTreeWidget::keyPressEvent(QKeyEvent* event)
 }
 
 // ---------------------------------------------------------------------------
+// Mouse press — toggle-deselect on re-click
+// ---------------------------------------------------------------------------
+
+void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton &&
+        !(event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)))
+    {
+        QTreeWidgetItem* clicked = itemAt(event->pos());
+        if (clicked)
+        {
+            const bool isLeaf = clicked->data(0, IsLeafRole).toBool();
+
+            if (isLeaf)
+            {
+                // Leaf: re-clicking the sole selected item deselects it.
+                // Snapshot state that only changes on checkbox / branch clicks;
+                // if unchanged after base handles the event it was a label click.
+                if (clicked->isSelected() && selectedItems().count() == 1)
+                {
+                    const Qt::CheckState csBefore       = clicked->checkState(0);
+                    const bool           expandedBefore = clicked->isExpanded();
+                    QTreeWidget::mousePressEvent(event);
+                    if (clicked->checkState(0) == csBefore &&
+                        clicked->isExpanded()  == expandedBefore)
+                        clearSelection();
+                    return;
+                }
+            }
+            else
+            {
+                // Assembly: if ALL its leaves are currently selected,
+                // re-clicking the assembly deselects everything (toggle off).
+                QList<QTreeWidgetItem*> leaves;
+                collectLeaves(clicked, leaves);
+                if (!leaves.isEmpty())
+                {
+                    bool allSelected = true;
+                    for (QTreeWidgetItem* leaf : leaves)
+                        if (!leaf->isSelected()) { allSelected = false; break; }
+
+                    if (allSelected)
+                    {
+                        clearSelection();
+                        event->accept();
+                        return;
+                    }
+                }
+            }
+        }
+    }
+    QTreeWidget::mousePressEvent(event);
+}
+
+// ---------------------------------------------------------------------------
 // Private slots
 // ---------------------------------------------------------------------------
 
@@ -495,10 +592,12 @@ void SceneTreeWidget::onItemChanged(QTreeWidgetItem* item, int /*column*/)
 
     if (isLeaf)
     {
-        // Leaf check-state changed → update icon, refresh parent tristate
-        updateItemIcon(item);
+        // Leaf check-state changed → update icon, refresh parent tristate.
+        // _updatingTree must be set BEFORE updateItemIcon so that the setIcon()
+        // call inside it does not re-fire onItemChanged (infinite loop).
         _updatingTree = true;
         blockSignals(true);
+        updateItemIcon(item);
         refreshCheckUpward(item->parent());
         blockSignals(false);
         _updatingTree = false;
@@ -694,6 +793,37 @@ void SceneTreeWidget::refreshCheckUpward(QTreeWidgetItem* item)
     refreshCheckUpward(item->parent());
 }
 
+// Refreshes every assembly node's check-state and icon bottom-up.
+// Use this after bulk leaf-state changes where refreshCheckUpward(topLevel)
+// only reaches the root, skipping intermediate assembly nodes.
+void SceneTreeWidget::refreshAllAssemblyStates()
+{
+    for (int i = 0; i < topLevelItemCount(); ++i)
+        refreshAssemblyBottomUp(topLevelItem(i));
+}
+
+void SceneTreeWidget::refreshAssemblyBottomUp(QTreeWidgetItem* item)
+{
+    if (!item || item->data(0, IsLeafRole).toBool()) return;
+    for (int i = 0; i < item->childCount(); ++i)
+        refreshAssemblyBottomUp(item->child(i));
+
+    int checked = 0, unchecked = 0;
+    QList<QTreeWidgetItem*> leaves;
+    collectLeaves(item, leaves);
+    for (QTreeWidgetItem* leaf : leaves)
+    {
+        if (leaf->checkState(0) == Qt::Checked) ++checked;
+        else                                    ++unchecked;
+    }
+    Qt::CheckState cs;
+    if      (checked   == 0) cs = Qt::Unchecked;
+    else if (unchecked == 0) cs = Qt::Checked;
+    else                     cs = Qt::PartiallyChecked;
+    item->setCheckState(0, cs);
+    updateItemIcon(item);
+}
+
 void SceneTreeWidget::collectLeaves(QTreeWidgetItem*         root,
                                     QList<QTreeWidgetItem*>& out) const
 {
@@ -711,6 +841,25 @@ void SceneTreeWidget::collectAllLeaves(QList<QTreeWidgetItem*>& out) const
 {
     for (int i = 0; i < topLevelItemCount(); ++i)
         collectLeaves(topLevelItem(i), out);
+}
+
+void SceneTreeWidget::updateMeshName(const QUuid& uuid, const QString& name)
+{
+    auto it = _uuidToLeaf.find(uuid);
+    if (it == _uuidToLeaf.end()) return;
+
+    QTreeWidgetItem* item = it.value();
+
+    // Block signals so the text change doesn't fire itemChanged and
+    // trigger the rename or visibility machinery.
+    _updatingTree = true;
+    blockSignals(true);
+
+    item->setText(0, name);
+    item->setData(0, PureNameRole, name);
+
+    blockSignals(false);
+    _updatingTree = false;
 }
 
 int SceneTreeWidget::levenshteinDistance(const QString& s1,
@@ -732,6 +881,17 @@ int SceneTreeWidget::levenshteinDistance(const QString& s1,
         }
 
     return d[len1][len2];
+}
+
+void SceneTreeWidget::expandOneLevel(QTreeWidgetItem* item)
+{
+    if (!item) return;
+    item->setExpanded(true);
+    // Collapse every direct child so their subtrees stay hidden.
+    // Without this, children that were previously expanded would show their
+    // grandchildren too, making "Expand" indistinguishable from "Expand All".
+    for (int i = 0; i < item->childCount(); ++i)
+        item->child(i)->setExpanded(false);
 }
 
 void SceneTreeWidget::expandSubtree(QTreeWidgetItem* item)
@@ -769,7 +929,9 @@ void SceneTreeWidget::collapseSubtreeHelper(QTreeWidgetItem* item)
     if (!item) return;
     for (int i = 0; i < item->childCount(); ++i)
         collapseSubtreeHelper(item->child(i));
-    collapseItem(item);
+    // Use setExpanded(false) directly — collapseItem() can silently no-op
+    // on items that Qt's view hasn't yet materialised (first invocation).
+    item->setExpanded(false);
 }
 
 void SceneTreeWidget::updateItemIcon(QTreeWidgetItem* item)
