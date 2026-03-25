@@ -158,8 +158,54 @@
             <property name="orientation">
              <enum>Qt::Orientation::Vertical</enum>
             </property>
-            <widget class="QWidget" name="layoutWidget">
+            <widget class="QWidget" name="modelNavigationWidget">
              <layout class="QVBoxLayout" name="verticalLayout">
+              <property name="spacing">
+               <number>6</number>
+              </property>
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="topMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <property name="bottomMargin">
+               <number>0</number>
+              </property>
+              <item>
+               <layout class="QHBoxLayout" name="horizontalLayout_14">
+                <item>
+                 <widget class="QToolButton" name="toolButtonDetach">
+                  <property name="toolTip">
+                   <string> Detach from panel</string>
+                  </property>
+                  <property name="text">
+                   <string/>
+                  </property>
+                  <property name="icon">
+                   <iconset resource="../ModelViewer.qrc">
+                    <normaloff>:/icons/res/detach.png</normaloff>:/icons/res/detach.png</iconset>
+                  </property>
+                 </widget>
+                </item>
+                <item>
+                 <spacer name="horizontalSpacer_13">
+                  <property name="orientation">
+                   <enum>Qt::Orientation::Horizontal</enum>
+                  </property>
+                  <property name="sizeHint" stdset="0">
+                   <size>
+                    <width>40</width>
+                    <height>20</height>
+                   </size>
+                  </property>
+                 </spacer>
+                </item>
+               </layout>
+              </item>
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout_27">
                 <item>
@@ -229,6 +275,11 @@
                 <property name="selectionMode">
                  <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
                 </property>
+                <column>
+                 <property name="text">
+                  <string notr="true">1</string>
+                 </property>
+                </column>
                </widget>
               </item>
              </layout>
@@ -279,7 +330,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>525</width>
-                   <height>515</height>
+                   <height>96</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -315,7 +366,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>525</width>
-                   <height>515</height>
+                   <height>96</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -345,7 +396,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>525</width>
-                   <height>515</height>
+                   <height>96</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -382,7 +433,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>525</width>
-                   <height>515</height>
+                   <height>96</height>
                   </rect>
                  </property>
                  <property name="sizePolicy">
@@ -418,7 +469,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>525</width>
-                   <height>515</height>
+                   <height>96</height>
                   </rect>
                  </property>
                  <attribute name="label">

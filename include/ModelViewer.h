@@ -196,6 +196,8 @@ private:
 	void reattachTransformationsPanel();
 	void detachEnvironmentPanel();
 	void reattachEnvironmentPanel();
+	void detachNavigationPanel();
+	void reattachNavigationPanel();
 
 	// Cleanup methods
 	void setupUndoStackMonitoring();
@@ -279,6 +281,9 @@ private:
 	QWidget* _environmentOriginalParent = nullptr; // Stores where panel came from
 	int _environmentPageIndex = -1;
 	QString _environmentPageLabel;
+
+	QPointer<QDialog> _detachedNavigationDialog; // Stores the floating dialog
+	QList<int> _navigationSplitterSizes;          // Saved splitter proportions for restore
 
 	QUndoStack* _undoStack;
 	bool _lastCanUndo = false;

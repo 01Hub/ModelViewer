@@ -74,6 +74,8 @@
         <file>res/assembly.png</file>
         <file>res/document-root.png</file>
         <file>res/mesh.png</file>
+        <file>res/pin.png</file>
+        <file>res/unpin.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

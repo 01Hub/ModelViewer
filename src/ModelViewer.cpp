@@ -1,4 +1,5 @@
 ﻿#include "ADSMaterialSettingsPanel.h"
+#include "FloatingPanelDialog.h"
 #include "AssImpModelLoader.h"
 #include "ApplyPBRTexturesCommand.h"
 #include "ApplyADSColorsCommand.h"
@@ -258,6 +259,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	connect(Ui_ModelViewer::visualizationEnvironmentPanel, &VisualizationEnvironmentPanel::detachRequested,
 		this, &ModelViewer::detachEnvironmentPanel);
+
+	connect(Ui_ModelViewer::toolButtonDetach, &QToolButton::clicked,
+		this, &ModelViewer::detachNavigationPanel);
 
 	_hasADSDiffuseTex = false;
 	_hasADSSpecularTex = false;
@@ -574,14 +578,10 @@ void ModelViewer::detachADSMaterialPanel()
 		toolBox->removeItem(_adsMaterialPageIndex);
 	}
 	// Create floating dialog
-	_detachedADSMaterialDialog = new QDialog(this);
-	_detachedADSMaterialDialog->setWindowTitle("ADS Material Settings");
-	_detachedADSMaterialDialog->setWindowFlags(Qt::Window | Qt::Tool);
-	QVBoxLayout* layout = new QVBoxLayout(_detachedADSMaterialDialog);
-	layout->setContentsMargins(6, 6, 6, 6);
+	auto* floatingADSDlg = new FloatingPanelDialog(this, tr("ADS Material Settings"));
+	_detachedADSMaterialDialog = floatingADSDlg;
 	_adsMaterialOriginalParent = adsMaterialSettingsPanel->parentWidget();
-	adsMaterialSettingsPanel->setParent(_detachedADSMaterialDialog);
-	layout->addWidget(adsMaterialSettingsPanel);
+	floatingADSDlg->addContentWidget(adsMaterialSettingsPanel);
 	// Position and show...
 	QScreen* screen = QGuiApplication::primaryScreen();
 	QRect screenGeom = screen->availableGeometry();
@@ -650,16 +650,11 @@ void ModelViewer::detachTexturePanel()
 	}
 
 	// Create floating dialog
-	_detachedTextureDialog = new QDialog(this);
-	_detachedTextureDialog->setWindowTitle("PBR Texture Settings");
-	_detachedTextureDialog->setWindowFlags(Qt::Window | Qt::Tool);
-
-	QVBoxLayout* layout = new QVBoxLayout(_detachedTextureDialog);
-	layout->setContentsMargins(6, 6, 6, 6);
+	auto* floatingTexDlg = new FloatingPanelDialog(this, tr("PBR Texture Settings"));
+	_detachedTextureDialog = floatingTexDlg;
 
 	_textureOriginalParent = textureMappingPanel->parentWidget();
-	textureMappingPanel->setParent(_detachedTextureDialog);
-	layout->addWidget(textureMappingPanel);
+	floatingTexDlg->addContentWidget(textureMappingPanel);
 
 	// Position and show...
 	QScreen* screen = QGuiApplication::primaryScreen();
@@ -736,16 +731,11 @@ void ModelViewer::detachMaterialPanel()
 	}
 
 	// Create floating dialog
-	_detachedMaterialDialog = new QDialog(this);
-	_detachedMaterialDialog->setWindowTitle("Predefined Materials");
-	_detachedMaterialDialog->setWindowFlags(Qt::Window | Qt::Tool);
-
-	QVBoxLayout* layout = new QVBoxLayout(_detachedMaterialDialog);
-	layout->setContentsMargins(6, 6, 6, 6);
+	auto* floatingMatDlg = new FloatingPanelDialog(this, tr("Predefined Materials"));
+	_detachedMaterialDialog = floatingMatDlg;
 
 	_materialOriginalParent = predefinedMaterialsPanel->parentWidget();
-	predefinedMaterialsPanel->setParent(_detachedMaterialDialog);
-	layout->addWidget(predefinedMaterialsPanel);
+	floatingMatDlg->addContentWidget(predefinedMaterialsPanel);
 
 	// Position and show...
 	QScreen* screen = QGuiApplication::primaryScreen();
@@ -814,14 +804,10 @@ void ModelViewer::detachTransformationsPanel()
 		toolBox->removeItem(_transformationsPageIndex);
 	}
 	// Create floating dialog
-	_detachedTransformationsDialog = new QDialog(this);
-	_detachedTransformationsDialog->setWindowTitle("Object Transformations");
-	_detachedTransformationsDialog->setWindowFlags(Qt::Window | Qt::Tool);
-	QVBoxLayout* layout = new QVBoxLayout(_detachedTransformationsDialog);
-	layout->setContentsMargins(6, 6, 6, 6);
+	auto* floatingTransDlg = new FloatingPanelDialog(this, tr("Object Transformations"));
+	_detachedTransformationsDialog = floatingTransDlg;
 	_transformationsOriginalParent = objectTransformPanel->parentWidget();
-	objectTransformPanel->setParent(_detachedTransformationsDialog);
-	layout->addWidget(objectTransformPanel);
+	floatingTransDlg->addContentWidget(objectTransformPanel);
 	// Position and show...
 	QScreen* screen = QGuiApplication::primaryScreen();
 	QRect screenGeom = screen->availableGeometry();
@@ -890,16 +876,11 @@ void ModelViewer::detachEnvironmentPanel()
 	}
 
 	// Create floating dialog
-	_detachedEnvironmentDialog = new QDialog(this);
-	_detachedEnvironmentDialog->setWindowTitle("Visualization Environment Settings");
-	_detachedEnvironmentDialog->setWindowFlags(Qt::Window | Qt::Tool);
-
-	QVBoxLayout* layout = new QVBoxLayout(_detachedEnvironmentDialog);
-	layout->setContentsMargins(6, 6, 6, 6);
+	auto* floatingEnvDlg = new FloatingPanelDialog(this, tr("Visualization Environment Settings"));
+	_detachedEnvironmentDialog = floatingEnvDlg;
 
 	_environmentOriginalParent = visualizationEnvironmentPanel->parentWidget();
-	visualizationEnvironmentPanel->setParent(_detachedEnvironmentDialog);
-	layout->addWidget(visualizationEnvironmentPanel);
+	floatingEnvDlg->addContentWidget(visualizationEnvironmentPanel);
 
 	// Position and show...
 	QScreen* screen = QGuiApplication::primaryScreen();
@@ -941,10 +922,77 @@ void ModelViewer::reattachEnvironmentPanel()
 		}
 		visualizationEnvironmentPanel->show();
 		_environmentOriginalParent->show();
-		visualizationEnvironmentPanel->setDetached(false);					
+		visualizationEnvironmentPanel->setDetached(false);
 		toolBox->setCurrentIndex(_environmentPageIndex);
 		toolBox->setItemEnabled(_environmentPageIndex, true);
 	}
+}
+
+void ModelViewer::detachNavigationPanel()
+{
+	if (!modelNavigationWidget || !splitter_2) return;
+
+	// If already detached, just bring the floating window to front.
+	if (_detachedNavigationDialog)
+	{
+		_detachedNavigationDialog->raise();
+		_detachedNavigationDialog->activateWindow();
+		return;
+	}
+
+	// Save splitter proportions so we can restore them on reattach.
+	_navigationSplitterSizes = splitter_2->sizes();
+
+	// Create floating dialog.
+	auto* floatingDlg = new FloatingPanelDialog(this, tr("Model Objects"));
+	_detachedNavigationDialog = floatingDlg;
+
+	// Re-parenting to the dialog implicitly removes the widget from splitter_2.
+	floatingDlg->addContentWidget(modelNavigationWidget);
+
+	// Hide the detach button inside the floating window — it serves no purpose there.
+	Ui_ModelViewer::toolButtonDetach->setVisible(false);
+
+	// Position near the parent window, respecting screen bounds.
+	QScreen* screen  = QGuiApplication::primaryScreen();
+	QRect screenGeom = screen->availableGeometry();
+	QRect myGeometry = this->frameGeometry();
+	int x = myGeometry.right() + 10;
+	int y = myGeometry.top();
+	if (x + 420 > screenGeom.right())  x = screenGeom.right() - 420;
+	if (y + 600 > screenGeom.bottom()) y = screenGeom.bottom() - 600;
+	if (x < screenGeom.left()) x = screenGeom.left();
+	if (y < screenGeom.top())  y = screenGeom.top();
+	_detachedNavigationDialog->move(x, y);
+	// Size to 75% of the parent height.  Unlike the toolbox panels (which have
+	// a fixed proportional height we can read back), this widget lives in a
+	// user-resizable splitter, so its current height can be arbitrarily small
+	// and is not a reliable reference for the floating window size.
+	_detachedNavigationDialog->resize(420, static_cast<int>(height() * 0.75));
+	_detachedNavigationDialog->show();
+	modelNavigationWidget->show();
+
+	connect(_detachedNavigationDialog, &QDialog::finished,
+		this, &ModelViewer::reattachNavigationPanel);
+}
+
+void ModelViewer::reattachNavigationPanel()
+{
+	if (!_detachedNavigationDialog || !splitter_2) return;
+
+	_detachedNavigationDialog->disconnect();
+	_detachedNavigationDialog->deleteLater();
+	_detachedNavigationDialog = nullptr;
+
+	// Re-insert at index 0 (its original slot) — insertWidget handles the re-parent.
+	splitter_2->insertWidget(0, modelNavigationWidget);
+
+	// Restore the detach button and the saved split proportions.
+	Ui_ModelViewer::toolButtonDetach->setVisible(true);
+	if (!_navigationSplitterSizes.isEmpty())
+		splitter_2->setSizes(_navigationSplitterSizes);
+
+	modelNavigationWidget->show();
 }
 
 void ModelViewer::setupUndoStackMonitoring()
