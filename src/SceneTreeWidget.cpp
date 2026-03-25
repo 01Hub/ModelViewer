@@ -106,6 +106,12 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     : QTreeWidget(parent)
 {
     setHeaderHidden(true);
+    // By default QTreeWidget stretches the last section to fill the viewport,
+    // which overrides ResizeToContents and prevents the horizontal scrollbar
+    // from ever appearing.  Disable stretch first, then let the column size
+    // itself to its content so overflow triggers the scrollbar.
+    header()->setStretchLastSection(false);
+    header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
     setSelectionMode(QAbstractItemView::ExtendedSelection);
     setContextMenuPolicy(Qt::CustomContextMenu);
     setEditTriggers(QAbstractItemView::DoubleClicked
