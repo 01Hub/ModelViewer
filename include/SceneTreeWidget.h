@@ -105,9 +105,10 @@ public:
     // -----------------------------------------------------------------------
 
     /**
-     * Filter the tree by mesh name (substring + fuzzy fallback).
-     * Matching leaves (and their ancestors) stay visible; non-matching
-     * leaves are hidden.  An empty filter restores all items.
+     * Filter the tree by item text (assembly + mesh names, with fuzzy fallback).
+     * Matching branches stay visible; if an assembly matches, its descendant
+     * mesh leaves become the effective selection. An empty filter restores all
+     * items.
      * Emits selectionUpdated() after updating the selection.
      */
     void filterItems(const QString& filter);
@@ -216,6 +217,20 @@ private:
 
     // Levenshtein distance for fuzzy name matching
     int levenshteinDistance(const QString& s1, const QString& s2) const;
+
+    // Search / filter helpers
+    QString itemSearchText(QTreeWidgetItem* item) const;
+    QStringList searchTerms(const QString& text) const;
+    int textMatchRank(const QString& text, const QString& lowerFilter) const;
+    void showSubtree(QTreeWidgetItem* item);
+    void selectSearchMatch(QTreeWidgetItem* item);
+    bool applySubstringFilter(QTreeWidgetItem* item,
+                              const QString& lowerFilter,
+                              bool ancestorMatched,
+                              bool& anyMatch);
+    QTreeWidgetItem* findBestFuzzyMatch(QTreeWidgetItem* item,
+                                        const QString& lowerFilter,
+                                        int& bestScore) const;
 
     SceneGraph* _sceneGraph = nullptr;
     GLWidget*   _glWidget   = nullptr;

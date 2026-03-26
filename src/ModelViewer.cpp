@@ -28,6 +28,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QTimer>
 #include <QToolTip>
 
 QString ModelViewer::_lastOpenedDir;
@@ -143,8 +144,16 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(treeWidgetModel, &SceneTreeWidget::meshRenamed,
 	        this, &ModelViewer::on_treeWidgetModel_meshRenamed);
 
-	connect(searchBox, &QLineEdit::textChanged, treeWidgetModel, [&](const QString& text) {
-		treeWidgetModel->filterItems(text);
+	QTimer* searchTimer = new QTimer(this);
+	searchTimer->setSingleShot(true);
+	searchTimer->setInterval(300);
+
+	connect(searchBox, &QLineEdit::textEdited, this, [searchTimer](const QString&) {
+		searchTimer->start();
+		});
+
+	connect(searchTimer, &QTimer::timeout, this, [this]() {
+		treeWidgetModel->filterItems(searchBox->text());
 
 		// Visual feedback if no match
 		bool anySelected = treeWidgetModel->hasMeshSelection();
@@ -2826,4 +2835,3 @@ void ModelViewer::setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids)
 	treeWidgetModel->setVisibilityByUuids(visibleUuids);
 	on_treeWidgetModel_visibilityChanged();
 }
-

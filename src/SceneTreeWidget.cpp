@@ -12,9 +12,11 @@
 #include <QPainter>
 #include <QPixmap>
 #include <QProxyStyle>
+#include <QRegularExpression>
 #include <QStyle>
 #include <QStyleOption>
 #include <QStyledItemDelegate>
+#include <limits>
 
 // ---------------------------------------------------------------------------
 // Icon helpers
@@ -333,62 +335,49 @@ void SceneTreeWidget::filterItems(const QString& filter)
     blockSignals(true);
     clearSelection();
 
-    QList<QTreeWidgetItem*> leaves;
-    collectAllLeaves(leaves);
-
     if (filter.isEmpty())
     {
-        for (QTreeWidgetItem* leaf : leaves)
-        {
-            leaf->setHidden(false);
-            for (QTreeWidgetItem* p = leaf->parent(); p; p = p->parent())
-            {
-                p->setHidden(false);
-                p->setExpanded(true);
-            }
-        }
+        for (int i = 0; i < topLevelItemCount(); ++i)
+            showSubtree(topLevelItem(i));
         blockSignals(false);
         _updatingTree = false;
         return;
     }
 
     const QString lowerFilter = filter.toLower();
-    QList<QPair<QTreeWidgetItem*, int>> scored;
+    bool anySubstringMatch = false;
+    for (int i = 0; i < topLevelItemCount(); ++i)
+        applySubstringFilter(topLevelItem(i), lowerFilter, false, anySubstringMatch);
 
-    for (QTreeWidgetItem* leaf : leaves)
+    if (!anySubstringMatch)
     {
-        const QString name = leaf->data(0, PureNameRole).toString().toLower();
-        if (name.contains(lowerFilter))
+        QTreeWidgetItem* bestItem = nullptr;
+        int bestScore = std::numeric_limits<int>::max();
+
+        for (int i = 0; i < topLevelItemCount(); ++i)
         {
-            leaf->setHidden(false);
-            leaf->setSelected(true);
-            for (QTreeWidgetItem* p = leaf->parent(); p; p = p->parent())
+            QTreeWidgetItem* candidate =
+                findBestFuzzyMatch(topLevelItem(i), lowerFilter, bestScore);
+            if (candidate)
+                bestItem = candidate;
+        }
+
+        if (bestItem && bestScore <= 3)
+        {
+            for (QTreeWidgetItem* p = bestItem->parent(); p; p = p->parent())
             {
                 p->setHidden(false);
                 p->setExpanded(true);
             }
-        }
-        else
-        {
-            leaf->setHidden(true);
-            scored.append({leaf, levenshteinDistance(lowerFilter, name)});
-        }
-    }
-
-    // Select closest fuzzy match if no substring matches
-    if (!scored.isEmpty())
-    {
-        auto best = std::min_element(scored.begin(), scored.end(),
-            [](const auto& a, const auto& b){ return a.second < b.second; });
-        if (best != scored.end() && best->second <= 3)
-        {
-            best->first->setHidden(false);
-            best->first->setSelected(true);
-            for (QTreeWidgetItem* p = best->first->parent(); p; p = p->parent())
+            if (bestItem->data(0, IsLeafRole).toBool())
             {
-                p->setHidden(false);
-                p->setExpanded(true);
+                bestItem->setHidden(false);
             }
+            else
+            {
+                showSubtree(bestItem);
+            }
+            selectSearchMatch(bestItem);
         }
     }
 
@@ -887,6 +876,162 @@ int SceneTreeWidget::levenshteinDistance(const QString& s1,
         }
 
     return d[len1][len2];
+}
+
+QString SceneTreeWidget::itemSearchText(QTreeWidgetItem* item) const
+{
+    if (!item) return {};
+
+    if (item->data(0, IsLeafRole).toBool())
+        return item->data(0, PureNameRole).toString().toLower();
+
+    return item->text(0).toLower();
+}
+
+QStringList SceneTreeWidget::searchTerms(const QString& text) const
+{
+    QString normalized = text;
+
+    // Split common separators and camelCase boundaries into searchable terms.
+    normalized.replace(QRegularExpression("([a-z0-9])([A-Z])"), "\\1 \\2");
+    normalized = normalized.toLower();
+    normalized.replace(QRegularExpression("[^a-z0-9]+"), " ");
+
+    return normalized.split(' ', Qt::SkipEmptyParts);
+}
+
+int SceneTreeWidget::textMatchRank(const QString& text, const QString& lowerFilter) const
+{
+    if (text.isEmpty() || lowerFilter.isEmpty())
+        return 0;
+
+    if (text == lowerFilter)
+        return 4;
+
+    const QStringList terms = searchTerms(text);
+    for (const QString& term : terms)
+    {
+        if (term == lowerFilter)
+            return 4;
+    }
+
+    for (const QString& term : terms)
+    {
+        if (term.startsWith(lowerFilter))
+            return 3;
+    }
+
+    if (text.startsWith(lowerFilter))
+        return 3;
+
+    for (const QString& term : terms)
+    {
+        if (term.contains(lowerFilter))
+            return 2;
+    }
+
+    if (text.contains(lowerFilter))
+        return 1;
+
+    return 0;
+}
+
+void SceneTreeWidget::showSubtree(QTreeWidgetItem* item)
+{
+    if (!item) return;
+
+    item->setHidden(false);
+    item->setExpanded(true);
+    for (int i = 0; i < item->childCount(); ++i)
+        showSubtree(item->child(i));
+}
+
+void SceneTreeWidget::selectSearchMatch(QTreeWidgetItem* item)
+{
+    if (!item) return;
+
+    if (item->data(0, IsLeafRole).toBool())
+    {
+        item->setSelected(true);
+        return;
+    }
+
+    QList<QTreeWidgetItem*> leaves;
+    collectLeaves(item, leaves);
+    for (QTreeWidgetItem* leaf : leaves)
+        leaf->setSelected(true);
+}
+
+bool SceneTreeWidget::applySubstringFilter(QTreeWidgetItem* item,
+                                           const QString& lowerFilter,
+                                           bool ancestorMatched,
+                                           bool& anyMatch)
+{
+    if (!item) return false;
+
+    const bool ownMatch = textMatchRank(itemSearchText(item), lowerFilter) > 0;
+    bool descendantMatch = false;
+
+    for (int i = 0; i < item->childCount(); ++i)
+    {
+        if (applySubstringFilter(item->child(i),
+                                 lowerFilter,
+                                 ancestorMatched || ownMatch,
+                                 anyMatch))
+        {
+            descendantMatch = true;
+        }
+    }
+
+    const bool visible = ancestorMatched || ownMatch || descendantMatch;
+    item->setHidden(!visible);
+
+    if (!visible)
+        return false;
+
+    if (item->childCount() > 0 && (ownMatch || descendantMatch))
+        item->setExpanded(true);
+
+    if (ownMatch)
+    {
+        anyMatch = true;
+        if (!item->data(0, IsLeafRole).toBool())
+            showSubtree(item);
+        selectSearchMatch(item);
+    }
+
+    return ownMatch || descendantMatch;
+}
+
+QTreeWidgetItem* SceneTreeWidget::findBestFuzzyMatch(QTreeWidgetItem* item,
+                                                     const QString& lowerFilter,
+                                                     int& bestScore) const
+{
+    if (!item) return nullptr;
+
+    QTreeWidgetItem* bestItem = nullptr;
+    const QString text = itemSearchText(item);
+    if (!text.isEmpty())
+    {
+        int score = levenshteinDistance(lowerFilter, text);
+        for (const QString& term : searchTerms(text))
+            score = std::min(score, levenshteinDistance(lowerFilter, term));
+        if (score < bestScore)
+        {
+            bestScore = score;
+            bestItem = item;
+        }
+    }
+
+    for (int i = 0; i < item->childCount(); ++i)
+    {
+        QTreeWidgetItem* childBest =
+            findBestFuzzyMatch(item->child(i), lowerFilter, bestScore);
+        if (childBest)
+            bestItem = childBest;
+    }
+
+    return bestItem;
 }
 
 void SceneTreeWidget::expandOneLevel(QTreeWidgetItem* item)
