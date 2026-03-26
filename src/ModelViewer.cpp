@@ -1439,18 +1439,21 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	// ---- Expand / Collapse section (assembly items only) -------------------
 	if (clickedAssembly && clickedItem->childCount() > 0)
 	{
-		// Single-level pair — most commonly used, so listed first
-		myMenu.addAction(tr("Expand First Level"), treeWidgetModel,
+		// Expand to first level: expand node, collapse direct children
+		myMenu.addAction(QIcon(QPixmap(":/icons/res/expand.png")),
+		    tr("Expand/Collapse to 1st Level"), treeWidgetModel,
 		    [this, clickedItem]() { treeWidgetModel->expandOneLevel(clickedItem); });
-		myMenu.addAction(tr("Collapse First Level"), treeWidgetModel,
-		    [this, clickedItem]() { treeWidgetModel->collapseOneLevel(clickedItem); });
+
+		// Recursively expand the whole subtree
+		myMenu.addAction(QIcon(QPixmap(":/icons/res/expandall.png")),
+		    tr("Expand All Children"), treeWidgetModel,
+		    [this, clickedItem]() { treeWidgetModel->expandSubtree(clickedItem); });
 
 		myMenu.addSeparator();
 
-		// Recursive pair
-		myMenu.addAction(tr("Expand All Below"), treeWidgetModel,
-		    [this, clickedItem]() { treeWidgetModel->expandSubtree(clickedItem); });
-		myMenu.addAction(tr("Collapse All Below"), treeWidgetModel,
+		// Recursively collapse the whole subtree
+		myMenu.addAction(QIcon(QPixmap(":/icons/res/collapse.png")),
+		    tr("Collapse All Children"), treeWidgetModel,
 		    [this, clickedItem]() { treeWidgetModel->collapseAllBelow(clickedItem); });
 
 		if (hasMeshes) myMenu.addSeparator();
