@@ -272,21 +272,24 @@ void SceneTreeWidget::clearMeshSelection()
 void SceneTreeWidget::setVisibilityByUuids(const QSet<QUuid>& visibleUuids)
 {
     _updatingTree = true;
-    blockSignals(true);
-
-    for (auto it = _uuidToLeaf.begin(); it != _uuidToLeaf.end(); ++it)
     {
-        Qt::CheckState cs = visibleUuids.contains(it.key())
-                            ? Qt::Checked : Qt::Unchecked;
-        it.value()->setCheckState(0, cs);
-        updateItemIcon(it.value());
+        viewport()->setUpdatesEnabled(false);
+        const QSignalBlocker blocker(this);
+
+        for (auto it = _uuidToLeaf.begin(); it != _uuidToLeaf.end(); ++it)
+        {
+            Qt::CheckState cs = visibleUuids.contains(it.key())
+                                ? Qt::Checked : Qt::Unchecked;
+            it.value()->setCheckState(0, cs);
+            updateItemIcon(it.value());
+        }
+
+        // Update tristate and icons on all assembly nodes bottom-up.
+        refreshAllAssemblyStates();
+
+        viewport()->setUpdatesEnabled(true);
+        viewport()->update();
     }
-
-    // Update tristate and icons on ALL assembly nodes (bottom-up),
-    // not just top-level items, so intermediate nodes are also correct
-    refreshAllAssemblyStates();
-
-    blockSignals(false);
     _updatingTree = false;
 }
 
@@ -784,21 +787,7 @@ void SceneTreeWidget::refreshCheckUpward(QTreeWidgetItem* item)
 {
     if (!item) return;
 
-    int checked = 0, unchecked = 0;
-    QList<QTreeWidgetItem*> leaves;
-    collectLeaves(item, leaves);
-    for (QTreeWidgetItem* leaf : leaves)
-    {
-        if (leaf->checkState(0) == Qt::Checked) ++checked;
-        else                                    ++unchecked;
-    }
-
-    Qt::CheckState cs;
-    if      (checked   == 0) cs = Qt::Unchecked;
-    else if (unchecked == 0) cs = Qt::Checked;
-    else                     cs = Qt::PartiallyChecked;
-
-    item->setCheckState(0, cs);
+    item->setCheckState(0, aggregateChildCheckState(item));
     updateItemIcon(item);
     refreshCheckUpward(item->parent());
 }
@@ -818,20 +807,42 @@ void SceneTreeWidget::refreshAssemblyBottomUp(QTreeWidgetItem* item)
     for (int i = 0; i < item->childCount(); ++i)
         refreshAssemblyBottomUp(item->child(i));
 
-    int checked = 0, unchecked = 0;
-    QList<QTreeWidgetItem*> leaves;
-    collectLeaves(item, leaves);
-    for (QTreeWidgetItem* leaf : leaves)
-    {
-        if (leaf->checkState(0) == Qt::Checked) ++checked;
-        else                                    ++unchecked;
-    }
-    Qt::CheckState cs;
-    if      (checked   == 0) cs = Qt::Unchecked;
-    else if (unchecked == 0) cs = Qt::Checked;
-    else                     cs = Qt::PartiallyChecked;
-    item->setCheckState(0, cs);
+    item->setCheckState(0, aggregateChildCheckState(item));
     updateItemIcon(item);
+}
+
+Qt::CheckState SceneTreeWidget::aggregateChildCheckState(QTreeWidgetItem* item) const
+{
+    if (!item || item->childCount() == 0)
+        return Qt::Unchecked;
+
+    int checked = 0;
+    int unchecked = 0;
+    int partial = 0;
+
+    for (int i = 0; i < item->childCount(); ++i)
+    {
+        switch (item->child(i)->checkState(0))
+        {
+        case Qt::Checked:
+            ++checked;
+            break;
+        case Qt::Unchecked:
+            ++unchecked;
+            break;
+        case Qt::PartiallyChecked:
+            ++partial;
+            break;
+        }
+    }
+
+    if (partial > 0)
+        return Qt::PartiallyChecked;
+    if (checked > 0 && unchecked > 0)
+        return Qt::PartiallyChecked;
+    if (checked > 0)
+        return Qt::Checked;
+    return Qt::Unchecked;
 }
 
 void SceneTreeWidget::collectLeaves(QTreeWidgetItem*         root,

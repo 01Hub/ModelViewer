@@ -211,6 +211,7 @@ private:
     // Bulk assembly tristate + icon refresh (used after show/hide all)
     void refreshAllAssemblyStates();
     void refreshAssemblyBottomUp(QTreeWidgetItem* item);
+    Qt::CheckState aggregateChildCheckState(QTreeWidgetItem* item) const;
 
     // Sync the item's icon to its current check-state
     void updateItemIcon(QTreeWidgetItem* item);
