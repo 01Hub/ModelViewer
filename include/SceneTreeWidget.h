@@ -1,7 +1,9 @@
 #pragma once
 
 #include <QHash>
+#include <QList>
 #include <QSet>
+#include <QTimer>
 #include <QTreeWidget>
 #include <QUuid>
 #include <vector>
@@ -150,6 +152,13 @@ public:
 
     /** Map a local widget position to global screen coordinates. */
     QPoint mapMenuToGlobal(const QPoint& localPos) const;
+    bool isAssemblyAt(const QPoint& localPos) const;
+    bool hasChildrenAt(const QPoint& localPos) const;
+    void ensureAssemblySelectionAt(const QPoint& localPos);
+    void expandOneLevelAt(const QPoint& localPos);
+    void expandSubtreeAt(const QPoint& localPos);
+    void collapseAllBelowAt(const QPoint& localPos);
+    void scrollFirstSelectedToCenter();
 
 public slots:
     /**
@@ -184,10 +193,22 @@ protected:
 private slots:
     void onItemChanged(QTreeWidgetItem* item, int column);
     void onItemSelectionChanged();
+    void processRebuildBatch();
 
 private:
+    struct BuildTask
+    {
+        QTreeWidgetItem* parentItem = nullptr;
+        const SceneNode* node = nullptr;
+        bool forceItem = false;
+    };
+
     // Recursive tree builder — skips nodes with no mesh descendants
     void buildSubtree(QTreeWidgetItem* parentItem, const SceneNode* node);
+    void enqueueRebuildTasks(QTreeWidgetItem* parentItem,
+                             const SceneNode* node,
+                             bool forceItem = false);
+    void finalizeRebuild();
 
     // Returns true if node has at least one mesh UUID anywhere in its subtree
     bool nodeHasMeshes(const SceneNode* node) const;
@@ -244,6 +265,12 @@ private:
 
     // O(1) lookup from mesh UUID to its leaf QTreeWidgetItem
     QHash<QUuid, QTreeWidgetItem*> _uuidToLeaf;
+    QTimer* _rebuildTimer = nullptr;
+    QList<BuildTask> _pendingBuildTasks;
+    QSet<QUuid> _pendingVisibleUuids;
+    QSet<QUuid> _pendingSelectedUuids;
+    QSet<QUuid> _pendingOldUuids;
+    bool _rebuildInProgress = false;
 
     bool _updatingTree = false; // suppress re-entrant signal handling
     bool _inRename     = false; // suppress itemChanged during delegate setModelData

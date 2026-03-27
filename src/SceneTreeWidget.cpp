@@ -108,6 +108,11 @@ public:
 SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     : QTreeWidget(parent)
 {
+    _rebuildTimer = new QTimer(this);
+    _rebuildTimer->setSingleShot(true);
+    connect(_rebuildTimer, &QTimer::timeout,
+            this, &SceneTreeWidget::processRebuildBatch);
+
     setHeaderHidden(true);
     // By default QTreeWidget stretches the last section to fill the viewport,
     // which overrides ResizeToContents and prevents the horizontal scrollbar
@@ -189,9 +194,29 @@ QList<QUuid> SceneTreeWidget::selectedMeshUuids() const
     for (QTreeWidgetItem* item : selectedItems())
     {
         if (item->data(0, IsLeafRole).toBool())
+        {
             result << item->data(0, MeshUuidRole).value<QUuid>();
+        }
+        else
+        {
+            QList<QTreeWidgetItem*> leaves;
+            collectLeaves(item, leaves);
+            for (QTreeWidgetItem* leaf : leaves)
+                result << leaf->data(0, MeshUuidRole).value<QUuid>();
+        }
     }
-    return result;
+
+    QList<QUuid> deduped;
+    QSet<QUuid> seen;
+    for (const QUuid& uuid : std::as_const(result))
+    {
+        if (!seen.contains(uuid))
+        {
+            seen.insert(uuid);
+            deduped << uuid;
+        }
+    }
+    return deduped;
 }
 
 bool SceneTreeWidget::hasMeshSelection() const
@@ -410,7 +435,60 @@ void SceneTreeWidget::filterItems(const QString& filter)
 
 QPoint SceneTreeWidget::mapMenuToGlobal(const QPoint& localPos) const
 {
-    return mapToGlobal(localPos);
+    return viewport()->mapToGlobal(localPos);
+}
+
+bool SceneTreeWidget::isAssemblyAt(const QPoint& localPos) const
+{
+    QTreeWidgetItem* item = itemAt(localPos);
+    return item && !item->data(0, IsLeafRole).toBool();
+}
+
+bool SceneTreeWidget::hasChildrenAt(const QPoint& localPos) const
+{
+    QTreeWidgetItem* item = itemAt(localPos);
+    return item && item->childCount() > 0;
+}
+
+void SceneTreeWidget::ensureAssemblySelectionAt(const QPoint& localPos)
+{
+    QTreeWidgetItem* item = itemAt(localPos);
+    if (!item || item->data(0, IsLeafRole).toBool())
+        return;
+
+    if (!item->isSelected())
+    {
+        _updatingTree = true;
+        blockSignals(true);
+        clearSelection();
+        item->setSelected(true);
+        setCurrentItem(item);
+        blockSignals(false);
+        _updatingTree = false;
+        emit selectionUpdated();
+    }
+}
+
+void SceneTreeWidget::expandOneLevelAt(const QPoint& localPos)
+{
+    expandOneLevel(itemAt(localPos));
+}
+
+void SceneTreeWidget::expandSubtreeAt(const QPoint& localPos)
+{
+    expandSubtree(itemAt(localPos));
+}
+
+void SceneTreeWidget::collapseAllBelowAt(const QPoint& localPos)
+{
+    collapseAllBelow(itemAt(localPos));
+}
+
+void SceneTreeWidget::scrollFirstSelectedToCenter()
+{
+    const QList<QTreeWidgetItem*> sel = selectedItems();
+    if (!sel.isEmpty())
+        scrollToItem(sel.first(), QAbstractItemView::PositionAtCenter);
 }
 
 // ---------------------------------------------------------------------------
@@ -421,87 +499,54 @@ void SceneTreeWidget::rebuild()
 {
     if (!_sceneGraph || !_glWidget) return;
 
-    _updatingTree = true;
-    blockSignals(true);
+    if (_rebuildTimer->isActive())
+        _rebuildTimer->stop();
 
-    // Preserve current state before wipe
-    QSet<QUuid> savedVisible;
-    QSet<QUuid> savedSelected;
-    QSet<QUuid> oldUuids;          // every UUID known before the rebuild
+    _pendingBuildTasks.clear();
+    _pendingVisibleUuids.clear();
+    _pendingSelectedUuids.clear();
+    _pendingOldUuids.clear();
+
     const bool hadItems = !_uuidToLeaf.isEmpty();
-
     for (auto it = _uuidToLeaf.constBegin(); it != _uuidToLeaf.constEnd(); ++it)
     {
-        oldUuids.insert(it.key());
+        _pendingOldUuids.insert(it.key());
         if (it.value()->checkState(0) == Qt::Checked)
-            savedVisible.insert(it.key());
+            _pendingVisibleUuids.insert(it.key());
         if (it.value()->isSelected())
-            savedSelected.insert(it.key());
+            _pendingSelectedUuids.insert(it.key());
     }
 
-    // Full wipe
-    clear();
-    _uuidToLeaf.clear();
-
-    // Rebuild from SceneGraph
-    SceneNode* root = _sceneGraph->root();
-    for (SceneNode* fileNode : root->children)
-    {
-        // Skip file nodes that have no meshes left anywhere beneath them
-        if (!nodeHasMeshes(fileNode)) continue;
-
-        QTreeWidgetItem* fileItem = makeAssemblyItem(fileNode);
-        addTopLevelItem(fileItem);
-
-        // Direct mesh UUIDs on the file node itself (unusual but possible)
-        for (const QUuid& uuid : fileNode->meshUuids)
-            fileItem->addChild(makeMeshLeaf(uuid));
-
-        // Child assembly nodes (each skips empty subtrees internally)
-        for (SceneNode* child : fileNode->children)
-            buildSubtree(fileItem, child);
-
-        fileItem->setExpanded(true);
-    }
-
-    // ---- Restore visibility ------------------------------------------------
     if (!hadItems)
     {
-        // Fresh load — read from GLWidget's display list
         const std::vector<int> displayedIds = _glWidget->getDisplayedObjectsIds();
         for (int idx : displayedIds)
         {
             QUuid uuid = _glWidget->getUuidByIndex(idx);
-            if (!uuid.isNull()) savedVisible.insert(uuid);
-        }
-        // If GLWidget has no display list yet, make everything visible
-        if (savedVisible.isEmpty())
-        {
-            for (auto it = _uuidToLeaf.constBegin(); it != _uuidToLeaf.constEnd(); ++it)
-                savedVisible.insert(it.key());
+            if (!uuid.isNull())
+                _pendingVisibleUuids.insert(uuid);
         }
     }
 
-    for (auto it = _uuidToLeaf.begin(); it != _uuidToLeaf.end(); ++it)
-    {
-        // UUIDs not seen before this rebuild are newly imported — show them
-        const bool isNew = !oldUuids.contains(it.key());
-        const bool visible = isNew || savedVisible.contains(it.key());
-        it.value()->setCheckState(0, visible ? Qt::Checked : Qt::Unchecked);
-        updateItemIcon(it.value());
-    }
-    refreshAllAssemblyStates();
+    clear();
+    _uuidToLeaf.clear();
 
-    // ---- Restore selection --------------------------------------------------
-    for (const QUuid& uuid : savedSelected)
+    SceneNode* root = _sceneGraph->root();
+    if (!root)
+        return;
+
+    _updatingTree = true;
+    blockSignals(true);
+    _rebuildInProgress = true;
+
+    for (SceneNode* fileNode : root->children)
     {
-        auto it = _uuidToLeaf.find(uuid);
-        if (it != _uuidToLeaf.end())
-            it.value()->setSelected(true);
+        if (!nodeHasMeshes(fileNode))
+            continue;
+        enqueueRebuildTasks(nullptr, fileNode, true);
     }
 
-    blockSignals(false);
-    _updatingTree = false;
+    _rebuildTimer->start(0);
 }
 
 // ---------------------------------------------------------------------------
@@ -637,6 +682,8 @@ void SceneTreeWidget::onItemChanged(QTreeWidgetItem* item, int /*column*/)
 void SceneTreeWidget::onItemSelectionChanged()
 {
     if (_updatingTree) return;
+    emit selectionUpdated();
+    return;
 
     // If any assembly (non-leaf) items are selected, expand the selection to
     // cover all mesh leaves beneath them, then deselect the assembly items.
@@ -725,6 +772,102 @@ void SceneTreeWidget::buildSubtree(QTreeWidgetItem* parentItem,
         buildSubtree(item, child);
 
     item->setExpanded(true);
+}
+
+void SceneTreeWidget::enqueueRebuildTasks(QTreeWidgetItem* parentItem,
+                                          const SceneNode* node,
+                                          bool forceItem)
+{
+    if (!node || !nodeHasMeshes(node))
+        return;
+    _pendingBuildTasks.push_back({ parentItem, node, forceItem });
+}
+
+void SceneTreeWidget::processRebuildBatch()
+{
+    if (!_rebuildInProgress)
+        return;
+
+    int processed = 0;
+    constexpr int kBatchSize = 48;
+
+    while (!_pendingBuildTasks.isEmpty() && processed < kBatchSize)
+    {
+        const BuildTask task = _pendingBuildTasks.takeFirst();
+        const SceneNode* node = task.node;
+        if (!node || !nodeHasMeshes(node))
+            continue;
+
+        QTreeWidgetItem* attachParent = task.parentItem;
+
+        if (!task.forceItem && node->children.isEmpty())
+        {
+            if (!attachParent)
+                continue;
+            for (const QUuid& uuid : node->meshUuids)
+                attachParent->addChild(makeMeshLeaf(uuid));
+            ++processed;
+            continue;
+        }
+
+        QTreeWidgetItem* item = makeAssemblyItem(node);
+        if (attachParent)
+            attachParent->addChild(item);
+        else
+            addTopLevelItem(item);
+
+        for (const QUuid& uuid : node->meshUuids)
+            item->addChild(makeMeshLeaf(uuid));
+
+        item->setExpanded(true);
+
+        for (SceneNode* child : node->children)
+            enqueueRebuildTasks(item, child, false);
+
+        ++processed;
+    }
+
+    viewport()->update();
+
+    if (_pendingBuildTasks.isEmpty())
+        finalizeRebuild();
+    else
+        _rebuildTimer->start(0);
+}
+
+void SceneTreeWidget::finalizeRebuild()
+{
+    if (_pendingVisibleUuids.isEmpty())
+    {
+        for (auto it = _uuidToLeaf.constBegin(); it != _uuidToLeaf.constEnd(); ++it)
+            _pendingVisibleUuids.insert(it.key());
+    }
+
+    for (auto it = _uuidToLeaf.begin(); it != _uuidToLeaf.end(); ++it)
+    {
+        const bool isNew = !_pendingOldUuids.contains(it.key());
+        const bool visible = isNew || _pendingVisibleUuids.contains(it.key());
+        it.value()->setCheckState(0, visible ? Qt::Checked : Qt::Unchecked);
+        updateItemIcon(it.value());
+    }
+    refreshAllAssemblyStates();
+
+    for (const QUuid& uuid : std::as_const(_pendingSelectedUuids))
+    {
+        auto it = _uuidToLeaf.find(uuid);
+        if (it != _uuidToLeaf.end())
+            it.value()->setSelected(true);
+    }
+
+    _pendingBuildTasks.clear();
+    _pendingVisibleUuids.clear();
+    _pendingSelectedUuids.clear();
+    _pendingOldUuids.clear();
+
+    blockSignals(false);
+    _updatingTree = false;
+    _rebuildInProgress = false;
+    viewport()->update();
 }
 
 QTreeWidgetItem* SceneTreeWidget::makeMeshLeaf(const QUuid& uuid)
@@ -1177,12 +1320,11 @@ void SceneTreeWidget::collapseOneLevel(QTreeWidgetItem* item)
 
 void SceneTreeWidget::collapseAllBelow(QTreeWidgetItem* item)
 {
-    // Deep-collapse every descendant so re-opening any child starts fully
-    // collapsed.  'item' itself stays expanded so its children remain visible.
+    // Deep-collapse the whole subtree rooted at 'item'. This matches the
+    // context-menu expectation that "Collapse All Children" hides even direct
+    // mesh leaves immediately under the clicked assembly node.
     if (!item) return;
-    for (int i = 0; i < item->childCount(); ++i)
-        collapseSubtreeHelper(item->child(i));
-    // item stays expanded
+    collapseSubtreeHelper(item);
 }
 
 // Internal recursive helper: collapse 'item' and all its descendants.

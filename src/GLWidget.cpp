@@ -8826,13 +8826,7 @@ void GLWidget::centerDisplayList()
 {
 	SceneTreeWidget* treeWidgetModel = _viewer->getTreeModel();
 	if (treeWidgetModel && treeWidgetModel->hasMeshSelection())
-	{
-		// Scroll to the first selected leaf item
-		QList<QTreeWidgetItem*> sel = treeWidgetModel->selectedItems();
-		if (!sel.isEmpty())
-			treeWidgetModel->scrollToItem(sel.first(),
-			                              QAbstractItemView::PositionAtCenter);
-	}
+		treeWidgetModel->scrollFirstSelectedToCenter();
 }
 
 #include "BackgroundColor.h"

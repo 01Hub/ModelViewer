@@ -147,9 +147,9 @@ private slots:
 
 	void on_checkBoxSelectAll_stateChanged(int arg1);
 
-	void on_treeWidgetModel_visibilityChanged();
-	void on_treeWidgetModel_selectionChanged();
-	void on_treeWidgetModel_meshRenamed(const QUuid& uuid, const QString& newName);
+	void handleTreeWidgetVisibilityChanged();
+	void handleTreeWidgetSelectionChanged();
+	void handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& newName);
 
 	void on_toolBox_currentChanged(int index);
 
@@ -170,6 +170,7 @@ private slots:
 
 protected:
 	void showEvent(QShowEvent* event);
+	bool eventFilter(QObject* watched, QEvent* event) override;
 	void keyPressEvent(QKeyEvent* event);
 	void dragEnterEvent(QDragEnterEvent* event);
 	void dropEvent(QDropEvent* event);
@@ -204,6 +205,14 @@ private:
 	void onUndoStackChanged();
 	void cleanupOrphanedMeshes();
 	QSet<QUuid> scanStackForReferencedUuids();
+	QSet<QUuid> collectVisibleUuidsFromDisplayList() const;
+	std::vector<int> visibleIndicesFromState() const;
+	void updateVisibilityUiFromState();
+	void scheduleTreeRebuild(int delayMs = 1200);
+	void rebuildTreeFromCurrentState();
+	void applyVisibleMeshState(bool syncTree, bool deferTreeSync = false);
+	void scheduleTreeVisibilitySync(int delayMs = 900);
+	void syncTreeVisibilityFromModel();
 
 private:
 	GLWidget*   _glWidget;
@@ -291,6 +300,11 @@ private:
 	// Cleanup optimization
 	int _lastStackCount = 0;
 	QSet<QUuid> _cachedReferencedUuids;  // Meshes referenced in undo stack
+	QSet<QUuid> _visibleMeshUuids;       // Authoritative visible mesh state
+	int _treeRebuildGeneration = 0;
+	bool _treeRebuildPending = false;
+	int _treeVisibilitySyncGeneration = 0;
+	bool _treeVisibilityDirty = false;
 };
 
 #endif
