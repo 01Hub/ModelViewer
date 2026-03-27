@@ -13,6 +13,7 @@
 #include <QPixmap>
 #include <QProxyStyle>
 #include <QRegularExpression>
+#include <QSignalBlocker>
 #include <QStyle>
 #include <QStyleOption>
 #include <QStyledItemDelegate>
@@ -332,56 +333,70 @@ int SceneTreeWidget::visibleMeshCount() const
 void SceneTreeWidget::filterItems(const QString& filter)
 {
     _updatingTree = true;
-    blockSignals(true);
-    clearSelection();
-
-    if (filter.isEmpty())
+    viewport()->setUpdatesEnabled(false);
     {
-        for (int i = 0; i < topLevelItemCount(); ++i)
-            showSubtree(topLevelItem(i));
-        blockSignals(false);
-        _updatingTree = false;
-        return;
+        const QSignalBlocker blocker(this);
+        clearSelection();
+
+        if (filter.isEmpty())
+        {
+            for (int i = 0; i < topLevelItemCount(); ++i)
+                showSubtree(topLevelItem(i));
+        }
+        else
+        {
+            const QString lowerFilter = filter.toLower();
+            bool anySubstringMatch = false;
+            int bestSubstringRank = 0;
+            for (int i = 0; i < topLevelItemCount(); ++i)
+                applySubstringFilter(topLevelItem(i),
+                                     lowerFilter,
+                                     false,
+                                     anySubstringMatch,
+                                     bestSubstringRank);
+
+            if (anySubstringMatch && bestSubstringRank > 0)
+            {
+                for (int i = 0; i < topLevelItemCount(); ++i)
+                    selectMatchesAtRank(topLevelItem(i), lowerFilter, bestSubstringRank);
+            }
+
+            if (!anySubstringMatch)
+            {
+                QTreeWidgetItem* bestItem = nullptr;
+                int bestScore = std::numeric_limits<int>::max();
+
+                for (int i = 0; i < topLevelItemCount(); ++i)
+                {
+                    QTreeWidgetItem* candidate =
+                        findBestFuzzyMatch(topLevelItem(i), lowerFilter, bestScore);
+                    if (candidate)
+                        bestItem = candidate;
+                }
+
+                if (bestItem && bestScore <= fuzzyThreshold(lowerFilter))
+                {
+                    for (QTreeWidgetItem* p = bestItem->parent(); p; p = p->parent())
+                    {
+                        p->setHidden(false);
+                        p->setExpanded(true);
+                    }
+                    if (bestItem->data(0, IsLeafRole).toBool())
+                    {
+                        bestItem->setHidden(false);
+                    }
+                    else
+                    {
+                        showSubtree(bestItem);
+                    }
+                    selectSearchMatch(bestItem);
+                }
+            }
+        }
     }
 
-    const QString lowerFilter = filter.toLower();
-    bool anySubstringMatch = false;
-    for (int i = 0; i < topLevelItemCount(); ++i)
-        applySubstringFilter(topLevelItem(i), lowerFilter, false, anySubstringMatch);
-
-    if (!anySubstringMatch)
-    {
-        QTreeWidgetItem* bestItem = nullptr;
-        int bestScore = std::numeric_limits<int>::max();
-
-        for (int i = 0; i < topLevelItemCount(); ++i)
-        {
-            QTreeWidgetItem* candidate =
-                findBestFuzzyMatch(topLevelItem(i), lowerFilter, bestScore);
-            if (candidate)
-                bestItem = candidate;
-        }
-
-        if (bestItem && bestScore <= 3)
-        {
-            for (QTreeWidgetItem* p = bestItem->parent(); p; p = p->parent())
-            {
-                p->setHidden(false);
-                p->setExpanded(true);
-            }
-            if (bestItem->data(0, IsLeafRole).toBool())
-            {
-                bestItem->setHidden(false);
-            }
-            else
-            {
-                showSubtree(bestItem);
-            }
-            selectSearchMatch(bestItem);
-        }
-    }
-
-    blockSignals(false);
+    viewport()->setUpdatesEnabled(true);
+    viewport()->update();
     _updatingTree = false;
     emit selectionUpdated();
 }
@@ -888,6 +903,20 @@ QString SceneTreeWidget::itemSearchText(QTreeWidgetItem* item) const
     return item->text(0).toLower();
 }
 
+QString SceneTreeWidget::itemPathSearchText(QTreeWidgetItem* item) const
+{
+    if (!item) return {};
+
+    QStringList parts;
+    for (QTreeWidgetItem* cur = item; cur; cur = cur->parent())
+    {
+        const QString part = itemSearchText(cur);
+        if (!part.isEmpty())
+            parts.prepend(part);
+    }
+    return parts.join(' ');
+}
+
 QStringList SceneTreeWidget::searchTerms(const QString& text) const
 {
     QString normalized = text;
@@ -900,40 +929,88 @@ QStringList SceneTreeWidget::searchTerms(const QString& text) const
     return normalized.split(' ', Qt::SkipEmptyParts);
 }
 
-int SceneTreeWidget::textMatchRank(const QString& text, const QString& lowerFilter) const
+int SceneTreeWidget::textMatchRank(QTreeWidgetItem* item, const QString& lowerFilter) const
 {
-    if (text.isEmpty() || lowerFilter.isEmpty())
+    if (!item || lowerFilter.isEmpty())
         return 0;
 
-    if (text == lowerFilter)
-        return 4;
+    const QString text = itemSearchText(item);
+    const QString pathText = itemPathSearchText(item);
+    if (text.isEmpty() && pathText.isEmpty())
+        return 0;
 
+    const QStringList queryTerms = searchTerms(lowerFilter);
     const QStringList terms = searchTerms(text);
-    for (const QString& term : terms)
-    {
-        if (term == lowerFilter)
-            return 4;
-    }
+    const QStringList pathTerms = searchTerms(pathText);
+    const int leafBonus = item->data(0, IsLeafRole).toBool() ? 4 : 0;
+    if (queryTerms.isEmpty())
+        return 0;
 
-    for (const QString& term : terms)
+    auto allTermsMatch = [](const QStringList& haystackTerms,
+                            const QStringList& needles,
+                            auto predicate) -> bool
     {
-        if (term.startsWith(lowerFilter))
-            return 3;
-    }
+        for (const QString& needle : needles)
+        {
+            bool found = false;
+            for (const QString& hay : haystackTerms)
+            {
+                if (predicate(hay, needle))
+                {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                return false;
+        }
+        return true;
+    };
 
-    if (text.startsWith(lowerFilter))
-        return 3;
+    if (text == lowerFilter)
+        return 80 + leafBonus;
+    if (pathText == lowerFilter)
+        return 70 + leafBonus;
 
-    for (const QString& term : terms)
-    {
-        if (term.contains(lowerFilter))
-            return 2;
-    }
+    if (allTermsMatch(terms, queryTerms,
+                      [](const QString& hay, const QString& needle) { return hay == needle; }))
+        return 72 + leafBonus;
+    if (allTermsMatch(pathTerms, queryTerms,
+                      [](const QString& hay, const QString& needle) { return hay == needle; }))
+        return 62 + leafBonus;
+    if (allTermsMatch(terms, queryTerms,
+                      [](const QString& hay, const QString& needle) { return hay.startsWith(needle); }))
+        return 54 + leafBonus;
+    if (allTermsMatch(pathTerms, queryTerms,
+                      [](const QString& hay, const QString& needle) { return hay.startsWith(needle); }))
+        return 44 + leafBonus;
+    if (allTermsMatch(terms, queryTerms,
+                      [](const QString& hay, const QString& needle) { return hay.contains(needle); }))
+        return 36 + leafBonus;
+    if (allTermsMatch(pathTerms, queryTerms,
+                      [](const QString& hay, const QString& needle) { return hay.contains(needle); }))
+        return 26 + leafBonus;
 
     if (text.contains(lowerFilter))
-        return 1;
+        return 24 + leafBonus;
+    if (pathText.contains(lowerFilter))
+        return 14 + leafBonus;
+
+    for (const QString& term : terms)
+        if (term.startsWith(lowerFilter))
+            return 54 + leafBonus;
 
     return 0;
+}
+
+int SceneTreeWidget::fuzzyThreshold(const QString& lowerFilter) const
+{
+    const int len = searchTerms(lowerFilter).join("").size();
+    if (len <= 2) return 0;
+    if (len <= 4) return 1;
+    if (len <= 7) return 2;
+    if (len <= 11) return 3;
+    return 4;
 }
 
 void SceneTreeWidget::showSubtree(QTreeWidgetItem* item)
@@ -965,11 +1042,13 @@ void SceneTreeWidget::selectSearchMatch(QTreeWidgetItem* item)
 bool SceneTreeWidget::applySubstringFilter(QTreeWidgetItem* item,
                                            const QString& lowerFilter,
                                            bool ancestorMatched,
-                                           bool& anyMatch)
+                                           bool& anyMatch,
+                                           int& bestRank)
 {
     if (!item) return false;
 
-    const bool ownMatch = textMatchRank(itemSearchText(item), lowerFilter) > 0;
+    const int ownRank = textMatchRank(item, lowerFilter);
+    const bool ownMatch = ownRank > 0;
     bool descendantMatch = false;
 
     for (int i = 0; i < item->childCount(); ++i)
@@ -977,7 +1056,8 @@ bool SceneTreeWidget::applySubstringFilter(QTreeWidgetItem* item,
         if (applySubstringFilter(item->child(i),
                                  lowerFilter,
                                  ancestorMatched || ownMatch,
-                                 anyMatch))
+                                 anyMatch,
+                                 bestRank))
         {
             descendantMatch = true;
         }
@@ -995,12 +1075,25 @@ bool SceneTreeWidget::applySubstringFilter(QTreeWidgetItem* item,
     if (ownMatch)
     {
         anyMatch = true;
+        bestRank = std::max(bestRank, ownRank);
         if (!item->data(0, IsLeafRole).toBool())
             showSubtree(item);
-        selectSearchMatch(item);
     }
 
     return ownMatch || descendantMatch;
+}
+
+void SceneTreeWidget::selectMatchesAtRank(QTreeWidgetItem* item,
+                                          const QString& lowerFilter,
+                                          int bestRank)
+{
+    if (!item) return;
+
+    if (!item->isHidden() && textMatchRank(item, lowerFilter) == bestRank)
+        selectSearchMatch(item);
+
+    for (int i = 0; i < item->childCount(); ++i)
+        selectMatchesAtRank(item->child(i), lowerFilter, bestRank);
 }
 
 QTreeWidgetItem* SceneTreeWidget::findBestFuzzyMatch(QTreeWidgetItem* item,
@@ -1011,10 +1104,17 @@ QTreeWidgetItem* SceneTreeWidget::findBestFuzzyMatch(QTreeWidgetItem* item,
 
     QTreeWidgetItem* bestItem = nullptr;
     const QString text = itemSearchText(item);
-    if (!text.isEmpty())
+    const QString pathText = itemPathSearchText(item);
+    if (!text.isEmpty() || !pathText.isEmpty())
     {
-        int score = levenshteinDistance(lowerFilter, text);
+        int score = std::numeric_limits<int>::max();
+        if (!text.isEmpty())
+            score = std::min(score, levenshteinDistance(lowerFilter, text));
+        if (!pathText.isEmpty())
+            score = std::min(score, levenshteinDistance(lowerFilter, pathText));
         for (const QString& term : searchTerms(text))
+            score = std::min(score, levenshteinDistance(lowerFilter, term));
+        for (const QString& term : searchTerms(pathText))
             score = std::min(score, levenshteinDistance(lowerFilter, term));
         if (score < bestScore)
         {

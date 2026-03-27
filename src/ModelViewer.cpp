@@ -146,7 +146,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	QTimer* searchTimer = new QTimer(this);
 	searchTimer->setSingleShot(true);
-	searchTimer->setInterval(300);
+	searchTimer->setInterval(500);
 
 	connect(searchBox, &QLineEdit::textEdited, this, [searchTimer](const QString&) {
 		searchTimer->start();

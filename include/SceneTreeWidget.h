@@ -220,14 +220,20 @@ private:
 
     // Search / filter helpers
     QString itemSearchText(QTreeWidgetItem* item) const;
+    QString itemPathSearchText(QTreeWidgetItem* item) const;
     QStringList searchTerms(const QString& text) const;
-    int textMatchRank(const QString& text, const QString& lowerFilter) const;
+    int textMatchRank(QTreeWidgetItem* item, const QString& lowerFilter) const;
+    int fuzzyThreshold(const QString& lowerFilter) const;
     void showSubtree(QTreeWidgetItem* item);
     void selectSearchMatch(QTreeWidgetItem* item);
+    void selectMatchesAtRank(QTreeWidgetItem* item,
+                             const QString& lowerFilter,
+                             int bestRank);
     bool applySubstringFilter(QTreeWidgetItem* item,
                               const QString& lowerFilter,
                               bool ancestorMatched,
-                              bool& anyMatch);
+                              bool& anyMatch,
+                              int& bestRank);
     QTreeWidgetItem* findBestFuzzyMatch(QTreeWidgetItem* item,
                                         const QString& lowerFilter,
                                         int& bestScore) const;
