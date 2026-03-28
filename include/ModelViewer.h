@@ -210,7 +210,9 @@ private:
 	void updateVisibilityUiFromState();
 	void scheduleTreeRebuild(int delayMs = 1200);
 	void rebuildTreeFromCurrentState();
-	void applyVisibleMeshState(bool syncTree, bool deferTreeSync = false);
+	void applyVisibleMeshState(bool syncTree,
+	                           bool deferTreeSync = false,
+	                           const QSet<QUuid>& changedUuids = {});
 	void scheduleTreeVisibilitySync(int delayMs = 900);
 	void syncTreeVisibilityFromModel();
 

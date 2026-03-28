@@ -93,6 +93,14 @@ public:
      */
     void setVisibilityByUuids(const QSet<QUuid>& visibleUuids);
 
+    /**
+     * Update only the specified mesh leaves from the visible set, then refresh
+     * only the affected ancestor chain(s). Used for small selective edits.
+     * Does NOT emit meshVisibilityChanged().
+     */
+    void setVisibilityDelta(const QSet<QUuid>& changedUuids,
+                            const QSet<QUuid>& visibleUuids);
+
     /** Returns UUIDs of all checked (visible) mesh leaves. */
     QSet<QUuid> getVisibleUuids() const;
 
@@ -225,6 +233,8 @@ private:
     void collectLeaves(QTreeWidgetItem* subtree,
                        QList<QTreeWidgetItem*>& out) const;
     void collectAllLeaves(QList<QTreeWidgetItem*>& out) const;
+    void collectExpandedItems(QTreeWidgetItem* subtree,
+                              QList<QTreeWidgetItem*>& out) const;
 
     // Internal helper: collapse item and all its descendants
     void collapseSubtreeHelper(QTreeWidgetItem* item);

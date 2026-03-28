@@ -1743,24 +1743,8 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	_currentTranslation = _primaryCamera->getPosition();
 	_boundingSphere.setCenter(0, 0, 0);
 
-	unsigned long long memSize = 0;
-	for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
-	{
-		try
-		{
-			TriangleMesh* mesh = _meshStore.at(i);
-			memSize += mesh->memorySize();
-		}
-		catch (const std::out_of_range& ex)
-		{
-			std::cout << ex.what() << std::endl;
-		}
-	}
-	_displayedObjectsMemSize = memSize;
-
-	// Calculate real bounding sphere
-	updateBoundingSphere();
-	updateBoundingBox();
+	// Recompute all visible-scene aggregates in one pass.
+	recalculateVisibleSceneStats(true);
 
 	// ===== CAPTURE BASELINE HERE - NOW BOUNDING SPHERE IS REAL =====
 	// Only capture if lights are present and baseline not yet set
@@ -1794,6 +1778,78 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	update();
 
 	emit displayListSet();
+}
+
+void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
+{
+	_currentTranslation = _primaryCamera->getPosition();
+	_boundingSphere.setCenter(0, 0, 0);
+	_boundingSphere.setRadius(0.0f);
+	_boundingBox.setLimits(-0.001, -0.001, -0.001, 0.001, 0.001, 0.001);
+	_visibleLowestZ = -1.0f;
+	_visibleHighestZ = 1.0f;
+
+	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	if (updateMemorySize)
+	{
+		_displayedObjectsMemSize = 0;
+	}
+
+	if (visibleIds.empty())
+	{
+		_primaryCamera->setPosition(0, 0, 0);
+		_currentTranslation = _primaryCamera->getPosition();
+		_boundingSphere.setRadius(1.0f);
+		return;
+	}
+
+	bool firstBox = true;
+	float lowestZ = std::numeric_limits<float>::max();
+	float highestZ = std::numeric_limits<float>::lowest();
+	unsigned long long memSize = 0;
+
+	for (int i : visibleIds)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore.at(i);
+			if (updateMemorySize)
+			{
+				memSize += mesh->memorySize();
+			}
+
+			_boundingSphere.addSphere(mesh->getBoundingSphere());
+
+			const BoundingBox meshBox = mesh->getBoundingBox();
+			if (firstBox)
+			{
+				_boundingBox = meshBox;
+				firstBox = false;
+			}
+			else
+			{
+				_boundingBox.addBox(meshBox);
+			}
+
+			lowestZ = std::min(lowestZ, static_cast<float>(meshBox.zMin()));
+			highestZ = std::max(highestZ, static_cast<float>(meshBox.zMax()));
+		}
+		catch (const std::out_of_range& ex)
+		{
+			std::cout << ex.what() << std::endl;
+		}
+	}
+
+	if (updateMemorySize)
+	{
+		_displayedObjectsMemSize = memSize;
+	}
+
+	if (!firstBox)
+	{
+		_visibleLowestZ = lowestZ;
+		_visibleHighestZ = highestZ;
+	}
 }
 
 void GLWidget::triggerShadowRecomputation()
@@ -1889,78 +1945,12 @@ QVector<QUuid> GLWidget::duplicateObjects(const std::vector<int>& ids)
 
 void GLWidget::updateBoundingSphere()
 {
-	_currentTranslation = _primaryCamera->getPosition();
-	_boundingSphere.setCenter(0, 0, 0);
-	_boundingSphere.setRadius(0.0);
-
-	if ((!_visibleSwapped && _displayedObjectsIds.size() == 0) ||
-		(_visibleSwapped && _hiddenObjectsIds.size() == 0))
-	{
-		_primaryCamera->setPosition(0, 0, 0);
-		_currentTranslation = _primaryCamera->getPosition();
-		_boundingSphere.setRadius(1.0);
-	}
-	else
-	{
-		for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
-		{
-			try
-			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				_boundingSphere.addSphere(mesh->getBoundingSphere());
-			}
-			catch (const std::out_of_range& ex)
-			{
-				std::cout << ex.what() << std::endl;
-			}
-		}
-	}
-
-	if (_floorPlane)
-	{
-		updateFloorPlane();
-	}
-
-	update();
+	recalculateVisibleSceneStats(false);
 }
 
 void GLWidget::updateBoundingBox()
 {	
-	_currentTranslation = _primaryCamera->getPosition();
-	_boundingBox.setLimits(-0.001, -0.001, -0.001, 0.001, 0.001, 0.001);
-
-	if ((!_visibleSwapped && _displayedObjectsIds.size() == 0) ||
-		(_visibleSwapped && _hiddenObjectsIds.size() == 0))
-	{
-		_primaryCamera->setPosition(0, 0, 0);
-		_currentTranslation = _primaryCamera->getPosition();		
-	}
-	else
-	{
-		int idx = 0;
-		for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
-		{
-			try
-			{
-				TriangleMesh* mesh = _meshStore.at(i);
-				if(idx == 0)
-					_boundingBox = mesh->getBoundingBox();
-				else
-					_boundingBox.addBox(mesh->getBoundingBox());
-			}
-			catch (const std::out_of_range& ex)
-			{
-				std::cout << ex.what() << std::endl;
-			}
-			idx++;
-		}
-	}
-	if (_floorPlane)
-	{
-		updateFloorPlane();
-	}
-
-	update();
+	recalculateVisibleSceneStats(false);
 }
 
 void GLWidget::updateFloorPlane()
@@ -2568,8 +2558,7 @@ void GLWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNodes, i
 void GLWidget::swapVisible(bool checked)
 {
 	_visibleSwapped = checked;
-	updateBoundingSphere();
-	updateBoundingBox();
+	recalculateVisibleSceneStats(false);
 	triggerShadowRecomputation();
 	updateFloorPlane();
 	fitAll();
@@ -3829,8 +3818,7 @@ void GLWidget::setTransformation(const std::vector<int>& ids, const QVector3D& t
 		_lightRepoBasis.accumulatedRotation = rotZ * rotY * rotX;		
 	}
 
-	updateBoundingSphere();
-	updateBoundingBox();
+	recalculateVisibleSceneStats(false);
 	updatePunctualLights();
 	triggerShadowRecomputation();
 	updateFloorPlane();
@@ -3874,8 +3862,7 @@ void GLWidget::resetTransformation(const std::vector<int>& ids)
 	_lightOffsetZ = 0.0f;
 	_lightRepoBasis.accumulatedRotation = glm::mat4(1.0f);  // Reset to identity
 
-	updateBoundingSphere();
-	updateBoundingBox();
+	recalculateVisibleSceneStats(false);
 	updatePunctualLights();
 	fitAll();
 	triggerShadowRecomputation();
@@ -3932,8 +3919,7 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms)
 	}
 
 	// Update all dependent systems once
-	updateBoundingSphere();
-	updateBoundingBox();
+	recalculateVisibleSceneStats(false);
 	updatePunctualLights();
 	triggerShadowRecomputation();
 	updateFloorPlane();
@@ -8674,44 +8660,12 @@ void GLWidget::setXTran(const float& xTran)
 
 float GLWidget::highestModelZ()
 {
-	float highestZ = std::numeric_limits<float>::min();
-	for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
-	{
-		try
-		{
-			TriangleMesh* mesh = _meshStore.at(i);
-			float z = mesh->getHighestZValue();
-			if (z > highestZ)
-				highestZ = z;
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception raised in GLWidget::highestModelZ\n" << ex.what() << std::endl;
-			highestZ = _boundingSphere.getRadius();
-		}
-	}
-	return highestZ;
+	return _visibleHighestZ;
 }
 
 float GLWidget::lowestModelZ()
 {
-	float lowestZ = std::numeric_limits<float>::max();
-	for (int i : (_visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds))
-	{
-		try
-		{
-			TriangleMesh* mesh = _meshStore.at(i);
-			float z = mesh->getLowestZValue();
-			if (z < lowestZ)
-				lowestZ = z;
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception raised in GLWidget::lowestModelZ\n" << ex.what() << std::endl;
-			lowestZ = -_boundingSphere.getRadius();
-		}
-	}
-	return lowestZ;
+	return _visibleLowestZ;
 }
 
 void GLWidget::showContextMenu(const QPoint& pos)

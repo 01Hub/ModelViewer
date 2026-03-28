@@ -17,6 +17,7 @@
 #include <QStyle>
 #include <QStyleOption>
 #include <QStyledItemDelegate>
+#include <algorithm>
 #include <limits>
 
 // ---------------------------------------------------------------------------
@@ -298,8 +299,24 @@ void SceneTreeWidget::setVisibilityByUuids(const QSet<QUuid>& visibleUuids)
 {
     _updatingTree = true;
     {
+        QList<QTreeWidgetItem*> expandedItems;
+        expandedItems.reserve(topLevelItemCount() * 4);
+        for (int i = 0; i < topLevelItemCount(); ++i)
+            collectExpandedItems(topLevelItem(i), expandedItems);
+
+        const int headerWidth = columnWidth(0);
+        const auto previousResizeMode = header()->sectionResizeMode(0);
+
+        setUpdatesEnabled(false);
         viewport()->setUpdatesEnabled(false);
+        header()->setSectionResizeMode(0, QHeaderView::Fixed);
+        if (headerWidth > 0)
+            setColumnWidth(0, headerWidth);
+
         const QSignalBlocker blocker(this);
+
+        for (auto it = expandedItems.crbegin(); it != expandedItems.crend(); ++it)
+            (*it)->setExpanded(false);
 
         for (auto it = _uuidToLeaf.begin(); it != _uuidToLeaf.end(); ++it)
         {
@@ -311,6 +328,79 @@ void SceneTreeWidget::setVisibilityByUuids(const QSet<QUuid>& visibleUuids)
 
         // Update tristate and icons on all assembly nodes bottom-up.
         refreshAllAssemblyStates();
+
+        for (QTreeWidgetItem* item : expandedItems)
+            item->setExpanded(true);
+
+        header()->setSectionResizeMode(0, previousResizeMode);
+        if (previousResizeMode == QHeaderView::Fixed && headerWidth > 0)
+            setColumnWidth(0, headerWidth);
+
+        setUpdatesEnabled(true);
+        viewport()->setUpdatesEnabled(true);
+        viewport()->update();
+    }
+    _updatingTree = false;
+}
+
+void SceneTreeWidget::setVisibilityDelta(const QSet<QUuid>& changedUuids,
+                                         const QSet<QUuid>& visibleUuids)
+{
+    if (changedUuids.isEmpty())
+    {
+        setVisibilityByUuids(visibleUuids);
+        return;
+    }
+
+    _updatingTree = true;
+    {
+        viewport()->setUpdatesEnabled(false);
+        const QSignalBlocker blocker(this);
+
+        QSet<QTreeWidgetItem*> ancestors;
+        bool anyChanged = false;
+
+        for (const QUuid& uuid : changedUuids)
+        {
+            auto it = _uuidToLeaf.find(uuid);
+            if (it == _uuidToLeaf.end())
+                continue;
+
+            QTreeWidgetItem* leaf = it.value();
+            const Qt::CheckState targetState =
+                visibleUuids.contains(uuid) ? Qt::Checked : Qt::Unchecked;
+
+            if (leaf->checkState(0) != targetState)
+            {
+                leaf->setCheckState(0, targetState);
+                anyChanged = true;
+            }
+
+            updateItemIcon(leaf);
+            for (QTreeWidgetItem* parent = leaf->parent(); parent; parent = parent->parent())
+                ancestors.insert(parent);
+        }
+
+        if (anyChanged && !ancestors.isEmpty())
+        {
+            QList<QTreeWidgetItem*> orderedAncestors = ancestors.values();
+            std::sort(orderedAncestors.begin(), orderedAncestors.end(),
+                      [](QTreeWidgetItem* a, QTreeWidgetItem* b) {
+                          auto depthOf = [](QTreeWidgetItem* item) {
+                              int depth = 0;
+                              for (QTreeWidgetItem* p = item; p; p = p->parent())
+                                  ++depth;
+                              return depth;
+                          };
+                          return depthOf(a) > depthOf(b);
+                      });
+
+            for (QTreeWidgetItem* item : orderedAncestors)
+            {
+                item->setCheckState(0, aggregateChildCheckState(item));
+                updateItemIcon(item);
+            }
+        }
 
         viewport()->setUpdatesEnabled(true);
         viewport()->update();
@@ -593,46 +683,21 @@ void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
         !(event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)))
     {
         QTreeWidgetItem* clicked = itemAt(event->pos());
-        if (clicked)
+        if (clicked && clicked->isSelected() && selectedItems().count() == 1)
         {
-            const bool isLeaf = clicked->data(0, IsLeafRole).toBool();
-
-            if (isLeaf)
+            // Re-clicking the sole selected row toggles selection off, but only
+            // for a plain row click. Checkbox toggles and branch expand/collapse
+            // should keep their normal behavior.
+            const Qt::CheckState csBefore = clicked->checkState(0);
+            const bool expandedBefore = clicked->isExpanded();
+            QTreeWidget::mousePressEvent(event);
+            if (clicked->checkState(0) == csBefore &&
+                clicked->isExpanded() == expandedBefore &&
+                clicked->isSelected())
             {
-                // Leaf: re-clicking the sole selected item deselects it.
-                // Snapshot state that only changes on checkbox / branch clicks;
-                // if unchanged after base handles the event it was a label click.
-                if (clicked->isSelected() && selectedItems().count() == 1)
-                {
-                    const Qt::CheckState csBefore       = clicked->checkState(0);
-                    const bool           expandedBefore = clicked->isExpanded();
-                    QTreeWidget::mousePressEvent(event);
-                    if (clicked->checkState(0) == csBefore &&
-                        clicked->isExpanded()  == expandedBefore)
-                        clearSelection();
-                    return;
-                }
+                clearSelection();
             }
-            else
-            {
-                // Assembly: if ALL its leaves are currently selected,
-                // re-clicking the assembly deselects everything (toggle off).
-                QList<QTreeWidgetItem*> leaves;
-                collectLeaves(clicked, leaves);
-                if (!leaves.isEmpty())
-                {
-                    bool allSelected = true;
-                    for (QTreeWidgetItem* leaf : leaves)
-                        if (!leaf->isSelected()) { allSelected = false; break; }
-
-                    if (allSelected)
-                    {
-                        clearSelection();
-                        event->accept();
-                        return;
-                    }
-                }
-            }
+            return;
         }
     }
     QTreeWidget::mousePressEvent(event);
@@ -681,46 +746,8 @@ void SceneTreeWidget::onItemChanged(QTreeWidgetItem* item, int /*column*/)
 
 void SceneTreeWidget::onItemSelectionChanged()
 {
-    if (_updatingTree) return;
-    emit selectionUpdated();
-    return;
-
-    // If any assembly (non-leaf) items are selected, expand the selection to
-    // cover all mesh leaves beneath them, then deselect the assembly items.
-    bool hadAssembly = false;
-    QSet<QUuid> toSelect;
-
-    for (QTreeWidgetItem* item : selectedItems())
-    {
-        if (item->data(0, IsLeafRole).toBool())
-        {
-            toSelect.insert(item->data(0, MeshUuidRole).value<QUuid>());
-        }
-        else
-        {
-            hadAssembly = true;
-            QList<QTreeWidgetItem*> leaves;
-            collectLeaves(item, leaves);
-            for (QTreeWidgetItem* leaf : leaves)
-                toSelect.insert(leaf->data(0, MeshUuidRole).value<QUuid>());
-        }
-    }
-
-    if (hadAssembly)
-    {
-        // Replace with a pure leaf selection (suppressed — no recursive signal)
-        _updatingTree = true;
-        blockSignals(true);
-        clearSelection();
-        for (const QUuid& uuid : std::as_const(toSelect))
-        {
-            auto it = _uuidToLeaf.find(uuid);
-            if (it != _uuidToLeaf.end())
-                it.value()->setSelected(true);
-        }
-        blockSignals(false);
-        _updatingTree = false;
-    }
+    if (_updatingTree)
+        return;
 
     emit selectionUpdated();
 }
@@ -1005,6 +1032,19 @@ void SceneTreeWidget::collectAllLeaves(QList<QTreeWidgetItem*>& out) const
 {
     for (int i = 0; i < topLevelItemCount(); ++i)
         collectLeaves(topLevelItem(i), out);
+}
+
+void SceneTreeWidget::collectExpandedItems(QTreeWidgetItem* subtree,
+                                           QList<QTreeWidgetItem*>& out) const
+{
+    if (!subtree)
+        return;
+
+    if (subtree->childCount() > 0 && subtree->isExpanded())
+        out.append(subtree);
+
+    for (int i = 0; i < subtree->childCount(); ++i)
+        collectExpandedItems(subtree->child(i), out);
 }
 
 void SceneTreeWidget::updateMeshName(const QUuid& uuid, const QString& name)

@@ -477,6 +477,7 @@ private:
 	float updateFloorGeometry();
 
 	void updatePunctualLights();  // Update lights based on bounding sphere changes
+	void recalculateVisibleSceneStats(bool updateMemorySize = false);
 
 	void drawMesh(QOpenGLShaderProgram* prog);
 
@@ -810,6 +811,8 @@ private:
 	BoundingSphere _selectionBoundingSphere;
 
 	BoundingBox _boundingBox;
+	float _visibleHighestZ = 0.0f;
+	float _visibleLowestZ = 0.0f;
 
 	Plane* _floorPlane;
 	Cube* _skyBox;

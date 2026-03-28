@@ -2842,8 +2842,10 @@ void ModelViewer::setVisibilityWithUndo(const QSet<QUuid>& newVisibleUuids,
 
 void ModelViewer::setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids)
 {
+	QSet<QUuid> changedUuids = _visibleMeshUuids - visibleUuids;
+	changedUuids.unite(visibleUuids - _visibleMeshUuids);
 	_visibleMeshUuids = visibleUuids;
-	applyVisibleMeshState(true, true);
+	applyVisibleMeshState(true, true, changedUuids);
 }
 
 QSet<QUuid> ModelViewer::collectVisibleUuidsFromDisplayList() const
@@ -2904,7 +2906,9 @@ void ModelViewer::updateVisibilityUiFromState()
 	visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
 }
 
-void ModelViewer::applyVisibleMeshState(bool syncTree, bool deferTreeSync)
+void ModelViewer::applyVisibleMeshState(bool syncTree,
+                                        bool deferTreeSync,
+                                        const QSet<QUuid>& changedUuids)
 {
 	if (!_glWidget)
 		return;
@@ -2914,7 +2918,18 @@ void ModelViewer::applyVisibleMeshState(bool syncTree, bool deferTreeSync)
 
 	if (syncTree)
 	{
-		if (deferTreeSync)
+		constexpr int kTargetedTreeSyncThreshold = 128;
+		const bool useTargetedSync =
+			!changedUuids.isEmpty() &&
+			changedUuids.size() <= kTargetedTreeSyncThreshold;
+
+		if (useTargetedSync)
+		{
+			++_treeVisibilitySyncGeneration; // invalidate any pending full sync
+			_treeVisibilityDirty = false;
+			treeWidgetModel->setVisibilityDelta(changedUuids, _visibleMeshUuids);
+		}
+		else if (deferTreeSync)
 		{
 			_treeVisibilityDirty = true;
 			scheduleTreeVisibilitySync();
