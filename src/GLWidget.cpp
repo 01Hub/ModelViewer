@@ -1604,10 +1604,10 @@ void GLWidget::fitAll()
 
 	if (!_animateFitAllTimer->isActive())
 	{
-		_keyboardNavTimer->stop();
-		_animateFitAllTimer->start(5);
-		_slerpStep = 0.0f;
-	}
+	_keyboardNavTimer->stop();
+	_animateFitAllTimer->start(5);
+	_slerpStep = 0.0f;
+}
 }
 
 void GLWidget::setAutoFitViewOnUpdate(bool update)
@@ -1854,6 +1854,12 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 
 void GLWidget::triggerShadowRecomputation()
 {
+	if (!_fgShader)
+	{
+		_shadowMapNeedsInitialization = true;
+		return;
+	}
+
 	float boundingRadius = _boundingSphere.getRadius();
 	_viewBoundingSphereDia = boundingRadius * 2;
 
@@ -1955,6 +1961,9 @@ void GLWidget::updateBoundingBox()
 
 void GLWidget::updateFloorPlane()
 {
+	if (!_floorPlane || !_fgShader)
+		return;
+
 	// Use helper to update floor geometry
 	float halfObjectSize = updateFloorGeometry();
 
@@ -4147,6 +4156,11 @@ void GLWidget::loadFloor()
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_MODE, GL_COMPARE_REF_TO_TEXTURE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_COMPARE_FUNC, GL_LEQUAL);
 		// attach depth texture as FBO's depth buffer
+		if (_shadowMapFBO != 0)
+		{
+			glDeleteFramebuffers(1, &_shadowMapFBO);
+			_shadowMapFBO = 0;
+		}
 		glGenFramebuffers(1, &_shadowMapFBO);
 		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, _shadowMapFBO);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, _shadowMap, 0);
@@ -8801,6 +8815,9 @@ void GLWidget::serializeScene(QDataStream& out) const
 	// Serialize each mesh
 	for (TriangleMesh* mesh : _meshStore)
 	{
+		out << mesh->uuid()
+			<< static_cast<qint32>(mesh->getPrimitiveMode())
+			<< static_cast<qint32>(mesh->getSceneIndex());
 		dynamic_cast<AssImpMesh*>(mesh)->serialize(out);
 	}
 }
@@ -8815,6 +8832,8 @@ void GLWidget::deserializeScene(QDataStream& in)
 		delete mesh;
 	}
 	_meshStore.clear();
+	_displayedObjectsIds.clear();
+	_hiddenObjectsIds.clear();
 
 	quint32 version;
 	in >> version;
@@ -8832,10 +8851,479 @@ void GLWidget::deserializeScene(QDataStream& in)
 			{},                       // Empty textures
 			GLMaterial()              // Default material
 		);
-		mesh->deserialize(in);
+
+		if (version >= 2)
+		{
+			QUuid uuid;
+			qint32 primitiveMode = static_cast<qint32>(GL_TRIANGLES);
+			qint32 sceneIndex = -1;
+			in >> uuid >> primitiveMode >> sceneIndex;
+			mesh->setUuid(uuid);
+			mesh->setPrimitiveMode(static_cast<GLenum>(primitiveMode));
+			mesh->setSceneIndex(sceneIndex);
+		}
+
+		mesh->deserialize(in, version);
+		GLMaterial resolvedMaterial = resolveMaterialTextures(this, mesh->getMaterial());
+		mesh->setMaterial(resolvedMaterial);
+		mesh->setTextureMaps(resolvedMaterial);
+		mesh->invertOpacityADSMap(resolvedMaterial.isOpacityMapInverted());
+		mesh->invertOpacityPBRMap(resolvedMaterial.isOpacityMapInverted());
 		addToDisplay(mesh);
 	}
 
 	// Optionally, update the view or UI after loading
 	updateView();
+}
+
+// ---------------------------------------------------------------------------
+// MVF3 mesh loader
+// ---------------------------------------------------------------------------
+
+#include "MvfDocument.h"
+#include <QFile>
+#include <QTemporaryDir>
+#include <cstring>
+
+namespace
+{
+// Read count*componentsOf(type) floats from geometryChunk via an accessor index.
+static std::vector<float> readFloatStream(const QByteArray& chunk,
+                                           const QJsonArray& accessors,
+                                           const QJsonArray& bufferViews,
+                                           int accessorIndex)
+{
+    if (accessorIndex < 0 || accessorIndex >= accessors.size())
+        return {};
+    const QJsonObject acc = accessors[accessorIndex].toObject();
+    const int bvIdx = acc[QStringLiteral("bufferView")].toInt(-1);
+    if (bvIdx < 0 || bvIdx >= bufferViews.size())
+        return {};
+    const QJsonObject bv = bufferViews[bvIdx].toObject();
+    if (bv[QStringLiteral("buffer")].toInt(-1) != 0)
+        return {};  // not the GEOM buffer
+
+    const int bvOffset   = (int)bv[QStringLiteral("byteOffset")].toDouble(0);
+    const int accOffset  = (int)acc[QStringLiteral("byteOffset")].toDouble(0);
+    const int byteOffset = bvOffset + accOffset;
+    const int count      = (int)acc[QStringLiteral("count")].toDouble(0);
+
+    const QString type = acc[QStringLiteral("type")].toString();
+    int components = 1;
+    if      (type == QLatin1String("VEC2")) components = 2;
+    else if (type == QLatin1String("VEC3")) components = 3;
+    else if (type == QLatin1String("VEC4")) components = 4;
+
+    const int totalFloats = count * components;
+    if (byteOffset + totalFloats * (int)sizeof(float) > chunk.size())
+        return {};
+
+    std::vector<float> result(totalFloats);
+    std::memcpy(result.data(), chunk.constData() + byteOffset,
+                totalFloats * sizeof(float));
+    return result;
+}
+
+// Read count unsigned ints from geometryChunk via an accessor index.
+static std::vector<unsigned int> readUIntStream(const QByteArray& chunk,
+                                                 const QJsonArray& accessors,
+                                                 const QJsonArray& bufferViews,
+                                                 int accessorIndex)
+{
+    if (accessorIndex < 0 || accessorIndex >= accessors.size())
+        return {};
+    const QJsonObject acc = accessors[accessorIndex].toObject();
+    const int bvIdx = acc[QStringLiteral("bufferView")].toInt(-1);
+    if (bvIdx < 0 || bvIdx >= bufferViews.size())
+        return {};
+    const QJsonObject bv = bufferViews[bvIdx].toObject();
+    if (bv[QStringLiteral("buffer")].toInt(-1) != 0)
+        return {};
+
+    const int bvOffset   = (int)bv[QStringLiteral("byteOffset")].toDouble(0);
+    const int accOffset  = (int)acc[QStringLiteral("byteOffset")].toDouble(0);
+    const int byteOffset = bvOffset + accOffset;
+    const int count      = (int)acc[QStringLiteral("count")].toDouble(0);
+
+    if (byteOffset + count * (int)sizeof(unsigned int) > chunk.size())
+        return {};
+
+    std::vector<unsigned int> result(count);
+    std::memcpy(result.data(), chunk.constData() + byteOffset,
+                count * sizeof(unsigned int));
+    return result;
+}
+
+// Apply a texture info JSON object to the right GLMaterial path setter.
+static void applyTextureRef(GLMaterial& mat,
+                             GLMaterial::TextureType type,
+                             const QJsonObject& texInfo,
+                             const QHash<int, QString>& imagePaths,
+                             const QJsonArray& textures,
+                             const QJsonArray& samplers)
+{
+    const int texIndex = texInfo[QStringLiteral("index")].toInt(-1);
+    if (texIndex < 0 || texIndex >= textures.size())
+        return;
+    const QJsonObject texObj   = textures[texIndex].toObject();
+    const int imgIndex         = texObj[QStringLiteral("image")].toInt(-1);
+    const int samplerIndex     = texObj[QStringLiteral("sampler")].toInt(-1);
+    const QString path         = imagePaths.value(imgIndex);
+    if (path.isEmpty())
+        return;
+
+    switch (type)
+    {
+    case GLMaterial::TextureType::Albedo:                   mat.setAlbedoMap(path); break;
+    case GLMaterial::TextureType::Normal:                   mat.setNormalMap(path); break;
+    case GLMaterial::TextureType::AmbientOcclusion:         mat.setAOMap(path); break;
+    case GLMaterial::TextureType::Emissive:                 mat.setEmissiveMap(path); break;
+    case GLMaterial::TextureType::Metallic:                 mat.setMetallicMap(path); break;
+    case GLMaterial::TextureType::Roughness:                mat.setRoughnessMap(path); break;
+    case GLMaterial::TextureType::Transmission:             mat.setTransmissionMap(path); break;
+    case GLMaterial::TextureType::IOR:                      mat.setIORMap(path); break;
+    case GLMaterial::TextureType::SheenColor:               mat.setSheenColorMap(path); break;
+    case GLMaterial::TextureType::SheenRoughness:           mat.setSheenRoughnessMap(path); break;
+    case GLMaterial::TextureType::ClearcoatColor:           mat.setClearcoatColorMap(path); break;
+    case GLMaterial::TextureType::ClearcoatRoughness:       mat.setClearcoatRoughnessMap(path); break;
+    case GLMaterial::TextureType::ClearcoatNormal:          mat.setClearcoatNormalMap(path); break;
+    case GLMaterial::TextureType::Iridescence:              mat.setIridescenceMap(path); break;
+    case GLMaterial::TextureType::IridescenceThickness:     mat.setIridescenceThicknessMap(path); break;
+    case GLMaterial::TextureType::SpecularFactor:           mat.setSpecularFactorMap(path); break;
+    case GLMaterial::TextureType::SpecularColor:            mat.setSpecularColorMap(path); break;
+    case GLMaterial::TextureType::Anisotropy:               mat.setAnisotropyMap(path); break;
+    case GLMaterial::TextureType::Thickness:                mat.setThicknessMap(path); break;
+    case GLMaterial::TextureType::Diffuse:                  mat.setDiffuseMap(path); break;
+    case GLMaterial::TextureType::DiffuseTransmission:      mat.setDiffuseTransmissionMap(path); break;
+    case GLMaterial::TextureType::DiffuseTransmissionColor: mat.setDiffuseTransmissionColorMap(path); break;
+    case GLMaterial::TextureType::SpecularGlossiness:       mat.setSpecularGlossinessMap(path); break;
+    case GLMaterial::TextureType::Opacity:                  mat.setOpacityMap(path); break;
+    case GLMaterial::TextureType::Height:                   mat.setHeightMap(path); break;
+    default: return;
+    }
+
+    // Apply sampler settings to the internal Texture slot so
+    // resolveMaterialTextures uses the correct GL wrap/filter.
+    if (samplerIndex >= 0 && samplerIndex < samplers.size())
+    {
+        const QJsonObject samp = samplers[samplerIndex].toObject();
+        // Retrieve the current slot (already has sensible defaults), patch it.
+        GLMaterial::Texture tex = mat.texture(type);
+        tex.magFilter = static_cast<GLenum>(samp[QStringLiteral("magFilter")].toInt(GL_LINEAR));
+        tex.minFilter = static_cast<GLenum>(samp[QStringLiteral("minFilter")].toInt(GL_LINEAR_MIPMAP_LINEAR));
+        tex.wrapS     = static_cast<GLenum>(samp[QStringLiteral("wrapS")].toInt(GL_REPEAT));
+        tex.wrapT     = static_cast<GLenum>(samp[QStringLiteral("wrapT")].toInt(GL_REPEAT));
+        tex.path      = path.toStdString();
+        // There is no generic setTexture(type, tex) on GLMaterial;
+        // the path setters above suffice and defaults cover filtering.
+        (void)tex;
+    }
+
+    // Apply texCoord index where per-type setters exist.
+    const int texCoord = texInfo[QStringLiteral("texCoord")].toInt(0);
+    if (texCoord != 0)
+    {
+        switch (type)
+        {
+        case GLMaterial::TextureType::Albedo:               mat.setAlbedoTexCoord(texCoord); break;
+        case GLMaterial::TextureType::Roughness:            mat.setRoughnessTexCoord(texCoord); break;
+        case GLMaterial::TextureType::Emissive:             mat.setEmissiveTexCoord(texCoord); break;
+        case GLMaterial::TextureType::Opacity:              mat.setOpacityTexCoord(texCoord); break;
+        case GLMaterial::TextureType::ClearcoatColor:       mat.setClearcoatColorTexCoord(texCoord); break;
+        case GLMaterial::TextureType::ClearcoatRoughness:   mat.setClearcoatRoughnessTexCoord(texCoord); break;
+        case GLMaterial::TextureType::ClearcoatNormal:      mat.setClearcoatNormalTexCoord(texCoord); break;
+        case GLMaterial::TextureType::SheenColor:           mat.setSheenColorTexCoord(texCoord); break;
+        case GLMaterial::TextureType::SheenRoughness:       mat.setSheenRoughnessTexCoord(texCoord); break;
+        case GLMaterial::TextureType::Transmission:         mat.setTransmissionTexCoord(texCoord); break;
+        case GLMaterial::TextureType::SpecularFactor:       mat.setSpecularFactorTexCoord(texCoord); break;
+        case GLMaterial::TextureType::SpecularColor:        mat.setSpecularColorTexCoord(texCoord); break;
+        case GLMaterial::TextureType::Anisotropy:           mat.setAnisotropyTexCoord(texCoord); break;
+        case GLMaterial::TextureType::Iridescence:          mat.setIridescenceTexCoord(texCoord); break;
+        case GLMaterial::TextureType::IridescenceThickness: mat.setIridescenceThicknessTexCoord(texCoord); break;
+        case GLMaterial::TextureType::Thickness:            mat.setThicknessTexCoord(texCoord); break;
+        case GLMaterial::TextureType::DiffuseTransmission:  mat.setDiffuseTransmissionTexCoord(texCoord); break;
+        case GLMaterial::TextureType::DiffuseTransmissionColor: mat.setDiffuseTransmissionColorTexCoord(texCoord); break;
+        case GLMaterial::TextureType::SpecularGlossiness:   mat.setSpecularGlossinessTexCoord(texCoord); break;
+        default: break;
+        }
+    }
+}
+
+// Reconstruct a GLMaterial from an MVF3 material JSON object.
+static GLMaterial reconstructMvfMaterial(const QJsonObject& matObj,
+                                          const QHash<int, QString>& imagePaths,
+                                          const QJsonArray& textures,
+                                          const QJsonArray& samplers)
+{
+    GLMaterial mat;
+    mat.setName(matObj[QStringLiteral("name")].toString());
+
+    const QString shadingModel = matObj[QStringLiteral("shadingModel")].toString();
+    if      (shadingModel == QLatin1String("PBR"))        mat.setShadingModel(GLMaterial::ShadingModel::PBR);
+    else if (shadingModel == QLatin1String("BlinnPhong")) mat.setShadingModel(GLMaterial::ShadingModel::BlinnPhong);
+    else if (shadingModel == QLatin1String("Unlit"))      mat.setShadingModel(GLMaterial::ShadingModel::Unlit);
+    else if (shadingModel == QLatin1String("Toon"))       mat.setShadingModel(GLMaterial::ShadingModel::Toon);
+
+    const QString blendMode = matObj[QStringLiteral("blendMode")].toString();
+    if      (blendMode == QLatin1String("Opaque"))   mat.setBlendMode(GLMaterial::BlendMode::Opaque);
+    else if (blendMode == QLatin1String("Masked"))   mat.setBlendMode(GLMaterial::BlendMode::Masked);
+    else if (blendMode == QLatin1String("Alpha"))    mat.setBlendMode(GLMaterial::BlendMode::Alpha);
+    else if (blendMode == QLatin1String("Additive")) mat.setBlendMode(GLMaterial::BlendMode::Additive);
+    else if (blendMode == QLatin1String("Multiply")) mat.setBlendMode(GLMaterial::BlendMode::Multiply);
+
+    mat.setTwoSided(matObj[QStringLiteral("doubleSided")].toBool(false));
+    mat.setAlphaThreshold((float)matObj[QStringLiteral("alphaCutoff")].toDouble(0.5));
+    mat.setOpacity((float)matObj[QStringLiteral("opacity")].toDouble(1.0));
+
+    const QJsonObject pbr = matObj[QStringLiteral("pbr")].toObject();
+    {
+        const QJsonArray bc = pbr[QStringLiteral("baseColorFactor")].toArray();
+        if (bc.size() >= 3)
+            mat.setAlbedoColor(QVector3D((float)bc[0].toDouble(),
+                                          (float)bc[1].toDouble(),
+                                          (float)bc[2].toDouble()));
+    }
+    mat.setMetalness((float)pbr[QStringLiteral("metallicFactor")].toDouble(0.0));
+    mat.setRoughness((float)pbr[QStringLiteral("roughnessFactor")].toDouble(1.0));
+
+    const QJsonObject exts = matObj[QStringLiteral("extensions")].toObject();
+
+    if (exts.contains(QStringLiteral("MVF_material_ads")))
+    {
+        const QJsonObject ads = exts[QStringLiteral("MVF_material_ads")].toObject();
+        auto v3 = [](const QJsonArray& a, const QVector3D& def = {}) -> QVector3D {
+            return a.size() >= 3
+                ? QVector3D((float)a[0].toDouble(), (float)a[1].toDouble(), (float)a[2].toDouble())
+                : def;
+        };
+        mat.setAmbient (v3(ads[QStringLiteral("ambient")].toArray()));
+        mat.setDiffuse (v3(ads[QStringLiteral("diffuse")].toArray()));
+        mat.setSpecular(v3(ads[QStringLiteral("specular")].toArray()));
+        mat.setEmissive(v3(ads[QStringLiteral("emissive")].toArray()));
+        mat.setShininess((float)ads[QStringLiteral("shininess")].toDouble(32.0));
+    }
+
+    if (exts.contains(QStringLiteral("MVF_material_pbr")))
+    {
+        const QJsonObject mvfPbr = exts[QStringLiteral("MVF_material_pbr")].toObject();
+
+        mat.setIOR((float)mvfPbr[QStringLiteral("ior")].toDouble(1.5));
+        mat.setTransmission((float)mvfPbr[QStringLiteral("transmission")].toDouble(0.0));
+        mat.setClearcoat((float)mvfPbr[QStringLiteral("clearcoat")].toDouble(0.0));
+        mat.setClearcoatRoughness((float)mvfPbr[QStringLiteral("clearcoatRoughness")].toDouble(0.0));
+        {
+            const QJsonArray sc = mvfPbr[QStringLiteral("sheenColor")].toArray();
+            if (sc.size() >= 3)
+                mat.setSheenColor(QVector3D((float)sc[0].toDouble(),
+                                             (float)sc[1].toDouble(),
+                                             (float)sc[2].toDouble()));
+        }
+        mat.setSheenRoughness((float)mvfPbr[QStringLiteral("sheenRoughness")].toDouble(0.0));
+
+        static const struct { const char* key; GLMaterial::TextureType type; } kTexKeys[] = {
+            {"baseColorTexture",                GLMaterial::TextureType::Albedo},
+            {"normalTexture",                   GLMaterial::TextureType::Normal},
+            {"occlusionTexture",                GLMaterial::TextureType::AmbientOcclusion},
+            {"emissiveTexture",                 GLMaterial::TextureType::Emissive},
+            {"metallicTexture",                 GLMaterial::TextureType::Metallic},
+            {"roughnessTexture",                GLMaterial::TextureType::Roughness},
+            {"transmissionTexture",             GLMaterial::TextureType::Transmission},
+            {"iorTexture",                      GLMaterial::TextureType::IOR},
+            {"sheenColorTexture",               GLMaterial::TextureType::SheenColor},
+            {"sheenRoughnessTexture",           GLMaterial::TextureType::SheenRoughness},
+            {"clearcoatTexture",                GLMaterial::TextureType::ClearcoatColor},
+            {"clearcoatRoughnessTexture",       GLMaterial::TextureType::ClearcoatRoughness},
+            {"clearcoatNormalTexture",          GLMaterial::TextureType::ClearcoatNormal},
+            {"iridescenceTexture",              GLMaterial::TextureType::Iridescence},
+            {"iridescenceThicknessTexture",     GLMaterial::TextureType::IridescenceThickness},
+            {"specularTexture",                 GLMaterial::TextureType::SpecularFactor},
+            {"specularColorTexture",            GLMaterial::TextureType::SpecularColor},
+            {"anisotropyTexture",               GLMaterial::TextureType::Anisotropy},
+            {"thicknessTexture",                GLMaterial::TextureType::Thickness},
+            {"diffuseTexture",                  GLMaterial::TextureType::Diffuse},
+            {"diffuseTransmissionTexture",      GLMaterial::TextureType::DiffuseTransmission},
+            {"diffuseTransmissionColorTexture", GLMaterial::TextureType::DiffuseTransmissionColor},
+            {"specularGlossinessTexture",       GLMaterial::TextureType::SpecularGlossiness},
+            {"opacityTexture",                  GLMaterial::TextureType::Opacity},
+            {"heightTexture",                   GLMaterial::TextureType::Height},
+        };
+
+        for (const auto& entry : kTexKeys)
+        {
+            const QString key = QLatin1String(entry.key);
+            if (mvfPbr.contains(key))
+                applyTextureRef(mat, entry.type, mvfPbr[key].toObject(),
+                                imagePaths, textures, samplers);
+        }
+    }
+
+    return mat;
+}
+} // anonymous namespace
+
+bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
+                               const QByteArray& geometryChunk,
+                               const QByteArray& imageChunk)
+{
+    makeCurrent();
+
+    // On a fresh MDI window there may have been no paint event yet, so
+    // initializeGL() (and thus _fgShader creation) hasn't run.  Mirror what
+    // the GLTF path gets for free via its internal wait-loop by processing
+    // pending events here, then re-acquiring the context.
+    if (!_fgShader)
+    {
+        update();
+        QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        makeCurrent();
+    }
+    if (!_fgShader)
+        return false;
+
+    for (TriangleMesh* mesh : _meshStore)
+        delete mesh;
+    _meshStore.clear();
+    _displayedObjectsIds.clear();
+    _hiddenObjectsIds.clear();
+    if (_visibleSwapped)
+    {
+        _visibleSwapped = false;
+        emit visibleSwapped(_visibleSwapped);
+    }
+
+    // Build image index -> resolved file path.
+    // Embedded bytes from imageChunk take priority; originalUri is the fallback.
+    QHash<int, QString> imagePaths;
+    static QTemporaryDir s_embeddedImageDir;
+
+    for (int i = 0; i < document.images.size(); ++i)
+    {
+        const QJsonObject imgObj  = document.images[i].toObject();
+        const int bvIndex         = imgObj[QStringLiteral("bufferView")].toInt(-1);
+        const QString origUri     = imgObj[QStringLiteral("originalUri")].toString();
+        const QString mimeType    = imgObj[QStringLiteral("mimeType")].toString();
+
+        if (bvIndex >= 0 && bvIndex < document.bufferViews.size() && !imageChunk.isEmpty())
+        {
+            const QJsonObject bv = document.bufferViews[bvIndex].toObject();
+            if (bv[QStringLiteral("buffer")].toInt(-1) == 1) // IMGS buffer
+            {
+                const int offset = (int)bv[QStringLiteral("byteOffset")].toDouble(0);
+                const int length = (int)bv[QStringLiteral("byteLength")].toDouble(0);
+                if (length > 0 && offset + length <= imageChunk.size()
+                    && s_embeddedImageDir.isValid())
+                {
+                    QString ext = QStringLiteral(".bin");
+                    if      (mimeType == QLatin1String("image/png"))  ext = QStringLiteral(".png");
+                    else if (mimeType == QLatin1String("image/jpeg")) ext = QStringLiteral(".jpg");
+                    else if (mimeType == QLatin1String("image/webp")) ext = QStringLiteral(".webp");
+                    else if (mimeType == QLatin1String("image/bmp"))  ext = QStringLiteral(".bmp");
+
+                    const QString tempPath = s_embeddedImageDir.filePath(
+                        QStringLiteral("img%1%2").arg(i).arg(ext));
+                    QFile f(tempPath);
+                    if (f.open(QIODevice::WriteOnly))
+                    {
+                        f.write(imageChunk.constData() + offset, length);
+                        f.close();
+                        imagePaths[i] = tempPath;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        if (!origUri.isEmpty())
+            imagePaths[i] = origUri;
+    }
+
+    // Reconstruct one AssImpMesh per mesh entry in the document
+    for (int meshIdx = 0; meshIdx < document.meshes.size(); ++meshIdx)
+    {
+        const QJsonObject meshObj  = document.meshes[meshIdx].toObject();
+        const QString meshName     = meshObj[QStringLiteral("name")].toString();
+        const QJsonArray primitives = meshObj[QStringLiteral("primitives")].toArray();
+        if (primitives.isEmpty())
+            continue;
+
+        // ModelViewer writes one primitive per mesh
+        const QJsonObject prim    = primitives[0].toObject();
+        const QJsonObject attribs = prim[QStringLiteral("attributes")].toObject();
+        const QJsonObject extras  = prim[QStringLiteral("extras")].toObject();
+        const GLenum primitiveMode = static_cast<GLenum>(prim[QStringLiteral("mode")].toInt(GL_TRIANGLES));
+        const int sceneIndex       = extras[QStringLiteral("sceneIndex")].toInt(-1);
+        const QString uuidStr      = extras[QStringLiteral("meshUuid")].toString();
+        const QUuid meshUuid       = uuidStr.isEmpty()
+                                     ? QUuid::fromString(meshObj[QStringLiteral("id")].toString())
+                                     : QUuid::fromString(uuidStr);
+
+        const std::vector<float> positions = readFloatStream(
+            geometryChunk, document.accessors, document.bufferViews,
+            attribs[QStringLiteral("POSITION")].toInt(-1));
+        if (positions.empty())
+            continue;
+
+        const std::vector<float> normals  = readFloatStream(geometryChunk, document.accessors,
+            document.bufferViews, attribs[QStringLiteral("NORMAL")].toInt(-1));
+        const std::vector<float> tangents = readFloatStream(geometryChunk, document.accessors,
+            document.bufferViews, attribs[QStringLiteral("TANGENT")].toInt(-1));
+        const std::vector<float> uv0      = readFloatStream(geometryChunk, document.accessors,
+            document.bufferViews, attribs[QStringLiteral("TEXCOORD_0")].toInt(-1));
+        const std::vector<float> uv1      = readFloatStream(geometryChunk, document.accessors,
+            document.bufferViews, attribs[QStringLiteral("TEXCOORD_1")].toInt(-1));
+        const std::vector<float> uv2      = readFloatStream(geometryChunk, document.accessors,
+            document.bufferViews, attribs[QStringLiteral("TEXCOORD_2")].toInt(-1));
+        const std::vector<float> uv3      = readFloatStream(geometryChunk, document.accessors,
+            document.bufferViews, attribs[QStringLiteral("TEXCOORD_3")].toInt(-1));
+        const std::vector<float> colors   = readFloatStream(geometryChunk, document.accessors,
+            document.bufferViews, attribs[QStringLiteral("COLOR_0")].toInt(-1));
+        const std::vector<unsigned int> indices = readUIntStream(geometryChunk, document.accessors,
+            document.bufferViews, prim[QStringLiteral("indices")].toInt(-1));
+        if (indices.empty())
+            continue;
+
+        const size_t vertexCount = positions.size() / 3;
+        std::vector<Vertex> vertices(vertexCount);
+        for (size_t vi = 0; vi < vertexCount; ++vi)
+        {
+            Vertex& v = vertices[vi];
+            v.Position = glm::vec3(positions[vi*3], positions[vi*3+1], positions[vi*3+2]);
+
+            if (normals.size()  >= vi*3+3) v.Normal  = glm::vec3(normals [vi*3], normals [vi*3+1], normals [vi*3+2]);
+            if (tangents.size() >= vi*3+3) v.Tangent = glm::vec3(tangents[vi*3], tangents[vi*3+1], tangents[vi*3+2]);
+
+            if (uv0.size() >= vi*2+2) v.TexCoords[0] = glm::vec2(uv0[vi*2], uv0[vi*2+1]);
+            if (uv1.size() >= vi*2+2) v.TexCoords[1] = glm::vec2(uv1[vi*2], uv1[vi*2+1]);
+            if (uv2.size() >= vi*2+2) v.TexCoords[2] = glm::vec2(uv2[vi*2], uv2[vi*2+1]);
+            if (uv3.size() >= vi*2+2) v.TexCoords[3] = glm::vec2(uv3[vi*2], uv3[vi*2+1]);
+
+            v.Color = colors.size() >= vi*4+4
+                      ? glm::vec4(colors[vi*4], colors[vi*4+1], colors[vi*4+2], colors[vi*4+3])
+                      : glm::vec4(1.0f);
+        }
+
+        const int materialIndex = prim[QStringLiteral("material")].toInt(-1);
+        GLMaterial material;
+        if (materialIndex >= 0 && materialIndex < document.materials.size())
+            material = reconstructMvfMaterial(document.materials[materialIndex].toObject(),
+                                              imagePaths, document.textures, document.samplers);
+
+        AssImpMesh* mesh = new AssImpMesh(_fgShader.get(), meshName,
+                                          {}, {}, {}, material);
+        mesh->setUuid(meshUuid);
+        mesh->setPrimitiveMode(primitiveMode);
+        mesh->setSceneIndex(sceneIndex);
+        mesh->setMeshData(vertices, indices);
+
+        const GLMaterial resolved = resolveMaterialTextures(this, material);
+        mesh->setMaterial(resolved);
+        mesh->setTextureMaps(resolved);
+        mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
+        mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
+
+        addToDisplay(mesh);
+    }
+
+    updateView();
+    return !_meshStore.empty();
 }

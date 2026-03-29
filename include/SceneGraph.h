@@ -3,8 +3,10 @@
 #include "SceneNode.h"
 
 #include <QHash>
+#include <QJsonArray>
 #include <QObject>
 #include <QString>
+#include <QDataStream>
 #include <assimp/scene.h>
 
 // ---------------------------------------------------------------------------
@@ -47,8 +49,24 @@ public:
                          const QString&      sourceFile,
                          const QList<QUuid>& meshUuidsInOrder);
 
+    // Build a flat synthetic session node that owns all meshes directly.
+    // Used as a fallback for native-session files that do not carry a full
+    // hierarchy, or when loading legacy MVF files.
+    void rebuildFlat(const QString& sessionName,
+                     const QList<QUuid>& meshUuids);
+
+    // Rebuild the hierarchy from an MVF3 document's flat node array.
+    // documentNodes  — the parsed document.nodes QJsonArray.
+    // sceneRootNodes — the scene's root-level node index array (scene["nodes"]).
+    void rebuildFromMvf(const QJsonArray& documentNodes,
+                        const QJsonArray& sceneRootNodes);
+
     // Reset to an empty graph (e.g. on "New scene").
     void clear();
+
+    // Session persistence
+    void serialize(QDataStream& out) const;
+    bool deserialize(QDataStream& in);
 
     // -----------------------------------------------------------------------
     // Query

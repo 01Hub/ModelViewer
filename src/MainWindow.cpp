@@ -1,4 +1,6 @@
 ﻿
+#include <QApplication>
+#include <QEventLoop>
 #include <QMessageBox>
 #include <QFileDialog>
 

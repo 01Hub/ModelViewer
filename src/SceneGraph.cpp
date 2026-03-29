@@ -1,6 +1,31 @@
 #include "SceneGraph.h"
 
 #include <QFileInfo>
+#include <QJsonObject>
+#include <QJsonValue>
+#include <functional>
+
+namespace
+{
+constexpr quint32 SCENEGRAPH_SESSION_VERSION = 1;
+
+void writeMatrix(QDataStream& out, const aiMatrix4x4& m)
+{
+    out << m.a1 << m.a2 << m.a3 << m.a4
+        << m.b1 << m.b2 << m.b3 << m.b4
+        << m.c1 << m.c2 << m.c3 << m.c4
+        << m.d1 << m.d2 << m.d3 << m.d4;
+}
+
+bool readMatrix(QDataStream& in, aiMatrix4x4& m)
+{
+    in >> m.a1 >> m.a2 >> m.a3 >> m.a4
+       >> m.b1 >> m.b2 >> m.b3 >> m.b4
+       >> m.c1 >> m.c2 >> m.c3 >> m.c4
+       >> m.d1 >> m.d2 >> m.d3 >> m.d4;
+    return in.status() == QDataStream::Ok;
+}
+}
 
 // ---------------------------------------------------------------------------
 // Construction / destruction
@@ -56,6 +81,33 @@ void SceneGraph::appendFromScene(const aiScene*      scene,
     emit structureChanged();
 }
 
+void SceneGraph::rebuildFlat(const QString& sessionName,
+                             const QList<QUuid>& meshUuids)
+{
+    _meshUuidToNode.clear();
+    freeSubtree(_root);
+
+    _root           = new SceneNode();
+    _root->nodeUuid = QUuid::createUuid();
+    _root->name     = QStringLiteral("__SceneRoot__");
+
+    SceneNode* fileNode    = new SceneNode();
+    fileNode->nodeUuid     = QUuid::createUuid();
+    fileNode->name         = sessionName;
+    fileNode->isSynthetic  = true;
+    fileNode->sourceFile   = sessionName;
+    fileNode->parent       = _root;
+    _root->children.append(fileNode);
+
+    for (const QUuid& uuid : meshUuids)
+    {
+        fileNode->meshUuids.append(uuid);
+        _meshUuidToNode[uuid] = fileNode;
+    }
+
+    emit structureChanged();
+}
+
 SceneNode* SceneGraph::buildSubtree(const aiNode*       ainode,
                                     SceneNode*          parent,
                                     const QList<QUuid>& uuids,
@@ -105,6 +157,175 @@ void SceneGraph::clear()
     _root->name     = QStringLiteral("__SceneRoot__");
 
     emit structureChanged();
+}
+
+void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
+                                const QJsonArray& sceneRootNodes)
+{
+    _meshUuidToNode.clear();
+    freeSubtree(_root);
+
+    _root           = new SceneNode();
+    _root->nodeUuid = QUuid::createUuid();
+    _root->name     = QStringLiteral("__SceneRoot__");
+
+    std::function<SceneNode*(int, SceneNode*)> buildNode =
+        [&](int idx, SceneNode* parent) -> SceneNode*
+    {
+        if (idx < 0 || idx >= documentNodes.size())
+            return nullptr;
+
+        const QJsonObject obj = documentNodes[idx].toObject();
+
+        SceneNode* node    = new SceneNode();
+        node->parent       = parent;
+
+        const QString idStr = obj[QStringLiteral("id")].toString();
+        node->nodeUuid = idStr.isEmpty() ? QUuid::createUuid()
+                                         : QUuid::fromString(idStr);
+        node->name = obj[QStringLiteral("name")].toString();
+
+        const QJsonArray mat = obj[QStringLiteral("matrix")].toArray();
+        if (mat.size() == 16)
+        {
+            aiMatrix4x4& m = node->localTransform;
+            m.a1 = (float)mat[0].toDouble();  m.a2 = (float)mat[1].toDouble();
+            m.a3 = (float)mat[2].toDouble();  m.a4 = (float)mat[3].toDouble();
+            m.b1 = (float)mat[4].toDouble();  m.b2 = (float)mat[5].toDouble();
+            m.b3 = (float)mat[6].toDouble();  m.b4 = (float)mat[7].toDouble();
+            m.c1 = (float)mat[8].toDouble();  m.c2 = (float)mat[9].toDouble();
+            m.c3 = (float)mat[10].toDouble(); m.c4 = (float)mat[11].toDouble();
+            m.d1 = (float)mat[12].toDouble(); m.d2 = (float)mat[13].toDouble();
+            m.d3 = (float)mat[14].toDouble(); m.d4 = (float)mat[15].toDouble();
+        }
+
+        const QJsonArray bindings = obj[QStringLiteral("meshBindings")].toArray();
+        for (const QJsonValue& b : bindings)
+        {
+            const QString uuidStr = b.toObject()[QStringLiteral("uuid")].toString();
+            if (!uuidStr.isEmpty())
+            {
+                const QUuid uuid = QUuid::fromString(uuidStr);
+                node->meshUuids.append(uuid);
+                _meshUuidToNode[uuid] = node;
+            }
+        }
+
+        const QJsonArray children = obj[QStringLiteral("children")].toArray();
+        for (const QJsonValue& c : children)
+        {
+            SceneNode* child = buildNode(c.toInt(-1), node);
+            if (child)
+                node->children.append(child);
+        }
+
+        return node;
+    };
+
+    for (const QJsonValue& rootIdx : sceneRootNodes)
+    {
+        SceneNode* child = buildNode(rootIdx.toInt(-1), _root);
+        if (child)
+            _root->children.append(child);
+    }
+
+    emit structureChanged();
+}
+
+void SceneGraph::serialize(QDataStream& out) const
+{
+    out << SCENEGRAPH_SESSION_VERSION;
+
+    std::function<void(const SceneNode*)> writeNode = [&](const SceneNode* node) {
+        out << node->nodeUuid
+            << node->name
+            << node->isSynthetic
+            << node->sourceFile;
+        writeMatrix(out, node->localTransform);
+
+        out << static_cast<quint32>(node->meshUuids.size());
+        for (const QUuid& uuid : node->meshUuids)
+            out << uuid;
+
+        out << static_cast<quint32>(node->children.size());
+        for (const SceneNode* child : node->children)
+            writeNode(child);
+    };
+
+    out << static_cast<quint32>(_root->children.size());
+    for (const SceneNode* child : _root->children)
+        writeNode(child);
+}
+
+bool SceneGraph::deserialize(QDataStream& in)
+{
+    quint32 version = 0;
+    in >> version;
+    if (in.status() != QDataStream::Ok || version != SCENEGRAPH_SESSION_VERSION)
+        return false;
+
+    _meshUuidToNode.clear();
+    freeSubtree(_root);
+
+    _root           = new SceneNode();
+    _root->nodeUuid = QUuid::createUuid();
+    _root->name     = QStringLiteral("__SceneRoot__");
+
+    std::function<SceneNode*(SceneNode*)> readNode = [&](SceneNode* parent) -> SceneNode* {
+        auto* node = new SceneNode();
+        node->parent = parent;
+
+        quint32 meshCount = 0;
+        quint32 childCount = 0;
+        in >> node->nodeUuid
+           >> node->name
+           >> node->isSynthetic
+           >> node->sourceFile;
+        if (!readMatrix(in, node->localTransform))
+        {
+            delete node;
+            return nullptr;
+        }
+
+        in >> meshCount;
+        for (quint32 i = 0; i < meshCount; ++i)
+        {
+            QUuid uuid;
+            in >> uuid;
+            node->meshUuids.append(uuid);
+            _meshUuidToNode[uuid] = node;
+        }
+
+        in >> childCount;
+        for (quint32 i = 0; i < childCount; ++i)
+        {
+            SceneNode* child = readNode(node);
+            if (!child)
+            {
+                delete node;
+                return nullptr;
+            }
+            node->children.append(child);
+        }
+
+        return node;
+    };
+
+    quint32 topLevelCount = 0;
+    in >> topLevelCount;
+    for (quint32 i = 0; i < topLevelCount; ++i)
+    {
+        SceneNode* child = readNode(_root);
+        if (!child)
+        {
+            clear();
+            return false;
+        }
+        _root->children.append(child);
+    }
+
+    emit structureChanged();
+    return in.status() == QDataStream::Ok;
 }
 
 // ---------------------------------------------------------------------------

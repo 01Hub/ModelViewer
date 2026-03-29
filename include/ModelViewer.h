@@ -19,6 +19,12 @@ struct UVDialogResult
 	UVMethod method = UVMethod::None;
 };
 
+namespace Mvf
+{
+struct Document;
+struct MVFPackage;
+}
+
 class ModelViewer : public QWidget, public Ui::ModelViewer
 {
 	Q_OBJECT
@@ -183,6 +189,8 @@ private:
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
 	QString computeUniqueName(TriangleMesh* exclude, const QString& name) const;
 	bool checkForActiveSelection();
+	bool saveToFileMvf(const QString& fileName);
+	Mvf::MVFPackage buildMVFPackage() const;
 			
 	void updateControls();
 	QString getSupportedQtImagesFilter();

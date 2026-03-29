@@ -194,6 +194,9 @@ signals:
     /** Emitted when a mesh leaf is successfully renamed by the user. */
     void meshRenamed(const QUuid& uuid, const QString& newName);
 
+    /** Emitted when the asynchronous tree rebuild has fully completed. */
+    void rebuildComplete();
+
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;

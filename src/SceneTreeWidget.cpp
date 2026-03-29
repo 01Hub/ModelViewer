@@ -636,7 +636,10 @@ void SceneTreeWidget::rebuild()
         enqueueRebuildTasks(nullptr, fileNode, true);
     }
 
-    _rebuildTimer->start(0);
+    // Delay the first batch slightly so the fit animation (5 ms timer) can
+    // fire a few times before tree population starts competing on the UI thread.
+    // Subsequent batches continue at 0 ms in processRebuildBatch().
+    _rebuildTimer->start(100);
 }
 
 // ---------------------------------------------------------------------------
@@ -895,6 +898,7 @@ void SceneTreeWidget::finalizeRebuild()
     _updatingTree = false;
     _rebuildInProgress = false;
     viewport()->update();
+    emit rebuildComplete();
 }
 
 QTreeWidgetItem* SceneTreeWidget::makeMeshLeaf(const QUuid& uuid)

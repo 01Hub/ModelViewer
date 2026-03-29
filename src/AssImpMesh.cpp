@@ -1,4 +1,5 @@
 #include "AssImpMesh.h"
+#include "TextureLocationManager.h"
 
 #include <QDataStream>
 #include <QFileInfo>
@@ -707,9 +708,9 @@ GLuint AssImpMesh::createGLTextureFromFile(const QString& fullPath, bool& outHas
 	if (fullPath.isEmpty()) return 0;
 	if (!QFileInfo::exists(fullPath))
 	{
-		qWarning() << "createGLTextureFromFile: file not found:" << fullPath;
-		return 0;
-	}
+			qWarning() << "createGLTextureFromFile: file not found:" << fullPath;
+			return 0;
+		}
 
 	QImage img;
 	if (!img.load(fullPath))
@@ -815,9 +816,11 @@ void AssImpMesh::serialize(QDataStream& out) const
 	// Write vertices
 	out << static_cast<quint32>(_vertices.size());
 	for (const Vertex& v : _vertices) {
+		out << v.Color.r << v.Color.g << v.Color.b << v.Color.a;
 		out << v.Position.x << v.Position.y << v.Position.z;
 		out << v.Normal.x << v.Normal.y << v.Normal.z;
-		out << v.TexCoords[0].x << v.TexCoords[0].y;
+		for (int texCoordIndex = 0; texCoordIndex < 4; ++texCoordIndex)
+			out << v.TexCoords[texCoordIndex].x << v.TexCoords[texCoordIndex].y;
 		out << v.Tangent.x << v.Tangent.y << v.Tangent.z;
 		out << v.Bitangent.x << v.Bitangent.y << v.Bitangent.z;
 	}
@@ -848,7 +851,7 @@ void AssImpMesh::serialize(QDataStream& out) const
 }
 
 // --- Deserialization ---
-void AssImpMesh::deserialize(QDataStream& in)
+void AssImpMesh::deserialize(QDataStream& in, quint32 sceneVersion)
 {
 	// Read mesh name
 	in >> _name;
@@ -860,9 +863,27 @@ void AssImpMesh::deserialize(QDataStream& in)
 	_vertices.reserve(vCount);
 	for (quint32 i = 0; i < vCount; ++i) {
 		Vertex v;
+		if (sceneVersion >= 3)
+		{
+			in >> v.Color.r >> v.Color.g >> v.Color.b >> v.Color.a;
+		}
+		else
+		{
+			v.Color = glm::vec4(1.0f);
+		}
 		in >> v.Position.x >> v.Position.y >> v.Position.z;
 		in >> v.Normal.x >> v.Normal.y >> v.Normal.z;
-		in >> v.TexCoords[0].x >> v.TexCoords[0].y;
+		if (sceneVersion >= 3)
+		{
+			for (int texCoordIndex = 0; texCoordIndex < 4; ++texCoordIndex)
+				in >> v.TexCoords[texCoordIndex].x >> v.TexCoords[texCoordIndex].y;
+		}
+		else
+		{
+			in >> v.TexCoords[0].x >> v.TexCoords[0].y;
+			for (int texCoordIndex = 1; texCoordIndex < 4; ++texCoordIndex)
+				v.TexCoords[texCoordIndex] = v.TexCoords[0];
+		}
 		in >> v.Tangent.x >> v.Tangent.y >> v.Tangent.z;
 		in >> v.Bitangent.x >> v.Bitangent.y >> v.Bitangent.z;
 		_vertices.push_back(v);
@@ -985,42 +1006,65 @@ void AssImpMesh::deserialize(QDataStream& in)
 			_material.setClearcoatNormalTextureId(tex.id);
 			_material.setClearcoatNormalMap(qpath);
 		}
-		// add other mappings if GLMaterial provides the setters
-		};
+		else if (ttype == "specularFactorMap")
+		{
+			_material.setSpecularFactorTextureId(tex.id);
+			_material.setSpecularFactorMap(qpath);
+		}
+		else if (ttype == "specularColorMap")
+		{
+			_material.setSpecularColorTextureId(tex.id);
+			_material.setSpecularColorMap(qpath);
+		}
+		else if (ttype == "anisotropyMap")
+		{
+			_material.setAnisotropyTextureId(tex.id);
+			_material.setAnisotropyMap(qpath);
+		}
+		else if (ttype == "iridescenceMap")
+		{
+			_material.setIridescenceTextureId(tex.id);
+			_material.setIridescenceMap(qpath);
+		}
+		else if (ttype == "iridescenceThicknessMap")
+		{
+			_material.setIridescenceThicknessTextureId(tex.id);
+			_material.setIridescenceThicknessMap(qpath);
+		}
+		else if (ttype == "thicknessMap")
+		{
+			_material.setThicknessTextureId(tex.id);
+			_material.setThicknessMap(qpath);
+		}
+		else if (ttype == "diffuseMap")
+		{
+			_material.setDiffuseTextureId(tex.id);
+			_material.setDiffuseMap(qpath);
+		}
+		else if (ttype == "diffuseTransmissionMap")
+		{
+			_material.setDiffuseTransmissionTextureId(tex.id);
+			_material.setDiffuseTransmissionMap(qpath);
+		}
+		else if (ttype == "diffuseTransmissionColorMap")
+		{
+			_material.setDiffuseTransmissionColorTextureId(tex.id);
+			_material.setDiffuseTransmissionColorMap(qpath);
+		}
+		else if (ttype == "specularGlossinessMap")
+		{
+			_material.setSpecularGlossinessTextureId(tex.id);
+			_material.setSpecularGlossinessMap(qpath);
+		}
+	};
 
-	// Iterate existing _textures vector:
-	for (size_t i = 0; i < _textures.size(); ++i)
+	// Reconcile the mesh texture descriptors back into the material, but leave
+	// actual GPU texture resolution to GLWidget so reopen can use the shared
+	// texture cache just like the normal import path.
+	for (const GLMaterial::Texture& t : _textures)
 	{
-		GLMaterial::Texture& t = _textures[i];
-		QString path = QString::fromUtf8(t.path).trimmed();
-
-		// If there is a path but id==0, create GL texture now
-		if (!path.isEmpty() && t.id == 0)
-		{
-			bool hasAlpha = false;
-			GLuint newId = createGLTextureFromFile(path, hasAlpha);
-			if (newId != 0)
-			{
-				t.id = static_cast<unsigned int>(newId);
-				t.hasAlpha = hasAlpha;
-				
-				// register/replace in the mesh's internal bindings list
-				replaceOrAppendTexture(t.type, newId, hasAlpha);
-
-				// also update GLMaterial so both mesh and material are in agreement
-				updateMaterialFromTexture(t);
-			}
-			else
-			{
-				qWarning() << "AssImpMesh::deserialize: failed to create GL texture for" << path;
-			}
-		}
-		else if (!path.isEmpty())
-		{
-			// path present and maybe id was non-zero already (unlikely in serialized stream),
-			// make sure material is at least aware of the mapping
+		if (!QString::fromUtf8(t.path).trimmed().isEmpty())
 			updateMaterialFromTexture(t);
-		}
 	}
 
 	// If we didn't find any _textures entries but material has paths, try the material-based sync
@@ -1031,21 +1075,64 @@ void AssImpMesh::deserialize(QDataStream& in)
 	}
 	if (!meshHasAnyPath)
 	{
-		// fall back to creating textures from material (this code already exists in syncTexturesFromMaterialIfNeeded)
-		syncTexturesFromMaterialIfNeeded();
-	}
+		// Fall back to material-derived texture descriptors; actual GPU texture IDs
+		// will be assigned by GLWidget after deserialization using its cache.
+		auto materialTextureTypeToMeshType = [](GLMaterial::TextureType type) -> std::string
+		{
+			switch (type)
+			{
+			case GLMaterial::TextureType::Albedo: return "albedoMap";
+			case GLMaterial::TextureType::Metallic: return "metallicMap";
+			case GLMaterial::TextureType::Roughness: return "roughnessMap";
+			case GLMaterial::TextureType::Normal: return "normalMap";
+			case GLMaterial::TextureType::AmbientOcclusion: return "aoMap";
+			case GLMaterial::TextureType::Opacity: return "opacityMap";
+			case GLMaterial::TextureType::Emissive: return "emissiveMap";
+			case GLMaterial::TextureType::Height: return "heightMap";
+			case GLMaterial::TextureType::Transmission: return "transmissionMap";
+			case GLMaterial::TextureType::IOR: return "iorMap";
+			case GLMaterial::TextureType::SheenColor: return "sheenColorMap";
+			case GLMaterial::TextureType::SheenRoughness: return "sheenRoughnessMap";
+			case GLMaterial::TextureType::ClearcoatColor: return "clearcoatColorMap";
+			case GLMaterial::TextureType::ClearcoatRoughness: return "clearcoatRoughnessMap";
+			case GLMaterial::TextureType::ClearcoatNormal: return "clearcoatNormalMap";
+			case GLMaterial::TextureType::SpecularFactor: return "specularFactorMap";
+			case GLMaterial::TextureType::SpecularColor: return "specularColorMap";
+			case GLMaterial::TextureType::Anisotropy: return "anisotropyMap";
+			case GLMaterial::TextureType::Iridescence: return "iridescenceMap";
+			case GLMaterial::TextureType::IridescenceThickness: return "iridescenceThicknessMap";
+			case GLMaterial::TextureType::Thickness: return "thicknessMap";
+			case GLMaterial::TextureType::Diffuse: return "diffuseMap";
+			case GLMaterial::TextureType::DiffuseTransmission: return "diffuseTransmissionMap";
+			case GLMaterial::TextureType::DiffuseTransmissionColor: return "diffuseTransmissionColorMap";
+			case GLMaterial::TextureType::SpecularGlossiness: return "specularGlossinessMap";
+			default: return {};
+			}
+		};
 
-	// finally, recompute flags and rebuild if we added textures
-	if (!_textures.empty())
-	{
-		setupMesh();
-		markTexturesDirty();
-		markUniformsDirty();
-	}
+		for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+		{
+			const GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+			const GLMaterial::Texture& materialTexture = _material.texture(type);
+			if (materialTexture.path.empty())
+				continue;
 
+			GLMaterial::Texture meshTexture = materialTexture;
+			meshTexture.id = 0;
+			meshTexture.type = materialTextureTypeToMeshType(type);
+			if (!meshTexture.type.empty())
+				_textures.push_back(meshTexture);
+		}
+	}
 
 	// Read the transformation matrix
 	in >> _transformation;
+
+	// Rebuild the runtime mesh texture flags/bindings from the restored material.
+	// Texture IDs are still zero here; GLWidget resolves them afterward via its
+	// shared cache.
+	setMaterial(_material);
+	setTextureMaps(_material);
 
 	// Re-setup OpenGL buffers
 	setupMesh();

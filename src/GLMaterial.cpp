@@ -4294,7 +4294,7 @@ void GLMaterial::convertToPBR()
 #include <QDataStream>
 #include <QDebug>
 
-static const qint32 GLMATERIAL_SESSION_VERSION = 1;
+static const qint32 GLMATERIAL_SESSION_VERSION = 2;
 
 void GLMaterial::serialize(QDataStream& out) const
 {
@@ -4341,6 +4341,38 @@ void GLMaterial::serialize(QDataStream& out) const
     out << albedoTint.strength << albedoTint.grayEps;
     out << albedoTint.useVertexColor;
     out << static_cast<qint32>(albedoTint.maskChannel);
+
+    // --- Extended material/session fields ---
+    out << _specularFactor << _specularColorFactor;
+    out << _anisotropyStrength << _anisotropyRotation;
+    out << _iridescenceFactor << _iridescenceIor << _iridescenceThicknessMin << _iridescenceThicknessMax;
+    out << _thicknessFactor << _attenuationDistance << _attenuationColor;
+    out << _diffuseTransmissionFactor << _diffuseTransmissionColorFactor;
+    out << _diffuseColor << _specularColor << _glossinessFactor;
+    out << _dispersion << _unlit << _hasVolumeScattering << _multiScatterColor << _useSpecularGlossiness;
+
+    // --- Extended texture paths ---
+    out << _anisotropyMap << _iridescenceMap << _iridescenceThicknessMap;
+    out << _specularFactorMap << _specularColorMap;
+    out << _thicknessMap << _diffuseMap << _diffuseTransmissionMap << _diffuseTransmissionColorMap;
+    out << _specularGlossinessMap;
+
+    // --- Full unified texture metadata ---
+    out << static_cast<quint32>(_textures.size());
+    for (const Texture& tex : _textures)
+    {
+        out << QString::fromStdString(tex.type)
+            << QString::fromStdString(tex.path)
+            << tex.hasAlpha
+            << tex.texCoordIndex
+            << tex.scale.x << tex.scale.y
+            << tex.offset.x << tex.offset.y
+            << tex.rotation
+            << static_cast<qint32>(tex.wrapS)
+            << static_cast<qint32>(tex.wrapT)
+            << static_cast<qint32>(tex.magFilter)
+            << static_cast<qint32>(tex.minFilter);
+    }
 }
 
 void GLMaterial::deserialize(QDataStream& in)
@@ -4351,7 +4383,7 @@ void GLMaterial::deserialize(QDataStream& in)
         qWarning() << "GLMaterial::deserialize: failed to read version";
         return;
     }
-    if (version != GLMATERIAL_SESSION_VERSION) {
+    if (version < 1 || version > GLMATERIAL_SESSION_VERSION) {
         qWarning() << "GLMaterial::deserialize: version mismatch, got" << version;
         return;
     }
@@ -4399,6 +4431,63 @@ void GLMaterial::deserialize(QDataStream& in)
     in >> tintMode >> albedoTint.strength >> albedoTint.grayEps >> albedoTint.useVertexColor >> maskCh;
     albedoTint.mode = static_cast<TintMode>(tintMode);
     albedoTint.maskChannel = maskCh;
+
+    if (version >= 2)
+    {
+        in >> _specularFactor >> _specularColorFactor;
+        in >> _anisotropyStrength >> _anisotropyRotation;
+        in >> _iridescenceFactor >> _iridescenceIor >> _iridescenceThicknessMin >> _iridescenceThicknessMax;
+        in >> _thicknessFactor >> _attenuationDistance >> _attenuationColor;
+        in >> _diffuseTransmissionFactor >> _diffuseTransmissionColorFactor;
+        in >> _diffuseColor >> _specularColor >> _glossinessFactor;
+        in >> _dispersion >> _unlit >> _hasVolumeScattering >> _multiScatterColor >> _useSpecularGlossiness;
+
+        in >> _anisotropyMap >> _iridescenceMap >> _iridescenceThicknessMap;
+        in >> _specularFactorMap >> _specularColorMap;
+        in >> _thicknessMap >> _diffuseMap >> _diffuseTransmissionMap >> _diffuseTransmissionColorMap;
+        in >> _specularGlossinessMap;
+
+        quint32 textureCount = 0;
+        in >> textureCount;
+        const quint32 maxTextures = static_cast<quint32>(_textures.size());
+        for (quint32 i = 0; i < maxTextures; ++i)
+            _textures[i] = Texture{};
+
+        for (quint32 i = 0; i < textureCount; ++i)
+        {
+            QString typeQ, pathQ;
+            bool hasAlpha = false;
+            int texCoordIndex = 0;
+            float scaleX = 1.0f, scaleY = 1.0f;
+            float offsetX = 0.0f, offsetY = 0.0f;
+            float rotation = 0.0f;
+            qint32 wrapS = GL_REPEAT, wrapT = GL_REPEAT, magFilter = GL_LINEAR, minFilter = GL_LINEAR_MIPMAP_LINEAR;
+
+            in >> typeQ >> pathQ >> hasAlpha >> texCoordIndex
+               >> scaleX >> scaleY >> offsetX >> offsetY >> rotation
+               >> wrapS >> wrapT >> magFilter >> minFilter;
+
+            if (i >= maxTextures)
+                continue;
+
+            Texture tex;
+            tex.id = 0;
+            tex.type = typeQ.toStdString();
+            tex.path = pathQ.toStdString();
+            tex.hasAlpha = hasAlpha;
+            tex.texCoordIndex = texCoordIndex;
+            tex.scale = glm::vec2(scaleX, scaleY);
+            tex.offset = glm::vec2(offsetX, offsetY);
+            tex.rotation = rotation;
+            tex.wrapS = static_cast<GLenum>(wrapS);
+            tex.wrapT = static_cast<GLenum>(wrapT);
+            tex.magFilter = static_cast<GLenum>(magFilter);
+            tex.minFilter = static_cast<GLenum>(minFilter);
+            _textures[i] = tex;
+        }
+
+        syncTextureParameters();
+    }
 
     if (in.status() != QDataStream::Ok) {
         qWarning() << "GLMaterial::deserialize: QDataStream status =" << int(in.status());

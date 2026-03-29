@@ -65,7 +65,7 @@ public:
 		const std::vector<unsigned int>& indices);
 
 	void serialize(QDataStream& out) const;
-	void deserialize(QDataStream& in);
+	void deserialize(QDataStream& in, quint32 sceneVersion = 3);
 
 	void setAlbedoPBRMap(unsigned int albedoMap) override;
 	void setMetallicPBRMap(unsigned int metallicMap) override;

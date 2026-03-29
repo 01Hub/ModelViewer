@@ -23,6 +23,8 @@
 
 /* Custom OpenGL Viewer Widget */
 
+namespace Mvf { struct Document; }
+
 class TextRenderer;
 class ClippingPlanesEditor;
 class AssImpModelLoader;
@@ -387,6 +389,14 @@ public:
 
 	void serializeScene(QDataStream& out) const;
 	void deserializeScene(QDataStream& in);
+
+	// Load scene meshes from a parsed MVF3 package.
+	// Clears the existing mesh store, reconstructs all meshes from the
+	// accessor/bufferView streams in geometryChunk, and populates the display
+	// list.  imageChunk may be empty if images were not embedded.
+	bool loadMvfMeshes(const Mvf::Document& document,
+	                    const QByteArray& geometryChunk,
+	                    const QByteArray& imageChunk);
 
 signals:
 	void windowZoomEnded();
