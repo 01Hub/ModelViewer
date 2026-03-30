@@ -200,6 +200,7 @@ signals:
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
 
 private slots:
     void onItemChanged(QTreeWidgetItem* item, int column);
@@ -239,8 +240,16 @@ private:
     void collectExpandedItems(QTreeWidgetItem* subtree,
                               QList<QTreeWidgetItem*>& out) const;
 
+
+    void collectSubtreeItems(QTreeWidgetItem* subtree,
+        QList<QTreeWidgetItem*>& out) const;
+
     // Internal helper: collapse item and all its descendants
     void collapseSubtreeHelper(QTreeWidgetItem* item);
+
+    bool allDirectChildrenSelected(QTreeWidgetItem* parent) const;
+    void refreshParentSelectionUpward(QTreeWidgetItem* startParent);
+    void refreshSelectionClosureBottomUp(QTreeWidgetItem* item);
 
     // Bulk assembly tristate + icon refresh (used after show/hide all)
     void refreshAllAssemblyStates();
@@ -284,6 +293,14 @@ private:
     QSet<QUuid> _pendingSelectedUuids;
     QSet<QUuid> _pendingOldUuids;
     bool _rebuildInProgress = false;
+
+    QPersistentModelIndex _pressIndex;
+    Qt::KeyboardModifiers _pressMods = Qt::NoModifier;
+    bool _pressWasSelected = false;
+    Qt::CheckState _pressCheckState = Qt::Unchecked;
+    bool _pressExpanded = false;
+    bool _pressValid = false;
+    QSet<QTreeWidgetItem*> _prevSelection;
 
     bool _updatingTree = false; // suppress re-entrant signal handling
     bool _inRename     = false; // suppress itemChanged during delegate setModelData

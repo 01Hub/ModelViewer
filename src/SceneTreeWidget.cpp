@@ -258,8 +258,20 @@ void SceneTreeWidget::setSelectionByUuids(const QSet<QUuid>& uuids)
         if (it != _uuidToLeaf.end())
             it.value()->setSelected(true);
     }
+
+    for (int i = 0; i < topLevelItemCount(); ++i)
+        refreshSelectionClosureBottomUp(topLevelItem(i));
+
     blockSignals(false);
+
+    _prevSelection.clear();
+    for (QTreeWidgetItem* it : selectedItems())
+        _prevSelection.insert(it);
+
     _updatingTree = false;
+
+	// center the first selected item in the viewport for better visibility
+    scrollFirstSelectedToCenter();
 }
 
 std::vector<int> SceneTreeWidget::getSelectedIndices() const
@@ -288,6 +300,11 @@ void SceneTreeWidget::clearMeshSelection()
     blockSignals(true);
     clearSelection();
     blockSignals(false);
+
+    _prevSelection.clear();
+    for (QTreeWidgetItem* it : selectedItems())
+        _prevSelection.insert(it);
+
     _updatingTree = false;
 }
 
@@ -515,6 +532,14 @@ void SceneTreeWidget::filterItems(const QString& filter)
 
     viewport()->setUpdatesEnabled(true);
     viewport()->update();
+
+    for (int i = 0; i < topLevelItemCount(); ++i)
+        refreshSelectionClosureBottomUp(topLevelItem(i));
+
+    _prevSelection.clear();
+    for (QTreeWidgetItem* it : selectedItems())
+        _prevSelection.insert(it);
+
     _updatingTree = false;
     emit selectionUpdated();
 }
@@ -554,6 +579,11 @@ void SceneTreeWidget::ensureAssemblySelectionAt(const QPoint& localPos)
         item->setSelected(true);
         setCurrentItem(item);
         blockSignals(false);
+
+        _prevSelection.clear();
+        for (QTreeWidgetItem* it : selectedItems())
+            _prevSelection.insert(it);
+
         _updatingTree = false;
         emit selectionUpdated();
     }
@@ -620,6 +650,7 @@ void SceneTreeWidget::rebuild()
 
     clear();
     _uuidToLeaf.clear();
+    _prevSelection.clear();
 
     SceneNode* root = _sceneGraph->root();
     if (!root)
@@ -680,30 +711,57 @@ void SceneTreeWidget::keyPressEvent(QKeyEvent* event)
 // Mouse press — toggle-deselect on re-click
 // ---------------------------------------------------------------------------
 
+static bool isDescendantOf(QTreeWidgetItem* root, QTreeWidgetItem* item)
+{
+    for (QTreeWidgetItem* p = item; p; p = p->parent())
+        if (p == root) return true;
+    return false;
+}
+
 void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::LeftButton &&
         !(event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)))
     {
         QTreeWidgetItem* clicked = itemAt(event->pos());
-        if (clicked && clicked->isSelected() && selectedItems().count() == 1)
+        if (clicked && clicked->isSelected())
         {
-            // Re-clicking the sole selected row toggles selection off, but only
-            // for a plain row click. Checkbox toggles and branch expand/collapse
-            // should keep their normal behavior.
-            const Qt::CheckState csBefore = clicked->checkState(0);
-            const bool expandedBefore = clicked->isExpanded();
-            QTreeWidget::mousePressEvent(event);
-            if (clicked->checkState(0) == csBefore &&
-                clicked->isExpanded() == expandedBefore &&
-                clicked->isSelected())
+            // Allow toggle-off if ALL currently selected items lie within clicked's subtree
+            const QList<QTreeWidgetItem*> sel = selectedItems();
+            bool onlyWithinSubtree = true;
+            for (QTreeWidgetItem* s : sel)
             {
-                clearSelection();
+                if (!isDescendantOf(clicked, s))
+                {
+                    onlyWithinSubtree = false;
+                    break;
+                }
             }
-            return;
+
+            if (onlyWithinSubtree)
+            {
+                const Qt::CheckState csBefore = clicked->checkState(0);
+                const bool expandedBefore = clicked->isExpanded();
+
+                QTreeWidget::mousePressEvent(event);
+
+                if (clicked->checkState(0) == csBefore &&
+                    clicked->isExpanded() == expandedBefore &&
+                    clicked->isSelected())
+                {
+                    clearSelection();
+                }
+                return;
+            }
         }
     }
+
     QTreeWidget::mousePressEvent(event);
+}
+
+void SceneTreeWidget::mouseReleaseEvent(QMouseEvent* event)
+{
+    QTreeWidget::mouseReleaseEvent(event);
 }
 
 // ---------------------------------------------------------------------------
@@ -752,8 +810,81 @@ void SceneTreeWidget::onItemSelectionChanged()
     if (_updatingTree)
         return;
 
+    // Snapshot current selection
+    const QList<QTreeWidgetItem*> selList = selectedItems();
+    QSet<QTreeWidgetItem*> curSel;
+    curSel.reserve(selList.size() * 2);
+    for (QTreeWidgetItem* it : selList)
+        curSel.insert(it);
+
+    // Compute delta vs previous
+    QSet<QTreeWidgetItem*> removed = _prevSelection;
+    for (QTreeWidgetItem* it : curSel)
+        removed.remove(it);
+
+    QSet<QTreeWidgetItem*> added = curSel;
+    for (QTreeWidgetItem* it : _prevSelection)
+        added.remove(it);
+
+    if (added.isEmpty() && removed.isEmpty())
+    {
+        emit selectionUpdated();
+        return;
+    }
+
+    _updatingTree = true;
+
+    auto applySubtreeSelect = [this](QTreeWidgetItem* root, bool select) {
+        if (!root) return;
+
+        // Leaf has no subtree, skip propagation
+        if (root->data(0, IsLeafRole).toBool())
+            return;
+
+        QList<QTreeWidgetItem*> subtree;
+        subtree.reserve(32);
+        collectSubtreeItems(root, subtree); // your helper (root + descendants)
+
+        for (QTreeWidgetItem* it : subtree)
+            it->setSelected(select);
+        };
+
+    // Key ordering: removed first, then added (prevents the “2-level glitch”)
+    for (QTreeWidgetItem* it : removed)
+        applySubtreeSelect(it, false);
+
+    for (QTreeWidgetItem* it : added)
+        applySubtreeSelect(it, true);
+
+    
+    // Collect candidate parents affected by this change
+    QSet<QTreeWidgetItem*> parentsToRefresh;
+    parentsToRefresh.reserve((added.size() + removed.size()) * 2);
+
+    auto addParentChainStart = [&](QTreeWidgetItem* it) {
+        if (!it) return;
+        QTreeWidgetItem* p = it->parent();
+        if (p) parentsToRefresh.insert(p);
+        };
+
+    for (QTreeWidgetItem* it : added)   addParentChainStart(it);
+    for (QTreeWidgetItem* it : removed) addParentChainStart(it);
+
+    // Enforce: parent selected iff all direct children selected
+    for (QTreeWidgetItem* p : parentsToRefresh)
+        refreshParentSelectionUpward(p);
+
+    _updatingTree = false;
+
+    // Refresh prev selection snapshot AFTER propagation
+    _prevSelection.clear();
+    for (QTreeWidgetItem* it : selectedItems())
+        _prevSelection.insert(it);
+
+    // Now notify viewer
     emit selectionUpdated();
 }
+
 
 // ---------------------------------------------------------------------------
 // Private helpers
@@ -889,6 +1020,13 @@ void SceneTreeWidget::finalizeRebuild()
             it.value()->setSelected(true);
     }
 
+    for (int i = 0; i < topLevelItemCount(); ++i)
+        refreshSelectionClosureBottomUp(topLevelItem(i));
+
+    _prevSelection.clear();
+    for (QTreeWidgetItem* it : selectedItems())
+        _prevSelection.insert(it);
+
     _pendingBuildTasks.clear();
     _pendingVisibleUuids.clear();
     _pendingSelectedUuids.clear();
@@ -898,6 +1036,9 @@ void SceneTreeWidget::finalizeRebuild()
     _updatingTree = false;
     _rebuildInProgress = false;
     viewport()->update();
+
+	// Center the first selected item for better visibility after a rebuild
+    scrollFirstSelectedToCenter();
     emit rebuildComplete();
 }
 
@@ -1049,6 +1190,15 @@ void SceneTreeWidget::collectExpandedItems(QTreeWidgetItem* subtree,
 
     for (int i = 0; i < subtree->childCount(); ++i)
         collectExpandedItems(subtree->child(i), out);
+}
+
+void SceneTreeWidget::collectSubtreeItems(QTreeWidgetItem* root,
+    QList<QTreeWidgetItem*>& out) const
+{
+    if (!root) return;
+    out.append(root);
+    for (int i = 0; i < root->childCount(); ++i)
+        collectSubtreeItems(root->child(i), out);
 }
 
 void SceneTreeWidget::updateMeshName(const QUuid& uuid, const QString& name)
@@ -1381,6 +1531,53 @@ void SceneTreeWidget::collapseSubtreeHelper(QTreeWidgetItem* item)
     // on items that Qt's view hasn't yet materialised (first invocation).
     item->setExpanded(false);
 }
+
+bool SceneTreeWidget::allDirectChildrenSelected(QTreeWidgetItem* parent) const
+{
+    if (!parent) return false;
+    const int n = parent->childCount();
+    if (n == 0) return false;
+
+    for (int i = 0; i < n; ++i)
+    {
+        QTreeWidgetItem* c = parent->child(i);
+        if (!c || !c->isSelected())
+            return false;
+    }
+    return true;
+}
+
+
+void SceneTreeWidget::refreshParentSelectionUpward(QTreeWidgetItem* startParent)
+{
+    for (QTreeWidgetItem* p = startParent; p; p = p->parent())
+    {
+        const bool shouldSelect = allDirectChildrenSelected(p);
+
+        if (p->isSelected() == shouldSelect)
+            continue;
+
+        p->setSelected(shouldSelect);
+    }
+}
+
+void SceneTreeWidget::refreshSelectionClosureBottomUp(QTreeWidgetItem* item)
+{
+    if (!item) return;
+
+    // Recurse first (post-order)
+    for (int i = 0; i < item->childCount(); ++i)
+        refreshSelectionClosureBottomUp(item->child(i));
+
+    // Leaves: no upward meaning; assemblies/files: enforce Option A
+    if (!item->data(0, IsLeafRole).toBool())
+    {
+        const bool shouldSelect = allDirectChildrenSelected(item);
+        if (item->isSelected() != shouldSelect)
+            item->setSelected(shouldSelect);
+    }
+}
+
 
 void SceneTreeWidget::updateItemIcon(QTreeWidgetItem* item)
 {
