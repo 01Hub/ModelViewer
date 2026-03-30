@@ -189,7 +189,6 @@ private:
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
 	QString computeUniqueName(TriangleMesh* exclude, const QString& name) const;
 	bool checkForActiveSelection();
-	bool saveToFileMvf(const QString& fileName);
 	Mvf::MVFPackage buildMVFPackage() const;
 			
 	void updateControls();

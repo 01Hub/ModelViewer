@@ -258,9 +258,6 @@ public:
 	virtual void markUniformsDirty() { _uniformsDirty = true; }
 
 	virtual void deleteTextures();
-	
-	virtual void serialize(QDataStream& out) const;
-	virtual void deserialize(QDataStream& in);
 
 protected: // methods
 	virtual void initBuffers(

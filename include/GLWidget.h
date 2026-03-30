@@ -387,9 +387,6 @@ public:
 	int getIndexByUuid(const QUuid& uuid) const;
 	QUuid getUuidByIndex(int index) const;
 
-	void serializeScene(QDataStream& out) const;
-	void deserializeScene(QDataStream& in);
-
 	// Load scene meshes from a parsed MVF3 package.
 	// Clears the existing mesh store, reconstructs all meshes from the
 	// accessor/bufferView streams in geometryChunk, and populates the display

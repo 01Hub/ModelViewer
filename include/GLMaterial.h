@@ -1104,9 +1104,6 @@ public:
 
 
 
-	void serialize(QDataStream& out) const;
-	void deserialize(QDataStream& in);
-
 	// ------------------------------------------------------------------
 	// Serialization helpers for the MaterialRegistry
 	// Construct a GLMaterial from a QVariantMap (as produced by JSON)

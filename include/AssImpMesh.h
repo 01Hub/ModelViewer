@@ -64,9 +64,6 @@ public:
 	void setMeshData(const std::vector<Vertex>& vertices,
 		const std::vector<unsigned int>& indices);
 
-	void serialize(QDataStream& out) const;
-	void deserialize(QDataStream& in, quint32 sceneVersion = 3);
-
 	void setAlbedoPBRMap(unsigned int albedoMap) override;
 	void setMetallicPBRMap(unsigned int metallicMap) override;
 	void setEmissivePBRMap(unsigned int emissiveMap) override;

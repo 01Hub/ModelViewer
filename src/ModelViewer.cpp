@@ -27,42 +27,14 @@
 #include <assimp/Importer.hpp>
 #include <QApplication>
 #include <QColorDialog>
+#include <QDataStream>
+#include <QFile>
 #include <QFileDialog>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
 #include <QTimer>
 #include <QToolTip>
-
-namespace
-{
-// Legacy native-session stream format.
-// This remains supported for backward compatibility, but new work should
-// target the structured MVF3 container defined in docs/mvf_format_spec.md.
-constexpr quint32 LEGACY_MVF2_MAGIC = 0x4D564632; // "MVF2"
-constexpr quint32 LEGACY_MVF2_SESSION_VERSION = 1;
-
-void writeUuidSet(QDataStream& out, const QSet<QUuid>& uuids)
-{
-	out << static_cast<quint32>(uuids.size());
-	for (const QUuid& uuid : uuids)
-		out << uuid;
-}
-
-QSet<QUuid> readUuidSet(QDataStream& in)
-{
-	QSet<QUuid> uuids;
-	quint32 count = 0;
-	in >> count;
-	for (quint32 i = 0; i < count; ++i)
-	{
-		QUuid uuid;
-		in >> uuid;
-		uuids.insert(uuid);
-	}
-	return uuids;
-}
-}
 
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
@@ -2305,14 +2277,6 @@ bool ModelViewer::loadFile(const QString& fileName)
 	return false;
 }
 
-#include <QFile>
-#include <QDataStream>
-
-bool ModelViewer::saveToFile(const QString& fileName)
-{
-	return saveToFileMvf(fileName);
-}
-
 bool ModelViewer::loadFromFile(const QString& fileName)
 {
 	QFile file(fileName);
@@ -2320,103 +2284,89 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		return false;
 	QDataStream in(&file);
 
-	const qint64 startPos = file.pos();
-	quint32 magicOrLegacy = 0;
-	in >> magicOrLegacy;
+	quint32 magic = 0;
+	in >> magic;
 	if (in.status() != QDataStream::Ok)
 		return false;
 
-	QSet<QUuid> visibleUuids;
-	QSet<QUuid> selectedUuids;
-	bool loadedStructuredSession = false;
-
-	if (magicOrLegacy == Mvf::Magic)
+	if (magic != Mvf::Magic)
 	{
-		file.seek(startPos);
-		in.device()->seek(startPos);
-
-		Mvf::Header header;
-		if (!Mvf::readHeader(in, header) || !Mvf::isSupportedHeader(header))
-			return false;
-
-		// Read all chunks
-		QByteArray jsonPayload;
-		QByteArray geomChunk;
-		QByteArray imgChunk;
-
-		while (in.status() == QDataStream::Ok && !in.atEnd())
-		{
-			Mvf::ChunkHeader chunkHeader;
-			if (!Mvf::readChunkHeader(in, chunkHeader))
-				break;
-			const QByteArray payload = Mvf::readChunkPayload(in, chunkHeader);
-			switch (chunkHeader.type)
-			{
-			case Mvf::ChunkType::Json:     jsonPayload = payload; break;
-			case Mvf::ChunkType::Geometry: geomChunk   = payload; break;
-			case Mvf::ChunkType::Images:   imgChunk    = payload; break;
-			default: break;
-			}
-		}
-
-		if (jsonPayload.isEmpty())
-			return false;
-
-		const Mvf::Document document = Mvf::fromJsonBytes(jsonPayload);
-		if (!_glWidget->loadMvfMeshes(document, geomChunk, imgChunk))
-			return false;
-
-		// Rebuild scene graph from the document's node tree
-		if (!document.scenes.isEmpty())
-		{
-			const QJsonObject scene = document.scenes[document.scene].toObject();
-			_sceneGraph->rebuildFromMvf(document.nodes, scene[QStringLiteral("nodes")].toArray());
-		}
-		else
-		{
-			QList<QUuid> meshUuids;
-			for (TriangleMesh* mesh : _glWidget->getMeshStore())
-				meshUuids.append(mesh->uuid());
-			_sceneGraph->rebuildFlat(QFileInfo(fileName).fileName(), meshUuids);
-		}
-
-		// Restore session state
-		const QJsonArray visArr = document.mvfSession[QStringLiteral("visibleMeshUuids")].toArray();
-		const QJsonArray selArr = document.mvfSession[QStringLiteral("selectedMeshUuids")].toArray();
-		for (const QJsonValue& v : visArr)
-			visibleUuids.insert(QUuid::fromString(v.toString()));
-		for (const QJsonValue& v : selArr)
-			selectedUuids.insert(QUuid::fromString(v.toString()));
-
-		loadedStructuredSession = true;
-	}
-	else
-	{
-		// throw error message for unrecognized file format (legacy .mvf without magic)
 		QMessageBox::critical(this, tr("Error"), tr("Unrecognized file format: %1").arg(fileName));
 		return false;
 	}
+
+	file.seek(0);
+	in.device()->seek(0);
+
+	Mvf::Header header;
+	if (!Mvf::readHeader(in, header) || !Mvf::isSupportedHeader(header))
+		return false;
+
+	// Read all chunks
+	QByteArray jsonPayload;
+	QByteArray geomChunk;
+	QByteArray imgChunk;
+
+	while (in.status() == QDataStream::Ok && !in.atEnd())
+	{
+		Mvf::ChunkHeader chunkHeader;
+		if (!Mvf::readChunkHeader(in, chunkHeader))
+			break;
+		const QByteArray payload = Mvf::readChunkPayload(in, chunkHeader);
+		switch (chunkHeader.type)
+		{
+		case Mvf::ChunkType::Json:     jsonPayload = payload; break;
+		case Mvf::ChunkType::Geometry: geomChunk   = payload; break;
+		case Mvf::ChunkType::Images:   imgChunk    = payload; break;
+		default: break;
+		}
+	}
+
+	if (jsonPayload.isEmpty())
+		return false;
+
+	const Mvf::Document document = Mvf::fromJsonBytes(jsonPayload);
+	if (!_glWidget->loadMvfMeshes(document, geomChunk, imgChunk))
+		return false;
+
+	// Rebuild scene graph from the document's node tree
+	if (!document.scenes.isEmpty())
+	{
+		const QJsonObject scene = document.scenes[document.scene].toObject();
+		_sceneGraph->rebuildFromMvf(document.nodes, scene[QStringLiteral("nodes")].toArray());
+	}
+	else
+	{
+		QList<QUuid> meshUuids;
+		for (TriangleMesh* mesh : _glWidget->getMeshStore())
+			meshUuids.append(mesh->uuid());
+		_sceneGraph->rebuildFlat(QFileInfo(fileName).fileName(), meshUuids);
+	}
+
+	// Restore session state
+	QSet<QUuid> visibleUuids;
+	QSet<QUuid> selectedUuids;
+	const QJsonArray visArr = document.mvfSession[QStringLiteral("visibleMeshUuids")].toArray();
+	const QJsonArray selArr = document.mvfSession[QStringLiteral("selectedMeshUuids")].toArray();
+	for (const QJsonValue& v : visArr)
+		visibleUuids.insert(QUuid::fromString(v.toString()));
+	for (const QJsonValue& v : selArr)
+		selectedUuids.insert(QUuid::fromString(v.toString()));
 
 	if (_undoStack)
 		_undoStack->clear();
 	_cachedReferencedUuids.clear();
 
-	if (loadedStructuredSession)
-	{
-		_visibleMeshUuids = visibleUuids;
-		const bool shouldAutoFit = checkBoxAutoFitView->isChecked();
-		_glWidget->setAutoFitViewOnUpdate(false);
-		_glWidget->setDisplayList(visibleIndicesFromState());
-		_glWidget->setAutoFitViewOnUpdate(shouldAutoFit);
-		updateVisibilityUiFromState();
-	}
+	_visibleMeshUuids = visibleUuids;
+	const bool shouldAutoFit = checkBoxAutoFitView->isChecked();
+	_glWidget->setAutoFitViewOnUpdate(false);
+	_glWidget->setDisplayList(visibleIndicesFromState());
+	_glWidget->setAutoFitViewOnUpdate(shouldAutoFit);
+	updateVisibilityUiFromState();
 
 	updateDisplayList();
 
-	if (loadedStructuredSession)
-	{
-		setSelectionWithoutUndo(selectedUuids);
-	}
+	setSelectionWithoutUndo(selectedUuids);
 
 	_currentFile = fileName;
 	_documentSaved = true;
@@ -2437,7 +2387,7 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	                                selectedSet);
 }
 
-bool ModelViewer::saveToFileMvf(const QString& fileName)
+bool ModelViewer::saveToFile(const QString& fileName)
 {
 	const Mvf::MVFPackage package = buildMVFPackage();
 	const QByteArray jsonPayload = Mvf::toJsonBytes(package.document);
