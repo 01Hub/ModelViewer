@@ -1005,7 +1005,7 @@ void SceneTreeWidget::processRebuildBatch()
     if (_pendingBuildTasks.isEmpty())
         finalizeRebuild();
     else
-        _rebuildTimer->start(0);
+        _rebuildTimer->start(10);
 }
 
 void SceneTreeWidget::finalizeRebuild()

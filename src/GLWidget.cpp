@@ -17,6 +17,7 @@
 #include "Utils.h"
 #include <algorithm>
 #include <iostream>
+#include <QElapsedTimer>
 #include <QMessageBox>
 #include <QStyleFactory>
 #include <QThread>
@@ -9166,6 +9167,9 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
     }
 
     // Reconstruct one AssImpMesh per mesh entry in the document
+    QElapsedTimer yieldTimer;
+    yieldTimer.start();
+
     for (int meshIdx = 0; meshIdx < document.meshes.size(); ++meshIdx)
     {
         const QJsonObject meshObj  = document.meshes[meshIdx].toObject();
@@ -9250,6 +9254,18 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
         mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
 
         addToDisplay(mesh);
+
+        // Yield to the event loop periodically so paint events and timer
+        // callbacks (e.g. fit-all animation) can be processed while meshes
+        // are still being loaded.  ExcludeUserInputEvents prevents the user
+        // from triggering actions on a half-loaded scene.
+        if (yieldTimer.elapsed() >= 8)
+        {
+            doneCurrent();
+            QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+            makeCurrent();
+            yieldTimer.restart();
+        }
     }
 
     updateView();
