@@ -17,6 +17,7 @@
 #include <QStyle>
 #include <QStyleOption>
 #include <QStyledItemDelegate>
+#include <QScrollBar>
 #include <algorithm>
 #include <limits>
 
@@ -607,8 +608,19 @@ void SceneTreeWidget::collapseAllBelowAt(const QPoint& localPos)
 void SceneTreeWidget::scrollFirstSelectedToCenter()
 {
     const QList<QTreeWidgetItem*> sel = selectedItems();
-    if (!sel.isEmpty())
-        scrollToItem(sel.first(), QAbstractItemView::PositionAtCenter);
+    if (sel.isEmpty())
+        return;
+
+    // Preserve horizontal scroll so the view doesn't "snap" sideways
+    QScrollBar* hbar = horizontalScrollBar();
+    const int hBefore = hbar ? hbar->value() : 0;
+
+    // This centers the item vertically, but may also "helpfully" center horizontally
+    scrollToItem(sel.first(), QAbstractItemView::PositionAtCenter);
+
+    // Restore horizontal position to avoid sideways jump
+    if (hbar)
+        hbar->setValue(hBefore);
 }
 
 // ---------------------------------------------------------------------------
