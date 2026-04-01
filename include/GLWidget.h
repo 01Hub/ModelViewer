@@ -387,13 +387,50 @@ public:
 	int getIndexByUuid(const QUuid& uuid) const;
 	QUuid getUuidByIndex(int index) const;
 
-	// Load scene meshes from a parsed MVF3 package.
-	// Clears the existing mesh store, reconstructs all meshes from the
-	// accessor/bufferView streams in geometryChunk, and populates the display
-	// list.  imageChunk may be empty if images were not embedded.
+	// ---- MVF mesh loading (split into CPU preparation + GL upload) ----
+
+	/// Pre-computed mesh data produced by prepareMvfMeshes().
+	/// All fields are plain data — no GL resources — so the struct is safe
+	/// to construct on any thread.
+	struct PreparedMvfMesh
+	{
+		QString      name;
+		QUuid        uuid;
+		GLenum       primitiveMode = GL_TRIANGLES;
+		int          sceneIndex    = -1;
+		std::vector<Vertex>       vertices;
+		std::vector<unsigned int> indices;
+		GLMaterial   material;
+	};
+
+	/// CPU-only preparation: reads geometry streams, builds vertex arrays,
+	/// reconstructs materials.  Thread-safe — may be called from a worker
+	/// thread.  Returns the prepared list (moved, not copied).
+	static QVector<PreparedMvfMesh> prepareMvfMeshes(
+	    const Mvf::Document& document,
+	    const QByteArray& geometryChunk,
+	    const QByteArray& imageChunk);
+
+	/// Clear the mesh store and display list (safe to call from main thread).
+	/// Called before uploading new MVF meshes to replace any existing geometry.
+	void clearMeshStore();
+
+	/// Single-mesh GL upload for use with BlockingQueuedConnection.
+	/// Called once per mesh from the main thread while worker waits.
+	void uploadOneMvfMesh(const PreparedMvfMesh& pm);
+
+	/// GL-only upload: creates AssImpMesh objects, uploads VBOs and
+	/// textures, and populates the display list.  Must run on the main
+	/// (GL) thread.  Updates the progress bar between meshes.
+	bool uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes);
+
+	// Legacy combined entry point (kept for compatibility).
 	bool loadMvfMeshes(const Mvf::Document& document,
 	                    const QByteArray& geometryChunk,
 	                    const QByteArray& imageChunk);
+
+	/// Accessor for the foreground shader (for pre-load shader validation).
+	ShaderProgram* getShader() const { return _fgShader.get(); }
 
 signals:
 	void windowZoomEnded();

@@ -28,11 +28,13 @@
 #include <QApplication>
 #include <QColorDialog>
 #include <QDataStream>
+#include <QEventLoop>
 #include <QFile>
 #include <QFileDialog>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QThread>
 #include <QTimer>
 #include <QToolTip>
 
@@ -2279,99 +2281,215 @@ bool ModelViewer::loadFile(const QString& fileName)
 
 bool ModelViewer::loadFromFile(const QString& fileName)
 {
-	QFile file(fileName);
-	if (!file.open(QIODevice::ReadOnly))
-		return false;
-	QDataStream in(&file);
+	// -- Show progress bar (no cancel button for MVF) ------------------
+	QString displayFileName = QFileInfo(fileName).fileName();
+	MainWindow::showStatusMessage(tr("Reading file: ") + displayFileName);
+	MainWindow::showProgressBar(false);
+	MainWindow::setProgressValue(0);
 
-	quint32 magic = 0;
-	in >> magic;
-	if (in.status() != QDataStream::Ok)
-		return false;
-
-	if (magic != Mvf::Magic)
+	// Ensure the GL context / shader is ready before the worker starts.
+	_glWidget->makeCurrent();
+	if (!_glWidget->getShader())
 	{
-		QMessageBox::critical(this, tr("Error"), tr("Unrecognized file format: %1").arg(fileName));
+		_glWidget->update();
+		QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+		_glWidget->makeCurrent();
+	}
+	if (!_glWidget->getShader())
+	{
+		MainWindow::hideProgressBar();
 		return false;
 	}
 
-	file.seek(0);
-	in.device()->seek(0);
-
-	Mvf::Header header;
-	if (!Mvf::readHeader(in, header) || !Mvf::isSupportedHeader(header))
-		return false;
-
-	// Read all chunks
-	QByteArray jsonPayload;
-	QByteArray geomChunk;
-	QByteArray imgChunk;
-
-	while (in.status() == QDataStream::Ok && !in.atEnd())
+	// ---------------------------------------------------------------
+	// Single worker thread mirrors the AssImp pattern:
+	//   • File I/O, JSON parse, vertex assembly run on the worker.
+	//   • Each mesh's GL upload is dispatched to the main thread via
+	//     BlockingQueuedConnection, so the main event loop stays
+	//     fully alive between uploads — exactly like
+	//     AssImpModelLoader::meshBatchReady → onMeshBatchReady.
+	// ---------------------------------------------------------------
+	struct LoadResult
 	{
-		Mvf::ChunkHeader chunkHeader;
-		if (!Mvf::readChunkHeader(in, chunkHeader))
-			break;
-		const QByteArray payload = Mvf::readChunkPayload(in, chunkHeader);
-		switch (chunkHeader.type)
+		Mvf::Document document;
+		bool          ok       = false;
+		bool          badMagic = false;
+	};
+
+	LoadResult result;
+	QEventLoop waitLoop;
+	QThread    workerThread;
+
+	auto* worker = new QObject();
+	worker->moveToThread(&workerThread);
+
+	connect(&workerThread, &QThread::started, worker,
+		[&result, &fileName, &waitLoop, this, &displayFileName]()
+	{
+		// --- Phase 1: File I/O ----------------------------------------
+		QFile file(fileName);
+		if (!file.open(QIODevice::ReadOnly))
 		{
-		case Mvf::ChunkType::Json:     jsonPayload = payload; break;
-		case Mvf::ChunkType::Geometry: geomChunk   = payload; break;
-		case Mvf::ChunkType::Images:   imgChunk    = payload; break;
-		default: break;
+			waitLoop.quit();
+			return;
 		}
-	}
+		QDataStream in(&file);
 
-	if (jsonPayload.isEmpty())
-		return false;
+		quint32 magic = 0;
+		in >> magic;
+		if (in.status() != QDataStream::Ok)       { waitLoop.quit(); return; }
+		if (magic != Mvf::Magic)                   { result.badMagic = true; waitLoop.quit(); return; }
 
-	const Mvf::Document document = Mvf::fromJsonBytes(jsonPayload);
-	if (!_glWidget->loadMvfMeshes(document, geomChunk, imgChunk))
-		return false;
+		file.seek(0);
+		in.device()->seek(0);
 
-	// Rebuild scene graph from the document's node tree
-	if (!document.scenes.isEmpty())
+		Mvf::Header header;
+		if (!Mvf::readHeader(in, header) || !Mvf::isSupportedHeader(header))
+		{
+			waitLoop.quit();
+			return;
+		}
+
+		QByteArray jsonPayload, geomChunk, imgChunk;
+		while (in.status() == QDataStream::Ok && !in.atEnd())
+		{
+			Mvf::ChunkHeader chunkHeader;
+			if (!Mvf::readChunkHeader(in, chunkHeader))
+				break;
+			const QByteArray chunkPayload = Mvf::readChunkPayload(in, chunkHeader);
+			switch (chunkHeader.type)
+			{
+			case Mvf::ChunkType::Json:     jsonPayload = chunkPayload; break;
+			case Mvf::ChunkType::Geometry: geomChunk   = chunkPayload; break;
+			case Mvf::ChunkType::Images:   imgChunk    = chunkPayload; break;
+			default: break;
+			}
+		}
+		if (jsonPayload.isEmpty()) { waitLoop.quit(); return; }
+
+		// --- Phase 2: JSON parse + vertex/material assembly (CPU) ------
+		QMetaObject::invokeMethod(_glWidget, [&displayFileName]() {
+			MainWindow::showStatusMessage(
+				QObject::tr("Preparing meshes: ") + displayFileName);
+			MainWindow::setProgressValue(10);
+		}, Qt::BlockingQueuedConnection);
+
+		result.document = Mvf::fromJsonBytes(jsonPayload);
+		QVector<GLWidget::PreparedMvfMesh> prepared =
+			GLWidget::prepareMvfMeshes(result.document, geomChunk, imgChunk);
+
+		// Extract mesh UUIDs and visibility
+		QList<QUuid> allMeshUuids;
+		for (const auto& pm : prepared)
+			allMeshUuids.append(pm.uuid);
+
+		QSet<QUuid> visibleUuids;
+		const QJsonArray visArr = result.document.mvfSession[QStringLiteral("visibleMeshUuids")].toArray();
+		for (const QJsonValue& v : visArr)
+			visibleUuids.insert(QUuid::fromString(v.toString()));
+
+		// --- Phase 3: GL upload — dispatched one mesh at a time --------
+		//     BlockingQueuedConnection blocks the worker while the main
+		//     thread uploads, then returns control to waitLoop.exec()
+		//     which processes ALL events (paint, timers, user input)
+		//     before the next mesh is dispatched.
+
+		// Clear old meshes and set visibility before uploading
+		QMetaObject::invokeMethod(_glWidget, [this, &visibleUuids]() {
+			_glWidget->clearMeshStore();
+			_visibleMeshUuids = visibleUuids;
+		}, Qt::BlockingQueuedConnection);
+
+		const int totalMeshes = prepared.size();
+		for (int i = 0; i < totalMeshes; ++i)
+		{
+			QMetaObject::invokeMethod(_glWidget,
+				[this, &prepared, i, totalMeshes, &displayFileName]()
+			{
+				const GLWidget::PreparedMvfMesh& pm = prepared[i];
+				_glWidget->uploadOneMvfMesh(pm);
+
+				const int pct = 15 + (i + 1) * 75 / totalMeshes;
+				MainWindow::setProgressValue(pct);
+				MainWindow::showStatusMessage(
+					tr("Loading mesh %1 / %2").arg(i + 1).arg(totalMeshes));
+
+				// Rebuild tree incrementally (every 10 meshes or at end)
+				// to avoid blocking Phase 4. This matches AssImp's behavior
+				// where onMeshBatchReady calls updateDisplayList() per batch.
+				if ((i + 1) % 10 == 0 || (i + 1) == totalMeshes)
+					updateDisplayList();
+			}, Qt::BlockingQueuedConnection);
+		}
+
+		// --- Phase 3.5: Finalize session (still in event loop) ---
+		//     Just finalize visibility and selection. Don't build tree yet.
+		QMetaObject::invokeMethod(this,
+			[this, &result, &visibleUuids, &fileName]()
+		{
+			// Apply visibility
+			_visibleMeshUuids = visibleUuids;
+			const bool shouldAutoFit = checkBoxAutoFitView->isChecked();
+			_glWidget->setAutoFitViewOnUpdate(false);
+			_glWidget->setDisplayList(visibleIndicesFromState());
+			_glWidget->setAutoFitViewOnUpdate(shouldAutoFit);
+			updateVisibilityUiFromState();
+
+			// Restore selection
+			const QJsonArray selArr = result.document.mvfSession[QStringLiteral("selectedMeshUuids")].toArray();
+			QSet<QUuid> selectedUuids;
+			for (const QJsonValue& v : selArr)
+				selectedUuids.insert(QUuid::fromString(v.toString()));
+			setSelectionWithoutUndo(selectedUuids);
+
+			// Clear undo/redo history
+			if (_undoStack)
+				_undoStack->clear();
+			_cachedReferencedUuids.clear();
+
+			_currentFile = fileName;
+			_documentSaved = true;
+			_documentModified = false;
+			setWindowTitle(QFileInfo(fileName).fileName());
+
+			MainWindow::setProgressValue(100);
+		}, Qt::BlockingQueuedConnection);
+
+		result.ok = true;
+		waitLoop.quit();
+	});
+
+	workerThread.start();
+	waitLoop.exec();          // main event loop fully alive the ENTIRE time
+
+	workerThread.quit();
+	workerThread.wait();
+	delete worker;
+
+	if (result.badMagic)
 	{
-		const QJsonObject scene = document.scenes[document.scene].toObject();
-		_sceneGraph->rebuildFromMvf(document.nodes, scene[QStringLiteral("nodes")].toArray());
+		MainWindow::hideProgressBar();
+		QMessageBox::critical(this, tr("Error"),
+			tr("Unrecognized file format: %1").arg(fileName));
+		return false;
 	}
-	else
+	if (!result.ok)
 	{
-		QList<QUuid> meshUuids;
-		for (TriangleMesh* mesh : _glWidget->getMeshStore())
-			meshUuids.append(mesh->uuid());
-		_sceneGraph->rebuildFlat(QFileInfo(fileName).fileName(), meshUuids);
+		MainWindow::hideProgressBar();
+		return false;
 	}
 
-	// Restore session state
-	QSet<QUuid> visibleUuids;
-	QSet<QUuid> selectedUuids;
-	const QJsonArray visArr = document.mvfSession[QStringLiteral("visibleMeshUuids")].toArray();
-	const QJsonArray selArr = document.mvfSession[QStringLiteral("selectedMeshUuids")].toArray();
-	for (const QJsonValue& v : visArr)
-		visibleUuids.insert(QUuid::fromString(v.toString()));
-	for (const QJsonValue& v : selArr)
-		selectedUuids.insert(QUuid::fromString(v.toString()));
+	_glWidget->updateView();
 
-	if (_undoStack)
-		_undoStack->clear();
-	_cachedReferencedUuids.clear();
+	// --- Phase 4: Build tree structure (after event loop exits) ---
+	//     All meshes are loaded and visible. Build the tree now.
+	//     The logger can still output asynchronously in the background.
+	QList<QUuid> meshUuids;
+	for (TriangleMesh* mesh : _glWidget->getMeshStore())
+		meshUuids.append(mesh->uuid());
+	_sceneGraph->rebuildFlat(QFileInfo(fileName).fileName(), meshUuids);
 
-	_visibleMeshUuids = visibleUuids;
-	const bool shouldAutoFit = checkBoxAutoFitView->isChecked();
-	_glWidget->setAutoFitViewOnUpdate(false);
-	_glWidget->setDisplayList(visibleIndicesFromState());
-	_glWidget->setAutoFitViewOnUpdate(shouldAutoFit);
-	updateVisibilityUiFromState();
-
-	updateDisplayList();
-
-	setSelectionWithoutUndo(selectedUuids);
-
-	_currentFile = fileName;
-	_documentSaved = true;
-	_documentModified = false;
-	setWindowTitle(QFileInfo(fileName).fileName());
+	MainWindow::hideProgressBar();
 	return true;
 }
 

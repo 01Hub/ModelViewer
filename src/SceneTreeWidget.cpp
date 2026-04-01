@@ -5,6 +5,7 @@
 #include "TriangleMesh.h"
 
 #include <QApplication>
+#include <QElapsedTimer>
 #include <QHeaderView>
 #include <QKeyEvent>
 #include <QLineEdit>
@@ -961,10 +962,13 @@ void SceneTreeWidget::processRebuildBatch()
     if (!_rebuildInProgress)
         return;
 
-    int processed = 0;
-    constexpr int kBatchSize = 48;
+    // Use a time budget instead of a fixed item count so that large
+    // assemblies (with many children / setExpanded) never block the
+    // main-thread event loop for longer than ~8 ms.
+    QElapsedTimer budget;
+    budget.start();
 
-    while (!_pendingBuildTasks.isEmpty() && processed < kBatchSize)
+    while (!_pendingBuildTasks.isEmpty() && budget.elapsed() < 8)
     {
         const BuildTask task = _pendingBuildTasks.takeFirst();
         const SceneNode* node = task.node;
@@ -979,7 +983,6 @@ void SceneTreeWidget::processRebuildBatch()
                 continue;
             for (const QUuid& uuid : node->meshUuids)
                 attachParent->addChild(makeMeshLeaf(uuid));
-            ++processed;
             continue;
         }
 
@@ -996,8 +999,6 @@ void SceneTreeWidget::processRebuildBatch()
 
         for (SceneNode* child : node->children)
             enqueueRebuildTasks(item, child, false);
-
-        ++processed;
     }
 
     viewport()->update();

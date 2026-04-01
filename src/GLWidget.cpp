@@ -9090,38 +9090,15 @@ static GLMaterial reconstructMvfMaterial(const QJsonObject& matObj,
 }
 } // anonymous namespace
 
-bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
-                               const QByteArray& geometryChunk,
-                               const QByteArray& imageChunk)
+// ---------------------------------------------------------------------------
+// prepareMvfMeshes — CPU-only, thread-safe
+// ---------------------------------------------------------------------------
+QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
+    const Mvf::Document& document,
+    const QByteArray& geometryChunk,
+    const QByteArray& imageChunk)
 {
-    makeCurrent();
-
-    // On a fresh MDI window there may have been no paint event yet, so
-    // initializeGL() (and thus _fgShader creation) hasn't run.  Mirror what
-    // the GLTF path gets for free via its internal wait-loop by processing
-    // pending events here, then re-acquiring the context.
-    if (!_fgShader)
-    {
-        update();
-        QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-        makeCurrent();
-    }
-    if (!_fgShader)
-        return false;
-
-    for (TriangleMesh* mesh : _meshStore)
-        delete mesh;
-    _meshStore.clear();
-    _displayedObjectsIds.clear();
-    _hiddenObjectsIds.clear();
-    if (_visibleSwapped)
-    {
-        _visibleSwapped = false;
-        emit visibleSwapped(_visibleSwapped);
-    }
-
     // Build image index -> resolved file path.
-    // Embedded bytes from imageChunk take priority; originalUri is the fallback.
     QHash<int, QString> imagePaths;
     static QTemporaryDir s_embeddedImageDir;
 
@@ -9135,7 +9112,7 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
         if (bvIndex >= 0 && bvIndex < document.bufferViews.size() && !imageChunk.isEmpty())
         {
             const QJsonObject bv = document.bufferViews[bvIndex].toObject();
-            if (bv[QStringLiteral("buffer")].toInt(-1) == 1) // IMGS buffer
+            if (bv[QStringLiteral("buffer")].toInt(-1) == 1)
             {
                 const int offset = (int)bv[QStringLiteral("byteOffset")].toDouble(0);
                 const int length = (int)bv[QStringLiteral("byteLength")].toDouble(0);
@@ -9166,33 +9143,29 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
             imagePaths[i] = origUri;
     }
 
-    // Reconstruct one AssImpMesh per mesh entry in the document
-    QElapsedTimer yieldTimer;
-    yieldTimer.start();
+    QVector<PreparedMvfMesh> result;
+    result.reserve(document.meshes.size());
 
     for (int meshIdx = 0; meshIdx < document.meshes.size(); ++meshIdx)
     {
         const QJsonObject meshObj  = document.meshes[meshIdx].toObject();
-        const QString meshName     = meshObj[QStringLiteral("name")].toString();
         const QJsonArray primitives = meshObj[QStringLiteral("primitives")].toArray();
         if (primitives.isEmpty())
             continue;
 
-        // ModelViewer writes one primitive per mesh
         const QJsonObject prim    = primitives[0].toObject();
         const QJsonObject attribs = prim[QStringLiteral("attributes")].toObject();
         const QJsonObject extras  = prim[QStringLiteral("extras")].toObject();
-        const GLenum primitiveMode = static_cast<GLenum>(prim[QStringLiteral("mode")].toInt(GL_TRIANGLES));
-        const int sceneIndex       = extras[QStringLiteral("sceneIndex")].toInt(-1);
-        const QString uuidStr      = extras[QStringLiteral("meshUuid")].toString();
-        const QUuid meshUuid       = uuidStr.isEmpty()
-                                     ? QUuid::fromString(meshObj[QStringLiteral("id")].toString())
-                                     : QUuid::fromString(uuidStr);
 
         const std::vector<float> positions = readFloatStream(
             geometryChunk, document.accessors, document.bufferViews,
             attribs[QStringLiteral("POSITION")].toInt(-1));
         if (positions.empty())
+            continue;
+
+        const std::vector<unsigned int> indices = readUIntStream(geometryChunk, document.accessors,
+            document.bufferViews, prim[QStringLiteral("indices")].toInt(-1));
+        if (indices.empty())
             continue;
 
         const std::vector<float> normals  = readFloatStream(geometryChunk, document.accessors,
@@ -9209,10 +9182,6 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
             document.bufferViews, attribs[QStringLiteral("TEXCOORD_3")].toInt(-1));
         const std::vector<float> colors   = readFloatStream(geometryChunk, document.accessors,
             document.bufferViews, attribs[QStringLiteral("COLOR_0")].toInt(-1));
-        const std::vector<unsigned int> indices = readUIntStream(geometryChunk, document.accessors,
-            document.bufferViews, prim[QStringLiteral("indices")].toInt(-1));
-        if (indices.empty())
-            continue;
 
         const size_t vertexCount = positions.size() / 3;
         std::vector<Vertex> vertices(vertexCount);
@@ -9240,14 +9209,67 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
             material = reconstructMvfMaterial(document.materials[materialIndex].toObject(),
                                               imagePaths, document.textures, document.samplers);
 
-        AssImpMesh* mesh = new AssImpMesh(_fgShader.get(), meshName,
-                                          {}, {}, {}, material);
-        mesh->setUuid(meshUuid);
-        mesh->setPrimitiveMode(primitiveMode);
-        mesh->setSceneIndex(sceneIndex);
-        mesh->setMeshData(vertices, indices);
+        PreparedMvfMesh prepared;
+        prepared.name          = meshObj[QStringLiteral("name")].toString();
+        prepared.primitiveMode = static_cast<GLenum>(prim[QStringLiteral("mode")].toInt(GL_TRIANGLES));
+        prepared.sceneIndex    = extras[QStringLiteral("sceneIndex")].toInt(-1);
+        const QString uuidStr  = extras[QStringLiteral("meshUuid")].toString();
+        prepared.uuid          = uuidStr.isEmpty()
+                                 ? QUuid::fromString(meshObj[QStringLiteral("id")].toString())
+                                 : QUuid::fromString(uuidStr);
+        prepared.vertices      = std::move(vertices);
+        prepared.indices       = std::move(indices);
+        prepared.material      = std::move(material);
 
-        const GLMaterial resolved = resolveMaterialTextures(this, material);
+        result.append(std::move(prepared));
+    }
+
+    return result;
+}
+
+// ---------------------------------------------------------------------------
+// uploadPreparedMvfMeshes — GL-only, must be on main thread
+// ---------------------------------------------------------------------------
+bool GLWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& meshes)
+{
+    makeCurrent();
+
+    if (!_fgShader)
+    {
+        update();
+        QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+        makeCurrent();
+    }
+    if (!_fgShader)
+        return false;
+
+    for (TriangleMesh* m : _meshStore)
+        delete m;
+    _meshStore.clear();
+    _displayedObjectsIds.clear();
+    _hiddenObjectsIds.clear();
+    if (_visibleSwapped)
+    {
+        _visibleSwapped = false;
+        emit visibleSwapped(_visibleSwapped);
+    }
+
+    const int totalMeshes = meshes.size();
+    QElapsedTimer yieldTimer;
+    yieldTimer.start();
+
+    for (int i = 0; i < totalMeshes; ++i)
+    {
+        const PreparedMvfMesh& pm = meshes[i];
+
+        AssImpMesh* mesh = new AssImpMesh(_fgShader.get(), pm.name,
+                                          {}, {}, {}, pm.material);
+        mesh->setUuid(pm.uuid);
+        mesh->setPrimitiveMode(pm.primitiveMode);
+        mesh->setSceneIndex(pm.sceneIndex);
+        mesh->setMeshData(pm.vertices, pm.indices);
+
+        const GLMaterial resolved = resolveMaterialTextures(this, pm.material);
         mesh->setMaterial(resolved);
         mesh->setTextureMaps(resolved);
         mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
@@ -9255,12 +9277,14 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
 
         addToDisplay(mesh);
 
-        // Yield to the event loop periodically so paint events and timer
-        // callbacks (e.g. fit-all animation) can be processed while meshes
-        // are still being loaded.  ExcludeUserInputEvents prevents the user
-        // from triggering actions on a half-loaded scene.
+        // Yield periodically so the progress bar and event loop stay alive.
         if (yieldTimer.elapsed() >= 8)
         {
+            const int pct = 50 + (i + 1) * 40 / totalMeshes;   // 50-90%
+            MainWindow::setProgressValue(pct);
+            MainWindow::showStatusMessage(
+                tr("Uploading mesh %1 / %2").arg(i + 1).arg(totalMeshes));
+
             doneCurrent();
             QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
             makeCurrent();
@@ -9270,4 +9294,63 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
 
     updateView();
     return !_meshStore.empty();
+}
+
+// ---------------------------------------------------------------------------
+// clearMeshStore — delete all meshes and clear display list
+// ---------------------------------------------------------------------------
+void GLWidget::clearMeshStore()
+{
+    makeCurrent();
+
+    for (TriangleMesh* m : _meshStore)
+        delete m;
+    _meshStore.clear();
+    _displayedObjectsIds.clear();
+    _hiddenObjectsIds.clear();
+    if (_visibleSwapped)
+    {
+        _visibleSwapped = false;
+        emit visibleSwapped(_visibleSwapped);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// uploadOneMvfMesh — single-mesh GL upload for BlockingQueuedConnection
+// ---------------------------------------------------------------------------
+void GLWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
+{
+    makeCurrent();
+
+    // Create mesh on main thread (GL context required)
+    AssImpMesh* mesh = new AssImpMesh(_fgShader.get(), pm.name,
+                                      {}, {}, {}, pm.material);
+    mesh->setUuid(pm.uuid);
+    mesh->setPrimitiveMode(pm.primitiveMode);
+    mesh->setSceneIndex(pm.sceneIndex);
+
+    // Upload VBO data
+    mesh->setMeshData(pm.vertices, pm.indices);
+
+    // Resolve textures and set material
+    const GLMaterial resolved = resolveMaterialTextures(this, pm.material);
+    mesh->setMaterial(resolved);
+    mesh->setTextureMaps(resolved);
+    mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
+    mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
+
+    // Add to display list and track in pending UUIDs (like AssImp's onMeshBatchReady)
+    addToDisplay(mesh);
+    _pendingSceneUuids.append(mesh->uuid());
+}
+
+// ---------------------------------------------------------------------------
+// loadMvfMeshes — legacy combined entry point
+// ---------------------------------------------------------------------------
+bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
+                               const QByteArray& geometryChunk,
+                               const QByteArray& imageChunk)
+{
+    QVector<PreparedMvfMesh> prepared = prepareMvfMeshes(document, geometryChunk, imageChunk);
+    return uploadPreparedMvfMeshes(prepared);
 }
