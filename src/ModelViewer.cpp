@@ -2324,7 +2324,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	worker->moveToThread(&workerThread);
 
 	connect(&workerThread, &QThread::started, worker,
-		[&result, &fileName, &waitLoop, this, &displayFileName]()
+		[&result, &fileName, &waitLoop, this, &displayFileName, progressiveMode = _progressiveLoadingEnabled]()
 	{
 		// --- Phase 1: File I/O ----------------------------------------
 		QFile file(fileName);
@@ -2404,7 +2404,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		for (int i = 0; i < totalMeshes; ++i)
 		{
 			QMetaObject::invokeMethod(_glWidget,
-				[this, &prepared, i, totalMeshes, &displayFileName]()
+				[this, &prepared, i, totalMeshes, &displayFileName, progressiveMode]()
 			{
 				const GLWidget::PreparedMvfMesh& pm = prepared[i];
 				_glWidget->uploadOneMvfMesh(pm);
@@ -2414,19 +2414,25 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 				MainWindow::showStatusMessage(
 					tr("Loading mesh %1 / %2").arg(i + 1).arg(totalMeshes));
 
-				// Rebuild tree incrementally (every 10 meshes or at end)
-				// to avoid blocking Phase 4. This matches AssImp's behavior
-				// where onMeshBatchReady calls updateDisplayList() per batch.
-				if ((i + 1) % 10 == 0 || (i + 1) == totalMeshes)
+				// In progressive mode, update display every 20 meshes (matching AssImp's
+				// batchSize) so user sees meshes appearing as they load. In non-progressive
+				// mode, defer until Phase 3.5 so all meshes appear together after loading completes.
+				if (progressiveMode && ((i + 1) % 20 == 0 || (i + 1) == totalMeshes))
 					updateDisplayList();
 			}, Qt::BlockingQueuedConnection);
 		}
 
 		// --- Phase 3.5: Finalize session (still in event loop) ---
-		//     Just finalize visibility and selection. Don't build tree yet.
+		//     Update display to show all pending meshes (either progressively
+		//     during Phase 3, or all at once if non-progressive).
 		QMetaObject::invokeMethod(this,
 			[this, &result, &visibleUuids, &fileName]()
 		{
+			// Ensure all mesh UUIDs in _pendingSceneUuids are marked visible
+			// In progressive mode, this was already called during Phase 3.
+			// In non-progressive mode, this is the first call, so all meshes appear together.
+			updateDisplayList();
+
 			// Apply visibility
 			_visibleMeshUuids = visibleUuids;
 			const bool shouldAutoFit = checkBoxAutoFitView->isChecked();
@@ -2484,10 +2490,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	// --- Phase 4: Build tree structure (after event loop exits) ---
 	//     All meshes are loaded and visible. Build the tree now.
 	//     The logger can still output asynchronously in the background.
-	QList<QUuid> meshUuids;
-	for (TriangleMesh* mesh : _glWidget->getMeshStore())
-		meshUuids.append(mesh->uuid());
-	_sceneGraph->rebuildFlat(QFileInfo(fileName).fileName(), meshUuids);
+	//     For MVF files, reconstruct the original hierarchy from the saved node structure.
+	const int sceneIndex = result.document.scene;
+	const QJsonArray sceneRootNodes =
+		result.document.scenes[sceneIndex][QStringLiteral("nodes")].toArray();
+	_sceneGraph->rebuildFromMvf(result.document.nodes, sceneRootNodes);
 
 	MainWindow::hideProgressBar();
 	return true;
