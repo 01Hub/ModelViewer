@@ -125,14 +125,14 @@ ClippingPlanesEditor::~ClippingPlanesEditor()
 
 void ClippingPlanesEditor::setCoefficientLimits(double xMin, double xMax, double yMin, double yMax, double zMin, double zMax)
 {
-	doubleSpinBoxXYCoeff->setRange(xMin, xMax);
-	doubleSpinBoxYZCoeff->setRange(yMin, yMax);
-	doubleSpinBoxZXCoeff->setRange(zMin, zMax);
+	doubleSpinBoxXYCoeff->setRange(zMin, zMax);
+	doubleSpinBoxYZCoeff->setRange(xMin, xMax);
+	doubleSpinBoxZXCoeff->setRange(yMin, yMax);
 
 	// Set the step as 1/50th of the range
-	doubleSpinBoxXYCoeff->setSingleStep((xMax - xMin) / 50.0);
-	doubleSpinBoxYZCoeff->setSingleStep((yMax - yMin) / 50.0);
-	doubleSpinBoxZXCoeff->setSingleStep((zMax - zMin) / 50.0);
+	doubleSpinBoxXYCoeff->setSingleStep((zMax - zMin) / 50.0);
+	doubleSpinBoxYZCoeff->setSingleStep((xMax - xMin) / 50.0);
+	doubleSpinBoxZXCoeff->setSingleStep((yMax - yMin) / 50.0);
 }
 
 void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
@@ -144,42 +144,42 @@ void ClippingPlanesEditor::keyPressEvent(QKeyEvent* e)
 
 void ClippingPlanesEditor::on_checkBoxXY_toggled(bool checked)
 {
-	_glView->setYZClippingEnabled(checked);
+	_glView->setXYClippingEnabled(checked);	
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxYZ_toggled(bool checked)
 {
-	_glView->setZXClippingEnabled(checked);
+	_glView->setYZClippingEnabled(checked);	
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxZX_toggled(bool checked)
-{
-	_glView->setXYClippingEnabled(checked);
+{	
+	_glView->setZXClippingEnabled(checked);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxFlipXY_toggled(bool checked)
 {
-	_glView->setClippingXFlipped(checked);
+	_glView->setClippingZFlipped(checked);	
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxFlipYZ_toggled(bool checked)
 {
-	_glView->setClippingYFlipped(checked);
+	_glView->setClippingXFlipped(checked);	
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_checkBoxFlipZX_toggled(bool checked)
 {
-	_glView->setClippingZFlipped(checked);
+	_glView->setClippingYFlipped(checked);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
@@ -193,21 +193,21 @@ void ClippingPlanesEditor::on_checkBoxCapping_toggled(bool checked)
 
 void ClippingPlanesEditor::on_doubleSpinBoxXYCoeff_valueChanged(double val)
 {
-	_glView->setClippingXCoeff(val);
+	_glView->setClippingZCoeff(val);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxYZCoeff_valueChanged(double val)
 {
-	_glView->setClippingYCoeff(val);
+	_glView->setClippingXCoeff(val);	
 	_glView->updateClippingPlane();
 	_glView->update();
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxZXCoeff_valueChanged(double val)
 {
-	_glView->setClippingZCoeff(val);
+	_glView->setClippingYCoeff(val);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
@@ -305,6 +305,11 @@ void ClippingPlanesEditor::on_pushButtonTexture_clicked()
 
 void ClippingPlanesEditor::on_pushButtonDefaultValues_clicked()
 {
+	resetProceduralTextureValues();
+}
+
+void ClippingPlanesEditor::on_pushButtonResetAll_clicked()
+{
 	// set default values
 	doubleSpinBoxXYCoeff->setValue(0);
 	doubleSpinBoxYZCoeff->setValue(0);
@@ -317,12 +322,17 @@ void ClippingPlanesEditor::on_pushButtonDefaultValues_clicked()
 	checkBoxFlipZX->setChecked(false);
 	checkBoxCapping->setChecked(false);
 	radioButtonProcedural->setChecked(true);
+	resetProceduralTextureValues();
+	pushButtonTexture->setText(tr("Select Texture"));
+	pushButtonTexture->setIcon(QIcon());
+}
+
+void ClippingPlanesEditor::resetProceduralTextureValues()
+{
 	comboBoxHatchMode->setCurrentIndex(0);
 	spinBoxHatchTiling->setValue(50);
 	doubleSpinBoxThickness->setValue(0.05);
 	doubleSpinBoxIntensity->setValue(1.0f);
 	pushButtonHatchColor->setStyleSheet("background-color: #000000; color: #FFFFFF;");
-	_glView->setHatchLineColor(QColor(0,0,0));
-	pushButtonTexture->setText(tr("Select Texture"));
-	pushButtonTexture->setIcon(QIcon());
+	_glView->setHatchLineColor(QColor(0, 0, 0));
 }
