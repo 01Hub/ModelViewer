@@ -891,9 +891,11 @@ void GLWidget::paintGL()
 		}
 
 		// Text rendering
-		if (_meshStore.size() != 0 && _displayedObjectsIds.size() != 0)
+		if (_meshStore.size() != 0)
 		{
-			_textRenderer->RenderText(_labelNumMeshes.arg(_meshStore.size()).toStdString(), 4, 4, 1, QVector3D(1.0f, 1.0f, 0.0f));
+			const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+			if (objectIds.size() > 0)
+				_textRenderer->RenderText(_labelNumMeshes.arg(objectIds.size()).toStdString(), 4, 4, 1, QVector3D(1.0f, 1.0f, 0.0f));
 		}
 	}
 	catch (const std::exception& ex)

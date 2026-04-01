@@ -35,8 +35,11 @@ protected slots:
 	void on_doubleSpinBoxIntensity_valueChanged(double val);
 	void on_pushButtonHatchColor_clicked();
 	void on_pushButtonTexture_clicked();
-	void on_pushButtonDefaultValues_clicked();
+	void on_pushButtonDefaultValues_clicked();	
+	void on_pushButtonResetAll_clicked();
 
+private:
+	void resetProceduralTextureValues();
 
 private:
 	GLWidget* _glView;
