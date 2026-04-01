@@ -179,7 +179,7 @@ void ClippingPlanesEditor::on_checkBoxFlipYZ_toggled(bool checked)
 
 void ClippingPlanesEditor::on_checkBoxFlipZX_toggled(bool checked)
 {
-	_glView->setClippingXFlipped(checked);
+	_glView->setClippingZFlipped(checked);
 	_glView->updateClippingPlane();
 	_glView->update();
 }
