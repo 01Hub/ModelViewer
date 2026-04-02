@@ -2,87 +2,49 @@
 
 ## Overview
 
-This document defines the next-generation `.mvf` format for ModelViewer.
+`.mvf` is the native session format for ModelViewer.
 
-The design intent is:
+The current implementation is:
 
-- `.mvf` is a true native scene/project file
-- imported geometry becomes part of the saved scene
-- the file is self-contained and portable
-- runtime OpenGL state is **not** serialized directly
-- geometry, materials, textures, hierarchy, and session state are stored in a compact, deduplicated form
+- self-contained
+- glTF-inspired in structure
+- chunked and binary
+- scene-oriented rather than runtime-dump-oriented
+- the default and only supported native session storage method
 
-This specification is intentionally inspired by the glTF 2.0 scene model:
+The file stores:
+
+- scene hierarchy
+- geometry
+- materials
+- textures and embedded image payloads when available
+- mesh/session identity
+- visibility and selection session state
+
+The implementation is based conceptually on the glTF 2.0 scene model:
 
 - scenes contain nodes
-- nodes reference meshes and define local transforms
+- nodes carry transforms and mesh bindings
 - meshes contain primitives with typed attribute streams
-- materials reference textures and samplers
-- images and binary payloads are stored separately from the logical scene graph
+- materials reference textures
+- textures reference images and samplers
+- buffers / bufferViews / accessors describe binary payloads
 
-Reference used for the conceptual model:
+Reference model:
 
 - [glTF 2.0 Specification](https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html)
 
-Relevant glTF concepts mirrored here:
-
-- scenes / nodes / hierarchy
-- buffers / bufferViews / accessors
-- meshes / primitives
-- materials / textures / images / samplers
-- GLB-style chunked container layout
-
-## Why A New MVF Design Is Needed
-
-The current MVF implementation in:
-
-- [ModelViewer.cpp](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\src\ModelViewer.cpp)
-- [GLWidget.cpp](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\src\GLWidget.cpp)
-- [AssImpMesh.cpp](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\src\AssImpMesh.cpp)
-- [GLMaterial.cpp](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\src\GLMaterial.cpp)
-
-serializes an expanded runtime mesh representation directly. That has several problems:
-
-- file size explodes compared to source assets
-- textures and materials are reconstructed through runtime-oriented logic
-- data is duplicated at the mesh level instead of being asset-referenced
-- loading becomes slow and fragile
-- the format is too tightly coupled to current in-memory classes
-
-The next MVF format should instead serialize a **scene asset model**, then rebuild runtime objects on load.
-
 ## Design Goals
 
-1. Self-contained
-- no dependency on original imported files
-- all geometry, images, materials, and scene state are contained in the `.mvf`
+The implemented MVF format is intended to:
 
-2. Compact
-- deduplicate meshes, materials, textures, and images
-- compress heavy binary payload blocks
+1. Preserve imported geometry as part of the scene
+2. Reopen without depending on the original imported file
+3. Avoid serializing transient OpenGL/runtime state directly
+4. Store hierarchy and session state alongside assets
+5. Rebuild runtime meshes from saved asset data on load
 
-3. Deterministic
-- stable object ids
-- explicit versioning
-- chunked layout with clear validation rules
-
-4. Runtime-independent
-- store scene data, not GPU ids, temporary paths, or cache-only state
-
-5. Extensible
-- support existing ModelViewer material features
-- allow future animation, cameras, and app-specific extras without breaking core readers
-
-## Non-Goals
-
-- Binary compatibility with the current MVF stream layout
-- Lossless preservation of ephemeral runtime-only state such as:
-  - OpenGL object ids
-  - shader program state
-  - temporary extracted embedded-texture file paths
-  - transient caches
-
-## File Identity
+## Format Identity
 
 Extension:
 
@@ -100,48 +62,40 @@ Container style:
 
 - GLB-inspired chunked binary container
 
-## High-Level Container Layout
+## Container Layout
 
-The file layout should be:
+Each `.mvf` file contains:
 
-1. Fixed header
-2. One mandatory JSON metadata chunk
-3. One or more binary data chunks
-4. Optional future chunks
+1. fixed header
+2. JSON chunk
+3. `GEOM` chunk
+4. `IMGS` chunk
+5. optional future chunks
 
-Recommended binary layout:
+Current chunk types:
 
-```text
-+---------------------------+
-| Header                    |
-+---------------------------+
-| Chunk 0: JSON             |
-+---------------------------+
-| Chunk 1: BIN_GEOMETRY     |
-+---------------------------+
-| Chunk 2: BIN_IMAGES       |
-+---------------------------+
-| Chunk 3: BIN_OPTIONAL     |
-+---------------------------+
-```
+- `JSON`
+- `GEOM`
+- `IMGS`
+- `AUX0`
 
 ### Header
 
-Suggested structure:
+Implemented shape:
 
 ```c
 struct MvfHeader
 {
-    char     magic[4];      // "MVF3"
-    uint32_t version;       // format version
-    uint32_t fileLength;    // total bytes
-    uint32_t flags;         // reserved
+    uint32_t magic;       // "MVF3"
+    uint32_t version;     // current format version
+    uint32_t fileLength;  // total bytes
+    uint32_t flags;       // reserved
 };
 ```
 
 ### Chunk Header
 
-Suggested structure:
+Implemented shape:
 
 ```c
 struct MvfChunkHeader
@@ -151,18 +105,11 @@ struct MvfChunkHeader
 };
 ```
 
-Suggested chunk types:
+## Top-Level JSON Model
 
-- `JSON`
-- `GEOM`
-- `IMGS`
-- `AUX0`
+The JSON chunk follows a glTF-like top-level structure.
 
-## Core Data Model
-
-MVF should use a glTF-like logical model, with ModelViewer-specific extensions.
-
-Top-level logical sections in the JSON chunk:
+Current top-level fields:
 
 - `asset`
 - `scene`
@@ -180,97 +127,88 @@ Top-level logical sections in the JSON chunk:
 - `extensionsRequired`
 - `mvfSession`
 
-This mirrors glTF closely on purpose. It lowers conceptual complexity and makes the format easier to validate.
+This is implemented in:
 
-## Asset Section
+- [MvfDocument.h](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/include/MvfDocument.h)
+- [MvfDocument.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/MvfDocument.cpp)
 
-The `asset` object should include:
+## Scene Graph Model
 
-- `version`
-- `generator`
-- `minReaderVersion`
-- `createdUtc`
-- `lastSavedUtc`
+MVF stores a real scene hierarchy and restores it directly on load.
 
-Example:
+The implementation is aligned with:
 
-```json
-{
-  "asset": {
-    "version": "3.0",
-    "generator": "ModelViewer",
-    "minReaderVersion": "3.0"
-  }
-}
-```
-
-## Scene And Node Model
-
-This should align closely with the current [SceneGraph](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\include\SceneGraph.h) and [SceneNode](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\include\SceneNode.h) design.
+- [SceneGraph.h](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/include/SceneGraph.h)
+- [SceneNode.h](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/include/SceneNode.h)
 
 ### Scenes
 
-`scenes[]` contains root node references.
+`scenes[]` stores scene root node indices.
 
-`scene` is the default active scene index.
+`scene` stores the active/default scene index.
 
 ### Nodes
 
-Each node should store:
+Each node currently stores:
 
 - `id`
 - `name`
+- `matrix`
 - `children`
-- one of:
-  - `matrix`
-  - or `translation`, `rotation`, `scale`
-- optional `meshBindings`
-- optional `extras`
+- `meshBindings`
 
-Important MVF difference from glTF:
+### Mesh Bindings
 
-- glTF nodes normally reference at most one `mesh`
-- MVF should allow a node to reference multiple mesh bindings, because the current scene graph stores `meshUuids` directly on a node
+MVF differs intentionally from plain glTF here.
 
-Recommended node property:
+Instead of forcing one node to reference one mesh, a node can store multiple `meshBindings`, because ModelViewer’s scene graph already tracks multiple mesh UUIDs under one structural node.
 
-- `meshBindings`: array of mesh binding objects
+Each mesh binding currently stores:
 
-Each mesh binding should store:
-
-- `mesh`
-- `materialOverride` optional
-- `primitiveMask` optional
 - `uuid`
-- `nameOverride` optional
-- `visibility` optional
+- `mesh`
+- `materialOverride`
+- `visible`
 
-This preserves stable per-mesh identity without forcing every node/mesh relation into glTF’s one-node-one-mesh assumption.
+This is what allows:
+
+- node hierarchy restore
+- stable mesh identity
+- visibility/session restore
+
+Hierarchy restore on load is implemented in:
+
+- [SceneGraph.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/SceneGraph.cpp)
+
+via `rebuildFromMvf(...)`.
 
 ## Geometry Model
 
-MVF geometry should be stored like glTF mesh primitives, not like current `AssImpMesh` runtime dumps.
+Geometry is stored as typed attribute streams, not as direct runtime object dumps.
+
+This is the core architectural shift from the older MVF approach.
 
 ### Meshes
 
-Each `mesh` contains:
+Each `mesh` stores:
 
 - `id`
 - `name`
 - `primitives`
-- optional `extras`
 
 ### Primitives
 
-Each primitive contains:
+Each primitive stores:
 
 - `attributes`
 - `indices`
 - `material`
 - `mode`
-- optional `extras`
+- `extras`
 
-Supported attributes should include:
+### Supported Attributes
+
+The current writer emits these attributes when present:
 
 - `POSITION`
 - `NORMAL`
@@ -281,349 +219,241 @@ Supported attributes should include:
 - `TEXCOORD_3`
 - `COLOR_0`
 
-Only attributes actually present should be written.
+Index data is written separately as `indices`.
 
-This is a crucial difference from the current MVF path:
+Geometry packing is implemented in:
 
-- current MVF writes full per-vertex runtime structs for every mesh
-- new MVF should write typed attribute streams referenced through accessors
+- [MvfSceneBuilder.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/MvfSceneBuilder.cpp)
 
-### Accessors / Buffer Views / Buffers
+Current packing source:
 
-MVF should reuse glTF’s accessor idea directly:
+- live `AssImpMesh` vertex/index data
 
-- accessors describe typed array views
-- bufferViews describe byte ranges within binary chunks
-- buffers describe logical binary stores
+### Buffer Model
 
-This enables:
+Geometry uses a glTF-like indirection model:
 
-- compact packing
-- no C++-struct padding issues
-- future compression per buffer region
-- validation of count, type, and component type
+- `buffers`
+- `bufferViews`
+- `accessors`
+
+Current buffer usage:
+
+- buffer `0` -> `GEOM`
+- buffer `1` -> `IMGS`
+
+This avoids coupling the format to C++ runtime layout and lets the loader reconstruct vertices from typed streams.
 
 ## Material Model
 
-The logical material design should be glTF-inspired, but richer where ModelViewer already supports more features.
+Materials are stored as a glTF-like core plus ModelViewer-specific extensions.
 
-The material object should include:
+### Core Material Fields
 
+Current material JSON includes:
+
+- `id`
 - `name`
 - `shadingModel`
 - `blendMode`
 - `doubleSided`
-- `alphaMode`
 - `alphaCutoff`
 - `opacity`
+- `pbr`
 
-### Canonical PBR Block
-
-Use a canonical PBR section similar to glTF:
+Current `pbr` block includes at least:
 
 - `baseColorFactor`
-- `baseColorTexture`
 - `metallicFactor`
 - `roughnessFactor`
-- `metallicRoughnessTexture`
-- `normalTexture`
-- `occlusionTexture`
-- `emissiveTexture`
-- `emissiveFactor`
 
-### ModelViewer Material Extensions
+### Implemented MVF Extensions
 
-ModelViewer currently supports features beyond core glTF, including:
-
-- transmission
-- ior
-- sheen
-- clearcoat
-- specular
-- anisotropy
-- iridescence
-- volume/thickness
-- diffuse transmission
-- specular-glossiness workflow compatibility
-- ADS legacy compatibility
-
-Those should be represented in an `extensions` object with stable MVF names.
-
-Recommended extension blocks:
+Current implementation writes:
 
 - `MVF_material_ads`
-- `MVF_material_transmission`
-- `MVF_material_clearcoat`
-- `MVF_material_sheen`
-- `MVF_material_specular`
-- `MVF_material_anisotropy`
-- `MVF_material_iridescence`
-- `MVF_material_volume`
-- `MVF_material_diffuseTransmission`
-- `MVF_material_specularGlossiness`
+- `MVF_material_pbr`
 
-This mirrors glTF’s extension style while staying native to ModelViewer.
-
-### ADS Compatibility
-
-ADS data should not be the primary shading definition, but it should still be preserved for:
-
-- legacy material workflows
-- direct round-trip of ModelViewer-specific user edits
-
-ADS should live in `MVF_material_ads`, containing:
+`MVF_material_ads` currently carries:
 
 - ambient
 - diffuse
 - specular
 - emissive
 - shininess
-- metallic boolean compatibility
+
+`MVF_material_pbr` currently carries:
+
+- ior
+- transmission
+- clearcoat
+- clearcoatRoughness
+- sheenColor
+- sheenRoughness
+- texture references for supported material slots
+
+Material reconstruction on load is implemented in:
+
+- [GLWidget.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/GLWidget.cpp)
+
+via `reconstructMvfMaterial(...)`.
 
 ## Texture, Image, And Sampler Model
 
-MVF should follow glTF’s split:
+MVF follows the glTF-style split:
 
 - `textures` reference `images` and `samplers`
-- `images` reference binary payload
-- `samplers` define filtering and wrapping
+- `images` reference embedded payload through `bufferView` or retain source-uri metadata
+- `samplers` define wrapping and filtering
 
 ### Images
 
-Each image stores:
+Current image records include:
 
-- `id`
 - `name`
-- `mimeType`
+- `originalUri`
 - `bufferView`
+- `mimeType`
 - `byteLength`
-- optional hash
 
-No runtime file path should be required for a valid MVF file.
+The authoritative embedded image payload is stored in the `IMGS` chunk when the writer can resolve and read the image source.
 
-Optional informational metadata may include:
+### Image Embedding Behavior
 
-- original source uri
-- import-time file name
-- source asset hash
+Current writer behavior:
 
-But the binary image payload inside MVF is authoritative.
+- external images are read and appended to `IMGS`
+- `glb://...` image sources are resolved through `TextureLocationManager`
+- resolved image bytes are embedded into `IMGS`
+- corresponding image `bufferView`, `byteLength`, and `mimeType` are updated
+- `.ktx2` files are currently skipped and remain path-based
+
+This is implemented in:
+
+- [MvfSceneBuilder.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/MvfSceneBuilder.cpp)
 
 ### Texture Deduplication
 
-Images should be deduplicated by content hash.
+Current writer deduplicates:
 
-Textures should be deduplicated by:
-
-- image id
-- sampler id
-- UV transform
-- texCoord index
-
-This avoids writing the same embedded or shared texture payload repeatedly.
-
-### Samplers
-
-Samplers should store:
-
-- `magFilter`
-- `minFilter`
-- `wrapS`
-- `wrapT`
-
-These map well to the metadata already carried in `GLMaterial::Texture`.
-
-## Binary Payload Storage
-
-Binary chunks should be separated by domain:
-
-- geometry data in `GEOM`
-- images in `IMGS`
-
-This keeps large image blobs independent from mesh data and allows future streaming improvements.
-
-### Compression
-
-Compression should be part of the design from the start.
-
-Recommended options:
-
-- per-bufferView compression flag
-- whole-chunk compression flag
-
-Suggested initial approach:
-
-- chunk-level compression using zstd or zlib
-- clear metadata in JSON describing:
-  - compressed byte length
-  - uncompressed byte length
-  - codec
-
-Without compression, MVF will continue to be unacceptably large for imported assets.
+- images by resolved/original path key
+- samplers by wrap/filter signature
+- textures by `(image, sampler)` signature
 
 ## Session State
 
-The `mvfSession` section stores ModelViewer-specific state that glTF does not define.
+Session-specific state lives in `mvfSession`.
 
-It should include:
+Current stored session state includes:
 
-- visible mesh UUID set
-- selected mesh UUID set
-- active render mode / shading mode
-- camera state
-- environment / HDRI settings if desired
-- floor / light settings if desired
-- tree expansion state optionally
+- `visibleMeshUuids`
+- `selectedMeshUuids`
+- `geometryChunkPresent`
+- `imageChunkPresent`
 
-### Visibility And Selection
+Visibility and selection are stored using mesh UUIDs, not UI row indices.
 
-Visibility and selection should be stored against stable mesh binding UUIDs, not row indices and not transient mesh-store positions.
+This aligns with the current viewer architecture:
 
-This matches the current architecture:
+- [ModelViewer.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/ModelViewer.cpp)
+- [SceneGraph.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/SceneGraph.cpp)
 
-- [ModelViewer.cpp](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\src\ModelViewer.cpp)
-- [SceneGraph.cpp](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\src\SceneGraph.cpp)
+## Save Pipeline
 
-## UUID Model
+The current save pipeline is:
 
-Every persistent scene-level object should have a stable id.
+1. Build a full `Mvf::MVFPackage` from current scene state
+2. Serialize JSON metadata
+3. Serialize packed geometry chunk
+4. Serialize packed image chunk
+5. Write header + chunks
 
-Recommended:
+This is implemented through:
 
-- scene nodes: UUID
-- mesh bindings: UUID
-- meshes: UUID or integer asset id
-- materials: UUID or integer asset id
-- images/textures: integer asset id plus optional hash
+- [ModelViewer.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/ModelViewer.cpp)
+- [MvfSceneBuilder.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/MvfSceneBuilder.cpp)
+- [MvfFormat.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/MvfFormat.cpp)
 
-Important distinction:
+## Load Pipeline
 
-- mesh asset identity is not the same as mesh instance identity
-- a mesh binding is the instance in the scene
+The current load path is worker-thread based and deliberately mirrors the modern AssImp load architecture.
 
-This separation is necessary for future instancing support.
+Implemented load phases:
 
-## Relationship To Current Code
+1. Read header and chunks on a worker thread
+2. Parse JSON into `Mvf::Document`
+3. Prepare CPU-side mesh/material data from JSON + `GEOM` + `IMGS`
+4. Upload meshes one-by-one on the UI thread via blocking queued calls
+5. Restore visibility and selection
+6. Rebuild `SceneGraph` from saved node data
 
-The current code already contains pieces of the new conceptual model:
+This is implemented in:
 
-- [SceneGraph](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\include\SceneGraph.h) is a node hierarchy with transforms and mesh references
-- [AssImpMeshExporter](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\src\AssImpMeshExporter.cpp) already thinks in terms of scene, materials, textures, and deduped export assets
-- [GltfPostProcessor](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\src\GltfPostProcessor.cpp) already maps ModelViewer material state to a glTF-like material model
-- [TextureLocationManager](D:\work\progs\Qt6\vcpkg\ModelViewer-Qt\src\TextureLocationManager.cpp) already handles packaging and dedup cues for texture assets
+- [ModelViewer.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/ModelViewer.cpp)
+- [GLWidget.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/GLWidget.cpp)
 
-The new MVF format should be designed to sit closer to those export concepts, and farther away from direct `AssImpMesh` runtime serialization.
+### Mesh Reconstruction
 
-## Recommended Save Pipeline
+`GLWidget` reconstructs runtime meshes by:
 
-When saving MVF:
+- reading typed attribute streams from accessors/bufferViews
+- rebuilding `Vertex` arrays
+- rebuilding materials from material JSON
+- resolving embedded images to temporary files when needed
+- reusing the normal runtime texture-resolution path afterward
 
-1. Freeze current scene state
-2. Build a temporary MVF asset graph
-3. Deduplicate:
-- images
-- textures
-- samplers
-- materials
-- mesh assets
-4. Build JSON metadata
-5. Pack binary geometry and image chunks
-6. Compress heavy chunks
-7. Write header + chunks
+Key load helpers include:
 
-Important:
+- `prepareMvfMeshes(...)`
+- `uploadOneMvfMesh(...)`
+- `reconstructMvfMaterial(...)`
 
-- no OpenGL texture ids
-- no temporary extracted texture paths
-- no renderer caches
+## What MVF Does Not Store
 
-## Recommended Load Pipeline
+MVF does not store transient runtime state such as:
 
-When loading MVF:
+- OpenGL object ids
+- shader program handles
+- renderer caches
+- temporary extracted image file locations
 
-1. Read and validate header
-2. Read chunk table
-3. Parse JSON metadata
-4. Validate references
-5. Decompress binary chunks
-6. Build asset tables:
-- images
-- samplers
-- textures
-- materials
-- mesh assets
-7. Build scene graph
-8. Instantiate runtime meshes from mesh assets + material bindings
-9. Rebuild tree and session state
-10. Build GPU state
+These are reconstructed on load.
 
-This order avoids the current problem of mixing runtime texture loading and mesh deserialization too early.
+## Current Limitations
 
-## Compatibility Strategy
+The current implementation still has some intentional limits:
 
-This should be a new format generation, not an incremental patch on the current one.
+- `ktx2` payloads are not embedded into the `IMGS` chunk
+- chunk compression is not implemented yet
+- the format is glTF-inspired, but not glTF-compatible byte-for-byte
+- material/session extensibility is present, but not yet exhaustive for every future ModelViewer feature
 
-Recommended compatibility plan:
+## Relationship To Code
 
-- current MVF stream layout remains legacy `MVF2`
-- new format becomes `MVF3`
-- readers may continue to support `MVF2` as best-effort legacy import
-- writers should default to `MVF3`
+The key code areas are:
 
-## Migration Strategy
-
-### Phase 1
-
-Implement the new MVF container and metadata model:
-
-- header
-- JSON chunk
-- geometry chunk
-- image chunk
-- scene graph
-- material/texture assets
-- session state
-
-### Phase 2
-
-Switch save/load to use the new asset graph builder instead of direct `AssImpMesh::serialize()`.
-
-### Phase 3
-
-Optionally add:
-
-- mesh instancing
-- cameras
-- animations
-- undo/redo snapshots or document metadata
-
-## Validation Rules
-
-An MVF reader should reject or warn on:
-
-- invalid magic or version
-- missing JSON chunk
-- invalid accessor bounds
-- invalid bufferView ranges
-- dangling references
-- unknown required MVF extensions
-- missing image payload for referenced image
-- material texture references pointing to non-existent textures
+- container I/O:
+  - [MvfFormat.h](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/include/MvfFormat.h)
+  - [MvfFormat.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/MvfFormat.cpp)
+- document model:
+  - [MvfDocument.h](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/include/MvfDocument.h)
+  - [MvfDocument.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/MvfDocument.cpp)
+- writer/packer:
+  - [MvfSceneBuilder.h](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/include/MvfSceneBuilder.h)
+  - [MvfSceneBuilder.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/MvfSceneBuilder.cpp)
+- load/reconstruction:
+  - [ModelViewer.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/ModelViewer.cpp)
+  - [GLWidget.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/GLWidget.cpp)
+  - [SceneGraph.cpp](/D:/work/progs/Qt6/vcpkg/ModelViewer-Qt/src/SceneGraph.cpp)
 
 ## Summary
 
-The next MVF format should be:
+The implemented `.mvf` format is:
 
-- self-contained like GLB
-- scene-structured like glTF
-- extension-friendly for ModelViewer-specific material/session data
-- compact and compressed
-- independent of runtime OpenGL objects
+- a self-contained native ModelViewer session container
+- structurally inspired by glTF 2.0
+- based on scenes, nodes, mesh primitives, materials, textures, images, and accessors
+- rebuilt into runtime OpenGL objects on load rather than storing runtime objects directly
 
-That gives ModelViewer a professional native format that matches the intended product behavior:
-
-- imported geometry becomes part of the scene
-- the file reopens without depending on source assets
-- hierarchy, materials, textures, and session state round-trip cleanly
-- file size and load cost remain tractable
+That means imported geometry now truly becomes part of the saved ModelViewer scene, while hierarchy, material state, visibility, and selection round-trip through the native format. 
 
