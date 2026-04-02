@@ -39,10 +39,12 @@ public:
      * Returns nullptr if no content widget is currently attached.
      */
     QWidget* takeContentWidget();
+    void setContentTransparencyEnabled(bool enabled);
 
     bool isPinned() const;
 
 protected:
+    void paintEvent(QPaintEvent* event) override;
     /**
      * Overridden so that Escape does not close the dialog when pinned.
      * The X button goes through closeEvent, not reject(), so it is unaffected.
@@ -58,6 +60,7 @@ private:
     QIcon        _unpinIcon;
     QWidget*     _contentWrapper = nullptr;
     QWidget*     _contentWidget = nullptr;
+    bool         _contentTransparencyEnabled = false;
 };
 
 #endif // FLOATINGPANELDIALOG_H

@@ -104,6 +104,77 @@ public:
     }
 };
 
+class OverlayTreeItemDelegate : public QStyledItemDelegate
+{
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void paint(QPainter* painter,
+               const QStyleOptionViewItem& option,
+               const QModelIndex& index) const override
+    {
+        QStyleOptionViewItem opt(option);
+        initStyleOption(&opt, index);
+
+        const bool detachedOverlay =
+            (opt.widget && opt.widget->property("detachedOverlayMode").toBool());
+
+        if (!detachedOverlay || !(opt.features & QStyleOptionViewItem::HasCheckIndicator))
+        {
+            QStyledItemDelegate::paint(painter, option, index);
+            return;
+        }
+
+        QStyleOptionViewItem contentOpt(opt);
+        contentOpt.features &= ~QStyleOptionViewItem::HasCheckIndicator;
+        QStyledItemDelegate::paint(painter, contentOpt, index);
+
+        QStyle* style = opt.widget ? opt.widget->style() : QApplication::style();
+        const QRect indicatorRect = style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator,
+                                                          &opt, opt.widget);
+        if (!indicatorRect.isValid())
+            return;
+
+        const QColor textColor = (opt.state & QStyle::State_Selected)
+            ? opt.palette.color(QPalette::HighlightedText)
+            : opt.palette.color(QPalette::Text);
+        const bool darkText = textColor.lightnessF() < 0.5;
+        const QColor boxFill = darkText
+            ? QColor(255, 255, 255, 225)
+            : QColor(28, 28, 28, 225);
+        const QColor boxBorder = darkText
+            ? QColor(0, 0, 0, 100)
+            : QColor(255, 255, 255, 110);
+
+        const QRect box = indicatorRect.adjusted(1, 1, -1, -1);
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing, true);
+        painter->setPen(QPen(boxBorder, 1.0));
+        painter->setBrush(boxFill);
+        painter->drawRoundedRect(box, 2.0, 2.0);
+
+        const QVariant checkData = index.data(Qt::CheckStateRole);
+        const Qt::CheckState state = static_cast<Qt::CheckState>(checkData.toInt());
+        painter->setPen(QPen(textColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+
+        if (state == Qt::Checked)
+        {
+            const QPoint p1(box.left() + 3, box.center().y());
+            const QPoint p2(box.center().x() - 1, box.bottom() - 3);
+            const QPoint p3(box.right() - 2, box.top() + 3);
+            painter->drawLine(p1, p2);
+            painter->drawLine(p2, p3);
+        }
+        else if (state == Qt::PartiallyChecked)
+        {
+            painter->drawLine(box.left() + 3, box.center().y(),
+                              box.right() - 3, box.center().y());
+        }
+
+        painter->restore();
+    }
+};
+
 // ---------------------------------------------------------------------------
 // SceneTreeWidget
 // ---------------------------------------------------------------------------
@@ -132,6 +203,9 @@ SceneTreeWidget::SceneTreeWidget(QWidget* parent)
     setUniformRowHeights(true);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
     setStyle(new PlusMinusStyle(style()));              
+    setItemDelegate(new OverlayTreeItemDelegate(this));
+    setProperty("detachedOverlayMode", false);
+    viewport()->setProperty("detachedOverlayMode", false);
 
     // --- item changed (check-state or text) ----------------------------------
     connect(this, &QTreeWidget::itemChanged,
@@ -624,6 +698,67 @@ void SceneTreeWidget::scrollFirstSelectedToCenter()
         hbar->setValue(hBefore);
 }
 
+void SceneTreeWidget::setDetachedOverlayMode(bool enabled)
+{
+    if (_detachedOverlayMode == enabled)
+        return;
+
+      if (enabled)
+      {
+          _savedStyleSheet = styleSheet();
+          _savedTreePalette = palette();
+          _savedViewportPalette = viewport()->palette();
+        _savedAutoFillBackground = autoFillBackground();
+        _savedViewportAutoFillBackground = viewport()->autoFillBackground();
+
+        QPalette treePalette = _savedTreePalette;
+          QColor base = treePalette.color(QPalette::Base);
+          QColor alternate = treePalette.color(QPalette::AlternateBase);
+          base.setAlpha(0);
+          alternate.setAlpha(0);
+          treePalette.setColor(QPalette::Base, base);
+          treePalette.setColor(QPalette::AlternateBase, alternate);
+
+          setPalette(treePalette);
+          viewport()->setPalette(treePalette);
+          setAutoFillBackground(false);
+          viewport()->setAutoFillBackground(false);
+          setAttribute(Qt::WA_NoSystemBackground, true);
+          viewport()->setAttribute(Qt::WA_NoSystemBackground, true);
+          viewport()->setAttribute(Qt::WA_StyledBackground, false);
+          setStyleSheet(QString());
+      }
+    else
+    {
+        setStyleSheet(_savedStyleSheet);
+        setPalette(_savedTreePalette);
+        viewport()->setPalette(_savedViewportPalette);
+        setAutoFillBackground(_savedAutoFillBackground);
+        viewport()->setAutoFillBackground(_savedViewportAutoFillBackground);
+        setAttribute(Qt::WA_NoSystemBackground, false);
+        viewport()->setAttribute(Qt::WA_NoSystemBackground, false);
+        viewport()->setAttribute(Qt::WA_StyledBackground, false);
+    }
+
+      _detachedOverlayMode = enabled;
+      setProperty("detachedOverlayMode", enabled);
+      viewport()->setProperty("detachedOverlayMode", enabled);
+      viewport()->update();
+      update();
+  }
+
+void SceneTreeWidget::paintEvent(QPaintEvent* event)
+{
+    if (_detachedOverlayMode)
+    {
+        QPainter painter(viewport());
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.fillRect(event->rect(), _detachedOverlayFillColor);
+    }
+
+    QTreeWidget::paintEvent(event);
+}
+
 // ---------------------------------------------------------------------------
 // rebuild
 // ---------------------------------------------------------------------------
@@ -1088,14 +1223,14 @@ QTreeWidgetItem* SceneTreeWidget::makeAssemblyItem(const SceneNode* node)
     item->setText(0, node->name);
     item->setIcon(0, node->isSynthetic ? treeIcons().fileNormal
                                        : treeIcons().assemblyNormal);
-    item->setFlags((item->flags()
-                  | Qt::ItemIsUserCheckable
-                  | Qt::ItemIsSelectable)
-                  & ~Qt::ItemIsEditable);
-    item->setCheckState(0, Qt::Checked);
-    item->setData(0, IsLeafRole,      false);
-    item->setData(0, IsSyntheticRole, node->isSynthetic);
-    return item;
+      item->setFlags((item->flags()
+                    | Qt::ItemIsUserCheckable
+                    | Qt::ItemIsSelectable)
+                    & ~Qt::ItemIsEditable);
+      item->setCheckState(0, Qt::Checked);
+      item->setData(0, IsLeafRole,      false);
+      item->setData(0, IsSyntheticRole, node->isSynthetic);
+      return item;
 }
 
 void SceneTreeWidget::propagateCheckDown(QTreeWidgetItem* item,

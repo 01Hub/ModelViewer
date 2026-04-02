@@ -576,8 +576,7 @@ void ModelViewer::detachADSMaterialPanel()
 	if (!adsMaterialSettingsPanel || !toolBox) return;
 	if (_detachedADSMaterialDialog)
 	{
-		_detachedADSMaterialDialog->raise();
-		_detachedADSMaterialDialog->activateWindow();
+		reattachADSMaterialPanel();
 		return;
 	}
 	// Find and remove from toolbox
@@ -648,8 +647,7 @@ void ModelViewer::detachTexturePanel()
 
 	if (_detachedTextureDialog)
 	{
-		_detachedTextureDialog->raise();
-		_detachedTextureDialog->activateWindow();
+		reattachTexturePanel();
 		return;
 	}
 
@@ -731,8 +729,7 @@ void ModelViewer::detachMaterialPanel()
 
 	if (_detachedMaterialDialog)
 	{
-		_detachedMaterialDialog->raise();
-		_detachedMaterialDialog->activateWindow();
+		reattachMaterialPanel();
 		return;
 	}
 
@@ -804,12 +801,11 @@ void ModelViewer::reattachMaterialPanel()
 
 void ModelViewer::detachTransformationsPanel()
 {
-	if (objectTransformPanel->isDetached() || !toolBox)	return;
+	if (!toolBox) return;
 
 	if(_detachedTransformationsDialog)
 	{
-		_detachedTransformationsDialog->raise();
-		_detachedTransformationsDialog->activateWindow();
+		reattachTransformationsPanel();
 		return;
 	}
 	// Find and remove from toolbox
@@ -880,8 +876,7 @@ void ModelViewer::detachEnvironmentPanel()
 
 	if (_detachedEnvironmentDialog)
 	{
-		_detachedEnvironmentDialog->raise();
-		_detachedEnvironmentDialog->activateWindow();
+		reattachEnvironmentPanel();
 		return;
 	}
 
@@ -952,78 +947,60 @@ void ModelViewer::detachNavigationPanel()
 {
 	if (!modelNavigationWidget || !splitter_2) return;
 
-	// If already detached, just bring the floating window to front.
-	if (_detachedNavigationDialog)
+	// Toggle back into the splitter when already detached as an overlay.
+	if (_detachedNavigationOverlay)
 	{
-		_detachedNavigationDialog->raise();
-		_detachedNavigationDialog->activateWindow();
+		reattachNavigationPanel();
 		return;
 	}
 
 	// Save splitter proportions so we can restore them on reattach.
 	_navigationSplitterSizes = splitter_2->sizes();
 
-	// Create floating dialog.
-	auto* floatingDlg = new FloatingPanelDialog(this, tr("Model Objects"));
-	_detachedNavigationDialog = floatingDlg;
+	const int overlayWidth = 420;
+	_detachedNavigationOverlay = _glWidget->attachOverlayPanel(
+		modelNavigationWidget,
+		QRect(10, 36, overlayWidth, std::max(120, _glWidget->height() - 36 - 96)),
+		Qt::AlignTop | Qt::AlignLeft,
+		"navigationOverlayPanel");
 
-	// Re-parenting to the dialog implicitly removes the widget from splitter_2.
-	floatingDlg->addContentWidget(modelNavigationWidget);
+	if (_detachedNavigationOverlay)
+	{
+		treeWidgetModel->setDetachedOverlayMode(true);
+		updateNavigationOverlayGeometry();
+		_detachedNavigationOverlay->show();
+	}
 
-	// Hide the detach button inside the floating window — it serves no purpose there.
-	Ui_ModelViewer::toolButtonDetach->setVisible(false);
-
-	// Position near the parent window, respecting screen bounds.
-	QScreen* screen  = QGuiApplication::primaryScreen();
-	QRect screenGeom = screen->availableGeometry();
-	QRect myGeometry = this->frameGeometry();
-	int x = myGeometry.right() + 10;
-	int y = myGeometry.top();
-	if (x + 420 > screenGeom.right())  x = screenGeom.right() - 420;
-	if (y + 600 > screenGeom.bottom()) y = screenGeom.bottom() - 600;
-	if (x < screenGeom.left()) x = screenGeom.left();
-	if (y < screenGeom.top())  y = screenGeom.top();
-	_detachedNavigationDialog->move(x, y);
-	// Size to 75% of the parent height.  Unlike the toolbox panels (which have
-	// a fixed proportional height we can read back), this widget lives in a
-	// user-resizable splitter, so its current height can be arbitrarily small
-	// and is not a reliable reference for the floating window size.
-	_detachedNavigationDialog->resize(420, static_cast<int>(height() * 0.75));	
-	_detachedNavigationDialog->show();
 	modelNavigationWidget->show();
+}
 
-	connect(_detachedNavigationDialog, &QDialog::finished,
-		this, &ModelViewer::reattachNavigationPanel);
+void ModelViewer::updateNavigationOverlayGeometry()
+{
+	if (!_detachedNavigationOverlay || !_glWidget)
+		return;
+
+	const int overlayTop = 36;
+	const int overlayLeft = 10;
+	const int overlayWidth = 420;
+	const int overlayBottomMargin = 96;
+	_detachedNavigationOverlay->setGeometry(
+		overlayLeft,
+		overlayTop,
+		overlayWidth,
+		std::max(120, _glWidget->height() - overlayTop - overlayBottomMargin));
 }
 
 void ModelViewer::reattachNavigationPanel()
 {
-	if (!_detachedNavigationDialog || !splitter_2) return;
+	if (!_detachedNavigationOverlay || !splitter_2) return;
 
-	QDialog* dialog = _detachedNavigationDialog;
-	_detachedNavigationDialog = nullptr;
-
-	disconnect(dialog, nullptr, this, nullptr);
-
-	if (auto* floatingDialog = qobject_cast<FloatingPanelDialog*>(dialog))
-	{
-		QWidget* content = floatingDialog->takeContentWidget();
-		if (content && content != modelNavigationWidget)
-			content->deleteLater();
-	}
-	else if (modelNavigationWidget)
-	{
-		modelNavigationWidget->setParent(nullptr);
-	}
-
-	dialog->deleteLater();
-	_detachedNavigationDialog = nullptr;
+	treeWidgetModel->setDetachedOverlayMode(false);
+	_glWidget->takeOverlayPanel(modelNavigationWidget);
+	_detachedNavigationOverlay = nullptr;
 
 	// Re-insert at index 0 (its original slot) — insertWidget handles the re-parent.
 	splitter_2->insertWidget(0, modelNavigationWidget);
 
-	// Restore the detach button and the saved split proportions.
-	Ui_ModelViewer::toolButtonDetach->setVisible(true);
 	if (!_navigationSplitterSizes.isEmpty())
 		splitter_2->setSizes(_navigationSplitterSizes);
 
@@ -1344,6 +1321,7 @@ void ModelViewer::dropEvent(QDropEvent* event)
 void ModelViewer::resizeEvent(QResizeEvent* event)
 {
 	QWidget::resizeEvent(event);
+	updateNavigationOverlayGeometry();
 }
 
 void ModelViewer::mouseMoveEvent(QMouseEvent* event)

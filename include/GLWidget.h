@@ -15,6 +15,7 @@
 #include <QImage>
 #include <QOpenGLFunctions_4_5_Core>
 #include <QOpenGLWidget>
+#include <QPointer>
 #include <QRubberBand>
 #include "ViewToolbar.h"
 #include "SceneUtils.h"
@@ -120,6 +121,10 @@ public:
 
 	void updateClippingPlane();
 	void showClippingPlaneEditor(bool show);
+	QWidget* attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,
+	                            Qt::Alignment alignment = Qt::AlignTop | Qt::AlignLeft,
+	                            const QString& objectName = QString());
+	QWidget* takeOverlayPanel(QWidget* contentWidget);
 	void setClippingPlaneHatchMode(ClippingPlaneHatchMode mode);
 	void setClippingPlaneHatchPattern(HatchPattern pattern);
 	void setHatchTiling(int tiling);
@@ -493,6 +498,8 @@ protected:
 	void renderSingleView(QColor& topColor, QColor& botColor);
 
 	void renderMultiView(QColor& topColor, QColor& botColor);
+	void applyOverlayPanelStyle(QWidget* wrapper, const QString& objectName);
+	void refreshNavigationOverlayStyle();
 
 	void resizeEvent(QResizeEvent* event);
 	void mousePressEvent(QMouseEvent*);
@@ -826,6 +833,7 @@ private:
 	QList<QUuid> _pendingSceneUuids;
 	std::vector<int> _centerScreenObjectIDs;
 	bool _visibleSwapped;
+	QPointer<QWidget> _navigationOverlayPanel;
 
 	QVBoxLayout* _editorLayout;
 	QFormLayout* _lowerLayout;

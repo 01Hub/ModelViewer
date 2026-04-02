@@ -2,7 +2,9 @@
 
 #include <QHash>
 #include <QList>
+#include <QPalette>
 #include <QSet>
+#include <QString>
 #include <QTimer>
 #include <QTreeWidget>
 #include <QUuid>
@@ -167,6 +169,7 @@ public:
     void expandSubtreeAt(const QPoint& localPos);
     void collapseAllBelowAt(const QPoint& localPos);
     void scrollFirstSelectedToCenter();
+    void setDetachedOverlayMode(bool enabled);
 
 public slots:
     /**
@@ -198,6 +201,7 @@ signals:
     void rebuildComplete();
 
 protected:
+    void paintEvent(QPaintEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
@@ -304,4 +308,11 @@ private:
 
     bool _updatingTree = false; // suppress re-entrant signal handling
     bool _inRename     = false; // suppress itemChanged during delegate setModelData
+    bool _detachedOverlayMode = false;
+    bool _savedAutoFillBackground = false;
+    bool _savedViewportAutoFillBackground = false;
+    QPalette _savedTreePalette;
+    QPalette _savedViewportPalette;
+    QString _savedStyleSheet;
+    QColor _detachedOverlayFillColor = QColor(255, 255, 255, 65);
 };

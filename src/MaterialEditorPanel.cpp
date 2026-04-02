@@ -607,8 +607,9 @@ void MaterialEditorPanel::onDeleteButtonClicked()
 void MaterialEditorPanel::setDetached(bool detached)
 {
 	_detached = detached;
-	ui->detachButton->setVisible(!_detached);
-	ui->separator->setVisible(!_detached);
+	ui->detachButton->setVisible(true);
+	ui->detachButton->setToolTip(_detached ? tr("Reattach to panel") : tr("Detach from panel"));
+	ui->separator->setVisible(true);
 }
 
 void MaterialEditorPanel::onDetachButtonClicked()

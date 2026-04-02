@@ -1,6 +1,7 @@
 #include "FloatingPanelDialog.h"
 
 #include <QIcon>
+#include <QPainter>
 #include <QPixmap>
 #include <QSizePolicy>
 
@@ -9,10 +10,11 @@ FloatingPanelDialog::FloatingPanelDialog(QWidget* parent, const QString& title,
     : QDialog(parent, Qt::Window | extraFlags)
 {
     setWindowTitle(title);
+    setObjectName("floatingPanelDialog");
 
     // ---- main layout (toolbar + content) ----
     _mainLayout = new QVBoxLayout(this);
-    _mainLayout->setContentsMargins(0, 0, 0, 0);
+    _mainLayout->setContentsMargins(6, 6, 6, 6);
     _mainLayout->setSpacing(0);
 
     // ---- thin toolbar strip ----
@@ -49,6 +51,8 @@ FloatingPanelDialog::FloatingPanelDialog(QWidget* parent, const QString& title,
 
     _toolbarLayout->addWidget(_pinButton);
     _mainLayout->addWidget(_toolbar);
+
+    setContentTransparencyEnabled(false);
 }
 
 void FloatingPanelDialog::addContentWidget(QWidget* widget)
@@ -57,6 +61,7 @@ void FloatingPanelDialog::addContentWidget(QWidget* widget)
 
     // Content gets a 6 px margin and expands to fill all remaining space.
     _contentWrapper = new QWidget(this);
+    _contentWrapper->setObjectName("floatingPanelContentWrapper");
     QVBoxLayout* wl  = new QVBoxLayout(_contentWrapper);
     wl->setContentsMargins(6, 4, 6, 6);
     wl->addWidget(widget);
@@ -82,6 +87,60 @@ QWidget* FloatingPanelDialog::takeContentWidget()
 
     widget->setParent(nullptr);
     return widget;
+}
+
+void FloatingPanelDialog::setContentTransparencyEnabled(bool enabled)
+{
+    _contentTransparencyEnabled = enabled;
+    setAttribute(Qt::WA_TranslucentBackground, enabled);
+
+    if (!enabled)
+    {
+        setStyleSheet(QString());
+        update();
+        return;
+    }
+
+    setStyleSheet(
+        "QDialog#floatingPanelDialog {"
+        "  background: transparent;"
+        "}"
+        "QWidget#floatingPanelToolbar {"
+        "  background-color: rgba(24, 24, 24, 160);"
+        "  border-top-left-radius: 6px;"
+        "  border-top-right-radius: 6px;"
+        "}"
+        "QWidget#floatingPanelContentWrapper {"
+        "  background-color: rgba(24, 24, 24, 128);"
+        "  border-bottom-left-radius: 6px;"
+        "  border-bottom-right-radius: 6px;"
+        "}"
+        "QWidget#floatingPanelContentWrapper QTreeWidget {"
+        "  background-color: rgba(24, 24, 24, 96);"
+        "  alternate-background-color: rgba(40, 40, 40, 96);"
+        "}"
+        "QWidget#floatingPanelContentWrapper QTreeWidget::item {"
+        "  background: transparent;"
+        "}"
+        "QWidget#floatingPanelContentWrapper QHeaderView::section {"
+        "  background-color: rgba(24, 24, 24, 160);"
+        "}"
+    );
+    update();
+}
+
+void FloatingPanelDialog::paintEvent(QPaintEvent* event)
+{
+    if (_contentTransparencyEnabled)
+    {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing, true);
+        painter.setPen(QColor(255, 255, 255, 32));
+        painter.setBrush(QColor(18, 18, 18, 110));
+        painter.drawRoundedRect(rect().adjusted(0, 0, -1, -1), 8, 8);
+    }
+
+    QDialog::paintEvent(event);
 }
 
 bool FloatingPanelDialog::isPinned() const

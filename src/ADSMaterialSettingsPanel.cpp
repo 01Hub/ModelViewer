@@ -227,8 +227,9 @@ void ADSMaterialSettingsPanel::updateTexturePreviews()
 void ADSMaterialSettingsPanel::setDetached(bool detached)
 {
     _detached = detached;
-    toolButtonDetach->setVisible(!_detached);
-    lineSeparator->setVisible(!_detached);
+    toolButtonDetach->setVisible(true);
+    toolButtonDetach->setToolTip(_detached ? tr("Reattach to panel") : tr("Detach from panel"));
+    lineSeparator->setVisible(true);
 }
 
 // Color getters

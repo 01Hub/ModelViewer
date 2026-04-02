@@ -185,6 +185,7 @@ protected:
 	
 private:
 	GLMaterial buildADSMaterialFromPanel() const;
+	void updateNavigationOverlayGeometry();
 
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
 	QString computeUniqueName(TriangleMesh* exclude, const QString& name) const;
@@ -300,8 +301,8 @@ private:
 	int _environmentPageIndex = -1;
 	QString _environmentPageLabel;
 
-	QPointer<QDialog> _detachedNavigationDialog; // Stores the floating dialog
-	QList<int> _navigationSplitterSizes;          // Saved splitter proportions for restore
+	QPointer<QWidget> _detachedNavigationOverlay; // Stores the GLWidget overlay wrapper
+	QList<int> _navigationSplitterSizes;         // Saved splitter proportions for restore
 
 	QUndoStack* _undoStack;
 	bool _lastCanUndo = false;

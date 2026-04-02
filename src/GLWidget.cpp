@@ -2009,6 +2009,133 @@ void GLWidget::showClippingPlaneEditor(bool show)
 	show ? _clippingPlanesEditor->show() : _clippingPlanesEditor->hide();
 }
 
+QWidget* GLWidget::attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,
+                                      Qt::Alignment, const QString& objectName)
+{
+	if (!contentWidget)
+		return nullptr;
+
+	auto* wrapper = new QWidget(this);
+	const QString wrapperName = objectName.isEmpty()
+		? QStringLiteral("glOverlayPanel")
+		: objectName;
+	wrapper->setObjectName(wrapperName);
+	wrapper->setAttribute(Qt::WA_StyledBackground, true);
+	wrapper->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred);
+	applyOverlayPanelStyle(wrapper, wrapperName);
+
+	QVBoxLayout* layout = new QVBoxLayout(wrapper);
+	layout->setContentsMargins(6, 6, 6, 6);
+	layout->addWidget(contentWidget);
+
+	wrapper->setGeometry(geometry);
+	wrapper->show();
+	contentWidget->show();
+	wrapper->raise();
+	if (wrapperName == QLatin1String("navigationOverlayPanel"))
+		_navigationOverlayPanel = wrapper;
+	return wrapper;
+}
+
+QWidget* GLWidget::takeOverlayPanel(QWidget* contentWidget)
+{
+	if (!contentWidget)
+		return nullptr;
+
+	QWidget* wrapper = contentWidget->parentWidget();
+	if (!wrapper || wrapper == this)
+		return nullptr;
+
+	if (QLayout* layout = wrapper->layout())
+		layout->removeWidget(contentWidget);
+	contentWidget->setParent(nullptr);
+
+	if (wrapper == _navigationOverlayPanel)
+		_navigationOverlayPanel = nullptr;
+
+	wrapper->deleteLater();
+	return wrapper;
+}
+
+void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectName)
+{
+	if (!wrapper)
+		return;
+
+	const QColor contrastColor = (_bgTopColor.lightnessF() < 0.5)
+		? QColor(255, 255, 255)
+		: QColor(0, 0, 0);
+	const bool darkBackground = _bgTopColor.lightnessF() < 0.5;
+	const QColor panelFieldColor = darkBackground
+		? QColor(24, 24, 24, 210)
+		: QColor(255, 255, 255, 215);
+	const QColor panelFieldBorderColor = darkBackground
+		? QColor(255, 255, 255, 85)
+		: QColor(0, 0, 0, 65);
+	const QColor treeBaseColor = darkBackground
+		? QColor(255, 255, 255, 190)
+		: QColor(32, 32, 32, 165);
+	const QColor treeAlternateColor = darkBackground
+		? QColor(245, 245, 245, 190)
+		: QColor(52, 52, 52, 165);
+
+	wrapper->setStyleSheet(QString(
+		"QWidget#%1 {"
+		"  background-color: rgba(255, 255, 255, 25%);"
+		"  border: 1px solid rgba(255, 255, 255, 40);"
+		"  border-radius: 6px;"
+		"}"
+		"QWidget#%1 QLineEdit {"
+		"  background-color: rgba(%5, %6, %7, %8);"
+		"  border: 1px solid rgba(%9, %10, %11, %12);"
+		"  border-radius: 4px;"
+		"  padding: 2px 6px;"
+		"}"
+		"QWidget#%1 QTreeWidget {"
+		"  background-color: rgba(%13, %14, %15, %16);"
+		"  alternate-background-color: rgba(%17, %18, %19, %20);"
+		"}"
+		"QWidget#%1 QLabel,"
+		"QWidget#%1 QCheckBox,"
+		"QWidget#%1 QRadioButton,"
+		"QWidget#%1 QGroupBox,"
+		"QWidget#%1 QPushButton,"
+		"QWidget#%1 QToolButton,"
+		"QWidget#%1 QLineEdit,"
+		"QWidget#%1 QSpinBox,"
+		"QWidget#%1 QDoubleSpinBox,"
+		"QWidget#%1 QTreeWidget,"
+		"QWidget#%1 QComboBox {"
+		"  color: rgb(%2, %3, %4);"
+		"}")
+		.arg(objectName)
+		.arg(contrastColor.red())
+		.arg(contrastColor.green())
+		.arg(contrastColor.blue())
+		.arg(panelFieldColor.red())
+		.arg(panelFieldColor.green())
+		.arg(panelFieldColor.blue())
+		.arg(panelFieldColor.alpha())
+		.arg(panelFieldBorderColor.red())
+		.arg(panelFieldBorderColor.green())
+		.arg(panelFieldBorderColor.blue())
+		.arg(panelFieldBorderColor.alpha())
+		.arg(treeBaseColor.red())
+		.arg(treeBaseColor.green())
+		.arg(treeBaseColor.blue())
+		.arg(treeBaseColor.alpha())
+		.arg(treeAlternateColor.red())
+		.arg(treeAlternateColor.green())
+		.arg(treeAlternateColor.blue())
+		.arg(treeAlternateColor.alpha()));
+}
+
+void GLWidget::refreshNavigationOverlayStyle()
+{
+	if (_navigationOverlayPanel)
+		applyOverlayPanelStyle(_navigationOverlayPanel, QStringLiteral("navigationOverlayPanel"));
+}
+
 void GLWidget::setClippingPlaneHatchMode(ClippingPlaneHatchMode mode)
 {
 	_hatchMode = mode;
@@ -8505,6 +8632,8 @@ void GLWidget::setBgBotColor(const QColor& bgBotColor)
 		tabs->setStyleSheet(tabStyleSheet);
 	}
 
+	refreshNavigationOverlayStyle();
+
 	update();
 }
 
@@ -8516,6 +8645,7 @@ QColor GLWidget::getBgTopColor() const
 void GLWidget::setBgTopColor(const QColor& bgTopColor)
 {
 	_bgTopColor = bgTopColor;
+	refreshNavigationOverlayStyle();
 	update();
 }
 
