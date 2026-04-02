@@ -34,6 +34,12 @@ public:
      */
     void addContentWidget(QWidget* widget);
 
+    /**
+     * Remove and return the content widget previously added via addContentWidget.
+     * Returns nullptr if no content widget is currently attached.
+     */
+    QWidget* takeContentWidget();
+
     bool isPinned() const;
 
 protected:
@@ -50,6 +56,8 @@ private:
     QToolButton* _pinButton;
     QIcon        _pinIcon;
     QIcon        _unpinIcon;
+    QWidget*     _contentWrapper = nullptr;
+    QWidget*     _contentWidget = nullptr;
 };
 
 #endif // FLOATINGPANELDIALOG_H

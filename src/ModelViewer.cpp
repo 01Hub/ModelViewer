@@ -614,6 +614,8 @@ void ModelViewer::reattachADSMaterialPanel()
 {
 	if (!_detachedADSMaterialDialog || !toolBox) return;
 	_detachedADSMaterialDialog->disconnect();
+	if (adsMaterialSettingsPanel)
+		adsMaterialSettingsPanel->setParent(nullptr);
 	_detachedADSMaterialDialog->deleteLater();
 	_detachedADSMaterialDialog = nullptr;
 	if (adsMaterialSettingsPanel && _adsMaterialOriginalParent && _adsMaterialPageIndex >= 0)
@@ -691,6 +693,8 @@ void ModelViewer::reattachTexturePanel()
 	if (!_detachedTextureDialog || !toolBox) return;
 
 	_detachedTextureDialog->disconnect();
+	if (textureMappingPanel)
+		textureMappingPanel->setParent(nullptr);
 	_detachedTextureDialog->deleteLater();
 	_detachedTextureDialog = nullptr;
 
@@ -772,6 +776,8 @@ void ModelViewer::reattachMaterialPanel()
 	if (!_detachedMaterialDialog || !toolBox) return;
 
 	_detachedMaterialDialog->disconnect();
+	if (predefinedMaterialsPanel)
+		predefinedMaterialsPanel->setParent(nullptr);
 	_detachedMaterialDialog->deleteLater();
 	_detachedMaterialDialog = nullptr;
 
@@ -840,6 +846,8 @@ void ModelViewer::reattachTransformationsPanel()
 {
 	if (!_detachedTransformationsDialog || !toolBox) return;
 	_detachedTransformationsDialog->disconnect();
+	if (objectTransformPanel)
+		objectTransformPanel->setParent(nullptr);
 	_detachedTransformationsDialog->deleteLater();
 	_detachedTransformationsDialog = nullptr;
 	if (objectTransformPanel && _transformationsOriginalParent && _transformationsPageIndex >= 0)
@@ -916,6 +924,8 @@ void ModelViewer::reattachEnvironmentPanel()
 {
 	if (!_detachedEnvironmentDialog || !toolBox) return;
 	_detachedEnvironmentDialog->disconnect();
+	if (visualizationEnvironmentPanel)
+		visualizationEnvironmentPanel->setParent(nullptr);
 	_detachedEnvironmentDialog->deleteLater();
 	_detachedEnvironmentDialog = nullptr;
 	if (visualizationEnvironmentPanel && _environmentOriginalParent && _environmentPageIndex >= 0)
@@ -978,7 +988,7 @@ void ModelViewer::detachNavigationPanel()
 	// a fixed proportional height we can read back), this widget lives in a
 	// user-resizable splitter, so its current height can be arbitrarily small
 	// and is not a reliable reference for the floating window size.
-	_detachedNavigationDialog->resize(420, static_cast<int>(height() * 0.75));
+	_detachedNavigationDialog->resize(420, static_cast<int>(height() * 0.75));	
 	_detachedNavigationDialog->show();
 	modelNavigationWidget->show();
 
@@ -990,8 +1000,23 @@ void ModelViewer::reattachNavigationPanel()
 {
 	if (!_detachedNavigationDialog || !splitter_2) return;
 
-	_detachedNavigationDialog->disconnect();
-	_detachedNavigationDialog->deleteLater();
+	QDialog* dialog = _detachedNavigationDialog;
+	_detachedNavigationDialog = nullptr;
+
+	disconnect(dialog, nullptr, this, nullptr);
+
+	if (auto* floatingDialog = qobject_cast<FloatingPanelDialog*>(dialog))
+	{
+		QWidget* content = floatingDialog->takeContentWidget();
+		if (content && content != modelNavigationWidget)
+			content->deleteLater();
+	}
+	else if (modelNavigationWidget)
+	{
+		modelNavigationWidget->setParent(nullptr);
+	}
+
+	dialog->deleteLater();
 	_detachedNavigationDialog = nullptr;
 
 	// Re-insert at index 0 (its original slot) — insertWidget handles the re-parent.

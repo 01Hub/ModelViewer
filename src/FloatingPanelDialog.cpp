@@ -53,12 +53,35 @@ FloatingPanelDialog::FloatingPanelDialog(QWidget* parent, const QString& title,
 
 void FloatingPanelDialog::addContentWidget(QWidget* widget)
 {
+    _contentWidget = widget;
+
     // Content gets a 6 px margin and expands to fill all remaining space.
-    QWidget* wrapper = new QWidget(this);
-    QVBoxLayout* wl  = new QVBoxLayout(wrapper);
+    _contentWrapper = new QWidget(this);
+    QVBoxLayout* wl  = new QVBoxLayout(_contentWrapper);
     wl->setContentsMargins(6, 4, 6, 6);
     wl->addWidget(widget);
-    _mainLayout->addWidget(wrapper, 1 /*stretch*/);
+    _mainLayout->addWidget(_contentWrapper, 1 /*stretch*/);
+}
+
+QWidget* FloatingPanelDialog::takeContentWidget()
+{
+    if (!_contentWidget)
+        return nullptr;
+
+    QWidget* widget = _contentWidget;
+    _contentWidget = nullptr;
+
+    if (_contentWrapper)
+    {
+        if (QLayout* layout = _contentWrapper->layout())
+            layout->removeWidget(widget);
+        _mainLayout->removeWidget(_contentWrapper);
+        _contentWrapper->deleteLater();
+        _contentWrapper = nullptr;
+    }
+
+    widget->setParent(nullptr);
+    return widget;
 }
 
 bool FloatingPanelDialog::isPinned() const
