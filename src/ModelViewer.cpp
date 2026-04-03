@@ -971,6 +971,8 @@ void ModelViewer::detachNavigationPanel()
 		_detachedNavigationOverlay->show();
 	}
 
+	toolButtonDetach->setIcon(QIcon(":/icons/res/reattach.png"));
+	toolButtonDetach->setToolTip(tr("Reattach to panel"));
 	modelNavigationWidget->show();
 }
 
@@ -1004,6 +1006,8 @@ void ModelViewer::reattachNavigationPanel()
 	if (!_navigationSplitterSizes.isEmpty())
 		splitter_2->setSizes(_navigationSplitterSizes);
 
+	toolButtonDetach->setIcon(QIcon(":/icons/res/detach.png"));
+	toolButtonDetach->setToolTip(tr("Detach from panel"));
 	modelNavigationWidget->show();
 }
 
