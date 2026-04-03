@@ -136,9 +136,9 @@ void TextureMappingPanel::onTintParamsChanged()
 void TextureMappingPanel::setDetached(bool detached)
 {
 	_detached = detached;
-	_ui->toolButtonDetach->setVisible(true);
-	_ui->toolButtonDetach->setToolTip(_detached ? tr("Reattach to panel") : tr("Detach from panel"));
-	_ui->lineSeparator->setVisible(true);
+	_ui->toolButtonDetach->setVisible(!_detached);
+	_ui->toolButtonDetach->setToolTip(tr("Detach from panel"));
+	_ui->lineSeparator->setVisible(!_detached);
 }
 
 void TextureMappingPanel::onContextMenu(const QPoint& pos)

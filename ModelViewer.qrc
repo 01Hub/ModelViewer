@@ -55,6 +55,7 @@
         <file>res/collapse.png</file>
         <file>res/expand.png</file>
         <file>res/expandall.png</file>
+        <file>res/reattach.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

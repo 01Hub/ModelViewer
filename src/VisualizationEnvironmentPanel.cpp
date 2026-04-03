@@ -803,9 +803,9 @@ void VisualizationEnvironmentPanel::updateLightPositionRanges(float range, float
 void VisualizationEnvironmentPanel::setDetached(bool detached)
 {
 	_detached = detached;
-	ui->toolButtonDetach->setVisible(true);
-	ui->toolButtonDetach->setToolTip(_detached ? tr("Reattach to panel") : tr("Detach from panel"));
-	ui->lineSeparator->setVisible(true);
+	ui->toolButtonDetach->setVisible(!_detached);
+	ui->toolButtonDetach->setToolTip(tr("Detach from panel"));
+	ui->lineSeparator->setVisible(!_detached);
 	if(detached)
 		ui->scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 	else

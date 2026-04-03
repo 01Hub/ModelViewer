@@ -3,6 +3,8 @@
 
 #include <QDialog>
 #include <QIcon>
+#include <QMoveEvent>
+#include <QPoint>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -43,8 +45,15 @@ public:
 
     bool isPinned() const;
 
+signals:
+    void reattachRequested();
+
 protected:
     void paintEvent(QPaintEvent* event) override;
+    void moveEvent(QMoveEvent* event) override;
+#ifdef Q_OS_WIN
+    bool nativeEvent(const QByteArray& eventType, void* message, qintptr* result) override;
+#endif
     /**
      * Overridden so that Escape does not close the dialog when pinned.
      * The X button goes through closeEvent, not reject(), so it is unaffected.
@@ -55,12 +64,16 @@ private:
     QVBoxLayout* _mainLayout;
     QHBoxLayout* _toolbarLayout;
     QWidget*     _toolbar;
+    QToolButton* _reattachButton;
     QToolButton* _pinButton;
+    QIcon        _reattachIcon;
     QIcon        _pinIcon;
     QIcon        _unpinIcon;
     QWidget*     _contentWrapper = nullptr;
     QWidget*     _contentWidget = nullptr;
     bool         _contentTransparencyEnabled = false;
+    QPoint       _lockedPosition;
+    bool         _restoringLockedPosition = false;
 };
 
 #endif // FLOATINGPANELDIALOG_H

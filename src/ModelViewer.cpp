@@ -605,7 +605,7 @@ void ModelViewer::detachADSMaterialPanel()
 	_detachedADSMaterialDialog->resize(420, std::min(adsMaterialSettingsPanel->height(), static_cast<int>(height() * 0.95)));
 	_detachedADSMaterialDialog->show();
 	adsMaterialSettingsPanel->setDetached(true);
-	connect(_detachedADSMaterialDialog, &QDialog::finished,
+	connect(floatingADSDlg, &FloatingPanelDialog::reattachRequested,
 		this, &ModelViewer::reattachADSMaterialPanel);
 }
 
@@ -682,7 +682,7 @@ void ModelViewer::detachTexturePanel()
 	_detachedTextureDialog->show();
 	textureMappingPanel->setDetached(true);
 
-	connect(_detachedTextureDialog, &QDialog::finished,
+	connect(floatingTexDlg, &FloatingPanelDialog::reattachRequested,
 		this, &ModelViewer::reattachTexturePanel);
 }
 
@@ -764,7 +764,7 @@ void ModelViewer::detachMaterialPanel()
 	_detachedMaterialDialog->show();
 	predefinedMaterialsPanel->setDetached(true);
 
-	connect(_detachedMaterialDialog, &QDialog::finished,
+	connect(floatingMatDlg, &FloatingPanelDialog::reattachRequested,
 		this, &ModelViewer::reattachMaterialPanel);
 }
 
@@ -834,7 +834,7 @@ void ModelViewer::detachTransformationsPanel()
 	_detachedTransformationsDialog->resize(420, std::min(objectTransformPanel->height(), static_cast<int>(height() * 0.95)));
 	_detachedTransformationsDialog->show();
 	objectTransformPanel->setDetached(true);
-	connect(_detachedTransformationsDialog, &QDialog::finished,
+	connect(floatingTransDlg, &FloatingPanelDialog::reattachRequested,
 		this, &ModelViewer::reattachTransformationsPanel);
 }
 
@@ -911,7 +911,7 @@ void ModelViewer::detachEnvironmentPanel()
 	_detachedEnvironmentDialog->show();
 	visualizationEnvironmentPanel->setDetached(true);
 
-	connect(_detachedEnvironmentDialog, &QDialog::finished,
+	connect(floatingEnvDlg, &FloatingPanelDialog::reattachRequested,
 		this, &ModelViewer::reattachEnvironmentPanel);
 }
 

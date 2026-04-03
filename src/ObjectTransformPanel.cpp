@@ -159,9 +159,9 @@ void ObjectTransformPanel::setControlsEnabled(bool enabled)
 void ObjectTransformPanel::setDetached(bool detached)
 {
 	_detached = detached;
-	ui->detachButton->setVisible(true);
-	ui->detachButton->setToolTip(_detached ? tr("Reattach to panel") : tr("Detach from panel"));
-	ui->separator->setVisible(true);
+	ui->detachButton->setVisible(!_detached);
+	ui->detachButton->setToolTip(tr("Detach from panel"));
+	ui->separator->setVisible(!_detached);
 }
 
 void ObjectTransformPanel::onApplyButtonClicked()

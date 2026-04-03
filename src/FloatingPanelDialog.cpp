@@ -1,9 +1,14 @@
 #include "FloatingPanelDialog.h"
 
 #include <QIcon>
+#include <QMoveEvent>
 #include <QPainter>
 #include <QPixmap>
 #include <QSizePolicy>
+#include <QTimer>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
 
 FloatingPanelDialog::FloatingPanelDialog(QWidget* parent, const QString& title,
                                          Qt::WindowFlags extraFlags)
@@ -11,6 +16,7 @@ FloatingPanelDialog::FloatingPanelDialog(QWidget* parent, const QString& title,
 {
     setWindowTitle(title);
     setObjectName("floatingPanelDialog");
+    setWindowFlags((windowFlags() | Qt::CustomizeWindowHint) & ~Qt::WindowCloseButtonHint);
 
     // ---- main layout (toolbar + content) ----
     _mainLayout = new QVBoxLayout(this);
@@ -29,24 +35,35 @@ FloatingPanelDialog::FloatingPanelDialog(QWidget* parent, const QString& title,
     // Spacer pushes pin button to the right
     _toolbarLayout->addStretch();
 
-    // Pin button — checkable, defaults to checked (pinned = Escape blocked)
+    _reattachButton = new QToolButton(_toolbar);
+    _reattachButton->setAutoRaise(true);
+    _reattachButton->setToolTip(tr("Reattach to panel"));
+    _reattachIcon = QIcon(QPixmap(":/icons/res/reattach.png"));
+    _reattachButton->setIcon(_reattachIcon);
+    connect(_reattachButton, &QToolButton::clicked,
+            this, &FloatingPanelDialog::reattachRequested);
+    _toolbarLayout->addWidget(_reattachButton);
+
+    // Pin button -> lock panel position while floating
     _pinButton = new QToolButton(_toolbar);
     _pinButton->setCheckable(true);
-    _pinButton->setChecked(true);
+    _pinButton->setChecked(false);
     _pinButton->setAutoRaise(true);
-    _pinButton->setToolTip(tr("Pin panel (prevent Escape from closing)"));
+    _pinButton->setToolTip(tr("Lock panel position"));
 
     // Build a two-state icon: normal = pinned, off = unpinned
     _pinIcon   = QIcon(QPixmap(":/icons/res/pin.png"));
     _unpinIcon = QIcon(QPixmap(":/icons/res/unpin.png"));
-    _pinButton->setIcon(_pinIcon);
+    _pinButton->setIcon(_unpinIcon);
 
     // Swap icon and tooltip whenever the pin state changes
     connect(_pinButton, &QToolButton::toggled, this, [this](bool checked) {
         _pinButton->setIcon(checked ? _pinIcon : _unpinIcon);
         _pinButton->setToolTip(checked
-            ? tr("Pin panel (prevent Escape from closing)")
-            : tr("Unpin panel (Escape will close)"));
+            ? tr("Unlock panel position")
+            : tr("Lock panel position"));
+        if (checked)
+            _lockedPosition = pos();
     });
 
     _toolbarLayout->addWidget(_pinButton);
@@ -143,6 +160,60 @@ void FloatingPanelDialog::paintEvent(QPaintEvent* event)
     QDialog::paintEvent(event);
 }
 
+void FloatingPanelDialog::moveEvent(QMoveEvent* event)
+{
+    QDialog::moveEvent(event);
+
+    if (_restoringLockedPosition)
+        return;
+
+    if (!_pinButton->isChecked())
+    {
+        _lockedPosition = pos();
+        return;
+    }
+
+    if (_lockedPosition.isNull())
+    {
+        _lockedPosition = event->oldPos();
+        if (_lockedPosition.isNull())
+            _lockedPosition = pos();
+    }
+
+    if (pos() == _lockedPosition)
+        return;
+
+    const QPoint targetPos = _lockedPosition;
+    QTimer::singleShot(0, this, [this, targetPos]() {
+        if (!_pinButton->isChecked())
+            return;
+        _restoringLockedPosition = true;
+        move(targetPos);
+        _restoringLockedPosition = false;
+    });
+}
+
+#ifdef Q_OS_WIN
+bool FloatingPanelDialog::nativeEvent(const QByteArray& eventType, void* message, qintptr* result)
+{
+    Q_UNUSED(eventType);
+
+    if (_pinButton && _pinButton->isChecked() && message)
+    {
+        MSG* msg = static_cast<MSG*>(message);
+        if ((msg->message == WM_NCLBUTTONDOWN && msg->wParam == HTCAPTION) ||
+            (msg->message == WM_SYSCOMMAND && ((msg->wParam & 0xFFF0) == SC_MOVE)))
+        {
+            if (result)
+                *result = 0;
+            return true;
+        }
+    }
+
+    return QDialog::nativeEvent(eventType, message, result);
+}
+#endif
+
 bool FloatingPanelDialog::isPinned() const
 {
     return _pinButton->isChecked();
@@ -150,7 +221,7 @@ bool FloatingPanelDialog::isPinned() const
 
 void FloatingPanelDialog::reject()
 {
-    if (_pinButton->isChecked())
-        return;          // pinned — swallow Escape, do nothing
-    QDialog::reject();   // unpinned — close normally
+    return;
 }
+
+
