@@ -505,7 +505,6 @@ void Logger::setConsoleEnabled(bool enabled)
             if (consoleWindow)
             {
                 ShowWindow(consoleWindow, SW_SHOW);
-                SetForegroundWindow(consoleWindow);
             }
         }
     }
@@ -547,7 +546,6 @@ void Logger::spawnConsole()
         if (consoleWindow)
         {
             ShowWindow(consoleWindow, SW_SHOW);
-            SetForegroundWindow(consoleWindow);
         }
 
         consoleAllocated = true;

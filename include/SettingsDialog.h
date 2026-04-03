@@ -268,10 +268,12 @@ private slots:
     void restoreDefaults();	
 
 private:
+    void captureAppliedState();
+    void syncStateFromUi();
+    void updateSettingsHint();
     void setDefaultValues();
     void applySettings();    
     void loadSettings();
-    void saveSettings();	
 
 private:
 
@@ -410,6 +412,12 @@ private:
     bool debug_profileRendering = false;
 
 	ThemeManager* _themeManager;
+
+    int _appliedThemeIndex = 0;
+    int _appliedLanguageIndex = 0;
+    bool _appliedDebugEnableLogging = false;
+    bool _appliedDebugEnableConsoleOutput = false;
+    int _appliedDebugLogLevelIndex = 0;
 
     Ui::SettingsDialog *ui;	
 };

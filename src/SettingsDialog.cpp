@@ -38,11 +38,17 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
 
     loadSettings();
 
+    connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this]() {
+        updateSettingsHint();
+    });
+    updateSettingsHint();
+
     connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
        ui->retranslateUi(this);
         retranslateUI();  // if needed
         QTimer::singleShot(0, this, [this]() {
             retranslateUI();  // Final force
+            updateSettingsHint();
         });
         });
 }
@@ -50,7 +56,6 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
 SettingsDialog::~SettingsDialog()
 {
 	blockSignals(true);
-    saveSettings();
     delete ui;
 }
 
@@ -65,6 +70,7 @@ void SettingsDialog::retranslateUI()
         ui->buttonBox->button(QDialogButtonBox::Apply)->setText(QCoreApplication::translate("SettingsDialog", "Apply"));
     if (ui->buttonBox->button(QDialogButtonBox::RestoreDefaults))
         ui->buttonBox->button(QDialogButtonBox::RestoreDefaults)->setText(QCoreApplication::translate("SettingsDialog", "Defaults"));
+    updateSettingsHint();
 
     ui->buttonBox->updateGeometry();
     ui->buttonBox->update();
@@ -116,7 +122,7 @@ void SettingsDialog::setMaxAnisotropy(int maxAnisotropy)
 void SettingsDialog::onOkClicked()
 {
 	applySettings();
-    QTimer::singleShot(0, this, &QDialog::accept);
+    QDialog::accept();
 }
 
 void SettingsDialog::onCancelClicked()
@@ -131,17 +137,24 @@ void SettingsDialog::onApplyClicked()
 
 void SettingsDialog::onRestoreDefaults()
 {
-    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-	qDebug() << "Restoring default settings...";
-    settings.clear();
+    blockAllChildWidgetSignals(true);
 	setDefaultValues();
-    qDebug() << "All settings have been reset to defaults.";
-    QMessageBox::information(this, tr("Settings Reset"), tr("All settings have been cleared."));
+    blockAllChildWidgetSignals(false);
+    syncStateFromUi();
+    QMessageBox::information(this, tr("Defaults Staged"), tr("Default settings are loaded in the dialog. Click Apply or OK to save them."));
 }
 
 
 void SettingsDialog::applySettings()
 {
+    syncStateFromUi();
+
+    const bool themeChanged = (_appliedThemeIndex != general_themeIndex);
+    const bool languageChanged = (_appliedLanguageIndex != general_languageIndex);
+    const bool fileLoggingChanged = (_appliedDebugEnableLogging != debug_enableLogging);
+    const bool consoleLoggingChanged = (_appliedDebugEnableConsoleOutput != debug_enableConsoleOutput);
+    const bool logLevelChanged = (_appliedDebugLogLevelIndex != debug_logLevelIndex);
+
     // Apply the settings of the UI elements
     QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 
@@ -162,7 +175,14 @@ void SettingsDialog::applySettings()
         langCode = "it"; // Italian    
     settings.setValue("App/Language", langCode);
 
-    LanguageManager::instance().loadLanguage(langCode);
+    if (themeChanged)
+    {
+        _themeManager->setTheme(static_cast<ThemeManager::Theme>(general_themeIndex));
+    }
+    if (languageChanged)
+    {
+        LanguageManager::instance().loadLanguage(langCode);
+    }
 
     settings.setValue("checkPromptOverwrite", general_promptOverwrite);
     settings.setValue("checkRestoreLastFile", general_restoreLastFile);
@@ -292,6 +312,26 @@ void SettingsDialog::applySettings()
     settings.setValue("checkOpenGLErrorsCheckBox", debug_checkOpenGLErrors);
     settings.setValue("validateShadersCheckBox", debug_validateShaders);
     settings.setValue("profileRenderingCheckBox", debug_profileRendering);
+
+    if (general_showTutorialLauncher)
+    {
+        settings.setValue("tutorial/displayMode", "ask");
+    }
+
+    if (fileLoggingChanged)
+    {
+        Logger::instance().setFileEnabled(debug_enableLogging);
+    }
+    if (consoleLoggingChanged)
+    {
+        Logger::instance().setConsoleEnabled(debug_enableConsoleOutput);
+    }
+    if (logLevelChanged)
+    {
+        Logger::instance().setMinimumLevel(static_cast<Logger::LogLevel>(debug_logLevelIndex));
+    }
+
+    captureAppliedState();
 
     // Notify other parts of the application about the settings change
 	emit settingsChanged();
@@ -446,11 +486,182 @@ void SettingsDialog::setDefaultValues()
     ui->profileRenderingCheckBox->setChecked(false);
 }
 
+void SettingsDialog::captureAppliedState()
+{
+    _appliedThemeIndex = general_themeIndex;
+    _appliedLanguageIndex = general_languageIndex;
+    _appliedDebugEnableLogging = debug_enableLogging;
+    _appliedDebugEnableConsoleOutput = debug_enableConsoleOutput;
+    _appliedDebugLogLevelIndex = debug_logLevelIndex;
+}
+
+void SettingsDialog::updateSettingsHint()
+{
+    if (!ui || !ui->label_5 || !ui->tabWidget)
+        return;
+
+    QString hint = QCoreApplication::translate("SettingsDialog",
+        "Some settings apply immediately. Others take effect only for newly opened documents or after restarting the application.");
+
+    QWidget* currentTab = ui->tabWidget->currentWidget();
+    if (currentTab == ui->tabDisplay || currentTab == ui->tabRendering || currentTab == ui->tabDebug)
+    {
+        hint = QCoreApplication::translate("SettingsDialog",
+            "Most settings on this tab apply immediately. MSAA and some graphics options may still require restarting the application.");
+    }
+    else if (currentTab == ui->tabImportExport || currentTab == ui->tabPerformance)
+    {
+        hint = QCoreApplication::translate("SettingsDialog",
+            "These settings are primarily used for newly opened documents and future imports/exports. They may not affect models that are already loaded.");
+    }
+    else if (currentTab == ui->tabAdvanced)
+    {
+        hint = QCoreApplication::translate("SettingsDialog",
+            "Advanced graphics settings often require restarting the application to take full effect.");
+    }
+    else if (currentTab == ui->tabCamera || currentTab == ui->tabUVGeneration)
+    {
+        hint = QCoreApplication::translate("SettingsDialog",
+            "These settings are mainly used as defaults for future actions and newly opened documents.");
+    }
+
+    ui->label_5->setText(hint);
+}
+
 void SettingsDialog::blockAllChildWidgetSignals(bool block)
 {
     const auto widgets = this->findChildren<QWidget*>();
     for (QWidget* widget : widgets)
         widget->blockSignals(block);
+}
+
+void SettingsDialog::syncStateFromUi()
+{
+    // General tab
+    general_themeIndex = ui->comboBoxTheme->currentIndex();
+    general_languageIndex = ui->comboBoxLanguage->currentIndex();
+    general_promptOverwrite = ui->checkPromptOverwrite->isChecked();
+    general_restoreLastFile = ui->checkRestoreLastFile->isChecked();
+    general_showTooltips = ui->checkTooltips->isChecked();
+    general_confirmExit = ui->checkConfirmExit->isChecked();
+    general_showTutorialLauncher = ui->checkTutorialLaunch->isChecked();
+    general_undoLimit = ui->spinBoxUndoLimit->value();
+
+    // Camera tab
+    camera_projectionModeIndex = ui->comboProjectionMode->currentIndex();
+    camera_defaultViewIndex = ui->comboDefaultView->currentIndex();
+    camera_defaultProjectionIndex = ui->comboDefaultProjection->currentIndex();
+    camera_trackball = ui->checkTrackball->isChecked();
+    camera_invertZoom = ui->checkInvertZoom->isChecked();
+    camera_zoomFactor = ui->spinZoomFactor->value();
+
+    // Background tab
+    background_styleIndex = ui->comboBoxBackgroundStyle->currentIndex();
+    background_gradientStyleIndex = ui->comboBoxGradientStyle->currentIndex();
+    background_topColor = ui->pushButtonTopColor->property("color").value<QColor>();
+    background_bottomColor = ui->pushButtonBottomColor->property("color").value<QColor>();
+
+    // Display tab
+    display_showBoundingBox = ui->showBoundingBoxCheckBox->isChecked();
+    display_showCornerTrihedron = ui->showCornerTrihedronCheckBox->isChecked();
+    display_cornerTrihedronPosition = ui->comboBoxCornerTrihedronPosition->currentIndex();
+    display_showGrid = ui->showGridCheckBox->isChecked();
+    display_showWireframe = ui->showWireframeCheckBox->isChecked();
+    display_fieldOfView = ui->fieldOfViewSpinBox->value();
+    display_nearPlane = ui->nearPlaneSpinBox->value();
+    display_farPlane = ui->farPlaneSpinBox->value();
+    display_showCenterTrihedron = ui->showCenterTrihedronCheckBox->isChecked();
+
+    // Navigation group
+    navigation_modeIndex = ui->navigationModeComboBox->currentIndex();
+    navigation_mouseSensitivity = ui->mouseSensitivitySlider->value();
+    navigation_zoomSensitivity = ui->zoomSensitivitySlider->value();
+    navigation_invertYAxis = ui->invertYAxisCheckBox->isChecked();
+    navigation_smoothNavigation = ui->smoothNavigationCheckBox->isChecked();
+
+    // Rendering tab
+    rendering_shadingModeIndex = ui->comboShadingMode->currentIndex();
+    rendering_backfaceCulling = ui->checkBackfaceCulling->isChecked();
+    rendering_normalMap = ui->checkNormalMap->isChecked();
+    rendering_shaderModelIndex = ui->shaderModelComboBox->currentIndex();
+    rendering_msaaIndex = ui->msaaComboBox->currentIndex();
+    rendering_anisotropyIndex = ui->anisotropyComboBox->currentIndex();
+
+    // Lighting
+    lighting_enableLighting = ui->enableLightingCheckBox->isChecked();
+    lighting_enableShadows = ui->enableShadowsCheckBox->isChecked();
+    lighting_ambient = ui->ambientLightSlider->value();
+    lighting_diffuse = ui->diffuseLightSlider->value();
+    lighting_specular = ui->specularLightSlider->value();
+
+    // Materials
+    materials_defaultMaterialIndex = ui->comboBoxDefaultMaterial->currentIndex();
+    materials_textureDir = ui->lineEditTextureDir->text();
+
+    // UV Generation Tab
+    uv_methodIndex = ui->comboUVMethod->currentIndex();
+    uv_angleThreshold = ui->spinAngleThreshold->value();
+    uv_preserveUVs = ui->checkPreserveUVs->isChecked();
+    uv_autoPackUVs = ui->checkAutoPackUVs->isChecked();
+    uv_relaxUVs = ui->checkRelaxUVs->isChecked();
+    uv_pcaProjection = ui->checkPCAProjection->isChecked();
+    uv_xatlasPackingOnly = ui->checkXatlasPackingOnly->isChecked();
+    uv_rememberUV = ui->checkRememberUV->isChecked();
+
+    // Import/Export Tab
+    import_tessellationQuality = ui->tessellationQualitySlider->value();
+    import_linearDeflection = ui->linearDeflectionSpinBox->value();
+    import_angularDeflection = ui->angularDeflectionSpinBox->value();
+    import_occtUnifyFaces = ui->occtUnifyFacesCheckBox->isChecked();
+    import_occtUnifyEdges = ui->occtUnifyEdgesCheckBox->isChecked();
+    import_occtBuildCurves = ui->occtBuildCurvesCheckBox->isChecked();
+    import_assimpTriangulate = ui->assimpTriangulateCheckBox->isChecked();
+    import_assimpGenNormals = ui->assimpGenNormalsCheckBox->isChecked();
+    import_assimpSmoothNormals = ui->assimpSmoothNormalsCheckBox->isChecked();
+    import_assimpCalcTangents = ui->assimpCalcTangentsCheckBox->isChecked();
+    import_assimpOptimizeMesh = ui->assimpOptimizeMeshCheckBox->isChecked();
+    import_assimpRemoveDuplicates = ui->assimpRemoveDuplicatesCheckBox->isChecked();
+    import_assimpAutoScaleModel = ui->assimpAutoScaleCheckBox->isChecked();
+    import_assimpAutoOrientModel = ui->assimpAutoOrientCheckBox->isChecked();
+    import_assimpMaxFaceVertices = ui->assimpMaxFaceVerticesSpinBox->value();
+    export_exportScene = ui->radioButtonExportScene->isChecked();
+    export_exportMeshes = ui->radioButtonExportMeshes->isChecked();
+
+    // Performance Tab
+    perf_multithreadedLoad = ui->checkMultithreadedLoad->isChecked();
+    perf_threadLimit = ui->spinThreadLimit->value();
+    perf_skyboxBlending = ui->checkSkyboxBlending->isChecked();
+    perf_progressiveLoading = ui->checkProgressiveLoading->isChecked();
+    perf_maxFps = ui->maxFpsSpinBox->value();
+    perf_vsync = ui->vsyncCheckBox->isChecked();
+    perf_frustumCulling = ui->frustumCullingCheckBox->isChecked();
+    perf_backfaceCulling = ui->backfaceCullingCheckBox->isChecked();
+    perf_levelOfDetail = ui->levelOfDetailCheckBox->isChecked();
+    perf_maxVertices = ui->maxVerticesSpinBox->value();
+    perf_textureCacheSize = ui->textureCacheSizeSpinBox->value();
+    perf_geometryCacheSize = ui->geometryCacheSizeSpinBox->value();
+    perf_compressTextures = ui->compressTexturesCheckBox->isChecked();
+    perf_generateMipmaps = ui->generateMipmapsCheckBox->isChecked();
+
+    // Advanced Tab
+    advanced_openGLVersionIndex = ui->comboBoxOpenGLVersion->currentIndex();
+    advanced_vsync = ui->checkBoxVSync->isChecked();
+    advanced_threads = ui->spinBoxThreads->value();
+    advanced_shaderHotReload = ui->checkShaderHotReload->isChecked();
+    advanced_showFPS = ui->checkShowFPS->isChecked();
+    advanced_legacyOpenGL = ui->checkLegacyOpenGL->isChecked();
+
+    // Debug Tab
+    debug_showFps = ui->showFpsCheckBox->isChecked();
+    debug_showMemoryUsage = ui->showMemoryUsageCheckBox->isChecked();
+    debug_showRenderStats = ui->showRenderStatsCheckBox->isChecked();
+    debug_showOpenGLInfo = ui->showOpenGLInfoCheckBox->isChecked();
+    debug_enableLogging = ui->enableLoggingCheckBox->isChecked();
+    debug_enableConsoleOutput = ui->enableConsoleCheckBox->isChecked();
+    debug_logLevelIndex = ui->logLevelComboBox->currentIndex();
+    debug_checkOpenGLErrors = ui->checkOpenGLErrorsCheckBox->isChecked();
+    debug_validateShaders = ui->validateShadersCheckBox->isChecked();
+    debug_profileRendering = ui->profileRenderingCheckBox->isChecked();
 }
 
 void SettingsDialog::loadSettings()
@@ -657,112 +868,8 @@ void SettingsDialog::loadSettings()
     ui->profileRenderingCheckBox->setChecked(bVal);
 
     blockAllChildWidgetSignals(false);
-}
-
-void SettingsDialog::saveSettings()
-{
-    if (!ui) return;
-
-	qDebug() << "Saving settings to QSettings...";
-    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    settings.setValue("comboBoxTheme", ui->comboBoxTheme->currentIndex());
-    settings.setValue("comboBoxLanguage", ui->comboBoxLanguage->currentIndex());
-    settings.setValue("checkPromptOverwrite", ui->checkPromptOverwrite->isChecked());
-    settings.setValue("checkRestoreLastFile", ui->checkRestoreLastFile->isChecked());
-    settings.setValue("checkTooltips", ui->checkTooltips->isChecked());
-    settings.setValue("checkConfirmExit", ui->checkConfirmExit->isChecked());
-	settings.setValue("checkTutorialLaunch", ui->checkTutorialLaunch->isChecked());
-	settings.setValue("spinBoxUndoLimit", ui->spinBoxUndoLimit->value());
-    settings.setValue("comboProjectionMode", ui->comboProjectionMode->currentIndex());
-    settings.setValue("comboDefaultView", ui->comboDefaultView->currentIndex());
-    settings.setValue("comboDefaultProjection", ui->comboDefaultProjection->currentIndex());
-    settings.setValue("checkTrackball", ui->checkTrackball->isChecked());
-    settings.setValue("checkInvertZoom", ui->checkInvertZoom->isChecked());
-    settings.setValue("spinZoomFactor", ui->spinZoomFactor->value());
-    settings.setValue("comboBoxBackgroundStyle", ui->comboBoxBackgroundStyle->currentIndex());
-    settings.setValue("comboBoxGradientStyle", ui->comboBoxGradientStyle->currentIndex());
-    settings.setValue("showBoundingBoxCheckBox", ui->showBoundingBoxCheckBox->isChecked());
-    settings.setValue("showCornerTrihedronCheckBox", ui->showCornerTrihedronCheckBox->isChecked());
-    settings.setValue("comboBoxCornerTrihedronPosition", ui->comboBoxCornerTrihedronPosition->currentIndex());
-    settings.setValue("farPlaneSpinBox", ui->farPlaneSpinBox->value());
-    settings.setValue("fieldOfViewSpinBox", ui->fieldOfViewSpinBox->value());
-    settings.setValue("showGridCheckBox", ui->showGridCheckBox->isChecked());
-    settings.setValue("nearPlaneSpinBox", ui->nearPlaneSpinBox->value());
-    settings.setValue("showWireframeCheckBox", ui->showWireframeCheckBox->isChecked());
-    settings.setValue("showCenterTrihedronCheckBox", ui->showCenterTrihedronCheckBox->isChecked());    
-    settings.setValue("navigationModeComboBox", ui->navigationModeComboBox->currentIndex());
-    settings.setValue("mouseSensitivitySlider", ui->mouseSensitivitySlider->value());
-    settings.setValue("zoomSensitivitySlider", ui->zoomSensitivitySlider->value());
-    settings.setValue("invertYAxisCheckBox", ui->invertYAxisCheckBox->isChecked());
-    settings.setValue("smoothNavigationCheckBox", ui->smoothNavigationCheckBox->isChecked());
-    settings.setValue("comboShadingMode", ui->comboShadingMode->currentIndex());
-    settings.setValue("checkBackfaceCulling", ui->checkBackfaceCulling->isChecked());
-    settings.setValue("checkNormalMap", ui->checkNormalMap->isChecked());
-    settings.setValue("shaderModelComboBox", ui->shaderModelComboBox->currentIndex());
-    settings.setValue("msaaComboBox", ui->msaaComboBox->currentIndex());
-    settings.setValue("anisotropyComboBox", ui->anisotropyComboBox->currentIndex());
-    settings.setValue("enableLightingCheckBox", ui->enableLightingCheckBox->isChecked());
-    settings.setValue("enableShadowsCheckBox", ui->enableShadowsCheckBox->isChecked());
-    settings.setValue("ambientLightSlider", ui->ambientLightSlider->value());
-    settings.setValue("diffuseLightSlider", ui->diffuseLightSlider->value());
-    settings.setValue("specularLightSlider", ui->specularLightSlider->value());
-    settings.setValue("lineEditTextureDir", ui->lineEditTextureDir->text());
-    settings.setValue("comboBoxDefaultMaterial", ui->comboBoxDefaultMaterial->currentIndex());
-    settings.setValue("comboUVMethod", ui->comboUVMethod->currentIndex());
-    settings.setValue("spinAngleThreshold", ui->spinAngleThreshold->value());
-    settings.setValue("checkPreserveUVs", ui->checkPreserveUVs->isChecked());
-    settings.setValue("checkAutoPackUVs", ui->checkAutoPackUVs->isChecked());
-    settings.setValue("checkRelaxUVs", ui->checkRelaxUVs->isChecked());
-    settings.setValue("checkPCAProjection", ui->checkPCAProjection->isChecked());
-    settings.setValue("checkXatlasPackingOnly", ui->checkXatlasPackingOnly->isChecked());
-    settings.setValue("checkRememberUV", ui->checkRememberUV->isChecked());
-    settings.setValue("tessellationQualitySlider", ui->tessellationQualitySlider->value());
-    settings.setValue("linearDeflectionSpinBox", ui->linearDeflectionSpinBox->value());
-    settings.setValue("angularDeflectionSpinBox", ui->angularDeflectionSpinBox->value());
-    settings.setValue("occtUnifyFacesCheckBox", ui->occtUnifyFacesCheckBox->isChecked());
-    settings.setValue("occtUnifyEdgesCheckBox", ui->occtUnifyEdgesCheckBox->isChecked());
-    settings.setValue("occtBuildCurvesCheckBox", ui->occtBuildCurvesCheckBox->isChecked());
-    settings.setValue("assimpTriangulateCheckBox", ui->assimpTriangulateCheckBox->isChecked());
-    settings.setValue("assimpGenNormalsCheckBox", ui->assimpGenNormalsCheckBox->isChecked());
-    settings.setValue("assimpSmoothNormalsCheckBox", ui->assimpSmoothNormalsCheckBox->isChecked());
-    settings.setValue("assimpCalcTangentsCheckBox", ui->assimpCalcTangentsCheckBox->isChecked());
-    settings.setValue("assimpOptimizeMeshCheckBox", ui->assimpOptimizeMeshCheckBox->isChecked());
-    settings.setValue("assimpRemoveDuplicatesCheckBox", ui->assimpRemoveDuplicatesCheckBox->isChecked());
-	settings.setValue("assimpAutoOrientCheckBox", ui->assimpAutoOrientCheckBox->isChecked());
-	settings.setValue("assimpAutoScaleCheckBox", ui->assimpAutoScaleCheckBox->isChecked());
-    settings.setValue("assimpMaxFaceVerticesSpinBox", ui->assimpMaxFaceVerticesSpinBox->value());
-	settings.setValue("radioButtonExportScene", ui->radioButtonExportScene->isChecked());
-	settings.setValue("radioButtonExportMeshes", ui->radioButtonExportMeshes->isChecked());
-    settings.setValue("checkMultithreadedLoad", ui->checkMultithreadedLoad->isChecked());
-    settings.setValue("spinThreadLimit", ui->spinThreadLimit->value());
-    settings.setValue("checkSkyboxBlending", ui->checkSkyboxBlending->isChecked());
-    settings.setValue("checkProgressiveLoading", ui->checkProgressiveLoading->isChecked());
-    settings.setValue("maxFpsSpinBox", ui->maxFpsSpinBox->value());
-    settings.setValue("vsyncCheckBox", ui->vsyncCheckBox->isChecked());
-    settings.setValue("frustumCullingCheckBox", ui->frustumCullingCheckBox->isChecked());
-    settings.setValue("backfaceCullingCheckBox", ui->backfaceCullingCheckBox->isChecked());
-    settings.setValue("levelOfDetailCheckBox", ui->levelOfDetailCheckBox->isChecked());
-    settings.setValue("maxVerticesSpinBox", ui->maxVerticesSpinBox->value());
-    settings.setValue("textureCacheSizeSpinBox", ui->textureCacheSizeSpinBox->value());
-    settings.setValue("geometryCacheSizeSpinBox", ui->geometryCacheSizeSpinBox->value());
-    settings.setValue("compressTexturesCheckBox", ui->compressTexturesCheckBox->isChecked());
-    settings.setValue("generateMipmapsCheckBox", ui->generateMipmapsCheckBox->isChecked());
-    settings.setValue("comboBoxOpenGLVersion", ui->comboBoxOpenGLVersion->currentIndex());
-    settings.setValue("checkBoxVSync", ui->checkBoxVSync->isChecked());
-    settings.setValue("checkShaderHotReload", ui->checkShaderHotReload->isChecked());
-    settings.setValue("checkShowFPS", ui->checkShowFPS->isChecked());
-    settings.setValue("checkLegacyOpenGL", ui->checkLegacyOpenGL->isChecked());
-    settings.setValue("spinBoxThreads", ui->spinBoxThreads->value());
-    settings.setValue("showFpsCheckBox", ui->showFpsCheckBox->isChecked());
-    settings.setValue("showMemoryUsageCheckBox", ui->showMemoryUsageCheckBox->isChecked());
-    settings.setValue("showRenderStatsCheckBox", ui->showRenderStatsCheckBox->isChecked());
-    settings.setValue("showOpenGLInfoCheckBox", ui->showOpenGLInfoCheckBox->isChecked());
-    settings.setValue("enableLoggingCheckBox", ui->enableLoggingCheckBox->isChecked());
-	settings.setValue("enableConsoleCheckBox", ui->enableConsoleCheckBox->isChecked());
-    settings.setValue("logLevelComboBox", ui->logLevelComboBox->currentIndex());
-    settings.setValue("checkOpenGLErrorsCheckBox", ui->checkOpenGLErrorsCheckBox->isChecked());
-    settings.setValue("validateShadersCheckBox", ui->validateShadersCheckBox->isChecked());
-    settings.setValue("profileRenderingCheckBox", ui->profileRenderingCheckBox->isChecked());
+    syncStateFromUi();
+    captureAppliedState();
 }
 
 void SettingsDialog::restoreDefaults()
@@ -870,7 +977,6 @@ void SettingsDialog::restoreDefaults()
 void SettingsDialog::on_comboBoxTheme_currentIndexChanged()
 {
     general_themeIndex = ui->comboBoxTheme->currentIndex();
-    _themeManager->setTheme(static_cast<ThemeManager::Theme>(general_themeIndex));
 }
 
 void SettingsDialog::on_comboBoxLanguage_currentIndexChanged()
@@ -901,11 +1007,6 @@ void SettingsDialog::on_checkConfirmExit_stateChanged()
 void SettingsDialog::on_checkTutorialLaunch_stateChanged()
 {
 	general_showTutorialLauncher = ui->checkTutorialLaunch->isChecked();
-    if (general_showTutorialLauncher)
-    {
-        QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-        settings.setValue("tutorial/displayMode", "ask");
-    }
 }
 
 void SettingsDialog::on_spinBoxUndoLimit_valueChanged()
@@ -1071,7 +1172,6 @@ void SettingsDialog::on_msaaComboBox_currentIndexChanged()
 void SettingsDialog::on_anisotropyComboBox_currentIndexChanged()
 {
     rendering_anisotropyIndex = ui->anisotropyComboBox->currentIndex();
-    QMessageBox::information(this, tr("Anisotropy Change"), tr("Please restart the application for the anisotropy change to take effect."));
 }
 
 // Lighting
@@ -1375,20 +1475,17 @@ void SettingsDialog::on_showOpenGLInfoCheckBox_stateChanged()
 
 void SettingsDialog::on_enableLoggingCheckBox_stateChanged()
 {
-    debug_enableLogging = ui->enableLoggingCheckBox->isChecked();        
-    Logger::instance().setFileEnabled(debug_enableLogging);
+    debug_enableLogging = ui->enableLoggingCheckBox->isChecked();
 }
 
 void SettingsDialog::on_enableConsoleCheckBox_stateChanged()
 {
-	debug_enableConsoleOutput = ui->enableConsoleCheckBox->isChecked();    	
-    Logger::instance().setConsoleEnabled(debug_enableConsoleOutput);
+	debug_enableConsoleOutput = ui->enableConsoleCheckBox->isChecked();
 }
 
 void SettingsDialog::on_logLevelComboBox_currentIndexChanged()
 {
     debug_logLevelIndex = ui->logLevelComboBox->currentIndex();
-    Logger::instance().setMinimumLevel(static_cast<Logger::LogLevel>(debug_logLevelIndex));
 }
 
 void SettingsDialog::on_checkOpenGLErrorsCheckBox_stateChanged()

@@ -97,6 +97,8 @@ public:
 	void setPanningActive(bool active);
 	void setZoomingActive(bool active);
 
+	void setShowCenterAxisOverride(bool show) { _userShowAxisOverride = show; update(); }
+	void setShowCornerAxisOverride(bool show) { _userShowCornerAxisOverride = show; update(); }
 	void setCornerAxisPosition(CornerAxisPosition position) { _cornerAxisPosition = position; }
 
 	void beginWindowZoom();
