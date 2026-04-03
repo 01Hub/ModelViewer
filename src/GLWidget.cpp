@@ -344,6 +344,9 @@ _assimpModelLoader(nullptr)
 
 	_clippingPlanesEditor = new ClippingPlanesEditor(this);
 	_lowerLayout->addWidget(_clippingPlanesEditor);
+	_clippingPlanesEditor->applyContrastTheme((_bgBotColor.lightnessF() < 0.5)
+		? QColor(255, 255, 255)
+		: QColor(0, 0, 0));
 	_clippingPlanesEditor->hide();
 
 	//_displayedObjectsIds.push_back(0);
@@ -8618,16 +8621,13 @@ void GLWidget::setBgBotColor(const QColor& bgBotColor)
 	QColor contrastColor = (_bgBotColor.lightnessF() < 0.5)
 						   ? QColor(255, 255, 255)
 						   : QColor(0, 0, 0);
-
-	const QString textColorStyle = QString("color: rgb(%1, %2, %3);")
-								   .arg(contrastColor.red())
-								   .arg(contrastColor.green())
-								   .arg(contrastColor.blue());
-
-	_clippingPlanesEditor->setStyleSheet(textColorStyle);
+	_clippingPlanesEditor->applyContrastTheme(contrastColor);
 
 	if (QTabWidget* tabs = _viewer->findChild<QTabWidget*>("tabWidget")) {
-		const QString tabStyleSheet = textColorStyle +
+		const QString tabStyleSheet = QString("color: rgb(%1, %2, %3);")
+									  .arg(contrastColor.red())
+									  .arg(contrastColor.green())
+									  .arg(contrastColor.blue()) +
 									  "background-color: rgba(255, 255, 255, 0);";
 		tabs->setStyleSheet(tabStyleSheet);
 	}

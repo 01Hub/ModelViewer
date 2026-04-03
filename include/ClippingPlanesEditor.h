@@ -14,6 +14,7 @@ public:
 	~ClippingPlanesEditor();
 
 	void setCoefficientLimits(double xMin, double xMax, double yMin, double yMax, double zMin, double zMax);
+	void applyContrastTheme(const QColor& textColor);
 
 protected slots:
 	void keyPressEvent(QKeyEvent* e);

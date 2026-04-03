@@ -123,6 +123,22 @@ ClippingPlanesEditor::~ClippingPlanesEditor()
 {
 }
 
+void ClippingPlanesEditor::applyContrastTheme(const QColor& textColor)
+{
+	const QString editorStyle = QString("color: rgb(%1, %2, %3);")
+		.arg(textColor.red())
+		.arg(textColor.green())
+		.arg(textColor.blue());
+	setStyleSheet(editorStyle);
+
+	const QString blackTextStyle = QStringLiteral("color: rgb(0, 0, 0);");
+	pushButtonResetCoeffs->setStyleSheet(blackTextStyle);
+	pushButtonDefaultValues->setStyleSheet(blackTextStyle);
+	pushButtonResetAll->setStyleSheet(blackTextStyle);
+	pushButtonTexture->setStyleSheet(QStringLiteral("background-color: rgba(255, 255, 255, 5%); color: rgb(0, 0, 0);"));
+	comboBoxHatchMode->setStyleSheet(blackTextStyle);
+}
+
 void ClippingPlanesEditor::setCoefficientLimits(double xMin, double xMax, double yMin, double yMax, double zMin, double zMax)
 {
 	doubleSpinBoxXYCoeff->setRange(zMin, zMax);
