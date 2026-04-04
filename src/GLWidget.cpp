@@ -5690,6 +5690,7 @@ void GLWidget::render(GLCamera* camera)
 
 	// --- 2.5) Section caps (after opaque, before floor & transparents) ---
 	if (_cappingEnabled &&
+		!_sectionCapsSuppressedDuringInteraction &&
 		(_clipYZEnabled || _clipZXEnabled || _clipXYEnabled))
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
@@ -7157,6 +7158,7 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 
 	// --- RENDER 3: SECTION CAPS ---
 	if (_cappingEnabled &&
+		!_sectionCapsSuppressedDuringInteraction &&
 		(_clipYZEnabled || _clipZXEnabled || _clipXYEnabled))
 	{
 		glEnable(GL_POLYGON_OFFSET_FILL);
@@ -7250,6 +7252,20 @@ void GLWidget::checkAndStopTimers()
 void GLWidget::disableLowRes()
 {
 	_lowResEnabled = false;
+	update();
+}
+
+void GLWidget::disableSectionCapsInteractionSuppression()
+{
+	setSectionCapsInteractionSuppressed(false);
+}
+
+void GLWidget::setSectionCapsInteractionSuppressed(bool suppressed)
+{
+	if (_sectionCapsSuppressedDuringInteraction == suppressed)
+		return;
+
+	_sectionCapsSuppressedDuringInteraction = suppressed;
 	update();
 }
 
@@ -7364,6 +7380,10 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 	{
 		if (_inertiaTimer) _inertiaTimer->start();
 	}
+	else if (_sectionCapsSuppressedDuringInteraction)
+	{
+		QTimer::singleShot(100, this, &GLWidget::disableSectionCapsInteractionSuppression);
+	}
 
 	update();
 }
@@ -7394,6 +7414,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		{
 			if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 				_lowResEnabled = true;
+			setSectionCapsInteractionSuppressed(true);
 			QPoint rotate = _leftButtonPoint - downPoint;
 
 			if (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
@@ -7434,6 +7455,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	{
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_lowResEnabled = true;
+		setSectionCapsInteractionSuppressed(true);
 		QVector3D OP = get3dTranslationVectorFromMousePoints(downPoint, _rightButtonPoint);
 		_primaryCamera->move(OP.x(), OP.y(), OP.z());
 		_currentTranslation = _primaryCamera->getPosition();
@@ -7457,6 +7479,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	{
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_lowResEnabled = true;
+		setSectionCapsInteractionSuppressed(true);
 		// Zoom
 		if (downPoint.x() > _middleButtonPoint.x() || downPoint.y() < _middleButtonPoint.y()) {
 			_viewRange /= 1.05f;
@@ -7568,6 +7591,7 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
+	setSectionCapsInteractionSuppressed(true);
 	// Zoom
 	QPoint numDegrees = e->angleDelta() / 8;
 	QPoint numSteps = numDegrees / 30;
@@ -7739,6 +7763,7 @@ void GLWidget::performKeyboardNav()
 
 void GLWidget::animateViewChange()
 {
+	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
 	if (_viewMode == ViewMode::TOP)
@@ -7783,6 +7808,7 @@ void GLWidget::animateViewChange()
 
 void GLWidget::animateFitAll()
 {
+	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
 
@@ -7794,6 +7820,7 @@ void GLWidget::animateFitAll()
 
 void GLWidget::animateWindowZoom()
 {
+	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
 	setZoomAndPan(_currentViewRange / _rubberBandZoomRatio, _rubberBandPan);
@@ -7802,6 +7829,7 @@ void GLWidget::animateWindowZoom()
 
 void GLWidget::animateCenterScreen()
 {
+	setSectionCapsInteractionSuppressed(true);
 	setZoomAndPan(_selectionBoundingSphere.getRadius() * 2, -_currentTranslation + _selectionBoundingSphere.getCenter());
 	resizeGL(width(), height());
 }
@@ -7872,6 +7900,7 @@ void GLWidget::onInertiaTimer()
 		_inertiaPanVelocity = QVector2D();
 		_inertiaZoomVelocity = 0.0f;
 		_inertiaRotateVelocity = QVector2D();
+		QTimer::singleShot(100, this, &GLWidget::disableSectionCapsInteractionSuppression);
 	}
 
 	update();
@@ -7885,6 +7914,7 @@ void GLWidget::stopAnimations()
 	_animateCenterScreenTimer->stop();
 	_keyboardNavTimer->start();
 	QTimer::singleShot(100, this, &GLWidget::disableLowRes);
+	QTimer::singleShot(100, this, &GLWidget::disableSectionCapsInteractionSuppression);
 }
 
 void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, GLCamera* camera, QVector3D& orig, QVector3D& dir)

@@ -465,6 +465,7 @@ public slots:
 	void setSelectionHighlighting(bool highlight);
 	void performKeyboardNav();
 	void disableLowRes();
+	void disableSectionCapsInteractionSuppression();
 	void setFloorTexRepeatS(double floorTexRepeatS);
 	void setFloorTexRepeatT(double floorTexRepeatT);
 	void setFloorOffsetPercent(double value);
@@ -621,6 +622,7 @@ private:
 	void generateCubemapMipmaps(GLuint cubemapTexture);
 
 	QString generateUniqueMeshName(const QString& baseName);
+	void setSectionCapsInteractionSuppressed(bool suppressed);
 
 private:
 	ViewToolbar* _viewToolbar;
@@ -735,6 +737,7 @@ private:
 	bool _skyBoxBlurred;
 
 	bool _lowResEnabled;
+	bool _sectionCapsSuppressedDuringInteraction = false;
 
 	unsigned int _shadowWidth;
 	unsigned int _shadowHeight;
