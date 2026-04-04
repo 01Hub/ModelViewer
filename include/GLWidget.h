@@ -700,7 +700,7 @@ private:
 		Hybrid // Try ray, fallback to color
 	};
 
-	SelectionMode _selectionMode = SelectionMode::RayOnly; // Default
+	SelectionMode _selectionMode = SelectionMode::Hybrid; // Default: try ray first, fallback to color picking
 
 	bool _multiViewActive;
 

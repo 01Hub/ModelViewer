@@ -830,6 +830,23 @@ void GLWidget::resizeGL(int width, int height)
 	float w = (float)width;
 	float h = (float)height;
 
+	// Invalidate selection FBO buffers so they're recreated with new dimensions
+	if (_selectionRBO != 0)
+	{
+		glDeleteRenderbuffers(1, &_selectionRBO);
+		_selectionRBO = 0;
+	}
+	if (_selectionDBO != 0)
+	{
+		glDeleteRenderbuffers(1, &_selectionDBO);
+		_selectionDBO = 0;
+	}
+	if (_selectionFBO != 0)
+	{
+		glDeleteFramebuffers(1, &_selectionFBO);
+		_selectionFBO = 0;
+	}
+
 	glViewport(0, 0, w, h);
 	_viewportMatrix = QMatrix4x4(w / 2, 0.0f, 0.0f, 0.0f,
 		0.0f, h / 2, 0.0f, 0.0f,
@@ -5813,114 +5830,148 @@ void GLWidget::renderToShadowBuffer()
 int GLWidget::processSelection(const QPoint& pixel)
 {
 	int id = -1;
-	if (_selectedIDs.size() != 0)
-	{
-		if (_selectedIDs.size() == 1)
-		{
-			id = _selectedIDs.at(0);
-		}
-		else
-		{
-			makeCurrent();
-			if(_selectionFBO == 0)
-				glGenFramebuffers(1, &_selectionFBO);
-			glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
+
+	// Get the list of objects to render (all visible objects)
+	const auto& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+
+	if (visibleIds.empty())
+		return -1;
+
+	// Note: Even with one visible object, we must perform FBO rendering and color picking
+	// to determine if the click actually hit that object (vs empty space).
+	// FBO rendering with depth testing will correctly return -1 if click missed.
+
+	// Render all visible objects to FBO and perform color picking to determine topmost
+	makeCurrent();
+
+	// Validate GL context and dimensions
+	if (width() <= 0 || height() <= 0)
+		return -1;
+
+	if(_selectionFBO == 0)
+		glGenFramebuffers(1, &_selectionFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
 #ifdef GL_FRAMEBUFFER_DEFAULT_SAMPLES
-			glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_SAMPLES, 0);
+		glFramebufferParameteri(GL_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_SAMPLES, 0);
 #else // MacOS
-			glFramebufferParameteri(GL_FRAMEBUFFER, 0, 0);
+		glFramebufferParameteri(GL_FRAMEBUFFER, 0, 0);
 #endif
 
-			if(_selectionRBO == 0)
-				glGenRenderbuffers(1, &_selectionRBO);
-			glBindRenderbuffer(GL_RENDERBUFFER, _selectionRBO);
-			glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, width(), height());
-			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, _selectionRBO);
-			GLenum DrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
-			glDrawBuffers(1, DrawBuffers);
-			if(_selectionDBO == 0)
-				glGenRenderbuffers(1, &_selectionDBO);
-			glBindRenderbuffer(GL_RENDERBUFFER, (GLuint)_selectionDBO);
-			glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width(), height());
-			glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _selectionDBO);
-			GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-			if (status != GL_FRAMEBUFFER_COMPLETE)
-				std::cout << "Failed to create selection framebuffer" << std::endl;
+	if(_selectionRBO == 0)
+		glGenRenderbuffers(1, &_selectionRBO);
+	glBindRenderbuffer(GL_RENDERBUFFER, _selectionRBO);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_RGBA, width(), height());
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, _selectionRBO);
+	GLenum DrawBuffers[1] = { GL_COLOR_ATTACHMENT0 };
+	glDrawBuffers(1, DrawBuffers);
+	if(_selectionDBO == 0)
+		glGenRenderbuffers(1, &_selectionDBO);
+	glBindRenderbuffer(GL_RENDERBUFFER, (GLuint)_selectionDBO);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, width(), height());
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, _selectionDBO);
+	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if (status != GL_FRAMEBUFFER_COMPLETE)
+	{
+		std::cout << "Failed to create selection framebuffer: " << status << std::endl;
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+		return -1;
+	}
 
-			// save current viewport
-			int viewport[4];
-			glGetIntegerv(GL_VIEWPORT, viewport);
+	// save current viewport
+	int viewport[4];
+	glGetIntegerv(GL_VIEWPORT, viewport);
 
-			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-			glViewport(0, 0, width(), height());
-			glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
-			glDrawBuffer(GL_COLOR_ATTACHMENT0);
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-			glEnable(GL_DEPTH_TEST);
-			glDisable(GL_BLEND);
-			_selectionShader->bind();
-			_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
-			_selectionShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glViewport(0, 0, width(), height());
+	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
+	glDrawBuffer(GL_COLOR_ATTACHMENT0);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+	_selectionShader->bind();
+	_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
+	_selectionShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
 
-			for (int i : std::as_const(_selectedIDs))
+	// Render ALL visible objects to FBO (not just ray-hit ones)
+	// This ensures color picking is a true fallback method, independent of ray test results
+	for (int i : std::as_const(visibleIds))
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore.at(i);
+			if (mesh)
 			{
-				try
-				{
-					TriangleMesh* mesh = _meshStore.at(i);
-					if (mesh)
-					{
-						QColor pickColor = indexToColor(i + 1);
-						qDebug() << "Id " << i << "Pick Color" << pickColor;
-						_selectionShader->bind();
+				QColor pickColor = indexToColor(i + 1);
+				qDebug() << "Id " << i << "Pick Color" << pickColor;
+				_selectionShader->bind();
 
-						const float r = pickColor.redF();
-						const float g = pickColor.greenF();
-						const float b = pickColor.blueF();
-						const float a = pickColor.alphaF();
+				const float r = pickColor.redF();
+				const float g = pickColor.greenF();
+				const float b = pickColor.blueF();
+				const float a = pickColor.alphaF();
 
-						_selectionShader->setUniformValue("pickingColor", QVector4D(r, g, b, a));
-						mesh->setProg(_selectionShader.get());
-						mesh->getVAO().bind();
-						glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
-						mesh->getVAO().release();
-						glFlush();
-						glFinish();
-					}
-				}
-				catch (const std::exception& ex)
-				{
-					std::cout << "Exception raised in GLWidget::renderToSelectionBuffer\n" << ex.what() << std::endl;
-				}
+				_selectionShader->setUniformValue("pickingColor", QVector4D(r, g, b, a));
+				mesh->setProg(_selectionShader.get());
+				mesh->getVAO().bind();
+				glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
+				mesh->getVAO().release();
+				glFlush();
+				glFinish();
 			}
-			glReadBuffer(GL_COLOR_ATTACHMENT0);
-			glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-			int pixelWinSize = 2;
-			std::vector<float> res(static_cast<size_t>(pixelWinSize) * pixelWinSize * 4);
-			glReadPixels(pixel.x() - pixelWinSize / 2, viewport[3] - pixel.y() + pixelWinSize / 2, pixelWinSize, pixelWinSize, GL_RGBA, GL_FLOAT, res.data());
-			std::map<int, int> voteCount;
-			for (size_t i = 0; i < res.size(); i += 4)
-			{
-				QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
-				qDebug() << "ReadPixel Color" << col;
-				unsigned int colId = colorToIndex(col);
-				if (colId != 0)
-					voteCount[colId - 1]++;
-			}
-			if (!voteCount.empty())
-				id = std::max_element(voteCount.begin(), voteCount.end(), voteCount.value_comp())->first;
-
-			/*size_t NbBytes = static_cast<size_t>(width()) * height() * 4;
-			uchar * pPixelData = new uchar[NbBytes];
-			glReadPixels(0, 0, width(), height(), GL_RGBA, GL_UNSIGNED_BYTE, pPixelData);
-			QImage image(pPixelData, width(), height(), NbBytes / height(), QImage::Format_RGBA8888);
-			image = image.mirrored();
-			image.save("d:/ss.bmp");*/
-
-			glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
-			// restore viewport
-			glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+		}
+		catch (const std::exception& ex)
+		{
+			std::cout << "Exception raised in GLWidget::renderToSelectionBuffer\n" << ex.what() << std::endl;
 		}
 	}
+
+	glReadBuffer(GL_COLOR_ATTACHMENT0);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	int pixelWinSize = 2;
+
+	// Calculate safe pixel read coordinates with bounds checking
+	int readX = pixel.x() - pixelWinSize / 2;
+	int readY = viewport[3] - pixel.y() + pixelWinSize / 2;
+
+	// Clamp to viewport bounds
+	int maxX = viewport[0] + viewport[2];
+	int maxY = viewport[1] + viewport[3];
+
+	if (readX < viewport[0]) readX = viewport[0];
+	if (readY < viewport[1]) readY = viewport[1];
+	if (readX + pixelWinSize > maxX) readX = maxX - pixelWinSize;
+	if (readY + pixelWinSize > maxY) readY = maxY - pixelWinSize;
+
+	// Ensure dimensions don't exceed bounds
+	int readWidth = pixelWinSize;
+	int readHeight = pixelWinSize;
+	if (readX + readWidth > maxX) readWidth = maxX - readX;
+	if (readY + readHeight > maxY) readHeight = maxY - readY;
+
+	if (readWidth <= 0 || readHeight <= 0)
+	{
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+		glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
+		return -1; // Click outside viewport
+	}
+
+	std::vector<float> res(static_cast<size_t>(readWidth) * readHeight * 4);
+	glReadPixels(readX, readY, readWidth, readHeight, GL_RGBA, GL_FLOAT, res.data());
+	std::map<int, int> voteCount;
+	for (size_t i = 0; i < res.size(); i += 4)
+	{
+		QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
+		qDebug() << "ReadPixel Color" << col;
+		unsigned int colId = colorToIndex(col);
+		if (colId != 0)
+			voteCount[colId - 1]++;
+	}
+	if (!voteCount.empty())
+		id = std::max_element(voteCount.begin(), voteCount.end(), voteCount.value_comp())->first;
+
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+	// restore viewport
+	glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);
 
 	return id;
 }
@@ -8245,7 +8296,10 @@ int GLWidget::clickSelect(const QPoint& pixel)
 	qDebug() << "Selected Id (final): " << selectedId;
 #endif
 
-	emit singleSelectionDone(selectedId);
+	// Only emit signal if we have a valid selection (index >= 0)
+	// This prevents setListRow() from crashing when clicking on empty space
+	if (selectedId >= 0)
+		emit singleSelectionDone(selectedId);
 	return selectedId;
 }
 

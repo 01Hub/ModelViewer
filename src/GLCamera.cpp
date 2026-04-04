@@ -143,7 +143,7 @@ void GLCamera::updateProjectionMatrix(void)
 			_projectionMatrix.ortho(
 				-halfRange, halfRange,
 				-halfRange * h / w, halfRange * h / w,
-				-viewRange * 1000.0f, viewRange * 1000.0f
+				-viewRange * 10.0f, viewRange * 10.0f
 			);
 		}
 		else
@@ -151,7 +151,7 @@ void GLCamera::updateProjectionMatrix(void)
 			_projectionMatrix.ortho(
 				-halfRange * w / h, halfRange * w / h,
 				-halfRange, halfRange,
-				-viewRange * 1000.0f, viewRange * 1000.0f
+				-viewRange * 10.0f, viewRange * 10.0f
 			);
 		}
 	}
