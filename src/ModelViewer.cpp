@@ -2750,10 +2750,7 @@ void ModelViewer::clearADSTextures()
 void ModelViewer::onPredefinedMaterialSelected(const GLMaterial& mat)
 {	
 	if (!checkForActiveSelection())
-	{
-		qDebug() << "No active selection, returning";
 		return;
-	}
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
@@ -2787,10 +2784,7 @@ void ModelViewer::onPredefinedMaterialSelected(const GLMaterial& mat)
 void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
 {
 	if (!checkForActiveSelection())
-	{
-		qDebug() << "No active selection, returning";
 		return;
-	}
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 

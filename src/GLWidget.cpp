@@ -178,7 +178,6 @@ _assimpModelLoader(nullptr)
 			this, [this](int) { update(); });
 	connect(_selectionManager, &SelectionManager::selectionChanged,
 			this, [this](const QList<int>& selectedIds) {
-				qDebug() << "selectionChanged signal: selectedIds=" << selectedIds << ", _selectedIDs before=" << _selectedIDs;
 				// Click select APPENDS to selection (multi-select by default)
 				// Add the selected mesh(es) if not already there
 				for (int id : selectedIds) {
@@ -186,7 +185,6 @@ _assimpModelLoader(nullptr)
 						_selectedIDs.append(id);
 					}
 				}
-				qDebug() << "After appending: _selectedIDs=" << _selectedIDs;
 				// Emit singleSelectionDone only for actual single clicks
 				if (selectedIds.count() == 1) {
 					emit singleSelectionDone(selectedIds.first());
@@ -5966,7 +5964,6 @@ int GLWidget::processSelection(const QPoint& pixel)
 			if (mesh)
 			{
 				QColor pickColor = indexToColor(i + 1);
-				qDebug() << "Id " << i << "Pick Color" << pickColor;
 				_selectionShader->bind();
 
 				const float r = pickColor.redF();
@@ -7467,8 +7464,6 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 			// Prefer the current shift state at release time over the state at press time
 			bool addToSelection = shiftHeldAtRelease || _shiftDragActive;
 
-			qDebug() << "mouseReleaseEvent: shiftHeldAtRelease=" << shiftHeldAtRelease << ", _shiftDragActive=" << _shiftDragActive << ", addToSelection=" << addToSelection;
-
 			sweepSelect(e->pos(), addToSelection);
 			_shiftDragActive = false;  // Reset the flag
 		}
@@ -8292,8 +8287,6 @@ unsigned int GLWidget::loadTextureFromFile(
 
 QList<int> GLWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 {
-	qDebug() << "sweepSelect called: addToSelection=" << addToSelection << ", _selectedIDs before=" << _selectedIDs;
-
 	const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
 
 	// Check if there's actually a rubber band with non-null geometry (actual drag)
@@ -8301,7 +8294,6 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 
 	// If no rubber band, return without modifying selection (click without drag case)
 	if (!hasRubberBand) {
-		qDebug() << "sweepSelect: no rubber band (click without drag), preserving _selectedIDs=" << _selectedIDs;
 		return _selectedIDs;
 	}
 
@@ -8388,8 +8380,6 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 	}
 
 	QApplication::restoreOverrideCursor();
-
-	qDebug() << "sweepSelect done: addToSelection=" << addToSelection << ", _selectedIDs=" << _selectedIDs;
 
 	// Sync SelectionManager internal state without emitting signal (avoids feedback loops)
 	_selectionManager->syncSelectedIds(_selectedIDs);
