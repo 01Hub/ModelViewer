@@ -21,7 +21,7 @@
 #include "SceneUtils.h"
 #include "GLLights.h"
 #include "KTX2Loader.h"
-#include "SettingsDialog.h"
+#include "SelectionManager.h"
 
 /* Custom OpenGL Viewer Widget */
 
@@ -487,7 +487,14 @@ public slots:
 	void showNodeMeshLoadingProgress(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
 	void swapVisible(bool checked);
 	void cancelAssImpModelLoading();
-	void setHoverHighlightMode(HoverHighlightMode mode);
+
+	// Accessors for SelectionManager
+	QMatrix4x4 getViewMatrix() const { return _viewMatrix; }
+	QMatrix4x4 getProjectionMatrix() const { return _projectionMatrix; }
+	QMatrix4x4 getModelViewMatrix() const { return _modelViewMatrix; }
+	bool isMultiViewActive() const { return _multiViewActive; }
+	ShaderProgram* getSelectionShader() const { return _selectionShader.get(); }	
+	SelectionManager* getSelectionManager() const { return _selectionManager; }
 
 private slots:
 	void showContextMenu(const QPoint& pos);
@@ -571,17 +578,12 @@ private:
 	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
 	void fitBoxToScreen(const BoundingBox& box);
 
-
-	void convertClickToRay(const QPoint& pixel, const QRect& viewport, GLCamera* camera, QVector3D& orig, QVector3D& dir);
-	int clickSelect(const QPoint& pixel);
-	int hoverSelect(const QPoint& pixel);  // Ray-casting only hover selection for performance
-	QList<int> sweepSelect(const QPoint& pixel);
-	unsigned int colorToIndex(const QColor& color);
-	QColor indexToColor(const unsigned int& index);
-
 	float highestModelZ();
 	float lowestModelZ();
 
+	QList<int> sweepSelect(const QPoint& pixel, bool addToSelection = false);  // Sweep selection using rubber band
+	unsigned int colorToIndex(const QColor& color);
+	QColor indexToColor(const unsigned int& index);
 	QRect getViewportFromPoint(const QPoint& pixel);
 	QRect getClientRectFromPoint(const QPoint& pixel);
 	QVector3D get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end);
@@ -692,22 +694,18 @@ private:
 	float _rubberBandRadius;
 	QVector3D _rubberBandCenter;
 	QList<int> _selectedIDs;
-	unsigned int _selectionFBO;
-	unsigned int _selectionRBO;
-	unsigned int _selectionDBO;
 
-	enum class SelectionMode
-	{
-		RayOnly,
-		ColorOnly,
-		Hybrid // Try ray, fallback to color
-	};
+	// Selection manager instance (owns all selection logic and state)
+	SelectionManager* _selectionManager = nullptr;
 
-	SelectionMode _selectionMode = SelectionMode::Hybrid; // Default: try ray first, fallback to color picking
+	// FBO resources for color picking (managed by GLWidget)
+	unsigned int _selectionFBO = 0;
+	unsigned int _selectionRBO = 0;        // Color render buffer
+	unsigned int _selectionDBO = 0;        // Depth render buffer
 
-	// Hover highlighting
-	int _hoveredMeshId = -1;  // Currently hovered mesh (-1 = no hover)
-	HoverHighlightMode _hoverHighlightMode = HoverHighlightMode::Disabled;
+	// Selection state tracking
+	bool _shiftDragActive = false;          // Track if Shift was held during drag start
+	QPoint _sweepStartPoint;                // Track sweep selection start point for rubber band
 
 	bool _multiViewActive;
 

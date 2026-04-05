@@ -3,6 +3,7 @@
 #include "Cone.h"
 #include "Cube.h"
 #include "GLWidget.h"
+#include "SelectionManager.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
 #include "ModelViewer.h"
@@ -57,13 +58,6 @@ _assimpModelLoader(nullptr)
 {
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true);  // Enable mouseMoveEvent for hover highlighting
-
-    // Load hover highlight mode from saved settings
-    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    int modeIndex = settings.value("comboBoxHoverHighlightMode", static_cast<int>(HoverHighlightMode::Disabled)).toInt();
-    if (modeIndex >= 0 && modeIndex <= 2) {
-        _hoverHighlightMode = static_cast<HoverHighlightMode>(modeIndex);
-    }
 
     _viewer = static_cast<ModelViewer*>(parent);
 
@@ -168,6 +162,44 @@ _assimpModelLoader(nullptr)
 	_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
 	_currentTranslation = _primaryCamera->getPosition();
 	_currentViewRange = _viewRange;
+
+	// Create SelectionManager (dependency injection of camera reference)
+	_selectionManager = new SelectionManager(
+		this,
+		_primaryCamera,
+		_meshStore,
+		_displayedObjectsIds,
+		_hiddenObjectsIds,
+		_visibleSwapped,
+		this);  // Parent for Qt memory management
+
+	// Connect SelectionManager signals to GLWidget update
+	connect(_selectionManager, &SelectionManager::hoverChanged,
+			this, [this](int) { update(); });
+	connect(_selectionManager, &SelectionManager::selectionChanged,
+			this, [this](const QList<int>& selectedIds) {
+				qDebug() << "selectionChanged signal: selectedIds=" << selectedIds << ", _selectedIDs before=" << _selectedIDs;
+				// Click select APPENDS to selection (multi-select by default)
+				// Add the selected mesh(es) if not already there
+				for (int id : selectedIds) {
+					if (!_selectedIDs.contains(id)) {
+						_selectedIDs.append(id);
+					}
+				}
+				qDebug() << "After appending: _selectedIDs=" << _selectedIDs;
+				// Emit singleSelectionDone only for actual single clicks
+				if (selectedIds.count() == 1) {
+					emit singleSelectionDone(selectedIds.first());
+				}
+				update();
+			});
+
+	// Load hover highlight mode from saved settings
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	int modeIndex = settings.value("comboBoxHoverHighlightMode", static_cast<int>(HoverHighlightMode::Disabled)).toInt();
+	if (modeIndex >= 0 && modeIndex <= 2) {
+		_selectionManager->setHoverHighlightMode(static_cast<HoverHighlightMode>(modeIndex));
+	}
 
 	_slerpStep = 0.0f;
 	_slerpFrac = 0.05f;
@@ -4988,8 +5020,8 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog)
 				prog->bind();
 
 				// Set hover highlighting uniforms - MUST be per-mesh, not global
-				bool isHovered = (id == _hoveredMeshId && _hoverHighlightMode != HoverHighlightMode::Disabled);
-				bool hoverHighlightingEnabled = (_hoverHighlightMode != HoverHighlightMode::Disabled);
+				bool isHovered = (id == _selectionManager->getHoveredId() && _selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
+				bool hoverHighlightingEnabled = (_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
 
 				prog->setUniformValue("hovered", isHovered);
 				prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabled);
@@ -5051,9 +5083,9 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog)
 			prog->bind();
 
 			// Set hover highlighting uniforms - MUST be per-mesh, not global
-			bool isHovered = (id == _hoveredMeshId && _hoverHighlightMode != HoverHighlightMode::Disabled);
+			bool isHovered = (id == _selectionManager->getHoveredId() && _selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
 			prog->setUniformValue("hovered", isHovered);
-			prog->setUniformValue("hoverHighlighting", (_hoverHighlightMode != HoverHighlightMode::Disabled));
+			prog->setUniformValue("hoverHighlighting", (_selectionManager->getHoverMode() != HoverHighlightMode::Disabled));
 			prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));  // Gold highlight color
 
 			//mesh->render();
@@ -7381,11 +7413,15 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 		_leftButtonPoint.setX(e->position().x());
 		_leftButtonPoint.setY(e->position().y());
 
+		// Track if Shift is held for drag selection mode
+		_shiftDragActive = (e->modifiers() & Qt::ShiftModifier) != 0;
+		_sweepStartPoint = QPoint(e->position().x(), e->position().y());
+
 		if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
 			&& !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			// Selection
-			clickSelect(QPoint(e->position().x(), e->position().y()));
+			_selectionManager->clickSelect(QPoint(e->position().x(), e->position().y()));
 		}
 
 
@@ -7418,7 +7454,15 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* e)
 		}
 		else if (!(e->modifiers() & Qt::ControlModifier) && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
-			sweepSelect(e->pos());
+			// Sweep select: check shift status at release time to determine if we should add to selection
+			bool shiftHeldAtRelease = (e->modifiers() & Qt::ShiftModifier) != 0;
+			// Prefer the current shift state at release time over the state at press time
+			bool addToSelection = shiftHeldAtRelease || _shiftDragActive;
+
+			qDebug() << "mouseReleaseEvent: shiftHeldAtRelease=" << shiftHeldAtRelease << ", _shiftDragActive=" << _shiftDragActive << ", addToSelection=" << addToSelection;
+
+			sweepSelect(e->pos(), addToSelection);
+			_shiftDragActive = false;  // Reset the flag
 		}
 	}
 
@@ -7658,38 +7702,10 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 
 	// Hover highlight feedback (visual preview, independent of actual selection)
-	if (_hoverHighlightMode != HoverHighlightMode::Disabled && e->buttons() == Qt::NoButton)
+	if (e->buttons() == Qt::NoButton && _selectionManager->getHoverMode() != HoverHighlightMode::Disabled)
 	{
-		int newHoveredId = -1;
-
-		if (_hoverHighlightMode == HoverHighlightMode::RaycastOnly)
-		{
-			// Fast ray-casting only (no FBO rendering)
-			newHoveredId = hoverSelect(e->pos());
-		}
-		else if (_hoverHighlightMode == HoverHighlightMode::Accurate)
-		{
-			// Use full hybrid selection with FBO color picking (more expensive)
-			// Note: Using hoverSelect() for now as it's already optimized
-			// In the future, could implement accurate hover with FBO if needed
-			newHoveredId = hoverSelect(e->pos());
-		}
-
-		// Update hover state only if changed (optimization - avoid unnecessary repaints)
-		if (newHoveredId != _hoveredMeshId)
-		{
-			_hoveredMeshId = newHoveredId;
-			update();  // Trigger repaint with new hover state
-		}
-	}
-	else if (_hoverHighlightMode != HoverHighlightMode::Disabled && e->buttons() != Qt::NoButton)
-	{
-		// Clear hover highlighting when a button is pressed (to avoid confusion with actual selection)
-		if (_hoveredMeshId != -1)
-		{
-			_hoveredMeshId = -1;
-			update();
-		}
+		// Compute hovered mesh (SelectionManager will emit hoverChanged signal if it changed)
+		_selectionManager->hoverSelect(e->pos());
 	}
 
 	update();
@@ -7762,7 +7778,8 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 		setCursor(QCursor(Qt::ArrowCursor));
 		MainWindow::showStatusMessage("");
 
-		_viewer->deselectAll();
+		_selectedIDs.clear();  // Clear selection in GLWidget
+		_viewer->deselectAll();  // Also clear in viewer
 	}
 	else if (key == Qt::Key_F)
 		fitAll();
@@ -8035,33 +8052,9 @@ void GLWidget::stopAnimations()
 	QTimer::singleShot(100, this, &GLWidget::disableSectionCapsInteractionSuppression);
 }
 
-void GLWidget::convertClickToRay(const QPoint& pixel, const QRect& viewport, GLCamera* camera, QVector3D& orig, QVector3D& dir)
-{
-	int yInverted = height() - pixel.y() - 1;
 
-	QMatrix4x4 view = _viewMatrix;
-	QMatrix4x4 projection = camera->getProjectionMatrix();
-
-	// Convert to Normalized Device Coordinates [-1, 1]
-	float ndcX = (2.0f * (pixel.x() - viewport.x())) / viewport.width() - 1.0f;
-	float ndcY = (2.0f * (yInverted - viewport.y())) / viewport.height() - 1.0f;
-
-	QVector4D nearNDC(ndcX, ndcY, -1.0f, 1.0f); // Near plane
-	QVector4D farNDC(ndcX, ndcY, 1.0f, 1.0f);   // Far plane
-
-	QMatrix4x4 inv = (projection * view).inverted();
-
-	QVector4D nearWorld = inv * nearNDC;
-	QVector4D farWorld = inv * farNDC;
-
-	// Homogeneous divide
-	nearWorld /= nearWorld.w();
-	farWorld /= farWorld.w();
-
-	orig = nearWorld.toVector3D();
-	dir = (farWorld.toVector3D() - orig).normalized();
-}
-
+// Note: convertClickToRay is now implemented in SelectionManager
+// Keeping getViewportFromPoint and getClientRectFromPoint as they're still used by GLWidget
 
 QRect GLWidget::getViewportFromPoint(const QPoint& pixel)
 {
@@ -8289,137 +8282,26 @@ unsigned int GLWidget::loadTextureFromFile(
 	return textureID;
 }
 
-int GLWidget::clickSelect(const QPoint& pixel)
+QList<int> GLWidget::sweepSelect(const QPoint& pixel, bool addToSelection)
 {
-	int id = -1;
-	_selectedIDs.clear();
+	qDebug() << "sweepSelect called: addToSelection=" << addToSelection << ", _selectedIDs before=" << _selectedIDs;
 
 	const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
-	if (ids.empty()) {
-		emit singleSelectionDone(-1);
-		return -1;
-	}
 
-	QVector3D rayPos, rayDir, intersectionPoint;
-	QRect viewport = getViewportFromPoint(pixel);
+	// Check if there's actually a rubber band with non-null geometry (actual drag)
+	bool hasRubberBand = !ids.empty() && _rubberBand && !_rubberBand->geometry().isNull();
 
-	// Don't select in the multi-view if the click is not in the main viewport
-	if (_multiViewActive && (viewport.x() != viewport.width() || viewport.y() != 0))
-	{
-		emit singleSelectionDone(-1);
-		return -1;
-	}
-
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-	convertClickToRay(pixel, viewport, _primaryCamera, rayPos, rayDir);
-	rayDir.normalize();
-
-	// === Ray-based intersection test ===
-	QMap<int, float> selectedIdsDist;
-	for (int i : ids) {
-		TriangleMesh* mesh = _meshStore.at(i);
-		if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir)) {
-			if (mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint)) {
-				selectedIdsDist[i] = intersectionPoint.distanceToPoint(rayPos);
-				_selectedIDs.push_back(i);
-			}
-		}
-	}
-
-	if (!selectedIdsDist.isEmpty()) {
-		auto it = std::min_element(
-			selectedIdsDist.constBegin(), selectedIdsDist.constEnd(),
-			[](auto a, auto b) { return a < b; });
-		id = it.key();
-	}
-
-	// === Color-picking fallback (if applicable) ===
-	int colId = -1;
-	if (_selectionMode != SelectionMode::RayOnly)
-		colId = processSelection(pixel);
-
-	QApplication::restoreOverrideCursor();
-
-	int selectedId = -1;
-	switch (_selectionMode) {
-	case SelectionMode::RayOnly:
-		selectedId = id;
-		break;
-	case SelectionMode::ColorOnly:
-		selectedId = colId;
-		break;
-	case SelectionMode::Hybrid:
-		selectedId = (id != -1) ? id : colId;
-		break;
-	}
-
-#ifdef __DEBUG__
-	qDebug() << "Intersected Ids:";
-	int ct = 0;
-	for (int id : _selectedIDs)
-		qDebug() << "Id " << ++ct << ": " << id;
-	qDebug() << "Closest Ray Id: " << id;
-	qDebug() << "Color Id: " << colId;
-	qDebug() << "Selected Id (final): " << selectedId;
-#endif
-
-	// Only emit signal if we have a valid selection (index >= 0)
-	// This prevents setListRow() from crashing when clicking on empty space
-	if (selectedId >= 0)
-		emit singleSelectionDone(selectedId);
-	return selectedId;
-}
-
-int GLWidget::hoverSelect(const QPoint& pixel)
-{
-	// Ray-casting only hover selection for performance
-	// This is much faster than FBO-based color picking and suitable for hover feedback
-
-	int hoveredId = -1;
-
-	const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
-	if (ids.empty())
-		return -1;
-
-	QVector3D rayPos, rayDir, intersectionPoint;
-	QRect viewport = getViewportFromPoint(pixel);
-
-	// Don't hover select in multi-view if click is not in main viewport
-	if (_multiViewActive && (viewport.x() != viewport.width() || viewport.y() != 0))
-		return -1;
-
-	convertClickToRay(pixel, viewport, _primaryCamera, rayPos, rayDir);
-	rayDir.normalize();
-
-	// === Ray-based intersection test (performance-optimized) ===
-	QMap<int, float> hitDistances;
-	for (int i : ids) {
-		TriangleMesh* mesh = _meshStore.at(i);
-		if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir)) {
-			if (mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint)) {
-				hitDistances[i] = intersectionPoint.distanceToPoint(rayPos);
-			}
-		}
-	}
-
-	// Return the closest hit
-	if (!hitDistances.isEmpty()) {
-		auto it = std::min_element(
-			hitDistances.constBegin(), hitDistances.constEnd(),
-			[](auto a, auto b) { return a < b; });
-		hoveredId = it.key();
-	}
-
-	return hoveredId;
-}
-
-QList<int> GLWidget::sweepSelect(const QPoint& pixel)
-{
-	_selectedIDs.clear();
-
-	const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
-	if (ids.empty() || !_rubberBand || _rubberBand->geometry().isNull())
+	// If no rubber band, return without modifying selection (click without drag case)
+	if (!hasRubberBand) {
+		qDebug() << "sweepSelect: no rubber band (click without drag), preserving _selectedIDs=" << _selectedIDs;
 		return _selectedIDs;
+	}
+
+	// Only clear selection if NOT adding to existing selection (Shift not held)
+	if (!addToSelection) {
+		_selectedIDs.clear();  // Regular sweep: replace selection
+	}
+	// If Shift is held (addToSelection=true), DON'T clear - preserve existing selection
 
 	const QRect rubberRect = _rubberBand->geometry();
 	const QRect viewport(0, 0, width(), height());
@@ -8444,11 +8326,11 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 		QVector4D projectedCenter = projMatrix * viewMatrix * center4;
 
 		// Check if the projected center is behind the camera (negative w-coordinate).
-		if (projectedCenter.w() <= 0.0f) 
+		if (projectedCenter.w() <= 0.0f)
 			continue;
 
 		// Convert the center from clip space to normalized device coordinates (NDC).
-		QVector3D ndcCenter = projectedCenter.toVector3DAffine(); 
+		QVector3D ndcCenter = projectedCenter.toVector3DAffine();
 		QPointF screenCenter(
 			(ndcCenter.x() * 0.5f + 0.5f) * viewport.width(), // Map NDC to screen coordinates along the X-axis.
 			(1.0f - (ndcCenter.y() * 0.5f + 0.5f)) * viewport.height() // Map NDC to screen coordinates along the Y-axis (invert Y for screen space).
@@ -8460,14 +8342,14 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 			continue;
 
 		// Convert the edge from clip space to normalized device coordinates (NDC).
-		QVector3D ndcEdge = edge4.toVector3DAffine(); 
+		QVector3D ndcEdge = edge4.toVector3DAffine();
 		QPointF screenEdge(
 			(ndcEdge.x() * 0.5f + 0.5f) * viewport.width(), // Map NDC to screen coordinates along the X-axis for the edge.
 			(1.0f - (ndcEdge.y() * 0.5f + 0.5f)) * viewport.height() // Map NDC to screen coordinates along the Y-axis for the edge.
 		);
 
 		// Calculate the radius in pixels based on the distance between the center and edge in screen space.
-		float radiusPixels = QLineF(screenCenter, screenEdge).length(); 
+		float radiusPixels = QLineF(screenCenter, screenEdge).length();
 		QRectF projectedRect(
 			screenCenter.x() - radiusPixels, // Top-left X coordinate of the rectangle.
 			screenCenter.y() - radiusPixels, // Top-left Y coordinate of the rectangle.
@@ -8476,9 +8358,11 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 		);
 
 		// Check if the projected rectangle is completely within the rubber rectangle.
-		if (rubberRect.contains(projectedRect.toRect())) 
+		if (rubberRect.contains(projectedRect.toRect()))
 		{
-			_selectedIDs.push_back(i); // Add the ID to the list of selected IDs.
+			// Add ID if not already selected (avoid duplicates)
+			if (!_selectedIDs.contains(i))
+				_selectedIDs.push_back(i);
 		}
 		else if (rubberRect.intersects(projectedRect.toRect())) // Check if the projected rectangle intersects the rubber rectangle.
 		{
@@ -8487,16 +8371,26 @@ QList<int> GLWidget::sweepSelect(const QPoint& pixel)
 			float projectedArea = projectedRect.width() * projectedRect.height(); // Compute the area of the projected rectangle.
 
 			// Select the ID if the intersection area is significant enough.
-			if (projectedArea > 0 && (intersectArea / projectedArea) >= SELECTION_THRESHOLD) 
-				_selectedIDs.push_back(i); // Add the ID to the list of selected IDs.
+			if (projectedArea > 0 && (intersectArea / projectedArea) >= SELECTION_THRESHOLD) {
+				// Add ID if not already selected (avoid duplicates)
+				if (!_selectedIDs.contains(i))
+					_selectedIDs.push_back(i);
+			}
 		}
 	}
 
 	QApplication::restoreOverrideCursor();
+
+	qDebug() << "sweepSelect done: addToSelection=" << addToSelection << ", _selectedIDs=" << _selectedIDs;
+
+	// Sync SelectionManager internal state without emitting signal (avoids feedback loops)
+	_selectionManager->syncSelectedIds(_selectedIDs);
+
+	// Emit sweepSelectionDone with the complete accumulated selection
 	emit sweepSelectionDone(_selectedIDs);
+
 	return _selectedIDs;
 }
-
 
 
 
@@ -9129,19 +9023,6 @@ void GLWidget::setBackgroundColor()
 {
 	BackgroundColor bgCol(this);
 	bgCol.exec();
-}
-
-void GLWidget::setHoverHighlightMode(HoverHighlightMode mode)
-{
-	// Update hover highlight mode from settings
-	_hoverHighlightMode = mode;
-
-	// Clear any active hover state when mode changes
-	if (mode == HoverHighlightMode::Disabled && _hoveredMeshId != -1)
-	{
-		_hoveredMeshId = -1;
-		update();  // Repaint to remove hover highlighting
-	}
 }
 
 // ---------------------------------------------------------------------------

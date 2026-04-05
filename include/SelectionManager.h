@@ -1,0 +1,136 @@
+#ifndef SELECTIONMANAGER_H
+#define SELECTIONMANAGER_H
+
+#include <QObject>
+#include <QPoint>
+#include <QList>
+#include <QMap>
+#include <QVector3D>
+
+class GLWidget;
+class GLCamera;
+class TriangleMesh;
+
+// Hover highlighting mode enumeration
+enum class HoverHighlightMode
+{
+    Disabled,      // No hover feedback
+    RaycastOnly,   // Fast ray-casting preview
+    Accurate       // Full hybrid (expensive, but accurate with FBO rendering)
+};
+
+// Click selection mode enumeration
+enum class SelectionMode
+{
+    RayOnly,
+    ColorOnly,
+    Hybrid // Try ray, fallback to color
+};
+
+/**
+ * @class SelectionManager
+ * @brief Manages all mesh selection operations and state
+ *
+ * This manager encapsulates all selection logic including:
+ * - Click-based selection (single, sweep, multi-select)
+ * - Hover-based selection preview
+ * - Color picking via FBO rendering
+ * - Ray-casting intersection detection
+ *
+ * Signals are emitted when selection state changes, allowing other
+ * components to respond without tight coupling.
+ */
+class SelectionManager : public QObject
+{
+    Q_OBJECT
+
+public:
+    explicit SelectionManager(
+        GLWidget* glWidget,
+        GLCamera* primaryCamera,
+        std::vector<TriangleMesh*>& meshStore,
+        const std::vector<int>& displayedObjectsIds,
+        const std::vector<int>& hiddenObjectsIds,
+        bool& visibleSwapped,
+        QObject* parent = nullptr);
+
+    ~SelectionManager();
+
+    // Selection operations
+    int clickSelect(const QPoint& pixel);
+    int hoverSelect(const QPoint& pixel);
+    QList<int> sweepSelect(const QPoint& p1, const QPoint& p2);
+
+    // State queries
+    QList<int> getSelectedIds() const { return _selectedMeshIds; }
+    int getHoveredId() const { return _hoveredMeshId; }
+    HoverHighlightMode getHoverMode() const { return _hoverHighlightMode; }
+    SelectionMode getSelectionMode() const { return _selectionMode; }
+
+    // State setters (for sync with GLWidget after sweep selection)
+    void setSelectedIds(const QList<int>& selectedIds) {
+        _selectedMeshIds = selectedIds;
+        if (!selectedIds.isEmpty()) {
+            emit selectionChanged(_selectedMeshIds);
+        }
+    }
+
+    // Sync selection state without emitting signal (used by sweep selection to avoid feedback loops)
+    void syncSelectedIds(const QList<int>& selectedIds) {
+        _selectedMeshIds = selectedIds;
+    }
+
+    // FBO management (called by GLWidget)
+    void initializeFBOResources();
+    void cleanupFBOResources();
+    void resizeFBOResources(int width, int height);
+
+public slots:
+    void setHoverHighlightMode(HoverHighlightMode mode);
+    void setSelectionMode(SelectionMode mode);
+
+signals:
+    void selectionChanged(const QList<int>& selectedIds);
+    void hoverChanged(int hoveredId);
+    void hoverModeChanged(HoverHighlightMode mode);
+    void selectionModeChanged(SelectionMode mode);
+
+private:
+    // Helper methods for ray-casting
+    void getRayFromPixelCoords(const QPoint& pixel, QVector3D& rayPos, QVector3D& rayDir);
+    void convertClickToRay(const QPoint& pixel, const QRect& viewport,
+                          GLCamera* camera, QVector3D& rayPos, QVector3D& rayDir);
+    QRect getViewportFromPoint(const QPoint& point);
+
+    // Color conversion utilities
+    unsigned int colorToIndex(const QColor& color);
+    QColor indexToColor(const unsigned int& index);
+
+    // Color picking helper
+    unsigned int processSelection(const QPoint& pixel);
+
+    // State members
+    QList<int> _selectedMeshIds;           // Currently selected mesh IDs
+    int _hoveredMeshId = -1;               // Currently hovered mesh (-1 = none)
+    HoverHighlightMode _hoverHighlightMode = HoverHighlightMode::Disabled;
+    SelectionMode _selectionMode = SelectionMode::Hybrid;
+
+    // FBO resources for color picking (managed by GLWidget)
+    unsigned int _selectionFBO = 0;
+    unsigned int _selectionRBO = 0;        // Color render buffer
+    unsigned int _selectionDBO = 0;        // Depth render buffer
+
+    // References to GLWidget data (don't own these)
+    GLWidget* _glWidget;
+    GLCamera* _primaryCamera;
+    std::vector<TriangleMesh*>& _meshStore;
+    const std::vector<int>& _displayedObjectsIds;
+    const std::vector<int>& _hiddenObjectsIds;
+    bool& _visibleSwapped;
+
+    // Cached viewport dimensions for FBO
+    int _fboWidth = 0;
+    int _fboHeight = 0;
+};
+
+#endif // SELECTIONMANAGER_H

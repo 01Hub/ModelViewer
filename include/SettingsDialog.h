@@ -4,14 +4,7 @@
 #include <QDialog>
 #include <QSettings>
 #include "ThemeManager.h"
-
-// Hover highlight mode enumeration
-enum class HoverHighlightMode
-{
-    Disabled,      // No hover feedback
-    RaycastOnly,   // Fast ray-casting preview
-    Accurate       // Full hybrid (expensive, but accurate with FBO rendering)
-};
+#include "SelectionManager.h"
 
 namespace Ui {
 class SettingsDialog;

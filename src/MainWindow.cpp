@@ -797,7 +797,7 @@ void MainWindow::on_actionSettings_triggered()
 				viewer->getGLView()->setShowCenterAxisOverride(settingsDialog->displayShowCenterTrihedron());
 				viewer->getGLView()->setShowCornerAxisOverride(settingsDialog->displayShowCornerTrihedron());
 				viewer->getGLView()->setCornerAxisPosition(static_cast<CornerAxisPosition>(settingsDialog->displayCornerTrihedronPosition()));
-				viewer->getGLView()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
+				viewer->getGLView()->getSelectionManager()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
 			}
 		}
 		});
