@@ -202,9 +202,14 @@ void ClippingPlanesEditor::on_checkBoxFlipZX_toggled(bool checked)
 
 void ClippingPlanesEditor::on_checkBoxCapping_toggled(bool checked)
 {
-	_glView->setCappingPlanesEnabled(checked);	
+	_glView->setCappingPlanesEnabled(checked);
 	_glView->updateClippingPlane();
 	_glView->update();
+}
+
+void ClippingPlanesEditor::on_checkBoxDynamicCapping_toggled(bool checked)
+{
+	_glView->setSectionCapsDynamicEnabled(checked);
 }
 
 void ClippingPlanesEditor::on_doubleSpinBoxXYCoeff_valueChanged(double val)

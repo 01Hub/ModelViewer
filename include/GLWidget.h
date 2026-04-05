@@ -440,6 +440,8 @@ public:
 	/// Accessor for the foreground shader (for pre-load shader validation).
 	ShaderProgram* getShader() const { return _fgShader.get(); }
 
+	void setSectionCapsDynamicEnabled(bool enabled);
+
 signals:
 	void windowZoomEnded();
 	void rotationsSet();
@@ -627,7 +629,7 @@ private:
 	void generateCubemapMipmaps(GLuint cubemapTexture);
 
 	QString generateUniqueMeshName(const QString& baseName);
-	void setSectionCapsInteractionSuppressed(bool suppressed);
+	void setSectionCapsInteractionSuppressed(bool suppressed);	
 
 private:
 	ViewToolbar* _viewToolbar;
@@ -743,6 +745,7 @@ private:
 
 	bool _lowResEnabled;
 	bool _sectionCapsSuppressedDuringInteraction = false;
+	bool _dynamicCappingEnabled = false;
 
 	unsigned int _shadowWidth;
 	unsigned int _shadowHeight;

@@ -7377,11 +7377,19 @@ void GLWidget::disableSectionCapsInteractionSuppression()
 
 void GLWidget::setSectionCapsInteractionSuppressed(bool suppressed)
 {
-	if (_sectionCapsSuppressedDuringInteraction == suppressed)
+	bool actual = suppressed && _dynamicCappingEnabled;
+	if (_sectionCapsSuppressedDuringInteraction == actual)
 		return;
 
-	_sectionCapsSuppressedDuringInteraction = suppressed;
+	_sectionCapsSuppressedDuringInteraction = actual;
 	update();
+}
+
+void GLWidget::setSectionCapsDynamicEnabled(bool enabled)
+{
+	_dynamicCappingEnabled = enabled;
+	if (!enabled && _sectionCapsSuppressedDuringInteraction)
+		setSectionCapsInteractionSuppressed(false);
 }
 
 void GLWidget::resizeEvent(QResizeEvent* event)

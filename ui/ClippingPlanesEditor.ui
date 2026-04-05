@@ -235,6 +235,13 @@
              </widget>
             </item>
             <item>
+             <widget class="QCheckBox" name="checkBoxDynamicCapping">
+              <property name="text">
+               <string>Disable For Interaction</string>
+              </property>
+             </widget>
+            </item>
+            <item>
              <widget class="QPushButton" name="pushButtonResetCoeffs">
               <property name="text">
                <string>Reset Coefficients</string>
