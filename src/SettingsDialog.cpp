@@ -44,13 +44,16 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     updateSettingsHint();
 
     connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
-       ui->retranslateUi(this);
-        retranslateUI();  // if needed
+        ui->retranslateUi(this);
+        retranslateUI();
+        // Second pass: QDialogButtonBox handles QEvent::LanguageChange internally
+        // and overwrites our button texts after this slot returns. A deferred call
+        // ensures retranslateUI() runs after those events settle.
+        // Safe: 'this' as context prevents firing if the dialog is destroyed.
         QTimer::singleShot(0, this, [this]() {
-            retranslateUI();  // Final force
-            updateSettingsHint();
+            retranslateUI();
         });
-        });
+    });
 }
 
 SettingsDialog::~SettingsDialog()
@@ -181,7 +184,12 @@ void SettingsDialog::applySettings()
     }
     if (languageChanged)
     {
-        LanguageManager::instance().loadLanguage(langCode);
+        // Defer past QDialog::accept() so the dialog is safely closed before
+        // retranslation fires — prevents re-entrant UI modification and
+        // timer callbacks racing with dialog destruction.
+        QTimer::singleShot(0, [langCode]() {
+            LanguageManager::instance().loadLanguage(langCode);
+        });
     }
 
     settings.setValue("checkPromptOverwrite", general_promptOverwrite);
