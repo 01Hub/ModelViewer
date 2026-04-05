@@ -439,31 +439,31 @@ void MaterialPreviewWidget::paintGL()
 	QMatrix4x4 mvp = proj * view * model;
 	QMatrix3x3 normalMat = model.normalMatrix();
 
-	_shader->setUniformValue("uMVP", mvp);
-	_shader->setUniformValue("uModel", model);
-	_shader->setUniformValue("uNormalMatrix", normalMat);
+	_shader->setUniformValue("MVP", mvp);
+	_shader->setUniformValue("model", model);
+	_shader->setUniformValue("normalMatrix", normalMat);
 
 	QMatrix4x4 invView = view.inverted();
 	QVector3D camWorld = (invView * QVector4D(0, 0, 0, 1)).toVector3D();
-	_shader->setUniformValue("uCamPos", camWorld);
+	_shader->setUniformValue("camPos", camWorld);
 
-	_shader->setUniformValue("uAlbedo", _currentMaterial.albedoColor());
-	_shader->setUniformValue("uMetalness", _currentMaterial.metalness());
-	_shader->setUniformValue("uRoughness", _currentMaterial.roughness());
-	_shader->setUniformValue("uOpacity", _currentMaterial.opacity());
-	_shader->setUniformValue("uClearcoat", _currentMaterial.clearcoat());
-	_shader->setUniformValue("uClearcoatRoughness", _currentMaterial.clearcoatRoughness());
-	_shader->setUniformValue("uSheenColor", _currentMaterial.sheenColor());
-	_shader->setUniformValue("uSheenRoughness", _currentMaterial.sheenRoughness());
-	_shader->setUniformValue("uTransmission", _currentMaterial.transmission());
-	_shader->setUniformValue("uIOR", _currentMaterial.ior());
-	_shader->setUniformValue("uSpecular", _currentMaterial.specular());
-	_shader->setUniformValue("uEmissive", _currentMaterial.emissive());
-	_shader->setUniformValue("uEmissiveStrength", _currentMaterial.emissiveStrength());
-	_shader->setUniformValue("uIridescence", _currentMaterial.iridescenceFactor());
-	_shader->setUniformValue("uIridescenceIOR", _currentMaterial.iridescenceIor());
-	_shader->setUniformValue("uIridescenceThicknessMin", _currentMaterial.iridescenceThicknessMin());
-	_shader->setUniformValue("uIridescenceThicknessMax", _currentMaterial.iridescenceThicknessMax());
+	_shader->setUniformValue("albedo", _currentMaterial.albedoColor());
+	_shader->setUniformValue("metalness", _currentMaterial.metalness());
+	_shader->setUniformValue("roughness", _currentMaterial.roughness());
+	_shader->setUniformValue("opacity", _currentMaterial.opacity());
+	_shader->setUniformValue("clearcoat", _currentMaterial.clearcoat());
+	_shader->setUniformValue("clearcoatRoughness", _currentMaterial.clearcoatRoughness());
+	_shader->setUniformValue("sheenColor", _currentMaterial.sheenColor());
+	_shader->setUniformValue("sheenRoughness", _currentMaterial.sheenRoughness());
+	_shader->setUniformValue("transmission", _currentMaterial.transmission());
+	_shader->setUniformValue("IOR", _currentMaterial.ior());
+	_shader->setUniformValue("specular", _currentMaterial.specular());
+	_shader->setUniformValue("emissiveColor", _currentMaterial.emissive());
+	_shader->setUniformValue("emissiveStrength", _currentMaterial.emissiveStrength());
+	_shader->setUniformValue("iridescence", _currentMaterial.iridescenceFactor());
+	_shader->setUniformValue("iridescenceIOR", _currentMaterial.iridescenceIor());
+	_shader->setUniformValue("iridescenceThicknessMin", _currentMaterial.iridescenceThicknessMin());
+	_shader->setUniformValue("iridescenceThicknessMax", _currentMaterial.iridescenceThicknessMax());
 
 	// Texture support
 	// after your glActiveTexture/glBindTexture block
@@ -484,28 +484,28 @@ void MaterialPreviewWidget::paintGL()
 	const bool hasIOR = _currentMaterial.iorTextureId() != 0;
 	const bool hasTransmission = _currentMaterial.transmissionTextureId() != 0;
 
-	_shader->setUniformValue("uUseAlbedoMap", hasAlbedo);
-	_shader->setUniformValue("uUseMetalnessMap", hasMetalness);
-	_shader->setUniformValue("uUseRoughnessMap", hasRoughness);
-	_shader->setUniformValue("uUseNormalMap", hasNormal);      
-	_shader->setUniformValue("uUseAOMap", hasAO);
-	_shader->setUniformValue("uUseHeightMap", hasHeight);      
-	_shader->setUniformValue("uUseOpacityMap", hasOpacity);
-	_shader->setUniformValue("uOpacityInverted", opacityInverted);
-	_shader->setUniformValue("uUseEmissiveMap", hasEmissive);
-	_shader->setUniformValue("uUseSheenColorMap", hasSheenCol);
-	_shader->setUniformValue("uUseSheenRoughnessMap", hasSheenRough);
-	_shader->setUniformValue("uUseClearcoatColorMap", hasCcColor);
-	_shader->setUniformValue("uUseClearcoatRoughnessMap", hasCcRough);
-	_shader->setUniformValue("uUseClearcoatNormalMap", hasCcNormal); // needs TBN
-	_shader->setUniformValue("uUseIORMap", hasIOR);
-	_shader->setUniformValue("uUseTransmissionMap", hasTransmission);
+	_shader->setUniformValue("useAlbedoMap", hasAlbedo);
+	_shader->setUniformValue("useMetalnessMap", hasMetalness);
+	_shader->setUniformValue("useRoughnessMap", hasRoughness);
+	_shader->setUniformValue("useNormalMap", hasNormal);
+	_shader->setUniformValue("useAOMap", hasAO);
+	_shader->setUniformValue("useHeightMap", hasHeight);
+	_shader->setUniformValue("useOpacityMap", hasOpacity);
+	_shader->setUniformValue("opacityInverted", opacityInverted);
+	_shader->setUniformValue("useEmissiveMap", hasEmissive);
+	_shader->setUniformValue("useSheenColorMap", hasSheenCol);
+	_shader->setUniformValue("useSheenRoughnessMap", hasSheenRough);
+	_shader->setUniformValue("useClearcoatColorMap", hasCcColor);
+	_shader->setUniformValue("useClearcoatRoughnessMap", hasCcRough);
+	_shader->setUniformValue("useClearcoatNormalMap", hasCcNormal); // needs TBN
+	_shader->setUniformValue("useIORMap", hasIOR);
+	_shader->setUniformValue("useTransmissionMap", hasTransmission);
 
 	// Optional: intensities/tiling
-	_shader->setUniformValue("uUVScale", QVector2D(1.0f, 1.0f));
-	_shader->setUniformValue("uNormalIntensity", 1.0f);
-	_shader->setUniformValue("uAOIntensity", 1.0f);
-	_shader->setUniformValue("uHeightIntensity", 0.04f);
+	_shader->setUniformValue("UVScale", QVector2D(1.0f, 1.0f));
+	_shader->setUniformValue("normalIntensity", 1.0f);
+	_shader->setUniformValue("AOIntensity", 1.0f);
+	_shader->setUniformValue("heightIntensity", 0.04f);
 	
 	// ----- CHANNEL PACKING: send packing params to shader -----
 	// expects these uniform names in the frag shader:
@@ -528,10 +528,10 @@ void MaterialPreviewWidget::paintGL()
 		};
 
 	// call for each logical packable map
-	sendPacking("metallic", "uMetalness");
-	sendPacking("roughness", "uRoughness");
-	sendPacking("ao", "uAO");
-	sendPacking("opacity", "uOpacity");
+	sendPacking("metallic", "metalness");
+	sendPacking("roughness", "roughness");
+	sendPacking("ao", "AO");
+	sendPacking("opacity", "opacity");
 
 	// ----- Send texture transforms (scale, offset, rotation) -----
 	auto sendTextureTransforms = [this](const char* baseName, GLMaterial::TextureType type) {
@@ -545,31 +545,31 @@ void MaterialPreviewWidget::paintGL()
 		};
 
 	// Send transforms for each texture type
-	sendTextureTransforms("uAlbedo", GLMaterial::TextureType::Albedo);
-	sendTextureTransforms("uNormal", GLMaterial::TextureType::Normal);
-	sendTextureTransforms("uMetalness", GLMaterial::TextureType::Metallic);
-	sendTextureTransforms("uRoughness", GLMaterial::TextureType::Roughness);
-	sendTextureTransforms("uAO", GLMaterial::TextureType::AmbientOcclusion);
-	sendTextureTransforms("uHeight", GLMaterial::TextureType::Height);
-	sendTextureTransforms("uOpacity", GLMaterial::TextureType::Opacity);
-	sendTextureTransforms("uEmissive", GLMaterial::TextureType::Emissive);
+	sendTextureTransforms("albedo", GLMaterial::TextureType::Albedo);
+	sendTextureTransforms("normal", GLMaterial::TextureType::Normal);
+	sendTextureTransforms("metalness", GLMaterial::TextureType::Metallic);
+	sendTextureTransforms("roughness", GLMaterial::TextureType::Roughness);
+	sendTextureTransforms("AO", GLMaterial::TextureType::AmbientOcclusion);
+	sendTextureTransforms("height", GLMaterial::TextureType::Height);
+	sendTextureTransforms("opacity", GLMaterial::TextureType::Opacity);
+	sendTextureTransforms("emissive", GLMaterial::TextureType::Emissive);
 
 	// Set up texture samplers
-	_shader->setUniformValue("uAlbedoMap", 0);
-	_shader->setUniformValue("uMetalnessMap", 1);
-	_shader->setUniformValue("uRoughnessMap", 2);
-	_shader->setUniformValue("uNormalMap", 3);
-	_shader->setUniformValue("uAOMap", 4);
-	_shader->setUniformValue("uHeightMap", 5);
-	_shader->setUniformValue("uOpacityMap", 6);
-	_shader->setUniformValue("uEmissiveMap", 7);
-	_shader->setUniformValue("uSheenColorMap", 8);
-	_shader->setUniformValue("uSheenRoughnessMap", 9);
-	_shader->setUniformValue("uClearcoatColorMap", 10);
-	_shader->setUniformValue("uClearcoatRoughnessMap", 11);
-	_shader->setUniformValue("uClearcoatNormalMap", 12);
-	_shader->setUniformValue("uIORMap", 13);
-	_shader->setUniformValue("uTransmissionMap", 14);
+	_shader->setUniformValue("albedoMap", 0);
+	_shader->setUniformValue("metalnessMap", 1);
+	_shader->setUniformValue("roughnessMap", 2);
+	_shader->setUniformValue("normalMap", 3);
+	_shader->setUniformValue("AOMap", 4);
+	_shader->setUniformValue("heightMap", 5);
+	_shader->setUniformValue("opacityMap", 6);
+	_shader->setUniformValue("emissiveMap", 7);
+	_shader->setUniformValue("sheenColorMap", 8);
+	_shader->setUniformValue("sheenRoughnessMap", 9);
+	_shader->setUniformValue("clearcoatColorMap", 10);
+	_shader->setUniformValue("clearcoatRoughnessMap", 11);
+	_shader->setUniformValue("clearcoatNormalMap", 12);
+	_shader->setUniformValue("IORMap", 13);
+	_shader->setUniformValue("transmissionMap", 14);
 
 	// Set up texture units
 	glActiveTexture(GL_TEXTURE0);
@@ -603,7 +603,7 @@ void MaterialPreviewWidget::paintGL()
 	glActiveTexture(GL_TEXTURE14);
 	glBindTexture(GL_TEXTURE_2D, _currentMaterial.transmissionTextureId());
 	
-	_shader->setUniformValue("uTexViewMode", static_cast<int>(_texViewMode));
+	_shader->setUniformValue("texViewMode", static_cast<int>(_texViewMode));
 
 	applyEnvPreset(_currentEnv, _profile);
 
@@ -714,26 +714,26 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 	}
 
 	// --- push to shader ---
-	_shader->setUniformValue("uPreviewProfile", static_cast<int>(_profile));
-	_shader->setUniformValue("uEnvMode", static_cast<int>(mode));
-	_shader->setUniformValue("uSkyColor", sky);
-	_shader->setUniformValue("uGroundColor", ground);
-	_shader->setUniformValue("uEnvDiffuseIntensity", envDiffuse);
-	_shader->setUniformValue("uEnvSpecularIntensity", 0.0f); // reserved for future IBL
+	_shader->setUniformValue("previewProfile", static_cast<int>(_profile));
+	_shader->setUniformValue("envMode", static_cast<int>(mode));
+	_shader->setUniformValue("skyColor", sky);
+	_shader->setUniformValue("groundColor", ground);
+	_shader->setUniformValue("envDiffuseIntensity", envDiffuse);
+	_shader->setUniformValue("envSpecularIntensity", 0.0f); // reserved for future IBL
 
-	_shader->setUniformValue("uLights[0].position", L0);
-	_shader->setUniformValue("uLights[0].color", c0);
-	_shader->setUniformValue("uLights[1].position", L1);
-	_shader->setUniformValue("uLights[1].color", c1);
-	_shader->setUniformValue("uLights[2].position", L2);
-	_shader->setUniformValue("uLights[2].color", c2);
-	_shader->setUniformValue("uLights[3].position", L3);
-	_shader->setUniformValue("uLights[3].color", c3);
-	_shader->setUniformValue("uNumLights", 4);
+	_shader->setUniformValue("lights[0].position", L0);
+	_shader->setUniformValue("lights[0].color", c0);
+	_shader->setUniformValue("lights[1].position", L1);
+	_shader->setUniformValue("lights[1].color", c1);
+	_shader->setUniformValue("lights[2].position", L2);
+	_shader->setUniformValue("lights[2].color", c2);
+	_shader->setUniformValue("lights[3].position", L3);
+	_shader->setUniformValue("lights[3].color", c3);
+	_shader->setUniformValue("numLights", 4);
 
-	_shader->setUniformValue("uExposureEV", exposureEV);
-	_shader->setUniformValue("uUseACES", useACES);
-	_shader->setUniformValue("uGamma", 2.2f);
+	_shader->setUniformValue("exposureEV", exposureEV);
+	_shader->setUniformValue("useACES", useACES);
+	_shader->setUniformValue("gamma", 2.2f);
 }
 
 
@@ -1148,31 +1148,31 @@ bool MaterialPreviewWidget::shouldReload(const QString& path, const GpuTexCache&
 
 static GLMaterial::TextureType samplerNameToTextureType(const char* uniformSamplerName)
 {
-	if (std::strcmp(uniformSamplerName, "uAlbedoMap") == 0) return GLMaterial::TextureType::Albedo;
-	else if (std::strcmp(uniformSamplerName, "uMetalnessMap") == 0) return GLMaterial::TextureType::Metallic;
-	else if (std::strcmp(uniformSamplerName, "uRoughnessMap") == 0) return GLMaterial::TextureType::Roughness;
-	else if (std::strcmp(uniformSamplerName, "uNormalMap") == 0) return GLMaterial::TextureType::Normal;
-	else if (std::strcmp(uniformSamplerName, "uAOMap") == 0) return GLMaterial::TextureType::AmbientOcclusion;
-	else if (std::strcmp(uniformSamplerName, "uHeightMap") == 0) return GLMaterial::TextureType::Height;
-	else if (std::strcmp(uniformSamplerName, "uOpacityMap") == 0) return GLMaterial::TextureType::Opacity;
-	else if (std::strcmp(uniformSamplerName, "uEmissiveMap") == 0) return GLMaterial::TextureType::Emissive;
-	else if (std::strcmp(uniformSamplerName, "uSheenColorMap") == 0) return GLMaterial::TextureType::SheenColor;
-	else if (std::strcmp(uniformSamplerName, "uSheenRoughnessMap") == 0) return GLMaterial::TextureType::SheenRoughness;
-	else if (std::strcmp(uniformSamplerName, "uClearcoatColorMap") == 0) return GLMaterial::TextureType::ClearcoatColor;
-	else if (std::strcmp(uniformSamplerName, "uClearcoatRoughnessMap") == 0) return GLMaterial::TextureType::ClearcoatRoughness;
-	else if (std::strcmp(uniformSamplerName, "uClearcoatNormalMap") == 0) return GLMaterial::TextureType::ClearcoatNormal;
-	else if (std::strcmp(uniformSamplerName, "uIORMap") == 0) return GLMaterial::TextureType::IOR;
-	else if (std::strcmp(uniformSamplerName, "uTransmissionMap") == 0) return GLMaterial::TextureType::Transmission;
-	else if (std::strcmp(uniformSamplerName, "uIridescenceMap") == 0) return GLMaterial::TextureType::Iridescence;
-	else if (std::strcmp(uniformSamplerName, "uIridescenceThicknessMap") == 0) return GLMaterial::TextureType::IridescenceThickness;
-	else if (std::strcmp(uniformSamplerName, "uSpecularFactorMap") == 0) return GLMaterial::TextureType::SpecularFactor;
-	else if (std::strcmp(uniformSamplerName, "uSpecularColorMap") == 0) return GLMaterial::TextureType::SpecularColor;
-	else if (std::strcmp(uniformSamplerName, "uAnisotropyMap") == 0) return GLMaterial::TextureType::Anisotropy;
-	else if (std::strcmp(uniformSamplerName, "uDiffuseTransmissionMap") == 0) return GLMaterial::TextureType::DiffuseTransmission;
-	else if (std::strcmp(uniformSamplerName, "uDiffuseTransmissionColorMap") == 0) return GLMaterial::TextureType::DiffuseTransmissionColor;
-	else if (std::strcmp(uniformSamplerName, "uThicknessMap") == 0) return GLMaterial::TextureType::Thickness;
-	else if (std::strcmp(uniformSamplerName, "uDiffuseMap") == 0) return GLMaterial::TextureType::Diffuse;
-	else if (std::strcmp(uniformSamplerName, "uSpecularGlossinessMap") == 0) return GLMaterial::TextureType::SpecularGlossiness;
+	if (std::strcmp(uniformSamplerName, "albedoMap") == 0) return GLMaterial::TextureType::Albedo;
+	else if (std::strcmp(uniformSamplerName, "metalnessMap") == 0) return GLMaterial::TextureType::Metallic;
+	else if (std::strcmp(uniformSamplerName, "roughnessMap") == 0) return GLMaterial::TextureType::Roughness;
+	else if (std::strcmp(uniformSamplerName, "normalMap") == 0) return GLMaterial::TextureType::Normal;
+	else if (std::strcmp(uniformSamplerName, "AOMap") == 0) return GLMaterial::TextureType::AmbientOcclusion;
+	else if (std::strcmp(uniformSamplerName, "heightMap") == 0) return GLMaterial::TextureType::Height;
+	else if (std::strcmp(uniformSamplerName, "opacityMap") == 0) return GLMaterial::TextureType::Opacity;
+	else if (std::strcmp(uniformSamplerName, "emissiveMap") == 0) return GLMaterial::TextureType::Emissive;
+	else if (std::strcmp(uniformSamplerName, "sheenColorMap") == 0) return GLMaterial::TextureType::SheenColor;
+	else if (std::strcmp(uniformSamplerName, "sheenRoughnessMap") == 0) return GLMaterial::TextureType::SheenRoughness;
+	else if (std::strcmp(uniformSamplerName, "clearcoatColorMap") == 0) return GLMaterial::TextureType::ClearcoatColor;
+	else if (std::strcmp(uniformSamplerName, "clearcoatRoughnessMap") == 0) return GLMaterial::TextureType::ClearcoatRoughness;
+	else if (std::strcmp(uniformSamplerName, "clearcoatNormalMap") == 0) return GLMaterial::TextureType::ClearcoatNormal;
+	else if (std::strcmp(uniformSamplerName, "IORMap") == 0) return GLMaterial::TextureType::IOR;
+	else if (std::strcmp(uniformSamplerName, "transmissionMap") == 0) return GLMaterial::TextureType::Transmission;
+	else if (std::strcmp(uniformSamplerName, "iridescenceMap") == 0) return GLMaterial::TextureType::Iridescence;
+	else if (std::strcmp(uniformSamplerName, "iridescenceThicknessMap") == 0) return GLMaterial::TextureType::IridescenceThickness;
+	else if (std::strcmp(uniformSamplerName, "specularFactorMap") == 0) return GLMaterial::TextureType::SpecularFactor;
+	else if (std::strcmp(uniformSamplerName, "specularColorMap") == 0) return GLMaterial::TextureType::SpecularColor;
+	else if (std::strcmp(uniformSamplerName, "anisotropyMap") == 0) return GLMaterial::TextureType::Anisotropy;
+	else if (std::strcmp(uniformSamplerName, "diffuseTransmissionMap") == 0) return GLMaterial::TextureType::DiffuseTransmission;
+	else if (std::strcmp(uniformSamplerName, "diffuseTransmissionColorMap") == 0) return GLMaterial::TextureType::DiffuseTransmissionColor;
+	else if (std::strcmp(uniformSamplerName, "thicknessMap") == 0) return GLMaterial::TextureType::Thickness;
+	else if (std::strcmp(uniformSamplerName, "diffuseMap") == 0) return GLMaterial::TextureType::Diffuse;
+	else if (std::strcmp(uniformSamplerName, "specularGlossinessMap") == 0) return GLMaterial::TextureType::SpecularGlossiness;
 	return GLMaterial::TextureType::Albedo;
 }
 
@@ -1226,55 +1226,55 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 	}
 
 	// Set legacy IDs
-	if (std::strcmp(uniformSamplerName, "uAlbedoMap") == 0)
+	if (std::strcmp(uniformSamplerName, "albedoMap") == 0)
 		_currentMaterial.setAlbedoTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uMetalnessMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "metalnessMap") == 0)
 		_currentMaterial.setMetallicTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uRoughnessMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "roughnessMap") == 0)
 		_currentMaterial.setRoughnessTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uNormalMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "normalMap") == 0)
 		_currentMaterial.setNormalTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uAOMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "AOMap") == 0)
 		_currentMaterial.setOcclusionTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uHeightMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "heightMap") == 0)
 		_currentMaterial.setHeightTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uOpacityMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "opacityMap") == 0)
 		_currentMaterial.setOpacityTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uEmissiveMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "emissiveMap") == 0)
 		_currentMaterial.setEmissiveTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uSheenColorMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "sheenColorMap") == 0)
 		_currentMaterial.setSheenColorTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uSheenRoughnessMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "sheenRoughnessMap") == 0)
 		_currentMaterial.setSheenRoughnessTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uClearcoatColorMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "clearcoatColorMap") == 0)
 		_currentMaterial.setClearcoatColorTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uClearcoatRoughnessMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "clearcoatRoughnessMap") == 0)
 		_currentMaterial.setClearcoatRoughnessTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uClearcoatNormalMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "clearcoatNormalMap") == 0)
 		_currentMaterial.setClearcoatNormalTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uIORMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "IORMap") == 0)
 		_currentMaterial.setIORTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uTransmissionMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "transmissionMap") == 0)
 		_currentMaterial.setTransmissionTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uIridescenceMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "iridescenceMap") == 0)
 		_currentMaterial.setIridescenceTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uIridescenceThicknessMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "iridescenceThicknessMap") == 0)
 		_currentMaterial.setIridescenceThicknessTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uSpecularFactorMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "specularFactorMap") == 0)
 		_currentMaterial.setSpecularFactorTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uSpecularColorMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "specularColorMap") == 0)
 		_currentMaterial.setSpecularColorTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uAnisotropyMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "anisotropyMap") == 0)
 		_currentMaterial.setAnisotropyTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uDiffuseTransmissionMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "diffuseTransmissionMap") == 0)
 		_currentMaterial.setDiffuseTransmissionTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uDiffuseTransmissionColorMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "diffuseTransmissionColorMap") == 0)
 		_currentMaterial.setDiffuseTransmissionColorTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uThicknessMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "thicknessMap") == 0)
 		_currentMaterial.setThicknessTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uDiffuseMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "diffuseMap") == 0)
 		_currentMaterial.setDiffuseTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "uSpecularGlossinessMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "specularGlossinessMap") == 0)
 		_currentMaterial.setSpecularGlossinessTextureId(cache.id);
 
 	// Sync GPU ID and path to unified storage
@@ -1296,49 +1296,49 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 void MaterialPreviewWidget::syncAllTexturesFromMaterial()
 {	
 	syncTextureFromMaterial(_albedoTex,	_currentMaterial.albedoMapPath(),
-		0, "uAlbedoMap", "uUseAlbedoMap", true);
+		0, "albedoMap", "useAlbedoMap", true);
 	syncTextureFromMaterial(_metallicTex,
 		_currentMaterial.metallicMapPath(),
-		1, "uMetalnessMap", "uUseMetalnessMap", false);
+		1, "metalnessMap", "useMetalnessMap", false);
 	syncTextureFromMaterial(_roughnessTex,
 		_currentMaterial.roughnessMapPath(),
-		2, "uRoughnessMap", "uUseRoughnessMap", false);
+		2, "roughnessMap", "useRoughnessMap", false);
 	syncTextureFromMaterial(_normalTex,
 		_currentMaterial.normalMapPath(),
-		3, "uNormalMap", "uUseNormalMap", false);
+		3, "normalMap", "useNormalMap", false);
 	syncTextureFromMaterial(_aoTex,
 		_currentMaterial.aoMapPath(),
-		4, "uAOMap", "uUseAOMap", false);
+		4, "AOMap", "useAOMap", false);
 	syncTextureFromMaterial(_heightTex,
 		_currentMaterial.heightMapPath(),
-		5, "uHeightMap", "uUseHeightMap", false);
+		5, "heightMap", "useHeightMap", false);
 	syncTextureFromMaterial(_opacityTex,
 		_currentMaterial.opacityMapPath(),
-		6, "uOpacityMap", "uUseOpacityMap", false);
+		6, "opacityMap", "useOpacityMap", false);
 	syncTextureFromMaterial(_emissiveTex,
 		_currentMaterial.emissiveMapPath(),
-		7, "uEmissiveMap", "uUseEmissiveMap", true);
+		7, "emissiveMap", "useEmissiveMap", true);
 	syncTextureFromMaterial(_sheenColorTex,
 		_currentMaterial.sheenColorMapPath(),
-		8, "uSheenColorMap", "uUseSheenColorMap", true);
+		8, "sheenColorMap", "useSheenColorMap", true);
 	syncTextureFromMaterial(_sheenRoughnessTex,
 		_currentMaterial.sheenRoughnessMapPath(),
-		9, "uSheenRoughnessMap", "uUseSheenRoughnessMap", false);
+		9, "sheenRoughnessMap", "useSheenRoughnessMap", false);
 	syncTextureFromMaterial(_clearcoatColorTex,
 		_currentMaterial.clearcoatColorMapPath(),
-		10, "uClearcoatColorMap", "uUseClearcoatColorMap", true);
+		10, "clearcoatColorMap", "useClearcoatColorMap", true);
 	syncTextureFromMaterial(_clearcoatRoughnessTex,
 		_currentMaterial.clearcoatRoughnessMapPath(),
-		11, "uClearcoatRoughnessMap", "uUseClearcoatRoughnessMap", false);
+		11, "clearcoatRoughnessMap", "useClearcoatRoughnessMap", false);
 	syncTextureFromMaterial(_clearcoatNormalTex,
 		_currentMaterial.clearcoatNormalMapPath(),
-		12, "uClearcoatNormalMap", "uUseClearcoatNormalMap", false);
+		12, "clearcoatNormalMap", "useClearcoatNormalMap", false);
 	syncTextureFromMaterial(_iorTex,
 		_currentMaterial.iorMapPath(),
-		13, "uIORMap", "uUseIORMap", false);
+		13, "IORMap", "useIORMap", false);
 	syncTextureFromMaterial(_transmissionTex,
 		_currentMaterial.transmissionMapPath(),
-		14, "uTransmissionMap", "uUseTransmissionMap", false);
+		14, "transmissionMap", "useTransmissionMap", false);
 }
 
 void MaterialPreviewWidget::clearTextureCache()
@@ -1425,18 +1425,18 @@ void MaterialPreviewWidget::initializeOverlayShader()
         #version 330 core
         layout (location = 0) in vec2 aPos;
         layout (location = 1) in vec2 aTexCoord;
-        
+
         out vec2 TexCoord;
-        
-        uniform vec4 uRect;  // x, y, width, height in screen coordinates (0-1)
-        uniform vec2 uScreenSize;
-        
+
+        uniform vec4 rect;  // x, y, width, height in screen coordinates (0-1)
+        uniform vec2 screenSize;
+
         void main() {
-            vec2 pos = aPos * uRect.zw + uRect.xy;
+            vec2 pos = aPos * rect.zw + rect.xy;
             // Convert to NDC
             pos = pos * 2.0 - 1.0;
             pos.y = -pos.y; // Flip Y for screen coordinates
-            
+
             gl_Position = vec4(pos, 0.0, 1.0);
             TexCoord = aTexCoord;
         }
@@ -1446,16 +1446,16 @@ void MaterialPreviewWidget::initializeOverlayShader()
 	const char* fragmentShaderSource = R"(
         #version 330 core
         out vec4 FragColor;
-        
+
         in vec2 TexCoord;
-        
-        uniform sampler2D uTextTexture;
-        uniform float uAlpha;
-        
+
+        uniform sampler2D textTexture;
+        uniform float alpha;
+
         void main() {
-            vec4 texColor = texture(uTextTexture, TexCoord);
+            vec4 texColor = texture(textTexture, TexCoord);
             if (texColor.a < 0.01) discard;
-            FragColor = vec4(texColor.rgb, texColor.a * uAlpha);
+            FragColor = vec4(texColor.rgb, texColor.a * alpha);
         }
     )";
 
@@ -1558,10 +1558,10 @@ void MaterialPreviewWidget::renderTextOverlay(float alpha)
 	float x = pixelOffsetX / viewportWidth;
 	float y = pixelOffsetY / viewportHeight;
 
-	_overlayShader->setUniformValue("uRect", QVector4D(x, y, w, h));
-	_overlayShader->setUniformValue("uScreenSize", QVector2D(viewportWidth, viewportHeight));
-	_overlayShader->setUniformValue("uAlpha", alpha);
-	_overlayShader->setUniformValue("uTextTexture", 0);
+	_overlayShader->setUniformValue("rect", QVector4D(x, y, w, h));
+	_overlayShader->setUniformValue("screenSize", QVector2D(viewportWidth, viewportHeight));
+	_overlayShader->setUniformValue("alpha", alpha);
+	_overlayShader->setUniformValue("textTexture", 0);
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, _textOverlayTexture);

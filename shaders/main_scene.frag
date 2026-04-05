@@ -69,9 +69,9 @@ uniform sampler2D transmissionSceneTexture;  // _transmissionColorTexture
 uniform sampler2D transmissionDepthTexture;  // _transmissionDepthTexture
 uniform vec2	  transmissionFramebufferSize;
 
-uniform float u_floorAlpha = 0.95;
-uniform float u_floorSpecularScale = 0.6;  // scale specular on floor [0..1]
-uniform float u_floorFresnelDampen = 0.5;  // how much to dampen spec at normal incidence [0..1]
+uniform float floorAlpha = 0.95;
+uniform float floorSpecularScale = 0.6;  // scale specular on floor [0..1]
+uniform float floorFresnelDampen = 0.5;  // how much to dampen spec at normal incidence [0..1]
 
 
 // IBL
@@ -264,12 +264,12 @@ uniform int toneMapMode = 0;
 uniform bool skyBoxEnabled;
 uniform sampler2D skyboxColorTexture;
 
-uniform vec4 u_topColor;
-uniform vec4 u_botColor;
-uniform int u_gradientStyle;
-uniform vec2 u_screenSize;
-uniform vec3 u_screenCenter;
-uniform float u_floorSize;
+uniform vec4 topColor;
+uniform vec4 botColor;
+uniform int gradientStyle;
+uniform vec2 screenSize;
+uniform vec3 screenCenter;
+uniform float floorSize;
 uniform bool isReflectedPass;
 
 struct LineInfo
@@ -545,7 +545,7 @@ vec3 computeBaseColor(vec2 uv,
 	vec3 vertexColor_sRGB,    // pass v_color.rgb
 	bool useVertexColor);
 
-float floorRadius = u_floorSize * 0.5; // Adjust radius based on floor size
+float floorRadius = floorSize * 0.5; // Adjust radius based on floor size
 float fadeStart = floorRadius * 0.65;   // Start fading 
 float fadeEnd = floorRadius * 1.025;     // Fully faded
 
@@ -572,7 +572,7 @@ void main()
 	// Early discard for reflected pass beyond fade start
 	if (isReflectedPass)
 	{
-		float distance = length(v_position - u_screenCenter);
+		float distance = length(v_position - screenCenter);
 		if (distance > fadeStart)
 			discard;
 	}
@@ -770,7 +770,7 @@ void main()
 		if (texEnabled == true)
 			fragColor = v_color * texture2D(texUnit, v_texCoord0);
 		// Compute distance-based blending factor
-		float distance = length(v_position - u_screenCenter);
+		float distance = length(v_position - screenCenter);
 
 		// Set fade parameters first, before any calculations
 		// Early discard for pixels beyond fade range
@@ -917,17 +917,17 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	// Ensure the floor is actually translucent even if its material is OPAQUE
 	if (floorRendering && !isReflectedPass)
 	{
-		float fa = clamp(u_floorAlpha, 0.0, 1.0);
+		float fa = clamp(floorAlpha, 0.0, 1.0);
 
 		// View-angle term to avoid "whiteout" when looking straight down
 		vec3 Nf = normalize(gl_FrontFacing ? v_normal : -v_normal);
 		vec3 Vf = normalize(cameraPos - v_position);
 		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
 		// Fresnel-like dampening of spec when NdotV is high (looking straight down)
-		float fresDampen = mix(1.0 - u_floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
+		float fresDampen = mix(1.0 - floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
 
 		// Scale specular; keep non-spec premultiplied
-		vec3 floorRGB = baseNoSpec * fa + specOnly * (u_floorSpecularScale * fresDampen);
+		vec3 floorRGB = baseNoSpec * fa + specOnly * (floorSpecularScale * fresDampen);
 
 		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB);
 		if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
@@ -1886,13 +1886,13 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// --- Floor override (non-reflected) ---
 	if (floorRendering && !isReflectedPass)
 	{
-		float fa = clamp(u_floorAlpha, 0.0, 1.0);
+		float fa = clamp(floorAlpha, 0.0, 1.0);
 		vec3 Nf = normalize(gl_FrontFacing ? v_normal : -v_normal);
 		vec3 Vf = normalize(cameraPos - v_position);
 		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
-		float fresDampen = mix(1.0 - u_floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
+		float fresDampen = mix(1.0 - floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
 
-		vec3 floorRGB_L = baseNoSpec_L * fa + specOnly_L * (u_floorSpecularScale * fresDampen);
+		vec3 floorRGB_L = baseNoSpec_L * fa + specOnly_L * (floorSpecularScale * fresDampen);
 
 		if (hdrToneMapping) floorRGB_L = applyToneMapping(floorRGB_L);
 		if (gammaCorrection) floorRGB_L = pow(floorRGB_L, vec3(1.0 / screenGamma));
@@ -3319,7 +3319,7 @@ vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 
 vec2 calculateBackgroundUV()
 {
-	vec2 ndc = (gl_FragCoord.xy / u_screenSize) * 2.0 - 1.0;
+	vec2 ndc = (gl_FragCoord.xy / screenSize) * 2.0 - 1.0;
 	return ndc * 0.5 + 0.5;
 }
 
@@ -3328,27 +3328,27 @@ vec3 calculateBackgroundColor()
 	vec2 v_uv = calculateBackgroundUV();
 
 	vec4 frag_color;
-	if (u_gradientStyle == 0)
+	if (gradientStyle == 0)
 	{
-		frag_color = mix(u_botColor, u_topColor, v_uv.y);
+		frag_color = mix(botColor, topColor, v_uv.y);
 	}
-	else if (u_gradientStyle == 1)
+	else if (gradientStyle == 1)
 	{
-		frag_color = mix(u_topColor, u_botColor, v_uv.x);
+		frag_color = mix(topColor, botColor, v_uv.x);
 	}
-	else if (u_gradientStyle == 2)
+	else if (gradientStyle == 2)
 	{
 		float diagonal_factor = (v_uv.x + (1.0 - v_uv.y)) * 0.5;
-		frag_color = mix(u_topColor, u_botColor, diagonal_factor);
+		frag_color = mix(topColor, botColor, diagonal_factor);
 	}
-	else if (u_gradientStyle == 3)
+	else if (gradientStyle == 3)
 	{
 		float diagonal_factor = ((1.0 - v_uv.x) + (1.0 - v_uv.y)) * 0.5;
-		frag_color = mix(u_topColor, u_botColor, diagonal_factor);
+		frag_color = mix(topColor, botColor, diagonal_factor);
 	}
 	else
 	{
-		frag_color = mix(u_botColor, u_topColor, v_uv.y);
+		frag_color = mix(botColor, topColor, v_uv.y);
 	}
 
 	return frag_color.rgb;

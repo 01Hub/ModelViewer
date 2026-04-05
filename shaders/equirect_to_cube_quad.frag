@@ -3,8 +3,8 @@
 out vec4 FragColor;
 in vec2 FragCoord;
 
-uniform sampler2D u_equirectangularMap;
-uniform int u_faceIndex;
+uniform sampler2D equirectangularMap;
+uniform int faceIndex;
 
 const vec2 invAtan = vec2(0.1591, 0.3183);
 
@@ -39,13 +39,13 @@ void main()
 {
 
     // Compute WorldPos exactly as the cube mesh would
-    vec3 worldPos = ComputeWorldPos(u_faceIndex, FragCoord);
+    vec3 worldPos = ComputeWorldPos(faceIndex, FragCoord);
     
     // Apply the same spherical map sampling as the original
     vec2 equirectUV = SampleSphericalMap(normalize(worldPos));
     
     // Sample equirectangular texture
-    vec3 color = texture(u_equirectangularMap, equirectUV).rgb;
+    vec3 color = texture(equirectangularMap, equirectUV).rgb;
     color = max(color, vec3(0.0));
     
     FragColor = vec4(color, 1.0);

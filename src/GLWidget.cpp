@@ -967,7 +967,7 @@ void GLWidget::paintGL()
 	/*_debugShader->bind();
 	_debugShader->setUniformValue("near_plane", 1.0f);
 	_debugShader->setUniformValue("far_plane", _viewRange);
-	_debugShader->setUniformValue("u_screenSize", QVector2D(width(), height()));
+	_debugShader->setUniformValue("screenSize", QVector2D(width(), height()));
 	_debugShader->setUniformValue("transmissionColorTexture", 8);
 	_debugShader->setUniformValue("transmissionDepthTexture", 9);	
 	renderQuad();*/
@@ -1359,7 +1359,7 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 	_equirectToCubeShader->bind();
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, equirectTexture);
-	_equirectToCubeShader->setUniformValue("u_equirectangularMap", 0);
+	_equirectToCubeShader->setUniformValue("equirectangularMap", 0);
 
 	glViewport(0, 0, cubeSize, cubeSize);
 
@@ -1376,11 +1376,11 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 
 	QMatrix4x4 captureProjection;
 	captureProjection.perspective(90.0f, 1.0f, 0.1f, 10.0f);
-	_equirectToCubeShader->setUniformValue("u_projection", captureProjection);
+	_equirectToCubeShader->setUniformValue("projection", captureProjection);
 
 	for (int i = 0; i < 6; ++i)
 	{
-		_equirectToCubeShader->setUniformValue("u_view", captureViews[i]);
+		_equirectToCubeShader->setUniformValue("view", captureViews[i]);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _environmentMap, 0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -1488,12 +1488,12 @@ bool GLWidget::convertEquirectangularToCubemapQuad(const QString& filePath)
 	// Bind equirectangular texture
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, equirectTexture);
-	_equirectToCubeQuadShader->setUniformValue("u_equirectangularMap", 0);
+	_equirectToCubeQuadShader->setUniformValue("equirectangularMap", 0);
 
 	// 6. Render each cubemap face
 	for (int i = 0; i < 6; ++i)
 	{
-		_equirectToCubeQuadShader->setUniformValue("u_faceIndex", i);
+		_equirectToCubeQuadShader->setUniformValue("faceIndex", i);
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _environmentMap, 0);
 
@@ -4276,7 +4276,7 @@ void GLWidget::setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex)
 		m(0, 0) = U.x(); m(1, 0) = U.y(); m(2, 0) = U.z();
 		m(0, 1) = V.x(); m(1, 1) = V.y(); m(2, 1) = V.z();
 		m(0, 2) = W.x(); m(1, 2) = W.y(); m(2, 2) = W.z();
-		prog->setUniformValue("uFaceBasis", m);
+		prog->setUniformValue("faceBasis", m);
 		};
 
 	// Basis vectors with 90° X-axis rotation applied
@@ -4554,7 +4554,7 @@ void GLWidget::loadIrradianceMap()
 	// ==== IRRADIANCE PASS: Use fullscreen triangle ====
 	_irradianceShader->bind();
 	_irradianceShader->setUniformValue("environmentMap", 1);
-	_irradianceShader->setUniformValue("uResolution", QVector2D(irradianceSize, irradianceSize));
+	_irradianceShader->setUniformValue("resolution", QVector2D(irradianceSize, irradianceSize));
 
 	glActiveTexture(GL_TEXTURE1);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
@@ -4648,7 +4648,7 @@ void GLWidget::loadIrradianceMap()
 		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
 		_prefilterShader->bind();
 		_prefilterShader->setUniformValue("roughness", roughness);
-		_prefilterShader->setUniformValue("uResolution", QVector2D(mipWidth, mipHeight));
+		_prefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
 
 		for (unsigned int i = 0; i < 6; ++i)
 		{
@@ -4818,12 +4818,12 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_fgShader->setUniformValue("floorRendering", true);
 	_fgShader->setUniformValue("isReflectedPass", true);
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
-	_fgShader->setUniformValue("u_topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
-	_fgShader->setUniformValue("u_botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
-	_fgShader->setUniformValue("u_screenSize", QVector2D(width(), height()));
-	_fgShader->setUniformValue("u_screenCenter", _boundingSphere.getCenter());
-	_fgShader->setUniformValue("u_gradientStyle", _gradientStyle);
-	_fgShader->setUniformValue("u_floorSize", _floorSize * _floorSizeFactor);
+	_fgShader->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
+	_fgShader->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
+	_fgShader->setUniformValue("screenSize", QVector2D(width(), height()));
+	_fgShader->setUniformValue("screenCenter", _boundingSphere.getCenter());
+	_fgShader->setUniformValue("gradientStyle", _gradientStyle);
+	_fgShader->setUniformValue("floorSize", _floorSize * _floorSizeFactor);
 	_floorPlane->enableTexture(false);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -4868,12 +4868,12 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
 	_fgShader->setUniformValue("shadowSamples", 18.0f);
 	_fgShader->setUniformValue("isReflectedPass", false);
-	_fgShader->setUniformValue("u_topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
-	_fgShader->setUniformValue("u_botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
-	_fgShader->setUniformValue("u_screenSize", QVector2D(width(), height()));
-	_fgShader->setUniformValue("u_screenCenter", _boundingSphere.getCenter());
-	_fgShader->setUniformValue("u_gradientStyle", _gradientStyle);
-	_fgShader->setUniformValue("u_floorSize", _floorSize * _floorSizeFactor);
+	_fgShader->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
+	_fgShader->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
+	_fgShader->setUniformValue("screenSize", QVector2D(width(), height()));
+	_fgShader->setUniformValue("screenCenter", _boundingSphere.getCenter());
+	_fgShader->setUniformValue("gradientStyle", _gradientStyle);
+	_fgShader->setUniformValue("floorSize", _floorSize * _floorSizeFactor);
 	_floorPlane->enableTexture(_floorTextureDisplayed);
 
 	glActiveTexture(GL_TEXTURE5);

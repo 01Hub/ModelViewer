@@ -17,7 +17,7 @@ uniform float worldUnitsPerTile; // spacing: world units per repeat
 // Procedural hatch controls (set from C++)
 uniform float hatchThickness;    // fraction of tile (0..0.5). e.g. 0.012
 uniform float hatchIntensity;    // 0..1
-uniform int   hatchPattern;      // 0 = 45° only; 1 = 135°; 2 = vertical; 3 = horizontal; 3 = vert+hor; 4 = 45+135
+uniform int   hatchPattern;      // 0 = 45Â° only; 1 = 135Â°; 2 = vertical; 3 = horizontal; 3 = vert+hor; 4 = 45+135
 uniform vec3  hatchLineColor;    // color of hatch lines (e.g. black)
 
 // Toggle between procedural and texture-based hatch
@@ -82,11 +82,11 @@ void main()
     float accum = 0.0;
 
     if (hatchPattern == 0) {
-        vec2 r = rotate2(uv_w, 0.78539816339); // 45°
+        vec2 r = rotate2(uv_w, 0.78539816339); // 45Â°
         accum = aaStripe(r.x, spacing, halfThickWU);
     }
     else if (hatchPattern == 1) {
-        vec2 r = rotate2(uv_w, -0.78539816339); // 135°
+        vec2 r = rotate2(uv_w, -0.78539816339); // 135Â°
         accum = aaStripe(r.x, spacing, halfThickWU);
     }
     else if (hatchPattern == 2) { // horizontal
@@ -101,9 +101,9 @@ void main()
         accum = clamp((s1 + s2) * 0.5, 0.0, 1.0);
     }
     else { // diagonal criss cross
-        vec2 r = rotate2(uv_w, 0.78539816339); // 45°
+        vec2 r = rotate2(uv_w, 0.78539816339); // 45Â°
         float s1 = aaStripe(r.x, spacing, halfThickWU);
-        r = rotate2(uv_w, -0.78539816339);      // 135°
+        r = rotate2(uv_w, -0.78539816339);      // 135Â°
         float s2 = aaStripe(r.x, spacing, halfThickWU);
         accum = clamp((s1 + s2) * 0.5, 0.0, 1.0);
     }

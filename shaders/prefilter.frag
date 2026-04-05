@@ -3,8 +3,8 @@
 out vec4 fragColor;
 
 uniform samplerCube environmentMap;
-uniform mat3 uFaceBasis;             // Columns: U (right), V (up), W (forward)
-uniform vec2 uResolution;            // Face size
+uniform mat3 faceBasis;             // Columns: U (right), V (up), W (forward)
+uniform vec2 resolution;            // Face size
 uniform float roughness;
 uniform float environmentMapResolution;
 
@@ -85,10 +85,10 @@ vec3 ImportanceSampleGGX(vec2 Xi, vec3 N, float roughness)
 void main()
 {
     // Compute per-fragment direction from clip coordinates and basis
-    vec2 uv = (gl_FragCoord.xy / uResolution) * 2.0 - 1.0;
+    vec2 uv = (gl_FragCoord.xy / resolution) * 2.0 - 1.0;
 
     // Per-fragment direction derived from basis + clip coordinates
-    vec3 N = normalize(uFaceBasis * vec3(uv, 1.0));
+    vec3 N = normalize(faceBasis * vec3(uv, 1.0));
 
     // Invert Y to match cubemap convention
     N.y = -N.y;
