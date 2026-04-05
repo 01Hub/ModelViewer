@@ -788,7 +788,7 @@ void MainWindow::on_actionSettings_triggered()
 		if (!_viewers.empty())
 		{
 			for (ModelViewer* viewer : _viewers)
-			{				
+			{
 				int anIsoVals[] = {1, 2, 4, 8, 16};
 				int idx = settingsDialog->renderingAnisotropyIndex();
 				if (idx < 0 || idx >= static_cast<int>(sizeof(anIsoVals) / sizeof(anIsoVals[0])))
@@ -797,8 +797,9 @@ void MainWindow::on_actionSettings_triggered()
 				viewer->getGLView()->setShowCenterAxisOverride(settingsDialog->displayShowCenterTrihedron());
 				viewer->getGLView()->setShowCornerAxisOverride(settingsDialog->displayShowCornerTrihedron());
 				viewer->getGLView()->setCornerAxisPosition(static_cast<CornerAxisPosition>(settingsDialog->displayCornerTrihedronPosition()));
-			}			
-		}		
+				viewer->getGLView()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
+			}
+		}
 		});
 }
 

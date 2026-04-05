@@ -245,6 +245,9 @@ uniform int renderingMode;
 uniform bool isWireframePass;
 uniform bool selected;
 uniform bool selectionHighlighting;
+uniform bool hovered = false;  // Is this mesh currently hovered?
+uniform bool hoverHighlighting = false;  // Is hover highlighting enabled?
+uniform vec3 hoverColor = vec3(1.0, 0.84, 0.0);  // Gold/yellow default hover color
 uniform vec4 reflectColor;
 uniform bool floorRendering;
 uniform bool hdrToneMapping = false;
@@ -728,7 +731,37 @@ void main()
 		// Mix base color with the glow
 		vec3 finalColor = mix(lightened, glowColor, 0.5); // blend base and glow color
 
-		fragColor = vec4(finalColor, alpha);		
+		fragColor = vec4(finalColor, alpha);
+	}
+
+	// Hover highlighting (visual preview, non-destructive)
+	// Only applied if not already selected (selection takes priority)
+	if (hovered && hoverHighlighting && !selected)
+	{
+		// Compute lighting (similar to selection but more subtle)
+		vec3 norm = normalize(gl_FrontFacing ? v_normal : -v_normal);
+		vec3 lightDir = normalize(lightSource.position);
+		float diff = max(dot(norm, lightDir), 0.0);
+
+		vec3 viewDir = normalize(cameraDir);
+		vec3 reflectDir = reflect(-lightDir, norm);
+		float spec = pow(max(dot(viewDir, reflectDir), 0.0), 32.0);
+
+		// Base color from fragColor
+		vec3 baseColor = fragColor.rgb;
+
+		// Subtle brightening (less aggressive than selection - use 50% of selection intensity)
+		vec3 brightened = baseColor + vec3(0.15) * diff + vec3(0.1) * spec + vec3(0.05);
+		brightened = clamp(brightened, 0.0, 1.0);
+
+		// Apply subtle glow (less pronounced than selection)
+		vec3 glowColor = brightened * 1.1;  // Minimal glow boost
+		glowColor = clamp(glowColor, 0.0, 1.0);
+
+		// Mix with slight glow (30% blend vs selection's 50%)
+		vec3 finalColor = mix(brightened, glowColor, 0.3);
+
+		fragColor = vec4(finalColor, fragColor.a);
 	}
 
 	// Finally, handle floor rendering fade-out and background blending

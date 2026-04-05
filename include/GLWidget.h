@@ -21,6 +21,7 @@
 #include "SceneUtils.h"
 #include "GLLights.h"
 #include "KTX2Loader.h"
+#include "SettingsDialog.h"
 
 /* Custom OpenGL Viewer Widget */
 
@@ -486,12 +487,13 @@ public slots:
 	void showNodeMeshLoadingProgress(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
 	void swapVisible(bool checked);
 	void cancelAssImpModelLoading();
+	void setHoverHighlightMode(HoverHighlightMode mode);
 
 private slots:
 	void showContextMenu(const QPoint& pos);
 	void centerDisplayList();
 	void setBackgroundColor();
-
+	
 protected:
 	void initializeGL();
 	void createCappingPlanes();
@@ -572,6 +574,7 @@ private:
 
 	void convertClickToRay(const QPoint& pixel, const QRect& viewport, GLCamera* camera, QVector3D& orig, QVector3D& dir);
 	int clickSelect(const QPoint& pixel);
+	int hoverSelect(const QPoint& pixel);  // Ray-casting only hover selection for performance
 	QList<int> sweepSelect(const QPoint& pixel);
 	unsigned int colorToIndex(const QColor& color);
 	QColor indexToColor(const unsigned int& index);
@@ -701,6 +704,10 @@ private:
 	};
 
 	SelectionMode _selectionMode = SelectionMode::Hybrid; // Default: try ray first, fallback to color picking
+
+	// Hover highlighting
+	int _hoveredMeshId = -1;  // Currently hovered mesh (-1 = no hover)
+	HoverHighlightMode _hoverHighlightMode = HoverHighlightMode::Disabled;
 
 	bool _multiViewActive;
 

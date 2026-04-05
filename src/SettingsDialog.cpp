@@ -215,6 +215,7 @@ void SettingsDialog::applySettings()
     settings.setValue("nearPlaneSpinBox", display_nearPlane);
     settings.setValue("farPlaneSpinBox", display_farPlane);
     settings.setValue("showCenterTrihedronCheckBox", display_showCenterTrihedron);
+    settings.setValue("comboBoxHoverHighlightMode", static_cast<int>(display_hoverHighlightMode));
 
     // Navigation group
     settings.setValue("navigationModeComboBox", navigation_modeIndex);
@@ -373,6 +374,8 @@ void SettingsDialog::setDefaultValues()
     ui->fieldOfViewSpinBox->setValue(60);              // Explicitly set
     ui->nearPlaneSpinBox->setValue(0.1);               // Explicitly set
     ui->farPlaneSpinBox->setValue(1000.0);             // Explicitly set
+    if (ui->comboBoxHoverHighlightMode)
+        ui->comboBoxHoverHighlightMode->setCurrentIndex(0); // Default: Disabled
 
     // Navigation group
     ui->navigationModeComboBox->setCurrentIndex(0);          // "Orbit"
@@ -571,6 +574,9 @@ void SettingsDialog::syncStateFromUi()
     display_nearPlane = ui->nearPlaneSpinBox->value();
     display_farPlane = ui->farPlaneSpinBox->value();
     display_showCenterTrihedron = ui->showCenterTrihedronCheckBox->isChecked();
+    if (ui->comboBoxHoverHighlightMode) {
+        display_hoverHighlightMode = static_cast<HoverHighlightMode>(ui->comboBoxHoverHighlightMode->currentIndex());
+    }
 
     // Navigation group
     navigation_modeIndex = ui->navigationModeComboBox->currentIndex();
@@ -720,6 +726,10 @@ void SettingsDialog::loadSettings()
     ui->showWireframeCheckBox->setChecked(bVal);
     bVal = settings.value("showCenterTrihedronCheckBox", ui->showCenterTrihedronCheckBox->isChecked()).toBool();
     ui->showCenterTrihedronCheckBox->setChecked(bVal);
+    if (ui->comboBoxHoverHighlightMode) {
+        iVal = settings.value("comboBoxHoverHighlightMode", ui->comboBoxHoverHighlightMode->currentIndex()).toInt();
+        ui->comboBoxHoverHighlightMode->setCurrentIndex(iVal);
+    }
     iVal = settings.value("navigationModeComboBox", ui->navigationModeComboBox->currentIndex()).toInt();
     ui->navigationModeComboBox->setCurrentIndex(iVal);
     iVal = settings.value("mouseSensitivitySlider", ui->mouseSensitivitySlider->value()).toInt();

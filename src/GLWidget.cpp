@@ -56,6 +56,14 @@ _lightCube(nullptr),
 _assimpModelLoader(nullptr)
 {
     setFocusPolicy(Qt::StrongFocus);
+    setMouseTracking(true);  // Enable mouseMoveEvent for hover highlighting
+
+    // Load hover highlight mode from saved settings
+    QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+    int modeIndex = settings.value("comboBoxHoverHighlightMode", static_cast<int>(HoverHighlightMode::Disabled)).toInt();
+    if (modeIndex >= 0 && modeIndex <= 2) {
+        _hoverHighlightMode = static_cast<HoverHighlightMode>(modeIndex);
+    }
 
     _viewer = static_cast<ModelViewer*>(parent);
 
@@ -4974,7 +4982,19 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog)
 			if (!mesh->isTransparent())
 			{
 				mesh->setProg(prog);
-				//mesh->render();
+
+				// CRITICAL: Bind shader program BEFORE setting uniforms
+				// Uniforms are per-program state and must be set while program is bound
+				prog->bind();
+
+				// Set hover highlighting uniforms - MUST be per-mesh, not global
+				bool isHovered = (id == _hoveredMeshId && _hoverHighlightMode != HoverHighlightMode::Disabled);
+				bool hoverHighlightingEnabled = (_hoverHighlightMode != HoverHighlightMode::Disabled);
+
+				prog->setUniformValue("hovered", isHovered);
+				prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabled);
+				prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));  // Gold highlight color
+
 				renderMeshWithDisplayMode(mesh, _displayMode);
 			}
 		}
@@ -5023,7 +5043,19 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog)
 	{
 		if (auto* mesh = _meshStore.at(it.second))
 		{
+			int id = it.second;
 			mesh->setProg(prog);
+
+			// CRITICAL: Bind shader program BEFORE setting uniforms
+			// Uniforms are per-program state and must be set while program is bound
+			prog->bind();
+
+			// Set hover highlighting uniforms - MUST be per-mesh, not global
+			bool isHovered = (id == _hoveredMeshId && _hoverHighlightMode != HoverHighlightMode::Disabled);
+			prog->setUniformValue("hovered", isHovered);
+			prog->setUniformValue("hoverHighlighting", (_hoverHighlightMode != HoverHighlightMode::Disabled));
+			prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));  // Gold highlight color
+
 			//mesh->render();
 			renderMeshWithDisplayMode(mesh, _displayMode);
 		}
@@ -7625,6 +7657,41 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 	}
 
+	// Hover highlight feedback (visual preview, independent of actual selection)
+	if (_hoverHighlightMode != HoverHighlightMode::Disabled && e->buttons() == Qt::NoButton)
+	{
+		int newHoveredId = -1;
+
+		if (_hoverHighlightMode == HoverHighlightMode::RaycastOnly)
+		{
+			// Fast ray-casting only (no FBO rendering)
+			newHoveredId = hoverSelect(e->pos());
+		}
+		else if (_hoverHighlightMode == HoverHighlightMode::Accurate)
+		{
+			// Use full hybrid selection with FBO color picking (more expensive)
+			// Note: Using hoverSelect() for now as it's already optimized
+			// In the future, could implement accurate hover with FBO if needed
+			newHoveredId = hoverSelect(e->pos());
+		}
+
+		// Update hover state only if changed (optimization - avoid unnecessary repaints)
+		if (newHoveredId != _hoveredMeshId)
+		{
+			_hoveredMeshId = newHoveredId;
+			update();  // Trigger repaint with new hover state
+		}
+	}
+	else if (_hoverHighlightMode != HoverHighlightMode::Disabled && e->buttons() != Qt::NoButton)
+	{
+		// Clear hover highlighting when a button is pressed (to avoid confusion with actual selection)
+		if (_hoveredMeshId != -1)
+		{
+			_hoveredMeshId = -1;
+			update();
+		}
+	}
+
 	update();
 
 	lastPos = currentPos;
@@ -8301,6 +8368,49 @@ int GLWidget::clickSelect(const QPoint& pixel)
 	if (selectedId >= 0)
 		emit singleSelectionDone(selectedId);
 	return selectedId;
+}
+
+int GLWidget::hoverSelect(const QPoint& pixel)
+{
+	// Ray-casting only hover selection for performance
+	// This is much faster than FBO-based color picking and suitable for hover feedback
+
+	int hoveredId = -1;
+
+	const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	if (ids.empty())
+		return -1;
+
+	QVector3D rayPos, rayDir, intersectionPoint;
+	QRect viewport = getViewportFromPoint(pixel);
+
+	// Don't hover select in multi-view if click is not in main viewport
+	if (_multiViewActive && (viewport.x() != viewport.width() || viewport.y() != 0))
+		return -1;
+
+	convertClickToRay(pixel, viewport, _primaryCamera, rayPos, rayDir);
+	rayDir.normalize();
+
+	// === Ray-based intersection test (performance-optimized) ===
+	QMap<int, float> hitDistances;
+	for (int i : ids) {
+		TriangleMesh* mesh = _meshStore.at(i);
+		if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir)) {
+			if (mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint)) {
+				hitDistances[i] = intersectionPoint.distanceToPoint(rayPos);
+			}
+		}
+	}
+
+	// Return the closest hit
+	if (!hitDistances.isEmpty()) {
+		auto it = std::min_element(
+			hitDistances.constBegin(), hitDistances.constEnd(),
+			[](auto a, auto b) { return a < b; });
+		hoveredId = it.key();
+	}
+
+	return hoveredId;
 }
 
 QList<int> GLWidget::sweepSelect(const QPoint& pixel)
@@ -9019,6 +9129,19 @@ void GLWidget::setBackgroundColor()
 {
 	BackgroundColor bgCol(this);
 	bgCol.exec();
+}
+
+void GLWidget::setHoverHighlightMode(HoverHighlightMode mode)
+{
+	// Update hover highlight mode from settings
+	_hoverHighlightMode = mode;
+
+	// Clear any active hover state when mode changes
+	if (mode == HoverHighlightMode::Disabled && _hoveredMeshId != -1)
+	{
+		_hoveredMeshId = -1;
+		update();  // Repaint to remove hover highlighting
+	}
 }
 
 // ---------------------------------------------------------------------------

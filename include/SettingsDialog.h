@@ -5,6 +5,13 @@
 #include <QSettings>
 #include "ThemeManager.h"
 
+// Hover highlight mode enumeration
+enum class HoverHighlightMode
+{
+    Disabled,      // No hover feedback
+    RaycastOnly,   // Fast ray-casting preview
+    Accurate       // Full hybrid (expensive, but accurate with FBO rendering)
+};
 
 namespace Ui {
 class SettingsDialog;
@@ -58,6 +65,7 @@ public:
     double displayNearPlane() const { return display_nearPlane; }
     double displayFarPlane() const { return display_farPlane; }
     bool displayShowCenterTrihedron() const { return display_showCenterTrihedron; }
+    HoverHighlightMode displayHoverHighlightMode() const { return display_hoverHighlightMode; }
 
     // Navigation group
     int navigationModeIndex() const { return navigation_modeIndex; }
@@ -312,6 +320,7 @@ private:
     double display_nearPlane = 0.1;
     double display_farPlane = 1000.0;
     bool display_showCenterTrihedron = false;
+    HoverHighlightMode display_hoverHighlightMode = HoverHighlightMode::Disabled;
 
     // Navigation group
     int navigation_modeIndex = 0;
