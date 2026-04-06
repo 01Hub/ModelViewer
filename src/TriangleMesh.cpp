@@ -434,8 +434,14 @@ void TriangleMesh::setupTextures()
 {
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, _texture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
-	glGenerateMipmap(GL_TEXTURE_2D);
+	// Only re-upload texture data when it has actually changed — avoids a full
+	// glTexImage2D + mipmap regeneration every frame for every mesh.
+	if (_textureBindingsDirty && !_texImage.isNull())
+	{
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+		glGenerateMipmap(GL_TEXTURE_2D);
+		_textureBindingsDirty = false;
+	}
 
 	// ADS light texture maps
 	glActiveTexture(GL_TEXTURE10);
@@ -488,6 +494,7 @@ void TriangleMesh::setupTextures()
 
 void TriangleMesh::setupUniforms()
 {
+	if (!_uniformsDirty) return;
 	_prog->bind();
 	GLint modeValue = 0;
 	switch (_primitiveMode)
@@ -916,6 +923,7 @@ void TriangleMesh::setupUniforms()
 	sendPackingUniform("opacity", "opacity");
 
 	_prog->setUniformValue("selected", _selected);
+	_uniformsDirty = false;
 }
 
 void TriangleMesh::enableOpacityADSMap(bool enable)
@@ -1077,7 +1085,8 @@ GLMaterial TriangleMesh::getMaterial() const
 
 void TriangleMesh::setMaterial(const GLMaterial& material)
 {
-	_material = material;	
+	_material = material;
+	markUniformsDirty();
 }
 
 void TriangleMesh::setTextureMaps(const GLMaterial& material)

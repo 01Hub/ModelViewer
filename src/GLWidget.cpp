@@ -5013,29 +5013,42 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 	glDisable(GL_BLEND);
 	glDepthMask(GL_TRUE);
 
+	// Bind shader and set uniforms that are identical for every opaque mesh once,
+	// outside the loop, to avoid redundant driver calls per draw.
+	prog->bind();
+	// Suppress hover highlighting while Ctrl is held — avoids flashes during
+	// Ctrl+drag view manipulation as the pointer crosses mesh boundaries.
+	const bool ctrlHeld = QGuiApplication::queryKeyboardModifiers() & Qt::ControlModifier;
+	const bool hoverHighlightingEnabled = !ctrlHeld &&
+		(_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
+	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabled);
+	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
+
+	// Collect visible opaque meshes, then sort by texture signature to
+	// minimise GPU texture state changes across consecutive draw calls.
+	std::vector<std::pair<uint64_t, int>> opaque;
+	opaque.reserve(objectIds.size());
 	for (int id : objectIds)
 	{
 		if (auto* mesh = _meshStore.at(id))
+			if (!mesh->isTransparent() && isMeshVisible(mesh, activeClipPlaneIndex))
+				opaque.emplace_back(mesh->getTextureSortKey(), id);
+	}
+	std::sort(opaque.begin(), opaque.end(),
+		[](const auto& a, const auto& b) { return a.first < b.first; });
+
+	for (auto& [key, id] : opaque)
+	{
+		if (auto* mesh = _meshStore.at(id))
 		{
-			if (!mesh->isTransparent())
-			{
-				if (!isMeshVisible(mesh, activeClipPlaneIndex)) continue;
-				mesh->setProg(prog);
-
-				// CRITICAL: Bind shader program BEFORE setting uniforms
-				// Uniforms are per-program state and must be set while program is bound
-				prog->bind();
-
-				// Set hover highlighting uniforms - MUST be per-mesh, not global
-				bool isHovered = (id == _selectionManager->getHoveredId() && _selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
-				bool hoverHighlightingEnabled = (_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
-
-				prog->setUniformValue("hovered", isHovered);
-				prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabled);
-				prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));  // Gold highlight color
-
-				renderMeshWithDisplayMode(mesh, _displayMode);
-			}
+			mesh->setProg(prog);
+			// Re-bind before setting the per-mesh varying uniform and drawing.
+			// renderMeshWithDisplayMode may internally rebind a different shader
+			// (e.g. wireframe overlay), so prog must be current here.
+			prog->bind();
+			prog->setUniformValue("hovered",
+				hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+			renderMeshWithDisplayMode(mesh, _displayMode);
 		}
 	}
 }
@@ -5077,26 +5090,24 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 	glEnable(GL_BLEND);
 	glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
 		GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-	//glDepthMask(GL_FALSE);
+
+	// Bind once and set uniforms constant across all transparent meshes
+	prog->bind();
+	const bool ctrlHeldT = QGuiApplication::queryKeyboardModifiers() & Qt::ControlModifier;
+	const bool hoverHighlightingEnabledT = !ctrlHeldT &&
+		(_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
+	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabledT);
+	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
 
 	for (auto& it : transparent)
 	{
 		if (auto* mesh = _meshStore.at(it.second))
 		{
-			int id = it.second;
+			const int id = it.second;
 			mesh->setProg(prog);
-
-			// CRITICAL: Bind shader program BEFORE setting uniforms
-			// Uniforms are per-program state and must be set while program is bound
 			prog->bind();
-
-			// Set hover highlighting uniforms - MUST be per-mesh, not global
-			bool isHovered = (id == _selectionManager->getHoveredId() && _selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
-			prog->setUniformValue("hovered", isHovered);
-			prog->setUniformValue("hoverHighlighting", (_selectionManager->getHoverMode() != HoverHighlightMode::Disabled));
-			prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));  // Gold highlight color
-
-			//mesh->render();
+			prog->setUniformValue("hovered",
+				hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
 			renderMeshWithDisplayMode(mesh, _displayMode);
 		}
 	}

@@ -120,6 +120,17 @@ public:
 	void setSceneIndex(int index) { _sceneIndex = index; }
 	int getSceneIndex() const { return _sceneIndex; }
 
+	// Returns a sort key based on primary texture IDs to minimise GPU texture
+	// state changes when opaque meshes are sorted before drawing.
+	uint64_t getTextureSortKey() const
+	{
+		// Combine albedo + normal as the two most commonly varying maps.
+		// XOR-shift spreads bits to reduce collisions on small IDs.
+		uint64_t a = _albedoPBRMap ? _albedoPBRMap : _diffuseADSMap;
+		uint64_t n = _normalPBRMap ? _normalPBRMap : _normalADSMap;
+		return (a << 32) ^ (n * 2654435761ULL);
+	}
+
 	virtual bool intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint);
 
 	virtual void setAlbedoPBRMap(unsigned int albedoMap);
