@@ -773,17 +773,17 @@
             </property>
             <item>
              <property name="text">
-              <string>Disabled</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
               <string>Ray-cast Preview</string>
              </property>
             </item>
             <item>
              <property name="text">
               <string>Accurate</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Disabled</string>
              </property>
             </item>
            </widget>
@@ -1369,8 +1369,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>319</width>
-            <height>1102</height>
+            <width>275</width>
+            <height>1116</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_16">

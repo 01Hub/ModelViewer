@@ -13,10 +13,10 @@ class TriangleMesh;
 
 // Hover highlighting mode enumeration
 enum class HoverHighlightMode
-{
-    Disabled,      // No hover feedback
+{    
     RaycastOnly,   // Fast ray-casting preview
-    Accurate       // Full hybrid (expensive, but accurate with FBO rendering)
+    Accurate,       // Full hybrid (expensive, but accurate with FBO rendering)
+    Disabled      // No hover feedback
 };
 
 // Click selection mode enumeration
@@ -112,7 +112,7 @@ private:
     // State members
     QList<int> _selectedMeshIds;           // Currently selected mesh IDs
     int _hoveredMeshId = -1;               // Currently hovered mesh (-1 = none)
-    HoverHighlightMode _hoverHighlightMode = HoverHighlightMode::Disabled;
+    HoverHighlightMode _hoverHighlightMode = HoverHighlightMode::RaycastOnly;
     SelectionMode _selectionMode = SelectionMode::Hybrid;
 
     // FBO resources for color picking (managed by GLWidget)

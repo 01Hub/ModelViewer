@@ -313,7 +313,7 @@ private:
     double display_nearPlane = 0.1;
     double display_farPlane = 1000.0;
     bool display_showCenterTrihedron = false;
-    HoverHighlightMode display_hoverHighlightMode = HoverHighlightMode::Disabled;
+    HoverHighlightMode display_hoverHighlightMode = HoverHighlightMode::RaycastOnly;
 
     // Navigation group
     int navigation_modeIndex = 0;
