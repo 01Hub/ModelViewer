@@ -20,6 +20,18 @@ VisualizationEnvironmentPanel::VisualizationEnvironmentPanel(QWidget* parent)
 	ui = std::make_unique<Ui::VisualizationEnvironmentPanel>();
 	ui->setupUi(this);
 
+	// Embed the enum value in each combo item's UserRole so the handler
+	// never depends on positional index — reordering the UI is always safe.
+	{
+		auto* combo = ui->comboBoxHDRToneMappingMode;
+		combo->setItemData(0, static_cast<int>(HDRToneMapMode::KhronosPbrNeutral));
+		combo->setItemData(1, static_cast<int>(HDRToneMapMode::ACES_Narkowicz));
+		combo->setItemData(2, static_cast<int>(HDRToneMapMode::ACES_Hill));
+		combo->setItemData(3, static_cast<int>(HDRToneMapMode::AECS_Hill_Exposure_Boost));
+		combo->setItemData(4, static_cast<int>(HDRToneMapMode::Uncharted2ToneMapping));
+		combo->setItemData(5, static_cast<int>(HDRToneMapMode::Reinhard));
+	}
+
 	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
 		ui->retranslateUi(this);
 		});
@@ -588,7 +600,9 @@ void VisualizationEnvironmentPanel::onHDRToneMappingModeChanged(int index)
 	if (!_glWidget)
 		return;
 
-	_glWidget->setHDRToneMappingMode(static_cast<HDRToneMapMode>(index));
+	// Each item carries its HDRToneMapMode enum value in UserRole (set in constructor).
+	const int enumVal = ui->comboBoxHDRToneMappingMode->itemData(index).toInt();
+	_glWidget->setHDRToneMappingMode(static_cast<HDRToneMapMode>(enumVal));
 	_glWidget->updateView();
 }
 

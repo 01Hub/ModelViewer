@@ -282,7 +282,7 @@ _assimpModelLoader(nullptr)
 	_hdrToneMapping = false;
 	_envMapExposure = 1.0f;
 	_iblExposure = 1.0f;
-	_toneMappingMode = HDRToneMapMode::ACES_Narkowicz;
+	_toneMappingMode = HDRToneMapMode::KhronosPbrNeutral;
 
 	_lowResEnabled = false;	
 	_showLights = false;

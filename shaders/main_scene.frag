@@ -257,8 +257,8 @@ uniform float screenGamma = 2.2;
 uniform float envMapExposure = 1.0;
 uniform float iblExposure = 1.0;
 
-// 0=ACES_Narkowicz, 1=ACES_Hill, 2=AECS_Hill_Exposure_Boost, 
-// 3=KhronosPbrNeutral, 4=Uncharted2, 5=Reinhard(Linear)
+// 0=KhronosPbrNeutral, 1=ACES_Narkowicz, 2=ACES_Hill, 3=AECS_Hill_Exposure_Boost,
+// 4=Uncharted2, 5=Reinhard(Linear)
 uniform int toneMapMode = 0;
 
 uniform bool skyBoxEnabled;
@@ -3614,23 +3614,23 @@ vec3 applyToneMapping(vec3 color)
 
 	if (toneMapMode == 0)
 	{
-		color = toneMapACES_Narkowicz(color);
+		color = toneMap_KhronosPbrNeutral(color);
 	}
 	else if (toneMapMode == 1)
 	{
-		color = toneMapACES_Hill(color);
+		color = toneMapACES_Narkowicz(color);
 	}
 	else if (toneMapMode == 2)
 	{
-		// boost exposure as discussed in https://github.com/mrdoob/three.js/pull/19621
-		// this factor is based on the exposure correction of Krzysztof Narkowicz in his
-		// implemetation of ACES tone mapping
-		color /= 0.6;
 		color = toneMapACES_Hill(color);
 	}
 	else if (toneMapMode == 3)
 	{
-		color = toneMap_KhronosPbrNeutral(color);
+		// boost exposure as discussed in https://github.com/mrdoob/three.js/pull/19621
+		// this factor is based on the exposure correction of Krzysztof Narkowicz in his
+		// implementation of ACES tone mapping
+		color /= 0.6;
+		color = toneMapACES_Hill(color);
 	}
 	else if (toneMapMode == 4)
 	{
@@ -3638,7 +3638,7 @@ vec3 applyToneMapping(vec3 color)
 	}
 	else
 	{
-		// Default Reinhard
+		// Reinhard
 		color = color / (color + vec3(1.0));
 	}
 
