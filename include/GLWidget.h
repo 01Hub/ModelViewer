@@ -544,12 +544,27 @@ private:
 	void updatePunctualLights();  // Update lights based on bounding sphere changes
 	void recalculateVisibleSceneStats(bool updateMemorySize = false);
 
-	void drawMesh(QOpenGLShaderProgram* prog);
+	// activeCapPlaneIndex: -1 = no culling, 0 = YZ, 1 = ZX, 2 = XY
+	void drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex = -1);
 
-	void drawOpaqueMeshes(QOpenGLShaderProgram* prog);
-	void drawTransparentMeshes(QOpenGLShaderProgram* prog);
+	// activeClipPlaneIndex: -1 = no clipping (frustum only), 0 = YZ, 1 = ZX, 2 = XY
+	void drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
+	void drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex = -1);
 	void drawMeshesWithClipping(QOpenGLShaderProgram* prog, bool transparentPass);
 	void setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera);
+
+	// Visibility culling
+	void extractFrustumPlanes();
+	bool isMeshOutsideFrustum(const TriangleMesh* mesh) const;
+	bool isMeshFullyClipped_X(const TriangleMesh* mesh) const;
+	bool isMeshFullyClipped_Y(const TriangleMesh* mesh) const;
+	bool isMeshFullyClipped_Z(const TriangleMesh* mesh) const;
+	bool isMeshFullyKept_X(const TriangleMesh* mesh) const;
+	bool isMeshFullyKept_Y(const TriangleMesh* mesh) const;
+	bool isMeshFullyKept_Z(const TriangleMesh* mesh) const;
+	bool isMeshStraddlesCapPlane(const TriangleMesh* mesh, int planeIndex) const;
+	bool isMeshInvisibleInAllClipPasses(const TriangleMesh* mesh) const;
+	bool isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex) const;
 
 	void drawSectionCapping();
 	void drawFloor(const bool& drawReflection = true);
@@ -730,6 +745,9 @@ private:
 	bool _clipXFlipped;
 	bool _clipYFlipped;
 	bool _clipZFlipped;
+
+	// Frustum planes extracted each frame for AABB culling (Gribb-Hartmann, world space)
+	QVector4D _frustumPlanes[6];
 
 	bool _showVertexNormals;
 	bool _showFaceNormals;

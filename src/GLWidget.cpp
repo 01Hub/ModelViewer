@@ -4919,7 +4919,7 @@ void GLWidget::drawSkyBox()
 	glDisable((GL_DEPTH_TEST));
 }
 
-void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
+void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 {
 	QVector3D camPos = _primaryCamera->getPosition();
 	setupClippingUniforms(prog, camPos);
@@ -4928,7 +4928,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 
 	const std::vector<int>& objectIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
 
-	// Split
+	// Split — applying cap-plane straddle culling during collection
 	std::vector<int> opaqueIds;
 	std::vector<std::pair<float, int>> transparent; // (distance, id)
 
@@ -4939,6 +4939,14 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 	{
 		if (auto* mesh = _meshStore.at(id))
 		{
+			// Capping stencil pass: skip meshes outside frustum or that don't
+			// intersect the active cap plane — they contribute nothing to stencil.
+			if (activeCapPlaneIndex >= 0)
+			{
+				if (isMeshOutsideFrustum(mesh)) continue;
+				if (!isMeshStraddlesCapPlane(mesh, activeCapPlaneIndex)) continue;
+			}
+
 			if (mesh->isTransparent())
 			{
 				// Use a stable distance metric (camera -> mesh bounds center in world space)
@@ -4994,7 +5002,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog)
 	glDisable(GL_BLEND);
 }
 
-void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog)
+void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
 	QVector3D camPos = _primaryCamera->getPosition();
 	setupClippingUniforms(prog, camPos);
@@ -5011,6 +5019,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog)
 		{
 			if (!mesh->isTransparent())
 			{
+				if (!isMeshVisible(mesh, activeClipPlaneIndex)) continue;
 				mesh->setProg(prog);
 
 				// CRITICAL: Bind shader program BEFORE setting uniforms
@@ -5032,7 +5041,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog)
 }
 
 
-void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog)
+void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
 	QVector3D camPos = _primaryCamera->getPosition();
 	setupClippingUniforms(prog, camPos);
@@ -5049,6 +5058,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog)
 		{
 			if (mesh->isTransparent())
 			{
+				if (!isMeshVisible(mesh, activeClipPlaneIndex)) continue;
 				// Use a stable distance metric (camera -> mesh bounds center in world space)
 				const QVector3D c = mesh->getBoundingSphere().getCenter();   // return center in world space
 				const float R = mesh->getBoundingSphere().getRadius();
@@ -5095,6 +5105,160 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog)
 	glDisable(GL_BLEND);
 }
 
+// ---------------------------------------------------------------------------
+// Visibility culling helpers
+// ---------------------------------------------------------------------------
+
+void GLWidget::extractFrustumPlanes()
+{
+	// Gribb-Hartmann method: rows of the combined VP matrix define the 6 frustum
+	// planes in world space. Vertices are already in world space (no model matrix),
+	// so VP = projectionMatrix * viewMatrix suffices.
+	const QMatrix4x4 vp = _projectionMatrix * _viewMatrix;
+	const QVector4D r0 = vp.row(0);
+	const QVector4D r1 = vp.row(1);
+	const QVector4D r2 = vp.row(2);
+	const QVector4D r3 = vp.row(3);
+
+	_frustumPlanes[0] = r3 + r0;  // left
+	_frustumPlanes[1] = r3 - r0;  // right
+	_frustumPlanes[2] = r3 + r1;  // bottom
+	_frustumPlanes[3] = r3 - r1;  // top
+	_frustumPlanes[4] = r3 + r2;  // near
+	_frustumPlanes[5] = r3 - r2;  // far
+
+	// Normalize so that w is a true signed world-space distance
+	for (int i = 0; i < 6; ++i)
+	{
+		const float len = QVector3D(_frustumPlanes[i].x(), _frustumPlanes[i].y(), _frustumPlanes[i].z()).length();
+		if (len > 1e-6f)
+			_frustumPlanes[i] /= len;
+	}
+}
+
+bool GLWidget::isMeshOutsideFrustum(const TriangleMesh* mesh) const
+{
+	const BoundingBox& bb = mesh->getBoundingBox();
+	for (int i = 0; i < 6; ++i)
+	{
+		const QVector4D& p = _frustumPlanes[i];
+		// Support point: AABB corner furthest along the plane's inward normal.
+		// If even this corner is on the outside (negative side), the whole AABB is outside.
+		const float sx = p.x() >= 0.0f ? static_cast<float>(bb.xMax()) : static_cast<float>(bb.xMin());
+		const float sy = p.y() >= 0.0f ? static_cast<float>(bb.yMax()) : static_cast<float>(bb.yMin());
+		const float sz = p.z() >= 0.0f ? static_cast<float>(bb.zMax()) : static_cast<float>(bb.zMin());
+		if (p.x() * sx + p.y() * sy + p.z() * sz + p.w() < 0.0f)
+			return true;
+	}
+	return false;
+}
+
+bool GLWidget::isMeshFullyClipped_X(const TriangleMesh* mesh) const
+{
+	// ClipPlaneX (YZ plane): world-space threshold = _clipXCoeff + scene centre X.
+	// Not flipped: keep side with x <= threshold → fully clipped when xMin > threshold.
+	// Flipped:     keep side with x >= threshold → fully clipped when xMax < threshold.
+	const float tx = _clipXCoeff + static_cast<float>(_boundingBox.center().getX());
+	const BoundingBox& bb = mesh->getBoundingBox();
+	return _clipXFlipped
+		? static_cast<float>(bb.xMax()) < tx
+		: static_cast<float>(bb.xMin()) > tx;
+}
+
+bool GLWidget::isMeshFullyClipped_Y(const TriangleMesh* mesh) const
+{
+	const float ty = _clipYCoeff + static_cast<float>(_boundingBox.center().getY());
+	const BoundingBox& bb = mesh->getBoundingBox();
+	return _clipYFlipped
+		? static_cast<float>(bb.yMax()) < ty
+		: static_cast<float>(bb.yMin()) > ty;
+}
+
+bool GLWidget::isMeshFullyClipped_Z(const TriangleMesh* mesh) const
+{
+	const float tz = _clipZCoeff + static_cast<float>(_boundingBox.center().getZ());
+	const BoundingBox& bb = mesh->getBoundingBox();
+	return _clipZFlipped
+		? static_cast<float>(bb.zMax()) < tz
+		: static_cast<float>(bb.zMin()) > tz;
+}
+
+bool GLWidget::isMeshFullyKept_X(const TriangleMesh* mesh) const
+{
+	// Entire mesh is on the KEEP side of the YZ clip plane — no intersection with the cap.
+	// Not flipped: keep side is x <= threshold → fully kept when xMax <= threshold.
+	// Flipped:     keep side is x >= threshold → fully kept when xMin >= threshold.
+	const float tx = _clipXCoeff + static_cast<float>(_boundingBox.center().getX());
+	const BoundingBox& bb = mesh->getBoundingBox();
+	return _clipXFlipped
+		? static_cast<float>(bb.xMin()) >= tx
+		: static_cast<float>(bb.xMax()) <= tx;
+}
+
+bool GLWidget::isMeshFullyKept_Y(const TriangleMesh* mesh) const
+{
+	const float ty = _clipYCoeff + static_cast<float>(_boundingBox.center().getY());
+	const BoundingBox& bb = mesh->getBoundingBox();
+	return _clipYFlipped
+		? static_cast<float>(bb.yMin()) >= ty
+		: static_cast<float>(bb.yMax()) <= ty;
+}
+
+bool GLWidget::isMeshFullyKept_Z(const TriangleMesh* mesh) const
+{
+	const float tz = _clipZCoeff + static_cast<float>(_boundingBox.center().getZ());
+	const BoundingBox& bb = mesh->getBoundingBox();
+	return _clipZFlipped
+		? static_cast<float>(bb.zMin()) >= tz
+		: static_cast<float>(bb.zMax()) <= tz;
+}
+
+bool GLWidget::isMeshStraddlesCapPlane(const TriangleMesh* mesh, int planeIndex) const
+{
+	// A mesh must straddle the cap plane to contribute to the stencil count.
+	// Fully clipped (discard side) or fully kept (keep side) → no cap intersection → skip.
+	switch (planeIndex)
+	{
+	case 0: return !isMeshFullyClipped_X(mesh) && !isMeshFullyKept_X(mesh);
+	case 1: return !isMeshFullyClipped_Y(mesh) && !isMeshFullyKept_Y(mesh);
+	case 2: return !isMeshFullyClipped_Z(mesh) && !isMeshFullyKept_Z(mesh);
+	default: return true;
+	}
+}
+
+bool GLWidget::isMeshInvisibleInAllClipPasses(const TriangleMesh* mesh) const
+{
+	// Returns true only when every enabled clip plane fully clips this mesh,
+	// meaning it contributes nothing to any pass of the union rendering.
+	// If ANY enabled plane does NOT fully clip the mesh, it is visible in that pass.
+	if (_clipYZEnabled && !isMeshFullyClipped_X(mesh)) return false;
+	if (_clipZXEnabled && !isMeshFullyClipped_Y(mesh)) return false;
+	if (_clipXYEnabled && !isMeshFullyClipped_Z(mesh)) return false;
+	return true;
+}
+
+bool GLWidget::isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex) const
+{
+	// 1. Frustum cull — applied in every pass, clipping or not
+	if (isMeshOutsideFrustum(mesh)) return false;
+
+	// 2. No clip planes in this pass → frustum result is final
+	if (activeClipPlaneIndex < 0) return true;
+
+	// 3. Pre-pass elimination: if ALL active planes fully clip this mesh it is
+	//    invisible across every union pass — skip it entirely
+	if (isMeshInvisibleInAllClipPasses(mesh)) return false;
+
+	// 4. Per-pass cull: skip if fully clipped by the one plane active in this pass
+	if (activeClipPlaneIndex == 0 && isMeshFullyClipped_X(mesh)) return false;
+	if (activeClipPlaneIndex == 1 && isMeshFullyClipped_Y(mesh)) return false;
+	if (activeClipPlaneIndex == 2 && isMeshFullyClipped_Z(mesh)) return false;
+
+	return true;
+}
+
+// ---------------------------------------------------------------------------
+
 void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 	bool transparentPass)
 {
@@ -5105,32 +5269,35 @@ void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 	// If any clipping is active
 	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled)
 	{
-		// Then draw meshes with clip planes enabled
+		// Then draw meshes with clip planes enabled.
+		// Each pass activates one plane to produce the union of all half-spaces.
+		// activeClipPlaneIndex (0/1/2) tells the draw functions which single plane
+		// is active so per-pass AABB culling tests only that plane.
 		if (_clipYZEnabled)
 		{
 			glEnable(GL_CLIP_DISTANCE0);
-			if (transparentPass) drawTransparentMeshes(prog);
-			else                 drawOpaqueMeshes(prog);
+			if (transparentPass) drawTransparentMeshes(prog, 0);
+			else                 drawOpaqueMeshes(prog, 0);
 			glDisable(GL_CLIP_DISTANCE0);
 		}
 		if (_clipZXEnabled)
 		{
 			glEnable(GL_CLIP_DISTANCE1);
-			if (transparentPass) drawTransparentMeshes(prog);
-			else                 drawOpaqueMeshes(prog);
+			if (transparentPass) drawTransparentMeshes(prog, 1);
+			else                 drawOpaqueMeshes(prog, 1);
 			glDisable(GL_CLIP_DISTANCE1);
 		}
 		if (_clipXYEnabled)
 		{
 			glEnable(GL_CLIP_DISTANCE2);
-			if (transparentPass) drawTransparentMeshes(prog);
-			else                 drawOpaqueMeshes(prog);
+			if (transparentPass) drawTransparentMeshes(prog, 2);
+			else                 drawOpaqueMeshes(prog, 2);
 			glDisable(GL_CLIP_DISTANCE2);
 		}
 	}
 	else
 	{
-		// No clipping at all
+		// No clipping at all — frustum culling only (activeClipPlaneIndex = -1)
 		if (transparentPass) drawTransparentMeshes(prog);
 		else                 drawOpaqueMeshes(prog);
 	}
@@ -5239,14 +5406,14 @@ void GLWidget::drawSectionCapping()
 		// and the model is drawn with glCullFace(GL FRONT).
 		glEnable(GL_CULL_FACE);
 		glCullFace(GL_FRONT);
-		drawMesh(_clippedMeshShader.get());
+		drawMesh(_clippedMeshShader.get(), i);
 
 		// 4) The stencil operation is then set to decrement the stencil value where the depth test passes,
 		glStencilOp(GL_KEEP, GL_KEEP, GL_DECR);
 
 		// and the model is drawn with glCullFace(GL BACK)
 		glCullFace(GL_BACK);
-		drawMesh(_clippedMeshShader.get());
+		drawMesh(_clippedMeshShader.get(), i);
 		glDisable(GL_CULL_FACE);
 
 		//At this point, the stencil buffer is 1 wherever the clipping plane is enclosed by
@@ -5750,6 +5917,9 @@ void GLWidget::render(GLCamera* camera)
 	_viewMatrix = camera->getViewMatrix();
 	_projectionMatrix = camera->getProjectionMatrix();
 	_modelViewMatrix = _viewMatrix * _modelMatrix;
+
+	// Extract frustum planes once per frame for AABB culling
+	extractFrustumPlanes();
 
 	// --- 1) Skybox ---
 	if (_skyBoxEnabled)
