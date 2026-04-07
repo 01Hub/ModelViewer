@@ -5,8 +5,9 @@
 
 void XCAFDocProcessor::initializeDocumentProcessing()
 {
-    // Clear the color cache only once at the start of document processing
+    // Clear all per-document caches so stale data from a previous file never leaks in.
     BRepToAssimpConverter::clearColorCache();
+    myRefCache.Clear();
 }
 
 // Traverse the STEP assembly structure and extract shapes and names
@@ -34,14 +35,18 @@ void XCAFDocProcessor::traverseXCAFAssembly(
 	// 2) Compute this instance's transform
 	TopLoc_Location loc = parentLoc * shapeTool->GetLocation(label);
 
-	// 3) If it's a reference, resolve to its definition label
+	// 3) If it's a reference, resolve to its definition label (cache-first).
 	TDF_Label defLabel = label;
 	if (shapeTool->IsReference(label))
 	{
-		TDF_Label tmp;
-		if (shapeTool->GetReferredShape(label, tmp))
+		if (!myRefCache.Find(label, defLabel))
 		{
-			defLabel = tmp;
+			TDF_Label tmp;
+			if (shapeTool->GetReferredShape(label, tmp))
+			{
+				defLabel = tmp;
+				myRefCache.Bind(label, defLabel);
+			}
 		}
 	}
 
@@ -138,19 +143,16 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         TDF_LabelSequence comps;
         shapeTool->GetComponents(label, comps);
 
-        // Create a node for this assembly
+        // Create a node for this assembly.
+        // Pre-allocate its children array to the exact component count so every
+        // recursive call below can use direct index assignment instead of realloc().
         aiNode* assemblyNode = new aiNode();
-        assemblyNode->mName = aiString(nodeName);
+        assemblyNode->mName        = aiString(nodeName);
+        assemblyNode->mNumChildren = 0;
+        assemblyNode->mChildren    = comps.Length() > 0 ? new aiNode*[comps.Length()] : nullptr;
 
-        aiNode** newChildren = (aiNode**)realloc(parentNode->mChildren, (parentNode->mNumChildren + 1) * sizeof(aiNode*));
-        if (!newChildren)
-        {
-            free(parentNode->mChildren);
-            throw std::bad_alloc();
-        }
-        parentNode->mChildren = newChildren;
-        parentNode->mChildren[parentNode->mNumChildren] = assemblyNode;
-        parentNode->mNumChildren++;
+        // parentNode's mChildren array was pre-allocated by its creator; direct assignment.
+        parentNode->mChildren[parentNode->mNumChildren++] = assemblyNode;
 
         for (Standard_Integer i = 1; i <= comps.Length(); ++i)
         {
@@ -162,14 +164,20 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     // 3) Compute this instance's transform
     TopLoc_Location loc = parentLoc * shapeTool->GetLocation(label);
 
-    // 4) If it's a reference, resolve to its definition label
+    // 4) If it's a reference, resolve to its definition label.
+    // Serve from the cache populated by countMeshes() — GetReferredShape() is only
+    // called here if this instance was somehow not visited during the counting pass.
     TDF_Label defLabel = label;
     if (shapeTool->IsReference(label))
     {
-        TDF_Label tmp;
-        if (shapeTool->GetReferredShape(label, tmp))
+        if (!myRefCache.Find(label, defLabel))
         {
-            defLabel = tmp;
+            TDF_Label tmp;
+            if (shapeTool->GetReferredShape(label, tmp))
+            {
+                defLabel = tmp;
+                myRefCache.Bind(label, defLabel);
+            }
         }
     }
 
@@ -185,20 +193,15 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         {
             subAssemblyName = TCollection_AsciiString(nameAttr->Get()).ToCString();
         }
-        // Create a node for the sub-assembly
+        // Create a node for the sub-assembly.
+        // Pre-allocate its children array to the exact component count.
         aiNode* subAssemblyNode = new aiNode();
-        subAssemblyNode->mName = aiString(subAssemblyName);
+        subAssemblyNode->mName        = aiString(subAssemblyName);
+        subAssemblyNode->mNumChildren = 0;
+        subAssemblyNode->mChildren    = comps.Length() > 0 ? new aiNode*[comps.Length()] : nullptr;
 
-        // Attach this sub-assembly node to its parent
-        aiNode** newChildren = (aiNode**)realloc(parentNode->mChildren, (parentNode->mNumChildren + 1) * sizeof(aiNode*));
-        if (!newChildren)
-        {
-            free(parentNode->mChildren);
-            throw std::bad_alloc();
-        }
-        parentNode->mChildren = newChildren;
-        parentNode->mChildren[parentNode->mNumChildren] = subAssemblyNode;
-        parentNode->mNumChildren++;
+        // Direct assignment — parentNode's array was pre-allocated by its creator.
+        parentNode->mChildren[parentNode->mNumChildren++] = subAssemblyNode;
 
         for (Standard_Integer i = 1; i <= comps.Length(); ++i)
         {
@@ -295,15 +298,8 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         // Use the name from TDF_Label for the node
         nodeCopy->mName = aiString(leafNodeName);
 
-        aiNode** newChildren = (aiNode**)realloc(parentNode->mChildren, (parentNode->mNumChildren + 1) * sizeof(aiNode*));
-        if (!newChildren)
-        {
-            free(parentNode->mChildren);
-            throw std::bad_alloc();
-        }
-        parentNode->mChildren = newChildren;
-        parentNode->mChildren[parentNode->mNumChildren] = nodeCopy;
-        parentNode->mNumChildren++;
+        // Direct assignment — parentNode's array was pre-allocated by its creator.
+        parentNode->mChildren[parentNode->mNumChildren++] = nodeCopy;
 
         // Clean up sub-scene
         subScene->mMeshes = nullptr;
@@ -352,14 +348,20 @@ int XCAFDocProcessor::countMeshes(const Handle(XCAFDoc_ShapeTool)& shapeTool, co
         return meshCount;
     }
 
-    // If it's a reference, resolve to its definition label
+    // If it's a reference, resolve to its definition label.
+    // Cache the result so traverseXCAFAssembly() can reuse it without a second
+    // GetReferredShape() call (E2 optimisation — one lookup per instance label).
     TDF_Label defLabel = label;
     if (shapeTool->IsReference(label))
     {
-        TDF_Label tmp;
-        if (shapeTool->GetReferredShape(label, tmp))
+        if (!myRefCache.Find(label, defLabel))
         {
-            defLabel = tmp;
+            TDF_Label tmp;
+            if (shapeTool->GetReferredShape(label, tmp))
+            {
+                defLabel = tmp;
+                myRefCache.Bind(label, defLabel);
+            }
         }
     }
 

@@ -3,6 +3,10 @@
 #include "XCAFSTEPProcessor.hxx"
 #include <assimp/scene.h>
 #include <BinDrivers.hxx>
+#include <BRep_Builder.hxx>
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <DE_ShapeFixParameters.hxx>
+#include <IMeshTools_Parameters.hxx>
 #include <QFileInfo>
 #include <QString>
 #include <STEPCAFControl_Reader.hxx>
@@ -11,7 +15,10 @@
 #include <TDF_LabelSequence.hxx>
 #include <TDF_Tool.hxx>
 #include <TDocStd_Document.hxx>
+#include <TopoDS_Compound.hxx>
 #include <XCAFApp_Application.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
 #include <XCAFReadProgressIndicator.hxx>
 
 aiScene* XCAFSTEPProcessor::processFile(const std::string& path)
@@ -57,6 +64,36 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 		return nullptr;
 	}
 
+	// Pre-tessellate all free shapes in parallel using a single BRepMesh_IncrementalMesh call.
+	// Collecting them into one compound lets OCCT distribute face meshing across all available
+	// CPU cores (InParallel = true), which is significantly faster than the per-face sequential
+	// meshing that convertFaceGroupToMesh() would otherwise do.
+	// Deflection = 0.05 with Relative = true means 5 % of each face's bounding-box diagonal,
+	// matching the adaptive quality used by convertFaceGroupToMesh().
+	{
+		MainWindow::showStatusMessage(tr("Pre-tessellating geometry (parallel)..."));
+
+		TopoDS_Compound compound;
+		BRep_Builder builder;
+		builder.MakeCompound(compound);
+
+		for (Standard_Integer i = 1; i <= labels.Length(); ++i)
+		{
+			TopoDS_Shape shape;
+			if (shapeTool->GetShape(labels.Value(i), shape) && !shape.IsNull())
+				builder.Add(compound, shape);
+		}
+
+		IMeshTools_Parameters meshParams;
+		meshParams.Deflection             = BRepToAssimpConverter::resolveDeflectionFraction(); // user-configurable, default 5 %
+		meshParams.Angle                  = 0.3;    // angular deflection in radians
+		meshParams.Relative               = true;   // deflection is relative to each face's bbox
+		meshParams.InParallel             = true;   // use all available CPU cores
+		meshParams.AllowQualityDecrease   = true;   // avoid stalling on difficult faces
+
+		BRepMesh_IncrementalMesh(compound, meshParams);
+	}
+
 #ifdef __DEBUG__
 	auto startTraverse = std::chrono::high_resolution_clock::now();
 #endif
@@ -73,9 +110,18 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 
 	int meshIndex = 0; // Tracks the mesh indices for the scene
 
-	// Traverse the assembly and build the Assimp scene hierarchy
-	int totalMeshes = countMeshes(shapeTool, labels.Value(1)); // Assuming labels contains free shapes
+	// Count total leaf parts across ALL free shape labels (the original code only counted
+	// labels.Value(1), which gave a wrong total when a file has multiple top-level shapes).
+	int totalMeshes = 0;
+	for (Standard_Integer i = 1; i <= labels.Length(); ++i)
+		totalMeshes += countMeshes(shapeTool, labels.Value(i));
 	int processedMeshes = 0;
+
+	// Pre-allocate the root node's children array to the exact number of free shape
+	// labels so traverseXCAFAssembly can use direct index assignment instead of
+	// calling realloc() for every top-level child it attaches.
+	scene->mRootNode->mChildren    = labels.Length() > 0 ? new aiNode*[labels.Length()] : nullptr;
+	scene->mRootNode->mNumChildren = 0;
 
 	MainWindow::showStatusMessage(tr("Traversing assembly and building scene..."));
 
@@ -120,6 +166,31 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocStd_Document) & doc)
 {
 	STEPCAFControl_Reader reader;
+
+	// Disable XCAF sub-systems that are irrelevant for pure 3-D visualization.
+	// Each disabled mode skips a separate traversal/annotation pass during Transfer(),
+	// which can meaningfully reduce load time on large assemblies.
+	reader.SetGDTMode(false);   // Geometric Dimensioning & Tolerancing annotations
+	reader.SetSHUOMode(false);  // Super-imposed Higher-Usage Occurrence relationships
+	reader.SetPropsMode(false); // Validation properties (mass, surface area, etc.)
+	reader.SetViewMode(false);  // Saved camera views embedded in the STEP file
+
+	// Phase D: Tune the OCCT 7.9.x shape-fix pipeline via DE_ShapeFixParameters.
+	// By default OCCT runs FixShellOrientationMode = FixOrNot, meaning it will attempt
+	// to reconcile shell normal orientations on every imported solid.  For well-authored
+	// STEP files from professional CAD tools this is unnecessary overhead; we disable it
+	// explicitly.  Other expensive topology-repair passes that have no visual benefit
+	// for a viewer (self-intersection detection, face splitting) are also suppressed.
+	// All other modes are left at their OCCT defaults so legitimate healing still runs.
+	{
+		using FM = DE_ShapeFixParameters::FixMode;
+		DE_ShapeFixParameters fixParams;
+		fixParams.FixShellOrientationMode  = FM::NotFix; // skip expensive shell normal reconciliation
+		fixParams.FixSplitFaceMode         = FM::NotFix; // skip topology splitting (viewer does not need it)
+		fixParams.FixSelfIntersectionMode  = FM::NotFix; // skip costly self-intersection detection
+		reader.SetShapeFixParameters(fixParams);
+	}
+
 #ifdef __DEBUG__
 	auto startCount = std::chrono::high_resolution_clock::now();
 #endif

@@ -1,5 +1,8 @@
 ﻿#include "BRepToAssimpConverter.h"
 #include "MainWindow.h"
+#include <algorithm>
+#include <QCoreApplication>
+#include <QSettings>
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
 #include <BRepBndLib.hxx>
@@ -30,6 +33,44 @@
 
 
 ColorCache BRepToAssimpConverter::s_colorCache;
+
+/**
+ * Returns the deflection fraction to use for STEP/XCAF tessellation.
+ *
+ * Reads the "Tessellation Quality" slider value (1–10) from QSettings key
+ * "tessellationQualitySlider" — the same key written by SettingsDialog.
+ * The integer slider position is mapped linearly to a deflection percentage:
+ *
+ *   Slider 1  (coarsest) → 20 %   (fast load, visibly faceted curves)
+ *   Slider 5  (default)  →  5 %   (good balance for mechanical CAD)
+ *   Slider 10 (finest)   →  0.5 % (high fidelity, more triangles)
+ *
+ * Formula:  percent = 20 % / (2 ^ ((value-1) * log2(40) / 9))
+ * simplified to a lerp on a log scale between 20 and 0.5.
+ */
+Standard_Real BRepToAssimpConverter::resolveDeflectionFraction()
+{
+	constexpr double coarsestPercent = 20.0;   // slider = 1
+	constexpr double finestPercent   =  0.5;   // slider = 10
+	constexpr int    sliderMin       =  1;
+	constexpr int    sliderMax       = 10;
+	constexpr int    sliderDefault   =  5;
+
+	const int sliderValue = QSettings(QCoreApplication::organizationName(),
+	                                  QCoreApplication::applicationName())
+	                            .value("tessellationQualitySlider", sliderDefault)
+	                            .toInt();
+
+	const int   clamped = std::clamp(sliderValue, sliderMin, sliderMax);
+	// Logarithmic interpolation so each step feels perceptually equal
+	const double t       = static_cast<double>(clamped - sliderMin) /
+	                       static_cast<double>(sliderMax - sliderMin);
+	const double logCoarse = std::log(coarsestPercent);
+	const double logFine   = std::log(finestPercent);
+	const double percent   = std::exp(logCoarse + t * (logFine - logCoarse));
+
+	return percent / 100.0;
+}
 
 /**
  * Converts a vector of shapes (with name, transformation, and color) into an Assimp aiScene.
@@ -743,12 +784,19 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			<< ", Threshold: " << threshold << std::endl;
 	}
 
-	Standard_Real deflection = computeDeflectionFromBBox(faceGroup, 0.05);
+	Standard_Real deflection = computeDeflectionFromBBox(faceGroup, resolveDeflectionFraction());
 	const Standard_Real angularDeflection = 0.3;
 
 	// Statistics (only if enabled to avoid overhead)
 	int totalTriangles = 0;
 	int degenerateTriangles = 0;
+
+	// C2: Flat per-vertex normal accumulators declared outside the face loop so their
+	// heap capacity is reused across all faces via assign() instead of being reallocated
+	// on every iteration.  This replaces the previous std::vector<std::vector<aiVector3D>>
+	// localNormals(nNodes) pattern which created O(nNodes) heap objects per face.
+	std::vector<aiVector3D> normalAccum;
+	std::vector<int>        normalCount;
 
 	for (int f = 1; f <= faceCount; ++f)
 	{
@@ -756,40 +804,50 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 
 		if (face.IsNull()) continue;
 
-		BRepTools::Clean(face);
-		BRepLib::BuildCurves3d(face);
-
-		// OPTIMIZATION 2: Skip expensive face fixing for good faces
-		TopoDS_Face processedFace = face;
-
 		Handle(Poly_Triangulation) triangulation;
 		TopLoc_Location loc;
+		TopoDS_Face processedFace = face;  // may be replaced by a healed face below
 
-		try
+		// OPTIMIZATION 2: Reuse pre-computed triangulation when available.
+		// If a parallel pre-tessellation pass (e.g. BRepMesh_IncrementalMesh on the full compound
+		// in XCAFSTEPProcessor) has already run, the triangulation is stored directly on the face
+		// and we can read it without any meshing work.  Only fall back to per-face meshing when no
+		// triangulation is present (e.g. shapes loaded via a code path that skips the pre-pass).
+		triangulation = BRep_Tool::Triangulation(face, loc);
+
+		if (triangulation.IsNull())
 		{
-			BRepMesh_IncrementalMesh mesher(processedFace, deflection, false, angularDeflection, true);
-			triangulation = BRep_Tool::Triangulation(processedFace, loc);
+			// No pre-computed triangulation — mesh this face individually.
+			BRepTools::Clean(face);
+			BRepLib::BuildCurves3d(face);
+			processedFace = face;  // re-assign after Clean (shape identity is stable, but be explicit)
 
-			if (triangulation.IsNull())
+			try
 			{
-				BRepCheck_Analyzer analyzer(processedFace);
-				if (!analyzer.IsValid())
+				BRepMesh_IncrementalMesh mesher(processedFace, deflection, false, angularDeflection, true);
+				triangulation = BRep_Tool::Triangulation(processedFace, loc);
+
+				if (triangulation.IsNull())
 				{
-					TopoDS_Face healedFace = healAndTriangulateFace(processedFace, deflection, angularDeflection, 1.0e-3);
-					if (!healedFace.IsNull())
+					BRepCheck_Analyzer analyzer(processedFace);
+					if (!analyzer.IsValid())
 					{
-						triangulation = BRep_Tool::Triangulation(healedFace, loc);
-						if (!triangulation.IsNull())
+						TopoDS_Face healedFace = healAndTriangulateFace(processedFace, deflection, angularDeflection, 1.0e-3);
+						if (!healedFace.IsNull())
 						{
-							processedFace = healedFace;
+							triangulation = BRep_Tool::Triangulation(healedFace, loc);
+							if (!triangulation.IsNull())
+							{
+								processedFace = healedFace;
+							}
 						}
 					}
 				}
 			}
-		}
-		catch (...)
-		{
-			continue;
+			catch (...)
+			{
+				continue;
+			}
 		}
 
 		if (triangulation.IsNull()) continue;
@@ -803,7 +861,12 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		// OPTIMIZATION 4: Single allocation for local data
 		std::vector<aiVector3D> localVertices;
 		localVertices.reserve(nNodes);
-		std::vector<std::vector<aiVector3D>> localNormals(nNodes);
+
+		// Flat accumulation: one aiVector3D sum + one int count per vertex node.
+		// assign() reuses existing capacity when nNodes <= previous face's nNodes,
+		// eliminating per-face heap allocations entirely after the first iteration.
+		normalAccum.assign(nNodes, aiVector3D(0.0f, 0.0f, 0.0f));
+		normalCount.assign(nNodes, 0);
 
 		// OPTIMIZATION 5: Batch vertex transformation
 		for (int i = 1; i <= nNodes; ++i)
@@ -861,9 +924,12 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			const float normalLengthSq = normal.SquareLength();
 			normal /= sqrtf(normalLengthSq); // Already validated above
 
-			localNormals[n1].push_back(normal);
-			localNormals[n2].push_back(normal);
-			localNormals[n3].push_back(normal);
+			normalAccum[n1] += normal;
+			normalAccum[n2] += normal;
+			normalAccum[n3] += normal;
+			++normalCount[n1];
+			++normalCount[n2];
+			++normalCount[n3];
 
 			// OPTIMIZATION 8: Direct face creation (no intermediate copies)
 			aiFace meshFace;
@@ -884,17 +950,10 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 
 			aiVector3D smoothedNormal(0.0f, 0.0f, 0.0f);
 
-			if (i < localNormals.size() && !localNormals[i].empty())
+			if (normalCount[i] > 0)
 			{
-				const auto& normals = localNormals[i];
-				const float invCount = 1.0f / static_cast<float>(normals.size());
-
-				// OPTIMIZATION 10: Manual loop unrolling for small normal sets
-				for (const auto& n : normals)
-				{
-					smoothedNormal += n;
-				}
-				smoothedNormal *= invCount; // Faster than division
+				// Average the accumulated face normals for this vertex
+				smoothedNormal = normalAccum[i] / static_cast<float>(normalCount[i]);
 
 				const float length = smoothedNormal.Length();
 				if (length > 1e-6f)

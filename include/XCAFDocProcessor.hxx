@@ -13,6 +13,7 @@
 #include <Quantity_Color.hxx>
 #include <TDF_Label.hxx>
 #include <TDataStd_Name.hxx>
+#include <TDF_LabelDataMap.hxx>
 #include <TDF_LabelSequence.hxx>
 #include <XCAFDoc_Location.hxx>
 #include <XCAFApp_Application.hxx>
@@ -60,4 +61,12 @@ protected:
     int countMeshes(const Handle(XCAFDoc_ShapeTool)& shapeTool, const TDF_Label& label);
 
     aiMatrix4x4 convertLocationToMatrix(const TopLoc_Location& loc);
+
+private:
+    // Per-document cache mapping each instance label to its resolved definition label.
+    // Populated by countMeshes() on the first (counting) tree walk; consumed by
+    // traverseXCAFAssembly() on the second (conversion) walk so GetReferredShape()
+    // is called at most once per unique instance label across both passes.
+    // Cleared at the start of every file load in initializeDocumentProcessing().
+    TDF_LabelDataMap myRefCache;
 };
