@@ -21,6 +21,168 @@
 #include <XCAFDoc_ShapeTool.hxx>
 #include <XCAFReadProgressIndicator.hxx>
 
+// STEP presentation / colour entity headers
+#include <StepVisual_StyledItem.hxx>
+#include <StepVisual_PresentationStyleAssignment.hxx>
+#include <StepVisual_PresentationStyleSelect.hxx>
+#include <StepVisual_SurfaceStyleUsage.hxx>
+#include <StepVisual_SurfaceSideStyle.hxx>
+#include <StepVisual_SurfaceStyleElementSelect.hxx>
+#include <StepVisual_SurfaceStyleFillArea.hxx>
+#include <StepVisual_FillAreaStyle.hxx>
+#include <StepVisual_FillStyleSelect.hxx>
+#include <StepVisual_FillAreaStyleColour.hxx>
+#include <StepVisual_ColourRgb.hxx>
+#include <StepVisual_StyledItemTarget.hxx>
+#include <StepRepr_Representation.hxx>
+#include <StepData_StepModel.hxx>
+#include <TransferBRep.hxx>
+#include <XSControl_WorkSession.hxx>
+
+// ---------------------------------------------------------------------------
+// buildStepColorMap
+//
+// Walks every entity in the already-transferred STEP model, finds
+// StepVisual_StyledItem entries, navigates the 7-level AP214/AP242 colour
+// chain (STYLED_ITEM → PSA → SSU → SSS → SSFA → FAS → FASC → COLOUR_RGB),
+// resolves each item's target geometry to a TopoDS_Shape via the transfer
+// process, and stores the shape→colour mapping for consumption by
+// BRepToAssimpConverter::convertFaceGroupToMeshesWithCache().
+//
+// Three STYLED_ITEM target types are handled in priority order:
+//   2 — ADVANCED_FACE (per-face colour; highest priority)
+//   1 — MANIFOLD_SOLID_BREP (solid-level colour)
+//   0 — ADVANCED_BREP_SHAPE_REPRESENTATION (assembly-level; lowest priority)
+//
+// Priority ensures per-face colours are never overwritten by solid- or
+// assembly-level entries that land in the same shape bucket.
+//
+// This completely bypasses XCAFDoc_ColorTool, which relies on FindShape()
+// internally and silently fails for face sub-shapes in OCCT 7.x.
+// ---------------------------------------------------------------------------
+static void buildStepColorMap(const STEPCAFControl_Reader& cafReader)
+{
+	// Access the underlying STEPControl_Reader to reach the model and work session
+	const STEPControl_Reader& reader = cafReader.Reader();
+
+	Handle(StepData_StepModel)      model = reader.StepModel();
+	Handle(XSControl_WorkSession)   ws    = reader.WS();
+	if (model.IsNull() || ws.IsNull()) return;
+
+	Handle(Transfer_TransientProcess) TP = ws->MapReader();
+	if (TP.IsNull()) return;
+
+	BRepToAssimpConverter::StepColorMap colorMap;
+	// Track the priority at which each shape's colour was set so higher-priority
+	// entries (FACE) never get overwritten by lower-priority ones (SOLID/ABSR).
+	std::unordered_map<TopoDS_Shape, int, ShapeHasher, ShapeEqual> priorityMap;
+
+	colorMap.reserve(static_cast<size_t>(model->NbEntities() / 5));
+	priorityMap.reserve(colorMap.bucket_count());
+
+	auto tryInsert = [&](const TopoDS_Shape& shape, const Quantity_Color& color, int priority)
+	{
+		if (shape.IsNull()) return;
+		auto pit = priorityMap.find(shape);
+		if (pit == priorityMap.end() || priority >= pit->second)
+		{
+			colorMap[shape]    = color;
+			priorityMap[shape] = priority;
+		}
+	};
+
+	for (Standard_Integer i = 1; i <= model->NbEntities(); ++i)
+	{
+		// Only process StyledItem entities
+		Handle(StepVisual_StyledItem) si =
+			Handle(StepVisual_StyledItem)::DownCast(model->Value(i));
+		if (si.IsNull() || si->NbStyles() == 0) continue;
+
+		// --- Navigate the colour chain ---
+
+		// Level 1: PresentationStyleAssignment
+		Handle(StepVisual_PresentationStyleAssignment) psa = si->StylesValue(1);
+		if (psa.IsNull() || psa->NbStyles() == 0) continue;
+
+		// Level 2: PresentationStyleSelect → SurfaceStyleUsage
+		Handle(StepVisual_SurfaceStyleUsage) ssu =
+			psa->StylesValue(1).SurfaceStyleUsage();
+		if (ssu.IsNull()) continue;
+
+		// Level 3: SurfaceSideStyle
+		Handle(StepVisual_SurfaceSideStyle) sss = ssu->Style();
+		if (sss.IsNull() || sss->NbStyles() == 0) continue;
+
+		// Level 4: SurfaceStyleElementSelect → SurfaceStyleFillArea
+		Handle(StepVisual_SurfaceStyleFillArea) ssfa =
+			sss->StylesValue(1).SurfaceStyleFillArea();
+		if (ssfa.IsNull()) continue;
+
+		// Level 5: FillAreaStyle
+		Handle(StepVisual_FillAreaStyle) fas = ssfa->FillArea();
+		if (fas.IsNull() || fas->NbFillStyles() == 0) continue;
+
+		// Level 6: FillStyleSelect → FillAreaStyleColour
+		Handle(StepVisual_FillAreaStyleColour) fasc =
+			fas->FillStylesValue(1).FillAreaStyleColour();
+		if (fasc.IsNull()) continue;
+
+		// Level 7: ColourRgb (downcast from base Colour)
+		Handle(StepVisual_ColourRgb) rgb =
+			Handle(StepVisual_ColourRgb)::DownCast(fasc->FillColour());
+		if (rgb.IsNull()) continue;
+
+		const Quantity_Color color(rgb->Red(), rgb->Green(), rgb->Blue(),
+		                           Quantity_TOC_RGB);
+
+		// --- Resolve the STYLED_ITEM target → TopoDS_Shape(s) ---
+		//
+		// si->Item() covers MANIFOLD_SOLID_BREP (solid) and ADVANCED_FACE (face)
+		// targets (both inherit StepRepr_RepresentationItem).
+		//
+		// For ADVANCED_BREP_SHAPE_REPRESENTATION (ABSR) targets, si->Item()
+		// returns null because ABSR inherits StepRepr_Representation, not
+		// RepresentationItem.  In that case we use si->ItemAP242() which returns
+		// a StepVisual_StyledItemTarget union; case 3 is Representation (= ABSR).
+		// We then iterate the ABSR's item list to extract the solid entities.
+
+		Handle(StepRepr_RepresentationItem) item = si->Item();
+		if (!item.IsNull())
+		{
+			const TopoDS_Shape shape = TransferBRep::ShapeResult(TP, item);
+			if (!shape.IsNull())
+			{
+				// ADVANCED_FACE → priority 2, anything else (SOLID) → priority 1
+				const int prio = (shape.ShapeType() == TopAbs_FACE) ? 2 : 1;
+				tryInsert(shape, color, prio);
+			}
+		}
+		else
+		{
+			// ABSR (or other Representation-derived) target — case 3 in the union
+			StepVisual_StyledItemTarget target = si->ItemAP242();
+			if (target.CaseNumber() != 3) continue; // not a Representation, skip
+
+			Handle(StepRepr_Representation) repr = target.Representation();
+			if (repr.IsNull()) continue;
+
+			// Iterate the ABSR's items to find solid entities and map them at
+			// priority 0 (lowest — a per-face or per-solid entry overrides this).
+			for (Standard_Integer j = 1; j <= repr->NbItems(); ++j)
+			{
+				Handle(StepRepr_RepresentationItem) reprItem = repr->ItemsValue(j);
+				if (reprItem.IsNull()) continue;
+
+				const TopoDS_Shape shape = TransferBRep::ShapeResult(TP, reprItem);
+				if (!shape.IsNull())
+					tryInsert(shape, color, /*priority=*/0);
+			}
+		}
+	}
+
+	BRepToAssimpConverter::setStepColorMap(colorMap);
+}
+
 aiScene* XCAFSTEPProcessor::processFile(const std::string& path)
 {
 	XCAFDocProcessor::initializeDocumentProcessing();
@@ -231,6 +393,12 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 		}
 		throw std::runtime_error("Cannot transfer STEP data to XCAF document");
 	}
+
+	// Build the shape→colour map directly from STEP entities while the reader
+	// (and its transfer process) is still in scope.  Must happen after Transfer()
+	// so all geometry shapes are registered in the TransientProcess.
+	buildStepColorMap(reader);
+
 #ifdef __DEBUG__
 	auto endTraverse = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double> durationTraverse = endTraverse - startTraverse;

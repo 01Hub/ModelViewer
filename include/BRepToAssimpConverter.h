@@ -14,82 +14,26 @@
 #include <Bnd_Box.hxx>
 #include <BRepBndLib.hxx>
 #include <map>
+#include <unordered_map>
 
+// Hash by TShape pointer only (orientation-independent).
+// Two TopoDS_Shape objects that share the same underlying TShape but differ only in
+// orientation (e.g. FORWARD vs REVERSED as stored in the STEP transfer map vs the
+// face as extracted from the BRep) will map to the same bucket.
 struct ShapeHasher
 {
 	std::size_t operator()(const TopoDS_Shape& shape) const
 	{
-		if (shape.IsNull()) return 0;
-
-		// Use TShape pointer as hash - this is stable and unique per shape
-		const TopoDS_TShape* tshape = shape.TShape().get();
-		std::size_t h1 = std::hash<const void*>{}(tshape);
-
-		// Combine with orientation for complete uniqueness
-		std::size_t h2 = std::hash<int>{}(static_cast<int>(shape.Orientation()));
-
-		// Combine hashes
-		return h1 ^ (h2 << 1);
+		return std::hash<const void*>{}(shape.IsNull() ? nullptr : shape.TShape().get());
 	}
 };
 
-// Custom equality function for TopoDS_Shape
+// Equality by IsPartner() — same TShape pointer, any orientation.
 struct ShapeEqual
 {
 	bool operator()(const TopoDS_Shape& lhs, const TopoDS_Shape& rhs) const
 	{
-		return lhs.IsSame(rhs);
-	}
-};
-
-// Simple cache to avoid repeated expensive lookups
-class ColorCache
-{
-private:
-	std::unordered_map<TopoDS_Shape, Quantity_Color, ShapeHasher, ShapeEqual> shapeColorCache;
-	std::unordered_map<std::string, Quantity_Color> labelColorCache;
-
-public:
-	bool getCachedColor(const TopoDS_Shape& shape, Quantity_Color& color)
-	{
-		if (shape.IsNull()) return false;
-		auto it = shapeColorCache.find(shape);
-		if (it != shapeColorCache.end())
-		{
-			color = it->second;
-			return true;
-		}
-		return false;
-	}
-
-	void cacheColor(const TopoDS_Shape& shape, const Quantity_Color& color)
-	{
-		if (!shape.IsNull())
-		{
-			shapeColorCache[shape] = color;
-		}
-	}
-
-	bool getCachedLabelColor(const std::string& labelPath, Quantity_Color& color)
-	{
-		auto it = labelColorCache.find(labelPath);
-		if (it != labelColorCache.end())
-		{
-			color = it->second;
-			return true;
-		}
-		return false;
-	}
-
-	void cacheLabelColor(const std::string& labelPath, const Quantity_Color& color)
-	{
-		labelColorCache[labelPath] = color;
-	}
-
-	void clear()
-	{
-		shapeColorCache.clear();
-		labelColorCache.clear();
+		return lhs.IsPartner(rhs);
 	}
 };
 
@@ -111,6 +55,11 @@ using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, TopLoc_Locati
 class BRepToAssimpConverter
 {
 public:
+	// Shape → colour map populated directly from STEP model entities.
+	// Key: TopoDS_Shape (face or solid, orientation-independent via ShapeHasher/ShapeEqual)
+	// Value: Quantity_Color extracted from the STEP STYLED_ITEM → COLOUR_RGB chain.
+	using StepColorMap = std::unordered_map<TopoDS_Shape, Quantity_Color, ShapeHasher, ShapeEqual>;
+
 	static aiScene* convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples);
 	static aiScene* convert(const TopoDS_Shape& shape, const Quantity_Color& color, int& index, const std::string& name = "");
 	static aiScene* convert(
@@ -124,7 +73,13 @@ public:
 
 	static aiNode* cloneNodeDeep(const aiNode* src);
 
+	// Clears all per-document colour caches (s_stepColorMap).
+	// Called by XCAFDocProcessor::initializeDocumentProcessing() before each new file load.
 	static void clearColorCache();
+
+	// Stores the STEP-entity colour map built by XCAFSTEPProcessor::buildStepColorMap().
+	// Must be called after reader.Transfer() and before any convert() call.
+	static void setStepColorMap(const StepColorMap& map);
 
 	// Returns the deflection fraction (0.0–1.0) to use for STEP tessellation.
 	// Reads the "tessellationQualitySlider" QSettings key (integer 1–10) written
@@ -136,12 +91,17 @@ public:
 
 private:
 
+	// Per-document STEP colour map: populated from raw STEP StyledItem entities,
+	// bypassing the broken XCAFDoc_ColorTool::SetColor(TopoDS_Shape) → FindShape() path.
+	static StepColorMap s_stepColorMap;
+
 	static bool isShapeMeshable(const TopoDS_Shape& shape);
 
 	static aiMesh* convertFaceGroupToMesh(const TopTools_IndexedMapOfShape& faceGroup, int meshIndex, bool enableStatistics = false);
 
 	static std::vector<aiMesh*> convertFaceGroupToMeshesWithCache(
 		const TopTools_IndexedMapOfShape& faceGroup,
+		const TopoDS_Shape& colorContextShape,
 		int& meshIndex,
 		const Handle(XCAFDoc_ColorTool)& colorTool,
 		const Handle(XCAFDoc_ShapeTool)& shapeTool,
@@ -149,95 +109,6 @@ private:
 		const TDF_Label& instanceLabel,
 		std::map<Quantity_Color, unsigned int, QuantityColorComparator>& materialMap,
 		std::vector<aiMaterial*>& materials);
-
-	static bool getComprehensiveColorWithCache(
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TopoDS_Shape& shape,
-		const TDF_Label& defLabel,
-		const TDF_Label& instanceLabel,
-		Quantity_Color& outColor);
-
-	static std::vector<aiMesh*> convertFaceGroupToMeshes(
-		const TopTools_IndexedMapOfShape& faceGroup,
-		int& meshIndex,
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const Handle(XCAFDoc_ShapeTool)& shapeTool,
-		const TDF_Label& defLabel,
-		const TDF_Label& instanceLabel,
-		std::map<Quantity_Color, unsigned int, QuantityColorComparator>& materialMap,
-		std::vector<aiMaterial*>& materials);
-
-	static bool getComprehensiveColor(
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TopoDS_Shape& shape,
-		const TDF_Label& defLabel,
-		const TDF_Label& instanceLabel,
-		Quantity_Color& outColor);
-
-	static std::string colorTypeToString(XCAFDoc_ColorType type);
-
-	static bool searchChildLabelsForColor(
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TDF_Label& parentLabel,
-		Quantity_Color& outColor);
-
-	static bool searchParentLabelsForColor(
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TDF_Label& startLabel,
-		Quantity_Color& outColor);
-
-	static bool searchAllColorsForAssociation(
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TopoDS_Shape& shape,
-		const TDF_Label& defLabel,
-		const TDF_Label& instanceLabel,
-		Quantity_Color& outColor);
-
-	static bool searchShapeLabelForTargetWithColor(
-		const Handle(XCAFDoc_ShapeTool)& shapeTool,
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TDF_Label& shapeLabel,
-		const TopoDS_Shape& targetShape,
-		Quantity_Color& outColor);
-
-	static std::string colorToString(const Quantity_Color& color);
-	static std::string shapeTypeToString(TopAbs_ShapeEnum shapeType);
-
-	static bool colorsEqual(const Quantity_Color& color1, const Quantity_Color& color2, double tolerance = 0.001);
-
-	static std::string getLabelPath(const TDF_Label& label);
-
-	static bool findColorInXCAFDocument(
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const Handle(XCAFDoc_ShapeTool)& shapeTool,
-		const TopoDS_Shape& targetShape,
-		Quantity_Color& outColor);
-
-	static bool searchShapeLabelForTarget(
-		const Handle(XCAFDoc_ShapeTool)& shapeTool,
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TDF_Label& shapeLabel,
-		const TopoDS_Shape& targetShape,
-		Quantity_Color& outColor);
-
-	static bool containsShape(const TopoDS_Shape& compound, const TopoDS_Shape& target);
-
-	static bool searchLabelHierarchyForColor(
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TDF_Label& startLabel,
-		Quantity_Color& outColor);
-
-
-	static bool searchSiblingLabelsForColor(
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TDF_Label& label,
-		Quantity_Color& outColor);
-
-	static bool searchStyledItemsForColor(
-		const Handle(XCAFDoc_ColorTool)& colorTool,
-		const TDF_Label& label,
-		Quantity_Color& outColor);
-
 
 	static Standard_Real computeDeflectionFromBBox(const TopTools_IndexedMapOfShape& faceGroup, Standard_Real percent = 0.01);
 	static TopoDS_Face healAndTriangulateFace(const TopoDS_Face& inputFace,
@@ -246,8 +117,6 @@ private:
 		double fixTolerance = 1e-6);
 
 	static TopoDS_Face rebuildFace(const TopoDS_Face& face);
-
-
 
 	// Lightweight triangle validation (no quality metrics unless needed)
 	static inline bool isTriangleValid(const aiVector3D& v0, const aiVector3D& v1,
@@ -297,14 +166,11 @@ private:
 		return aiVector3D(scale, scale, scale);
 	}
 
-private:
-	static ColorCache s_colorCache;
-
 	// Pre-computed threshold strategies (computed once, reused)
 	struct ThresholdConfig
 	{
 		float strictThreshold;      // 1e-12f
-		float practicalThreshold;   // 1e-8f  
+		float practicalThreshold;   // 1e-8f
 		float looseThreshold;       // 1e-6f
 		float meshScale;
 		bool useAdaptive;
