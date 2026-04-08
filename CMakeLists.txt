@@ -230,6 +230,13 @@ if(WIN32)
     set_target_properties(ModelViewer PROPERTIES WIN32_EXECUTABLE ON)
 endif()
 
+# OCCT's STEP transfer recurses deeply through TransferEntity → TransferShape
+# chains for assembly files.  In debug builds (no inlining, /RTC1 frame checks)
+# the default 1 MB stack is insufficient.  16 MB is safe headroom without waste.
+if(MSVC)
+    target_link_options(ModelViewer PRIVATE $<$<CONFIG:Debug>:/STACK:16777216>)
+endif()
+
 # ============================================================================
 # Link libraries - NOW the target exists
 # ============================================================================

@@ -82,12 +82,16 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
     // Initialize progress tracking
     int processedMeshes = 0;
 
-    
+    // Pre-allocate the root node's children array so traverseXCAFAssembly can
+    // use direct index assignment instead of writing into a null pointer.
+    scene->mRootNode->mChildren    = labels.Length() > 0 ? new aiNode*[labels.Length()] : nullptr;
+    scene->mRootNode->mNumChildren = 0;
+
     // Traverse the assembly structure and build the aiScene
     MainWindow::showStatusMessage(tr("Traversing assembly and building scene..."));
 
     for (Standard_Integer i = 1; i <= labels.Length(); ++i)
-    {        
+    {
         traverseXCAFAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), scene->mRootNode, scene, meshIndex, processedMeshes, totalMeshes);
     }
 

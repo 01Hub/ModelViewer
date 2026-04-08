@@ -19,6 +19,9 @@
 #include <XCAFApp_Application.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
+#include <Message_ProgressRange.hxx>
+#include <Message_ProgressScope.hxx>
+#include <Standard_Failure.hxx>
 #include <XCAFReadProgressIndicator.hxx>
 
 // STEP presentation / colour entity headers
@@ -358,11 +361,6 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 #endif
 	MainWindow::showIndeterminateProgressBar();
 
-	Handle(XCAFReadProgressIndicator) progress = new XCAFReadProgressIndicator();
-	Message_ProgressRange rootRange = progress->Start();
-
-	Message_ProgressScope transferScope(rootRange, "STEP Transfer", -1);
-
 	if (!reader.ReadFile(filename.c_str()))
 	{
 		MainWindow::resetProgressBar();
@@ -385,13 +383,22 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 
 	MainWindow::showStatusMessage(tr("Transfering shapes..."));
 
-	if (!reader.Transfer(doc, transferScope.Next()))
+	Handle(XCAFReadProgressIndicator) progress = new XCAFReadProgressIndicator();
+	Message_ProgressRange rootRange = progress->Start();
+	Message_ProgressScope transferScope(rootRange, "STEP Transfer", -1);
+
+	try
 	{
-		if (MainWindow::isFileLoadCancelRequested())
+		if (!reader.Transfer(doc, transferScope.Next()))
 		{
-			throw std::runtime_error("Model loading cancelled by user.");
+			if (MainWindow::isFileLoadCancelRequested())
+				throw std::runtime_error("Model loading cancelled by user.");
+			throw std::runtime_error("Cannot transfer STEP data to XCAF document");
 		}
-		throw std::runtime_error("Cannot transfer STEP data to XCAF document");
+	}
+	catch (const Standard_Failure& e)
+	{
+		throw std::runtime_error(std::string("STEP transfer error: ") + e.GetMessageString());
 	}
 
 	// Build the shape→colour map directly from STEP entities while the reader
