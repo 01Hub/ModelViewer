@@ -97,6 +97,10 @@ private:
     void updatePreview();
 
     void applyMaterialPreset(const QString& presetName);
+    void loadMaterialPresetMetadata(const QString& presetName);
+    bool saveCurrentPresetMetadata();
+    QString materialLibraryRoot() const;
+    QString currentPresetMetadataPath() const;
 
 private:
     Ui::TextureMappingPanel* _ui = nullptr;
@@ -107,6 +111,8 @@ private:
     QIcon _checkerIcon;
 
     QString _lastUsedFolder;
+    QString _currentPresetName;
+    QString _currentPresetFolder;
 
 	bool _detached = false;
 };

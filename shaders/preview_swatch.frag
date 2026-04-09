@@ -78,6 +78,11 @@ uniform sampler2D opacityMap;
 uniform sampler2D AOMap;
 uniform sampler2D emissiveMap;
 uniform sampler2D heightMap;
+uniform sampler2D sheenColorMap;
+uniform sampler2D sheenRoughnessMap;
+uniform sampler2D clearcoatColorMap;
+uniform sampler2D clearcoatRoughnessMap;
+uniform sampler2D clearcoatNormalMap;
 
 // ----- Enable flags -----
 uniform bool useAlbedoMap;
@@ -89,6 +94,11 @@ uniform bool opacityInverted;
 uniform bool useAOMap;
 uniform bool useEmissiveMap;
 uniform bool useHeightMap;
+uniform bool useSheenColorMap;
+uniform bool useSheenRoughnessMap;
+uniform bool useClearcoatColorMap;
+uniform bool useClearcoatRoughnessMap;
+uniform bool useClearcoatNormalMap;
 
 // ----- Extra controls -----
 uniform float AOIntensity;
@@ -97,6 +107,7 @@ uniform float emissiveStrength;
 uniform vec2  UVScale;
 uniform float normalIntensity;
 uniform float heightIntensity; // (e.g. 0.03 .. 0.06)
+uniform float clearcoatNormalIntensity;
 
 // ----- Texture transforms (scale, offset, rotation) -----
 uniform vec2  albedoScale;
@@ -131,6 +142,26 @@ uniform vec2  emissiveScale;
 uniform vec2  emissiveOffset;
 uniform float emissiveRotation;
 
+uniform vec2  sheenColorScale;
+uniform vec2  sheenColorOffset;
+uniform float sheenColorRotation;
+
+uniform vec2  sheenRoughnessScale;
+uniform vec2  sheenRoughnessOffset;
+uniform float sheenRoughnessRotation;
+
+uniform vec2  clearcoatColorScale;
+uniform vec2  clearcoatColorOffset;
+uniform float clearcoatColorRotation;
+
+uniform vec2  clearcoatRoughnessScale;
+uniform vec2  clearcoatRoughnessOffset;
+uniform float clearcoatRoughnessRotation;
+
+uniform vec2  clearcoatNormalScale;
+uniform vec2  clearcoatNormalOffset;
+uniform float clearcoatNormalRotation;
+
 // channel packing uniforms (for packed textures like ORM/AORM)
 uniform int   metalnessChannel;
 uniform int   metalnessChannelInvert;
@@ -156,13 +187,11 @@ uniform float opacityChannelBias;
 // ---------- Helpers ----------
 
 // TBN-based normal mapping (tangent-space normal -> world space)
-vec3 getNormalFromMap(vec2 uv)
+vec3 getNormalFromMapSampler(sampler2D map, vec2 uv, float intensity)
 {
-    if (!useNormalMap) return normalize(vNormal);
-
     // Sample tangent-space normal in [-1,1]
-    vec3 nTS = texture(normalMap, uv).xyz * 2.0 - 1.0;
-    nTS.xy *= normalIntensity;
+    vec3 nTS = texture(map, uv).xyz * 2.0 - 1.0;
+    nTS.xy *= intensity;
 
     // Build TBN from vertex outputs
     vec3 N = normalize(vNormal);
@@ -171,6 +200,12 @@ vec3 getNormalFromMap(vec2 uv)
     mat3 TBN = mat3(T, B, N);
 
     return normalize(TBN * nTS);
+}
+
+vec3 getNormalFromMap(vec2 uv)
+{
+    if (!useNormalMap) return normalize(vNormal);
+    return getNormalFromMapSampler(normalMap, uv, normalIntensity);
 }
 
 // Apply scale, offset, and rotation to UV coordinates
@@ -481,6 +516,32 @@ void main()
     // ----- Normal mapping uses parallaxed UVs -----
     vec3 N = getNormalFromMap(applyTextureTransform(uv, normalScale, normalOffset, normalRotation));
 
+    float clearcoatVal = useClearcoatColorMap
+        ? texture(clearcoatColorMap, applyTextureTransform(uv, clearcoatColorScale, clearcoatColorOffset, clearcoatColorRotation)).r * clearcoat
+        : clearcoat;
+    clearcoatVal = clamp(clearcoatVal, 0.0, 1.0);
+
+    float clearcoatRoughnessVal = useClearcoatRoughnessMap
+        ? texture(clearcoatRoughnessMap, applyTextureTransform(uv, clearcoatRoughnessScale, clearcoatRoughnessOffset, clearcoatRoughnessRotation)).g * clearcoatRoughness
+        : clearcoatRoughness;
+    clearcoatRoughnessVal = clamp(clearcoatRoughnessVal, 0.0001, 1.0);
+
+    vec3 clearcoatN = useClearcoatNormalMap
+        ? getNormalFromMapSampler(
+            clearcoatNormalMap,
+            applyTextureTransform(uv, clearcoatNormalScale, clearcoatNormalOffset, clearcoatNormalRotation),
+            clearcoatNormalIntensity)
+        : N;
+
+    vec3 sheenColorVal = useSheenColorMap
+        ? texture(sheenColorMap, applyTextureTransform(uv, sheenColorScale, sheenColorOffset, sheenColorRotation)).rgb * sheenColor
+        : sheenColor;
+
+    float sheenRoughnessVal = useSheenRoughnessMap
+        ? texture(sheenRoughnessMap, applyTextureTransform(uv, sheenRoughnessScale, sheenRoughnessOffset, sheenRoughnessRotation)).a * sheenRoughness
+        : sheenRoughness;
+    sheenRoughnessVal = clamp(sheenRoughnessVal, 0.0, 1.0);
+
     // ----- Metal vs dielectric split -----
     vec3 dielectricDiffuse  = albedoVal;
     vec3 dielectricSpecular = vec3(0.04);
@@ -520,22 +581,22 @@ void main()
     color += diffuseAmbient;
 
     // ----- Clearcoat (simple lobe using light 0 direction-like) -----
-    if (clearcoat > 0.001 && numLights > 0)
+    if (clearcoatVal > 0.001 && numLights > 0)
     {
         vec3 Lc = normalize(lights[0].position);
         vec3 Hc = normalize(V + Lc);
-        float ccNdotH   = max(dot(N, Hc), 0.0);
-        float ccSpecPow = clamp(mix(64.0, 512.0, 1.0 - clearcoatRoughness), 1.0, 1024.0);
+        float ccNdotH   = max(dot(clearcoatN, Hc), 0.0);
+        float ccSpecPow = clamp(mix(64.0, 512.0, 1.0 - clearcoatRoughnessVal), 1.0, 1024.0);
         float ccSpec    = pow(ccNdotH, ccSpecPow);
-        color += vec3(0.25) * clearcoat * ccSpec;
+        color += vec3(0.25) * clearcoatVal * ccSpec;
     }
 
     // ----- Sheen -----
-    if (length(sheenColor) > 0.001)
+    if (length(sheenColorVal) > 0.001)
     {
         float NdotV = max(dot(N, V), 0.0);
-        float sheen = pow(clamp(1.0 - NdotV, 0.0, 1.0), 2.0);
-        color += sheenColor * sheen * 0.5;
+        float sheen = pow(clamp(1.0 - NdotV, 0.0, 1.0), mix(3.0, 1.0, 1.0 - sheenRoughnessVal));
+        color += sheenColorVal * sheen * 0.5;
     }
 
     // ----- Iridescence (thin-film interference) -----

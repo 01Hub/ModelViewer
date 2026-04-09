@@ -149,6 +149,10 @@ private:
         QJsonObject& gltfJson,
         const std::vector<TriangleMesh*>& meshes,
         std::function<void(const QString&)> logCallback);
+    static bool fixClearcoatNormalTextureScale(
+        QJsonObject& gltfJson,
+        const std::vector<TriangleMesh*>& meshes,
+        std::function<void(const QString&)> logCallback);
     static bool fixSpecularExtension(
         QJsonObject& gltfJson,
         const std::vector<TriangleMesh*>& meshes,

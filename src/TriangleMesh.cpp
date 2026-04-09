@@ -869,7 +869,8 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("diffuseTransmissionColorTexTransform.rotation", _material.diffuseTransmissionColorTexRotation());
 
 
-	_prog->setUniformValue("heightScale", _material.heightTexScale());
+	_prog->setUniformValue("heightScale", _material.heightScale());
+	_prog->setUniformValue("clearcoatNormalScale", _material.clearcoatNormalScale());
 	_prog->setUniformValue("hasAlbedoMap", _material.hasAlbedoMap());
 	_prog->setUniformValue("hasMetallicMap", _material.hasMetallicMap());
 	_prog->setUniformValue("hasEmissiveMap", _material.hasEmissiveMap());
@@ -2074,6 +2075,7 @@ float TriangleMesh::getHeightPBRMapScale() const
 void TriangleMesh::setHeightPBRMapScale(float heightScale)
 {
 	_heightPBRMapScale = heightScale;
+	_material.setHeightScale(heightScale);
 	markTexturesDirty();
 	markUniformsDirty();
 }

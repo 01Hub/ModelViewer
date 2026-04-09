@@ -97,6 +97,7 @@ uniform bool hasAOMap;
 uniform bool hasEmissiveMap;
 uniform bool hasHeightMap;
 uniform float heightScale = 0.08;
+uniform float clearcoatNormalScale = 1.0;
 uniform bool hasOpacityMap;
 uniform bool opacityMapInverted = false;
 uniform int blendMode; // 0 = additive, 1 = multiplicative, 2 = overlay
@@ -1750,7 +1751,16 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	}
 	clearcoatRoughness = clamp(clearcoatRoughness, 0.0001, 1.0);
 
-	clearcoatNormal = hasClearcoatNormalMap ? calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side : N;
+	if (hasClearcoatNormalMap)
+	{
+		clearcoatNormal = calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side;
+		clearcoatNormal.xy *= clearcoatNormalScale;
+		clearcoatNormal = normalize(clearcoatNormal);
+	}
+	else
+	{
+		clearcoatNormal = N;
+	}
 
 	if (clearcoat > 0.0)
 	{

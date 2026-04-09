@@ -253,6 +253,12 @@ public:
 	float normalScale() const { return _normalScale; }
 	void setNormalScale(float scale) { _normalScale = scale; }
 
+	float heightScale() const { return _heightScale; }
+	void setHeightScale(float scale) { _heightScale = scale; }
+
+	float clearcoatNormalScale() const { return _clearcoatNormalScale; }
+	void setClearcoatNormalScale(float scale) { _clearcoatNormalScale = scale; }
+
 	float occlusionStrength() const { return _occlusionStrength; }
 	void setOcclusionStrength(float strength) { _occlusionStrength = strength; }
 
@@ -1162,6 +1168,8 @@ private:
 	bool _hasTextureAlpha = false; // Whether the albedo texture has an alpha channel
 
 	float _normalScale = 1.0f;
+	float _heightScale = 0.02f;
+	float _clearcoatNormalScale = 1.0f;
 	float _occlusionStrength = 1.0f;
 
 	// Texture IDs (managed externally)

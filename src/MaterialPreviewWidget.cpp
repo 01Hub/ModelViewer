@@ -503,9 +503,9 @@ void MaterialPreviewWidget::paintGL()
 
 	// Optional: intensities/tiling
 	_shader->setUniformValue("UVScale", QVector2D(1.0f, 1.0f));
-	_shader->setUniformValue("normalIntensity", 1.0f);
+	_shader->setUniformValue("normalIntensity", _currentMaterial.normalScale());
 	_shader->setUniformValue("AOIntensity", 1.0f);
-	_shader->setUniformValue("heightIntensity", 0.04f);
+	_shader->setUniformValue("heightIntensity", _currentMaterial.heightScale());
 	
 	// ----- CHANNEL PACKING: send packing params to shader -----
 	// expects these uniform names in the frag shader:
@@ -553,6 +553,13 @@ void MaterialPreviewWidget::paintGL()
 	sendTextureTransforms("height", GLMaterial::TextureType::Height);
 	sendTextureTransforms("opacity", GLMaterial::TextureType::Opacity);
 	sendTextureTransforms("emissive", GLMaterial::TextureType::Emissive);
+	sendTextureTransforms("sheenColor", GLMaterial::TextureType::SheenColor);
+	sendTextureTransforms("sheenRoughness", GLMaterial::TextureType::SheenRoughness);
+	sendTextureTransforms("clearcoatColor", GLMaterial::TextureType::ClearcoatColor);
+	sendTextureTransforms("clearcoatRoughness", GLMaterial::TextureType::ClearcoatRoughness);
+	sendTextureTransforms("clearcoatNormal", GLMaterial::TextureType::ClearcoatNormal);
+
+	_shader->setUniformValue("clearcoatNormalIntensity", _currentMaterial.clearcoatNormalScale());
 
 	// Set up texture samplers
 	_shader->setUniformValue("albedoMap", 0);

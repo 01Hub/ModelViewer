@@ -10,6 +10,7 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDoubleSpinBox>
+#include <QDir>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFileDialog>
@@ -19,6 +20,11 @@
 #include <QMimeData>
 #include <QPainter>
 #include <QPushButton>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QFile>
+#include <QFileInfo>
 #include <QSlider>
 #include <QTimer>
 #include <QToolButton>
@@ -27,6 +33,87 @@
 // ============================================================================
 // Constructor / Destructor
 // ============================================================================
+
+namespace
+{
+QString wrapModeToJson(GLenum mode)
+{
+	switch (mode)
+	{
+	case GL_CLAMP_TO_EDGE:  return QStringLiteral("clamp_to_edge");
+	case GL_MIRRORED_REPEAT:return QStringLiteral("mirrored_repeat");
+	case GL_REPEAT:
+	default:                return QStringLiteral("repeat");
+	}
+}
+
+GLenum wrapModeFromJson(const QString& mode, GLenum fallback = GL_REPEAT)
+{
+	const QString lower = mode.trimmed().toLower();
+	if (lower == QLatin1String("clamp") || lower == QLatin1String("clamp_to_edge"))
+		return GL_CLAMP_TO_EDGE;
+	if (lower == QLatin1String("mirror") || lower == QLatin1String("mirrored_repeat"))
+		return GL_MIRRORED_REPEAT;
+	return fallback;
+}
+
+QString filterToJson(GLenum filter)
+{
+	switch (filter)
+	{
+	case GL_NEAREST:                return QStringLiteral("nearest");
+	case GL_LINEAR:                 return QStringLiteral("linear");
+	case GL_NEAREST_MIPMAP_NEAREST: return QStringLiteral("nearest_mipmap_nearest");
+	case GL_LINEAR_MIPMAP_NEAREST:  return QStringLiteral("linear_mipmap_nearest");
+	case GL_NEAREST_MIPMAP_LINEAR:  return QStringLiteral("nearest_mipmap_linear");
+	case GL_LINEAR_MIPMAP_LINEAR:
+	default:                        return QStringLiteral("linear_mipmap_linear");
+	}
+}
+
+GLenum filterFromJson(const QString& filter, GLenum fallback)
+{
+	const QString lower = filter.trimmed().toLower();
+	if (lower == QLatin1String("nearest")) return GL_NEAREST;
+	if (lower == QLatin1String("linear")) return GL_LINEAR;
+	if (lower == QLatin1String("nearest_mipmap_nearest")) return GL_NEAREST_MIPMAP_NEAREST;
+	if (lower == QLatin1String("linear_mipmap_nearest")) return GL_LINEAR_MIPMAP_NEAREST;
+	if (lower == QLatin1String("nearest_mipmap_linear")) return GL_NEAREST_MIPMAP_LINEAR;
+	if (lower == QLatin1String("linear_mipmap_linear")) return GL_LINEAR_MIPMAP_LINEAR;
+	return fallback;
+}
+
+QJsonArray vec2ToJsonArray(const glm::vec2& v)
+{
+	return QJsonArray{ v.x, v.y };
+}
+
+QJsonArray vec3ToJsonArray(const QVector3D& v)
+{
+	return QJsonArray{ v.x(), v.y(), v.z() };
+}
+
+glm::vec2 vec2FromJson(const QJsonValue& value, const glm::vec2& fallback)
+{
+	if (!value.isArray()) return fallback;
+	const QJsonArray arr = value.toArray();
+	if (arr.size() < 2) return fallback;
+	return glm::vec2(
+		static_cast<float>(arr.at(0).toDouble(fallback.x)),
+		static_cast<float>(arr.at(1).toDouble(fallback.y)));
+}
+
+QVector3D vec3FromJson(const QJsonValue& value, const QVector3D& fallback)
+{
+	if (!value.isArray()) return fallback;
+	const QJsonArray arr = value.toArray();
+	if (arr.size() < 3) return fallback;
+	return QVector3D(
+		static_cast<float>(arr.at(0).toDouble(fallback.x())),
+		static_cast<float>(arr.at(1).toDouble(fallback.y())),
+		static_cast<float>(arr.at(2).toDouble(fallback.z())));
+}
+}
 
 TextureMappingPanel::TextureMappingPanel(QWidget* parent)
 	: QWidget(parent)
@@ -111,6 +198,9 @@ void TextureMappingPanel::bindMaterial(GLMaterial* material)
 
 	// Load factor values into spin boxes
 	loadFactorValuesFromMaterial();
+	_ui->doubleSpinBoxNormalScale->setValue(_material->normalScale());
+	_ui->doubleSpinBoxHeightScale->setValue(_material->heightScale());
+	_ui->doubleSpinBoxClearcoatNormalScale->setValue(_material->clearcoatNormalScale());
 
 	_preview->setMaterial(*_material);
 	updatePreview();
@@ -653,6 +743,30 @@ void TextureMappingPanel::connectSignals()
 			QObject::tr("The texture cache has been cleared."));
 		emit textureCacheClearRequested();
 		});
+	connect(_ui->doubleSpinBoxNormalScale, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+		this, [this](double value) {
+			if (!_material) return;
+			_material->setNormalScale(static_cast<float>(value));
+			updatePreview();
+			emit materialChanged(_material);
+		});
+	connect(_ui->doubleSpinBoxHeightScale, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+		this, [this](double value) {
+			if (!_material) return;
+			_material->setHeightScale(static_cast<float>(value));
+			updatePreview();
+			emit materialChanged(_material);
+		});
+	connect(_ui->doubleSpinBoxClearcoatNormalScale, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+		this, [this](double value) {
+			if (!_material) return;
+			_material->setClearcoatNormalScale(static_cast<float>(value));
+			updatePreview();
+			emit materialChanged(_material);
+		});
+	connect(_ui->pushButtonSave, &QPushButton::clicked, this, [this] {
+		saveCurrentPresetMetadata();
+		});
 }
 
 // ============================================================================
@@ -782,6 +896,11 @@ void TextureMappingPanel::setMapPath(const QString& key, const QString& file)
 void TextureMappingPanel::clearMap(const QString& key)
 {
 	if (!_material) return;
+
+	const GLMaterial::TextureType type = keyToTextureType(key);
+	GLMaterial::Texture resetTex;
+	resetTex.type = GLMaterial::textureTypeToString(type).toStdString();
+	_material->setTexture(type, resetTex);
 
 	if (key == "albedo")         _material->clearAlbedoMap();
 	else if (key == "normal")    _material->clearNormalMap();
@@ -1191,6 +1310,9 @@ void TextureMappingPanel::applyMaterialPreset(const QString& presetName)
 {
 	if (!_material) return;
 
+	_currentPresetName = presetName;
+	_currentPresetFolder = materialLibraryRoot() + "/" + presetName;
+
 	clearAllMaps();
 
 	const MaterialsMap& mats = MaterialTextureLibrary::instance().materials();
@@ -1263,8 +1385,272 @@ void TextureMappingPanel::applyMaterialPreset(const QString& presetName)
 		}
 	}
 
+	loadMaterialPresetMetadata(presetName);
+
 	updatePreview();
 	emit materialChanged(_material);
+}
+
+QString TextureMappingPanel::materialLibraryRoot() const
+{
+	return PathUtils::getDataDirectory() + "/textures/materials";
+}
+
+QString TextureMappingPanel::currentPresetMetadataPath() const
+{
+	if (_currentPresetFolder.isEmpty())
+		return {};
+	return _currentPresetFolder + "/material.json";
+}
+
+void TextureMappingPanel::loadMaterialPresetMetadata(const QString& presetName)
+{
+	Q_UNUSED(presetName);
+	if (!_material || _currentPresetFolder.isEmpty())
+		return;
+
+	QFile file(currentPresetMetadataPath());
+	if (!file.exists()) return;
+	if (!file.open(QIODevice::ReadOnly))
+	{
+		qWarning() << "TextureMappingPanel: failed to open preset metadata for reading:" << file.fileName();
+		return;
+	}
+
+	const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+	file.close();
+	if (!doc.isObject()) return;
+
+	const QJsonObject root = doc.object();
+	const QJsonObject mapsObject = root.value("maps").toObject();
+	if (!mapsObject.isEmpty())
+	{
+		for (auto it = _maps.constBegin(); it != _maps.constEnd(); ++it)
+		{
+			const QString& key = it.key();
+			if (!mapsObject.contains(key)) continue;
+
+			const QJsonObject mapObject = mapsObject.value(key).toObject();
+			if (mapObject.isEmpty()) continue;
+
+			QString resolvedPath = mapPath(key);
+			const QString fileRef = mapObject.value("file").toString().trimmed();
+			if (!fileRef.isEmpty())
+			{
+				QFileInfo info(fileRef);
+				resolvedPath = info.isAbsolute() ? info.absoluteFilePath()
+					: QDir(_currentPresetFolder).absoluteFilePath(fileRef);
+				if (QFileInfo::exists(resolvedPath))
+				{
+					setMapPath(key, resolvedPath);
+					auto entry = _maps.value(key);
+					if (entry.button)
+						applyButtonImageIcon(entry, resolvedPath);
+				}
+			}
+
+			auto tex = _material->texture(it.value().type);
+			tex.wrapS = wrapModeFromJson(mapObject.value("wrapS").toString(), tex.wrapS);
+			tex.wrapT = wrapModeFromJson(mapObject.value("wrapT").toString(), tex.wrapT);
+			tex.magFilter = filterFromJson(mapObject.value("magFilter").toString(), tex.magFilter);
+			tex.minFilter = filterFromJson(mapObject.value("minFilter").toString(), tex.minFilter);
+			tex.texCoordIndex = mapObject.value("texCoord").toInt(tex.texCoordIndex);
+			tex.scale = vec2FromJson(mapObject.value("scale"), tex.scale);
+			tex.offset = vec2FromJson(mapObject.value("offset"), tex.offset);
+			tex.rotation = static_cast<float>(mapObject.value("rotation").toDouble(tex.rotation));
+			_material->setTexture(it.value().type, tex);
+
+			if (mapObject.contains("packing") && mapObject.value("packing").isObject())
+			{
+				const QJsonObject packingObject = mapObject.value("packing").toObject();
+				GLMaterial::ChannelPacking packing = _material->packingFor(key);
+				packing.channel = packingObject.value("channel").toInt(packing.channel);
+				packing.invert = packingObject.value("invert").toBool(packing.invert);
+				packing.scale = static_cast<float>(packingObject.value("scale").toDouble(packing.scale));
+				packing.bias = static_cast<float>(packingObject.value("bias").toDouble(packing.bias));
+				_material->setPackingFor(key, packing);
+			}
+		}
+	}
+
+	const QJsonObject materialObject = root.value("material").toObject();
+	if (!materialObject.isEmpty())
+	{
+		_material->setAlbedoColor(vec3FromJson(materialObject.value("albedoColor"), _material->albedoColor()));
+		_material->setEmissive(vec3FromJson(materialObject.value("emissiveColor"), _material->emissive()));
+		_material->setSheenColor(vec3FromJson(materialObject.value("sheenColor"), _material->sheenColor()));
+		_material->setSpecularColor(vec3FromJson(materialObject.value("specularColor"), _material->specularColor()));
+		_material->setDiffuseTransmissionColorFactor(
+			vec3FromJson(materialObject.value("diffuseTransmissionColor"), _material->diffuseTransmissionColorFactor()));
+
+		_material->setMetalness(static_cast<float>(materialObject.value("metalness").toDouble(_material->metalness())));
+		_material->setRoughness(static_cast<float>(materialObject.value("roughness").toDouble(_material->roughness())));
+		_material->setEmissiveStrength(static_cast<float>(materialObject.value("emissiveStrength").toDouble(_material->emissiveStrength())));
+		_material->setTransmission(static_cast<float>(materialObject.value("transmission").toDouble(_material->transmission())));
+		_material->setIOR(static_cast<float>(materialObject.value("ior").toDouble(_material->ior())));
+		_material->setClearcoat(static_cast<float>(materialObject.value("clearcoat").toDouble(_material->clearcoat())));
+		_material->setClearcoatRoughness(static_cast<float>(materialObject.value("clearcoatRoughness").toDouble(_material->clearcoatRoughness())));
+		_material->setSheenRoughness(static_cast<float>(materialObject.value("sheenRoughness").toDouble(_material->sheenRoughness())));
+		_material->setSpecularFactor(static_cast<float>(materialObject.value("specularFactor").toDouble(_material->specularFactor())));
+		_material->setAnisotropyStrength(static_cast<float>(materialObject.value("anisotropyStrength").toDouble(_material->anisotropyStrength())));
+		_material->setDiffuseTransmissionFactor(static_cast<float>(materialObject.value("diffuseTransmissionFactor").toDouble(_material->diffuseTransmissionFactor())));
+		_material->setThicknessFactor(static_cast<float>(materialObject.value("thicknessFactor").toDouble(_material->thicknessFactor())));
+		_material->setIridescenceFactor(static_cast<float>(materialObject.value("iridescenceFactor").toDouble(_material->iridescenceFactor())));
+		_material->setIridescenceIor(static_cast<float>(materialObject.value("iridescenceIor").toDouble(_material->iridescenceIor())));
+		_material->setIridescenceThicknessMin(static_cast<float>(materialObject.value("iridescenceThicknessMin").toDouble(_material->iridescenceThicknessMin())));
+		_material->setIridescenceThicknessMax(static_cast<float>(materialObject.value("iridescenceThicknessMax").toDouble(_material->iridescenceThicknessMax())));
+		_material->setNormalScale(static_cast<float>(materialObject.value("normalScale").toDouble(_material->normalScale())));
+		_material->setHeightScale(static_cast<float>(materialObject.value("heightScale").toDouble(_material->heightScale())));
+		_material->setClearcoatNormalScale(static_cast<float>(materialObject.value("clearcoatNormalScale").toDouble(_material->clearcoatNormalScale())));
+
+		const QJsonObject tintObject = materialObject.value("albedoTint").toObject();
+		if (!tintObject.isEmpty())
+		{
+			_material->albedoTint.mode = static_cast<GLMaterial::TintMode>(tintObject.value("mode").toInt(static_cast<int>(_material->albedoTint.mode)));
+			_material->albedoTint.strength = static_cast<float>(tintObject.value("strength").toDouble(_material->albedoTint.strength));
+			_material->albedoTint.grayEps = static_cast<float>(tintObject.value("grayThreshold").toDouble(_material->albedoTint.grayEps));
+			_material->albedoTint.useVertexColor = tintObject.value("useVertexColor").toBool(_material->albedoTint.useVertexColor);
+			_material->albedoTint.maskChannel = tintObject.value("maskChannel").toInt(_material->albedoTint.maskChannel);
+		}
+	}
+
+	loadFactorValuesFromMaterial();
+	_ui->doubleSpinBoxNormalScale->setValue(_material->normalScale());
+	_ui->doubleSpinBoxHeightScale->setValue(_material->heightScale());
+	_ui->doubleSpinBoxClearcoatNormalScale->setValue(_material->clearcoatNormalScale());
+	_ui->tintModeCombo->setCurrentIndex(static_cast<int>(_material->albedoTint.mode));
+	_ui->tintStrengthSpin->setValue(_material->albedoTint.strength);
+	_ui->grayEpsSpin->setValue(_material->albedoTint.grayEps);
+	_ui->useVtxColorCheck->setChecked(_material->albedoTint.useVertexColor);
+	_ui->maskChannelCombo->setCurrentIndex(_material->albedoTint.maskChannel);
+	_ui->maskChannelCombo->setEnabled(_material->albedoTint.mode == GLMaterial::TintMode::LerpMask);
+}
+
+bool TextureMappingPanel::saveCurrentPresetMetadata()
+{
+	if (!_material)
+		return false;
+	if (_currentPresetName.isEmpty() || _currentPresetFolder.isEmpty())
+	{
+		QMessageBox::warning(this, tr("No Preset Selected"),
+			tr("Select a library material preset before saving metadata."));
+		return false;
+	}
+
+	QDir presetDir(_currentPresetFolder);
+	if (!presetDir.exists())
+	{
+		QMessageBox::warning(this, tr("Preset Folder Missing"),
+			tr("The selected preset folder does not exist:\n%1").arg(_currentPresetFolder));
+		return false;
+	}
+
+	QJsonObject mapsObject;
+	QStringList skippedExternalKeys;
+	const QString presetAbsPath = QDir(_currentPresetFolder).absolutePath();
+	for (auto it = _maps.constBegin(); it != _maps.constEnd(); ++it)
+	{
+		const QString& key = it.key();
+		const QString fullPath = mapPath(key);
+		if (fullPath.isEmpty()) continue;
+
+		const QString absoluteFilePath = QFileInfo(fullPath).absoluteFilePath();
+		const QString relativeFile = QDir(_currentPresetFolder).relativeFilePath(absoluteFilePath);
+		const bool isInsidePreset =
+			!relativeFile.startsWith("../") &&
+			relativeFile != QStringLiteral("..") &&
+			QFileInfo(absoluteFilePath).absoluteFilePath().startsWith(presetAbsPath, Qt::CaseInsensitive);
+
+		if (!isInsidePreset)
+		{
+			skippedExternalKeys.append(key);
+			continue;
+		}
+
+		const GLMaterial::Texture& tex = _material->texture(it.value().type);
+		QJsonObject mapObject;
+
+		mapObject.insert("file", relativeFile);
+		mapObject.insert("wrapS", wrapModeToJson(tex.wrapS));
+		mapObject.insert("wrapT", wrapModeToJson(tex.wrapT));
+		mapObject.insert("magFilter", filterToJson(tex.magFilter));
+		mapObject.insert("minFilter", filterToJson(tex.minFilter));
+		mapObject.insert("texCoord", tex.texCoordIndex);
+		mapObject.insert("scale", vec2ToJsonArray(tex.scale));
+		mapObject.insert("offset", vec2ToJsonArray(tex.offset));
+		mapObject.insert("rotation", tex.rotation);
+
+		const GLMaterial::ChannelPacking packing = _material->packingFor(key);
+		QJsonObject packingObject;
+		packingObject.insert("channel", packing.channel);
+		packingObject.insert("invert", packing.invert);
+		packingObject.insert("scale", packing.scale);
+		packingObject.insert("bias", packing.bias);
+		mapObject.insert("packing", packingObject);
+
+		mapsObject.insert(key, mapObject);
+	}
+
+	QJsonObject root;
+	root.insert("version", 1);
+	root.insert("name", _currentPresetName);
+	root.insert("maps", mapsObject);
+
+	QJsonObject materialObject;
+	materialObject.insert("albedoColor", vec3ToJsonArray(_material->albedoColor()));
+	materialObject.insert("emissiveColor", vec3ToJsonArray(_material->emissive()));
+	materialObject.insert("sheenColor", vec3ToJsonArray(_material->sheenColor()));
+	materialObject.insert("specularColor", vec3ToJsonArray(_material->specularColor()));
+	materialObject.insert("diffuseTransmissionColor", vec3ToJsonArray(_material->diffuseTransmissionColorFactor()));
+	materialObject.insert("metalness", _material->metalness());
+	materialObject.insert("roughness", _material->roughness());
+	materialObject.insert("emissiveStrength", _material->emissiveStrength());
+	materialObject.insert("transmission", _material->transmission());
+	materialObject.insert("ior", _material->ior());
+	materialObject.insert("clearcoat", _material->clearcoat());
+	materialObject.insert("clearcoatRoughness", _material->clearcoatRoughness());
+	materialObject.insert("sheenRoughness", _material->sheenRoughness());
+	materialObject.insert("specularFactor", _material->specularFactor());
+	materialObject.insert("anisotropyStrength", _material->anisotropyStrength());
+	materialObject.insert("diffuseTransmissionFactor", _material->diffuseTransmissionFactor());
+	materialObject.insert("thicknessFactor", _material->thicknessFactor());
+	materialObject.insert("iridescenceFactor", _material->iridescenceFactor());
+	materialObject.insert("iridescenceIor", _material->iridescenceIor());
+	materialObject.insert("iridescenceThicknessMin", _material->iridescenceThicknessMin());
+	materialObject.insert("iridescenceThicknessMax", _material->iridescenceThicknessMax());
+	materialObject.insert("normalScale", _material->normalScale());
+	materialObject.insert("heightScale", _material->heightScale());
+	materialObject.insert("clearcoatNormalScale", _material->clearcoatNormalScale());
+
+	QJsonObject tintObject;
+	tintObject.insert("mode", static_cast<int>(_material->albedoTint.mode));
+	tintObject.insert("strength", _material->albedoTint.strength);
+	tintObject.insert("grayThreshold", _material->albedoTint.grayEps);
+	tintObject.insert("useVertexColor", _material->albedoTint.useVertexColor);
+	tintObject.insert("maskChannel", _material->albedoTint.maskChannel);
+	materialObject.insert("albedoTint", tintObject);
+
+	root.insert("material", materialObject);
+
+	QFile file(currentPresetMetadataPath());
+	if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
+	{
+		QMessageBox::warning(this, tr("Save Failed"),
+			tr("Could not write preset metadata:\n%1").arg(file.fileName()));
+		return false;
+	}
+
+	file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+	file.close();
+
+	QString message = tr("Saved material metadata to:\n%1").arg(file.fileName());
+	if (!skippedExternalKeys.isEmpty())
+	{
+		message += tr("\n\nSkipped maps outside the preset folder:\n%1")
+			.arg(skippedExternalKeys.join(", "));
+	}
+	QMessageBox::information(this, tr("Library Metadata Saved"), message);
+	return true;
 }
 
 // small helper: acceptable file extensions

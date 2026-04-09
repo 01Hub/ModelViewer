@@ -6689,12 +6689,57 @@ UVMethod GLWidget::promptLargeModelUVDecision(int totalTriangles, UVMethod curre
 
 GLuint GLWidget::createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers)
 {
+	if (image.isNull())
+	{
+		return 0;
+	}
+
+	GLenum internalFormat = GL_RGBA8;
+	GLenum dataFormat = GL_RGBA;
+	GLenum dataType = GL_UNSIGNED_BYTE;
+
+	QImage glImage;
+
+	switch (image.format())
+	{
+	case QImage::Format_RGB888:
+		glImage = image;
+		internalFormat = GL_RGB8;
+		dataFormat = GL_RGB;
+		break;
+
+	case QImage::Format_RGBA8888:
+	case QImage::Format_RGBA8888_Premultiplied:
+		glImage = image;
+		internalFormat = GL_RGBA8;
+		dataFormat = GL_RGBA;
+		break;
+
+	case QImage::Format_Grayscale8:
+		glImage = image;
+		internalFormat = GL_R8;
+		dataFormat = GL_RED;
+		break;
+
+	case QImage::Format_Indexed8:
+		glImage = image.convertToFormat(QImage::Format_RGBA8888);
+		internalFormat = GL_RGBA8;
+		dataFormat = GL_RGBA;
+		break;
+
+	default:
+		glImage = image.convertToFormat(QImage::Format_RGBA8888);
+		internalFormat = GL_RGBA8;
+		dataFormat = GL_RGBA;
+		break;
+	}
+
 	GLuint textureID;
 	glGenTextures(1, &textureID);
 
 	glBindTexture(GL_TEXTURE_2D, textureID);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image.width(), image.height(), 0,
-		GL_RGBA, GL_UNSIGNED_BYTE, image.bits());
+	glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, glImage.width(), glImage.height(), 0,
+		dataFormat, dataType, glImage.constBits());
 	glGenerateMipmap(GL_TEXTURE_2D);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, samplers.wrapS);

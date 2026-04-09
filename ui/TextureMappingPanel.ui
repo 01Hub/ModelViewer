@@ -118,6 +118,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QPushButton" name="pushButtonSave">
+        <property name="text">
+         <string>Save to Library</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QScrollArea" name="scrollArea">
         <property name="minimumSize">
          <size>

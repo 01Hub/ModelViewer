@@ -3487,6 +3487,9 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	}
 
 	if (m.contains("roughness"))        mat._roughness = qBound(0.0f, readFloat(m.value("roughness"), mat._roughness), 1.0f);
+	if (m.contains("normalScale"))      mat._normalScale = readFloat(m.value("normalScale"), mat._normalScale);
+	if (m.contains("heightScale"))      mat._heightScale = readFloat(m.value("heightScale"), mat._heightScale);
+	if (m.contains("clearcoatNormalScale")) mat._clearcoatNormalScale = readFloat(m.value("clearcoatNormalScale"), mat._clearcoatNormalScale);
 	// KHR_materials_transmission
 	if (m.contains("ior"))              mat._ior = readFloat(m.value("ior"), mat._ior);
 	if (m.contains("transmission"))     mat._transmission = readFloat(m.value("transmission"), mat._transmission);
@@ -3666,6 +3669,9 @@ QVariantMap GLMaterial::toVariantMap() const
 	// Keep legacy boolean for compatibility
 	m.insert("metallic", QVariant(metallic())); // boolean
 	m.insert("roughness", QVariant(roughness()));
+	m.insert("normalScale", QVariant(normalScale()));
+	m.insert("heightScale", QVariant(heightScale()));
+	m.insert("clearcoatNormalScale", QVariant(clearcoatNormalScale()));
 	m.insert("ior", QVariant(ior()));
 	m.insert("transmission", QVariant(transmission()));
 	m.insert("thickness", QVariant(thicknessFactor()));
@@ -4324,6 +4330,8 @@ std::ostream& operator<<(std::ostream& os, const GLMaterial& m)
 	os << "  _metalness: " << m._metalness << "\n";
 	os << "  _roughness: " << m._roughness << "\n";
 	os << "  _opacity: " << m._opacity << "\n";
+	os << "  _normalScale: " << m._normalScale << "  _heightScale: " << m._heightScale
+		<< "  _clearcoatNormalScale: " << m._clearcoatNormalScale << "\n";
 
 	// --- Advanced PBR / extras
 	os << "  _ior: " << m._ior << "\n";

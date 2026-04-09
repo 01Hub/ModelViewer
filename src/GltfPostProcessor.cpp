@@ -2203,6 +2203,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
     // FIX: Correct normalTexture.scale (Assimp doesn't export this correctly)
     fixNormalTextureScale(gltfJson, meshes, logCallback);
+    fixClearcoatNormalTextureScale(gltfJson, meshes, logCallback);
 
     // CRITICAL FIX: Correct KHR_materials_specular (or remove if default)
     fixSpecularExtension(gltfJson, meshes, logCallback);
@@ -2505,6 +2506,55 @@ bool GltfPostProcessor::fixNormalTextureScale(
     {
         gltfJson["materials"] = materials;  // CRITICAL: Write materials back!
         log("  -> normalTexture.scale values updated", logCallback);
+    }
+
+    return modified;
+}
+
+bool GltfPostProcessor::fixClearcoatNormalTextureScale(
+    QJsonObject& gltfJson,
+    const std::vector<TriangleMesh*>& meshes,
+    std::function<void(const QString&)> logCallback)
+{
+    bool modified = false;
+
+    if (!gltfJson.contains("materials") || meshes.empty())
+        return false;
+
+    QJsonArray materials = gltfJson["materials"].toArray();
+
+    for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
+    {
+        if (!meshes[i]) continue;
+
+        const GLMaterial& glMat = meshes[i]->getMaterial();
+        QJsonObject mat = materials[i].toObject();
+        QJsonObject extensions = mat.value("extensions").toObject();
+
+        if (!extensions.contains("KHR_materials_clearcoat"))
+            continue;
+
+        QJsonObject clearcoat = extensions["KHR_materials_clearcoat"].toObject();
+        if (!clearcoat.contains("clearcoatNormalTexture"))
+            continue;
+
+        QJsonObject clearcoatNormalTex = clearcoat["clearcoatNormalTexture"].toObject();
+        const float clearcoatNormalScale = glMat.clearcoatNormalScale();
+        clearcoatNormalTex["scale"] = static_cast<double>(clearcoatNormalScale);
+        clearcoat["clearcoatNormalTexture"] = clearcoatNormalTex;
+        extensions["KHR_materials_clearcoat"] = clearcoat;
+        mat["extensions"] = extensions;
+        materials[i] = mat;
+        modified = true;
+
+        log(QString("  -> Set clearcoatNormalTexture.scale to %1 for material %2")
+            .arg(clearcoatNormalScale).arg(i), logCallback);
+    }
+
+    if (modified)
+    {
+        gltfJson["materials"] = materials;
+        log("  -> clearcoatNormalTexture.scale values updated", logCallback);
     }
 
     return modified;
