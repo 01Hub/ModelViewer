@@ -36,6 +36,10 @@
 
 namespace
 {
+constexpr int PresetNameRole = Qt::UserRole;
+constexpr int PresetFolderRole = Qt::UserRole + 1;
+constexpr int PresetIsUserRole = Qt::UserRole + 2;
+
 QString wrapModeToJson(GLenum mode)
 {
 	switch (mode)
@@ -138,8 +142,7 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
 	registerMaps();
 	connectSignals();
 
-	const MaterialsMap& mats = MaterialTextureLibrary::instance().materials();
-	MaterialScanner::populateWithMaterials(_ui->treeWidgetPresetTextures, mats);
+	populatePresetTree();
 
 	QTimer::singleShot(0, this, [this] {
 		// Find first material item (not category)
@@ -150,8 +153,10 @@ TextureMappingPanel::TextureMappingPanel(QWidget* parent)
 			{
 				QTreeWidgetItem* firstMaterial = category->child(0);
 				_ui->treeWidgetPresetTextures->setCurrentItem(firstMaterial);
-				QString materialName = firstMaterial->data(0, Qt::UserRole).toString();
-				applyMaterialPreset(materialName);
+				const QString materialName = firstMaterial->data(0, PresetNameRole).toString();
+				const QString materialFolder = firstMaterial->data(0, PresetFolderRole).toString();
+				const bool isUserPreset = firstMaterial->data(0, PresetIsUserRole).toBool();
+				applyMaterialPreset(materialName, materialFolder, isUserPreset);
 				break;
 			}
 		}
@@ -673,12 +678,14 @@ void TextureMappingPanel::connectSignals()
 			Q_UNUSED(column);
 			if (!item || !item->parent()) return;
 
-			QString materialName = item->data(0, Qt::UserRole).toString();
+			QString materialName = item->data(0, PresetNameRole).toString();
 			if (materialName.isEmpty()) return;
+			const QString materialFolder = item->data(0, PresetFolderRole).toString();
+			const bool isUserPreset = item->data(0, PresetIsUserRole).toBool();
 
 			// Just preview, don't apply to mesh
 			QApplication::setOverrideCursor(Qt::WaitCursor);
-			applyMaterialPreset(materialName);
+			applyMaterialPreset(materialName, materialFolder, isUserPreset);
 			QApplication::restoreOverrideCursor();
 		});
 
@@ -688,7 +695,7 @@ void TextureMappingPanel::connectSignals()
 			Q_UNUSED(column);
 			if (!item || !item->parent()) return;
 
-			QString materialName = item->data(0, Qt::UserRole).toString();
+			QString materialName = item->data(0, PresetNameRole).toString();
 			if (materialName.isEmpty()) return;
 
 			// Already previewed by single-click
@@ -713,7 +720,7 @@ void TextureMappingPanel::connectSignals()
 				for (int j = 0; j < category->childCount(); ++j)
 				{
 					QTreeWidgetItem* material = category->child(j);
-					QString materialName = material->data(0, Qt::UserRole).toString();
+					QString materialName = material->data(0, PresetNameRole).toString();
 
 					// Show/hide based on search match
 					bool matches = searchEmpty || materialName.contains(text, Qt::CaseInsensitive);
@@ -1306,16 +1313,103 @@ void TextureMappingPanel::updatePreview()
 	_preview->update();
 }
 
-void TextureMappingPanel::applyMaterialPreset(const QString& presetName)
+void TextureMappingPanel::populatePresetTree()
+{
+	_ui->treeWidgetPresetTextures->clear();
+
+	const MaterialsMap& userMats = MaterialTextureLibrary::instance().userMaterials();
+	if (!userMats.isEmpty())
+	{
+		QTreeWidgetItem* userRoot = new QTreeWidgetItem(_ui->treeWidgetPresetTextures);
+		userRoot->setText(0, QString("User Textures (%1)").arg(userMats.size()));
+		userRoot->setFlags(userRoot->flags() & ~Qt::ItemIsSelectable);
+		QFont font = userRoot->font(0);
+		font.setBold(true);
+		userRoot->setFont(0, font);
+		userRoot->setExpanded(true);
+
+		for (auto it = userMats.constBegin(); it != userMats.constEnd(); ++it)
+		{
+			QTreeWidgetItem* materialItem = new QTreeWidgetItem(userRoot);
+			materialItem->setText(0, it.key());
+			materialItem->setData(0, PresetNameRole, it.key());
+			materialItem->setData(0, PresetFolderRole, MaterialTextureLibrary::instance().presetFolder(it.key(), true));
+			materialItem->setData(0, PresetIsUserRole, true);
+		}
+	}
+
+	QMap<QString, QStringList> categorizedMaterials;
+	const MaterialsMap& factoryMats = MaterialTextureLibrary::instance().factoryMaterials();
+	for (auto it = factoryMats.constBegin(); it != factoryMats.constEnd(); ++it)
+	{
+		const QString& materialName = it.key();
+		const int underscorePos = materialName.indexOf('_');
+		const QString category = (underscorePos > 0) ? materialName.left(underscorePos) : QStringLiteral("Uncategorized");
+		categorizedMaterials[category].append(materialName);
+	}
+
+	for (auto catIt = categorizedMaterials.constBegin(); catIt != categorizedMaterials.constEnd(); ++catIt)
+	{
+		const QString& categoryName = catIt.key();
+		const QStringList& materialList = catIt.value();
+		if (materialList.isEmpty()) continue;
+
+		QTreeWidgetItem* categoryItem = new QTreeWidgetItem(_ui->treeWidgetPresetTextures);
+		categoryItem->setText(0, QString("%1 (%2)").arg(categoryName).arg(materialList.size()));
+		categoryItem->setFlags(categoryItem->flags() & ~Qt::ItemIsSelectable);
+		QFont font = categoryItem->font(0);
+		font.setBold(true);
+		categoryItem->setFont(0, font);
+
+		for (const QString& materialName : materialList)
+		{
+			QTreeWidgetItem* materialItem = new QTreeWidgetItem(categoryItem);
+			const int underscorePos = materialName.indexOf('_');
+			const QString displayName = (underscorePos > 0) ? materialName.mid(underscorePos + 1) : materialName;
+			materialItem->setText(0, displayName);
+			materialItem->setData(0, PresetNameRole, materialName);
+			materialItem->setData(0, PresetFolderRole, MaterialTextureLibrary::instance().presetFolder(materialName, false));
+			materialItem->setData(0, PresetIsUserRole, false);
+		}
+
+		if (materialList.size() <= 10)
+			categoryItem->setExpanded(true);
+	}
+
+	_ui->treeWidgetPresetTextures->expandAll();
+}
+
+void TextureMappingPanel::selectPresetInTree(const QString& presetName, bool userPreset)
+{
+	QList<QTreeWidgetItem*> items = _ui->treeWidgetPresetTextures->findItems(QStringLiteral("*"), Qt::MatchWildcard | Qt::MatchRecursive, 0);
+	for (QTreeWidgetItem* item : items)
+	{
+		if (item->childCount() > 0)
+			continue;
+		if (item->data(0, PresetNameRole).toString() == presetName &&
+			item->data(0, PresetIsUserRole).toBool() == userPreset)
+		{
+			_ui->treeWidgetPresetTextures->setCurrentItem(item);
+			return;
+		}
+	}
+}
+
+void TextureMappingPanel::applyMaterialPreset(const QString& presetName, const QString& presetFolder, bool userPreset)
 {
 	if (!_material) return;
 
 	_currentPresetName = presetName;
-	_currentPresetFolder = materialLibraryRoot() + "/" + presetName;
+	_currentPresetFolder = presetFolder.isEmpty()
+		? MaterialTextureLibrary::instance().presetFolder(presetName, userPreset)
+		: presetFolder;
+	_currentPresetIsUser = userPreset;
 
 	clearAllMaps();
 
-	const MaterialsMap& mats = MaterialTextureLibrary::instance().materials();
+	const MaterialsMap& mats = userPreset
+		? MaterialTextureLibrary::instance().userMaterials()
+		: MaterialTextureLibrary::instance().factoryMaterials();
 	if (!mats.contains(presetName)) return;
 
 	const TextureMap texs = mats.value(presetName);
@@ -1393,7 +1487,12 @@ void TextureMappingPanel::applyMaterialPreset(const QString& presetName)
 
 QString TextureMappingPanel::materialLibraryRoot() const
 {
-	return PathUtils::getDataDirectory() + "/textures/materials";
+	return MaterialTextureLibrary::instance().factoryRoot();
+}
+
+QString TextureMappingPanel::userMaterialLibraryRoot() const
+{
+	return MaterialTextureLibrary::instance().userRoot();
 }
 
 QString TextureMappingPanel::currentPresetMetadataPath() const
@@ -1537,17 +1636,25 @@ bool TextureMappingPanel::saveCurrentPresetMetadata()
 		return false;
 	}
 
-	QDir presetDir(_currentPresetFolder);
-	if (!presetDir.exists())
+	const QString targetRoot = userMaterialLibraryRoot();
+	QDir rootDir(targetRoot);
+	if (!rootDir.exists() && !rootDir.mkpath("."))
 	{
-		QMessageBox::warning(this, tr("Preset Folder Missing"),
-			tr("The selected preset folder does not exist:\n%1").arg(_currentPresetFolder));
+		QMessageBox::warning(this, tr("Save Failed"),
+			tr("Could not create the user texture library folder:\n%1").arg(targetRoot));
 		return false;
 	}
 
+	const QString targetFolder = rootDir.filePath(_currentPresetName);
+	if (!rootDir.exists(_currentPresetName) && !rootDir.mkpath(_currentPresetName))
+	{
+		QMessageBox::warning(this, tr("Save Failed"),
+			tr("Could not create the user preset folder:\n%1").arg(targetFolder));
+		return false;
+	}
+
+	QDir presetDir(targetFolder);
 	QJsonObject mapsObject;
-	QStringList skippedExternalKeys;
-	const QString presetAbsPath = QDir(_currentPresetFolder).absolutePath();
 	for (auto it = _maps.constBegin(); it != _maps.constEnd(); ++it)
 	{
 		const QString& key = it.key();
@@ -1555,22 +1662,36 @@ bool TextureMappingPanel::saveCurrentPresetMetadata()
 		if (fullPath.isEmpty()) continue;
 
 		const QString absoluteFilePath = QFileInfo(fullPath).absoluteFilePath();
-		const QString relativeFile = QDir(_currentPresetFolder).relativeFilePath(absoluteFilePath);
-		const bool isInsidePreset =
-			!relativeFile.startsWith("../") &&
-			relativeFile != QStringLiteral("..") &&
-			QFileInfo(absoluteFilePath).absoluteFilePath().startsWith(presetAbsPath, Qt::CaseInsensitive);
-
-		if (!isInsidePreset)
+		QString destinationName = QFileInfo(absoluteFilePath).fileName();
+		QString destinationPath = presetDir.filePath(destinationName);
+		if (QFileInfo(destinationPath).absoluteFilePath().compare(absoluteFilePath, Qt::CaseInsensitive) != 0)
 		{
-			skippedExternalKeys.append(key);
-			continue;
+			if (QFile::exists(destinationPath))
+			{
+				const QFileInfo destInfo(destinationPath);
+				const QFileInfo srcInfo(absoluteFilePath);
+				if (destInfo.size() != srcInfo.size())
+				{
+					destinationName = QString("%1_%2").arg(key, srcInfo.fileName());
+					destinationPath = presetDir.filePath(destinationName);
+				}
+			}
+
+			if (QFile::exists(destinationPath))
+				QFile::remove(destinationPath);
+
+			if (!QFile::copy(absoluteFilePath, destinationPath))
+			{
+				QMessageBox::warning(this, tr("Save Failed"),
+					tr("Could not copy texture into the user library:\n%1").arg(absoluteFilePath));
+				return false;
+			}
 		}
 
 		const GLMaterial::Texture& tex = _material->texture(it.value().type);
 		QJsonObject mapObject;
 
-		mapObject.insert("file", relativeFile);
+		mapObject.insert("file", destinationName);
 		mapObject.insert("wrapS", wrapModeToJson(tex.wrapS));
 		mapObject.insert("wrapT", wrapModeToJson(tex.wrapT));
 		mapObject.insert("magFilter", filterToJson(tex.magFilter));
@@ -1632,7 +1753,7 @@ bool TextureMappingPanel::saveCurrentPresetMetadata()
 
 	root.insert("material", materialObject);
 
-	QFile file(currentPresetMetadataPath());
+	QFile file(QDir(targetFolder).filePath("material.json"));
 	if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate))
 	{
 		QMessageBox::warning(this, tr("Save Failed"),
@@ -1643,12 +1764,13 @@ bool TextureMappingPanel::saveCurrentPresetMetadata()
 	file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
 	file.close();
 
-	QString message = tr("Saved material metadata to:\n%1").arg(file.fileName());
-	if (!skippedExternalKeys.isEmpty())
-	{
-		message += tr("\n\nSkipped maps outside the preset folder:\n%1")
-			.arg(skippedExternalKeys.join(", "));
-	}
+	MaterialTextureLibrary::instance().reload();
+	populatePresetTree();
+	selectPresetInTree(_currentPresetName, true);
+	_currentPresetFolder = targetFolder;
+	_currentPresetIsUser = true;
+
+	const QString message = tr("Saved user texture preset to:\n%1").arg(file.fileName());
 	QMessageBox::information(this, tr("Library Metadata Saved"), message);
 	return true;
 }

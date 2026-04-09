@@ -20,14 +20,25 @@ public:
 
     // Access the parsed materials
     const MaterialsMap& materials() const { return _materials; }
+    const MaterialsMap& factoryMaterials() const { return _factoryMaterials; }
+    const MaterialsMap& userMaterials() const { return _userMaterials; }
 
     // Reload from folder (optional)
-    void reload(const QString& rootFolder);
+    void reload(const QString& rootFolder = QString());
+
+    QString factoryRoot() const;
+    QString userRoot() const;
+    QString presetFolder(const QString& presetName, bool userPreset = false) const;
+    bool isUserPreset(const QString& presetName) const;
 
 private:
     MaterialTextureLibrary();   // private ctor
     ~MaterialTextureLibrary() = default;
 
+    void loadAllMaterials(const QString& factoryRoot, const QString& userRoot);
+
     MaterialsMap _materials;
+    MaterialsMap _factoryMaterials;
+    MaterialsMap _userMaterials;
     mutable QMutex _mutex;
 };

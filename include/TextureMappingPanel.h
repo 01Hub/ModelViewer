@@ -96,10 +96,13 @@ private:
 
     void updatePreview();
 
-    void applyMaterialPreset(const QString& presetName);
+    void populatePresetTree();
+    void selectPresetInTree(const QString& presetName, bool userPreset);
+    void applyMaterialPreset(const QString& presetName, const QString& presetFolder = QString(), bool userPreset = false);
     void loadMaterialPresetMetadata(const QString& presetName);
     bool saveCurrentPresetMetadata();
     QString materialLibraryRoot() const;
+    QString userMaterialLibraryRoot() const;
     QString currentPresetMetadataPath() const;
 
 private:
@@ -113,6 +116,7 @@ private:
     QString _lastUsedFolder;
     QString _currentPresetName;
     QString _currentPresetFolder;
+    bool _currentPresetIsUser = false;
 
 	bool _detached = false;
 };
