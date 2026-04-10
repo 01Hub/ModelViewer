@@ -2015,9 +2015,36 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			blendFresnel = vec3(volumeFresnel);
 		}
 
+		// Add an explicit environment reflection term for transmissive surfaces.
+		// Using outRGB alone here makes glass read mostly as refraction because it does
+		// not provide a distinct env-map reflection contribution in this path.
+		vec3 transmissionEnvReflection = vec3(0.0);
+		if (envMapEnabled)
+		{
+			float reflectionDotNV = clamp(dot(N_trans, normalize(-V_reflect)), 0.0, 1.0);
+			vec3 transmissionReflectDir = normalize(reflect(V_reflect, N_trans));
+			float maxReflectionLod = max(textureQueryLevels(prefilterMap) - 1.0, 0.0);
+			float reflectionLod = clamp(roughness * maxReflectionLod, 0.0, maxReflectionLod);
+			vec3 transmissionPrefilter = textureLod(prefilterMap, transmissionReflectDir, reflectionLod).rgb;
+			transmissionPrefilter = max(transmissionPrefilter, vec3(0.0));
+			transmissionPrefilter *= envMapExposure;
+
+			vec2 transmissionBrdf = texture(brdfLUT, vec2(reflectionDotNV, roughness)).rg;
+			transmissionBrdf = max(transmissionBrdf, vec2(0.0));
+
+			// Keep the effect subtle and Fresnel-driven so glass gets a believable
+			// environment sheen without overwhelming the transmitted image.
+			transmissionEnvReflection =
+				transmissionPrefilter *
+				(blendFresnel * transmissionBrdf.x + transmissionBrdf.y) *
+				ambientOcclusion *
+				0.5;
+		}
+
 		// Blend reflection and transmission using the Fresnel (which may be iridescent)
 		vec3 reflectionColor = outRGB;
 		vec3 finalTransmission = mix(transmittedLight, reflectionColor, blendFresnel);
+		finalTransmission += transmissionEnvReflection;
 
 		// Apply transmission factor
 		outRGB = mix(outRGB, finalTransmission, transmissionFactor);
