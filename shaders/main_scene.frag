@@ -1337,7 +1337,21 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 	// Setup tangent space for anisotropy
 	vec3 T = normalize(v_tangent - dot(v_tangent, N) * N);
-	vec3 B = normalize(cross(N, T));
+	vec3 B = normalize(v_bitangent - dot(v_bitangent, N) * N);
+
+	// Keep the anisotropy frame orthonormal while preserving the imported tangent basis.
+	if (length(B) < 0.0001)
+	{
+		B = normalize(cross(N, T));
+	}
+	else
+	{
+		B = normalize(B - dot(B, T) * T);
+		if (dot(cross(T, B), N) < 0.0)
+		{
+			B = -B;
+		}
+	}
 
 	// ============================================================================
 	// PRE-LAYER: IRIDESCENCE - Compute F0/F90 before using in BRDFs
@@ -1830,9 +1844,30 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			vec3 kSibl = Fibl;
 			vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
 
-			vec3 R = reflect(V_reflect, v_reflectionNormal);
+			vec3 iblNormal = normalize(v_reflectionNormal);
+			vec3 R = reflect(V_reflect, iblNormal);
+			float iblRoughness = roughness;
+
+			if (anisotropyStrength > 0.0)
+			{
+				float c_aniso = cos(anisotropyRotation);
+				float s_aniso = sin(anisotropyRotation);
+				vec3 T_ibl = normalize(c_aniso * T + s_aniso * B);
+				vec3 B_ibl = normalize(-s_aniso * T + c_aniso * B);
+				vec3 V_ibl = normalize(-V_direct);
+
+				// Approximate anisotropic IBL by bending the reflection normal along the
+				// authored anisotropy frame. This preserves the existing IBL pipeline
+				// while making environment highlights rotate and stretch more plausibly.
+				vec3 bentNormal = normalize(cross(cross(V_ibl, B_ibl), B_ibl));
+				float bendMix = pow(clamp(1.0 - anisotropyStrength * (1.0 - roughness), 0.0, 1.0), 2.0);
+				bentNormal = normalize(mix(bentNormal, iblNormal, bendMix));
+				R = reflect(V_reflect, bentNormal);
+				iblRoughness = clamp(roughness + anisotropyStrength * (1.0 - roughness) * 0.35, 0.0, 1.0);
+			}
+
 			const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
-			float lod = roughness * MAX_REFLECTION_LOD;
+			float lod = iblRoughness * MAX_REFLECTION_LOD;
 			lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
 			vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
 			prefilteredColor = max(prefilteredColor, vec3(0.0));
@@ -2585,7 +2620,17 @@ AnisotropyData decodeAnisotropyTexture(
 	// Red [0,1] -> X [-1,1], Green [0,1] -> Y [-1,1], Blue = strength [0,1]
 
 	result.direction = texelRGB.rg * 2.0 - 1.0;  // [0,1] -> [-1,1]
-	result.direction = normalize(result.direction); // Unit vector in tangent space
+	float directionLength = length(result.direction);
+	if (directionLength < 0.0001)
+	{
+		// Neutral texels should not generate unstable directions/angles.
+		// Fall back to the canonical +X direction and let the uniform rotation drive it.
+		result.direction = vec2(1.0, 0.0);
+	}
+	else
+	{
+		result.direction /= directionLength; // Unit vector in tangent space
+	}
 
 	// Blue channel is strength, multiply by uniform
 	result.strength = texelRGB.b * uniformStrength;
