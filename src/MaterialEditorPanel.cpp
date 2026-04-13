@@ -1,8 +1,9 @@
 #include "MaterialEditorPanel.h"
-#include "MaterialRegistry.h" 
+#include "MaterialRegistry.h"
 #include "MaterialLibraryWidget.h"
 #include "LanguageManager.h"
 #include "Utils.h"
+#include "PathUtils.h"
 
 #include <QInputDialog>
 #include <QMessageBox>
@@ -14,6 +15,10 @@
 #include <QTreeWidgetItem>
 #include <QScrollArea>
 #include <functional>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QFile>
 
 #include "ui_MaterialEditorPanel.h"
 
@@ -620,19 +625,67 @@ void MaterialEditorPanel::onDetachButtonClicked()
 void MaterialEditorPanel::onMaterialPreview(const GLMaterial& mat)
 {
 	_currentMaterial = mat;
-	ui->previewWidget->setMaterial(mat);
+
+	// Load textures from materials.json for this material
+	QList<QTreeWidgetItem*> selected = ui->treeWidget->selectedItems();
+	if (!selected.isEmpty())
+	{
+		QString matKey = selected.first()->data(0, Qt::UserRole).toString();
+		if (!matKey.isEmpty())
+		{
+			loadTexturesIntoMaterial(_currentMaterial, matKey);
+		}
+	}
+
+	ui->previewWidget->setMaterial(_currentMaterial);
 
 	updateUI(mat);
 }
 
 void MaterialEditorPanel::onMaterialSelected(const GLMaterial& mat)
 {
+	qDebug() << "=== onMaterialSelected CALLED ===";
 	_currentMaterial = mat;
-	ui->previewWidget->setMaterial(mat);
+
+	// Load textures from materials.json for this material
+	QList<QTreeWidgetItem*> selected = ui->treeWidget->selectedItems();
+	qDebug() << "Selected items count:" << selected.size();
+
+	if (!selected.isEmpty())
+	{
+		QString matKey = selected.first()->data(0, Qt::UserRole).toString();
+		qDebug() << "Material key from tree:" << matKey;
+
+		if (!matKey.isEmpty())
+		{
+			qDebug() << "Calling loadTexturesIntoMaterial for key:" << matKey;
+			loadTexturesIntoMaterial(_currentMaterial, matKey);
+		}
+		else
+		{
+			qDebug() << "WARNING: matKey is empty!";
+		}
+	}
+	else
+	{
+		qDebug() << "WARNING: No items selected in tree! Textures will NOT be loaded.";
+	}
+
+	ui->previewWidget->setMaterial(_currentMaterial);
 
 	updateUI(mat);
 
-	emit materialChanged(_currentMaterial);
+	// DEBUG: Log what paths are in the material before emission
+	qDebug() << "=== onMaterialSelected - BEFORE materialApplied emission ===";
+	qDebug() << "  _currentMaterial.albedoMapPath():" << _currentMaterial.albedoMapPath();
+	qDebug() << "  _currentMaterial.normalMapPath():" << _currentMaterial.normalMapPath();
+	qDebug() << "  _currentMaterial.metallicMapPath():" << _currentMaterial.metallicMapPath();
+	qDebug() << "  _currentMaterial.roughnessMapPath():" << _currentMaterial.roughnessMapPath();
+
+	// Apply to main viewer mesh (with warning if no selection)
+	qDebug() << "Emitting materialApplied signal...";
+	emit materialApplied(_currentMaterial);
+	qDebug() << "=== onMaterialSelected - AFTER materialApplied emission ===";
 }
 
 void MaterialEditorPanel::updateUI(const GLMaterial& mat)
@@ -680,4 +733,221 @@ void MaterialEditorPanel::updateUI(const GLMaterial& mat)
 	ui->blendCombo->setCurrentIndex(static_cast<int>(mat.blendMode()));
 	ui->twoSidedCheck->setChecked(mat.twoSided());
 	ui->wireframeCheck->setChecked(mat.wireframe());
+}
+
+void MaterialEditorPanel::loadTexturesIntoMaterial(GLMaterial& material, const QString& materialKey)
+{
+	qDebug() << "=== loadTexturesIntoMaterial START ===" << materialKey;
+
+	// Load unified materials.json
+	QString jsonPath = PathUtils::getDataDirectory() + "/data/catalogs/materials.json";
+	qDebug() << "JSON path:" << jsonPath;
+	QFile file(jsonPath);
+
+	if (!file.open(QIODevice::ReadOnly))
+	{
+		qDebug() << "ERROR: Cannot open materials.json";
+		return;
+	}
+
+	QJsonObject catalog = QJsonDocument::fromJson(file.readAll()).object();
+	file.close();
+
+	// Find material in groups
+	QJsonObject materialObj;
+	for (const QJsonValue& groupVal : catalog["groups"].toArray())
+	{
+		for (const QJsonValue& matVal : groupVal.toObject()["items"].toArray())
+		{
+			if (matVal.toObject()["key"].toString() == materialKey)
+			{
+				materialObj = matVal.toObject();
+				break;
+			}
+		}
+		if (!materialObj.isEmpty())
+			break;
+	}
+
+	if (materialObj.isEmpty())
+	{
+		qDebug() << "ERROR: Material not found in JSON:" << materialKey;
+		return;
+	}
+
+	qDebug() << "Material found:" << materialKey;
+	qDebug() << "Available keys in material object:" << materialObj.keys();
+
+	QString baseDir = PathUtils::getDataDirectory() + "/";
+
+	// Load texture paths from JSON and set them on the material
+	if (materialObj.contains("albedoMapPath"))
+	{
+		QString relativePath = materialObj["albedoMapPath"].toString();
+		qDebug() << "albedoMapPath found - relative:" << relativePath;
+		if (!relativePath.isEmpty())
+		{
+			QString fullPath = baseDir + relativePath;
+			bool fileExists = QFile::exists(fullPath);
+			qDebug() << "albedoMapPath full:" << fullPath;
+			qDebug() << "albedoMapPath exists:" << fileExists;
+			if (fileExists)
+			{
+				material.setAlbedoMap(fullPath);
+
+				// Also populate unified storage (syncs with setTexture)
+				auto tex = material.texture(GLMaterial::TextureType::Albedo);
+				tex.path = fullPath.toStdString();
+				material.setTexture(GLMaterial::TextureType::Albedo, tex);
+
+				qDebug() << "ALBEDO MAP LOADED";
+			}
+			else
+			{
+				qDebug() << "WARNING: Albedo map file not found at" << fullPath;
+			}
+		}
+		else
+		{
+			qDebug() << "WARNING: albedoMapPath is empty";
+		}
+	}
+	else
+	{
+		qDebug() << "WARNING: 'albedoMapPath' key NOT found in material object";
+	}
+
+	if (materialObj.contains("metallicMapPath"))
+	{
+		QString relativePath = materialObj["metallicMapPath"].toString();
+		if (!relativePath.isEmpty())
+		{
+			QString fullPath = baseDir + relativePath;
+			if (QFile::exists(fullPath))
+			{
+				material.setMetallicMap(fullPath);
+				auto tex = material.texture(GLMaterial::TextureType::Metallic);
+				tex.path = fullPath.toStdString();
+				material.setTexture(GLMaterial::TextureType::Metallic, tex);
+			}
+		}
+	}
+
+	if (materialObj.contains("roughnessMapPath"))
+	{
+		QString relativePath = materialObj["roughnessMapPath"].toString();
+		if (!relativePath.isEmpty())
+		{
+			QString fullPath = baseDir + relativePath;
+			if (QFile::exists(fullPath))
+			{
+				material.setRoughnessMap(fullPath);
+				auto tex = material.texture(GLMaterial::TextureType::Roughness);
+				tex.path = fullPath.toStdString();
+				material.setTexture(GLMaterial::TextureType::Roughness, tex);
+			}
+		}
+	}
+
+	if (materialObj.contains("normalMapPath"))
+	{
+		QString relativePath = materialObj["normalMapPath"].toString();
+		qDebug() << "normalMapPath found - relative:" << relativePath;
+		if (!relativePath.isEmpty())
+		{
+			QString fullPath = baseDir + relativePath;
+			bool fileExists = QFile::exists(fullPath);
+			qDebug() << "normalMapPath full:" << fullPath;
+			qDebug() << "normalMapPath exists:" << fileExists;
+			if (fileExists)
+			{
+				material.setNormalMap(fullPath);
+
+				// Also populate unified storage (syncs with setTexture)
+				auto tex = material.texture(GLMaterial::TextureType::Normal);
+				tex.path = fullPath.toStdString();
+				material.setTexture(GLMaterial::TextureType::Normal, tex);
+
+				qDebug() << "NORMAL MAP LOADED";
+			}
+			else
+			{
+				qDebug() << "WARNING: Normal map file not found at" << fullPath;
+			}
+		}
+		else
+		{
+			qDebug() << "WARNING: normalMapPath is empty";
+		}
+	}
+	else
+	{
+		qDebug() << "WARNING: 'normalMapPath' key NOT found in material object";
+	}
+
+	if (materialObj.contains("aoMapPath"))
+	{
+		QString relativePath = materialObj["aoMapPath"].toString();
+		if (!relativePath.isEmpty())
+		{
+			QString fullPath = baseDir + relativePath;
+			if (QFile::exists(fullPath))
+			{
+				material.setAOMap(fullPath);
+				auto tex = material.texture(GLMaterial::TextureType::AmbientOcclusion);
+				tex.path = fullPath.toStdString();
+				material.setTexture(GLMaterial::TextureType::AmbientOcclusion, tex);
+			}
+		}
+	}
+
+	if (materialObj.contains("heightMapPath"))
+	{
+		QString relativePath = materialObj["heightMapPath"].toString();
+		if (!relativePath.isEmpty())
+		{
+			QString fullPath = baseDir + relativePath;
+			if (QFile::exists(fullPath))
+			{
+				material.setHeightMap(fullPath);
+				auto tex = material.texture(GLMaterial::TextureType::Height);
+				tex.path = fullPath.toStdString();
+				material.setTexture(GLMaterial::TextureType::Height, tex);
+			}
+		}
+	}
+
+	if (materialObj.contains("emissiveMapPath"))
+	{
+		QString relativePath = materialObj["emissiveMapPath"].toString();
+		if (!relativePath.isEmpty())
+		{
+			QString fullPath = baseDir + relativePath;
+			if (QFile::exists(fullPath))
+			{
+				material.setEmissiveMap(fullPath);
+				auto tex = material.texture(GLMaterial::TextureType::Emissive);
+				tex.path = fullPath.toStdString();
+				material.setTexture(GLMaterial::TextureType::Emissive, tex);
+			}
+		}
+	}
+
+	if (materialObj.contains("opacityMapPath"))
+	{
+		QString relativePath = materialObj["opacityMapPath"].toString();
+		if (!relativePath.isEmpty())
+		{
+			QString fullPath = baseDir + relativePath;
+			if (QFile::exists(fullPath))
+			{
+				material.setOpacityMap(fullPath);
+				auto tex = material.texture(GLMaterial::TextureType::Opacity);
+				tex.path = fullPath.toStdString();
+				material.setTexture(GLMaterial::TextureType::Opacity, tex);
+			}
+		}
+	}
+
+	qDebug() << "=== loadTexturesIntoMaterial END ===";
 }

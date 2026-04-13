@@ -42,7 +42,8 @@ private slots:
 	void onDetachButtonClicked();
 
 private:
-	
+	void loadTexturesIntoMaterial(GLMaterial& material, const QString& materialKey);
+
 	GLMaterial _currentMaterial = GLMaterial::METAL_ALUMINUM();
 	bool _detached = false;
 

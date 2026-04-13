@@ -6989,16 +6989,26 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 		const std::string& mapType,
 		const TextureSamplerSettings& samplers) -> unsigned int
 	{
+		qDebug() << "resolveTexturePath called with path:" << path << "mapType:" << QString::fromStdString(mapType);
 		if (path.isEmpty())
 		{
+			qDebug() << "  Path is empty, returning 0";
 			return 0;
 		}
 		if (path.endsWith(".ktx2", Qt::CaseInsensitive))
 		{
+			qDebug() << "  Loading as KTX2";
 			return w->getOrLoadKtx2TextureCached(path, mapType, samplers);
 		}
+		qDebug() << "  Loading as standard texture";
 		return w->getOrLoadTextureCached(path, samplers);
 	};
+
+	qDebug() << "=== resolveMaterialTextures START ===";
+	qDebug() << "Input albedo path:" << m.albedoMapPath();
+	qDebug() << "Input normal path:" << m.normalMapPath();
+	qDebug() << "Input metallic path:" << m.metallicMapPath();
+	qDebug() << "Input roughness path:" << m.roughnessMapPath();
 
 	if (m.hasAlbedoMap())
 	{
@@ -7152,6 +7162,12 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 	}
 
 	m.syncTextureParameters();
+
+	qDebug() << "=== resolveMaterialTextures END ===";
+	qDebug() << "Output albedo path:" << m.albedoMapPath();
+	qDebug() << "Output normal path:" << m.normalMapPath();
+	qDebug() << "Output albedo texture ID:" << m.albedoTextureId();
+	qDebug() << "Output normal texture ID:" << m.normalTextureId();
 
 	return m;
 }

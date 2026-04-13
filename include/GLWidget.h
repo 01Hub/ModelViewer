@@ -498,6 +498,8 @@ public slots:
 	ShaderProgram* getSelectionShader() const { return _selectionShader.get(); }	
 	SelectionManager* getSelectionManager() const { return _selectionManager; }
 
+	static GLMaterial resolveMaterialTextures(GLWidget* w, const GLMaterial& src);
+
 private slots:
 	void showContextMenu(const QPoint& pos);
 	void centerDisplayList();
@@ -629,9 +631,7 @@ private:
 		const TextureSamplerSettings& samplers = TextureSamplerSettings());
 	void retainTexture(unsigned int texId);
 	void releaseTexture(unsigned int texId);
-
-	static GLMaterial resolveMaterialTextures(GLWidget* w, const GLMaterial& src);
-
+		
 	// --- Transmission Buffer Methods ---
 	void initTransmissionBuffer();
 	void renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor);

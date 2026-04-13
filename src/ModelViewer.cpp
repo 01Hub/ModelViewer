@@ -2748,41 +2748,24 @@ void ModelViewer::clearADSTextures()
 }
 
 void ModelViewer::onPredefinedMaterialSelected(const GLMaterial& mat)
-{	
-	if (!checkForActiveSelection())
-		return;
-
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-
-	QVector<QUuid> uuids;
-	std::vector<int> ids = getSelectedIDs();
-	for (int id : ids)
-	{
-		QUuid uuid = _glWidget->getUuidByIndex(id);
-		if (!uuid.isNull())
-			uuids.append(uuid);
-	}
-
-	QString materialName;
-	MaterialEditorPanel* panel = Ui_ModelViewer::predefinedMaterialsPanel;
-	if (panel)
-	{
-		MaterialLibraryWidget* tree = panel->findChild<MaterialLibraryWidget*>("treeWidget");
-		if (tree && !tree->selectedItems().isEmpty())
-		{
-			materialName = tree->selectedItems().first()->text(0);
-		}
-	}
-		
-	_undoStack->push(new ApplyMaterialCommand(
-		this, _glWidget, uuids, mat, materialName
-	));
-
-	QApplication::restoreOverrideCursor();
+{
+	// This handler is triggered when MaterialLibraryWidget emits materialSelected,
+	// but material application now goes through MaterialEditorPanel::onMaterialSelected
+	// which processes textures before emitting materialApplied.
+	// This prevents duplicate ApplyMaterialCommand creation and ensures proper texture handling.
+	// So we do nothing here - let MaterialEditorPanel handle the processing and emission.
+	Q_UNUSED(mat);
 }
 
 void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
 {
+	// DEBUG: Log what paths are received in the slot
+	qDebug() << "=== ModelViewer::onCustomMaterialApplied START ===";
+	qDebug() << "  Received Albedo path:" << mat.albedoMapPath();
+	qDebug() << "  Received Normal path:" << mat.normalMapPath();
+	qDebug() << "  Received Metallic path:" << mat.metallicMapPath();
+	qDebug() << "  Received Roughness path:" << mat.roughnessMapPath();
+
 	if (!checkForActiveSelection())
 		return;
 
@@ -2799,11 +2782,16 @@ void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
 
 	QString materialName = "Custom Material";
 
+	qDebug() << "Passing material to ApplyMaterialCommand with:";
+	qDebug() << "  Albedo path:" << mat.albedoMapPath();
+	qDebug() << "  Normal path:" << mat.normalMapPath();
+
 	_undoStack->push(new ApplyMaterialCommand(
 		this, _glWidget, uuids, mat, materialName
 	));
 
 	QApplication::restoreOverrideCursor();
+	qDebug() << "=== ModelViewer::onCustomMaterialApplied END ===";
 }
 
 void ModelViewer::onTexturesApplied(const GLMaterial* mat)
