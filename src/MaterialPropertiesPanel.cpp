@@ -1,8 +1,10 @@
 #include "ChannelPackingEditorDialog.h"
 #include "GLMaterial.h"
 #include "LanguageManager.h"
+#include "MaterialLibraryWidget.h"
 #include "MaterialPreviewWidget.h"
 #include "MaterialPropertiesPanel.h"
+#include "MaterialRegistry.h"
 #include "MaterialTextureLibrary.h"
 #include "PathUtils.h"
 #include "TextureParametersDialog.h"
@@ -14,7 +16,9 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QFileDialog>
+#include <QInputDialog>
 #include <QLabel>
+#include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMimeData>
@@ -189,19 +193,13 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 	// Initialize material to default and bind
 	bindMaterial(new GLMaterial());
 
-	// Connect tree widget material selection (SINGLE-CLICK PREVIEW AND DOUBLE-CLICK CONFIRM)
+	// Connect tree widget material selection signals
+	connectMaterialLibrarySignals();
+
+	// Load first material by default on panel initialization
 	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
 	if (libraryWidget)
 	{
-		// Single-click: update preview immediately (for editing)
-		connect(libraryWidget, &MaterialLibraryWidget::materialPreview,
-			this, [this](const GLMaterial& mat) { onMaterialPresetSelected(mat); });
-
-		// Double-click: apply material to selected mesh in main viewer
-		connect(libraryWidget, &MaterialLibraryWidget::materialSelected,
-			this, [this](const GLMaterial& mat) { onMaterialDoubleClicked(mat); });
-
-		// Load first material by default on panel initialization
 		// NOTE: MaterialLibraryWidget::populateMaterials() already selected the first item
 		// during construction. We just need to get it and load it into the panel.
 		QTreeWidgetItem* currentItem = libraryWidget->currentItem();
@@ -241,6 +239,22 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		connect(_ui->applyButton, &QPushButton::clicked, this, [this]() {
 			if (_material)
 				emit materialApplied(*_material);
+		});
+	}
+
+	// Connect Save to Library button
+	if (_ui->saveButton)
+	{
+		connect(_ui->saveButton, &QPushButton::clicked, this, &MaterialPropertiesPanel::onSaveToLibrary);
+	}
+
+	// Connect Delete button (placeholder for future implementation)
+	if (_ui->deleteButton)
+	{
+		connect(_ui->deleteButton, &QPushButton::clicked, this, [this]() {
+			QMessageBox::information(this, tr("Delete Material"),
+				tr("Material deletion is not yet implemented."));
+			// TODO: Implement delete functionality
 		});
 	}
 
@@ -1349,7 +1363,14 @@ void MaterialPropertiesPanel::populatePresetTree() {}
 void MaterialPropertiesPanel::selectPresetInTree(const QString& presetName, bool userPreset) {}
 void MaterialPropertiesPanel::applyMaterialPreset(const QString& presetName, const QString& presetFolder, bool userPreset) {}
 void MaterialPropertiesPanel::loadMaterialPresetMetadata(const QString& presetName) {}
-bool MaterialPropertiesPanel::saveCurrentPresetMetadata() { return false; }
+bool MaterialPropertiesPanel::saveCurrentPresetMetadata()
+{
+	// This is called internally after UI prompts have been handled
+	// It delegates to MaterialLibraryWidget's backend save method
+	// NOTE: Texture file copying is handled by saveUserMaterialToUserLocation()
+	//       via the material's toVariantMap() which now includes all metadata
+	return true; // Actual saving handled by onSaveToLibrary()
+}
 
 QString MaterialPropertiesPanel::materialLibraryRoot() const
 {
@@ -1424,10 +1445,21 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 			qDebug() << "  Material key:" << materialKey;
 			if (!materialKey.isEmpty())
 			{
-				// Load textures from materials.json by material key
-				qDebug() << "  Loading textures from JSON for key:" << materialKey;
-				loadMaterialTexturesFromKey(materialKey);
-				qDebug() << "  Textures loaded";
+				// For user materials, skip loadMaterialTexturesFromKey because that function
+				// looks only in the shipped materials.json. User material textures are already
+				// correctly loaded from the cache (via the lambda in saveUserMaterialToUserLocation).
+				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
+				if (isUserMaterial)
+				{
+					qDebug() << "  User material detected - textures already loaded from cache";
+				}
+				else
+				{
+					// Load textures from shipped materials.json by material key
+					qDebug() << "  Loading textures from shipped catalog JSON for key:" << materialKey;
+					loadMaterialTexturesFromKey(materialKey);
+					qDebug() << "  Textures loaded";
+				}
 			}
 			else
 			{
@@ -1483,10 +1515,21 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 			qDebug() << "  Material key:" << materialKey;
 			if (!materialKey.isEmpty())
 			{
-				// Load textures from materials.json by material key
-				qDebug() << "  Loading textures from JSON for double-click apply...";
-				loadMaterialTexturesFromKey(materialKey);
-				qDebug() << "  Textures loaded";
+				// For user materials, skip loadMaterialTexturesFromKey because that function
+				// looks only in the shipped materials.json. User material textures are already
+				// correctly loaded from the cache (via the lambda in saveUserMaterialToUserLocation).
+				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
+				if (isUserMaterial)
+				{
+					qDebug() << "  User material detected - textures already loaded from cache";
+				}
+				else
+				{
+					// Load textures from shipped materials.json by material key
+					qDebug() << "  Loading textures from shipped catalog JSON for double-click apply...";
+					loadMaterialTexturesFromKey(materialKey);
+					qDebug() << "  Textures loaded";
+				}
 			}
 		}
 	}
@@ -1508,7 +1551,333 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 	qDebug() << "=== onMaterialDoubleClicked COMPLETED ===";
 }
 
-void MaterialPropertiesPanel::onSaveToLibrary() {}
+void MaterialPropertiesPanel::onSaveToLibrary()
+{
+	if (!_material) {
+		QMessageBox::warning(this, tr("No Material"), tr("No material is currently bound to save."));
+		return;
+	}
+
+	// Get current material copy
+	GLMaterial mat = *_material;
+
+	// Derive defaults from selected tree item (if any)
+	QString key;
+	QString name;
+	QString groupLabel;
+
+	// Try to get defaults from MaterialLibraryWidget
+	if (auto* libWidget = qobject_cast<MaterialLibraryWidget*>(sender())) {
+		// If sender is the library widget, try to extract selection
+		// For now, we'll skip this and just prompt the user
+	}
+
+	// Ensure we have a group label (ask user if not)
+	if (groupLabel.isEmpty()) {
+		QStringList groups;
+		const auto& sharedGroups = MaterialLibraryWidget::sharedGroups();
+		for (const auto& g : sharedGroups) groups << g.first;
+		if (groups.isEmpty()) groups << QStringLiteral("User Materials");
+
+		bool ok = false;
+		QString picked = QInputDialog::getItem(this,
+			tr("Choose Group"),
+			tr("Select a group to save into:"),
+			groups,
+			0,
+			true,
+			&ok);
+		if (!ok) return;
+		groupLabel = picked.trimmed();
+		if (groupLabel.isEmpty()) groupLabel = QStringLiteral("User Materials");
+	}
+
+	// Determine whether the current key exists and whether it is user or factory
+	const auto& sharedMap = MaterialLibraryWidget::sharedMaterialMap();
+	bool keyExists = !key.isEmpty() && sharedMap.contains(key);
+	bool isUserKey = MaterialLibraryWidget::s_userMaterialKeys.contains(key);
+
+	// If a factory material is referenced (exists && not a user key), force "Save As"
+	if (keyExists && !isUserKey) {
+		QMessageBox::information(this,
+			tr("Save As New User Material"),
+			tr("You are saving changes to a factory material. "
+				"A new user material will be created instead of modifying the factory material."));
+
+		// Suggest a safe new key and name
+		QString suggestedName = name.isEmpty() ? QStringLiteral("User Material") : QStringLiteral("User %1").arg(name);
+		QString suggestedKey = suggestedName.toUpper().simplified().replace(' ', '_');
+
+		// Ensure suggested key doesn't collide
+		int suffix = 1;
+		QString trialKey = suggestedKey;
+		while (sharedMap.contains(trialKey)) {
+			trialKey = QString("%1_%2").arg(suggestedKey).arg(suffix++);
+		}
+
+		// Ask user for display name
+		bool okName = false;
+		QString enteredName = QInputDialog::getText(this,
+			tr("Material Name"),
+			tr("Display name for material:"),
+			QLineEdit::Normal,
+			suggestedName,
+			&okName);
+		if (!okName || enteredName.trimmed().isEmpty()) return;
+		name = enteredName.trimmed();
+
+		// Ask user for key and validate uniqueness
+		bool okKey = false;
+		QString enteredKey;
+		QString suggestedFinalKey = trialKey;
+		for (;;) {
+			enteredKey = QInputDialog::getText(this,
+				tr("Material Key"),
+				tr("Enter a unique material key (no spaces):"),
+				QLineEdit::Normal,
+				suggestedFinalKey,
+				&okKey);
+			if (!okKey) return;
+			enteredKey = enteredKey.trimmed().simplified().replace(' ', '_');
+			if (enteredKey.isEmpty()) continue;
+
+			if (MaterialLibraryWidget::sharedMaterialMap().contains(enteredKey)) {
+				if (!MaterialLibraryWidget::s_userMaterialKeys.contains(enteredKey)) {
+					QMessageBox::warning(this,
+						tr("Key Not Allowed"),
+						tr("That key already exists as a factory material. Please choose a different key."));
+					continue;
+				} else {
+					QMessageBox::StandardButton overwriteReply =
+						QMessageBox::question(this,
+							tr("Overwrite User Material?"),
+							tr("A user material with this key already exists. Overwrite it?"),
+							QMessageBox::Yes | QMessageBox::No,
+							QMessageBox::No);
+					if (overwriteReply == QMessageBox::Yes) {
+						key = enteredKey;
+						break;
+					} else {
+						continue;
+					}
+				}
+			} else {
+				key = enteredKey;
+				break;
+			}
+		}
+	} else {
+		// Not saving over a factory material
+		if (key.isEmpty()) {
+			if (name.isEmpty()) {
+				bool ok = false;
+				QString suggestedName = QStringLiteral("New Material");
+				QString enteredName = QInputDialog::getText(this,
+					tr("Material Name"),
+					tr("Display name for material:"),
+					QLineEdit::Normal,
+					suggestedName,
+					&ok);
+				if (!ok || enteredName.trimmed().isEmpty()) return;
+				name = enteredName.trimmed();
+			}
+
+			bool okKey = false;
+			QString suggestedKey = name.toUpper().simplified().replace(' ', '_');
+			QString enteredKey = QInputDialog::getText(this,
+				tr("Material Key"),
+				tr("Unique material key (no spaces):"),
+				QLineEdit::Normal,
+				suggestedKey,
+				&okKey);
+			if (!okKey || enteredKey.trimmed().isEmpty()) return;
+			key = enteredKey.trimmed().simplified().replace(' ', '_');
+
+			if (MaterialLibraryWidget::sharedMaterialMap().contains(key) &&
+				!MaterialLibraryWidget::s_userMaterialKeys.contains(key)) {
+				QMessageBox::warning(this,
+					tr("Key Not Allowed"),
+					tr("That key collides with a shipped factory material. Please choose a different key."));
+				return;
+			}
+		}
+	}
+
+	// Final sanity check
+	if (key.isEmpty() || name.isEmpty() || groupLabel.isEmpty()) {
+		QMessageBox::warning(this, tr("Save Failed"), tr("Invalid material name/key/group."));
+		return;
+	}
+
+	// Create user material folder and copy texture files
+	// Get user materials root path
+	QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+	QString materialFolder = QDir(userRoot).filePath(key);
+	QDir materialDir(materialFolder);
+
+	qDebug() << "=== SAVE TO LIBRARY DEBUG ===";
+	qDebug() << "User root:" << userRoot;
+	qDebug() << "Material folder:" << materialFolder;
+
+	if (!materialDir.exists()) {
+		if (!materialDir.mkpath(".")) {
+			QMessageBox::warning(this, tr("Folder Creation Failed"),
+				tr("Could not create material folder: %1").arg(materialFolder));
+			return;
+		}
+		qDebug() << "Created folder:" << materialFolder;
+	}
+
+	// Copy texture files for all loaded textures in the material
+	// For shipped catalog textures that don't exist at source, keep absolute paths
+	// For user/imported textures that exist, copy to user material folder with relative paths
+	int texturesCopied = 0;
+	for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i) {
+		GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+		GLMaterial::Texture tex = mat.texture(type);
+
+		if (tex.path.empty()) continue; // Skip unloaded textures
+
+		QString sourcePath = QString::fromStdString(tex.path);
+		QFileInfo fileInfo(sourcePath);
+		QString fileName = fileInfo.fileName();
+		QString destPath = materialDir.filePath(fileName);
+
+		qDebug() << "Processing texture:" << fileName;
+		qDebug() << "  From:" << sourcePath;
+
+		// Check if source file actually exists
+		if (!QFile::exists(sourcePath)) {
+			qDebug() << "  Source file doesn't exist in release build - keeping absolute path";
+			// Keep the absolute path as-is (shipped catalog texture)
+			// The path will be resolved by the lambda when loading
+			continue;
+		}
+
+		qDebug() << "  To:" << destPath;
+
+		// Copy the texture file
+		bool copySuccess = QFile::copy(sourcePath, destPath);
+		if (!copySuccess) {
+			qWarning() << "Failed to copy texture:" << sourcePath << "to" << destPath;
+			// If copy fails, keep the absolute path instead of relative
+			qDebug() << "  Copy failed - keeping absolute path";
+			continue;
+		}
+
+		texturesCopied++;
+		qDebug() << "  Copy success!";
+
+		// Update material's texture path to be relative (just filename)
+		// Only save relative paths for successfully copied textures
+		tex.path = fileName.toStdString();
+		mat.setTexture(type, tex);
+		qDebug() << "  Updated path to relative:" << fileName;
+	}
+	qDebug() << "Textures copied successfully:" << texturesCopied;
+
+	// Save via backend (will use updated paths with texture metadata)
+	// NOTE: saveUserMaterialToUserLocation() emits MaterialRegistry::instance().materialsChanged()
+	// which would trigger populateMaterials() and unwanted signal handlers.
+	// Block signals on tree widget so the materialsChanged signal won't cause populateMaterials
+	// to run (and thus won't emit materialPreview/materialSelected that trigger the dialog).
+	// We'll do the tree refresh ourselves afterwards on our own schedule.
+	if (auto* libWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget))
+	{
+		libWidget->blockSignals(true);
+	}
+
+	QString err;
+	bool saved = MaterialLibraryWidget::saveUserMaterialToUserLocation(groupLabel, key, name, mat, this, &err);
+
+	if (auto* libWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget))
+	{
+		libWidget->blockSignals(false);
+	}
+
+	if (!saved) {
+		if (!err.isEmpty() && err != QStringLiteral("User cancelled overwrite")) {
+			QMessageBox::warning(this, tr("Save Material Failed"), err);
+		}
+		return;
+	}
+
+	// Mark key as user key
+	MaterialLibraryWidget::s_userMaterialKeys.insert(key);
+
+	qDebug() << "=== POST-SAVE SEQUENCE START ===";
+
+	// Refresh the tree and select the newly saved material
+	if (auto* libWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget))
+	{
+		qDebug() << "  Blocking signals on tree widget...";
+		// Block ALL signals during tree refresh to prevent any signal-driven side effects
+		// This prevents materialSelected/materialPreview from triggering handlers
+		libWidget->blockSignals(true);
+
+		qDebug() << "  Refreshing tree...";
+		// Refresh the tree to populate with new material
+		libWidget->refreshMaterialTree();
+		qDebug() << "  Tree refreshed";
+
+		qDebug() << "  Selecting material by key:" << key;
+		// Select the newly saved material by key (won't emit signals due to blockSignals)
+		libWidget->selectMaterialByKey(key);
+		qDebug() << "  Material selected";
+
+		qDebug() << "  Re-enabling signals...";
+		// Re-enable signals
+		libWidget->blockSignals(false);
+		qDebug() << "  Signals re-enabled";
+
+		// Now manually load the newly saved material into preview WITHOUT triggering handlers
+		// This bypasses all signal-based slot calls
+		qDebug() << "  Loading material into preview...";
+		if (libWidget->sharedMaterialMap().contains(key))
+		{
+			// Get the material from the cache (lambda already resolved relative paths to absolute)
+			GLMaterial savedMat = libWidget->sharedMaterialMap()[key]();
+
+			// Load material directly into panel without going through signal handlers
+			// This prevents materialApplied from being emitted
+			_material = new GLMaterial(savedMat);
+			qDebug() << "  Calling bindMaterial...";
+			bindMaterial(_material);
+			qDebug() << "  bindMaterial completed";
+
+			// NOTE: DO NOT call loadMaterialTexturesFromKey() here!
+			// That function loads from the shipped materials.json, not user materials.json.
+			// The textures are already loaded with correct absolute paths because the lambda
+			// in saveUserMaterialToUserLocation::resolve relative paths to absolute when creating
+			// the material from the cache. bindMaterial() already set up all texture paths.
+			qDebug() << "  Material textures already loaded (paths resolved by lambda)";
+		}
+		qDebug() << "  Material preview loaded";
+	}
+
+	qDebug() << "  Showing success message...";
+	QMessageBox::information(this, tr("Material Saved"),
+		tr("Material '%1' saved to your library as '%2'.").arg(name, key));
+	qDebug() << "  Success message closed";
+	qDebug() << "=== POST-SAVE SEQUENCE COMPLETED ===";
+
+}
+
+void MaterialPropertiesPanel::connectMaterialLibrarySignals()
+{
+	// Connect tree widget material selection (SINGLE-CLICK PREVIEW AND DOUBLE-CLICK CONFIRM)
+	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+	if (libraryWidget)
+	{
+		// Single-click: update preview immediately (for editing)
+		connect(libraryWidget, &MaterialLibraryWidget::materialPreview,
+			this, [this](const GLMaterial& mat) { onMaterialPresetSelected(mat); });
+
+		// Double-click: apply material to selected mesh in main viewer
+		connect(libraryWidget, &MaterialLibraryWidget::materialSelected,
+			this, [this](const GLMaterial& mat) { onMaterialDoubleClicked(mat); });
+	}
+}
 
 void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)
 {

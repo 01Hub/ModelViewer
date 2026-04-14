@@ -205,6 +205,9 @@ private:
 	QString userMaterialLibraryRoot() const;
 	QString currentPresetMetadataPath() const;
 
+	// Material library signal management
+	void connectMaterialLibrarySignals();
+
 	// Members
 	Ui::MaterialPropertiesPanel* _ui = nullptr;
 	GLMaterial* _material = nullptr;

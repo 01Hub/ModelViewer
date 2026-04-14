@@ -3423,6 +3423,112 @@ static float readFloat(const QVariant& v, float fallback)
 	return f;
 }
 
+// ============================================================================
+// GLenum <-> String Conversion (for texture sampler serialization)
+// ============================================================================
+
+static QString glEnumToString(GLenum e)
+{
+	// Wrap modes
+	if (e == GL_REPEAT) return "repeat";
+	if (e == GL_CLAMP_TO_EDGE) return "clamp";
+	if (e == GL_MIRRORED_REPEAT) return "mirror";
+
+	// Texture filters
+	if (e == GL_LINEAR) return "linear";
+	if (e == GL_NEAREST) return "nearest";
+	if (e == GL_LINEAR_MIPMAP_LINEAR) return "linear_mipmap_linear";
+	if (e == GL_LINEAR_MIPMAP_NEAREST) return "linear_mipmap_nearest";
+	if (e == GL_NEAREST_MIPMAP_LINEAR) return "nearest_mipmap_linear";
+	if (e == GL_NEAREST_MIPMAP_NEAREST) return "nearest_mipmap_nearest";
+
+	return "unknown";
+}
+
+static GLenum stringToGLEnum(const QString& s)
+{
+	// Wrap modes
+	if (s == "repeat") return GL_REPEAT;
+	if (s == "clamp") return GL_CLAMP_TO_EDGE;
+	if (s == "mirror") return GL_MIRRORED_REPEAT;
+
+	// Texture filters
+	if (s == "linear") return GL_LINEAR;
+	if (s == "nearest") return GL_NEAREST;
+	if (s == "linear_mipmap_linear") return GL_LINEAR_MIPMAP_LINEAR;
+	if (s == "linear_mipmap_nearest") return GL_LINEAR_MIPMAP_NEAREST;
+	if (s == "nearest_mipmap_linear") return GL_NEAREST_MIPMAP_LINEAR;
+	if (s == "nearest_mipmap_nearest") return GL_NEAREST_MIPMAP_NEAREST;
+
+	return GL_REPEAT; // Default fallback
+}
+
+// ============================================================================
+// TextureType <-> String Conversion (for texture metadata serialization)
+// ============================================================================
+
+static QString textureTypeToString(GLMaterial::TextureType type)
+{
+	switch (type) {
+		case GLMaterial::TextureType::Albedo: return "albedo";
+		case GLMaterial::TextureType::Metallic: return "metallic";
+		case GLMaterial::TextureType::Roughness: return "roughness";
+		case GLMaterial::TextureType::Normal: return "normal";
+		case GLMaterial::TextureType::AmbientOcclusion: return "ao";
+		case GLMaterial::TextureType::Opacity: return "opacity";
+		case GLMaterial::TextureType::Emissive: return "emissive";
+		case GLMaterial::TextureType::Height: return "height";
+		case GLMaterial::TextureType::Transmission: return "transmission";
+		case GLMaterial::TextureType::IOR: return "ior";
+		case GLMaterial::TextureType::SheenColor: return "sheenColor";
+		case GLMaterial::TextureType::SheenRoughness: return "sheenRoughness";
+		case GLMaterial::TextureType::ClearcoatColor: return "clearcoatColor";
+		case GLMaterial::TextureType::ClearcoatRoughness: return "clearcoatRoughness";
+		case GLMaterial::TextureType::ClearcoatNormal: return "clearcoatNormal";
+		case GLMaterial::TextureType::Iridescence: return "iridescence";
+		case GLMaterial::TextureType::IridescenceThickness: return "iridescenceThickness";
+		case GLMaterial::TextureType::SpecularFactor: return "specularFactor";
+		case GLMaterial::TextureType::SpecularColor: return "specularColor";
+		case GLMaterial::TextureType::Anisotropy: return "anisotropy";
+		case GLMaterial::TextureType::DiffuseTransmission: return "diffuseTransmission";
+		case GLMaterial::TextureType::DiffuseTransmissionColor: return "diffuseTransmissionColor";
+		case GLMaterial::TextureType::Thickness: return "thickness";
+		case GLMaterial::TextureType::Diffuse: return "diffuse";
+		case GLMaterial::TextureType::SpecularGlossiness: return "specularGlossiness";
+		default: return "";
+	}
+}
+
+static GLMaterial::TextureType stringToTextureType(const QString& key)
+{
+	if (key == "albedo") return GLMaterial::TextureType::Albedo;
+	if (key == "metallic") return GLMaterial::TextureType::Metallic;
+	if (key == "roughness") return GLMaterial::TextureType::Roughness;
+	if (key == "normal") return GLMaterial::TextureType::Normal;
+	if (key == "ao") return GLMaterial::TextureType::AmbientOcclusion;
+	if (key == "opacity") return GLMaterial::TextureType::Opacity;
+	if (key == "emissive") return GLMaterial::TextureType::Emissive;
+	if (key == "height") return GLMaterial::TextureType::Height;
+	if (key == "transmission") return GLMaterial::TextureType::Transmission;
+	if (key == "ior") return GLMaterial::TextureType::IOR;
+	if (key == "sheenColor") return GLMaterial::TextureType::SheenColor;
+	if (key == "sheenRoughness") return GLMaterial::TextureType::SheenRoughness;
+	if (key == "clearcoatColor") return GLMaterial::TextureType::ClearcoatColor;
+	if (key == "clearcoatRoughness") return GLMaterial::TextureType::ClearcoatRoughness;
+	if (key == "clearcoatNormal") return GLMaterial::TextureType::ClearcoatNormal;
+	if (key == "iridescence") return GLMaterial::TextureType::Iridescence;
+	if (key == "iridescenceThickness") return GLMaterial::TextureType::IridescenceThickness;
+	if (key == "specularFactor") return GLMaterial::TextureType::SpecularFactor;
+	if (key == "specularColor") return GLMaterial::TextureType::SpecularColor;
+	if (key == "anisotropy") return GLMaterial::TextureType::Anisotropy;
+	if (key == "diffuseTransmission") return GLMaterial::TextureType::DiffuseTransmission;
+	if (key == "diffuseTransmissionColor") return GLMaterial::TextureType::DiffuseTransmissionColor;
+	if (key == "thickness") return GLMaterial::TextureType::Thickness;
+	if (key == "diffuse") return GLMaterial::TextureType::Diffuse;
+	if (key == "specularGlossiness") return GLMaterial::TextureType::SpecularGlossiness;
+
+	return GLMaterial::TextureType::Albedo; // Default fallback
+}
 
 GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 {
@@ -3630,6 +3736,61 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 		if (mat._roughnessMapPath.isEmpty()) mat._roughnessMapPath = mat._metallicRoughnessMapPath;
 	}*/
 
+	// ============================================================================
+	// Load Texture Metadata (transforms, sampler settings, channel packing)
+	// ============================================================================
+	if (m.contains("textureMetadata"))
+	{
+		QVariantMap textureMetadataMap = m.value("textureMetadata").toMap();
+
+		for (auto it = textureMetadataMap.begin(); it != textureMetadataMap.end(); ++it)
+		{
+			QString typeKey = it.key();
+			GLMaterial::TextureType type = stringToTextureType(typeKey);
+			QVariantMap texMetadata = it.value().toMap();
+
+			GLMaterial::Texture tex;
+			tex.path = texMetadata.value("path").toString().toStdString();
+
+			// Reconstruct scale (2D vector)
+			QVariantList scaleList = texMetadata.value("scale").toList();
+			if (scaleList.size() >= 2) {
+				tex.scale = glm::vec2(scaleList[0].toFloat(), scaleList[1].toFloat());
+			}
+
+			// Reconstruct offset (2D vector)
+			QVariantList offsetList = texMetadata.value("offset").toList();
+			if (offsetList.size() >= 2) {
+				tex.offset = glm::vec2(offsetList[0].toFloat(), offsetList[1].toFloat());
+			}
+
+			// Reconstruct rotation and texCoordIndex
+			tex.rotation = readFloat(texMetadata.value("rotation"), tex.rotation);
+			tex.texCoordIndex = texMetadata.value("texCoordIndex").toInt();
+
+			// Reconstruct sampler settings (wrap modes and filters)
+			tex.wrapS = stringToGLEnum(texMetadata.value("wrapS").toString());
+			tex.wrapT = stringToGLEnum(texMetadata.value("wrapT").toString());
+			tex.magFilter = stringToGLEnum(texMetadata.value("magFilter").toString());
+			tex.minFilter = stringToGLEnum(texMetadata.value("minFilter").toString());
+
+			// Set texture with all metadata
+			mat.setTexture(type, tex);
+
+			// Load channel packing if present (for metallic, roughness, ao, opacity)
+			if (texMetadata.contains("packing"))
+			{
+				QVariantMap packingMap = texMetadata.value("packing").toMap();
+				GLMaterial::ChannelPacking packing;
+				packing.channel = packingMap.value("channel").toInt();
+				packing.invert = packingMap.value("invert").toBool();
+				packing.scale = readFloat(packingMap.value("scale"), packing.scale);
+				packing.bias = readFloat(packingMap.value("bias"), packing.bias);
+				mat.setPackingFor(typeKey, packing);
+			}
+		}
+	}
+
 	// ---------------- Finalization: clamp values and run consistency once ----------------
 	mat.clampValues();        // clamp ranges
 	mat.updateConsistency();  // single consistency pass (derived fields computed)
@@ -3760,6 +3921,53 @@ QVariantMap GLMaterial::toVariantMap() const
 
 	m.insert("twoSided", QVariant(twoSided()));
 	m.insert("alphaThreshold", QVariant(alphaThreshold()));
+
+	// ============================================================================
+	// Serialize Texture Metadata (transforms, sampler settings, channel packing)
+	// ============================================================================
+	QVariantMap textureMetadataMap;
+
+	for (int i = 0; i < static_cast<int>(TextureType::Count); ++i)
+	{
+		TextureType type = static_cast<TextureType>(i);
+		const Texture& tex = texture(type);
+
+		// Skip unloaded textures (empty path)
+		if (tex.path.empty()) continue;
+
+		QString typeKey = textureTypeToString(type);
+		if (typeKey.isEmpty()) continue; // Skip unknown types
+
+		QVariantMap texMetadata;
+		texMetadata.insert("path", QString::fromStdString(tex.path));
+		texMetadata.insert("scale", QVariantList{ QVariant(tex.scale.x), QVariant(tex.scale.y) });
+		texMetadata.insert("offset", QVariantList{ QVariant(tex.offset.x), QVariant(tex.offset.y) });
+		texMetadata.insert("rotation", QVariant(tex.rotation));
+		texMetadata.insert("texCoordIndex", QVariant(tex.texCoordIndex));
+		texMetadata.insert("wrapS", glEnumToString(tex.wrapS));
+		texMetadata.insert("wrapT", glEnumToString(tex.wrapT));
+		texMetadata.insert("magFilter", glEnumToString(tex.magFilter));
+		texMetadata.insert("minFilter", glEnumToString(tex.minFilter));
+
+		// Add channel packing for supported types (metallic, roughness, ao, opacity)
+		if (typeKey == "metallic" || typeKey == "roughness" ||
+		    typeKey == "ao" || typeKey == "opacity")
+		{
+			ChannelPacking packing = packingFor(typeKey);
+			QVariantMap packingMap;
+			packingMap.insert("channel", packing.channel);
+			packingMap.insert("invert", packing.invert);
+			packingMap.insert("scale", packing.scale);
+			packingMap.insert("bias", packing.bias);
+			texMetadata.insert("packing", packingMap);
+		}
+
+		textureMetadataMap.insert(typeKey, texMetadata);
+	}
+
+	if (!textureMetadataMap.isEmpty()) {
+		m.insert("textureMetadata", textureMetadataMap);
+	}
 
 	return m;
 }

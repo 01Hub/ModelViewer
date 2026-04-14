@@ -54,6 +54,12 @@ public:
     static const QMap<QString, std::function<GLMaterial()>>& sharedMaterialMap() { return s_materialMap; }
     static const QVector<QPair<QString, QVector<QPair<QString, QString>>>>& sharedGroups() { return s_groups; }
 
+    // Get the user materials root directory path
+    static QString userMaterialsRootPath();
+	static QString userMaterialsJsonPath() { return s_jsonPath; }
+
+	// Refresh the material tree display (used after saving new materials)
+	void refreshMaterialTree() { populateMaterials(); }
 
 signals:
     void materialPreview(const GLMaterial& mat);
@@ -76,7 +82,9 @@ private:
     // Groups: vector of (groupLabel, vector of (displayName, key))
     static QVector<QPair<QString, QVector<QPair<QString, QString>>>> s_groups;
 
-    // remember jsonPath used for reloads
+    // remember jsonPath used for reloads (shipped catalogs)
     static QString s_jsonPath;
+	// User materials JSON path (AppData folder) - separate from shipped catalogs
+	static QString s_userJsonPath;
 
 };

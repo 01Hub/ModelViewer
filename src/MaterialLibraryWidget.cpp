@@ -19,6 +19,7 @@
 QMap<QString, std::function<GLMaterial()>> MaterialLibraryWidget::s_materialMap;
 QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget::s_groups;
 QString MaterialLibraryWidget::s_jsonPath;
+QString MaterialLibraryWidget::s_userJsonPath;
 QSet<QString> MaterialLibraryWidget::s_userMaterialKeys;
 
 
@@ -288,6 +289,8 @@ bool MaterialLibraryWidget::loadAllMaterials(const QString& jsonPath, QString* e
 bool MaterialLibraryWidget::mergeUserMaterialsFromUserLocation(QString* err)
 {
 	const QString userPath = userMaterialsFilePath();
+	// Store the user JSON path for later use by userMaterialsRootPath()
+	s_userJsonPath = userPath;
 	qDebug() << "User materials file path:" << userMaterialsFilePath();
 	// If no user file exists, nothing to do (success)
 	if (!QFile::exists(userPath))
@@ -385,8 +388,62 @@ bool MaterialLibraryWidget::mergeUserMaterialsFromUserLocation(QString* err)
 			QVariantMap props = itObj.toVariantMap();
 
 			// Insert/overwrite factory in shared map. User materials override existing keys.
-			s_materialMap.insert(key, [props]() -> GLMaterial {
-				return GLMaterial::fromVariantMap(props);
+			// Lambda captures props, userPath, and key to resolve relative texture paths
+			s_materialMap.insert(key, [props, userPath, key]() -> GLMaterial {
+				// Make a copy of props to resolve relative paths
+				QVariantMap propsResolved = props;
+
+				// Get the user materials root path and material folder
+				QString userRoot = QFileInfo(userPath).dir().absolutePath();
+				QString materialFolder = QDir(userRoot).filePath(key);
+
+				// Resolve texture paths from relative (in user material folder) to absolute
+				if (propsResolved.contains("textureMetadata"))
+				{
+					QVariantMap textureMetadataMap = propsResolved.value("textureMetadata").toMap();
+
+					for (auto it = textureMetadataMap.begin(); it != textureMetadataMap.end(); ++it)
+					{
+						QVariantMap texMetadata = it.value().toMap();
+						QString texPath = texMetadata.value("path").toString();
+
+						// If path is relative (no directory separators), resolve it to user material folder
+						if (!texPath.isEmpty() && !texPath.contains("/") && !texPath.contains("\\"))
+						{
+							// It's a relative path - resolve it to the material folder
+							QString resolvedPath = QDir(materialFolder).filePath(texPath);
+							texMetadata.insert("path", resolvedPath);
+							textureMetadataMap.insert(it.key(), texMetadata);
+						}
+					}
+
+					propsResolved.insert("textureMetadata", textureMetadataMap);
+				}
+
+				// Also resolve legacy texture path fields (for backward compatibility)
+				QStringList texPathKeys = {
+					"albedoMapPath", "normalMapPath", "metallicMapPath", "roughnessMapPath",
+					"aoMapPath", "opacityMapPath", "emissiveMapPath", "heightMapPath",
+					"transmissionMapPath", "iorMapPath", "sheenColorMapPath", "sheenRoughnessMapPath",
+					"clearcoatColorMapPath", "clearcoatRoughnessMapPath", "clearcoatNormalMapPath",
+					"iridescenceMapPath", "iridescenceThicknessMapPath"
+				};
+
+				for (const QString& pathKey : texPathKeys)
+				{
+					if (propsResolved.contains(pathKey))
+					{
+						QString texPath = propsResolved.value(pathKey).toString();
+						// If relative path, resolve to user material folder
+						if (!texPath.isEmpty() && !texPath.contains("/") && !texPath.contains("\\"))
+						{
+							QString resolvedPath = QDir(materialFolder).filePath(texPath);
+							propsResolved.insert(pathKey, resolvedPath);
+						}
+					}
+				}
+
+				return GLMaterial::fromVariantMap(propsResolved);
 				});
 
 			s_userMaterialKeys.insert(key);
@@ -534,7 +591,64 @@ bool MaterialLibraryWidget::saveUserMaterialToUserLocation(const QString& groupL
 
 	// Update runtime caches: s_materialMap & s_groups
 	QVariantMap propsForCache = matProps;
-	s_materialMap.insert(key, [propsForCache]() -> GLMaterial { return GLMaterial::fromVariantMap(propsForCache); });
+
+	// Create lambda that resolves relative texture paths when loading from user library
+	s_materialMap.insert(key, [propsForCache, userPath, key]() -> GLMaterial {
+		// Get the user materials root path
+		QString userRoot = QFileInfo(userPath).dir().absolutePath();
+		QString materialFolder = QDir(userRoot).filePath(key);
+
+		// Make a copy of props to resolve relative paths
+		QVariantMap propsResolved = propsForCache;
+
+		// Resolve texture paths from relative (in user material folder) to absolute
+		if (propsResolved.contains("textureMetadata"))
+		{
+			QVariantMap textureMetadataMap = propsResolved.value("textureMetadata").toMap();
+
+			for (auto it = textureMetadataMap.begin(); it != textureMetadataMap.end(); ++it)
+			{
+				QVariantMap texMetadata = it.value().toMap();
+				QString texPath = texMetadata.value("path").toString();
+
+				// If path is relative (no directory separators), resolve it to user material folder
+				if (!texPath.isEmpty() && !texPath.contains("/") && !texPath.contains("\\"))
+				{
+					// It's a relative path - resolve it to the material folder
+					QString resolvedPath = QDir(materialFolder).filePath(texPath);
+					texMetadata.insert("path", resolvedPath);
+					textureMetadataMap.insert(it.key(), texMetadata);
+				}
+			}
+
+			propsResolved.insert("textureMetadata", textureMetadataMap);
+		}
+
+		// Also resolve legacy texture path fields (for backward compatibility)
+		QStringList texPathKeys = {
+			"albedoMapPath", "normalMapPath", "metallicMapPath", "roughnessMapPath",
+			"aoMapPath", "opacityMapPath", "emissiveMapPath", "heightMapPath",
+			"transmissionMapPath", "iorMapPath", "sheenColorMapPath", "sheenRoughnessMapPath",
+			"clearcoatColorMapPath", "clearcoatRoughnessMapPath", "clearcoatNormalMapPath",
+			"iridescenceMapPath", "iridescenceThicknessMapPath"
+		};
+
+		for (const QString& key : texPathKeys)
+		{
+			if (propsResolved.contains(key))
+			{
+				QString texPath = propsResolved.value(key).toString();
+				// If relative path, resolve to user material folder
+				if (!texPath.isEmpty() && !texPath.contains("/") && !texPath.contains("\\"))
+				{
+					QString resolvedPath = QDir(materialFolder).filePath(texPath);
+					propsResolved.insert(key, resolvedPath);
+				}
+			}
+		}
+
+		return GLMaterial::fromVariantMap(propsResolved);
+	});
 	s_userMaterialKeys.insert(key);
 	
 	// Update s_groups
@@ -1327,6 +1441,22 @@ QVector<QPair<QString, QVector<QPair<QString, QString>>>> MaterialLibraryWidget:
 	}
 
 	return builtInGroups;
+}
+
+// ============================================================================
+// Public Accessors for User Materials Path
+// ============================================================================
+
+QString MaterialLibraryWidget::userMaterialsRootPath()
+{
+	// Return the directory containing user materials.json (in AppData, not shipped catalogs)
+	// This is the root folder where user materials are stored
+	if (!s_userJsonPath.isEmpty()) {
+		return QFileInfo(s_userJsonPath).dir().absolutePath();
+	}
+	// Fallback: compute it ourselves if not yet initialized
+	QString path = userMaterialsFilePath(); // Get full path to materials.json in AppData
+	return QFileInfo(path).dir().absolutePath();
 }
 
 
