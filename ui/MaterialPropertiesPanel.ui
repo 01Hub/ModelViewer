@@ -7,7 +7,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>448</width>
+    <width>523</width>
     <height>1103</height>
    </rect>
   </property>
@@ -165,9 +165,15 @@
         <widget class="MaterialLibraryWidget" name="treeWidget" native="true">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-           <horstretch>0</horstretch>
+           <horstretch>1</horstretch>
            <verstretch>0</verstretch>
           </sizepolicy>
+         </property>
+         <property name="minimumSize">
+          <size>
+           <width>225</width>
+           <height>0</height>
+          </size>
          </property>
         </widget>
        </item>
@@ -473,6 +479,20 @@
    <item>
     <layout class="QHBoxLayout" name="buttonLayout">
      <item>
+      <widget class="QPushButton" name="pushButtonClearAllMaps">
+       <property name="text">
+        <string>Clear All Maps</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButtonClearTextureCache">
+       <property name="text">
+        <string>Clear Texture Cache</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="buttonStretch">
        <property name="orientation">
         <enum>Qt::Orientation::Horizontal</enum>
@@ -554,8 +574,8 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>-540</y>
-            <width>424</width>
+            <y>-767</y>
+            <width>499</width>
             <height>1246</height>
            </rect>
           </property>
@@ -1416,8 +1436,8 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>-1820</y>
-            <width>426</width>
+            <y>0</y>
+            <width>501</width>
             <height>2301</height>
            </rect>
           </property>
@@ -3597,6 +3617,114 @@ Thickness</string>
    <header>MaterialPreviewWidget.h</header>
   </customwidget>
  </customwidgets>
+ <tabstops>
+  <tabstop>applyButton</tabstop>
+  <tabstop>saveButton</tabstop>
+  <tabstop>deleteButton</tabstop>
+  <tabstop>pushButtonClearAllMaps</tabstop>
+  <tabstop>pushButtonClearTextureCache</tabstop>
+  <tabstop>comboBoxTexMode</tabstop>
+  <tabstop>tintModeCombo</tabstop>
+  <tabstop>tintStrengthSpin</tabstop>
+  <tabstop>comboEnv</tabstop>
+  <tabstop>sliderExposure</tabstop>
+  <tabstop>unlitCheck</tabstop>
+  <tabstop>searchEdit</tabstop>
+  <tabstop>comboShape</tabstop>
+  <tabstop>propertiesTabWidget</tabstop>
+  <tabstop>scrollArea_scalar</tabstop>
+  <tabstop>btnAlbedoColor</tabstop>
+  <tabstop>metalnessSpin</tabstop>
+  <tabstop>roughnessSpin</tabstop>
+  <tabstop>opacitySpin</tabstop>
+  <tabstop>btnEmissiveColor</tabstop>
+  <tabstop>emissiveSpin</tabstop>
+  <tabstop>aoSpin</tabstop>
+  <tabstop>occlusionStrengthSpin</tabstop>
+  <tabstop>iridescenceFactorSpin</tabstop>
+  <tabstop>btnIridColor</tabstop>
+  <tabstop>iridescenceIorSpin</tabstop>
+  <tabstop>iridescenceThicknessMinSpin</tabstop>
+  <tabstop>iridescenceThicknessMaxSpin</tabstop>
+  <tabstop>clearcoatSpin</tabstop>
+  <tabstop>btnCCColor</tabstop>
+  <tabstop>clearcoatRoughnessSpin</tabstop>
+  <tabstop>btnSheenColor</tabstop>
+  <tabstop>sheenRoughnessSpin</tabstop>
+  <tabstop>iorSpin</tabstop>
+  <tabstop>transmissionSpin</tabstop>
+  <tabstop>thicknessSpin</tabstop>
+  <tabstop>attenuationDistanceSpin</tabstop>
+  <tabstop>btnAttenuationColor</tabstop>
+  <tabstop>dispersionSpin</tabstop>
+  <tabstop>alphaThresholdSpin</tabstop>
+  <tabstop>shadingCombo</tabstop>
+  <tabstop>blendCombo</tabstop>
+  <tabstop>textureScrollArea</tabstop>
+  <tabstop>twoSidedCheck</tabstop>
+  <tabstop>wireframeCheck</tabstop>
+  <tabstop>btnSpecularColor</tabstop>
+  <tabstop>doubleSpinBoxSpecularFactor</tabstop>
+  <tabstop>btnAnisotropyColor</tabstop>
+  <tabstop>doubleSpinBoxAnisotropyStrength</tabstop>
+  <tabstop>doubleSpinBoxAnisotropyRotation</tabstop>
+  <tabstop>doubleSpinBoxDiffuseTransmissionFactor</tabstop>
+  <tabstop>btnDiffTransColor</tabstop>
+  <tabstop>btnAlbedoTex</tabstop>
+  <tabstop>btnMetallicTex</tabstop>
+  <tabstop>toolButtonAlbedoTexTrsf</tabstop>
+  <tabstop>gearMetallic</tabstop>
+  <tabstop>toolButtonMetallicTexTrsf</tabstop>
+  <tabstop>btnRoughnessTex</tabstop>
+  <tabstop>btnNormalTex</tabstop>
+  <tabstop>gearRoughness</tabstop>
+  <tabstop>toolButtonRoughTexTrsf</tabstop>
+  <tabstop>toolButtonNormalTexTrsf</tabstop>
+  <tabstop>doubleSpinBoxNormalScale</tabstop>
+  <tabstop>btnAOTex</tabstop>
+  <tabstop>btnHeightTex</tabstop>
+  <tabstop>gearAO</tabstop>
+  <tabstop>toolButtonAOTexTrsf</tabstop>
+  <tabstop>toolButtonHeightTexTrsf</tabstop>
+  <tabstop>doubleSpinBoxHeightScale</tabstop>
+  <tabstop>btnOpacityTex</tabstop>
+  <tabstop>btnEmissiveTex</tabstop>
+  <tabstop>gearOpacity</tabstop>
+  <tabstop>toolButtonOpacTexTrsf</tabstop>
+  <tabstop>toolButtonEmissiveTexTrsf</tabstop>
+  <tabstop>btnSheenColorTex</tabstop>
+  <tabstop>btnSheenRoughTex</tabstop>
+  <tabstop>toolButtonSheenColTexTrsf</tabstop>
+  <tabstop>toolButtonSheenRghTexTrsf</tabstop>
+  <tabstop>btnCCColorTex</tabstop>
+  <tabstop>btnCCRoughTex</tabstop>
+  <tabstop>btnCCNormalTex</tabstop>
+  <tabstop>toolButtonClearCColTexTrsf</tabstop>
+  <tabstop>toolButtonClearCRghTexTrsf</tabstop>
+  <tabstop>toolButtonClearCNorTexTrsf</tabstop>
+  <tabstop>doubleSpinBoxClearcoatNormalScale</tabstop>
+  <tabstop>btnIridFactorTex</tabstop>
+  <tabstop>btnIridescenceThicknessTex</tabstop>
+  <tabstop>toolButtonIridColTexTrsf</tabstop>
+  <tabstop>toolButtonIridRghTexTrsf</tabstop>
+  <tabstop>btnTransmissionTex</tabstop>
+  <tabstop>btnIORTex</tabstop>
+  <tabstop>btnThicknessTex</tabstop>
+  <tabstop>toolButtonTransTexTrsf</tabstop>
+  <tabstop>toolButtonIORTexTrsf</tabstop>
+  <tabstop>toolButtonThicknessTexTrsf</tabstop>
+  <tabstop>btnSpecFactorColorTex</tabstop>
+  <tabstop>btnSpecColorColorTex</tabstop>
+  <tabstop>toolButtonSpecFactorTexTrsf</tabstop>
+  <tabstop>toolButtonSpecColorTexTrsf</tabstop>
+  <tabstop>btnAnisotropyColorTex</tabstop>
+  <tabstop>toolButtonAnisotropyTexTrsf</tabstop>
+  <tabstop>btnDiffuseTransTex</tabstop>
+  <tabstop>btnDiffuseTransColorTex</tabstop>
+  <tabstop>toolButtonDiffuseTransTexTrsf</tabstop>
+  <tabstop>toolButtonDiffuseTransColorTexTrsf</tabstop>
+  <tabstop>detachButton</tabstop>
+ </tabstops>
  <resources>
   <include location="../ModelViewer.qrc"/>
  </resources>

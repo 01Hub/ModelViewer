@@ -1097,9 +1097,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.91,
-            0.92,
-            0.92
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Aluminium/aluminum_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -1164,9 +1164,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.91,
-            0.92,
-            0.92
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Aluminum_Scuffed/Aluminum-Scuffed_basecolor.png",
           "alphaThreshold": null,
@@ -1231,9 +1231,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.714,
-            0.4284,
-            0.18144
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Bronze/bronze_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -1298,9 +1298,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.714,
-            0.4284,
-            0.18144
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Bronze-1/bronze_albedo.png",
           "alphaThreshold": null,
@@ -1365,9 +1365,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.714,
-            0.4284,
-            0.18144
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Bronze-2/Bronze_01_4K_Base_Color.png",
           "alphaThreshold": null,
@@ -1432,9 +1432,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.714,
-            0.4284,
-            0.18144
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Bronze_Polished/bronze-polished_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -1494,30 +1494,14 @@
           "normalScale": 1
         },
         {
-          "key": "METAL_BRUSHED-METAL",
-          "name": "Textured Brushed-Metal",
-          "shadingModel": "PBR",
-          "twoSided": 1,
-          "clearcoatNormalScale": 1,
-          "heightScale": 0.02,
-          "ior": 1.5,
-          "normalScale": 1,
-          "roughness": 0.45,
-          "albedoMapPath": "textures/materials/Metal_Brushed-Metal/brushed-metal_albedo.png",
-          "metallicMapPath": "textures/materials/Metal_Brushed-Metal/brushed-metal_metallic.png",
-          "normalMapPath": "textures/materials/Metal_Brushed-Metal/brushed-metal_normal-ogl.png",
-          "aoMapPath": "textures/materials/Metal_Brushed-Metal/brushed-metal_ao.png",
-          "roughnessMapPath": "textures/materials/Metal_Brushed-Metal/brushed-metal_roughness.png"
-        },
-        {
           "key": "METAL_CHROME_TEX",
           "name": "Textured Chrome",
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Chrome/chrome_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -1582,9 +1566,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Chrome_Black/chrome-black_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -1644,81 +1628,14 @@
           "normalScale": 1
         },
         {
-          "key": "METAL_CHROME_BRUSHED",
-          "name": "Textured Chrome Brushed",
-          "shadingModel": "PBR",
-          "twoSided": 1,
-          "albedo": [
-            0.4,
-            0.4,
-            0.4
-          ],
-          "albedoMapPath": "textures/materials/Metal_Chrome_Brushed/chrome-brushed_albedo_1024x1024.png",
-          "alphaThreshold": null,
-          "ambient": [
-            0.25,
-            0.25,
-            0.25
-          ],
-          "aoMapPath": "textures/materials/Metal_Chrome_Brushed/chrome-brushed_ao_1024x1024.png",
-          "blendMode": null,
-          "clearcoat": null,
-          "clearcoatColorMapPath": null,
-          "clearcoatNormalMapPath": null,
-          "clearcoatRoughness": null,
-          "clearcoatRoughnessMapPath": null,
-          "diffuse": [
-            0.4,
-            0.4,
-            0.4
-          ],
-          "emissive": [
-            0,
-            0,
-            0
-          ],
-          "emissiveStrength": null,
-          "heightMapPath": null,
-          "ior": 1.5,
-          "iorMapPath": null,
-          "metallic": true,
-          "metallicMapPath": "textures/materials/Metal_Chrome_Brushed/chrome-brushed_metallic_1024x1024.png",
-          "metalness": 1,
-          "normalMapPath": "textures/materials/Metal_Chrome_Brushed/chrome-brushed_normal_1024x1024.png",
-          "opacity": 1,
-          "opacityMapPath": null,
-          "roughness": 0.45,
-          "roughnessMapPath": "textures/materials/Metal_Chrome_Brushed/chrome-brushed_roughness_1024x1024.png",
-          "sheenColor": null,
-          "sheenColorMapPath": null,
-          "sheenRoughness": null,
-          "sheenRoughnessMapPath": null,
-          "shininess": 0.25,
-          "specular": [
-            0.774597,
-            0.774597,
-            0.774597
-          ],
-          "transmission": null,
-          "transmissionMapPath": null,
-          "uvOffsetU": null,
-          "uvOffsetV": null,
-          "uvTilingU": null,
-          "uvTilingV": null,
-          "wireframe": null,
-          "clearcoatNormalScale": 1,
-          "heightScale": 0.02,
-          "normalScale": 1
-        },
-        {
           "key": "METAL_COPPER_TEX",
           "name": "Textured Copper",
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.7038,
-            0.27048,
-            0.0828
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Copper/Copper_Color.png",
           "alphaThreshold": null,
@@ -1783,9 +1700,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.7038,
-            0.27048,
-            0.0828
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Copper_Dirty/Metal047B_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -1850,9 +1767,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.7038,
-            0.27048,
-            0.0828
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Copper_Scuffed/Copper-scuffed_basecolor-boosted.png",
           "alphaThreshold": null,
@@ -1917,9 +1834,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.7038,
-            0.27048,
-            0.0828
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Copper_Smudge/Metal058A_4K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -1984,9 +1901,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.780392,
-            0.568627,
-            0.113725
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Dull_Brass/dull-brass_albedo.png",
           "alphaThreshold": null,
@@ -2051,9 +1968,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.7038,
-            0.27048,
-            0.0828
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Dull_Copper/dull-copper_albedo.png",
           "alphaThreshold": null,
@@ -2118,9 +2035,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.75164,
-            0.60648,
-            0.22648
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Gold/albedo.png",
           "alphaThreshold": null,
@@ -2185,9 +2102,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.75164,
-            0.60648,
-            0.22648
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Gold_Scuffed/gold-scuffed_basecolor-boosted.png",
           "alphaThreshold": null,
@@ -2252,9 +2169,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Grey_Metal/Metal030_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -2319,9 +2236,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Grey_Metal_1/Metal032_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -2386,9 +2303,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_GunMetal/gunmetal_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -2453,9 +2370,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.45,
-            0.45,
-            0.47
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Iron/iron_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -2520,9 +2437,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.45,
-            0.45,
-            0.47
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Iron_Scuffed/Iron-Scuffed_basecolor.png",
           "alphaThreshold": null,
@@ -2587,9 +2504,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Lead/lead_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -2654,9 +2571,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.75164,
-            0.60648,
-            0.22648
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Light_Gold/lightgold_albedo.png",
           "alphaThreshold": null,
@@ -2721,9 +2638,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.9,
-            0.9,
-            0.95
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Magnesium/magnesium_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -2788,9 +2705,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.72,
-            0.72,
-            0.74
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Nickel/nickel_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -2855,9 +2772,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.72,
-            0.72,
-            0.74
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Nickel_Rough/Metal045B_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -2922,9 +2839,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.780392,
-            0.568627,
-            0.113725
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Ornate_Brass/ornate-brass3_albedo.png",
           "alphaThreshold": null,
@@ -2989,9 +2906,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.7038,
-            0.27048,
-            0.0828
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Oxidized_Copper/oxidized-copper-albedo.png",
           "alphaThreshold": null,
@@ -3056,9 +2973,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.6,
-            0.6,
-            0.62
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Pewter/pewter_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -3123,9 +3040,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.75164,
-            0.60648,
-            0.22648
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Pirate_Gold/pirate-gold_albedo.png",
           "alphaThreshold": null,
@@ -3199,7 +3116,13 @@
           "heightMapPath": "textures/materials/Metal_Pitted_Metal/pitted-metal_height.png",
           "normalMapPath": "textures/materials/Metal_Pitted_Metal/pitted-metal_normal-ogl.png",
           "aoMapPath": "textures/materials/Metal_Pitted_Metal/pitted-metal_ao.png",
-          "roughnessMapPath": "textures/materials/Metal_Pitted_Metal/pitted-metal_roughness.png"
+          "roughnessMapPath": "textures/materials/Metal_Pitted_Metal/pitted-metal_roughness.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "metalness": 0.9
         },
         {
           "key": "METAL_PLATE",
@@ -3207,9 +3130,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.82,
-            0.82,
-            0.85
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Plate/metal_plate_diff_2k.png",
           "alphaThreshold": null,
@@ -3274,9 +3197,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.82,
-            0.82,
-            0.85
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Platinum/platinum_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -3341,9 +3264,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Powder_Steel/Metal029_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -3408,9 +3331,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.75164,
-            0.60648,
-            0.22648
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Rose_Gold/rose-gold_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -3475,9 +3398,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Rust_Covered_Metal/rust-covered-metal-albedo.png",
           "alphaThreshold": null,
@@ -3542,9 +3465,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.45,
-            0.45,
-            0.47
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Rusted_Iron/albedo.png",
           "alphaThreshold": null,
@@ -3609,9 +3532,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.45,
-            0.45,
-            0.47
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Rusted_Iron2/rustediron2_basecolor.png",
           "alphaThreshold": null,
@@ -3685,7 +3608,13 @@
           "heightMapPath": "textures/materials/Metal_Rusty_Metal_02/rusty_metal_02_disp_2k.jpg",
           "normalMapPath": "textures/materials/Metal_Rusty_Metal_02/rusty_metal_02_nor_2k.jpg",
           "aoMapPath": "textures/materials/Metal_Rusty_Metal_02/rusty_metal_02_ao_2k.jpg",
-          "roughnessMapPath": "textures/materials/Metal_Rusty_Metal_02/rusty_metal_02_rough_2k.jpg"
+          "roughnessMapPath": "textures/materials/Metal_Rusty_Metal_02/rusty_metal_02_rough_2k.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "metalness": 0.75
         },
         {
           "key": "METAL_SCI-FI_PANEL1",
@@ -3693,9 +3622,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Sci-Fi_Panel1/sci-fi-panel1-albedo.png",
           "alphaThreshold": null,
@@ -3760,9 +3689,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.50754,
-            0.50654,
-            0.50754
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Silver/silver_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -3827,9 +3756,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.50754,
-            0.50654,
-            0.50754
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Silver_Dull/silver_albedo.png",
           "alphaThreshold": null,
@@ -3894,9 +3823,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Stainless_Steel/stainless-steel_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -3961,9 +3890,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Steel/steel_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -4023,81 +3952,14 @@
           "normalScale": 1
         },
         {
-          "key": "METAL_STEEL_BRUSHED",
-          "name": "Textured Steel Brushed",
-          "shadingModel": "PBR",
-          "twoSided": 1,
-          "albedo": [
-            0.4,
-            0.4,
-            0.4
-          ],
-          "albedoMapPath": "textures/materials/Metal_Steel_Brushed/Poliigon_MetalSteelBrushed_7174_BaseColor.jpg",
-          "alphaThreshold": null,
-          "ambient": [
-            0.25,
-            0.25,
-            0.25
-          ],
-          "aoMapPath": null,
-          "blendMode": null,
-          "clearcoat": null,
-          "clearcoatColorMapPath": null,
-          "clearcoatNormalMapPath": null,
-          "clearcoatRoughness": null,
-          "clearcoatRoughnessMapPath": null,
-          "diffuse": [
-            0.4,
-            0.4,
-            0.4
-          ],
-          "emissive": [
-            0,
-            0,
-            0
-          ],
-          "emissiveStrength": null,
-          "heightMapPath": "textures/materials/Metal_Steel_Brushed/Poliigon_MetalSteelBrushed_7174_Displacement.jpg",
-          "ior": 1.5,
-          "iorMapPath": null,
-          "metallic": true,
-          "metallicMapPath": "textures/materials/Metal_Steel_Brushed/Poliigon_MetalSteelBrushed_7174_Metallic.jpg",
-          "metalness": 1,
-          "normalMapPath": "textures/materials/Metal_Steel_Brushed/Poliigon_MetalSteelBrushed_7174_Normal.png",
-          "opacity": 1,
-          "opacityMapPath": null,
-          "roughness": 0.45,
-          "roughnessMapPath": "textures/materials/Metal_Steel_Brushed/Poliigon_MetalSteelBrushed_7174_Roughness.jpg",
-          "sheenColor": null,
-          "sheenColorMapPath": null,
-          "sheenRoughness": null,
-          "sheenRoughnessMapPath": null,
-          "shininess": 0.25,
-          "specular": [
-            0.774597,
-            0.774597,
-            0.774597
-          ],
-          "transmission": 0,
-          "transmissionMapPath": null,
-          "uvOffsetU": null,
-          "uvOffsetV": null,
-          "uvTilingU": null,
-          "uvTilingV": null,
-          "wireframe": null,
-          "clearcoatNormalScale": 1,
-          "heightScale": 0.02,
-          "normalScale": 1
-        },
-        {
           "key": "METAL_STEEL_POLISHED",
           "name": "Textured Steel Polished",
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Steel_Polished/steel-polished_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -4162,9 +4024,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Storage_Container2/storage-container2-albedo.png",
           "alphaThreshold": null,
@@ -4229,9 +4091,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_StreakedMetal/streakedmetal-albedo.png",
           "alphaThreshold": null,
@@ -4296,9 +4158,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.55,
-            0.58,
-            0.62
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Titanium/titanium_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -4363,9 +4225,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.55,
-            0.58,
-            0.62
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Titanium_Scuffed/Titanium-Scuffed_basecolor.png",
           "alphaThreshold": null,
@@ -4430,9 +4292,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.65,
-            0.7,
-            0.75
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Metal_Zinc/zinc_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -4624,6 +4486,162 @@
           "uvTilingU": null,
           "uvTilingV": null,
           "wireframe": null
+        },
+        {
+          "key": "METAL_BRUSHED-METAL",
+          "name": "Textured Brushed-Metal",
+          "shadingModel": "PBR",
+          "twoSided": 1,
+          "clearcoatNormalScale": 1,
+          "heightScale": 0.02,
+          "ior": 1.5,
+          "normalScale": 1,
+          "roughness": 0.45,
+          "albedoMapPath": "textures/materials/Metal_Brushed-Metal/brushed-metal_albedo.png",
+          "metallicMapPath": "textures/materials/Metal_Brushed-Metal/brushed-metal_metallic.png",
+          "normalMapPath": "textures/materials/Metal_Brushed-Metal/brushed-metal_normal-ogl.png",
+          "aoMapPath": "textures/materials/Metal_Brushed-Metal/brushed-metal_ao.png",
+          "roughnessMapPath": "textures/materials/Metal_Brushed-Metal/brushed-metal_roughness.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "metalness": 0.9
+        },
+        {
+          "key": "METAL_CHROME_BRUSHED",
+          "name": "Textured Chrome Brushed",
+          "shadingModel": "PBR",
+          "twoSided": 1,
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "albedoMapPath": "textures/materials/Metal_Chrome_Brushed/chrome-brushed_albedo_1024x1024.png",
+          "alphaThreshold": null,
+          "ambient": [
+            0.25,
+            0.25,
+            0.25
+          ],
+          "aoMapPath": "textures/materials/Metal_Chrome_Brushed/chrome-brushed_ao_1024x1024.png",
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.4,
+            0.4,
+            0.4
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": null,
+          "ior": 1.5,
+          "iorMapPath": null,
+          "metallic": true,
+          "metallicMapPath": "textures/materials/Metal_Chrome_Brushed/chrome-brushed_metallic_1024x1024.png",
+          "metalness": 1,
+          "normalMapPath": "textures/materials/Metal_Chrome_Brushed/chrome-brushed_normal_1024x1024.png",
+          "opacity": 1,
+          "opacityMapPath": null,
+          "roughness": 0.45,
+          "roughnessMapPath": "textures/materials/Metal_Chrome_Brushed/chrome-brushed_roughness_1024x1024.png",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.25,
+          "specular": [
+            0.774597,
+            0.774597,
+            0.774597
+          ],
+          "transmission": null,
+          "transmissionMapPath": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null,
+          "clearcoatNormalScale": 1,
+          "heightScale": 0.02,
+          "normalScale": 1
+        },
+        {
+          "key": "METAL_STEEL_BRUSHED",
+          "name": "Textured Steel Brushed",
+          "shadingModel": "PBR",
+          "twoSided": 1,
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "albedoMapPath": "textures/materials/Metal_Steel_Brushed/Poliigon_MetalSteelBrushed_7174_BaseColor.jpg",
+          "alphaThreshold": null,
+          "ambient": [
+            0.25,
+            0.25,
+            0.25
+          ],
+          "aoMapPath": null,
+          "blendMode": null,
+          "clearcoat": null,
+          "clearcoatColorMapPath": null,
+          "clearcoatNormalMapPath": null,
+          "clearcoatRoughness": null,
+          "clearcoatRoughnessMapPath": null,
+          "diffuse": [
+            0.4,
+            0.4,
+            0.4
+          ],
+          "emissive": [
+            0,
+            0,
+            0
+          ],
+          "emissiveStrength": null,
+          "heightMapPath": "textures/materials/Metal_Steel_Brushed/Poliigon_MetalSteelBrushed_7174_Displacement.jpg",
+          "ior": 1.5,
+          "iorMapPath": null,
+          "metallic": true,
+          "metallicMapPath": "textures/materials/Metal_Steel_Brushed/Poliigon_MetalSteelBrushed_7174_Metallic.jpg",
+          "metalness": 1,
+          "normalMapPath": "textures/materials/Metal_Steel_Brushed/Poliigon_MetalSteelBrushed_7174_Normal.png",
+          "opacity": 1,
+          "opacityMapPath": null,
+          "roughness": 0.45,
+          "roughnessMapPath": "textures/materials/Metal_Steel_Brushed/Poliigon_MetalSteelBrushed_7174_Roughness.jpg",
+          "sheenColor": null,
+          "sheenColorMapPath": null,
+          "sheenRoughness": null,
+          "sheenRoughnessMapPath": null,
+          "shininess": 0.25,
+          "specular": [
+            0.774597,
+            0.774597,
+            0.774597
+          ],
+          "transmission": 0,
+          "transmissionMapPath": null,
+          "uvOffsetU": null,
+          "uvOffsetV": null,
+          "uvTilingU": null,
+          "uvTilingV": null,
+          "wireframe": null,
+          "clearcoatNormalScale": 1,
+          "heightScale": 0.02,
+          "normalScale": 1
         }
       ],
       "label": "Brushed Metals"
@@ -5601,9 +5619,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.6,
-            0.55,
-            0.55
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Ground_Cobblestone_Floor_07/cobblestone_floor_07_diff_2k.png",
           "alphaThreshold": null,
@@ -5668,9 +5686,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.6,
-            0.55,
-            0.55
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Ground_Grass/albedo.png",
           "alphaThreshold": null,
@@ -5735,9 +5753,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.6,
-            0.55,
-            0.55
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Ground_Snow-Covered_Path1/snowcoveredpath_albedo.png",
           "alphaThreshold": null,
@@ -5802,9 +5820,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.6,
-            0.55,
-            0.55
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Stone_Granite005b/Granite005B_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -5869,9 +5887,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.6,
-            0.55,
-            0.55
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Stone_Granite006a/Granite006A_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -5936,9 +5954,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.9,
-            0.9,
-            0.9
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Stone_Marble008/Marble008_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -6003,9 +6021,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.9,
-            0.9,
-            0.9
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Stone_Marble009/Marble009_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -6070,9 +6088,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.9,
-            0.9,
-            0.9
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Stone_Marble014/Marble014_4K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -6137,9 +6155,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.9,
-            0.9,
-            0.9
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Stone_Marble018/Marble018_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -6204,9 +6222,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.8,
-            0.85,
-            0.9
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Stone_Quartz_001/Quartz_001_COLOR.jpg",
           "alphaThreshold": null,
@@ -6271,9 +6289,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.6,
-            0.55,
-            0.55
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Stone_Rock_06/rock_06_diff_2k.png",
           "alphaThreshold": null,
@@ -6856,9 +6874,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.05,
-            0.05,
-            0.05
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Plastic_ABS_Glossy/plastic-glossy_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -6923,9 +6941,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.05,
-            0.05,
-            0.05
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Plastic_ABS_Matte/plastic-matte_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -6990,9 +7008,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.05,
-            0.05,
-            0.05
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Plastic_PVC/pvc_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -7062,7 +7080,12 @@
           "normalScale": 1,
           "roughness": 0.45,
           "albedoMapPath": "textures/materials/Plastic_Pattern1/plasticpattern1-albedo.png",
-          "metallicMapPath": "textures/materials/Plastic_Pattern1/plasticpattern1-metalness.png"
+          "metallicMapPath": "textures/materials/Plastic_Pattern1/plasticpattern1-metalness.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "PLASTIC_PLASTIC007",
@@ -7077,7 +7100,12 @@
           "albedoMapPath": "textures/materials/Plastic_Plastic007/Plastic007_2K_Color.png",
           "heightMapPath": "textures/materials/Plastic_Plastic007/Plastic007_2K_Displacement.png",
           "normalMapPath": "textures/materials/Plastic_Plastic007/Plastic007_2K_Normal.png",
-          "roughnessMapPath": "textures/materials/Plastic_Plastic007/Plastic007_2K_Roughness.png"
+          "roughnessMapPath": "textures/materials/Plastic_Plastic007/Plastic007_2K_Roughness.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "PLASTIC_PLASTIC008",
@@ -7092,7 +7120,12 @@
           "albedoMapPath": "textures/materials/Plastic_Plastic008/Plastic008_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Plastic_Plastic008/Plastic008_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Plastic_Plastic008/Plastic008_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Plastic_Plastic008/Plastic008_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Plastic_Plastic008/Plastic008_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "PLASTIC_PLASTIC012A",
@@ -7100,9 +7133,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.05,
-            0.05,
-            0.05
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Plastic_Plastic012a/Plastic012A_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -7167,9 +7200,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.05,
-            0.05,
-            0.05
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Plastic_Plastic013a/Plastic013A_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -7234,9 +7267,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.05,
-            0.05,
-            0.05
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Plastic_Plastic014a/Plastic014A_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -7301,9 +7334,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.05,
-            0.05,
-            0.05
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Plastic_Plastic015a/Plastic015A_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -7368,9 +7401,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.05,
-            0.05,
-            0.05
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Plastic_Plastic016a/Plastic016A_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -7435,9 +7468,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.05,
-            0.05,
-            0.05
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Plastic_Plastic017a/Plastic017A_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -7502,9 +7535,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.05,
-            0.05,
-            0.05
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Plastic_Plastic018a/Plastic018A_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -7577,7 +7610,12 @@
           "metallicMapPath": "textures/materials/Plastic_Scuffed-1/scuffed-plastic-metal.png",
           "normalMapPath": "textures/materials/Plastic_Scuffed-1/scuffed-plastic-normal.png",
           "aoMapPath": "textures/materials/Plastic_Scuffed-1/scuffed-plastic-ao.png",
-          "roughnessMapPath": "textures/materials/Plastic_Scuffed-1/scuffed-plastic-rough.png"
+          "roughnessMapPath": "textures/materials/Plastic_Scuffed-1/scuffed-plastic-rough.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         }
       ],
       "label": "Plastics"
@@ -8110,7 +8148,12 @@
           "albedoMapPath": "textures/materials/Rubber_Rubber001/Rubber001_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Rubber_Rubber001/Rubber001_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Rubber_Rubber001/Rubber001_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Rubber_Rubber001/Rubber001_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Rubber_Rubber001/Rubber001_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "RUBBER_RUBBER002",
@@ -8125,7 +8168,12 @@
           "albedoMapPath": "textures/materials/Rubber_Rubber002/Rubber002_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Rubber_Rubber002/Rubber002_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Rubber_Rubber002/Rubber002_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Rubber_Rubber002/Rubber002_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Rubber_Rubber002/Rubber002_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "RUBBER_RUBBER003",
@@ -8140,7 +8188,12 @@
           "albedoMapPath": "textures/materials/Rubber_Rubber003/Rubber003_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Rubber_Rubber003/Rubber003_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Rubber_Rubber003/Rubber003_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Rubber_Rubber003/Rubber003_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Rubber_Rubber003/Rubber003_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "RUBBER_RUBBER004",
@@ -8155,7 +8208,12 @@
           "albedoMapPath": "textures/materials/Rubber_Rubber004/Rubber004_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Rubber_Rubber004/Rubber004_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Rubber_Rubber004/Rubber004_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Rubber_Rubber004/Rubber004_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Rubber_Rubber004/Rubber004_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "RUBBER_TIRE",
@@ -8163,9 +8221,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.05,
-            0.05,
-            0.05
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Rubber_Tire/rubber-tire_albedo_1024x1024.png",
           "alphaThreshold": null,
@@ -8949,7 +9007,12 @@
           "heightMapPath": "textures/materials/Wood_Antique-Veneer1/antique_veneer1_Height.png",
           "normalMapPath": "textures/materials/Wood_Antique-Veneer1/antique_veneer1_Normal-ogl.png",
           "aoMapPath": "textures/materials/Wood_Antique-Veneer1/antique_veneer1_ao.png",
-          "roughnessMapPath": "textures/materials/Wood_Antique-Veneer1/antique_veneer1_Roughness.png"
+          "roughnessMapPath": "textures/materials/Wood_Antique-Veneer1/antique_veneer1_Roughness.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "WOOD_BAMBOO-WOOD_SEMIGLOSS",
@@ -8957,9 +9020,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.85,
-            0.78,
-            0.55
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Wood_Bamboo-Wood_Semigloss/bamboo-wood-semigloss-albedo.png",
           "alphaThreshold": null,
@@ -9024,9 +9087,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.6,
-            0.4,
-            0.2
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Wood_Bark_Brown_02/bark_brown_02_diff_2k.png",
           "alphaThreshold": null,
@@ -9091,9 +9154,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.7,
-            0.3,
-            0.25
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Wood_CherryWood_Veneer2/cherry-wood-veneer2-albedo.png",
           "alphaThreshold": null,
@@ -9158,9 +9221,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.6,
-            0.4,
-            0.2
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Wood_KitchenWood/kitchen_wood_diff_2k.png",
           "alphaThreshold": null,
@@ -9225,9 +9288,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.6,
-            0.4,
-            0.2
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Wood_Planks_Brown_10/planks_brown_10_diff_2k.png",
           "alphaThreshold": null,
@@ -9299,7 +9362,12 @@
           "albedoMapPath": "textures/materials/Wood_Plywood/plywood_diff_2k.png",
           "normalMapPath": "textures/materials/Wood_Plywood/plywood_nor_2k.png",
           "aoMapPath": "textures/materials/Wood_Plywood/plywood_ao_2k.png",
-          "roughnessMapPath": "textures/materials/Wood_Plywood/plywood_rough_2k.png"
+          "roughnessMapPath": "textures/materials/Wood_Plywood/plywood_rough_2k.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "WOOD_VENEER1",
@@ -9316,7 +9384,12 @@
           "heightMapPath": "textures/materials/Wood_Veneer1/wood-veneer1-Height.png",
           "normalMapPath": "textures/materials/Wood_Veneer1/wood-veneer1-Normal-ogl.png",
           "aoMapPath": "textures/materials/Wood_Veneer1/wood-veneer1-ao.png",
-          "roughnessMapPath": "textures/materials/Wood_Veneer1/wood-veneer1-Roughness.png"
+          "roughnessMapPath": "textures/materials/Wood_Veneer1/wood-veneer1-Roughness.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "WOOD_WOOD040",
@@ -9332,7 +9405,12 @@
           "heightMapPath": "textures/materials/Wood_Wood040/Wood040_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Wood_Wood040/Wood040_2K-JPG_NormalGL.jpg",
           "aoMapPath": "textures/materials/Wood_Wood040/Wood040_2K-JPG_AmbientOcclusion.jpg",
-          "roughnessMapPath": "textures/materials/Wood_Wood040/Wood040_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Wood_Wood040/Wood040_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "WOOD_WOOD043",
@@ -9347,7 +9425,12 @@
           "albedoMapPath": "textures/materials/Wood_Wood043/Wood043_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Wood_Wood043/Wood043_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Wood_Wood043/Wood043_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Wood_Wood043/Wood043_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Wood_Wood043/Wood043_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "WOOD_WOOD051",
@@ -9362,7 +9445,12 @@
           "albedoMapPath": "textures/materials/Wood_Wood051/Wood051_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Wood_Wood051/Wood051_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Wood_Wood051/Wood051_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Wood_Wood051/Wood051_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Wood_Wood051/Wood051_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "WOOD_WOOD067",
@@ -9377,7 +9465,12 @@
           "albedoMapPath": "textures/materials/Wood_Wood067/Wood067_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Wood_Wood067/Wood067_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Wood_Wood067/Wood067_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Wood_Wood067/Wood067_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Wood_Wood067/Wood067_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "WOOD_WOOD068",
@@ -9392,7 +9485,12 @@
           "albedoMapPath": "textures/materials/Wood_Wood068/Wood068_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Wood_Wood068/Wood068_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Wood_Wood068/Wood068_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Wood_Wood068/Wood068_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Wood_Wood068/Wood068_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         }
       ],
       "label": "Wood Materials"
@@ -9670,7 +9768,12 @@
           "metallicMapPath": "textures/materials/Wall_Bricks/metallic.png",
           "normalMapPath": "textures/materials/Wall_Bricks/normal.png",
           "aoMapPath": "textures/materials/Wall_Bricks/ao.png",
-          "roughnessMapPath": "textures/materials/Wall_Bricks/roughness.png"
+          "roughnessMapPath": "textures/materials/Wall_Bricks/roughness.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "WALL_BRICKS_01",
@@ -9687,7 +9790,12 @@
           "heightMapPath": "textures/materials/Wall_Bricks_01/bricks2_disp.jpg",
           "normalMapPath": "textures/materials/Wall_Bricks_01/bricks2_normal.jpg",
           "aoMapPath": "textures/materials/Wall_Bricks_01/ao.png",
-          "roughnessMapPath": "textures/materials/Wall_Bricks_01/roughness.png"
+          "roughnessMapPath": "textures/materials/Wall_Bricks_01/roughness.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "WALL_BRICKS_PLASTER",
@@ -9704,7 +9812,12 @@
           "heightMapPath": "textures/materials/Wall_Bricks_Plaster/wall_bricks_plaster_Disp_2k.png",
           "normalMapPath": "textures/materials/Wall_Bricks_Plaster/wall_bricks_plaster_nor_2k.png",
           "aoMapPath": "textures/materials/Wall_Bricks_Plaster/wall_bricks_plaster_AO_2k.png",
-          "roughnessMapPath": "textures/materials/Wall_Bricks_Plaster/wall_bricks_plaster_rough_2k.png"
+          "roughnessMapPath": "textures/materials/Wall_Bricks_Plaster/wall_bricks_plaster_rough_2k.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "WALL_CASTLE_BRICK_02_RED",
@@ -9712,9 +9825,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.55,
-            0.55,
-            0.55
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Wall_Castle_Brick_02_Red/castle_brick_02_red_diff_2k.png",
           "alphaThreshold": null,
@@ -9779,9 +9892,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.55,
-            0.55,
-            0.55
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Wall_Glass_Window/Glass_Window_002_basecolor.jpg",
           "alphaThreshold": null,
@@ -9854,7 +9967,12 @@
           "heightMapPath": "textures/materials/Wall_Rough_Plaster_03/rough_plaster_03_disp_2k.png",
           "normalMapPath": "textures/materials/Wall_Rough_Plaster_03/rough_plaster_03_nor_2k.png",
           "aoMapPath": "textures/materials/Wall_Rough_Plaster_03/rough_plaster_03_rough_ao_2k.png",
-          "roughnessMapPath": "textures/materials/Wall_Rough_Plaster_03/rough_plaster_03_rough_2k.png"
+          "roughnessMapPath": "textures/materials/Wall_Rough_Plaster_03/rough_plaster_03_rough_2k.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         }
       ],
       "label": "Concrete Materials"
@@ -10530,9 +10648,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.7,
-            0.5,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Fabric_Denim_02/denmin_fabric_02_diff_2k.png",
           "alphaThreshold": null,
@@ -10609,7 +10727,12 @@
           "heightMapPath": "textures/materials/Fabric_Fabric030/Fabric030_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Fabric030/Fabric030_2K-JPG_NormalGL.jpg",
           "aoMapPath": "textures/materials/Fabric_Fabric030/Fabric030_2K-JPG_AmbientOcclusion.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Fabric030/Fabric030_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Fabric030/Fabric030_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_FABRIC037",
@@ -10625,7 +10748,12 @@
           "heightMapPath": "textures/materials/Fabric_Fabric037/Fabric037_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Fabric037/Fabric037_2K-JPG_NormalGL.jpg",
           "aoMapPath": "textures/materials/Fabric_Fabric037/Fabric037_2K-JPG_AmbientOcclusion.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Fabric037/Fabric037_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Fabric037/Fabric037_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_FABRIC040",
@@ -10641,7 +10769,12 @@
           "heightMapPath": "textures/materials/Fabric_Fabric040/Fabric040_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Fabric040/Fabric040_2K-JPG_NormalGL.jpg",
           "aoMapPath": "textures/materials/Fabric_Fabric040/Fabric040_2K-JPG_AmbientOcclusion.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Fabric040/Fabric040_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Fabric040/Fabric040_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_FABRIC050",
@@ -10657,7 +10790,12 @@
           "heightMapPath": "textures/materials/Fabric_Fabric050/Fabric050_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Fabric050/Fabric050_2K-JPG_NormalGL.jpg",
           "aoMapPath": "textures/materials/Fabric_Fabric050/Fabric050_2K-JPG_AmbientOcclusion.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Fabric050/Fabric050_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Fabric050/Fabric050_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_FABRIC059",
@@ -10673,7 +10811,12 @@
           "heightMapPath": "textures/materials/Fabric_Fabric059/Fabric059_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Fabric059/Fabric059_2K-JPG_NormalGL.jpg",
           "aoMapPath": "textures/materials/Fabric_Fabric059/Fabric059_2K-JPG_AmbientOcclusion.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Fabric059/Fabric059_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Fabric059/Fabric059_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_FABRIC060",
@@ -10689,7 +10832,12 @@
           "heightMapPath": "textures/materials/Fabric_Fabric060/Fabric060_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Fabric060/Fabric060_2K-JPG_NormalGL.jpg",
           "aoMapPath": "textures/materials/Fabric_Fabric060/Fabric060_2K-JPG_AmbientOcclusion.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Fabric060/Fabric060_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Fabric060/Fabric060_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_LEATHER025",
@@ -10704,7 +10852,12 @@
           "albedoMapPath": "textures/materials/Fabric_Leather025/Leather025_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Fabric_Leather025/Leather025_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Leather025/Leather025_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Leather025/Leather025_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Leather025/Leather025_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_LEATHER026",
@@ -10719,7 +10872,12 @@
           "albedoMapPath": "textures/materials/Fabric_Leather026/Leather026_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Fabric_Leather026/Leather026_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Leather026/Leather026_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Leather026/Leather026_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Leather026/Leather026_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_LEATHER027",
@@ -10734,7 +10892,12 @@
           "albedoMapPath": "textures/materials/Fabric_Leather027/Leather027_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Fabric_Leather027/Leather027_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Leather027/Leather027_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Leather027/Leather027_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Leather027/Leather027_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_LEATHER028",
@@ -10749,7 +10912,12 @@
           "albedoMapPath": "textures/materials/Fabric_Leather028/Leather028_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Fabric_Leather028/Leather028_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Leather028/Leather028_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Leather028/Leather028_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Leather028/Leather028_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_LEATHER029",
@@ -10764,7 +10932,12 @@
           "albedoMapPath": "textures/materials/Fabric_Leather029/Leather029_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Fabric_Leather029/Leather029_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Leather029/Leather029_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Leather029/Leather029_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Leather029/Leather029_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_LEATHER030",
@@ -10779,7 +10952,12 @@
           "albedoMapPath": "textures/materials/Fabric_Leather030/Leather030_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Fabric_Leather030/Leather030_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Leather030/Leather030_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Leather030/Leather030_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Leather030/Leather030_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_LEATHER033A",
@@ -10787,9 +10965,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.7,
-            0.5,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Fabric_Leather033a/Leather033A_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -10858,9 +11036,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.7,
-            0.5,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Fabric_Leather034c/Leather034C_2K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -10929,9 +11107,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.7,
-            0.5,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/Fabric_Leather035a/Leather035A_4K-JPG_Color.jpg",
           "alphaThreshold": null,
@@ -11007,7 +11185,12 @@
           "albedoMapPath": "textures/materials/Fabric_Leather038/Leather038_4K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Fabric_Leather038/Leather038_4K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Leather038/Leather038_4K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Leather038/Leather038_4K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Leather038/Leather038_4K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "FABRIC_LEATHER039",
@@ -11022,7 +11205,12 @@
           "albedoMapPath": "textures/materials/Fabric_Leather039/Leather039_4K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Fabric_Leather039/Leather039_4K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Fabric_Leather039/Leather039_4K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Fabric_Leather039/Leather039_4K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Fabric_Leather039/Leather039_4K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         }
       ],
       "label": "Leather Materials"
@@ -18066,9 +18254,9 @@
           "shadingModel": "PBR",
           "twoSided": 1,
           "albedo": [
-            0.4,
-            0.4,
-            0.4
+            1.0,
+            1.0,
+            1.0
           ],
           "albedoMapPath": "textures/materials/ClearCoat_Metallic_Blue/2K-Metallic Blue_Base Color.jpg",
           "alphaThreshold": null,
@@ -19938,7 +20126,12 @@
           "heightMapPath": "textures/materials/Organic_Human_Skin-Freckled/human-skin-freckled_height.png",
           "normalMapPath": "textures/materials/Organic_Human_Skin-Freckled/human-skin-freckled_normal-ogl.png",
           "aoMapPath": "textures/materials/Organic_Human_Skin-Freckled/human-skin-freckled_ao.png",
-          "roughnessMapPath": "textures/materials/Organic_Human_Skin-Freckled/human-skin-freckled_roughness.png"
+          "roughnessMapPath": "textures/materials/Organic_Human_Skin-Freckled/human-skin-freckled_roughness.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "ORGANIC_HUMAN_SKIN1",
@@ -19955,7 +20148,12 @@
           "heightMapPath": "textures/materials/Organic_Human_Skin1/human-skin1_height.png",
           "normalMapPath": "textures/materials/Organic_Human_Skin1/human-skin1_normal-ogl.png",
           "aoMapPath": "textures/materials/Organic_Human_Skin1/human-skin1_ao.png",
-          "roughnessMapPath": "textures/materials/Organic_Human_Skin1/human-skin1_roughness.png"
+          "roughnessMapPath": "textures/materials/Organic_Human_Skin1/human-skin1_roughness.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "PAPER_PAPER001",
@@ -19970,7 +20168,12 @@
           "albedoMapPath": "textures/materials/Paper_Paper001/Paper001_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Paper_Paper001/Paper001_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Paper_Paper001/Paper001_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Paper_Paper001/Paper001_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Paper_Paper001/Paper001_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "PAPER_PAPER002",
@@ -19985,7 +20188,12 @@
           "albedoMapPath": "textures/materials/Paper_Paper002/paper002_4K_Color.jpg",
           "heightMapPath": "textures/materials/Paper_Paper002/paper002_4K_Displacement.jpg",
           "normalMapPath": "textures/materials/Paper_Paper002/paper002_4K_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Paper_Paper002/paper002_4K_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Paper_Paper002/paper002_4K_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "PAPER_PAPER005",
@@ -20000,7 +20208,12 @@
           "albedoMapPath": "textures/materials/Paper_Paper005/Paper005_2K-JPG_Color.jpg",
           "heightMapPath": "textures/materials/Paper_Paper005/Paper005_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Paper_Paper005/Paper005_2K-JPG_NormalGL.jpg",
-          "roughnessMapPath": "textures/materials/Paper_Paper005/Paper005_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Paper_Paper005/Paper005_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "SYNTHETIC_RUBBER01",
@@ -20015,7 +20228,12 @@
           "albedoMapPath": "textures/materials/Synthetic_Rubber01/synth-rubber-albedo.png",
           "metallicMapPath": "textures/materials/Synthetic_Rubber01/synth-rubber-metalness.png",
           "normalMapPath": "textures/materials/Synthetic_Rubber01/synth-rubber-normal.png",
-          "roughnessMapPath": "textures/materials/Synthetic_Rubber01/synth-rubber-roughness.png"
+          "roughnessMapPath": "textures/materials/Synthetic_Rubber01/synth-rubber-roughness.png",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "SYNTHETIC_SPONGE001",
@@ -20031,7 +20249,12 @@
           "heightMapPath": "textures/materials/Synthetic_Sponge001/Sponge001_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Synthetic_Sponge001/Sponge001_2K-JPG_NormalGL.jpg",
           "aoMapPath": "textures/materials/Synthetic_Sponge001/Sponge001_2K-JPG_AmbientOcclusion.jpg",
-          "roughnessMapPath": "textures/materials/Synthetic_Sponge001/Sponge001_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Synthetic_Sponge001/Sponge001_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         },
         {
           "key": "SYNTHETIC_SPONGE003",
@@ -20047,7 +20270,12 @@
           "heightMapPath": "textures/materials/Synthetic_Sponge003/Sponge003_2K-JPG_Displacement.jpg",
           "normalMapPath": "textures/materials/Synthetic_Sponge003/Sponge003_2K-JPG_NormalGL.jpg",
           "aoMapPath": "textures/materials/Synthetic_Sponge003/Sponge003_2K-JPG_AmbientOcclusion.jpg",
-          "roughnessMapPath": "textures/materials/Synthetic_Sponge003/Sponge003_2K-JPG_Roughness.jpg"
+          "roughnessMapPath": "textures/materials/Synthetic_Sponge003/Sponge003_2K-JPG_Roughness.jpg",
+          "albedo": [
+            1.0,
+            1.0,
+            1.0
+          ]
         }
       ],
       "label": "Complex Materials"

@@ -7005,6 +7005,11 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 	};
 
 	qDebug() << "=== resolveMaterialTextures START ===";
+	qDebug() << "Input scalar values:";
+	qDebug() << "  Metalness:" << m.metalness();
+	qDebug() << "  Roughness:" << m.roughness();
+	qDebug() << "  IOR:" << m.ior();
+	qDebug() << "  Transmission:" << m.transmission();
 	qDebug() << "Input albedo path:" << m.albedoMapPath();
 	qDebug() << "Input normal path:" << m.normalMapPath();
 	qDebug() << "Input metallic path:" << m.metallicMapPath();
@@ -7168,6 +7173,11 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 	qDebug() << "Output normal path:" << m.normalMapPath();
 	qDebug() << "Output albedo texture ID:" << m.albedoTextureId();
 	qDebug() << "Output normal texture ID:" << m.normalTextureId();
+	qDebug() << "Output scalar values after resolution:";
+	qDebug() << "  Metalness:" << m.metalness();
+	qDebug() << "  Roughness:" << m.roughness();
+	qDebug() << "  IOR:" << m.ior();
+	qDebug() << "  Transmission:" << m.transmission();
 
 	return m;
 }

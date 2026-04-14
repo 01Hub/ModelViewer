@@ -416,7 +416,7 @@
                    <number>2</number>
                   </property>
                   <item row="0" column="0">
-                   <widget class="MaterialEditorPanel" name="predefinedMaterialsPanel" native="true">
+                   <widget class="MaterialPropertiesPanel" name="predefinedMaterialsPanel" native="true">
                     <property name="sizePolicy">
                      <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
                       <horstretch>0</horstretch>
@@ -519,6 +519,12 @@
    <class>MaterialEditorPanel</class>
    <extends>QWidget</extends>
    <header>MaterialEditorPanel.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>MaterialPropertiesPanel</class>
+   <extends>QWidget</extends>
+   <header>MaterialPropertiesPanel.h</header>
    <container>1</container>
   </customwidget>
   <customwidget>

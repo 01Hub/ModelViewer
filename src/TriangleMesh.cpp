@@ -1092,7 +1092,20 @@ void TriangleMesh::setMaterial(const GLMaterial& material)
 
 void TriangleMesh::setTextureMaps(const GLMaterial& material)
 {
+	qDebug() << "=== TriangleMesh::setTextureMaps START ===";
+	qDebug() << "Received material scalar values:";
+	qDebug() << "  Metalness:" << material.metalness();
+	qDebug() << "  Roughness:" << material.roughness();
+	qDebug() << "  IOR:" << material.ior();
+	qDebug() << "  Transmission:" << material.transmission();
+
 	_material = material;
+
+	qDebug() << "After copying to _material:";
+	qDebug() << "  Metalness:" << _material.metalness();
+	qDebug() << "  Roughness:" << _material.roughness();
+	qDebug() << "=== TriangleMesh::setTextureMaps END ===";
+
 	markTexturesDirty();
 	markUniformsDirty();
 }

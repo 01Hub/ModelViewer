@@ -18,6 +18,7 @@
 #include "MvfSceneBuilder.h"
 #include "SceneTreeWidget.h"
 #include "ObjectTransformPanel.h"
+#include "MaterialPropertiesPanel.h"
 #include "PathUtils.h"
 #include "SelectionCommand.h"
 #include "TextureMappingPanel.h"
@@ -236,10 +237,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 			this, &ModelViewer::onPredefinedMaterialSelected);
 	}
 
-	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialEditorPanel::materialApplied,
+	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::materialApplied,
 		this, &ModelViewer::onCustomMaterialApplied);
 
-	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialEditorPanel::detachRequested,
+	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::detachRequested,
 		this, &ModelViewer::detachMaterialPanel);
 
 	connect(textureMappingPanel, &TextureMappingPanel::detachRequested,

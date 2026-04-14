@@ -138,7 +138,8 @@ private slots:
 	void onClearAllTextures();
 
 	// Preset handlers
-	void onMaterialPresetSelected(const QString& presetName);
+	void onMaterialPresetSelected(const GLMaterial& material);
+	void onMaterialDoubleClicked(const GLMaterial& material);
 	void onSaveToLibrary();
 
 	void onContextMenu(const QPoint& pos);
@@ -173,6 +174,9 @@ private:
 	void clearTextureMap(GLMaterial::TextureType type);
 	void clearAllTexturesMaps();
 	QString textureMapPath(GLMaterial::TextureType type) const;
+
+	// Material loading
+	void loadMaterialTexturesFromKey(const QString& materialKey);
 
 	// Load factor values from material into UI spin boxes
 	void loadFactorValuesFromMaterial();
