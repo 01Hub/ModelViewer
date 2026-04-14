@@ -191,6 +191,7 @@ private:
 	void onColorPickerClicked(GLMaterial::TextureType type);
 	void onFactorChanged(GLMaterial::TextureType type);
 	void onTransformButtonClicked(GLMaterial::TextureType type);
+	void onSearchTextChanged(const QString& text);
 
 	void updatePreview();
 

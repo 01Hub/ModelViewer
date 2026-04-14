@@ -31,6 +31,8 @@
 #include <QUrl>
 #include <QCheckBox>
 #include <QStandardPaths>
+#include <QRegularExpression>
+#include <functional>
 
 // ============================================================================
 // JSON Helper Functions (copied from TextureMappingPanel.cpp)
@@ -149,6 +151,12 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 	_checkerIcon = makeCheckerIcon();
 	registerTextureMaps();
 	connectTextureSignals();
+
+	// Connect search functionality for material library
+	if (_ui->searchEdit)
+	{
+		connect(_ui->searchEdit, &QLineEdit::textChanged, this, &MaterialPropertiesPanel::onSearchTextChanged);
+	}
 
 	// Default checker on all texture buttons
 	for (auto it = _textureSlots.begin(); it != _textureSlots.end(); ++it)
@@ -306,6 +314,16 @@ void MaterialPropertiesPanel::bindMaterial(GLMaterial* material)
 	qDebug() << "  Loading factor values...";
 	loadFactorValuesFromMaterial();
 	qDebug() << "  Factor values loaded";
+
+	// Load texture scale values
+	qDebug() << "  Loading scale values...";
+	if (_ui->doubleSpinBoxNormalScale)
+		_ui->doubleSpinBoxNormalScale->setValue(_material->normalScale());
+	if (_ui->doubleSpinBoxHeightScale)
+		_ui->doubleSpinBoxHeightScale->setValue(_material->heightScale());
+	if (_ui->doubleSpinBoxClearcoatNormalScale)
+		_ui->doubleSpinBoxClearcoatNormalScale->setValue(_material->clearcoatNormalScale());
+	qDebug() << "  Scale values loaded";
 
 	// Update preview
 	qDebug() << "  Calling updatePreview()...";
@@ -597,18 +615,18 @@ void MaterialPropertiesPanel::registerTextureMaps()
 	if (_ui->btnHeightTex) insertSlot(GLMaterial::TextureType::Height, _ui->btnHeightTex, _ui->lblHeightScaleLabel, nullptr, _ui->toolButtonHeightTexTrsf, nullptr, nullptr, "height");
 	if (_ui->btnTransmissionTex) insertSlot(GLMaterial::TextureType::Transmission, _ui->btnTransmissionTex, _ui->lblTransmissionTex, nullptr, _ui->toolButtonTransTexTrsf, nullptr, nullptr, "transmission");
 	if (_ui->btnIORTex) insertSlot(GLMaterial::TextureType::IOR, _ui->btnIORTex, _ui->lblIOR, nullptr, _ui->toolButtonIORTexTrsf, nullptr, nullptr, "ior");
-	if (_ui->btnSheenColorTex) insertSlot(GLMaterial::TextureType::SheenColor, _ui->btnSheenColorTex, _ui->lblSheenColor, nullptr, nullptr, nullptr, nullptr, "sheen_color");
+	if (_ui->btnSheenColorTex) insertSlot(GLMaterial::TextureType::SheenColor, _ui->btnSheenColorTex, _ui->lblSheenColor, nullptr, _ui->toolButtonSheenColTexTrsf, nullptr, nullptr, "sheen_color");
 	if (_ui->btnSheenRoughTex) insertSlot(GLMaterial::TextureType::SheenRoughness, _ui->btnSheenRoughTex, nullptr, nullptr, _ui->toolButtonSheenRghTexTrsf, nullptr, nullptr, "sheen_rough");
-	if (_ui->btnCCColorTex) insertSlot(GLMaterial::TextureType::ClearcoatColor, _ui->btnCCColorTex, nullptr, nullptr, nullptr, nullptr, nullptr, "clearcoat_color");
-	if (_ui->btnCCRoughTex) insertSlot(GLMaterial::TextureType::ClearcoatRoughness, _ui->btnCCRoughTex, nullptr, nullptr, nullptr, nullptr, nullptr, "clearcoat_rough");
-	if (_ui->btnCCNormalTex) insertSlot(GLMaterial::TextureType::ClearcoatNormal, _ui->btnCCNormalTex, nullptr, nullptr, nullptr, nullptr, nullptr, "clearcoat_normal");
+	if (_ui->btnCCColorTex) insertSlot(GLMaterial::TextureType::ClearcoatColor, _ui->btnCCColorTex, nullptr, nullptr, _ui->toolButtonClearCColTexTrsf, nullptr, nullptr, "clearcoat_color");
+	if (_ui->btnCCRoughTex) insertSlot(GLMaterial::TextureType::ClearcoatRoughness, _ui->btnCCRoughTex, nullptr, nullptr, _ui->toolButtonClearCRghTexTrsf, nullptr, nullptr, "clearcoat_rough");
+	if (_ui->btnCCNormalTex) insertSlot(GLMaterial::TextureType::ClearcoatNormal, _ui->btnCCNormalTex, nullptr, nullptr, _ui->toolButtonClearCNorTexTrsf, nullptr, nullptr, "clearcoat_normal");
 	if (_ui->btnIridFactorTex) insertSlot(GLMaterial::TextureType::Iridescence, _ui->btnIridFactorTex, nullptr, nullptr, _ui->toolButtonIridColTexTrsf, nullptr, nullptr, "iridescence");
 	if (_ui->btnIridescenceThicknessTex) insertSlot(GLMaterial::TextureType::IridescenceThickness, _ui->btnIridescenceThicknessTex, nullptr, nullptr, _ui->toolButtonIridRghTexTrsf, nullptr, nullptr, "iridescence_thickness");
-	if (_ui->btnSpecFactorColorTex) insertSlot(GLMaterial::TextureType::SpecularFactor, _ui->btnSpecFactorColorTex, nullptr, nullptr, nullptr, nullptr, nullptr, "specular_factor");
-	if (_ui->btnSpecColorColorTex) insertSlot(GLMaterial::TextureType::SpecularColor, _ui->btnSpecColorColorTex, nullptr, nullptr, nullptr, nullptr, nullptr, "specular_color");
-	if (_ui->btnAnisotropyColorTex) insertSlot(GLMaterial::TextureType::Anisotropy, _ui->btnAnisotropyColorTex, nullptr, nullptr, nullptr, nullptr, nullptr, "anisotropy");
+	if (_ui->btnSpecFactorColorTex) insertSlot(GLMaterial::TextureType::SpecularFactor, _ui->btnSpecFactorColorTex, nullptr, nullptr, _ui->toolButtonSpecFactorTexTrsf, nullptr, nullptr, "specular_factor");
+	if (_ui->btnSpecColorColorTex) insertSlot(GLMaterial::TextureType::SpecularColor, _ui->btnSpecColorColorTex, nullptr, nullptr, _ui->toolButtonSpecColorTexTrsf, nullptr, nullptr, "specular_color");
+	if (_ui->btnAnisotropyColorTex) insertSlot(GLMaterial::TextureType::Anisotropy, _ui->btnAnisotropyColorTex, nullptr, nullptr, _ui->toolButtonAnisotropyTexTrsf, nullptr, nullptr, "anisotropy");
 	if (_ui->btnDiffuseTransTex) insertSlot(GLMaterial::TextureType::DiffuseTransmission, _ui->btnDiffuseTransTex, nullptr, nullptr, _ui->toolButtonDiffuseTransTexTrsf, nullptr, nullptr, "diffuse_transmission");
-	if (_ui->btnDiffuseTransColorTex) insertSlot(GLMaterial::TextureType::DiffuseTransmissionColor, _ui->btnDiffuseTransColorTex, nullptr, nullptr, nullptr, nullptr, nullptr, "diffuse_transmission_color");
+	if (_ui->btnDiffuseTransColorTex) insertSlot(GLMaterial::TextureType::DiffuseTransmissionColor, _ui->btnDiffuseTransColorTex, nullptr, nullptr, _ui->toolButtonDiffuseTransColorTexTrsf, nullptr, nullptr, "diffuse_transmission_color");
 	if (_ui->btnThicknessTex) insertSlot(GLMaterial::TextureType::Thickness, _ui->btnThicknessTex, _ui->lblThicknessTex, nullptr, _ui->toolButtonThicknessTexTrsf, nullptr, nullptr, "thickness");
 }
 
@@ -642,6 +660,51 @@ void MaterialPropertiesPanel::connectTextureSignals()
 				onColorPickerClicked(type);
 			});
 		}
+	}
+
+	// Connect gear buttons for channel packing
+	for (auto it = _textureSlots.begin(); it != _textureSlots.end(); ++it)
+	{
+		if (it.value().gear)
+		{
+			connect(it.value().gear, &QToolButton::clicked, this, [this, type = it.key()]() {
+				openPackingDialogFor(type);
+			});
+		}
+	}
+
+	// Connect scale spinboxes for texture coordinate scaling
+	if (_ui->doubleSpinBoxNormalScale)
+	{
+		connect(_ui->doubleSpinBoxNormalScale, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+			this, [this](double value) {
+				if (!_material) return;
+				_material->setNormalScale(static_cast<float>(value));
+				updatePreview();
+				emit materialChanged(_material);
+			});
+	}
+
+	if (_ui->doubleSpinBoxHeightScale)
+	{
+		connect(_ui->doubleSpinBoxHeightScale, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+			this, [this](double value) {
+				if (!_material) return;
+				_material->setHeightScale(static_cast<float>(value));
+				updatePreview();
+				emit materialChanged(_material);
+			});
+	}
+
+	if (_ui->doubleSpinBoxClearcoatNormalScale)
+	{
+		connect(_ui->doubleSpinBoxClearcoatNormalScale, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
+			this, [this](double value) {
+				if (!_material) return;
+				_material->setClearcoatNormalScale(static_cast<float>(value));
+				updatePreview();
+				emit materialChanged(_material);
+			});
 	}
 }
 
@@ -915,10 +978,114 @@ void MaterialPropertiesPanel::updateScalarUI()
 	loadScalarValuesFromMaterial();
 }
 void MaterialPropertiesPanel::updateTexturePreview(GLMaterial::TextureType type) {}
-void MaterialPropertiesPanel::openPackingDialogFor(GLMaterial::TextureType type) {}
+void MaterialPropertiesPanel::openPackingDialogFor(GLMaterial::TextureType type)
+{
+	if (!_material) return;
+
+	// Convert TextureType to string key used by material packing
+	auto keyFromType = [](GLMaterial::TextureType t)->QString {
+		if (t == GLMaterial::TextureType::Metallic) return "metallic";
+		if (t == GLMaterial::TextureType::Roughness) return "roughness";
+		if (t == GLMaterial::TextureType::AmbientOcclusion) return "ao";
+		if (t == GLMaterial::TextureType::Opacity) return "opacity";
+		return QString();
+	};
+
+	// Pretty name for the window title
+	auto pretty = [](GLMaterial::TextureType t)->QString {
+		if (t == GLMaterial::TextureType::Metallic) return tr("Metallic");
+		if (t == GLMaterial::TextureType::Roughness) return tr("Roughness");
+		if (t == GLMaterial::TextureType::AmbientOcclusion) return tr("Ambient Occlusion");
+		if (t == GLMaterial::TextureType::Opacity) return tr("Opacity");
+		return tr("Texture");
+	};
+
+	QString key = keyFromType(type);
+	if (key.isEmpty())
+		return;  // Unsupported texture type for packing
+
+	ChannelPackingEditorDialog dlg(this);
+
+	// Show dialog with current (or default) packing
+	GLMaterial::ChannelPacking cur{};
+	if (_material) cur = _material->packingFor(key);
+	dlg.setCurrentPacking(cur, pretty(type));
+
+	if (dlg.exec() == QDialog::Accepted)
+	{
+		if (_material)
+		{
+			_material->setPackingFor(key, dlg.packing());
+			updatePreview();
+			emit materialChanged(_material);
+		}
+	}
+}
 void MaterialPropertiesPanel::onColorPickerClicked(GLMaterial::TextureType type) {}
 void MaterialPropertiesPanel::onFactorChanged(GLMaterial::TextureType type) {}
-void MaterialPropertiesPanel::onTransformButtonClicked(GLMaterial::TextureType type) {}
+void MaterialPropertiesPanel::onTransformButtonClicked(GLMaterial::TextureType type)
+{
+	if (!_material) return;
+
+	// Get current texture data
+	auto tex = _material->texture(type);
+
+	// Check if texture has been loaded
+	if (tex.path == "")
+	{
+		QMessageBox::warning(this, "No Texture",
+			"Please load a texture first before editing its transform and sampler parameters.");
+		return;
+	}
+
+	// Create and show dialog
+	TextureParametersDialog dialog(this);
+
+	// Load current values into dialog
+	TextureParametersDialog::SamplerSettings samplers{
+		tex.wrapS,
+		tex.wrapT,
+		tex.magFilter,
+		tex.minFilter
+	};
+	dialog.setSamplerSettings(samplers);
+
+	TextureParametersDialog::TextureTransform texTransform{
+		tex.texCoordIndex,
+		QVector2D(tex.scale.x, tex.scale.y),
+		QVector2D(tex.offset.x, tex.offset.y),
+		tex.rotation
+	};
+	dialog.setTransform(texTransform);
+
+	// Show dialog and wait for result
+	if (dialog.exec() == QDialog::Accepted)
+	{
+		// Get new values from dialog
+		auto [newTexCoord, newScale, newOffset, newRotation] = dialog.getTransform();
+		auto [newWrapS, newWrapT, newMagF, newMinF] = dialog.getSamplerSettings();
+
+		// Update texture struct with new values
+		tex.wrapS = newWrapS;
+		tex.wrapT = newWrapT;
+		tex.magFilter = newMagF;
+		tex.minFilter = newMinF;
+		tex.scale = glm::vec2(newScale.x(), newScale.y());
+		tex.offset = glm::vec2(newOffset.x(), newOffset.y());
+		tex.rotation = newRotation;
+		tex.texCoordIndex = newTexCoord;
+
+		// Store in material (cascades to unified storage via setTexture)
+		_material->setTexture(type, tex);
+
+		// Update preview
+		updatePreview();
+
+		// Emit signal for sampler change
+		emit textureSamplerChanged(_material, type);
+		emit materialChanged(_material);
+	}
+}
 
 void MaterialPropertiesPanel::updatePreview()
 {
@@ -1387,4 +1554,87 @@ bool MaterialPropertiesPanel::eventFilter(QObject* obj, QEvent* ev)
 	}
 
 	return QWidget::eventFilter(obj, ev);
+}
+
+void MaterialPropertiesPanel::onSearchTextChanged(const QString& text)
+{
+	// Get the tree widget
+	QTreeWidget* tw = qobject_cast<QTreeWidget*>(_ui->treeWidget);
+	if (!tw) return;
+
+	const QString needle = text.trimmed().toLower();
+	const bool hasFilter = !needle.isEmpty();
+	QStringList tokens;
+	if (hasFilter) tokens = needle.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+	int matchCount = 0;
+
+	// Recursively walk and update each item
+	std::function<bool(QTreeWidgetItem*, bool)> matchAndShow = [&](QTreeWidgetItem* item, bool parentMatched) -> bool {
+		const QString label = item->text(0).toLower();
+
+		// Only consider self-match when a filter is active
+		bool selfMatched = false;
+		if (hasFilter)
+		{
+			selfMatched = true;
+			for (const QString& t : tokens)
+			{
+				if (!label.contains(t)) { selfMatched = false; break; }
+			}
+		}
+
+		// Always recurse children so we can reset their fonts/foreground when clearing
+		// Pass down whether this item or any ancestor matched
+		bool anyChildMatched = false;
+		bool shouldShowChildren = parentMatched || selfMatched;
+		for (int i = 0; i < item->childCount(); ++i)
+		{
+			if (matchAndShow(item->child(i), shouldShowChildren)) anyChildMatched = true;
+		}
+
+		// Item should be shown if:
+		// 1. No filter is active (show all), OR
+		// 2. This item matched the search, OR
+		// 3. Any child matched the search, OR
+		// 4. A parent/ancestor matched the search
+		const bool matched = hasFilter ? (selfMatched || anyChildMatched || parentMatched) : true;
+		item->setHidden(hasFilter ? !matched : false);
+
+		// Expand only when filtering and the item matched
+		if (hasFilter && matched) item->setExpanded(true);
+
+		// Foreground color: use subtle blue when self matched; reset otherwise
+		if (hasFilter && selfMatched)
+		{
+			item->setForeground(0, QBrush(QColor(0x1e88e5)));
+		}
+		else
+		{
+			item->setForeground(0, QBrush());  // reset to default
+		}
+
+		if (matched) ++matchCount;
+		return matched;
+	};
+
+	// Start recursion from top-level items with parentMatched = false
+	for (int i = 0; i < tw->topLevelItemCount(); ++i)
+		matchAndShow(tw->topLevelItem(i), false);
+
+	// Red border when no matches and query non-empty; reset otherwise
+	if (!hasFilter)
+	{
+		_ui->searchEdit->setStyleSheet("");
+		_ui->searchEdit->setToolTip("");
+	}
+	else if (matchCount == 0)
+	{
+		_ui->searchEdit->setStyleSheet("QLineEdit { border: 1px solid #e53935; }");
+		_ui->searchEdit->setToolTip("No matches");
+	}
+	else
+	{
+		_ui->searchEdit->setStyleSheet("");
+		_ui->searchEdit->setToolTip("");
+	}
 }
