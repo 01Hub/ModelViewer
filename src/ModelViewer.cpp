@@ -207,11 +207,20 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
 
+	// Disable ADS and PBR texture pages - unified MaterialPropertiesPanel is the only editor now
 	int indexADS = toolBox->indexOf(toolBox->findChild<QWidget*>("pageADSSettings"));
 	int indexPBR = toolBox->indexOf(toolBox->findChild<QWidget*>("pageTextureMapping"));
-	toolBox->setItemEnabled(indexADS, true);
-	toolBox->setItemEnabled(indexPBR, false);
-	toolBox->setCurrentIndex(0);
+	if (indexADS >= 0) toolBox->setItemEnabled(indexADS, false);
+	if (indexPBR >= 0) toolBox->setItemEnabled(indexPBR, false);
+
+	// Hide disabled tabs using stylesheet
+	toolBox->setStyleSheet(
+		"QToolBox::tab:disabled { "
+		"    display: none; "
+		"} "
+	);
+
+	toolBox->setCurrentIndex(2);
 
 	// Shortcut to toggle lighting mode
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), this);
@@ -2624,22 +2633,15 @@ void ModelViewer::switchToRealisticRendering()
 
 void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
 {
-	int indexADS = toolBox->indexOf(toolBox->findChild<QWidget*>("pageADSSettings"));
-	int indexPBR = toolBox->indexOf(toolBox->findChild<QWidget*>("pageTextureMapping"));
-
+	// Switch rendering modes but NOT page visibility
+	// Pages are now permanently disabled - unified MaterialPropertiesPanel is the only editor
 	if (radioButtonADSL->isChecked())
 	{
-		toolBox->setItemEnabled(indexADS, true);
-		toolBox->setItemEnabled(indexPBR, false);
-		toolBox->setCurrentIndex(indexADS);
 		_glWidget->setRenderingMode(RenderingMode::ADS_BLINN_PHONG);
 		visualizationEnvironmentPanel->setPBRLightingMode(false);
 	}
 	if (radioButtonTXPBR->isChecked())
 	{
-		toolBox->setItemEnabled(indexADS, false);
-		toolBox->setItemEnabled(indexPBR, true);
-		toolBox->setCurrentIndex(indexPBR);
 		_glWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);
 		visualizationEnvironmentPanel->setPBRLightingMode(true);
 		_glWidget->setSkyBoxTextureHDRI(true);

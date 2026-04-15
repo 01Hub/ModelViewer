@@ -220,10 +220,10 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 	}
 
 	// Connect Clear buttons for each texture slot
-	connect(_ui->pushButtonClearAllMaps, &QPushButton::clicked,
+	connect(_ui->toolButtonClearAllMaps, &QPushButton::clicked,
 		this, &MaterialPropertiesPanel::clearAllTexturesMaps);
 	// Connect cache clearing button with confirmation dialog
-	connect(_ui->pushButtonClearTextureCache, &QPushButton::clicked, this, [this] {
+	connect(_ui->toolButtonClearTextureCache, &QPushButton::clicked, this, [this] {
 		clearAllTexturesMaps();
 		QMessageBox::information(nullptr, "Texture Cache Cleared",
 			"The texture cache has been cleared.");

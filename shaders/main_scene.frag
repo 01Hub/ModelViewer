@@ -873,7 +873,23 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	matDiffuse  *= nDotVP;
 
 	if (hasSpecularTexture)
-		matSpecular = texture(texture_specular, getSpecularTextureUV()).rgb * pf;
+	{
+		// ADS specular is cascaded from metallic texture
+		// Combine with roughness for proper metallic-roughness behavior:
+		// specular = metallic × (1 - roughness)
+		float metallicValue = texture(texture_specular, getSpecularTextureUV()).r;
+		float roughnessValue = 0.5; // Default if no roughness texture
+
+		// If roughness texture is available, use it to modulate specularity
+		if (hasRoughnessMap)
+		{
+			roughnessValue = texture(roughnessMap, getRoughnessUV()).r;
+		}
+
+		// Combine: metallic determines if reflective, roughness determines intensity
+		float specularity = metallicValue * (1.0 - roughnessValue);
+		matSpecular = vec3(specularity) * pf;
+	}
 	if (hasEmissiveTexture)
 		matEmissive = texture(texture_emissive, getEmissiveTextureUV()).rgb;
 

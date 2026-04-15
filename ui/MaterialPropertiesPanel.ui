@@ -7,8 +7,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>523</width>
-    <height>1103</height>
+    <width>486</width>
+    <height>1038</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -21,6 +21,9 @@
    <string>Material Editor</string>
   </property>
   <layout class="QVBoxLayout" name="mainLayout">
+   <property name="spacing">
+    <number>6</number>
+   </property>
    <property name="leftMargin">
     <number>2</number>
    </property>
@@ -171,7 +174,7 @@
          </property>
          <property name="minimumSize">
           <size>
-           <width>225</width>
+           <width>200</width>
            <height>0</height>
           </size>
          </property>
@@ -180,7 +183,7 @@
       </layout>
      </item>
      <item>
-      <layout class="QVBoxLayout" name="previewLayout">
+      <layout class="QVBoxLayout" name="previewLayout" stretch="0,0,0,0,0,0,0">
        <property name="spacing">
         <number>6</number>
        </property>
@@ -206,8 +209,8 @@
          </property>
          <property name="minimumSize">
           <size>
-           <width>280</width>
-           <height>280</height>
+           <width>200</width>
+           <height>200</height>
           </size>
          </property>
         </widget>
@@ -479,16 +482,42 @@
    <item>
     <layout class="QHBoxLayout" name="buttonLayout">
      <item>
-      <widget class="QPushButton" name="pushButtonClearAllMaps">
+      <widget class="QToolButton" name="toolButtonClearAllMaps">
+       <property name="toolTip">
+        <string>Clear all maps from the material and mesh</string>
+       </property>
        <property name="text">
         <string>Clear All Maps</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../ModelViewer.qrc">
+         <normaloff>:/icons/res/clear_all_maps.png</normaloff>:/icons/res/clear_all_maps.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>36</width>
+         <height>36</height>
+        </size>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="pushButtonClearTextureCache">
+      <widget class="QToolButton" name="toolButtonClearTextureCache">
+       <property name="toolTip">
+        <string>Clear the texture cache</string>
+       </property>
        <property name="text">
         <string>Clear Texture Cache</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../ModelViewer.qrc">
+         <normaloff>:/icons/res/clear_texture_cache.png</normaloff>:/icons/res/clear_texture_cache.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>36</width>
+         <height>36</height>
+        </size>
        </property>
       </widget>
      </item>
@@ -509,23 +538,82 @@
       </spacer>
      </item>
      <item>
-      <widget class="QPushButton" name="applyButton">
+      <widget class="QToolButton" name="newButton">
+       <property name="toolTip">
+        <string>Create new material</string>
+       </property>
+       <property name="text">
+        <string>New</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../ModelViewer.qrc">
+         <normaloff>:/icons/res/new.png</normaloff>:/icons/res/new.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>36</width>
+         <height>36</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QToolButton" name="applyButton">
+       <property name="toolTip">
+        <string>Apply material to selected mesh</string>
+       </property>
        <property name="text">
         <string>Apply</string>
        </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QPushButton" name="saveButton">
-       <property name="text">
-        <string>Save</string>
+       <property name="icon">
+        <iconset resource="../ModelViewer.qrc">
+         <normaloff>:/icons/res/apply.png</normaloff>:/icons/res/apply.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>36</width>
+         <height>36</height>
+        </size>
        </property>
       </widget>
      </item>
      <item>
-      <widget class="QPushButton" name="deleteButton">
+      <widget class="QToolButton" name="saveButton">
+       <property name="toolTip">
+        <string>Save material to user library</string>
+       </property>
+       <property name="text">
+        <string>Save</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../ModelViewer.qrc">
+         <normaloff>:/icons/res/save.png</normaloff>:/icons/res/save.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>36</width>
+         <height>36</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QToolButton" name="deleteButton">
+       <property name="toolTip">
+        <string>Delete user defined material</string>
+       </property>
        <property name="text">
         <string>Delete</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../ModelViewer.qrc">
+         <normaloff>:/icons/res/delete.png</normaloff>:/icons/res/delete.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>36</width>
+         <height>36</height>
+        </size>
        </property>
       </widget>
      </item>
@@ -574,12 +662,27 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>-767</y>
-            <width>499</width>
-            <height>1246</height>
+            <y>0</y>
+            <width>462</width>
+            <height>1160</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_4">
+           <property name="leftMargin">
+            <number>2</number>
+           </property>
+           <property name="topMargin">
+            <number>2</number>
+           </property>
+           <property name="rightMargin">
+            <number>2</number>
+           </property>
+           <property name="bottomMargin">
+            <number>2</number>
+           </property>
+           <property name="spacing">
+            <number>4</number>
+           </property>
            <item row="14" column="0">
             <widget class="QLabel" name="lblClearcoatcolor">
              <property name="text">
@@ -1437,7 +1540,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>501</width>
+            <width>464</width>
             <height>2301</height>
            </rect>
           </property>
@@ -3621,8 +3724,8 @@ Thickness</string>
   <tabstop>applyButton</tabstop>
   <tabstop>saveButton</tabstop>
   <tabstop>deleteButton</tabstop>
-  <tabstop>pushButtonClearAllMaps</tabstop>
-  <tabstop>pushButtonClearTextureCache</tabstop>
+  <tabstop>toolButtonClearAllMaps</tabstop>
+  <tabstop>toolButtonClearTextureCache</tabstop>
   <tabstop>comboBoxTexMode</tabstop>
   <tabstop>tintModeCombo</tabstop>
   <tabstop>tintStrengthSpin</tabstop>

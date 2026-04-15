@@ -114,6 +114,85 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
 
 			qDebug() << "mesh->setTextureMaps() completed";
 
+			// ADS Cascading: Also bind textures for ADS rendering mode
+			qDebug() << "=== ADS Cascading Check ===";
+			qDebug() << "hasDiffuseMap():" << mat.hasDiffuseMap();
+			qDebug() << "diffuseMap():" << mat.diffuseMap();
+			qDebug() << "albedoMapPath():" << mat.albedoMapPath();
+			qDebug() << "hasEmissiveMap():" << mat.hasEmissiveMap();
+			qDebug() << "emissiveMapPath():" << mat.emissiveMapPath();
+
+			// Try using albedo as diffuse since we may not have set diffuse directly
+			if (!mat.albedoMapPath().isEmpty())
+			{
+				_glWidget->setADSDiffuseTexMap({index}, mat.albedoMapPath());
+				qDebug() << "Bound ALBEDO as ADS diffuse texture:" << mat.albedoMapPath();
+			}
+			else if (mat.hasDiffuseMap())
+			{
+				QString diffusePath = mat.diffuseMap();
+				if (!diffusePath.isEmpty())
+				{
+					_glWidget->setADSDiffuseTexMap({index}, diffusePath);
+					qDebug() << "Bound diffuse ADS texture:" << diffusePath;
+				}
+			}
+
+			// If emissive map is available, bind it for ADS emissive rendering
+			if (mat.hasEmissiveMap())
+			{
+				QString emissivePath = mat.emissiveMapPath();
+				if (!emissivePath.isEmpty())
+				{
+					_glWidget->setADSEmissiveTexMap({index}, emissivePath);
+					qDebug() << "Bound emissive ADS texture:" << emissivePath;
+				}
+			}
+
+			// Map: Normal (PBR) → Normal (ADS)
+			if (mat.hasNormalMap())
+			{
+				QString normalPath = mat.normalMapPath();
+				if (!normalPath.isEmpty())
+				{
+					_glWidget->setADSNormalTexMap({index}, normalPath);
+					qDebug() << "Bound normal ADS texture:" << normalPath;
+				}
+			}
+
+			// Map: Metallic (PBR) → Specular (ADS)
+			if (mat.hasMetallicMap())
+			{
+				QString metallicPath = mat.metallicMapPath();
+				if (!metallicPath.isEmpty())
+				{
+					_glWidget->setADSSpecularTexMap({index}, metallicPath);
+					qDebug() << "Bound metallic as ADS specular texture:" << metallicPath;
+				}
+			}
+
+			// Map: Height (PBR) → Height (ADS)
+			if (mat.hasHeightMap())
+			{
+				QString heightPath = mat.heightMapPath();
+				if (!heightPath.isEmpty())
+				{
+					_glWidget->setADSHeightTexMap({index}, heightPath);
+					qDebug() << "Bound height ADS texture:" << heightPath;
+				}
+			}
+
+			// Map: Opacity (PBR) → Opacity (ADS)
+			if (mat.hasOpacityMap())
+			{
+				QString opacityPath = mat.opacityMapPath();
+				if (!opacityPath.isEmpty())
+				{
+					_glWidget->setADSOpacityTexMap({index}, opacityPath);
+					qDebug() << "Bound opacity ADS texture:" << opacityPath;
+				}
+			}
+
             // Handle transmission flag if material has transmission
             if (mat.hasTransmission())
             {

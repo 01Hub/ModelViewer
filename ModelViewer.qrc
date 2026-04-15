@@ -56,6 +56,12 @@
         <file>res/expand.png</file>
         <file>res/expandall.png</file>
         <file>res/reattach.png</file>
+        <file>res/clear_texture_cache.png</file>
+        <file>res/clear_all_maps.png</file>
+        <file>res/delete.png</file>
+        <file>res/save.png</file>
+        <file>res/apply.png</file>
+        <file>res/new.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

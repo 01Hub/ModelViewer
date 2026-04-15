@@ -1101,10 +1101,62 @@ void TriangleMesh::setTextureMaps(const GLMaterial& material)
 
 	_material = material;
 
-	qDebug() << "After copying to _material:";
-	qDebug() << "  Metalness:" << _material.metalness();
-	qDebug() << "  Roughness:" << _material.roughness();
-	qDebug() << "=== TriangleMesh::setTextureMaps END ===";
+	// Set PBR texture IDs from material
+	if (material.hasAlbedoMap())
+	{
+		_hasAlbedoPBRMap = true;
+		setAlbedoPBRMap(material.albedoTextureId());
+		qDebug() << "Set AlbedoPBRMap, ID:" << material.albedoTextureId();
+	}
+	else
+	{
+		_hasAlbedoPBRMap = false;
+	}
+
+	if (material.hasNormalMap())
+	{
+		_hasNormalPBRMap = true;
+		setNormalPBRMap(material.normalTextureId());
+		qDebug() << "Set NormalPBRMap, ID:" << material.normalTextureId();
+	}
+	else
+	{
+		_hasNormalPBRMap = false;
+	}
+
+	if (material.hasEmissiveMap())
+	{
+		_hasEmissivePBRMap = true;
+		setEmissivePBRMap(material.emissiveTextureId());
+		qDebug() << "Set EmissivePBRMap, ID:" << material.emissiveTextureId();
+	}
+	else
+	{
+		_hasEmissivePBRMap = false;
+	}
+
+	// Set ADS texture IDs from material (for ADS rendering mode)
+	// Map: Albedo (PBR) → Diffuse (ADS)
+	if (material.hasAlbedoMap())
+	{
+		setDiffuseADSMap(material.albedoTextureId());
+		qDebug() << "Set DiffuseADSMap from Albedo, ID:" << material.albedoTextureId();
+	}
+	else
+	{
+		clearDiffuseADSMap();
+	}
+
+	// Map: Emissive is same for both PBR and ADS
+	if (material.hasEmissiveMap())
+	{
+		setEmissiveADSMap(material.emissiveTextureId());
+		qDebug() << "Set EmissiveADSMap, ID:" << material.emissiveTextureId();
+	}
+	else
+	{
+		clearEmissiveADSMap();
+	}
 
 	markTexturesDirty();
 	markUniformsDirty();
