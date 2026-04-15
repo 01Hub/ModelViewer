@@ -2760,13 +2760,6 @@ void ModelViewer::onPredefinedMaterialSelected(const GLMaterial& mat)
 
 void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
 {
-	// DEBUG: Log what paths are received in the slot
-	qDebug() << "=== ModelViewer::onCustomMaterialApplied START ===";
-	qDebug() << "  Received Albedo path:" << mat.albedoMapPath();
-	qDebug() << "  Received Normal path:" << mat.normalMapPath();
-	qDebug() << "  Received Metallic path:" << mat.metallicMapPath();
-	qDebug() << "  Received Roughness path:" << mat.roughnessMapPath();
-
 	if (!checkForActiveSelection())
 		return;
 
@@ -2783,16 +2776,11 @@ void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
 
 	QString materialName = "Custom Material";
 
-	qDebug() << "Passing material to ApplyMaterialCommand with:";
-	qDebug() << "  Albedo path:" << mat.albedoMapPath();
-	qDebug() << "  Normal path:" << mat.normalMapPath();
-
 	_undoStack->push(new ApplyMaterialCommand(
 		this, _glWidget, uuids, mat, materialName
 	));
 
 	QApplication::restoreOverrideCursor();
-	qDebug() << "=== ModelViewer::onCustomMaterialApplied END ===";
 }
 
 void ModelViewer::onTexturesApplied(const GLMaterial* mat)

@@ -3568,12 +3568,15 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 
 	GLMaterial mat; // default constructed material
 
+	// Track which ADS fields were explicitly loaded so we don't overwrite them in updateConsistency()
+	bool ambientWasLoaded = false, diffuseWasLoaded = false, specularWasLoaded = false, shininessWasLoaded = false;
+
 	// ---------------- Legacy ADS fields (assign internal members directly) ----------------
-	if (m.contains("ambient"))          mat._ambient = readVec3(m.value("ambient"), mat._ambient);
-	if (m.contains("diffuse"))          mat._diffuse = readVec3(m.value("diffuse"), mat._diffuse);
-	if (m.contains("specular"))         mat._specular = readVec3(m.value("specular"), mat._specular);
+	if (m.contains("ambient"))          { mat._ambient = readVec3(m.value("ambient"), mat._ambient); ambientWasLoaded = true; }
+	if (m.contains("diffuse"))          { mat._diffuse = readVec3(m.value("diffuse"), mat._diffuse); diffuseWasLoaded = true; }
+	if (m.contains("specular"))         { mat._specular = readVec3(m.value("specular"), mat._specular); specularWasLoaded = true; }
 	if (m.contains("emissive"))         mat._emissive = readVec3(m.value("emissive"), mat._emissive);
-	if (m.contains("shininess"))        mat._shininess = readFloat(m.value("shininess"), mat._shininess);
+	if (m.contains("shininess"))        { mat._shininess = readFloat(m.value("shininess"), mat._shininess); shininessWasLoaded = true; }
 	if (m.contains("emissiveStrength")) mat._emissiveStrength = readFloat(m.value("emissiveStrength"), mat._emissiveStrength);
 	if (m.contains("opacity"))          mat._opacity = readFloat(m.value("opacity"), mat._opacity);
 
@@ -3792,8 +3795,20 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 	}
 
 	// ---------------- Finalization: clamp values and run consistency once ----------------
+	// Save ADS fields before updateConsistency() computes them from PBR values
+	QVector3D savedAmbient = mat._ambient;
+	QVector3D savedDiffuse = mat._diffuse;
+	QVector3D savedSpecular = mat._specular;
+	float savedShininess = mat._shininess;
+
 	mat.clampValues();        // clamp ranges
 	mat.updateConsistency();  // single consistency pass (derived fields computed)
+
+	// Restore explicitly-loaded ADS fields (so they don't get overwritten by PBR conversion)
+	if (ambientWasLoaded)  mat._ambient = savedAmbient;
+	if (diffuseWasLoaded)  mat._diffuse = savedDiffuse;
+	if (specularWasLoaded) mat._specular = savedSpecular;
+	if (shininessWasLoaded) mat._shininess = savedShininess;
 
 	// NOTE: for value-only predefined materials we intentionally don't do texture loading here.
 	// For later direct texture registration, do it after updateConsistency():

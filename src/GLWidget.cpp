@@ -7004,17 +7004,6 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 		return w->getOrLoadTextureCached(path, samplers);
 	};
 
-	qDebug() << "=== resolveMaterialTextures START ===";
-	qDebug() << "Input scalar values:";
-	qDebug() << "  Metalness:" << m.metalness();
-	qDebug() << "  Roughness:" << m.roughness();
-	qDebug() << "  IOR:" << m.ior();
-	qDebug() << "  Transmission:" << m.transmission();
-	qDebug() << "Input albedo path:" << m.albedoMapPath();
-	qDebug() << "Input normal path:" << m.normalMapPath();
-	qDebug() << "Input metallic path:" << m.metallicMapPath();
-	qDebug() << "Input roughness path:" << m.roughnessMapPath();
-
 	if (m.hasAlbedoMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Albedo);
@@ -7167,17 +7156,6 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 	}
 
 	m.syncTextureParameters();
-
-	qDebug() << "=== resolveMaterialTextures END ===";
-	qDebug() << "Output albedo path:" << m.albedoMapPath();
-	qDebug() << "Output normal path:" << m.normalMapPath();
-	qDebug() << "Output albedo texture ID:" << m.albedoTextureId();
-	qDebug() << "Output normal texture ID:" << m.normalTextureId();
-	qDebug() << "Output scalar values after resolution:";
-	qDebug() << "  Metalness:" << m.metalness();
-	qDebug() << "  Roughness:" << m.roughness();
-	qDebug() << "  IOR:" << m.ior();
-	qDebug() << "  Transmission:" << m.transmission();
 
 	return m;
 }

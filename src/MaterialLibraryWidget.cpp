@@ -237,6 +237,7 @@ bool MaterialLibraryWidget::loadAllMaterials(const QString& jsonPath, QString* e
 	// clear previous data
 	s_materialMap.clear();
 	s_groups.clear();
+	s_userMaterialKeys.clear();  // Clear user material keys so they're rebuilt from the user JSON
 
 	// Use the MaterialRegistry (it already knows how to parse the JSON file)
 	MaterialRegistry& reg = MaterialRegistry::instance();
@@ -291,7 +292,6 @@ bool MaterialLibraryWidget::mergeUserMaterialsFromUserLocation(QString* err)
 	const QString userPath = userMaterialsFilePath();
 	// Store the user JSON path for later use by userMaterialsRootPath()
 	s_userJsonPath = userPath;
-	qDebug() << "User materials file path:" << userMaterialsFilePath();
 	// If no user file exists, nothing to do (success)
 	if (!QFile::exists(userPath))
 	{

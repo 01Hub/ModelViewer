@@ -208,10 +208,6 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 			QString materialKey = currentItem->data(0, Qt::UserRole).toString();
 			if (!materialKey.isEmpty())
 			{
-				qDebug() << "=== DEFAULT MATERIAL LOADED ===";
-				qDebug() << "  Material name:" << currentItem->text(0);
-				qDebug() << "  Material key:" << materialKey;
-
 				// Get the currently selected material from the library
 				if (libraryWidget->sharedMaterialMap().contains(materialKey))
 				{
@@ -248,14 +244,10 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		connect(_ui->saveButton, &QPushButton::clicked, this, &MaterialPropertiesPanel::onSaveToLibrary);
 	}
 
-	// Connect Delete button (placeholder for future implementation)
+	// Connect Delete button
 	if (_ui->deleteButton)
 	{
-		connect(_ui->deleteButton, &QPushButton::clicked, this, [this]() {
-			QMessageBox::information(this, tr("Delete Material"),
-				tr("Material deletion is not yet implemented."));
-			// TODO: Implement delete functionality
-		});
+		connect(_ui->deleteButton, &QPushButton::clicked, this, &MaterialPropertiesPanel::onDeleteMaterial);
 	}
 
 	// Connect Detach button
@@ -295,57 +287,41 @@ MaterialPropertiesPanel::~MaterialPropertiesPanel()
 
 void MaterialPropertiesPanel::bindMaterial(GLMaterial* material)
 {
-	qDebug() << "=== bindMaterial CALLED ===";
 	_material = material;
 	if (!_material)
 	{
-		qDebug() << "  ERROR: material is null!";
+		qWarning() << "bindMaterial: material is null!";
 		return;
 	}
 
-	qDebug() << "  Material bound, albedo:" << _material->albedoColor();
-
 	// Reflect current textures -> button icons
-	qDebug() << "  Updating texture button icons...";
 	for (auto it = _textureSlots.begin(); it != _textureSlots.end(); ++it)
 	{
 		const QString path = textureMapPath(it.key());
 		if (path.isEmpty())
 			applyButtonEmptyIcon(it.value());
 		else
-		{
-			qDebug() << "    Texture found:" << static_cast<int>(it.key()) << "path:" << path;
 			applyButtonImageIcon(it.value(), path);
-		}
 	}
 
 	// Load all scalar property values from material
-	qDebug() << "  Loading scalar values...";
 	loadScalarValuesFromMaterial();
-	qDebug() << "  Scalar values loaded";
 
 	// Load all texture factor values
-	qDebug() << "  Loading factor values...";
 	loadFactorValuesFromMaterial();
-	qDebug() << "  Factor values loaded";
 
 	// Load texture scale values
-	qDebug() << "  Loading scale values...";
 	if (_ui->doubleSpinBoxNormalScale)
 		_ui->doubleSpinBoxNormalScale->setValue(_material->normalScale());
 	if (_ui->doubleSpinBoxHeightScale)
 		_ui->doubleSpinBoxHeightScale->setValue(_material->heightScale());
 	if (_ui->doubleSpinBoxClearcoatNormalScale)
 		_ui->doubleSpinBoxClearcoatNormalScale->setValue(_material->clearcoatNormalScale());
-	qDebug() << "  Scale values loaded";
 
 	// Update preview
-	qDebug() << "  Calling updatePreview()...";
 	updatePreview();
-	qDebug() << "  updatePreview() completed";
 
 	emit materialChanged(_material);
-	qDebug() << "=== bindMaterial COMPLETED ===";
 }
 
 void MaterialPropertiesPanel::initialize(ModelViewer* modelViewer, GLWidget* glWidget)
@@ -878,27 +854,20 @@ void MaterialPropertiesPanel::clearAllTexturesMaps()
 {
 	if (!_material) return;
 
-	qDebug() << "=== clearAllTexturesMaps CALLED ===";
-
 	// Clear all texture maps and update UI
 	for (auto it = _textureSlots.begin(); it != _textureSlots.end(); ++it)
 	{
 		clearTextureMap(it.key());
-		qDebug() << "  Cleared texture type:" << static_cast<int>(it.key());
 	}
 
 	// Update preview to show cleared state
 	updatePreview();
 
 	// Reapply the cleared material to selected meshes in the viewer
-	qDebug() << "  Emitting materialApplied to apply cleared material to mesh...";
 	emit materialApplied(*_material);
 
 	// Clear GPU texture cache to free memory
-	qDebug() << "  Clearing GPU texture cache...";
 	emit textureCacheClearRequested();
-
-	qDebug() << "=== clearAllTexturesMaps COMPLETED ===";
 }
 
 QString MaterialPropertiesPanel::textureMapPath(GLMaterial::TextureType type) const
@@ -1103,83 +1072,211 @@ void MaterialPropertiesPanel::onTransformButtonClicked(GLMaterial::TextureType t
 
 void MaterialPropertiesPanel::updatePreview()
 {
-	qDebug() << "=== updatePreview CALLED ===";
-
 	if (!_preview)
 	{
-		qDebug() << "  ERROR: _preview is null!";
+		qWarning() << "updatePreview: _preview is null!";
 		return;
 	}
 	if (!_material)
 	{
-		qDebug() << "  ERROR: _material is null!";
+		qWarning() << "updatePreview: _material is null!";
 		return;
 	}
 
-	qDebug() << "  Preview and material valid";
-
 	// Update preview with material
-	qDebug() << "  Calling _preview->setMaterial()...";
 	_preview->setMaterial(*_material);
-	qDebug() << "  Material set on preview";
 
 	// Update preview shape, environment, and exposure from UI controls
 	if (_ui->comboShape)
 	{
 		int shapeIdx = _ui->comboShape->currentIndex();
-		qDebug() << "  Setting preview shape:" << shapeIdx;
 		_preview->setPreviewShape(static_cast<PreviewShape>(shapeIdx));
 	}
 
 	if (_ui->comboEnv)
 	{
 		int envIdx = _ui->comboEnv->currentIndex();
-		qDebug() << "  Setting environment:" << envIdx;
 		_preview->setEnvironment(static_cast<EnvMode>(envIdx));
 	}
 
 	if (_ui->sliderExposure)
 	{
 		float exposure = _ui->sliderExposure->value() / 10.0f;
-		qDebug() << "  Setting exposure:" << exposure;
 		_preview->setExposureEV(exposure);
 	}
 
 	if (_ui->comboBoxTexMode)
 	{
 		int texModeIdx = _ui->comboBoxTexMode->currentIndex();
-		qDebug() << "  Setting texture view mode:" << texModeIdx;
 		_preview->setTextureViewMode(static_cast<TexViewMode>(texModeIdx));
 	}
 
 	// Trigger re-render
-	qDebug() << "  Calling _preview->update()...";
 	_preview->update();
-	qDebug() << "=== updatePreview COMPLETED ===";
+}
+
+void MaterialPropertiesPanel::loadTextureImageFiles()
+{
+	// Load actual texture image files from disk for the currently bound material
+	if (!_material)
+	{
+		qWarning() << "loadTextureImageFiles: material is null!";
+		return;
+	}
+
+	int texturesLoaded = 0;
+
+	// Iterate through all texture types and load them
+	for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+	{
+		GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+		QString path = QString::fromStdString(_material->texture(type).path);
+
+		if (path.isEmpty())
+			continue;
+
+		// Check if file exists
+		if (!QFile::exists(path))
+		{
+			qDebug() << "Texture file not found:" << path;
+			continue;
+		}
+
+		// Call the appropriate setter function based on texture type
+		// This mirrors the OLD API setters used by loadMaterialTexturesFromKey()
+		bool loaded = false;
+		switch (type)
+		{
+			case GLMaterial::TextureType::Albedo:
+				_material->setAlbedoMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::Normal:
+				_material->setNormalMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::Metallic:
+				_material->setMetallicMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::Roughness:
+				_material->setRoughnessMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::AmbientOcclusion:
+				_material->setAOMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::Opacity:
+				_material->setOpacityMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::Emissive:
+				_material->setEmissiveMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::Height:
+				_material->setHeightMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::Transmission:
+				_material->setTransmissionMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::IOR:
+				_material->setIORMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::SheenColor:
+				_material->setSheenColorMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::SheenRoughness:
+				_material->setSheenRoughnessMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::ClearcoatColor:
+				_material->setClearcoatColorMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::ClearcoatRoughness:
+				_material->setClearcoatRoughnessMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::ClearcoatNormal:
+				_material->setClearcoatNormalMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::Iridescence:
+				_material->setIridescenceMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::IridescenceThickness:
+				_material->setIridescenceThicknessMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::SpecularFactor:
+				_material->setSpecularFactorMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::SpecularColor:
+				_material->setSpecularColorMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::Anisotropy:
+				_material->setAnisotropyMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::DiffuseTransmission:
+				_material->setDiffuseTransmissionMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::DiffuseTransmissionColor:
+				_material->setDiffuseTransmissionColorMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::Thickness:
+				_material->setThicknessMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::Diffuse:
+				_material->setDiffuseMap(path);
+				loaded = true;
+				break;
+			case GLMaterial::TextureType::SpecularGlossiness:
+				_material->setSpecularGlossinessMap(path);
+				loaded = true;
+				break;
+			default:
+				qDebug() << "    WARNING: Unknown texture type:" << i;
+				break;
+		}
+
+		if (loaded)
+			texturesLoaded++;
+	}
+
+	if (texturesLoaded > 0)
+		qDebug() << "loadTextureImageFiles: Loaded" << texturesLoaded << "texture(s)";
 }
 
 void MaterialPropertiesPanel::loadMaterialTexturesFromKey(const QString& materialKey)
 {
-	qDebug() << "=== loadMaterialTexturesFromKey CALLED ===";
-	qDebug() << "  Material key:" << materialKey;
-
 	if (!_material)
 	{
-		qDebug() << "  ERROR: _material is null!";
+		qWarning() << "loadMaterialTexturesFromKey: material is null!";
 		return;
 	}
 
 	// Load unified materials.json
 	QString jsonPath = PathUtils::getDataDirectory() + "/data/catalogs/materials.json";
-	qDebug() << "  JSON path:" << jsonPath;
 	QFile file(jsonPath);
 
 	if (!file.open(QIODevice::ReadOnly))
 	{
-		qDebug() << "  ERROR: Cannot open materials.json!";
+		qWarning() << "loadMaterialTexturesFromKey: Cannot open materials.json at" << jsonPath;
 		return;
 	}
-	qDebug() << "  JSON file opened successfully";
 
 	QJsonObject catalog = QJsonDocument::fromJson(file.readAll()).object();
 	file.close();
@@ -1202,11 +1299,10 @@ void MaterialPropertiesPanel::loadMaterialTexturesFromKey(const QString& materia
 
 	if (materialObj.isEmpty())
 	{
-		qDebug() << "  ERROR: Material not found in JSON for key:" << materialKey;
+		qWarning() << "loadMaterialTexturesFromKey: Material not found in JSON for key:" << materialKey;
 		return;
 	}
 
-	qDebug() << "  Material found in JSON";
 	QString baseDir = PathUtils::getDataDirectory() + "/";
 
 	// Texture type mapping: JSON key -> texture path key -> GLMaterial::TextureType
@@ -1239,8 +1335,6 @@ void MaterialPropertiesPanel::loadMaterialTexturesFromKey(const QString& materia
 	};
 
 	// Load each texture from JSON using OLD API setters (for compatibility with onCustomMaterialApplied)
-	qDebug() << "  Loading textures...";
-	int texturesLoaded = 0;
 	for (auto it = textureMap.constBegin(); it != textureMap.constEnd(); ++it)
 	{
 		const QString& jsonKey = it.value().first;
@@ -1345,18 +1439,14 @@ void MaterialPropertiesPanel::loadMaterialTexturesFromKey(const QString& materia
 					auto tex = _material->texture(type);
 					tex.path = fullPath.toStdString();
 					_material->setTexture(type, tex);
-					qDebug() << "    Loaded texture:" << jsonKey << "path:" << fullPath;
-					texturesLoaded++;
 				}
 				else
 				{
-					qDebug() << "    Texture file not found:" << fullPath;
+					qDebug() << "Texture file not found:" << fullPath;
 				}
 			}
 		}
 	}
-	qDebug() << "  Textures loaded:" << texturesLoaded;
-	qDebug() << "=== loadMaterialTexturesFromKey COMPLETED ===";
 }
 
 void MaterialPropertiesPanel::populatePresetTree() {}
@@ -1417,138 +1507,89 @@ void MaterialPropertiesPanel::onClearAllTextures()
 
 void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 {
-	qDebug() << "=== onMaterialPresetSelected CALLED ===";
-	qDebug() << "  Material received from tree widget";
-
 	// Material is already populated with scalar properties from tree widget
 	// Now load textures and bind the material
 	if (!_ui)
 	{
-		qDebug() << "  ERROR: _ui is null!";
+		qWarning() << "onMaterialPresetSelected: _ui is null!";
 		return;
 	}
 
 	// Create a copy of the material to work with
 	if (!_material) _material = new GLMaterial();
 	*_material = mat;
-	qDebug() << "  Material copied to _material";
 
 	// Get the material key from the selected tree item to load textures
 	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
 	if (libraryWidget)
 	{
 		QList<QTreeWidgetItem*> selected = libraryWidget->selectedItems();
-		qDebug() << "  Selected items count:" << selected.size();
 		if (!selected.isEmpty())
 		{
 			QString materialKey = selected.first()->data(0, Qt::UserRole).toString();
-			qDebug() << "  Material key:" << materialKey;
 			if (!materialKey.isEmpty())
 			{
-				// For user materials, skip loadMaterialTexturesFromKey because that function
-				// looks only in the shipped materials.json. User material textures are already
-				// correctly loaded from the cache (via the lambda in saveUserMaterialToUserLocation).
+				// For user materials, the texture paths have been resolved by the lambda,
+				// but we still need to load the actual texture image files from disk
 				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
 				if (isUserMaterial)
 				{
-					qDebug() << "  User material detected - textures already loaded from cache";
+					loadTextureImageFiles();
 				}
 				else
 				{
 					// Load textures from shipped materials.json by material key
-					qDebug() << "  Loading textures from shipped catalog JSON for key:" << materialKey;
 					loadMaterialTexturesFromKey(materialKey);
-					qDebug() << "  Textures loaded";
 				}
 			}
-			else
-			{
-				qDebug() << "  WARNING: materialKey is empty";
-			}
 		}
-		else
-		{
-			qDebug() << "  WARNING: No tree items selected";
-		}
-	}
-	else
-	{
-		qDebug() << "  WARNING: Tree widget cast failed or doesn't exist";
 	}
 
 	// Bind material and update UI
-	qDebug() << "  Calling bindMaterial()...";
 	bindMaterial(_material);
-	qDebug() << "  bindMaterial() completed";
 
 	// NOTE: Do NOT emit materialApplied here!
 	// materialApplied should only be emitted when user clicks Apply button
 	// Selecting from tree just loads the material for editing/preview
-	qDebug() << "=== onMaterialPresetSelected COMPLETED ===";
 }
 
 void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 {
-	qDebug() << "=== onMaterialDoubleClicked CALLED (APPLY TO MESH) ===";
-	qDebug() << "  Received material scalar values:";
-	qDebug() << "    Metalness:" << mat.metalness();
-	qDebug() << "    Roughness:" << mat.roughness();
-	qDebug() << "    IOR:" << mat.ior();
-	qDebug() << "    Transmission:" << mat.transmission();
-
 	// Load and bind material for preview (same as single-click)
 	if (!_material) _material = new GLMaterial();
 	*_material = mat;
-	qDebug() << "  After copying to _material:";
-	qDebug() << "    Metalness:" << _material->metalness();
-	qDebug() << "    Roughness:" << _material->roughness();
 
 	// Get material key from selected tree item to load textures
 	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
 	if (libraryWidget)
 	{
 		QList<QTreeWidgetItem*> selected = libraryWidget->selectedItems();
-		qDebug() << "  Selected items count:" << selected.size();
 		if (!selected.isEmpty())
 		{
 			QString materialKey = selected.first()->data(0, Qt::UserRole).toString();
-			qDebug() << "  Material key:" << materialKey;
 			if (!materialKey.isEmpty())
 			{
-				// For user materials, skip loadMaterialTexturesFromKey because that function
-				// looks only in the shipped materials.json. User material textures are already
-				// correctly loaded from the cache (via the lambda in saveUserMaterialToUserLocation).
+				// For user materials, the texture paths have been resolved by the lambda,
+				// but we still need to load the actual texture image files from disk
 				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
 				if (isUserMaterial)
 				{
-					qDebug() << "  User material detected - textures already loaded from cache";
+					loadTextureImageFiles();
 				}
 				else
 				{
 					// Load textures from shipped materials.json by material key
-					qDebug() << "  Loading textures from shipped catalog JSON for double-click apply...";
 					loadMaterialTexturesFromKey(materialKey);
-					qDebug() << "  Textures loaded";
 				}
 			}
 		}
 	}
 
 	// Bind material and update UI
-	qDebug() << "  Calling bindMaterial()...";
 	bindMaterial(_material);
-	qDebug() << "  bindMaterial() completed";
 
 	// EMIT SIGNAL TO APPLY TO MESH (this is the key difference from single-click)
-	qDebug() << "  Emitting materialApplied signal to apply to selected mesh...";
-	qDebug() << "  Material about to be emitted has:";
-	qDebug() << "    Metalness:" << _material->metalness();
-	qDebug() << "    Roughness:" << _material->roughness();
-	qDebug() << "    IOR:" << _material->ior();
-	qDebug() << "    Transmission:" << _material->transmission();
 	emit materialApplied(*_material);
-
-	qDebug() << "=== onMaterialDoubleClicked COMPLETED ===";
 }
 
 void MaterialPropertiesPanel::onSaveToLibrary()
@@ -1715,23 +1756,17 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	QString materialFolder = QDir(userRoot).filePath(key);
 	QDir materialDir(materialFolder);
 
-	qDebug() << "=== SAVE TO LIBRARY DEBUG ===";
-	qDebug() << "User root:" << userRoot;
-	qDebug() << "Material folder:" << materialFolder;
-
 	if (!materialDir.exists()) {
 		if (!materialDir.mkpath(".")) {
 			QMessageBox::warning(this, tr("Folder Creation Failed"),
 				tr("Could not create material folder: %1").arg(materialFolder));
 			return;
 		}
-		qDebug() << "Created folder:" << materialFolder;
 	}
 
 	// Copy texture files for all loaded textures in the material
 	// For shipped catalog textures that don't exist at source, keep absolute paths
 	// For user/imported textures that exist, copy to user material folder with relative paths
-	int texturesCopied = 0;
 	for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i) {
 		GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
 		GLMaterial::Texture tex = mat.texture(type);
@@ -1743,38 +1778,26 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		QString fileName = fileInfo.fileName();
 		QString destPath = materialDir.filePath(fileName);
 
-		qDebug() << "Processing texture:" << fileName;
-		qDebug() << "  From:" << sourcePath;
-
 		// Check if source file actually exists
 		if (!QFile::exists(sourcePath)) {
-			qDebug() << "  Source file doesn't exist in release build - keeping absolute path";
 			// Keep the absolute path as-is (shipped catalog texture)
 			// The path will be resolved by the lambda when loading
 			continue;
 		}
 
-		qDebug() << "  To:" << destPath;
-
 		// Copy the texture file
 		bool copySuccess = QFile::copy(sourcePath, destPath);
 		if (!copySuccess) {
-			qWarning() << "Failed to copy texture:" << sourcePath << "to" << destPath;
+			qWarning() << "Failed to copy texture file:" << fileName;
 			// If copy fails, keep the absolute path instead of relative
-			qDebug() << "  Copy failed - keeping absolute path";
 			continue;
 		}
-
-		texturesCopied++;
-		qDebug() << "  Copy success!";
 
 		// Update material's texture path to be relative (just filename)
 		// Only save relative paths for successfully copied textures
 		tex.path = fileName.toStdString();
 		mat.setTexture(type, tex);
-		qDebug() << "  Updated path to relative:" << fileName;
 	}
-	qDebug() << "Textures copied successfully:" << texturesCopied;
 
 	// Save via backend (will use updated paths with texture metadata)
 	// NOTE: saveUserMaterialToUserLocation() emits MaterialRegistry::instance().materialsChanged()
@@ -1805,34 +1828,24 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	// Mark key as user key
 	MaterialLibraryWidget::s_userMaterialKeys.insert(key);
 
-	qDebug() << "=== POST-SAVE SEQUENCE START ===";
-
 	// Refresh the tree and select the newly saved material
 	if (auto* libWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget))
 	{
-		qDebug() << "  Blocking signals on tree widget...";
 		// Block ALL signals during tree refresh to prevent any signal-driven side effects
 		// This prevents materialSelected/materialPreview from triggering handlers
 		libWidget->blockSignals(true);
 
-		qDebug() << "  Refreshing tree...";
 		// Refresh the tree to populate with new material
 		libWidget->refreshMaterialTree();
-		qDebug() << "  Tree refreshed";
 
-		qDebug() << "  Selecting material by key:" << key;
 		// Select the newly saved material by key (won't emit signals due to blockSignals)
 		libWidget->selectMaterialByKey(key);
-		qDebug() << "  Material selected";
 
-		qDebug() << "  Re-enabling signals...";
 		// Re-enable signals
 		libWidget->blockSignals(false);
-		qDebug() << "  Signals re-enabled";
 
 		// Now manually load the newly saved material into preview WITHOUT triggering handlers
 		// This bypasses all signal-based slot calls
-		qDebug() << "  Loading material into preview...";
 		if (libWidget->sharedMaterialMap().contains(key))
 		{
 			// Get the material from the cache (lambda already resolved relative paths to absolute)
@@ -1841,26 +1854,136 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 			// Load material directly into panel without going through signal handlers
 			// This prevents materialApplied from being emitted
 			_material = new GLMaterial(savedMat);
-			qDebug() << "  Calling bindMaterial...";
-			bindMaterial(_material);
-			qDebug() << "  bindMaterial completed";
 
-			// NOTE: DO NOT call loadMaterialTexturesFromKey() here!
-			// That function loads from the shipped materials.json, not user materials.json.
-			// The textures are already loaded with correct absolute paths because the lambda
-			// in saveUserMaterialToUserLocation::resolve relative paths to absolute when creating
-			// the material from the cache. bindMaterial() already set up all texture paths.
-			qDebug() << "  Material textures already loaded (paths resolved by lambda)";
+			// IMPORTANT: Load texture image files BEFORE bindMaterial()
+			// bindMaterial() calls updatePreview(), so textures must be loaded first
+			// otherwise the preview shows white until selection changes
+			loadTextureImageFiles();
+
+			bindMaterial(_material);
 		}
-		qDebug() << "  Material preview loaded";
 	}
 
-	qDebug() << "  Showing success message...";
 	QMessageBox::information(this, tr("Material Saved"),
 		tr("Material '%1' saved to your library as '%2'.").arg(name, key));
-	qDebug() << "  Success message closed";
-	qDebug() << "=== POST-SAVE SEQUENCE COMPLETED ===";
 
+}
+
+void MaterialPropertiesPanel::onDeleteMaterial()
+{
+	// Get selected material from tree
+	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+	if (!libraryWidget)
+	{
+		QMessageBox::warning(this, tr("No Library"), tr("Material library not available."));
+		return;
+	}
+
+	QList<QTreeWidgetItem*> selected = libraryWidget->selectedItems();
+	if (selected.isEmpty())
+	{
+		QMessageBox::information(this, tr("No Selection"), tr("Please select a material to delete."));
+		return;
+	}
+
+	// Get material key and group from selected item
+	QString materialKey = selected.first()->data(0, Qt::UserRole).toString();
+	QString materialName = selected.first()->text(0);
+
+	if (materialKey.isEmpty())
+	{
+		QMessageBox::warning(this, tr("Invalid Selection"), tr("Could not determine material key."));
+		return;
+	}
+
+	// Check if it's a user material or shipped material
+	bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
+
+	if (!isUserMaterial)
+	{
+		QMessageBox::information(this, tr("Cannot Delete Factory Material"),
+			tr("Factory materials cannot be deleted. Only user-created materials can be removed."));
+		return;
+	}
+
+	// Show confirmation dialog
+	QMessageBox::StandardButton reply =
+		QMessageBox::question(this,
+			tr("Delete Material?"),
+			tr("Are you sure you want to remove '%1' from your library?\n\nThis cannot be undone.").arg(materialName),
+			QMessageBox::Yes | QMessageBox::No,
+			QMessageBox::No);
+
+	if (reply != QMessageBox::Yes)
+	{
+		return;
+	}
+
+	// Get the group from the selected item's parent
+	QTreeWidgetItem* parentItem = selected.first()->parent();
+	if (!parentItem)
+	{
+		QMessageBox::warning(this, tr("Invalid Material"), tr("Could not determine material group."));
+		return;
+	}
+	QString groupLabel = parentItem->text(0);
+
+	// Block signals on tree widget to prevent unwanted signal handlers during deletion/refresh
+	if (libraryWidget)
+	{
+		libraryWidget->blockSignals(true);
+	}
+
+	// Delete from JSON via MaterialLibraryWidget
+	QString err;
+	bool removed = MaterialLibraryWidget::removeUserMaterialFromUserLocation(groupLabel, materialKey, nullptr, &err);
+
+	// Refresh tree while signals are blocked
+	if (libraryWidget && removed)
+	{
+		libraryWidget->refreshMaterialTree();
+	}
+
+	// Re-enable signals
+	if (libraryWidget)
+	{
+		libraryWidget->blockSignals(false);
+	}
+
+	if (!removed)
+	{
+		QMessageBox::warning(this, tr("Delete Failed"),
+			tr("Failed to delete material from library:\n%1").arg(err));
+		return;
+	}
+
+	// Delete the material folder (texture files)
+	QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+	QString materialFolder = QDir(userRoot).filePath(materialKey);
+	QDir materialDir(materialFolder);
+
+	if (materialDir.exists())
+	{
+		if (!materialDir.removeRecursively())
+		{
+			QMessageBox::warning(this, tr("Folder Deletion Failed"),
+				tr("Could not delete material folder. The material was removed from the library, but texture files remain at:\n%1").arg(materialFolder));
+		}
+	}
+
+	// Clear preview panel
+	_material = nullptr;
+	// Clear all UI elements
+	if (_ui && _ui->treeWidget)
+	{
+		// Deselect
+		for (auto item : _ui->treeWidget->selectedItems())
+			item->setSelected(false);
+	}
+
+	// Show success message
+	QMessageBox::information(this, tr("Material Deleted"),
+		tr("Material '%1' has been removed from your library.").arg(materialName));
 }
 
 void MaterialPropertiesPanel::connectMaterialLibrarySignals()
