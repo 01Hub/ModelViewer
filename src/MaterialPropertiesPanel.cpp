@@ -9,8 +9,11 @@
 #include "PathUtils.h"
 #include "TextureParametersDialog.h"
 #include "ui_MaterialPropertiesPanel.h"
+#include <QApplication>
 #include <QColorDialog>
+#include <QClipboard>
 #include <QComboBox>
+#include <QDateTime>
 #include <QDoubleSpinBox>
 #include <QDir>
 #include <QDragEnterEvent>
@@ -181,8 +184,6 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		connect(_ui->btnAlbedoColor, &QPushButton::clicked, this, &MaterialPropertiesPanel::onAlbedoColorPicked);
 	if (_ui->btnEmissiveColor)
 		connect(_ui->btnEmissiveColor, &QPushButton::clicked, this, &MaterialPropertiesPanel::onEmissiveColorPicked);
-	if (_ui->btnCCColor)
-		connect(_ui->btnCCColor, &QPushButton::clicked, this, &MaterialPropertiesPanel::onClearcoatColorPicked);
 	if (_ui->btnSheenColor)
 		connect(_ui->btnSheenColor, &QPushButton::clicked, this, &MaterialPropertiesPanel::onSheenColorPicked);
 	if (_ui->btnDiffTransColor)
@@ -238,6 +239,12 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		});
 	}
 
+	// Connect New button
+	if (_ui->newButton)
+	{
+		connect(_ui->newButton, &QToolButton::clicked, this, &MaterialPropertiesPanel::onCreateNewMaterial);
+	}
+
 	// Connect Save to Library button
 	if (_ui->saveButton)
 	{
@@ -274,11 +281,107 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 
 	if (_ui->tintStrengthSpin)
 		connect(_ui->tintStrengthSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::updatePreview);
+
+	// Connect scalar property spinboxes to their change handlers
+	if (_ui->metalnessSpin)
+		connect(_ui->metalnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onMetallicChanged);
+	if (_ui->roughnessSpin)
+		connect(_ui->roughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onRoughnessChanged);
+	if (_ui->iorSpin)
+		connect(_ui->iorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onIORChanged);
+	if (_ui->opacitySpin)
+		connect(_ui->opacitySpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onOpacityChanged);
+	if (_ui->emissiveSpin)
+		connect(_ui->emissiveSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onEmissiveStrengthChanged);
+	if (_ui->clearcoatSpin)
+		connect(_ui->clearcoatSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onClearcoatChanged);
+	if (_ui->clearcoatRoughnessSpin)
+		connect(_ui->clearcoatRoughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onClearcoatRoughnessChanged);
+	if (_ui->sheenRoughnessSpin)
+		connect(_ui->sheenRoughnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onSheenRoughnessChanged);
+	if (_ui->transmissionSpin)
+		connect(_ui->transmissionSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onTransmissionChanged);
+	if (_ui->thicknessSpin)
+		connect(_ui->thicknessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onThicknessChanged);
+	if (_ui->alphaThresholdSpin)
+		connect(_ui->alphaThresholdSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onAlphaThresholdChanged);
+	if (_ui->occlusionStrengthSpin)
+		connect(_ui->occlusionStrengthSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onOcclusionStrengthChanged);
+	if (_ui->doubleSpinBoxAnisotropyStrength)
+		connect(_ui->doubleSpinBoxAnisotropyStrength, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onAnisotropyStrengthChanged);
+	if (_ui->doubleSpinBoxAnisotropyRotation)
+		connect(_ui->doubleSpinBoxAnisotropyRotation, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onAnisotropyRotationChanged);
+	if (_ui->doubleSpinBoxDiffuseTransmissionFactor)
+		connect(_ui->doubleSpinBoxDiffuseTransmissionFactor, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onDiffuseTransmissionFactorChanged);
+	if (_ui->doubleSpinBoxSpecularFactor)
+		connect(_ui->doubleSpinBoxSpecularFactor, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onSpecularFactorChanged);
+	if (_ui->doubleSpinBoxNormalScale)
+		connect(_ui->doubleSpinBoxNormalScale, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onNormalScaleChanged);
+	if (_ui->doubleSpinBoxHeightScale)
+		connect(_ui->doubleSpinBoxHeightScale, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onHeightScaleChanged);
+	if (_ui->doubleSpinBoxClearcoatNormalScale)
+		connect(_ui->doubleSpinBoxClearcoatNormalScale, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onClearcoatNormalScaleChanged);
+	if (_ui->iridescenceFactorSpin)
+		connect(_ui->iridescenceFactorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onIridescenceStrengthChanged);
+	if (_ui->iridescenceThicknessMinSpin)
+		connect(_ui->iridescenceThicknessMinSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onIridescenceThicknessChanged);
+	if (_ui->iridescenceIorSpin)
+		connect(_ui->iridescenceIorSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onIridescenceIORChanged);
+	if (_ui->iridescenceThicknessMaxSpin)
+		connect(_ui->iridescenceThicknessMaxSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onIridescenceThinFilmThicknessChanged);
+
+	// Connect combo boxes to their change handlers
+	if (_ui->shadingCombo)
+		connect(_ui->shadingCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MaterialPropertiesPanel::onShadingModelChanged);
+	if (_ui->blendCombo)
+		connect(_ui->blendCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MaterialPropertiesPanel::onBlendModeChanged);
+
+	// Connect checkboxes to their change handlers
+	if (_ui->twoSidedCheck)
+		connect(_ui->twoSidedCheck, &QCheckBox::toggled, this, &MaterialPropertiesPanel::onTwoSidedToggled);
+	if (_ui->wireframeCheck)
+		connect(_ui->wireframeCheck, &QCheckBox::toggled, this, &MaterialPropertiesPanel::onWireframeToggled);
+	if (_ui->unlitCheck)
+		connect(_ui->unlitCheck, &QCheckBox::toggled, this, &MaterialPropertiesPanel::onUnlitToggled);
 }
 
 MaterialPropertiesPanel::~MaterialPropertiesPanel()
 {
 	delete _ui;
+}
+
+void MaterialPropertiesPanel::closeEvent(QCloseEvent* event)
+{
+	// Check if there are any unsaved materials
+	if (!_unsavedMaterialKeys.isEmpty())
+	{
+		QMessageBox::StandardButton reply =
+			QMessageBox::question(this,
+				tr("Unsaved Materials"),
+				tr("You have %1 unsaved material(s) in the library. "
+					"Would you like to save them before closing?").arg(_unsavedMaterialKeys.size()),
+				QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,
+				QMessageBox::Save);
+
+		if (reply == QMessageBox::Cancel)
+		{
+			event->ignore();
+			return;
+		}
+		else if (reply == QMessageBox::Save)
+		{
+			// For now, just warn the user to manually save each one
+			// In a more sophisticated implementation, we could iterate and save all
+			QMessageBox::information(this,
+				tr("Manual Save Required"),
+				tr("Please save each unsaved material individually by selecting it and clicking 'Save'."));
+			event->ignore();
+			return;
+		}
+		// If Discard, proceed with closing (ignore unsaved changes)
+	}
+
+	QWidget::closeEvent(event);
 }
 
 // ============================================================================
@@ -393,11 +496,6 @@ float MaterialPropertiesPanel::getClearcoatRoughness() const
 	return _material->clearcoatRoughness();
 }
 
-QVector3D MaterialPropertiesPanel::getClearcoatColor() const
-{
-	return QVector3D(1.0f, 1.0f, 1.0f);
-}
-
 QVector3D MaterialPropertiesPanel::getSheenColor() const
 {
 	if (!_material) return QVector3D();
@@ -469,17 +567,18 @@ void MaterialPropertiesPanel::onAlbedoColorPicked()
 	if (color.isValid())
 	{
 		_material->setAlbedoColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
+		updateUnsavedMaterialInMap();
 		updateScalarUI();
 		updatePreview();
 		emit materialChanged(_material);
 	}
 }
 
-void MaterialPropertiesPanel::onMetallicChanged(double value) { if (_material && !_updateInProgress) { _material->setMetalness(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setRoughness(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onIORChanged(double value) { if (_material && !_updateInProgress) { _material->setIOR(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onOpacityChanged(double value) { if (_material && !_updateInProgress) { _material->setOpacity(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onEmissiveStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setEmissiveStrength(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onMetallicChanged(double value) { if (_material && !_updateInProgress) { _material->setMetalness(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setRoughness(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onIORChanged(double value) { if (_material && !_updateInProgress) { _material->setIOR(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onOpacityChanged(double value) { if (_material && !_updateInProgress) { _material->setOpacity(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onEmissiveStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setEmissiveStrength(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
 
 void MaterialPropertiesPanel::onEmissiveColorPicked()
 {
@@ -488,25 +587,15 @@ void MaterialPropertiesPanel::onEmissiveColorPicked()
 	if (color.isValid())
 	{
 		_material->setEmissive(QVector3D(color.redF(), color.greenF(), color.blueF()));
+		updateUnsavedMaterialInMap();
 		updateScalarUI();
 		updatePreview();
 		emit materialChanged(_material);
 	}
 }
 
-void MaterialPropertiesPanel::onClearcoatChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoat(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onClearcoatRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoatRoughness(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onClearcoatColorPicked()
-{
-	if (!_material || !_ui) return;
-	QColor color = QColorDialog::getColor(QColor(255, 255, 255), this);
-	if (color.isValid())
-	{
-		setButtonColorWithContrast(_ui->btnCCColor, color);
-		updatePreview();
-		emit materialChanged(_material);
-	}
-}
+void MaterialPropertiesPanel::onClearcoatChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoat(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onClearcoatRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoatRoughness(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onSheenColorPicked()
 {
 	if (!_material || !_ui) return;
@@ -515,20 +604,21 @@ void MaterialPropertiesPanel::onSheenColorPicked()
 	{
 		_material->setSheenColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
 		setButtonColorWithContrast(_ui->btnSheenColor, color);
+		updateUnsavedMaterialInMap();
 		updatePreview();
 		emit materialChanged(_material);
 	}
 }
-void MaterialPropertiesPanel::onSheenRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setSheenRoughness(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onTransmissionChanged(double value) { if (_material && !_updateInProgress) { _material->setTransmission(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setThicknessFactor(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onNormalScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setNormalScale(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onHeightScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setHeightScale(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onClearcoatNormalScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoatNormalScale(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onOcclusionStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setOcclusionStrength(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onAnisotropyStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setAnisotropyStrength(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onAnisotropyRotationChanged(double value) { if (_material && !_updateInProgress) { _material->setAnisotropyRotation(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onDiffuseTransmissionFactorChanged(double value) { if (_material && !_updateInProgress) { _material->setDiffuseTransmissionFactor(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onSheenRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setSheenRoughness(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onTransmissionChanged(double value) { if (_material && !_updateInProgress) { _material->setTransmission(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setThicknessFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onNormalScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setNormalScale(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onHeightScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setHeightScale(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onClearcoatNormalScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoatNormalScale(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onOcclusionStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setOcclusionStrength(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onAnisotropyStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setAnisotropyStrength(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onAnisotropyRotationChanged(double value) { if (_material && !_updateInProgress) { _material->setAnisotropyRotation(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onDiffuseTransmissionFactorChanged(double value) { if (_material && !_updateInProgress) { _material->setDiffuseTransmissionFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onDiffuseTransmissionColorPicked()
 {
 	if (!_material || !_ui) return;
@@ -537,11 +627,12 @@ void MaterialPropertiesPanel::onDiffuseTransmissionColorPicked()
 	{
 		_material->setDiffuseTransmissionColorFactor(QVector3D(color.redF(), color.greenF(), color.blueF()));
 		setButtonColorWithContrast(_ui->btnDiffTransColor, color);
+		updateUnsavedMaterialInMap();
 		updatePreview();
 		emit materialChanged(_material);
 	}
 }
-void MaterialPropertiesPanel::onSpecularFactorChanged(double value) { if (_material && !_updateInProgress) { _material->setSpecularFactor(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onSpecularFactorChanged(double value) { if (_material && !_updateInProgress) { _material->setSpecularFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onSpecularColorPicked()
 {
 	if (!_material || !_ui) return;
@@ -550,20 +641,21 @@ void MaterialPropertiesPanel::onSpecularColorPicked()
 	{
 		_material->setSpecularColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
 		setButtonColorWithContrast(_ui->btnSpecularColor, color);
+		updateUnsavedMaterialInMap();
 		updatePreview();
 		emit materialChanged(_material);
 	}
 }
-void MaterialPropertiesPanel::onShadingModelChanged(int index) { if (_material && !_updateInProgress) { _material->setShadingModel(static_cast<GLMaterial::ShadingModel>(index)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onBlendModeChanged(int index) { if (_material && !_updateInProgress) { _material->setBlendMode(static_cast<GLMaterial::BlendMode>(index)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onTwoSidedToggled(bool checked) { if (_material && !_updateInProgress) { _material->setTwoSided(checked); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onWireframeToggled(bool checked) { if (_material && !_updateInProgress) { _material->setWireframe(checked); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onAlphaThresholdChanged(double value) { if (_material && !_updateInProgress) { _material->setAlphaThreshold(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onUnlitToggled(bool checked) { if (_material && !_updateInProgress) { _material->setUnlit(checked); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onIridescenceStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceFactor(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onIridescenceThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceThicknessMin(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onIridescenceIORChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceIor(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onIridescenceThinFilmThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceThicknessMax(static_cast<float>(value)); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onShadingModelChanged(int index) { if (_material && !_updateInProgress) { _material->setShadingModel(static_cast<GLMaterial::ShadingModel>(index)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onBlendModeChanged(int index) { if (_material && !_updateInProgress) { _material->setBlendMode(static_cast<GLMaterial::BlendMode>(index)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onTwoSidedToggled(bool checked) { if (_material && !_updateInProgress) { _material->setTwoSided(checked); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onWireframeToggled(bool checked) { if (_material && !_updateInProgress) { _material->setWireframe(checked); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onAlphaThresholdChanged(double value) { if (_material && !_updateInProgress) { _material->setAlphaThreshold(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onUnlitToggled(bool checked) { if (_material && !_updateInProgress) { _material->setUnlit(checked); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onIridescenceStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onIridescenceThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceThicknessMin(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onIridescenceIORChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceIor(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onIridescenceThinFilmThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceThicknessMax(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
 
 // ============================================================================
 // Texture Management
@@ -629,6 +721,32 @@ void MaterialPropertiesPanel::connectTextureSignals()
 
 		connect(slot.button, &QPushButton::clicked, this, [this, type = it.key()]() {
 			onTextureButtonClicked(type);
+		});
+
+		// Set up context menu for texture button (right-click)
+		slot.button->setContextMenuPolicy(Qt::CustomContextMenu);
+		connect(slot.button, &QWidget::customContextMenuRequested, this, [this, btn = slot.button, type = it.key()](const QPoint& pos) {
+			QMenu menu(btn);
+
+			// Channel Packing option (if gear button exists)
+			if (_textureSlots[type].gear)
+			{
+				menu.addAction(tr("Channel Packing..."), this, [this, type]() { openPackingDialogFor(type); });
+				menu.addSeparator();
+			}
+
+			// Replace option
+			menu.addAction(tr("Replace..."), this, [this, btn]() { btn->click(); });
+
+			// Clear option
+			menu.addAction(tr("Clear"), this, [this, type]() {
+				clearTextureMap(type);
+				applyButtonEmptyIcon(_textureSlots[type]);
+				updatePreview();
+				emit materialChanged(_material);
+			});
+
+			menu.exec(btn->mapToGlobal(pos));
 		});
 
 		if (slot.factorSpinBox)
@@ -951,6 +1069,7 @@ void MaterialPropertiesPanel::loadScalarValuesFromMaterial()
 	// Checkboxes
 	if (_ui->twoSidedCheck) _ui->twoSidedCheck->setChecked(_material->twoSided());
 	if (_ui->wireframeCheck) _ui->wireframeCheck->setChecked(_material->wireframe());
+	if (_ui->unlitCheck) _ui->unlitCheck->setChecked(_material->isUnlit());
 
 	_updateInProgress = false;
 }
@@ -1529,10 +1648,12 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 			QString materialKey = selected.first()->data(0, Qt::UserRole).toString();
 			if (!materialKey.isEmpty())
 			{
-				// For user materials, the texture paths have been resolved by the lambda,
-				// but we still need to load the actual texture image files from disk
+				// For user materials or unsaved materials, the texture paths are already in the material object
+				// We just need to load the texture image files from disk
 				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
-				if (isUserMaterial)
+				bool isUnsavedMaterial = materialKey.startsWith("_UNSAVED_");
+
+				if (isUserMaterial || isUnsavedMaterial)
 				{
 					loadTextureImageFiles();
 				}
@@ -1569,10 +1690,11 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 			QString materialKey = selected.first()->data(0, Qt::UserRole).toString();
 			if (!materialKey.isEmpty())
 			{
-				// For user materials, the texture paths have been resolved by the lambda,
-				// but we still need to load the actual texture image files from disk
+				// For user materials or unsaved materials, the texture paths are already in the material object
 				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
-				if (isUserMaterial)
+				bool isUnsavedMaterial = materialKey.startsWith("_UNSAVED_");
+
+				if (isUserMaterial || isUnsavedMaterial)
 				{
 					loadTextureImageFiles();
 				}
@@ -1606,6 +1728,80 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	QString key;
 	QString name;
 	QString groupLabel;
+
+	// Check if this is an unsaved material created via "New" button
+	if (_currentMaterialKey.startsWith("_UNSAVED_"))
+	{
+		// This is a newly created unsaved material
+		// The name and group were already set during onCreateNewMaterial()
+		// Extract the name from the tree (it has " *" suffix)
+		MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+		if (libraryWidget)
+		{
+			QList<QTreeWidgetItem*> items = libraryWidget->findItems("*", Qt::MatchRecursive | Qt::MatchWildcard);
+			for (QTreeWidgetItem* item : items)
+			{
+				if (item->data(0, Qt::UserRole).toString() == _currentMaterialKey)
+				{
+					QString displayName = item->text(0);
+					// Remove the " *" suffix
+					if (displayName.endsWith(" *"))
+					{
+						name = displayName.mid(0, displayName.length() - 2);
+					}
+					else
+					{
+						name = displayName;
+					}
+					break;
+				}
+			}
+		}
+
+		if (name.isEmpty())
+		{
+			name = QStringLiteral("New Material");
+		}
+
+		// Generate key from the original name
+		QString suggestedKey = name.toUpper().simplified().replace(' ', '_');
+
+		// Ensure suggested key doesn't collide
+		const auto& sharedMap = MaterialLibraryWidget::sharedMaterialMap();
+		int suffix = 1;
+		QString trialKey = suggestedKey;
+		while (sharedMap.contains(trialKey)) {
+			trialKey = QString("%1_%2").arg(suggestedKey).arg(suffix++);
+		}
+
+		bool okKey = false;
+		QString enteredKey = QInputDialog::getText(this,
+			tr("Material Key"),
+			tr("Enter unique material key (no spaces, letters and underscores only):"),
+			QLineEdit::Normal,
+			trialKey,
+			&okKey);
+		if (!okKey || enteredKey.trimmed().isEmpty()) return;
+		key = enteredKey.trimmed().simplified().replace(' ', '_');
+
+		// Check for collisions with factory materials
+		if (sharedMap.contains(key) && !MaterialLibraryWidget::s_userMaterialKeys.contains(key))
+		{
+			QMessageBox::warning(this, tr("Key Not Allowed"),
+				tr("That key collides with a factory material. Please choose a different key."));
+			return;
+		}
+
+		// Use the stored group
+		groupLabel = _currentMaterialGroup;
+		if (groupLabel.isEmpty())
+		{
+			groupLabel = QStringLiteral("User Materials");
+		}
+
+		// Remove the unsaved marker
+		_unsavedMaterialKeys.remove(_currentMaterialKey);
+	}
 
 	// Try to get defaults from MaterialLibraryWidget
 	if (auto* libWidget = qobject_cast<MaterialLibraryWidget*>(sender())) {
@@ -1825,8 +2021,70 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		return;
 	}
 
-	// Mark key as user key
+	// If this was an unsaved material, clean up the old unsaved entry BEFORE refreshing
+	if (!_currentMaterialKey.isEmpty() && _currentMaterialKey.startsWith("_UNSAVED_"))
+	{
+		// Remove from s_materialMap
+		auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+			MaterialLibraryWidget::sharedMaterialMap());
+		sharedMap.remove(_currentMaterialKey);
+
+		// Remove from s_groups
+		auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
+			MaterialLibraryWidget::sharedGroups());
+
+		for (auto& groupPair : mutableGroups)
+		{
+			// Search in ALL groups for the old unsaved entry
+			for (int i = 0; i < groupPair.second.size(); ++i)
+			{
+				if (groupPair.second[i].second == _currentMaterialKey)
+				{
+					groupPair.second.removeAt(i);
+					qDebug() << "Removed old unsaved material from group:" << groupPair.first;
+					break;
+				}
+			}
+		}
+
+		// Remove from unsaved set
+		_unsavedMaterialKeys.remove(_currentMaterialKey);
+		qDebug() << "Cleaned up old unsaved material:" << _currentMaterialKey << "New key:" << key;
+	}
+
+	// Mark key as user key (after cleanup)
 	MaterialLibraryWidget::s_userMaterialKeys.insert(key);
+
+	// CRITICAL: Update the shared map lambda with the just-saved material
+	// BUT: Convert relative texture paths back to absolute paths for the shared map
+	// The JSON file has relative paths, but the runtime needs absolute paths
+	{
+		GLMaterial matWithAbsolutePaths = mat;
+		QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+		QString materialFolder = QDir(userRoot).filePath(key);
+
+		// Restore absolute paths from relative paths
+		for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i) {
+			GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+			GLMaterial::Texture tex = matWithAbsolutePaths.texture(type);
+
+			if (tex.path.empty()) continue;
+
+			QString texPath = QString::fromStdString(tex.path);
+			// If it's relative (just filename, no path separators), convert to absolute
+			if (!texPath.contains('/') && !texPath.contains('\\')) {
+				QString absolutePath = QDir(materialFolder).filePath(texPath);
+				tex.path = absolutePath.toStdString();
+				matWithAbsolutePaths.setTexture(type, tex);
+				qDebug() << "Restored absolute path for" << QString::fromStdString(tex.type) << ":" << absolutePath;
+			}
+		}
+
+		auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+			MaterialLibraryWidget::sharedMaterialMap());
+		sharedMap[key] = [material = matWithAbsolutePaths]() { return material; };
+		qDebug() << "Updated shared map lambda for saved material:" << key;
+	}
 
 	// Refresh the tree and select the newly saved material
 	if (auto* libWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget))
@@ -1864,8 +2122,12 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		}
 	}
 
+	// Update current material key to the saved key
+	_currentMaterialKey = key;
+	_currentMaterialGroup = groupLabel;
+
 	QMessageBox::information(this, tr("Material Saved"),
-		tr("Material '%1' saved to your library as '%2'.").arg(name, key));
+		tr("Material '%1' successfully saved to your library under category '%2'.").arg(name, groupLabel));
 
 }
 
@@ -1896,13 +2158,14 @@ void MaterialPropertiesPanel::onDeleteMaterial()
 		return;
 	}
 
-	// Check if it's a user material or shipped material
+	// Check if it's an unsaved, user material, or shipped material
+	bool isUnsavedMaterial = materialKey.startsWith("_UNSAVED_");
 	bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
 
-	if (!isUserMaterial)
+	if (!isUserMaterial && !isUnsavedMaterial)
 	{
 		QMessageBox::information(this, tr("Cannot Delete Factory Material"),
-			tr("Factory materials cannot be deleted. Only user-created materials can be removed."));
+			tr("Factory materials cannot be deleted. Only user-created or unsaved materials can be removed."));
 		return;
 	}
 
@@ -1934,9 +2197,71 @@ void MaterialPropertiesPanel::onDeleteMaterial()
 		libraryWidget->blockSignals(true);
 	}
 
-	// Delete from JSON via MaterialLibraryWidget
-	QString err;
-	bool removed = MaterialLibraryWidget::removeUserMaterialFromUserLocation(groupLabel, materialKey, nullptr, &err);
+	bool removed = false;
+
+	// Handle unsaved materials differently - just remove from memory, not from JSON
+	if (isUnsavedMaterial)
+	{
+		// Remove from s_materialMap
+		auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+			MaterialLibraryWidget::sharedMaterialMap());
+		sharedMap.remove(materialKey);
+
+		// Remove from s_groups
+		auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
+			MaterialLibraryWidget::sharedGroups());
+		for (auto& groupPair : mutableGroups)
+		{
+			if (groupPair.first == groupLabel)
+			{
+				for (int i = 0; i < groupPair.second.size(); ++i)
+				{
+					if (groupPair.second[i].second == materialKey)
+					{
+						groupPair.second.removeAt(i);
+						break;
+					}
+				}
+				break;
+			}
+		}
+
+		// Remove from unsaved set
+		_unsavedMaterialKeys.remove(materialKey);
+
+		removed = true;
+	}
+	else
+	{
+		// Delete from JSON via MaterialLibraryWidget (for saved user materials)
+		QString err;
+		removed = MaterialLibraryWidget::removeUserMaterialFromUserLocation(groupLabel, materialKey, nullptr, &err);
+
+		if (!removed)
+		{
+			QMessageBox::warning(this, tr("Delete Failed"),
+				tr("Failed to delete material from library:\n%1").arg(err));
+			if (libraryWidget)
+			{
+				libraryWidget->blockSignals(false);
+			}
+			return;
+		}
+
+		// Delete the material folder (texture files)
+		QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+		QString materialFolder = QDir(userRoot).filePath(materialKey);
+		QDir materialDir(materialFolder);
+
+		if (materialDir.exists())
+		{
+			if (!materialDir.removeRecursively())
+			{
+				QMessageBox::warning(this, tr("Folder Deletion Failed"),
+					tr("Could not delete material folder. The material was removed from the library, but texture files remain at:\n%1").arg(materialFolder));
+			}
+		}
+	}
 
 	// Refresh tree while signals are blocked
 	if (libraryWidget && removed)
@@ -1948,27 +2273,6 @@ void MaterialPropertiesPanel::onDeleteMaterial()
 	if (libraryWidget)
 	{
 		libraryWidget->blockSignals(false);
-	}
-
-	if (!removed)
-	{
-		QMessageBox::warning(this, tr("Delete Failed"),
-			tr("Failed to delete material from library:\n%1").arg(err));
-		return;
-	}
-
-	// Delete the material folder (texture files)
-	QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
-	QString materialFolder = QDir(userRoot).filePath(materialKey);
-	QDir materialDir(materialFolder);
-
-	if (materialDir.exists())
-	{
-		if (!materialDir.removeRecursively())
-		{
-			QMessageBox::warning(this, tr("Folder Deletion Failed"),
-				tr("Could not delete material folder. The material was removed from the library, but texture files remain at:\n%1").arg(materialFolder));
-		}
 	}
 
 	// Clear preview panel
@@ -1984,6 +2288,120 @@ void MaterialPropertiesPanel::onDeleteMaterial()
 	// Show success message
 	QMessageBox::information(this, tr("Material Deleted"),
 		tr("Material '%1' has been removed from your library.").arg(materialName));
+}
+
+void MaterialPropertiesPanel::onCreateNewMaterial()
+{
+	if (!_material) {
+		QMessageBox::warning(this, tr("No Material"), tr("No material is currently loaded to create from."));
+		return;
+	}
+
+	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+	if (!libraryWidget)
+	{
+		QMessageBox::warning(this, tr("No Library"), tr("Material library not available."));
+		return;
+	}
+
+	// Get available groups from library
+	QStringList groups;
+	const auto& sharedGroups = MaterialLibraryWidget::sharedGroups();
+	for (const auto& groupPair : sharedGroups)
+	{
+		groups << groupPair.first;
+	}
+
+	if (groups.isEmpty())
+	{
+		groups << QStringLiteral("User Materials");
+	}
+
+	// Ask user for material name
+	bool okName = false;
+	QString suggestedName = QStringLiteral("New Material");
+	QString materialName = QInputDialog::getText(this,
+		tr("New Material Name"),
+		tr("Enter a name for the new material:"),
+		QLineEdit::Normal,
+		suggestedName,
+		&okName);
+
+	if (!okName || materialName.trimmed().isEmpty())
+	{
+		return;
+	}
+	materialName = materialName.trimmed();
+
+	// Ask user for group/category
+	bool okGroup = false;
+	QString selectedGroup = QInputDialog::getItem(this,
+		tr("Choose Category"),
+		tr("Select a category for this material:"),
+		groups,
+		0,
+		false,  // not editable
+		&okGroup);
+
+	if (!okGroup || selectedGroup.isEmpty())
+	{
+		return;
+	}
+
+	// Generate a unique key for this unsaved material
+	static int unsavedCounter = 0;
+	QString materialKey = QString("_UNSAVED_%1_%2")
+		.arg(QDateTime::currentMSecsSinceEpoch())
+		.arg(unsavedCounter++);
+
+	// Copy current material - this copies all scalars and texture paths
+	GLMaterial newMaterial = *_material;
+
+	// Make sure we have the full material with all properties
+	qDebug() << "Creating new material from:" << materialName
+		<< "Albedo:" << newMaterial.albedoMapPath()
+		<< "Normal:" << newMaterial.normalMapPath()
+		<< "Metallic:" << newMaterial.metallicMapPath();
+
+	// Add to the shared material map in memory
+	auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+		MaterialLibraryWidget::sharedMaterialMap());
+	sharedMap[materialKey] = [newMaterial]() { return newMaterial; };
+
+	// Add to the appropriate group in s_groups
+	auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
+		MaterialLibraryWidget::sharedGroups());
+
+	for (auto& groupPair : mutableGroups)
+	{
+		if (groupPair.first == selectedGroup)
+		{
+			// Add material to this group: (displayName with asterisk, key)
+			// Note: s_groups structure is QPair<displayName, key>
+			groupPair.second.append(qMakePair(materialName + " *", materialKey));
+			break;
+		}
+	}
+
+	// Mark as unsaved
+	_unsavedMaterialKeys.insert(materialKey);
+	_currentMaterialKey = materialKey;
+
+	// Store the group so we can use it when saving
+	_currentMaterialGroup = selectedGroup;
+
+	qDebug() << "Created new unsaved material:" << materialKey << "name:" << materialName << "group:" << selectedGroup;
+
+	// Refresh tree to show the new material
+	libraryWidget->blockSignals(true);
+	libraryWidget->refreshMaterialTree();
+	libraryWidget->blockSignals(false);
+
+	// Select the newly created material
+	libraryWidget->selectMaterialByKey(materialKey);
+
+	QMessageBox::information(this, tr("Material Created"),
+		tr("New material '%1' created in category '%2'.\n\nModify it and then click 'Save' to persist it to your library.").arg(materialName, selectedGroup));
 }
 
 void MaterialPropertiesPanel::connectMaterialLibrarySignals()
@@ -2002,9 +2420,60 @@ void MaterialPropertiesPanel::connectMaterialLibrarySignals()
 	}
 }
 
+void MaterialPropertiesPanel::updateUnsavedMaterialInMap()
+{
+	if (!_material || _currentMaterialKey.isEmpty()) return;
+
+	auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+		MaterialLibraryWidget::sharedMaterialMap());
+
+	// Update both unsaved and user materials in the shared map
+	// This ensures modified scalars are captured and available when tree is refreshed
+	if (_currentMaterialKey.startsWith("_UNSAVED_") || MaterialLibraryWidget::s_userMaterialKeys.contains(_currentMaterialKey))
+	{
+		sharedMap[_currentMaterialKey] = [mat = *_material]() { return mat; };
+	}
+}
+
 void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)
 {
 	QMenu menu;
+
+	// Check if context menu was requested from the tree widget
+	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+	if (libraryWidget)
+	{
+		QList<QTreeWidgetItem*> selected = libraryWidget->selectedItems();
+		if (!selected.isEmpty())
+		{
+			QString materialName = selected.first()->text(0);
+			QString materialKey = selected.first()->data(0, Qt::UserRole).toString();
+
+			// Add tree-specific menu items
+			menu.addAction(tr("Copy Name"), this, [materialName]() {
+				QApplication::clipboard()->setText(materialName);
+			});
+
+			menu.addAction(tr("Copy Key"), this, [materialKey]() {
+				QApplication::clipboard()->setText(materialKey);
+			});
+
+			menu.addSeparator();
+
+			// Allow deletion if it's a user or unsaved material
+			bool isUnsavedMaterial = materialKey.startsWith("_UNSAVED_");
+			bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
+
+			if (isUserMaterial || isUnsavedMaterial)
+			{
+				menu.addAction(tr("Delete"), this, &MaterialPropertiesPanel::onDeleteMaterial);
+			}
+
+			menu.addSeparator();
+		}
+	}
+
+	// Add global panel option
 	menu.addAction(tr("Clear All Textures"), this, &MaterialPropertiesPanel::onClearAllTextures);
 	menu.exec(mapToGlobal(pos));
 }

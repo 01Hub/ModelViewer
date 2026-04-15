@@ -16,6 +16,7 @@
 #include <QFileDialog>
 #include <QColorDialog>
 #include <QComboBox>
+#include <QCloseEvent>
 
 #include "GLMaterial.h"
 
@@ -57,7 +58,6 @@ public:
 	QVector3D getEmissiveColor() const;
 	float getClearcoat() const;
 	float getClearcoatRoughness() const;
-	QVector3D getClearcoatColor() const;
 	QVector3D getSheenColor() const;
 	float getSheenRoughness() const;
 	float getTransmission() const;
@@ -104,7 +104,6 @@ private slots:
 	void onEmissiveColorPicked();
 	void onClearcoatChanged(double value);
 	void onClearcoatRoughnessChanged(double value);
-	void onClearcoatColorPicked();
 	void onSheenColorPicked();
 	void onSheenRoughnessChanged(double value);
 	void onTransmissionChanged(double value);
@@ -140,13 +139,15 @@ private slots:
 	// Preset handlers
 	void onMaterialPresetSelected(const GLMaterial& material);
 	void onMaterialDoubleClicked(const GLMaterial& material);
-	void onSaveToLibrary();
+	void onCreateNewMaterial();  // Create new material (in-memory, unsaved)
+	void onSaveToLibrary();      // Save to user library JSON
 	void onDeleteMaterial();
 
 	void onContextMenu(const QPoint& pos);
 
 protected:
 	bool eventFilter(QObject* obj, QEvent* ev) override;
+	void closeEvent(QCloseEvent* event) override;
 
 private:
 	// Texture management
@@ -195,6 +196,9 @@ private:
 	void onTransformButtonClicked(GLMaterial::TextureType type);
 	void onSearchTextChanged(const QString& text);
 
+	// Helper to update unsaved material in shared map when scalars change
+	void updateUnsavedMaterialInMap();
+
 	void updatePreview();
 
 	// Preset operations
@@ -209,6 +213,11 @@ private:
 
 	// Material library signal management
 	void connectMaterialLibrarySignals();
+
+	// Material save/unsaved state tracking
+	QSet<QString> _unsavedMaterialKeys;  // Keys of materials created but not yet saved to JSON
+	QString _currentMaterialKey;         // Key of currently bound material (if any)
+	QString _currentMaterialGroup;       // Group/category of currently bound material (if unsaved)
 
 	// Members
 	Ui::MaterialPropertiesPanel* _ui = nullptr;
