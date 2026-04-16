@@ -118,6 +118,7 @@ private slots:
 	void onDiffuseTransmissionColorPicked();
 	void onSpecularFactorChanged(double value);
 	void onSpecularColorPicked();
+	void onAttenuationColorPicked();
 	void onShadingModelChanged(int index);
 	void onBlendModeChanged(int index);
 	void onTwoSidedToggled(bool checked);
@@ -140,7 +141,8 @@ private slots:
 	void onMaterialPresetSelected(const GLMaterial& material);
 	void onMaterialDoubleClicked(const GLMaterial& material);
 	void onCreateNewMaterial();  // Create new material (in-memory, unsaved)
-	void onSaveToLibrary();      // Save to user library JSON
+	void onSaveToLibrary();      // Save or overwrite user material
+	void onSaveAsToLibrary();    // Save as new copy of current material
 	void onDeleteMaterial();
 
 	void onContextMenu(const QPoint& pos);

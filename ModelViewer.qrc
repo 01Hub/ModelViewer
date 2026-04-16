@@ -62,6 +62,7 @@
         <file>res/save.png</file>
         <file>res/apply.png</file>
         <file>res/new.png</file>
+        <file>res/save_as.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

@@ -190,6 +190,8 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		connect(_ui->btnDiffTransColor, &QPushButton::clicked, this, &MaterialPropertiesPanel::onDiffuseTransmissionColorPicked);
 	if (_ui->btnSpecularColor)
 		connect(_ui->btnSpecularColor, &QPushButton::clicked, this, &MaterialPropertiesPanel::onSpecularColorPicked);
+	if (_ui->btnAttenuationColor)
+		connect(_ui->btnAttenuationColor, &QPushButton::clicked, this, &MaterialPropertiesPanel::onAttenuationColorPicked);
 
 	// Initialize material to default and bind
 	bindMaterial(new GLMaterial());
@@ -249,6 +251,12 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 	if (_ui->saveButton)
 	{
 		connect(_ui->saveButton, &QPushButton::clicked, this, &MaterialPropertiesPanel::onSaveToLibrary);
+	}
+
+	// Connect Save As button
+	if (_ui->saveButtonAs)
+	{
+		connect(_ui->saveButtonAs, &QToolButton::clicked, this, &MaterialPropertiesPanel::onSaveAsToLibrary);
 	}
 
 	// Connect Delete button
@@ -653,6 +661,21 @@ void MaterialPropertiesPanel::onSpecularColorPicked()
 		emit materialChanged(_material);
 	}
 }
+
+void MaterialPropertiesPanel::onAttenuationColorPicked()
+{
+	if (!_material || !_ui) return;
+	QColor color = QColorDialog::getColor(QColor(200, 200, 200), this, tr("Select Attenuation Color"));
+	if (color.isValid())
+	{
+		_material->setAttenuationColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
+		setButtonColorWithContrast(_ui->btnAttenuationColor, color);
+		updateUnsavedMaterialInMap();
+		updatePreview();
+		emit materialChanged(_material);
+	}
+}
+
 void MaterialPropertiesPanel::onShadingModelChanged(int index) { if (_material && !_updateInProgress) { _material->setShadingModel(static_cast<GLMaterial::ShadingModel>(index)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onBlendModeChanged(int index) { if (_material && !_updateInProgress) { _material->setBlendMode(static_cast<GLMaterial::BlendMode>(index)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onTwoSidedToggled(bool checked) { if (_material && !_updateInProgress) { _material->setTwoSided(checked); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
@@ -1833,9 +1856,29 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	GLMaterial mat = *_material;
 
 	// Derive defaults from selected tree item (if any)
-	QString key;
+	QString key = _currentMaterialKey;
 	QString name;
 	QString groupLabel;
+
+	// Check if current material is an existing user material (not factory, not unsaved)
+	const auto& sharedMap = MaterialLibraryWidget::sharedMaterialMap();
+	bool isExistingUserMaterial = !key.isEmpty() &&
+	                               !key.startsWith("_UNSAVED_") &&
+	                               sharedMap.contains(key) &&
+	                               MaterialLibraryWidget::s_userMaterialKeys.contains(key);
+
+	// If existing user material, overwrite directly without prompting
+	if (isExistingUserMaterial)
+	{
+		saveCurrentMaterialTexturesBeforeSwitch();
+		if (saveCurrentPresetMetadata())
+		{
+			_unsavedMaterialKeys.remove(key);
+			qDebug() << "Overwrote user material:" << key;
+			QMessageBox::information(this, tr("Material Saved"), tr("User material '%1' has been updated.").arg(key));
+		}
+		return;
+	}
 
 	// Check if this is an unsaved material created via "New" button
 	if (_currentMaterialKey.startsWith("_UNSAVED_"))
@@ -1938,7 +1981,6 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	}
 
 	// Determine whether the current key exists and whether it is user or factory
-	const auto& sharedMap = MaterialLibraryWidget::sharedMaterialMap();
 	bool keyExists = !key.isEmpty() && sharedMap.contains(key);
 	bool isUserKey = MaterialLibraryWidget::s_userMaterialKeys.contains(key);
 
@@ -2239,6 +2281,215 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 
 }
 
+void MaterialPropertiesPanel::onSaveAsToLibrary()
+{
+	if (!_material) {
+		QMessageBox::warning(this, tr("No Material"), tr("No material is currently bound to save."));
+		return;
+	}
+
+	// Save As always creates a new user material (copy of current material)
+	GLMaterial mat = *_material;
+
+	QString name;
+	QString groupLabel;
+
+	// Get current material name for suggestion
+	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+	if (libraryWidget)
+	{
+		QList<QTreeWidgetItem*> selected = libraryWidget->selectedItems();
+		if (!selected.isEmpty())
+		{
+			name = selected.first()->text(0);
+			// Remove " *" suffix if present
+			if (name.endsWith(" *"))
+				name = name.mid(0, name.length() - 2);
+		}
+	}
+
+	if (name.isEmpty())
+		name = _currentMaterialKey.isEmpty() ? "New Material" : _currentMaterialKey;
+
+	// Ask for new name
+	QString suggestedName = QString("Copy of %1").arg(name);
+	bool okName = false;
+	QString enteredName = QInputDialog::getText(this,
+		tr("Material Name"),
+		tr("Enter name for new material:"),
+		QLineEdit::Normal,
+		suggestedName,
+		&okName);
+	if (!okName || enteredName.trimmed().isEmpty()) return;
+	name = enteredName.trimmed();
+
+	// Generate key from the name
+	QString suggestedKey = name.toUpper().simplified().replace(' ', '_');
+
+	// Ensure suggested key doesn't collide
+	const auto& sharedMap = MaterialLibraryWidget::sharedMaterialMap();
+	int suffix = 1;
+	QString trialKey = suggestedKey;
+	while (sharedMap.contains(trialKey)) {
+		trialKey = QString("%1_%2").arg(suggestedKey).arg(suffix++);
+	}
+
+	// Ask for key
+	bool okKey = false;
+	QString enteredKey = QInputDialog::getText(this,
+		tr("Material Key"),
+		tr("Enter unique material key (no spaces):"),
+		QLineEdit::Normal,
+		trialKey,
+		&okKey);
+	if (!okKey || enteredKey.trimmed().isEmpty()) return;
+	QString key = enteredKey.trimmed().simplified().replace(' ', '_');
+
+	// Check for collisions
+	if (sharedMap.contains(key)) {
+		QMessageBox::warning(this, tr("Key Already Exists"),
+			tr("A material with key '%1' already exists. Please choose a different key.").arg(key));
+		return;
+	}
+
+	// Ask for group
+	QStringList groups;
+	const auto& sharedGroups = MaterialLibraryWidget::sharedGroups();
+	for (const auto& g : sharedGroups) groups << g.first;
+	if (groups.isEmpty()) groups << QStringLiteral("User Materials");
+
+	bool ok = false;
+	QString picked = QInputDialog::getItem(this,
+		tr("Choose Group"),
+		tr("Select a group to save into:"),
+		groups,
+		0,
+		true,
+		&ok);
+	if (!ok) return;
+	groupLabel = picked.trimmed().isEmpty() ? QStringLiteral("User Materials") : picked.trimmed();
+
+	// Create user material folder and copy texture files
+	// (same logic as Save To Library to ensure consistency)
+	QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+	QString materialFolder = QDir(userRoot).filePath(key);
+	QDir materialDir(materialFolder);
+
+	if (!materialDir.exists()) {
+		if (!materialDir.mkpath(".")) {
+			QMessageBox::warning(this, tr("Folder Creation Failed"),
+				tr("Could not create material folder: %1").arg(materialFolder));
+			return;
+		}
+	}
+
+	// Copy texture files for all loaded textures in the material
+	for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i) {
+		GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+		GLMaterial::Texture tex = mat.texture(type);
+
+		if (tex.path.empty()) continue;
+
+		QString sourcePath = QString::fromStdString(tex.path);
+		QFileInfo fileInfo(sourcePath);
+		QString fileName = fileInfo.fileName();
+		QString destPath = materialDir.filePath(fileName);
+
+		// Check if source file actually exists
+		if (!QFile::exists(sourcePath)) {
+			// Keep the absolute path as-is (shipped catalog texture)
+			continue;
+		}
+
+		// Copy the texture file
+		bool copySuccess = QFile::copy(sourcePath, destPath);
+		if (!copySuccess) {
+			qWarning() << "Failed to copy texture file:" << fileName;
+			continue;
+		}
+
+		// Update material's texture path to be relative (just filename)
+		tex.path = fileName.toStdString();
+		mat.setTexture(type, tex);
+	}
+
+	// Block signals during save
+	if (libraryWidget)
+	{
+		libraryWidget->blockSignals(true);
+	}
+
+	// Actually save the material to user library
+	QString err;
+	bool saved = MaterialLibraryWidget::saveUserMaterialToUserLocation(groupLabel, key, name, mat, this, &err);
+
+	if (libraryWidget)
+	{
+		libraryWidget->blockSignals(false);
+	}
+
+	if (!saved) {
+		if (!err.isEmpty() && err != QStringLiteral("User cancelled overwrite")) {
+			QMessageBox::warning(this, tr("Save Material Failed"), err);
+		}
+		return;
+	}
+
+	// Mark key as user key
+	MaterialLibraryWidget::s_userMaterialKeys.insert(key);
+
+	// Update shared map with the saved material
+	{
+		GLMaterial matWithAbsolutePaths = mat;
+		QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+		QString materialFolder = QDir(userRoot).filePath(key);
+
+		// Restore absolute paths from relative paths
+		for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i) {
+			GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+			GLMaterial::Texture tex = matWithAbsolutePaths.texture(type);
+
+			if (tex.path.empty()) continue;
+
+			QString texPath = QString::fromStdString(tex.path);
+			if (!texPath.contains('/') && !texPath.contains('\\')) {
+				QString absolutePath = QDir(materialFolder).filePath(texPath);
+				tex.path = absolutePath.toStdString();
+				matWithAbsolutePaths.setTexture(type, tex);
+			}
+		}
+
+		auto& mutableSharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+			MaterialLibraryWidget::sharedMaterialMap());
+		mutableSharedMap[key] = [material = matWithAbsolutePaths]() { return material; };
+	}
+
+	// Refresh the tree and select the newly saved material
+	if (libraryWidget)
+	{
+		libraryWidget->blockSignals(true);
+		libraryWidget->refreshMaterialTree();
+		libraryWidget->selectMaterialByKey(key);
+		libraryWidget->blockSignals(false);
+
+		// Load the newly saved material into preview
+		if (libraryWidget->sharedMaterialMap().contains(key))
+		{
+			GLMaterial savedMat = libraryWidget->sharedMaterialMap()[key]();
+			_material = new GLMaterial(savedMat);
+			loadTextureImageFiles();
+			bindMaterial(_material);
+		}
+	}
+
+	// Update current material key
+	_currentMaterialKey = key;
+	_currentMaterialGroup = groupLabel;
+
+	QMessageBox::information(this, tr("Material Saved"),
+		tr("New user material '%1' has been created.").arg(name));
+}
+
 void MaterialPropertiesPanel::onDeleteMaterial()
 {
 	// Get selected material from tree
@@ -2503,10 +2754,11 @@ void MaterialPropertiesPanel::onCreateNewMaterial()
 	// Refresh tree to show the new material
 	libraryWidget->blockSignals(true);
 	libraryWidget->refreshMaterialTree();
-	libraryWidget->blockSignals(false);
 
-	// Select the newly created material
+	// Select the newly created material WITHOUT triggering materialApplied signal
+	// (which would try to apply to a mesh that might not exist)
 	libraryWidget->selectMaterialByKey(materialKey);
+	libraryWidget->blockSignals(false);
 
 	QMessageBox::information(this, tr("Material Created"),
 		tr("New material '%1' created in category '%2'.\n\nModify it and then click 'Save' to persist it to your library.").arg(materialName, selectedGroup));

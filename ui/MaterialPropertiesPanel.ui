@@ -482,16 +482,16 @@
    <item>
     <layout class="QHBoxLayout" name="buttonLayout">
      <item>
-      <widget class="QToolButton" name="toolButtonClearAllMaps">
+      <widget class="QToolButton" name="newButton">
        <property name="toolTip">
-        <string>Clear all maps from the material and mesh</string>
+        <string>Create new material</string>
        </property>
        <property name="text">
-        <string>Clear All Maps</string>
+        <string>New</string>
        </property>
        <property name="icon">
         <iconset resource="../ModelViewer.qrc">
-         <normaloff>:/icons/res/clear_all_maps.png</normaloff>:/icons/res/clear_all_maps.png</iconset>
+         <normaloff>:/icons/res/new.png</normaloff>:/icons/res/new.png</iconset>
        </property>
        <property name="iconSize">
         <size>
@@ -502,16 +502,36 @@
       </widget>
      </item>
      <item>
-      <widget class="QToolButton" name="toolButtonClearTextureCache">
+      <widget class="QToolButton" name="saveButton">
        <property name="toolTip">
-        <string>Clear the texture cache</string>
+        <string>Save material to user library</string>
        </property>
        <property name="text">
-        <string>Clear Texture Cache</string>
+        <string>Save</string>
        </property>
        <property name="icon">
         <iconset resource="../ModelViewer.qrc">
-         <normaloff>:/icons/res/clear_texture_cache.png</normaloff>:/icons/res/clear_texture_cache.png</iconset>
+         <normaloff>:/icons/res/save.png</normaloff>:/icons/res/save.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>36</width>
+         <height>36</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QToolButton" name="saveButtonAs">
+       <property name="toolTip">
+        <string>Save as new material to user library</string>
+       </property>
+       <property name="text">
+        <string>Save</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../ModelViewer.qrc">
+         <normaloff>:/icons/res/save_as.png</normaloff>:/icons/res/save_as.png</iconset>
        </property>
        <property name="iconSize">
         <size>
@@ -558,16 +578,16 @@
       </spacer>
      </item>
      <item>
-      <widget class="QToolButton" name="newButton">
+      <widget class="QToolButton" name="toolButtonClearAllMaps">
        <property name="toolTip">
-        <string>Create new material</string>
+        <string>Clear all maps from the material and mesh</string>
        </property>
        <property name="text">
-        <string>New</string>
+        <string>Clear All Maps</string>
        </property>
        <property name="icon">
         <iconset resource="../ModelViewer.qrc">
-         <normaloff>:/icons/res/new.png</normaloff>:/icons/res/new.png</iconset>
+         <normaloff>:/icons/res/clear_all_maps.png</normaloff>:/icons/res/clear_all_maps.png</iconset>
        </property>
        <property name="iconSize">
         <size>
@@ -578,16 +598,16 @@
       </widget>
      </item>
      <item>
-      <widget class="QToolButton" name="saveButton">
+      <widget class="QToolButton" name="toolButtonClearTextureCache">
        <property name="toolTip">
-        <string>Save material to user library</string>
+        <string>Clear the texture cache</string>
        </property>
        <property name="text">
-        <string>Save</string>
+        <string>Clear Texture Cache</string>
        </property>
        <property name="icon">
         <iconset resource="../ModelViewer.qrc">
-         <normaloff>:/icons/res/save.png</normaloff>:/icons/res/save.png</iconset>
+         <normaloff>:/icons/res/clear_texture_cache.png</normaloff>:/icons/res/clear_texture_cache.png</iconset>
        </property>
        <property name="iconSize">
         <size>
@@ -662,9 +682,9 @@
           <property name="geometry">
            <rect>
             <x>0</x>
-            <y>-240</y>
+            <y>-584</y>
             <width>478</width>
-            <height>1128</height>
+            <height>1064</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_4">
@@ -683,14 +703,14 @@
            <property name="spacing">
             <number>4</number>
            </property>
-           <item row="25" column="0">
+           <item row="24" column="0">
             <widget class="QLabel" name="lblBlendmode">
              <property name="text">
               <string>Blend Mode:</string>
              </property>
             </widget>
            </item>
-           <item row="24" column="1">
+           <item row="23" column="1">
             <widget class="QComboBox" name="shadingCombo">
              <item>
               <property name="text">
@@ -714,35 +734,35 @@
              </item>
             </widget>
            </item>
-           <item row="22" column="0">
+           <item row="21" column="0">
             <widget class="QLabel" name="lblDispersion">
              <property name="text">
               <string>Dispersion:</string>
              </property>
             </widget>
            </item>
-           <item row="34" column="0">
+           <item row="32" column="0">
             <widget class="QLabel" name="lblDiffusetransmissionfactor">
              <property name="text">
               <string>Diffuse Transmission:</string>
              </property>
             </widget>
            </item>
-           <item row="27" column="0">
+           <item row="26" column="0">
             <widget class="QLabel" name="lblWireframe">
              <property name="text">
               <string>Wireframe:</string>
              </property>
             </widget>
            </item>
-           <item row="13" column="0">
+           <item row="12" column="0">
             <widget class="QLabel" name="lblClearcoat">
              <property name="text">
               <string>Clearcoat: Factor</string>
              </property>
             </widget>
            </item>
-           <item row="29" column="1">
+           <item row="28" column="1">
             <widget class="QPushButton" name="btnSpecularColor">
              <property name="text">
               <string>Pick Specular Color</string>
@@ -768,28 +788,21 @@
              </property>
             </widget>
            </item>
-           <item row="27" column="1">
+           <item row="26" column="1">
             <widget class="QCheckBox" name="wireframeCheck">
              <property name="text">
               <string/>
              </property>
             </widget>
            </item>
-           <item row="31" column="0">
-            <widget class="QLabel" name="lblAnisotropycolor">
-             <property name="text">
-              <string>Anisotropy Color:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="30" column="0">
+           <item row="29" column="0">
             <widget class="QLabel" name="lblSpecularcolorfactor">
              <property name="text">
               <string>Specular Color Factor:</string>
              </property>
             </widget>
            </item>
-           <item row="29" column="0">
+           <item row="28" column="0">
             <widget class="QLabel" name="lblSpecularcolor">
              <property name="text">
               <string>Specular Color:</string>
@@ -810,7 +823,7 @@
              </property>
             </widget>
            </item>
-           <item row="28" column="1">
+           <item row="27" column="1">
             <widget class="QCheckBox" name="unlitCheck">
              <property name="text">
               <string/>
@@ -824,17 +837,10 @@
              </property>
             </widget>
            </item>
-           <item row="12" column="0">
+           <item row="11" column="0">
             <widget class="QLabel" name="lblIridescencethicknessmax">
              <property name="text">
               <string>Iridescence Thickness Max:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="9" column="1">
-            <widget class="QPushButton" name="btnIridColor">
-             <property name="text">
-              <string>Pick Iridescence Color</string>
              </property>
             </widget>
            </item>
@@ -857,14 +863,14 @@
              </property>
             </widget>
            </item>
-           <item row="28" column="0">
+           <item row="27" column="0">
             <widget class="QLabel" name="lblUnlit">
              <property name="text">
               <string>Unlit</string>
              </property>
             </widget>
            </item>
-           <item row="34" column="1">
+           <item row="32" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxDiffuseTransmissionFactor">
              <property name="decimals">
               <number>2</number>
@@ -896,21 +902,21 @@
              </property>
             </widget>
            </item>
-           <item row="23" column="0">
+           <item row="22" column="0">
             <widget class="QLabel" name="lblAlphathreshold">
              <property name="text">
               <string>Alpha Threshold:</string>
              </property>
             </widget>
            </item>
-           <item row="35" column="1">
+           <item row="33" column="1">
             <widget class="QPushButton" name="btnDiffTransColor">
              <property name="text">
               <string>Pick Diffuse Transmission Color</string>
              </property>
             </widget>
            </item>
-           <item row="18" column="1">
+           <item row="17" column="1">
             <widget class="QDoubleSpinBox" name="transmissionSpin">
              <property name="decimals">
               <number>2</number>
@@ -948,7 +954,7 @@
              </property>
             </widget>
            </item>
-           <item row="10" column="1">
+           <item row="9" column="1">
             <widget class="QDoubleSpinBox" name="iridescenceIorSpin">
              <property name="decimals">
               <number>2</number>
@@ -974,21 +980,21 @@
              </property>
             </widget>
            </item>
-           <item row="16" column="0">
+           <item row="15" column="0">
             <widget class="QLabel" name="lblSheenroughness">
              <property name="text">
               <string>Sheen Roughness:</string>
              </property>
             </widget>
            </item>
-           <item row="33" column="0">
+           <item row="31" column="0">
             <widget class="QLabel" name="lblAnisotropyrotation">
              <property name="text">
               <string>Anisotropy Rotation:</string>
              </property>
             </widget>
            </item>
-           <item row="14" column="1">
+           <item row="13" column="1">
             <widget class="QDoubleSpinBox" name="clearcoatRoughnessSpin">
              <property name="decimals">
               <number>2</number>
@@ -1007,7 +1013,7 @@
              </property>
             </widget>
            </item>
-           <item row="11" column="1">
+           <item row="10" column="1">
             <widget class="QDoubleSpinBox" name="iridescenceThicknessMinSpin">
              <property name="suffix">
               <string> nm</string>
@@ -1029,21 +1035,21 @@
              </property>
             </widget>
            </item>
-           <item row="19" column="0">
+           <item row="18" column="0">
             <widget class="QLabel" name="lblThickness">
              <property name="text">
               <string>Thickness:</string>
              </property>
             </widget>
            </item>
-           <item row="15" column="0">
+           <item row="14" column="0">
             <widget class="QLabel" name="lblSheencolor">
              <property name="text">
               <string>Sheen Color:</string>
              </property>
             </widget>
            </item>
-           <item row="32" column="1">
+           <item row="30" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxAnisotropyStrength">
              <property name="decimals">
               <number>2</number>
@@ -1059,14 +1065,7 @@
              </property>
             </widget>
            </item>
-           <item row="9" column="0">
-            <widget class="QLabel" name="lblIridescencecolor">
-             <property name="text">
-              <string>Iridescence Color:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="20" column="1">
+           <item row="19" column="1">
             <widget class="QDoubleSpinBox" name="attenuationDistanceSpin">
              <property name="decimals">
               <number>1</number>
@@ -1092,7 +1091,7 @@
              </property>
             </widget>
            </item>
-           <item row="16" column="1">
+           <item row="15" column="1">
             <widget class="QDoubleSpinBox" name="sheenRoughnessSpin">
              <property name="decimals">
               <number>2</number>
@@ -1111,14 +1110,14 @@
              </property>
             </widget>
            </item>
-           <item row="24" column="0">
+           <item row="23" column="0">
             <widget class="QLabel" name="lblShadingmodel">
              <property name="text">
               <string>Shading Model:</string>
              </property>
             </widget>
            </item>
-           <item row="26" column="1">
+           <item row="25" column="1">
             <widget class="QCheckBox" name="twoSidedCheck">
              <property name="text">
               <string/>
@@ -1128,7 +1127,7 @@
              </property>
             </widget>
            </item>
-           <item row="22" column="1">
+           <item row="21" column="1">
             <widget class="QDoubleSpinBox" name="dispersionSpin">
              <property name="decimals">
               <number>2</number>
@@ -1147,21 +1146,21 @@
              </property>
             </widget>
            </item>
-           <item row="18" column="0">
+           <item row="17" column="0">
             <widget class="QLabel" name="lblTransmission">
              <property name="text">
               <string>Transmission:</string>
              </property>
             </widget>
            </item>
-           <item row="32" column="0">
+           <item row="30" column="0">
             <widget class="QLabel" name="lblAnisotropystrength">
              <property name="text">
               <string>Anisotropy Strength:</string>
              </property>
             </widget>
            </item>
-           <item row="25" column="1">
+           <item row="24" column="1">
             <widget class="QComboBox" name="blendCombo">
              <item>
               <property name="text">
@@ -1190,17 +1189,10 @@
              </item>
             </widget>
            </item>
-           <item row="17" column="0">
+           <item row="16" column="0">
             <widget class="QLabel" name="lblIor">
              <property name="text">
               <string>IOR:</string>
-             </property>
-            </widget>
-           </item>
-           <item row="31" column="1">
-            <widget class="QPushButton" name="btnAnisotropyColor">
-             <property name="text">
-              <string>Pick Anisotropy Color</string>
              </property>
             </widget>
            </item>
@@ -1211,7 +1203,7 @@
              </property>
             </widget>
            </item>
-           <item row="12" column="1">
+           <item row="11" column="1">
             <widget class="QDoubleSpinBox" name="iridescenceThicknessMaxSpin">
              <property name="suffix">
               <string> nm</string>
@@ -1275,14 +1267,14 @@
              </property>
             </widget>
            </item>
-           <item row="21" column="1">
+           <item row="20" column="1">
             <widget class="QPushButton" name="btnAttenuationColor">
              <property name="text">
               <string>Pick Attenuation Color</string>
              </property>
             </widget>
            </item>
-           <item row="10" column="0">
+           <item row="9" column="0">
             <widget class="QLabel" name="lblIridescenceior">
              <property name="text">
               <string>Iridescence IOR:</string>
@@ -1296,7 +1288,7 @@
              </property>
             </widget>
            </item>
-           <item row="17" column="1">
+           <item row="16" column="1">
             <widget class="QDoubleSpinBox" name="iorSpin">
              <property name="decimals">
               <number>2</number>
@@ -1338,7 +1330,7 @@
              </property>
             </widget>
            </item>
-           <item row="11" column="0">
+           <item row="10" column="0">
             <widget class="QLabel" name="lblIridescencethicknessmin">
              <property name="text">
               <string>Iridescence Thickness Min:</string>
@@ -1352,7 +1344,7 @@
              </property>
             </widget>
            </item>
-           <item row="19" column="1">
+           <item row="18" column="1">
             <widget class="QDoubleSpinBox" name="thicknessSpin">
              <property name="decimals">
               <number>2</number>
@@ -1371,7 +1363,7 @@
              </property>
             </widget>
            </item>
-           <item row="20" column="0">
+           <item row="19" column="0">
             <widget class="QLabel" name="lblAttenuationdistance">
              <property name="text">
               <string>Attenuation Distance:</string>
@@ -1385,7 +1377,7 @@
              </property>
             </widget>
            </item>
-           <item row="33" column="1">
+           <item row="31" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxAnisotropyRotation">
              <property name="decimals">
               <number>3</number>
@@ -1401,28 +1393,28 @@
              </property>
             </widget>
            </item>
-           <item row="14" column="0">
+           <item row="13" column="0">
             <widget class="QLabel" name="lblClearcoatroughness">
              <property name="text">
               <string>Clearcoat Roughness:</string>
              </property>
             </widget>
            </item>
-           <item row="21" column="0">
+           <item row="20" column="0">
             <widget class="QLabel" name="lblAttenuationcolor">
              <property name="text">
               <string>Attenuation Color:</string>
              </property>
             </widget>
            </item>
-           <item row="26" column="0">
+           <item row="25" column="0">
             <widget class="QLabel" name="lblTwosided">
              <property name="text">
               <string>Two-Sided:</string>
              </property>
             </widget>
            </item>
-           <item row="23" column="1">
+           <item row="22" column="1">
             <widget class="QDoubleSpinBox" name="alphaThresholdSpin">
              <property name="decimals">
               <number>2</number>
@@ -1441,21 +1433,21 @@
              </property>
             </widget>
            </item>
-           <item row="15" column="1">
+           <item row="14" column="1">
             <widget class="QPushButton" name="btnSheenColor">
              <property name="text">
               <string>Pick Sheen Color</string>
              </property>
             </widget>
            </item>
-           <item row="35" column="0">
+           <item row="33" column="0">
             <widget class="QLabel" name="lblDiffuseTransmissionColor">
              <property name="text">
               <string>Diffuse Transmission Color</string>
              </property>
             </widget>
            </item>
-           <item row="13" column="1">
+           <item row="12" column="1">
             <widget class="QDoubleSpinBox" name="clearcoatSpin">
              <property name="decimals">
               <number>2</number>
@@ -1474,7 +1466,7 @@
              </property>
             </widget>
            </item>
-           <item row="30" column="1">
+           <item row="29" column="1">
             <widget class="QDoubleSpinBox" name="doubleSpinBoxSpecularFactor">
              <property name="decimals">
               <number>2</number>
@@ -3707,10 +3699,6 @@ Thickness</string>
   </customwidget>
  </customwidgets>
  <tabstops>
-  <tabstop>saveButton</tabstop>
-  <tabstop>deleteButton</tabstop>
-  <tabstop>toolButtonClearAllMaps</tabstop>
-  <tabstop>toolButtonClearTextureCache</tabstop>
   <tabstop>comboBoxTexMode</tabstop>
   <tabstop>tintModeCombo</tabstop>
   <tabstop>tintStrengthSpin</tabstop>
@@ -3730,7 +3718,6 @@ Thickness</string>
   <tabstop>aoSpin</tabstop>
   <tabstop>occlusionStrengthSpin</tabstop>
   <tabstop>iridescenceFactorSpin</tabstop>
-  <tabstop>btnIridColor</tabstop>
   <tabstop>iridescenceIorSpin</tabstop>
   <tabstop>iridescenceThicknessMinSpin</tabstop>
   <tabstop>iridescenceThicknessMaxSpin</tabstop>
@@ -3752,7 +3739,6 @@ Thickness</string>
   <tabstop>wireframeCheck</tabstop>
   <tabstop>btnSpecularColor</tabstop>
   <tabstop>doubleSpinBoxSpecularFactor</tabstop>
-  <tabstop>btnAnisotropyColor</tabstop>
   <tabstop>doubleSpinBoxAnisotropyStrength</tabstop>
   <tabstop>doubleSpinBoxAnisotropyRotation</tabstop>
   <tabstop>doubleSpinBoxDiffuseTransmissionFactor</tabstop>
