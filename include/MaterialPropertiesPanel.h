@@ -144,6 +144,7 @@ private slots:
 	void onSaveToLibrary();      // Save or overwrite user material
 	void onSaveAsToLibrary();    // Save as new copy of current material
 	void onDeleteMaterial();
+	void onRenameMaterial();     // Rename user-created material
 
 	void onContextMenu(const QPoint& pos);
 

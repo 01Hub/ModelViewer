@@ -1871,11 +1871,254 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	if (isExistingUserMaterial)
 	{
 		saveCurrentMaterialTexturesBeforeSwitch();
-		if (saveCurrentPresetMetadata())
+
+		// Get material name and group from current state
+		QString name;
+		QString groupLabel;
+		MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+		if (libraryWidget)
+		{
+			QList<QTreeWidgetItem*> selected = libraryWidget->selectedItems();
+			if (!selected.isEmpty())
+			{
+				name = selected.first()->text(0).trimmed();
+				if (name.endsWith(" *")) name = name.mid(0, name.length() - 2);
+
+				QTreeWidgetItem* parentItem = selected.first()->parent();
+				if (parentItem) groupLabel = parentItem->text(0);
+			}
+		}
+
+		if (name.isEmpty()) name = "User Material";
+		if (groupLabel.isEmpty()) groupLabel = _currentMaterialGroup.isEmpty() ? "User Materials" : _currentMaterialGroup;
+
+		// IMPORTANT: Copy any new/modified textures to the material folder
+		GLMaterial mat = *_material;
+		QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+		QString materialFolder = QDir(userRoot).filePath(key);
+		QDir materialDir(materialFolder);
+
+		// Ensure material folder exists
+		if (!materialDir.exists()) {
+			materialDir.mkpath(".");
+		}
+
+		// Copy texture files for all textures in the material
+		for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i) {
+			GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+			GLMaterial::Texture tex = mat.texture(type);
+
+			if (tex.path.empty()) continue;
+
+			QString sourcePath = QString::fromStdString(tex.path);
+			QFileInfo fileInfo(sourcePath);
+			QString fileName = fileInfo.fileName();
+			QString destPath = materialDir.filePath(fileName);
+
+			// CRITICAL: If file is already in the material folder (canonical path is same),
+			// just update path to relative WITHOUT copying (avoids QFile::copy failure)
+			// This happens when material is loaded from user library - paths become absolute
+			// but point to the same location
+			if (QFileInfo(sourcePath).canonicalFilePath() == QFileInfo(destPath).canonicalFilePath())
+			{
+				// File already in correct location, just update to relative path
+				tex.path = fileName.toStdString();
+				mat.setTexture(type, tex);
+				qDebug() << "Texture already in material folder, updated to relative:" << fileName;
+				continue;
+			}
+
+			// Check if source file actually exists
+			if (!QFile::exists(sourcePath)) {
+				qDebug() << "Save existing user material: Texture file not found at" << sourcePath;
+				continue;
+			}
+
+			// Copy the texture file
+			bool copySuccess = QFile::copy(sourcePath, destPath);
+			if (copySuccess) {
+				qDebug() << "Copied texture:" << fileName << "to" << destPath;
+				// Update material's texture path to be relative
+				tex.path = fileName.toStdString();
+				mat.setTexture(type, tex);
+			} else {
+				qWarning() << "Failed to copy texture file:" << fileName;
+			}
+		}
+
+		// Block signals during save
+		if (libraryWidget) libraryWidget->blockSignals(true);
+
+		// Save the material with textures to JSON using backend
+		QString err;
+		bool saved = MaterialLibraryWidget::saveUserMaterialToUserLocation(groupLabel, key, name, mat, this, &err);
+
+		if (libraryWidget) libraryWidget->blockSignals(false);
+
+		// CRITICAL FIX: After backend save, update the JSON to fix ALL texture paths
+		// The backend save writes both direct *MapPath properties AND textureMetadata
+		// Both need to be corrected to point to the material folder with relative paths
+		if (saved)
+		{
+			QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+			QString userPath = QDir(userRoot).filePath(QStringLiteral("materials.json"));
+			QString materialFolder = QDir(userRoot).filePath(key);
+
+			// Load and update JSON to fix texture paths
+			QFile inFile(userPath);
+			if (inFile.open(QIODevice::ReadOnly))
+			{
+				QByteArray fileData = inFile.readAll();
+				inFile.close();
+
+				QJsonParseError perr;
+				QJsonDocument doc = QJsonDocument::fromJson(fileData, &perr);
+				if (doc.isObject())
+				{
+					QVariantMap rootVar = doc.toVariant().toMap();
+					QVariantList groupsList = rootVar.value(QStringLiteral("groups")).toList();
+
+					for (int g = 0; g < groupsList.size(); ++g)
+					{
+						QVariantMap groupObj = groupsList[g].toMap();
+						if (groupObj.value(QStringLiteral("label")).toString() == groupLabel)
+						{
+							QVariantList itemsList = groupObj.value(QStringLiteral("items")).toList();
+
+							for (int i = 0; i < itemsList.size(); ++i)
+							{
+								QVariantMap itemMap = itemsList[i].toMap();
+								if (itemMap.value(QStringLiteral("key")).toString() == key)
+								{
+									// PART 1: Fix direct texture path properties (*MapPath fields)
+									// These are absolute paths from the material object
+									// Convert all to point to files in the material folder
+									static const QStringList texturePathFields = {
+										QStringLiteral("albedoMapPath"),
+										QStringLiteral("normalMapPath"),
+										QStringLiteral("roughnessMapPath"),
+										QStringLiteral("metallicMapPath"),
+										QStringLiteral("aoMapPath"),
+										QStringLiteral("heightMapPath"),
+										QStringLiteral("emissiveMapPath"),
+										QStringLiteral("opacityMapPath"),
+										QStringLiteral("sheenColorMapPath"),
+										QStringLiteral("sheenRoughnessMapPath"),
+										QStringLiteral("clearcoatColorMapPath"),
+										QStringLiteral("clearcoatNormalMapPath"),
+										QStringLiteral("clearcoatRoughnessMapPath"),
+										QStringLiteral("transmissionMapPath"),
+										QStringLiteral("iridescenceMapPath"),
+										QStringLiteral("iridescenceThicknessMapPath"),
+										QStringLiteral("iorMapPath")
+									};
+
+									for (const QString& field : texturePathFields)
+									{
+										QString texPath = itemMap.value(field).toString();
+										if (!texPath.isEmpty())
+										{
+											// Convert absolute path to material folder path
+											QString fileName = QFileInfo(texPath).fileName();
+											QString newPath = QDir(materialFolder).filePath(fileName);
+											itemMap.insert(field, newPath);
+											qDebug() << "Fixed direct texture path" << field << ":" << texPath << "to" << newPath;
+										}
+									}
+
+									// PART 2: Fix textureMetadata paths to be relative (just filename)
+									QVariantMap texMeta = itemMap.value(QStringLiteral("textureMetadata")).toMap();
+									for (auto it = texMeta.begin(); it != texMeta.end(); ++it)
+									{
+										QVariantMap texInfo = it.value().toMap();
+										QString texPath = texInfo.value(QStringLiteral("path")).toString();
+										if (!texPath.isEmpty())
+										{
+											// Convert to just filename (relative path)
+											QString fileName = QFileInfo(texPath).fileName();
+											texInfo.insert(QStringLiteral("path"), fileName);
+											texMeta[it.key()] = texInfo;
+											qDebug() << "Fixed textureMetadata path:" << texPath << "to" << fileName;
+										}
+									}
+									itemMap.insert(QStringLiteral("textureMetadata"), texMeta);
+									itemsList[i] = itemMap;
+									break;
+								}
+							}
+
+							groupObj.insert(QStringLiteral("items"), itemsList);
+							groupsList[g] = groupObj;
+							break;
+						}
+					}
+
+					rootVar.insert(QStringLiteral("groups"), groupsList);
+
+					// Write updated JSON
+					QFile outFile(userPath);
+					if (outFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+					{
+						QJsonDocument newDoc = QJsonDocument::fromVariant(rootVar);
+						outFile.write(newDoc.toJson());
+						outFile.close();
+						qDebug() << "Fixed ALL texture paths in JSON for material:" << key;
+					}
+				}
+			}
+		}
+
+		// Update shared map with the saved material (SAME AS SAVE AS)
+		// The JSON has relative paths, but shared map needs absolute paths for runtime
+		if (saved)
+		{
+			GLMaterial matWithAbsolutePaths = mat;
+			QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+			QString materialFolder = QDir(userRoot).filePath(key);
+
+			// Restore absolute paths from relative paths for shared map
+			for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i) {
+				GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+				GLMaterial::Texture tex = matWithAbsolutePaths.texture(type);
+
+				if (tex.path.empty()) continue;
+
+				QString texPath = QString::fromStdString(tex.path);
+				// If it's relative (just filename, no path separators), convert to absolute
+				if (!texPath.contains('/') && !texPath.contains('\\')) {
+					QString absolutePath = QDir(materialFolder).filePath(texPath);
+					tex.path = absolutePath.toStdString();
+					matWithAbsolutePaths.setTexture(type, tex);
+					qDebug() << "Restored absolute path for save overwrite:" << absolutePath;
+				}
+			}
+
+			auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+				MaterialLibraryWidget::sharedMaterialMap());
+			sharedMap[key] = [material = matWithAbsolutePaths]() { return material; };
+			qDebug() << "Updated shared map for overwritten material:" << key;
+		}
+
+		if (saved)
 		{
 			_unsavedMaterialKeys.remove(key);
-			qDebug() << "Overwrote user material:" << key;
-			QMessageBox::information(this, tr("Material Saved"), tr("User material '%1' has been updated.").arg(key));
+			qDebug() << "Overwrote user material with textures:" << key;
+
+			// Re-select the material after save (saveUserMaterialToUserLocation emits a global signal
+			// that triggers tree refresh which auto-selects first item)
+			if (libraryWidget)
+			{
+				libraryWidget->blockSignals(true);
+				libraryWidget->selectMaterialByKey(key);
+				libraryWidget->blockSignals(false);
+			}
+
+			QMessageBox::information(this, tr("Material Saved"), tr("User material '%1' has been updated.").arg(name));
+		}
+		else
+		{
+			qWarning() << "Failed to save material:" << err;
+			QMessageBox::warning(this, tr("Save Failed"), tr("Failed to save material: %1").arg(err));
 		}
 		return;
 	}
@@ -2123,6 +2366,17 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		QFileInfo fileInfo(sourcePath);
 		QString fileName = fileInfo.fileName();
 		QString destPath = materialDir.filePath(fileName);
+
+		// CRITICAL: If file is already in the destination folder (canonical path is same),
+		// just update path to relative WITHOUT copying (avoids QFile::copy failure)
+		if (QFileInfo(sourcePath).canonicalFilePath() == QFileInfo(destPath).canonicalFilePath())
+		{
+			// File already in correct location, just update to relative path
+			tex.path = fileName.toStdString();
+			mat.setTexture(type, tex);
+			qDebug() << "General save: Texture already in destination, updated to relative:" << fileName;
+			continue;
+		}
 
 		// Check if source file actually exists
 		if (!QFile::exists(sourcePath)) {
@@ -2395,8 +2649,24 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 		QString fileName = fileInfo.fileName();
 		QString destPath = materialDir.filePath(fileName);
 
+		qDebug() << "Save As: Checking texture" << fileName << "source path:" << sourcePath;
+
+		// CRITICAL: If file is already in the destination folder (canonical path is same),
+		// just update path to relative WITHOUT copying (avoids QFile::copy failure)
+		if (QFileInfo(sourcePath).canonicalFilePath() == QFileInfo(destPath).canonicalFilePath())
+		{
+			// File already in correct location, just update to relative path
+			tex.path = fileName.toStdString();
+			mat.setTexture(type, tex);
+			qDebug() << "Save As: Texture already in destination, updated to relative:" << fileName;
+			continue;
+		}
+
 		// Check if source file actually exists
 		if (!QFile::exists(sourcePath)) {
+			// If path doesn't exist as-is, it might be a relative or incomplete path
+			// Try to find it in common material locations
+			qWarning() << "Texture file not found at:" << sourcePath << "- will keep absolute path as-is";
 			// Keep the absolute path as-is (shipped catalog texture)
 			continue;
 		}
@@ -2404,9 +2674,11 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 		// Copy the texture file
 		bool copySuccess = QFile::copy(sourcePath, destPath);
 		if (!copySuccess) {
-			qWarning() << "Failed to copy texture file:" << fileName;
+			qWarning() << "Failed to copy texture file:" << fileName << "from" << sourcePath << "to" << destPath;
 			continue;
 		}
+
+		qDebug() << "Copied texture:" << fileName << "to" << destPath;
 
 		// Update material's texture path to be relative (just filename)
 		tex.path = fileName.toStdString();
@@ -2433,6 +2705,118 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 			QMessageBox::warning(this, tr("Save Material Failed"), err);
 		}
 		return;
+	}
+
+	// CRITICAL FIX: Fix ALL texture paths in JSON for Save As
+	// The backend save writes both direct *MapPath properties AND textureMetadata
+	// Both need to be corrected to point to the material folder with correct paths
+	{
+		QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+		QString userPath = QDir(userRoot).filePath(QStringLiteral("materials.json"));
+		QString materialFolder = QDir(userRoot).filePath(key);
+
+		// Load and update JSON to fix texture paths
+		QFile inFile(userPath);
+		if (inFile.open(QIODevice::ReadOnly))
+		{
+			QByteArray fileData = inFile.readAll();
+			inFile.close();
+
+			QJsonParseError perr;
+			QJsonDocument doc = QJsonDocument::fromJson(fileData, &perr);
+			if (doc.isObject())
+			{
+				QVariantMap rootVar = doc.toVariant().toMap();
+				QVariantList groupsList = rootVar.value(QStringLiteral("groups")).toList();
+
+				for (int g = 0; g < groupsList.size(); ++g)
+				{
+					QVariantMap groupObj = groupsList[g].toMap();
+					if (groupObj.value(QStringLiteral("label")).toString() == groupLabel)
+					{
+						QVariantList itemsList = groupObj.value(QStringLiteral("items")).toList();
+
+						for (int i = 0; i < itemsList.size(); ++i)
+						{
+							QVariantMap itemMap = itemsList[i].toMap();
+							if (itemMap.value(QStringLiteral("key")).toString() == key)
+							{
+								// PART 1: Fix direct texture path properties (*MapPath fields)
+								// These are absolute paths from the material object
+								// Convert all to point to files in the material folder
+								static const QStringList texturePathFields = {
+									QStringLiteral("albedoMapPath"),
+									QStringLiteral("normalMapPath"),
+									QStringLiteral("roughnessMapPath"),
+									QStringLiteral("metallicMapPath"),
+									QStringLiteral("aoMapPath"),
+									QStringLiteral("heightMapPath"),
+									QStringLiteral("emissiveMapPath"),
+									QStringLiteral("opacityMapPath"),
+									QStringLiteral("sheenColorMapPath"),
+									QStringLiteral("sheenRoughnessMapPath"),
+									QStringLiteral("clearcoatColorMapPath"),
+									QStringLiteral("clearcoatNormalMapPath"),
+									QStringLiteral("clearcoatRoughnessMapPath"),
+									QStringLiteral("transmissionMapPath"),
+									QStringLiteral("iridescenceMapPath"),
+									QStringLiteral("iridescenceThicknessMapPath"),
+									QStringLiteral("iorMapPath")
+								};
+
+								for (const QString& field : texturePathFields)
+								{
+									QString texPath = itemMap.value(field).toString();
+									if (!texPath.isEmpty())
+									{
+										// Convert absolute path to material folder path
+										QString fileName = QFileInfo(texPath).fileName();
+										QString newPath = QDir(materialFolder).filePath(fileName);
+										itemMap.insert(field, newPath);
+										qDebug() << "Fixed Save As direct texture path" << field << ":" << texPath << "to" << newPath;
+									}
+								}
+
+								// PART 2: Fix textureMetadata paths to be relative (just filename)
+								QVariantMap texMeta = itemMap.value(QStringLiteral("textureMetadata")).toMap();
+								for (auto it = texMeta.begin(); it != texMeta.end(); ++it)
+								{
+									QVariantMap texInfo = it.value().toMap();
+									QString texPath = texInfo.value(QStringLiteral("path")).toString();
+									if (!texPath.isEmpty())
+									{
+										// Convert to just filename (relative path)
+										QString fileName = QFileInfo(texPath).fileName();
+										texInfo.insert(QStringLiteral("path"), fileName);
+										texMeta[it.key()] = texInfo;
+										qDebug() << "Fixed Save As textureMetadata path:" << texPath << "to" << fileName;
+									}
+								}
+								itemMap.insert(QStringLiteral("textureMetadata"), texMeta);
+								itemsList[i] = itemMap;
+								break;
+							}
+						}
+
+						groupObj.insert(QStringLiteral("items"), itemsList);
+						groupsList[g] = groupObj;
+						break;
+					}
+				}
+
+				rootVar.insert(QStringLiteral("groups"), groupsList);
+
+				// Write updated JSON
+				QFile outFile(userPath);
+				if (outFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+				{
+					QJsonDocument newDoc = QJsonDocument::fromVariant(rootVar);
+					outFile.write(newDoc.toJson());
+					outFile.close();
+					qDebug() << "Fixed ALL texture paths in JSON for Save As material:" << key;
+				}
+			}
+		}
 	}
 
 	// Mark key as user key
@@ -2550,6 +2934,28 @@ void MaterialPropertiesPanel::onDeleteMaterial()
 	}
 	QString groupLabel = parentItem->text(0);
 
+	// FEATURE 1: Determine which material to select after deletion
+	// Strategy: Select the material immediately above (previous sibling), or if it's first, select next
+	QString nextMaterialKey;
+	{
+		int deletedRow = parentItem->indexOfChild(selected.first());
+		int targetRow = (deletedRow > 0) ? deletedRow - 1 : deletedRow;
+
+		// Check if there will be a sibling after deletion at the target row
+		// After deletion, the item at targetRow will either be:
+		// - The previous item (if we selected the previous row)
+		// - The next item promoted upward (if we selected current row for a first item)
+		if (targetRow >= 0 && targetRow < parentItem->childCount())
+		{
+			QTreeWidgetItem* targetItem = parentItem->child(targetRow);
+			if (targetItem)
+			{
+				nextMaterialKey = targetItem->data(0, Qt::UserRole).toString();
+				qDebug() << "Smart selection after deletion: will select" << nextMaterialKey << "at row" << targetRow;
+			}
+		}
+	}
+
 	// Block signals on tree widget to prevent unwanted signal handlers during deletion/refresh
 	if (libraryWidget)
 	{
@@ -2626,6 +3032,21 @@ void MaterialPropertiesPanel::onDeleteMaterial()
 	if (libraryWidget && removed)
 	{
 		libraryWidget->refreshMaterialTree();
+
+		// FEATURE 1: Smart selection - select the material we identified before deletion
+		// This prevents jarring jumps to first item and keeps focus near deleted material
+		if (!nextMaterialKey.isEmpty() && libraryWidget->sharedMaterialMap().contains(nextMaterialKey))
+		{
+			libraryWidget->selectMaterialByKey(nextMaterialKey);
+			qDebug() << "Smart selection executed:" << nextMaterialKey;
+		}
+		else
+		{
+			// Fallback: if no next material found, deselect all
+			for (auto item : libraryWidget->selectedItems())
+				item->setSelected(false);
+			_material = nullptr;
+		}
 	}
 
 	// Re-enable signals
@@ -2634,19 +3055,255 @@ void MaterialPropertiesPanel::onDeleteMaterial()
 		libraryWidget->blockSignals(false);
 	}
 
-	// Clear preview panel
-	_material = nullptr;
-	// Clear all UI elements
-	if (_ui && _ui->treeWidget)
-	{
-		// Deselect
-		for (auto item : _ui->treeWidget->selectedItems())
-			item->setSelected(false);
-	}
-
 	// Show success message
 	QMessageBox::information(this, tr("Material Deleted"),
 		tr("Material '%1' has been removed from your library.").arg(materialName));
+}
+
+void MaterialPropertiesPanel::onRenameMaterial()
+{
+	// Get selected material from tree
+	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+	if (!libraryWidget)
+	{
+		QMessageBox::warning(this, tr("No Library"), tr("Material library not available."));
+		return;
+	}
+
+	QList<QTreeWidgetItem*> selected = libraryWidget->selectedItems();
+	if (selected.isEmpty())
+	{
+		QMessageBox::information(this, tr("No Selection"), tr("Please select a material to rename."));
+		return;
+	}
+
+	QString materialKey = selected.first()->data(0, Qt::UserRole).toString();
+	if (materialKey.isEmpty())
+	{
+		QMessageBox::warning(this, tr("Invalid Selection"), tr("Could not determine material key."));
+		return;
+	}
+
+	// Verify it's a user material (not factory, not unsaved)
+	if (!MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey))
+	{
+		QMessageBox::information(this, tr("Cannot Rename"),
+			tr("Only user-created materials can be renamed. Factory and unsaved materials cannot be renamed."));
+		return;
+	}
+
+	// Get current name and group
+	QString currentName = selected.first()->text(0).trimmed();
+	QTreeWidgetItem* parentItem = selected.first()->parent();
+	if (!parentItem)
+	{
+		QMessageBox::warning(this, tr("Invalid Material"), tr("Could not determine material group."));
+		return;
+	}
+	QString groupLabel = parentItem->text(0);
+
+	// Prompt for new name
+	bool ok = false;
+	QString newName = QInputDialog::getText(this,
+		tr("Rename Material"),
+		tr("Enter new name for material:"),
+		QLineEdit::Normal,
+		currentName,
+		&ok);
+
+	if (!ok || newName.trimmed().isEmpty())
+	{
+		return;
+	}
+	newName = newName.trimmed();
+
+	// Prevent rename to same name
+	if (newName == currentName)
+	{
+		return;  // Silent no-op - user cancelled or entered same name
+	}
+
+	// Validate no duplicate names in same group
+	bool hasDuplicate = false;
+	for (int i = 0; i < parentItem->childCount(); ++i)
+	{
+		QTreeWidgetItem* siblingItem = parentItem->child(i);
+		if (siblingItem && siblingItem != selected.first())
+		{
+			QString siblingName = siblingItem->text(0).trimmed();
+			if (siblingName == newName)
+			{
+				hasDuplicate = true;
+				break;
+			}
+		}
+	}
+
+	if (hasDuplicate)
+	{
+		QMessageBox::warning(this, tr("Duplicate Name"),
+			tr("A material with name '%1' already exists in this group.").arg(newName));
+		return;
+	}
+
+	// Block signals during rename operation
+	libraryWidget->blockSignals(true);
+
+	// Update the JSON file - follow the same pattern as removeUserMaterialFromUserLocation()
+	// Construct path to user's personal materials.json (not the shipped catalog)
+	QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+	QString userPath = QDir(userRoot).filePath(QStringLiteral("materials.json"));
+
+	// Check file exists
+	if (!QFile::exists(userPath))
+	{
+		libraryWidget->blockSignals(false);
+		QMessageBox::warning(this, tr("File Not Found"),
+			tr("User materials file does not exist: %1").arg(userPath));
+		return;
+	}
+
+	// Load existing file in ReadOnly first
+	QFile inFile(userPath);
+	if (!inFile.open(QIODevice::ReadOnly))
+	{
+		libraryWidget->blockSignals(false);
+		QMessageBox::warning(this, tr("Read Failed"),
+			tr("Failed to open user materials file for reading: %1").arg(inFile.errorString()));
+		return;
+	}
+
+	QByteArray fileData = inFile.readAll();
+	inFile.close();
+
+	QJsonParseError perr;
+	QJsonDocument doc = QJsonDocument::fromJson(fileData, &perr);
+	if (perr.error != QJsonParseError::NoError || !doc.isObject())
+	{
+		libraryWidget->blockSignals(false);
+		QMessageBox::warning(this, tr("Parse Failed"),
+			tr("Failed to parse user materials JSON: %1").arg(perr.errorString()));
+		return;
+	}
+
+	// Convert to QVariantMap for easier manipulation (following existing pattern)
+	QVariantMap rootVar = doc.toVariant().toMap();
+	QVariantList groupsList = rootVar.value(QStringLiteral("groups")).toList();
+
+	qDebug() << "Looking for material:" << materialKey << "in group:" << groupLabel;
+	qDebug() << "Total groups in JSON:" << groupsList.size();
+
+	bool renameSuccess = false;
+
+	// Find and update the material in the appropriate group
+	for (int g = 0; g < groupsList.size(); ++g)
+	{
+		QVariantMap groupObj = groupsList[g].toMap();
+		QString jsonGroupLabel = groupObj.value(QStringLiteral("label")).toString();
+
+		qDebug() << "  Group" << g << "label:" << jsonGroupLabel;
+
+		if (jsonGroupLabel == groupLabel)
+		{
+			QVariantList itemsList = groupObj.value(QStringLiteral("items")).toList();
+			qDebug() << "    Found matching group! Items count:" << itemsList.size();
+
+			for (int i = 0; i < itemsList.size(); ++i)
+			{
+				QVariantMap itemMap = itemsList[i].toMap();
+				QString jsonKey = itemMap.value(QStringLiteral("key")).toString();
+				QString jsonName = itemMap.value(QStringLiteral("name")).toString();
+
+				qDebug() << "      Item" << i << "key:" << jsonKey << "name:" << jsonName;
+
+				if (jsonKey == materialKey)
+				{
+					qDebug() << "      Found matching material! Renaming from" << jsonName << "to" << newName;
+					// Update the name field
+					itemMap.insert(QStringLiteral("name"), newName);
+					itemsList[i] = itemMap;
+					renameSuccess = true;
+					break;
+				}
+			}
+
+			// Write back updated group
+			if (renameSuccess)
+			{
+				groupObj.insert(QStringLiteral("items"), itemsList);
+				groupsList[g] = groupObj;
+				rootVar.insert(QStringLiteral("groups"), groupsList);
+				qDebug() << "Updated group in JSON";
+			}
+			break;
+		}
+	}
+
+	if (!renameSuccess)
+	{
+		libraryWidget->blockSignals(false);
+		qDebug() << "ERROR: Could not find material" << materialKey << "in group" << groupLabel;
+		qDebug() << "JSON file path:" << userPath;
+		QMessageBox::warning(this, tr("Rename Failed"),
+			tr("Material with key '%1' not found in group '%2'. Check the debug log for details.").arg(materialKey, groupLabel));
+		return;
+	}
+
+	// Write updated JSON back to file
+	// Use same approach as existing code: convert back to JSON and write
+	QFile outFile(userPath);
+	if (!outFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+	{
+		libraryWidget->blockSignals(false);
+		QMessageBox::warning(this, tr("Write Failed"),
+			tr("Failed to open user materials file for writing: %1").arg(outFile.errorString()));
+		return;
+	}
+
+	QJsonDocument newDoc = QJsonDocument::fromVariant(rootVar);
+	outFile.write(newDoc.toJson());
+	outFile.close();
+
+	qDebug() << "Successfully wrote updated materials JSON to:" << userPath;
+
+	// Update runtime cache (s_groups) - change the display name
+	auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
+		MaterialLibraryWidget::sharedGroups());
+
+	for (auto& groupPair : mutableGroups)
+	{
+		if (groupPair.first == groupLabel)
+		{
+			for (int i = 0; i < groupPair.second.size(); ++i)
+			{
+				if (groupPair.second[i].second == materialKey)
+				{
+					groupPair.second[i].first = newName;
+					qDebug() << "Updated runtime cache for material:" << materialKey << "new name:" << newName;
+					break;
+				}
+			}
+			break;
+		}
+	}
+
+	// Refresh tree to show new name
+	libraryWidget->refreshMaterialTree();
+
+	// Re-select the material by key to keep focus on it
+	if (libraryWidget->sharedMaterialMap().contains(materialKey))
+	{
+		libraryWidget->selectMaterialByKey(materialKey);
+	}
+
+	// Re-enable signals
+	libraryWidget->blockSignals(false);
+
+	// Success message
+	QMessageBox::information(this, tr("Material Renamed"),
+		tr("Material has been renamed to '%1'.").arg(newName));
+
+	qDebug() << "Material rename completed:" << materialKey << "->" << newName;
 }
 
 void MaterialPropertiesPanel::onCreateNewMaterial()
@@ -2815,10 +3472,18 @@ void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)
 
 			menu.addSeparator();
 
-			// Allow deletion if it's a user or unsaved material
+			// Check material type
 			bool isUnsavedMaterial = materialKey.startsWith("_UNSAVED_");
 			bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
 
+			// Allow rename only for user materials (not factory, not unsaved)
+			if (isUserMaterial)
+			{
+				menu.addAction(tr("Rename"), this, &MaterialPropertiesPanel::onRenameMaterial);
+				menu.addSeparator();
+			}
+
+			// Allow deletion if it's a user or unsaved material
 			if (isUserMaterial || isUnsavedMaterial)
 			{
 				menu.addAction(tr("Delete"), this, &MaterialPropertiesPanel::onDeleteMaterial);
