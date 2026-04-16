@@ -216,6 +216,7 @@ private:
 
 	// Material save/unsaved state tracking
 	QSet<QString> _unsavedMaterialKeys;  // Keys of materials created but not yet saved to JSON
+	QMap<QString, GLMaterial> _materialCache;  // Cache modified materials for persistence across selections
 	QString _currentMaterialKey;         // Key of currently bound material (if any)
 	QString _currentMaterialGroup;       // Group/category of currently bound material (if unsaved)
 
@@ -236,4 +237,8 @@ private:
 
 	bool _detached = false;
 	bool _updateInProgress = false;
+	bool _texturesDirty = false;  // Track if current material has unsaved texture changes
+
+	// Helper to save textures before switching materials
+	void saveCurrentMaterialTexturesBeforeSwitch();
 };

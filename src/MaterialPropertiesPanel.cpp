@@ -421,8 +421,15 @@ void MaterialPropertiesPanel::bindMaterial(GLMaterial* material)
 	if (_ui->doubleSpinBoxClearcoatNormalScale)
 		_ui->doubleSpinBoxClearcoatNormalScale->setValue(_material->clearcoatNormalScale());
 
+	// IMPORTANT: Load texture image files BEFORE updatePreview()
+	// This ensures textures are loaded and available for rendering in the preview
+	loadTextureImageFiles();
+
 	// Update preview
 	updatePreview();
+
+	// Reset dirty flag - material is now freshly bound
+	_texturesDirty = false;
 
 	emit materialChanged(_material);
 }
@@ -1118,6 +1125,10 @@ void MaterialPropertiesPanel::openPackingDialogFor(GLMaterial::TextureType type)
 		if (_material)
 		{
 			_material->setPackingFor(key, dlg.packing());
+
+			// CRITICAL: Update unsaved material in shared map when packing changes
+			updateUnsavedMaterialInMap();
+
 			updatePreview();
 			emit materialChanged(_material);
 		}
@@ -1177,16 +1188,37 @@ void MaterialPropertiesPanel::onTransformButtonClicked(GLMaterial::TextureType t
 		tex.rotation = newRotation;
 		tex.texCoordIndex = newTexCoord;
 
-		// Store in material (cascades to unified storage via setTexture)
+		// CRITICAL: Store in material (cascades to unified storage via setTexture)
 		_material->setTexture(type, tex);
 
-		// Update preview
+		// CRITICAL: Update unsaved material in shared map when texture transforms change
+		updateUnsavedMaterialInMap();
+
+		// Update preview to show transform changes (GL context issues are now fixed)
 		updatePreview();
 
-		// Emit signal for sampler change
+		// Emit signals for material tracking
 		emit textureSamplerChanged(_material, type);
 		emit materialChanged(_material);
 	}
+}
+
+void MaterialPropertiesPanel::saveCurrentMaterialTexturesBeforeSwitch()
+{
+	// Save textures of current material before switching to another
+	if (!_material || _currentMaterialKey.isEmpty())
+		return;
+
+	// Only save if this is an unsaved or user material
+	if (!_currentMaterialKey.startsWith("_UNSAVED_") &&
+		!MaterialLibraryWidget::s_userMaterialKeys.contains(_currentMaterialKey))
+		return;
+
+	// Update shared map with current material state (includes textures and any changes)
+	updateUnsavedMaterialInMap();
+
+	qDebug() << "saveCurrentMaterialTexturesBeforeSwitch: Saved material" << _currentMaterialKey;
+	_texturesDirty = false;
 }
 
 void MaterialPropertiesPanel::updatePreview()
@@ -1376,7 +1408,11 @@ void MaterialPropertiesPanel::loadTextureImageFiles()
 	}
 
 	if (texturesLoaded > 0)
+	{
 		qDebug() << "loadTextureImageFiles: Loaded" << texturesLoaded << "texture(s)";
+		_texturesDirty = true;  // Mark material as having unsaved texture changes
+		updateUnsavedMaterialInMap();  // Save to shared map immediately
+	}
 }
 
 void MaterialPropertiesPanel::loadMaterialTexturesFromKey(const QString& materialKey)
@@ -1626,6 +1662,9 @@ void MaterialPropertiesPanel::onClearAllTextures()
 
 void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 {
+	// IMPORTANT: Save any unsaved texture changes from current material before switching
+	saveCurrentMaterialTexturesBeforeSwitch();
+
 	// Material is already populated with scalar properties from tree widget
 	// Now load textures and bind the material
 	if (!_ui)
@@ -1648,11 +1687,44 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 			QString materialKey = selected.first()->data(0, Qt::UserRole).toString();
 			if (!materialKey.isEmpty())
 			{
-				// For user materials or unsaved materials, the texture paths are already in the material object
-				// We just need to load the texture image files from disk
+				_currentMaterialKey = materialKey;
+
+				// Determine material type early so we can use it in cache restoration logic
 				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
 				bool isUnsavedMaterial = materialKey.startsWith("_UNSAVED_");
 
+				// Check if this material was previously modified and cached
+				// If so, restore all data (both scalars and textures) from cache to preserve user modifications
+				auto cachedIt = _materialCache.find(materialKey);
+				if (cachedIt != _materialCache.end())
+				{
+					// For user-created or unsaved materials, restore everything
+					// This preserves both scalar and texture modifications from previous session
+					if (isUserMaterial || isUnsavedMaterial)
+					{
+						*_material = cachedIt.value();
+						qDebug() << "Restored cached material (user/unsaved):" << materialKey;
+					}
+					else
+					{
+						// For preset materials, restore ONLY textures to preserve fresh scalar defaults
+						const GLMaterial& cachedMaterial = cachedIt.value();
+						for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+						{
+							GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+							const auto& cachedTex = cachedMaterial.texture(type);
+							// Only restore texture if it has a valid path in the cache
+							if (!cachedTex.path.empty())
+							{
+								_material->setTexture(type, cachedTex);
+								qDebug() << "Restored cached texture for type:" << i << "path:" << QString::fromStdString(cachedTex.path);
+							}
+						}
+					}
+				}
+
+				// For user materials or unsaved materials, the texture paths are already in the material object
+				// We just need to load the texture image files from disk
 				if (isUserMaterial || isUnsavedMaterial)
 				{
 					loadTextureImageFiles();
@@ -1676,6 +1748,9 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 
 void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 {
+	// IMPORTANT: Save any unsaved texture changes from current material before switching
+	saveCurrentMaterialTexturesBeforeSwitch();
+
 	// Load and bind material for preview (same as single-click)
 	if (!_material) _material = new GLMaterial();
 	*_material = mat;
@@ -1690,10 +1765,43 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 			QString materialKey = selected.first()->data(0, Qt::UserRole).toString();
 			if (!materialKey.isEmpty())
 			{
-				// For user materials or unsaved materials, the texture paths are already in the material object
+				_currentMaterialKey = materialKey;
+
+				// Determine material type early so we can use it in cache restoration logic
 				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
 				bool isUnsavedMaterial = materialKey.startsWith("_UNSAVED_");
 
+				// Check if this material was previously modified and cached
+				// If so, restore all data (both scalars and textures) from cache to preserve user modifications
+				auto cachedIt = _materialCache.find(materialKey);
+				if (cachedIt != _materialCache.end())
+				{
+					// For user-created or unsaved materials, restore everything
+					// This preserves both scalar and texture modifications from previous session
+					if (isUserMaterial || isUnsavedMaterial)
+					{
+						*_material = cachedIt.value();
+						qDebug() << "Restored cached material (user/unsaved):" << materialKey;
+					}
+					else
+					{
+						// For preset materials, restore ONLY textures to preserve fresh scalar defaults
+						const GLMaterial& cachedMaterial = cachedIt.value();
+						for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+						{
+							GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+							const auto& cachedTex = cachedMaterial.texture(type);
+							// Only restore texture if it has a valid path in the cache
+							if (!cachedTex.path.empty())
+							{
+								_material->setTexture(type, cachedTex);
+								qDebug() << "Restored cached texture for type:" << i << "path:" << QString::fromStdString(cachedTex.path);
+							}
+						}
+					}
+				}
+
+				// For user materials or unsaved materials, the texture paths are already in the material object
 				if (isUserMaterial || isUnsavedMaterial)
 				{
 					loadTextureImageFiles();
@@ -2424,15 +2532,10 @@ void MaterialPropertiesPanel::updateUnsavedMaterialInMap()
 {
 	if (!_material || _currentMaterialKey.isEmpty()) return;
 
-	auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
-		MaterialLibraryWidget::sharedMaterialMap());
-
-	// Update both unsaved and user materials in the shared map
-	// This ensures modified scalars are captured and available when tree is refreshed
-	if (_currentMaterialKey.startsWith("_UNSAVED_") || MaterialLibraryWidget::s_userMaterialKeys.contains(_currentMaterialKey))
-	{
-		sharedMap[_currentMaterialKey] = [mat = *_material]() { return mat; };
-	}
+	// Store the current material in local cache for persistence across material selections
+	// This preserves both scalar and texture modifications when switching between materials
+	_materialCache[_currentMaterialKey] = *_material;
+	qDebug() << "Cached material in local map:" << _currentMaterialKey;
 }
 
 void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)

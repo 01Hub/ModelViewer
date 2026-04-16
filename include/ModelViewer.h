@@ -119,6 +119,19 @@ public:
 	// Selection helpers (for DuplicateCommand)
 	QSet<QUuid> getSelectedUuids() const;
 
+	void detachADSMaterialPanel();
+	void reattachADSMaterialPanel();
+	void detachTexturePanel();
+	void reattachTexturePanel();
+	void detachMaterialPanel();
+	void reattachMaterialPanel();
+	void detachTransformationsPanel();
+	void reattachTransformationsPanel();
+	void detachEnvironmentPanel();
+	void reattachEnvironmentPanel();
+	void detachNavigationPanel();
+	void reattachNavigationPanel();
+
 public slots:
 	void updateDisplayList();
 	void updateSelectionStatusMessage();
@@ -182,7 +195,7 @@ protected:
 	void dropEvent(QDropEvent* event);
 	void resizeEvent(QResizeEvent* event);
 	void mouseMoveEvent(QMouseEvent* event);
-	
+
 private:
 	GLMaterial buildADSMaterialFromPanel() const;
 	void updateNavigationOverlayGeometry();
@@ -194,19 +207,6 @@ private:
 			
 	void updateControls();
 	QString getSupportedQtImagesFilter();
-
-	void detachADSMaterialPanel();
-	void reattachADSMaterialPanel();
-	void detachTexturePanel();
-	void reattachTexturePanel();
-	void detachMaterialPanel();
-	void reattachMaterialPanel();
-	void detachTransformationsPanel();
-	void reattachTransformationsPanel();
-	void detachEnvironmentPanel();
-	void reattachEnvironmentPanel();
-	void detachNavigationPanel();
-	void reattachNavigationPanel();
 
 	// Cleanup methods
 	void setupUndoStackMonitoring();

@@ -310,6 +310,14 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 ModelViewer::~ModelViewer()
 {
+	// Close detached dialogs before destroying
+	if (_detachedMaterialDialog)
+	{
+		_detachedMaterialDialog->close();
+		_detachedMaterialDialog->deleteLater();
+		_detachedMaterialDialog = nullptr;
+	}
+
 	if (_undoStack)
 	{
 		disconnect(_undoStack, nullptr, nullptr, nullptr);  // Prevent callbacks
@@ -1342,6 +1350,7 @@ void ModelViewer::mouseMoveEvent(QMouseEvent* event)
 {
 	QWidget::mouseMoveEvent(event);
 }
+
 
 void ModelViewer::closeEvent(QCloseEvent* event)
 {

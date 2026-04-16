@@ -6924,6 +6924,16 @@ unsigned int GLWidget::getOrLoadTextureCached(
 			GLuint newTexID = createGPUTextureFromImage(entry.image, samplers);
 			if (newTexID != 0)
 			{
+				// CRITICAL FIX: Release the old texture before replacing it
+				// Without this, orphaned GPU texture IDs cause context corruption
+				GLuint oldTexID = entry.lastGPUTexture;
+				if (oldTexID != 0)
+				{
+					releaseTexture(oldTexID);
+					qDebug() << "Released old texture ID" << oldTexID
+						<< "when creating new texture with different samplers for" << path;
+				}
+
 				entry.lastGPUTexture = newTexID;
 				entry.lastSamplerSettings = samplers;
 				_texRefCount[newTexID] = 1;

@@ -70,6 +70,17 @@ void ApplyMaterialCommand::redo()
 
 void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materials)
 {
+	// CRITICAL FIX: Ensure correct GL context before any GPU operations
+	// This prevents GL context corruption when material is applied from detached dialog
+	if (!_glWidget)
+	{
+		qWarning() << "ApplyMaterialCommand::applyMaterials - GLWidget is null!";
+		return;
+	}
+
+	_glWidget->makeCurrent();
+	qDebug() << "ApplyMaterialCommand::applyMaterials - Made GL context current";
+
 	qDebug() << "=== ApplyMaterialCommand::applyMaterials START ===";
 	qDebug() << "Number of materials to apply:" << materials.size();
 
