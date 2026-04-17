@@ -354,12 +354,22 @@
            </item>
            <item>
             <property name="text">
+             <string>Ambient Occlusion</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
              <string>Height</string>
             </property>
            </item>
            <item>
             <property name="text">
-             <string>Ambient Occlusion</string>
+             <string>Opacity</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Emissive</string>
             </property>
            </item>
            <item>
@@ -385,6 +395,56 @@
            <item>
             <property name="text">
              <string>Sheen Roughness</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Transmission</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>IOR</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Thickness</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Specular Factor</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Specular Color</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Anisotropy</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Iridescence</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Iridescence Thickness</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Diffuse Transmission</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Diffuse Transmission Color</string>
             </property>
            </item>
           </widget>

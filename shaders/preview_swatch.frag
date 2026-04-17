@@ -16,6 +16,9 @@ uniform vec3 camPos;
 uniform int  previewProfile; // 0 = TextureAuthoring, 1 = MaterialShowcase
 
 // 0=All, 1=Albedo, 2=Metalness, 3=Roughness, 4=Normal, 5=AO, 6=Height, 7=Opacity, 8=Emissive
+// 9=ClearcoatColor, 10=ClearcoatRoughness, 11=ClearcoatNormal, 12=SheenColor, 13=SheenRoughness
+// 14=Transmission, 15=IOR, 16=Thickness (KHR_materials_volume), 17=SpecularFactor, 18=SpecularColor
+// 19=Anisotropy, 20=Iridescence, 21=IridescenceThickness, 22=DiffuseTransmission, 23=DiffuseTransmissionColor
 uniform int texViewMode;
 
 // ----- Lights -----
@@ -83,6 +86,16 @@ uniform sampler2D sheenRoughnessMap;
 uniform sampler2D clearcoatColorMap;
 uniform sampler2D clearcoatRoughnessMap;
 uniform sampler2D clearcoatNormalMap;
+uniform sampler2D transmissionMap;
+uniform sampler2D iorMap;
+uniform sampler2D specularFactorMap;
+uniform sampler2D specularColorMap;
+uniform sampler2D anisotropyMap;
+uniform sampler2D iridescenceMap;
+uniform sampler2D iridescenceThicknessMap;
+uniform sampler2D diffuseTransmissionMap;
+uniform sampler2D diffuseTransmissionColorMap;
+uniform sampler2D thicknessMap;
 
 // ----- Enable flags -----
 uniform bool useAlbedoMap;
@@ -99,6 +112,16 @@ uniform bool useSheenRoughnessMap;
 uniform bool useClearcoatColorMap;
 uniform bool useClearcoatRoughnessMap;
 uniform bool useClearcoatNormalMap;
+uniform bool useTransmissionMap;
+uniform bool useIorMap;
+uniform bool useSpecularFactorMap;
+uniform bool useSpecularColorMap;
+uniform bool useAnisotropyMap;
+uniform bool useIridescenceMap;
+uniform bool useIridescenceThicknessMap;
+uniform bool useDiffuseTransmissionMap;
+uniform bool useDiffuseTransmissionColorMap;
+uniform bool useThicknessMap;
 
 // ----- Extra controls -----
 uniform float AOIntensity;
@@ -162,6 +185,46 @@ uniform vec2  clearcoatNormalScale;
 uniform vec2  clearcoatNormalOffset;
 uniform float clearcoatNormalRotation;
 
+uniform vec2  transmissionScale;
+uniform vec2  transmissionOffset;
+uniform float transmissionRotation;
+
+uniform vec2  iorScale;
+uniform vec2  iorOffset;
+uniform float iorRotation;
+
+uniform vec2  specularFactorScale;
+uniform vec2  specularFactorOffset;
+uniform float specularFactorRotation;
+
+uniform vec2  specularColorScale;
+uniform vec2  specularColorOffset;
+uniform float specularColorRotation;
+
+uniform vec2  anisotropyScale;
+uniform vec2  anisotropyOffset;
+uniform float anisotropyRotation;
+
+uniform vec2  iridescenceScale;
+uniform vec2  iridescenceOffset;
+uniform float iridescenceRotation;
+
+uniform vec2  iridescenceThicknessScale;
+uniform vec2  iridescenceThicknessOffset;
+uniform float iridescenceThicknessRotation;
+
+uniform vec2  diffuseTransmissionScale;
+uniform vec2  diffuseTransmissionOffset;
+uniform float diffuseTransmissionRotation;
+
+uniform vec2  diffuseTransmissionColorScale;
+uniform vec2  diffuseTransmissionColorOffset;
+uniform float diffuseTransmissionColorRotation;
+
+uniform vec2  thicknessScale;
+uniform vec2  thicknessOffset;
+uniform float thicknessRotation;
+
 // channel packing uniforms (for packed textures like ORM/AORM)
 uniform int   metalnessChannel;
 uniform int   metalnessChannelInvert;
@@ -217,7 +280,7 @@ vec2 applyTextureTransform(vec2 uv, vec2 scale, vec2 offset, float rotation)
     // Apply rotation (assuming rotation is in radians)
     float c = cos(rotation);
     float s = sin(rotation);
-    uv = mat2(c, -s, s, c) * uv;
+    uv = mat2(c, s, -s, c) * uv;
 
     // Apply offset
     uv += offset;
@@ -474,6 +537,66 @@ void main()
             vec3 e = useEmissiveMap ? texture(emissiveMap, applyTextureTransform(uv, emissiveScale, emissiveOffset, emissiveRotation)).rgb : vec3(0.0);
             outCol = e * emissiveColor * emissiveStrength;
         }
+        else if (texViewMode == 9) {                // Clearcoat Color
+            vec3 cc = useClearcoatColorMap ? texture(clearcoatColorMap, applyTextureTransform(uv, clearcoatColorScale, clearcoatColorOffset, clearcoatColorRotation)).rgb : vec3(0.0);
+            outCol = clamp(cc, 0.0, 1.0);
+        }
+        else if (texViewMode == 10) {               // Clearcoat Roughness
+            float cr = useClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, applyTextureTransform(uv, clearcoatRoughnessScale, clearcoatRoughnessOffset, clearcoatRoughnessRotation)).r : 0.0;
+            outCol = vec3(cr);
+        }
+        else if (texViewMode == 11) {               // Clearcoat Normal
+            vec3 cnTS = useClearcoatNormalMap ? (texture(clearcoatNormalMap, applyTextureTransform(uv, clearcoatNormalScale, clearcoatNormalOffset, clearcoatNormalRotation)).xyz * 2.0 - 1.0) : vec3(0,0,1);
+            outCol = cnTS * 0.5 + 0.5;
+        }
+        else if (texViewMode == 12) {               // Sheen Color
+            vec3 sc = useSheenColorMap ? texture(sheenColorMap, applyTextureTransform(uv, sheenColorScale, sheenColorOffset, sheenColorRotation)).rgb : sheenColor;
+            outCol = clamp(sc, 0.0, 1.0);
+        }
+        else if (texViewMode == 13) {               // Sheen Roughness
+            float sr = useSheenRoughnessMap ? texture(sheenRoughnessMap, applyTextureTransform(uv, sheenRoughnessScale, sheenRoughnessOffset, sheenRoughnessRotation)).r : sheenRoughness;
+            outCol = vec3(sr);
+        }
+        else if (texViewMode == 14) {               // Transmission (KHR_materials_volume)
+            float t = useTransmissionMap ? texture(transmissionMap, applyTextureTransform(uv, transmissionScale, transmissionOffset, transmissionRotation)).r : transmission;
+            outCol = vec3(t);
+        }
+        else if (texViewMode == 15) {               // IOR (KHR_materials_volume)
+            float ior = useIorMap ? texture(iorMap, applyTextureTransform(uv, iorScale, iorOffset, iorRotation)).r : (IOR / 2.0);
+            outCol = vec3(ior);
+        }
+        else if (texViewMode == 16) {               // Thickness (KHR_materials_volume)
+            float thick = useThicknessMap ? texture(thicknessMap, applyTextureTransform(uv, thicknessScale, thicknessOffset, thicknessRotation)).r : 0.0;
+            outCol = vec3(thick);
+        }
+        else if (texViewMode == 17) {               // Specular Factor (KHR_materials_specular)
+            float sf = useSpecularFactorMap ? texture(specularFactorMap, applyTextureTransform(uv, specularFactorScale, specularFactorOffset, specularFactorRotation)).r : specular;
+            outCol = vec3(sf);
+        }
+        else if (texViewMode == 18) {               // Specular Color (KHR_materials_specular)
+            vec3 spc = useSpecularColorMap ? texture(specularColorMap, applyTextureTransform(uv, specularColorScale, specularColorOffset, specularColorRotation)).rgb : vec3(0.0);
+            outCol = clamp(spc, 0.0, 1.0);
+        }
+        else if (texViewMode == 19) {               // Anisotropy (KHR_materials_anisotropy)
+            float aniso = useAnisotropyMap ? texture(anisotropyMap, applyTextureTransform(uv, anisotropyScale, anisotropyOffset, anisotropyRotation)).r : 0.0;
+            outCol = vec3(aniso);
+        }
+        else if (texViewMode == 20) {               // Iridescence (KHR_materials_iridescence)
+            float iri = useIridescenceMap ? texture(iridescenceMap, applyTextureTransform(uv, iridescenceScale, iridescenceOffset, iridescenceRotation)).r : iridescence;
+            outCol = vec3(iri);
+        }
+        else if (texViewMode == 21) {               // Iridescence Thickness (KHR_materials_iridescence)
+            float iriThick = useIridescenceThicknessMap ? texture(iridescenceThicknessMap, applyTextureTransform(uv, iridescenceThicknessScale, iridescenceThicknessOffset, iridescenceThicknessRotation)).r : 0.5;
+            outCol = vec3(iriThick);
+        }
+        else if (texViewMode == 22) {               // Diffuse Transmission (KHR_materials_diffuse_transmission)
+            vec3 diffTrans = useDiffuseTransmissionMap ? texture(diffuseTransmissionMap, applyTextureTransform(uv, diffuseTransmissionScale, diffuseTransmissionOffset, diffuseTransmissionRotation)).rgb : vec3(0.0);
+            outCol = clamp(diffTrans, 0.0, 1.0);
+        }
+        else if (texViewMode == 23) {               // Diffuse Transmission Color (KHR_materials_diffuse_transmission)
+            vec3 diffTransCol = useDiffuseTransmissionColorMap ? texture(diffuseTransmissionColorMap, applyTextureTransform(uv, diffuseTransmissionColorScale, diffuseTransmissionColorOffset, diffuseTransmissionColorRotation)).rgb : vec3(0.0);
+            outCol = clamp(diffTransCol, 0.0, 1.0);
+        }
 
         // Apply exposure / tonemap for consistent preview look
         float exposure = exp2(exposureEV);
@@ -522,7 +645,7 @@ void main()
     clearcoatVal = clamp(clearcoatVal, 0.0, 1.0);
 
     float clearcoatRoughnessVal = useClearcoatRoughnessMap
-        ? texture(clearcoatRoughnessMap, applyTextureTransform(uv, clearcoatRoughnessScale, clearcoatRoughnessOffset, clearcoatRoughnessRotation)).g * clearcoatRoughness
+        ? texture(clearcoatRoughnessMap, applyTextureTransform(uv, clearcoatRoughnessScale, clearcoatRoughnessOffset, clearcoatRoughnessRotation)).r * clearcoatRoughness
         : clearcoatRoughness;
     clearcoatRoughnessVal = clamp(clearcoatRoughnessVal, 0.0001, 1.0);
 
@@ -538,7 +661,7 @@ void main()
         : sheenColor;
 
     float sheenRoughnessVal = useSheenRoughnessMap
-        ? texture(sheenRoughnessMap, applyTextureTransform(uv, sheenRoughnessScale, sheenRoughnessOffset, sheenRoughnessRotation)).a * sheenRoughness
+        ? texture(sheenRoughnessMap, applyTextureTransform(uv, sheenRoughnessScale, sheenRoughnessOffset, sheenRoughnessRotation)).r * sheenRoughness
         : sheenRoughness;
     sheenRoughnessVal = clamp(sheenRoughnessVal, 0.0, 1.0);
 
