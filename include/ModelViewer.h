@@ -119,10 +119,6 @@ public:
 	// Selection helpers (for DuplicateCommand)
 	QSet<QUuid> getSelectedUuids() const;
 
-	void detachADSMaterialPanel();
-	void reattachADSMaterialPanel();
-	void detachTexturePanel();
-	void reattachTexturePanel();
 	void detachMaterialPanel();
 	void reattachMaterialPanel();
 	void detachTransformationsPanel();
@@ -158,8 +154,6 @@ private slots:
 	void showContextMenu(const QPoint& pos);
 	void lightingType_toggled(QAbstractButton*, bool);
 
-	void applyADSColors();
-
 	void onFileImport();
 	void importFiles(QStringList& fileNames);
 	void onFileExport();
@@ -170,22 +164,15 @@ private slots:
 	void handleTreeWidgetSelectionChanged();
 	void handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& newName);
 
-	void on_toolBox_currentChanged(int index);
+	void on_tabWidgetVizAttribs_currentChanged(int index);
 
 	void on_toolButtonClearOpacityTex_clicked();
-
-	void applyADSTextures();
-	void clearADSTextures();
 
 	void onPredefinedMaterialSelected(const GLMaterial& mat);
 	void onCustomMaterialApplied(const GLMaterial& mat);
 
 	void onTexturesApplied(const GLMaterial* mat = nullptr);
 
-	void onADSColorsApplied();
-	void onOpacitySliderReleased(); 
-	void onShininessSliderReleased();
-	void onADSTexturesApplied();
 
 protected:
 	void showEvent(QShowEvent* event);
@@ -197,7 +184,6 @@ protected:
 	void mouseMoveEvent(QMouseEvent* event);
 
 private:
-	GLMaterial buildADSMaterialFromPanel() const;
 	void updateNavigationOverlayGeometry();
 
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
@@ -232,19 +218,6 @@ private:
 
 	bool _bHasTexture;
 
-	QString _diffuseADSTexture;
-	QString _specularADSTexture;
-	QString _emissiveADSTexture;
-	QString _normalADSTexture;
-	QString _heightADSTexture;
-	QString _opacityADSTexture;
-	bool    _hasADSDiffuseTex;
-	bool    _hasADSSpecularTex;
-	bool    _hasADSEmissiveTex;
-	bool    _hasADSNormalTex;
-	bool    _hasADSHeightTex;
-	bool    _hasADSOpacityTex;
-
 	QString _albedoPBRTexture;
 	QString _metallicPBRTexture;
 	QString _roughnessPBRTexture;
@@ -276,28 +249,18 @@ private:
 	int _skyBoxLDRIIndex = 0;
 	int _skyBoxHDRIIndex = 0;
 
-	QPointer<QDialog> _detachedADSMaterialDialog;// Stores the floating dialog
-	QWidget* _adsMaterialOriginalParent = nullptr; // Stores where panel came from
-	int _adsMaterialPageIndex = -1;
-	QString _adsMaterialPageLabel;
-
-	QPointer<QDialog> _detachedTextureDialog;  // Stores the floating dialog
-	QWidget* _textureOriginalParent = nullptr; // Stores where panel came from
-	int _texturePageIndex = -1;
-	QString _texturePageLabel;
-
 	QPointer<QDialog> _detachedMaterialDialog; // Stores the floating dialog
-	QWidget* _materialOriginalParent = nullptr; // Stores where panel came from		
+	QWidget* _materialOriginalParent = nullptr; // Stores the scroll area
 	int _materialPageIndex = -1;
 	QString _materialPageLabel;
 
 	QPointer<QDialog> _detachedTransformationsDialog; // Stores the floating dialog
-	QWidget* _transformationsOriginalParent = nullptr; // Stores where panel came from
+	QWidget* _transformationsOriginalParent = nullptr; // Stores the scroll area
 	int _transformationsPageIndex = -1;
 	QString _transformationsPageLabel;
 
 	QPointer<QDialog> _detachedEnvironmentDialog; // Stores the floating dialog
-	QWidget* _environmentOriginalParent = nullptr; // Stores where panel came from
+	QWidget* _environmentOriginalParent = nullptr; // Stores the scroll area
 	int _environmentPageIndex = -1;
 	QString _environmentPageLabel;
 

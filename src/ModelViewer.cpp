@@ -54,6 +54,19 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	setupUi(this);
 
+	// Configure main splitter to constrain right panel to 450px on startup
+	// Tree view gets the rest of the space
+	QTimer::singleShot(0, this, [this]() {
+		if (splitter && splitter->count() >= 2)
+		{
+			int totalWidth = splitter->width();
+			int rightWidth = 480;  // Right panel fixed width
+			int leftWidth = totalWidth - rightWidth;
+			if (leftWidth < 300) leftWidth = 300;  // Minimum for left side
+			splitter->setSizes({leftWidth, rightWidth});
+		}
+	});
+
 	// Scene graph — owns the node hierarchy mirroring the loaded aiScene tree.
 	_sceneGraph = new SceneGraph(this);
 
@@ -108,34 +121,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	QVBoxLayout* flayout = new QVBoxLayout(glframe);
 	flayout->setContentsMargins(0, 0, 0, 0);
 	flayout->addWidget(_glWidget, 1);
-
-	adsMaterialSettingsPanel->initialize(this, _glWidget, &_material);
-
-	// Connect panel signals to ModelViewer slots	
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyColorToSelectionRequested,
-		this, &ModelViewer::onADSColorsApplied);
-
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::opacitySliderReleased,
-		this, &ModelViewer::onOpacitySliderReleased);
-
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::shininessSliderReleased,
-		this, &ModelViewer::onShininessSliderReleased);
-	
-	// connect apply/clear buttons
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::applyTexturesRequested,
-		this, &ModelViewer::onADSTexturesApplied);
-
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::clearTexturesRequested,
-		this, &ModelViewer::clearADSTextures);
-
-	connect(adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::defaultMaterialsRequested,
-		this, [this]() {
-			updateControls();
-		});
-
-	connect(Ui_ModelViewer::adsMaterialSettingsPanel, &ADSMaterialSettingsPanel::detachRequested,
-		this, &ModelViewer::detachADSMaterialPanel);
-
 
 	connect(checkBoxAutoFitView, &QCheckBox::toggled, _glWidget, &GLWidget::setAutoFitViewOnUpdate);
 	connect(checkBoxSelectionHighlight, &QCheckBox::toggled, _glWidget, &GLWidget::setSelectionHighlighting);
@@ -207,20 +192,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
 
-	// Disable ADS and PBR texture pages - unified MaterialPropertiesPanel is the only editor now
-	int indexADS = toolBox->indexOf(toolBox->findChild<QWidget*>("pageADSSettings"));
-	int indexPBR = toolBox->indexOf(toolBox->findChild<QWidget*>("pageTextureMapping"));
-	if (indexADS >= 0) toolBox->setItemEnabled(indexADS, false);
-	if (indexPBR >= 0) toolBox->setItemEnabled(indexPBR, false);
-
-	// Hide disabled tabs using stylesheet
-	toolBox->setStyleSheet(
-		"QToolBox::tab:disabled { "
-		"    display: none; "
-		"} "
-	);
-
-	toolBox->setCurrentIndex(2);
+	// Set default tab to Material Settings
+	tabWidgetVizAttribs->setCurrentIndex(0);
 
 	// Shortcut to toggle lighting mode
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), this);
@@ -236,16 +209,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		other->setChecked(true);   // or other->click();
 		});
 
-
-	MaterialLibraryWidget* libraryWidget =
-		Ui_ModelViewer::predefinedMaterialsPanel->findChild<MaterialLibraryWidget*>("treeWidget");
-
-	if (libraryWidget)
-	{
-		connect(libraryWidget, &MaterialLibraryWidget::materialSelected,
-			this, &ModelViewer::onPredefinedMaterialSelected);
-	}
-
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::materialApplied,
 		this, &ModelViewer::onCustomMaterialApplied);
 
@@ -255,26 +218,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		this, &ModelViewer::setTextureSamplersToSelectedItems);
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::textureCacheClearRequested,
 		this, &ModelViewer::onTextureCacheCleared);
-
-	connect(textureMappingPanel, &TextureMappingPanel::detachRequested,
-		this, &ModelViewer::detachTexturePanel);
-	
-	connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::applyTexturesTriggered,
-		this, [this](const GLMaterial& mat) { onTexturesApplied(&mat); });
-
-	/*connect(Ui_ModelViewer::textureMappingPanel, &TextureMappingPanel::materialChanged,
-		this, &ModelViewer::onTexturesApplied);*/
-
-	connect(textureMappingPanel, &TextureMappingPanel::textureSamplerChanged,
-		this, &ModelViewer::setTextureSamplersToSelectedItems);
-	connect(textureMappingPanel, &TextureMappingPanel::textureCacheClearRequested,
-		this, &ModelViewer::onTextureCacheCleared);
-	QShortcut* detachShortcut = new QShortcut(
-		QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_T),  // Ctrl+Shift+T
-		textureMappingPanel
-	);
-	connect(detachShortcut, &QShortcut::activated,
-		this, &ModelViewer::detachTexturePanel);
 
 	visualizationEnvironmentPanel->initialize(this, _glWidget);
 
@@ -287,13 +230,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(Ui_ModelViewer::toolButtonDetach, &QToolButton::clicked,
 		this, &ModelViewer::detachNavigationPanel);
 
-	_hasADSDiffuseTex = false;
-	_hasADSSpecularTex = false;
-	_hasADSEmissiveTex = false;
-	_hasADSNormalTex = false;
-	_hasADSHeightTex = false;
-	_hasADSOpacityTex = false;
-	_hasPBRAlbedoTex = false;
+	_hasPBRAlbedoTex = false;	
 	_hasPBRMetallicTex = false;
 	_hasPBRRoughnessTex = false;
 	_hasPBRAOTex = false;
@@ -372,7 +309,7 @@ void ModelViewer::setListRow(int index)
 	setSelectionWithUndo(newSelection);
 
 	// Update transformation panel if needed
-	if (toolBox->currentIndex() == 4)
+	if (tabWidgetVizAttribs->currentIndex() == 1)
 	{
 		if (newSelection.size() == 1)
 			updateTransformationValues();
@@ -555,7 +492,7 @@ void ModelViewer::updateTransformationValues()
 	}
 	catch (const std::exception& ex)
 	{
-		std::cout << "Exception raised in ModelViewer::on_toolBox_currentChanged\n" << ex.what() << std::endl;
+		std::cout << "Exception raised in ModelViewer::on_tabWidgetVizAttribs_currentChanged\n" << ex.what() << std::endl;
 	}
 }
 
@@ -567,12 +504,7 @@ void ModelViewer::resetTransformationValues()
 void ModelViewer::updateControls()
 {
 	visualizationEnvironmentPanel->updateButtonStyles();
-	// ADS Lighting
-	if (radioButtonADSL->isChecked())
-	{
-		adsMaterialSettingsPanel->updateMaterialButtonStyles();
-		adsMaterialSettingsPanel->updateMaterialPropertySliders();
-	}
+	// ADS Lighting mode (computed from PBR properties)
 }
 
 QString ModelViewer::getSupportedQtImagesFilter()
@@ -593,161 +525,9 @@ QString ModelViewer::getSupportedQtImagesFilter()
 	return filter;
 }
 
-void ModelViewer::detachADSMaterialPanel()
-{
-	if (!adsMaterialSettingsPanel || !toolBox) return;
-	if (_detachedADSMaterialDialog)
-	{
-		reattachADSMaterialPanel();
-		return;
-	}
-	// Find and remove from toolbox
-	_adsMaterialPageIndex = toolBox->indexOf(adsMaterialSettingsPanel->parentWidget());
-	if (_adsMaterialPageIndex >= 0)
-	{
-		_adsMaterialPageLabel = toolBox->itemText(_adsMaterialPageIndex);
-		toolBox->removeItem(_adsMaterialPageIndex);
-	}
-	// Create floating dialog
-	auto* floatingADSDlg = new FloatingPanelDialog(this, tr("ADS Material Settings"));
-	_detachedADSMaterialDialog = floatingADSDlg;
-	_adsMaterialOriginalParent = adsMaterialSettingsPanel->parentWidget();
-	floatingADSDlg->addContentWidget(adsMaterialSettingsPanel);
-	// Position and show...
-	QScreen* screen = QGuiApplication::primaryScreen();
-	QRect screenGeom = screen->availableGeometry();
-	QRect myGeometry = this->frameGeometry();
-	int x = myGeometry.right() + 20;
-	int y = myGeometry.top();
-	if (x + 420 > screenGeom.right()) x = screenGeom.right() - adsMaterialSettingsPanel->width() - 40;  // Fit within screen;
-	if (y + 700 > screenGeom.bottom()) y = screenGeom.bottom() - adsMaterialSettingsPanel->height();
-	if (x < screenGeom.left()) x = screenGeom.left();
-	if (y < screenGeom.top()) y = screenGeom.top();
-	_detachedADSMaterialDialog->move(x, y);
-	_detachedADSMaterialDialog->resize(420, std::min(adsMaterialSettingsPanel->height(), static_cast<int>(height() * 0.95)));
-	_detachedADSMaterialDialog->show();
-	adsMaterialSettingsPanel->setDetached(true);
-	connect(floatingADSDlg, &FloatingPanelDialog::reattachRequested,
-		this, &ModelViewer::reattachADSMaterialPanel);
-}
-
-void ModelViewer::reattachADSMaterialPanel()
-{
-	if (!_detachedADSMaterialDialog || !toolBox) return;
-	_detachedADSMaterialDialog->disconnect();
-	if (adsMaterialSettingsPanel)
-		adsMaterialSettingsPanel->setParent(nullptr);
-	_detachedADSMaterialDialog->deleteLater();
-	_detachedADSMaterialDialog = nullptr;
-	if (adsMaterialSettingsPanel && _adsMaterialOriginalParent && _adsMaterialPageIndex >= 0)
-	{
-		// Re-insert page into toolbox
-		toolBox->insertItem(_adsMaterialPageIndex, _adsMaterialOriginalParent, _adsMaterialPageLabel);
-		adsMaterialSettingsPanel->setParent(_adsMaterialOriginalParent);
-		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_adsMaterialOriginalParent->layout());
-		if (gridLayout)
-		{
-			gridLayout->addWidget(adsMaterialSettingsPanel, 0, 0);
-			gridLayout->setColumnStretch(0, 1);
-			gridLayout->setRowStretch(0, 1);
-		}
-		adsMaterialSettingsPanel->show();
-		_adsMaterialOriginalParent->show();
-		adsMaterialSettingsPanel->setDetached(false);
-		bool shouldActivate = radioButtonADSL->isChecked();
-		if (shouldActivate)
-		{
-			toolBox->setCurrentIndex(_adsMaterialPageIndex);
-			toolBox->setItemEnabled(_adsMaterialPageIndex, true); // Enable only if ADS is selected
-		}
-	}
-}
-
-void ModelViewer::detachTexturePanel()
-{
-	if (!textureMappingPanel || !toolBox) return;
-
-	if (_detachedTextureDialog)
-	{
-		reattachTexturePanel();
-		return;
-	}
-
-	// Find and remove from toolbox
-	_texturePageIndex = toolBox->indexOf(textureMappingPanel->parentWidget());
-	if (_texturePageIndex >= 0)
-	{
-		_texturePageLabel = toolBox->itemText(_texturePageIndex);
-		toolBox->removeItem(_texturePageIndex);
-	}
-
-	// Create floating dialog
-	auto* floatingTexDlg = new FloatingPanelDialog(this, tr("PBR Texture Settings"));
-	_detachedTextureDialog = floatingTexDlg;
-
-	_textureOriginalParent = textureMappingPanel->parentWidget();
-	floatingTexDlg->addContentWidget(textureMappingPanel);
-
-	// Position and show...
-	QScreen* screen = QGuiApplication::primaryScreen();
-	QRect screenGeom = screen->availableGeometry();
-	QRect myGeometry = this->frameGeometry();
-	int x = myGeometry.right() + 20;
-	int y = myGeometry.top();
-	if (x + 420 > screenGeom.right()) x = screenGeom.right() - textureMappingPanel->width() - 40; // Fit within screen;
-	if (y + 700 > screenGeom.bottom()) y = screenGeom.bottom() - textureMappingPanel->height();
-	if (x < screenGeom.left()) x = screenGeom.left();
-	if (y < screenGeom.top()) y = screenGeom.top();
-
-	_detachedTextureDialog->move(x, y);
-	_detachedTextureDialog->resize(420, std::min(textureMappingPanel->height(), static_cast<int>(height() * 0.95)));
-	_detachedTextureDialog->show();
-	textureMappingPanel->setDetached(true);
-
-	connect(floatingTexDlg, &FloatingPanelDialog::reattachRequested,
-		this, &ModelViewer::reattachTexturePanel);
-}
-
-void ModelViewer::reattachTexturePanel()
-{
-	if (!_detachedTextureDialog || !toolBox) return;
-
-	_detachedTextureDialog->disconnect();
-	if (textureMappingPanel)
-		textureMappingPanel->setParent(nullptr);
-	_detachedTextureDialog->deleteLater();
-	_detachedTextureDialog = nullptr;
-
-	if (textureMappingPanel && _textureOriginalParent && _texturePageIndex >= 0)
-	{
-		// Re-insert page into toolbox
-		toolBox->insertItem(_texturePageIndex, _textureOriginalParent, _texturePageLabel);
-
-		textureMappingPanel->setParent(_textureOriginalParent);
-		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_textureOriginalParent->layout());
-		if (gridLayout)
-		{
-			gridLayout->addWidget(textureMappingPanel, 0, 0);
-			gridLayout->setColumnStretch(0, 1);
-			gridLayout->setRowStretch(0, 1);
-		}
-
-		textureMappingPanel->show();
-		_textureOriginalParent->show();
-		textureMappingPanel->setDetached(false);
-
-		bool shouldActivate = radioButtonTXPBR->isChecked();
-		if (shouldActivate)
-		{
-			toolBox->setCurrentIndex(_texturePageIndex);
-			toolBox->setItemEnabled(_texturePageIndex, true); // Enable only if PBR is selected
-		}
-	}
-}
-
 void ModelViewer::detachMaterialPanel()
 {
-	if (!predefinedMaterialsPanel || !toolBox) return;
+	if (!predefinedMaterialsPanel || !tabWidgetVizAttribs) return;
 
 	if (_detachedMaterialDialog)
 	{
@@ -755,19 +535,26 @@ void ModelViewer::detachMaterialPanel()
 		return;
 	}
 
-	// Find and remove from toolbox
-	_materialPageIndex = toolBox->indexOf(predefinedMaterialsPanel->parentWidget());
+	// Get the scroll area directly from the UI
+	QScrollArea* scrollArea = findChild<QScrollArea*>("scrollAreaMaterial");
+	if (!scrollArea) return;
+
+	_materialOriginalParent = scrollArea;
+
+	// Hide the tab
+	_materialPageIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
 	if (_materialPageIndex >= 0)
 	{
-		_materialPageLabel = toolBox->itemText(_materialPageIndex);
-		toolBox->removeItem(_materialPageIndex);
+		_materialPageLabel = tabWidgetVizAttribs->tabText(_materialPageIndex);
+		tabWidgetVizAttribs->removeTab(_materialPageIndex);
 	}
 
 	// Create floating dialog
 	auto* floatingMatDlg = new FloatingPanelDialog(this, tr("Predefined Materials"));
 	_detachedMaterialDialog = floatingMatDlg;
 
-	_materialOriginalParent = predefinedMaterialsPanel->parentWidget();
+	// Remove panel from scroll area and add to floating dialog
+	scrollArea->takeWidget();  // Remove current widget from scroll area
 	floatingMatDlg->addContentWidget(predefinedMaterialsPanel);
 
 	// Position and show...
@@ -792,55 +579,64 @@ void ModelViewer::detachMaterialPanel()
 
 void ModelViewer::reattachMaterialPanel()
 {
-	if (!_detachedMaterialDialog || !toolBox) return;
+	if (!_detachedMaterialDialog || !_materialOriginalParent) return;
 
+	_detachedMaterialDialog->hide();
 	_detachedMaterialDialog->disconnect();
-	if (predefinedMaterialsPanel)
-		predefinedMaterialsPanel->setParent(nullptr);
-	_detachedMaterialDialog->deleteLater();
-	_detachedMaterialDialog = nullptr;
 
-	if (predefinedMaterialsPanel && _materialOriginalParent && _materialPageIndex >= 0)
+	if (predefinedMaterialsPanel && _materialPageIndex >= 0)
 	{
-		// Re-insert page into toolbox
-		toolBox->insertItem(_materialPageIndex, _materialOriginalParent, _materialPageLabel);
+		predefinedMaterialsPanel->setParent(nullptr);  // Detach from floating dialog
 
-		predefinedMaterialsPanel->setParent(_materialOriginalParent);
-		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_materialOriginalParent->layout());
-		if (gridLayout)
+		// Re-parent panel back to the scroll area
+		QScrollArea* scrollArea = qobject_cast<QScrollArea*>(_materialOriginalParent);
+		if (scrollArea)
 		{
-			gridLayout->addWidget(predefinedMaterialsPanel, 0, 0);
-			gridLayout->setColumnStretch(0, 1);
-			gridLayout->setRowStretch(0, 1);
+			scrollArea->setWidget(predefinedMaterialsPanel);
+			predefinedMaterialsPanel->show();
+			predefinedMaterialsPanel->setDetached(false);
 		}
 
-		predefinedMaterialsPanel->show();
-		_materialOriginalParent->show();
-		predefinedMaterialsPanel->setDetached(false);
-		toolBox->setCurrentIndex(_materialPageIndex);
+		// Restore the tab
+		tabWidgetVizAttribs->insertTab(_materialPageIndex, scrollArea->parentWidget(), _materialPageLabel);
+		tabWidgetVizAttribs->setCurrentIndex(_materialPageIndex);
 	}
+
+	_detachedMaterialDialog->deleteLater();
+	_detachedMaterialDialog = nullptr;
+	_materialOriginalParent = nullptr;
 }
 
 void ModelViewer::detachTransformationsPanel()
 {
-	if (!toolBox) return;
+	if (!tabWidgetVizAttribs) return;
 
 	if(_detachedTransformationsDialog)
 	{
 		reattachTransformationsPanel();
 		return;
 	}
-	// Find and remove from toolbox
-	_transformationsPageIndex = toolBox->indexOf(objectTransformPanel->parentWidget());
+
+	// Get the scroll area directly from the UI
+	QScrollArea* scrollArea = findChild<QScrollArea*>("scrollAreaTransform");
+	if (!scrollArea) return;
+
+	_transformationsOriginalParent = scrollArea;
+
+	// Hide the tab
+	_transformationsPageIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
 	if (_transformationsPageIndex >= 0)
 	{
-		_transformationsPageLabel = toolBox->itemText(_transformationsPageIndex);
-		toolBox->removeItem(_transformationsPageIndex);
+		_transformationsPageLabel = tabWidgetVizAttribs->tabText(_transformationsPageIndex);
+		tabWidgetVizAttribs->removeTab(_transformationsPageIndex);
 	}
+
 	// Create floating dialog
 	auto* floatingTransDlg = new FloatingPanelDialog(this, tr("Object Transformations"));
 	_detachedTransformationsDialog = floatingTransDlg;
-	_transformationsOriginalParent = objectTransformPanel->parentWidget();
+
+	// Remove panel from scroll area and add to floating dialog
+	scrollArea->takeWidget();  // Remove current widget from scroll area
 	floatingTransDlg->addContentWidget(objectTransformPanel);
 	// Position and show...
 	QScreen* screen = QGuiApplication::primaryScreen();
@@ -862,39 +658,37 @@ void ModelViewer::detachTransformationsPanel()
 
 void ModelViewer::reattachTransformationsPanel()
 {
-	if (!_detachedTransformationsDialog || !toolBox) return;
+	if (!_detachedTransformationsDialog || !_transformationsOriginalParent) return;
+
+	_detachedTransformationsDialog->hide();
 	_detachedTransformationsDialog->disconnect();
-	if (objectTransformPanel)
-		objectTransformPanel->setParent(nullptr);
+
+	if (objectTransformPanel && _transformationsPageIndex >= 0)
+	{
+		objectTransformPanel->setParent(nullptr);  // Detach from floating dialog
+
+		// Re-parent panel back to the scroll area
+		QScrollArea* scrollArea = qobject_cast<QScrollArea*>(_transformationsOriginalParent);
+		if (scrollArea)
+		{
+			scrollArea->setWidget(objectTransformPanel);
+			objectTransformPanel->show();
+			objectTransformPanel->setDetached(false);
+		}
+
+		// Restore the tab
+		tabWidgetVizAttribs->insertTab(_transformationsPageIndex, scrollArea->parentWidget(), _transformationsPageLabel);
+		tabWidgetVizAttribs->setCurrentIndex(_transformationsPageIndex);
+	}
+
 	_detachedTransformationsDialog->deleteLater();
 	_detachedTransformationsDialog = nullptr;
-	if (objectTransformPanel && _transformationsOriginalParent && _transformationsPageIndex >= 0)
-	{
-		// Re-insert page into toolbox
-		toolBox->insertItem(_transformationsPageIndex, _transformationsOriginalParent, _transformationsPageLabel);
-		objectTransformPanel->setParent(_transformationsOriginalParent);
-		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_transformationsOriginalParent->layout());
-		if (gridLayout)
-		{
-			gridLayout->addWidget(objectTransformPanel, 0, 0);
-			gridLayout->setColumnStretch(0, 1);
-			gridLayout->setRowStretch(0, 1);
-		}
-		objectTransformPanel->show();
-		_transformationsOriginalParent->show();
-		objectTransformPanel->setDetached(false);
-		bool shouldActivate = treeWidgetModel->hasMeshSelection();
-		if (shouldActivate)
-		{
-			toolBox->setCurrentIndex(_transformationsPageIndex);
-			toolBox->setItemEnabled(_transformationsPageIndex, true); // Enable only if at least one object is selected
-		}
-	}
+	_transformationsOriginalParent = nullptr;
 }
 
 void ModelViewer::detachEnvironmentPanel()
 {
-	if (!visualizationEnvironmentPanel || !toolBox) return;
+	if (!visualizationEnvironmentPanel || !tabWidgetVizAttribs) return;
 
 	if (_detachedEnvironmentDialog)
 	{
@@ -902,19 +696,26 @@ void ModelViewer::detachEnvironmentPanel()
 		return;
 	}
 
-	// Find and remove from toolbox
-	_environmentPageIndex = toolBox->indexOf(visualizationEnvironmentPanel->parentWidget());
+	// Get the scroll area directly from the UI
+	QScrollArea* scrollArea = findChild<QScrollArea*>("scrollAreaEnv");
+	if (!scrollArea) return;
+
+	_environmentOriginalParent = scrollArea;
+
+	// Hide the tab
+	_environmentPageIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
 	if (_environmentPageIndex >= 0)
 	{
-		_environmentPageLabel = toolBox->itemText(_environmentPageIndex);
-		toolBox->removeItem(_environmentPageIndex);
+		_environmentPageLabel = tabWidgetVizAttribs->tabText(_environmentPageIndex);
+		tabWidgetVizAttribs->removeTab(_environmentPageIndex);
 	}
 
 	// Create floating dialog
 	auto* floatingEnvDlg = new FloatingPanelDialog(this, tr("Visualization Environment Settings"));
 	_detachedEnvironmentDialog = floatingEnvDlg;
 
-	_environmentOriginalParent = visualizationEnvironmentPanel->parentWidget();
+	// Remove panel from scroll area and add to floating dialog
+	scrollArea->takeWidget();  // Remove current widget from scroll area
 	floatingEnvDlg->addContentWidget(visualizationEnvironmentPanel);
 
 	// Position and show...
@@ -939,30 +740,32 @@ void ModelViewer::detachEnvironmentPanel()
 
 void ModelViewer::reattachEnvironmentPanel()
 {
-	if (!_detachedEnvironmentDialog || !toolBox) return;
+	if (!_detachedEnvironmentDialog || !_environmentOriginalParent) return;
+
+	_detachedEnvironmentDialog->hide();
 	_detachedEnvironmentDialog->disconnect();
-	if (visualizationEnvironmentPanel)
-		visualizationEnvironmentPanel->setParent(nullptr);
+
+	if (visualizationEnvironmentPanel && _environmentPageIndex >= 0)
+	{
+		visualizationEnvironmentPanel->setParent(nullptr);  // Detach from floating dialog
+
+		// Re-parent panel back to the scroll area
+		QScrollArea* scrollArea = qobject_cast<QScrollArea*>(_environmentOriginalParent);
+		if (scrollArea)
+		{
+			scrollArea->setWidget(visualizationEnvironmentPanel);
+			visualizationEnvironmentPanel->show();
+			visualizationEnvironmentPanel->setDetached(false);
+		}
+
+		// Restore the tab
+		tabWidgetVizAttribs->insertTab(_environmentPageIndex, scrollArea->parentWidget(), _environmentPageLabel);
+		tabWidgetVizAttribs->setCurrentIndex(_environmentPageIndex);
+	}
+
 	_detachedEnvironmentDialog->deleteLater();
 	_detachedEnvironmentDialog = nullptr;
-	if (visualizationEnvironmentPanel && _environmentOriginalParent && _environmentPageIndex >= 0)
-	{
-		// Re-insert page into toolbox
-		toolBox->insertItem(_environmentPageIndex, _environmentOriginalParent, _environmentPageLabel);
-		visualizationEnvironmentPanel->setParent(_environmentOriginalParent);
-		QGridLayout* gridLayout = qobject_cast<QGridLayout*>(_environmentOriginalParent->layout());
-		if (gridLayout)
-		{
-			gridLayout->addWidget(visualizationEnvironmentPanel, 0, 0);
-			gridLayout->setColumnStretch(0, 1);
-			gridLayout->setRowStretch(0, 1);
-		}
-		visualizationEnvironmentPanel->show();
-		_environmentOriginalParent->show();
-		visualizationEnvironmentPanel->setDetached(false);
-		toolBox->setCurrentIndex(_environmentPageIndex);
-		toolBox->setItemEnabled(_environmentPageIndex, true);
-	}
+	_environmentOriginalParent = nullptr;
 }
 
 void ModelViewer::detachNavigationPanel()
@@ -1377,13 +1180,6 @@ void ModelViewer::closeEvent(QCloseEvent* event)
 			event->ignore();
 			return;
 		}
-	}
-
-	// Clean up floating dialog if it exists
-	if (_detachedTextureDialog)
-	{
-		_detachedTextureDialog->close();
-		_detachedTextureDialog = nullptr;
 	}
 
 	event->accept();
@@ -1901,37 +1697,24 @@ void ModelViewer::displaySelectedMeshInfo()
 
 void ModelViewer::showVisualizationModelPage()
 {
-	if (radioButtonADSL->isChecked())
-	{
-		toolBox->setCurrentIndex(0);
-	}
-	if (radioButtonTXPBR->isChecked())
-	{
-		toolBox->setCurrentIndex(1);
-	}
+	// Material Settings tab now handles both ADS and PBR modes
+	tabWidgetVizAttribs->setCurrentIndex(0);
 }
 
 void ModelViewer::showPredefinedMaterialsPage()
 {
-	toolBox->setCurrentIndex(2);
+	tabWidgetVizAttribs->setCurrentIndex(0);
 }
 
 void ModelViewer::showTransformationsPage()
 {
-	toolBox->setCurrentIndex(3);
+	tabWidgetVizAttribs->setCurrentIndex(1);
 	updateTransformationValues();
 }
 
 void ModelViewer::showEnvironmentPage()
 {
-	toolBox->setCurrentIndex(4);
-}
-
-void ModelViewer::applyADSColors()
-{
-	setMaterialToSelectedItems(_material);
-	_glWidget->updateView();
-	updateControls();
+	tabWidgetVizAttribs->setCurrentIndex(2);
 }
 
 void ModelViewer::handleTreeWidgetVisibilityChanged()
@@ -1952,7 +1735,6 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 		_glWidget->select(idx);
 
 	_glWidget->update();
-	adsMaterialSettingsPanel->setSelectionState(hasSelection());
 	updateSelectionStatusMessage();
 }
 
@@ -1972,64 +1754,6 @@ void ModelViewer::handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& 
 	    this, _glWidget, treeWidgetModel,
 	    uuid, oldName, finalName,
 	    tr("Rename \"%1\" to \"%2\"").arg(oldName, finalName)));
-}
-
-GLMaterial ModelViewer::buildADSMaterialFromPanel() const
-{
-    GLMaterial mat;
-    
-    ADSMaterialSettingsPanel* adsPanel = 
-        qobject_cast<ADSMaterialSettingsPanel*>(Ui_ModelViewer::adsMaterialSettingsPanel);
-    
-    // Get texture paths from panel
-    QString diffusePath = adsPanel->getDiffuseTexturePath();
-    QString specularPath = adsPanel->getSpecularTexturePath();
-    QString normalPath = adsPanel->getNormalTexturePath();
-    QString emissivePath = adsPanel->getEmissiveTexturePath();
-    QString heightPath = adsPanel->getHeightTexturePath();
-    QString opacityPath = adsPanel->getOpacityTexturePath();
-    bool opacityInverted = adsPanel->isOpacityTextureInverted();
-    
-    // Set textures
-    if (!diffusePath.isEmpty())
-    {
-        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::Diffuse);
-        tex.path = diffusePath.toStdString();
-    }
-    
-    if (!specularPath.isEmpty())
-    {
-        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::SpecularGlossiness);
-        tex.path = specularPath.toStdString();
-    }
-    
-    if (!normalPath.isEmpty())
-    {
-        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::Normal);
-        tex.path = normalPath.toStdString();
-    }
-    
-    if (!emissivePath.isEmpty())
-    {
-        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::Emissive);
-        tex.path = emissivePath.toStdString();
-    }
-    
-    if (!heightPath.isEmpty())
-    {
-        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::Height);
-        tex.path = heightPath.toStdString();
-    }
-    
-    if (!opacityPath.isEmpty())
-    {
-        GLMaterial::Texture& tex = mat.texture(GLMaterial::TextureType::Opacity);
-        tex.path = opacityPath.toStdString();
-    }
-    
-    mat.setInvertOpacityMap(opacityInverted);
-    
-    return mat;
 }
 
 void ModelViewer::checkAndRenameModel(TriangleMesh* mesh, const QString& name)
@@ -2628,9 +2352,9 @@ void ModelViewer::on_checkBoxSelectAll_stateChanged(int arg1)
 	}
 }
 
-void ModelViewer::on_toolBox_currentChanged(int index)
+void ModelViewer::on_tabWidgetVizAttribs_currentChanged(int index)
 {
-	if (index == 3) // Transformations page
+	if (index == 1) // Transformations tab
 	{
 		updateTransformationValues();
 	}
@@ -2689,80 +2413,6 @@ void ModelViewer::on_toolButtonClearOpacityTex_clicked()
 	}
 }
 
-void ModelViewer::applyADSTextures()
-{
-	bool allOK = true;
-	if (!_hasADSDiffuseTex || (_hasADSDiffuseTex && _diffuseADSTexture == ""))
-	{
-		QMessageBox::critical(this, tr("ADS Texture Missing"), tr("Diffuse map texture not set"));
-		allOK = false;
-	}
-	else if (_hasADSSpecularTex && _specularADSTexture == "")
-	{
-		QMessageBox::critical(this, tr("ADS Texture Missing"), tr("Specular map texture not set"));
-		allOK = false;
-	}
-	else if (_hasADSNormalTex && _normalADSTexture == "")
-	{
-		QMessageBox::critical(this, tr("ADS Texture Missing"), tr("Normal map texture not set"));
-		allOK = false;
-	}
-	else if (_hasADSHeightTex && _heightADSTexture == "")
-	{
-		QMessageBox::critical(this, tr("ADS Texture Missing"), tr("Height map texture not set"));
-		allOK = false;
-	}
-
-	if (allOK)
-	{
-		if (checkForActiveSelection())
-		{
-			QApplication::setOverrideCursor(Qt::WaitCursor);
-
-			std::vector<int> ids = getSelectedIDs();
-			_glWidget->enableADSDiffuseTexMap(ids, _hasADSDiffuseTex);
-			if (_hasADSDiffuseTex)
-			{
-				_glWidget->setADSDiffuseTexMap(ids, _diffuseADSTexture);
-			}
-			_glWidget->enableADSSpecularTexMap(ids, _hasADSSpecularTex);
-			if (_hasADSSpecularTex)
-			{
-				_glWidget->setADSSpecularTexMap(ids, _specularADSTexture);
-			}
-			_glWidget->enableADSNormalTexMap(ids, _hasADSNormalTex);
-			if (_hasADSNormalTex)
-			{
-				_glWidget->setADSNormalTexMap(ids, _normalADSTexture);
-			}
-			_glWidget->enableADSHeightTexMap(ids, _hasADSHeightTex);
-			if (_hasADSHeightTex)
-			{
-				_glWidget->setADSHeightTexMap(ids, _heightADSTexture);
-			}
-			_glWidget->enableADSOpacityTexMap(ids, _hasADSOpacityTex);
-			if (_hasADSOpacityTex)
-			{
-				_glWidget->setADSOpacityTexMap(ids, _opacityADSTexture);
-			}
-			_glWidget->updateView();
-			QApplication::restoreOverrideCursor();
-		}
-	}
-}
-
-void ModelViewer::clearADSTextures()
-{
-	if (checkForActiveSelection())
-	{
-		std::vector<int> ids = getSelectedIDs();
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		_glWidget->clearADSTexMaps(ids);
-		_glWidget->updateView();
-		QApplication::restoreOverrideCursor();
-	}
-}
-
 void ModelViewer::onPredefinedMaterialSelected(const GLMaterial& mat)
 {
 	// This handler is triggered when MaterialLibraryWidget emits materialSelected,
@@ -2816,165 +2466,6 @@ void ModelViewer::onTexturesApplied(const GLMaterial* mat)
 
 	_undoStack->push(new ApplyPBRTexturesCommand(
 		this, _glWidget, uuids, *mat  // Dereference pointer
-	));
-
-	QApplication::restoreOverrideCursor();
-}
-
-void ModelViewer::onADSColorsApplied()
-{
-	if (!checkForActiveSelection())
-		return;
-
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-
-	// Get current color values from panel (single source of truth!)
-	ADSMaterialSettingsPanel* adsPanel =
-		qobject_cast<ADSMaterialSettingsPanel*>(Ui_ModelViewer::adsMaterialSettingsPanel);
-
-	QVector3D ambient = adsPanel->getAmbientColor();
-	QVector3D diffuse = adsPanel->getDiffuseColor();
-	QVector3D specular = adsPanel->getSpecularColor();
-	QVector3D emissive = adsPanel->getEmissiveColor();
-	float opacity = adsPanel->getOpacity();
-	int shininess = adsPanel->getShininess();
-
-	// Get UUIDs of selected meshes
-	QVector<QUuid> uuids;
-	std::vector<int> ids = getSelectedIDs();
-	for (int id : ids)
-	{
-		QUuid uuid = _glWidget->getUuidByIndex(id);
-		if (!uuid.isNull())
-			uuids.append(uuid);
-	}
-
-	// Create and push command
-	_undoStack->push(new ApplyADSColorsCommand(
-		this, _glWidget, adsPanel, uuids,
-		ambient, diffuse, specular, emissive, opacity, shininess
-	));
-
-	QApplication::restoreOverrideCursor();
-}
-
-void ModelViewer::onOpacitySliderReleased()
-{
-	if (!checkForActiveSelection())
-		return;
-
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-
-	// Get CURRENT state from panel (including new opacity!)
-	ADSMaterialSettingsPanel* adsPanel =
-		qobject_cast<ADSMaterialSettingsPanel*>(Ui_ModelViewer::adsMaterialSettingsPanel);
-
-	QVector3D ambient = adsPanel->getAmbientColor();
-	QVector3D diffuse = adsPanel->getDiffuseColor();
-	QVector3D specular = adsPanel->getSpecularColor();
-	QVector3D emissive = adsPanel->getEmissiveColor();
-	float opacity = adsPanel->getOpacity(); 
-	int shininess = adsPanel->getShininess();
-
-	// Get UUIDs
-	QVector<QUuid> uuids;
-	std::vector<int> ids = getSelectedIDs();
-	for (int id : ids)
-	{
-		QUuid uuid = _glWidget->getUuidByIndex(id);
-		if (!uuid.isNull())
-			uuids.append(uuid);
-	}
-
-	// Reuse ApplyADSColorsCommand!
-	_undoStack->push(new ApplyADSColorsCommand(
-		this, _glWidget, adsPanel, uuids,
-		ambient, diffuse, specular, emissive, opacity, shininess
-	));
-
-	QApplication::restoreOverrideCursor();
-}
-
-void ModelViewer::onShininessSliderReleased()
-{
-	if (!checkForActiveSelection())
-		return;
-
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-
-	// Get CURRENT state from panel (including new shininess!)
-	ADSMaterialSettingsPanel* adsPanel =
-		qobject_cast<ADSMaterialSettingsPanel*>(Ui_ModelViewer::adsMaterialSettingsPanel);
-
-	QVector3D ambient = adsPanel->getAmbientColor();
-	QVector3D diffuse = adsPanel->getDiffuseColor();
-	QVector3D specular = adsPanel->getSpecularColor();
-	QVector3D emissive = adsPanel->getEmissiveColor();
-	float opacity = adsPanel->getOpacity();
-	int shininess = adsPanel->getShininess();
-
-	// Get UUIDs
-	QVector<QUuid> uuids;
-	std::vector<int> ids = getSelectedIDs();
-	for (int id : ids)
-	{
-		QUuid uuid = _glWidget->getUuidByIndex(id);
-		if (!uuid.isNull())
-			uuids.append(uuid);
-	}
-
-	// Reuse ApplyADSColorsCommand!
-	_undoStack->push(new ApplyADSColorsCommand(
-		this, _glWidget, adsPanel, uuids,
-		ambient, diffuse, specular, emissive, opacity, shininess
-	));
-
-	QApplication::restoreOverrideCursor();
-}
-
-void ModelViewer::onADSTexturesApplied()
-{
-	if (!checkForActiveSelection())
-		return;
-
-	// Get texture paths from panel (using getters approach)
-	ADSMaterialSettingsPanel* adsPanel =
-		qobject_cast<ADSMaterialSettingsPanel*>(Ui_ModelViewer::adsMaterialSettingsPanel);
-
-	QString diffusePath = adsPanel->getDiffuseTexturePath();
-	QString specularPath = adsPanel->getSpecularTexturePath();
-	QString normalPath = adsPanel->getNormalTexturePath();
-	QString emissivePath = adsPanel->getEmissiveTexturePath();
-	QString heightPath = adsPanel->getHeightTexturePath();
-	QString opacityPath = adsPanel->getOpacityTexturePath();
-	bool opacityInverted = adsPanel->isOpacityTextureInverted();
-
-	// Check if at least diffuse texture is set
-	if (diffusePath.isEmpty())
-	{
-		QMessageBox::warning(this, tr("No Textures"),
-			tr("Please select at least a diffuse texture."));
-		return;
-	}
-
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-
-	// Get UUIDs of selected meshes
-	QVector<QUuid> uuids;
-	std::vector<int> ids = getSelectedIDs();
-	for (int id : ids)
-	{
-		QUuid uuid = _glWidget->getUuidByIndex(id);
-		if (!uuid.isNull())
-			uuids.append(uuid);
-	}
-
-	// Create and push command with PATHS, not GLMaterial
-	_undoStack->push(new ApplyADSTexturesCommand(
-		this, _glWidget, uuids,
-		diffusePath, specularPath, normalPath,
-		emissivePath, heightPath, opacityPath,
-		opacityInverted
 	));
 
 	QApplication::restoreOverrideCursor();
