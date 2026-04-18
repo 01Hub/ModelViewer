@@ -17,9 +17,51 @@
 #include <QCheckBox>
 #include <QLayout>
 #include <Quantity_ColorRGBA.hxx>
+#include <cmath>
 #include <unordered_set>
 
 using namespace std;
+
+namespace
+{
+glm::vec3 computeFallbackTangent(const glm::vec3& normal)
+{
+	const glm::vec3 safeNormal = glm::length(normal) > 0.0001f
+		? glm::normalize(normal)
+		: glm::vec3(0.0f, 1.0f, 0.0f);
+
+	glm::vec3 referenceAxis = std::abs(safeNormal.y) < 0.999f
+		? glm::vec3(0.0f, 1.0f, 0.0f)
+		: glm::vec3(1.0f, 0.0f, 0.0f);
+
+	glm::vec3 tangent = glm::cross(referenceAxis, safeNormal);
+	if (glm::length(tangent) <= 0.0001f)
+	{
+		referenceAxis = glm::vec3(0.0f, 0.0f, 1.0f);
+		tangent = glm::cross(referenceAxis, safeNormal);
+	}
+
+	return glm::normalize(tangent);
+}
+
+void assignFallbackTexCoords(Vertex& vertex)
+{
+	for (glm::vec2& texCoord : vertex.TexCoords)
+	{
+		texCoord = glm::vec2(0.0f);
+	}
+}
+
+void assignFallbackTangentBasis(Vertex& vertex)
+{
+	const glm::vec3 safeNormal = glm::length(vertex.Normal) > 0.0001f
+		? glm::normalize(vertex.Normal)
+		: glm::vec3(0.0f, 1.0f, 0.0f);
+
+	vertex.Tangent = computeFallbackTangent(safeNormal);
+	vertex.Bitangent = glm::normalize(glm::cross(safeNormal, vertex.Tangent));
+}
+}
 
 
 bool AssImpModelProgressHandler::Update(float percentage)
@@ -440,7 +482,8 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	for (unsigned int i = 0; i < nbVertices; i++)
 	{
 		step++;
-		Vertex vertex;
+		Vertex vertex{};
+		assignFallbackTexCoords(vertex);
 
 		// Compute the normal matrix as the inverse transpose of the transformation matrix
 		aiMatrix3x3 normalMatrix = aiMatrix3x3(transform);
@@ -534,6 +577,8 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 
 		if (hasAnyTexCoords)
 		{
+			assignFallbackTangentBasis(vertex);
+
 			// Tangent (only process if we have texCoords)
 			if (mesh->mTangents)
 			{
@@ -564,6 +609,9 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		}
 		else
 		{
+			// Keep a deterministic fallback UV/tangent basis so later texture
+			// application samples a constant texel instead of reading garbage.
+			assignFallbackTangentBasis(vertex);
 			_needsUVGeneration = true;
 		}
 
