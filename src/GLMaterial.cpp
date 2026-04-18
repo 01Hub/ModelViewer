@@ -3128,79 +3128,20 @@ void GLMaterial::updateConsistency()
 	}
 	_metallic = (_metalness > 0.5f); // keep boolean consistent with canonical float
 
-	// 3) Behavior per shading model
-	if (_shadingModel == ShadingModel::PBR)
-	{
-		// PBR is canonical: derive ADS (legacy) fields for UI and any ADS shader fallbacks
-		convertPBRtoADS();
+	// 3) ALWAYS derive ADS from PBR for rendering mode switching
+	// PBR values are canonical for all materials (regardless of shading model display)
+	// This ensures ADS shader can always work correctly
+	convertPBRtoADS();
 
-		// Keep PBR fields unchanged. Don't multiply emissive by strength in the model.
-		// (renderer uses _emissive * _emissiveStrength when shading)
+	// Keep PBR fields unchanged. Don't multiply emissive by strength in the model.
+	// (renderer uses _emissive * _emissiveStrength when shading)
 
-		// Some additional housekeeping: if clearcoat is set but clearcoatRoughness is zero,
-		// set a small default to avoid singular appearance.
-		if (_clearcoat > 0.0f && _clearcoatRoughness <= 0.0f)
-			_clearcoatRoughness = qBound(0.02f, _clearcoatRoughness, 1.0f);
+	// Some additional housekeeping: if clearcoat is set but clearcoatRoughness is zero,
+	// set a small default to avoid singular appearance.
+	if (_clearcoat > 0.0f && _clearcoatRoughness <= 0.0f)
+		_clearcoatRoughness = qBound(0.02f, _clearcoatRoughness, 1.0f);
 
-		// clamp again after conversions
-		clampValues();
-		return;
-	}
-
-	// If we reach here, shading model is a legacy ADS-style (BlinnPhong / Unlit / Toon)
-	// We should carefully derive PBR fields *only if safe*, to avoid overwriting canonical PBR values that the user expects.
-	// Rule: only set/overwrite canonical PBR fields when they appear uninitialized/default or clearly coming from ADS.
-	const float EPS = 1e-3f;
-
-	// Derive albedoColor from ADS diffuse, but only if current albedo looks "unset" (very dark) or exactly equal to diffuse
-	bool albedoLooksEmpty = (_albedoColor.lengthSquared() < (EPS * EPS));
-	bool albedoEqualsDiffuse = (((_albedoColor - _diffuse).length() < 1e-4f));
-
-	if (albedoLooksEmpty || albedoEqualsDiffuse)
-	{
-		// safe to assign
-		_albedoColor = _diffuse;
-	}
-	// Otherwise: preserve existing canonical albedoColor (avoid clobbering user-specified PBR color)
-
-	// Roughness: map from shininess (legacy) -> roughness
-	// Inverse mapping with clamping; avoid making it exactly zero
-	float derivedRoughness = qBound(0.04f, 1.0f - (_shininess / 128.0f), 1.0f);
-	_roughness = derivedRoughness;
-
-	// Metalness: keep continuous float if present. If legacy boolean set, bias toward metallic.
-	if (_metallic)
-	{
-		_metalness = qBound(0.5f, _metalness, 1.0f); // ensure at least partially metallic if flagged
-	}
-	// otherwise keep existing _metalness as-is (user may have set non-zero)
-
-	// IOR estimation: compute from specular gray if it's meaningfully non-zero
-	float specGray = (_specular.x() + _specular.y() + _specular.z()) / 3.0f;
-	if (specGray > 1e-4f)
-	{
-		// clamp specGray into safe range then invert to IOR approximately
-		float s = qBound(1e-4f, specGray, 0.999f);
-		float sqrtF0 = qSqrt(s);
-		// avoid division by zero; invert relation: sqrtF0 = (n-1)/(n+1) => n = (1+sqrtF0)/(1-sqrtF0)
-		float n = 1.5f;
-		if (sqrtF0 < 0.999f)
-			n = (1.0f + sqrtF0) / (1.0f - sqrtF0);
-		_ior = qBound(1.0f, n, 3.0f);
-	}
-
-	// Do NOT overwrite emissive color or emissiveStrength; preserve both (renderer multiplies them)
-	// Transmission: keep as-is (legacy ADS rarely encodes transmission)
-
-	// Finally, for ADS shading we should still compute reasonable ADS derived helpers:
-	// (for example, ensure _specular is within 0..1)
-	_specular = QVector3D(
-		qBound(0.0f, _specular.x(), 1.0f),
-		qBound(0.0f, _specular.y(), 1.0f),
-		qBound(0.0f, _specular.z(), 1.0f)
-	);
-
-	// Clamp and finish
+	// clamp again after conversions
 	clampValues();
 }
 
@@ -3568,15 +3509,14 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 
 	GLMaterial mat; // default constructed material
 
-	// Track which ADS fields were explicitly loaded so we don't overwrite them in updateConsistency()
-	bool ambientWasLoaded = false, diffuseWasLoaded = false, specularWasLoaded = false, shininessWasLoaded = false;
-
-	// ---------------- Legacy ADS fields (assign internal members directly) ----------------
-	if (m.contains("ambient"))          { mat._ambient = readVec3(m.value("ambient"), mat._ambient); ambientWasLoaded = true; }
-	if (m.contains("diffuse"))          { mat._diffuse = readVec3(m.value("diffuse"), mat._diffuse); diffuseWasLoaded = true; }
-	if (m.contains("specular"))         { mat._specular = readVec3(m.value("specular"), mat._specular); specularWasLoaded = true; }
+	// Note: Legacy ADS fields may exist in old JSON files but will be overwritten by
+	// updateConsistency() which always derives ADS from PBR values. We read them for
+	// backward compatibility but don't use them.
+	if (m.contains("ambient"))          { mat._ambient = readVec3(m.value("ambient"), mat._ambient); }
+	if (m.contains("diffuse"))          { mat._diffuse = readVec3(m.value("diffuse"), mat._diffuse); }
+	if (m.contains("specular"))         { mat._specular = readVec3(m.value("specular"), mat._specular); }
 	if (m.contains("emissive"))         mat._emissive = readVec3(m.value("emissive"), mat._emissive);
-	if (m.contains("shininess"))        { mat._shininess = readFloat(m.value("shininess"), mat._shininess); shininessWasLoaded = true; }
+	if (m.contains("shininess"))        { mat._shininess = readFloat(m.value("shininess"), mat._shininess); }
 	if (m.contains("emissiveStrength")) mat._emissiveStrength = readFloat(m.value("emissiveStrength"), mat._emissiveStrength);
 	if (m.contains("opacity"))          mat._opacity = readFloat(m.value("opacity"), mat._opacity);
 
@@ -3623,6 +3563,41 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 
 	// energy-conserving factor / extra PBR attributes if present
 	if (m.contains("metallicFactor"))   mat._metalness = qBound(0.0f, readFloat(m.value("metallicFactor"), mat._metalness), 1.0f); // alternate key
+
+	// ===== BACKWARD COMPATIBILITY: Initialize PBR from ADS if needed =====
+	// For old ADS-only materials without explicit PBR values, use ADS to initialize PBR
+	const float EPS = 1e-3f;
+	bool albedoLooksDefault = (mat._albedoColor.lengthSquared() < (EPS * EPS));
+	bool hasDiffuse = m.contains("diffuse");
+	if (albedoLooksDefault && hasDiffuse)
+	{
+		// No explicit albedo, but have diffuse -> use diffuse as albedo
+		mat._albedoColor = mat._diffuse;
+	}
+
+	// If no explicit metalness/roughness but have shininess, derive PBR from ADS
+	bool hasShininessOnly = m.contains("shininess") && !m.contains("roughness");
+	if (hasShininessOnly)
+	{
+		// Reverse mapping: shininess -> roughness
+		mat._roughness = qBound(0.04f, 1.0f - (mat._shininess / 128.0f), 1.0f);
+	}
+
+	// Derive IOR from specular if not explicitly set
+	bool needsIORFromSpecular = !m.contains("ior") && m.contains("specular");
+	if (needsIORFromSpecular)
+	{
+		float specGray = (mat._specular.x() + mat._specular.y() + mat._specular.z()) / 3.0f;
+		if (specGray > 1e-4f)
+		{
+			float s = qBound(1e-4f, specGray, 0.999f);
+			float sqrtF0 = qSqrt(s);
+			float n = 1.5f;
+			if (sqrtF0 < 0.999f)
+				n = (1.0f + sqrtF0) / (1.0f - sqrtF0);
+			mat._ior = qBound(1.0f, n, 3.0f);
+		}
+	}
 
 	// ---------------- Texture paths (strings) and support for combined maps ----------------
 	// (value-only materials can ignore these; we still populate so later textured materials work)
@@ -3794,21 +3769,9 @@ GLMaterial GLMaterial::fromVariantMap(const QVariantMap& m)
 		}
 	}
 
-	// ---------------- Finalization: clamp values and run consistency once ----------------
-	// Save ADS fields before updateConsistency() computes them from PBR values
-	QVector3D savedAmbient = mat._ambient;
-	QVector3D savedDiffuse = mat._diffuse;
-	QVector3D savedSpecular = mat._specular;
-	float savedShininess = mat._shininess;
-
+	// ---------------- Finalization: clamp values and compute ADS from PBR ----------------
 	mat.clampValues();        // clamp ranges
-	mat.updateConsistency();  // single consistency pass (derived fields computed)
-
-	// Restore explicitly-loaded ADS fields (so they don't get overwritten by PBR conversion)
-	if (ambientWasLoaded)  mat._ambient = savedAmbient;
-	if (diffuseWasLoaded)  mat._diffuse = savedDiffuse;
-	if (specularWasLoaded) mat._specular = savedSpecular;
-	if (shininessWasLoaded) mat._shininess = savedShininess;
+	mat.updateConsistency();  // compute ADS from PBR (ensures ADS is always synced with PBR)
 
 	// NOTE: for value-only predefined materials we intentionally don't do texture loading here.
 	// For later direct texture registration, do it after updateConsistency():
@@ -3830,12 +3793,9 @@ QVariantMap GLMaterial::toVariantMap() const
 		return QVariantList{ QVariant(v.x()), QVariant(v.y()), QVariant(v.z()) };
 		};
 
-	// --- Legacy ADS ---
-	m.insert("ambient", vec3ToList(ambient()));
-	m.insert("diffuse", vec3ToList(diffuse()));
-	m.insert("specular", vec3ToList(specular()));
-	m.insert("emissive", vec3ToList(emissive()));
-	m.insert("shininess", QVariant(shininess()));
+	// --- Legacy ADS (never save; always derived from PBR in-memory for rendering mode switching) ---
+	// ADS values are always computed from PBR via convertPBRtoADS() when needed for rendering
+	m.insert("emissive", vec3ToList(emissive()));  // emissive is independent of shading model
 	m.insert("emissiveStrength", QVariant(emissiveStrength()));
 	m.insert("opacity", QVariant(opacity()));
 

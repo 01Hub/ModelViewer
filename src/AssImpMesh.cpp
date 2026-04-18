@@ -647,8 +647,6 @@ void AssImpMesh::syncTexturesFromMaterialIfNeeded()
 		t.hasAlpha = hasAlpha;
 
 		_textures.push_back(t);
-		qDebug() << "syncTexturesFromMaterialIfNeeded: added texture type=" << QString::fromStdString(t.type)
-			<< " path=" << QString::fromUtf8(t.path) << " hasAlpha=" << hasAlpha;
 		};
 
 	// Map GLMaterial variant keys -> mesh texture type strings used throughout AssImpMesh

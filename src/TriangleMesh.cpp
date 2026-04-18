@@ -303,19 +303,19 @@ void TriangleMesh::initBuffers(
 		_texCoord0Buffer.bind();
 		_prog->enableAttributeArray("texCoord0");
 		_prog->setAttributeBuffer("texCoord0", GL_FLOAT, 0, 2, 0);
-		
+
 		_texCoord1Buffer.bind();
 		_prog->enableAttributeArray("texCoord1");
 		_prog->setAttributeBuffer("texCoord1", GL_FLOAT, 0, 2, 0);
-		
+
 		_texCoord2Buffer.bind();
 		_prog->enableAttributeArray("texCoord2");
 		_prog->setAttributeBuffer("texCoord2", GL_FLOAT, 0, 2, 0);
-		
+
 		_texCoord3Buffer.bind();
 		_prog->enableAttributeArray("texCoord3");
 		_prog->setAttributeBuffer("texCoord3", GL_FLOAT, 0, 2, 0);
-		
+
 	}
 
 	_vertexArrayObject.release();
@@ -570,7 +570,7 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("heightMap", 14);
 	_prog->setUniformValue("opacityMap", 15);
 	_prog->setUniformValue("roughnessMap", 16);
-	_prog->setUniformValue("aoMap", 17);	
+	_prog->setUniformValue("aoMap", 17);
 	// Advanced PBR Maps
 	_prog->setUniformValue("transmissionMap", 18);
 	_prog->setUniformValue("iorMap", 19);
@@ -618,9 +618,7 @@ void TriangleMesh::setupUniforms()
 
 	// KHR_materials_volume
 	_prog->setUniformValue("thicknessMap", 30);
-	bool hasThicknessMap = _material.hasThicknessMap();
 	_prog->setUniformValue("hasThicknessMap", _material.hasThicknessMap());
-	bool hasThicknessAlpa = _material.hasThicknessAlpha();
 	_prog->setUniformValue("hasThicknessAlpha", _material.hasThicknessAlpha());
 
 	// KHR_materials_scattering
@@ -1092,13 +1090,6 @@ void TriangleMesh::setMaterial(const GLMaterial& material)
 
 void TriangleMesh::setTextureMaps(const GLMaterial& material)
 {
-	qDebug() << "=== TriangleMesh::setTextureMaps START ===";
-	qDebug() << "Received material scalar values:";
-	qDebug() << "  Metalness:" << material.metalness();
-	qDebug() << "  Roughness:" << material.roughness();
-	qDebug() << "  IOR:" << material.ior();
-	qDebug() << "  Transmission:" << material.transmission();
-
 	_material = material;
 
 	// Set PBR texture IDs from material
@@ -1106,7 +1097,6 @@ void TriangleMesh::setTextureMaps(const GLMaterial& material)
 	{
 		_hasAlbedoPBRMap = true;
 		setAlbedoPBRMap(material.albedoTextureId());
-		qDebug() << "Set AlbedoPBRMap, ID:" << material.albedoTextureId();
 	}
 	else
 	{
@@ -1117,7 +1107,6 @@ void TriangleMesh::setTextureMaps(const GLMaterial& material)
 	{
 		_hasNormalPBRMap = true;
 		setNormalPBRMap(material.normalTextureId());
-		qDebug() << "Set NormalPBRMap, ID:" << material.normalTextureId();
 	}
 	else
 	{
@@ -1128,7 +1117,6 @@ void TriangleMesh::setTextureMaps(const GLMaterial& material)
 	{
 		_hasEmissivePBRMap = true;
 		setEmissivePBRMap(material.emissiveTextureId());
-		qDebug() << "Set EmissivePBRMap, ID:" << material.emissiveTextureId();
 	}
 	else
 	{
@@ -1140,7 +1128,6 @@ void TriangleMesh::setTextureMaps(const GLMaterial& material)
 	if (material.hasAlbedoMap())
 	{
 		setDiffuseADSMap(material.albedoTextureId());
-		qDebug() << "Set DiffuseADSMap from Albedo, ID:" << material.albedoTextureId();
 	}
 	else
 	{
@@ -1151,7 +1138,6 @@ void TriangleMesh::setTextureMaps(const GLMaterial& material)
 	if (material.hasEmissiveMap())
 	{
 		setEmissiveADSMap(material.emissiveTextureId());
-		qDebug() << "Set EmissiveADSMap, ID:" << material.emissiveTextureId();
 	}
 	else
 	{

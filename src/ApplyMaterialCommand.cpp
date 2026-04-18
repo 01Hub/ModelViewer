@@ -12,13 +12,6 @@ ApplyMaterialCommand::ApplyMaterialCommand(ModelViewer* viewer,
     : ModelViewerCommand(viewer, glWidget, text)
     , _materialName(materialName)
 {
-	// DEBUG: Log what paths are received in constructor
-	qDebug() << "=== ApplyMaterialCommand::constructor START ===";
-	qDebug() << "Constructor received - Albedo path:" << newMaterial.albedoMapPath();
-	qDebug() << "Constructor received - Normal path:" << newMaterial.normalMapPath();
-	qDebug() << "Constructor received - Metallic path:" << newMaterial.metallicMapPath();
-	qDebug() << "Constructor received - Roughness path:" << newMaterial.roughnessMapPath();
-
     // Capture old materials before applying new
     for (const QUuid& uuid : meshUuids)
     {
@@ -32,18 +25,6 @@ ApplyMaterialCommand::ApplyMaterialCommand(ModelViewer* viewer,
             _newMaterials[uuid] = newMaterial;
         }
     }
-
-	// DEBUG: Log what paths are actually stored after copy
-	qDebug() << "After copy to _newMaterials:";
-	if (!_newMaterials.isEmpty())
-	{
-		auto it = _newMaterials.begin();
-		qDebug() << "Stored - Albedo path:" << it->albedoMapPath();
-		qDebug() << "Stored - Normal path:" << it->normalMapPath();
-		qDebug() << "Stored - Metallic path:" << it->metallicMapPath();
-		qDebug() << "Stored - Roughness path:" << it->roughnessMapPath();
-	}
-	qDebug() << "=== ApplyMaterialCommand::constructor END ===";
 
     // Update command text with material name if provided
     if (!_materialName.isEmpty())
@@ -79,22 +60,11 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
 	}
 
 	_glWidget->makeCurrent();
-	qDebug() << "ApplyMaterialCommand::applyMaterials - Made GL context current";
-
-	qDebug() << "=== ApplyMaterialCommand::applyMaterials START ===";
-	qDebug() << "Number of materials to apply:" << materials.size();
 
     for (auto it = materials.begin(); it != materials.end(); ++it)
     {
         const QUuid& uuid = it.key();
         const GLMaterial& mat = it.value();
-
-		// DEBUG: Log what paths are in the material received by applyMaterials
-		qDebug() << "applyMaterials received for UUID" << uuid.toString().left(8);
-		qDebug() << "  Albedo path:" << mat.albedoMapPath();
-		qDebug() << "  Normal path:" << mat.normalMapPath();
-		qDebug() << "  Metallic path:" << mat.metallicMapPath();
-		qDebug() << "  Roughness path:" << mat.roughnessMapPath();
 
         // Get current index for this UUID
         int index = _glWidget->getIndexByUuid(uuid);
@@ -111,33 +81,16 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
             // This handles loading textures from disk and applying sampler settings
             GLMaterial resolved = GLWidget::resolveMaterialTextures(_glWidget, mat);
 
-			// DEBUG: Log what the resolved material contains
-			qDebug() << "After resolveMaterialTextures:";
-			qDebug() << "  resolved.albedoMapPath():" << resolved.albedoMapPath();
-			qDebug() << "  resolved.normalMapPath():" << resolved.normalMapPath();
-			qDebug() << "  resolved.metallicMapPath():" << resolved.metallicMapPath();
-			qDebug() << "  resolved.roughnessMapPath():" << resolved.roughnessMapPath();
-			qDebug() << "Calling mesh->setTextureMaps() with resolved material";
-
             // Apply textures to mesh using setTextureMaps (mirrors GLWidget::setTexturesToObjects)
             // This properly binds texture GPU IDs and updates texture samplers
             mesh->setTextureMaps(resolved);
 
-			qDebug() << "mesh->setTextureMaps() completed";
-
 			// ADS Cascading: Also bind textures for ADS rendering mode
-			qDebug() << "=== ADS Cascading Check ===";
-			qDebug() << "hasDiffuseMap():" << mat.hasDiffuseMap();
-			qDebug() << "diffuseMap():" << mat.diffuseMap();
-			qDebug() << "albedoMapPath():" << mat.albedoMapPath();
-			qDebug() << "hasEmissiveMap():" << mat.hasEmissiveMap();
-			qDebug() << "emissiveMapPath():" << mat.emissiveMapPath();
 
 			// Try using albedo as diffuse since we may not have set diffuse directly
 			if (!mat.albedoMapPath().isEmpty())
 			{
 				_glWidget->setADSDiffuseTexMap({index}, mat.albedoMapPath());
-				qDebug() << "Bound ALBEDO as ADS diffuse texture:" << mat.albedoMapPath();
 			}
 			else if (mat.hasDiffuseMap())
 			{
@@ -145,8 +98,13 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
 				if (!diffusePath.isEmpty())
 				{
 					_glWidget->setADSDiffuseTexMap({index}, diffusePath);
-					qDebug() << "Bound diffuse ADS texture:" << diffusePath;
 				}
+			}
+			else
+			{
+				// Disable diffuse texture when material has no diffuse/albedo map
+				// This prevents stale texture bindings from previous materials from being used in ADS mode
+				_glWidget->enableADSDiffuseTexMap({index}, false);
 			}
 
 			// If emissive map is available, bind it for ADS emissive rendering
@@ -156,8 +114,11 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
 				if (!emissivePath.isEmpty())
 				{
 					_glWidget->setADSEmissiveTexMap({index}, emissivePath);
-					qDebug() << "Bound emissive ADS texture:" << emissivePath;
 				}
+			}
+			else
+			{
+				_glWidget->enableADSEmissiveTexMap({index}, false);
 			}
 
 			// Map: Normal (PBR) → Normal (ADS)
@@ -167,8 +128,11 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
 				if (!normalPath.isEmpty())
 				{
 					_glWidget->setADSNormalTexMap({index}, normalPath);
-					qDebug() << "Bound normal ADS texture:" << normalPath;
 				}
+			}
+			else
+			{
+				_glWidget->enableADSNormalTexMap({index}, false);
 			}
 
 			// Map: Metallic (PBR) → Specular (ADS)
@@ -178,8 +142,11 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
 				if (!metallicPath.isEmpty())
 				{
 					_glWidget->setADSSpecularTexMap({index}, metallicPath);
-					qDebug() << "Bound metallic as ADS specular texture:" << metallicPath;
 				}
+			}
+			else
+			{
+				_glWidget->enableADSSpecularTexMap({index}, false);
 			}
 
 			// Map: Height (PBR) → Height (ADS)
@@ -189,8 +156,11 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
 				if (!heightPath.isEmpty())
 				{
 					_glWidget->setADSHeightTexMap({index}, heightPath);
-					qDebug() << "Bound height ADS texture:" << heightPath;
 				}
+			}
+			else
+			{
+				_glWidget->enableADSHeightTexMap({index}, false);
 			}
 
 			// Map: Opacity (PBR) → Opacity (ADS)
@@ -200,8 +170,11 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
 				if (!opacityPath.isEmpty())
 				{
 					_glWidget->setADSOpacityTexMap({index}, opacityPath);
-					qDebug() << "Bound opacity ADS texture:" << opacityPath;
 				}
+			}
+			else
+			{
+				_glWidget->enableADSOpacityTexMap({index}, false);
 			}
 
             // Handle transmission flag if material has transmission

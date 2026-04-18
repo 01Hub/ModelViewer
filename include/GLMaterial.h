@@ -1120,9 +1120,10 @@ public:
 	bool isGLTFMaterial() const { return _isGLTFMaterial; }
 	void setIsGLTFMaterial(bool isGLTF) { _isGLTFMaterial = isGLTF; }
 
-private:
-	void setAlbedoFromADS();
 	void updateConsistency(); // Ensure consistency between legacy and PBR properties
+
+private:
+	void setAlbedoFromADS();	
 	void clampValues(); // Ensure all values are within valid ranges
 	void ensureADSConsistency(); // Ensure ambient, diffuse, specular are consistent with albedo
 	void convertPBRtoADS();
