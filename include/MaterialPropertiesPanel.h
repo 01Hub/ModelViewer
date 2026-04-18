@@ -132,9 +132,6 @@ private slots:
 
 	// Texture handlers
 	void onTextureButtonClicked(GLMaterial::TextureType type);
-	void onTextureFactorChanged(GLMaterial::TextureType type);
-	void onTextureTransformClicked(GLMaterial::TextureType type);
-	void onTextureColorPickerClicked(GLMaterial::TextureType type);
 	void onClearAllTextures();
 
 	// Preset handlers
@@ -147,6 +144,7 @@ private slots:
 	void onRenameMaterial();     // Rename user-created material
 
 	void onContextMenu(const QPoint& pos);
+	void onDetachButtonClicked();
 
 protected:
 	bool eventFilter(QObject* obj, QEvent* ev) override;
@@ -160,8 +158,6 @@ private:
 		QLabel* label = nullptr;                 // text under the button
 		QToolButton* gear = nullptr;             // optional channel packing gear
 		QToolButton* transformButton = nullptr;  // transform/sampler button
-		QDoubleSpinBox* factorSpinBox = nullptr; // numeric factor spin box
-		QPushButton* colorPickerButton = nullptr; // color picker for color factors
 		QString key;                             // e.g., "albedo", "roughness"
 		GLMaterial::TextureType type;            // enum type
 	};
@@ -184,8 +180,7 @@ private:
 	void loadTextureImageFiles();  // Load texture image files from disk for current material
 	void loadMaterialTexturesFromKey(const QString& materialKey);
 
-	// Load factor values from material into UI spin boxes
-	void loadFactorValuesFromMaterial();
+	// Load scalar values from material into UI controls
 	void loadScalarValuesFromMaterial();
 	void updateScalarUI();
 

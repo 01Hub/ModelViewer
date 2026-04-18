@@ -268,7 +268,7 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 	// Connect Detach button
 	if (_ui->detachButton)
 	{
-		connect(_ui->detachButton, &QToolButton::clicked, this, &MaterialPropertiesPanel::detachRequested);
+		connect(_ui->detachButton, &QToolButton::clicked, this, &MaterialPropertiesPanel::onDetachButtonClicked);
 	}
 
 	// Connect preview controls to updatePreview
@@ -415,11 +415,8 @@ void MaterialPropertiesPanel::bindMaterial(GLMaterial* material)
 			applyButtonImageIcon(it.value(), path);
 	}
 
-	// Load all scalar property values from material
+	// Load all scalar property values from material (includes factors, colors, scales, etc.)
 	loadScalarValuesFromMaterial();
-
-	// Load all texture factor values
-	loadFactorValuesFromMaterial();
 
 	// Load texture scale values
 	if (_ui->doubleSpinBoxNormalScale)
@@ -451,6 +448,23 @@ void MaterialPropertiesPanel::initialize(ModelViewer* modelViewer, GLWidget* glW
 void MaterialPropertiesPanel::setDetached(bool detached)
 {
 	_detached = detached;
+
+	// Update detach button visibility based on state
+	if (_ui && _ui->detachButton)
+	{
+		if (_detached)
+		{
+			// When detached: hide the detach button
+			// Reattach functionality will be in the window's title bar
+			_ui->detachButton->hide();
+		}
+		else
+		{
+			// When docked: show the detach button
+			_ui->detachButton->show();
+			_ui->detachButton->setToolTip(tr("Detach from panel"));
+		}
+	}
 }
 
 // ============================================================================
@@ -529,27 +543,27 @@ float MaterialPropertiesPanel::getTransmission() const
 	return _material->transmission();
 }
 
-float MaterialPropertiesPanel::getThickness() const { return 0.0f; }
+float MaterialPropertiesPanel::getThickness() const { return _material ? _material->thicknessFactor() : 0.0f; }
 float MaterialPropertiesPanel::getNormalScale() const { return _material ? _material->normalScale() : 1.0f; }
 float MaterialPropertiesPanel::getHeightScale() const { return _material ? _material->heightScale() : 1.0f; }
 float MaterialPropertiesPanel::getClearcoatNormalScale() const { return _material ? _material->clearcoatNormalScale() : 1.0f; }
 float MaterialPropertiesPanel::getOcclusionStrength() const { return _material ? _material->occlusionStrength() : 1.0f; }
-float MaterialPropertiesPanel::getAnisotropyStrength() const { return 0.0f; }
-float MaterialPropertiesPanel::getAnisotropyRotation() const { return 0.0f; }
-float MaterialPropertiesPanel::getDiffuseTransmissionFactor() const { return 0.0f; }
-QVector3D MaterialPropertiesPanel::getDiffuseTransmissionColor() const { return QVector3D(); }
-float MaterialPropertiesPanel::getSpecularFactor() const { return 1.0f; }
-QVector3D MaterialPropertiesPanel::getSpecularColor() const { return QVector3D(); }
+float MaterialPropertiesPanel::getAnisotropyStrength() const { return _material ? _material->anisotropyStrength() : 0.0f; }
+float MaterialPropertiesPanel::getAnisotropyRotation() const { return _material ? _material->anisotropyRotation() : 0.0f; }
+float MaterialPropertiesPanel::getDiffuseTransmissionFactor() const { return _material ? _material->diffuseTransmissionFactor() : 0.0f; }
+QVector3D MaterialPropertiesPanel::getDiffuseTransmissionColor() const { return _material ? _material->diffuseTransmissionColorFactor() : QVector3D(1.0f, 1.0f, 1.0f); }
+float MaterialPropertiesPanel::getSpecularFactor() const { return _material ? _material->specularFactor() : 1.0f; }
+QVector3D MaterialPropertiesPanel::getSpecularColor() const { return _material ? _material->specularColor() : QVector3D(1.0f, 1.0f, 1.0f); }
 int MaterialPropertiesPanel::getShadingModel() const { return _material ? static_cast<int>(_material->shadingModel()) : 0; }
 int MaterialPropertiesPanel::getBlendMode() const { return _material ? static_cast<int>(_material->blendMode()) : 0; }
 bool MaterialPropertiesPanel::getTwoSided() const { return _material ? _material->twoSided() : false; }
 bool MaterialPropertiesPanel::getWireframe() const { return _material ? _material->wireframe() : false; }
 float MaterialPropertiesPanel::getAlphaThreshold() const { return _material ? _material->alphaThreshold() : 0.5f; }
 bool MaterialPropertiesPanel::getUnlit() const { return _material && _material->shadingModel() == GLMaterial::ShadingModel::Unlit; }
-float MaterialPropertiesPanel::getIridescenceStrength() const { return 0.0f; }
-float MaterialPropertiesPanel::getIridescenceThickness() const { return 0.0f; }
-float MaterialPropertiesPanel::getIridescenceIOR() const { return 1.5f; }
-float MaterialPropertiesPanel::getIridescenceThinFilmThickness() const { return 0.0f; }
+float MaterialPropertiesPanel::getIridescenceStrength() const { return _material ? _material->iridescenceFactor() : 0.0f; }
+float MaterialPropertiesPanel::getIridescenceThickness() const { return _material ? _material->iridescenceThicknessMin() : 100.0f; }
+float MaterialPropertiesPanel::getIridescenceIOR() const { return _material ? _material->iridescenceIor() : 1.3f; }
+float MaterialPropertiesPanel::getIridescenceThinFilmThickness() const { return _material ? _material->iridescenceThicknessMax() : 400.0f; }
 
 QString MaterialPropertiesPanel::getTexturePath(GLMaterial::TextureType type) const
 {
@@ -697,8 +711,7 @@ void MaterialPropertiesPanel::registerTextureMaps()
 
 	// Helper lambda to safely insert texture slots
 	auto insertSlot = [this](GLMaterial::TextureType type, QPushButton* btn, QLabel* lbl,
-							 QToolButton* gear, QToolButton* transform, QDoubleSpinBox* factor,
-							 QPushButton* colorPicker, const QString& key)
+							 QToolButton* gear, QToolButton* transform, const QString& key)
 	{
 		if (!btn) return;  // Button is required
 
@@ -707,8 +720,6 @@ void MaterialPropertiesPanel::registerTextureMaps()
 		slot.label = lbl;
 		slot.gear = gear;
 		slot.transformButton = transform;
-		slot.factorSpinBox = factor;
-		slot.colorPickerButton = colorPicker;
 		slot.key = key;
 		slot.type = type;
 
@@ -717,29 +728,29 @@ void MaterialPropertiesPanel::registerTextureMaps()
 
 	// Register texture types that have UI buttons defined in the UI file
 	// Only include textures where the button exists
-	if (_ui->btnAlbedoTex) insertSlot(GLMaterial::TextureType::Albedo, _ui->btnAlbedoTex, _ui->lblAlbedo, nullptr, _ui->toolButtonAlbedoTexTrsf, nullptr, nullptr, "albedo");
-	if (_ui->btnNormalTex) insertSlot(GLMaterial::TextureType::Normal, _ui->btnNormalTex, _ui->lblNormal, nullptr, _ui->toolButtonNormalTexTrsf, nullptr, nullptr, "normal");
-	if (_ui->btnMetallicTex) insertSlot(GLMaterial::TextureType::Metallic, _ui->btnMetallicTex, _ui->lblMetallic, _ui->gearMetallic, _ui->toolButtonMetallicTexTrsf, nullptr, nullptr, "metallic");
-	if (_ui->btnRoughnessTex) insertSlot(GLMaterial::TextureType::Roughness, _ui->btnRoughnessTex, _ui->lblRoughnessTex, _ui->gearRoughness, _ui->toolButtonRoughTexTrsf, nullptr, nullptr, "roughness");
-	if (_ui->btnAOTex) insertSlot(GLMaterial::TextureType::AmbientOcclusion, _ui->btnAOTex, _ui->lblAmbientOcclusion, _ui->gearAO, _ui->toolButtonAOTexTrsf, nullptr, nullptr, "ao");
-	if (_ui->btnOpacityTex) insertSlot(GLMaterial::TextureType::Opacity, _ui->btnOpacityTex, _ui->lblOpacityTex, _ui->gearOpacity, _ui->toolButtonOpacTexTrsf, nullptr, nullptr, "opacity");
-	if (_ui->btnEmissiveTex) insertSlot(GLMaterial::TextureType::Emissive, _ui->btnEmissiveTex, _ui->lblEmissiveTex, nullptr, _ui->toolButtonEmissiveTexTrsf, nullptr, nullptr, "emissive");
-	if (_ui->btnHeightTex) insertSlot(GLMaterial::TextureType::Height, _ui->btnHeightTex, _ui->lblHeightScaleLabel, nullptr, _ui->toolButtonHeightTexTrsf, nullptr, nullptr, "height");
-	if (_ui->btnTransmissionTex) insertSlot(GLMaterial::TextureType::Transmission, _ui->btnTransmissionTex, _ui->lblTransmissionTex, nullptr, _ui->toolButtonTransTexTrsf, nullptr, nullptr, "transmission");
-	if (_ui->btnIORTex) insertSlot(GLMaterial::TextureType::IOR, _ui->btnIORTex, _ui->lblIOR, nullptr, _ui->toolButtonIORTexTrsf, nullptr, nullptr, "ior");
-	if (_ui->btnSheenColorTex) insertSlot(GLMaterial::TextureType::SheenColor, _ui->btnSheenColorTex, _ui->lblSheenColor, nullptr, _ui->toolButtonSheenColTexTrsf, nullptr, nullptr, "sheen_color");
-	if (_ui->btnSheenRoughTex) insertSlot(GLMaterial::TextureType::SheenRoughness, _ui->btnSheenRoughTex, nullptr, nullptr, _ui->toolButtonSheenRghTexTrsf, nullptr, nullptr, "sheen_rough");
-	if (_ui->btnCCColorTex) insertSlot(GLMaterial::TextureType::ClearcoatColor, _ui->btnCCColorTex, nullptr, nullptr, _ui->toolButtonClearCColTexTrsf, nullptr, nullptr, "clearcoat_color");
-	if (_ui->btnCCRoughTex) insertSlot(GLMaterial::TextureType::ClearcoatRoughness, _ui->btnCCRoughTex, nullptr, nullptr, _ui->toolButtonClearCRghTexTrsf, nullptr, nullptr, "clearcoat_rough");
-	if (_ui->btnCCNormalTex) insertSlot(GLMaterial::TextureType::ClearcoatNormal, _ui->btnCCNormalTex, nullptr, nullptr, _ui->toolButtonClearCNorTexTrsf, nullptr, nullptr, "clearcoat_normal");
-	if (_ui->btnIridFactorTex) insertSlot(GLMaterial::TextureType::Iridescence, _ui->btnIridFactorTex, nullptr, nullptr, _ui->toolButtonIridColTexTrsf, nullptr, nullptr, "iridescence");
-	if (_ui->btnIridescenceThicknessTex) insertSlot(GLMaterial::TextureType::IridescenceThickness, _ui->btnIridescenceThicknessTex, nullptr, nullptr, _ui->toolButtonIridRghTexTrsf, nullptr, nullptr, "iridescence_thickness");
-	if (_ui->btnSpecFactorColorTex) insertSlot(GLMaterial::TextureType::SpecularFactor, _ui->btnSpecFactorColorTex, nullptr, nullptr, _ui->toolButtonSpecFactorTexTrsf, nullptr, nullptr, "specular_factor");
-	if (_ui->btnSpecColorColorTex) insertSlot(GLMaterial::TextureType::SpecularColor, _ui->btnSpecColorColorTex, nullptr, nullptr, _ui->toolButtonSpecColorTexTrsf, nullptr, nullptr, "specular_color");
-	if (_ui->btnAnisotropyColorTex) insertSlot(GLMaterial::TextureType::Anisotropy, _ui->btnAnisotropyColorTex, nullptr, nullptr, _ui->toolButtonAnisotropyTexTrsf, nullptr, nullptr, "anisotropy");
-	if (_ui->btnDiffuseTransTex) insertSlot(GLMaterial::TextureType::DiffuseTransmission, _ui->btnDiffuseTransTex, nullptr, nullptr, _ui->toolButtonDiffuseTransTexTrsf, nullptr, nullptr, "diffuse_transmission");
-	if (_ui->btnDiffuseTransColorTex) insertSlot(GLMaterial::TextureType::DiffuseTransmissionColor, _ui->btnDiffuseTransColorTex, nullptr, nullptr, _ui->toolButtonDiffuseTransColorTexTrsf, nullptr, nullptr, "diffuse_transmission_color");
-	if (_ui->btnThicknessTex) insertSlot(GLMaterial::TextureType::Thickness, _ui->btnThicknessTex, _ui->lblThicknessTex, nullptr, _ui->toolButtonThicknessTexTrsf, nullptr, nullptr, "thickness");
+	if (_ui->btnAlbedoTex) insertSlot(GLMaterial::TextureType::Albedo, _ui->btnAlbedoTex, _ui->lblAlbedo, nullptr, _ui->toolButtonAlbedoTexTrsf , "albedo");
+	if (_ui->btnNormalTex) insertSlot(GLMaterial::TextureType::Normal, _ui->btnNormalTex, _ui->lblNormal, nullptr, _ui->toolButtonNormalTexTrsf , "normal");
+	if (_ui->btnMetallicTex) insertSlot(GLMaterial::TextureType::Metallic, _ui->btnMetallicTex, _ui->lblMetallic, _ui->gearMetallic, _ui->toolButtonMetallicTexTrsf , "metallic");
+	if (_ui->btnRoughnessTex) insertSlot(GLMaterial::TextureType::Roughness, _ui->btnRoughnessTex, _ui->lblRoughnessTex, _ui->gearRoughness, _ui->toolButtonRoughTexTrsf , "roughness");
+	if (_ui->btnAOTex) insertSlot(GLMaterial::TextureType::AmbientOcclusion, _ui->btnAOTex, _ui->lblAmbientOcclusion, _ui->gearAO, _ui->toolButtonAOTexTrsf , "ao");
+	if (_ui->btnOpacityTex) insertSlot(GLMaterial::TextureType::Opacity, _ui->btnOpacityTex, _ui->lblOpacityTex, _ui->gearOpacity, _ui->toolButtonOpacTexTrsf , "opacity");
+	if (_ui->btnEmissiveTex) insertSlot(GLMaterial::TextureType::Emissive, _ui->btnEmissiveTex, _ui->lblEmissiveTex, nullptr, _ui->toolButtonEmissiveTexTrsf , "emissive");
+	if (_ui->btnHeightTex) insertSlot(GLMaterial::TextureType::Height, _ui->btnHeightTex, _ui->lblHeightScaleLabel, nullptr, _ui->toolButtonHeightTexTrsf , "height");
+	if (_ui->btnTransmissionTex) insertSlot(GLMaterial::TextureType::Transmission, _ui->btnTransmissionTex, _ui->lblTransmissionTex, nullptr, _ui->toolButtonTransTexTrsf , "transmission");
+	if (_ui->btnIORTex) insertSlot(GLMaterial::TextureType::IOR, _ui->btnIORTex, _ui->lblIOR, nullptr, _ui->toolButtonIORTexTrsf , "ior");
+	if (_ui->btnSheenColorTex) insertSlot(GLMaterial::TextureType::SheenColor, _ui->btnSheenColorTex, _ui->lblSheenColor, nullptr, _ui->toolButtonSheenColTexTrsf , "sheen_color");
+	if (_ui->btnSheenRoughTex) insertSlot(GLMaterial::TextureType::SheenRoughness, _ui->btnSheenRoughTex, nullptr, nullptr, _ui->toolButtonSheenRghTexTrsf , "sheen_rough");
+	if (_ui->btnCCColorTex) insertSlot(GLMaterial::TextureType::ClearcoatColor, _ui->btnCCColorTex, nullptr, nullptr, _ui->toolButtonClearCColTexTrsf , "clearcoat_color");
+	if (_ui->btnCCRoughTex) insertSlot(GLMaterial::TextureType::ClearcoatRoughness, _ui->btnCCRoughTex, nullptr, nullptr, _ui->toolButtonClearCRghTexTrsf , "clearcoat_rough");
+	if (_ui->btnCCNormalTex) insertSlot(GLMaterial::TextureType::ClearcoatNormal, _ui->btnCCNormalTex, nullptr, nullptr, _ui->toolButtonClearCNorTexTrsf , "clearcoat_normal");
+	if (_ui->btnIridFactorTex) insertSlot(GLMaterial::TextureType::Iridescence, _ui->btnIridFactorTex, nullptr, nullptr, _ui->toolButtonIridColTexTrsf , "iridescence");
+	if (_ui->btnIridescenceThicknessTex) insertSlot(GLMaterial::TextureType::IridescenceThickness, _ui->btnIridescenceThicknessTex, nullptr, nullptr, _ui->toolButtonIridRghTexTrsf , "iridescence_thickness");
+	if (_ui->btnSpecFactorColorTex) insertSlot(GLMaterial::TextureType::SpecularFactor, _ui->btnSpecFactorColorTex, nullptr, nullptr, _ui->toolButtonSpecFactorTexTrsf , "specular_factor");
+	if (_ui->btnSpecColorColorTex) insertSlot(GLMaterial::TextureType::SpecularColor, _ui->btnSpecColorColorTex, nullptr, nullptr, _ui->toolButtonSpecColorTexTrsf , "specular_color");
+	if (_ui->btnAnisotropyColorTex) insertSlot(GLMaterial::TextureType::Anisotropy, _ui->btnAnisotropyColorTex, nullptr, nullptr, _ui->toolButtonAnisotropyTexTrsf , "anisotropy");
+	if (_ui->btnDiffuseTransTex) insertSlot(GLMaterial::TextureType::DiffuseTransmission, _ui->btnDiffuseTransTex, nullptr, nullptr, _ui->toolButtonDiffuseTransTexTrsf , "diffuse_transmission");
+	if (_ui->btnDiffuseTransColorTex) insertSlot(GLMaterial::TextureType::DiffuseTransmissionColor, _ui->btnDiffuseTransColorTex, nullptr, nullptr, _ui->toolButtonDiffuseTransColorTexTrsf , "diffuse_transmission_color");
+	if (_ui->btnThicknessTex) insertSlot(GLMaterial::TextureType::Thickness, _ui->btnThicknessTex, _ui->lblThicknessTex, nullptr, _ui->toolButtonThicknessTexTrsf , "thickness");
 }
 
 void MaterialPropertiesPanel::connectTextureSignals()
@@ -779,23 +790,10 @@ void MaterialPropertiesPanel::connectTextureSignals()
 			menu.exec(btn->mapToGlobal(pos));
 		});
 
-		if (slot.factorSpinBox)
-		{
-			connect(slot.factorSpinBox, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-				this, [this, type = it.key()]() { onFactorChanged(type); });
-		}
-
 		if (slot.transformButton)
 		{
 			connect(slot.transformButton, &QToolButton::clicked, this, [this, type = it.key()]() {
 				onTransformButtonClicked(type);
-			});
-		}
-
-		if (slot.colorPickerButton)
-		{
-			connect(slot.colorPickerButton, &QPushButton::clicked, this, [this, type = it.key()]() {
-				onColorPickerClicked(type);
 			});
 		}
 	}
@@ -1024,17 +1022,6 @@ QString MaterialPropertiesPanel::textureMapPath(GLMaterial::TextureType type) co
 	return QString::fromStdString(_material->texture(type).path);
 }
 
-void MaterialPropertiesPanel::loadFactorValuesFromMaterial()
-{
-	if (!_material) return;
-	_updateInProgress = true;
-	for (auto it = _textureSlots.begin(); it != _textureSlots.end(); ++it)
-	{
-		if (it.value().factorSpinBox)
-			it.value().factorSpinBox->setValue(1.0);
-	}
-	_updateInProgress = false;
-}
 
 void MaterialPropertiesPanel::loadScalarValuesFromMaterial()
 {
@@ -1157,8 +1144,6 @@ void MaterialPropertiesPanel::openPackingDialogFor(GLMaterial::TextureType type)
 		}
 	}
 }
-void MaterialPropertiesPanel::onColorPickerClicked(GLMaterial::TextureType type) {}
-void MaterialPropertiesPanel::onFactorChanged(GLMaterial::TextureType type) {}
 void MaterialPropertiesPanel::onTransformButtonClicked(GLMaterial::TextureType type)
 {
 	if (!_material) return;
@@ -1671,10 +1656,6 @@ void MaterialPropertiesPanel::onTextureButtonClicked(GLMaterial::TextureType typ
 	if (!file.isEmpty())
 		setTextureMapPath(type, file);
 }
-
-void MaterialPropertiesPanel::onTextureFactorChanged(GLMaterial::TextureType type) {}
-void MaterialPropertiesPanel::onTextureTransformClicked(GLMaterial::TextureType type) {}
-void MaterialPropertiesPanel::onTextureColorPickerClicked(GLMaterial::TextureType type) {}
 
 void MaterialPropertiesPanel::onClearAllTextures()
 {
@@ -3618,4 +3599,9 @@ void MaterialPropertiesPanel::onSearchTextChanged(const QString& text)
 		_ui->searchEdit->setStyleSheet("");
 		_ui->searchEdit->setToolTip("");
 	}
+}
+
+void MaterialPropertiesPanel::onDetachButtonClicked()
+{
+	emit detachRequested();
 }

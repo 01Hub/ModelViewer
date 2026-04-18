@@ -251,6 +251,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::detachRequested,
 		this, &ModelViewer::detachMaterialPanel);
+	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::textureSamplerChanged,
+		this, &ModelViewer::setTextureSamplersToSelectedItems);
+	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::textureCacheClearRequested,
+		this, &ModelViewer::onTextureCacheCleared);
 
 	connect(textureMappingPanel, &TextureMappingPanel::detachRequested,
 		this, &ModelViewer::detachTexturePanel);
