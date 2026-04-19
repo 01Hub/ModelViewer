@@ -4,6 +4,7 @@
 #include "MaterialLibraryWidget.h"
 #include "MaterialPreviewWidget.h"
 #include "MaterialPropertiesPanel.h"
+#include "ModelViewer.h"
 #include "MaterialRegistry.h"
 #include "MaterialTextureLibrary.h"
 #include "PathUtils.h"
@@ -443,6 +444,14 @@ void MaterialPropertiesPanel::initialize(ModelViewer* modelViewer, GLWidget* glW
 {
 	_modelViewer = modelViewer;
 	_glWidget = glWidget;
+
+	qDebug() << "MaterialPropertiesPanel::initialize called with modelViewer:" << (modelViewer ? "non-null" : "NULL");
+
+	// Get reference to the MDI-scoped material cache from ModelViewer
+	if (_modelViewer) {
+		_materialCacheRef = _modelViewer->getMaterialCache();
+		qDebug() << "MaterialPropertiesPanel::initialize - _materialCacheRef set to:" << (void*)_materialCacheRef;
+	}
 }
 
 void MaterialPropertiesPanel::setDetached(bool detached)
@@ -596,7 +605,13 @@ void MaterialPropertiesPanel::onAlbedoColorPicked()
 	if (color.isValid())
 	{
 		_material->setAlbedoColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
+		qDebug() << "onAlbedoColorPicked: Set albedo to" << color.name() << "for material key:" << _currentMaterialKey;
+		qDebug() << "  Material albedo color in _material:" << _material->albedoColor();
 		updateUnsavedMaterialInMap();
+		qDebug() << "  After updateUnsavedMaterialInMap, cache entry albedo:"
+			<< ((_materialCacheRef && _materialCacheRef->contains(_currentMaterialKey))
+				? _materialCacheRef->find(_currentMaterialKey).value().material.albedoColor()
+				: QVector3D(0,0,0));
 		updateScalarUI();
 		updatePreview();
 		emit materialChanged(_material);
@@ -1668,6 +1683,8 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 {
 	// IMPORTANT: Save any unsaved texture changes from current material before switching
 	saveCurrentMaterialTexturesBeforeSwitch();
+	// IMPORTANT: Save scalar property changes to MDI-scoped cache before switching
+	updateUnsavedMaterialInMap();
 
 	// Material is already populated with scalar properties from tree widget
 	// Now load textures and bind the material
@@ -1702,22 +1719,26 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 
 				// Check if this material was previously modified and cached
 				// If so, restore all data (both scalars and textures) from cache to preserve user modifications
-				auto cachedIt = _materialCache.find(materialKey);
-				if (cachedIt != _materialCache.end())
+				if (_materialCacheRef) {
+				auto cachedIt = _materialCacheRef->find(materialKey);
+				if (cachedIt != _materialCacheRef->end())
 				{
 					// For user-created or unsaved materials, restore everything
 					// This preserves both scalar and texture modifications from previous session
 					if (isUserMaterial || isUnsavedMaterial)
 					{
-						*_material = cachedIt.value();
+						qDebug() << "onMaterialPresetSelected: BEFORE restore - _material albedo:" << _material->albedoColor();
+						qDebug() << "  Cache entry albedo:" << cachedIt.value().material.albedoColor();
+						*_material = cachedIt.value().material;
 						// Ensure ADS values are recalculated after copy assignment from cache
 						_material->updateConsistency();
+						qDebug() << "  AFTER restore - _material albedo:" << _material->albedoColor();
 						qDebug() << "Restored cached material (user/unsaved):" << materialKey;
 					}
 					else
 					{
 						// For preset materials, restore ONLY textures to preserve fresh scalar defaults
-						const GLMaterial& cachedMaterial = cachedIt.value();
+						const GLMaterial& cachedMaterial = cachedIt.value().material;
 						for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
 						{
 							GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
@@ -1730,6 +1751,7 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 							}
 						}
 					}
+			}
 				}
 
 				// For user materials or unsaved materials, the texture paths are already in the material object
@@ -1759,6 +1781,8 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 {
 	// IMPORTANT: Save any unsaved texture changes from current material before switching
 	saveCurrentMaterialTexturesBeforeSwitch();
+	// IMPORTANT: Save scalar property changes to MDI-scoped cache before switching
+	updateUnsavedMaterialInMap();
 
 	// Load and bind material for preview (same as single-click)
 	if (!_material) _material = new GLMaterial();
@@ -1784,14 +1808,15 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 
 				// Check if this material was previously modified and cached
 				// If so, restore all data (both scalars and textures) from cache to preserve user modifications
-				auto cachedIt = _materialCache.find(materialKey);
-				if (cachedIt != _materialCache.end())
+				if (_materialCacheRef) {
+				auto cachedIt = _materialCacheRef->find(materialKey);
+				if (cachedIt != _materialCacheRef->end())
 				{
 					// For user-created or unsaved materials, restore everything
 					// This preserves both scalar and texture modifications from previous session
 					if (isUserMaterial || isUnsavedMaterial)
 					{
-						*_material = cachedIt.value();
+						*_material = cachedIt.value().material;
 						// Ensure ADS values are recalculated after copy assignment from cache
 						_material->updateConsistency();
 						qDebug() << "Restored cached material (user/unsaved):" << materialKey;
@@ -1799,7 +1824,7 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 					else
 					{
 						// For preset materials, restore ONLY textures to preserve fresh scalar defaults
-						const GLMaterial& cachedMaterial = cachedIt.value();
+						const GLMaterial& cachedMaterial = cachedIt.value().material;
 						for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
 						{
 							GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
@@ -1814,6 +1839,7 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 					}
 				}
 
+			}
 				// For user materials or unsaved materials, the texture paths are already in the material object
 				if (isUserMaterial || isUnsavedMaterial)
 				{
@@ -3374,9 +3400,27 @@ void MaterialPropertiesPanel::onCreateNewMaterial()
 		<< "Metallic:" << newMaterial.metallicMapPath();
 
 	// Add to the shared material map in memory
+	// For unsaved materials, capture the CREATING MDI instance so other MDIs can query the live cache
+	// This enables cross-MDI visibility with real-time synchronization of modifications
 	auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
 		MaterialLibraryWidget::sharedMaterialMap());
-	sharedMap[materialKey] = [newMaterial]() { return newMaterial; };
+
+	// Capture the creating MDI (_modelViewer) and material key
+	// The lambda queries the live cache, not a static copy
+	// This ensures other MDIs see modifications in real-time
+	sharedMap[materialKey] = [this, materialKey]() -> GLMaterial {
+		// Query the live cache from the creating MDI
+		if (_modelViewer && _materialCacheRef)
+		{
+			auto it = _materialCacheRef->find(materialKey);
+			if (it != _materialCacheRef->end())
+			{
+				return it.value().material;  // Return current cached version (with all modifications)
+			}
+		}
+		// Fallback: return a default material if cache lookup fails
+		return GLMaterial();
+	};
 
 	// Add to the appropriate group in s_groups
 	auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
@@ -3400,7 +3444,25 @@ void MaterialPropertiesPanel::onCreateNewMaterial()
 	// Store the group so we can use it when saving
 	_currentMaterialGroup = selectedGroup;
 
+	// Add to the MDI-scoped cache with name and group metadata
+	if (_materialCacheRef) {
+		(*_materialCacheRef)[materialKey] = CachedMaterial{
+			newMaterial,
+			materialName,
+			selectedGroup
+		};
+		qDebug() << "Added to cache - key:" << materialKey << "albedo:" << newMaterial.albedoColor();
+	} else {
+		qWarning() << "ERROR: _materialCacheRef is null! Material not added to cache!";
+	}
+
+
 	qDebug() << "Created new unsaved material:" << materialKey << "name:" << materialName << "group:" << selectedGroup;
+
+	// Register this material as owned by the current MDI for proper cleanup
+	if (_modelViewer) {
+		_modelViewer->registerOwnedUnsavedMaterial(materialKey);
+	}
 
 	// Refresh tree to show the new material
 	libraryWidget->blockSignals(true);
@@ -3410,6 +3472,15 @@ void MaterialPropertiesPanel::onCreateNewMaterial()
 	// (which would try to apply to a mesh that might not exist)
 	libraryWidget->selectMaterialByKey(materialKey);
 	libraryWidget->blockSignals(false);
+
+	// CRITICAL: Load the new material into _material for editing
+	// Since signals are blocked above, onMaterialPresetSelected() is NOT called,
+	// so we must manually load the material and update the UI
+	if (!_material) _material = new GLMaterial();
+	*_material = newMaterial;
+	_material->updateConsistency();
+	qDebug() << "Loaded new material into _material - albedo:" << _material->albedoColor();
+	bindMaterial(_material);
 
 	QMessageBox::information(this, tr("Material Created"),
 		tr("New material '%1' created in category '%2'.\n\nModify it and then click 'Save' to persist it to your library.").arg(materialName, selectedGroup));
@@ -3435,10 +3506,36 @@ void MaterialPropertiesPanel::updateUnsavedMaterialInMap()
 {
 	if (!_material || _currentMaterialKey.isEmpty()) return;
 
-	// Store the current material in local cache for persistence across material selections
+	if (!_material || _currentMaterialKey.isEmpty() || !_materialCacheRef) return;
+
+	// CRITICAL: Ensure ADS values are recalculated before caching
+	_material->updateConsistency();
+
+	// Store the current material in MDI-scoped cache for persistence across material selections
 	// This preserves both scalar and texture modifications when switching between materials
-	_materialCache[_currentMaterialKey] = *_material;
-	qDebug() << "Cached material in local map:" << _currentMaterialKey;
+	// IMPORTANT: Preserve the original name and group metadata from cache (they don't change)
+	auto cachedIt = _materialCacheRef->find(_currentMaterialKey);
+	if (cachedIt != _materialCacheRef->end())
+	{
+		// Material already in cache - preserve its original metadata
+		(*_materialCacheRef)[_currentMaterialKey] = CachedMaterial{
+			*_material,
+			cachedIt.value().name,      // Keep original name
+			cachedIt.value().group      // Keep original group
+		};
+		qDebug() << "Updated cached material in MDI cache:" << _currentMaterialKey
+			<< "name:" << cachedIt.value().name << "group:" << cachedIt.value().group;
+	}
+	else
+	{
+		// Material not yet in cache (shouldn't happen normally, but handle gracefully)
+		(*_materialCacheRef)[_currentMaterialKey] = CachedMaterial{
+			*_material,
+			_currentMaterialKey,        // Fallback to key as name
+			_currentMaterialGroup
+		};
+		qDebug() << "Added new material to MDI cache:" << _currentMaterialKey;
+	}
 }
 
 void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)

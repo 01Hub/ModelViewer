@@ -19,6 +19,7 @@
 #include "SceneTreeWidget.h"
 #include "ObjectTransformPanel.h"
 #include "MaterialPropertiesPanel.h"
+#include "MaterialLibraryWidget.h"
 #include "PathUtils.h"
 #include "SelectionCommand.h"
 #include "TextureMappingPanel.h"
@@ -218,6 +219,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		this, &ModelViewer::setTextureSamplersToSelectedItems);
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::textureCacheClearRequested,
 		this, &ModelViewer::onTextureCacheCleared);
+
+	// Initialize material properties panel with MDI-scoped cache reference
+	Ui_ModelViewer::predefinedMaterialsPanel->initialize(this, _glWidget);
 
 	visualizationEnvironmentPanel->initialize(this, _glWidget);
 
@@ -914,6 +918,49 @@ void ModelViewer::cleanupOrphanedMeshes()
 	_cachedReferencedUuids = currentlyReferenced;
 }
 
+void ModelViewer::cleanupUnsavedMaterialsFromLibrary()
+{
+	// Remove ONLY unsaved materials CREATED BY THIS MDI from shared library when it closes
+	// This allows other MDIs' unsaved materials to remain visible
+
+	if (_ownedUnsavedMaterials.isEmpty())
+	{
+		qDebug() << "No unsaved materials owned by this MDI to clean up";
+		return;
+	}
+
+	// Remove from shared material map - only owned materials
+	auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+		MaterialLibraryWidget::sharedMaterialMap());
+
+	for (const QString& key : _ownedUnsavedMaterials)
+	{
+		if (sharedMap.remove(key) > 0)
+		{
+			qDebug() << "Removed owned unsaved material from shared map:" << key;
+		}
+	}
+
+	// Remove from shared groups - only owned materials
+	auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
+		MaterialLibraryWidget::sharedGroups());
+
+	for (auto& groupPair : mutableGroups)
+	{
+		// Remove only unsaved materials owned by this MDI
+		auto& materials = groupPair.second;
+		materials.erase(
+			std::remove_if(materials.begin(), materials.end(),
+				[this](const QPair<QString, QString>& item) {
+					return _ownedUnsavedMaterials.contains(item.second);
+				}),
+			materials.end()
+		);
+	}
+
+	qDebug() << "Cleaned up" << _ownedUnsavedMaterials.size() << "unsaved material(s) owned by this MDI";
+}
+
 QSet<QUuid> ModelViewer::scanStackForReferencedUuids()
 {
 	QSet<QUuid> referenced;
@@ -1161,6 +1208,36 @@ void ModelViewer::mouseMoveEvent(QMouseEvent* event)
 
 void ModelViewer::closeEvent(QCloseEvent* event)
 {
+	// Check for unsaved materials first
+	MaterialPropertiesPanel* materialPanel = Ui_ModelViewer::predefinedMaterialsPanel;
+	QSet<QString> unsavedKeys = materialPanel ? materialPanel->getUnsavedMaterialKeys() : QSet<QString>();
+
+	if (!unsavedKeys.isEmpty())
+	{
+		int count = unsavedKeys.size();
+		QString msg = QString(tr("You have %1 unsaved material(s). Do you want to save them?")).arg(count);
+
+		QMessageBox::StandardButton reply = QMessageBox::question(
+			this,
+			tr("Unsaved Materials"),
+			msg,
+			QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
+
+		if (reply == QMessageBox::Cancel)
+		{
+			event->ignore();
+			return;
+		}
+		else if (reply == QMessageBox::Yes)
+		{
+			// TODO: Implement "Save All" functionality
+			// For now, just proceed with closing
+			qWarning() << "Save All functionality not yet implemented";
+		}
+		// If No, just proceed with closing (materials will be discarded)
+	}
+
+	// Check for unsaved document changes
 	if (_documentModified)
 	{
 		auto ret = QMessageBox::question(this, tr("Unsaved Changes"),
@@ -1181,6 +1258,10 @@ void ModelViewer::closeEvent(QCloseEvent* event)
 			return;
 		}
 	}
+
+	// Clean up unsaved materials from shared library
+	// Unsaved materials are MDI-scoped and should not appear in other MDIs
+	cleanupUnsavedMaterialsFromLibrary();
 
 	event->accept();
 }

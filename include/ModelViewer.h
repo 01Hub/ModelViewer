@@ -11,6 +11,7 @@
 #include "AssImpModelLoader.h"
 #include "ApplyMaterialCommand.h"
 #include "RenameMeshCommand.h"
+#include "MaterialPropertiesPanel.h"
 
 #include <QUndoStack>
 
@@ -36,6 +37,8 @@ public:
 
 	GLWidget*    getGLView()    const { return _glWidget; }
 	SceneGraph*  sceneGraph()   const { return _sceneGraph; }
+	QMap<QString, CachedMaterial>* getMaterialCache() { return &_materialCache; }
+	void registerOwnedUnsavedMaterial(const QString& materialKey) { _ownedUnsavedMaterials.insert(materialKey); }
 
 	void setMaterialToSelectedItems(const GLMaterial& mat);
 	void setTexturesToSelectedItems(const GLMaterial& mat);
@@ -198,6 +201,7 @@ private:
 	void setupUndoStackMonitoring();
 	void onUndoStackChanged();
 	void cleanupOrphanedMeshes();
+	void cleanupUnsavedMaterialsFromLibrary();
 	QSet<QUuid> scanStackForReferencedUuids();
 	QSet<QUuid> collectVisibleUuidsFromDisplayList() const;
 	std::vector<int> visibleIndicesFromState() const;
@@ -278,6 +282,10 @@ private:
 	bool _treeRebuildPending = false;
 	int _treeVisibilitySyncGeneration = 0;
 	bool _treeVisibilityDirty = false;
+
+	// Material cache - MDI-scoped, auto-destroyed when MDI closes
+	QMap<QString, CachedMaterial> _materialCache;  // Maps material keys to cached materials with metadata
+	QSet<QString> _ownedUnsavedMaterials;  // Tracks unsaved materials created by this MDI (for cleanup)
 };
 
 #endif

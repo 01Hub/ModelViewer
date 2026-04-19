@@ -20,6 +20,14 @@
 
 #include "GLMaterial.h"
 
+// Cache structure for unsaved materials - stores material with its metadata
+struct CachedMaterial
+{
+	GLMaterial material;        // The actual material with all properties
+	QString name;               // User-provided name at creation time (e.g., "Red Plastic")
+	QString group;              // Category/group at creation time (e.g., "Custom Materials")
+};
+
 // Forward declarations
 class ModelViewer;
 class GLWidget;
@@ -85,6 +93,10 @@ public:
 
 	// Texture path getter
 	QString getTexturePath(GLMaterial::TextureType type) const;
+
+	// Unsaved materials tracking (used by ModelViewer on close)
+	QSet<QString> getUnsavedMaterialKeys() const { return _unsavedMaterialKeys; }
+	void removeMaterialFromUnsaved(const QString& key) { _unsavedMaterialKeys.remove(key); }
 
 signals:
 	void materialChanged(GLMaterial* material);
@@ -214,7 +226,7 @@ private:
 
 	// Material save/unsaved state tracking
 	QSet<QString> _unsavedMaterialKeys;  // Keys of materials created but not yet saved to JSON
-	QMap<QString, GLMaterial> _materialCache;  // Cache modified materials for persistence across selections
+	QMap<QString, CachedMaterial>* _materialCacheRef = nullptr;  // Reference to ModelViewer's MDI-scoped cache
 	QString _currentMaterialKey;         // Key of currently bound material (if any)
 	QString _currentMaterialGroup;       // Group/category of currently bound material (if unsaved)
 
