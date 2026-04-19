@@ -1680,6 +1680,9 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 	// Create a copy of the material to work with
 	if (!_material) _material = new GLMaterial();
 	*_material = mat;
+	// Ensure ADS values are recalculated after copy assignment
+	// (copy assignment operator doesn't call updateConsistency)
+	_material->updateConsistency();
 
 	// Get the material key from the selected tree item to load textures
 	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
@@ -1707,6 +1710,8 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 					if (isUserMaterial || isUnsavedMaterial)
 					{
 						*_material = cachedIt.value();
+						// Ensure ADS values are recalculated after copy assignment from cache
+						_material->updateConsistency();
 						qDebug() << "Restored cached material (user/unsaved):" << materialKey;
 					}
 					else
@@ -1758,6 +1763,8 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 	// Load and bind material for preview (same as single-click)
 	if (!_material) _material = new GLMaterial();
 	*_material = mat;
+	// Ensure ADS values are recalculated after copy assignment
+	_material->updateConsistency();
 
 	// Get material key from selected tree item to load textures
 	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
@@ -1785,6 +1792,8 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 					if (isUserMaterial || isUnsavedMaterial)
 					{
 						*_material = cachedIt.value();
+						// Ensure ADS values are recalculated after copy assignment from cache
+						_material->updateConsistency();
 						qDebug() << "Restored cached material (user/unsaved):" << materialKey;
 					}
 					else
@@ -3353,6 +3362,10 @@ void MaterialPropertiesPanel::onCreateNewMaterial()
 
 	// Copy current material - this copies all scalars and texture paths
 	GLMaterial newMaterial = *_material;
+
+	// Ensure ADS values are recalculated from PBR for in-session consistency
+	// (copy constructor doesn't call updateConsistency, so ADS may be stale)
+	newMaterial.updateConsistency();
 
 	// Make sure we have the full material with all properties
 	qDebug() << "Creating new material from:" << materialName

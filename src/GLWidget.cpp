@@ -6633,6 +6633,11 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 			if (!texturePath.isEmpty()) resolvedMaterial.setSpecularGlossinessMap(texturePath);
 		}
 	}
+
+	// Ensure ADS values are recalculated after copy and texture assignment
+	// (copy assignment operator at line 6506 doesn't call updateConsistency)
+	resolvedMaterial.updateConsistency();
+
 	auto* mesh = new AssImpMesh(_fgShader.get(), meshData.name, meshData.vertices, meshData.indices, textures, resolvedMaterial);
 	mesh->setHasNegativeScale(meshData.hasNegativeScale);
 	mesh->setPrimitiveMode(meshData.primitiveMode);
@@ -7167,6 +7172,10 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 	}
 
 	m.syncTextureParameters();
+
+	// Ensure ADS values are recalculated after copy and texture resolution
+	// (copy assignment operator at line 6998 doesn't call updateConsistency)
+	m.updateConsistency();
 
 	return m;
 }
