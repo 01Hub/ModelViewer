@@ -609,6 +609,7 @@ void MaterialPropertiesPanel::onAlbedoColorPicked()
 		qDebug() << "onAlbedoColorPicked: Set albedo to" << color.name() << "for material key:" << _currentMaterialKey;
 		qDebug() << "  Material albedo color in _material:" << _material->albedoColor();
 		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
 		qDebug() << "  After updateUnsavedMaterialInMap, cache entry albedo:"
 			<< ((_materialCacheRef && _materialCacheRef->contains(_currentMaterialKey))
 				? _materialCacheRef->find(_currentMaterialKey).value().material.albedoColor()
@@ -619,11 +620,19 @@ void MaterialPropertiesPanel::onAlbedoColorPicked()
 	}
 }
 
-void MaterialPropertiesPanel::onMetallicChanged(double value) { if (_material && !_updateInProgress) { _material->setMetalness(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setRoughness(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onIORChanged(double value) { if (_material && !_updateInProgress) { _material->setIOR(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onOpacityChanged(double value) { if (_material && !_updateInProgress) { _material->setOpacity(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onEmissiveStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setEmissiveStrength(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onMetallicChanged(double value) {
+	if (_material && !_updateInProgress) {
+		_material->setMetalness(static_cast<float>(value));
+		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
+		updatePreview();
+		emit materialChanged(_material);
+	}
+}
+void MaterialPropertiesPanel::onRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setRoughness(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onIORChanged(double value) { if (_material && !_updateInProgress) { _material->setIOR(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onOpacityChanged(double value) { if (_material && !_updateInProgress) { _material->setOpacity(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onEmissiveStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setEmissiveStrength(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 
 void MaterialPropertiesPanel::onEmissiveColorPicked()
 {
@@ -633,14 +642,15 @@ void MaterialPropertiesPanel::onEmissiveColorPicked()
 	{
 		_material->setEmissive(QVector3D(color.redF(), color.greenF(), color.blueF()));
 		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
 		updateScalarUI();
 		updatePreview();
 		emit materialChanged(_material);
 	}
 }
 
-void MaterialPropertiesPanel::onClearcoatChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoat(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onClearcoatRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoatRoughness(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onClearcoatChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoat(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onClearcoatRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoatRoughness(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onSheenColorPicked()
 {
 	if (!_material || !_ui) return;
@@ -650,20 +660,21 @@ void MaterialPropertiesPanel::onSheenColorPicked()
 		_material->setSheenColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
 		setButtonColorWithContrast(_ui->btnSheenColor, color);
 		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
 		updatePreview();
 		emit materialChanged(_material);
 	}
 }
-void MaterialPropertiesPanel::onSheenRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setSheenRoughness(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onTransmissionChanged(double value) { if (_material && !_updateInProgress) { _material->setTransmission(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setThicknessFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onNormalScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setNormalScale(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onHeightScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setHeightScale(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onClearcoatNormalScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoatNormalScale(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onOcclusionStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setOcclusionStrength(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onAnisotropyStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setAnisotropyStrength(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onAnisotropyRotationChanged(double value) { if (_material && !_updateInProgress) { _material->setAnisotropyRotation(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onDiffuseTransmissionFactorChanged(double value) { if (_material && !_updateInProgress) { _material->setDiffuseTransmissionFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onSheenRoughnessChanged(double value) { if (_material && !_updateInProgress) { _material->setSheenRoughness(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onTransmissionChanged(double value) { if (_material && !_updateInProgress) { _material->setTransmission(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setThicknessFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onNormalScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setNormalScale(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onHeightScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setHeightScale(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onClearcoatNormalScaleChanged(double value) { if (_material && !_updateInProgress) { _material->setClearcoatNormalScale(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onOcclusionStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setOcclusionStrength(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onAnisotropyStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setAnisotropyStrength(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onAnisotropyRotationChanged(double value) { if (_material && !_updateInProgress) { _material->setAnisotropyRotation(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onDiffuseTransmissionFactorChanged(double value) { if (_material && !_updateInProgress) { _material->setDiffuseTransmissionFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onDiffuseTransmissionColorPicked()
 {
 	if (!_material || !_ui) return;
@@ -673,11 +684,12 @@ void MaterialPropertiesPanel::onDiffuseTransmissionColorPicked()
 		_material->setDiffuseTransmissionColorFactor(QVector3D(color.redF(), color.greenF(), color.blueF()));
 		setButtonColorWithContrast(_ui->btnDiffTransColor, color);
 		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
 		updatePreview();
 		emit materialChanged(_material);
 	}
 }
-void MaterialPropertiesPanel::onSpecularFactorChanged(double value) { if (_material && !_updateInProgress) { _material->setSpecularFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onSpecularFactorChanged(double value) { if (_material && !_updateInProgress) { _material->setSpecularFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 void MaterialPropertiesPanel::onSpecularColorPicked()
 {
 	if (!_material || !_ui) return;
@@ -687,6 +699,7 @@ void MaterialPropertiesPanel::onSpecularColorPicked()
 		_material->setSpecularColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
 		setButtonColorWithContrast(_ui->btnSpecularColor, color);
 		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
 		updatePreview();
 		emit materialChanged(_material);
 	}
@@ -701,21 +714,22 @@ void MaterialPropertiesPanel::onAttenuationColorPicked()
 		_material->setAttenuationColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
 		setButtonColorWithContrast(_ui->btnAttenuationColor, color);
 		updateUnsavedMaterialInMap();
+		markMaterialAsModified();
 		updatePreview();
 		emit materialChanged(_material);
 	}
 }
 
-void MaterialPropertiesPanel::onShadingModelChanged(int index) { if (_material && !_updateInProgress) { _material->setShadingModel(static_cast<GLMaterial::ShadingModel>(index)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onBlendModeChanged(int index) { if (_material && !_updateInProgress) { _material->setBlendMode(static_cast<GLMaterial::BlendMode>(index)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onTwoSidedToggled(bool checked) { if (_material && !_updateInProgress) { _material->setTwoSided(checked); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onWireframeToggled(bool checked) { if (_material && !_updateInProgress) { _material->setWireframe(checked); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onAlphaThresholdChanged(double value) { if (_material && !_updateInProgress) { _material->setAlphaThreshold(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onUnlitToggled(bool checked) { if (_material && !_updateInProgress) { _material->setUnlit(checked); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onIridescenceStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onIridescenceThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceThicknessMin(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onIridescenceIORChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceIor(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
-void MaterialPropertiesPanel::onIridescenceThinFilmThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceThicknessMax(static_cast<float>(value)); updateUnsavedMaterialInMap(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onShadingModelChanged(int index) { if (_material && !_updateInProgress) { _material->setShadingModel(static_cast<GLMaterial::ShadingModel>(index)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onBlendModeChanged(int index) { if (_material && !_updateInProgress) { _material->setBlendMode(static_cast<GLMaterial::BlendMode>(index)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onTwoSidedToggled(bool checked) { if (_material && !_updateInProgress) { _material->setTwoSided(checked); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onWireframeToggled(bool checked) { if (_material && !_updateInProgress) { _material->setWireframe(checked); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onAlphaThresholdChanged(double value) { if (_material && !_updateInProgress) { _material->setAlphaThreshold(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onUnlitToggled(bool checked) { if (_material && !_updateInProgress) { _material->setUnlit(checked); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onIridescenceStrengthChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceFactor(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onIridescenceThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceThicknessMin(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onIridescenceIORChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceIor(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
+void MaterialPropertiesPanel::onIridescenceThinFilmThicknessChanged(double value) { if (_material && !_updateInProgress) { _material->setIridescenceThicknessMax(static_cast<float>(value)); updateUnsavedMaterialInMap(); markMaterialAsModified(); updatePreview(); emit materialChanged(_material); } }
 
 // ============================================================================
 // Texture Management
@@ -914,6 +928,8 @@ void MaterialPropertiesPanel::setTextureMapPath(GLMaterial::TextureType type, co
 
 	auto& slot = _textureSlots[type];
 	applyButtonImageIcon(slot, file);
+	updateUnsavedMaterialInMap();
+	markMaterialAsModified();
 	updatePreview();
 	emit textureSamplerChanged(_material, type);
 }
@@ -1007,6 +1023,8 @@ void MaterialPropertiesPanel::clearTextureMap(GLMaterial::TextureType type)
 
 	auto& slot = _textureSlots[type];
 	applyButtonEmptyIcon(slot);
+	updateUnsavedMaterialInMap();
+	markMaterialAsModified();
 	// Note: updatePreview() is NOT called here. It's called once at the end of clearAllTexturesMaps()
 	// to avoid multiple unnecessary preview updates
 	emit textureSamplerChanged(_material, type);
@@ -1714,6 +1732,17 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 			{
 				_currentMaterialKey = materialKey;
 
+				// Extract group/category from parent tree item
+				QTreeWidgetItem* parentItem = selected.first()->parent();
+				if (parentItem)
+				{
+					_currentMaterialGroup = parentItem->text(0);
+				}
+				else
+				{
+					_currentMaterialGroup.clear();
+				}
+
 				// Determine material type early so we can use it in cache restoration logic
 				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
 				bool isUnsavedMaterial = _unsavedMaterialKeys.contains(materialKey);
@@ -1802,6 +1831,17 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 			if (!materialKey.isEmpty())
 			{
 				_currentMaterialKey = materialKey;
+
+				// Extract group/category from parent tree item
+				QTreeWidgetItem* parentItem = selected.first()->parent();
+				if (parentItem)
+				{
+					_currentMaterialGroup = parentItem->text(0);
+				}
+				else
+				{
+					_currentMaterialGroup.clear();
+				}
 
 				// Determine material type early so we can use it in cache restoration logic
 				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
@@ -3512,18 +3552,80 @@ void MaterialPropertiesPanel::updateUnsavedMaterialInMap()
 			cachedIt.value().name,      // Keep original name
 			cachedIt.value().group      // Keep original group
 		};
-		qDebug() << "Updated cached material in MDI cache:" << _currentMaterialKey
-			<< "name:" << cachedIt.value().name << "group:" << cachedIt.value().group;
 	}
 	else
 	{
-		// Material not yet in cache (shouldn't happen normally, but handle gracefully)
+		// Material not yet in cache - this happens when user selects a material and modifies it
+		// Try to get the display name from the tree
+		QString displayName = _currentMaterialKey;  // Default fallback
+		MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+		if (libraryWidget)
+		{
+			QList<QTreeWidgetItem*> selected = libraryWidget->selectedItems();
+			if (!selected.isEmpty())
+			{
+				// Get the material name from the tree item (without asterisk if present)
+				displayName = selected.first()->text(0);
+				if (displayName.endsWith(" *"))
+				{
+					displayName.chop(2);  // Remove the " *" suffix
+				}
+			}
+		}
+
 		(*_materialCacheRef)[_currentMaterialKey] = CachedMaterial{
 			*_material,
-			_currentMaterialKey,        // Fallback to key as name
+			displayName,                // Use actual name from tree, not the key
 			_currentMaterialGroup
 		};
-		qDebug() << "Added new material to MDI cache:" << _currentMaterialKey;
+	}
+}
+
+void MaterialPropertiesPanel::markMaterialAsModified()
+{
+	if (_currentMaterialKey.isEmpty()) return;
+
+	// Factory/shipped materials should never be marked as they are read-only
+	bool isAlreadyUnsaved = _unsavedMaterialKeys.contains(_currentMaterialKey);
+	bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(_currentMaterialKey);
+	bool isFactoryMaterial = !isAlreadyUnsaved && !isUserMaterial;
+
+	// Only mark non-factory materials as modified
+	if (!isFactoryMaterial && !isAlreadyUnsaved)
+	{
+		_unsavedMaterialKeys.insert(_currentMaterialKey);
+
+		// Update tree display to show asterisk for modified saved material WITHOUT refreshing tree
+		// (refreshing the tree would reset the selection to the first material)
+		MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+		if (libraryWidget)
+		{
+			// Find the tree item for this material and update its display name directly
+			QTreeWidget* tree = libraryWidget;
+			for (int g = 0; g < tree->topLevelItemCount(); ++g)
+			{
+				QTreeWidgetItem* groupItem = tree->topLevelItem(g);
+				if (!groupItem) continue;
+
+				for (int m = 0; m < groupItem->childCount(); ++m)
+				{
+					QTreeWidgetItem* matItem = groupItem->child(m);
+					if (!matItem) continue;
+
+					QString itemKey = matItem->data(0, Qt::UserRole).toString();
+					if (itemKey == _currentMaterialKey)
+					{
+						// Update display name with asterisk (avoid duplicate asterisks)
+						QString displayName = matItem->text(0);
+						if (!displayName.endsWith(" *"))
+						{
+							matItem->setText(0, displayName + " *");
+						}
+						return;  // Found and updated, exit
+					}
+				}
+			}
+		}
 	}
 }
 
@@ -3703,4 +3805,28 @@ void MaterialPropertiesPanel::onSearchTextChanged(const QString& text)
 void MaterialPropertiesPanel::onDetachButtonClicked()
 {
 	emit detachRequested();
+}
+
+void MaterialPropertiesPanel::beginSaveUnsavedMaterials()
+{
+	// Block signals on the tree widget to prevent cascading signal events
+	// during batch save operations (e.g., when closing MDI with unsaved materials)
+	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+	if (libraryWidget)
+	{
+		libraryWidget->blockSignals(true);
+		qDebug() << "Blocked signals for batch unsaved material save";
+	}
+}
+
+void MaterialPropertiesPanel::endSaveUnsavedMaterials()
+{
+	// Refresh tree WHILE signals are still blocked, then unblock
+	// This prevents selection signals from firing during the refresh
+	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+	if (libraryWidget)
+	{
+		libraryWidget->refreshMaterialTree();
+		libraryWidget->blockSignals(false);
+	}
 }

@@ -98,6 +98,10 @@ public:
 	QSet<QString> getUnsavedMaterialKeys() const { return _unsavedMaterialKeys; }
 	void removeMaterialFromUnsaved(const QString& key) { _unsavedMaterialKeys.remove(key); }
 
+	// Batch save operations (for unsaved materials before close)
+	void beginSaveUnsavedMaterials();   // Block signals before batch save
+	void endSaveUnsavedMaterials();     // Unblock signals and refresh tree after batch save
+
 signals:
 	void materialChanged(GLMaterial* material);
 	void materialApplied(const GLMaterial& material);
@@ -208,6 +212,7 @@ private:
 
 	// Helper to update unsaved material in shared map when scalars change
 	void updateUnsavedMaterialInMap();
+	void markMaterialAsModified();  // Mark non-factory materials as having unsaved changes
 
 	void updatePreview();
 

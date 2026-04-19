@@ -201,6 +201,7 @@ private:
 	void setupUndoStackMonitoring();
 	void onUndoStackChanged();
 	void cleanupOrphanedMeshes();
+	bool saveMaterialsBeforeClose();  // Save all unsaved materials to library before closing
 	void cleanupUnsavedMaterialsFromLibrary();
 	QSet<QUuid> scanStackForReferencedUuids();
 	QSet<QUuid> collectVisibleUuidsFromDisplayList() const;

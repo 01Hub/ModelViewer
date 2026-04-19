@@ -918,6 +918,102 @@ void ModelViewer::cleanupOrphanedMeshes()
 	_cachedReferencedUuids = currentlyReferenced;
 }
 
+bool ModelViewer::saveMaterialsBeforeClose()
+{
+	// Get the material panel
+	MaterialPropertiesPanel* materialPanel = Ui_ModelViewer::predefinedMaterialsPanel;
+	if (!materialPanel)
+	{
+		qWarning() << "Material panel not available for saving unsaved materials";
+		return false;
+	}
+
+	// Get all unsaved material keys
+	QSet<QString> unsavedKeys = materialPanel->getUnsavedMaterialKeys();
+	if (unsavedKeys.isEmpty())
+	{
+		return true;  // Nothing to save
+	}
+
+	int savedCount = 0;
+	int failedCount = 0;
+
+	// Block signals during batch save to prevent "select a mesh" dialogs during tree refresh
+	materialPanel->beginSaveUnsavedMaterials();
+
+	// Save each unsaved material to the library
+	for (const QString& key : unsavedKeys)
+	{
+		// Get cached material with metadata
+		auto cachedIt = _materialCache.find(key);
+		if (cachedIt == _materialCache.end())
+		{
+			qWarning() << "Material key not found in cache:" << key;
+			failedCount++;
+			continue;
+		}
+
+		const CachedMaterial& cached = cachedIt.value();
+		QString groupLabel = cached.group;
+		QString materialName = cached.name;
+		const GLMaterial& material = cached.material;
+
+		// Save to library using existing infrastructure
+		// Pass nullptr as parent to suppress "Overwrite?" dialog during closeEvent
+		// User already chose "Save All", so we auto-confirm overwrites
+		QString errorMsg;
+		bool success = MaterialLibraryWidget::saveUserMaterialToUserLocation(
+			groupLabel,
+			key,
+			materialName,
+			material,
+			nullptr,  // No parent = no confirmation dialog
+			&errorMsg
+		);
+
+		if (success)
+		{
+			// Remove from unsaved set
+			materialPanel->removeMaterialFromUnsaved(key);
+			_ownedUnsavedMaterials.remove(key);
+			savedCount++;
+			qDebug() << "Successfully saved material:" << materialName << "(" << key << ")";
+		}
+		else
+		{
+			failedCount++;
+			qWarning() << "FAILED to save material:" << materialName;
+			qWarning() << "  Key:" << key;
+			qWarning() << "  Group:" << groupLabel;
+			qWarning() << "  Error:" << errorMsg;
+		}
+	}
+
+	// Unblock signals and refresh tree BEFORE showing dialogs
+	// This prevents the tree refresh from triggering material selection signals
+	// which would cause "Please select a mesh" warnings
+	materialPanel->endSaveUnsavedMaterials();
+
+	// Show result to user
+	if (failedCount > 0)
+	{
+		QString msg = QString(tr("Saved %1 of %2 material(s). %3 failed to save."))
+			.arg(savedCount)
+			.arg(savedCount + failedCount)
+			.arg(failedCount);
+		QMessageBox::warning(this, tr("Save Materials - Partial Success"), msg);
+		return false;  // Some materials failed to save
+	}
+	else if (savedCount > 0)
+	{
+		QString msg = QString(tr("Successfully saved %1 material(s) to library.")).arg(savedCount);
+		QMessageBox::information(this, tr("Materials Saved"), msg);
+		return true;  // All saved successfully
+	}
+
+	return true;  // Nothing needed saving
+}
+
 void ModelViewer::cleanupUnsavedMaterialsFromLibrary()
 {
 	// Remove ONLY unsaved materials CREATED BY THIS MDI from shared library when it closes
@@ -1230,9 +1326,22 @@ void ModelViewer::closeEvent(QCloseEvent* event)
 		}
 		else if (reply == QMessageBox::Yes)
 		{
-			// TODO: Implement "Save All" functionality
-			// For now, just proceed with closing
-			qWarning() << "Save All functionality not yet implemented";
+			// Save all unsaved materials to library
+			if (!saveMaterialsBeforeClose())
+			{
+				// Ask user if they want to close anyway
+				int closeAnyway = QMessageBox::question(this,
+					tr("Save Failed"),
+					tr("Failed to save some materials. Close anyway?"),
+					QMessageBox::Yes | QMessageBox::No,
+					QMessageBox::No);
+
+				if (closeAnyway != QMessageBox::Yes)
+				{
+					event->ignore();
+					return;
+				}
+			}
 		}
 		// If No, just proceed with closing (materials will be discarded)
 	}

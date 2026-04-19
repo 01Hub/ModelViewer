@@ -546,6 +546,42 @@ bool MaterialLibraryWidget::saveUserMaterialToUserLocation(const QString& groupL
 	matProps.insert("key", key);
 	matProps.insert("name", name);
 
+	// CRITICAL: Convert absolute texture paths to relative and copy texture files
+	// Create material folder in user library for storing texture files
+	QString userRoot = QFileInfo(userPath).dir().absolutePath();
+	QString materialFolder = QDir(userRoot).filePath(key);
+	QDir().mkpath(materialFolder);  // Create folder if it doesn't exist
+
+	// Process textureMetadata: convert absolute paths to relative and copy files
+	if (matProps.contains("textureMetadata"))
+	{
+		QVariantMap textureMetadataMap = matProps.value("textureMetadata").toMap();
+
+		for (auto it = textureMetadataMap.begin(); it != textureMetadataMap.end(); ++it)
+		{
+			QVariantMap texMetadata = it.value().toMap();
+			QString originalPath = texMetadata.value("path").toString();
+
+			if (!originalPath.isEmpty())
+			{
+				QFileInfo origInfo(originalPath);
+				if (origInfo.exists())
+				{
+					// Copy the texture file to material folder with relative path
+					QString filename = origInfo.fileName();
+					QString targetPath = QDir(materialFolder).filePath(filename);
+					if (QFile::copy(originalPath, targetPath))
+					{
+						// Store relative path (just filename) in the material properties
+						texMetadata.insert("path", filename);
+						textureMetadataMap.insert(it.key(), texMetadata);
+					}
+				}
+			}
+		}
+		matProps.insert("textureMetadata", textureMetadataMap);
+	}
+
 	// Work on items list
 	QVariantMap targetGroup = groupsList[groupIndex].toMap();
 	QVariantList itemsList = targetGroup.value("items").toList();
