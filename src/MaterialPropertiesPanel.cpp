@@ -37,6 +37,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QUrl>
+#include <QUuid>
 #include <QCheckBox>
 #include <QStandardPaths>
 #include <QRegularExpression>
@@ -1233,7 +1234,7 @@ void MaterialPropertiesPanel::saveCurrentMaterialTexturesBeforeSwitch()
 		return;
 
 	// Only save if this is an unsaved or user material
-	if (!_currentMaterialKey.startsWith("_UNSAVED_") &&
+	if (!_unsavedMaterialKeys.contains(_currentMaterialKey) &&
 		!MaterialLibraryWidget::s_userMaterialKeys.contains(_currentMaterialKey))
 		return;
 
@@ -1715,7 +1716,7 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 
 				// Determine material type early so we can use it in cache restoration logic
 				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
-				bool isUnsavedMaterial = materialKey.startsWith("_UNSAVED_");
+				bool isUnsavedMaterial = _unsavedMaterialKeys.contains(materialKey);
 
 				// Check if this material was previously modified and cached
 				// If so, restore all data (both scalars and textures) from cache to preserve user modifications
@@ -1804,7 +1805,7 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 
 				// Determine material type early so we can use it in cache restoration logic
 				bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
-				bool isUnsavedMaterial = materialKey.startsWith("_UNSAVED_");
+				bool isUnsavedMaterial = _unsavedMaterialKeys.contains(materialKey);
 
 				// Check if this material was previously modified and cached
 				// If so, restore all data (both scalars and textures) from cache to preserve user modifications
@@ -1879,7 +1880,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	// Check if current material is an existing user material (not factory, not unsaved)
 	const auto& sharedMap = MaterialLibraryWidget::sharedMaterialMap();
 	bool isExistingUserMaterial = !key.isEmpty() &&
-	                               !key.startsWith("_UNSAVED_") &&
+	                               !_unsavedMaterialKeys.contains(key) &&
 	                               sharedMap.contains(key) &&
 	                               MaterialLibraryWidget::s_userMaterialKeys.contains(key);
 
@@ -2140,7 +2141,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	}
 
 	// Check if this is an unsaved material created via "New" button
-	if (_currentMaterialKey.startsWith("_UNSAVED_"))
+	if (_unsavedMaterialKeys.contains(_currentMaterialKey))
 	{
 		// This is a newly created unsaved material
 		// The name and group were already set during onCreateNewMaterial()
@@ -2173,34 +2174,8 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 			name = QStringLiteral("New Material");
 		}
 
-		// Generate key from the original name
-		QString suggestedKey = name.toUpper().simplified().replace(' ', '_');
-
-		// Ensure suggested key doesn't collide
-		const auto& sharedMap = MaterialLibraryWidget::sharedMaterialMap();
-		int suffix = 1;
-		QString trialKey = suggestedKey;
-		while (sharedMap.contains(trialKey)) {
-			trialKey = QString("%1_%2").arg(suggestedKey).arg(suffix++);
-		}
-
-		bool okKey = false;
-		QString enteredKey = QInputDialog::getText(this,
-			tr("Material Key"),
-			tr("Enter unique material key (no spaces, letters and underscores only):"),
-			QLineEdit::Normal,
-			trialKey,
-			&okKey);
-		if (!okKey || enteredKey.trimmed().isEmpty()) return;
-		key = enteredKey.trimmed().simplified().replace(' ', '_');
-
-		// Check for collisions with factory materials
-		if (sharedMap.contains(key) && !MaterialLibraryWidget::s_userMaterialKeys.contains(key))
-		{
-			QMessageBox::warning(this, tr("Key Not Allowed"),
-				tr("That key collides with a factory material. Please choose a different key."));
-			return;
-		}
+		// Generate a unique UUID key for this material
+		key = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
 		// Use the stored group
 		groupLabel = _currentMaterialGroup;
@@ -2209,17 +2184,37 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 			groupLabel = QStringLiteral("User Materials");
 		}
 
-		// Remove the unsaved marker
-		_unsavedMaterialKeys.remove(_currentMaterialKey);
+		// NOTE: Do NOT remove from _unsavedMaterialKeys here!
+		// We need to keep it in the set so the cleanup code below can find it and remove
+		// it from the shared maps. The removal happens after cleanup at line 2403.
 	}
 
-	// Try to get defaults from MaterialLibraryWidget
-	if (auto* libWidget = qobject_cast<MaterialLibraryWidget*>(sender())) {
-		// If sender is the library widget, try to extract selection
-		// For now, we'll skip this and just prompt the user
+	// If group label not already set, try to derive it from tree selection
+	if (groupLabel.isEmpty()) {
+		MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+		if (libraryWidget) {
+			QList<QTreeWidgetItem*> selectedItems = libraryWidget->selectedItems();
+			if (!selectedItems.isEmpty()) {
+				QTreeWidgetItem* selectedItem = selectedItems.first();
+
+				// Check if selected item is a category (has children) or material (no children)
+				if (selectedItem->childCount() > 0) {
+					// It's a category node - use it directly
+					groupLabel = selectedItem->text(0);
+					qDebug() << "Auto-detected group from selection:" << groupLabel;
+				} else {
+					// It's a material node - get its parent category
+					QTreeWidgetItem* parentItem = selectedItem->parent();
+					if (parentItem) {
+						groupLabel = parentItem->text(0);
+						qDebug() << "Auto-detected group from material parent:" << groupLabel;
+					}
+				}
+			}
+		}
 	}
 
-	// Ensure we have a group label (ask user if not)
+	// If group still not set, ask user
 	if (groupLabel.isEmpty()) {
 		QStringList groups;
 		const auto& sharedGroups = MaterialLibraryWidget::sharedGroups();
@@ -2250,16 +2245,8 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 			tr("You are saving changes to a factory material. "
 				"A new user material will be created instead of modifying the factory material."));
 
-		// Suggest a safe new key and name
+		// Suggest a name for the new user material
 		QString suggestedName = name.isEmpty() ? QStringLiteral("User Material") : QStringLiteral("User %1").arg(name);
-		QString suggestedKey = suggestedName.toUpper().simplified().replace(' ', '_');
-
-		// Ensure suggested key doesn't collide
-		int suffix = 1;
-		QString trialKey = suggestedKey;
-		while (sharedMap.contains(trialKey)) {
-			trialKey = QString("%1_%2").arg(suggestedKey).arg(suffix++);
-		}
 
 		// Ask user for display name
 		bool okName = false;
@@ -2272,46 +2259,8 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		if (!okName || enteredName.trimmed().isEmpty()) return;
 		name = enteredName.trimmed();
 
-		// Ask user for key and validate uniqueness
-		bool okKey = false;
-		QString enteredKey;
-		QString suggestedFinalKey = trialKey;
-		for (;;) {
-			enteredKey = QInputDialog::getText(this,
-				tr("Material Key"),
-				tr("Enter a unique material key (no spaces):"),
-				QLineEdit::Normal,
-				suggestedFinalKey,
-				&okKey);
-			if (!okKey) return;
-			enteredKey = enteredKey.trimmed().simplified().replace(' ', '_');
-			if (enteredKey.isEmpty()) continue;
-
-			if (MaterialLibraryWidget::sharedMaterialMap().contains(enteredKey)) {
-				if (!MaterialLibraryWidget::s_userMaterialKeys.contains(enteredKey)) {
-					QMessageBox::warning(this,
-						tr("Key Not Allowed"),
-						tr("That key already exists as a factory material. Please choose a different key."));
-					continue;
-				} else {
-					QMessageBox::StandardButton overwriteReply =
-						QMessageBox::question(this,
-							tr("Overwrite User Material?"),
-							tr("A user material with this key already exists. Overwrite it?"),
-							QMessageBox::Yes | QMessageBox::No,
-							QMessageBox::No);
-					if (overwriteReply == QMessageBox::Yes) {
-						key = enteredKey;
-						break;
-					} else {
-						continue;
-					}
-				}
-			} else {
-				key = enteredKey;
-				break;
-			}
-		}
+		// Generate a unique UUID key for this material
+		key = QUuid::createUuid().toString(QUuid::WithoutBraces);
 	} else {
 		// Not saving over a factory material
 		if (key.isEmpty()) {
@@ -2328,24 +2277,8 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 				name = enteredName.trimmed();
 			}
 
-			bool okKey = false;
-			QString suggestedKey = name.toUpper().simplified().replace(' ', '_');
-			QString enteredKey = QInputDialog::getText(this,
-				tr("Material Key"),
-				tr("Unique material key (no spaces):"),
-				QLineEdit::Normal,
-				suggestedKey,
-				&okKey);
-			if (!okKey || enteredKey.trimmed().isEmpty()) return;
-			key = enteredKey.trimmed().simplified().replace(' ', '_');
-
-			if (MaterialLibraryWidget::sharedMaterialMap().contains(key) &&
-				!MaterialLibraryWidget::s_userMaterialKeys.contains(key)) {
-				QMessageBox::warning(this,
-					tr("Key Not Allowed"),
-					tr("That key collides with a shipped factory material. Please choose a different key."));
-				return;
-			}
+			// Generate a unique UUID key for this material
+			key = QUuid::createUuid().toString(QUuid::WithoutBraces);
 		}
 	}
 
@@ -2442,7 +2375,7 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	}
 
 	// If this was an unsaved material, clean up the old unsaved entry BEFORE refreshing
-	if (!_currentMaterialKey.isEmpty() && _currentMaterialKey.startsWith("_UNSAVED_"))
+	if (!_currentMaterialKey.isEmpty() && _unsavedMaterialKeys.contains(_currentMaterialKey))
 	{
 		// Remove from s_materialMap
 		auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
@@ -2593,51 +2526,47 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 	if (!okName || enteredName.trimmed().isEmpty()) return;
 	name = enteredName.trimmed();
 
-	// Generate key from the name
-	QString suggestedKey = name.toUpper().simplified().replace(' ', '_');
+	// Generate a unique UUID key for this material
+	QString key = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
-	// Ensure suggested key doesn't collide
-	const auto& sharedMap = MaterialLibraryWidget::sharedMaterialMap();
-	int suffix = 1;
-	QString trialKey = suggestedKey;
-	while (sharedMap.contains(trialKey)) {
-		trialKey = QString("%1_%2").arg(suggestedKey).arg(suffix++);
+	// Try to derive group from currently selected tree item
+	QList<QTreeWidgetItem*> selectedItems = libraryWidget->selectedItems();
+	if (!selectedItems.isEmpty()) {
+		QTreeWidgetItem* selectedItem = selectedItems.first();
+
+		// Check if selected item is a category (has children) or material (no children)
+		if (selectedItem->childCount() > 0) {
+			// It's a category node - use it directly
+			groupLabel = selectedItem->text(0);
+			qDebug() << "Auto-detected group from selection:" << groupLabel;
+		} else {
+			// It's a material node - get its parent category
+			QTreeWidgetItem* parentItem = selectedItem->parent();
+			if (parentItem) {
+				groupLabel = parentItem->text(0);
+				qDebug() << "Auto-detected group from material parent:" << groupLabel;
+			}
+		}
 	}
 
-	// Ask for key
-	bool okKey = false;
-	QString enteredKey = QInputDialog::getText(this,
-		tr("Material Key"),
-		tr("Enter unique material key (no spaces):"),
-		QLineEdit::Normal,
-		trialKey,
-		&okKey);
-	if (!okKey || enteredKey.trimmed().isEmpty()) return;
-	QString key = enteredKey.trimmed().simplified().replace(' ', '_');
+	// If group not detected, ask user
+	if (groupLabel.isEmpty()) {
+		QStringList groups;
+		const auto& sharedGroups = MaterialLibraryWidget::sharedGroups();
+		for (const auto& g : sharedGroups) groups << g.first;
+		if (groups.isEmpty()) groups << QStringLiteral("User Materials");
 
-	// Check for collisions
-	if (sharedMap.contains(key)) {
-		QMessageBox::warning(this, tr("Key Already Exists"),
-			tr("A material with key '%1' already exists. Please choose a different key.").arg(key));
-		return;
+		bool ok = false;
+		QString picked = QInputDialog::getItem(this,
+			tr("Choose Group"),
+			tr("Select a group to save into:"),
+			groups,
+			0,
+			true,
+			&ok);
+		if (!ok) return;
+		groupLabel = picked.trimmed().isEmpty() ? QStringLiteral("User Materials") : picked.trimmed();
 	}
-
-	// Ask for group
-	QStringList groups;
-	const auto& sharedGroups = MaterialLibraryWidget::sharedGroups();
-	for (const auto& g : sharedGroups) groups << g.first;
-	if (groups.isEmpty()) groups << QStringLiteral("User Materials");
-
-	bool ok = false;
-	QString picked = QInputDialog::getItem(this,
-		tr("Choose Group"),
-		tr("Select a group to save into:"),
-		groups,
-		0,
-		true,
-		&ok);
-	if (!ok) return;
-	groupLabel = picked.trimmed().isEmpty() ? QStringLiteral("User Materials") : picked.trimmed();
 
 	// Create user material folder and copy texture files
 	// (same logic as Save To Library to ensure consistency)
@@ -2918,7 +2847,7 @@ void MaterialPropertiesPanel::onDeleteMaterial()
 	}
 
 	// Check if it's an unsaved, user material, or shipped material
-	bool isUnsavedMaterial = materialKey.startsWith("_UNSAVED_");
+	bool isUnsavedMaterial = _unsavedMaterialKeys.contains(materialKey);
 	bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
 
 	if (!isUserMaterial && !isUnsavedMaterial)
@@ -3100,16 +3029,28 @@ void MaterialPropertiesPanel::onRenameMaterial()
 		return;
 	}
 
-	// Verify it's a user material (not factory, not unsaved)
-	if (!MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey))
+	// Check material type
+	bool isUnsavedMaterial = _unsavedMaterialKeys.contains(materialKey);
+	bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
+
+	// Verify it's either an unsaved or user material (not factory)
+	if (!isUnsavedMaterial && !isUserMaterial)
 	{
 		QMessageBox::information(this, tr("Cannot Rename"),
-			tr("Only user-created materials can be renamed. Factory and unsaved materials cannot be renamed."));
+			tr("Only user-created and unsaved materials can be renamed. Factory materials cannot be renamed."));
 		return;
 	}
 
 	// Get current name and group
-	QString currentName = selected.first()->text(0).trimmed();
+	QString displayName = selected.first()->text(0).trimmed();
+
+	// Strip the " *" suffix for unsaved materials before showing in dialog
+	QString currentName = displayName;
+	if (currentName.endsWith(" *"))
+	{
+		currentName = currentName.mid(0, currentName.length() - 2);
+	}
+
 	QTreeWidgetItem* parentItem = selected.first()->parent();
 	if (!parentItem)
 	{
@@ -3118,13 +3059,13 @@ void MaterialPropertiesPanel::onRenameMaterial()
 	}
 	QString groupLabel = parentItem->text(0);
 
-	// Prompt for new name
+	// Prompt for new name (without the " *" suffix)
 	bool ok = false;
 	QString newName = QInputDialog::getText(this,
 		tr("Rename Material"),
 		tr("Enter new name for material:"),
 		QLineEdit::Normal,
-		currentName,
+		currentName,  // Clean name without " *"
 		&ok);
 
 	if (!ok || newName.trimmed().isEmpty())
@@ -3165,122 +3106,143 @@ void MaterialPropertiesPanel::onRenameMaterial()
 	// Block signals during rename operation
 	libraryWidget->blockSignals(true);
 
-	// Update the JSON file - follow the same pattern as removeUserMaterialFromUserLocation()
-	// Construct path to user's personal materials.json (not the shipped catalog)
-	QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
-	QString userPath = QDir(userRoot).filePath(QStringLiteral("materials.json"));
-
-	// Check file exists
-	if (!QFile::exists(userPath))
+	// DIFFERENT PATHS: Unsaved vs Saved materials
+	if (isUnsavedMaterial)
 	{
-		libraryWidget->blockSignals(false);
-		QMessageBox::warning(this, tr("File Not Found"),
-			tr("User materials file does not exist: %1").arg(userPath));
-		return;
-	}
+		// For unsaved materials: Only update in-memory structures (no JSON persistence)
+		// UUID key is never modified, only the display name
+		qDebug() << "Renaming unsaved material:" << materialKey << "from" << currentName << "to" << newName;
 
-	// Load existing file in ReadOnly first
-	QFile inFile(userPath);
-	if (!inFile.open(QIODevice::ReadOnly))
-	{
-		libraryWidget->blockSignals(false);
-		QMessageBox::warning(this, tr("Read Failed"),
-			tr("Failed to open user materials file for reading: %1").arg(inFile.errorString()));
-		return;
-	}
-
-	QByteArray fileData = inFile.readAll();
-	inFile.close();
-
-	QJsonParseError perr;
-	QJsonDocument doc = QJsonDocument::fromJson(fileData, &perr);
-	if (perr.error != QJsonParseError::NoError || !doc.isObject())
-	{
-		libraryWidget->blockSignals(false);
-		QMessageBox::warning(this, tr("Parse Failed"),
-			tr("Failed to parse user materials JSON: %1").arg(perr.errorString()));
-		return;
-	}
-
-	// Convert to QVariantMap for easier manipulation (following existing pattern)
-	QVariantMap rootVar = doc.toVariant().toMap();
-	QVariantList groupsList = rootVar.value(QStringLiteral("groups")).toList();
-
-	qDebug() << "Looking for material:" << materialKey << "in group:" << groupLabel;
-	qDebug() << "Total groups in JSON:" << groupsList.size();
-
-	bool renameSuccess = false;
-
-	// Find and update the material in the appropriate group
-	for (int g = 0; g < groupsList.size(); ++g)
-	{
-		QVariantMap groupObj = groupsList[g].toMap();
-		QString jsonGroupLabel = groupObj.value(QStringLiteral("label")).toString();
-
-		qDebug() << "  Group" << g << "label:" << jsonGroupLabel;
-
-		if (jsonGroupLabel == groupLabel)
+		// Update the MDI-scoped cache with new name metadata
+		if (_materialCacheRef)
 		{
-			QVariantList itemsList = groupObj.value(QStringLiteral("items")).toList();
-			qDebug() << "    Found matching group! Items count:" << itemsList.size();
-
-			for (int i = 0; i < itemsList.size(); ++i)
+			auto it = _materialCacheRef->find(materialKey);
+			if (it != _materialCacheRef->end())
 			{
-				QVariantMap itemMap = itemsList[i].toMap();
-				QString jsonKey = itemMap.value(QStringLiteral("key")).toString();
-				QString jsonName = itemMap.value(QStringLiteral("name")).toString();
-
-				qDebug() << "      Item" << i << "key:" << jsonKey << "name:" << jsonName;
-
-				if (jsonKey == materialKey)
-				{
-					qDebug() << "      Found matching material! Renaming from" << jsonName << "to" << newName;
-					// Update the name field
-					itemMap.insert(QStringLiteral("name"), newName);
-					itemsList[i] = itemMap;
-					renameSuccess = true;
-					break;
-				}
+				it.value().name = newName;  // Update name only, UUID key unchanged
+				qDebug() << "Updated cache entry for unsaved material:" << materialKey << "new name:" << newName;
 			}
-
-			// Write back updated group
-			if (renameSuccess)
-			{
-				groupObj.insert(QStringLiteral("items"), itemsList);
-				groupsList[g] = groupObj;
-				rootVar.insert(QStringLiteral("groups"), groupsList);
-				qDebug() << "Updated group in JSON";
-			}
-			break;
 		}
 	}
-
-	if (!renameSuccess)
+	else
 	{
-		libraryWidget->blockSignals(false);
-		qDebug() << "ERROR: Could not find material" << materialKey << "in group" << groupLabel;
-		qDebug() << "JSON file path:" << userPath;
-		QMessageBox::warning(this, tr("Rename Failed"),
-			tr("Material with key '%1' not found in group '%2'. Check the debug log for details.").arg(materialKey, groupLabel));
-		return;
+		// For saved user materials: Update JSON file
+		// Construct path to user's personal materials.json (not the shipped catalog)
+		QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+		QString userPath = QDir(userRoot).filePath(QStringLiteral("materials.json"));
+
+		// Check file exists
+		if (!QFile::exists(userPath))
+		{
+			libraryWidget->blockSignals(false);
+			QMessageBox::warning(this, tr("File Not Found"),
+				tr("User materials file does not exist: %1").arg(userPath));
+			return;
+		}
+
+		// Load existing file in ReadOnly first
+		QFile inFile(userPath);
+		if (!inFile.open(QIODevice::ReadOnly))
+		{
+			libraryWidget->blockSignals(false);
+			QMessageBox::warning(this, tr("Read Failed"),
+				tr("Failed to open user materials file for reading: %1").arg(inFile.errorString()));
+			return;
+		}
+
+		QByteArray fileData = inFile.readAll();
+		inFile.close();
+
+		QJsonParseError perr;
+		QJsonDocument doc = QJsonDocument::fromJson(fileData, &perr);
+		if (perr.error != QJsonParseError::NoError || !doc.isObject())
+		{
+			libraryWidget->blockSignals(false);
+			QMessageBox::warning(this, tr("Parse Failed"),
+				tr("Failed to parse user materials JSON: %1").arg(perr.errorString()));
+			return;
+		}
+
+		// Convert to QVariantMap for easier manipulation (following existing pattern)
+		QVariantMap rootVar = doc.toVariant().toMap();
+		QVariantList groupsList = rootVar.value(QStringLiteral("groups")).toList();
+
+		qDebug() << "Looking for material:" << materialKey << "in group:" << groupLabel;
+		qDebug() << "Total groups in JSON:" << groupsList.size();
+
+		bool renameSuccess = false;
+
+		// Find and update the material in the appropriate group
+		for (int g = 0; g < groupsList.size(); ++g)
+		{
+			QVariantMap groupObj = groupsList[g].toMap();
+			QString jsonGroupLabel = groupObj.value(QStringLiteral("label")).toString();
+
+			qDebug() << "  Group" << g << "label:" << jsonGroupLabel;
+
+			if (jsonGroupLabel == groupLabel)
+			{
+				QVariantList itemsList = groupObj.value(QStringLiteral("items")).toList();
+				qDebug() << "    Found matching group! Items count:" << itemsList.size();
+
+				for (int i = 0; i < itemsList.size(); ++i)
+				{
+					QVariantMap itemMap = itemsList[i].toMap();
+					QString jsonKey = itemMap.value(QStringLiteral("key")).toString();
+					QString jsonName = itemMap.value(QStringLiteral("name")).toString();
+
+					qDebug() << "      Item" << i << "key:" << jsonKey << "name:" << jsonName;
+
+					if (jsonKey == materialKey)
+					{
+						qDebug() << "      Found matching material! Renaming from" << jsonName << "to" << newName;
+						// Update the name field ONLY - key is never modified
+						itemMap.insert(QStringLiteral("name"), newName);
+						itemsList[i] = itemMap;
+						renameSuccess = true;
+						break;
+					}
+				}
+
+				// Write back updated group
+				if (renameSuccess)
+				{
+					groupObj.insert(QStringLiteral("items"), itemsList);
+					groupsList[g] = groupObj;
+					rootVar.insert(QStringLiteral("groups"), groupsList);
+					qDebug() << "Updated group in JSON";
+				}
+				break;
+			}
+		}
+
+		if (!renameSuccess)
+		{
+			libraryWidget->blockSignals(false);
+			qDebug() << "ERROR: Could not find material" << materialKey << "in group" << groupLabel;
+			qDebug() << "JSON file path:" << userPath;
+			QMessageBox::warning(this, tr("Rename Failed"),
+				tr("Material with key '%1' not found in group '%2'. Check the debug log for details.").arg(materialKey, groupLabel));
+			return;
+		}
+
+		// Write updated JSON back to file
+		// Use same approach as existing code: convert back to JSON and write
+		QFile outFile(userPath);
+		if (!outFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
+		{
+			libraryWidget->blockSignals(false);
+			QMessageBox::warning(this, tr("Write Failed"),
+				tr("Failed to open user materials file for writing: %1").arg(outFile.errorString()));
+			return;
+		}
+
+		QJsonDocument newDoc = QJsonDocument::fromVariant(rootVar);
+		outFile.write(newDoc.toJson());
+		outFile.close();
+
+		qDebug() << "Successfully wrote updated materials JSON to:" << userPath;
 	}
-
-	// Write updated JSON back to file
-	// Use same approach as existing code: convert back to JSON and write
-	QFile outFile(userPath);
-	if (!outFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate))
-	{
-		libraryWidget->blockSignals(false);
-		QMessageBox::warning(this, tr("Write Failed"),
-			tr("Failed to open user materials file for writing: %1").arg(outFile.errorString()));
-		return;
-	}
-
-	QJsonDocument newDoc = QJsonDocument::fromVariant(rootVar);
-	outFile.write(newDoc.toJson());
-	outFile.close();
-
-	qDebug() << "Successfully wrote updated materials JSON to:" << userPath;
 
 	// Update runtime cache (s_groups) - change the display name
 	auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
@@ -3294,8 +3256,15 @@ void MaterialPropertiesPanel::onRenameMaterial()
 			{
 				if (groupPair.second[i].second == materialKey)
 				{
-					groupPair.second[i].first = newName;
-					qDebug() << "Updated runtime cache for material:" << materialKey << "new name:" << newName;
+					// For unsaved materials, add " *" suffix back
+					// For saved materials, use clean name
+					QString displayName = newName;
+					if (isUnsavedMaterial)
+					{
+						displayName = newName + " *";
+					}
+					groupPair.second[i].first = displayName;
+					qDebug() << "Updated runtime cache for material:" << materialKey << "new display name:" << displayName;
 					break;
 				}
 			}
@@ -3365,26 +3334,46 @@ void MaterialPropertiesPanel::onCreateNewMaterial()
 	}
 	materialName = materialName.trimmed();
 
-	// Ask user for group/category
-	bool okGroup = false;
-	QString selectedGroup = QInputDialog::getItem(this,
-		tr("Choose Category"),
-		tr("Select a category for this material:"),
-		groups,
-		0,
-		false,  // not editable
-		&okGroup);
+	// Try to derive group from currently selected tree item
+	QString selectedGroup;
+	QList<QTreeWidgetItem*> selectedItems = libraryWidget->selectedItems();
 
-	if (!okGroup || selectedGroup.isEmpty())
-	{
-		return;
+	if (!selectedItems.isEmpty()) {
+		QTreeWidgetItem* selectedItem = selectedItems.first();
+
+		// Check if selected item is a category (has children) or material (no children)
+		if (selectedItem->childCount() > 0) {
+			// It's a category node - use it directly
+			selectedGroup = selectedItem->text(0);
+			qDebug() << "Auto-detected category from selection:" << selectedGroup;
+		} else {
+			// It's a material node - get its parent category
+			QTreeWidgetItem* parentItem = selectedItem->parent();
+			if (parentItem) {
+				selectedGroup = parentItem->text(0);
+				qDebug() << "Auto-detected category from material parent:" << selectedGroup;
+			}
+		}
 	}
 
-	// Generate a unique key for this unsaved material
-	static int unsavedCounter = 0;
-	QString materialKey = QString("_UNSAVED_%1_%2")
-		.arg(QDateTime::currentMSecsSinceEpoch())
-		.arg(unsavedCounter++);
+	// If category not detected, ask user
+	if (selectedGroup.isEmpty()) {
+		bool okGroup = false;
+		selectedGroup = QInputDialog::getItem(this,
+			tr("Choose Category"),
+			tr("Select a category for this material:"),
+			groups,
+			0,
+			false,  // not editable
+			&okGroup);
+
+		if (!okGroup || selectedGroup.isEmpty()) {
+			return;
+		}
+	}
+
+	// Generate a unique UUID key for this material
+	QString materialKey = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
 	// Copy current material - this copies all scalars and texture paths
 	GLMaterial newMaterial = *_material;
@@ -3564,11 +3553,11 @@ void MaterialPropertiesPanel::onContextMenu(const QPoint& pos)
 			menu.addSeparator();
 
 			// Check material type
-			bool isUnsavedMaterial = materialKey.startsWith("_UNSAVED_");
+			bool isUnsavedMaterial = _unsavedMaterialKeys.contains(materialKey);
 			bool isUserMaterial = MaterialLibraryWidget::s_userMaterialKeys.contains(materialKey);
 
-			// Allow rename only for user materials (not factory, not unsaved)
-			if (isUserMaterial)
+			// Allow rename for user materials and unsaved materials (not factory)
+			if (isUserMaterial || isUnsavedMaterial)
 			{
 				menu.addAction(tr("Rename"), this, &MaterialPropertiesPanel::onRenameMaterial);
 				menu.addSeparator();
