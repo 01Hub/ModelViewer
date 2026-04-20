@@ -936,13 +936,12 @@ void MaterialLibraryWidget::populateMaterials()
 {
 	clear();
 
-	// Ensure shared materials were loaded
+	// Only reload if maps are empty (first load or after clear)
 	if (s_groups.isEmpty() && s_materialMap.isEmpty())
 	{
-		QString err;
-		// try to load using default jsonPath (if set), else try hardcoded DATADIR path
 		QString pathToTry = s_jsonPath;
 		if (pathToTry.isEmpty()) pathToTry = PathUtils::getDataDirectory() + "/data/catalogs/materials.json";
+		QString err;
 		loadAllMaterials(pathToTry, &err);
 	}
 
@@ -959,17 +958,24 @@ void MaterialLibraryWidget::populateMaterials()
 
 	expandAll();
 
-	// select first item and emit materialSelected
+	// Select first item
 	if (topLevelItemCount() > 0)
 	{
-		QTreeWidgetItem* firstItem = topLevelItem(0);
-		if (firstItem->childCount() > 0) firstItem = firstItem->child(0);
-		setCurrentItem(firstItem);
-		QString key = firstItem->data(0, Qt::UserRole).toString();
-		if (!key.isEmpty() && s_materialMap.contains(key))
-			emit materialSelected(s_materialMap[key]());
-		else
-			emit materialSelected(GLMaterial::DEFAULT_MAT());
+		QTreeWidgetItem* firstGroup = topLevelItem(0);
+		if (firstGroup && firstGroup->childCount() > 0)
+		{
+			QTreeWidgetItem* firstItem = firstGroup->child(0);
+			setCurrentItem(firstItem);
+			QString key = firstItem->data(0, Qt::UserRole).toString();
+			if (!key.isEmpty() && s_materialMap.contains(key))
+				emit materialSelected(s_materialMap[key]());
+			else
+				emit materialSelected(GLMaterial::DEFAULT_MAT());
+		}
+	}
+	else
+	{
+		emit materialSelected(GLMaterial::DEFAULT_MAT());
 	}
 }
 
