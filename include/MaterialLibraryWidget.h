@@ -65,11 +65,11 @@ signals:
     void materialPreview(const GLMaterial& mat);
     void materialSelected(const GLMaterial &mat);
 
-private slots:    
+private slots:
     void handleItemEntered(QTreeWidgetItem* item, int column);
+    void populateMaterials();
 
 private:
-    void populateMaterials();
     static QVector<QPair<QString, QVector<QPair<QString, QString>>>> populateMaterialMapWithBuiltIns(
         QMap<QString, std::function<GLMaterial()>>& materialMap);
 

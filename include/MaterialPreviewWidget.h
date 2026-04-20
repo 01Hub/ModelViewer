@@ -14,7 +14,16 @@ class QWheelEvent;
 
 enum class PreviewShape { Sphere, Cube, Cylinder, Plane, Teapot };
 enum class EnvMode { Studio, Outdoor, Office };
-enum class TexViewMode { All = 0, Albedo, Metalness, Roughness, Normal, AO, Height, Opacity, Emissive };
+enum class TexViewMode {
+    All = 0, Albedo, Metalness, Roughness, Normal, AO, Height, Opacity, Emissive,
+    ClearcoatColor, ClearcoatRoughness, ClearcoatNormal,
+    SheenColor, SheenRoughness,
+    Transmission, IOR, Thickness,
+    SpecularFactor, SpecularColor,
+    Anisotropy,
+    Iridescence, IridescenceThickness,
+    DiffuseTransmission, DiffuseTransmissionColor
+};
 enum class PreviewProfile { TextureAuthoring, MaterialShowcase };
 
 struct GpuTexCache
