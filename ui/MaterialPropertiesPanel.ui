@@ -7,8 +7,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>555</width>
-    <height>940</height>
+    <width>445</width>
+    <height>1027</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -645,7 +645,7 @@
       <item>
        <widget class="QToolButton" name="refreshTreeButton">
         <property name="toolTip">
-         <string>Refresh the material tree from the library</string>
+         <string>Refresh the selected material attributes from the library</string>
         </property>
         <property name="text">
          <string>Save</string>
@@ -785,8 +785,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>531</width>
-            <height>896</height>
+            <width>421</width>
+            <height>998</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_4">
@@ -1632,8 +1632,8 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>374</width>
-            <height>2249</height>
+            <width>588</width>
+            <height>2361</height>
            </rect>
           </property>
           <layout class="QGridLayout" name="gridLayout_2">

@@ -264,7 +264,7 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 	// Connect Refresh button
 	if (_ui->refreshTreeButton)
 	{
-		connect(_ui->refreshTreeButton, &QToolButton::clicked, this, &MaterialPropertiesPanel::onRefreshLibrary);
+		connect(_ui->refreshTreeButton, &QToolButton::clicked, this, &MaterialPropertiesPanel::onRefreshSelectedMaterialFromLibrary);
 	}
 
 	// Connect Delete button
@@ -1814,6 +1814,9 @@ void MaterialPropertiesPanel::onMaterialPresetSelected(const GLMaterial& mat)
 	// Bind material and update UI
 	bindMaterial(_material);
 
+	// Update refresh button state based on material type and modification status
+	updateRefreshButtonState();
+
 	// NOTE: Do NOT emit materialApplied here!
 	// materialApplied should only be emitted when user clicks Apply button
 	// Selecting from tree just loads the material for editing/preview
@@ -1909,6 +1912,9 @@ void MaterialPropertiesPanel::onMaterialDoubleClicked(const GLMaterial& mat)
 
 	// Bind material and update UI
 	bindMaterial(_material);
+
+	// Update refresh button state based on material type and modification status
+	updateRefreshButtonState();
 
 	// EMIT SIGNAL TO APPLY TO MESH (this is the key difference from single-click)
 	emit materialApplied(*_material);
@@ -2087,6 +2093,9 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 			}
 
 			QMessageBox::information(this, tr("Material Saved"), tr("User material '%1' has been updated.").arg(name));
+
+			// Update refresh button state (button should now disable since material is no longer unsaved)
+			updateRefreshButtonState();
 		}
 		else
 		{
@@ -2449,6 +2458,11 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 
 		// Refresh the tree and select the newly saved material by key
 		libWidget->refreshMaterialTree();
+
+		// Re-add asterisks to all materials still in _unsavedMaterialKeys
+		// (refreshMaterialTree loads from JSON which doesn't have asterisks)
+		restoreAsterisksForUnsavedMaterials();
+
 		libWidget->selectMaterialByKey(key);
 
 		// Re-enable signals
@@ -2481,6 +2495,8 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 	QMessageBox::information(this, tr("Material Saved"),
 		tr("Material '%1' successfully saved to your library under category '%2'.").arg(name, groupLabel));
 
+	// Update refresh button state
+	updateRefreshButtonState();
 }
 
 void MaterialPropertiesPanel::onSaveAsToLibrary()
@@ -2698,6 +2714,11 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 		libraryWidget->blockSignals(true);
 		// Refresh tree and select the newly saved material by key
 		libraryWidget->refreshMaterialTree();
+
+		// Re-add asterisks to all materials still in _unsavedMaterialKeys
+		// (refreshMaterialTree loads from JSON which doesn't have asterisks)
+		restoreAsterisksForUnsavedMaterials();
+
 		libraryWidget->selectMaterialByKey(key);
 		libraryWidget->blockSignals(false);
 
@@ -2717,12 +2738,67 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 
 	QMessageBox::information(this, tr("Material Saved"),
 		tr("New user material '%1' has been created.").arg(name));
+
+	// Update refresh button state
+	updateRefreshButtonState();
 }
 
-void MaterialPropertiesPanel::onRefreshLibrary()
+void MaterialPropertiesPanel::onRefreshSelectedMaterialFromLibrary()
 {
-	// dummy todo qmessage
-	QMessageBox::information(this, tr("ToDo: Refresh Library"), tr("Material library has been refreshed."));
+	QString key = _currentMaterialKey;
+
+	// Load fresh material from library
+	const auto& sharedMap = MaterialLibraryWidget::sharedMaterialMap();
+	if (sharedMap.contains(key))
+	{
+		GLMaterial freshMaterial = sharedMap[key]();
+		*_material = freshMaterial;
+		loadTextureImageFiles();
+		bindMaterial(_material);
+
+		qDebug() << "Refreshed material from library:" << key;
+	}
+
+	// Remove from unsaved set (marks as "clean")
+	_unsavedMaterialKeys.remove(key);
+
+	// Update tree to remove asterisk from material name
+	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+	if (libraryWidget)
+	{
+		QList<QTreeWidgetItem*> selected = libraryWidget->selectedItems();
+		if (!selected.isEmpty())
+		{
+			QTreeWidgetItem* item = selected.first();
+			QString displayName = item->text(0);
+			// Remove asterisk if present
+			if (displayName.endsWith(" *"))
+			{
+				displayName = displayName.mid(0, displayName.length() - 2);
+				item->setText(0, displayName);
+				qDebug() << "Removed asterisk from material:" << displayName;
+			}
+		}
+	}
+
+	// Update button state
+	updateRefreshButtonState();
+}
+
+void MaterialPropertiesPanel::updateRefreshButtonState()
+{
+	// Enable refresh button only if:
+	// 1. Current material is a saved user material
+	// 2. Current material has unsaved modifications
+	bool canRefresh = !_currentMaterialKey.isEmpty() &&
+	                  MaterialLibraryWidget::s_userMaterialKeys.contains(_currentMaterialKey) &&
+	                  _unsavedMaterialKeys.contains(_currentMaterialKey);
+
+	if (_ui->refreshTreeButton)
+	{
+		_ui->refreshTreeButton->setEnabled(canRefresh);
+		qDebug() << "Refresh button state:" << (canRefresh ? "enabled" : "disabled") << "for material:" << _currentMaterialKey;
+	}
 }
 
 void MaterialPropertiesPanel::onDeleteMaterial()
@@ -3377,6 +3453,9 @@ void MaterialPropertiesPanel::onCreateNewMaterial()
 	qDebug() << "Loaded new material into _material - albedo:" << _material->albedoColor();
 	bindMaterial(_material);
 
+	// Update refresh button state (newly created materials should not show refresh button)
+	updateRefreshButtonState();
+
 	QMessageBox::information(this, tr("Material Created"),
 		tr("New material '%1' created in category '%2'.\n\nModify it and then click 'Save' to persist it to your library.").arg(materialName, selectedGroup));
 }
@@ -3487,8 +3566,43 @@ void MaterialPropertiesPanel::markMaterialAsModified()
 						{
 							matItem->setText(0, displayName + " *");
 						}
+						// Update refresh button state now that material is marked as modified
+						updateRefreshButtonState();
 						return;  // Found and updated, exit
 					}
+				}
+			}
+		}
+	}
+}
+
+void MaterialPropertiesPanel::restoreAsterisksForUnsavedMaterials()
+{
+	// After tree refresh, re-add asterisks to all materials still in _unsavedMaterialKeys
+	// This is needed because refreshMaterialTree() loads from JSON which doesn't have asterisks
+	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+	if (!libraryWidget) return;
+
+	QTreeWidget* tree = libraryWidget;
+	for (int g = 0; g < tree->topLevelItemCount(); ++g)
+	{
+		QTreeWidgetItem* groupItem = tree->topLevelItem(g);
+		if (!groupItem) continue;
+
+		for (int m = 0; m < groupItem->childCount(); ++m)
+		{
+			QTreeWidgetItem* matItem = groupItem->child(m);
+			if (!matItem) continue;
+
+			QString itemKey = matItem->data(0, Qt::UserRole).toString();
+			if (_unsavedMaterialKeys.contains(itemKey))
+			{
+				// This material is unsaved, add asterisk if not already present
+				QString displayName = matItem->text(0);
+				if (!displayName.endsWith(" *"))
+				{
+					matItem->setText(0, displayName + " *");
+					qDebug() << "Restored asterisk for unsaved material:" << displayName;
 				}
 			}
 		}

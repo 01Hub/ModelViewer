@@ -156,7 +156,7 @@ private slots:
 	void onCreateNewMaterial();  // Create new material (in-memory, unsaved)
 	void onSaveToLibrary();      // Save or overwrite user material
 	void onSaveAsToLibrary();    // Save as new copy of current material
-	void onRefreshLibrary();      // Refresh material library from disk
+	void onRefreshSelectedMaterialFromLibrary();      // Refresh material library from disk
 	void onDeleteMaterial();
 	void onRenameMaterial();     // Rename user-created material
 
@@ -214,6 +214,8 @@ private:
 	// Helper to update unsaved material in shared map when scalars change
 	void updateUnsavedMaterialInMap();
 	void markMaterialAsModified();  // Mark non-factory materials as having unsaved changes
+	void updateRefreshButtonState();  // Enable/disable refresh button based on material state
+	void restoreAsterisksForUnsavedMaterials();  // Re-add asterisks after tree refresh
 
 	void updatePreview();
 
