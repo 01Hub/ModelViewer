@@ -261,6 +261,12 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 		connect(_ui->saveButtonAs, &QToolButton::clicked, this, &MaterialPropertiesPanel::onSaveAsToLibrary);
 	}
 
+	// Connect Refresh button
+	if (_ui->refreshTreeButton)
+	{
+		connect(_ui->refreshTreeButton, &QToolButton::clicked, this, &MaterialPropertiesPanel::onRefreshLibrary);
+	}
+
 	// Connect Delete button
 	if (_ui->deleteButton)
 	{
@@ -2711,6 +2717,12 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 
 	QMessageBox::information(this, tr("Material Saved"),
 		tr("New user material '%1' has been created.").arg(name));
+}
+
+void MaterialPropertiesPanel::onRefreshLibrary()
+{
+	// dummy todo qmessage
+	QMessageBox::information(this, tr("ToDo: Refresh Library"), tr("Material library has been refreshed."));
 }
 
 void MaterialPropertiesPanel::onDeleteMaterial()

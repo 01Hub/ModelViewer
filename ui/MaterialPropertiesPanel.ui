@@ -7,7 +7,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>435</width>
+    <width>555</width>
     <height>940</height>
    </rect>
   </property>
@@ -643,6 +643,26 @@
        </widget>
       </item>
       <item>
+       <widget class="QToolButton" name="refreshTreeButton">
+        <property name="toolTip">
+         <string>Refresh the material tree from the library</string>
+        </property>
+        <property name="text">
+         <string>Save</string>
+        </property>
+        <property name="icon">
+         <iconset resource="../ModelViewer.qrc">
+          <normaloff>:/icons/res/refresh_tree.png</normaloff>:/icons/res/refresh_tree.png</iconset>
+        </property>
+        <property name="iconSize">
+         <size>
+          <width>36</width>
+          <height>36</height>
+         </size>
+        </property>
+       </widget>
+      </item>
+      <item>
        <spacer name="buttonStretch">
         <property name="orientation">
          <enum>Qt::Orientation::Horizontal</enum>
@@ -765,7 +785,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>411</width>
+            <width>531</width>
             <height>896</height>
            </rect>
           </property>
@@ -1612,7 +1632,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>413</width>
+            <width>374</width>
             <height>2249</height>
            </rect>
           </property>

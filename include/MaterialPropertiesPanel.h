@@ -156,6 +156,7 @@ private slots:
 	void onCreateNewMaterial();  // Create new material (in-memory, unsaved)
 	void onSaveToLibrary();      // Save or overwrite user material
 	void onSaveAsToLibrary();    // Save as new copy of current material
+	void onRefreshLibrary();      // Refresh material library from disk
 	void onDeleteMaterial();
 	void onRenameMaterial();     // Rename user-created material
 
