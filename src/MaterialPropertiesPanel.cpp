@@ -602,7 +602,8 @@ static void setButtonColorWithContrast(QPushButton* btn, const QColor& color)
 void MaterialPropertiesPanel::onAlbedoColorPicked()
 {
 	if (_updateInProgress || !_material) return;
-	QColor color = QColorDialog::getColor(Qt::white, this, tr("Select Albedo Color"));
+	QColor existingColor = _ui->btnAlbedoColor->palette().button().color();
+	QColor color = QColorDialog::getColor(existingColor, this, tr("Select Albedo Color"));
 	if (color.isValid())
 	{
 		_material->setAlbedoColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
@@ -637,7 +638,8 @@ void MaterialPropertiesPanel::onEmissiveStrengthChanged(double value) { if (_mat
 void MaterialPropertiesPanel::onEmissiveColorPicked()
 {
 	if (_updateInProgress || !_material) return;
-	QColor color = QColorDialog::getColor(Qt::white, this, tr("Select Emissive Color"));
+	QColor existingColor = _ui->btnEmissiveColor->palette().button().color();
+	QColor color = QColorDialog::getColor(existingColor, this, tr("Select Emissive Color"));
 	if (color.isValid())
 	{
 		_material->setEmissive(QVector3D(color.redF(), color.greenF(), color.blueF()));
@@ -654,7 +656,8 @@ void MaterialPropertiesPanel::onClearcoatRoughnessChanged(double value) { if (_m
 void MaterialPropertiesPanel::onSheenColorPicked()
 {
 	if (!_material || !_ui) return;
-	QColor color = QColorDialog::getColor(QColor(128, 128, 128), this);
+	QColor existingColor = _ui->btnSheenColor->palette().button().color();
+	QColor color = QColorDialog::getColor(existingColor, this, tr("Select Sheen Color"));
 	if (color.isValid())
 	{
 		_material->setSheenColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
@@ -678,7 +681,8 @@ void MaterialPropertiesPanel::onDiffuseTransmissionFactorChanged(double value) {
 void MaterialPropertiesPanel::onDiffuseTransmissionColorPicked()
 {
 	if (!_material || !_ui) return;
-	QColor color = QColorDialog::getColor(QColor(200, 200, 200), this);
+	QColor existingColor = _ui->btnDiffTransColor->palette().button().color();
+	QColor color = QColorDialog::getColor(existingColor, this, tr("Select Diffuse Transmission Color"));
 	if (color.isValid())
 	{
 		_material->setDiffuseTransmissionColorFactor(QVector3D(color.redF(), color.greenF(), color.blueF()));
@@ -693,7 +697,8 @@ void MaterialPropertiesPanel::onSpecularFactorChanged(double value) { if (_mater
 void MaterialPropertiesPanel::onSpecularColorPicked()
 {
 	if (!_material || !_ui) return;
-	QColor color = QColorDialog::getColor(QColor(255, 255, 255), this);
+	QColor existingColor = _ui->btnSpecularColor->palette().button().color();
+	QColor color = QColorDialog::getColor(existingColor, this, tr("Select Specular Color"));
 	if (color.isValid())
 	{
 		_material->setSpecularColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
@@ -708,7 +713,8 @@ void MaterialPropertiesPanel::onSpecularColorPicked()
 void MaterialPropertiesPanel::onAttenuationColorPicked()
 {
 	if (!_material || !_ui) return;
-	QColor color = QColorDialog::getColor(QColor(200, 200, 200), this, tr("Select Attenuation Color"));
+	QColor existingColor = _ui->btnAttenuationColor->palette().button().color();
+	QColor color = QColorDialog::getColor(existingColor, this, tr("Select Attenuation Color"));
 	if (color.isValid())
 	{
 		_material->setAttenuationColor(QVector3D(color.redF(), color.greenF(), color.blueF()));
