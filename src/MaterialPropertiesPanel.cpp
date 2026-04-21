@@ -2324,7 +2324,16 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		// Copy the texture file to material folder
 		bool copySuccess = QFile::copy(sourcePath, destPath);
 		if (!copySuccess) {
-			// Copy failed - skip this texture (don't write invalid path to JSON)
+			// If destination already exists, it means another texture type already copied this file
+			// (ORM case: same file assigned to O, R, M). Still set the path.
+			if (QFile::exists(destPath)) {
+				tex.path = fileName.toStdString();
+				mat.setTexture(type, tex);
+				qDebug() << "Texture already in folder (ORM dedup), using existing:" << fileName;
+				continue;
+			}
+
+			// Actual copy failure - file doesn't exist or permission error
 			qWarning() << "Failed to copy texture file:" << fileName << "from" << sourcePath;
 			tex.path = "";  // Clear path so it's not written to JSON
 			mat.setTexture(type, tex);
@@ -2643,7 +2652,16 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 		// Copy the texture file to material folder
 		bool copySuccess = QFile::copy(sourcePath, destPath);
 		if (!copySuccess) {
-			// Copy failed - skip this texture (don't write invalid path to JSON)
+			// If destination already exists, it means another texture type already copied this file
+			// (ORM case: same file assigned to O, R, M). Still set the path.
+			if (QFile::exists(destPath)) {
+				tex.path = fileName.toStdString();
+				mat.setTexture(type, tex);
+				qDebug() << "SaveAs: Texture already in folder (ORM dedup), using existing:" << fileName;
+				continue;
+			}
+
+			// Actual copy failure - file doesn't exist or permission error
 			qWarning() << "Failed to copy texture file:" << fileName << "from" << sourcePath << "to" << destPath;
 			tex.path = "";  // Clear path so it's not written to JSON
 			mat.setTexture(type, tex);
@@ -2958,6 +2976,7 @@ void MaterialPropertiesPanel::onDeleteMaterial()
 	// Refresh tree while signals are blocked
 	if (libraryWidget && removed)
 	{
+		libraryWidget->blockSignals(true);
 		libraryWidget->refreshMaterialTree();
 
 		// FEATURE 1: Smart selection - select the material we identified before deletion
@@ -2974,6 +2993,7 @@ void MaterialPropertiesPanel::onDeleteMaterial()
 				item->setSelected(false);
 			_material = nullptr;
 		}
+		libraryWidget->blockSignals(false);
 	}
 
 	// Re-enable signals
