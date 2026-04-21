@@ -2424,6 +2424,17 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		// This prevents materialSelected/materialPreview from triggering handlers
 		libWidget->blockSignals(true);
 
+		// CRITICAL: Clear the in-memory maps to force reload from JSON
+		// The newly saved material is in JSON but NOT in s_groups/s_materialMap yet
+		// because saveUserMaterialToUserLocation() only writes JSON, doesn't update maps
+		auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
+			MaterialLibraryWidget::sharedGroups());
+		auto& mutableMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+			MaterialLibraryWidget::sharedMaterialMap());
+		mutableGroups.clear();
+		mutableMap.clear();
+		qDebug() << "Cleared material maps to force JSON reload";
+
 		// Refresh the tree and select the newly saved material by key
 		libWidget->refreshMaterialTree();
 		libWidget->selectMaterialByKey(key);
