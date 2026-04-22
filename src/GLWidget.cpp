@@ -8910,6 +8910,7 @@ void GLWidget::setRenderingMode(const RenderingMode& renderingMode)
 
 	_fgShader->release();
 	update();
+	emit renderingModeChanged(static_cast<int>(_renderingMode));
 }
 
 void GLWidget::setFloorTexRepeatT(double floorTexRepeatT)

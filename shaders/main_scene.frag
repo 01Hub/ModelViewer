@@ -857,8 +857,8 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	if (hasDiffuseTexture)
 	{
 		vec4 d = texture(texture_diffuse, getDiffuseTextureUV());
-		matAmbient = d.rgb;
-		matDiffuse = d.rgb;
+		matAmbient *= d.rgb;
+		matDiffuse *= d.rgb;
 	}
 
 	if (hasVertexColors)
@@ -3504,34 +3504,7 @@ vec3 computeBaseColor(vec2 uv,
 	}
 	else
 	{
-		if (tintMode == 0)
-		{
-			// Texture only
-			out_L = tex_L;
-		}
-		else if (tintMode == 2)
-		{
-			// Force grayscale treatment (skip detection)
-			float lum = dot(tex_L, vec3(0.2126, 0.7152, 0.0722));
-			out_L = mix(tex_L, base_L * lum, tintStrength);
-		}
-		else if (tintMode == 3)
-		{
-			// Masked lerp (use one channel as a mask-often A or R; customize as needed)
-			vec4 texel = texture(albedoTex, uv);
-			float mask = readMaskChannel(texel, tintMaskChannel);
-			out_L = mix(tex_L, base_L, clamp(tintStrength * mask, 0.0, 1.0));
-		}
-		else
-		{
-			// AutoGray (default): only tint grayscale texels
-			float sat = sRGBSaturation(tex_sRGB);        // in sRGB is fine for detection
-			float grayMask = 1.0 - smoothstep(grayEpsilon, grayEpsilon * 4.0, sat);
-			// Use linear luminance for intensity
-			float lum = dot(tex_L, vec3(0.2126, 0.7152, 0.0722));
-			vec3 grayTint_L = base_L * lum;
-			out_L = mix(tex_L, grayTint_L, clamp(tintStrength * grayMask, 0.0, 1.0));
-		}
+		out_L = tex_L * base_L;		
 	}
 
 	// Apply vertex color last (in linear)

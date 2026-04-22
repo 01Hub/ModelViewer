@@ -1,5 +1,5 @@
 ﻿#include "MaterialPreviewWidget.h"
-#include <vector>
+#include "GLWidget.h"
 #include <cmath>
 #include "PathUtils.h"
 #include <QMouseEvent>
@@ -8,7 +8,7 @@
 #include <QFileInfo>
 #include "Utils.h"
 #include "TextureUtil.h"
-#include "TeapotData.h" // (Kilgard) 
+#include "TeapotData.h" // (Kilgard)
 
 namespace
 {
@@ -288,6 +288,9 @@ MaterialPreviewWidget::~MaterialPreviewWidget()
 {
 	makeCurrent();
 
+	// Clean up environment maps
+	cleanupEnvironmentMaps();
+
 	// Clean up overlay resources
 	if (_overlayVAO) glDeleteVertexArrays(1, &_overlayVAO);
 	if (_overlayVBO) glDeleteBuffers(1, &_overlayVBO);
@@ -364,11 +367,17 @@ void MaterialPreviewWidget::initializeGL()
 	// Generate texture
 	glGenTextures(1, &_textOverlayTexture);
 
+	// Generate default environment cubemap for IBL
+	generateDefaultEnvironmentCubemap();
+
+	// Create a simple irradiance map (copy of environment for now - simplified approach)
+	generateIrradianceMap();
+
 	// Clear cached texture IDs so they reload with the new context
 	clearTextureCache();
 
 	// Force texture recreation on next paint
-	_textTextureNeedsUpdate = true;		
+	_textTextureNeedsUpdate = true;
 }
 
 
@@ -660,6 +669,71 @@ void MaterialPreviewWidget::paintGL()
 	glActiveTexture(GL_TEXTURE22);
 	glBindTexture(GL_TEXTURE_2D, _currentMaterial.thicknessTextureId());
 
+	// Bind BRDF LUT (always available from main viewer)
+	GLuint brdfLut = 0;
+	if (_glWidget)
+		brdfLut = _glWidget->getBrdfLUT();
+
+	glActiveTexture(GL_TEXTURE25);
+	glBindTexture(GL_TEXTURE_2D, brdfLut);
+	_shader->setUniformValue("brdfLUT", 25);
+
+	// Only use environment maps if explicitly enabled in the main viewer
+	if (_glWidget && _glWidget->isEnvironmentMapEnabled())
+	{
+		GLuint envMap = _glWidget->getEnvironmentMap();
+		GLuint irrMap = _glWidget->getIrradianceMap();
+		GLuint prefilterMap = _glWidget->getPrefilterMap();
+		float iblExposure = _glWidget->getIBLExposure();
+
+		glActiveTexture(GL_TEXTURE23);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, envMap);
+		_shader->setUniformValue("envCubemap", 23);
+
+		glActiveTexture(GL_TEXTURE24);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, irrMap);
+		_shader->setUniformValue("irradianceMap", 24);
+
+		glActiveTexture(GL_TEXTURE26);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterMap);
+		_shader->setUniformValue("prefilterMap", 26);
+
+		// Pass IBL exposure from main viewer (matches main_scene.frag behavior)
+		_shader->setUniformValue("envMapExposure", static_cast<float>(iblExposure));
+
+		// Create rotation matrix from preview rotations (inverse of model matrix)
+		// When object rotates by angle, environment rotates by -angle (from object's perspective)
+		// Order: first rotate around Y (-_rotY), then around X (-_rotX) - reverse order and negate
+		QMatrix4x4 rotMatrix;
+		rotMatrix.rotate(-_rotY, 0, 1, 0);  // reverse yaw
+		rotMatrix.rotate(-_rotX, 1, 0, 0);  // reverse pitch
+		QMatrix3x3 rotMatrix3x3 = rotMatrix.normalMatrix();  // Extract 3x3 rotation part
+		_shader->setUniformValue("previewRotationMatrix", rotMatrix3x3);
+
+		// Enable environment specular contribution ONLY for PBR mode
+		// In ADS mode, IBL should be disabled since it's Blinn-Phong, not PBR
+		float specIntensity = (_glWidget && _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
+		_shader->setUniformValue("envSpecularIntensity", specIntensity);
+	}
+	else
+	{
+		// Environment disabled: disable specular IBL contribution
+		_shader->setUniformValue("envSpecularIntensity", 0.0f);
+		_shader->setUniformValue("envMapExposure", 0.0f);
+
+		// Still bind dummy textures to prevent shader errors
+		glActiveTexture(GL_TEXTURE23);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+		glActiveTexture(GL_TEXTURE24);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+		glActiveTexture(GL_TEXTURE26);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+
+		// Set identity rotation matrix when environment is disabled
+		QMatrix3x3 identityMatrix;
+		_shader->setUniformValue("previewRotationMatrix", identityMatrix);
+	}
+
 	_shader->setUniformValue("texViewMode", static_cast<int>(_texViewMode));
 
 	applyEnvPreset(_currentEnv, _profile);
@@ -726,17 +800,17 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 	{
 	case EnvMode::Studio:
 		sky = { 0.60f, 0.65f, 0.70f };
-		ground = { 0.08f, 0.08f, 0.08f };
+		ground = { 0.04f, 0.04f, 0.04f };  // More subtle floor
 		envDiffuse = 0.20f;
 		break;
 	case EnvMode::Outdoor:
 		sky = { 0.58f, 0.74f, 0.96f };
-		ground = { 0.24f, 0.22f, 0.20f };
+		ground = { 0.10f, 0.10f, 0.10f };  // More subtle floor
 		envDiffuse = 0.25f;
 		break;
 	case EnvMode::Office:
 		sky = { 0.75f, 0.78f, 0.80f };
-		ground = { 0.12f, 0.12f, 0.12f };
+		ground = { 0.06f, 0.06f, 0.06f };  // More subtle floor
 		envDiffuse = 0.18f;
 		break;
 	}
@@ -748,10 +822,8 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 	QVector3D c3 = { 0.50f, 0.50f, 0.50f };
 
 	// --- profile tweaks ---
-	// TextureAuthoring: softer highlights, more ambient; ACES on; neutral exposure
-	// MaterialShowcase: punchier speculars, less ambient fill; slightly hotter exposure; optional ACES off
-	float exposureEV = 0.0f;
-	bool  useACES = true;
+	// TextureAuthoring: softer highlights, more ambient
+	// MaterialShowcase: punchier speculars, less ambient fill
 
 	if (profile == PreviewProfile::MaterialShowcase)
 	{
@@ -760,14 +832,18 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 		c1 *= 0.95f;                // keep fill modest
 		c2 *= 1.10f;                // a bit more back/low
 		c3 *= 1.10f;
-		exposureEV = +0.35f;        // lift overall brightness
-		useACES = false;         // optional: harder, punchier highlights
 	}
 	else
 	{ // TextureAuthoring
 		envDiffuse *= 1.0f;         // keep softer ambient
-		exposureEV = 0.0f;
-		useACES = true;
+	}
+
+	// --- Regenerate environment maps if mode changed ---
+	if (mode != _lastEnvMode)
+	{
+		generateDefaultEnvironmentCubemap();
+		generateIrradianceMap();
+		_lastEnvMode = mode;
 	}
 
 	// --- push to shader ---
@@ -776,7 +852,11 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 	_shader->setUniformValue("skyColor", sky);
 	_shader->setUniformValue("groundColor", ground);
 	_shader->setUniformValue("envDiffuseIntensity", envDiffuse);
-	_shader->setUniformValue("envSpecularIntensity", 0.0f); // reserved for future IBL
+
+	// Only enable specular IBL in PBR mode (procedural fallback environment)
+	// When using real environment maps, this is overridden by the main environment setup
+	float specIntensity = (_glWidget && _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 0.5f : 0.0f;
+	_shader->setUniformValue("envSpecularIntensity", specIntensity);
 
 	_shader->setUniformValue("lights[0].position", L0);
 	_shader->setUniformValue("lights[0].color", c0);
@@ -788,9 +868,16 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 	_shader->setUniformValue("lights[3].color", c3);
 	_shader->setUniformValue("numLights", 4);
 
-	_shader->setUniformValue("exposureEV", exposureEV);
-	_shader->setUniformValue("useACES", useACES);
-	_shader->setUniformValue("gamma", 2.2f);
+	// Environment tone mapping and gamma settings (from GLWidget, matches main_scene.frag)
+	bool hdrToneMapping = _glWidget ? _glWidget->isHDRToneMappingEnabled() : true;
+	bool gammaCorrection = _glWidget ? _glWidget->isGammaCorrectionEnabled() : true;
+	float screenGamma = _glWidget ? _glWidget->getScreenGamma() : 2.2f;
+	int toneMapMode = _glWidget ? static_cast<int>(_glWidget->getHDRToneMappingMode()) : 0;
+
+	_shader->setUniformValue("hdrToneMapping", hdrToneMapping);
+	_shader->setUniformValue("gammaCorrection", gammaCorrection);
+	_shader->setUniformValue("screenGamma", screenGamma);
+	_shader->setUniformValue("toneMapMode", toneMapMode);
 }
 
 
@@ -1761,13 +1848,181 @@ void MaterialPreviewWidget::showEvent(QShowEvent* e)
 	startOverlayHint(); // restart each time the widget becomes visible
 }
 
-
-
 void MaterialPreviewWidget::setPreviewRotation(float pitchDeg, float yawDeg)
 {
 	_rotX = pitchDeg;
 	_rotY = yawDeg;
 	update();
+}
+
+void MaterialPreviewWidget::generateDefaultEnvironmentCubemap()
+{
+	// Create a simple procedural gradient-based cubemap (8x8 per face)
+	const int envMapSize = 8;
+	const int numFaces = 6;
+
+	// Get current environment colors
+	QVector3D skyColor, groundColor;
+	switch (_currentEnv)
+	{
+	case EnvMode::Studio:
+		skyColor = { 0.60f, 0.65f, 0.70f };
+		groundColor = { 0.08f, 0.08f, 0.08f };
+		break;
+	case EnvMode::Outdoor:
+		skyColor = { 0.58f, 0.74f, 0.96f };
+		groundColor = { 0.24f, 0.22f, 0.20f };
+		break;
+	case EnvMode::Office:
+		skyColor = { 0.75f, 0.78f, 0.80f };
+		groundColor = { 0.12f, 0.12f, 0.12f };
+		break;
+	}
+
+	// Slightly brighter sky for environment map (to simulate lighting)
+	skyColor *= 1.2f;
+	groundColor *= 0.9f;
+
+	if (!_envCubemap)
+		glGenTextures(1, &_envCubemap);
+
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _envCubemap);
+
+	// Generate simple gradient data for each face
+	std::vector<float> faceData(envMapSize * envMapSize * 3);
+
+	// Fill all 6 cube faces
+	for (int face = 0; face < 6; ++face)
+	{
+		// Create gradient: mostly sky with ground at edges
+		for (int y = 0; y < envMapSize; ++y)
+		{
+			for (int x = 0; x < envMapSize; ++x)
+			{
+				// Normalized UV coordinates
+				float u = (x + 0.5f) / envMapSize;
+				float v = (y + 0.5f) / envMapSize;
+
+				// For top faces (POSITIVE_Y), use sky; for bottom (NEGATIVE_Y), use ground
+				// For side faces, blend between them based on vertical position
+				QVector3D color;
+				if (face == 2) // POSITIVE_Y (top)
+					color = skyColor;
+				else if (face == 3) // NEGATIVE_Y (bottom)
+					color = groundColor;
+				else // Side faces: blend
+					color = QVector3D::dotProduct(QVector3D(v, v, v), skyColor - groundColor) * (skyColor - groundColor) + groundColor;
+
+				int idx = (y * envMapSize + x) * 3;
+				faceData[idx] = color.x();
+				faceData[idx + 1] = color.y();
+				faceData[idx + 2] = color.z();
+			}
+		}
+
+		// Upload this face
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face,
+			0, GL_RGB32F,
+			envMapSize, envMapSize,
+			0, GL_RGB, GL_FLOAT,
+			faceData.data());
+	}
+
+	// Set texture parameters
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+}
+
+void MaterialPreviewWidget::generateIrradianceMap()
+{
+	// Delete old irradiance map if it exists
+	if (_irradianceMap)
+	{
+		glDeleteTextures(1, &_irradianceMap);
+		_irradianceMap = 0;
+	}
+
+	if (!_envCubemap)
+		return;
+
+	// Create simplified irradiance map (lower resolution, simpler computation)
+	// This is a blurred version of the environment for diffuse IBL
+	const int irradianceSize = 8;
+	const int numFaces = 6;
+
+	if (!_irradianceMap)
+		glGenTextures(1, &_irradianceMap);
+
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
+
+	// For each face, create a simple averaged irradiance
+	std::vector<float> faceData(irradianceSize * irradianceSize * 3);
+
+	for (int face = 0; face < 6; ++face)
+	{
+		// Sample environment cubemap and create blurred version
+		// For simplicity, just use a uniform color based on face direction
+		QVector3D faceColor(0.5f, 0.5f, 0.5f);  // Default gray
+
+		// Adjust color by face for simple directional variation
+		switch (face)
+		{
+		case 0: faceColor = QVector3D(0.6f, 0.6f, 0.6f); break;  // +X
+		case 1: faceColor = QVector3D(0.5f, 0.5f, 0.5f); break;  // -X
+		case 2: faceColor = QVector3D(0.7f, 0.7f, 0.7f); break;  // +Y (sky)
+		case 3: faceColor = QVector3D(0.3f, 0.3f, 0.3f); break;  // -Y (ground)
+		case 4: faceColor = QVector3D(0.55f, 0.55f, 0.55f); break; // +Z
+		case 5: faceColor = QVector3D(0.45f, 0.45f, 0.45f); break; // -Z
+		}
+
+		// Fill face with this color
+		for (int y = 0; y < irradianceSize; ++y)
+		{
+			for (int x = 0; x < irradianceSize; ++x)
+			{
+				int idx = (y * irradianceSize + x) * 3;
+				faceData[idx] = faceColor.x();
+				faceData[idx + 1] = faceColor.y();
+				faceData[idx + 2] = faceColor.z();
+			}
+		}
+
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face,
+			0, GL_RGB32F,
+			irradianceSize, irradianceSize,
+			0, GL_RGB, GL_FLOAT,
+			faceData.data());
+	}
+
+	// Set texture parameters
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+}
+
+void MaterialPreviewWidget::cleanupEnvironmentMaps()
+{
+	if (_envCubemap)
+	{
+		glDeleteTextures(1, &_envCubemap);
+		_envCubemap = 0;
+	}
+
+	if (_irradianceMap)
+	{
+		glDeleteTextures(1, &_irradianceMap);
+		_irradianceMap = 0;
+	}
 }
 
 

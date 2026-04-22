@@ -35,8 +35,6 @@ public:
 
     GLMaterial* material() const { return _material; }
 
-    void onTintParamsChanged();
-    	
 	bool isDetached() const { return _detached; }
 	void setDetached(bool detached);
 

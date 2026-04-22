@@ -376,6 +376,14 @@ public:
 	bool getGammaCorrection() const;
 	float getScreenGamma() const;
 
+	// Environment mapping accessors
+	GLuint getEnvironmentMap() const { return _environmentMap; }
+	GLuint getIrradianceMap() const { return _irradianceMap; }
+	GLuint getPrefilterMap() const { return _prefilterMap; }
+	GLuint getBrdfLUT() const { return _brdfLUTTexture; }
+	bool isEnvironmentMapEnabled() const { return _envMapEnabled; }
+	float getIBLExposure() const { return _iblExposure; }
+
 	bool areLightsShown() const;
 
 	void cleanUpShaders();
@@ -454,6 +462,7 @@ signals:
 	void visibleSwapped(bool);
 	void loadingAssImpModelCancelled();
 	void displayModeChanged(int);
+	void renderingModeChanged(int);
 
 public slots:
 	void animateViewChange();
@@ -480,6 +489,11 @@ public slots:
 	void setHDRToneMappingMode(HDRToneMapMode mode);
 	void setEnvMapExposure(double exposure);
 	void setIBLExposure(double exposure);
+
+	// Getters for tone mapping and gamma settings
+	bool isHDRToneMappingEnabled() const { return _hdrToneMapping; }
+	bool isGammaCorrectionEnabled() const { return _gammaCorrection; }
+	HDRToneMapMode getHDRToneMappingMode() const { return _toneMappingMode; }
 	void showLights(bool showLights);
 	void useDefaultLights(bool useDefaultLights);
 	void usePunctualLights(bool usePunctualLights);

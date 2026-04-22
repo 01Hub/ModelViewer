@@ -56,6 +56,9 @@ public:
 	bool isDetached() const { return _detached; }
 	void setDetached(bool detached);
 
+	// Preview widget access
+	class MaterialPreviewWidget* getPreviewWidget() const { return _preview; }
+
 	// Property getters - all 37 scalar properties
 	QVector3D getAlbedoColor() const;
 	float getMetalness() const;

@@ -8,7 +8,7 @@
     <x>0</x>
     <y>0</y>
     <width>445</width>
-    <height>1027</height>
+    <height>961</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -187,7 +187,7 @@
        </layout>
       </item>
       <item>
-       <layout class="QVBoxLayout" name="previewLayout" stretch="0,0,0,0,0,0,0">
+       <layout class="QVBoxLayout" name="previewLayout" stretch="0,0,0,0,0">
         <property name="spacing">
          <number>3</number>
         </property>
@@ -451,77 +451,6 @@
               <string>Diffuse Transmission Color</string>
              </property>
             </item>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_tintMode">
-          <item>
-           <widget class="QLabel" name="lblTintmode">
-            <property name="text">
-             <string>Tint Mode</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QComboBox" name="tintModeCombo">
-            <property name="maximumSize">
-             <size>
-              <width>140</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <item>
-             <property name="text">
-              <string>Texture Only (Off)</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Auto (grayscale only)</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Force grayscale tint</string>
-             </property>
-            </item>
-            <item>
-             <property name="text">
-              <string>Masked blend</string>
-             </property>
-            </item>
-           </widget>
-          </item>
-         </layout>
-        </item>
-        <item>
-         <layout class="QHBoxLayout" name="horizontalLayout_tintStrength">
-          <item>
-           <widget class="QLabel" name="lblTintstrength">
-            <property name="text">
-             <string>Tint Strength</string>
-            </property>
-           </widget>
-          </item>
-          <item>
-           <widget class="QDoubleSpinBox" name="tintStrengthSpin">
-            <property name="maximumSize">
-             <size>
-              <width>75</width>
-              <height>16777215</height>
-             </size>
-            </property>
-            <property name="maximum">
-             <double>1.000000000000000</double>
-            </property>
-            <property name="singleStep">
-             <double>0.050000000000000</double>
-            </property>
-            <property name="value">
-             <double>1.000000000000000</double>
-            </property>
            </widget>
           </item>
          </layout>
@@ -1632,7 +1561,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>588</width>
+            <width>423</width>
             <height>2361</height>
            </rect>
           </property>
@@ -3799,8 +3728,6 @@ Trans. Color</string>
  </customwidgets>
  <tabstops>
   <tabstop>comboBoxTexMode</tabstop>
-  <tabstop>tintModeCombo</tabstop>
-  <tabstop>tintStrengthSpin</tabstop>
   <tabstop>comboEnv</tabstop>
   <tabstop>sliderExposure</tabstop>
   <tabstop>unlitCheck</tabstop>

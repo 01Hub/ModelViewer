@@ -3,6 +3,7 @@
 #include "GLWidget.h"
 #include "LanguageManager.h"
 #include "ModelViewer.h"
+#include "MaterialPreviewWidget.h"
 #include "PathUtils.h"
 #include <QColorDialog>
 #include <QFileDialog>
@@ -399,6 +400,10 @@ void VisualizationEnvironmentPanel::onSkyBoxStateChanged(bool checked)
 		onLoadSkyBoxPresetMaps();
 
 	_glWidget->updateView();
+
+	// Update preview widget with new environment state
+	if (_previewWidget)
+		_previewWidget->update();
 }
 
 void VisualizationEnvironmentPanel::onSkyBoxHDRIChanged(bool checked)
@@ -406,7 +411,11 @@ void VisualizationEnvironmentPanel::onSkyBoxHDRIChanged(bool checked)
 	if (!_glWidget)
 		return;
 
-	_glWidget->setSkyBoxTextureHDRI(checked);	
+	_glWidget->setSkyBoxTextureHDRI(checked);
+
+	// Update preview widget when environment type changes
+	if (_previewWidget)
+		_previewWidget->update();
 }
 
 void VisualizationEnvironmentPanel::onSkyBoxBlurredChanged(bool checked)
@@ -416,6 +425,10 @@ void VisualizationEnvironmentPanel::onSkyBoxBlurredChanged(bool checked)
 
 	_glWidget->blurSkyBox(checked);
 	_glWidget->updateView();
+
+	// Update preview widget
+	if (_previewWidget)
+		_previewWidget->update();
 }
 
 void VisualizationEnvironmentPanel::onSkyBoxFOVChanged(double value)
@@ -432,7 +445,7 @@ void VisualizationEnvironmentPanel::onSkyBoxMapsChanged(int index)
 	if (!_glWidget || !ui)
 		return;
 
-	// Store current index based on HDRI/LDRI selection	
+	// Store current index based on HDRI/LDRI selection
 	if (ui->checkBoxSkyBoxHDRI->isChecked())
 		_skyBoxHDRIIndex = std::max(0, index);
 	else
@@ -443,6 +456,10 @@ void VisualizationEnvironmentPanel::onSkyBoxMapsChanged(int index)
 	{
 		_glWidget->setSkyBoxTextureFolder(selectedPath);
 		_glWidget->updateView();
+
+		// Update preview widget with new environment map
+		if (_previewWidget)
+			_previewWidget->update();
 	}
 }
 
@@ -593,6 +610,7 @@ void VisualizationEnvironmentPanel::onHDRToneMappingStateChanged(bool checked)
 	_glWidget->enableHDRToneMapping(checked);
 	updateControlDependencies();
 	_glWidget->updateView();
+	if (_previewWidget) _previewWidget->update();
 }
 
 void VisualizationEnvironmentPanel::onHDRToneMappingModeChanged(int index)
@@ -604,6 +622,7 @@ void VisualizationEnvironmentPanel::onHDRToneMappingModeChanged(int index)
 	const int enumVal = ui->comboBoxHDRToneMappingMode->itemData(index).toInt();
 	_glWidget->setHDRToneMappingMode(static_cast<HDRToneMapMode>(enumVal));
 	_glWidget->updateView();
+	if (_previewWidget) _previewWidget->update();
 }
 
 void VisualizationEnvironmentPanel::onEnvMapExposureChanged(double value)
@@ -634,6 +653,7 @@ void VisualizationEnvironmentPanel::onGammaCorrectionStateChanged(bool checked)
 	_glWidget->enableGammaCorrection(checked);
 	updateControlDependencies();
 	_glWidget->updateView();
+	if (_previewWidget) _previewWidget->update();
 }
 
 void VisualizationEnvironmentPanel::onScreenGammaChanged(double value)
@@ -643,6 +663,7 @@ void VisualizationEnvironmentPanel::onScreenGammaChanged(double value)
 
 	_glWidget->setScreenGamma(value);
 	_glWidget->updateView();
+	if (_previewWidget) _previewWidget->update();
 }
 
 // ==================== DEFAULT VALUES BUTTON ====================

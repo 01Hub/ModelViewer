@@ -11,6 +11,7 @@ namespace Ui {
 
 class GLWidget;
 class ModelViewer;
+class MaterialPreviewWidget;
 
 class VisualizationEnvironmentPanel : public QWidget
 {
@@ -31,6 +32,9 @@ public:
 
 	// Public method for ModelViewer to set PBR mode
 	void setPBRLightingMode(bool enable);
+
+	// Set preview widget for updating on environment changes
+	void setPreviewWidget(MaterialPreviewWidget* preview) { _previewWidget = preview; }
 
 	// Called when geometry changes to update light position slider ranges
 	void updateLightPositionRanges(float range, float offset);
@@ -115,6 +119,7 @@ private:
 	// Member variables
 	ModelViewer* _modelViewer;
 	GLWidget* _glWidget;
+	MaterialPreviewWidget* _previewWidget = nullptr;
 	std::unique_ptr<Ui::VisualizationEnvironmentPanel> ui;
 	bool _isInitialized;
 

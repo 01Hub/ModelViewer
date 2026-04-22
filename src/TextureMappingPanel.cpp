@@ -211,23 +211,6 @@ void TextureMappingPanel::bindMaterial(GLMaterial* material)
 	updatePreview();
 }
 
-void TextureMappingPanel::onTintParamsChanged()
-{
-	GLMaterial* m = _material;
-	if (!m) return;
-
-	m->albedoTint.mode = static_cast<GLMaterial::TintMode>(_ui->tintModeCombo->currentIndex());
-	m->albedoTint.strength = float(_ui->tintStrengthSpin->value());
-	m->albedoTint.grayEps = float(_ui->grayEpsSpin->value());
-	m->albedoTint.useVertexColor = _ui->useVtxColorCheck->isChecked();
-	m->albedoTint.maskChannel = _ui->maskChannelCombo->currentIndex();
-
-	// Enable/disable mask channel control
-	_ui->maskChannelCombo->setEnabled(m->albedoTint.mode == GLMaterial::TintMode::LerpMask);
-
-	emit materialChanged(m);
-}
-
 void TextureMappingPanel::setDetached(bool detached)
 {
 	_detached = detached;
@@ -660,17 +643,6 @@ void TextureMappingPanel::connectSignals()
 	connect(_ui->pushButtonApply, &QPushButton::clicked, this, [this]() {
 		emit applyTexturesTriggered(*_material);
 		});
-
-	connect(_ui->tintModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-		this, &TextureMappingPanel::onTintParamsChanged);
-	connect(_ui->tintStrengthSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-		this, &TextureMappingPanel::onTintParamsChanged);
-	connect(_ui->grayEpsSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged),
-		this, &TextureMappingPanel::onTintParamsChanged);
-	connect(_ui->useVtxColorCheck, &QCheckBox::toggled,
-		this, &TextureMappingPanel::onTintParamsChanged);
-	connect(_ui->maskChannelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
-		this, &TextureMappingPanel::onTintParamsChanged);
 
 	// Single-click: Preview only
 	connect(_ui->treeWidgetPresetTextures, &QTreeWidget::itemClicked,
@@ -1601,28 +1573,12 @@ void TextureMappingPanel::loadMaterialPresetMetadata(const QString& presetName)
 		_material->setNormalScale(static_cast<float>(materialObject.value("normalScale").toDouble(_material->normalScale())));
 		_material->setHeightScale(static_cast<float>(materialObject.value("heightScale").toDouble(_material->heightScale())));
 		_material->setClearcoatNormalScale(static_cast<float>(materialObject.value("clearcoatNormalScale").toDouble(_material->clearcoatNormalScale())));
-
-		const QJsonObject tintObject = materialObject.value("albedoTint").toObject();
-		if (!tintObject.isEmpty())
-		{
-			_material->albedoTint.mode = static_cast<GLMaterial::TintMode>(tintObject.value("mode").toInt(static_cast<int>(_material->albedoTint.mode)));
-			_material->albedoTint.strength = static_cast<float>(tintObject.value("strength").toDouble(_material->albedoTint.strength));
-			_material->albedoTint.grayEps = static_cast<float>(tintObject.value("grayThreshold").toDouble(_material->albedoTint.grayEps));
-			_material->albedoTint.useVertexColor = tintObject.value("useVertexColor").toBool(_material->albedoTint.useVertexColor);
-			_material->albedoTint.maskChannel = tintObject.value("maskChannel").toInt(_material->albedoTint.maskChannel);
-		}
 	}
 
 	loadFactorValuesFromMaterial();
 	_ui->doubleSpinBoxNormalScale->setValue(_material->normalScale());
 	_ui->doubleSpinBoxHeightScale->setValue(_material->heightScale());
 	_ui->doubleSpinBoxClearcoatNormalScale->setValue(_material->clearcoatNormalScale());
-	_ui->tintModeCombo->setCurrentIndex(static_cast<int>(_material->albedoTint.mode));
-	_ui->tintStrengthSpin->setValue(_material->albedoTint.strength);
-	_ui->grayEpsSpin->setValue(_material->albedoTint.grayEps);
-	_ui->useVtxColorCheck->setChecked(_material->albedoTint.useVertexColor);
-	_ui->maskChannelCombo->setCurrentIndex(_material->albedoTint.maskChannel);
-	_ui->maskChannelCombo->setEnabled(_material->albedoTint.mode == GLMaterial::TintMode::LerpMask);
 }
 
 bool TextureMappingPanel::saveCurrentPresetMetadata()
@@ -1742,14 +1698,6 @@ bool TextureMappingPanel::saveCurrentPresetMetadata()
 	materialObject.insert("normalScale", _material->normalScale());
 	materialObject.insert("heightScale", _material->heightScale());
 	materialObject.insert("clearcoatNormalScale", _material->clearcoatNormalScale());
-
-	QJsonObject tintObject;
-	tintObject.insert("mode", static_cast<int>(_material->albedoTint.mode));
-	tintObject.insert("strength", _material->albedoTint.strength);
-	tintObject.insert("grayThreshold", _material->albedoTint.grayEps);
-	tintObject.insert("useVertexColor", _material->albedoTint.useVertexColor);
-	tintObject.insert("maskChannel", _material->albedoTint.maskChannel);
-	materialObject.insert("albedoTint", tintObject);
 
 	root.insert("material", materialObject);
 

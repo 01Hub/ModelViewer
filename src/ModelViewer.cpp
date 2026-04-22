@@ -10,6 +10,7 @@
 #include "GLWidget.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
+#include "MaterialPreviewWidget.h"
 #include "MeshProperties.h"
 #include "ModelViewer.h"
 #include "ModelViewerApplication.h"
@@ -223,10 +224,18 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Initialize material properties panel with MDI-scoped cache reference
 	Ui_ModelViewer::predefinedMaterialsPanel->initialize(this, _glWidget);
 
+	// Pass preview widget to environment panel so it updates on setting changes
+	visualizationEnvironmentPanel->setPreviewWidget(Ui_ModelViewer::predefinedMaterialsPanel->getPreviewWidget());
+
 	visualizationEnvironmentPanel->initialize(this, _glWidget);
 
 	connect(_glWidget, QOverload<int>::of(&GLWidget::displayModeChanged),
 		visualizationEnvironmentPanel, QOverload<int>::of(&VisualizationEnvironmentPanel::onDisplayModeChanged));
+
+	// Update preview when rendering mode changes (ADS vs PBR)
+	auto* previewWidget = Ui_ModelViewer::predefinedMaterialsPanel->getPreviewWidget();
+	connect(_glWidget, QOverload<int>::of(&GLWidget::renderingModeChanged),
+		this, [previewWidget](int){ previewWidget->update(); });
 
 	connect(Ui_ModelViewer::visualizationEnvironmentPanel, &VisualizationEnvironmentPanel::detachRequested,
 		this, &ModelViewer::detachEnvironmentPanel);

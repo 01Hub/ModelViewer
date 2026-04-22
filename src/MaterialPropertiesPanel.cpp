@@ -292,12 +292,6 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 	if (_ui->comboBoxTexMode)
 		connect(_ui->comboBoxTexMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MaterialPropertiesPanel::updatePreview);
 
-	if (_ui->tintModeCombo)
-		connect(_ui->tintModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MaterialPropertiesPanel::updatePreview);
-
-	if (_ui->tintStrengthSpin)
-		connect(_ui->tintStrengthSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::updatePreview);
-
 	// Connect scalar property spinboxes to their change handlers
 	if (_ui->metalnessSpin)
 		connect(_ui->metalnessSpin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &MaterialPropertiesPanel::onMetallicChanged);
@@ -453,6 +447,11 @@ void MaterialPropertiesPanel::initialize(ModelViewer* modelViewer, GLWidget* glW
 	_glWidget = glWidget;
 
 	qDebug() << "MaterialPropertiesPanel::initialize called with modelViewer:" << (modelViewer ? "non-null" : "NULL");
+
+	// Pass GLWidget reference to preview widget for environment settings
+	if (_preview && _glWidget) {
+		_preview->setGLWidget(_glWidget);
+	}
 
 	// Get reference to the MDI-scoped material cache from ModelViewer
 	if (_modelViewer) {

@@ -129,18 +129,6 @@ public:
 		float bias = 0.0f;
 	};
 
-	enum class TintMode { Off = 0, AutoGray = 1, ForceGray = 2, LerpMask = 3 };
-
-	struct AlbedoTintParams
-	{
-		TintMode mode = TintMode::AutoGray;
-		float strength = 1.0f;
-		float grayEps = 0.02f;
-		bool useVertexColor = false;
-		int  maskChannel = 3; // A by default
-	};
-	AlbedoTintParams albedoTint;
-
 public:
 	GLMaterial();
 	GLMaterial(QVector3D ambient, QVector3D diffuse, QVector3D specular, QVector3D emissive, float shininess, bool metallic = true, float opacity = 1.0f);

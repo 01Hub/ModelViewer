@@ -37,20 +37,132 @@ uniform vec3 groundColor; // color from -Y
 uniform float envDiffuseIntensity;  // e.g. 0.2
 uniform float envSpecularIntensity; // keep for future (IBL), 0.0 for now
 
-uniform float exposureEV;   // in EV stops, e.g. [-4 .. +4], default 0
-uniform bool  useACES;      // optional: filmic tonemap toggle (true recommended)
+// Environment tone mapping and gamma settings (matches main_scene.frag)
+uniform bool  hdrToneMapping = false;
+uniform bool  gammaCorrection = false;
+uniform float screenGamma = 2.2;
+uniform int   toneMapMode = 0;  // 0=KhronosPbrNeutral (default)
 
-// Optional: if you want a separate gamma control (or assume sRGB=2.2)
-uniform float gamma;        // default 2.2
+// ACES tone mapping matrices (matches main_scene.frag)
+const mat3 ACESInputMat = mat3
+(
+	0.59719, 0.07600, 0.02840,
+	0.35458, 0.90834, 0.13383,
+	0.04823, 0.01566, 0.83777
+);
 
-// Simple ACES approximation (Narkowicz)
-vec3 acesTonemap(vec3 x) {
-    const float a = 2.51;
-    const float b = 0.03;
-    const float c = 2.43;
-    const float d = 0.59;
-    const float e = 0.14;
-    return clamp((x*(a*x + b)) / (x*(c*x + d) + e), 0.0, 1.0);
+const mat3 ACESOutputMat = mat3
+(
+	1.60475, -0.10208, -0.00327,
+	-0.53108, 1.10813, -0.07276,
+	-0.07367, -0.00605, 1.07602
+);
+
+// ACES tone map (faster approximation)
+// see: https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
+vec3 toneMapACES_Narkowicz(vec3 color)
+{
+	const float A = 2.51;
+	const float B = 0.03;
+	const float C = 2.43;
+	const float D = 0.59;
+	const float E = 0.14;
+	return clamp((color * (A * color + B)) / (color * (C * color + D) + E), 0.0, 1.0);
+}
+
+// ACES filmic tone map approximation helper
+vec3 RRTAndODTFit(vec3 color)
+{
+	vec3 a = color * (color + 0.0245786) - 0.000090537;
+	vec3 b = color * (0.983729 * color + 0.4329510) + 0.238081;
+	return a / b;
+}
+
+// ACES Hill tone map
+vec3 toneMapACES_Hill(vec3 color)
+{
+	color = ACESInputMat * color;
+	color = RRTAndODTFit(color);
+	color = ACESOutputMat * color;
+	return clamp(color, 0.0, 1.0);
+}
+
+// Khronos PBR neutral tone mapping (matches main_scene.frag)
+vec3 toneMap_KhronosPbrNeutral(vec3 color)
+{
+	const float startCompression = 0.8 - 0.04;
+	const float desaturation = 0.15;
+
+	float x = min(color.r, min(color.g, color.b));
+	float offset = x < 0.08 ? x - 6.25 * x * x : 0.04;
+	color -= offset;
+
+	float peak = max(color.r, max(color.g, color.b));
+	if (peak < startCompression) return color;
+
+	const float d = 1. - startCompression;
+	float newPeak = 1. - d * d / (peak + d - startCompression);
+	color *= newPeak / peak;
+
+	float g = 1. - 1. / (desaturation * (peak - newPeak) + 1.);
+	return mix(color, newPeak * vec3(1, 1, 1), g);
+}
+
+// Uncharted 2 tone mapping
+vec3 uncharted2ToneMapping(vec3 color)
+{
+	const float A = 0.15;
+	const float B = 0.50;
+	const float C = 0.10;
+	const float D = 0.20;
+	const float E = 0.02;
+	const float F = 0.30;
+	const float W = 11.2;
+
+	color = ((color * (A * color + C * B) + D * E) / (color * (A * color + B) + D * F)) - E / F;
+	float white = ((W * (A * W + C * B) + D * E) / (W * (A * W + B) + D * F)) - E / F;
+	return color / white;
+}
+
+// Simple Reinhard tone mapping
+vec3 reinhardToneMapping(vec3 color)
+{
+	return color / (1.0 + color);
+}
+
+// Apply tone mapping based on mode (0=KhronosPbrNeutral, 1=ACES_Narkowicz, 2=ACES_Hill, 3=AECS_Hill_Exposure_Boost, 4=Uncharted2, 5=Reinhard)
+vec3 applyToneMapping(vec3 color)
+{
+	if (!hdrToneMapping) return color;
+
+	if (toneMapMode == 0)
+	{
+		color = toneMap_KhronosPbrNeutral(color);
+	}
+	else if (toneMapMode == 1)
+	{
+		color = toneMapACES_Narkowicz(color);
+	}
+	else if (toneMapMode == 2)
+	{
+		color = toneMapACES_Hill(color);
+	}
+	else if (toneMapMode == 3)
+	{
+		// Boost exposure as discussed in https://github.com/mrdoob/three.js/pull/19621
+		color /= 0.6;
+		color = toneMapACES_Hill(color);
+	}
+	else if (toneMapMode == 4)
+	{
+		color = uncharted2ToneMapping(color);
+	}
+	else if (toneMapMode == 5)
+	{
+		color = reinhardToneMapping(color);
+	}
+
+	return color;
 }
 
 // ----- Base material uniforms -----
@@ -96,6 +208,14 @@ uniform sampler2D iridescenceThicknessMap;
 uniform sampler2D diffuseTransmissionMap;
 uniform sampler2D diffuseTransmissionColorMap;
 uniform sampler2D thicknessMap;
+
+// ----- Environment mapping (IBL) -----
+uniform samplerCube envCubemap;
+uniform samplerCube irradianceMap;
+uniform samplerCube prefilterMap;  // Prefiltered environment map with LOD miplevels
+uniform sampler2D brdfLUT;  // BRDF lookup table from main viewer
+uniform mat3 previewRotationMatrix;  // Rotation matrix from preview object rotation
+uniform float envMapExposure;  // Exposure adjustment for environment maps
 
 // ----- Enable flags -----
 uniform bool useAlbedoMap;
@@ -313,6 +433,64 @@ vec3 hemisphereAmbient(vec3 N, vec3 sky, vec3 ground)
 {
     float t = clamp(N.y * 0.5 + 0.5, 0.0, 1.0); // -1..+1 -> 0..1
     return mix(ground, sky, t);
+}
+
+// Fresnel-Schlick with variable F90 (matches main_scene.frag)
+vec3 fresnelSchlick(float cosTheta, vec3 F0, vec3 F90)
+{
+    return F0 + (F90 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+// Specular IBL from prefiltered environment map using BRDF lookup table (matches main_scene.frag)
+vec3 computeSpecularIBL(vec3 V, vec3 N, float roughness, float metalness, vec3 albedo)
+{
+    // Reflect view direction
+    vec3 R = reflect(-V, N);
+
+    // Rotate reflection vector by preview rotation to match object rotation
+    R = previewRotationMatrix * R;
+
+    // Fresnel effect: metals at 0 degrees have high reflectivity, dielectrics are low
+    float dotNV = max(dot(N, V), 0.0);
+
+    // F0 (reflectance at normal incidence):
+    // - Metals: use albedo color (reflectance varies by wavelength)
+    // - Non-metals: 0.04 (typical dielectric value)
+    vec3 F0 = mix(vec3(0.04), albedo, metalness);
+
+    // F90 varies with roughness: smooth materials reflect strongly at all angles,
+    // rough materials reflect less (matches main_scene.frag behavior on line 1858)
+    vec3 F90_effective = max(vec3(1.0 - roughness), F0);
+
+    // Fresnel approximation
+    vec3 Fibl = fresnelSchlick(dotNV, F0, F90_effective);
+
+    // Sample prefiltered environment map with roughness-based LOD
+    // The prefilter map was generated with 90° X-axis rotation (see GLWidget::setIBLFaceBasis)
+    // Apply 90° X-axis rotation to match the generated map orientation
+    // Rotation matrix for 90° around X: (x, y, z) → (x, -z, y)
+    vec3 R_prefilter = R;
+    R_prefilter = vec3(R_prefilter.x, -R_prefilter.z, R_prefilter.y);
+
+    // This uses the same approach as main_scene.frag lines 1885-1890
+    const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
+    float lod = roughness * MAX_REFLECTION_LOD;
+    lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
+    vec3 prefilteredColor = textureLod(prefilterMap, R_prefilter, lod).rgb;
+    prefilteredColor = max(prefilteredColor, vec3(0.0));
+    prefilteredColor *= envMapExposure;
+
+    // Use BRDF lookup table for accurate specular IBL split-sum approximation
+    // LUT maps (dotNV, roughness) -> (scale, bias)
+    vec2 brdfCoord = clamp(vec2(dotNV, roughness), vec2(0.0), vec2(1.0));
+    vec2 brdf = texture(brdfLUT, brdfCoord).rg;
+    brdf = max(brdf, vec2(0.0));
+
+    // Apply BRDF: fresnel * scale + bias (matches main_scene.frag line 1895)
+    // This is the complete PBR specular IBL calculation with no additional multipliers
+    vec3 specIBL = prefilteredColor * (Fibl * brdf.x + brdf.y);
+
+    return specIBL * envSpecularIntensity;
 }
 
 // pick a single channel from a vec4 using an integer selector (0=r,1=g,2=b,3=a).
@@ -598,17 +776,11 @@ void main()
             outCol = clamp(diffTransCol, 0.0, 1.0);
         }
 
-        // Apply exposure / tonemap for consistent preview look
-        float exposure = exp2(exposureEV);
-        outCol *= exposure;
-        if (useACES) {
-            const float a=2.51, b=0.03, c=2.43, d=0.59, e=0.14;
-            outCol = clamp((outCol*(a*outCol + b)) / (outCol*(c*outCol + d) + e), 0.0, 1.0);
-        } else {
-            outCol = outCol / (1.0 + outCol);
+        // Apply tonemap and gamma (matches main_scene.frag environment settings)
+        outCol = applyToneMapping(outCol);
+        if (gammaCorrection) {
+            outCol = pow(outCol, vec3(1.0 / screenGamma));
         }
-        float g = (gamma > 0.0) ? gamma : 2.2;
-        outCol = pow(outCol, vec3(1.0 / g));
 
         FragColor = vec4(outCol, 1.0);
         return;
@@ -616,7 +788,8 @@ void main()
 
 
     // ----- Sample or fallback using parallaxed UVs -----
-    vec3  albedoVal = useAlbedoMap ? texture(albedoMap, applyTextureTransform(uv, albedoScale, albedoOffset, albedoRotation)).rgb : albedo;
+    // WYSIWYG: Multiply texture with scalar (if no texture, use vec3(1.0) so only scalar shows)
+    vec3  albedoVal = (useAlbedoMap ? texture(albedoMap, applyTextureTransform(uv, albedoScale, albedoOffset, albedoRotation)).rgb : vec3(1.0)) * albedo;
     albedoVal = clamp(albedoVal, vec3(0.01), vec3(1.0));
 
     vec4 metalTex = texture(metalnessMap, applyTextureTransform(uv, metalnessScale, metalnessOffset, metalnessRotation));
@@ -639,14 +812,16 @@ void main()
     // ----- Normal mapping uses parallaxed UVs -----
     vec3 N = getNormalFromMap(applyTextureTransform(uv, normalScale, normalOffset, normalRotation));
 
-    float clearcoatVal = useClearcoatColorMap
-        ? texture(clearcoatColorMap, applyTextureTransform(uv, clearcoatColorScale, clearcoatColorOffset, clearcoatColorRotation)).r * clearcoat
-        : clearcoat;
+    // WYSIWYG: Multiply clearcoat texture with scalar
+    float clearcoatVal = (useClearcoatColorMap
+        ? texture(clearcoatColorMap, applyTextureTransform(uv, clearcoatColorScale, clearcoatColorOffset, clearcoatColorRotation)).r
+        : 1.0) * clearcoat;
     clearcoatVal = clamp(clearcoatVal, 0.0, 1.0);
 
-    float clearcoatRoughnessVal = useClearcoatRoughnessMap
-        ? texture(clearcoatRoughnessMap, applyTextureTransform(uv, clearcoatRoughnessScale, clearcoatRoughnessOffset, clearcoatRoughnessRotation)).r * clearcoatRoughness
-        : clearcoatRoughness;
+    // WYSIWYG: Multiply clearcoat roughness texture with scalar
+    float clearcoatRoughnessVal = (useClearcoatRoughnessMap
+        ? texture(clearcoatRoughnessMap, applyTextureTransform(uv, clearcoatRoughnessScale, clearcoatRoughnessOffset, clearcoatRoughnessRotation)).r
+        : 1.0) * clearcoatRoughness;
     clearcoatRoughnessVal = clamp(clearcoatRoughnessVal, 0.0001, 1.0);
 
     vec3 clearcoatN = useClearcoatNormalMap
@@ -656,9 +831,10 @@ void main()
             clearcoatNormalIntensity)
         : N;
 
-    vec3 sheenColorVal = useSheenColorMap
-        ? texture(sheenColorMap, applyTextureTransform(uv, sheenColorScale, sheenColorOffset, sheenColorRotation)).rgb * sheenColor
-        : sheenColor;
+    // WYSIWYG: Multiply sheen texture with scalar
+    vec3 sheenColorVal = (useSheenColorMap
+        ? texture(sheenColorMap, applyTextureTransform(uv, sheenColorScale, sheenColorOffset, sheenColorRotation)).rgb
+        : vec3(1.0)) * sheenColor;
 
     float sheenRoughnessVal = useSheenRoughnessMap
         ? texture(sheenRoughnessMap, applyTextureTransform(uv, sheenRoughnessScale, sheenRoughnessOffset, sheenRoughnessRotation)).r * sheenRoughness
@@ -697,11 +873,18 @@ void main()
         color += (diffuse + spec) * lights[i].color * NdotL;
     }
 
-    // --- Hemisphere environment ambient (AO only on diffuse) ---
-    vec3 hemi = hemisphereAmbient(normalize(N), skyColor, groundColor);
-    vec3 diffuseAmbient = albedoVal * hemi * envDiffuseIntensity * ao;
-    // (specular IBL can be added later; keep envSpecularIntensity for future)
-    color += diffuseAmbient;
+    // --- Environment-based ambient and specular IBL ---
+    vec3 N_normalized = normalize(N);
+    vec3 V_normalized = normalize(V);
+
+    // Diffuse IBL from irradiance map (or fallback to hemisphere)
+    vec3 irradiance = texture(irradianceMap, N_normalized).rgb;
+    vec3 diffuseIBL = albedoVal * irradiance * envDiffuseIntensity * ao;
+    color += diffuseIBL;
+
+    // Specular IBL from environment cubemap (modulated by metalness and Fresnel)
+    vec3 specularIBL = computeSpecularIBL(V_normalized, N_normalized, roughnessVal, metalnessVal, albedoVal);
+    color += specularIBL;
 
     // ----- Clearcoat (simple lobe using light 0 direction-like) -----
     if (clearcoatVal > 0.001 && numLights > 0)
@@ -780,21 +963,11 @@ void main()
         // ----- Final clamp -----
         color = clamp(color, vec3(0.0), vec3(20.0));
     } else {
-        // --- Exposure (in EV) ---
-        float exposure = exp2(exposureEV);   // 2^EV
-        color *= exposure;
-
-        // --- Tonemap ---
-        if (useACES) {
-            color = acesTonemap(color);
-        } else {
-            // Reinhard as a fallback (cheap)
-            color = color / (1.0 + color);
+        // --- Tonemap and gamma (matches main_scene.frag environment settings) ---
+        color = applyToneMapping(color);
+        if (gammaCorrection) {
+            color = pow(color, vec3(1.0 / screenGamma));
         }
-
-        // --- Gamma encode to sRGB (if your default framebuffer isn't sRGB)
-        float g = (gamma > 0.0) ? gamma : 2.2;
-        color = pow(color, vec3(1.0 / g));
     }
 
     FragColor = vec4(color, opacityVal);

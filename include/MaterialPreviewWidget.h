@@ -11,6 +11,7 @@
 
 class QMouseEvent;
 class QWheelEvent;
+class GLWidget;
 
 enum class PreviewShape { Sphere, Cube, Cylinder, Plane, Teapot };
 enum class EnvMode { Studio, Outdoor, Office };
@@ -55,13 +56,14 @@ public:
     ~MaterialPreviewWidget();
 
     void setMaterial(const GLMaterial &mat);
-    
+
     void setPreviewShape(PreviewShape s);
 	void setEnvironment(EnvMode env) { _currentEnv = env; update(); }
     void setExposureEV(float ev);
 	void setTextureViewMode(TexViewMode mode) { _texViewMode = mode; update(); }
+	void setGLWidget(GLWidget* glWidget) { _glWidget = glWidget; }
     void setPreviewProfile(PreviewProfile profile) { _profile = profile; update(); }
-	
+
 	PreviewShape currentShape() const { return _currentShape; }
 
     void setPreviewRotation(float pitchDeg, float yawDeg);
@@ -120,6 +122,7 @@ private:
     void clearTextureCache();
 
 private:
+    class GLWidget* _glWidget = nullptr;  // For accessing environment settings
     std::unique_ptr<ShaderProgram> _shader;
     GLuint vao = 0;
     GLuint vbo = 0;
@@ -186,6 +189,7 @@ private:
     float _spinMinSpeed = 5.0f; // deg/sec threshold to stop
 
 	EnvMode _currentEnv = EnvMode::Studio;
+	EnvMode _lastEnvMode = EnvMode::Studio;  // Track for regenerating environment maps
 	float _exposureEV = 0.0f;
 	TexViewMode _texViewMode = TexViewMode::All;
 	PreviewProfile _profile = PreviewProfile::MaterialShowcase;
@@ -199,4 +203,12 @@ private:
     void initializeOverlayShader();
     void createTextTexture();
     void renderTextOverlay(float alpha);
+
+	// Environment mapping for IBL
+	GLuint _envCubemap = 0;
+	GLuint _irradianceMap = 0;
+
+	void generateDefaultEnvironmentCubemap();
+	void generateIrradianceMap();
+	void cleanupEnvironmentMaps();
 };
