@@ -968,14 +968,14 @@ void MaterialLibraryWidget::populateMaterials()
 			setCurrentItem(firstItem);
 			QString key = firstItem->data(0, Qt::UserRole).toString();
 			if (!key.isEmpty() && s_materialMap.contains(key))
-				emit materialSelected(s_materialMap[key]());
+				emit materialPreview(s_materialMap[key]());
 			else
-				emit materialSelected(GLMaterial::DEFAULT_MAT());
+				emit materialPreview(GLMaterial::DEFAULT_MAT());
 		}
 	}
 	else
 	{
-		emit materialSelected(GLMaterial::DEFAULT_MAT());
+		emit materialPreview(GLMaterial::DEFAULT_MAT());
 	}
 }
 
