@@ -1000,6 +1000,9 @@ void GLWidget::setSkyBoxTextureFolder(QString folder)
 {
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
+	// Store the folder path for later regeneration in detached contexts
+	_currentSkyboxFolder = folder;
+
 	// File pattern map: match flexible identifiers to cube map indices
 	QMap<QString, int> faceMap = {
 		{"right", 0}, {"posx", 0}, {"px", 0}, {"rt", 0},
@@ -4719,6 +4722,33 @@ void GLWidget::loadIrradianceMap()
 	// Cleanup temporary FBO
 	glDeleteFramebuffers(1, &captureFBO);
 	glDeleteRenderbuffers(1, &captureRBO);
+}
+
+GLuint GLWidget::getEnvironmentMap(bool regenerate)
+{
+	if (regenerate && !_currentSkyboxFolder.isEmpty())
+	{
+		loadEnvMap();
+	}
+	return _environmentMap;
+}
+
+GLuint GLWidget::getIrradianceMap(bool regenerate)
+{
+	if (regenerate && !_currentSkyboxFolder.isEmpty())
+	{
+		loadIrradianceMap();
+	}
+	return _irradianceMap;
+}
+
+GLuint GLWidget::getPrefilterMap(bool regenerate)
+{
+	if (regenerate && !_currentSkyboxFolder.isEmpty())
+	{
+		loadIrradianceMap();  // This creates both irradiance AND prefilter
+	}
+	return _prefilterMap;
 }
 
 void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)

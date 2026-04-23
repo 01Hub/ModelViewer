@@ -40,6 +40,8 @@
 #include <QThread>
 #include <QTimer>
 #include <QToolTip>
+#include <QVBoxLayout>
+#include <QScrollArea>
 
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
@@ -548,21 +550,88 @@ void ModelViewer::detachMaterialPanel()
 		return;
 	}
 
+	// STEP 1: Extract the entire previewFrame which contains all preview controls
+	// This keeps the preview and all its tools in the main thread
+	// The previewFrame is a QFrame that wraps:
+	//   - MaterialPreviewWidget
+	//   - Shape selector (comboShape)
+	//   - Environment selector (comboEnv)
+	//   - View Components label
+	//   - Texture view selector (comboTexView)
+
+	// Find the previewFrame in the panel's UI
+	QFrame* previewFrame = predefinedMaterialsPanel->findChild<QFrame*>("previewFrame");
+	if (!previewFrame)
+	{
+		qWarning() << "detachMaterialPanel: Failed to find previewFrame";
+		return;
+	}
+
+	qDebug() << "detachMaterialPanel: Found previewFrame" << previewFrame;
+
 	// Get the scroll area directly from the UI
 	QScrollArea* scrollArea = findChild<QScrollArea*>("scrollAreaMaterial");
-	if (!scrollArea) return;
+	if (!scrollArea)
+	{
+		qWarning() << "detachMaterialPanel: Failed to find scroll area";
+		return;
+	}
 
 	_materialOriginalParent = scrollArea;
 
-	// Hide the tab
+	// Create a container widget to hold the preview and its tools
+	// This container will be added as a new tab and kept in the main window
+	_materialPreviewContainer = new QWidget(this);
+	_materialPreviewContainer->setWindowTitle(tr("Material Preview"));
+	QVBoxLayout* previewContainerLayout = new QVBoxLayout(_materialPreviewContainer);
+	previewContainerLayout->setContentsMargins(2, 2, 2, 2);
+	previewContainerLayout->setSpacing(4);
+
+	// STEP 2: Reparent the entire previewFrame to the container
+	// This moves the complete preview section with all controls
+	qDebug() << "Reparenting previewFrame to container";
+
+	previewFrame->setParent(_materialPreviewContainer);
+	previewContainerLayout->addWidget(previewFrame, 1);  // Stretch to fill
+	previewFrame->show();
+	previewContainerLayout->activate();  // Ensure layout is processed
+	_materialPreviewContainer->adjustSize();  // Adjust container size
+
+	qDebug() << "PreviewFrame reparented, container size:" << _materialPreviewContainer->size();
+
+	// STEP 3: Create a new tab for the preview container
+	// Insert it at the beginning (index 0) so it's the first tab
+	_materialPreviewContainerTabIndex = 0;
+	tabWidgetVizAttribs->insertTab(_materialPreviewContainerTabIndex, _materialPreviewContainer, tr("Preview"));
+
+	qDebug() << "Preview tab inserted at index 0 (first position)";
+
+	// STEP 4: Make sure the container is visible and the tab is current
+	_materialPreviewContainer->show();
+	_materialPreviewContainer->raise();  // Bring to front
+	if (_materialPreviewContainerTabIndex >= 0)
+	{
+		tabWidgetVizAttribs->setCurrentIndex(_materialPreviewContainerTabIndex);
+		qDebug() << "Set current tab to preview index";
+	}
+
+	// Ensure the preview frame is properly initialized in the new context
+	previewFrame->update();  // Trigger a repaint
+	previewFrame->repaint();  // Force immediate repaint
+
+	// STEP 5: Hide the original material panel tab and prepare it for floating dialog
 	_materialPageIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
 	if (_materialPageIndex >= 0)
 	{
 		_materialPageLabel = tabWidgetVizAttribs->tabText(_materialPageIndex);
 		tabWidgetVizAttribs->removeTab(_materialPageIndex);
+		qDebug() << "Removed material panel tab at index:" << _materialPageIndex;
 	}
 
-	// Create floating dialog
+	// STEP 6: The previewFrame has been moved, leaving the panel with just the library tree
+	// The leftLayout (library tree) will expand to fill the available space
+
+	// STEP 6: Create floating dialog with the (now preview-less) panel
 	auto* floatingMatDlg = new FloatingPanelDialog(this, tr("Predefined Materials"));
 	_detachedMaterialDialog = floatingMatDlg;
 
@@ -570,7 +639,7 @@ void ModelViewer::detachMaterialPanel()
 	scrollArea->takeWidget();  // Remove current widget from scroll area
 	floatingMatDlg->addContentWidget(predefinedMaterialsPanel);
 
-	// Position and show...
+	// Position and show the floating dialog...
 	QScreen* screen = QGuiApplication::primaryScreen();
 	QRect screenGeom = screen->availableGeometry();
 	QRect myGeometry = this->frameGeometry();
@@ -588,6 +657,8 @@ void ModelViewer::detachMaterialPanel()
 
 	connect(floatingMatDlg, &FloatingPanelDialog::reattachRequested,
 		this, &ModelViewer::reattachMaterialPanel);
+
+	qDebug() << "Material panel detached. Preview widget kept in main thread in new 'Preview' tab.";
 }
 
 void ModelViewer::reattachMaterialPanel()
@@ -599,18 +670,56 @@ void ModelViewer::reattachMaterialPanel()
 
 	if (predefinedMaterialsPanel && _materialPageIndex >= 0)
 	{
+		// STEP 1: Move the previewFrame back into the panel
+		if (_materialPreviewContainer)
+		{
+			qDebug() << "Reattaching: Moving previewFrame back to panel";
+
+			// Find the previewFrame in the container
+			QFrame* previewFrame = _materialPreviewContainer->findChild<QFrame*>("previewFrame");
+			if (previewFrame)
+			{
+				// Remove from container
+				QLayout* containerLayout = _materialPreviewContainer->layout();
+				if (containerLayout)
+				{
+					containerLayout->removeWidget(previewFrame);
+					qDebug() << "Removed previewFrame from container layout";
+				}
+
+				// Use the panel's helper method to restore the previewFrame to its original location
+				predefinedMaterialsPanel->restorePreviewFrame(previewFrame);
+				qDebug() << "Restored previewFrame to panel";
+			}
+
+			// Remove the preview tab from the tab widget
+			if (_materialPreviewContainerTabIndex >= 0)
+			{
+				tabWidgetVizAttribs->removeTab(_materialPreviewContainerTabIndex);
+				_materialPreviewContainerTabIndex = -1;
+				qDebug() << "Removed preview tab from tab widget";
+			}
+
+			// Delete the temporary container
+			_materialPreviewContainer->deleteLater();
+			_materialPreviewContainer = nullptr;
+			qDebug() << "Deleted preview container";
+		}
+
+		// STEP 2: Re-parent panel back to the scroll area
 		predefinedMaterialsPanel->setParent(nullptr);  // Detach from floating dialog
 
-		// Re-parent panel back to the scroll area
 		QScrollArea* scrollArea = qobject_cast<QScrollArea*>(_materialOriginalParent);
 		if (scrollArea)
 		{
 			scrollArea->setWidget(predefinedMaterialsPanel);
 			predefinedMaterialsPanel->show();
+
+			// Preview widgets have been restored to their original layout
 			predefinedMaterialsPanel->setDetached(false);
 		}
 
-		// Restore the tab
+		// STEP 3: Restore the panel tab
 		tabWidgetVizAttribs->insertTab(_materialPageIndex, scrollArea->parentWidget(), _materialPageLabel);
 		tabWidgetVizAttribs->setCurrentIndex(_materialPageIndex);
 	}
@@ -618,6 +727,8 @@ void ModelViewer::reattachMaterialPanel()
 	_detachedMaterialDialog->deleteLater();
 	_detachedMaterialDialog = nullptr;
 	_materialOriginalParent = nullptr;
+
+	qDebug() << "Material panel reattached. Preview widget moved back into panel.";
 }
 
 void ModelViewer::detachTransformationsPanel()

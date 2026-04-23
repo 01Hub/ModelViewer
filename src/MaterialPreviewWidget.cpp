@@ -394,7 +394,7 @@ void MaterialPreviewWidget::resizeGL(int w, int h)
 }
 
 void MaterialPreviewWidget::paintGL()
-{	
+{
 	view.setToIdentity();
 	if (_currentShape == PreviewShape::Sphere)
 		view.translate(0, 0, -3.0f);
@@ -402,8 +402,8 @@ void MaterialPreviewWidget::paintGL()
 		view.translate(0, 0, -4.5f);
 	else if (_currentShape == PreviewShape::Cylinder)
 		view.translate(0, 0, -4.5f);
-	else if (_currentShape == PreviewShape::Plane)	
-		view.translate(0, 0, -4.0f);	
+	else if (_currentShape == PreviewShape::Plane)
+		view.translate(0, 0, -4.0f);
 	else if (_currentShape == PreviewShape::Teapot)
 		view.translate(0, 0, -7.5f);
 
@@ -433,6 +433,18 @@ void MaterialPreviewWidget::paintGL()
 
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	// In detached mode, shaders become invalid when moving to a new context
+	// Detect this and recreate the shader if needed
+	if (!_shader)
+	{
+		qWarning() << "MaterialPreviewWidget::paintGL: Shader is null, creating...";
+		const QString path = PathUtils::getDataDirectory() + "/";
+		_shader = std::make_unique<ShaderProgram>();
+		_shader->setObjectName("_shader");
+		_shader->loadCompileAndLinkShaderFromFile(path + "shaders/preview_swatch.vert",
+			path + "shaders/preview_swatch.frag");
+	}
 
 	_shader->bind();
 		
@@ -687,6 +699,7 @@ void MaterialPreviewWidget::paintGL()
 	// Only use environment maps if explicitly enabled in the main viewer
 	if (_glWidget && _glWidget->isEnvironmentMapEnabled())
 	{
+		// Use GLWidget's environment maps
 		GLuint envMap = _glWidget->getEnvironmentMap();
 		GLuint irrMap = _glWidget->getIrradianceMap();
 		GLuint prefilterMap = _glWidget->getPrefilterMap();
@@ -1693,6 +1706,13 @@ void MaterialPreviewWidget::renderTextOverlay(float alpha)
 	glDisable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	// Ensure overlay shader is valid in current context
+	if (!_overlayShader || !_overlayShader->isLinked())
+	{
+		qDebug() << "MaterialPreviewWidget::renderTextOverlay: Overlay shader not valid, reinitializing...";
+		initializeOverlayShader();
+	}
 
 	_overlayShader->bind();
 

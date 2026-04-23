@@ -377,12 +377,13 @@ public:
 	float getScreenGamma() const;
 
 	// Environment mapping accessors
-	GLuint getEnvironmentMap() const { return _environmentMap; }
-	GLuint getIrradianceMap() const { return _irradianceMap; }
-	GLuint getPrefilterMap() const { return _prefilterMap; }
+	GLuint getEnvironmentMap(bool regenerate = false);
+	GLuint getIrradianceMap(bool regenerate = false);
+	GLuint getPrefilterMap(bool regenerate = false);
 	GLuint getBrdfLUT() const { return _brdfLUTTexture; }
 	bool isEnvironmentMapEnabled() const { return _envMapEnabled; }
 	float getIBLExposure() const { return _iblExposure; }
+	QString getCurrentSkyboxFolder() const { return _currentSkyboxFolder; }
 
 	bool areLightsShown() const;
 
@@ -834,6 +835,7 @@ private:
 	unsigned int			 _irradianceMap;
 	unsigned int             _prefilterMap;
 	unsigned int             _brdfLUTTexture;
+	QString					 _currentSkyboxFolder;  // Track the current skybox folder path for environment map regeneration
 	unsigned int			 _skyboxFBO = 0;
 	unsigned int			 _skyboxColorTexture = 0;
 	unsigned int			 _skyboxDepthBuffer = 0;

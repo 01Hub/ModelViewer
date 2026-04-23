@@ -259,6 +259,11 @@ private:
 	int _materialPageIndex = -1;
 	QString _materialPageLabel;
 
+	// Preview widget container (keeps preview in main thread when panel is detached)
+	QWidget* _materialPreviewContainer = nullptr; // Container holding preview widget while panel is detached
+	QLayout* _materialPreviewLayout = nullptr; // Original layout of preview tools
+	int _materialPreviewContainerTabIndex = -1; // Track where we inserted the preview tab
+
 	QPointer<QDialog> _detachedTransformationsDialog; // Stores the floating dialog
 	QWidget* _transformationsOriginalParent = nullptr; // Stores the scroll area
 	int _transformationsPageIndex = -1;

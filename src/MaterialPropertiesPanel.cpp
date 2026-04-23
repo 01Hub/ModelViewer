@@ -41,6 +41,7 @@
 #include <QCheckBox>
 #include <QStandardPaths>
 #include <QRegularExpression>
+#include <QBoxLayout>
 #include <functional>
 
 // ============================================================================
@@ -469,6 +470,10 @@ void MaterialPropertiesPanel::setDetached(bool detached)
 			// When detached: hide the detach button
 			// Reattach functionality will be in the window's title bar
 			_ui->detachButton->hide();
+
+			// NOTE: The preview widget is now kept in the main window/main thread
+			// so we don't need to load environment maps locally
+			// The preview widget will continue to use the GLWidget's environment maps
 		}
 		else
 		{
@@ -3819,4 +3824,77 @@ void MaterialPropertiesPanel::endSaveUnsavedMaterials()
 		libraryWidget->refreshMaterialTree();
 		libraryWidget->blockSignals(false);
 	}
+}
+
+void MaterialPropertiesPanel::restorePreviewFrame(QFrame* previewFrame)
+{
+	// This method properly restores the previewFrame to its original location in the panel
+	if (!previewFrame || !_ui) return;
+
+	qDebug() << "Restoring previewFrame to panel";
+
+	// The panel structure is:
+	// mainLayout (vertical)
+	//   - toolbarLayout
+	//   - separator
+	//   - libraryFrame
+	//     - topLayout (horizontal)
+	//       - leftLayout (library tree)
+	//       - previewFrame (the entire preview section) <- we need to reparent this back
+
+	// Find the libraryFrame (this is the main content container)
+	QFrame* libraryFrame = _ui->libraryFrame;
+	if (!libraryFrame)
+	{
+		qWarning() << "Could not find libraryFrame in panel UI";
+		return;
+	}
+
+	// Get the topLayout from libraryFrame
+	QHBoxLayout* topLayout = qobject_cast<QHBoxLayout*>(libraryFrame->layout());
+	if (!topLayout)
+	{
+		qWarning() << "Could not find topLayout in libraryFrame";
+		return;
+	}
+
+	qDebug() << "topLayout found with" << topLayout->count() << "items";
+
+	// The topLayout should have 2 items: leftLayout (index 0) and previewFrame (index 1)
+	// We need to insert the previewFrame back into position 1
+	if (topLayout->count() >= 1)
+	{
+		// Remove the current item at position 1 if it exists (should be empty spacer or placeholder)
+		while (topLayout->count() > 1)
+		{
+			QLayoutItem* item = topLayout->takeAt(1);
+			if (item)
+			{
+				qDebug() << "Removed placeholder item from topLayout";
+			}
+		}
+
+		// Insert the previewFrame at position 1
+		previewFrame->setParent(libraryFrame);
+		topLayout->insertWidget(1, previewFrame);
+		previewFrame->show();
+		topLayout->activate();
+		qDebug() << "PreviewFrame inserted at position 1 in topLayout";
+	}
+
+	// Ensure proper stretch factors for the horizontal layout
+	// Left side (library) should expand, right side (preview) should have fixed width
+	topLayout->setStretch(0, 1);  // Left side expands
+	topLayout->setStretch(1, 0);  // Right side is fixed width
+	topLayout->activate();
+	qDebug() << "Set stretch factors: left=1, right=0";
+
+	// Force a layout update on the main panel
+	QLayout* mainLayout = this->layout();
+	if (mainLayout)
+	{
+		mainLayout->activate();
+	}
+
+	qDebug() << "PreviewFrame restoration complete";
 }

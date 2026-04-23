@@ -59,6 +59,10 @@ public:
 	// Preview widget access
 	class MaterialPreviewWidget* getPreviewWidget() const { return _preview; }
 
+	// Detach/reattach helpers
+	// These are used when detaching the panel while keeping the preview in the main thread
+	void restorePreviewFrame(QFrame* previewFrame);  // Restore previewFrame to its original location
+
 	// Property getters - all 37 scalar properties
 	QVector3D getAlbedoColor() const;
 	float getMetalness() const;
