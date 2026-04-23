@@ -14,7 +14,7 @@ message(STATUS "VCPKG_INSTALLED_DIR: ${VCPKG_INSTALLED_DIR}")
 if(NOT OpenCASCADE_FOUND)
     message(FATAL_ERROR "Cannot build the executable without OpenCASCADE. Please set the variable OpenCASCADE_DIR.")
 else()
-    message("Found OpenCASCADE " ${OpenCASCADE_VERSION})
+    message(STATUS "Found OpenCASCADE " ${OpenCASCADE_VERSION})
 endif()
 
 find_package(Qt6 COMPONENTS Core Gui OpenGLWidgets Widgets LinguistTools)
