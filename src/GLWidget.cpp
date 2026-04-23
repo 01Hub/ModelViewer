@@ -22,6 +22,7 @@
 #include <QMessageBox>
 #include <QStyleFactory>
 #include <QThread>
+#include <QDebug>
 
 
 constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes

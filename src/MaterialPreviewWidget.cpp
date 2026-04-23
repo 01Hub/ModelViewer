@@ -6,6 +6,7 @@
 #include <QWheelEvent>
 #include <QPainter>
 #include <QFileInfo>
+#include <QDebug>
 #include "Utils.h"
 #include "TextureUtil.h"
 #include "TeapotData.h" // (Kilgard)
@@ -373,6 +374,11 @@ void MaterialPreviewWidget::initializeGL()
 	// Create a simple irradiance map (copy of environment for now - simplified approach)
 	generateIrradianceMap();
 
+	// Initialize shader uniforms for brightness (so preview is bright from the start)
+	_shader->bind();
+	applyEnvPreset(_currentEnv, _profile);
+	_shader->release();
+
 	// Clear cached texture IDs so they reload with the new context
 	clearTextureCache();
 
@@ -703,6 +709,7 @@ void MaterialPreviewWidget::paintGL()
 
 		// Create rotation matrix from preview rotations (inverse of model matrix)
 		// When object rotates by angle, environment rotates by -angle (from object's perspective)
+		// This keeps the skybox stationary while the object rotates
 		// Order: first rotate around Y (-_rotY), then around X (-_rotX) - reverse order and negate
 		QMatrix4x4 rotMatrix;
 		rotMatrix.rotate(-_rotY, 0, 1, 0);  // reverse yaw
@@ -721,10 +728,15 @@ void MaterialPreviewWidget::paintGL()
 		_shader->setUniformValue("envSpecularIntensity", 0.0f);
 		_shader->setUniformValue("envMapExposure", 0.0f);
 
-		// Still bind dummy textures to prevent shader errors
-		glActiveTexture(GL_TEXTURE23);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+		// IMPORTANT: Still bind the procedurally-generated irradiance map for ADS diffuse lighting
+		// The diffuse IBL (line 882 in shader) needs the irradiance map to work properly
+		// Without this, envDiffuseIntensity multiplies by zero (black)
 		glActiveTexture(GL_TEXTURE24);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
+		_shader->setUniformValue("irradianceMap", 24);
+
+		// Bind dummy textures for specular maps (not used in ADS mode anyway)
+		glActiveTexture(GL_TEXTURE23);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 		glActiveTexture(GL_TEXTURE26);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
@@ -838,6 +850,13 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 		envDiffuse *= 1.0f;         // keep softer ambient
 	}
 
+	// --- Selective brightening for ADS mode (non-PBR) ---
+	// In ADS mode, boost diffuse intensity to compensate for lack of PBR tone mapping/gamma effects
+	if (_glWidget && _glWidget->getRenderingMode() == RenderingMode::ADS_BLINN_PHONG)
+	{
+		envDiffuse *= 1.3f;  // Brighten ADS mode for better visibility and WYSIWYG preview
+	}
+
 	// --- Regenerate environment maps if mode changed ---
 	if (mode != _lastEnvMode)
 	{
@@ -855,7 +874,7 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 
 	// Only enable specular IBL in PBR mode (procedural fallback environment)
 	// When using real environment maps, this is overridden by the main environment setup
-	float specIntensity = (_glWidget && _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 0.5f : 0.0f;
+	float specIntensity = (_glWidget && _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
 	_shader->setUniformValue("envSpecularIntensity", specIntensity);
 
 	_shader->setUniformValue("lights[0].position", L0);
@@ -1823,7 +1842,7 @@ void MaterialPreviewWidget::mouseDoubleClickEvent(QMouseEvent* e)
 		e->accept();
 		return;
 	}
-	QOpenGLWidget::mouseDoubleClickEvent(e);
+QOpenGLWidget::mouseDoubleClickEvent(e);
 }
 
 

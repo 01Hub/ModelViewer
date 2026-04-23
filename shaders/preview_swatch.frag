@@ -447,8 +447,9 @@ vec3 computeSpecularIBL(vec3 V, vec3 N, float roughness, float metalness, vec3 a
     // Reflect view direction
     vec3 R = reflect(-V, N);
 
-    // Rotate reflection vector by preview rotation to match object rotation
-    R = previewRotationMatrix * R;
+    // R is computed in world space, so sample environment directly without rotation
+    // As object rotates, reflection direction changes naturally in world space
+    // Environment remains stationary in world space
 
     // Fresnel effect: metals at 0 degrees have high reflectivity, dielectrics are low
     float dotNV = max(dot(N, V), 0.0);
@@ -851,7 +852,9 @@ void main()
     vec3 specularColor = mix(dielectricSpecular, metallicSpecular, metalnessVal);
 
     // ----- Direct lighting -----
-    vec3 color = vec3(0.075) * albedoVal; // small base light
+    // Boost ambient in ADS mode (when envSpecularIntensity is 0) for better fill light
+    float baseAmbient = (envSpecularIntensity < 0.5) ? 0.35 : 0.075;  // ADS: 0.35, PBR: 0.075
+    vec3 color = vec3(baseAmbient) * albedoVal; // base ambient light
 
     for (int i = 0; i < numLights; ++i)
     {
@@ -870,7 +873,12 @@ void main()
         vec3 diffuse = diffuseColor * NdotL;
         vec3 spec    = specularColor * specFactor;
 
-        color += (diffuse + spec) * lights[i].color * NdotL;
+        // Boost light intensity in ADS mode for brighter direct lighting
+        vec3 lightColor = lights[i].color;
+        if (envSpecularIntensity < 0.5)  // ADS mode
+            lightColor *= 1.5;  // 50% brighter
+
+        color += (diffuse + spec) * lightColor * NdotL;
     }
 
     // --- Environment-based ambient and specular IBL ---
@@ -878,6 +886,9 @@ void main()
     vec3 V_normalized = normalize(V);
 
     // Diffuse IBL from irradiance map (or fallback to hemisphere)
+    // N is already in world space, so sample environment directly without rotation
+    // As object rotates, normal direction changes naturally in world space
+    // Environment remains stationary in world space
     vec3 irradiance = texture(irradianceMap, N_normalized).rgb;
     vec3 diffuseIBL = albedoVal * irradiance * envDiffuseIntensity * ao;
     color += diffuseIBL;

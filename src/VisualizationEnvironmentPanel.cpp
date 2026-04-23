@@ -9,6 +9,7 @@
 #include <QFileDialog>
 #include <QImage>
 #include <QDir>
+#include <QDebug>
 
 VisualizationEnvironmentPanel::VisualizationEnvironmentPanel(QWidget* parent)
 	: QWidget(parent),
@@ -774,8 +775,35 @@ void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 
 void VisualizationEnvironmentPanel::setPBRLightingMode(bool enable)
 {
-	if (!enable || !_glWidget || !ui)
+	if (!_glWidget || !ui)
 		return;
+
+	// If disabling PBR (switching to ADS), disable PBR-specific settings
+	if (!enable)
+	{
+		// Disable environment mapping
+		if (ui->checkBoxEnvMapping)
+		{
+			ui->checkBoxEnvMapping->blockSignals(true);
+			ui->checkBoxEnvMapping->setChecked(false);
+			ui->checkBoxEnvMapping->blockSignals(false);
+		}
+		_glWidget->showEnvironment(false);
+
+		// Disable tone mapping and gamma correction (PBR-specific)
+		ui->checkBoxHDRToneMapping->blockSignals(true);
+		ui->checkBoxGammaCorrection->blockSignals(true);
+
+		ui->checkBoxHDRToneMapping->setChecked(false);
+		ui->checkBoxGammaCorrection->setChecked(false);
+
+		ui->checkBoxHDRToneMapping->blockSignals(false);
+		ui->checkBoxGammaCorrection->blockSignals(false);
+
+		_glWidget->enableHDRToneMapping(false);
+		_glWidget->enableGammaCorrection(false);
+		return;
+	}
 
 	// Block signals during state changes
 	ui->checkBoxSkyBoxHDRI->blockSignals(true);
@@ -786,6 +814,14 @@ void VisualizationEnvironmentPanel::setPBRLightingMode(bool enable)
 	ui->checkBoxHDRToneMapping->setChecked(enable);
 	ui->checkBoxGammaCorrection->setChecked(enable);
 
+	// Enable environment mapping when enabling PBR so preview uses bright HDRI
+	if (ui->checkBoxEnvMapping)
+	{
+		ui->checkBoxEnvMapping->blockSignals(true);
+		ui->checkBoxEnvMapping->setChecked(true);
+		ui->checkBoxEnvMapping->blockSignals(false);
+	}
+
 	ui->checkBoxSkyBoxHDRI->blockSignals(false);
 	ui->checkBoxHDRToneMapping->blockSignals(false);
 	ui->checkBoxGammaCorrection->blockSignals(false);
@@ -795,6 +831,9 @@ void VisualizationEnvironmentPanel::setPBRLightingMode(bool enable)
 	reloadSkyBoxPresets();
 	_glWidget->enableHDRToneMapping(enable);
 	_glWidget->enableGammaCorrection(enable);
+
+	// Explicitly enable environment mapping
+	_glWidget->showEnvironment(true);
 
 	updateControlDependencies();
 }
