@@ -8,7 +8,7 @@
     <x>0</x>
     <y>0</y>
     <width>445</width>
-    <height>961</height>
+    <height>936</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -187,7 +187,7 @@
        </layout>
       </item>
       <item>
-       <layout class="QVBoxLayout" name="previewLayout" stretch="0,0,0,0,0">
+       <layout class="QVBoxLayout" name="previewLayout" stretch="0,0,0,0">
         <property name="spacing">
          <number>3</number>
         </property>
@@ -285,34 +285,6 @@
            </widget>
           </item>
          </layout>
-        </item>
-        <item alignment="Qt::AlignmentFlag::AlignTop">
-         <widget class="QSlider" name="sliderExposure">
-          <property name="minimum">
-           <number>-40</number>
-          </property>
-          <property name="maximum">
-           <number>40</number>
-          </property>
-          <property name="value">
-           <number>0</number>
-          </property>
-          <property name="orientation">
-           <enum>Qt::Orientation::Horizontal</enum>
-          </property>
-          <property name="invertedAppearance">
-           <bool>false</bool>
-          </property>
-          <property name="invertedControls">
-           <bool>false</bool>
-          </property>
-          <property name="tickPosition">
-           <enum>QSlider::TickPosition::NoTicks</enum>
-          </property>
-          <property name="tickInterval">
-           <number>10</number>
-          </property>
-         </widget>
         </item>
         <item>
          <layout class="QHBoxLayout" name="horizontalLayout_texMode">
@@ -1561,7 +1533,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>423</width>
+            <width>374</width>
             <height>2361</height>
            </rect>
           </property>
@@ -3729,7 +3701,6 @@ Trans. Color</string>
  <tabstops>
   <tabstop>comboBoxTexMode</tabstop>
   <tabstop>comboEnv</tabstop>
-  <tabstop>sliderExposure</tabstop>
   <tabstop>unlitCheck</tabstop>
   <tabstop>searchEdit</tabstop>
   <tabstop>comboShape</tabstop>

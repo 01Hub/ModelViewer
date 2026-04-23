@@ -286,9 +286,6 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 	if (_ui->comboEnv)
 		connect(_ui->comboEnv, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MaterialPropertiesPanel::updatePreview);
 
-	if (_ui->sliderExposure)
-		connect(_ui->sliderExposure, &QSlider::valueChanged, this, &MaterialPropertiesPanel::updatePreview);
-
 	if (_ui->comboBoxTexMode)
 		connect(_ui->comboBoxTexMode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MaterialPropertiesPanel::updatePreview);
 
@@ -1301,12 +1298,6 @@ void MaterialPropertiesPanel::updatePreview()
 	{
 		int envIdx = _ui->comboEnv->currentIndex();
 		_preview->setEnvironment(static_cast<EnvMode>(envIdx));
-	}
-
-	if (_ui->sliderExposure)
-	{
-		float exposure = _ui->sliderExposure->value() / 10.0f;
-		_preview->setExposureEV(exposure);
 	}
 
 	if (_ui->comboBoxTexMode)
