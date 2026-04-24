@@ -283,48 +283,9 @@
                </widget>
               </item>
              </layout>
-             <attribute name="splitterStretch">
-              <number>4</number>
-             </attribute>
             </widget>
             <widget class="QWidget" name="layoutWidget1">
              <layout class="QVBoxLayout" name="verticalLayout_5">
-              <item>
-               <widget class="QGroupBox" name="groupBoxVisModel">
-                <property name="title">
-                 <string>Rendering Mode</string>
-                </property>
-                <layout class="QGridLayout" name="gridLayout_6">
-                 <item row="0" column="0">
-                  <layout class="QVBoxLayout" name="verticalLayout_3">
-                   <item>
-                    <widget class="QRadioButton" name="radioButtonADSL">
-                     <property name="text">
-                      <string>Ambient Diffuse Specular Lighting - Blinn Phong</string>
-                     </property>
-                     <property name="checked">
-                      <bool>true</bool>
-                     </property>
-                     <attribute name="buttonGroup">
-                      <string notr="true">buttonGroupLighting</string>
-                     </attribute>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QRadioButton" name="radioButtonTXPBR">
-                     <property name="text">
-                      <string>Physically Based Rendering</string>
-                     </property>
-                     <attribute name="buttonGroup">
-                      <string notr="true">buttonGroupLighting</string>
-                     </attribute>
-                    </widget>
-                   </item>
-                  </layout>
-                 </item>
-                </layout>
-               </widget>
-              </item>
               <item>
                <widget class="QTabWidget" name="tabWidgetVizAttribs">
                 <property name="tabPosition">
@@ -336,7 +297,7 @@
                 <property name="documentMode">
                  <bool>false</bool>
                 </property>
-                <widget class="QWidget" name="materialProcessorPage" native="true">
+                <widget class="QWidget" name="materialProcessorPage">
                  <attribute name="title">
                   <string>Material Settings</string>
                  </attribute>
@@ -358,12 +319,21 @@
                     <property name="widgetResizable">
                      <bool>true</bool>
                     </property>
-                    <widget class="MaterialPropertiesPanel" name="predefinedMaterialsPanel" native="true"/>
+                    <widget class="MaterialPropertiesPanel" name="predefinedMaterialsPanel">
+                     <property name="geometry">
+                      <rect>
+                       <x>0</x>
+                       <y>0</y>
+                       <width>517</width>
+                       <height>530</height>
+                      </rect>
+                     </property>
+                    </widget>
                    </widget>
                   </item>
                  </layout>
                 </widget>
-                <widget class="QWidget" name="transformationsPage" native="true">
+                <widget class="QWidget" name="transformationsPage">
                  <attribute name="title">
                   <string>Transformations</string>
                  </attribute>
@@ -385,12 +355,21 @@
                     <property name="widgetResizable">
                      <bool>true</bool>
                     </property>
-                    <widget class="ObjectTransformPanel" name="objectTransformPanel" native="true"/>
+                    <widget class="ObjectTransformPanel" name="objectTransformPanel">
+                     <property name="geometry">
+                      <rect>
+                       <x>0</x>
+                       <y>0</y>
+                       <width>98</width>
+                       <height>28</height>
+                      </rect>
+                     </property>
+                    </widget>
                    </widget>
                   </item>
                  </layout>
                 </widget>
-                <widget class="QWidget" name="vizEnvironmentPage" native="true">
+                <widget class="QWidget" name="vizEnvironmentPage">
                  <attribute name="title">
                   <string>Visualization Environment</string>
                  </attribute>
@@ -412,7 +391,16 @@
                     <property name="widgetResizable">
                      <bool>true</bool>
                     </property>
-                    <widget class="VisualizationEnvironmentPanel" name="visualizationEnvironmentPanel" native="true"/>
+                    <widget class="VisualizationEnvironmentPanel" name="visualizationEnvironmentPanel">
+                     <property name="geometry">
+                      <rect>
+                       <x>0</x>
+                       <y>0</y>
+                       <width>98</width>
+                       <height>28</height>
+                      </rect>
+                     </property>
+                    </widget>
                    </widget>
                   </item>
                  </layout>
@@ -420,9 +408,6 @@
                </widget>
               </item>
              </layout>
-             <attribute name="splitterStretch">
-              <number>1</number>
-             </attribute>
             </widget>
            </widget>
           </item>
@@ -464,8 +449,6 @@
  <tabstops>
   <tabstop>checkBoxSelectAll</tabstop>
   <tabstop>treeWidgetModel</tabstop>
-  <tabstop>radioButtonADSL</tabstop>
-  <tabstop>radioButtonTXPBR</tabstop>
  </tabstops>
  <resources>
   <include location="../ModelViewer.qrc"/>

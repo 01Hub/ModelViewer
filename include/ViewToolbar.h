@@ -10,8 +10,10 @@
 class FlyOutViewButton;
 
 enum class CameraModeActions { ORBIT, FLY, FIRST_PERSON };
+enum class StandardViewActions { TOP, FRONT, LEFT, BOTTOM, REAR, RIGHT };
 enum class ViewModeActions { ISOMETRIC, DIMETRIC, TRIMETRIC };
 enum class DisplayModeActions { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
+enum class RenderingModeActions { ADS, PBR };
 
 class ViewToolbar : public QWidget
 {
@@ -30,6 +32,8 @@ public:
     void setDefaultCameraModeAction(CameraModeActions mode);
     void setDefaultViewModeAction(ViewModeActions mode);
     void setDefaultDisplayModeAction(DisplayModeActions mode);
+    void setDefaultRenderingModeAction(RenderingModeActions mode);
+    void updateRenderingModeButton(const QString& mode);
 
     void setSwapVisibleChecked(bool checked);
 
@@ -38,6 +42,7 @@ signals:
     void viewSelected(const QString& viewName);
     void axonometricSelected(const QString& type);
     void displayModeSelected(const QString& type);
+    void renderingModeSelected(const QString& mode);
     void projectionToggled(bool isOrtho);
     void fitToViewRequested();
     void zoomViewRequested();
@@ -89,13 +94,17 @@ private:
     QAction* _flyAction;
     QAction* _firstPersonAction;
 
-    // View buttons
-    QToolButton* _btnTopView;
-    QToolButton* _btnFrontView;
-    QToolButton* _btnLeftView;
-    QToolButton* _btnBottomView;
-    QToolButton* _btnRearView;
-    QToolButton* _btnRightView;
+    // View mode actions (grouped in dropdown menu)
+    QAction* _topViewAction;
+    QAction* _frontViewAction;
+    QAction* _leftViewAction;
+    QAction* _bottomViewAction;
+    QAction* _rearViewAction;
+    QAction* _rightViewAction;
+
+    // Rendering mode actions
+    QAction* _adsAction;
+    QAction* _pbrAction;
 
     // Axonometric actions
     QAction* _isoAction;
@@ -122,6 +131,12 @@ private:
     // Flyout buttons and action maps
     FlyOutViewButton* _toolButtonCameraModes;
     QMap<CameraModeActions, QAction*> _cameraModeActions;
+
+    FlyOutViewButton* _toolButtonViews;
+    QMap<StandardViewActions, QAction*> _standardViewActions;
+
+    FlyOutViewButton* _toolButtonRenderingMode;
+    QMap<RenderingModeActions, QAction*> _renderingModeActions;
 
     FlyOutViewButton* _toolButtonViewModes;
     QMap<ViewModeActions, QAction*> _viewModeActions;

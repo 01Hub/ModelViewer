@@ -385,6 +385,8 @@ public:
 	float getIBLExposure() const { return _iblExposure; }
 	QString getCurrentSkyboxFolder() const { return _currentSkyboxFolder; }
 
+	ViewToolbar* getViewToolbar() const { return _viewToolbar; }
+
 	bool areLightsShown() const;
 
 	void cleanUpShaders();

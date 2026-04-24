@@ -246,34 +246,81 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _toolButtonCameraModes->setMenu(camModeMenu);
     _toolButtonCameraModes->setDefaultAction(_orbitAction);
 
-    // All views - Group the buttons so that only one can be checked at a time
-    QButtonGroup* buttonGroup = new QButtonGroup(this);
-    buttonGroup->setExclusive(true);
-    auto createBtn = [this, buttonStyleSheet, buttonGroup](const QString& icon, const QString& tooltip, const QString& view, const QKeySequence& key) {
-        QToolButton* btn = new QToolButton(this);
-        btn->setStyleSheet(buttonStyleSheet);
-        btn->setIcon(QIcon(icon));
-        btn->setIconSize(QSize(48, 48));
-        btn->setToolTip(tooltip);
-        btn->setAutoRaise(true);
-        btn->setCheckable(true);
-        btn->setShortcut(key);
-        buttonGroup->addButton(btn);
-        _mainLayout->addWidget(btn);
-        connect(btn, &QToolButton::clicked, this, [this, view]() { emit viewSelected(view); });
+    // Standard Views
+    _toolButtonViews = new FlyOutViewButton(this);
+    _toolButtonViews->setIcon(QIcon(":/icons/res/top.png"));
+    _toolButtonViews->setIconSize(QSize(48, 48));
+    _toolButtonViews->setToolTip(tr("Standard Views"));
+    _toolButtonViews->setPopupMode(QToolButton::DelayedPopup);
+    _toolButtonViews->setAutoRaise(true);
+    _mainLayout->addWidget(_toolButtonViews);
 
-        QShortcut* shortcut = new QShortcut(key, this);
-        connect(shortcut, &QShortcut::activated, btn, &QToolButton::click);
+    QMenu* viewsMenu = new QMenu;
+    viewsMenu->setStyleSheet(flyoutStyleSheet);
+    _topViewAction = viewsMenu->addAction(QIcon(":/icons/res/top.png"), tr("Top"));
+    _topViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
+    _frontViewAction = viewsMenu->addAction(QIcon(":/icons/res/front.png"), tr("Front"));
+    _frontViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_F));
+    _leftViewAction = viewsMenu->addAction(QIcon(":/icons/res/left.png"), tr("Left"));
+    _leftViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_L));
+    _bottomViewAction = viewsMenu->addAction(QIcon(":/icons/res/bottom.png"), tr("Bottom"));
+    _bottomViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_B));
+    _rearViewAction = viewsMenu->addAction(QIcon(":/icons/res/back.png"), tr("Rear"));
+    _rearViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_R));
+    _rightViewAction = viewsMenu->addAction(QIcon(":/icons/res/right.png"), tr("Right"));
+    _rightViewAction->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_J));
 
-        return btn;
-        };
+    connect(_topViewAction, &QAction::triggered, this,
+        [this]() {
+            _toolButtonViews->setDefaultAction(_topViewAction);
+            emit viewSelected("Top");
+        }
+    );
 
-    _btnTopView = createBtn(":/icons/res/top.png", tr("Top View"), tr("Top"), Qt::CTRL | Qt::Key_T);
-    _btnFrontView = createBtn(":/icons/res/front.png", tr("Front View"), tr("Front"), Qt::CTRL | Qt::Key_F);
-    _btnLeftView = createBtn(":/icons/res/left.png", tr("Left View"), tr("Left"), Qt::CTRL | Qt::Key_L);
-    _btnBottomView = createBtn(":/icons/res/bottom.png", tr("Bottom View"), tr("Bottom"), Qt::CTRL | Qt::Key_B);
-    _btnRearView = createBtn(":/icons/res/back.png", tr("Rear View"), tr("Rear"), Qt::CTRL | Qt::Key_R);
-    _btnRightView = createBtn(":/icons/res/right.png", tr("Right View"), tr("Right"), Qt::CTRL | Qt::Key_J);
+    connect(_frontViewAction, &QAction::triggered, this,
+        [this]() {
+            _toolButtonViews->setDefaultAction(_frontViewAction);
+            emit viewSelected("Front");
+        }
+    );
+
+    connect(_leftViewAction, &QAction::triggered, this,
+        [this]() {
+            _toolButtonViews->setDefaultAction(_leftViewAction);
+            emit viewSelected("Left");
+        }
+    );
+
+    connect(_bottomViewAction, &QAction::triggered, this,
+        [this]() {
+            _toolButtonViews->setDefaultAction(_bottomViewAction);
+            emit viewSelected("Bottom");
+        }
+    );
+
+    connect(_rearViewAction, &QAction::triggered, this,
+        [this]() {
+            _toolButtonViews->setDefaultAction(_rearViewAction);
+            emit viewSelected("Rear");
+        }
+    );
+
+    connect(_rightViewAction, &QAction::triggered, this,
+        [this]() {
+            _toolButtonViews->setDefaultAction(_rightViewAction);
+            emit viewSelected("Right");
+        }
+    );
+
+    _standardViewActions[StandardViewActions::TOP] = _topViewAction;
+    _standardViewActions[StandardViewActions::FRONT] = _frontViewAction;
+    _standardViewActions[StandardViewActions::LEFT] = _leftViewAction;
+    _standardViewActions[StandardViewActions::BOTTOM] = _bottomViewAction;
+    _standardViewActions[StandardViewActions::REAR] = _rearViewAction;
+    _standardViewActions[StandardViewActions::RIGHT] = _rightViewAction;
+
+    _toolButtonViews->setMenu(viewsMenu);
+    _toolButtonViews->setDefaultAction(_topViewAction);
 
     // Isometric Views
     _toolButtonViewModes = new FlyOutViewButton(this);
@@ -288,16 +335,6 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     _mainLayout->addWidget(_toolButtonViewModes);
 
-    connect(_toolButtonViewModes, &QPushButton::clicked, this, [=]() {
-        buttonGroup->setExclusive(false);
-        for (QAbstractButton* btn : buttonGroup->buttons())
-        {
-            QSignalBlocker blocker(btn);
-            btn->setChecked(false);
-        }
-        buttonGroup->setExclusive(true);
-        });
-
     QMenu* axoMenu = new QMenu;
     axoMenu->setStyleSheet(flyoutStyleSheet);
     _isoAction = axoMenu->addAction(QIcon(":/icons/res/isometric.png"), tr("Isometric"));
@@ -310,6 +347,8 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(_isoAction, &QAction::triggered, this,
         [this]() {
             _toolButtonViewModes->setDefaultAction(_isoAction);
+            // Reset standard views to Top when switching to axonometric
+            _toolButtonViews->setDefaultAction(_topViewAction);
             emit axonometricSelected("Isometric");
         }
     );
@@ -317,6 +356,8 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(_dimAction, &QAction::triggered, this,
         [this]() {
             _toolButtonViewModes->setDefaultAction(_dimAction);
+            // Reset standard views to Top when switching to axonometric
+            _toolButtonViews->setDefaultAction(_topViewAction);
             emit axonometricSelected("Dimetric");
         }
     );
@@ -324,6 +365,8 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     connect(_triAction, &QAction::triggered, this,
         [this]() {
             _toolButtonViewModes->setDefaultAction(_triAction);
+            // Reset standard views to Top when switching to axonometric
+            _toolButtonViews->setDefaultAction(_topViewAction);
             emit axonometricSelected("Trimetric");
         }
     );
@@ -371,16 +414,6 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _multiBtn->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_M));
     _mainLayout->addWidget(_multiBtn);
     connect(_multiBtn, &QToolButton::toggled, this, [this](bool checked) { emit multiViewToggled(checked); });
-
-    connect(_multiBtn, &QPushButton::clicked, this, [=]() {
-        buttonGroup->setExclusive(false);
-        for (QAbstractButton* btn : buttonGroup->buttons())
-        {
-            QSignalBlocker blocker(btn);
-            btn->setChecked(false);
-        }
-        buttonGroup->setExclusive(true);
-        });
 
     // Display Modes
     _toolButtonDisplayModes = new FlyOutViewButton(this);
@@ -437,6 +470,40 @@ ViewToolbar::ViewToolbar(QWidget* parent)
 
     _toolButtonDisplayModes->setMenu(dispModeMenu);
     _toolButtonDisplayModes->setDefaultAction(_shaded);
+
+    // Rendering Mode
+    _toolButtonRenderingMode = new FlyOutViewButton(this);
+    _toolButtonRenderingMode->setIcon(QIcon(":/icons/res/ads_mode.png"));
+    _toolButtonRenderingMode->setIconSize(QSize(48, 48));
+    _toolButtonRenderingMode->setToolTip(tr("Rendering Mode"));
+    _toolButtonRenderingMode->setPopupMode(QToolButton::DelayedPopup);
+    _toolButtonRenderingMode->setAutoRaise(true);
+    _mainLayout->addWidget(_toolButtonRenderingMode);
+
+    QMenu* renderingModeMenu = new QMenu;
+    renderingModeMenu->setStyleSheet(flyoutStyleSheet);
+    _adsAction = renderingModeMenu->addAction(QIcon(":/icons/res/ads_mode.png"), tr("ADS (Blinn-Phong)"));
+    _pbrAction = renderingModeMenu->addAction(QIcon(":/icons/res/pbr_mode.png"), tr("PBR (Metallic-Roughness)"));
+
+    connect(_adsAction, &QAction::triggered, this,
+        [this]() {
+            _toolButtonRenderingMode->setDefaultAction(_adsAction);
+            emit renderingModeSelected("ADS");
+        }
+    );
+
+    connect(_pbrAction, &QAction::triggered, this,
+        [this]() {
+            _toolButtonRenderingMode->setDefaultAction(_pbrAction);
+            emit renderingModeSelected("PBR");
+        }
+    );
+
+    _renderingModeActions[RenderingModeActions::ADS] = _adsAction;
+    _renderingModeActions[RenderingModeActions::PBR] = _pbrAction;
+
+    _toolButtonRenderingMode->setMenu(renderingModeMenu);
+    _toolButtonRenderingMode->setDefaultAction(_adsAction);  // Default to ADS
 
     // Section View
     _sectionBtn = new QToolButton(this);
@@ -721,19 +788,14 @@ void ViewToolbar::retranslateUI()
 	_flyAction->setText(tr("Fly"));
 	_firstPersonAction->setText(tr("First Person"));
 
-	// View buttons
-	_btnTopView->setToolTip(tr("Top View"));
-	_btnTopView->setText(tr("Top"));
-	_btnFrontView->setToolTip(tr("Front View"));
-	_btnFrontView->setText(tr("Front"));
-	_btnLeftView->setToolTip(tr("Left View"));
-	_btnLeftView->setText(tr("Left"));
-	_btnBottomView->setToolTip(tr("Bottom View"));
-	_btnBottomView->setText(tr("Bottom"));
-	_btnRearView->setToolTip(tr("Rear View"));
-	_btnRearView->setText(tr("Rear"));
-	_btnRightView->setToolTip(tr("Right View"));
-	_btnRightView->setText(tr("Right"));
+	// View dropdown button
+	_toolButtonViews->setToolTip(tr("Standard Views"));
+	_topViewAction->setText(tr("Top"));
+	_frontViewAction->setText(tr("Front"));
+	_leftViewAction->setText(tr("Left"));
+	_bottomViewAction->setText(tr("Bottom"));
+	_rearViewAction->setText(tr("Rear"));
+	_rightViewAction->setText(tr("Right"));
 
 	// Axonometric Views
 	_toolButtonViewModes->setToolTip(tr("Axonometric View"));
@@ -754,6 +816,11 @@ void ViewToolbar::retranslateUI()
 	_wireframe->setText(tr("Wireframe"));
 	_wireshaded->setText(tr("Wire Shaded"));
 
+	// Rendering Mode
+	_toolButtonRenderingMode->setToolTip(tr("Rendering Mode"));
+	_adsAction->setText(tr("ADS (Blinn-Phong)"));
+	_pbrAction->setText(tr("PBR (Metallic-Roughness)"));
+
 	// Section View
 	_sectionBtn->setToolTip(tr("Clipping Planes"));
 
@@ -761,7 +828,19 @@ void ViewToolbar::retranslateUI()
 	_swapBtn->setToolTip(tr("Swap Visible"));
 
 	// Axis
-	_axisBtn->setToolTip(tr("Show/Hide Axis"));	
+	_axisBtn->setToolTip(tr("Show/Hide Axis"));
+}
+
+void ViewToolbar::updateRenderingModeButton(const QString& mode)
+{
+	if (mode == "ADS")
+	{
+		_toolButtonRenderingMode->setDefaultAction(_adsAction);
+	}
+	else if (mode == "PBR")
+	{
+		_toolButtonRenderingMode->setDefaultAction(_pbrAction);
+	}
 }
 
 void ViewToolbar::scrollLeft()

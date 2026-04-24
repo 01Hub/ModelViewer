@@ -155,7 +155,7 @@ private slots:
 	void setListRow(int index);
 	void setListRows(QList<int> indices);
 	void showContextMenu(const QPoint& pos);
-	void lightingType_toggled(QAbstractButton*, bool);
+	void onRenderingModeSelected(const QString& mode);
 
 	void onFileImport();
 	void importFiles(QStringList& fileNames);

@@ -194,24 +194,23 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(Ui_ModelViewer::objectTransformPanel, &ObjectTransformPanel::detachRequested,
 		this, [this]() { detachTransformationsPanel(); });
 
-	connect(buttonGroupLighting, &QButtonGroup::buttonToggled, this, &ModelViewer::lightingType_toggled);
-
 	// Set default tab to Material Settings
 	tabWidgetVizAttribs->setCurrentIndex(0);
 
-	// Shortcut to toggle lighting mode
+	// Shortcut to toggle rendering mode (ADS <-> PBR)
 	shortcut = new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_P), this);
 	connect(shortcut, &QShortcut::activated, this, [this] {
-		auto* checked = qobject_cast<QRadioButton*>(buttonGroupLighting->checkedButton());
-		if (!checked)
-			return;
-
-		// assuming exactly two buttons in the group
-		const auto buttons = buttonGroupLighting->buttons();
-		QAbstractButton* other =
-			(buttons[0] == checked) ? buttons[1] : buttons[0];
-		other->setChecked(true);   // or other->click();
-		});
+		// Toggle between ADS and PBR based on current rendering mode
+		RenderingMode currentMode = _glWidget->getRenderingMode();
+		if (currentMode == RenderingMode::ADS_BLINN_PHONG)
+		{
+			onRenderingModeSelected("PBR");
+		}
+		else
+		{
+			onRenderingModeSelected("ADS");
+		}
+	});
 
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::materialApplied,
 		this, &ModelViewer::onCustomMaterialApplied);
@@ -238,6 +237,10 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	auto* previewWidget = Ui_ModelViewer::predefinedMaterialsPanel->getPreviewWidget();
 	connect(_glWidget, QOverload<int>::of(&GLWidget::renderingModeChanged),
 		this, [previewWidget](int){ previewWidget->update(); });
+
+	// Connect ViewToolbar rendering mode selection
+	connect(_glWidget->getViewToolbar(), &ViewToolbar::renderingModeSelected,
+		this, &ModelViewer::onRenderingModeSelected);
 
 	connect(Ui_ModelViewer::visualizationEnvironmentPanel, &VisualizationEnvironmentPanel::detachRequested,
 		this, &ModelViewer::detachEnvironmentPanel);
@@ -2674,33 +2677,32 @@ void ModelViewer::switchToRealisticRendering()
 {
 	if (_glWidget->getDisplayMode() == DisplayMode::REALSHADED)
 		return;
-	QToolTip::showText(groupBoxVisModel->mapToGlobal(groupBoxVisModel->pos()), "Switching to Realistic Display Mode", this);
 	_glWidget->setDisplayMode(DisplayMode::REALSHADED);
 }
 
-void ModelViewer::lightingType_toggled(QAbstractButton*, bool)
+void ModelViewer::onDisplayModeChanged(int mode)
 {
-	// Switch rendering modes but NOT page visibility
-	// Pages are now permanently disabled - unified MaterialPropertiesPanel is the only editor
-	if (radioButtonADSL->isChecked())
+	visualizationEnvironmentPanel->onDisplayModeChanged(mode);
+}
+
+void ModelViewer::onRenderingModeSelected(const QString& mode)
+{
+	if (mode == "ADS")
 	{
 		_glWidget->setRenderingMode(RenderingMode::ADS_BLINN_PHONG);
 		visualizationEnvironmentPanel->setPBRLightingMode(false);
 	}
-	if (radioButtonTXPBR->isChecked())
+	else if (mode == "PBR")
 	{
 		_glWidget->setRenderingMode(RenderingMode::PHYSICALLY_BASED_RENDERING);
 		visualizationEnvironmentPanel->setPBRLightingMode(true);
 		_glWidget->setSkyBoxTextureHDRI(true);
 		switchToRealisticRendering();
 	}
+	// Update toolbar button to reflect the new rendering mode
+	_glWidget->getViewToolbar()->updateRenderingModeButton(mode);
 	updateControls();
 	_glWidget->update();
-}
-
-void ModelViewer::onDisplayModeChanged(int mode)
-{	
-	visualizationEnvironmentPanel->onDisplayModeChanged(mode);	
 }
 
 void ModelViewer::onTextureCacheCleared()
