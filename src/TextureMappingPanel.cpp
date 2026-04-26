@@ -1280,7 +1280,10 @@ void TextureMappingPanel::updatePreview()
 {
 	if (!_preview) return;
 	_preview->setPreviewShape(static_cast<PreviewShape>(_ui->comboShape->currentIndex()));
-	_preview->setEnvironment(static_cast<EnvMode>(_ui->comboEnv->currentIndex()));
+	int envIdx = _ui->comboEnv->currentIndex();
+	if (_ui->comboEnv->count() == 3)
+		envIdx += 1;
+	_preview->setEnvironment(static_cast<EnvMode>(envIdx));
 	_preview->setExposureEV(_ui->sliderExposure->value() / 10.0f);		
 	_preview->update();
 }

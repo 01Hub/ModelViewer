@@ -1302,6 +1302,8 @@ void MaterialPropertiesPanel::updatePreview()
 	if (_ui->comboEnv)
 	{
 		int envIdx = _ui->comboEnv->currentIndex();
+		if (_ui->comboEnv->count() == 3)
+			envIdx += 1;
 		_preview->setEnvironment(static_cast<EnvMode>(envIdx));
 	}
 

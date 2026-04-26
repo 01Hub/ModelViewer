@@ -7,8 +7,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>445</width>
-    <height>936</height>
+    <width>449</width>
+    <height>945</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -188,23 +188,8 @@
       </item>
       <item>
        <widget class="QFrame" name="previewFrame">
-        <layout class="QVBoxLayout" name="previewLayout" stretch="1,0,0">
-         <property name="spacing">
-          <number>3</number>
-         </property>
-         <property name="leftMargin">
-          <number>1</number>
-         </property>
-         <property name="topMargin">
-          <number>1</number>
-         </property>
-         <property name="rightMargin">
-          <number>1</number>
-         </property>
-         <property name="bottomMargin">
-          <number>1</number>
-         </property>
-         <item>
+        <layout class="QGridLayout" name="gridLayout_3">
+         <item row="0" column="0" colspan="2">
           <widget class="MaterialPreviewWidget" name="previewWidget" native="true">
            <property name="sizePolicy">
             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
@@ -214,219 +199,245 @@
            </property>
            <property name="minimumSize">
             <size>
-             <width>268</width>
+             <width>0</width>
              <height>200</height>
             </size>
            </property>
           </widget>
          </item>
-         <item>
-          <layout class="QHBoxLayout" name="hPreviewTools">
-           <property name="spacing">
-            <number>4</number>
+         <item row="1" column="0">
+          <widget class="QLabel" name="lblSampleModel">
+           <property name="text">
+            <string>Sample Model</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QComboBox" name="comboShape">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>140</width>
+             <height>16777215</height>
+            </size>
            </property>
            <item>
-            <widget class="QComboBox" name="comboShape">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <item>
-              <property name="text">
-               <string>Sphere</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Cube</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Cylinder</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Plane</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Teapot</string>
-              </property>
-             </item>
-            </widget>
+            <property name="text">
+             <string>Sphere</string>
+            </property>
            </item>
            <item>
-            <widget class="QComboBox" name="comboEnv">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <item>
-              <property name="text">
-               <string>Studio</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Outdoor</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Office</string>
-              </property>
-             </item>
-            </widget>
+            <property name="text">
+             <string>Cube</string>
+            </property>
            </item>
-          </layout>
+           <item>
+            <property name="text">
+             <string>Cylinder</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Plane</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Teapot</string>
+            </property>
+           </item>
+          </widget>
          </item>
-         <item>
-          <layout class="QHBoxLayout" name="horizontalLayout_texMode">
+         <item row="2" column="0">
+          <widget class="QLabel" name="lblLightingRig">
+           <property name="text">
+            <string>Lighting Rig</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QComboBox" name="comboEnv">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>140</width>
+             <height>16777215</height>
+            </size>
+           </property>
            <item>
-            <widget class="QLabel" name="lblTexmode">
-             <property name="text">
-              <string>View Components</string>
-             </property>
-            </widget>
+            <property name="text">
+             <string>Viewer IBL</string>
+            </property>
            </item>
            <item>
-            <widget class="QComboBox" name="comboBoxTexMode">
-             <property name="maximumSize">
-              <size>
-               <width>140</width>
-               <height>16777215</height>
-              </size>
-             </property>
-             <item>
-              <property name="text">
-               <string>All Textures</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Albedo</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Metalness</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Roughness</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Normal</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Ambient Occlusion</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Height</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Opacity</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Emissive</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Clearcoat Color</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Clearcoat Roughness</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Clearcoat Normal</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Sheen Color</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Sheen Roughness</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Transmission</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>IOR</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Thickness</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Specular Factor</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Specular Color</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Anisotropy</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Iridescence</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Iridescence Thickness</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Diffuse Transmission</string>
-              </property>
-             </item>
-             <item>
-              <property name="text">
-               <string>Diffuse Transmission Color</string>
-              </property>
-             </item>
-            </widget>
+            <property name="text">
+             <string>Studio</string>
+            </property>
            </item>
-          </layout>
+           <item>
+            <property name="text">
+             <string>Outdoor</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Office</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="lblTexMode">
+           <property name="text">
+            <string>View Components</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QComboBox" name="comboBoxTexMode">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>140</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <item>
+            <property name="text">
+             <string>All Textures</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Albedo</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Metalness</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Roughness</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Normal</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Ambient Occlusion</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Height</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Opacity</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Emissive</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Clearcoat Color</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Clearcoat Roughness</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Clearcoat Normal</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Sheen Color</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Sheen Roughness</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Transmission</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>IOR</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Thickness</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Specular Factor</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Specular Color</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Anisotropy</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Iridescence</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Iridescence Thickness</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Diffuse Transmission</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Diffuse Transmission Color</string>
+            </property>
+           </item>
+          </widget>
          </item>
         </layout>
        </widget>
@@ -675,7 +686,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>421</width>
+            <width>425</width>
             <height>998</height>
            </rect>
           </property>
@@ -1522,7 +1533,7 @@
            <rect>
             <x>0</x>
             <y>0</y>
-            <width>423</width>
+            <width>427</width>
             <height>2361</height>
            </rect>
           </property>

@@ -14,7 +14,7 @@ class QWheelEvent;
 class GLWidget;
 
 enum class PreviewShape { Sphere, Cube, Cylinder, Plane, Teapot };
-enum class EnvMode { Studio, Outdoor, Office };
+enum class EnvMode { ViewerIBL, Studio, Outdoor, Office };
 enum class TexViewMode {
     All = 0, Albedo, Metalness, Roughness, Normal, AO, Height, Opacity, Emissive,
     ClearcoatColor, ClearcoatRoughness, ClearcoatNormal,
@@ -196,8 +196,8 @@ private:
     float _spinDamping = 2.0f;  // per-second damping (>0). Bigger = stops quicker
     float _spinMinSpeed = 5.0f; // deg/sec threshold to stop
 
-	EnvMode _currentEnv = EnvMode::Studio;
-	EnvMode _lastEnvMode = EnvMode::Studio;  // Track for regenerating environment maps
+	EnvMode _currentEnv = EnvMode::ViewerIBL;
+	EnvMode _lastEnvMode = EnvMode::Studio;  // Track for regenerating synthetic environment maps
 	float _exposureEV = 0.0f;
 	TexViewMode _texViewMode = TexViewMode::All;
 	PreviewProfile _profile = PreviewProfile::MaterialShowcase;

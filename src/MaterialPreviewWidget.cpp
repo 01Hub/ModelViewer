@@ -412,6 +412,9 @@ void MaterialPreviewWidget::paintGL()
 	// Clear color depends on environment
 	switch (_currentEnv)
 	{
+	case EnvMode::ViewerIBL:
+		glClearColor(0.12f, 0.12f, 0.12f, 1.0f); // neutral dark gray
+		break;
 	case EnvMode::Studio:
 		glClearColor(0.12f, 0.12f, 0.12f, 1.0f); // neutral dark gray
 		break;
@@ -700,6 +703,8 @@ void MaterialPreviewWidget::paintGL()
 	glActiveTexture(GL_TEXTURE22);
 	glBindTexture(GL_TEXTURE_2D, _currentMaterial.thicknessTextureId());
 
+	applyEnvPreset(_currentEnv, _profile);
+
 	// Bind BRDF LUT (always available from main viewer)
 	GLuint brdfLut = 0;
 	if (_glWidget)
@@ -709,8 +714,14 @@ void MaterialPreviewWidget::paintGL()
 	glBindTexture(GL_TEXTURE_2D, brdfLut);
 	_shader->setUniformValue("brdfLUT", 25);
 
-	// Only use environment maps if explicitly enabled in the main viewer
-	if (_glWidget && _glWidget->isEnvironmentMapEnabled())
+	const bool useViewerIBL = (_currentEnv == EnvMode::ViewerIBL);
+	const bool viewerIBLAvailable = useViewerIBL && _glWidget && _glWidget->isEnvironmentMapEnabled();
+	const bool syntheticIBLAvailable = !useViewerIBL && _envCubemap != 0 && _irradianceMap != 0;
+	const bool specularIBLAvailable = viewerIBLAvailable || syntheticIBLAvailable;
+
+	// Viewer IBL mode borrows the main viewer's environment maps. Synthetic modes
+	// use the preview's own procedural irradiance and direct-light rig.
+	if (viewerIBLAvailable)
 	{
 		// Use GLWidget's environment maps
 		GLuint envMap = _glWidget->getEnvironmentMap();
@@ -750,22 +761,25 @@ void MaterialPreviewWidget::paintGL()
 	}
 	else
 	{
-		// Environment disabled: disable specular IBL contribution
-		_shader->setUniformValue("envSpecularIntensity", 0.0f);
-		_shader->setUniformValue("envMapExposure", 0.0f);
+		// Synthetic preset or no viewer environment: use the preview's own cubemap.
+		const float specIntensity = (!_glWidget || _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
+		_shader->setUniformValue("envSpecularIntensity", syntheticIBLAvailable ? specIntensity : 0.0f);
+		_shader->setUniformValue("envMapExposure", syntheticIBLAvailable ? 1.0f : 0.0f);
 
 		// IMPORTANT: Still bind the procedurally-generated irradiance map for ADS diffuse lighting
 		// The diffuse IBL (line 882 in shader) needs the irradiance map to work properly
 		// Without this, envDiffuseIntensity multiplies by zero (black)
+		glActiveTexture(GL_TEXTURE23);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, syntheticIBLAvailable ? _envCubemap : 0);
+		_shader->setUniformValue("envCubemap", 23);
+
 		glActiveTexture(GL_TEXTURE24);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
 		_shader->setUniformValue("irradianceMap", 24);
 
-		// Bind dummy textures for specular maps (not used in ADS mode anyway)
-		glActiveTexture(GL_TEXTURE23);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
 		glActiveTexture(GL_TEXTURE26);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, 0);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, syntheticIBLAvailable ? _envCubemap : 0);
+		_shader->setUniformValue("prefilterMap", 26);
 
 		// Set identity rotation matrix when environment is disabled
 		QMatrix3x3 identityMatrix;
@@ -774,10 +788,8 @@ void MaterialPreviewWidget::paintGL()
 
 	_shader->setUniformValue("texViewMode", static_cast<int>(_texViewMode));
 	_shader->setUniformValue("renderingMode", _glWidget ? static_cast<int>(_glWidget->getRenderingMode()) : 1);
-	_shader->setUniformValue("envMapEnabled", _glWidget ? _glWidget->isEnvironmentMapEnabled() : false);
-	_shader->setUniformValue("useIBL", _glWidget ? _glWidget->isIBLEnabled() : true);
-
-	applyEnvPreset(_currentEnv, _profile);
+	_shader->setUniformValue("envMapEnabled", specularIBLAvailable);
+	_shader->setUniformValue("useIBL", useViewerIBL ? (_glWidget ? _glWidget->isIBLEnabled() : true) : true);
 
 	const MeshGL* mesh = nullptr;
 	switch (_currentShape)
@@ -839,6 +851,11 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 
 	switch (mode)
 	{
+	case EnvMode::ViewerIBL:
+		sky = { 0.60f, 0.65f, 0.70f };
+		ground = { 0.04f, 0.04f, 0.04f };
+		envDiffuse = 0.12f;
+		break;
 	case EnvMode::Studio:
 		sky = { 0.60f, 0.65f, 0.70f };
 		ground = { 0.04f, 0.04f, 0.04f };  // More subtle floor
@@ -886,8 +903,8 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 		envDiffuse *= 1.3f;  // Brighten ADS mode for better visibility and WYSIWYG preview
 	}
 
-	// --- Regenerate environment maps if mode changed ---
-	if (mode != _lastEnvMode)
+	// --- Regenerate procedural environment maps only for synthetic modes ---
+	if (mode != EnvMode::ViewerIBL && mode != _lastEnvMode)
 	{
 		generateDefaultEnvironmentCubemap();
 		generateIrradianceMap();
@@ -901,9 +918,8 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 	_shader->setUniformValue("groundColor", ground);
 	_shader->setUniformValue("envDiffuseIntensity", envDiffuse);
 
-	// Only enable specular IBL in PBR mode (procedural fallback environment)
-	// When using real environment maps, this is overridden by the main environment setup
-	float specIntensity = (_glWidget && _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
+	// Viewer IBL mode configures specular IBL when binding the main viewer maps.
+	float specIntensity = (mode == EnvMode::ViewerIBL && _glWidget && _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
 	_shader->setUniformValue("envSpecularIntensity", specIntensity);
 
 	_shader->setUniformValue("lights[0].position", L0);
@@ -1960,6 +1976,10 @@ void MaterialPreviewWidget::generateDefaultEnvironmentCubemap()
 	QVector3D skyColor, groundColor;
 	switch (_currentEnv)
 	{
+	case EnvMode::ViewerIBL:
+		skyColor = { 0.60f, 0.65f, 0.70f };
+		groundColor = { 0.08f, 0.08f, 0.08f };
+		break;
 	case EnvMode::Studio:
 		skyColor = { 0.60f, 0.65f, 0.70f };
 		groundColor = { 0.08f, 0.08f, 0.08f };
