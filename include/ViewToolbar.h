@@ -10,6 +10,7 @@
 class FlyOutViewButton;
 
 enum class CameraModeActions { ORBIT, FLY, FIRST_PERSON };
+enum class NavigationActions { ROTATE, PAN, ZOOM };
 enum class StandardViewActions { TOP, FRONT, LEFT, BOTTOM, REAR, RIGHT };
 enum class ViewModeActions { ISOMETRIC, DIMETRIC, TRIMETRIC };
 enum class DisplayModeActions { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
@@ -34,6 +35,7 @@ public:
     void setDefaultDisplayModeAction(DisplayModeActions mode);
     void setDefaultRenderingModeAction(RenderingModeActions mode);
     void updateRenderingModeButton(const QString& mode);
+    void deactivateAllNavigationModes();
 
     void setSwapVisibleChecked(bool checked);
 
@@ -82,12 +84,14 @@ private:
     bool _autoScrollLeft;
     QTimer* _hoverDelayTimer;
 
-    // Navigation buttons
-    QToolButton* _btnRotateView;
-    QToolButton* _btnPanView;
-    QToolButton* _btnZoomView;
+    // Navigation buttons (Fit All and Window Zoom stay separate)
     QToolButton* _btnFitAll;
     QToolButton* _btnWindowZoom;
+
+    // Navigation actions (Rotate, Pan, Zoom grouped in dropdown)
+    QAction* _rotateViewAction;
+    QAction* _panViewAction;
+    QAction* _zoomViewAction;
 
     // Camera mode actions
     QAction* _orbitAction;
@@ -131,6 +135,9 @@ private:
     // Flyout buttons and action maps
     FlyOutViewButton* _toolButtonCameraModes;
     QMap<CameraModeActions, QAction*> _cameraModeActions;
+
+    FlyOutViewButton* _toolButtonNavigation;
+    QMap<NavigationActions, QAction*> _navigationActions;
 
     FlyOutViewButton* _toolButtonViews;
     QMap<StandardViewActions, QAction*> _standardViewActions;

@@ -155,33 +155,65 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     // Now add all the toolbar buttons to _mainLayout
     // (Keep all your existing button creation code here, just replace 'layout' with '_mainLayout')
 
-    _btnRotateView = new QToolButton(this);
-    _btnRotateView->setStyleSheet(buttonStyleSheet);
-    _btnRotateView->setIcon(QIcon(":/icons/res/rotateview.png"));
-    _btnRotateView->setIconSize(QSize(48, 48));
-    _btnRotateView->setToolTip(tr("Rotate View"));
-    _btnRotateView->setAutoRaise(true);
-    _mainLayout->addWidget(_btnRotateView);
-    connect(_btnRotateView, &QToolButton::clicked, this, [this]() { emit rotateViewRequested(); });
+    // Navigation - Rotate, Pan, Zoom grouped in dropdown
+    _toolButtonNavigation = new FlyOutViewButton(this);
+    _toolButtonNavigation->setIcon(QIcon(":/icons/res/rotateview.png"));
+    _toolButtonNavigation->setIconSize(QSize(48, 48));
+    _toolButtonNavigation->setToolTip(tr("Navigation"));
+    _toolButtonNavigation->setPopupMode(QToolButton::DelayedPopup);
+    _toolButtonNavigation->setAutoRaise(true);
+    _mainLayout->addWidget(_toolButtonNavigation);
 
-    _btnPanView = new QToolButton(this);
-    _btnPanView->setStyleSheet(buttonStyleSheet);
-    _btnPanView->setIcon(QIcon(":/icons/res/panview.png"));
-    _btnPanView->setIconSize(QSize(48, 48));
-    _btnPanView->setToolTip(tr("Pan View"));
-    _btnPanView->setAutoRaise(true);
-    _mainLayout->addWidget(_btnPanView);
-    connect(_btnPanView, &QToolButton::clicked, this, [this]() { emit panViewRequested(); });
+    QMenu* navigationMenu = new QMenu;
+    navigationMenu->setStyleSheet(flyoutStyleSheet);
+    _rotateViewAction = navigationMenu->addAction(QIcon(":/icons/res/rotateview.png"), tr("Rotate View"));
+    _rotateViewAction->setCheckable(true);
+    _panViewAction = navigationMenu->addAction(QIcon(":/icons/res/panview.png"), tr("Pan View"));
+    _panViewAction->setCheckable(true);
+    _zoomViewAction = navigationMenu->addAction(QIcon(":/icons/res/zoomview.png"), tr("Zoom View"));
+    _zoomViewAction->setCheckable(true);
 
-    _btnZoomView = new QToolButton(this);
-    _btnZoomView->setStyleSheet(buttonStyleSheet);
-    _btnZoomView->setIcon(QIcon(":/icons/res/zoomview.png"));
-    _btnZoomView->setIconSize(QSize(48, 48));
-    _btnZoomView->setToolTip(tr("Zoom View"));
-    _btnZoomView->setAutoRaise(true);
-    _mainLayout->addWidget(_btnZoomView);
-    connect(_btnZoomView, &QToolButton::clicked, this, [this]() { emit zoomViewRequested(); });
+    connect(_rotateViewAction, &QAction::triggered, this,
+        [this]() {
+            // Uncheck other navigation modes
+            _panViewAction->setChecked(false);
+            _zoomViewAction->setChecked(false);
+            _rotateViewAction->setChecked(true);
+            _toolButtonNavigation->setDefaultAction(_rotateViewAction);
+            emit rotateViewRequested();
+        }
+    );
 
+    connect(_panViewAction, &QAction::triggered, this,
+        [this]() {
+            // Uncheck other navigation modes
+            _rotateViewAction->setChecked(false);
+            _zoomViewAction->setChecked(false);
+            _panViewAction->setChecked(true);
+            _toolButtonNavigation->setDefaultAction(_panViewAction);
+            emit panViewRequested();
+        }
+    );
+
+    connect(_zoomViewAction, &QAction::triggered, this,
+        [this]() {
+            // Uncheck other navigation modes
+            _rotateViewAction->setChecked(false);
+            _panViewAction->setChecked(false);
+            _zoomViewAction->setChecked(true);
+            _toolButtonNavigation->setDefaultAction(_zoomViewAction);
+            emit zoomViewRequested();
+        }
+    );
+
+    _navigationActions[NavigationActions::ROTATE] = _rotateViewAction;
+    _navigationActions[NavigationActions::PAN] = _panViewAction;
+    _navigationActions[NavigationActions::ZOOM] = _zoomViewAction;
+
+    _toolButtonNavigation->setMenu(navigationMenu);
+    _toolButtonNavigation->setDefaultAction(_rotateViewAction);  // Default to Rotate
+
+    // Separate navigation buttons
     _btnFitAll = new QToolButton(this);
     _btnFitAll->setStyleSheet(buttonStyleSheet);
     _btnFitAll->setIcon(QIcon(":/icons/res/fit-all.png"));
@@ -775,12 +807,15 @@ bool ViewToolbar::eventFilter(QObject* obj, QEvent* event)
 
 void ViewToolbar::retranslateUI()
 {
-	// Main navigation buttons
-	_btnRotateView->setToolTip(tr("Rotate View"));
-	_btnPanView->setToolTip(tr("Pan View"));
-	_btnZoomView->setToolTip(tr("Zoom View"));
+	// Separate navigation buttons
 	_btnFitAll->setToolTip(tr("Fit All"));
 	_btnWindowZoom->setToolTip(tr("Window Zoom"));
+
+	// Navigation dropdown
+	_toolButtonNavigation->setToolTip(tr("Navigation"));
+	_rotateViewAction->setText(tr("Rotate View"));
+	_panViewAction->setText(tr("Pan View"));
+	_zoomViewAction->setText(tr("Zoom View"));
 
 	// Camera Modes
 	_toolButtonCameraModes->setToolTip(tr("Camera Modes"));
@@ -841,6 +876,13 @@ void ViewToolbar::updateRenderingModeButton(const QString& mode)
 	{
 		_toolButtonRenderingMode->setDefaultAction(_pbrAction);
 	}
+}
+
+void ViewToolbar::deactivateAllNavigationModes()
+{
+	_rotateViewAction->setChecked(false);
+	_panViewAction->setChecked(false);
+	_zoomViewAction->setChecked(false);
 }
 
 void ViewToolbar::scrollLeft()

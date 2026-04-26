@@ -242,6 +242,16 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(_glWidget->getViewToolbar(), &ViewToolbar::renderingModeSelected,
 		this, &ModelViewer::onRenderingModeSelected);
 
+	// Connect ViewToolbar navigation selection
+	connect(_glWidget->getViewToolbar(), &ViewToolbar::rotateViewRequested,
+		_glWidget, [this]() { _glWidget->setRotationActive(true); });
+
+	connect(_glWidget->getViewToolbar(), &ViewToolbar::panViewRequested,
+		_glWidget, [this]() { _glWidget->setPanningActive(true); });
+
+	connect(_glWidget->getViewToolbar(), &ViewToolbar::zoomViewRequested,
+		_glWidget, [this]() { _glWidget->setZoomingActive(true); });
+
 	connect(Ui_ModelViewer::visualizationEnvironmentPanel, &VisualizationEnvironmentPanel::detachRequested,
 		this, &ModelViewer::detachEnvironmentPanel);
 

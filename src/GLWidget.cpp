@@ -8062,6 +8062,10 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 		setCursor(QCursor(Qt::ArrowCursor));
 		MainWindow::showStatusMessage("");
 
+		// Deactivate navigation mode buttons in toolbar
+		if (_viewToolbar)
+			_viewToolbar->deactivateAllNavigationModes();
+
 		_selectedIDs.clear();  // Clear selection in GLWidget
 		_viewer->deselectAll();  // Also clear in viewer
 	}
