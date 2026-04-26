@@ -820,6 +820,33 @@ void GLWidget::initializeGL()
 	loadEnvMap();
 	// IBL Map
 	loadIrradianceMap();
+
+	// Load preset environment maps (Studio, Outdoor, Office)
+	const QString dataDir = PathUtils::getDataDirectory();
+
+	// Load preset environment maps (Studio, Outdoor, Office)
+	// Each preset loads an HDR file, converts to cubemap, and generates IBL maps (irradiance + prefilter)
+	{
+		QString studioHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/studio.hdr";
+		_studioEnvironmentMap = loadPresetEnvironmentMap(studioHDRPath);
+		if (_studioEnvironmentMap)
+			generatePresetIBLMaps(_studioEnvironmentMap, _studioIrradianceMap, _studioPrefilterMap);
+	}
+
+	{
+		QString outdoorHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/outdoor.hdr";
+		_outdoorEnvironmentMap = loadPresetEnvironmentMap(outdoorHDRPath);
+		if (_outdoorEnvironmentMap)
+			generatePresetIBLMaps(_outdoorEnvironmentMap, _outdoorIrradianceMap, _outdoorPrefilterMap);
+	}
+
+	{
+		QString officeHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/office.hdr";
+		_officeEnvironmentMap = loadPresetEnvironmentMap(officeHDRPath);
+		if (_officeEnvironmentMap)
+			generatePresetIBLMaps(_officeEnvironmentMap, _officeIrradianceMap, _officePrefilterMap);
+	}
+
 	// Shadow mapping
 	loadFloor();
 
@@ -4724,31 +4751,314 @@ void GLWidget::loadIrradianceMap()
 	glDeleteRenderbuffers(1, &captureRBO);
 }
 
-GLuint GLWidget::getEnvironmentMap(bool regenerate)
+// Helper: Load HDR file and convert to cubemap
+// Returns the created cubemap texture ID (or 0 on failure)
+GLuint GLWidget::loadPresetEnvironmentMap(const QString& hdrFilePath)
 {
-	if (regenerate && !_currentSkyboxFolder.isEmpty())
+	// Load equirectangular HDR
+	int imgWidth, imgHeight, channels;
+	stbi_set_flip_vertically_on_load(true);
+	float* data = stbi_loadf(hdrFilePath.toStdString().c_str(), &imgWidth, &imgHeight, &channels, 0);
+
+	if (!data || imgWidth != 2 * imgHeight)
 	{
-		loadEnvMap();
+		qWarning() << "Failed to load HDR file:" << hdrFilePath;
+		if (data) stbi_image_free(data);
+		return 0;
 	}
-	return _environmentMap;
+
+	// Create temporary 2D texture for equirectangular source
+	GLuint equirectTexture;
+	glGenTextures(1, &equirectTexture);
+	glBindTexture(GL_TEXTURE_2D, equirectTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, imgWidth, imgHeight, 0, GL_RGB, GL_FLOAT, data);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	stbi_image_free(data);
+
+	// Create cubemap
+	GLuint cubemap;
+	glGenTextures(1, &cubemap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap);
+
+	int cubeSize = 512;
+	for (int mip = 0; mip < static_cast<int>(std::log2(cubeSize)) + 1; ++mip)
+	{
+		int mipSize = cubeSize >> mip;
+		for (int i = 0; i < 6; ++i)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
+				mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
+		}
+	}
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	// Setup FBO for conversion
+	GLuint framebuffer, depthBuffer;
+	glGenFramebuffers(1, &framebuffer);
+	glGenRenderbuffers(1, &depthBuffer);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+	glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, cubeSize, cubeSize);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+
+	// Convert equirectangular to cubemap
+	_equirectToCubeShader->bind();
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, equirectTexture);
+	_equirectToCubeShader->setUniformValue("equirectangularMap", 0);
+
+	glViewport(0, 0, cubeSize, cubeSize);
+
+	QMatrix4x4 captureViews[] = {
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1,  0,  0), QVector3D(0, -1,  0)); return m; }(),
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(-1,  0,  0), QVector3D(0, -1,  0)); return m; }(),
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  1,  0), QVector3D(0,  0,  1)); return m; }(),
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0, -1,  0), QVector3D(0,  0, -1)); return m; }(),
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  0,  1), QVector3D(0, -1,  0)); return m; }(),
+		[]() { QMatrix4x4 m; m.lookAt(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0,  0, -1), QVector3D(0, -1,  0)); return m; }()
+	};
+
+	QMatrix4x4 captureProjection;
+	captureProjection.perspective(90.0f, 1.0f, 0.1f, 10.0f);
+	_equirectToCubeShader->setUniformValue("projection", captureProjection);
+
+	for (int i = 0; i < 6; ++i)
+	{
+		_equirectToCubeShader->setUniformValue("view", captureViews[i]);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, cubemap, 0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		renderConversionCube();
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+	glDeleteFramebuffers(1, &framebuffer);
+	glDeleteRenderbuffers(1, &depthBuffer);
+	glDeleteTextures(1, &equirectTexture);
+
+	return cubemap;
 }
 
-GLuint GLWidget::getIrradianceMap(bool regenerate)
+// Helper: Generate irradiance and prefilter maps for a preset cubemap
+// Returns true on success
+bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap)
 {
-	if (regenerate && !_currentSkyboxFolder.isEmpty())
+	if (!sourceCubemap) return false;
+
+	// Setup FBO for offscreen rendering
+	unsigned int captureFBO, captureRBO;
+	glGenFramebuffers(1, &captureFBO);
+	glGenRenderbuffers(1, &captureRBO);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, 512, 512);
+	glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, captureRBO);
+
+	// Create irradiance map
+	if (outIrradianceMap)
+		glDeleteTextures(1, &outIrradianceMap);
+	glGenTextures(1, &outIrradianceMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, outIrradianceMap);
+
+	constexpr int irradianceSize = 64;
+	for (unsigned int i = 0; i < 6; ++i)
 	{
-		loadIrradianceMap();
+		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
+			irradianceSize, irradianceSize, 0, GL_RGB, GL_FLOAT, nullptr);
 	}
-	return _irradianceMap;
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	// Generate irradiance
+	_irradianceShader->bind();
+	_irradianceShader->setUniformValue("environmentMap", 1);
+	_irradianceShader->setUniformValue("resolution", QVector2D(irradianceSize, irradianceSize));
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, sourceCubemap);
+
+	glViewport(0, 0, irradianceSize, irradianceSize);
+	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+	glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, irradianceSize, irradianceSize);
+
+	for (unsigned int i = 0; i < 6; ++i)
+	{
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+			GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, outIrradianceMap, 0);
+
+		GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+		{
+			qWarning() << "Irradiance FBO incomplete at face" << i;
+			continue;
+		}
+
+		_irradianceShader->bind();
+		setIBLFaceBasis(_irradianceShader.get(), i);
+
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		drawFullscreenTriangle();
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+
+	// Create prefilter map
+	if (outPrefilterMap)
+		glDeleteTextures(1, &outPrefilterMap);
+	glGenTextures(1, &outPrefilterMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, outPrefilterMap);
+
+	constexpr int prefilterSize = 256;
+	unsigned int maxMipLevels = static_cast<unsigned int>(std::log2(prefilterSize)) + 1;
+
+	// Allocate all mip levels
+	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+	{
+		unsigned int mipSize = static_cast<unsigned int>(prefilterSize * std::pow(0.5, mip));
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
+				mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
+		}
+	}
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	// Get source resolution for importance sampling
+	GLint envMapWidth = 512;
+	glBindTexture(GL_TEXTURE_CUBE_MAP, sourceCubemap);
+	glGetTexLevelParameteriv(GL_TEXTURE_CUBE_MAP_POSITIVE_X, 0, GL_TEXTURE_WIDTH, &envMapWidth);
+
+	// Render prefilter mip levels
+	_prefilterShader->bind();
+	_prefilterShader->setUniformValue("environmentMap", 1);
+	_prefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, sourceCubemap);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+
+	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+	{
+		unsigned int mipWidth = prefilterSize * std::pow(0.5, mip);
+		unsigned int mipHeight = prefilterSize * std::pow(0.5, mip);
+
+		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
+		glViewport(0, 0, mipWidth, mipHeight);
+
+		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
+		_prefilterShader->bind();
+		_prefilterShader->setUniformValue("roughness", roughness);
+		_prefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
+
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, outPrefilterMap, mip);
+
+			GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+			{
+				qWarning() << "Prefilter FBO incomplete at mip" << mip << "face" << i;
+				continue;
+			}
+
+			_prefilterShader->bind();
+			setIBLFaceBasis(_prefilterShader.get(), i);
+
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			drawFullscreenTriangle();
+		}
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+
+	glDeleteFramebuffers(1, &captureFBO);
+	glDeleteRenderbuffers(1, &captureRBO);
+
+	return true;
 }
 
-GLuint GLWidget::getPrefilterMap(bool regenerate)
+GLuint GLWidget::getEnvironmentMap(int index, bool regenerate)
 {
-	if (regenerate && !_currentSkyboxFolder.isEmpty())
+	switch(index)
 	{
-		loadIrradianceMap();  // This creates both irradiance AND prefilter
+		case 0:  // ViewerIBL
+			if (regenerate && !_currentSkyboxFolder.isEmpty())
+			{
+				loadEnvMap();
+			}
+			return _environmentMap;
+		case 1:  // Studio
+			return _studioEnvironmentMap;
+		case 2:  // Outdoor
+			return _outdoorEnvironmentMap;
+		case 3:  // Office
+			return _officeEnvironmentMap;
+		default:
+			return 0;
 	}
-	return _prefilterMap;
+}
+
+GLuint GLWidget::getIrradianceMap(int index, bool regenerate)
+{
+	switch(index)
+	{
+		case 0:  // ViewerIBL
+			if (regenerate && !_currentSkyboxFolder.isEmpty())
+			{
+				loadIrradianceMap();
+			}
+			return _irradianceMap;
+		case 1:  // Studio
+			return _studioIrradianceMap;
+		case 2:  // Outdoor
+			return _outdoorIrradianceMap;
+		case 3:  // Office
+			return _officeIrradianceMap;
+		default:
+			return 0;
+	}
+}
+
+GLuint GLWidget::getPrefilterMap(int index, bool regenerate)
+{
+	switch(index)
+	{
+		case 0:  // ViewerIBL
+			if (regenerate && !_currentSkyboxFolder.isEmpty())
+			{
+				loadIrradianceMap();  // This creates both irradiance AND prefilter
+			}
+			return _prefilterMap;
+		case 1:  // Studio
+			return _studioPrefilterMap;
+		case 2:  // Outdoor
+			return _outdoorPrefilterMap;
+		case 3:  // Office
+			return _officePrefilterMap;
+		default:
+			return 0;
+	}
 }
 
 void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)

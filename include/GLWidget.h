@@ -377,9 +377,10 @@ public:
 	float getScreenGamma() const;
 
 	// Environment mapping accessors
-	GLuint getEnvironmentMap(bool regenerate = false);
-	GLuint getIrradianceMap(bool regenerate = false);
-	GLuint getPrefilterMap(bool regenerate = false);
+	// index: 0 = ViewerIBL, 1 = Studio, 2 = Outdoor, 3 = Office
+	GLuint getEnvironmentMap(int index = 0, bool regenerate = false);
+	GLuint getIrradianceMap(int index = 0, bool regenerate = false);
+	GLuint getPrefilterMap(int index = 0, bool regenerate = false);
 	GLuint getBrdfLUT() const { return _brdfLUTTexture; }
 	bool isEnvironmentMapEnabled() const { return _envMapEnabled; }
 	bool isIBLEnabled() const { return _useIBL; }
@@ -556,6 +557,8 @@ private:
 
 	void loadEnvMap();
 	void loadIrradianceMap();
+	GLuint loadPresetEnvironmentMap(const QString& hdrFilePath);
+	bool generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap);
 	void loadFloor();
 	void applyFloorPlaneMaterialSettings();
 	void updateMainLightPosition(float halfObjectSize);
@@ -839,6 +842,19 @@ private:
 	unsigned int             _prefilterMap;
 	unsigned int             _brdfLUTTexture;
 	QString					 _currentSkyboxFolder;  // Track the current skybox folder path for environment map regeneration
+
+	// Preset environment maps (index 1=Studio, 2=Outdoor, 3=Office)
+	unsigned int             _studioEnvironmentMap = 0;
+	unsigned int             _studioIrradianceMap = 0;
+	unsigned int             _studioPrefilterMap = 0;
+
+	unsigned int             _outdoorEnvironmentMap = 0;
+	unsigned int             _outdoorIrradianceMap = 0;
+	unsigned int             _outdoorPrefilterMap = 0;
+
+	unsigned int             _officeEnvironmentMap = 0;
+	unsigned int             _officeIrradianceMap = 0;
+	unsigned int             _officePrefilterMap = 0;
 	unsigned int			 _skyboxFBO = 0;
 	unsigned int			 _skyboxColorTexture = 0;
 	unsigned int			 _skyboxDepthBuffer = 0;

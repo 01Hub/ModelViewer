@@ -706,6 +706,7 @@ void MaterialPreviewWidget::paintGL()
 	applyEnvPreset(_currentEnv, _profile);
 
 	// Bind BRDF LUT (always available from main viewer)
+	// MaterialPreviewWidget has its own GL context, so texture units don't conflict with main GLWidget/TriangleMesh
 	GLuint brdfLut = 0;
 	if (_glWidget)
 		brdfLut = _glWidget->getBrdfLUT();
@@ -716,19 +717,35 @@ void MaterialPreviewWidget::paintGL()
 
 	const bool useViewerIBL = (_currentEnv == EnvMode::ViewerIBL);
 	const bool viewerIBLAvailable = useViewerIBL && _glWidget && _glWidget->isEnvironmentMapEnabled();
-	const bool syntheticIBLAvailable = !useViewerIBL && _envCubemap != 0 && _irradianceMap != 0;
-	const bool specularIBLAvailable = viewerIBLAvailable || syntheticIBLAvailable;
+	const bool presetAvailable = !useViewerIBL && _glWidget;  // Preset environments are always available from GLWidget
+	const bool specularIBLAvailable = viewerIBLAvailable || presetAvailable;
 
-	// Viewer IBL mode borrows the main viewer's environment maps. Synthetic modes
-	// use the preview's own procedural irradiance and direct-light rig.
-	if (viewerIBLAvailable)
+	// Use GLWidget's environment maps (ViewerIBL or presets)
+	// Index: 0=ViewerIBL, 1=Studio, 2=Outdoor, 3=Office
+	if (viewerIBLAvailable || !useViewerIBL)
 	{
-		// Use GLWidget's environment maps
-		GLuint envMap = _glWidget->getEnvironmentMap();
-		GLuint irrMap = _glWidget->getIrradianceMap();
-		GLuint prefilterMap = _glWidget->getPrefilterMap();
-		float iblExposure = _glWidget->getIBLExposure();
+		int envIndex = 0;  // Default to ViewerIBL
 
+		// Map current environment mode to index
+		if (!useViewerIBL && _glWidget)
+		{
+			if (_currentEnv == EnvMode::Studio)
+				envIndex = 1;
+			else if (_currentEnv == EnvMode::Outdoor)
+				envIndex = 2;
+			else if (_currentEnv == EnvMode::Office)
+				envIndex = 3;
+		}
+
+		// Get maps from GLWidget
+		GLuint envMap = _glWidget ? _glWidget->getEnvironmentMap(envIndex) : 0;
+		GLuint irrMap = _glWidget ? _glWidget->getIrradianceMap(envIndex) : 0;
+		GLuint prefilterMap = _glWidget ? _glWidget->getPrefilterMap(envIndex) : 0;
+
+		// Use consistent IBL exposure for all environments (presets use same exposure as ViewerIBL)
+		float iblExposure = _glWidget ? _glWidget->getIBLExposure() : 1.0f;
+
+		// MaterialPreviewWidget has its own GL context, so we can safely use any texture units without conflicts
 		glActiveTexture(GL_TEXTURE23);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, envMap);
 		_shader->setUniformValue("envCubemap", 23);
@@ -741,7 +758,7 @@ void MaterialPreviewWidget::paintGL()
 		glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterMap);
 		_shader->setUniformValue("prefilterMap", 26);
 
-		// Pass IBL exposure from main viewer (matches main_scene.frag behavior)
+		// Pass IBL exposure (ViewerIBL uses main viewer's exposure, presets use 1.0)
 		_shader->setUniformValue("envMapExposure", static_cast<float>(iblExposure));
 
 		// Create rotation matrix from preview rotations (inverse of model matrix)
@@ -758,32 +775,6 @@ void MaterialPreviewWidget::paintGL()
 		// In ADS mode, IBL should be disabled since it's Blinn-Phong, not PBR
 		float specIntensity = (_glWidget && _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
 		_shader->setUniformValue("envSpecularIntensity", specIntensity);
-	}
-	else
-	{
-		// Synthetic preset or no viewer environment: use the preview's own cubemap.
-		const float specIntensity = (!_glWidget || _glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING) ? 1.0f : 0.0f;
-		_shader->setUniformValue("envSpecularIntensity", syntheticIBLAvailable ? specIntensity : 0.0f);
-		_shader->setUniformValue("envMapExposure", syntheticIBLAvailable ? 1.0f : 0.0f);
-
-		// IMPORTANT: Still bind the procedurally-generated irradiance map for ADS diffuse lighting
-		// The diffuse IBL (line 882 in shader) needs the irradiance map to work properly
-		// Without this, envDiffuseIntensity multiplies by zero (black)
-		glActiveTexture(GL_TEXTURE23);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, syntheticIBLAvailable ? _envCubemap : 0);
-		_shader->setUniformValue("envCubemap", 23);
-
-		glActiveTexture(GL_TEXTURE24);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
-		_shader->setUniformValue("irradianceMap", 24);
-
-		glActiveTexture(GL_TEXTURE26);
-		glBindTexture(GL_TEXTURE_CUBE_MAP, syntheticIBLAvailable ? _envCubemap : 0);
-		_shader->setUniformValue("prefilterMap", 26);
-
-		// Set identity rotation matrix when environment is disabled
-		QMatrix3x3 identityMatrix;
-		_shader->setUniformValue("previewRotationMatrix", identityMatrix);
 	}
 
 	_shader->setUniformValue("texViewMode", static_cast<int>(_texViewMode));
@@ -903,13 +894,9 @@ void MaterialPreviewWidget::applyEnvPreset(EnvMode mode, PreviewProfile profile)
 		envDiffuse *= 1.3f;  // Brighten ADS mode for better visibility and WYSIWYG preview
 	}
 
-	// --- Regenerate procedural environment maps only for synthetic modes ---
-	if (mode != EnvMode::ViewerIBL && mode != _lastEnvMode)
-	{
-		generateDefaultEnvironmentCubemap();
-		generateIrradianceMap();
-		_lastEnvMode = mode;
-	}
+	// --- Note: Preset environments (Studio, Outdoor, Office) are now loaded from GLWidget HDR files ---
+	// --- We no longer generate procedural maps for presets; they use prefiltered HDR data ---
+	_lastEnvMode = mode;
 
 	// --- push to shader ---
 	_shader->setUniformValue("previewProfile", static_cast<int>(_profile));
