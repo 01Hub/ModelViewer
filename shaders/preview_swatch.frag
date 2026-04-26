@@ -177,6 +177,21 @@ uniform float sheenRoughness;
 uniform float transmission;
 uniform float IOR;
 uniform float specular;
+uniform int   renderingMode; // 0 = ADS Blinn-Phong, 1 = PBR
+uniform bool  envMapEnabled;
+uniform bool  useIBL;
+uniform bool  unlitMaterial;
+uniform vec3  adsAmbient;
+uniform vec3  adsDiffuse;
+uniform vec3  adsSpecular;
+uniform float adsShininess;
+uniform float specularFactor;
+uniform vec3  specularColorFactor;
+uniform float anisotropyStrength;
+uniform float anisotropyRotationFactor;
+uniform float occlusionStrength;
+uniform float diffuseTransmissionFactor;
+uniform vec3  diffuseTransmissionColorFactor;
 
 // ----- KHR_materials_iridescence -----
 uniform float iridescence;
@@ -441,8 +456,88 @@ vec3 fresnelSchlick(float cosTheta, vec3 F0, vec3 F90)
     return F0 + (F90 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+const float PI = 3.14159265359;
+
+float distributionGGX(vec3 N, vec3 H, float perceptualRoughness)
+{
+    float a = perceptualRoughness * perceptualRoughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    return a2 / max(PI * denom * denom, 0.001);
+}
+
+float geometrySchlickGGX(float NdotV, float perceptualRoughness)
+{
+    float r = perceptualRoughness + 1.0;
+    float k = (r * r) / 8.0;
+    return NdotV / max(NdotV * (1.0 - k) + k, 0.001);
+}
+
+float geometrySmith(vec3 N, vec3 V, vec3 L, float perceptualRoughness)
+{
+    return geometrySchlickGGX(max(dot(N, V), 0.0), perceptualRoughness) *
+           geometrySchlickGGX(max(dot(N, L), 0.0), perceptualRoughness);
+}
+
+vec3 getBitangent(vec3 N, vec3 T, float handedness)
+{
+    return normalize(cross(N, T)) * handedness;
+}
+
+vec3 decodeAnisotropyDirection(vec3 texel, float rotation)
+{
+    vec2 direction = texel.xy * 2.0 - 1.0;
+    float c = cos(rotation);
+    float s = sin(rotation);
+    return vec3(c * direction.x - s * direction.y, s * direction.x + c * direction.y, texel.z);
+}
+
+float distributionGGXAnisotropic(vec3 N, vec3 H, vec3 T, vec3 B, float roughness, float anisotropy)
+{
+    float aspect = sqrt(max(1.0 - anisotropy * 0.9, 0.1));
+    float ax = max(roughness * roughness / aspect, 0.001);
+    float ay = max(roughness * roughness * aspect, 0.001);
+    float TdotH = dot(T, H) / ax;
+    float BdotH = dot(B, H) / ay;
+    float NdotH = max(dot(N, H), 0.0);
+    float denom = TdotH * TdotH + BdotH * BdotH + NdotH * NdotH;
+    return 1.0 / max(PI * ax * ay * denom * denom, 0.001);
+}
+
+vec3 calculateSheenLayer(vec3 N, vec3 V, vec3 L, vec3 color, float rough)
+{
+    vec3 H = normalize(V + L);
+    float NoL = max(dot(N, L), 0.0);
+    float NoH = max(dot(N, H), 0.0);
+    float invR = clamp(1.0 - rough, 0.0, 1.0);
+    float sheen = pow(clamp(1.0 - NoH, 0.0, 1.0), mix(2.0, 0.25, invR));
+    return color * sheen * NoL;
+}
+
+vec3 calculateSheenIBLLayer(vec3 N, vec3 V, vec3 color, float rough)
+{
+    float NoV = max(dot(N, V), 0.0);
+    float grazing = pow(clamp(1.0 - NoV, 0.0, 1.0), mix(5.0, 2.0, rough));
+    vec3 irradiance = texture(irradianceMap, N).rgb;
+    return irradiance * color * grazing;
+}
+
+vec3 calculateClearcoatLayer(vec3 N, vec3 V, vec3 L, float amount, float rough)
+{
+    vec3 H = normalize(V + L);
+    float NoL = max(dot(N, L), 0.0);
+    float NoV = max(dot(N, V), 0.0);
+    float VoH = max(dot(V, H), 0.0);
+    float D = distributionGGX(N, H, rough);
+    float G = geometrySmith(N, V, L, rough);
+    vec3 F = fresnelSchlick(VoH, vec3(0.04), vec3(1.0));
+    return amount * (D * G * F) / max(4.0 * NoV * NoL, 0.001) * NoL;
+}
+
 // Specular IBL from prefiltered environment map using BRDF lookup table (matches main_scene.frag)
-vec3 computeSpecularIBL(vec3 V, vec3 N, float roughness, float metalness, vec3 albedo)
+vec3 computeSpecularIBL(vec3 V, vec3 N, float roughness, vec3 F0, vec3 F90)
 {
     // Reflect view direction
     vec3 R = reflect(-V, N);
@@ -454,17 +549,8 @@ vec3 computeSpecularIBL(vec3 V, vec3 N, float roughness, float metalness, vec3 a
     // Fresnel effect: metals at 0 degrees have high reflectivity, dielectrics are low
     float dotNV = max(dot(N, V), 0.0);
 
-    // F0 (reflectance at normal incidence):
-    // - Metals: use albedo color (reflectance varies by wavelength)
-    // - Non-metals: 0.04 (typical dielectric value)
-    vec3 F0 = mix(vec3(0.04), albedo, metalness);
-
-    // F90 varies with roughness: smooth materials reflect strongly at all angles,
-    // rough materials reflect less (matches main_scene.frag behavior on line 1858)
-    vec3 F90_effective = max(vec3(1.0 - roughness), F0);
-
     // Fresnel approximation
-    vec3 Fibl = fresnelSchlick(dotNV, F0, F90_effective);
+    vec3 Fibl = fresnelSchlick(dotNV, F0, F90);
 
     // Sample prefiltered environment map with roughness-based LOD
     // The prefilter map was generated with 90° X-axis rotation (see GLWidget::setIBLFaceBasis)
@@ -842,143 +928,154 @@ void main()
         : sheenRoughness;
     sheenRoughnessVal = clamp(sheenRoughnessVal, 0.0, 1.0);
 
-    // ----- Metal vs dielectric split -----
-    vec3 dielectricDiffuse  = albedoVal;
-    vec3 dielectricSpecular = vec3(0.04);
-    vec3 metallicDiffuse    = vec3(0.0);
-    vec3 metallicSpecular   = albedoVal;
-
-    vec3 diffuseColor  = mix(dielectricDiffuse,  metallicDiffuse,  metalnessVal);
-    vec3 specularColor = mix(dielectricSpecular, metallicSpecular, metalnessVal);
-
-    // ----- Direct lighting -----
-    // Boost ambient in ADS mode (when envSpecularIntensity is 0) for better fill light
-    float baseAmbient = (envSpecularIntensity < 0.5) ? 0.35 : 0.075;  // ADS: 0.35, PBR: 0.075
-    vec3 color = vec3(baseAmbient) * albedoVal; // base ambient light
-
-    for (int i = 0; i < numLights; ++i)
-    {
-        // Your rig: treat .position as an incoming direction
-        vec3 L = normalize(lights[i].position);
-
-        float NdotL = max(dot(N, L), 0.0);
-        if (NdotL <= 0.0) continue;
-
-        vec3 H = normalize(V + L);
-        float NdotH = max(dot(N, H), 0.0);
-
-        float specPow    = clamp(mix(8.0, 128.0, 1.0 - roughnessVal), 1.0, 256.0);
-        float specFactor = pow(NdotH, specPow);
-
-        vec3 diffuse = diffuseColor * NdotL;
-        vec3 spec    = specularColor * specFactor;
-
-        // Boost light intensity in ADS mode for brighter direct lighting
-        vec3 lightColor = lights[i].color;
-        if (envSpecularIntensity < 0.5)  // ADS mode
-            lightColor *= 1.5;  // 50% brighter
-
-        color += (diffuse + spec) * lightColor * NdotL;
-    }
-
-    // --- Environment-based ambient and specular IBL ---
     vec3 N_normalized = normalize(N);
     vec3 V_normalized = normalize(V);
+    roughnessVal = clamp(roughnessVal, 0.0001, 1.0);
+    metalnessVal = clamp(metalnessVal, 0.0, 1.0);
+    ao = mix(1.0, ao, occlusionStrength);
 
-    // Diffuse IBL from irradiance map (or fallback to hemisphere)
-    // N is already in world space, so sample environment directly without rotation
-    // As object rotates, normal direction changes naturally in world space
-    // Environment remains stationary in world space
-    vec3 irradiance = texture(irradianceMap, N_normalized).rgb;
-    vec3 diffuseIBL = albedoVal * irradiance * envDiffuseIntensity * ao;
-    color += diffuseIBL;
+    vec3 color = vec3(0.0);
 
-    // Specular IBL from environment cubemap (modulated by metalness and Fresnel)
-    vec3 specularIBL = computeSpecularIBL(V_normalized, N_normalized, roughnessVal, metalnessVal, albedoVal);
-    color += specularIBL;
-
-    // ----- Clearcoat (simple lobe using light 0 direction-like) -----
-    if (clearcoatVal > 0.001 && numLights > 0)
+    if (renderingMode == 0)
     {
-        vec3 Lc = normalize(lights[0].position);
-        vec3 Hc = normalize(V + Lc);
-        float ccNdotH   = max(dot(clearcoatN, Hc), 0.0);
-        float ccSpecPow = clamp(mix(64.0, 512.0, 1.0 - clearcoatRoughnessVal), 1.0, 1024.0);
-        float ccSpec    = pow(ccNdotH, ccSpecPow);
-        color += vec3(0.25) * clearcoatVal * ccSpec;
-    }
+        vec3 matAmbient = adsAmbient * albedoVal;
+        vec3 matDiffuse = adsDiffuse * albedoVal;
+        vec3 matSpecular = adsSpecular;
+        color = matAmbient * envDiffuseIntensity + emissive;
 
-    // ----- Sheen -----
-    if (length(sheenColorVal) > 0.001)
-    {
-        float NdotV = max(dot(N, V), 0.0);
-        float sheen = pow(clamp(1.0 - NdotV, 0.0, 1.0), mix(3.0, 1.0, 1.0 - sheenRoughnessVal));
-        color += sheenColorVal * sheen * 0.5;
-    }
-
-    // ----- Iridescence (thin-film interference) -----
-    if (iridescence > 0.001)
-    {
-        float NdotV = max(dot(N, V), 0.001);
-
-        // Interpolate thickness between min and max based on viewing angle
-        // Grazing angles (low NdotV) use thicker film regions (more interference)
-        float thickness = mix(iridescenceThicknessMin, iridescenceThicknessMax, NdotV);
-
-        // Calculate baseF0 from material metalness and albedo
-        // Dielectrics use 0.04, metals use albedo color
-        vec3 baseF0 = mix(vec3(0.04), albedoVal, metalnessVal);
-
-        // Evaluate physically-based iridescent Fresnel
-        // This follows the KHR_materials_iridescence specification
-        vec3 iridFresnel = evalIridescence(
-            1.0,                        // outsideIOR (air)
-            iridescenceIOR,             // eta2 (iridescent film IOR)
-            NdotV,                      // cosTheta1 (view angle)
-            thickness,                  // thinFilmThickness (actual nanometers)
-            baseF0                      // baseF0 (dielectric F0 or metallic albedo)
-        );
-
-       // Blend iridescence: stronger at grazing angles, subtle at face-on
-        float iridIntensity = iridescence * (1.0 - NdotV);
-
-        // Extract the brightness of what we have
-        float lum = dot(color, vec3(0.299, 0.587, 0.114));
-
-        // Get the pure iridescent hue and apply it with the original brightness
-        vec3 iridColor = normalize(iridFresnel + vec3(0.001)) * max(lum, 0.3);
-
-        // Replace the color with the iridescence-tinted version
-        color = mix(color, iridColor * 1.0, iridIntensity * 1.0);
-    }
-
-    // ----- Transmission (simple tint) -----
-    if (transmission > 0.001)
-    {
-        vec3 glassTint = mix(albedoVal, vec3(1.0), clamp((IOR - 1.0) * 0.3, 0.0, 1.0));
-        color = mix(color, glassTint, transmission);
-    }
-
-    // ----- Rim -----
-    float rim = pow(clamp(1.0 - max(dot(N, V), 0.0), 0.0, 1.0), 2.0);
-    color += albedoVal * rim * 0.2;
-
-    // ----- Emissive -----
-    color += emissive;
-
-
-    if(previewProfile == 1) {
-        // ----- Brightness tweak -----
-        color *= mix(1.1, 2.5, metalnessVal);
-
-        // ----- Final clamp -----
-        color = clamp(color, vec3(0.0), vec3(20.0));
-    } else {
-        // --- Tonemap and gamma (matches main_scene.frag environment settings) ---
-        color = applyToneMapping(color);
-        if (gammaCorrection) {
-            color = pow(color, vec3(1.0 / screenGamma));
+        for (int i = 0; i < numLights; ++i)
+        {
+            vec3 L = normalize(lights[i].position);
+            vec3 H = normalize(V_normalized + L);
+            float NoL = max(dot(N_normalized, L), 0.0);
+            float NoH = max(dot(N_normalized, H), 0.0);
+            float pf = pow(NoH, max(adsShininess, 1.0));
+            color += (matDiffuse * NoL + matSpecular * pf) * lights[i].color;
         }
+
+        color += albedoVal * texture(irradianceMap, N_normalized).rgb * envDiffuseIntensity * ao;
+    }
+    else
+    {
+        float iorVal = useIorMap ? texture(iorMap, applyTextureTransform(uv, iorScale, iorOffset, iorRotation)).r : IOR;
+        iorVal = max(iorVal, 1.001);
+
+        float specularFactorVal = useSpecularFactorMap
+            ? texture(specularFactorMap, applyTextureTransform(uv, specularFactorScale, specularFactorOffset, specularFactorRotation)).a * specularFactor
+            : specularFactor;
+        vec3 specularColorVal = (useSpecularColorMap
+            ? texture(specularColorMap, applyTextureTransform(uv, specularColorScale, specularColorOffset, specularColorRotation)).rgb
+            : vec3(1.0)) * specularColorFactor;
+
+        vec3 F0 = vec3(pow((iorVal - 1.0) / (iorVal + 1.0), 2.0));
+        F0 = max(F0 * specularColorVal * specularFactorVal, vec3(0.0));
+        F0 = mix(F0, albedoVal, metalnessVal);
+        vec3 F90 = mix(vec3(specularFactorVal), vec3(1.0), metalnessVal);
+
+        float iridescenceVal = useIridescenceMap
+            ? texture(iridescenceMap, applyTextureTransform(uv, iridescenceScale, iridescenceOffset, iridescenceRotation)).r * iridescence
+            : iridescence;
+        if (iridescenceVal > 0.001)
+        {
+            float thickness = iridescenceThicknessMax;
+            if (useIridescenceThicknessMap)
+            {
+                float thicknessNorm = texture(iridescenceThicknessMap, applyTextureTransform(uv, iridescenceThicknessScale, iridescenceThicknessOffset, iridescenceThicknessRotation)).g;
+                thickness = mix(iridescenceThicknessMin, iridescenceThicknessMax, thicknessNorm);
+            }
+            float NoV = clamp(dot(N_normalized, V_normalized), 0.0, 1.0);
+            vec3 iridDielectric = evalIridescence(1.0, iridescenceIOR, NoV, thickness, F0, vec3(specularFactorVal));
+            vec3 iridMetallic = evalIridescence(1.0, iridescenceIOR, NoV, thickness, albedoVal, vec3(1.0));
+            vec3 iridF0 = mix(iridDielectric, iridMetallic, metalnessVal);
+            F0 = mix(F0, iridF0, iridescenceVal);
+            F90 = mix(F90, vec3(1.0), iridescenceVal);
+        }
+
+        vec3 T = normalize(vTangentW.xyz - dot(vTangentW.xyz, N_normalized) * N_normalized);
+        vec3 B = getBitangent(N_normalized, T, vTangentW.w);
+        float anisotropyVal = anisotropyStrength;
+        if (useAnisotropyMap)
+        {
+            vec3 anisoTex = texture(anisotropyMap, applyTextureTransform(uv, anisotropyScale, anisotropyOffset, anisotropyRotation)).rgb;
+            vec3 anisoData = decodeAnisotropyDirection(anisoTex, anisotropyRotationFactor);
+            anisotropyVal *= anisoTex.b;
+            T = normalize(anisoData.x * T + anisoData.y * B);
+            B = getBitangent(N_normalized, T, vTangentW.w);
+        }
+
+        vec3 directDiffuse = vec3(0.0);
+        vec3 directSpecular = vec3(0.0);
+        vec3 directSheen = vec3(0.0);
+        vec3 directClearcoat = vec3(0.0);
+        float clearcoatAttenuation = 0.0;
+
+        for (int i = 0; i < numLights; ++i)
+        {
+            vec3 L = normalize(lights[i].position);
+            vec3 H = normalize(V_normalized + L);
+            float NoL = max(dot(N_normalized, L), 0.0);
+            float NoV = max(dot(N_normalized, V_normalized), 0.0);
+            float VoH = max(dot(V_normalized, H), 0.0);
+            if (NoL <= 0.0) continue;
+
+            vec3 F = fresnelSchlick(VoH, F0, F90);
+            vec3 kD = (vec3(1.0) - F) * (1.0 - metalnessVal);
+            float D = anisotropyVal > 0.001
+                ? distributionGGXAnisotropic(N_normalized, H, T, B, roughnessVal, anisotropyVal)
+                : distributionGGX(N_normalized, H, roughnessVal);
+            float G = geometrySmith(N_normalized, V_normalized, L, roughnessVal);
+            vec3 specBRDF = (D * G * F) / max(4.0 * NoV * NoL, 0.001);
+
+            directDiffuse += kD * albedoVal / PI * lights[i].color * NoL;
+            directSpecular += specBRDF * lights[i].color * NoL;
+            directSheen += calculateSheenLayer(N_normalized, V_normalized, L, sheenColorVal, sheenRoughnessVal) * lights[i].color;
+            directClearcoat += calculateClearcoatLayer(clearcoatN, V_normalized, L, clearcoatVal, clearcoatRoughnessVal) * lights[i].color;
+        }
+
+        vec3 ambient = vec3(0.0);
+        if (useIBL)
+        {
+            vec3 irradiance = texture(irradianceMap, N_normalized).rgb;
+            float dotNV = max(dot(N_normalized, V_normalized), 0.0);
+            vec3 Fibl = fresnelSchlick(dotNV, F0, max(vec3(1.0 - roughnessVal), F0));
+            vec3 kDibl = (vec3(1.0) - Fibl) * (1.0 - metalnessVal);
+            vec3 diffuseIBL = irradiance * albedoVal;
+            vec3 specularIBL = envMapEnabled ? computeSpecularIBL(V_normalized, N_normalized, roughnessVal, F0, max(vec3(1.0 - roughnessVal), F0)) : vec3(0.0);
+            ambient = (kDibl * diffuseIBL * envDiffuseIntensity + specularIBL) * ao;
+            ambient += calculateSheenIBLLayer(N_normalized, V_normalized, sheenColorVal, sheenRoughnessVal) * ao;
+
+            if (clearcoatVal > 0.001 && envMapEnabled)
+            {
+                vec3 ccR = reflect(-V_normalized, clearcoatN);
+                vec3 ccPrefilterDir = vec3(ccR.x, -ccR.z, ccR.y);
+                float maxLod = max(float(textureQueryLevels(prefilterMap)) - 1.0, 0.0);
+                vec3 ccPrefilter = textureLod(prefilterMap, ccPrefilterDir, clamp(clearcoatRoughnessVal * maxLod, 0.0, maxLod)).rgb * envMapExposure;
+                vec2 ccBrdf = texture(brdfLUT, vec2(dotNV, clearcoatRoughnessVal)).rg;
+                vec3 ccF = fresnelSchlick(dotNV, vec3(0.04), vec3(1.0));
+                vec3 ccIBL = ccPrefilter * (ccF * ccBrdf.x + ccBrdf.y) * clearcoatVal;
+                clearcoatAttenuation = clearcoatVal * max(ccF.r, max(ccF.g, ccF.b));
+                ambient = ambient * (1.0 - clearcoatAttenuation) + ccIBL;
+            }
+        }
+
+        color = emissive + ambient + (directDiffuse + directSpecular) * (1.0 - clearcoatAttenuation) + directSheen + directClearcoat;
+
+        float transmissionVal = useTransmissionMap ? texture(transmissionMap, applyTextureTransform(uv, transmissionScale, transmissionOffset, transmissionRotation)).r * transmission : transmission;
+        if (transmissionVal > 0.001)
+        {
+            vec3 tint = mix(albedoVal, vec3(1.0), clamp((iorVal - 1.0) * 0.3, 0.0, 1.0));
+            color = mix(color, tint * (ambient + directSpecular + emissive), transmissionVal);
+        }
+    }
+
+    if (unlitMaterial)
+    {
+        color = albedoVal + emissive;
+    }
+
+    color = applyToneMapping(color);
+    if (gammaCorrection) {
+        color = pow(color, vec3(1.0 / screenGamma));
     }
 
     FragColor = vec4(color, opacityVal);

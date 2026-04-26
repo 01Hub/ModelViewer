@@ -382,6 +382,7 @@ public:
 	GLuint getPrefilterMap(bool regenerate = false);
 	GLuint getBrdfLUT() const { return _brdfLUTTexture; }
 	bool isEnvironmentMapEnabled() const { return _envMapEnabled; }
+	bool isIBLEnabled() const { return _useIBL; }
 	float getIBLExposure() const { return _iblExposure; }
 	QString getCurrentSkyboxFolder() const { return _currentSkyboxFolder; }
 

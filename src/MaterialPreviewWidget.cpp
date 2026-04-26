@@ -478,13 +478,25 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("metalness", _currentMaterial.metalness());
 	_shader->setUniformValue("roughness", _currentMaterial.roughness());
 	_shader->setUniformValue("opacity", _currentMaterial.opacity());
+	_shader->setUniformValue("adsAmbient", _currentMaterial.ambient());
+	_shader->setUniformValue("adsDiffuse", _currentMaterial.diffuse());
+	_shader->setUniformValue("adsSpecular", _currentMaterial.specular());
+	_shader->setUniformValue("adsShininess", _currentMaterial.shininess());
 	_shader->setUniformValue("clearcoat", _currentMaterial.clearcoat());
 	_shader->setUniformValue("clearcoatRoughness", _currentMaterial.clearcoatRoughness());
 	_shader->setUniformValue("sheenColor", _currentMaterial.sheenColor());
 	_shader->setUniformValue("sheenRoughness", _currentMaterial.sheenRoughness());
 	_shader->setUniformValue("transmission", _currentMaterial.transmission());
 	_shader->setUniformValue("IOR", _currentMaterial.ior());
-	_shader->setUniformValue("specular", _currentMaterial.specular());
+	_shader->setUniformValue("specular", _currentMaterial.specularFactor());
+	_shader->setUniformValue("specularFactor", _currentMaterial.specularFactor());
+	_shader->setUniformValue("specularColorFactor", _currentMaterial.specularColorFactor());
+	_shader->setUniformValue("anisotropyStrength", _currentMaterial.anisotropyStrength());
+	_shader->setUniformValue("anisotropyRotationFactor", _currentMaterial.anisotropyRotation());
+	_shader->setUniformValue("occlusionStrength", _currentMaterial.occlusionStrength());
+	_shader->setUniformValue("unlitMaterial", _currentMaterial.isUnlit());
+	_shader->setUniformValue("diffuseTransmissionFactor", _currentMaterial.diffuseTransmissionFactor());
+	_shader->setUniformValue("diffuseTransmissionColorFactor", _currentMaterial.diffuseTransmissionColorFactor());
 	_shader->setUniformValue("emissiveColor", _currentMaterial.emissive());
 	_shader->setUniformValue("emissiveStrength", _currentMaterial.emissiveStrength());
 	_shader->setUniformValue("iridescence", _currentMaterial.iridescenceFactor());
@@ -533,6 +545,7 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("useClearcoatColorMap", hasCcColor);
 	_shader->setUniformValue("useClearcoatRoughnessMap", hasCcRough);
 	_shader->setUniformValue("useClearcoatNormalMap", hasCcNormal); // needs TBN
+	_shader->setUniformValue("useIorMap", hasIOR);
 	_shader->setUniformValue("useIORMap", hasIOR);
 	_shader->setUniformValue("useTransmissionMap", hasTransmission);
 	_shader->setUniformValue("useSpecularFactorMap", hasSpecularFactor);
@@ -760,6 +773,9 @@ void MaterialPreviewWidget::paintGL()
 	}
 
 	_shader->setUniformValue("texViewMode", static_cast<int>(_texViewMode));
+	_shader->setUniformValue("renderingMode", _glWidget ? static_cast<int>(_glWidget->getRenderingMode()) : 1);
+	_shader->setUniformValue("envMapEnabled", _glWidget ? _glWidget->isEnvironmentMapEnabled() : false);
+	_shader->setUniformValue("useIBL", _glWidget ? _glWidget->isIBLEnabled() : true);
 
 	applyEnvPreset(_currentEnv, _profile);
 
@@ -979,7 +995,7 @@ void MaterialPreviewWidget::initSphereMesh()
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)0);               glEnableVertexAttribArray(0);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
 	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
-	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float))); glEnableVertexAttribArray(3); // tangent
+	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float))); glEnableVertexAttribArray(3); // tangent
 
 	glBindVertexArray(0);
 }
@@ -1157,7 +1173,7 @@ void MaterialPreviewWidget::initCylinderMesh()
 	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(6 * sizeof(float)));
 	glEnableVertexAttribArray(2);
 
-	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float)));
+	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float)));
 	glEnableVertexAttribArray(3); // tangent
 
 	glBindVertexArray(0);
@@ -1251,7 +1267,7 @@ void MaterialPreviewWidget::initTeapotMesh()
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)0);                glEnableVertexAttribArray(0);
 	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(3 * sizeof(float))); glEnableVertexAttribArray(1);
 	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(6 * sizeof(float))); glEnableVertexAttribArray(2);
-	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float))); glEnableVertexAttribArray(3); // tangent
+	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 12 * sizeof(float), (void*)(8 * sizeof(float))); glEnableVertexAttribArray(3); // tangent
 
 	glBindVertexArray(0);
 }
@@ -1337,7 +1353,7 @@ static GLMaterial::TextureType samplerNameToTextureType(const char* uniformSampl
 	else if (std::strcmp(uniformSamplerName, "clearcoatColorMap") == 0) return GLMaterial::TextureType::ClearcoatColor;
 	else if (std::strcmp(uniformSamplerName, "clearcoatRoughnessMap") == 0) return GLMaterial::TextureType::ClearcoatRoughness;
 	else if (std::strcmp(uniformSamplerName, "clearcoatNormalMap") == 0) return GLMaterial::TextureType::ClearcoatNormal;
-	else if (std::strcmp(uniformSamplerName, "IORMap") == 0) return GLMaterial::TextureType::IOR;
+	else if (std::strcmp(uniformSamplerName, "IORMap") == 0 || std::strcmp(uniformSamplerName, "iorMap") == 0) return GLMaterial::TextureType::IOR;
 	else if (std::strcmp(uniformSamplerName, "transmissionMap") == 0) return GLMaterial::TextureType::Transmission;
 	else if (std::strcmp(uniformSamplerName, "iridescenceMap") == 0) return GLMaterial::TextureType::Iridescence;
 	else if (std::strcmp(uniformSamplerName, "iridescenceThicknessMap") == 0) return GLMaterial::TextureType::IridescenceThickness;
@@ -1428,7 +1444,7 @@ void MaterialPreviewWidget::syncTextureFromMaterial(
 		_currentMaterial.setClearcoatRoughnessTextureId(cache.id);
 	else if (std::strcmp(uniformSamplerName, "clearcoatNormalMap") == 0)
 		_currentMaterial.setClearcoatNormalTextureId(cache.id);
-	else if (std::strcmp(uniformSamplerName, "IORMap") == 0)
+	else if (std::strcmp(uniformSamplerName, "IORMap") == 0 || std::strcmp(uniformSamplerName, "iorMap") == 0)
 		_currentMaterial.setIORTextureId(cache.id);
 	else if (std::strcmp(uniformSamplerName, "transmissionMap") == 0)
 		_currentMaterial.setTransmissionTextureId(cache.id);
@@ -1509,12 +1525,36 @@ void MaterialPreviewWidget::syncAllTexturesFromMaterial()
 	syncTextureFromMaterial(_clearcoatNormalTex,
 		_currentMaterial.clearcoatNormalMapPath(),
 		12, "clearcoatNormalMap", "useClearcoatNormalMap", false);
-	syncTextureFromMaterial(_iorTex,
-		_currentMaterial.iorMapPath(),
-		13, "IORMap", "useIORMap", false);
 	syncTextureFromMaterial(_transmissionTex,
 		_currentMaterial.transmissionMapPath(),
-		14, "transmissionMap", "useTransmissionMap", false);
+		13, "transmissionMap", "useTransmissionMap", false);
+	syncTextureFromMaterial(_iorTex,
+		_currentMaterial.iorMapPath(),
+		14, "iorMap", "useIorMap", false);
+	syncTextureFromMaterial(_specularFactorTex,
+		_currentMaterial.specularFactorMap(),
+		15, "specularFactorMap", "useSpecularFactorMap", false);
+	syncTextureFromMaterial(_specularColorTex,
+		_currentMaterial.specularColorMap(),
+		16, "specularColorMap", "useSpecularColorMap", true);
+	syncTextureFromMaterial(_anisotropyTex,
+		_currentMaterial.anisotropyMap(),
+		17, "anisotropyMap", "useAnisotropyMap", false);
+	syncTextureFromMaterial(_iridescenceTex,
+		_currentMaterial.iridescenceMap(),
+		18, "iridescenceMap", "useIridescenceMap", false);
+	syncTextureFromMaterial(_iridescenceThicknessTex,
+		_currentMaterial.iridescenceThicknessMap(),
+		19, "iridescenceThicknessMap", "useIridescenceThicknessMap", false);
+	syncTextureFromMaterial(_diffuseTransmissionTex,
+		_currentMaterial.diffuseTransmissionMap(),
+		20, "diffuseTransmissionMap", "useDiffuseTransmissionMap", false);
+	syncTextureFromMaterial(_diffuseTransmissionColorTex,
+		_currentMaterial.diffuseTransmissionColorMap(),
+		21, "diffuseTransmissionColorMap", "useDiffuseTransmissionColorMap", true);
+	syncTextureFromMaterial(_thicknessTex,
+		_currentMaterial.thicknessMap(),
+		22, "thicknessMap", "useThicknessMap", false);
 }
 
 void MaterialPreviewWidget::clearTextureCache()
@@ -1534,6 +1574,14 @@ void MaterialPreviewWidget::clearTextureCache()
 	_clearcoatNormalTex = GpuTexCache();
 	_transmissionTex = GpuTexCache();
 	_iorTex = GpuTexCache();
+	_specularFactorTex = GpuTexCache();
+	_specularColorTex = GpuTexCache();
+	_anisotropyTex = GpuTexCache();
+	_iridescenceTex = GpuTexCache();
+	_iridescenceThicknessTex = GpuTexCache();
+	_diffuseTransmissionTex = GpuTexCache();
+	_diffuseTransmissionColorTex = GpuTexCache();
+	_thicknessTex = GpuTexCache();
 }
 
 void MaterialPreviewWidget::updateTextureSamplers(GLMaterial::TextureType type, GLint wrapS, GLint wrapT, GLint minFilter, GLint magFilter, float aniso)
@@ -1565,6 +1613,14 @@ void MaterialPreviewWidget::updateTextureSamplers(GLMaterial::TextureType type, 
 	case GLMaterial::TextureType::ClearcoatNormal:      cacheToInvalidate = &_clearcoatNormalTex; break;
 	case GLMaterial::TextureType::IOR:                  cacheToInvalidate = &_iorTex; break;
 	case GLMaterial::TextureType::Transmission:         cacheToInvalidate = &_transmissionTex; break;
+	case GLMaterial::TextureType::SpecularFactor:       cacheToInvalidate = &_specularFactorTex; break;
+	case GLMaterial::TextureType::SpecularColor:        cacheToInvalidate = &_specularColorTex; break;
+	case GLMaterial::TextureType::Anisotropy:           cacheToInvalidate = &_anisotropyTex; break;
+	case GLMaterial::TextureType::Iridescence:          cacheToInvalidate = &_iridescenceTex; break;
+	case GLMaterial::TextureType::IridescenceThickness: cacheToInvalidate = &_iridescenceThicknessTex; break;
+	case GLMaterial::TextureType::DiffuseTransmission:  cacheToInvalidate = &_diffuseTransmissionTex; break;
+	case GLMaterial::TextureType::DiffuseTransmissionColor: cacheToInvalidate = &_diffuseTransmissionColorTex; break;
+	case GLMaterial::TextureType::Thickness:            cacheToInvalidate = &_thicknessTex; break;
 	default:
 		return;
 	}

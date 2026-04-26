@@ -150,6 +150,14 @@ private:
 	GpuTexCache _clearcoatNormalTex;
 	GpuTexCache _transmissionTex;
 	GpuTexCache _iorTex;
+	GpuTexCache _specularFactorTex;
+	GpuTexCache _specularColorTex;
+	GpuTexCache _anisotropyTex;
+	GpuTexCache _iridescenceTex;
+	GpuTexCache _iridescenceThicknessTex;
+	GpuTexCache _diffuseTransmissionTex;
+	GpuTexCache _diffuseTransmissionColorTex;
+	GpuTexCache _thicknessTex;
 
     MeshGL _sphere{};
     MeshGL _cube{};
