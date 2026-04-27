@@ -1,9 +1,5 @@
-﻿#include "ADSMaterialSettingsPanel.h"
-#include "FloatingPanelDialog.h"
+﻿#include "FloatingPanelDialog.h"
 #include "AssImpModelLoader.h"
-#include "ApplyPBRTexturesCommand.h"
-#include "ApplyADSColorsCommand.h"
-#include "ApplyADSTexturesCommand.h"
 #include "DeleteMeshCommand.h"
 #include "RenameMeshCommand.h"
 #include "DuplicateCommand.h"
@@ -23,7 +19,6 @@
 #include "MaterialLibraryWidget.h"
 #include "PathUtils.h"
 #include "SelectionCommand.h"
-#include "TextureMappingPanel.h"
 #include "TransformCommand.h"
 #include "TriangleMesh.h"
 #include "VisibilityCommand.h"
@@ -2737,11 +2732,7 @@ void ModelViewer::on_toolButtonClearOpacityTex_clicked()
 
 void ModelViewer::onPredefinedMaterialSelected(const GLMaterial& mat)
 {
-	// This handler is triggered when MaterialLibraryWidget emits materialSelected,
-	// but material application now goes through MaterialEditorPanel::onMaterialSelected
-	// which processes textures before emitting materialApplied.
-	// This prevents duplicate ApplyMaterialCommand creation and ensures proper texture handling.
-	// So we do nothing here - let MaterialEditorPanel handle the processing and emission.
+	// Material application is now handled by MaterialPropertiesPanel.
 	Q_UNUSED(mat);
 }
 
@@ -2772,25 +2763,7 @@ void ModelViewer::onCustomMaterialApplied(const GLMaterial& mat)
 
 void ModelViewer::onTexturesApplied(const GLMaterial* mat)
 {
-	if (!mat || !checkForActiveSelection())
-		return;
-
-	QApplication::setOverrideCursor(Qt::WaitCursor);
-
-	QVector<QUuid> uuids;
-	std::vector<int> ids = getSelectedIDs();
-	for (int id : ids)
-	{
-		QUuid uuid = _glWidget->getUuidByIndex(id);
-		if (!uuid.isNull())
-			uuids.append(uuid);
-	}
-
-	_undoStack->push(new ApplyPBRTexturesCommand(
-		this, _glWidget, uuids, *mat  // Dereference pointer
-	));
-
-	QApplication::restoreOverrideCursor();
+	Q_UNUSED(mat);
 }
 
 UVDialogResult ModelViewer::askUserForUVMethod(QWidget* parent)

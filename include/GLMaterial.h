@@ -714,7 +714,7 @@ public:
 	void setHasVolumeScattering(bool hasVolumeScattering) { _hasVolumeScattering = hasVolumeScattering; }
 	bool hasVolumeScattering() const { return _hasVolumeScattering; }
 
-	// --- Map path API (used by TextureMappingPanel) ---
+	// --- Map path API ---
 	QString albedoMapPath() const { return _albedoMapPath; }
 	void setAlbedoMap(const QString& path) { _albedoMapPath = path; /* optional: _albedoTextureId = -1; */ }
 	void clearAlbedoMap() { _albedoMapPath.clear(); /* optional: _albedoTextureId = -1; */ }

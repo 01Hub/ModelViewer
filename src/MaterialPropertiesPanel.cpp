@@ -45,7 +45,7 @@
 #include <functional>
 
 // ============================================================================
-// JSON Helper Functions (copied from TextureMappingPanel.cpp)
+// JSON Helper Functions
 // ============================================================================
 
 namespace
@@ -952,7 +952,6 @@ void MaterialPropertiesPanel::clearTextureMap(GLMaterial::TextureType type)
 	if (!_material) return;
 
 	// Clear using NEW API (for preview and new code paths)
-	// Follow TextureMappingPanel's pattern: create fresh texture with proper type
 	GLMaterial::Texture resetTex;
 	resetTex.type = GLMaterial::textureTypeToString(type).toStdString();
 	_material->setTexture(type, resetTex);
