@@ -69,6 +69,7 @@
         <file>res/material.png</file>
         <file>res/transformations.png</file>
         <file>res/visualization.png</file>
+        <file>res/preview.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

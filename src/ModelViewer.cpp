@@ -636,6 +636,7 @@ void ModelViewer::detachMaterialPanel()
 	// Insert it at the beginning (index 0) so it's the first tab
 	_materialPreviewContainerTabIndex = 0;
 	tabWidgetVizAttribs->insertTab(_materialPreviewContainerTabIndex, _materialPreviewContainer, tr("Preview"));
+	tabWidgetVizAttribs->setTabIcon(_materialPreviewContainerTabIndex, QIcon(":/icons/res/preview.png"));
 
 	qDebug() << "Preview tab inserted at index 0 (first position)";
 
@@ -755,6 +756,7 @@ void ModelViewer::reattachMaterialPanel()
 		// STEP 3: Restore the panel tab
 		tabWidgetVizAttribs->insertTab(_materialPageIndex, scrollArea->parentWidget(), _materialPageLabel);
 		tabWidgetVizAttribs->setCurrentIndex(_materialPageIndex);
+		tabWidgetVizAttribs->setTabIcon(_materialPageIndex, QIcon(":/icons/res/material.png"));
 	}
 
 	_detachedMaterialDialog->deleteLater();
@@ -836,6 +838,7 @@ void ModelViewer::reattachTransformationsPanel()
 		// Restore the tab
 		tabWidgetVizAttribs->insertTab(_transformationsPageIndex, scrollArea->parentWidget(), _transformationsPageLabel);
 		tabWidgetVizAttribs->setCurrentIndex(_transformationsPageIndex);
+		tabWidgetVizAttribs->setTabIcon(_transformationsPageIndex, QIcon(":/icons/res/transformations.png"));
 	}
 
 	_detachedTransformationsDialog->deleteLater();
@@ -918,6 +921,7 @@ void ModelViewer::reattachEnvironmentPanel()
 		// Restore the tab
 		tabWidgetVizAttribs->insertTab(_environmentPageIndex, scrollArea->parentWidget(), _environmentPageLabel);
 		tabWidgetVizAttribs->setCurrentIndex(_environmentPageIndex);
+		tabWidgetVizAttribs->setTabIcon(_environmentPageIndex, QIcon(":/icons/res/visualization.png"));
 	}
 
 	_detachedEnvironmentDialog->deleteLater();
