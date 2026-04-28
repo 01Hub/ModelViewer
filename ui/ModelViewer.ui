@@ -315,7 +315,7 @@
                    <normaloff>:/icons/res/material.png</normaloff>:/icons/res/material.png</iconset>
                  </attribute>
                  <attribute name="title">
-                  <string>Material Settings</string>
+                  <string>Materials</string>
                  </attribute>
                  <layout class="QGridLayout" name="gridLayout_23">
                   <property name="leftMargin">
@@ -340,8 +340,8 @@
                       <rect>
                        <x>0</x>
                        <y>0</y>
-                       <width>454</width>
-                       <height>289</height>
+                       <width>517</width>
+                       <height>292</height>
                       </rect>
                      </property>
                     </widget>
@@ -380,8 +380,8 @@
                       <rect>
                        <x>0</x>
                        <y>0</y>
-                       <width>454</width>
-                       <height>289</height>
+                       <width>517</width>
+                       <height>292</height>
                       </rect>
                      </property>
                     </widget>
@@ -395,7 +395,7 @@
                    <normaloff>:/icons/res/visualization.png</normaloff>:/icons/res/visualization.png</iconset>
                  </attribute>
                  <attribute name="title">
-                  <string>Visualization Environment</string>
+                  <string>Environment</string>
                  </attribute>
                  <layout class="QGridLayout" name="gridLayout_17">
                   <property name="leftMargin">
@@ -420,8 +420,8 @@
                       <rect>
                        <x>0</x>
                        <y>0</y>
-                       <width>454</width>
-                       <height>289</height>
+                       <width>517</width>
+                       <height>292</height>
                       </rect>
                      </property>
                     </widget>

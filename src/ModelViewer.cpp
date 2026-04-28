@@ -632,15 +632,21 @@ void ModelViewer::detachMaterialPanel()
 
 	qDebug() << "PreviewFrame reparented, container size:" << _materialPreviewContainer->size();
 
-	// STEP 3: Create a new tab for the preview container
+	// STEP 3: Save the material panel's original index BEFORE inserting preview tab
+	// This is crucial because inserting at index 0 will shift existing tabs
+	_materialPageIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
+	_materialPageLabel = _materialPageIndex >= 0 ? tabWidgetVizAttribs->tabText(_materialPageIndex) : "";
+
+	// STEP 4: Create a new tab for the preview container
 	// Insert it at the beginning (index 0) so it's the first tab
 	_materialPreviewContainerTabIndex = 0;
 	tabWidgetVizAttribs->insertTab(_materialPreviewContainerTabIndex, _materialPreviewContainer, tr("Preview"));
 	tabWidgetVizAttribs->setTabIcon(_materialPreviewContainerTabIndex, QIcon(":/icons/res/preview.png"));
 
 	qDebug() << "Preview tab inserted at index 0 (first position)";
+	qDebug() << "Material panel original index saved as:" << _materialPageIndex;
 
-	// STEP 4: Make sure the container is visible and the tab is current
+	// STEP 5: Make sure the container is visible and the tab is current
 	_materialPreviewContainer->show();
 	_materialPreviewContainer->raise();  // Bring to front
 	if (_materialPreviewContainerTabIndex >= 0)
@@ -653,13 +659,13 @@ void ModelViewer::detachMaterialPanel()
 	previewFrame->update();  // Trigger a repaint
 	previewFrame->repaint();  // Force immediate repaint
 
-	// STEP 5: Hide the original material panel tab and prepare it for floating dialog
-	_materialPageIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
+	// STEP 6: Hide the original material panel tab and prepare it for floating dialog
+	// After inserting preview tab at index 0, the material panel has shifted one position right
 	if (_materialPageIndex >= 0)
 	{
-		_materialPageLabel = tabWidgetVizAttribs->tabText(_materialPageIndex);
-		tabWidgetVizAttribs->removeTab(_materialPageIndex);
-		qDebug() << "Removed material panel tab at index:" << _materialPageIndex;
+		int currentMaterialIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
+		tabWidgetVizAttribs->removeTab(currentMaterialIndex);
+		qDebug() << "Removed material panel tab at shifted index:" << currentMaterialIndex << "(was originally at" << _materialPageIndex << ")";
 	}
 
 	// STEP 6: The previewFrame has been moved, leaving the panel with just the library tree
