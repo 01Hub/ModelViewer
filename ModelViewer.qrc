@@ -66,6 +66,9 @@
         <file>res/refresh_tree.png</file>
         <file>res/pbr_mode.png</file>
         <file>res/ads_mode.png</file>
+        <file>res/material.png</file>
+        <file>res/transformations.png</file>
+        <file>res/visualization.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

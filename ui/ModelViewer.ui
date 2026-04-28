@@ -291,13 +291,26 @@
                 <property name="tabPosition">
                  <enum>QTabWidget::TabPosition::North</enum>
                 </property>
+                <property name="tabShape">
+                 <enum>QTabWidget::TabShape::Rounded</enum>
+                </property>
                 <property name="currentIndex">
                  <number>0</number>
+                </property>
+                <property name="iconSize">
+                 <size>
+                  <width>32</width>
+                  <height>32</height>
+                 </size>
                 </property>
                 <property name="documentMode">
                  <bool>false</bool>
                 </property>
                 <widget class="QWidget" name="materialProcessorPage">
+                 <attribute name="icon">
+                  <iconset resource="../ModelViewer.qrc">
+                   <normaloff>:/icons/res/material.png</normaloff>:/icons/res/material.png</iconset>
+                 </attribute>
                  <attribute name="title">
                   <string>Material Settings</string>
                  </attribute>
@@ -324,8 +337,8 @@
                       <rect>
                        <x>0</x>
                        <y>0</y>
-                       <width>517</width>
-                       <height>530</height>
+                       <width>454</width>
+                       <height>289</height>
                       </rect>
                      </property>
                     </widget>
@@ -334,6 +347,10 @@
                  </layout>
                 </widget>
                 <widget class="QWidget" name="transformationsPage">
+                 <attribute name="icon">
+                  <iconset resource="../ModelViewer.qrc">
+                   <normaloff>:/icons/res/transformations.png</normaloff>:/icons/res/transformations.png</iconset>
+                 </attribute>
                  <attribute name="title">
                   <string>Transformations</string>
                  </attribute>
@@ -360,8 +377,8 @@
                       <rect>
                        <x>0</x>
                        <y>0</y>
-                       <width>98</width>
-                       <height>28</height>
+                       <width>454</width>
+                       <height>289</height>
                       </rect>
                      </property>
                     </widget>
@@ -370,6 +387,10 @@
                  </layout>
                 </widget>
                 <widget class="QWidget" name="vizEnvironmentPage">
+                 <attribute name="icon">
+                  <iconset resource="../ModelViewer.qrc">
+                   <normaloff>:/icons/res/visualization.png</normaloff>:/icons/res/visualization.png</iconset>
+                 </attribute>
                  <attribute name="title">
                   <string>Visualization Environment</string>
                  </attribute>
@@ -396,8 +417,8 @@
                       <rect>
                        <x>0</x>
                        <y>0</y>
-                       <width>98</width>
-                       <height>28</height>
+                       <width>454</width>
+                       <height>289</height>
                       </rect>
                      </property>
                     </widget>
@@ -457,7 +478,4 @@
  <slots>
   <slot>slotResetRotations()</slot>
  </slots>
- <buttongroups>
-  <buttongroup name="buttonGroupLighting"/>
- </buttongroups>
 </ui>
