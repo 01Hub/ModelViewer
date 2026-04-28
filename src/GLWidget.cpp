@@ -9525,7 +9525,8 @@ void GLWidget::showContextMenu(const QPoint& pos)
 				contextMenu.addAction(tr("Show Only"), _viewer, &ModelViewer::showOnlySelectedItems);
 			contextMenu.addSeparator();
 			contextMenu.addAction(tr("Visualization Settings"), _viewer, &ModelViewer::showVisualizationModelPage);
-			contextMenu.addAction(tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);			
+			contextMenu.addAction(tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);
+			contextMenu.addAction(tr("Edit Material"), _viewer, &ModelViewer::editMeshMaterial);
 			contextMenu.addSeparator();			
 			contextMenu.addAction(tr("Generate UVs"), _viewer, &ModelViewer::generateUVsForSelectedItems);
 			contextMenu.addAction(tr("Duplicate"), _viewer, &ModelViewer::duplicateSelectedItems);

@@ -239,8 +239,15 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 	if (_ui->applyButton)
 	{
 		connect(_ui->applyButton, &QPushButton::clicked, this, [this]() {
-			if (_material)
+			if (!_material) return;
+
+			// If editing a mesh material, emit special signal
+			if (!_editingMeshUuid.isNull()) {
+				emit meshMaterialApplied(_editingMeshUuid, *_material);
+			} else {
+				// Normal material apply
 				emit materialApplied(*_material);
+			}
 		});
 	}
 
@@ -1923,6 +1930,230 @@ void MaterialPropertiesPanel::onSaveToLibrary()
 		return;
 	}
 
+	// For mesh materials, prompt for name and category, then save with cleanup only on success
+	if (!_editingMeshUuid.isNull()) {
+		QString originalMeshKey = _currentMaterialKey;
+
+		// Get current material name for suggestion
+		QString suggestedName;
+		MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+		if (libraryWidget) {
+			QList<QTreeWidgetItem*> selected = libraryWidget->selectedItems();
+			if (!selected.isEmpty()) {
+				suggestedName = selected.first()->text(0);
+				// Remove " *" suffix if present
+				if (suggestedName.endsWith(" *"))
+					suggestedName = suggestedName.mid(0, suggestedName.length() - 2);
+			}
+		}
+		if (suggestedName.isEmpty())
+			suggestedName = "New Material";
+
+		// Ask for name
+		bool okName = false;
+		QString enteredName = QInputDialog::getText(this,
+			tr("Material Name"),
+			tr("Enter name for material:"),
+			QLineEdit::Normal,
+			suggestedName,
+			&okName);
+		if (!okName || enteredName.trimmed().isEmpty()) return;  // User cancelled - gracefully exit
+		QString materialName = enteredName.trimmed();
+
+		// Ask for category
+		QString selectedGroup;
+		QStringList groups;
+		const auto& sharedGroups = MaterialLibraryWidget::sharedGroups();
+		for (const auto& g : sharedGroups) {
+			if (g.first != "Mesh Materials") {  // Exclude temporary mesh materials group
+				groups << g.first;
+			}
+		}
+		if (groups.isEmpty()) groups << QStringLiteral("User Materials");
+
+		bool okGroup = false;
+		QString picked = QInputDialog::getItem(this,
+			tr("Choose Category"),
+			tr("Select a category to save into:"),
+			groups,
+			0,
+			true,
+			&okGroup);
+		if (!okGroup) return;  // User cancelled - gracefully exit
+		selectedGroup = picked.trimmed().isEmpty() ? QStringLiteral("User Materials") : picked.trimmed();
+
+		// User confirmed both name and category - now proceed with save and cleanup
+		// Generate a unique UUID key for this new material
+		QString newKey = QUuid::createUuid().toString(QUuid::WithoutBraces);
+		GLMaterial mat = *_material;
+
+		// Create user material folder and copy texture files
+		QString userRoot = MaterialLibraryWidget::userMaterialsRootPath();
+		QString materialFolder = QDir(userRoot).filePath(newKey);
+		QDir materialDir(materialFolder);
+
+		if (!materialDir.exists()) {
+			if (!materialDir.mkpath(".")) {
+				QMessageBox::warning(this, tr("Folder Creation Failed"),
+					tr("Could not create material folder: %1").arg(materialFolder));
+				return;
+			}
+		}
+
+		// Copy texture files
+		QString materialFolderCanonical = QFileInfo(materialFolder).canonicalFilePath();
+
+		for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i) {
+			GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+			GLMaterial::Texture tex = mat.texture(type);
+
+			if (tex.path.empty()) continue;
+
+			QString sourcePath = QString::fromStdString(tex.path);
+			QFileInfo fileInfo(sourcePath);
+			QString fileName = fileInfo.fileName();
+			QString destPath = materialDir.filePath(fileName);
+
+			QString sourceCanonical = QFileInfo(sourcePath).canonicalFilePath();
+
+			// Skip if already in our folder
+			if (sourceCanonical == QFileInfo(destPath).canonicalFilePath())
+				continue;
+
+			// Copy texture file
+			if (QFile::exists(sourcePath)) {
+				if (!QFile::copy(sourcePath, destPath)) {
+					qWarning() << "Failed to copy texture:" << sourcePath << "to" << destPath;
+				} else {
+					// Update material to use relative path
+					tex.path = fileName.toStdString();
+					mat.setTexture(type, tex);
+				}
+			}
+		}
+
+		// Save the material to user library
+		if (libraryWidget) libraryWidget->blockSignals(true);
+
+		QString err;
+		bool saved = MaterialLibraryWidget::saveUserMaterialToUserLocation(selectedGroup, newKey, materialName, mat, this, &err);
+
+		if (libraryWidget) libraryWidget->blockSignals(false);
+
+		if (!saved) {
+			if (!err.isEmpty() && err != QStringLiteral("User cancelled overwrite")) {
+				QMessageBox::warning(this, tr("Save Material Failed"), err);
+			}
+			return;
+		}
+
+		// Mark key as user key
+		MaterialLibraryWidget::s_userMaterialKeys.insert(newKey);
+
+		// Update shared map with the saved material
+		{
+			GLMaterial matWithAbsolutePaths = mat;
+			QString materialFolder = QDir(userRoot).filePath(newKey);
+
+			// Restore absolute paths from relative paths
+			for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i) {
+				GLMaterial::TextureType type = static_cast<GLMaterial::TextureType>(i);
+				GLMaterial::Texture tex = matWithAbsolutePaths.texture(type);
+
+				if (tex.path.empty()) continue;
+
+				QString texPath = QString::fromStdString(tex.path);
+				if (!texPath.contains('/') && !texPath.contains('\\')) {
+					QString absolutePath = QDir(materialFolder).filePath(texPath);
+					tex.path = absolutePath.toStdString();
+					matWithAbsolutePaths.setTexture(type, tex);
+				}
+			}
+
+			auto& mutableSharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+				MaterialLibraryWidget::sharedMaterialMap());
+			mutableSharedMap[newKey] = [material = matWithAbsolutePaths]() { return material; };
+		}
+
+		// Refresh the tree and select the newly saved material
+		if (libraryWidget) {
+			libraryWidget->blockSignals(true);
+			libraryWidget->refreshMaterialTree();
+			restoreAsterisksForUnsavedMaterials();
+			libraryWidget->selectMaterialByKey(newKey);
+			libraryWidget->blockSignals(false);
+
+			// Load the newly saved material into preview
+			if (libraryWidget->sharedMaterialMap().contains(newKey)) {
+				GLMaterial savedMat = libraryWidget->sharedMaterialMap()[newKey]();
+				_material = new GLMaterial(savedMat);
+				loadTextureImageFiles();
+				bindMaterial(_material);
+			}
+		}
+
+		// Update current material key
+		_currentMaterialKey = newKey;
+		_currentMaterialGroup = selectedGroup;
+
+		// Clean up the original mesh material from the tree
+		if (originalMeshKey.startsWith("__mesh_")) {
+			_unsavedMaterialKeys.remove(originalMeshKey);
+
+			auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+				MaterialLibraryWidget::sharedMaterialMap());
+			sharedMap.remove(originalMeshKey);
+
+			auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
+				MaterialLibraryWidget::sharedGroups());
+			for (auto& groupPair : mutableGroups) {
+				if (groupPair.first == "Mesh Materials") {
+					auto& materials = groupPair.second;
+					for (int i = 0; i < materials.size(); ++i) {
+						if (materials[i].second == originalMeshKey) {
+							materials.removeAt(i);
+							break;
+						}
+					}
+					break;
+				}
+			}
+
+			if (_materialCacheRef) {
+				_materialCacheRef->remove(originalMeshKey);
+			}
+
+			qDebug() << "Cleaned up mesh material from tree:" << originalMeshKey;
+
+			// Refresh tree again to reflect the removal of the mesh material
+			if (libraryWidget) {
+				libraryWidget->blockSignals(true);
+				libraryWidget->refreshMaterialTree();
+				restoreAsterisksForUnsavedMaterials();
+				libraryWidget->selectMaterialByKey(newKey);
+				libraryWidget->blockSignals(false);
+			}
+
+			// Remove the "Mesh Materials" category if it's now empty
+			removeEmptyMeshMaterialsCategory();
+
+			// Refresh tree one more time to remove the empty category
+			if (libraryWidget) {
+				libraryWidget->blockSignals(true);
+				libraryWidget->refreshMaterialTree();
+				restoreAsterisksForUnsavedMaterials();
+				libraryWidget->selectMaterialByKey(newKey);
+				libraryWidget->blockSignals(false);
+			}
+		}
+
+		_editingMeshUuid = QUuid();  // Clear editing state
+
+		QMessageBox::information(this, tr("Material Saved"),
+			tr("New user material '%1' has been created in category '%2'.").arg(materialName, selectedGroup));
+		return;
+	}
+
 	// Get current material copy
 	GLMaterial mat = *_material;
 
@@ -2749,6 +2980,46 @@ void MaterialPropertiesPanel::onSaveAsToLibrary()
 	// Update current material key
 	_currentMaterialKey = key;
 	_currentMaterialGroup = groupLabel;
+
+	// Clear mesh editing state and remove old mesh material from tree if this was a mesh material
+	if (!_editingMeshUuid.isNull()) {
+		// Remove the original mesh material from the shared groups and caches
+		QString oldMeshKey = _currentMaterialKey;  // The old mesh material key
+		if (oldMeshKey.startsWith("__mesh_")) {
+			// Remove from unsaved keys
+			_unsavedMaterialKeys.remove(oldMeshKey);
+
+			// Remove from shared map
+			auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+				MaterialLibraryWidget::sharedMaterialMap());
+			sharedMap.remove(oldMeshKey);
+
+			// Remove from shared groups (Mesh Materials category)
+			auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
+				MaterialLibraryWidget::sharedGroups());
+			for (auto& groupPair : mutableGroups) {
+				if (groupPair.first == "Mesh Materials") {
+					// Find and remove the material with this key
+					auto& materials = groupPair.second;
+					for (int i = 0; i < materials.size(); ++i) {
+						if (materials[i].second == oldMeshKey) {
+							materials.removeAt(i);
+							break;
+						}
+					}
+					break;
+				}
+			}
+
+			// Remove from local cache
+			if (_materialCacheRef) {
+				_materialCacheRef->remove(oldMeshKey);
+			}
+
+			qDebug() << "Cleaned up original mesh material:" << oldMeshKey;
+		}
+		_editingMeshUuid = QUuid();
+	}
 
 	QMessageBox::information(this, tr("Material Saved"),
 		tr("New user material '%1' has been created.").arg(name));
@@ -3898,4 +4169,129 @@ void MaterialPropertiesPanel::restorePreviewFrame(QFrame* previewFrame)
 	}
 
 	qDebug() << "PreviewFrame restoration complete";
+}
+
+void MaterialPropertiesPanel::createUnsavedMaterialFromMesh(
+	const QString& meshName,
+	const GLMaterial& meshMaterial)
+{
+	MaterialLibraryWidget* libraryWidget = qobject_cast<MaterialLibraryWidget*>(_ui->treeWidget);
+	if (!libraryWidget) {
+		qWarning() << "Material library widget not found!";
+		return;
+	}
+
+	// Generate unique key with "__mesh_" prefix for identification
+	QString materialKey = "__mesh_" + QUuid::createUuid().toString(QUuid::WithoutBraces);
+
+	// Copy the mesh material and ensure consistency
+	GLMaterial newMaterial = meshMaterial;
+	newMaterial.updateConsistency();
+
+	qDebug() << "Creating unsaved material from mesh:" << meshName
+	         << "Key:" << materialKey;
+
+	// ========== Add to shared material map (s_materialMap) ==========
+	auto& sharedMap = const_cast<QMap<QString, std::function<GLMaterial()>>&>(
+		MaterialLibraryWidget::sharedMaterialMap());
+
+	sharedMap[materialKey] = [this, materialKey]() -> GLMaterial {
+		if (_modelViewer && _materialCacheRef) {
+			auto it = _materialCacheRef->find(materialKey);
+			if (it != _materialCacheRef->end()) {
+				return it.value().material;
+			}
+		}
+		return GLMaterial();
+	};
+
+	// ========== Add to shared groups (s_groups) ==========
+	auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
+		MaterialLibraryWidget::sharedGroups());
+
+	QString groupLabel = QStringLiteral("Mesh Materials");
+	bool foundGroup = false;
+
+	for (auto& groupPair : mutableGroups) {
+		if (groupPair.first == groupLabel) {
+			// Add material with " *" suffix (unsaved marker)
+			groupPair.second.append(qMakePair(QString("[%1] *").arg(meshName), materialKey));
+			foundGroup = true;
+			qDebug() << "Added to existing 'Mesh Materials' group";
+			break;
+		}
+	}
+
+	// Create "Mesh Materials" group if it doesn't exist
+	if (!foundGroup) {
+		QVector<QPair<QString, QString>> newGroup;
+		newGroup.append(qMakePair(QString("[%1] *").arg(meshName), materialKey));
+		mutableGroups.append(qMakePair(groupLabel, newGroup));
+		qDebug() << "Created new 'Mesh Materials' group";
+	}
+
+	// ========== Mark as unsaved ==========
+	_unsavedMaterialKeys.insert(materialKey);
+	_currentMaterialKey = materialKey;
+	_currentMaterialGroup = groupLabel;
+
+	// ========== Add to local MDI cache ==========
+	if (_materialCacheRef) {
+		(*_materialCacheRef)[materialKey] = CachedMaterial{
+			newMaterial,
+			QString("[%1]").arg(meshName),
+			groupLabel
+		};
+		qDebug() << "Added to MDI cache - key:" << materialKey;
+	} else {
+		qWarning() << "ERROR: _materialCacheRef is null!";
+		return;
+	}
+
+	// ========== Register with ModelViewer for cleanup ==========
+	if (_modelViewer) {
+		_modelViewer->registerOwnedUnsavedMaterial(materialKey);
+		qDebug() << "Registered with ModelViewer for cleanup";
+	}
+
+	// ========== Refresh tree and select the new material ==========
+	libraryWidget->blockSignals(true);
+	libraryWidget->refreshMaterialTree();
+	libraryWidget->selectMaterialByKey(materialKey);
+	libraryWidget->blockSignals(false);
+
+	// ========== Load material into panel ==========
+	if (!_material) _material = new GLMaterial();
+	*_material = newMaterial;
+	_material->updateConsistency();
+	bindMaterial(_material);
+
+	updateRefreshButtonState();
+
+	qDebug() << "Mesh material created and loaded into panel";
+}
+
+void MaterialPropertiesPanel::setEditingMeshUuid(const QUuid& uuid)
+{
+	_editingMeshUuid = uuid;
+}
+
+void MaterialPropertiesPanel::removeEmptyMeshMaterialsCategory()
+{
+	// Remove the "Mesh Materials" category if it's empty (no materials left in it)
+	auto& mutableGroups = const_cast<QVector<QPair<QString, QVector<QPair<QString, QString>>>>&>(
+		MaterialLibraryWidget::sharedGroups());
+
+	for (int i = 0; i < mutableGroups.size(); ++i) {
+		if (mutableGroups[i].first == "Mesh Materials") {
+			// Check if this category is empty
+			if (mutableGroups[i].second.isEmpty()) {
+				mutableGroups.removeAt(i);
+				qDebug() << "Removed empty 'Mesh Materials' category";
+			} else {
+				qDebug() << "Mesh Materials category still has" << mutableGroups[i].second.size() << "material(s)";
+			}
+			break;
+		}
+	}
 }

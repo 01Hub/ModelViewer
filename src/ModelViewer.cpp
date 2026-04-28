@@ -210,6 +210,31 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::materialApplied,
 		this, &ModelViewer::onCustomMaterialApplied);
 
+	// Connection for mesh material apply
+	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::meshMaterialApplied,
+		this, [this](const QUuid& meshUuid, const GLMaterial& material) {
+			// Get all currently selected mesh IDs
+			std::vector<int> selectedIds = getSelectedIDs();
+			QVector<QUuid> selectedUuids;
+
+			for (int id : selectedIds) {
+				QUuid uuid = _glWidget->getUuidByIndex(id);
+				if (!uuid.isNull()) {
+					selectedUuids.append(uuid);
+				}
+			}
+
+			// Apply material to all selected meshes via command (undo-able)
+			QString materialName = "Mesh Material";
+			_undoStack->push(new ApplyMaterialCommand(
+				this, _glWidget, selectedUuids, material, materialName));
+
+			// Clear editing state
+			_currentEditingMeshUuid = QUuid();
+
+			QApplication::restoreOverrideCursor();
+		});
+
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::detachRequested,
 		this, &ModelViewer::detachMaterialPanel);
 	connect(Ui_ModelViewer::predefinedMaterialsPanel, &MaterialPropertiesPanel::textureSamplerChanged,
@@ -1667,6 +1692,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addAction(tr("Center Screen"),          this, &ModelViewer::centerScreen);
 		myMenu.addAction(tr("Visualization Settings"), this, &ModelViewer::showVisualizationModelPage);
 		myMenu.addAction(tr("Transformations"),        this, &ModelViewer::showTransformationsPage);
+		myMenu.addAction(tr("Edit Material"),          this, &ModelViewer::editMeshMaterial);
 		myMenu.addSeparator();
 		myMenu.addAction(tr("Hide"),      this, &ModelViewer::hideSelectedItems);
 		myMenu.addAction(tr("Show"),      this, &ModelViewer::showSelectedItems);
@@ -3017,4 +3043,52 @@ void ModelViewer::syncTreeVisibilityFromModel()
 {
 	_treeVisibilityDirty = false;
 	treeWidgetModel->setVisibilityByUuids(_visibleMeshUuids);
+}
+
+void ModelViewer::editMeshMaterial()
+{
+	// Check for active selection (shows "Please select an object first" if none)
+	if (!checkForActiveSelection())
+		return;
+
+	// Get selected mesh IDs
+	std::vector<int> selectedIds = getSelectedIDs();
+	if (selectedIds.empty())
+		return;
+
+	// Edit FIRST selected mesh (but Apply will apply to ALL selected)
+	int firstMeshId = selectedIds[0];
+	QUuid meshUuid = _glWidget->getUuidByIndex(firstMeshId);
+	if (meshUuid.isNull())
+		return;
+
+	// Get the mesh and its material
+	TriangleMesh* mesh = _glWidget->getMeshByUuid(meshUuid);
+	if (!mesh)
+		return;
+
+	// Capture mesh UUID for later (when Apply is clicked)
+	_currentEditingMeshUuid = meshUuid;
+
+	// Get mesh's current material
+	GLMaterial meshMaterial = mesh->getMaterial();
+	QString meshName = mesh->getName();
+
+	// Create unsaved material from mesh's material
+	Ui_ModelViewer::predefinedMaterialsPanel->createUnsavedMaterialFromMesh(meshName, meshMaterial);
+
+	// Set the editing mesh UUID in the panel
+	Ui_ModelViewer::predefinedMaterialsPanel->setEditingMeshUuid(meshUuid);
+
+	// Show material properties panel
+	showPredefinedMaterialsPage();
+
+	// Status feedback
+	if (selectedIds.size() > 1) {
+		MainWindow::showStatusMessage(
+			QString(tr("Editing material of %1 (Apply will affect all %2 selected meshes)"))
+			.arg(meshName).arg(selectedIds.size()));
+	} else {
+		MainWindow::showStatusMessage(tr("Editing material of %1").arg(meshName));
+	}
 }

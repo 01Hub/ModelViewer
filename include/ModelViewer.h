@@ -144,6 +144,7 @@ public slots:
 	void deleteSelectedItems();
 	void generateUVsForSelectedItems();
 	void displaySelectedMeshInfo();
+	void editMeshMaterial();
 	void showVisualizationModelPage();
 	void showEnvironmentPage();
 	void showPredefinedMaterialsPage();
@@ -292,6 +293,8 @@ private:
 	// Material cache - MDI-scoped, auto-destroyed when MDI closes
 	QMap<QString, CachedMaterial> _materialCache;  // Maps material keys to cached materials with metadata
 	QSet<QString> _ownedUnsavedMaterials;  // Tracks unsaved materials created by this MDI (for cleanup)
+
+	QUuid _currentEditingMeshUuid;  // UUID of mesh being edited (null if not editing)
 };
 
 #endif

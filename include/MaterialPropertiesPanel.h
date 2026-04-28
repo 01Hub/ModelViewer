@@ -17,6 +17,7 @@
 #include <QColorDialog>
 #include <QComboBox>
 #include <QCloseEvent>
+#include <QUuid>
 
 #include "GLMaterial.h"
 
@@ -109,9 +110,19 @@ public:
 	void beginSaveUnsavedMaterials();   // Block signals before batch save
 	void endSaveUnsavedMaterials();     // Unblock signals and refresh tree after batch save
 
+	// Mesh material editing
+	void createUnsavedMaterialFromMesh(
+		const QString& meshName,
+		const GLMaterial& meshMaterial);
+	void setEditingMeshUuid(const QUuid& uuid);
+
+	// Cleanup helper for temporary mesh materials category
+	void removeEmptyMeshMaterialsCategory();
+
 signals:
 	void materialChanged(GLMaterial* material);
 	void materialApplied(const GLMaterial& material);
+	void meshMaterialApplied(const QUuid& meshUuid, const GLMaterial& material);
 	void textureSamplerChanged(GLMaterial* material, GLMaterial::TextureType type);
 	void textureCacheClearRequested();
 	void detachRequested();
@@ -263,6 +274,8 @@ private:
 	bool _detached = false;
 	bool _updateInProgress = false;
 	bool _texturesDirty = false;  // Track if current material has unsaved texture changes
+
+	QUuid _editingMeshUuid;  // UUID of mesh being edited (null if not editing mesh material)
 
 	// Helper to save textures before switching materials
 	void saveCurrentMaterialTexturesBeforeSwitch();
