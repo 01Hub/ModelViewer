@@ -389,9 +389,26 @@ void MaterialPreviewWidget::initializeGL()
 
 void MaterialPreviewWidget::resizeGL(int w, int h)
 {
+	float aspect = float(w) / float(h > 0 ? h : 1);
+
+	float baseFovY = 45.0f; // degrees
+	float fovY = baseFovY;
+
+	if (aspect < 1.0f)
+	{
+		float fovX = qDegreesToRadians(baseFovY);
+
+		float newFovY = 2.0f * atan(tan(fovX * 0.5f) / aspect);
+		fovY = qRadiansToDegrees(newFovY);
+
+		// Critical: prevent projection instability
+		fovY = std::min(fovY, 120.0f);
+	}
+
 	proj.setToIdentity();
-	proj.perspective(45.0f, float(w) / float(h), 0.1f, 10.0f);
+	proj.perspective(fovY, aspect, 0.1f, 10.0f);
 }
+
 
 void MaterialPreviewWidget::paintGL()
 {
