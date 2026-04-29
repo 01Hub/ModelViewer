@@ -26,6 +26,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
 {
     _currentSettings = settings;
     _lastEmbeddedIndexMapping.clear();
+    _packedTextureCache.clear();  // Clear cache for each new export
 
     logMessage(QString("=== AssImpMeshExporter::exportMeshes ==="));
     logMessage(QString("Target: %1").arg(exportPath));
@@ -1120,6 +1121,8 @@ aiMaterial* AssImpMeshExporter::createMaterial(
             static_cast<float>(material.albedoColor().x()),
             static_cast<float>(material.albedoColor().y()),
             static_cast<float>(material.albedoColor().z()));
+        logMessage(QString("  *** Albedo color in material: [%1, %2, %3]")
+            .arg(albedo.r).arg(albedo.g).arg(albedo.b));
         // Write ONLY to AI_MATKEY_BASE_COLOR for glTF export to avoid conflicts with legacy ADS keys
         aiMat->AddProperty(&albedo, 1, AI_MATKEY_BASE_COLOR);
     }
@@ -1487,6 +1490,19 @@ void AssImpMeshExporter::assignTexturesToMaterial(
         if (tex.path.empty())
             continue;
 
+        // For glTF, skip AO in general loop - will be handled specially after M/R packing
+        // (either as packed ORM or as independent texture)
+        if (isGLTF && mapping.mvType == GLMaterial::TextureType::AmbientOcclusion)
+            continue;
+
+        // For glTF, skip Height texture - glTF 2.0 doesn't have a standard height/displacement map
+        // Height maps are supported in OBJ, FBX, etc. but not in glTF
+        if (isGLTF && mapping.mvType == GLMaterial::TextureType::Height)
+        {
+            logMessage(QString("     -> Skipping Height texture for glTF (not supported in glTF 2.0)"));
+            continue;
+        }
+
         QString originalPath = QString::fromStdString(tex.path);
 
         // Look up with the original path first (handles full "glb://filepath::image_N"
@@ -1536,16 +1552,77 @@ void AssImpMeshExporter::assignTexturesToMaterial(
     // In glTF, metallic and roughness MUST be in the same texture
     // Blue channel = metallic, Green channel = roughness
     // For other formats, they were already handled as separate textures above
+    QString packedPath;  // Declared here so it's accessible for AO handling below
+    QString aoPath;
+    bool addedOrmAsOcclusion = false;  // Track if we already added ORM as occlusion texture
+
     if (isGLTF && hasMetallicRoughness)
     {
+        // Check if we need to pack ORM (Occlusion, Roughness, Metallic) textures
+        const auto& aoTex = material.texture(GLMaterial::TextureType::AmbientOcclusion);
+        aoPath = QString::fromStdString(aoTex.path);
+        QString metallicPath = QString::fromStdString(metallicTex.path);
+        QString roughnessPath = QString::fromStdString(roughnessTex.path);
+
+        logMessage(QString("=== ORM Packing Debug Info ==="));
+        logMessage(QString("  Metallic texture path from material: %1").arg(metallicPath));
+        logMessage(QString("  Roughness texture path from material: %1").arg(roughnessPath));
+        logMessage(QString("  AO texture path from material: %1").arg(aoPath));
+        logMessage(QString("  *** Scalar roughness value in material: %1").arg(material.roughness()));
+        logMessage(QString("  *** Scalar metalness value in material: %1").arg(material.metalness()));
+
+        // Try ORM packing first (handles all three textures if available)
+        // Returns empty string if packing isn't needed
+        packedPath = packORMIfSeparate(material, texturePackage, _currentSettings.outputDirectory);
+
+        if (!packedPath.isEmpty())
+        {
+            // ORM packing succeeded - use the packed texture
+            metallicRoughnessPath = packedPath.toStdString();
+            logMessage(QString("     -> Using packed ORM texture: %1").arg(packedPath));
+        }
+        else if (!metallicPath.isEmpty() && !roughnessPath.isEmpty() && metallicPath != roughnessPath)
+        {
+            // ORM packing not applicable, try M/R-only packing (for backwards compatibility)
+            packedPath = packMetallicRoughnessIfSeparate(material, texturePackage, _currentSettings.outputDirectory);
+            if (!packedPath.isEmpty())
+            {
+                // Use the packed texture instead of the original path
+                metallicRoughnessPath = packedPath.toStdString();
+                logMessage(QString("     -> Using packed M/R texture: %1").arg(packedPath));
+            }
+            else
+            {
+                // Packing failed - fall back to original logic using one of the textures
+                logMessage(QString("     -> M/R packing failed, using single texture"));
+            }
+        }
+
         QString originalPath = QString::fromStdString(metallicRoughnessPath);
         auto it = texturePackage.pathMapping.find(originalPath);
         if (it == texturePackage.pathMapping.end())
             it = texturePackage.pathMapping.find(GltfPostProcessor::normalisedGlbPath(originalPath));
 
+        // If the path is a newly created packed filename, it won't be in pathMapping yet
+        // In that case, use it directly (relative to output directory)
+        QString texturePath;
         if (it != texturePackage.pathMapping.end())
         {
-            QString texturePath = it.value();
+            texturePath = it.value();
+        }
+        else if (!packedPath.isEmpty() && metallicRoughnessPath == packedPath.toStdString())
+        {
+            // Packed texture - use directly with relative path
+            texturePath = packedPath;
+        }
+        else
+        {
+            // Fallback: nothing found, skip
+            logWarning(QString("Metallic/Roughness texture not found in package"));
+        }
+
+        if (!texturePath.isEmpty())
+        {
             texturePath = texturePath.replace("\\", "/");
 
             // Add as BOTH metalness and roughness textures
@@ -1564,6 +1641,26 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE_ROUGHNESS, 0));
             aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE_ROUGHNESS, 0));
 
+            // If we packed ORM, add as occlusion texture with packed texture
+            // The packed texture has occlusion data in the R channel
+            // (even if AO was missing, packORMIfSeparate creates a white default)
+            if (!packedPath.isEmpty())
+            {
+                // Use LIGHTMAP type for glTF occlusion export
+                aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_LIGHTMAP, 0));
+                aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_LIGHTMAP, 0));
+
+                // UV transforms for occlusion (use metallic/roughness texture's transform)
+                aiUVTransform ormOcclusionTransform;
+                ormOcclusionTransform.mTranslation = aiVector2D(refTex.offset.x, refTex.offset.y);
+                ormOcclusionTransform.mScaling = aiVector2D(refTex.scale.x, refTex.scale.y);
+                ormOcclusionTransform.mRotation = refTex.rotation;
+                aiMat->AddProperty(&ormOcclusionTransform, 1, AI_MATKEY_UVTRANSFORM(aiTextureType_LIGHTMAP, 0));
+
+                addedOrmAsOcclusion = true;  // Mark that we've already handled occlusion
+                logMessage(QString("     -> Adding packed ORM as occlusion texture (R channel): %1").arg(texturePath));
+            }
+
             // UV transforms
             aiUVTransform uvTransform;
             uvTransform.mTranslation = aiVector2D(refTex.offset.x, refTex.offset.y);
@@ -1573,6 +1670,54 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             aiMat->AddProperty(&uvTransform, 1, AI_MATKEY_UVTRANSFORM(aiTextureType_DIFFUSE_ROUGHNESS, 0));
 
             logMessage(QString("     -> metallicRoughnessTexture (glTF): %1").arg(texturePath));
+        }
+        else if (!packedPath.isEmpty())
+        {
+            // If texture path lookup failed but we have a packed path, mark that we handled occlusion
+            addedOrmAsOcclusion = true;
+            logWarning(QString("Metallic/Roughness texture path not found, but ORM was packed: %1").arg(packedPath));
+        }
+    }
+
+    // ===== AMBIENT OCCLUSION TEXTURE (glTF ONLY) =====
+    // Add independent AO only if we didn't already add it as part of packed ORM
+    if (isGLTF && !addedOrmAsOcclusion)
+    {
+        // Get AO path if we haven't already
+        if (aoPath.isEmpty())
+        {
+            const auto& aoTex = material.texture(GLMaterial::TextureType::AmbientOcclusion);
+            aoPath = QString::fromStdString(aoTex.path);
+        }
+
+        if (!aoPath.isEmpty())
+        {
+            QString originalAoPath = aoPath;
+            auto it = texturePackage.pathMapping.find(originalAoPath);
+            if (it == texturePackage.pathMapping.end())
+                it = texturePackage.pathMapping.find(GltfPostProcessor::normalisedGlbPath(originalAoPath));
+
+            if (it != texturePackage.pathMapping.end())
+            {
+                QString aoTexturePath = it.value();
+                aoTexturePath.replace("\\", "/");
+                aiString aiAoPath(aoTexturePath.toStdString());
+
+                const auto& aoTex = material.texture(GLMaterial::TextureType::AmbientOcclusion);
+                // Use LIGHTMAP type for glTF occlusion export
+                aiMat->AddProperty(&aiAoPath, AI_MATKEY_TEXTURE(aiTextureType_LIGHTMAP, 0));
+                int aoUvIndex = aoTex.texCoordIndex;
+                aiMat->AddProperty(&aoUvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_LIGHTMAP, 0));
+
+                // UV transforms for AO
+                aiUVTransform aoUvTransform;
+                aoUvTransform.mTranslation = aiVector2D(aoTex.offset.x, aoTex.offset.y);
+                aoUvTransform.mScaling = aiVector2D(aoTex.scale.x, aoTex.scale.y);
+                aoUvTransform.mRotation = aoTex.rotation;
+                aiMat->AddProperty(&aoUvTransform, 1, AI_MATKEY_UVTRANSFORM(aiTextureType_LIGHTMAP, 0));
+
+                logMessage(QString("     -> ambientOcclusionTexture (glTF): %1").arg(aoTexturePath));
+            }
         }
     }
 }
@@ -2094,3 +2239,173 @@ aiScene* AssImpMeshExporter::createScene(
 
     return scene;
 }
+
+QString AssImpMeshExporter::packMetallicRoughnessIfSeparate(
+    const GLMaterial& material,
+    const TexturePackage& texturePackage,
+    const QString& outputDirectory)
+{
+    // Get metallic and roughness texture paths
+    const auto& metallicTex = material.texture(GLMaterial::TextureType::Metallic);
+    const auto& roughnessTex = material.texture(GLMaterial::TextureType::Roughness);
+
+    QString metallicPath = QString::fromStdString(metallicTex.path);
+    QString roughnessPath = QString::fromStdString(roughnessTex.path);
+
+    // If both are empty or identical, no packing needed
+    if (metallicPath.isEmpty() && roughnessPath.isEmpty())
+        return QString();  // No M/R texture
+    if (!metallicPath.isEmpty() && !roughnessPath.isEmpty() && metallicPath == roughnessPath)
+        return QString();  // Already the same texture
+
+    // If only one exists, use it as-is (not an error, just incomplete material)
+    if (metallicPath.isEmpty() || roughnessPath.isEmpty())
+        return QString();
+
+    // Check cache first
+    QString cacheKey = metallicPath + "|" + roughnessPath;
+    if (_packedTextureCache.contains(cacheKey))
+    {
+        logMessage(QString("  -> Using cached packed texture for M/R pair"));
+        return _packedTextureCache[cacheKey];
+    }
+
+    logMessage(QString("  -> Packing separate M/R textures: %1 + %2")
+        .arg(QFileInfo(metallicPath).fileName())
+        .arg(QFileInfo(roughnessPath).fileName()));
+
+    // Pack the textures
+    QString errorMsg;
+    QImage packedImage = TexturePackingUtils::packMetallicRoughness(metallicPath, roughnessPath, errorMsg);
+    if (packedImage.isNull())
+    {
+        logWarning(QString("  -> Failed to pack M/R textures: %1").arg(errorMsg));
+        logMessage(QString("  -> Falling back to metallic texture: %1")
+            .arg(QFileInfo(metallicPath).fileName()));
+        return QString();  // Fallback: use existing single texture
+    }
+
+    // Save packed image to texture subfolder with improved naming
+    // Convert "bronze_metallic_1024x1024.png" -> "bronze_metallic_packed_mr_1024x1024.png"
+    QString baseName = QFileInfo(metallicPath).baseName();
+    QString packedFileName;
+
+    // Try to extract dimension suffix (e.g., _1024x1024)
+    QRegularExpression dimRegex("(_\\d+x\\d+)$");
+    QRegularExpressionMatch match = dimRegex.match(baseName);
+
+    if (match.hasMatch())
+    {
+        QString dimension = match.captured(1);
+        QString nameWithoutDim = baseName.left(baseName.length() - dimension.length());
+        packedFileName = nameWithoutDim + "_packed_mr" + dimension + ".png";
+    }
+    else
+    {
+        // Fallback if dimension suffix not found
+        packedFileName = baseName + "_packed_mr.png";
+    }
+
+    QString packedFilePath = QDir(texturePackage.textureDirectory).filePath(packedFileName);
+
+    if (!packedImage.save(packedFilePath))
+    {
+        logWarning(QString("  -> Failed to save packed texture to: %1").arg(packedFilePath));
+        return QString();
+    }
+
+    logMessage(QString("  -> Saved packed M/R texture: %1").arg(packedFileName));
+
+    // Return relative path with texture subfolder prefix for glTF references
+    QString relativePackedPath = texturePackage.textureSubfolder + "/" + packedFileName;
+
+    // Cache the result
+    _packedTextureCache[cacheKey] = relativePackedPath;
+
+    return relativePackedPath;
+}
+
+QString AssImpMeshExporter::packORMIfSeparate(
+    const GLMaterial& material,
+    const TexturePackage& texturePackage,
+    const QString& outputDirectory)
+{
+    // Get AO, metallic, and roughness texture paths
+    const auto& aoTex = material.texture(GLMaterial::TextureType::AmbientOcclusion);
+    const auto& metallicTex = material.texture(GLMaterial::TextureType::Metallic);
+    const auto& roughnessTex = material.texture(GLMaterial::TextureType::Roughness);
+
+    QString aoPath = QString::fromStdString(aoTex.path);
+    QString metallicPath = QString::fromStdString(metallicTex.path);
+    QString roughnessPath = QString::fromStdString(roughnessTex.path);
+
+    // Need at least metallic and roughness for ORM packing
+    if (metallicPath.isEmpty() || roughnessPath.isEmpty())
+        return QString();  // Can't pack without M and R
+
+    // If metallic and roughness are the same and no AO, no packing needed
+    if (aoPath.isEmpty() && metallicPath == roughnessPath)
+        return QString();
+
+    // Check cache first
+    QString cacheKey = aoPath + "|" + metallicPath + "|" + roughnessPath;
+    if (_packedTextureCache.contains(cacheKey))
+    {
+        logMessage(QString("  -> Using cached packed ORM texture"));
+        return _packedTextureCache[cacheKey];
+    }
+
+    logMessage(QString("  -> Packing ORM textures: AO=%1, M=%2, R=%3")
+        .arg(aoPath.isEmpty() ? "none" : QFileInfo(aoPath).fileName())
+        .arg(QFileInfo(metallicPath).fileName())
+        .arg(QFileInfo(roughnessPath).fileName()));
+
+    // Pack the three textures using packORM
+    QString errorMsg;
+    QImage packedImage = TexturePackingUtils::packORM(aoPath, roughnessPath, metallicPath, errorMsg);
+    if (packedImage.isNull())
+    {
+        logWarning(QString("  -> Failed to pack ORM textures: %1").arg(errorMsg));
+        return QString();  // Packing failed
+    }
+
+    // Save packed image to texture subfolder with improved naming
+    // Convert "bronze_metallic_1024x1024.png" -> "bronze_metallic_packed_orm_1024x1024.png"
+    QString baseName = QFileInfo(metallicPath).baseName();
+    QString packedFileName;
+
+    // Try to extract dimension suffix (e.g., _1024x1024)
+    QRegularExpression dimRegex("(_\\d+x\\d+)$");
+    QRegularExpressionMatch match = dimRegex.match(baseName);
+
+    if (match.hasMatch())
+    {
+        QString dimension = match.captured(1);
+        QString nameWithoutDim = baseName.left(baseName.length() - dimension.length());
+        packedFileName = nameWithoutDim + "_packed_orm" + dimension + ".png";
+    }
+    else
+    {
+        // Fallback if dimension suffix not found
+        packedFileName = baseName + "_packed_orm.png";
+    }
+
+    QString packedFilePath = QDir(texturePackage.textureDirectory).filePath(packedFileName);
+
+    if (!packedImage.save(packedFilePath))
+    {
+        logWarning(QString("  -> Failed to save packed ORM texture to: %1").arg(packedFilePath));
+        return QString();
+    }
+
+    logMessage(QString("  -> Saved packed ORM texture: %1").arg(packedFileName));
+
+    // Return relative path with texture subfolder prefix for glTF references
+    QString relativePackedPath = texturePackage.textureSubfolder + "/" + packedFileName;
+
+    // Cache the result
+    _packedTextureCache[cacheKey] = relativePackedPath;
+
+    return relativePackedPath;
+}
+

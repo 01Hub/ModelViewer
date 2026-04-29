@@ -6,7 +6,8 @@
 #include <assimp/scene.h>
 #include <assimp/Exporter.hpp>
 #include "TextureLocationManager.h"
-#include "GLLights.h" 
+#include "GLLights.h"
+#include "TexturePackingUtils.h" 
 
 class GLMaterial;
 class TriangleMesh;
@@ -134,6 +135,45 @@ public:
      * @return Reference to TexturePackage from last export
      */
     const TexturePackage& getLastTexturePackage() const { return _lastTexturePackage; }
+
+    /**
+     * @brief Pack separate Metallic and Roughness textures into one glTF-compliant texture
+     *
+     * Combines separate M and R textures into a single RGBA image for glTF export:
+     * - Red channel = 0 (unused)
+     * - Green channel = Roughness
+     * - Blue channel = Metallic
+     * - Alpha channel = 255 (opaque)
+     *
+     * Uses caching to avoid redundant packing of the same M/R pairs.
+     * Falls back gracefully if packing fails.
+     *
+     * @param material Source GLMaterial with potential separate M/R textures
+     * @param texturePackage Resolved texture paths for the material
+     * @param outputDirectory Directory to save packed texture
+     * @return Path to packed texture file, or empty string on failure
+     */
+    QString packMetallicRoughnessIfSeparate(
+        const GLMaterial& material,
+        const TexturePackage& texturePackage,
+        const QString& outputDirectory);
+
+    /**
+     * @brief Pack ORM (Occlusion, Roughness, Metallic) textures into single texture
+     *
+     * When separate ORM textures are present, combines them into a single glTF-compliant
+     * packed texture using efficient scanLine() pixel access. Handles optional occlusion
+     * texture (white default if missing).
+     *
+     * @param material Source GLMaterial with separate ORM textures
+     * @param texturePackage Resolved texture paths for the material
+     * @param outputDirectory Directory to save packed texture
+     * @return Path to packed texture file, or empty string on failure
+     */
+    QString packORMIfSeparate(
+        const GLMaterial& material,
+        const TexturePackage& texturePackage,
+        const QString& outputDirectory);
 
 private:
     /**
@@ -347,4 +387,5 @@ private:
     TexturePackage _lastTexturePackage;
     ExportSettings _currentSettings;
     QMap<QString, int> _lastEmbeddedIndexMapping;
+    QMap<QString, QString> _packedTextureCache;  // key: "metallic_path|roughness_path" -> packed_file_path
 };

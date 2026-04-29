@@ -974,9 +974,12 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     if (gltfJson.contains("materials") && !meshes.empty())
     {
         QJsonArray materials = gltfJson["materials"].toArray();
+        QJsonArray images;
         QJsonArray textures;
         QJsonArray samplers;
 
+        if (gltfJson.contains("images"))
+            images = gltfJson["images"].toArray();
         if (gltfJson.contains("textures"))
             textures = gltfJson["textures"].toArray();
         if (gltfJson.contains("samplers"))
@@ -1249,7 +1252,6 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     QString sourceFilename = QFileInfo(normalisedGlbPath(sourcePath)).fileName();
 
                     // Find the image index in the JSON images array with a matching filename
-                    QJsonArray images = gltfJson.value("images").toArray();
                     int correctImageIdx = -1;
 
                     auto embeddedIt = _embeddedIndexMapping.find(sourcePath);
@@ -1364,11 +1366,87 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             {
                 QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
                 fixTextureIndex(pbr, "baseColorTexture", glMat.texture(GLMaterial::TextureType::Albedo));
-                fixTextureIndex(pbr, "metallicRoughnessTexture", glMat.texture(GLMaterial::TextureType::Metallic));
+
+                // SKIP fixTextureIndex for metallicRoughnessTexture if metallic and roughness are separate
+                // files: this indicates packing was already done in the exporter, so metallicRoughnessTexture
+                // is already correctly set to the packed texture. fixTextureIndex would overwrite it with the
+                // original unpacked metallic file.
+                const auto& metallicTex = glMat.texture(GLMaterial::TextureType::Metallic);
+                const auto& roughnessTex = glMat.texture(GLMaterial::TextureType::Roughness);
+                bool hasPackedMR = (!metallicTex.path.empty() && !roughnessTex.path.empty() &&
+                                     metallicTex.path != roughnessTex.path);
+
+                if (!hasPackedMR)
+                {
+                    // Only fix M/R texture if not packed (i.e., they're the same file or one is missing)
+                    fixTextureIndex(pbr, "metallicRoughnessTexture", metallicTex);
+                }
+                // else: packed M/R already in glTF, skip to avoid overwriting with original files
+
                 mat["pbrMetallicRoughness"] = pbr;
             }
             fixTextureIndex(mat, "normalTexture", glMat.texture(GLMaterial::TextureType::Normal));
-            fixTextureIndex(mat, "occlusionTexture", glMat.texture(GLMaterial::TextureType::AmbientOcclusion));
+
+            // Handle AO for packed ORM: set occlusionTexture to point to the packed ORM texture
+            // (packed ORM has AO data in R channel, so occlusionTexture should use it instead of original AO)
+            bool handledAsPackedORM = false;
+            if (mat.contains("pbrMetallicRoughness"))
+            {
+                QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
+                if (pbr.contains("metallicRoughnessTexture"))
+                {
+                    QJsonObject mrObj = pbr["metallicRoughnessTexture"].toObject();
+                    int texIdx = mrObj.value("index").toInt(-1);
+                    log(QString("    [ORM Detection] M/R texture index: %1, total textures: %2").arg(texIdx).arg(textures.size()), logCallback);
+                    if (texIdx >= 0 && texIdx < textures.size())
+                    {
+                        QJsonObject texObj = textures[texIdx].toObject();
+                        int imgIdx = texObj.value("source").toInt(-1);
+                        log(QString("    [ORM Detection] M/R image source: %1, total images: %2").arg(imgIdx).arg(images.size()), logCallback);
+                        if (imgIdx >= 0 && imgIdx < images.size())
+                        {
+                            QString imgUri = images[imgIdx].toObject().value("uri").toString();
+                            log(QString("    [ORM Detection] M/R image URI: %1").arg(imgUri), logCallback);
+                            if (imgUri.contains("_packed_orm"))
+                            {
+                                // Set occlusionTexture to use the same packed ORM texture as metallicRoughnessTexture
+                                QJsonObject occlusionObj;
+                                occlusionObj["index"] = texIdx;  // Point to same texture as M/R
+                                mat["occlusionTexture"] = occlusionObj;
+                                handledAsPackedORM = true;
+                                log("    [ORM Detection] MATCHED! Set occlusionTexture to packed ORM texture (same as metallicRoughnessTexture)", logCallback);
+                            }
+                            else
+                            {
+                                log(QString("    [ORM Detection] No match - URI does not contain '_packed_orm_'"), logCallback);
+                            }
+                        }
+                        else
+                        {
+                            log(QString("    [ORM Detection] Invalid image index"), logCallback);
+                        }
+                    }
+                    else
+                    {
+                        log(QString("    [ORM Detection] Invalid texture index"), logCallback);
+                    }
+                }
+                else
+                {
+                    log(QString("    [ORM Detection] No metallicRoughnessTexture found"), logCallback);
+                }
+            }
+            else
+            {
+                log(QString("    [ORM Detection] No pbrMetallicRoughness found"), logCallback);
+            }
+
+            if (!handledAsPackedORM)
+            {
+                log(QString("    [ORM Detection] Not handled as packed ORM - calling fixTextureIndex for original AO"), logCallback);
+                fixTextureIndex(mat, "occlusionTexture", glMat.texture(GLMaterial::TextureType::AmbientOcclusion));
+            }
+
             fixTextureIndex(mat, "emissiveTexture", glMat.texture(GLMaterial::TextureType::Emissive));
 
             // --- Texture transforms ---
@@ -1442,8 +1520,16 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     QJsonArray existing = pbr["baseColorFactor"].toArray();
                     if (existing.size() >= 4)
                     {
+                        // Always use the material's intended albedoColor for baseColorFactor
+                        // This ensures tints and color multipliers are preserved
+                        QVector3D albedo = glMat.albedoColor();
+                        existing[0] = static_cast<double>(albedo.x());
+                        existing[1] = static_cast<double>(albedo.y());
+                        existing[2] = static_cast<double>(albedo.z());
                         existing[3] = static_cast<double>(glMat.opacity());
                         pbr["baseColorFactor"] = existing;
+                        log(QString("    Corrected baseColorFactor to [%1, %2, %3, %4]")
+                            .arg(albedo.x()).arg(albedo.y()).arg(albedo.z()).arg(glMat.opacity()), logCallback);
                     }
                 }
                 else
