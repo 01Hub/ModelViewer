@@ -520,7 +520,8 @@ vec3 calculateSheenIBLLayer(vec3 N, vec3 V, vec3 color, float rough)
 {
     float NoV = max(dot(N, V), 0.0);
     float grazing = pow(clamp(1.0 - NoV, 0.0, 1.0), mix(5.0, 2.0, rough));
-    vec3 irradiance = texture(irradianceMap, N).rgb;
+    vec3 Nibl = previewRotationMatrix * N;
+    vec3 irradiance = texture(irradianceMap, Nibl).rgb;    
     return irradiance * color * grazing;
 }
 
@@ -542,9 +543,8 @@ vec3 computeSpecularIBL(vec3 V, vec3 N, float roughness, vec3 F0, vec3 F90)
     // Reflect view direction
     vec3 R = reflect(-V, N);
 
-    // R is computed in world space, so sample environment directly without rotation
-    // As object rotates, reflection direction changes naturally in world space
-    // Environment remains stationary in world space
+    // Apply inverse object rotation so environment stays fixed
+    R = previewRotationMatrix * R;
 
     // Fresnel effect: metals at 0 degrees have high reflectivity, dielectrics are low
     float dotNV = max(dot(N, V), 0.0);
@@ -556,8 +556,8 @@ vec3 computeSpecularIBL(vec3 V, vec3 N, float roughness, vec3 F0, vec3 F90)
     // The prefilter map was generated with 90° X-axis rotation (see GLWidget::setIBLFaceBasis)
     // Apply 90° X-axis rotation to match the generated map orientation
     // Rotation matrix for 90° around X: (x, y, z) → (x, -z, y)
-    vec3 R_prefilter = R;
-    R_prefilter = vec3(R_prefilter.x, -R_prefilter.z, R_prefilter.y);
+    vec3 R_prefilter = vec3(0,0,0);    
+    R_prefilter = vec3(R.x, -R.z, R.y);
 
     // This uses the same approach as main_scene.frag lines 1885-1890
     const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
@@ -953,7 +953,8 @@ void main()
             color += (matDiffuse * NoL + matSpecular * pf) * lights[i].color;
         }
 
-        color += albedoVal * texture(irradianceMap, N_normalized).rgb * envDiffuseIntensity * ao;
+        vec3 Nibl = previewRotationMatrix * N_normalized;
+        color += albedoVal * texture(irradianceMap, Nibl).rgb * envDiffuseIntensity * ao;
     }
     else
     {
@@ -1035,7 +1036,8 @@ void main()
         vec3 ambient = vec3(0.0);
         if (useIBL)
         {
-            vec3 irradiance = texture(irradianceMap, N_normalized).rgb;
+            vec3 Nibl = previewRotationMatrix * N_normalized;
+            vec3 irradiance = texture(irradianceMap, Nibl).rgb;
             float dotNV = max(dot(N_normalized, V_normalized), 0.0);
             vec3 Fibl = fresnelSchlick(dotNV, F0, max(vec3(1.0 - roughnessVal), F0));
             vec3 kDibl = (vec3(1.0) - Fibl) * (1.0 - metalnessVal);
@@ -1047,6 +1049,7 @@ void main()
             if (clearcoatVal > 0.001 && envMapEnabled)
             {
                 vec3 ccR = reflect(-V_normalized, clearcoatN);
+                ccR = previewRotationMatrix * ccR;
                 vec3 ccPrefilterDir = vec3(ccR.x, -ccR.z, ccR.y);
                 float maxLod = max(float(textureQueryLevels(prefilterMap)) - 1.0, 0.0);
                 vec3 ccPrefilter = textureLod(prefilterMap, ccPrefilterDir, clamp(clearcoatRoughnessVal * maxLod, 0.0, maxLod)).rgb * envMapExposure;
