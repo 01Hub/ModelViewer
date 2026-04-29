@@ -1625,21 +1625,27 @@ void AssImpMeshExporter::assignTexturesToMaterial(
         {
             texturePath = texturePath.replace("\\", "/");
 
-            // Add as BOTH metalness and roughness textures
-            // Assimp should merge them into metallicRoughnessTexture
+            // Add as BOTH metalness and roughness textures (only if present)
+            // For roughness-only materials, only add roughness; for metallic-only, only add metallic
             aiString aiPath(texturePath.toStdString());
 
             // Use the metallic texture's properties (they should be the same for both)
             const auto& refTex = !metallicTex.path.empty() ? metallicTex : roughnessTex;
-
-            // Add as metalness texture
-            aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_METALNESS, 0));
             int uvIndex = refTex.texCoordIndex;
-            aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_METALNESS, 0));
 
-            // Add as roughness texture (same texture!)
-            aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE_ROUGHNESS, 0));
-            aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE_ROUGHNESS, 0));
+            // Only add metalness texture if metallic is actually present
+            if (!metallicTex.path.empty())
+            {
+                aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_METALNESS, 0));
+                aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_METALNESS, 0));
+            }
+
+            // Only add roughness texture if roughness is actually present
+            if (!roughnessTex.path.empty())
+            {
+                aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE_ROUGHNESS, 0));
+                aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE_ROUGHNESS, 0));
+            }
 
             // If we packed ORM, add as occlusion texture with packed texture
             // The packed texture has occlusion data in the R channel
@@ -1661,13 +1667,15 @@ void AssImpMeshExporter::assignTexturesToMaterial(
                 logMessage(QString("     -> Adding packed ORM as occlusion texture (R channel): %1").arg(texturePath));
             }
 
-            // UV transforms
+            // UV transforms (only for textures that were actually added)
             aiUVTransform uvTransform;
             uvTransform.mTranslation = aiVector2D(refTex.offset.x, refTex.offset.y);
             uvTransform.mScaling = aiVector2D(refTex.scale.x, refTex.scale.y);
             uvTransform.mRotation = refTex.rotation;
-            aiMat->AddProperty(&uvTransform, 1, AI_MATKEY_UVTRANSFORM(aiTextureType_METALNESS, 0));
-            aiMat->AddProperty(&uvTransform, 1, AI_MATKEY_UVTRANSFORM(aiTextureType_DIFFUSE_ROUGHNESS, 0));
+            if (!metallicTex.path.empty())
+                aiMat->AddProperty(&uvTransform, 1, AI_MATKEY_UVTRANSFORM(aiTextureType_METALNESS, 0));
+            if (!roughnessTex.path.empty())
+                aiMat->AddProperty(&uvTransform, 1, AI_MATKEY_UVTRANSFORM(aiTextureType_DIFFUSE_ROUGHNESS, 0));
 
             logMessage(QString("     -> metallicRoughnessTexture (glTF): %1").arg(texturePath));
         }
