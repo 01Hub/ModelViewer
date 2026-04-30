@@ -486,6 +486,18 @@ vec3 getBitangent(vec3 N, vec3 T, float handedness)
     return normalize(cross(N, T)) * handedness;
 }
 
+// Apply preview object rotation to normal for IBL lookups
+vec3 transformNormalForIBL(vec3 normal)
+{
+    return previewRotationMatrix * normal;
+}
+
+// Apply 90° X-axis rotation for prefilter map orientation
+vec3 toPrefilterDirection(vec3 v)
+{
+    return vec3(v.x, -v.z, v.y);
+}
+
 vec3 decodeAnisotropyDirection(vec3 texel, float rotation)
 {
     vec2 direction = texel.xy * 2.0 - 1.0;
@@ -520,8 +532,8 @@ vec3 calculateSheenIBLLayer(vec3 N, vec3 V, vec3 color, float rough)
 {
     float NoV = max(dot(N, V), 0.0);
     float grazing = pow(clamp(1.0 - NoV, 0.0, 1.0), mix(5.0, 2.0, rough));
-    vec3 Nibl = previewRotationMatrix * N;
-    vec3 irradiance = texture(irradianceMap, Nibl).rgb;    
+    vec3 Nibl = transformNormalForIBL(N);
+    vec3 irradiance = texture(irradianceMap, Nibl).rgb;
     return irradiance * color * grazing;
 }
 
@@ -555,9 +567,7 @@ vec3 computeSpecularIBL(vec3 V, vec3 N, float roughness, vec3 F0, vec3 F90)
     // Sample prefiltered environment map with roughness-based LOD
     // The prefilter map was generated with 90° X-axis rotation (see GLWidget::setIBLFaceBasis)
     // Apply 90° X-axis rotation to match the generated map orientation
-    // Rotation matrix for 90° around X: (x, y, z) → (x, -z, y)
-    vec3 R_prefilter = vec3(0,0,0);    
-    R_prefilter = vec3(R.x, -R.z, R.y);
+    vec3 R_prefilter = toPrefilterDirection(R);
 
     // This uses the same approach as main_scene.frag lines 1885-1890
     const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
@@ -953,7 +963,7 @@ void main()
             color += (matDiffuse * NoL + matSpecular * pf) * lights[i].color;
         }
 
-        vec3 Nibl = previewRotationMatrix * N_normalized;
+        vec3 Nibl = transformNormalForIBL(N_normalized);
         color += albedoVal * texture(irradianceMap, Nibl).rgb * envDiffuseIntensity * ao;
     }
     else
@@ -1036,7 +1046,7 @@ void main()
         vec3 ambient = vec3(0.0);
         if (useIBL)
         {
-            vec3 Nibl = previewRotationMatrix * N_normalized;
+            vec3 Nibl = transformNormalForIBL(N_normalized);
             vec3 irradiance = texture(irradianceMap, Nibl).rgb;
             float dotNV = max(dot(N_normalized, V_normalized), 0.0);
             vec3 Fibl = fresnelSchlick(dotNV, F0, max(vec3(1.0 - roughnessVal), F0));
@@ -1050,7 +1060,7 @@ void main()
             {
                 vec3 ccR = reflect(-V_normalized, clearcoatN);
                 ccR = previewRotationMatrix * ccR;
-                vec3 ccPrefilterDir = vec3(ccR.x, -ccR.z, ccR.y);
+                vec3 ccPrefilterDir = toPrefilterDirection(ccR);
                 float maxLod = max(float(textureQueryLevels(prefilterMap)) - 1.0, 0.0);
                 vec3 ccPrefilter = textureLod(prefilterMap, ccPrefilterDir, clamp(clearcoatRoughnessVal * maxLod, 0.0, maxLod)).rgb * envMapExposure;
                 vec2 ccBrdf = texture(brdfLUT, vec2(dotNV, clearcoatRoughnessVal)).rg;
