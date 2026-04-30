@@ -1367,21 +1367,21 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
                 fixTextureIndex(pbr, "baseColorTexture", glMat.texture(GLMaterial::TextureType::Albedo));
 
-                // SKIP fixTextureIndex for metallicRoughnessTexture if metallic and roughness are separate
-                // files: this indicates packing was already done in the exporter, so metallicRoughnessTexture
-                // is already correctly set to the packed texture. fixTextureIndex would overwrite it with the
-                // original unpacked metallic file.
+                // SKIP fixTextureIndex for metallicRoughnessTexture if:
+                // 1. Metallic and roughness are separate files (packing was done in exporter)
+                // 2. Metallic is missing (roughness-only material - don't apply empty metallic texture)
                 const auto& metallicTex = glMat.texture(GLMaterial::TextureType::Metallic);
                 const auto& roughnessTex = glMat.texture(GLMaterial::TextureType::Roughness);
                 bool hasPackedMR = (!metallicTex.path.empty() && !roughnessTex.path.empty() &&
                                      metallicTex.path != roughnessTex.path);
+                bool isRoughnessOnly = (metallicTex.path.empty() && !roughnessTex.path.empty());
 
-                if (!hasPackedMR)
+                if (!hasPackedMR && !isRoughnessOnly)
                 {
-                    // Only fix M/R texture if not packed (i.e., they're the same file or one is missing)
+                    // Only fix M/R texture if not packed AND metallic exists
                     fixTextureIndex(pbr, "metallicRoughnessTexture", metallicTex);
                 }
-                // else: packed M/R already in glTF, skip to avoid overwriting with original files
+                // else: skip to avoid corrupting metallicRoughnessTexture (packed M/R or roughness-only)
 
                 mat["pbrMetallicRoughness"] = pbr;
             }
@@ -1511,7 +1511,13 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 bool hasMRTex = pbr.contains("metallicRoughnessTexture");
                 float metallicFactor = pbr.contains("metallicFactor") ?
                     static_cast<float>(pbr["metallicFactor"].toDouble()) : glMat.metalness();
-                if (hasMRTex && metallicFactor == 0.0f)
+
+                // IMPORTANT: Only force metallicFactor to 1.0 if the material actually has metallic data
+                // For roughness-only materials (no metallic texture/factor), keep metallicFactor at 0
+                const auto& metallicTex = glMat.texture(GLMaterial::TextureType::Metallic);
+                bool hasMtallicData = !metallicTex.path.empty() || glMat.metalness() > 0.0f;
+
+                if (hasMRTex && metallicFactor == 0.0f && hasMtallicData)
                     metallicFactor = 1.0f;
                 pbr["metallicFactor"] = static_cast<double>(metallicFactor);
 

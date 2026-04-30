@@ -1565,13 +1565,26 @@ void AssImpMeshExporter::assignTexturesToMaterial(
         QString roughnessPath = QString::fromStdString(roughnessTex.path);
 
         logMessage(QString("=== ORM Packing Debug Info ==="));
-        logMessage(QString("  Metallic texture path from material: %1").arg(metallicPath));
-        logMessage(QString("  Roughness texture path from material: %1").arg(roughnessPath));
-        logMessage(QString("  AO texture path from material: %1").arg(aoPath));
+        logMessage(QString("  Metallic texture path from material: %1").arg(metallicPath.isEmpty() ? "(empty)" : metallicPath));
+        logMessage(QString("  Roughness texture path from material: %1").arg(roughnessPath.isEmpty() ? "(empty)" : roughnessPath));
+        logMessage(QString("  AO texture path from material: %1").arg(aoPath.isEmpty() ? "(empty)" : aoPath));
         logMessage(QString("  *** Scalar roughness value in material: %1").arg(material.roughness()));
         logMessage(QString("  *** Scalar metalness value in material: %1").arg(material.metalness()));
 
-        // Try ORM packing first (handles all three textures if available)
+        // EDGE CASE HANDLING for M/R textures:
+        // - If ROUGHNESS exists: pack into metallicRoughnessTexture (create dummy M if needed)
+        // - If ROUGHNESS missing but METALLIC exists: metallic-only - skip M/R packing
+        // - If neither exist: use scalars only - skip M/R packing
+        if (roughnessPath.isEmpty() && !metallicPath.isEmpty())
+        {
+            logMessage(QString("  -> Metallic-only material: skipping metallicRoughnessTexture (using metalnessFactor scalar only)"));
+            // Don't enter texture packing block - just use metalness scalar
+        }
+        else if (!roughnessPath.isEmpty())
+        {
+            // Roughness exists - pack into metallicRoughnessTexture (create dummy M if needed)
+            // Do texture packing
+            // Try ORM packing first (handles all three textures if available)
         // Returns empty string if packing isn't needed
         packedPath = packORMIfSeparate(material, texturePackage, _currentSettings.outputDirectory);
 
@@ -1636,15 +1649,25 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             // Only add metalness texture if metallic is actually present
             if (!metallicTex.path.empty())
             {
+                logMessage(QString("     -> Adding metalness texture: %1").arg(texturePath));
                 aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_METALNESS, 0));
                 aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_METALNESS, 0));
+            }
+            else
+            {
+                logMessage(QString("     -> Skipping metalness texture (no metallic in material)"));
             }
 
             // Only add roughness texture if roughness is actually present
             if (!roughnessTex.path.empty())
             {
+                logMessage(QString("     -> Adding roughness texture: %1").arg(texturePath));
                 aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_DIFFUSE_ROUGHNESS, 0));
                 aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE_ROUGHNESS, 0));
+            }
+            else
+            {
+                logMessage(QString("     -> Skipping roughness texture (no roughness in material)"));
             }
 
             // If we packed ORM, add as occlusion texture with packed texture
@@ -1685,7 +1708,8 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             addedOrmAsOcclusion = true;
             logWarning(QString("Metallic/Roughness texture path not found, but ORM was packed: %1").arg(packedPath));
         }
-    }
+        }  // End else if: Roughness exists - pack into metallicRoughnessTexture
+    }  // End if: hasMetallicRoughness
 
     // ===== AMBIENT OCCLUSION TEXTURE (glTF ONLY) =====
     // Add independent AO only if we didn't already add it as part of packed ORM
@@ -2347,12 +2371,22 @@ QString AssImpMeshExporter::packORMIfSeparate(
     QString metallicPath = QString::fromStdString(metallicTex.path);
     QString roughnessPath = QString::fromStdString(roughnessTex.path);
 
-    // Need at least metallic and roughness for ORM packing
-    if (metallicPath.isEmpty() || roughnessPath.isEmpty())
-        return QString();  // Can't pack without M and R
+    // For glTF, we need ROUGHNESS to pack into metallicRoughnessTexture
+    // Metallic and Occlusion are optional - we create dummy defaults if needed
+    if (roughnessPath.isEmpty())
+    {
+        // No roughness texture - can't create metallicRoughnessTexture
+        // (metallic-only or occlusion-only would be handled separately)
+        logMessage(QString("  -> No roughness texture: skipping M/R packing"));
+        return QString();
+    }
+
+    // Check if we have metallic - if not, we'll create a dummy white texture
+    bool isRoughnessOnly = metallicPath.isEmpty();
+    QString workingMetallicPath = metallicPath;
 
     // If metallic and roughness are the same and no AO, no packing needed
-    if (aoPath.isEmpty() && metallicPath == roughnessPath)
+    if (!isRoughnessOnly && aoPath.isEmpty() && metallicPath == roughnessPath)
         return QString();
 
     // Check cache first
@@ -2365,12 +2399,36 @@ QString AssImpMeshExporter::packORMIfSeparate(
 
     logMessage(QString("  -> Packing ORM textures: AO=%1, M=%2, R=%3")
         .arg(aoPath.isEmpty() ? "none" : QFileInfo(aoPath).fileName())
-        .arg(QFileInfo(metallicPath).fileName())
+        .arg(isRoughnessOnly ? "(dummy white)" : QFileInfo(metallicPath).fileName())
         .arg(QFileInfo(roughnessPath).fileName()));
 
     // Pack the three textures using packORM
+    // For roughness-only, create a dummy white metallic texture (will result in metallic=0)
     QString errorMsg;
-    QImage packedImage = TexturePackingUtils::packORM(aoPath, roughnessPath, metallicPath, errorMsg);
+    QImage packedImage;
+
+    if (isRoughnessOnly)
+    {
+        // Create a temporary white image for metallic (1x1 white pixel = metallic 0 in shader)
+        QImage dummyMetallic(1, 1, QImage::Format_RGB888);
+        dummyMetallic.fill(QColor(255, 255, 255));  // White = no metallic
+
+        // Save dummy to temp file
+        QString tempMetallicPath = QDir(texturePackage.textureDirectory).filePath("__temp_metallic.png");
+        if (!dummyMetallic.save(tempMetallicPath))
+        {
+            logWarning(QString("  -> Failed to create dummy metallic texture"));
+            return QString();
+        }
+        workingMetallicPath = tempMetallicPath;
+        packedImage = TexturePackingUtils::packORM(aoPath, roughnessPath, workingMetallicPath, errorMsg);
+        // Clean up temp file
+        QFile::remove(tempMetallicPath);
+    }
+    else
+    {
+        packedImage = TexturePackingUtils::packORM(aoPath, roughnessPath, metallicPath, errorMsg);
+    }
     if (packedImage.isNull())
     {
         logWarning(QString("  -> Failed to pack ORM textures: %1").arg(errorMsg));
