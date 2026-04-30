@@ -133,7 +133,9 @@ QImage TexturePackingUtils::packORM(
 		{
 			// Pack directly into RGBA8888 format: [R, G, B, A] at offsets 0, 1, 2, 3
 			packedLine[x * 4 + 0] = hasOcclusion ? occlusionLine[x] : 255;  // R = Occlusion (or white if no AO)
-			packedLine[x * 4 + 1] = roughnessLine[x];                       // G = Roughness
+			// IMPORTANT: Material libraries often store SMOOTHNESS (inverse of roughness)
+			// Invert to convert to roughness for glTF compliance (roughness = 1.0 - smoothness)
+			packedLine[x * 4 + 1] = 255 - roughnessLine[x];                 // G = Roughness (inverted from smoothness)
 			packedLine[x * 4 + 2] = metallicLine[x];                        // B = Metallic
 			packedLine[x * 4 + 3] = 255;                                    // A = 255 (fully opaque)
 		}
@@ -225,6 +227,7 @@ QImage TexturePackingUtils::packMetallicRoughness(
 	}
 
 	// Pack channels: R=0, G=Roughness, B=Metallic, A=255
+	// IMPORTANT: Invert roughness to convert from smoothness to roughness for glTF
 	for (int y = 0; y < targetHeight; ++y)
 	{
 		for (int x = 0; x < targetWidth; ++x)
@@ -232,7 +235,9 @@ QImage TexturePackingUtils::packMetallicRoughness(
 			int metalVal = qGray(metallicImg.pixel(x, y));
 			int roughVal = qGray(roughnessImg.pixel(x, y));
 
-			QColor color(0, roughVal, metalVal, 255);
+			// Invert roughness: roughness = 1.0 - smoothness (in 0-255 scale: 255 - value)
+			int invertedRough = 255 - roughVal;
+			QColor color(0, invertedRough, metalVal, 255);
 			packed.setPixel(x, y, color.rgba());
 		}
 	}
