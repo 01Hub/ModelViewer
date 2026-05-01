@@ -207,18 +207,6 @@ private:
         const QString& exportFileLocation);
 
     /**
-     * @brief Assign PBR properties to an Assimp material
-     *
-     * This includes all scalar properties: metalness, roughness, transmission,
-     * IOR, clearcoat, sheen, emissive strength, etc.
-     * Called by createMaterial().
-     *
-     * @param aiMat Target Assimp material to populate
-     * @param material Source GLMaterial
-     */
-    void assignPBRProperties(aiMaterial* aiMat, const GLMaterial& material);
-
-    /**
      * @brief Assign texture references to an Assimp material
      *
      * Maps GLMaterial's 25 texture types to Assimp semantic types and
@@ -234,7 +222,8 @@ private:
         const GLMaterial& material,
         const TexturePackage& texturePackage,
         bool useEmbeddedTextures,
-        const QString& exportFileLocation);
+        const QString& exportFileLocation,
+        bool isGLTF);
 
     /**
      * Helper: Apply materials from ModelViewer meshes to Assimp scene

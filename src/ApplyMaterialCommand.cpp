@@ -81,6 +81,10 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
             // This handles loading textures from disk and applying sampler settings
             GLMaterial resolved = GLWidget::resolveMaterialTextures(_glWidget, mat);
 
+            // Mark applied materials as glTF-compliant
+            // This ensures consistent PBR behavior: scalar factors multiply texture values
+            resolved.setIsGLTFMaterial(true);
+
             // Apply textures to mesh using setTextureMaps (mirrors GLWidget::setTexturesToObjects)
             // This properly binds texture GPU IDs and updates texture samplers
             mesh->setTextureMaps(resolved);

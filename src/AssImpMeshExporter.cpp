@@ -1111,9 +1111,38 @@ aiMaterial* AssImpMeshExporter::createMaterial(
 {
     aiMaterial* aiMat = new aiMaterial();
 
-    // ==== NAME =====
+    // Detect export format once (reused throughout)
+    QFileInfo fileInfo(exportFileLocation);
+    QString ext = fileInfo.suffix().toLower();
+    bool isGLTF = (ext == "gltf" || ext == "glb");
+
+    // ==== NAME & DEBUG INFO =====
     aiString matName(material.name().toStdString());
     aiMat->AddProperty(&matName, AI_MATKEY_NAME);
+
+    // Log material type and format for debugging
+    QString shadingModelStr;
+    GLMaterial::ShadingModel shadingModel = material.shadingModel();
+    switch (shadingModel)
+    {
+        case GLMaterial::ShadingModel::PBR:
+            shadingModelStr = "PBR (Metallic-Roughness)";
+            break;
+        case GLMaterial::ShadingModel::BlinnPhong:
+            shadingModelStr = "ADS (BlinnPhong)";
+            break;
+        case GLMaterial::ShadingModel::Unlit:
+            shadingModelStr = "Unlit";
+            break;
+        case GLMaterial::ShadingModel::Toon:
+            shadingModelStr = "Toon";
+            break;
+        default:
+            shadingModelStr = "Unknown";
+            break;
+    }
+    logMessage(QString("Creating material: %1 (Format: %2, Model: %3)")
+        .arg(material.name()).arg(ext.toUpper()).arg(shadingModelStr));
 
     // ===== COLOR PROPERTIES =====
     {
@@ -1237,163 +1266,46 @@ aiMaterial* AssImpMeshExporter::createMaterial(
     }
 
     // ===== LEGACY ADS =====
+    // Check material's shading model to determine if we should export ADS properties    
+    bool isADSMaterial = (shadingModel == GLMaterial::ShadingModel::BlinnPhong);
+
+    if (isADSMaterial && !isGLTF)
     {
+        // ADS materials export specular properties for OBJ, FBX, etc.
+        logMessage(QString("  -> Exporting material as ADS (BlinnPhong model)"));
+
         aiColor3D ambient(
             static_cast<float>(material.ambient().x()),
             static_cast<float>(material.ambient().y()),
             static_cast<float>(material.ambient().z()));
         aiMat->AddProperty(&ambient, 1, AI_MATKEY_COLOR_AMBIENT);
-    }
 
-    {
         aiColor3D diffuse(
             static_cast<float>(material.diffuse().x()),
             static_cast<float>(material.diffuse().y()),
             static_cast<float>(material.diffuse().z()));
         aiMat->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_DIFFUSE);
-    }
 
-    {
         aiColor3D specular(
             static_cast<float>(material.specular().x()),
             static_cast<float>(material.specular().y()),
             static_cast<float>(material.specular().z()));
         aiMat->AddProperty(&specular, 1, AI_MATKEY_COLOR_SPECULAR);
-    }
 
-    {
         float shininess = material.shininess();
         aiMat->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
     }
+    else if (isADSMaterial && isGLTF)
+    {
+        // Warn if ADS material is being exported to glTF (which doesn't support ADS)
+        logWarning(QString("  -> Material marked as ADS but exporting to glTF (PBR only): %1")
+            .arg(material.name()));
+    }
 
-    // ===== TEXTURES (NEW: Pass exportFileLocation) =====
-    assignTexturesToMaterial(aiMat, material, texturePackage, true, exportFileLocation);
+    // ===== TEXTURES =====
+    assignTexturesToMaterial(aiMat, material, texturePackage, true, exportFileLocation, isGLTF);
 
     return aiMat;
-}
-
-void AssImpMeshExporter::assignPBRProperties(
-    aiMaterial* aiMat,
-    const GLMaterial& material)
-{
-    // ===== BASE COLOR =====
-    {
-        aiColor3D albedo(
-            static_cast<float>(material.albedoColor().x()),
-            static_cast<float>(material.albedoColor().y()),
-            static_cast<float>(material.albedoColor().z()));
-        aiMat->AddProperty(&albedo, 1, AI_MATKEY_BASE_COLOR);
-    }
-
-    // ===== METALLIC & ROUGHNESS =====
-    {
-        float metallic = material.metalness();
-        aiMat->AddProperty(&metallic, 1, AI_MATKEY_METALLIC_FACTOR);
-    }
-
-    {
-        float roughness = material.roughness();
-        aiMat->AddProperty(&roughness, 1, AI_MATKEY_ROUGHNESS_FACTOR);
-    }
-
-    // ===== TRANSPARENCY =====
-    {
-        float opacity = material.opacity();
-        aiMat->AddProperty(&opacity, 1, AI_MATKEY_OPACITY);
-    }
-
-    // ===== IOR (Index of Refraction) =====
-    {
-        float ior = material.ior();
-        aiMat->AddProperty(&ior, 1, AI_MATKEY_REFRACTI);
-    }
-
-    // ===== TRANSMISSION (for glass and transparent materials) =====
-    if (material.transmission() > 0.0f)
-    {
-        float transmission = material.transmission();
-        aiMat->AddProperty(&transmission, 1, AI_MATKEY_TRANSMISSION_FACTOR);
-    }
-
-    // ===== EMISSIVE PROPERTIES =====
-    {
-        aiColor3D emissive(
-            static_cast<float>(material.emissive().x()),
-            static_cast<float>(material.emissive().y()),
-            static_cast<float>(material.emissive().z()));
-        aiMat->AddProperty(&emissive, 1, AI_MATKEY_COLOR_EMISSIVE);
-    }
-
-    {
-        float emissiveStrength = material.emissiveStrength();
-        aiMat->AddProperty(&emissiveStrength, 1, AI_MATKEY_EMISSIVE_INTENSITY);
-    }
-
-    // ===== NORMAL SCALE =====
-    {
-        float normalScale = material.normalScale();
-        aiMat->AddProperty(&normalScale, 1, AI_MATKEY_BUMPSCALING);
-    }
-
-    // ===== OCCLUSION STRENGTH =====
-    {
-        float aoStrength = material.occlusionStrength();
-        // Note: Assimp doesn't have a direct AO strength key, this is approximate
-        //aiMat->AddProperty(&aoStrength, 1, AI_MATKEY_GLOBAL_BASE_COLOR_FACTOR);
-    }
-
-    // ===== CLEARCOAT EXTENSION =====
-    if (material.clearcoat() > 0.0f)
-    {
-        float clearcoat = material.clearcoat();
-        aiMat->AddProperty(&clearcoat, 1, AI_MATKEY_CLEARCOAT_FACTOR);
-
-        float clearcoatRoughness = material.clearcoatRoughness();
-        aiMat->AddProperty(&clearcoatRoughness, 1, AI_MATKEY_CLEARCOAT_ROUGHNESS_FACTOR);
-    }
-
-    // ===== SHEEN EXTENSION =====
-    if (material.sheenColor().length() > 0.0f)
-    {
-        aiColor3D sheenColor(
-            static_cast<float>(material.sheenColor().x()),
-            static_cast<float>(material.sheenColor().y()),
-            static_cast<float>(material.sheenColor().z()));
-        aiMat->AddProperty(&sheenColor, 1, AI_MATKEY_SHEEN_COLOR_FACTOR);
-
-        float sheenRoughness = material.sheenRoughness();
-        aiMat->AddProperty(&sheenRoughness, 1, AI_MATKEY_SHEEN_ROUGHNESS_FACTOR);
-    }
-
-    // ===== LEGACY ADS (for backward compatibility) =====
-    {
-        aiColor3D ambient(
-            static_cast<float>(material.ambient().x()),
-            static_cast<float>(material.ambient().y()),
-            static_cast<float>(material.ambient().z()));
-        aiMat->AddProperty(&ambient, 1, AI_MATKEY_COLOR_AMBIENT);
-    }
-
-    {
-        aiColor3D diffuse(
-            static_cast<float>(material.diffuse().x()),
-            static_cast<float>(material.diffuse().y()),
-            static_cast<float>(material.diffuse().z()));
-        aiMat->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_DIFFUSE);
-    }
-
-    {
-        aiColor3D specular(
-            static_cast<float>(material.specular().x()),
-            static_cast<float>(material.specular().y()),
-            static_cast<float>(material.specular().z()));
-        aiMat->AddProperty(&specular, 1, AI_MATKEY_COLOR_SPECULAR);
-    }
-
-    {
-        float shininess = material.shininess();
-        aiMat->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
-    }
 }
 
 void AssImpMeshExporter::assignTexturesToMaterial(
@@ -1401,14 +1313,10 @@ void AssImpMeshExporter::assignTexturesToMaterial(
     const GLMaterial& material,
     const TexturePackage& texturePackage,
     bool useEmbeddedTextures,
-    const QString& exportFileLocation)
+    const QString& exportFileLocation,
+    bool isGLTF)
 {
     logMessage(QString("  -> Assigning textures to material..."));
-
-    // Detect export format
-    QFileInfo fileInfo(exportFileLocation);
-    QString ext = fileInfo.suffix().toLower();
-    bool isGLTF = (ext == "gltf" || ext == "glb");
 
     // IMPORTANT: glTF texture handling notes:
     // 1. Metallic and Roughness MUST use the SAME texture (metallicRoughnessTexture)
@@ -1583,10 +1491,9 @@ void AssImpMeshExporter::assignTexturesToMaterial(
         else if (!roughnessPath.isEmpty())
         {
             // Roughness exists - pack into metallicRoughnessTexture (create dummy M if needed)
-            // Do texture packing
             // Try ORM packing first (handles all three textures if available)
-        // Returns empty string if packing isn't needed
-        packedPath = packORMIfSeparate(material, texturePackage, _currentSettings.outputDirectory);
+            // Returns empty string if packing isn't needed
+            packedPath = packORMIfSeparate(material, texturePackage, _currentSettings.outputDirectory);
 
         if (!packedPath.isEmpty())
         {
@@ -2302,13 +2209,18 @@ QString AssImpMeshExporter::packMetallicRoughnessIfSeparate(
         return _packedTextureCache[cacheKey];
     }
 
-    logMessage(QString("  -> Packing separate M/R textures: %1 + %2")
+    // Get roughness invert flag from material's packing metadata (defaults to true for smoothness conversion)
+    GLMaterial::ChannelPacking roughnessPacking = material.packingFor("Roughness");
+    bool invertRoughness = roughnessPacking.invert;  // Read from material.json packing settings
+
+    logMessage(QString("  -> Packing separate M/R textures: %1 + %2 (invertRoughness=%3)")
         .arg(QFileInfo(metallicPath).fileName())
-        .arg(QFileInfo(roughnessPath).fileName()));
+        .arg(QFileInfo(roughnessPath).fileName())
+        .arg(invertRoughness ? "true" : "false"));
 
     // Pack the textures
     QString errorMsg;
-    QImage packedImage = TexturePackingUtils::packMetallicRoughness(metallicPath, roughnessPath, errorMsg);
+    QImage packedImage = TexturePackingUtils::packMetallicRoughness(metallicPath, roughnessPath, errorMsg, invertRoughness);
     if (packedImage.isNull())
     {
         logWarning(QString("  -> Failed to pack M/R textures: %1").arg(errorMsg));
@@ -2397,21 +2309,27 @@ QString AssImpMeshExporter::packORMIfSeparate(
         return _packedTextureCache[cacheKey];
     }
 
-    logMessage(QString("  -> Packing ORM textures: AO=%1, M=%2, R=%3")
+    // Get roughness invert flag from material's packing metadata (defaults to true for smoothness conversion)
+    GLMaterial::ChannelPacking roughnessPacking = material.packingFor("Roughness");
+    bool invertRoughness = roughnessPacking.invert;  // Read from material.json packing settings
+
+    logMessage(QString("  -> Packing ORM textures: AO=%1, M=%2, R=%3 (invertRoughness=%4)")
         .arg(aoPath.isEmpty() ? "none" : QFileInfo(aoPath).fileName())
-        .arg(isRoughnessOnly ? "(dummy white)" : QFileInfo(metallicPath).fileName())
-        .arg(QFileInfo(roughnessPath).fileName()));
+        .arg(isRoughnessOnly ? "(dummy black)" : QFileInfo(metallicPath).fileName())
+        .arg(QFileInfo(roughnessPath).fileName())
+        .arg(invertRoughness ? "true" : "false"));
 
     // Pack the three textures using packORM
-    // For roughness-only, create a dummy white metallic texture (will result in metallic=0)
+    // For roughness-only, create a dummy black metallic texture
     QString errorMsg;
     QImage packedImage;
 
     if (isRoughnessOnly)
     {
-        // Create a temporary white image for metallic (1x1 white pixel = metallic 0 in shader)
+        // Create a temporary black image for metallic (1x1 black pixel = no metallic data)
+        // Black (0) is semantically correct for "no metallic" - when multiplied by metallicFactor=0, result is 0
         QImage dummyMetallic(1, 1, QImage::Format_RGB888);
-        dummyMetallic.fill(QColor(255, 255, 255));  // White = no metallic
+        dummyMetallic.fill(QColor(0, 0, 0));  // Black = no metallic data
 
         // Save dummy to temp file
         QString tempMetallicPath = QDir(texturePackage.textureDirectory).filePath("__temp_metallic.png");
@@ -2421,13 +2339,13 @@ QString AssImpMeshExporter::packORMIfSeparate(
             return QString();
         }
         workingMetallicPath = tempMetallicPath;
-        packedImage = TexturePackingUtils::packORM(aoPath, roughnessPath, workingMetallicPath, errorMsg);
+        packedImage = TexturePackingUtils::packORM(aoPath, roughnessPath, workingMetallicPath, errorMsg, invertRoughness);
         // Clean up temp file
         QFile::remove(tempMetallicPath);
     }
     else
     {
-        packedImage = TexturePackingUtils::packORM(aoPath, roughnessPath, metallicPath, errorMsg);
+        packedImage = TexturePackingUtils::packORM(aoPath, roughnessPath, metallicPath, errorMsg, invertRoughness);
     }
     if (packedImage.isNull())
     {

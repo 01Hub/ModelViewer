@@ -11,20 +11,24 @@ public:
 	// Pack ORM (Occlusion, Roughness, Metallic) into single texture
 	// Returns packed QImage with channels: R=Occlusion, G=Roughness, B=Metallic, A=255
 	// If occlusionPath is empty, creates default white (no occlusion)
+	// invertRoughness: if true, inverts roughness values (255 - value) for smoothness-to-roughness conversion
 	// Returns empty QImage on failure; outErrorMessage contains diagnostic info
 	static QImage packORM(
 		const QString& occlusionPath,
 		const QString& roughnessPath,
 		const QString& metallicPath,
-		QString& outErrorMessage);
+		QString& outErrorMessage,
+		bool invertRoughness = true);
 
 	// Main packing function: combines separate metallic and roughness textures
 	// Returns packed QImage with channels: R=0, G=Roughness, B=Metallic, A=255
+	// invertRoughness: if true, inverts roughness values (255 - value) for smoothness-to-roughness conversion
 	// Returns empty QImage on failure; outErrorMessage contains diagnostic info
 	static QImage packMetallicRoughness(
 		const QString& metallicPath,
 		const QString& roughnessPath,
-		QString& outErrorMessage);
+		QString& outErrorMessage,
+		bool invertRoughness = true);
 
 	// Pre-flight validation: checks if both files are readable and compatible
 	// Returns true if packing is likely to succeed, false otherwise
