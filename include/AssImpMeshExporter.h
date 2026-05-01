@@ -197,14 +197,20 @@ private:
      * IOR, clearcoat, sheen, emissive, normal scale, etc.
      * Assigns texture paths from the texture package.
      *
+     * When material name is empty, uses meshName as fallback to prevent
+     * Assimp from deduplicating materials with identical names.
+     *
      * @param material GLMaterial to convert
      * @param texturePackage Resolved texture paths and mappings
+     * @param exportFileLocation Export file path for format detection
+     * @param meshName Mesh name (used as fallback if material name is empty)
      * @return Allocated aiMaterial*, or nullptr on failure
      */
     aiMaterial* createMaterial(
         const GLMaterial& material,
         const TexturePackage& texturePackage,
-        const QString& exportFileLocation);
+        const QString& exportFileLocation,
+        const QString& meshName = "");
 
     /**
      * @brief Assign texture references to an Assimp material

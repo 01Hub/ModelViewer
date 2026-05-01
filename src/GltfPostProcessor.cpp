@@ -1057,10 +1057,12 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             }
         }
         log(QString("  Built mesh-name queues: %1 name(s)").arg(meshNameToQueue.size()), logCallback);
+        log(QString("  [SOURCE MESHES] meshes.size()=%1").arg(meshes.size()), logCallback);
 
         // We may need to update the JSON meshes array (to redirect primitive material
         // pointers when we clone a collapsed material slot). Work on a mutable copy.
         QJsonArray jsonMeshes = gltfJson.value("meshes").toArray();
+        log(QString("  [JSON MESHES] jsonMeshes.size()=%1").arg(jsonMeshes.size()), logCallback);
         for (int j = 0; j < jsonMeshes.size(); ++j)
         {
             QJsonObject jMesh = jsonMeshes[j].toObject();
@@ -1068,8 +1070,9 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
             QJsonArray primitives = jMesh["primitives"].toArray();
             if (primitives.isEmpty()) continue;
-            int matIdx = primitives[0].toObject().value("material").toInt(-1);
-            if (matIdx < 0 || matIdx >= materials.size()) continue;
+
+            log(QString("[MESH LOOP] Processing JSON mesh[%1] name='%2' primitives=%3")
+                .arg(j).arg(meshName).arg(primitives.size()), logCallback);
 
             // Dequeue the next unconsumed source mesh for this name.
             // Prefer exact full-name match first; fall back to bare name.
@@ -1099,50 +1102,111 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 }
             }
 
+            // ===== DIAGNOSTIC: Log mesh matching results =====
+            log(QString("  [DIAG] meshName='%1' j=%2 meshIdx=%3 meshes.size()=%4")
+                .arg(meshName).arg(j).arg(meshIdx).arg(meshes.size()), logCallback);
+
+            // ===== INDEX-BASED FALLBACK MATCHING (STEP FILES ONLY) =====
+            // When Assimp consolidates source meshes during STEP export (e.g., 326 -> 2),
+            // the JSON mesh names may not match any source mesh name. In this case, try
+            // index-based matching, BUT ONLY if:
+            // 1. We have far fewer JSON meshes than source meshes (indicates consolidation)
+            // 2. The source mesh has meaningful material data
+            //
+            // This MUST NOT apply to pre-made glTF/GLB files where the order might differ,
+            // causing incorrect material assignment.
+            bool canUseIndexFallback = (meshIdx < 0) &&
+                                       (j < static_cast<int>(meshes.size())) &&
+                                       (jsonMeshes.size() < static_cast<int>(meshes.size() * 0.5));  // Consolidation indicator
+
+            if (canUseIndexFallback)
+            {
+                const GLMaterial& candidateMat = meshes[j]->getMaterial();
+
+                // Only use index fallback if source mesh has meaningful material data
+                // (non-empty name or non-default color). This prevents false matches on empty meshes.
+                bool hasMeaningfulMaterial = !candidateMat.name().isEmpty() ||
+                    candidateMat.albedoColor() != QVector3D(1.0f, 1.0f, 1.0f);
+
+                log(QString("  [FALLBACK CHECK] jsonMeshes(%1) << meshes(%2) (consolidation)? candidateMat.name()='%3' meaningful=%4")
+                    .arg(jsonMeshes.size()).arg(meshes.size()).arg(candidateMat.name()).arg(hasMeaningfulMaterial), logCallback);
+
+                if (hasMeaningfulMaterial)
+                {
+                    meshIdx = j;
+                    log(QString("  FALLBACK: index-based match for json mesh[%1] '%2' -> source mesh[%3] (consolidation detected)")
+                        .arg(j).arg(meshName).arg(j), logCallback);
+                }
+            }
+            else if (meshIdx < 0 && canUseIndexFallback == false && (j < static_cast<int>(meshes.size())))
+            {
+                log(QString("  [FALLBACK SKIP] jsonMeshes(%1) ~= meshes(%2) (no consolidation) - skipping index fallback to avoid wrong matches")
+                    .arg(jsonMeshes.size()).arg(meshes.size()), logCallback);
+            }
+
             if (meshIdx < 0)
             {
-                log(QString("  WARNING: no source mesh found for json mesh '%1'").arg(meshName), logCallback);
+                log(QString("  WARNING: no source mesh found for json mesh '%1' (index %2)")
+                    .arg(meshName).arg(j), logCallback);
                 continue;
             }
 
-            if (!patchedMaterials.contains(matIdx))
+            // ===== ORIGINAL DESIGN: PROCESS ONLY primitives[0] =====
+            // Each JSON mesh can have multiple primitives. The original deduplication logic
+            // was designed to process only primitives[0] because:
+            // 1. When Assimp consolidates meshes, it establishes material ownership via the first primitive
+            // 2. The "Shared" case handles when multiple primitives in one mesh share the same material
+            // 3. The "Collision" case handles when different source meshes compete for the same slot
+            //
+            // Processing ALL primitives instead caused unnecessary cloning (e.g., 213 → 242 materials in CarConcept).
+            // Color patching happens in a separate phase and doesn't need per-primitive iteration.
             {
-                // Material slot is free - claim it directly.
-                patchedMaterials[matIdx] = meshIdx;
-                log(QString("  Mapped: json mesh[%1] '%2' -> material[%3] via source mesh[%4]")
-                    .arg(j).arg(meshName).arg(matIdx).arg(meshIdx), logCallback);
-            }
-            else if (patchedMaterials[matIdx] == meshIdx)
-            {
-                // Same source mesh already owns this slot (two primitives in one mesh
-                // sharing a material) - nothing to do.
-                log(QString("  Shared: json mesh[%1] '%2' -> material[%3] (same source mesh[%4])")
-                    .arg(j).arg(meshName).arg(matIdx).arg(meshIdx), logCallback);
-            }
-            else
-            {
-                // Collision: this material slot is already owned by a DIFFERENT source
-                // mesh. Assimp collapsed two distinct source materials into one JSON
-                // slot. Clone the slot, redirect this mesh primitive to the clone,
-                // and claim the clone for our source mesh.
-                //
-                // This restores the correct 1-source-mesh : 1-material-slot mapping
-                // that the post-processor patching phase requires.
-                int clonedIdx = materials.size();
-                materials.append(materials[matIdx]);  // deep copy (QJsonValue is CoW)
+                if (!primitives.isEmpty())
+                {
+                    int matIdx = primitives[0].toObject().value("material").toInt(-1);
+                    if (matIdx >= 0 && matIdx < materials.size())
+                    {
+                        if (!patchedMaterials.contains(matIdx))
+                        {
+                            // Material slot is free - claim it directly.
+                            patchedMaterials[matIdx] = meshIdx;
+                            log(QString("  Mapped: json mesh[%1] '%2' -> material[%3] via source mesh[%4]")
+                                .arg(j).arg(meshName).arg(matIdx).arg(meshIdx), logCallback);
+                        }
+                        else if (patchedMaterials[matIdx] == meshIdx)
+                        {
+                            // Same source mesh already owns this slot (two primitives in one mesh
+                            // sharing a material) - nothing to do.
+                            log(QString("  Shared: json mesh[%1] '%2' -> material[%3] (same source mesh[%4])")
+                                .arg(j).arg(meshName).arg(matIdx).arg(meshIdx), logCallback);
+                        }
+                        else
+                        {
+                            // Collision: this material slot is already owned by a DIFFERENT source
+                            // mesh. Assimp collapsed two distinct source materials into one JSON
+                            // slot. Clone the slot, redirect primitives[0] to the clone,
+                            // and claim the clone for our source mesh.
+                            //
+                            // This restores the correct 1-source-mesh : 1-material-slot mapping
+                            // that the post-processor patching phase requires.
+                            int clonedIdx = materials.size();
+                            materials.append(materials[matIdx]);  // deep copy (QJsonValue is CoW)
 
-                // Redirect this JSON mesh's primitive to the cloned slot
-                QJsonObject prim0 = primitives[0].toObject();
-                prim0["material"] = clonedIdx;
-                primitives[0] = prim0;
-                jMesh["primitives"] = primitives;
-                jsonMeshes[j] = jMesh;
+                            // Redirect primitives[0] to the cloned slot
+                            QJsonObject prim0 = primitives[0].toObject();
+                            prim0["material"] = clonedIdx;
+                            primitives[0] = prim0;
+                            jMesh["primitives"] = primitives;
+                            jsonMeshes[j] = jMesh;
 
-                patchedMaterials[clonedIdx] = meshIdx;
-                log(QString("  Cloned: json mesh[%1] '%2' -> material[%3] cloned to [%4] for source mesh[%5]")
-                    .arg(j).arg(meshName).arg(matIdx).arg(clonedIdx).arg(meshIdx), logCallback);
-            }
-        }
+                            patchedMaterials[clonedIdx] = meshIdx;
+                            log(QString("  Cloned: json mesh[%1] '%2' -> material[%3] cloned to [%4] for source mesh[%5]")
+                                .arg(j).arg(meshName).arg(matIdx).arg(clonedIdx).arg(meshIdx), logCallback);
+                        }
+                    }
+                }
+            }  // end mesh matching for primitives[0] only
+        }  // end for jsonMeshes
 
         // Write back the (possibly updated) meshes array so primitive material
         // redirections are visible to the rest of the pipeline.
@@ -1231,11 +1295,83 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             int matIdx = it.key();
             int meshIdx = it.value();
 
-            const GLMaterial& glMat = meshes[meshIdx]->getMaterial();
             QJsonObject mat = materials[matIdx].toObject();
 
+            // FIX: Try to find the source mesh using the material name
+            // The material name is like "Forklift (Toyota forklift_1)" which encodes the source mesh name
+            // BUT ONLY DO THIS if the material actually needs color fixing (i.e., it's gray from Assimp export)
+            int correctMeshIdx = meshIdx;  // default to the mapped mesh
+
+            // Check if this material needs color correction
+            // If it already has a non-gray baseColorFactor, don't apply name matching
+            // (it's a pre-made glTF with correct colors, so name matching would break it)
+            bool needsColorFix = false;
+            if (mat.contains("pbrMetallicRoughness"))
+            {
+                QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
+                QJsonArray bcf = pbr.value("baseColorFactor").toArray();
+                if (bcf.size() >= 3)
+                {
+                    double r = bcf[0].toDouble();
+                    double g = bcf[1].toDouble();
+                    double b = bcf[2].toDouble();
+                    // Gray color from Assimp has r ≈ g ≈ b ≈ 0.298
+                    // If the color is significantly different from gray, it doesn't need fixing
+                    double grayThreshold = 0.01;  // Allow small variation
+                    needsColorFix = (std::abs(r - g) > grayThreshold ||
+                                      std::abs(g - b) > grayThreshold ||
+                                      std::abs(r - 0.298) > 0.05);
+                }
+            }
+
+            // Only apply name matching if the material needs color fixing
+            if (needsColorFix)
+            {
+                QString jsonMatName = mat["name"].toString();
+                if (!jsonMatName.isEmpty())
+                {
+                    for (int i = 0; i < static_cast<int>(meshes.size()); ++i)
+                    {
+                        QString sourceMeshName = meshes[i]->getName();
+                        // Check if material name ends with or contains the source mesh name
+                        if (jsonMatName.contains(sourceMeshName, Qt::CaseInsensitive))
+                        {
+                            correctMeshIdx = i;
+                            log(QString("    [NAME MATCH] Material '%1' matched to source mesh[%2] '%3'")
+                                .arg(jsonMatName).arg(i).arg(sourceMeshName), logCallback);
+                            break;
+                        }
+                    }
+                }
+            }
+
+            const GLMaterial& glMat = meshes[correctMeshIdx]->getMaterial();
+
             log(QString("  Patching material[%1] using source mesh[%2] '%3'")
-                .arg(matIdx).arg(meshIdx).arg(glMat.name()), logCallback);
+                .arg(matIdx).arg(correctMeshIdx).arg(glMat.name()), logCallback);
+
+            // ===== FIX BASE COLOR =====
+            // Assimp's glTF exporter doesn't properly export material colors from aiMaterial.
+            // We patch the baseColorFactor directly in the JSON with the correct albedoColor from GLMaterial.
+            {
+                QVector3D albedo = glMat.albedoColor();
+                if (mat.contains("pbrMetallicRoughness"))
+                {
+                    QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
+                    QJsonArray baseColorFactor;
+                    baseColorFactor.append(static_cast<double>(albedo.x()));
+                    baseColorFactor.append(static_cast<double>(albedo.y()));
+                    baseColorFactor.append(static_cast<double>(albedo.z()));
+                    baseColorFactor.append(1.0);  // alpha
+                    pbr["baseColorFactor"] = baseColorFactor;
+                    mat["pbrMetallicRoughness"] = pbr;
+
+                    log(QString("    Patched baseColorFactor: [%1, %2, %3]")
+                        .arg(albedo.x(), 0, 'f', 4)
+                        .arg(albedo.y(), 0, 'f', 4)
+                        .arg(albedo.z(), 0, 'f', 4), logCallback);
+                }
+            }
 
             // ===== FIX TEXTURE INDICES =====
             // Assimp reorders meshes during export, so texture indices in the

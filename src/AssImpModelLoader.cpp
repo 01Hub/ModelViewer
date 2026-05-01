@@ -660,6 +660,14 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	// Process materials
 	GLMaterial mat = GLMaterial::DEFAULT_MAT();
 	//if (mesh->mMaterialIndex != 0)
+
+	// DEBUG: Log the material index assignment
+	qDebug() << "processMesh[" << meshIndex << "] nodeName=" << nodeName
+	         << "mNumVertices=" << mesh->mNumVertices
+	         << "mNumFaces=" << mesh->mNumFaces
+	         << "mMaterialIndex=" << mesh->mMaterialIndex
+	         << "scene->mNumMaterials=" << scene->mNumMaterials;
+
 	if (mesh->mMaterialIndex < scene->mNumMaterials)
 	{
 		aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
@@ -671,7 +679,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		// Normal: texture_normalN
 
 		_materialProcessor.setFolderPath(this->_texturePath);
-				
+
 		// Determine file type
 		bool isGlb = (_path.find(".glb") != std::string::npos);
 		bool isGltf = (_path.find(".gltf") != std::string::npos && !isGlb);  // exclude .glb
@@ -708,14 +716,30 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	}
 
 	// Return a mesh object created from the extracted mesh data
-	QString meshName = QString::fromStdString(mesh->mName.C_Str());
-	if(meshName.isEmpty())
+	// Priority: Use JSON mesh name if available (preserves glTF/GLB identity),
+	// otherwise fall back to Assimp's mesh name
+	QString meshName;
+
+	// Check if this mesh had a name in the glTF/GLB JSON
+	auto jsonNameIt = _gltfMeshNames.find(meshIndex);
+	if (jsonNameIt != _gltfMeshNames.end() && !jsonNameIt->second.isEmpty())
 	{
-		meshName = QFileInfo(QString(_path.data())).baseName() + " (Unnamed Mesh)";
+		// Use the JSON mesh name as the bare name, then add the model prefix
+		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + jsonNameIt->second + ")";
+		qDebug() << "[processMesh] Using JSON mesh name for mesh[" << meshIndex << "]: " << meshName;
 	}
 	else
 	{
-		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
+		// Fall back to Assimp mesh name
+		QString assimpMeshName = QString::fromStdString(mesh->mName.C_Str());
+		if(assimpMeshName.isEmpty())
+		{
+			meshName = QFileInfo(QString(_path.data())).baseName() + " (Unnamed Mesh)";
+		}
+		else
+		{
+			meshName = QFileInfo(QString(_path.data())).baseName() + " (" + assimpMeshName + ")";
+		}
 	}
 
 	// Material and textures details
@@ -1284,6 +1308,7 @@ float AssImpModelLoader::calculateConditionalScale(const float& minDimension, co
 void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 {
 	_gltfMeshPrimitiveModes.clear();
+	_gltfMeshNames.clear();  // Clear previous JSON mesh names
 
 	bool isGLB = gltfPath.endsWith(".glb", Qt::CaseInsensitive);
 	bool isGLTF = gltfPath.endsWith(".gltf", Qt::CaseInsensitive);
@@ -1336,7 +1361,7 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 		}
 	}
 
-	// ===== PARSE PRIMITIVE MODES (same for both GLTF and GLB) =====
+	// ===== PARSE MESH NAMES AND PRIMITIVE MODES (same for both GLTF and GLB) =====
 	QJsonObject root = doc.object();
 	QJsonArray meshesArray = root["meshes"].toArray();
 
@@ -1344,6 +1369,20 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 	for (const QJsonValue& meshValue : meshesArray)
 	{
 		QJsonObject meshObj = meshValue.toObject();
+
+		// ===== EXTRACT MESH NAME FROM JSON =====
+		// This is critical for preserving proper mesh identity during re-export
+		// When a GLB/glTF is loaded and re-exported, we need to match JSON mesh names
+		// to source meshes. By preserving the original JSON names here, we ensure
+		// the post-processor can correctly identify which source mesh corresponds
+		// to which JSON mesh during export.
+		QString jsonMeshName = meshObj["name"].toString();
+		if (!jsonMeshName.isEmpty())
+		{
+			_gltfMeshNames[meshIndex] = jsonMeshName;
+			qDebug() << "[parseGltfPrimitiveModes] Mesh[" << meshIndex << "] JSON name: " << jsonMeshName;
+		}
+
 		QJsonArray primitives = meshObj["primitives"].toArray();
 
 		if (!primitives.isEmpty())

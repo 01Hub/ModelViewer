@@ -165,8 +165,9 @@ aiReturn AssImpMeshExporter::exportMeshes(
         // Get material from mesh
         GLMaterial meshMaterial = mesh->getMaterial();
 
-        // Create material
-        aiMaterial* aiMat = createMaterial(meshMaterial, _lastTexturePackage, exportPath);
+        // Create material (pass mesh name as fallback for empty material names)
+        // This prevents Assimp from deduplicating materials with empty names
+        aiMaterial* aiMat = createMaterial(meshMaterial, _lastTexturePackage, exportPath, mesh->getName());
         if (!aiMat)
         {
             logError(QString("Failed to create material for: %1").arg(mesh->getName()));
@@ -1107,7 +1108,8 @@ void AssImpMeshExporter::logError(const QString& msg)
 aiMaterial* AssImpMeshExporter::createMaterial(
     const GLMaterial& material,
     const TexturePackage& texturePackage,
-    const QString& exportFileLocation)  // NEW parameter
+    const QString& exportFileLocation,  // NEW parameter
+    const QString& meshName)             // NEW parameter: fallback name if material name is empty
 {
     aiMaterial* aiMat = new aiMaterial();
 
@@ -1117,7 +1119,16 @@ aiMaterial* AssImpMeshExporter::createMaterial(
     bool isGLTF = (ext == "gltf" || ext == "glb");
 
     // ==== NAME & DEBUG INFO =====
-    aiString matName(material.name().toStdString());
+    // FIX: Use mesh name as fallback if material name is empty
+    // This prevents Assimp from deduplicating materials with empty names
+    QString finalMatName = material.name();
+    bool usedFallback = false;
+    if (finalMatName.isEmpty())
+    {
+        finalMatName = meshName;
+        usedFallback = true;
+    }
+    aiString matName(finalMatName.toStdString());
     aiMat->AddProperty(&matName, AI_MATKEY_NAME);
 
     // Log material type and format for debugging
@@ -1141,8 +1152,8 @@ aiMaterial* AssImpMeshExporter::createMaterial(
             shadingModelStr = "Unknown";
             break;
     }
-    logMessage(QString("Creating material: %1 (Format: %2, Model: %3)")
-        .arg(material.name()).arg(ext.toUpper()).arg(shadingModelStr));
+    logMessage(QString("Creating material: %1 (Format: %2, Model: %3) [fallback=%4]")
+        .arg(finalMatName).arg(ext.toUpper()).arg(shadingModelStr).arg(usedFallback ? "Y, meshName=" + meshName : "N"));
 
     // ===== COLOR PROPERTIES =====
     {
@@ -1152,8 +1163,11 @@ aiMaterial* AssImpMeshExporter::createMaterial(
             static_cast<float>(material.albedoColor().z()));
         logMessage(QString("  *** Albedo color in material: [%1, %2, %3]")
             .arg(albedo.r).arg(albedo.g).arg(albedo.b));
-        // Write ONLY to AI_MATKEY_BASE_COLOR for glTF export to avoid conflicts with legacy ADS keys
+
+        // For glTF export, Assimp's exporter reads from AI_MATKEY_COLOR_DIFFUSE
+        // as the base color, not AI_MATKEY_BASE_COLOR. Set both to be safe.
         aiMat->AddProperty(&albedo, 1, AI_MATKEY_BASE_COLOR);
+        aiMat->AddProperty(&albedo, 1, AI_MATKEY_COLOR_DIFFUSE);
     }
 
     // ===== METALLIC & ROUGHNESS =====
@@ -1787,9 +1801,9 @@ void AssImpMeshExporter::applyMaterialsToScene(
             continue;
         }
 
-        // Create material with export location context
+        // Create material with export location context (pass mesh name as fallback)
         const GLMaterial& glMat = mesh->getMaterial();
-        aiMaterial* aiMat = createMaterial(glMat, _lastTexturePackage, exportFileLocation);
+        aiMaterial* aiMat = createMaterial(glMat, _lastTexturePackage, exportFileLocation, mesh->getName());
 
         if (!aiMat)
         {

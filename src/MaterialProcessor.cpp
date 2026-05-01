@@ -2338,7 +2338,8 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					outMaterial.setOpacity(qBound(0.0f, alpha, 1.0f));
 				}
 
-				qDebug() << "  Loaded baseColorFactor:" << albedo;
+				qDebug() << "  Loaded baseColorFactor for material[" << materialIndex << "]:" << albedo;
+				qDebug() << "    Full JSON material:" << QJsonDocument(matObj).toJson(QJsonDocument::Compact);
 			}
 		}
 		else

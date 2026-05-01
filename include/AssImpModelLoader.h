@@ -217,5 +217,9 @@ private:
 
 	// Map from mesh index to primitive mode (from glTF)
 	std::unordered_map<unsigned int, GLenum> _gltfMeshPrimitiveModes;
+
+	// Map from mesh index to JSON mesh name (from glTF) - preserves proper naming on re-export
+	std::unordered_map<unsigned int, QString> _gltfMeshNames;
+
 	UVDecisionFn _uvDecisionCallback;
 };
