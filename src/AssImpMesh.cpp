@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QVariantMap>
+#include <QDebug>
 
 #include <meshoptimizer.h>
 
@@ -801,6 +802,73 @@ void AssImpMesh::setMeshData(const std::vector<Vertex>& vertices,
 
 	// Setup transformation again (in case bounds changed)
 	setupTransformation();
+}
+
+void AssImpMesh::syncVertexDataAfterBake()
+{
+	// Sync baked geometry back into _vertices to ensure export reads correct data.
+	// This is called during bakeTransformations() to keep _vertices in sync with
+	// _points (_normals, _tangents, _bitangents) which contain the baked geometry.
+	// UVs (TexCoords) are preserved unchanged.
+
+	// Validate data consistency
+	const size_t pointCount = _points.size() / 3;  // Each point is 3 floats
+	const size_t normalCount = _normals.size() / 3;
+	const size_t tangentCount = _tangents.size() / 3;
+	const size_t bitangentCount = _bitangents.size() / 3;
+
+	if (pointCount != _vertices.size())
+	{
+		qWarning() << "AssImpMesh::syncVertexDataAfterBake: Point count mismatch."
+			<< "Expected" << _vertices.size() << "got" << pointCount;
+		return;
+	}
+
+	if (normalCount != _vertices.size() || tangentCount != _vertices.size() || bitangentCount != _vertices.size())
+	{
+		qWarning() << "AssImpMesh::syncVertexDataAfterBake: Tangent space data count mismatch";
+		return;
+	}
+
+	// Rebuild each vertex with baked data
+	for (size_t i = 0; i < _vertices.size(); ++i)
+	{
+		// Baked position
+		_vertices[i].Position.x = _points[i * 3];
+		_vertices[i].Position.y = _points[i * 3 + 1];
+		_vertices[i].Position.z = _points[i * 3 + 2];
+
+		// Baked normal
+		_vertices[i].Normal.x = _normals[i * 3];
+		_vertices[i].Normal.y = _normals[i * 3 + 1];
+		_vertices[i].Normal.z = _normals[i * 3 + 2];
+
+		// Baked tangent
+		if (!_tangents.empty())
+		{
+			_vertices[i].Tangent.x = _tangents[i * 3];
+			_vertices[i].Tangent.y = _tangents[i * 3 + 1];
+			_vertices[i].Tangent.z = _tangents[i * 3 + 2];
+		}
+
+		// Baked bitangent
+		if (!_bitangents.empty())
+		{
+			_vertices[i].Bitangent.x = _bitangents[i * 3];
+			_vertices[i].Bitangent.y = _bitangents[i * 3 + 1];
+			_vertices[i].Bitangent.z = _bitangents[i * 3 + 2];
+		}
+
+		// TexCoords unchanged - preserved from before baking
+		// _vertices[i].TexCoords[0..3] remain as-is
+	}
+
+	// Re-sync GPU buffers without re-optimizing the mesh
+	// (setupMesh would re-optimize, which we don't want)
+	setupMesh();
+
+	qDebug() << "AssImpMesh::syncVertexDataAfterBake: Synced" << _vertices.size()
+		<< "vertices with baked geometry";
 }
 
 void AssImpMesh::setAlbedoPBRMap(unsigned int albedoMap)

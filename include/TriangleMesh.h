@@ -114,6 +114,11 @@ public:
 	void bakeTransformations();
 	void resetTransformations();
 
+	// Sync vertex data after baking transformations.
+	// Called by bakeTransformations() to ensure vertex positions/normals match baked geometry.
+	// Subclasses override to update their specific vertex storage.
+	virtual void syncVertexDataAfterBake() { }
+
 	void setHasNegativeScale(bool hasNegativeScale) { _hasNegativeScale = hasNegativeScale; };
 	bool hasNegativeScale() const { return _hasNegativeScale; }
 

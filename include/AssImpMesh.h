@@ -51,6 +51,9 @@ public:
 	virtual TriangleMesh* clone();
 	void render();
 
+	// Override: sync _vertices with baked geometry after transformations
+	virtual void syncVertexDataAfterBake() override;
+
     std::vector<Vertex> vertices() const;
 
     std::vector<unsigned int> indices() const;

@@ -1406,8 +1406,12 @@ void TriangleMesh::bakeTransformations()
 	// Transform the points as permanently
 	_points   = _trsfPoints ;
 	_normals = _trsfNormals;
-	_tangents = _trsfTangents;    
+	_tangents = _trsfTangents;
 	_bitangents = _trsfBitangents;
+
+	// Sync vertex data (positions/normals/tangents) to ensure export reads baked geometry
+	syncVertexDataAfterBake();
+
 	resetTransformations();
 }
 
