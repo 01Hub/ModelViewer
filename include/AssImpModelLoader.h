@@ -97,6 +97,10 @@ struct AssImpMeshData
 	// Preserved so the exporter can match surviving meshes back to aiMesh
 	// entries without relying on name strings.
 	int sceneIndex = -1;
+	// Material index from aiMesh::mMaterialIndex at import time.
+	// This is the authoritative mapping of which material applies to this mesh,
+	// avoiding fragile name-based matching during export.
+	int originalMaterialIndex = -1;
 };
 
 using AssImpMeshDataBatch = std::vector<AssImpMeshData>;
@@ -181,7 +185,10 @@ private:
 	float calculateConditionalScale(const float& minDimension, const float& maxDimension);
 	// Parse glTF primitive modes and store them in the map
 	void parseGltfPrimitiveModes(const QString& gltfPath);
-			
+
+	// Update aiScene materials to match glTF structure (deduplicate, fix material assignments)
+	void updateAiSceneWithGltfMaterials(const QString& gltfPath, aiScene* scene);
+
 private:
 	std::string _path;
 	/*  Model Data  */
@@ -217,9 +224,9 @@ private:
 
 	// Map from mesh index to primitive mode (from glTF)
 	std::unordered_map<unsigned int, GLenum> _gltfMeshPrimitiveModes;
-
-	// Map from mesh index to JSON mesh name (from glTF) - preserves proper naming on re-export
-	std::unordered_map<unsigned int, QString> _gltfMeshNames;
-
 	UVDecisionFn _uvDecisionCallback;
+
+	// Map from aiMesh index to original material index (before deduplication)
+	// Used to preserve true glTF material indices for correct export matching
+	std::map<int, int> _meshIndexToOriginalMaterialIndex;
 };

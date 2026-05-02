@@ -6983,6 +6983,7 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 	mesh->setHasNegativeScale(meshData.hasNegativeScale);
 	mesh->setPrimitiveMode(meshData.primitiveMode);
 	mesh->setSceneIndex(meshData.sceneIndex);
+	mesh->setOriginalMaterialIndex(meshData.originalMaterialIndex);
 	if (_progressiveLoadingEnabled)
 	{
 		GLMaterial progressiveResolved = resolveMaterialTextures(this, mesh->getMaterial());

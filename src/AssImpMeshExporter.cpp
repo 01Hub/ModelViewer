@@ -10,8 +10,28 @@
 #include <QSet>
 #include <QMatrix4x4>
 #include <algorithm>
+#include <cmath>
 #include <memory>
 #include <set>
+
+namespace
+{
+bool textureBindingCompatibleForSharedExport(
+    const GLMaterial::Texture& a,
+    const GLMaterial::Texture& b)
+{
+    auto nearlyEqual = [](float lhs, float rhs) {
+        return std::abs(lhs - rhs) < 1e-5f;
+    };
+
+    return a.texCoordIndex == b.texCoordIndex &&
+           nearlyEqual(a.scale.x, b.scale.x) &&
+           nearlyEqual(a.scale.y, b.scale.y) &&
+           nearlyEqual(a.offset.x, b.offset.x) &&
+           nearlyEqual(a.offset.y, b.offset.y) &&
+           nearlyEqual(a.rotation, b.rotation);
+}
+}
 
 AssImpMeshExporter::AssImpMeshExporter(QObject* parent)
     : QObject(parent)
@@ -118,6 +138,10 @@ aiReturn AssImpMeshExporter::exportMeshes(
     std::vector<aiMaterial*> aiMaterials;
     std::vector<QMatrix4x4> transforms;
 
+    // Material deduplication map: material content hash -> material index
+    QMap<QString, unsigned int> materialContentToIndex;
+    std::vector<GLMaterial> uniqueMaterials;
+
     for (const auto* mesh : meshes)
     {
         if (!mesh) continue;
@@ -165,8 +189,50 @@ aiReturn AssImpMeshExporter::exportMeshes(
         // Get material from mesh
         GLMaterial meshMaterial = mesh->getMaterial();
 
-        // Create material (pass mesh name as fallback for empty material names)
-        // This prevents Assimp from deduplicating materials with empty names
+        // HYBRID: Override runtime GLMaterial scalars with the original aiScene material when
+        // available via originalMaterialIndex. The scene is the authoritative source for scalar
+        // diversity (color, metallic, roughness). The runtime mesh store may have collapsed
+        // per-part scalar diversity (e.g. all STEP parts sharing the same gray) while the
+        // original aiScene still holds unique per-part values from the import.
+        int origMatIdx = mesh->getOriginalMaterialIndex();
+        if (scene && origMatIdx >= 0 && origMatIdx < static_cast<int>(scene->mNumMaterials))
+        {
+            const aiMaterial* sceneMat = scene->mMaterials[origMatIdx];
+
+            aiColor3D diffuse(0, 0, 0);
+            if (sceneMat->Get(AI_MATKEY_COLOR_DIFFUSE, diffuse) == AI_SUCCESS)
+                meshMaterial.setAlbedoColor(QVector3D(diffuse.r, diffuse.g, diffuse.b));
+            else if (sceneMat->Get(AI_MATKEY_BASE_COLOR, diffuse) == AI_SUCCESS)
+                meshMaterial.setAlbedoColor(QVector3D(diffuse.r, diffuse.g, diffuse.b));
+
+            float metallic = -1.0f;
+            if (sceneMat->Get(AI_MATKEY_METALLIC_FACTOR, metallic) == AI_SUCCESS && metallic >= 0.0f)
+                meshMaterial.setMetalness(metallic);
+
+            float roughness = -1.0f;
+            if (sceneMat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness) == AI_SUCCESS && roughness >= 0.0f)
+                meshMaterial.setRoughness(roughness);
+
+            float opacity = -1.0f;
+            if (sceneMat->Get(AI_MATKEY_OPACITY, opacity) == AI_SUCCESS && opacity >= 0.0f)
+                meshMaterial.setOpacity(opacity);
+
+            aiString matName;
+            if (sceneMat->Get(AI_MATKEY_NAME, matName) == AI_SUCCESS && strlen(matName.C_Str()) > 0
+                && meshMaterial.name().isEmpty())
+            {
+                meshMaterial.setName(QString::fromUtf8(matName.C_Str()));
+            }
+
+            logMessage(QString("  -> Scalar override from scene mat[%1]: albedo=[%2,%3,%4] metal=%5 rough=%6")
+                .arg(origMatIdx)
+                .arg(diffuse.r, 0, 'f', 3).arg(diffuse.g, 0, 'f', 3).arg(diffuse.b, 0, 'f', 3)
+                .arg(metallic, 0, 'f', 3).arg(roughness, 0, 'f', 3));
+        }
+
+        // Create material directly - no deduplication
+        // Deduplication happens at import time via updateAiSceneWithGltfMaterials
+        // Each mesh's GLMaterial is unique (transforms are baked in)
         aiMaterial* aiMat = createMaterial(meshMaterial, _lastTexturePackage, exportPath, mesh->getName());
         if (!aiMat)
         {
@@ -175,10 +241,11 @@ aiReturn AssImpMeshExporter::exportMeshes(
             continue;
         }
 
-        aiMesh->mMaterialIndex = static_cast<unsigned int>(aiMaterials.size());
+        unsigned int materialIndex = static_cast<unsigned int>(aiMaterials.size());
+        aiMesh->mMaterialIndex = materialIndex;
+        aiMaterials.push_back(aiMat);
 
         aiMeshes.push_back(aiMesh);
-        aiMaterials.push_back(aiMat);
         transforms.push_back(mesh->getTransformation());
 
         logMessage(QString("  -> Mesh added: %1 (%2 vertices, %3 indices)")
@@ -193,7 +260,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
         return aiReturn_FAILURE;
     }
 
-    logMessage(QString("  -> Total: %1 meshes, %2 materials")
+    logMessage(QString("  -> RESULT: %1 meshes consolidated to %2 unique materials")
         .arg(aiMeshes.size())
         .arg(aiMaterials.size()));
 
@@ -334,6 +401,14 @@ aiReturn AssImpMeshExporter::exportScene(
     {
         logError("Scene contains no meshes");
         return aiReturn_FAILURE;
+    }
+
+    if (!meshes.empty() && scene->mNumMeshes != static_cast<unsigned int>(meshes.size()))
+    {
+        logMessage(QString("Scene mesh count (%1) differs from runtime mesh count (%2); rebuilding export scene from mesh store")
+            .arg(scene->mNumMeshes)
+            .arg(meshes.size()));
+        return exportMeshes(scene, meshes, QString::fromStdString(exportPath), settings);
     }
 
     _currentSettings = settings;
@@ -1596,19 +1671,29 @@ void AssImpMeshExporter::assignTexturesToMaterial(
             // (even if AO was missing, packORMIfSeparate creates a white default)
             if (!packedPath.isEmpty())
             {
-                // Use LIGHTMAP type for glTF occlusion export
-                aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_LIGHTMAP, 0));
-                aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_LIGHTMAP, 0));
+                const bool canReusePackedOrmForAo =
+                    aoTex.path.empty() || textureBindingCompatibleForSharedExport(aoTex, refTex);
 
-                // UV transforms for occlusion (use metallic/roughness texture's transform)
-                aiUVTransform ormOcclusionTransform;
-                ormOcclusionTransform.mTranslation = aiVector2D(refTex.offset.x, refTex.offset.y);
-                ormOcclusionTransform.mScaling = aiVector2D(refTex.scale.x, refTex.scale.y);
-                ormOcclusionTransform.mRotation = refTex.rotation;
-                aiMat->AddProperty(&ormOcclusionTransform, 1, AI_MATKEY_UVTRANSFORM(aiTextureType_LIGHTMAP, 0));
+                if (canReusePackedOrmForAo)
+                {
+                    // Use LIGHTMAP type for glTF occlusion export
+                    aiMat->AddProperty(&aiPath, AI_MATKEY_TEXTURE(aiTextureType_LIGHTMAP, 0));
+                    aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiTextureType_LIGHTMAP, 0));
 
-                addedOrmAsOcclusion = true;  // Mark that we've already handled occlusion
-                logMessage(QString("     -> Adding packed ORM as occlusion texture (R channel): %1").arg(texturePath));
+                    // UV transforms for occlusion (use metallic/roughness texture's transform)
+                    aiUVTransform ormOcclusionTransform;
+                    ormOcclusionTransform.mTranslation = aiVector2D(refTex.offset.x, refTex.offset.y);
+                    ormOcclusionTransform.mScaling = aiVector2D(refTex.scale.x, refTex.scale.y);
+                    ormOcclusionTransform.mRotation = refTex.rotation;
+                    aiMat->AddProperty(&ormOcclusionTransform, 1, AI_MATKEY_UVTRANSFORM(aiTextureType_LIGHTMAP, 0));
+
+                    addedOrmAsOcclusion = true;  // Mark that we've already handled occlusion
+                    logMessage(QString("     -> Adding packed ORM as occlusion texture (R channel): %1").arg(texturePath));
+                }
+                else
+                {
+                    logMessage(QString("     -> AO binding differs from packed M/R binding; exporting AO separately"));
+                }
             }
 
             // UV transforms (only for textures that were actually added)
@@ -2296,6 +2381,7 @@ QString AssImpMeshExporter::packORMIfSeparate(
     QString aoPath = QString::fromStdString(aoTex.path);
     QString metallicPath = QString::fromStdString(metallicTex.path);
     QString roughnessPath = QString::fromStdString(roughnessTex.path);
+    QString effectiveAoPath = aoPath;
 
     // For glTF, we need ROUGHNESS to pack into metallicRoughnessTexture
     // Metallic and Occlusion are optional - we create dummy defaults if needed
@@ -2310,13 +2396,23 @@ QString AssImpMeshExporter::packORMIfSeparate(
     // Check if we have metallic - if not, we'll create a dummy white texture
     bool isRoughnessOnly = metallicPath.isEmpty();
     QString workingMetallicPath = metallicPath;
+    const auto& mrReferenceTex = !metallicTex.path.empty() ? metallicTex : roughnessTex;
+
+    if (!aoPath.isEmpty() && !textureBindingCompatibleForSharedExport(aoTex, mrReferenceTex))
+    {
+        logMessage(QString("  -> AO binding differs from metallic/roughness binding; keep AO separate")
+            + QString(" (ao texCoord=%1, mr texCoord=%2)")
+                  .arg(aoTex.texCoordIndex)
+                  .arg(mrReferenceTex.texCoordIndex));
+        effectiveAoPath.clear();
+    }
 
     // If metallic and roughness are the same and no AO, no packing needed
-    if (!isRoughnessOnly && aoPath.isEmpty() && metallicPath == roughnessPath)
+    if (!isRoughnessOnly && effectiveAoPath.isEmpty() && metallicPath == roughnessPath)
         return QString();
 
     // Check cache first
-    QString cacheKey = aoPath + "|" + metallicPath + "|" + roughnessPath;
+    QString cacheKey = effectiveAoPath + "|" + metallicPath + "|" + roughnessPath;
     if (_packedTextureCache.contains(cacheKey))
     {
         logMessage(QString("  -> Using cached packed ORM texture"));
@@ -2328,7 +2424,7 @@ QString AssImpMeshExporter::packORMIfSeparate(
     bool invertRoughness = roughnessPacking.invert;  // Read from material.json packing settings
 
     logMessage(QString("  -> Packing ORM textures: AO=%1, M=%2, R=%3 (invertRoughness=%4)")
-        .arg(aoPath.isEmpty() ? "none" : QFileInfo(aoPath).fileName())
+        .arg(effectiveAoPath.isEmpty() ? "none" : QFileInfo(effectiveAoPath).fileName())
         .arg(isRoughnessOnly ? "(dummy black)" : QFileInfo(metallicPath).fileName())
         .arg(QFileInfo(roughnessPath).fileName())
         .arg(invertRoughness ? "true" : "false"));
@@ -2353,13 +2449,13 @@ QString AssImpMeshExporter::packORMIfSeparate(
             return QString();
         }
         workingMetallicPath = tempMetallicPath;
-        packedImage = TexturePackingUtils::packORM(aoPath, roughnessPath, workingMetallicPath, errorMsg, invertRoughness);
+        packedImage = TexturePackingUtils::packORM(effectiveAoPath, roughnessPath, workingMetallicPath, errorMsg, invertRoughness);
         // Clean up temp file
         QFile::remove(tempMetallicPath);
     }
     else
     {
-        packedImage = TexturePackingUtils::packORM(aoPath, roughnessPath, metallicPath, errorMsg, invertRoughness);
+        packedImage = TexturePackingUtils::packORM(effectiveAoPath, roughnessPath, metallicPath, errorMsg, invertRoughness);
     }
     if (packedImage.isNull())
     {

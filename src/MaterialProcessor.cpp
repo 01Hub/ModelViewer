@@ -2041,6 +2041,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		return;
 	}
 
+	// ===== Run lookup strategies to find the correct glTF material =====
 	int gltfMaterialIndex = -1;
 
 	QString lookupKey = nodeName;
@@ -2189,10 +2190,17 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		}
 	}
 
-	// ===== FINAL LOADING (single code path for all strategies) =====
+	// ===== FINAL LOADING (fallback strategies result) =====
 	if (gltfMaterialIndex < 0)
 	{
 		qWarning() << "Could not find glTF material for mesh:" << lookupKey;
+		return;
+	}
+
+	// Validate the gltfMaterialIndex
+	if (gltfMaterialIndex >= static_cast<int>(jsonMaterials.size()))
+	{
+		qWarning() << "gltfMaterialIndex" << gltfMaterialIndex << "out of range (max:" << jsonMaterials.size()-1 << ")";
 		return;
 	}
 

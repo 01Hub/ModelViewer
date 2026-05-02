@@ -57,7 +57,7 @@ public:
 		const QString& gltfPath,
 		const aiScene* scene,
 		const QString& nodeName,
-		const aiMesh* currentMesh, 
+		const aiMesh* currentMesh,
 		int materialIndex,
 		GLMaterial& outMaterial,
 		std::vector<GLMaterial::Texture>& outTextures);

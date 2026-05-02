@@ -6,6 +6,7 @@
 #include <QJsonArray>
 #include <QFile>
 #include <QString>
+#include <QVector2D>
 #include <vector>
 
 #include "GLLights.h"
@@ -142,6 +143,65 @@ public:
     static QString normalisedGlbPath(const QString& path);
 
 private:
+    // Material signature for robust matching during export
+    // Includes texture paths AND texture transforms to distinguish materials
+    // that share identical textures but have different transform properties
+    struct MaterialSignature
+    {
+        QString name;                           // Material name from GLMaterial
+        QSet<QString> textureFilePaths;         // Actual texture file paths
+
+        // Texture binding: texture type + path + coordinate + transforms
+        struct TextureBinding {
+            QString textureType;                // "Albedo", "Normal", "Roughness", etc.
+            QString path;                       // Texture file path
+            int texCoordIndex;                  // Which texture coordinate channel
+            float rotationRad;                  // Transform: rotation
+            QVector2D scale;                    // Transform: scale
+            QVector2D offset;                   // Transform: offset
+        };
+        std::vector<TextureBinding> textureBindings;  // Complete texture binding info
+
+        int originalMaterialIndex;              // From assimp import
+        int meshIndex;                          // Which mesh this signature is from
+        // NOTE: Do NOT store material pointer - it may become invalid
+        // Access material via meshes[meshIndex]->getMaterial() instead
+
+        // Compute a unique hash based on texture paths AND transforms
+        // This distinguishes:
+        // - Materials with same textures but different transforms (Chair case)
+        // - Materials with same textures but different scale/rotation (STEP case)
+        QString computeHash() const;
+    };
+
+    static MaterialSignature buildSignatureForMesh(
+        int meshIdx,
+        const class TriangleMesh* mesh,
+        std::function<void(const QString&)> logCallback);
+
+    // Find material signature index for a JSON material. Returns -1 if not found.
+    static int findMaterialBySignature(
+        const QString& jsonMatName,
+        const QJsonObject& jsonMat,
+        const std::vector<MaterialSignature>& signatures,
+        int matIdx,
+        std::function<void(const QString&)> logCallback);
+
+    static int findMaterialByNameWithDedup(
+        const QString& jsonMatName,
+        const std::vector<MaterialSignature>& signatures,
+        int matIdx,
+        std::function<void(const QString&)> logCallback);
+
+    static int findMaterialByIndexFallback(
+        int matIdx,
+        const std::vector<MaterialSignature>& signatures,
+        std::function<void(const QString&)> logCallback);
+
+    static int computeTextureMatchScore(
+        const MaterialSignature& sig,
+        const QJsonObject& jsonMat);
+
     static bool fixTextureInfoWithTransforms(QJsonObject& parent, const QString& key);
     static bool fixNormalTextureInfo(QJsonObject& parent, const QString& key);
     static bool fixOcclusionTextureInfo(QJsonObject& parent, const QString& key);
@@ -173,9 +233,14 @@ private:
     static void log(const QString& message, std::function<void(const QString&)> callback);
 
 private:
+    static const TriangleMesh* sourceMeshForMaterial(
+        int materialIndex,
+        const std::vector<TriangleMesh*>& meshes);
+
     static QString _textureSubfolder;
     static QMap<QString, QString> _pathMapping;
     static QMap<QString, int> _embeddedIndexMapping;
+    static QMap<int, int> _materialToSourceMeshIndex;
 };
 
 #endif // GLTF_POSTPROCESSOR_H

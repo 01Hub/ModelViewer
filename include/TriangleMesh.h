@@ -125,6 +125,11 @@ public:
 	void setSceneIndex(int index) { _sceneIndex = index; }
 	int getSceneIndex() const { return _sceneIndex; }
 
+	// Store the original material index from aiMesh::mMaterialIndex at import time.
+	// Used during export to ensure correct material assignment without relying on name matching.
+	void setOriginalMaterialIndex(int index) { _originalMaterialIndex = index; }
+	int getOriginalMaterialIndex() const { return _originalMaterialIndex; }
+
 	// Returns a sort key based on primary texture IDs to minimise GPU texture
 	// state changes when opaque meshes are sorted before drawing.
 	uint64_t getTextureSortKey() const
@@ -408,6 +413,12 @@ protected:
 	// Used by the exporter to match surviving TriangleMesh objects back to aiMesh
 	// entries in the deep-copied scene without relying on name strings.
 	int _sceneIndex = -1;
+
+	// Material index from aiMesh::mMaterialIndex at import time.
+	// Stores which material in the scene's material array applies to this mesh.
+	// Used during export to ensure correct material assignment via index matching,
+	// avoiding fragile name-based matching. -1 if not from an Assimp scene.
+	int _originalMaterialIndex = -1;
 
 	// Individual transformation components
 	float _transX;

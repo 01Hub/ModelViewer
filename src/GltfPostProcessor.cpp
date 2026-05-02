@@ -11,6 +11,7 @@
 QString GltfPostProcessor::_textureSubfolder = "textures";
 QMap<QString, QString> GltfPostProcessor::_pathMapping;
 QMap<QString, int> GltfPostProcessor::_embeddedIndexMapping;
+QMap<int, int> GltfPostProcessor::_materialToSourceMeshIndex;
 
 namespace
 {
@@ -45,6 +46,24 @@ void GltfPostProcessor::log(const QString& message, std::function<void(const QSt
     {
         qDebug() << message;
     }
+}
+
+const TriangleMesh* GltfPostProcessor::sourceMeshForMaterial(
+    int materialIndex,
+    const std::vector<TriangleMesh*>& meshes)
+{
+    auto mappedIt = _materialToSourceMeshIndex.find(materialIndex);
+    if (mappedIt != _materialToSourceMeshIndex.end())
+    {
+        int meshIndex = mappedIt.value();
+        if (meshIndex >= 0 && meshIndex < static_cast<int>(meshes.size()))
+            return meshes[meshIndex];
+    }
+
+    if (materialIndex >= 0 && materialIndex < static_cast<int>(meshes.size()))
+        return meshes[materialIndex];
+
+    return nullptr;
 }
 
 bool GltfPostProcessor::postProcessGltfJson(QJsonObject& gltfJson,
@@ -948,6 +967,239 @@ bool GltfPostProcessor::removeTangentAttributes(
     return modified;
 }
 
+// ============================================================================
+// Material Signature Helper Functions
+// ============================================================================
+
+QString GltfPostProcessor::MaterialSignature::computeHash() const
+{
+    QString hash = name;
+
+    // Include complete texture binding information (order matters for hash consistency)
+    // Sort by texture type first, then path, to ensure consistent ordering
+    std::vector<TextureBinding> sortedBindings = textureBindings;
+    std::sort(sortedBindings.begin(), sortedBindings.end(),
+        [](const TextureBinding& a, const TextureBinding& b) {
+            if (a.textureType != b.textureType)
+                return a.textureType < b.textureType;
+            if (a.path != b.path)
+                return a.path < b.path;
+            return a.texCoordIndex < b.texCoordIndex;
+        });
+
+    // Hash each texture binding: type + path + texCoord + transforms
+    for (const auto& binding : sortedBindings)
+    {
+        hash += QString("|%1::%2::%3:%4,%5:%6,%7:%8,%9")
+            .arg(binding.textureType)                                    // texture type
+            .arg(binding.path)                                           // texture path
+            .arg(binding.texCoordIndex)                                  // texCoord index
+            .arg(binding.rotationRad, 0, 'f', 4)                         // rotation
+            .arg(binding.scale.x(), 0, 'f', 4)                           // scale X
+            .arg(binding.scale.y(), 0, 'f', 4)                           // scale Y
+            .arg(binding.offset.x(), 0, 'f', 4)                          // offset X
+            .arg(binding.offset.y(), 0, 'f', 4)                          // offset Y
+            .arg(binding.rotationRad > 0.001 ? "R" : "");                // has rotation flag
+    }
+
+    return hash;
+}
+
+GltfPostProcessor::MaterialSignature GltfPostProcessor::buildSignatureForMesh(
+    int meshIdx,
+    const TriangleMesh* mesh,
+    std::function<void(const QString&)> logCallback)
+{
+    MaterialSignature sig;
+    sig.meshIndex = meshIdx;
+    const GLMaterial& glMat = mesh->getMaterial();
+    sig.name = glMat.name();
+    sig.originalMaterialIndex = mesh->getOriginalMaterialIndex();
+
+    // Lambda to extract complete texture binding data (type + path + texCoord + transforms)
+    auto extractTextureBinding = [&](GLMaterial::TextureType type, const QString& typeStr) {
+        const GLMaterial::Texture& tex = glMat.texture(type);
+        if (!tex.path.empty()) {
+            QString texPath = QString::fromStdString(tex.path);
+            sig.textureFilePaths.insert(texPath);
+
+            // Store complete texture binding information
+            MaterialSignature::TextureBinding binding;
+            binding.textureType = typeStr;
+            binding.path = texPath;
+            binding.texCoordIndex = tex.texCoordIndex;      // CRITICAL: texture coordinate index
+            binding.rotationRad = tex.rotation;
+            binding.scale = QVector2D(tex.scale.x, tex.scale.y);
+            binding.offset = QVector2D(tex.offset.x, tex.offset.y);
+            sig.textureBindings.push_back(binding);
+        }
+    };
+
+    // Collect texture bindings from all material texture slots
+    // Each binding is uniquely identified by type + path + texCoord
+    extractTextureBinding(GLMaterial::TextureType::Albedo, "Albedo");
+    extractTextureBinding(GLMaterial::TextureType::Normal, "Normal");
+    extractTextureBinding(GLMaterial::TextureType::Metallic, "Metallic");
+    extractTextureBinding(GLMaterial::TextureType::Roughness, "Roughness");
+    extractTextureBinding(GLMaterial::TextureType::AmbientOcclusion, "AmbientOcclusion");
+    extractTextureBinding(GLMaterial::TextureType::Emissive, "Emissive");
+
+    return sig;
+}
+
+int GltfPostProcessor::computeTextureMatchScore(
+    const MaterialSignature& sig,
+    const QJsonObject& jsonMat)
+{
+    int score = 0;
+
+    // Check if material has textures defined
+    bool hasPBR = jsonMat.contains("pbrMetallicRoughness");
+    if (hasPBR)
+    {
+        QJsonObject pbr = jsonMat["pbrMetallicRoughness"].toObject();
+        if (pbr.contains("baseColorTexture"))
+            score += 30;
+        if (pbr.contains("metallicRoughnessTexture"))
+            score += 25;
+    }
+
+    if (jsonMat.contains("normalTexture"))
+        score += 25;
+    if (jsonMat.contains("occlusionTexture"))
+        score += 15;
+
+    // Count JSON textures
+    int jsonTexCount = 0;
+    if (hasPBR)
+    {
+        QJsonObject pbr = jsonMat["pbrMetallicRoughness"].toObject();
+        if (pbr.contains("baseColorTexture")) jsonTexCount++;
+        if (pbr.contains("metallicRoughnessTexture")) jsonTexCount++;
+    }
+    if (jsonMat.contains("normalTexture")) jsonTexCount++;
+    if (jsonMat.contains("occlusionTexture")) jsonTexCount++;
+
+    // Bonus if texture count roughly matches
+    int sigTexCount = sig.textureFilePaths.size();
+    if (sigTexCount > 0 && jsonTexCount > 0)
+    {
+        if (sigTexCount >= jsonTexCount && sigTexCount <= jsonTexCount + 1)
+            score += 20;
+    }
+
+    return score;
+}
+
+int GltfPostProcessor::findMaterialBySignature(
+    const QString& jsonMatName,
+    const QJsonObject& jsonMat,
+    const std::vector<MaterialSignature>& signatures,
+    int matIdx,
+    std::function<void(const QString&)> logCallback)
+{
+    if (signatures.empty())
+        return -1;
+
+    // Find all candidates with matching name
+    QVector<int> candidates;
+    for (int i = 0; i < static_cast<int>(signatures.size()); ++i)
+    {
+        if (signatures[i].name == jsonMatName)
+            candidates.push_back(i);
+    }
+
+    if (candidates.empty())
+        return -1;
+
+    // Single candidate - easy decision
+    if (candidates.size() == 1)
+    {
+        int idx = candidates[0];
+        log(QString("  Material[%1] '%2': Unique name match (signature %3)")
+            .arg(matIdx).arg(jsonMatName).arg(idx), logCallback);
+        return idx;
+    }
+
+    // Multiple candidates - score by texture match
+    int bestIdx = candidates[0];
+    int bestScore = computeTextureMatchScore(signatures[bestIdx], jsonMat);
+
+    for (int idx : candidates)
+    {
+        int score = computeTextureMatchScore(signatures[idx], jsonMat);
+        if (score > bestScore)
+        {
+            bestScore = score;
+            bestIdx = idx;
+        }
+    }
+
+    log(QString("  Material[%1] '%2': Selected by fingerprint (signature %3, score=%4)")
+        .arg(matIdx).arg(jsonMatName).arg(bestIdx).arg(bestScore), logCallback);
+    return bestIdx;
+}
+
+int GltfPostProcessor::findMaterialByNameWithDedup(
+    const QString& jsonMatName,
+    const std::vector<MaterialSignature>& signatures,
+    int matIdx,
+    std::function<void(const QString&)> logCallback)
+{
+    int matchCount = 0;
+    int firstSigIdx = -1;
+
+    for (int i = 0; i < static_cast<int>(signatures.size()); ++i)
+    {
+        if (signatures[i].name == jsonMatName)
+        {
+            matchCount++;
+            if (firstSigIdx == -1)
+            {
+                firstSigIdx = i;
+            }
+        }
+    }
+
+    if (matchCount == 0)
+        return -1;
+
+    if (firstSigIdx < 0)
+        return -1;
+
+    if (matchCount > 1)
+    {
+        log(QString("  Material[%1] '%2': WARNING %3 instances found, using first (signature %4)")
+            .arg(matIdx).arg(jsonMatName).arg(matchCount).arg(firstSigIdx), logCallback);
+    }
+    else
+    {
+        log(QString("  Material[%1] '%2': Name-based match (signature %3)")
+            .arg(matIdx).arg(jsonMatName).arg(firstSigIdx), logCallback);
+    }
+
+    return firstSigIdx;
+}
+
+int GltfPostProcessor::findMaterialByIndexFallback(
+    int matIdx,
+    const std::vector<MaterialSignature>& signatures,
+    std::function<void(const QString&)> logCallback)
+{
+    for (int i = 0; i < static_cast<int>(signatures.size()); ++i)
+    {
+        if (signatures[i].originalMaterialIndex == matIdx)
+        {
+            log(QString("  Material[%1]: Index fallback match (original index, signature %2)")
+                .arg(matIdx).arg(i), logCallback);
+            return i;
+        }
+    }
+    return -1;
+}
+
+// ============================================================================
+
 bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     QJsonObject& gltfJson,
     const std::vector<TriangleMesh*>& meshes,
@@ -963,6 +1215,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     _textureSubfolder = textureSubfolder.isEmpty() ? "textures" : textureSubfolder;
     _pathMapping = pathMapping;
     _embeddedIndexMapping = embeddedIndexMapping;
+    _materialToSourceMeshIndex.clear();
 
     removeTangentAttributes(gltfJson, logCallback);
 
@@ -988,81 +1241,90 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         // Clear Assimp's samplers - we'll create correct ones from source materials
         samplers = QJsonArray();
 
-        // ===== MESH-NAME-BASED MATERIAL PATCHING =====
-        // Assimp reorders meshes and deduplicates identical geometry during export.
-        // The ONLY reliable mapping is:
-        //   json_meshes[j]["name"]  ->  TriangleMesh* source (by getName())
-        //   json_meshes[j]["primitives"][0]["material"]  ->  which JSON material to patch
+        // ===== MATERIAL IDENTITY-BASED MATCHING =====
+        // NEW APPROACH: Use originalMaterialIndex as the authoritative identifier
         //
-        // We iterate JSON meshes, find the source TriangleMesh by name,
-        // then patch the corresponding JSON material using that mesh's GLMaterial.
+        // Instead of trying to infer which source mesh became which JSON mesh via name queues,
+        // we build a direct map from originalMaterialIndex to source mesh properties.
+        // This survives Assimp's reordering because it's based on semantic identity, not position.
+        //
+        // The key insight: during import, each mesh captures its originalMaterialIndex.
+        // This is the true material identity. We use it to rebuild the correct material
+        // assignments during export, bypassing deduplication ambiguity.
 
-        // Build name -> ordered queue of source mesh indices.
-        //
-        // Application mesh names are "ModelName (MeshName)" but exported JSON mesh
-        // names are just "MeshName". We queue by both the full name and the bare
-        // name so either form matches.
-        //
-        // Using a queue (ordered list + cursor) rather than a single-value map
-        // correctly handles the case where multiple source meshes share the same
-        // name but carry different materials (e.g. 25 prisms each with a distinct
-        // IOR/dispersion value). Each JSON mesh dequeues one source mesh in order,
-        // so the Nth "Prism" JSON mesh gets the Nth "Prism" source mesh.
-        QMap<QString, QList<int>> meshNameToQueue;   // bare name -> ordered source indices
-        QMap<QString, int>        meshNameCursor;    // bare name -> next unconsumed index
-        QMap<QString, QString>    lastMatForKey;     // last queued material name per key
+        // Build material identity map: originalMaterialIndex -> source mesh index with best match
+        QMap<int, int> origMatIdxToMeshIdx;  // originalMaterialIndex -> preferred source mesh index
 
         for (int k = 0; k < static_cast<int>(meshes.size()); ++k)
         {
             if (!meshes[k]) continue;
-            QString fullName = meshes[k]->getName();
-            if (fullName.isEmpty()) continue;
 
-            // Extract bare name inside "ModelName (BareName)"
-            QString bareName = fullName;
-            int parenOpen = fullName.lastIndexOf('(');
-            int parenClose = fullName.lastIndexOf(')');
-            if (parenOpen >= 0 && parenClose > parenOpen)
-                bareName = fullName.mid(parenOpen + 1, parenClose - parenOpen - 1).trimmed();
+            int origMatIdx = meshes[k]->getOriginalMaterialIndex();
 
-            // Instance deduplication: glTF instancing causes ModelViewer to create
-            // one TriangleMesh per node referencing a mesh, so N nodes sharing the
-            // same mesh+material produce N consecutive identical source entries.
-            // The exported JSON collapses those back to one mesh entry. We skip
-            // any source mesh whose material name matches the last queued entry
-            // for the same key, so the queue holds one entry per distinct material
-            // variant rather than one per node instance.
-            QString matName = meshes[k]->getMaterial().name();
-
-            // Queue by bare name (covers JSON mesh name lookups)
-            if (!bareName.isEmpty())
+            // For each originalMaterialIndex, keep track of a source mesh that uses it
+            // Prefer the first mesh we encounter for each index
+            if (origMatIdx >= 0 && !origMatIdxToMeshIdx.contains(origMatIdx))
             {
-                if (!meshNameToQueue.contains(bareName) ||
-                    lastMatForKey.value(bareName) != matName)
-                {
-                    meshNameToQueue[bareName].append(k);
-                    lastMatForKey[bareName] = matName;
-                }
-            }
-
-            // Also queue by full name if it differs (fallback for exact-name match)
-            if (fullName != bareName)
-            {
-                if (!meshNameToQueue.contains(fullName) ||
-                    lastMatForKey.value(fullName) != matName)
-                {
-                    meshNameToQueue[fullName].append(k);
-                    lastMatForKey[fullName] = matName;
-                }
+                origMatIdxToMeshIdx[origMatIdx] = k;
+                log(QString("  Material Identity: originalMaterialIndex[%1] -> source mesh[%2] (%3)")
+                    .arg(origMatIdx).arg(k).arg(meshes[k]->getName()), logCallback);
             }
         }
-        log(QString("  Built mesh-name queues: %1 name(s)").arg(meshNameToQueue.size()), logCallback);
+
+        // Build mesh name -> source mesh index map for fast lookup by name
+        QMap<QString, QList<int>> meshNameToIndices;
+        for (int k = 0; k < static_cast<int>(meshes.size()); ++k)
+        {
+            if (!meshes[k]) continue;
+            QString fullName = meshes[k]->getName();
+            if (!fullName.isEmpty())
+            {
+                meshNameToIndices[fullName].append(k);
+            }
+        }
+
+        log(QString("  Material Identity Map: %1 unique material indices").arg(origMatIdxToMeshIdx.size()), logCallback);
+        log(QString("  Mesh Name Lookup: %1 named mesh groups").arg(meshNameToIndices.size()), logCallback);
         log(QString("  [SOURCE MESHES] meshes.size()=%1").arg(meshes.size()), logCallback);
 
         // We may need to update the JSON meshes array (to redirect primitive material
         // pointers when we clone a collapsed material slot). Work on a mutable copy.
         QJsonArray jsonMeshes = gltfJson.value("meshes").toArray();
         log(QString("  [JSON MESHES] jsonMeshes.size()=%1").arg(jsonMeshes.size()), logCallback);
+
+        auto resolveSourceMeshIndex = [&](const QString& targetName,
+                                          int jsonMeshIndex,
+                                          const QString& matchLabel) -> int
+        {
+            if (meshNameToIndices.contains(targetName))
+            {
+                const QList<int>& candidates = meshNameToIndices[targetName];
+                if (!candidates.isEmpty())
+                {
+                    int resolved = candidates[0];
+                    log(QString("  [%1] json mesh[%2] '%3' -> source mesh[%4] (exact match)")
+                        .arg(matchLabel).arg(jsonMeshIndex).arg(targetName).arg(resolved), logCallback);
+                    return resolved;
+                }
+            }
+
+            for (auto it = meshNameToIndices.begin(); it != meshNameToIndices.end(); ++it)
+            {
+                const QString& sourceName = it.key();
+                const QList<int>& candidates = it.value();
+                if (!candidates.isEmpty() &&
+                    (sourceName.contains(targetName) || targetName.contains(sourceName)))
+                {
+                    int resolved = candidates[0];
+                    log(QString("  [%1] json mesh[%2] '%3' -> source mesh[%4] (partial: '%5')")
+                        .arg(matchLabel).arg(jsonMeshIndex).arg(targetName).arg(resolved).arg(sourceName), logCallback);
+                    return resolved;
+                }
+            }
+
+            return -1;
+        };
+
         for (int j = 0; j < jsonMeshes.size(); ++j)
         {
             QJsonObject jMesh = jsonMeshes[j].toObject();
@@ -1074,156 +1336,124 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             log(QString("[MESH LOOP] Processing JSON mesh[%1] name='%2' primitives=%3")
                 .arg(j).arg(meshName).arg(primitives.size()), logCallback);
 
-            // Dequeue the next unconsumed source mesh for this name.
-            // Prefer exact full-name match first; fall back to bare name.
-            auto dequeue = [&](const QString& key) -> int {
-                if (!meshNameToQueue.contains(key)) return -1;
-                int& cursor = meshNameCursor[key];
-                const QList<int>& q = meshNameToQueue[key];
-                if (cursor >= q.size()) return -1;
-                return q[cursor++];
-                };
-
-            int meshIdx = dequeue(meshName);
-            if (meshIdx < 0)
-            {
-                // Try bare name (JSON mesh names don't include the "ModelName (" prefix)
-                // already handled since we queue under bareName too, but try
-                // the full application name form just in case.
-                for (auto it = meshNameToQueue.begin(); it != meshNameToQueue.end(); ++it)
-                {
-                    QString key = it.key();
-                    if (key.endsWith("(" + meshName + ")") ||
-                        key.endsWith(" " + meshName + ")"))
-                    {
-                        meshIdx = dequeue(key);
-                        if (meshIdx >= 0) break;
-                    }
-                }
-            }
-
-            // ===== DIAGNOSTIC: Log mesh matching results =====
-            log(QString("  [DIAG] meshName='%1' j=%2 meshIdx=%3 meshes.size()=%4")
-                .arg(meshName).arg(j).arg(meshIdx).arg(meshes.size()), logCallback);
-
-            // ===== INDEX-BASED FALLBACK MATCHING (STEP FILES ONLY) =====
-            // When Assimp consolidates source meshes during STEP export (e.g., 326 -> 2),
-            // the JSON mesh names may not match any source mesh name. In this case, try
-            // index-based matching, BUT ONLY if:
-            // 1. We have far fewer JSON meshes than source meshes (indicates consolidation)
-            // 2. The source mesh has meaningful material data
-            //
-            // This MUST NOT apply to pre-made glTF/GLB files where the order might differ,
-            // causing incorrect material assignment.
-            bool canUseIndexFallback = (meshIdx < 0) &&
-                                       (j < static_cast<int>(meshes.size())) &&
-                                       (jsonMeshes.size() < static_cast<int>(meshes.size() * 0.5));  // Consolidation indicator
-
-            if (canUseIndexFallback)
-            {
-                const GLMaterial& candidateMat = meshes[j]->getMaterial();
-
-                // Only use index fallback if source mesh has meaningful material data
-                // (non-empty name or non-default color). This prevents false matches on empty meshes.
-                bool hasMeaningfulMaterial = !candidateMat.name().isEmpty() ||
-                    candidateMat.albedoColor() != QVector3D(1.0f, 1.0f, 1.0f);
-
-                log(QString("  [FALLBACK CHECK] jsonMeshes(%1) << meshes(%2) (consolidation)? candidateMat.name()='%3' meaningful=%4")
-                    .arg(jsonMeshes.size()).arg(meshes.size()).arg(candidateMat.name()).arg(hasMeaningfulMaterial), logCallback);
-
-                if (hasMeaningfulMaterial)
-                {
-                    meshIdx = j;
-                    log(QString("  FALLBACK: index-based match for json mesh[%1] '%2' -> source mesh[%3] (consolidation detected)")
-                        .arg(j).arg(meshName).arg(j), logCallback);
-                }
-            }
-            else if (meshIdx < 0 && canUseIndexFallback == false && (j < static_cast<int>(meshes.size())))
-            {
-                log(QString("  [FALLBACK SKIP] jsonMeshes(%1) ~= meshes(%2) (no consolidation) - skipping index fallback to avoid wrong matches")
-                    .arg(jsonMeshes.size()).arg(meshes.size()), logCallback);
-            }
-
-            if (meshIdx < 0)
+            int baseMeshIdx = resolveSourceMeshIndex(meshName, j, "NAME MATCH");
+            if (baseMeshIdx < 0)
             {
                 log(QString("  WARNING: no source mesh found for json mesh '%1' (index %2)")
                     .arg(meshName).arg(j), logCallback);
                 continue;
             }
 
-            // ===== ORIGINAL DESIGN: PROCESS ONLY primitives[0] =====
-            // Each JSON mesh can have multiple primitives. The original deduplication logic
-            // was designed to process only primitives[0] because:
-            // 1. When Assimp consolidates meshes, it establishes material ownership via the first primitive
-            // 2. The "Shared" case handles when multiple primitives in one mesh share the same material
-            // 3. The "Collision" case handles when different source meshes compete for the same slot
-            //
-            // Processing ALL primitives instead caused unnecessary cloning (e.g., 213 → 242 materials in CarConcept).
-            // Color patching happens in a separate phase and doesn't need per-primitive iteration.
+            const int suffixSeparator = meshName.lastIndexOf('-');
+            const QString primitiveNamePrefix = suffixSeparator >= 0 ? meshName.left(suffixSeparator + 1) : meshName;
+
+            // ===== MATERIAL SLOT ASSIGNMENT =====
+            // Assign each primitive independently. Assimp can collapse multiple source
+            // meshes into one JSON mesh with several primitives, so primitive[0] and
+            // primitive[1] may need different source material identities.
+            for (int primIdx = 0; primIdx < primitives.size(); ++primIdx)
             {
-                if (!primitives.isEmpty())
+                QJsonObject prim = primitives[primIdx].toObject();
+                int matIdx = prim.value("material").toInt(-1);
+                if (matIdx < 0 || matIdx >= materials.size())
+                    continue;
+
+                QString targetSourceName = meshName;
+                int meshIdx = baseMeshIdx;
+
+                if (primitives.size() > 1 && suffixSeparator >= 0)
                 {
-                    int matIdx = primitives[0].toObject().value("material").toInt(-1);
-                    if (matIdx >= 0 && matIdx < materials.size())
+                    QString primitiveSpecificName = primitiveNamePrefix + QString::number(primIdx);
+                    int primitiveMeshIdx = resolveSourceMeshIndex(
+                        primitiveSpecificName, j, QString("PRIMITIVE %1").arg(primIdx));
+                    if (primitiveMeshIdx >= 0)
                     {
-                        if (!patchedMaterials.contains(matIdx))
-                        {
-                            // Material slot is free - claim it directly.
-                            patchedMaterials[matIdx] = meshIdx;
-                            log(QString("  Mapped: json mesh[%1] '%2' -> material[%3] via source mesh[%4]")
-                                .arg(j).arg(meshName).arg(matIdx).arg(meshIdx), logCallback);
-                        }
-                        else if (patchedMaterials[matIdx] == meshIdx)
-                        {
-                            // Same source mesh already owns this slot (two primitives in one mesh
-                            // sharing a material) - nothing to do.
-                            log(QString("  Shared: json mesh[%1] '%2' -> material[%3] (same source mesh[%4])")
-                                .arg(j).arg(meshName).arg(matIdx).arg(meshIdx), logCallback);
-                        }
-                        else
-                        {
-                            // Collision: this material slot is already owned by a DIFFERENT source
-                            // mesh. Assimp collapsed two distinct source materials into one JSON
-                            // slot. Clone the slot, redirect primitives[0] to the clone,
-                            // and claim the clone for our source mesh.
-                            //
-                            // This restores the correct 1-source-mesh : 1-material-slot mapping
-                            // that the post-processor patching phase requires.
-                            int clonedIdx = materials.size();
-                            materials.append(materials[matIdx]);  // deep copy (QJsonValue is CoW)
-
-                            // Redirect primitives[0] to the cloned slot
-                            QJsonObject prim0 = primitives[0].toObject();
-                            prim0["material"] = clonedIdx;
-                            primitives[0] = prim0;
-                            jMesh["primitives"] = primitives;
-                            jsonMeshes[j] = jMesh;
-
-                            patchedMaterials[clonedIdx] = meshIdx;
-                            log(QString("  Cloned: json mesh[%1] '%2' -> material[%3] cloned to [%4] for source mesh[%5]")
-                                .arg(j).arg(meshName).arg(matIdx).arg(clonedIdx).arg(meshIdx), logCallback);
-                        }
+                        targetSourceName = primitiveSpecificName;
+                        meshIdx = primitiveMeshIdx;
                     }
                 }
-            }  // end mesh matching for primitives[0] only
+
+                // For consolidated meshes without suffix-based names (e.g. STEP/FBX files where
+                // Assimp groups many source meshes into one JSON mesh with N primitives),
+                // use sequential offset from baseMeshIdx. applyMaterialsToScene assigns
+                // mMaterialIndex=i per source mesh, so primitive[k] was created from meshes[baseMeshIdx+k].
+                if (primitives.size() > 1 && suffixSeparator < 0 && primIdx > 0)
+                {
+                    int candidateMeshIdx = baseMeshIdx + primIdx;
+                    if (candidateMeshIdx < static_cast<int>(meshes.size()))
+                    {
+                        meshIdx = candidateMeshIdx;
+                        log(QString("  [PRIM OFFSET] primitive[%1] -> source mesh[%2] (base=%3 + offset)")
+                            .arg(primIdx).arg(meshIdx).arg(baseMeshIdx), logCallback);
+                    }
+                }
+
+                if (meshIdx < 0 || meshIdx >= static_cast<int>(meshes.size()))
+                    continue;
+
+                int origMatIdx = meshes[meshIdx]->getOriginalMaterialIndex();
+                log(QString("  [MATCH] json mesh[%1] primitive[%2] name='%3' material[%4] -> source mesh[%5] origMatIdx=%6 matName='%7'")
+                    .arg(j).arg(primIdx).arg(targetSourceName).arg(matIdx).arg(meshIdx)
+                    .arg(origMatIdx).arg(meshes[meshIdx]->getMaterial().name()), logCallback);
+
+                if (!patchedMaterials.contains(matIdx))
+                {
+                    patchedMaterials[matIdx] = meshIdx;
+                    log(QString("  Assigned: json mesh[%1] primitive[%2] '%3' -> material[%4] (origMatIdx=%5)")
+                        .arg(j).arg(primIdx).arg(targetSourceName).arg(matIdx).arg(origMatIdx), logCallback);
+                }
+                else if (patchedMaterials[matIdx] == meshIdx)
+                {
+                    log(QString("  Shared: json mesh[%1] primitive[%2] '%3' -> material[%4] (same source mesh)")
+                        .arg(j).arg(primIdx).arg(targetSourceName).arg(matIdx), logCallback);
+                }
+                else
+                {
+                    int existingMeshIdx = patchedMaterials[matIdx];
+                    int clonedIdx = materials.size();
+                    materials.append(materials[matIdx]);  // deep copy
+
+                    prim["material"] = clonedIdx;
+                    primitives[primIdx] = prim;
+                    jMesh["primitives"] = primitives;
+                    jsonMeshes[j] = jMesh;
+
+                    patchedMaterials[clonedIdx] = meshIdx;
+                    log(QString("  Cloned: json mesh[%1] primitive[%2] '%3' -> material[%4]→[%5] (origMatIdx=%6 vs existing origMatIdx=%7)")
+                        .arg(j).arg(primIdx).arg(targetSourceName).arg(matIdx).arg(clonedIdx).arg(origMatIdx)
+                        .arg(meshes[existingMeshIdx]->getOriginalMaterialIndex()), logCallback);
+                }
+            }  // end primitive material slot assignment
         }  // end for jsonMeshes
 
         // Write back the (possibly updated) meshes array so primitive material
         // redirections are visible to the rest of the pipeline.
         gltfJson["meshes"] = jsonMeshes;
+        _materialToSourceMeshIndex = patchedMaterials;
 
         // Helper: write KHR_texture_transform from a GLMaterial::Texture
         auto writeTransform = [&](QJsonObject& parent, const QString& key, const GLMaterial::Texture& tex) -> bool {
-            if (!parent.contains(key)) return false;
+            if (!parent.contains(key))
+            {
+                log(QString("    writeTransform(%1): key not in parent").arg(key), logCallback);
+                return false;
+            }
 
-            QJsonObject texInfo = parent[key].toObject();
+            log(QString("    writeTransform(%1): scale=[%2,%3] offset=[%4,%5] rotation=%6 texCoord=%7")
+                .arg(key).arg(tex.scale.x).arg(tex.scale.y)
+                .arg(tex.offset.x).arg(tex.offset.y).arg(tex.rotation).arg(tex.texCoordIndex), logCallback);
 
             bool hasTransform = (tex.scale.x != 1.0f || tex.scale.y != 1.0f ||
                 tex.offset.x != 0.0f || tex.offset.y != 0.0f ||
                 tex.rotation != 0.0f || tex.texCoordIndex != 0);
 
-            if (!hasTransform) return false;
+            if (!hasTransform)
+            {
+                log(QString("      -> No transform (all defaults)"), logCallback);
+                return false;
+            }
 
+            QJsonObject texInfo = parent[key].toObject();
             QJsonObject extensions = texInfo.value("extensions").toObject();
             QJsonArray scale, offset;
             scale.append(static_cast<double>(tex.scale.x));
@@ -1244,17 +1474,19 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 texInfo["texCoord"] = tex.texCoordIndex;
 
             parent[key] = texInfo;
+            log(QString("      -> KHR_texture_transform written"), logCallback);
             return true;
             };
 
         // Helper: get or create a sampler
         QMap<QString, int> samplerConfigToIndex;
         QVector<QJsonObject> createdSamplers;
+        int samplerBaseIndex = samplers.size();  // Track where new samplers will start
 
         auto getOrCreateSampler = [&](int mag, int min, int wrapS, int wrapT) -> int {
             QString hash = QString("%1_%2_%3_%4").arg(mag).arg(min).arg(wrapS).arg(wrapT);
             if (samplerConfigToIndex.contains(hash))
-                return samplerConfigToIndex[hash];
+                return samplerConfigToIndex[hash] + samplerBaseIndex;  // Offset by base
 
             int idx = createdSamplers.size();
             QJsonObject sampler;
@@ -1263,11 +1495,12 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             sampler["wrapS"] = wrapS;
             sampler["wrapT"] = wrapT;
             createdSamplers.append(sampler);
+            int finalIdx = idx + samplerBaseIndex;  // Final index in merged array
             samplerConfigToIndex[hash] = idx;
 
-            log(QString("    Sampler[%1]: mag=%2, min=%3, wrapS=%4, wrapT=%5")
-                .arg(idx).arg(mag).arg(min).arg(wrapS).arg(wrapT), logCallback);
-            return idx;
+            log(QString("    Sampler[%1]: mag=%2, min=%3, wrapS=%4, wrapT=%5 (final index: %6)")
+                .arg(idx).arg(mag).arg(min).arg(wrapS).arg(wrapT).arg(finalIdx), logCallback);
+            return finalIdx;
             };
 
         // Helper: update texture sampler
@@ -1289,87 +1522,138 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     .arg(key).arg(texIndex).arg(samplerIdx), logCallback);
             };
 
+        // Build material signatures from all source meshes for robust matching
+        // CRITICAL: Keep full signatures indexed by mesh index for primary matching!
+        // Do NOT deduplicate before patching, as that breaks the index correspondence.
+        log("=== Building Material Signatures ===", logCallback);
+        std::vector<MaterialSignature> signatures;  // Full array: signatures[i] = signature for mesh i
+        for (int i = 0; i < static_cast<int>(meshes.size()); ++i)
+        {
+            MaterialSignature sig = buildSignatureForMesh(i, meshes[i], logCallback);
+            signatures.push_back(sig);
+            log(QString("  Signature[%1]: name='%2' textures=%3 originalIdx=%4")
+                .arg(i).arg(sig.name).arg(sig.textureFilePaths.size())
+                .arg(sig.originalMaterialIndex), logCallback);
+        }
+
+        log(QString("  RESULT: %1 material signatures built (one per mesh)")
+            .arg(signatures.size()), logCallback);
+
         // Now patch each material that was mapped from a source mesh
+        log("=== Patching Materials with Signature Matching ===", logCallback);
+
+        // Note: jsonMatToSignatureMap removed (consolidation disabled)
+
         for (auto it = patchedMaterials.begin(); it != patchedMaterials.end(); ++it)
         {
             int matIdx = it.key();
-            int meshIdx = it.value();
+            int meshIdx = it.value();  // Source mesh index from our direct mapping
 
             QJsonObject mat = materials[matIdx].toObject();
+            QString jsonMatName = mat["name"].toString();
 
-            // FIX: Try to find the source mesh using the material name
-            // The material name is like "Forklift (Toyota forklift_1)" which encodes the source mesh name
-            // BUT ONLY DO THIS if the material actually needs color fixing (i.e., it's gray from Assimp export)
-            int correctMeshIdx = meshIdx;  // default to the mapped mesh
+            log(QString("Material[%1] '%2': from source mesh[%3] (origMatIdx=%4):").arg(matIdx).arg(jsonMatName).arg(meshIdx)
+                .arg(meshIdx >= 0 && meshIdx < static_cast<int>(meshes.size()) ? meshes[meshIdx]->getOriginalMaterialIndex() : -1), logCallback);
 
-            // Check if this material needs color correction
-            // If it already has a non-gray baseColorFactor, don't apply name matching
-            // (it's a pre-made glTF with correct colors, so name matching would break it)
-            bool needsColorFix = false;
-            if (mat.contains("pbrMetallicRoughness"))
+            // NEW STRATEGY: Use the meshIdx from our direct mapping as PRIMARY source
+            // This is the authoritative mapping built during mesh-to-material assignment.
+            // All signature matching is now secondary/fallback.
+
+            int matchedSigIdx = -1;
+
+            // Primary: Direct mapping - find signature for this exact source mesh
+            if (meshIdx >= 0 && meshIdx < static_cast<int>(signatures.size()))
             {
-                QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
-                QJsonArray bcf = pbr.value("baseColorFactor").toArray();
-                if (bcf.size() >= 3)
+                if (signatures[meshIdx].meshIndex == meshIdx)
                 {
-                    double r = bcf[0].toDouble();
-                    double g = bcf[1].toDouble();
-                    double b = bcf[2].toDouble();
-                    // Gray color from Assimp has r ≈ g ≈ b ≈ 0.298
-                    // If the color is significantly different from gray, it doesn't need fixing
-                    double grayThreshold = 0.01;  // Allow small variation
-                    needsColorFix = (std::abs(r - g) > grayThreshold ||
-                                      std::abs(g - b) > grayThreshold ||
-                                      std::abs(r - 0.298) > 0.05);
+                    matchedSigIdx = meshIdx;
+                    log(QString("  [DIRECT MATCH] Using source mesh[%1] signature directly").arg(meshIdx), logCallback);
                 }
             }
 
-            // Only apply name matching if the material needs color fixing
-            if (needsColorFix)
+            // Secondary fallback: Try fingerprint matching if direct didn't work
+            if (matchedSigIdx < 0)
             {
-                QString jsonMatName = mat["name"].toString();
-                if (!jsonMatName.isEmpty())
+                matchedSigIdx = findMaterialBySignature(
+                    jsonMatName, mat, signatures, matIdx, logCallback);
+            }
+
+            // Tertiary fallback: Name matching with dedup
+            if (matchedSigIdx < 0)
+            {
+                matchedSigIdx = findMaterialByNameWithDedup(
+                    jsonMatName, signatures, matIdx, logCallback);
+            }
+
+            // Quaternary fallback: Index-based matching
+            if (matchedSigIdx < 0)
+            {
+                matchedSigIdx = findMaterialByIndexFallback(matIdx, signatures, logCallback);
+            }
+
+            // Ultimate fallback: use the meshIdx we already have
+            if (matchedSigIdx < 0)
+            {
+                if (meshIdx >= 0 && meshIdx < static_cast<int>(meshes.size()))
                 {
-                    for (int i = 0; i < static_cast<int>(meshes.size()); ++i)
-                    {
-                        QString sourceMeshName = meshes[i]->getName();
-                        // Check if material name ends with or contains the source mesh name
-                        if (jsonMatName.contains(sourceMeshName, Qt::CaseInsensitive))
-                        {
-                            correctMeshIdx = i;
-                            log(QString("    [NAME MATCH] Material '%1' matched to source mesh[%2] '%3'")
-                                .arg(jsonMatName).arg(i).arg(sourceMeshName), logCallback);
-                            break;
-                        }
-                    }
+                    matchedSigIdx = meshIdx;
+                    log(QString("  [FINAL FALLBACK] Using mapped mesh[%1] as signature").arg(meshIdx), logCallback);
+                }
+                else
+                {
+                    log(QString("  ERROR: No material signature found and meshIdx=%1 invalid!").arg(meshIdx), logCallback);
+                    continue;
                 }
             }
 
-            const GLMaterial& glMat = meshes[correctMeshIdx]->getMaterial();
+            if (matchedSigIdx < 0 || matchedSigIdx >= static_cast<int>(signatures.size()))
+            {
+                log(QString("  ERROR: Invalid signature index %1").arg(matchedSigIdx), logCallback);
+                continue;
+            }
 
-            log(QString("  Patching material[%1] using source mesh[%2] '%3'")
-                .arg(matIdx).arg(correctMeshIdx).arg(glMat.name()), logCallback);
+            const MaterialSignature& matchedSig = signatures[matchedSigIdx];
+            log(QString("  -> Using signature '%1'").arg(matchedSig.name), logCallback);
+
+            // Validate we can access the source material
+            int sourceMeshIdx = matchedSig.meshIndex;
+            if (sourceMeshIdx < 0 || sourceMeshIdx >= static_cast<int>(meshes.size()))
+            {
+                log(QString("  ERROR: Invalid mesh index %1 in signature").arg(sourceMeshIdx), logCallback);
+                continue;
+            }
+
+            // Get a fresh reference to the source material - this is safe because meshes vector is persistent
+            auto getSourceMaterial = [&]() -> const GLMaterial& { return meshes[sourceMeshIdx]->getMaterial(); };
 
             // ===== FIX BASE COLOR =====
             // Assimp's glTF exporter doesn't properly export material colors from aiMaterial.
             // We patch the baseColorFactor directly in the JSON with the correct albedoColor from GLMaterial.
             {
-                QVector3D albedo = glMat.albedoColor();
-                if (mat.contains("pbrMetallicRoughness"))
+                int meshIdx = matchedSig.meshIndex;
+                if (meshIdx < 0 || meshIdx >= static_cast<int>(meshes.size()))
                 {
-                    QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
-                    QJsonArray baseColorFactor;
-                    baseColorFactor.append(static_cast<double>(albedo.x()));
-                    baseColorFactor.append(static_cast<double>(albedo.y()));
-                    baseColorFactor.append(static_cast<double>(albedo.z()));
-                    baseColorFactor.append(1.0);  // alpha
-                    pbr["baseColorFactor"] = baseColorFactor;
-                    mat["pbrMetallicRoughness"] = pbr;
+                    log(QString("  WARNING: Cannot access mesh for base color, skipping"), logCallback);
+                }
+                else
+                {
+                    QVector3D albedo = getSourceMaterial().albedoColor();
+                    if (mat.contains("pbrMetallicRoughness"))
+                    {
+                        QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
+                        QJsonArray baseColorFactor;
+                        baseColorFactor.append(static_cast<double>(albedo.x()));
+                        baseColorFactor.append(static_cast<double>(albedo.y()));
+                        baseColorFactor.append(static_cast<double>(albedo.z()));
+                        baseColorFactor.append(1.0);  // alpha
+                        pbr["baseColorFactor"] = baseColorFactor;
+                        mat["pbrMetallicRoughness"] = pbr;
 
-                    log(QString("    Patched baseColorFactor: [%1, %2, %3]")
-                        .arg(albedo.x(), 0, 'f', 4)
-                        .arg(albedo.y(), 0, 'f', 4)
-                        .arg(albedo.z(), 0, 'f', 4), logCallback);
+                        log(QString("    Patched baseColorFactor: [%1, %2, %3]")
+                            .arg(albedo.x(), 0, 'f', 4)
+                            .arg(albedo.y(), 0, 'f', 4)
+                            .arg(albedo.z(), 0, 'f', 4), logCallback);
+                    }
                 }
             }
 
@@ -1501,13 +1785,13 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             if (mat.contains("pbrMetallicRoughness"))
             {
                 QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
-                fixTextureIndex(pbr, "baseColorTexture", glMat.texture(GLMaterial::TextureType::Albedo));
+                fixTextureIndex(pbr, "baseColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::Albedo));
 
                 // SKIP fixTextureIndex for metallicRoughnessTexture if:
                 // 1. Metallic and roughness are separate files (packing was done in exporter)
                 // 2. Metallic is missing (roughness-only material - don't apply empty metallic texture)
-                const auto& metallicTex = glMat.texture(GLMaterial::TextureType::Metallic);
-                const auto& roughnessTex = glMat.texture(GLMaterial::TextureType::Roughness);
+                const auto& metallicTex = getSourceMaterial().texture(GLMaterial::TextureType::Metallic);
+                const auto& roughnessTex = getSourceMaterial().texture(GLMaterial::TextureType::Roughness);
                 bool hasPackedMR = (!metallicTex.path.empty() && !roughnessTex.path.empty() &&
                                      metallicTex.path != roughnessTex.path);
                 bool isRoughnessOnly = (metallicTex.path.empty() && !roughnessTex.path.empty());
@@ -1521,7 +1805,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
                 mat["pbrMetallicRoughness"] = pbr;
             }
-            fixTextureIndex(mat, "normalTexture", glMat.texture(GLMaterial::TextureType::Normal));
+            fixTextureIndex(mat, "normalTexture", getSourceMaterial().texture(GLMaterial::TextureType::Normal));
 
             // Handle AO for packed ORM: set occlusionTexture to point to the packed ORM texture
             // (packed ORM has AO data in R channel, so occlusionTexture should use it instead of original AO)
@@ -1580,57 +1864,59 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             if (!handledAsPackedORM)
             {
                 log(QString("    [ORM Detection] Not handled as packed ORM - calling fixTextureIndex for original AO"), logCallback);
-                fixTextureIndex(mat, "occlusionTexture", glMat.texture(GLMaterial::TextureType::AmbientOcclusion));
+                fixTextureIndex(mat, "occlusionTexture", getSourceMaterial().texture(GLMaterial::TextureType::AmbientOcclusion));
             }
 
-            fixTextureIndex(mat, "emissiveTexture", glMat.texture(GLMaterial::TextureType::Emissive));
+            fixTextureIndex(mat, "emissiveTexture", getSourceMaterial().texture(GLMaterial::TextureType::Emissive));
 
             // --- Texture transforms ---
             bool transformsWritten = false;
             if (mat.contains("pbrMetallicRoughness"))
             {
                 QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
-                if (writeTransform(pbr, "baseColorTexture", glMat.texture(GLMaterial::TextureType::Albedo)))
+                if (writeTransform(pbr, "baseColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::Albedo)))
                     transformsWritten = true;
-                if (writeTransform(pbr, "metallicRoughnessTexture", glMat.texture(GLMaterial::TextureType::Metallic)))
+                if (writeTransform(pbr, "metallicRoughnessTexture", getSourceMaterial().texture(GLMaterial::TextureType::Metallic)))
                     transformsWritten = true;
                 if (transformsWritten)
                     mat["pbrMetallicRoughness"] = pbr;
             }
-            if (writeTransform(mat, "normalTexture", glMat.texture(GLMaterial::TextureType::Normal)))
+            if (writeTransform(mat, "normalTexture", getSourceMaterial().texture(GLMaterial::TextureType::Normal)))
                 transformsWritten = true;
-            if (writeTransform(mat, "occlusionTexture", glMat.texture(GLMaterial::TextureType::AmbientOcclusion)))
+            // Skip occlusion texture transform if we handled it as packed ORM
+            // (the packed ORM texture transform comes from metallicRoughnessTexture, not from AO)
+            if (!handledAsPackedORM && writeTransform(mat, "occlusionTexture", getSourceMaterial().texture(GLMaterial::TextureType::AmbientOcclusion)))
                 transformsWritten = true;
-            if (writeTransform(mat, "emissiveTexture", glMat.texture(GLMaterial::TextureType::Emissive)))
+            if (writeTransform(mat, "emissiveTexture", getSourceMaterial().texture(GLMaterial::TextureType::Emissive)))
                 transformsWritten = true;
 
             // --- Samplers ---
             if (mat.contains("pbrMetallicRoughness"))
             {
                 QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
-                updateTextureSampler(pbr, "baseColorTexture", glMat.texture(GLMaterial::TextureType::Albedo));
-                updateTextureSampler(pbr, "metallicRoughnessTexture", glMat.texture(GLMaterial::TextureType::Metallic));
+                updateTextureSampler(pbr, "baseColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::Albedo));
+                updateTextureSampler(pbr, "metallicRoughnessTexture", getSourceMaterial().texture(GLMaterial::TextureType::Metallic));
             }
-            updateTextureSampler(mat, "normalTexture", glMat.texture(GLMaterial::TextureType::Normal));
-            updateTextureSampler(mat, "occlusionTexture", glMat.texture(GLMaterial::TextureType::AmbientOcclusion));
-            updateTextureSampler(mat, "emissiveTexture", glMat.texture(GLMaterial::TextureType::Emissive));
+            updateTextureSampler(mat, "normalTexture", getSourceMaterial().texture(GLMaterial::TextureType::Normal));
+            updateTextureSampler(mat, "occlusionTexture", getSourceMaterial().texture(GLMaterial::TextureType::AmbientOcclusion));
+            updateTextureSampler(mat, "emissiveTexture", getSourceMaterial().texture(GLMaterial::TextureType::Emissive));
 
             // --- Basic material properties ---
-            GLMaterial::BlendMode blendMode = glMat.blendMode();
+            GLMaterial::BlendMode blendMode = getSourceMaterial().blendMode();
             if (blendMode == GLMaterial::BlendMode::Opaque)
                 mat["alphaMode"] = "OPAQUE";
             else if (blendMode == GLMaterial::BlendMode::Masked)
             {
                 mat["alphaMode"] = "MASK";
-                mat["alphaCutoff"] = static_cast<double>(glMat.alphaThreshold());
+                mat["alphaCutoff"] = static_cast<double>(getSourceMaterial().alphaThreshold());
             }
             else if (blendMode == GLMaterial::BlendMode::Alpha)
                 mat["alphaMode"] = "BLEND";
 
-            if (glMat.twoSided())
+            if (getSourceMaterial().twoSided())
                 mat["doubleSided"] = true;
 
-            QVector3D emissive = glMat.emissive();
+            QVector3D emissive = getSourceMaterial().emissive();
             if (emissive.length() > 0.0f)
             {
                 QJsonArray arr;
@@ -1645,16 +1931,36 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
 
                 bool hasMRTex = pbr.contains("metallicRoughnessTexture");
-                float metallicFactor = pbr.contains("metallicFactor") ?
-                    static_cast<float>(pbr["metallicFactor"].toDouble()) : glMat.metalness();
+                float originalMetallicFactor = pbr.contains("metallicFactor") ?
+                    static_cast<float>(pbr["metallicFactor"].toDouble()) : getSourceMaterial().metalness();
+                float metallicFactor = originalMetallicFactor;
 
-                // IMPORTANT: Only force metallicFactor to 1.0 if the material actually has metallic data
-                // For roughness-only materials (no metallic texture/factor), keep metallicFactor at 0
-                const auto& metallicTex = glMat.texture(GLMaterial::TextureType::Metallic);
-                bool hasMtallicData = !metallicTex.path.empty() || glMat.metalness() > 0.0f;
+                // IMPORTANT: Force metallicFactor to 1.0 if:
+                // 1. There's a metallicRoughnessTexture in JSON (packed ORM)
+                // 2. AND the source material has any metallic data (texture OR metalness factor)
+                // This handles materials with packed ORM where JSON has metallicFactor=0 but material has metallic data
+                const auto& metallicTex = getSourceMaterial().texture(GLMaterial::TextureType::Metallic);
+                const auto& roughnessTex = getSourceMaterial().texture(GLMaterial::TextureType::Roughness);
 
-                if (hasMRTex && metallicFactor == 0.0f && hasMtallicData)
+                // Check if material has actual metallic data (not just roughness-only)
+                bool hasMetallicTexture = !metallicTex.path.empty();
+                bool hasMetallicFactor = getSourceMaterial().metalness() > 0.0f;
+                bool hasMetallicData = hasMetallicTexture || hasMetallicFactor;
+
+                log(QString("    [MetallicFactor] hasMRTex=%1 json=%2 materialMetalness=%3 metalTexPath='%4' roughTexPath='%5' hasMetallicData=%6")
+                    .arg(hasMRTex).arg(originalMetallicFactor, 0, 'f', 4)
+                    .arg(getSourceMaterial().metalness(), 0, 'f', 4)
+                    .arg(QString::fromStdString(metallicTex.path))
+                    .arg(QString::fromStdString(roughnessTex.path))
+                    .arg(hasMetallicData), logCallback);
+
+                // Force to 1.0 if JSON has M/R texture AND material has metallic data
+                // This ensures packed ORM materials export correctly even if JSON shows metallicFactor=0
+                if (hasMRTex && metallicFactor == 0.0f && hasMetallicData) {
                     metallicFactor = 1.0f;
+                    log(QString("      -> Forced metallicFactor from %1 to 1.0 (has M/R texture + metallic data)")
+                        .arg(originalMetallicFactor, 0, 'f', 4), logCallback);
+                }
                 pbr["metallicFactor"] = static_cast<double>(metallicFactor);
 
                 if (pbr.contains("baseColorFactor"))
@@ -1664,20 +1970,20 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     {
                         // Always use the material's intended albedoColor for baseColorFactor
                         // This ensures tints and color multipliers are preserved
-                        QVector3D albedo = glMat.albedoColor();
+                        QVector3D albedo = getSourceMaterial().albedoColor();
                         existing[0] = static_cast<double>(albedo.x());
                         existing[1] = static_cast<double>(albedo.y());
                         existing[2] = static_cast<double>(albedo.z());
-                        existing[3] = static_cast<double>(glMat.opacity());
+                        existing[3] = static_cast<double>(getSourceMaterial().opacity());
                         pbr["baseColorFactor"] = existing;
                         log(QString("    Corrected baseColorFactor to [%1, %2, %3, %4]")
-                            .arg(albedo.x()).arg(albedo.y()).arg(albedo.z()).arg(glMat.opacity()), logCallback);
+                            .arg(albedo.x()).arg(albedo.y()).arg(albedo.z()).arg(getSourceMaterial().opacity()), logCallback);
                     }
                 }
                 else
                 {
-                    QVector3D albedo = glMat.albedoColor();
-                    float opacity = glMat.opacity();
+                    QVector3D albedo = getSourceMaterial().albedoColor();
+                    float opacity = getSourceMaterial().opacity();
                     if ((std::abs(albedo.x() - 1.0f) > 0.001f) ||
                         (std::abs(albedo.y() - 1.0f) > 0.001f) ||
                         (std::abs(albedo.z() - 1.0f) > 0.001f) ||
@@ -1693,7 +1999,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 }
 
                 float roughness = pbr.contains("roughnessFactor") ?
-                    static_cast<float>(pbr["roughnessFactor"].toDouble()) : glMat.roughness();
+                    static_cast<float>(pbr["roughnessFactor"].toDouble()) : getSourceMaterial().roughness();
                 pbr["roughnessFactor"] = static_cast<double>(roughness);
 
                 mat["pbrMetallicRoughness"] = pbr;
@@ -1703,14 +2009,14 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             QJsonObject extensions = mat.value("extensions").toObject();
             bool hasExtensions = false;
 
-            if (glMat.transmission() > 0.0f || !glMat.transmissionMapPath().isEmpty())
+            if (getSourceMaterial().transmission() > 0.0f || !getSourceMaterial().transmissionMapPath().isEmpty())
             {
                 QJsonObject trans;
-                trans["transmissionFactor"] = static_cast<double>(glMat.transmission());
+                trans["transmissionFactor"] = static_cast<double>(getSourceMaterial().transmission());
 
-                if (!glMat.transmissionMapPath().isEmpty())
+                if (!getSourceMaterial().transmissionMapPath().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, glMat.transmissionMapPath(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, getSourceMaterial().transmissionMapPath(), logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; trans["transmissionTexture"] = t; }
                 }
 
@@ -1718,7 +2024,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 hasExtensions = true;
             }
 
-            float ior = glMat.ior();
+            float ior = getSourceMaterial().ior();
             if (std::abs(ior - 1.5f) > 0.001f)
             {
                 QJsonObject iorExt;
@@ -1727,28 +2033,28 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 hasExtensions = true;
             }
 
-            if (glMat.clearcoat() > 0.0f || !glMat.clearcoatColorMapPath().isEmpty()
-                || !glMat.clearcoatRoughnessMapPath().isEmpty() || !glMat.clearcoatNormalMapPath().isEmpty())
+            if (getSourceMaterial().clearcoat() > 0.0f || !getSourceMaterial().clearcoatColorMapPath().isEmpty()
+                || !getSourceMaterial().clearcoatRoughnessMapPath().isEmpty() || !getSourceMaterial().clearcoatNormalMapPath().isEmpty())
             {
                 QJsonObject cc;
-                cc["clearcoatFactor"] = static_cast<double>(glMat.clearcoat());
-                cc["clearcoatRoughnessFactor"] = static_cast<double>(glMat.clearcoatRoughness());
+                cc["clearcoatFactor"] = static_cast<double>(getSourceMaterial().clearcoat());
+                cc["clearcoatRoughnessFactor"] = static_cast<double>(getSourceMaterial().clearcoatRoughness());
 
-                QString clearcoatColorMap = glMat.clearcoatColorMapPath();
+                QString clearcoatColorMap = getSourceMaterial().clearcoatColorMapPath();
                 if (!clearcoatColorMap.isEmpty())
                 {
                     int ti = findOrCreateTexture(gltfJson, clearcoatColorMap, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; cc["clearcoatTexture"] = t; }
                 }
 
-                QString clearcoatRoughnessMap = glMat.clearcoatRoughnessMapPath();
+                QString clearcoatRoughnessMap = getSourceMaterial().clearcoatRoughnessMapPath();
                 if (!clearcoatRoughnessMap.isEmpty())
                 {
                     int ti = findOrCreateTexture(gltfJson, clearcoatRoughnessMap, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; cc["clearcoatRoughnessTexture"] = t; }
                 }
 
-                QString clearcoatNormalMap = glMat.clearcoatNormalMapPath();
+                QString clearcoatNormalMap = getSourceMaterial().clearcoatNormalMapPath();
                 if (!clearcoatNormalMap.isEmpty())
                 {
                     int ti = findOrCreateTexture(gltfJson, clearcoatNormalMap, logCallback);
@@ -1759,9 +2065,9 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 hasExtensions = true;
             }
 
-            QVector3D sheenColor = glMat.sheenColor();
-            if (sheenColor.length() > 0.0f || !glMat.sheenColorMapPath().isEmpty()
-                || !glMat.sheenRoughnessMapPath().isEmpty())
+            QVector3D sheenColor = getSourceMaterial().sheenColor();
+            if (sheenColor.length() > 0.0f || !getSourceMaterial().sheenColorMapPath().isEmpty()
+                || !getSourceMaterial().sheenRoughnessMapPath().isEmpty())
             {
                 QJsonObject sheen;
                 QJsonArray arr;
@@ -1769,16 +2075,16 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 arr.append(static_cast<double>(sheenColor.y()));
                 arr.append(static_cast<double>(sheenColor.z()));
                 sheen["sheenColorFactor"] = arr;
-                sheen["sheenRoughnessFactor"] = static_cast<double>(glMat.sheenRoughness());
+                sheen["sheenRoughnessFactor"] = static_cast<double>(getSourceMaterial().sheenRoughness());
 
-                QString sheenColorMap = glMat.sheenColorMapPath();
+                QString sheenColorMap = getSourceMaterial().sheenColorMapPath();
                 if (!sheenColorMap.isEmpty())
                 {
                     int ti = findOrCreateTexture(gltfJson, sheenColorMap, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; sheen["sheenColorTexture"] = t; }
                 }
 
-                QString sheenRoughnessMap = glMat.sheenRoughnessMapPath();
+                QString sheenRoughnessMap = getSourceMaterial().sheenRoughnessMapPath();
                 if (!sheenRoughnessMap.isEmpty())
                 {
                     int ti = findOrCreateTexture(gltfJson, sheenRoughnessMap, logCallback);
@@ -1789,23 +2095,23 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 hasExtensions = true;
             }
 
-            if (glMat.iridescenceFactor() > 0.0f || !glMat.iridescenceMap().isEmpty()
-                || !glMat.iridescenceThicknessMap().isEmpty())
+            if (getSourceMaterial().iridescenceFactor() > 0.0f || !getSourceMaterial().iridescenceMap().isEmpty()
+                || !getSourceMaterial().iridescenceThicknessMap().isEmpty())
             {
                 QJsonObject irid;
-                irid["iridescenceFactor"] = static_cast<double>(glMat.iridescenceFactor());
-                irid["iridescenceIor"] = static_cast<double>(glMat.iridescenceIor());
-                irid["iridescenceThicknessMinimum"] = static_cast<double>(glMat.iridescenceThicknessMin());
-                irid["iridescenceThicknessMaximum"] = static_cast<double>(glMat.iridescenceThicknessMax());
+                irid["iridescenceFactor"] = static_cast<double>(getSourceMaterial().iridescenceFactor());
+                irid["iridescenceIor"] = static_cast<double>(getSourceMaterial().iridescenceIor());
+                irid["iridescenceThicknessMinimum"] = static_cast<double>(getSourceMaterial().iridescenceThicknessMin());
+                irid["iridescenceThicknessMaximum"] = static_cast<double>(getSourceMaterial().iridescenceThicknessMax());
 
-                QString iridMap = glMat.iridescenceMap();
+                QString iridMap = getSourceMaterial().iridescenceMap();
                 if (!iridMap.isEmpty())
                 {
                     int ti = findOrCreateTexture(gltfJson, iridMap, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; irid["iridescenceTexture"] = t; }
                 }
 
-                QString iridThicknessMap = glMat.iridescenceThicknessMap();
+                QString iridThicknessMap = getSourceMaterial().iridescenceThicknessMap();
                 if (!iridThicknessMap.isEmpty())
                 {
                     int ti = findOrCreateTexture(gltfJson, iridThicknessMap, logCallback);
@@ -1816,18 +2122,18 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 hasExtensions = true;
             }
 
-            if (glMat.thicknessFactor() > 0.0f)
+            if (getSourceMaterial().thicknessFactor() > 0.0f)
             {
                 QJsonObject vol;
-                vol["thicknessFactor"] = static_cast<double>(glMat.thicknessFactor());
-                vol["attenuationDistance"] = static_cast<double>(glMat.attenuationDistance());
-                QVector3D ac = glMat.attenuationColor();
+                vol["thicknessFactor"] = static_cast<double>(getSourceMaterial().thicknessFactor());
+                vol["attenuationDistance"] = static_cast<double>(getSourceMaterial().attenuationDistance());
+                QVector3D ac = getSourceMaterial().attenuationColor();
                 QJsonArray arr;
                 arr.append(static_cast<double>(ac.x()));
                 arr.append(static_cast<double>(ac.y()));
                 arr.append(static_cast<double>(ac.z()));
                 vol["attenuationColor"] = arr;
-                QString thicknessMap = glMat.thicknessMap();
+                QString thicknessMap = getSourceMaterial().thicknessMap();
                 if (!thicknessMap.isEmpty())
                 {
                     int texIndex = findOrCreateTexture(gltfJson, thicknessMap);
@@ -1842,14 +2148,29 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 hasExtensions = true;
             }
 
-            float specularFactor = glMat.specularFactor();
-            QVector3D specularColor = glMat.specularColorFactor();
-            QString specularFactorMap = glMat.specularFactorMap();
-            QString specularColorMap = glMat.specularColorMap();
-            bool hasSpecular = (std::abs(specularFactor - 1.0f) > 0.001f) ||
+            float specularFactor = getSourceMaterial().specularFactor();
+            QVector3D specularColor = getSourceMaterial().specularColorFactor();
+            QString specularFactorMap = getSourceMaterial().specularFactorMap();
+            QString specularColorMap = getSourceMaterial().specularColorMap();
+
+            // Check if this material has non-default specular values
+            bool hasNonDefaultSpecular = (std::abs(specularFactor - 1.0f) > 0.001f) ||
                 (specularColor - QVector3D(1, 1, 1)).length() > 0.001f ||
                 !specularFactorMap.isEmpty() || !specularColorMap.isEmpty();
-            if (hasSpecular && !glMat.getUseSpecularGlossiness())
+
+            // For metallic-roughness materials, we should ALWAYS write KHR_materials_specular
+            // to properly define the specular response, even if using default values
+            // Only skip if using the old specular-glossiness workflow
+            bool shouldWriteSpecular = (hasNonDefaultSpecular || mat.contains("pbrMetallicRoughness")) &&
+                                       !getSourceMaterial().getUseSpecularGlossiness();
+
+            log(QString("    [Specular] factor=%1 color=[%2,%3,%4] nonDefault=%5 hasPBR=%6 useSpecGloss=%7 shouldWrite=%8")
+                .arg(specularFactor, 0, 'f', 4).arg(specularColor.x(), 0, 'f', 4)
+                .arg(specularColor.y(), 0, 'f', 4).arg(specularColor.z(), 0, 'f', 4)
+                .arg(hasNonDefaultSpecular).arg(mat.contains("pbrMetallicRoughness"))
+                .arg(getSourceMaterial().getUseSpecularGlossiness()).arg(shouldWriteSpecular), logCallback);
+
+            if (shouldWriteSpecular)
             {
                 QJsonObject spec;
                 spec["specularFactor"] = static_cast<double>(specularFactor);
@@ -1870,17 +2191,22 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 }
                 extensions["KHR_materials_specular"] = spec;
                 hasExtensions = true;
+                log("      -> KHR_materials_specular written", logCallback);
+            }
+            else if (hasNonDefaultSpecular)
+            {
+                log("      -> SKIPPED KHR_materials_specular (useSpecularGlossiness=true)", logCallback);
             }
 
-            if (glMat.anisotropyStrength() > 0.0f || !glMat.anisotropyMap().isEmpty())
+            if (getSourceMaterial().anisotropyStrength() > 0.0f || !getSourceMaterial().anisotropyMap().isEmpty())
             {
                 QJsonObject aniso;
-                aniso["anisotropyStrength"] = static_cast<double>(glMat.anisotropyStrength());
-                aniso["anisotropyRotation"] = static_cast<double>(glMat.anisotropyRotation());
+                aniso["anisotropyStrength"] = static_cast<double>(getSourceMaterial().anisotropyStrength());
+                aniso["anisotropyRotation"] = static_cast<double>(getSourceMaterial().anisotropyRotation());
 
-                if (!glMat.anisotropyMap().isEmpty())
+                if (!getSourceMaterial().anisotropyMap().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, glMat.anisotropyMap(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, getSourceMaterial().anisotropyMap(), logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; aniso["anisotropyTexture"] = t; }
                 }
 
@@ -1888,33 +2214,33 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 hasExtensions = true;
             }
 
-            if (glMat.dispersion() > 0.0f)
+            if (getSourceMaterial().dispersion() > 0.0f)
             {
                 QJsonObject disp;
-                disp["dispersion"] = static_cast<double>(glMat.dispersion());
+                disp["dispersion"] = static_cast<double>(getSourceMaterial().dispersion());
                 extensions["KHR_materials_dispersion"] = disp;
                 hasExtensions = true;
             }
 
-            if (std::abs(glMat.emissiveStrength() - 1.0f) > 0.001f)
+            if (std::abs(getSourceMaterial().emissiveStrength() - 1.0f) > 0.001f)
             {
                 QJsonObject es;
-                es["emissiveStrength"] = static_cast<double>(glMat.emissiveStrength());
+                es["emissiveStrength"] = static_cast<double>(getSourceMaterial().emissiveStrength());
                 extensions["KHR_materials_emissive_strength"] = es;
                 hasExtensions = true;
             }
 
-            if (glMat.isUnlit())
+            if (getSourceMaterial().isUnlit())
             {
                 extensions["KHR_materials_unlit"] = QJsonObject();
                 hasExtensions = true;
             }
 
             // KHR_materials_volume_scatter
-            if (glMat.hasVolumeScattering())
+            if (getSourceMaterial().hasVolumeScattering())
             {
                 QJsonObject scatter;
-                QVector3D msc = glMat.multiScatterColor();
+                QVector3D msc = getSourceMaterial().multiScatterColor();
                 QJsonArray mscArr;
                 mscArr.append(static_cast<double>(msc.x()));
                 mscArr.append(static_cast<double>(msc.y()));
@@ -1925,28 +2251,28 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             }
 
             // KHR_materials_diffuse_transmission
-            if (glMat.diffuseTransmissionFactor() > 0.0f
-                || !glMat.diffuseTransmissionMap().isEmpty()
-                || !glMat.diffuseTransmissionColorMap().isEmpty())
+            if (getSourceMaterial().diffuseTransmissionFactor() > 0.0f
+                || !getSourceMaterial().diffuseTransmissionMap().isEmpty()
+                || !getSourceMaterial().diffuseTransmissionColorMap().isEmpty())
             {
                 QJsonObject dt;
-                dt["diffuseTransmissionFactor"] = static_cast<double>(glMat.diffuseTransmissionFactor());
+                dt["diffuseTransmissionFactor"] = static_cast<double>(getSourceMaterial().diffuseTransmissionFactor());
 
-                QVector3D dtc = glMat.diffuseTransmissionColorFactor();
+                QVector3D dtc = getSourceMaterial().diffuseTransmissionColorFactor();
                 QJsonArray dtcArr;
                 dtcArr.append(static_cast<double>(dtc.x()));
                 dtcArr.append(static_cast<double>(dtc.y()));
                 dtcArr.append(static_cast<double>(dtc.z()));
                 dt["diffuseTransmissionColorFactor"] = dtcArr;
 
-                if (!glMat.diffuseTransmissionMap().isEmpty())
+                if (!getSourceMaterial().diffuseTransmissionMap().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, glMat.diffuseTransmissionMap(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, getSourceMaterial().diffuseTransmissionMap(), logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; dt["diffuseTransmissionTexture"] = t; }
                 }
-                if (!glMat.diffuseTransmissionColorMap().isEmpty())
+                if (!getSourceMaterial().diffuseTransmissionColorMap().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, glMat.diffuseTransmissionColorMap(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, getSourceMaterial().diffuseTransmissionColorMap(), logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; dt["diffuseTransmissionColorTexture"] = t; }
                 }
 
@@ -1955,35 +2281,35 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             }
 
             // KHR_materials_pbrSpecularGlossiness
-            if (glMat.getUseSpecularGlossiness())
+            if (getSourceMaterial().getUseSpecularGlossiness())
             {
                 QJsonObject sg;
 
-                QVector3D diff = glMat.diffuseColor();
+                QVector3D diff = getSourceMaterial().diffuseColor();
                 QJsonArray diffArr;
                 diffArr.append(static_cast<double>(diff.x()));
                 diffArr.append(static_cast<double>(diff.y()));
                 diffArr.append(static_cast<double>(diff.z()));
-                diffArr.append(static_cast<double>(glMat.opacity()));
+                diffArr.append(static_cast<double>(getSourceMaterial().opacity()));
                 sg["diffuseFactor"] = diffArr;
 
-                QVector3D spec = glMat.specularColor();
+                QVector3D spec = getSourceMaterial().specularColor();
                 QJsonArray specArr;
                 specArr.append(static_cast<double>(spec.x()));
                 specArr.append(static_cast<double>(spec.y()));
                 specArr.append(static_cast<double>(spec.z()));
                 sg["specularFactor"] = specArr;
 
-                sg["glossinessFactor"] = static_cast<double>(glMat.glossinessFactor());
+                sg["glossinessFactor"] = static_cast<double>(getSourceMaterial().glossinessFactor());
 
-                if (!glMat.diffuseMap().isEmpty())
+                if (!getSourceMaterial().diffuseMap().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, glMat.diffuseMap(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, getSourceMaterial().diffuseMap(), logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; sg["diffuseTexture"] = t; }
                 }
-                if (!glMat.specularGlossinessMap().isEmpty())
+                if (!getSourceMaterial().specularGlossinessMap().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, glMat.specularGlossinessMap(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, getSourceMaterial().specularGlossinessMap(), logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; sg["specularGlossinessTexture"] = t; }
                 }
 
@@ -2002,17 +2328,17 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject cc = exts.value("KHR_materials_clearcoat").toObject();
                 if (!cc.isEmpty())
                 {
-                    fixTextureIndex(cc, "clearcoatTexture", glMat.texture(GLMaterial::TextureType::ClearcoatColor));
-                    fixTextureIndex(cc, "clearcoatRoughnessTexture", glMat.texture(GLMaterial::TextureType::ClearcoatRoughness));
-                    fixTextureIndex(cc, "clearcoatNormalTexture", glMat.texture(GLMaterial::TextureType::ClearcoatNormal));
+                    fixTextureIndex(cc, "clearcoatTexture", getSourceMaterial().texture(GLMaterial::TextureType::ClearcoatColor));
+                    fixTextureIndex(cc, "clearcoatRoughnessTexture", getSourceMaterial().texture(GLMaterial::TextureType::ClearcoatRoughness));
+                    fixTextureIndex(cc, "clearcoatNormalTexture", getSourceMaterial().texture(GLMaterial::TextureType::ClearcoatNormal));
 
-                    writeTransform(cc, "clearcoatTexture", glMat.texture(GLMaterial::TextureType::ClearcoatColor));
-                    writeTransform(cc, "clearcoatRoughnessTexture", glMat.texture(GLMaterial::TextureType::ClearcoatRoughness));
-                    writeTransform(cc, "clearcoatNormalTexture", glMat.texture(GLMaterial::TextureType::ClearcoatNormal));
+                    writeTransform(cc, "clearcoatTexture", getSourceMaterial().texture(GLMaterial::TextureType::ClearcoatColor));
+                    writeTransform(cc, "clearcoatRoughnessTexture", getSourceMaterial().texture(GLMaterial::TextureType::ClearcoatRoughness));
+                    writeTransform(cc, "clearcoatNormalTexture", getSourceMaterial().texture(GLMaterial::TextureType::ClearcoatNormal));
 
-                    updateTextureSampler(cc, "clearcoatTexture", glMat.texture(GLMaterial::TextureType::ClearcoatColor));
-                    updateTextureSampler(cc, "clearcoatRoughnessTexture", glMat.texture(GLMaterial::TextureType::ClearcoatRoughness));
-                    updateTextureSampler(cc, "clearcoatNormalTexture", glMat.texture(GLMaterial::TextureType::ClearcoatNormal));
+                    updateTextureSampler(cc, "clearcoatTexture", getSourceMaterial().texture(GLMaterial::TextureType::ClearcoatColor));
+                    updateTextureSampler(cc, "clearcoatRoughnessTexture", getSourceMaterial().texture(GLMaterial::TextureType::ClearcoatRoughness));
+                    updateTextureSampler(cc, "clearcoatNormalTexture", getSourceMaterial().texture(GLMaterial::TextureType::ClearcoatNormal));
 
                     exts["KHR_materials_clearcoat"] = cc;
                     mat["extensions"] = exts;
@@ -2025,9 +2351,9 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject aniso = exts.value("KHR_materials_anisotropy").toObject();
                 if (!aniso.isEmpty())
                 {
-                    fixTextureIndex(aniso, "anisotropyTexture", glMat.texture(GLMaterial::TextureType::Anisotropy));
-                    writeTransform(aniso, "anisotropyTexture", glMat.texture(GLMaterial::TextureType::Anisotropy));
-                    updateTextureSampler(aniso, "anisotropyTexture", glMat.texture(GLMaterial::TextureType::Anisotropy));
+                    fixTextureIndex(aniso, "anisotropyTexture", getSourceMaterial().texture(GLMaterial::TextureType::Anisotropy));
+                    writeTransform(aniso, "anisotropyTexture", getSourceMaterial().texture(GLMaterial::TextureType::Anisotropy));
+                    updateTextureSampler(aniso, "anisotropyTexture", getSourceMaterial().texture(GLMaterial::TextureType::Anisotropy));
 
                     exts["KHR_materials_anisotropy"] = aniso;
                     mat["extensions"] = exts;
@@ -2040,14 +2366,14 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject sheen = exts.value("KHR_materials_sheen").toObject();
                 if (!sheen.isEmpty())
                 {
-                    fixTextureIndex(sheen, "sheenColorTexture", glMat.texture(GLMaterial::TextureType::SheenColor));
-                    fixTextureIndex(sheen, "sheenRoughnessTexture", glMat.texture(GLMaterial::TextureType::SheenRoughness));
+                    fixTextureIndex(sheen, "sheenColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::SheenColor));
+                    fixTextureIndex(sheen, "sheenRoughnessTexture", getSourceMaterial().texture(GLMaterial::TextureType::SheenRoughness));
 
-                    writeTransform(sheen, "sheenColorTexture", glMat.texture(GLMaterial::TextureType::SheenColor));
-                    writeTransform(sheen, "sheenRoughnessTexture", glMat.texture(GLMaterial::TextureType::SheenRoughness));
+                    writeTransform(sheen, "sheenColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::SheenColor));
+                    writeTransform(sheen, "sheenRoughnessTexture", getSourceMaterial().texture(GLMaterial::TextureType::SheenRoughness));
 
-                    updateTextureSampler(sheen, "sheenColorTexture", glMat.texture(GLMaterial::TextureType::SheenColor));
-                    updateTextureSampler(sheen, "sheenRoughnessTexture", glMat.texture(GLMaterial::TextureType::SheenRoughness));
+                    updateTextureSampler(sheen, "sheenColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::SheenColor));
+                    updateTextureSampler(sheen, "sheenRoughnessTexture", getSourceMaterial().texture(GLMaterial::TextureType::SheenRoughness));
 
                     exts["KHR_materials_sheen"] = sheen;
                     mat["extensions"] = exts;
@@ -2060,14 +2386,14 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject irid = exts.value("KHR_materials_iridescence").toObject();
                 if (!irid.isEmpty())
                 {
-                    fixTextureIndex(irid, "iridescenceTexture", glMat.texture(GLMaterial::TextureType::Iridescence));
-                    fixTextureIndex(irid, "iridescenceThicknessTexture", glMat.texture(GLMaterial::TextureType::IridescenceThickness));
+                    fixTextureIndex(irid, "iridescenceTexture", getSourceMaterial().texture(GLMaterial::TextureType::Iridescence));
+                    fixTextureIndex(irid, "iridescenceThicknessTexture", getSourceMaterial().texture(GLMaterial::TextureType::IridescenceThickness));
 
-                    writeTransform(irid, "iridescenceTexture", glMat.texture(GLMaterial::TextureType::Iridescence));
-                    writeTransform(irid, "iridescenceThicknessTexture", glMat.texture(GLMaterial::TextureType::IridescenceThickness));
+                    writeTransform(irid, "iridescenceTexture", getSourceMaterial().texture(GLMaterial::TextureType::Iridescence));
+                    writeTransform(irid, "iridescenceThicknessTexture", getSourceMaterial().texture(GLMaterial::TextureType::IridescenceThickness));
 
-                    updateTextureSampler(irid, "iridescenceTexture", glMat.texture(GLMaterial::TextureType::Iridescence));
-                    updateTextureSampler(irid, "iridescenceThicknessTexture", glMat.texture(GLMaterial::TextureType::IridescenceThickness));
+                    updateTextureSampler(irid, "iridescenceTexture", getSourceMaterial().texture(GLMaterial::TextureType::Iridescence));
+                    updateTextureSampler(irid, "iridescenceThicknessTexture", getSourceMaterial().texture(GLMaterial::TextureType::IridescenceThickness));
 
                     exts["KHR_materials_iridescence"] = irid;
                     mat["extensions"] = exts;
@@ -2080,14 +2406,14 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject spec = exts.value("KHR_materials_specular").toObject();
                 if (!spec.isEmpty())
                 {
-                    fixTextureIndex(spec, "specularTexture", glMat.texture(GLMaterial::TextureType::SpecularFactor));
-                    fixTextureIndex(spec, "specularColorTexture", glMat.texture(GLMaterial::TextureType::SpecularColor));
+                    fixTextureIndex(spec, "specularTexture", getSourceMaterial().texture(GLMaterial::TextureType::SpecularFactor));
+                    fixTextureIndex(spec, "specularColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::SpecularColor));
 
-                    writeTransform(spec, "specularTexture", glMat.texture(GLMaterial::TextureType::SpecularFactor));
-                    writeTransform(spec, "specularColorTexture", glMat.texture(GLMaterial::TextureType::SpecularColor));
+                    writeTransform(spec, "specularTexture", getSourceMaterial().texture(GLMaterial::TextureType::SpecularFactor));
+                    writeTransform(spec, "specularColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::SpecularColor));
 
-                    updateTextureSampler(spec, "specularTexture", glMat.texture(GLMaterial::TextureType::SpecularFactor));
-                    updateTextureSampler(spec, "specularColorTexture", glMat.texture(GLMaterial::TextureType::SpecularColor));
+                    updateTextureSampler(spec, "specularTexture", getSourceMaterial().texture(GLMaterial::TextureType::SpecularFactor));
+                    updateTextureSampler(spec, "specularColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::SpecularColor));
 
                     exts["KHR_materials_specular"] = spec;
                     mat["extensions"] = exts;
@@ -2100,9 +2426,9 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject vol = exts.value("KHR_materials_volume").toObject();
                 if (!vol.isEmpty())
                 {
-                    fixTextureIndex(vol, "thicknessTexture", glMat.texture(GLMaterial::TextureType::Thickness));
-                    writeTransform(vol, "thicknessTexture", glMat.texture(GLMaterial::TextureType::Thickness));
-                    updateTextureSampler(vol, "thicknessTexture", glMat.texture(GLMaterial::TextureType::Thickness));
+                    fixTextureIndex(vol, "thicknessTexture", getSourceMaterial().texture(GLMaterial::TextureType::Thickness));
+                    writeTransform(vol, "thicknessTexture", getSourceMaterial().texture(GLMaterial::TextureType::Thickness));
+                    updateTextureSampler(vol, "thicknessTexture", getSourceMaterial().texture(GLMaterial::TextureType::Thickness));
 
                     exts["KHR_materials_volume"] = vol;
                     mat["extensions"] = exts;
@@ -2115,9 +2441,9 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject trans = exts.value("KHR_materials_transmission").toObject();
                 if (!trans.isEmpty())
                 {
-                    fixTextureIndex(trans, "transmissionTexture", glMat.texture(GLMaterial::TextureType::Transmission));
-                    writeTransform(trans, "transmissionTexture", glMat.texture(GLMaterial::TextureType::Transmission));
-                    updateTextureSampler(trans, "transmissionTexture", glMat.texture(GLMaterial::TextureType::Transmission));
+                    fixTextureIndex(trans, "transmissionTexture", getSourceMaterial().texture(GLMaterial::TextureType::Transmission));
+                    writeTransform(trans, "transmissionTexture", getSourceMaterial().texture(GLMaterial::TextureType::Transmission));
+                    updateTextureSampler(trans, "transmissionTexture", getSourceMaterial().texture(GLMaterial::TextureType::Transmission));
 
                     exts["KHR_materials_transmission"] = trans;
                     mat["extensions"] = exts;
@@ -2130,14 +2456,14 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject dt = exts.value("KHR_materials_diffuse_transmission").toObject();
                 if (!dt.isEmpty())
                 {
-                    fixTextureIndex(dt, "diffuseTransmissionTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
-                    fixTextureIndex(dt, "diffuseTransmissionColorTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
+                    fixTextureIndex(dt, "diffuseTransmissionTexture", getSourceMaterial().texture(GLMaterial::TextureType::DiffuseTransmission));
+                    fixTextureIndex(dt, "diffuseTransmissionColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::DiffuseTransmissionColor));
 
-                    writeTransform(dt, "diffuseTransmissionTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
-                    writeTransform(dt, "diffuseTransmissionColorTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
+                    writeTransform(dt, "diffuseTransmissionTexture", getSourceMaterial().texture(GLMaterial::TextureType::DiffuseTransmission));
+                    writeTransform(dt, "diffuseTransmissionColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::DiffuseTransmissionColor));
 
-                    updateTextureSampler(dt, "diffuseTransmissionTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmission));
-                    updateTextureSampler(dt, "diffuseTransmissionColorTexture", glMat.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
+                    updateTextureSampler(dt, "diffuseTransmissionTexture", getSourceMaterial().texture(GLMaterial::TextureType::DiffuseTransmission));
+                    updateTextureSampler(dt, "diffuseTransmissionColorTexture", getSourceMaterial().texture(GLMaterial::TextureType::DiffuseTransmissionColor));
 
                     exts["KHR_materials_diffuse_transmission"] = dt;
                     mat["extensions"] = exts;
@@ -2150,14 +2476,14 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QJsonObject sg = exts.value("KHR_materials_pbrSpecularGlossiness").toObject();
                 if (!sg.isEmpty())
                 {
-                    fixTextureIndex(sg, "diffuseTexture", glMat.texture(GLMaterial::TextureType::Diffuse));
-                    fixTextureIndex(sg, "specularGlossinessTexture", glMat.texture(GLMaterial::TextureType::SpecularGlossiness));
+                    fixTextureIndex(sg, "diffuseTexture", getSourceMaterial().texture(GLMaterial::TextureType::Diffuse));
+                    fixTextureIndex(sg, "specularGlossinessTexture", getSourceMaterial().texture(GLMaterial::TextureType::SpecularGlossiness));
 
-                    writeTransform(sg, "diffuseTexture", glMat.texture(GLMaterial::TextureType::Diffuse));
-                    writeTransform(sg, "specularGlossinessTexture", glMat.texture(GLMaterial::TextureType::SpecularGlossiness));
+                    writeTransform(sg, "diffuseTexture", getSourceMaterial().texture(GLMaterial::TextureType::Diffuse));
+                    writeTransform(sg, "specularGlossinessTexture", getSourceMaterial().texture(GLMaterial::TextureType::SpecularGlossiness));
 
-                    updateTextureSampler(sg, "diffuseTexture", glMat.texture(GLMaterial::TextureType::Diffuse));
-                    updateTextureSampler(sg, "specularGlossinessTexture", glMat.texture(GLMaterial::TextureType::SpecularGlossiness));
+                    updateTextureSampler(sg, "diffuseTexture", getSourceMaterial().texture(GLMaterial::TextureType::Diffuse));
+                    updateTextureSampler(sg, "specularGlossinessTexture", getSourceMaterial().texture(GLMaterial::TextureType::SpecularGlossiness));
 
                     exts["KHR_materials_pbrSpecularGlossiness"] = sg;
                     mat["extensions"] = exts;
@@ -2165,15 +2491,18 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             }
 
             // Write correct material name from source GLMaterial
-            QString correctName = glMat.name();
+            QString correctName = getSourceMaterial().name();
             if (!correctName.isEmpty())
                 mat["name"] = correctName;
 
             materials[matIdx] = mat;
         }
 
-        // Replace samplers array with our created samplers
-        samplers = QJsonArray();
+        // MERGE created samplers with existing Assimp samplers
+        // Keep Assimp's samplers at their original indices (0, 1, 2, ...)
+        // Append new samplers after them
+        log(QString("  Sampler merge: base=%1, appending %2 created sampler(s)")
+            .arg(samplerBaseIndex).arg(createdSamplers.size()), logCallback);
         for (const auto& sampler : createdSamplers)
         {
             samplers.append(sampler);
@@ -2197,37 +2526,9 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         // CRITICAL: Reload textures array to include any created by findOrCreateTexture
         textures = gltfJson.value("textures").toArray();
 
-        // CRITICAL FIX: Remove invalid sampler references from textures
-        // If Assimp created textures with sampler indices that no longer exist,
-        // we need to remove those references to prevent "out of bounds" errors
-        for (int i = 0; i < textures.size(); ++i)
-        {
-            QJsonObject tex = textures[i].toObject();
-
-            int source = tex.value("source").toInt(-1);
-            int samplerIdx = tex.value("sampler").toInt(-1);
-
-            log(QString("  Texture[%1]: source=%2, sampler=%3").arg(i).arg(source).arg(samplerIdx), logCallback);
-
-            if (tex.contains("sampler"))
-            {
-                if (samplerIdx >= samplers.size())
-                {
-                    log(QString("    -> INVALID sampler index %1 (max is %2), REMOVING")
-                        .arg(samplerIdx).arg(samplers.size() - 1), logCallback);
-                    tex.remove("sampler");
-                    textures[i] = tex;
-                }
-                else
-                {
-                    log(QString("    -> Valid sampler index"), logCallback);
-                }
-            }
-            else
-            {
-                log(QString("    -> No sampler reference"), logCallback);
-            }
-        }
+        // NOTE: Since samplers are now merged (Assimp samplers + created samplers),
+        // all sampler references remain valid. Assimp textures point to 0-N,
+        // post-processor textures point to samplerBaseIndex+, and both sets are preserved.
 
         // MATERIAL DEDUPLICATION PASS
         // When the original model has multi-primitive meshes with shared material names
@@ -2274,7 +2575,19 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 log(QString("  Material dedup: %1 -> %2 materials")
                     .arg(materials.size()).arg(dedupedMaterials.size()), logCallback);
 
+                QMap<int, int> remappedMaterialToMesh;
+                for (auto it = _materialToSourceMeshIndex.begin(); it != _materialToSourceMeshIndex.end(); ++it)
+                {
+                    if (!oldToCanonical.contains(it.key()))
+                        continue;
+
+                    int canonicalIdx = oldToCanonical[it.key()];
+                    if (!remappedMaterialToMesh.contains(canonicalIdx))
+                        remappedMaterialToMesh[canonicalIdx] = it.value();
+                }
+
                 materials = dedupedMaterials;
+                _materialToSourceMeshIndex = remappedMaterialToMesh;
 
                 // Update all mesh primitive material references
                 QJsonArray meshesArr = gltfJson.value("meshes").toArray();
@@ -2323,6 +2636,12 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         }
 
         log(QString("  Final: %1 unique samplers created").arg(samplers.size()), logCallback);
+
+        // THIRD-B PASS: Consolidate duplicate JSON materials
+        // DISABLED: Material consolidation removed to preserve accuracy.
+        // Deduplication (11->4) works correctly; consolidation caused index shifting bugs.
+        // Slight redundancy in JSON materials is acceptable trade-off for correctness.
+        // log("=== Consolidating Duplicate JSON Materials (DISABLED) ===", logCallback);
 
         // FOURTH PASS: Deduplicate images
         // Assimp may create duplicate image entries for the same file
@@ -2706,11 +3025,12 @@ bool GltfPostProcessor::fixNormalTextureScale(
 
     QJsonArray materials = gltfJson["materials"].toArray();
 
-    for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
+    for (int i = 0; i < materials.size(); ++i)
     {
-        if (!meshes[i]) continue;
+        const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
+        if (!sourceMesh) continue;
 
-        const GLMaterial& glMat = meshes[i]->getMaterial();
+        const GLMaterial& glMat = sourceMesh->getMaterial();
         QJsonObject mat = materials[i].toObject();
 
         // Fix normalTexture.scale if present
@@ -2751,11 +3071,12 @@ bool GltfPostProcessor::fixClearcoatNormalTextureScale(
 
     QJsonArray materials = gltfJson["materials"].toArray();
 
-    for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
+    for (int i = 0; i < materials.size(); ++i)
     {
-        if (!meshes[i]) continue;
+        const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
+        if (!sourceMesh) continue;
 
-        const GLMaterial& glMat = meshes[i]->getMaterial();
+        const GLMaterial& glMat = sourceMesh->getMaterial();
         QJsonObject mat = materials[i].toObject();
         QJsonObject extensions = mat.value("extensions").toObject();
 
@@ -2800,11 +3121,12 @@ bool GltfPostProcessor::fixSpecularExtension(
 
     QJsonArray materials = gltfJson["materials"].toArray();
 
-    for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
+    for (int i = 0; i < materials.size(); ++i)
     {
-        if (!meshes[i]) continue;
+        const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
+        if (!sourceMesh) continue;
 
-        const GLMaterial& glMat = meshes[i]->getMaterial();
+        const GLMaterial& glMat = sourceMesh->getMaterial();
         QJsonObject mat = materials[i].toObject();
 
         // Check if material has KHR_materials_specular extension
@@ -2894,11 +3216,12 @@ bool GltfPostProcessor::fixMetallicFactor(
 
     QJsonArray materials = gltfJson["materials"].toArray();
 
-    for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
+    for (int i = 0; i < materials.size(); ++i)
     {
-        if (!meshes[i]) continue;
+        const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
+        if (!sourceMesh) continue;
 
-        const GLMaterial& glMat = meshes[i]->getMaterial();
+        const GLMaterial& glMat = sourceMesh->getMaterial();
         QJsonObject mat = materials[i].toObject();
 
         if (mat.contains("pbrMetallicRoughness"))
@@ -2947,15 +3270,16 @@ bool GltfPostProcessor::fixSpecularTextures(
 
     QJsonArray materials = gltfJson["materials"].toArray();
 
-    for (int i = 0; i < materials.size() && i < static_cast<int>(meshes.size()); ++i)
+    for (int i = 0; i < materials.size(); ++i)
     {
-        if (!meshes[i])
+        const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
+        if (!sourceMesh)
         {
-            log(QString("  -> Mesh %1 is null, skipping").arg(i), logCallback);
+            log(QString("  -> No source mesh mapped for material %1, skipping").arg(i), logCallback);
             continue;
         }
 
-        const GLMaterial& glMat = meshes[i]->getMaterial();
+        const GLMaterial& glMat = sourceMesh->getMaterial();
 
         // DEBUG: Check what maps are set
         QString specularFactorMap = glMat.specularFactorMap();

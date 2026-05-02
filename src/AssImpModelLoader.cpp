@@ -202,10 +202,25 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		return;
 	}
 
-	// === Parse glTF primitive modes ===
+	// === Parse glTF primitive modes and correct material structure ===
 	QString qPath = QString::fromStdString(path);
+
+	// CRITICAL: Capture original material indices BEFORE deduplication
+	// This ensures we preserve the true glTF material indices for later export matching
+	_meshIndexToOriginalMaterialIndex.clear();
 	if (qPath.endsWith(".gltf", Qt::CaseInsensitive) || qPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
+		// Save the original material indices before they get remapped
+		for (unsigned int i = 0; i < _scene->mNumMeshes; ++i)
+		{
+			_meshIndexToOriginalMaterialIndex[i] = _scene->mMeshes[i]->mMaterialIndex;
+		}
+
+		// Update aiScene materials to match glTF structure (deduplicate, fix references)
+		// This must happen BEFORE processing nodes so meshes get correct material assignments
+		updateAiSceneWithGltfMaterials(qPath, const_cast<aiScene*>(_scene));
+
+		// Parse primitive modes for rendering
 		parseGltfPrimitiveModes(qPath);
 	}
 
@@ -657,6 +672,30 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		generateUVsForMesh(analysis, mesh, vertices, indices);
 	}
 
+	// Determine the correct material index for this mesh.
+	// For glTF files: use the PRE-DEDUPLICATION index saved before updateAiSceneWithGltfMaterials()
+	// This is critical because deduplication remaps mesh->mMaterialIndex
+	// For other formats: use the current index (not remapped)
+	int originalMaterialIndex = mesh->mMaterialIndex;
+
+	// If this is from a glTF file, look up the true original index
+	// We need to find which aiMesh index this is to look it up in our saved mapping
+	for (unsigned int meshIdx = 0; meshIdx < scene->mNumMeshes; ++meshIdx)
+	{
+		if (scene->mMeshes[meshIdx] == mesh)
+		{
+			// Found this mesh's index in the scene
+			auto it = _meshIndexToOriginalMaterialIndex.find(meshIdx);
+			if (it != _meshIndexToOriginalMaterialIndex.end())
+			{
+				originalMaterialIndex = it->second;
+				qDebug() << "processMesh: Using PRE-DEDUP material index" << originalMaterialIndex
+					     << "for mesh" << meshIdx << "(current remapped index:" << mesh->mMaterialIndex << ")";
+			}
+			break;
+		}
+	}
+
 	// Process materials
 	GLMaterial mat = GLMaterial::DEFAULT_MAT();
 	//if (mesh->mMaterialIndex != 0)
@@ -665,12 +704,16 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	qDebug() << "processMesh[" << meshIndex << "] nodeName=" << nodeName
 	         << "mNumVertices=" << mesh->mNumVertices
 	         << "mNumFaces=" << mesh->mNumFaces
-	         << "mMaterialIndex=" << mesh->mMaterialIndex
+	         << "mMaterialIndex=" << originalMaterialIndex
 	         << "scene->mNumMaterials=" << scene->mNumMaterials;
 
-	if (mesh->mMaterialIndex < scene->mNumMaterials)
+	// CRITICAL FIX: Use originalMaterialIndex to load material properties, not mesh->mMaterialIndex
+	// When Assimp remaps materials, mesh->mMaterialIndex may point to wrong material slot.
+	// We must use the pre-dedup originalMaterialIndex to access the correct material properties.
+	int materialIndexToUse = originalMaterialIndex;
+	if (materialIndexToUse < scene->mNumMaterials)
 	{
-		aiMaterial* material = scene->mMaterials[mesh->mMaterialIndex];
+		aiMaterial* material = scene->mMaterials[materialIndexToUse];
 		// We assume a convention for sampler names in the shaders. Each diffuse texture should be named
 		// as 'texture_diffuseN' where N is a sequential number ranging from 1 to MAX_SAMPLER_NUMBER.
 		// Same applies to other texture as the following list summarizes:
@@ -691,7 +734,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 				scene,
 				QString::fromUtf8(nodeName),
 				mesh,
-				mesh->mMaterialIndex,
+				originalMaterialIndex,
 				mat,
 				textures);
 			
@@ -716,30 +759,14 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	}
 
 	// Return a mesh object created from the extracted mesh data
-	// Priority: Use JSON mesh name if available (preserves glTF/GLB identity),
-	// otherwise fall back to Assimp's mesh name
-	QString meshName;
-
-	// Check if this mesh had a name in the glTF/GLB JSON
-	auto jsonNameIt = _gltfMeshNames.find(meshIndex);
-	if (jsonNameIt != _gltfMeshNames.end() && !jsonNameIt->second.isEmpty())
+	QString meshName = QString::fromStdString(mesh->mName.C_Str());
+	if(meshName.isEmpty())
 	{
-		// Use the JSON mesh name as the bare name, then add the model prefix
-		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + jsonNameIt->second + ")";
-		qDebug() << "[processMesh] Using JSON mesh name for mesh[" << meshIndex << "]: " << meshName;
+		meshName = QFileInfo(QString(_path.data())).baseName() + " (Unnamed Mesh)";
 	}
 	else
 	{
-		// Fall back to Assimp mesh name
-		QString assimpMeshName = QString::fromStdString(mesh->mName.C_Str());
-		if(assimpMeshName.isEmpty())
-		{
-			meshName = QFileInfo(QString(_path.data())).baseName() + " (Unnamed Mesh)";
-		}
-		else
-		{
-			meshName = QFileInfo(QString(_path.data())).baseName() + " (" + assimpMeshName + ")";
-		}
+		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
 	}
 
 	// Material and textures details
@@ -754,6 +781,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	meshData.material = mat;
 	meshData.hasNegativeScale = hasNegativeScale;
 	meshData.sceneIndex = meshIndex;
+	meshData.originalMaterialIndex = originalMaterialIndex;
 
 	if (_gltfMeshPrimitiveModes.find(meshIndex) != _gltfMeshPrimitiveModes.end())
 	{
@@ -1308,7 +1336,6 @@ float AssImpModelLoader::calculateConditionalScale(const float& minDimension, co
 void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 {
 	_gltfMeshPrimitiveModes.clear();
-	_gltfMeshNames.clear();  // Clear previous JSON mesh names
 
 	bool isGLB = gltfPath.endsWith(".glb", Qt::CaseInsensitive);
 	bool isGLTF = gltfPath.endsWith(".gltf", Qt::CaseInsensitive);
@@ -1361,7 +1388,7 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 		}
 	}
 
-	// ===== PARSE MESH NAMES AND PRIMITIVE MODES (same for both GLTF and GLB) =====
+	// ===== PARSE PRIMITIVE MODES (same for both GLTF and GLB) =====
 	QJsonObject root = doc.object();
 	QJsonArray meshesArray = root["meshes"].toArray();
 
@@ -1369,20 +1396,6 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 	for (const QJsonValue& meshValue : meshesArray)
 	{
 		QJsonObject meshObj = meshValue.toObject();
-
-		// ===== EXTRACT MESH NAME FROM JSON =====
-		// This is critical for preserving proper mesh identity during re-export
-		// When a GLB/glTF is loaded and re-exported, we need to match JSON mesh names
-		// to source meshes. By preserving the original JSON names here, we ensure
-		// the post-processor can correctly identify which source mesh corresponds
-		// to which JSON mesh during export.
-		QString jsonMeshName = meshObj["name"].toString();
-		if (!jsonMeshName.isEmpty())
-		{
-			_gltfMeshNames[meshIndex] = jsonMeshName;
-			qDebug() << "[parseGltfPrimitiveModes] Mesh[" << meshIndex << "] JSON name: " << jsonMeshName;
-		}
-
 		QJsonArray primitives = meshObj["primitives"].toArray();
 
 		if (!primitives.isEmpty())
@@ -1413,4 +1426,108 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 
 		++meshIndex;
 	}
+}
+
+void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, aiScene* scene)
+{
+	if (!scene || scene->mNumMaterials == 0)
+		return;
+
+	bool isGLB = gltfPath.endsWith(".glb", Qt::CaseInsensitive);
+	bool isGLTF = gltfPath.endsWith(".gltf", Qt::CaseInsensitive);
+
+	if (!isGLB && !isGLTF)
+		return;
+
+	QJsonDocument doc;
+
+	// ===== READ GLTF JSON =====
+	if (isGLB)
+	{
+		std::vector<uint8_t> glbBinaryBuffer;
+		QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer);
+		if (jsonString.isEmpty())
+			return;
+
+		doc = QJsonDocument::fromJson(jsonString.toUtf8());
+	}
+	else
+	{
+		QFile file(gltfPath);
+		if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+			return;
+
+		doc = QJsonDocument::fromJson(file.readAll());
+		file.close();
+	}
+
+	if (!doc.isObject())
+		return;
+
+	QJsonObject root = doc.object();
+	QJsonArray gltfMaterials = root["materials"].toArray();
+
+	if (gltfMaterials.isEmpty())
+		return;
+
+	// ===== BUILD DEDUPLICATION MAP =====
+	// Compare glTF materials to aiScene materials
+	// Goal: identify which aiMaterials are duplicates and update mesh references
+
+	std::map<int, int> aiMatToGltfMat;  // aiMaterial index -> glTF material index (primary)
+	std::vector<bool> aiMatIsUsed(scene->mNumMaterials, false);
+
+	// For each glTF material, find the corresponding aiMaterial
+	// Assume they're in the same order (Assimp preserves glTF material order)
+	for (unsigned int gltfIdx = 0; gltfIdx < gltfMaterials.size() && gltfIdx < scene->mNumMaterials; ++gltfIdx)
+	{
+		int aiIdx = static_cast<int>(gltfIdx);
+		aiMatToGltfMat[aiIdx] = static_cast<int>(gltfIdx);
+		aiMatIsUsed[aiIdx] = true;
+	}
+
+	// For remaining aiMaterials (beyond glTF count), deduplicate by content
+	if (scene->mNumMaterials > static_cast<int>(gltfMaterials.size()))
+	{
+		for (unsigned int i = gltfMaterials.size(); i < scene->mNumMaterials; ++i)
+		{
+			// Find if this material is a duplicate of an earlier one
+			bool isDuplicate = false;
+
+			for (unsigned int j = 0; j < i && !isDuplicate; ++j)
+			{
+				// Simple check: compare material names (glTF uses names for dedup)
+				if (scene->mMaterials[i]->GetName() == scene->mMaterials[j]->GetName())
+				{
+					aiMatToGltfMat[i] = aiMatToGltfMat[j];  // Point to the primary
+					isDuplicate = true;
+				}
+			}
+
+			if (!isDuplicate)
+			{
+				// Unique material, keep it
+				aiMatToGltfMat[i] = static_cast<int>(i);
+				aiMatIsUsed[i] = true;
+			}
+		}
+	}
+
+	// ===== UPDATE MESH MATERIAL REFERENCES =====
+	// Redirect mesh primitives from duplicate materials to primary materials
+	for (unsigned int m = 0; m < scene->mNumMeshes; ++m)
+	{
+		aiMesh* mesh = scene->mMeshes[m];
+		int oldMatIdx = mesh->mMaterialIndex;
+
+		if (oldMatIdx >= 0 && oldMatIdx < static_cast<int>(scene->mNumMaterials))
+		{
+			// Find the primary material for this mesh
+			int primaryMatIdx = aiMatToGltfMat[oldMatIdx];
+			mesh->mMaterialIndex = primaryMatIdx;
+		}
+	}
+
+	qDebug() << "updateAiSceneWithGltfMaterials: Updated material references, scene has"
+		<< scene->mNumMaterials << "materials from glTF with" << gltfMaterials.size() << "unique entries";
 }
