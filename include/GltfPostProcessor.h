@@ -204,7 +204,7 @@ private:
 
     static bool fixTextureInfoWithTransforms(QJsonObject& parent, const QString& key);
     static bool fixNormalTextureInfo(QJsonObject& parent, const QString& key);
-    static bool fixOcclusionTextureInfo(QJsonObject& parent, const QString& key);
+    static bool fixOcclusionTextureInfo(QJsonObject& parent, const QString& key, float occlusionStrength = 1.0f);
     static bool fixNormalTextureScale(
         QJsonObject& gltfJson,
         const std::vector<TriangleMesh*>& meshes,

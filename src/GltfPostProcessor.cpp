@@ -1867,6 +1867,19 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 fixTextureIndex(mat, "occlusionTexture", getSourceMaterial().texture(GLMaterial::TextureType::AmbientOcclusion));
             }
 
+            // Set occlusion texture strength from source material
+            if (mat.contains("occlusionTexture"))
+            {
+                QJsonObject texInfo = mat["occlusionTexture"].toObject();
+                float aoStrength = getSourceMaterial().occlusionStrength();
+                if (!texInfo.contains("strength") || texInfo.value("strength").toDouble() != aoStrength)
+                {
+                    texInfo["strength"] = static_cast<double>(aoStrength);
+                    mat["occlusionTexture"] = texInfo;
+                    log(QString("    Set occlusionTexture.strength to %1").arg(aoStrength), logCallback);
+                }
+            }
+
             fixTextureIndex(mat, "emissiveTexture", getSourceMaterial().texture(GLMaterial::TextureType::Emissive));
 
             // --- Texture transforms ---
@@ -2983,7 +2996,7 @@ bool GltfPostProcessor::fixNormalTextureInfo(QJsonObject& parent, const QString&
     return modified;
 }
 
-bool GltfPostProcessor::fixOcclusionTextureInfo(QJsonObject& parent, const QString& key)
+bool GltfPostProcessor::fixOcclusionTextureInfo(QJsonObject& parent, const QString& key, float occlusionStrength)
 {
     if (!parent.contains(key))
         return false;
@@ -2991,10 +3004,10 @@ bool GltfPostProcessor::fixOcclusionTextureInfo(QJsonObject& parent, const QStri
     QJsonObject texInfo = parent[key].toObject();
     bool modified = false;
 
-    // Add occlusion-specific strength property
+    // Add occlusion-specific strength property using source material's value
     if (!texInfo.contains("strength"))
     {
-        texInfo["strength"] = 1.0;
+        texInfo["strength"] = occlusionStrength;
         modified = true;
     }
 
