@@ -36,7 +36,11 @@ private:
     static aiNode* buildNodeRecursive(
         const SceneNode* srcNode,
         const MeshResolver& resolveMesh,
-        std::vector<aiMesh*>& outMeshes);
+        std::vector<aiMesh*>& outMeshes,
+        std::vector<aiMaterial*>& outMaterials
+    );
 
-    static aiMesh* buildMeshFromTriangleMesh(const TriangleMesh* mesh);
+    static aiMesh* buildMeshFromTriangleMesh(const TriangleMesh* mesh, unsigned int materialIndex);
+
+    static aiMaterial* buildMaterialFromTriangleMesh(const TriangleMesh* mesh);
 };
