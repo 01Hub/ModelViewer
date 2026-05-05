@@ -2208,6 +2208,7 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "AssImpMeshExporter.h"
 #include <AssImpMesh.h>
 #include "SceneUtils.h"
+#include "SceneGraphExporter.h"
 void ModelViewer::onFileExport()
 {
 	Assimp::Exporter exporter;
@@ -2260,7 +2261,23 @@ void ModelViewer::onFileExport()
 		bool exportScene = settings.value("radioButtonExportScene", true).toBool();
 				
 		// Export a copy of the the original aiScene
-		aiScene* copyScene = SceneUtils::deepCopyScene(_glWidget->getAssImpScene());
+		//aiScene* copyScene = SceneUtils::deepCopyScene(_glWidget->getAssImpScene());
+
+
+		auto resolver = [this](const QUuid& uuid) -> TriangleMesh* {
+			return _glWidget->getMeshByUuid(uuid);
+			};
+
+		aiScene* copyScene =
+			SceneGraphExporter::buildExportScene(_sceneGraph, resolver);
+
+		if (!copyScene)
+		{
+			QMessageBox::critical(this, tr("Error"),
+				tr("Failed to build export scene."));
+			return;
+		}
+
 
 		// Apply inverse global transform to meshes before export, since we have applied 
 		// auto scaling and rotation based on the up vector of the model and user settings.
