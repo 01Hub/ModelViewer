@@ -159,6 +159,12 @@ private:
             float rotationRad;                  // Transform: rotation
             QVector2D scale;                    // Transform: scale
             QVector2D offset;                   // Transform: offset
+            // Sampler identity (critical for distinguishing materials that
+            // share the same image/UV transform but use different samplers)
+            int wrapS = 0;
+            int wrapT = 0;
+            int magFilter = 0;
+            int minFilter = 0;
         };
         std::vector<TextureBinding> textureBindings;  // Complete texture binding info
 
@@ -228,6 +234,7 @@ private:
     static int findOrCreateTexture(
         QJsonObject& gltfJson,
         const QString& imagePath,
+        int desiredSamplerIdx,
         std::function<void(const QString&)> logCallback = nullptr);
 
     static void log(const QString& message, std::function<void(const QString&)> callback);

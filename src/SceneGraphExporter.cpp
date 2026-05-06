@@ -37,6 +37,74 @@ namespace
         }
     }
 
+    constexpr unsigned int kMaxExportUvChannels = 4;
+
+    struct ExportTextureBinding
+    {
+        const GLMaterial::Texture* texture = nullptr;
+        aiTextureType aiType = aiTextureType_NONE;
+        unsigned int slot = 0;
+    };
+
+    std::vector<ExportTextureBinding> collectExportBindings(const GLMaterial& material)
+    {
+        std::vector<ExportTextureBinding> bindings;
+        bindings.reserve(16);
+
+        auto add = [&](GLMaterial::TextureType type, aiTextureType aiType, unsigned int slot) {
+            const GLMaterial::Texture& tex = material.texture(type);
+            bindings.push_back({ &tex, aiType, slot });
+            };
+
+        // Core PBR bindings
+        add(GLMaterial::TextureType::Albedo, aiTextureType_BASE_COLOR, 0);
+        add(GLMaterial::TextureType::Metallic, aiTextureType_METALNESS, 0);
+        add(GLMaterial::TextureType::Roughness, aiTextureType_DIFFUSE_ROUGHNESS, 0);
+        add(GLMaterial::TextureType::Normal, aiTextureType_NORMALS, 0);
+        add(GLMaterial::TextureType::AmbientOcclusion, aiTextureType_LIGHTMAP, 0);
+        add(GLMaterial::TextureType::Emissive, aiTextureType_EMISSIVE, 0);
+        add(GLMaterial::TextureType::Opacity, aiTextureType_OPACITY, 0);
+
+        // Extensions / advanced PBR
+        add(GLMaterial::TextureType::Transmission, aiTextureType_TRANSMISSION, 0);
+        add(GLMaterial::TextureType::ClearcoatColor, aiTextureType_CLEARCOAT, 0);
+        add(GLMaterial::TextureType::ClearcoatRoughness, aiTextureType_CLEARCOAT, 1);
+        add(GLMaterial::TextureType::ClearcoatNormal, aiTextureType_CLEARCOAT, 2);
+        add(GLMaterial::TextureType::SheenColor, aiTextureType_SHEEN, 0);
+        add(GLMaterial::TextureType::SheenRoughness, aiTextureType_SHEEN, 1);
+
+        return bindings;
+    }
+
+    unsigned int clampUvChannelIndex(int texCoordIndex)
+    {
+        if (texCoordIndex < 0)
+            return 0;
+        if (texCoordIndex >= static_cast<int>(kMaxExportUvChannels))
+            return 0;
+        return static_cast<unsigned int>(texCoordIndex);
+    }
+
+    unsigned int maxReferencedUvChannel(const GLMaterial& material)
+    {
+        const auto bindings = collectExportBindings(material);
+
+        unsigned int maxChannel = 0;
+        bool anyTexturedBinding = false;
+
+        for (const auto& binding : bindings)
+        {
+            if (!binding.texture || binding.texture->path.empty())
+                continue;
+
+            anyTexturedBinding = true;
+            maxChannel = std::max(maxChannel, clampUvChannelIndex(binding.texture->texCoordIndex));
+        }
+
+        // Always keep UV0 available if any texturing exists at all.
+        return anyTexturedBinding ? maxChannel : 0;
+    }
+    
     void addTextureToMaterial(
         aiMaterial* aiMat,
         const GLMaterial::Texture& tex,
@@ -49,7 +117,7 @@ namespace
         aiString path(tex.path.c_str());
         aiMat->AddProperty(&path, AI_MATKEY_TEXTURE(aiType, slot));
 
-        int uvIndex = tex.texCoordIndex;
+        int uvIndex = static_cast<int>(clampUvChannelIndex(tex.texCoordIndex));
         aiMat->AddProperty(&uvIndex, 1, AI_MATKEY_UVWSRC(aiType, slot));
 
         aiTextureMapMode mapModeU = toAiTextureMapMode(tex.wrapS);
@@ -111,6 +179,61 @@ namespace
         // Default: preserve original node name exactly.
         return node->name;
     }
+
+    QString textureKeyPart(const GLMaterial::Texture& tex, const QString& label)
+    {
+        if (tex.path.empty())
+            return label + "=<none>";
+
+        return QString("%1=%2|uv=%3|scale=%4,%5|offset=%6,%7|rot=%8")
+            .arg(label)
+            .arg(QString::fromStdString(tex.path))
+            .arg(tex.texCoordIndex)
+            .arg(tex.scale.x, 0, 'f', 6)
+            .arg(tex.scale.y, 0, 'f', 6)
+            .arg(tex.offset.x, 0, 'f', 6)
+            .arg(tex.offset.y, 0, 'f', 6)
+            .arg(tex.rotation, 0, 'f', 6);
+    }
+
+    QString buildMaterialReuseKey(const GLMaterial& material)
+    {
+        QStringList parts;
+
+        parts << QString("name=%1").arg(material.name().trimmed());
+        parts << QString("albedo=%1,%2,%3")
+            .arg(material.albedoColor().x(), 0, 'f', 6)
+            .arg(material.albedoColor().y(), 0, 'f', 6)
+            .arg(material.albedoColor().z(), 0, 'f', 6);
+        parts << QString("metal=%1").arg(material.metalness(), 0, 'f', 6);
+        parts << QString("rough=%1").arg(material.roughness(), 0, 'f', 6);
+        parts << QString("opacity=%1").arg(material.opacity(), 0, 'f', 6);
+        parts << QString("blend=%1").arg(static_cast<int>(material.blendMode()));
+        parts << QString("twoSided=%1").arg(material.twoSided() ? 1 : 0);
+        parts << QString("alphaCutoff=%1").arg(material.alphaThreshold(), 0, 'f', 6);
+        parts << QString("ior=%1").arg(material.ior(), 0, 'f', 6);
+        parts << QString("transmission=%1").arg(material.transmission(), 0, 'f', 6);
+        parts << QString("thickness=%1").arg(material.thicknessFactor(), 0, 'f', 6);
+        parts << QString("clearcoat=%1").arg(material.clearcoat(), 0, 'f', 6);
+        parts << QString("clearcoatRough=%1").arg(material.clearcoatRoughness(), 0, 'f', 6);
+        parts << QString("sheenRough=%1").arg(material.sheenRoughness(), 0, 'f', 6);
+
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Albedo), "albedoTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Metallic), "metalTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Roughness), "roughTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Normal), "normalTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::AmbientOcclusion), "aoTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Emissive), "emissiveTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Opacity), "opacityTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::Transmission), "transmissionTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::ClearcoatColor), "clearcoatTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::ClearcoatRoughness), "clearcoatRoughTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::ClearcoatNormal), "clearcoatNormalTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::SheenColor), "sheenColorTex");
+        parts << textureKeyPart(material.texture(GLMaterial::TextureType::SheenRoughness), "sheenRoughTex");
+
+        return parts.join("||");
+    }
 }
 
 aiScene* SceneGraphExporter::buildExportScene(
@@ -141,11 +264,12 @@ aiScene* SceneGraphExporter::buildExportScene(
     exportRoot->mNumChildren = static_cast<unsigned int>(graphRoot->children.size());
     if (exportRoot->mNumChildren > 0)
     {
+        QMap<QString, unsigned int> materialKeyToIndex;
         exportRoot->mChildren = new aiNode * [exportRoot->mNumChildren];
         for (unsigned int i = 0; i < exportRoot->mNumChildren; ++i)
         {
             SceneNode* srcChild = graphRoot->children.at(static_cast<int>(i));
-            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, builtMeshes, builtMaterials);
+            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, builtMeshes, builtMaterials, materialKeyToIndex);
             exportRoot->mChildren[i] = dstChild;
             if (dstChild)
                 dstChild->mParent = exportRoot;
@@ -187,7 +311,9 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     const SceneNode* srcNode,
     const MeshResolver& resolveMesh,
     std::vector<aiMesh*>& outMeshes,
-    std::vector<aiMaterial*>& outMaterials)
+    std::vector<aiMaterial*>& outMaterials,
+    QMap<QString, unsigned int>& materialKeyToIndex
+)
 {
     if (!srcNode)
         return nullptr;
@@ -205,19 +331,35 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         if (!triMesh)
             continue;
 
-        aiMaterial* builtMaterial = buildMaterialFromTriangleMesh(triMesh);
-        if (!builtMaterial)
-            builtMaterial = makeDefaultMaterial();
+        const GLMaterial glMaterial = triMesh->getMaterial();
+        const QString materialKey = buildMaterialReuseKey(glMaterial);
 
-        const unsigned int materialIndex = static_cast<unsigned int>(outMaterials.size());
-        outMaterials.push_back(builtMaterial);
+        unsigned int materialIndex = 0;
+        auto matIt = materialKeyToIndex.find(materialKey);
+
+        if (matIt != materialKeyToIndex.end())
+        {
+            // Reuse already-created equivalent material
+            materialIndex = matIt.value();
+        }
+        else
+        {
+            aiMaterial* builtMaterial = buildMaterialFromTriangleMesh(triMesh);
+            if (!builtMaterial)
+                builtMaterial = makeDefaultMaterial();
+
+            materialIndex = static_cast<unsigned int>(outMaterials.size());
+            outMaterials.push_back(builtMaterial);
+            materialKeyToIndex.insert(materialKey, materialIndex);
+        }
 
         aiMesh* builtMesh = buildMeshFromTriangleMesh(triMesh, materialIndex);
         if (!builtMesh)
         {
-            // Roll back the just-added material if mesh build failed.
-            delete outMaterials.back();
-            outMaterials.pop_back();
+            // IMPORTANT:
+            // If mesh build fails, do not delete a reused material.
+            // Also do not roll back a newly-created material here because other meshes
+            // may still legitimately reuse it during this export pass.
             continue;
         }
 
@@ -243,7 +385,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         for (unsigned int i = 0; i < dstNode->mNumChildren; ++i)
         {
             SceneNode* srcChild = srcNode->children.at(static_cast<int>(i));
-            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials);
+            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials, materialKeyToIndex);
             dstNode->mChildren[i] = dstChild;
             if (dstChild)
                 dstChild->mParent = dstNode;
@@ -300,15 +442,28 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
             v.Normal.z);
     }
 
-    // --- UV0 only (first pass) ---
-    out->mTextureCoords[0] = new aiVector3D[out->mNumVertices];
-    out->mNumUVComponents[0] = 2;
+    // --- UV channels (material-driven, up to Vertex-supported maximum = 4) ---
+    // IMPORTANT:
+    // Material bindings already preserve per-texture texCoordIndex through AI_MATKEY_UVWSRC.
+    // So the mesh must export every UV channel that is actually referenced by the material,
+    // capped to the 4 channels physically stored in Vertex::TexCoords[4].
+    const GLMaterial exportMaterial = mesh->getMaterial();
+    const unsigned int uvChannelCount = std::min(
+        maxReferencedUvChannel(exportMaterial) + 1,
+        kMaxExportUvChannels);
 
-    for (unsigned int i = 0; i < out->mNumVertices; ++i)
+    for (unsigned int channel = 0; channel < uvChannelCount; ++channel)
     {
-        const glm::vec2& uv = verts[i].TexCoords[0];
-        out->mTextureCoords[0][i] = aiVector3D(uv.x, uv.y, 0.0f);
+        out->mTextureCoords[channel] = new aiVector3D[out->mNumVertices];
+        out->mNumUVComponents[channel] = 2;
+
+        for (unsigned int i = 0; i < out->mNumVertices; ++i)
+        {
+            const glm::vec2& uv = verts[i].TexCoords[channel];
+            out->mTextureCoords[channel][i] = aiVector3D(uv.x, uv.y, 0.0f);
+        }
     }
+
 
     // --- Faces ---
     out->mNumFaces = static_cast<unsigned int>(indices.size() / 3);
@@ -442,44 +597,14 @@ aiMaterial* SceneGraphExporter::buildMaterialFromTriangleMesh(const TriangleMesh
     }
 
     // Texture bindings.
-    const auto& albedoTex = material.texture(GLMaterial::TextureType::Albedo);
-    addTextureToMaterial(aiMat, albedoTex, aiTextureType_BASE_COLOR, 0);
+    const auto bindings = collectExportBindings(material);
+    for (const auto& binding : bindings)
+    {
+        if (!binding.texture)
+            continue;
 
-    const auto& metallicTex = material.texture(GLMaterial::TextureType::Metallic);
-    addTextureToMaterial(aiMat, metallicTex, aiTextureType_METALNESS, 0);
-
-    const auto& roughnessTex = material.texture(GLMaterial::TextureType::Roughness);
-    addTextureToMaterial(aiMat, roughnessTex, aiTextureType_DIFFUSE_ROUGHNESS, 0);
-
-    const auto& normalTex = material.texture(GLMaterial::TextureType::Normal);
-    addTextureToMaterial(aiMat, normalTex, aiTextureType_NORMALS, 0);
-
-    const auto& aoTex = material.texture(GLMaterial::TextureType::AmbientOcclusion);
-    addTextureToMaterial(aiMat, aoTex, aiTextureType_LIGHTMAP, 0);
-
-    const auto& emissiveTex = material.texture(GLMaterial::TextureType::Emissive);
-    addTextureToMaterial(aiMat, emissiveTex, aiTextureType_EMISSIVE, 0);
-
-    const auto& opacityTex = material.texture(GLMaterial::TextureType::Opacity);
-    addTextureToMaterial(aiMat, opacityTex, aiTextureType_OPACITY, 0);
-
-    const auto& transmissionTex = material.texture(GLMaterial::TextureType::Transmission);
-    addTextureToMaterial(aiMat, transmissionTex, aiTextureType_TRANSMISSION, 0);
-
-    const auto& clearcoatColorTex = material.texture(GLMaterial::TextureType::ClearcoatColor);
-    addTextureToMaterial(aiMat, clearcoatColorTex, aiTextureType_CLEARCOAT, 0);
-
-    const auto& clearcoatRoughnessTex = material.texture(GLMaterial::TextureType::ClearcoatRoughness);
-    addTextureToMaterial(aiMat, clearcoatRoughnessTex, aiTextureType_CLEARCOAT, 1);
-
-    const auto& clearcoatNormalTex = material.texture(GLMaterial::TextureType::ClearcoatNormal);
-    addTextureToMaterial(aiMat, clearcoatNormalTex, aiTextureType_CLEARCOAT, 2);
-
-    const auto& sheenColorTex = material.texture(GLMaterial::TextureType::SheenColor);
-    addTextureToMaterial(aiMat, sheenColorTex, aiTextureType_SHEEN, 0);
-
-    const auto& sheenRoughnessTex = material.texture(GLMaterial::TextureType::SheenRoughness);
-    addTextureToMaterial(aiMat, sheenRoughnessTex, aiTextureType_SHEEN, 1);
+        addTextureToMaterial(aiMat, *binding.texture, binding.aiType, binding.slot);
+    }
 
     return aiMat;
 }

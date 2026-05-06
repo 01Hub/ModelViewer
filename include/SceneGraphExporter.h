@@ -37,7 +37,8 @@ private:
         const SceneNode* srcNode,
         const MeshResolver& resolveMesh,
         std::vector<aiMesh*>& outMeshes,
-        std::vector<aiMaterial*>& outMaterials
+        std::vector<aiMaterial*>& outMaterials,
+        QMap<QString, unsigned int>& materialKeyToIndex
     );
 
     static aiMesh* buildMeshFromTriangleMesh(const TriangleMesh* mesh, unsigned int materialIndex);

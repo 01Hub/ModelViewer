@@ -984,7 +984,15 @@ QString GltfPostProcessor::MaterialSignature::computeHash() const
                 return a.textureType < b.textureType;
             if (a.path != b.path)
                 return a.path < b.path;
-            return a.texCoordIndex < b.texCoordIndex;
+            if (a.texCoordIndex != b.texCoordIndex)
+                return a.texCoordIndex < b.texCoordIndex;
+            if (a.wrapS != b.wrapS)
+                return a.wrapS < b.wrapS;
+            if (a.wrapT != b.wrapT)
+                return a.wrapT < b.wrapT;
+            if (a.magFilter != b.magFilter)
+                return a.magFilter < b.magFilter;
+            return a.minFilter < b.minFilter;
         });
 
     // Hash each texture binding: type + path + texCoord + transforms
@@ -999,7 +1007,11 @@ QString GltfPostProcessor::MaterialSignature::computeHash() const
             .arg(binding.scale.y(), 0, 'f', 4)                           // scale Y
             .arg(binding.offset.x(), 0, 'f', 4)                          // offset X
             .arg(binding.offset.y(), 0, 'f', 4)                          // offset Y
-            .arg(binding.rotationRad > 0.001 ? "R" : "");                // has rotation flag
+            .arg(binding.rotationRad > 0.001 ? "R" : "")                 // has rotation flag
+            .arg(binding.wrapS)
+            .arg(binding.wrapT)
+            .arg(binding.magFilter)
+            .arg(binding.minFilter);
     }
 
     return hash;
@@ -1031,6 +1043,12 @@ GltfPostProcessor::MaterialSignature GltfPostProcessor::buildSignatureForMesh(
             binding.rotationRad = tex.rotation;
             binding.scale = QVector2D(tex.scale.x, tex.scale.y);
             binding.offset = QVector2D(tex.offset.x, tex.offset.y);
+
+            binding.wrapS = static_cast<int>(tex.wrapS);
+            binding.wrapT = static_cast<int>(tex.wrapT);
+            binding.magFilter = static_cast<int>(tex.magFilter);
+            binding.minFilter = static_cast<int>(tex.minFilter);
+
             sig.textureBindings.push_back(binding);
         }
     };
@@ -1240,6 +1258,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
         // Clear Assimp's samplers - we'll create correct ones from source materials
         samplers = QJsonArray();
+        gltfJson["samplers"] = samplers;
 
         // ===== MATERIAL IDENTITY-BASED MATCHING =====
         // NEW APPROACH: Use originalMaterialIndex as the authoritative identifier
@@ -1483,7 +1502,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         QVector<QJsonObject> createdSamplers;
         int samplerBaseIndex = samplers.size();  // Track where new samplers will start
 
-        auto getOrCreateSampler = [&](int mag, int min, int wrapS, int wrapT) -> int {
+       auto getOrCreateSampler = [&](int mag, int min, int wrapS, int wrapT) -> int {
             QString hash = QString("%1_%2_%3_%4").arg(mag).arg(min).arg(wrapS).arg(wrapT);
             if (samplerConfigToIndex.contains(hash))
                 return samplerConfigToIndex[hash] + samplerBaseIndex;  // Offset by base
@@ -1495,31 +1514,118 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             sampler["wrapS"] = wrapS;
             sampler["wrapT"] = wrapT;
             createdSamplers.append(sampler);
-            int finalIdx = idx + samplerBaseIndex;  // Final index in merged array
+
+            int finalIdx = idx + samplerBaseIndex;
             samplerConfigToIndex[hash] = idx;
+
+            // Keep JSON in sync immediately so later passes don't see stale sampler count.
+            QJsonArray currentSamplers = gltfJson.value("samplers").toArray();
+            while (currentSamplers.size() < samplerBaseIndex)
+                currentSamplers.append(QJsonObject());
+            currentSamplers.append(sampler);
+            gltfJson["samplers"] = currentSamplers;
+            samplers = currentSamplers;
 
             log(QString("    Sampler[%1]: mag=%2, min=%3, wrapS=%4, wrapT=%5 (final index: %6)")
                 .arg(idx).arg(mag).arg(min).arg(wrapS).arg(wrapT).arg(finalIdx), logCallback);
             return finalIdx;
             };
 
+       auto desiredSamplerForSourceTex = [&](const GLMaterial::Texture& sourceTex) -> int {
+           return getOrCreateSampler(
+               static_cast<int>(sourceTex.magFilter),
+               static_cast<int>(sourceTex.minFilter),
+               static_cast<int>(sourceTex.wrapS),
+               static_cast<int>(sourceTex.wrapT));
+           };
+
+        // Helper: find or create a texture entry for the same image source + sampler.
+        // IMPORTANT:
+        // glTF texture objects are (source image + sampler) pairs.
+        // If two materials need the same image with different samplers,
+        // we must create separate texture entries instead of overwriting
+        // the shared texture's sampler in-place.
+        auto getOrCreateTextureVariant = [&](const QJsonObject& baseTexture,
+            int desiredSamplerIdx) -> int {
+                int sourceIdx = baseTexture.value("source").toInt(-1);
+                if (sourceIdx < 0)
+                    return -1;
+
+                for (int i = 0; i < textures.size(); ++i)
+                {
+                    QJsonObject existingTex = textures[i].toObject();
+                    int existingSource = existingTex.value("source").toInt(-1);
+                    int existingSampler = existingTex.contains("sampler")
+                        ? existingTex.value("sampler").toInt(-1)
+                        : -1;
+
+                    if (existingSource == sourceIdx && existingSampler == desiredSamplerIdx)
+                        return i;
+                }
+
+                QJsonObject newTex = baseTexture;
+                newTex["source"] = sourceIdx;
+                newTex["sampler"] = desiredSamplerIdx;
+
+                int newIndex = textures.size();
+                textures.append(newTex);
+
+
+                // CRITICAL: keep gltfJson["textures"] in sync immediately.
+                            // findOrCreateTexture() re-reads textures from gltfJson every time,
+                            // so if we only mutate the local 'textures' array, later texture
+                            // creations can reuse stale indices and break material references.
+                gltfJson["textures"] = textures;
+
+
+                log(QString("    Created texture variant[%1] for source[%2] with sampler[%3]")
+                    .arg(newIndex).arg(sourceIdx).arg(desiredSamplerIdx), logCallback);
+
+                return newIndex;
+            };
+
         // Helper: update texture sampler
-        auto updateTextureSampler = [&](const QJsonObject& parent, const QString& key,
+        // NOTE:
+        // Do NOT overwrite textures[texIndex]["sampler"] directly, because that
+        // can break other materials sharing the same texture entry.
+        auto updateTextureSampler = [&](QJsonObject& parent,
+            const QString& key,
             const GLMaterial::Texture& sourceTex) {
-                if (!parent.contains(key)) return;
-                int texIndex = parent[key].toObject().value("index").toInt(-1);
-                if (texIndex < 0 || texIndex >= textures.size()) return;
+                if (!parent.contains(key))
+                    return;
+
+                QJsonObject texInfo = parent[key].toObject();
+                int texIndex = texInfo.value("index").toInt(-1);
+                if (texIndex < 0 || texIndex >= textures.size())
+                    return;
 
                 int samplerIdx = getOrCreateSampler(
-                    sourceTex.magFilter, sourceTex.minFilter,
-                    sourceTex.wrapS, sourceTex.wrapT);
+                    sourceTex.magFilter,
+                    sourceTex.minFilter,
+                    sourceTex.wrapS,
+                    sourceTex.wrapT);
 
-                QJsonObject tex = textures[texIndex].toObject();
-                tex["sampler"] = samplerIdx;
-                textures[texIndex] = tex;
+                QJsonObject currentTex = textures[texIndex].toObject();
+                int currentSamplerIdx = currentTex.contains("sampler")
+                    ? currentTex.value("sampler").toInt(-1)
+                    : -1;
 
-                log(QString("    %1: texture[%2] -> sampler[%3]")
-                    .arg(key).arg(texIndex).arg(samplerIdx), logCallback);
+                if (currentSamplerIdx == samplerIdx)
+                {
+                    log(QString("    %1: texture[%2] already uses sampler[%3]")
+                        .arg(key).arg(texIndex).arg(samplerIdx), logCallback);
+                    return;
+                }
+
+                int variantTexIndex = getOrCreateTextureVariant(currentTex, samplerIdx);
+                if (variantTexIndex < 0)
+                    return;
+
+                texInfo["index"] = variantTexIndex;
+                parent[key] = texInfo;
+
+                log(QString("    %1: texture[%2] -> texture variant[%3] with sampler[%4]")
+                    .arg(key).arg(texIndex).arg(variantTexIndex).arg(samplerIdx), logCallback);
             };
 
         // Build material signatures from all source meshes for robust matching
@@ -1677,6 +1783,8 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     // Get just the filename from the full source path
                     QString sourcePath = QString::fromStdString(sourceTex.path);
                     QString sourceFilename = QFileInfo(normalisedGlbPath(sourcePath)).fileName();
+                    
+                    const int desiredSamplerIdx = desiredSamplerForSourceTex(sourceTex);
 
                     // Find the image index in the JSON images array with a matching filename
                     int correctImageIdx = -1;
@@ -1728,7 +1836,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     if (correctImageIdx < 0)
                     {
                         // Image not exported by Assimp - create it via findOrCreateTexture
-                        int newTexIdx = findOrCreateTexture(gltfJson, sourcePath, logCallback);
+                        int newTexIdx = findOrCreateTexture(gltfJson, sourcePath, -1, logCallback);
                         if (newTexIdx < 0)
                         {
                             log(QString("    WARNING: Could not create texture for '%1'").arg(sourceFilename), logCallback);
@@ -1751,10 +1859,16 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     int currentTexIdx = texInfo.value("index").toInt(-1);
 
                     // Check if current texture already points to the right image
+                    // AND already uses the right sampler.
                     if (currentTexIdx >= 0 && currentTexIdx < textures.size())
                     {
-                        int currentSource = textures[currentTexIdx].toObject().value("source").toInt(-1);
-                        if (currentSource == correctImageIdx)
+                        QJsonObject currentTexObj = textures[currentTexIdx].toObject();
+                        int currentSource = currentTexObj.value("source").toInt(-1);
+                        int currentSampler = currentTexObj.contains("sampler")
+                            ? currentTexObj.value("sampler").toInt(-1)
+                            : -1;
+
+                        if (currentSource == correctImageIdx && currentSampler == desiredSamplerIdx)
                             return; // Already correct
                     }
 
@@ -1763,7 +1877,13 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     int correctTexIdx = -1;
                     for (int ti = 0; ti < textures.size(); ++ti)
                     {
-                        if (textures[ti].toObject().value("source").toInt(-1) == correctImageIdx)
+                        QJsonObject existingTexObj = textures[ti].toObject();
+                        int existingSource = existingTexObj.value("source").toInt(-1);
+                        int existingSampler = existingTexObj.contains("sampler")
+                            ? existingTexObj.value("sampler").toInt(-1)
+                            : -1;
+
+                        if (existingSource == correctImageIdx && existingSampler == desiredSamplerIdx)
                         {
                             correctTexIdx = ti;
                             break;
@@ -1772,13 +1892,18 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
                     if (correctTexIdx < 0)
                     {
-                        // Create a new texture entry
+                        // Create a new texture entry for the correct image + sampler pair
                         QJsonObject newTex;
                         newTex["source"] = correctImageIdx;
+                        newTex["sampler"] = desiredSamplerIdx;
+
                         correctTexIdx = textures.size();
                         textures.append(newTex);
-                        log(QString("    Created texture[%1] for image[%2] '%3'")
-                            .arg(correctTexIdx).arg(correctImageIdx).arg(sourceFilename), logCallback);
+                        gltfJson["textures"] = textures; // keep JSON in sync immediately
+
+                        log(QString("    Created texture[%1] for image[%2] '%3' with sampler[%4]")
+                            .arg(correctTexIdx).arg(correctImageIdx).arg(sourceFilename).arg(desiredSamplerIdx),
+                            logCallback);
                     }
 
                     texInfo["index"] = correctTexIdx;
@@ -2036,7 +2161,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
                 if (!sourceMaterial.transmissionMapPath().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.transmissionMapPath(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.transmissionMapPath(), -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; trans["transmissionTexture"] = t; }
                 }
 
@@ -2063,21 +2188,21 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QString clearcoatColorMap = sourceMaterial.clearcoatColorMapPath();
                 if (!clearcoatColorMap.isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, clearcoatColorMap, logCallback);
+                    int ti = findOrCreateTexture(gltfJson, clearcoatColorMap, -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; cc["clearcoatTexture"] = t; }
                 }
 
                 QString clearcoatRoughnessMap = sourceMaterial.clearcoatRoughnessMapPath();
                 if (!clearcoatRoughnessMap.isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, clearcoatRoughnessMap, logCallback);
+                    int ti = findOrCreateTexture(gltfJson, clearcoatRoughnessMap, -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; cc["clearcoatRoughnessTexture"] = t; }
                 }
 
                 QString clearcoatNormalMap = sourceMaterial.clearcoatNormalMapPath();
                 if (!clearcoatNormalMap.isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, clearcoatNormalMap, logCallback);
+                    int ti = findOrCreateTexture(gltfJson, clearcoatNormalMap, -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; cc["clearcoatNormalTexture"] = t; }
                 }
 
@@ -2100,14 +2225,14 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QString sheenColorMap = sourceMaterial.sheenColorMapPath();
                 if (!sheenColorMap.isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, sheenColorMap, logCallback);
+                    int ti = findOrCreateTexture(gltfJson, sheenColorMap, -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; sheen["sheenColorTexture"] = t; }
                 }
 
                 QString sheenRoughnessMap = sourceMaterial.sheenRoughnessMapPath();
                 if (!sheenRoughnessMap.isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, sheenRoughnessMap, logCallback);
+                    int ti = findOrCreateTexture(gltfJson, sheenRoughnessMap, -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; sheen["sheenRoughnessTexture"] = t; }
                 }
 
@@ -2127,14 +2252,14 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QString iridMap = sourceMaterial.iridescenceMap();
                 if (!iridMap.isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, iridMap, logCallback);
+                    int ti = findOrCreateTexture(gltfJson, iridMap, -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; irid["iridescenceTexture"] = t; }
                 }
 
                 QString iridThicknessMap = sourceMaterial.iridescenceThicknessMap();
                 if (!iridThicknessMap.isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, iridThicknessMap, logCallback);
+                    int ti = findOrCreateTexture(gltfJson, iridThicknessMap, -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; irid["iridescenceThicknessTexture"] = t; }
                 }
 
@@ -2156,7 +2281,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QString thicknessMap = sourceMaterial.thicknessMap();
                 if (!thicknessMap.isEmpty())
                 {
-                    int texIndex = findOrCreateTexture(gltfJson, thicknessMap);
+                    int texIndex = findOrCreateTexture(gltfJson, thicknessMap, -1, logCallback);
                     if (texIndex >= 0)
                     {
                         QJsonObject texInfo;
@@ -2201,12 +2326,12 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 spec["specularColorFactor"] = arr;
                 if (!specularFactorMap.isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, specularFactorMap, logCallback);
+                    int ti = findOrCreateTexture(gltfJson, specularFactorMap, -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; spec["specularTexture"] = t; }
                 }
                 if (!specularColorMap.isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, specularColorMap, logCallback);
+                    int ti = findOrCreateTexture(gltfJson, specularColorMap, -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; spec["specularColorTexture"] = t; }
                 }
                 extensions["KHR_materials_specular"] = spec;
@@ -2226,7 +2351,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
                 if (!sourceMaterial.anisotropyMap().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.anisotropyMap(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.anisotropyMap(), -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; aniso["anisotropyTexture"] = t; }
                 }
 
@@ -2287,12 +2412,12 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
                 if (!sourceMaterial.diffuseTransmissionMap().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.diffuseTransmissionMap(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.diffuseTransmissionMap(), -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; dt["diffuseTransmissionTexture"] = t; }
                 }
                 if (!sourceMaterial.diffuseTransmissionColorMap().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.diffuseTransmissionColorMap(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.diffuseTransmissionColorMap(), -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; dt["diffuseTransmissionColorTexture"] = t; }
                 }
 
@@ -2324,12 +2449,12 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
                 if (!sourceMaterial.diffuseMap().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.diffuseMap(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.diffuseMap(), -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; sg["diffuseTexture"] = t; }
                 }
                 if (!sourceMaterial.specularGlossinessMap().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.specularGlossinessMap(), logCallback);
+                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.specularGlossinessMap(), -1, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; sg["specularGlossinessTexture"] = t; }
                 }
 
@@ -2518,15 +2643,11 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             materials[matIdx] = mat;
         }
 
-        // MERGE created samplers with existing Assimp samplers
-        // Keep Assimp's samplers at their original indices (0, 1, 2, ...)
-        // Append new samplers after them
-        log(QString("  Sampler merge: base=%1, appending %2 created sampler(s)")
-            .arg(samplerBaseIndex).arg(createdSamplers.size()), logCallback);
-        for (const auto& sampler : createdSamplers)
-        {
-            samplers.append(sampler);
-        }
+        // Samplers have already been appended incrementally inside getOrCreateSampler().
+        // Do NOT append createdSamplers again here, or we will duplicate sampler objects
+        // and make the final sampler list unstable.
+        log(QString("    Sampler state: %1 sampler(s) currently in JSON")
+            .arg(samplers.size()), logCallback);
 
         // CRITICAL: Merge textures - include any added by findOrCreateTexture during material processing
         QJsonArray gltfTextures = gltfJson.value("textures").toArray();
@@ -3341,7 +3462,7 @@ bool GltfPostProcessor::fixSpecularTextures(
         {
             log(QString("  -> Processing specularTexture: %1").arg(specularFactorMap), logCallback);
 
-            int texIndex = findOrCreateTexture(gltfJson, specularFactorMap, logCallback);
+            int texIndex = findOrCreateTexture(gltfJson, specularFactorMap, -1, logCallback);
             log(QString("  -> findOrCreateTexture returned: %1").arg(texIndex), logCallback);
 
             if (texIndex >= 0)
@@ -3364,7 +3485,7 @@ bool GltfPostProcessor::fixSpecularTextures(
         {
             log(QString("  -> Processing specularColorTexture: %1").arg(specularColorMap), logCallback);
 
-            int texIndex = findOrCreateTexture(gltfJson, specularColorMap, logCallback);
+            int texIndex = findOrCreateTexture(gltfJson, specularColorMap, -1, logCallback);
             log(QString("  -> findOrCreateTexture returned: %1").arg(texIndex), logCallback);
 
             if (texIndex >= 0)
@@ -3407,6 +3528,7 @@ bool GltfPostProcessor::fixSpecularTextures(
 int GltfPostProcessor::findOrCreateTexture(
     QJsonObject& gltfJson,
     const QString& imagePath,
+    int desiredSamplerIdx,
     std::function<void(const QString&)> logCallback)
 {
     log(QString("findOrCreateTexture called with: '%1'").arg(imagePath), logCallback);
@@ -3519,10 +3641,13 @@ int GltfPostProcessor::findOrCreateTexture(
     {
         QJsonObject tex = textures[i].toObject();
         int source = tex.value("source").toInt(-1);
-        if (source == imageIndex)
+        int sampler = tex.contains("sampler") ? tex.value("sampler").toInt(-1) : -1;
+
+        if (source == imageIndex && (desiredSamplerIdx < 0 || sampler == desiredSamplerIdx))
         {
-            log(QString("  -> Found existing texture at index %1 pointing to image %2").arg(i).arg(imageIndex), logCallback);
-            return i;  // Reuse existing texture!
+            log(QString("    -> Found existing texture at index %1 pointing to image %2 with sampler %3")
+                .arg(i).arg(imageIndex).arg(sampler), logCallback);
+            return i;
         }
     }
 
@@ -3530,26 +3655,14 @@ int GltfPostProcessor::findOrCreateTexture(
     QJsonObject newTexture;
     newTexture["source"] = imageIndex;
 
-    // Add sampler if one exists
-    // Check if sampler exists and add it
-    if (gltfJson.contains("samplers"))
+    if (desiredSamplerIdx >= 0)
     {
-        QJsonArray samplers = gltfJson["samplers"].toArray();
-        log(QString("  findOrCreateTexture: samplers array size = %1").arg(samplers.size()), logCallback);
-
-        if (samplers.size() > 0)
-        {
-            newTexture["sampler"] = 0; // Use first sampler
-            log("  -> Added sampler reference to texture (index 0)", logCallback);
-        }
-        else
-        {
-            log("  -> WARNING: No samplers exist, NOT adding sampler reference", logCallback);
-        }
+        newTexture["sampler"] = desiredSamplerIdx;
+        log(QString("    -> Added sampler reference to texture (index %1)").arg(desiredSamplerIdx), logCallback);
     }
     else
     {
-        log("  -> WARNING: No samplers array in gltfJson", logCallback);
+        log("    -> No explicit sampler requested, leaving texture without sampler for now", logCallback);
     }
 
     textures.append(newTexture);
