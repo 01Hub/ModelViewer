@@ -12,6 +12,8 @@
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 
+#include <QDebug>
+
 namespace
 {
     aiNode* makeIdentityNode(const QString& name)
@@ -199,7 +201,6 @@ namespace
     QString buildMaterialReuseKey(const GLMaterial& material)
     {
         QStringList parts;
-
         parts << QString("name=%1").arg(material.name().trimmed());
         parts << QString("albedo=%1,%2,%3")
             .arg(material.albedoColor().x(), 0, 'f', 6)
@@ -332,25 +333,67 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             continue;
 
         const GLMaterial glMaterial = triMesh->getMaterial();
-        const QString materialKey = buildMaterialReuseKey(glMaterial);
-
         unsigned int materialIndex = 0;
-        auto matIt = materialKeyToIndex.find(materialKey);
 
-        if (matIt != materialKeyToIndex.end())
+        // Use originalMaterialIndex as authoritative mapping to preserve material structure from import.
+        // All meshes that referenced the same original material should use the same material in export.
+        int originalMatIndex = triMesh->getOriginalMaterialIndex();
+
+        qDebug() << "[EXPORT] Processing mesh:" << triMesh->getName()
+                 << "originalMaterialIndex=" << originalMatIndex
+                 << "materialName=" << glMaterial.name()
+                 << "albedo=" << glMaterial.albedoColor().x() << glMaterial.albedoColor().y() << glMaterial.albedoColor().z();
+
+        if (originalMatIndex >= 0)
         {
-            // Reuse already-created equivalent material
-            materialIndex = matIt.value();
+            // Mesh came from Assimp import - use original material index as key
+            QString originalMatKey = QString("originalMat=%1").arg(originalMatIndex);
+            auto matIt = materialKeyToIndex.find(originalMatKey);
+
+            if (matIt != materialKeyToIndex.end())
+            {
+                // Already created a material for this original index - reuse it
+                materialIndex = matIt.value();
+                qDebug() << "  [EXPORT-REUSE] Reusing material" << materialIndex
+                         << "for originalMatIndex" << originalMatIndex;
+            }
+            else
+            {
+                // First time seeing this original material - create it
+                aiMaterial* builtMaterial = buildMaterialFromTriangleMesh(triMesh);
+                if (!builtMaterial)
+                    builtMaterial = makeDefaultMaterial();
+
+                materialIndex = static_cast<unsigned int>(outMaterials.size());
+                outMaterials.push_back(builtMaterial);
+                materialKeyToIndex.insert(originalMatKey, materialIndex);
+
+                qDebug() << "  [EXPORT-CREATE] Created material" << materialIndex
+                         << "for originalMatIndex" << originalMatIndex
+                         << "from mesh" << triMesh->getName();
+            }
         }
         else
         {
-            aiMaterial* builtMaterial = buildMaterialFromTriangleMesh(triMesh);
-            if (!builtMaterial)
-                builtMaterial = makeDefaultMaterial();
+            // Fallback for non-import sources: use content-based deduplication
+            const QString materialKey = buildMaterialReuseKey(glMaterial);
+            auto matIt = materialKeyToIndex.find(materialKey);
 
-            materialIndex = static_cast<unsigned int>(outMaterials.size());
-            outMaterials.push_back(builtMaterial);
-            materialKeyToIndex.insert(materialKey, materialIndex);
+            if (matIt != materialKeyToIndex.end())
+            {
+                // Reuse already-created equivalent material
+                materialIndex = matIt.value();
+            }
+            else
+            {
+                aiMaterial* builtMaterial = buildMaterialFromTriangleMesh(triMesh);
+                if (!builtMaterial)
+                    builtMaterial = makeDefaultMaterial();
+
+                materialIndex = static_cast<unsigned int>(outMaterials.size());
+                outMaterials.push_back(builtMaterial);
+                materialKeyToIndex.insert(materialKey, materialIndex);
+            }
         }
 
         aiMesh* builtMesh = buildMeshFromTriangleMesh(triMesh, materialIndex);
@@ -363,9 +406,18 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             continue;
         }
 
+        qDebug() << "  [EXPORT-ASSIGN] Mesh:" << triMesh->getName()
+                 << "→ materialIndex=" << materialIndex
+                 << "(meshIndex in export=" << outMeshes.size() << ")";
+
         nodeMeshIndices.push_back(static_cast<unsigned int>(outMeshes.size()));
         outMeshes.push_back(builtMesh);
     }
+
+    qDebug() << "[EXPORT-NODE-SUMMARY] Node:" << srcNode->name
+             << "has" << srcNode->meshUuids.size() << "meshes"
+             << "materialKeyToIndex.size()=" << materialKeyToIndex.size()
+             << "outMaterials.size()=" << outMaterials.size();
 
     dstNode->mNumMeshes = static_cast<unsigned int>(nodeMeshIndices.size());
     if (dstNode->mNumMeshes > 0)

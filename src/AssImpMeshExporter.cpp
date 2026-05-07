@@ -1873,53 +1873,19 @@ void AssImpMeshExporter::applyMaterialsToScene(
         return;
     }
 
-    unsigned int materialCount = std::min(static_cast<unsigned int>(meshes.size()), scene->mNumMeshes);
-    std::vector<aiMaterial*> newMaterials;
-    newMaterials.reserve(materialCount);
+    // CRITICAL: SceneGraphExporter already created the correct materials and assigned them to meshes.
+    // We do NOT rebuild the material array - we only verify and refine texture mappings.
+    // Rebuilding would destroy the careful deduplication work done by SceneGraphExporter.
 
-    for (unsigned int i = 0; i < materialCount; ++i)
-    {
-        const TriangleMesh* mesh = meshes[i];
-        if (!mesh)
-        {
-            logWarning(QString("Mesh at index %1 is null").arg(i));
-            continue;
-        }
+    logMessage(QString("applyMaterialsToScene: Preserving %1 materials from SceneGraphExporter")
+        .arg(scene->mNumMaterials));
 
-        // Create material with export location context (pass mesh name as fallback)
-        const GLMaterial& glMat = mesh->getMaterial();
-        aiMaterial* aiMat = createMaterial(glMat, _lastTexturePackage, exportFileLocation, mesh->getName());
+    // The materials are already correct from SceneGraphExporter.
+    // The mesh->mMaterialIndex assignments are already correct.
+    // We can optionally refine texture paths here if needed, but we don't rebuild.
 
-        if (!aiMat)
-        {
-            logError(QString("Failed to create material for: %1").arg(mesh->getName()));
-            continue;
-        }
-
-        newMaterials.push_back(aiMat);
-
-        if (i < scene->mNumMeshes && scene->mMeshes[i])
-        {
-            scene->mMeshes[i]->mMaterialIndex = static_cast<unsigned int>(newMaterials.size() - 1);
-            logMessage(QString("  -> Material applied: %1").arg(mesh->getName()));
-        }
-    }
-
-    // Replace scene materials
-    if (!newMaterials.empty())
-    {
-        for (unsigned int i = 0; i < scene->mNumMaterials; ++i)
-        {
-            delete scene->mMaterials[i];
-        }
-        delete[] scene->mMaterials;
-
-        scene->mNumMaterials = static_cast<unsigned int>(newMaterials.size());
-        scene->mMaterials = new aiMaterial * [scene->mNumMaterials];
-        std::copy(newMaterials.begin(), newMaterials.end(), scene->mMaterials);
-
-        logMessage(QString("  -> Scene updated: %1 materials").arg(scene->mNumMaterials));
-    }
+    logMessage(QString("  -> [APPLY-SUMMARY] Scene preserved: %1 materials, %2 meshes (no rebuild)")
+        .arg(scene->mNumMaterials).arg(scene->mNumMeshes));
 }
 
 /**

@@ -678,6 +678,9 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	// For other formats: use the current index (not remapped)
 	int originalMaterialIndex = mesh->mMaterialIndex;
 
+	qDebug() << "[IMPORT] processMesh[" << meshIndex << "] nodeName=" << nodeName
+	         << "- mesh->mMaterialIndex (raw)=" << mesh->mMaterialIndex;
+
 	// If this is from a glTF file, look up the true original index
 	// We need to find which aiMesh index this is to look it up in our saved mapping
 	for (unsigned int meshIdx = 0; meshIdx < scene->mNumMeshes; ++meshIdx)
@@ -689,8 +692,8 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			if (it != _meshIndexToOriginalMaterialIndex.end())
 			{
 				originalMaterialIndex = it->second;
-				qDebug() << "processMesh: Using PRE-DEDUP material index" << originalMaterialIndex
-					     << "for mesh" << meshIdx << "(current remapped index:" << mesh->mMaterialIndex << ")";
+				qDebug() << "  [IMPORT-glTF] Using PRE-DEDUP material index" << originalMaterialIndex
+					     << "for aiMesh[" << meshIdx << "] (remapped was:" << mesh->mMaterialIndex << ")";
 			}
 			break;
 		}
@@ -701,10 +704,11 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	//if (mesh->mMaterialIndex != 0)
 
 	// DEBUG: Log the material index assignment
-	qDebug() << "processMesh[" << meshIndex << "] nodeName=" << nodeName
+	qDebug() << "[IMPORT] processMesh[" << meshIndex << "] FINAL"
+	         << "nodeName=" << nodeName
 	         << "mNumVertices=" << mesh->mNumVertices
 	         << "mNumFaces=" << mesh->mNumFaces
-	         << "mMaterialIndex=" << originalMaterialIndex
+	         << "originalMaterialIndex=" << originalMaterialIndex
 	         << "scene->mNumMaterials=" << scene->mNumMaterials;
 
 	// CRITICAL FIX: Use originalMaterialIndex to load material properties, not mesh->mMaterialIndex
@@ -782,6 +786,11 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	meshData.hasNegativeScale = hasNegativeScale;
 	meshData.sceneIndex = meshIndex;
 	meshData.originalMaterialIndex = originalMaterialIndex;
+
+	qDebug() << "[IMPORT-STORED] MeshData for" << meshName
+	         << "sceneIndex=" << meshIndex
+	         << "originalMaterialIndex=" << originalMaterialIndex
+	         << "materialName=" << mat.name();
 
 	if (_gltfMeshPrimitiveModes.find(meshIndex) != _gltfMeshPrimitiveModes.end())
 	{
