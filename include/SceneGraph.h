@@ -1,6 +1,7 @@
 #pragma once
 
 #include "SceneNode.h"
+#include "GLLights.h"
 
 #include <QHash>
 #include <QJsonArray>
@@ -45,9 +46,11 @@ public:
     //                      AssImpModelLoader::processNode() visited them.
     //                      The cursor-based DFS inside buildSubtree() assigns
     //                      these UUIDs to the matching aiNodes automatically.
-    void appendFromScene(const aiScene*      scene,
-                         const QString&      sourceFile,
-                         const QList<QUuid>& meshUuidsInOrder);
+    // lights             — optional punctual lights from KHR_lights_punctual extension.
+    void appendFromScene(const aiScene*                   scene,
+                         const QString&                   sourceFile,
+                         const QList<QUuid>&              meshUuidsInOrder,
+                         const std::vector<GPULight>&    lights = {});
 
     // Build a flat synthetic session node that owns all meshes directly.
     // Used as a fallback for native-session files that do not carry a full
@@ -85,6 +88,12 @@ public:
     // The order follows a DFS pre-order traversal (node's own meshUuids first,
     // then children left-to-right), which matches the original load order.
     QList<QUuid> collectMeshUuids(const SceneNode* node) const;
+
+    // Get all punctual lights in the scene.
+    const std::vector<GPULight>& lights() const { return _lights; }
+
+    // Set lights in the scene (called during import).
+    void setLights(const std::vector<GPULight>& lights) { _lights = lights; }
 
     // -----------------------------------------------------------------------
     // Mutation  (called by undo/redo command classes)
@@ -135,4 +144,7 @@ private:
     // Entries are added in appendFromScene / restoreMeshUuid and removed in
     // removeMeshUuid / clear.
     QHash<QUuid, SceneNode*> _meshUuidToNode;
+
+    // Punctual lights from KHR_lights_punctual extension.
+    std::vector<GPULight> _lights;
 };

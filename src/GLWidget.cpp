@@ -788,7 +788,8 @@ void GLWidget::initializeGL()
 		this, [this](const std::vector<GPULight>& lights) {
 			_originalParsedLights.clear();
 			_currentRepositionedLights.clear();
-			_originalParsedLights = lights;				
+			_lightRepoBasis.baselineRadius = 0.0f;  // Reset baseline for new model
+			_originalParsedLights = lights;
 
 			_fgShader->bind();
 			if (!lights.empty())
@@ -2553,6 +2554,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			[this](const std::vector<GPULight>& lights) {
 				_originalParsedLights.clear();
 				_currentRepositionedLights.clear();
+				_lightRepoBasis.baselineRadius = 0.0f;  // Reset baseline for new model
 				_originalParsedLights = lights;
 
 				makeCurrent();
@@ -2632,7 +2634,7 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			if (success && !_pendingSceneUuids.isEmpty())
 			{
 				_viewer->sceneGraph()->appendFromScene(
-					_assimpScene, fileName, _pendingSceneUuids);
+					_assimpScene, fileName, _pendingSceneUuids, _originalParsedLights);
 			}
 			_pendingSceneUuids.clear();
 

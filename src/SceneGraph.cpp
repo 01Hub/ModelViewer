@@ -48,12 +48,16 @@ SceneGraph::~SceneGraph()
 // Build
 // ---------------------------------------------------------------------------
 
-void SceneGraph::appendFromScene(const aiScene*      scene,
-                                 const QString&      sourceFile,
-                                 const QList<QUuid>& meshUuidsInOrder)
+void SceneGraph::appendFromScene(const aiScene*                   scene,
+                                 const QString&                   sourceFile,
+                                 const QList<QUuid>&              meshUuidsInOrder,
+                                 const std::vector<GPULight>&    lights)
 {
     if (!scene || !scene->mRootNode)
         return;
+
+    // Store lights from this import (replaces any previous lights)
+    _lights = lights;
 
     // --- Synthetic file-level node ------------------------------------------
     // This sits directly under _root and provides a clean per-import boundary
@@ -85,6 +89,7 @@ void SceneGraph::rebuildFlat(const QString& sessionName,
                              const QList<QUuid>& meshUuids)
 {
     _meshUuidToNode.clear();
+    _lights.clear();
     freeSubtree(_root);
 
     _root           = new SceneNode();
@@ -150,6 +155,7 @@ SceneNode* SceneGraph::buildSubtree(const aiNode*       ainode,
 void SceneGraph::clear()
 {
     _meshUuidToNode.clear();
+    _lights.clear();
     freeSubtree(_root);
 
     _root           = new SceneNode();
@@ -163,6 +169,7 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
                                 const QJsonArray& sceneRootNodes)
 {
     _meshUuidToNode.clear();
+    _lights.clear();
     freeSubtree(_root);
 
     _root           = new SceneNode();

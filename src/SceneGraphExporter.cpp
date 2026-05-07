@@ -4,15 +4,18 @@
 #include "SceneNode.h"
 #include "TriangleMesh.h"
 #include "AssImpMesh.h"
+#include "GLLights.h"
 
 #include <assimp/material.h>
 #include <assimp/mesh.h>
 #include <assimp/scene.h>
+#include <assimp/light.h>
 
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 
 #include <QDebug>
+#include <cmath>
 
 namespace
 {
@@ -305,6 +308,57 @@ aiScene* SceneGraphExporter::buildExportScene(
         }
     }
 
+    // Transfer lights from SceneGraph into aiScene::mLights (KHR_lights_punctual support)
+    const auto& lights = sceneGraph->lights();
+    if (!lights.empty())
+    {
+        scene->mNumLights = static_cast<unsigned int>(lights.size());
+        scene->mLights = new aiLight*[scene->mNumLights];
+
+        for (unsigned int i = 0; i < scene->mNumLights; ++i)
+        {
+            const GPULight& gpuLight = lights[i];
+            aiLight* aiLight = new ::aiLight();
+
+            aiLight->mName.Set((std::string("Light_") + std::to_string(i)).c_str());
+            aiLight->mPosition = aiVector3D(gpuLight.position.x, gpuLight.position.y, gpuLight.position.z);
+            aiLight->mDirection = aiVector3D(gpuLight.direction.x, gpuLight.direction.y, gpuLight.direction.z);
+            aiLight->mColorDiffuse = aiColor3D(gpuLight.color.x, gpuLight.color.y, gpuLight.color.z);
+            aiLight->mColorSpecular = aiColor3D(gpuLight.color.x, gpuLight.color.y, gpuLight.color.z);
+
+            // Set light type
+            switch (static_cast<LightType>(gpuLight.type))
+            {
+            case LightType::Directional:
+                aiLight->mType = aiLightSource_DIRECTIONAL;
+                break;
+            case LightType::Point:
+                aiLight->mType = aiLightSource_POINT;
+                aiLight->mAttenuationConstant = 1.0f;
+                aiLight->mAttenuationLinear = 0.0f;
+                aiLight->mAttenuationQuadratic = 0.0f;
+                if (gpuLight.range > 0.0f)
+                {
+                    // Set range as a custom property (KHR extension)
+                    // This will be handled by GltfPostProcessor when writing KHR_lights_punctual
+                }
+                break;
+            case LightType::Spot:
+                aiLight->mType = aiLightSource_SPOT;
+                aiLight->mAttenuationConstant = 1.0f;
+                aiLight->mAttenuationLinear = 0.0f;
+                aiLight->mAttenuationQuadratic = 0.0f;
+                aiLight->mAngleOuterCone = std::acos(gpuLight.outerConeCos);
+                aiLight->mAngleInnerCone = std::acos(gpuLight.innerConeCos);
+                break;
+            }
+
+            scene->mLights[i] = aiLight;
+        }
+
+        qDebug() << "[EXPORT-LIGHTS] Exported" << scene->mNumLights << "punctual lights";
+    }
+
     return scene;
 }
 
@@ -516,6 +570,13 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
         }
     }
 
+    // --- Vertex Colors ---
+    out->mColors[0] = new aiColor4D[out->mNumVertices];
+    for (unsigned int i = 0; i < out->mNumVertices; ++i)
+    {
+        const Vertex& v = verts[i];
+        out->mColors[0][i] = aiColor4D(v.Color.r, v.Color.g, v.Color.b, v.Color.a);
+    }
 
     // --- Faces ---
     out->mNumFaces = static_cast<unsigned int>(indices.size() / 3);
