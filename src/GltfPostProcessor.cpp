@@ -3002,6 +3002,43 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     if (!lights.empty())
         writePunctualLights(gltfJson, lights, logCallback);
 
+    // FINAL PASS: Convert all image URIs to relative paths pointing to textures subfolder
+    log("=== FIXING IMAGE URIS TO RELATIVE PATHS ===", logCallback);
+    {
+        QJsonArray images = gltfJson.value("images").toArray();
+        bool anyFixed = false;
+
+        for (int i = 0; i < images.size(); ++i)
+        {
+            QJsonObject img = images[i].toObject();
+            QString oldUri = img.value("uri").toString();
+
+            // Skip already relative URIs that point to the correct subfolder
+            if (oldUri.startsWith(_textureSubfolder + "/"))
+            {
+                log(QString("  Image[%1] already correct: %2").arg(i).arg(oldUri), logCallback);
+                continue;
+            }
+
+            // Extract filename and rebuild URI as relative path
+            QString filename = QFileInfo(oldUri).fileName();
+            if (!filename.isEmpty())
+            {
+                QString newUri = _textureSubfolder + "/" + filename;
+                img["uri"] = newUri;
+                images[i] = img;
+                anyFixed = true;
+                log(QString("  Image[%1] fixed: '%2' -> '%3'").arg(i).arg(oldUri).arg(newUri), logCallback);
+            }
+        }
+
+        if (anyFixed)
+        {
+            gltfJson["images"] = images;
+            log("  Updated all image URIs in gltfJson", logCallback);
+        }
+    }
+
     // Then do standard post-processing (fills in missing properties with defaults)
     return postProcessGltfJson(gltfJson, logCallback);
 }
