@@ -71,21 +71,26 @@ aiReturn AssImpMeshExporter::exportMeshes(
 
     if (settings.copyTextures)
     {
-        // Extract embedded textures if source is GLB
-        if ((isGLB || isGLTF) && scene && scene->mNumTextures > 0)
+        // Extract embedded textures ONLY if legacy glb:// paths still exist
+        bool needsLegacyExtraction = hasGlbVirtualPaths(meshes);
+
+        if ((isGLB || isGLTF) && scene && scene->mNumTextures > 0 && needsLegacyExtraction)
         {
-            logMessage("  Extracting embedded textures from source GLB...");
+            logMessage(" Extracting embedded textures (legacy glb:// detected)...");
             QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, textureBaseDir, textureSubfolder);
 
-            // Inject the embedded texture mappings into texturePackage
-            // This bypasses the resolveTexture mechanism for GLB textures
             for (auto it = embeddedMapping.begin(); it != embeddedMapping.end(); ++it)
             {
                 _lastTexturePackage.pathMapping[it.key()] = it.value();
             }
 
-            logMessage(QString("  -> Injected %1 embedded texture mappings").arg(embeddedMapping.size()));
+            logMessage(QString(" -> Injected %1 embedded texture mappings").arg(embeddedMapping.size()));
         }
+        else
+        {
+            logMessage(" Skipping embedded extraction (using cached disk textures)");
+        }
+
 
         logMessage("Step 1b: Packaging textures...");
         _lastTexturePackage = _textureManager.packageTextures(
@@ -93,16 +98,16 @@ aiReturn AssImpMeshExporter::exportMeshes(
             textureBaseDir,
             textureSubfolder);
 
-        // Re-inject embedded mappings (in case packageTextures cleared the mapping)
-        if (scene && scene->mNumTextures > 0)
+        // Re-inject ONLY if legacy glb:// paths exist// Re-inject ONLY if legacy 0 && needsLegacyExtraction)
         {
             QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, textureBaseDir, textureSubfolder);
+
             for (auto it = embeddedMapping.begin(); it != embeddedMapping.end(); ++it)
             {
                 _lastTexturePackage.pathMapping[it.key()] = it.value();
             }
         }
-
+        
         logMessage(QString("  -> Total texture mappings: %1").arg(_lastTexturePackage.pathMapping.size()));
 
 
@@ -427,20 +432,24 @@ aiReturn AssImpMeshExporter::exportScene(
     {
         logMessage("Step 1: Packaging textures...");
 
-        // Extract embedded textures if source is GLB
-        if ((isGLB || isGLTF) && scene && scene->mNumTextures > 0)
+        // Extract embedded textures ONLY if legacy glb:// paths still exist
+        bool needsLegacyExtraction = hasGlbVirtualPaths(meshes);
+
+        if ((isGLB || isGLTF) && scene && scene->mNumTextures > 0 && needsLegacyExtraction)
         {
-            logMessage("  Extracting embedded textures from source GLB...");
+            logMessage(" Extracting embedded textures (legacy glb:// detected)...");
             QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, textureBaseDir, textureSubfolder);
 
-            // Inject the embedded texture mappings into texturePackage
-            // This bypasses the resolveTexture mechanism for GLB textures
             for (auto it = embeddedMapping.begin(); it != embeddedMapping.end(); ++it)
             {
                 _lastTexturePackage.pathMapping[it.key()] = it.value();
             }
 
-            logMessage(QString("  -> Injected %1 embedded texture mappings").arg(embeddedMapping.size()));
+            logMessage(QString(" -> Injected %1 embedded texture mappings").arg(embeddedMapping.size()));
+        }
+        else
+        {
+            logMessage(" Skipping embedded extraction (using cached disk textures)");
         }
 
         _lastTexturePackage = _textureManager.packageTextures(
@@ -448,16 +457,16 @@ aiReturn AssImpMeshExporter::exportScene(
             textureBaseDir,
             textureSubfolder);
 
-        // Re-inject embedded mappings (in case packageTextures cleared the mapping)
-        if (scene && scene->mNumTextures > 0)
+        // Re-inject ONLY if legacy glb:// paths exist// Re-inject ONLY if legacy 0 && needsLegacyExtraction)
         {
             QMap<QString, QString> embeddedMapping = extractEmbeddedTextures(scene, textureBaseDir, textureSubfolder);
+
             for (auto it = embeddedMapping.begin(); it != embeddedMapping.end(); ++it)
             {
                 _lastTexturePackage.pathMapping[it.key()] = it.value();
             }
         }
-
+        
         // Add normalised-path aliases so the GltfPostProcessor's normalisedGlbPath()
         // lookups ("glb://image_N") find the same entries as the full-path keys
         // ("glb://D:/path/model.glb::image_N") that packageTextures stored.
@@ -1145,6 +1154,29 @@ void AssImpMeshExporter::patchGlbImageNames(
     file.close();
 
     logMessage(QString("  -> Patched %1 image names in GLB JSON").arg(orderedNames.size()));
+}
+
+bool AssImpMeshExporter::hasGlbVirtualPaths(const std::vector<TriangleMesh*>& meshes)
+{
+    for (const auto* mesh : meshes)
+    {
+        if (!mesh) continue;
+
+        const GLMaterial& mat = mesh->getMaterial();
+
+        for (int t = 0; t < static_cast<int>(GLMaterial::TextureType::Count); ++t)
+        {
+            const auto& tex = mat.texture(static_cast<GLMaterial::TextureType>(t));
+
+            if (!tex.path.empty())
+            {
+                QString path = QString::fromStdString(tex.path);
+                if (path.startsWith("glb://"))
+                    return true;
+            }
+        }
+    }
+    return false;
 }
 
 void AssImpMeshExporter::logMessage(const QString& msg)

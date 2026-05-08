@@ -3,6 +3,12 @@
 
 #include <QApplication>
 #include <QStringList>
+#include <QUuid>
+
+namespace AppContext
+{
+    QString& SessionId();
+}
 
 class ModelViewerApplication : public QApplication {
 public:

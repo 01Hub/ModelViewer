@@ -66,6 +66,8 @@ public:
 
 	void clearGLBCaches();
 
+	QString getGlbCacheDir(const QString& glbPath);
+
 	std::tuple<int, glm::vec2, glm::vec2, float> extractKHRTextureTransform(const QJsonObject& texObj);
 	
 	std::vector<GPULight> parseKHRLightsPunctual(const QString& gltfPath);
@@ -194,4 +196,7 @@ private:
 
 	ImageTextureUploadFn _imageTextureUploader;
 	Ktx2TextureUploadFn _ktx2TextureUploader;
+
+
+	QHash<QString, QString> s_glbCachedTexturePaths; // key: "glb://<file>::image_X" value: "C:/temp/cache/model/image_X.png"
 };

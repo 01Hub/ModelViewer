@@ -1019,6 +1019,21 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 						continue;
 					}
 
+					QString cacheDir = getGlbCacheDir(gltfPath);
+
+					// Choose format (preserve or standardize)
+					QString fileName = QString("image_%1.png").arg(imgIdx);
+					QString fullPath = cacheDir + "/" + fileName;
+
+					// Save if not already cached
+					if (!QFile::exists(fullPath))
+					{
+						qImg.save(fullPath);
+					}
+
+					// Replace path with disk path
+					QString diskPath = fullPath;
+
 					// Check alpha before conversion
 					bool hasAlpha = checkImageForAlpha(qImg);  // Check original image
 
@@ -1027,7 +1042,9 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 
 					// Create texture struct with embedded marker (not a file path)
 					GLMaterial::Texture tex;					
-					tex.path = "glb://" + gltfPath.toStdString() + "::image_" + std::to_string(imgIdx);
+					tex.path = diskPath.toStdString(); //"glb://" + gltfPath.toStdString() + "::image_" + std::to_string(imgIdx);
+					QString glbKey = "glb://" + gltfPath + "::image_" + QString::number(imgIdx);
+					s_glbCachedTexturePaths[glbKey] = diskPath;
 					tex.hasAlpha = hasAlpha;
 					tex.scale = glm::vec2(1.0f);
 					tex.offset = glm::vec2(0.0f);
@@ -1220,7 +1237,13 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		if (isGLB)
 		{
 			// Return marker for GLB images			
-			return "glb://" + gltfPath + "::image_" + QString::number(imgIndex);
+			//return "glb://" + gltfPath + "::image_" + QString::number(imgIndex);
+			QString key = "glb://" + gltfPath + "::image_" + QString::number(imgIndex);
+
+			if (s_glbCachedTexturePaths.contains(key))
+			{
+				return s_glbCachedTexturePaths[key];
+			}			
 		}
 
 		// GLTF: resolve file URI (existing logic)
@@ -2488,6 +2511,20 @@ void MaterialProcessor::clearGLBCaches()
 	s_glbImagesLoaded.clear();
 	s_glbScenesSynced.clear();
 	s_glbImageIndices.clear();
+}
+
+#include "ModelViewerApplication.h"
+QString MaterialProcessor::getGlbCacheDir(const QString& glbPath)
+{
+	QString baseName = QFileInfo(glbPath).baseName();
+	QString cacheDir = QDir::tempPath()
+		+ "/ModelViewerCache/"
+		+ AppContext::SessionId()
+		+ "/"
+		+ baseName;
+
+	QDir().mkpath(cacheDir);
+	return cacheDir;
 }
 
 

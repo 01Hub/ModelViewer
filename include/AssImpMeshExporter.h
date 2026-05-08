@@ -360,6 +360,16 @@ private:
         const aiScene* scene, const QString& textureDirectory,
         QMap<QString, int>* embeddedIndexMapping = nullptr);
 
+
+    /**
+     * @brief Check if any of the meshes have GLB virtual paths
+     *
+     * @param meshes List of TriangleMesh pointers
+     * @return true if any mesh has a GLB virtual path, false otherwise
+     */
+    bool hasGlbVirtualPaths(const std::vector<TriangleMesh*>& meshes);
+
+
     // === Logging utilities ===
 
     /**
