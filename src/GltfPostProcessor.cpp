@@ -1302,7 +1302,23 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             }
         }
 
+        // Build material name -> source mesh index map for direct material-name-based matching.
+        // This is the primary resolution path: JSON material names are set from source mesh
+        // material names during export, so they are unique and authoritative.
+        QMap<QString, int> materialNameToSourceMeshIdx;
+        for (int k = 0; k < static_cast<int>(meshes.size()); ++k)
+        {
+            if (!meshes[k]) continue;
+            QString matName = meshes[k]->getMaterial().name();
+            if (!matName.isEmpty() && !materialNameToSourceMeshIdx.contains(matName))
+            {
+                materialNameToSourceMeshIdx[matName] = k;
+                log(QString("  Material Name Map: '%1' -> source mesh[%2]").arg(matName).arg(k), logCallback);
+            }
+        }
+
         log(QString("  Material Identity Map: %1 unique material indices").arg(origMatIdxToMeshIdx.size()), logCallback);
+        log(QString("  Material Name Map: %1 unique material names").arg(materialNameToSourceMeshIdx.size()), logCallback);
         log(QString("  Mesh Name Lookup: %1 named mesh groups").arg(meshNameToIndices.size()), logCallback);
         log(QString("  [SOURCE MESHES] meshes.size()=%1").arg(meshes.size()), logCallback);
 
@@ -1379,6 +1395,19 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
                 QString targetSourceName = meshName;
                 int meshIdx = baseMeshIdx;
+
+                // Primary resolution: match JSON material name to source mesh material name.
+                // This correctly handles shared-geometry pairs (e.g. King_Black / King_White)
+                // where multiple JSON meshes have the same mesh name but different materials.
+                {
+                    QString jsonMatName = materials[matIdx].toObject()["name"].toString();
+                    if (!jsonMatName.isEmpty() && materialNameToSourceMeshIdx.contains(jsonMatName))
+                    {
+                        meshIdx = materialNameToSourceMeshIdx[jsonMatName];
+                        log(QString("  [MAT NAME] json mesh[%1] primitive[%2] material[%3] '%4' -> source mesh[%5]")
+                            .arg(j).arg(primIdx).arg(matIdx).arg(jsonMatName).arg(meshIdx), logCallback);
+                    }
+                }
 
                 if (primitives.size() > 1 && suffixSeparator >= 0)
                 {
