@@ -1997,9 +1997,8 @@ aiTexture* AssImpMeshExporter::createEmbeddedTexture(const QString& imagePath)
  * This walks through all materials, finds referenced texture files,
  * loads them, and attaches to the scene so they get embedded in export.
  */
-QStringList AssImpMeshExporter::embedTexturesInScene(
-    aiScene* scene,
-    const TexturePackage& texturePackage)
+
+QStringList AssImpMeshExporter::embedTexturesInScene(aiScene* scene, const TexturePackage& texturePackage)
 {
     if (!scene)
     {
@@ -2010,96 +2009,149 @@ QStringList AssImpMeshExporter::embedTexturesInScene(
     logMessage("Step: Embedding textures into scene...");
 
     std::vector<aiTexture*> textures;
-    std::set<QString> processedPaths;  // Avoid duplicates
+    QSet<QString> processedResolvedPaths;
     QStringList embeddedNames;
+
+    auto addTextureIfNeeded = [&](const QString& candidatePath) -> bool {
+        QFileInfo fi(candidatePath);
+        if (!fi.exists() || !fi.isFile())
+            return false;
+
+        QString dedupeKey = fi.canonicalFilePath();
+        if (dedupeKey.isEmpty())
+            dedupeKey = fi.absoluteFilePath();
+
+        if (processedResolvedPaths.contains(dedupeKey))
+            return false;
+
+        aiTexture* texture = createEmbeddedTexture(fi.absoluteFilePath());
+        if (!texture)
+            return false;
+
+        textures.push_back(texture);
+        embeddedNames.append(fi.fileName());
+        processedResolvedPaths.insert(dedupeKey);
+        return true;
+        };
 
     // Define texture types + slot indices to check.
     // Multi-slot types (CLEARCOAT, SHEEN, UNKNOWN) need each slot checked individually.
     const std::pair<aiTextureType, unsigned int> texSlots[] = {
-        {aiTextureType_BASE_COLOR,        0},
-        {aiTextureType_NORMALS,           0},
-        {aiTextureType_METALNESS,         0},
+        {aiTextureType_BASE_COLOR, 0},
+        {aiTextureType_NORMALS, 0},
+        {aiTextureType_METALNESS, 0},
         {aiTextureType_DIFFUSE_ROUGHNESS, 0},
-        {aiTextureType_LIGHTMAP,          0},
-        {aiTextureType_EMISSIVE,          0},
-        {aiTextureType_TRANSMISSION,      0},
-        {aiTextureType_OPACITY,           0},
-        {aiTextureType_HEIGHT,            0},
-        {aiTextureType_CLEARCOAT,         0},  // clearcoatTexture
-        {aiTextureType_CLEARCOAT,         1},  // clearcoatRoughnessTexture
-        {aiTextureType_CLEARCOAT,         2},  // clearcoatNormalTexture
-        {aiTextureType_SHEEN,             0},  // sheenColorTexture
-        {aiTextureType_SHEEN,             1},  // sheenRoughnessTexture
-        {aiTextureType_UNKNOWN,           0},  // specularTexture
-        {aiTextureType_UNKNOWN,           1},  // specularColorTexture
-        {aiTextureType_UNKNOWN,           2},  // anisotropyTexture
-        {aiTextureType_UNKNOWN,           3},  // thicknessTexture (KHR_materials_volume)
-        {aiTextureType_SPECULAR,          0},  // specularGlossinessTexture
-        {aiTextureType_DIFFUSE,           0},  // diffuseTexture (specGloss)
-        {aiTextureType_UNKNOWN,           4},  // iridescenceTexture
-        {aiTextureType_UNKNOWN,           5},  // iridescenceThicknessTexture
-        {aiTextureType_UNKNOWN,           6},  // diffuseTransmissionTexture
-        {aiTextureType_UNKNOWN,           7},  // diffuseTransmissionColorTexture
+        {aiTextureType_LIGHTMAP, 0},
+        {aiTextureType_EMISSIVE, 0},
+        {aiTextureType_TRANSMISSION, 0},
+        {aiTextureType_OPACITY, 0},
+        {aiTextureType_HEIGHT, 0},
+        {aiTextureType_CLEARCOAT, 0}, // clearcoatTexture
+        {aiTextureType_CLEARCOAT, 1}, // clearcoatRoughnessTexture
+        {aiTextureType_CLEARCOAT, 2}, // clearcoatNormalTexture
+        {aiTextureType_SHEEN, 0},     // sheenColorTexture
+        {aiTextureType_SHEEN, 1},     // sheenRoughnessTexture
+        {aiTextureType_UNKNOWN, 0},   // specularTexture
+        {aiTextureType_UNKNOWN, 1},   // specularColorTexture
+        {aiTextureType_UNKNOWN, 2},   // anisotropyTexture
+        {aiTextureType_UNKNOWN, 3},   // thicknessTexture
+        {aiTextureType_SPECULAR, 0},  // specularGlossinessTexture
+        {aiTextureType_DIFFUSE, 0},   // diffuseTexture
+        {aiTextureType_UNKNOWN, 4},   // iridescenceTexture
+        {aiTextureType_UNKNOWN, 5},   // iridescenceThicknessTexture
+        {aiTextureType_UNKNOWN, 6},   // diffuseTransmissionTexture
+        {aiTextureType_UNKNOWN, 7},   // diffuseTransmissionColorTexture
     };
 
-    // Iterate through all materials and collect unique texture paths
+    // Pass 1: gather textures referenced by materials
     for (unsigned int matIdx = 0; matIdx < scene->mNumMaterials; ++matIdx)
     {
         aiMaterial* mat = scene->mMaterials[matIdx];
-        if (!mat) continue;
+        if (!mat)
+            continue;
 
         for (const auto& [texType, slotIdx] : texSlots)
         {
             aiString texPath;
-            if (mat->GetTexture(texType, slotIdx, &texPath) == aiReturn_SUCCESS)
+            if (mat->GetTexture(texType, slotIdx, &texPath) != aiReturn_SUCCESS)
+                continue;
+
+            QString path = QString::fromLocal8Bit(texPath.C_Str());
+
+            // Prefer packaged/copied path if available
+            QString resolvedPath = path;
+            auto it = texturePackage.pathMapping.find(path);
+            if (it == texturePackage.pathMapping.end())
+                it = texturePackage.pathMapping.find(GltfPostProcessor::normalisedGlbPath(path));
+
+            if (it != texturePackage.pathMapping.end() && !it.value().isEmpty())
             {
-                QString path = QString::fromLocal8Bit(texPath.C_Str());
-
-                // Skip if already processed
-                if (processedPaths.count(path))
+                QFileInfo mappedFi(it.value());
+                if (mappedFi.exists())
                 {
-                    continue;
-                }
-                processedPaths.insert(path);
-
-                QString fullPath = path;
-
-                // Try to find in output directory by filename
-                QFileInfo fi(path);
-                QString candidate = _lastTexturePackage.textureDirectory + "/" + fi.fileName();
-                if (QFileInfo(candidate).exists())
-                {
-                    fullPath = candidate;
+                    resolvedPath = mappedFi.absoluteFilePath();
                 }
                 else
                 {
-                    // Fallback: assume it's a direct path
-                    fullPath = path;
-                }
-
-                // Load and embed
-                aiTexture* texture = createEmbeddedTexture(fullPath);
-                if (texture)
-                {
-                    textures.push_back(texture);
-                    embeddedNames.append(fi.fileName());
+                    QString byName = QDir(texturePackage.textureDirectory).filePath(mappedFi.fileName());
+                    if (QFileInfo(byName).exists())
+                        resolvedPath = byName;
                 }
             }
+            else
+            {
+                QFileInfo directFi(path);
+                QString candidate = QDir(texturePackage.textureDirectory).filePath(directFi.fileName());
+                if (QFileInfo(candidate).exists())
+                    resolvedPath = candidate;
+            }
+
+            addTextureIfNeeded(resolvedPath);
         }
     }
 
-    // Attach textures to scene
+    // Pass 2: ensure ALL packaged textures are embedded too (including extension-only textures)
+    for (auto it = texturePackage.pathMapping.constBegin();
+        it != texturePackage.pathMapping.constEnd(); ++it)
+    {
+        QString resolvedPath = it.value();
+
+        QFileInfo mappedFi(resolvedPath);
+        if (!mappedFi.exists())
+        {
+            QString candidate = QDir(texturePackage.textureDirectory).filePath(mappedFi.fileName());
+            if (QFileInfo(candidate).exists())
+            {
+                resolvedPath = candidate;
+            }
+            else if (QFileInfo(it.key()).exists())
+            {
+                resolvedPath = QFileInfo(it.key()).absoluteFilePath();
+            }
+        }
+
+        addTextureIfNeeded(resolvedPath);
+    }
+
+    // Final attach: write ONCE, with the full combined texture set
     if (!textures.empty())
     {
         scene->mNumTextures = static_cast<unsigned int>(textures.size());
         scene->mTextures = new aiTexture * [scene->mNumTextures];
         std::copy(textures.begin(), textures.end(), scene->mTextures);
 
-        logMessage(QString("  -> Embedded %1 textures in scene").arg(textures.size()));
+        logMessage(QString(" -> Embedded %1 textures in scene").arg(textures.size()));
+    }
+    else
+    {
+        scene->mNumTextures = 0;
+        scene->mTextures = nullptr;
+        logMessage(" -> Embedded 0 textures in scene");
     }
 
     return embeddedNames;
 }
+
 
 QMap<QString, QString> AssImpMeshExporter::extractEmbeddedTextures(
     const aiScene* scene,
