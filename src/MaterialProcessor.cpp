@@ -727,15 +727,16 @@ void MaterialProcessor::populateAssimpSceneFromGLBCache(aiScene* scene,
 			{
 				aiTex->mWidth = static_cast<unsigned int>(img.width());
 				aiTex->mHeight = static_cast<unsigned int>(img.height());				
-				// Extract the base name: "glb:///path/file.glb::image_1" -> "image_1"
-				//                        "glb://image_1" (legacy)       -> "image_1"
+				// Extract the base name:
+				//   "glb:///path/file.glb::image_1"        -> "image_1"
+				//   "/tmp/.../ModelName/image_1.png"       -> "image_1.png"  (embedded glTF / legacy GLB)
 				QString pathStr = QString::fromStdString(cachedTex.path);
 				QString leafName;
 				int colonIdx = pathStr.lastIndexOf("::");
 				if (colonIdx >= 0)
-					leafName = pathStr.mid(colonIdx + 2);  // "image_1"
+					leafName = pathStr.mid(colonIdx + 2);
 				else
-					leafName = pathStr.mid(pathStr.lastIndexOf('/') + 1);  // old-style fallback
+					leafName = pathStr.mid(pathStr.lastIndexOf('/') + 1);
 				aiTex->mFilename.Set(leafName.toStdString().c_str());
 
 				// Allocate and copy pixel data
@@ -1174,6 +1175,103 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 	QJsonArray jsonMeshes = root.value("meshes").toArray();
 	QJsonArray jsonBufferViews = root.value("bufferViews").toArray();
 
+	// === PRE-LOAD EMBEDDED GLTF IMAGES (data: URIs) TO DISK - ONLY ONCE PER FILE ===
+	if (!isGLB && !s_glbImagesLoaded.contains(gltfPath))
+	{
+		bool anyEmbedded = false;
+		for (int imgIdx = 0; imgIdx < jsonImages.size(); ++imgIdx)
+		{
+			QJsonObject imgObj = jsonImages.at(imgIdx).toObject();
+			if (!imgObj.contains("uri") || !imgObj.value("uri").isString()) continue;
+			QString uri = imgObj.value("uri").toString();
+			if (!uri.startsWith("data:")) continue;
+
+			anyEmbedded = true;
+
+			auto [success, qImg] = decodeDataUri(uri);
+			if (!success)
+			{
+				qWarning() << "processGltf2CoreAndExtensions: Failed to decode embedded image" << imgIdx;
+				continue;
+			}
+
+			QString cacheDir = getGlbCacheDir(gltfPath);
+			QString fileName = QString("image_%1.png").arg(imgIdx);
+			QString diskPath = cacheDir + "/" + fileName;
+			if (!QFile::exists(diskPath))
+				qImg.save(diskPath);
+
+			// Map by index-based key (avoids storing multi-MB data URIs as hash keys)
+			QString key = gltfPath + "::dataimage_" + QString::number(imgIdx);
+			s_glbCachedTexturePaths[key] = diskPath;
+
+			bool hasAlpha = checkImageForAlpha(qImg);
+			qImg = convertToGLFormat(qImg);
+
+			GLMaterial::Texture tex;
+			tex.path = diskPath.toStdString();
+			tex.hasAlpha = hasAlpha;
+			tex.scale = glm::vec2(1.0f);
+			tex.offset = glm::vec2(0.0f);
+			tex.rotation = 0.0f;
+			tex.texCoordIndex = 0;
+			tex.type = "";
+
+			// Find sampler for this image (use first texture that references it)
+			GLenum wrapS = GL_REPEAT;
+			GLenum wrapT = GL_REPEAT;
+			GLenum magFilter = GL_LINEAR;
+			GLenum minFilter = GL_LINEAR_MIPMAP_LINEAR;
+			for (int texIndex = 0; texIndex < jsonTextures.size(); ++texIndex)
+			{
+				QJsonObject texObj = jsonTextures.at(texIndex).toObject();
+				int refImgIdx = -1;
+				if (texObj.contains("extensions"))
+				{
+					QJsonObject extObj = texObj.value("extensions").toObject();
+					if (extObj.contains("KHR_texture_basisu"))
+						refImgIdx = extObj.value("KHR_texture_basisu").toObject().value("source").toInt(-1);
+					else if (extObj.contains("EXT_texture_webp"))
+						refImgIdx = extObj.value("EXT_texture_webp").toObject().value("source").toInt(-1);
+				}
+				if (refImgIdx < 0 && texObj.contains("source"))
+					refImgIdx = texObj.value("source").toInt(-1);
+				if (refImgIdx == imgIdx)
+				{
+					int samplerIndex = texObj.value("sampler").toInt(-1);
+					if (samplerIndex >= 0 && samplerIndex < jsonSamplers.size())
+					{
+						QJsonObject samplerObj = jsonSamplers.at(samplerIndex).toObject();
+						if (samplerObj.contains("wrapS"))   wrapS   = static_cast<GLenum>(samplerObj.value("wrapS").toInt());
+						if (samplerObj.contains("wrapT"))   wrapT   = static_cast<GLenum>(samplerObj.value("wrapT").toInt());
+						if (samplerObj.contains("magFilter")) magFilter = static_cast<GLenum>(samplerObj.value("magFilter").toInt());
+						if (samplerObj.contains("minFilter")) minFilter = static_cast<GLenum>(samplerObj.value("minFilter").toInt());
+					}
+					break;
+				}
+			}
+			tex.wrapS = wrapS;
+			tex.wrapT = wrapT;
+			tex.magFilter = magFilter;
+			tex.minFilter = minFilter;
+			tex.imageData = qImg;
+
+			unsigned int textureID = 0;
+			if (_imageTextureUploader)
+				textureID = _imageTextureUploader(tex, qImg);
+			if (_imageTextureUploader && textureID == 0)
+			{
+				qWarning() << "processGltf2CoreAndExtensions: Failed to upload embedded glTF image" << imgIdx;
+				continue;
+			}
+			tex.id = textureID;
+
+			_loadedTextures.push_back(tex);
+			s_glbImageIndices[gltfPath].push_back(_loadedTextures.size() - 1);
+		}
+		if (anyEmbedded)
+			s_glbImagesLoaded.insert(gltfPath, true);
+	}
 
 	// Utility: resolve a relative image URI against the gltf file path (returns data: URIs as-is)
 	auto resolveUri = [&](const QString& uri) -> QString {
@@ -1251,7 +1349,15 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		QJsonObject imgObj = jsonImages.at(imgIndex).toObject();
 		if (imgObj.contains("uri") && imgObj.value("uri").isString())
 		{
-			return resolveUri(imgObj.value("uri").toString());
+			QString uri = resolveUri(imgObj.value("uri").toString());
+			// If this was a data: URI pre-cached to disk, return the disk path instead
+			if (uri.startsWith("data:"))
+			{
+				QString key = gltfPath + "::dataimage_" + QString::number(imgIndex);
+				if (s_glbCachedTexturePaths.contains(key))
+					return s_glbCachedTexturePaths[key];
+			}
+			return uri;
 		}
 		return QString();
 		};
