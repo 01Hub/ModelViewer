@@ -273,7 +273,7 @@ aiScene* SceneGraphExporter::buildExportScene(
         for (unsigned int i = 0; i < exportRoot->mNumChildren; ++i)
         {
             SceneNode* srcChild = graphRoot->children.at(static_cast<int>(i));
-            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, builtMeshes, builtMaterials, materialKeyToIndex);
+            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, builtMeshes, builtMaterials, materialKeyToIndex, aiMatrix4x4());
             exportRoot->mChildren[i] = dstChild;
             if (dstChild)
                 dstChild->mParent = exportRoot;
@@ -367,14 +367,20 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     const MeshResolver& resolveMesh,
     std::vector<aiMesh*>& outMeshes,
     std::vector<aiMaterial*>& outMaterials,
-    QMap<QString, unsigned int>& materialKeyToIndex
+    QMap<QString, unsigned int>& materialKeyToIndex,
+    const aiMatrix4x4& parentWorldTransform
 )
 {
     if (!srcNode)
         return nullptr;
 
+    // Accumulated world transform for this node (same accumulation as processNode at import).
+    // Used to un-bake baked-in vertex world-space positions back to local space.
+    aiMatrix4x4 worldTransform = parentWorldTransform * srcNode->localTransform;
+
     //aiNode* dstNode = makeIdentityNode(srcNode->name);
     aiNode* dstNode = makeIdentityNode(exportedNodeName(srcNode));
+    dstNode->mTransformation = srcNode->localTransform;
 
     // Build meshes owned directly by this node.
     std::vector<unsigned int> nodeMeshIndices;
@@ -460,6 +466,52 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             continue;
         }
 
+        // Un-bake the accumulated world transform from the mesh vertices/normals.
+        // processMesh bakes the full world transform into vertices at import time:
+        //   positions:              M * P_local
+        //   normals/tangents/bitangents: M^{-T} * N_local, then flipped if det(M) < 0
+        // To invert:
+        //   positions:              M^{-1} * P_world
+        //   normals/tangents/bitangents: M^T * N_world, then flip again if det(M) < 0
+        if (!worldTransform.IsIdentity())
+        {
+            aiMatrix4x4 invWorld = worldTransform;
+            invWorld.Inverse();
+
+            // M^T: inverse of the forward normal transform M^{-T}.
+            aiMatrix3x3 normalUnbake = aiMatrix3x3(worldTransform);
+            normalUnbake.Transpose();
+
+            // det(M^T) == det(M): negative means the world transform has a negative scale.
+            const bool hasNegativeScale = normalUnbake.Determinant() < 0.0f;
+
+            for (unsigned int vi = 0; vi < builtMesh->mNumVertices; ++vi)
+            {
+                builtMesh->mVertices[vi] = invWorld * builtMesh->mVertices[vi];
+
+                if (builtMesh->mNormals)
+                {
+                    aiVector3D n = normalUnbake * builtMesh->mNormals[vi];
+                    if (hasNegativeScale) n = -n;
+                    builtMesh->mNormals[vi] = n.NormalizeSafe();
+                }
+
+                if (builtMesh->mTangents)
+                {
+                    aiVector3D t = normalUnbake * builtMesh->mTangents[vi];
+                    if (hasNegativeScale) t = -t;
+                    builtMesh->mTangents[vi] = t.NormalizeSafe();
+                }
+
+                if (builtMesh->mBitangents)
+                {
+                    aiVector3D b = normalUnbake * builtMesh->mBitangents[vi];
+                    if (hasNegativeScale) b = -b;
+                    builtMesh->mBitangents[vi] = b.NormalizeSafe();
+                }
+            }
+        }
+
         qDebug() << "  [EXPORT-ASSIGN] Mesh:" << triMesh->getName()
                  << "→ materialIndex=" << materialIndex
                  << "(meshIndex in export=" << outMeshes.size() << ")";
@@ -491,7 +543,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         for (unsigned int i = 0; i < dstNode->mNumChildren; ++i)
         {
             SceneNode* srcChild = srcNode->children.at(static_cast<int>(i));
-            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials, materialKeyToIndex);
+            aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials, materialKeyToIndex, worldTransform);
             dstNode->mChildren[i] = dstChild;
             if (dstChild)
                 dstChild->mParent = dstNode;

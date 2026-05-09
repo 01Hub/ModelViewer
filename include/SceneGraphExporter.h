@@ -38,7 +38,8 @@ private:
         const MeshResolver& resolveMesh,
         std::vector<aiMesh*>& outMeshes,
         std::vector<aiMaterial*>& outMaterials,
-        QMap<QString, unsigned int>& materialKeyToIndex
+        QMap<QString, unsigned int>& materialKeyToIndex,
+        const aiMatrix4x4& parentWorldTransform
     );
 
     static aiMesh* buildMeshFromTriangleMesh(const TriangleMesh* mesh, unsigned int materialIndex);
