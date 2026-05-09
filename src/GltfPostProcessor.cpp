@@ -1396,16 +1396,24 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 QString targetSourceName = meshName;
                 int meshIdx = baseMeshIdx;
 
-                // Primary resolution: match JSON material name to source mesh material name.
-                // This correctly handles shared-geometry pairs (e.g. King_Black / King_White)
-                // where multiple JSON meshes have the same mesh name but different materials.
+                // Disambiguation: when multiple source meshes share the same mesh name
+                // (e.g. King_Black / King_White sharing "King_Shared" geometry), the mesh-name
+                // lookup is ambiguous and always returns candidates[0]. In that case, fall back
+                // to matching by the JSON material's name, which is unique per export because it
+                // comes from GLMaterial::name(). Only apply this when the mesh name is genuinely
+                // ambiguous — if mesh names are unique, the baseMeshIdx resolution is already correct.
                 {
-                    QString jsonMatName = materials[matIdx].toObject()["name"].toString();
-                    if (!jsonMatName.isEmpty() && materialNameToSourceMeshIdx.contains(jsonMatName))
+                    bool meshNameIsAmbiguous = meshNameToIndices.contains(meshName) &&
+                                               meshNameToIndices[meshName].size() > 1;
+                    if (meshNameIsAmbiguous)
                     {
-                        meshIdx = materialNameToSourceMeshIdx[jsonMatName];
-                        log(QString("  [MAT NAME] json mesh[%1] primitive[%2] material[%3] '%4' -> source mesh[%5]")
-                            .arg(j).arg(primIdx).arg(matIdx).arg(jsonMatName).arg(meshIdx), logCallback);
+                        QString jsonMatName = materials[matIdx].toObject()["name"].toString();
+                        if (!jsonMatName.isEmpty() && materialNameToSourceMeshIdx.contains(jsonMatName))
+                        {
+                            meshIdx = materialNameToSourceMeshIdx[jsonMatName];
+                            log(QString("  [MAT NAME] json mesh[%1] primitive[%2] material[%3] '%4' -> source mesh[%5] (mesh name was ambiguous)")
+                                .arg(j).arg(primIdx).arg(matIdx).arg(jsonMatName).arg(meshIdx), logCallback);
+                        }
                     }
                 }
 
