@@ -1911,8 +1911,6 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 				memSize += mesh->memorySize();
 			}
 
-			_boundingSphere.addSphere(mesh->getBoundingSphere());
-
 			const BoundingBox meshBox = mesh->getBoundingBox();
 			if (firstBox)
 			{
@@ -1942,6 +1940,23 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 	{
 		_visibleLowestZ = lowestZ;
 		_visibleHighestZ = highestZ;
+
+		// Derive the scene bounding sphere from the axis-aligned bounding box.
+		// This is order-independent and immune to floating-point perturbations from
+		// the world-transform round-trip during export/import, unlike the greedy
+		// addSphere approach which is sensitive to both ordering and tiny vertex shifts.
+		const QVector3D boxCenter(
+			static_cast<float>((_boundingBox.xMin() + _boundingBox.xMax()) * 0.5),
+			static_cast<float>((_boundingBox.yMin() + _boundingBox.yMax()) * 0.5),
+			static_cast<float>((_boundingBox.zMin() + _boundingBox.zMax()) * 0.5)
+		);
+		const float halfDiag = QVector3D(
+			static_cast<float>((_boundingBox.xMax() - _boundingBox.xMin()) * 0.5),
+			static_cast<float>((_boundingBox.yMax() - _boundingBox.yMin()) * 0.5),
+			static_cast<float>((_boundingBox.zMax() - _boundingBox.zMin()) * 0.5)
+		).length();
+		_boundingSphere.setCenter(boxCenter);
+		_boundingSphere.setRadius(halfDiag > 0.0f ? halfDiag : 1.0f);
 	}
 }
 

@@ -378,9 +378,27 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     // Used to un-bake baked-in vertex world-space positions back to local space.
     aiMatrix4x4 worldTransform = parentWorldTransform * srcNode->localTransform;
 
-    //aiNode* dstNode = makeIdentityNode(srcNode->name);
+    // Assimp's glTF2 exporter uses aiMatrix4x4::IsIdentity() (epsilon ~0.01) to decide
+    // whether to write a node's transform. Models like MetalRoughSpheresNoTextures encode
+    // sphere positions as tiny per-node translations (0.001–0.006 units) that fall below
+    // this threshold, so Assimp silently drops them. When the exporter drops the transform
+    // but the un-baking code has already moved vertices to local space, all spheres stack
+    // at the origin on reimport.
+    //
+    // Fix: for leaf mesh nodes (meshes, no children) whose localTransform would be dropped
+    // by Assimp (localTransform.IsIdentity() == true with Assimp's epsilon), encode the
+    // node's local offset into the vertex positions instead, and export the node as identity.
+    // On reimport the parent chain re-applies correctly and positions are preserved.
+    //
+    // When the localTransform is large enough for Assimp to write (e.g. negative scales,
+    // significant rotations/translations), the existing worldTransform un-baking is used
+    // unchanged so that normal flipping and other transform-dependent effects are correct.
+    const bool isLeafMeshNode = !srcNode->meshUuids.isEmpty() && srcNode->children.isEmpty();
+    const bool useParentSpaceEncoding = isLeafMeshNode && srcNode->localTransform.IsIdentity();
+    const aiMatrix4x4& unbakeTransform = useParentSpaceEncoding ? parentWorldTransform : worldTransform;
+
     aiNode* dstNode = makeIdentityNode(exportedNodeName(srcNode));
-    dstNode->mTransformation = srcNode->localTransform;
+    dstNode->mTransformation = useParentSpaceEncoding ? aiMatrix4x4() : srcNode->localTransform;
 
     // Build meshes owned directly by this node.
     std::vector<unsigned int> nodeMeshIndices;
@@ -466,20 +484,21 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
             continue;
         }
 
-        // Un-bake the accumulated world transform from the mesh vertices/normals.
+        // Un-bake the transform from the mesh vertices/normals.
         // processMesh bakes the full world transform into vertices at import time:
         //   positions:              M * P_local
         //   normals/tangents/bitangents: M^{-T} * N_local, then flipped if det(M) < 0
-        // To invert:
-        //   positions:              M^{-1} * P_world
-        //   normals/tangents/bitangents: M^T * N_world, then flip again if det(M) < 0
-        if (!worldTransform.IsIdentity())
+        // When useParentSpaceEncoding is true (leaf node, localTransform too small for Assimp
+        // to write), unbakeTransform == parentWorldTransform so the node's own local offset
+        // stays encoded in the vertex data and the exported node has identity transform.
+        // Otherwise unbakeTransform == worldTransform (full un-bake back to local space).
+        if (!unbakeTransform.IsIdentity())
         {
-            aiMatrix4x4 invWorld = worldTransform;
-            invWorld.Inverse();
+            aiMatrix4x4 invUnbake = unbakeTransform;
+            invUnbake.Inverse();
 
             // M^T: inverse of the forward normal transform M^{-T}.
-            aiMatrix3x3 normalUnbake = aiMatrix3x3(worldTransform);
+            aiMatrix3x3 normalUnbake = aiMatrix3x3(unbakeTransform);
             normalUnbake.Transpose();
 
             // det(M^T) == det(M): negative means the world transform has a negative scale.
@@ -487,7 +506,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
 
             for (unsigned int vi = 0; vi < builtMesh->mNumVertices; ++vi)
             {
-                builtMesh->mVertices[vi] = invWorld * builtMesh->mVertices[vi];
+                builtMesh->mVertices[vi] = invUnbake * builtMesh->mVertices[vi];
 
                 if (builtMesh->mNormals)
                 {
