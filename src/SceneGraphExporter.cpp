@@ -401,8 +401,25 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     dstNode->mTransformation = useParentSpaceEncoding ? aiMatrix4x4() : srcNode->localTransform;
 
     // Build meshes owned directly by this node.
+    //
+    // Important for STEP/XCAF-derived scenes:
+    // exporting several source meshes directly on one aiNode encourages Assimp's
+    // glTF writer to collapse them into a single JSON mesh with multiple
+    // primitives. That later forces GltfPostProcessor to recover primitive ->
+    // source-mesh identity heuristically, which is where color/material
+    // remapping starts to drift for CAD imports.
+    //
+    // To preserve one source mesh -> one explicit export identity, we wrap each
+    // mesh in its own identity child node whenever a source node owns multiple
+    // meshes. The parent node still carries the original local transform, so the
+    // world-space result is unchanged while the exported structure becomes much
+    // closer to a typical glTF scene graph.
+    const bool splitMeshesIntoChildNodes = srcNode->meshUuids.size() > 1;
+
     std::vector<unsigned int> nodeMeshIndices;
-    nodeMeshIndices.reserve(static_cast<size_t>(srcNode->meshUuids.size()));
+    nodeMeshIndices.reserve(splitMeshesIntoChildNodes ? 0 : static_cast<size_t>(srcNode->meshUuids.size()));
+    std::vector<aiNode*> meshChildNodes;
+    meshChildNodes.reserve(splitMeshesIntoChildNodes ? static_cast<size_t>(srcNode->meshUuids.size()) : 0);
 
     for (const QUuid& meshUuid : srcNode->meshUuids)
     {
@@ -535,8 +552,21 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
                  << "→ materialIndex=" << materialIndex
                  << "(meshIndex in export=" << outMeshes.size() << ")";
 
-        nodeMeshIndices.push_back(static_cast<unsigned int>(outMeshes.size()));
+        const unsigned int exportMeshIndex = static_cast<unsigned int>(outMeshes.size());
         outMeshes.push_back(builtMesh);
+
+        if (splitMeshesIntoChildNodes)
+        {
+            aiNode* meshNode = makeIdentityNode(triMesh->getName());
+            meshNode->mNumMeshes = 1;
+            meshNode->mMeshes = new unsigned int[1];
+            meshNode->mMeshes[0] = exportMeshIndex;
+            meshChildNodes.push_back(meshNode);
+        }
+        else
+        {
+            nodeMeshIndices.push_back(exportMeshIndex);
+        }
     }
 
     qDebug() << "[EXPORT-NODE-SUMMARY] Node:" << srcNode->name
@@ -555,15 +585,24 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
     }
 
     // Recurse children.
-    dstNode->mNumChildren = static_cast<unsigned int>(srcNode->children.size());
+    dstNode->mNumChildren = static_cast<unsigned int>(meshChildNodes.size() + srcNode->children.size());
     if (dstNode->mNumChildren > 0)
     {
         dstNode->mChildren = new aiNode * [dstNode->mNumChildren];
-        for (unsigned int i = 0; i < dstNode->mNumChildren; ++i)
+        unsigned int childIndex = 0;
+
+        for (aiNode* meshChild : meshChildNodes)
         {
-            SceneNode* srcChild = srcNode->children.at(static_cast<int>(i));
+            dstNode->mChildren[childIndex++] = meshChild;
+            if (meshChild)
+                meshChild->mParent = dstNode;
+        }
+
+        for (int i = 0; i < srcNode->children.size(); ++i)
+        {
+            SceneNode* srcChild = srcNode->children.at(i);
             aiNode* dstChild = buildNodeRecursive(srcChild, resolveMesh, outMeshes, outMaterials, materialKeyToIndex, worldTransform);
-            dstNode->mChildren[i] = dstChild;
+            dstNode->mChildren[childIndex++] = dstChild;
             if (dstChild)
                 dstChild->mParent = dstNode;
         }
