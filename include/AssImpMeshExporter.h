@@ -188,7 +188,8 @@ private:
      */
     aiMesh* createMesh(const std::vector<Vertex>& vertices,
         const std::vector<unsigned int>& indices,
-        const std::string& name);
+        const std::string& name,
+        GLenum primitiveMode);
 
     /**
      * @brief Create an Assimp material from GLMaterial with full PBR

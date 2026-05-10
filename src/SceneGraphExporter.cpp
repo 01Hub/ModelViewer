@@ -16,9 +16,164 @@
 
 #include <QDebug>
 #include <cmath>
+#include <initializer_list>
 
 namespace
 {
+    void setFaceIndices(aiFace& face, std::initializer_list<unsigned int> values)
+    {
+        face.mNumIndices = static_cast<unsigned int>(values.size());
+        face.mIndices = new unsigned int[face.mNumIndices];
+
+        unsigned int dst = 0;
+        for (unsigned int value : values)
+        {
+            face.mIndices[dst++] = value;
+        }
+    }
+
+    unsigned int primitiveModeToAiPrimitiveType(GLenum primitiveMode)
+    {
+        switch (primitiveMode)
+        {
+        case GL_POINTS:
+            return aiPrimitiveType_POINT;
+        case GL_LINES:
+        case GL_LINE_LOOP:
+        case GL_LINE_STRIP:
+            return aiPrimitiveType_LINE;
+        case GL_TRIANGLES:
+        case GL_TRIANGLE_STRIP:
+        case GL_TRIANGLE_FAN:
+        default:
+            return aiPrimitiveType_TRIANGLE;
+        }
+    }
+
+    bool populateFacesForPrimitive(aiMesh* mesh,
+                                   const std::vector<unsigned int>& indices,
+                                   GLenum primitiveMode)
+    {
+        if (!mesh)
+            return false;
+
+        switch (primitiveMode)
+        {
+        case GL_POINTS:
+            if (indices.empty())
+                return false;
+
+            mesh->mNumFaces = static_cast<unsigned int>(indices.size());
+            mesh->mFaces = new aiFace[mesh->mNumFaces];
+            for (unsigned int i = 0; i < mesh->mNumFaces; ++i)
+            {
+                setFaceIndices(mesh->mFaces[i], { indices[i] });
+            }
+            return true;
+
+        case GL_LINES:
+        {
+            const unsigned int faceCount = static_cast<unsigned int>(indices.size() / 2);
+            if (faceCount == 0)
+                return false;
+
+            mesh->mNumFaces = faceCount;
+            mesh->mFaces = new aiFace[mesh->mNumFaces];
+            for (unsigned int i = 0; i < faceCount; ++i)
+            {
+                setFaceIndices(mesh->mFaces[i], {
+                    indices[i * 2],
+                    indices[i * 2 + 1]
+                });
+            }
+            return true;
+        }
+
+        case GL_LINE_STRIP:
+            if (indices.size() < 2)
+                return false;
+
+            mesh->mNumFaces = static_cast<unsigned int>(indices.size() - 1);
+            mesh->mFaces = new aiFace[mesh->mNumFaces];
+            for (unsigned int i = 0; i < mesh->mNumFaces; ++i)
+            {
+                setFaceIndices(mesh->mFaces[i], { indices[i], indices[i + 1] });
+            }
+            return true;
+
+        case GL_LINE_LOOP:
+            if (indices.size() < 2)
+                return false;
+
+            mesh->mNumFaces = static_cast<unsigned int>(indices.size());
+            mesh->mFaces = new aiFace[mesh->mNumFaces];
+            for (unsigned int i = 0; i + 1 < static_cast<unsigned int>(indices.size()); ++i)
+            {
+                setFaceIndices(mesh->mFaces[i], { indices[i], indices[i + 1] });
+            }
+            setFaceIndices(mesh->mFaces[mesh->mNumFaces - 1], { indices.back(), indices.front() });
+            return true;
+
+        case GL_TRIANGLES:
+        {
+            const unsigned int faceCount = static_cast<unsigned int>(indices.size() / 3);
+            if (faceCount == 0)
+                return false;
+
+            mesh->mNumFaces = faceCount;
+            mesh->mFaces = new aiFace[mesh->mNumFaces];
+            for (unsigned int i = 0; i < faceCount; ++i)
+            {
+                setFaceIndices(mesh->mFaces[i], {
+                    indices[i * 3],
+                    indices[i * 3 + 1],
+                    indices[i * 3 + 2]
+                });
+            }
+            return true;
+        }
+
+        case GL_TRIANGLE_STRIP:
+            if (indices.size() < 3)
+                return false;
+
+            mesh->mNumFaces = static_cast<unsigned int>(indices.size() - 2);
+            mesh->mFaces = new aiFace[mesh->mNumFaces];
+            for (unsigned int i = 0; i < mesh->mNumFaces; ++i)
+            {
+                if (((i + 1) % 2) == 0)
+                {
+                    setFaceIndices(mesh->mFaces[i], { indices[i + 1], indices[i], indices[i + 2] });
+                }
+                else
+                {
+                    setFaceIndices(mesh->mFaces[i], { indices[i], indices[i + 1], indices[i + 2] });
+                }
+            }
+            return true;
+
+        case GL_TRIANGLE_FAN:
+            if (indices.size() < 3)
+                return false;
+
+            mesh->mNumFaces = static_cast<unsigned int>(indices.size() - 2);
+            mesh->mFaces = new aiFace[mesh->mNumFaces];
+            setFaceIndices(mesh->mFaces[0], { indices[0], indices[1], indices[2] });
+            for (unsigned int i = 1; i < mesh->mNumFaces; ++i)
+            {
+                setFaceIndices(mesh->mFaces[i], {
+                    indices[0],
+                    mesh->mFaces[i - 1].mIndices[2],
+                    indices[i + 2]
+                });
+            }
+            return true;
+
+        default:
+            return populateFacesForPrimitive(mesh, indices, GL_TRIANGLES);
+        }
+    }
+
     aiNode* makeIdentityNode(const QString& name)
     {
         aiNode* node = new aiNode();
@@ -628,14 +783,10 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
     if (verts.empty() || indices.empty())
         return nullptr;
 
-    // First-pass assumption: export as triangle list.
-    if ((indices.size() % 3) != 0)
-        return nullptr;
-
     aiMesh* out = new aiMesh();
 
     out->mName.Set(mesh->getName().toUtf8().constData());
-    out->mPrimitiveTypes = aiPrimitiveType_TRIANGLE;
+    out->mPrimitiveTypes = primitiveModeToAiPrimitiveType(mesh->getPrimitiveMode());
     out->mMaterialIndex = materialIndex;
 
     // --- Vertices ---
@@ -688,19 +839,10 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
         out->mColors[0][i] = aiColor4D(v.Color.r, v.Color.g, v.Color.b, v.Color.a);
     }
 
-    // --- Faces ---
-    out->mNumFaces = static_cast<unsigned int>(indices.size() / 3);
-    out->mFaces = new aiFace[out->mNumFaces];
-
-    for (unsigned int f = 0; f < out->mNumFaces; ++f)
+    if (!populateFacesForPrimitive(out, indices, mesh->getPrimitiveMode()))
     {
-        aiFace& face = out->mFaces[f];
-        face.mNumIndices = 3;
-        face.mIndices = new unsigned int[3];
-
-        face.mIndices[0] = indices[f * 3 + 0];
-        face.mIndices[1] = indices[f * 3 + 1];
-        face.mIndices[2] = indices[f * 3 + 2];
+        delete out;
+        return nullptr;
     }
 
     return out;
