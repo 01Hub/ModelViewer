@@ -2180,9 +2180,10 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     }
                 }
 
-                float roughness = pbr.contains("roughnessFactor") ?
-                    static_cast<float>(pbr["roughnessFactor"].toDouble()) : sourceMaterial.roughness();
+                float roughness = sourceMaterial.roughness();
                 pbr["roughnessFactor"] = static_cast<double>(roughness);
+                log(QString("    Corrected roughnessFactor to %1")
+                    .arg(roughness, 0, 'f', 4), logCallback);
 
                 mat["pbrMetallicRoughness"] = pbr;
             }

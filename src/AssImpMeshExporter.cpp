@@ -31,6 +31,47 @@ bool textureBindingCompatibleForSharedExport(
            nearlyEqual(a.offset.y, b.offset.y) &&
            nearlyEqual(a.rotation, b.rotation);
 }
+
+bool hasDistinctSplitMetallicRoughnessTextures(const aiMaterial* material)
+{
+    if (!material)
+        return false;
+
+    if (material->GetTextureCount(aiTextureType_METALNESS) == 0 ||
+        material->GetTextureCount(aiTextureType_DIFFUSE_ROUGHNESS) == 0)
+    {
+        return false;
+    }
+
+    aiString metallicPath;
+    aiString roughnessPath;
+    if (material->GetTexture(aiTextureType_METALNESS, 0, &metallicPath) != AI_SUCCESS ||
+        material->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS, 0, &roughnessPath) != AI_SUCCESS)
+    {
+        return false;
+    }
+
+    return QString::fromUtf8(metallicPath.C_Str()) !=
+           QString::fromUtf8(roughnessPath.C_Str());
+}
+
+bool shouldNormalizePreservedGltfMaterial(const aiMaterial* preservedMaterial,
+                                          const GLMaterial& sourceMaterial)
+{
+    const QString metallicPath = sourceMaterial.metallicMapPath();
+    const QString roughnessPath = sourceMaterial.roughnessMapPath();
+
+    if (roughnessPath.isEmpty())
+        return false;
+
+    if (metallicPath.isEmpty())
+        return true;
+
+    if (metallicPath != roughnessPath)
+        return true;
+
+    return hasDistinctSplitMetallicRoughnessTextures(preservedMaterial);
+}
 }
 
 AssImpMeshExporter::AssImpMeshExporter(QObject* parent)
@@ -1906,18 +1947,75 @@ void AssImpMeshExporter::applyMaterialsToScene(
     }
 
     // CRITICAL: SceneGraphExporter already created the correct materials and assigned them to meshes.
-    // We do NOT rebuild the material array - we only verify and refine texture mappings.
-    // Rebuilding would destroy the careful deduplication work done by SceneGraphExporter.
+    // We preserve that material array and only replace specific preserved materials that would
+    // serialize to a non-glTF-compliant metallic/roughness layout.
+    const QString exportExt = QFileInfo(exportFileLocation).suffix().toLower();
+    const bool isGltfFamily = (exportExt == "gltf" || exportExt == "glb" || exportExt == "gltf-binary");
 
     logMessage(QString("applyMaterialsToScene: Preserving %1 materials from SceneGraphExporter")
         .arg(scene->mNumMaterials));
 
-    // The materials are already correct from SceneGraphExporter.
-    // The mesh->mMaterialIndex assignments are already correct.
-    // We can optionally refine texture paths here if needed, but we don't rebuild.
+    int normalizedCount = 0;
+    if (isGltfFamily)
+    {
+        QMap<unsigned int, const TriangleMesh*> materialOwners;
+
+        for (size_t meshIdx = 0; meshIdx < meshes.size() && meshIdx < scene->mNumMeshes; ++meshIdx)
+        {
+            const TriangleMesh* mesh = meshes[meshIdx];
+            const aiMesh* sceneMesh = scene->mMeshes[meshIdx];
+            if (!mesh || !sceneMesh)
+                continue;
+
+            const unsigned int materialIndex = sceneMesh->mMaterialIndex;
+            if (materialIndex >= scene->mNumMaterials || materialOwners.contains(materialIndex))
+                continue;
+
+            materialOwners.insert(materialIndex, mesh);
+        }
+
+        for (auto it = materialOwners.constBegin(); it != materialOwners.constEnd(); ++it)
+        {
+            const unsigned int materialIndex = it.key();
+            const TriangleMesh* mesh = it.value();
+            aiMaterial* preservedMaterial = scene->mMaterials[materialIndex];
+            if (!mesh || !preservedMaterial)
+                continue;
+
+            const GLMaterial sourceMaterial = mesh->getMaterial();
+            if (!shouldNormalizePreservedGltfMaterial(preservedMaterial, sourceMaterial))
+                continue;
+
+            aiMaterial* replacement = createMaterial(
+                sourceMaterial,
+                _lastTexturePackage,
+                exportFileLocation,
+                mesh->getName());
+
+            if (!replacement)
+            {
+                logWarning(QString("  -> Failed to normalize preserved glTF material %1; keeping original")
+                    .arg(materialIndex));
+                continue;
+            }
+
+            delete scene->mMaterials[materialIndex];
+            scene->mMaterials[materialIndex] = replacement;
+            ++normalizedCount;
+
+            logMessage(QString("  -> Normalized preserved glTF material %1 for mesh '%2'")
+                .arg(materialIndex)
+                .arg(mesh->getName()));
+        }
+    }
 
     logMessage(QString("  -> [APPLY-SUMMARY] Scene preserved: %1 materials, %2 meshes (no rebuild)")
         .arg(scene->mNumMaterials).arg(scene->mNumMeshes));
+    if (normalizedCount > 0)
+    {
+        logMessage(QString("  -> [APPLY-SUMMARY] Normalized %1 preserved glTF material(s)")
+            .arg(normalizedCount));
+    }
 }
 
 /**
