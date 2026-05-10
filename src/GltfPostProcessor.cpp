@@ -71,6 +71,7 @@ bool GltfPostProcessor::postProcessGltfJson(QJsonObject& gltfJson,
 {
     bool modified = false;
     bool hasTextureTransforms = false;
+    bool hasAnisotropyMaterials = false;
 
     log("=== glTF Post-Processor ===", logCallback);
 
@@ -153,6 +154,9 @@ bool GltfPostProcessor::postProcessGltfJson(QJsonObject& gltfJson,
             {
                 QJsonObject extensions = mat["extensions"].toObject();
                 bool extModified = false;
+
+                if (extensions.contains("KHR_materials_anisotropy"))
+                    hasAnisotropyMaterials = true;
 
                 // KHR_materials_clearcoat
                 if (extensions.contains("KHR_materials_clearcoat"))
@@ -2389,7 +2393,13 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
                 if (!sourceMaterial.anisotropyMap().isEmpty())
                 {
-                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.anisotropyMap(), -1, logCallback);
+                    const GLMaterial::Texture& anisoTex = sourceMaterial.texture(GLMaterial::TextureType::Anisotropy);
+                    const int anisotropySamplerIdx = getOrCreateSampler(
+                        anisoTex.magFilter,
+                        anisoTex.minFilter,
+                        anisoTex.wrapS,
+                        anisoTex.wrapT);
+                    int ti = findOrCreateTexture(gltfJson, sourceMaterial.anisotropyMap(), anisotropySamplerIdx, logCallback);
                     if (ti >= 0) { QJsonObject t; t["index"] = ti; aniso["anisotropyTexture"] = t; }
                 }
 
