@@ -1758,10 +1758,15 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		{
 			QJsonObject scatter = extRoot.value("KHR_materials_volume_scatter").toObject();
 
-			// multiscatterColor (default: [1.0, 1.0, 1.0])
-			if (scatter.contains("multiscatterColor") && scatter.value("multiscatterColor").isArray())
+			// Support both legacy and newer sample-asset naming.
+			const QString scatterColorKey =
+				(scatter.contains("multiscatterColorFactor") && scatter.value("multiscatterColorFactor").isArray())
+				? QStringLiteral("multiscatterColorFactor")
+				: QStringLiteral("multiscatterColor");
+
+			if (scatter.contains(scatterColorKey) && scatter.value(scatterColorKey).isArray())
 			{
-				QJsonArray a = scatter.value("multiscatterColor").toArray();
+				QJsonArray a = scatter.value(scatterColorKey).toArray();
 				if (a.size() >= 3)
 				{
 					QVector3D multiScatterColor(
@@ -1771,7 +1776,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					);
 					mat.setMultiScatterColor(multiScatterColor);
 					mat.setHasVolumeScattering(true);
-					qDebug() << "KHR_materials_volume_scatter: multiscatterColor=" << multiScatterColor;
+					qDebug() << "KHR_materials_volume_scatter:" << scatterColorKey << "=" << multiScatterColor;
 					appliedAny = true;
 				}
 			}
