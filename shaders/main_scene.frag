@@ -1479,7 +1479,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			if (light.type != LightType_Directional)
 			{
 				// Point or Spot light
-				pointToLight = light.position - v_position;
+				vec3 fragPosView = vec3(viewMatrix * vec4(v_position, 1.0));
+				vec3 lightPosView = vec3(viewMatrix * vec4(light.position, 1.0));
+				pointToLight = lightPosView - fragPosView;
 				float distance = length(pointToLight);
 
 				// Range attenuation
@@ -1498,7 +1500,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 				float spotAttenuation = 1.0;
 				if (light.type == LightType_Spot)
 				{
-					float actualCos = dot(normalize(light.direction), normalize(-pointToLight));
+					vec3 lightDirView = normalize(mat3(viewMatrix) * light.direction);
+					float actualCos = dot(lightDirView, normalize(-pointToLight));
 					if (actualCos > light.outerConeCos)
 					{
 						if (actualCos < light.innerConeCos)
@@ -1522,7 +1525,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			else
 			{
 				// Directional light
-				pointToLight = -light.direction;
+				pointToLight = -normalize(mat3(viewMatrix) * light.direction);
 				lightIntensity = light.intensity * light.color;
 			}
 
