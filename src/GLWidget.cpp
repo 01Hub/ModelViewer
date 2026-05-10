@@ -1941,22 +1941,33 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 		_visibleLowestZ = lowestZ;
 		_visibleHighestZ = highestZ;
 
-		// Derive the scene bounding sphere from the axis-aligned bounding box.
-		// This is order-independent and immune to floating-point perturbations from
-		// the world-transform round-trip during export/import, unlike the greedy
-		// addSphere approach which is sensitive to both ordering and tiny vertex shifts.
+		// Derive the scene bounding sphere center from the axis-aligned bounding box
+		// midpoint — order-independent and immune to floating-point perturbations from
+		// the world-transform round-trip during export/import.
+		//
+		// The radius is computed as max over all visible meshes of:
+		//   distance(boxCenter, mesh.sphereCenter) + mesh.sphereRadius
+		// This is still O(M) and order-independent (it's a simple max), but much tighter
+		// than the box half-diagonal for round geometry (e.g. sphere meshes), where the
+		// half-diagonal would be sqrt(3)x the actual radius.
 		const QVector3D boxCenter(
 			static_cast<float>((_boundingBox.xMin() + _boundingBox.xMax()) * 0.5),
 			static_cast<float>((_boundingBox.yMin() + _boundingBox.yMax()) * 0.5),
 			static_cast<float>((_boundingBox.zMin() + _boundingBox.zMax()) * 0.5)
 		);
-		const float halfDiag = QVector3D(
-			static_cast<float>((_boundingBox.xMax() - _boundingBox.xMin()) * 0.5),
-			static_cast<float>((_boundingBox.yMax() - _boundingBox.yMin()) * 0.5),
-			static_cast<float>((_boundingBox.zMax() - _boundingBox.zMin()) * 0.5)
-		).length();
+		float bsRadius = 0.0f;
+		for (int i : visibleIds)
+		{
+			try
+			{
+				const BoundingSphere ms = _meshStore.at(i)->getBoundingSphere();
+				const float d = (ms.getCenter() - boxCenter).length() + ms.getRadius();
+				if (d > bsRadius) bsRadius = d;
+			}
+			catch (const std::out_of_range&) {}
+		}
 		_boundingSphere.setCenter(boxCenter);
-		_boundingSphere.setRadius(halfDiag > 0.0f ? halfDiag : 1.0f);
+		_boundingSphere.setRadius(bsRadius > 0.0f ? bsRadius : 1.0f);
 	}
 }
 

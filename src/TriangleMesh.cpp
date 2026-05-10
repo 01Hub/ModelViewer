@@ -1290,41 +1290,30 @@ void TriangleMesh::computeBounds()
 		if (p.z() > zmax.z())
 			zmax = p;
 	}
-	auto xSpan = (xmax - xmin).lengthSquared();
-	auto ySpan = (ymax - ymin).lengthSquared();
-	auto zSpan = (zmax - zmin).lengthSquared();
-	auto dia1 = xmin;
-	auto dia2 = xmax;
-	auto maxSpan = xSpan;
-	if (ySpan > maxSpan)
+	// Stable bounding sphere: center at the bounding box midpoint, radius = max vertex
+	// distance from that center.  This avoids the instability of Ritter's algorithm,
+	// whose initial-pair vertex selection can flip on sub-epsilon position differences
+	// (e.g. after an export/import world-transform round-trip), cascading into a
+	// significantly different sphere.  The stable properties are:
+	//   - center is derived from min/max coordinate VALUES, not vertex selection
+	//   - radius is max() over all vertices, which varies by at most ε under perturbation
+	// For sphere-shaped meshes the result is as tight as Ritter's (all vertices are
+	// equidistant from the centroid).  For cubes it gives the circumscribed sphere
+	// (half-diagonal from center to corner) — correct and minimal for box geometry.
+	const QVector3D center(
+		(xmin.x() + xmax.x()) * 0.5f,
+		(ymin.y() + ymax.y()) * 0.5f,
+		(zmin.z() + zmax.z()) * 0.5f
+	);
+	float sqRad = 0.0f;
+	for (const auto& p : aPoints)
 	{
-		maxSpan = ySpan;
-		dia1 = ymin;
-		dia2 = ymax;
-	}
-	if (zSpan > maxSpan)
-	{
-		dia1 = zmin;
-		dia2 = zmax;
-	}
-	auto center = (dia1 + dia2) * 0.5f;
-	auto sqRad = (dia2 - center).lengthSquared();
-	auto radius = sqrt(sqRad);
-	for (auto p : aPoints)
-	{
-		float d = (p - center).lengthSquared();
-		if (d > sqRad)
-		{
-			auto r = sqrt(d);
-			radius = (radius + r) * 0.5f;
-			sqRad = radius * radius;
-			auto offset = r - radius;
-			center = (radius * center + offset * p) / r;
-		}
+		const float d = (p - center).lengthSquared();
+		if (d > sqRad) sqRad = d;
 	}
 
 	_boundingSphere.setCenter(center);
-	_boundingSphere.setRadius(radius);
+	_boundingSphere.setRadius(std::sqrt(sqRad));
 
 	_boundingBox.setLimits(
 		xmin.x(), xmax.x(),
