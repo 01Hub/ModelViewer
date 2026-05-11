@@ -869,11 +869,11 @@ void ModelViewer::detachEnvironmentPanel()
 	_environmentOriginalParent = scrollArea;
 
 	// Hide the tab
-	_environmentPageIndex = tabWidgetVizAttribs->indexOf(scrollArea->parentWidget());
+	_environmentPageIndex = controlstabWidget->indexOf(scrollArea->parentWidget());
 	if (_environmentPageIndex >= 0)
 	{
-		_environmentPageLabel = tabWidgetVizAttribs->tabText(_environmentPageIndex);
-		tabWidgetVizAttribs->removeTab(_environmentPageIndex);
+		_environmentPageLabel = controlstabWidget->tabText(_environmentPageIndex);
+		controlstabWidget->removeTab(_environmentPageIndex);
 	}
 
 	// Create floating dialog
@@ -922,12 +922,11 @@ void ModelViewer::reattachEnvironmentPanel()
 			scrollArea->setWidget(visualizationEnvironmentPanel);
 			visualizationEnvironmentPanel->show();
 			visualizationEnvironmentPanel->setDetached(false);
+			// Restore the tab
+			controlstabWidget->insertTab(_environmentPageIndex, scrollArea->parentWidget(), _environmentPageLabel);
+			controlstabWidget->setCurrentIndex(_environmentPageIndex);
+			controlstabWidget->setTabIcon(_environmentPageIndex, QIcon(":/icons/res/environment.png"));
 		}
-
-		// Restore the tab
-		tabWidgetVizAttribs->insertTab(_environmentPageIndex, scrollArea->parentWidget(), _environmentPageLabel);
-		tabWidgetVizAttribs->setCurrentIndex(_environmentPageIndex);
-		tabWidgetVizAttribs->setTabIcon(_environmentPageIndex, QIcon(":/icons/res/visualization.png"));
 	}
 
 	_detachedEnvironmentDialog->deleteLater();
