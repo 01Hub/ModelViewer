@@ -1463,6 +1463,17 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	transmission = hasTransmissionMap ? texture(transmissionMap, getTransmissionUV()).r : pbrLighting.transmission;
 	ior = hasIORMap ? texture(iorMap, getIORUV()).r : pbrLighting.ior;
 
+	// KHR_materials_volume thickness is thicknessFactor modulated by thicknessTexture.
+	// Compute it once and reuse it consistently across all transmission/volume paths.
+	float volumeThickness = thicknessFactor;
+	if (hasThicknessMap)
+	{
+		vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
+		float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.g;
+		float thicknessFactor_safe = guardFactorScalar(thicknessFactor, 0.01);
+		volumeThickness = thicknessFactor_safe * thicknessSample;
+	}
+
 	// === Punctual lights (KHR_lights_punctual) ===
 	if (hasPunctualLights && usePunctualLights)
 	{
@@ -1537,7 +1548,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			// ====================================================================
 			vec3 l_diffuse = vec3(0.0);
 
-			if (hasVolumeScattering && thicknessFactor > 0.0)
+			if (hasVolumeScattering && volumeThickness > 0.0)
 			{
 				// Scattering approach: REPLACE front diffuse with transmission color
 				vec3 singleScatter = multiToSingleScatter();
@@ -1549,10 +1560,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 					float diffuseNdotL = max(dot(-N, l_dir), 0.0);
 					l_diffuse_btdf = lightIntensity * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
 
-					if (thicknessFactor > 0.0)
+					if (volumeThickness > 0.0)
 					{
 						vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-						vec3 transmissionRay = refractDir * thicknessFactor;
+						vec3 transmissionRay = refractDir * volumeThickness;
 						float transmissionDistance = length(transmissionRay);
 						vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
 						l_diffuse_btdf *= transmittance;
@@ -1575,10 +1586,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 					float diffuseNdotL = max(dot(-N, l_dir), 0.0);
 					l_diffuse_btdf = lightIntensity * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
 
-					if (thicknessFactor > 0.0)
+					if (volumeThickness > 0.0)
 					{
 						vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-						vec3 transmissionRay = refractDir * thicknessFactor;
+						vec3 transmissionRay = refractDir * volumeThickness;
 						float transmissionDistance = length(transmissionRay);
 						vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
 						l_diffuse_btdf *= transmittance;
@@ -1647,7 +1658,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		// ====================================================================
 		vec3 l_diffuse = vec3(0.0);
 
-		if (hasVolumeScattering && thicknessFactor > 0.0)
+		if (hasVolumeScattering && volumeThickness > 0.0)
 		{
 			// Scattering approach: REPLACE front diffuse with transmission color
 			vec3 singleScatter = multiToSingleScatter();
@@ -1659,10 +1670,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 				float diffuseNdotL = max(dot(-N, l_dir), 0.0);
 				l_diffuse_btdf = lightIntensity * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
 
-				if (thicknessFactor > 0.0)
+				if (volumeThickness > 0.0)
 				{
 					vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-					vec3 transmissionRay = refractDir * thicknessFactor;
+					vec3 transmissionRay = refractDir * volumeThickness;
 					float transmissionDistance = length(transmissionRay);
 					vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
 					l_diffuse_btdf *= transmittance;
@@ -1685,10 +1696,10 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 				float diffuseNdotL = max(dot(-N, l_dir), 0.0);
 				l_diffuse_btdf = lightIntensity * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
 
-				if (thicknessFactor > 0.0)
+				if (volumeThickness > 0.0)
 				{
 					vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-					vec3 transmissionRay = refractDir * thicknessFactor;
+					vec3 transmissionRay = refractDir * volumeThickness;
 					float transmissionDistance = length(transmissionRay);
 					vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
 					l_diffuse_btdf *= transmittance;
@@ -1832,16 +1843,16 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			diffuseTransmissionIBL_front *= diffuseTrans_color;
 
 			// Apply volume attenuation to back only
-			if (thicknessFactor > 0.0)
+			if (volumeThickness > 0.0)
 			{
 				vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-				vec3 transmissionRay = refractDir * thicknessFactor;
+				vec3 transmissionRay = refractDir * volumeThickness;
 				float transmissionDistance = length(transmissionRay);
 				vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
 				diffuseTransmissionIBL_back *= transmittance;
 			}
 
-			if (hasVolumeScattering && thicknessFactor > 0.0)
+			if (hasVolumeScattering && volumeThickness > 0.0)
 			{
 				vec3 singleScatter = multiToSingleScatter();
 				diffuseIBL_L = diffuseTransmissionIBL_front * singleScatter + diffuseTransmissionIBL_back * (1.0 - singleScatter) * singleScatter;
@@ -1987,14 +1998,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		float ior_trans = pbrLighting.ior;
 
 		// --- THICKNESS CALCULATION ---
-		float thickness = thicknessFactor;
-		if (hasThicknessMap)
-		{
-			vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
-			float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.g;
-			float thicknessFactor_safe = guardFactorScalar(thicknessFactor, 0.01);
-			thickness = thicknessFactor_safe * thicknessSample;
-		}
+		float thickness = volumeThickness;
 
 		// --- DISPERSION PARAMETER ---                
 		vec3 transmittedLight;
