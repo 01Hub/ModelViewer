@@ -275,8 +275,9 @@ private:
 	int _environmentPageIndex = -1;
 	QString _environmentPageLabel;
 
-	QPointer<QWidget> _detachedNavigationOverlay; // Stores the GLWidget overlay wrapper
-	QList<int> _navigationSplitterSizes;         // Saved splitter proportions for restore
+	QPointer<QWidget> _detachedNavigationOverlay;
+	int _navigationPageIndex = -1;
+	QString _navigationPageLabel;
 
 	QUndoStack* _undoStack;
 	bool _lastCanUndo = false;

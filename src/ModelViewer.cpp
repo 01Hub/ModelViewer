@@ -936,17 +936,14 @@ void ModelViewer::reattachEnvironmentPanel()
 
 void ModelViewer::detachNavigationPanel()
 {
-	if (!modelNavigationWidget || !splitter_2) return;
+	if (!modelNavigationWidget) return;
 
-	// Toggle back into the splitter when already detached as an overlay.
+	// Toggle back when already detached as an overlay.
 	if (_detachedNavigationOverlay)
 	{
 		reattachNavigationPanel();
 		return;
 	}
-
-	// Save splitter proportions so we can restore them on reattach.
-	_navigationSplitterSizes = splitter_2->sizes();
 
 	const int overlayWidth = 420;
 	_detachedNavigationOverlay = _glWidget->attachOverlayPanel(
@@ -960,6 +957,14 @@ void ModelViewer::detachNavigationPanel()
 		treeWidgetModel->setDetachedOverlayMode(true);
 		updateNavigationOverlayGeometry();
 		_detachedNavigationOverlay->show();
+
+		// Hide the navigation tab
+		_navigationPageIndex = controlstabWidget->indexOf(controlstabWidgetPage1);
+		if (_navigationPageIndex >= 0)
+		{
+			_navigationPageLabel = controlstabWidget->tabText(_navigationPageIndex);
+			controlstabWidget->removeTab(_navigationPageIndex);
+		}
 	}
 
 	toolButtonDetach->setIcon(QIcon(":/icons/res/reattach.png"));
@@ -985,17 +990,24 @@ void ModelViewer::updateNavigationOverlayGeometry()
 
 void ModelViewer::reattachNavigationPanel()
 {
-	if (!_detachedNavigationOverlay || !splitter_2) return;
+	if (!_detachedNavigationOverlay) return;
 
 	treeWidgetModel->setDetachedOverlayMode(false);
 	_glWidget->takeOverlayPanel(modelNavigationWidget);
 	_detachedNavigationOverlay = nullptr;
 
-	// Re-insert at index 0 (its original slot) — insertWidget handles the re-parent.
-	splitter_2->insertWidget(0, modelNavigationWidget);
+	// Put modelNavigationWidget back into groupBox_4's layout.
+	if (auto* grid = qobject_cast<QGridLayout*>(groupBox_4->layout()))
+		grid->addWidget(modelNavigationWidget, 0, 0);
 
-	if (!_navigationSplitterSizes.isEmpty())
-		splitter_2->setSizes(_navigationSplitterSizes);
+	// Restore the navigation tab
+	if (_navigationPageIndex >= 0)
+	{
+		controlstabWidget->insertTab(_navigationPageIndex, controlstabWidgetPage1, _navigationPageLabel);
+		controlstabWidget->setCurrentIndex(_navigationPageIndex);
+		controlstabWidget->setTabIcon(_navigationPageIndex, QIcon(":/icons/res/expand.png"));
+		_navigationPageIndex = -1;
+	}
 
 	toolButtonDetach->setIcon(QIcon(":/icons/res/detach.png"));
 	toolButtonDetach->setToolTip(tr("Detach from panel"));
