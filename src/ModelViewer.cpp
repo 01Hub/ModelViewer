@@ -1711,7 +1711,6 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	if (hasMeshes)
 	{
 		myMenu.addAction(tr("Center Screen"),          this, &ModelViewer::centerScreen);
-		myMenu.addAction(tr("Visualization Settings"), this, &ModelViewer::showVisualizationModelPage);
 		myMenu.addAction(tr("Transformations"),        this, &ModelViewer::showTransformationsPage);
 		myMenu.addAction(tr("Edit Material"),          this, &ModelViewer::editMeshMaterial);
 		myMenu.addSeparator();
@@ -2062,18 +2061,19 @@ void ModelViewer::displaySelectedMeshInfo()
 
 void ModelViewer::showVisualizationModelPage()
 {
-	// Material Settings tab now handles both ADS and PBR modes
-	tabWidgetVizAttribs->setCurrentIndex(0);
+	controlstabWidget->setCurrentWidget(controlstabWidgetPage3);
 }
 
 void ModelViewer::showPredefinedMaterialsPage()
 {
-	tabWidgetVizAttribs->setCurrentIndex(0);
+	controlstabWidget->setCurrentWidget(controlstabWidgetPage2);
+	tabWidgetVizAttribs->setCurrentWidget(materialProcessorPage);
 }
 
 void ModelViewer::showTransformationsPage()
 {
-	tabWidgetVizAttribs->setCurrentIndex(1);
+	controlstabWidget->setCurrentWidget(controlstabWidgetPage2);
+	tabWidgetVizAttribs->setCurrentWidget(transformationsPage);
 	updateTransformationValues();
 }
 

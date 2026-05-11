@@ -9553,7 +9553,6 @@ void GLWidget::showContextMenu(const QPoint& pos)
 			if (_displayedObjectsIds.size() > 1)
 				contextMenu.addAction(tr("Show Only"), _viewer, &ModelViewer::showOnlySelectedItems);
 			contextMenu.addSeparator();
-			contextMenu.addAction(tr("Visualization Settings"), _viewer, &ModelViewer::showVisualizationModelPage);
 			contextMenu.addAction(tr("Transformations"), _viewer, &ModelViewer::showTransformationsPage);
 			contextMenu.addAction(tr("Edit Material"), _viewer, &ModelViewer::editMeshMaterial);
 			contextMenu.addSeparator();			
@@ -9628,7 +9627,8 @@ void GLWidget::showContextMenu(const QPoint& pos)
 					});
 			}
 			contextMenu.addSeparator();
-			contextMenu.addAction(tr("Background Color"), this, &GLWidget::setBackgroundColor);
+			contextMenu.addAction(QIcon(":/icons/res/environment.png"), tr("Environment Settings"), _viewer, &ModelViewer::showVisualizationModelPage);
+			contextMenu.addAction(QIcon(":/icons/res/bg_color.png"), tr("Background Color"), this, &GLWidget::setBackgroundColor);
 		}
 		// Show context menu at handling position
 		contextMenu.exec(mapToGlobal(pos));
