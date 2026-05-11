@@ -71,6 +71,7 @@
         <file>res/preview.png</file>
         <file>res/environment.png</file>
         <file>res/properties.png</file>
+        <file>res/navigation.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

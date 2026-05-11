@@ -1005,7 +1005,7 @@ void ModelViewer::reattachNavigationPanel()
 	{
 		controlstabWidget->insertTab(_navigationPageIndex, controlstabWidgetPage1, _navigationPageLabel);
 		controlstabWidget->setCurrentIndex(_navigationPageIndex);
-		controlstabWidget->setTabIcon(_navigationPageIndex, QIcon(":/icons/res/expand.png"));
+		controlstabWidget->setTabIcon(_navigationPageIndex, QIcon(":/icons/res/navigation.png"));
 		_navigationPageIndex = -1;
 	}
 
