@@ -164,11 +164,11 @@ void GLCamera::updateProjectionMatrix(void)
 		float fovY = _FOV;
 		float fovYRad = fovY * PI / 180.0f;
 
-		// Optionally adjust vertical FOV for tall windows
+		// Adjust vertical FOV for tall windows
 		float effectiveFOV = fovY;
 		if (aspect < 1.0f)
 		{
-			effectiveFOV = atan(tan(fovYRad / 2.0f) * aspect) * 2.0f * 180.0f / PI;
+			effectiveFOV = atan(tan(fovYRad * 0.5f) / aspect) * 2.0f * 180.0f / PI;
 			fovYRad = effectiveFOV * PI / 180.0f;
 		}
 
