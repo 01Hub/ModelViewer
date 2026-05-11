@@ -62,7 +62,9 @@ _hasClearcoatRoughnessPBRMap(false),
 _hasClearcoatNormalPBRMap(false),
 _opacityPBRMapInverted(false),
 _hasTextureAlpha(false),
-_hasVertexColors(false)
+_hasVertexColors(false),
+_baseThicknessFactor(0.0f),
+_baseAttenuationDistance(std::numeric_limits<float>::infinity())
 {
 	setAutoIncrName(name);
 	_memorySize = 0;
@@ -110,6 +112,19 @@ _hasVertexColors(false)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+}
+
+void TriangleMesh::cacheBaseVolumeProperties()
+{
+	_baseThicknessFactor = _material.thicknessFactor();
+	_baseAttenuationDistance = _material.attenuationDistance();
+}
+
+void TriangleMesh::applyScaledVolumeProperties()
+{
+	const float appliedScale = (_scaleX + _scaleY + _scaleZ) / 3.0f;
+	_material.setThicknessFactor(_baseThicknessFactor * appliedScale);
+	_material.setAttenuationDistance(_baseAttenuationDistance * appliedScale);
 }
 
 void TriangleMesh::initBuffers(
@@ -1078,12 +1093,16 @@ GLMaterial TriangleMesh::getMaterial() const
 void TriangleMesh::setMaterial(const GLMaterial& material)
 {
 	_material = material;
+	cacheBaseVolumeProperties();
+	applyScaledVolumeProperties();
 	markUniformsDirty();
 }
 
 void TriangleMesh::setTextureMaps(const GLMaterial& material)
 {
 	_material = material;
+	cacheBaseVolumeProperties();
+	applyScaledVolumeProperties();
 
 	// Set PBR texture IDs from material
 	if (material.hasAlbedoMap())
@@ -1392,6 +1411,11 @@ std::vector<float> TriangleMesh::getTrsfPoints() const
 
 void TriangleMesh::bakeTransformations()
 {
+	// Preserve the current visual volume thickness when baking scale into geometry.
+	const float appliedScale = (_scaleX + _scaleY + _scaleZ) / 3.0f;
+	_baseThicknessFactor *= appliedScale;
+	_baseAttenuationDistance *= appliedScale;
+
 	// Transform the points as permanently
 	_points   = _trsfPoints ;
 	_normals = _trsfNormals;
@@ -1421,6 +1445,8 @@ void TriangleMesh::resetTransformations()
 	_trsfNormals = _normals;
 	_trsfTangents = _tangents;     
 	_trsfBitangents = _bitangents; 
+
+	applyScaledVolumeProperties();
 
 	_prog->bind();
 	_positionBuffer.bind();
@@ -1517,10 +1543,7 @@ void TriangleMesh::setScaling(const QVector3D& scale)
 	_scaleY = scale.y();
 	_scaleZ = scale.z();
 	
-	// Apply scale to material properties that depend on scale
-	float appliedScale = (_scaleX + _scaleY + _scaleZ) / 3.0f;	
-	_material.setThicknessFactor(_material.thicknessFactor() * appliedScale);
-	_material.setAttenuationDistance(_material.attenuationDistance() * appliedScale);
+	applyScaledVolumeProperties();
 }
 
 QMatrix4x4 TriangleMesh::getTransformation() const

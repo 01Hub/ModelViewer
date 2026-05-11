@@ -251,6 +251,9 @@ public:
 	virtual void setMaterial(const GLMaterial& material);
 
 	virtual void setTextureMaps(const GLMaterial& material);
+
+	void cacheBaseVolumeProperties();
+	void applyScaledVolumeProperties();
 	
 	virtual void enableDiffuseADSMap(bool enable);
 	virtual void setDiffuseADSMap(unsigned int diffuseTex);
@@ -326,6 +329,8 @@ protected:
 	std::vector<Triangle*> _triangles;
 
 	GLMaterial _material;
+	float _baseThicknessFactor;
+	float _baseAttenuationDistance;
 
 	QImage _texImage, _texBuffer;
 	// ADS texture light maps

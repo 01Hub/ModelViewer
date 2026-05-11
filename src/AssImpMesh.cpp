@@ -26,6 +26,7 @@ AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex
 	_indices = indices;
 	_textures = textures;
 	_material = material;
+	cacheBaseVolumeProperties();
 
 	// Optimize the mesh (reorder indices and vertices for better vertex cache locality, overdraw, and vertex fetch)
 	optimizeMesh();
@@ -1237,6 +1238,8 @@ void AssImpMesh::setTextureMaps(const GLMaterial& material)
 		_opacityADSMapInverted = false;
 	}
 	_material = material;
+	cacheBaseVolumeProperties();
+	applyScaledVolumeProperties();
 }
 
 void AssImpMesh::replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha)
