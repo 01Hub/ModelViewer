@@ -7,6 +7,7 @@
 #include <QFileInfo>
 #include <QCryptographicHash>
 #include <QDebug>
+#include <QUrl>
 #include <set>
 #include <map>
 
@@ -67,49 +68,48 @@ TextureMetadata TextureLocationManager::resolveTexture(const QString& path,
         return meta;
     }
 
-    // Step 1: Try path as provided
+    auto finalizeResolvedPath = [&](const QString& candidatePath, const QString& mode) -> bool
     {
-        QFileInfo fi(path);
-        if (fi.exists() && fi.isFile() && fi.isReadable())
-        {
-            meta.resolvedPath = fi.absoluteFilePath();
-            meta.fileSize = static_cast<uint64_t>(fi.size());
-            meta.hash = hashFile(meta.resolvedPath);
-            qDebug() << "[TextureLocationManager] Resolved (direct):" << path
-                << "->" << meta.resolvedPath;
-            return meta;
-        }
-    }
+        QFileInfo fi(candidatePath);
+        if (!fi.exists() || !fi.isFile() || !fi.isReadable())
+            return false;
 
-    // Step 2: Try relative to baseDir (if provided)
+        meta.resolvedPath = fi.absoluteFilePath();
+        meta.fileSize = static_cast<uint64_t>(fi.size());
+        meta.hash = hashFile(meta.resolvedPath);
+        qDebug() << QString("[TextureLocationManager] Resolved (%1):").arg(mode)
+            << path << "->" << meta.resolvedPath;
+        return true;
+    };
+
+    const QString decodedPath = QUrl::fromPercentEncoding(path.toUtf8());
+    const bool hasDecodedVariant = (decodedPath != path);
+
+    // Step 1: Try path as provided, then a percent-decoded variant.
+    if (finalizeResolvedPath(path, "direct"))
+        return meta;
+    if (hasDecodedVariant && finalizeResolvedPath(decodedPath, "percent-decoded"))
+        return meta;
+
+    // Step 2: Try relative to baseDir (if provided), including a decoded variant.
     if (!baseDir.isEmpty())
     {
-        QString relPath = baseDir + "/" + path;
-        QFileInfo fi(relPath);
-        if (fi.exists() && fi.isFile() && fi.isReadable())
+        if (finalizeResolvedPath(baseDir + "/" + path, "relative to baseDir"))
+            return meta;
+        if (hasDecodedVariant &&
+            finalizeResolvedPath(baseDir + "/" + decodedPath, "relative to baseDir, percent-decoded"))
         {
-            meta.resolvedPath = fi.absoluteFilePath();
-            meta.fileSize = static_cast<uint64_t>(fi.size());
-            meta.hash = hashFile(meta.resolvedPath);
-            qDebug() << "[TextureLocationManager] Resolved (relative to baseDir):"
-                << path << "->" << meta.resolvedPath;
             return meta;
         }
     }
 
-    // Step 3: Try relative to current working directory
+    // Step 3: Try relative to current working directory, including a decoded variant.
+    if (finalizeResolvedPath(QDir::currentPath() + "/" + path, "relative to CWD"))
+        return meta;
+    if (hasDecodedVariant &&
+        finalizeResolvedPath(QDir::currentPath() + "/" + decodedPath, "relative to CWD, percent-decoded"))
     {
-        QString cwdPath = QDir::currentPath() + "/" + path;
-        QFileInfo fi(cwdPath);
-        if (fi.exists() && fi.isFile() && fi.isReadable())
-        {
-            meta.resolvedPath = fi.absoluteFilePath();
-            meta.fileSize = static_cast<uint64_t>(fi.size());
-            meta.hash = hashFile(meta.resolvedPath);
-            qDebug() << "[TextureLocationManager] Resolved (relative to CWD):"
-                << path << "->" << meta.resolvedPath;
-            return meta;
-        }
+        return meta;
     }
 
     // Not found - log warning but continue
