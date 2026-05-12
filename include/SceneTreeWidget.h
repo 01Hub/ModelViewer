@@ -10,8 +10,9 @@
 #include <QUuid>
 #include <vector>
 
+#include "SceneNode.h"
+
 class SceneGraph;
-class SceneNode;
 class GLWidget;
 
 // ---------------------------------------------------------------------------
@@ -44,6 +45,7 @@ public:
         IsLeafRole      = Qt::UserRole + 1,   // bool   — true if this is a mesh leaf
         PureNameRole    = Qt::UserRole + 2,   // QString— plain mesh name for the editor
         IsSyntheticRole = Qt::UserRole + 3,   // bool   — true on file-level (synthetic) nodes
+        NodeUuidRole    = Qt::UserRole + 4,   // QUuid  — nodeUuid for assembly/file items
     };
 
     explicit SceneTreeWidget(QWidget* parent = nullptr);
@@ -165,6 +167,20 @@ public:
     bool isAssemblyAt(const QPoint& localPos) const;
     bool hasChildrenAt(const QPoint& localPos) const;
     void ensureAssemblySelectionAt(const QPoint& localPos);
+
+    // Return the SceneNode* for the item at localPos, or nullptr if the item
+    // is a mesh leaf or there is no item at that position.
+    const SceneNode* nodeAt(const QPoint& localPos) const;
+
+    // Return the SceneNode* for each selected non-leaf item (assembly / file).
+    // Top-level only — does not deduplicate against selected ancestors.
+    QList<const SceneNode*> selectedAssemblyNodes() const;
+
+    // Clear the current selection and select only the item at localPos.
+    // Blocks selectionUpdated so no downstream handlers fire.
+    // Used by the context menu to give single-item visual feedback.
+    void highlightSingleItemAt(const QPoint& localPos);
+
     void expandOneLevelAt(const QPoint& localPos);
     void expandSubtreeAt(const QPoint& localPos);
     void collapseAllBelowAt(const QPoint& localPos);

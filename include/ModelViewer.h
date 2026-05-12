@@ -12,6 +12,7 @@
 #include "ApplyMaterialCommand.h"
 #include "RenameMeshCommand.h"
 #include "MaterialPropertiesPanel.h"
+#include "SceneClipboard.h"
 
 #include <QUndoStack>
 
@@ -140,6 +141,8 @@ public slots:
 	void hideAllItems();
 	void hideSelectedItems();
 	void centerScreen();
+	void copySelectedItems();
+	void pasteIntoSelectedNode(const SceneNode* targetNode);
 	void duplicateSelectedItems();
 	void deleteSelectedItems();
 	void generateUVsForSelectedItems();
@@ -296,6 +299,8 @@ private:
 	QSet<QString> _ownedUnsavedMaterials;  // Tracks unsaved materials created by this MDI (for cleanup)
 
 	QUuid _currentEditingMeshUuid;  // UUID of mesh being edited (null if not editing)
+
+	QList<ClipboardEntry> _clipboard;  // copy-paste clipboard (non-undoable)
 };
 
 #endif

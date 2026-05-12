@@ -1,8 +1,9 @@
 ﻿#include "FloatingPanelDialog.h"
 #include "AssImpModelLoader.h"
 #include "DeleteMeshCommand.h"
-#include "RenameMeshCommand.h"
 #include "DuplicateCommand.h"
+#include "PasteCommand.h"
+#include "RenameMeshCommand.h"
 #include "GLWidget.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
@@ -23,6 +24,7 @@
 #include "TriangleMesh.h"
 #include "VisibilityCommand.h"
 #include <assimp/Importer.hpp>
+#include <functional>
 #include <QApplication>
 #include <QColorDialog>
 #include <QDataStream>
@@ -1056,11 +1058,12 @@ void ModelViewer::onUndoStackChanged()
 			{
 				const QUndoCommand* cmd = _undoStack->command(newCmdIndex);
 
-				// If it's a DeleteCommand, add its UUIDs to cache
 				if (const auto* delCmd = dynamic_cast<const DeleteMeshCommand*>(cmd))
-				{
 					_cachedReferencedUuids.unite(delCmd->getReferencedUuids());
-				}
+				else if (const auto* dupCmd = dynamic_cast<const DuplicateCommand*>(cmd))
+					_cachedReferencedUuids.unite(dupCmd->getReferencedUuids());
+				else if (const auto* pasteCmd = dynamic_cast<const PasteCommand*>(cmd))
+					_cachedReferencedUuids.unite(pasteCmd->getReferencedUuids());
 			}
 		}
 
@@ -1241,15 +1244,12 @@ QSet<QUuid> ModelViewer::scanStackForReferencedUuids()
 	{
 		const QUndoCommand* cmd = _undoStack->command(i);
 
-		// Check if it's a DeleteCommand
 		if (const auto* delCmd = dynamic_cast<const DeleteMeshCommand*>(cmd))
-		{
 			referenced.unite(delCmd->getReferencedUuids());
-		}
-
-		// Optional: Could also check other command types if needed
-		// For example, MaterialCommand might want to prevent deletion
-		// of meshes it references, but this is probably not necessary
+		else if (const auto* dupCmd = dynamic_cast<const DuplicateCommand*>(cmd))
+			referenced.unite(dupCmd->getReferencedUuids());
+		else if (const auto* pasteCmd = dynamic_cast<const PasteCommand*>(cmd))
+			referenced.unite(pasteCmd->getReferencedUuids());
 	}
 
 	return referenced;
@@ -1669,12 +1669,10 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 {
 	setFocus();
 
-	// Determine what was right-clicked
 	const bool clickedAssembly = treeWidgetModel->isAssemblyAt(pos);
 
-	// When right-clicking an assembly item Qt may or may not have selected it
-	// depending on the existing selection.  Force-select it so the mesh ops
-	// below operate on the correct set of leaves.
+	// Run ensureAssemblySelectionAt once to determine whether there are any
+	// mesh descendants (used to decide which menu sections to show).
 	if (clickedAssembly)
 		treeWidgetModel->ensureAssemblySelectionAt(pos);
 
@@ -1682,55 +1680,280 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 
 	if (!hasMeshes && !clickedAssembly) return;
 
+	const SceneNode* assemblyNode = clickedAssembly
+	    ? treeWidgetModel->nodeAt(pos)
+	    : nullptr;
+
+	// Visual feedback: narrow the highlight to just the right-clicked node.
+	// Save the full selection so we can restore it if the user dismisses.
+	const QSet<QUuid> savedSelection = getSelectedUuids();
+	if (clickedAssembly)
+		treeWidgetModel->highlightSingleItemAt(pos);
+
+	// Flag set by any action that intentionally changes selection state.
+	// If the menu is dismissed without an action, savedSelection is restored.
+	bool actionTaken = false;
+
+	// For assembly right-clicks each mesh-op action must re-expand the
+	// selection to the full subtree right before it runs, because
+	// highlightSingleItemAt narrowed it to a single item.
+	// We collect the UUIDs directly instead of relying on ensureAssemblySelectionAt,
+	// which is a no-op when the assembly item is already selected.
+	auto expandThen = [&](auto fn) {
+		return [this, clickedAssembly, assemblyNode, &actionTaken, fn]() mutable {
+			actionTaken = true;
+			if (clickedAssembly && assemblyNode)
+			{
+				const QList<QUuid> uuids = _sceneGraph->collectMeshUuids(assemblyNode);
+				setSelectionWithoutUndo(QSet<QUuid>(uuids.begin(), uuids.end()));
+			}
+			fn();
+		};
+	};
+
 	QMenu myMenu;
 
-	// ---- Expand / Collapse section (assembly items only) -------------------
+	// ---- Expand / Collapse (assembly only) ---------------------------------
 	if (clickedAssembly && treeWidgetModel->hasChildrenAt(pos))
 	{
-		// Expand to first level: expand node, collapse direct children
 		myMenu.addAction(QIcon(QPixmap(":/icons/res/expand.png")),
 		    tr("Expand/Collapse to 1st Level"), treeWidgetModel,
 		    [this, pos]() { treeWidgetModel->expandOneLevelAt(pos); });
 
-		// Recursively expand the whole subtree
 		myMenu.addAction(QIcon(QPixmap(":/icons/res/expandall.png")),
 		    tr("Expand All Children"), treeWidgetModel,
 		    [this, pos]() { treeWidgetModel->expandSubtreeAt(pos); });
 
 		myMenu.addSeparator();
 
-		// Recursively collapse the whole subtree
 		myMenu.addAction(QIcon(QPixmap(":/icons/res/collapse.png")),
 		    tr("Collapse All Children"), treeWidgetModel,
 		    [this, pos]() { treeWidgetModel->collapseAllBelowAt(pos); });
 
-		if (hasMeshes) myMenu.addSeparator();
+		myMenu.addSeparator();
 	}
 
-	// ---- Mesh operations (shown when leaves are selected) ------------------
+	// ---- Copy --------------------------------------------------------------
+	myMenu.addAction(tr("Copy"), this, [this, &actionTaken]() {
+		actionTaken = true;
+		copySelectedItems();
+	});
+
+	// ---- Paste (assembly target only, clipboard must be non-empty) ---------
+	if (clickedAssembly && assemblyNode && !_clipboard.isEmpty())
+	{
+		myMenu.addAction(tr("Paste"), this,
+		    [this, assemblyNode, &actionTaken]() {
+		        actionTaken = true;
+		        pasteIntoSelectedNode(assemblyNode);
+		    });
+	}
+
+	// ---- Mesh operations ---------------------------------------------------
 	if (hasMeshes)
 	{
-		myMenu.addAction(tr("Center Screen"),          this, &ModelViewer::centerScreen);
-		myMenu.addAction(tr("Transformations"),        this, &ModelViewer::showTransformationsPage);
-		myMenu.addAction(tr("Edit Material"),          this, &ModelViewer::editMeshMaterial);
 		myMenu.addSeparator();
-		myMenu.addAction(tr("Hide"),      this, &ModelViewer::hideSelectedItems);
-		myMenu.addAction(tr("Show"),      this, &ModelViewer::showSelectedItems);
-		myMenu.addAction(tr("Show Only"), this, &ModelViewer::showOnlySelectedItems);
+		myMenu.addAction(tr("Center Screen"),   this, expandThen([this]() { centerScreen(); }));
+		myMenu.addAction(tr("Transformations"), this, expandThen([this]() { showTransformationsPage(); }));
+		myMenu.addAction(tr("Edit Material"),   this, expandThen([this]() { editMeshMaterial(); }));
 		myMenu.addSeparator();
-		myMenu.addAction(tr("Duplicate"), this, &ModelViewer::duplicateSelectedItems);
-		myMenu.addAction(tr("Delete"),    this, &ModelViewer::deleteSelectedItems);
+		myMenu.addAction(tr("Hide"),      this, expandThen([this]() { hideSelectedItems(); }));
+		myMenu.addAction(tr("Show"),      this, expandThen([this]() { showSelectedItems(); }));
+		myMenu.addAction(tr("Show Only"), this, expandThen([this]() { showOnlySelectedItems(); }));
 		myMenu.addSeparator();
-		myMenu.addAction(tr("Mesh Info"), this, &ModelViewer::displaySelectedMeshInfo);
+		if (!clickedAssembly)
+			myMenu.addAction(tr("Duplicate"), this, [this, &actionTaken]() {
+				actionTaken = true;
+				duplicateSelectedItems();
+			});
+		myMenu.addAction(tr("Delete"),    this, expandThen([this]() { deleteSelectedItems(); }));
+		myMenu.addSeparator();
+		myMenu.addAction(tr("Mesh Info"), this, expandThen([this]() { displaySelectedMeshInfo(); }));
 	}
 
 	myMenu.exec(treeWidgetModel->mapMenuToGlobal(pos));
+
+	// If no action was taken (menu dismissed), restore the previous selection.
+	if (!actionTaken)
+		setSelectionWithoutUndo(savedSelection);
 }
 
 void ModelViewer::centerScreen()
 {
 	std::vector<int> selectedIDs = getSelectedIDs();
 	_glWidget->centerScreen(selectedIDs);
+}
+
+void ModelViewer::copySelectedItems()
+{
+	_clipboard.clear();
+
+	// Collect selected assemblies (deduplicated against each other below)
+	QList<const SceneNode*> assemblies = treeWidgetModel->selectedAssemblyNodes();
+	QList<QUuid> leafUuids = treeWidgetModel->selectedMeshUuids();
+
+	// Build set of all mesh UUIDs covered by selected assemblies so we can
+	// skip leaf entries that are already inside a copied subtree.
+	QSet<QUuid> coveredByAssembly;
+	for (const SceneNode* node : assemblies)
+	{
+		for (const QUuid& uuid : _sceneGraph->collectMeshUuids(node))
+			coveredByAssembly.insert(uuid);
+	}
+
+	// Also skip assemblies that are descendants of another selected assembly.
+	// Build a set of all assembly node UUIDs for quick ancestor lookup.
+	QSet<QUuid> selectedAssemblyUuids;
+	for (const SceneNode* node : assemblies)
+		selectedAssemblyUuids.insert(node->nodeUuid);
+
+	auto hasSelectedAncestor = [&](const SceneNode* node) -> bool {
+		for (const SceneNode* p = node->parent; p; p = p->parent)
+			if (selectedAssemblyUuids.contains(p->nodeUuid))
+				return true;
+		return false;
+	};
+
+	// Helper to recursively snapshot a SceneNode into a ClipboardNode
+	std::function<ClipboardNode(const SceneNode*)> snapshotNode =
+	    [&](const SceneNode* n) -> ClipboardNode
+	{
+		ClipboardNode cn;
+		cn.name           = n->name;
+		cn.localTransform = n->localTransform;
+		cn.meshUuids      = n->meshUuids;
+		for (const SceneNode* child : n->children)
+			cn.children.append(snapshotNode(child));
+		return cn;
+	};
+
+	// Add top-level assembly entries
+	for (const SceneNode* node : assemblies)
+	{
+		if (hasSelectedAncestor(node))
+			continue;  // covered by a higher selected assembly
+
+		ClipboardEntry entry;
+		entry.isLeaf       = false;
+		entry.assemblyRoot = snapshotNode(node);
+		_clipboard.append(entry);
+	}
+
+	// Add standalone leaf entries (not covered by any selected assembly)
+	for (const QUuid& uuid : leafUuids)
+	{
+		if (coveredByAssembly.contains(uuid))
+			continue;
+
+		ClipboardEntry entry;
+		entry.isLeaf   = true;
+		entry.leafUuid = uuid;
+		_clipboard.append(entry);
+	}
+}
+
+void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
+{
+	if (_clipboard.isEmpty() || !targetNode)
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	const QSet<QUuid> originalSelection = getSelectedUuids();
+	QList<PasteCommand::PastedItem> items;
+
+	// Helper: recursively clone a ClipboardNode tree, add meshes to GL display,
+	// and build a new SceneNode tree (not yet inserted into SceneGraph).
+	std::function<SceneNode*(const ClipboardNode&, SceneNode*, QList<QUuid>&)>
+	cloneSubtree = [&](const ClipboardNode& cn,
+	                   SceneNode*           parent,
+	                   QList<QUuid>&        allUuids) -> SceneNode*
+	{
+		SceneNode* node       = new SceneNode();
+		node->nodeUuid        = QUuid::createUuid();
+		node->name            = cn.name;
+		node->localTransform  = cn.localTransform;
+		node->parent          = parent;
+
+		for (const QUuid& srcUuid : cn.meshUuids)
+		{
+			TriangleMesh* original = _glWidget->getMeshByUuid(srcUuid);
+			if (!original)
+				continue;
+
+			TriangleMesh* clone = original->clone();
+			clone->setName(_glWidget->generateUniqueMeshName(original->getName()));
+			_glWidget->addToDisplay(clone);
+
+			node->meshUuids.append(clone->uuid());
+			allUuids.append(clone->uuid());
+		}
+
+		for (const ClipboardNode& childCn : cn.children)
+		{
+			SceneNode* childNode = cloneSubtree(childCn, node, allUuids);
+			node->children.append(childNode);
+		}
+
+		return node;
+	};
+
+	// Cast away const — targetNode is owned by SceneGraph and will remain
+	// valid for the lifetime of this command.
+	SceneNode* target = const_cast<SceneNode*>(targetNode);
+
+	// clone() and addToDisplay() both require a current GL context.
+	_glWidget->makeCurrent();
+
+	for (const ClipboardEntry& entry : _clipboard)
+	{
+		if (entry.isLeaf)
+		{
+			TriangleMesh* original = _glWidget->getMeshByUuid(entry.leafUuid);
+			if (!original)
+				continue;
+
+			TriangleMesh* clone = original->clone();
+			clone->setName(_glWidget->generateUniqueMeshName(original->getName()));
+			_glWidget->addToDisplay(clone);
+
+			const QUuid newUuid = clone->uuid();
+			const int insertPos = target->meshUuids.size();
+			_sceneGraph->restoreMeshUuid(target, newUuid, insertPos);
+
+			PasteCommand::PastedItem item;
+			item.type         = PasteCommand::PastedItem::Mesh;
+			item.meshUuid     = newUuid;
+			item.ownerNode    = target;
+			item.meshPosition = insertPos;
+			items.append(item);
+		}
+		else
+		{
+			QList<QUuid> allUuids;
+			SceneNode* clonedRoot = cloneSubtree(entry.assemblyRoot, target, allUuids);
+			const int childPos = target->children.size();
+			_sceneGraph->insertChildNode(target, clonedRoot, childPos);
+
+			PasteCommand::PastedItem item;
+			item.type             = PasteCommand::PastedItem::Subtree;
+			item.subtreeRoot      = clonedRoot;
+			item.subtreeParent    = target;
+			item.childPosition    = childPos;
+			item.subtreeMeshUuids = allUuids;
+			items.append(item);
+		}
+	}
+
+	_glWidget->doneCurrent();
+
+	if (!items.isEmpty())
+	{
+		updateDisplayList();
+		_undoStack->push(new PasteCommand(this, _glWidget, items, originalSelection));
+	}
+
+	QApplication::restoreOverrideCursor();
 }
 
 void ModelViewer::duplicateSelectedItems()
@@ -1740,19 +1963,44 @@ void ModelViewer::duplicateSelectedItems()
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
-	std::vector<int> ids = getSelectedIDs();
+	const QList<QUuid> selectedUuids = treeWidgetModel->selectedMeshUuids();
+	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
 
-	// CAPTURE ORIGINAL SELECTION FIRST (before updateDisplayList)
-	QSet<QUuid> originalSelection = getSelectedUuids();
+	QVector<DuplicateCommand::DuplicateEntry> entries;
 
-	QVector<QUuid> duplicatedUuids = _glWidget->duplicateObjects(ids);
+	_glWidget->makeCurrent();
+	for (const QUuid& srcUuid : selectedUuids)
+	{
+		SceneNode* ownerNode = _sceneGraph->findNodeForMesh(srcUuid);
+		if (!ownerNode)
+			continue;
 
-	updateDisplayList();  // May clear selection, but we already saved it
+		TriangleMesh* original = _glWidget->getMeshByUuid(srcUuid);
+		if (!original)
+			continue;
 
-	// PASS original selection to command
-	_undoStack->push(new DuplicateCommand(
-		this, _glWidget, duplicatedUuids, originalSelection
-	));
+		TriangleMesh* clone = original->clone();
+		clone->setName(_glWidget->generateUniqueMeshName(original->getName()));
+		_glWidget->addToDisplay(clone);
+
+		const QUuid newUuid  = clone->uuid();
+		const int insertPos  = ownerNode->meshUuids.size();
+		_sceneGraph->restoreMeshUuid(ownerNode, newUuid, insertPos);
+
+		DuplicateCommand::DuplicateEntry e;
+		e.uuid      = newUuid;
+		e.ownerNode = ownerNode;
+		e.position  = insertPos;
+		entries.append(e);
+	}
+	_glWidget->doneCurrent();
+
+	if (!entries.isEmpty())
+	{
+		updateDisplayList();
+		_undoStack->push(new DuplicateCommand(
+		    this, _glWidget, entries, originalSelection));
+	}
 
 	QApplication::restoreOverrideCursor();
 }

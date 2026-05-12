@@ -395,9 +395,86 @@ void SceneGraph::restoreMeshUuid(SceneNode*   node,
     emit structureChanged();
 }
 
+void SceneGraph::insertChildNode(SceneNode* parent, SceneNode* newChild, int position)
+{
+    if (!parent || !newChild)
+        return;
+
+    newChild->parent = parent;
+    if (position < 0 || position >= parent->children.size())
+        parent->children.append(newChild);
+    else
+        parent->children.insert(position, newChild);
+
+    registerSubtreeUuids(newChild);
+
+    emit structureChanged();
+}
+
+void SceneGraph::removeChildNode(SceneNode* parent, SceneNode* child, int& outPosition)
+{
+    if (!parent || !child)
+    {
+        outPosition = -1;
+        return;
+    }
+
+    outPosition = parent->children.indexOf(child);
+    if (outPosition < 0)
+        return;
+
+    parent->children.removeAt(outPosition);
+    child->parent = nullptr;
+
+    deregisterSubtreeUuids(child);
+
+    emit structureChanged();
+}
+
+SceneNode* SceneGraph::findNodeByUuid(const QUuid& nodeUuid) const
+{
+    std::function<SceneNode*(SceneNode*)> search = [&](SceneNode* n) -> SceneNode*
+    {
+        if (n->nodeUuid == nodeUuid)
+            return n;
+        for (SceneNode* child : n->children)
+        {
+            if (SceneNode* found = search(child))
+                return found;
+        }
+        return nullptr;
+    };
+    return search(_root);
+}
+
+void SceneGraph::deleteDetachedSubtree(SceneNode* root)
+{
+    if (!root)
+        return;
+    for (SceneNode* child : root->children)
+        deleteDetachedSubtree(child);
+    delete root;
+}
+
 // ---------------------------------------------------------------------------
 // Private helpers
 // ---------------------------------------------------------------------------
+
+void SceneGraph::registerSubtreeUuids(SceneNode* node)
+{
+    for (const QUuid& uuid : node->meshUuids)
+        _meshUuidToNode[uuid] = node;
+    for (SceneNode* child : node->children)
+        registerSubtreeUuids(child);
+}
+
+void SceneGraph::deregisterSubtreeUuids(SceneNode* node)
+{
+    for (const QUuid& uuid : node->meshUuids)
+        _meshUuidToNode.remove(uuid);
+    for (SceneNode* child : node->children)
+        deregisterSubtreeUuids(child);
+}
 
 void SceneGraph::freeSubtree(SceneNode* node)
 {

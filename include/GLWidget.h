@@ -408,6 +408,9 @@ public:
 	int getIndexByUuid(const QUuid& uuid) const;
 	QUuid getUuidByIndex(int index) const;
 
+	// Generate a name that doesn't clash with any existing mesh name.
+	QString generateUniqueMeshName(const QString& baseName);
+
 	// ---- MVF mesh loading (split into CPU preparation + GL upload) ----
 
 	/// Pre-computed mesh data produced by prepareMvfMeshes().
@@ -664,8 +667,7 @@ private:
 
 	void generateCubemapMipmaps(GLuint cubemapTexture);
 
-	QString generateUniqueMeshName(const QString& baseName);
-	void setSectionCapsInteractionSuppressed(bool suppressed);	
+	void setSectionCapsInteractionSuppressed(bool suppressed);
 
 private:
 	ViewToolbar* _viewToolbar;

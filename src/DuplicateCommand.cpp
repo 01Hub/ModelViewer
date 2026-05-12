@@ -1,19 +1,29 @@
 #include "DuplicateCommand.h"
 #include "ModelViewer.h"
 #include "GLWidget.h"
+#include "SceneGraph.h"
 
-DuplicateCommand::DuplicateCommand(ModelViewer* viewer,
-    GLWidget* glWidget,
-    const QVector<QUuid>& duplicatedUuids,
-    const QSet<QUuid>& originalSelection,
-    const QString& text)
+DuplicateCommand::DuplicateCommand(ModelViewer*                   viewer,
+                                   GLWidget*                      glWidget,
+                                   const QVector<DuplicateEntry>& entries,
+                                   const QSet<QUuid>&             originalSelection,
+                                   const QString&                 text)
     : ModelViewerCommand(viewer, glWidget, text)
-    , _duplicatedUuids(duplicatedUuids)
-    , _originalSelection(originalSelection)  // Use passed-in value
+    , _entries(entries)
+    , _originalSelection(originalSelection)
     , _firstRedo(true)
+    , _inserted(true)
 {
-    // Original selection is passed as parameter (captured before updateDisplayList)
-    // No need to capture it here
+}
+
+DuplicateCommand::~DuplicateCommand()
+{
+    // If destroyed while undone, dupes are in the recycle bin — clean them up.
+    if (!_inserted && _glWidget)
+    {
+        for (const DuplicateEntry& e : _entries)
+            _glWidget->permanentlyDeleteFromBin(e.uuid);
+    }
 }
 
 void DuplicateCommand::undo()
@@ -21,21 +31,22 @@ void DuplicateCommand::undo()
     if (!_viewer || !_glWidget)
         return;
 
-    // Move duplicated meshes to recycle bin
-    for (const QUuid& uuid : _duplicatedUuids)
+    SceneGraph* sg = _viewer->sceneGraph();
+
+    for (const DuplicateEntry& e : _entries)
     {
-        int index = _glWidget->getIndexByUuid(uuid);
-        if (index >= 0)
-        {
-            _glWidget->moveToRecycleBin(uuid, index);
-        }
+        int idx = _glWidget->getIndexByUuid(e.uuid);
+        if (idx >= 0)
+            _glWidget->moveToRecycleBin(e.uuid, idx);
+
+        int pos = 0;
+        sg->removeMeshUuid(e.uuid, pos);
     }
 
-    // Update view and UI FIRST (this rebuilds the list)
+    _inserted = false;
+
     _glWidget->updateView();
     _viewer->updateDisplayList();
-
-    // THEN restore the original selection (after list is stable)
     _viewer->setSelectionWithoutUndo(_originalSelection);
 }
 
@@ -46,44 +57,39 @@ void DuplicateCommand::redo()
 
     if (_firstRedo)
     {
-        // First redo is called automatically by QUndoStack::push()
-        // Duplication has already happened, list has already been updated
-        // Just select the duplicates
+        // Duplication already happened; just select the new meshes.
         _firstRedo = false;
-
-        // Auto-select the duplicates (without creating SelectionCommand)
-        QSet<QUuid> duplicateSet(_duplicatedUuids.begin(), _duplicatedUuids.end());
-        _viewer->setSelectionWithoutUndo(duplicateSet);
+        _inserted  = true;
+        QSet<QUuid> dupeSet;
+        for (const DuplicateEntry& e : _entries)
+            dupeSet.insert(e.uuid);
+        _viewer->setSelectionWithoutUndo(dupeSet);
         return;
     }
 
-    // Subsequent redos: restore duplicates from recycle bin
-    for (const QUuid& uuid : _duplicatedUuids)
+    SceneGraph* sg = _viewer->sceneGraph();
+
+    for (const DuplicateEntry& e : _entries)
     {
-        _glWidget->restoreFromRecycleBin(uuid);
+        _glWidget->restoreFromRecycleBin(e.uuid);
+        sg->restoreMeshUuid(e.ownerNode, e.uuid, e.position);
     }
 
-    // Update view and UI FIRST (this rebuilds the list)
+    _inserted = true;
+
     _glWidget->updateView();
     _viewer->updateDisplayList();
 
-    // THEN auto-select the restored duplicates (after list is stable)
-    QSet<QUuid> duplicateSet(_duplicatedUuids.begin(), _duplicatedUuids.end());
-    _viewer->setSelectionWithoutUndo(duplicateSet);
+    QSet<QUuid> dupeSet;
+    for (const DuplicateEntry& e : _entries)
+        dupeSet.insert(e.uuid);
+    _viewer->setSelectionWithoutUndo(dupeSet);
 }
 
-QSet<int> DuplicateCommand::convertUuidsToIndices(const QSet<QUuid>& uuids)
+QSet<QUuid> DuplicateCommand::getReferencedUuids() const
 {
-    QSet<int> indices;
-
-    for (const QUuid& uuid : uuids)
-    {
-        int index = _glWidget->getIndexByUuid(uuid);
-        if (index >= 0)
-        {
-            indices.insert(index);
-        }
-    }
-
-    return indices;
+    QSet<QUuid> result;
+    for (const DuplicateEntry& e : _entries)
+        result.insert(e.uuid);
+    return result;
 }

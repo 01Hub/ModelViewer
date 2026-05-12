@@ -117,6 +117,25 @@ public:
     // in case sibling insertions/removals shifted the list since the removal.
     void restoreMeshUuid(SceneNode* node, const QUuid& meshUuid, int position);
 
+    // Attach newChild under parent at position (appends if position is out of
+    // range).  Sets newChild->parent and registers all descendant mesh UUIDs.
+    // SceneGraph takes ownership of newChild.
+    void insertChildNode(SceneNode* parent, SceneNode* newChild, int position = -1);
+
+    // Detach child from parent->children.  Does NOT free child — the caller
+    // (typically PasteCommand) holds ownership until redo re-attaches it.
+    // Deregisters all descendant mesh UUIDs.  outPosition receives the index
+    // the child was at so redo can restore it exactly.
+    void removeChildNode(SceneNode* parent, SceneNode* child, int& outPosition);
+
+    // Return the SceneNode whose nodeUuid matches, or nullptr.  O(n) DFS.
+    SceneNode* findNodeByUuid(const QUuid& nodeUuid) const;
+
+    // Delete a subtree that is no longer attached to this SceneGraph.
+    // Used by PasteCommand destructor to free cloned nodes when the command
+    // is destroyed in the undone state.  Does NOT touch _meshUuidToNode.
+    static void deleteDetachedSubtree(SceneNode* root);
+
 signals:
     // Emitted after any structural change (append, clear, remove, restore).
     // The tree widget connects to this to rebuild or refresh its items.
@@ -132,6 +151,10 @@ private:
                             int&                cursor);
 
     void collectUuidsRecursive(const SceneNode* node, QList<QUuid>& out) const;
+
+    // Register / deregister every mesh UUID in a subtree in _meshUuidToNode.
+    void registerSubtreeUuids(SceneNode* node);
+    void deregisterSubtreeUuids(SceneNode* node);
 
     // Delete node and all of its descendants.  Does not touch _meshUuidToNode;
     // callers are responsible for clearing the hash before calling this.

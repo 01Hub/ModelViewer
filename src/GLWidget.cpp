@@ -9557,7 +9557,7 @@ void GLWidget::showContextMenu(const QPoint& pos)
 			contextMenu.addAction(tr("Edit Material"), _viewer, &ModelViewer::editMeshMaterial);
 			contextMenu.addSeparator();			
 			contextMenu.addAction(tr("Generate UVs"), _viewer, &ModelViewer::generateUVsForSelectedItems);
-			contextMenu.addAction(tr("Duplicate"), _viewer, &ModelViewer::duplicateSelectedItems);
+			contextMenu.addAction(tr("Copy"),   _viewer, &ModelViewer::copySelectedItems);
 			contextMenu.addAction(tr("Delete"), _viewer, &ModelViewer::deleteSelectedItems);			
 			contextMenu.addSeparator();
 			contextMenu.addAction(tr("Mesh Info"), _viewer, &ModelViewer::displaySelectedMeshInfo);

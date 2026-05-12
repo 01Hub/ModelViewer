@@ -1230,6 +1230,7 @@ QTreeWidgetItem* SceneTreeWidget::makeAssemblyItem(const SceneNode* node)
       item->setCheckState(0, Qt::Checked);
       item->setData(0, IsLeafRole,      false);
       item->setData(0, IsSyntheticRole, node->isSynthetic);
+      item->setData(0, NodeUuidRole,    node->nodeUuid);
       return item;
 }
 
@@ -1746,4 +1747,48 @@ void SceneTreeWidget::updateItemIcon(QTreeWidgetItem* item)
         else
             item->setIcon(0, allHidden ? treeIcons().assemblyGrey : treeIcons().assemblyNormal);
     }
+}
+
+const SceneNode* SceneTreeWidget::nodeAt(const QPoint& localPos) const
+{
+    QTreeWidgetItem* item = itemAt(localPos);
+    if (!item || item->data(0, IsLeafRole).toBool())
+        return nullptr;
+
+    const QUuid nodeUuid = item->data(0, NodeUuidRole).value<QUuid>();
+    if (nodeUuid.isNull() || !_sceneGraph)
+        return nullptr;
+
+    return _sceneGraph->findNodeByUuid(nodeUuid);
+}
+
+void SceneTreeWidget::highlightSingleItemAt(const QPoint& localPos)
+{
+    QTreeWidgetItem* item = itemAt(localPos);
+    if (!item) return;
+
+    QSignalBlocker blocker(this);
+    clearSelection();
+    item->setSelected(true);
+}
+
+QList<const SceneNode*> SceneTreeWidget::selectedAssemblyNodes() const
+{
+    QList<const SceneNode*> result;
+    if (!_sceneGraph)
+        return result;
+
+    for (QTreeWidgetItem* item : selectedItems())
+    {
+        if (item->data(0, IsLeafRole).toBool())
+            continue;
+
+        const QUuid nodeUuid = item->data(0, NodeUuidRole).value<QUuid>();
+        if (nodeUuid.isNull())
+            continue;
+
+        if (const SceneNode* node = _sceneGraph->findNodeByUuid(nodeUuid))
+            result.append(node);
+    }
+    return result;
 }
