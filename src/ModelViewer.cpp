@@ -117,7 +117,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	_glWidget->setFormat(format);
 	_glWidget->setMouseTracking(true);
 	// Put the GL widget inside the frame
-	QVBoxLayout* flayout = new QVBoxLayout(glframe);
+	QVBoxLayout* flayout = new QVBoxLayout(glFrame);
 	flayout->setContentsMargins(0, 0, 0, 0);
 	flayout->addWidget(_glWidget, 1);
 
@@ -996,8 +996,8 @@ void ModelViewer::reattachNavigationPanel()
 	_glWidget->takeOverlayPanel(modelNavigationWidget);
 	_detachedNavigationOverlay = nullptr;
 
-	// Put modelNavigationWidget back into groupBox_4's layout.
-	if (auto* grid = qobject_cast<QGridLayout*>(groupBox_4->layout()))
+	// Put modelNavigationWidget back into navigationFrame's layout.
+	if (auto* grid = qobject_cast<QGridLayout*>(navigationFrame->layout()))
 		grid->addWidget(modelNavigationWidget, 0, 0);
 
 	// Restore the navigation tab

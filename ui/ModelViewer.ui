@@ -49,7 +49,7 @@
         <verstretch>0</verstretch>
        </sizepolicy>
       </property>
-      <layout class="QGridLayout" name="gridLayout_7">
+      <layout class="QGridLayout" name="gridLayout">
        <property name="leftMargin">
         <number>0</number>
        </property>
@@ -62,62 +62,18 @@
        <property name="bottomMargin">
         <number>0</number>
        </property>
+       <property name="spacing">
+        <number>0</number>
+       </property>
        <item row="0" column="0">
-        <layout class="QVBoxLayout" name="verticalLayout_2" stretch="0">
-         <item>
-          <widget class="QGroupBox" name="preview">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="title">
-            <string>3D View</string>
-           </property>
-           <layout class="QGridLayout" name="gridLayout">
-            <property name="leftMargin">
-             <number>0</number>
-            </property>
-            <property name="topMargin">
-             <number>0</number>
-            </property>
-            <property name="rightMargin">
-             <number>0</number>
-            </property>
-            <property name="bottomMargin">
-             <number>0</number>
-            </property>
-            <property name="spacing">
-             <number>2</number>
-            </property>
-            <item row="0" column="0">
-             <layout class="QVBoxLayout" name="verticalLayout_4" stretch="0">
-              <property name="spacing">
-               <number>0</number>
-              </property>
-              <item>
-               <widget class="QFrame" name="glframe">
-                <property name="enabled">
-                 <bool>true</bool>
-                </property>
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="cursor">
-                 <cursorShape>ArrowCursor</cursorShape>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-           </layout>
-          </widget>
-         </item>
-        </layout>
+        <widget class="QFrame" name="glFrame">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+        </widget>
        </item>
       </layout>
      </widget>
@@ -159,15 +115,12 @@
          <number>0</number>
         </property>
         <item row="0" column="0">
-         <widget class="QGroupBox" name="groupBox_4">
+         <widget class="QFrame" name="navigationFrame">
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
-          </property>
-          <property name="title">
-           <string>Model Objects</string>
           </property>
           <layout class="QGridLayout" name="gridLayout_15">
            <item row="0" column="0">
@@ -408,7 +361,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>519</width>
+                   <width>454</width>
                    <height>1347</height>
                   </rect>
                  </property>
@@ -442,7 +395,7 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>527</width>
+             <width>462</width>
              <height>1394</height>
             </rect>
            </property>
