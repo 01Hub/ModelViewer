@@ -13,6 +13,7 @@
 #include "RenameMeshCommand.h"
 #include "MaterialPropertiesPanel.h"
 #include "SceneClipboard.h"
+#include "CutCommand.h"
 
 #include <QUndoStack>
 
@@ -142,8 +143,15 @@ public slots:
 	void hideSelectedItems();
 	void centerScreen();
 	void copySelectedItems();
+	void cutSelectedItems();
 	void pasteIntoSelectedNode(const SceneNode* targetNode);
 	void duplicateSelectedItems();
+
+	// Called by CutCommand and PasteCommand to manage cut-mark state.
+	void clearCutMarks();
+	void reapplyCutMarks(const QList<ClipboardEntry>& entries,
+	                     const QSet<QUuid>& meshUuids,
+	                     const QSet<QUuid>& nodeUuids);
 	void deleteSelectedItems();
 	void generateUVsForSelectedItems();
 	void displaySelectedMeshInfo();
@@ -162,6 +170,10 @@ private slots:
 	void onRenderingModeSelected(const QString& mode);
 
 	void onFileImport();
+
+	// Validates the cut clipboard whenever the scene structure changes.
+	// Invalidates (clears) the clipboard if any cut source is no longer present.
+	void validateCutClipboard();
 	void importFiles(QStringList& fileNames);
 	void onFileExport();
 
@@ -211,6 +223,7 @@ private:
 	QSet<QUuid> collectVisibleUuidsFromDisplayList() const;
 	std::vector<int> visibleIndicesFromState() const;
 	void updateVisibilityUiFromState();
+	void invalidateCutClipboard();  // clears cut clipboard + tree marks
 	void scheduleTreeRebuild(int delayMs = 1200);
 	void rebuildTreeFromCurrentState();
 	void applyVisibleMeshState(bool syncTree,

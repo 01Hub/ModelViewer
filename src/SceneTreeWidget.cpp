@@ -1187,6 +1187,10 @@ void SceneTreeWidget::finalizeRebuild()
 
 	// Center the first selected item for better visibility after a rebuild
     scrollFirstSelectedToCenter();
+
+    // Re-apply cut-mark styling if a Cut is pending.
+    applyCutMarkStyling();
+
     emit rebuildComplete();
 }
 
@@ -1791,4 +1795,79 @@ QList<const SceneNode*> SceneTreeWidget::selectedAssemblyNodes() const
             result.append(node);
     }
     return result;
+}
+
+// ---------------------------------------------------------------------------
+// Cut-mark styling
+// ---------------------------------------------------------------------------
+
+void SceneTreeWidget::markAsCut(const QSet<QUuid>& meshUuids,
+                                const QSet<QUuid>& nodeUuids)
+{
+    _cutMeshUuids = meshUuids;
+    _cutNodeUuids = nodeUuids;
+    applyCutMarkStyling();
+}
+
+void SceneTreeWidget::clearCutMarks()
+{
+    _cutMeshUuids.clear();
+    _cutNodeUuids.clear();
+
+    // Walk every item and reset the foreground role to the default.
+    std::function<void(QTreeWidgetItem*)> resetItem = [&](QTreeWidgetItem* item)
+    {
+        item->setData(0, Qt::ForegroundRole, QVariant());
+        for (int i = 0; i < item->childCount(); ++i)
+            resetItem(item->child(i));
+    };
+
+    for (int i = 0; i < topLevelItemCount(); ++i)
+        resetItem(topLevelItem(i));
+}
+
+void SceneTreeWidget::applyCutMarkStyling()
+{
+    if (_cutMeshUuids.isEmpty() && _cutNodeUuids.isEmpty())
+        return;
+
+    // Walk the entire tree.  When a cut-marked assembly is found, apply the
+    // style to it and all its descendants (so expanded children look grayed).
+    // When a cut-marked mesh leaf is found, style only that leaf.
+    std::function<void(QTreeWidgetItem*)> walk = [&](QTreeWidgetItem* item)
+    {
+        if (item->data(0, IsLeafRole).toBool())
+        {
+            const QUuid uuid = item->data(0, MeshUuidRole).value<QUuid>();
+            if (_cutMeshUuids.contains(uuid))
+                applyCutStyleRecursive(item, true);
+        }
+        else
+        {
+            const QUuid nodeUuid = item->data(0, NodeUuidRole).value<QUuid>();
+            if (_cutNodeUuids.contains(nodeUuid))
+            {
+                applyCutStyleRecursive(item, true);
+                return; // descendants handled by the recursive call
+            }
+        }
+        for (int i = 0; i < item->childCount(); ++i)
+            walk(item->child(i));
+    };
+
+    for (int i = 0; i < topLevelItemCount(); ++i)
+        walk(topLevelItem(i));
+}
+
+void SceneTreeWidget::applyCutStyleRecursive(QTreeWidgetItem* item, bool isCut)
+{
+    if (!item) return;
+    static const QBrush kCutBrush(QColor(128, 128, 128));
+    if (isCut)
+        item->setForeground(0, kCutBrush);
+    else
+        item->setData(0, Qt::ForegroundRole, QVariant());
+
+    for (int i = 0; i < item->childCount(); ++i)
+        applyCutStyleRecursive(item->child(i), isCut);
 }

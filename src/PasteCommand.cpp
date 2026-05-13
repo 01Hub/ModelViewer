@@ -3,27 +3,49 @@
 #include "GLWidget.h"
 #include "SceneGraph.h"
 
-PasteCommand::PasteCommand(ModelViewer*             viewer,
-                           GLWidget*                glWidget,
-                           const QList<PastedItem>& items,
-                           const QSet<QUuid>&       originalSelection,
-                           const QString&           text)
+PasteCommand::PasteCommand(ModelViewer*                 viewer,
+                           GLWidget*                    glWidget,
+                           const QList<PastedItem>&     items,
+                           const QSet<QUuid>&           originalSelection,
+                           const QList<ClipboardEntry>& cutEntries,
+                           const QString&               text)
     : ModelViewerCommand(viewer, glWidget, text)
     , _items(items)
     , _originalSelection(originalSelection)
+    , _cutEntries(cutEntries)
     , _firstRedo(true)
     , _inserted(true)
 {
+    // Derive cut-mark sets from cut items so undo can re-apply them.
+    for (const PastedItem& item : _items)
+    {
+        if (!item.isCut)
+            continue;
+        if (item.type == PastedItem::Mesh)
+        {
+            _cutMeshUuids.insert(item.meshUuid);
+        }
+        else // Subtree
+        {
+            _cutMeshUuids += QSet<QUuid>(item.subtreeMeshUuids.begin(),
+                                         item.subtreeMeshUuids.end());
+            if (item.subtreeRoot)
+                _cutNodeUuids.insert(item.subtreeRoot->nodeUuid);
+        }
+    }
 }
 
 PasteCommand::~PasteCommand()
 {
-    // If the command is destroyed while undone, items are not in the scene:
-    // free detached subtree nodes and permanently remove meshes from the bin.
+    // Only copy-paste Subtree items whose SceneNode* we own (when undone)
+    // need cleanup.  Cut items always live in the scene — nothing to free.
     if (!_inserted)
     {
         for (const PastedItem& item : _items)
         {
+            if (item.isCut)
+                continue;
+
             if (item.type == PastedItem::Subtree)
             {
                 if (_glWidget)
@@ -33,7 +55,7 @@ PasteCommand::~PasteCommand()
                 }
                 freeSubtree(item.subtreeRoot);
             }
-            else // Mesh
+            else // copy Mesh
             {
                 if (_glWidget)
                     _glWidget->permanentlyDeleteFromBin(item.meshUuid);
@@ -49,37 +71,62 @@ void PasteCommand::undo()
 
     SceneGraph* sg = _viewer->sceneGraph();
 
-    // Process items in reverse insertion order to keep positions valid.
+    // Process in reverse insertion order to keep positions valid.
     for (int i = _items.size() - 1; i >= 0; --i)
     {
         const PastedItem& item = _items[i];
 
-        if (item.type == PastedItem::Mesh)
+        if (item.isCut)
         {
-            int idx = _glWidget->getIndexByUuid(item.meshUuid);
-            if (idx >= 0)
-                _glWidget->moveToRecycleBin(item.meshUuid, idx);
-
-            int pos = 0;
-            sg->removeMeshUuid(item.meshUuid, pos);
-        }
-        else // Subtree
-        {
-            // Move all meshes to recycle bin before detaching the subtree
-            // so GLWidget is clean before SceneGraph emits structureChanged.
-            for (const QUuid& uuid : item.subtreeMeshUuids)
+            // Move the item back to its original (source) location.
+            if (item.type == PastedItem::Mesh)
             {
-                int idx = _glWidget->getIndexByUuid(uuid);
-                if (idx >= 0)
-                    _glWidget->moveToRecycleBin(uuid, idx);
+                int pos = 0;
+                sg->removeMeshUuid(item.meshUuid, pos);
+                sg->restoreMeshUuid(item.srcOwnerNode, item.meshUuid,
+                                    item.srcMeshPosition);
             }
+            else // Subtree
+            {
+                int pos = 0;
+                sg->removeChildNode(item.subtreeParent, item.subtreeRoot, pos);
+                sg->insertChildNode(item.srcSubtreeParent, item.subtreeRoot,
+                                    item.srcChildPosition);
+            }
+        }
+        else
+        {
+            // Copy-paste: move to recycle bin and remove from scene.
+            if (item.type == PastedItem::Mesh)
+            {
+                int idx = _glWidget->getIndexByUuid(item.meshUuid);
+                if (idx >= 0)
+                    _glWidget->moveToRecycleBin(item.meshUuid, idx);
 
-            int pos = 0;
-            sg->removeChildNode(item.subtreeParent, item.subtreeRoot, pos);
+                int pos = 0;
+                sg->removeMeshUuid(item.meshUuid, pos);
+            }
+            else // Subtree
+            {
+                for (const QUuid& uuid : item.subtreeMeshUuids)
+                {
+                    int idx = _glWidget->getIndexByUuid(uuid);
+                    if (idx >= 0)
+                        _glWidget->moveToRecycleBin(uuid, idx);
+                }
+
+                int pos = 0;
+                sg->removeChildNode(item.subtreeParent, item.subtreeRoot, pos);
+            }
         }
     }
 
     _inserted = false;
+
+    // Re-apply cut marks so items appear grayed while CutCommand is still
+    // on the undo stack above this command.
+    if (!_cutEntries.isEmpty())
+        _viewer->reapplyCutMarks(_cutEntries, _cutMeshUuids, _cutNodeUuids);
 
     _glWidget->updateView();
     _viewer->updateDisplayList();
@@ -93,8 +140,9 @@ void PasteCommand::redo()
 
     if (_firstRedo)
     {
-        // Items are already in the scene from the initial paste — just select.
+        // Items already in the scene from the initial paste — just select.
         _firstRedo = false;
+        _inserted  = true;
         QSet<QUuid> pastedSet;
         for (const PastedItem& item : _items)
         {
@@ -112,22 +160,48 @@ void PasteCommand::redo()
 
     for (const PastedItem& item : _items)
     {
-        if (item.type == PastedItem::Mesh)
+        if (item.isCut)
         {
-            _glWidget->restoreFromRecycleBin(item.meshUuid);
-            sg->restoreMeshUuid(item.ownerNode, item.meshUuid, item.meshPosition);
+            // Re-execute the move (source → destination).
+            if (item.type == PastedItem::Mesh)
+            {
+                int pos = 0;
+                sg->removeMeshUuid(item.meshUuid, pos);
+                sg->restoreMeshUuid(item.ownerNode, item.meshUuid,
+                                    item.meshPosition);
+            }
+            else // Subtree
+            {
+                int pos = 0;
+                sg->removeChildNode(item.srcSubtreeParent, item.subtreeRoot, pos);
+                sg->insertChildNode(item.subtreeParent, item.subtreeRoot,
+                                    item.childPosition);
+            }
         }
-        else // Subtree
+        else
         {
-            for (const QUuid& uuid : item.subtreeMeshUuids)
-                _glWidget->restoreFromRecycleBin(uuid);
+            // Copy-paste: restore from recycle bin.
+            if (item.type == PastedItem::Mesh)
+            {
+                _glWidget->restoreFromRecycleBin(item.meshUuid);
+                sg->restoreMeshUuid(item.ownerNode, item.meshUuid, item.meshPosition);
+            }
+            else // Subtree
+            {
+                for (const QUuid& uuid : item.subtreeMeshUuids)
+                    _glWidget->restoreFromRecycleBin(uuid);
 
-            sg->insertChildNode(item.subtreeParent, item.subtreeRoot,
-                                item.childPosition);
+                sg->insertChildNode(item.subtreeParent, item.subtreeRoot,
+                                    item.childPosition);
+            }
         }
     }
 
     _inserted = true;
+
+    // Clear cut marks — items are now at their destination.
+    if (!_cutEntries.isEmpty())
+        _viewer->clearCutMarks();
 
     _glWidget->updateView();
     _viewer->updateDisplayList();
@@ -146,9 +220,12 @@ void PasteCommand::redo()
 
 QSet<QUuid> PasteCommand::getReferencedUuids() const
 {
+    // Only copy-paste items go to the recycle bin — cut items never do.
     QSet<QUuid> result;
     for (const PastedItem& item : _items)
     {
+        if (item.isCut)
+            continue;
         if (item.type == PastedItem::Mesh)
             result.insert(item.meshUuid);
         else

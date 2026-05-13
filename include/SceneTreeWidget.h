@@ -187,6 +187,20 @@ public:
     void scrollFirstSelectedToCenter();
     void setDetachedOverlayMode(bool enabled);
 
+    // -----------------------------------------------------------------------
+    // Cut-mark styling
+    // -----------------------------------------------------------------------
+
+    /**
+     * Gray out the given mesh leaves and assembly nodes to signal a pending
+     * Cut.  Styling propagates down to all descendants of marked assemblies.
+     * Persists across tree rebuilds.
+     */
+    void markAsCut(const QSet<QUuid>& meshUuids, const QSet<QUuid>& nodeUuids);
+
+    /** Remove all cut-mark styling and clear the stored sets. */
+    void clearCutMarks();
+
 public slots:
     /**
      * Fully rebuild the tree from the current SceneGraph state.
@@ -321,6 +335,14 @@ private:
     bool _pressExpanded = false;
     bool _pressValid = false;
     QSet<QTreeWidgetItem*> _prevSelection;
+
+    // Apply/clear cut-mark gray styling.  Called by markAsCut, clearCutMarks,
+    // and finalizeRebuild (to re-apply marks after a tree rebuild).
+    void applyCutMarkStyling();
+    void applyCutStyleRecursive(QTreeWidgetItem* item, bool isCut);
+
+    QSet<QUuid> _cutMeshUuids;  // mesh UUIDs currently marked as cut
+    QSet<QUuid> _cutNodeUuids;  // assembly nodeUuids currently marked as cut
 
     bool _updatingTree = false; // suppress re-entrant signal handling
     bool _inRename     = false; // suppress itemChanged during delegate setModelData

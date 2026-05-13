@@ -24,17 +24,42 @@ struct ClipboardNode
 // ---------------------------------------------------------------------------
 // ClipboardEntry
 //
-// One top-level item placed on the clipboard by a Copy action.
-//   isLeaf == true  → user copied a single mesh leaf; leafUuid is valid.
-//   isLeaf == false → user copied an assembly; assemblyRoot is valid.
+// One top-level item placed on the clipboard by a Copy or Cut action.
+//
+//   isCut == false (Copy):
+//     isLeaf == true  → leafUuid holds the mesh UUID to clone.
+//     isLeaf == false → assemblyRoot holds a deep snapshot to clone.
+//
+//   isCut == true (Cut):
+//     Items remain in the scene until Paste; they are only visually grayed.
+//     Source location is stored as UUIDs (resolved to live pointers at paste
+//     time) so the clipboard stays valid across incidental structureChanged
+//     signals that don't actually remove the cut items.
+//
+//     isLeaf == true:
+//       leafUuid           — the mesh UUID (same UUID reused by Paste).
+//       cutSourceNodeUuid  — nodeUuid of the ownerNode that currently holds
+//                            the mesh.
+//       cutSourcePosition  — index within ownerNode->meshUuids.
+//
+//     isLeaf == false:
+//       cutNodeUuid        — nodeUuid of the subtree root itself.
+//       cutSourceNodeUuid  — nodeUuid of the subtree root's current parent.
+//       cutSourcePosition  — index within parent->children.
 // ---------------------------------------------------------------------------
 struct ClipboardEntry
 {
     bool isLeaf = false;
+    bool isCut  = false;
 
-    // Valid when isLeaf == true
+    // Copy — valid when isLeaf == true
     QUuid leafUuid;
 
-    // Valid when isLeaf == false
+    // Copy — valid when isLeaf == false
     ClipboardNode assemblyRoot;
+
+    // Cut source location (both leaf and assembly)
+    QUuid cutSourceNodeUuid;   // ownerNode UUID (leaf) or parent UUID (assembly)
+    QUuid cutNodeUuid;         // subtree root UUID (assembly only)
+    int   cutSourcePosition = 0;
 };

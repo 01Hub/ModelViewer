@@ -1,5 +1,6 @@
 ﻿#include "FloatingPanelDialog.h"
 #include "AssImpModelLoader.h"
+#include "CutCommand.h"
 #include "DeleteMeshCommand.h"
 #include "DuplicateCommand.h"
 #include "PasteCommand.h"
@@ -134,6 +135,9 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	treeWidgetModel->setSceneGraph(_sceneGraph);
 	treeWidgetModel->setGLWidget(_glWidget);
+
+	connect(_sceneGraph, &SceneGraph::structureChanged,
+	        this, &ModelViewer::validateCutClipboard);
 	treeWidgetModel->installEventFilter(this);
 	treeWidgetModel->viewport()->installEventFilter(this);
 
@@ -1250,6 +1254,7 @@ QSet<QUuid> ModelViewer::scanStackForReferencedUuids()
 			referenced.unite(dupCmd->getReferencedUuids());
 		else if (const auto* pasteCmd = dynamic_cast<const PasteCommand*>(cmd))
 			referenced.unite(pasteCmd->getReferencedUuids());
+		// CutCommand::getReferencedUuids() returns {} — nothing goes to the bin
 	}
 
 	return referenced;
@@ -1733,10 +1738,15 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addSeparator();
 	}
 
-	// ---- Copy --------------------------------------------------------------
+	// ---- Copy / Cut --------------------------------------------------------
 	myMenu.addAction(tr("Copy"), this, [this, &actionTaken]() {
 		actionTaken = true;
 		copySelectedItems();
+	});
+
+	myMenu.addAction(tr("Cut"), this, [this, &actionTaken]() {
+		actionTaken = true;
+		cutSelectedItems();
 	});
 
 	// ---- Paste (assembly target only, clipboard must be non-empty) ---------
@@ -1852,6 +1862,137 @@ void ModelViewer::copySelectedItems()
 	}
 }
 
+void ModelViewer::cutSelectedItems()
+{
+	// Same deduplication logic as copySelectedItems, but entries are
+	// tagged isCut=true and carry source location UUIDs.
+	_clipboard.clear();
+
+	QList<const SceneNode*> assemblies = treeWidgetModel->selectedAssemblyNodes();
+	QList<QUuid>            leafUuids  = treeWidgetModel->selectedMeshUuids();
+
+	QSet<QUuid> coveredByAssembly;
+	for (const SceneNode* node : assemblies)
+		for (const QUuid& uuid : _sceneGraph->collectMeshUuids(node))
+			coveredByAssembly.insert(uuid);
+
+	QSet<QUuid> selectedAssemblyUuids;
+	for (const SceneNode* node : assemblies)
+		selectedAssemblyUuids.insert(node->nodeUuid);
+
+	auto hasSelectedAncestor = [&](const SceneNode* node) -> bool {
+		for (const SceneNode* p = node->parent; p; p = p->parent)
+			if (selectedAssemblyUuids.contains(p->nodeUuid))
+				return true;
+		return false;
+	};
+
+	QSet<QUuid> cutMeshUuids;
+	QSet<QUuid> cutNodeUuids;
+
+	for (const SceneNode* node : assemblies)
+	{
+		if (hasSelectedAncestor(node))
+			continue;
+
+		ClipboardEntry entry;
+		entry.isLeaf             = false;
+		entry.isCut              = true;
+		entry.cutNodeUuid        = node->nodeUuid;
+		entry.cutSourceNodeUuid  = node->parent ? node->parent->nodeUuid : QUuid();
+		entry.cutSourcePosition  = node->parent
+		    ? node->parent->children.indexOf(const_cast<SceneNode*>(node))
+		    : 0;
+		_clipboard.append(entry);
+
+		cutNodeUuids.insert(node->nodeUuid);
+		for (const QUuid& uuid : _sceneGraph->collectMeshUuids(node))
+			cutMeshUuids.insert(uuid);
+	}
+
+	for (const QUuid& uuid : leafUuids)
+	{
+		if (coveredByAssembly.contains(uuid))
+			continue;
+
+		SceneNode* owner = _sceneGraph->findNodeForMesh(uuid);
+
+		ClipboardEntry entry;
+		entry.isLeaf            = true;
+		entry.isCut             = true;
+		entry.leafUuid          = uuid;
+		entry.cutSourceNodeUuid = owner ? owner->nodeUuid : QUuid();
+		entry.cutSourcePosition = owner ? owner->meshUuids.indexOf(uuid) : 0;
+		_clipboard.append(entry);
+
+		cutMeshUuids.insert(uuid);
+	}
+
+	if (_clipboard.isEmpty())
+		return;
+
+	treeWidgetModel->markAsCut(cutMeshUuids, cutNodeUuids);
+	_undoStack->push(new CutCommand(this, _glWidget, _clipboard,
+	                                cutMeshUuids, cutNodeUuids));
+}
+
+void ModelViewer::clearCutMarks()
+{
+	_clipboard.clear();
+	treeWidgetModel->clearCutMarks();
+}
+
+void ModelViewer::reapplyCutMarks(const QList<ClipboardEntry>& entries,
+                                  const QSet<QUuid>&           meshUuids,
+                                  const QSet<QUuid>&           nodeUuids)
+{
+	_clipboard = entries;
+	treeWidgetModel->markAsCut(meshUuids, nodeUuids);
+}
+
+void ModelViewer::validateCutClipboard()
+{
+	if (_clipboard.isEmpty())
+		return;
+
+	// Only validate cut-mode clipboard entries.
+	bool anyCut = false;
+	for (const ClipboardEntry& e : _clipboard)
+		if (e.isCut) { anyCut = true; break; }
+
+	if (!anyCut)
+		return;
+
+	for (const ClipboardEntry& entry : _clipboard)
+	{
+		if (!entry.isCut)
+			continue;
+
+		if (entry.isLeaf)
+		{
+			if (!_sceneGraph->findNodeForMesh(entry.leafUuid))
+			{
+				invalidateCutClipboard();
+				return;
+			}
+		}
+		else
+		{
+			if (!_sceneGraph->findNodeByUuid(entry.cutNodeUuid))
+			{
+				invalidateCutClipboard();
+				return;
+			}
+		}
+	}
+}
+
+void ModelViewer::invalidateCutClipboard()
+{
+	_clipboard.clear();
+	treeWidgetModel->clearCutMarks();
+}
+
 void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 {
 	if (_clipboard.isEmpty() || !targetNode)
@@ -1859,98 +2000,182 @@ void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
+	const bool isCutPaste = _clipboard.first().isCut;
 	const QSet<QUuid> originalSelection = getSelectedUuids();
 	QList<PasteCommand::PastedItem> items;
-
-	// Helper: recursively clone a ClipboardNode tree, add meshes to GL display,
-	// and build a new SceneNode tree (not yet inserted into SceneGraph).
-	std::function<SceneNode*(const ClipboardNode&, SceneNode*, QList<QUuid>&)>
-	cloneSubtree = [&](const ClipboardNode& cn,
-	                   SceneNode*           parent,
-	                   QList<QUuid>&        allUuids) -> SceneNode*
-	{
-		SceneNode* node       = new SceneNode();
-		node->nodeUuid        = QUuid::createUuid();
-		node->name            = cn.name;
-		node->localTransform  = cn.localTransform;
-		node->parent          = parent;
-
-		for (const QUuid& srcUuid : cn.meshUuids)
-		{
-			TriangleMesh* original = _glWidget->getMeshByUuid(srcUuid);
-			if (!original)
-				continue;
-
-			TriangleMesh* clone = original->clone();
-			clone->setName(_glWidget->generateUniqueMeshName(original->getName()));
-			_glWidget->addToDisplay(clone);
-
-			node->meshUuids.append(clone->uuid());
-			allUuids.append(clone->uuid());
-		}
-
-		for (const ClipboardNode& childCn : cn.children)
-		{
-			SceneNode* childNode = cloneSubtree(childCn, node, allUuids);
-			node->children.append(childNode);
-		}
-
-		return node;
-	};
 
 	// Cast away const — targetNode is owned by SceneGraph and will remain
 	// valid for the lifetime of this command.
 	SceneNode* target = const_cast<SceneNode*>(targetNode);
 
-	// clone() and addToDisplay() both require a current GL context.
-	_glWidget->makeCurrent();
-
-	for (const ClipboardEntry& entry : _clipboard)
+	if (isCutPaste)
 	{
-		if (entry.isLeaf)
+		// ---- Cut-paste: move items within the scene (no cloning) -----------
+
+		// Validate all sources before touching anything.
+		for (const ClipboardEntry& entry : _clipboard)
 		{
-			TriangleMesh* original = _glWidget->getMeshByUuid(entry.leafUuid);
-			if (!original)
-				continue;
-
-			TriangleMesh* clone = original->clone();
-			clone->setName(_glWidget->generateUniqueMeshName(original->getName()));
-			_glWidget->addToDisplay(clone);
-
-			const QUuid newUuid = clone->uuid();
-			const int insertPos = target->meshUuids.size();
-			_sceneGraph->restoreMeshUuid(target, newUuid, insertPos);
-
-			PasteCommand::PastedItem item;
-			item.type         = PasteCommand::PastedItem::Mesh;
-			item.meshUuid     = newUuid;
-			item.ownerNode    = target;
-			item.meshPosition = insertPos;
-			items.append(item);
+			if (entry.isLeaf)
+			{
+				if (!_sceneGraph->findNodeForMesh(entry.leafUuid))
+				{
+					invalidateCutClipboard();
+					QApplication::restoreOverrideCursor();
+					return;
+				}
+			}
+			else
+			{
+				if (!_sceneGraph->findNodeByUuid(entry.cutNodeUuid))
+				{
+					invalidateCutClipboard();
+					QApplication::restoreOverrideCursor();
+					return;
+				}
+			}
 		}
-		else
-		{
-			QList<QUuid> allUuids;
-			SceneNode* clonedRoot = cloneSubtree(entry.assemblyRoot, target, allUuids);
-			const int childPos = target->children.size();
-			_sceneGraph->insertChildNode(target, clonedRoot, childPos);
 
-			PasteCommand::PastedItem item;
-			item.type             = PasteCommand::PastedItem::Subtree;
-			item.subtreeRoot      = clonedRoot;
-			item.subtreeParent    = target;
-			item.childPosition    = childPos;
-			item.subtreeMeshUuids = allUuids;
-			items.append(item);
+		// Snapshot and clear clipboard before executing moves so that
+		// structureChanged signals fired mid-move don't trigger validateCutClipboard
+		// with a stale clipboard while items are temporarily un-registered.
+		const QList<ClipboardEntry> cutEntries = _clipboard;
+		_clipboard.clear();
+
+		for (const ClipboardEntry& entry : cutEntries)
+		{
+			if (entry.isLeaf)
+			{
+				int srcPos = 0;
+				SceneNode* srcOwner = _sceneGraph->removeMeshUuid(entry.leafUuid, srcPos);
+				const int dstPos = target->meshUuids.size();
+				_sceneGraph->restoreMeshUuid(target, entry.leafUuid, dstPos);
+
+				PasteCommand::PastedItem item;
+				item.type            = PasteCommand::PastedItem::Mesh;
+				item.isCut           = true;
+				item.meshUuid        = entry.leafUuid;
+				item.ownerNode       = target;
+				item.meshPosition    = dstPos;
+				item.srcOwnerNode    = srcOwner;
+				item.srcMeshPosition = srcPos;
+				items.append(item);
+			}
+			else
+			{
+				SceneNode* subtree  = _sceneGraph->findNodeByUuid(entry.cutNodeUuid);
+				SceneNode* srcParent = subtree->parent; // capture before removeChildNode clears it
+				int srcPos = 0;
+				_sceneGraph->removeChildNode(srcParent, subtree, srcPos);
+				const int dstPos = target->children.size();
+				_sceneGraph->insertChildNode(target, subtree, dstPos);
+
+				PasteCommand::PastedItem item;
+				item.type               = PasteCommand::PastedItem::Subtree;
+				item.isCut              = true;
+				item.subtreeRoot        = subtree;
+				item.subtreeParent      = target;
+				item.childPosition      = dstPos;
+				item.subtreeMeshUuids   = _sceneGraph->collectMeshUuids(subtree);
+				item.srcSubtreeParent   = srcParent;
+				item.srcChildPosition   = srcPos;
+				items.append(item);
+			}
+		}
+
+		if (!items.isEmpty())
+		{
+			_glWidget->updateView();
+			updateDisplayList();
+			_undoStack->push(new PasteCommand(this, _glWidget, items,
+			                                  originalSelection, cutEntries));
+			// Clear marks AFTER the command is pushed (command holds its own copy).
+			clearCutMarks();
 		}
 	}
-
-	_glWidget->doneCurrent();
-
-	if (!items.isEmpty())
+	else
 	{
-		updateDisplayList();
-		_undoStack->push(new PasteCommand(this, _glWidget, items, originalSelection));
+		// ---- Copy-paste: clone meshes and insert as new items --------------
+
+		std::function<SceneNode*(const ClipboardNode&, SceneNode*, QList<QUuid>&)>
+		cloneSubtree = [&](const ClipboardNode& cn,
+		                   SceneNode*           parent,
+		                   QList<QUuid>&        allUuids) -> SceneNode*
+		{
+			SceneNode* node      = new SceneNode();
+			node->nodeUuid       = QUuid::createUuid();
+			node->name           = cn.name;
+			node->localTransform = cn.localTransform;
+			node->parent         = parent;
+
+			for (const QUuid& srcUuid : cn.meshUuids)
+			{
+				TriangleMesh* original = _glWidget->getMeshByUuid(srcUuid);
+				if (!original) continue;
+
+				TriangleMesh* clone = original->clone();
+				clone->setName(_glWidget->generateUniqueMeshName(original->getName()));
+				_glWidget->addToDisplay(clone);
+
+				node->meshUuids.append(clone->uuid());
+				allUuids.append(clone->uuid());
+			}
+
+			for (const ClipboardNode& childCn : cn.children)
+				node->children.append(cloneSubtree(childCn, node, allUuids));
+
+			return node;
+		};
+
+		// clone() and addToDisplay() both require a current GL context.
+		_glWidget->makeCurrent();
+
+		for (const ClipboardEntry& entry : _clipboard)
+		{
+			if (entry.isLeaf)
+			{
+				TriangleMesh* original = _glWidget->getMeshByUuid(entry.leafUuid);
+				if (!original) continue;
+
+				TriangleMesh* clone = original->clone();
+				clone->setName(_glWidget->generateUniqueMeshName(original->getName()));
+				_glWidget->addToDisplay(clone);
+
+				const QUuid newUuid  = clone->uuid();
+				const int insertPos  = target->meshUuids.size();
+				_sceneGraph->restoreMeshUuid(target, newUuid, insertPos);
+
+				PasteCommand::PastedItem item;
+				item.type         = PasteCommand::PastedItem::Mesh;
+				item.meshUuid     = newUuid;
+				item.ownerNode    = target;
+				item.meshPosition = insertPos;
+				items.append(item);
+			}
+			else
+			{
+				QList<QUuid> allUuids;
+				SceneNode* clonedRoot = cloneSubtree(entry.assemblyRoot, target, allUuids);
+				const int childPos    = target->children.size();
+				_sceneGraph->insertChildNode(target, clonedRoot, childPos);
+
+				PasteCommand::PastedItem item;
+				item.type             = PasteCommand::PastedItem::Subtree;
+				item.subtreeRoot      = clonedRoot;
+				item.subtreeParent    = target;
+				item.childPosition    = childPos;
+				item.subtreeMeshUuids = allUuids;
+				items.append(item);
+			}
+		}
+
+		_glWidget->doneCurrent();
+
+		if (!items.isEmpty())
+		{
+			updateDisplayList();
+			_undoStack->push(new PasteCommand(this, _glWidget, items,
+			                                  originalSelection));
+		}
 	}
 
 	QApplication::restoreOverrideCursor();

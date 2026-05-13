@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ModelViewerCommand.h"
+#include "SceneClipboard.h"
 #include "SceneNode.h"
 
 #include <QList>
@@ -10,19 +11,18 @@
 // ---------------------------------------------------------------------------
 // PasteCommand
 //
-// Undoable command for the Paste operation.  The caller (ModelViewer) performs
-// the actual cloning and insertion BEFORE constructing this command; the
-// command's job is to undo and redo that work.
+// Undoable command for the Paste operation.  Handles two flavours:
 //
-// Two kinds of pasted items are tracked:
+//   Copy-paste (isCut == false):
+//     Cloned meshes/subtrees are inserted at the destination.  On undo they
+//     are moved to the recycle bin; on redo they are restored from it.
+//     PasteCommand owns detached Subtree SceneNode* roots while undone.
 //
-//   PastedItem::Mesh    — a single mesh UUID inserted into a node's meshUuids.
-//   PastedItem::Subtree — a cloned SceneNode subtree attached as a child node.
-//
-// Ownership of Subtree roots:
-//   Inserted  → SceneGraph owns the subtree.
-//   Removed   → PasteCommand owns the subtree (stored in this object).
-//   On destroy in removed state → PasteCommand frees the subtree.
+//   Cut-paste (isCut == true):
+//     Items are moved within the scene (no cloning, no recycle bin).  On
+//     undo they are moved back to their original location and the cut marks
+//     are re-applied; on redo the move is re-executed and marks are cleared.
+//     SceneNode* ownership never leaves the SceneGraph.
 // ---------------------------------------------------------------------------
 class PasteCommand : public ModelViewerCommand
 {
@@ -30,25 +30,38 @@ public:
     struct PastedItem
     {
         enum Type { Mesh, Subtree };
-        Type type = Mesh;
+        Type type  = Mesh;
+        bool isCut = false;  // true = move (no recycle-bin lifecycle)
 
-        // --- Mesh fields ---
+        // --- Copy/Cut Mesh: destination ---
         QUuid      meshUuid;
-        SceneNode* ownerNode   = nullptr;
+        SceneNode* ownerNode    = nullptr;
         int        meshPosition = 0;
 
-        // --- Subtree fields ---
-        SceneNode*   subtreeRoot   = nullptr;
-        SceneNode*   subtreeParent = nullptr;
-        int          childPosition = 0;
-        QList<QUuid> subtreeMeshUuids;  // all mesh UUIDs in the subtree
+        // --- Cut Mesh: source ---
+        SceneNode* srcOwnerNode    = nullptr;
+        int        srcMeshPosition = 0;
+
+        // --- Copy/Cut Subtree: destination ---
+        SceneNode*   subtreeRoot      = nullptr;
+        SceneNode*   subtreeParent    = nullptr;
+        int          childPosition    = 0;
+        QList<QUuid> subtreeMeshUuids;   // all UUIDs in subtree (for selection / bin)
+
+        // --- Cut Subtree: source ---
+        SceneNode* srcSubtreeParent = nullptr;
+        int        srcChildPosition = 0;
     };
 
-    PasteCommand(ModelViewer*           viewer,
-                 GLWidget*              glWidget,
-                 const QList<PastedItem>& items,
-                 const QSet<QUuid>&     originalSelection,
-                 const QString&         text = QObject::tr("Paste"));
+    // cutEntries: the clipboard snapshot at paste time, stored so that
+    // undo can restore both the visual marks and the clipboard state.
+    // Pass an empty list for copy-paste.
+    PasteCommand(ModelViewer*                 viewer,
+                 GLWidget*                    glWidget,
+                 const QList<PastedItem>&     items,
+                 const QSet<QUuid>&           originalSelection,
+                 const QList<ClipboardEntry>& cutEntries = {},
+                 const QString&               text = QObject::tr("Paste"));
 
     ~PasteCommand() override;
 
@@ -60,10 +73,13 @@ public:
     QSet<QUuid> getReferencedUuids() const;
 
 private:
-    QList<PastedItem> _items;
-    QSet<QUuid>       _originalSelection;
-    bool              _firstRedo;
-    bool              _inserted;        // true when items are in the scene
+    QList<PastedItem>     _items;
+    QSet<QUuid>           _originalSelection;
+    QList<ClipboardEntry> _cutEntries;    // non-empty iff this was a cut-paste
+    QSet<QUuid>           _cutMeshUuids;  // derived from cut items (for mark re-apply)
+    QSet<QUuid>           _cutNodeUuids;
+    bool                  _firstRedo;
+    bool                  _inserted;     // true when copy-paste items are in the scene
 
     static void freeSubtree(SceneNode* root);
 };
