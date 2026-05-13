@@ -343,6 +343,12 @@ _assimpModelLoader(nullptr)
 	_animateViewTimer->setTimerType(Qt::PreciseTimer);
 	connect(_animateViewTimer, &QTimer::timeout, this, &GLWidget::animateViewChange);
 	connect(this, &GLWidget::rotationsSet, this, &GLWidget::stopAnimations);
+	connect(this, &GLWidget::rotationsSet, this, [this]() {
+		if (_fitAfterViewChange) {
+			_fitAfterViewChange = false;
+			fitAll();
+		}
+	});
 
 	_animateFitAllTimer = new QTimer(this);
 	_animateFitAllTimer->setTimerType(Qt::PreciseTimer);
@@ -1687,13 +1693,14 @@ void GLWidget::setViewMode(ViewMode mode)
 		_keyboardNavTimer->stop();
 		_animateViewTimer->start(5);
 		_viewMode = mode;
+		_fitAfterViewChange = true;
 		_slerpStep = 0.0f;
 	}
 }
 
 void GLWidget::fitAll()
 {
-	_viewBoundingSphereDia = _boundingSphere.getRadius() * 2;
+	_viewBoundingSphereDia = computeFitViewRange(_boundingBox);
 
 	if (!_animateFitAllTimer->isActive())
 	{
@@ -7943,6 +7950,7 @@ void GLWidget::checkAndStopTimers()
 	if (_animateViewTimer->isActive())
 	{
 		_animateViewTimer->stop();
+		_fitAfterViewChange = false;  // user interrupted — don't auto-fit
 		// Set all defaults
 		_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
 		_currentTranslation = _primaryCamera->getPosition();
@@ -9039,6 +9047,91 @@ void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QV
 {
 	_primaryCamera->setView(viewPos, viewDir, upDir, rightDir);
 	emit viewSet();
+}
+
+// Compute the viewRange required to fit the bounding box on screen given the
+// current view orientation.  Works analytically in view space — no chicken-and-egg
+// dependency on the current _viewRange — and accounts for viewport aspect ratio.
+float GLWidget::computeFitViewRange(const BoundingBox& box) const
+{
+	// Degenerate guard
+	if (box.getXSize() <= 0.0 && box.getYSize() <= 0.0 && box.getZSize() <= 0.0)
+		return _boundingSphere.getRadius() * 2.0f;
+
+	// Project all 8 AABB corners onto the camera's right and up axes.
+	// This gives the 2D extent of the scene as it actually appears from the
+	// current view orientation, independent of the current zoom level.
+	const QVector3D right = _primaryCamera->getRightVector().normalized();
+	const QVector3D up    = _primaryCamera->getUpVector().normalized();
+
+	float xMin_v =  std::numeric_limits<float>::max();
+	float xMax_v = -std::numeric_limits<float>::max();
+	float yMin_v =  std::numeric_limits<float>::max();
+	float yMax_v = -std::numeric_limits<float>::max();
+
+	for (const QVector3D& c : box.getCorners())
+	{
+		const float x = QVector3D::dotProduct(c, right);
+		const float y = QVector3D::dotProduct(c, up);
+		xMin_v = std::min(xMin_v, x);  xMax_v = std::max(xMax_v, x);
+		yMin_v = std::min(yMin_v, y);  yMax_v = std::max(yMax_v, y);
+	}
+
+	const float xSpan = xMax_v - xMin_v;
+	const float ySpan = yMax_v - yMin_v;
+	if (xSpan <= 0.0f && ySpan <= 0.0f)
+		return _boundingSphere.getRadius() * 2.0f;
+
+	const float aspect = static_cast<float>(width()) / static_cast<float>(height());
+	constexpr float margin = 1.05f;
+	float viewRange = 0.0f;
+
+	if (_projection == ViewProjection::ORTHOGRAPHIC)
+	{
+		// The ortho projection maps halfRange to the shorter screen dimension:
+		//   landscape (w > h): half-height = halfRange, half-width = halfRange * aspect
+		//   portrait  (w ≤ h): half-width  = halfRange, half-height = halfRange / aspect
+		//
+		// Solve for the smallest halfRange that fits both xSpan and ySpan.
+		float halfRange;
+		if (width() > height())
+			halfRange = std::max(xSpan / (2.0f * aspect), ySpan / 2.0f);
+		else
+			halfRange = std::max(xSpan / 2.0f, ySpan * aspect / 2.0f);
+
+		viewRange = halfRange * 2.0f * margin;
+	}
+	else // PERSPECTIVE
+	{
+		// The perspective Z-shift from computeViewShift() places the scene at depth:
+		//   |shift| = min(1.05/sin(FOV/2), 1.25) * viewRange  ≡  shiftFactor * viewRange
+		//
+		// Visible half-extents at that depth:
+		//   landscape: halfH = tan(FOV/2) * shiftFactor * viewRange
+		//              halfW = halfH * aspect
+		//   portrait:  effectiveFOV is widened so tan(effectiveFOV/2) = tan(FOV/2)/aspect
+		//              halfH = tan(FOV/2)/aspect * shiftFactor * viewRange
+		//              halfW = tan(FOV/2) * shiftFactor * viewRange  (same as landscape)
+		const float fovRad     = qDegreesToRadians(_FOV);
+		const float tanHalfFov = std::tan(fovRad * 0.5f);
+		const float sinHalfFov = std::sin(fovRad * 0.5f);
+		const float shiftFactor = std::min(1.05f / sinHalfFov, 1.25f);
+
+		float viewRangeX, viewRangeY;
+		if (aspect >= 1.0f) // landscape
+		{
+			viewRangeY = ySpan / (2.0f * tanHalfFov * shiftFactor);
+			viewRangeX = xSpan / (2.0f * tanHalfFov * shiftFactor * aspect);
+		}
+		else // portrait
+		{
+			viewRangeX = xSpan / (2.0f * tanHalfFov * shiftFactor);
+			viewRangeY = ySpan * aspect / (2.0f * tanHalfFov * shiftFactor);
+		}
+		viewRange = std::max(viewRangeX, viewRangeY) * margin;
+	}
+
+	return std::max(viewRange, 0.0001f);
 }
 
 // Improved approach based on rubberband zoom technique
