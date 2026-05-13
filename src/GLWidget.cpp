@@ -114,6 +114,7 @@ _assimpModelLoader(nullptr)
 
 	 connect(_viewToolbar, &ViewToolbar::projectionToggled, this, [this](bool ortho) {
 		 setProjection(ortho ? ViewProjection::ORTHOGRAPHIC : ViewProjection::PERSPECTIVE);
+		 fitAll();
 		 update();
 		 });
 
@@ -343,12 +344,6 @@ _assimpModelLoader(nullptr)
 	_animateViewTimer->setTimerType(Qt::PreciseTimer);
 	connect(_animateViewTimer, &QTimer::timeout, this, &GLWidget::animateViewChange);
 	connect(this, &GLWidget::rotationsSet, this, &GLWidget::stopAnimations);
-	connect(this, &GLWidget::rotationsSet, this, [this]() {
-		if (_fitAfterViewChange) {
-			_fitAfterViewChange = false;
-			fitAll();
-		}
-	});
 
 	_animateFitAllTimer = new QTimer(this);
 	_animateFitAllTimer->setTimerType(Qt::PreciseTimer);
@@ -1691,9 +1686,37 @@ void GLWidget::setViewMode(ViewMode mode)
 	if (!_animateViewTimer->isActive())
 	{
 		_keyboardNavTimer->stop();
+
+		// Compute the fit zoom for the *destination* orientation before the animation
+		// starts.  setRotations() already interpolates _viewRange toward
+		// _viewBoundingSphereDia on every tick, so setting it here lets rotation and
+		// zoom animate concurrently rather than sequentially.
+		//
+		// Euler angles match animateViewChange() exactly: setRotations(xRot, yRot, zRot)
+		// calls QQuaternion::fromEulerAngles(yRot, zRot, xRot).
+		float xRot = 0.0f, yRot = 0.0f, zRot = 0.0f;
+		switch (mode)
+		{
+			case ViewMode::TOP:       xRot =   0.0f; yRot =   0.0f;    zRot =   0.0f;   break;
+			case ViewMode::BOTTOM:    xRot =   0.0f; yRot = 180.0f;    zRot =   0.0f;   break;
+			case ViewMode::FRONT:     xRot =   0.0f; yRot = -90.0f;    zRot =   0.0f;   break;
+			case ViewMode::BACK:      xRot =   0.0f; yRot = -90.0f;    zRot = 180.0f;   break;
+			case ViewMode::LEFT:      xRot =   0.0f; yRot = -90.0f;    zRot =  90.0f;   break;
+			case ViewMode::RIGHT:     xRot =   0.0f; yRot = -90.0f;    zRot = -90.0f;   break;
+			case ViewMode::ISOMETRIC: xRot = -45.0f; yRot = -54.7356f; zRot =   0.0f;   break;
+			case ViewMode::DIMETRIC:  xRot = -20.7048f; yRot = -70.5288f; zRot = 0.0f;  break;
+			case ViewMode::TRIMETRIC: xRot = -30.0f; yRot = -55.0f;    zRot =   0.0f;   break;
+			default: break;
+		}
+		const QQuaternion q = QQuaternion::fromEulerAngles(yRot, zRot, xRot);
+		const QMatrix4x4  m(q.toRotationMatrix());
+		_viewBoundingSphereDia = computeFitViewRange(_boundingBox,
+			 m.row(0).toVector3D().normalized(),
+			 m.row(1).toVector3D().normalized(),
+			-m.row(2).toVector3D().normalized());
+
 		_animateViewTimer->start(5);
 		_viewMode = mode;
-		_fitAfterViewChange = true;
 		_slerpStep = 0.0f;
 	}
 }
@@ -7950,7 +7973,6 @@ void GLWidget::checkAndStopTimers()
 	if (_animateViewTimer->isActive())
 	{
 		_animateViewTimer->stop();
-		_fitAfterViewChange = false;  // user interrupted — don't auto-fit
 		// Set all defaults
 		_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
 		_currentTranslation = _primaryCamera->getPosition();
@@ -9049,21 +9071,27 @@ void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QV
 	emit viewSet();
 }
 
-// Compute the viewRange required to fit the bounding box on screen given the
-// current view orientation.  Works analytically in view space — no chicken-and-egg
-// dependency on the current _viewRange — and accounts for viewport aspect ratio.
+// Overload: extract axes from the current view matrix and delegate.
 float GLWidget::computeFitViewRange(const BoundingBox& box) const
 {
-	// Degenerate guard
+	const QMatrix4x4 V = _primaryCamera->getViewMatrix();
+	return computeFitViewRange(box,
+		 V.row(0).toVector3D().normalized(),
+		 V.row(1).toVector3D().normalized(),
+		-V.row(2).toVector3D().normalized());
+}
+
+// Core implementation.  Accepts explicit right/up/viewDir so callers can pass
+// the *target* view axes (e.g. from a destination quaternion) rather than the
+// camera's current axes.  This lets the rotation animation pre-load the correct
+// zoom target and interpolate rotation + zoom simultaneously.
+float GLWidget::computeFitViewRange(const BoundingBox& box,
+	const QVector3D& right, const QVector3D& up, const QVector3D& viewDir) const
+{
 	if (box.getXSize() <= 0.0 && box.getYSize() <= 0.0 && box.getZSize() <= 0.0)
 		return _boundingSphere.getRadius() * 2.0f;
 
-	// Project all 8 AABB corners onto the camera's right and up axes.
-	// This gives the 2D extent of the scene as it actually appears from the
-	// current view orientation, independent of the current zoom level.
-	const QVector3D right = _primaryCamera->getRightVector().normalized();
-	const QVector3D up    = _primaryCamera->getUpVector().normalized();
-
+	// View-space 2D extents (used by the ortho path).
 	float xMin_v =  std::numeric_limits<float>::max();
 	float xMax_v = -std::numeric_limits<float>::max();
 	float yMin_v =  std::numeric_limits<float>::max();
@@ -9091,8 +9119,6 @@ float GLWidget::computeFitViewRange(const BoundingBox& box) const
 		// The ortho projection maps halfRange to the shorter screen dimension:
 		//   landscape (w > h): half-height = halfRange, half-width = halfRange * aspect
 		//   portrait  (w ≤ h): half-width  = halfRange, half-height = halfRange / aspect
-		//
-		// Solve for the smallest halfRange that fits both xSpan and ySpan.
 		float halfRange;
 		if (width() > height())
 			halfRange = std::max(xSpan / (2.0f * aspect), ySpan / 2.0f);
@@ -9103,35 +9129,42 @@ float GLWidget::computeFitViewRange(const BoundingBox& box) const
 	}
 	else // PERSPECTIVE
 	{
-		// The perspective Z-shift from computeViewShift() places the scene at depth:
-		//   |shift| = min(1.05/sin(FOV/2), 1.25) * viewRange  ≡  shiftFactor * viewRange
-		//
-		// Visible half-extents at that depth:
-		//   landscape: halfH = tan(FOV/2) * shiftFactor * viewRange
-		//              halfW = halfH * aspect
-		//   portrait:  effectiveFOV is widened so tan(effectiveFOV/2) = tan(FOV/2)/aspect
-		//              halfH = tan(FOV/2)/aspect * shiftFactor * viewRange
-		//              halfW = tan(FOV/2) * shiftFactor * viewRange  (same as landscape)
-		const float fovRad     = qDegreesToRadians(_FOV);
-		const float tanHalfFov = std::tan(fovRad * 0.5f);
-		const float sinHalfFov = std::sin(fovRad * 0.5f);
+		// The perspective Z-shift from computeViewShift() positions the scene at depth
+		//   d = shiftFactor * viewRange  from the camera.
+		// For each corner at view-space offset (xc, yc, dc) from the scene centre:
+		//   shiftFactor * viewRange ≥ max(|xc|/tan_half_x, |yc|/tan_half_y) − dc
+		// Near-side corners (dc < 0) increase the requirement; far-side corners
+		// reduce it.  Taking the max over all 8 corners gives the exact minimum.
+		const float fovRad      = qDegreesToRadians(_FOV);
+		const float tanHalfFov  = std::tan(fovRad * 0.5f);
+		const float sinHalfFov  = std::sin(fovRad * 0.5f);
 		const float shiftFactor = std::min(1.05f / sinHalfFov, 1.25f);
+		const QVector3D center  = _boundingSphere.getCenter();
 
-		float viewRangeX, viewRangeY;
-		if (aspect >= 1.0f) // landscape
+		float maxReq = 0.0f;
+		for (const QVector3D& c : box.getCorners())
 		{
-			viewRangeY = ySpan / (2.0f * tanHalfFov * shiftFactor);
-			viewRangeX = xSpan / (2.0f * tanHalfFov * shiftFactor * aspect);
+			const float xc = QVector3D::dotProduct(c - center, right);
+			const float yc = QVector3D::dotProduct(c - center, up);
+			const float dc = QVector3D::dotProduct(c - center, viewDir);
+
+			float req;
+			if (aspect >= 1.0f) // landscape: tan_half_x = tanHalfFov * aspect
+				req = std::max(std::abs(xc) / aspect, std::abs(yc)) / tanHalfFov - dc;
+			else               // portrait:  tan_half_x = tanHalfFov
+				req = std::max(std::abs(xc), std::abs(yc) * aspect) / tanHalfFov - dc;
+
+			maxReq = std::max(maxReq, req);
 		}
-		else // portrait
-		{
-			viewRangeX = xSpan / (2.0f * tanHalfFov * shiftFactor);
-			viewRangeY = ySpan * aspect / (2.0f * tanHalfFov * shiftFactor);
-		}
-		viewRange = std::max(viewRangeX, viewRangeY) * margin;
+
+		viewRange = maxReq / shiftFactor * margin;
 	}
 
-	return std::max(viewRange, 0.0001f);
+	// For rounded/spherical geometry the AABB corners project much further than the
+	// actual silhouette.  The bounding sphere is a tighter valid bound for such objects.
+	// Both values guarantee full visibility, so their minimum is the tightest correct fit.
+	const float sphereViewRange = _boundingSphere.getRadius() * 2.0f * margin;
+	return std::max(std::min(viewRange, sphereViewRange), 0.0001f);
 }
 
 // Improved approach based on rubberband zoom technique

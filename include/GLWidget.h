@@ -621,6 +621,9 @@ private:
 	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
 	void fitBoxToScreen(const BoundingBox& box);
 	float computeFitViewRange(const BoundingBox& box) const;
+	float computeFitViewRange(const BoundingBox& box,
+	                          const QVector3D& right, const QVector3D& up,
+	                          const QVector3D& viewDir) const;
 
 	float highestModelZ();
 	float lowestModelZ();
@@ -917,7 +920,6 @@ private:
 
 	ViewMode _viewMode;
 	ViewProjection _projection;
-	bool _fitAfterViewChange = false;
 	GLCamera::ProjectionType _previousProjection;
 
 	GLCamera* _primaryCamera;
