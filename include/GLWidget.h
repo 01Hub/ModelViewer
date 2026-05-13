@@ -731,6 +731,9 @@ private:
 	bool _mouseMovedSincePress = false;
 	qint64 _lastMouseMoveTime = 0;
 
+	QPoint _lastMousePos;
+	qint64 _lastMouseTime = 0;
+
 	QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;
 	QVector3D _rubberBandPan;

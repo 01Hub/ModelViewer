@@ -1799,16 +1799,28 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 	{
 		if (_primaryCamera->getProjectionType() != GLCamera::ProjectionType::PERSPECTIVE)
 		{
-			_previousProjection = GLCamera::ProjectionType::ORTHOGRAPHIC;			
+			_previousProjection = GLCamera::ProjectionType::ORTHOGRAPHIC;
 			setProjection(ViewProjection::PERSPECTIVE);
 		}
+
+		// setMode syncs yaw/pitch from the current viewDir, resets up/right vectors
+		_primaryCamera->setMode(mode);
+
+		// Drop any zoom scale accumulated in Orbit mode; Fly uses real position instead
+		_primaryCamera->setZoom(1.0f);
+
+		// Place camera at a physical position: pull back from scene center along view direction
+		QVector3D viewDir = _primaryCamera->getViewDir();
+		QVector3D center  = _boundingSphere.getCenter();
+		float dist = std::max(_viewRange, _boundingSphere.getRadius() * 1.5f);
+		_primaryCamera->setPosition(center - viewDir * dist);
+		_currentTranslation = _primaryCamera->getPosition();
 	}
 	else if (mode == GLCamera::CameraMode::Orbit)
-	{		
+	{
+		_primaryCamera->setMode(mode);
 		setProjection(_previousProjection == GLCamera::ProjectionType::PERSPECTIVE ? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC);
 	}
-
-	_primaryCamera->setMode(mode);
 
 	resizeGL(width(), height());
 	update();
@@ -8062,6 +8074,8 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 	// Reset movement tracking
 	_mouseMovedSincePress = false;
 	_lastMouseMoveTime = 0;
+	_lastMousePos  = e->pos();
+	_lastMouseTime = e->timestamp();
 
 	if (e->button() & Qt::LeftButton)
 	{
@@ -8172,12 +8186,10 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 {
 	_mouseMovedSincePress = true;
 	_lastMouseMoveTime = e->timestamp();
-	static QPoint lastPos = e->pos();
-	static qint64 lastTime = e->timestamp();
 	QPoint currentPos = e->pos();
 	qint64 currentTime = e->timestamp();
-	QPoint delta = currentPos - lastPos;
-	float dt = (currentTime - lastTime) / 1000.0f; // seconds
+	QPoint delta = currentPos - _lastMousePos;
+	float dt = (currentTime - _lastMouseTime) / 1000.0f; // seconds
 
 	QPoint downPoint(e->position().x(), e->position().y());
 	if (e->buttons() == Qt::LeftButton && !_viewPanning && !_viewZooming)
@@ -8227,6 +8239,34 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 				if (_inertiaRotateVelocity.length() > maxInertiaVelocity)
 					_inertiaRotateVelocity = _inertiaRotateVelocity.normalized() * maxInertiaVelocity;
 			}
+		}
+
+		update();
+	}
+	else if (e->buttons() == Qt::RightButton && !(e->modifiers() & Qt::ControlModifier) &&
+		(_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+		 _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson))
+	{
+		// Free-look in Fly/FP mode: RMB drag rotates the view via yaw/pitch
+		QPoint look = _rightButtonPoint - downPoint;
+		_primaryCamera->getYaw()   += look.x() * 0.2f;
+		_primaryCamera->getPitch() += look.y() * 0.2f;
+
+		if (_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+			_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -60.0f, 60.0f);
+		else
+			_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -89.0f, 89.0f);
+
+		_primaryCamera->updateFlyView();
+		_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
+		_rightButtonPoint = downPoint;
+		setCursor(QCursor(QPixmap(":/icons/res/rotatecursor.png")));
+
+		if (dt > 0) {
+			_inertiaRotateVelocity = -QVector2D(look) / dt;
+			const float maxVel = 10.0f;
+			if (_inertiaRotateVelocity.length() > maxVel)
+				_inertiaRotateVelocity = _inertiaRotateVelocity.normalized() * maxVel;
 		}
 
 		update();
@@ -8363,8 +8403,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 	update();
 
-	lastPos = currentPos;
-	lastTime = currentTime;
+	_lastMousePos  = currentPos;
+	_lastMouseTime = currentTime;
 }
 
 void GLWidget::wheelEvent(QWheelEvent* e)
@@ -8680,8 +8720,22 @@ void GLWidget::onInertiaTimer()
 
 	// --- Rotation inertia ---
 	if (_inertiaRotateVelocity.lengthSquared() > 0.01f) {
-		_primaryCamera->rotateX(_inertiaRotateVelocity.y() / 2.0);
-		_primaryCamera->rotateY(_inertiaRotateVelocity.x() / 2.0);
+		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+		    _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		{
+			_primaryCamera->getYaw()   += _inertiaRotateVelocity.x() / 2.0f;
+			_primaryCamera->getPitch() += _inertiaRotateVelocity.y() / 2.0f;
+			if (_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+				_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -60.0f, 60.0f);
+			else
+				_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -89.0f, 89.0f);
+			_primaryCamera->updateFlyView();
+		}
+		else
+		{
+			_primaryCamera->rotateX(_inertiaRotateVelocity.y() / 2.0);
+			_primaryCamera->rotateY(_inertiaRotateVelocity.x() / 2.0);
+		}
 		_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
 		_inertiaRotateVelocity *= _inertiaDamping;
 		active = true;
