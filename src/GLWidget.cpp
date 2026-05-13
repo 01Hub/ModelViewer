@@ -8776,13 +8776,13 @@ QRect GLWidget::getViewportFromPoint(const QPoint& pixel)
 		if (pixel.x() < width() / 2 && pixel.y() > height() / 2)
 			viewport = QRect(0, 0, width() / 2, height() / 2);
 		// front view
-		if (pixel.x() < width() / 2 && pixel.y() < height() / 2)
+		else if (pixel.x() < width() / 2 && pixel.y() <= height() / 2)
 			viewport = QRect(0, height() / 2, width() / 2, height() / 2);
 		// left view
-		if (pixel.x() > width() / 2 && pixel.y() < height() / 2)
+		else if (pixel.x() >= width() / 2 && pixel.y() < height() / 2)
 			viewport = QRect(width() / 2, height() / 2, width() / 2, height() / 2);
-		// isometric
-		if (pixel.x() > width() / 2 && pixel.y() > height() / 2)
+		// isometric (also catches pixels exactly on the dividing lines)
+		else
 			viewport = QRect(width() / 2, 0, width() / 2, height() / 2);
 	}
 	else
@@ -8803,13 +8803,13 @@ QRect GLWidget::getClientRectFromPoint(const QPoint& pixel)
 		if (pixel.x() < width() / 2 && pixel.y() > height() / 2)
 			clientRect = QRect(0, height() / 2, width() / 2, height() / 2);
 		// front view
-		if (pixel.x() < width() / 2 && pixel.y() < height() / 2)
+		else if (pixel.x() < width() / 2 && pixel.y() <= height() / 2)
 			clientRect = QRect(0, 0, width() / 2, height() / 2);
 		// left view
-		if (pixel.x() > width() / 2 && pixel.y() < height() / 2)
+		else if (pixel.x() >= width() / 2 && pixel.y() < height() / 2)
 			clientRect = QRect(width() / 2, 0, width() / 2, height() / 2);
-		// isometric
-		if (pixel.x() > width() / 2 && pixel.y() > height() / 2)
+		// isometric (also catches pixels exactly on the dividing lines)
+		else
 			clientRect = QRect(width() / 2, height() / 2, width() / 2, height() / 2);
 	}
 	else

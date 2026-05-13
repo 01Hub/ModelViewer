@@ -57,6 +57,10 @@ int SelectionManager::clickSelect(const QPoint& pixel)
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
     convertClickToRay(pixel, viewport, _primaryCamera, rayPos, rayDir);
+    if (rayDir.isNull()) {
+        QApplication::restoreOverrideCursor();
+        return -1;
+    }
     rayDir.normalize();
 
     // === Ray-based intersection test ===
@@ -119,6 +123,8 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
     QRect viewport = getViewportFromPoint(pixel);
 
     convertClickToRay(pixel, viewport, _primaryCamera, rayPos, rayDir);
+    if (rayDir.isNull())
+        return -1;
     rayDir.normalize();
 
     // === Ray-based intersection test (performance-optimized) ===
@@ -227,6 +233,12 @@ void SelectionManager::getRayFromPixelCoords(const QPoint& pixel, QVector3D& ray
 void SelectionManager::convertClickToRay(const QPoint& pixel, const QRect& viewport,
                                         GLCamera* camera, QVector3D& orig, QVector3D& dir)
 {
+    if (viewport.width() <= 0 || viewport.height() <= 0) {
+        orig = QVector3D(0, 0, 0);
+        dir  = QVector3D(0, 0, 0);
+        return;
+    }
+
     int yInverted = _glWidget->height() - pixel.y() - 1;
 
     QMatrix4x4 view = _glWidget->getViewMatrix();
@@ -249,7 +261,8 @@ void SelectionManager::convertClickToRay(const QPoint& pixel, const QRect& viewp
     farWorld /= farWorld.w();
 
     orig = nearWorld.toVector3D();
-    dir = (farWorld.toVector3D() - orig).normalized();
+    QVector3D rawDir = farWorld.toVector3D() - orig;
+    dir = rawDir.isNull() ? QVector3D(0, 0, 0) : rawDir.normalized();
 }
 
 QRect SelectionManager::getViewportFromPoint(const QPoint& point)
@@ -267,13 +280,13 @@ QRect SelectionManager::getViewportFromPoint(const QPoint& point)
         if (point.x() < w / 2 && point.y() > h / 2)
             viewport = QRect(0, 0, w / 2, h / 2);
         // front view
-        else if (point.x() < w / 2 && point.y() < h / 2)
+        else if (point.x() < w / 2 && point.y() <= h / 2)
             viewport = QRect(0, h / 2, w / 2, h / 2);
         // left view
-        else if (point.x() > w / 2 && point.y() < h / 2)
+        else if (point.x() >= w / 2 && point.y() < h / 2)
             viewport = QRect(w / 2, h / 2, w / 2, h / 2);
-        // isometric
-        else if (point.x() > w / 2 && point.y() > h / 2)
+        // isometric (also catches pixels exactly on the dividing lines)
+        else
             viewport = QRect(w / 2, 0, w / 2, h / 2);
     }
     else
