@@ -464,12 +464,17 @@ void GLCamera::setProjectionMatrix(QMatrix4x4 mat)
 	_projectionMatrix = mat;
 }
 
-float GLCamera::computeViewShift(float fovYDegrees, float viewRange, float margin, float maxShiftFactor)
+float GLCamera::computeViewShift(float fovYDegrees, float viewRange, float margin, float maxShiftFactor) const
 {
 	float fovYRad = qDegreesToRadians(fovYDegrees);
 	float shift = -viewRange * margin / std::sin(fovYRad / 2.0f);
 	float minShift = -viewRange * maxShiftFactor;
 	return std::max(shift, minShift);
+}
+
+float GLCamera::getShift() const
+{
+	return computeViewShift(_FOV, _viewRange, 1.05f, 1.25f);
 }
 
 

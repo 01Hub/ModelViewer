@@ -1755,27 +1755,116 @@ void GLWidget::performWindowZoom()
 {
 	_windowZoomActive = false;
 
-	QVector3D Z(0, 0, 0); // instead of 0 for x and y we need worldPosition.x() and worldPosition.y() ....
-    Z = Z.project(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
-
-    QRect clientRect = getClientRectFromPoint(_rubberBand->geometry().center());
-	QPoint clientWinCen = clientRect.center();
-	QVector3D o(clientWinCen.x(), height() - clientWinCen.y(), Z.z());
-    QVector3D O = o.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
-
-    QRect zoomRect = _rubberBand->geometry();
+	QRect zoomRect = _rubberBand->geometry();
 	if (zoomRect.width() == 0 || zoomRect.height() == 0)
 	{
 		emit windowZoomEnded();
 		return;
 	}
-	QPoint zoomWinCen = zoomRect.center();
-	QVector3D p(zoomWinCen.x(), height() - zoomWinCen.y(), Z.z());
-    QVector3D P = p.unproject(_viewMatrix * _modelMatrix, _projectionMatrix, getViewportFromPoint(_rubberBand->geometry().center()));
 
-	double widthRatio = static_cast<double>(clientRect.width() / zoomRect.width());
-	double heightRatio = static_cast<double>(clientRect.height() / zoomRect.height());
-	_rubberBandZoomRatio = (heightRatio < widthRatio) ? heightRatio : widthRatio;
+	QPoint zoomWinCen = zoomRect.center();
+	QRect viewport = getViewportFromPoint(zoomWinCen);
+	QMatrix4x4 mvMatrix = _viewMatrix * _modelMatrix;
+
+	// Sample the depth buffer at the rubber-band centre to get the actual scene depth.
+	// When the centre pixel is background, scan a 9x9 neighbourhood and take the minimum
+	// non-background depth (nearest geometry). This is critical for small rubber-bands on
+	// model edges/silhouettes where the centre pixel often lands on background — the error
+	// in z_v is then amplified by the zoom ratio, causing visible offset.
+	float depthZ;
+	{
+		makeCurrent();
+		float rawDepth = 1.0f;
+		int cx = zoomWinCen.x();
+		int cy_gl = height() - zoomWinCen.y() - 1;  // flip to OpenGL bottom-up Y
+		glReadPixels(cx, cy_gl, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &rawDepth);
+
+		if (rawDepth >= 1.0f)
+		{
+			// Centre is background — scan a 9x9 neighbourhood for nearest geometry.
+			const int halfGrid = 4;
+			int x0 = std::max(0,            cx      - halfGrid);
+			int y0 = std::max(0,            cy_gl   - halfGrid);
+			int x1 = std::min(width()  - 1, cx      + halfGrid);
+			int y1 = std::min(height() - 1, cy_gl   + halfGrid);
+			int sw = x1 - x0 + 1, sh = y1 - y0 + 1;
+			std::vector<float> depthBuf(sw * sh, 1.0f);
+			glReadPixels(x0, y0, sw, sh, GL_DEPTH_COMPONENT, GL_FLOAT, depthBuf.data());
+			float minDepth = 1.0f;
+			for (float d : depthBuf)
+				if (d < minDepth) minDepth = d;
+			if (minDepth < 1.0f)
+				rawDepth = minDepth;
+		}
+
+		if (rawDepth >= 1.0f)
+		{
+			// No geometry found near centre — fall back to bounding sphere centre depth.
+			QVector3D Z = _boundingSphere.getCenter();
+			Z = Z.project(mvMatrix, _projectionMatrix, viewport);
+			depthZ = Z.z();
+		}
+		else
+		{
+			depthZ = rawDepth;
+		}
+	}
+
+	// Unproject viewport centre (O) and rubber-band centre (P) at the scene depth.
+	// The pan vector P - O brings the rubber-band centre to screen centre for any choice of depth.
+	QRect clientRect = getClientRectFromPoint(zoomWinCen);
+	QPoint clientWinCen = clientRect.center();
+	QVector3D o(clientWinCen.x(), height() - clientWinCen.y(), depthZ);
+	QVector3D O = o.unproject(mvMatrix, _projectionMatrix, viewport);
+
+	QVector3D p(zoomWinCen.x(), height() - zoomWinCen.y(), depthZ);
+	QVector3D P = p.unproject(mvMatrix, _projectionMatrix, viewport);
+
+	// Pixel-space zoom ratio (fixed: was integer division before).
+	double widthRatio  = static_cast<double>(clientRect.width())  / zoomRect.width();
+	double heightRatio = static_cast<double>(clientRect.height()) / zoomRect.height();
+	_rubberBandZoomRatio = static_cast<GLfloat>((heightRatio < widthRatio) ? heightRatio : widthRatio);
+
+	// Perspective correction: the visible extent at signed view-space depth z_v is
+	// proportional to (|shift| - z_v), not just |shift|. Correct the zoom ratio accordingly.
+	if (_projection == ViewProjection::PERSPECTIVE)
+	{
+		float shiftOld = std::abs(_primaryCamera->getShift());
+		if (shiftOld > 0.0f && _currentViewRange > 0.0f)
+		{
+			// Compute z_v (signed view-space Z) directly from the depth buffer value using
+			// the known projection parameters. This avoids the unproject → view-matrix
+			// multiply round-trip and is more numerically stable for near-side geometry.
+			//
+			// With projection = perspective(fov,a,n,f) * translate(0,0,shift):
+			//   z_eff  = z_v + shift        (where shift = -shiftOld)
+			//   z_ndc  = -M33 - M34/z_eff   (standard perspective depth formula)
+			//   depthZ = (z_ndc + 1) / 2
+			// Inverting: z_eff = -M34 / (M33 + z_ndc),  z_v = z_eff + shiftOld
+			float nearP = std::max(_currentViewRange * 0.01f, 0.01f);
+			float farP  = _currentViewRange * 1000.0f;
+			float M33   = -(farP + nearP) / (farP - nearP);
+			float M34   = -2.0f * farP * nearP / (farP - nearP);
+			float z_ndc = 2.0f * depthZ - 1.0f;
+			float denom = M33 + z_ndc;
+			float z_v   = (std::abs(denom) > 1e-10f)
+			              ? (-M34 / denom + shiftOld)
+			              : 0.0f;
+
+			// Unified formula: after zoom the visible half-extent at z_v changes from
+			// (shiftOld - z_v)*tan(fov/2) to (newShift - z_v)*tan(fov/2).
+			// Setting the new extent = old_extent / pixelRatio gives newShift:
+			//   newShift = (shiftOld - z_v) / ratio + z_v
+			float newShift = (shiftOld - z_v) / _rubberBandZoomRatio + z_v;
+			if (newShift > 0.0f)
+			{
+				float shiftFactor = shiftOld / _currentViewRange;
+				float newViewRange = newShift / shiftFactor;
+				_rubberBandZoomRatio = _currentViewRange / newViewRange;
+			}
+		}
+	}
+
 	_rubberBandPan = P - O;
 
 	if (!_animateWindowZoomTimer->isActive())
