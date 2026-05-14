@@ -1404,7 +1404,7 @@ std::vector<float> TriangleMesh::getTexCoords() const
 	return _texCoords;
 }
 
-std::vector<float> TriangleMesh::getTrsfPoints() const
+const std::vector<float>& TriangleMesh::getTrsfPoints() const
 {
 	return _trsfPoints;
 }

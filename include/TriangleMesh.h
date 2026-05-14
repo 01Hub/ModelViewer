@@ -109,7 +109,7 @@ public:
 	std::vector<float> getPoints() const;
 	std::vector<float> getNormals() const;
 	std::vector<float> getTexCoords() const;
-	std::vector<float> getTrsfPoints() const;
+	const std::vector<float>& getTrsfPoints() const;
 
 	void bakeTransformations();
 	void resetTransformations();

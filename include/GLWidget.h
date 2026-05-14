@@ -625,10 +625,34 @@ private:
 	void setZoomAndPan(float zoom, QVector3D pan);
 	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
 	void fitBoxToScreen(const BoundingBox& box);
-	float computeFitViewRange(const BoundingBox& box) const;
-	float computeFitViewRange(const BoundingBox& box,
+
+	// Collect a sampled set of world-space vertex positions from every visible
+	// mesh (≤ 1024 samples per mesh for performance).  Using actual vertices
+	// instead of 8 per-mesh AABB corners gives a genuinely tight silhouette:
+	// phantom corners from combining per-axis extremes that never coexist in
+	// real geometry are eliminated, so the fit zooms in as tight as possible.
+	std::vector<QVector3D> collectVisibleCorners() const;
+
+	// Core fit computation on an explicit corner set + explicit view axes.
+	// Separating axes from corners lets setViewMode() pass the *destination*
+	// quaternion's axes so rotation and zoom animate concurrently.
+	// If outCenter is non-null it receives the projected visual centre of the
+	// geometry (midpoint of view-space extents), which callers should set as
+	// the new orbit/pan target so the scene appears centred on screen.
+	float computeFitViewRange(const std::vector<QVector3D>& corners,
 	                          const QVector3D& right, const QVector3D& up,
-	                          const QVector3D& viewDir) const;
+	                          const QVector3D& viewDir,
+	                          QVector3D* outCenter = nullptr) const;
+
+	// Convenience: collects visible corners, then calls the core with the
+	// provided axes (used by setViewMode with target-orientation axes).
+	float computeFitViewRange(const QVector3D& right, const QVector3D& up,
+	                          const QVector3D& viewDir,
+	                          QVector3D* outCenter = nullptr) const;
+
+	// Convenience: collects visible corners + reads axes from the current
+	// view matrix (used by fitAll and projection-toggle).
+	float computeFitViewRange(QVector3D* outCenter = nullptr) const;
 
 	float highestModelZ();
 	float lowestModelZ();

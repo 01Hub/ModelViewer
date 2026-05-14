@@ -1710,10 +1710,16 @@ void GLWidget::setViewMode(ViewMode mode)
 		}
 		const QQuaternion q = QQuaternion::fromEulerAngles(yRot, zRot, xRot);
 		const QMatrix4x4  m(q.toRotationMatrix());
-		_viewBoundingSphereDia = computeFitViewRange(_boundingBox,
+
+		// Compute fit + projected visual centre from the *target* orientation so
+		// that the orbit target is correct as soon as the rotation animation begins.
+		QVector3D projCenter;
+		_viewBoundingSphereDia = computeFitViewRange(
 			 m.row(0).toVector3D().normalized(),
 			 m.row(1).toVector3D().normalized(),
-			-m.row(2).toVector3D().normalized());
+			-m.row(2).toVector3D().normalized(),
+			&projCenter);
+		_boundingSphere.setCenter(projCenter);
 
 		_animateViewTimer->start(5);
 		_viewMode = mode;
@@ -1723,14 +1729,20 @@ void GLWidget::setViewMode(ViewMode mode)
 
 void GLWidget::fitAll()
 {
-	_viewBoundingSphereDia = computeFitViewRange(_boundingBox);
+	// Compute the viewRange and the projected visual centre simultaneously.
+	// The projected centre is the midpoint of the geometry's view-space extents
+	// for the current orientation — setting it as the orbit target ensures the
+	// scene appears centred on screen with equal margins on every side.
+	QVector3D projCenter;
+	_viewBoundingSphereDia = computeFitViewRange(&projCenter);
+	_boundingSphere.setCenter(projCenter);
 
 	if (!_animateFitAllTimer->isActive())
 	{
-	_keyboardNavTimer->stop();
-	_animateFitAllTimer->start(5);
-	_slerpStep = 0.0f;
-}
+		_keyboardNavTimer->stop();
+		_animateFitAllTimer->start(5);
+		_slerpStep = 0.0f;
+	}
 }
 
 void GLWidget::setAutoFitViewOnUpdate(bool update)
@@ -9239,44 +9251,135 @@ void GLWidget::setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QV
 	emit viewSet();
 }
 
-// Overload: extract axes from the current view matrix and delegate.
-float GLWidget::computeFitViewRange(const BoundingBox& box) const
+// Collect a representative set of world-space vertex positions for every
+// visible mesh.  Using actual vertices (sampled for large meshes) gives a
+// genuinely tight projected silhouette — no phantom corners that arise when
+// an AABB combines, say, the maximum-X from the arm tip with the maximum-Y
+// from the lamp body at a point that never exists in the geometry.
+// Sampling cap: at most MAX_SAMPLES_PER_MESH positions per mesh so that
+// fitting remains fast even for high-poly scenes.
+std::vector<QVector3D> GLWidget::collectVisibleCorners() const
 {
-	const QMatrix4x4 V = _primaryCamera->getViewMatrix();
-	return computeFitViewRange(box,
-		 V.row(0).toVector3D().normalized(),
-		 V.row(1).toVector3D().normalized(),
-		-V.row(2).toVector3D().normalized());
+	constexpr int MAX_SAMPLES_PER_MESH = 1024;
+
+	const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	std::vector<QVector3D> points;
+	points.reserve(ids.size() * MAX_SAMPLES_PER_MESH);
+
+	for (int i : ids)
+	{
+		try
+		{
+			TriangleMesh* mesh = _meshStore.at(i);
+			const std::vector<float>& pts = mesh->getTrsfPoints();
+			const int nVerts = static_cast<int>(pts.size()) / 3;
+
+			if (nVerts <= 0)
+			{
+				// Fallback: use the 8 AABB corners if vertex data is absent
+				for (const QVector3D& c : mesh->getBoundingBox().getCorners())
+					points.push_back(c);
+				continue;
+			}
+
+			// Uniform stride so we always inspect ≤ MAX_SAMPLES_PER_MESH vertices
+			// while still touching the full extent of the mesh (first + last are
+			// always included, then evenly-spaced interior samples).
+			const int stride = std::max(1, nVerts / MAX_SAMPLES_PER_MESH);
+			for (int j = 0; j < nVerts; j += stride)
+			{
+				const int b = j * 3;
+				points.emplace_back(pts[b], pts[b + 1], pts[b + 2]);
+			}
+			// Always include the last vertex so we never miss a boundary point
+			if (nVerts > 0)
+			{
+				const int b = (nVerts - 1) * 3;
+				points.emplace_back(pts[b], pts[b + 1], pts[b + 2]);
+			}
+		}
+		catch (const std::out_of_range&) {}
+	}
+
+	// Fallback: if somehow empty, use the scene AABB corners
+	if (points.empty())
+		return _boundingBox.getCorners();
+	return points;
 }
 
-// Core implementation.  Accepts explicit right/up/viewDir so callers can pass
-// the *target* view axes (e.g. from a destination quaternion) rather than the
-// camera's current axes.  This lets the rotation animation pre-load the correct
-// zoom target and interpolate rotation + zoom simultaneously.
-float GLWidget::computeFitViewRange(const BoundingBox& box,
-	const QVector3D& right, const QVector3D& up, const QVector3D& viewDir) const
+// Convenience: read axes from the current view matrix, then delegate.
+float GLWidget::computeFitViewRange(QVector3D* outCenter) const
 {
-	if (box.getXSize() <= 0.0 && box.getYSize() <= 0.0 && box.getZSize() <= 0.0)
-		return _boundingSphere.getRadius() * 2.0f;
+	const QMatrix4x4 V = _primaryCamera->getViewMatrix();
+	return computeFitViewRange(
+		 V.row(0).toVector3D().normalized(),
+		 V.row(1).toVector3D().normalized(),
+		-V.row(2).toVector3D().normalized(),
+		outCenter);
+}
 
-	// View-space 2D extents (used by the ortho path).
+// Convenience: collect visible corners, then delegate to the core.
+// Used by setViewMode() with the destination quaternion's axes so that
+// rotation and zoom can animate concurrently.
+float GLWidget::computeFitViewRange(
+	const QVector3D& right, const QVector3D& up, const QVector3D& viewDir,
+	QVector3D* outCenter) const
+{
+	return computeFitViewRange(collectVisibleCorners(), right, up, viewDir, outCenter);
+}
+
+// Core implementation: fits an arbitrary set of world-space corners given
+// explicit view axes.  Analytical for both ortho and perspective.
+float GLWidget::computeFitViewRange(const std::vector<QVector3D>& corners,
+	const QVector3D& right, const QVector3D& up, const QVector3D& viewDir,
+	QVector3D* outCenter) const
+{
+	if (corners.empty())
+	{
+		if (outCenter) *outCenter = _boundingSphere.getCenter();
+		return _boundingSphere.getRadius() * 2.0f;
+	}
+
+	// Project every corner onto the view axes using ABSOLUTE dot products.
+	// The midpoint of the resulting intervals is the "visual centre" of the
+	// scene for this orientation — the point that should appear at screen centre
+	// so that equal margins surround the geometry on every side.
 	float xMin_v =  std::numeric_limits<float>::max();
 	float xMax_v = -std::numeric_limits<float>::max();
 	float yMin_v =  std::numeric_limits<float>::max();
 	float yMax_v = -std::numeric_limits<float>::max();
+	float zMin_v =  std::numeric_limits<float>::max();
+	float zMax_v = -std::numeric_limits<float>::max();
 
-	for (const QVector3D& c : box.getCorners())
+	for (const QVector3D& c : corners)
 	{
-		const float x = QVector3D::dotProduct(c, right);
-		const float y = QVector3D::dotProduct(c, up);
-		xMin_v = std::min(xMin_v, x);  xMax_v = std::max(xMax_v, x);
-		yMin_v = std::min(yMin_v, y);  yMax_v = std::max(yMax_v, y);
+		const float xc = QVector3D::dotProduct(c, right);
+		const float yc = QVector3D::dotProduct(c, up);
+		const float zc = QVector3D::dotProduct(c, viewDir);
+		xMin_v = std::min(xMin_v, xc);  xMax_v = std::max(xMax_v, xc);
+		yMin_v = std::min(yMin_v, yc);  yMax_v = std::max(yMax_v, yc);
+		zMin_v = std::min(zMin_v, zc);  zMax_v = std::max(zMax_v, zc);
 	}
 
-	const float xSpan = xMax_v - xMin_v;
-	const float ySpan = yMax_v - yMin_v;
-	if (xSpan <= 0.0f && ySpan <= 0.0f)
+	// Half-spans: these are the minimum extents required on each side of the
+	// projected centre — independent of the old bounding-sphere centre.
+	const float halfX = (xMax_v - xMin_v) * 0.5f;
+	const float halfY = (yMax_v - yMin_v) * 0.5f;
+
+	if (halfX <= 0.0f && halfY <= 0.0f)
+	{
+		if (outCenter) *outCenter = _boundingSphere.getCenter();
 		return _boundingSphere.getRadius() * 2.0f;
+	}
+
+	// Projected visual centre — the point in 3-D whose view-space coordinates
+	// are the midpoints of the extent intervals.  Callers use this as the new
+	// orbit/pan target so the scene is centred on screen after a fit operation.
+	const float cx = (xMin_v + xMax_v) * 0.5f;
+	const float cy = (yMin_v + yMax_v) * 0.5f;
+	const float cz = (zMin_v + zMax_v) * 0.5f;
+	const QVector3D projCenter = right * cx + up * cy + viewDir * cz;
+	if (outCenter) *outCenter = projCenter;
 
 	const float aspect = static_cast<float>(width()) / static_cast<float>(height());
 	constexpr float margin = 1.05f;
@@ -9287,40 +9390,39 @@ float GLWidget::computeFitViewRange(const BoundingBox& box,
 		// The ortho projection maps halfRange to the shorter screen dimension:
 		//   landscape (w > h): half-height = halfRange, half-width = halfRange * aspect
 		//   portrait  (w ≤ h): half-width  = halfRange, half-height = halfRange / aspect
+		// Using halfX = xSpan/2 (relative to the projected centre) ensures
+		// equal margins on both sides and no wasted screen space.
 		float halfRange;
 		if (width() > height())
-			halfRange = std::max(xSpan / (2.0f * aspect), ySpan / 2.0f);
+			halfRange = std::max(halfX / aspect, halfY);
 		else
-			halfRange = std::max(xSpan / 2.0f, ySpan * aspect / 2.0f);
+			halfRange = std::max(halfX, halfY * aspect);
 
 		viewRange = halfRange * 2.0f * margin;
 	}
 	else // PERSPECTIVE
 	{
-		// The perspective Z-shift from computeViewShift() positions the scene at depth
-		//   d = shiftFactor * viewRange  from the camera.
-		// For each corner at view-space offset (xc, yc, dc) from the scene centre:
-		//   shiftFactor * viewRange ≥ max(|xc|/tan_half_x, |yc|/tan_half_y) − dc
-		// Near-side corners (dc < 0) increase the requirement; far-side corners
-		// reduce it.  Taking the max over all 8 corners gives the exact minimum.
+		// For each corner at view-space offset (xc_rel, yc_rel, dc) from the
+		// projected centre:
+		//   shiftFactor * viewRange ≥ max(|xc_rel|/tan_half_x, |yc_rel|/tan_half_y) − dc
+		// Near-side corners (dc < 0) increase the requirement; far corners reduce it.
 		const float fovRad      = qDegreesToRadians(_FOV);
 		const float tanHalfFov  = std::tan(fovRad * 0.5f);
 		const float sinHalfFov  = std::sin(fovRad * 0.5f);
 		const float shiftFactor = std::min(1.05f / sinHalfFov, 1.25f);
-		const QVector3D center  = _boundingSphere.getCenter();
 
 		float maxReq = 0.0f;
-		for (const QVector3D& c : box.getCorners())
+		for (const QVector3D& c : corners)
 		{
-			const float xc = QVector3D::dotProduct(c - center, right);
-			const float yc = QVector3D::dotProduct(c - center, up);
-			const float dc = QVector3D::dotProduct(c - center, viewDir);
+			const float xc_rel = QVector3D::dotProduct(c, right)   - cx;
+			const float yc_rel = QVector3D::dotProduct(c, up)      - cy;
+			const float dc     = QVector3D::dotProduct(c, viewDir) - cz;
 
 			float req;
 			if (aspect >= 1.0f) // landscape: tan_half_x = tanHalfFov * aspect
-				req = std::max(std::abs(xc) / aspect, std::abs(yc)) / tanHalfFov - dc;
+				req = std::max(std::abs(xc_rel) / aspect, std::abs(yc_rel)) / tanHalfFov - dc;
 			else               // portrait:  tan_half_x = tanHalfFov
-				req = std::max(std::abs(xc), std::abs(yc) * aspect) / tanHalfFov - dc;
+				req = std::max(std::abs(xc_rel), std::abs(yc_rel) * aspect) / tanHalfFov - dc;
 
 			maxReq = std::max(maxReq, req);
 		}
@@ -9328,9 +9430,8 @@ float GLWidget::computeFitViewRange(const BoundingBox& box,
 		viewRange = maxReq / shiftFactor * margin;
 	}
 
-	// For rounded/spherical geometry the AABB corners project much further than the
-	// actual silhouette.  The bounding sphere is a tighter valid bound for such objects.
-	// Both values guarantee full visibility, so their minimum is the tightest correct fit.
+	// For rounded/spherical geometry the AABB corners project much further than
+	// the actual silhouette.  The bounding sphere provides a tighter bound.
 	const float sphereViewRange = _boundingSphere.getRadius() * 2.0f * margin;
 	return std::max(std::min(viewRange, sphereViewRange), 0.0001f);
 }
