@@ -517,8 +517,13 @@ public slots:
 	QMatrix4x4 getProjectionMatrix() const { return _projectionMatrix; }
 	QMatrix4x4 getModelViewMatrix() const { return _modelViewMatrix; }
 	bool isMultiViewActive() const { return _multiViewActive; }
-	ShaderProgram* getSelectionShader() const { return _selectionShader.get(); }	
+	ShaderProgram* getSelectionShader() const { return _selectionShader.get(); }
 	SelectionManager* getSelectionManager() const { return _selectionManager; }
+	// Returns the camera configured for the viewport that contains 'pixel'.
+	// In multi-view mode the ortho camera is set to the correct orientation
+	// (Top/Front/Left) before being returned; the isometric viewport returns
+	// the primary camera.  In single-view mode the primary camera is returned.
+	GLCamera* getCameraForPoint(const QPoint& pixel);
 
 	static GLMaterial resolveMaterialTextures(GLWidget* w, const GLMaterial& src);
 

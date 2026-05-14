@@ -56,7 +56,7 @@ int SelectionManager::clickSelect(const QPoint& pixel)
     QRect viewport = getViewportFromPoint(pixel);
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
-    convertClickToRay(pixel, viewport, _primaryCamera, rayPos, rayDir);
+    convertClickToRay(pixel, viewport, _glWidget->getCameraForPoint(pixel), rayPos, rayDir);
     if (rayDir.isNull()) {
         QApplication::restoreOverrideCursor();
         return -1;
@@ -122,7 +122,7 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
     QVector3D rayPos, rayDir, intersectionPoint;
     QRect viewport = getViewportFromPoint(pixel);
 
-    convertClickToRay(pixel, viewport, _primaryCamera, rayPos, rayDir);
+    convertClickToRay(pixel, viewport, _glWidget->getCameraForPoint(pixel), rayPos, rayDir);
     if (rayDir.isNull())
         return -1;
     rayDir.normalize();
@@ -241,7 +241,7 @@ void SelectionManager::convertClickToRay(const QPoint& pixel, const QRect& viewp
 
     int yInverted = _glWidget->height() - pixel.y() - 1;
 
-    QMatrix4x4 view = _glWidget->getViewMatrix();
+    QMatrix4x4 view = camera->getViewMatrix();
     QMatrix4x4 projection = camera->getProjectionMatrix();
 
     // Convert to Normalized Device Coordinates [-1, 1]

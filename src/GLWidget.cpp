@@ -8767,6 +8767,31 @@ void GLWidget::stopAnimations()
 // Note: convertClickToRay is now implemented in SelectionManager
 // Keeping getViewportFromPoint and getClientRectFromPoint as they're still used by GLWidget
 
+GLCamera* GLWidget::getCameraForPoint(const QPoint& pixel)
+{
+	if (!_multiViewActive)
+		return _primaryCamera;
+
+	// Determine which ortho view contains this pixel (same quadrant logic as getViewportFromPoint).
+	// Isometric viewport (bottom-right) uses the primary camera unchanged.
+	GLCamera::ViewProjection vp;
+	if (pixel.x() < width() / 2 && pixel.y() > height() / 2)
+		vp = GLCamera::ViewProjection::TOP_VIEW;
+	else if (pixel.x() < width() / 2 && pixel.y() <= height() / 2)
+		vp = GLCamera::ViewProjection::FRONT_VIEW;
+	else if (pixel.x() >= width() / 2 && pixel.y() < height() / 2)
+		vp = GLCamera::ViewProjection::LEFT_VIEW;
+	else
+		return _primaryCamera; // Isometric viewport
+
+	// Configure the shared ortho camera to match this viewport's rendering setup
+	_orthoViewsCamera->setScreenSize(width() / 2, height() / 2);
+	_orthoViewsCamera->setProjectionMatrix(_primaryCamera->getProjectionMatrix());
+	_orthoViewsCamera->setPosition(_primaryCamera->getPosition());
+	_orthoViewsCamera->setView(vp);
+	return _orthoViewsCamera;
+}
+
 QRect GLWidget::getViewportFromPoint(const QPoint& pixel)
 {
 	QRect viewport;
