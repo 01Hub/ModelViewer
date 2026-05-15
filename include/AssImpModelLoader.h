@@ -36,6 +36,7 @@
 #include <XCAFDoc_ShapeTool.hxx>
 
 #include "GLLights.h"
+#include "GltfVariantData.h"
 
 
 class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandler
@@ -101,6 +102,18 @@ struct AssImpMeshData
 	// This is the authoritative mapping of which material applies to this mesh,
 	// avoiding fragile name-based matching during export.
 	int originalMaterialIndex = -1;
+
+	// Absolute path of the file this mesh was loaded from.
+	QString sourceFile;
+
+	// KHR_materials_variants: which material index maps to which variants.
+	// Empty when the source file has no variant extension.
+	QVector<GltfVariantMapping> variantMappings;
+
+	// Pre-built GLMaterial for every material index referenced by variants
+	// (including the default material at key originalMaterialIndex).
+	// Populated during processMesh() so variant switching requires no I/O.
+	QMap<int, GLMaterial> allVariantMaterials;
 };
 
 using AssImpMeshDataBatch = std::vector<AssImpMeshData>;
@@ -142,6 +155,10 @@ public:
 	bool isAutoOrientActive(bool autoOrient) const { return _autoOrient; }
 
 	const aiScene* getScene() const { return _scene; }
+
+	// Returns variant data parsed from KHR_materials_variants.
+	// Empty when the loaded file has no variant extension.
+	const GltfVariantData& getVariantData() const { return _variantData; }
 
 	void freeScene();
 	void setImageTextureUploader(MaterialProcessor::ImageTextureUploadFn uploader);
@@ -186,6 +203,11 @@ private:
 	// Parse glTF primitive modes and store them in the map
 	void parseGltfPrimitiveModes(const QString& gltfPath);
 
+	// Parse KHR_materials_variants extension and populate _variantData.
+	// Must be called after updateAiSceneWithGltfMaterials() so material indices
+	// in the JSON correspond 1:1 to aiScene::mMaterials[] entries.
+	void parseGltfVariants(const QString& gltfPath);
+
 	// Update aiScene materials to match glTF structure (deduplicate, fix material assignments)
 	void updateAiSceneWithGltfMaterials(const QString& gltfPath, aiScene* scene);
 
@@ -229,4 +251,8 @@ private:
 	// Map from aiMesh index to original material index (before deduplication)
 	// Used to preserve true glTF material indices for correct export matching
 	std::map<int, int> _meshIndexToOriginalMaterialIndex;
+
+	// Variant data parsed from KHR_materials_variants (empty for non-glTF files
+	// or glTF files that do not carry the extension).
+	GltfVariantData _variantData;
 };

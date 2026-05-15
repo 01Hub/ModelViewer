@@ -484,3 +484,43 @@ void SceneGraph::freeSubtree(SceneNode* node)
         freeSubtree(child);
     delete node;
 }
+
+// ---------------------------------------------------------------------------
+// KHR_materials_variants
+// ---------------------------------------------------------------------------
+
+void SceneGraph::setVariantData(const QString& sourceFile, const GltfVariantData& data)
+{
+    _variantDataByFile[sourceFile] = data;
+    _activeVariantByFile.insert(sourceFile, -1);
+    emit variantDataChanged();
+}
+
+void SceneGraph::clearVariantData(const QString& sourceFile)
+{
+    if (_variantDataByFile.remove(sourceFile) > 0)
+    {
+        _activeVariantByFile.remove(sourceFile);
+        emit variantDataChanged();
+    }
+}
+
+GltfVariantData SceneGraph::variantDataForFile(const QString& sourceFile) const
+{
+    return _variantDataByFile.value(sourceFile, GltfVariantData{});
+}
+
+QStringList SceneGraph::filesWithVariants() const
+{
+    return _variantDataByFile.keys();
+}
+
+void SceneGraph::setActiveVariant(const QString& sourceFile, int variantIndex)
+{
+    _activeVariantByFile[sourceFile] = variantIndex;
+}
+
+int SceneGraph::activeVariantForFile(const QString& sourceFile) const
+{
+    return _activeVariantByFile.value(sourceFile, -1);
+}

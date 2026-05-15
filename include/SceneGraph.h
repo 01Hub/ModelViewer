@@ -2,11 +2,13 @@
 
 #include "SceneNode.h"
 #include "GLLights.h"
+#include "GltfVariantData.h"
 
 #include <QHash>
 #include <QJsonArray>
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QDataStream>
 #include <assimp/scene.h>
 
@@ -96,6 +98,27 @@ public:
     void setLights(const std::vector<GPULight>& lights) { _lights = lights; }
 
     // -----------------------------------------------------------------------
+    // KHR_materials_variants
+    // -----------------------------------------------------------------------
+
+    // Register variant data for a source file (called after import succeeds).
+    void setVariantData(const QString& sourceFile, const GltfVariantData& data);
+
+    // Remove variant data for a source file.
+    void clearVariantData(const QString& sourceFile);
+
+    // Returns the variant data for a specific source file, or an empty struct.
+    GltfVariantData variantDataForFile(const QString& sourceFile) const;
+
+    // Returns all source files that carry KHR_materials_variants data.
+    QStringList filesWithVariants() const;
+
+    // Track and retrieve the currently active variant per source file.
+    // -1 = file default (no variant active).
+    void setActiveVariant(const QString& sourceFile, int variantIndex);
+    int  activeVariantForFile(const QString& sourceFile) const;
+
+    // -----------------------------------------------------------------------
     // Mutation  (called by undo/redo command classes)
     // -----------------------------------------------------------------------
 
@@ -141,6 +164,11 @@ signals:
     // The tree widget connects to this to rebuild or refresh its items.
     void structureChanged();
 
+    // Emitted when variant data is added or removed (a file with
+    // KHR_materials_variants is loaded or its meshes are cleared).
+    // The MaterialVariantsPanel connects to this to refresh its tree.
+    void variantDataChanged();
+
 private:
     // Recursively build a SceneNode subtree that mirrors ainode and its
     // descendants.  cursor advances through uuids as mesh UUIDs are assigned
@@ -170,4 +198,10 @@ private:
 
     // Punctual lights from KHR_lights_punctual extension.
     std::vector<GPULight> _lights;
+
+    // KHR_materials_variants: one entry per source file that carries the extension.
+    QHash<QString, GltfVariantData> _variantDataByFile;
+
+    // Currently active variant index per source file (-1 = file default).
+    QHash<QString, int> _activeVariantByFile;
 };

@@ -222,6 +222,10 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 		// Parse primitive modes for rendering
 		parseGltfPrimitiveModes(qPath);
+
+		// Parse KHR_materials_variants (after material dedup so indices are stable)
+		_variantData = GltfVariantData();
+		parseGltfVariants(qPath);
 	}
 
 	_sceneStats = collectSceneMeshInfo(_scene);
@@ -798,6 +802,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	meshData.hasNegativeScale = hasNegativeScale;
 	meshData.sceneIndex = meshIndex;
 	meshData.originalMaterialIndex = originalMaterialIndex;
+	meshData.sourceFile = QString::fromStdString(_path);
 
 	qDebug() << "[IMPORT-STORED] MeshData for" << meshName
 	         << "sceneIndex=" << meshIndex
@@ -808,6 +813,56 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	{
 		meshData.primitiveMode = _gltfMeshPrimitiveModes[meshIndex];
 		qDebug() << "Set primitive mode for mesh" << meshIndex << "to" << meshData.primitiveMode;
+	}
+
+	// -----------------------------------------------------------------------
+	// KHR_materials_variants: pre-build GLMaterial for every variant material
+	// referenced by this primitive.  We do this here, while the scene + JSON
+	// caches are warm, so variant switching at runtime requires no I/O.
+	// -----------------------------------------------------------------------
+	if (!_variantData.isEmpty() && _variantData.meshVariantMappings.contains(meshIndex))
+	{
+		const QString qPath = QString::fromStdString(_path);
+		const bool isGltf   = qPath.endsWith(".gltf", Qt::CaseInsensitive);
+		const bool isGlb    = qPath.endsWith(".glb",  Qt::CaseInsensitive);
+
+		meshData.variantMappings = _variantData.meshVariantMappings[meshIndex];
+
+		// Collect every unique material index this primitive can ever use.
+		QSet<int> matIndices;
+		matIndices.insert(originalMaterialIndex);  // the current default
+		for (const GltfVariantMapping& vm : std::as_const(meshData.variantMappings))
+			matIndices.insert(vm.materialIndex);
+
+		for (int matIdx : std::as_const(matIndices))
+		{
+			if (matIdx < 0 || matIdx >= static_cast<int>(scene->mNumMaterials))
+				continue;
+
+			GLMaterial varMat;
+			std::vector<GLMaterial::Texture> varTextures;
+			_materialProcessor.processAssimpColorAndMaterial(scene->mMaterials[matIdx], varMat);
+
+			if (isGltf || isGlb)
+			{
+				_materialProcessor.processGltf2CoreAndExtensions(
+					qPath, scene,
+					QString::fromUtf8(nodeName),
+					nullptr,     // no specific aiMesh — materialIndex is authoritative
+					matIdx,
+					varMat, varTextures);
+			}
+			else
+			{
+				_materialProcessor.processAssimpTextureMaps(
+					scene->mMaterials[matIdx], varTextures, varMat);
+			}
+
+			meshData.allVariantMaterials[matIdx] = varMat;
+		}
+
+		qDebug() << "[VARIANTS] Mesh" << meshName << "has" << meshData.variantMappings.size()
+		         << "variant mappings," << meshData.allVariantMaterials.size() << "prebuilt materials";
 	}
 
 	return meshData;
@@ -1449,6 +1504,112 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 	}
 }
 
+void AssImpModelLoader::parseGltfVariants(const QString& gltfPath)
+{
+	_variantData = GltfVariantData();
+
+	const bool isGLB  = gltfPath.endsWith(".glb",  Qt::CaseInsensitive);
+	const bool isGLTF = gltfPath.endsWith(".gltf", Qt::CaseInsensitive);
+	if (!isGLB && !isGLTF)
+		return;
+
+	// ---- Obtain JSON -------------------------------------------------------
+	QJsonDocument doc;
+	if (isGLB)
+	{
+		std::vector<uint8_t> glbBinaryBuffer;
+		const QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer);
+		if (jsonString.isEmpty())
+		{
+			qWarning() << "parseGltfVariants: failed to extract JSON from GLB:" << gltfPath;
+			return;
+		}
+		QJsonParseError perr;
+		doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
+		if (perr.error != QJsonParseError::NoError)
+		{
+			qWarning() << "parseGltfVariants: JSON parse error:" << perr.errorString();
+			return;
+		}
+	}
+	else
+	{
+		QFile file(gltfPath);
+		if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+		{
+			qWarning() << "parseGltfVariants: cannot open" << gltfPath;
+			return;
+		}
+		doc = QJsonDocument::fromJson(file.readAll());
+		file.close();
+	}
+
+	if (!doc.isObject())
+		return;
+
+	const QJsonObject root = doc.object();
+
+	// ---- Root-level variant names -----------------------------------------
+	const QJsonObject rootExts    = root.value("extensions").toObject();
+	const QJsonObject khrVariants = rootExts.value("KHR_materials_variants").toObject();
+	const QJsonArray  variantArr  = khrVariants.value("variants").toArray();
+
+	if (variantArr.isEmpty())
+		return;  // extension not present or no variants declared
+
+	_variantData.sourceFile = gltfPath;
+	for (const QJsonValue& v : variantArr)
+		_variantData.variantNames.append(v.toObject().value("name").toString());
+
+	qDebug() << "parseGltfVariants: found" << _variantData.variantNames.size()
+	         << "variants in" << gltfPath << ":" << _variantData.variantNames;
+
+	// ---- Per-mesh-primitive mappings --------------------------------------
+	// Iterate meshes[] → primitives[] in order.  Each primitive corresponds to
+	// one aiMesh in aiScene::mMeshes[] (Assimp flattens primitives).
+	const QJsonArray gltfMeshes = root.value("meshes").toArray();
+	int aiMeshIndex = 0;
+
+	for (const QJsonValue& meshVal : gltfMeshes)
+	{
+		const QJsonArray primitives = meshVal.toObject().value("primitives").toArray();
+		for (const QJsonValue& primVal : primitives)
+		{
+			const QJsonObject primObj  = primVal.toObject();
+			const QJsonObject primExts = primObj.value("extensions").toObject();
+			const QJsonObject khrPrim  = primExts.value("KHR_materials_variants").toObject();
+			const QJsonArray  mappings = khrPrim.value("mappings").toArray();
+
+			if (!mappings.isEmpty())
+			{
+				QVector<GltfVariantMapping> primMappings;
+				primMappings.reserve(mappings.size());
+
+				for (const QJsonValue& mapVal : mappings)
+				{
+					const QJsonObject mapObj = mapVal.toObject();
+					GltfVariantMapping gvm;
+					gvm.materialIndex = mapObj.value("material").toInt(-1);
+					const QJsonArray varIdxArr = mapObj.value("variants").toArray();
+					gvm.variantIndices.reserve(varIdxArr.size());
+					for (const QJsonValue& vi : varIdxArr)
+						gvm.variantIndices.append(vi.toInt());
+					if (gvm.materialIndex >= 0 && !gvm.variantIndices.isEmpty())
+						primMappings.append(gvm);
+				}
+
+				if (!primMappings.isEmpty())
+					_variantData.meshVariantMappings[aiMeshIndex] = primMappings;
+			}
+
+			++aiMeshIndex;
+		}
+	}
+
+	qDebug() << "parseGltfVariants: mapped" << _variantData.meshVariantMappings.size()
+	         << "primitives with variant overrides";
+}
+
 void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, aiScene* scene)
 {
 	if (!scene || scene->mNumMaterials == 0)
@@ -1490,6 +1651,37 @@ void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, 
 
 	if (gltfMaterials.isEmpty())
 		return;
+
+	// ===== EXTEND MATERIAL ARRAY FOR VARIANT-ONLY MATERIALS =====
+	// Assimp only loads materials actually assigned to default mesh primitives.
+	// KHR_materials_variants can reference additional materials that Assimp never
+	// allocated aiMaterial entries for. Extend the array so processMesh can load
+	// them from the glTF JSON via processGltf2CoreAndExtensions.
+	int gltfMatCount = static_cast<int>(gltfMaterials.size());
+	int aiMatCount   = static_cast<int>(scene->mNumMaterials);
+	if (gltfMatCount > aiMatCount)
+	{
+		aiMaterial** extended = new aiMaterial*[gltfMatCount];
+		for (int i = 0; i < aiMatCount; ++i)
+			extended[i] = scene->mMaterials[i];
+
+		for (int i = aiMatCount; i < gltfMatCount; ++i)
+		{
+			aiMaterial* mat = new aiMaterial();
+			QJsonObject matObj = gltfMaterials[i].toObject();
+			QString matName = matObj["name"].toString(QString("material_%1").arg(i));
+			aiString aiName(matName.toStdString());
+			mat->AddProperty(&aiName, AI_MATKEY_NAME);
+			extended[i] = mat;
+		}
+
+		delete[] scene->mMaterials;
+		scene->mMaterials    = extended;
+		scene->mNumMaterials = static_cast<unsigned int>(gltfMatCount);
+
+		qDebug() << "updateAiSceneWithGltfMaterials: Extended material array from"
+		         << aiMatCount << "to" << gltfMatCount << "for variant-only materials";
+	}
 
 	// ===== BUILD DEDUPLICATION MAP =====
 	// Compare glTF materials to aiScene materials

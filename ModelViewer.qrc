@@ -73,6 +73,7 @@
         <file>res/properties.png</file>
         <file>res/navigation.png</file>
         <file>res/bg_color.png</file>
+        <file>res/material_variants.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

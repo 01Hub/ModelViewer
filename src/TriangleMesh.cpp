@@ -2348,3 +2348,27 @@ void TriangleMesh::clearAllPBRMaps()
 	markUniformsDirty();
 }
 
+const GLMaterial* TriangleMesh::materialForVariant(int variantIndex) const
+{
+	if (_variantMappings.isEmpty())
+		return nullptr;
+
+	if (variantIndex < 0)
+	{
+		// Reset to file default
+		auto it = _allVariantMaterials.find(_originalMaterialIndex);
+		return (it != _allVariantMaterials.end()) ? &it.value() : nullptr;
+	}
+
+	for (const GltfVariantMapping& vm : _variantMappings)
+	{
+		if (vm.variantIndices.contains(variantIndex))
+		{
+			auto it = _allVariantMaterials.find(vm.materialIndex);
+			return (it != _allVariantMaterials.end()) ? &it.value() : nullptr;
+		}
+	}
+
+	return nullptr;  // no explicit mapping — caller keeps current material
+}
+

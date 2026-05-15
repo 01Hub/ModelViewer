@@ -2374,6 +2374,23 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 		"  background-color: rgba(%13, %14, %15, %16);"
 		"  alternate-background-color: rgba(%17, %18, %19, %20);"
 		"}"
+		/* Tab bar: transparent background, tinted tabs that adapt to dark/light bg */
+		"QWidget#%1 QTabBar {"
+		"  background-color: transparent;"
+		"}"
+		"QWidget#%1 QTabBar::tab {"
+		"  background-color: rgba(%2, %3, %4, 40);"
+		"  color: rgb(%2, %3, %4);"
+		"  border-radius: 4px;"
+		"  padding: 3px 10px;"
+		"  margin-right: 2px;"
+		"}"
+		"QWidget#%1 QTabBar::tab:selected {"
+		"  background-color: rgba(%2, %3, %4, 110);"
+		"}"
+		"QWidget#%1 QTabBar::tab:hover:!selected {"
+		"  background-color: rgba(%2, %3, %4, 65);"
+		"}"
 		"QWidget#%1 QLabel,"
 		"QWidget#%1 QCheckBox,"
 		"QWidget#%1 QRadioButton,"
@@ -2824,6 +2841,11 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			{
 				_viewer->sceneGraph()->appendFromScene(
 					_assimpScene, fileName, _pendingSceneUuids, _originalParsedLights);
+
+				// Register KHR_materials_variants data (if any) for this file.
+				const GltfVariantData& vd = loadingWorker->getVariantData();
+				if (!vd.isEmpty())
+					_viewer->sceneGraph()->setVariantData(fileName, vd);
 			}
 			_pendingSceneUuids.clear();
 
@@ -7175,6 +7197,12 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 	mesh->setPrimitiveMode(meshData.primitiveMode);
 	mesh->setSceneIndex(meshData.sceneIndex);
 	mesh->setOriginalMaterialIndex(meshData.originalMaterialIndex);
+	mesh->setSourceFile(meshData.sourceFile);
+	if (!meshData.variantMappings.isEmpty())
+	{
+		mesh->setVariantMappings(meshData.variantMappings);
+		mesh->setAllVariantMaterials(meshData.allVariantMaterials);
+	}
 	if (_progressiveLoadingEnabled)
 	{
 		GLMaterial progressiveResolved = resolveMaterialTextures(this, mesh->getMaterial());

@@ -5,6 +5,9 @@
 #include "BoundingSphere.h"
 #include "BoundingBox.h"
 #include "GLMaterial.h"
+#include "GltfVariantData.h"
+
+#include <QMap>
 
 class Triangle;
 
@@ -129,6 +132,35 @@ public:
 	// Used during export to ensure correct material assignment without relying on name matching.
 	void setOriginalMaterialIndex(int index) { _originalMaterialIndex = index; }
 	int getOriginalMaterialIndex() const { return _originalMaterialIndex; }
+
+	// -----------------------------------------------------------------------
+	// Source file tracking
+	// -----------------------------------------------------------------------
+	void    setSourceFile(const QString& path) { _sourceFile = path; }
+	QString getSourceFile() const              { return _sourceFile; }
+
+	// -----------------------------------------------------------------------
+	// KHR_materials_variants support
+	// -----------------------------------------------------------------------
+
+	// Per-primitive variant->material mappings (empty for non-variant meshes).
+	void setVariantMappings(const QVector<GltfVariantMapping>& m) { _variantMappings = m; }
+	const QVector<GltfVariantMapping>& variantMappings() const    { return _variantMappings; }
+
+	// Pre-built GLMaterial for every material index referenced by variants.
+	// Includes the default material keyed by originalMaterialIndex.
+	void setAllVariantMaterials(const QMap<int, GLMaterial>& mats) { _allVariantMaterials = mats; }
+	const QMap<int, GLMaterial>& allVariantMaterials() const       { return _allVariantMaterials; }
+
+	bool hasVariants() const { return !_variantMappings.isEmpty(); }
+
+	// Return a pointer to the prebuilt GLMaterial for the given variant index,
+	// or nullptr when this mesh has no mapping for that variant (keep default).
+	// Pass variantIndex = -1 to retrieve the original/default material.
+	const GLMaterial* materialForVariant(int variantIndex) const;
+
+	void setActiveVariantIndex(int idx) { _activeVariantIndex = idx; }
+	int  activeVariantIndex() const     { return _activeVariantIndex; }
 
 	// Returns a sort key based on primary texture IDs to minimise GPU texture
 	// state changes when opaque meshes are sorted before drawing.
@@ -424,6 +456,18 @@ protected:
 	// Used during export to ensure correct material assignment via index matching,
 	// avoiding fragile name-based matching. -1 if not from an Assimp scene.
 	int _originalMaterialIndex = -1;
+
+	// Absolute path of the file this mesh was loaded from (empty for parametric shapes).
+	QString _sourceFile;
+
+	// KHR_materials_variants: per-primitive variant->material mappings.
+	QVector<GltfVariantMapping> _variantMappings;
+
+	// Pre-built GLMaterial for each material index referenced by variants.
+	QMap<int, GLMaterial> _allVariantMaterials;
+
+	// Currently active variant (-1 = file default).
+	int _activeVariantIndex = -1;
 
 	// Individual transformation components
 	float _transX;

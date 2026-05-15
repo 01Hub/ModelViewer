@@ -14,8 +14,11 @@
 #include "MaterialPropertiesPanel.h"
 #include "SceneClipboard.h"
 #include "CutCommand.h"
+#include "MaterialVariantsPanel.h"
 
 #include <QUndoStack>
+
+class QTabWidget;
 
 struct UVDialogResult
 {
@@ -133,6 +136,10 @@ public:
 	void detachNavigationPanel();
 	void reattachNavigationPanel();
 
+	// Apply a named variant to all meshes from the given source file.
+	// variantIndex = -1 resets to the file's default material assignments.
+	void applyVariant(const QString& sourceFile, int variantIndex);
+
 public slots:
 	void updateDisplayList();
 	void updateSelectionStatusMessage();
@@ -205,6 +212,13 @@ protected:
 private:
 	void updateNavigationOverlayGeometry();
 
+	// Show/hide the Variants tab (_innerTabWidget) based on whether
+	// any currently loaded file carries KHR_materials_variants data.
+	void refreshVariantsTab();
+
+	// Called when the inner tab selection changes (Model ↔ Variants).
+	void onInnerNavTabChanged(int index);
+
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
 	QString computeUniqueName(TriangleMesh* exclude, const QString& name) const;
 	bool checkForActiveSelection();
@@ -217,6 +231,7 @@ private:
 	void setupUndoStackMonitoring();
 	void onUndoStackChanged();
 	void cleanupOrphanedMeshes();
+	void validateVariantData();   // removes variant data for files with no remaining meshes
 	bool saveMaterialsBeforeClose();  // Save all unsaved materials to library before closing
 	void cleanupUnsavedMaterialsFromLibrary();
 	QSet<QUuid> scanStackForReferencedUuids();
@@ -294,6 +309,16 @@ private:
 	QPointer<QWidget> _detachedNavigationOverlay;
 	int _navigationPageIndex = -1;
 	QString _navigationPageLabel;
+
+	// KHR_materials_variants UI.
+	// _innerTabWidget is null at startup. When the first variant-bearing file
+	// loads, it is created on the fly: modelNavigationWidget is reparented into
+	// it as tab 0 and _variantsPanel as tab 1, and the tab widget itself takes
+	// modelNavigationWidget's place in navigationFrame's layout. When all
+	// variant models are removed the process is reversed and the tab widget
+	// is destroyed, leaving the layout exactly as it was originally.
+	QTabWidget*            _innerTabWidget = nullptr;
+	MaterialVariantsPanel* _variantsPanel  = nullptr;
 
 	QUndoStack* _undoStack;
 	bool _lastCanUndo = false;

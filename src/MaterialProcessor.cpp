@@ -2225,6 +2225,14 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		}
 	}
 
+	// When called without a specific mesh (variant preloading), materialIndex IS the
+	// authoritative glTF material index — use it directly if name lookup didn't find a
+	// unique match.
+	if (gltfMaterialIndex < 0 && !currentMesh)
+	{
+		gltfMaterialIndex = materialIndex;
+	}
+
 	// ===== Only run remaining strategies if name-based lookup FAILED =====
 	if (gltfMaterialIndex < 0)
 	{

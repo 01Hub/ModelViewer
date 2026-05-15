@@ -25,7 +25,6 @@
 #include "TriangleMesh.h"
 #include "VisibilityCommand.h"
 #include <assimp/Importer.hpp>
-#include <algorithm>
 #include <functional>
 #include <QApplication>
 #include <QColorDialog>
@@ -147,7 +146,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	{
 		_variantsPanel = new MaterialVariantsPanel(this);
 		_variantsPanel->setSceneGraph(_sceneGraph);
-		_variantsPanel->hide();  // keep hidden until reparented into _innerTabWidget
 
 		connect(_variantsPanel, &MaterialVariantsPanel::variantActivated,
 		        this,           &ModelViewer::applyVariant);
@@ -158,8 +156,6 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	connect(_sceneGraph, &SceneGraph::structureChanged,
 	        this, &ModelViewer::validateCutClipboard);
-	connect(_sceneGraph, &SceneGraph::structureChanged,
-	        this, &ModelViewer::validateVariantData);
 	treeWidgetModel->installEventFilter(this);
 	treeWidgetModel->viewport()->installEventFilter(this);
 
@@ -1031,13 +1027,10 @@ void ModelViewer::reattachNavigationPanel()
 
 	treeWidgetModel->setDetachedOverlayMode(false);
 
-	// If the tab widget exists, restore modelNavigationWidget into it
-	// and make the tab widget visible again.
-	if (_innerTabWidget)
+	if (_innerTabBar)
 	{
-		_innerTabWidget->insertTab(0, modelNavigationWidget, QIcon(":/icons/res/expand.png"), tr("Model"));
-		_innerTabWidget->setCurrentIndex(0);
-		_innerTabWidget->show();
+		_innerTabBar->setAttribute(Qt::WA_NoSystemBackground, false);
+		_innerTabBar->setAutoFillBackground(true);
 	}
 
 	if (_variantsPanel)
@@ -1046,14 +1039,9 @@ void ModelViewer::reattachNavigationPanel()
 	_glWidget->takeOverlayPanel(modelNavigationWidget);
 	_detachedNavigationOverlay = nullptr;
 
-	// Put modelNavigationWidget back into its rightful place.
-	// When the tab widget exists it is already in navigationFrame's grid;
-	// modelNavigationWidget was already restored as its tab 0 above.
-	if (!_innerTabWidget)
-	{
-		if (auto* grid = qobject_cast<QGridLayout*>(navigationFrame->layout()))
-			grid->addWidget(modelNavigationWidget, 0, 0);
-	}
+	// Put modelNavigationWidget back into navigationFrame's layout.
+	if (auto* grid = qobject_cast<QGridLayout*>(navigationFrame->layout()))
+		grid->addWidget(modelNavigationWidget, 0, 0);
 
 	// Restore the navigation tab
 	if (_navigationPageIndex >= 0)
@@ -1090,20 +1078,17 @@ void ModelViewer::refreshVariantsTab()
 		if (!grid)
 			return;
 
-		// Create the tab widget parented to navigationFrame, hidden until
-		// fully configured to avoid a momentary flash at position (0,0).
+		// Create the tab widget parented to navigationFrame.
 		_innerTabWidget = new QTabWidget(navigationFrame);
-		_innerTabWidget->hide();
-		_innerTabWidget->setIconSize(QSize(36, 36));
 
 		// Remove modelNavigationWidget from navigationFrame's grid and
 		// reparent it into tab 0 of the new tab widget.
 		grid->removeWidget(modelNavigationWidget);
-		_innerTabWidget->addTab(modelNavigationWidget, QIcon(":/icons/res/expand.png"), tr("Model"));
+		_innerTabWidget->addTab(modelNavigationWidget, tr("Model"));
 
 		// Variants panel becomes tab 1.
 		_variantsPanel->setParent(_innerTabWidget);
-		_innerTabWidget->addTab(_variantsPanel, QIcon(":/icons/res/material_variants.png"), tr("Variants"));
+		_innerTabWidget->addTab(_variantsPanel, tr("Variants"));
 
 		// The tab widget takes modelNavigationWidget's former slot.
 		grid->addWidget(_innerTabWidget, 0, 0);
@@ -1169,15 +1154,8 @@ void ModelViewer::applyVariant(const QString& sourceFile, int variantIndex)
 		const GLMaterial* mat = mesh->materialForVariant(variantIndex);
 		if (mat)
 		{
-			// Resolve texture paths → GPU IDs before applying.
-			// The prebuilt variant GLMaterials carry paths but texture IDs
-			// are 0 until resolveMaterialTextures uploads them, matching
-			// what setTexturesToObjects does for the regular material path.
-			const GLMaterial resolved = GLWidget::resolveMaterialTextures(_glWidget, *mat);
-			mesh->setMaterial(resolved);
-			mesh->setTextureMaps(resolved);
-			mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
-			mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
+			mesh->setMaterial(*mat);
+			mesh->setTextureMaps(*mat);
 			mesh->setActiveVariantIndex(variantIndex);
 		}
 	}
@@ -2150,36 +2128,6 @@ void ModelViewer::validateCutClipboard()
 				return;
 			}
 		}
-	}
-}
-
-void ModelViewer::validateVariantData()
-{
-	if (!_sceneGraph || !_glWidget)
-		return;
-
-	const QStringList files = _sceneGraph->filesWithVariants();
-	if (files.isEmpty())
-		return;
-
-	const std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
-
-	for (const QString& sourceFile : files)
-	{
-		// A mesh counts as live only if it matches the source file AND is
-		// still registered in the SceneGraph. Meshes removed by a delete
-		// command are unregistered from the graph immediately but may linger
-		// in the store until the deferred cleanup pass runs.
-		const bool hasLiveMesh = std::any_of(meshes.begin(), meshes.end(),
-			[&](TriangleMesh* m)
-			{
-				return m
-				    && m->getSourceFile() == sourceFile
-				    && _sceneGraph->findNodeForMesh(m->uuid()) != nullptr;
-			});
-
-		if (!hasLiveMesh)
-			_sceneGraph->clearVariantData(sourceFile);
 	}
 }
 
