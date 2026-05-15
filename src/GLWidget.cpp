@@ -9963,10 +9963,12 @@ void GLWidget::showContextMenu(const QPoint& pos)
 		{
 			QAction* action = nullptr;
 			if ((!_visibleSwapped && _displayedObjectsIds.size() != 0) || (_visibleSwapped && _hiddenObjectsIds.size() != 0))
-			{
-				contextMenu.addAction(QIcon(":/icons/res/fit-all.png"), tr("Fit All"), this, &GLWidget::fitAll);
+			{				
+				action = contextMenu.addAction(QIcon(":/icons/res/fit-all.png"), tr("Fit All"), this, &GLWidget::fitAll);
+				action->setShortcut(QKeySequence(Qt::Key_F));
 
 				action = contextMenu.addAction(QIcon(":/icons/res/window-zoom.png"), tr("Zoom Area"));
+				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_W));
 				action->setCheckable(true);
 				connect(action, &QAction::triggered, this, &GLWidget::beginWindowZoom);
 
@@ -9986,16 +9988,19 @@ void GLWidget::showContextMenu(const QPoint& pos)
 						});
 				}
 				action = contextMenu.addAction(QIcon(":/icons/res/zoomview.png"), tr("Zoom"));
+				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Z));
 				connect(action, &QAction::triggered, this, [this]() {
 					setZoomingActive(true);
 					});
 
 				action = contextMenu.addAction(QIcon(":/icons/res/panview.png"), tr("Pan"));
+				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_P));
 				connect(action, &QAction::triggered, this, [this]() {
 					setPanningActive(true);
 					});
 
 				action = contextMenu.addAction(QIcon(":/icons/res/rotateview.png"), tr("Rotate"));
+				action->setShortcut(QKeySequence(Qt::ALT | Qt::Key_R));
 				connect(action, &QAction::triggered, this, [this]() {
 					setRotationActive(true);
 					});								

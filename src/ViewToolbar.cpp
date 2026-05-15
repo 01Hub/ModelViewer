@@ -168,10 +168,13 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     navigationMenu->setStyleSheet(flyoutStyleSheet);
     _rotateViewAction = navigationMenu->addAction(QIcon(":/icons/res/rotateview.png"), tr("Rotate View"));
     _rotateViewAction->setCheckable(true);
+	_rotateViewAction->setShortcut(QKeySequence(Qt::ALT | Qt::Key_R));
     _panViewAction = navigationMenu->addAction(QIcon(":/icons/res/panview.png"), tr("Pan View"));
     _panViewAction->setCheckable(true);
+    _panViewAction->setShortcut(QKeySequence(Qt::ALT | Qt::Key_P));
     _zoomViewAction = navigationMenu->addAction(QIcon(":/icons/res/zoomview.png"), tr("Zoom View"));
     _zoomViewAction->setCheckable(true);
+    _zoomViewAction->setShortcut(QKeySequence(Qt::ALT | Qt::Key_Z));
 
     connect(_rotateViewAction, &QAction::triggered, this,
         [this]() {
@@ -219,6 +222,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _btnFitAll->setIcon(QIcon(":/icons/res/fit-all.png"));
     _btnFitAll->setIconSize(QSize(48, 48));
     _btnFitAll->setToolTip(tr("Fit All"));
+    _btnFitAll->setShortcut(QKeySequence(Qt::Key_F));
     _btnFitAll->setAutoRaise(true);
     _mainLayout->addWidget(_btnFitAll);
     connect(_btnFitAll, &QToolButton::clicked, this, [this]() { emit fitToViewRequested(); });
@@ -228,6 +232,7 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _btnWindowZoom->setIcon(QIcon(":/icons/res/window-zoom.png"));
     _btnWindowZoom->setIconSize(QSize(48, 48));
     _btnWindowZoom->setToolTip(tr("Window Zoom"));
+    _btnWindowZoom->setShortcut(QKeySequence(Qt::ALT | Qt::Key_W));
     _btnWindowZoom->setAutoRaise(true);
     _mainLayout->addWidget(_btnWindowZoom);
     connect(_btnWindowZoom, &QToolButton::clicked, this, [this]() { emit windowZoomRequested(); });
