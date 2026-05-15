@@ -1713,13 +1713,25 @@ void GLWidget::setViewMode(ViewMode mode)
 
 		// Compute fit + projected visual centre from the *target* orientation so
 		// that the orbit target is correct as soon as the rotation animation begins.
-		QVector3D projCenter;
-		_viewBoundingSphereDia = computeFitViewRange(
-			 m.row(0).toVector3D().normalized(),
-			 m.row(1).toVector3D().normalized(),
-			-m.row(2).toVector3D().normalized(),
-			&projCenter);
-		_boundingSphere.setCenter(projCenter);
+		// Only compute fit view range if there are visible meshes.
+		// On an empty scene, keep _viewBoundingSphereDia at the current
+		// view range so the zoom animation is a no-op while the
+		// rotation animation still proceeds normally.
+		const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+		if (!_meshStore.empty() && !visibleIds.empty())
+		{
+			QVector3D projCenter;
+			_viewBoundingSphereDia = computeFitViewRange(
+				m.row(0).toVector3D().normalized(),
+				m.row(1).toVector3D().normalized(),
+				-m.row(2).toVector3D().normalized(),
+				&projCenter);
+			_boundingSphere.setCenter(projCenter);
+		}
+		else
+		{
+			_viewBoundingSphereDia = _currentViewRange;
+		}
 
 		_animateViewTimer->start(5);
 		_viewMode = mode;
@@ -1729,6 +1741,14 @@ void GLWidget::setViewMode(ViewMode mode)
 
 void GLWidget::fitAll()
 {
+
+	// Guard: do nothing if the scene has no visible meshes.
+	// Without this, computeFitViewRange() operates on degenerate bounds,
+	// driving _viewRange to near-zero and hiding the trihedron.
+	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	if (_meshStore.empty() || visibleIds.empty())
+		return;
+
 	// Compute the viewRange and the projected visual centre simultaneously.
 	// The projected centre is the midpoint of the geometry's view-space extents
 	// for the current orientation — setting it as the orbit target ensures the
