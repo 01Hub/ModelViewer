@@ -2191,46 +2191,48 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		}
 	}
 
-	// ===== STRATEGY A: Find by material NAME (from Assimp) - ONLY if name is unique =====
-	aiString aiName;
-	if (scene->mMaterials[materialIndex]->Get(AI_MATKEY_NAME, aiName) == AI_SUCCESS)
+	if (!currentMesh)
 	{
-		QString name = QString::fromUtf8(aiName.C_Str());
-		if (!name.isEmpty())
+		// Variant preloading path: materialIndex is the authoritative glTF material index.
+		// The scene material array was reindexed to glTF order in updateAiSceneWithGltfMaterials(),
+		// so materialIndex directly addresses the correct slot — no lookup needed.
+		gltfMaterialIndex = materialIndex;
+	}
+	else
+	{
+		// ===== STRATEGY A: Find by material NAME (from Assimp) - ONLY if name is unique =====
+		aiString aiName;
+		if (scene->mMaterials[materialIndex]->Get(AI_MATKEY_NAME, aiName) == AI_SUCCESS)
 		{
-			// Count how many materials have this name
-			int nameMatchCount = 0;
-			int nameMatchIndex = -1;
-
-			for (int j = 0; j < jsonCount; ++j)
+			QString name = QString::fromUtf8(aiName.C_Str());
+			if (!name.isEmpty())
 			{
-				QString jname = jsonMaterials.at(j).toObject().value("name").toString();
-				if (!jname.isEmpty() && jname == name)
+				// Count how many materials have this name
+				int nameMatchCount = 0;
+				int nameMatchIndex = -1;
+
+				for (int j = 0; j < jsonCount; ++j)
 				{
-					nameMatchCount++;
-					nameMatchIndex = j;
+					QString jname = jsonMaterials.at(j).toObject().value("name").toString();
+					if (!jname.isEmpty() && jname == name)
+					{
+						nameMatchCount++;
+						nameMatchIndex = j;
+					}
+				}
+
+				// Only use name-based lookup if the name is UNIQUE
+				if (nameMatchCount == 1)
+				{
+					gltfMaterialIndex = nameMatchIndex;
+					qDebug() << "NAME MATCH (unique): Found material by name:" << name;
+				}
+				else if (nameMatchCount > 1)
+				{
+					qDebug() << "NAME AMBIGUOUS: Material name '" << name << "' appears" << nameMatchCount << "times - skipping to index-based lookup";
 				}
 			}
-
-			// Only use name-based lookup if the name is UNIQUE
-			if (nameMatchCount == 1)
-			{
-				gltfMaterialIndex = nameMatchIndex;
-				qDebug() << "NAME MATCH (unique): Found material by name:" << name;
-			}
-			else if (nameMatchCount > 1)
-			{
-				qDebug() << "NAME AMBIGUOUS: Material name '" << name << "' appears" << nameMatchCount << "times - skipping to index-based lookup";
-			}
 		}
-	}
-
-	// When called without a specific mesh (variant preloading), materialIndex IS the
-	// authoritative glTF material index — use it directly if name lookup didn't find a
-	// unique match.
-	if (gltfMaterialIndex < 0 && !currentMesh)
-	{
-		gltfMaterialIndex = materialIndex;
 	}
 
 	// ===== Only run remaining strategies if name-based lookup FAILED =====

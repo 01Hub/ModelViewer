@@ -208,6 +208,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	// CRITICAL: Capture original material indices BEFORE deduplication
 	// This ensures we preserve the true glTF material indices for later export matching
 	_meshIndexToOriginalMaterialIndex.clear();
+	_aiMatToGltfMat.clear();
 	if (qPath.endsWith(".gltf", Qt::CaseInsensitive) || qPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
 		// Save the original material indices before they get remapped
@@ -685,19 +686,26 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	qDebug() << "[IMPORT] processMesh[" << meshIndex << "] nodeName=" << nodeName
 	         << "- mesh->mMaterialIndex (raw)=" << mesh->mMaterialIndex;
 
-	// If this is from a glTF file, look up the true original index
-	// We need to find which aiMesh index this is to look it up in our saved mapping
+	// If this is from a glTF file, look up the compact pre-dedup index then convert
+	// to the glTF material index using the reindex map built during material loading.
 	for (unsigned int meshIdx = 0; meshIdx < scene->mNumMeshes; ++meshIdx)
 	{
 		if (scene->mMeshes[meshIdx] == mesh)
 		{
-			// Found this mesh's index in the scene
-			auto it = _meshIndexToOriginalMaterialIndex.find(meshIdx);
-			if (it != _meshIndexToOriginalMaterialIndex.end())
+			auto savedIt = _meshIndexToOriginalMaterialIndex.find(meshIdx);
+			if (savedIt != _meshIndexToOriginalMaterialIndex.end())
 			{
-				originalMaterialIndex = it->second;
-				qDebug() << "  [IMPORT-glTF] Using PRE-DEDUP material index" << originalMaterialIndex
-					     << "for aiMesh[" << meshIdx << "] (remapped was:" << mesh->mMaterialIndex << ")";
+				int compactIdx = savedIt->second;
+				// Convert compact aiScene index → glTF material index.
+				// updateAiSceneWithGltfMaterials() reindexed the array so that
+				// scene->mMaterials[i] == glTF material[i]; we need the same space.
+				auto gltfIt = _aiMatToGltfMat.find(compactIdx);
+				originalMaterialIndex = (gltfIt != _aiMatToGltfMat.end())
+					? gltfIt->second
+					: compactIdx;
+				qDebug() << "  [IMPORT-glTF] compact" << compactIdx
+				         << "-> glTF materialIndex" << originalMaterialIndex
+				         << "for aiMesh[" << meshIdx << "]";
 			}
 			break;
 		}
@@ -1464,43 +1472,109 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 		}
 	}
 
-	// ===== PARSE PRIMITIVE MODES (same for both GLTF and GLB) =====
+	// ===== PARSE PRIMITIVE MODES (parallel DFS over aiScene + glTF node trees) =====
+	// We walk both trees simultaneously so aiNode->mMeshes[] provides the authoritative
+	// aiMesh indices instead of a manual counter. This correctly handles Assimp's
+	// primitive merging: when multiple glTF primitives share a material, Assimp merges
+	// them into one aiMesh — a counting-only DFS would produce wrong indices thereafter.
 	QJsonObject root = doc.object();
-	QJsonArray meshesArray = root["meshes"].toArray();
+	const QJsonArray jsonNodes  = root["nodes"].toArray();
+	const QJsonArray jsonMeshes = root["meshes"].toArray();
+	const QJsonArray jsonScenes = root["scenes"].toArray();
 
-	unsigned int meshIndex = 0;
-	for (const QJsonValue& meshValue : meshesArray)
+	int sceneIdx = root.value("scene").toInt(0);
+	QJsonArray rootNodeIndices;
+	if (sceneIdx >= 0 && sceneIdx < jsonScenes.size())
+		rootNodeIndices = jsonScenes[sceneIdx].toObject().value("nodes").toArray();
+
+	if (!_scene || !_scene->mRootNode || rootNodeIndices.isEmpty())
+		return;
+
+	struct PrimModeFrame { aiNode* aiNodePtr; int gltfNodeIdx; };
+	QVector<PrimModeFrame> stack;
+	stack.reserve(jsonNodes.size());
+
+	aiNode* aiSceneRoot = _scene->mRootNode;
+	if (rootNodeIndices.size() == 1)
 	{
-		QJsonObject meshObj = meshValue.toObject();
-		QJsonArray primitives = meshObj["primitives"].toArray();
+		int rootGltfIdx = rootNodeIndices[0].toInt();
+		QString gltfRootName = (rootGltfIdx >= 0 && rootGltfIdx < jsonNodes.size())
+		    ? jsonNodes[rootGltfIdx].toObject().value("name").toString() : QString();
+		QString aiRootName   = QString::fromUtf8(aiSceneRoot->mName.C_Str());
 
-		if (!primitives.isEmpty())
+		if (aiRootName == gltfRootName || aiSceneRoot->mNumMeshes > 0)
+			stack.append({aiSceneRoot, rootGltfIdx});            // direct 1:1 match
+		else if (aiSceneRoot->mNumMeshes == 0 && aiSceneRoot->mNumChildren == 1)
+			stack.append({aiSceneRoot->mChildren[0], rootGltfIdx}); // virtual wrapper
+	}
+	else
+	{
+		for (int i = (int)rootNodeIndices.size() - 1; i >= 0; --i)
 		{
-			QJsonObject firstPrimitive = primitives[0].toObject();
+			if (i < (int)aiSceneRoot->mNumChildren)
+				stack.append({aiSceneRoot->mChildren[i], rootNodeIndices[i].toInt()});
+		}
+	}
 
-			// glTF primitive modes:
-			// 0 = POINTS,  1 = LINES,  2 = LINE_LOOP,  3 = LINE_STRIP
-			// 4 = TRIANGLES,  5 = TRIANGLE_STRIP,  6 = TRIANGLE_FAN
+	while (!stack.isEmpty())
+	{
+		const auto frame    = stack.takeLast();
+		aiNode*    aiNodePtr = frame.aiNodePtr;
+		const int  nodeIdx   = frame.gltfNodeIdx;
 
-			int mode = firstPrimitive["mode"].toInt(4);  // Default to TRIANGLES
+		if (!aiNodePtr || nodeIdx < 0 || nodeIdx >= jsonNodes.size())
+			continue;
 
-			GLenum glMode = GL_TRIANGLES;
-			switch (mode)
+		const QJsonObject nodeObj = jsonNodes[nodeIdx].toObject();
+
+		if (nodeObj.contains("mesh") && aiNodePtr->mNumMeshes > 0)
+		{
+			const int meshIdx = nodeObj.value("mesh").toInt(-1);
+			if (meshIdx >= 0 && meshIdx < jsonMeshes.size())
 			{
-			case 0: glMode = GL_POINTS; break;
-			case 1: glMode = GL_LINES; break;
-			case 2: glMode = GL_LINE_LOOP; break;
-			case 3: glMode = GL_LINE_STRIP; break;
-			case 4: glMode = GL_TRIANGLES; break;
-			case 5: glMode = GL_TRIANGLE_STRIP; break;
-			case 6: glMode = GL_TRIANGLE_FAN; break;
-			default: glMode = GL_TRIANGLES; break;
-			}
+				const QJsonArray primitives = jsonMeshes[meshIdx].toObject()["primitives"].toArray();
+				for (const QJsonValue& primVal : primitives)
+				{
+					const QJsonObject primObj = primVal.toObject();
+					const int primMat = primObj.value("material").toInt(0);
+					const int mode    = primObj.value("mode").toInt(4);
 
-			_gltfMeshPrimitiveModes[meshIndex] = glMode;
+					GLenum glMode = GL_TRIANGLES;
+					switch (mode)
+					{
+					case 0: glMode = GL_POINTS;         break;
+					case 1: glMode = GL_LINES;           break;
+					case 2: glMode = GL_LINE_LOOP;       break;
+					case 3: glMode = GL_LINE_STRIP;      break;
+					case 4: glMode = GL_TRIANGLES;       break;
+					case 5: glMode = GL_TRIANGLE_STRIP;  break;
+					case 6: glMode = GL_TRIANGLE_FAN;    break;
+					default: glMode = GL_TRIANGLES;      break;
+					}
+
+					// Match this glTF primitive to the aiMesh in this node by material.
+					// After updateAiSceneWithGltfMaterials() both are in glTF-index space.
+					for (unsigned int mi = 0; mi < aiNodePtr->mNumMeshes; ++mi)
+					{
+						unsigned int candidate = aiNodePtr->mMeshes[mi];
+						if ((int)_scene->mMeshes[candidate]->mMaterialIndex == primMat)
+						{
+							_gltfMeshPrimitiveModes[candidate] = glMode;
+							break;
+						}
+					}
+				}
+			}
 		}
 
-		++meshIndex;
+		// Push children in reverse order (pre-order DFS).
+		// aiNode children correspond 1:1 to glTF node children in the same order.
+		const QJsonArray gltfChildren = nodeObj.value("children").toArray();
+		for (int i = (int)gltfChildren.size() - 1; i >= 0; --i)
+		{
+			if (i < (int)aiNodePtr->mNumChildren)
+				stack.append({aiNodePtr->mChildren[i], gltfChildren[i].toInt()});
+		}
 	}
 }
 
@@ -1564,50 +1638,133 @@ void AssImpModelLoader::parseGltfVariants(const QString& gltfPath)
 	qDebug() << "parseGltfVariants: found" << _variantData.variantNames.size()
 	         << "variants in" << gltfPath << ":" << _variantData.variantNames;
 
-	// ---- Per-mesh-primitive mappings --------------------------------------
-	// Iterate meshes[] → primitives[] in order.  Each primitive corresponds to
-	// one aiMesh in aiScene::mMeshes[] (Assimp flattens primitives).
-	const QJsonArray gltfMeshes = root.value("meshes").toArray();
-	int aiMeshIndex = 0;
+	// ---- Per-mesh-primitive mappings (parallel DFS over aiScene + glTF node trees) ---
+	// We walk both trees simultaneously so aiNode->mMeshes[] provides the authoritative
+	// aiMesh indices. When Assimp merges multiple glTF primitives that share a material
+	// into a single aiMesh (e.g. CarConcept mesh 85 with two prims, both mat 28), a
+	// counting-only DFS would over-count and map all subsequent variants to wrong meshes.
+	const QJsonArray jsonNodes  = root.value("nodes").toArray();
+	const QJsonArray jsonMeshes = root.value("meshes").toArray();
+	const QJsonArray jsonScenes = root.value("scenes").toArray();
 
-	for (const QJsonValue& meshVal : gltfMeshes)
+	int sceneIdx = root.value("scene").toInt(0);
+	QJsonArray rootNodeIndices;
+	if (sceneIdx >= 0 && sceneIdx < jsonScenes.size())
+		rootNodeIndices = jsonScenes[sceneIdx].toObject().value("nodes").toArray();
+
+	if (!_scene || !_scene->mRootNode || rootNodeIndices.isEmpty())
+		return;
+
+	struct VariantFrame { aiNode* aiNodePtr; int gltfNodeIdx; };
+	QVector<VariantFrame> stack;
+	stack.reserve(jsonNodes.size());
+
+	aiNode* aiSceneRoot = _scene->mRootNode;
+	if (rootNodeIndices.size() == 1)
 	{
-		const QJsonArray primitives = meshVal.toObject().value("primitives").toArray();
-		for (const QJsonValue& primVal : primitives)
+		int rootGltfIdx = rootNodeIndices[0].toInt();
+		QString gltfRootName = (rootGltfIdx >= 0 && rootGltfIdx < jsonNodes.size())
+		    ? jsonNodes[rootGltfIdx].toObject().value("name").toString() : QString();
+		QString aiRootName   = QString::fromUtf8(aiSceneRoot->mName.C_Str());
+
+		if (aiRootName == gltfRootName || aiSceneRoot->mNumMeshes > 0)
+			stack.append({aiSceneRoot, rootGltfIdx});
+		else if (aiSceneRoot->mNumMeshes == 0 && aiSceneRoot->mNumChildren == 1)
+			stack.append({aiSceneRoot->mChildren[0], rootGltfIdx});
+	}
+	else
+	{
+		for (int i = (int)rootNodeIndices.size() - 1; i >= 0; --i)
 		{
-			const QJsonObject primObj  = primVal.toObject();
-			const QJsonObject primExts = primObj.value("extensions").toObject();
-			const QJsonObject khrPrim  = primExts.value("KHR_materials_variants").toObject();
-			const QJsonArray  mappings = khrPrim.value("mappings").toArray();
+			if (i < (int)aiSceneRoot->mNumChildren)
+				stack.append({aiSceneRoot->mChildren[i], rootNodeIndices[i].toInt()});
+		}
+	}
 
-			if (!mappings.isEmpty())
+	int aiMeshCount = 0; // for logging only
+
+	while (!stack.isEmpty())
+	{
+		const auto frame     = stack.takeLast();
+		aiNode*    aiNodePtr = frame.aiNodePtr;
+		const int  nodeIdx   = frame.gltfNodeIdx;
+
+		if (!aiNodePtr || nodeIdx < 0 || nodeIdx >= jsonNodes.size())
+			continue;
+
+		const QJsonObject nodeObj = jsonNodes[nodeIdx].toObject();
+
+		// Process this node's mesh primitives before recursing into children.
+		if (nodeObj.contains("mesh") && aiNodePtr->mNumMeshes > 0)
+		{
+			const int meshIdx = nodeObj.value("mesh").toInt(-1);
+			if (meshIdx >= 0 && meshIdx < jsonMeshes.size())
 			{
-				QVector<GltfVariantMapping> primMappings;
-				primMappings.reserve(mappings.size());
+				const QJsonArray primitives = jsonMeshes[meshIdx].toObject().value("primitives").toArray();
+				aiMeshCount += (int)aiNodePtr->mNumMeshes;
 
-				for (const QJsonValue& mapVal : mappings)
+				for (const QJsonValue& primVal : primitives)
 				{
-					const QJsonObject mapObj = mapVal.toObject();
-					GltfVariantMapping gvm;
-					gvm.materialIndex = mapObj.value("material").toInt(-1);
-					const QJsonArray varIdxArr = mapObj.value("variants").toArray();
-					gvm.variantIndices.reserve(varIdxArr.size());
-					for (const QJsonValue& vi : varIdxArr)
-						gvm.variantIndices.append(vi.toInt());
-					if (gvm.materialIndex >= 0 && !gvm.variantIndices.isEmpty())
-						primMappings.append(gvm);
+					const QJsonObject primObj  = primVal.toObject();
+					const QJsonObject primExts = primObj.value("extensions").toObject();
+					const QJsonObject khrPrim  = primExts.value("KHR_materials_variants").toObject();
+					const QJsonArray  mappings = khrPrim.value("mappings").toArray();
+
+					if (mappings.isEmpty())
+						continue;
+
+					const int primMat = primObj.value("material").toInt(0);
+
+					// Find the aiMesh in this node that has primMat as its material.
+					// After updateAiSceneWithGltfMaterials() both indices are in glTF space.
+					unsigned int targetAiMeshIdx = ~0u;
+					for (unsigned int mi = 0; mi < aiNodePtr->mNumMeshes; ++mi)
+					{
+						unsigned int candidate = aiNodePtr->mMeshes[mi];
+						if ((int)_scene->mMeshes[candidate]->mMaterialIndex == primMat)
+						{
+							targetAiMeshIdx = candidate;
+							break;
+						}
+					}
+
+					if (targetAiMeshIdx == ~0u)
+						continue;
+
+					QVector<GltfVariantMapping> primMappings;
+					primMappings.reserve(mappings.size());
+
+					for (const QJsonValue& mapVal : mappings)
+					{
+						const QJsonObject mapObj = mapVal.toObject();
+						GltfVariantMapping gvm;
+						gvm.materialIndex = mapObj.value("material").toInt(-1);
+						const QJsonArray varIdxArr = mapObj.value("variants").toArray();
+						gvm.variantIndices.reserve(varIdxArr.size());
+						for (const QJsonValue& vi : varIdxArr)
+							gvm.variantIndices.append(vi.toInt());
+						if (gvm.materialIndex >= 0 && !gvm.variantIndices.isEmpty())
+							primMappings.append(gvm);
+					}
+
+					if (!primMappings.isEmpty())
+						_variantData.meshVariantMappings[targetAiMeshIdx] = primMappings;
 				}
-
-				if (!primMappings.isEmpty())
-					_variantData.meshVariantMappings[aiMeshIndex] = primMappings;
 			}
+		}
 
-			++aiMeshIndex;
+		// Push children in reverse order so first child is processed first (pre-order DFS).
+		// aiNode children correspond 1:1 with glTF node children in the same order.
+		const QJsonArray gltfChildren = nodeObj.value("children").toArray();
+		for (int i = (int)gltfChildren.size() - 1; i >= 0; --i)
+		{
+			if (i < (int)aiNodePtr->mNumChildren)
+				stack.append({aiNodePtr->mChildren[i], gltfChildren[i].toInt()});
 		}
 	}
 
 	qDebug() << "parseGltfVariants: mapped" << _variantData.meshVariantMappings.size()
-	         << "primitives with variant overrides";
+	         << "primitives with variant overrides (parallel DFS, total aiMesh count:" << aiMeshCount << ")";
 }
 
 void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, aiScene* scene)
@@ -1652,95 +1809,179 @@ void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, 
 	if (gltfMaterials.isEmpty())
 		return;
 
-	// ===== EXTEND MATERIAL ARRAY FOR VARIANT-ONLY MATERIALS =====
-	// Assimp only loads materials actually assigned to default mesh primitives.
-	// KHR_materials_variants can reference additional materials that Assimp never
-	// allocated aiMaterial entries for. Extend the array so processMesh can load
-	// them from the glTF JSON via processGltf2CoreAndExtensions.
 	int gltfMatCount = static_cast<int>(gltfMaterials.size());
 	int aiMatCount   = static_cast<int>(scene->mNumMaterials);
-	if (gltfMatCount > aiMatCount)
-	{
-		aiMaterial** extended = new aiMaterial*[gltfMatCount];
-		for (int i = 0; i < aiMatCount; ++i)
-			extended[i] = scene->mMaterials[i];
 
-		for (int i = aiMatCount; i < gltfMatCount; ++i)
+	// ===== BUILD NAME→GLTF INDEX MAP =====
+	// glTF material names are authoritative for identity matching.
+	QMap<QString, int> nameToGltfIdx;
+	for (int i = 0; i < gltfMatCount; ++i)
+	{
+		QString name = gltfMaterials[i].toObject()["name"].toString();
+		if (!name.isEmpty() && !nameToGltfIdx.contains(name))
+			nameToGltfIdx[name] = i;
+	}
+
+	// ===== BUILD COMPACT→GLTF INDEX MAPPING (primary: mesh usage; fallback: name) =====
+	// Name matching alone fails for unnamed glTF materials (falls back to wrong index).
+	// We first do a parallel DFS over the aiScene and glTF node trees to build the
+	// compact→glTF mapping from actual mesh usage (no names required).
+	// Consecutive same-material glTF primitives that Assimp merged into one aiMesh are
+	// handled by grouping: when the primitive's material changes, we advance to the
+	// next aiMesh in the node.
+
+	const QJsonArray jsonNodes  = root["nodes"].toArray();
+	const QJsonArray jsonMeshes = root["meshes"].toArray();
+	const QJsonArray jsonScenes = root["scenes"].toArray();
+	int gltfSceneIdx = root.value("scene").toInt(0);
+	QJsonArray rootNodeIndices;
+	if (gltfSceneIdx >= 0 && gltfSceneIdx < jsonScenes.size())
+		rootNodeIndices = jsonScenes[gltfSceneIdx].toObject().value("nodes").toArray();
+
+	std::map<int, int> compactToGltfFromUsage; // compact mat idx → glTF mat idx
+
+	if (scene->mRootNode && !rootNodeIndices.isEmpty())
+	{
+		struct MatMapFrame { aiNode* aiNodePtr; int gltfNodeIdx; };
+		QVector<MatMapFrame> dfsStack;
+
+		aiNode* aiRoot = scene->mRootNode;
+		if (rootNodeIndices.size() == 1)
 		{
-			aiMaterial* mat = new aiMaterial();
-			QJsonObject matObj = gltfMaterials[i].toObject();
-			QString matName = matObj["name"].toString(QString("material_%1").arg(i));
-			aiString aiName(matName.toStdString());
-			mat->AddProperty(&aiName, AI_MATKEY_NAME);
-			extended[i] = mat;
+			int rootGltfIdx = rootNodeIndices[0].toInt();
+			QString gltfRootName = (rootGltfIdx >= 0 && rootGltfIdx < jsonNodes.size())
+			    ? jsonNodes[rootGltfIdx].toObject().value("name").toString() : QString();
+			QString aiRootName = QString::fromUtf8(aiRoot->mName.C_Str());
+
+			if (aiRootName == gltfRootName || aiRoot->mNumMeshes > 0)
+				dfsStack.append({aiRoot, rootGltfIdx});
+			else if (aiRoot->mNumMeshes == 0 && aiRoot->mNumChildren == 1)
+				dfsStack.append({aiRoot->mChildren[0], rootGltfIdx});
+		}
+		else
+		{
+			for (int i = (int)rootNodeIndices.size() - 1; i >= 0; --i)
+				if (i < (int)aiRoot->mNumChildren)
+					dfsStack.append({aiRoot->mChildren[i], rootNodeIndices[i].toInt()});
 		}
 
-		delete[] scene->mMaterials;
-		scene->mMaterials    = extended;
-		scene->mNumMaterials = static_cast<unsigned int>(gltfMatCount);
-
-		qDebug() << "updateAiSceneWithGltfMaterials: Extended material array from"
-		         << aiMatCount << "to" << gltfMatCount << "for variant-only materials";
-	}
-
-	// ===== BUILD DEDUPLICATION MAP =====
-	// Compare glTF materials to aiScene materials
-	// Goal: identify which aiMaterials are duplicates and update mesh references
-
-	std::map<int, int> aiMatToGltfMat;  // aiMaterial index -> glTF material index (primary)
-	std::vector<bool> aiMatIsUsed(scene->mNumMaterials, false);
-
-	// For each glTF material, find the corresponding aiMaterial
-	// Assume they're in the same order (Assimp preserves glTF material order)
-	for (unsigned int gltfIdx = 0; gltfIdx < gltfMaterials.size() && gltfIdx < scene->mNumMaterials; ++gltfIdx)
-	{
-		int aiIdx = static_cast<int>(gltfIdx);
-		aiMatToGltfMat[aiIdx] = static_cast<int>(gltfIdx);
-		aiMatIsUsed[aiIdx] = true;
-	}
-
-	// For remaining aiMaterials (beyond glTF count), deduplicate by content
-	if (scene->mNumMaterials > static_cast<int>(gltfMaterials.size()))
-	{
-		for (unsigned int i = gltfMaterials.size(); i < scene->mNumMaterials; ++i)
+		while (!dfsStack.isEmpty())
 		{
-			// Find if this material is a duplicate of an earlier one
-			bool isDuplicate = false;
+			auto frame      = dfsStack.takeLast();
+			aiNode* aiNodePtr = frame.aiNodePtr;
+			int     nodeIdx   = frame.gltfNodeIdx;
 
-			for (unsigned int j = 0; j < i && !isDuplicate; ++j)
+			if (!aiNodePtr || nodeIdx < 0 || nodeIdx >= jsonNodes.size())
+				continue;
+
+			const QJsonObject nodeObj = jsonNodes[nodeIdx].toObject();
+
+			if (nodeObj.contains("mesh") && aiNodePtr->mNumMeshes > 0)
 			{
-				// Simple check: compare material names (glTF uses names for dedup)
-				if (scene->mMaterials[i]->GetName() == scene->mMaterials[j]->GetName())
+				const int meshIdx = nodeObj.value("mesh").toInt(-1);
+				if (meshIdx >= 0 && meshIdx < jsonMeshes.size())
 				{
-					aiMatToGltfMat[i] = aiMatToGltfMat[j];  // Point to the primary
-					isDuplicate = true;
+					const QJsonArray prims = jsonMeshes[meshIdx].toObject()["primitives"].toArray();
+					const int P = prims.size();
+					const int M = static_cast<int>(aiNodePtr->mNumMeshes);
+
+					// Group consecutive same-material primitives → one aiMesh per group.
+					int aiMeshInNode = 0;
+					int prevGltfMat  = -1;
+
+					for (int pi = 0; pi < P && aiMeshInNode < M; ++pi)
+					{
+						int gltfMat = prims[pi].toObject().value("material").toInt(0);
+						if (pi == 0 || gltfMat != prevGltfMat)
+						{
+							if (pi > 0)
+							{
+								++aiMeshInNode;
+								if (aiMeshInNode >= M) break;
+							}
+							int aiMeshIdx = static_cast<int>(aiNodePtr->mMeshes[aiMeshInNode]);
+							auto savedIt  = _meshIndexToOriginalMaterialIndex.find(aiMeshIdx);
+							if (savedIt != _meshIndexToOriginalMaterialIndex.end())
+								compactToGltfFromUsage[savedIt->second] = gltfMat;
+						}
+						prevGltfMat = gltfMat;
+					}
 				}
 			}
 
-			if (!isDuplicate)
-			{
-				// Unique material, keep it
-				aiMatToGltfMat[i] = static_cast<int>(i);
-				aiMatIsUsed[i] = true;
-			}
+			const QJsonArray gltfChildren = nodeObj.value("children").toArray();
+			for (int i = (int)gltfChildren.size() - 1; i >= 0; --i)
+				if (i < (int)aiNodePtr->mNumChildren)
+					dfsStack.append({aiNodePtr->mChildren[i], gltfChildren[i].toInt()});
 		}
 	}
 
-	// ===== UPDATE MESH MATERIAL REFERENCES =====
-	// Redirect mesh primitives from duplicate materials to primary materials
+	// Build _aiMatToGltfMat: mesh-usage mapping takes priority over name matching.
+	// Name matching is the fallback for compact materials not used by any default primitive.
+	_aiMatToGltfMat.clear();
+	for (int aiIdx = 0; aiIdx < aiMatCount; ++aiIdx)
+	{
+		auto usageIt = compactToGltfFromUsage.find(aiIdx);
+		if (usageIt != compactToGltfFromUsage.end())
+		{
+			_aiMatToGltfMat[aiIdx] = usageIt->second;
+			continue;
+		}
+		aiString aiName;
+		scene->mMaterials[aiIdx]->Get(AI_MATKEY_NAME, aiName);
+		QString name = QString::fromUtf8(aiName.C_Str());
+		auto nameIt = nameToGltfIdx.find(name);
+		_aiMatToGltfMat[aiIdx] = (nameIt != nameToGltfIdx.end()) ? nameIt.value() : aiIdx;
+	}
+
+	// ===== REINDEX MATERIAL ARRAY TO GLTF ORDER =====
+	// Create an array of size gltfMatCount where reindexed[i] = glTF material[i].
+	// Start by creating stub aiMaterials (name only) for all gltfMatCount slots,
+	// then overwrite each slot with the actual Assimp-loaded aiMaterial.
+	aiMaterial** reindexed = new aiMaterial*[gltfMatCount];
+	std::vector<bool> slotFilled(gltfMatCount, false);
+
+	for (int i = 0; i < gltfMatCount; ++i)
+	{
+		aiMaterial* stub = new aiMaterial();
+		QString matName = gltfMaterials[i].toObject()["name"].toString(
+			QString("material_%1").arg(i));
+		aiString sn(matName.toStdString());
+		stub->AddProperty(&sn, AI_MATKEY_NAME);
+		reindexed[i] = stub;
+	}
+
+	// Place each compact aiMaterial at its correct glTF index position.
+	for (int aiIdx = 0; aiIdx < aiMatCount; ++aiIdx)
+	{
+		int gltfIdx = _aiMatToGltfMat[aiIdx];
+		if (gltfIdx >= 0 && gltfIdx < gltfMatCount && !slotFilled[gltfIdx])
+		{
+			delete reindexed[gltfIdx];                  // free the stub
+			reindexed[gltfIdx] = scene->mMaterials[aiIdx];
+			slotFilled[gltfIdx] = true;
+		}
+		else
+		{
+			// Duplicate name or out-of-range — the original aiMaterial is no longer needed.
+			delete scene->mMaterials[aiIdx];
+		}
+	}
+
+	// ===== UPDATE MESH MATERIAL REFERENCES TO GLTF INDICES =====
 	for (unsigned int m = 0; m < scene->mNumMeshes; ++m)
 	{
 		aiMesh* mesh = scene->mMeshes[m];
-		int oldMatIdx = mesh->mMaterialIndex;
-
-		if (oldMatIdx >= 0 && oldMatIdx < static_cast<int>(scene->mNumMaterials))
-		{
-			// Find the primary material for this mesh
-			int primaryMatIdx = aiMatToGltfMat[oldMatIdx];
-			mesh->mMaterialIndex = primaryMatIdx;
-		}
+		auto it = _aiMatToGltfMat.find(static_cast<int>(mesh->mMaterialIndex));
+		if (it != _aiMatToGltfMat.end())
+			mesh->mMaterialIndex = static_cast<unsigned int>(it->second);
 	}
 
-	qDebug() << "updateAiSceneWithGltfMaterials: Updated material references, scene has"
-		<< scene->mNumMaterials << "materials from glTF with" << gltfMaterials.size() << "unique entries";
+	// ===== REPLACE SCENE MATERIAL ARRAY =====
+	delete[] scene->mMaterials;
+	scene->mMaterials    = reindexed;
+	scene->mNumMaterials = static_cast<unsigned int>(gltfMatCount);
+
+	qDebug() << "updateAiSceneWithGltfMaterials: Reindexed" << aiMatCount
+	         << "compact materials into" << gltfMatCount << "glTF-indexed slots";
 }

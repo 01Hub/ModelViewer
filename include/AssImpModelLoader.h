@@ -252,6 +252,13 @@ private:
 	// Used to preserve true glTF material indices for correct export matching
 	std::map<int, int> _meshIndexToOriginalMaterialIndex;
 
+	// Map from Assimp compact material index → glTF material index.
+	// Assimp loads materials in DFS traversal order (not glTF index order).
+	// updateAiSceneWithGltfMaterials() builds this so processMesh() can convert
+	// _meshIndexToOriginalMaterialIndex values (compact) into glTF-space indices
+	// that are consistent with variant mapping materialIndex values.
+	std::map<int, int> _aiMatToGltfMat;
+
 	// Variant data parsed from KHR_materials_variants (empty for non-glTF files
 	// or glTF files that do not carry the extension).
 	GltfVariantData _variantData;
