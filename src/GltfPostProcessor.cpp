@@ -9,6 +9,7 @@
 
 // Default texture subfolder name - overridden per export by postProcessGltfJsonWithMaterials
 QString GltfPostProcessor::_textureSubfolder = "textures";
+bool GltfPostProcessor::_isGlbExport = false;
 QMap<QString, QString> GltfPostProcessor::_pathMapping;
 QMap<QString, int> GltfPostProcessor::_embeddedIndexMapping;
 QMap<int, int> GltfPostProcessor::_materialToSourceMeshIndex;
@@ -730,6 +731,7 @@ bool GltfPostProcessor::postProcessGltfFileWithMaterials(
 
     QJsonObject gltfJson = doc.object();
 
+    _isGlbExport = false;
     // Process with material transforms
     postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback, textureSubfolder, pathMapping, embeddedIndexMapping);
 
@@ -837,6 +839,7 @@ bool GltfPostProcessor::postProcessGlbFileWithMaterials(
 
     QJsonObject gltfJson = doc.object();
 
+    _isGlbExport = true;
     // Post-process with material transforms
     postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback, textureSubfolder, pathMapping, embeddedIndexMapping);
 
@@ -3457,9 +3460,38 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     if (!lights.empty())
         writePunctualLights(gltfJson, lights, logCallback);
 
-    // FINAL PASS: Convert all image URIs to relative paths pointing to textures subfolder
-    log("=== FIXING IMAGE URIS TO RELATIVE PATHS ===", logCallback);
+    if (_isGlbExport)
     {
+        log("=== FIXING GLB IMAGE REFERENCES ===", logCallback);
+        QJsonArray images = gltfJson.value("images").toArray();
+        bool anyFixed = false;
+
+        for (int i = 0; i < images.size(); ++i)
+        {
+            QJsonObject img = images[i].toObject();
+            if (!img.contains("uri"))
+                continue;
+
+            const QString oldUri = img.value("uri").toString();
+            if (oldUri.isEmpty())
+                continue;
+
+            img.remove("uri");
+            images[i] = img;
+            anyFixed = true;
+            log(QString("  Image[%1] cleared embedded GLB uri '%2'").arg(i).arg(oldUri), logCallback);
+        }
+
+        if (anyFixed)
+        {
+            gltfJson["images"] = images;
+            log("  Removed external image URIs from GLB JSON", logCallback);
+        }
+    }
+    else
+    {
+        // FINAL PASS: Convert all image URIs to relative paths pointing to textures subfolder
+        log("=== FIXING IMAGE URIS TO RELATIVE PATHS ===", logCallback);
         QJsonArray images = gltfJson.value("images").toArray();
         bool anyFixed = false;
 
@@ -4116,6 +4148,13 @@ int GltfPostProcessor::findOrCreateTexture(
     // If image not found, create it
     if (imageIndex < 0)
     {
+        if (_isGlbExport)
+        {
+            log(QString("  -> WARNING: Missing embedded GLB image for '%1'; not creating external uri")
+                .arg(imagePath), logCallback);
+            return -1;
+        }
+
         QString newUri = _textureSubfolder + "/" + imageFileName;
         QJsonObject newImage;
         newImage["uri"] = newUri;

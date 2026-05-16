@@ -281,6 +281,7 @@ private:
         const std::vector<TriangleMesh*>& meshes);
 
     static QString _textureSubfolder;
+    static bool _isGlbExport;
     static QMap<QString, QString> _pathMapping;
     static QMap<QString, int> _embeddedIndexMapping;
     static QMap<int, int> _materialToSourceMeshIndex;
