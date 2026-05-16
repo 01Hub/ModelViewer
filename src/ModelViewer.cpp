@@ -2997,8 +2997,24 @@ void ModelViewer::onFileExport()
 		expSettings.copyTextures = true;
 		expSettings.useRelativePaths = true;
 		expSettings.deduplicateTextures = true;
-		expSettings.verbose = true;		
+		expSettings.verbose = true;
 		expSettings.lights = lights;
+
+		// Collect variant names so KHR_materials_variants is preserved on glTF export
+		{
+			QStringList filesWithVariants = _sceneGraph->filesWithVariants();
+			if (!filesWithVariants.isEmpty())
+			{
+				// Use the first variant-bearing file's names.
+				// For multi-file scenes with different variant namespaces, this is
+				// a best-effort approach; full multi-namespace support would require
+				// per-mesh variant index remapping which is out of scope here.
+				GltfVariantData vd = _sceneGraph->variantDataForFile(filesWithVariants.first());
+				expSettings.variantNames = vd.variantNames;
+				qDebug() << "[Export] Will preserve" << vd.variantNames.size()
+				         << "material variants:" << vd.variantNames;
+			}
+		}
 
 		aiReturn res = aiReturn_FAILURE;
 		if (exportScene)

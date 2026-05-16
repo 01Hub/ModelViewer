@@ -47,6 +47,25 @@ unsigned int primitiveModeToAiPrimitiveType(GLenum primitiveMode)
     }
 }
 
+GLMaterial exportedDefaultMaterial(const TriangleMesh* mesh)
+{
+    if (!mesh)
+        return GLMaterial();
+
+    if (mesh->hasVariants())
+    {
+        if (const GLMaterial* originalMaterial = mesh->materialForVariant(-1))
+            return *originalMaterial;
+    }
+
+    return mesh->getMaterial();
+}
+
+int exportedBaseMaterialKey(const TriangleMesh* mesh)
+{
+    return mesh ? mesh->getOriginalMaterialIndex() : -1;
+}
+
 bool populateFacesForPrimitive(aiMesh* mesh,
                                const std::vector<unsigned int>& indices,
                                GLenum primitiveMode)
@@ -242,7 +261,8 @@ aiReturn AssImpMeshExporter::exportMeshes(
 {
     _currentSettings = settings;
     _lastEmbeddedIndexMapping.clear();
-    _packedTextureCache.clear();  // Clear cache for each new export
+    _packedTextureCache.clear();
+    _lastVariantEntries.clear();
 
     logMessage(QString("=== AssImpMeshExporter::exportMeshes ==="));
     logMessage(QString("Target: %1").arg(exportPath));
@@ -338,6 +358,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     std::vector<aiMesh*> aiMeshes;
     std::vector<aiMaterial*> aiMaterials;
     std::vector<QMatrix4x4> transforms;
+    std::vector<const TriangleMesh*> validMeshes; // meshes that successfully made it into aiMeshes
 
     // Material deduplication map: material content hash -> material index
     QMap<QString, unsigned int> materialContentToIndex;
@@ -391,16 +412,18 @@ aiReturn AssImpMeshExporter::exportMeshes(
             continue;
         }
 
-        // Get material from mesh
-        GLMaterial meshMaterial = mesh->getMaterial();
+        // Export the primitive base material from the original/default glTF material,
+        // not the currently active variant selection in the viewer.
+        GLMaterial meshMaterial = exportedDefaultMaterial(mesh);
 
         // HYBRID: Override runtime GLMaterial scalars with the original aiScene material when
         // available via originalMaterialIndex. The scene is the authoritative source for scalar
-        // diversity (color, metallic, roughness). The runtime mesh store may have collapsed
-        // per-part scalar diversity (e.g. all STEP parts sharing the same gray) while the
-        // original aiScene still holds unique per-part values from the import.
+        // diversity (color, metallic, roughness) for non-variant imports. For glTF variant
+        // meshes, the runtime GLMaterial already reflects the currently selected variant, so
+        // pulling scalars from the original aiScene material would corrupt the export.
         int origMatIdx = mesh->getOriginalMaterialIndex();
-        if (scene && origMatIdx >= 0 && origMatIdx < static_cast<int>(scene->mNumMaterials))
+        if (!mesh->hasVariants() &&
+            scene && origMatIdx >= 0 && origMatIdx < static_cast<int>(scene->mNumMaterials))
         {
             const aiMaterial* sceneMat = scene->mMaterials[origMatIdx];
 
@@ -451,12 +474,66 @@ aiReturn AssImpMeshExporter::exportMeshes(
         aiMaterials.push_back(aiMat);
 
         aiMeshes.push_back(aiMesh);
+        validMeshes.push_back(mesh);
         transforms.push_back(mesh->getTransformation());
 
         logMessage(QString("  -> Mesh added: %1 (%2 vertices, %3 indices)")
             .arg(mesh->getName())
             .arg(vertices.size())
             .arg(indices.size()));
+    }
+
+    // ===== STEP 2b: Add variant materials (KHR_materials_variants export) =====
+    QMap<int, GLMaterial> variantMatsByJsonIdx2b;  // non-default variant mat index -> GLMaterial
+    if (!settings.variantNames.isEmpty())
+    {
+        logMessage("Step 2b: Adding variant materials for KHR_materials_variants export...");
+
+        for (size_t vi = 0; vi < validMeshes.size(); ++vi)
+        {
+            const TriangleMesh* mesh = validMeshes[vi];
+            MeshVariantExportEntry entry;
+
+            if (!mesh->hasVariants())
+            {
+                _lastVariantEntries.append(entry);  // empty entry preserves 1:1 indexing
+                continue;
+            }
+
+            entry.variantMappings = mesh->variantMappings();
+
+            int defaultKey      = exportedBaseMaterialKey(mesh);
+            int defaultMatIdx   = static_cast<int>(aiMeshes[vi]->mMaterialIndex);
+            entry.matKeyToJsonMatIdx[defaultKey] = defaultMatIdx;
+
+            const QMap<int, GLMaterial>& varMats = mesh->allVariantMaterials();
+            for (auto it = varMats.constBegin(); it != varMats.constEnd(); ++it)
+            {
+                int key = it.key();
+                if (key == defaultKey) continue;  // default is already in aiMaterials
+
+                aiMaterial* varAiMat = createMaterial(it.value(), _lastTexturePackage, exportPath, mesh->getName());
+                if (!varAiMat)
+                {
+                    logWarning(QString("  -> Failed to create variant material (key %1) for mesh: %2")
+                        .arg(key).arg(mesh->getName()));
+                    continue;
+                }
+
+                int newMatIdx = static_cast<int>(aiMaterials.size());
+                aiMaterials.push_back(varAiMat);
+                entry.matKeyToJsonMatIdx[key] = newMatIdx;
+                variantMatsByJsonIdx2b[newMatIdx] = it.value();
+
+                logMessage(QString("  -> Variant material (key=%1 -> mat[%2]) added for mesh: %3")
+                    .arg(key).arg(newMatIdx).arg(mesh->getName()));
+            }
+
+            _lastVariantEntries.append(entry);
+        }
+
+        logMessage(QString("  -> %1 variant entries built, %2 total materials")
+            .arg(_lastVariantEntries.size()).arg(aiMaterials.size()));
     }
 
     if (aiMeshes.empty())
@@ -518,6 +595,20 @@ aiReturn AssImpMeshExporter::exportMeshes(
 
     auto logCallback = [this](const QString& msg) { logMessage(msg); };
 
+    // Register variant data so the post-processor writes KHR_materials_variants
+    if (!settings.variantNames.isEmpty() && !_lastVariantEntries.isEmpty())
+    {
+        GltfPostProcessor::setVariantExportData(settings.variantNames, _lastVariantEntries);
+        GltfPostProcessor::setVariantMaterialData(variantMatsByJsonIdx2b);
+        logMessage(QString("  -> Variant export: %1 variants, %2 mesh entries, %3 variant materials registered")
+            .arg(settings.variantNames.size()).arg(_lastVariantEntries.size())
+            .arg(variantMatsByJsonIdx2b.size()));
+    }
+    else
+    {
+        GltfPostProcessor::clearVariantExportData();
+    }
+
     if (isGLB)
     {
         if (GltfPostProcessor::postProcessGlbFileWithMaterials(
@@ -534,6 +625,8 @@ aiReturn AssImpMeshExporter::exportMeshes(
         else
             logWarning("  -> Post-processing failed (file may still be valid)");
     }
+
+    GltfPostProcessor::clearVariantExportData();  // Always clean up after use
 
     // ===== STEP 6: Cleanup temp texture folder for GLB exports =====
     if (isGLB && settings.copyTextures && !_lastTexturePackage.textures.empty())
@@ -730,14 +823,89 @@ aiReturn AssImpMeshExporter::exportScene(
     // Sort a local copy by sceneIndex so the positional assignment in
     // applyMaterialsToScene correctly pairs each TriangleMesh with its aiMesh.
     logMessage("Step 3: Applying materials to scene...");
+    std::vector<TriangleMesh*> sortedMeshes = meshes;
+    std::stable_sort(sortedMeshes.begin(), sortedMeshes.end(),
+        [](const TriangleMesh* a, const TriangleMesh* b)
+        {
+            return a->getSceneIndex() < b->getSceneIndex();
+        });
+    applyMaterialsToScene(scene, sortedMeshes, QString::fromStdString(exportPath));
+
+    // ===== STEP 3b: Add variant materials (KHR_materials_variants export) =====
+    _lastVariantEntries.clear();
+    QMap<int, GLMaterial> variantMatsByJsonIdx3b;  // non-default variant mat index -> GLMaterial
+    if (!settings.variantNames.isEmpty())
     {
-        std::vector<TriangleMesh*> sortedMeshes = meshes;
-        std::stable_sort(sortedMeshes.begin(), sortedMeshes.end(),
-            [](const TriangleMesh* a, const TriangleMesh* b)
+        logMessage("Step 3b: Adding variant materials for KHR_materials_variants export...");
+
+        // Collect all new variant aiMaterials so we can extend scene->mMaterials
+        std::vector<aiMaterial*> variantAiMats;
+
+        for (size_t vi = 0; vi < sortedMeshes.size() && vi < scene->mNumMeshes; ++vi)
+        {
+            const TriangleMesh* mesh = sortedMeshes[vi];
+            MeshVariantExportEntry entry;
+
+            if (!mesh || !mesh->hasVariants())
             {
-                return a->getSceneIndex() < b->getSceneIndex();
-            });
-        applyMaterialsToScene(scene, sortedMeshes, QString::fromStdString(exportPath));
+                _lastVariantEntries.append(entry);
+                continue;
+            }
+
+            entry.variantMappings = mesh->variantMappings();
+
+            // The default aiMaterial index is whatever applyMaterialsToScene assigned
+            int defaultKey    = exportedBaseMaterialKey(mesh);
+            int defaultMatIdx = static_cast<int>(scene->mMeshes[vi]->mMaterialIndex);
+            entry.matKeyToJsonMatIdx[defaultKey] = defaultMatIdx;
+
+            const QMap<int, GLMaterial>& varMats = mesh->allVariantMaterials();
+            for (auto it = varMats.constBegin(); it != varMats.constEnd(); ++it)
+            {
+                int key = it.key();
+                if (key == defaultKey) continue;
+
+                aiMaterial* varAiMat = createMaterial(
+                    it.value(), _lastTexturePackage,
+                    QString::fromStdString(exportPath), mesh->getName());
+                if (!varAiMat)
+                {
+                    logWarning(QString("  -> Failed to create variant material (key %1) for: %2")
+                        .arg(key).arg(mesh->getName()));
+                    continue;
+                }
+
+                // New mat index = current scene mat count + number added so far
+                int newMatIdx = static_cast<int>(scene->mNumMaterials) +
+                                static_cast<int>(variantAiMats.size());
+                variantAiMats.push_back(varAiMat);
+                entry.matKeyToJsonMatIdx[key] = newMatIdx;
+                variantMatsByJsonIdx3b[newMatIdx] = it.value();
+
+                logMessage(QString("  -> Variant material (key=%1 -> mat[%2]) added for: %3")
+                    .arg(key).arg(newMatIdx).arg(mesh->getName()));
+            }
+
+            _lastVariantEntries.append(entry);
+        }
+
+        // Extend scene->mMaterials to include the variant materials
+        if (!variantAiMats.empty())
+        {
+            unsigned int oldCount = scene->mNumMaterials;
+            unsigned int newCount = oldCount + static_cast<unsigned int>(variantAiMats.size());
+            aiMaterial** newArray = new aiMaterial*[newCount];
+            for (unsigned int i = 0; i < oldCount; ++i)
+                newArray[i] = scene->mMaterials[i];
+            for (size_t i = 0; i < variantAiMats.size(); ++i)
+                newArray[oldCount + i] = variantAiMats[i];
+            delete[] scene->mMaterials;
+            scene->mMaterials = newArray;
+            scene->mNumMaterials = newCount;
+
+            logMessage(QString("  -> Extended scene materials: %1 default + %2 variant = %3 total")
+                .arg(oldCount).arg(variantAiMats.size()).arg(newCount));
+        }
     }
 
     // ===== STEP 4: Embed textures in scene (CRITICAL FOR GLB) =====
@@ -809,6 +977,20 @@ aiReturn AssImpMeshExporter::exportScene(
         logMessage(msg);
         };
 
+    // Register variant data so the post-processor writes KHR_materials_variants
+    if (!settings.variantNames.isEmpty() && !_lastVariantEntries.isEmpty())
+    {
+        GltfPostProcessor::setVariantExportData(settings.variantNames, _lastVariantEntries);
+        GltfPostProcessor::setVariantMaterialData(variantMatsByJsonIdx3b);
+        logMessage(QString("  -> Variant export: %1 variants, %2 mesh entries, %3 variant materials registered")
+            .arg(settings.variantNames.size()).arg(_lastVariantEntries.size())
+            .arg(variantMatsByJsonIdx3b.size()));
+    }
+    else
+    {
+        GltfPostProcessor::clearVariantExportData();
+    }
+
     if (isGLB)
     {
         if (GltfPostProcessor::postProcessGlbFileWithMaterials(exportFilePath, meshes, settings.lights, logCallback, textureSubfolder, _lastTexturePackage.pathMapping, _lastEmbeddedIndexMapping))
@@ -831,6 +1013,8 @@ aiReturn AssImpMeshExporter::exportScene(
             logWarning("  -> Post-processing failed (file may still be valid)");
         }
     }
+
+    GltfPostProcessor::clearVariantExportData();
 
     // ===== STEP 6: Cleanup temp texture folder for GLB exports =====
     if (isGLB && settings.copyTextures && !_lastTexturePackage.textures.empty())
@@ -2134,7 +2318,7 @@ void AssImpMeshExporter::applyMaterialsToScene(
             if (!mesh || !preservedMaterial)
                 continue;
 
-            const GLMaterial sourceMaterial = mesh->getMaterial();
+            const GLMaterial sourceMaterial = exportedDefaultMaterial(mesh);
             if (!shouldNormalizePreservedGltfMaterial(preservedMaterial, sourceMaterial))
                 continue;
 

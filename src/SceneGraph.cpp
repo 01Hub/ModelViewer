@@ -498,7 +498,7 @@ void SceneGraph::setVariantData(const QString& sourceFile, const GltfVariantData
 
 void SceneGraph::clearVariantData(const QString& sourceFile)
 {
-    if (_variantDataByFile.remove(sourceFile) > 0)
+    if (_variantDataByFile.remove(sourceFile) != 0)
     {
         _activeVariantByFile.remove(sourceFile);
         emit variantDataChanged();

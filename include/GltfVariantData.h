@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QHash>
+#include <QMap>
 #include <QString>
 #include <QStringList>
 #include <QVector>
@@ -28,6 +29,21 @@ struct GltfVariantMapping
 {
     int           materialIndex  = -1;   // index into aiScene::mMaterials[]
     QVector<int>  variantIndices;        // which variant indices use this material
+};
+
+// Built by AssImpMeshExporter for each exported mesh; consumed by GltfPostProcessor
+// to write back the KHR_materials_variants extension after Assimp export.
+struct MeshVariantExportEntry
+{
+    // Per-primitive mappings copied from TriangleMesh::variantMappings().
+    QVector<GltfVariantMapping> variantMappings;
+
+    // Maps allVariantMaterials key (compact aiScene mat index at import time)
+    // to the JSON material array index in the exported file.
+    // The default material's key (getOriginalMaterialIndex()) is also present here.
+    QMap<int, int> matKeyToJsonMatIdx;
+
+    bool hasVariants() const { return !variantMappings.isEmpty(); }
 };
 
 // All variant information for one loaded glTF/GLB file.

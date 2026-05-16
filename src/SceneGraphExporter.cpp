@@ -20,6 +20,20 @@
 
 namespace
 {
+    GLMaterial exportBaseMaterial(const TriangleMesh* mesh)
+    {
+        if (!mesh)
+            return GLMaterial();
+
+        if (mesh->hasVariants())
+        {
+            if (const GLMaterial* originalMaterial = mesh->materialForVariant(-1))
+                return *originalMaterial;
+        }
+
+        return mesh->getMaterial();
+    }
+
     void setFaceIndices(aiFace& face, std::initializer_list<unsigned int> values)
     {
         face.mNumIndices = static_cast<unsigned int>(values.size());
@@ -263,6 +277,22 @@ namespace
 
         // Always keep UV0 available if any texturing exists at all.
         return anyTexturedBinding ? maxChannel : 0;
+    }
+
+    unsigned int maxReferencedUvChannelForMesh(const TriangleMesh* mesh)
+    {
+        if (!mesh)
+            return 0;
+
+        unsigned int maxChannel = maxReferencedUvChannel(exportBaseMaterial(mesh));
+        if (mesh->hasVariants())
+        {
+            const QMap<int, GLMaterial>& materials = mesh->allVariantMaterials();
+            for (auto it = materials.constBegin(); it != materials.constEnd(); ++it)
+                maxChannel = std::max(maxChannel, maxReferencedUvChannel(it.value()));
+        }
+
+        return maxChannel;
     }
     
     void addTextureToMaterial(
@@ -582,7 +612,7 @@ aiNode* SceneGraphExporter::buildNodeRecursive(
         if (!triMesh)
             continue;
 
-        const GLMaterial glMaterial = triMesh->getMaterial();
+        const GLMaterial glMaterial = exportBaseMaterial(triMesh);
         unsigned int materialIndex = 0;
 
         // Use originalMaterialIndex as authoritative mapping to preserve material structure from import.
@@ -814,9 +844,8 @@ aiMesh* SceneGraphExporter::buildMeshFromTriangleMesh(const TriangleMesh* mesh, 
     // Material bindings already preserve per-texture texCoordIndex through AI_MATKEY_UVWSRC.
     // So the mesh must export every UV channel that is actually referenced by the material,
     // capped to the 4 channels physically stored in Vertex::TexCoords[4].
-    const GLMaterial exportMaterial = mesh->getMaterial();
     const unsigned int uvChannelCount = std::min(
-        maxReferencedUvChannel(exportMaterial) + 1,
+        maxReferencedUvChannelForMesh(mesh) + 1,
         kMaxExportUvChannels);
 
     for (unsigned int channel = 0; channel < uvChannelCount; ++channel)
@@ -853,7 +882,7 @@ aiMaterial* SceneGraphExporter::buildMaterialFromTriangleMesh(const TriangleMesh
     if (!mesh)
         return nullptr;
 
-    const GLMaterial material = mesh->getMaterial();
+    const GLMaterial material = exportBaseMaterial(mesh);
 
     aiMaterial* aiMat = new aiMaterial();
 

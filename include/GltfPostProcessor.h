@@ -10,9 +10,11 @@
 #include <vector>
 
 #include "GLLights.h"
+#include "GltfVariantData.h"
+
+#include "GLMaterial.h"
 
 class TriangleMesh; // Forward declaration
-class GLMaterial;   // Forward declaration
 
 /**
  * Post-process exported glTF JSON to add missing optional properties
@@ -142,6 +144,36 @@ public:
     */
     static QString normalisedGlbPath(const QString& path);
 
+    /**
+     * Register variant export data so the next postProcess*FileWithMaterials call
+     * will write the KHR_materials_variants extension into the output glTF/GLB.
+     *
+     * Call this BEFORE postProcessGltf*FileWithMaterials when exporting a scene
+     * that carries KHR_materials_variants data.  Pass empty arrays to disable
+     * variant export (or call clearVariantExportData()).
+     *
+     * @param variantNames  Ordered list of variant names (root-level glTF array).
+     * @param entries       Per-mesh export entries built by AssImpMeshExporter
+     *                      (one entry per exported mesh, in output order).
+     */
+    static void setVariantExportData(
+        const QStringList& variantNames,
+        const QVector<MeshVariantExportEntry>& entries);
+
+    /**
+     * Register the GLMaterial for each non-default variant material so the
+     * post-processor can patch texture indices, transforms, and samplers for
+     * materials that are not matched to any source TriangleMesh.
+     *
+     * @param variantMats  Map from JSON material array index to the GLMaterial.
+     *                     Only non-default (extra) variant materials need to be
+     *                     registered here; the default material is already handled
+     *                     by the main material-patching pass.
+     */
+    static void setVariantMaterialData(const QMap<int, GLMaterial>& variantMats);
+
+    static void clearVariantExportData();
+
 private:
     // Material signature for robust matching during export
     // Includes texture paths AND texture transforms to distinguish materials
@@ -243,11 +275,29 @@ private:
     static const TriangleMesh* sourceMeshForMaterial(
         int materialIndex,
         const std::vector<TriangleMesh*>& meshes);
+    static GLMaterial defaultMaterialForMesh(const TriangleMesh* mesh);
+    static GLMaterial sourceMaterialForJsonMaterial(
+        int materialIndex,
+        const std::vector<TriangleMesh*>& meshes);
 
     static QString _textureSubfolder;
     static QMap<QString, QString> _pathMapping;
     static QMap<QString, int> _embeddedIndexMapping;
     static QMap<int, int> _materialToSourceMeshIndex;
+
+    // KHR_materials_variants export state (set by setVariantExportData before post-processing)
+    static QStringList _variantNames;
+    static QVector<MeshVariantExportEntry> _variantEntries;
+    // GLMaterials for non-default variant materials keyed by JSON material index.
+    // Set by setVariantMaterialData; allows the secondary post-processing pass to
+    // patch texture indices / transforms / samplers for materials that have no
+    // corresponding source TriangleMesh in the main patching loop.
+    static QMap<int, GLMaterial> _variantMatByJsonIdx;
+
+    // Write KHR_materials_variants extension to the JSON using the stored variant data.
+    static bool writeKhrMaterialsVariantsExtension(
+        QJsonObject& gltfJson,
+        std::function<void(const QString&)> logCallback);
 };
 
 #endif // GLTF_POSTPROCESSOR_H

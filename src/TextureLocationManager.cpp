@@ -218,6 +218,59 @@ TexturePackage TextureLocationManager::packageTextures(
             package.textures.push_back(meta);
             processedPaths.insert(texPath);
         }
+
+        // Also package textures from variant materials so KHR_materials_variants
+        // export has all required texture files available.
+        if (mesh->hasVariants())
+        {
+            for (const auto& varMat : mesh->allVariantMaterials())
+            {
+                for (int i = 0; i < static_cast<int>(GLMaterial::TextureType::Count); ++i)
+                {
+                    auto type = static_cast<GLMaterial::TextureType>(i);
+                    const auto& tex = varMat.texture(type);
+                    if (tex.path.empty()) continue;
+
+                    QString texPath = QString::fromStdString(tex.path);
+                    if (processedPaths.count(texPath)) continue;
+
+                    TextureMetadata meta = resolveTexture(texPath);
+                    if (meta.resolvedPath.isEmpty())
+                    {
+                        qWarning() << "[TextureLocationManager] Could not resolve variant texture:" << texPath;
+                        continue;
+                    }
+
+                    if (hashMap.count(meta.hash))
+                    {
+                        meta.outputName   = hashMap[meta.hash];
+                        meta.relativePath = textureSubfolder + "/" + meta.outputName;
+                    }
+                    else
+                    {
+                        QString originalName = QFileInfo(meta.resolvedPath).fileName();
+                        meta.outputName = generateUniqueFilename(package.textureDirectory, originalName);
+                        QString destPath = package.textureDirectory + "/" + meta.outputName;
+                        if (QFile::copy(meta.resolvedPath, destPath))
+                        {
+                            meta.relativePath = textureSubfolder + "/" + meta.outputName;
+                            package.totalSize += meta.fileSize;
+                            hashMap[meta.hash] = meta.outputName;
+                        }
+                        else
+                        {
+                            qWarning() << "[TextureLocationManager] Failed to copy variant texture:"
+                                       << meta.resolvedPath << "->" << destPath;
+                            continue;
+                        }
+                    }
+
+                    package.pathMapping[texPath] = meta.relativePath;
+                    package.textures.push_back(meta);
+                    processedPaths.insert(texPath);
+                }
+            }
+        }
     }
 
     qDebug() << "[TextureLocationManager] Packaging complete:"

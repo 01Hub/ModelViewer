@@ -12,6 +12,129 @@ QString GltfPostProcessor::_textureSubfolder = "textures";
 QMap<QString, QString> GltfPostProcessor::_pathMapping;
 QMap<QString, int> GltfPostProcessor::_embeddedIndexMapping;
 QMap<int, int> GltfPostProcessor::_materialToSourceMeshIndex;
+QStringList GltfPostProcessor::_variantNames;
+QVector<MeshVariantExportEntry> GltfPostProcessor::_variantEntries;
+QMap<int, GLMaterial> GltfPostProcessor::_variantMatByJsonIdx;
+
+void GltfPostProcessor::setVariantMaterialData(const QMap<int, GLMaterial>& variantMats)
+{
+    _variantMatByJsonIdx = variantMats;
+}
+
+void GltfPostProcessor::setVariantExportData(
+    const QStringList& variantNames,
+    const QVector<MeshVariantExportEntry>& entries)
+{
+    _variantNames = variantNames;
+    _variantEntries = entries;
+}
+
+void GltfPostProcessor::clearVariantExportData()
+{
+    _variantNames.clear();
+    _variantEntries.clear();
+    _variantMatByJsonIdx.clear();
+}
+
+bool GltfPostProcessor::writeKhrMaterialsVariantsExtension(
+    QJsonObject& gltfJson,
+    std::function<void(const QString&)> logCallback)
+{
+    if (_variantNames.isEmpty() || _variantEntries.isEmpty())
+        return false;
+
+    const QString khrName = QStringLiteral("KHR_materials_variants");
+    log("=== Writing KHR_materials_variants extension ===", logCallback);
+
+    // Add extension name to extensionsUsed
+    QJsonArray extsUsed = gltfJson.value("extensionsUsed").toArray();
+    bool alreadyListed = false;
+    for (const auto& v : std::as_const(extsUsed))
+    {
+        if (v.toString() == khrName) { alreadyListed = true; break; }
+    }
+    if (!alreadyListed)
+        extsUsed.append(khrName);
+    gltfJson["extensionsUsed"] = extsUsed;
+
+    // Build root-level variants array: [{name: "Ceramic"}, ...]
+    QJsonArray variantsArray;
+    for (const QString& name : std::as_const(_variantNames))
+    {
+        QJsonObject varObj;
+        varObj["name"] = name;
+        variantsArray.append(varObj);
+    }
+
+    QJsonObject rootExts = gltfJson.value("extensions").toObject();
+    QJsonObject khrRootObj;
+    khrRootObj["variants"] = variantsArray;
+    rootExts[khrName] = khrRootObj;
+    gltfJson["extensions"] = rootExts;
+
+    log(QString("  Root-level variants: %1").arg(_variantNames.join(", ")), logCallback);
+
+    // Write per-primitive mappings
+    QJsonArray meshesArray = gltfJson.value("meshes").toArray();
+    bool anyModified = false;
+
+    const qsizetype limit = std::min(_variantEntries.size(), meshesArray.size());
+    for (qsizetype mi = 0; mi < limit; ++mi)
+    {
+        const MeshVariantExportEntry& entry = _variantEntries[mi];
+        if (!entry.hasVariants()) continue;
+
+        QJsonObject meshObj = meshesArray[mi].toObject();
+        QJsonArray primitivesArray = meshObj.value("primitives").toArray();
+        if (primitivesArray.isEmpty()) continue;
+
+        // exportMeshes creates one primitive per mesh
+        QJsonObject primObj = primitivesArray[0].toObject();
+
+        // Build mappings array from GltfVariantMapping structs:
+        // each entry groups variant indices that use the same material.
+        QJsonArray mappingsArray;
+        for (const GltfVariantMapping& vm : std::as_const(entry.variantMappings))
+        {
+            auto it = entry.matKeyToJsonMatIdx.find(vm.materialIndex);
+            if (it == entry.matKeyToJsonMatIdx.end())
+            {
+                log(QString("  [WARN] Mesh[%1]: no JSON mat index for key %2 — skipping")
+                    .arg(mi).arg(vm.materialIndex), logCallback);
+                continue;
+            }
+
+            QJsonArray variantsArr;
+            for (int vi : std::as_const(vm.variantIndices))
+                variantsArr.append(vi);
+
+            QJsonObject mappingObj;
+            mappingObj["material"] = it.value();
+            mappingObj["variants"] = variantsArr;
+            mappingsArray.append(mappingObj);
+        }
+
+        if (mappingsArray.isEmpty()) continue;
+
+        QJsonObject primExts = primObj.value("extensions").toObject();
+        QJsonObject khrPrimObj;
+        khrPrimObj["mappings"] = mappingsArray;
+        primExts[khrName] = khrPrimObj;
+        primObj["extensions"] = primExts;
+        primitivesArray[0] = primObj;
+        meshObj["primitives"] = primitivesArray;
+        meshesArray[mi] = meshObj;
+        anyModified = true;
+
+        log(QString("  Mesh[%1]: wrote %2 variant mappings").arg(mi).arg(mappingsArray.size()), logCallback);
+    }
+
+    if (anyModified)
+        gltfJson["meshes"] = meshesArray;
+
+    log("=== KHR_materials_variants extension complete ===", logCallback);
+    return true;
+}
 
 namespace
 {
@@ -64,6 +187,32 @@ const TriangleMesh* GltfPostProcessor::sourceMeshForMaterial(
         return meshes[materialIndex];
 
     return nullptr;
+}
+
+GLMaterial GltfPostProcessor::defaultMaterialForMesh(const TriangleMesh* mesh)
+{
+    if (!mesh)
+        return GLMaterial();
+
+    if (mesh->hasVariants())
+    {
+        if (const GLMaterial* originalMaterial = mesh->materialForVariant(-1))
+            return *originalMaterial;
+    }
+
+    return mesh->getMaterial();
+}
+
+GLMaterial GltfPostProcessor::sourceMaterialForJsonMaterial(
+    int materialIndex,
+    const std::vector<TriangleMesh*>& meshes)
+{
+    auto variantIt = _variantMatByJsonIdx.constFind(materialIndex);
+    if (variantIt != _variantMatByJsonIdx.constEnd())
+        return variantIt.value();
+
+    const TriangleMesh* sourceMesh = sourceMeshForMaterial(materialIndex, meshes);
+    return defaultMaterialForMesh(sourceMesh);
 }
 
 bool GltfPostProcessor::postProcessGltfJson(QJsonObject& gltfJson,
@@ -1028,7 +1177,7 @@ GltfPostProcessor::MaterialSignature GltfPostProcessor::buildSignatureForMesh(
 {
     MaterialSignature sig;
     sig.meshIndex = meshIdx;
-    const GLMaterial& glMat = mesh->getMaterial();
+    const GLMaterial glMat = defaultMaterialForMesh(mesh);
     sig.name = glMat.name();
     sig.originalMaterialIndex = mesh->getOriginalMaterialIndex();
 
@@ -1313,7 +1462,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
         for (int k = 0; k < static_cast<int>(meshes.size()); ++k)
         {
             if (!meshes[k]) continue;
-            QString matName = meshes[k]->getMaterial().name();
+            QString matName = defaultMaterialForMesh(meshes[k]).name();
             if (!matName.isEmpty() && !materialNameToSourceMeshIdx.contains(matName))
             {
                 materialNameToSourceMeshIdx[matName] = k;
@@ -1454,7 +1603,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 int origMatIdx = meshes[meshIdx]->getOriginalMaterialIndex();
                 log(QString("  [MATCH] json mesh[%1] primitive[%2] name='%3' material[%4] -> source mesh[%5] origMatIdx=%6 matName='%7'")
                     .arg(j).arg(primIdx).arg(targetSourceName).arg(matIdx).arg(meshIdx)
-                    .arg(origMatIdx).arg(meshes[meshIdx]->getMaterial().name()), logCallback);
+                    .arg(origMatIdx).arg(defaultMaterialForMesh(meshes[meshIdx]).name()), logCallback);
 
                 if (!patchedMaterials.contains(matIdx))
                 {
@@ -1691,6 +1840,149 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
         // Note: jsonMatToSignatureMap removed (consolidation disabled)
 
+        // ===== FIX TEXTURE INDICES =====
+            // Assimp reorders meshes during export, so texture indices in the
+            // exported JSON may point to the wrong images. We correct them by
+            // finding the image index that matches the source GLMaterial's texture path.
+
+        auto fixTextureIndex = [&](QJsonObject& parent, const QString& key,
+            const GLMaterial::Texture sourceTex) {
+                if (!parent.contains(key)) return;
+                if (sourceTex.path.empty()) return;
+
+                // Get just the filename from the full source path
+                QString sourcePath = QString::fromStdString(sourceTex.path);
+                QString sourceFilename = QFileInfo(normalisedGlbPath(sourcePath)).fileName();
+
+                const int desiredSamplerIdx = desiredSamplerForSourceTex(sourceTex);
+
+                // Find the image index in the JSON images array with a matching filename
+                int correctImageIdx = -1;
+
+                auto embeddedIt = _embeddedIndexMapping.find(sourcePath);
+                if (embeddedIt != _embeddedIndexMapping.end() &&
+                    embeddedIt.value() >= 0 &&
+                    embeddedIt.value() < images.size())
+                {
+                    correctImageIdx = embeddedIt.value();
+                    log(QString("    Using authoritative embedded image index %1 for '%2'")
+                        .arg(correctImageIdx).arg(sourcePath), logCallback);
+                }
+
+                for (int ii = 0; ii < images.size(); ++ii)
+                {
+                    if (correctImageIdx >= 0)
+                        break;
+                    QString imgUri = images[ii].toObject().value("uri").toString();
+                    if (QFileInfo(imgUri).fileName().compare(sourceFilename, Qt::CaseInsensitive) == 0 ||
+                        QFileInfo(imgUri).completeBaseName().compare(sourceFilename, Qt::CaseInsensitive) == 0)
+                    {
+                        correctImageIdx = ii;
+                        break;
+                    }
+                }
+
+                // GLB fallback: images have no URI, match by "name" field instead.
+                // Resolve original path through pathMapping to get the packaged filename.
+                if (correctImageIdx < 0 && !_pathMapping.isEmpty())
+                {
+                    QString packagedRelPath = resolvePackagedPath(_pathMapping, sourcePath);
+                    QString packagedName = QFileInfo(packagedRelPath).fileName();
+                    if (!packagedName.isEmpty())
+                    {
+                        for (int ii = 0; ii < images.size(); ++ii)
+                        {
+                            QString imgName = images[ii].toObject().value("name").toString();
+                            if (!imgName.isEmpty() &&
+                                QFileInfo(imgName).fileName().compare(packagedName, Qt::CaseInsensitive) == 0)
+                            {
+                                correctImageIdx = ii;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (correctImageIdx < 0)
+                {
+                    // Image not exported by Assimp - create it via findOrCreateTexture
+                    int newTexIdx = findOrCreateTexture(gltfJson, sourcePath, -1, logCallback);
+                    if (newTexIdx < 0)
+                    {
+                        log(QString("    WARNING: Could not create texture for '%1'").arg(sourceFilename), logCallback);
+                        return;
+                    }
+                    // Reload images/textures arrays since findOrCreateTexture may have modified gltfJson
+                    images = gltfJson.value("images").toArray();
+                    textures = gltfJson.value("textures").toArray();
+                    QJsonObject texInfo = parent[key].toObject();
+                    texInfo["index"] = newTexIdx;
+                    parent[key] = texInfo;
+                    log(QString("    Created missing image+texture for '%1' -> tex[%2]")
+                        .arg(sourceFilename).arg(newTexIdx), logCallback);
+                    return;
+                }
+
+                // Find or create a texture entry pointing to this image
+                // (reuse existing if same source+sampler, otherwise create new)
+                QJsonObject texInfo = parent[key].toObject();
+                int currentTexIdx = texInfo.value("index").toInt(-1);
+
+                // Check if current texture already points to the right image
+                // AND already uses the right sampler.
+                if (currentTexIdx >= 0 && currentTexIdx < textures.size())
+                {
+                    QJsonObject currentTexObj = textures[currentTexIdx].toObject();
+                    int currentSource = currentTexObj.value("source").toInt(-1);
+                    int currentSampler = currentTexObj.contains("sampler")
+                        ? currentTexObj.value("sampler").toInt(-1)
+                        : -1;
+
+                    if (currentSource == correctImageIdx && currentSampler == desiredSamplerIdx)
+                        return; // Already correct
+                }
+
+                // Find an existing texture entry pointing to correctImageIdx,
+                // or create a new one
+                int correctTexIdx = -1;
+                for (int ti = 0; ti < textures.size(); ++ti)
+                {
+                    QJsonObject existingTexObj = textures[ti].toObject();
+                    int existingSource = existingTexObj.value("source").toInt(-1);
+                    int existingSampler = existingTexObj.contains("sampler")
+                        ? existingTexObj.value("sampler").toInt(-1)
+                        : -1;
+
+                    if (existingSource == correctImageIdx && existingSampler == desiredSamplerIdx)
+                    {
+                        correctTexIdx = ti;
+                        break;
+                    }
+                }
+
+                if (correctTexIdx < 0)
+                {
+                    // Create a new texture entry for the correct image + sampler pair
+                    QJsonObject newTex;
+                    newTex["source"] = correctImageIdx;
+                    newTex["sampler"] = desiredSamplerIdx;
+
+                    correctTexIdx = textures.size();
+                    textures.append(newTex);
+                    gltfJson["textures"] = textures; // keep JSON in sync immediately
+
+                    log(QString("    Created texture[%1] for image[%2] '%3' with sampler[%4]")
+                        .arg(correctTexIdx).arg(correctImageIdx).arg(sourceFilename).arg(desiredSamplerIdx),
+                        logCallback);
+                }
+
+                texInfo["index"] = correctTexIdx;
+                parent[key] = texInfo;
+
+                log(QString("    Fixed %1: texture index %2 -> %3 (image '%4')")
+                    .arg(key).arg(currentTexIdx).arg(correctTexIdx).arg(sourceFilename), logCallback);
+            };
+
         for (auto it = patchedMaterials.begin(); it != patchedMaterials.end(); ++it)
         {
             int matIdx = it.key();
@@ -1778,7 +2070,7 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
 
             // IMPORTANT: take a stable local copy.
             // getMaterial() may return by value; never bind that to a returned reference.
-            GLMaterial sourceMaterial = meshes[sourceMeshIdx]->getMaterial();
+            GLMaterial sourceMaterial = defaultMaterialForMesh(meshes[sourceMeshIdx]);
 
             // ===== FIX BASE COLOR =====
             // Assimp's glTF exporter doesn't properly export material colors from aiMaterial.
@@ -1810,149 +2102,6 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     }
                 }
             }
-
-            // ===== FIX TEXTURE INDICES =====
-            // Assimp reorders meshes during export, so texture indices in the
-            // exported JSON may point to the wrong images. We correct them by
-            // finding the image index that matches the source GLMaterial's texture path.
-
-            auto fixTextureIndex = [&](QJsonObject& parent, const QString& key,
-                const GLMaterial::Texture sourceTex) {
-                    if (!parent.contains(key)) return;
-                    if (sourceTex.path.empty()) return;
-
-                    // Get just the filename from the full source path
-                    QString sourcePath = QString::fromStdString(sourceTex.path);
-                    QString sourceFilename = QFileInfo(normalisedGlbPath(sourcePath)).fileName();
-                    
-                    const int desiredSamplerIdx = desiredSamplerForSourceTex(sourceTex);
-
-                    // Find the image index in the JSON images array with a matching filename
-                    int correctImageIdx = -1;
-
-                    auto embeddedIt = _embeddedIndexMapping.find(sourcePath);
-                    if (embeddedIt != _embeddedIndexMapping.end() &&
-                        embeddedIt.value() >= 0 &&
-                        embeddedIt.value() < images.size())
-                    {
-                        correctImageIdx = embeddedIt.value();
-                        log(QString("    Using authoritative embedded image index %1 for '%2'")
-                            .arg(correctImageIdx).arg(sourcePath), logCallback);
-                    }
-
-                    for (int ii = 0; ii < images.size(); ++ii)
-                    {
-                        if (correctImageIdx >= 0)
-                            break;
-                        QString imgUri = images[ii].toObject().value("uri").toString();
-                        if (QFileInfo(imgUri).fileName().compare(sourceFilename, Qt::CaseInsensitive) == 0 ||
-                            QFileInfo(imgUri).completeBaseName().compare(sourceFilename, Qt::CaseInsensitive) == 0)
-                        {
-                            correctImageIdx = ii;
-                            break;
-                        }
-                    }
-
-                    // GLB fallback: images have no URI, match by "name" field instead.
-                    // Resolve original path through pathMapping to get the packaged filename.
-                    if (correctImageIdx < 0 && !_pathMapping.isEmpty())
-                    {
-                        QString packagedRelPath = resolvePackagedPath(_pathMapping, sourcePath);
-                        QString packagedName = QFileInfo(packagedRelPath).fileName();
-                        if (!packagedName.isEmpty())
-                        {
-                            for (int ii = 0; ii < images.size(); ++ii)
-                            {
-                                QString imgName = images[ii].toObject().value("name").toString();
-                                if (!imgName.isEmpty() &&
-                                    QFileInfo(imgName).fileName().compare(packagedName, Qt::CaseInsensitive) == 0)
-                                {
-                                    correctImageIdx = ii;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if (correctImageIdx < 0)
-                    {
-                        // Image not exported by Assimp - create it via findOrCreateTexture
-                        int newTexIdx = findOrCreateTexture(gltfJson, sourcePath, -1, logCallback);
-                        if (newTexIdx < 0)
-                        {
-                            log(QString("    WARNING: Could not create texture for '%1'").arg(sourceFilename), logCallback);
-                            return;
-                        }
-                        // Reload images/textures arrays since findOrCreateTexture may have modified gltfJson
-                        images = gltfJson.value("images").toArray();
-                        textures = gltfJson.value("textures").toArray();
-                        QJsonObject texInfo = parent[key].toObject();
-                        texInfo["index"] = newTexIdx;
-                        parent[key] = texInfo;
-                        log(QString("    Created missing image+texture for '%1' -> tex[%2]")
-                            .arg(sourceFilename).arg(newTexIdx), logCallback);
-                        return;
-                    }
-
-                    // Find or create a texture entry pointing to this image
-                    // (reuse existing if same source+sampler, otherwise create new)
-                    QJsonObject texInfo = parent[key].toObject();
-                    int currentTexIdx = texInfo.value("index").toInt(-1);
-
-                    // Check if current texture already points to the right image
-                    // AND already uses the right sampler.
-                    if (currentTexIdx >= 0 && currentTexIdx < textures.size())
-                    {
-                        QJsonObject currentTexObj = textures[currentTexIdx].toObject();
-                        int currentSource = currentTexObj.value("source").toInt(-1);
-                        int currentSampler = currentTexObj.contains("sampler")
-                            ? currentTexObj.value("sampler").toInt(-1)
-                            : -1;
-
-                        if (currentSource == correctImageIdx && currentSampler == desiredSamplerIdx)
-                            return; // Already correct
-                    }
-
-                    // Find an existing texture entry pointing to correctImageIdx,
-                    // or create a new one
-                    int correctTexIdx = -1;
-                    for (int ti = 0; ti < textures.size(); ++ti)
-                    {
-                        QJsonObject existingTexObj = textures[ti].toObject();
-                        int existingSource = existingTexObj.value("source").toInt(-1);
-                        int existingSampler = existingTexObj.contains("sampler")
-                            ? existingTexObj.value("sampler").toInt(-1)
-                            : -1;
-
-                        if (existingSource == correctImageIdx && existingSampler == desiredSamplerIdx)
-                        {
-                            correctTexIdx = ti;
-                            break;
-                        }
-                    }
-
-                    if (correctTexIdx < 0)
-                    {
-                        // Create a new texture entry for the correct image + sampler pair
-                        QJsonObject newTex;
-                        newTex["source"] = correctImageIdx;
-                        newTex["sampler"] = desiredSamplerIdx;
-
-                        correctTexIdx = textures.size();
-                        textures.append(newTex);
-                        gltfJson["textures"] = textures; // keep JSON in sync immediately
-
-                        log(QString("    Created texture[%1] for image[%2] '%3' with sampler[%4]")
-                            .arg(correctTexIdx).arg(correctImageIdx).arg(sourceFilename).arg(desiredSamplerIdx),
-                            logCallback);
-                    }
-
-                    texInfo["index"] = correctTexIdx;
-                    parent[key] = texInfo;
-
-                    log(QString("    Fixed %1: texture index %2 -> %3 (image '%4')")
-                        .arg(key).arg(currentTexIdx).arg(correctTexIdx).arg(sourceFilename), logCallback);
-                };
 
             // Fix texture indices for all slots before writing transforms/samplers
             if (mat.contains("pbrMetallicRoughness"))
@@ -2691,6 +2840,237 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             materials[matIdx] = mat;
         }
 
+        // ===== SECONDARY PASS: Patch variant materials (KHR_materials_variants) =====
+        // Non-default variant materials were added as extra aiMaterials but have no
+        // corresponding source TriangleMesh, so they never enter patchedMaterials.
+        // We patch them here using the GLMaterial stored in _variantMatByJsonIdx.
+        if (!_variantMatByJsonIdx.isEmpty())
+        {
+            log("=== Patching Variant Materials (KHR_materials_variants) ===", logCallback);
+            for (auto vit = _variantMatByJsonIdx.constBegin(); vit != _variantMatByJsonIdx.constEnd(); ++vit)
+            {
+                int matIdx = vit.key();
+                const GLMaterial& sourceMaterial = vit.value();
+
+                if (matIdx < 0 || matIdx >= materials.size())
+                {
+                    log(QString("  [VARIANT] mat[%1] out of range (%2 total), skipping")
+                        .arg(matIdx).arg(materials.size()), logCallback);
+                    continue;
+                }
+                if (patchedMaterials.contains(matIdx))
+                {
+                    log(QString("  [VARIANT] mat[%1] already patched by main pass, skipping").arg(matIdx), logCallback);
+                    continue;
+                }
+
+                log(QString("  [VARIANT] Patching mat[%1] '%2'").arg(matIdx).arg(sourceMaterial.name()), logCallback);
+                QJsonObject mat = materials[matIdx].toObject();
+
+                // Fix texture indices for all PBR slots
+                if (mat.contains("pbrMetallicRoughness"))
+                {
+                    QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
+                    fixTextureIndex(pbr, "baseColorTexture", sourceMaterial.texture(GLMaterial::TextureType::Albedo));
+                    const auto& metallicTex  = sourceMaterial.texture(GLMaterial::TextureType::Metallic);
+                    const auto& roughnessTex = sourceMaterial.texture(GLMaterial::TextureType::Roughness);
+                    bool hasPackedMR    = (!metallicTex.path.empty() && !roughnessTex.path.empty()
+                                           && metallicTex.path != roughnessTex.path);
+                    bool isRoughnessOnly = (metallicTex.path.empty() && !roughnessTex.path.empty());
+                    if (!hasPackedMR && !isRoughnessOnly)
+                        fixTextureIndex(pbr, "metallicRoughnessTexture", metallicTex);
+                    mat["pbrMetallicRoughness"] = pbr;
+                }
+                fixTextureIndex(mat, "normalTexture",    sourceMaterial.texture(GLMaterial::TextureType::Normal));
+                fixTextureIndex(mat, "occlusionTexture", sourceMaterial.texture(GLMaterial::TextureType::AmbientOcclusion));
+                fixTextureIndex(mat, "emissiveTexture",  sourceMaterial.texture(GLMaterial::TextureType::Emissive));
+
+                // Write texture transforms
+                if (mat.contains("pbrMetallicRoughness"))
+                {
+                    QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
+                    writeTransform(pbr, "baseColorTexture",        sourceMaterial.texture(GLMaterial::TextureType::Albedo));
+                    writeTransform(pbr, "metallicRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::Metallic));
+                    mat["pbrMetallicRoughness"] = pbr;
+                }
+                writeTransform(mat, "normalTexture",    sourceMaterial.texture(GLMaterial::TextureType::Normal));
+                writeTransform(mat, "occlusionTexture", sourceMaterial.texture(GLMaterial::TextureType::AmbientOcclusion));
+                writeTransform(mat, "emissiveTexture",  sourceMaterial.texture(GLMaterial::TextureType::Emissive));
+
+                // Fix samplers
+                if (mat.contains("pbrMetallicRoughness"))
+                {
+                    QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
+                    updateTextureSampler(pbr, "baseColorTexture",        sourceMaterial.texture(GLMaterial::TextureType::Albedo));
+                    updateTextureSampler(pbr, "metallicRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::Metallic));
+                    mat["pbrMetallicRoughness"] = pbr;
+                }
+                updateTextureSampler(mat, "normalTexture",    sourceMaterial.texture(GLMaterial::TextureType::Normal));
+                updateTextureSampler(mat, "occlusionTexture", sourceMaterial.texture(GLMaterial::TextureType::AmbientOcclusion));
+                updateTextureSampler(mat, "emissiveTexture",  sourceMaterial.texture(GLMaterial::TextureType::Emissive));
+
+                // Extension texture indices / transforms / samplers
+                {
+                    QJsonObject exts = mat.value("extensions").toObject();
+
+                    QJsonObject cc = exts.value("KHR_materials_clearcoat").toObject();
+                    if (!cc.isEmpty())
+                    {
+                        fixTextureIndex(cc, "clearcoatTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatColor));
+                        fixTextureIndex(cc, "clearcoatRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatRoughness));
+                        fixTextureIndex(cc, "clearcoatNormalTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatNormal));
+                        writeTransform(cc, "clearcoatTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatColor));
+                        writeTransform(cc, "clearcoatRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatRoughness));
+                        writeTransform(cc, "clearcoatNormalTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatNormal));
+                        updateTextureSampler(cc, "clearcoatTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatColor));
+                        updateTextureSampler(cc, "clearcoatRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatRoughness));
+                        updateTextureSampler(cc, "clearcoatNormalTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatNormal));
+                        exts["KHR_materials_clearcoat"] = cc;
+                    }
+
+                    QJsonObject aniso = exts.value("KHR_materials_anisotropy").toObject();
+                    if (!aniso.isEmpty())
+                    {
+                        fixTextureIndex(aniso, "anisotropyTexture", sourceMaterial.texture(GLMaterial::TextureType::Anisotropy));
+                        writeTransform(aniso, "anisotropyTexture", sourceMaterial.texture(GLMaterial::TextureType::Anisotropy));
+                        updateTextureSampler(aniso, "anisotropyTexture", sourceMaterial.texture(GLMaterial::TextureType::Anisotropy));
+                        exts["KHR_materials_anisotropy"] = aniso;
+                    }
+
+                    QJsonObject sheen = exts.value("KHR_materials_sheen").toObject();
+                    if (!sheen.isEmpty())
+                    {
+                        fixTextureIndex(sheen, "sheenColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenColor));
+                        fixTextureIndex(sheen, "sheenRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenRoughness));
+                        writeTransform(sheen, "sheenColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenColor));
+                        writeTransform(sheen, "sheenRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenRoughness));
+                        updateTextureSampler(sheen, "sheenColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenColor));
+                        updateTextureSampler(sheen, "sheenRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenRoughness));
+                        exts["KHR_materials_sheen"] = sheen;
+                    }
+
+                    QJsonObject irid = exts.value("KHR_materials_iridescence").toObject();
+                    if (!irid.isEmpty())
+                    {
+                        fixTextureIndex(irid, "iridescenceTexture", sourceMaterial.texture(GLMaterial::TextureType::Iridescence));
+                        fixTextureIndex(irid, "iridescenceThicknessTexture", sourceMaterial.texture(GLMaterial::TextureType::IridescenceThickness));
+                        writeTransform(irid, "iridescenceTexture", sourceMaterial.texture(GLMaterial::TextureType::Iridescence));
+                        writeTransform(irid, "iridescenceThicknessTexture", sourceMaterial.texture(GLMaterial::TextureType::IridescenceThickness));
+                        updateTextureSampler(irid, "iridescenceTexture", sourceMaterial.texture(GLMaterial::TextureType::Iridescence));
+                        updateTextureSampler(irid, "iridescenceThicknessTexture", sourceMaterial.texture(GLMaterial::TextureType::IridescenceThickness));
+                        exts["KHR_materials_iridescence"] = irid;
+                    }
+
+                    QJsonObject spec = exts.value("KHR_materials_specular").toObject();
+                    if (!spec.isEmpty())
+                    {
+                        fixTextureIndex(spec, "specularTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularFactor));
+                        fixTextureIndex(spec, "specularColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularColor));
+                        writeTransform(spec, "specularTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularFactor));
+                        writeTransform(spec, "specularColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularColor));
+                        updateTextureSampler(spec, "specularTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularFactor));
+                        updateTextureSampler(spec, "specularColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularColor));
+                        exts["KHR_materials_specular"] = spec;
+                    }
+
+                    QJsonObject vol = exts.value("KHR_materials_volume").toObject();
+                    if (!vol.isEmpty())
+                    {
+                        fixTextureIndex(vol, "thicknessTexture", sourceMaterial.texture(GLMaterial::TextureType::Thickness));
+                        writeTransform(vol, "thicknessTexture", sourceMaterial.texture(GLMaterial::TextureType::Thickness));
+                        updateTextureSampler(vol, "thicknessTexture", sourceMaterial.texture(GLMaterial::TextureType::Thickness));
+                        exts["KHR_materials_volume"] = vol;
+                    }
+
+                    QJsonObject trans = exts.value("KHR_materials_transmission").toObject();
+                    if (!trans.isEmpty())
+                    {
+                        fixTextureIndex(trans, "transmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::Transmission));
+                        writeTransform(trans, "transmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::Transmission));
+                        updateTextureSampler(trans, "transmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::Transmission));
+                        exts["KHR_materials_transmission"] = trans;
+                    }
+
+                    QJsonObject dt = exts.value("KHR_materials_diffuse_transmission").toObject();
+                    if (!dt.isEmpty())
+                    {
+                        fixTextureIndex(dt, "diffuseTransmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::DiffuseTransmission));
+                        fixTextureIndex(dt, "diffuseTransmissionColorTexture", sourceMaterial.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
+                        writeTransform(dt, "diffuseTransmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::DiffuseTransmission));
+                        writeTransform(dt, "diffuseTransmissionColorTexture", sourceMaterial.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
+                        updateTextureSampler(dt, "diffuseTransmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::DiffuseTransmission));
+                        updateTextureSampler(dt, "diffuseTransmissionColorTexture", sourceMaterial.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
+                        exts["KHR_materials_diffuse_transmission"] = dt;
+                    }
+
+                    QJsonObject sg = exts.value("KHR_materials_pbrSpecularGlossiness").toObject();
+                    if (!sg.isEmpty())
+                    {
+                        fixTextureIndex(sg, "diffuseTexture", sourceMaterial.texture(GLMaterial::TextureType::Diffuse));
+                        fixTextureIndex(sg, "specularGlossinessTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularGlossiness));
+                        writeTransform(sg, "diffuseTexture", sourceMaterial.texture(GLMaterial::TextureType::Diffuse));
+                        writeTransform(sg, "specularGlossinessTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularGlossiness));
+                        updateTextureSampler(sg, "diffuseTexture", sourceMaterial.texture(GLMaterial::TextureType::Diffuse));
+                        updateTextureSampler(sg, "specularGlossinessTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularGlossiness));
+                        exts["KHR_materials_pbrSpecularGlossiness"] = sg;
+                    }
+
+                    if (!exts.isEmpty())
+                        mat["extensions"] = exts;
+                }
+
+                // PBR scalar properties
+                if (mat.contains("pbrMetallicRoughness"))
+                {
+                    QJsonObject pbr = mat["pbrMetallicRoughness"].toObject();
+                    QVector3D albedo  = sourceMaterial.albedoColor();
+                    QJsonArray bcf;
+                    bcf.append(static_cast<double>(albedo.x()));
+                    bcf.append(static_cast<double>(albedo.y()));
+                    bcf.append(static_cast<double>(albedo.z()));
+                    bcf.append(static_cast<double>(sourceMaterial.opacity()));
+                    pbr["baseColorFactor"]  = bcf;
+                    pbr["metallicFactor"]   = static_cast<double>(sourceMaterial.metalness());
+                    pbr["roughnessFactor"]  = static_cast<double>(sourceMaterial.roughness());
+                    mat["pbrMetallicRoughness"] = pbr;
+                }
+
+                // Alpha mode
+                GLMaterial::BlendMode blendMode = sourceMaterial.blendMode();
+                if (blendMode == GLMaterial::BlendMode::Opaque)
+                    mat["alphaMode"] = "OPAQUE";
+                else if (blendMode == GLMaterial::BlendMode::Masked)
+                {
+                    mat["alphaMode"] = "MASK";
+                    mat["alphaCutoff"] = static_cast<double>(sourceMaterial.alphaThreshold());
+                }
+                else if (blendMode == GLMaterial::BlendMode::Alpha)
+                    mat["alphaMode"] = "BLEND";
+
+                if (sourceMaterial.twoSided())
+                    mat["doubleSided"] = true;
+
+                // Emissive factor
+                QVector3D emissive = sourceMaterial.emissive();
+                if (emissive.length() > 0.0f)
+                {
+                    QJsonArray arr;
+                    arr.append(static_cast<double>(emissive.x()));
+                    arr.append(static_cast<double>(emissive.y()));
+                    arr.append(static_cast<double>(emissive.z()));
+                    mat["emissiveFactor"] = arr;
+                }
+
+                // Material name
+                QString correctName = sourceMaterial.name();
+                if (!correctName.isEmpty())
+                    mat["name"] = correctName;
+
+                materials[matIdx] = mat;
+                log(QString("  [VARIANT] mat[%1] '%2' patched").arg(matIdx).arg(correctName), logCallback);
+            }
+        }
+
         // Samplers have already been appended incrementally inside getOrCreateSampler().
         // Do NOT append createdSamplers again here, or we will duplicate sampler objects
         // and make the final sampler list unstable.
@@ -2807,6 +3187,29 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                     }
                 }
                 gltfJson["meshes"] = meshesArr;
+
+                // Remap _variantEntries and _variantMatByJsonIdx to post-dedup indices
+                // so writeKhrMaterialsVariantsExtension writes correct material references.
+                for (auto& entry : _variantEntries)
+                {
+                    QMap<int, int> remapped;
+                    for (auto eit = entry.matKeyToJsonMatIdx.constBegin();
+                         eit != entry.matKeyToJsonMatIdx.constEnd(); ++eit)
+                    {
+                        remapped[eit.key()] = oldToCanonical.value(eit.value(), eit.value());
+                    }
+                    entry.matKeyToJsonMatIdx = remapped;
+                }
+                {
+                    QMap<int, GLMaterial> remappedMats;
+                    for (auto mit = _variantMatByJsonIdx.constBegin();
+                         mit != _variantMatByJsonIdx.constEnd(); ++mit)
+                    {
+                        int newIdx = oldToCanonical.value(mit.key(), mit.key());
+                        remappedMats[newIdx] = mit.value();
+                    }
+                    _variantMatByJsonIdx = remappedMats;
+                }
             }
         }
 
@@ -3047,6 +3450,10 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
     }
 
 
+    // Write KHR_materials_variants extension if variant export data was set
+    if (!_variantNames.isEmpty() && !_variantEntries.isEmpty())
+        writeKhrMaterialsVariantsExtension(gltfJson, logCallback);
+
     if (!lights.empty())
         writePunctualLights(gltfJson, lights, logCallback);
 
@@ -3256,7 +3663,7 @@ bool GltfPostProcessor::fixNormalTextureScale(
         const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
         if (!sourceMesh) continue;
 
-        const GLMaterial& glMat = sourceMesh->getMaterial();
+        const GLMaterial glMat = sourceMaterialForJsonMaterial(i, meshes);
         QJsonObject mat = materials[i].toObject();
 
         // Fix normalTexture.scale if present
@@ -3302,7 +3709,7 @@ bool GltfPostProcessor::fixClearcoatNormalTextureScale(
         const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
         if (!sourceMesh) continue;
 
-        const GLMaterial& glMat = sourceMesh->getMaterial();
+        const GLMaterial glMat = sourceMaterialForJsonMaterial(i, meshes);
         QJsonObject mat = materials[i].toObject();
         QJsonObject extensions = mat.value("extensions").toObject();
 
@@ -3352,7 +3759,7 @@ bool GltfPostProcessor::fixSpecularExtension(
         const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
         if (!sourceMesh) continue;
 
-        const GLMaterial& glMat = sourceMesh->getMaterial();
+        const GLMaterial glMat = sourceMaterialForJsonMaterial(i, meshes);
         QJsonObject mat = materials[i].toObject();
 
         // Check if material has KHR_materials_specular extension
@@ -3447,7 +3854,7 @@ bool GltfPostProcessor::fixMetallicFactor(
         const TriangleMesh* sourceMesh = sourceMeshForMaterial(i, meshes);
         if (!sourceMesh) continue;
 
-        const GLMaterial& glMat = sourceMesh->getMaterial();
+        const GLMaterial glMat = sourceMaterialForJsonMaterial(i, meshes);
         QJsonObject mat = materials[i].toObject();
 
         if (mat.contains("pbrMetallicRoughness"))
@@ -3505,7 +3912,7 @@ bool GltfPostProcessor::fixSpecularTextures(
             continue;
         }
 
-        const GLMaterial& glMat = sourceMesh->getMaterial();
+        const GLMaterial glMat = sourceMaterialForJsonMaterial(i, meshes);
 
         // DEBUG: Check what maps are set
         QString specularFactorMap = glMat.specularFactorMap();

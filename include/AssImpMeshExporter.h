@@ -7,7 +7,8 @@
 #include <assimp/Exporter.hpp>
 #include "TextureLocationManager.h"
 #include "GLLights.h"
-#include "TexturePackingUtils.h" 
+#include "GltfVariantData.h"
+#include "TexturePackingUtils.h"
 
 class GLMaterial;
 class TriangleMesh;
@@ -61,6 +62,9 @@ public:
         bool deduplicateTextures = true;      ///< Remove duplicate textures
         bool verbose = true;                  ///< Enable debug logging
         std::vector<GPULight> lights;
+        // Ordered variant names for KHR_materials_variants export.
+        // Leave empty to omit the extension from the output.
+        QStringList variantNames;
     };
 
     explicit AssImpMeshExporter(QObject* parent = nullptr);
@@ -394,4 +398,7 @@ private:
     ExportSettings _currentSettings;
     QMap<QString, int> _lastEmbeddedIndexMapping;
     QMap<QString, QString> _packedTextureCache;  // key: "metallic_path|roughness_path" -> packed_file_path
+
+    // Built during exportMeshes when variantNames is non-empty; passed to GltfPostProcessor.
+    QVector<MeshVariantExportEntry> _lastVariantEntries;
 };
