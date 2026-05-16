@@ -1645,7 +1645,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		// Helper that processes one texture slot given a parent JSON object and a key within it.
 		// parentObj: JSON object that may contain the texture descriptor (e.g. pbr or matObj)
 		// jsonKey: the key under parentObj that contains the texture object (e.g. "baseColorTexture")
-		// mapType: string used for mapping to your internal texture type (e.g. "baseColor", "normal")
+		// mapType: canonical internal texture type used by setTextureTransforms().
 		auto processTextureSlot = [&](const QJsonObject& parentObj, const QString& jsonKey, const std::string& mapType) {
 			if (!parentObj.contains(jsonKey) || !parentObj.value(jsonKey).isObject()) return;
 
@@ -1670,16 +1670,16 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		// pbr-specific slots (parent = pbr)
 		if (!pbr.isEmpty())
 		{
-			processTextureSlot(pbr, "baseColorTexture", "baseColor");
+			processTextureSlot(pbr, "baseColorTexture", "albedoMap");
 			// Load metallicRoughnessTexture TWICE with different mapTypes
-			processTextureSlot(pbr, "metallicRoughnessTexture", "metallic");     // First load for metallic
-			processTextureSlot(pbr, "metallicRoughnessTexture", "roughness");    // Second load for roughness
+			processTextureSlot(pbr, "metallicRoughnessTexture", "metallicMap");  // First load for metallic
+			processTextureSlot(pbr, "metallicRoughnessTexture", "roughnessMap"); // Second load for roughness
 		}
 
 		// material-level slots (parent = matObj)
-		processTextureSlot(matObj, "normalTexture", "normal");
-		processTextureSlot(matObj, "occlusionTexture", "occlusion");
-		processTextureSlot(matObj, "emissiveTexture", "emissive");
+		processTextureSlot(matObj, "normalTexture", "normalMap");
+		processTextureSlot(matObj, "occlusionTexture", "aoMap");
+		processTextureSlot(matObj, "emissiveTexture", "emissiveMap");
 
 		// If you later want to add more pbr-level or material-level slots, just call processTextureSlot with the parent
 		// e.g. processTextureSlot(matObj, "heightTexture", "height");
@@ -3310,7 +3310,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 	// For each texture type, assign to material if found
 	for (const auto& tex : textures)
 	{
-		if (tex.type == "albedoMap")
+		if (tex.type == "albedoMap" || tex.type == "baseColor")
 		{
 			mat.setAlbedoTextureId(tex.id);
 			mat.setAlbedoMap(QString(tex.path.c_str()));
@@ -3321,7 +3321,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			auto type = GLMaterial::stringToTextureType("Albedo");
 			mat.setTexture(type, tex);
 		}
-		else if (tex.type == "normalMap")
+		else if (tex.type == "normalMap" || tex.type == "normal")
 		{
 			mat.setNormalTextureId(tex.id);
 			mat.setNormalMap(QString(tex.path.c_str()));
@@ -3361,7 +3361,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			type = GLMaterial::stringToTextureType("Roughness");
 			mat.setTexture(type, tex);
 		}
-		else if (tex.type == "metallicMap")
+		else if (tex.type == "metallicMap" || tex.type == "metallic")
 		{
 			mat.setMetallicTextureId(tex.id);
 			mat.setMetallicMap(QString(tex.path.c_str()));
@@ -3372,7 +3372,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			auto type = GLMaterial::stringToTextureType("Metallic");
 			mat.setTexture(type, tex);
 		}
-		else if (tex.type == "roughnessMap")
+		else if (tex.type == "roughnessMap" || tex.type == "roughness")
 		{
 			mat.setRoughnessTextureId(tex.id);
 			mat.setRoughnessMap(QString(tex.path.c_str()));
@@ -3383,7 +3383,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			auto type = GLMaterial::stringToTextureType("Roughness");
 			mat.setTexture(type, tex);
 		}		
-		else if (tex.type == "emissiveMap")
+		else if (tex.type == "emissiveMap" || tex.type == "emissive")
 		{
 			mat.setEmissiveTextureId(tex.id);
 			mat.setEmissiveMap(QString(tex.path.c_str()));
@@ -3416,7 +3416,7 @@ void MaterialProcessor::setTextureTransforms(const std::vector<GLMaterial::Textu
 			auto type = GLMaterial::stringToTextureType("Opacity");
 			mat.setTexture(type, tex);
 		}
-		else if (tex.type == "aoMap" || tex.type == "occlusionMap")
+		else if (tex.type == "aoMap" || tex.type == "occlusionMap" || tex.type == "occlusion")
 		{
 			mat.setOcclusionTextureId(tex.id);
 			mat.setAOMap(QString(tex.path.c_str()));

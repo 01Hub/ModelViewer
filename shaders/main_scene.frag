@@ -498,6 +498,12 @@ AnisotropyData decodeAnisotropyTexture(
 // KHR Iridescence
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0);
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0, vec3 baseF90);
+vec3    computeIridescentFresnel(float cosTheta,
+	vec3 baseF0,
+	vec3 baseF90,
+	float iridescenceFactor,
+	float iridescenceIor,
+	float iridescenceThickness);
 
 // KHR IOR, Transmission, and Volume
 vec3    calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo);
@@ -1869,8 +1875,9 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		if (envMapEnabled)
 		{
 			float dotNV = max(dot(N, V_direct), 0.0);
-			vec3 F90_effective = max(vec3(1.0 - roughness), F0_iridescent);
-			vec3 Fibl = fresnelSchlick(dotNV, F0_iridescent, F90_effective);
+			vec3 F90_effective = max(vec3(1.0 - roughness), F90);
+			vec3 F90_iridescent_ibl = mix(F90_effective, vec3(1.0), iridescenceFactor);
+			vec3 Fibl = fresnelSchlick(dotNV, F0_iridescent, F90_iridescent_ibl);
 			vec3 kSibl = Fibl;
 			vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
 
@@ -2893,6 +2900,31 @@ vec3 evalIridescence(float outsideIOR, float eta2, float cosTheta1,
 		I += Cm * Sm;
 	}
 	return max(I, vec3(0.0));
+}
+
+vec3 computeIridescentFresnel(float cosTheta,
+	vec3 baseF0,
+	vec3 baseF90,
+	float iridescenceFactor,
+	float iridescenceIor,
+	float iridescenceThickness)
+{
+	float clampedCosTheta = clamp(cosTheta, 0.0, 1.0);
+	vec3 baseFresnel = fresnelSchlick(clampedCosTheta, baseF0, baseF90);
+	if (iridescenceFactor <= 0.001)
+	{
+		return baseFresnel;
+	}
+
+	vec3 iridescentFresnel = evalIridescence(
+		1.0,
+		iridescenceIor,
+		clampedCosTheta,
+		iridescenceThickness,
+		clamp(baseF0, vec3(0.0), vec3(0.9999)),
+		baseF90
+	);
+	return mix(baseFresnel, iridescentFresnel, iridescenceFactor);
 }
 
 // KHR_material_transmission
