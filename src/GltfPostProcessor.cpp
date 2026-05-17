@@ -2912,13 +2912,64 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 updateTextureSampler(mat, "occlusionTexture", sourceMaterial.texture(GLMaterial::TextureType::AmbientOcclusion));
                 updateTextureSampler(mat, "emissiveTexture",  sourceMaterial.texture(GLMaterial::TextureType::Emissive));
 
-                // Extension texture indices / transforms / samplers
+                // Build KHR extension objects from source material data.
+                // We CANNOT rely on Assimp having written these extensions —
+                // createMaterial() never serialises extension scalars to aiMaterial
+                // properties, so Assimp's exporter produces no extension JSON for
+                // variant materials.  We must build every block from scratch using
+                // the same conditions as the main patching loop.
                 {
                     QJsonObject exts = mat.value("extensions").toObject();
 
-                    QJsonObject cc = exts.value("KHR_materials_clearcoat").toObject();
-                    if (!cc.isEmpty())
+                    // --- KHR_materials_transmission ---
+                    if (sourceMaterial.transmission() > 0.0f || !sourceMaterial.transmissionMapPath().isEmpty())
                     {
+                        QJsonObject trans;
+                        trans["transmissionFactor"] = static_cast<double>(sourceMaterial.transmission());
+                        if (!sourceMaterial.transmissionMapPath().isEmpty())
+                        {
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.transmissionMapPath(), -1, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; trans["transmissionTexture"] = t; }
+                        }
+                        fixTextureIndex(trans, "transmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::Transmission));
+                        writeTransform(trans, "transmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::Transmission));
+                        updateTextureSampler(trans, "transmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::Transmission));
+                        exts["KHR_materials_transmission"] = trans;
+                    }
+
+                    // --- KHR_materials_ior ---
+                    {
+                        float ior = sourceMaterial.ior();
+                        if (std::abs(ior - 1.5f) > 0.001f)
+                        {
+                            QJsonObject iorExt;
+                            iorExt["ior"] = static_cast<double>(ior);
+                            exts["KHR_materials_ior"] = iorExt;
+                        }
+                    }
+
+                    // --- KHR_materials_clearcoat ---
+                    if (sourceMaterial.clearcoat() > 0.0f || !sourceMaterial.clearcoatColorMapPath().isEmpty()
+                        || !sourceMaterial.clearcoatRoughnessMapPath().isEmpty() || !sourceMaterial.clearcoatNormalMapPath().isEmpty())
+                    {
+                        QJsonObject cc;
+                        cc["clearcoatFactor"] = static_cast<double>(sourceMaterial.clearcoat());
+                        cc["clearcoatRoughnessFactor"] = static_cast<double>(sourceMaterial.clearcoatRoughness());
+                        if (!sourceMaterial.clearcoatColorMapPath().isEmpty())
+                        {
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.clearcoatColorMapPath(), -1, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; cc["clearcoatTexture"] = t; }
+                        }
+                        if (!sourceMaterial.clearcoatRoughnessMapPath().isEmpty())
+                        {
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.clearcoatRoughnessMapPath(), -1, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; cc["clearcoatRoughnessTexture"] = t; }
+                        }
+                        if (!sourceMaterial.clearcoatNormalMapPath().isEmpty())
+                        {
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.clearcoatNormalMapPath(), -1, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; cc["clearcoatNormalTexture"] = t; }
+                        }
                         fixTextureIndex(cc, "clearcoatTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatColor));
                         fixTextureIndex(cc, "clearcoatRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatRoughness));
                         fixTextureIndex(cc, "clearcoatNormalTexture", sourceMaterial.texture(GLMaterial::TextureType::ClearcoatNormal));
@@ -2931,30 +2982,58 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                         exts["KHR_materials_clearcoat"] = cc;
                     }
 
-                    QJsonObject aniso = exts.value("KHR_materials_anisotropy").toObject();
-                    if (!aniso.isEmpty())
+                    // --- KHR_materials_sheen ---
                     {
-                        fixTextureIndex(aniso, "anisotropyTexture", sourceMaterial.texture(GLMaterial::TextureType::Anisotropy));
-                        writeTransform(aniso, "anisotropyTexture", sourceMaterial.texture(GLMaterial::TextureType::Anisotropy));
-                        updateTextureSampler(aniso, "anisotropyTexture", sourceMaterial.texture(GLMaterial::TextureType::Anisotropy));
-                        exts["KHR_materials_anisotropy"] = aniso;
+                        QVector3D sheenColor = sourceMaterial.sheenColor();
+                        if (sheenColor.length() > 0.0f || !sourceMaterial.sheenColorMapPath().isEmpty()
+                            || !sourceMaterial.sheenRoughnessMapPath().isEmpty())
+                        {
+                            QJsonObject sheen;
+                            QJsonArray arr;
+                            arr.append(static_cast<double>(sheenColor.x()));
+                            arr.append(static_cast<double>(sheenColor.y()));
+                            arr.append(static_cast<double>(sheenColor.z()));
+                            sheen["sheenColorFactor"] = arr;
+                            sheen["sheenRoughnessFactor"] = static_cast<double>(sourceMaterial.sheenRoughness());
+                            if (!sourceMaterial.sheenColorMapPath().isEmpty())
+                            {
+                                int ti = findOrCreateTexture(gltfJson, sourceMaterial.sheenColorMapPath(), -1, logCallback);
+                                if (ti >= 0) { QJsonObject t; t["index"] = ti; sheen["sheenColorTexture"] = t; }
+                            }
+                            if (!sourceMaterial.sheenRoughnessMapPath().isEmpty())
+                            {
+                                int ti = findOrCreateTexture(gltfJson, sourceMaterial.sheenRoughnessMapPath(), -1, logCallback);
+                                if (ti >= 0) { QJsonObject t; t["index"] = ti; sheen["sheenRoughnessTexture"] = t; }
+                            }
+                            fixTextureIndex(sheen, "sheenColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenColor));
+                            fixTextureIndex(sheen, "sheenRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenRoughness));
+                            writeTransform(sheen, "sheenColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenColor));
+                            writeTransform(sheen, "sheenRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenRoughness));
+                            updateTextureSampler(sheen, "sheenColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenColor));
+                            updateTextureSampler(sheen, "sheenRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenRoughness));
+                            exts["KHR_materials_sheen"] = sheen;
+                        }
                     }
 
-                    QJsonObject sheen = exts.value("KHR_materials_sheen").toObject();
-                    if (!sheen.isEmpty())
+                    // --- KHR_materials_iridescence ---
+                    if (sourceMaterial.iridescenceFactor() > 0.0f || !sourceMaterial.iridescenceMap().isEmpty()
+                        || !sourceMaterial.iridescenceThicknessMap().isEmpty())
                     {
-                        fixTextureIndex(sheen, "sheenColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenColor));
-                        fixTextureIndex(sheen, "sheenRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenRoughness));
-                        writeTransform(sheen, "sheenColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenColor));
-                        writeTransform(sheen, "sheenRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenRoughness));
-                        updateTextureSampler(sheen, "sheenColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenColor));
-                        updateTextureSampler(sheen, "sheenRoughnessTexture", sourceMaterial.texture(GLMaterial::TextureType::SheenRoughness));
-                        exts["KHR_materials_sheen"] = sheen;
-                    }
-
-                    QJsonObject irid = exts.value("KHR_materials_iridescence").toObject();
-                    if (!irid.isEmpty())
-                    {
+                        QJsonObject irid;
+                        irid["iridescenceFactor"] = static_cast<double>(sourceMaterial.iridescenceFactor());
+                        irid["iridescenceIor"] = static_cast<double>(sourceMaterial.iridescenceIor());
+                        irid["iridescenceThicknessMinimum"] = static_cast<double>(sourceMaterial.iridescenceThicknessMin());
+                        irid["iridescenceThicknessMaximum"] = static_cast<double>(sourceMaterial.iridescenceThicknessMax());
+                        if (!sourceMaterial.iridescenceMap().isEmpty())
+                        {
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.iridescenceMap(), -1, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; irid["iridescenceTexture"] = t; }
+                        }
+                        if (!sourceMaterial.iridescenceThicknessMap().isEmpty())
+                        {
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.iridescenceThicknessMap(), -1, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; irid["iridescenceThicknessTexture"] = t; }
+                        }
                         fixTextureIndex(irid, "iridescenceTexture", sourceMaterial.texture(GLMaterial::TextureType::Iridescence));
                         fixTextureIndex(irid, "iridescenceThicknessTexture", sourceMaterial.texture(GLMaterial::TextureType::IridescenceThickness));
                         writeTransform(irid, "iridescenceTexture", sourceMaterial.texture(GLMaterial::TextureType::Iridescence));
@@ -2964,39 +3043,145 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                         exts["KHR_materials_iridescence"] = irid;
                     }
 
-                    QJsonObject spec = exts.value("KHR_materials_specular").toObject();
-                    if (!spec.isEmpty())
+                    // --- KHR_materials_volume ---
+                    if (sourceMaterial.thicknessFactor() > 0.0f)
                     {
-                        fixTextureIndex(spec, "specularTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularFactor));
-                        fixTextureIndex(spec, "specularColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularColor));
-                        writeTransform(spec, "specularTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularFactor));
-                        writeTransform(spec, "specularColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularColor));
-                        updateTextureSampler(spec, "specularTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularFactor));
-                        updateTextureSampler(spec, "specularColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularColor));
-                        exts["KHR_materials_specular"] = spec;
-                    }
-
-                    QJsonObject vol = exts.value("KHR_materials_volume").toObject();
-                    if (!vol.isEmpty())
-                    {
+                        QJsonObject vol;
+                        vol["thicknessFactor"] = static_cast<double>(sourceMaterial.thicknessFactor());
+                        vol["attenuationDistance"] = static_cast<double>(sourceMaterial.attenuationDistance());
+                        QVector3D ac = sourceMaterial.attenuationColor();
+                        QJsonArray arr;
+                        arr.append(static_cast<double>(ac.x()));
+                        arr.append(static_cast<double>(ac.y()));
+                        arr.append(static_cast<double>(ac.z()));
+                        vol["attenuationColor"] = arr;
+                        if (!sourceMaterial.thicknessMap().isEmpty())
+                        {
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.thicknessMap(), -1, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; vol["thicknessTexture"] = t; }
+                        }
                         fixTextureIndex(vol, "thicknessTexture", sourceMaterial.texture(GLMaterial::TextureType::Thickness));
                         writeTransform(vol, "thicknessTexture", sourceMaterial.texture(GLMaterial::TextureType::Thickness));
                         updateTextureSampler(vol, "thicknessTexture", sourceMaterial.texture(GLMaterial::TextureType::Thickness));
                         exts["KHR_materials_volume"] = vol;
                     }
 
-                    QJsonObject trans = exts.value("KHR_materials_transmission").toObject();
-                    if (!trans.isEmpty())
+                    // --- KHR_materials_specular ---
                     {
-                        fixTextureIndex(trans, "transmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::Transmission));
-                        writeTransform(trans, "transmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::Transmission));
-                        updateTextureSampler(trans, "transmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::Transmission));
-                        exts["KHR_materials_transmission"] = trans;
+                        float specularFactor = sourceMaterial.specularFactor();
+                        QVector3D specularColor = sourceMaterial.specularColorFactor();
+                        QString specularFactorMap = sourceMaterial.specularFactorMap();
+                        QString specularColorMap = sourceMaterial.specularColorMap();
+                        bool hasNonDefaultSpecular = (std::abs(specularFactor - 1.0f) > 0.001f) ||
+                            (specularColor - QVector3D(1, 1, 1)).length() > 0.001f ||
+                            !specularFactorMap.isEmpty() || !specularColorMap.isEmpty();
+                        bool shouldWriteSpecular = (hasNonDefaultSpecular || mat.contains("pbrMetallicRoughness")) &&
+                                                   !sourceMaterial.getUseSpecularGlossiness();
+                        if (shouldWriteSpecular)
+                        {
+                            QJsonObject spec;
+                            spec["specularFactor"] = static_cast<double>(specularFactor);
+                            QJsonArray arr;
+                            arr.append(static_cast<double>(specularColor.x()));
+                            arr.append(static_cast<double>(specularColor.y()));
+                            arr.append(static_cast<double>(specularColor.z()));
+                            spec["specularColorFactor"] = arr;
+                            if (!specularFactorMap.isEmpty())
+                            {
+                                int ti = findOrCreateTexture(gltfJson, specularFactorMap, -1, logCallback);
+                                if (ti >= 0) { QJsonObject t; t["index"] = ti; spec["specularTexture"] = t; }
+                            }
+                            if (!specularColorMap.isEmpty())
+                            {
+                                int ti = findOrCreateTexture(gltfJson, specularColorMap, -1, logCallback);
+                                if (ti >= 0) { QJsonObject t; t["index"] = ti; spec["specularColorTexture"] = t; }
+                            }
+                            fixTextureIndex(spec, "specularTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularFactor));
+                            fixTextureIndex(spec, "specularColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularColor));
+                            writeTransform(spec, "specularTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularFactor));
+                            writeTransform(spec, "specularColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularColor));
+                            updateTextureSampler(spec, "specularTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularFactor));
+                            updateTextureSampler(spec, "specularColorTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularColor));
+                            exts["KHR_materials_specular"] = spec;
+                        }
                     }
 
-                    QJsonObject dt = exts.value("KHR_materials_diffuse_transmission").toObject();
-                    if (!dt.isEmpty())
+                    // --- KHR_materials_anisotropy ---
+                    if (sourceMaterial.anisotropyStrength() > 0.0f || !sourceMaterial.anisotropyMap().isEmpty())
                     {
+                        QJsonObject aniso;
+                        aniso["anisotropyStrength"] = static_cast<double>(sourceMaterial.anisotropyStrength());
+                        aniso["anisotropyRotation"] = static_cast<double>(sourceMaterial.anisotropyRotation());
+                        if (!sourceMaterial.anisotropyMap().isEmpty())
+                        {
+                            const GLMaterial::Texture& anisoTex = sourceMaterial.texture(GLMaterial::TextureType::Anisotropy);
+                            const int anisotropySamplerIdx = getOrCreateSampler(
+                                anisoTex.magFilter, anisoTex.minFilter, anisoTex.wrapS, anisoTex.wrapT);
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.anisotropyMap(), anisotropySamplerIdx, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; aniso["anisotropyTexture"] = t; }
+                        }
+                        fixTextureIndex(aniso, "anisotropyTexture", sourceMaterial.texture(GLMaterial::TextureType::Anisotropy));
+                        writeTransform(aniso, "anisotropyTexture", sourceMaterial.texture(GLMaterial::TextureType::Anisotropy));
+                        updateTextureSampler(aniso, "anisotropyTexture", sourceMaterial.texture(GLMaterial::TextureType::Anisotropy));
+                        exts["KHR_materials_anisotropy"] = aniso;
+                    }
+
+                    // --- KHR_materials_dispersion ---
+                    if (sourceMaterial.dispersion() > 0.0f)
+                    {
+                        QJsonObject disp;
+                        disp["dispersion"] = static_cast<double>(sourceMaterial.dispersion());
+                        exts["KHR_materials_dispersion"] = disp;
+                    }
+
+                    // --- KHR_materials_emissive_strength ---
+                    if (std::abs(sourceMaterial.emissiveStrength() - 1.0f) > 0.001f)
+                    {
+                        QJsonObject es;
+                        es["emissiveStrength"] = static_cast<double>(sourceMaterial.emissiveStrength());
+                        exts["KHR_materials_emissive_strength"] = es;
+                    }
+
+                    // --- KHR_materials_unlit ---
+                    if (sourceMaterial.isUnlit())
+                        exts["KHR_materials_unlit"] = QJsonObject();
+
+                    // --- KHR_materials_volume_scatter ---
+                    if (sourceMaterial.hasVolumeScattering())
+                    {
+                        QJsonObject scatter;
+                        QVector3D msc = sourceMaterial.multiScatterColor();
+                        QJsonArray mscArr;
+                        mscArr.append(static_cast<double>(msc.x()));
+                        mscArr.append(static_cast<double>(msc.y()));
+                        mscArr.append(static_cast<double>(msc.z()));
+                        scatter["multiscatterColor"] = mscArr;
+                        exts["KHR_materials_volume_scatter"] = scatter;
+                    }
+
+                    // --- KHR_materials_diffuse_transmission ---
+                    if (sourceMaterial.diffuseTransmissionFactor() > 0.0f
+                        || !sourceMaterial.diffuseTransmissionMap().isEmpty()
+                        || !sourceMaterial.diffuseTransmissionColorMap().isEmpty())
+                    {
+                        QJsonObject dt;
+                        dt["diffuseTransmissionFactor"] = static_cast<double>(sourceMaterial.diffuseTransmissionFactor());
+                        QVector3D dtc = sourceMaterial.diffuseTransmissionColorFactor();
+                        QJsonArray dtcArr;
+                        dtcArr.append(static_cast<double>(dtc.x()));
+                        dtcArr.append(static_cast<double>(dtc.y()));
+                        dtcArr.append(static_cast<double>(dtc.z()));
+                        dt["diffuseTransmissionColorFactor"] = dtcArr;
+                        if (!sourceMaterial.diffuseTransmissionMap().isEmpty())
+                        {
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.diffuseTransmissionMap(), -1, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; dt["diffuseTransmissionTexture"] = t; }
+                        }
+                        if (!sourceMaterial.diffuseTransmissionColorMap().isEmpty())
+                        {
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.diffuseTransmissionColorMap(), -1, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; dt["diffuseTransmissionColorTexture"] = t; }
+                        }
                         fixTextureIndex(dt, "diffuseTransmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::DiffuseTransmission));
                         fixTextureIndex(dt, "diffuseTransmissionColorTexture", sourceMaterial.texture(GLMaterial::TextureType::DiffuseTransmissionColor));
                         writeTransform(dt, "diffuseTransmissionTexture", sourceMaterial.texture(GLMaterial::TextureType::DiffuseTransmission));
@@ -3006,9 +3191,34 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                         exts["KHR_materials_diffuse_transmission"] = dt;
                     }
 
-                    QJsonObject sg = exts.value("KHR_materials_pbrSpecularGlossiness").toObject();
-                    if (!sg.isEmpty())
+                    // --- KHR_materials_pbrSpecularGlossiness ---
+                    if (sourceMaterial.getUseSpecularGlossiness())
                     {
+                        QJsonObject sg;
+                        QVector3D diff = sourceMaterial.diffuseColor();
+                        QJsonArray diffArr;
+                        diffArr.append(static_cast<double>(diff.x()));
+                        diffArr.append(static_cast<double>(diff.y()));
+                        diffArr.append(static_cast<double>(diff.z()));
+                        diffArr.append(static_cast<double>(sourceMaterial.opacity()));
+                        sg["diffuseFactor"] = diffArr;
+                        QVector3D spec = sourceMaterial.specularColor();
+                        QJsonArray specArr;
+                        specArr.append(static_cast<double>(spec.x()));
+                        specArr.append(static_cast<double>(spec.y()));
+                        specArr.append(static_cast<double>(spec.z()));
+                        sg["specularFactor"] = specArr;
+                        sg["glossinessFactor"] = static_cast<double>(sourceMaterial.glossinessFactor());
+                        if (!sourceMaterial.diffuseMap().isEmpty())
+                        {
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.diffuseMap(), -1, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; sg["diffuseTexture"] = t; }
+                        }
+                        if (!sourceMaterial.specularGlossinessMap().isEmpty())
+                        {
+                            int ti = findOrCreateTexture(gltfJson, sourceMaterial.specularGlossinessMap(), -1, logCallback);
+                            if (ti >= 0) { QJsonObject t; t["index"] = ti; sg["specularGlossinessTexture"] = t; }
+                        }
                         fixTextureIndex(sg, "diffuseTexture", sourceMaterial.texture(GLMaterial::TextureType::Diffuse));
                         fixTextureIndex(sg, "specularGlossinessTexture", sourceMaterial.texture(GLMaterial::TextureType::SpecularGlossiness));
                         writeTransform(sg, "diffuseTexture", sourceMaterial.texture(GLMaterial::TextureType::Diffuse));
