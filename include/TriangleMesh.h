@@ -168,8 +168,9 @@ public:
 	{
 		// Combine albedo + normal as the two most commonly varying maps.
 		// XOR-shift spreads bits to reduce collisions on small IDs.
-		uint64_t a = _albedoPBRMap ? _albedoPBRMap : _diffuseADSMap;
-		uint64_t n = _normalPBRMap ? _normalPBRMap : _normalADSMap;
+		uint64_t a = _material.hasAlbedoMap() ? static_cast<uint64_t>(_material.albedoTextureId())
+			: (_material.hasDiffuseMap() ? static_cast<uint64_t>(_material.diffuseTextureId()) : 0ULL);
+		uint64_t n = _material.hasNormalMap() ? static_cast<uint64_t>(_material.normalTextureId()) : 0ULL;
 		return (a << 32) ^ (n * 2654435761ULL);
 	}
 
@@ -186,21 +187,21 @@ public:
 	virtual void invertOpacityPBRMap(bool invert);
 	virtual void setSpecularGlossinessMap(unsigned int sgMap);
 
-	virtual unsigned int getAlbedoPBRMap() const { return _albedoPBRMap; }
-	virtual unsigned int getNormalPBRMap() const { return _normalPBRMap; }
-	virtual unsigned int getMetallicPBRMap() const { return _metallicPBRMap; }
-	virtual unsigned int getEmissivePBRMap() const { return _emissivePBRMap; }
-	virtual unsigned int getRoughnessPBRMap() const { return _roughnessPBRMap; }
-	virtual unsigned int getAOPBRMap() const { return _aoPBRMap; }
-	virtual unsigned int getHeightPBRMap() const { return _heightPBRMap; }
-	virtual unsigned int getOpacityPBRMap() const { return _opacityPBRMap; }
-	virtual unsigned int getTransmissionPBRMap() const { return _transmissionPBRMap; }
-	virtual unsigned int getIORPBRMap() const { return _IORPBRMap; }
-	virtual unsigned int getSheenColorPBRMap() const { return _sheenColorPBRMap; }
-	virtual unsigned int getSheenRoughnessPBRMap() const { return _sheenRoughnessPBRMap; }
-	virtual unsigned int getClearcoatPBRMap() const { return _clearcoatPBRMap; }
-	virtual unsigned int getClearcoatRoughnessPBRMap() const { return _clearcoatRoughnessPBRMap; }
-	virtual unsigned int getClearcoatNormalPBRMap() const { return _clearcoatNormalPBRMap; }
+	virtual unsigned int getAlbedoPBRMap() const { return static_cast<unsigned int>(_material.albedoTextureId()); }
+	virtual unsigned int getNormalPBRMap() const { return static_cast<unsigned int>(_material.normalTextureId()); }
+	virtual unsigned int getMetallicPBRMap() const { return static_cast<unsigned int>(_material.metallicTextureId()); }
+	virtual unsigned int getEmissivePBRMap() const { return static_cast<unsigned int>(_material.emissiveTextureId()); }
+	virtual unsigned int getRoughnessPBRMap() const { return static_cast<unsigned int>(_material.roughnessTextureId()); }
+	virtual unsigned int getAOPBRMap() const { return static_cast<unsigned int>(_material.occlusionTextureId()); }
+	virtual unsigned int getHeightPBRMap() const { return static_cast<unsigned int>(_material.heightTextureId()); }
+	virtual unsigned int getOpacityPBRMap() const { return static_cast<unsigned int>(_material.opacityTextureId()); }
+	virtual unsigned int getTransmissionPBRMap() const { return static_cast<unsigned int>(_material.transmissionTextureId()); }
+	virtual unsigned int getIORPBRMap() const { return static_cast<unsigned int>(_material.iorTextureId()); }
+	virtual unsigned int getSheenColorPBRMap() const { return static_cast<unsigned int>(_material.sheenColorTextureId()); }
+	virtual unsigned int getSheenRoughnessPBRMap() const { return static_cast<unsigned int>(_material.sheenRoughnessTextureId()); }
+	virtual unsigned int getClearcoatPBRMap() const { return static_cast<unsigned int>(_material.clearcoatColorTextureId()); }
+	virtual unsigned int getClearcoatRoughnessPBRMap() const { return static_cast<unsigned int>(_material.clearcoatRoughnessTextureId()); }
+	virtual unsigned int getClearcoatNormalPBRMap() const { return static_cast<unsigned int>(_material.clearcoatNormalTextureId()); }
 
 
 	virtual bool hasAlbedoPBRMap() const;
@@ -287,17 +288,11 @@ public:
 	void cacheBaseVolumeProperties();
 	void applyScaledVolumeProperties();
 	
-	virtual void enableDiffuseADSMap(bool enable);
 	virtual void setDiffuseADSMap(unsigned int diffuseTex);
-	virtual void enableSpecularADSMap(bool enable);
 	virtual void setSpecularADSMap(unsigned int specularTex);
-	virtual void enableEmissiveADSMap(bool enable);
 	virtual void setEmissiveADSMap(unsigned int emissiveTex);
-	virtual void enableNormalADSMap(bool enable);
 	virtual void setNormalADSMap(unsigned int normalTex);
-	virtual void enableHeightADSMap(bool enable);
 	virtual void setHeightADSMap(unsigned int heightTex);
-	virtual void enableOpacityADSMap(bool enable);
 	virtual void invertOpacityADSMap(bool invert);
 	virtual void setOpacityADSMap(unsigned int opacityTex);
 	
@@ -375,52 +370,9 @@ protected:
 	unsigned int _opacityADSMap;
 	bool _hasTexture;
 	bool _hasTextureAlpha;
-	bool _hasDiffuseADSMap;
-	bool _hasSpecularADSMap;
-	bool _hasEmissiveADSMap;
-	bool _hasNormalADSMap;
-	bool _hasHeightADSMap;
-	bool _hasOpacityADSMap;
-	bool _opacityADSMapInverted;
 	
 	unsigned int _sMax;
 	unsigned int _tMax;
-
-	// PBR texture maps
-	unsigned int _albedoPBRMap;
-	unsigned int _metallicPBRMap;
-	unsigned int _emissivePBRMap;
-	unsigned int _roughnessPBRMap;
-	unsigned int _normalPBRMap;
-	unsigned int _aoPBRMap;
-	unsigned int _heightPBRMap;
-	unsigned int _opacityPBRMap;
-	unsigned int _transmissionPBRMap;
-	unsigned int _IORPBRMap;
-	unsigned int _sheenColorPBRMap;
-	unsigned int _sheenRoughnessPBRMap;
-	unsigned int _clearcoatPBRMap;
-	unsigned int _clearcoatRoughnessPBRMap;
-	unsigned int _clearcoatNormalPBRMap;
-	// KHR_materials_pbrSpecularGlossiness
-	unsigned int _specularGlossinessMap = 0;
-	bool _hasAlbedoPBRMap;
-	bool _hasMetallicPBRMap;
-	bool _hasEmissivePBRMap;
-	bool _hasRoughnessPBRMap;
-	bool _hasNormalPBRMap;
-	bool _hasAOPBRMap;
-	bool _hasHeightPBRMap;
-	float _heightPBRMapScale;
-	bool _hasOpacityPBRMap;
-	bool _opacityPBRMapInverted;
-	bool _hasTransmissionPBRMap;
-	bool _hasIORPBRMap;
-	bool _hasSheenColorPBRMap;
-	bool _hasSheenRoughnessPBRMap;
-	bool _hasClearcoatPBRMap;
-	bool _hasClearcoatRoughnessPBRMap;
-	bool _hasClearcoatNormalPBRMap;
 
 	bool _textureBindingsDirty = true;
 

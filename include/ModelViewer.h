@@ -192,8 +192,6 @@ private slots:
 
 	void on_tabWidgetVizAttribs_currentChanged(int index);
 
-	void on_toolButtonClearOpacityTex_clicked();
-
 	void onPredefinedMaterialSelected(const GLMaterial& mat);
 	void onCustomMaterialApplied(const GLMaterial& mat);
 

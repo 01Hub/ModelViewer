@@ -6,6 +6,7 @@
 #include <QVariantMap>
 #include <QDebug>
 
+#include <algorithm>
 #include <meshoptimizer.h>
 
 using namespace std;
@@ -235,107 +236,6 @@ void AssImpMesh::setupMesh()
 	// Texture flags
 	// ============================================
 	_hasTexture = false;
-
-	for (unsigned int i = 0; i < _textures.size(); i++)
-	{
-		string name = _textures[i].type;
-
-		if (name == "texture_diffuse")
-		{
-			_hasDiffuseADSMap = true;
-			_hasAlbedoPBRMap = true;
-		}
-		if (name == "texture_specular")
-		{
-			_hasSpecularADSMap = true;
-			_hasMetallicPBRMap = true;
-		}
-		if (name == "texture_emissive")
-		{
-			_hasEmissiveADSMap = true;
-			_hasEmissivePBRMap = true;
-		}
-		if (name == "texture_normal")
-		{
-			_hasNormalADSMap = true;
-			_hasNormalPBRMap = true;
-		}
-		if (name == "texture_height")
-		{
-			_hasHeightADSMap = true;
-			_hasHeightPBRMap = true;
-		}
-		if (name == "texture_opacity")
-		{
-			_hasOpacityADSMap = true;
-			_hasOpacityPBRMap = true;
-		}
-
-		// PBR from model
-		if (name == "albedoMap")
-		{
-			_hasAlbedoPBRMap = true;
-		}
-		if (name == "metallicMap")
-		{
-			_hasSpecularADSMap = true;
-			_hasMetallicPBRMap = true;
-		}
-		if (name == "emissiveMap")
-		{
-			_hasEmissiveADSMap = true;
-			_hasEmissivePBRMap = true;
-		}
-		if (name == "roughnessMap")
-		{
-			_hasRoughnessPBRMap = true;
-		}
-		if (name == "normalMap")
-		{
-			_hasNormalPBRMap = true;
-		}
-		if (name == "aoMap")
-		{
-			_hasAOPBRMap = true;
-		}
-		if (name == "heightMap")
-		{
-			_hasHeightPBRMap = true;
-		}
-		if (name == "opacityMap")
-		{
-			_hasOpacityPBRMap = true;
-			_hasOpacityADSMap = true;
-		}
-		if (name == "transmissionMap")
-		{
-			_hasTransmissionPBRMap = true;
-		}
-		if (name == "iorMap")
-		{
-			_hasIORPBRMap = true;
-		}
-		if (name == "sheenColorMap")
-		{
-			_hasSheenColorPBRMap = true;
-		}
-		if (name == "sheenRoughnessMap")
-		{
-			_hasSheenRoughnessPBRMap = true;
-		}
-		if (name == "clearcoatColorMap")
-		{
-			_hasClearcoatPBRMap = true;
-		}
-		if (name == "clearcoatRoughnessMap")
-		{
-			_hasClearcoatRoughnessPBRMap = true;
-		}
-		if (name == "clearcoatNormalMap")
-		{
-			_hasClearcoatNormalPBRMap = true;
-		}
-	}
 
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents);
 	computeBounds();
@@ -874,8 +774,7 @@ void AssImpMesh::syncVertexDataAfterBake()
 
 void AssImpMesh::setAlbedoPBRMap(unsigned int albedoMap)
 {
-	//glDeleteTextures(1, &_albedoPBRMap);
-	_albedoPBRMap = albedoMap;
+	_material.setAlbedoTextureId(albedoMap);
 	replaceOrAppendTexture("albedoMap", albedoMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -883,8 +782,7 @@ void AssImpMesh::setAlbedoPBRMap(unsigned int albedoMap)
 
 void AssImpMesh::setMetallicPBRMap(unsigned int metallicMap)
 {
-	//glDeleteTextures(1, &_metallicPBRMap);
-	_metallicPBRMap = metallicMap;
+	_material.setMetallicTextureId(metallicMap);
 	replaceOrAppendTexture("metallicMap", metallicMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -892,8 +790,7 @@ void AssImpMesh::setMetallicPBRMap(unsigned int metallicMap)
 
 void AssImpMesh::setEmissivePBRMap(unsigned int emissiveMap)
 {
-	//glDeleteTextures(1, &_emissivePBRMap);
-	_emissivePBRMap = emissiveMap;
+	_material.setEmissiveTextureId(emissiveMap);
 	replaceOrAppendTexture("emissiveMap", emissiveMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -901,8 +798,7 @@ void AssImpMesh::setEmissivePBRMap(unsigned int emissiveMap)
 
 void AssImpMesh::setRoughnessPBRMap(unsigned int roughnessMap)
 {
-	//glDeleteTextures(1, &_roughnessPBRMap);
-	_roughnessPBRMap = roughnessMap;
+	_material.setRoughnessTextureId(roughnessMap);
 	replaceOrAppendTexture("roughnessMap", roughnessMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -910,8 +806,7 @@ void AssImpMesh::setRoughnessPBRMap(unsigned int roughnessMap)
 
 void AssImpMesh::setNormalPBRMap(unsigned int normalMap)
 {
-	//glDeleteTextures(1, &_normalPBRMap);
-	_normalPBRMap = normalMap;
+	_material.setNormalTextureId(normalMap);
 	replaceOrAppendTexture("normalMap", normalMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -919,8 +814,7 @@ void AssImpMesh::setNormalPBRMap(unsigned int normalMap)
 
 void AssImpMesh::setAOPBRMap(unsigned int aoMap)
 {
-	//glDeleteTextures(1, &_aoPBRMap);
-	_aoPBRMap = aoMap;
+	_material.setOcclusionTextureId(aoMap);
 	replaceOrAppendTexture("aoMap", aoMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -928,8 +822,7 @@ void AssImpMesh::setAOPBRMap(unsigned int aoMap)
 
 void AssImpMesh::setHeightPBRMap(unsigned int heightMap)
 {
-	//glDeleteTextures(1, &_heightPBRMap);
-	_heightPBRMap = heightMap;
+	_material.setHeightTextureId(heightMap);
 	replaceOrAppendTexture("heightMap", heightMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -937,8 +830,7 @@ void AssImpMesh::setHeightPBRMap(unsigned int heightMap)
 
 void AssImpMesh::setOpacityPBRMap(unsigned int opacityMap)
 {
-	//glDeleteTextures(1, &_opacityPBRMap);
-	_opacityPBRMap = opacityMap;
+	_material.setOpacityTextureId(opacityMap);
 	_material.setBlendMode(GLMaterial::BlendMode::Alpha);
 	replaceOrAppendTexture("opacityMap", opacityMap, true);
 	markTexturesDirty();
@@ -947,8 +839,7 @@ void AssImpMesh::setOpacityPBRMap(unsigned int opacityMap)
 
 void AssImpMesh::setIORPBRMap(unsigned int iorMap)
 {
-	//glDeleteTextures(1, &_IORPBRMap);
-	_IORPBRMap = iorMap;
+	_material.setIORTextureId(iorMap);
 	replaceOrAppendTexture("iorMap", iorMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -956,8 +847,7 @@ void AssImpMesh::setIORPBRMap(unsigned int iorMap)
 
 void AssImpMesh::setClearcoatPBRMap(unsigned int clearcoatColorMap)
 {
-	//glDeleteTextures(1, &_clearcoatPBRMap);
-	_clearcoatPBRMap = clearcoatColorMap;
+	_material.setClearcoatColorTextureId(clearcoatColorMap);
 	replaceOrAppendTexture("clearcoatColorMap", clearcoatColorMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -965,8 +855,7 @@ void AssImpMesh::setClearcoatPBRMap(unsigned int clearcoatColorMap)
 
 void AssImpMesh::setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap)
 {
-	//glDeleteTextures(1, &_clearcoatRoughnessPBRMap);
-	_clearcoatRoughnessPBRMap = clearcoatRoughnessMap;
+	_material.setClearcoatRoughnessTextureId(clearcoatRoughnessMap);
 	replaceOrAppendTexture("clearcoatRoughnessMap", clearcoatRoughnessMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -974,8 +863,7 @@ void AssImpMesh::setClearcoatRoughnessPBRMap(unsigned int clearcoatRoughnessMap)
 
 void AssImpMesh::setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap)
 {
-	//glDeleteTextures(1, &_clearcoatNormalPBRMap);
-	_clearcoatNormalPBRMap = clearcoatNormalMap;
+	_material.setClearcoatNormalTextureId(clearcoatNormalMap);
 	replaceOrAppendTexture("clearcoatNormalMap", clearcoatNormalMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -983,8 +871,7 @@ void AssImpMesh::setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap)
 
 void AssImpMesh::setSheenColorPBRMap(unsigned int sheenMap)
 {
-	//glDeleteTextures(1, &_sheenColorPBRMap);
-	_sheenColorPBRMap = sheenMap;
+	_material.setSheenColorTextureId(sheenMap);
 	replaceOrAppendTexture("sheenColorMap", sheenMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -992,8 +879,7 @@ void AssImpMesh::setSheenColorPBRMap(unsigned int sheenMap)
 
 void AssImpMesh::setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap)
 {
-	//glDeleteTextures(1, &_sheenRoughnessPBRMap);
-	_sheenRoughnessPBRMap = sheenRoughnessMap;
+	_material.setSheenRoughnessTextureId(sheenRoughnessMap);
 	replaceOrAppendTexture("sheenRoughnessMap", sheenRoughnessMap, false);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1001,9 +887,162 @@ void AssImpMesh::setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap)
 
 void AssImpMesh::setTransmissionPBRMap(unsigned int transmissionMap)
 {
-	//glDeleteTextures(1, &_transmissionPBRMap);
-	_transmissionPBRMap = transmissionMap;
+	_material.setTransmissionTextureId(transmissionMap);
 	replaceOrAppendTexture("transmissionMap", transmissionMap, false);
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearAlbedoPBRMap()
+{
+	_material.setAlbedoTextureId(0);
+	removeTexturesByType({ "albedoMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearMetallicPBRMap()
+{
+	_material.setMetallicTextureId(0);
+	removeTexturesByType({ "metallicMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearRoughnessPBRMap()
+{
+	_material.setRoughnessTextureId(0);
+	removeTexturesByType({ "roughnessMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearNormalPBRMap()
+{
+	_material.setNormalTextureId(0);
+	removeTexturesByType({ "normalMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearAOPBRMap()
+{
+	_material.setOcclusionTextureId(0);
+	removeTexturesByType({ "aoMap", "occlusionMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearHeightPBRMap()
+{
+	_material.setHeightTextureId(0);
+	removeTexturesByType({ "heightMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearOpacityPBRMap()
+{
+	_material.setOpacityTextureId(0);
+	removeTexturesByType({ "opacityMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearTransmissionPBRMap()
+{
+	_material.setTransmissionTextureId(0);
+	removeTexturesByType({ "transmissionMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearIORPBRMap()
+{
+	_material.setIORTextureId(0);
+	removeTexturesByType({ "iorMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearSheenColorPBRMap()
+{
+	_material.setSheenColorTextureId(0);
+	removeTexturesByType({ "sheenColorMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearSheenRoughnessPBRMap()
+{
+	_material.setSheenRoughnessTextureId(0);
+	removeTexturesByType({ "sheenRoughnessMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearClearcoatPBRMap()
+{
+	_material.setClearcoatColorTextureId(0);
+	removeTexturesByType({ "clearcoatColorMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearClearcoatRoughnessPBRMap()
+{
+	_material.setClearcoatRoughnessTextureId(0);
+	removeTexturesByType({ "clearcoatRoughnessMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearClearcoatNormalPBRMap()
+{
+	_material.setClearcoatNormalTextureId(0);
+	removeTexturesByType({ "clearcoatNormalMap" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearAllPBRMaps()
+{
+	_material.setAlbedoTextureId(0);
+	_material.setMetallicTextureId(0);
+	_material.setEmissiveTextureId(0);
+	_material.setRoughnessTextureId(0);
+	_material.setNormalTextureId(0);
+	_material.setOcclusionTextureId(0);
+	_material.setHeightTextureId(0);
+	_material.setOpacityTextureId(0);
+	_material.setTransmissionTextureId(0);
+	_material.setIORTextureId(0);
+	_material.setSheenColorTextureId(0);
+	_material.setSheenRoughnessTextureId(0);
+	_material.setClearcoatColorTextureId(0);
+	_material.setClearcoatRoughnessTextureId(0);
+	_material.setClearcoatNormalTextureId(0);
+	_material.setSpecularGlossinessTextureId(0);
+
+	removeTexturesByType({
+		"albedoMap",
+		"metallicMap",
+		"emissiveMap",
+		"roughnessMap",
+		"normalMap",
+		"aoMap",
+		"occlusionMap",
+		"heightMap",
+		"opacityMap",
+		"transmissionMap",
+		"iorMap",
+		"sheenColorMap",
+		"sheenRoughnessMap",
+		"clearcoatColorMap",
+		"clearcoatRoughnessMap",
+		"clearcoatNormalMap",
+		"specularGlossinessMap"
+	});
 	markTexturesDirty();
 	markUniformsDirty();
 }
@@ -1017,7 +1056,6 @@ void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
 	t.type = "texture_diffuse";
 	t.path = ""; // No path for OpenGL texture handles
 	_textures.push_back(t);
-	_hasDiffuseADSMap = true;
 	markTexturesDirty();
 	markUniformsDirty();
 }
@@ -1031,7 +1069,6 @@ void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
 	t.type = "texture_specular";
 	t.path = ""; // No path for OpenGL texture handles
 	_textures.push_back(t);
-	_hasSpecularADSMap = true;
 	markTexturesDirty();
 	markUniformsDirty();
 }
@@ -1045,7 +1082,6 @@ void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
 	t.type = "texture_emissive";
 	t.path = ""; // No path for OpenGL texture handles
 	_textures.push_back(t);
-	_hasEmissiveADSMap = true;
 	markTexturesDirty();
 	markUniformsDirty();
 }
@@ -1059,7 +1095,6 @@ void AssImpMesh::setNormalADSMap(unsigned int normalTex)
 	t.type = "texture_normal";
 	t.path = ""; // No path for OpenGL texture handles
 	_textures.push_back(t);
-	_hasNormalADSMap = true;
 	markTexturesDirty();
 	markUniformsDirty();
 }
@@ -1073,7 +1108,6 @@ void AssImpMesh::setHeightADSMap(unsigned int heightTex)
 	t.type = "texture_height";
 	t.path = ""; // No path for OpenGL texture handles
 	_textures.push_back(t);
-	_hasHeightADSMap = true;
 	markTexturesDirty();
 	markUniformsDirty();
 }
@@ -1087,7 +1121,6 @@ void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 	t.type = "texture_opacity";
 	t.path = ""; // No path for OpenGL texture handles
 	_textures.push_back(t);
-	_hasOpacityADSMap = true;
 	_material.setBlendMode(GLMaterial::BlendMode::Alpha);
 	markTexturesDirty();
 	markUniformsDirty();
@@ -1096,95 +1129,65 @@ void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 void AssImpMesh::setTextureMaps(const GLMaterial& material)
 {
 	_textures.clear();
-	_hasAlbedoPBRMap = false;
-	_hasMetallicPBRMap = false;
-	_hasEmissivePBRMap = false;
-	_hasRoughnessPBRMap = false;
-	_hasNormalPBRMap = false;
-	_hasAOPBRMap = false;
-	_hasHeightPBRMap = false;
-	_hasOpacityPBRMap = false;
-	_hasTransmissionPBRMap = false;
-	_hasIORPBRMap = false;
-	_hasSheenColorPBRMap = false;
-	_hasSheenRoughnessPBRMap = false;
-	_hasClearcoatPBRMap = false;
-	_hasClearcoatRoughnessPBRMap = false;
-	_hasClearcoatNormalPBRMap = false;
 
 	if (material.hasAlbedoMap())
 	{
-		_hasAlbedoPBRMap = true;
 		setAlbedoPBRMap(material.albedoTextureId());
 	}
 	if (material.hasMetallicMap())
 	{
-		_hasMetallicPBRMap = true;
 		setMetallicPBRMap(material.metallicTextureId());
 	}
 	if (material.hasEmissiveMap())
 	{
-		_hasEmissivePBRMap = true;
 		setEmissivePBRMap(material.emissiveTextureId());
 	}
 	if (material.hasRoughnessMap())
 	{
-		_hasRoughnessPBRMap = true;
 		setRoughnessPBRMap(material.roughnessTextureId());
 	}
 	if (material.hasNormalMap())
 	{
-		_hasNormalPBRMap = true;
 		setNormalPBRMap(material.normalTextureId());
 	}
 	if (material.hasAOMap())
 	{
-		_hasAOPBRMap = true;
 		setAOPBRMap(material.occlusionTextureId());
 	}
 	if (material.hasHeightMap())
 	{
-		_hasHeightPBRMap = true;
 		setHeightPBRMap(material.heightTextureId());
 	}
 	if (material.hasOpacityMap())
 	{
-		_hasOpacityPBRMap = true;
 		setOpacityPBRMap(material.opacityTextureId());		
 	}
 	if (material.hasTransmissionMap())
 	{
-		_hasTransmissionPBRMap = true;
 		setTransmissionPBRMap(material.transmissionTextureId());
 	}
 	if (material.hasIORMap())
 	{
-		_hasIORPBRMap = true;
 		setIORPBRMap(material.iorTextureId());
 	}
 	if (material.hasSheenColorMap())
 	{
-		_hasSheenColorPBRMap = true;
 		setSheenColorPBRMap(material.sheenColorTextureId());
 	}
 	if (material.hasSheenRoughnessMap())
 	{
-		_hasSheenRoughnessPBRMap = true;
 		setSheenRoughnessPBRMap(material.sheenRoughnessTextureId());
 	}
 	if (material.hasClearcoatColorMap())
 	{
-		_hasClearcoatPBRMap = true;
 		setClearcoatPBRMap(material.clearcoatColorTextureId());
 	}
 	if (material.hasClearcoatRoughnessMap())
 	{
-		_hasClearcoatRoughnessPBRMap = true;
 		setClearcoatRoughnessPBRMap(material.clearcoatRoughnessTextureId());
 	}
 	if (material.hasClearcoatNormalMap())
 	{
-		_hasClearcoatNormalPBRMap = true;
 		setClearcoatNormalPBRMap(material.clearcoatNormalTextureId());
 	}
 	if (material.hasIridescenceMap())
@@ -1227,15 +1230,41 @@ void AssImpMesh::setTextureMaps(const GLMaterial& material)
 	{
 		replaceOrAppendTexture("specularGlossinessMap", material.specularGlossinessTextureId(), false);
 	}
-	if (material.isOpacityMapInverted())
+
+	// Mirror the active material into the legacy ADS texture entries that
+	// AssImpMesh::render() still binds for ADS mode.
+	if (material.hasAlbedoMap())
 	{
-		_opacityPBRMapInverted = true;
-		_opacityADSMapInverted = true;
+		setDiffuseADSMap(material.albedoTextureId());
 	}
-	else
+	else if (material.hasDiffuseMap())
 	{
-		_opacityPBRMapInverted = false;
-		_opacityADSMapInverted = false;
+		setDiffuseADSMap(material.diffuseTextureId());
+	}
+
+	if (material.hasMetallicMap())
+	{
+		setSpecularADSMap(material.metallicTextureId());
+	}
+
+	if (material.hasEmissiveMap())
+	{
+		setEmissiveADSMap(material.emissiveTextureId());
+	}
+
+	if (material.hasNormalMap())
+	{
+		setNormalADSMap(material.normalTextureId());
+	}
+
+	if (material.hasHeightMap())
+	{
+		setHeightADSMap(material.heightTextureId());
+	}
+
+	if (material.hasOpacityMap())
+	{
+		setOpacityADSMap(material.opacityTextureId());
 	}
 	_material = material;
 	cacheBaseVolumeProperties();
@@ -1255,6 +1284,17 @@ void AssImpMesh::replaceOrAppendTexture(const std::string& type, GLuint id, bool
 	}
 	GLMaterial::Texture t; t.id = id; t.type = type; t.hasAlpha = hasAlpha;
 	_textures.push_back(t);
+}
+
+void AssImpMesh::removeTexturesByType(std::initializer_list<std::string> types)
+{
+	_textures.erase(
+		std::remove_if(_textures.begin(), _textures.end(),
+			[&](const GLMaterial::Texture& texture)
+			{
+				return std::find(types.begin(), types.end(), texture.type) != types.end();
+			}),
+		_textures.end());
 }
 
 

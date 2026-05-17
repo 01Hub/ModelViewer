@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iostream>
 #include <vector>
+#include <initializer_list>
 
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -81,7 +82,22 @@ public:
 	void setClearcoatNormalPBRMap(unsigned int clearcoatNormalMap) override;
 	void setSheenColorPBRMap(unsigned int sheenMap) override;
 	void setSheenRoughnessPBRMap(unsigned int sheenRoughnessMap) override;
-	void setTransmissionPBRMap(unsigned int transmissionMap) override;	
+	void setTransmissionPBRMap(unsigned int transmissionMap) override;
+	void clearAlbedoPBRMap() override;
+	void clearMetallicPBRMap() override;
+	void clearRoughnessPBRMap() override;
+	void clearNormalPBRMap() override;
+	void clearAOPBRMap() override;
+	void clearHeightPBRMap() override;
+	void clearOpacityPBRMap() override;
+	void clearTransmissionPBRMap() override;
+	void clearIORPBRMap() override;
+	void clearSheenColorPBRMap() override;
+	void clearSheenRoughnessPBRMap() override;
+	void clearClearcoatPBRMap() override;
+	void clearClearcoatRoughnessPBRMap() override;
+	void clearClearcoatNormalPBRMap() override;
+	void clearAllPBRMaps() override;
 
 	// implementations for enabling/disabling textures
 	void setDiffuseADSMap(unsigned int diffuseTex) override;
@@ -108,6 +124,7 @@ private:
 	void bindTexturesOptimized();
 	void setRenderStateOptimized();
 	void setupUniformsOptimized();
+	void removeTexturesByType(std::initializer_list<std::string> types);
 
 	// sync texture path entries into _textures from the material's stored map (if _textures empty)
 	void syncTexturesFromMaterialIfNeeded();

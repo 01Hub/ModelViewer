@@ -3467,18 +3467,6 @@ void ModelViewer::onTextureCacheCleared()
 	}
 }
 
-void ModelViewer::on_toolButtonClearOpacityTex_clicked()
-{
-	if (checkForActiveSelection())
-	{
-		std::vector<int> ids = getSelectedIDs();
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		_glWidget->clearADSOpacityTexMap(ids);
-		_glWidget->updateView();
-		QApplication::restoreOverrideCursor();
-	}
-}
-
 void ModelViewer::onPredefinedMaterialSelected(const GLMaterial& mat)
 {
 	// Material application is now handled by MaterialPropertiesPanel.

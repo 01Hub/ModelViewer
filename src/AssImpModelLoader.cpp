@@ -859,6 +859,13 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 					nullptr,     // no specific aiMesh — materialIndex is authoritative
 					matIdx,
 					varMat, varTextures);
+				// glTF/GLB variant materials must have isGLTFMaterial=true so
+				// the shader uses PBR blending (blendFactor=1) and texture
+				// scaling works correctly for metallic, roughness, AO, and
+				// specular — identical to the default mesh material path at
+				// line 777.
+				varMat.setIsGLTFMaterial(true);
+
 			}
 			else
 			{

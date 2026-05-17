@@ -165,32 +165,7 @@ public:
 	aiScene* getAssImpScene() const { return _globalScene; }
 	glm::mat4 getGlobalSceneTransform() const { return _globalSceneTransform; }
 
-	void enableADSDiffuseTexMap(const std::vector<int>& ids, const bool& enable);
-	void setADSDiffuseTexMap(const std::vector<int>& ids, const QString& path);
-	void clearADSDiffuseTexMap(const std::vector<int>& ids);
-
-	void enableADSSpecularTexMap(const std::vector<int>& ids, const bool& enable);
-	void setADSSpecularTexMap(const std::vector<int>& ids, const QString& path);
-	void clearADSSpecularTexMap(const std::vector<int>& ids);
-
-	void enableADSEmissiveTexMap(const std::vector<int>& ids, const bool& enable);
-	void setADSEmissiveTexMap(const std::vector<int>& ids, const QString& path);
-	void clearADSEmissiveTexMap(const std::vector<int>& ids);
-
-	void enableADSNormalTexMap(const std::vector<int>& ids, const bool& enable);
-	void setADSNormalTexMap(const std::vector<int>& ids, const QString& path);
-	void clearADSNormalTexMap(const std::vector<int>& ids);
-
-	void enableADSHeightTexMap(const std::vector<int>& ids, const bool& enable);
-	void setADSHeightTexMap(const std::vector<int>& ids, const QString& path);
-	void clearADSHeightTexMap(const std::vector<int>& ids);
-
-	void enableADSOpacityTexMap(const std::vector<int>& ids, const bool& enable);
 	void invertADSOpacityTexMap(const std::vector<int>& ids, const bool& inverted);
-	void setADSOpacityTexMap(const std::vector<int>& ids, const QString& path);
-	void clearADSOpacityTexMap(const std::vector<int>& ids);
-
-	void clearADSTexMaps(const std::vector<int>& ids);
 
 	void setMaterialToObjects(const std::vector<int>& ids, const GLMaterial& mat);
 	void setTexturesToObjects(const std::vector<int>& ids, const GLMaterial& mat);
@@ -202,58 +177,29 @@ public:
 	void setPBRRoughness(const std::vector<int>& ids, const float& val);
 
 	void clearPBRTexMaps(const std::vector<int>& ids);
-	void enablePBRAlbedoTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRAlbedoTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRAlbedoTexMap(const std::vector<int>& ids);
-	void enablePBRMetallicTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRMetallicTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRMetallicTexMap(const std::vector<int>& ids);
-	void enablePBRRoughnessTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRRoughnessTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRRoughnessTexMap(const std::vector<int>& ids);
-	void enablePBRNormalTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRNormalTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRNormalTexMap(const std::vector<int>& ids);
-	void enablePBRAOTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRAOTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRAOTexMap(const std::vector<int>& ids);
 
-	void enablePBROpacityTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBROpacityTexMap(const std::vector<int>& ids, const QString& path);
 	void invertPBROpacityTexMap(const std::vector<int>& ids, const bool& inverted);
 	void clearPBROpacityTexMap(const std::vector<int>& ids);
 
-	void enablePBRHeightTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRHeightTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRHeightTexMap(const std::vector<int>& ids);
-	void setPBRHeightScale(const std::vector<int>& ids, const float& scale);
 
-	void enablePBRTransmissionTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRTransmissionTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRTransmissionTexMap(const std::vector<int>& ids);
 
-	void enablePBRIORTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRIORTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRIORTexMap(const std::vector<int>& ids);
 
-	void enablePBRSheenColorTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRSheenColorTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRSheenColorTexMap(const std::vector<int>& ids);
 
-	void enablePBRSheenRoughnessTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRSheenRoughnessTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRSheenRoughnessTexMap(const std::vector<int>& ids);
 
-	void enablePBRClearcoatTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRClearcoatTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRClearcoatTexMap(const std::vector<int>& ids);
 
-	void enablePBRClearcoatRoughnessTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRClearcoatRoughnessTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRClearcoatRoughnessTexMap(const std::vector<int>& ids);
 
-	void enablePBRClearcoatNormalTexMap(const std::vector<int>& ids, const bool& enable);
-	void setPBRClearcoatNormalTexMap(const std::vector<int>& ids, const QString& path);
 	void clearPBRClearcoatNormalTexMap(const std::vector<int>& ids);
 
 	void setTransformation(const std::vector<int>& ids, const QVector3D& trans, const QVector3D& rot, const QVector3D& scale);
