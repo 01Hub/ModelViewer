@@ -4,6 +4,160 @@
 #include <algorithm>
 #include <functional>
 
+namespace
+{
+aiBone* cloneBone(const aiBone* srcBone)
+{
+	if (!srcBone)
+		return nullptr;
+
+	aiBone* dstBone = new aiBone();
+	dstBone->mName = srcBone->mName;
+	dstBone->mOffsetMatrix = srcBone->mOffsetMatrix;
+	dstBone->mNumWeights = srcBone->mNumWeights;
+
+	if (srcBone->mNumWeights > 0 && srcBone->mWeights)
+	{
+		dstBone->mWeights = new aiVertexWeight[srcBone->mNumWeights];
+		std::memcpy(dstBone->mWeights, srcBone->mWeights, sizeof(aiVertexWeight) * srcBone->mNumWeights);
+	}
+
+	return dstBone;
+}
+
+aiAnimMesh* cloneAnimMesh(const aiAnimMesh* srcAnimMesh)
+{
+	if (!srcAnimMesh)
+		return nullptr;
+
+	aiAnimMesh* dstAnimMesh = new aiAnimMesh();
+	dstAnimMesh->mName = srcAnimMesh->mName;
+	dstAnimMesh->mNumVertices = srcAnimMesh->mNumVertices;
+	dstAnimMesh->mWeight = srcAnimMesh->mWeight;
+
+	const unsigned int count = srcAnimMesh->mNumVertices;
+	if (srcAnimMesh->mVertices)
+	{
+		dstAnimMesh->mVertices = new aiVector3D[count];
+		std::memcpy(dstAnimMesh->mVertices, srcAnimMesh->mVertices, sizeof(aiVector3D) * count);
+	}
+	if (srcAnimMesh->mNormals)
+	{
+		dstAnimMesh->mNormals = new aiVector3D[count];
+		std::memcpy(dstAnimMesh->mNormals, srcAnimMesh->mNormals, sizeof(aiVector3D) * count);
+	}
+	if (srcAnimMesh->mTangents)
+	{
+		dstAnimMesh->mTangents = new aiVector3D[count];
+		std::memcpy(dstAnimMesh->mTangents, srcAnimMesh->mTangents, sizeof(aiVector3D) * count);
+	}
+	if (srcAnimMesh->mBitangents)
+	{
+		dstAnimMesh->mBitangents = new aiVector3D[count];
+		std::memcpy(dstAnimMesh->mBitangents, srcAnimMesh->mBitangents, sizeof(aiVector3D) * count);
+	}
+
+	for (unsigned int colorIndex = 0; colorIndex < AI_MAX_NUMBER_OF_COLOR_SETS; ++colorIndex)
+	{
+		if (srcAnimMesh->mColors[colorIndex])
+		{
+			dstAnimMesh->mColors[colorIndex] = new aiColor4D[count];
+			std::memcpy(dstAnimMesh->mColors[colorIndex], srcAnimMesh->mColors[colorIndex], sizeof(aiColor4D) * count);
+		}
+	}
+
+	for (unsigned int texCoordIndex = 0; texCoordIndex < AI_MAX_NUMBER_OF_TEXTURECOORDS; ++texCoordIndex)
+	{
+		if (srcAnimMesh->mTextureCoords[texCoordIndex])
+		{
+			dstAnimMesh->mTextureCoords[texCoordIndex] = new aiVector3D[count];
+			std::memcpy(dstAnimMesh->mTextureCoords[texCoordIndex], srcAnimMesh->mTextureCoords[texCoordIndex], sizeof(aiVector3D) * count);
+		}
+	}
+
+	return dstAnimMesh;
+}
+
+aiNodeAnim* cloneNodeAnim(const aiNodeAnim* srcChannel)
+{
+	if (!srcChannel)
+		return nullptr;
+
+	aiNodeAnim* dstChannel = new aiNodeAnim();
+	dstChannel->mNodeName = srcChannel->mNodeName;
+	dstChannel->mPreState = srcChannel->mPreState;
+	dstChannel->mPostState = srcChannel->mPostState;
+	dstChannel->mNumPositionKeys = srcChannel->mNumPositionKeys;
+	dstChannel->mNumRotationKeys = srcChannel->mNumRotationKeys;
+	dstChannel->mNumScalingKeys = srcChannel->mNumScalingKeys;
+
+	if (srcChannel->mNumPositionKeys > 0 && srcChannel->mPositionKeys)
+	{
+		dstChannel->mPositionKeys = new aiVectorKey[srcChannel->mNumPositionKeys];
+		std::memcpy(dstChannel->mPositionKeys, srcChannel->mPositionKeys, sizeof(aiVectorKey) * srcChannel->mNumPositionKeys);
+	}
+	if (srcChannel->mNumRotationKeys > 0 && srcChannel->mRotationKeys)
+	{
+		dstChannel->mRotationKeys = new aiQuatKey[srcChannel->mNumRotationKeys];
+		std::memcpy(dstChannel->mRotationKeys, srcChannel->mRotationKeys, sizeof(aiQuatKey) * srcChannel->mNumRotationKeys);
+	}
+	if (srcChannel->mNumScalingKeys > 0 && srcChannel->mScalingKeys)
+	{
+		dstChannel->mScalingKeys = new aiVectorKey[srcChannel->mNumScalingKeys];
+		std::memcpy(dstChannel->mScalingKeys, srcChannel->mScalingKeys, sizeof(aiVectorKey) * srcChannel->mNumScalingKeys);
+	}
+
+	return dstChannel;
+}
+
+aiMeshAnim* cloneMeshAnim(const aiMeshAnim* srcChannel)
+{
+	if (!srcChannel)
+		return nullptr;
+
+	aiMeshAnim* dstChannel = new aiMeshAnim();
+	dstChannel->mName = srcChannel->mName;
+	dstChannel->mNumKeys = srcChannel->mNumKeys;
+
+	if (srcChannel->mNumKeys > 0 && srcChannel->mKeys)
+	{
+		dstChannel->mKeys = new aiMeshKey[srcChannel->mNumKeys];
+		std::memcpy(dstChannel->mKeys, srcChannel->mKeys, sizeof(aiMeshKey) * srcChannel->mNumKeys);
+	}
+
+	return dstChannel;
+}
+
+aiAnimation* cloneAnimation(const aiAnimation* srcAnimation)
+{
+	if (!srcAnimation)
+		return nullptr;
+
+	aiAnimation* dstAnimation = new aiAnimation();
+	dstAnimation->mName = srcAnimation->mName;
+	dstAnimation->mDuration = srcAnimation->mDuration;
+	dstAnimation->mTicksPerSecond = srcAnimation->mTicksPerSecond;
+	dstAnimation->mNumChannels = srcAnimation->mNumChannels;
+	dstAnimation->mNumMeshChannels = srcAnimation->mNumMeshChannels;
+
+	if (srcAnimation->mNumChannels > 0 && srcAnimation->mChannels)
+	{
+		dstAnimation->mChannels = new aiNodeAnim*[srcAnimation->mNumChannels];
+		for (unsigned int channelIndex = 0; channelIndex < srcAnimation->mNumChannels; ++channelIndex)
+			dstAnimation->mChannels[channelIndex] = cloneNodeAnim(srcAnimation->mChannels[channelIndex]);
+	}
+
+	if (srcAnimation->mNumMeshChannels > 0 && srcAnimation->mMeshChannels)
+	{
+		dstAnimation->mMeshChannels = new aiMeshAnim*[srcAnimation->mNumMeshChannels];
+		for (unsigned int channelIndex = 0; channelIndex < srcAnimation->mNumMeshChannels; ++channelIndex)
+			dstAnimation->mMeshChannels[channelIndex] = cloneMeshAnim(srcAnimation->mMeshChannels[channelIndex]);
+	}
+
+	return dstAnimation;
+}
+}
+
 void SceneUtils::mergeScene(aiScene** globalScene, aiScene* source)
 {
 	if (!source || !source->mRootNode)
@@ -34,6 +188,21 @@ void SceneUtils::mergeScene(aiScene** globalScene, aiScene* source)
 	delete[] (*globalScene)->mMaterials;
 	(*globalScene)->mMaterials = mergedMats;
 	(*globalScene)->mNumMaterials += newMatCount;
+
+	// --- Merge animations ---
+	const unsigned int oldAnimationCount = (*globalScene)->mNumAnimations;
+	const unsigned int newAnimationCount = source->mNumAnimations;
+	if (oldAnimationCount + newAnimationCount > 0)
+	{
+		aiAnimation** mergedAnimations = new aiAnimation * [oldAnimationCount + newAnimationCount];
+		for (unsigned int index = 0; index < oldAnimationCount; ++index)
+			mergedAnimations[index] = (*globalScene)->mAnimations ? (*globalScene)->mAnimations[index] : nullptr;
+		for (unsigned int index = 0; index < newAnimationCount; ++index)
+			mergedAnimations[oldAnimationCount + index] = source->mAnimations ? source->mAnimations[index] : nullptr;
+		delete[] (*globalScene)->mAnimations;
+		(*globalScene)->mAnimations = mergedAnimations;
+		(*globalScene)->mNumAnimations += newAnimationCount;
+	}
 
 	// --- Remap mesh indices in source nodes ---
 	std::function<void(aiNode*)> remapMeshIndices = [&](aiNode* node) {
@@ -160,6 +329,22 @@ aiScene* SceneUtils::deepCopyScene(const aiScene* source)
 					dstMesh->mTextureCoords[t] = new aiVector3D[dstMesh->mNumVertices];
 					std::memcpy(dstMesh->mTextureCoords[t], srcMesh->mTextureCoords[t], sizeof(aiVector3D) * dstMesh->mNumVertices);
 				}
+			}
+
+			dstMesh->mNumBones = srcMesh->mNumBones;
+			if (srcMesh->mNumBones > 0 && srcMesh->mBones)
+			{
+				dstMesh->mBones = new aiBone*[srcMesh->mNumBones];
+				for (unsigned int boneIndex = 0; boneIndex < srcMesh->mNumBones; ++boneIndex)
+					dstMesh->mBones[boneIndex] = cloneBone(srcMesh->mBones[boneIndex]);
+			}
+
+			dstMesh->mNumAnimMeshes = srcMesh->mNumAnimMeshes;
+			if (srcMesh->mNumAnimMeshes > 0 && srcMesh->mAnimMeshes)
+			{
+				dstMesh->mAnimMeshes = new aiAnimMesh*[srcMesh->mNumAnimMeshes];
+				for (unsigned int animMeshIndex = 0; animMeshIndex < srcMesh->mNumAnimMeshes; ++animMeshIndex)
+					dstMesh->mAnimMeshes[animMeshIndex] = cloneAnimMesh(srcMesh->mAnimMeshes[animMeshIndex]);
 			}
 
 			// Copy faces
@@ -315,6 +500,15 @@ aiScene* SceneUtils::deepCopyScene(const aiScene* source)
 		}
 	}
 
+	// ---- Copy Animations ----
+	copy->mNumAnimations = source->mNumAnimations;
+	if (copy->mNumAnimations > 0)
+	{
+		copy->mAnimations = new aiAnimation*[copy->mNumAnimations];
+		for (unsigned int animationIndex = 0; animationIndex < copy->mNumAnimations; ++animationIndex)
+			copy->mAnimations[animationIndex] = cloneAnimation(source->mAnimations[animationIndex]);
+	}
+
 	// ---- Copy Node Hierarchy ----
 	std::function<aiNode* (const aiNode*)> cloneNode = [&](const aiNode* src) -> aiNode* {
 		aiNode* dst = new aiNode();
@@ -408,38 +602,7 @@ void SceneUtils::deleteScene(aiScene* scene)
 				aiAnimation* anim = scene->mAnimations[i];
 				if (anim)
 				{
-					// Delete channels
-					if (anim->mChannels)
-					{
-						for (unsigned int c = 0; c < anim->mNumChannels; ++c)
-						{
-							aiNodeAnim* channel = anim->mChannels[c];
-							if (channel)
-							{
-								delete[] channel->mPositionKeys;
-								delete[] channel->mRotationKeys;
-								delete[] channel->mScalingKeys;
-								delete channel;
-							}
-						}
-						delete[] anim->mChannels;
-					}
-
-					// Delete mesh channels
-					if (anim->mMeshChannels)
-					{
-						for (unsigned int mc = 0; mc < anim->mNumMeshChannels; ++mc)
-						{
-							aiMeshAnim* meshChannel = anim->mMeshChannels[mc];
-							if (meshChannel)
-							{
-								delete[] meshChannel->mKeys;
-								delete meshChannel;
-							}
-						}
-						delete[] anim->mMeshChannels;
-					}
-
+					// aiAnimation's destructor already deletes node/mesh/morph channels.
 					delete anim;
 					scene->mAnimations[i] = nullptr;
 				}

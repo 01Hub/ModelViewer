@@ -36,6 +36,7 @@
 #include <XCAFDoc_ShapeTool.hxx>
 
 #include "GLLights.h"
+#include "GltfAnimationData.h"
 #include "GltfVariantData.h"
 
 
@@ -105,6 +106,8 @@ struct AssImpMeshData
 
 	// Absolute path of the file this mesh was loaded from.
 	QString sourceFile;
+	QString sourceNodeName;
+	bool preserveNodeTransform = false;
 
 	// KHR_materials_variants: which material index maps to which variants.
 	// Empty when the source file has no variant extension.
@@ -114,6 +117,9 @@ struct AssImpMeshData
 	// (including the default material at key originalMaterialIndex).
 	// Populated during processMesh() so variant switching requires no I/O.
 	QMap<int, GLMaterial> allVariantMaterials;
+
+	// Skinning support for animated glTF meshes.
+	QVector<GltfSkinJoint> skinJoints;
 };
 
 using AssImpMeshDataBatch = std::vector<AssImpMeshData>;
@@ -159,6 +165,7 @@ public:
 	// Returns variant data parsed from KHR_materials_variants.
 	// Empty when the loaded file has no variant extension.
 	const GltfVariantData& getVariantData() const { return _variantData; }
+	const GltfAnimationData& getAnimationData() const { return _animationData; }
 
 	void freeScene();
 	void setImageTextureUploader(MaterialProcessor::ImageTextureUploadFn uploader);
@@ -207,6 +214,7 @@ private:
 	// Must be called after updateAiSceneWithGltfMaterials() so material indices
 	// in the JSON correspond 1:1 to aiScene::mMaterials[] entries.
 	void parseGltfVariants(const QString& gltfPath);
+	void parseSceneAnimations();
 
 	// Update aiScene materials to match glTF structure (deduplicate, fix material assignments)
 	void updateAiSceneWithGltfMaterials(const QString& gltfPath, aiScene* scene);
@@ -262,4 +270,6 @@ private:
 	// Variant data parsed from KHR_materials_variants (empty for non-glTF files
 	// or glTF files that do not carry the extension).
 	GltfVariantData _variantData;
+	GltfAnimationData _animationData;
+	bool _preserveNodeTransformsForRuntime = false;
 };

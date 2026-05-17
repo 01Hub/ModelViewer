@@ -1,6 +1,8 @@
 #version 450 core
 
 layout(location = 0) in vec3 vertexPosition;
+layout(location = 9) in vec4 jointIndices;
+layout(location = 10) in vec4 jointWeights;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -11,20 +13,49 @@ uniform vec4 clipPlaneY;
 uniform vec4 clipPlaneZ;
 // user defined clip plane
 uniform vec4 clipPlane;
+uniform bool hasSkinning;
+uniform int jointCount;
+uniform mat4 jointMatrices[128];
 
 out float v_clipDistX;
 out float v_clipDistY;
 out float v_clipDistZ;
 out float v_clipDist;
 
+mat4 computeSkinMatrix()
+{
+    if (!hasSkinning || jointCount <= 0)
+        return mat4(1.0);
+
+    mat4 skin = mat4(0.0);
+    float totalWeight = 0.0;
+    for (int i = 0; i < 4; ++i)
+    {
+        float weight = jointWeights[i];
+        if (weight <= 0.0)
+            continue;
+
+        int jointIndex = int(jointIndices[i]);
+        if (jointIndex < 0 || jointIndex >= jointCount || jointIndex >= 128)
+            continue;
+
+        skin += jointMatrices[jointIndex] * weight;
+        totalWeight += weight;
+    }
+
+    return totalWeight > 0.0 ? skin : mat4(1.0);
+}
+
 void main()
 {
-    gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(vertexPosition, 1);
+    vec4 posedPosition = computeSkinMatrix() * vec4(vertexPosition, 1.0);
+    vec4 viewPos = viewMatrix * modelMatrix * posedPosition;
+    gl_Position = projectionMatrix * viewPos;
 
-    v_clipDistX = dot(clipPlaneX, viewMatrix * modelMatrix * vec4(vertexPosition, 1));
-    v_clipDistY = dot(clipPlaneY, viewMatrix * modelMatrix* vec4(vertexPosition, 1));
-    v_clipDistZ = dot(clipPlaneZ, viewMatrix * modelMatrix* vec4(vertexPosition, 1));
-    v_clipDist =  dot(clipPlane, viewMatrix * modelMatrix* vec4(vertexPosition, 1));
+    v_clipDistX = dot(clipPlaneX, viewPos);
+    v_clipDistY = dot(clipPlaneY, viewPos);
+    v_clipDistZ = dot(clipPlaneZ, viewPos);
+    v_clipDist =  dot(clipPlane, viewPos);
 
     gl_ClipDistance[0] = v_clipDistX;
     gl_ClipDistance[1] = v_clipDistY;

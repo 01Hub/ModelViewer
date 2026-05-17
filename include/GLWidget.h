@@ -10,6 +10,7 @@
 #include "AssImpModelLoader.h"
 #include <math.h>
 #include <QColor>
+#include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFormLayout>
 #include <QImage>
@@ -220,6 +221,15 @@ public:
 
 	void setTransmissionEnabled(const bool& enabled);
 	bool isTransmissionEnabled() const { return _transmissionEnabled; }
+	void setActiveAnimation(const QString& sourceFile, int clipIndex);
+	void setAnimationPlaying(bool playing);
+	void seekAnimation(double timeSeconds);
+	void setAnimationLooping(bool looping);
+	QString activeAnimationFile() const { return _activeAnimationFile; }
+	int activeAnimationClip() const { return _activeAnimationClip; }
+	double currentAnimationTimeSeconds() const { return _animationCurrentTimeSeconds; }
+	bool isAnimationPlaying() const { return _animationPlaying; }
+	bool isAnimationLooping() const { return _animationLooping; }
 
 public:
 	float getXTran() const;
@@ -404,6 +414,19 @@ public:
 
 	void setSectionCapsDynamicEnabled(bool enabled);
 
+	struct RuntimeNodeTransform
+	{
+		QVector3D translation = QVector3D(0.0f, 0.0f, 0.0f);
+		QQuaternion rotation;
+		QVector3D scale = QVector3D(1.0f, 1.0f, 1.0f);
+	};
+
+	struct RuntimeAnimationFileState
+	{
+		GltfAnimationData data;
+		QHash<QString, RuntimeNodeTransform> defaultNodeTransforms;
+	};
+
 signals:
 	void windowZoomEnded();
 	void rotationsSet();
@@ -417,6 +440,7 @@ signals:
 	void loadingAssImpModelCancelled();
 	void displayModeChanged(int);
 	void renderingModeChanged(int);
+	void animationStateChanged();
 
 public slots:
 	void animateViewChange();
@@ -457,6 +481,7 @@ public slots:
 	void showNodeMeshLoadingProgress(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
 	void swapVisible(bool checked);
 	void cancelAssImpModelLoading();
+	void onAnimationTick();
 
 	// Accessors for SelectionManager
 	QMatrix4x4 getViewMatrix() const { return _viewMatrix; }
@@ -617,6 +642,11 @@ private:
 
 	void onMeshBatchReady(const std::vector<AssImpMeshData>& batch);
 	AssImpMesh* createMeshFromData(const AssImpMeshData& meshData);
+	void syncFileNodeTransforms(const QString& sourceFile);
+	void applyAnimationPose(const QString& sourceFile, int clipIndex, double timeSeconds);
+	void resetAnimationPose(const QString& sourceFile);
+	void updateAnimatedMeshState(const QString& sourceFile,
+		const QHash<QString, QMatrix4x4>& worldTransforms);
 
 	GLuint createGPUTextureFromImage(const QImage& image, const TextureSamplerSettings& samplers);
 	GLuint uploadDecodedTextureImage(const QImage& image, const TextureSamplerSettings& samplers);
@@ -1004,6 +1034,14 @@ private:
 	};
 
 	QMap<QUuid, RecycleBinEntry> _recycleBin;
+	QHash<QString, RuntimeAnimationFileState> _runtimeAnimationsByFile;
+	QString _activeAnimationFile;
+	int _activeAnimationClip = -1;
+	double _animationCurrentTimeSeconds = 0.0;
+	bool _animationPlaying = false;
+	bool _animationLooping = true;
+	QTimer* _animationTimer = nullptr;
+	QElapsedTimer _animationElapsed;
 };
 
 #endif

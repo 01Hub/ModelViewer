@@ -30,6 +30,9 @@ struct Vertex
 	glm::vec3 Bitangent;
 	// TexCoords
 	glm::vec2 TexCoords[4];
+	// Skinning
+	glm::vec4 JointIndices = glm::vec4(0.0f);
+	glm::vec4 JointWeights = glm::vec4(0.0f);
 };
 
 inline glm::vec2 getTexCoord(const Vertex& v, int index = 0)
@@ -37,7 +40,7 @@ inline glm::vec2 getTexCoord(const Vertex& v, int index = 0)
 	return (index >= 0 && index < 4) ? v.TexCoords[index] : glm::vec2(0.0f);
 }
 
-static_assert(sizeof(Vertex) == sizeof(float) * (4 + 3 + 3 + 3 + 3 + 8),
+static_assert(sizeof(Vertex) == sizeof(float) * (4 + 3 + 3 + 3 + 3 + 8 + 4 + 4),
 	"Vertex struct has unexpected padding - meshopt stride will be incorrect");
 
 

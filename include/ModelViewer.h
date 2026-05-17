@@ -11,6 +11,7 @@
 #include "AssImpModelLoader.h"
 #include "ApplyMaterialCommand.h"
 #include "RenameMeshCommand.h"
+#include "AnimationsPanel.h"
 #include "MaterialPropertiesPanel.h"
 #include "SceneClipboard.h"
 #include "CutCommand.h"
@@ -211,7 +212,7 @@ private:
 	void updateNavigationOverlayGeometry();
 
 	// Show/hide the Variants tab (_innerTabWidget) based on whether
-	// any currently loaded file carries KHR_materials_variants data.
+	// any currently loaded file carries optional glTF metadata panels.
 	void refreshVariantsTab();
 
 	// Called when the inner tab selection changes (Model ↔ Variants).
@@ -230,6 +231,7 @@ private:
 	void onUndoStackChanged();
 	void cleanupOrphanedMeshes();
 	void validateVariantData();   // removes variant data for files with no remaining meshes
+	void validateAnimationData(); // removes animation data for files with no remaining meshes
 	bool saveMaterialsBeforeClose();  // Save all unsaved materials to library before closing
 	void cleanupUnsavedMaterialsFromLibrary();
 	QSet<QUuid> scanStackForReferencedUuids();
@@ -317,6 +319,7 @@ private:
 	// is destroyed, leaving the layout exactly as it was originally.
 	QTabWidget*            _innerTabWidget = nullptr;
 	MaterialVariantsPanel* _variantsPanel  = nullptr;
+	AnimationsPanel*       _animationsPanel = nullptr;
 
 	QUndoStack* _undoStack;
 	bool _lastCanUndo = false;

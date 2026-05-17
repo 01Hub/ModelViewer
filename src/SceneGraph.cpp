@@ -90,6 +90,10 @@ void SceneGraph::rebuildFlat(const QString& sessionName,
 {
     _meshUuidToNode.clear();
     _lights.clear();
+    _variantDataByFile.clear();
+    _activeVariantByFile.clear();
+    _animationDataByFile.clear();
+    _activeAnimationClipByFile.clear();
     freeSubtree(_root);
 
     _root           = new SceneNode();
@@ -156,6 +160,10 @@ void SceneGraph::clear()
 {
     _meshUuidToNode.clear();
     _lights.clear();
+    _variantDataByFile.clear();
+    _activeVariantByFile.clear();
+    _animationDataByFile.clear();
+    _activeAnimationClipByFile.clear();
     freeSubtree(_root);
 
     _root           = new SceneNode();
@@ -170,6 +178,10 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
 {
     _meshUuidToNode.clear();
     _lights.clear();
+    _variantDataByFile.clear();
+    _activeVariantByFile.clear();
+    _animationDataByFile.clear();
+    _activeAnimationClipByFile.clear();
     freeSubtree(_root);
 
     _root           = new SceneNode();
@@ -272,6 +284,10 @@ bool SceneGraph::deserialize(QDataStream& in)
         return false;
 
     _meshUuidToNode.clear();
+    _variantDataByFile.clear();
+    _activeVariantByFile.clear();
+    _animationDataByFile.clear();
+    _activeAnimationClipByFile.clear();
     freeSubtree(_root);
 
     _root           = new SceneNode();
@@ -342,6 +358,16 @@ bool SceneGraph::deserialize(QDataStream& in)
 SceneNode* SceneGraph::findNodeForMesh(const QUuid& meshUuid) const
 {
     return _meshUuidToNode.value(meshUuid, nullptr);
+}
+
+SceneNode* SceneGraph::findFileNode(const QString& sourceFile) const
+{
+    for (SceneNode* child : _root->children)
+    {
+        if (child && child->sourceFile == sourceFile)
+            return child;
+    }
+    return nullptr;
 }
 
 QList<QUuid> SceneGraph::collectMeshUuids(const SceneNode* node) const
@@ -523,4 +549,46 @@ void SceneGraph::setActiveVariant(const QString& sourceFile, int variantIndex)
 int SceneGraph::activeVariantForFile(const QString& sourceFile) const
 {
     return _activeVariantByFile.value(sourceFile, -1);
+}
+
+void SceneGraph::setAnimationData(const QString& sourceFile, const GltfAnimationData& data)
+{
+    _animationDataByFile[sourceFile] = data;
+    _activeAnimationClipByFile.insert(sourceFile, data.clips.isEmpty() ? -1 : 0);
+    emit animationDataChanged();
+}
+
+void SceneGraph::clearAnimationData(const QString& sourceFile)
+{
+    if (_animationDataByFile.remove(sourceFile) != 0)
+    {
+        _activeAnimationClipByFile.remove(sourceFile);
+        emit animationDataChanged();
+    }
+}
+
+GltfAnimationData SceneGraph::animationDataForFile(const QString& sourceFile) const
+{
+    return _animationDataByFile.value(sourceFile, GltfAnimationData{});
+}
+
+QStringList SceneGraph::filesWithAnimations() const
+{
+    QStringList files;
+    for (auto it = _animationDataByFile.cbegin(); it != _animationDataByFile.cend(); ++it)
+    {
+        if (!it.value().clips.isEmpty())
+            files.append(it.key());
+    }
+    return files;
+}
+
+void SceneGraph::setActiveAnimationClip(const QString& sourceFile, int clipIndex)
+{
+    _activeAnimationClipByFile[sourceFile] = clipIndex;
+}
+
+int SceneGraph::activeAnimationClipForFile(const QString& sourceFile) const
+{
+    return _activeAnimationClipByFile.value(sourceFile, -1);
 }

@@ -227,6 +227,15 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		// Parse KHR_materials_variants (after material dedup so indices are stable)
 		_variantData = GltfVariantData();
 		parseGltfVariants(qPath);
+		_animationData = GltfAnimationData();
+		parseSceneAnimations();
+		_preserveNodeTransformsForRuntime =
+			(!_animationData.isEmpty() || _animationData.hasSkinning);
+	}
+	else
+	{
+		_animationData = GltfAnimationData();
+		_preserveNodeTransformsForRuntime = false;
 	}
 
 	_sceneStats = collectSceneMeshInfo(_scene);
@@ -520,8 +529,15 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 
 		// Transform Position
 		aiVector3D pos = mesh->mVertices[i];
-		aiVector3D transformedPos = transform * pos;
-		vertex.Position = glm::vec3(transformedPos.x, transformedPos.y, transformedPos.z);
+		if (_preserveNodeTransformsForRuntime)
+		{
+			vertex.Position = glm::vec3(pos.x, pos.y, pos.z);
+		}
+		else
+		{
+			aiVector3D transformedPos = transform * pos;
+			vertex.Position = glm::vec3(transformedPos.x, transformedPos.y, transformedPos.z);
+		}
 
 		// Transform Normals - improved logic
 		if (hasNormals)
@@ -537,7 +553,10 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 				transformedNormal = -transformedNormal;
 			}
 
-			vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
+			if (_preserveNodeTransformsForRuntime)
+				vertex.Normal = glm::vec3(normal.x, normal.y, normal.z);
+			else
+				vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
 		}
 		else if (!generatedNormals.empty())
 		{
@@ -551,7 +570,10 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			{
 				transformedNormal = -transformedNormal;
 			}
-			vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
+			if (_preserveNodeTransformsForRuntime)
+				vertex.Normal = normal;
+			else
+				vertex.Normal = glm::vec3(transformedNormal.x, transformedNormal.y, transformedNormal.z);
 		}
 		else
 		{
@@ -572,7 +594,10 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 				{
 					transformedUp = -transformedUp;
 				}
-				vertex.Normal = glm::vec3(transformedUp.x, transformedUp.y, transformedUp.z);
+				if (_preserveNodeTransformsForRuntime)
+					vertex.Normal = glm::vec3(0.0f, 1.0f, 0.0f);
+				else
+					vertex.Normal = glm::vec3(transformedUp.x, transformedUp.y, transformedUp.z);
 			}
 		}
 
@@ -610,7 +635,10 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 				{
 					transformedTangent = -transformedTangent;
 				}
-				vertex.Tangent = glm::vec3(transformedTangent.x, transformedTangent.y, transformedTangent.z);
+				if (_preserveNodeTransformsForRuntime)
+					vertex.Tangent = glm::vec3(tangent.x, tangent.y, tangent.z);
+				else
+					vertex.Tangent = glm::vec3(transformedTangent.x, transformedTangent.y, transformedTangent.z);
 			}
 
 			// Bitangent
@@ -624,7 +652,10 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 				{
 					transformedBitangent = -transformedBitangent;
 				}
-				vertex.Bitangent = glm::vec3(transformedBitangent.x, transformedBitangent.y, transformedBitangent.z);
+				if (_preserveNodeTransformsForRuntime)
+					vertex.Bitangent = glm::vec3(bitangent.x, bitangent.y, bitangent.z);
+				else
+					vertex.Bitangent = glm::vec3(transformedBitangent.x, transformedBitangent.y, transformedBitangent.z);
 			}
 		}
 		else
@@ -651,6 +682,50 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		if (i % 100000 == 0)
 		{
 			emit verticesProcessed(static_cast<float>(i) / nbVertices * 100.0f);
+		}
+	}
+
+	QVector<GltfSkinJoint> skinJoints;
+	if (mesh->HasBones())
+	{
+		skinJoints.reserve(mesh->mNumBones);
+		for (unsigned int boneIndex = 0; boneIndex < mesh->mNumBones; ++boneIndex)
+		{
+			const aiBone* bone = mesh->mBones[boneIndex];
+			if (!bone)
+				continue;
+
+			GltfSkinJoint joint;
+			joint.nodeName = QString::fromUtf8(bone->mName.C_Str());
+			joint.inverseBindMatrix = bone->mOffsetMatrix;
+			skinJoints.append(joint);
+
+			for (unsigned int wi = 0; wi < bone->mNumWeights; ++wi)
+			{
+				const aiVertexWeight& vw = bone->mWeights[wi];
+				if (vw.mVertexId >= vertices.size())
+					continue;
+
+				Vertex& vertex = vertices[vw.mVertexId];
+				for (int slot = 0; slot < 4; ++slot)
+				{
+					if (vertex.JointWeights[slot] <= 0.0f)
+					{
+						vertex.JointIndices[slot] = static_cast<float>(boneIndex);
+						vertex.JointWeights[slot] = vw.mWeight;
+						break;
+					}
+				}
+			}
+		}
+
+		for (Vertex& vertex : vertices)
+		{
+			const float totalWeight =
+				vertex.JointWeights.x + vertex.JointWeights.y +
+				vertex.JointWeights.z + vertex.JointWeights.w;
+			if (totalWeight > 0.0001f)
+				vertex.JointWeights /= totalWeight;
 		}
 	}
 
@@ -811,6 +886,9 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	meshData.sceneIndex = meshIndex;
 	meshData.originalMaterialIndex = originalMaterialIndex;
 	meshData.sourceFile = QString::fromStdString(_path);
+	meshData.sourceNodeName = QString::fromUtf8(nodeName);
+	meshData.preserveNodeTransform = _preserveNodeTransformsForRuntime;
+	meshData.skinJoints = skinJoints;
 
 	qDebug() << "[IMPORT-STORED] MeshData for" << meshName
 	         << "sceneIndex=" << meshIndex
@@ -1209,9 +1287,14 @@ void AssImpModelLoader::applyCoordinateSystemTransformations(const std::string& 
 	if (_autoScale || _autoOrient)
 	{
 		_appliedTransform = glm::mat4(1.0f);
+		std::string extension = path.substr(path.find_last_of("."));
+		std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
+		const bool isAnimatedGltfRuntimePath =
+			_preserveNodeTransformsForRuntime &&
+			(extension == ".gltf" || extension == ".glb");
 
 		// Apply only coordinate system conversion
-		if (_autoOrient)
+		if (_autoOrient && !isAnimatedGltfRuntimePath)
 		{
 			glm::mat4 coordTransform = getCoordinateSystemTransform(_scene, path);
 			_appliedTransform = coordTransform;
@@ -1772,6 +1855,113 @@ void AssImpModelLoader::parseGltfVariants(const QString& gltfPath)
 
 	qDebug() << "parseGltfVariants: mapped" << _variantData.meshVariantMappings.size()
 	         << "primitives with variant overrides (parallel DFS, total aiMesh count:" << aiMeshCount << ")";
+}
+
+void AssImpModelLoader::parseSceneAnimations()
+{
+	_animationData = GltfAnimationData();
+	if (!_scene)
+		return;
+
+	_animationData.sourceFile = QString::fromStdString(_path);
+	if (_scene->mRootNode)
+		_animationData.rootInverseTransform = _scene->mRootNode->mTransformation.Inverse();
+
+	for (unsigned int meshIndex = 0; meshIndex < _scene->mNumMeshes; ++meshIndex)
+	{
+		const aiMesh* mesh = _scene->mMeshes[meshIndex];
+		if (mesh && mesh->HasBones())
+		{
+			_animationData.hasSkinning = true;
+			break;
+		}
+	}
+
+	if (_scene->mNumAnimations == 0)
+		return;
+
+	for (unsigned int animIndex = 0; animIndex < _scene->mNumAnimations; ++animIndex)
+	{
+		const aiAnimation* animation = _scene->mAnimations[animIndex];
+		if (!animation)
+			continue;
+
+		GltfAnimationClip clip;
+		clip.name = QString::fromUtf8(animation->mName.C_Str());
+		if (clip.name.isEmpty())
+			clip.name = QStringLiteral("Animation %1").arg(animIndex + 1);
+
+		const double ticksPerSecond =
+			animation->mTicksPerSecond > 0.0 ? animation->mTicksPerSecond : 25.0;
+		clip.durationSeconds = animation->mDuration > 0.0
+			? animation->mDuration / ticksPerSecond
+			: 0.0;
+		clip.hasSkinning = _animationData.hasSkinning;
+
+		for (unsigned int channelIndex = 0; channelIndex < animation->mNumChannels; ++channelIndex)
+		{
+			const aiNodeAnim* channel = animation->mChannels[channelIndex];
+			if (!channel)
+				continue;
+
+			if (channel->mNumPositionKeys > 0)
+			{
+				GltfAnimationChannel animChannel;
+				animChannel.targetNodeName = QString::fromUtf8(channel->mNodeName.C_Str());
+				animChannel.targetPath = GltfAnimationTargetPath::Translation;
+				animChannel.vec3Keys.reserve(channel->mNumPositionKeys);
+				for (unsigned int keyIndex = 0; keyIndex < channel->mNumPositionKeys; ++keyIndex)
+				{
+					const aiVectorKey& key = channel->mPositionKeys[keyIndex];
+					animChannel.vec3Keys.append({
+						key.mTime / ticksPerSecond,
+						QVector3D(key.mValue.x, key.mValue.y, key.mValue.z)
+					});
+				}
+				clip.channels.append(animChannel);
+				clip.hasNodeTransforms = true;
+			}
+
+			if (channel->mNumRotationKeys > 0)
+			{
+				GltfAnimationChannel animChannel;
+				animChannel.targetNodeName = QString::fromUtf8(channel->mNodeName.C_Str());
+				animChannel.targetPath = GltfAnimationTargetPath::Rotation;
+				animChannel.quatKeys.reserve(channel->mNumRotationKeys);
+				for (unsigned int keyIndex = 0; keyIndex < channel->mNumRotationKeys; ++keyIndex)
+				{
+					const aiQuatKey& key = channel->mRotationKeys[keyIndex];
+					animChannel.quatKeys.append({
+						key.mTime / ticksPerSecond,
+						QQuaternion(key.mValue.w, key.mValue.x, key.mValue.y, key.mValue.z)
+					});
+				}
+				clip.channels.append(animChannel);
+				clip.hasNodeTransforms = true;
+			}
+
+			if (channel->mNumScalingKeys > 0)
+			{
+				GltfAnimationChannel animChannel;
+				animChannel.targetNodeName = QString::fromUtf8(channel->mNodeName.C_Str());
+				animChannel.targetPath = GltfAnimationTargetPath::Scale;
+				animChannel.vec3Keys.reserve(channel->mNumScalingKeys);
+				for (unsigned int keyIndex = 0; keyIndex < channel->mNumScalingKeys; ++keyIndex)
+				{
+					const aiVectorKey& key = channel->mScalingKeys[keyIndex];
+					animChannel.vec3Keys.append({
+						key.mTime / ticksPerSecond,
+						QVector3D(key.mValue.x, key.mValue.y, key.mValue.z)
+					});
+				}
+				clip.channels.append(animChannel);
+				clip.hasNodeTransforms = true;
+			}
+		}
+
+		_animationData.hasNodeAnimations |= clip.hasNodeTransforms;
+		_animationData.clips.append(clip);
+	}
 }
 
 void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, aiScene* scene)

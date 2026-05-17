@@ -27,6 +27,86 @@
 
 constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes
 
+namespace
+{
+QMatrix4x4 aiToQMatrix(const aiMatrix4x4& m)
+{
+	QMatrix4x4 out;
+	out.setRow(0, QVector4D(m.a1, m.a2, m.a3, m.a4));
+	out.setRow(1, QVector4D(m.b1, m.b2, m.b3, m.b4));
+	out.setRow(2, QVector4D(m.c1, m.c2, m.c3, m.c4));
+	out.setRow(3, QVector4D(m.d1, m.d2, m.d3, m.d4));
+	return out;
+}
+
+GLWidget::RuntimeNodeTransform decomposeNodeTransform(const aiMatrix4x4& matrix)
+{
+	aiVector3D scaling;
+	aiQuaternion rotation;
+	aiVector3D position;
+	matrix.Decompose(scaling, rotation, position);
+
+	GLWidget::RuntimeNodeTransform result;
+	result.translation = QVector3D(position.x, position.y, position.z);
+	result.rotation = QQuaternion(rotation.w, rotation.x, rotation.y, rotation.z).normalized();
+	result.scale = QVector3D(scaling.x, scaling.y, scaling.z);
+	return result;
+}
+
+QMatrix4x4 composeNodeTransform(const GLWidget::RuntimeNodeTransform& tr)
+{
+	QMatrix4x4 matrix;
+	matrix.translate(tr.translation);
+	matrix.rotate(tr.rotation);
+	matrix.scale(tr.scale);
+	return matrix;
+}
+
+QVector3D sampleVec3Keys(const QVector<GltfAnimationVec3Key>& keys, double timeSeconds, const QVector3D& fallback)
+{
+	if (keys.isEmpty())
+		return fallback;
+	if (timeSeconds <= keys.front().timeSeconds)
+		return keys.front().value;
+	if (timeSeconds >= keys.back().timeSeconds)
+		return keys.back().value;
+
+	for (int i = 1; i < keys.size(); ++i)
+	{
+		if (timeSeconds <= keys[i].timeSeconds)
+		{
+			const double start = keys[i - 1].timeSeconds;
+			const double end = keys[i].timeSeconds;
+			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
+			return keys[i - 1].value * (1.0f - t) + keys[i].value * t;
+		}
+	}
+	return keys.back().value;
+}
+
+QQuaternion sampleQuatKeys(const QVector<GltfAnimationQuatKey>& keys, double timeSeconds, const QQuaternion& fallback)
+{
+	if (keys.isEmpty())
+		return fallback;
+	if (timeSeconds <= keys.front().timeSeconds)
+		return keys.front().value;
+	if (timeSeconds >= keys.back().timeSeconds)
+		return keys.back().value;
+
+	for (int i = 1; i < keys.size(); ++i)
+	{
+		if (timeSeconds <= keys[i].timeSeconds)
+		{
+			const double start = keys[i - 1].timeSeconds;
+			const double end = keys[i].timeSeconds;
+			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
+			return QQuaternion::slerp(keys[i - 1].value, keys[i].value, t).normalized();
+		}
+	}
+	return keys.back().value;
+}
+}
+
 GLWidget::GLWidget(QWidget* parent, const char* /*name*/) : QOpenGLWidget(parent),
 _bgShader(nullptr),
 _bgSplitShader(nullptr),
@@ -364,6 +444,10 @@ _assimpModelLoader(nullptr)
 	_inertiaTimer->setInterval(16); // ~60 FPS
 	connect(_inertiaTimer, &QTimer::timeout, this, &GLWidget::onInertiaTimer);
 
+	_animationTimer = new QTimer(this);
+	_animationTimer->setInterval(16);
+	connect(_animationTimer, &QTimer::timeout, this, &GLWidget::onAnimationTick);
+
 	_editorLayout = new QVBoxLayout(this);
 	_upperLayout = new QFormLayout();
 	_upperLayout->setFormAlignment(Qt::AlignTop | Qt::AlignLeft);
@@ -405,6 +489,16 @@ _assimpModelLoader(nullptr)
 
 GLWidget::~GLWidget()
 {
+	if (_animationTimer)
+	{
+		_animationTimer->stop();
+		disconnect(_animationTimer, nullptr, this, nullptr);
+	}
+	_animationPlaying = false;
+	_activeAnimationFile.clear();
+	_activeAnimationClip = -1;
+	_runtimeAnimationsByFile.clear();
+
 	_viewToolbar = nullptr;
 
 	if (_textRenderer)
@@ -2846,6 +2940,20 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 				const GltfVariantData& vd = loadingWorker->getVariantData();
 				if (!vd.isEmpty())
 					_viewer->sceneGraph()->setVariantData(fileName, vd);
+
+				const GltfAnimationData& ad = loadingWorker->getAnimationData();
+				if (!ad.isEmpty() || ad.hasSkinning)
+				{
+					_viewer->sceneGraph()->setAnimationData(fileName, ad);
+					_runtimeAnimationsByFile.remove(fileName);
+					syncFileNodeTransforms(fileName);
+					if (!ad.clips.isEmpty())
+						setActiveAnimation(fileName, 0);
+				}
+				else
+				{
+					syncFileNodeTransforms(fileName);
+				}
 			}
 			_pendingSceneUuids.clear();
 
@@ -5105,6 +5213,7 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	prog->setUniformValue("modelMatrix", _modelMatrix);
 	prog->setUniformValue("viewMatrix", _viewMatrix);
+	prog->setProperty("viewMatrix", QVariant::fromValue(_viewMatrix));
 	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
 	prog->setUniformValue("lightFarPlane", _lightPosition.z() + _lightOffsetZ);
 	prog->setUniformValue("hdrToneMapping", _hdrToneMapping);
@@ -5898,7 +6007,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 	glDisable(GL_BLEND);
 	_selectionShader->bind();
 	_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
-	_selectionShader->setUniformValue("modelViewMatrix", _modelViewMatrix);
+	_selectionShader->setUniformValue("viewMatrix", _viewMatrix);
 
 	// Render ALL visible objects to FBO (not just ray-hit ones)
 	// This ensures color picking is a true fallback method, independent of ray test results
@@ -5918,9 +6027,21 @@ int GLWidget::processSelection(const QPoint& pixel)
 				const float a = pickColor.alphaF();
 
 				_selectionShader->setUniformValue("pickingColor", QVector4D(r, g, b, a));
+				_selectionShader->setUniformValue("modelMatrix", mesh->combinedRenderTransform());
+				_selectionShader->setUniformValue("hasSkinning", mesh->hasSkinning());
+				_selectionShader->setUniformValue("jointCount", static_cast<int>(mesh->jointPalette().size()));
+				if (mesh->hasSkinning() && !mesh->jointPalette().isEmpty())
+				{
+					const int maxJoints = std::min(static_cast<int>(mesh->jointPalette().size()), 128);
+					for (int jointIndex = 0; jointIndex < maxJoints; ++jointIndex)
+					{
+						const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(jointIndex);
+						_selectionShader->setUniformValue(uniformName.toUtf8().constData(), mesh->jointPalette()[jointIndex]);
+					}
+				}
 				mesh->setProg(_selectionShader.get());
 				mesh->getVAO().bind();
-				glDrawElements(GL_TRIANGLES, static_cast<int>(mesh->getPoints().size()), GL_UNSIGNED_INT, 0);
+				glDrawElements(mesh->getPrimitiveMode(), static_cast<int>(mesh->getIndices().size()), GL_UNSIGNED_INT, 0);
 				mesh->getVAO().release();
 				glFlush();
 				glFinish();
@@ -6408,6 +6529,7 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 	mesh->setSceneIndex(meshData.sceneIndex);
 	mesh->setOriginalMaterialIndex(meshData.originalMaterialIndex);
 	mesh->setSourceFile(meshData.sourceFile);
+	mesh->setSkinJoints(meshData.skinJoints);
 	if (!meshData.variantMappings.isEmpty())
 	{
 		mesh->setVariantMappings(meshData.variantMappings);
@@ -6425,6 +6547,273 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 	mesh->invertOpacityPBRMap(runtimeResolved.isOpacityMapInverted());
 
 	return mesh;
+}
+
+void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
+{
+	if (!_viewer || !_viewer->sceneGraph())
+		return;
+
+	SceneNode* fileNode = _viewer->sceneGraph()->findFileNode(sourceFile);
+	if (!fileNode)
+		return;
+
+	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
+	runtime.data = _viewer->sceneGraph()->animationDataForFile(sourceFile);
+	runtime.defaultNodeTransforms.clear();
+
+	std::function<void(SceneNode*, const QMatrix4x4&)> collect = [&](SceneNode* node, const QMatrix4x4& parentWorld)
+	{
+		if (!node)
+			return;
+
+		runtime.defaultNodeTransforms.insert(node->name, decomposeNodeTransform(node->localTransform));
+		const QMatrix4x4 world = parentWorld * aiToQMatrix(node->localTransform);
+		for (const QUuid& uuid : node->meshUuids)
+		{
+			if (TriangleMesh* mesh = getMeshByUuid(uuid))
+				mesh->setSceneRenderTransform(world);
+		}
+
+		for (SceneNode* child : node->children)
+			collect(child, world);
+	};
+
+	for (SceneNode* child : fileNode->children)
+		collect(child, QMatrix4x4());
+}
+
+void GLWidget::setActiveAnimation(const QString& sourceFile, int clipIndex)
+{
+	if (!_viewer || !_viewer->sceneGraph())
+		return;
+
+	const GltfAnimationData data = _viewer->sceneGraph()->animationDataForFile(sourceFile);
+	if (clipIndex < 0 || clipIndex >= data.clips.size())
+		return;
+
+	_activeAnimationFile = sourceFile;
+	_activeAnimationClip = clipIndex;
+	_animationCurrentTimeSeconds = 0.0;
+	_animationPlaying = false;
+	_animationTimer->stop();
+	_viewer->sceneGraph()->setActiveAnimationClip(sourceFile, clipIndex);
+	applyAnimationPose(sourceFile, clipIndex, 0.0);
+	emit animationStateChanged();
+}
+
+void GLWidget::setAnimationPlaying(bool playing)
+{
+	_animationPlaying = playing;
+	if (_animationPlaying)
+	{
+		_animationElapsed.restart();
+		_animationTimer->start();
+	}
+	else
+	{
+		_animationTimer->stop();
+	}
+	emit animationStateChanged();
+}
+
+void GLWidget::seekAnimation(double timeSeconds)
+{
+	if (_activeAnimationFile.isEmpty() || _activeAnimationClip < 0)
+		return;
+
+	_animationCurrentTimeSeconds = std::max(0.0, timeSeconds);
+	applyAnimationPose(_activeAnimationFile, _activeAnimationClip, _animationCurrentTimeSeconds);
+	emit animationStateChanged();
+}
+
+void GLWidget::setAnimationLooping(bool looping)
+{
+	_animationLooping = looping;
+	emit animationStateChanged();
+}
+
+void GLWidget::onAnimationTick()
+{
+	if (!_animationPlaying || _activeAnimationFile.isEmpty() || _activeAnimationClip < 0)
+		return;
+
+	const RuntimeAnimationFileState runtime = _runtimeAnimationsByFile.value(_activeAnimationFile);
+	if (_activeAnimationClip >= runtime.data.clips.size())
+		return;
+
+	const double deltaSeconds = _animationElapsed.isValid()
+		? static_cast<double>(_animationElapsed.restart()) / 1000.0
+		: 0.016;
+	const GltfAnimationClip& clip = runtime.data.clips[_activeAnimationClip];
+	if (clip.durationSeconds <= 0.0)
+		return;
+
+	_animationCurrentTimeSeconds += deltaSeconds;
+	if (_animationCurrentTimeSeconds >= clip.durationSeconds)
+	{
+		if (_animationLooping)
+			_animationCurrentTimeSeconds = std::fmod(_animationCurrentTimeSeconds, clip.durationSeconds);
+		else
+		{
+			_animationCurrentTimeSeconds = clip.durationSeconds;
+			_animationPlaying = false;
+			_animationTimer->stop();
+		}
+	}
+
+	applyAnimationPose(_activeAnimationFile, _activeAnimationClip, _animationCurrentTimeSeconds);
+	emit animationStateChanged();
+}
+
+void GLWidget::resetAnimationPose(const QString& sourceFile)
+{
+	if (!_viewer || !_viewer->sceneGraph())
+		return;
+
+	SceneNode* fileNode = _viewer->sceneGraph()->findFileNode(sourceFile);
+	if (!fileNode)
+		return;
+
+	std::function<void(SceneNode*, const QMatrix4x4&)> applyNode =
+		[&](SceneNode* node, const QMatrix4x4& parentWorld)
+	{
+		if (!node)
+			return;
+
+		const QMatrix4x4 local = aiToQMatrix(node->localTransform);
+		const QMatrix4x4 world = parentWorld * local;
+		for (const QUuid& uuid : node->meshUuids)
+		{
+			if (TriangleMesh* mesh = getMeshByUuid(uuid))
+			{
+				if (!mesh->hasSkinning())
+					mesh->setSceneRenderTransform(world);
+				else
+					mesh->setJointPalette({});
+			}
+		}
+
+		for (SceneNode* child : node->children)
+			applyNode(child, world);
+	};
+
+	for (SceneNode* child : fileNode->children)
+		applyNode(child, QMatrix4x4());
+
+	update();
+}
+
+void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
+	const QHash<QString, QMatrix4x4>& worldTransforms)
+{
+	if (!_viewer || !_viewer->sceneGraph())
+		return;
+
+	SceneNode* fileNode = _viewer->sceneGraph()->findFileNode(sourceFile);
+	if (!fileNode)
+		return;
+
+	QHash<QString, QMatrix4x4> nodeWorlds = worldTransforms;
+	std::function<void(SceneNode*)> applyToMeshes = [&](SceneNode* node)
+	{
+		if (!node)
+			return;
+
+		const QMatrix4x4 world = nodeWorlds.value(node->name, aiToQMatrix(node->localTransform));
+		for (const QUuid& uuid : node->meshUuids)
+		{
+			if (TriangleMesh* mesh = getMeshByUuid(uuid))
+			{
+				if (!mesh->hasSkinning())
+				{
+					mesh->setSceneRenderTransform(world);
+				}
+				else
+				{
+					QVector<QMatrix4x4> palette;
+					palette.reserve(mesh->skinJoints().size());
+					const QMatrix4x4 meshWorldInverse = world.inverted();
+					for (const GltfSkinJoint& joint : mesh->skinJoints())
+					{
+						const QMatrix4x4 jointWorld = nodeWorlds.value(joint.nodeName, world);
+						palette.append(meshWorldInverse * jointWorld * aiToQMatrix(joint.inverseBindMatrix));
+					}
+					mesh->setJointPalette(palette);
+					mesh->setSceneRenderTransform(world);
+				}
+			}
+		}
+
+		for (SceneNode* child : node->children)
+			applyToMeshes(child);
+	};
+
+	for (SceneNode* child : fileNode->children)
+		applyToMeshes(child);
+}
+
+void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, double timeSeconds)
+{
+	if (!_viewer || !_viewer->sceneGraph())
+		return;
+
+	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
+	if (runtime.data.sourceFile.isEmpty())
+		runtime.data = _viewer->sceneGraph()->animationDataForFile(sourceFile);
+
+	if (clipIndex < 0 || clipIndex >= runtime.data.clips.size())
+	{
+		resetAnimationPose(sourceFile);
+		return;
+	}
+
+	SceneNode* fileNode = _viewer->sceneGraph()->findFileNode(sourceFile);
+	if (!fileNode)
+		return;
+
+	QHash<QString, RuntimeNodeTransform> sampled = runtime.defaultNodeTransforms;
+	const GltfAnimationClip& clip = runtime.data.clips[clipIndex];
+	for (const GltfAnimationChannel& channel : clip.channels)
+	{
+		RuntimeNodeTransform node = sampled.value(channel.targetNodeName);
+		switch (channel.targetPath)
+		{
+		case GltfAnimationTargetPath::Translation:
+			node.translation = sampleVec3Keys(channel.vec3Keys, timeSeconds, node.translation);
+			break;
+		case GltfAnimationTargetPath::Rotation:
+			node.rotation = sampleQuatKeys(channel.quatKeys, timeSeconds, node.rotation);
+			break;
+		case GltfAnimationTargetPath::Scale:
+			node.scale = sampleVec3Keys(channel.vec3Keys, timeSeconds, node.scale);
+			break;
+		}
+		sampled.insert(channel.targetNodeName, node);
+	}
+
+	QHash<QString, QMatrix4x4> worldTransforms;
+	std::function<void(SceneNode*, const QMatrix4x4&)> evalNode =
+		[&](SceneNode* node, const QMatrix4x4& parentWorld)
+	{
+		if (!node)
+			return;
+
+		const RuntimeNodeTransform nodeTransform =
+			sampled.value(node->name, decomposeNodeTransform(node->localTransform));
+		const QMatrix4x4 local = composeNodeTransform(nodeTransform);
+		const QMatrix4x4 world = parentWorld * local;
+		worldTransforms.insert(node->name, world);
+
+		for (SceneNode* child : node->children)
+			evalNode(child, world);
+	};
+
+	for (SceneNode* child : fileNode->children)
+		evalNode(child, QMatrix4x4());
+
+	updateAnimatedMeshState(sourceFile, worldTransforms);
+	update();
 }
 
 void GLWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)

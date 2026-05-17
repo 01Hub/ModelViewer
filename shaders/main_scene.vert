@@ -9,6 +9,8 @@ layout(location = 5) in vec2 texCoord2;
 layout(location = 6) in vec2 texCoord3;
 layout(location = 7) in vec3 vertexTangent;
 layout(location = 8) in vec3 vertexBitangent;
+layout(location = 9) in vec4 jointIndices;
+layout(location = 10) in vec4 jointWeights;
 
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
@@ -21,6 +23,9 @@ uniform vec4 clipPlaneZ;
 uniform mat4 lightSpaceMatrix;
 uniform vec3 cameraPos;
 uniform vec3 lightPos;
+uniform bool hasSkinning;
+uniform int jointCount;
+uniform mat4 jointMatrices[128];
 
 // user defined clip plane
 uniform vec4 clipPlane;
@@ -50,11 +55,45 @@ out VS_OUT_SHADOW {
     vec3 lightPos;
 } vs_out_shadow;
 
+mat4 computeSkinMatrix()
+{
+    if (!hasSkinning || jointCount <= 0)
+        return mat4(1.0);
+
+    mat4 skin = mat4(0.0);
+    float totalWeight = 0.0;
+
+    for (int i = 0; i < 4; ++i)
+    {
+        float weight = jointWeights[i];
+        if (weight <= 0.0)
+            continue;
+
+        int jointIndex = int(jointIndices[i]);
+        if (jointIndex < 0 || jointIndex >= jointCount || jointIndex >= 128)
+            continue;
+
+        skin += jointMatrices[jointIndex] * weight;
+        totalWeight += weight;
+    }
+
+    if (totalWeight <= 0.0)
+        return mat4(1.0);
+
+    return skin;
+}
+
 void main()
-{    
-    vec4 worldPos = modelMatrix * vec4(vertexPosition, 1.0);
+{
+    mat4 skinMatrix = computeSkinMatrix();
+    vec4 skinnedPosition = skinMatrix * vec4(vertexPosition, 1.0);
+    vec3 skinnedNormal = mat3(skinMatrix) * vertexNormal;
+    vec3 skinnedTangent = mat3(skinMatrix) * vertexTangent;
+    vec3 skinnedBitangent = mat3(skinMatrix) * vertexBitangent;
+
+    vec4 worldPos = modelMatrix * skinnedPosition;
     v_position   = vec3(worldPos);              // vertex pos in eye coords
-    vec3 transformedNormal = normalMatrix * vertexNormal;
+    vec3 transformedNormal = normalMatrix * skinnedNormal;
     if (length(transformedNormal) < 0.01)
     {
         v_normal = vec3(0.0, 0.0, 0.0);  // Keep it zero
@@ -68,13 +107,13 @@ void main()
     v_texCoord1 = texCoord1;
     v_texCoord2 = texCoord2;
     v_texCoord3 = texCoord3;
-    vec3 transformedTangent = normalMatrix * vertexTangent;
+    vec3 transformedTangent = normalMatrix * skinnedTangent;
     if (length(transformedTangent) < 0.01)
         v_tangent = vec3(0.0);
     else
         v_tangent = normalize(transformedTangent);
 
-    vec3 transformedBitangent = normalMatrix * vertexBitangent;
+    vec3 transformedBitangent = normalMatrix * skinnedBitangent;
     if (length(transformedBitangent) < 0.01)
         v_bitangent = vec3(0.0);
     else
@@ -84,7 +123,7 @@ void main()
 
     // Shadow mapping
     vs_out_shadow.FragPos = vec3(worldPos);
-    vec3 shadowNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
+    vec3 shadowNormal = mat3(transpose(inverse(modelMatrix))) * skinnedNormal;
     if (length(shadowNormal) < 0.01)
         vs_out_shadow.Normal = vec3(0.0);
     else
@@ -96,20 +135,20 @@ void main()
 
     // Cube environment mapping
     v_reflectionPosition = vec3(worldPos);
-    vec3 reflNormal = mat3(transpose(inverse(modelMatrix))) * vertexNormal;
+    vec3 reflNormal = mat3(transpose(inverse(modelMatrix))) * skinnedNormal;
     if (length(reflNormal) < 0.01)
         v_reflectionNormal = vec3(0.0);
     else
         v_reflectionNormal = normalize(reflNormal);
 
     // Depth mapping
-    vec3 T = mat3(modelViewMatrix) * vertexTangent;
+    vec3 T = mat3(modelViewMatrix) * skinnedTangent;
     if (length(T) < 0.01)
         T = vec3(0.0);
     else
         T = normalize(T);
 
-    vec3 N = mat3(modelViewMatrix) * vertexNormal;
+    vec3 N = mat3(modelViewMatrix) * skinnedNormal;
     if (length(N) < 0.01)
         N = vec3(0.0);
     else
@@ -128,9 +167,10 @@ void main()
     v_tangentFragPos  = TBN * v_position;
 
     // Assign clip distances for hardware clipping   
-    gl_ClipDistance[0] = dot(clipPlaneX, modelViewMatrix* vec4(vertexPosition, 1));
-    gl_ClipDistance[1] = dot(clipPlaneY, modelViewMatrix* vec4(vertexPosition, 1));
-    gl_ClipDistance[2] = dot(clipPlaneZ, modelViewMatrix* vec4(vertexPosition, 1));
-    gl_ClipDistance[3] = dot(clipPlane, modelViewMatrix* vec4(vertexPosition, 1));  
+    vec4 viewPos = modelViewMatrix * skinnedPosition;
+    gl_ClipDistance[0] = dot(clipPlaneX, viewPos);
+    gl_ClipDistance[1] = dot(clipPlaneY, viewPos);
+    gl_ClipDistance[2] = dot(clipPlaneZ, viewPos);
+    gl_ClipDistance[3] = dot(clipPlane, viewPos);
 
 }

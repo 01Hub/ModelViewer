@@ -27,6 +27,7 @@ _baseAttenuationDistance(std::numeric_limits<float>::infinity())
 	_rotateX = _rotateY = _rotateZ = 0.0f;
 	_scaleX = _scaleY = _scaleZ = 1.0f;
 	_transformation.setToIdentity();
+	_sceneRenderTransform.setToIdentity();
 
 	_indexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
 	_positionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
@@ -38,6 +39,8 @@ _baseAttenuationDistance(std::numeric_limits<float>::infinity())
 	_texCoord3Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_tangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 	_bitangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_jointIndexBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_jointWeightBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
 
 	_indexBuffer.create();
 	_positionBuffer.create();
@@ -49,6 +52,8 @@ _baseAttenuationDistance(std::numeric_limits<float>::infinity())
 	_texCoord3Buffer.create();
 	_tangentBuf.create();
 	_bitangentBuf.create();
+	_jointIndexBuffer.create();
+	_jointWeightBuffer.create();
 
 	_vertexArrayObject.create();
 		
@@ -89,7 +94,9 @@ void TriangleMesh::initBuffers(
 	std::vector<float>* colors,
 	std::vector<float>* texCoords,
 	std::vector<float>* tangents,
-	std::vector<float>* bitangents)
+	std::vector<float>* bitangents,
+	std::vector<float>* jointIndices,
+	std::vector<float>* jointWeights)
 {
 	// Must have data for indices, points, and normals
 	if (indices == nullptr || points == nullptr || normals == nullptr)
@@ -124,6 +131,10 @@ void TriangleMesh::initBuffers(
 		_bitangents = *bitangents;
 		_trsfBitangents = _bitangents;
 	}
+	if (jointIndices)
+		_jointIndices = *jointIndices;
+	if (jointWeights)
+		_jointWeights = *jointWeights;
 
 	_memorySize = 0;
 	_memorySize = (_points.size() + _normals.size() + _indices.size()) * sizeof(float);
@@ -173,6 +184,24 @@ void TriangleMesh::initBuffers(
 		_memorySize += _bitangents.size() * sizeof(float);
 	}
 
+	if (_jointIndices.size())
+	{
+		_buffers.push_back(_jointIndexBuffer);
+		_jointIndexBuffer.bind();
+		_jointIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_jointIndexBuffer.allocate(_jointIndices.data(), static_cast<int>(_jointIndices.size() * sizeof(float)));
+		_memorySize += _jointIndices.size() * sizeof(float);
+	}
+
+	if (_jointWeights.size())
+	{
+		_buffers.push_back(_jointWeightBuffer);
+		_jointWeightBuffer.bind();
+		_jointWeightBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_jointWeightBuffer.allocate(_jointWeights.data(), static_cast<int>(_jointWeights.size() * sizeof(float)));
+		_memorySize += _jointWeights.size() * sizeof(float);
+	}
+
 	_vertexArrayObject.bind();
 
 	_indexBuffer.bind();
@@ -212,6 +241,20 @@ void TriangleMesh::initBuffers(
 		_bitangentBuf.bind();
 		_prog->enableAttributeArray("vertexBitangent");
 		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
+	}
+
+	if (_jointIndices.size())
+	{
+		_jointIndexBuffer.bind();
+		_prog->enableAttributeArray("jointIndices");
+		_prog->setAttributeBuffer("jointIndices", GL_FLOAT, 0, 4);
+	}
+
+	if (_jointWeights.size())
+	{
+		_jointWeightBuffer.bind();
+		_prog->enableAttributeArray("jointWeights");
+		_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
 	}
 
 	// Tex coords
@@ -394,6 +437,20 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 		_bitangentBuf.bind();
 		_prog->enableAttributeArray("vertexBitangent");
 		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
+	}
+
+	if (_jointIndices.size())
+	{
+		_jointIndexBuffer.bind();
+		_prog->enableAttributeArray("jointIndices");
+		_prog->setAttributeBuffer("jointIndices", GL_FLOAT, 0, 4);
+	}
+
+	if (_jointWeights.size())
+	{
+		_jointWeightBuffer.bind();
+		_prog->enableAttributeArray("jointWeights");
+		_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
 	}
 
 	_vertexArrayObject.release();
@@ -1245,6 +1302,32 @@ void TriangleMesh::render()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
+	const QMatrix4x4 modelMatrix = combinedRenderTransform();
+	const QVariant viewVar = _prog->property("viewMatrix");
+	const QMatrix4x4 viewMatrix = viewVar.isValid() ? viewVar.value<QMatrix4x4>() : QMatrix4x4();
+	const QMatrix4x4 modelViewMatrix = viewMatrix * modelMatrix;
+
+	if (_prog->uniformLocation("modelMatrix") >= 0)
+		_prog->setUniformValue("modelMatrix", modelMatrix);
+	if (_prog->uniformLocation("modelViewMatrix") >= 0)
+		_prog->setUniformValue("modelViewMatrix", modelViewMatrix);
+	if (_prog->uniformLocation("normalMatrix") >= 0)
+		_prog->setUniformValue("normalMatrix", modelViewMatrix.normalMatrix());
+	if (_prog->uniformLocation("hasSkinning") >= 0)
+		_prog->setUniformValue("hasSkinning", hasSkinning());
+	if (_prog->uniformLocation("jointCount") >= 0)
+		_prog->setUniformValue("jointCount", static_cast<int>(_jointPalette.size()));
+	if (hasSkinning() && !_jointPalette.isEmpty())
+	{
+		const int maxJoints = std::min(static_cast<int>(_jointPalette.size()), 128);
+		for (int i = 0; i < maxJoints; ++i)
+		{
+			const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(i);
+			if (_prog->uniformLocation(uniformName.toUtf8().constData()) >= 0)
+				_prog->setUniformValue(uniformName.toUtf8().constData(), _jointPalette[i]);
+		}
+	}
+
 	setupTextures();
 
 	setupUniforms();
@@ -1290,6 +1373,23 @@ void TriangleMesh::renderShadow()
 {
 	if (!_vertexArrayObject.isCreated())
 		return;
+
+	if (_prog->uniformLocation("model") >= 0)
+		_prog->setUniformValue("model", combinedRenderTransform());
+	if (_prog->uniformLocation("hasSkinning") >= 0)
+		_prog->setUniformValue("hasSkinning", hasSkinning());
+	if (_prog->uniformLocation("jointCount") >= 0)
+		_prog->setUniformValue("jointCount", static_cast<int>(_jointPalette.size()));
+	if (hasSkinning() && !_jointPalette.isEmpty())
+	{
+		const int maxJoints = std::min(static_cast<int>(_jointPalette.size()), 128);
+		for (int i = 0; i < maxJoints; ++i)
+		{
+			const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(i);
+			if (_prog->uniformLocation(uniformName.toUtf8().constData()) >= 0)
+				_prog->setUniformValue(uniformName.toUtf8().constData(), _jointPalette[i]);
+		}
+	}
 
 	// Handle negative scaling (important for shadow mapping!)
 	if ((_scaleX < 0 && _scaleY > 0 && _scaleZ > 0) ||
@@ -1529,38 +1629,7 @@ void TriangleMesh::resetTransformations()
 	_trsfBitangents = _bitangents; 
 
 	applyScaledVolumeProperties();
-
-	_prog->bind();
-	_positionBuffer.bind();
-	_positionBuffer.allocate(_points.data(), static_cast<int>(_points.size() * sizeof(float)));
-	_prog->enableAttributeArray("vertexPosition");
-	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
-
-	_normalBuffer.bind();
-	_normalBuffer.allocate(_normals.data(), static_cast<int>(_normals.size() * sizeof(float)));
-	_prog->enableAttributeArray("vertexNormal");
-	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
-
-	// Reset tangent buffer
-	if (!_tangents.empty())
-	{
-		_tangentBuf.bind();
-		_tangentBuf.allocate(_tangents.data(), static_cast<int>(_tangents.size() * sizeof(float)));
-		_prog->enableAttributeArray("vertexTangent");
-		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
-	}
-
-	// Reset bitangent buffer
-	if (!_bitangents.empty())
-	{
-		_bitangentBuf.bind();
-		_bitangentBuf.allocate(_bitangents.data(), static_cast<int>(_bitangents.size() * sizeof(float)));
-		_prog->enableAttributeArray("vertexBitangent");
-		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
-	}
-
-	buildTriangles();
-	computeBounds();
+	updateRuntimeBounds();
 }
 
 std::vector<unsigned int> TriangleMesh::getIndices() const
@@ -1633,13 +1702,34 @@ QMatrix4x4 TriangleMesh::getTransformation() const
 	return _transformation;
 }
 
+QMatrix4x4 TriangleMesh::getSceneRenderTransform() const
+{
+	return _sceneRenderTransform;
+}
+
+QMatrix4x4 TriangleMesh::combinedRenderTransform() const
+{
+	return _transformation * _sceneRenderTransform;
+}
+
+void TriangleMesh::setSceneRenderTransform(const QMatrix4x4& trsf)
+{
+	_sceneRenderTransform = trsf;
+	updateRuntimeBounds();
+}
+
 void TriangleMesh::setupTransformation()
 {
-	_prog->bind();
+	updateRuntimeBounds();
+}
+
+void TriangleMesh::updateRuntimeBounds()
+{
 	_trsfPoints.clear();
 	_trsfNormals.clear();
 	_trsfTangents.clear();
 	_trsfBitangents.clear();
+	const QMatrix4x4 combined = combinedRenderTransform();
 
 	// ============================================================================
 	// TRANSFORM POSITIONS
@@ -1647,15 +1737,11 @@ void TriangleMesh::setupTransformation()
 	for (size_t i = 0; i < _points.size(); i += 3)
 	{
 		QVector3D p(_points[i + 0], _points[i + 1], _points[i + 2]);
-		QVector3D tp = _transformation.map(p);
+		QVector3D tp = combined.map(p);
 		_trsfPoints.push_back(tp.x());
 		_trsfPoints.push_back(tp.y());
 		_trsfPoints.push_back(tp.z());
 	}
-	_positionBuffer.bind();
-	_positionBuffer.allocate(_trsfPoints.data(), static_cast<int>(_trsfPoints.size() * sizeof(float)));
-	_prog->enableAttributeArray("vertexPosition");
-	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
 
 	// ============================================================================
 	// TRANSFORM NORMALS
@@ -1664,7 +1750,7 @@ void TriangleMesh::setupTransformation()
 	for (size_t i = 0; i < _normals.size(); i += 3)
 	{
 		QVector3D n(_normals[i + 0], _normals[i + 1], _normals[i + 2]);
-		QMatrix4x4 rotMat = _transformation;
+		QMatrix4x4 rotMat = combined;
 		// Extract rotation/scale part only (zero out translation)
 		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
 		QVector3D tn = rotMat.map(n);
@@ -1672,10 +1758,6 @@ void TriangleMesh::setupTransformation()
 		_trsfNormals.push_back(tn.y());
 		_trsfNormals.push_back(tn.z());
 	}
-	_normalBuffer.bind();
-	_normalBuffer.allocate(_trsfNormals.data(), static_cast<int>(_trsfNormals.size() * sizeof(float)));
-	_prog->enableAttributeArray("vertexNormal");
-	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
 
 	// ============================================================================
 	// TRANSFORM TANGENTS using inverse-transpose
@@ -1683,7 +1765,7 @@ void TriangleMesh::setupTransformation()
 	// ============================================================================
 	if (!_tangents.empty())
 	{
-		QMatrix4x4 rotMat = _transformation;
+		QMatrix4x4 rotMat = combined;
 		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
 
 		for (size_t i = 0; i < _tangents.size(); i += 3)
@@ -1707,11 +1789,6 @@ void TriangleMesh::setupTransformation()
 			_trsfTangents.push_back(tt.y());
 			_trsfTangents.push_back(tt.z());
 		}
-
-		_tangentBuf.bind();
-		_tangentBuf.allocate(_trsfTangents.data(), static_cast<int>(_trsfTangents.size() * sizeof(float)));
-		_prog->enableAttributeArray("vertexTangent");
-		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
 	}
 
 	// ============================================================================
@@ -1719,7 +1796,7 @@ void TriangleMesh::setupTransformation()
 	// ============================================================================
 	if (!_bitangents.empty())
 	{
-		QMatrix4x4 rotMat = _transformation;
+		QMatrix4x4 rotMat = combined;
 		rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
 
 		for (size_t i = 0; i < _bitangents.size(); i += 3)
@@ -1742,11 +1819,6 @@ void TriangleMesh::setupTransformation()
 			_trsfBitangents.push_back(tb.y());
 			_trsfBitangents.push_back(tb.z());
 		}
-
-		_bitangentBuf.bind();
-		_bitangentBuf.allocate(_trsfBitangents.data(), static_cast<int>(_trsfBitangents.size() * sizeof(float)));
-		_prog->enableAttributeArray("vertexBitangent");
-		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
 	}
 
 	buildTriangles();

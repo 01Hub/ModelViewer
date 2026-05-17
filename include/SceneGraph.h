@@ -2,6 +2,7 @@
 
 #include "SceneNode.h"
 #include "GLLights.h"
+#include "GltfAnimationData.h"
 #include "GltfVariantData.h"
 
 #include <QHash>
@@ -97,6 +98,8 @@ public:
     // Set lights in the scene (called during import).
     void setLights(const std::vector<GPULight>& lights) { _lights = lights; }
 
+    SceneNode* findFileNode(const QString& sourceFile) const;
+
     // -----------------------------------------------------------------------
     // KHR_materials_variants
     // -----------------------------------------------------------------------
@@ -117,6 +120,16 @@ public:
     // -1 = file default (no variant active).
     void setActiveVariant(const QString& sourceFile, int variantIndex);
     int  activeVariantForFile(const QString& sourceFile) const;
+
+    // -----------------------------------------------------------------------
+    // glTF animations
+    // -----------------------------------------------------------------------
+    void setAnimationData(const QString& sourceFile, const GltfAnimationData& data);
+    void clearAnimationData(const QString& sourceFile);
+    GltfAnimationData animationDataForFile(const QString& sourceFile) const;
+    QStringList filesWithAnimations() const;
+    void setActiveAnimationClip(const QString& sourceFile, int clipIndex);
+    int activeAnimationClipForFile(const QString& sourceFile) const;
 
     // -----------------------------------------------------------------------
     // Mutation  (called by undo/redo command classes)
@@ -168,6 +181,7 @@ signals:
     // KHR_materials_variants is loaded or its meshes are cleared).
     // The MaterialVariantsPanel connects to this to refresh its tree.
     void variantDataChanged();
+    void animationDataChanged();
 
 private:
     // Recursively build a SceneNode subtree that mirrors ainode and its
@@ -204,4 +218,6 @@ private:
 
     // Currently active variant index per source file (-1 = file default).
     QHash<QString, int> _activeVariantByFile;
+    QHash<QString, GltfAnimationData> _animationDataByFile;
+    QHash<QString, int> _activeAnimationClipByFile;
 };

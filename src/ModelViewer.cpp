@@ -40,6 +40,7 @@
 #include <QTimer>
 #include <QToolTip>
 #include <QVBoxLayout>
+#include <QTabBar>
 #include <QTabWidget>
 #include <QScrollArea>
 
@@ -156,10 +157,33 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        this,         &ModelViewer::refreshVariantsTab);
 	}
 
+	{
+		_animationsPanel = new AnimationsPanel(this);
+		_animationsPanel->setSceneGraph(_sceneGraph);
+		_animationsPanel->setGLWidget(_glWidget);
+		_animationsPanel->hide();
+
+		connect(_animationsPanel, &AnimationsPanel::clipActivated,
+		        _glWidget,         &GLWidget::setActiveAnimation);
+		connect(_animationsPanel, &AnimationsPanel::playbackToggled,
+		        _glWidget,         &GLWidget::setAnimationPlaying);
+		connect(_animationsPanel, &AnimationsPanel::loopToggled,
+		        _glWidget,         &GLWidget::setAnimationLooping);
+		connect(_animationsPanel, &AnimationsPanel::seekRequested,
+		        _glWidget,         &GLWidget::seekAnimation);
+
+		connect(_sceneGraph, &SceneGraph::animationDataChanged,
+		        this,         &ModelViewer::refreshVariantsTab);
+		connect(_glWidget, &GLWidget::animationStateChanged,
+		        _animationsPanel, &AnimationsPanel::refresh);
+	}
+
 	connect(_sceneGraph, &SceneGraph::structureChanged,
 	        this, &ModelViewer::validateCutClipboard);
 	connect(_sceneGraph, &SceneGraph::structureChanged,
 	        this, &ModelViewer::validateVariantData);
+	connect(_sceneGraph, &SceneGraph::structureChanged,
+	        this, &ModelViewer::validateAnimationData);
 	treeWidgetModel->installEventFilter(this);
 	treeWidgetModel->viewport()->installEventFilter(this);
 
@@ -991,6 +1015,8 @@ void ModelViewer::detachNavigationPanel()
 		// Apply overlay mode to the variants panel when it exists.
 		if (_variantsPanel)
 			_variantsPanel->setDetachedOverlayMode(true);
+		if (_animationsPanel)
+			_animationsPanel->setDetachedOverlayMode(true);
 
 		updateNavigationOverlayGeometry();
 		_detachedNavigationOverlay->show();
@@ -1042,6 +1068,8 @@ void ModelViewer::reattachNavigationPanel()
 
 	if (_variantsPanel)
 		_variantsPanel->setDetachedOverlayMode(false);
+	if (_animationsPanel)
+		_animationsPanel->setDetachedOverlayMode(false);
 
 	_glWidget->takeOverlayPanel(modelNavigationWidget);
 	_detachedNavigationOverlay = nullptr;
@@ -1071,18 +1099,21 @@ void ModelViewer::reattachNavigationPanel()
 
 void ModelViewer::refreshVariantsTab()
 {
-	if (!_variantsPanel || !_sceneGraph)
+	if (!_variantsPanel || !_animationsPanel || !_sceneGraph)
 		return;
 
 	const bool hasVariants = !_sceneGraph->filesWithVariants().isEmpty();
+	const bool hasAnimations = !_sceneGraph->filesWithAnimations().isEmpty();
+	const bool needsInnerTabs = hasVariants || hasAnimations;
 
-	if (hasVariants && !_innerTabWidget)
+	if (needsInnerTabs && !_innerTabWidget)
 	{
-		// Skip if the navigation panel is currently detached; it will be
-		// wired up when reattachNavigationPanel() restores it.
 		if (_detachedNavigationOverlay)
 		{
-			_variantsPanel->refresh();
+			if (hasVariants)
+				_variantsPanel->refresh();
+			if (hasAnimations)
+				_animationsPanel->refresh();
 			return;
 		}
 
@@ -1101,20 +1132,47 @@ void ModelViewer::refreshVariantsTab()
 		grid->removeWidget(modelNavigationWidget);
 		_innerTabWidget->addTab(modelNavigationWidget, QIcon(":/icons/res/expand.png"), tr("Model"));
 
-		// Variants panel becomes tab 1.
-		_variantsPanel->setParent(_innerTabWidget);
-		_innerTabWidget->addTab(_variantsPanel, QIcon(":/icons/res/material_variants.png"), tr("Variants"));
-
-		// The tab widget takes modelNavigationWidget's former slot.
 		grid->addWidget(_innerTabWidget, 0, 0);
 
 		connect(_innerTabWidget, &QTabWidget::currentChanged,
 		        this, &ModelViewer::onInnerNavTabChanged);
-
-		_innerTabWidget->show();
-		_variantsPanel->refresh();
 	}
-	else if (!hasVariants && _innerTabWidget)
+
+	if (_innerTabWidget)
+	{
+		auto syncOptionalTab = [this](QWidget* panel, bool present, const QIcon& icon, const QString& label)
+		{
+			const int tabIndex = _innerTabWidget->indexOf(panel);
+			if (present)
+			{
+				if (tabIndex < 0)
+				{
+					panel->setParent(_innerTabWidget);
+					_innerTabWidget->addTab(panel, icon, label);
+				}
+			}
+			else if (tabIndex >= 0)
+			{
+				_innerTabWidget->removeTab(tabIndex);
+				panel->setParent(this);
+				panel->hide();
+			}
+		};
+
+		syncOptionalTab(_variantsPanel, hasVariants, QIcon(":/icons/res/material_variants.png"), tr("Variants"));
+		syncOptionalTab(_animationsPanel, hasAnimations, QIcon(":/icons/res/animations.png"), tr("Animations"));
+
+		const int modelTabIndex = _innerTabWidget->indexOf(modelNavigationWidget);
+		if (modelTabIndex > 0)
+			_innerTabWidget->tabBar()->moveTab(modelTabIndex, 0);
+
+		if (hasVariants)
+			_variantsPanel->refresh();
+		if (hasAnimations)
+			_animationsPanel->refresh();
+	}
+
+	if (!needsInnerTabs && _innerTabWidget)
 	{
 		disconnect(_innerTabWidget, &QTabWidget::currentChanged,
 		           this, &ModelViewer::onInnerNavTabChanged);
@@ -1130,27 +1188,32 @@ void ModelViewer::refreshVariantsTab()
 			grid->addWidget(modelNavigationWidget, 0, 0);
 		}
 
-		// Detach variants panel before the tab widget is deleted.
 		_variantsPanel->setParent(this);
 		_variantsPanel->hide();
+		_animationsPanel->setParent(this);
+		_animationsPanel->hide();
 
 		delete _innerTabWidget;
 		_innerTabWidget = nullptr;
 
 		modelNavigationWidget->show();
 	}
-	else if (hasVariants)
+	else if (_innerTabWidget)
 	{
-		_variantsPanel->refresh();
+		_innerTabWidget->show();
 	}
 }
 
 void ModelViewer::onInnerNavTabChanged(int index)
 {
-	// The QTabWidget handles page visibility automatically.
-	// Refresh the variants panel when the user switches to it.
-	if (index == 1 && _variantsPanel)
+	if (!_innerTabWidget)
+		return;
+
+	QWidget* currentWidget = _innerTabWidget->widget(index);
+	if (currentWidget == _variantsPanel)
 		_variantsPanel->refresh();
+	else if (currentWidget == _animationsPanel)
+		_animationsPanel->refresh();
 }
 
 void ModelViewer::applyVariant(const QString& sourceFile, int variantIndex)
@@ -2180,6 +2243,31 @@ void ModelViewer::validateVariantData()
 
 		if (!hasLiveMesh)
 			_sceneGraph->clearVariantData(sourceFile);
+	}
+}
+
+void ModelViewer::validateAnimationData()
+{
+	if (!_sceneGraph || !_glWidget)
+		return;
+
+	const QStringList files = _sceneGraph->filesWithAnimations();
+	if (files.isEmpty())
+		return;
+
+	const std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
+	for (const QString& sourceFile : files)
+	{
+		const bool hasLiveMesh = std::any_of(meshes.begin(), meshes.end(),
+			[&](TriangleMesh* mesh)
+			{
+				return mesh
+					&& mesh->getSourceFile() == sourceFile
+					&& _sceneGraph->findNodeForMesh(mesh->uuid()) != nullptr;
+			});
+
+		if (!hasLiveMesh)
+			_sceneGraph->clearAnimationData(sourceFile);
 	}
 }
 

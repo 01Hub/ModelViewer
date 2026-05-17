@@ -5,6 +5,7 @@
 #include "BoundingSphere.h"
 #include "BoundingBox.h"
 #include "GLMaterial.h"
+#include "GltfAnimationData.h"
 #include "GltfVariantData.h"
 
 #include <QMap>
@@ -107,6 +108,8 @@ public:
 	void setScaling(const QVector3D& scale);
 
 	QMatrix4x4 getTransformation() const;
+	QMatrix4x4 getSceneRenderTransform() const;
+	QMatrix4x4 combinedRenderTransform() const;
 
 	std::vector<unsigned int> getIndices() const;
 	std::vector<float> getPoints() const;
@@ -138,6 +141,7 @@ public:
 	// -----------------------------------------------------------------------
 	void    setSourceFile(const QString& path) { _sourceFile = path; }
 	QString getSourceFile() const              { return _sourceFile; }
+	void    setSceneRenderTransform(const QMatrix4x4& trsf);
 
 	// -----------------------------------------------------------------------
 	// KHR_materials_variants support
@@ -161,6 +165,12 @@ public:
 
 	void setActiveVariantIndex(int idx) { _activeVariantIndex = idx; }
 	int  activeVariantIndex() const     { return _activeVariantIndex; }
+
+	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _skinJoints = joints; }
+	const QVector<GltfSkinJoint>& skinJoints() const { return _skinJoints; }
+	bool hasSkinning() const { return !_skinJoints.isEmpty(); }
+	void setJointPalette(const QVector<QMatrix4x4>& palette) { _jointPalette = palette; }
+	const QVector<QMatrix4x4>& jointPalette() const { return _jointPalette; }
 
 	// Returns a sort key based on primary texture IDs to minimise GPU texture
 	// state changes when opaque meshes are sorted before drawing.
@@ -307,6 +317,7 @@ public:
 
 	virtual void markTexturesDirty() { _textureBindingsDirty = true; }
 	virtual void markUniformsDirty() { _uniformsDirty = true; }
+	virtual void updateRuntimeBounds();
 
 	virtual void deleteTextures();
 
@@ -318,7 +329,9 @@ protected: // methods
 		std::vector<float>* colors = nullptr,
 		std::vector<float>* texCoords = nullptr,
 		std::vector<float>* tangents = nullptr,
-		std::vector<float>* bitangents = nullptr
+		std::vector<float>* bitangents = nullptr,
+		std::vector<float>* jointIndices = nullptr,
+		std::vector<float>* jointWeights = nullptr
 	);
 
 	void buildTriangles();
@@ -341,6 +354,8 @@ protected:
 	QOpenGLBuffer _texCoord3Buffer;
 	QOpenGLBuffer _tangentBuf;
 	QOpenGLBuffer _bitangentBuf;
+	QOpenGLBuffer _jointIndexBuffer;
+	QOpenGLBuffer _jointWeightBuffer;
 
 	QOpenGLBuffer _coordBuf;
 
@@ -382,6 +397,8 @@ protected:
 	std::vector<float> _trsfNormals;
 	std::vector<float> _trsfTangents;
 	std::vector<float> _trsfBitangents;
+	std::vector<float> _jointIndices;
+	std::vector<float> _jointWeights;
 
 	bool _hasVertexColors;
 
@@ -404,6 +421,7 @@ protected:
 
 	// Absolute path of the file this mesh was loaded from (empty for parametric shapes).
 	QString _sourceFile;
+	QMatrix4x4 _sceneRenderTransform;
 
 	// KHR_materials_variants: per-primitive variant->material mappings.
 	QVector<GltfVariantMapping> _variantMappings;
@@ -413,6 +431,8 @@ protected:
 
 	// Currently active variant (-1 = file default).
 	int _activeVariantIndex = -1;
+	QVector<GltfSkinJoint> _skinJoints;
+	QVector<QMatrix4x4> _jointPalette;
 
 	// Individual transformation components
 	float _transX;

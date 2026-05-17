@@ -199,6 +199,8 @@ void AssImpMesh::setupMesh()
 	std::vector<float> texCoords;
 	std::vector<float> tangents;
 	std::vector<float> bitangents;
+	std::vector<float> jointIndices;
+	std::vector<float> jointWeights;
 
 	for (const Vertex& v : _vertices)
 	{
@@ -230,6 +232,16 @@ void AssImpMesh::setupMesh()
 		bitangents.push_back(v.Bitangent.x);
 		bitangents.push_back(v.Bitangent.y);
 		bitangents.push_back(v.Bitangent.z);
+
+		jointIndices.push_back(v.JointIndices.x);
+		jointIndices.push_back(v.JointIndices.y);
+		jointIndices.push_back(v.JointIndices.z);
+		jointIndices.push_back(v.JointIndices.w);
+
+		jointWeights.push_back(v.JointWeights.x);
+		jointWeights.push_back(v.JointWeights.y);
+		jointWeights.push_back(v.JointWeights.z);
+		jointWeights.push_back(v.JointWeights.w);
 	}
 
 	// ============================================
@@ -237,7 +249,7 @@ void AssImpMesh::setupMesh()
 	// ============================================
 	_hasTexture = false;
 
-	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents);
+	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents, &jointIndices, &jointWeights);
 	computeBounds();
 }
 
