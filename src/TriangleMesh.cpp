@@ -13,12 +13,6 @@
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
 _nVerts(0),
 _texture(0),
-_diffuseADSMap(0),
-_specularADSMap(0),
-_emissiveADSMap(0),
-_normalADSMap(0),
-_heightADSMap(0),
-_opacityADSMap(0),
 _hasTexture(false),
 _sMax(1),
 _tMax(1),
@@ -938,117 +932,78 @@ void TriangleMesh::invertOpacityADSMap(bool invert)
 
 void TriangleMesh::setOpacityADSMap(unsigned int opacityTex)
 {
-	//glDeleteTextures(1, &_opacityADSMap);
-	_opacityADSMap = opacityTex;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::setHeightADSMap(unsigned int heightTex)
 {
-	//glDeleteTextures(1, &_heightADSMap);
-	_heightADSMap = heightTex;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::setNormalADSMap(unsigned int normalTex)
 {
-	//glDeleteTextures(1, &_normalADSMap);
-	_normalADSMap = normalTex;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::setSpecularADSMap(unsigned int specularTex)
 {
-	//glDeleteTextures(1, &_specularADSMap);
-	_specularADSMap = specularTex;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::setEmissiveADSMap(unsigned int emissiveTex)
 {
-	//glDeleteTextures(1, &_emissiveADSMap);
-	_emissiveADSMap = emissiveTex;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::setDiffuseADSMap(unsigned int diffuseTex)
 {
-	//glDeleteTextures(1, &_diffuseADSMap);
-	_diffuseADSMap = diffuseTex;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::clearDiffuseADSMap()
 {
-	glDeleteTextures(1, &_diffuseADSMap);
-	_diffuseADSMap = 0;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::clearSpecularADSMap()
 {
-	glDeleteTextures(1, &_specularADSMap);
-	_specularADSMap = 0;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::clearEmissiveADSMap()
 {
-	glDeleteTextures(1, &_emissiveADSMap);
-	_emissiveADSMap = 0;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::clearNormalADSMap()
 {
-	glDeleteTextures(1, &_normalADSMap);
-	_normalADSMap = 0;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::clearHeightADSMap()
 {
-	glDeleteTextures(1, &_heightADSMap);
-	_heightADSMap = 0;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::clearOpacityADSMap()
 {
-	glDeleteTextures(1, &_opacityADSMap);
-	_opacityADSMap = 0;
 	markTexturesDirty();
 	markUniformsDirty();
 }
 
 void TriangleMesh::clearAllADSMaps()
 {
-	// Delete all ADS maps
-	glDeleteTextures(1, &_diffuseADSMap);
-	_diffuseADSMap = 0;
-	glDeleteTextures(1, &_specularADSMap);
-	_specularADSMap = 0;
-	glDeleteTextures(1, &_emissiveADSMap);
-	_emissiveADSMap = 0;
-	glDeleteTextures(1, &_normalADSMap);
-	_normalADSMap = 0;
-	glDeleteTextures(1, &_heightADSMap);
-	_heightADSMap = 0;
-	glDeleteTextures(1, &_opacityADSMap);
-	_opacityADSMap = 0;
-
-	// Mark dirty to update shaders
 	markTexturesDirty();
 	markUniformsDirty();
 }
@@ -1359,12 +1314,6 @@ void TriangleMesh::deleteTextures()
 	//std::cout << "TriangleMesh::deleteTextures : _texture = " << _texture << std::endl;
 
 	glDeleteTextures(1, &_texture);
-	glDeleteTextures(1, &_diffuseADSMap);
-	glDeleteTextures(1, &_specularADSMap);
-	glDeleteTextures(1, &_emissiveADSMap);
-	glDeleteTextures(1, &_normalADSMap);
-	glDeleteTextures(1, &_heightADSMap);
-	glDeleteTextures(1, &_opacityADSMap);
 	GLuint pbrIds[] = {
 		static_cast<GLuint>(_material.albedoTextureId()),
 		static_cast<GLuint>(_material.metallicTextureId()),

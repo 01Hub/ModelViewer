@@ -767,7 +767,7 @@ public:
 		assignAutoPackingForPath(path);
 	}
 	void clearOpacityMap() { _opacityMapPath.clear(); }
-	bool hasOpacityMap() const { return !opacityMapPath().isEmpty(); }
+	bool hasOpacityMap() const { return !opacityMapPath().isEmpty() || _opacityTextureId != 0; }
 	void setInvertOpacityMap(bool invert) { _invertOpacityTexture = invert; }
 	bool isOpacityMapInverted() const { return _invertOpacityTexture; }
 

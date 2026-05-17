@@ -471,6 +471,33 @@ void AssImpMesh::bindTexturesOptimized()
 
 void AssImpMesh::setRenderStateOptimized()
 {
+	const bool shouldBlend =
+		_material.opacity() < 1.0f ||
+		_material.hasOpacityMap() ||
+		_material.hasTransmissionMap() ||
+		_material.transmission() > 0.0f ||
+		_material.blendMode() == GLMaterial::BlendMode::Alpha ||
+		_material.alphaThreshold() > 0.0f ||
+		_hasTextureAlpha;
+
+	if (shouldBlend != _currentBlendEnabled)
+	{
+		if (shouldBlend)
+		{
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			glEnable(GL_LINE_SMOOTH);
+			glEnable(GL_POLYGON_SMOOTH);
+		}
+		else
+		{
+			glDisable(GL_BLEND);
+			glDisable(GL_LINE_SMOOTH);
+			glDisable(GL_POLYGON_SMOOTH);
+		}
+		_currentBlendEnabled = shouldBlend;
+	}
+
 	// Front face correction
 	GLenum frontFace = GL_CCW;
 	const int neg = (_scaleX < 0) + (_scaleY < 0) + (_scaleZ < 0);
@@ -1126,8 +1153,76 @@ void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 	markUniformsDirty();
 }
 
+void AssImpMesh::clearDiffuseADSMap()
+{
+	glDeleteTextures(1, &_diffuseADSMap);
+	_diffuseADSMap = 0;
+	removeTexturesByType({ "texture_diffuse" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearSpecularADSMap()
+{
+	glDeleteTextures(1, &_specularADSMap);
+	_specularADSMap = 0;
+	removeTexturesByType({ "texture_specular" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearEmissiveADSMap()
+{
+	glDeleteTextures(1, &_emissiveADSMap);
+	_emissiveADSMap = 0;
+	removeTexturesByType({ "texture_emissive" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearNormalADSMap()
+{
+	glDeleteTextures(1, &_normalADSMap);
+	_normalADSMap = 0;
+	removeTexturesByType({ "texture_normal" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearHeightADSMap()
+{
+	glDeleteTextures(1, &_heightADSMap);
+	_heightADSMap = 0;
+	removeTexturesByType({ "texture_height" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearOpacityADSMap()
+{
+	glDeleteTextures(1, &_opacityADSMap);
+	_opacityADSMap = 0;
+	removeTexturesByType({ "texture_opacity" });
+	markTexturesDirty();
+	markUniformsDirty();
+}
+
+void AssImpMesh::clearAllADSMaps()
+{
+	clearDiffuseADSMap();
+	clearSpecularADSMap();
+	clearEmissiveADSMap();
+	clearNormalADSMap();
+	clearHeightADSMap();
+	clearOpacityADSMap();
+}
+
 void AssImpMesh::setTextureMaps(const GLMaterial& material)
 {
+	_material = material;
+	cacheBaseVolumeProperties();
+	applyScaledVolumeProperties();
+
 	_textures.clear();
 
 	if (material.hasAlbedoMap())
@@ -1266,9 +1361,6 @@ void AssImpMesh::setTextureMaps(const GLMaterial& material)
 	{
 		setOpacityADSMap(material.opacityTextureId());
 	}
-	_material = material;
-	cacheBaseVolumeProperties();
-	applyScaledVolumeProperties();
 }
 
 void AssImpMesh::replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha)
@@ -1312,3 +1404,13 @@ void AssImpMesh::releaseCurrentShader()
 	_currentBoundShader = nullptr;
 }
 
+void AssImpMesh::deleteTextures()
+{
+	glDeleteTextures(1, &_diffuseADSMap);
+	glDeleteTextures(1, &_specularADSMap);
+	glDeleteTextures(1, &_emissiveADSMap);
+	glDeleteTextures(1, &_normalADSMap);
+	glDeleteTextures(1, &_heightADSMap);
+	glDeleteTextures(1, &_opacityADSMap);
+	TriangleMesh::deleteTextures();
+}

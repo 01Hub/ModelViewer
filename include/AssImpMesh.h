@@ -106,8 +106,16 @@ public:
 	void setNormalADSMap(unsigned int normalTex) override;
 	void setHeightADSMap(unsigned int heightTex) override;
 	void setOpacityADSMap(unsigned int opacityTex) override;
+	void clearDiffuseADSMap() override;
+	void clearSpecularADSMap() override;
+	void clearEmissiveADSMap() override;
+	void clearNormalADSMap() override;
+	void clearHeightADSMap() override;
+	void clearOpacityADSMap() override;
+	void clearAllADSMaps() override;
 
 	virtual void setTextureMaps(const GLMaterial& material) override;
+	void deleteTextures() override;
 	void replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha);
 
 
@@ -147,5 +155,12 @@ private:
 	// State caching
 	QOpenGLShaderProgram* _currentBoundShader;
 	static bool _currentBlendEnabled;
-	static GLenum _currentFrontFace;	
+	static GLenum _currentFrontFace;
+
+	unsigned int _diffuseADSMap = 0;
+	unsigned int _specularADSMap = 0;
+	unsigned int _emissiveADSMap = 0;
+	unsigned int _normalADSMap = 0;
+	unsigned int _heightADSMap = 0;
+	unsigned int _opacityADSMap = 0;
 };

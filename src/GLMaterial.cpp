@@ -123,6 +123,22 @@ void GLMaterial::setTexture(TextureType type, const Texture& texture)
 	Q_ASSERT(static_cast<size_t>(type) < static_cast<size_t>(TextureType::Count));
 	_textures[static_cast<size_t>(type)] = texture;
 	syncTextureParameters();
+
+	// Keep packable single-channel maps consistent even when callers use the
+	// newer typed texture API instead of the older setXxxMap(path) helpers.
+	// Without this, standalone opacity maps can keep the default alpha-channel
+	// packing and appear to have no effect when authored as grayscale RGB.
+	switch (type)
+	{
+	case TextureType::AmbientOcclusion:
+	case TextureType::Roughness:
+	case TextureType::Metallic:
+	case TextureType::Opacity:
+		assignAutoPackingForPath(QString::fromStdString(texture.path));
+		break;
+	default:
+		break;
+	}
 }
 
 const GLMaterial::Texture& GLMaterial::texture(TextureType type) const

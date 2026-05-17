@@ -360,14 +360,7 @@ protected:
 	float _baseAttenuationDistance;
 
 	QImage _texImage, _texBuffer;
-	// ADS texture light maps
 	unsigned int _texture;
-	unsigned int _diffuseADSMap;
-	unsigned int _specularADSMap;
-	unsigned int _emissiveADSMap;
-	unsigned int _normalADSMap;
-	unsigned int _heightADSMap;
-	unsigned int _opacityADSMap;
 	bool _hasTexture;
 	bool _hasTextureAlpha;
 	
