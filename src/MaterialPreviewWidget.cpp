@@ -595,6 +595,8 @@ void MaterialPreviewWidget::paintGL()
 
 	auto sendPacking = [this](const QString& key, const char* uniformBase) {
 		GLMaterial::ChannelPacking p = _currentMaterial.packingFor(key);
+		if (key == "opacity" && _currentMaterial.isOpacityMapInverted())
+			p.invert = !p.invert;
 		// channel (use -1 for none; shader will handle)
 		_shader->setUniformValue(QString("%1Channel").arg(uniformBase).toUtf8().constData(), p.channel);
 		// invert as int

@@ -553,7 +553,8 @@ public:
 	// Diffuse texture
 	void setDiffuseMap(const QString& path) { _diffuseMap = path; }
 	QString diffuseMap() const { return _diffuseMap; }
-	bool hasDiffuseMap() const { return !_diffuseMap.isEmpty(); }
+	QString diffuseMapPath() const { return _diffuseMap; }
+	bool hasDiffuseMap() const { return !diffuseMapPath().isEmpty(); }
 	void setDiffuseTextureId(unsigned int id) { _diffuseTextureId = id; _textures[static_cast<size_t>(TextureType::Diffuse)].id = id; }
 	unsigned int diffuseTextureId() const { return _diffuseTextureId; }
 	void setDiffuseTexCoord(int coord) { _diffuseTexTransform.texCoord = coord; }

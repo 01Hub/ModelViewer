@@ -121,6 +121,7 @@ GLMaterial::~GLMaterial()
 void GLMaterial::setTexture(TextureType type, const Texture& texture)
 {
 	Q_ASSERT(static_cast<size_t>(type) < static_cast<size_t>(TextureType::Count));
+	const std::string previousPath = _textures[static_cast<size_t>(type)].path;
 	_textures[static_cast<size_t>(type)] = texture;
 	syncTextureParameters();
 
@@ -134,7 +135,8 @@ void GLMaterial::setTexture(TextureType type, const Texture& texture)
 	case TextureType::Roughness:
 	case TextureType::Metallic:
 	case TextureType::Opacity:
-		assignAutoPackingForPath(QString::fromStdString(texture.path));
+		if (texture.path != previousPath)
+			assignAutoPackingForPath(QString::fromStdString(texture.path));
 		break;
 	default:
 		break;

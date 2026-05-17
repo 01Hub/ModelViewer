@@ -2,6 +2,9 @@
 #include "GLMaterial.h"
 #include "TriangleMesh.h"
 #include <QDebug>
+#include <QBuffer>
+#include <QDir>
+#include <QImage>
 #include <QJsonParseError>
 #include <QMap>
 
@@ -157,6 +160,174 @@ QString resolvePackagedPath(const QMap<QString, QString>& pathMapping, const QSt
     }
 
     return {};
+}
+
+QString resolveTextureFileForExport(const QString& sourcePath,
+                                    const QString& exportFilePath,
+                                    const QMap<QString, QString>& pathMapping,
+                                    bool isGlbExport)
+{
+    if (sourcePath.isEmpty())
+        return {};
+
+    QFileInfo directInfo(sourcePath);
+    if (directInfo.isAbsolute() && directInfo.exists())
+        return QDir::cleanPath(sourcePath);
+
+    if (directInfo.exists())
+        return directInfo.absoluteFilePath();
+
+    QString packaged = resolvePackagedPath(pathMapping, sourcePath);
+    if (!packaged.isEmpty())
+    {
+        QFileInfo packagedInfo(packaged);
+        if (packagedInfo.isAbsolute() && packagedInfo.exists())
+            return packagedInfo.absoluteFilePath();
+
+        QString candidate = isGlbExport
+            ? QDir(QDir::tempPath()).filePath(packaged)
+            : QFileInfo(exportFilePath).dir().filePath(packaged);
+
+        if (QFileInfo::exists(candidate))
+            return QDir::cleanPath(candidate);
+    }
+
+    return {};
+}
+
+float samplePackedOpacity(const QRgb pixel, const GLMaterial::ChannelPacking& packing)
+{
+    const float channels[4] = {
+        qRed(pixel) / 255.0f,
+        qGreen(pixel) / 255.0f,
+        qBlue(pixel) / 255.0f,
+        qAlpha(pixel) / 255.0f
+    };
+
+    int ch = packing.channel;
+    if (ch < 0 || ch > 3)
+        ch = 0;
+
+    float value = channels[ch];
+    if (packing.invert)
+        value = 1.0f - value;
+
+    value = value * packing.scale + packing.bias;
+    return std::clamp(value, 0.0f, 1.0f);
+}
+
+bool isIdentityTextureTransform(const GLMaterial::Texture& tex)
+{
+    auto nearlyEqual = [](float a, float b) {
+        return std::abs(a - b) < 1e-5f;
+    };
+
+    return tex.texCoordIndex == 0 &&
+           nearlyEqual(tex.scale.x, 1.0f) &&
+           nearlyEqual(tex.scale.y, 1.0f) &&
+           nearlyEqual(tex.offset.x, 0.0f) &&
+           nearlyEqual(tex.offset.y, 0.0f) &&
+           nearlyEqual(tex.rotation, 0.0f);
+}
+
+void applyTextureTransformToInfo(QJsonObject& texInfo, const GLMaterial::Texture& tex)
+{
+    if (tex.texCoordIndex != 0)
+        texInfo["texCoord"] = tex.texCoordIndex;
+
+    if (isIdentityTextureTransform(tex))
+        return;
+
+    QJsonObject transform;
+    if (std::abs(tex.offset.x) > 1e-5f || std::abs(tex.offset.y) > 1e-5f)
+    {
+        QJsonArray offset;
+        offset.append(static_cast<double>(tex.offset.x));
+        offset.append(static_cast<double>(tex.offset.y));
+        transform["offset"] = offset;
+    }
+
+    if (std::abs(tex.scale.x - 1.0f) > 1e-5f || std::abs(tex.scale.y - 1.0f) > 1e-5f)
+    {
+        QJsonArray scale;
+        scale.append(static_cast<double>(tex.scale.x));
+        scale.append(static_cast<double>(tex.scale.y));
+        transform["scale"] = scale;
+    }
+
+    if (std::abs(tex.rotation) > 1e-5f)
+        transform["rotation"] = static_cast<double>(tex.rotation);
+
+    if (tex.texCoordIndex != 0)
+        transform["texCoord"] = tex.texCoordIndex;
+
+    QJsonObject extensions = texInfo.value("extensions").toObject();
+    extensions["KHR_texture_transform"] = transform;
+    texInfo["extensions"] = extensions;
+}
+
+QImage buildMergedBaseColorImage(const GLMaterial& material,
+                                 const QString& baseColorPath,
+                                 const QString& opacityPath,
+                                 std::function<void(const QString&)> logCallback)
+{
+    auto emitLog = [&](const QString& msg) {
+        if (logCallback)
+            logCallback(msg);
+        else
+            qDebug() << msg;
+    };
+
+    QImage opacityImage(opacityPath);
+    if (opacityImage.isNull())
+    {
+        emitLog(QString("  [OpacityMerge] Failed to load opacity image: %1").arg(opacityPath));
+        return {};
+    }
+    opacityImage = opacityImage.convertToFormat(QImage::Format_RGBA8888);
+
+    QImage baseImage;
+    if (!baseColorPath.isEmpty())
+    {
+        baseImage = QImage(baseColorPath);
+        if (!baseImage.isNull())
+            baseImage = baseImage.convertToFormat(QImage::Format_RGBA8888);
+        else
+            emitLog(QString("  [OpacityMerge] Failed to load base color image: %1").arg(baseColorPath));
+    }
+
+    if (baseImage.isNull())
+    {
+        baseImage = QImage(opacityImage.size(), QImage::Format_RGBA8888);
+        QColor fillColor;
+        QVector3D albedo = material.albedoColor();
+        fillColor.setRgbF(
+            std::clamp(albedo.x(), 0.0f, 1.0f),
+            std::clamp(albedo.y(), 0.0f, 1.0f),
+            std::clamp(albedo.z(), 0.0f, 1.0f),
+            1.0f);
+        baseImage.fill(fillColor);
+    }
+
+    if (opacityImage.size() != baseImage.size())
+        opacityImage = opacityImage.scaled(baseImage.size(), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+
+    const GLMaterial::ChannelPacking opacityPacking = material.packingFor("opacity");
+
+    for (int y = 0; y < baseImage.height(); ++y)
+    {
+        QRgb* baseScan = reinterpret_cast<QRgb*>(baseImage.scanLine(y));
+        const QRgb* opacityScan = reinterpret_cast<const QRgb*>(opacityImage.constScanLine(y));
+        for (int x = 0; x < baseImage.width(); ++x)
+        {
+            const float baseAlpha = qAlpha(baseScan[x]) / 255.0f;
+            const float opacityAlpha = samplePackedOpacity(opacityScan[x], opacityPacking);
+            const int finalAlpha = qBound(0, qRound((baseAlpha * opacityAlpha) * 255.0f), 255);
+            baseScan[x] = qRgba(qRed(baseScan[x]), qGreen(baseScan[x]), qBlue(baseScan[x]), finalAlpha);
+        }
+    }
+
+    return baseImage;
 }
 }
 
@@ -734,6 +905,7 @@ bool GltfPostProcessor::postProcessGltfFileWithMaterials(
     _isGlbExport = false;
     // Process with material transforms
     postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback, textureSubfolder, pathMapping, embeddedIndexMapping);
+    mergeOpacityIntoBaseColorTextures(gltfJson, meshes, filePath, nullptr, logCallback);
 
     doc.setObject(gltfJson);
 
@@ -842,6 +1014,11 @@ bool GltfPostProcessor::postProcessGlbFileWithMaterials(
     _isGlbExport = true;
     // Post-process with material transforms
     postProcessGltfJsonWithMaterials(gltfJson, meshes, lights, logCallback, textureSubfolder, pathMapping, embeddedIndexMapping);
+    QByteArray binaryChunkData;
+    if (offset < glbData.size())
+        binaryChunkData = glbData.mid(offset);
+
+    mergeOpacityIntoBaseColorTextures(gltfJson, meshes, filePath, &binaryChunkData, logCallback);
 
     // Reconstruct GLB with modified JSON
     doc.setObject(gltfJson);
@@ -859,12 +1036,9 @@ bool GltfPostProcessor::postProcessGlbFileWithMaterials(
     quint32 newLength = 12 + 8 + newJsonLength;
 
     // Copy binary chunks (if any) - this preserves embedded textures
-    QByteArray binaryData;
-    if (offset < glbData.size())
-    {
-        binaryData = glbData.mid(offset);
+    QByteArray binaryData = binaryChunkData;
+    if (!binaryData.isEmpty())
         newLength += binaryData.size();
-    }
 
     // Write header
     newGlbData.append(reinterpret_cast<const char*>(&magic), 4);
@@ -4415,4 +4589,238 @@ int GltfPostProcessor::findOrCreateTexture(
     log(QString("  -> Created new texture at index %1 pointing to image %2").arg(textureIndex).arg(imageIndex), logCallback);
 
     return textureIndex;
+}
+
+bool GltfPostProcessor::mergeOpacityIntoBaseColorTextures(
+    QJsonObject& gltfJson,
+    const std::vector<TriangleMesh*>& meshes,
+    const QString& exportFilePath,
+    QByteArray* glbBinaryChunk,
+    std::function<void(const QString&)> logCallback)
+{
+    QJsonArray materials = gltfJson.value("materials").toArray();
+    if (materials.isEmpty())
+        return false;
+
+    QJsonArray images = gltfJson.value("images").toArray();
+    QJsonArray textures = gltfJson.value("textures").toArray();
+    QJsonArray bufferViews = gltfJson.value("bufferViews").toArray();
+    bool addedTextureTransform = false;
+
+    QByteArray glbPayload;
+    if (glbBinaryChunk && !glbBinaryChunk->isEmpty())
+    {
+        if (glbBinaryChunk->size() >= 8)
+        {
+            const char* data = glbBinaryChunk->constData();
+            quint32 chunkLength = *reinterpret_cast<const quint32*>(data);
+            quint32 chunkType = *reinterpret_cast<const quint32*>(data + 4);
+            if (chunkType == 0x004E4942 && glbBinaryChunk->size() >= static_cast<int>(chunkLength + 8))
+                glbPayload = glbBinaryChunk->mid(8, chunkLength);
+        }
+    }
+
+    bool modified = false;
+    QDir exportDir(QFileInfo(exportFilePath).dir());
+
+    for (int matIdx = 0; matIdx < materials.size(); ++matIdx)
+    {
+        GLMaterial sourceMaterial = sourceMaterialForJsonMaterial(matIdx, meshes);
+        if (sourceMaterial.opacityMapPath().isEmpty())
+            continue;
+
+        QJsonObject mat = materials[matIdx].toObject();
+        QJsonObject pbr = mat.value("pbrMetallicRoughness").toObject();
+        if (pbr.isEmpty())
+            continue;
+
+        const QString opacityPath = resolveTextureFileForExport(
+            sourceMaterial.opacityMapPath(), exportFilePath, _pathMapping, _isGlbExport);
+        if (opacityPath.isEmpty())
+        {
+            log(QString("  [OpacityMerge] No readable opacity source for material[%1]: %2")
+                .arg(matIdx).arg(sourceMaterial.opacityMapPath()), logCallback);
+            continue;
+        }
+
+        QString baseColorPath;
+        const GLMaterial::Texture* bindingSource = nullptr;
+        if (!sourceMaterial.albedoMapPath().isEmpty())
+        {
+            baseColorPath = resolveTextureFileForExport(
+                sourceMaterial.albedoMapPath(), exportFilePath, _pathMapping, _isGlbExport);
+            bindingSource = &sourceMaterial.texture(GLMaterial::TextureType::Albedo);
+        }
+        else if (!sourceMaterial.diffuseMapPath().isEmpty())
+        {
+            baseColorPath = resolveTextureFileForExport(
+                sourceMaterial.diffuseMapPath(), exportFilePath, _pathMapping, _isGlbExport);
+            bindingSource = &sourceMaterial.texture(GLMaterial::TextureType::Diffuse);
+        }
+        else
+        {
+            bindingSource = &sourceMaterial.texture(GLMaterial::TextureType::Opacity);
+        }
+
+        QImage merged = buildMergedBaseColorImage(sourceMaterial, baseColorPath, opacityPath, logCallback);
+        if (merged.isNull())
+            continue;
+
+        QJsonObject texInfo;
+        int newTextureIndex = -1;
+
+        if (glbBinaryChunk)
+        {
+            QByteArray pngData;
+            QBuffer buffer(&pngData);
+            buffer.open(QIODevice::WriteOnly);
+            if (!merged.save(&buffer, "PNG"))
+            {
+                log(QString("  [OpacityMerge] Failed to encode merged PNG for material[%1]").arg(matIdx), logCallback);
+                continue;
+            }
+
+            while (glbPayload.size() % 4 != 0)
+                glbPayload.append('\0');
+
+            const int byteOffset = glbPayload.size();
+            glbPayload.append(pngData);
+
+            const int bufferViewIndex = bufferViews.size();
+            QJsonObject newBufferView;
+            newBufferView["buffer"] = 0;
+            newBufferView["byteOffset"] = byteOffset;
+            newBufferView["byteLength"] = pngData.size();
+            bufferViews.append(newBufferView);
+
+            const int imageIndex = images.size();
+            QJsonObject newImage;
+            newImage["bufferView"] = bufferViewIndex;
+            newImage["mimeType"] = "image/png";
+            newImage["name"] = QString("baseColorOpacity_%1.png").arg(matIdx);
+            images.append(newImage);
+
+            QJsonObject newTexture;
+            newTexture["source"] = imageIndex;
+            const int oldTextureIndex = pbr.value("baseColorTexture").toObject().value("index").toInt(-1);
+            if (oldTextureIndex >= 0 && oldTextureIndex < textures.size())
+            {
+                QJsonObject oldTexture = textures[oldTextureIndex].toObject();
+                if (oldTexture.contains("sampler"))
+                    newTexture["sampler"] = oldTexture.value("sampler").toInt();
+            }
+            newTextureIndex = textures.size();
+            textures.append(newTexture);
+        }
+        else
+        {
+            QString mergedDir = exportDir.filePath(_textureSubfolder);
+            QDir().mkpath(mergedDir);
+            QString mergedPath = QDir(mergedDir).filePath(QString("baseColorOpacity_%1.png").arg(matIdx));
+            if (!merged.save(mergedPath, "PNG"))
+            {
+                log(QString("  [OpacityMerge] Failed to save merged image: %1").arg(mergedPath), logCallback);
+                continue;
+            }
+
+            const int imageIndex = images.size();
+            QJsonObject newImage;
+            newImage["uri"] = _textureSubfolder + "/" + QFileInfo(mergedPath).fileName();
+            images.append(newImage);
+
+            QJsonObject newTexture;
+            newTexture["source"] = imageIndex;
+            const int oldTextureIndex = pbr.value("baseColorTexture").toObject().value("index").toInt(-1);
+            if (oldTextureIndex >= 0 && oldTextureIndex < textures.size())
+            {
+                QJsonObject oldTexture = textures[oldTextureIndex].toObject();
+                if (oldTexture.contains("sampler"))
+                    newTexture["sampler"] = oldTexture.value("sampler").toInt();
+            }
+            newTextureIndex = textures.size();
+            textures.append(newTexture);
+        }
+
+        if (newTextureIndex < 0)
+            continue;
+
+        texInfo["index"] = newTextureIndex;
+        if (bindingSource)
+        {
+            applyTextureTransformToInfo(texInfo, *bindingSource);
+            addedTextureTransform = addedTextureTransform || !isIdentityTextureTransform(*bindingSource);
+        }
+
+        pbr["baseColorTexture"] = texInfo;
+
+        QJsonArray baseColorFactor = pbr.value("baseColorFactor").toArray();
+        if (baseColorFactor.size() < 4)
+        {
+            QVector3D albedo = sourceMaterial.albedoColor();
+            baseColorFactor = QJsonArray{
+                static_cast<double>(albedo.x()),
+                static_cast<double>(albedo.y()),
+                static_cast<double>(albedo.z()),
+                static_cast<double>(sourceMaterial.opacity())
+            };
+        }
+        else
+        {
+            baseColorFactor[3] = static_cast<double>(sourceMaterial.opacity());
+        }
+        pbr["baseColorFactor"] = baseColorFactor;
+
+        mat["pbrMetallicRoughness"] = pbr;
+        materials[matIdx] = mat;
+        modified = true;
+
+        log(QString("  [OpacityMerge] Material[%1] merged opacity into baseColor alpha").arg(matIdx), logCallback);
+    }
+
+    if (!modified)
+        return false;
+
+    gltfJson["materials"] = materials;
+    gltfJson["images"] = images;
+    gltfJson["textures"] = textures;
+    if (!bufferViews.isEmpty())
+        gltfJson["bufferViews"] = bufferViews;
+
+    if (addedTextureTransform)
+    {
+        QJsonArray extensionsUsed = gltfJson.value("extensionsUsed").toArray();
+        bool found = false;
+        for (const auto& value : std::as_const(extensionsUsed))
+        {
+            if (value.toString() == "KHR_texture_transform")
+            {
+                found = true;
+                break;
+            }
+        }
+        if (!found)
+        {
+            extensionsUsed.append("KHR_texture_transform");
+            gltfJson["extensionsUsed"] = extensionsUsed;
+        }
+    }
+
+    if (glbBinaryChunk)
+    {
+        QByteArray rebuiltChunk;
+        if (!glbPayload.isEmpty())
+        {
+            while (glbPayload.size() % 4 != 0)
+                glbPayload.append('\0');
+
+            const quint32 chunkLength = static_cast<quint32>(glbPayload.size());
+            const quint32 chunkType = 0x004E4942; // BIN\0
+            rebuiltChunk.append(reinterpret_cast<const char*>(&chunkLength), 4);
+            rebuiltChunk.append(reinterpret_cast<const char*>(&chunkType), 4);
+            rebuiltChunk.append(glbPayload);
+        }
+        *glbBinaryChunk = rebuiltChunk;
+    }
+
+    return true;
 }

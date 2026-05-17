@@ -7,6 +7,7 @@
 #include <QFile>
 #include <QString>
 #include <QVector2D>
+#include <QByteArray>
 #include <vector>
 
 #include "GLLights.h"
@@ -279,6 +280,12 @@ private:
     static GLMaterial sourceMaterialForJsonMaterial(
         int materialIndex,
         const std::vector<TriangleMesh*>& meshes);
+    static bool mergeOpacityIntoBaseColorTextures(
+        QJsonObject& gltfJson,
+        const std::vector<TriangleMesh*>& meshes,
+        const QString& exportFilePath,
+        QByteArray* glbBinaryChunk,
+        std::function<void(const QString&)> logCallback);
 
     static QString _textureSubfolder;
     static bool _isGlbExport;

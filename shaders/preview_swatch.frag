@@ -805,7 +805,8 @@ void main()
             outCol = vec3(h);
         }
         else if (texViewMode == 7) {                // Opacity
-            float a = useOpacityMap ? texture(opacityMap, applyTextureTransform(uv, opacityScale, opacityOffset, opacityRotation)).r : opacity;
+            vec4 opTex = texture(opacityMap, applyTextureTransform(uv, opacityScale, opacityOffset, opacityRotation));
+            float a = useOpacityMap ? pickChannel(opTex, opacityChannel, opacityChannelInvert, opacityChannelScale, opacityChannelBias) : opacity;
             outCol = vec3(a);
         }
         else if (texViewMode == 8) {                // Emissive (as color)
