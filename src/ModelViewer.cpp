@@ -1246,6 +1246,7 @@ void ModelViewer::applyVariant(const QString& sourceFile, int variantIndex)
 	}
 
 	_sceneGraph->setActiveVariant(sourceFile, variantIndex);
+	_glWidget->refreshAnimationMaterialState(sourceFile);
 	_glWidget->update();
 }
 

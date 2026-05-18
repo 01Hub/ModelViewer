@@ -67,6 +67,10 @@ void AssImpMesh::render()
 	const QVariant viewVar = _prog->property("viewMatrix");
 	const QMatrix4x4 viewMatrix = viewVar.isValid() ? viewVar.value<QMatrix4x4>() : QMatrix4x4();
 	const QMatrix4x4 modelViewMatrix = viewMatrix * modelMatrix;
+	const bool requiresPerMeshTransform =
+		hasSkinning() ||
+		!_sceneRenderTransform.isIdentity() ||
+		!_transformation.isIdentity();
 
 	// Smart shader binding - only bind if different
 	bool shaderChanged = false;
@@ -87,12 +91,15 @@ void AssImpMesh::render()
 
 	cacheTextureBindings();
 
-	if (_prog->uniformLocation("modelMatrix") >= 0)
-		_prog->setUniformValue("modelMatrix", modelMatrix);
-	if (_prog->uniformLocation("modelViewMatrix") >= 0)
-		_prog->setUniformValue("modelViewMatrix", modelViewMatrix);
-	if (_prog->uniformLocation("normalMatrix") >= 0)
-		_prog->setUniformValue("normalMatrix", modelViewMatrix.normalMatrix());
+	if (requiresPerMeshTransform)
+	{
+		if (_prog->uniformLocation("modelMatrix") >= 0)
+			_prog->setUniformValue("modelMatrix", modelMatrix);
+		if (_prog->uniformLocation("modelViewMatrix") >= 0)
+			_prog->setUniformValue("modelViewMatrix", modelViewMatrix);
+		if (_prog->uniformLocation("normalMatrix") >= 0)
+			_prog->setUniformValue("normalMatrix", modelViewMatrix.normalMatrix());
+	}
 	if (_prog->uniformLocation("hasSkinning") >= 0)
 		_prog->setUniformValue("hasSkinning", hasSkinning());
 	if (_prog->uniformLocation("jointCount") >= 0)

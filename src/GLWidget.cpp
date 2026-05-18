@@ -84,6 +84,180 @@ QVector3D sampleVec3Keys(const QVector<GltfAnimationVec3Key>& keys, double timeS
 	return keys.back().value;
 }
 
+QVector2D sampleVec2Keys(const QVector<GltfAnimationVec2Key>& keys, double timeSeconds, const QVector2D& fallback)
+{
+	if (keys.isEmpty())
+		return fallback;
+	if (timeSeconds <= keys.front().timeSeconds)
+		return keys.front().value;
+	if (timeSeconds >= keys.back().timeSeconds)
+		return keys.back().value;
+
+	for (int i = 1; i < keys.size(); ++i)
+	{
+		if (timeSeconds <= keys[i].timeSeconds)
+		{
+			const double start = keys[i - 1].timeSeconds;
+			const double end = keys[i].timeSeconds;
+			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
+			return keys[i - 1].value * (1.0f - t) + keys[i].value * t;
+		}
+	}
+	return keys.back().value;
+}
+
+float sampleFloatKeys(const QVector<GltfAnimationFloatKey>& keys, double timeSeconds, float fallback)
+{
+	if (keys.isEmpty())
+		return fallback;
+	if (timeSeconds <= keys.front().timeSeconds)
+		return keys.front().value;
+	if (timeSeconds >= keys.back().timeSeconds)
+		return keys.back().value;
+
+	for (int i = 1; i < keys.size(); ++i)
+	{
+		if (timeSeconds <= keys[i].timeSeconds)
+		{
+			const double start = keys[i - 1].timeSeconds;
+			const double end = keys[i].timeSeconds;
+			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
+			return keys[i - 1].value * (1.0f - t) + keys[i].value * t;
+		}
+	}
+	return keys.back().value;
+}
+
+void applyTexturePointerValue(GLMaterial& material,
+	GltfAnimationTextureTarget textureTarget,
+	GltfAnimationPointerProperty property,
+	const QVector2D& vec2Value,
+	float scalarValue)
+{
+	auto applyVec2 = [&](auto setOffset, auto setScale) {
+		switch (property)
+		{
+		case GltfAnimationPointerProperty::Offset:
+			(material.*setOffset)(vec2Value);
+			break;
+		case GltfAnimationPointerProperty::Scale:
+			(material.*setScale)(vec2Value);
+			break;
+		default:
+			break;
+		}
+	};
+
+	auto applyRotation = [&](auto setRotation) {
+		if (property == GltfAnimationPointerProperty::Rotation)
+			(material.*setRotation)(scalarValue);
+	};
+
+	switch (textureTarget)
+	{
+	case GltfAnimationTextureTarget::Albedo:
+		applyVec2(&GLMaterial::setAlbedoTexOffset, &GLMaterial::setAlbedoTexScale);
+		applyRotation(&GLMaterial::setAlbedoTexRotation);
+		break;
+	case GltfAnimationTextureTarget::Metallic:
+		applyVec2(&GLMaterial::setMetallicTexOffset, &GLMaterial::setMetallicTexScale);
+		applyRotation(&GLMaterial::setMetallicTexRotation);
+		break;
+	case GltfAnimationTextureTarget::Roughness:
+		applyVec2(&GLMaterial::setRoughnessTexOffset, &GLMaterial::setRoughnessTexScale);
+		applyRotation(&GLMaterial::setRoughnessTexRotation);
+		break;
+	case GltfAnimationTextureTarget::MetallicRoughness:
+		applyVec2(&GLMaterial::setMetallicTexOffset, &GLMaterial::setMetallicTexScale);
+		applyRotation(&GLMaterial::setMetallicTexRotation);
+		applyVec2(&GLMaterial::setRoughnessTexOffset, &GLMaterial::setRoughnessTexScale);
+		applyRotation(&GLMaterial::setRoughnessTexRotation);
+		break;
+	case GltfAnimationTextureTarget::Normal:
+		applyVec2(&GLMaterial::setNormalTexOffset, &GLMaterial::setNormalTexScale);
+		applyRotation(&GLMaterial::setNormalTexRotation);
+		break;
+	case GltfAnimationTextureTarget::Occlusion:
+		applyVec2(&GLMaterial::setOcclusionTexOffset, &GLMaterial::setOcclusionTexScale);
+		applyRotation(&GLMaterial::setOcclusionTexRotation);
+		break;
+	case GltfAnimationTextureTarget::Emissive:
+		applyVec2(&GLMaterial::setEmissiveTexOffset, &GLMaterial::setEmissiveTexScale);
+		applyRotation(&GLMaterial::setEmissiveTexRotation);
+		break;
+	case GltfAnimationTextureTarget::Transmission:
+		applyVec2(&GLMaterial::setTransmissionTexOffset, &GLMaterial::setTransmissionTexScale);
+		applyRotation(&GLMaterial::setTransmissionTexRotation);
+		break;
+	case GltfAnimationTextureTarget::Thickness:
+		applyVec2(&GLMaterial::setThicknessTexOffset, &GLMaterial::setThicknessTexScale);
+		applyRotation(&GLMaterial::setThicknessTexRotation);
+		break;
+	case GltfAnimationTextureTarget::IOR:
+		applyVec2(&GLMaterial::setIORTexOffset, &GLMaterial::setIORTexScale);
+		applyRotation(&GLMaterial::setIORTexRotation);
+		break;
+	case GltfAnimationTextureTarget::SheenColor:
+		applyVec2(&GLMaterial::setSheenColorTexOffset, &GLMaterial::setSheenColorTexScale);
+		applyRotation(&GLMaterial::setSheenColorTexRotation);
+		break;
+	case GltfAnimationTextureTarget::SheenRoughness:
+		applyVec2(&GLMaterial::setSheenRoughnessTexOffset, &GLMaterial::setSheenRoughnessTexScale);
+		applyRotation(&GLMaterial::setSheenRoughnessTexRotation);
+		break;
+	case GltfAnimationTextureTarget::Clearcoat:
+		applyVec2(&GLMaterial::setClearcoatColorTexOffset, &GLMaterial::setClearcoatColorTexScale);
+		applyRotation(&GLMaterial::setClearcoatColorTexRotation);
+		break;
+	case GltfAnimationTextureTarget::ClearcoatRoughness:
+		applyVec2(&GLMaterial::setClearcoatRoughnessTexOffset, &GLMaterial::setClearcoatRoughnessTexScale);
+		applyRotation(&GLMaterial::setClearcoatRoughnessTexRotation);
+		break;
+	case GltfAnimationTextureTarget::ClearcoatNormal:
+		applyVec2(&GLMaterial::setClearcoatNormalTexOffset, &GLMaterial::setClearcoatNormalTexScale);
+		applyRotation(&GLMaterial::setClearcoatNormalTexRotation);
+		break;
+	case GltfAnimationTextureTarget::Iridescence:
+		applyVec2(&GLMaterial::setIridescenceTexOffset, &GLMaterial::setIridescenceTexScale);
+		applyRotation(&GLMaterial::setIridescenceTexRotation);
+		break;
+	case GltfAnimationTextureTarget::IridescenceThickness:
+		applyVec2(&GLMaterial::setIridescenceThicknessTexOffset, &GLMaterial::setIridescenceThicknessTexScale);
+		applyRotation(&GLMaterial::setIridescenceThicknessTexRotation);
+		break;
+	case GltfAnimationTextureTarget::SpecularFactor:
+		applyVec2(&GLMaterial::setSpecularFactorTexOffset, &GLMaterial::setSpecularFactorTexScale);
+		applyRotation(&GLMaterial::setSpecularFactorTexRotation);
+		break;
+	case GltfAnimationTextureTarget::SpecularColor:
+		applyVec2(&GLMaterial::setSpecularColorTexOffset, &GLMaterial::setSpecularColorTexScale);
+		applyRotation(&GLMaterial::setSpecularColorTexRotation);
+		break;
+	case GltfAnimationTextureTarget::Anisotropy:
+		applyVec2(&GLMaterial::setAnisotropyTexOffset, &GLMaterial::setAnisotropyTexScale);
+		applyRotation(&GLMaterial::setAnisotropyTexRotation);
+		break;
+	case GltfAnimationTextureTarget::DiffuseTransmission:
+		applyVec2(&GLMaterial::setDiffuseTransmissionTexOffset, &GLMaterial::setDiffuseTransmissionTexScale);
+		applyRotation(&GLMaterial::setDiffuseTransmissionTexRotation);
+		break;
+	case GltfAnimationTextureTarget::DiffuseTransmissionColor:
+		applyVec2(&GLMaterial::setDiffuseTransmissionColorTexOffset, &GLMaterial::setDiffuseTransmissionColorTexScale);
+		applyRotation(&GLMaterial::setDiffuseTransmissionColorTexRotation);
+		break;
+	case GltfAnimationTextureTarget::Diffuse:
+		applyVec2(&GLMaterial::setDiffuseTexOffset, &GLMaterial::setDiffuseTexScale);
+		applyRotation(&GLMaterial::setDiffuseTexRotation);
+		break;
+	case GltfAnimationTextureTarget::SpecularGlossiness:
+		applyVec2(&GLMaterial::setSpecularGlossinessTexOffset, &GLMaterial::setSpecularGlossinessTexScale);
+		applyRotation(&GLMaterial::setSpecularGlossinessTexRotation);
+		break;
+	default:
+		break;
+	}
+}
+
 QQuaternion sampleQuatKeys(const QVector<GltfAnimationQuatKey>& keys, double timeSeconds, const QQuaternion& fallback)
 {
 	if (keys.isEmpty())
@@ -6571,6 +6745,10 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
 	runtime.data = _viewer->sceneGraph()->animationDataForFile(sourceFile);
 	runtime.defaultNodeTransforms.clear();
+	runtime.defaultMeshMaterials.clear();
+	runtime.meshUuidsByMaterialIndex.clear();
+	const bool needsRuntimeNodeTransforms =
+		runtime.data.hasNodeAnimations || runtime.data.hasSkinning;
 
 	std::function<void(SceneNode*, const QMatrix4x4&)> collect = [&](SceneNode* node, const QMatrix4x4& parentWorld)
 	{
@@ -6582,7 +6760,13 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 		for (const QUuid& uuid : node->meshUuids)
 		{
 			if (TriangleMesh* mesh = getMeshByUuid(uuid))
-				mesh->setSceneRenderTransform(world);
+			{
+				if (needsRuntimeNodeTransforms)
+					mesh->setSceneRenderTransform(world);
+				runtime.defaultMeshMaterials.insert(uuid, mesh->getMaterial());
+				if (mesh->getOriginalMaterialIndex() >= 0)
+					runtime.meshUuidsByMaterialIndex.insert(mesh->getOriginalMaterialIndex(), uuid);
+			}
 		}
 
 		for (SceneNode* child : node->children)
@@ -6643,6 +6827,29 @@ void GLWidget::setAnimationLooping(bool looping)
 	emit animationStateChanged();
 }
 
+void GLWidget::refreshAnimationMaterialState(const QString& sourceFile)
+{
+	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
+	if (runtime.data.sourceFile.isEmpty())
+		runtime.data = _viewer && _viewer->sceneGraph()
+			? _viewer->sceneGraph()->animationDataForFile(sourceFile)
+			: GltfAnimationData();
+
+	runtime.defaultMeshMaterials.clear();
+
+	const std::vector<TriangleMesh*>& meshes = getMeshStore();
+	for (TriangleMesh* mesh : meshes)
+	{
+		if (!mesh || mesh->getSourceFile() != sourceFile)
+			continue;
+
+		runtime.defaultMeshMaterials.insert(mesh->uuid(), mesh->getMaterial());
+	}
+
+	if (_activeAnimationFile == sourceFile && _activeAnimationClip >= 0)
+		applyAnimationPose(sourceFile, _activeAnimationClip, _animationCurrentTimeSeconds);
+}
+
 void GLWidget::onAnimationTick()
 {
 	if (!_animationPlaying || _activeAnimationFile.isEmpty() || _activeAnimationClip < 0)
@@ -6685,31 +6892,44 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 	if (!fileNode)
 		return;
 
-	std::function<void(SceneNode*, const QMatrix4x4&)> applyNode =
-		[&](SceneNode* node, const QMatrix4x4& parentWorld)
+	const RuntimeAnimationFileState runtime = _runtimeAnimationsByFile.value(sourceFile);
+	const bool needsRuntimeNodeTransforms =
+		runtime.data.hasNodeAnimations || runtime.data.hasSkinning;
+
+	if (needsRuntimeNodeTransforms)
 	{
-		if (!node)
-			return;
-
-		const QMatrix4x4 local = aiToQMatrix(node->localTransform);
-		const QMatrix4x4 world = parentWorld * local;
-		for (const QUuid& uuid : node->meshUuids)
+		std::function<void(SceneNode*, const QMatrix4x4&)> applyNode =
+			[&](SceneNode* node, const QMatrix4x4& parentWorld)
 		{
-			if (TriangleMesh* mesh = getMeshByUuid(uuid))
+			if (!node)
+				return;
+
+			const QMatrix4x4 local = aiToQMatrix(node->localTransform);
+			const QMatrix4x4 world = parentWorld * local;
+			for (const QUuid& uuid : node->meshUuids)
 			{
-				if (!mesh->hasSkinning())
-					mesh->setSceneRenderTransformFast(world);
-				else
-					mesh->setJointPalette({});
+				if (TriangleMesh* mesh = getMeshByUuid(uuid))
+				{
+					if (!mesh->hasSkinning())
+						mesh->setSceneRenderTransformFast(world);
+					else
+						mesh->setJointPalette({});
+				}
 			}
-		}
 
-		for (SceneNode* child : node->children)
-			applyNode(child, world);
-	};
+			for (SceneNode* child : node->children)
+				applyNode(child, world);
+		};
 
-	for (SceneNode* child : fileNode->children)
-		applyNode(child, QMatrix4x4());
+		for (SceneNode* child : fileNode->children)
+			applyNode(child, QMatrix4x4());
+	}
+
+	for (auto it = runtime.defaultMeshMaterials.constBegin(); it != runtime.defaultMeshMaterials.constEnd(); ++it)
+	{
+		if (TriangleMesh* mesh = getMeshByUuid(it.key()))
+			mesh->setMaterial(it.value());
+	}
 
 	update();
 }
@@ -6722,6 +6942,10 @@ void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
 
 	SceneNode* fileNode = _viewer->sceneGraph()->findFileNode(sourceFile);
 	if (!fileNode)
+		return;
+
+	const RuntimeAnimationFileState runtime = _runtimeAnimationsByFile.value(sourceFile);
+	if (!runtime.data.hasNodeAnimations && !runtime.data.hasSkinning)
 		return;
 
 	QHash<QString, QMatrix4x4> nodeWorlds = worldTransforms;
@@ -6783,9 +7007,37 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		return;
 
 	QHash<QString, RuntimeNodeTransform> sampled = runtime.defaultNodeTransforms;
+	QHash<QUuid, GLMaterial> animatedMaterials = runtime.defaultMeshMaterials;
 	const GltfAnimationClip& clip = runtime.data.clips[clipIndex];
 	for (const GltfAnimationChannel& channel : clip.channels)
 	{
+		if (channel.targetPath == GltfAnimationTargetPath::Pointer)
+		{
+			if (channel.targetMaterialIndex < 0)
+				continue;
+
+			const QList<QUuid> affectedMeshes = runtime.meshUuidsByMaterialIndex.values(channel.targetMaterialIndex);
+			for (const QUuid& meshUuid : affectedMeshes)
+			{
+				auto materialIt = animatedMaterials.find(meshUuid);
+				if (materialIt == animatedMaterials.end())
+					continue;
+
+				const QVector2D vec2Value = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
+					? QVector2D()
+					: sampleVec2Keys(channel.vec2Keys, timeSeconds, QVector2D());
+				const float scalarValue = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
+					? sampleFloatKeys(channel.floatKeys, timeSeconds, 0.0f)
+					: 0.0f;
+				applyTexturePointerValue(materialIt.value(),
+					channel.textureTarget,
+					channel.pointerProperty,
+					vec2Value,
+					scalarValue);
+			}
+			continue;
+		}
+
 		RuntimeNodeTransform node = sampled.value(channel.targetNodeName);
 		switch (channel.targetPath)
 		{
@@ -6802,27 +7054,35 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		sampled.insert(channel.targetNodeName, node);
 	}
 
-	QHash<QString, QMatrix4x4> worldTransforms;
-	std::function<void(SceneNode*, const QMatrix4x4&)> evalNode =
-		[&](SceneNode* node, const QMatrix4x4& parentWorld)
+	if (runtime.data.hasNodeAnimations || runtime.data.hasSkinning)
 	{
-		if (!node)
-			return;
+		QHash<QString, QMatrix4x4> worldTransforms;
+		std::function<void(SceneNode*, const QMatrix4x4&)> evalNode =
+			[&](SceneNode* node, const QMatrix4x4& parentWorld)
+		{
+			if (!node)
+				return;
 
-		const RuntimeNodeTransform nodeTransform =
-			sampled.value(node->name, decomposeNodeTransform(node->localTransform));
-		const QMatrix4x4 local = composeNodeTransform(nodeTransform);
-		const QMatrix4x4 world = parentWorld * local;
-		worldTransforms.insert(node->name, world);
+			const RuntimeNodeTransform nodeTransform =
+				sampled.value(node->name, decomposeNodeTransform(node->localTransform));
+			const QMatrix4x4 local = composeNodeTransform(nodeTransform);
+			const QMatrix4x4 world = parentWorld * local;
+			worldTransforms.insert(node->name, world);
 
-		for (SceneNode* child : node->children)
-			evalNode(child, world);
-	};
+			for (SceneNode* child : node->children)
+				evalNode(child, world);
+		};
 
-	for (SceneNode* child : fileNode->children)
-		evalNode(child, QMatrix4x4());
+		for (SceneNode* child : fileNode->children)
+			evalNode(child, QMatrix4x4());
 
-	updateAnimatedMeshState(sourceFile, worldTransforms);
+		updateAnimatedMeshState(sourceFile, worldTransforms);
+	}
+	for (auto it = animatedMaterials.constBegin(); it != animatedMaterials.constEnd(); ++it)
+	{
+		if (TriangleMesh* mesh = getMeshByUuid(it.key()))
+			mesh->setMaterial(it.value());
+	}
 	update();
 }
 
@@ -7194,78 +7454,87 @@ GLMaterial GLWidget::resolveMaterialTextures(GLWidget* w, const GLMaterial& src)
 		qDebug() << "  Loading as standard texture";
 		return w->getOrLoadTextureCached(path, samplers);
 	};
+	auto resolveTexturePathOrKeepId = [&](const QString& path,
+		const std::string& mapType,
+		const TextureSamplerSettings& samplers,
+		int currentId) -> unsigned int
+	{
+		if (path.isEmpty())
+			return static_cast<unsigned int>(std::max(0, currentId));
+		return resolveTexturePath(path, mapType, samplers);
+	};
 
 	if (m.hasAlbedoMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Albedo);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setAlbedoTextureId(resolveTexturePath(m.albedoMapPath(), "albedoMap", samplers));
+		m.setAlbedoTextureId(resolveTexturePathOrKeepId(m.albedoMapPath(), "albedoMap", samplers, m.albedoTextureId()));
 	}
 	if (m.hasMetallicMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Metallic);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setMetallicTextureId(resolveTexturePath(m.metallicMapPath(), "metallicMap", samplers));
+		m.setMetallicTextureId(resolveTexturePathOrKeepId(m.metallicMapPath(), "metallicMap", samplers, m.metallicTextureId()));
 	}
 	if (m.hasRoughnessMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Roughness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setRoughnessTextureId(resolveTexturePath(m.roughnessMapPath(), "roughnessMap", samplers));
+		m.setRoughnessTextureId(resolveTexturePathOrKeepId(m.roughnessMapPath(), "roughnessMap", samplers, m.roughnessTextureId()));
 	}
 	if (m.hasNormalMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Normal);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setNormalTextureId(resolveTexturePath(m.normalMapPath(), "normalMap", samplers));
+		m.setNormalTextureId(resolveTexturePathOrKeepId(m.normalMapPath(), "normalMap", samplers, m.normalTextureId()));
 	}
 	if (m.hasAOMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::AmbientOcclusion);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setOcclusionTextureId(resolveTexturePath(m.aoMapPath(), "aoMap", samplers));
+		m.setOcclusionTextureId(resolveTexturePathOrKeepId(m.aoMapPath(), "aoMap", samplers, m.occlusionTextureId()));
 	}
 	if (m.hasOpacityMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Opacity);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setOpacityTextureId(resolveTexturePath(m.opacityMapPath(), "opacityMap", samplers));
+		m.setOpacityTextureId(resolveTexturePathOrKeepId(m.opacityMapPath(), "opacityMap", samplers, m.opacityTextureId()));
 	}
 	if (m.hasHeightMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Height);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setHeightTextureId(resolveTexturePath(m.heightMapPath(), "heightMap", samplers));
+		m.setHeightTextureId(resolveTexturePathOrKeepId(m.heightMapPath(), "heightMap", samplers, m.heightTextureId()));
 	}
 	if (m.hasEmissiveMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Emissive);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setEmissiveTextureId(resolveTexturePath(m.emissiveMapPath(), "emissiveMap", samplers));
+		m.setEmissiveTextureId(resolveTexturePathOrKeepId(m.emissiveMapPath(), "emissiveMap", samplers, m.emissiveTextureId()));
 	}
 	if (m.hasTransmissionMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::Transmission);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setTransmissionTextureId(resolveTexturePath(m.transmissionMapPath(), "transmissionMap", samplers));
+		m.setTransmissionTextureId(resolveTexturePathOrKeepId(m.transmissionMapPath(), "transmissionMap", samplers, m.transmissionTextureId()));
 	}
 	if (m.hasIORMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::IOR);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setIORTextureId(resolveTexturePath(m.iorMapPath(), "iorMap", samplers));
+		m.setIORTextureId(resolveTexturePathOrKeepId(m.iorMapPath(), "iorMap", samplers, m.iorTextureId()));
 	}
 	if (m.hasSheenColorMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SheenColor);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setSheenColorTextureId(resolveTexturePath(m.sheenColorMapPath(), "sheenColorMap", samplers));
+		m.setSheenColorTextureId(resolveTexturePathOrKeepId(m.sheenColorMapPath(), "sheenColorMap", samplers, m.sheenColorTextureId()));
 	}
 	if (m.hasSheenRoughnessMap())
 	{
 		const GLMaterial::Texture& tex = m.texture(GLMaterial::TextureType::SheenRoughness);
 		TextureSamplerSettings samplers{ tex.wrapS, tex.wrapT, tex.minFilter, tex.magFilter };
-		m.setSheenRoughnessTextureId(resolveTexturePath(m.sheenRoughnessMapPath(), "sheenRoughnessMap", samplers));
+		m.setSheenRoughnessTextureId(resolveTexturePathOrKeepId(m.sheenRoughnessMapPath(), "sheenRoughnessMap", samplers, m.sheenRoughnessTextureId()));
 	}
 	if (m.hasClearcoatColorMap())
 	{

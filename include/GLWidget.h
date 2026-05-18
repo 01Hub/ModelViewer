@@ -14,6 +14,7 @@
 #include <QEventLoop>
 #include <QFormLayout>
 #include <QImage>
+#include <QMultiHash>
 #include <QOpenGLFunctions_4_5_Core>
 #include <QOpenGLWidget>
 #include <QPointer>
@@ -225,6 +226,7 @@ public:
 	void setAnimationPlaying(bool playing);
 	void seekAnimation(double timeSeconds);
 	void setAnimationLooping(bool looping);
+	void refreshAnimationMaterialState(const QString& sourceFile);
 	QString activeAnimationFile() const { return _activeAnimationFile; }
 	int activeAnimationClip() const { return _activeAnimationClip; }
 	double currentAnimationTimeSeconds() const { return _animationCurrentTimeSeconds; }
@@ -425,6 +427,8 @@ public:
 	{
 		GltfAnimationData data;
 		QHash<QString, RuntimeNodeTransform> defaultNodeTransforms;
+		QHash<QUuid, GLMaterial> defaultMeshMaterials;
+		QMultiHash<int, QUuid> meshUuidsByMaterialIndex;
 	};
 
 signals:

@@ -12,8 +12,15 @@
 #include "Utils.h"
 #include "UVGenerator.h"
 #include <QApplication>
+#include <QByteArray>
+#include <QDir>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMessageBox>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QCheckBox>
 #include <QLayout>
 #include <Quantity_ColorRGBA.hxx>
@@ -60,6 +67,181 @@ void assignFallbackTangentBasis(Vertex& vertex)
 
 	vertex.Tangent = computeFallbackTangent(safeNormal);
 	vertex.Bitangent = glm::normalize(glm::cross(safeNormal, vertex.Tangent));
+}
+
+bool loadAnimationJsonAndBuffer(const QString& gltfPath, QJsonDocument& doc, QByteArray& bufferData)
+{
+	const bool isGlb = gltfPath.endsWith(".glb", Qt::CaseInsensitive);
+	if (isGlb)
+	{
+		std::vector<uint8_t> glbBinaryBuffer;
+		const QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer);
+		if (jsonString.isEmpty())
+			return false;
+
+		doc = QJsonDocument::fromJson(jsonString.toUtf8());
+		if (!doc.isObject())
+			return false;
+
+		bufferData = QByteArray(reinterpret_cast<const char*>(glbBinaryBuffer.data()),
+			static_cast<int>(glbBinaryBuffer.size()));
+		return true;
+	}
+
+	QFile file(gltfPath);
+	if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+		return false;
+
+	doc = QJsonDocument::fromJson(file.readAll());
+	file.close();
+	if (!doc.isObject())
+		return false;
+
+	const QJsonArray buffers = doc.object().value("buffers").toArray();
+	if (buffers.isEmpty())
+		return true;
+
+	const QString uri = buffers.first().toObject().value("uri").toString();
+	if (uri.isEmpty() || uri.startsWith("data:", Qt::CaseInsensitive))
+		return false;
+
+	QFile bufferFile(QFileInfo(gltfPath).dir().filePath(uri));
+	if (!bufferFile.open(QIODevice::ReadOnly))
+		return false;
+	bufferData = bufferFile.readAll();
+	return true;
+}
+
+bool readFloatAccessorData(const QJsonArray& accessors,
+	const QJsonArray& bufferViews,
+	const QByteArray& bufferData,
+	int accessorIndex,
+	int expectedComponents,
+	QVector<float>& outValues,
+	int* outElementCount = nullptr)
+{
+	if (accessorIndex < 0 || accessorIndex >= accessors.size())
+		return false;
+
+	const QJsonObject accessor = accessors.at(accessorIndex).toObject();
+	if (accessor.value("componentType").toInt() != 5126 || accessor.contains("sparse"))
+		return false;
+
+	const QString type = accessor.value("type").toString();
+	int components = 0;
+	if (type == "SCALAR") components = 1;
+	else if (type == "VEC2") components = 2;
+	else if (type == "VEC3") components = 3;
+	else if (type == "VEC4") components = 4;
+	else return false;
+
+	if (expectedComponents > 0 && components != expectedComponents)
+		return false;
+
+	const int bufferViewIndex = accessor.value("bufferView").toInt(-1);
+	if (bufferViewIndex < 0 || bufferViewIndex >= bufferViews.size())
+		return false;
+
+	const QJsonObject bufferView = bufferViews.at(bufferViewIndex).toObject();
+	const int count = accessor.value("count").toInt(0);
+	const int accessorByteOffset = accessor.value("byteOffset").toInt(0);
+	const int bufferViewByteOffset = bufferView.value("byteOffset").toInt(0);
+	const int byteStride = bufferView.value("byteStride").toInt(components * static_cast<int>(sizeof(float)));
+	const int baseOffset = bufferViewByteOffset + accessorByteOffset;
+
+	if (count <= 0 || byteStride < components * static_cast<int>(sizeof(float)))
+		return false;
+
+	outValues.resize(count * components);
+	for (int elementIndex = 0; elementIndex < count; ++elementIndex)
+	{
+		const int offset = baseOffset + elementIndex * byteStride;
+		const int requiredBytes = offset + components * static_cast<int>(sizeof(float));
+		if (requiredBytes > bufferData.size())
+			return false;
+
+		const float* src = reinterpret_cast<const float*>(bufferData.constData() + offset);
+		for (int componentIndex = 0; componentIndex < components; ++componentIndex)
+			outValues[elementIndex * components + componentIndex] = src[componentIndex];
+	}
+
+	if (outElementCount)
+		*outElementCount = count;
+	return true;
+}
+
+bool decodeAnimationPointerTarget(const QString& pointer,
+	int& materialIndex,
+	GltfAnimationTextureTarget& textureTarget,
+	GltfAnimationPointerProperty& pointerProperty)
+{
+	static const QRegularExpression propertyRegex(
+		QStringLiteral("^/materials/(\\d+)/(.*)/extensions/KHR_texture_transform/(offset|scale|rotation)$"));
+	const QRegularExpressionMatch match = propertyRegex.match(pointer);
+	if (!match.hasMatch())
+		return false;
+
+	materialIndex = match.captured(1).toInt();
+	const QString texturePath = match.captured(2);
+	const QString property = match.captured(3);
+
+	if (property == "offset")
+		pointerProperty = GltfAnimationPointerProperty::Offset;
+	else if (property == "scale")
+		pointerProperty = GltfAnimationPointerProperty::Scale;
+	else if (property == "rotation")
+		pointerProperty = GltfAnimationPointerProperty::Rotation;
+	else
+		return false;
+
+	if (texturePath == "pbrMetallicRoughness/baseColorTexture")
+		textureTarget = GltfAnimationTextureTarget::Albedo;
+	else if (texturePath == "pbrMetallicRoughness/metallicRoughnessTexture")
+		textureTarget = GltfAnimationTextureTarget::MetallicRoughness;
+	else if (texturePath == "normalTexture")
+		textureTarget = GltfAnimationTextureTarget::Normal;
+	else if (texturePath == "occlusionTexture")
+		textureTarget = GltfAnimationTextureTarget::Occlusion;
+	else if (texturePath == "emissiveTexture")
+		textureTarget = GltfAnimationTextureTarget::Emissive;
+	else if (texturePath == "extensions/KHR_materials_transmission/transmissionTexture")
+		textureTarget = GltfAnimationTextureTarget::Transmission;
+	else if (texturePath == "extensions/KHR_materials_volume/thicknessTexture")
+		textureTarget = GltfAnimationTextureTarget::Thickness;
+	else if (texturePath == "extensions/KHR_materials_volume/attenuationTexture")
+		textureTarget = GltfAnimationTextureTarget::Thickness;
+	else if (texturePath == "extensions/KHR_materials_sheen/sheenColorTexture")
+		textureTarget = GltfAnimationTextureTarget::SheenColor;
+	else if (texturePath == "extensions/KHR_materials_sheen/sheenRoughnessTexture")
+		textureTarget = GltfAnimationTextureTarget::SheenRoughness;
+	else if (texturePath == "extensions/KHR_materials_clearcoat/clearcoatTexture")
+		textureTarget = GltfAnimationTextureTarget::Clearcoat;
+	else if (texturePath == "extensions/KHR_materials_clearcoat/clearcoatRoughnessTexture")
+		textureTarget = GltfAnimationTextureTarget::ClearcoatRoughness;
+	else if (texturePath == "extensions/KHR_materials_clearcoat/clearcoatNormalTexture")
+		textureTarget = GltfAnimationTextureTarget::ClearcoatNormal;
+	else if (texturePath == "extensions/KHR_materials_iridescence/iridescenceTexture")
+		textureTarget = GltfAnimationTextureTarget::Iridescence;
+	else if (texturePath == "extensions/KHR_materials_iridescence/iridescenceThicknessTexture")
+		textureTarget = GltfAnimationTextureTarget::IridescenceThickness;
+	else if (texturePath == "extensions/KHR_materials_specular/specularTexture")
+		textureTarget = GltfAnimationTextureTarget::SpecularFactor;
+	else if (texturePath == "extensions/KHR_materials_specular/specularColorTexture")
+		textureTarget = GltfAnimationTextureTarget::SpecularColor;
+	else if (texturePath == "extensions/KHR_materials_anisotropy/anisotropyTexture")
+		textureTarget = GltfAnimationTextureTarget::Anisotropy;
+	else if (texturePath == "extensions/KHR_materials_diffuse_transmission/diffuseTransmissionTexture")
+		textureTarget = GltfAnimationTextureTarget::DiffuseTransmission;
+	else if (texturePath == "extensions/KHR_materials_diffuse_transmission/diffuseTransmissionColorTexture")
+		textureTarget = GltfAnimationTextureTarget::DiffuseTransmissionColor;
+	else if (texturePath == "extensions/KHR_materials_pbrSpecularGlossiness/diffuseTexture")
+		textureTarget = GltfAnimationTextureTarget::Diffuse;
+	else if (texturePath == "extensions/KHR_materials_pbrSpecularGlossiness/specularGlossinessTexture")
+		textureTarget = GltfAnimationTextureTarget::SpecularGlossiness;
+	else
+		textureTarget = GltfAnimationTextureTarget::Unknown;
+
+	return textureTarget != GltfAnimationTextureTarget::Unknown;
 }
 }
 
@@ -230,7 +412,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		_animationData = GltfAnimationData();
 		parseSceneAnimations();
 		_preserveNodeTransformsForRuntime =
-			(!_animationData.isEmpty() || _animationData.hasSkinning);
+			(_animationData.hasNodeAnimations || _animationData.hasSkinning);
 	}
 	else
 	{
@@ -1877,9 +2059,6 @@ void AssImpModelLoader::parseSceneAnimations()
 		}
 	}
 
-	if (_scene->mNumAnimations == 0)
-		return;
-
 	for (unsigned int animIndex = 0; animIndex < _scene->mNumAnimations; ++animIndex)
 	{
 		const aiAnimation* animation = _scene->mAnimations[animIndex];
@@ -1959,8 +2138,159 @@ void AssImpModelLoader::parseSceneAnimations()
 			}
 		}
 
-		_animationData.hasNodeAnimations |= clip.hasNodeTransforms;
 		_animationData.clips.append(clip);
+	}
+
+	QJsonDocument doc;
+	QByteArray bufferData;
+	if (!loadAnimationJsonAndBuffer(QString::fromStdString(_path), doc, bufferData) || !doc.isObject())
+		return;
+
+	const QJsonObject root = doc.object();
+	const QJsonArray animations = root.value("animations").toArray();
+	const QJsonArray accessors = root.value("accessors").toArray();
+	const QJsonArray bufferViews = root.value("bufferViews").toArray();
+
+	for (int animIndex = 0; animIndex < animations.size(); ++animIndex)
+	{
+		const QJsonObject animationObj = animations.at(animIndex).toObject();
+		if (_animationData.clips.size() <= animIndex)
+		{
+			GltfAnimationClip clip;
+			clip.name = animationObj.value("name").toString();
+			if (clip.name.isEmpty())
+				clip.name = QStringLiteral("Animation %1").arg(animIndex + 1);
+			clip.hasSkinning = _animationData.hasSkinning;
+			_animationData.clips.append(clip);
+		}
+
+		GltfAnimationClip& clip = _animationData.clips[animIndex];
+		const QJsonArray samplers = animationObj.value("samplers").toArray();
+		const QJsonArray channels = animationObj.value("channels").toArray();
+		bool jsonHasPointerTargets = false;
+		bool jsonHasNodeTransformTargets = false;
+
+		for (const QJsonValue& channelValue : channels)
+		{
+			const QJsonObject targetObj = channelValue.toObject().value("target").toObject();
+			const QString path = targetObj.value("path").toString();
+			if (path == "pointer")
+			{
+				jsonHasPointerTargets = true;
+			}
+			else if (path == "translation" || path == "rotation" || path == "scale")
+			{
+				jsonHasNodeTransformTargets = true;
+			}
+		}
+
+		if (jsonHasPointerTargets && !jsonHasNodeTransformTargets)
+		{
+			QVector<GltfAnimationChannel> pointerOnlyChannels;
+			pointerOnlyChannels.reserve(clip.channels.size());
+			for (const GltfAnimationChannel& channel : std::as_const(clip.channels))
+			{
+				if (channel.targetPath == GltfAnimationTargetPath::Pointer)
+					pointerOnlyChannels.append(channel);
+			}
+			clip.channels = pointerOnlyChannels;
+			clip.hasNodeTransforms = false;
+		}
+
+		for (const QJsonValue& channelValue : channels)
+		{
+			const QJsonObject channelObj = channelValue.toObject();
+			const QJsonObject targetObj = channelObj.value("target").toObject();
+			if (targetObj.value("path").toString() != "pointer")
+				continue;
+
+			const int samplerIndex = channelObj.value("sampler").toInt(-1);
+			if (samplerIndex < 0 || samplerIndex >= samplers.size())
+				continue;
+
+			const QString pointer = targetObj.value("extensions").toObject()
+				.value("KHR_animation_pointer").toObject()
+				.value("pointer").toString();
+			if (pointer.isEmpty())
+				continue;
+
+			int materialIndex = -1;
+			GltfAnimationTextureTarget textureTarget = GltfAnimationTextureTarget::Unknown;
+			GltfAnimationPointerProperty pointerProperty = GltfAnimationPointerProperty::None;
+			if (!decodeAnimationPointerTarget(pointer, materialIndex, textureTarget, pointerProperty))
+				continue;
+
+			const QJsonObject samplerObj = samplers.at(samplerIndex).toObject();
+			const int inputAccessorIndex = samplerObj.value("input").toInt(-1);
+			const int outputAccessorIndex = samplerObj.value("output").toInt(-1);
+			if (inputAccessorIndex < 0 || outputAccessorIndex < 0)
+				continue;
+
+			QVector<float> inputTimes;
+			int keyCount = 0;
+			if (!readFloatAccessorData(accessors, bufferViews, bufferData, inputAccessorIndex, 1, inputTimes, &keyCount) || keyCount <= 0)
+				continue;
+
+			GltfAnimationChannel pointerChannel;
+			pointerChannel.targetPath = GltfAnimationTargetPath::Pointer;
+			pointerChannel.targetPointer = pointer;
+			pointerChannel.targetMaterialIndex = materialIndex;
+			pointerChannel.textureTarget = textureTarget;
+			pointerChannel.pointerProperty = pointerProperty;
+
+			if (pointerProperty == GltfAnimationPointerProperty::Rotation)
+			{
+				QVector<float> outputValues;
+				int outputCount = 0;
+				if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 1, outputValues, &outputCount) ||
+					outputCount != keyCount)
+				{
+					continue;
+				}
+
+				pointerChannel.floatKeys.reserve(keyCount);
+				for (int keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+				{
+					pointerChannel.floatKeys.append({
+						inputTimes[keyIndex],
+						outputValues[keyIndex]
+					});
+				}
+			}
+			else
+			{
+				QVector<float> outputValues;
+				int outputCount = 0;
+				if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 2, outputValues, &outputCount) ||
+					outputCount != keyCount)
+				{
+					continue;
+				}
+
+				pointerChannel.vec2Keys.reserve(keyCount);
+				for (int keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+				{
+					pointerChannel.vec2Keys.append({
+						inputTimes[keyIndex],
+						QVector2D(outputValues[keyIndex * 2], outputValues[keyIndex * 2 + 1])
+					});
+				}
+			}
+
+			if (!inputTimes.isEmpty())
+				clip.durationSeconds = std::max(clip.durationSeconds, static_cast<double>(inputTimes.back()));
+			clip.hasPointerAnimations = true;
+			clip.channels.append(pointerChannel);
+		}
+
+	}
+
+	_animationData.hasNodeAnimations = false;
+	_animationData.hasPointerAnimations = false;
+	for (const GltfAnimationClip& clip : std::as_const(_animationData.clips))
+	{
+		_animationData.hasNodeAnimations |= clip.hasNodeTransforms;
+		_animationData.hasPointerAnimations |= clip.hasPointerAnimations;
 	}
 }
 

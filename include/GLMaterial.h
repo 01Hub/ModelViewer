@@ -759,7 +759,7 @@ public:
 		assignAutoPackingForPath(path);
 	}
 	void clearAOMap() { _aoMapPath.clear(); }
-	bool hasAOMap() const { return !aoMapPath().isEmpty(); }
+	bool hasAOMap() const { return !aoMapPath().isEmpty() || _occlusionTextureId != 0; }
 
 	QString opacityMapPath() const { return _opacityMapPath; }
 	void setOpacityMap(const QString& path)
