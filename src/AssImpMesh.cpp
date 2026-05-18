@@ -59,6 +59,15 @@ void AssImpMesh::render()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
+	const QVariant globalModelVar = _prog->property("globalModelMatrix");
+	const QMatrix4x4 globalModelMatrix = globalModelVar.isValid()
+		? globalModelVar.value<QMatrix4x4>()
+		: QMatrix4x4();
+	const QMatrix4x4 modelMatrix = globalModelMatrix * combinedRenderTransform();
+	const QVariant viewVar = _prog->property("viewMatrix");
+	const QMatrix4x4 viewMatrix = viewVar.isValid() ? viewVar.value<QMatrix4x4>() : QMatrix4x4();
+	const QMatrix4x4 modelViewMatrix = viewMatrix * modelMatrix;
+
 	// Smart shader binding - only bind if different
 	bool shaderChanged = false;
 	if (_currentBoundShader != _prog)
@@ -77,6 +86,27 @@ void AssImpMesh::render()
 	}
 
 	cacheTextureBindings();
+
+	if (_prog->uniformLocation("modelMatrix") >= 0)
+		_prog->setUniformValue("modelMatrix", modelMatrix);
+	if (_prog->uniformLocation("modelViewMatrix") >= 0)
+		_prog->setUniformValue("modelViewMatrix", modelViewMatrix);
+	if (_prog->uniformLocation("normalMatrix") >= 0)
+		_prog->setUniformValue("normalMatrix", modelViewMatrix.normalMatrix());
+	if (_prog->uniformLocation("hasSkinning") >= 0)
+		_prog->setUniformValue("hasSkinning", hasSkinning());
+	if (_prog->uniformLocation("jointCount") >= 0)
+		_prog->setUniformValue("jointCount", static_cast<int>(jointPalette().size()));
+	if (hasSkinning() && !jointPalette().isEmpty())
+	{
+		const int maxJoints = std::min(static_cast<int>(jointPalette().size()), 128);
+		for (int i = 0; i < maxJoints; ++i)
+		{
+			const QString uniformName = QStringLiteral("jointMatrices[%1]").arg(i);
+			if (_prog->uniformLocation(uniformName.toUtf8().constData()) >= 0)
+				_prog->setUniformValue(uniformName.toUtf8().constData(), jointPalette()[i]);
+		}
+	}
 
 	if (/*shaderChanged ||*/ _uniformsDirty)
 	{
