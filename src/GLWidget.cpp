@@ -2217,7 +2217,7 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 		{
 			try
 			{
-				const BoundingSphere ms = _meshStore.at(i)->getBoundingSphere();
+				BoundingSphere ms = _meshStore.at(i)->getBoundingSphere();
 				const float d = (ms.getCenter() - boxCenter).length() + ms.getRadius();
 				if (d > bsRadius) bsRadius = d;
 			}
@@ -2946,13 +2946,17 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 				{
 					_viewer->sceneGraph()->setAnimationData(fileName, ad);
 					_runtimeAnimationsByFile.remove(fileName);
+					if (_activeAnimationFile == fileName)
+					{
+						_animationTimer->stop();
+						_animationPlaying = false;
+						_activeAnimationFile.clear();
+						_activeAnimationClip = -1;
+						_animationCurrentTimeSeconds = 0.0;
+					}
 					syncFileNodeTransforms(fileName);
 					if (!ad.clips.isEmpty())
 						setActiveAnimation(fileName, 0);
-				}
-				else
-				{
-					syncFileNodeTransforms(fileName);
 				}
 			}
 			_pendingSceneUuids.clear();
@@ -5212,6 +5216,7 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 	prog->setUniformValue("lightPos",
 		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	prog->setUniformValue("modelMatrix", _modelMatrix);
+	prog->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
 	prog->setUniformValue("viewMatrix", _viewMatrix);
 	prog->setProperty("viewMatrix", QVariant::fromValue(_viewMatrix));
 	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
@@ -5915,6 +5920,7 @@ void GLWidget::renderToShadowBuffer()
 	_shadowMappingShader->bind();
 	_shadowMappingShader->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
 	_shadowMappingShader->setUniformValue("model", _modelMatrix);
+	_shadowMappingShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
 
 	if (_meshStore.size() != 0)
 	{
@@ -6007,6 +6013,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 	glDisable(GL_BLEND);
 	_selectionShader->bind();
 	_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
+	_selectionShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
 	_selectionShader->setUniformValue("viewMatrix", _viewMatrix);
 
 	// Render ALL visible objects to FBO (not just ray-hit ones)
@@ -6688,7 +6695,7 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 			if (TriangleMesh* mesh = getMeshByUuid(uuid))
 			{
 				if (!mesh->hasSkinning())
-					mesh->setSceneRenderTransform(world);
+					mesh->setSceneRenderTransformFast(world);
 				else
 					mesh->setJointPalette({});
 			}
@@ -6727,7 +6734,7 @@ void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
 			{
 				if (!mesh->hasSkinning())
 				{
-					mesh->setSceneRenderTransform(world);
+					mesh->setSceneRenderTransformFast(world);
 				}
 				else
 				{
@@ -6740,7 +6747,7 @@ void GLWidget::updateAnimatedMeshState(const QString& sourceFile,
 						palette.append(meshWorldInverse * jointWorld * aiToQMatrix(joint.inverseBindMatrix));
 					}
 					mesh->setJointPalette(palette);
-					mesh->setSceneRenderTransform(world);
+					mesh->setSceneRenderTransformFast(world);
 				}
 			}
 		}

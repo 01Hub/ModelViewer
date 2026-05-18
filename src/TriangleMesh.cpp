@@ -1302,7 +1302,11 @@ void TriangleMesh::render()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
-	const QMatrix4x4 modelMatrix = combinedRenderTransform();
+	const QVariant globalModelVar = _prog->property("globalModelMatrix");
+	const QMatrix4x4 globalModelMatrix = globalModelVar.isValid()
+		? globalModelVar.value<QMatrix4x4>()
+		: QMatrix4x4();
+	const QMatrix4x4 modelMatrix = globalModelMatrix * combinedRenderTransform();
 	const QVariant viewVar = _prog->property("viewMatrix");
 	const QMatrix4x4 viewMatrix = viewVar.isValid() ? viewVar.value<QMatrix4x4>() : QMatrix4x4();
 	const QMatrix4x4 modelViewMatrix = viewMatrix * modelMatrix;
@@ -1374,8 +1378,12 @@ void TriangleMesh::renderShadow()
 	if (!_vertexArrayObject.isCreated())
 		return;
 
+	const QVariant globalModelVar = _prog->property("globalModelMatrix");
+	const QMatrix4x4 globalModelMatrix = globalModelVar.isValid()
+		? globalModelVar.value<QMatrix4x4>()
+		: QMatrix4x4();
 	if (_prog->uniformLocation("model") >= 0)
-		_prog->setUniformValue("model", combinedRenderTransform());
+		_prog->setUniformValue("model", globalModelMatrix * combinedRenderTransform());
 	if (_prog->uniformLocation("hasSkinning") >= 0)
 		_prog->setUniformValue("hasSkinning", hasSkinning());
 	if (_prog->uniformLocation("jointCount") >= 0)
@@ -1716,6 +1724,11 @@ void TriangleMesh::setSceneRenderTransform(const QMatrix4x4& trsf)
 {
 	_sceneRenderTransform = trsf;
 	updateRuntimeBounds();
+}
+
+void TriangleMesh::setSceneRenderTransformFast(const QMatrix4x4& trsf)
+{
+	_sceneRenderTransform = trsf;
 }
 
 void TriangleMesh::setupTransformation()

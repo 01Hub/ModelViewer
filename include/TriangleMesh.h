@@ -142,6 +142,7 @@ public:
 	void    setSourceFile(const QString& path) { _sourceFile = path; }
 	QString getSourceFile() const              { return _sourceFile; }
 	void    setSceneRenderTransform(const QMatrix4x4& trsf);
+	void    setSceneRenderTransformFast(const QMatrix4x4& trsf);
 
 	// -----------------------------------------------------------------------
 	// KHR_materials_variants support

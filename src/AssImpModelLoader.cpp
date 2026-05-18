@@ -1289,12 +1289,8 @@ void AssImpModelLoader::applyCoordinateSystemTransformations(const std::string& 
 		_appliedTransform = glm::mat4(1.0f);
 		std::string extension = path.substr(path.find_last_of("."));
 		std::transform(extension.begin(), extension.end(), extension.begin(), ::tolower);
-		const bool isAnimatedGltfRuntimePath =
-			_preserveNodeTransformsForRuntime &&
-			(extension == ".gltf" || extension == ".glb");
-
 		// Apply only coordinate system conversion
-		if (_autoOrient && !isAnimatedGltfRuntimePath)
+		if (_autoOrient)
 		{
 			glm::mat4 coordTransform = getCoordinateSystemTransform(_scene, path);
 			_appliedTransform = coordTransform;
@@ -1865,7 +1861,11 @@ void AssImpModelLoader::parseSceneAnimations()
 
 	_animationData.sourceFile = QString::fromStdString(_path);
 	if (_scene->mRootNode)
-		_animationData.rootInverseTransform = _scene->mRootNode->mTransformation.Inverse();
+	{
+		aiMatrix4x4 rootInverse = _scene->mRootNode->mTransformation;
+		rootInverse.Inverse();
+		_animationData.rootInverseTransform = rootInverse;
+	}
 
 	for (unsigned int meshIndex = 0; meshIndex < _scene->mNumMeshes; ++meshIndex)
 	{
