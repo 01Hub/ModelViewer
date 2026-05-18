@@ -4778,6 +4778,9 @@ void GLWidget::drawSkyBox()
 	QMatrix4x4 model;
 	if(!_skyBoxBlurred) 
 		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
+	_skyBox->setSceneRenderTransformFast(model);
+	_skyBoxShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+	_skyBoxShader->setProperty("viewMatrix", QVariant::fromValue(view));
 	_skyBoxShader->setUniformValue("modelMatrix", model);
 	_skyBoxShader->setUniformValue("viewMatrix", view);
 	_skyBoxShader->setUniformValue("projectionMatrix", projection);
