@@ -6225,7 +6225,10 @@ int GLWidget::processSelection(const QPoint& pixel)
 				}
 				mesh->setProg(_selectionShader.get());
 				mesh->getVAO().bind();
-				glDrawElements(mesh->getPrimitiveMode(), static_cast<int>(mesh->getIndices().size()), GL_UNSIGNED_INT, 0);
+				if (mesh->getIndices().empty())
+					glDrawArrays(mesh->getPrimitiveMode(), 0, static_cast<int>(mesh->getPoints().size() / 3));
+				else
+					glDrawElements(mesh->getPrimitiveMode(), static_cast<int>(mesh->getIndices().size()), GL_UNSIGNED_INT, 0);
 				mesh->getVAO().release();
 				glFlush();
 				glFinish();

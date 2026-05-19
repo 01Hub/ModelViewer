@@ -1494,6 +1494,21 @@ void AssImpModelLoader::applyTransformToNode(aiNode* node, const glm::mat4& tran
 	if (!node) return;
 
 	// Convert glm::mat4 to aiMatrix4x4
+	auto derivePrimitiveModeFromAssimp = [&](unsigned int primitiveTypes) -> GLenum
+	{
+		if (primitiveTypes & aiPrimitiveType_POINT)
+			return GL_POINTS;
+		if (primitiveTypes & aiPrimitiveType_LINE)
+			return GL_LINES;
+		if (primitiveTypes & aiPrimitiveType_TRIANGLE)
+			return GL_TRIANGLES;
+		if (primitiveTypes & aiPrimitiveType_POLYGON)
+			return GL_TRIANGLES;
+		return GL_TRIANGLES;
+	};
+
+	meshData.primitiveMode = derivePrimitiveModeFromAssimp(mesh->mPrimitiveTypes);
+
 	aiMatrix4x4 aiTransform = SceneUtils::glmToAiMatrix(transform);
 	
 	// Apply transformation to the node
@@ -1803,7 +1818,7 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 				const QJsonArray primitives = jsonMeshes[meshIdx].toObject()["primitives"].toArray();
 				for (const QJsonValue& primVal : primitives)
 				{
-					const QJsonObject primObj = primVal.toObject();
+					const QJsonObject primObj = primitives[primIndex].toObject();
 					const int primMat = primObj.value("material").toInt(0);
 					const int mode    = primObj.value("mode").toInt(4);
 
@@ -1820,8 +1835,21 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 					default: glMode = GL_TRIANGLES;      break;
 					}
 
-					// Match this glTF primitive to the aiMesh in this node by material.
-					// After updateAiSceneWithGltfMaterials() both are in glTF-index space.
+					// Prefer positional pairing when the node's aiMesh list mirrors the
+					// glTF primitive list. This is common and avoids ambiguous matching
+					// for conformance samples where primitives have no material or share
+					// the same material index.
+					if (primitives.size() == static_cast<int>(aiNodePtr->mNumMeshes) &&
+						primIndex < static_cast<int>(aiNodePtr->mNumMeshes))
+					{
+						const unsigned int candidate = aiNodePtr->mMeshes[primIndex];
+						_gltfMeshPrimitiveModes[candidate] = glMode;
+						continue;
+					}
+
+					// Fallback: match this glTF primitive to the aiMesh in this node by
+					// material after updateAiSceneWithGltfMaterials() has aligned both
+					// sides to glTF-index space.
 					for (unsigned int mi = 0; mi < aiNodePtr->mNumMeshes; ++mi)
 					{
 						unsigned int candidate = aiNodePtr->mMeshes[mi];
@@ -1971,7 +1999,7 @@ void AssImpModelLoader::parseGltfVariants(const QString& gltfPath)
 				const QJsonArray primitives = jsonMeshes[meshIdx].toObject().value("primitives").toArray();
 				aiMeshCount += (int)aiNodePtr->mNumMeshes;
 
-				for (const QJsonValue& primVal : primitives)
+				for (int primIndex = 0; primIndex < primitives.size(); ++primIndex)
 				{
 					const QJsonObject primObj  = primVal.toObject();
 					const QJsonObject primExts = primObj.value("extensions").toObject();
@@ -2261,6 +2289,59 @@ void AssImpModelLoader::parseSceneAnimations()
 			{
 				QVector<float> outputValues;
 				int outputCount = 0;
+
+	const QRegularExpression nodeIndexPattern(QStringLiteral("^nodes\\[(\\d+)\\]$"));
+	std::function<void(aiNode*)> applyNameBasedFallback = [&](aiNode* aiNodePtr)
+	{
+		if (!aiNodePtr)
+			return;
+
+		const QString aiNodeName = QString::fromUtf8(aiNodePtr->mName.C_Str());
+		const QRegularExpressionMatch match = nodeIndexPattern.match(aiNodeName);
+		if (match.hasMatch())
+		{
+			bool ok = false;
+			const int gltfNodeIdx = match.captured(1).toInt(&ok);
+			if (ok && gltfNodeIdx >= 0 && gltfNodeIdx < jsonNodes.size())
+			{
+				const QJsonObject nodeObj = jsonNodes[gltfNodeIdx].toObject();
+				const int meshIdx = nodeObj.value("mesh").toInt(-1);
+				if (meshIdx >= 0 && meshIdx < jsonMeshes.size())
+				{
+					const QJsonArray primitives = jsonMeshes[meshIdx].toObject().value("primitives").toArray();
+					if (primitives.size() == static_cast<int>(aiNodePtr->mNumMeshes))
+					{
+						for (int primIndex = 0; primIndex < primitives.size(); ++primIndex)
+						{
+							const QJsonObject primObj = primitives[primIndex].toObject();
+							const int mode = primObj.value("mode").toInt(4);
+
+							GLenum glMode = GL_TRIANGLES;
+							switch (mode)
+							{
+							case 0: glMode = GL_POINTS;         break;
+							case 1: glMode = GL_LINES;          break;
+							case 2: glMode = GL_LINE_LOOP;      break;
+							case 3: glMode = GL_LINE_STRIP;     break;
+							case 4: glMode = GL_TRIANGLES;      break;
+							case 5: glMode = GL_TRIANGLE_STRIP; break;
+							case 6: glMode = GL_TRIANGLE_FAN;   break;
+							default: glMode = GL_TRIANGLES;     break;
+							}
+
+							const unsigned int aiMeshIndex = aiNodePtr->mMeshes[primIndex];
+							_gltfMeshPrimitiveModes[aiMeshIndex] = glMode;
+						}
+					}
+				}
+			}
+		}
+
+		for (unsigned int childIndex = 0; childIndex < aiNodePtr->mNumChildren; ++childIndex)
+			applyNameBasedFallback(aiNodePtr->mChildren[childIndex]);
+	};
+
+	applyNameBasedFallback(_scene->mRootNode);
 				if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 2, outputValues, &outputCount) ||
 					outputCount != keyCount)
 				{

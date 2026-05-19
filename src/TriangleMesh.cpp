@@ -139,7 +139,9 @@ void TriangleMesh::initBuffers(
 	_memorySize = 0;
 	_memorySize = (_points.size() + _normals.size() + _indices.size()) * sizeof(float);
 
-	_nVerts = (unsigned int)indices->size();
+	_nVerts = indices->empty()
+		? static_cast<unsigned int>(points->size() / 3)
+		: static_cast<unsigned int>(indices->size());
 
 	_buffers.push_back(_indexBuffer);
 	_indexBuffer.bind();

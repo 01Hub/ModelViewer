@@ -150,8 +150,12 @@ void AssImpMesh::render()
 		glLineWidth(1.5f);
 	}
 
-	// Draw the mesh
-	glDrawElements(_primitiveMode, drawCount, GL_UNSIGNED_INT, nullptr);
+	// Draw indexed primitives when an element buffer exists, otherwise fall
+	// back to array drawing for glTF point/line primitives that omit indices.
+	if (_indices.empty())
+		glDrawArrays(_primitiveMode, 0, drawCount);
+	else
+		glDrawElements(_primitiveMode, drawCount, GL_UNSIGNED_INT, nullptr);
 	
 	// Reset point size
 	if (_primitiveMode == GL_POINTS)
