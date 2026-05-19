@@ -3087,16 +3087,30 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 		return worldTransform;
 		};
 
-	// Parse each light WITH its WORLD transform
-	for (int lightIdx = 0; lightIdx < lightsArray.size(); ++lightIdx)
+	// Parse each node that references a punctual light. A single light definition
+	// may be instantiated by multiple nodes, and each node is a distinct light.
+	for (int nodeIdx = 0; nodeIdx < nodesArray.size(); ++nodeIdx)
 	{
+		QJsonObject nodeDef = nodesArray.at(nodeIdx).toObject();
+		if (!nodeDef.contains("extensions"))
+			continue;
+
+		const QJsonObject nodeExt = nodeDef.value("extensions").toObject();
+		if (!nodeExt.contains("KHR_lights_punctual"))
+			continue;
+
+		const QJsonObject lightRef = nodeExt.value("KHR_lights_punctual").toObject();
+		const int lightIdx = lightRef.value("light").toInt(-1);
+		if (lightIdx < 0 || lightIdx >= lightsArray.size())
+			continue;
+
 		QJsonObject lightDef = lightsArray.at(lightIdx).toObject();
 		GPULight light = {};
 
 		// === Parse light type (REQUIRED) ===
 		if (!lightDef.contains("type"))
 		{
-			qWarning() << "  Light" << lightIdx << ": missing required 'type' field";
+			qWarning() << "  Light node" << nodeIdx << ": missing required 'type' field for light" << lightIdx;
 			continue;
 		}
 
@@ -3115,7 +3129,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 		}
 		else
 		{
-			qWarning() << "  Light" << lightIdx << ": unknown type" << typeStr;
+			qWarning() << "  Light node" << nodeIdx << ": unknown type" << typeStr;
 			continue;
 		}
 
@@ -3181,45 +3195,19 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 			light.outerConeCos = std::cos(glm::pi<float>() / 4.0f);
 		}
 
-		// === Find which node has this light and read its WORLD transform ===
+		// === Read this node's WORLD transform ===
 		light.position = glm::vec3(0.0f);
 		light.direction = glm::vec3(0.0f, 0.0f, -1.0f);  // Default direction
 
-		for (int nodeIdx = 0; nodeIdx < nodesArray.size(); ++nodeIdx)
-		{
-			QJsonObject nodeDef = nodesArray.at(nodeIdx).toObject();
+		glm::mat4 worldTransform = getWorldTransform(nodeIdx);
 
-			// Check if this node references this light
-			bool hasLight = false;
-			if (nodeDef.contains("extensions"))
-			{
-				QJsonObject nodeExt = nodeDef.value("extensions").toObject();
-				if (nodeExt.contains("KHR_lights_punctual"))
-				{
-					QJsonObject lightExt = nodeExt.value("KHR_lights_punctual").toObject();
-					if (lightExt.contains("light") && lightExt.value("light").toInt(-1) == lightIdx)
-					{
-						hasLight = true;
-					}
-				}
-			}
+		// === Extract world position from matrix ===
+		light.position = glm::vec3(worldTransform[3][0], worldTransform[3][1], worldTransform[3][2]);
 
-			if (hasLight)
-			{
-				// === FIX: Get WORLD transform by walking parent chain ===
-				glm::mat4 worldTransform = getWorldTransform(nodeIdx);
-
-				// === Extract world position from matrix ===
-				light.position = glm::vec3(worldTransform[3][0], worldTransform[3][1], worldTransform[3][2]);
-
-				// === Extract direction by rotating (0, 0, -1) through the matrix ===
-				glm::vec3 localDir(0.0f, 0.0f, -1.0f);
-				glm::vec4 worldDir4 = worldTransform * glm::vec4(localDir, 0.0f);
-				light.direction = glm::normalize(glm::vec3(worldDir4));
-
-				break;
-			}
-		}
+		// === Extract direction by rotating (0, 0, -1) through the matrix ===
+		glm::vec3 localDir(0.0f, 0.0f, -1.0f);
+		glm::vec4 worldDir4 = worldTransform * glm::vec4(localDir, 0.0f);
+		light.direction = glm::normalize(glm::vec3(worldDir4));
 
 		// === Enhanced debug output with all light parameters ===
 		QString lightTypeStr;
@@ -3241,7 +3229,7 @@ std::vector<GPULight> MaterialProcessor::parseKHRLightsPunctual(const QString& g
 		}
 
 		qDebug() << "";
-		qDebug() << "Light" << lightIdx << ":";
+		qDebug() << "Light node" << nodeIdx << "(definition" << lightIdx << "):";
 		qDebug() << "  Type:        " << lightTypeStr;
 		qDebug() << "  Color:       (" << light.color.x << "," << light.color.y << "," << light.color.z << ")";
 		qDebug() << "  Intensity:   " << light.intensity;

@@ -19,6 +19,7 @@
 #include <QOpenGLWidget>
 #include <QPointer>
 #include <QRubberBand>
+#include <QSet>
 #include "ViewToolbar.h"
 #include "SceneUtils.h"
 #include "GLLights.h"
@@ -549,6 +550,12 @@ private:
 	float updateFloorGeometry();
 
 	void updatePunctualLights();  // Update lights based on bounding sphere changes
+	void setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight);
+	void setAnimatedLightTransformState(const QString& sourceFile, const std::vector<GPULight>& animatedLights);
+	void clearAnimatedLightTransformState(const QString& sourceFile);
+	void clearAnimatedLightVisibilityState(const QString& sourceFile);
+	void setAnimatedMeshVisibilityState(const QString& sourceFile, const QSet<QUuid>& hiddenMeshUuids);
+	void clearAnimatedMeshVisibilityState(const QString& sourceFile);
 	void recalculateVisibleSceneStats(bool updateMemorySize = false);
 
 	// activeCapPlaneIndex: -1 = no culling, 0 = YZ, 1 = ZX, 2 = XY
@@ -571,6 +578,7 @@ private:
 	bool isMeshFullyKept_Z(const TriangleMesh* mesh) const;
 	bool isMeshStraddlesCapPlane(const TriangleMesh* mesh, int planeIndex) const;
 	bool isMeshInvisibleInAllClipPasses(const TriangleMesh* mesh) const;
+	bool isMeshAnimationVisible(const TriangleMesh* mesh) const;
 	bool isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex) const;
 
 	void drawSectionCapping();
@@ -1021,6 +1029,12 @@ private:
 	std::vector<GPULight> _originalParsedLights;      // ORIGINAL - never modified
 	std::vector<GPULight> _currentRepositionedLights; // Working copy
 	float _originalBoundingRadius = 1.0f;
+	QString _animatedLightTransformSourceFile;
+	std::vector<GPULight> _animatedParsedLights;
+	QString _animatedLightVisibilitySourceFile;
+	QVector<bool> _animatedLightVisibilityMask;
+	QString _animatedMeshVisibilitySourceFile;
+	QSet<QUuid> _animatedHiddenMeshUuids;
 
 	// Light repositioning based on model transformation
 	struct LightRepositioningBasis

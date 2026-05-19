@@ -128,6 +128,47 @@ float sampleFloatKeys(const QVector<GltfAnimationFloatKey>& keys, double timeSec
 	return keys.back().value;
 }
 
+QVector4D sampleVec4Keys(const QVector<GltfAnimationVec4Key>& keys, double timeSeconds, const QVector4D& fallback)
+{
+	if (keys.isEmpty())
+		return fallback;
+	if (timeSeconds <= keys.front().timeSeconds)
+		return keys.front().value;
+	if (timeSeconds >= keys.back().timeSeconds)
+		return keys.back().value;
+
+	for (int i = 1; i < keys.size(); ++i)
+	{
+		if (timeSeconds <= keys[i].timeSeconds)
+		{
+			const double start = keys[i - 1].timeSeconds;
+			const double end = keys[i].timeSeconds;
+			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
+			return keys[i - 1].value * (1.0f - t) + keys[i].value * t;
+		}
+	}
+	return keys.back().value;
+}
+
+bool sampleBoolKeys(const QVector<GltfAnimationBoolKey>& keys, double timeSeconds, bool fallback)
+{
+	if (keys.isEmpty())
+		return fallback;
+	if (timeSeconds <= keys.front().timeSeconds)
+		return keys.front().value;
+	if (timeSeconds >= keys.back().timeSeconds)
+		return keys.back().value;
+
+	bool result = keys.front().value;
+	for (int i = 1; i < keys.size(); ++i)
+	{
+		if (timeSeconds < keys[i].timeSeconds)
+			return result;
+		result = keys[i].value;
+	}
+	return result;
+}
+
 QVector<float> sampleWeightKeys(const QVector<GltfAnimationWeightsKey>& keys, double timeSeconds, const QVector<float>& fallback)
 {
 	if (keys.isEmpty())
@@ -290,6 +331,19 @@ void applyTexturePointerValue(GLMaterial& material,
 	default:
 		break;
 	}
+}
+
+void applyMaterialFactorPointerValue(GLMaterial& material,
+    GltfAnimationPointerProperty property,
+    const QVector4D& vec4Value)
+{
+    if (property != GltfAnimationPointerProperty::BaseColorFactor)
+        return;
+
+    const QVector3D color(vec4Value.x(), vec4Value.y(), vec4Value.z());
+    material.setAlbedoColor(color);
+    material.setDiffuse(color);
+    material.setOpacity(vec4Value.w());
 }
 
 QQuaternion sampleQuatKeys(const QVector<GltfAnimationQuatKey>& keys, double timeSeconds, const QQuaternion& fallback)
@@ -1091,6 +1145,12 @@ void GLWidget::initializeGL()
 		this, [this](const std::vector<GPULight>& lights) {
 			_originalParsedLights.clear();
 			_currentRepositionedLights.clear();
+			_animatedLightTransformSourceFile.clear();
+			_animatedParsedLights.clear();
+			_animatedLightVisibilitySourceFile.clear();
+			_animatedLightVisibilityMask.clear();
+			_animatedMeshVisibilitySourceFile.clear();
+			_animatedHiddenMeshUuids.clear();
 			_lightRepoBasis.baselineRadius = 0.0f;  // Reset baseline for new model
 			_originalParsedLights = lights;
 
@@ -2371,6 +2431,8 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 		try
 		{
 			TriangleMesh* mesh = _meshStore.at(i);
+			if (!isMeshAnimationVisible(mesh))
+				continue;
 			if (updateMemorySize)
 			{
 				memSize += mesh->memorySize();
@@ -2425,7 +2487,10 @@ void GLWidget::recalculateVisibleSceneStats(bool updateMemorySize)
 		{
 			try
 			{
-				BoundingSphere ms = _meshStore.at(i)->getBoundingSphere();
+				TriangleMesh* mesh = _meshStore.at(i);
+				if (!isMeshAnimationVisible(mesh))
+					continue;
+				BoundingSphere ms = mesh->getBoundingSphere();
 				const float d = (ms.getCenter() - boxCenter).length() + ms.getRadius();
 				if (d > bsRadius) bsRadius = d;
 			}
@@ -2894,6 +2959,12 @@ void GLWidget::removeFromDisplay(int index)
 	{
 		_originalParsedLights.clear();
 		_currentRepositionedLights.clear();
+		_animatedLightTransformSourceFile.clear();
+		_animatedParsedLights.clear();
+		_animatedLightVisibilitySourceFile.clear();
+		_animatedLightVisibilityMask.clear();
+		_animatedMeshVisibilitySourceFile.clear();
+		_animatedHiddenMeshUuids.clear();
 		_lightRepoBasis.baselineRadius = 0.0f;  // Reset baseline
 		glLights->createFallbackLight(glm::vec3(
 			static_cast<float>(_lightPosition.x()),
@@ -3062,6 +3133,12 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 			[this](const std::vector<GPULight>& lights) {
 				_originalParsedLights.clear();
 				_currentRepositionedLights.clear();
+				_animatedLightTransformSourceFile.clear();
+				_animatedParsedLights.clear();
+				_animatedLightVisibilitySourceFile.clear();
+				_animatedLightVisibilityMask.clear();
+				_animatedMeshVisibilitySourceFile.clear();
+				_animatedHiddenMeshUuids.clear();
 				_lightRepoBasis.baselineRadius = 0.0f;  // Reset baseline for new model
 				_originalParsedLights = lights;
 
@@ -4205,8 +4282,14 @@ void GLWidget::updatePunctualLights()
 		return;
 	}
 
-	// Start with original positions
-	_currentRepositionedLights = _originalParsedLights;
+	// Start with original positions, unless an animation runtime is actively
+	// overriding the bound light nodes for the current animated file.
+	const std::vector<GPULight>& sourceLights =
+		(!_animatedLightTransformSourceFile.isEmpty() &&
+		 _animatedParsedLights.size() == _originalParsedLights.size())
+		? _animatedParsedLights
+		: _originalParsedLights;
+	_currentRepositionedLights = sourceLights;
 
 	// Get current bounding sphere state
 	glm::vec3 currentCenter(
@@ -4251,7 +4334,76 @@ void GLWidget::updatePunctualLights()
 		}
 	}
 
+	if (!_animatedLightVisibilitySourceFile.isEmpty() &&
+		_animatedLightVisibilityMask.size() == static_cast<qsizetype>(_currentRepositionedLights.size()))
+	{
+		std::vector<GPULight> visibleLights;
+		visibleLights.reserve(_currentRepositionedLights.size());
+		for (int lightIndex = 0; lightIndex < static_cast<int>(_currentRepositionedLights.size()); ++lightIndex)
+		{
+			if (_animatedLightVisibilityMask[lightIndex])
+				visibleLights.push_back(_currentRepositionedLights[lightIndex]);
+		}
+		_currentRepositionedLights = std::move(visibleLights);
+	}
+
 	glLights->setLights(_currentRepositionedLights);
+}
+
+void GLWidget::setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight)
+{
+	_animatedLightVisibilitySourceFile = sourceFile;
+	_animatedLightVisibilityMask = visibleByParsedLight;
+	updatePunctualLights();
+}
+
+void GLWidget::setAnimatedLightTransformState(const QString& sourceFile, const std::vector<GPULight>& animatedLights)
+{
+	_animatedLightTransformSourceFile = sourceFile;
+	_animatedParsedLights = animatedLights;
+	updatePunctualLights();
+}
+
+void GLWidget::clearAnimatedLightTransformState(const QString& sourceFile)
+{
+	if (_animatedLightTransformSourceFile != sourceFile)
+		return;
+
+	_animatedLightTransformSourceFile.clear();
+	_animatedParsedLights.clear();
+	updatePunctualLights();
+}
+
+void GLWidget::clearAnimatedLightVisibilityState(const QString& sourceFile)
+{
+	if (_animatedLightVisibilitySourceFile != sourceFile)
+		return;
+
+	_animatedLightVisibilitySourceFile.clear();
+	_animatedLightVisibilityMask.clear();
+	updatePunctualLights();
+}
+
+void GLWidget::setAnimatedMeshVisibilityState(const QString& sourceFile, const QSet<QUuid>& hiddenMeshUuids)
+{
+	const bool activatingForFile = (_animatedMeshVisibilitySourceFile != sourceFile);
+	_animatedMeshVisibilitySourceFile = sourceFile;
+	_animatedHiddenMeshUuids = hiddenMeshUuids;
+	recalculateVisibleSceneStats();
+	updatePunctualLights();
+	if (activatingForFile)
+		fitAll();
+}
+
+void GLWidget::clearAnimatedMeshVisibilityState(const QString& sourceFile)
+{
+	if (_animatedMeshVisibilitySourceFile != sourceFile)
+		return;
+
+	_animatedMeshVisibilitySourceFile.clear();
+	_animatedHiddenMeshUuids.clear();
+	recalculateVisibleSceneStats();
+	updatePunctualLights();
 }
 
 void GLWidget::loadEnvMap()
@@ -5336,8 +5488,21 @@ bool GLWidget::isMeshInvisibleInAllClipPasses(const TriangleMesh* mesh) const
 	return true;
 }
 
+bool GLWidget::isMeshAnimationVisible(const TriangleMesh* mesh) const
+{
+	if (!mesh)
+		return false;
+	if (_animatedMeshVisibilitySourceFile.isEmpty())
+		return true;
+	if (mesh->getSourceFile() != _animatedMeshVisibilitySourceFile)
+		return true;
+	return !_animatedHiddenMeshUuids.contains(mesh->uuid());
+}
+
 bool GLWidget::isMeshVisible(const TriangleMesh* mesh, int activeClipPlaneIndex) const
 {
+	if (!isMeshAnimationVisible(mesh)) return false;
+
 	// 1. Frustum cull — applied in every pass, clipping or not
 	if (isMeshOutsideFrustum(mesh)) return false;
 
@@ -6234,7 +6399,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 		try
 		{
 			TriangleMesh* mesh = _meshStore.at(i);
-			if (mesh)
+			if (mesh && isMeshAnimationVisible(mesh))
 			{
 				QColor pickColor = indexToColor(i + 1);
 				_selectionShader->bind();
@@ -6991,6 +7156,101 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 		mesh->resetMorphTargets();
 	}
 
+	if (!runtime.data.lightBindings.isEmpty())
+	{
+		clearAnimatedLightTransformState(sourceFile);
+		QVector<bool> visibleByParsedLight(runtime.data.lightBindings.size(), true);
+		QHash<int, bool> explicitVisibility;
+		for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
+			explicitVisibility.insert(nodeState.nodeIndex, nodeState.defaultVisible);
+
+		QHash<int, bool> effectiveCache;
+		std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
+		{
+			if (effectiveCache.contains(nodeIndex))
+				return effectiveCache.value(nodeIndex);
+			if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
+				return true;
+
+			const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
+			const bool localVisible = explicitVisibility.value(nodeIndex, true);
+			const bool effectiveVisible = localVisible &&
+				(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
+			effectiveCache.insert(nodeIndex, effectiveVisible);
+			return effectiveVisible;
+		};
+
+		for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
+		{
+			if (binding.parsedLightIndex >= 0 && binding.parsedLightIndex < visibleByParsedLight.size())
+				visibleByParsedLight[binding.parsedLightIndex] = evalVisible(binding.nodeIndex);
+		}
+		setAnimatedLightVisibilityState(sourceFile, visibleByParsedLight);
+	}
+	else
+	{
+		clearAnimatedLightTransformState(sourceFile);
+		clearAnimatedLightVisibilityState(sourceFile);
+	}
+
+	if (!runtime.data.nodeVisibilityStates.isEmpty())
+	{
+		QHash<int, bool> explicitVisibility;
+		for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
+			explicitVisibility.insert(nodeState.nodeIndex, nodeState.defaultVisible);
+
+		QHash<int, bool> effectiveCache;
+		std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
+		{
+			if (effectiveCache.contains(nodeIndex))
+				return effectiveCache.value(nodeIndex);
+			if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
+				return true;
+
+			const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
+			const bool localVisible = explicitVisibility.value(nodeIndex, true);
+			const bool effectiveVisible = localVisible &&
+				(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
+			effectiveCache.insert(nodeIndex, effectiveVisible);
+			return effectiveVisible;
+		};
+
+		QSet<QUuid> hiddenMeshUuids;
+		std::function<void(SceneNode*)> collectHidden = [&](SceneNode* node)
+		{
+			if (!node)
+				return;
+
+			int nodeIndex = -1;
+			for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
+			{
+				if (nodeState.nodeName == node->name)
+				{
+					nodeIndex = nodeState.nodeIndex;
+					break;
+				}
+			}
+
+			const bool visible = nodeIndex < 0 ? true : evalVisible(nodeIndex);
+			if (!visible)
+			{
+				for (const QUuid& uuid : node->meshUuids)
+					hiddenMeshUuids.insert(uuid);
+			}
+
+			for (SceneNode* child : node->children)
+				collectHidden(child);
+		};
+
+		for (SceneNode* child : fileNode->children)
+			collectHidden(child);
+		setAnimatedMeshVisibilityState(sourceFile, hiddenMeshUuids);
+	}
+	else
+	{
+		clearAnimatedMeshVisibilityState(sourceFile);
+	}
+
 	update();
 }
 
@@ -7069,37 +7329,78 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 	QHash<QString, RuntimeNodeTransform> sampled = runtime.defaultNodeTransforms;
 	QHash<QString, QVector<float>> sampledMorphWeights = runtime.defaultNodeMorphWeights;
 	QHash<QUuid, GLMaterial> animatedMaterials = runtime.defaultMeshMaterials;
+	QHash<int, bool> sampledNodeVisibility;
+	for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
+		sampledNodeVisibility.insert(nodeState.nodeIndex, nodeState.defaultVisible);
 	const GltfAnimationClip& clip = runtime.data.clips[clipIndex];
+	const auto resolveChannelNodeName = [&](const GltfAnimationChannel& channel) -> QString
+	{
+		if (channel.targetNodeIndex >= 0 &&
+			channel.targetNodeIndex < runtime.data.nodeBindings.size() &&
+			!runtime.data.nodeBindings[channel.targetNodeIndex].nodeName.isEmpty())
+		{
+			return runtime.data.nodeBindings[channel.targetNodeIndex].nodeName;
+		}
+		return channel.targetNodeName;
+	};
 	for (const GltfAnimationChannel& channel : clip.channels)
 	{
 		if (channel.targetPath == GltfAnimationTargetPath::Pointer)
 		{
-			if (channel.targetMaterialIndex < 0)
-				continue;
-
-			const QList<QUuid> affectedMeshes = runtime.meshUuidsByMaterialIndex.values(channel.targetMaterialIndex);
-			for (const QUuid& meshUuid : affectedMeshes)
+			if (channel.pointerTargetKind == GltfAnimationPointerTargetKind::MaterialTextureTransform)
 			{
-				auto materialIt = animatedMaterials.find(meshUuid);
-				if (materialIt == animatedMaterials.end())
+				if (channel.targetMaterialIndex < 0)
 					continue;
 
-				const QVector2D vec2Value = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
-					? QVector2D()
-					: sampleVec2Keys(channel.vec2Keys, timeSeconds, QVector2D());
-				const float scalarValue = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
-					? sampleFloatKeys(channel.floatKeys, timeSeconds, 0.0f)
-					: 0.0f;
-				applyTexturePointerValue(materialIt.value(),
-					channel.textureTarget,
-					channel.pointerProperty,
-					vec2Value,
-					scalarValue);
+				const QList<QUuid> affectedMeshes = runtime.meshUuidsByMaterialIndex.values(channel.targetMaterialIndex);
+				for (const QUuid& meshUuid : affectedMeshes)
+				{
+					auto materialIt = animatedMaterials.find(meshUuid);
+					if (materialIt == animatedMaterials.end())
+						continue;
+
+					if (channel.pointerProperty == GltfAnimationPointerProperty::BaseColorFactor)
+					{
+						const QVector4D vec4Value = sampleVec4Keys(channel.vec4Keys,
+							timeSeconds,
+							QVector4D(materialIt.value().albedoColor(), materialIt.value().opacity()));
+						applyMaterialFactorPointerValue(materialIt.value(),
+							channel.pointerProperty,
+							vec4Value);
+						continue;
+					}
+
+					const QVector2D vec2Value = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
+						? QVector2D()
+						: sampleVec2Keys(channel.vec2Keys, timeSeconds, QVector2D());
+					const float scalarValue = channel.pointerProperty == GltfAnimationPointerProperty::Rotation
+						? sampleFloatKeys(channel.floatKeys, timeSeconds, 0.0f)
+						: 0.0f;
+					applyTexturePointerValue(materialIt.value(),
+						channel.textureTarget,
+						channel.pointerProperty,
+						vec2Value,
+						scalarValue);
+				}
+			}
+			else if (channel.pointerTargetKind == GltfAnimationPointerTargetKind::NodeVisibility)
+			{
+				if (channel.targetNodeIndex >= 0)
+				{
+					sampledNodeVisibility.insert(channel.targetNodeIndex,
+						sampleBoolKeys(channel.boolKeys,
+							timeSeconds,
+							sampledNodeVisibility.value(channel.targetNodeIndex, true)));
+				}
 			}
 			continue;
 		}
 
-		RuntimeNodeTransform node = sampled.value(channel.targetNodeName);
+		const QString resolvedNodeName = resolveChannelNodeName(channel);
+		if (resolvedNodeName.isEmpty())
+			continue;
+
+		RuntimeNodeTransform node = sampled.value(resolvedNodeName);
 		switch (channel.targetPath)
 		{
 		case GltfAnimationTargetPath::Translation:
@@ -7112,13 +7413,13 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			node.scale = sampleVec3Keys(channel.vec3Keys, timeSeconds, node.scale);
 			break;
 		case GltfAnimationTargetPath::Weights:
-			sampledMorphWeights.insert(channel.targetNodeName,
-				sampleWeightKeys(channel.weightKeys, timeSeconds, sampledMorphWeights.value(channel.targetNodeName)));
+			sampledMorphWeights.insert(resolvedNodeName,
+				sampleWeightKeys(channel.weightKeys, timeSeconds, sampledMorphWeights.value(resolvedNodeName)));
 			continue;
 		case GltfAnimationTargetPath::Pointer:
 			continue;
 		}
-		sampled.insert(channel.targetNodeName, node);
+		sampled.insert(resolvedNodeName, node);
 	}
 
 	const std::vector<TriangleMesh*>& meshes = getMeshStore();
@@ -7157,6 +7458,122 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			evalNode(child, QMatrix4x4());
 
 		updateAnimatedMeshState(sourceFile, worldTransforms);
+
+		if (!runtime.data.lightBindings.isEmpty() &&
+			_originalParsedLights.size() == static_cast<size_t>(runtime.data.lightBindings.size()))
+		{
+			std::vector<GPULight> animatedLights = _originalParsedLights;
+			for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
+			{
+				if (binding.parsedLightIndex < 0 ||
+					binding.parsedLightIndex >= static_cast<int>(animatedLights.size()))
+				{
+					continue;
+				}
+
+				const QMatrix4x4 world = worldTransforms.value(binding.nodeName, QMatrix4x4());
+				GPULight& light = animatedLights[binding.parsedLightIndex];
+				light.position = glm::vec3(world(0, 3), world(1, 3), world(2, 3));
+
+				const QVector3D localDir(0.0f, 0.0f, -1.0f);
+				const QVector3D worldDir = (world.mapVector(localDir)).normalized();
+				light.direction = glm::vec3(worldDir.x(), worldDir.y(), worldDir.z());
+			}
+			setAnimatedLightTransformState(sourceFile, animatedLights);
+		}
+		else
+		{
+			clearAnimatedLightTransformState(sourceFile);
+		}
+	}
+	else
+	{
+		clearAnimatedLightTransformState(sourceFile);
+	}
+
+	if (!runtime.data.lightBindings.isEmpty())
+	{
+		QVector<bool> visibleByParsedLight(runtime.data.lightBindings.size(), true);
+		QHash<int, bool> effectiveCache;
+		std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
+		{
+			if (effectiveCache.contains(nodeIndex))
+				return effectiveCache.value(nodeIndex);
+			if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
+				return true;
+
+			const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
+			const bool localVisible = sampledNodeVisibility.value(nodeIndex, nodeState.defaultVisible);
+			const bool effectiveVisible = localVisible &&
+				(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
+			effectiveCache.insert(nodeIndex, effectiveVisible);
+			return effectiveVisible;
+		};
+
+		for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
+		{
+			if (binding.parsedLightIndex >= 0 && binding.parsedLightIndex < visibleByParsedLight.size())
+				visibleByParsedLight[binding.parsedLightIndex] = evalVisible(binding.nodeIndex);
+		}
+		setAnimatedLightVisibilityState(sourceFile, visibleByParsedLight);
+	}
+	else
+	{
+		clearAnimatedLightVisibilityState(sourceFile);
+	}
+
+	if (!runtime.data.nodeVisibilityStates.isEmpty())
+	{
+		QHash<int, bool> effectiveCache;
+		std::function<bool(int)> evalVisible = [&](int nodeIndex) -> bool
+		{
+			if (effectiveCache.contains(nodeIndex))
+				return effectiveCache.value(nodeIndex);
+			if (nodeIndex < 0 || nodeIndex >= runtime.data.nodeVisibilityStates.size())
+				return true;
+
+			const GltfAnimationNodeVisibilityState& nodeState = runtime.data.nodeVisibilityStates[nodeIndex];
+			const bool localVisible = sampledNodeVisibility.value(nodeIndex, nodeState.defaultVisible);
+			const bool effectiveVisible = localVisible &&
+				(nodeState.parentNodeIndex < 0 || evalVisible(nodeState.parentNodeIndex));
+			effectiveCache.insert(nodeIndex, effectiveVisible);
+			return effectiveVisible;
+		};
+
+		QSet<QUuid> hiddenMeshUuids;
+		std::function<void(SceneNode*)> collectHidden = [&](SceneNode* node)
+		{
+			if (!node)
+				return;
+
+			int nodeIndex = -1;
+			for (const GltfAnimationNodeVisibilityState& nodeState : runtime.data.nodeVisibilityStates)
+			{
+				if (nodeState.nodeName == node->name)
+				{
+					nodeIndex = nodeState.nodeIndex;
+					break;
+				}
+			}
+
+			const bool visible = nodeIndex < 0 ? true : evalVisible(nodeIndex);
+			if (!visible)
+			{
+				for (const QUuid& uuid : node->meshUuids)
+					hiddenMeshUuids.insert(uuid);
+			}
+
+			for (SceneNode* child : node->children)
+				collectHidden(child);
+		};
+
+		for (SceneNode* child : fileNode->children)
+			collectHidden(child);
+		setAnimatedMeshVisibilityState(sourceFile, hiddenMeshUuids);
+	}
+	else
+	{
+		clearAnimatedMeshVisibilityState(sourceFile);
 	}
 	for (auto it = animatedMaterials.constBegin(); it != animatedMaterials.constEnd(); ++it)
 	{

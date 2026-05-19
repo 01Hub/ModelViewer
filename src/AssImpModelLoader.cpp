@@ -167,7 +167,7 @@ void reorderMorphTargetsToImportedVertexOrder(QVector<MorphTargetData>& morphTar
 	}
 }
 
-bool loadAnimationJsonAndBuffer(const QString& gltfPath, QJsonDocument& doc, QByteArray& bufferData)
+bool loadAnimationJsonAndBuffer(const QString& gltfPath, QJsonDocument& doc, QVector<QByteArray>& bufferData)
 {
 	const bool isGlb = gltfPath.endsWith(".glb", Qt::CaseInsensitive);
 	if (isGlb)
@@ -181,8 +181,9 @@ bool loadAnimationJsonAndBuffer(const QString& gltfPath, QJsonDocument& doc, QBy
 		if (!doc.isObject())
 			return false;
 
-		bufferData = QByteArray(reinterpret_cast<const char*>(glbBinaryBuffer.data()),
-			static_cast<int>(glbBinaryBuffer.size()));
+		bufferData.clear();
+		bufferData.append(QByteArray(reinterpret_cast<const char*>(glbBinaryBuffer.data()),
+			static_cast<int>(glbBinaryBuffer.size())));
 		return true;
 	}
 
@@ -196,23 +197,27 @@ bool loadAnimationJsonAndBuffer(const QString& gltfPath, QJsonDocument& doc, QBy
 		return false;
 
 	const QJsonArray buffers = doc.object().value("buffers").toArray();
+	bufferData.clear();
 	if (buffers.isEmpty())
 		return true;
 
-	const QString uri = buffers.first().toObject().value("uri").toString();
-	if (uri.isEmpty() || uri.startsWith("data:", Qt::CaseInsensitive))
-		return false;
+	for (const QJsonValue& bufferValue : buffers)
+	{
+		const QString uri = bufferValue.toObject().value("uri").toString();
+		if (uri.isEmpty() || uri.startsWith("data:", Qt::CaseInsensitive))
+			return false;
 
-	QFile bufferFile(QFileInfo(gltfPath).dir().filePath(uri));
-	if (!bufferFile.open(QIODevice::ReadOnly))
-		return false;
-	bufferData = bufferFile.readAll();
+		QFile bufferFile(QFileInfo(gltfPath).dir().filePath(uri));
+		if (!bufferFile.open(QIODevice::ReadOnly))
+			return false;
+		bufferData.append(bufferFile.readAll());
+	}
 	return true;
 }
 
 bool readFloatAccessorData(const QJsonArray& accessors,
 	const QJsonArray& bufferViews,
-	const QByteArray& bufferData,
+	const QVector<QByteArray>& bufferData,
 	int accessorIndex,
 	int expectedComponents,
 	QVector<float>& outValues,
@@ -241,6 +246,10 @@ bool readFloatAccessorData(const QJsonArray& accessors,
 		return false;
 
 	const QJsonObject bufferView = bufferViews.at(bufferViewIndex).toObject();
+	const int bufferIndex = bufferView.value("buffer").toInt(0);
+	if (bufferIndex < 0 || bufferIndex >= bufferData.size())
+		return false;
+	const QByteArray& activeBuffer = bufferData[bufferIndex];
 	const int count = accessor.value("count").toInt(0);
 	const int accessorByteOffset = accessor.value("byteOffset").toInt(0);
 	const int bufferViewByteOffset = bufferView.value("byteOffset").toInt(0);
@@ -255,12 +264,83 @@ bool readFloatAccessorData(const QJsonArray& accessors,
 	{
 		const int offset = baseOffset + elementIndex * byteStride;
 		const int requiredBytes = offset + components * static_cast<int>(sizeof(float));
-		if (requiredBytes > bufferData.size())
+		if (requiredBytes > activeBuffer.size())
 			return false;
 
-		const float* src = reinterpret_cast<const float*>(bufferData.constData() + offset);
+		const float* src = reinterpret_cast<const float*>(activeBuffer.constData() + offset);
 		for (int componentIndex = 0; componentIndex < components; ++componentIndex)
 			outValues[elementIndex * components + componentIndex] = src[componentIndex];
+	}
+
+	if (outElementCount)
+		*outElementCount = count;
+	return true;
+}
+
+bool readScalarAccessorDataAsFloats(const QJsonArray& accessors,
+	const QJsonArray& bufferViews,
+	const QVector<QByteArray>& bufferData,
+	int accessorIndex,
+	QVector<float>& outValues,
+	int* outElementCount = nullptr)
+{
+	if (accessorIndex < 0 || accessorIndex >= accessors.size())
+		return false;
+
+	const QJsonObject accessor = accessors.at(accessorIndex).toObject();
+	if (accessor.contains("sparse") || accessor.value("type").toString() != "SCALAR")
+		return false;
+
+	const int componentType = accessor.value("componentType").toInt();
+	const int bufferViewIndex = accessor.value("bufferView").toInt(-1);
+	if (bufferViewIndex < 0 || bufferViewIndex >= bufferViews.size())
+		return false;
+
+	int componentSize = 0;
+	switch (componentType)
+	{
+	case 5120: componentSize = 1; break; // BYTE
+	case 5121: componentSize = 1; break; // UNSIGNED_BYTE
+	case 5122: componentSize = 2; break; // SHORT
+	case 5123: componentSize = 2; break; // UNSIGNED_SHORT
+	case 5125: componentSize = 4; break; // UNSIGNED_INT
+	case 5126: componentSize = 4; break; // FLOAT
+	default:
+		return false;
+	}
+
+	const QJsonObject bufferView = bufferViews.at(bufferViewIndex).toObject();
+	const int bufferIndex = bufferView.value("buffer").toInt(0);
+	if (bufferIndex < 0 || bufferIndex >= bufferData.size())
+		return false;
+	const QByteArray& activeBuffer = bufferData[bufferIndex];
+	const int count = accessor.value("count").toInt(0);
+	const int accessorByteOffset = accessor.value("byteOffset").toInt(0);
+	const int bufferViewByteOffset = bufferView.value("byteOffset").toInt(0);
+	const int byteStride = bufferView.value("byteStride").toInt(componentSize);
+	const int baseOffset = bufferViewByteOffset + accessorByteOffset;
+	if (count <= 0 || byteStride < componentSize)
+		return false;
+
+	outValues.resize(count);
+	for (int elementIndex = 0; elementIndex < count; ++elementIndex)
+	{
+		const int offset = baseOffset + elementIndex * byteStride;
+		const int requiredBytes = offset + componentSize;
+		if (requiredBytes > activeBuffer.size())
+			return false;
+
+		const char* src = activeBuffer.constData() + offset;
+		switch (componentType)
+		{
+		case 5120: outValues[elementIndex] = *reinterpret_cast<const qint8*>(src); break;
+		case 5121: outValues[elementIndex] = *reinterpret_cast<const quint8*>(src); break;
+		case 5122: outValues[elementIndex] = *reinterpret_cast<const qint16*>(src); break;
+		case 5123: outValues[elementIndex] = *reinterpret_cast<const quint16*>(src); break;
+		case 5125: outValues[elementIndex] = static_cast<float>(*reinterpret_cast<const quint32*>(src)); break;
+		case 5126: outValues[elementIndex] = *reinterpret_cast<const float*>(src); break;
+		default: return false;
+		}
 	}
 
 	if (outElementCount)
@@ -342,6 +422,33 @@ bool decodeAnimationPointerTarget(const QString& pointer,
 	return textureTarget != GltfAnimationTextureTarget::Unknown;
 }
 
+bool decodeMaterialFactorPointerTarget(const QString& pointer,
+	int& materialIndex,
+	GltfAnimationPointerProperty& pointerProperty)
+{
+	static const QRegularExpression baseColorRegex(
+		QStringLiteral("^/materials/(\\d+)/pbrMetallicRoughness/baseColorFactor$"));
+	const QRegularExpressionMatch match = baseColorRegex.match(pointer);
+	if (!match.hasMatch())
+		return false;
+
+	materialIndex = match.captured(1).toInt();
+	pointerProperty = GltfAnimationPointerProperty::BaseColorFactor;
+	return materialIndex >= 0;
+}
+
+bool decodeNodeVisibilityPointerTarget(const QString& pointer, int& nodeIndex)
+{
+	static const QRegularExpression visibilityRegex(
+		QStringLiteral("^/nodes/(\\d+)/extensions/KHR_node_visibility/visible$"));
+	const QRegularExpressionMatch match = visibilityRegex.match(pointer);
+	if (!match.hasMatch())
+		return false;
+
+	nodeIndex = match.captured(1).toInt();
+	return nodeIndex >= 0;
+}
+
 bool loadMorphTargetsForAiMesh(const QString& gltfPath,
 	const aiScene* scene,
 	unsigned int aiMeshIndex,
@@ -351,7 +458,7 @@ bool loadMorphTargetsForAiMesh(const QString& gltfPath,
 	GltfPrimitiveVertexBasis* outBaseBasis = nullptr)
 {
 	QJsonDocument doc;
-	QByteArray bufferData;
+	QVector<QByteArray> bufferData;
 	if (!loadAnimationJsonAndBuffer(gltfPath, doc, bufferData) || !doc.isObject() || !scene || !scene->mRootNode)
 		return false;
 
@@ -2622,7 +2729,7 @@ void AssImpModelLoader::parseSceneAnimations()
 	}
 
 	QJsonDocument doc;
-	QByteArray bufferData;
+	QVector<QByteArray> bufferData;
 	if (!loadAnimationJsonAndBuffer(QString::fromStdString(_path), doc, bufferData) || !doc.isObject())
 		return;
 
@@ -2631,6 +2738,114 @@ void AssImpModelLoader::parseSceneAnimations()
 	const QJsonArray accessors = root.value("accessors").toArray();
 	const QJsonArray bufferViews = root.value("bufferViews").toArray();
 	const QJsonArray nodes = root.value("nodes").toArray();
+	const QJsonArray scenes = root.value("scenes").toArray();
+
+	_animationData.nodeVisibilityStates.clear();
+	_animationData.lightBindings.clear();
+	_animationData.nodeBindings.clear();
+
+	QVector<int> parentIndices(nodes.size(), -1);
+	for (int nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex)
+	{
+		const QJsonArray children = nodes.at(nodeIndex).toObject().value("children").toArray();
+		for (const QJsonValue& childValue : children)
+		{
+			const int childIndex = childValue.toInt(-1);
+			if (childIndex >= 0 && childIndex < parentIndices.size())
+				parentIndices[childIndex] = nodeIndex;
+		}
+	}
+
+	for (int nodeIndex = 0; nodeIndex < nodes.size(); ++nodeIndex)
+	{
+		const QJsonObject nodeObj = nodes.at(nodeIndex).toObject();
+		const QJsonObject extensions = nodeObj.value("extensions").toObject();
+
+		GltfAnimationNodeVisibilityState nodeState;
+		nodeState.nodeIndex = nodeIndex;
+		nodeState.parentNodeIndex = parentIndices.value(nodeIndex, -1);
+		nodeState.nodeName = nodeObj.value("name").toString();
+		nodeState.defaultVisible = extensions.value("KHR_node_visibility").toObject().value("visible").toBool(true);
+		_animationData.nodeVisibilityStates.append(nodeState);
+
+		GltfAnimationNodeBinding binding;
+		binding.nodeIndex = nodeIndex;
+		binding.nodeName = nodeState.nodeName;
+		_animationData.nodeBindings.append(binding);
+
+		const QJsonObject lightRef = extensions.value("KHR_lights_punctual").toObject();
+		if (lightRef.contains("light"))
+		{
+			GltfAnimationLightBinding binding;
+			binding.parsedLightIndex = _animationData.lightBindings.size();
+			binding.lightDefinitionIndex = lightRef.value("light").toInt(-1);
+			binding.nodeIndex = nodeIndex;
+			binding.nodeName = nodeState.nodeName;
+			_animationData.lightBindings.append(binding);
+		}
+	}
+
+	if (_scene && _scene->mRootNode && !scenes.isEmpty())
+	{
+		const int sceneIdx = root.value("scene").toInt(0);
+		QJsonArray rootNodeIndices;
+		if (sceneIdx >= 0 && sceneIdx < scenes.size())
+			rootNodeIndices = scenes[sceneIdx].toObject().value("nodes").toArray();
+
+		struct NodeFrame { aiNode* aiNodePtr; int gltfNodeIdx; };
+		QVector<NodeFrame> stack;
+		aiNode* aiRoot = _scene->mRootNode;
+		if (rootNodeIndices.size() == 1)
+		{
+			const int rootGltfIdx = rootNodeIndices[0].toInt();
+			const QString gltfRootName = (rootGltfIdx >= 0 && rootGltfIdx < nodes.size())
+				? nodes[rootGltfIdx].toObject().value("name").toString() : QString();
+			const QString aiRootName = QString::fromUtf8(aiRoot->mName.C_Str());
+
+			if (aiRootName == gltfRootName || aiRoot->mNumMeshes > 0 || aiRoot->mNumChildren == 0)
+				stack.append({ aiRoot, rootGltfIdx });
+			else if (aiRoot->mNumMeshes == 0 && aiRoot->mNumChildren == 1)
+				stack.append({ aiRoot->mChildren[0], rootGltfIdx });
+		}
+		else
+		{
+			for (int i = rootNodeIndices.size() - 1; i >= 0; --i)
+			{
+				if (i < static_cast<int>(aiRoot->mNumChildren))
+					stack.append({ aiRoot->mChildren[i], rootNodeIndices[i].toInt() });
+			}
+		}
+
+		while (!stack.isEmpty())
+		{
+			const NodeFrame frame = stack.takeLast();
+			if (!frame.aiNodePtr || frame.gltfNodeIdx < 0 || frame.gltfNodeIdx >= nodes.size())
+				continue;
+
+			QString aiNodeName = QString::fromUtf8(frame.aiNodePtr->mName.C_Str());
+			if (aiNodeName.isEmpty())
+			{
+				aiNodeName = QStringLiteral("__gltfNode_%1").arg(frame.gltfNodeIdx);
+				frame.aiNodePtr->mName = aiString(aiNodeName.toUtf8().constData());
+			}
+			if (frame.gltfNodeIdx < _animationData.nodeBindings.size())
+				_animationData.nodeBindings[frame.gltfNodeIdx].nodeName = aiNodeName;
+			if (frame.gltfNodeIdx < _animationData.nodeVisibilityStates.size())
+				_animationData.nodeVisibilityStates[frame.gltfNodeIdx].nodeName = aiNodeName;
+			for (GltfAnimationLightBinding& binding : _animationData.lightBindings)
+			{
+				if (binding.nodeIndex == frame.gltfNodeIdx)
+					binding.nodeName = aiNodeName;
+			}
+
+			const QJsonArray childIndices = nodes[frame.gltfNodeIdx].toObject().value("children").toArray();
+			for (int childOffset = childIndices.size() - 1; childOffset >= 0; --childOffset)
+			{
+				if (childOffset < static_cast<int>(frame.aiNodePtr->mNumChildren))
+					stack.append({ frame.aiNodePtr->mChildren[childOffset], childIndices[childOffset].toInt() });
+			}
+		}
+	}
 
 	for (int animIndex = 0; animIndex < animations.size(); ++animIndex)
 	{
@@ -2683,6 +2898,86 @@ void AssImpModelLoader::parseSceneAnimations()
 			const QJsonObject channelObj = channelValue.toObject();
 			const QJsonObject targetObj = channelObj.value("target").toObject();
 			const QString targetPath = targetObj.value("path").toString();
+			if (targetPath == "translation" || targetPath == "rotation" || targetPath == "scale")
+			{
+				const int samplerIndex = channelObj.value("sampler").toInt(-1);
+				const int nodeIndex = targetObj.value("node").toInt(-1);
+				if (samplerIndex < 0 || samplerIndex >= samplers.size() || nodeIndex < 0 || nodeIndex >= nodes.size())
+					continue;
+
+				const QJsonObject samplerObj = samplers.at(samplerIndex).toObject();
+				const int inputAccessorIndex = samplerObj.value("input").toInt(-1);
+				const int outputAccessorIndex = samplerObj.value("output").toInt(-1);
+				if (inputAccessorIndex < 0 || outputAccessorIndex < 0)
+					continue;
+
+				QVector<float> inputTimes;
+				int keyCount = 0;
+				if (!readFloatAccessorData(accessors, bufferViews, bufferData, inputAccessorIndex, 1, inputTimes, &keyCount) || keyCount <= 0)
+					continue;
+
+				GltfAnimationChannel transformChannel;
+				transformChannel.targetNodeIndex = nodeIndex;
+				transformChannel.targetNodeName = nodeIndex < _animationData.nodeBindings.size()
+					? _animationData.nodeBindings[nodeIndex].nodeName
+					: nodes.at(nodeIndex).toObject().value("name").toString();
+
+				if (targetPath == "translation" || targetPath == "scale")
+				{
+					QVector<float> outputValues;
+					int outputCount = 0;
+					if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 3, outputValues, &outputCount) ||
+						outputCount != keyCount)
+					{
+						continue;
+					}
+
+					transformChannel.targetPath = targetPath == "translation"
+						? GltfAnimationTargetPath::Translation
+						: GltfAnimationTargetPath::Scale;
+					transformChannel.vec3Keys.reserve(keyCount);
+					for (int keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+					{
+						transformChannel.vec3Keys.append({
+							inputTimes[keyIndex],
+							QVector3D(
+								outputValues[keyIndex * 3],
+								outputValues[keyIndex * 3 + 1],
+								outputValues[keyIndex * 3 + 2])
+						});
+					}
+				}
+				else
+				{
+					QVector<float> outputValues;
+					int outputCount = 0;
+					if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 4, outputValues, &outputCount) ||
+						outputCount != keyCount)
+					{
+						continue;
+					}
+
+					transformChannel.targetPath = GltfAnimationTargetPath::Rotation;
+					transformChannel.quatKeys.reserve(keyCount);
+					for (int keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+					{
+						transformChannel.quatKeys.append({
+							inputTimes[keyIndex],
+							QQuaternion(
+								outputValues[keyIndex * 4 + 3],
+								outputValues[keyIndex * 4],
+								outputValues[keyIndex * 4 + 1],
+								outputValues[keyIndex * 4 + 2]).normalized()
+						});
+					}
+				}
+
+				if (!inputTimes.isEmpty())
+					clip.durationSeconds = std::max(clip.durationSeconds, static_cast<double>(inputTimes.back()));
+				clip.hasNodeTransforms = true;
+				clip.channels.append(transformChannel);
+				continue;
+			}
 			if (targetPath == "weights")
 			{
 				const int samplerIndex = channelObj.value("sampler").toInt(-1);
@@ -2715,7 +3010,10 @@ void AssImpModelLoader::parseSceneAnimations()
 				const int weightsPerKey = outputCount / keyCount;
 				GltfAnimationChannel weightChannel;
 				weightChannel.targetPath = GltfAnimationTargetPath::Weights;
-				weightChannel.targetNodeName = nodes.at(nodeIndex).toObject().value("name").toString();
+				weightChannel.targetNodeIndex = nodeIndex;
+				weightChannel.targetNodeName = nodeIndex < _animationData.nodeBindings.size()
+					? _animationData.nodeBindings[nodeIndex].nodeName
+					: nodes.at(nodeIndex).toObject().value("name").toString();
 				weightChannel.weightKeys.reserve(keyCount);
 
 				for (int keyIndex = 0; keyIndex < keyCount; ++keyIndex)
@@ -2750,9 +3048,6 @@ void AssImpModelLoader::parseSceneAnimations()
 			int materialIndex = -1;
 			GltfAnimationTextureTarget textureTarget = GltfAnimationTextureTarget::Unknown;
 			GltfAnimationPointerProperty pointerProperty = GltfAnimationPointerProperty::None;
-			if (!decodeAnimationPointerTarget(pointer, materialIndex, textureTarget, pointerProperty))
-				continue;
-
 			const QJsonObject samplerObj = samplers.at(samplerIndex).toObject();
 			const int inputAccessorIndex = samplerObj.value("input").toInt(-1);
 			const int outputAccessorIndex = samplerObj.value("output").toInt(-1);
@@ -2767,45 +3062,102 @@ void AssImpModelLoader::parseSceneAnimations()
 			GltfAnimationChannel pointerChannel;
 			pointerChannel.targetPath = GltfAnimationTargetPath::Pointer;
 			pointerChannel.targetPointer = pointer;
-			pointerChannel.targetMaterialIndex = materialIndex;
-			pointerChannel.textureTarget = textureTarget;
-			pointerChannel.pointerProperty = pointerProperty;
+			if (decodeAnimationPointerTarget(pointer, materialIndex, textureTarget, pointerProperty))
+			{
+				pointerChannel.pointerTargetKind = GltfAnimationPointerTargetKind::MaterialTextureTransform;
+				pointerChannel.targetMaterialIndex = materialIndex;
+				pointerChannel.textureTarget = textureTarget;
+				pointerChannel.pointerProperty = pointerProperty;
 
-			if (pointerProperty == GltfAnimationPointerProperty::Rotation)
+				if (pointerProperty == GltfAnimationPointerProperty::Rotation)
+				{
+					QVector<float> outputValues;
+					int outputCount = 0;
+					if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 1, outputValues, &outputCount) ||
+						outputCount != keyCount)
+					{
+						continue;
+					}
+
+					pointerChannel.floatKeys.reserve(keyCount);
+					for (int keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+					{
+						pointerChannel.floatKeys.append({
+							inputTimes[keyIndex],
+							outputValues[keyIndex]
+						});
+					}
+				}
+				else
+				{
+					QVector<float> outputValues;
+					int outputCount = 0;
+					if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 2, outputValues, &outputCount) ||
+						outputCount != keyCount)
+					{
+						continue;
+					}
+
+					pointerChannel.vec2Keys.reserve(keyCount);
+					for (int keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+					{
+						pointerChannel.vec2Keys.append({
+							inputTimes[keyIndex],
+							QVector2D(outputValues[keyIndex * 2], outputValues[keyIndex * 2 + 1])
+						});
+					}
+				}
+			}
+			else if (decodeMaterialFactorPointerTarget(pointer, materialIndex, pointerProperty))
 			{
 				QVector<float> outputValues;
 				int outputCount = 0;
-				if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 1, outputValues, &outputCount) ||
+				if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 4, outputValues, &outputCount) ||
 					outputCount != keyCount)
 				{
 					continue;
 				}
 
-				pointerChannel.floatKeys.reserve(keyCount);
+				pointerChannel.pointerTargetKind = GltfAnimationPointerTargetKind::MaterialTextureTransform;
+				pointerChannel.targetMaterialIndex = materialIndex;
+				pointerChannel.pointerProperty = pointerProperty;
+				pointerChannel.vec4Keys.reserve(keyCount);
 				for (int keyIndex = 0; keyIndex < keyCount; ++keyIndex)
 				{
-					pointerChannel.floatKeys.append({
+					pointerChannel.vec4Keys.append({
 						inputTimes[keyIndex],
-						outputValues[keyIndex]
+						QVector4D(
+							outputValues[keyIndex * 4],
+							outputValues[keyIndex * 4 + 1],
+							outputValues[keyIndex * 4 + 2],
+							outputValues[keyIndex * 4 + 3])
 					});
 				}
 			}
 			else
 			{
+				int nodeIndex = -1;
+				if (!decodeNodeVisibilityPointerTarget(pointer, nodeIndex) || nodeIndex >= nodes.size())
+					continue;
+
 				QVector<float> outputValues;
 				int outputCount = 0;
-				if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 2, outputValues, &outputCount) ||
+				if (!readScalarAccessorDataAsFloats(accessors, bufferViews, bufferData, outputAccessorIndex, outputValues, &outputCount) ||
 					outputCount != keyCount)
 				{
 					continue;
 				}
 
-				pointerChannel.vec2Keys.reserve(keyCount);
+				pointerChannel.pointerTargetKind = GltfAnimationPointerTargetKind::NodeVisibility;
+				pointerChannel.pointerProperty = GltfAnimationPointerProperty::Visibility;
+				pointerChannel.targetNodeIndex = nodeIndex;
+				pointerChannel.targetNodeName = nodes.at(nodeIndex).toObject().value("name").toString();
+				pointerChannel.boolKeys.reserve(keyCount);
 				for (int keyIndex = 0; keyIndex < keyCount; ++keyIndex)
 				{
-					pointerChannel.vec2Keys.append({
+					pointerChannel.boolKeys.append({
 						inputTimes[keyIndex],
-						QVector2D(outputValues[keyIndex * 2], outputValues[keyIndex * 2 + 1])
+						outputValues[keyIndex] >= 0.5f
 					});
 				}
 			}

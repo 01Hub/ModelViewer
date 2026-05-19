@@ -8,6 +8,7 @@
 #include <QVector>
 #include <QVector2D>
 #include <QVector3D>
+#include <QVector4D>
 #include <assimp/matrix4x4.h>
 
 enum class GltfAnimationTargetPath
@@ -24,7 +25,16 @@ enum class GltfAnimationPointerProperty
     None,
     Offset,
     Scale,
-    Rotation
+    Rotation,
+    Visibility,
+    BaseColorFactor
+};
+
+enum class GltfAnimationPointerTargetKind
+{
+    None,
+    MaterialTextureTransform,
+    NodeVisibility
 };
 
 enum class GltfAnimationTextureTarget
@@ -62,6 +72,12 @@ struct GltfAnimationVec3Key
     QVector3D value;
 };
 
+struct GltfAnimationVec4Key
+{
+    double    timeSeconds = 0.0;
+    QVector4D value;
+};
+
 struct GltfAnimationQuatKey
 {
     double      timeSeconds = 0.0;
@@ -80,6 +96,12 @@ struct GltfAnimationFloatKey
     float  value = 0.0f;
 };
 
+struct GltfAnimationBoolKey
+{
+    double timeSeconds = 0.0;
+    bool   value = false;
+};
+
 struct GltfAnimationWeightsKey
 {
     double         timeSeconds = 0.0;
@@ -89,15 +111,19 @@ struct GltfAnimationWeightsKey
 struct GltfAnimationChannel
 {
     QString                 targetNodeName;
+    int                     targetNodeIndex = -1;
     GltfAnimationTargetPath targetPath = GltfAnimationTargetPath::Translation;
     QString                 targetPointer;
+    GltfAnimationPointerTargetKind pointerTargetKind = GltfAnimationPointerTargetKind::None;
     int                     targetMaterialIndex = -1;
     GltfAnimationTextureTarget textureTarget = GltfAnimationTextureTarget::Unknown;
     GltfAnimationPointerProperty pointerProperty = GltfAnimationPointerProperty::None;
     QVector<GltfAnimationVec3Key> vec3Keys;
+    QVector<GltfAnimationVec4Key> vec4Keys;
     QVector<GltfAnimationQuatKey> quatKeys;
     QVector<GltfAnimationVec2Key> vec2Keys;
     QVector<GltfAnimationFloatKey> floatKeys;
+    QVector<GltfAnimationBoolKey> boolKeys;
     QVector<GltfAnimationWeightsKey> weightKeys;
 };
 
@@ -118,15 +144,40 @@ struct GltfSkinJoint
     aiMatrix4x4 inverseBindMatrix;
 };
 
+struct GltfAnimationNodeVisibilityState
+{
+    int     nodeIndex = -1;
+    int     parentNodeIndex = -1;
+    QString nodeName;
+    bool    defaultVisible = true;
+};
+
+struct GltfAnimationNodeBinding
+{
+    int     nodeIndex = -1;
+    QString nodeName;
+};
+
+struct GltfAnimationLightBinding
+{
+    int     parsedLightIndex = -1;
+    int     lightDefinitionIndex = -1;
+    int     nodeIndex = -1;
+    QString nodeName;
+};
+
 struct GltfAnimationData
 {
-    QString                  sourceFile;
+    QString sourceFile;
     QVector<GltfAnimationClip> clips;
-    bool                     hasNodeAnimations = false;
-    bool                     hasSkinning = false;
-    bool                     hasMorphAnimations = false;
-    bool                     hasPointerAnimations = false;
-    aiMatrix4x4              rootInverseTransform;
+    bool hasNodeAnimations = false;
+    bool hasSkinning = false;
+    bool hasMorphAnimations = false;
+    bool hasPointerAnimations = false;
+    QVector<GltfAnimationNodeBinding> nodeBindings;
+    QVector<GltfAnimationNodeVisibilityState> nodeVisibilityStates;
+    QVector<GltfAnimationLightBinding> lightBindings;
+    aiMatrix4x4 rootInverseTransform;
 
     bool isEmpty() const { return clips.isEmpty(); }
 };
