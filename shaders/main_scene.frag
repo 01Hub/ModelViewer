@@ -1875,9 +1875,8 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		if (envMapEnabled)
 		{
 			float dotNV = max(dot(N, V_direct), 0.0);
-			vec3 F90_effective = max(vec3(1.0 - roughness), F90);
-			vec3 F90_iridescent_ibl = mix(F90_effective, vec3(1.0), iridescenceFactor);
-			vec3 Fibl = fresnelSchlick(dotNV, F0_iridescent, F90_iridescent_ibl);
+			vec3 F90_effective = max(vec3(1.0 - roughness), F0_iridescent);
+			vec3 Fibl = fresnelSchlick(dotNV, F0_iridescent, F90_effective);
 			vec3 kSibl = Fibl;
 			vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
 
