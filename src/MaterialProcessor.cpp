@@ -1420,6 +1420,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 		{"occlusion", "occlusionMap"},
 		{"occlusionMap", "occlusionMap"},
 		{"ambientOcclusion", "occlusionMap"},
+		{"aoMap", "occlusionMap"},
 		{"ao", "occlusionMap"},
 		{"emissive", "emissiveMap"},
 		{"emissiveMap", "emissiveMap"},
@@ -1678,7 +1679,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 
 		// material-level slots (parent = matObj)
 		processTextureSlot(matObj, "normalTexture", "normalMap");
-		processTextureSlot(matObj, "occlusionTexture", "aoMap");
+		processTextureSlot(matObj, "occlusionTexture", "occlusionMap");
 		processTextureSlot(matObj, "emissiveTexture", "emissiveMap");
 
 		// If you later want to add more pbr-level or material-level slots, just call processTextureSlot with the parent

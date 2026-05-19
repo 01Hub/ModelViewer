@@ -6596,7 +6596,7 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 			resolvedMaterial.setNormalTextureId(texture.id);
 			if (!texturePath.isEmpty()) resolvedMaterial.setNormalMap(texturePath);
 		}
-		else if (texture.type == "aoMap")
+		else if (texture.type == "aoMap" || texture.type == "occlusionMap" || texture.type == "occlusion")
 		{
 			resolvedMaterial.setOcclusionTextureId(texture.id);
 			if (!texturePath.isEmpty()) resolvedMaterial.setAOMap(texturePath);
