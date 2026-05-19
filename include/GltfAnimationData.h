@@ -15,6 +15,7 @@ enum class GltfAnimationTargetPath
     Translation,
     Rotation,
     Scale,
+    Weights,
     Pointer
 };
 
@@ -79,6 +80,12 @@ struct GltfAnimationFloatKey
     float  value = 0.0f;
 };
 
+struct GltfAnimationWeightsKey
+{
+    double         timeSeconds = 0.0;
+    QVector<float> values;
+};
+
 struct GltfAnimationChannel
 {
     QString                 targetNodeName;
@@ -91,6 +98,7 @@ struct GltfAnimationChannel
     QVector<GltfAnimationQuatKey> quatKeys;
     QVector<GltfAnimationVec2Key> vec2Keys;
     QVector<GltfAnimationFloatKey> floatKeys;
+    QVector<GltfAnimationWeightsKey> weightKeys;
 };
 
 struct GltfAnimationClip
@@ -99,6 +107,7 @@ struct GltfAnimationClip
     double                      durationSeconds = 0.0;
     bool                        hasNodeTransforms = false;
     bool                        hasSkinning = false;
+    bool                        hasMorphAnimations = false;
     bool                        hasPointerAnimations = false;
     QVector<GltfAnimationChannel> channels;
 };
@@ -115,6 +124,7 @@ struct GltfAnimationData
     QVector<GltfAnimationClip> clips;
     bool                     hasNodeAnimations = false;
     bool                     hasSkinning = false;
+    bool                     hasMorphAnimations = false;
     bool                     hasPointerAnimations = false;
     aiMatrix4x4              rootInverseTransform;
 

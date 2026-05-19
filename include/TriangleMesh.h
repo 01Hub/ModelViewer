@@ -141,6 +141,8 @@ public:
 	// -----------------------------------------------------------------------
 	void    setSourceFile(const QString& path) { _sourceFile = path; }
 	QString getSourceFile() const              { return _sourceFile; }
+	void    setSourceNodeName(const QString& name) { _sourceNodeName = name; }
+	QString getSourceNodeName() const              { return _sourceNodeName; }
 	void    setSceneRenderTransform(const QMatrix4x4& trsf);
 	void    setSceneRenderTransformFast(const QMatrix4x4& trsf);
 
@@ -172,6 +174,10 @@ public:
 	bool hasSkinning() const { return !_skinJoints.isEmpty(); }
 	void setJointPalette(const QVector<QMatrix4x4>& palette) { _jointPalette = palette; }
 	const QVector<QMatrix4x4>& jointPalette() const { return _jointPalette; }
+	virtual bool hasMorphTargets() const { return false; }
+	virtual QVector<float> defaultMorphWeights() const { return {}; }
+	virtual void applyMorphWeights(const QVector<float>&) { }
+	virtual void resetMorphTargets() { }
 
 	// Returns a sort key based on primary texture IDs to minimise GPU texture
 	// state changes when opaque meshes are sorted before drawing.
@@ -422,6 +428,7 @@ protected:
 
 	// Absolute path of the file this mesh was loaded from (empty for parametric shapes).
 	QString _sourceFile;
+	QString _sourceNodeName;
 	QMatrix4x4 _sceneRenderTransform;
 
 	// KHR_materials_variants: per-primitive variant->material mappings.

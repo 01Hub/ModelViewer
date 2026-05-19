@@ -43,6 +43,12 @@ inline glm::vec2 getTexCoord(const Vertex& v, int index = 0)
 static_assert(sizeof(Vertex) == sizeof(float) * (4 + 3 + 3 + 3 + 3 + 8 + 4 + 4),
 	"Vertex struct has unexpected padding - meshopt stride will be incorrect");
 
+struct MorphTargetData
+{
+	std::vector<glm::vec3> positionDeltas;
+	std::vector<glm::vec3> normalDeltas;
+	std::vector<glm::vec3> tangentDeltas;
+};
 
 class AssImpMesh : public TriangleMesh
 {
@@ -50,7 +56,7 @@ public:
 
 	/*  Functions  */
 	// Constructor
-	AssImpMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<GLMaterial::Texture> textures, GLMaterial material);
+	AssImpMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization = false);
 	~AssImpMesh();
 	virtual TriangleMesh* clone();
 	void render();
@@ -70,6 +76,12 @@ public:
 	// Set new mesh data and upload to GPU (no optimization)
 	void setMeshData(const std::vector<Vertex>& vertices,
 		const std::vector<unsigned int>& indices);
+	void setMorphTargets(const QVector<MorphTargetData>& targets,
+		const QVector<float>& defaultWeights);
+	bool hasMorphTargets() const override { return !_morphTargets.isEmpty(); }
+	QVector<float> defaultMorphWeights() const override { return _defaultMorphWeights; }
+	void applyMorphWeights(const QVector<float>& weights) override;
+	void resetMorphTargets() override;
 
 	void setAlbedoPBRMap(unsigned int albedoMap) override;
 	void setMetallicPBRMap(unsigned int metallicMap) override;
@@ -144,8 +156,12 @@ private:
 private:
 	/*  Mesh Data  */
 	std::vector<Vertex> _vertices;
+	std::vector<Vertex> _baseVertices;
 	std::vector<unsigned int> _indices;
 	std::vector<GLMaterial::Texture> _textures;
+	QVector<MorphTargetData> _morphTargets;
+	QVector<float> _defaultMorphWeights;
+	QVector<float> _currentMorphWeights;
 
 	struct PrecomputedTexture
 	{
@@ -166,4 +182,5 @@ private:
 	unsigned int _normalADSMap = 0;
 	unsigned int _heightADSMap = 0;
 	unsigned int _opacityADSMap = 0;
+	bool _skipOptimization = false;
 };

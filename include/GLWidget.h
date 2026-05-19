@@ -427,6 +427,7 @@ public:
 	{
 		GltfAnimationData data;
 		QHash<QString, RuntimeNodeTransform> defaultNodeTransforms;
+		QHash<QString, QVector<float>> defaultNodeMorphWeights;
 		QHash<QUuid, GLMaterial> defaultMeshMaterials;
 		QMultiHash<int, QUuid> meshUuidsByMaterialIndex;
 	};

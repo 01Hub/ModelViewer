@@ -25,6 +25,7 @@
 #include <QLayout>
 #include <Quantity_ColorRGBA.hxx>
 #include <cmath>
+#include <limits>
 #include <unordered_set>
 
 using namespace std;
@@ -67,6 +68,103 @@ void assignFallbackTangentBasis(Vertex& vertex)
 
 	vertex.Tangent = computeFallbackTangent(safeNormal);
 	vertex.Bitangent = glm::normalize(glm::cross(safeNormal, vertex.Tangent));
+}
+
+struct GltfPrimitiveVertexBasis
+{
+	std::vector<glm::vec3> positions;
+	std::vector<glm::vec3> normals;
+	std::vector<glm::vec3> tangents;
+};
+
+std::vector<unsigned int> buildMorphVertexRemap(const std::vector<Vertex>& importedVertices,
+	const GltfPrimitiveVertexBasis& sourceBasis)
+{
+	auto squaredLength = [](const auto& value)
+	{
+		return glm::dot(value, value);
+	};
+
+	if (importedVertices.size() != sourceBasis.positions.size())
+		return {};
+
+	std::vector<unsigned int> remap(importedVertices.size(), 0);
+	std::vector<bool> used(sourceBasis.positions.size(), false);
+
+	for (size_t importedIndex = 0; importedIndex < importedVertices.size(); ++importedIndex)
+	{
+		const Vertex& imported = importedVertices[importedIndex];
+		float bestScore = std::numeric_limits<float>::max();
+		int bestIndex = -1;
+
+		for (int sourceIndex = 0; sourceIndex < static_cast<int>(sourceBasis.positions.size()); ++sourceIndex)
+		{
+			if (used[sourceIndex])
+				continue;
+
+			const glm::vec3 sourcePosition = sourceBasis.positions[sourceIndex];
+			const glm::vec3 sourceNormal = sourceIndex < static_cast<int>(sourceBasis.normals.size())
+				? sourceBasis.normals[sourceIndex]
+				: glm::vec3(0.0f);
+			const glm::vec3 sourceTangent = sourceIndex < static_cast<int>(sourceBasis.tangents.size())
+				? sourceBasis.tangents[sourceIndex]
+				: glm::vec3(0.0f);
+
+			const float positionScore = squaredLength(imported.Position - sourcePosition);
+			const float normalScore = squaredLength(imported.Normal - sourceNormal);
+			const float tangentScore = squaredLength(imported.Tangent - sourceTangent);
+			const float texScore = squaredLength(imported.TexCoords[0]);
+			const float score = positionScore * 1000.0f + normalScore * 100.0f + tangentScore * 10.0f + texScore;
+
+			if (score < bestScore)
+			{
+				bestScore = score;
+				bestIndex = sourceIndex;
+			}
+		}
+
+		if (bestIndex < 0)
+			return {};
+
+		used[bestIndex] = true;
+		remap[importedIndex] = static_cast<unsigned int>(bestIndex);
+	}
+
+	return remap;
+}
+
+void reorderMorphTargetsToImportedVertexOrder(QVector<MorphTargetData>& morphTargets,
+	const std::vector<unsigned int>& remap)
+{
+	if (morphTargets.isEmpty() || remap.empty())
+		return;
+
+	for (MorphTargetData& morphTarget : morphTargets)
+	{
+		if (!morphTarget.positionDeltas.empty())
+		{
+			std::vector<glm::vec3> reordered(remap.size());
+			for (size_t importedIndex = 0; importedIndex < remap.size(); ++importedIndex)
+				reordered[importedIndex] = morphTarget.positionDeltas[remap[importedIndex]];
+			morphTarget.positionDeltas = std::move(reordered);
+		}
+
+		if (!morphTarget.normalDeltas.empty())
+		{
+			std::vector<glm::vec3> reordered(remap.size());
+			for (size_t importedIndex = 0; importedIndex < remap.size(); ++importedIndex)
+				reordered[importedIndex] = morphTarget.normalDeltas[remap[importedIndex]];
+			morphTarget.normalDeltas = std::move(reordered);
+		}
+
+		if (!morphTarget.tangentDeltas.empty())
+		{
+			std::vector<glm::vec3> reordered(remap.size());
+			for (size_t importedIndex = 0; importedIndex < remap.size(); ++importedIndex)
+				reordered[importedIndex] = morphTarget.tangentDeltas[remap[importedIndex]];
+			morphTarget.tangentDeltas = std::move(reordered);
+		}
+	}
 }
 
 bool loadAnimationJsonAndBuffer(const QString& gltfPath, QJsonDocument& doc, QByteArray& bufferData)
@@ -242,6 +340,174 @@ bool decodeAnimationPointerTarget(const QString& pointer,
 		textureTarget = GltfAnimationTextureTarget::Unknown;
 
 	return textureTarget != GltfAnimationTextureTarget::Unknown;
+}
+
+bool loadMorphTargetsForAiMesh(const QString& gltfPath,
+	const aiScene* scene,
+	unsigned int aiMeshIndex,
+	unsigned int expectedVertexCount,
+	QVector<MorphTargetData>& outTargets,
+	QVector<float>& outDefaultWeights,
+	GltfPrimitiveVertexBasis* outBaseBasis = nullptr)
+{
+	QJsonDocument doc;
+	QByteArray bufferData;
+	if (!loadAnimationJsonAndBuffer(gltfPath, doc, bufferData) || !doc.isObject() || !scene || !scene->mRootNode)
+		return false;
+
+	const QJsonObject root = doc.object();
+	const QJsonArray jsonNodes = root.value("nodes").toArray();
+	const QJsonArray jsonMeshes = root.value("meshes").toArray();
+	const QJsonArray jsonScenes = root.value("scenes").toArray();
+	const QJsonArray accessors = root.value("accessors").toArray();
+	const QJsonArray bufferViews = root.value("bufferViews").toArray();
+
+	const int sceneIdx = root.value("scene").toInt(0);
+	QJsonArray rootNodeIndices;
+	if (sceneIdx >= 0 && sceneIdx < jsonScenes.size())
+		rootNodeIndices = jsonScenes[sceneIdx].toObject().value("nodes").toArray();
+	if (rootNodeIndices.isEmpty())
+		return false;
+
+	struct Frame { aiNode* aiNodePtr; int gltfNodeIdx; };
+	QVector<Frame> stack;
+	aiNode* aiSceneRoot = scene->mRootNode;
+	if (rootNodeIndices.size() == 1)
+	{
+		const int rootGltfIdx = rootNodeIndices[0].toInt();
+		const QString gltfRootName = (rootGltfIdx >= 0 && rootGltfIdx < jsonNodes.size())
+			? jsonNodes[rootGltfIdx].toObject().value("name").toString() : QString();
+		const QString aiRootName = QString::fromUtf8(aiSceneRoot->mName.C_Str());
+		if (aiRootName == gltfRootName || aiSceneRoot->mNumMeshes > 0)
+			stack.append({ aiSceneRoot, rootGltfIdx });
+		else if (aiSceneRoot->mNumMeshes == 0 && aiSceneRoot->mNumChildren == 1)
+			stack.append({ aiSceneRoot->mChildren[0], rootGltfIdx });
+	}
+	else
+	{
+		for (int i = static_cast<int>(rootNodeIndices.size()) - 1; i >= 0; --i)
+			if (i < static_cast<int>(aiSceneRoot->mNumChildren))
+				stack.append({ aiSceneRoot->mChildren[i], rootNodeIndices[i].toInt() });
+	}
+
+	while (!stack.isEmpty())
+	{
+		const Frame frame = stack.takeLast();
+		aiNode* aiNodePtr = frame.aiNodePtr;
+		const int nodeIdx = frame.gltfNodeIdx;
+		if (!aiNodePtr || nodeIdx < 0 || nodeIdx >= jsonNodes.size())
+			continue;
+
+		const QJsonObject nodeObj = jsonNodes[nodeIdx].toObject();
+		if (nodeObj.contains("mesh") && aiNodePtr->mNumMeshes > 0)
+		{
+			const int gltfMeshIndex = nodeObj.value("mesh").toInt(-1);
+			if (gltfMeshIndex >= 0 && gltfMeshIndex < jsonMeshes.size())
+			{
+				const QJsonObject meshObj = jsonMeshes[gltfMeshIndex].toObject();
+				const QJsonArray primitives = meshObj.value("primitives").toArray();
+				for (int primitiveIndex = 0; primitiveIndex < primitives.size() && primitiveIndex < static_cast<int>(aiNodePtr->mNumMeshes); ++primitiveIndex)
+				{
+					const unsigned int candidateAiMeshIndex = aiNodePtr->mMeshes[primitiveIndex];
+					if (candidateAiMeshIndex != aiMeshIndex)
+						continue;
+
+					const QJsonObject primitiveObj = primitives[primitiveIndex].toObject();
+					const QJsonArray targets = primitiveObj.value("targets").toArray();
+					if (targets.isEmpty())
+						return false;
+
+					if (outBaseBasis)
+					{
+						outBaseBasis->positions.clear();
+						outBaseBasis->normals.clear();
+						outBaseBasis->tangents.clear();
+
+						const QJsonObject attributesObj = primitiveObj.value("attributes").toObject();
+						auto readBasisAccessor = [&](const char* key, std::vector<glm::vec3>& destination)
+						{
+							const int accessorIndex = attributesObj.value(QString::fromUtf8(key)).toInt(-1);
+							if (accessorIndex < 0)
+								return;
+
+							QVector<float> values;
+							int count = 0;
+							if (!readFloatAccessorData(accessors, bufferViews, bufferData, accessorIndex, 3, values, &count))
+								return;
+							if (count != static_cast<int>(expectedVertexCount))
+								return;
+
+							destination.reserve(count);
+							for (int i = 0; i < count; ++i)
+							{
+								destination.emplace_back(
+									values[i * 3 + 0],
+									values[i * 3 + 1],
+									values[i * 3 + 2]);
+							}
+						};
+
+						readBasisAccessor("POSITION", outBaseBasis->positions);
+						readBasisAccessor("NORMAL", outBaseBasis->normals);
+						readBasisAccessor("TANGENT", outBaseBasis->tangents);
+					}
+
+					outDefaultWeights.clear();
+					const QJsonArray weights = meshObj.value("weights").toArray();
+					outDefaultWeights.reserve(weights.size());
+					for (const QJsonValue& value : weights)
+						outDefaultWeights.append(static_cast<float>(value.toDouble(0.0)));
+
+					outTargets.clear();
+					outTargets.reserve(targets.size());
+					for (const QJsonValue& targetValue : targets)
+					{
+						const QJsonObject targetObj = targetValue.toObject();
+						MorphTargetData morphTarget;
+
+						auto readVec3Accessor = [&](const char* key, std::vector<glm::vec3>& destination)
+						{
+							const int accessorIndex = targetObj.value(QString::fromUtf8(key)).toInt(-1);
+							if (accessorIndex < 0)
+								return;
+
+							QVector<float> values;
+							int count = 0;
+							if (!readFloatAccessorData(accessors, bufferViews, bufferData, accessorIndex, 3, values, &count))
+								return;
+							if (count != static_cast<int>(expectedVertexCount))
+								return;
+
+							destination.reserve(count);
+							for (int i = 0; i < count; ++i)
+							{
+								destination.emplace_back(
+									values[i * 3 + 0],
+									values[i * 3 + 1],
+									values[i * 3 + 2]);
+							}
+						};
+
+						readVec3Accessor("POSITION", morphTarget.positionDeltas);
+						readVec3Accessor("NORMAL", morphTarget.normalDeltas);
+						readVec3Accessor("TANGENT", morphTarget.tangentDeltas);
+						outTargets.append(std::move(morphTarget));
+					}
+
+					if (outDefaultWeights.size() < outTargets.size())
+						outDefaultWeights.resize(outTargets.size());
+					return !outTargets.isEmpty();
+				}
+			}
+		}
+
+		const QJsonArray gltfChildren = nodeObj.value("children").toArray();
+		for (int i = static_cast<int>(gltfChildren.size()) - 1; i >= 0; --i)
+			if (i < static_cast<int>(aiNodePtr->mNumChildren))
+				stack.append({ aiNodePtr->mChildren[i], gltfChildren[i].toInt() });
+	}
+
+	return false;
 }
 }
 
@@ -690,15 +956,13 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	}
 
 	bool hasNegativeScale = false;
+	aiMatrix3x3 normalMatrix = aiMatrix3x3(transform);
+	normalMatrix = normalMatrix.Inverse().Transpose();
 	for (unsigned int i = 0; i < nbVertices; i++)
 	{
 		step++;
 		Vertex vertex{};
 		assignFallbackTexCoords(vertex);
-
-		// Compute the normal matrix as the inverse transpose of the transformation matrix
-		aiMatrix3x3 normalMatrix = aiMatrix3x3(transform);
-		normalMatrix = normalMatrix.Inverse().Transpose();
 
 		// Detect negative scale by computing determinant of the 3x3 transform
 		glm::mat3 glmTransform = glm::mat3(
@@ -911,6 +1175,135 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		}
 	}
 
+	QVector<MorphTargetData> morphTargets;
+	QVector<float> defaultMorphWeights;
+	GltfPrimitiveVertexBasis morphBaseBasis;
+	if (mesh->mNumAnimMeshes > 0 && mesh->mAnimMeshes)
+	{
+		morphTargets.reserve(mesh->mNumAnimMeshes);
+		defaultMorphWeights.reserve(mesh->mNumAnimMeshes);
+		for (unsigned int morphIndex = 0; morphIndex < mesh->mNumAnimMeshes; ++morphIndex)
+		{
+			const aiAnimMesh* animMesh = mesh->mAnimMeshes[morphIndex];
+			if (!animMesh || animMesh->mNumVertices != mesh->mNumVertices)
+				continue;
+
+			MorphTargetData morphTarget;
+			defaultMorphWeights.append(animMesh->mWeight);
+
+			if (animMesh->mVertices)
+			{
+				morphTarget.positionDeltas.reserve(animMesh->mNumVertices);
+				for (unsigned int vertexIndex = 0; vertexIndex < animMesh->mNumVertices; ++vertexIndex)
+				{
+					const aiVector3D& value = animMesh->mVertices[vertexIndex];
+					morphTarget.positionDeltas.emplace_back(value.x, value.y, value.z);
+				}
+			}
+
+			if (animMesh->mNormals)
+			{
+				morphTarget.normalDeltas.reserve(animMesh->mNumVertices);
+				for (unsigned int vertexIndex = 0; vertexIndex < animMesh->mNumVertices; ++vertexIndex)
+				{
+					const aiVector3D& value = animMesh->mNormals[vertexIndex];
+					morphTarget.normalDeltas.emplace_back(value.x, value.y, value.z);
+				}
+			}
+
+			if (animMesh->mTangents)
+			{
+				morphTarget.tangentDeltas.reserve(animMesh->mNumVertices);
+				for (unsigned int vertexIndex = 0; vertexIndex < animMesh->mNumVertices; ++vertexIndex)
+				{
+					const aiVector3D& value = animMesh->mTangents[vertexIndex];
+					morphTarget.tangentDeltas.emplace_back(value.x, value.y, value.z);
+				}
+			}
+
+			morphTargets.append(std::move(morphTarget));
+		}
+	}
+
+	const QString importPath = QString::fromStdString(_path);
+	if ((importPath.endsWith(".gltf", Qt::CaseInsensitive) || importPath.endsWith(".glb", Qt::CaseInsensitive)) &&
+		loadMorphTargetsForAiMesh(importPath, scene, meshIndex, mesh->mNumVertices, morphTargets, defaultMorphWeights, &morphBaseBasis))
+	{
+	}
+
+	if (!morphTargets.isEmpty() &&
+		morphBaseBasis.positions.size() == vertices.size())
+	{
+		GltfPrimitiveVertexBasis importedBasis = morphBaseBasis;
+		if (!_preserveNodeTransformsForRuntime)
+		{
+			for (glm::vec3& position : importedBasis.positions)
+			{
+				const aiVector3D transformed = transform * aiVector3D(position.x, position.y, position.z);
+				position = glm::vec3(transformed.x, transformed.y, transformed.z);
+			}
+
+			for (glm::vec3& normal : importedBasis.normals)
+			{
+				aiVector3D transformed = normalMatrix * aiVector3D(normal.x, normal.y, normal.z);
+				if (transformed.Length() > 0.0001f)
+					transformed.Normalize();
+				if (hasNegativeScale)
+					transformed = -transformed;
+				normal = glm::vec3(transformed.x, transformed.y, transformed.z);
+			}
+
+			for (glm::vec3& tangent : importedBasis.tangents)
+			{
+				aiVector3D transformed = normalMatrix * aiVector3D(tangent.x, tangent.y, tangent.z);
+				if (transformed.Length() > 0.0001f)
+					transformed.Normalize();
+				if (hasNegativeScale)
+					transformed = -transformed;
+				tangent = glm::vec3(transformed.x, transformed.y, transformed.z);
+			}
+		}
+
+		const std::vector<unsigned int> morphRemap = buildMorphVertexRemap(vertices, importedBasis);
+		if (!morphRemap.empty())
+			reorderMorphTargetsToImportedVertexOrder(morphTargets, morphRemap);
+	}
+
+	if (!_preserveNodeTransformsForRuntime && !morphTargets.isEmpty())
+	{
+		for (MorphTargetData& morphTarget : morphTargets)
+		{
+			for (glm::vec3& delta : morphTarget.positionDeltas)
+			{
+				const aiVector3D transformed =
+					transform * aiVector3D(delta.x, delta.y, delta.z);
+				delta = glm::vec3(transformed.x, transformed.y, transformed.z);
+			}
+
+			for (glm::vec3& delta : morphTarget.normalDeltas)
+			{
+				aiVector3D transformed =
+					normalMatrix * aiVector3D(delta.x, delta.y, delta.z);
+				if (transformed.Length() > 0.0001f)
+					transformed.Normalize();
+				if (hasNegativeScale)
+					transformed = -transformed;
+				delta = glm::vec3(transformed.x, transformed.y, transformed.z);
+			}
+
+			for (glm::vec3& delta : morphTarget.tangentDeltas)
+			{
+				aiVector3D transformed =
+					normalMatrix * aiVector3D(delta.x, delta.y, delta.z);
+				if (transformed.Length() > 0.0001f)
+					transformed.Normalize();
+				if (hasNegativeScale)
+					transformed = -transformed;
+				delta = glm::vec3(transformed.x, transformed.y, transformed.z);
+			}
+		}
+	}
+
 	// Now wak through each of the mesh's faces (a face is a mesh its triangle) and retrieve the corresponding vertex indices.
 	for (unsigned int i = 0; i < mesh->mNumFaces; i++)
 	{
@@ -922,6 +1315,11 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		}
 	}
 
+	if (!morphTargets.isEmpty() && _needsUVGeneration && textures.empty())
+	{
+		_needsUVGeneration = false;
+	}
+
 	// If the mesh has no texture coordinates, we generate them now.
 	if (_needsUVGeneration && _selectedUVMethod != UVMethod::None)
 	{		
@@ -930,7 +1328,6 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		config.maxSamples = 200;
 		config.sphericalAspectRatio = 0.85f;
 		auto analysis = MeshAnalyzer::analyzeMesh(mesh, config);
-				
 		generateUVsForMesh(analysis, mesh, vertices, indices);
 	}
 
@@ -1071,11 +1468,28 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	meshData.sourceNodeName = QString::fromUtf8(nodeName);
 	meshData.preserveNodeTransform = _preserveNodeTransformsForRuntime;
 	meshData.skinJoints = skinJoints;
+	meshData.morphTargets = morphTargets;
+	meshData.defaultMorphWeights = defaultMorphWeights;
 
 	qDebug() << "[IMPORT-STORED] MeshData for" << meshName
 	         << "sceneIndex=" << meshIndex
 	         << "originalMaterialIndex=" << originalMaterialIndex
 	         << "materialName=" << mat.name();
+
+	auto derivePrimitiveModeFromAssimp = [&](unsigned int primitiveTypes) -> GLenum
+	{
+		if (primitiveTypes & aiPrimitiveType_POINT)
+			return GL_POINTS;
+		if (primitiveTypes & aiPrimitiveType_LINE)
+			return GL_LINES;
+		if (primitiveTypes & aiPrimitiveType_TRIANGLE)
+			return GL_TRIANGLES;
+		if (primitiveTypes & aiPrimitiveType_POLYGON)
+			return GL_TRIANGLES;
+		return GL_TRIANGLES;
+	};
+
+	meshData.primitiveMode = derivePrimitiveModeFromAssimp(mesh->mPrimitiveTypes);
 
 	if (_gltfMeshPrimitiveModes.find(meshIndex) != _gltfMeshPrimitiveModes.end())
 	{
@@ -1494,21 +1908,6 @@ void AssImpModelLoader::applyTransformToNode(aiNode* node, const glm::mat4& tran
 	if (!node) return;
 
 	// Convert glm::mat4 to aiMatrix4x4
-	auto derivePrimitiveModeFromAssimp = [&](unsigned int primitiveTypes) -> GLenum
-	{
-		if (primitiveTypes & aiPrimitiveType_POINT)
-			return GL_POINTS;
-		if (primitiveTypes & aiPrimitiveType_LINE)
-			return GL_LINES;
-		if (primitiveTypes & aiPrimitiveType_TRIANGLE)
-			return GL_TRIANGLES;
-		if (primitiveTypes & aiPrimitiveType_POLYGON)
-			return GL_TRIANGLES;
-		return GL_TRIANGLES;
-	};
-
-	meshData.primitiveMode = derivePrimitiveModeFromAssimp(mesh->mPrimitiveTypes);
-
 	aiMatrix4x4 aiTransform = SceneUtils::glmToAiMatrix(transform);
 	
 	// Apply transformation to the node
@@ -1816,7 +2215,7 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 			if (meshIdx >= 0 && meshIdx < jsonMeshes.size())
 			{
 				const QJsonArray primitives = jsonMeshes[meshIdx].toObject()["primitives"].toArray();
-				for (const QJsonValue& primVal : primitives)
+				for (int primIndex = 0; primIndex < primitives.size(); ++primIndex)
 				{
 					const QJsonObject primObj = primitives[primIndex].toObject();
 					const int primMat = primObj.value("material").toInt(0);
@@ -1872,6 +2271,59 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 				stack.append({aiNodePtr->mChildren[i], gltfChildren[i].toInt()});
 		}
 	}
+
+	const QRegularExpression nodeIndexPattern(QStringLiteral("^nodes\\[(\\d+)\\]$"));
+	std::function<void(aiNode*)> applyNameBasedFallback = [&](aiNode* aiNodePtr)
+	{
+		if (!aiNodePtr)
+			return;
+
+		const QString aiNodeName = QString::fromUtf8(aiNodePtr->mName.C_Str());
+		const QRegularExpressionMatch match = nodeIndexPattern.match(aiNodeName);
+		if (match.hasMatch())
+		{
+			bool ok = false;
+			const int gltfNodeIdx = match.captured(1).toInt(&ok);
+			if (ok && gltfNodeIdx >= 0 && gltfNodeIdx < jsonNodes.size())
+			{
+				const QJsonObject nodeObj = jsonNodes[gltfNodeIdx].toObject();
+				const int meshIdx = nodeObj.value("mesh").toInt(-1);
+				if (meshIdx >= 0 && meshIdx < jsonMeshes.size())
+				{
+					const QJsonArray primitives = jsonMeshes[meshIdx].toObject().value("primitives").toArray();
+					if (primitives.size() == static_cast<int>(aiNodePtr->mNumMeshes))
+					{
+						for (int primIndex = 0; primIndex < primitives.size(); ++primIndex)
+						{
+							const QJsonObject primObj = primitives[primIndex].toObject();
+							const int mode = primObj.value("mode").toInt(4);
+
+							GLenum glMode = GL_TRIANGLES;
+							switch (mode)
+							{
+							case 0: glMode = GL_POINTS;         break;
+							case 1: glMode = GL_LINES;          break;
+							case 2: glMode = GL_LINE_LOOP;      break;
+							case 3: glMode = GL_LINE_STRIP;     break;
+							case 4: glMode = GL_TRIANGLES;      break;
+							case 5: glMode = GL_TRIANGLE_STRIP; break;
+							case 6: glMode = GL_TRIANGLE_FAN;   break;
+							default: glMode = GL_TRIANGLES;     break;
+							}
+
+							const unsigned int aiMeshIndex = aiNodePtr->mMeshes[primIndex];
+							_gltfMeshPrimitiveModes[aiMeshIndex] = glMode;
+						}
+					}
+				}
+			}
+		}
+
+		for (unsigned int childIndex = 0; childIndex < aiNodePtr->mNumChildren; ++childIndex)
+			applyNameBasedFallback(aiNodePtr->mChildren[childIndex]);
+	};
+
+	applyNameBasedFallback(_scene->mRootNode);
 }
 
 void AssImpModelLoader::parseGltfVariants(const QString& gltfPath)
@@ -1999,7 +2451,7 @@ void AssImpModelLoader::parseGltfVariants(const QString& gltfPath)
 				const QJsonArray primitives = jsonMeshes[meshIdx].toObject().value("primitives").toArray();
 				aiMeshCount += (int)aiNodePtr->mNumMeshes;
 
-				for (int primIndex = 0; primIndex < primitives.size(); ++primIndex)
+				for (const QJsonValue& primVal : primitives)
 				{
 					const QJsonObject primObj  = primVal.toObject();
 					const QJsonObject primExts = primObj.value("extensions").toObject();
@@ -2178,6 +2630,7 @@ void AssImpModelLoader::parseSceneAnimations()
 	const QJsonArray animations = root.value("animations").toArray();
 	const QJsonArray accessors = root.value("accessors").toArray();
 	const QJsonArray bufferViews = root.value("bufferViews").toArray();
+	const QJsonArray nodes = root.value("nodes").toArray();
 
 	for (int animIndex = 0; animIndex < animations.size(); ++animIndex)
 	{
@@ -2229,7 +2682,59 @@ void AssImpModelLoader::parseSceneAnimations()
 		{
 			const QJsonObject channelObj = channelValue.toObject();
 			const QJsonObject targetObj = channelObj.value("target").toObject();
-			if (targetObj.value("path").toString() != "pointer")
+			const QString targetPath = targetObj.value("path").toString();
+			if (targetPath == "weights")
+			{
+				const int samplerIndex = channelObj.value("sampler").toInt(-1);
+				if (samplerIndex < 0 || samplerIndex >= samplers.size())
+					continue;
+
+				const int nodeIndex = targetObj.value("node").toInt(-1);
+				if (nodeIndex < 0 || nodeIndex >= nodes.size())
+					continue;
+
+				const QJsonObject samplerObj = samplers.at(samplerIndex).toObject();
+				const int inputAccessorIndex = samplerObj.value("input").toInt(-1);
+				const int outputAccessorIndex = samplerObj.value("output").toInt(-1);
+				if (inputAccessorIndex < 0 || outputAccessorIndex < 0)
+					continue;
+
+				QVector<float> inputTimes;
+				int keyCount = 0;
+				if (!readFloatAccessorData(accessors, bufferViews, bufferData, inputAccessorIndex, 1, inputTimes, &keyCount) || keyCount <= 0)
+					continue;
+
+				QVector<float> outputValues;
+				int outputCount = 0;
+				if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 1, outputValues, &outputCount) || outputCount <= 0)
+					continue;
+
+				if (outputCount % keyCount != 0)
+					continue;
+
+				const int weightsPerKey = outputCount / keyCount;
+				GltfAnimationChannel weightChannel;
+				weightChannel.targetPath = GltfAnimationTargetPath::Weights;
+				weightChannel.targetNodeName = nodes.at(nodeIndex).toObject().value("name").toString();
+				weightChannel.weightKeys.reserve(keyCount);
+
+				for (int keyIndex = 0; keyIndex < keyCount; ++keyIndex)
+				{
+					GltfAnimationWeightsKey key;
+					key.timeSeconds = inputTimes[keyIndex];
+					key.values.reserve(weightsPerKey);
+					for (int weightIndex = 0; weightIndex < weightsPerKey; ++weightIndex)
+						key.values.append(outputValues[keyIndex * weightsPerKey + weightIndex]);
+					weightChannel.weightKeys.append(std::move(key));
+				}
+
+				if (!inputTimes.isEmpty())
+					clip.durationSeconds = std::max(clip.durationSeconds, static_cast<double>(inputTimes.back()));
+				clip.hasMorphAnimations = true;
+				clip.channels.append(weightChannel);
+				continue;
+			}
+			if (targetPath != "pointer")
 				continue;
 
 			const int samplerIndex = channelObj.value("sampler").toInt(-1);
@@ -2289,59 +2794,6 @@ void AssImpModelLoader::parseSceneAnimations()
 			{
 				QVector<float> outputValues;
 				int outputCount = 0;
-
-	const QRegularExpression nodeIndexPattern(QStringLiteral("^nodes\\[(\\d+)\\]$"));
-	std::function<void(aiNode*)> applyNameBasedFallback = [&](aiNode* aiNodePtr)
-	{
-		if (!aiNodePtr)
-			return;
-
-		const QString aiNodeName = QString::fromUtf8(aiNodePtr->mName.C_Str());
-		const QRegularExpressionMatch match = nodeIndexPattern.match(aiNodeName);
-		if (match.hasMatch())
-		{
-			bool ok = false;
-			const int gltfNodeIdx = match.captured(1).toInt(&ok);
-			if (ok && gltfNodeIdx >= 0 && gltfNodeIdx < jsonNodes.size())
-			{
-				const QJsonObject nodeObj = jsonNodes[gltfNodeIdx].toObject();
-				const int meshIdx = nodeObj.value("mesh").toInt(-1);
-				if (meshIdx >= 0 && meshIdx < jsonMeshes.size())
-				{
-					const QJsonArray primitives = jsonMeshes[meshIdx].toObject().value("primitives").toArray();
-					if (primitives.size() == static_cast<int>(aiNodePtr->mNumMeshes))
-					{
-						for (int primIndex = 0; primIndex < primitives.size(); ++primIndex)
-						{
-							const QJsonObject primObj = primitives[primIndex].toObject();
-							const int mode = primObj.value("mode").toInt(4);
-
-							GLenum glMode = GL_TRIANGLES;
-							switch (mode)
-							{
-							case 0: glMode = GL_POINTS;         break;
-							case 1: glMode = GL_LINES;          break;
-							case 2: glMode = GL_LINE_LOOP;      break;
-							case 3: glMode = GL_LINE_STRIP;     break;
-							case 4: glMode = GL_TRIANGLES;      break;
-							case 5: glMode = GL_TRIANGLE_STRIP; break;
-							case 6: glMode = GL_TRIANGLE_FAN;   break;
-							default: glMode = GL_TRIANGLES;     break;
-							}
-
-							const unsigned int aiMeshIndex = aiNodePtr->mMeshes[primIndex];
-							_gltfMeshPrimitiveModes[aiMeshIndex] = glMode;
-						}
-					}
-				}
-			}
-		}
-
-		for (unsigned int childIndex = 0; childIndex < aiNodePtr->mNumChildren; ++childIndex)
-			applyNameBasedFallback(aiNodePtr->mChildren[childIndex]);
-	};
-
-	applyNameBasedFallback(_scene->mRootNode);
 				if (!readFloatAccessorData(accessors, bufferViews, bufferData, outputAccessorIndex, 2, outputValues, &outputCount) ||
 					outputCount != keyCount)
 				{
@@ -2367,10 +2819,12 @@ void AssImpModelLoader::parseSceneAnimations()
 	}
 
 	_animationData.hasNodeAnimations = false;
+	_animationData.hasMorphAnimations = false;
 	_animationData.hasPointerAnimations = false;
 	for (const GltfAnimationClip& clip : std::as_const(_animationData.clips))
 	{
 		_animationData.hasNodeAnimations |= clip.hasNodeTransforms;
+		_animationData.hasMorphAnimations |= clip.hasMorphAnimations;
 		_animationData.hasPointerAnimations |= clip.hasPointerAnimations;
 	}
 }

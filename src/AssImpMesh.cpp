@@ -7,7 +7,9 @@
 #include <QDebug>
 
 #include <algorithm>
+#include <cmath>
 #include <meshoptimizer.h>
+#include <utility>
 
 using namespace std;
 
@@ -16,14 +18,16 @@ GLenum AssImpMesh::_currentFrontFace;
 
 /*  Functions  */
 // Constructor
-AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material) : TriangleMesh(shader, "AssImpMesh")
+AssImpMesh::AssImpMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<GLMaterial::Texture> textures, GLMaterial material, bool skipOptimization) : TriangleMesh(shader, "AssImpMesh")
 {
 	_currentBoundShader = nullptr;
 	_currentBlendEnabled = false;
 	_currentFrontFace = GL_CCW;
+	_skipOptimization = skipOptimization;
 	//setAutoIncrName(name);
 	_name = name;
 	_vertices = vertices;
+	_baseVertices = vertices;
 	_indices = indices;
 	_textures = textures;
 	_material = material;
@@ -50,7 +54,11 @@ AssImpMesh::~AssImpMesh()
 
 TriangleMesh* AssImpMesh::clone()
 {
-	return new AssImpMesh(_prog, _name, _vertices, _indices, _textures, _material);
+	AssImpMesh* mesh = new AssImpMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _skipOptimization);
+	mesh->setMorphTargets(_morphTargets, _defaultMorphWeights);
+	if (!_currentMorphWeights.isEmpty())
+		mesh->applyMorphWeights(_currentMorphWeights);
+	return mesh;
 }
 
 
@@ -176,6 +184,9 @@ void AssImpMesh::optimizeMesh()
 	// ============================================
 	// MESH OPTIMIZATION (before splitting arrays)
 	// ============================================
+	if (_skipOptimization)
+		return;
+
 	// Check if this is a valid triangle mesh
 	if (_indices.empty() || (_indices.size() % 3 != 0))
 	{
@@ -776,6 +787,7 @@ void AssImpMesh::setMeshData(const std::vector<Vertex>& vertices,
 	const std::vector<unsigned int>& indices)
 {
 	_vertices = vertices;
+	_baseVertices = vertices;
 	_indices = indices;
 
 	// Re-upload to GPU (no optimization)
@@ -783,6 +795,106 @@ void AssImpMesh::setMeshData(const std::vector<Vertex>& vertices,
 
 	// Setup transformation again (in case bounds changed)
 	setupTransformation();
+}
+
+void AssImpMesh::setMorphTargets(const QVector<MorphTargetData>& targets,
+	const QVector<float>& defaultWeights)
+{
+	_morphTargets = targets;
+	_defaultMorphWeights = defaultWeights;
+	_currentMorphWeights.clear();
+	if (_baseVertices.empty())
+		_baseVertices = _vertices;
+
+	bool hasNonZeroDefault = false;
+	for (float weight : std::as_const(_defaultMorphWeights))
+	{
+		if (std::abs(weight) > 0.0001f)
+		{
+			hasNonZeroDefault = true;
+			break;
+		}
+	}
+
+	if (hasNonZeroDefault)
+		applyMorphWeights(_defaultMorphWeights);
+	else
+		_currentMorphWeights = _defaultMorphWeights;
+}
+
+void AssImpMesh::applyMorphWeights(const QVector<float>& weights)
+{
+	if (_morphTargets.isEmpty() || _baseVertices.empty())
+		return;
+
+	QVector<float> clampedWeights = weights;
+	if (clampedWeights.size() < _morphTargets.size())
+		clampedWeights.resize(_morphTargets.size());
+
+	if (_currentMorphWeights == clampedWeights)
+		return;
+
+	_vertices = _baseVertices;
+	for (size_t vertexIndex = 0; vertexIndex < _vertices.size(); ++vertexIndex)
+	{
+		glm::vec3 position = _baseVertices[vertexIndex].Position;
+		glm::vec3 normal = _baseVertices[vertexIndex].Normal;
+		glm::vec3 tangent = _baseVertices[vertexIndex].Tangent;
+		bool normalChanged = false;
+		bool tangentChanged = false;
+
+		for (int targetIndex = 0; targetIndex < _morphTargets.size(); ++targetIndex)
+		{
+			const float weight = clampedWeights.value(targetIndex, 0.0f);
+			if (std::abs(weight) <= 0.0001f)
+				continue;
+
+			const MorphTargetData& target = _morphTargets[targetIndex];
+			if (target.positionDeltas.size() == _vertices.size())
+				position += target.positionDeltas[vertexIndex] * weight;
+			if (target.normalDeltas.size() == _vertices.size())
+			{
+				normal += target.normalDeltas[vertexIndex] * weight;
+				normalChanged = true;
+			}
+			if (target.tangentDeltas.size() == _vertices.size())
+			{
+				tangent += target.tangentDeltas[vertexIndex] * weight;
+				tangentChanged = true;
+			}
+		}
+
+		_vertices[vertexIndex].Position = position;
+
+		if (normalChanged && glm::length(normal) > 0.0001f)
+			normal = glm::normalize(normal);
+		if (tangentChanged && glm::length(tangent) > 0.0001f)
+			tangent = glm::normalize(tangent);
+
+		_vertices[vertexIndex].Normal = normal;
+		_vertices[vertexIndex].Tangent = tangent;
+
+		if ((normalChanged || tangentChanged) &&
+			glm::length(normal) > 0.0001f &&
+			glm::length(tangent) > 0.0001f)
+		{
+			glm::vec3 bitangent = glm::cross(normal, tangent);
+			if (glm::length(bitangent) > 0.0001f)
+				_vertices[vertexIndex].Bitangent = glm::normalize(bitangent);
+		}
+	}
+
+	_currentMorphWeights = clampedWeights;
+	setupMesh();
+	setupTransformation();
+}
+
+void AssImpMesh::resetMorphTargets()
+{
+	if (_morphTargets.isEmpty())
+		return;
+
+	applyMorphWeights(_defaultMorphWeights);
 }
 
 void AssImpMesh::syncVertexDataAfterBake()
@@ -843,6 +955,9 @@ void AssImpMesh::syncVertexDataAfterBake()
 		// TexCoords unchanged - preserved from before baking
 		// _vertices[i].TexCoords[0..3] remain as-is
 	}
+
+	_baseVertices = _vertices;
+	_currentMorphWeights.clear();
 
 	// Re-sync GPU buffers without re-optimizing the mesh
 	// (setupMesh would re-optimize, which we don't want)

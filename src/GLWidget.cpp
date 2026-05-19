@@ -128,6 +128,40 @@ float sampleFloatKeys(const QVector<GltfAnimationFloatKey>& keys, double timeSec
 	return keys.back().value;
 }
 
+QVector<float> sampleWeightKeys(const QVector<GltfAnimationWeightsKey>& keys, double timeSeconds, const QVector<float>& fallback)
+{
+	if (keys.isEmpty())
+		return fallback;
+	if (timeSeconds <= keys.front().timeSeconds)
+		return keys.front().values;
+	if (timeSeconds >= keys.back().timeSeconds)
+		return keys.back().values;
+
+	for (int i = 1; i < keys.size(); ++i)
+	{
+		if (timeSeconds <= keys[i].timeSeconds)
+		{
+			const double start = keys[i - 1].timeSeconds;
+			const double end = keys[i].timeSeconds;
+			const float t = end > start ? static_cast<float>((timeSeconds - start) / (end - start)) : 0.0f;
+			const int count = std::max(keys[i - 1].values.size(), keys[i].values.size());
+			QVector<float> result(count, 0.0f);
+			for (int weightIndex = 0; weightIndex < count; ++weightIndex)
+			{
+				const float startValue = weightIndex < keys[i - 1].values.size()
+					? keys[i - 1].values[weightIndex]
+					: 0.0f;
+				const float endValue = weightIndex < keys[i].values.size()
+					? keys[i].values[weightIndex]
+					: startValue;
+				result[weightIndex] = startValue * (1.0f - t) + endValue * t;
+			}
+			return result;
+		}
+	}
+	return keys.back().values;
+}
+
 void applyTexturePointerValue(GLMaterial& material,
 	GltfAnimationTextureTarget textureTarget,
 	GltfAnimationPointerProperty property,
@@ -6710,13 +6744,21 @@ AssImpMesh* GLWidget::createMeshFromData(const AssImpMeshData& meshData)
 	// (copy assignment operator at line 6506 doesn't call updateConsistency)
 	resolvedMaterial.updateConsistency();
 
-	auto* mesh = new AssImpMesh(_fgShader.get(), meshData.name, meshData.vertices, meshData.indices, textures, resolvedMaterial);
+	auto* mesh = new AssImpMesh(_fgShader.get(),
+		meshData.name,
+		meshData.vertices,
+		meshData.indices,
+		textures,
+		resolvedMaterial,
+		!meshData.morphTargets.isEmpty());
 	mesh->setHasNegativeScale(meshData.hasNegativeScale);
 	mesh->setPrimitiveMode(meshData.primitiveMode);
 	mesh->setSceneIndex(meshData.sceneIndex);
 	mesh->setOriginalMaterialIndex(meshData.originalMaterialIndex);
 	mesh->setSourceFile(meshData.sourceFile);
+	mesh->setSourceNodeName(meshData.sourceNodeName);
 	mesh->setSkinJoints(meshData.skinJoints);
+	mesh->setMorphTargets(meshData.morphTargets, meshData.defaultMorphWeights);
 	if (!meshData.variantMappings.isEmpty())
 	{
 		mesh->setVariantMappings(meshData.variantMappings);
@@ -6748,6 +6790,7 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
 	runtime.data = _viewer->sceneGraph()->animationDataForFile(sourceFile);
 	runtime.defaultNodeTransforms.clear();
+	runtime.defaultNodeMorphWeights.clear();
 	runtime.defaultMeshMaterials.clear();
 	runtime.meshUuidsByMaterialIndex.clear();
 	const bool needsRuntimeNodeTransforms =
@@ -6766,6 +6809,8 @@ void GLWidget::syncFileNodeTransforms(const QString& sourceFile)
 			{
 				if (needsRuntimeNodeTransforms)
 					mesh->setSceneRenderTransform(world);
+				if (mesh->hasMorphTargets() && !runtime.defaultNodeMorphWeights.contains(node->name))
+					runtime.defaultNodeMorphWeights.insert(node->name, mesh->defaultMorphWeights());
 				runtime.defaultMeshMaterials.insert(uuid, mesh->getMaterial());
 				if (mesh->getOriginalMaterialIndex() >= 0)
 					runtime.meshUuidsByMaterialIndex.insert(mesh->getOriginalMaterialIndex(), uuid);
@@ -6898,6 +6943,7 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 	const RuntimeAnimationFileState runtime = _runtimeAnimationsByFile.value(sourceFile);
 	const bool needsRuntimeNodeTransforms =
 		runtime.data.hasNodeAnimations || runtime.data.hasSkinning;
+	const std::vector<TriangleMesh*>& meshes = getMeshStore();
 
 	if (needsRuntimeNodeTransforms)
 	{
@@ -6931,7 +6977,18 @@ void GLWidget::resetAnimationPose(const QString& sourceFile)
 	for (auto it = runtime.defaultMeshMaterials.constBegin(); it != runtime.defaultMeshMaterials.constEnd(); ++it)
 	{
 		if (TriangleMesh* mesh = getMeshByUuid(it.key()))
+		{
+			if (mesh->hasMorphTargets())
+				mesh->resetMorphTargets();
 			mesh->setMaterial(it.value());
+		}
+	}
+
+	for (TriangleMesh* mesh : meshes)
+	{
+		if (!mesh || mesh->getSourceFile() != sourceFile || !mesh->hasMorphTargets())
+			continue;
+		mesh->resetMorphTargets();
 	}
 
 	update();
@@ -7010,6 +7067,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		return;
 
 	QHash<QString, RuntimeNodeTransform> sampled = runtime.defaultNodeTransforms;
+	QHash<QString, QVector<float>> sampledMorphWeights = runtime.defaultNodeMorphWeights;
 	QHash<QUuid, GLMaterial> animatedMaterials = runtime.defaultMeshMaterials;
 	const GltfAnimationClip& clip = runtime.data.clips[clipIndex];
 	for (const GltfAnimationChannel& channel : clip.channels)
@@ -7053,8 +7111,27 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		case GltfAnimationTargetPath::Scale:
 			node.scale = sampleVec3Keys(channel.vec3Keys, timeSeconds, node.scale);
 			break;
+		case GltfAnimationTargetPath::Weights:
+			sampledMorphWeights.insert(channel.targetNodeName,
+				sampleWeightKeys(channel.weightKeys, timeSeconds, sampledMorphWeights.value(channel.targetNodeName)));
+			continue;
+		case GltfAnimationTargetPath::Pointer:
+			continue;
 		}
 		sampled.insert(channel.targetNodeName, node);
+	}
+
+	const std::vector<TriangleMesh*>& meshes = getMeshStore();
+	for (TriangleMesh* mesh : meshes)
+	{
+		if (!mesh || mesh->getSourceFile() != sourceFile || !mesh->hasMorphTargets())
+			continue;
+
+		const QVector<float> weights = sampledMorphWeights.value(mesh->getSourceNodeName());
+		if (!weights.isEmpty())
+			mesh->applyMorphWeights(weights);
+		else
+			mesh->resetMorphTargets();
 	}
 
 	if (runtime.data.hasNodeAnimations || runtime.data.hasSkinning)

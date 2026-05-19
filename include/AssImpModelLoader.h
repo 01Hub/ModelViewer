@@ -120,6 +120,8 @@ struct AssImpMeshData
 
 	// Skinning support for animated glTF meshes.
 	QVector<GltfSkinJoint> skinJoints;
+	QVector<MorphTargetData> morphTargets;
+	QVector<float> defaultMorphWeights;
 };
 
 using AssImpMeshDataBatch = std::vector<AssImpMeshData>;
