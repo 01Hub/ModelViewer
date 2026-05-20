@@ -66,7 +66,7 @@ public slots:
 	// ===== Skybox Controls =====
 	void onSkyBoxStateChanged(bool checked);
 	void onSkyBoxHDRIChanged(bool checked);
-	void onSkyBoxBlurredChanged(bool checked);
+	void onSkyBoxBlurChanged(int value);
 	void onSkyBoxFOVChanged(double value);
 	void onSkyBoxMapsChanged(int index);
 	void onSkyBoxTextureClicked();

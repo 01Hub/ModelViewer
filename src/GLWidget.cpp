@@ -621,7 +621,7 @@ _assimpModelLoader(nullptr)
 	}
 
 	_skyBoxEnabled = false;
-	_skyBoxBlurred = false;
+	_skyBoxBlurPercent = 0;
 	_skyBoxFOV = 45.0f;
 	_skyBoxTextureHDRI = false;
 	_gammaCorrection = false;
@@ -2977,9 +2977,12 @@ void GLWidget::showSkyBox(bool show)
 
 void GLWidget::blurSkyBox(bool blur)
 {
-	_skyBoxBlurred = blur;
-	_fgShader->bind();
-	_fgShader->setUniformValue("skyBoxBlurred", _skyBoxBlurred);
+	setSkyBoxBlurPercent(blur ? 100 : 0);
+}
+
+void GLWidget::setSkyBoxBlurPercent(int percent)
+{
+	_skyBoxBlurPercent = std::clamp(percent, 0, 100);
 	update();
 }
 
@@ -4607,6 +4610,7 @@ void GLWidget::loadIrradianceMap()
 
 	constexpr int prefilterSize = 256;
 	unsigned int maxMipLevels = static_cast<unsigned int>(std::log2(prefilterSize)) + 1;
+	_prefilterMipLevels = maxMipLevels;
 
 	// Allocate all mip levels upfront
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
@@ -5217,15 +5221,26 @@ void GLWidget::drawSkyBox()
 {
 	_skyBox->setProg(_skyBoxShader.get());
 	_skyBoxShader->bind();
-	_skyBoxShader->setUniformValue("skybox", _skyBoxBlurred ? 3 : 1);
+	const bool usePrefilterBlur = _skyBoxBlurPercent > 0 && _prefilterMap != 0 && _prefilterMipLevels > 0;
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, usePrefilterBlur ? _prefilterMap : _environmentMap);
+	_skyBoxShader->setUniformValue("skybox", 1);
 	QMatrix4x4 projection;
 	projection.perspective(_skyBoxFOV, (float)width() / (float)height(), 0.1f, 100.0f);
 	QMatrix4x4 view = _viewMatrix;
 	// Remove translation
 	view.setColumn(3, QVector4D(0, 0, 0, 1));
 	QMatrix4x4 model;
-	if(!_skyBoxBlurred) 
+	if (!usePrefilterBlur)
 		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
+	float skyboxLod = 0.0f;
+	if (usePrefilterBlur)
+	{
+		// Reserve the top 10% of the old LOD range to avoid visible
+		// banding/pixelation in the blurriest prefilter mips.
+		const float t = (static_cast<float>(_skyBoxBlurPercent) / 100.0f) * 0.9f;
+		skyboxLod = std::pow(t, 1.5f) * static_cast<float>(_prefilterMipLevels - 1);
+	}
 	_skyBox->setSceneRenderTransformFast(model);
 	_skyBoxShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
 	_skyBoxShader->setProperty("viewMatrix", QVariant::fromValue(view));
@@ -5238,6 +5253,8 @@ void GLWidget::drawSkyBox()
 	_skyBoxShader->setUniformValue("envMapExposure", _envMapExposure);
 	_skyBoxShader->setUniformValue("iblExposure", _iblExposure);
 	_skyBoxShader->setUniformValue("toneMapMode", static_cast<int>(_toneMappingMode));
+	_skyBoxShader->setUniformValue("useSkyboxLod", usePrefilterBlur);
+	_skyBoxShader->setUniformValue("skyboxLod", skyboxLod);
 	
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LEQUAL); // change depth function so depth test passes when values are equal to depth buffer's content

@@ -148,6 +148,7 @@ public:
 	void showEnvironment(bool show);
 	void showSkyBox(bool show);
 	void blurSkyBox(bool blur);
+	void setSkyBoxBlurPercent(int percent);
 	void showReflections(bool show);
 	void showFloor(bool show);
 	bool isFloorShown() { return _floorDisplayed; }
@@ -808,7 +809,7 @@ private:
 	bool _floorDisplayed;
 	bool _floorTextureDisplayed;
 	bool _skyBoxEnabled;
-	bool _skyBoxBlurred;
+	int  _skyBoxBlurPercent;
 
 	bool _lowResEnabled;
 	bool _sectionCapsSuppressedDuringInteraction = false;
@@ -868,6 +869,7 @@ private:
 	unsigned int             _shadowMapFBO;
 	unsigned int			 _irradianceMap;
 	unsigned int             _prefilterMap;
+	unsigned int             _prefilterMipLevels = 0;
 	unsigned int             _brdfLUTTexture;
 	QString					 _currentSkyboxFolder;  // Track the current skybox folder path for environment map regeneration
 

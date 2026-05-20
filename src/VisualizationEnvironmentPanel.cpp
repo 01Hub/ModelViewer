@@ -93,7 +93,7 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	connect(ui->checkBoxSkyBox, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxStateChanged);
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxHDRIChanged);
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onLoadSkyBoxPresetMaps);
-	connect(ui->checkBoxSkyBoxBlurred, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onSkyBoxBlurredChanged);
+	connect(ui->sliderSkyBoxBlur, QOverload<int>::of(&QSlider::valueChanged), this, &VisualizationEnvironmentPanel::onSkyBoxBlurChanged);
 	connect(ui->doubleSpinBoxSkyBoxFOV, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onSkyBoxFOVChanged);
 	connect(ui->comboBoxSkyBoxMaps, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &VisualizationEnvironmentPanel::onSkyBoxMapsChanged);
 	connect(ui->pushButtonSkyBoxTex, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onSkyBoxTextureClicked);
@@ -144,7 +144,9 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	bool floorTextureEnabled = floorEnabled && ui->checkBoxFloorTexture->isChecked();
 
 	// Skybox dependencies	
-	ui->checkBoxSkyBoxBlurred->setEnabled(skyBoxEnabled);
+	ui->labelSkyBoxBlur->setEnabled(skyBoxEnabled);
+	ui->sliderSkyBoxBlur->setEnabled(skyBoxEnabled);
+	ui->labelSkyBoxBlurValue->setEnabled(skyBoxEnabled);
 	ui->labelFOV->setEnabled(skyBoxEnabled);
 	ui->doubleSpinBoxSkyBoxFOV->setEnabled(skyBoxEnabled);	
 	
@@ -419,12 +421,15 @@ void VisualizationEnvironmentPanel::onSkyBoxHDRIChanged(bool checked)
 		_previewWidget->update();
 }
 
-void VisualizationEnvironmentPanel::onSkyBoxBlurredChanged(bool checked)
+void VisualizationEnvironmentPanel::onSkyBoxBlurChanged(int value)
 {
+	if (ui)
+		ui->labelSkyBoxBlurValue->setText(QString("%1%").arg(value));
+
 	if (!_glWidget)
 		return;
 
-	_glWidget->blurSkyBox(checked);
+	_glWidget->setSkyBoxBlurPercent(value);
 	_glWidget->updateView();
 
 	// Update preview widget
@@ -675,6 +680,7 @@ void VisualizationEnvironmentPanel::onDefaultEnvValuesClicked()
 		return;
 
 	ui->doubleSpinBoxSkyBoxFOV->setValue(45.0);
+	ui->sliderSkyBoxBlur->setValue(0);
 	ui->comboBoxShadowQuality->setCurrentIndex(1);
 	ui->doubleSpinBoxFloorOffset->setValue(0.0);
 	ui->doubleSpinBoxRepeatS->setValue(1.0);

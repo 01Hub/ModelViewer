@@ -5,6 +5,8 @@ out vec4 fragColor;
 in vec3 texCoords;
 
 uniform samplerCube skybox;
+uniform float skyboxLod = 0.0;
+uniform bool useSkyboxLod = false;
 uniform float iblExposure = 1.0;
 uniform bool hdrToneMapping = false;
 uniform bool gammaCorrection = false;
@@ -19,7 +21,9 @@ vec3 uncharted2ToneMapping(vec3 color);
 
 void main()
 {
-    fragColor = texture(skybox, texCoords);
+    fragColor = useSkyboxLod
+        ? textureLod(skybox, texCoords, skyboxLod)
+        : texture(skybox, texCoords);
         
     // HDR tonemapping with IBL exposure
     if(hdrToneMapping)
