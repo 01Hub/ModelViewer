@@ -204,8 +204,27 @@ bool loadAnimationJsonAndBuffer(const QString& gltfPath, QJsonDocument& doc, QVe
 	for (const QJsonValue& bufferValue : buffers)
 	{
 		const QString uri = bufferValue.toObject().value("uri").toString();
-		if (uri.isEmpty() || uri.startsWith("data:", Qt::CaseInsensitive))
+		if (uri.isEmpty())
 			return false;
+
+		if (uri.startsWith("data:", Qt::CaseInsensitive))
+		{
+			const QString dataUriContent = uri.mid(5);
+			const int commaIdx = dataUriContent.indexOf(',');
+			if (commaIdx < 0)
+				return false;
+
+			const QString metadata = dataUriContent.left(commaIdx);
+			if (!metadata.endsWith("base64", Qt::CaseInsensitive))
+				return false;
+
+			const QByteArray decoded = QByteArray::fromBase64(dataUriContent.mid(commaIdx + 1).toUtf8());
+			if (decoded.isEmpty())
+				return false;
+
+			bufferData.append(decoded);
+			continue;
+		}
 
 		QFile bufferFile(QFileInfo(gltfPath).dir().filePath(uri));
 		if (!bufferFile.open(QIODevice::ReadOnly))
