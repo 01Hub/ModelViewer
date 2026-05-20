@@ -5086,6 +5086,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 
 	_fgShader->bind();
 	_fgShader->setUniformValue("modelMatrix", model);
+	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(model));
 	if (_reflectionsEnabled && drawReflection)
 	{
 		_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
@@ -5099,6 +5100,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
 	_fgShader->bind();
+	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
 	_fgShader->setUniformValue("envMapEnabled", false);	
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
 	_fgShader->setUniformValue("shadowSamples", 18.0f);
@@ -7580,6 +7582,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		if (TriangleMesh* mesh = getMeshByUuid(it.key()))
 			mesh->setMaterial(it.value());
 	}
+	triggerShadowRecomputation();
 	update();
 }
 
