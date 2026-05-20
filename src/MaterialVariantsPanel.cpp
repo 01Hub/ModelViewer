@@ -4,6 +4,7 @@
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QPainter>
+#include <QPaintEvent>
 #include <QPixmap>
 #include <QVBoxLayout>
 
@@ -123,6 +124,9 @@ void MaterialVariantsPanel::setDetachedOverlayMode(bool enabled)
         _tree->setAttribute(Qt::WA_NoSystemBackground, true);
         _tree->viewport()->setAttribute(Qt::WA_NoSystemBackground, true);
         _tree->viewport()->setAttribute(Qt::WA_StyledBackground, false);
+        setProperty("detachedOverlayMode", true);
+        _tree->setProperty("detachedOverlayMode", true);
+        _tree->viewport()->setProperty("detachedOverlayMode", true);
         _tree->setStyleSheet(QString());
 
         setAttribute(Qt::WA_NoSystemBackground, true);
@@ -138,15 +142,58 @@ void MaterialVariantsPanel::setDetachedOverlayMode(bool enabled)
         _tree->setAttribute(Qt::WA_NoSystemBackground, false);
         _tree->viewport()->setAttribute(Qt::WA_NoSystemBackground, false);
         _tree->viewport()->setAttribute(Qt::WA_StyledBackground, false);
+        setProperty("detachedOverlayMode", false);
+        _tree->setProperty("detachedOverlayMode", false);
+        _tree->viewport()->setProperty("detachedOverlayMode", false);
 
         setAttribute(Qt::WA_NoSystemBackground, false);
         setAutoFillBackground(true);
     }
 
     _overlayMode = enabled;
+    refreshDetachedOverlayTheme();
     _tree->viewport()->update();
     _tree->update();
     update();
+}
+
+void MaterialVariantsPanel::refreshDetachedOverlayTheme()
+{
+    if (!_overlayMode || !_tree)
+        return;
+
+    const bool lightText = property("overlayViewerLightText").toBool();
+    const QColor textColor = lightText ? QColor(255, 255, 255) : QColor(0, 0, 0);
+    _detachedOverlayFillColor = lightText ? QColor(255, 255, 255, 65) : QColor(0, 0, 0, 45);
+
+    QPalette treePalette = _tree->palette();
+    treePalette.setColor(QPalette::Text, textColor);
+    treePalette.setColor(QPalette::WindowText, textColor);
+    treePalette.setColor(QPalette::ButtonText, textColor);
+    treePalette.setColor(QPalette::HighlightedText, textColor);
+    _tree->setPalette(treePalette);
+
+    QPalette viewportPalette = _tree->viewport()->palette();
+    viewportPalette.setColor(QPalette::Text, textColor);
+    viewportPalette.setColor(QPalette::WindowText, textColor);
+    viewportPalette.setColor(QPalette::ButtonText, textColor);
+    viewportPalette.setColor(QPalette::HighlightedText, textColor);
+    _tree->viewport()->setPalette(viewportPalette);
+
+    if (_sceneGraph)
+        refresh();
+}
+
+void MaterialVariantsPanel::paintEvent(QPaintEvent* event)
+{
+    if (_overlayMode)
+    {
+        QPainter painter(this);
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+        painter.fillRect(event->rect(), _detachedOverlayFillColor);
+    }
+
+    QWidget::paintEvent(event);
 }
 
 // ---------------------------------------------------------------------------
@@ -234,13 +281,15 @@ void MaterialVariantsPanel::markActiveVariant(const QString& sourceFile, int var
 
 QIcon MaterialVariantsPanel::activeIcon() const
 {
-    const QColor c = palette().color(QPalette::Text);
+    const QColor c = _tree ? _tree->palette().color(QPalette::Text)
+                           : palette().color(QPalette::Text);
     return makeCircleIcon(true, c);
 }
 
 QIcon MaterialVariantsPanel::inactiveIcon() const
 {
-    QColor c = palette().color(QPalette::Text);
+    QColor c = _tree ? _tree->palette().color(QPalette::Text)
+                     : palette().color(QPalette::Text);
     c.setAlpha(160);
     return makeCircleIcon(false, c);
 }

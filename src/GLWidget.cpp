@@ -6,8 +6,10 @@
 #include "SelectionManager.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
+#include "MaterialVariantsPanel.h"
 #include "ModelViewer.h"
 #include "SceneTreeWidget.h"
+#include "AnimationsPanel.h"
 #include "ModelViewerApplication.h"
 #include "PathUtils.h"
 #include "Plane.h"
@@ -22,6 +24,7 @@
 #include <QMessageBox>
 #include <QStyleFactory>
 #include <QThread>
+#include <QTreeView>
 #include <QDebug>
 
 
@@ -2708,13 +2711,22 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 	if (!wrapper)
 		return;
 
-	const QColor contrastColor = (_bgTopColor.lightnessF() < 0.5)
+	const QColor averageBackgroundColor(
+		(_bgTopColor.red() + _bgBotColor.red()) / 2,
+		(_bgTopColor.green() + _bgBotColor.green()) / 2,
+		(_bgTopColor.blue() + _bgBotColor.blue()) / 2,
+		(_bgTopColor.alpha() + _bgBotColor.alpha()) / 2);
+	const QColor contrastColor = (averageBackgroundColor.lightnessF() < 0.5)
 		? QColor(255, 255, 255)
 		: QColor(0, 0, 0);
-	const bool darkBackground = _bgTopColor.lightnessF() < 0.5;
+	const QColor viewerTextColor = contrastColor;
+	const bool darkBackground = averageBackgroundColor.lightnessF() < 0.5;
 	const QColor panelFieldColor = darkBackground
 		? QColor(24, 24, 24, 210)
 		: QColor(255, 255, 255, 215);
+	const QColor panelTextColor = (panelFieldColor.lightnessF() < 0.5)
+		? QColor(255, 255, 255)
+		: QColor(0, 0, 0);
 	const QColor panelFieldBorderColor = darkBackground
 		? QColor(255, 255, 255, 85)
 		: QColor(0, 0, 0, 65);
@@ -2724,6 +2736,9 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 	const QColor treeAlternateColor = darkBackground
 		? QColor(245, 245, 245, 190)
 		: QColor(52, 52, 52, 165);
+	const QColor treeTextColor = (treeBaseColor.lightnessF() < 0.5)
+		? QColor(255, 255, 255)
+		: QColor(0, 0, 0);
 
 	wrapper->setStyleSheet(QString(
 		"QWidget#%1 {"
@@ -2733,6 +2748,7 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 		"}"
 		"QWidget#%1 QLineEdit {"
 		"  background-color: rgba(%5, %6, %7, %8);"
+		"  color: rgb(%21, %22, %23);"
 		"  border: 1px solid rgba(%9, %10, %11, %12);"
 		"  border-radius: 4px;"
 		"  padding: 2px 6px;"
@@ -2740,6 +2756,7 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 		"QWidget#%1 QTreeWidget {"
 		"  background-color: rgba(%13, %14, %15, %16);"
 		"  alternate-background-color: rgba(%17, %18, %19, %20);"
+		"  color: rgb(%24, %25, %26);"
 		"}"
 		/* Tab bar: transparent background, tinted tabs that adapt to dark/light bg */
 		"QWidget#%1 QTabBar {"
@@ -2747,7 +2764,7 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 		"}"
 		"QWidget#%1 QTabBar::tab {"
 		"  background-color: rgba(%2, %3, %4, 40);"
-		"  color: rgb(%2, %3, %4);"
+		"  color: rgb(%21, %22, %23);"
 		"  border-radius: 4px;"
 		"  padding: 3px 10px;"
 		"  margin-right: 2px;"
@@ -2767,9 +2784,8 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 		"QWidget#%1 QLineEdit,"
 		"QWidget#%1 QSpinBox,"
 		"QWidget#%1 QDoubleSpinBox,"
-		"QWidget#%1 QTreeWidget,"
 		"QWidget#%1 QComboBox {"
-		"  color: rgb(%2, %3, %4);"
+		"  color: rgb(%21, %22, %23);"
 		"}")
 		.arg(objectName)
 		.arg(contrastColor.red())
@@ -2790,7 +2806,61 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 		.arg(treeAlternateColor.red())
 		.arg(treeAlternateColor.green())
 		.arg(treeAlternateColor.blue())
-		.arg(treeAlternateColor.alpha()));
+		.arg(treeAlternateColor.alpha())
+		.arg(panelTextColor.red())
+		.arg(panelTextColor.green())
+		.arg(panelTextColor.blue())
+		.arg(treeTextColor.red())
+		.arg(treeTextColor.green())
+		.arg(treeTextColor.blue()));
+
+	QPalette wrapperPalette = wrapper->palette();
+	wrapperPalette.setColor(QPalette::WindowText, contrastColor);
+	wrapperPalette.setColor(QPalette::Text, contrastColor);
+	wrapperPalette.setColor(QPalette::ButtonText, contrastColor);
+	wrapperPalette.setColor(QPalette::HighlightedText, darkBackground ? QColor(255, 255, 255) : QColor(0, 0, 0));
+	wrapper->setPalette(wrapperPalette);
+	wrapper->setProperty("overlayPanelLightText", panelTextColor.lightnessF() > 0.5);
+	wrapper->setProperty("overlayViewerLightText", viewerTextColor.lightnessF() > 0.5);
+	wrapper->setProperty("overlayPanelTreeLightText", treeTextColor.lightnessF() > 0.5);
+
+	const auto navigationDescendants = wrapper->findChildren<QWidget*>();
+	for (QWidget* child : navigationDescendants)
+	{
+		if (!child)
+			continue;
+
+		const bool treeLike = qobject_cast<QTreeView*>(child) != nullptr;
+		const QColor childTextColor = treeLike ? viewerTextColor : panelTextColor;
+		child->setProperty("overlayPanelLightText", childTextColor.lightnessF() > 0.5);
+		child->setProperty("overlayViewerLightText", viewerTextColor.lightnessF() > 0.5);
+		QPalette palette = child->palette();
+		palette.setColor(QPalette::WindowText, childTextColor);
+		palette.setColor(QPalette::Text, childTextColor);
+		palette.setColor(QPalette::ButtonText, childTextColor);
+		palette.setColor(QPalette::HighlightedText, treeLike ? viewerTextColor : panelTextColor);
+		child->setPalette(palette);
+
+		if (auto* treeView = qobject_cast<QTreeView*>(child))
+		{
+			QPalette viewportPalette = treeView->viewport()->palette();
+			viewportPalette.setColor(QPalette::WindowText, viewerTextColor);
+			viewportPalette.setColor(QPalette::Text, viewerTextColor);
+			viewportPalette.setColor(QPalette::ButtonText, viewerTextColor);
+			viewportPalette.setColor(QPalette::HighlightedText, viewerTextColor);
+			treeView->viewport()->setPalette(viewportPalette);
+			treeView->viewport()->update();
+			treeView->update();
+		}
+		else if (auto* variantsPanel = qobject_cast<MaterialVariantsPanel*>(child))
+		{
+			variantsPanel->refreshDetachedOverlayTheme();
+		}
+		else if (auto* animationsPanel = qobject_cast<AnimationsPanel*>(child))
+		{
+			animationsPanel->refreshDetachedOverlayTheme();
+		}
+	}
 }
 
 void GLWidget::refreshNavigationOverlayStyle()

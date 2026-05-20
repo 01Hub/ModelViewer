@@ -28,6 +28,7 @@
 #include <algorithm>
 #include <functional>
 #include <QApplication>
+#include <QCheckBox>
 #include <QColorDialog>
 #include <QDataStream>
 #include <QEventLoop>
@@ -36,9 +37,14 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
+#include <QProxyStyle>
 #include <QThread>
 #include <QTimer>
+#include <QToolButton>
 #include <QToolTip>
+#include <QStyleOptionButton>
+#include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QTabBar>
 #include <QTabWidget>
@@ -46,6 +52,140 @@
 
 QString ModelViewer::_lastOpenedDir;
 QString ModelViewer::_lastSelectedFilter;
+
+namespace
+{
+class DetachedOverlayCheckBoxStyle : public QProxyStyle
+{
+public:
+	using QProxyStyle::QProxyStyle;
+
+	void drawPrimitive(PrimitiveElement pe,
+	                   const QStyleOption* opt,
+	                   QPainter* painter,
+	                   const QWidget* widget = nullptr) const override
+	{
+		if (pe == PE_IndicatorCheckBox && widget && widget->property("detachedOverlayMode").toBool())
+		{
+			QStyleOptionButton buttonOpt;
+			if (const auto* button = qstyleoption_cast<const QStyleOptionButton*>(opt))
+				buttonOpt = *button;
+			else if (opt)
+				buttonOpt.rect = opt->rect;
+			else
+				buttonOpt.initFrom(widget);
+
+			const QColor boxFill(255, 255, 255, 225);
+			const QColor boxBorder(0, 0, 0, 100);
+			const QColor markColor(0, 0, 0);
+
+			const QRect rect = buttonOpt.rect.adjusted(1, 1, -1, -1);
+			painter->save();
+			painter->setRenderHint(QPainter::Antialiasing, true);
+			painter->setPen(QPen(boxBorder, 1.0));
+			painter->setBrush(boxFill);
+			painter->drawRoundedRect(rect, 2.0, 2.0);
+
+			if (buttonOpt.state & State_On)
+			{
+				const QPoint p1(rect.left() + 3, rect.center().y());
+				const QPoint p2(rect.center().x() - 1, rect.bottom() - 3);
+				const QPoint p3(rect.right() - 2, rect.top() + 3);
+				painter->setPen(QPen(markColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+				painter->drawLine(p1, p2);
+				painter->drawLine(p2, p3);
+			}
+			else if (buttonOpt.state & State_NoChange)
+			{
+				painter->setPen(QPen(markColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+				painter->drawLine(rect.left() + 3, rect.center().y(),
+					rect.right() - 3, rect.center().y());
+			}
+
+			painter->restore();
+			return;
+		}
+
+		QProxyStyle::drawPrimitive(pe, opt, painter, widget);
+	}
+};
+
+bool isDetachedNavigationOverlayCheckBox(const QObject* watched,
+                                         const QCheckBox* selectAll,
+                                         const QCheckBox* autoFit,
+                                         const QCheckBox* selectionHighlight)
+{
+	return watched == selectAll
+		|| watched == autoFit
+		|| watched == selectionHighlight;
+}
+
+bool paintDetachedNavigationOverlayCheckBox(QCheckBox* box, QPaintEvent* event)
+{
+	if (!box || !box->property("detachedOverlayMode").toBool())
+		return false;
+
+	QPainter painter(box);
+	painter.setRenderHint(QPainter::Antialiasing, true);
+	painter.setClipRect(event->rect());
+
+	QStyleOptionButton opt;
+	opt.initFrom(box);
+	opt.text = box->text();
+	if (box->isEnabled())
+		opt.state |= QStyle::State_Enabled;
+	if (box->underMouse())
+		opt.state |= QStyle::State_MouseOver;
+	if (box->hasFocus())
+		opt.state |= QStyle::State_HasFocus;
+	switch (box->checkState())
+	{
+	case Qt::Checked:
+		opt.state |= QStyle::State_On;
+		break;
+	case Qt::PartiallyChecked:
+		opt.state |= QStyle::State_NoChange;
+		break;
+	case Qt::Unchecked:
+	default:
+		opt.state |= QStyle::State_Off;
+		break;
+	}
+
+	const QRect indicatorRect = box->style()->subElementRect(QStyle::SE_CheckBoxIndicator, &opt, box);
+	const QRect textRect = box->style()->subElementRect(QStyle::SE_CheckBoxContents, &opt, box);
+	const QRect rect = indicatorRect.adjusted(1, 1, -1, -1);
+
+	const QColor labelColor(255, 255, 255);
+	const QColor boxFill(24, 24, 24, 220);
+	const QColor boxBorder(255, 255, 255, 150);
+	const QColor markColor(255, 255, 255);
+
+	painter.setPen(QPen(boxBorder, 1.0));
+	painter.setBrush(boxFill);
+	painter.drawRoundedRect(rect, 2.0, 2.0);
+
+	if (opt.state & QStyle::State_On)
+	{
+		const QPoint p1(rect.left() + 3, rect.center().y());
+		const QPoint p2(rect.center().x() - 1, rect.bottom() - 3);
+		const QPoint p3(rect.right() - 2, rect.top() + 3);
+		painter.setPen(QPen(markColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+		painter.drawLine(p1, p2);
+		painter.drawLine(p2, p3);
+	}
+	else if (opt.state & QStyle::State_NoChange)
+	{
+		painter.setPen(QPen(markColor, 1.8, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+		painter.drawLine(rect.left() + 3, rect.center().y(),
+			rect.right() - 3, rect.center().y());
+	}
+
+	painter.setPen(labelColor);
+	painter.drawText(textRect, Qt::AlignVCenter | Qt::AlignLeft, box->text());
+	return true;
+}
+}
 
 ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 {
@@ -329,6 +469,24 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	connect(Ui_ModelViewer::toolButtonDetach, &QToolButton::clicked,
 		this, &ModelViewer::detachNavigationPanel);
+	toolButtonDetach->setAutoRaise(true);
+	toolButtonDetach->setIcon(QIcon(":/icons/res/detach.png"));
+	toolButtonDetach->setToolTip(tr("Detach from panel"));
+
+	auto installDetachedOverlayCheckBoxStyle = [](QCheckBox* box)
+	{
+		if (!box)
+			return;
+		box->setProperty("detachedOverlayMode", false);
+		box->setStyle(new DetachedOverlayCheckBoxStyle(box->style()));
+	};
+	installDetachedOverlayCheckBoxStyle(checkBoxSelectAll);
+	installDetachedOverlayCheckBoxStyle(checkBoxAutoFitView);
+	installDetachedOverlayCheckBoxStyle(checkBoxSelectionHighlight);
+	checkBoxSelectAll->installEventFilter(this);
+	checkBoxAutoFitView->installEventFilter(this);
+	checkBoxSelectionHighlight->installEventFilter(this);
+	ensureDockedNavigationHeader();
 
 	_hasPBRAlbedoTex = false;	
 	_hasPBRMetallicTex = false;
@@ -998,8 +1156,12 @@ void ModelViewer::detachNavigationPanel()
 	}
 
 	const int overlayWidth = 420;
+	QWidget* navigationContent = _innerTabWidget
+		? static_cast<QWidget*>(_innerTabWidget)
+		: static_cast<QWidget*>(modelNavigationWidget);
+
 	_detachedNavigationOverlay = _glWidget->attachOverlayPanel(
-		modelNavigationWidget,
+		navigationContent,
 		QRect(10, 36, overlayWidth, std::max(120, _glWidget->height() - 36 - 96)),
 		Qt::AlignTop | Qt::AlignLeft,
 		"navigationOverlayPanel");
@@ -1007,10 +1169,12 @@ void ModelViewer::detachNavigationPanel()
 	if (_detachedNavigationOverlay)
 	{
 		treeWidgetModel->setDetachedOverlayMode(true);
-
-		// If the tab widget exists, hide it while the nav panel is floating.
-		if (_innerTabWidget)
-			_innerTabWidget->hide();
+		checkBoxSelectAll->setProperty("detachedOverlayMode", true);
+		checkBoxAutoFitView->setProperty("detachedOverlayMode", true);
+		checkBoxSelectionHighlight->setProperty("detachedOverlayMode", true);
+		checkBoxSelectAll->update();
+		checkBoxAutoFitView->update();
+		checkBoxSelectionHighlight->update();
 
 		// Apply overlay mode to the variants panel when it exists.
 		if (_variantsPanel)
@@ -1020,6 +1184,29 @@ void ModelViewer::detachNavigationPanel()
 
 		updateNavigationOverlayGeometry();
 		_detachedNavigationOverlay->show();
+
+		if (auto* wrapperLayout = qobject_cast<QVBoxLayout*>(_detachedNavigationOverlay->layout()))
+		{
+			if (!_detachedNavigationOverlay->findChild<QWidget*>("navigationOverlayToolbar"))
+			{
+				auto* toolbar = new QWidget(_detachedNavigationOverlay);
+				toolbar->setObjectName("navigationOverlayToolbar");
+				auto* toolbarLayout = new QHBoxLayout(toolbar);
+				toolbarLayout->setContentsMargins(4, 2, 4, 4);
+				toolbarLayout->addStretch();
+
+				auto* reattachButton = new QToolButton(toolbar);
+				reattachButton->setObjectName("navigationOverlayReattachButton");
+				reattachButton->setAutoRaise(true);
+				reattachButton->setToolTip(tr("Reattach to panel"));
+				reattachButton->setIcon(QIcon(":/icons/res/reattach.png"));
+				connect(reattachButton, &QToolButton::clicked,
+					this, &ModelViewer::reattachNavigationPanel);
+				toolbarLayout->addWidget(reattachButton);
+
+				wrapperLayout->insertWidget(0, toolbar);
+			}
+		}
 
 		// Hide the navigation tab
 		_navigationPageIndex = controlstabWidget->indexOf(controlstabWidgetPage1);
@@ -1032,7 +1219,8 @@ void ModelViewer::detachNavigationPanel()
 
 	toolButtonDetach->setIcon(QIcon(":/icons/res/reattach.png"));
 	toolButtonDetach->setToolTip(tr("Reattach to panel"));
-	modelNavigationWidget->show();
+	toolButtonDetach->hide();
+	navigationContent->show();
 }
 
 void ModelViewer::updateNavigationOverlayGeometry()
@@ -1051,37 +1239,85 @@ void ModelViewer::updateNavigationOverlayGeometry()
 		std::max(120, _glWidget->height() - overlayTop - overlayBottomMargin));
 }
 
+void ModelViewer::ensureDockedNavigationHeader()
+{
+	if (!navigationFrame)
+		return;
+
+	auto* grid = qobject_cast<QGridLayout*>(navigationFrame->layout());
+	if (!grid)
+		return;
+
+	if (!_dockedNavigationHeader)
+	{
+		auto* header = new QWidget(navigationFrame);
+		header->setObjectName("navigationDockedToolbar");
+		auto* headerLayout = new QHBoxLayout(header);
+		headerLayout->setContentsMargins(4, 2, 4, 2);
+		headerLayout->setSpacing(0);
+		headerLayout->addWidget(toolButtonDetach);
+		headerLayout->addStretch();
+		_dockedNavigationHeader = header;
+		grid->addWidget(header, 0, 0);
+	}
+
+	if (modelNavigationWidget && modelNavigationWidget->parentWidget() == navigationFrame)
+	{
+		grid->removeWidget(modelNavigationWidget);
+		grid->addWidget(modelNavigationWidget, 1, 0);
+	}
+	if (_innerTabWidget && _innerTabWidget->parentWidget() == navigationFrame)
+	{
+		grid->removeWidget(_innerTabWidget);
+		grid->addWidget(_innerTabWidget, 1, 0);
+	}
+}
+
+void ModelViewer::placeNavigationContentInHost(QWidget* navigationContent, QWidget* hostParent, QLayout* hostLayout)
+{
+	if (!navigationContent || !hostLayout)
+		return;
+
+	hostLayout->removeWidget(navigationContent);
+
+	if (hostParent == navigationFrame)
+	{
+		ensureDockedNavigationHeader();
+		if (auto* grid = qobject_cast<QGridLayout*>(hostLayout))
+		{
+			grid->addWidget(navigationContent, 1, 0);
+			return;
+		}
+	}
+
+	hostLayout->addWidget(navigationContent);
+}
+
 void ModelViewer::reattachNavigationPanel()
 {
 	if (!_detachedNavigationOverlay) return;
 
 	treeWidgetModel->setDetachedOverlayMode(false);
-
-	// If the tab widget exists, restore modelNavigationWidget into it
-	// and make the tab widget visible again.
-	if (_innerTabWidget)
-	{
-		_innerTabWidget->insertTab(0, modelNavigationWidget, QIcon(":/icons/res/expand.png"), tr("Model"));
-		_innerTabWidget->setCurrentIndex(0);
-		_innerTabWidget->show();
-	}
+	checkBoxSelectAll->setProperty("detachedOverlayMode", false);
+	checkBoxAutoFitView->setProperty("detachedOverlayMode", false);
+	checkBoxSelectionHighlight->setProperty("detachedOverlayMode", false);
+	checkBoxSelectAll->update();
+	checkBoxAutoFitView->update();
+	checkBoxSelectionHighlight->update();
 
 	if (_variantsPanel)
 		_variantsPanel->setDetachedOverlayMode(false);
 	if (_animationsPanel)
 		_animationsPanel->setDetachedOverlayMode(false);
 
-	_glWidget->takeOverlayPanel(modelNavigationWidget);
+	QWidget* navigationContent = _innerTabWidget
+		? static_cast<QWidget*>(_innerTabWidget)
+		: static_cast<QWidget*>(modelNavigationWidget);
+
+	_glWidget->takeOverlayPanel(navigationContent);
 	_detachedNavigationOverlay = nullptr;
 
-	// Put modelNavigationWidget back into its rightful place.
-	// When the tab widget exists it is already in navigationFrame's grid;
-	// modelNavigationWidget was already restored as its tab 0 above.
-	if (!_innerTabWidget)
-	{
-		if (auto* grid = qobject_cast<QGridLayout*>(navigationFrame->layout()))
-			grid->addWidget(modelNavigationWidget, 0, 0);
-	}
+	placeNavigationContentInHost(navigationContent, navigationFrame, navigationFrame->layout());
 
 	// Restore the navigation tab
 	if (_navigationPageIndex >= 0)
@@ -1094,7 +1330,8 @@ void ModelViewer::reattachNavigationPanel()
 
 	toolButtonDetach->setIcon(QIcon(":/icons/res/detach.png"));
 	toolButtonDetach->setToolTip(tr("Detach from panel"));
-	modelNavigationWidget->show();
+	toolButtonDetach->show();
+	navigationContent->show();
 }
 
 void ModelViewer::refreshVariantsTab()
@@ -1108,31 +1345,25 @@ void ModelViewer::refreshVariantsTab()
 
 	if (needsInnerTabs && !_innerTabWidget)
 	{
-		if (_detachedNavigationOverlay)
-		{
-			if (hasVariants)
-				_variantsPanel->refresh();
-			if (hasAnimations)
-				_animationsPanel->refresh();
-			return;
-		}
-
-		auto* grid = qobject_cast<QGridLayout*>(navigationFrame->layout());
-		if (!grid)
+		QWidget* hostParent = modelNavigationWidget->parentWidget()
+			? modelNavigationWidget->parentWidget()
+			: navigationFrame;
+		QLayout* hostLayout = hostParent ? hostParent->layout() : nullptr;
+		if (!hostLayout)
 			return;
 
-		// Create the tab widget parented to navigationFrame, hidden until
-		// fully configured to avoid a momentary flash at position (0,0).
-		_innerTabWidget = new QTabWidget(navigationFrame);
+		// Create the tab widget parented to the current host, which may be the
+		// docked navigation frame or the detached overlay wrapper.
+		_innerTabWidget = new QTabWidget(hostParent);
 		_innerTabWidget->hide();
 		_innerTabWidget->setIconSize(QSize(36, 36));
 
-		// Remove modelNavigationWidget from navigationFrame's grid and
+		// Remove modelNavigationWidget from its current layout and
 		// reparent it into tab 0 of the new tab widget.
-		grid->removeWidget(modelNavigationWidget);
+		hostLayout->removeWidget(modelNavigationWidget);
 		_innerTabWidget->addTab(modelNavigationWidget, QIcon(":/icons/res/expand.png"), tr("Model"));
 
-		grid->addWidget(_innerTabWidget, 0, 0);
+		placeNavigationContentInHost(_innerTabWidget, hostParent, hostLayout);
 
 		connect(_innerTabWidget, &QTabWidget::currentChanged,
 		        this, &ModelViewer::onInnerNavTabChanged);
@@ -1177,15 +1408,17 @@ void ModelViewer::refreshVariantsTab()
 		disconnect(_innerTabWidget, &QTabWidget::currentChanged,
 		           this, &ModelViewer::onInnerNavTabChanged);
 
-		auto* grid = qobject_cast<QGridLayout*>(navigationFrame->layout());
+		QWidget* hostParent = _innerTabWidget->parentWidget()
+			? _innerTabWidget->parentWidget()
+			: navigationFrame;
+		QLayout* hostLayout = hostParent ? hostParent->layout() : nullptr;
 
-		// Reparent modelNavigationWidget back to navigationFrame (Qt
-		// automatically removes it from the tab widget).
-		modelNavigationWidget->setParent(navigationFrame);
-		if (grid)
+		// Reparent modelNavigationWidget back to the current host (docked or detached).
+		modelNavigationWidget->setParent(hostParent);
+		if (hostLayout)
 		{
-			grid->removeWidget(_innerTabWidget);
-			grid->addWidget(modelNavigationWidget, 0, 0);
+			hostLayout->removeWidget(_innerTabWidget);
+			placeNavigationContentInHost(modelNavigationWidget, hostParent, hostLayout);
 		}
 
 		_variantsPanel->setParent(this);
@@ -1547,6 +1780,16 @@ void ModelViewer::showEvent(QShowEvent*)
 
 bool ModelViewer::eventFilter(QObject* watched, QEvent* event)
 {
+	if (event->type() == QEvent::Paint
+		&& isDetachedNavigationOverlayCheckBox(watched,
+			checkBoxSelectAll,
+			checkBoxAutoFitView,
+			checkBoxSelectionHighlight))
+	{
+		if (auto* box = qobject_cast<QCheckBox*>(watched))
+			return paintDetachedNavigationOverlayCheckBox(box, static_cast<QPaintEvent*>(event));
+	}
+
 	if (_treeRebuildPending &&
 		(watched == treeWidgetModel || watched == treeWidgetModel->viewport()))
 	{
@@ -2825,7 +3068,20 @@ void ModelViewer::showVisualizationModelPage()
 void ModelViewer::showPredefinedMaterialsPage()
 {
 	controlstabWidget->setCurrentWidget(controlstabWidgetPage2);
-	tabWidgetVizAttribs->setCurrentWidget(materialProcessorPage);
+
+	if (_detachedMaterialDialog)
+	{
+		if (_materialPreviewContainer && tabWidgetVizAttribs->indexOf(_materialPreviewContainer) >= 0)
+			tabWidgetVizAttribs->setCurrentWidget(_materialPreviewContainer);
+
+		_detachedMaterialDialog->show();
+		_detachedMaterialDialog->raise();
+		_detachedMaterialDialog->activateWindow();
+		return;
+	}
+
+	if (tabWidgetVizAttribs->indexOf(materialProcessorPage) >= 0)
+		tabWidgetVizAttribs->setCurrentWidget(materialProcessorPage);
 }
 
 void ModelViewer::showTransformationsPage()

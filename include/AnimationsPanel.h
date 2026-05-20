@@ -30,6 +30,7 @@ public:
 	void setGLWidget(GLWidget* glWidget);
 	void refresh();
 	void setDetachedOverlayMode(bool enabled);
+	void refreshDetachedOverlayTheme();
 
 signals:
 	void clipActivated(const QString& sourceFile, int clipIndex);
@@ -46,12 +47,15 @@ private slots:
 	void onSliderValueChanged(int value);
 
 private:
+	void paintEvent(QPaintEvent* event) override;
+
 	QTreeWidgetItem* makeFileItem(const QString& sourceFile, const QString& displayName) const;
 	QTreeWidgetItem* makeClipItem(const QString& label, int clipIndex, double durationSeconds, bool active) const;
 	void markActiveClip(const QString& sourceFile, int clipIndex);
 	void updateControlsForSelection();
 	QIcon activeIcon() const;
 	QIcon inactiveIcon() const;
+	void updateDetachedPlayButtonStyle();
 
 	QTreeWidget* _tree = nullptr;
 	QPushButton* _playPauseButton = nullptr;
@@ -71,4 +75,6 @@ private:
 	bool _savedAutoFill = false;
 	bool _savedViewportAutoFill = false;
 	QString _savedStyleSheet;
+	QString _savedPlayPauseStyle;
+	QColor _detachedOverlayFillColor = QColor(255, 255, 255, 65);
 };

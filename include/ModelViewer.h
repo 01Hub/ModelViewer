@@ -210,6 +210,8 @@ protected:
 
 private:
 	void updateNavigationOverlayGeometry();
+	void ensureDockedNavigationHeader();
+	void placeNavigationContentInHost(QWidget* navigationContent, QWidget* hostParent, QLayout* hostLayout);
 
 	// Show/hide the Variants tab (_innerTabWidget) based on whether
 	// any currently loaded file carries optional glTF metadata panels.
@@ -307,6 +309,7 @@ private:
 	QString _environmentPageLabel;
 
 	QPointer<QWidget> _detachedNavigationOverlay;
+	QPointer<QWidget> _dockedNavigationHeader;
 	int _navigationPageIndex = -1;
 	QString _navigationPageLabel;
 

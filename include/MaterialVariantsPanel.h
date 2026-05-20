@@ -55,6 +55,7 @@ public:
     // Enable / disable the frosted-glass rendering used when the navigation
     // panel is floating as a GLWidget overlay.
     void setDetachedOverlayMode(bool enabled);
+    void refreshDetachedOverlayTheme();
 
 signals:
     // Emitted when the user clicks a variant item.
@@ -65,6 +66,8 @@ private slots:
     void onItemClicked(QTreeWidgetItem* item, int column);
 
 private:
+    void paintEvent(QPaintEvent* event) override;
+
     QTreeWidgetItem* makeFileItem(const QString& sourceFile,
                                   const QString& displayName) const;
     QTreeWidgetItem* makeVariantItem(const QString& label,
@@ -86,4 +89,5 @@ private:
     bool     _savedAutoFill         = false;
     bool     _savedViewportAutoFill = false;
     QString  _savedStyleSheet;
+    QColor   _detachedOverlayFillColor = QColor(255, 255, 255, 65);
 };

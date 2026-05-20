@@ -86,9 +86,19 @@ public:
             const int sz = 11;
             QRect box = QRect(opt->rect.center() - QPoint(sz / 2, sz / 2),
                               QSize(sz, sz));
+            const bool detachedOverlay =
+                (w && w->property("detachedOverlayMode").toBool());
+            const bool lightText =
+                detachedOverlay && w ? w->property("overlayViewerLightText").toBool() : false;
+            const QColor textColor = detachedOverlay
+                ? (lightText ? QColor(255, 255, 255) : QColor(0, 0, 0))
+                : opt->palette.text().color();
+            const QColor baseColor = detachedOverlay
+                ? (lightText ? QColor(24, 24, 24, 225) : QColor(255, 255, 255, 225))
+                : opt->palette.base().color();
             p->save();
-            p->setPen(QPen(opt->palette.text().color(), 1));
-            p->setBrush(opt->palette.base());
+            p->setPen(QPen(textColor, 1));
+            p->setBrush(baseColor);
             p->drawRect(box);
             // Horizontal bar
             p->drawLine(box.left() + 2,  box.center().y(),
@@ -118,10 +128,22 @@ public:
 
         const bool detachedOverlay =
             (opt.widget && opt.widget->property("detachedOverlayMode").toBool());
+        const bool lightText =
+            detachedOverlay && opt.widget ? opt.widget->property("overlayViewerLightText").toBool() : false;
+        const QColor detachedTextColor = lightText ? QColor(255, 255, 255) : QColor(0, 0, 0);
+        const QColor detachedHighlightTextColor = detachedTextColor;
+
+        if (detachedOverlay)
+        {
+            opt.palette.setColor(QPalette::Text, detachedTextColor);
+            opt.palette.setColor(QPalette::WindowText, detachedTextColor);
+            opt.palette.setColor(QPalette::ButtonText, detachedTextColor);
+            opt.palette.setColor(QPalette::HighlightedText, detachedHighlightTextColor);
+        }
 
         if (!detachedOverlay || !(opt.features & QStyleOptionViewItem::HasCheckIndicator))
         {
-            QStyledItemDelegate::paint(painter, option, index);
+            QStyledItemDelegate::paint(painter, opt, index);
             return;
         }
 
@@ -714,10 +736,18 @@ void SceneTreeWidget::setDetachedOverlayMode(bool enabled)
         QPalette treePalette = _savedTreePalette;
           QColor base = treePalette.color(QPalette::Base);
           QColor alternate = treePalette.color(QPalette::AlternateBase);
+          const bool lightText = property("overlayViewerLightText").toBool();
+          const QColor textColor = lightText
+              ? QColor(255, 255, 255)
+              : QColor(0, 0, 0);
           base.setAlpha(0);
           alternate.setAlpha(0);
           treePalette.setColor(QPalette::Base, base);
           treePalette.setColor(QPalette::AlternateBase, alternate);
+          treePalette.setColor(QPalette::Text, textColor);
+          treePalette.setColor(QPalette::WindowText, textColor);
+          treePalette.setColor(QPalette::ButtonText, textColor);
+          treePalette.setColor(QPalette::HighlightedText, textColor);
 
           setPalette(treePalette);
           viewport()->setPalette(treePalette);

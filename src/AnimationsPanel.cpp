@@ -149,6 +149,7 @@ void AnimationsPanel::setDetachedOverlayMode(bool enabled)
 	if (enabled)
 	{
 		_savedStyleSheet = styleSheet();
+		_savedPlayPauseStyle = _playPauseButton ? _playPauseButton->styleSheet() : QString();
 		_savedPalette = _tree->palette();
 		_savedViewportPalette = _tree->viewport()->palette();
 		_savedAutoFill = autoFillBackground();
@@ -166,20 +167,85 @@ void AnimationsPanel::setDetachedOverlayMode(bool enabled)
 		_tree->viewport()->setPalette(palette);
 		_tree->setAutoFillBackground(false);
 		_tree->viewport()->setAutoFillBackground(false);
+		_tree->setAttribute(Qt::WA_NoSystemBackground, true);
+		_tree->viewport()->setAttribute(Qt::WA_NoSystemBackground, true);
+		_tree->viewport()->setAttribute(Qt::WA_StyledBackground, false);
 		setAutoFillBackground(false);
-		setStyleSheet(QStringLiteral("QPushButton, QCheckBox, QLabel { background: transparent; }"));
+		setAttribute(Qt::WA_NoSystemBackground, true);
+		setProperty("detachedOverlayMode", true);
+		_tree->setProperty("detachedOverlayMode", true);
+		_tree->viewport()->setProperty("detachedOverlayMode", true);
+		setStyleSheet(QStringLiteral(
+			"QPushButton, QCheckBox, QLabel, QSlider { background: transparent; }"
+		));
+		updateDetachedPlayButtonStyle();
 	}
 	else
 	{
 		setStyleSheet(_savedStyleSheet);
+		if (_playPauseButton)
+			_playPauseButton->setStyleSheet(_savedPlayPauseStyle);
 		_tree->setPalette(_savedPalette);
 		_tree->viewport()->setPalette(_savedViewportPalette);
 		_tree->setAutoFillBackground(_savedAutoFill);
 		_tree->viewport()->setAutoFillBackground(_savedViewportAutoFill);
+		_tree->setAttribute(Qt::WA_NoSystemBackground, false);
+		_tree->viewport()->setAttribute(Qt::WA_NoSystemBackground, false);
+		_tree->viewport()->setAttribute(Qt::WA_StyledBackground, false);
+		setAttribute(Qt::WA_NoSystemBackground, false);
+		setProperty("detachedOverlayMode", false);
+		_tree->setProperty("detachedOverlayMode", false);
+		_tree->viewport()->setProperty("detachedOverlayMode", false);
 		setAutoFillBackground(_savedAutoFill);
 	}
 
 	_overlayMode = enabled;
+	refreshDetachedOverlayTheme();
+	_tree->viewport()->update();
+	_tree->update();
+	update();
+}
+
+void AnimationsPanel::refreshDetachedOverlayTheme()
+{
+	if (!_overlayMode || !_tree)
+		return;
+
+	const bool lightText = property("overlayViewerLightText").toBool();
+	const QColor textColor = lightText ? QColor(255, 255, 255) : QColor(0, 0, 0);
+	_detachedOverlayFillColor = lightText ? QColor(255, 255, 255, 65) : QColor(0, 0, 0, 45);
+
+	QPalette treePalette = _tree->palette();
+	treePalette.setColor(QPalette::Text, textColor);
+	treePalette.setColor(QPalette::WindowText, textColor);
+	treePalette.setColor(QPalette::ButtonText, textColor);
+	treePalette.setColor(QPalette::HighlightedText, textColor);
+	_tree->setPalette(treePalette);
+
+	QPalette viewportPalette = _tree->viewport()->palette();
+	viewportPalette.setColor(QPalette::Text, textColor);
+	viewportPalette.setColor(QPalette::WindowText, textColor);
+	viewportPalette.setColor(QPalette::ButtonText, textColor);
+	viewportPalette.setColor(QPalette::HighlightedText, textColor);
+	_tree->viewport()->setPalette(viewportPalette);
+
+	updateDetachedPlayButtonStyle();
+	if (_sceneGraph)
+		refresh();
+	else
+		updateControlsForSelection();
+}
+
+void AnimationsPanel::paintEvent(QPaintEvent* event)
+{
+	if (_overlayMode)
+	{
+		QPainter painter(this);
+		painter.setCompositionMode(QPainter::CompositionMode_Source);
+		painter.fillRect(event->rect(), _detachedOverlayFillColor);
+	}
+
+	QWidget::paintEvent(event);
 }
 
 void AnimationsPanel::onItemClicked(QTreeWidgetItem* item, int /*column*/)
@@ -330,12 +396,51 @@ void AnimationsPanel::updateControlsForSelection()
 
 QIcon AnimationsPanel::activeIcon() const
 {
-	return makeCircleIcon(true, palette().color(QPalette::Text));
+	const QColor color = _tree ? _tree->palette().color(QPalette::Text)
+	                           : palette().color(QPalette::Text);
+	return makeCircleIcon(true, color);
 }
 
 QIcon AnimationsPanel::inactiveIcon() const
 {
-	QColor color = palette().color(QPalette::Text);
+	QColor color = _tree ? _tree->palette().color(QPalette::Text)
+	                     : palette().color(QPalette::Text);
 	color.setAlpha(160);
 	return makeCircleIcon(false, color);
+}
+
+void AnimationsPanel::updateDetachedPlayButtonStyle()
+{
+	if (!_playPauseButton)
+		return;
+
+	if (!_overlayMode)
+	{
+		_playPauseButton->setStyleSheet(_savedPlayPauseStyle);
+		return;
+	}
+
+	const bool lightText = property("overlayPanelLightText").toBool()
+		|| palette().color(QPalette::Text).lightnessF() > 0.5;
+	const QColor buttonText = lightText ? QColor(255, 255, 255) : QColor(0, 0, 0);
+	const QColor buttonFill = lightText ? QColor(24, 24, 24, 210) : QColor(255, 255, 255, 215);
+	const QColor buttonBorder = lightText ? QColor(255, 255, 255, 110) : QColor(0, 0, 0, 90);
+	const QColor buttonDisabledText = lightText ? QColor(255, 255, 255, 120) : QColor(0, 0, 0, 120);
+
+	_playPauseButton->setStyleSheet(QStringLiteral(
+		"QPushButton {"
+		"  background-color: rgba(%1, %2, %3, %4);"
+		"  color: rgb(%5, %6, %7);"
+		"  border: 1px solid rgba(%8, %9, %10, %11);"
+		"  border-radius: 4px;"
+		"  padding: 3px 10px;"
+		"}"
+		"QPushButton:disabled {"
+		"  color: rgba(%12, %13, %14, %15);"
+		"}"
+	)
+		.arg(buttonFill.red()).arg(buttonFill.green()).arg(buttonFill.blue()).arg(buttonFill.alpha())
+		.arg(buttonText.red()).arg(buttonText.green()).arg(buttonText.blue())
+		.arg(buttonBorder.red()).arg(buttonBorder.green()).arg(buttonBorder.blue()).arg(buttonBorder.alpha())
+		.arg(buttonDisabledText.red()).arg(buttonDisabledText.green()).arg(buttonDisabledText.blue()).arg(buttonDisabledText.alpha()));
 }
