@@ -136,6 +136,7 @@ public:
 	void reattachEnvironmentPanel();
 	void detachNavigationPanel();
 	void reattachNavigationPanel();
+	void updateNavigationOverlayGeometry();
 
 	// Apply a named variant to all meshes from the given source file.
 	// variantIndex = -1 resets to the file's default material assignments.
@@ -209,7 +210,6 @@ protected:
 	void mouseMoveEvent(QMouseEvent* event);
 
 private:
-	void updateNavigationOverlayGeometry();
 	void ensureDockedNavigationHeader();
 	void placeNavigationContentInHost(QWidget* navigationContent, QWidget* hostParent, QLayout* hostLayout);
 

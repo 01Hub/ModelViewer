@@ -131,6 +131,7 @@ public:
 	                            Qt::Alignment alignment = Qt::AlignTop | Qt::AlignLeft,
 	                            const QString& objectName = QString());
 	QWidget* takeOverlayPanel(QWidget* contentWidget);
+	void refreshDetachedNavigationOverlayTheme();
 	void setClippingPlaneHatchMode(ClippingPlaneHatchMode mode);
 	void setClippingPlaneHatchPattern(HatchPattern pattern);
 	void setHatchTiling(int tiling);

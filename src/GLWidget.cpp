@@ -2706,6 +2706,11 @@ QWidget* GLWidget::takeOverlayPanel(QWidget* contentWidget)
 	return wrapper;
 }
 
+void GLWidget::refreshDetachedNavigationOverlayTheme()
+{
+	refreshNavigationOverlayStyle();
+}
+
 void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectName)
 {
 	if (!wrapper)
@@ -2761,6 +2766,16 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 		/* Tab bar: transparent background, tinted tabs that adapt to dark/light bg */
 		"QWidget#%1 QTabBar {"
 		"  background-color: transparent;"
+		"}"
+		"QWidget#%1 QTabWidget,"
+		"QWidget#%1 QStackedWidget,"
+		"QWidget#%1 QTabWidget::pane {"
+		"  background: transparent;"
+		"  border: none;"
+		"}"
+		"QWidget#%1 QWidget[transparentOverlaySurface=\"true\"] {"
+		"  background: transparent;"
+		"  border: none;"
 		"}"
 		"QWidget#%1 QTabBar::tab {"
 		"  background-color: rgba(%2, %3, %4, 40);"
@@ -2831,7 +2846,8 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 			continue;
 
 		const bool treeLike = qobject_cast<QTreeView*>(child) != nullptr;
-		const QColor childTextColor = treeLike ? viewerTextColor : panelTextColor;
+		const bool transparentOverlayText = child->property("transparentOverlayText").toBool();
+		const QColor childTextColor = (treeLike || transparentOverlayText) ? viewerTextColor : panelTextColor;
 		child->setProperty("overlayPanelLightText", childTextColor.lightnessF() > 0.5);
 		child->setProperty("overlayViewerLightText", viewerTextColor.lightnessF() > 0.5);
 		QPalette palette = child->palette();
@@ -8660,6 +8676,15 @@ void GLWidget::resizeEvent(QResizeEvent* event)
 		_viewToolbar->reposition(width(), height()); // Move completely below widget
 	}
 	QOpenGLWidget::resizeEvent(event);
+	if (_viewer)
+	{
+		_viewer->updateNavigationOverlayGeometry();
+		QMetaObject::invokeMethod(this, [this]()
+		{
+			if (_viewer)
+				_viewer->updateNavigationOverlayGeometry();
+		}, Qt::QueuedConnection);
+	}
 }
 
 void GLWidget::mousePressEvent(QMouseEvent* e)

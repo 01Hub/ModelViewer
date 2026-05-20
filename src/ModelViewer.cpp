@@ -156,7 +156,8 @@ bool paintDetachedNavigationOverlayCheckBox(QCheckBox* box, QPaintEvent* event)
 	const QRect textRect = box->style()->subElementRect(QStyle::SE_CheckBoxContents, &opt, box);
 	const QRect rect = indicatorRect.adjusted(1, 1, -1, -1);
 
-	const QColor labelColor(255, 255, 255);
+	const bool lightLabel = box->property("overlayViewerLightText").toBool();
+	const QColor labelColor = lightLabel ? QColor(255, 255, 255) : QColor(0, 0, 0);
 	const QColor boxFill(24, 24, 24, 220);
 	const QColor boxBorder(255, 255, 255, 150);
 	const QColor markColor(255, 255, 255);
@@ -486,6 +487,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	checkBoxSelectAll->installEventFilter(this);
 	checkBoxAutoFitView->installEventFilter(this);
 	checkBoxSelectionHighlight->installEventFilter(this);
+	modelNavigationWidget->setProperty("transparentOverlaySurface", true);
+	checkBoxSelectAll->setProperty("transparentOverlayText", true);
+	checkBoxAutoFitView->setProperty("transparentOverlayText", true);
+	checkBoxSelectionHighlight->setProperty("transparentOverlayText", true);
+	label_23->setProperty("transparentOverlayText", true);
 	ensureDockedNavigationHeader();
 
 	_hasPBRAlbedoTex = false;	
@@ -1168,6 +1174,9 @@ void ModelViewer::detachNavigationPanel()
 
 	if (_detachedNavigationOverlay)
 	{
+		modelNavigationWidget->setAttribute(Qt::WA_NoSystemBackground, true);
+		modelNavigationWidget->setAutoFillBackground(false);
+		modelNavigationWidget->setProperty("detachedOverlayMode", true);
 		treeWidgetModel->setDetachedOverlayMode(true);
 		checkBoxSelectAll->setProperty("detachedOverlayMode", true);
 		checkBoxAutoFitView->setProperty("detachedOverlayMode", true);
@@ -1181,9 +1190,20 @@ void ModelViewer::detachNavigationPanel()
 			_variantsPanel->setDetachedOverlayMode(true);
 		if (_animationsPanel)
 			_animationsPanel->setDetachedOverlayMode(true);
+		_glWidget->refreshDetachedNavigationOverlayTheme();
 
 		updateNavigationOverlayGeometry();
 		_detachedNavigationOverlay->show();
+		QMetaObject::invokeMethod(this, [this]()
+		{
+			if (!_detachedNavigationOverlay || !_glWidget)
+				return;
+			_glWidget->refreshDetachedNavigationOverlayTheme();
+			if (_variantsPanel)
+				_variantsPanel->refreshDetachedOverlayTheme();
+			if (_animationsPanel)
+				_animationsPanel->refreshDetachedOverlayTheme();
+		}, Qt::QueuedConnection);
 
 		if (auto* wrapperLayout = qobject_cast<QVBoxLayout*>(_detachedNavigationOverlay->layout()))
 		{
@@ -1298,6 +1318,9 @@ void ModelViewer::reattachNavigationPanel()
 	if (!_detachedNavigationOverlay) return;
 
 	treeWidgetModel->setDetachedOverlayMode(false);
+	modelNavigationWidget->setAttribute(Qt::WA_NoSystemBackground, false);
+	modelNavigationWidget->setAutoFillBackground(true);
+	modelNavigationWidget->setProperty("detachedOverlayMode", false);
 	checkBoxSelectAll->setProperty("detachedOverlayMode", false);
 	checkBoxAutoFitView->setProperty("detachedOverlayMode", false);
 	checkBoxSelectionHighlight->setProperty("detachedOverlayMode", false);
@@ -1367,6 +1390,9 @@ void ModelViewer::refreshVariantsTab()
 
 		connect(_innerTabWidget, &QTabWidget::currentChanged,
 		        this, &ModelViewer::onInnerNavTabChanged);
+
+		if (_detachedNavigationOverlay)
+			_innerTabWidget->setProperty("detachedOverlayMode", true);
 	}
 
 	if (_innerTabWidget)
@@ -1397,10 +1423,46 @@ void ModelViewer::refreshVariantsTab()
 		if (modelTabIndex > 0)
 			_innerTabWidget->tabBar()->moveTab(modelTabIndex, 0);
 
+		const int variantsTabIndex = _innerTabWidget->indexOf(_variantsPanel);
+		if (variantsTabIndex >= 0)
+		{
+			const int desiredVariantIndex = 1;
+			if (variantsTabIndex != desiredVariantIndex)
+				_innerTabWidget->tabBar()->moveTab(variantsTabIndex, desiredVariantIndex);
+		}
+
+		const int animationsTabIndex = _innerTabWidget->indexOf(_animationsPanel);
+		if (animationsTabIndex >= 0)
+		{
+			const int desiredAnimationIndex = hasVariants ? 2 : 1;
+			if (animationsTabIndex != desiredAnimationIndex)
+				_innerTabWidget->tabBar()->moveTab(animationsTabIndex, desiredAnimationIndex);
+		}
+
 		if (hasVariants)
 			_variantsPanel->refresh();
 		if (hasAnimations)
 			_animationsPanel->refresh();
+
+		if (_detachedNavigationOverlay && _glWidget)
+		{
+			if (hasVariants)
+				_variantsPanel->setDetachedOverlayMode(true);
+			if (hasAnimations)
+				_animationsPanel->setDetachedOverlayMode(true);
+
+			_glWidget->refreshDetachedNavigationOverlayTheme();
+			QMetaObject::invokeMethod(this, [this, hasVariants, hasAnimations]()
+			{
+				if (!_detachedNavigationOverlay || !_glWidget)
+					return;
+				_glWidget->refreshDetachedNavigationOverlayTheme();
+				if (hasVariants && _variantsPanel)
+					_variantsPanel->refreshDetachedOverlayTheme();
+				if (hasAnimations && _animationsPanel)
+					_animationsPanel->refreshDetachedOverlayTheme();
+			}, Qt::QueuedConnection);
+		}
 	}
 
 	if (!needsInnerTabs && _innerTabWidget)
@@ -1433,6 +1495,8 @@ void ModelViewer::refreshVariantsTab()
 	}
 	else if (_innerTabWidget)
 	{
+		if (_detachedNavigationOverlay)
+			_innerTabWidget->setProperty("detachedOverlayMode", true);
 		_innerTabWidget->show();
 	}
 }
@@ -1444,9 +1508,17 @@ void ModelViewer::onInnerNavTabChanged(int index)
 
 	QWidget* currentWidget = _innerTabWidget->widget(index);
 	if (currentWidget == _variantsPanel)
+	{
 		_variantsPanel->refresh();
+		if (_detachedNavigationOverlay)
+			_variantsPanel->refreshDetachedOverlayTheme();
+	}
 	else if (currentWidget == _animationsPanel)
+	{
 		_animationsPanel->refresh();
+		if (_detachedNavigationOverlay)
+			_animationsPanel->refreshDetachedOverlayTheme();
+	}
 }
 
 void ModelViewer::applyVariant(const QString& sourceFile, int variantIndex)
