@@ -2114,6 +2114,79 @@ void GLWidget::fitAll()
 	if (_meshStore.empty() || visibleIds.empty())
 		return;
 
+	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	{
+		checkAndStopTimers();
+		_keyboardNavTimer->stop();
+		const QVector3D viewDir = _primaryCamera->getViewDir().normalized();
+		const QVector3D upDir = _primaryCamera->getUpVector().normalized();
+		const QVector3D rightDir = _primaryCamera->getRightVector().normalized();
+		const std::vector<QVector3D> corners = collectVisibleCorners();
+		if (corners.empty())
+			return;
+
+		const float aspect = std::max(static_cast<float>(width()) / std::max(1.0f, static_cast<float>(height())), 0.001f);
+		const float halfFovY = qDegreesToRadians(_FOV) * 0.5f;
+		const float tanHalfY = std::max(std::tan(halfFovY), 0.001f);
+		const float tanHalfX = std::max((aspect >= 1.0f ? tanHalfY * aspect : tanHalfY), 0.001f);
+		const float margin = 1.05f;
+
+		float xMin_v = std::numeric_limits<float>::max();
+		float xMax_v = -std::numeric_limits<float>::max();
+		float yMin_v = std::numeric_limits<float>::max();
+		float yMax_v = -std::numeric_limits<float>::max();
+		float zMin_v = std::numeric_limits<float>::max();
+		float zMax_v = -std::numeric_limits<float>::max();
+
+		for (const QVector3D& c : corners)
+		{
+			const float xc = QVector3D::dotProduct(c, rightDir);
+			const float yc = QVector3D::dotProduct(c, upDir);
+			const float zc = QVector3D::dotProduct(c, viewDir);
+			xMin_v = std::min(xMin_v, xc);  xMax_v = std::max(xMax_v, xc);
+			yMin_v = std::min(yMin_v, yc);  yMax_v = std::max(yMax_v, yc);
+			zMin_v = std::min(zMin_v, zc);  zMax_v = std::max(zMax_v, zc);
+		}
+
+		const float cx = (xMin_v + xMax_v) * 0.5f;
+		const float cy = (yMin_v + yMax_v) * 0.5f;
+		const float cz = (zMin_v + zMax_v) * 0.5f;
+		const QVector3D projCenter = rightDir * cx + upDir * cy + viewDir * cz;
+
+		float desiredDist = 0.0f;
+		for (const QVector3D& c : corners)
+		{
+			const float xc_rel = QVector3D::dotProduct(c, rightDir) - cx;
+			const float yc_rel = QVector3D::dotProduct(c, upDir) - cy;
+			const float dc = QVector3D::dotProduct(c, viewDir) - cz;
+
+			float req;
+			if (aspect >= 1.0f)
+				req = std::max(std::abs(xc_rel) / aspect, std::abs(yc_rel)) / tanHalfY - dc;
+			else
+				req = std::max(std::abs(xc_rel), std::abs(yc_rel) * aspect) / tanHalfY - dc;
+
+			desiredDist = std::max(desiredDist, req);
+		}
+		desiredDist = std::max(desiredDist * margin, 0.001f);
+
+		const float shiftFactor = std::min(1.05f / std::sin(halfFovY), 1.25f);
+		_viewBoundingSphereDia = std::max(desiredDist / std::max(shiftFactor, 0.001f), 0.0001f);
+		_viewRange = _viewBoundingSphereDia;
+		_boundingSphere.setCenter(projCenter);
+		_primaryCamera->setViewRange(_viewRange);
+		_primaryCamera->setView(projCenter - viewDir * desiredDist, viewDir, upDir, rightDir);
+
+		_currentTranslation = _primaryCamera->getPosition();
+		_currentViewRange = _viewRange;
+
+		resizeGL(width(), height());
+		update();
+		emit zoomAndPanSet();
+		return;
+	}
+
 	// Compute the viewRange and the projected visual centre simultaneously.
 	// The projected centre is the midpoint of the geometry's view-space extents
 	// for the current orientation — setting it as the orbit target ensures the
@@ -2197,7 +2270,9 @@ void GLWidget::performWindowZoom()
 		if (rawDepth >= 1.0f)
 		{
 			// No geometry found near centre — fall back to bounding sphere centre depth.
-			QVector3D Z = _boundingSphere.getCenter();
+			QVector3D Z = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+				? _primaryCamera->getPosition()
+				: _boundingSphere.getCenter();
 			Z = Z.project(mvMatrix, _projectionMatrix, viewport);
 			depthZ = Z.z();
 		}
@@ -2223,46 +2298,47 @@ void GLWidget::performWindowZoom()
 	_rubberBandZoomRatio = static_cast<GLfloat>((heightRatio < widthRatio) ? heightRatio : widthRatio);
 
 	// Perspective correction: the visible extent at signed view-space depth z_v is
-	// proportional to (|shift| - z_v), not just |shift|. Correct the zoom ratio accordingly.
+	// proportional to the eye-to-anchor distance. Correct the zoom ratio accordingly.
 	if (_projection == ViewProjection::PERSPECTIVE)
 	{
-		float shiftOld = std::abs(_primaryCamera->getShift());
-		if (shiftOld > 0.0f && _currentViewRange > 0.0f)
+		float distanceOld = _primaryCamera->getOrbitDistance();
+		if (distanceOld > 0.0f && _currentViewRange > 0.0f)
 		{
-			// Compute z_v (signed view-space Z) directly from the depth buffer value using
-			// the known projection parameters. This avoids the unproject → view-matrix
-			// multiply round-trip and is more numerically stable for near-side geometry.
-			//
-			// With projection = perspective(fov,a,n,f) * translate(0,0,shift):
-			//   z_eff  = z_v + shift        (where shift = -shiftOld)
-			//   z_ndc  = -M33 - M34/z_eff   (standard perspective depth formula)
-			//   depthZ = (z_ndc + 1) / 2
-			// Inverting: z_eff = -M34 / (M33 + z_ndc),  z_v = z_eff + shiftOld
-			float nearP = std::max(_currentViewRange * 0.01f, 0.01f);
-			float farP  = _currentViewRange * 1000.0f;
-			float M33   = -(farP + nearP) / (farP - nearP);
-			float M34   = -2.0f * farP * nearP / (farP - nearP);
-			float z_ndc = 2.0f * depthZ - 1.0f;
-			float denom = M33 + z_ndc;
-			float z_v   = (std::abs(denom) > 1e-10f)
-			              ? (-M34 / denom + shiftOld)
-			              : 0.0f;
-
-			// Unified formula: after zoom the visible half-extent at z_v changes from
-			// (shiftOld - z_v)*tan(fov/2) to (newShift - z_v)*tan(fov/2).
-			// Setting the new extent = old_extent / pixelRatio gives newShift:
-			//   newShift = (shiftOld - z_v) / ratio + z_v
-			float newShift = (shiftOld - z_v) / _rubberBandZoomRatio + z_v;
-			if (newShift > 0.0f)
+			const QVector3D target = _primaryCamera->getPosition();
+			const QVector3D viewDir = _primaryCamera->getViewDir().normalized();
+			const float dc = QVector3D::dotProduct(P - target, viewDir);
+			const float anchorDistanceOld = distanceOld - dc;
+			if (anchorDistanceOld > 0.0f)
 			{
-				float shiftFactor = shiftOld / _currentViewRange;
-				float newViewRange = newShift / shiftFactor;
-				_rubberBandZoomRatio = _currentViewRange / newViewRange;
+				const float newDistance = anchorDistanceOld / _rubberBandZoomRatio + dc;
+				if (newDistance > 0.0f)
+				{
+					const float distanceFactor = distanceOld / _currentViewRange;
+					const float newViewRange = newDistance / distanceFactor;
+					_rubberBandZoomRatio = _currentViewRange / newViewRange;
+				}
 			}
 		}
 	}
 
-	_rubberBandPan = P - O;
+	// Very small rectangles can feel too aggressive in perspective because even a
+	// mathematically correct ratio is visually abrupt near the object. Compress the
+	// high end of the zoom ratio to keep the target in frame more reliably.
+	if (_projection == ViewProjection::PERSPECTIVE)
+	{
+		if (_rubberBandZoomRatio > 4.0f)
+			_rubberBandZoomRatio = 4.0f + (_rubberBandZoomRatio - 4.0f) * 0.6f;
+		if (_rubberBandZoomRatio > 8.0f)
+			_rubberBandZoomRatio = 8.0f + (_rubberBandZoomRatio - 8.0f) * 0.4f;
+	}
+
+	const float targetViewRange = (_rubberBandZoomRatio > 0.0f)
+		? (_currentViewRange / _rubberBandZoomRatio)
+		: _currentViewRange;
+	const float panScale = (_currentViewRange > 0.0f)
+		? (1.0f - targetViewRange / _currentViewRange)
+		: 0.0f;
+	_rubberBandPan = (P - O) * panScale;
 
 	if (!_animateWindowZoomTimer->isActive())
 	{
@@ -2283,6 +2359,19 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 {
 	if (mode == GLCamera::CameraMode::Fly || mode == GLCamera::CameraMode::FirstPerson)
 	{
+		const bool comingFromOrbit = _primaryCamera->getMode() == GLCamera::CameraMode::Orbit;
+		QVector3D orbitEye = _primaryCamera->getPosition()
+			- _primaryCamera->getViewDir().normalized() * _primaryCamera->getOrbitDistance();
+
+		if (comingFromOrbit)
+		{
+			const QVector3D viewDir = _primaryCamera->getViewDir().normalized();
+			const QVector3D center = _boundingSphere.getCenter();
+			const float desiredDist = std::max(_primaryCamera->getOrbitDistance(),
+				std::max(_viewRange, _boundingSphere.getRadius() * 1.75f));
+			orbitEye = center - viewDir * desiredDist;
+		}
+
 		if (_primaryCamera->getProjectionType() != GLCamera::ProjectionType::PERSPECTIVE)
 		{
 			_previousProjection = GLCamera::ProjectionType::ORTHOGRAPHIC;
@@ -2295,15 +2384,20 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 		// Drop any zoom scale accumulated in Orbit mode; Fly uses real position instead
 		_primaryCamera->setZoom(1.0f);
 
-		// Place camera at a physical position: pull back from scene center along view direction
-		QVector3D viewDir = _primaryCamera->getViewDir();
-		QVector3D center  = _boundingSphere.getCenter();
-		float dist = std::max(_viewRange, _boundingSphere.getRadius() * 1.5f);
-		_primaryCamera->setPosition(center - viewDir * dist);
+		// Continue from the actual orbit eye position to avoid a visible jump.
+		_primaryCamera->setPosition(orbitEye);
 		_currentTranslation = _primaryCamera->getPosition();
 	}
 	else if (mode == GLCamera::CameraMode::Orbit)
 	{
+		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+			_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		{
+			const QVector3D eye = _primaryCamera->getPosition();
+			const QVector3D target = eye + _primaryCamera->getViewDir() * _primaryCamera->getOrbitDistance();
+			_primaryCamera->setPosition(target);
+		}
+
 		_primaryCamera->setMode(mode);
 		setProjection(_previousProjection == GLCamera::ProjectionType::PERSPECTIVE ? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC);
 	}
@@ -5083,8 +5177,8 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	// Render orthographic views with ortho view camera
 	// Top View
 	_orthoViewsCamera->setScreenSize(width() / 2, height() / 2);
-	_orthoViewsCamera->setProjectionMatrix(_projectionMatrix);
-	_orthoViewsCamera->setViewMatrix(_viewMatrix);
+	_orthoViewsCamera->setViewRange(_viewRange);
+	_orthoViewsCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
 	_orthoViewsCamera->setPosition(_primaryCamera->getPosition());
 	glViewport(0, 0, width() / 2, height() / 2);
 	_orthoViewsCamera->setView(GLCamera::ViewProjection::TOP_VIEW);
@@ -5266,7 +5360,7 @@ void GLWidget::drawSkyBox()
 
 void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 {
-	QVector3D camPos = _primaryCamera->getPosition();
+	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
 	if (_meshStore.empty()) return;
@@ -5349,7 +5443,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
-	QVector3D camPos = _primaryCamera->getPosition();
+	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
 	if (_meshStore.empty()) return;
@@ -5401,7 +5495,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 
 void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
-	QVector3D camPos = _primaryCamera->getPosition();
+	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
 	if (_meshStore.empty()) return;
@@ -5675,14 +5769,14 @@ void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 
 void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 {
-	QVector3D camPos = camera->getPosition();
+	QVector3D camPos = camera->getRenderPosition();
 	QVector3D camDir = camera->getViewDir();
 
 	prog->setUniformValue("lightSource.position",
 		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	prog->setUniformValue("normalMatrix", _modelViewMatrix.normalMatrix());
-	prog->setUniformValue("projectionMatrix", _projectionMatrix);
+	prog->setUniformValue("projectionMatrix", camera->getProjectionMatrix());
 	prog->setUniformValue("viewportMatrix", _viewportMatrix);
 
 	QVector3D zDir(0.0, 0.0, 1.0);
@@ -5698,8 +5792,8 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	prog->setUniformValue("modelMatrix", _modelMatrix);
 	prog->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
-	prog->setUniformValue("viewMatrix", _viewMatrix);
-	prog->setProperty("viewMatrix", QVariant::fromValue(_viewMatrix));
+	prog->setUniformValue("viewMatrix", camera->getViewMatrix());
+	prog->setProperty("viewMatrix", QVariant::fromValue(camera->getViewMatrix()));
 	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
 	prog->setUniformValue("lightFarPlane", _lightPosition.z() + _lightOffsetZ);
 	prog->setUniformValue("hdrToneMapping", _hdrToneMapping);
@@ -5729,8 +5823,7 @@ void GLWidget::drawSectionCapping()
 	_clippedMeshShader->setUniformValue("modelMatrix", _modelMatrix);
 	_clippedMeshShader->setUniformValue("viewMatrix", _viewMatrix);
 	_clippedMeshShader->setUniformValue("projectionMatrix", _projectionMatrix);
-
-	QVector3D pos = _primaryCamera->getPosition();
+	QVector3D pos = _primaryCamera->getRenderPosition();
 
 	_clippedMeshShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix.map(QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
 		(_clipXFlipped ? 1 : -1) * (pos.x() - (_clipXCoeff + _boundingBox.center().getX()))));
@@ -5800,14 +5893,17 @@ void GLWidget::drawSectionCapping()
 		glStencilFunc(GL_EQUAL, 1, 0xFF);		
 		glDepthMask(GL_TRUE);
 		glEnable(GL_DEPTH_TEST);
+		glDisable(GL_CLIP_DISTANCE0);
+		glDisable(GL_CLIP_DISTANCE1);
+		glDisable(GL_CLIP_DISTANCE2);
 		// drawCappingPlane
 		{
 			QMatrix4x4 model;
 			Point P = _boundingBox.center();
-			QVector3D Pxyz(P.getX(), P.getY(), P.getZ());
 
 			_clippingPlaneShader->bind();
-			_clippingPlaneShader->setUniformValue("modelMatrix", model);
+			_clippingPlaneShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+			_clippingPlaneShader->setProperty("viewMatrix", QVariant::fromValue(_viewMatrix));
 			_clippingPlaneShader->setUniformValue("viewMatrix", _viewMatrix);
 			_clippingPlaneShader->setUniformValue("projectionMatrix", _projectionMatrix);
 			glActiveTexture(GL_TEXTURE6);
@@ -5822,7 +5918,6 @@ void GLWidget::drawSectionCapping()
 			bool wantFlipV = false/* read from UI or stored flag */;
 
 			// Pick a consistent density: e.g., ~3 tiles across the model diagonal
-			const Point c = _boundingBox.center();			
 			const float sceneDiag = _boundingBox.boundingRadius() * 2.0f;
 			const float tilesAcross = wantTexture ? 3.0f : _hatchTiling;
 			const float worldUnitsPerTile = sceneDiag / tilesAcross;
@@ -5845,11 +5940,10 @@ void GLWidget::drawSectionCapping()
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(yAng, QVector3D(0.0f, 1.0f, 0.0f));
 			_clippingPlaneShader->bind();
-			_clippingPlaneShader->setUniformValue("modelMatrix", model);
+			_clippingPlaneYZ->setSceneRenderTransformFast(model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));			
 			if (_clipYZEnabled && i == 0)
 			{
-				// Plane position along X in world space
 				const float xPlane = P.getX() + _clipXCoeff;
 				// Origin at plane through bbox center
 				_clippingPlaneShader->setUniformValue("hatchOrigin", QVector3D(xPlane, P.getY(), P.getZ()));
@@ -5864,7 +5958,7 @@ void GLWidget::drawSectionCapping()
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(xAng, QVector3D(1.0f, 0.0f, 0.0f));
 			_clippingPlaneShader->bind();
-			_clippingPlaneShader->setUniformValue("modelMatrix", model);
+			_clippingPlaneZX->setSceneRenderTransformFast(model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
 			if (_clipZXEnabled && i == 1)
 			{
@@ -5881,7 +5975,7 @@ void GLWidget::drawSectionCapping()
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(zAng, QVector3D(1.0f, 0.0f, 0.0f));
 			_clippingPlaneShader->bind();
-			_clippingPlaneShader->setUniformValue("modelMatrix", model);
+			_clippingPlaneXY->setSceneRenderTransformFast(model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
 			if (_clipXYEnabled && i == 2)
 			{
@@ -5911,7 +6005,7 @@ void GLWidget::drawSectionCapping()
 
 void GLWidget::drawVertexNormals()
 {
-	QVector3D pos = _primaryCamera->getPosition();
+	QVector3D pos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(_vertexNormalShader.get(), pos);
 
 	if (_meshStore.size() != 0)
@@ -5932,7 +6026,7 @@ void GLWidget::drawVertexNormals()
 
 void GLWidget::drawFaceNormals()
 {
-	QVector3D pos = _primaryCamera->getPosition();
+	QVector3D pos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(_faceNormalShader.get(), pos);
 
 	if (_meshStore.size() != 0)
@@ -6068,6 +6162,7 @@ void GLWidget::drawAxis()
 
 void GLWidget::drawCornerAxis(CornerAxisPosition position)
 {
+	const int axisSize = std::max(1, std::min(width(), height()) / 10);
 	int viewportX = 0;
 	int viewportY = 0;
 
@@ -6076,43 +6171,57 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	{
 	case CornerAxisPosition::TOP_LEFT:
 		viewportX = 0;
-		viewportY = height() - height() / 10;
+		viewportY = height() - axisSize;
 		break;
 	case CornerAxisPosition::TOP_RIGHT:
-		viewportX = width() - width() / 10;
-		viewportY = height() - height() / 10;
+		viewportX = width() - axisSize;
+		viewportY = height() - axisSize;
 		break;
 	case CornerAxisPosition::BOTTOM_LEFT:
 		viewportX = 0;
 		viewportY = 0;
 		break;
 	case CornerAxisPosition::BOTTOM_RIGHT:
-		viewportX = width() - width() / 10;
+		viewportX = width() - axisSize;
 		viewportY = 0;
 		break;
 	}
 
 	// Set the viewport for the corner axis
-	glViewport(viewportX, viewportY, width() / 10, height() / 10);
+	glViewport(viewportX, viewportY, axisSize, axisSize);
 
-	QMatrix4x4 mat = _modelViewMatrix;
+	QMatrix4x4 mat = _viewMatrix;
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
+	QMatrix4x4 axisProjection;
+	axisProjection.ortho(-1.6f, 1.6f, -1.6f, 1.6f, -4.0f, 4.0f);
 
-	float size = 3.5;
+	const float axisLength = 1.0f;
+	const float labelScale = std::max(0.55f, axisSize / 110.0f);
+
+	const unsigned int prevTextWidth = _axisTextRenderer->width();
+	const unsigned int prevTextHeight = _axisTextRenderer->height();
+	_axisTextRenderer->setWidth(axisSize);
+	_axisTextRenderer->setHeight(axisSize);
+
+	QMatrix4x4 textProjection;
+	textProjection.ortho(QRect(0.0f, 0.0f, static_cast<float>(axisSize), static_cast<float>(axisSize)));
+	_textShader->bind();
+	_textShader->setUniformValue("projection", textProjection);
+	_textShader->release();
 
 	// Labels
-	QVector3D xAxis(_viewRange / size, 0, 0);
-	xAxis = xAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisX.toStdString(), xAxis.x(), height() - xAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	QVector3D xAxis(axisLength, 0, 0);
+	xAxis = xAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
+	_axisTextRenderer->RenderText(_labelAxisX.toStdString(), xAxis.x(), axisSize - xAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
-	QVector3D yAxis(0, _viewRange / size, 0);
-	yAxis = yAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisY.toStdString(), yAxis.x(), height() - yAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	QVector3D yAxis(0, axisLength, 0);
+	yAxis = yAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
+	_axisTextRenderer->RenderText(_labelAxisY.toStdString(), yAxis.x(), axisSize - yAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
-	QVector3D zAxis(0, 0, _viewRange / size);
-	zAxis = zAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), height() - zAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	QVector3D zAxis(0, 0, axisLength);
+	zAxis = zAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
+	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), axisSize - zAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	// Axes
 	if (!_axisVAO.isCreated())
@@ -6131,11 +6240,11 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
 	std::vector<float> vertices = {
 		0, 0, 0,
-		_viewRange / size, 0, 0,
+		axisLength, 0, 0,
 		0, 0, 0,
-		0, _viewRange / size, 0,
+		0, axisLength, 0,
 		0, 0, 0,
-		0, 0, _viewRange / size };
+		0, 0, axisLength };
 	_axisVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
 
 	// Color Buffer
@@ -6166,7 +6275,7 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisShader->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 3);
 
 	_axisShader->setUniformValue("modelViewMatrix", mat);
-	_axisShader->setUniformValue("projectionMatrix", _projectionMatrix);
+	_axisShader->setUniformValue("projectionMatrix", axisProjection);
 
 	_axisShader->setUniformValue("renderCone", false);
 
@@ -6177,9 +6286,9 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 
 	// Axes Cones
 	// X Axis
-	_axisCone->setParameters(_viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
+	_axisCone->setParameters(axisLength / 15.0f, axisLength / 5.0f, 8.0f, 1.0f);
 	_axisShader->setUniformValue("renderCone", true);
-	mat.translate(_viewRange / size, 0, 0);
+	mat.translate(axisLength, 0, 0);
 	mat.rotate(90, QVector3D(0, 1.0f, 0));
 	_axisShader->bind();
 	_axisShader->setUniformValue("coneColor", QVector3D(1.0f, 1.0f, 1.0f));
@@ -6189,10 +6298,10 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisCone->getVAO().release();
 
 	// Y Axis
-	mat = _modelViewMatrix;
+	mat = _viewMatrix;
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
-	mat.translate(0, _viewRange / size, 0);
+	mat.translate(0, axisLength, 0);
 	mat.rotate(90, QVector3D(-1.0f, 0, 0));
 	_axisShader->bind();
 	_axisShader->setUniformValue("modelViewMatrix", mat);
@@ -6201,10 +6310,10 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisCone->getVAO().release();
 
 	// Z Axis
-	mat = _modelViewMatrix;
+	mat = _viewMatrix;
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
-	mat.translate(0, 0, _viewRange / size);
+	mat.translate(0, 0, axisLength);
 	_axisShader->bind();
 	_axisShader->setUniformValue("modelViewMatrix", mat);
 	_axisCone->getVAO().bind();
@@ -6213,6 +6322,14 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 
 	_axisVAO.release();
 	_axisShader->release();
+
+	_axisTextRenderer->setWidth(prevTextWidth);
+	_axisTextRenderer->setHeight(prevTextHeight);
+	QMatrix4x4 projection;
+	projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height())));
+	_textShader->bind();
+	_textShader->setUniformValue("projection", projection);
+	_textShader->release();
 
 	glViewport(0, 0, width(), height());
 }
@@ -6824,11 +6941,11 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 	prog->bind();
 	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
 	{
-		_fgShader->setUniformValue("sectionActive", true);
+		prog->setUniformValue("sectionActive", true);
 	}
 	else
 	{
-		_fgShader->setUniformValue("sectionActive", false);
+		prog->setUniformValue("sectionActive", false);
 	}
 	prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	prog->setUniformValue("projectionMatrix", _projectionMatrix);
@@ -9063,11 +9180,31 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
 	setSectionCapsInteractionSuppressed(true);
+
+	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	{
+		QPoint numDegrees = e->angleDelta() / 8;
+		QPoint numSteps = numDegrees / 30;
+		float zoomStep = numSteps.y();
+		if (zoomStep != 0.0f)
+		{
+			const float moveDist = _viewRange * 0.08f * std::abs(zoomStep);
+			_primaryCamera->moveForward(zoomStep > 0.0f ? moveDist : -moveDist);
+			_currentTranslation = _primaryCamera->getPosition();
+			_inertiaZoomVelocity = 0.0f;
+			resizeGL(width(), height());
+			update();
+		}
+		return;
+	}
+
 	// Zoom
 	QPoint numDegrees = e->angleDelta() / 8;
 	QPoint numSteps = numDegrees / 30;
 	float zoomStep = numSteps.y();
 	float zoomFactor = abs(zoomStep) + 0.05;
+	const float oldViewRange = _viewRange;
 
 	if (zoomStep < 0)
 		_viewRange *= zoomFactor;
@@ -9083,10 +9220,9 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 
 	// Translate to focus on mouse center
 	QPoint cen = getClientRectFromPoint(e->position().toPoint()).center();
-	float sign = (e->position().x() > cen.x() || e->position().y() < cen.y() ||
-		(e->position().x() < cen.x() && e->position().y() > cen.y())) && (zoomStep > 0) ? 1.0f : -1.0f;
 	QVector3D OP = get3dTranslationVectorFromMousePoints(cen, e->position().toPoint());
-	OP *= sign * 0.05f;
+	const float rangeScale = (oldViewRange > 0.0f) ? (_viewRange / oldViewRange) : 1.0f;
+	OP *= (1.0f - rangeScale);
 	_primaryCamera->move(OP.x(), OP.y(), OP.z());
 	_currentTranslation = _primaryCamera->getPosition();
 
@@ -9094,7 +9230,7 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	_inertiaZoomVelocity = (e->angleDelta().y() / 120.0f) * 0.05f; // scale as needed
 	if (_inertiaTimer) _inertiaTimer->start();
 
-	_inertiaZoomPanVelocity += OP * sign * 0.05f;
+	_inertiaZoomPanVelocity += OP;
 
 	resizeGL(width(), height());
 	update();
@@ -9123,7 +9259,9 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 		_viewer->deselectAll();  // Also clear in viewer
 	}
 	else if (key == Qt::Key_F)
+	{
 		fitAll();
+	}
 	else if (key == Qt::Key_Delete)
 		_viewer->deleteSelectedItems();
 	else if (key == Qt::Key_Space)
@@ -9430,7 +9568,8 @@ GLCamera* GLWidget::getCameraForPoint(const QPoint& pixel)
 
 	// Configure the shared ortho camera to match this viewport's rendering setup
 	_orthoViewsCamera->setScreenSize(width() / 2, height() / 2);
-	_orthoViewsCamera->setProjectionMatrix(_primaryCamera->getProjectionMatrix());
+	_orthoViewsCamera->setViewRange(_viewRange);
+	_orthoViewsCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
 	_orthoViewsCamera->setPosition(_primaryCamera->getPosition());
 	_orthoViewsCamera->setView(vp);
 	return _orthoViewsCamera;
@@ -9499,7 +9638,9 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 		? _orthoViewsCamera
 		: _primaryCamera;
 
-	QVector3D viewCenter = _boundingSphere.getCenter();
+	QVector3D viewCenter = (camera->getMode() == GLCamera::CameraMode::Orbit)
+		? camera->getPosition()
+		: _boundingSphere.getCenter();
 	// Get view and projection matrices
 	QMatrix4x4 view = camera->getViewMatrix();
 	QMatrix4x4 projection = camera->getProjectionMatrix();
@@ -9512,7 +9653,7 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 		ndcZ = refClip.w() != 0.0f ? refClip.z() / refClip.w() : 0.0f;
 	}
 	else {
-		// Project the actual model center to get its NDC Z
+		// Project the active orbit/anchor center to get its NDC Z
 		QVector4D modelCenterWorld(viewCenter.x(), viewCenter.y(), viewCenter.z(), 1.0f);
 		QVector4D modelCenterClip = projection * view * modelCenterWorld;
 		ndcZ = modelCenterClip.w() != 0.0f ? modelCenterClip.z() / modelCenterClip.w() : 0.0f;
@@ -10061,28 +10202,61 @@ void GLWidget::setRotations(float xRot, float yRot, float zRot)
 	QQuaternion targetRotation = QQuaternion::fromEulerAngles(yRot, zRot, xRot); //Pitch, Yaw, Roll
 	QQuaternion curRot = QQuaternion::slerp(_currentRotation, targetRotation, _slerpStep += _slerpFrac);
 
-	// Translation
-	QVector3D curPos = _currentTranslation - (_slerpStep * _currentTranslation) + (_boundingSphere.getCenter() * _slerpStep);
-
 	// Set camera vectors
 	QMatrix4x4 rotMat = QMatrix4x4(curRot.toRotationMatrix());
 	QVector3D viewDir = -rotMat.row(2).toVector3D();
 	QVector3D upDir = rotMat.row(1).toVector3D();
 	QVector3D rightDir = rotMat.row(0).toVector3D();
-	_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
 
 	// Set zoom
 	float scaleStep = (_currentViewRange - _viewBoundingSphereDia) * _slerpFrac;
 	_viewRange -= scaleStep;
 
+	// Translation
+	QVector3D curPos;
+	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	{
+		QMatrix4x4 targetRotMat(targetRotation.toRotationMatrix());
+		QVector3D targetViewDir = -targetRotMat.row(2).toVector3D().normalized();
+		const float fovRad = qDegreesToRadians(_FOV);
+		const float sinHalfFov = std::max(std::sin(fovRad * 0.5f), 0.001f);
+		const float shiftFactor = std::min(1.05f / sinHalfFov, 1.25f);
+		const float targetDistance = shiftFactor * _viewBoundingSphereDia;
+		const QVector3D targetEye = _boundingSphere.getCenter() - targetViewDir * targetDistance;
+		curPos = _currentTranslation - (_slerpStep * _currentTranslation) + (targetEye * _slerpStep);
+	}
+	else
+	{
+		curPos = _currentTranslation - (_slerpStep * _currentTranslation) + (_boundingSphere.getCenter() * _slerpStep);
+	}
+
+	_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
+
 	if (qFuzzyCompare(_slerpStep, 1.0f))
 	{
-		// Set camera vectors
-		QMatrix4x4 rotMat = QMatrix4x4(curRot.toRotationMatrix());
-		QVector3D viewDir = -rotMat.row(2).toVector3D();
-		QVector3D upDir = rotMat.row(1).toVector3D();
-		QVector3D rightDir = rotMat.row(0).toVector3D();
-		_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
+		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+			_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		{
+			QMatrix4x4 targetRotMat(targetRotation.toRotationMatrix());
+			QVector3D targetViewDir = -targetRotMat.row(2).toVector3D().normalized();
+			QVector3D targetUpDir = targetRotMat.row(1).toVector3D().normalized();
+			QVector3D targetRightDir = targetRotMat.row(0).toVector3D().normalized();
+			const float fovRad = qDegreesToRadians(_FOV);
+			const float sinHalfFov = std::max(std::sin(fovRad * 0.5f), 0.001f);
+			const float shiftFactor = std::min(1.05f / sinHalfFov, 1.25f);
+			const float targetDistance = shiftFactor * _viewBoundingSphereDia;
+			const QVector3D targetEye = _boundingSphere.getCenter() - targetViewDir * targetDistance;
+			_primaryCamera->setView(targetEye, targetViewDir, targetUpDir, targetRightDir);
+		}
+		else
+		{
+			QMatrix4x4 rotMat = QMatrix4x4(curRot.toRotationMatrix());
+			QVector3D viewDir = -rotMat.row(2).toVector3D();
+			QVector3D upDir = rotMat.row(1).toVector3D();
+			QVector3D rightDir = rotMat.row(0).toVector3D();
+			_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
+		}
 
 		// Set all defaults
 		_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());

@@ -134,6 +134,9 @@ public:
 	QVector3D getRightVector() const { return _rightVector; }
 	QVector3D getUpVector()	const { return _upVector; }
 	QVector3D getPosition()	const { return _position; }
+	QVector3D getRenderPosition() const;
+	float getOrbitDistance() const;
+	float getOrthoViewDistance() const;
 
 	void setViewMatrix(QMatrix4x4 mat);
 	QMatrix4x4 getViewMatrix() const { return _viewMatrix; }
