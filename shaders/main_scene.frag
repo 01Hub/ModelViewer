@@ -439,6 +439,7 @@ vec2    getOpacityTextureUV();
 
 vec4    shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
 vec4    calculatePBRLighting(int renderMode, float side);
+vec4    calculatePBRLightingRewritten(int renderMode, float side);
 
 float	samplePackedChannelValue(sampler2D tex, bool hasTexture, vec2 uv,
 	int channel, int invert, float scale, float bias,
@@ -486,6 +487,69 @@ struct AnisotropyData
 	float strength;      // Final strength (texture x uniform)
 	float rotation;      // Final rotation (texture direction rotated by uniform)
 	vec2 direction;      // Texture direction in [-1,1] (before rotation)
+};
+
+// ============================================================================
+// NEW PBR REWRITE SCAFFOLDING
+// These structs define the internal contract for the replacement shading path.
+// The existing uniforms/samplers remain the external interface.
+// ============================================================================
+struct SurfaceFrame
+{
+	vec3 V;      // surface -> camera
+	vec3 I;      // camera -> surface
+	vec3 L;      // surface -> active light
+	vec3 Ng;     // geometric normal
+	vec3 N;      // shaded base normal
+	vec3 Ncoat;  // shaded clearcoat normal
+	vec3 T;      // tangent
+	vec3 B;      // bitangent
+};
+
+struct MaterialParams
+{
+	vec3  baseColor;
+	vec3  emissive;
+	vec3  F0;
+	vec3  F90;
+	vec3  dielectricF0;
+	float metallic;
+	float roughness;
+	float ambientOcclusion;
+	float transmission;
+	float ior;
+	float clearcoat;
+	float clearcoatRoughness;
+	float sheenRoughness;
+	vec3  sheenColor;
+	float anisotropyStrength;
+	float anisotropyRotation;
+	float iridescenceFactor;
+	float iridescenceIor;
+	float iridescenceThickness;
+	float thickness;
+	float diffuseTransmissionFactor;
+	vec3  diffuseTransmissionColor;
+	vec3  attenuationColor;
+	float attenuationDistance;
+	float specularFactor;
+	vec3  specularColor;
+	bool  useSpecGloss;
+	bool  unlit;
+};
+
+struct LayerContributions
+{
+	vec3 baseDirectDiffuse;
+	vec3 baseDirectSpecular;
+	vec3 baseDiffuseIBL;
+	vec3 baseSpecularIBL;
+	vec3 sheenDirect;
+	vec3 sheenIBL;
+	vec3 clearcoatDirect;
+	vec3 clearcoatIBL;
+	vec3 transmission;
+	vec3 emissive;
 };
 
 AnisotropyData decodeAnisotropyTexture(
@@ -545,12 +609,30 @@ vec3 sRGBToLinear(vec3 c);
 vec3 linearTosRGB(vec3 c);
 float sRGBSaturation(vec3 c);
 float readMaskChannel(vec4 texel, int channel);
+SurfaceFrame buildRewriteSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV, vec3 lightDirection);
+MaterialParams gatherRewriteMaterialParams();
+vec3 computeRewriteDielectricF0(float ior, float specularFactor, vec3 specularColor, bool useSpecGloss, vec3 specGlossSpecular);
+vec3 computeRewriteF90(float metallic, float specularFactor);
+LayerContributions makeEmptyLayerContributions();
+vec3 sampleRewriteMappedNormal(sampler2D map, vec2 texCoord, float normalScale, vec3 Ng, vec3 T, vec3 B);
+void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, float lightFactor, out vec3 diffuseOut, out vec3 specularOut);
+void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 diffuseIBLOut, out vec3 specularIBLOut);
+void evaluateRewriteClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, float lightFactor, out vec3 clearcoatOut);
+vec3 evaluateRewriteClearcoatIBL(in SurfaceFrame frame, in MaterialParams params);
+vec3 composeRewriteBaseLayer(in MaterialParams params, in LayerContributions layers);
+vec3 composeRewriteLayeredPBR(in SurfaceFrame frame, in MaterialParams params, in LayerContributions layers);
+float computeRewriteSheenScaling(float Ndot, float sheenRoughness);
 vec3 computeBaseColor(vec2 uv,
 	vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
 	sampler2D albedoTex,
 	bool hasAlbedoTex,
 	vec3 vertexColor_sRGB,    // pass v_color.rgb
 	bool useVertexColor);
+
+const bool kUseRewrittenBasePBR = true;
+const bool kDebugRewriteClearcoatOnly = false;
+const int kRewriteDebugBaseMode = 0; // 0=full base, 1=base IBL only, 2=base direct only, 3=specular IBL only, 4=diffuse IBL only
+const int kRewriteClearcoatMode = 1; // 0=full clearcoat, 1=IBL/composition only
 
 float floorRadius = floorSize * 0.5; // Adjust radius based on floor size
 float fadeStart = floorRadius * 0.65;   // Start fading 
@@ -1040,11 +1122,487 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	return vec4(composed, 1.0);
 }
 
+vec4 calculatePBRLightingRewritten(int renderMode, float side)
+{
+	vec2 rewriteNormalUV = getNormalUV();
+	if (hasHeightMap)
+	{
+		rewriteNormalUV = applyParallaxMapping(getNormalUV(), heightMap, heightScale, hasHeightMap);
+	}
+
+	vec2 rewriteClearcoatNormalUV = getClearcoatNormalUV();
+	if (hasHeightMap)
+	{
+		rewriteClearcoatNormalUV = applyParallaxMapping(getClearcoatNormalUV(), heightMap, heightScale, hasHeightMap);
+	}
+
+	MaterialParams params = gatherRewriteMaterialParams();
+	SurfaceFrame frame = buildRewriteSurfaceFrame(side, rewriteNormalUV, rewriteClearcoatNormalUV, lightSource.position - v_position);
+	LayerContributions layers = makeEmptyLayerContributions();
+	layers.emissive = params.emissive;
+
+	if (params.unlit)
+	{
+		vec3 unlitColor = params.baseColor + params.emissive;
+		if (hdrToneMapping) unlitColor = applyToneMapping(unlitColor);
+		if (gammaCorrection) unlitColor = pow(unlitColor, vec3(1.0 / screenGamma));
+		return vec4(unlitColor, 1.0);
+	}
+
+	float lightShadowFactor = 0.0;
+	if (useDefaultLights && shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering))
+	{
+		float s = calculateShadowVariableKernel(
+			fs_in_shadow.FragPosLightSpace,
+			fs_in_shadow.FragPos,
+			fs_in_shadow.lightPos
+		);
+		lightShadowFactor = clamp(s, 0.0, 0.85);
+	}
+	float lightFactor = 1.0 - lightShadowFactor;
+
+	evaluateRewriteBaseDirect(frame, params, lightFactor, layers.baseDirectDiffuse, layers.baseDirectSpecular);
+	evaluateRewriteBaseIBL(frame, params, layers.baseDiffuseIBL, layers.baseSpecularIBL);
+
+	vec3 outRGB = layers.emissive +
+		layers.baseDirectDiffuse +
+		layers.baseDirectSpecular +
+		layers.baseDiffuseIBL +
+		layers.baseSpecularIBL;
+
+	if (kRewriteDebugBaseMode == 1)
+	{
+		outRGB = layers.baseDiffuseIBL + layers.baseSpecularIBL;
+	}
+	else if (kRewriteDebugBaseMode == 2)
+	{
+		outRGB = layers.baseDirectDiffuse + layers.baseDirectSpecular;
+	}
+	else if (kRewriteDebugBaseMode == 3)
+	{
+		outRGB = layers.baseSpecularIBL;
+	}
+	else if (kRewriteDebugBaseMode == 4)
+	{
+		outRGB = layers.baseDiffuseIBL;
+	}
+
+	if (floorRendering && !isReflectedPass)
+	{
+		float fa = clamp(floorAlpha, 0.0, 1.0);
+		float NdotVf = clamp(dot(frame.Ng, frame.V), 0.0, 1.0);
+		float fresDampen = mix(1.0 - floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
+		vec3 floorBase = (layers.emissive + layers.baseDirectDiffuse + layers.baseDiffuseIBL) * fa;
+		vec3 floorSpec = (layers.baseDirectSpecular + layers.baseSpecularIBL) * (floorSpecularScale * fresDampen);
+		vec3 floorRGB = floorBase + floorSpec;
+		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB);
+		if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
+		return vec4(floorRGB, fa);
+	}
+
+	if (hdrToneMapping) outRGB = applyToneMapping(outRGB);
+	if (gammaCorrection) outRGB = pow(outRGB, vec3(1.0 / screenGamma));
+	return vec4(outRGB, 1.0);
+}
+
+
+SurfaceFrame buildRewriteSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV, vec3 lightDirection)
+{
+	SurfaceFrame frame;
+
+	frame.V = normalize(cameraPos - v_position);
+	frame.I = -frame.V;
+	frame.L = normalize(lightDirection);
+	frame.Ng = normalize(v_reflectionNormal * side);
+
+	vec3 Q1 = dFdx(v_position);
+	vec3 Q2 = dFdy(v_position);
+	vec2 st1 = dFdx(normalUV);
+	vec2 st2 = dFdy(normalUV);
+
+	vec3 tangent = Q1 * st2.t - Q2 * st1.t;
+	if (length(tangent) < 0.0001)
+	{
+		vec3 fallback = abs(frame.Ng.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+		tangent = cross(fallback, frame.Ng);
+	}
+	tangent = normalize(tangent - dot(tangent, frame.Ng) * frame.Ng);
+	vec3 bitangent = -normalize(cross(frame.Ng, tangent));
+
+	frame.T = tangent;
+	frame.B = bitangent;
+
+	frame.N = frame.Ng;
+	if (hasNormalMap)
+	{
+		frame.N = sampleRewriteMappedNormal(
+			normalMap,
+			normalUV,
+			pbrLighting.normalScale,
+			frame.Ng,
+			frame.T,
+			frame.B
+		);
+	}
+
+	frame.Ncoat = frame.N;
+	if (hasClearcoatNormalMap)
+	{
+		frame.Ncoat = sampleRewriteMappedNormal(
+			clearcoatNormalMap,
+			clearcoatNormalUV,
+			clearcoatNormalScale,
+			frame.Ng,
+			frame.T,
+			frame.B
+		);
+	}
+
+	return frame;
+}
+
+vec3 computeRewriteDielectricF0(float ior, float specularFactor, vec3 specularColor, bool useSpecGloss, vec3 specGlossSpecular)
+{
+	if (useSpecGloss)
+	{
+		return clamp(specGlossSpecular, vec3(0.0), vec3(1.0));
+	}
+
+	float f0_from_ior = pow((ior - 1.0) / (ior + 1.0), 2.0);
+	vec3 dielectricF0 = vec3(f0_from_ior);
+	if (specularFactor > 0.0)
+	{
+		dielectricF0 *= specularColor * specularFactor;
+	}
+	return clamp(dielectricF0, vec3(0.0), vec3(1.0));
+}
+
+vec3 computeRewriteF90(float metallic, float specularFactor)
+{
+	vec3 F90_dielectric = vec3(specularFactor);
+	return mix(F90_dielectric, vec3(1.0), metallic);
+}
+
+LayerContributions makeEmptyLayerContributions()
+{
+	LayerContributions layers;
+	layers.baseDirectDiffuse = vec3(0.0);
+	layers.baseDirectSpecular = vec3(0.0);
+	layers.baseDiffuseIBL = vec3(0.0);
+	layers.baseSpecularIBL = vec3(0.0);
+	layers.sheenDirect = vec3(0.0);
+	layers.sheenIBL = vec3(0.0);
+	layers.clearcoatDirect = vec3(0.0);
+	layers.clearcoatIBL = vec3(0.0);
+	layers.transmission = vec3(0.0);
+	layers.emissive = vec3(0.0);
+	return layers;
+}
+
+vec3 sampleRewriteMappedNormal(sampler2D map, vec2 texCoord, float normalScale, vec3 Ng, vec3 T, vec3 B)
+{
+	vec3 tangentNormal = texture(map, texCoord).rgb * 2.0 - 1.0;
+	tangentNormal.xy *= normalScale;
+	tangentNormal = normalize(tangentNormal);
+	return normalize(mat3(T, B, Ng) * tangentNormal);
+}
+
+vec3 rewriteTransformNormalForIBL(vec3 normal)
+{
+	return normalize(envMapRotationMatrix * normal);
+}
+
+vec3 rewriteToPrefilterDirection(vec3 v)
+{
+	return vec3(v.x, -v.z, v.y);
+}
+
+void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, float lightFactor, out vec3 diffuseOut, out vec3 specularOut)
+{
+	float NdotL = max(dot(frame.N, frame.L), 0.0);
+	if (NdotL <= 0.0)
+	{
+		diffuseOut = vec3(0.0);
+		specularOut = vec3(0.0);
+		return;
+	}
+
+	vec3 H = normalize(frame.V + frame.L);
+	float NDF = distributionGGX(frame.N, H, params.roughness);
+	float G = geometrySmith(frame.N, frame.V, frame.L, params.roughness);
+	vec3 F = fresnelSchlick(clamp(dot(H, frame.V), 0.0, 1.0), params.F0, params.F90);
+	vec3 specBRDF = (NDF * G * F) / max(4.0 * max(dot(frame.N, frame.V), 0.0) * NdotL, 0.001);
+
+	vec3 kS = F;
+	vec3 kD = (vec3(1.0) - kS) * (1.0 - params.metallic);
+
+	vec3 lightIntensity = lightSource.ambient + lightSource.diffuse + lightSource.specular;
+	diffuseOut = kD * params.baseColor / PI * lightIntensity * NdotL * lightFactor;
+	specularOut = specBRDF * lightIntensity * NdotL * lightFactor;
+}
+
+void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 diffuseIBLOut, out vec3 specularIBLOut)
+{
+	diffuseIBLOut = vec3(0.0);
+	specularIBLOut = vec3(0.0);
+
+	if (!useIBL)
+	{
+		return;
+	}
+
+	vec3 Nibl = rewriteTransformNormalForIBL(normalize(frame.N));
+	vec3 irradiance = texture(irradianceMap, Nibl).rgb;
+	diffuseIBLOut = irradiance * params.baseColor;
+
+	if (!envMapEnabled)
+	{
+		return;
+	}
+
+	float dotNV = max(dot(frame.N, frame.V), 0.0);
+	vec3 F90_effective = max(vec3(1.0 - params.roughness), params.F0);
+	vec3 Fibl = fresnelSchlick(dotNV, params.F0, F90_effective);
+	vec3 kSibl = Fibl;
+	vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - params.metallic);
+
+	vec3 R = reflect(frame.I, frame.N);
+	R = normalize(envMapRotationMatrix * R);
+	vec3 Rprefilter = rewriteToPrefilterDirection(R);
+	float maxReflectionLod = max(textureQueryLevels(prefilterMap) - 1.0, 0.0);
+	float lod = clamp(params.roughness * maxReflectionLod, 0.0, maxReflectionLod);
+	vec3 prefilteredColor = textureLod(prefilterMap, Rprefilter, lod).rgb;
+	prefilteredColor = max(prefilteredColor, vec3(0.0));
+	prefilteredColor *= envMapExposure;
+
+	vec2 brdf = texture(brdfLUT, vec2(dotNV, params.roughness)).rg;
+	brdf = max(brdf, vec2(0.0));
+
+	diffuseIBLOut = kDibl * diffuseIBLOut * params.ambientOcclusion;
+	specularIBLOut = prefilteredColor * (Fibl * brdf.x + brdf.y) * params.ambientOcclusion;
+}
+
+void evaluateRewriteClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, float lightFactor, out vec3 clearcoatOut)
+{
+	clearcoatOut = vec3(0.0);
+	if (params.clearcoat <= 0.0)
+	{
+		return;
+	}
+
+	vec3 Vdirect = normalize(vec3(0.0, 0.0, 1.0));
+	float NdotL = max(dot(frame.Ncoat, frame.L), 0.0);
+	float NdotV = max(dot(frame.Ncoat, Vdirect), 0.0);
+	if (NdotL <= 0.0 || NdotV <= 0.0)
+	{
+		return;
+	}
+
+	vec3 H = normalize(Vdirect + frame.L);
+	float VdotH = max(dot(Vdirect, H), 0.0);
+	float D = distributionGGX(frame.Ncoat, H, params.clearcoatRoughness);
+	float G = geometrySmith(frame.Ncoat, Vdirect, frame.L, params.clearcoatRoughness);
+	vec3 F = fresnelSchlick(VdotH, vec3(0.04), vec3(1.0));
+	vec3 clearcoatBRDF = (D * G * F) / max(4.0 * NdotV * NdotL, 0.001);
+	vec3 lightIntensity = lightSource.specular;
+	clearcoatOut = clearcoatBRDF * lightIntensity * NdotL * lightFactor * params.clearcoat;
+}
+
+vec3 evaluateRewriteClearcoatIBL(in SurfaceFrame frame, in MaterialParams params)
+{
+	if (params.clearcoat <= 0.0 || !useIBL || !envMapEnabled)
+	{
+		return vec3(0.0);
+	}
+
+	vec3 iblCoatNormal = hasClearcoatNormalMap ? frame.Ncoat : normalize(v_reflectionNormal);
+	vec3 R = reflect(frame.I, iblCoatNormal);
+
+	float maxReflectionLod = max(textureQueryLevels(prefilterMap) - 1.0, 0.0);
+	float lod = clamp(params.clearcoatRoughness * maxReflectionLod, 0.0, maxReflectionLod);
+	vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+	prefilteredColor = max(prefilteredColor, vec3(0.0));
+	prefilteredColor *= envMapExposure;
+
+	vec3 Vdirect = normalize(vec3(0.0, 0.0, 1.0));
+	float dotNV = max(dot(frame.N, Vdirect), 0.0);
+	vec2 brdf = texture(brdfLUT, vec2(dotNV, params.clearcoatRoughness)).rg;
+	brdf = max(brdf, vec2(0.0));
+	vec3 clearcoatF = fresnelSchlick(dotNV, vec3(0.04), vec3(1.0));
+	return prefilteredColor * (clearcoatF * brdf.x + brdf.y) * params.clearcoat;
+}
+
+vec3 composeRewriteBaseLayer(in MaterialParams params, in LayerContributions layers)
+{
+	return layers.emissive +
+		layers.baseDirectDiffuse +
+		layers.baseDirectSpecular +
+		layers.baseDiffuseIBL +
+		layers.baseSpecularIBL +
+		layers.sheenDirect +
+		layers.sheenIBL;
+}
+
+vec3 composeRewriteLayeredPBR(in SurfaceFrame frame, in MaterialParams params, in LayerContributions layers)
+{
+	vec3 directBase = layers.baseDirectDiffuse + layers.baseDirectSpecular;
+	vec3 directSheen = layers.sheenDirect;
+	vec3 ambientLayer = layers.baseDiffuseIBL + layers.baseSpecularIBL + layers.sheenIBL;
+	vec3 outRGB = layers.emissive + ambientLayer + directBase + directSheen;
+
+	if (params.clearcoat <= 0.0)
+	{
+		return outRGB;
+	}
+
+	vec3 Vdirect = normalize(vec3(0.0, 0.0, 1.0));
+	float NdotVcoat = max(dot(frame.Ncoat, Vdirect), 0.0);
+	vec3 clearcoatFresnel = fresnelSchlick(NdotVcoat, vec3(0.04), vec3(1.0));
+	float clearcoatWeight = params.clearcoat * max(clearcoatFresnel.r, max(clearcoatFresnel.g, clearcoatFresnel.b));
+	vec3 attenuatedAmbient = ambientLayer * (1.0 - clearcoatWeight);
+	vec3 attenuatedDirectBase = directBase * (1.0 - clearcoatWeight);
+	vec3 clearcoatLayer = layers.clearcoatDirect + layers.clearcoatIBL;
+	return layers.emissive + attenuatedAmbient + attenuatedDirectBase + directSheen + clearcoatLayer;
+}
+
+MaterialParams gatherRewriteMaterialParams()
+{
+	MaterialParams params;
+
+	params.baseColor = pbrLighting.albedo;
+	params.emissive = material.emission * pbrLighting.emissiveStrength;
+	params.metallic = clamp(pbrLighting.metallic, 0.0, 1.0);
+	params.roughness = clamp(pbrLighting.roughness, 0.0001, 1.0);
+	params.ambientOcclusion = clamp(pbrLighting.ambientOcclusion, 0.0001, 1.0);
+	params.transmission = pbrLighting.transmission;
+	params.ior = pbrLighting.ior;
+	params.clearcoat = clamp(pbrLighting.clearcoat, 0.0, 1.0);
+	params.clearcoatRoughness = clamp(pbrLighting.clearcoatRoughness, 0.0001, 1.0);
+	params.sheenColor = clamp(pbrLighting.sheenColor, vec3(0.0), vec3(1.0));
+	params.sheenRoughness = clamp(pbrLighting.sheenRoughness, 0.0001, 1.0);
+	params.anisotropyStrength = pbrLighting.anisotropyStrength;
+	params.anisotropyRotation = pbrLighting.anisotropyRotation;
+	params.iridescenceFactor = pbrLighting.iridescenceFactor;
+	params.iridescenceIor = pbrLighting.iridescenceIor;
+	params.iridescenceThickness = pbrLighting.iridescenceThicknessMax;
+	params.thickness = pbrLighting.thicknessFactor;
+	params.diffuseTransmissionFactor = pbrLighting.diffuseTransmissionFactor;
+	params.diffuseTransmissionColor = pbrLighting.diffuseTransmissionColorFactor;
+	params.attenuationColor = pbrLighting.attenuationColor;
+	params.attenuationDistance = pbrLighting.attenuationDistance;
+	params.specularFactor = pbrLighting.specularFactor;
+	params.specularColor = pbrLighting.specularColorFactor;
+	params.useSpecGloss = useSpecularGlossiness;
+	params.unlit = pbrLighting.unlit;
+
+	params.baseColor = computeBaseColor(
+		getAlbedoUV(),
+		pbrLighting.albedo,
+		albedoMap,
+		hasAlbedoMap,
+		v_color.rgb,
+		hasVertexColors
+	);
+	if (hasEmissiveMap)
+	{
+		vec3 emissionFactor = guardFactorColor(material.emission, 0.01);
+		params.emissive = texture(emissiveMap, getEmissiveUV()).rgb * emissionFactor * pbrLighting.emissiveStrength;
+	}
+	if (hasAOMap)
+	{
+		float texAO = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
+			aoChannel, aoInvert, aoScale, aoBias, pbrLighting.ambientOcclusion);
+		params.ambientOcclusion = clamp(mix(1.0, texAO, pbrLighting.occlusionStrength), 0.0001, 1.0);
+	}
+	if (hasTransmissionMap)
+	{
+		params.transmission *= texture(transmissionMap, getTransmissionUV()).r;
+	}
+	if (hasIORMap)
+	{
+		params.ior = texture(iorMap, getIORUV()).r;
+	}
+	if (hasSheenColorMap)
+	{
+		params.sheenColor *= texture(sheenColorMap, getSheenColorUV()).rgb;
+	}
+	if (hasSheenRoughnessMap)
+	{
+		params.sheenRoughness *= texture(sheenRoughnessMap, getSheenRoughnessUV()).r;
+	}
+	if (hasClearcoatMap)
+	{
+		params.clearcoat *= texture(clearcoatColorMap, getClearcoatUV()).r;
+	}
+	if (hasClearcoatRoughnessMap)
+	{
+		params.clearcoatRoughness *= texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).g;
+	}
+	if (hasSpecularFactorMap)
+	{
+		params.specularFactor *= texture(specularFactorMap, getSpecularFactorUV()).a;
+	}
+	if (hasSpecularColorMap)
+	{
+		params.specularColor *= texture(specularColorMap, getSpecularColorUV()).rgb;
+	}
+	if (hasIridescenceMap)
+	{
+		params.iridescenceFactor *= texture(iridescenceMap, getIridescenceUV()).r;
+	}
+	if (hasIridescenceThicknessMap)
+	{
+		float thicknessNorm = texture(iridescenceThicknessMap, getIridescenceThicknessUV()).g;
+		params.iridescenceThickness = mix(pbrLighting.iridescenceThicknessMin, pbrLighting.iridescenceThicknessMax, thicknessNorm);
+	}
+	if (hasThicknessMap)
+	{
+		vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
+		float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.g;
+		params.thickness *= thicknessSample;
+	}
+	if (hasDiffuseTransmissionMap)
+	{
+		params.diffuseTransmissionFactor *= texture(diffuseTransmissionMap, getDiffuseTransmissionUV()).a;
+	}
+	if (hasDiffuseTransmissionColorMap)
+	{
+		params.diffuseTransmissionColor *= texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;
+	}
+
+	params.baseColor = clamp(params.baseColor, vec3(0.0), vec3(1.0));
+	params.sheenColor = clamp(params.sheenColor, vec3(0.0), vec3(1.0));
+	params.specularColor = clamp(params.specularColor, vec3(0.0), vec3(1.0));
+	params.clearcoat = clamp(params.clearcoat, 0.0, 1.0);
+	params.clearcoatRoughness = clamp(params.clearcoatRoughness, 0.0001, 1.0);
+	params.sheenRoughness = clamp(params.sheenRoughness, 0.0001, 1.0);
+	params.roughness = clamp(params.roughness, 0.0001, 1.0);
+	params.metallic = clamp(params.metallic, 0.0, 1.0);
+
+	vec3 dielectricF0 = computeRewriteDielectricF0(
+		params.ior,
+		params.specularFactor,
+		params.specularColor,
+		params.useSpecGloss,
+		specularColor
+	);
+	params.dielectricF0 = dielectricF0;
+	params.F0 = mix(dielectricF0, params.baseColor, params.metallic);
+	params.F90 = computeRewriteF90(params.metallic, params.specularFactor);
+
+	return params;
+}
+
 
 // ----------------------------------------------------------------------------
 // Calculate PBR lighting based on the render mode
 vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = back
 {
+	if (kUseRewrittenBasePBR)
+	{
+		return calculatePBRLightingRewritten(renderMode, side);
+	}
+
 	vec3	normal = v_normal * side;
 
 	vec3	albedo;
