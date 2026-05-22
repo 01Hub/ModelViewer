@@ -621,7 +621,7 @@ vec3 sampleRewriteMappedNormal(sampler2D map, vec2 texCoord, float normalScale, 
 void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor, out vec3 diffuseOut, out vec3 specularOut);
 vec3 evaluateRewriteSheenDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor);
 void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 diffuseIBLOut, out vec3 specularIBLOut);
-void evaluateRewriteClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, float lightFactor, out vec3 clearcoatOut);
+vec3 evaluateRewriteClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor);
 vec3 evaluateRewriteClearcoatIBL(in SurfaceFrame frame, in MaterialParams params);
 vec3 composeRewriteBaseLayer(in MaterialParams params, in LayerContributions layers);
 vec3 composeRewriteLayeredPBR(in SurfaceFrame frame, in MaterialParams params, in LayerContributions layers);
@@ -639,7 +639,7 @@ vec3 computeBaseColor(vec2 uv,
 const bool kUseRewrittenBasePBR = true;
 const bool kDebugRewriteClearcoatOnly = false;
 const int kRewriteDebugBaseMode = 0; // 0=full base, 1=base IBL only, 2=base direct only, 3=specular IBL only, 4=diffuse IBL only
-const int kRewriteClearcoatMode = 1; // 0=full clearcoat, 1=IBL/composition only
+const int kRewriteClearcoatMode = 0; // 0=full clearcoat, 1=IBL/composition only
 const int kRewriteSheenMode = 0; // 0=full sheen, 1=direct only debug, 2=IBL only debug
 const float kRewriteSheenStrength = 0.90;
 
@@ -1200,6 +1200,11 @@ vec4 calculatePBRLightingRewritten(int renderMode, float side)
 				layers.sheenDirect += evaluateRewriteSheenDirect(frame, params, lightDir, lightIntensity, lightFactor);
 			}
 
+			if (params.clearcoat > 0.0 && kRewriteClearcoatMode == 0)
+			{
+				layers.clearcoatDirect += evaluateRewriteClearcoatDirect(frame, params, lightDir, lightIntensity, lightFactor);
+			}
+
 			layers.baseDirectDiffuse += directDiffuse;
 			layers.baseDirectSpecular += directSpecular;
 		}
@@ -1218,11 +1223,15 @@ vec4 calculatePBRLightingRewritten(int renderMode, float side)
 		layers.sheenIBL = evaluateRewriteSheenIBL(frame, params);
 	}
 
-	vec3 outRGB = layers.emissive +
-		(layers.baseDirectDiffuse + layers.baseDirectSpecular) +
-		(layers.baseDiffuseIBL + layers.baseSpecularIBL) * iblSheenScaling +
-		layers.sheenDirect +
-		layers.sheenIBL;
+	if (params.clearcoat > 0.0)
+	{
+		layers.clearcoatIBL = evaluateRewriteClearcoatIBL(frame, params);
+	}
+
+	layers.baseDiffuseIBL *= iblSheenScaling;
+	layers.baseSpecularIBL *= iblSheenScaling;
+
+	vec3 outRGB = composeRewriteLayeredPBR(frame, params, layers);
 
 	if (kRewriteSheenMode == 1)
 	{
@@ -1311,7 +1320,7 @@ SurfaceFrame buildRewriteSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatN
 		);
 	}
 
-	frame.Ncoat = frame.N;
+	frame.Ncoat = frame.Ng;
 	if (hasClearcoatNormalMap)
 	{
 		frame.Ncoat = sampleRewriteMappedNormal(
@@ -1551,30 +1560,29 @@ void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out
 	specularIBLOut = prefilteredColor * iblFresnel * params.ambientOcclusion;
 }
 
-void evaluateRewriteClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, float lightFactor, out vec3 clearcoatOut)
+vec3 evaluateRewriteClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor)
 {
-	clearcoatOut = vec3(0.0);
 	if (params.clearcoat <= 0.0)
 	{
-		return;
+		return vec3(0.0);
 	}
 
-	vec3 Vdirect = normalize(vec3(0.0, 0.0, 1.0));
-	float NdotL = max(dot(frame.Ncoat, frame.L), 0.0);
-	float NdotV = max(dot(frame.Ncoat, Vdirect), 0.0);
+	vec3 V = frame.V;
+	vec3 L = normalize(lightDir);
+	vec3 H = normalize(L + V);
+	float NdotL = max(dot(frame.Ncoat, L), 0.0);
+	float NdotV = max(dot(frame.Ncoat, V), 0.0);
+	float NdotH = max(dot(frame.Ncoat, H), 0.0);
 	if (NdotL <= 0.0 || NdotV <= 0.0)
 	{
-		return;
+		return vec3(0.0);
 	}
 
-	vec3 H = normalize(Vdirect + frame.L);
-	float VdotH = max(dot(Vdirect, H), 0.0);
-	float D = distributionGGX(frame.Ncoat, H, params.clearcoatRoughness);
-	float G = geometrySmith(frame.Ncoat, Vdirect, frame.L, params.clearcoatRoughness);
-	vec3 F = fresnelSchlick(VdotH, vec3(0.04), vec3(1.0));
-	vec3 clearcoatBRDF = (D * G * F) / max(4.0 * NdotV * NdotL, 0.001);
-	vec3 lightIntensity = lightSource.specular;
-	clearcoatOut = clearcoatBRDF * lightIntensity * NdotL * lightFactor * params.clearcoat;
+	float alpha = params.clearcoatRoughness * params.clearcoatRoughness;
+	float D = distributionGGX(frame.Ncoat, H, alpha);
+	float G = geometrySmith(frame.Ncoat, V, L, alpha);
+	vec3 clearcoatBRDF = vec3((D * G) / max(4.0 * NdotV, 0.001));
+	return lightIntensity * clearcoatBRDF * params.clearcoat * lightFactor;
 }
 
 vec3 evaluateRewriteClearcoatIBL(in SurfaceFrame frame, in MaterialParams params)
@@ -1584,21 +1592,16 @@ vec3 evaluateRewriteClearcoatIBL(in SurfaceFrame frame, in MaterialParams params
 		return vec3(0.0);
 	}
 
-	vec3 iblCoatNormal = hasClearcoatNormalMap ? frame.Ncoat : normalize(v_reflectionNormal);
-	vec3 R = reflect(frame.I, iblCoatNormal);
+	vec3 R = reflect(frame.I, frame.Ncoat);
+	R = normalize(envMapRotationMatrix * R);
+	vec3 Rprefilter = rewriteToPrefilterDirection(R);
 
 	float maxReflectionLod = max(textureQueryLevels(prefilterMap) - 1.0, 0.0);
 	float lod = clamp(params.clearcoatRoughness * maxReflectionLod, 0.0, maxReflectionLod);
-	vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
+	vec3 prefilteredColor = textureLod(prefilterMap, Rprefilter, lod).rgb;
 	prefilteredColor = max(prefilteredColor, vec3(0.0));
 	prefilteredColor *= envMapExposure;
-
-	vec3 Vdirect = normalize(vec3(0.0, 0.0, 1.0));
-	float dotNV = max(dot(frame.N, Vdirect), 0.0);
-	vec2 brdf = texture(brdfLUT, vec2(dotNV, params.clearcoatRoughness)).rg;
-	brdf = max(brdf, vec2(0.0));
-	vec3 clearcoatF = fresnelSchlick(dotNV, vec3(0.04), vec3(1.0));
-	return prefilteredColor * (clearcoatF * brdf.x + brdf.y) * params.clearcoat;
+	return prefilteredColor * params.clearcoat * params.ambientOcclusion;
 }
 
 vec3 composeRewriteBaseLayer(in MaterialParams params, in LayerContributions layers)
@@ -1614,24 +1617,21 @@ vec3 composeRewriteBaseLayer(in MaterialParams params, in LayerContributions lay
 
 vec3 composeRewriteLayeredPBR(in SurfaceFrame frame, in MaterialParams params, in LayerContributions layers)
 {
-	vec3 directBase = layers.baseDirectDiffuse + layers.baseDirectSpecular;
-	vec3 directSheen = layers.sheenDirect;
-	vec3 ambientLayer = layers.baseDiffuseIBL + layers.baseSpecularIBL + layers.sheenIBL;
-	vec3 outRGB = layers.emissive + ambientLayer + directBase + directSheen;
+	vec3 baseColor = layers.baseDirectDiffuse + layers.baseDirectSpecular +
+		layers.baseDiffuseIBL + layers.baseSpecularIBL +
+		layers.sheenDirect + layers.sheenIBL;
 
 	if (params.clearcoat <= 0.0)
 	{
-		return outRGB;
+		return layers.emissive + baseColor;
 	}
 
-	vec3 Vdirect = normalize(vec3(0.0, 0.0, 1.0));
-	float NdotVcoat = max(dot(frame.Ncoat, Vdirect), 0.0);
-	vec3 clearcoatFresnel = fresnelSchlick(NdotVcoat, vec3(0.04), vec3(1.0));
-	float clearcoatWeight = params.clearcoat * max(clearcoatFresnel.r, max(clearcoatFresnel.g, clearcoatFresnel.b));
-	vec3 attenuatedAmbient = ambientLayer * (1.0 - clearcoatWeight);
-	vec3 attenuatedDirectBase = directBase * (1.0 - clearcoatWeight);
 	vec3 clearcoatLayer = layers.clearcoatDirect + layers.clearcoatIBL;
-	return layers.emissive + attenuatedAmbient + attenuatedDirectBase + directSheen + clearcoatLayer;
+	float clearcoatIor = max(params.ior, 1.0);
+	float clearcoatF0Scalar = pow((clearcoatIor - 1.0) / (clearcoatIor + 1.0), 2.0);
+	vec3 clearcoatFresnel = fresnelSchlick(clamp(dot(frame.Ncoat, frame.V), 0.0, 1.0), vec3(clearcoatF0Scalar), vec3(1.0));
+	vec3 color = mix(baseColor, clearcoatLayer, params.clearcoat * clearcoatFresnel);
+	return layers.emissive * (1.0 - params.clearcoat * clearcoatFresnel) + color;
 }
 
 MaterialParams gatherRewriteMaterialParams()
