@@ -552,7 +552,7 @@ void TriangleMesh::setupTextures()
 	glBindTexture(GL_TEXTURE_2D, _material.thicknessTextureId());
 	glActiveTexture(GL_TEXTURE31);
 	glBindTexture(GL_TEXTURE_2D, _material.diffuseTransmissionTextureId());
-	glActiveTexture(GL_TEXTURE9);
+	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _material.diffuseTransmissionColorTextureId());
 }
 
@@ -737,7 +737,7 @@ void TriangleMesh::setupUniforms()
 	// Diffuse Transmission Color Map
 	_prog->setUniformValue("hasDiffuseTransmissionColorMap",
 		_material.hasDiffuseTransmissionColorMap());
-	_prog->setUniformValue("diffuseTransmissionColorMap", 9);
+	_prog->setUniformValue("diffuseTransmissionColorMap", 6);
 
 	// Texture transform uniforms
 	_prog->setUniformValue("albedoTexTransform.texCoordIndex", _material.albedoTexCoord());

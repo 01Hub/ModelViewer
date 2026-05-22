@@ -535,6 +535,7 @@ struct MaterialParams
 	vec3  diffuseTransmissionColor;
 	vec3  attenuationColor;
 	float attenuationDistance;
+	float dispersion;
 	float specularFactor;
 	vec3  specularColor;
 	bool  useSpecGloss;
@@ -618,6 +619,7 @@ vec3 computeRewriteDielectricF0(float ior, float specularFactor, vec3 specularCo
 vec3 computeRewriteF90(float metallic, float specularFactor);
 LayerContributions makeEmptyLayerContributions();
 vec3 sampleRewriteMappedNormal(sampler2D map, vec2 texCoord, float normalScale, vec3 Ng, vec3 T, vec3 B);
+float computeRewriteVolumeThickness(float thickness);
 void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor, out vec3 diffuseOut, out vec3 specularOut);
 vec3 evaluateRewriteSheenDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor);
 void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 diffuseIBLOut, out vec3 specularIBLOut);
@@ -1347,7 +1349,7 @@ vec3 computeRewriteDielectricF0(float ior, float specularFactor, vec3 specularCo
 	vec3 dielectricF0 = vec3(f0_from_ior);
 	if (specularFactor > 0.0)
 	{
-		dielectricF0 *= specularColor * specularFactor;
+		dielectricF0 *= specularColor;
 	}
 	return clamp(dielectricF0, vec3(0.0), vec3(1.0));
 }
@@ -1380,6 +1382,14 @@ vec3 sampleRewriteMappedNormal(sampler2D map, vec2 texCoord, float normalScale, 
 	tangentNormal.xy *= normalScale;
 	tangentNormal = normalize(tangentNormal);
 	return normalize(mat3(T, B, Ng) * tangentNormal);
+}
+
+float computeRewriteVolumeThickness(float thickness)
+{
+	return thickness *
+		(length(vec3(modelMatrix[0].xyz)) +
+		 length(vec3(modelMatrix[1].xyz)) +
+		 length(vec3(modelMatrix[2].xyz))) / 3.0;
 }
 
 vec3 rewriteTransformNormalForIBL(vec3 normal)
@@ -1493,7 +1503,9 @@ void evaluateRewritePunctualLight(in PunctualLight light, out vec3 lightDir, out
 void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor, out vec3 diffuseOut, out vec3 specularOut)
 {
 	float NdotL = max(dot(frame.N, lightDir), 0.0);
-	if (NdotL <= 0.0)
+	float NdotLBack = max(dot(-frame.N, lightDir), 0.0);
+	float NdotV = max(dot(frame.N, frame.V), 0.0);
+	if (NdotL <= 0.0 && NdotLBack <= 0.0)
 	{
 		diffuseOut = vec3(0.0);
 		specularOut = vec3(0.0);
@@ -1501,16 +1513,76 @@ void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, 
 	}
 
 	vec3 H = normalize(frame.V + lightDir);
+	float VdotH = clamp(dot(H, frame.V), 0.0, 1.0);
 	float NDF = distributionGGX(frame.N, H, params.roughness);
 	float G = geometrySmith(frame.N, frame.V, lightDir, params.roughness);
 	vec3 F = fresnelSchlick(clamp(dot(H, frame.V), 0.0, 1.0), params.F0, params.F90);
-	vec3 specBRDF = (NDF * G * F) / max(4.0 * max(dot(frame.N, frame.V), 0.0) * NdotL, 0.001);
+	vec3 specBRDF = (NDF * G * F) / max(4.0 * NdotV * max(NdotL, 0.0001), 0.001);
 
 	vec3 kS = F;
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - params.metallic);
 
 	diffuseOut = kD * params.baseColor / PI * lightIntensity * NdotL * lightFactor;
-	specularOut = specBRDF * lightIntensity * NdotL * lightFactor;
+	specularOut = (NdotL > 0.0) ? (specBRDF * lightIntensity * NdotL * lightFactor) : vec3(0.0);
+
+	float diffuseTransmissionThickness = computeRewriteVolumeThickness(params.thickness);
+	if (params.diffuseTransmissionFactor > 0.0)
+	{
+		diffuseOut *= (1.0 - params.diffuseTransmissionFactor);
+		if (NdotLBack > 0.0)
+		{
+			vec3 diffuseBTDF = lightIntensity * NdotLBack * (params.diffuseTransmissionColor / PI) * lightFactor;
+			if (diffuseTransmissionThickness > 0.0)
+			{
+				diffuseBTDF = calculateVolumeAttenuation(
+					diffuseBTDF,
+					diffuseTransmissionThickness,
+					diffuseTransmissionThickness,
+					params.attenuationColor,
+					params.attenuationDistance
+				);
+			}
+			if (hasVolumeScattering && diffuseTransmissionThickness > 0.0)
+			{
+				diffuseBTDF *= (1.0 - multiToSingleScatter());
+			}
+			diffuseOut += diffuseBTDF * params.diffuseTransmissionFactor;
+		}
+	}
+
+	if (params.transmission > 0.0)
+	{
+		vec3 transmittedLight = lightIntensity * calculateTransmission(frame.N, frame.V, lightDir, 1.0, params.ior, params.baseColor) * lightFactor;
+		if (diffuseTransmissionThickness > 0.0)
+		{
+			transmittedLight = calculateVolumeAttenuation(
+				transmittedLight,
+				diffuseTransmissionThickness,
+				diffuseTransmissionThickness,
+				params.attenuationColor,
+				params.attenuationDistance
+			);
+		}
+		diffuseOut = mix(diffuseOut, transmittedLight, params.transmission);
+	}
+
+	if (params.iridescenceFactor > 0.001 && params.iridescenceThickness > 0.0)
+	{
+		vec3 l_diffuse = diffuseOut;
+		vec3 l_specular = (NdotL > 0.0)
+			? vec3((NDF * G) / max(4.0 * NdotV * NdotL, 0.001)) * lightIntensity * NdotL * lightFactor
+			: vec3(0.0);
+		vec3 dielectric_fresnel = fresnelSchlick(VdotH, params.dielectricF0, vec3(1.0));
+		vec3 metal_fresnel = fresnelSchlick(VdotH, params.baseColor, vec3(1.0));
+		vec3 l_dielectric_brdf = mix(l_diffuse, l_specular, dielectric_fresnel);
+		vec3 l_metal_brdf = metal_fresnel * l_specular;
+		vec3 iridescenceFresnel_dielectric = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.dielectricF0);
+		vec3 iridescenceFresnel_metallic = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.baseColor);
+		l_metal_brdf = mix(l_metal_brdf, l_specular * iridescenceFresnel_metallic, params.iridescenceFactor);
+		l_dielectric_brdf = mix(l_dielectric_brdf, mix(l_diffuse, l_specular, iridescenceFresnel_dielectric), params.iridescenceFactor);
+		diffuseOut = vec3(0.0);
+		specularOut = mix(l_dielectric_brdf, l_metal_brdf, params.metallic);
+	}
 }
 
 vec3 evaluateRewriteSheenDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor)
@@ -1536,10 +1608,33 @@ void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out
 
 	vec3 Nibl = rewriteTransformNormalForIBL(normalize(frame.N));
 	vec3 irradiance = texture(irradianceMap, Nibl).rgb;
-	diffuseIBLOut = irradiance * params.baseColor;
+	vec3 f_diffuse = irradiance * params.baseColor;
+	float diffuseTransmissionThickness = computeRewriteVolumeThickness(params.thickness);
+
+	if (params.diffuseTransmissionFactor > 0.0)
+	{
+		vec3 backNormalIBL = rewriteTransformNormalForIBL(normalize(-frame.N));
+		vec3 diffuseTransmissionIBL = texture(irradianceMap, backNormalIBL).rgb * params.diffuseTransmissionColor;
+		if (diffuseTransmissionThickness > 0.0)
+		{
+			diffuseTransmissionIBL = calculateVolumeAttenuation(
+				diffuseTransmissionIBL,
+				diffuseTransmissionThickness,
+				diffuseTransmissionThickness,
+				params.attenuationColor,
+				params.attenuationDistance
+			);
+		}
+		if (hasVolumeScattering && diffuseTransmissionThickness > 0.0)
+		{
+			diffuseTransmissionIBL *= (1.0 - multiToSingleScatter());
+		}
+		f_diffuse = mix(f_diffuse, diffuseTransmissionIBL, params.diffuseTransmissionFactor);
+	}
 
 	if (!envMapEnabled)
 	{
+		diffuseIBLOut = f_diffuse * params.ambientOcclusion;
 		return;
 	}
 
@@ -1552,12 +1647,62 @@ void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out
 	prefilteredColor = max(prefilteredColor, vec3(0.0));
 	prefilteredColor *= envMapExposure;
 
-	float specularWeight = clamp(params.specularFactor, 0.0, 1.0);
-	vec3 iblFresnel = computeRewriteIBLGGXFresnel(frame.N, frame.V, params.roughness, params.F0, specularWeight);
-	vec3 kDibl = (vec3(1.0) - iblFresnel) * (1.0 - params.metallic);
+	if (params.transmission > 0.0)
+	{
+		vec3 transmittedLight = vec3(0.0);
+		if (params.dispersion > 0.0)
+		{
+			float halfSpread = (params.ior - 1.0) * 0.025 * params.dispersion;
+			vec3 iors = vec3(params.ior - halfSpread, params.ior, params.ior + halfSpread);
+			transmittedLight = getIBLVolumeRefractionPerChannel(
+				frame.N,
+				frame.V,
+				params.roughness,
+				params.baseColor,
+				v_position,
+				modelMatrix,
+				iors,
+				params.thickness,
+				params.attenuationColor,
+				params.attenuationDistance
+			);
+		}
+		else
+		{
+			transmittedLight = getIBLVolumeRefraction(
+				frame.N,
+				frame.V,
+				params.roughness,
+				params.baseColor,
+				v_position,
+				modelMatrix,
+				params.ior,
+				params.thickness,
+				params.attenuationColor,
+				params.attenuationDistance
+			);
+		}
+		f_diffuse = mix(f_diffuse, transmittedLight, params.transmission);
+	}
 
-	diffuseIBLOut = kDibl * diffuseIBLOut * params.ambientOcclusion;
-	specularIBLOut = prefilteredColor * iblFresnel * params.ambientOcclusion;
+	vec3 f_specular_metal = prefilteredColor;
+	vec3 f_specular_dielectric = prefilteredColor;
+	vec3 f_metal_fresnel_ibl = computeRewriteIBLGGXFresnel(frame.N, frame.V, params.roughness, params.baseColor, 1.0);
+	vec3 f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
+	vec3 f_dielectric_fresnel_ibl = computeRewriteIBLGGXFresnel(frame.N, frame.V, params.roughness, params.dielectricF0, params.specularFactor);
+	vec3 f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric, f_dielectric_fresnel_ibl);
+
+	if (params.iridescenceFactor > 0.001 && params.iridescenceThickness > 0.0)
+	{
+		float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+		vec3 iridescenceFresnel_dielectric = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.dielectricF0);
+		vec3 iridescenceFresnel_metallic = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.baseColor);
+		f_metal_brdf_ibl = mix(f_metal_brdf_ibl, f_specular_metal * iridescenceFresnel_metallic, params.iridescenceFactor);
+		f_dielectric_brdf_ibl = mix(f_dielectric_brdf_ibl, mix(f_diffuse, f_specular_dielectric, iridescenceFresnel_dielectric), params.iridescenceFactor);
+	}
+
+	diffuseIBLOut = vec3(0.0);
+	specularIBLOut = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, params.metallic) * params.ambientOcclusion;
 }
 
 vec3 evaluateRewriteClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor)
@@ -1659,6 +1804,7 @@ MaterialParams gatherRewriteMaterialParams()
 	params.diffuseTransmissionColor = pbrLighting.diffuseTransmissionColorFactor;
 	params.attenuationColor = pbrLighting.attenuationColor;
 	params.attenuationDistance = pbrLighting.attenuationDistance;
+	params.dispersion = pbrLighting.dispersion;
 	params.specularFactor = pbrLighting.specularFactor;
 	params.specularColor = pbrLighting.specularColorFactor;
 	params.useSpecGloss = useSpecularGlossiness;
@@ -1682,6 +1828,16 @@ MaterialParams gatherRewriteMaterialParams()
 		float texAO = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
 			aoChannel, aoInvert, aoScale, aoBias, pbrLighting.ambientOcclusion);
 		params.ambientOcclusion = clamp(mix(1.0, texAO, pbrLighting.occlusionStrength), 0.0001, 1.0);
+	}
+	if (!params.useSpecGloss)
+	{
+		float texMetallic = samplePackedChannelValue(metallicMap, hasMetallicMap, getMetallicUV(),
+			metallicChannel, metallicInvert, metallicScale, metallicBias, 1.0);
+		params.metallic = clamp(params.metallic * texMetallic, 0.0, 1.0);
+
+		float texRoughness = samplePackedChannelValue(roughnessMap, hasRoughnessMap, getRoughnessUV(),
+			roughnessChannel, roughnessInvert, roughnessScale, roughnessBias, 1.0);
+		params.roughness = clamp(params.roughness * texRoughness, 0.0001, 1.0);
 	}
 	if (hasTransmissionMap)
 	{

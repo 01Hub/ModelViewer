@@ -512,7 +512,7 @@ void AssImpMesh::cacheTextureBindings()
 		}
 		else if (texture.type == "diffuseTransmissionColorMap")
 		{
-			addBinding("diffuseTransmissionColorMap", GL_TEXTURE9);
+			addBinding("diffuseTransmissionColorMap", GL_TEXTURE6);
 		}
 	}
 
