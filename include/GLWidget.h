@@ -342,7 +342,10 @@ public:
 	GLuint getEnvironmentMap(int index = 0, bool regenerate = false);
 	GLuint getIrradianceMap(int index = 0, bool regenerate = false);
 	GLuint getPrefilterMap(int index = 0, bool regenerate = false);
+	GLuint getSheenPrefilterMap(int index = 0, bool regenerate = false);
 	GLuint getBrdfLUT() const { return _brdfLUTTexture; }
+	GLuint getCharlieLUT() const { return _charlieLUTTexture; }
+	GLuint getSheenELUT() const { return _sheenELUTTexture; }
 	bool isEnvironmentMapEnabled() const { return _envMapEnabled; }
 	bool isIBLEnabled() const { return _useIBL; }
 	float getIBLExposure() const { return _iblExposure; }
@@ -545,7 +548,7 @@ private:
 	void loadEnvMap();
 	void loadIrradianceMap();
 	GLuint loadPresetEnvironmentMap(const QString& hdrFilePath);
-	bool generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap);
+	bool generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap);
 	void loadFloor();
 	void applyFloorPlaneMaterialSettings();
 	void updateMainLightPosition(float halfObjectSize);
@@ -855,6 +858,7 @@ private:
 	std::unique_ptr<ShaderProgram> _skyBoxShader;
 	std::unique_ptr<ShaderProgram> _irradianceShader;
 	std::unique_ptr<ShaderProgram> _prefilterShader;
+	std::unique_ptr<ShaderProgram> _sheenPrefilterShader;
 	std::unique_ptr<ShaderProgram> _brdfShader;
 	std::unique_ptr<ShaderProgram> _lightCubeShader;
 	std::unique_ptr<ShaderProgram> _clippingPlaneShader;
@@ -869,22 +873,28 @@ private:
 	unsigned int             _shadowMapFBO;
 	unsigned int			 _irradianceMap;
 	unsigned int             _prefilterMap;
+	unsigned int             _sheenPrefilterMap = 0;
 	unsigned int             _prefilterMipLevels = 0;
 	unsigned int             _brdfLUTTexture;
+	unsigned int             _charlieLUTTexture = 0;
+	unsigned int             _sheenELUTTexture = 0;
 	QString					 _currentSkyboxFolder;  // Track the current skybox folder path for environment map regeneration
 
 	// Preset environment maps (index 1=Studio, 2=Outdoor, 3=Office)
 	unsigned int             _studioEnvironmentMap = 0;
 	unsigned int             _studioIrradianceMap = 0;
 	unsigned int             _studioPrefilterMap = 0;
+	unsigned int             _studioSheenPrefilterMap = 0;
 
 	unsigned int             _outdoorEnvironmentMap = 0;
 	unsigned int             _outdoorIrradianceMap = 0;
 	unsigned int             _outdoorPrefilterMap = 0;
+	unsigned int             _outdoorSheenPrefilterMap = 0;
 
 	unsigned int             _officeEnvironmentMap = 0;
 	unsigned int             _officeIrradianceMap = 0;
 	unsigned int             _officePrefilterMap = 0;
+	unsigned int             _officeSheenPrefilterMap = 0;
 	unsigned int			 _skyboxFBO = 0;
 	unsigned int			 _skyboxColorTexture = 0;
 	unsigned int			 _skyboxDepthBuffer = 0;

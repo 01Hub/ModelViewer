@@ -147,11 +147,11 @@ vec3 IntegrateBRDF(float NdotV, float roughness)
 
             A += (1.0 - Fc) * G_Vis;
             B += Fc * G_Vis;
-            // KHR_materials_sheen: Integrate D_Charlie * V_Sheen for proper directional-albedo
+            // KHR_materials_sheen: Integrate only D_Charlie * V_Sheen for
+            // directional albedo. Fresnel is not part of the Charlie LUT.
             float sheenD = D_Charlie(roughness, NdotH);
             float sheenV = V_Sheen(NdotL, NdotV, roughness);
-            float sheenF = pow(1.0 - VdotH, 5.0);  // Add Fresnel term
-            sheenAccum += sheenD * sheenV * sheenF * NdotL;  // D * V * F * cosine
+            sheenAccum += sheenD * sheenV * NdotL;
         }
     }
     A /= float(SAMPLE_COUNT);

@@ -646,6 +646,8 @@ _assimpModelLoader(nullptr)
 	_irradianceMap = 0;
 	_prefilterMap = 0;
 	_brdfLUTTexture = 0;
+	_charlieLUTTexture = 0;
+	_sheenELUTTexture = 0;
 
 	_selectionFBO = 0;
 	_selectionRBO = 0;
@@ -801,7 +803,22 @@ GLWidget::~GLWidget()
 		glDeleteTextures(1, &_shadowMap);
 		glDeleteTextures(1, &_irradianceMap);
 		glDeleteTextures(1, &_prefilterMap);
+		glDeleteTextures(1, &_sheenPrefilterMap);
+		glDeleteTextures(1, &_studioEnvironmentMap);
+		glDeleteTextures(1, &_studioIrradianceMap);
+		glDeleteTextures(1, &_studioPrefilterMap);
+		glDeleteTextures(1, &_studioSheenPrefilterMap);
+		glDeleteTextures(1, &_outdoorEnvironmentMap);
+		glDeleteTextures(1, &_outdoorIrradianceMap);
+		glDeleteTextures(1, &_outdoorPrefilterMap);
+		glDeleteTextures(1, &_outdoorSheenPrefilterMap);
+		glDeleteTextures(1, &_officeEnvironmentMap);
+		glDeleteTextures(1, &_officeIrradianceMap);
+		glDeleteTextures(1, &_officePrefilterMap);
+		glDeleteTextures(1, &_officeSheenPrefilterMap);
 		glDeleteTextures(1, &_brdfLUTTexture);
+		glDeleteTextures(1, &_charlieLUTTexture);
+		glDeleteTextures(1, &_sheenELUTTexture);
 		glDeleteTextures(1, &_cappingTexture);
 
 		// Delete framebuffers and renderbuffers
@@ -1197,21 +1214,21 @@ void GLWidget::initializeGL()
 		QString studioHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/studio.hdr";
 		_studioEnvironmentMap = loadPresetEnvironmentMap(studioHDRPath);
 		if (_studioEnvironmentMap)
-			generatePresetIBLMaps(_studioEnvironmentMap, _studioIrradianceMap, _studioPrefilterMap);
+			generatePresetIBLMaps(_studioEnvironmentMap, _studioIrradianceMap, _studioPrefilterMap, _studioSheenPrefilterMap);
 	}
 
 	{
 		QString outdoorHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/outdoor.hdr";
 		_outdoorEnvironmentMap = loadPresetEnvironmentMap(outdoorHDRPath);
 		if (_outdoorEnvironmentMap)
-			generatePresetIBLMaps(_outdoorEnvironmentMap, _outdoorIrradianceMap, _outdoorPrefilterMap);
+			generatePresetIBLMaps(_outdoorEnvironmentMap, _outdoorIrradianceMap, _outdoorPrefilterMap, _outdoorSheenPrefilterMap);
 	}
 
 	{
 		QString officeHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/office.hdr";
 		_officeEnvironmentMap = loadPresetEnvironmentMap(officeHDRPath);
 		if (_officeEnvironmentMap)
-			generatePresetIBLMaps(_officeEnvironmentMap, _officeIrradianceMap, _officePrefilterMap);
+			generatePresetIBLMaps(_officeEnvironmentMap, _officeIrradianceMap, _officePrefilterMap, _officeSheenPrefilterMap);
 	}
 
 	// Shadow mapping
@@ -1238,6 +1255,9 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("irradianceMap", 3);
 	_fgShader->setUniformValue("prefilterMap", 4);
 	_fgShader->setUniformValue("brdfLUT", 5);
+	_fgShader->setUniformValue("sheenPrefilterMap", 9);
+	_fgShader->setUniformValue("charlieLUT", 10);
+	_fgShader->setUniformValue("sheenELUT", 11);
 	_fgShader->setUniformValue("transmissionSceneTexture", 7);
 	_fgShader->setUniformValue("transmissionDepthTexture", 8);
 	_fgShader->setUniformValue("shadowSamples", 27.0f);
@@ -4192,6 +4212,9 @@ void GLWidget::createShaderPrograms()
 	// Prefilter Map (now uses fullscreen triangle)
 	_prefilterShader = std::make_unique<ShaderProgram>(); _prefilterShader->setObjectName("_prefilterShader");
 	_prefilterShader->loadCompileAndLinkShaderFromFile(path + "shaders/fullscreen_triangle.vert", path + "shaders/prefilter.frag");
+	// Sheen/Charlie Prefilter Map
+	_sheenPrefilterShader = std::make_unique<ShaderProgram>(); _sheenPrefilterShader->setObjectName("_sheenPrefilterShader");
+	_sheenPrefilterShader->loadCompileAndLinkShaderFromFile(path + "shaders/fullscreen_triangle.vert", path + "shaders/prefilter_charlie.frag");
 	// BRDF LUT Map
 	_brdfShader = std::make_unique<ShaderProgram>(); _brdfShader->setObjectName("_brdfShader");
 	_brdfShader->loadCompileAndLinkShaderFromFile(path + "shaders/brdf.vert", path + "shaders/brdf.frag");
@@ -4787,6 +4810,79 @@ void GLWidget::loadIrradianceMap()
 
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
 
+	// ==== SHEEN PREFILTER PASS: Create Charlie prefilter cubemap ====
+	if (_sheenPrefilterMap)
+		glDeleteTextures(1, &_sheenPrefilterMap);
+	glGenTextures(1, &_sheenPrefilterMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
+
+	constexpr int sheenPrefilterSize = 256;
+	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+	{
+		unsigned int mipSize = static_cast<unsigned int>(sheenPrefilterSize * std::pow(0.5, mip));
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			if (_skyBoxTextureHDRI)
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
+					mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
+			else
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB16F,
+					mipSize, mipSize, 0, GL_RGB, GL_HALF_FLOAT, nullptr);
+		}
+	}
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
+
+	_sheenPrefilterShader->bind();
+	_sheenPrefilterShader->setUniformValue("environmentMap", 1);
+	_sheenPrefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+
+	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+	{
+		unsigned int mipWidth = sheenPrefilterSize * std::pow(0.5, mip);
+		unsigned int mipHeight = sheenPrefilterSize * std::pow(0.5, mip);
+
+		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
+		glViewport(0, 0, mipWidth, mipHeight);
+
+		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
+		_sheenPrefilterShader->bind();
+		_sheenPrefilterShader->setUniformValue("roughness", roughness);
+		_sheenPrefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
+
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _sheenPrefilterMap, mip);
+
+			GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+			{
+				qWarning() << "Sheen prefilter FBO incomplete at mip" << mip << "face" << i
+					<< "Status:" << fboStatus;
+				continue;
+			}
+
+			_sheenPrefilterShader->bind();
+			setIBLFaceBasis(_sheenPrefilterShader.get(), i);
+
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			drawFullscreenTriangle();
+		}
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+
 	// PBR: generate a 2D LUT from the BRDF equations used.
 	// ----------------------------------------------------
 	if (_brdfLUTTexture)
@@ -4824,6 +4920,79 @@ void GLWidget::loadIrradianceMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
 	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
+	glActiveTexture(GL_TEXTURE9);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
+
+	auto resolveKhronosLUTPath = [](const QString& fileName) -> QString
+	{
+		const QString dataCandidate = QDir(PathUtils::getDataDirectory()).absoluteFilePath("textures/khronos/" + fileName);
+		if (QFileInfo::exists(dataCandidate))
+		{
+			return dataCandidate;
+		}
+
+		// Development fallback when running from the source tree instead of an installed app layout.
+		const QString sourceCandidate = QDir(QDir::currentPath()).absoluteFilePath("textures/khronos/" + fileName);
+		if (QFileInfo::exists(sourceCandidate))
+		{
+			return sourceCandidate;
+		}
+
+		return dataCandidate;
+	};
+
+	auto loadKhronosLUTTexture = [this, &resolveKhronosLUTPath](const QString& fileName, GLuint& textureId)
+	{
+		const QString filePath = resolveKhronosLUTPath(fileName);
+		if (filePath.isEmpty())
+		{
+			qWarning() << "Failed to resolve Khronos LUT texture:" << fileName;
+			if (textureId != 0)
+			{
+				glDeleteTextures(1, &textureId);
+				textureId = 0;
+			}
+			return;
+		}
+
+		QImage image(filePath);
+		if (image.isNull())
+		{
+			qWarning() << "Failed to load Khronos LUT texture:" << filePath;
+			if (textureId != 0)
+			{
+				glDeleteTextures(1, &textureId);
+				textureId = 0;
+			}
+			return;
+		}
+
+		QImage glImage = image.convertToFormat(QImage::Format_RGBA8888);
+		if (textureId != 0)
+			glDeleteTextures(1, &textureId);
+		glGenTextures(1, &textureId);
+		glBindTexture(GL_TEXTURE_2D, textureId);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, glImage.width(), glImage.height(), 0,
+			GL_RGBA, GL_UNSIGNED_BYTE, glImage.constBits());
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	};
+
+	if (_charlieLUTTexture == 0)
+	{
+		loadKhronosLUTTexture("lut_charlie.png", _charlieLUTTexture);
+	}
+	if (_sheenELUTTexture == 0)
+	{
+		loadKhronosLUTTexture("lut_sheen_E.png", _sheenELUTTexture);
+	}
+
+	glActiveTexture(GL_TEXTURE10);
+	glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
+	glActiveTexture(GL_TEXTURE11);
+	glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
 
 	// Cleanup temporary FBO
 	glDeleteFramebuffers(1, &captureFBO);
@@ -4928,7 +5097,7 @@ GLuint GLWidget::loadPresetEnvironmentMap(const QString& hdrFilePath)
 
 // Helper: Generate irradiance and prefilter maps for a preset cubemap
 // Returns true on success
-bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap)
+bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap)
 {
 	if (!sourceCubemap) return false;
 
@@ -5071,6 +5240,73 @@ bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradiance
 
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
 
+	// Create Charlie/sheen prefilter map
+	if (outSheenPrefilterMap)
+		glDeleteTextures(1, &outSheenPrefilterMap);
+	glGenTextures(1, &outSheenPrefilterMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, outSheenPrefilterMap);
+
+	constexpr int sheenPrefilterSize = 256;
+	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+	{
+		unsigned int mipSize = static_cast<unsigned int>(sheenPrefilterSize * std::pow(0.5, mip));
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
+				mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
+		}
+	}
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	_sheenPrefilterShader->bind();
+	_sheenPrefilterShader->setUniformValue("environmentMap", 1);
+	_sheenPrefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, sourceCubemap);
+	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+
+	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+	{
+		unsigned int mipWidth = sheenPrefilterSize * std::pow(0.5, mip);
+		unsigned int mipHeight = sheenPrefilterSize * std::pow(0.5, mip);
+
+		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
+		glViewport(0, 0, mipWidth, mipHeight);
+
+		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
+		_sheenPrefilterShader->bind();
+		_sheenPrefilterShader->setUniformValue("roughness", roughness);
+		_sheenPrefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
+
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, outSheenPrefilterMap, mip);
+
+			GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+			{
+				qWarning() << "Sheen prefilter FBO incomplete at mip" << mip << "face" << i;
+				continue;
+			}
+
+			_sheenPrefilterShader->bind();
+			setIBLFaceBasis(_sheenPrefilterShader.get(), i);
+
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			drawFullscreenTriangle();
+		}
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+
 	glDeleteFramebuffers(1, &captureFBO);
 	glDeleteRenderbuffers(1, &captureRBO);
 
@@ -5135,6 +5371,27 @@ GLuint GLWidget::getPrefilterMap(int index, bool regenerate)
 			return _outdoorPrefilterMap;
 		case 3:  // Office
 			return _officePrefilterMap;
+		default:
+			return 0;
+	}
+}
+
+GLuint GLWidget::getSheenPrefilterMap(int index, bool regenerate)
+{
+	switch(index)
+	{
+		case 0:  // ViewerIBL
+			if (regenerate && !_currentSkyboxFolder.isEmpty())
+			{
+				loadIrradianceMap();
+			}
+			return _sheenPrefilterMap;
+		case 1:  // Studio
+			return _studioSheenPrefilterMap;
+		case 2:  // Outdoor
+			return _outdoorSheenPrefilterMap;
+		case 3:  // Office
+			return _officeSheenPrefilterMap;
 		default:
 			return 0;
 	}
@@ -6384,8 +6641,14 @@ void GLWidget::bindIBLTextures()
 	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
 	_fgShader->setUniformValue("prefilterMap", 4);
 	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
-	_fgShader->setUniformValue("brdfLUTTexture", 5);
+	_fgShader->setUniformValue("brdfLUT", 5);
 	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
+	_fgShader->setUniformValue("sheenPrefilterMap", 9);
+	glActiveTexture(GL_TEXTURE9); glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
+	_fgShader->setUniformValue("charlieLUT", 10);
+	glActiveTexture(GL_TEXTURE10); glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
+	_fgShader->setUniformValue("sheenELUT", 11);
+	glActiveTexture(GL_TEXTURE11); glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
 }
 
 

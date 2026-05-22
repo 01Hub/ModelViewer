@@ -77,7 +77,10 @@ uniform float floorFresnelDampen = 0.5;  // how much to dampen spec at normal in
 // IBL
 uniform samplerCube irradianceMap;
 uniform samplerCube prefilterMap;
+uniform samplerCube sheenPrefilterMap;
 uniform sampler2D brdfLUT;
+uniform sampler2D charlieLUT;
+uniform sampler2D sheenELUT;
 uniform bool useIBL;
 
 // material parameters
@@ -615,13 +618,17 @@ vec3 computeRewriteDielectricF0(float ior, float specularFactor, vec3 specularCo
 vec3 computeRewriteF90(float metallic, float specularFactor);
 LayerContributions makeEmptyLayerContributions();
 vec3 sampleRewriteMappedNormal(sampler2D map, vec2 texCoord, float normalScale, vec3 Ng, vec3 T, vec3 B);
-void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, float lightFactor, out vec3 diffuseOut, out vec3 specularOut);
+void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor, out vec3 diffuseOut, out vec3 specularOut);
+vec3 evaluateRewriteSheenDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor);
 void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 diffuseIBLOut, out vec3 specularIBLOut);
 void evaluateRewriteClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, float lightFactor, out vec3 clearcoatOut);
 vec3 evaluateRewriteClearcoatIBL(in SurfaceFrame frame, in MaterialParams params);
 vec3 composeRewriteBaseLayer(in MaterialParams params, in LayerContributions layers);
 vec3 composeRewriteLayeredPBR(in SurfaceFrame frame, in MaterialParams params, in LayerContributions layers);
 float computeRewriteSheenScaling(float Ndot, float sheenRoughness);
+vec3 computeRewriteIBLGGXFresnel(vec3 N, vec3 V, float roughness, vec3 F0, float specularWeight);
+vec3 evaluateRewriteSheenIBL(in SurfaceFrame frame, in MaterialParams params);
+void evaluateRewritePunctualLight(in PunctualLight light, out vec3 lightDir, out vec3 lightIntensity);
 vec3 computeBaseColor(vec2 uv,
 	vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
 	sampler2D albedoTex,
@@ -633,6 +640,8 @@ const bool kUseRewrittenBasePBR = true;
 const bool kDebugRewriteClearcoatOnly = false;
 const int kRewriteDebugBaseMode = 0; // 0=full base, 1=base IBL only, 2=base direct only, 3=specular IBL only, 4=diffuse IBL only
 const int kRewriteClearcoatMode = 1; // 0=full clearcoat, 1=IBL/composition only
+const int kRewriteSheenMode = 0; // 0=full sheen, 1=direct only debug, 2=IBL only debug
+const float kRewriteSheenStrength = 0.90;
 
 float floorRadius = floorSize * 0.5; // Adjust radius based on floor size
 float fadeStart = floorRadius * 0.65;   // Start fading 
@@ -1161,14 +1170,68 @@ vec4 calculatePBRLightingRewritten(int renderMode, float side)
 	}
 	float lightFactor = 1.0 - lightShadowFactor;
 
-	evaluateRewriteBaseDirect(frame, params, lightFactor, layers.baseDirectDiffuse, layers.baseDirectSpecular);
+	if (hasPunctualLights && usePunctualLights)
+	{
+		for (int i = 0; i < lightCount; ++i)
+		{
+			vec3 lightDir;
+			vec3 lightIntensity;
+			evaluateRewritePunctualLight(lights[i], lightDir, lightIntensity);
+
+			if (max3(lightIntensity) <= 0.0)
+			{
+				continue;
+			}
+
+			vec3 directDiffuse;
+			vec3 directSpecular;
+			evaluateRewriteBaseDirect(frame, params, lightDir, lightIntensity, lightFactor, directDiffuse, directSpecular);
+
+			if (length(params.sheenColor) > 0.0)
+			{
+				float sheenStrength = max3(params.sheenColor);
+				float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+				float NdotL = clamp(dot(frame.N, lightDir), 0.0, 1.0);
+				float l_albedoSheenScaling = min(
+					1.0 - sheenStrength * computeRewriteSheenScaling(NdotV, params.sheenRoughness),
+					1.0 - sheenStrength * computeRewriteSheenScaling(NdotL, params.sheenRoughness));
+				directDiffuse *= l_albedoSheenScaling;
+				directSpecular *= l_albedoSheenScaling;
+				layers.sheenDirect += evaluateRewriteSheenDirect(frame, params, lightDir, lightIntensity, lightFactor);
+			}
+
+			layers.baseDirectDiffuse += directDiffuse;
+			layers.baseDirectSpecular += directSpecular;
+		}
+	}
 	evaluateRewriteBaseIBL(frame, params, layers.baseDiffuseIBL, layers.baseSpecularIBL);
 
+	float iblSheenScaling = 1.0;
+	if (length(params.sheenColor) > 0.0)
+	{
+		float sheenStrength = max3(params.sheenColor);
+		iblSheenScaling = 1.0 - sheenStrength * computeRewriteSheenScaling(clamp(dot(frame.N, frame.V), 0.0, 1.0), params.sheenRoughness);
+	}
+
+	if (length(params.sheenColor) > 0.0)
+	{
+		layers.sheenIBL = evaluateRewriteSheenIBL(frame, params);
+	}
+
 	vec3 outRGB = layers.emissive +
-		layers.baseDirectDiffuse +
-		layers.baseDirectSpecular +
-		layers.baseDiffuseIBL +
-		layers.baseSpecularIBL;
+		(layers.baseDirectDiffuse + layers.baseDirectSpecular) +
+		(layers.baseDiffuseIBL + layers.baseSpecularIBL) * iblSheenScaling +
+		layers.sheenDirect +
+		layers.sheenIBL;
+
+	if (kRewriteSheenMode == 1)
+	{
+		outRGB = layers.sheenDirect;
+	}
+	else if (kRewriteSheenMode == 2)
+	{
+		outRGB = layers.sheenIBL;
+	}
 
 	if (kRewriteDebugBaseMode == 1)
 	{
@@ -1192,8 +1255,11 @@ vec4 calculatePBRLightingRewritten(int renderMode, float side)
 		float fa = clamp(floorAlpha, 0.0, 1.0);
 		float NdotVf = clamp(dot(frame.Ng, frame.V), 0.0, 1.0);
 		float fresDampen = mix(1.0 - floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
-		vec3 floorBase = (layers.emissive + layers.baseDirectDiffuse + layers.baseDiffuseIBL) * fa;
-		vec3 floorSpec = (layers.baseDirectSpecular + layers.baseSpecularIBL) * (floorSpecularScale * fresDampen);
+		vec3 floorBase = (layers.emissive + layers.sheenDirect + layers.sheenIBL +
+			layers.baseDirectDiffuse +
+			layers.baseDiffuseIBL * iblSheenScaling) * fa;
+		vec3 floorSpec = (layers.baseDirectSpecular +
+			layers.baseSpecularIBL * iblSheenScaling) * (floorSpecularScale * fresDampen);
 		vec3 floorRGB = floorBase + floorSpec;
 		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB);
 		if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
@@ -1317,9 +1383,107 @@ vec3 rewriteToPrefilterDirection(vec3 v)
 	return vec3(v.x, -v.z, v.y);
 }
 
-void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, float lightFactor, out vec3 diffuseOut, out vec3 specularOut)
+float computeRewriteSheenScaling(float Ndot, float sheenRoughness)
 {
-	float NdotL = max(dot(frame.N, frame.L), 0.0);
+	float sheenRoughFinal = clamp(sheenRoughness, 0.000001, 1.0);
+	vec2 brdfCoord = clamp(vec2(Ndot, sheenRoughFinal), vec2(0.0), vec2(1.0));
+	return texture(sheenELUT, brdfCoord).r;
+}
+
+float computeRewriteCharlieBRDF(float Ndot, float sheenRoughness)
+{
+	float sheenRoughFinal = clamp(sheenRoughness, 0.000001, 1.0);
+	vec2 brdfCoord = clamp(vec2(Ndot, sheenRoughFinal), vec2(0.0), vec2(1.0));
+	return texture(charlieLUT, brdfCoord).b;
+}
+
+vec3 computeRewriteIBLGGXFresnel(vec3 N, vec3 V, float roughness, vec3 F0, float specularWeight)
+{
+	float NdotV = clamp(dot(N, V), 0.0, 1.0);
+	vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0), vec2(1.0));
+	vec2 f_ab = max(texture(brdfLUT, brdfSamplePoint).rg, vec2(0.0));
+	vec3 Fr = max(vec3(1.0 - roughness), F0) - F0;
+	vec3 kS = F0 + Fr * pow(1.0 - NdotV, 5.0);
+	vec3 FssEss = specularWeight * (kS * f_ab.x + f_ab.y);
+
+	float Ems = 1.0 - (f_ab.x + f_ab.y);
+	vec3 Favg = specularWeight * (F0 + (vec3(1.0) - F0) / 21.0);
+	vec3 FmsEms = Ems * FssEss * Favg / max(vec3(1.0) - Favg * Ems, vec3(0.0001));
+
+	return FssEss + FmsEms;
+}
+
+vec3 evaluateRewriteSheenIBL(in SurfaceFrame frame, in MaterialParams params)
+{
+	float sheenRoughFinal = clamp(params.sheenRoughness, 0.000001, 1.0);
+	vec3 R = reflect(frame.I, frame.N);
+	R = normalize(envMapRotationMatrix * R);
+	vec3 Rprefilter = rewriteToPrefilterDirection(R);
+
+	float maxLevels = textureQueryLevels(prefilterMap);
+	float maxLod = max(maxLevels - 1.0, 0.0);
+	float lod = clamp(sheenRoughFinal * maxLod, 0.0, maxLod);
+	vec3 prefilteredLight = textureLod(sheenPrefilterMap, Rprefilter, lod).rgb;
+	prefilteredLight = max(prefilteredLight, vec3(0.0));
+	prefilteredLight *= envMapExposure;
+
+	float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+	float E_sheen = computeRewriteCharlieBRDF(NdotV, sheenRoughFinal);
+	return prefilteredLight * params.sheenColor * E_sheen * params.ambientOcclusion * kRewriteSheenStrength;
+}
+
+void evaluateRewritePunctualLight(in PunctualLight light, out vec3 lightDir, out vec3 lightIntensity)
+{
+	lightDir = vec3(0.0);
+	lightIntensity = vec3(0.0);
+
+	if (light.type == LightType_Directional)
+	{
+		lightDir = -normalize(light.direction);
+		lightIntensity = light.intensity * light.color;
+		return;
+	}
+
+	vec3 pointToLight = light.position - v_position;
+	float distance = length(pointToLight);
+	if (distance <= 1e-6)
+	{
+		return;
+	}
+
+	lightDir = pointToLight / distance;
+
+	float rangeAttenuation = 1.0 / (distance * distance);
+	if (light.range > 0.0)
+	{
+		float distAttenuation = 1.0 - pow(distance / light.range, 4.0);
+		rangeAttenuation = max(min(distAttenuation, 1.0), 0.0) / (distance * distance);
+	}
+
+	float spotAttenuation = 1.0;
+	if (light.type == LightType_Spot)
+	{
+		float actualCos = dot(normalize(light.direction), normalize(-pointToLight));
+		if (actualCos > light.outerConeCos)
+		{
+			if (actualCos < light.innerConeCos)
+			{
+				float angularAtten = (actualCos - light.outerConeCos) / (light.innerConeCos - light.outerConeCos);
+				spotAttenuation = angularAtten * angularAtten;
+			}
+		}
+		else
+		{
+			spotAttenuation = 0.0;
+		}
+	}
+
+	lightIntensity = rangeAttenuation * spotAttenuation * light.intensity * light.color;
+}
+
+void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor, out vec3 diffuseOut, out vec3 specularOut)
+{
+	float NdotL = max(dot(frame.N, lightDir), 0.0);
 	if (NdotL <= 0.0)
 	{
 		diffuseOut = vec3(0.0);
@@ -1327,18 +1491,28 @@ void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, 
 		return;
 	}
 
-	vec3 H = normalize(frame.V + frame.L);
+	vec3 H = normalize(frame.V + lightDir);
 	float NDF = distributionGGX(frame.N, H, params.roughness);
-	float G = geometrySmith(frame.N, frame.V, frame.L, params.roughness);
+	float G = geometrySmith(frame.N, frame.V, lightDir, params.roughness);
 	vec3 F = fresnelSchlick(clamp(dot(H, frame.V), 0.0, 1.0), params.F0, params.F90);
 	vec3 specBRDF = (NDF * G * F) / max(4.0 * max(dot(frame.N, frame.V), 0.0) * NdotL, 0.001);
 
 	vec3 kS = F;
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - params.metallic);
 
-	vec3 lightIntensity = lightSource.ambient + lightSource.diffuse + lightSource.specular;
 	diffuseOut = kD * params.baseColor / PI * lightIntensity * NdotL * lightFactor;
 	specularOut = specBRDF * lightIntensity * NdotL * lightFactor;
+}
+
+vec3 evaluateRewriteSheenDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor)
+{
+	if (length(params.sheenColor) <= 0.0)
+	{
+		return vec3(0.0);
+	}
+
+	vec3 punctualSheen = calculateSheen(frame.N, frame.V, lightDir, params.sheenColor, params.sheenRoughness);
+	return punctualSheen * lightIntensity * lightFactor * kRewriteSheenStrength;
 }
 
 void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 diffuseIBLOut, out vec3 specularIBLOut)
@@ -1360,12 +1534,6 @@ void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out
 		return;
 	}
 
-	float dotNV = max(dot(frame.N, frame.V), 0.0);
-	vec3 F90_effective = max(vec3(1.0 - params.roughness), params.F0);
-	vec3 Fibl = fresnelSchlick(dotNV, params.F0, F90_effective);
-	vec3 kSibl = Fibl;
-	vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - params.metallic);
-
 	vec3 R = reflect(frame.I, frame.N);
 	R = normalize(envMapRotationMatrix * R);
 	vec3 Rprefilter = rewriteToPrefilterDirection(R);
@@ -1375,11 +1543,12 @@ void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out
 	prefilteredColor = max(prefilteredColor, vec3(0.0));
 	prefilteredColor *= envMapExposure;
 
-	vec2 brdf = texture(brdfLUT, vec2(dotNV, params.roughness)).rg;
-	brdf = max(brdf, vec2(0.0));
+	float specularWeight = clamp(params.specularFactor, 0.0, 1.0);
+	vec3 iblFresnel = computeRewriteIBLGGXFresnel(frame.N, frame.V, params.roughness, params.F0, specularWeight);
+	vec3 kDibl = (vec3(1.0) - iblFresnel) * (1.0 - params.metallic);
 
 	diffuseIBLOut = kDibl * diffuseIBLOut * params.ambientOcclusion;
-	specularIBLOut = prefilteredColor * (Fibl * brdf.x + brdf.y) * params.ambientOcclusion;
+	specularIBLOut = prefilteredColor * iblFresnel * params.ambientOcclusion;
 }
 
 void evaluateRewriteClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, float lightFactor, out vec3 clearcoatOut)
@@ -1524,7 +1693,7 @@ MaterialParams gatherRewriteMaterialParams()
 	}
 	if (hasSheenColorMap)
 	{
-		params.sheenColor *= texture(sheenColorMap, getSheenColorUV()).rgb;
+		params.sheenColor *= sRGBToLinear(texture(sheenColorMap, getSheenColorUV()).rgb);
 	}
 	if (hasSheenRoughnessMap)
 	{
@@ -2964,7 +3133,8 @@ float geometryCharlie(float NdotV, float roughness)
 // Charlie D function variant for sheen IBL
 float D_Charlie(float roughness, float NoH)
 {
-	float invAlpha = 1.0 / max(roughness, 0.001);
+	float alphaG = max(roughness * roughness, 0.000001);
+	float invAlpha = 1.0 / alphaG;
 	float sin2h = max(1.0 - NoH * NoH, 0.0078125);
 	return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
 }
@@ -3083,7 +3253,7 @@ vec3 calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor)
 	// Blue channel contains pre-integrated D_charlie * V_sheen
 	float NdotV_val = clamp(dot(N, V_norm), 0.0, 1.0);
 	vec2 brdfCoord = clamp(vec2(NdotV_val, sheenRoughFinal), vec2(0.0), vec2(1.0));
-	float E_sheen = texture(brdfLUT, brdfCoord).b;
+	float E_sheen = texture(charlieLUT, brdfCoord).b;
 
 	// KHR formula: only multiply by sheenColor and E_sheen
 	// BRDF LUT already includes all BRDF integration (D * V)
