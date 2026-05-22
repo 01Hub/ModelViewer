@@ -7802,7 +7802,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		if (TriangleMesh* mesh = getMeshByUuid(it.key()))
 			mesh->setMaterial(it.value());
 	}
-	triggerShadowRecomputation();
+	_shadowMapNeedsInitialization = true;
 	update();
 }
 
