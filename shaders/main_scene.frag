@@ -637,10 +637,10 @@ vec3 computeIBLGGXFresnel(vec3 N, vec3 V, float roughness, vec3 F0, float specul
 vec3 evaluateSheenIBL(in SurfaceFrame frame, in MaterialParams params);
 void evaluatePunctualLight(in PunctualLight light, out vec3 lightDir, out vec3 lightIntensity);
 vec3 computeBaseColor(vec2 uv,
-	vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
+	vec3 matBaseColor_linear,
 	sampler2D albedoTex,
 	bool hasAlbedoTex,
-	vec3 vertexColor_sRGB,    // pass v_color.rgb
+	vec3 vertexColor_linear,
 	bool useVertexColor);
 const float kSheenStrength = 0.90;
 
@@ -1712,14 +1712,14 @@ void evaluateBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 d
 	}
 
 	vec3 Nibl = transformNormalForIBL(normalize(frame.N));
-	vec3 irradiance = texture(irradianceMap, Nibl).rgb;
+	vec3 irradiance = texture(irradianceMap, Nibl).rgb * envMapExposure;
 	vec3 f_diffuse = irradiance * params.baseColor;
 	float diffuseTransmissionThickness = computeVolumeThickness(params.thickness);
 
 	if (params.diffuseTransmissionFactor > 0.0)
 	{
 		vec3 backNormalIBL = transformNormalForIBL(normalize(-frame.N));
-		vec3 diffuseTransmissionIBL = texture(irradianceMap, backNormalIBL).rgb * params.diffuseTransmissionColor;
+		vec3 diffuseTransmissionIBL = texture(irradianceMap, backNormalIBL).rgb * envMapExposure * params.diffuseTransmissionColor;
 		if (diffuseTransmissionThickness > 0.0)
 		{
 			diffuseTransmissionIBL = calculateVolumeAttenuation(
@@ -1904,7 +1904,7 @@ MaterialParams gatherMaterialParams()
 	params.emissive = material.emission * pbrLighting.emissiveStrength;
 	params.metallic = clamp(pbrLighting.metallic, 0.0, 1.0);
 	params.roughness = clamp(pbrLighting.roughness, 0.0001, 1.0);
-	params.ambientOcclusion = clamp(pbrLighting.ambientOcclusion, 0.0001, 1.0);
+	params.ambientOcclusion = clamp(guardFactorScalar(pbrLighting.ambientOcclusion, 0.01), 0.0001, 1.0);
 	params.transmission = pbrLighting.transmission;
 	params.ior = pbrLighting.ior;
 	params.clearcoat = clamp(pbrLighting.clearcoat, 0.0, 1.0);
@@ -4378,32 +4378,25 @@ float readMaskChannel(vec4 texel, int channel)
 }
 
 vec3 computeBaseColor(vec2 uv,
-	vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
+	vec3 matBaseColor_linear,
 	sampler2D albedoTex,
 	bool hasAlbedoTex,
-	vec3 vertexColor_sRGB,    // pass v_color.rgb
+	vec3 vertexColor_linear,
 	bool useVertexColor)
 {
-	vec3 base_sRGB = matBaseColor_sRGB;
 	vec3 tex_sRGB = hasAlbedoTex ? texture(albedoTex, uv).rgb : vec3(1.0);
-
-	// Optional vertex color (apply as a tint *in linear*; many pipelines want this)
-	vec3 vtx_sRGB = useVertexColor ? vertexColor_sRGB : vec3(1.0);
-
-	// Convert to linear for math
-	vec3 base_L = sRGBToLinear(base_sRGB);
 	vec3 tex_L = sRGBToLinear(tex_sRGB);
-	vec3 vtx_L = sRGBToLinear(vtx_sRGB);
+	vec3 vtx_L = useVertexColor ? vertexColor_linear : vec3(1.0);
 
 	vec3 out_L;
 
 	if (!hasAlbedoTex)
 	{
-		out_L = base_L; // color only
+		out_L = matBaseColor_linear; // color only
 	}
 	else
 	{
-		out_L = tex_L * base_L;		
+		out_L = tex_L * matBaseColor_linear;
 	}
 
 	// Apply vertex color last (in linear)
