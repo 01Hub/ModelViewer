@@ -12,6 +12,8 @@ in vec2 v_texCoord2;
 in vec2 v_texCoord3;
 in vec3 v_tangent;
 in vec3 v_bitangent;
+in vec3 v_worldTangent;
+in vec3 v_worldBitangent;
 in vec3 v_reflectionPosition;
 in vec3 v_reflectionNormal;
 in vec3 v_tangentLightPos;
@@ -621,6 +623,10 @@ vec3 computeRewriteF90(float metallic, float specularFactor);
 LayerContributions makeEmptyLayerContributions();
 vec3 sampleRewriteMappedNormal(sampler2D map, vec2 texCoord, float normalScale, vec3 Ng, vec3 T, vec3 B);
 float computeRewriteVolumeThickness(float thickness);
+vec3 rewriteTransformNormalForIBL(vec3 normal);
+vec3 rewriteToPrefilterDirection(vec3 v);
+void buildRewriteAnisotropyBasis(in SurfaceFrame frame, in MaterialParams params, out vec3 anisotropicT, out vec3 anisotropicB);
+vec3 sampleRewriteAnisotropicSpecularIBL(in SurfaceFrame frame, in MaterialParams params);
 void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor, out vec3 diffuseOut, out vec3 specularOut);
 vec3 evaluateRewriteSheenDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor);
 void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 diffuseIBLOut, out vec3 specularIBLOut);
@@ -1293,19 +1299,39 @@ SurfaceFrame buildRewriteSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatN
 	frame.L = normalize(lightDirection);
 	frame.Ng = normalize(v_reflectionNormal * side);
 
-	vec3 Q1 = dFdx(v_position);
-	vec3 Q2 = dFdy(v_position);
-	vec2 st1 = dFdx(normalUV);
-	vec2 st2 = dFdy(normalUV);
-
-	vec3 tangent = Q1 * st2.t - Q2 * st1.t;
-	if (length(tangent) < 0.0001)
+	vec3 tangent;
+	vec3 bitangent;
+	if (length(v_worldTangent) > 0.01)
 	{
-		vec3 fallback = abs(frame.Ng.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
-		tangent = cross(fallback, frame.Ng);
+		tangent = normalize(v_worldTangent - dot(v_worldTangent, frame.Ng) * frame.Ng);
+		float handedness = 1.0;
+		if (length(v_worldBitangent) > 0.01)
+		{
+			vec3 importedBitangent = normalize(v_worldBitangent - dot(v_worldBitangent, frame.Ng) * frame.Ng);
+			handedness = sign(dot(cross(frame.Ng, tangent), importedBitangent));
+			if (handedness == 0.0)
+			{
+				handedness = 1.0;
+			}
+		}
+		bitangent = normalize(cross(frame.Ng, tangent)) * handedness;
 	}
-	tangent = normalize(tangent - dot(tangent, frame.Ng) * frame.Ng);
-	vec3 bitangent = -normalize(cross(frame.Ng, tangent));
+	else
+	{
+		vec3 Q1 = dFdx(v_position);
+		vec3 Q2 = dFdy(v_position);
+		vec2 st1 = dFdx(normalUV);
+		vec2 st2 = dFdy(normalUV);
+
+		tangent = Q1 * st2.t - Q2 * st1.t;
+		if (length(tangent) < 0.0001)
+		{
+			vec3 fallback = abs(frame.Ng.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+			tangent = cross(fallback, frame.Ng);
+		}
+		tangent = normalize(tangent - dot(tangent, frame.Ng) * frame.Ng);
+		bitangent = -normalize(cross(frame.Ng, tangent));
+	}
 
 	frame.T = tangent;
 	frame.B = bitangent;
@@ -1393,6 +1419,54 @@ float computeRewriteVolumeThickness(float thickness)
 		 length(vec3(modelMatrix[2].xyz))) / 3.0;
 }
 
+void buildRewriteAnisotropyBasis(in SurfaceFrame frame, in MaterialParams params, out vec3 anisotropicT, out vec3 anisotropicB)
+{
+	vec2 direction = vec2(cos(params.anisotropyRotation), sin(params.anisotropyRotation));
+
+	vec3 tangentBasisT = frame.T;
+	vec3 tangentBasisB = frame.B;
+
+	anisotropicT = normalize(direction.x * tangentBasisT + direction.y * tangentBasisB);
+	anisotropicB = normalize(cross(frame.Ng, anisotropicT));
+	if (length(anisotropicB) < 0.0001)
+	{
+		anisotropicB = normalize(cross(frame.Ng, tangentBasisT));
+	}
+	if (dot(cross(anisotropicT, anisotropicB), frame.Ng) < 0.0)
+	{
+		anisotropicB = -anisotropicB;
+	}
+}
+
+vec3 sampleRewriteAnisotropicSpecularIBL(in SurfaceFrame frame, in MaterialParams params)
+{
+	vec3 anisotropicT;
+	vec3 anisotropicB;
+	buildRewriteAnisotropyBasis(frame, params, anisotropicT, anisotropicB);
+
+	float tangentRoughness = mix(params.roughness, 1.0, params.anisotropyStrength * params.anisotropyStrength);
+	vec3 anisotropicTangent = cross(anisotropicB, frame.V);
+	if (length(anisotropicTangent) < 0.0001)
+	{
+		anisotropicTangent = cross(anisotropicB, frame.N);
+	}
+	anisotropicTangent = normalize(anisotropicTangent);
+	vec3 anisotropicNormal = normalize(cross(anisotropicTangent, anisotropicB));
+	float bendFactor = 1.0 - params.anisotropyStrength * (1.0 - params.roughness);
+	float bendFactorPow4 = bendFactor * bendFactor * bendFactor * bendFactor;
+	vec3 bentNormal = normalize(mix(anisotropicNormal, frame.N, bendFactorPow4));
+
+	vec3 reflection = normalize(reflect(frame.I, bentNormal));
+	reflection = normalize(envMapRotationMatrix * reflection);
+	vec3 reflectionPrefilter = rewriteToPrefilterDirection(reflection);
+
+	float maxReflectionLod = max(textureQueryLevels(prefilterMap) - 1.0, 0.0);
+	float lod = clamp(params.roughness * maxReflectionLod, 0.0, maxReflectionLod);
+	vec3 prefilteredColor = textureLod(prefilterMap, reflectionPrefilter, lod).rgb;
+	prefilteredColor = max(prefilteredColor, vec3(0.0));
+	return prefilteredColor * envMapExposure;
+}
+
 vec3 rewriteTransformNormalForIBL(vec3 normal)
 {
 	return normalize(envMapRotationMatrix * normal);
@@ -1431,6 +1505,41 @@ vec3 computeRewriteIBLGGXFresnel(vec3 N, vec3 V, float roughness, vec3 F0, float
 	vec3 FmsEms = Ems * FssEss * Favg / max(vec3(1.0) - Favg * Ems, vec3(0.0001));
 
 	return FssEss + FmsEms;
+}
+
+vec3 computeRewriteAnisotropicSpecularLobe(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir)
+{
+	vec3 anisotropicT;
+	vec3 anisotropicB;
+	buildRewriteAnisotropyBasis(frame, params, anisotropicT, anisotropicB);
+
+	vec3 H = normalize(frame.V + lightDir);
+	float alphaRoughness = max(params.roughness * params.roughness, 0.001);
+	float at = mix(alphaRoughness, 1.0, params.anisotropyStrength * params.anisotropyStrength);
+	float ab = clamp(alphaRoughness, 0.001, 1.0);
+	float NdotL = clamp(dot(frame.N, lightDir), 0.0, 1.0);
+	float NdotH = clamp(dot(frame.N, H), 0.001, 1.0);
+	float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+
+	float V_aniso = V_GGX_anisotropic(
+		NdotL,
+		NdotV,
+		dot(anisotropicB, frame.V),
+		dot(anisotropicT, frame.V),
+		dot(anisotropicT, lightDir),
+		dot(anisotropicB, lightDir),
+		at,
+		ab
+	);
+	float D_aniso = D_GGX_anisotropic(
+		NdotH,
+		dot(anisotropicT, H),
+		dot(anisotropicB, H),
+		at,
+		ab
+	);
+
+	return vec3(V_aniso * D_aniso);
 }
 
 vec3 evaluateRewriteSheenIBL(in SurfaceFrame frame, in MaterialParams params)
@@ -1519,6 +1628,10 @@ void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, 
 	float G = geometrySmith(frame.N, frame.V, lightDir, params.roughness);
 	vec3 F = fresnelSchlick(clamp(dot(H, frame.V), 0.0, 1.0), params.F0, params.F90);
 	vec3 specBRDF = (NDF * G * F) / max(4.0 * NdotV * max(NdotL, 0.0001), 0.001);
+	if (params.anisotropyStrength > 0.0)
+	{
+		specBRDF = computeRewriteAnisotropicSpecularLobe(frame, params, lightDir) * F;
+	}
 
 	vec3 kS = F;
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - params.metallic);
@@ -1580,6 +1693,10 @@ void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, 
 		vec3 l_specular = (NdotL > 0.0)
 			? vec3((NDF * G) / max(4.0 * NdotV * NdotL, 0.001)) * lightIntensity * NdotL * lightFactor
 			: vec3(0.0);
+		if (params.anisotropyStrength > 0.0 && NdotL > 0.0)
+		{
+			l_specular = computeRewriteAnisotropicSpecularLobe(frame, params, lightDir) * lightIntensity * NdotL * lightFactor;
+		}
 		vec3 dielectric_fresnel = fresnelSchlick(VdotH, params.dielectricF0, vec3(1.0));
 		vec3 metal_fresnel = fresnelSchlick(VdotH, params.baseColor, vec3(1.0));
 		vec3 l_dielectric_brdf = mix(l_diffuse, l_specular, dielectric_fresnel);
@@ -1695,6 +1812,11 @@ void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out
 
 	vec3 f_specular_metal = prefilteredColor;
 	vec3 f_specular_dielectric = prefilteredColor;
+	if (params.anisotropyStrength > 0.0)
+	{
+		f_specular_metal = sampleRewriteAnisotropicSpecularIBL(frame, params);
+		f_specular_dielectric = f_specular_metal;
+	}
 	vec3 f_metal_fresnel_ibl = computeRewriteIBLGGXFresnel(frame.N, frame.V, params.roughness, params.baseColor, 1.0);
 	vec3 f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
 	vec3 f_dielectric_fresnel_ibl = computeRewriteIBLGGXFresnel(frame.N, frame.V, params.roughness, params.dielectricF0, params.specularFactor);
@@ -1862,6 +1984,31 @@ MaterialParams gatherRewriteMaterialParams()
 	if (hasSheenRoughnessMap)
 	{
 		params.sheenRoughness *= texture(sheenRoughnessMap, getSheenRoughnessUV()).r;
+	}
+	if (hasAnisotropyMap || params.anisotropyStrength > 0.0)
+	{
+		AnisotropyData anisoData;
+		if (hasAnisotropyMap)
+		{
+			vec3 anisoTexel = texture(anisotropyMap, getAnisotropyUV()).rgb;
+			anisoData = decodeAnisotropyTexture(
+				anisoTexel,
+				pbrLighting.anisotropyStrength,
+				pbrLighting.anisotropyRotation,
+				true
+			);
+		}
+		else
+		{
+			anisoData = decodeAnisotropyTexture(
+				vec3(1.0, 0.5, 1.0),
+				pbrLighting.anisotropyStrength,
+				pbrLighting.anisotropyRotation,
+				false
+			);
+		}
+		params.anisotropyStrength = anisoData.strength;
+		params.anisotropyRotation = anisoData.rotation;
 	}
 	if (hasClearcoatMap)
 	{

@@ -39,6 +39,8 @@ out vec2 v_texCoord2;
 out vec2 v_texCoord3;
 out vec3 v_tangent;
 out vec3 v_bitangent;
+out vec3 v_worldTangent;
+out vec3 v_worldBitangent;
 out vec3 v_tangentLightPos;
 out vec3 v_tangentViewPos;
 out vec3 v_tangentFragPos;
@@ -118,6 +120,19 @@ void main()
         v_bitangent = vec3(0.0);
     else
         v_bitangent = normalize(transformedBitangent);
+
+    mat3 worldNormalMatrix = mat3(transpose(inverse(modelMatrix)));
+    vec3 worldTangent = worldNormalMatrix * skinnedTangent;
+    if (length(worldTangent) < 0.01)
+        v_worldTangent = vec3(0.0);
+    else
+        v_worldTangent = normalize(worldTangent);
+
+    vec3 worldBitangent = worldNormalMatrix * skinnedBitangent;
+    if (length(worldBitangent) < 0.01)
+        v_worldBitangent = vec3(0.0);
+    else
+        v_worldBitangent = normalize(worldBitangent);
 
     gl_Position = projectionMatrix * viewMatrix * worldPos;
 

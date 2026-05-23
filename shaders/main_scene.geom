@@ -14,6 +14,8 @@ in vec2 v_texCoord2[];
 in vec2 v_texCoord3[];
 in vec3 v_tangent[];
 in vec3 v_bitangent[];
+in vec3 v_worldTangent[];
+in vec3 v_worldBitangent[];
 
 out vec3 g_normal;
 out vec3 g_position;
@@ -24,6 +26,8 @@ out vec2 g_texCoord2;
 out vec2 g_texCoord3;
 out vec3 g_tangent;
 out vec3 g_bitangent;
+out vec3 g_worldTangent;
+out vec3 g_worldBitangent;
 
 noperspective out vec3 g_edgeDistance;
 uniform mat4 viewportMatrix; // Viewport matrix
@@ -88,6 +92,8 @@ void main()
     g_tangentFragPos = vec3(0);
     g_tangent = vec3(0);
     g_bitangent = vec3(0);
+    g_worldTangent = vec3(0);
+    g_worldBitangent = vec3(0);
     // end initialization
 
     if(displayMode == 2) // WireShaded
@@ -126,6 +132,8 @@ void main()
 
         g_tangent = v_tangent[0];
         g_bitangent = v_bitangent[0];
+        g_worldTangent = v_worldTangent[0];
+        g_worldBitangent = v_worldBitangent[0];
         g_reflectionPosition = v_reflectionPosition[0];
         g_reflectionNormal = v_reflectionNormal[0];
         g_tangentLightPos = v_tangentLightPos[0];
@@ -160,6 +168,8 @@ void main()
 
         g_tangent = v_tangent[1];
         g_bitangent = v_bitangent[1];
+        g_worldTangent = v_worldTangent[1];
+        g_worldBitangent = v_worldBitangent[1];
         g_reflectionPosition = v_reflectionPosition[1];
         g_reflectionNormal = v_reflectionNormal[1];
         g_tangentLightPos = v_tangentLightPos[1];
@@ -194,6 +204,8 @@ void main()
 
         g_tangent = v_tangent[2];
         g_bitangent = v_bitangent[2];
+        g_worldTangent = v_worldTangent[2];
+        g_worldBitangent = v_worldBitangent[2];
         g_reflectionPosition = v_reflectionPosition[2];
         g_reflectionNormal = v_reflectionNormal[2];
         g_tangentLightPos = v_tangentLightPos[2];
@@ -254,6 +266,8 @@ void main()
             g_tangentFragPos = v_tangentFragPos[i];
             g_tangent = v_tangent[i];
             g_bitangent = v_bitangent[i];
+            g_worldTangent = v_worldTangent[i];
+            g_worldBitangent = v_worldBitangent[i];
 
             EmitVertex();
         }
