@@ -1624,17 +1624,31 @@ void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, 
 
 	vec3 H = normalize(frame.V + lightDir);
 	float VdotH = clamp(dot(H, frame.V), 0.0, 1.0);
+	vec3 dielectricDirectF0 = params.dielectricF0 * vec3(params.specularFactor);
+	vec3 directF0 = mix(dielectricDirectF0, params.baseColor, params.metallic);
 	float NDF = distributionGGX(frame.N, H, params.roughness);
 	float G = geometrySmith(frame.N, frame.V, lightDir, params.roughness);
-	vec3 F = fresnelSchlick(clamp(dot(H, frame.V), 0.0, 1.0), params.F0, params.F90);
-	vec3 specBRDF = (NDF * G * F) / max(4.0 * NdotV * max(NdotL, 0.0001), 0.001);
+	vec3 specBRDFNoF = vec3((NDF * G) / max(4.0 * NdotV * max(NdotL, 0.0001), 0.001));
+	vec3 F = fresnelSchlick(clamp(dot(H, frame.V), 0.0, 1.0), directF0, params.F90);
+	vec3 specBRDF = specBRDFNoF * F;
 	if (params.anisotropyStrength > 0.0)
 	{
 		specBRDF = computeRewriteAnisotropicSpecularLobe(frame, params, lightDir) * F;
+		specBRDFNoF = computeRewriteAnisotropicSpecularLobe(frame, params, lightDir);
 	}
 
 	vec3 kS = F;
 	vec3 kD = (vec3(1.0) - kS) * (1.0 - params.metallic);
+
+	if (params.useSpecGloss)
+	{
+		vec3 l_diffuse = params.baseColor / PI * lightIntensity * NdotL * lightFactor;
+		vec3 l_specular_dielectric = specBRDFNoF * lightIntensity * NdotL * lightFactor;
+		vec3 dielectric_fresnel = fresnelSchlick(VdotH, params.dielectricF0, vec3(1.0));
+		diffuseOut = vec3(0.0);
+		specularOut = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel);
+		return;
+	}
 
 	diffuseOut = kD * params.baseColor / PI * lightIntensity * NdotL * lightFactor;
 	specularOut = (NdotL > 0.0) ? (specBRDF * lightIntensity * NdotL * lightFactor) : vec3(0.0);
@@ -1697,7 +1711,7 @@ void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, 
 		{
 			l_specular = computeRewriteAnisotropicSpecularLobe(frame, params, lightDir) * lightIntensity * NdotL * lightFactor;
 		}
-		vec3 dielectric_fresnel = fresnelSchlick(VdotH, params.dielectricF0, vec3(1.0));
+		vec3 dielectric_fresnel = fresnelSchlick(VdotH, dielectricDirectF0, vec3(params.specularFactor));
 		vec3 metal_fresnel = fresnelSchlick(VdotH, params.baseColor, vec3(1.0));
 		vec3 l_dielectric_brdf = mix(l_diffuse, l_specular, dielectric_fresnel);
 		vec3 l_metal_brdf = metal_fresnel * l_specular;
@@ -1816,6 +1830,13 @@ void evaluateRewriteBaseIBL(in SurfaceFrame frame, in MaterialParams params, out
 	{
 		f_specular_metal = sampleRewriteAnisotropicSpecularIBL(frame, params);
 		f_specular_dielectric = f_specular_metal;
+	}
+	if (params.useSpecGloss)
+	{
+		vec3 f_dielectric_fresnel_ibl = computeRewriteIBLGGXFresnel(frame.N, frame.V, params.roughness, params.dielectricF0, 1.0);
+		diffuseIBLOut = vec3(0.0);
+		specularIBLOut = mix(f_diffuse, f_specular_dielectric, f_dielectric_fresnel_ibl) * params.ambientOcclusion;
+		return;
 	}
 	vec3 f_metal_fresnel_ibl = computeRewriteIBLGGXFresnel(frame.N, frame.V, params.roughness, params.baseColor, 1.0);
 	vec3 f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
@@ -1940,14 +1961,43 @@ MaterialParams gatherRewriteMaterialParams()
 	params.useSpecGloss = useSpecularGlossiness;
 	params.unlit = pbrLighting.unlit;
 
-	params.baseColor = computeBaseColor(
-		getAlbedoUV(),
-		pbrLighting.albedo,
-		albedoMap,
-		hasAlbedoMap,
-		v_color.rgb,
-		hasVertexColors
-	);
+	if (params.useSpecGloss)
+	{
+		params.baseColor = computeBaseColor(
+			getDiffuseUV(),
+			diffuseFactor,
+			diffuseMap,
+			hasDiffuseMap,
+			v_color.rgb,
+			hasVertexColors
+		);
+
+		params.specularColor = specularColor;
+		if (hasSpecularGlossinessMap)
+		{
+			vec4 specGlossSample = texture(specularGlossinessMap, getSpecularGlossinessUV());
+			params.specularColor *= specGlossSample.rgb;
+			params.roughness = clamp(1.0 - (glossinessFactor * specGlossSample.a), 0.0001, 1.0);
+		}
+		else
+		{
+			params.roughness = clamp(1.0 - glossinessFactor, 0.0001, 1.0);
+		}
+
+		params.metallic = 0.0;
+		params.specularFactor = 1.0;
+	}
+	else
+	{
+		params.baseColor = computeBaseColor(
+			getAlbedoUV(),
+			pbrLighting.albedo,
+			albedoMap,
+			hasAlbedoMap,
+			v_color.rgb,
+			hasVertexColors
+		);
+	}
 	if (hasEmissiveMap)
 	{
 		vec3 emissionFactor = guardFactorColor(material.emission, 0.01);
@@ -2024,7 +2074,7 @@ MaterialParams gatherRewriteMaterialParams()
 	}
 	if (hasSpecularColorMap)
 	{
-		params.specularColor *= texture(specularColorMap, getSpecularColorUV()).rgb;
+		params.specularColor *= sRGBToLinear(texture(specularColorMap, getSpecularColorUV()).rgb);
 	}
 	if (hasIridescenceMap)
 	{
@@ -2052,7 +2102,7 @@ MaterialParams gatherRewriteMaterialParams()
 
 	params.baseColor = clamp(params.baseColor, vec3(0.0), vec3(1.0));
 	params.sheenColor = clamp(params.sheenColor, vec3(0.0), vec3(1.0));
-	params.specularColor = clamp(params.specularColor, vec3(0.0), vec3(1.0));
+	params.specularColor = max(params.specularColor, vec3(0.0));
 	params.clearcoat = clamp(params.clearcoat, 0.0, 1.0);
 	params.clearcoatRoughness = clamp(params.clearcoatRoughness, 0.0001, 1.0);
 	params.sheenRoughness = clamp(params.sheenRoughness, 0.0001, 1.0);
@@ -2064,11 +2114,11 @@ MaterialParams gatherRewriteMaterialParams()
 		params.specularFactor,
 		params.specularColor,
 		params.useSpecGloss,
-		specularColor
+		params.specularColor
 	);
 	params.dielectricF0 = dielectricF0;
 	params.F0 = mix(dielectricF0, params.baseColor, params.metallic);
-	params.F90 = computeRewriteF90(params.metallic, params.specularFactor);
+	params.F90 = params.useSpecGloss ? vec3(1.0) : computeRewriteF90(params.metallic, params.specularFactor);
 
 	return params;
 }
