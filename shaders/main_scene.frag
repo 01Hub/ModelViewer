@@ -575,6 +575,7 @@ vec3    computeIridescentFresnel(float cosTheta,
 
 // KHR IOR, Transmission, and Volume
 vec3    calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo);
+vec3    calculateTransmissionKHR(vec3 normal, vec3 view, vec3 pointToLight, float alphaRoughness, vec3 baseColor, float ior);
 vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance);
 float	iorToF0(float ior);
 float	fresnelVolumeEntering(float f0, float NdotH);
@@ -1552,7 +1553,14 @@ void evaluateRewriteBaseDirect(in SurfaceFrame frame, in MaterialParams params, 
 
 	if (params.transmission > 0.0)
 	{
-		vec3 transmittedLight = lightIntensity * calculateTransmission(frame.N, frame.V, lightDir, 1.0, params.ior, params.baseColor) * lightFactor;
+		vec3 transmittedLight = lightIntensity *
+			calculateTransmissionKHR(
+				frame.N,
+				frame.V,
+				lightDir,
+				params.roughness * params.roughness,
+				params.baseColor,
+				params.ior) * lightFactor;
 		if (diffuseTransmissionThickness > 0.0)
 		{
 			transmittedLight = calculateVolumeAttenuation(
@@ -3838,19 +3846,35 @@ vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior
 	return transmissionColor;
 }
 
+vec3 calculateTransmissionKHR(vec3 normal, vec3 view, vec3 pointToLight, float alphaRoughness, vec3 baseColor, float ior)
+{
+	float transmissionRoughness = applyIorToRoughness(alphaRoughness, ior);
+
+	vec3 n = normalize(normal);
+	vec3 v = normalize(view);
+	vec3 l = normalize(pointToLight);
+	vec3 l_mirror = normalize(l + 2.0 * n * dot(-l, n));
+	vec3 h = normalize(l_mirror + v);
+
+	float D = distributionGGX(n, h, transmissionRoughness);
+	float G = geometrySmith(n, v, l_mirror, transmissionRoughness);
+	float NdotL = clamp(dot(n, l_mirror), 0.0, 1.0);
+	float NdotV = clamp(dot(n, v), 0.0, 1.0);
+	float Vis = (4.0 * NdotL * NdotV > 0.0) ? (G / (4.0 * NdotL * NdotV)) : 0.0;
+
+	return baseColor * D * Vis;
+}
+
 // KHR_materials_volume
 vec3 calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance)
 {
-	if (attenuationDistance <= 0.0)
+	if (attenuationDistance == 0.0)
 	{
 		return transmittedLight;
 	}
 
-	float d = max(attenuationDistance, 1e-6);
-	float t = max(thickness, 1e-6);
-
-	// Beer-Lambert law
-	vec3 transmittance = exp(-attenuationColor * (t / d));
+	float transmissionDistance = max(distance, max(thickness, 0.0));
+	vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / attenuationDistance));
 
 	return transmittedLight * transmittance;
 }
