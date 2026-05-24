@@ -977,8 +977,14 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		matDiffuse *= v_color.rgb;
 
 	if (length(normal) < 0.01)
-	{		
-		return vec4(matDiffuse, 1.0);  // Actual object color, unlit
+	{
+		// No vertex normals: compute face normal from screen-space position derivatives
+		vec3 dx = dFdx(v_position);
+		vec3 dy = dFdy(v_position);
+		vec3 faceN = cross(dx, dy);
+		if (length(faceN) < 0.0001)
+			return vec4(matDiffuse, 1.0); // Degenerate primitive (point/line): return flat color
+		normal = normalize(faceN);
 	}
 
 	// Geometry term
@@ -1311,7 +1317,21 @@ SurfaceFrame buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV
 	frame.V = normalize(cameraPos - v_position);
 	frame.I = -frame.V;
 	frame.L = normalize(lightDirection);
-	frame.Ng = normalize(v_reflectionNormal * side);
+	if (length(v_reflectionNormal) < 0.01)
+	{
+		// No vertex normals: derive face normal from screen-space position derivatives
+		vec3 dx = dFdx(v_position);
+		vec3 dy = dFdy(v_position);
+		vec3 faceN = cross(dx, dy);
+		if (length(faceN) > 0.0001)
+			frame.Ng = normalize(faceN) * side;
+		else
+			frame.Ng = normalize(cameraPos - v_position); // camera-facing fallback for points/lines
+	}
+	else
+	{
+		frame.Ng = normalize(v_reflectionNormal * side);
+	}
 
 	vec3 tangent;
 	vec3 bitangent;

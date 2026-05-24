@@ -735,16 +735,29 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	else // all Assimp models
 	{
 		// Read file via ASSIMP
-		_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
-		_scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace |
-			aiProcess_GenSmoothNormals |
+		// For glTF/GLB: normals come from the file spec; don't auto-generate smooth normals
+		// so that positions-only meshes keep zero normals and the shader can derive
+		// flat face normals via screen-space derivatives (dFdx/dFdy).
+		QString qPathCheck = QString::fromStdString(path);
+		bool isGltfFile = qPathCheck.endsWith(".gltf", Qt::CaseInsensitive) ||
+		                  qPathCheck.endsWith(".glb",  Qt::CaseInsensitive);
+
+		unsigned int importFlags = aiProcess_CalcTangentSpace |
 			aiProcess_FixInfacingNormals |
 			aiProcess_JoinIdenticalVertices |
 			aiProcess_OptimizeMeshes |
 			aiProcess_ImproveCacheLocality |
 			aiProcess_Triangulate |
 			aiProcess_GenUVCoords |
-			aiProcess_SortByPType);
+			aiProcess_SortByPType;
+
+		if (!isGltfFile)
+		{
+			_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
+			importFlags |= aiProcess_GenSmoothNormals;
+		}
+
+		_scene = _importer.ReadFile(path, importFlags);
 	}
 
 	// Check for errors
@@ -1074,7 +1087,12 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	bool canGenerateNormals = HasSurfaceGeometry(mesh);
 	std::vector<glm::vec3> generatedNormals;
 
-	if (!hasNormals && canGenerateNormals)
+	// Positions-only meshes have no normals and no UV coordinates.
+	// Keep their normals at zero so the fragment shader can derive flat face
+	// normals via dFdx/dFdy derivatives, giving correct flat shading.
+	bool isPositionsOnly = !hasNormals && !mesh->HasTextureCoords(0);
+
+	if (!hasNormals && canGenerateNormals && !isPositionsOnly)
 	{
 		GenerateFaceNormals(mesh, generatedNormals);
 		printf("Generated normals for mesh with %u vertices and %u faces\n",
@@ -1149,14 +1167,15 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		}
 		else
 		{
-			if (isNonTrianglePrimitive)
+			if (isNonTrianglePrimitive || isPositionsOnly)
 			{
-				// Points, lines, etc. - use null normal to indicate "no lighting"
-				vertex.Normal = glm::vec3(0.0f, 0.0f, 0.0f);				
+				// Points/lines and positions-only triangles: zero normal so the
+				// fragment shader computes flat face normals via dFdx/dFdy.
+				vertex.Normal = glm::vec3(0.0f, 0.0f, 0.0f);
 			}
 			else
 			{
-				// Fallback for points, lines, or invalid geometry
+				// Fallback for other geometry without normals
 				// Use transformed up vector instead of position
 				aiVector3D upVector(0.0f, 1.0f, 0.0f);
 				aiVector3D transformedUp = normalMatrix * upVector;
@@ -1439,6 +1458,47 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		{
 			indices.push_back(face.mIndices[j]);
 		}
+	}
+
+	// For positions-only triangle meshes, expand to non-indexed triangles with per-face
+	// flat normals. This is more robust than screen-space dFdx/dFdy derivatives which
+	// produce incorrect smooth normals when the mesh is small on screen (zoomed out).
+	if (!isNonTrianglePrimitive && isPositionsOnly && !vertices.empty() && !indices.empty())
+	{
+		std::vector<Vertex> flatVertices;
+		std::vector<unsigned int> flatIndices;
+		flatVertices.reserve(indices.size());
+		flatIndices.reserve(indices.size());
+
+		for (size_t idx = 0; idx + 2 < indices.size(); idx += 3)
+		{
+			Vertex v0 = vertices[indices[idx]];
+			Vertex v1 = vertices[indices[idx + 1]];
+			Vertex v2 = vertices[indices[idx + 2]];
+
+			glm::vec3 edge1 = v1.Position - v0.Position;
+			glm::vec3 edge2 = v2.Position - v0.Position;
+			glm::vec3 faceNormal = glm::cross(edge1, edge2);
+			float len = glm::length(faceNormal);
+			if (len > 0.0001f)
+				faceNormal /= len;
+			// degenerate face: leave normal zero — shader dFdx/dFdy fallback handles it
+
+			v0.Normal = faceNormal;
+			v1.Normal = faceNormal;
+			v2.Normal = faceNormal;
+
+			unsigned int base = static_cast<unsigned int>(flatVertices.size());
+			flatVertices.push_back(v0);
+			flatVertices.push_back(v1);
+			flatVertices.push_back(v2);
+			flatIndices.push_back(base);
+			flatIndices.push_back(base + 1);
+			flatIndices.push_back(base + 2);
+		}
+
+		vertices = std::move(flatVertices);
+		indices  = std::move(flatIndices);
 	}
 
 	if (!morphTargets.isEmpty() && _needsUVGeneration && textures.empty())
