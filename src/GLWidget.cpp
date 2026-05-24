@@ -6596,18 +6596,28 @@ void GLWidget::drawLights()
 	QMatrix4x4 model;
 	model.translate(_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_lightCubeShader->bind();
-	_lightCubeShader->setUniformValue("modelMatrix", model);
 	QMatrix4x4 viewMat = _viewMatrix;	
+	_lightCubeShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+	_lightCubeShader->setProperty("viewMatrix", QVariant::fromValue(viewMat));
 	_lightCubeShader->setUniformValue("viewMatrix", viewMat);
 	_lightCubeShader->setUniformValue("projectionMatrix", _projectionMatrix);
 	_lightCubeShader->setUniformValue("lightColor", _diffuseLight.toVector3D());	
 	_lightCubeShader->setUniformValue("intensity", 1.0f);
 	_lightCubeShader->setUniformValue("intensityScale", 1.0f);  // Tune brightness
+	_lightCube->setSceneRenderTransformFast(model);
 	_lightCube->render();
 
 	// Draw punctual lights
 	if (!_currentRepositionedLights.empty())
 	{
+		const float sceneRadius = std::max(_boundingSphere.getRadius(), 0.001f);
+		// Keep punctual-light spheres visually aligned with the default light cube size.
+		// The cube side is baked to sceneRadius * 0.1f, while Sphere is created with radius 1.
+		// Matching the sphere diameter to the cube side means a scale of sceneRadius * 0.05f.
+		const float pointSpotScale = sceneRadius * 0.05f;
+		const float directionalScale = pointSpotScale * 0.75f;
+		const QVector3D sceneCenter = _boundingSphere.getCenter();
+
 		for (const auto& light : _currentRepositionedLights)
 		{
 			// === Apply intensity with log scale ===
@@ -6618,11 +6628,30 @@ void GLWidget::drawLights()
 			glm::vec3 emissiveColor = light.color * normalizedIntensity;
 
 			QMatrix4x4 lightModel;
-			lightModel.translate(light.position.x, light.position.y, light.position.z);
-			lightModel.scale(_boundingSphere.getRadius() * 0.05f);
+			const LightType lightType = static_cast<LightType>(light.type);
+
+			if (lightType == LightType::Directional)
+			{
+				// Directional lights are defined by direction rather than emitter position.
+				// Show them as a small cube offset from the scene center along the incoming direction
+				// so multiple directional lights don't collapse visually at the origin.
+				QVector3D dir(light.direction.x, light.direction.y, light.direction.z);
+				if (dir.lengthSquared() < 1e-6f)
+					dir = QVector3D(0.0f, 0.0f, -1.0f);
+				dir.normalize();
+				const QVector3D markerPos = sceneCenter - dir * (sceneRadius + directionalScale * 6.0f);
+				lightModel.translate(markerPos);
+				lightModel.scale(directionalScale);
+			}
+			else
+			{
+				lightModel.translate(light.position.x, light.position.y, light.position.z);
+				lightModel.scale(pointSpotScale);
+			}
 
 			_lightCubeShader->bind();
-			_lightCubeShader->setUniformValue("modelMatrix", lightModel);
+			_lightCubeShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+			_lightCubeShader->setProperty("viewMatrix", QVariant::fromValue(viewMat));
 			_lightCubeShader->setUniformValue("viewMatrix", viewMat);
 			_lightCubeShader->setUniformValue("projectionMatrix", _projectionMatrix);
 			_lightCubeShader->setUniformValue("lightColor",
@@ -6630,7 +6659,16 @@ void GLWidget::drawLights()
 			_lightCubeShader->setUniformValue("intensity", normalizedIntensity);
 			_lightCubeShader->setUniformValue("intensityScale", 1.0f);  // Tune brightness
 
-			_lightSphere->render();
+			if (lightType == LightType::Directional)
+			{
+				_lightCube->setSceneRenderTransformFast(lightModel);
+				_lightCube->render();
+			}
+			else
+			{
+				_lightSphere->setSceneRenderTransformFast(lightModel);
+				_lightSphere->render();
+			}
 		}
 	}
 }
@@ -7923,6 +7961,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 	if (runtime.data.hasNodeAnimations || runtime.data.hasSkinning)
 	{
 		QHash<QString, QMatrix4x4> worldTransforms;
+		QHash<int, QMatrix4x4> worldTransformsByNodeIndex;
 		std::function<void(SceneNode*, const QMatrix4x4&)> evalNode =
 			[&](SceneNode* node, const QMatrix4x4& parentWorld)
 		{
@@ -7934,6 +7973,14 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			const QMatrix4x4 local = composeNodeTransform(nodeTransform);
 			const QMatrix4x4 world = parentWorld * local;
 			worldTransforms.insert(node->name, world);
+			for (const GltfAnimationNodeBinding& binding : runtime.data.nodeBindings)
+			{
+				if (binding.nodeName == node->name && binding.nodeIndex >= 0)
+				{
+					worldTransformsByNodeIndex.insert(binding.nodeIndex, world);
+					break;
+				}
+			}
 
 			for (SceneNode* child : node->children)
 				evalNode(child, world);
@@ -7948,6 +7995,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			_originalParsedLights.size() == static_cast<size_t>(runtime.data.lightBindings.size()))
 		{
 			std::vector<GPULight> animatedLights = _originalParsedLights;
+			bool resolvedAnyAnimatedLightTransform = false;
 			for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
 			{
 				if (binding.parsedLightIndex < 0 ||
@@ -7956,15 +8004,34 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 					continue;
 				}
 
-				const QMatrix4x4 world = worldTransforms.value(binding.nodeName, QMatrix4x4());
+				QMatrix4x4 world;
+				bool hasWorldTransform = false;
+				if (binding.nodeIndex >= 0 && worldTransformsByNodeIndex.contains(binding.nodeIndex))
+				{
+					world = worldTransformsByNodeIndex.value(binding.nodeIndex);
+					hasWorldTransform = true;
+				}
+				else if (!binding.nodeName.isEmpty() && worldTransforms.contains(binding.nodeName))
+				{
+					world = worldTransforms.value(binding.nodeName);
+					hasWorldTransform = true;
+				}
+
+				if (!hasWorldTransform)
+					continue;
+
 				GPULight& light = animatedLights[binding.parsedLightIndex];
 				light.position = glm::vec3(world(0, 3), world(1, 3), world(2, 3));
 
 				const QVector3D localDir(0.0f, 0.0f, -1.0f);
 				const QVector3D worldDir = (world.mapVector(localDir)).normalized();
 				light.direction = glm::vec3(worldDir.x(), worldDir.y(), worldDir.z());
+				resolvedAnyAnimatedLightTransform = true;
 			}
-			setAnimatedLightTransformState(sourceFile, animatedLights);
+			if (resolvedAnyAnimatedLightTransform)
+				setAnimatedLightTransformState(sourceFile, animatedLights);
+			else
+				clearAnimatedLightTransformState(sourceFile);
 		}
 		else
 		{
