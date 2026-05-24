@@ -16,6 +16,7 @@
 #include "Point.h"
 #include "Sphere.h"
 #include "stb_image.h"
+#include "TangentGenerator.h"
 #include "TextRenderer.h"
 #include "Utils.h"
 #include <algorithm>
@@ -551,9 +552,10 @@ _assimpModelLoader(nullptr)
 
 	_modelNum = 6;
 
-	_ambientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
-	_diffuseLight = { 1.0f, 1.0f, 1.0f, 1.0f };
-	_specularLight = { 0.5f, 0.5f, 0.5f, 1.0f };
+	_defaultLightColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+	_ambientLight = { 0.12f, 0.12f, 0.12f, 1.0f };
+	_diffuseLight = _defaultLightColor;
+	_specularLight = _defaultLightColor;
 
 	_lightPosition = { 25.0f, 25.0f, 50.0f };
 	_lightOffsetX = 0.0f;
@@ -1242,9 +1244,7 @@ void GLWidget::initializeGL()
 
 	// Set lighting information
 	_fgShader->bind();
-	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
+	syncDefaultLightColorUniforms();
 	_fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
 	_fgShader->setUniformValue("Line.Width", 0.75f);
@@ -2019,6 +2019,24 @@ QVector3D GLWidget::getLightPosition() const
 	return _lightPosition;
 }
 
+void GLWidget::syncDefaultLightColorUniforms()
+{
+	// Keep a small internal ambient term for ADS while exposing a single editable light color.
+	static constexpr float kDefaultLightAmbientFactor = 0.12f;
+
+	_ambientLight = QVector4D(
+		_defaultLightColor.x() * kDefaultLightAmbientFactor,
+		_defaultLightColor.y() * kDefaultLightAmbientFactor,
+		_defaultLightColor.z() * kDefaultLightAmbientFactor,
+		_defaultLightColor.w());
+	_diffuseLight = _defaultLightColor;
+	_specularLight = _defaultLightColor;
+
+	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
+	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
+	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
+}
+
 void GLWidget::setLightOffset(const QVector3D& offset)
 {
 	_lightOffsetX = offset.x();
@@ -2027,42 +2045,16 @@ void GLWidget::setLightOffset(const QVector3D& offset)
 	_shadowMapNeedsInitialization = true;
 }
 
-QVector4D GLWidget::getSpecularLight() const
+QVector4D GLWidget::getDefaultLightColor() const
 {
-	return _specularLight;
+	return _defaultLightColor;
 }
 
-void GLWidget::setSpecularLight(const QVector4D& specularLight)
+void GLWidget::setDefaultLightColor(const QVector4D& defaultLightColor)
 {
-	_specularLight = specularLight;
+	_defaultLightColor = defaultLightColor;
 	_fgShader->bind();
-	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
-	_fgShader->release();
-}
-
-QVector4D GLWidget::getDiffuseLight() const
-{
-	return _diffuseLight;
-}
-
-void GLWidget::setDiffuseLight(const QVector4D& diffuseLight)
-{
-	_diffuseLight = diffuseLight;
-	_fgShader->bind();
-	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
-	_fgShader->release();
-}
-
-QVector4D GLWidget::getAmbientLight() const
-{
-	return _ambientLight;
-}
-
-void GLWidget::setAmbientLight(const QVector4D& ambientLight)
-{
-	_ambientLight = ambientLight;
-	_fgShader->bind();
-	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
+	syncDefaultLightColorUniforms();
 	_fgShader->release();
 }
 
@@ -11463,8 +11455,9 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
 
         const std::vector<float> normals  = readFloatStream(geometryChunk, document.accessors,
             document.bufferViews, attribs[QStringLiteral("NORMAL")].toInt(-1));
+        const int tangentAccessorIndex = attribs[QStringLiteral("TANGENT")].toInt(-1);
         const std::vector<float> tangents = readFloatStream(geometryChunk, document.accessors,
-            document.bufferViews, attribs[QStringLiteral("TANGENT")].toInt(-1));
+            document.bufferViews, tangentAccessorIndex);
         const std::vector<float> uv0      = readFloatStream(geometryChunk, document.accessors,
             document.bufferViews, attribs[QStringLiteral("TEXCOORD_0")].toInt(-1));
         const std::vector<float> uv1      = readFloatStream(geometryChunk, document.accessors,
@@ -11478,13 +11471,34 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
 
         const size_t vertexCount = positions.size() / 3;
         std::vector<Vertex> vertices(vertexCount);
+        const bool tangentAccessorIsVec4 =
+            tangentAccessorIndex >= 0 &&
+            tangentAccessorIndex < document.accessors.size() &&
+            document.accessors[tangentAccessorIndex].toObject()[QStringLiteral("type")].toString() == QLatin1String("VEC4");
+        const int tangentStride = tangentAccessorIsVec4 ? 4 : 3;
         for (size_t vi = 0; vi < vertexCount; ++vi)
         {
             Vertex& v = vertices[vi];
             v.Position = glm::vec3(positions[vi*3], positions[vi*3+1], positions[vi*3+2]);
 
             if (normals.size()  >= vi*3+3) v.Normal  = glm::vec3(normals [vi*3], normals [vi*3+1], normals [vi*3+2]);
-            if (tangents.size() >= vi*3+3) v.Tangent = glm::vec3(tangents[vi*3], tangents[vi*3+1], tangents[vi*3+2]);
+            if (tangents.size() >= static_cast<size_t>(vi * tangentStride + 3))
+            {
+                v.Tangent = glm::vec3(
+                    tangents[vi * tangentStride],
+                    tangents[vi * tangentStride + 1],
+                    tangents[vi * tangentStride + 2]);
+
+                if (glm::length(v.Normal) > 0.0001f && glm::length(v.Tangent) > 0.0001f)
+                {
+                    float handedness = 1.0f;
+                    if (tangentAccessorIsVec4 && tangents.size() > static_cast<size_t>(vi * tangentStride + 3))
+                    {
+                        handedness = tangents[vi * tangentStride + 3] >= 0.0f ? 1.0f : -1.0f;
+                    }
+                    v.Bitangent = glm::normalize(glm::cross(v.Normal, v.Tangent)) * handedness;
+                }
+            }
 
             if (uv0.size() >= vi*2+2) v.TexCoords[0] = glm::vec2(uv0[vi*2], uv0[vi*2+1]);
             if (uv1.size() >= vi*2+2) v.TexCoords[1] = glm::vec2(uv1[vi*2], uv1[vi*2+1]);
@@ -11494,6 +11508,14 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
             v.Color = colors.size() >= vi*4+4
                       ? glm::vec4(colors[vi*4], colors[vi*4+1], colors[vi*4+2], colors[vi*4+3])
                       : glm::vec4(1.0f);
+        }
+
+        const bool hasNormals = normals.size() >= vertexCount * 3;
+        const bool hasUv0 = uv0.size() >= vertexCount * 2;
+        const bool hasTangents = tangents.size() >= vertexCount * tangentStride;
+        if (!hasTangents && hasNormals && hasUv0 && prim[QStringLiteral("mode")].toInt(GL_TRIANGLES) == GL_TRIANGLES)
+        {
+            TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);
         }
 
         const int materialIndex = prim[QStringLiteral("material")].toInt(-1);

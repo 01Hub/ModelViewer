@@ -432,8 +432,6 @@ vec2    getDiffuseTransmissionColorUV();
 vec2	getDiffuseUV();
 vec2	getSpecularGlossinessUV();
 
-
-
 // Legacy ADS
 vec2    getDiffuseTextureUV();
 vec2    getSpecularTextureUV();
@@ -447,8 +445,8 @@ vec4    calculatePBRLighting(int renderMode, float side);
 vec4    calculatePBRLightingKHR(int renderMode, float side);
 
 float	samplePackedChannelValue(sampler2D tex, bool hasTexture, vec2 uv,
-	int channel, int invert, float scale, float bias,
-	float fallback);
+int channel, int invert, float scale, float bias,
+float fallback);
 
 vec3    getNormalFromMap(sampler2D map);
 mat3    getTBNFromMap(sampler2D map);
@@ -567,11 +565,11 @@ AnisotropyData decodeAnisotropyTexture(
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0);
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0, vec3 baseF90);
 vec3    computeIridescentFresnel(float cosTheta,
-	vec3 baseF0,
-	vec3 baseF90,
-	float iridescenceFactor,
-	float iridescenceIor,
-	float iridescenceThickness);
+vec3 baseF0,
+vec3 baseF90,
+float iridescenceFactor,
+float iridescenceIor,
+float iridescenceThickness);
 
 // KHR IOR, Transmission, and Volume
 vec3    calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo);
@@ -585,11 +583,11 @@ float	applyIorToRoughness(float roughness, float ior);
 vec3	getVolumeTransmissionRay(vec3 n, vec3 v, float thickness, float ior, mat4 modelMatrix);
 vec3	getTransmissionSample(vec2 fragCoord, float roughness, float ior);
 vec3	getIBLVolumeRefraction(vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor,
-	vec3 position, mat4 modelMatrix, float ior, float thickness,
-	vec3 attenuationColor, float attenuationDistance);
+vec3 position, mat4 modelMatrix, float ior, float thickness,
+vec3 attenuationColor, float attenuationDistance);
 vec3	getIBLVolumeRefractionPerChannel(vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor,
-	vec3 position, mat4 modelMatrix, vec3 iors, float thickness,
-	vec3 attenuationColor, float attenuationDistance);
+vec3 position, mat4 modelMatrix, vec3 iors, float thickness,
+vec3 attenuationColor, float attenuationDistance);
 
 // KHR scatter
 vec3	multiToSingleScatter();
@@ -637,12 +635,12 @@ vec3 computeIBLGGXFresnel(vec3 N, vec3 V, float roughness, vec3 F0, float specul
 vec3 evaluateSheenIBL(in SurfaceFrame frame, in MaterialParams params);
 void evaluatePunctualLight(in PunctualLight light, out vec3 lightDir, out vec3 lightIntensity);
 vec3 computeBaseColor(vec2 uv,
-	vec3 matBaseColor_linear,
-	sampler2D albedoTex,
-	bool hasAlbedoTex,
-	vec3 vertexColor_linear,
-	bool useVertexColor);
-const float kSheenStrength = 0.90;
+vec3 matBaseColor_linear,
+sampler2D albedoTex,
+bool hasAlbedoTex,
+vec3 vertexColor_linear,
+bool useVertexColor);
+const float kSheenStrength = 1.0;
 
 float floorRadius = floorSize * 0.5; // Adjust radius based on floor size
 float fadeStart = floorRadius * 0.65;   // Start fading 
@@ -924,6 +922,22 @@ void main()
 vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
 {
 	vec2 clippedTexCoord = v_texCoord0;
+	float ambientOcclusion = 1.0;
+
+	if (hasAOMap)
+	{
+		float texAO = samplePackedChannelValue(
+			aoMap,
+			hasAOMap,
+			getAOUV(),
+			aoChannel,
+			aoInvert,
+			aoScale,
+			aoBias,
+			1.0
+		);
+		ambientOcclusion = clamp(mix(1.0, texAO, pbrLighting.occlusionStrength), 0.0001, 1.0);
+	}
 
 	// --- Normal / Parallax (same as before) ---
 	if (hasNormalTexture)
@@ -954,9 +968,9 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 
 	if (hasDiffuseTexture)
 	{
-		vec4 d = texture(texture_diffuse, getDiffuseTextureUV());
-		matAmbient *= d.rgb;
-		matDiffuse *= d.rgb;
+		vec3 d = texture(texture_diffuse, getDiffuseTextureUV()).rgb;
+		matAmbient *= d;
+		matDiffuse *= d;
 	}
 
 	if (hasVertexColors)
@@ -992,7 +1006,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		matEmissive = texture(texture_emissive, getEmissiveTextureUV()).rgb;
 
 	// --- Build lighting buckets ---
-	vec3 ambient = source.ambient * matAmbient * model.ambient;
+	vec3 ambient = source.ambient * matAmbient * model.ambient * ambientOcclusion;
 	vec3 diffuse = vec3(0.0);
 	vec3 specular = vec3(0.0);
 	
@@ -1117,7 +1131,7 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 		// ========================
 
 		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
-		composed += envColor * reflectionStrength;
+		composed += envColor * reflectionStrength * ambientOcclusion;
 	}
 
 	// --- Tone/gamma ---
@@ -1190,7 +1204,7 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 
 			if (length(params.sheenColor) > 0.0)
 			{
-				float sheenStrength = max3(params.sheenColor);
+				float sheenStrength = max3(params.sheenColor) * kSheenStrength;
 				float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
 				float NdotL = clamp(dot(frame.N, lightDir), 0.0, 1.0);
 				float l_albedoSheenScaling = min(
@@ -1210,16 +1224,50 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 			layers.baseDirectSpecular += directSpecular;
 		}
 	}
+
+	if (useDefaultLights || floorRendering)
+	{
+		vec3 lightIntensity = lightSource.diffuse;
+
+		if (max3(lightIntensity) > 0.0)
+		{
+			vec3 directDiffuse;
+			vec3 directSpecular;
+			evaluateBaseDirect(frame, params, frame.L, lightIntensity, lightFactor, directDiffuse, directSpecular);
+
+			if (length(params.sheenColor) > 0.0)
+			{
+				float sheenStrength = max3(params.sheenColor) * kSheenStrength;
+				float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+				float NdotL = clamp(dot(frame.N, frame.L), 0.0, 1.0);
+				float l_albedoSheenScaling = min(
+					1.0 - sheenStrength * computeSheenScaling(NdotV, params.sheenRoughness),
+					1.0 - sheenStrength * computeSheenScaling(NdotL, params.sheenRoughness));
+				directDiffuse *= l_albedoSheenScaling;
+				directSpecular *= l_albedoSheenScaling;
+				layers.sheenDirect += evaluateSheenDirect(frame, params, frame.L, lightIntensity, lightFactor);
+			}
+
+			if (params.clearcoat > 0.0)
+			{
+				layers.clearcoatDirect += evaluateClearcoatDirect(frame, params, frame.L, lightIntensity, lightFactor);
+			}
+
+			layers.baseDirectDiffuse += directDiffuse;
+			layers.baseDirectSpecular += directSpecular;
+		}
+	}
+
 	evaluateBaseIBL(frame, params, layers.baseDiffuseIBL, layers.baseSpecularIBL);
 
 	float iblSheenScaling = 1.0;
 	if (length(params.sheenColor) > 0.0)
 	{
-		float sheenStrength = max3(params.sheenColor);
+		float sheenStrength = max3(params.sheenColor) * kSheenStrength;
 		iblSheenScaling = 1.0 - sheenStrength * computeSheenScaling(clamp(dot(frame.N, frame.V), 0.0, 1.0), params.sheenRoughness);
 	}
 
-	if (length(params.sheenColor) > 0.0)
+	if (useIBL && envMapEnabled && length(params.sheenColor) > 0.0)
 	{
 		layers.sheenIBL = evaluateSheenIBL(frame, params);
 	}
@@ -1241,9 +1289,9 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 		float fresDampen = mix(1.0 - floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
 		vec3 floorBase = (layers.emissive + layers.sheenDirect + layers.sheenIBL +
 			layers.baseDirectDiffuse +
-			layers.baseDiffuseIBL * iblSheenScaling) * fa;
+			layers.baseDiffuseIBL) * fa;
 		vec3 floorSpec = (layers.baseDirectSpecular +
-			layers.baseSpecularIBL * iblSheenScaling) * (floorSpecularScale * fresDampen);
+			layers.baseSpecularIBL) * (floorSpecularScale * fresDampen);
 		vec3 floorRGB = floorBase + floorSpec;
 		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB);
 		if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
@@ -1510,12 +1558,17 @@ vec3 computeAnisotropicSpecularLobe(in SurfaceFrame frame, in MaterialParams par
 
 vec3 evaluateSheenIBL(in SurfaceFrame frame, in MaterialParams params)
 {
+	if (!useIBL || !envMapEnabled || length(params.sheenColor) <= 0.0)
+	{
+		return vec3(0.0);
+	}
+
 	float sheenRoughFinal = clamp(params.sheenRoughness, 0.000001, 1.0);
 	vec3 R = reflect(frame.I, frame.N);
 	R = normalize(envMapRotationMatrix * R);
 	vec3 Rprefilter = toPrefilterDirection(R);
 
-	float maxLevels = textureQueryLevels(prefilterMap);
+	float maxLevels = textureQueryLevels(sheenPrefilterMap);
 	float maxLod = max(maxLevels - 1.0, 0.0);
 	float lod = clamp(sheenRoughFinal * maxLod, 0.0, maxLod);
 	vec3 prefilteredLight = textureLod(sheenPrefilterMap, Rprefilter, lod).rgb;
@@ -1524,7 +1577,7 @@ vec3 evaluateSheenIBL(in SurfaceFrame frame, in MaterialParams params)
 
 	float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
 	float E_sheen = computeCharlieBRDF(NdotV, sheenRoughFinal);
-	return prefilteredLight * params.sheenColor * E_sheen * params.ambientOcclusion * kSheenStrength;
+	return prefilteredLight * params.sheenColor * E_sheen * kSheenStrength;
 }
 
 void evaluatePunctualLight(in PunctualLight light, out vec3 lightDir, out vec3 lightIntensity)
@@ -1967,7 +2020,7 @@ MaterialParams gatherMaterialParams()
 	if (hasEmissiveMap)
 	{
 		vec3 emissionFactor = guardFactorColor(material.emission, 0.01);
-		params.emissive = texture(emissiveMap, getEmissiveUV()).rgb * emissionFactor * pbrLighting.emissiveStrength;
+		params.emissive = sRGBToLinear(texture(emissiveMap, getEmissiveUV()).rgb) * emissionFactor * pbrLighting.emissiveStrength;
 	}
 	if (hasAOMap)
 	{
@@ -1999,7 +2052,7 @@ MaterialParams gatherMaterialParams()
 	}
 	if (hasSheenRoughnessMap)
 	{
-		params.sheenRoughness *= texture(sheenRoughnessMap, getSheenRoughnessUV()).r;
+		params.sheenRoughness *= texture(sheenRoughnessMap, getSheenRoughnessUV()).a;
 	}
 	if (hasAnisotropyMap || params.anisotropyStrength > 0.0)
 	{
@@ -2063,7 +2116,7 @@ MaterialParams gatherMaterialParams()
 	}
 	if (hasDiffuseTransmissionColorMap)
 	{
-		params.diffuseTransmissionColor *= texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;
+		params.diffuseTransmissionColor *= sRGBToLinear(texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb);
 	}
 
 	params.baseColor = clamp(params.baseColor, vec3(0.0), vec3(1.0));
@@ -2133,7 +2186,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		{
 			vec3 emission = material.emission;
 			vec3 emissionFactor = guardFactorColor(emission, 0.01);
-			emissive_L = texture(emissiveMap, getEmissiveUV()).rgb * emissionFactor;
+			emissive_L = sRGBToLinear(texture(emissiveMap, getEmissiveUV()).rgb) * emissionFactor;
 		}
 
 		// Apply emissive strength
@@ -2290,8 +2343,6 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 
 	// Calculate the light source component - single light as of now.
-	vec3 lightSourceComponent = lightSource.ambient + lightSource.diffuse + lightSource.specular;
-
 	// Sample diffuse transmission factor and color
 	float diffuseTrans_factor = diffuseTransmissionFactor;
 	vec3 diffuseTrans_color = diffuseTransmissionColorFactor;
@@ -2303,7 +2354,7 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	if (hasDiffuseTransmissionColorMap)
 	{
 		vec3 dtc = guardFactorColor(diffuseTransmissionColorFactor, 0.01);
-		diffuseTrans_color = dtc * texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;
+		diffuseTrans_color = dtc * sRGBToLinear(texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb);
 	}
 
 	// ============================================================================
@@ -2322,6 +2373,33 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 		float thicknessFactor_safe = guardFactorScalar(thicknessFactor, 0.01);
 		volumeThickness = thicknessFactor_safe * thicknessSample;
 	}
+
+	// ============================================================================
+	// SHEEN PARAMETERS
+	// ============================================================================
+	if (hasSheenColorMap)
+	{
+		vec3 sc = sRGBToLinear(texture(sheenColorMap, getSheenColorUV()).rgb);
+		vec3 sheenFactor = guardFactorColor(pbrLighting.sheenColor, 0.01);
+		sheenColor = sc * sheenFactor;
+	}
+	else
+	{
+		sheenColor = pbrLighting.sheenColor;
+	}
+	sheenColor = clamp(sheenColor, vec3(0.0), vec3(1.0));
+
+	if (hasSheenRoughnessMap)
+	{
+		float sr = texture(sheenRoughnessMap, getSheenRoughnessUV()).a;
+		float sheenRoughFactor = guardFactorScalar(pbrLighting.sheenRoughness, 0.01);
+		sheenRoughness = sr * sheenRoughFactor;
+	}
+	else
+	{
+		sheenRoughness = pbrLighting.sheenRoughness;
+	}
+	sheenRoughness = clamp(sheenRoughness, 0.0001, 1.0);
 
 	// === Punctual lights (KHR_lights_punctual) ===
 	if (hasPunctualLights && usePunctualLights)
@@ -2477,6 +2555,12 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 
 			directSpecular_L += l_specular;
 
+			if (length(sheenColor) > 0.0)
+			{
+				sheen_L += calculateSheen(N, V_direct, l_dir, sheenColor, sheenRoughness) *
+					lightIntensity * lightFactor * kSheenStrength;
+			}
+
 			// ====================================================================
 			// TRANSMISSION (KHR_materials_transmission) - Per Light
 			// ====================================================================
@@ -2490,17 +2574,17 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			}
 		}
 	}
-	else if(useDefaultLights || floorRendering)
+	if(useDefaultLights || floorRendering)
 	{
 		// ========================================================================
-		// FALLBACK: Single legacy light - Apply SAME logic as punctual lights
+		// Single legacy light - apply the user-controlled light source in PBR too.
+		// This adds to punctual-light contributions instead of replacing them.
 		// ========================================================================
 
 		// Use the existing L direction (already calculated before this section)
 		vec3 l_dir = L;
 		float NdotL_light = NdotL;
-		vec3 lightSourceComponent = lightSource.ambient + lightSource.diffuse + lightSource.specular;
-		vec3 lightIntensity = lightSourceComponent;
+		vec3 lightIntensity = lightSource.diffuse;
 
 		// ====================================================================
 		// DIFFUSE with Transmission & Scattering (same logic as punctual)
@@ -2565,56 +2649,34 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 			l_diffuse = mix(l_diffuse, kD * albedo / PI * lightIntensity * NdotL_light * lightFactor, transmission);
 		}
 
-		directDiffuse_L = l_diffuse;
+		directDiffuse_L += l_diffuse;
 
 		// ====================================================================
 		// SPECULAR (same as punctual)
 		// ====================================================================
-		directSpecular_L = specBRDF * lightIntensity * NdotL_light * lightFactor;
+		directSpecular_L += specBRDF * lightIntensity * NdotL_light * lightFactor;
+
+		if (length(sheenColor) > 0.0)
+		{
+			sheen_L += calculateSheen(N, V_direct, l_dir, sheenColor, sheenRoughness) *
+				lightIntensity * lightFactor * kSheenStrength;
+		}
 
 		// ====================================================================
 		// TRANSMISSION (same as punctual)
 		// ====================================================================
 		if (transmission > 0.0)
 		{
-			transmission_L = calculateTransmission(N, V_direct, L, transmission, ior, albedo);
+			transmission_L += calculateTransmission(N, V_direct, L, transmission, ior, albedo);
 		}
 	}
 
-	// ============================================================================
-	// SHEEN
-	// ============================================================================
-	if (hasSheenColorMap)
-	{
-		vec3 sc = texture(sheenColorMap, getSheenColorUV()).rgb;
-		vec3 sheenFactor = guardFactorColor(pbrLighting.sheenColor, 0.01);
-		sheenColor = sc * sheenFactor;
-	}
-	else
-	{
-		sheenColor = pbrLighting.sheenColor;
-	}
-	sheenColor = clamp(sheenColor, vec3(0.0), vec3(1.0));
-	
-	if (hasSheenRoughnessMap)
-	{
-		float sr = texture(sheenRoughnessMap, getSheenRoughnessUV()).r;
-		float sheenRoughFactor = guardFactorScalar(pbrLighting.sheenRoughness, 0.01);
-		sheenRoughness = sr * sheenRoughFactor;
-	}
-	else
-	{
-		sheenRoughness = pbrLighting.sheenRoughness;
-	}
-	sheenRoughness = clamp(sheenRoughness, 0.0001, 1.0);
-
 	if (length(sheenColor) > 0.0)
 	{
-		// Direct sheen
-		sheen_L = calculateSheen(N, V_direct, L, sheenColor, sheenRoughness);
-
-		// Sheen IBL
-		sheenIBL_L = calculateSheenIBL(v_reflectionNormal, V_reflect, sheenRoughness, sheenColor);
+		if (useIBL && envMapEnabled)
+		{
+			sheenIBL_L = calculateSheenIBL(v_reflectionNormal, V_reflect, sheenRoughness, sheenColor);
+		}
 	}
 
 	// ============================================================================
@@ -2782,11 +2844,11 @@ vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = ba
 	// EMISSION
 	// ============================================================================
 	emissive_L = material.emission;
-	if (hasEmissiveMap) 
+	if (hasEmissiveMap)
 	{
 		vec3 emission = material.emission;
 		vec3 emissionFactor = guardFactorColor(emission, 0.01);
-		emissive_L = texture(emissiveMap, getEmissiveUV()).rgb * emissionFactor;
+		emissive_L = sRGBToLinear(texture(emissiveMap, getEmissiveUV()).rgb) * emissionFactor;
 	}
 
 	// Apply emissive strength
@@ -4351,14 +4413,18 @@ vec3 calculateBackgroundColor()
 	return frag_color.rgb;
 }
 
-// sRGB <-> Linear helpers (fast-enough approximations)
+// sRGB <-> Linear helpers (IEC 61966-2-1 piecewise)
 vec3 sRGBToLinear(vec3 c)
 {
-	return pow(c, vec3(2.2));
+	return mix(c / 12.92,
+	           pow((c + 0.055) / 1.055, vec3(2.4)),
+	           step(vec3(0.04045), c));
 }
 vec3 linearTosRGB(vec3 c)
 {
-	return pow(c, vec3(1.0 / 2.2));
+	return mix(c * 12.92,
+	           1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055,
+	           step(vec3(0.0031308), c));
 }
 
 float sRGBSaturation(vec3 c)

@@ -264,14 +264,8 @@ public:
 	float getZScale() const;
 	void setZScale(const float& zScale);
 
-	QVector4D getAmbientLight() const;
-	void setAmbientLight(const QVector4D& ambientLight);
-
-	QVector4D getDiffuseLight() const;
-	void setDiffuseLight(const QVector4D& diffuseLight);
-
-	QVector4D getSpecularLight() const;
-	void setSpecularLight(const QVector4D& specularLight);
+	QVector4D getDefaultLightColor() const;
+	void setDefaultLightColor(const QVector4D& defaultLightColor);
 
 	QVector3D getLightPosition() const;
 	void setLightOffset(const QVector3D& offset);
@@ -553,6 +547,7 @@ private:
 	void applyFloorPlaneMaterialSettings();
 	void updateMainLightPosition(float halfObjectSize);
 	float updateFloorGeometry();
+	void syncDefaultLightColorUniforms();
 
 	void updatePunctualLights();  // Update lights based on bounding sphere changes
 	void setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight);
@@ -835,6 +830,7 @@ private:
 	float _yScale;
 	float _zScale;
 
+	QVector4D _defaultLightColor;
 	QVector4D _ambientLight;
 	QVector4D _diffuseLight;
 	QVector4D _specularLight;
