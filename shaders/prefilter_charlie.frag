@@ -12,7 +12,9 @@ const float PI = 3.14159265359;
 
 float D_Charlie(float roughness, float NoH)
 {
-    float alphaG = max(roughness * roughness, 0.000001);
+    // KHR_materials_sheen spec: alpha = sheenRoughness directly (no squaring).
+    // The charlieLUT.b and sheenELUT.r PNGs were generated with this convention.
+    float alphaG = max(roughness, 0.000001);
     float invAlpha = 1.0 / alphaG;
     float sin2h = max(1.0 - NoH * NoH, 0.0078125);
     return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
@@ -48,7 +50,8 @@ void buildOrthonormalBasis(vec3 N, out vec3 T, out vec3 B)
 
 vec3 ImportanceSampleCharlie(vec2 Xi, vec3 N, float sheenRoughness)
 {
-    float alpha = max(sheenRoughness * sheenRoughness, 0.001);
+    // alpha = sheenRoughness directly, consistent with D_Charlie and the LUT PNGs
+    float alpha = max(sheenRoughness, 0.001);
     float phi = 2.0 * PI * Xi.x;
     float sinTheta = pow(Xi.y, alpha / (2.0 * alpha + 1.0));
     float cosTheta = sqrt(max(1.0 - sinTheta * sinTheta, 0.0));

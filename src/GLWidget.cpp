@@ -1258,6 +1258,7 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("sheenPrefilterMap", 9);
 	_fgShader->setUniformValue("charlieLUT", 10);
 	_fgShader->setUniformValue("sheenELUT", 11);
+	_fgShader->setUniformValue("sheenPrefilterMipLevels", (int)_sheenPrefilterMipLevels);
 	_fgShader->setUniformValue("transmissionSceneTexture", 7);
 	_fgShader->setUniformValue("transmissionDepthTexture", 8);
 	_fgShader->setUniformValue("shadowSamples", 27.0f);
@@ -4809,6 +4810,13 @@ void GLWidget::loadIrradianceMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
 
 	constexpr int sheenPrefilterSize = 256;
+	// Khronos-compatible sheen mip scheme: 5 effective levels (roughness 0..1 over mips 0..4).
+	// LOD formula: lod = roughness * (sheenEffectiveMipLevels - 1) = roughness * 4.
+	// At sheenRoughness=0.1 this gives lod=0.4 vs the old lod=0.8 (9 mip/textureQueryLevels).
+	// Mip 0 (roughness=0) collapses to the mirror-reflection sample, so low-roughness sheen
+	// IBL reflects the environment instead of being nearly black.
+	constexpr int sheenEffectiveMipLevels = 5;
+
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
 		unsigned int mipSize = static_cast<unsigned int>(sheenPrefilterSize * std::pow(0.5, mip));
@@ -4847,7 +4855,11 @@ void GLWidget::loadIrradianceMap()
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
 		glViewport(0, 0, mipWidth, mipHeight);
 
-		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
+		// Roughness for this mip: spread evenly over [0..1] for mips 0..(sheenEffectiveMipLevels-1),
+		// clamp to 1.0 for any extra mips (allocated for texture completeness, never sampled by LOD).
+		float roughness = (mip < static_cast<unsigned int>(sheenEffectiveMipLevels))
+			? static_cast<float>(mip) / static_cast<float>(sheenEffectiveMipLevels - 1)
+			: 1.0f;
 		_sheenPrefilterShader->bind();
 		_sheenPrefilterShader->setUniformValue("roughness", roughness);
 		_sheenPrefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
@@ -4872,6 +4884,7 @@ void GLWidget::loadIrradianceMap()
 			drawFullscreenTriangle();
 		}
 	}
+	_sheenPrefilterMipLevels = sheenEffectiveMipLevels;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
 
@@ -5239,6 +5252,9 @@ bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradiance
 	glBindTexture(GL_TEXTURE_CUBE_MAP, outSheenPrefilterMap);
 
 	constexpr int sheenPrefilterSize = 256;
+	// Same Khronos-compatible scheme as the primary environment sheen prefilter.
+	constexpr int sheenEffectiveMipLevels = 5;
+
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
 		unsigned int mipSize = static_cast<unsigned int>(sheenPrefilterSize * std::pow(0.5, mip));
@@ -5272,7 +5288,9 @@ bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradiance
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
 		glViewport(0, 0, mipWidth, mipHeight);
 
-		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
+		float roughness = (mip < static_cast<unsigned int>(sheenEffectiveMipLevels))
+			? static_cast<float>(mip) / static_cast<float>(sheenEffectiveMipLevels - 1)
+			: 1.0f;
 		_sheenPrefilterShader->bind();
 		_sheenPrefilterShader->setUniformValue("roughness", roughness);
 		_sheenPrefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
@@ -6679,6 +6697,9 @@ void GLWidget::bindIBLTextures()
 	glActiveTexture(GL_TEXTURE10); glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
 	_fgShader->setUniformValue("sheenELUT", 11);
 	glActiveTexture(GL_TEXTURE11); glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
+	// Effective mip count for sheen LOD: lod = roughness * (sheenPrefilterMipLevels - 1)
+	int sheenMips = (_sheenPrefilterMipLevels > 0) ? (int)_sheenPrefilterMipLevels : 5;
+	_fgShader->setUniformValue("sheenPrefilterMipLevels", sheenMips);
 }
 
 

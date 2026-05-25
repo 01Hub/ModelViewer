@@ -871,6 +871,7 @@ private:
 	unsigned int             _prefilterMap;
 	unsigned int             _sheenPrefilterMap = 0;
 	unsigned int             _prefilterMipLevels = 0;
+	unsigned int             _sheenPrefilterMipLevels = 5; // Effective mip count for sheen LOD formula
 	unsigned int             _brdfLUTTexture;
 	unsigned int             _charlieLUTTexture = 0;
 	unsigned int             _sheenELUTTexture = 0;

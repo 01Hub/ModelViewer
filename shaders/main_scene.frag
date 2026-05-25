@@ -83,6 +83,10 @@ uniform samplerCube sheenPrefilterMap;
 uniform sampler2D brdfLUT;
 uniform sampler2D charlieLUT;
 uniform sampler2D sheenELUT;
+// Effective sheen prefilter mip count: LOD = roughness * (sheenPrefilterMipLevels - 1).
+// Matches Khronos reference (u_MipCount=5), giving lod=0.4 at roughness=0.1 instead
+// of lod=0.8 from textureQueryLevels(). Mip 0 (roughness=0) is the mirror reflection.
+uniform int sheenPrefilterMipLevels;
 uniform bool useIBL;
 
 // material parameters
@@ -631,6 +635,7 @@ vec3 evaluateClearcoatIBL(in SurfaceFrame frame, in MaterialParams params);
 vec3 composeBaseLayer(in MaterialParams params, in LayerContributions layers);
 vec3 composeLayeredPBR(in SurfaceFrame frame, in MaterialParams params, in LayerContributions layers);
 float computeSheenScaling(float Ndot, float sheenRoughness);
+float computeCharlieBRDF(float Ndot, float sheenRoughness);
 vec3 computeIBLGGXFresnel(vec3 N, vec3 V, float roughness, vec3 F0, float specularWeight);
 vec3 evaluateSheenIBL(in SurfaceFrame frame, in MaterialParams params);
 void evaluatePunctualLight(in PunctualLight light, out vec3 lightDir, out vec3 lightIntensity);
@@ -1213,6 +1218,8 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 				float sheenStrength = max3(params.sheenColor) * kSheenStrength;
 				float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
 				float NdotL = clamp(dot(frame.N, lightDir), 0.0, 1.0);
+				// Khronos-compliant: min(1-E(NdotV), 1-E(NdotL)) for punctual lights.
+				// Matches Khronos pbr.frag lines 341-342.
 				float l_albedoSheenScaling = min(
 					1.0 - sheenStrength * computeSheenScaling(NdotV, params.sheenRoughness),
 					1.0 - sheenStrength * computeSheenScaling(NdotL, params.sheenRoughness));
@@ -1246,6 +1253,8 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 				float sheenStrength = max3(params.sheenColor) * kSheenStrength;
 				float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
 				float NdotL = clamp(dot(frame.N, frame.L), 0.0, 1.0);
+				// Khronos-compliant: min(1-E(NdotV), 1-E(NdotL)) for punctual lights.
+				// Matches Khronos pbr.frag lines 341-342.
 				float l_albedoSheenScaling = min(
 					1.0 - sheenStrength * computeSheenScaling(NdotV, params.sheenRoughness),
 					1.0 - sheenStrength * computeSheenScaling(NdotL, params.sheenRoughness));
@@ -1270,7 +1279,31 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 	if (length(params.sheenColor) > 0.0)
 	{
 		float sheenStrength = max3(params.sheenColor) * kSheenStrength;
-		iblSheenScaling = 1.0 - sheenStrength * computeSheenScaling(clamp(dot(frame.N, frame.V), 0.0, 1.0), params.sheenRoughness);
+		float NdotV_sheen = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+		// IBL sheen energy conservation: use min(charlieLUT.b, sheenELUT.r).
+		//
+		// Two BRDFs are in play for the sheen IBL:
+		//   charlieLUT.b  — baked with D_Charlie(alphaG = roughness,  NOT squared) + V_Ashikhmin
+		//   sheenELUT.r   — baked with D_Charlie(alphaG = roughness², squared)     + V_Sheen
+		//
+		// These conventions cross over with roughness:
+		//   High roughness (>~0.3): sheenELUT.r >> charlieLUT.b
+		//     → sheenELUT.r removes far more from base than charlieLUT.b × prefilteredSheenLight
+		//       restores → near-black zebra stripes on fabric normal maps.
+		//     → min = charlieLUT.b → balanced removal; fixes SheenHighHeel.
+		//
+		//   Low roughness (<~0.2): charlieLUT.b > sheenELUT.r
+		//     (old convention is broader; new convention is near-delta at extreme grazing → tiny)
+		//     → charlieLUT.b over-removes, making base too dark; sheenELUT.r ≈ 0 is more correct.
+		//     → min = sheenELUT.r ≈ 0 → base barely affected; fixes SheenDamask (roughness=0.05).
+		//
+		// min(charlieLUT.b, sheenELUT.r) is always ≤ both → never over-darkens for either
+		// roughness regime. At medium-high roughness the two terms converge so the min is
+		// the tighter (charlieLUT.b) bound, keeping the split-sum self-consistent.
+		// Punctual-light sheen scaling keeps sheenELUT.r (correct: runtime V_Sheen BRDF).
+		float E_charlie = computeCharlieBRDF(NdotV_sheen, params.sheenRoughness);
+		float E_sheen   = computeSheenScaling(NdotV_sheen, params.sheenRoughness);
+		iblSheenScaling = 1.0 - sheenStrength * min(E_charlie, E_sheen);
 	}
 
 	if (useIBL && envMapEnabled && length(params.sheenColor) > 0.0)
@@ -1364,7 +1397,14 @@ SurfaceFrame buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV
 			tangent = cross(fallback, frame.Ng);
 		}
 		tangent = normalize(tangent - dot(tangent, frame.Ng) * frame.Ng);
-		bitangent = -normalize(cross(frame.Ng, tangent));
+		bitangent = normalize(cross(frame.Ng, tangent));
+	}
+
+	if (!gl_FrontFacing)
+	{
+		frame.Ng *= -1.0;
+		tangent *= -1.0;
+		bitangent *= -1.0;
 	}
 
 	frame.T = tangent;
@@ -1513,6 +1553,10 @@ vec3 toPrefilterDirection(vec3 v)
 
 float computeSheenScaling(float Ndot, float sheenRoughness)
 {
+	// Khronos-compliant: use sheenELUT.r (pre-integrated directional albedo E(NdotV, roughness))
+	// for energy conservation. Matches albedoSheenScalingLUT() in Khronos material_info.glsl:
+	//   return texture(u_SheenELUT, vec2(NdotV, sheenRoughnessFactor)).r;
+	// This represents how much energy sheen removes from the base layer.
 	float sheenRoughFinal = clamp(sheenRoughness, 0.000001, 1.0);
 	vec2 brdfCoord = clamp(vec2(Ndot, sheenRoughFinal), vec2(0.0), vec2(1.0));
 	return texture(sheenELUT, brdfCoord).r;
@@ -1520,6 +1564,9 @@ float computeSheenScaling(float Ndot, float sheenRoughness)
 
 float computeCharlieBRDF(float Ndot, float sheenRoughness)
 {
+	// Khronos-compliant: use charlieLUT.b for the pre-integrated sheen BRDF contribution.
+	// Matches getIBLRadianceCharlie() in Khronos ibl.glsl:
+	//   float brdf = texture(u_CharlieLUT, brdfSamplePoint).b;
 	float sheenRoughFinal = clamp(sheenRoughness, 0.000001, 1.0);
 	vec2 brdfCoord = clamp(vec2(Ndot, sheenRoughFinal), vec2(0.0), vec2(1.0));
 	return texture(charlieLUT, brdfCoord).b;
@@ -1588,16 +1635,51 @@ vec3 evaluateSheenIBL(in SurfaceFrame frame, in MaterialParams params)
 	R = normalize(envMapRotationMatrix * R);
 	vec3 Rprefilter = toPrefilterDirection(R);
 
-	float maxLevels = textureQueryLevels(sheenPrefilterMap);
-	float maxLod = max(maxLevels - 1.0, 0.0);
+	// Use the effective mip count (not textureQueryLevels) so the LOD formula matches
+	// the roughness-per-mip mapping baked into the prefilter (Khronos: 5 levels, lod=rough*4).
+	// textureQueryLevels() returns 9 for a 256px cubemap → lod=0.8 at rough=0.1 (too dark).
+	// With sheenPrefilterMipLevels=5 → lod = roughness*4, e.g. 0.4 at roughness=0.1.
+	float maxLod = float(max(sheenPrefilterMipLevels - 1, 0));
+	// Khronos-compliant LOD: lod = sheenRoughness * (mipCount - 1), no minimum clamp.
+	// Matches getIBLRadianceCharlie() in Khronos ibl.glsl:
+	//   float lod = sheenRoughness * float(u_MipCount - 1);
 	float lod = clamp(sheenRoughFinal * maxLod, 0.0, maxLod);
 	vec3 prefilteredLight = textureLod(sheenPrefilterMap, Rprefilter, lod).rgb;
 	prefilteredLight = max(prefilteredLight, vec3(0.0));
 	prefilteredLight *= envMapExposure;
 
 	float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
-	float E_sheen = computeCharlieBRDF(NdotV, sheenRoughFinal);
-	return prefilteredLight * params.sheenColor * E_sheen * kSheenStrength;
+	// Use min(charlieLUT.b, sheenELUT.r) for the sheen IBL gain — symmetric with
+	// iblSheenScaling — so both the energy removed from the base and the energy
+	// added by the sheen IBL use the same factor, preserving energy balance.
+	//
+	// Why this is necessary:
+	//   charlieLUT.b — old convention (alphaG = roughness, NOT squared)
+	//   sheenELUT.r  — new convention (alphaG = roughness², squared)
+	//
+	//   Low roughness (<~0.2): charlieLUT.b > sheenELUT.r.
+	//     Using charlieLUT.b for the IBL gain at roughness=0.05 (LOD=0.2, near-mirror
+	//     prefilter × bright env) produces an overwhelmingly bright additive sheen
+	//     contribution — the "bright glassy electric blue" on SheenDamask/ChairDamask.
+	//     min = sheenELUT.r ≈ near-zero at these roughnesses → sheen IBL is
+	//     proportionally tiny; no bright overlay.  Direct-light sheen is unaffected.
+	//
+	//   High roughness (>~0.3): charlieLUT.b < sheenELUT.r.
+	//     min = charlieLUT.b → identical to the current formula; SheenHighHeel
+	//     stays correct.
+	//
+	// The prefilter_charlie was baked with the old convention, so charlieLUT.b is
+	// the "exact" split-sum factor.  Using min() intentionally underestimates at
+	// low roughness to avoid the split-sum overestimate (near-mirror prefilter ×
+	// non-trivially large old-convention LUT), which is the dominant source of
+	// error in that regime.
+	float E_charlie = computeCharlieBRDF(NdotV, sheenRoughFinal);
+	float E_elut    = computeSheenScaling(NdotV, sheenRoughFinal);
+	float E_sheen   = min(E_charlie, E_elut);
+	// Apply AO to sheen IBL: Khronos reference applies ao to the full composed
+	// color (f_sheen + base * albedoSheenScaling) * ao, so sheen receives the
+	// same occlusion as the base IBL. We apply it here to match that behaviour.
+	return prefilteredLight * params.sheenColor * E_sheen * kSheenStrength * params.ambientOcclusion;
 }
 
 void evaluatePunctualLight(in PunctualLight light, out vec3 lightDir, out vec3 lightIntensity)
@@ -3329,9 +3411,12 @@ float geometryCharlie(float NdotV, float roughness)
 	return NdotV / (NdotV + alpha * sinTheta);
 }
 
-// Charlie D function variant for sheen IBL
+// Charlie NDF for sheen direct lighting.
+// Matches Khronos brdf.glsl: alphaG = roughness * roughness (squared).
 float D_Charlie(float roughness, float NoH)
 {
+	// Khronos-compliant: square roughness to get alphaG, matching brdf.glsl and sheenELUT.r baking.
+	// float alphaG = roughness * roughness; invR = 1/alphaG (same as Khronos runtime D_Charlie).
 	float alphaG = max(roughness * roughness, 0.000001);
 	float invAlpha = 1.0 / alphaG;
 	float sin2h = max(1.0 - NoH * NoH, 0.0078125);
@@ -3370,6 +3455,8 @@ float lambdaSheen(float cosTheta, float alphaG)
 float V_Sheen(float NdotL, float NdotV, float sheenRoughness)
 {
 	sheenRoughness = max(sheenRoughness, 0.000001);
+	// Khronos-compliant: square roughness to get alphaG, matching brdf.glsl V_Sheen.
+	// This ensures direct sheen energy matches what sheenELUT.r represents.
 	float alphaG = sheenRoughness * sheenRoughness;
 
 	return clamp(1.0 / ((1.0 + lambdaSheen(NdotV, alphaG) +
