@@ -818,10 +818,13 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		parseSceneAnimations();
 		_preserveNodeTransformsForRuntime =
 			(_animationData.hasNodeAnimations || _animationData.hasSkinning);
+		_cameraData = GltfCameraData();
+		parseSceneCameras();
 	}
 	else
 	{
 		_animationData = GltfAnimationData();
+		_cameraData    = GltfCameraData();
 		_preserveNodeTransformsForRuntime = false;
 	}
 
@@ -3258,6 +3261,126 @@ void AssImpModelLoader::parseSceneAnimations()
 		_animationData.hasMorphAnimations |= clip.hasMorphAnimations;
 		_animationData.hasPointerAnimations |= clip.hasPointerAnimations;
 	}
+}
+
+// ---------------------------------------------------------------------------
+// parseSceneCameras
+//
+// Populates _cameraData from aiScene::mCameras[].  Each aiCamera entry gives
+// us the projection parameters (FOV, clip planes, ortho extents) and a node
+// name.  The world-space position and orientation are derived by accumulating
+// the transform chain from the scene root down to the matching node.
+//
+// glTF cameras look along the node's local -Z axis with +Y as up.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+// Recursively find the node with the given name and accumulate its world
+// transform.  Returns true and sets 'result' when found.
+bool findNodeWorldTransform(const aiNode*       node,
+                            const aiString&     targetName,
+                            const aiMatrix4x4&  parentTransform,
+                            aiMatrix4x4&        result)
+{
+    if (!node)
+        return false;
+
+    const aiMatrix4x4 worldTransform = parentTransform * node->mTransformation;
+
+    if (node->mName == targetName)
+    {
+        result = worldTransform;
+        return true;
+    }
+
+    for (unsigned int i = 0; i < node->mNumChildren; ++i)
+    {
+        if (findNodeWorldTransform(node->mChildren[i], targetName, worldTransform, result))
+            return true;
+    }
+    return false;
+}
+} // anonymous namespace
+
+void AssImpModelLoader::parseSceneCameras()
+{
+    _cameraData = GltfCameraData();
+
+    if (!_scene || _scene->mNumCameras == 0)
+        return;
+
+    _cameraData.sourceFile = QString::fromStdString(_path);
+
+    for (unsigned int i = 0; i < _scene->mNumCameras; ++i)
+    {
+        const aiCamera* cam = _scene->mCameras[i];
+        if (!cam)
+            continue;
+
+        GltfCameraEntry entry;
+        entry.name     = QString::fromUtf8(cam->mName.C_Str());
+        // Assimp's glTF2 importer sets aiCamera::mName to the scene-node name
+        // that references the camera.  That node name is the key used by the
+        // animation runtime's worldTransforms map, so store it directly.
+        entry.nodeName = entry.name;
+
+        // Projection type: orthographic when mOrthographicWidth > 0
+        if (cam->mOrthographicWidth > 0.0f)
+        {
+            entry.type  = GltfCameraType::Orthographic;
+            entry.xMag  = cam->mOrthographicWidth;
+            // mAspect = xmag / ymag  →  ymag = xmag / aspect (guard against zero)
+            entry.yMag  = (cam->mAspect > 0.0f)
+                        ? cam->mOrthographicWidth / cam->mAspect
+                        : cam->mOrthographicWidth;
+        }
+        else
+        {
+            entry.type = GltfCameraType::Perspective;
+            // For glTF files Assimp stores yfov in mHorizontalFOV.
+            entry.fovYRadians = cam->mHorizontalFOV;
+        }
+
+        entry.zNear = cam->mClipPlaneNear;
+        entry.zFar  = cam->mClipPlaneFar;
+
+        // Compute world-space transform by walking the node hierarchy.
+        aiMatrix4x4 identity;
+        aiMatrix4x4 worldMat;
+        if (findNodeWorldTransform(_scene->mRootNode, cam->mName, identity, worldMat))
+        {
+            // World position = translation component of the 4×4 matrix
+            entry.worldPosition = QVector3D(worldMat.a4, worldMat.b4, worldMat.c4);
+
+            // glTF cameras look along -Z in local space; +Y is up.
+            // Rotate these local vectors by the world rotation (3×3 submatrix).
+            aiMatrix3x3 rot(worldMat);
+            aiVector3D localForward(0.0f, 0.0f, -1.0f);
+            aiVector3D localUp(0.0f, 1.0f, 0.0f);
+            aiVector3D worldForward = (rot * localForward).Normalize();
+            aiVector3D worldUp      = (rot * localUp).Normalize();
+
+            entry.worldDirection = QVector3D(worldForward.x, worldForward.y, worldForward.z);
+            entry.worldUp        = QVector3D(worldUp.x,      worldUp.y,      worldUp.z);
+        }
+        else
+        {
+            qWarning() << "parseSceneCameras: node not found for camera" << entry.name;
+            // Use defaults: looking along -Z from the origin
+        }
+
+        _cameraData.cameras.append(entry);
+        qDebug() << "parseSceneCameras: camera" << entry.name
+                 << "pos" << entry.worldPosition
+                 << "dir" << entry.worldDirection
+                 << (entry.type == GltfCameraType::Perspective
+                     ? QString("fovY=%1°").arg(qRadiansToDegrees(entry.fovYRadians), 0, 'f', 1)
+                     : QString("ortho xMag=%1").arg(entry.xMag));
+    }
+
+    qDebug() << "parseSceneCameras: found" << _cameraData.cameras.size()
+             << "camera(s) in" << _cameraData.sourceFile;
 }
 
 void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, aiScene* scene)

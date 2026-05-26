@@ -374,6 +374,11 @@ protected:
 
 	BoundingSphere _boundingSphere;
 	BoundingBox    _boundingBox;
+	// Local-space bounding box of _points (no transform applied).
+	// Computed once in updateRuntimeBounds() and used by setSceneRenderTransformFast()
+	// to cheaply recompute _boundingBox each animation frame without iterating
+	// every vertex.  This keeps frustum culling correct for animated meshes.
+	BoundingBox    _localBoundingBox;
 
 	std::vector<Triangle*> _triangles;
 

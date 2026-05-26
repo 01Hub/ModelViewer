@@ -592,3 +592,35 @@ int SceneGraph::activeAnimationClipForFile(const QString& sourceFile) const
 {
     return _activeAnimationClipByFile.value(sourceFile, -1);
 }
+
+// ---------------------------------------------------------------------------
+// glTF cameras
+// ---------------------------------------------------------------------------
+
+void SceneGraph::setGltfCameraData(const QString& sourceFile, const GltfCameraData& data)
+{
+    _gltfCameraDataByFile[sourceFile] = data;
+    emit gltfCameraDataChanged();
+}
+
+void SceneGraph::clearGltfCameraData(const QString& sourceFile)
+{
+    if (_gltfCameraDataByFile.remove(sourceFile) != 0)
+        emit gltfCameraDataChanged();
+}
+
+GltfCameraData SceneGraph::gltfCameraDataForFile(const QString& sourceFile) const
+{
+    return _gltfCameraDataByFile.value(sourceFile, GltfCameraData{});
+}
+
+QStringList SceneGraph::filesWithGltfCameras() const
+{
+    QStringList files;
+    for (auto it = _gltfCameraDataByFile.cbegin(); it != _gltfCameraDataByFile.cend(); ++it)
+    {
+        if (!it.value().isEmpty())
+            files.append(it.key());
+    }
+    return files;
+}

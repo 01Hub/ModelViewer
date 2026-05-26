@@ -2,7 +2,9 @@
 #include "ClippingPlanesEditor.h"
 #include "Cone.h"
 #include "Cube.h"
+#include "GltfCameraData.h"
 #include "GLWidget.h"
+#include <QtMath>
 #include "SelectionManager.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
@@ -3439,6 +3441,11 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 					if (!ad.clips.isEmpty())
 						setActiveAnimation(fileName, 0);
 				}
+
+				// Register glTF camera data (if any) for this file.
+				const GltfCameraData& cd = loadingWorker->getCameraData();
+				if (!cd.isEmpty())
+					_viewer->sceneGraph()->setGltfCameraData(fileName, cd);
 			}
 			_pendingSceneUuids.clear();
 
@@ -7576,6 +7583,84 @@ void GLWidget::setAnimationLooping(bool looping)
 	emit animationStateChanged();
 }
 
+// ---------------------------------------------------------------------------
+// glTF camera switching
+// ---------------------------------------------------------------------------
+
+void GLWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
+{
+	if (!_viewer || !_primaryCamera)
+		return;
+
+	const GltfCameraData cd = _viewer->sceneGraph()->gltfCameraDataForFile(sourceFile);
+	if (cameraIndex < 0 || cameraIndex >= cd.cameras.size())
+		return;
+
+	const GltfCameraEntry& cam = cd.cameras[cameraIndex];
+
+	// Save the current system camera state before the first glTF switch so the
+	// user can get back to exactly where they were.
+	if (!_systemCameraStateSaved)
+	{
+		_savedCameraPos      = _primaryCamera->getPosition();
+		_savedCameraDir      = _primaryCamera->getViewDir();
+		_savedCameraUp       = _primaryCamera->getUpVector();
+		_savedCameraRight    = _primaryCamera->getRightVector();
+		_savedProjectionType = _primaryCamera->getProjectionType();
+		_savedCameraFOV      = _primaryCamera->getFOV();
+		_systemCameraStateSaved = true;
+	}
+
+	// Apply world-space position and orientation from the glTF camera entry.
+	//
+	// GLCamera in Orbit mode stores the ORBIT PIVOT in _position, not the eye.
+	// The actual eye position is: _position - _viewDir * orbitDistance.
+	// So to place the eye at worldPos we must pass
+	//   _position = worldPos + worldDir * orbitDistance
+	// which makes getRenderPosition() = worldPos exactly.
+	// In Fly / FirstPerson mode _position IS the eye, so no adjustment is needed.
+	const QVector3D right = QVector3D::crossProduct(cam.worldDirection, cam.worldUp).normalized();
+	const QVector3D pivotPos = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+		? cam.worldPosition + cam.worldDirection * _primaryCamera->getOrbitDistance()
+		: cam.worldPosition;
+	_primaryCamera->setView(pivotPos, cam.worldDirection, cam.worldUp, right);
+
+	// Apply projection type and FOV / ortho scale.
+	if (cam.type == GltfCameraType::Perspective)
+	{
+		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
+		_primaryCamera->setFOV(qRadiansToDegrees(cam.fovYRadians));
+	}
+	else
+	{
+		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
+	}
+
+	_activeGltfCameraFile  = sourceFile;
+	_activeGltfCameraIndex = cameraIndex;
+
+	update();
+}
+
+void GLWidget::resetToSystemCamera()
+{
+	if (_systemCameraStateSaved)
+	{
+		_primaryCamera->setView(_savedCameraPos,
+		                        _savedCameraDir,
+		                        _savedCameraUp,
+		                        _savedCameraRight);
+		_primaryCamera->setProjectionType(_savedProjectionType);
+		_primaryCamera->setFOV(_savedCameraFOV);
+		_systemCameraStateSaved = false;
+	}
+
+	_activeGltfCameraFile.clear();
+	_activeGltfCameraIndex = -1;
+
+	update();
+}
+
 void GLWidget::refreshAnimationMaterialState(const QString& sourceFile)
 {
 	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
@@ -8049,6 +8134,36 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 		else
 		{
 			clearAnimatedLightTransformState(sourceFile);
+		}
+
+		// Per-frame glTF camera update: when node animations are present the
+		// camera's hosting node moves every frame.  Read its current world
+		// transform from worldTransforms and drive the primary camera so that
+		// animated cameras (e.g. the firefly-chasing cameras in
+		// DiffuseTransmissionPlant) stay in sync with the animation timeline.
+		if (_activeGltfCameraFile == sourceFile && _activeGltfCameraIndex >= 0 && _primaryCamera)
+		{
+			const GltfCameraData camData = _viewer->sceneGraph()->gltfCameraDataForFile(sourceFile);
+			if (_activeGltfCameraIndex < camData.cameras.size())
+			{
+				const GltfCameraEntry& cam = camData.cameras[_activeGltfCameraIndex];
+				if (!cam.nodeName.isEmpty() && worldTransforms.contains(cam.nodeName))
+				{
+					const QMatrix4x4& world = worldTransforms.value(cam.nodeName);
+					// Position = translation column of the world matrix.
+					const QVector3D worldPos(world(0, 3), world(1, 3), world(2, 3));
+					// glTF cameras look along local -Z; +Y is up.
+					const QVector3D worldDir   = world.mapVector(QVector3D(0.0f, 0.0f, -1.0f)).normalized();
+					const QVector3D worldUp    = world.mapVector(QVector3D(0.0f, 1.0f,  0.0f)).normalized();
+					const QVector3D worldRight = QVector3D::crossProduct(worldDir, worldUp).normalized();
+					// In Orbit mode _position is the pivot, not the eye; offset so
+					// that getRenderPosition() returns the true glTF camera position.
+					const QVector3D pivotPos = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+						? worldPos + worldDir * _primaryCamera->getOrbitDistance()
+						: worldPos;
+					_primaryCamera->setView(pivotPos, worldDir, worldUp, worldRight);
+				}
+			}
 		}
 	}
 	else
@@ -9306,7 +9421,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		{
 			setCursor(QCursor(QPixmap(":/icons/res/window-zoom-cursor.png"), 12, 12));
 		}
-		else if ((e->modifiers() & Qt::ControlModifier) || _viewRotating)
+		else if (((e->modifiers() & Qt::ControlModifier) || _viewRotating) && !isGltfCameraActive())
 		{
 			if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 				_lowResEnabled = true;
@@ -9349,7 +9464,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	else if (e->buttons() == Qt::RightButton && !(e->modifiers() & Qt::ControlModifier) &&
 		(_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-		 _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson))
+		 _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson) &&
+		!isGltfCameraActive())
 	{
 		// Free-look in Fly/FP mode: RMB drag rotates the view via yaw/pitch
 		QPoint look = _rightButtonPoint - downPoint;
@@ -9375,7 +9491,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 		update();
 	}
-	else if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewPanning))
+	else if (((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewPanning)) && !isGltfCameraActive())
 	{
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_lowResEnabled = true;
@@ -9399,7 +9515,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 		update();
 	}
-	else if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewZooming))
+	else if (((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewZooming)) && !isGltfCameraActive())
 	{
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_lowResEnabled = true;
@@ -9518,7 +9634,11 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	_inertiaPanVelocity = QVector2D(0, 0);
 	_inertiaZoomVelocity = 0.0f;
 	if (_inertiaTimer && _inertiaTimer->isActive())
-		_inertiaTimer->stop();	
+		_inertiaTimer->stop();
+
+	// Scroll-wheel zoom is disabled when a glTF camera is active (read-only view).
+	if (isGltfCameraActive())
+		return;
 
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
@@ -9638,6 +9758,10 @@ void GLWidget::keyReleaseEvent(QKeyEvent* event)
 
 void GLWidget::performKeyboardNav()
 {
+	// Keyboard navigation is disabled when a glTF camera is active (read-only view).
+	if (isGltfCameraActive())
+		return;
+
 	if (_keys.empty() == false && QApplication::keyboardModifiers() == Qt::NoModifier)
 	{
 		float factor = _viewRange * 0.01f;
@@ -9793,6 +9917,10 @@ void GLWidget::animateCenterScreen()
 
 void GLWidget::onInertiaTimer()
 {
+	// Inertia effects are suppressed when a glTF camera is active (read-only view).
+	if (isGltfCameraActive())
+		return;
+
 	bool active = false;
 
 	// --- Pan inertia ---

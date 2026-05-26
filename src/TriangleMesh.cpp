@@ -107,8 +107,34 @@ void TriangleMesh::initBuffers(
 	_trsfPoints = _points;
 	_normals = *normals;
 	_trsfNormals = _normals;
-	_trsfTangents.clear();  
+	_trsfTangents.clear();
 	_trsfBitangents.clear();
+
+	// Compute the local-space bounding box from the raw (untransformed) points.
+	// This is used by setSceneRenderTransformFast() to cheaply keep _boundingBox
+	// correct for animated meshes without re-transforming every vertex.
+	if (!_points.empty())
+	{
+		float lxMin =  std::numeric_limits<float>::max();
+		float lyMin =  std::numeric_limits<float>::max();
+		float lzMin =  std::numeric_limits<float>::max();
+		float lxMax = -std::numeric_limits<float>::max();
+		float lyMax = -std::numeric_limits<float>::max();
+		float lzMax = -std::numeric_limits<float>::max();
+		for (size_t i = 0; i < _points.size(); i += 3)
+		{
+			lxMin = std::min(lxMin, _points[i]);
+			lyMin = std::min(lyMin, _points[i + 1]);
+			lzMin = std::min(lzMin, _points[i + 2]);
+			lxMax = std::max(lxMax, _points[i]);
+			lyMax = std::max(lyMax, _points[i + 1]);
+			lzMax = std::max(lzMax, _points[i + 2]);
+		}
+		_localBoundingBox.setLimits(
+			static_cast<double>(lxMin), static_cast<double>(lxMax),
+			static_cast<double>(lyMin), static_cast<double>(lyMax),
+			static_cast<double>(lzMin), static_cast<double>(lzMax));
+	}
 
 	// build the triangles for selection
 	buildTriangles();
@@ -1731,6 +1757,35 @@ void TriangleMesh::setSceneRenderTransform(const QMatrix4x4& trsf)
 void TriangleMesh::setSceneRenderTransformFast(const QMatrix4x4& trsf)
 {
 	_sceneRenderTransform = trsf;
+
+	// Update the world-space bounding box cheaply by transforming the 8 corners of the
+	// local-space bounding box (from _points, no transform) through the current combined
+	// render transform.  This keeps isMeshOutsideFrustum() correct for animated meshes
+	// without the cost of re-transforming every vertex (as updateRuntimeBounds() would).
+	if (!_points.empty())
+	{
+		const QMatrix4x4 combined = combinedRenderTransform();
+		float xMin =  std::numeric_limits<float>::max();
+		float yMin =  std::numeric_limits<float>::max();
+		float zMin =  std::numeric_limits<float>::max();
+		float xMax = -std::numeric_limits<float>::max();
+		float yMax = -std::numeric_limits<float>::max();
+		float zMax = -std::numeric_limits<float>::max();
+		for (const QVector3D& corner : _localBoundingBox.getCorners())
+		{
+			const QVector3D tc = combined.map(corner);
+			xMin = std::min(xMin, tc.x());
+			yMin = std::min(yMin, tc.y());
+			zMin = std::min(zMin, tc.z());
+			xMax = std::max(xMax, tc.x());
+			yMax = std::max(yMax, tc.y());
+			zMax = std::max(zMax, tc.z());
+		}
+		_boundingBox.setLimits(
+			static_cast<double>(xMin), static_cast<double>(xMax),
+			static_cast<double>(yMin), static_cast<double>(yMax),
+			static_cast<double>(zMin), static_cast<double>(zMax));
+	}
 }
 
 void TriangleMesh::setupTransformation()
@@ -1740,6 +1795,32 @@ void TriangleMesh::setupTransformation()
 
 void TriangleMesh::updateRuntimeBounds()
 {
+	// Compute the local-space bounding box from _points (before any transform).
+	// This is used by setSceneRenderTransformFast() to cheaply derive the
+	// world-space bounding box each animation frame without re-transforming every vertex.
+	if (!_points.empty())
+	{
+		float lxMin =  std::numeric_limits<float>::max();
+		float lyMin =  std::numeric_limits<float>::max();
+		float lzMin =  std::numeric_limits<float>::max();
+		float lxMax = -std::numeric_limits<float>::max();
+		float lyMax = -std::numeric_limits<float>::max();
+		float lzMax = -std::numeric_limits<float>::max();
+		for (size_t i = 0; i < _points.size(); i += 3)
+		{
+			lxMin = std::min(lxMin, _points[i]);
+			lyMin = std::min(lyMin, _points[i + 1]);
+			lzMin = std::min(lzMin, _points[i + 2]);
+			lxMax = std::max(lxMax, _points[i]);
+			lyMax = std::max(lyMax, _points[i + 1]);
+			lzMax = std::max(lzMax, _points[i + 2]);
+		}
+		_localBoundingBox.setLimits(
+			static_cast<double>(lxMin), static_cast<double>(lxMax),
+			static_cast<double>(lyMin), static_cast<double>(lyMax),
+			static_cast<double>(lzMin), static_cast<double>(lzMax));
+	}
+
 	_trsfPoints.clear();
 	_trsfNormals.clear();
 	_trsfTangents.clear();

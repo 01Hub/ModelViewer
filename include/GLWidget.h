@@ -236,6 +236,13 @@ public:
 	bool isAnimationPlaying() const { return _animationPlaying; }
 	bool isAnimationLooping() const { return _animationLooping; }
 
+	// glTF camera switching
+	void activateGltfCamera(const QString& sourceFile, int cameraIndex);
+	void resetToSystemCamera();
+	bool isGltfCameraActive()     const { return _activeGltfCameraIndex >= 0; }
+	QString activeGltfCameraFile()  const { return _activeGltfCameraFile; }
+	int     activeGltfCameraIndex() const { return _activeGltfCameraIndex; }
+
 public:
 	float getXTran() const;
 	void setXTran(const float& xTran);
@@ -955,6 +962,20 @@ private:
 
 	GLCamera* _primaryCamera;
 	GLCamera* _orthoViewsCamera;
+
+	// Active glTF camera (-1 / empty = none active, system camera is in use)
+	QString _activeGltfCameraFile;
+	int     _activeGltfCameraIndex = -1;
+
+	// Saved system camera state, captured when a glTF camera is first activated
+	// so the user can switch back to exactly where they were.
+	bool                     _systemCameraStateSaved = false;
+	QVector3D                _savedCameraPos;
+	QVector3D                _savedCameraDir;
+	QVector3D                _savedCameraUp;
+	QVector3D                _savedCameraRight;
+	GLCamera::ProjectionType _savedProjectionType = GLCamera::ProjectionType::PERSPECTIVE;
+	float                    _savedCameraFOV      = 45.0f;
 
 	QTimer* _keyboardNavTimer;
 	QTimer* _animateViewTimer;
