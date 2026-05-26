@@ -12417,7 +12417,7 @@
         },
         {
           "albedo": [
-            1,
+            0.5,
             0,
             0
           ],
@@ -12466,7 +12466,7 @@
         {
           "albedo": [
             0,
-            1,
+            0.5,
             0
           ],
           "albedoMapPath": null,
@@ -13068,9 +13068,9 @@
         },
         {
           "albedo": [
-            1,
-            1,
-            0
+           0.5,
+           0.5,
+           0
           ],
           "albedoMapPath": null,
           "alphaThreshold": null,
