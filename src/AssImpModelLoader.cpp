@@ -743,7 +743,6 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		                  qPathCheck.endsWith(".glb",  Qt::CaseInsensitive);
 
 		unsigned int importFlags = aiProcess_CalcTangentSpace |
-			aiProcess_FixInfacingNormals |
 			aiProcess_JoinIdenticalVertices |
 			aiProcess_OptimizeMeshes |
 			aiProcess_ImproveCacheLocality |
@@ -753,6 +752,9 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 		if (!isGltfFile)
 		{
+			// glTF models have correct normals by design; FixInfacingNormals would flip
+			// inward-facing normals on interior geometry (e.g. sky domes) and break them.
+			importFlags |= aiProcess_FixInfacingNormals;
 			_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
 			importFlags |= aiProcess_GenSmoothNormals;
 		}
@@ -818,8 +820,10 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		parseSceneAnimations();
 		_preserveNodeTransformsForRuntime =
 			(_animationData.hasNodeAnimations || _animationData.hasSkinning);
+		// parseSceneCameras() is deferred to after applyCoordinateSystemTransformations()
+		// so that findNodeWorldTransform() sees the corrected root-node matrix
+		// (auto-orient rotation + auto-scale) that is also applied to mesh vertices.
 		_cameraData = GltfCameraData();
-		parseSceneCameras();
 	}
 	else
 	{
@@ -842,6 +846,13 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 	// check if auto scaling is active and apply it
 	applyCoordinateSystemTransformations(path);
+
+	// Parse cameras AFTER the coordinate-system correction so that
+	// findNodeWorldTransform() accumulates the corrected root-node matrix
+	// (auto-orient rotation + auto-scale already baked into mRootNode->mTransformation).
+	// This keeps the stored worldPosition / worldDirection / worldUp in the same
+	// world space that mesh vertices occupy after applyCoordinateSystemTransformations().
+	parseSceneCameras();
 
 	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
 	{
@@ -3438,111 +3449,20 @@ void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, 
 			nameToGltfIdx[name] = i;
 	}
 
-	// ===== BUILD COMPACT→GLTF INDEX MAPPING (primary: mesh usage; fallback: name) =====
-	// Name matching alone fails for unnamed glTF materials (falls back to wrong index).
-	// We first do a parallel DFS over the aiScene and glTF node trees to build the
-	// compact→glTF mapping from actual mesh usage (no names required).
-	// Consecutive same-material glTF primitives that Assimp merged into one aiMesh are
-	// handled by grouping: when the primitive's material changes, we advance to the
-	// next aiMesh in the node.
+	// ===== BUILD COMPACT→GLTF INDEX MAPPING (name-based; identity fallback) =====
+	// Assimp's glTF2 importer assigns mMaterialIndex = glTF material index directly
+	// (one aiMaterial per glTF material, in the same order, plus one default at index N).
+	// Therefore compact index == glTF material index and the identity mapping is always
+	// correct.  Any DFS/structural traversal approach is unreliable because
+	// aiProcess_OptimizeMeshes reorders the per-node aiMesh slots in a way that does
+	// not consistently match first-seen primitive order (verified against Sponza's
+	// 103-primitive single-mesh node).  Name-based fallback produces the same identity
+	// result without the ordering assumptions.
 
-	const QJsonArray jsonNodes  = root["nodes"].toArray();
-	const QJsonArray jsonMeshes = root["meshes"].toArray();
-	const QJsonArray jsonScenes = root["scenes"].toArray();
-	int gltfSceneIdx = root.value("scene").toInt(0);
-	QJsonArray rootNodeIndices;
-	if (gltfSceneIdx >= 0 && gltfSceneIdx < jsonScenes.size())
-		rootNodeIndices = jsonScenes[gltfSceneIdx].toObject().value("nodes").toArray();
-
-	std::map<int, int> compactToGltfFromUsage; // compact mat idx → glTF mat idx
-
-	if (scene->mRootNode && !rootNodeIndices.isEmpty())
-	{
-		struct MatMapFrame { aiNode* aiNodePtr; int gltfNodeIdx; };
-		QVector<MatMapFrame> dfsStack;
-
-		aiNode* aiRoot = scene->mRootNode;
-		if (rootNodeIndices.size() == 1)
-		{
-			int rootGltfIdx = rootNodeIndices[0].toInt();
-			QString gltfRootName = (rootGltfIdx >= 0 && rootGltfIdx < jsonNodes.size())
-			    ? jsonNodes[rootGltfIdx].toObject().value("name").toString() : QString();
-			QString aiRootName = QString::fromUtf8(aiRoot->mName.C_Str());
-
-			if (aiRootName == gltfRootName || aiRoot->mNumMeshes > 0)
-				dfsStack.append({aiRoot, rootGltfIdx});
-			else if (aiRoot->mNumMeshes == 0 && aiRoot->mNumChildren == 1)
-				dfsStack.append({aiRoot->mChildren[0], rootGltfIdx});
-		}
-		else
-		{
-			for (int i = (int)rootNodeIndices.size() - 1; i >= 0; --i)
-				if (i < (int)aiRoot->mNumChildren)
-					dfsStack.append({aiRoot->mChildren[i], rootNodeIndices[i].toInt()});
-		}
-
-		while (!dfsStack.isEmpty())
-		{
-			auto frame      = dfsStack.takeLast();
-			aiNode* aiNodePtr = frame.aiNodePtr;
-			int     nodeIdx   = frame.gltfNodeIdx;
-
-			if (!aiNodePtr || nodeIdx < 0 || nodeIdx >= jsonNodes.size())
-				continue;
-
-			const QJsonObject nodeObj = jsonNodes[nodeIdx].toObject();
-
-			if (nodeObj.contains("mesh") && aiNodePtr->mNumMeshes > 0)
-			{
-				const int meshIdx = nodeObj.value("mesh").toInt(-1);
-				if (meshIdx >= 0 && meshIdx < jsonMeshes.size())
-				{
-					const QJsonArray prims = jsonMeshes[meshIdx].toObject()["primitives"].toArray();
-					const int P = prims.size();
-					const int M = static_cast<int>(aiNodePtr->mNumMeshes);
-
-					// Group consecutive same-material primitives → one aiMesh per group.
-					int aiMeshInNode = 0;
-					int prevGltfMat  = -1;
-
-					for (int pi = 0; pi < P && aiMeshInNode < M; ++pi)
-					{
-						int gltfMat = prims[pi].toObject().value("material").toInt(0);
-						if (pi == 0 || gltfMat != prevGltfMat)
-						{
-							if (pi > 0)
-							{
-								++aiMeshInNode;
-								if (aiMeshInNode >= M) break;
-							}
-							int aiMeshIdx = static_cast<int>(aiNodePtr->mMeshes[aiMeshInNode]);
-							auto savedIt  = _meshIndexToOriginalMaterialIndex.find(aiMeshIdx);
-							if (savedIt != _meshIndexToOriginalMaterialIndex.end())
-								compactToGltfFromUsage[savedIt->second] = gltfMat;
-						}
-						prevGltfMat = gltfMat;
-					}
-				}
-			}
-
-			const QJsonArray gltfChildren = nodeObj.value("children").toArray();
-			for (int i = (int)gltfChildren.size() - 1; i >= 0; --i)
-				if (i < (int)aiNodePtr->mNumChildren)
-					dfsStack.append({aiNodePtr->mChildren[i], gltfChildren[i].toInt()});
-		}
-	}
-
-	// Build _aiMatToGltfMat: mesh-usage mapping takes priority over name matching.
-	// Name matching is the fallback for compact materials not used by any default primitive.
+	// Build _aiMatToGltfMat from name matching; unnamed materials fall back to identity (aiIdx→aiIdx).
 	_aiMatToGltfMat.clear();
 	for (int aiIdx = 0; aiIdx < aiMatCount; ++aiIdx)
 	{
-		auto usageIt = compactToGltfFromUsage.find(aiIdx);
-		if (usageIt != compactToGltfFromUsage.end())
-		{
-			_aiMatToGltfMat[aiIdx] = usageIt->second;
-			continue;
-		}
 		aiString aiName;
 		scene->mMaterials[aiIdx]->Get(AI_MATKEY_NAME, aiName);
 		QString name = QString::fromUtf8(aiName.C_Str());
