@@ -270,6 +270,12 @@ private:
 	// updateAiSceneWithGltfMaterials() builds this so processMesh() can convert
 	// _meshIndexToOriginalMaterialIndex values (compact) into glTF-space indices
 	// that are consistent with variant mapping materialIndex values.
+	// Map from Assimp compact material index to glTF material index.
+	// updateAiSceneWithGltfMaterials() rebuilds this from glTF primitive
+	// provenance so processMesh() can convert pre-remap compact material slots
+	// into authoritative glTF material indices. This keeps default materials,
+	// variants, and export logic in the same index space even when Assimp merges
+	// or reorders primitives.
 	std::map<int, int> _aiMatToGltfMat;
 
 	// Variant data parsed from KHR_materials_variants (empty for non-glTF files

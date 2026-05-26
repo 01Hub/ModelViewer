@@ -18,6 +18,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -76,6 +77,147 @@ struct GltfPrimitiveVertexBasis
 	std::vector<glm::vec3> normals;
 	std::vector<glm::vec3> tangents;
 };
+
+struct GltfPrimitiveReference
+{
+	int meshIndex = -1;
+	int primitiveIndex = -1;
+};
+
+QVector<GltfPrimitiveReference> parsePrimitiveReferencesFromMeshName(const QString& meshName)
+{
+	static const QRegularExpression primitiveRefPattern(
+		QStringLiteral(R"(meshes\[(\d+)\]-(\d+))"));
+
+	QVector<GltfPrimitiveReference> refs;
+	QSet<QString> seenRefs;
+	auto it = primitiveRefPattern.globalMatch(meshName);
+	while (it.hasNext())
+	{
+		const QRegularExpressionMatch match = it.next();
+		if (!match.hasMatch())
+			continue;
+
+		const QString key = match.captured(0);
+		if (seenRefs.contains(key))
+			continue;
+
+		seenRefs.insert(key);
+		refs.append({
+			match.captured(1).toInt(),
+			match.captured(2).toInt()
+		});
+	}
+
+	return refs;
+}
+
+bool resolveSingleGltfMaterialFromPrimitiveRefs(const QVector<GltfPrimitiveReference>& refs,
+	const QJsonArray& jsonMeshes,
+	int& outMaterialIndex)
+{
+	bool materialAssigned = false;
+	int resolvedMaterial = -1;
+
+	for (const GltfPrimitiveReference& ref : refs)
+	{
+		if (ref.meshIndex < 0 || ref.meshIndex >= jsonMeshes.size())
+			return false;
+
+		const QJsonArray primitives =
+			jsonMeshes.at(ref.meshIndex).toObject().value("primitives").toArray();
+		if (ref.primitiveIndex < 0 || ref.primitiveIndex >= primitives.size())
+			return false;
+
+		const QJsonObject primObj = primitives.at(ref.primitiveIndex).toObject();
+		const int materialIndex = primObj.contains("material")
+			? primObj.value("material").toInt(-1)
+			: -1;
+
+		if (!materialAssigned)
+		{
+			resolvedMaterial = materialIndex;
+			materialAssigned = true;
+		}
+		else if (resolvedMaterial != materialIndex)
+		{
+			return false;
+		}
+	}
+
+	if (!materialAssigned)
+		return false;
+
+	outMaterialIndex = resolvedMaterial;
+	return resolvedMaterial >= 0;
+}
+
+bool resolveSingleGltfMaterialFromMeshName(const QString& aiMeshName,
+	const QJsonArray& jsonMeshes,
+	const QMap<QString, int>& meshNameToUniqueIndex,
+	int& outMaterialIndex)
+{
+	auto resolveFromMeshIndex = [&](int meshIndex, int primitiveIndex) -> bool
+	{
+		if (meshIndex < 0 || meshIndex >= jsonMeshes.size())
+			return false;
+
+		const QJsonArray primitives =
+			jsonMeshes.at(meshIndex).toObject().value("primitives").toArray();
+		if (primitives.isEmpty())
+			return false;
+
+		if (primitiveIndex >= 0)
+		{
+			if (primitiveIndex >= primitives.size())
+				return false;
+
+			const QJsonObject primObj = primitives.at(primitiveIndex).toObject();
+			outMaterialIndex = primObj.contains("material")
+				? primObj.value("material").toInt(-1)
+				: -1;
+			return outMaterialIndex >= 0;
+		}
+
+		int resolvedMaterial = -1;
+		for (const QJsonValue& primVal : primitives)
+		{
+			const QJsonObject primObj = primVal.toObject();
+			const int materialIndex = primObj.contains("material")
+				? primObj.value("material").toInt(-1)
+				: -1;
+
+			if (resolvedMaterial < 0)
+				resolvedMaterial = materialIndex;
+			else if (resolvedMaterial != materialIndex)
+				return false;
+		}
+
+		outMaterialIndex = resolvedMaterial;
+		return resolvedMaterial >= 0;
+	};
+
+	const auto exactIt = meshNameToUniqueIndex.find(aiMeshName);
+	if (exactIt != meshNameToUniqueIndex.end() &&
+		resolveFromMeshIndex(exactIt.value(), -1))
+	{
+		return true;
+	}
+
+	static const QRegularExpression primitiveSuffixPattern(
+		QStringLiteral(R"(^(.*)-(\d+)$)"));
+	const QRegularExpressionMatch match = primitiveSuffixPattern.match(aiMeshName);
+	if (!match.hasMatch())
+		return false;
+
+	const QString baseName = match.captured(1);
+	const int primitiveIndex = match.captured(2).toInt();
+	const auto baseIt = meshNameToUniqueIndex.find(baseName);
+	if (baseIt == meshNameToUniqueIndex.end())
+		return false;
+
+	return resolveFromMeshIndex(baseIt.value(), primitiveIndex);
+}
 
 std::vector<unsigned int> buildMorphVertexRemap(const std::vector<Vertex>& importedVertices,
 	const GltfPrimitiveVertexBasis& sourceBasis)
@@ -3432,6 +3574,9 @@ void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, 
 
 	QJsonObject root = doc.object();
 	QJsonArray gltfMaterials = root["materials"].toArray();
+	const QJsonArray jsonNodes = root["nodes"].toArray();
+	const QJsonArray jsonMeshes = root["meshes"].toArray();
+	const QJsonArray jsonScenes = root["scenes"].toArray();
 
 	if (gltfMaterials.isEmpty())
 		return;
@@ -3440,34 +3585,219 @@ void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, 
 	int aiMatCount   = static_cast<int>(scene->mNumMaterials);
 
 	// ===== BUILD NAME→GLTF INDEX MAP =====
-	// glTF material names are authoritative for identity matching.
+	// Unique glTF material names are safe fallbacks when primitive provenance is
+	// unavailable. They must not override authoritative primitive-derived data.
 	QMap<QString, int> nameToGltfIdx;
+	QMap<QString, int> nameUseCount;
 	for (int i = 0; i < gltfMatCount; ++i)
 	{
 		QString name = gltfMaterials[i].toObject()["name"].toString();
-		if (!name.isEmpty() && !nameToGltfIdx.contains(name))
-			nameToGltfIdx[name] = i;
+		if (name.isEmpty())
+			continue;
+
+		nameUseCount[name] += 1;
+		if (!nameToGltfIdx.contains(name))
+			nameToGltfIdx.insert(name, i);
 	}
 
-	// ===== BUILD COMPACT→GLTF INDEX MAPPING (name-based; identity fallback) =====
-	// Assimp's glTF2 importer assigns mMaterialIndex = glTF material index directly
-	// (one aiMaterial per glTF material, in the same order, plus one default at index N).
-	// Therefore compact index == glTF material index and the identity mapping is always
-	// correct.  Any DFS/structural traversal approach is unreliable because
-	// aiProcess_OptimizeMeshes reorders the per-node aiMesh slots in a way that does
-	// not consistently match first-seen primitive order (verified against Sponza's
-	// 103-primitive single-mesh node).  Name-based fallback produces the same identity
-	// result without the ordering assumptions.
+	// Unique glTF mesh names provide a second provenance layer for assets where
+	// aiNode/glTF-node traversal cannot be aligned directly, but aiMesh names
+	// still preserve source mesh identity (for example "tower00" or "car-12-1").
+	QMap<QString, int> meshNameUseCount;
+	QMap<QString, int> meshNameToUniqueIndex;
+	for (int i = 0; i < jsonMeshes.size(); ++i)
+	{
+		const QString name = jsonMeshes.at(i).toObject().value("name").toString();
+		if (name.isEmpty())
+			continue;
 
-	// Build _aiMatToGltfMat from name matching; unnamed materials fall back to identity (aiIdx→aiIdx).
+		meshNameUseCount[name] += 1;
+		if (!meshNameToUniqueIndex.contains(name))
+			meshNameToUniqueIndex.insert(name, i);
+	}
+	for (auto it = meshNameToUniqueIndex.begin(); it != meshNameToUniqueIndex.end(); )
+	{
+		if (meshNameUseCount.value(it.key()) != 1)
+			it = meshNameToUniqueIndex.erase(it);
+		else
+			++it;
+	}
+
+	// ===== BUILD AI-MESH → GLTF MATERIAL PROVENANCE =====
+	// Follow the Khronos viewer's correctness model: the glTF primitive owns the
+	// default material, and variants only override that primitive-local index.
+	// Our job is to reconstruct that primitive→material identity before Assimp's
+	// compact material slots are treated as authoritative.
+	std::map<int, int> aiMeshToGltfMaterial;
+
+	struct MaterialFrame { aiNode* aiNodePtr; int gltfNodeIdx; };
+	QVector<MaterialFrame> stack;
+	stack.reserve(jsonNodes.size());
+
+	int rootSceneIndex = root.value("scene").toInt(0);
+	QJsonArray rootNodeIndices;
+	if (rootSceneIndex >= 0 && rootSceneIndex < jsonScenes.size())
+		rootNodeIndices = jsonScenes[rootSceneIndex].toObject().value("nodes").toArray();
+
+	if (_scene && _scene->mRootNode && !rootNodeIndices.isEmpty())
+	{
+		aiNode* aiSceneRoot = _scene->mRootNode;
+		if (rootNodeIndices.size() == 1)
+		{
+			const int rootGltfIdx = rootNodeIndices[0].toInt();
+			const QString gltfRootName = (rootGltfIdx >= 0 && rootGltfIdx < jsonNodes.size())
+				? jsonNodes[rootGltfIdx].toObject().value("name").toString()
+				: QString();
+			const QString aiRootName = QString::fromUtf8(aiSceneRoot->mName.C_Str());
+
+			if (aiRootName == gltfRootName || aiSceneRoot->mNumMeshes > 0)
+				stack.append({ aiSceneRoot, rootGltfIdx });
+			else if (aiSceneRoot->mNumMeshes == 0 && aiSceneRoot->mNumChildren == 1)
+				stack.append({ aiSceneRoot->mChildren[0], rootGltfIdx });
+		}
+		else
+		{
+			for (int i = static_cast<int>(rootNodeIndices.size()) - 1; i >= 0; --i)
+			{
+				if (i < static_cast<int>(aiSceneRoot->mNumChildren))
+					stack.append({ aiSceneRoot->mChildren[i], rootNodeIndices[i].toInt() });
+			}
+		}
+	}
+
+	while (!stack.isEmpty())
+	{
+		const MaterialFrame frame = stack.takeLast();
+		aiNode* aiNodePtr = frame.aiNodePtr;
+		const int nodeIdx = frame.gltfNodeIdx;
+
+		if (!aiNodePtr || nodeIdx < 0 || nodeIdx >= jsonNodes.size())
+			continue;
+
+		const QJsonObject nodeObj = jsonNodes[nodeIdx].toObject();
+		if (nodeObj.contains("mesh") && aiNodePtr->mNumMeshes > 0)
+		{
+			const int gltfMeshIdx = nodeObj.value("mesh").toInt(-1);
+			if (gltfMeshIdx >= 0 && gltfMeshIdx < jsonMeshes.size())
+			{
+				const QJsonArray primitives =
+					jsonMeshes[gltfMeshIdx].toObject().value("primitives").toArray();
+
+				// Exact positional pairing is the safest path when Assimp preserved
+				// the primitive list length for this node.
+				if (primitives.size() == static_cast<int>(aiNodePtr->mNumMeshes))
+				{
+					for (int primIndex = 0; primIndex < primitives.size(); ++primIndex)
+					{
+						const QJsonObject primObj = primitives.at(primIndex).toObject();
+						const int primMat = primObj.contains("material")
+							? primObj.value("material").toInt(-1)
+							: -1;
+						const unsigned int aiMeshIdx = aiNodePtr->mMeshes[primIndex];
+						aiMeshToGltfMaterial[static_cast<int>(aiMeshIdx)] = primMat;
+					}
+				}
+			}
+		}
+
+		const QJsonArray gltfChildren = nodeObj.value("children").toArray();
+		for (int i = static_cast<int>(gltfChildren.size()) - 1; i >= 0; --i)
+		{
+			if (i < static_cast<int>(aiNodePtr->mNumChildren))
+				stack.append({ aiNodePtr->mChildren[i], gltfChildren[i].toInt() });
+		}
+	}
+
+	// Assimp often preserves merged primitive provenance in aiMesh::mName
+	// (for example "meshes[0]-81.meshes[0]-83..."). Use it to recover the
+	// authoritative glTF material for merged meshes.
+	for (unsigned int meshIdx = 0; meshIdx < scene->mNumMeshes; ++meshIdx)
+	{
+		if (aiMeshToGltfMaterial.find(static_cast<int>(meshIdx)) != aiMeshToGltfMaterial.end())
+			continue;
+
+		const QString directMeshName = QString::fromUtf8(scene->mMeshes[meshIdx]->mName.C_Str());
+		int resolvedMaterial = -1;
+		if (resolveSingleGltfMaterialFromMeshName(
+			directMeshName,
+			jsonMeshes,
+			meshNameToUniqueIndex,
+			resolvedMaterial))
+		{
+			aiMeshToGltfMaterial[static_cast<int>(meshIdx)] = resolvedMaterial;
+			continue;
+		}
+
+		const QVector<GltfPrimitiveReference> refs = parsePrimitiveReferencesFromMeshName(directMeshName);
+		if (refs.isEmpty())
+			continue;
+
+		resolvedMaterial = -1;
+		if (resolveSingleGltfMaterialFromPrimitiveRefs(refs, jsonMeshes, resolvedMaterial))
+		{
+			aiMeshToGltfMaterial[static_cast<int>(meshIdx)] = resolvedMaterial;
+		}
+	}
+
+	// ===== BUILD COMPACT→GLTF INDEX MAPPING =====
+	// Derive compact aiMaterial slots from the meshes that referenced them before
+	// reindexing. This preserves the glTF material identity used by variants and export.
+	std::map<int, QSet<int>> compactMatCandidates;
+	for (unsigned int meshIdx = 0; meshIdx < scene->mNumMeshes; ++meshIdx)
+	{
+		const auto meshMatIt = aiMeshToGltfMaterial.find(static_cast<int>(meshIdx));
+		if (meshMatIt == aiMeshToGltfMaterial.end())
+			continue;
+
+		int compactMatIdx = static_cast<int>(scene->mMeshes[meshIdx]->mMaterialIndex);
+		const auto savedIt = _meshIndexToOriginalMaterialIndex.find(static_cast<int>(meshIdx));
+		if (savedIt != _meshIndexToOriginalMaterialIndex.end())
+			compactMatIdx = savedIt->second;
+
+		compactMatCandidates[compactMatIdx].insert(meshMatIt->second);
+	}
+
 	_aiMatToGltfMat.clear();
 	for (int aiIdx = 0; aiIdx < aiMatCount; ++aiIdx)
 	{
-		aiString aiName;
-		scene->mMaterials[aiIdx]->Get(AI_MATKEY_NAME, aiName);
-		QString name = QString::fromUtf8(aiName.C_Str());
-		auto nameIt = nameToGltfIdx.find(name);
-		_aiMatToGltfMat[aiIdx] = (nameIt != nameToGltfIdx.end()) ? nameIt.value() : aiIdx;
+		int resolvedGltfIdx = -1;
+
+		const auto compactIt = compactMatCandidates.find(aiIdx);
+		if (compactIt != compactMatCandidates.end())
+		{
+			const QSet<int>& candidates = compactIt->second;
+			if (candidates.size() == 1)
+			{
+				resolvedGltfIdx = *candidates.constBegin();
+			}
+			else if (!candidates.isEmpty())
+			{
+				qWarning() << "updateAiSceneWithGltfMaterials: compact aiMaterial" << aiIdx
+				           << "maps to multiple glTF materials (count =" << candidates.size() << ")"
+				           << "- keeping fallback resolution";
+			}
+		}
+
+		// Fallback 1: unique material-name match.
+		if (resolvedGltfIdx < 0)
+		{
+			aiString aiName;
+			scene->mMaterials[aiIdx]->Get(AI_MATKEY_NAME, aiName);
+			const QString name = QString::fromUtf8(aiName.C_Str());
+			const auto nameIt = nameToGltfIdx.find(name);
+			if (!name.isEmpty() &&
+				nameIt != nameToGltfIdx.end() &&
+				nameUseCount.value(name) == 1)
+			{
+				resolvedGltfIdx = nameIt.value();
+			}
+		}
+
+		// Fallback 2: identity only when it stays inside glTF material space.
+		if (resolvedGltfIdx < 0 && aiIdx < gltfMatCount)
+			resolvedGltfIdx = aiIdx;
+
+		_aiMatToGltfMat[aiIdx] = resolvedGltfIdx;
 	}
 
 	// ===== REINDEX MATERIAL ARRAY TO GLTF ORDER =====
@@ -3519,5 +3849,6 @@ void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, 
 	scene->mNumMaterials = static_cast<unsigned int>(gltfMatCount);
 
 	qDebug() << "updateAiSceneWithGltfMaterials: Reindexed" << aiMatCount
-	         << "compact materials into" << gltfMatCount << "glTF-indexed slots";
+	         << "compact materials into" << gltfMatCount << "glTF-indexed slots"
+	         << "(provenance mapped meshes:" << aiMeshToGltfMaterial.size() << ")";
 }
