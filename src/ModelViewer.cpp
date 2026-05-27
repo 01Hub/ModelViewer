@@ -313,6 +313,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        _glWidget,         &GLWidget::setAnimationLooping);
 		connect(_animationsPanel, &AnimationsPanel::seekRequested,
 		        _glWidget,         &GLWidget::seekAnimation);
+		connect(_animationsPanel, &AnimationsPanel::playbackSpeedChanged,
+		        _glWidget,         &GLWidget::setAnimationPlaybackSpeed);
 
 		connect(_sceneGraph, &SceneGraph::animationDataChanged,
 		        this,         &ModelViewer::refreshNavigationSubTabs);

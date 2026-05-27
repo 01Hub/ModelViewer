@@ -7583,6 +7583,14 @@ void GLWidget::setAnimationLooping(bool looping)
 	emit animationStateChanged();
 }
 
+void GLWidget::setAnimationPlaybackSpeed(double speed)
+{
+	_animationPlaybackSpeed = std::clamp(speed, 0.25, 4.0);
+	if (_animationPlaying)
+		_animationElapsed.restart();
+	emit animationStateChanged();
+}
+
 // ---------------------------------------------------------------------------
 // glTF camera switching
 // ---------------------------------------------------------------------------
@@ -7700,7 +7708,7 @@ void GLWidget::onAnimationTick()
 	if (clip.durationSeconds <= 0.0)
 		return;
 
-	_animationCurrentTimeSeconds += deltaSeconds;
+	_animationCurrentTimeSeconds += deltaSeconds * _animationPlaybackSpeed;
 	if (_animationCurrentTimeSeconds >= clip.durationSeconds)
 	{
 		if (_animationLooping)

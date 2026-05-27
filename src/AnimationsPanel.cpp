@@ -4,6 +4,7 @@
 #include "SceneGraph.h"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -13,6 +14,7 @@
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QVBoxLayout>
+#include <cmath>
 
 namespace
 {
@@ -40,6 +42,15 @@ QString formatTime(double seconds)
 		.arg(minutes)
 		.arg(secs, 2, 10, QLatin1Char('0'))
 		.arg(centiseconds, 2, 10, QLatin1Char('0'));
+}
+
+QString formatSpeedLabel(double speed)
+{
+	if (std::abs(speed - std::round(speed)) < 0.0001)
+		return QStringLiteral("%1x").arg(speed, 0, 'f', 1);
+	if (std::abs(speed * 10.0 - std::round(speed * 10.0)) < 0.0001)
+		return QStringLiteral("%1x").arg(speed, 0, 'f', 1);
+	return QStringLiteral("%1x").arg(speed, 0, 'f', 2);
 }
 }
 
@@ -70,11 +81,23 @@ AnimationsPanel::AnimationsPanel(QWidget* parent)
 
 	_playPauseButton = new QPushButton(tr("Play"), this);
 	_loopCheck = new QCheckBox(tr("Loop"), this);
+	_speedLabel = new QLabel(tr("Speed"), this);
+	_speedCombo = new QComboBox(this);
 	_timeLabel = new QLabel(tr("0:00.00 / 0:00.00"), this);
 	_timeLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
+	const QList<double> speedOptions{ 0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 4.0 };
+	for (double speed : speedOptions)
+		_speedCombo->addItem(formatSpeedLabel(speed), speed);
+	_speedCombo->setCurrentIndex(_speedCombo->findData(1.0));
+	_speedCombo->setToolTip(tr("Playback speed"));
+
 	buttonRow->addWidget(_playPauseButton);
 	buttonRow->addWidget(_loopCheck);
+	buttonRow->addSpacing(12);
+	buttonRow->addWidget(_speedLabel);
+	buttonRow->addWidget(_speedCombo);
+	buttonRow->addSpacing(12);
 	buttonRow->addStretch(1);
 	buttonRow->addWidget(_timeLabel);
 	controlsLayout->addLayout(buttonRow);
@@ -89,6 +112,7 @@ AnimationsPanel::AnimationsPanel(QWidget* parent)
 	connect(_tree, &QTreeWidget::itemClicked, this, &AnimationsPanel::onItemClicked);
 	connect(_playPauseButton, &QPushButton::clicked, this, &AnimationsPanel::onPlayPauseClicked);
 	connect(_loopCheck, &QCheckBox::toggled, this, &AnimationsPanel::onLoopCheckChanged);
+	connect(_speedCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &AnimationsPanel::onPlaybackSpeedChanged);
 	connect(_timelineSlider, &QSlider::sliderPressed, this, &AnimationsPanel::onSliderPressed);
 	connect(_timelineSlider, &QSlider::sliderReleased, this, &AnimationsPanel::onSliderReleased);
 	connect(_timelineSlider, &QSlider::valueChanged, this, &AnimationsPanel::onSliderValueChanged);
@@ -280,6 +304,14 @@ void AnimationsPanel::onLoopCheckChanged(bool checked)
 	emit loopToggled(checked);
 }
 
+void AnimationsPanel::onPlaybackSpeedChanged(int index)
+{
+	if (_syncingControls || !_speedCombo || index < 0)
+		return;
+
+	emit playbackSpeedChanged(_speedCombo->itemData(index).toDouble());
+}
+
 void AnimationsPanel::onSliderPressed()
 {
 	_scrubbing = true;
@@ -366,6 +398,7 @@ void AnimationsPanel::updateControlsForSelection()
 	double currentTime = _glWidget ? _glWidget->currentAnimationTimeSeconds() : 0.0;
 	const bool playing = _glWidget ? _glWidget->isAnimationPlaying() : false;
 	const bool looping = _glWidget ? _glWidget->isAnimationLooping() : false;
+	const double speed = _glWidget ? _glWidget->animationPlaybackSpeed() : 1.0;
 
 	_currentDurationSeconds = 0.0;
 	if (_sceneGraph && !activeFile.isEmpty())
@@ -379,6 +412,14 @@ void AnimationsPanel::updateControlsForSelection()
 	_playPauseButton->setText(playing ? tr("Pause") : tr("Play"));
 	_loopCheck->setEnabled(_currentDurationSeconds > 0.0);
 	_loopCheck->setChecked(looping);
+	_speedCombo->setEnabled(_currentDurationSeconds > 0.0);
+	{
+		QSignalBlocker blocker(_speedCombo);
+		int speedIndex = _speedCombo->findData(speed);
+		if (speedIndex < 0)
+			speedIndex = _speedCombo->findData(1.0);
+		_speedCombo->setCurrentIndex(speedIndex);
+	}
 	_timelineSlider->setEnabled(_currentDurationSeconds > 0.0);
 
 	if (!_scrubbing)

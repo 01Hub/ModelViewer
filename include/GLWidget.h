@@ -229,12 +229,14 @@ public:
 	void setAnimationPlaying(bool playing);
 	void seekAnimation(double timeSeconds);
 	void setAnimationLooping(bool looping);
+	void setAnimationPlaybackSpeed(double speed);
 	void refreshAnimationMaterialState(const QString& sourceFile);
 	QString activeAnimationFile() const { return _activeAnimationFile; }
 	int activeAnimationClip() const { return _activeAnimationClip; }
 	double currentAnimationTimeSeconds() const { return _animationCurrentTimeSeconds; }
 	bool isAnimationPlaying() const { return _animationPlaying; }
 	bool isAnimationLooping() const { return _animationLooping; }
+	double animationPlaybackSpeed() const { return _animationPlaybackSpeed; }
 
 	// glTF camera switching
 	void activateGltfCamera(const QString& sourceFile, int cameraIndex);
@@ -1090,6 +1092,7 @@ private:
 	double _animationCurrentTimeSeconds = 0.0;
 	bool _animationPlaying = false;
 	bool _animationLooping = true;
+	double _animationPlaybackSpeed = 1.0;
 	QTimer* _animationTimer = nullptr;
 	QElapsedTimer _animationElapsed;
 };
