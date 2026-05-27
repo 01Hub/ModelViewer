@@ -54,6 +54,7 @@ public:
 	void setTransformation();
 	void bakeTransformations();
 	void resetTransformation();
+	void syncLightPositionUiToScene();
 
 	SceneTreeWidget* getTreeModel() { return treeWidgetModel; }
 

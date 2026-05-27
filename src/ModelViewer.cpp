@@ -643,9 +643,6 @@ void ModelViewer::setTransformation()
 	));
 
 	// Update UI (transformation already applied by command's redo())
-	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
-	float offset = _glWidget->getFloorSize() * 1.25f;
-	visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
 	_glWidget->update();
 
 	QApplication::restoreOverrideCursor();
@@ -745,12 +742,19 @@ void ModelViewer::resetTransformation()
 	objectTransformPanel->resetAllValues();
 
 	// Update UI
-	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
-	float offset = _glWidget->getFloorSize() * 1.25f;
-	visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
 	_glWidget->update();
 
 	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::syncLightPositionUiToScene()
+{
+	if (!_glWidget || !visualizationEnvironmentPanel)
+		return;
+
+	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
+	float offset = _glWidget->getFloorSize() * 1.25f;
+	visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
 }
 
 void ModelViewer::updateTransformationValues()
