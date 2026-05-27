@@ -1350,6 +1350,7 @@ SurfaceFrame buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV
 	frame.V = normalize(cameraPos - v_position);
 	frame.I = -frame.V;
 	frame.L = normalize(lightDirection);
+	float frameSide = side < 0.0 ? -1.0 : 1.0;
 	if (length(v_reflectionNormal) < 0.01)
 	{
 		// No vertex normals: derive face normal from screen-space position derivatives
@@ -1357,13 +1358,13 @@ SurfaceFrame buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV
 		vec3 dy = dFdy(v_position);
 		vec3 faceN = cross(dx, dy);
 		if (length(faceN) > 0.0001)
-			frame.Ng = normalize(faceN) * side;
+			frame.Ng = normalize(faceN);
 		else
 			frame.Ng = normalize(cameraPos - v_position); // camera-facing fallback for points/lines
 	}
 	else
 	{
-		frame.Ng = normalize(v_reflectionNormal * side);
+		frame.Ng = normalize(v_reflectionNormal);
 	}
 
 	vec3 tangent;
@@ -1400,7 +1401,10 @@ SurfaceFrame buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV
 		bitangent = normalize(cross(frame.Ng, tangent));
 	}
 
-	if (!gl_FrontFacing)
+	// The caller already selects the front/back shading frame through `side`.
+	// Flipping again from the raster-facing flag makes the back-face path reuse the
+	// front-side normal, which washes out two-sided PBR materials.
+	if (frameSide < 0.0)
 	{
 		frame.Ng *= -1.0;
 		tangent *= -1.0;
