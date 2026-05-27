@@ -10124,14 +10124,53 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 		ndcZ = refClip.w() != 0.0f ? refClip.z() / refClip.w() : 0.0f;
 	}
 	else {
-		// Project the active orbit/anchor center to get its NDC Z
-		QVector4D modelCenterWorld(viewCenter.x(), viewCenter.y(), viewCenter.z(), 1.0f);
-		QVector4D modelCenterClip = projection * view * modelCenterWorld;
-		ndcZ = modelCenterClip.w() != 0.0f ? modelCenterClip.z() / modelCenterClip.w() : 0.0f;
-		
-		// Clamp NDC Z to between -0.99 and 0.99 to avoid 
-		// extreme values causing panning direction inversion
-		ndcZ = qBound(-0.99f, ndcZ, 0.99f);
+		auto sampleSceneDepth = [&](const QPoint& point) {
+			makeCurrent();
+
+			float rawDepth = 1.0f;
+			const int cx = point.x();
+			const int cy = height() - point.y() - 1;
+			glReadPixels(cx, cy, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &rawDepth);
+
+			if (rawDepth >= 1.0f)
+			{
+				const int halfGrid = 4;
+				const int x0 = std::max(0, cx - halfGrid);
+				const int y0 = std::max(0, cy - halfGrid);
+				const int x1 = std::min(width() - 1, cx + halfGrid);
+				const int y1 = std::min(height() - 1, cy + halfGrid);
+				const int sw = x1 - x0 + 1;
+				const int sh = y1 - y0 + 1;
+				std::vector<float> depthBuf(sw * sh, 1.0f);
+				glReadPixels(x0, y0, sw, sh, GL_DEPTH_COMPONENT, GL_FLOAT, depthBuf.data());
+
+				float minDepth = 1.0f;
+				for (float d : depthBuf)
+				{
+					if (d < minDepth)
+						minDepth = d;
+				}
+
+				if (minDepth < 1.0f)
+					rawDepth = minDepth;
+			}
+
+			if (rawDepth >= 1.0f)
+			{
+				const QVector3D projectedCenter = viewCenter.project(view, projection, viewport);
+				rawDepth = projectedCenter.z();
+			}
+
+			return rawDepth;
+		};
+
+		const float depthZ = sampleSceneDepth(start);
+		QVector3D worldStart(start.x(), height() - start.y(), depthZ);
+		QVector3D worldEnd(end.x(), height() - end.y(), depthZ);
+
+		const QVector3D startWorld = worldStart.unproject(view, projection, viewport);
+		const QVector3D endWorld = worldEnd.unproject(view, projection, viewport);
+		return endWorld - startWorld;
 	}
 
 	// Convert screen points to NDC

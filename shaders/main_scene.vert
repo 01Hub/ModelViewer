@@ -96,13 +96,14 @@ void main()
     vec4 worldPos = modelMatrix * skinnedPosition;
     v_position   = vec3(worldPos);              // vertex pos in eye coords
     vec3 transformedNormal = normalMatrix * skinnedNormal;
-    if (length(transformedNormal) < 0.01)
+    float transformedNormalLen = length(transformedNormal);
+    if (transformedNormalLen < 1e-8)
     {
-        v_normal = vec3(0.0, 0.0, 0.0);  // Keep it zero
+        v_normal = vec3(0.0, 0.0, 0.0);
     }
     else
     {
-        v_normal = normalize(transformedNormal);  // Only normalize if non-zero
+        v_normal = transformedNormal / transformedNormalLen;
     }
     v_color      = vertexColor;
     v_texCoord0 = texCoord0;
@@ -110,39 +111,44 @@ void main()
     v_texCoord2 = texCoord2;
     v_texCoord3 = texCoord3;
     vec3 transformedTangent = normalMatrix * skinnedTangent;
-    if (length(transformedTangent) < 0.01)
+    float transformedTangentLen = length(transformedTangent);
+    if (transformedTangentLen < 1e-8)
         v_tangent = vec3(0.0);
     else
-        v_tangent = normalize(transformedTangent);
+        v_tangent = transformedTangent / transformedTangentLen;
 
     vec3 transformedBitangent = normalMatrix * skinnedBitangent;
-    if (length(transformedBitangent) < 0.01)
+    float transformedBitangentLen = length(transformedBitangent);
+    if (transformedBitangentLen < 1e-8)
         v_bitangent = vec3(0.0);
     else
-        v_bitangent = normalize(transformedBitangent);
+        v_bitangent = transformedBitangent / transformedBitangentLen;
 
     mat3 worldNormalMatrix = mat3(transpose(inverse(modelMatrix)));
     vec3 worldTangent = worldNormalMatrix * skinnedTangent;
-    if (length(worldTangent) < 0.01)
+    float worldTangentLen = length(worldTangent);
+    if (worldTangentLen < 1e-8)
         v_worldTangent = vec3(0.0);
     else
-        v_worldTangent = normalize(worldTangent);
+        v_worldTangent = worldTangent / worldTangentLen;
 
     vec3 worldBitangent = worldNormalMatrix * skinnedBitangent;
-    if (length(worldBitangent) < 0.01)
+    float worldBitangentLen = length(worldBitangent);
+    if (worldBitangentLen < 1e-8)
         v_worldBitangent = vec3(0.0);
     else
-        v_worldBitangent = normalize(worldBitangent);
+        v_worldBitangent = worldBitangent / worldBitangentLen;
 
     gl_Position = projectionMatrix * viewMatrix * worldPos;
 
     // Shadow mapping
     vs_out_shadow.FragPos = vec3(worldPos);
     vec3 shadowNormal = mat3(transpose(inverse(modelMatrix))) * skinnedNormal;
-    if (length(shadowNormal) < 0.01)
+    float shadowNormalLen = length(shadowNormal);
+    if (shadowNormalLen < 1e-8)
         vs_out_shadow.Normal = vec3(0.0);
     else
-        vs_out_shadow.Normal = normalize(shadowNormal);
+        vs_out_shadow.Normal = shadowNormal / shadowNormalLen;
     vs_out_shadow.TexCoords = v_texCoord0;
     vs_out_shadow.FragPosLightSpace = lightSpaceMatrix * vec4(vs_out_shadow.FragPos, 1.0);
     vs_out_shadow.cameraPos = cameraPos;
@@ -151,23 +157,26 @@ void main()
     // Cube environment mapping
     v_reflectionPosition = vec3(worldPos);
     vec3 reflNormal = mat3(transpose(inverse(modelMatrix))) * skinnedNormal;
-    if (length(reflNormal) < 0.01)
+    float reflNormalLen = length(reflNormal);
+    if (reflNormalLen < 1e-8)
         v_reflectionNormal = vec3(0.0);
     else
-        v_reflectionNormal = normalize(reflNormal);
+        v_reflectionNormal = reflNormal / reflNormalLen;
 
     // Depth mapping
     vec3 T = mat3(modelViewMatrix) * skinnedTangent;
-    if (length(T) < 0.01)
+    float Tlen = length(T);
+    if (Tlen < 1e-8)
         T = vec3(0.0);
     else
-        T = normalize(T);
+        T = T / Tlen;
 
     vec3 N = mat3(modelViewMatrix) * skinnedNormal;
-    if (length(N) < 0.01)
+    float Nlen = length(N);
+    if (Nlen < 1e-8)
         N = vec3(0.0);
     else
-        N = normalize(N);
+        N = N / Nlen;
 
     vec3 B = normalize(cross(N, T));  // Safe now, N and T are valid
     if (length(N) > 0.01 && length(T) > 0.01)  // Only check if both valid
