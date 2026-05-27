@@ -298,6 +298,7 @@ public:
 	bool isVisibleSwapped() const;
 
 	BoundingSphere getBoundingSphere() const;
+	int processSelection(const QPoint& pixel);
 
 	QColor getBgTopColor() const;
 	void setBgTopColor(const QColor& bgTopColor);
@@ -603,7 +604,6 @@ private:
 
 	void render(GLCamera* camera);
 	void renderToShadowBuffer();
-	int processSelection(const QPoint& pixel);
 	void renderQuad();
 	void renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode);
 

@@ -35,6 +35,13 @@ constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes
 
 namespace
 {
+constexpr float kDefaultFloorOffsetPercent = 5.0f;
+
+float computeFloorDepthBias(float floorSize)
+{
+	return std::max(floorSize * 1.0e-4f, 0.0005f);
+}
+
 QMatrix4x4 aiToQMatrix(const aiMatrix4x4& m)
 {
 	QMatrix4x4 out;
@@ -609,7 +616,7 @@ _assimpModelLoader(nullptr)
 	_floorDisplayed = false;
 	_floorTextureDisplayed = true;
 	_floorTexRepeatS = _floorTexRepeatT = 1;
-	_floorOffsetPercent = 0.0f;
+	_floorOffsetPercent = kDefaultFloorOffsetPercent / 100.0f;
 
 	// Floor texture
 	if (!_texBuffer.load(PathUtils::getDataDirectory() + "/" + "textures/envmap/floor/Grey-White-Checkered-Squares1800x1800.jpg"))
@@ -2731,7 +2738,8 @@ void GLWidget::updateFloorPlane()
 	// Use helper to set main light position (now consistent with loadFloor)
 	updateMainLightPosition(halfObjectSize);
 
-	_floorPlane->setPlane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
+	float floorPlaneZ = lowestModelZ() - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(_floorSize);
+	_floorPlane->setPlane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT);
 
 	// Use helper to apply common material/texture settings
 	applyFloorPlaneMaterialSettings();
@@ -4424,7 +4432,9 @@ void GLWidget::loadFloor()
 	// Use helper to set main light position
 	updateMainLightPosition(halfObjectSize);
 
-	float floorPlaneCoeff = _meshStore.empty() ? -_floorSize - (_floorSize * 0.05f) : lowestModelZ() - (_floorSize * _floorOffsetPercent);
+	float floorPlaneCoeff = _meshStore.empty()
+		? -_floorSize - (_floorSize * 0.05f)
+		: lowestModelZ() - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(_floorSize);
 
 	// FIX: Delete old floor plane to prevent memory leak
 	if (_floorPlane != nullptr)
@@ -5536,7 +5546,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	// calculate zFighting offset based on model size
 	float zFightingOffset = std::min((_boundingSphere.getRadius() / 100.0f), 0.001f);		
 	// Position the model just below the floor plane to avoid Z-fighting
-	float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent);
+	float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(_floorSize);
 	float floorGap = fabs(floorPos - lowestModelZ());
 	float offset = (((lowestModelZ()) - floorGap) * 2.0f) - zFightingOffset; // Add offset to avoid Z fighting;	
 	model.scale(1.0f, 1.0f, -1.0f);

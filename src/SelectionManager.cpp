@@ -79,14 +79,13 @@ int SelectionManager::clickSelect(const QPoint& pixel)
             selectedIdsDist.constBegin(), selectedIdsDist.constEnd(),
             [](auto a, auto b) { return a < b; });
         id = it.key();
-        _selectedMeshIds.push_back(id);  // Add the closest (selected) mesh
     }
 
-    // === Color-picking fallback (if applicable) ===
-    // Note: FBO rendering is handled by GLWidget, not SelectionManager
-    // SelectionManager focuses on selection logic (ray-casting)
-    int colId = -1;
-    // Color picking would be called here if implemented in GLWidget
+    // === GPU color-picking ===
+    // This is the authoritative path for animated meshes because it uses the
+    // current render-time transforms / skinning state rather than cached CPU
+    // triangle data.
+    const int colId = _glWidget ? _glWidget->processSelection(pixel) : -1;
 
     QApplication::restoreOverrideCursor();
 
@@ -99,51 +98,64 @@ int SelectionManager::clickSelect(const QPoint& pixel)
         selectedId = colId;
         break;
     case SelectionMode::Hybrid:
-        selectedId = (id != -1) ? id : colId;
+        selectedId = (colId != -1) ? colId : id;
         break;
     }
 
     // Emit signal only if valid selection
     if (selectedId >= 0)
+    {
+        _selectedMeshIds.push_back(selectedId);
         emit selectionChanged(_selectedMeshIds);
+    }
 
     return selectedId;
 }
 
 int SelectionManager::hoverSelect(const QPoint& pixel)
 {
-    // Ray-casting only hover selection for performance
     int hoveredId = -1;
 
     const auto& ids = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
     if (ids.empty())
         return -1;
 
-    QVector3D rayPos, rayDir, intersectionPoint;
-    QRect viewport = getViewportFromPoint(pixel);
+    const bool animatedPoseActive = _glWidget
+        && !_glWidget->activeAnimationFile().isEmpty()
+        && _glWidget->activeAnimationClip() >= 0;
 
-    convertClickToRay(pixel, viewport, _glWidget->getCameraForPoint(pixel), rayPos, rayDir);
-    if (rayDir.isNull())
-        return -1;
-    rayDir.normalize();
+    if (_hoverHighlightMode == HoverHighlightMode::Accurate || animatedPoseActive)
+    {
+        hoveredId = _glWidget ? _glWidget->processSelection(pixel) : -1;
+    }
+    else
+    {
+        QVector3D rayPos, rayDir, intersectionPoint;
+        QRect viewport = getViewportFromPoint(pixel);
 
-    // === Ray-based intersection test (performance-optimized) ===
-    QMap<int, float> hitDistances;
-    for (int i : ids) {
-        TriangleMesh* mesh = _meshStore.at(i);
-        if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir)) {
-            if (mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint)) {
-                hitDistances[i] = intersectionPoint.distanceToPoint(rayPos);
+        convertClickToRay(pixel, viewport, _glWidget->getCameraForPoint(pixel), rayPos, rayDir);
+        if (rayDir.isNull())
+            return -1;
+        rayDir.normalize();
+
+        // === Ray-based intersection test (performance-optimized) ===
+        QMap<int, float> hitDistances;
+        for (int i : ids) {
+            TriangleMesh* mesh = _meshStore.at(i);
+            if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir)) {
+                if (mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint)) {
+                    hitDistances[i] = intersectionPoint.distanceToPoint(rayPos);
+                }
             }
         }
-    }
 
-    // Return the closest hit
-    if (!hitDistances.isEmpty()) {
-        auto it = std::min_element(
-            hitDistances.constBegin(), hitDistances.constEnd(),
-            [](auto a, auto b) { return a < b; });
-        hoveredId = it.key();
+        // Return the closest hit
+        if (!hitDistances.isEmpty()) {
+            auto it = std::min_element(
+                hitDistances.constBegin(), hitDistances.constEnd(),
+                [](auto a, auto b) { return a < b; });
+            hoveredId = it.key();
+        }
     }
 
     // Update hover state and emit signal if changed
