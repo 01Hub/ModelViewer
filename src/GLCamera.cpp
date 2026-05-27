@@ -176,7 +176,12 @@ void GLCamera::updateProjectionMatrix(void)
 	else // Perspective
 	{
 		float aspect = w / h;
-		float nearPlane = std::max(_viewRange * 0.01f, 0.01f);
+		// Use 0.1 % of viewRange for the near plane so that close-up views
+		// (e.g. a glTF camera positioned near a surface, or heavy zoom-in in
+		// Orbit mode) do not clip into geometry.  The resulting near:far ratio
+		// of 1 : 1 000 000 is comfortable for a 24-bit depth buffer in a
+		// model-viewer context where the full depth range is rarely in use.
+		float nearPlane = std::max(_viewRange * 0.001f, 0.0001f);
 		float farPlane = _viewRange * 1000.0f;
 
 		float fovY = _FOV;
