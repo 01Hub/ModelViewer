@@ -64,6 +64,12 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, GLWidge
 	connectSignalsAndSlots();
 	updateControlDependencies();
 
+	// Keep GLWidget in sync with the UI defaults on first startup as well.
+	// Without this, the viewer could retain an internal floor offset that
+	// differs from the spin box value until the user touches the control.
+	if (_glWidget && ui)
+		_glWidget->setFloorOffsetPercent(ui->doubleSpinBoxFloorOffset->value());
+
 	_isInitialized = true;
 }
 
