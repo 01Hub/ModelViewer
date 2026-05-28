@@ -129,8 +129,15 @@ void AssImpMesh::render()
 		_uniformsDirty = false;
 	}
 
+	// Apply debug uniform overrides (TextureDebugPanel extension toggles).
+	// Called unconditionally — NOT inside the _uniformsDirty gate — so the
+	// shader reflects the user's toggle state every frame even when the
+	// uniform cache is clean.
+	applyDebugUniformOverrides();
+
 	// Bind textures efficiently
 	bindTexturesOptimized();
+	applyDebugTextureOverrides();  // TextureDebugPanel per-unit overrides
 
 	// Set render state efficiently
 	setRenderStateOptimized();

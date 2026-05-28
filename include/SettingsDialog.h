@@ -150,12 +150,14 @@ public:
     bool debugCheckOpenGLErrors() const { return debug_checkOpenGLErrors; }
     bool debugValidateShaders() const { return debug_validateShaders; }
     bool debugProfileRendering() const { return debug_profileRendering; }
+    bool debugShowTextureDebugPanel() const { return debug_showTextureDebugPanel; }
 
-    ThemeManager* themeManager() const { return _themeManager; }    
+    ThemeManager* themeManager() const { return _themeManager; }
 
 
 signals:
 	void settingsChanged(); // Signal to notify that settings have changed
+	void textureDebugPanelVisibilityChanged(bool enabled);
 
 private slots:   
     void onOkClicked();
@@ -264,6 +266,7 @@ private slots:
     void on_checkOpenGLErrorsCheckBox_stateChanged();
     void on_validateShadersCheckBox_stateChanged();
     void on_profileRenderingCheckBox_stateChanged();
+    void on_showTextureDebugPanelCheckBox_stateChanged();
     void on_clearCacheButton_clicked();
     void on_resetSettingsButton_clicked();
     void restoreDefaults();	
@@ -412,6 +415,7 @@ private:
     bool debug_checkOpenGLErrors = false;
     bool debug_validateShaders = false;
     bool debug_profileRendering = false;
+    bool debug_showTextureDebugPanel = false;
 
 	ThemeManager* _themeManager;
 

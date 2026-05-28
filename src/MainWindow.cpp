@@ -1,8 +1,10 @@
 ﻿
 #include <QApplication>
+#include <QCoreApplication>
 #include <QEventLoop>
 #include <QMessageBox>
 #include <QFileDialog>
+#include <QSettings>
 
 #include "ModelViewerApplication.h"
 #include "MainWindow.h"
@@ -117,6 +119,12 @@ MainWindow::MainWindow(QWidget* parent)
 	connect(ui->actionRedo, &QAction::triggered, this, [this]() {
 		if (activeMdiChild())
 			activeMdiChild()->redo();
+		});
+
+	// Tools → Texture Debugger
+	connect(ui->actionTextureDebugger, &QAction::triggered, this, [this]() {
+		if (activeMdiChild())
+			activeMdiChild()->showTextureDebugPanel();
 		});
 
 	// Update menus when undo stack changes
@@ -800,7 +808,19 @@ void MainWindow::on_actionSettings_triggered()
 				viewer->getGLView()->getSelectionManager()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
 			}
 		}
+		// Re-read QSettings now that they have been committed (OK / Apply).
+		updateMenus();
 		});
+
+	// Live toggle: update the Tools menu immediately when the checkbox is
+	// flipped, without waiting for OK/Apply (which is when QSettings is written).
+	// The bool is passed directly so we don't have to re-read QSettings.
+	connect(settingsDialog, &SettingsDialog::textureDebugPanelVisibilityChanged,
+	        this, [this](bool enabled) {
+		const bool hasMdiChild = (activeMdiChild() != nullptr);
+		ui->menuTools->menuAction()->setVisible(enabled && hasMdiChild);
+		ui->actionTextureDebugger->setVisible(enabled && hasMdiChild);
+	});
 }
 
 void MainWindow::on_actionTile_Horizontally_triggered()
@@ -877,6 +897,15 @@ void MainWindow::updateMenus()
 
 	ui->menuWindows->menuAction()->setVisible(hasMdiChild);
 	ui->actionTile->setEnabled(hasMdiChild);
+
+	// Tools menu — visible only when the Texture Debugger is enabled in Settings
+	// and there is an active document to debug.
+	{
+		QSettings s(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+		const bool debugEnabled = s.value("showTextureDebugPanelCheckBox", false).toBool();
+		ui->menuTools->menuAction()->setVisible(debugEnabled && hasMdiChild);
+		ui->actionTextureDebugger->setVisible(debugEnabled && hasMdiChild);
+	}
 	ui->actionTile_Horizontally->setEnabled(hasMdiChild);
 	ui->actionTile_Vertically->setEnabled(hasMdiChild);
 	ui->actionCascade->setEnabled(hasMdiChild);

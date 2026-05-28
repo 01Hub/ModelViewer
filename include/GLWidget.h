@@ -80,6 +80,25 @@ struct CachedTextureEntry
 	int refCount = 0;
 };
 
+// ---------------------------------------------------------------------------
+// TextureSlotInfo
+// Describes one texture slot as seen by the GPU — used by TextureDebugPanel.
+// Built inside GLWidget::requestTextureReadback() via glGetTexImage readback.
+// ---------------------------------------------------------------------------
+struct TextureSlotInfo
+{
+	QString  slotName;              // human-readable name ("albedoMap", "normalMap", …)
+	int      unitIndex  = -1;       // GL texture unit index (0, 6, 10–31)
+	GLuint   textureId  = 0;        // GL object ID; 0 = slot not populated
+	QPixmap  thumbnail;             // 64×64 readback pixmap; null when textureId == 0
+	bool     isActive        = false; // textureId != 0 (a texture is bound)
+	bool     extensionEnabled = false;// the parent KHR extension is active (may be true even
+	                                  // when no texture is bound — e.g. sheen colour factor set)
+	bool     isMultiplexed = false; // unit shared between a global sampler and a per-mesh map
+	QString  multiplexNote;         // e.g. "shared with charlieLUT (global)"
+};
+Q_DECLARE_METATYPE(QVector<TextureSlotInfo>)
+
 class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 {
 	Q_OBJECT
@@ -456,6 +475,11 @@ signals:
 	void displayModeChanged(int);
 	void renderingModeChanged(int);
 	void animationStateChanged();
+	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
+	// can react to mesh selection changes without needing access to SelectionManager.
+	void selectionChanged(const QList<int>& selectedIds);
+	// Emitted by requestTextureReadback() once the GL readback is complete.
+	void textureReadbackReady(QVector<TextureSlotInfo> slots, QString meshName);
 
 public slots:
 	void animateViewChange();
@@ -512,6 +536,38 @@ public slots:
 	GLCamera* getCameraForPoint(const QPoint& pixel);
 
 	static GLMaterial resolveMaterialTextures(GLWidget* w, const GLMaterial& src);
+
+	// Reads back all per-mesh texture slots for meshId via glGetTexImage and
+	// emits textureReadbackReady().  Must be called on the GL thread (or the
+	// method calls makeCurrent/doneCurrent internally).  meshId is a _meshStore
+	// index; pass -1 to emit an empty result and clear the debug panel.
+	void requestTextureReadback(int meshId);
+
+	// Emits selectionChanged() with the given list.  Called by
+	// ModelViewer::handleTreeWidgetSelectionChanged() so that panels connected
+	// to this signal (e.g. TextureDebugPanel) stay in sync with tree-widget
+	// driven selection changes, including full deselection (empty list).
+	void broadcastSelectionChanged(const QList<int>& ids) { emit selectionChanged(ids); }
+
+	// Enable or disable a specific texture unit for meshId during rendering.
+	// When disabled the unit is replaced with a neutral placeholder texture
+	// (white for colour channels, tangent-space neutral for normal maps) so the
+	// shader still runs but that channel contributes a neutral value.
+	// Calls update() to trigger a repaint.
+	void setDebugTextureEnabled(int meshId, int unitIndex, bool enabled);
+
+	// Remove all debug texture overrides for meshId and repaint.
+	void clearDebugTextureOverrides(int meshId);
+
+	// Disable/re-enable an entire KHR extension for meshId by zeroing the
+	// relevant scalar factor uniforms and neutral-binding its texture units.
+	// extensionKey is one of: "Sheen", "Clearcoat", "Iridescence",
+	// "Volume / SSS", "Specular", "Anisotropy", "Transmission",
+	// "Diffuse Transmission".
+	void setDebugExtensionEnabled(int meshId, const QString& extensionKey, bool enabled);
+
+	// Remove all extension-level debug uniform+texture overrides for meshId.
+	void clearDebugExtensionOverrides(int meshId);
 
 private slots:
 	void showContextMenu(const QPoint& pos);
@@ -929,6 +985,13 @@ private:
 	int _sssTextureWidth = 0;                 // Current FBO width
 	int _sssTextureHeight = 0;                // Current FBO height
 	bool _sssEnabled = false;                 // True when any loaded mesh has hasVolumeScattering
+
+	// --- Debug texture placeholders (TextureDebugPanel) ---
+	// Created once in initializeGL; owned by this widget.
+	// _debugNeutralTex : 1×1 white RGBA (used for colour/scalar channels)
+	// _debugNormalTex  : 1×1 (128,128,255,255) tangent-space neutral normal
+	GLuint _debugNeutralTex = 0;
+	GLuint _debugNormalTex  = 0;
 
 	QImage					 _floorTexImage;
 	float                    _floorSize;

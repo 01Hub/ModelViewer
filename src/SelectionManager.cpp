@@ -102,12 +102,12 @@ int SelectionManager::clickSelect(const QPoint& pixel)
         break;
     }
 
-    // Emit signal only if valid selection
     if (selectedId >= 0)
-    {
         _selectedMeshIds.push_back(selectedId);
-        emit selectionChanged(_selectedMeshIds);
-    }
+
+    // Always emit — an empty list notifies connected panels/views that
+    // nothing is selected (e.g. the user clicked empty space in the viewport).
+    emit selectionChanged(_selectedMeshIds);
 
     return selectedId;
 }

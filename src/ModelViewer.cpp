@@ -337,6 +337,19 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        this,         &ModelViewer::refreshNavigationSubTabs);
 	}
 
+	// Texture Debug Panel — created once per viewer, shown on demand via
+	// Tools → Texture Debugger (visible only when the setting is enabled).
+	{
+		_textureDebugPanel = new TextureDebugPanel(this);
+		_textureDebugPanel->setGLWidget(_glWidget);
+		_textureDebugPanel->setModelViewer(this);
+
+		connect(_glWidget,          &GLWidget::selectionChanged,
+		        _textureDebugPanel, &TextureDebugPanel::onSelectionChanged);
+		connect(_glWidget,          &GLWidget::textureReadbackReady,
+		        _textureDebugPanel, &TextureDebugPanel::onTextureReadbackReady);
+	}
+
 	connect(_sceneGraph, &SceneGraph::structureChanged,
 	        this, &ModelViewer::validateCutClipboard);
 	connect(_sceneGraph, &SceneGraph::structureChanged,
@@ -569,7 +582,13 @@ void ModelViewer::deselectAll()
 void ModelViewer::setListRow(int index)
 {
 	if (index == -1)
+	{
+		// Viewport empty-space click: deselect everything.
+		// Only act if something is actually selected to avoid empty undo entries.
+		if (hasSelection())
+			setSelectionWithoutUndo(QSet<int>{});
 		return;
+	}
 
 	std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
 	TriangleMesh* mesh = meshes.at(index);
@@ -1575,6 +1594,17 @@ void ModelViewer::onInnerNavTabChanged(int index)
 		if (_detachedNavigationOverlay)
 			_camerasPanel->refreshDetachedOverlayTheme();
 	}
+}
+
+void ModelViewer::showTextureDebugPanel()
+{
+	if (!_textureDebugPanel)
+		return;
+	_textureDebugPanel->show();
+	_textureDebugPanel->raise();
+	_textureDebugPanel->activateWindow();
+	// Trigger an immediate readback if there is already a selection.
+	_textureDebugPanel->refresh();
 }
 
 void ModelViewer::applyVariant(const QString& sourceFile, int variantIndex)
@@ -3267,11 +3297,16 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 		_glWidget->deselect(static_cast<int>(i));
 
 	// Select the mesh-store indices of selected leaf items
-	for (int idx : treeWidgetModel->getSelectedIndices())
+	const std::vector<int> selectedVec = treeWidgetModel->getSelectedIndices();
+	for (int idx : selectedVec)
 		_glWidget->select(idx);
 
 	_glWidget->update();
 	updateSelectionStatusMessage();
+
+	// Notify panels connected to GLWidget::selectionChanged (e.g. TextureDebugPanel).
+	// An empty list correctly clears the panel when nothing is selected in the tree.
+	_glWidget->broadcastSelectionChanged(QList<int>(selectedVec.begin(), selectedVec.end()));
 }
 
 void ModelViewer::handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& newName)

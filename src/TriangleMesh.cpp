@@ -1422,8 +1422,10 @@ void TriangleMesh::render()
 	}
 
 	setupTextures();
+	applyDebugTextureOverrides();
 
 	setupUniforms();
+	applyDebugUniformOverrides();
 
 	if(_material.opacity() < 1.0f ||
 		_material.hasOpacityMap() || _material.hasTransmissionMap() ||
@@ -2757,4 +2759,70 @@ const GLMaterial* TriangleMesh::materialForVariant(int variantIndex) const
 	}
 
 	return nullptr;  // no explicit mapping — caller keeps current material
+}
+
+// ---------------------------------------------------------------------------
+// Debug texture overrides (TextureDebugPanel)
+// ---------------------------------------------------------------------------
+void TriangleMesh::setDebugTextureOverride(int unit, GLuint replaceTex)
+{
+	_debugTextureOverrides[unit] = replaceTex;
+}
+
+void TriangleMesh::clearDebugTextureOverride(int unit)
+{
+	_debugTextureOverrides.remove(unit);
+}
+
+void TriangleMesh::clearAllDebugTextureOverrides()
+{
+	_debugTextureOverrides.clear();
+}
+
+void TriangleMesh::applyDebugTextureOverrides()
+{
+	if (_debugTextureOverrides.isEmpty())
+		return;
+
+	for (auto it = _debugTextureOverrides.constBegin();
+	     it != _debugTextureOverrides.constEnd(); ++it)
+	{
+		glActiveTexture(GL_TEXTURE0 + it.key());
+		glBindTexture(GL_TEXTURE_2D, it.value());
+	}
+	// Restore the active texture to unit 0 so subsequent code is not confused.
+	glActiveTexture(GL_TEXTURE0);
+}
+
+void TriangleMesh::setDebugUniformOverride(const QString& name, const QVariant& value)
+{
+	_debugUniformOverrides[name] = value;
+}
+
+void TriangleMesh::clearDebugUniformOverride(const QString& name)
+{
+	_debugUniformOverrides.remove(name);
+}
+
+void TriangleMesh::clearAllDebugUniformOverrides()
+{
+	_debugUniformOverrides.clear();
+}
+
+void TriangleMesh::applyDebugUniformOverrides()
+{
+	if (_debugUniformOverrides.isEmpty() || !_prog)
+		return;
+
+	for (auto it = _debugUniformOverrides.constBegin();
+	     it != _debugUniformOverrides.constEnd(); ++it)
+	{
+		const QByteArray nameBytes = it.key().toUtf8();
+		const char* uName = nameBytes.constData();
+
+		if (it.value().userType() == qMetaTypeId<QVector3D>())
+			_prog->setUniformValue(uName, it.value().value<QVector3D>());
+		else
+			_prog->setUniformValue(uName, it.value().toFloat());
+	}
 }

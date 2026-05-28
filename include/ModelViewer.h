@@ -17,6 +17,7 @@
 #include "SceneClipboard.h"
 #include "CutCommand.h"
 #include "MaterialVariantsPanel.h"
+#include "TextureDebugPanel.h"
 
 #include <QUndoStack>
 
@@ -108,6 +109,10 @@ public:
 	bool hasRedo() const;
 	void undo();
 	void redo();
+
+	// Opens (or raises) the Texture Debug Panel for the current selection.
+	// Called by MainWindow when Tools → Texture Debugger is triggered.
+	void showTextureDebugPanel();
 
 	// Undo stack access
 	QUndoStack* getUndoStack() const { return _undoStack; }
@@ -326,8 +331,9 @@ private:
 	// leaving the layout exactly as it was originally.
 	QTabWidget*            _innerTabWidget  = nullptr;
 	MaterialVariantsPanel* _variantsPanel   = nullptr;
-	AnimationsPanel*       _animationsPanel = nullptr;
-	CamerasPanel*          _camerasPanel    = nullptr;
+	AnimationsPanel*       _animationsPanel    = nullptr;
+	CamerasPanel*          _camerasPanel       = nullptr;
+	TextureDebugPanel*     _textureDebugPanel  = nullptr;
 
 	QUndoStack* _undoStack;
 	bool _lastCanUndo = false;

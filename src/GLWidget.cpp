@@ -537,6 +537,15 @@ _assimpModelLoader(nullptr)
 			this, [this](int) { update(); });
 	connect(_selectionManager, &SelectionManager::selectionChanged,
 			this, [this](const QList<int>& selectedIds) {
+				if (selectedIds.isEmpty()) {
+					// Viewport empty-space click: nothing was hit.
+					// Clear the tracked selection, then let setListRow(-1) handle
+					// deselecting the tree widget and broadcasting to panels.
+					_selectedIDs.clear();
+					emit singleSelectionDone(-1);
+					update();
+					return;
+				}
 				// Click select APPENDS to selection (multi-select by default)
 				// Add the selected mesh(es) if not already there
 				for (int id : selectedIds) {
@@ -544,7 +553,19 @@ _assimpModelLoader(nullptr)
 						_selectedIDs.append(id);
 					}
 				}
-				// Emit singleSelectionDone only for actual single clicks
+				// Forward to external panels (e.g. TextureDebugPanel) BEFORE
+				// singleSelectionDone so the panel sees the "raw" click state
+				// first.  singleSelectionDone triggers setListRow, which may
+				// toggle-deselect the mesh and call broadcastSelectionChanged({})
+				// — that final broadcast is the authoritative state the panel
+				// should end up in.  If we emitted selectionChanged AFTER
+				// singleSelectionDone, the toggle-deselect clear would be
+				// immediately overwritten by this "raw" [meshId] emission.
+				emit selectionChanged(selectedIds);
+				// Emit singleSelectionDone only for actual single clicks.
+				// This triggers setListRow, which handles toggle-deselect and
+				// multi-select bookkeeping, and ultimately calls
+				// broadcastSelectionChanged with the authoritative final list.
 				if (selectedIds.count() == 1) {
 					emit singleSelectionDone(selectedIds.first());
 				}
@@ -1302,6 +1323,29 @@ void GLWidget::initializeGL()
 	glEnable(GL_DEPTH_TEST);
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.f);
+
+	// --- Debug placeholder textures for TextureDebugPanel ---
+	// _debugNeutralTex: 1×1 opaque white, substituted for disabled colour channels.
+	// _debugNormalTex : 1×1 tangent-space neutral normal (0,0,1) encoded as (128,128,255).
+	{
+		const GLubyte white[4]  = { 255, 255, 255, 255 };
+		glGenTextures(1, &_debugNeutralTex);
+		glBindTexture(GL_TEXTURE_2D, _debugNeutralTex);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0,
+		             GL_RGBA, GL_UNSIGNED_BYTE, white);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+		const GLubyte neutralNormal[4] = { 128, 128, 255, 255 };
+		glGenTextures(1, &_debugNormalTex);
+		glBindTexture(GL_TEXTURE_2D, _debugNormalTex);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0,
+		             GL_RGBA, GL_UNSIGNED_BYTE, neutralNormal);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+	}
 }
 
 void GLWidget::resizeGL(int width, int height)
@@ -12157,4 +12201,296 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
 {
     QVector<PreparedMvfMesh> prepared = prepareMvfMeshes(document, geometryChunk, imageChunk);
     return uploadPreparedMvfMeshes(prepared);
+}
+
+// ---------------------------------------------------------------------------
+// setDebugTextureEnabled / clearDebugTextureOverrides
+// ---------------------------------------------------------------------------
+void GLWidget::setDebugTextureEnabled(int meshId, int unitIndex, bool enabled)
+{
+	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+		return;
+
+	TriangleMesh* mesh = _meshStore[meshId];
+
+	if (enabled)
+	{
+		mesh->clearDebugTextureOverride(unitIndex);
+	}
+	else
+	{
+		// Normal map units get a tangent-space neutral normal (0,0,1);
+		// all other units get opaque white so the shader's sampling is neutral.
+		const bool isNormalUnit = (unitIndex == 13 || unitIndex == 24);
+		const GLuint replaceTex = isNormalUnit ? _debugNormalTex : _debugNeutralTex;
+		mesh->setDebugTextureOverride(unitIndex, replaceTex);
+	}
+	update();
+}
+
+void GLWidget::clearDebugTextureOverrides(int meshId)
+{
+	if (meshId >= 0 && meshId < static_cast<int>(_meshStore.size()) && _meshStore[meshId])
+		_meshStore[meshId]->clearAllDebugTextureOverrides();
+	update();
+}
+
+// ---------------------------------------------------------------------------
+// setDebugExtensionEnabled / clearDebugExtensionOverrides
+// ---------------------------------------------------------------------------
+// Extension key → { float uniform overrides, vec3 uniform overrides, texture units }
+namespace
+{
+struct ExtOverrideDef
+{
+	QVector<QPair<QString, float>>      floatUniforms;
+	QVector<QPair<QString, QVector3D>>  vec3Uniforms;
+	QVector<int>                        textureUnits;
+};
+
+const QMap<QString, ExtOverrideDef>& extensionOverrideDefs()
+{
+	// Build once, return by const ref.  Uses explicit qMakePair everywhere
+	// to avoid MSVC brace-init ambiguity with QPair<QString,T> from const char*.
+	static QMap<QString, ExtOverrideDef> defs;
+	if (!defs.isEmpty())
+		return defs;
+
+	// Sheen
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.sheenRoughness"), 0.0f);
+		d.vec3Uniforms  << qMakePair(QString("pbrLighting.sheenColor"),     QVector3D(0,0,0));
+		d.textureUnits  << 20 << 21;
+		defs["Sheen"] = d;
+	}
+	// Clearcoat
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.clearcoat"), 0.0f);
+		d.textureUnits  << 22 << 23 << 24;
+		defs["Clearcoat"] = d;
+	}
+	// Iridescence
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.iridescenceFactor"), 0.0f);
+		d.textureUnits  << 28 << 29;
+		defs["Iridescence"] = d;
+	}
+	// Volume / SSS
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.thicknessFactor"), 0.0f);
+		d.textureUnits  << 30;
+		defs["Volume / SSS"] = d;
+	}
+	// Specular
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.specularFactor"), 0.0f);
+		d.textureUnits  << 25 << 26;
+		defs["Specular"] = d;
+	}
+	// Anisotropy
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.anisotropyStrength"), 0.0f);
+		d.textureUnits  << 27;
+		defs["Anisotropy"] = d;
+	}
+	// Transmission
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.transmission"), 0.0f);
+		d.textureUnits  << 18;
+		defs["Transmission"] = d;
+	}
+	// Diffuse Transmission
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.diffuseTransmissionFactor"), 0.0f);
+		d.textureUnits  << 6 << 31;
+		defs["Diffuse Transmission"] = d;
+	}
+	return defs;
+}
+} // anonymous namespace
+
+void GLWidget::setDebugExtensionEnabled(int meshId, const QString& extensionKey, bool enabled)
+{
+	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+		return;
+
+	TriangleMesh* mesh = _meshStore[meshId];
+	const auto& defs = extensionOverrideDefs();
+	auto it = defs.constFind(extensionKey);
+	if (it == defs.constEnd())
+		return;
+
+	const ExtOverrideDef& def = it.value();
+
+	if (enabled)
+	{
+		// Remove overrides; force uniforms to re-run so originals are restored.
+		for (const auto& kv : def.floatUniforms)
+			mesh->clearDebugUniformOverride(kv.first);
+		for (const auto& kv : def.vec3Uniforms)
+			mesh->clearDebugUniformOverride(kv.first);
+		for (int unit : def.textureUnits)
+			mesh->clearDebugTextureOverride(unit);
+		mesh->markUniformsDirty();
+	}
+	else
+	{
+		// Zero out the scalar factor uniforms so the extension contributes nothing.
+		for (const auto& kv : def.floatUniforms)
+			mesh->setDebugUniformOverride(kv.first, QVariant::fromValue<float>(kv.second));
+		for (const auto& kv : def.vec3Uniforms)
+			mesh->setDebugUniformOverride(kv.first, QVariant::fromValue(kv.second));
+		// Neutral-bind the extension's texture units.
+		for (int unit : def.textureUnits)
+		{
+			const bool isNormalUnit = (unit == 13 || unit == 24);
+			mesh->setDebugTextureOverride(unit, isNormalUnit ? _debugNormalTex : _debugNeutralTex);
+		}
+	}
+	update();
+}
+
+void GLWidget::clearDebugExtensionOverrides(int meshId)
+{
+	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+		return;
+
+	TriangleMesh* mesh = _meshStore[meshId];
+	mesh->clearAllDebugUniformOverrides();
+	mesh->markUniformsDirty();
+	update();
+}
+
+// ---------------------------------------------------------------------------
+// requestTextureReadback
+// Reads back every per-mesh texture slot for the given _meshStore index and
+// emits textureReadbackReady() with one TextureSlotInfo per slot.
+// Inactive slots (textureId == 0) are included with isActive = false and a
+// null thumbnail so the debug panel can show a placeholder if desired.
+// ---------------------------------------------------------------------------
+void GLWidget::requestTextureReadback(int meshId)
+{
+	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+	{
+		emit textureReadbackReady({}, {});
+		return;
+	}
+
+	makeCurrent();
+
+	TriangleMesh*    mesh    = _meshStore[meshId];
+	const GLMaterial& mat    = mesh->getMaterial();
+	const QString    meshName = mesh->getName();
+
+	// baseColorTex mirrors the logic in TriangleMesh::setupTextures() so the
+	// debug panel shows what is actually bound on unit 10.
+	const GLuint baseColorTex = mat.hasAlbedoMap()
+		? static_cast<GLuint>(mat.albedoTextureId())
+		: (mat.hasDiffuseMap() ? static_cast<GLuint>(mat.diffuseTextureId()) : 0U);
+
+	// Pre-compute extension active flags from the material.
+	// These are true whenever the KHR extension is in use — even if no texture
+	// is bound (e.g. sheen colour factor set but no sheen texture).
+	// specularFactor defaults to 1.0 in glTF, so we consider KHR_materials_specular
+	// active when it deviates from the default or a specular texture is present.
+	const bool extSheen      = mat.hasSheen();
+	const bool extClearcoat  = mat.hasClearcoat();
+	const bool extIridescence= mat.iridescenceFactor() > 0.0f;
+	const bool extVolume     = mat.hasVolumeScattering();
+	const bool extSpecular   = mat.hasSpecularFactorMap() || mat.hasSpecularColorMap()
+	                           || mat.specularFactor() != 1.0f;
+	const bool extAnisotropy = mat.anisotropyStrength() != 0.0f || mat.hasAnisotropyMap();
+	const bool extTransmission = mat.hasTransmission();
+	const bool extDiffuseTrans = mat.diffuseTransmissionFactor() > 0.0f
+	                             || mat.hasDiffuseTransmissionMap()
+	                             || mat.hasDiffuseTransmissionColorMap();
+
+	struct SlotDef
+	{
+		QString name;
+		int     unit;
+		GLuint  texId;
+		bool    extEnabled;   // parent KHR extension is active (with or without texture)
+		bool    multiplexed;
+		QString multiplexNote;
+	};
+
+	// Note: unit 0 (_texture, the legacy ADS base texture) has no public getter
+	// on TriangleMesh and mirrors the albedo/diffuse slot (unit 10) in practice,
+	// so it is omitted from the debug readback.
+	const QVector<SlotDef> defs = {
+		{ "diffuseTransmissionColor", 6,  mat.hasDiffuseTransmissionColorMap() ? static_cast<GLuint>(mat.diffuseTransmissionColorTextureId()) : 0U, extDiffuseTrans, false, {} },
+		{ "albedo / diffuse",         10, baseColorTex,                                                                                   false,          false, {} },
+		{ "metallicMap",              11, mat.hasMetallicMap()           ? static_cast<GLuint>(mat.metallicTextureId())           : 0U,    false,          false, {} },
+		{ "emissiveMap",              12, mat.hasEmissiveMap()            ? static_cast<GLuint>(mat.emissiveTextureId())            : 0U,   false,          false, {} },
+		{ "normalMap",                13, mat.hasNormalMap()              ? static_cast<GLuint>(mat.normalTextureId())              : 0U,   false,          false, {} },
+		{ "heightMap",                14, mat.hasHeightMap()              ? static_cast<GLuint>(mat.heightTextureId())              : 0U,   false,          false, {} },
+		{ "opacityMap",               15, mat.hasOpacityMap()             ? static_cast<GLuint>(mat.opacityTextureId())             : 0U,   false,          false, {} },
+		{ "roughnessMap",             16, mat.hasRoughnessMap()           ? static_cast<GLuint>(mat.roughnessTextureId())           : 0U,   false,          false, {} },
+		{ "aoMap",                    17, mat.hasAOMap()                  ? static_cast<GLuint>(mat.occlusionTextureId())           : 0U,   false,          false, {} },
+		{ "transmissionMap",          18, mat.hasTransmissionMap()        ? static_cast<GLuint>(mat.transmissionTextureId())        : 0U,   extTransmission,false, {} },
+		{ "iorMap",                   19, mat.hasIORMap()                 ? static_cast<GLuint>(mat.iorTextureId())                 : 0U,   false,          false, {} },
+		{ "sheenColorMap",            20, mat.hasSheenColorMap()          ? static_cast<GLuint>(mat.sheenColorTextureId())          : 0U,   extSheen,       false, {} },
+		{ "sheenRoughnessMap",        21, mat.hasSheenRoughnessMap()      ? static_cast<GLuint>(mat.sheenRoughnessTextureId())      : 0U,   extSheen,       false, {} },
+		{ "clearcoatColorMap",        22, mat.hasClearcoatColorMap()      ? static_cast<GLuint>(mat.clearcoatColorTextureId())      : 0U,   extClearcoat,   true,  "unit 22 shared with charlieLUT (global)"        },
+		{ "clearcoatRoughnessMap",    23, mat.hasClearcoatRoughnessMap()  ? static_cast<GLuint>(mat.clearcoatRoughnessTextureId())  : 0U,   extClearcoat,   true,  "unit 23 shared with sheenELUT (global)"         },
+		{ "clearcoatNormalMap",       24, mat.hasClearcoatNormalMap()     ? static_cast<GLuint>(mat.clearcoatNormalTextureId())     : 0U,   extClearcoat,   false, {} },
+		{ "specularFactorMap",        25, mat.hasSpecularFactorMap()      ? static_cast<GLuint>(mat.specularFactorTextureId())      : 0U,   extSpecular,    false, {} },
+		{ "specularColorMap",         26, mat.hasSpecularColorMap()       ? static_cast<GLuint>(mat.specularColorTextureId())       : 0U,   extSpecular,    false, {} },
+		{ "anisotropyMap",            27, mat.hasAnisotropyMap()          ? static_cast<GLuint>(mat.anisotropyTextureId())          : 0U,   extAnisotropy,  false, {} },
+		{ "iridescenceMap",           28, mat.hasIridescenceMap()         ? static_cast<GLuint>(mat.iridescenceTextureId())         : 0U,   extIridescence, true,  "unit 28 shared with sssDiffuseTexture (global)" },
+		{ "iridescenceThicknessMap",  29, mat.hasIridescenceThicknessMap()? static_cast<GLuint>(mat.iridescenceThicknessTextureId()): 0U,  extIridescence, true,  "unit 29 shared with sssDepthTexture (global)"   },
+		{ "thicknessMap",             30, mat.hasThicknessMap()           ? static_cast<GLuint>(mat.thicknessTextureId())           : 0U,   extVolume,      false, {} },
+		{ "diffuseTransmissionMap",   31, mat.hasDiffuseTransmissionMap() ? static_cast<GLuint>(mat.diffuseTransmissionTextureId()) : 0U,  extDiffuseTrans,false, {} },
+	};
+
+	constexpr int ThumbSize = 64;
+	QVector<TextureSlotInfo> result;
+	result.reserve(defs.size());
+
+	for (const auto& d : defs)
+	{
+		TextureSlotInfo info;
+		info.slotName         = d.name;
+		info.unitIndex        = d.unit;
+		info.textureId        = d.texId;
+		info.isActive         = (d.texId != 0U);
+		info.extensionEnabled = d.extEnabled;
+		info.isMultiplexed    = d.multiplexed;
+		info.multiplexNote    = d.multiplexNote;
+
+		if (info.isActive)
+		{
+			glBindTexture(GL_TEXTURE_2D, d.texId);
+			GLint w = 0, h = 0;
+			glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH,  &w);
+			glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
+
+			if (w > 0 && h > 0)
+			{
+				QByteArray buf(w * h * 4, '\0');
+				glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+				              reinterpret_cast<void*>(buf.data()));
+				QImage img(reinterpret_cast<const uchar*>(buf.constData()),
+				           w, h, w * 4, QImage::Format_RGBA8888);
+				// Deep-copy before the buffer goes out of scope
+				info.thumbnail = QPixmap::fromImage(
+				    img.copy().scaled(ThumbSize, ThumbSize,
+				                     Qt::KeepAspectRatio, Qt::SmoothTransformation));
+			}
+		}
+
+		result.push_back(std::move(info));
+	}
+
+	doneCurrent();
+	emit textureReadbackReady(result, meshName);
 }

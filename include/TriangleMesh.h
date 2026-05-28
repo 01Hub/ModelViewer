@@ -9,6 +9,8 @@
 #include "GltfVariantData.h"
 
 #include <QMap>
+#include <QVariant>
+#include <QVector3D>
 
 class Triangle;
 
@@ -328,6 +330,23 @@ public:
 
 	virtual void deleteTextures();
 
+	// ---- Debug texture overrides (TextureDebugPanel) -------------------------
+	// Replace a texture unit with an alternative texture for the next draw call.
+	// Pass replaceTex = 0 to bind "no texture" (black), or pass the ID of a
+	// neutral 1×1 placeholder created by GLWidget.
+	void setDebugTextureOverride(int unit, GLuint replaceTex);
+	void clearDebugTextureOverride(int unit);
+	void clearAllDebugTextureOverrides();
+
+	// ---- Debug uniform overrides (TextureDebugPanel extension toggles) --------
+	// Override a named scalar/vec3 uniform after setupUniforms() for one frame.
+	// Supports float and QVector3D values.  Cleared automatically when the panel
+	// re-enables the extension (which also sets markUniformsDirty so the shader
+	// restores the original value on the very next frame).
+	void setDebugUniformOverride(const QString& name, const QVariant& value);
+	void clearDebugUniformOverride(const QString& name);
+	void clearAllDebugUniformOverrides();
+
 protected: // methods
 	virtual void initBuffers(
 		std::vector<unsigned int>* indices,
@@ -348,6 +367,14 @@ protected: // methods
     virtual void setupTransformation();
 	virtual void setupTextures();
 	virtual void setupUniforms();
+
+	// Rebinds debug-override textures after the normal texture setup.
+	// Call at the end of any render() path that binds textures.
+	void applyDebugTextureOverrides();
+
+	// Re-sets debug-override uniforms after setupUniforms().
+	// Must be called unconditionally every frame (not gated by _uniformsDirty).
+	void applyDebugUniformOverrides();
 
 protected:
 
@@ -397,6 +424,18 @@ protected:
 	bool _textureBindingsDirty = true;
 
 	bool _uniformsDirty = true;
+
+	// Debug texture overrides set by TextureDebugPanel.
+	// Maps GL texture unit index → replacement texture ID.
+	// Applied after setupTextures() / bindTexturesOptimized() so they override
+	// whatever was just bound, without modifying the actual material state.
+	QMap<int, GLuint> _debugTextureOverrides;
+
+	// Debug uniform overrides set by TextureDebugPanel extension toggles.
+	// Maps uniform name → replacement value (float or QVector3D).
+	// Applied unconditionally every frame after setupUniforms() so the override
+	// persists even when _uniformsDirty is false.
+	QMap<QString, QVariant> _debugUniformOverrides;
 
 	std::vector<unsigned int> _indices;
 	std::vector<float> _points;
