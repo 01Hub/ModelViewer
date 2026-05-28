@@ -487,19 +487,15 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 
 void TriangleMesh::setupTextures()
 {
-	const GLuint adsDiffuseTex = _material.hasAlbedoMap()
+	// Unit 10 is shared by three shader paths — ADS (texture_diffuse / texture_specular /
+	// etc.), PBR metallic-roughness (albedoMap), and PBR specular-glossiness (diffuseMap) —
+	// all of which sample unit 10 for the base/diffuse/albedo colour.
+	// Fall back to the legacy diffuse texture for specular-glossiness materials that carry
+	// hasDiffuseMap but not hasAlbedoMap; using only hasAlbedoMap here would leave unit 10
+	// as 0 and black out the diffuse colour for those materials.
+	const GLuint baseColorTex = _material.hasAlbedoMap()
 		? static_cast<GLuint>(_material.albedoTextureId())
 		: (_material.hasDiffuseMap() ? _material.diffuseTextureId() : 0U);
-	const GLuint adsSpecularTex = _material.hasMetallicMap()
-		? static_cast<GLuint>(_material.metallicTextureId()) : 0U;
-	const GLuint adsEmissiveTex = _material.hasEmissiveMap()
-		? static_cast<GLuint>(_material.emissiveTextureId()) : 0U;
-	const GLuint adsNormalTex = _material.hasNormalMap()
-		? static_cast<GLuint>(_material.normalTextureId()) : 0U;
-	const GLuint adsHeightTex = _material.hasHeightMap()
-		? static_cast<GLuint>(_material.heightTextureId()) : 0U;
-	const GLuint adsOpacityTex = _material.hasOpacityMap()
-		? static_cast<GLuint>(_material.opacityTextureId()) : 0U;
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, _texture);
@@ -512,23 +508,12 @@ void TriangleMesh::setupTextures()
 		_textureBindingsDirty = false;
 	}
 
-	// ADS light texture maps
+	// Texture maps (units 10–17): single unified bind — serves ADS, PBR metallic-roughness,
+	// and PBR specular-glossiness simultaneously.  Previously there were two consecutive bind
+	// blocks for the same units (ADS then PBR), with the PBR block overwriting the ADS one;
+	// the ADS-only block obscured the specular-glossiness bug and has been removed.
 	glActiveTexture(GL_TEXTURE10);
-	glBindTexture(GL_TEXTURE_2D, adsDiffuseTex);
-	glActiveTexture(GL_TEXTURE11);
-	glBindTexture(GL_TEXTURE_2D, adsSpecularTex);
-	glActiveTexture(GL_TEXTURE12);
-	glBindTexture(GL_TEXTURE_2D, adsEmissiveTex);
-	glActiveTexture(GL_TEXTURE13);
-	glBindTexture(GL_TEXTURE_2D, adsNormalTex);
-	glActiveTexture(GL_TEXTURE14);
-	glBindTexture(GL_TEXTURE_2D, adsHeightTex);
-	glActiveTexture(GL_TEXTURE15);
-	glBindTexture(GL_TEXTURE_2D, adsOpacityTex);
-
-	// PBR light texture maps
-	glActiveTexture(GL_TEXTURE10);
-	glBindTexture(GL_TEXTURE_2D, _material.hasAlbedoMap() ? static_cast<GLuint>(_material.albedoTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, baseColorTex);
 	glActiveTexture(GL_TEXTURE11);
 	glBindTexture(GL_TEXTURE_2D, _material.hasMetallicMap() ? static_cast<GLuint>(_material.metallicTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE12);
@@ -670,7 +655,17 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("texEnabled", _hasTexture);
 	_prog->setUniformValue("texUnit", 0);
 	_prog->setUniformValue("material.ambient", _material.ambient());
-	_prog->setUniformValue("material.diffuse", _material.diffuse());
+	// For specular-glossiness materials the authoritative diffuse colour is
+	// diffuseColorFactor (stored in _diffuseColor / diffuseColor()), not the
+	// albedo-derived _diffuse.  Mirror the same logic used for diffuseFactor in
+	// the PBR path: use (1,1,1) when a diffuse texture is present (the texture
+	// provides the colour), otherwise use the factor directly.  Without this,
+	// ADS mode multiplies the correctly bound diffuse texture by the wrong colour
+	// and the specular-glossiness material renders black.
+	const QVector3D adsDiffuse = _material.getUseSpecularGlossiness()
+		? (_material.hasDiffuseMap() ? QVector3D(1.0f, 1.0f, 1.0f) : _material.diffuseColor())
+		: _material.diffuse();
+	_prog->setUniformValue("material.diffuse", adsDiffuse);
 	_prog->setUniformValue("material.specular", _material.specular());
 	_prog->setUniformValue("material.emission", _material.emissive());
 	_prog->setUniformValue("material.shininess", _material.shininess());
