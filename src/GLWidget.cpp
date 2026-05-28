@@ -904,6 +904,7 @@ GLWidget::~GLWidget()
 		}
 
 		cleanupTransmissionBuffer();
+		cleanupSSSBuffer();
 
 		doneCurrent();  // Release context
 
@@ -1249,6 +1250,7 @@ void GLWidget::initializeGL()
 
 	createWhiteTexture();
 	initTransmissionBuffer();
+	initSSSBuffer();
 
 	float size = 15;
 	_axisCone = new Cone(_axisShader.get(), _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
@@ -1267,12 +1269,23 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("prefilterMap", 4);
 	_fgShader->setUniformValue("brdfLUT", 5);
 	_fgShader->setUniformValue("sheenPrefilterMap", 9);
-	_fgShader->setUniformValue("charlieLUT", 10);
-	_fgShader->setUniformValue("sheenELUT", 11);
+	// Units 22/23: multiplexed between global LUTs and per-mesh clearcoat maps.
+	// charlieLUT and sheenELUT share these units with clearcoatColorMap/clearcoatRoughnessMap.
+	// TriangleMesh::render() only binds 22/23 when the material has those clearcoat textures,
+	// so the global LUTs remain undisturbed for materials without clearcoat textures.
+	// Units 28/29: similarly multiplexed — sssDiffuseTexture/sssDepthTexture share with
+	// iridescenceMap/iridescenceThicknessMap.  TriangleMesh only binds 28/29 when the
+	// material has those iridescence textures, preserving the SSS globals for volume-scatter
+	// materials.  See the multiplexing invariant comment in TriangleMesh::render() for the
+	// renderer limitation this implies and the conditions under which it breaks.
+	_fgShader->setUniformValue("charlieLUT", 22);
+	_fgShader->setUniformValue("sheenELUT", 23);
 	_fgShader->setUniformValue("sheenPrefilterMipLevels", (int)_sheenPrefilterMipLevels);
 	_fgShader->setUniformValue("prefilterMipLevels", (int)_prefilterMipLevels);
 	_fgShader->setUniformValue("transmissionSceneTexture", 7);
 	_fgShader->setUniformValue("transmissionDepthTexture", 8);
+	_fgShader->setUniformValue("sssDiffuseTexture", 28);
+	_fgShader->setUniformValue("sssDepthTexture", 29);
 	_fgShader->setUniformValue("shadowSamples", 27.0f);
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));	
@@ -1343,6 +1356,7 @@ void GLWidget::resizeGL(int width, int height)
 	_textShader->release();
 
 	resizeTransmissionBuffer(width, height);
+	resizeSSSBuffer(width, height);
 
 	update();
 }
@@ -1758,8 +1772,8 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, imgWidth, imgHeight, 0, GL_RGB, GL_FLOAT, data);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	stbi_image_free(data);
 
 	// 2. Create cubemap texture
@@ -5024,9 +5038,9 @@ void GLWidget::loadIrradianceMap()
 		loadKhronosLUTTexture("lut_sheen_E.png", _sheenELUTTexture);
 	}
 
-	glActiveTexture(GL_TEXTURE10);
+	glActiveTexture(GL_TEXTURE22);
 	glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
-	glActiveTexture(GL_TEXTURE11);
+	glActiveTexture(GL_TEXTURE23);
 	glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
 
 	// Cleanup temporary FBO
@@ -5448,6 +5462,8 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
 
+	renderToSSSBuffer(_primaryCamera);
+
 	if (_transmissionEnabled)
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
@@ -5465,6 +5481,8 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	glViewport(0, 0, width(), height());
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
+
+	renderToSSSBuffer(_primaryCamera);
 
 	if (_transmissionEnabled)
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
@@ -5515,6 +5533,21 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 
 void GLWidget::drawFloor(const bool& drawReflection)
 {
+	auto bindFloorSharedSamplerState = [this]()
+	{
+		// Units 7/8: prevent the floor from sampling the transmission FBO while it is
+		// the active render target (or stale from a previous frame).
+		glActiveTexture(GL_TEXTURE7);
+		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+		glActiveTexture(GL_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+		// Units 28/29 (sssDiffuseTexture/sssDepthTexture) need no protection here:
+		// floor rendering never has hasVolumeScattering=true so sampleCapturedSSSDiffuse
+		// is never called, and TriangleMesh only touches those units when the material has
+		// iridescence textures, so the SSS globals remain valid throughout floor draw calls.
+		glActiveTexture(GL_TEXTURE0);
+	};
+
 	//https://open.gl/depthstencils
 	glEnable(GL_STENCIL_TEST);
 	glClear(GL_STENCIL_BUFFER_BIT);
@@ -5530,6 +5563,8 @@ void GLWidget::drawFloor(const bool& drawReflection)
 
 	// Draw floor
 	_fgShader->bind();
+	bindFloorSharedSamplerState();
+	_fgShader->setUniformValue("sssCapture", false);
 	_fgShader->setUniformValue("envMapEnabled", false);
 	_fgShader->setUniformValue("floorRendering", true);
 	_fgShader->setUniformValue("isReflectedPass", true);
@@ -5571,6 +5606,8 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	model.translate(0.0f, 0.0f, -offset);
 
 	_fgShader->bind();
+	bindFloorSharedSamplerState();
+	_fgShader->setUniformValue("sssCapture", false);
 	_fgShader->setUniformValue("modelMatrix", model);
 	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(model));
 	if (_reflectionsEnabled && drawReflection)
@@ -5586,6 +5623,8 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
 	_fgShader->bind();
+	bindFloorSharedSamplerState();
+	_fgShader->setUniformValue("sssCapture", false);
 	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
 	_fgShader->setUniformValue("envMapEnabled", false);	
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
@@ -5611,6 +5650,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glDisable(GL_BLEND);
 
 	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+	glActiveTexture(GL_TEXTURE0);
 }
 
 void GLWidget::drawSkyBox()
@@ -5764,6 +5804,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		(_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
 	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabled);
 	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
+	const int sssObjectIdLocation = prog->uniformLocation("sssObjectId");
 
 	// Collect visible opaque meshes, then sort by texture signature to
 	// minimise GPU texture state changes across consecutive draw calls.
@@ -5789,6 +5830,8 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			prog->bind();
 			prog->setUniformValue("hovered",
 				hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+			if (sssObjectIdLocation >= 0)
+				prog->setUniformValue(sssObjectIdLocation, float(id + 1));
 			renderMeshWithDisplayMode(mesh, _displayMode);
 		}
 	}
@@ -5839,6 +5882,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		(_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
 	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabledT);
 	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
+	const int sssObjectIdLocation = prog->uniformLocation("sssObjectId");
 
 	for (auto& it : transparent)
 	{
@@ -5849,6 +5893,8 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			prog->bind();
 			prog->setUniformValue("hovered",
 				hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
+			if (sssObjectIdLocation >= 0)
+				prog->setUniformValue(sssObjectIdLocation, float(id + 1));
 			renderMeshWithDisplayMode(mesh, _displayMode);
 		}
 	}
@@ -6078,7 +6124,9 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	prog->setUniformValue("normalMatrix", _modelViewMatrix.normalMatrix());
-	prog->setUniformValue("projectionMatrix", camera->getProjectionMatrix());
+	const QMatrix4x4 projMatrix = camera->getProjectionMatrix();
+	prog->setUniformValue("projectionMatrix", projMatrix);
+	prog->setUniformValue("inverseProjectionMatrix", projMatrix.inverted());
 	prog->setUniformValue("viewportMatrix", _viewportMatrix);
 
 	QVector3D zDir(0.0, 0.0, 1.0);
@@ -6108,6 +6156,8 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 
 	prog->setUniformValue("transmissionFramebufferSize",
 		QVector2D(_transmissionTextureWidth, _transmissionTextureHeight));
+	prog->setUniformValue("sssFramebufferSize",
+		QVector2D(_sssTextureWidth, _sssTextureHeight));
 
 	prog->setUniformValue("useDefaultLights", _useDefaultLights);
 	prog->setUniformValue("usePunctualLights", _usePunctualLights);
@@ -6728,10 +6778,10 @@ void GLWidget::bindIBLTextures()
 	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
 	_fgShader->setUniformValue("sheenPrefilterMap", 9);
 	glActiveTexture(GL_TEXTURE9); glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
-	_fgShader->setUniformValue("charlieLUT", 10);
-	glActiveTexture(GL_TEXTURE10); glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
-	_fgShader->setUniformValue("sheenELUT", 11);
-	glActiveTexture(GL_TEXTURE11); glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
+	_fgShader->setUniformValue("charlieLUT", 22);
+	glActiveTexture(GL_TEXTURE22); glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
+	_fgShader->setUniformValue("sheenELUT", 23);
+	glActiveTexture(GL_TEXTURE23); glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
 	// Effective mip count for sheen LOD: lod = roughness * (sheenPrefilterMipLevels - 1)
 	int sheenMips = (_sheenPrefilterMipLevels > 0) ? (int)_sheenPrefilterMipLevels : 5;
 	_fgShader->setUniformValue("sheenPrefilterMipLevels", sheenMips);
@@ -6772,6 +6822,16 @@ void GLWidget::render(GLCamera* camera)
 	}
 
 	// --- 2) Opaque meshes (with clipping) ---
+	// Units 28/29: SSS capture textures — multiplexed with iridescenceMap/iridescenceThicknessMap.
+	// TriangleMesh only touches these units when the material has iridescence textures, so the
+	// SSS globals are preserved for volume-scattering draw calls (renderer limitation —
+	// see multiplexing invariant comment in TriangleMesh::render()).
+	glActiveTexture(GL_TEXTURE28);
+	glBindTexture(GL_TEXTURE_2D, _sssCaptureTexture != 0 ? _sssCaptureTexture : _whiteTexture);
+	glActiveTexture(GL_TEXTURE29);
+	glBindTexture(GL_TEXTURE_2D, _sssDepthTexture != 0 ? _sssDepthTexture : _whiteTexture);
+	glActiveTexture(GL_TEXTURE0);
+
 	_fgShader->bind();
 	setCommonUniforms(_fgShader.get(), camera);	
 	drawMeshesWithClipping(_fgShader.get(), false); // opaque pass
@@ -6794,6 +6854,13 @@ void GLWidget::render(GLCamera* camera)
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
+		glActiveTexture(GL_TEXTURE7);
+		glBindTexture(GL_TEXTURE_2D,
+			(camera == _primaryCamera && _transmissionColorTexture != 0) ? _transmissionColorTexture : _whiteTexture);
+		glActiveTexture(GL_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D,
+			(camera == _primaryCamera && _transmissionDepthTexture != 0) ? _transmissionDepthTexture : _whiteTexture);
+		glActiveTexture(GL_TEXTURE0);
 		drawFloor();
 	}
 
@@ -9166,12 +9233,17 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	}
 
 	// --- RENDER 2: OPAQUE MESHES (with clipping) ---
+	// Units 7/8: prevent feedback — the transmission FBO is currently the render target,
+	// so bind white instead of the real transmission textures.
 	glActiveTexture(GL_TEXTURE7);
-	glBindTexture(GL_TEXTURE_2D, _whiteTexture);  // Any valid texture works
-
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
 	glActiveTexture(GL_TEXTURE8);
-	glBindTexture(GL_TEXTURE_2D, _whiteTexture);  // Any valid texture works
-
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	// Units 28/29: SSS irradiance/depth from the SSS capture pass.
+	glActiveTexture(GL_TEXTURE28);
+	glBindTexture(GL_TEXTURE_2D, _sssCaptureTexture != 0 ? _sssCaptureTexture : _whiteTexture);
+	glActiveTexture(GL_TEXTURE29);
+	glBindTexture(GL_TEXTURE_2D, _sssDepthTexture != 0 ? _sssDepthTexture : _whiteTexture);
 	glActiveTexture(GL_TEXTURE0);
 
 	_fgShader->bind();
@@ -9196,6 +9268,13 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
+		// Avoid sampling from the transmission render target while it is bound
+		// as the current framebuffer color attachment.
+		glActiveTexture(GL_TEXTURE7);
+		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+		glActiveTexture(GL_TEXTURE8);
+		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+		glActiveTexture(GL_TEXTURE0);
 		drawFloor(false);
 	}
 
@@ -9204,6 +9283,81 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	glHint(GL_GENERATE_MIPMAP_HINT, GL_NICEST);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, 0);
+
+	// --- UNBIND FBO ---
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+	glViewport(0, 0, width(), height());
+}
+
+// ============================================================================
+// SSS capture pass
+// Renders only hasVolumeScattering meshes into _sssFBO with sssCapture=true,
+// which makes the shader output raw linear diffuse irradiance.
+// The result in _sssCaptureTexture feeds the blur passes in Sequence 4.
+// ============================================================================
+
+void GLWidget::renderToSSSBuffer(GLCamera* camera)
+{
+	// Skip entirely if no SSS meshes are loaded
+	bool anySSS = false;
+	for (TriangleMesh* mesh : _meshStore)
+	{
+		if (mesh && mesh->getMaterial().hasVolumeScattering())
+		{
+			anySSS = true;
+			break;
+		}
+	}
+	if (!anySSS)
+		return;
+
+	resizeSSSBuffer(width(), height());
+
+	// --- SETUP STATE ---
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+	glDisable(GL_CULL_FACE);
+	glFrontFace(GL_CCW);
+	glDisable(GL_POLYGON_OFFSET_FILL);
+	glDepthMask(GL_TRUE);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glStencilMask(0xFF);
+	glDisable(GL_STENCIL_TEST);
+
+	// --- BIND FBO ---
+	glBindFramebuffer(GL_FRAMEBUFFER, _sssFBO);
+	glViewport(0, 0, _sssTextureWidth, _sssTextureHeight);
+
+	// Black background — non-SSS pixels are discarded by the shader so nothing
+	// writes to them; black is the correct additive identity for the blur.
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	// --- Setup matrices ---
+	_viewMatrix.setToIdentity();
+	_viewMatrix = camera->getViewMatrix();
+	_projectionMatrix = camera->getProjectionMatrix();
+	_modelViewMatrix = _viewMatrix * _modelMatrix;
+
+	// Bind white dummy textures on the SSS sampler slots (units 28/29) so the shader's
+	// sampleCapturedSSSDiffuse() sees a valid, neutral value during the capture pass itself.
+	glActiveTexture(GL_TEXTURE28);
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glActiveTexture(GL_TEXTURE29);
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glActiveTexture(GL_TEXTURE0);
+
+	// --- RENDER: SSS opaque meshes only ---
+	// sssCapture=true makes the shader discard non-SSS fragments and output
+	// raw linear diffuse (baseDirectDiffuse + baseDiffuseIBL) for SSS ones.
+	_fgShader->bind();
+	setCommonUniforms(_fgShader.get(), camera);
+	_fgShader->setUniformValue("sssCapture", true);
+	drawMeshesWithClipping(_fgShader.get(), false); // opaque pass only
+	_fgShader->setUniformValue("sssCapture", false); // reset before release
+	_fgShader->release();
+
+	// No mipmaps needed — the blur passes sample at full resolution.
 
 	// --- UNBIND FBO ---
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
@@ -9227,6 +9381,114 @@ void GLWidget::cleanupTransmissionBuffer()
 		glDeleteTextures(1, &_transmissionDepthTexture);
 		_transmissionDepthTexture = 0;
 	}
+}
+
+// ============================================================================
+// SSS (Subsurface Scattering) Buffer
+// Two-FBO ping-pong layout:
+//   _sssFBO    + _sssCaptureTexture  — capture pass output / V-blur output
+//   _sssBlurFBO + _sssBlurTexture    — H-blur output / V-blur input
+// Both are RGBA16F (no mipmaps needed — they are blur intermediates).
+// _sssDepthTexture is shared by the capture FBO for correct depth occlusion.
+// ============================================================================
+
+void GLWidget::initSSSBuffer()
+{
+	_sssTextureWidth  = width();
+	_sssTextureHeight = height();
+
+	// Clean up any pre-existing resources first
+	if (_sssFBO != 0)            { glDeleteFramebuffers(1, &_sssFBO);            _sssFBO            = 0; }
+	if (_sssCaptureTexture != 0) { glDeleteTextures(1, &_sssCaptureTexture);     _sssCaptureTexture = 0; }
+	if (_sssDepthTexture != 0)   { glDeleteTextures(1, &_sssDepthTexture);       _sssDepthTexture   = 0; }
+	if (_sssBlurFBO != 0)        { glDeleteFramebuffers(1, &_sssBlurFBO);        _sssBlurFBO        = 0; }
+	if (_sssBlurTexture != 0)    { glDeleteTextures(1, &_sssBlurTexture);        _sssBlurTexture    = 0; }
+
+	// ---- Capture FBO --------------------------------------------------------
+	glGenFramebuffers(1, &_sssFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, _sssFBO);
+
+	// Color: RGBA16F — SSS diffuse capture, no mipmaps (blur input)
+	glGenTextures(1, &_sssCaptureTexture);
+	glBindTexture(GL_TEXTURE_2D, _sssCaptureTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+		_sssTextureWidth, _sssTextureHeight,
+		0, GL_RGBA, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+		GL_TEXTURE_2D, _sssCaptureTexture, 0);
+
+	// Depth: DEPTH32F — correct occlusion ordering during the capture pass
+	glGenTextures(1, &_sssDepthTexture);
+	glBindTexture(GL_TEXTURE_2D, _sssDepthTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F,
+		_sssTextureWidth, _sssTextureHeight,
+		0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+		GL_TEXTURE_2D, _sssDepthTexture, 0);
+
+	{
+		GLenum drawBufs[] = { GL_COLOR_ATTACHMENT0 };
+		glDrawBuffers(1, drawBufs);
+		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE)
+			qWarning() << "SSS capture FBO incomplete! Status:" << status;
+	}
+
+	// ---- Blur FBO -----------------------------------------------------------
+	// No depth attachment needed — blur passes are fullscreen quads.
+	glGenFramebuffers(1, &_sssBlurFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, _sssBlurFBO);
+
+	glGenTextures(1, &_sssBlurTexture);
+	glBindTexture(GL_TEXTURE_2D, _sssBlurTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+		_sssTextureWidth, _sssTextureHeight,
+		0, GL_RGBA, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+		GL_TEXTURE_2D, _sssBlurTexture, 0);
+
+	{
+		GLenum drawBufs[] = { GL_COLOR_ATTACHMENT0 };
+		glDrawBuffers(1, drawBufs);
+		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE)
+			qWarning() << "SSS blur FBO incomplete! Status:" << status;
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void GLWidget::resizeSSSBuffer(int width, int height)
+{
+	if (_sssTextureWidth == width && _sssTextureHeight == height)
+		return;
+
+	_sssTextureWidth  = width;
+	_sssTextureHeight = height;
+
+	initSSSBuffer();
+}
+
+void GLWidget::cleanupSSSBuffer()
+{
+	if (_sssFBO != 0)            { glDeleteFramebuffers(1, &_sssFBO);            _sssFBO            = 0; }
+	if (_sssCaptureTexture != 0) { glDeleteTextures(1, &_sssCaptureTexture);     _sssCaptureTexture = 0; }
+	if (_sssDepthTexture != 0)   { glDeleteTextures(1, &_sssDepthTexture);       _sssDepthTexture   = 0; }
+	if (_sssBlurFBO != 0)        { glDeleteFramebuffers(1, &_sssBlurFBO);        _sssBlurFBO        = 0; }
+	if (_sssBlurTexture != 0)    { glDeleteTextures(1, &_sssBlurTexture);        _sssBlurTexture    = 0; }
 }
 
 void GLWidget::checkAndStopTimers()

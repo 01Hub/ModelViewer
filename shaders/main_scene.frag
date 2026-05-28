@@ -70,6 +70,9 @@ uniform float shadowSizeScale;
 uniform sampler2D transmissionSceneTexture;  // _transmissionColorTexture
 uniform sampler2D transmissionDepthTexture;  // _transmissionDepthTexture
 uniform vec2	  transmissionFramebufferSize;
+uniform sampler2D sssDiffuseTexture;
+uniform sampler2D sssDepthTexture;
+uniform vec2      sssFramebufferSize;
 
 uniform float floorAlpha = 0.95;
 uniform float floorSpecularScale = 0.6;  // scale specular on floor [0..1]
@@ -197,6 +200,12 @@ uniform bool hasThicknessAlpha = false;
 // KHR_materials_scatter
 uniform vec3 multiScatterColor;
 uniform bool hasVolumeScattering;
+uniform float sssObjectId = 0.0;
+
+// SSS capture pass: when true, only hasVolumeScattering surfaces are drawn and they
+// output raw linear diffuse irradiance (no tone mapping / gamma / alpha handling).
+// Set from C++ before renderToSSSBuffer(); cleared for the normal render pass.
+uniform bool sssCapture = false;
 
 struct TextureTransform
 {
@@ -253,6 +262,7 @@ uniform vec3 cameraDir;
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
 uniform mat4 projectionMatrix;
+uniform mat4 inverseProjectionMatrix;  // precomputed on CPU — avoids per-fragment inverse()
 uniform bool sectionActive;
 uniform int displayMode;
 uniform int renderingMode;
@@ -598,6 +608,7 @@ vec3	getIBLVolumeRefractionPerChannel(vec3 n, vec3 v, float perceptualRoughness,
 
 // ---- KHR Volume Scatter ----------------------------------------------------
 vec3	multiToSingleScatter();
+vec3    sampleCapturedSSSDiffuse(float attenuationDistance, vec3 diffuseColor);
 
 // ---- Shadows ---------------------------------------------------------------
 float   calculateShadow(vec4 fragPosLightSpace);
@@ -690,6 +701,11 @@ void main()
 		if (distance > fadeStart)
 			discard;
 	}
+
+	// SSS capture pass: skip non-SSS surfaces entirely so only subsurface
+	// fragments are written into the SSS FBO.
+	if (sssCapture && !hasVolumeScattering)
+		discard;
 
 	// Choose rendering path - ADS vs PBR
 	if (renderingMode == 0)
@@ -1915,6 +1931,145 @@ vec3 multiToSingleScatter()
 	return 1.0 - s * s;
 }
 
+vec3 burleySetup(vec3 radius, vec3 albedo)
+{
+	const float invPi = 0.31830988618;
+	vec3 s = 1.9 - albedo + 3.5 * ((albedo - 0.8) * (albedo - 0.8));
+	vec3 l = 0.25 * invPi * radius;
+	return l / s;
+}
+
+vec3 burleyEval(vec3 d, float r)
+{
+	vec3 exp_r_3_d = exp(-r / (3.0 * d));
+	vec3 exp_r_d = exp_r_3_d * exp_r_3_d * exp_r_3_d;
+	vec3 value = (exp_r_d + exp_r_3_d) / (8.0 * PI * d);
+	bvec3 valid = lessThan(vec3(r), 16.0 * d);
+	return vec3(
+		valid.x ? value.x : 0.0,
+		valid.y ? value.y : 0.0,
+		valid.z ? value.z : 0.0
+	);
+}
+
+vec3 sampleCapturedSSSDiffuse(float attenuationDistance, vec3 diffuseColor)
+{
+	if (sssFramebufferSize.x <= 0.0 || sssFramebufferSize.y <= 0.0)
+		return vec3(0.0);
+
+	const float scatterMinRadius = 0.001394607;
+	const int sampleCount = 55;
+	const vec3 scatterSamples[sampleCount] = vec3[](
+		vec3(3.141593, 0.001395, 0.969751),
+		vec3(5.541556, 0.004235, 0.993903),
+		vec3(7.941519, 0.007148, 1.019123),
+		vec3(10.341482, 0.010135, 1.045482),
+		vec3(12.741446, 0.013200, 1.073049),
+		vec3(15.141409, 0.016346, 1.101902),
+		vec3(17.541372, 0.019578, 1.132126),
+		vec3(19.941335, 0.022900, 1.163813),
+		vec3(22.341298, 0.026315, 1.197063),
+		vec3(24.741262, 0.029829, 1.231983),
+		vec3(27.141225, 0.033447, 1.268692),
+		vec3(29.541188, 0.037174, 1.307319),
+		vec3(31.941151, 0.041015, 1.348003),
+		vec3(34.341115, 0.044977, 1.390899),
+		vec3(36.741078, 0.049067, 1.436176),
+		vec3(39.141041, 0.053291, 1.484019),
+		vec3(41.541004, 0.057658, 1.534633),
+		vec3(43.940968, 0.062176, 1.588244),
+		vec3(46.340931, 0.066853, 1.645099),
+		vec3(48.740894, 0.071700, 1.705477),
+		vec3(51.140857, 0.076727, 1.769685),
+		vec3(53.540820, 0.081946, 1.838064),
+		vec3(55.940784, 0.087369, 1.910997),
+		vec3(58.340747, 0.093011, 1.988915),
+		vec3(60.740710, 0.098885, 2.072299),
+		vec3(63.140673, 0.105010, 2.161696),
+		vec3(65.540637, 0.111402, 2.257721),
+		vec3(67.940600, 0.118083, 2.361080),
+		vec3(70.340563, 0.125075, 2.472575),
+		vec3(72.740526, 0.132402, 2.593131),
+		vec3(75.140490, 0.140092, 2.723815),
+		vec3(77.540453, 0.148177, 2.865865),
+		vec3(79.940416, 0.156691, 3.020733),
+		vec3(82.340379, 0.165674, 3.190127),
+		vec3(84.740342, 0.175170, 3.376072),
+		vec3(87.140306, 0.185231, 3.580996),
+		vec3(89.540269, 0.195916, 3.807830),
+		vec3(91.940232, 0.207293, 4.060153),
+		vec3(94.340195, 0.219443, 4.342384),
+		vec3(96.740159, 0.232459, 4.660052),
+		vec3(99.140122, 0.246453, 5.020170),
+		vec3(101.540085, 0.261562, 5.431781),
+		vec3(103.940048, 0.277950, 5.906755),
+		vec3(106.340012, 0.295823, 6.461003),
+		vec3(108.739975, 0.315440, 7.116369),
+		vec3(111.139938, 0.337136, 7.903692),
+		vec3(113.539901, 0.361351, 8.867933),
+		vec3(115.939864, 0.388694, 10.077632),
+		vec3(118.339828, 0.420016, 11.641928),
+		vec3(120.739791, 0.456588, 13.746795),
+		vec3(123.139754, 0.500418, 16.736521),
+		vec3(125.539717, 0.554965, 21.327610),
+		vec3(127.939681, 0.627013, 29.298947),
+		vec3(130.339644, 0.733019, 46.613892),
+		vec3(132.739607, 0.936606, 113.316758)
+	);
+
+	vec2 texelSize = 1.0 / sssFramebufferSize;
+	vec2 uv = gl_FragCoord.xy * texelSize;
+	vec4 centerSample = textureLod(sssDiffuseTexture, uv, 0.0);
+	float centerId = centerSample.a;
+	if (centerId <= 0.0)
+		return centerSample.rgb;
+
+	float centerDepth = textureLod(sssDepthTexture, uv, 0.0).r * 2.0 - 1.0;
+	vec2 clipUV = uv * 2.0 - 1.0;
+	vec4 clipSpacePosition = vec4(clipUV.x, clipUV.y, centerDepth, 1.0);
+	vec4 upos = inverseProjectionMatrix * clipSpacePosition;
+	vec3 fragViewPosition = upos.xyz / max(upos.w, 1e-6);
+	upos = inverseProjectionMatrix * vec4(clipUV.x + texelSize.x, clipUV.y, centerDepth, 1.0);
+	vec3 offsetViewPosition = upos.xyz / max(upos.w, 1e-6);
+	float metersPerPixel = distance(fragViewPosition, offsetViewPosition);
+	if (metersPerPixel <= 1e-6)
+		return centerSample.rgb;
+
+	vec3 scatterDistance = attenuationDistance * multiScatterColor;
+	float maxColor = max(max3(scatterDistance), 1e-5);
+	float maxRadiusPixels = maxColor / metersPerPixel;
+	if (maxRadiusPixels <= 1.0)
+		return centerSample.rgb;
+
+	vec3 clampedScatterDistance = max(vec3(scatterMinRadius), scatterDistance / maxColor) * maxColor;
+	vec3 d = burleySetup(clampedScatterDistance, vec3(1.0));
+	vec3 totalWeight = vec3(0.0);
+	vec3 totalDiffuse = vec3(0.0);
+
+	for (int i = 0; i < sampleCount; ++i)
+	{
+		vec3 scatterSample = scatterSamples[i];
+		float angle = scatterSample.x;
+		float r = scatterSample.y * maxRadiusPixels * texelSize.x;
+		vec2 sampleUV = uv + vec2(cos(angle) * r, sin(angle) * r);
+		vec4 sampleColor = textureLod(sssDiffuseTexture, sampleUV, 0.0);
+		if (sampleColor.a != centerId)
+			continue;
+
+		float sampleDepth = textureLod(sssDepthTexture, sampleUV, 0.0).r * 2.0 - 1.0;
+		vec2 sampleClipUV = sampleUV * 2.0 - 1.0;
+		vec4 sampleUpos = inverseProjectionMatrix * vec4(sampleClipUV.x, sampleClipUV.y, sampleDepth, 1.0);
+		vec3 sampleViewPosition = sampleUpos.xyz / max(sampleUpos.w, 1e-6);
+		float sampleDistance = distance(sampleViewPosition, fragViewPosition);
+		vec3 weight = burleyEval(d, sampleDistance) * scatterSample.z;
+		totalWeight += weight;
+		totalDiffuse += weight * sampleColor.rgb;
+	}
+
+	totalWeight = max(totalWeight, vec3(1e-4));
+	return (totalDiffuse / totalWeight) * diffuseColor;
+}
+
 // ---- Shadows ----------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
@@ -2984,7 +3139,7 @@ void evaluateBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3
 	specularOut = (NdotL > 0.0) ? (specBRDF * lightIntensity * NdotL * lightFactor) : vec3(0.0);
 
 	float diffuseTransmissionThickness = computeVolumeThickness(params.thickness);
-	if (params.diffuseTransmissionFactor > 0.0)
+	if (!sssCapture && params.diffuseTransmissionFactor > 0.0)
 	{
 		diffuseOut *= (1.0 - params.diffuseTransmissionFactor);
 		if (NdotLBack > 0.0)
@@ -3002,13 +3157,13 @@ void evaluateBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3
 			}
 			if (hasVolumeScattering && diffuseTransmissionThickness > 0.0)
 			{
-				diffuseBTDF *= (1.0 - multiToSingleScatter());
+				diffuseBTDF *= (vec3(1.0) - multiToSingleScatter());
 			}
 			diffuseOut += diffuseBTDF * params.diffuseTransmissionFactor;
 		}
 	}
 
-	if (params.transmission > 0.0)
+	if (!sssCapture && params.transmission > 0.0)
 	{
 		vec3 transmittedLight = lightIntensity *
 			calculateTransmissionKHR(
@@ -3080,7 +3235,7 @@ void evaluateBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 d
 	vec3 f_diffuse = irradiance * params.baseColor;
 	float diffuseTransmissionThickness = computeVolumeThickness(params.thickness);
 
-	if (params.diffuseTransmissionFactor > 0.0)
+	if (!sssCapture && params.diffuseTransmissionFactor > 0.0)
 	{
 		vec3 backNormalIBL = transformNormalForIBL(normalize(-frame.N));
 		vec3 diffuseTransmissionIBL = texture(irradianceMap, backNormalIBL).rgb * envMapExposure * params.diffuseTransmissionColor;
@@ -3096,7 +3251,7 @@ void evaluateBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 d
 		}
 		if (hasVolumeScattering && diffuseTransmissionThickness > 0.0)
 		{
-			diffuseTransmissionIBL *= (1.0 - multiToSingleScatter());
+			diffuseTransmissionIBL *= (vec3(1.0) - multiToSingleScatter());
 		}
 		f_diffuse = mix(f_diffuse, diffuseTransmissionIBL, params.diffuseTransmissionFactor);
 	}
@@ -3116,7 +3271,7 @@ void evaluateBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 d
 	prefilteredColor = max(prefilteredColor, vec3(0.0));
 	prefilteredColor *= envMapExposure;
 
-	if (params.transmission > 0.0)
+	if (!sssCapture && params.transmission > 0.0)
 	{
 		vec3 transmittedLight = vec3(0.0);
 		if (params.dispersion > 0.0)
@@ -3339,7 +3494,8 @@ vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 po
 	vec3 baseNoSpec, specOnly;
 	vec3 sceneColor = matEmissive + ambient;
 
-	if (useDefaultLights && shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering))
+	if (useDefaultLights && shadowsEnabled && displayMode == 3 &&
+		(selfShadowsEnabled || floorRendering || hasVolumeScattering))
 	{
 		float shadowFactor = calculateShadowVariableKernel(
 			fs_in_shadow.FragPosLightSpace,
@@ -3494,7 +3650,8 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 	}
 
 	float lightShadowFactor = 0.0;
-	if (useDefaultLights && shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering))
+	if (useDefaultLights && shadowsEnabled && displayMode == 3 &&
+		(selfShadowsEnabled || floorRendering || hasVolumeScattering))
 	{
 		float s = calculateShadowVariableKernel(
 			fs_in_shadow.FragPosLightSpace,
@@ -3628,7 +3785,92 @@ vec4 calculatePBRLightingKHR(int renderMode, float side)
 	layers.baseDiffuseIBL *= iblSheenScaling;
 	layers.baseSpecularIBL *= iblSheenScaling;
 
+	// SSS capture mode: store total incident irradiance × scatter ratio into the SSS FBO.
+	// sampleCapturedSSSDiffuse() blurs this with the Burley kernel and adds it to outRGB.
+	//
+	// Design rationale for the omnidirectional capture:
+	//   A translucent surface with diffuseTransmissionFactor=1 lets light enter from BOTH
+	//   faces.  Sampling only frame.N (or weighting the back face less) makes side/rear
+	//   fragments always dark — the Burley kernel (~10 px radius) cannot carry front-face
+	//   brightness across a 300 px skull.  Instead we average the front and back hemisphere
+	//   IBL so every fragment sees the full omnidirectional environment, and for direct
+	//   lights we sum NdotLFront + NdotLBack so a back-lit point is not discarded.
+	//   diffuseTransmissionColor is intentionally left out here; sampleCapturedSSSDiffuse
+	//   applies it at blur time to avoid squaring it for coloured transmission materials.
+	if (sssCapture)
+	{
+		vec3 captureColor = vec3(0.0);
+		if (hasVolumeScattering)
+		{
+			vec3 singleScatter = multiToSingleScatter();
+			float dtFactor = max(params.diffuseTransmissionFactor, 0.0);
+
+			// ---- IBL: average of front + back hemisphere -------------------------
+			// Both hemispheres contribute equally — incident light enters from either face.
+			if (useIBL)
+			{
+				vec3 frontIrr = texture(irradianceMap, transformNormalForIBL(normalize( frame.N))).rgb;
+				vec3 backIrr  = texture(irradianceMap, transformNormalForIBL(normalize(-frame.N))).rgb;
+				captureColor += (frontIrr + backIrr) * 0.5 * envMapExposure;
+			}
+
+			// ---- Direct lights: sum front + back NdotL ---------------------------
+			// Summing both sides means a side/rear fragment also captures light that
+			// is reaching its inner face — which the Burley blur will scatter outward.
+			if (useDefaultLights || floorRendering)
+			{
+				float NdotLFront = max(dot( frame.N, frame.L), 0.0);
+				float NdotLBack  = max(dot(-frame.N, frame.L), 0.0);
+				captureColor += lightSource.diffuse * (NdotLFront + NdotLBack) / PI;
+			}
+			if (hasPunctualLights && usePunctualLights)
+			{
+				for (int i = 0; i < lightCount; ++i)
+				{
+					vec3 lightDir;
+					vec3 lightIntensity;
+					evaluatePunctualLight(lights[i], lightDir, lightIntensity);
+					if (max3(lightIntensity) <= 0.0)
+						continue;
+					float NdotLFront = max(dot( frame.N, lightDir), 0.0);
+					float NdotLBack  = max(dot(-frame.N, lightDir), 0.0);
+					captureColor += lightIntensity * (NdotLFront + NdotLBack) / PI;
+				}
+			}
+
+			// Scale by scatter ratio and transmission factor
+			captureColor *= singleScatter * dtFactor;
+
+			// NOTE: Volume Beer-Lambert attenuation is intentionally NOT applied here.
+			// That attenuation (pow(attenuationColor, thickness/attenuationDistance)) is
+			// for direct transmission rays crossing the full slab — it is already applied
+			// in evaluateBaseDirect and evaluateBaseIBL for the unscattered component.
+			// The scattered SSS component's spatial decay is handled by burleyEval()
+			// inside sampleCapturedSSSDiffuse(); adding full-thickness Beer-Lambert on top
+			// would drive captureColor to zero for any real skull thickness.
+		}
+		return vec4(captureColor, sssObjectId);
+	}
+
 	vec3 outRGB = composeLayeredPBR(frame, params, layers);
+
+	if (hasVolumeScattering)
+	{
+		float diffuseTransmissionThickness = computeVolumeThickness(params.thickness);
+		if (params.diffuseTransmissionFactor > 0.0 && diffuseTransmissionThickness > 0.0)
+		{
+			vec3 subsurface = sampleCapturedSSSDiffuse(params.attenuationDistance, params.diffuseTransmissionColor);
+			float sssWeight = (1.0 - params.metallic) * (1.0 - params.transmission);
+			float sssVisibility = 1.0;
+			if (useDefaultLights && shadowsEnabled)
+			{
+				// Let shadows read clearly on top of the SSS resolve instead of letting
+				// the gathered scatter fully wash out the shadowed side of the model.
+				sssVisibility = lightFactor;
+			}
+			outRGB += subsurface * sssWeight * sssVisibility;
+		}
+	}
 
 	if (floorRendering && !isReflectedPass)
 	{

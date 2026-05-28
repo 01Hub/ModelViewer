@@ -693,6 +693,12 @@ private:
 	void cleanupTransmissionBuffer();
 	void resizeTransmissionBuffer(int width, int height);
 
+	// --- SSS (Subsurface Scattering) Buffer Methods ---
+	void initSSSBuffer();
+	void renderToSSSBuffer(GLCamera* camera);
+	void resizeSSSBuffer(int width, int height);
+	void cleanupSSSBuffer();
+
 	GLuint _whiteTexture = 0;
 	void createWhiteTexture();
 
@@ -913,6 +919,16 @@ private:
 	int _transmissionTextureHeight = 0;       // Current FBO height
 	int _transmissionMipLevels = 0;			  // Number of mip levels
 	bool _transmissionEnabled = true;         // Toggle for feature
+
+	// --- SSS (Subsurface Scattering) Buffer Resources ---
+	GLuint _sssFBO = 0;                       // Capture FBO: SSS diffuse irradiance
+	GLuint _sssCaptureTexture = 0;            // RGBA16F: SSS diffuse capture (also V-blur output)
+	GLuint _sssDepthTexture = 0;              // DEPTH32F: depth for capture pass occlusion
+	GLuint _sssBlurFBO = 0;                   // Blur FBO: H-blur output
+	GLuint _sssBlurTexture = 0;               // RGBA16F: H-blur result (V-blur input)
+	int _sssTextureWidth = 0;                 // Current FBO width
+	int _sssTextureHeight = 0;                // Current FBO height
+	bool _sssEnabled = false;                 // True when any loaded mesh has hasVolumeScattering
 
 	QImage					 _floorTexImage;
 	float                    _floorSize;
