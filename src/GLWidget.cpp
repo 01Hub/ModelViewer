@@ -1270,6 +1270,7 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("charlieLUT", 10);
 	_fgShader->setUniformValue("sheenELUT", 11);
 	_fgShader->setUniformValue("sheenPrefilterMipLevels", (int)_sheenPrefilterMipLevels);
+	_fgShader->setUniformValue("prefilterMipLevels", (int)_prefilterMipLevels);
 	_fgShader->setUniformValue("transmissionSceneTexture", 7);
 	_fgShader->setUniformValue("transmissionDepthTexture", 8);
 	_fgShader->setUniformValue("shadowSamples", 27.0f);
@@ -6734,6 +6735,9 @@ void GLWidget::bindIBLTextures()
 	// Effective mip count for sheen LOD: lod = roughness * (sheenPrefilterMipLevels - 1)
 	int sheenMips = (_sheenPrefilterMipLevels > 0) ? (int)_sheenPrefilterMipLevels : 5;
 	_fgShader->setUniformValue("sheenPrefilterMipLevels", sheenMips);
+	// Effective mip count for GGX specular LOD: lod = roughness * (prefilterMipLevels - 1)
+	int prefilterMips = (_prefilterMipLevels > 0) ? (int)_prefilterMipLevels : 9;
+	_fgShader->setUniformValue("prefilterMipLevels", prefilterMips);
 }
 
 
@@ -7045,7 +7049,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 	for (size_t i = 0; i < res.size(); i += 4)
 	{
 		QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
-		qDebug() << "ReadPixel Color" << col;
+		//qDebug() << "ReadPixel Color" << col;
 		unsigned int colId = colorToIndex(col);
 		if (colId != 0)
 			voteCount[colId - 1]++;
