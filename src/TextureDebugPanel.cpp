@@ -4,6 +4,7 @@
 
 #include <QCheckBox>
 #include <QCloseEvent>
+#include <QComboBox>
 #include <QFrame>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -175,6 +176,89 @@ void TextureDebugPanel::buildUI()
 
 	root->addWidget(makeSeparator(this));
 
+	// ---- Channel isolation row ---------------------------------------------
+	// "All" = checkbox mode (multi-texture combined effect).
+	// Specific channel = Khronos-style in-shader single-channel isolation.
+	// IDs 1-8: geometry/vertex channels.  IDs 10-17: texture channels.
+	{
+		auto* row = new QHBoxLayout;
+		auto* lbl = new QLabel(tr("Channel:"), this);
+		_channelCombo = new QComboBox(this);
+
+		// "All" — normal checkbox-driven rendering
+		_channelCombo->addItem(tr("All"), 0);
+
+		// Geometry / vertex group
+		_channelCombo->insertSeparator(_channelCombo->count());
+		_channelCombo->addItem(tr("Texture Coordinates 0"),  1);
+		_channelCombo->addItem(tr("Texture Coordinates 1"),  2);
+		_channelCombo->addItem(tr("Geometry Normal"),        3);
+		_channelCombo->addItem(tr("Geometry Tangent"),       4);
+		_channelCombo->addItem(tr("Geometry Bitangent"),     5);
+		_channelCombo->addItem(tr("Geometry Tangent W"),     6);
+		_channelCombo->addItem(tr("Shading Normal"),         7);
+		_channelCombo->addItem(tr("Alpha"),                  8);
+
+		// Texture channels group
+		_channelCombo->insertSeparator(_channelCombo->count());
+		_channelCombo->addItem(tr("Albedo"),    10);
+		_channelCombo->addItem(tr("Metallic"),  11);
+		_channelCombo->addItem(tr("Roughness"), 16);
+		_channelCombo->addItem(tr("AO"),        17);
+		_channelCombo->addItem(tr("Emissive"),  12);
+		_channelCombo->addItem(tr("Normal Map"), 13);
+		_channelCombo->addItem(tr("Height"),    14);
+		_channelCombo->addItem(tr("Opacity"),   15);
+
+		row->addWidget(lbl);
+		row->addWidget(_channelCombo, 1);
+		root->addLayout(row);
+
+		connect(_channelCombo, QOverload<int>::of(&QComboBox::currentIndexChanged),
+		        this, [this](int comboIndex)
+		{
+			// Separator items have invalid itemData — skip them.
+			const QVariant data = _channelCombo->itemData(comboIndex);
+			if (!data.isValid()) return;
+
+			const int channelId = data.toInt();
+			_activeChannelId = channelId;
+
+			if (!_glWidget || _currentMeshId < 0) return;
+
+			if (channelId == 0)
+			{
+				// Restore to checkbox-mode: clear channel isolation then
+				// re-apply the current checkbox state.
+				_glWidget->setDebugChannelOutput(_currentMeshId, 0);
+				// Re-apply any suppressed extensions.
+				for (const QString& key : _disabledExtensions)
+					_glWidget->setDebugExtensionEnabled(_currentMeshId, key, false);
+				applyCurrentTextureState();
+				_thumbnailScroll->setEnabled(true);
+				_extensionGroup->setEnabled(true);
+				_multiplexGroup->setEnabled(true);
+			}
+			else
+			{
+				// Single-channel isolation: clears all overrides and sets the
+				// shader channel output.  Checkboxes and extensions have no
+				// effect while this is active.
+				_glWidget->clearDebugExtensionOverrides(_currentMeshId);
+				_glWidget->setDebugChannelOutput(_currentMeshId, channelId);
+				_thumbnailScroll->setEnabled(false);
+				_extensionGroup->setEnabled(false);
+				_multiplexGroup->setEnabled(false);
+			}
+
+			// Repopulate to update thumbnail border/style for active channel.
+			if (!_lastSlots.isEmpty())
+				populateThumbnails(_lastSlots);
+		});
+	}
+
+	root->addWidget(makeSeparator(this));
+
 	// ---- Textures section --------------------------------------------------
 	{
 		auto* sectionLabel = new QLabel(tr("TEXTURES"), this);
@@ -260,11 +344,16 @@ void TextureDebugPanel::onSelectionChanged(const QList<int>& selectedIds)
 		// Clear any debug overrides that were set on the deselected mesh.
 		if (_currentMeshId >= 0 && _glWidget)
 		{
-			_glWidget->clearDebugTextureOverrides(_currentMeshId);
+			_glWidget->clearAllDebugOverrides(_currentMeshId);
 			_glWidget->clearDebugExtensionOverrides(_currentMeshId);
 		}
 		_disabledUnits.clear();
 		_disabledExtensions.clear();
+		_activeChannelId = 0;
+		if (_channelCombo) { QSignalBlocker b(_channelCombo); _channelCombo->setCurrentIndex(0); }
+		if (_thumbnailScroll) _thumbnailScroll->setEnabled(true);
+		if (_extensionGroup)  _extensionGroup->setEnabled(true);
+		if (_multiplexGroup)  _multiplexGroup->setEnabled(true);
 
 		_currentMeshId = -1;
 		_lastSlots.clear();
@@ -298,11 +387,12 @@ void TextureDebugPanel::onSelectionChanged(const QList<int>& selectedIds)
 	// Switching to a different mesh: restore the old one first.
 	if (_currentMeshId >= 0 && meshId != _currentMeshId && _glWidget)
 	{
-		_glWidget->clearDebugTextureOverrides(_currentMeshId);
+		_glWidget->clearAllDebugOverrides(_currentMeshId);
 		_glWidget->clearDebugExtensionOverrides(_currentMeshId);
 	}
 	_disabledUnits.clear();
 	_disabledExtensions.clear();
+	// Keep the channel combo as-is so the user can browse meshes in the same mode.
 
 	_currentMeshId = meshId;
 
@@ -336,6 +426,15 @@ void TextureDebugPanel::onTextureReadbackReady(const QVector<TextureSlotInfo>& s
 
 	_meshNameLabel->setText(
 	    meshName.isEmpty() ? tr("Unknown mesh") : tr("Mesh: %1").arg(meshName));
+
+	// Re-apply the current mode after switching to a new mesh.
+	if (_glWidget && _currentMeshId >= 0)
+	{
+		if (_activeChannelId != 0)
+			_glWidget->setDebugChannelOutput(_currentMeshId, _activeChannelId);
+		else
+			applyCurrentTextureState();
+	}
 
 	populateThumbnails(slotInfos);
 	populateExtensions(slotInfos);
@@ -396,7 +495,9 @@ void TextureDebugPanel::populateThumbnails(const QVector<TextureSlotInfo>& slotI
 			thumbBtn->setStyleSheet(
 			    "QToolButton { border: 1px solid #555; background: transparent; }");
 
-		// Wire toggle: disable/enable the texture in GLWidget.
+		// Wire toggle: disable/enable the texture.
+		// In single-channel mode the combo has disabled the scroll area so
+		// these buttons are not interactive — no guard needed here.
 		const int unitIdx = info.unitIndex;
 		connect(thumbBtn, &QToolButton::toggled, this, [this, unitIdx](bool checked) {
 			// checked == true  → user wants to DISABLE the texture
@@ -406,8 +507,7 @@ void TextureDebugPanel::populateThumbnails(const QVector<TextureSlotInfo>& slotI
 			else
 				_disabledUnits.remove(unitIdx);
 
-			if (_glWidget)
-				_glWidget->setDebugTextureEnabled(_currentMeshId, unitIdx, !checked);
+			applyCurrentTextureState();
 
 			// Repopulate so the thumbnail visual state updates immediately.
 			if (!_lastSlots.isEmpty())
@@ -654,15 +754,19 @@ void TextureDebugPanel::showEvent(QShowEvent* event)
 
 void TextureDebugPanel::closeEvent(QCloseEvent* event)
 {
-	// Restore all textures and extension uniforms when the panel is dismissed
-	// so the viewport shows the real material again.
+	// Restore all overrides when the panel is dismissed.
 	if (_currentMeshId >= 0 && _glWidget)
 	{
-		_glWidget->clearDebugTextureOverrides(_currentMeshId);
+		_glWidget->clearAllDebugOverrides(_currentMeshId);
 		_glWidget->clearDebugExtensionOverrides(_currentMeshId);
 	}
 	_disabledUnits.clear();
 	_disabledExtensions.clear();
+	_activeChannelId = 0;
+	if (_channelCombo) { QSignalBlocker b(_channelCombo); _channelCombo->setCurrentIndex(0); }
+	if (_thumbnailScroll) _thumbnailScroll->setEnabled(true);
+	if (_extensionGroup)  _extensionGroup->setEnabled(true);
+	if (_multiplexGroup)  _multiplexGroup->setEnabled(true);
 
 	saveWindowGeometry();
 	QDialog::closeEvent(event);
@@ -685,4 +789,25 @@ void TextureDebugPanel::restoreWindowGeometry()
 	const QByteArray geo = s.value("TextureDebugPanel/geometry").toByteArray();
 	if (!geo.isEmpty())
 		restoreGeometry(geo);
+}
+
+// ---------------------------------------------------------------------------
+// activeUnits / applyCurrentTextureState
+// ---------------------------------------------------------------------------
+QSet<int> TextureDebugPanel::activeUnits() const
+{
+	QSet<int> result;
+	for (const TextureSlotInfo& info : _lastSlots)
+		if (info.isActive)
+			result.insert(info.unitIndex);
+	return result;
+}
+
+void TextureDebugPanel::applyCurrentTextureState()
+{
+	if (!_glWidget || _currentMeshId < 0) return;
+
+	const QSet<int> all     = activeUnits();
+	const QSet<int> enabled = all - _disabledUnits;
+	_glWidget->applyDebugTextureState(_currentMeshId, enabled, all);
 }

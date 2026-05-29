@@ -142,6 +142,13 @@ uniform float opacityBias;
 
 uniform bool twoSided;
 
+// Debug channel isolation (TextureDebugPanel dropdown).
+// 0 = normal rendering.  Non-zero = replace fragColor with raw channel value.
+// Channel IDs match GPU texture unit assignments:
+//   10=Albedo/Diffuse  11=Metallic  12=Emissive  13=Normal
+//   14=Height  15=Opacity  16=Roughness  17=AO
+uniform int debugChannelOutput = 0;
+
 // Advanced PBR Material Properties
 uniform sampler2D transmissionMap;
 uniform sampler2D iorMap;
@@ -832,8 +839,127 @@ void main()
 		fragColor.rgb *= finalAlpha;
 	}
 
-	// Selection highlighting
-	if (selected && selectionHighlighting) // with glow
+	// ---- Debug channel isolation -----------------------------------------------
+	// TextureDebugPanel dropdown: replace fragColor with a raw channel value.
+	// IDs 1-8  : geometry / vertex channels (no ADS/PBR branching needed).
+	// IDs 10-17: texture channels (branched per rendering path).
+	// Skipped for the floor mesh.
+	if (debugChannelOutput != 0 && !floorRendering)
+	{
+		float savedAlpha = fragColor.a;  // preserve before overwriting
+
+		// Default: white-grey checkerboard for channels absent on this mesh.
+		// Uses screen-space coordinates so the pattern is a fixed pixel size
+		// regardless of UV layout (matches Khronos missing-data style).
+		float _checker = mod(floor(gl_FragCoord.x / 16.0) + floor(gl_FragCoord.y / 16.0), 2.0);
+		vec3  iso = mix(vec3(1.0), vec3(0.65), _checker); // white / light-grey squares
+
+		// ---- Geometry / vertex channels (IDs 1-8) ----
+		if (debugChannelOutput == 1)     // Texture Coordinates 0  (R=U, G=V)
+			// Assimp flips V for glTF (top-origin → bottom-origin).  Re-flip here
+			// so the display matches Khronos and DCC tool UV conventions (V=0 at top).
+			iso = vec3(v_texCoord0.x, 1.0 - v_texCoord0.y, 0.0);
+
+		else if (debugChannelOutput == 2) // Texture Coordinates 1  (R=U, G=V)
+			iso = vec3(v_texCoord1.x, 1.0 - v_texCoord1.y, 0.0);
+
+		else if (debugChannelOutput == 3) // Geometry Normal  (world-space, remapped)
+			iso = normalize(v_normal) * 0.5 + 0.5;
+
+		else if (debugChannelOutput == 4) // Geometry Tangent
+		{
+			bool hasTangentData = length(v_tangent) > 0.01;
+			iso = hasTangentData ? normalize(v_tangent) * 0.5 + 0.5 : vec3(0.5);
+		}
+
+		else if (debugChannelOutput == 5) // Geometry Bitangent
+		{
+			bool hasBitangentData = length(v_bitangent) > 0.01;
+			iso = hasBitangentData ? normalize(v_bitangent) * 0.5 + 0.5 : vec3(0.5);
+		}
+
+		else if (debugChannelOutput == 6) // Geometry Tangent W (handedness: 0=negative, 1=positive)
+		{
+			bool hasTangentData = length(v_tangent) > 0.01;
+			if (hasTangentData)
+			{
+				vec3 N = normalize(v_normal);
+				vec3 T = normalize(v_tangent   - dot(v_tangent,   N) * N);
+				vec3 B = normalize(v_bitangent - dot(v_bitangent, N) * N);
+				float w = sign(dot(cross(T, B), N)); // +1 or -1
+				iso = vec3((w + 1.0) * 0.5);         // remap to [0,1]
+			}
+			// else keep mid-grey sentinel (no tangent data)
+		}
+
+		else if (debugChannelOutput == 7) // Shading Normal (TBN-transformed, what lighting uses)
+		{
+			vec3 shadingN;
+			if (renderingMode == 0) // ADS
+				shadingN = hasNormalTexture
+				    ? calcBumpedNormal(texture_normal, getNormalTextureUV())
+				    : normalize(gl_FrontFacing ? v_normal : -v_normal);
+			else // PBR
+				shadingN = hasNormalMap
+				    ? calcBumpedNormal(normalMap, getNormalUV())
+				    : normalize(gl_FrontFacing ? v_normal : -v_normal);
+			iso = shadingN * 0.5 + 0.5;
+		}
+
+		else if (debugChannelOutput == 8) // Alpha (final opacity value)
+			iso = vec3(savedAlpha);
+
+		// ---- Texture channels (IDs 10-17, branched per rendering path) ----
+		else if (renderingMode == 0) // ADS path
+		{
+			if      (debugChannelOutput == 10 && hasDiffuseTexture)
+				iso = texture(texture_diffuse, getDiffuseTextureUV()).rgb;
+			else if (debugChannelOutput == 12 && hasEmissiveTexture)
+				iso = texture(texture_emissive, getEmissiveTextureUV()).rgb;
+			else if (debugChannelOutput == 13 && hasNormalTexture)
+				iso = texture(texture_normal, getNormalTextureUV()).rgb;
+			else if (debugChannelOutput == 14 && hasHeightTexture)
+				{ float h = texture(texture_height, getHeightUV()).r; iso = vec3(h); }
+			else if (debugChannelOutput == 15 && hasOpacityTexture)
+				{ float a = texture(texture_opacity, getOpacityTextureUV()).r; iso = vec3(a); }
+		}
+		else // PBR path
+		{
+			if      (debugChannelOutput == 10 && hasAlbedoMap)
+				iso = texture(albedoMap, getAlbedoUV()).rgb;
+			else if (debugChannelOutput == 11 && hasMetallicMap)
+			{
+				float m = samplePackedChannelValue(metallicMap, hasMetallicMap, getMetallicUV(),
+				    metallicChannel, metallicInvert, metallicScale, metallicBias, 1.0);
+				iso = vec3(m);
+			}
+			else if (debugChannelOutput == 12 && hasEmissiveMap)
+				iso = texture(emissiveMap, getEmissiveUV()).rgb;
+			else if (debugChannelOutput == 13 && hasNormalMap)
+				iso = texture(normalMap, getNormalUV()).rgb;
+			else if (debugChannelOutput == 14 && hasHeightMap)
+				{ float h = texture(heightMap, getHeightUV()).r; iso = vec3(h); }
+			else if (debugChannelOutput == 15 && hasOpacityMap)
+				{ float a = texture(opacityMap, getOpacityUV()).r; iso = vec3(a); }
+			else if (debugChannelOutput == 16 && hasRoughnessMap)
+			{
+				float r = samplePackedChannelValue(roughnessMap, hasRoughnessMap, getRoughnessUV(),
+				    roughnessChannel, roughnessInvert, roughnessScale, roughnessBias, 1.0);
+				iso = vec3(r);
+			}
+			else if (debugChannelOutput == 17 && hasAOMap)
+			{
+				float ao = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
+				    aoChannel, aoInvert, aoScale, aoBias, 1.0);
+				iso = vec3(ao);
+			}
+		}
+		fragColor = vec4(iso, 1.0);
+	}
+
+	// Selection highlighting — skipped in single-channel isolation mode so raw
+	// channel values are not tinted.
+	if (debugChannelOutput == 0 && selected && selectionHighlighting) // with glow
 	{
 		// Compute lighting
 		vec3 norm = normalize(gl_FrontFacing ? v_normal : -v_normal);
@@ -865,8 +991,9 @@ void main()
 	}
 
 	// Hover highlighting (visual preview, non-destructive)
-	// Only applied if not already selected (selection takes priority)
-	if (hovered && hoverHighlighting && !selected)
+	// Only applied if not already selected (selection takes priority).
+	// Also skipped in single-channel isolation mode.
+	if (debugChannelOutput == 0 && hovered && hoverHighlighting && !selected)
 	{
 		// Compute lighting (similar to selection but more subtle)
 		vec3 norm = normalize(gl_FrontFacing ? v_normal : -v_normal);

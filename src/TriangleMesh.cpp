@@ -2820,8 +2820,13 @@ void TriangleMesh::applyDebugUniformOverrides()
 		const QByteArray nameBytes = it.key().toUtf8();
 		const char* uName = nameBytes.constData();
 
-		if (it.value().userType() == qMetaTypeId<QVector3D>())
+		const int typeId = it.value().userType();
+		if (typeId == qMetaTypeId<QVector3D>())
 			_prog->setUniformValue(uName, it.value().value<QVector3D>());
+		else if (typeId == QMetaType::Bool)
+			_prog->setUniformValue(uName, it.value().toBool());
+		else if (typeId == QMetaType::Int)
+			_prog->setUniformValue(uName, it.value().toInt());
 		else
 			_prog->setUniformValue(uName, it.value().toFloat());
 	}

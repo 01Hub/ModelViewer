@@ -7,6 +7,7 @@
 #include "GLWidget.h" // TextureSlotInfo
 
 class QCheckBox;
+class QComboBox;
 class QGridLayout;
 class QGroupBox;
 class QLabel;
@@ -86,6 +87,13 @@ private:
 	void saveWindowGeometry();
 	void restoreWindowGeometry();
 
+	// Returns the set of units that have real (active) textures on the current mesh.
+	QSet<int> activeUnits() const;
+
+	// Re-evaluates the full enabled/disabled checkbox state and calls
+	// GLWidget::applyDebugTextureState.  Called whenever a thumbnail is toggled.
+	void applyCurrentTextureState();
+
 	// ---- data ---------------------------------------------------------------
 	GLWidget*    _glWidget    = nullptr;
 	ModelViewer* _modelViewer = nullptr;
@@ -104,10 +112,16 @@ private:
 	// Cleared when the mesh selection changes.
 	QSet<QString> _disabledExtensions;
 
+	// Channel currently shown in the dropdown (0 = "All" / checkbox mode).
+	int _activeChannelId = 0;
+
 	// ---- UI -----------------------------------------------------------------
 	QLabel*      _meshNameLabel       = nullptr;
 	QPushButton* _refreshButton       = nullptr;
 	QLabel*      _statusLabel         = nullptr;   // multi-select / info strip
+
+	// Channel isolation dropdown (All / Albedo / Metallic / …)
+	QComboBox*   _channelCombo        = nullptr;
 
 	// Textures section
 	QCheckBox*   _showInactiveCheck   = nullptr;

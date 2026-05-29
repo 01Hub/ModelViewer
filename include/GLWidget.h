@@ -556,8 +556,24 @@ public slots:
 	// Calls update() to trigger a repaint.
 	void setDebugTextureEnabled(int meshId, int unitIndex, bool enabled);
 
+	// Full-state apply for the checkbox panel.  enabledUnits = currently active
+	// (not disabled by user); allUnits = all units with real textures on this mesh.
+	// Handles the emissive-only special case (uses in-shader isolation automatically).
+	void applyDebugTextureState(int meshId,
+	                             const QSet<int>& enabledUnits,
+	                             const QSet<int>& allUnits);
+
+	// Single-channel isolation for the channel dropdown.
+	// channelId matches texture unit (10=Albedo, 11=Metallic, 12=Emissive,
+	// 13=Normal, 14=Height, 15=Opacity, 16=Roughness, 17=AO).
+	// channelId == 0 clears the isolation (restores checkbox control).
+	void setDebugChannelOutput(int meshId, int channelId);
+
 	// Remove all debug texture overrides for meshId and repaint.
 	void clearDebugTextureOverrides(int meshId);
+
+	// Remove all debug texture AND uniform overrides for meshId and repaint.
+	void clearAllDebugOverrides(int meshId);
 
 	// Disable/re-enable an entire KHR extension for meshId by zeroing the
 	// relevant scalar factor uniforms and neutral-binding its texture units.
@@ -988,10 +1004,14 @@ private:
 
 	// --- Debug texture placeholders (TextureDebugPanel) ---
 	// Created once in initializeGL; owned by this widget.
-	// _debugNeutralTex : 1×1 white RGBA (used for colour/scalar channels)
-	// _debugNormalTex  : 1×1 (128,128,255,255) tangent-space neutral normal
+	// _debugNeutralTex : 1×1 white RGBA         — replacement for disabled multiplicative slots
+	// _debugNormalTex  : 1×1 (128,128,255,255) — replacement for disabled normal-map slots
+	// _debugBlackTex   : 1×1 black RGBA         — replacement for disabled emissive slot
+	// Note: contributions are silenced by zeroing the scalar uniforms (setScalarOverridesForUnit),
+	//       not by the replacement texture value, so _debugNeutralTex is used for all non-normal slots.
 	GLuint _debugNeutralTex = 0;
 	GLuint _debugNormalTex  = 0;
+	GLuint _debugBlackTex   = 0;
 
 	QImage					 _floorTexImage;
 	float                    _floorSize;

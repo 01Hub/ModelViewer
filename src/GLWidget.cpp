@@ -1325,24 +1325,27 @@ void GLWidget::initializeGL()
 	glClearColor(0.0f, 0.0f, 0.0f, 1.f);
 
 	// --- Debug placeholder textures for TextureDebugPanel ---
-	// _debugNeutralTex: 1×1 opaque white, substituted for disabled colour channels.
-	// _debugNormalTex : 1×1 tangent-space neutral normal (0,0,1) encoded as (128,128,255).
+	// _debugNeutralTex: 1×1 opaque white  — used for all disabled texture slots.
+	// _debugNormalTex : 1×1 (128,128,255) — used for normal-map slots (flat tangent-space normal).
+	// _debugBlackTex  : 1×1 opaque black  — reserved; contributions are silenced via scalar uniforms,
+	//                   not via the texture value, so this is not used in the current override path.
 	{
-		const GLubyte white[4]  = { 255, 255, 255, 255 };
-		glGenTextures(1, &_debugNeutralTex);
-		glBindTexture(GL_TEXTURE_2D, _debugNeutralTex);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0,
-		             GL_RGBA, GL_UNSIGNED_BYTE, white);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		auto makeDebugTex = [&](GLuint& texId, const GLubyte rgba[4]) {
+			glGenTextures(1, &texId);
+			glBindTexture(GL_TEXTURE_2D, texId);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0,
+			             GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		};
 
+		const GLubyte white[4]         = { 255, 255, 255, 255 };
 		const GLubyte neutralNormal[4] = { 128, 128, 255, 255 };
-		glGenTextures(1, &_debugNormalTex);
-		glBindTexture(GL_TEXTURE_2D, _debugNormalTex);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0,
-		             GL_RGBA, GL_UNSIGNED_BYTE, neutralNormal);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		const GLubyte black[4]         = {   0,   0,   0, 255 };
+
+		makeDebugTex(_debugNeutralTex, white);
+		makeDebugTex(_debugNormalTex,  neutralNormal);
+		makeDebugTex(_debugBlackTex,   black);
 
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
@@ -12206,6 +12209,64 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
 // ---------------------------------------------------------------------------
 // setDebugTextureEnabled / clearDebugTextureOverrides
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Per-unit scalar override helpers
+//
+// When a texture is disabled the replacement is white (1,1,1) — a neutral
+// value that leaves all multiplicative channels visible on a lit mesh.
+// That is the right neutral for modulating channels such as AO, roughness,
+// metallic and normal: their effect can only be seen if the base mesh remains
+// lit and visible.
+//
+// Emissive is the exception: it is purely additive, so a white replacement
+// drives full-strength emission via the scalar factor.  Unit 12 therefore
+// gets _debugBlackTex instead of white, which silences ADS directly
+// (matEmissive = sample(black) = vec3(0)).  Scalar uniforms are also zeroed
+// so PBR (emissiveStrength) is suppressed without relying on a bool override.
+//
+//  Unit 12 – emissive (black texture + scalar zeroing)
+//    ADS: matEmissive = sample(black) = vec3(0)        — silenced by texture
+//    PBR: pbrLighting.emissiveStrength = 0             — silenced by scalar
+//
+// All other units (including albedo / diffuse) receive only the white texture
+// replacement — their scalar factors are left at their real values so the mesh
+// stays normally lit, which is necessary for channels like AO to be visible.
+// ---------------------------------------------------------------------------
+namespace
+{
+void setScalarOverridesForUnit(TriangleMesh* mesh, int unit)
+{
+	switch (unit)
+	{
+	case 12: // emissive — additive channel, must be fully suppressed
+		mesh->setDebugUniformOverride("pbrLighting.emissiveStrength",
+		    QVariant::fromValue<float>(0.0f));
+		mesh->setDebugUniformOverride("material.emission",
+		    QVariant::fromValue(QVector3D(0.0f, 0.0f, 0.0f)));
+		// ADS: hasEmissiveTexture suppression via bool uniform is unreliable (QVariant
+		// type matching). Silence ADS by substituting a black texture for unit 12 instead
+		// (matEmissive = sample(black) = vec3(0)). PBR is covered by emissiveStrength=0.
+		break;
+	default:
+		break;
+	}
+}
+
+void clearScalarOverridesForUnit(TriangleMesh* mesh, int unit)
+{
+	switch (unit)
+	{
+	case 12:
+		mesh->clearDebugUniformOverride("pbrLighting.emissiveStrength");
+		mesh->clearDebugUniformOverride("material.emission");
+		mesh->markUniformsDirty();  // force setupUniforms to restore the real values
+		break;
+	default:
+		break;
+	}
+}
+} // anonymous namespace
+
 void GLWidget::setDebugTextureEnabled(int meshId, int unitIndex, bool enabled)
 {
 	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
@@ -12216,14 +12277,21 @@ void GLWidget::setDebugTextureEnabled(int meshId, int unitIndex, bool enabled)
 	if (enabled)
 	{
 		mesh->clearDebugTextureOverride(unitIndex);
+		clearScalarOverridesForUnit(mesh, unitIndex);
 	}
 	else
 	{
-		// Normal map units get a tangent-space neutral normal (0,0,1);
-		// all other units get opaque white so the shader's sampling is neutral.
-		const bool isNormalUnit = (unitIndex == 13 || unitIndex == 24);
-		const GLuint replaceTex = isNormalUnit ? _debugNormalTex : _debugNeutralTex;
+		// Normal-map units get flat tangent-space normal (0,0,1).
+		// Emissive unit gets black (0,0,0) so the ADS path (which overwrites the
+		// scalar directly from the sample) contributes nothing without needing a
+		// bool-uniform override. PBR is covered by emissiveStrength=0 scalar.
+		// All other units get neutral white (1,1,1).
+		const bool isNormalUnit   = (unitIndex == 13 || unitIndex == 24);
+		const bool isEmissiveUnit = (unitIndex == 12);
+		const GLuint replaceTex = isNormalUnit   ? _debugNormalTex :
+		                          isEmissiveUnit ? _debugBlackTex  : _debugNeutralTex;
 		mesh->setDebugTextureOverride(unitIndex, replaceTex);
+		setScalarOverridesForUnit(mesh, unitIndex);
 	}
 	update();
 }
@@ -12232,6 +12300,125 @@ void GLWidget::clearDebugTextureOverrides(int meshId)
 {
 	if (meshId >= 0 && meshId < static_cast<int>(_meshStore.size()) && _meshStore[meshId])
 		_meshStore[meshId]->clearAllDebugTextureOverrides();
+	update();
+}
+
+void GLWidget::clearAllDebugOverrides(int meshId)
+{
+	if (meshId >= 0 && meshId < static_cast<int>(_meshStore.size()) && _meshStore[meshId])
+	{
+		TriangleMesh* mesh = _meshStore[meshId];
+		mesh->clearAllDebugTextureOverrides();
+		mesh->clearAllDebugUniformOverrides();
+		// Clearing the override map stops applyDebugUniformOverrides from touching
+		// debugChannelOutput, but the GPU uniform retains its last value.  Explicitly
+		// write 0 so the next draw call resets the GPU to normal rendering.
+		mesh->setDebugUniformOverride("debugChannelOutput", QVariant::fromValue<int>(0));
+		mesh->markUniformsDirty();
+	}
+	update();
+}
+
+// ---------------------------------------------------------------------------
+// applyDebugTextureState
+// ---------------------------------------------------------------------------
+// Full-state replacement for the per-toggle setDebugTextureEnabled path.
+// Called by TextureDebugPanel whenever any checkbox changes so the entire
+// enabled/disabled set can be evaluated at once.
+void GLWidget::applyDebugTextureState(int meshId,
+                                       const QSet<int>& enabledUnits,
+                                       const QSet<int>& allUnits)
+{
+	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+		return;
+	TriangleMesh* mesh = _meshStore[meshId];
+
+	// All textures active → full rendering, clear everything.
+	if (enabledUnits == allUnits)
+	{
+		for (int unit : allUnits)
+		{
+			mesh->clearDebugTextureOverride(unit);
+			clearScalarOverridesForUnit(mesh, unit);
+		}
+		// Explicitly write 0 rather than removing the key: removing would leave
+		// the GPU uniform at its last value until the next applyDebugUniformOverrides.
+		mesh->setDebugUniformOverride("debugChannelOutput", QVariant::fromValue<int>(0));
+		mesh->markUniformsDirty();
+		update();
+		return;
+	}
+
+	// Emissive-only special case: additive channel needs a dark base to be
+	// visible in isolation.  Route through the in-shader debugChannelOutput path
+	// so it matches Khronos-quality single-channel isolation.
+	if (enabledUnits.size() == 1 && enabledUnits.contains(12))
+	{
+		for (int unit : allUnits)
+		{
+			mesh->clearDebugTextureOverride(unit);
+			clearScalarOverridesForUnit(mesh, unit);
+		}
+		mesh->setDebugUniformOverride("debugChannelOutput",
+		    QVariant::fromValue<int>(12));
+		mesh->markUniformsDirty();
+		update();
+		return;
+	}
+
+	// Multi-channel mode: replace disabled slots with neutral textures.
+	mesh->setDebugUniformOverride("debugChannelOutput", QVariant::fromValue<int>(0));
+	for (int unit : allUnits)
+	{
+		if (enabledUnits.contains(unit))
+		{
+			mesh->clearDebugTextureOverride(unit);
+			clearScalarOverridesForUnit(mesh, unit);
+		}
+		else
+		{
+			const bool isNormalUnit   = (unit == 13 || unit == 24);
+			const bool isEmissiveUnit = (unit == 12);
+			const GLuint replaceTex = isNormalUnit   ? _debugNormalTex :
+			                          isEmissiveUnit ? _debugBlackTex  : _debugNeutralTex;
+			mesh->setDebugTextureOverride(unit, replaceTex);
+			setScalarOverridesForUnit(mesh, unit);
+		}
+	}
+	mesh->markUniformsDirty();
+	update();
+}
+
+// ---------------------------------------------------------------------------
+// setDebugChannelOutput
+// ---------------------------------------------------------------------------
+// Activates single-channel isolation for the channel dropdown.
+// channelId == 0 clears the isolation and restores the mesh to normal rendering
+// (caller is responsible for re-applying any checkbox-mode texture state).
+void GLWidget::setDebugChannelOutput(int meshId, int channelId)
+{
+	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+		return;
+	TriangleMesh* mesh = _meshStore[meshId];
+
+	if (channelId != 0)
+	{
+		// Clear any texture/scalar overrides from checkbox mode so the real
+		// textures are accessible to the in-shader isolation path.
+		for (int unit : {10, 11, 12, 13, 14, 15, 16, 17})
+		{
+			mesh->clearDebugTextureOverride(unit);
+			clearScalarOverridesForUnit(mesh, unit);
+		}
+		mesh->setDebugUniformOverride("debugChannelOutput",
+		    QVariant::fromValue<int>(channelId));
+	}
+	else
+	{
+		// Same GPU-stale reasoning: write 0 explicitly rather than removing the key.
+		mesh->setDebugUniformOverride("debugChannelOutput", QVariant::fromValue<int>(0));
+	}
+	mesh->markUniformsDirty();
 	update();
 }
 
