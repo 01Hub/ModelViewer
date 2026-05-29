@@ -10063,8 +10063,8 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 		if (_viewToolbar)
 			_viewToolbar->deactivateAllNavigationModes();
 
-		_selectedIDs.clear();  // Clear selection in GLWidget
-		_viewer->deselectAll();  // Also clear in viewer
+		_selectedIDs.clear();               // Clear GLWidget's internal list immediately
+		_viewer->deselectAllWithUndo();     // Clear viewer selection and push an undo entry
 	}
 	else if (key == Qt::Key_F)
 	{

@@ -94,6 +94,7 @@ public:
 
 	void selectAll();
 	void deselectAll();
+	void deselectAllWithUndo();
 
 	// For UV generation dialog user selection
 	static UVDialogResult askUserForUVMethod(QWidget* parent);

@@ -579,14 +579,22 @@ void ModelViewer::deselectAll()
 	handleTreeWidgetSelectionChanged();
 }
 
+void ModelViewer::deselectAllWithUndo()
+{
+	// Only push a command if there is something to deselect, so that
+	// pressing Esc on an already-empty selection does not pollute the undo stack.
+	if (hasSelection())
+		setSelectionWithUndo(QSet<int>{});
+}
+
 void ModelViewer::setListRow(int index)
 {
 	if (index == -1)
 	{
-		// Viewport empty-space click: deselect everything.
-		// Only act if something is actually selected to avoid empty undo entries.
+		// Viewport empty-space click (or toggle-deselect): clear selection with undo.
+		// Guard against empty undo entries when nothing is selected.
 		if (hasSelection())
-			setSelectionWithoutUndo(QSet<int>{});
+			setSelectionWithUndo(QSet<int>{});
 		return;
 	}
 
@@ -4117,9 +4125,10 @@ void ModelViewer::redo()
 
 void ModelViewer::setSelectionWithUndo(const QSet<int>& newSelection)
 {
-	// Create and push the undo command
-	// Note: push() automatically calls redo() on the command
-	_undoStack->push(new SelectionCommand(this, _glWidget, newSelection));
+	// Create and push the undo command.
+	// Note: push() automatically calls redo() on the command.
+	const QString label = newSelection.isEmpty() ? tr("Deselect") : tr("Select");
+	_undoStack->push(new SelectionCommand(this, _glWidget, newSelection, label));
 }
 
 void ModelViewer::setSelectionWithoutUndo(const QSet<int>& selection)
