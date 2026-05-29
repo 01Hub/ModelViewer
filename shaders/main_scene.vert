@@ -33,6 +33,7 @@ uniform vec4 clipPlane;
 out vec3 v_position;
 out vec3 v_normal;
 out vec4 v_color;
+out vec4 v_rawVertexColor;
 out vec2 v_texCoord0;
 out vec2 v_texCoord1;
 out vec2 v_texCoord2;
@@ -105,7 +106,8 @@ void main()
     {
         v_normal = transformedNormal / transformedNormalLen;
     }
-    v_color      = vertexColor;
+    v_color            = vertexColor;
+    v_rawVertexColor   = vertexColor;
     v_texCoord0 = texCoord0;
     v_texCoord1 = texCoord1;
     v_texCoord2 = texCoord2;

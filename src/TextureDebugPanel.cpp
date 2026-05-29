@@ -198,6 +198,7 @@ void TextureDebugPanel::buildUI()
 		_channelCombo->addItem(tr("Geometry Tangent W"),     6);
 		_channelCombo->addItem(tr("Shading Normal"),         7);
 		_channelCombo->addItem(tr("Alpha"),                  8);
+		_channelCombo->addItem(tr("Vertex Color"),           9);
 
 		// Texture channels group
 		_channelCombo->insertSeparator(_channelCombo->count());
@@ -209,6 +210,22 @@ void TextureDebugPanel::buildUI()
 		_channelCombo->addItem(tr("Normal Map"), 13);
 		_channelCombo->addItem(tr("Height"),    14);
 		_channelCombo->addItem(tr("Opacity"),   15);
+
+		// Extension texture channels group (PBR only, units 18 / 20-31)
+		_channelCombo->insertSeparator(_channelCombo->count());
+		_channelCombo->addItem(tr("Transmission"),           18);
+		_channelCombo->addItem(tr("Sheen Color"),            20);
+		_channelCombo->addItem(tr("Sheen Roughness"),        21);
+		_channelCombo->addItem(tr("Clearcoat"),              22);
+		_channelCombo->addItem(tr("Clearcoat Roughness"),    23);
+		_channelCombo->addItem(tr("Clearcoat Normal"),       24);
+		_channelCombo->addItem(tr("Specular Factor"),        25);
+		_channelCombo->addItem(tr("Specular Color"),         26);
+		_channelCombo->addItem(tr("Anisotropy"),             27);
+		_channelCombo->addItem(tr("Iridescence"),            28);
+		_channelCombo->addItem(tr("Iridescence Thickness"),  29);
+		_channelCombo->addItem(tr("Volume Thickness"),       30);
+		_channelCombo->addItem(tr("Diffuse Transmission"),   31);
 
 		row->addWidget(lbl);
 		row->addWidget(_channelCombo, 1);
@@ -224,28 +241,30 @@ void TextureDebugPanel::buildUI()
 			const int channelId = data.toInt();
 			_activeChannelId = channelId;
 
-			if (!_glWidget || _currentMeshId < 0) return;
+			if (!_glWidget) return;
 
 			if (channelId == 0)
 			{
-				// Restore to checkbox-mode: clear channel isolation then
-				// re-apply the current checkbox state.
-				_glWidget->setDebugChannelOutput(_currentMeshId, 0);
-				// Re-apply any suppressed extensions.
-				for (const QString& key : _disabledExtensions)
-					_glWidget->setDebugExtensionEnabled(_currentMeshId, key, false);
-				applyCurrentTextureState();
+				// Restore to checkbox-mode: clear channel isolation on ALL meshes,
+				// then re-apply per-mesh checkbox state for the selected mesh.
+				_glWidget->setGlobalDebugChannel(0);
+				if (_currentMeshId >= 0)
+				{
+					for (const QString& key : _disabledExtensions)
+						_glWidget->setDebugExtensionEnabled(_currentMeshId, key, false);
+					applyCurrentTextureState();
+				}
 				_thumbnailScroll->setEnabled(true);
 				_extensionGroup->setEnabled(true);
 				_multiplexGroup->setEnabled(true);
 			}
 			else
 			{
-				// Single-channel isolation: clears all overrides and sets the
-				// shader channel output.  Checkboxes and extensions have no
-				// effect while this is active.
-				_glWidget->clearDebugExtensionOverrides(_currentMeshId);
-				_glWidget->setDebugChannelOutput(_currentMeshId, channelId);
+				// Single-channel isolation: applies to all meshes globally.
+				// Checkboxes and extensions have no effect while this is active.
+				if (_currentMeshId >= 0)
+					_glWidget->clearDebugExtensionOverrides(_currentMeshId);
+				_glWidget->setGlobalDebugChannel(channelId);
 				_thumbnailScroll->setEnabled(false);
 				_extensionGroup->setEnabled(false);
 				_multiplexGroup->setEnabled(false);
@@ -341,19 +360,23 @@ void TextureDebugPanel::onSelectionChanged(const QList<int>& selectedIds)
 {
 	if (selectedIds.isEmpty())
 	{
-		// Clear any debug overrides that were set on the deselected mesh.
+		// Clear per-mesh texture and extension overrides for the deselected mesh.
+		// The global channel (combo) is intentionally left unchanged — it continues
+		// to apply to all scene meshes even without a panel selection.
 		if (_currentMeshId >= 0 && _glWidget)
 		{
-			_glWidget->clearAllDebugOverrides(_currentMeshId);
+			_glWidget->clearDebugTextureOverrides(_currentMeshId);
 			_glWidget->clearDebugExtensionOverrides(_currentMeshId);
 		}
 		_disabledUnits.clear();
 		_disabledExtensions.clear();
-		_activeChannelId = 0;
-		if (_channelCombo) { QSignalBlocker b(_channelCombo); _channelCombo->setCurrentIndex(0); }
-		if (_thumbnailScroll) _thumbnailScroll->setEnabled(true);
-		if (_extensionGroup)  _extensionGroup->setEnabled(true);
-		if (_multiplexGroup)  _multiplexGroup->setEnabled(true);
+		// Swatches/extensions re-enabled only if in All mode.
+		if (_activeChannelId == 0)
+		{
+			if (_thumbnailScroll) _thumbnailScroll->setEnabled(true);
+			if (_extensionGroup)  _extensionGroup->setEnabled(true);
+			if (_multiplexGroup)  _multiplexGroup->setEnabled(true);
+		}
 
 		_currentMeshId = -1;
 		_lastSlots.clear();
@@ -384,10 +407,11 @@ void TextureDebugPanel::onSelectionChanged(const QList<int>& selectedIds)
 	if (meshId == _currentMeshId && !_lastSlots.isEmpty())
 		return; // same mesh — no need to re-read
 
-	// Switching to a different mesh: restore the old one first.
+	// Switching to a different mesh: clear per-mesh overrides for the old one.
+	// The global channel is not touched — it already applies to all meshes.
 	if (_currentMeshId >= 0 && meshId != _currentMeshId && _glWidget)
 	{
-		_glWidget->clearAllDebugOverrides(_currentMeshId);
+		_glWidget->clearDebugTextureOverrides(_currentMeshId);
 		_glWidget->clearDebugExtensionOverrides(_currentMeshId);
 	}
 	_disabledUnits.clear();
@@ -427,14 +451,11 @@ void TextureDebugPanel::onTextureReadbackReady(const QVector<TextureSlotInfo>& s
 	_meshNameLabel->setText(
 	    meshName.isEmpty() ? tr("Unknown mesh") : tr("Mesh: %1").arg(meshName));
 
-	// Re-apply the current mode after switching to a new mesh.
-	if (_glWidget && _currentMeshId >= 0)
-	{
-		if (_activeChannelId != 0)
-			_glWidget->setDebugChannelOutput(_currentMeshId, _activeChannelId);
-		else
-			applyCurrentTextureState();
-	}
+	// Re-apply per-mesh texture state when in "All" mode.
+	// In single-channel mode the global channel is already active on all meshes —
+	// no per-mesh action needed here.
+	if (_glWidget && _currentMeshId >= 0 && _activeChannelId == 0)
+		applyCurrentTextureState();
 
 	populateThumbnails(slotInfos);
 	populateExtensions(slotInfos);
@@ -752,13 +773,16 @@ void TextureDebugPanel::showEvent(QShowEvent* event)
 		refresh();
 }
 
-void TextureDebugPanel::closeEvent(QCloseEvent* event)
+void TextureDebugPanel::reject()
 {
-	// Restore all overrides when the panel is dismissed.
-	if (_currentMeshId >= 0 && _glWidget)
+	// Single cleanup point for ALL dismissal paths (Escape, X button, close()).
+	// QDialog::closeEvent calls reject() internally, so putting cleanup here
+	// avoids the circular close() → closeEvent() → reject() → close() loop.
+	if (_glWidget)
 	{
-		_glWidget->clearAllDebugOverrides(_currentMeshId);
-		_glWidget->clearDebugExtensionOverrides(_currentMeshId);
+		_glWidget->setGlobalDebugChannel(0);
+		if (_currentMeshId >= 0)
+			_glWidget->clearAllDebugOverrides(_currentMeshId);
 	}
 	_disabledUnits.clear();
 	_disabledExtensions.clear();
@@ -769,7 +793,15 @@ void TextureDebugPanel::closeEvent(QCloseEvent* event)
 	if (_multiplexGroup)  _multiplexGroup->setEnabled(true);
 
 	saveWindowGeometry();
-	QDialog::closeEvent(event);
+	QDialog::reject();  // calls hide() — no QCloseEvent generated, no re-entry
+}
+
+void TextureDebugPanel::closeEvent(QCloseEvent* event)
+{
+	// Route through reject() so cleanup always runs regardless of dismissal path.
+	// Do NOT call QDialog::closeEvent — it would call reject() again (re-entrant).
+	reject();
+	event->accept();
 }
 
 // ---------------------------------------------------------------------------

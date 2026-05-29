@@ -6,6 +6,7 @@
 in vec3 v_position;
 in vec3 v_normal;
 in vec4 v_color;
+in vec4 v_rawVertexColor;
 in vec2 v_texCoord0;
 in vec2 v_texCoord1;
 in vec2 v_texCoord2;
@@ -144,9 +145,13 @@ uniform bool twoSided;
 
 // Debug channel isolation (TextureDebugPanel dropdown).
 // 0 = normal rendering.  Non-zero = replace fragColor with raw channel value.
-// Channel IDs match GPU texture unit assignments:
-//   10=Albedo/Diffuse  11=Metallic  12=Emissive  13=Normal
-//   14=Height  15=Opacity  16=Roughness  17=AO
+// IDs 1-9 are geometry/vertex channels; IDs 10+ match GPU texture unit indices.
+//   1=UV0  2=UV1  3=GeoNormal  4=GeoTangent  5=GeoBitangent  6=TangentW  7=ShadingNormal  8=Alpha  9=VertexColor
+//   10=Albedo/Diffuse  11=Metallic  12=Emissive  13=NormalMap  14=Height  15=Opacity  16=Roughness  17=AO
+//   18=Transmission    20=SheenColor  21=SheenRoughness
+//   22=ClearcoatFactor 23=ClearcoatRoughness  24=ClearcoatNormal
+//   25=SpecularFactor  26=SpecularColor  27=Anisotropy
+//   28=Iridescence     29=IridescenceThickness  30=VolumeThickness  31=DiffuseTransmission
 uniform int debugChannelOutput = 0;
 
 // Advanced PBR Material Properties
@@ -841,8 +846,9 @@ void main()
 
 	// ---- Debug channel isolation -----------------------------------------------
 	// TextureDebugPanel dropdown: replace fragColor with a raw channel value.
-	// IDs 1-8  : geometry / vertex channels (no ADS/PBR branching needed).
-	// IDs 10-17: texture channels (branched per rendering path).
+	// IDs 1-9  : geometry / vertex channels (no ADS/PBR branching needed).
+	// IDs 10-17: core texture channels (branched per rendering path).
+	// IDs 18+  : extension texture channels (PBR path only).
 	// Skipped for the floor mesh.
 	if (debugChannelOutput != 0 && !floorRendering)
 	{
@@ -854,7 +860,7 @@ void main()
 		float _checker = mod(floor(gl_FragCoord.x / 16.0) + floor(gl_FragCoord.y / 16.0), 2.0);
 		vec3  iso = mix(vec3(1.0), vec3(0.65), _checker); // white / light-grey squares
 
-		// ---- Geometry / vertex channels (IDs 1-8) ----
+		// ---- Geometry / vertex channels (IDs 1-9) ----
 		if (debugChannelOutput == 1)     // Texture Coordinates 0  (R=U, G=V)
 			// Assimp flips V for glTF (top-origin → bottom-origin).  Re-flip here
 			// so the display matches Khronos and DCC tool UV conventions (V=0 at top).
@@ -909,6 +915,13 @@ void main()
 		else if (debugChannelOutput == 8) // Alpha (final opacity value)
 			iso = vec3(savedAlpha);
 
+		else if (debugChannelOutput == 9) // Vertex Color
+		{
+			if (hasVertexColors)
+				iso = v_rawVertexColor.rgb;
+			// else keep checkerboard sentinel
+		}
+
 		// ---- Texture channels (IDs 10-17, branched per rendering path) ----
 		else if (renderingMode == 0) // ADS path
 		{
@@ -925,34 +938,56 @@ void main()
 		}
 		else // PBR path
 		{
-			if      (debugChannelOutput == 10 && hasAlbedoMap)
-				iso = texture(albedoMap, getAlbedoUV()).rgb;
-			else if (debugChannelOutput == 11 && hasMetallicMap)
-			{
-				float m = samplePackedChannelValue(metallicMap, hasMetallicMap, getMetallicUV(),
-				    metallicChannel, metallicInvert, metallicScale, metallicBias, 1.0);
-				iso = vec3(m);
-			}
-			else if (debugChannelOutput == 12 && hasEmissiveMap)
-				iso = texture(emissiveMap, getEmissiveUV()).rgb;
+			// Gather the fully-resolved material parameters (texture × scalar factor).
+			// Mirrors Khronos viewer behaviour: every channel shows the combined value
+			// the lighting model actually uses, so a material with only a metallic scalar
+			// (no metallic texture) shows that scalar instead of a checkerboard.
+			// Normal/height maps are excluded — they have no meaningful scalar fallback.
+			MaterialParams dbg = gatherMaterialParams();
+
+			if      (debugChannelOutput == 10)  // Albedo/Base Color (factor × tex × vtxColor)
+				iso = dbg.baseColor;
+			else if (debugChannelOutput == 11)  // Metallic (metallicFactor × tex, or just factor)
+				iso = vec3(dbg.metallic);
+			else if (debugChannelOutput == 12)  // Emissive (emissionFactor × tex × emissiveStrength)
+				iso = dbg.emissive;
 			else if (debugChannelOutput == 13 && hasNormalMap)
 				iso = texture(normalMap, getNormalUV()).rgb;
 			else if (debugChannelOutput == 14 && hasHeightMap)
 				{ float h = texture(heightMap, getHeightUV()).r; iso = vec3(h); }
 			else if (debugChannelOutput == 15 && hasOpacityMap)
 				{ float a = texture(opacityMap, getOpacityUV()).r; iso = vec3(a); }
-			else if (debugChannelOutput == 16 && hasRoughnessMap)
-			{
-				float r = samplePackedChannelValue(roughnessMap, hasRoughnessMap, getRoughnessUV(),
-				    roughnessChannel, roughnessInvert, roughnessScale, roughnessBias, 1.0);
-				iso = vec3(r);
-			}
-			else if (debugChannelOutput == 17 && hasAOMap)
-			{
-				float ao = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
-				    aoChannel, aoInvert, aoScale, aoBias, 1.0);
-				iso = vec3(ao);
-			}
+			else if (debugChannelOutput == 16)  // Roughness (roughnessFactor × tex, or just factor)
+				iso = vec3(dbg.roughness);
+			else if (debugChannelOutput == 17)  // AO (occlusionStrength × tex, or 1.0 if absent)
+				iso = vec3(dbg.ambientOcclusion);
+			// ---- Extension channels (IDs 18, 20-31) ----
+			else if (debugChannelOutput == 18)  // Transmission factor × tex
+				iso = vec3(dbg.transmission);
+			else if (debugChannelOutput == 20)  // Sheen Color factor × tex
+				iso = dbg.sheenColor;
+			else if (debugChannelOutput == 21)  // Sheen Roughness factor × tex
+				iso = vec3(dbg.sheenRoughness);
+			else if (debugChannelOutput == 22)  // Clearcoat factor × tex
+				iso = vec3(dbg.clearcoat);
+			else if (debugChannelOutput == 23)  // Clearcoat Roughness factor × tex
+				iso = vec3(dbg.clearcoatRoughness);
+			else if (debugChannelOutput == 24 && hasClearcoatNormalMap)
+				iso = texture(clearcoatNormalMap, getClearcoatNormalUV()).rgb;
+			else if (debugChannelOutput == 25)  // Specular Factor × tex
+				iso = vec3(dbg.specularFactor);
+			else if (debugChannelOutput == 26)  // Specular Color × tex
+				iso = dbg.specularColor;
+			else if (debugChannelOutput == 27)  // Anisotropy strength × tex
+				iso = vec3(dbg.anisotropyStrength);
+			else if (debugChannelOutput == 28)  // Iridescence factor × tex
+				iso = vec3(dbg.iridescenceFactor);
+			else if (debugChannelOutput == 29)  // Iridescence thickness normalised 0–1200 nm
+				iso = vec3(dbg.iridescenceThickness / 1200.0);
+			else if (debugChannelOutput == 30)  // Volume thickness (tex contribution, 0–1)
+				iso = vec3(dbg.thickness / max(pbrLighting.thicknessFactor, 0.001));
+			else if (debugChannelOutput == 31)  // Diffuse Transmission factor × tex
+				iso = vec3(dbg.diffuseTransmissionFactor);
 		}
 		fragColor = vec4(iso, 1.0);
 	}

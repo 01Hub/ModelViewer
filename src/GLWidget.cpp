@@ -12310,10 +12310,11 @@ void GLWidget::clearAllDebugOverrides(int meshId)
 		TriangleMesh* mesh = _meshStore[meshId];
 		mesh->clearAllDebugTextureOverrides();
 		mesh->clearAllDebugUniformOverrides();
-		// Clearing the override map stops applyDebugUniformOverrides from touching
-		// debugChannelOutput, but the GPU uniform retains its last value.  Explicitly
-		// write 0 so the next draw call resets the GPU to normal rendering.
-		mesh->setDebugUniformOverride("debugChannelOutput", QVariant::fromValue<int>(0));
+		// Re-write the current global channel so debugChannelOutput stays consistent
+		// after the override map was wiped.  If the panel is closing, the caller
+		// follows up with setGlobalDebugChannel(0) which resets all meshes.
+		mesh->setDebugUniformOverride("debugChannelOutput",
+		    QVariant::fromValue<int>(_globalDebugChannel));
 		mesh->markUniformsDirty();
 	}
 	update();
@@ -12325,6 +12326,8 @@ void GLWidget::clearAllDebugOverrides(int meshId)
 // Full-state replacement for the per-toggle setDebugTextureEnabled path.
 // Called by TextureDebugPanel whenever any checkbox changes so the entire
 // enabled/disabled set can be evaluated at once.
+// NOTE: does NOT touch debugChannelOutput — that uniform is owned exclusively
+// by setGlobalDebugChannel.
 void GLWidget::applyDebugTextureState(int meshId,
                                        const QSet<int>& enabledUnits,
                                        const QSet<int>& allUnits)
@@ -12333,7 +12336,7 @@ void GLWidget::applyDebugTextureState(int meshId,
 		return;
 	TriangleMesh* mesh = _meshStore[meshId];
 
-	// All textures active → full rendering, clear everything.
+	// All textures active → clear all per-mesh overrides; no replacements needed.
 	if (enabledUnits == allUnits)
 	{
 		for (int unit : allUnits)
@@ -12341,33 +12344,12 @@ void GLWidget::applyDebugTextureState(int meshId,
 			mesh->clearDebugTextureOverride(unit);
 			clearScalarOverridesForUnit(mesh, unit);
 		}
-		// Explicitly write 0 rather than removing the key: removing would leave
-		// the GPU uniform at its last value until the next applyDebugUniformOverrides.
-		mesh->setDebugUniformOverride("debugChannelOutput", QVariant::fromValue<int>(0));
 		mesh->markUniformsDirty();
 		update();
 		return;
 	}
 
-	// Emissive-only special case: additive channel needs a dark base to be
-	// visible in isolation.  Route through the in-shader debugChannelOutput path
-	// so it matches Khronos-quality single-channel isolation.
-	if (enabledUnits.size() == 1 && enabledUnits.contains(12))
-	{
-		for (int unit : allUnits)
-		{
-			mesh->clearDebugTextureOverride(unit);
-			clearScalarOverridesForUnit(mesh, unit);
-		}
-		mesh->setDebugUniformOverride("debugChannelOutput",
-		    QVariant::fromValue<int>(12));
-		mesh->markUniformsDirty();
-		update();
-		return;
-	}
-
-	// Multi-channel mode: replace disabled slots with neutral textures.
-	mesh->setDebugUniformOverride("debugChannelOutput", QVariant::fromValue<int>(0));
+	// Partial selection: replace disabled slots with neutral textures.
 	for (int unit : allUnits)
 	{
 		if (enabledUnits.contains(unit))
@@ -12390,35 +12372,34 @@ void GLWidget::applyDebugTextureState(int meshId,
 }
 
 // ---------------------------------------------------------------------------
-// setDebugChannelOutput
+// setGlobalDebugChannel
 // ---------------------------------------------------------------------------
-// Activates single-channel isolation for the channel dropdown.
-// channelId == 0 clears the isolation and restores the mesh to normal rendering
-// (caller is responsible for re-applying any checkbox-mode texture state).
-void GLWidget::setDebugChannelOutput(int meshId, int channelId)
+// Activates or clears single-channel isolation for the channel dropdown.
+// Applied to every mesh in _meshStore — no mesh selection required.
+// channelId == 0 restores normal rendering on all meshes.
+void GLWidget::setGlobalDebugChannel(int channelId)
 {
-	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
-		return;
-	TriangleMesh* mesh = _meshStore[meshId];
-
-	if (channelId != 0)
+	_globalDebugChannel = channelId;
+	makeCurrent();
+	for (TriangleMesh* mesh : _meshStore)
 	{
-		// Clear any texture/scalar overrides from checkbox mode so the real
-		// textures are accessible to the in-shader isolation path.
-		for (int unit : {10, 11, 12, 13, 14, 15, 16, 17})
+		if (!mesh) continue;
+		if (channelId != 0)
 		{
-			mesh->clearDebugTextureOverride(unit);
-			clearScalarOverridesForUnit(mesh, unit);
+			// Clear any checkbox-mode texture/scalar overrides so the in-shader
+			// isolation path reads the real (unmodified) texture samples.
+			for (int unit : {10, 11, 12, 13, 14, 15, 16, 17,
+			                 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31})
+			{
+				mesh->clearDebugTextureOverride(unit);
+				clearScalarOverridesForUnit(mesh, unit);
+			}
 		}
 		mesh->setDebugUniformOverride("debugChannelOutput",
 		    QVariant::fromValue<int>(channelId));
+		mesh->markUniformsDirty();
 	}
-	else
-	{
-		// Same GPU-stale reasoning: write 0 explicitly rather than removing the key.
-		mesh->setDebugUniformOverride("debugChannelOutput", QVariant::fromValue<int>(0));
-	}
-	mesh->markUniformsDirty();
+	doneCurrent();
 	update();
 }
 

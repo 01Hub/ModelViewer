@@ -563,11 +563,11 @@ public slots:
 	                             const QSet<int>& enabledUnits,
 	                             const QSet<int>& allUnits);
 
-	// Single-channel isolation for the channel dropdown.
-	// channelId matches texture unit (10=Albedo, 11=Metallic, 12=Emissive,
-	// 13=Normal, 14=Height, 15=Opacity, 16=Roughness, 17=AO).
-	// channelId == 0 clears the isolation (restores checkbox control).
-	void setDebugChannelOutput(int meshId, int channelId);
+	// Global single-channel isolation for the channel dropdown.
+	// Applies to every mesh in the scene — no selection required.
+	// channelId matches shader IDs (1-9 = geometry, 10+ = texture units).
+	// channelId == 0 restores normal rendering on all meshes.
+	void setGlobalDebugChannel(int channelId);
 
 	// Remove all debug texture overrides for meshId and repaint.
 	void clearDebugTextureOverrides(int meshId);
@@ -1012,6 +1012,7 @@ private:
 	GLuint _debugNeutralTex = 0;
 	GLuint _debugNormalTex  = 0;
 	GLuint _debugBlackTex   = 0;
+	int    _globalDebugChannel = 0;  // active channel ID for TextureDebugPanel dropdown; 0 = normal rendering
 
 	QImage					 _floorTexImage;
 	float                    _floorSize;

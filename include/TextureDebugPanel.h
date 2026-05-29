@@ -58,6 +58,10 @@ public slots:
 	// first selected mesh (or clears the panel when nothing is selected).
 	void onSelectionChanged(const QList<int>& selectedIds);
 
+	// Override reject() so Escape routes through closeEvent (which runs
+	// cleanup) instead of going directly to hide().
+	void reject() override;
+
 	// Called by GLWidget after the GL readback completes.
 	// NOTE: parameter named 'slotInfos', not 'slots' — 'slots' is a Qt macro.
 	void onTextureReadbackReady(const QVector<TextureSlotInfo>& slotInfos,
