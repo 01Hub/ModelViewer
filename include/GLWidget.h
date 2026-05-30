@@ -366,6 +366,8 @@ public:
 	GLuint getIrradianceMap(int index = 0, bool regenerate = false);
 	GLuint getPrefilterMap(int index = 0, bool regenerate = false);
 	GLuint getSheenPrefilterMap(int index = 0, bool regenerate = false);
+	unsigned int getPrefilterMipLevels() const { return _prefilterMipLevels; }
+	unsigned int getSheenPrefilterMipLevels() const { return _sheenPrefilterMipLevels; }
 	GLuint getBrdfLUT() const { return _brdfLUTTexture; }
 	GLuint getCharlieLUT() const { return _charlieLUTTexture; }
 	GLuint getSheenELUT() const { return _sheenELUTTexture; }
