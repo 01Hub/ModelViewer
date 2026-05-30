@@ -7068,17 +7068,39 @@ int GLWidget::processSelection(const QPoint& pixel)
 	int viewport[4];
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
+	// Resolve the camera and sub-viewport for the clicked pixel.
+	// In multi-view mode each quadrant uses a different camera; the selection FBO
+	// must replicate the exact same view/projection and GL viewport so that the
+	// rendered pixel positions match the on-screen positions.
+	GLCamera* selCamera = getCameraForPoint(pixel);
+
+	int selVpX = 0, selVpY = 0, selVpW = width(), selVpH = height();
+	if (_multiViewActive)
+	{
+		const int hw = width() / 2, hh = height() / 2;
+		// Qt pixel coords have y=0 at top; GL viewport y=0 at bottom.
+		if (pixel.x() < width() / 2 && pixel.y() > height() / 2)        // Qt bottom-left → Top view
+			{ selVpX = 0;  selVpY = 0;  selVpW = hw; selVpH = hh; }
+		else if (pixel.x() < width() / 2 && pixel.y() <= height() / 2)  // Qt top-left   → Front view
+			{ selVpX = 0;  selVpY = hh; selVpW = hw; selVpH = hh; }
+		else if (pixel.x() >= width() / 2 && pixel.y() < height() / 2)  // Qt top-right  → Left view
+			{ selVpX = hw; selVpY = hh; selVpW = hw; selVpH = hh; }
+		else                                                               // Qt bottom-right → Isometric
+			{ selVpX = hw; selVpY = 0;  selVpW = hw; selVpH = hh; }
+	}
+
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glViewport(0, 0, width(), height());
 	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
 	glDrawBuffer(GL_COLOR_ATTACHMENT0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glViewport(selVpX, selVpY, selVpW, selVpH);
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
 	_selectionShader->bind();
-	_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
+	_selectionShader->setUniformValue("projectionMatrix", selCamera->getProjectionMatrix());
 	_selectionShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
-	_selectionShader->setUniformValue("viewMatrix", _viewMatrix);
+	_selectionShader->setUniformValue("viewMatrix", selCamera->getViewMatrix());
 
 	// Render ALL visible objects to FBO (not just ray-hit ones)
 	// This ensures color picking is a true fallback method, independent of ray test results
@@ -7131,24 +7153,23 @@ int GLWidget::processSelection(const QPoint& pixel)
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	int pixelWinSize = 2;
 
-	// Calculate safe pixel read coordinates with bounds checking
+	// Calculate safe pixel read coordinates with bounds checking.
+	// The selection FBO is always width() x height() in size.
+	// pixel is in Qt widget coords (y=0 at top); GL FBO coords have y=0 at bottom.
 	int readX = pixel.x() - pixelWinSize / 2;
-	int readY = viewport[3] - pixel.y() + pixelWinSize / 2;
+	int readY = height() - pixel.y() - 1 + pixelWinSize / 2;
 
-	// Clamp to viewport bounds
-	int maxX = viewport[0] + viewport[2];
-	int maxY = viewport[1] + viewport[3];
-
-	if (readX < viewport[0]) readX = viewport[0];
-	if (readY < viewport[1]) readY = viewport[1];
-	if (readX + pixelWinSize > maxX) readX = maxX - pixelWinSize;
-	if (readY + pixelWinSize > maxY) readY = maxY - pixelWinSize;
+	// Clamp to FBO bounds
+	if (readX < 0) readX = 0;
+	if (readY < 0) readY = 0;
+	if (readX + pixelWinSize > width())  readX = width()  - pixelWinSize;
+	if (readY + pixelWinSize > height()) readY = height() - pixelWinSize;
 
 	// Ensure dimensions don't exceed bounds
 	int readWidth = pixelWinSize;
 	int readHeight = pixelWinSize;
-	if (readX + readWidth > maxX) readWidth = maxX - readX;
-	if (readY + readHeight > maxY) readHeight = maxY - readY;
+	if (readX + readWidth > width())   readWidth  = width()  - readX;
+	if (readY + readHeight > height()) readHeight = height() - readY;
 
 	if (readWidth <= 0 || readHeight <= 0)
 	{
