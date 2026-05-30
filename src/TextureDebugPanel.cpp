@@ -211,21 +211,23 @@ void TextureDebugPanel::buildUI()
 		_channelCombo->addItem(tr("Height"),    14);
 		_channelCombo->addItem(tr("Opacity"),   15);
 
-		// Extension texture channels group (PBR only, units 18 / 20-31)
+		// Extension texture channels group (PBR only)
 		_channelCombo->insertSeparator(_channelCombo->count());
-		_channelCombo->addItem(tr("Transmission"),           18);
-		_channelCombo->addItem(tr("Sheen Color"),            20);
-		_channelCombo->addItem(tr("Sheen Roughness"),        21);
-		_channelCombo->addItem(tr("Clearcoat"),              22);
-		_channelCombo->addItem(tr("Clearcoat Roughness"),    23);
-		_channelCombo->addItem(tr("Clearcoat Normal"),       24);
-		_channelCombo->addItem(tr("Specular Factor"),        25);
-		_channelCombo->addItem(tr("Specular Color"),         26);
-		_channelCombo->addItem(tr("Anisotropy"),             27);
-		_channelCombo->addItem(tr("Iridescence"),            28);
-		_channelCombo->addItem(tr("Iridescence Thickness"),  29);
-		_channelCombo->addItem(tr("Volume Thickness"),       30);
-		_channelCombo->addItem(tr("Diffuse Transmission"),   31);
+		_channelCombo->addItem(tr("Transmission Strength"),          18);
+		_channelCombo->addItem(tr("Sheen Color"),                    20);
+		_channelCombo->addItem(tr("Sheen Roughness"),                21);
+		_channelCombo->addItem(tr("Clearcoat Strength"),             22);
+		_channelCombo->addItem(tr("Clearcoat Roughness"),            23);
+		_channelCombo->addItem(tr("Clearcoat Normal"),               24);
+		_channelCombo->addItem(tr("Specular Strength"),              25);
+		_channelCombo->addItem(tr("Specular Color"),                 26);
+		_channelCombo->addItem(tr("Anisotropic Strength"),           27);
+		_channelCombo->addItem(tr("Anisotropic Direction"),          32);
+		_channelCombo->addItem(tr("Iridescence Strength"),           28);
+		_channelCombo->addItem(tr("Iridescence Thickness"),          29);
+		_channelCombo->addItem(tr("Volume Thickness"),               30);
+		_channelCombo->addItem(tr("Diffuse Transmission Strength"),  31);
+		_channelCombo->addItem(tr("Diffuse Transmission Color"),     33);
 
 		row->addWidget(lbl);
 		row->addWidget(_channelCombo, 1);

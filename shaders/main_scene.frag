@@ -148,10 +148,11 @@ uniform bool twoSided;
 // IDs 1-9 are geometry/vertex channels; IDs 10+ match GPU texture unit indices.
 //   1=UV0  2=UV1  3=GeoNormal  4=GeoTangent  5=GeoBitangent  6=TangentW  7=ShadingNormal  8=Alpha  9=VertexColor
 //   10=Albedo/Diffuse  11=Metallic  12=Emissive  13=NormalMap  14=Height  15=Opacity  16=Roughness  17=AO
-//   18=Transmission    20=SheenColor  21=SheenRoughness
-//   22=ClearcoatFactor 23=ClearcoatRoughness  24=ClearcoatNormal
-//   25=SpecularFactor  26=SpecularColor  27=Anisotropy
-//   28=Iridescence     29=IridescenceThickness  30=VolumeThickness  31=DiffuseTransmission
+//   18=TransmissionStrength  20=SheenColor  21=SheenRoughness
+//   22=ClearcoatStrength  23=ClearcoatRoughness  24=ClearcoatNormal
+//   25=SpecularStrength  26=SpecularColor  27=AnisotropicStrength  32=AnisotropicDirection
+//   28=IridescenceStrength  29=IridescenceThickness  30=VolumeThickness
+//   31=DiffuseTransmissionStrength  33=DiffuseTransmissionColor
 uniform int debugChannelOutput = 0;
 
 // Advanced PBR Material Properties
@@ -203,6 +204,19 @@ uniform sampler2D diffuseTransmissionMap;
 uniform sampler2D diffuseTransmissionColorMap;
 uniform bool hasDiffuseTransmissionMap = false;
 uniform bool hasDiffuseTransmissionColorMap = false;
+
+// Extension-presence flags — true when the KHR extension is active on this
+// material (with or without a texture).  Used in the debug block to gate
+// extension channels behind a checkerboard when the extension is absent,
+// mirroring Khronos viewer's compile-time #ifdef MATERIAL_XXX gating.
+uniform bool extClearcoat    = false;
+uniform bool extSheen        = false;
+uniform bool extTransmission = false;
+uniform bool extSpecular     = false;
+uniform bool extAnisotropy   = false;
+uniform bool extIridescence  = false;
+uniform bool extVolume       = false;
+uniform bool extDiffuseTrans = false;
 
 // KHR_materials_volume
 uniform sampler2D thicknessMap;
@@ -945,12 +959,12 @@ void main()
 			// Normal/height maps are excluded — they have no meaningful scalar fallback.
 			MaterialParams dbg = gatherMaterialParams();
 
-			if      (debugChannelOutput == 10)  // Albedo/Base Color (factor × tex × vtxColor)
-				iso = dbg.baseColor;
+			if      (debugChannelOutput == 10)  // Albedo/Base Color (factor × tex × vtxColor) — sRGB like Khronos
+				iso = linearTosRGB(dbg.baseColor);
 			else if (debugChannelOutput == 11)  // Metallic (metallicFactor × tex, or just factor)
 				iso = vec3(dbg.metallic);
-			else if (debugChannelOutput == 12)  // Emissive (emissionFactor × tex × emissiveStrength)
-				iso = dbg.emissive;
+			else if (debugChannelOutput == 12)  // Emissive (emissionFactor × tex × emissiveStrength) — sRGB like Khronos
+				iso = linearTosRGB(dbg.emissive);
 			else if (debugChannelOutput == 13 && hasNormalMap)
 				iso = texture(normalMap, getNormalUV()).rgb;
 			else if (debugChannelOutput == 14 && hasHeightMap)
@@ -961,33 +975,44 @@ void main()
 				iso = vec3(dbg.roughness);
 			else if (debugChannelOutput == 17)  // AO (occlusionStrength × tex, or 1.0 if absent)
 				iso = vec3(dbg.ambientOcclusion);
-			// ---- Extension channels (IDs 18, 20-31) ----
-			else if (debugChannelOutput == 18)  // Transmission factor × tex
+			// ---- Extension channels (IDs 18, 20-33) ----
+			// Each branch is gated by its extXxx flag so that absent extensions
+			// fall through to the checkerboard sentinel, matching Khronos behaviour.
+			else if (debugChannelOutput == 18 && extTransmission)
 				iso = vec3(dbg.transmission);
-			else if (debugChannelOutput == 20)  // Sheen Color factor × tex
+			else if (debugChannelOutput == 20 && extSheen)
 				iso = dbg.sheenColor;
-			else if (debugChannelOutput == 21)  // Sheen Roughness factor × tex
+			else if (debugChannelOutput == 21 && extSheen)
 				iso = vec3(dbg.sheenRoughness);
-			else if (debugChannelOutput == 22)  // Clearcoat factor × tex
+			else if (debugChannelOutput == 22 && extClearcoat)
 				iso = vec3(dbg.clearcoat);
-			else if (debugChannelOutput == 23)  // Clearcoat Roughness factor × tex
+			else if (debugChannelOutput == 23 && extClearcoat)
 				iso = vec3(dbg.clearcoatRoughness);
-			else if (debugChannelOutput == 24 && hasClearcoatNormalMap)
+			else if (debugChannelOutput == 24 && extClearcoat && hasClearcoatNormalMap)
 				iso = texture(clearcoatNormalMap, getClearcoatNormalUV()).rgb;
-			else if (debugChannelOutput == 25)  // Specular Factor × tex
+			else if (debugChannelOutput == 25 && extSpecular)
 				iso = vec3(dbg.specularFactor);
-			else if (debugChannelOutput == 26)  // Specular Color × tex
+			else if (debugChannelOutput == 26 && extSpecular)
 				iso = dbg.specularColor;
-			else if (debugChannelOutput == 27)  // Anisotropy strength × tex
+			else if (debugChannelOutput == 27 && extAnisotropy)
 				iso = vec3(dbg.anisotropyStrength);
-			else if (debugChannelOutput == 28)  // Iridescence factor × tex
+			else if (debugChannelOutput == 32 && extAnisotropy)
+			{
+				if (hasAnisotropyMap)
+					iso = vec3(texture(anisotropyMap, getAnisotropyUV()).xy, 0.0);
+				else
+					iso = vec3(1.0, 0.5, 0.0); // default +X direction (1,0) remapped to [0,1]
+			}
+			else if (debugChannelOutput == 28 && extIridescence)
 				iso = vec3(dbg.iridescenceFactor);
-			else if (debugChannelOutput == 29)  // Iridescence thickness normalised 0–1200 nm
+			else if (debugChannelOutput == 29 && extIridescence)
 				iso = vec3(dbg.iridescenceThickness / 1200.0);
-			else if (debugChannelOutput == 30)  // Volume thickness (tex contribution, 0–1)
+			else if (debugChannelOutput == 30 && extVolume)
 				iso = vec3(dbg.thickness / max(pbrLighting.thicknessFactor, 0.001));
-			else if (debugChannelOutput == 31)  // Diffuse Transmission factor × tex
+			else if (debugChannelOutput == 31 && extDiffuseTrans)
 				iso = vec3(dbg.diffuseTransmissionFactor);
+			else if (debugChannelOutput == 33 && extDiffuseTrans)
+				iso = linearTosRGB(dbg.diffuseTransmissionColor);
 		}
 		fragColor = vec4(iso, 1.0);
 	}

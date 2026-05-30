@@ -1030,6 +1030,24 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("hasClearcoatRoughnessMap", _material.hasClearcoatRoughnessMap());
 	_prog->setUniformValue("hasClearcoatNormalMap", _material.hasClearcoatNormalMap());
 
+	// Extension-presence flags for debug channel gating (mirrors Khronos #ifdef MATERIAL_XXX).
+	// True when the extension is active regardless of whether a texture is present.
+	_prog->setUniformValue("extClearcoat",    _material.hasClearcoat());
+	_prog->setUniformValue("extSheen",        _material.hasSheen());
+	_prog->setUniformValue("extTransmission", _material.hasTransmission());
+	_prog->setUniformValue("extSpecular",     _material.hasSpecularFactorMap()
+	                                              || _material.hasSpecularColorMap()
+	                                              || _material.specularFactor() != 1.0f);
+	_prog->setUniformValue("extAnisotropy",   _material.anisotropyStrength() != 0.0f
+	                                              || _material.hasAnisotropyMap());
+	_prog->setUniformValue("extIridescence",  _material.iridescenceFactor() > 0.0f
+	                                              || _material.hasIridescenceMap());
+	_prog->setUniformValue("extVolume",       _material.thicknessFactor() > 0.0f
+	                                              || _material.hasThicknessMap());
+	_prog->setUniformValue("extDiffuseTrans", _material.diffuseTransmissionFactor() > 0.0f
+	                                              || _material.hasDiffuseTransmissionMap()
+	                                              || _material.hasDiffuseTransmissionColorMap());
+
 	_prog->setUniformValue("isGLTFMaterial", _material.isGLTFMaterial());
 
 	// send channel-packing uniforms now that samplers are bound to units
