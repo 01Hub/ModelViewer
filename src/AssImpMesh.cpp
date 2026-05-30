@@ -1251,7 +1251,8 @@ void AssImpMesh::clearAllPBRMaps()
 
 void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
 {
-	//glDeleteTextures(1, &_diffuseADSMap);
+	if (_diffuseADSMap && _diffuseADSMap != diffuseTex)
+		glDeleteTextures(1, &_diffuseADSMap);
 	_diffuseADSMap = diffuseTex;
 	GLMaterial::Texture t;
 	t.id = diffuseTex;
@@ -1264,7 +1265,8 @@ void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
 
 void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
 {
-	//glDeleteTextures(1, &_specularADSMap);
+	if (_specularADSMap && _specularADSMap != specularTex)
+		glDeleteTextures(1, &_specularADSMap);
 	_specularADSMap = specularTex;
 	GLMaterial::Texture t;
 	t.id = specularTex;
@@ -1277,7 +1279,8 @@ void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
 
 void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
 {
-	//glDeleteTextures(1, &_emissiveADSMap);
+	if (_emissiveADSMap && _emissiveADSMap != emissiveTex)
+		glDeleteTextures(1, &_emissiveADSMap);
 	_emissiveADSMap = emissiveTex;
 	GLMaterial::Texture t;
 	t.id = emissiveTex;
@@ -1290,7 +1293,8 @@ void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
 
 void AssImpMesh::setNormalADSMap(unsigned int normalTex)
 {
-	//glDeleteTextures(1, &_normalADSMap);
+	if (_normalADSMap && _normalADSMap != normalTex)
+		glDeleteTextures(1, &_normalADSMap);
 	_normalADSMap = normalTex;
 	GLMaterial::Texture t;
 	t.id = normalTex;
@@ -1303,7 +1307,8 @@ void AssImpMesh::setNormalADSMap(unsigned int normalTex)
 
 void AssImpMesh::setHeightADSMap(unsigned int heightTex)
 {
-	//glDeleteTextures(1, &_heightADSMap);
+	if (_heightADSMap && _heightADSMap != heightTex)
+		glDeleteTextures(1, &_heightADSMap);
 	_heightADSMap = heightTex;
 	GLMaterial::Texture t;
 	t.id = heightTex;
@@ -1316,7 +1321,8 @@ void AssImpMesh::setHeightADSMap(unsigned int heightTex)
 
 void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 {
-	//glDeleteTextures(1, &_opacityADSMap);
+	if (_opacityADSMap && _opacityADSMap != opacityTex)
+		glDeleteTextures(1, &_opacityADSMap);
 	_opacityADSMap = opacityTex;
 	GLMaterial::Texture t;
 	t.id = opacityTex;
