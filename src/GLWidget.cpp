@@ -23,6 +23,7 @@
 #include "Utils.h"
 #include <algorithm>
 #include <iostream>
+#include <QOpenGLContext>
 #include <QElapsedTimer>
 #include <QMessageBox>
 #include <QStyleFactory>
@@ -1113,7 +1114,19 @@ QUuid GLWidget::getUuidByIndex(int index) const
 
 void GLWidget::initializeGL()
 {
-	initializeOpenGLFunctions();
+	_openGLInitialized = false;
+
+	if (!QOpenGLContext::currentContext())
+	{
+		qCritical() << "GLWidget::initializeGL: no current OpenGL context — skipping initialisation";
+		return;
+	}
+
+	if (!initializeOpenGLFunctions())
+	{
+		qCritical() << "GLWidget::initializeGL: failed to resolve OpenGL 4.5 Core functions — skipping initialisation";
+		return;
+	}
 
 	int maxSamples = 0;
 	glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);	
@@ -1349,10 +1362,15 @@ void GLWidget::initializeGL()
 
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
+
+	_openGLInitialized = true;
 }
 
 void GLWidget::resizeGL(int width, int height)
 {
+	if (!_openGLInitialized)
+		return;
+
 	float w = (float)width;
 	float h = (float)height;
 
@@ -1410,6 +1428,9 @@ void GLWidget::resizeGL(int width, int height)
 
 void GLWidget::paintGL()
 {
+	if (!_openGLInitialized)
+		return;
+
 	QColor topColor = !_visibleSwapped ? _bgTopColor : QColor::fromRgbF(1.0f - _bgTopColor.redF(),
 		1.0f - _bgTopColor.greenF(), 1.0f - _bgTopColor.blueF(),
 		_bgTopColor.alphaF());

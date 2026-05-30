@@ -14,6 +14,9 @@ class ModelViewerApplication : public QApplication {
 public:
     ModelViewerApplication(int& argc, char** argv);
 
+    // Must be called before QApplication is constructed (Wayland / platform attribute requirement)
+    static void configureOpenGLAttributes();
+
     // Static utility method for supported extensions
     static QStringList supportedImportExtensions();
 	

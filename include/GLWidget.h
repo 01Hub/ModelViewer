@@ -1113,6 +1113,7 @@ private:
 
 	HDRToneMapMode _toneMappingMode;
 
+	bool _openGLInitialized = false;  // set true only after initializeGL() succeeds
 	float _anisotropicFilteringLevel = 16.0f;
 
 	Cone* _axisCone;
