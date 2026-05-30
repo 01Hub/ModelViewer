@@ -117,7 +117,7 @@
         <x>0</x>
         <y>0</y>
         <width>436</width>
-        <height>904</height>
+        <height>939</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout">
@@ -465,6 +465,69 @@
                   <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                  </property>
                 </widget>
+               </item>
+              </layout>
+             </item>
+             <item>
+              <layout class="QHBoxLayout" name="skyBoxRotationLayout">
+               <item>
+                <widget class="QLabel" name="labelSkyBoxRotation">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="text">
+                  <string>Rotation</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="comboBoxSkyBoxRotation">
+                 <property name="enabled">
+                  <bool>true</bool>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>80</width>
+                   <height>16777215</height>
+                  </size>
+                 </property>
+                 <property name="editable">
+                  <bool>false</bool>
+                 </property>
+                 <item>
+                  <property name="text">
+                   <string>X+</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>X-</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>Y+</string>
+                  </property>
+                 </item>
+                 <item>
+                  <property name="text">
+                   <string>Y-</string>
+                  </property>
+                 </item>
+                </widget>
+               </item>
+               <item>
+                <spacer name="skyBoxRotationSpacer">
+                 <property name="orientation">
+                  <enum>Qt::Orientation::Horizontal</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
                </item>
               </layout>
              </item>

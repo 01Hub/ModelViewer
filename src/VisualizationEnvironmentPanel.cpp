@@ -99,6 +99,7 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onLoadSkyBoxPresetMaps);
 	connect(ui->sliderSkyBoxBlur, QOverload<int>::of(&QSlider::valueChanged), this, &VisualizationEnvironmentPanel::onSkyBoxBlurChanged);
 	connect(ui->doubleSpinBoxSkyBoxFOV, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onSkyBoxFOVChanged);
+	connect(ui->comboBoxSkyBoxRotation, QOverload<int>::of(&QComboBox::currentIndexChanged), _glWidget, &GLWidget::setSkyBoxZRotation);
 	connect(ui->comboBoxSkyBoxMaps, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &VisualizationEnvironmentPanel::onSkyBoxMapsChanged);
 	connect(ui->pushButtonSkyBoxTex, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onSkyBoxTextureClicked);
 
@@ -152,7 +153,9 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	ui->sliderSkyBoxBlur->setEnabled(skyBoxEnabled);
 	ui->labelSkyBoxBlurValue->setEnabled(skyBoxEnabled);
 	ui->labelFOV->setEnabled(skyBoxEnabled);
-	ui->doubleSpinBoxSkyBoxFOV->setEnabled(skyBoxEnabled);	
+	ui->doubleSpinBoxSkyBoxFOV->setEnabled(skyBoxEnabled);
+	ui->labelSkyBoxRotation->setEnabled(skyBoxEnabled);
+	ui->comboBoxSkyBoxRotation->setEnabled(skyBoxEnabled);
 	
 	// Floor dependencies
 	ui->checkBoxReflections->setEnabled(floorEnabled);
@@ -635,6 +638,7 @@ void VisualizationEnvironmentPanel::onDefaultEnvValuesClicked()
 
 	ui->doubleSpinBoxSkyBoxFOV->setValue(45.0);
 	ui->sliderSkyBoxBlur->setValue(0);
+	ui->comboBoxSkyBoxRotation->setCurrentIndex(0);
 	ui->comboBoxShadowQuality->setCurrentIndex(1);
 	ui->doubleSpinBoxFloorOffset->setValue(0.0);
 	ui->doubleSpinBoxRepeatS->setValue(1.0);

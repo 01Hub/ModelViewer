@@ -21,9 +21,11 @@ vec3 uncharted2ToneMapping(vec3 color);
 
 void main()
 {
-    fragColor = useSkyboxLod
-        ? textureLod(skybox, texCoords, skyboxLod)
-        : texture(skybox, texCoords);
+    // Always use textureLod to suppress automatic GPU mip selection.
+    // At blur=0% (useSkyboxLod=false) skyboxLod=0.0, forcing LOD 0
+    // (full resolution) on the raw environment map.
+    // At blur>0% (useSkyboxLod=true) skyboxLod drives into the prefilter mip chain.
+    fragColor = textureLod(skybox, texCoords, skyboxLod);
         
     // HDR tonemapping with IBL exposure
     if(hdrToneMapping)

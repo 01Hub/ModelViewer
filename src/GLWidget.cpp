@@ -658,6 +658,7 @@ _assimpModelLoader(nullptr)
 	_skyBoxEnabled = false;
 	_skyBoxBlurPercent = 0;
 	_skyBoxFOV = 45.0f;
+	_skyBoxZRotation = 0.0f;
 	_skyBoxTextureHDRI = false;
 	_gammaCorrection = false;
 	_screenGamma = 2.2f;
@@ -1325,9 +1326,7 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));	
 	_fgShader->setUniformValue("selectionHighlighting", _selectionHighlighting);
 
-	QMatrix4x4 envMapRot;
-	envMapRot.rotate(-90, 1, 0, 0);
-	_fgShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
+	updateEnvMapRotationMatrix();
 
 	_debugShader->bind();
 	_debugShader->setUniformValue("depthMap", 0);
@@ -1840,12 +1839,16 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB32F, imgWidth, imgHeight, 0, GL_RGB, GL_FLOAT, data);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 	stbi_image_free(data);
 
 	// 2. Create cubemap texture
-	int cubeSize = 1024; // Adjust resolution as needed
+	// Derive face size from source: equirectangular width covers ~4 faces, so W/4 is a
+	// good face size.  Round down to the nearest power-of-two for clean mip chains and
+	// clamp to 2048 to keep GPU memory reasonable.
+	int cubeSize = 1 << static_cast<int>(std::log2(std::min(imgWidth / 4, 2048)));
+	qDebug() << "HDR equirect" << imgWidth << "x" << imgHeight << "→ cubemap face" << cubeSize;
 	for (int mip = 0; mip < static_cast<int>(std::log2(cubeSize)) + 1; ++mip)
 	{
 		int mipSize = cubeSize >> mip;
@@ -1944,7 +1947,11 @@ bool GLWidget::convertEquirectangularToCubemapQuad(const QString& filePath)
 	stbi_image_free(data);
 
 	/// 2. Create cubemap texture - allocate mip 0 for all faces first
-	int cubeSize = 1024;  // Base resolution - adjust if needed
+	// Derive face size from source: equirectangular width covers ~4 faces, so W/4 is a
+	// good face size.  Round down to the nearest power-of-two for clean mip chains and
+	// clamp to 2048 to keep GPU memory reasonable.
+	int cubeSize = 1 << static_cast<int>(std::log2(std::min(imgWidth / 4, 2048)));
+	qDebug() << "HDR equirect" << imgWidth << "x" << imgHeight << "→ cubemap face" << cubeSize;
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
 	for (int i = 0; i < 6; ++i)
@@ -1952,8 +1959,6 @@ bool GLWidget::convertEquirectangularToCubemapQuad(const QString& filePath)
 		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
 			cubeSize, cubeSize, 0, GL_RGB, GL_FLOAT, nullptr);
 	}
-
-	qDebug() << "Converting equirectangular to cubemap" << cubeSize << "x" << cubeSize;
 
 	// 3. Create simple full-screen quad
 	float quadVertices[] = {
@@ -5736,7 +5741,8 @@ void GLWidget::drawSkyBox()
 	view.setColumn(3, QVector4D(0, 0, 0, 1));
 	QMatrix4x4 model;
 	if (!usePrefilterBlur)
-		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
+		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f)); // Z-up correction for raw env map
+	model.rotate(_skyBoxZRotation, QVector3D(0.0f, 1.0f, 0.0f)); // User Z rotation (always applied)
 	float skyboxLod = 0.0f;
 	if (usePrefilterBlur)
 	{
@@ -11324,6 +11330,37 @@ void GLWidget::setSkyBoxFOV(double fov)
 {
 	_skyBoxFOV = static_cast<float>(fov);
 	update();
+}
+
+void GLWidget::setSkyBoxZRotation(int index)
+{
+	// Map combo index to Y-axis rotation angle (OpenGL Y = world Z-up)
+	// X+ → 0°, X- → 180°, Z+ → 90°, Z- → 270°
+	static constexpr float angles[] = { 0.0f, 180.0f, 90.0f, 270.0f };
+	_skyBoxZRotation = angles[index % 4];
+	updateEnvMapRotationMatrix();
+	update();
+}
+
+void GLWidget::updateEnvMapRotationMatrix()
+{
+	// Build Ry(-theta) · Rx(-90°) using Qt post-multiply (M = M*R):
+	//
+	//   envMapRotationMatrix = Ry(-theta) · Rx(-90°)
+	//
+	// This converts a Z-up world direction into a cubemap sample direction:
+	//   1. Rx(-90°)  — maps world Z-up to cubemap Y-up (Z-up correction)
+	//   2. Ry(-theta)— rotates horizontally around the (now corrected) Y axis,
+	//                   matching the user's Z-up world rotation
+	//
+	// Ordering matters: Rx(-90°) must be the INNER transform and Ry(-theta)
+	// the OUTER, so that Ry acts in cubemap (Y-up) space, not raw Z-up space.
+	// Reversing the order would tilt the sky axis as the environment rotates.
+	QMatrix4x4 envMapRot;
+	envMapRot.rotate(-_skyBoxZRotation, 0, 1, 0); // Qt post-mul: M = Ry(-theta)
+	envMapRot.rotate(-90.0f, 1, 0, 0);            // Qt post-mul: M = Ry(-theta) · Rx(-90°)
+	_fgShader->bind();
+	_fgShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
 }
 
 void GLWidget::setSkyBoxTextureHDRI(bool hdrSet)

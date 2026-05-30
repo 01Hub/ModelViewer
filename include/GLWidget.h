@@ -501,6 +501,7 @@ public slots:
 	void setFloorTexRepeatT(double floorTexRepeatT);
 	void setFloorOffsetPercent(double value);
 	void setSkyBoxFOV(double fov);
+	void setSkyBoxZRotation(int index);
 	void setSkyBoxTextureHDRI(bool hdrSet);
 	void enableHDRToneMapping(bool hdrToneMapping);
 	void enableGammaCorrection(bool gammaCorrection);
@@ -622,6 +623,7 @@ private:
 	void createFullscreenTriangle();
 	void drawFullscreenTriangle();
 	void setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex);
+	void updateEnvMapRotationMatrix();
 
 	void loadEnvMap();
 	void loadIrradianceMap();
@@ -1101,6 +1103,7 @@ private:
 	bool _fsTriInitialized = false; // Track initialization state
 	std::vector<QString> _skyBoxFaces;
 	float _skyBoxFOV;
+	float _skyBoxZRotation;
 	bool  _skyBoxTextureHDRI;
 	bool  _gammaCorrection;
 	float _screenGamma;
