@@ -539,49 +539,21 @@ void TriangleMesh::setupTextures()
 	glActiveTexture(GL_TEXTURE21);
 	glBindTexture(GL_TEXTURE_2D, _material.hasSheenRoughnessMap() ? static_cast<GLuint>(_material.sheenRoughnessTextureId()) : 0U);
 	// Texture unit multiplexing — renderer limitation, not a glTF spec requirement.
-	// We have more samplers than the 32-unit GL limit allows, so four units are shared
-	// between a global texture and a per-mesh extension texture that is only conditionally
-	// bound (see guards below).  The conflict only arises when both are needed on the
-	// same draw call — i.e. when both the global reader and the per-mesh writer are active
-	// for the same material simultaneously.  The glTF spec permits these combinations, but
-	// this renderer does not currently support them.  If an assertion fires, a model has
-	// loaded a material that exercises one of these conflicts; the texture unit layout must
-	// be redesigned (e.g. by compiling per-material shader variants as the Khronos Sample
-	// Viewer does, or by packing LUT textures to reclaim units).
-	//
-	//  Unit 22: charlieLUT (global, read when hasSheen)
-	//           clearcoatColorMap (per-mesh, written when hasClearcoatColorMap)
-	Q_ASSERT_X(!(_material.hasSheen() && _material.hasClearcoatColorMap()),
-		"TriangleMesh::render",
-		"Material has both sheen and a clearcoat colour texture: "
-		"unit 22 is shared between charlieLUT and clearcoatColorMap. "
-		"See texture unit multiplexing comment above.");
-	//  Unit 23: sheenELUT (global, read when hasSheen)
-	//           clearcoatRoughnessMap (per-mesh, written when hasClearcoatRoughnessMap)
-	Q_ASSERT_X(!(_material.hasSheen() && _material.hasClearcoatRoughnessMap()),
-		"TriangleMesh::render",
-		"Material has both sheen and a clearcoat roughness texture: "
-		"unit 23 is shared between sheenELUT and clearcoatRoughnessMap. "
-		"See texture unit multiplexing comment above.");
-	//  Unit 28: sssDiffuseTexture (global, read when hasVolumeScattering)
-	//           iridescenceMap (per-mesh, written when hasIridescenceMap)
+	// Unit multiplexing note:
+	// charlieLUT → unit 32, sheenELUT → unit 33 (moved from 22/23 to eliminate the
+	// cross-mesh contamination bug with clearcoat textures on those same units).
+	// Units 28/29 are still shared between SSS globals and iridescence per-mesh textures;
+	// a single material cannot have both simultaneously (glTF spec constraint).
 	Q_ASSERT_X(!(_material.hasVolumeScattering() && _material.hasIridescenceMap()),
 		"TriangleMesh::render",
 		"Material has both volume scattering and an iridescence texture: "
-		"unit 28 is shared between sssDiffuseTexture and iridescenceMap. "
-		"See texture unit multiplexing comment above.");
-	//  Unit 29: sssDepthTexture (global, read when hasVolumeScattering)
-	//           iridescenceThicknessMap (per-mesh, written when hasIridescenceThicknessMap)
+		"unit 28 is shared between sssDiffuseTexture and iridescenceMap.");
 	Q_ASSERT_X(!(_material.hasVolumeScattering() && _material.hasIridescenceThicknessMap()),
 		"TriangleMesh::render",
 		"Material has both volume scattering and an iridescence thickness texture: "
-		"unit 29 is shared between sssDepthTexture and iridescenceThicknessMap. "
-		"See texture unit multiplexing comment above.");
+		"unit 29 is shared between sssDepthTexture and iridescenceThicknessMap.");
 
-	// KHR clearcoat maps (units 22–24).
-	// Units 22/23 are multiplexed with global charlieLUT/sheenELUT.  Only bind when the
-	// material actually has these textures — omitting the bind preserves the global LUTs
-	// for materials that need sheen without a clearcoat colour/roughness texture.
+	// KHR clearcoat maps (units 22–24) — no longer conflict with any global LUT.
 	if (_material.hasClearcoatColorMap()) {
 		glActiveTexture(GL_TEXTURE22);
 		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.clearcoatColorTextureId()));
@@ -1558,9 +1530,7 @@ void TriangleMesh::deleteTextures()
 TriangleMesh::~TriangleMesh()
 {
 	deleteBuffers();
-#ifdef Q_OS_WIN
-	//deleteTextures(); // causes wrong texture deletion on Linux
-#endif
+	deleteTextures();
 	for (Triangle* t : _triangles)
 		delete t;
 }

@@ -955,17 +955,22 @@ private:
 	std::unique_ptr<ShaderProgram> _equirectToCubeQuadShader;
 	std::unique_ptr<ShaderProgram> _downsampleShader;
 
-	unsigned int             _environmentMap;
-	unsigned int             _shadowMap;
-	unsigned int             _shadowMapFBO;
-	unsigned int			 _irradianceMap;
-	unsigned int             _prefilterMap;
-	unsigned int             _sheenPrefilterMap = 0;
-	unsigned int             _prefilterMipLevels = 0;
+	unsigned int             _environmentMap  = 0;
+	unsigned int             _shadowMap       = 0;
+	unsigned int             _shadowMapFBO    = 0;
+	unsigned int             _irradianceMap   = 0;
+	unsigned int             _prefilterMap    = 0;
+	unsigned int             _sheenPrefilterMap   = 0;
+	unsigned int             _prefilterMipLevels  = 5; // Effective LOD levels: lod = roughness * (mipLevels - 1)
 	unsigned int             _sheenPrefilterMipLevels = 5; // Effective mip count for sheen LOD formula
-	unsigned int             _brdfLUTTexture;
-	unsigned int             _charlieLUTTexture = 0;
-	unsigned int             _sheenELUTTexture = 0;
+	unsigned int             _brdfLUTTexture  = 0;
+	unsigned int             _charlieLUTTexture   = 0;
+	unsigned int             _sheenELUTTexture    = 0;
+	// Texture units for the sheen LUTs. Preferred: 32/33 (no per-mesh conflict).
+	// Graceful fallback to 22/23 on hardware where GL_MAX_TEXTURE_IMAGE_UNITS < 34.
+	// Set once in initializeGL() after querying the driver.
+	int                      _charlieLUTUnit  = 32;
+	int                      _sheenELUTUnit   = 33;
 	QString					 _currentSkyboxFolder;  // Track the current skybox folder path for environment map regeneration
 
 	// Preset environment maps (index 1=Studio, 2=Outdoor, 3=Office)

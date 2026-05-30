@@ -1136,6 +1136,37 @@ void GLWidget::initializeGL()
 	GLfloat maxAniso = 0.0f;
 	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
 	ModelViewerApplication::setSupportedAnisotropicFilteringLevel(maxAniso);
+
+	// Sheen LUT texture units: prefer 32/33 (outside the per-mesh clearcoat range 22–24)
+	// to avoid cross-mesh texture unit contamination.
+	//
+	// We query GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, not GL_MAX_TEXTURE_IMAGE_UNITS.
+	// The per-stage query commonly returns 32 (units 0–31) on modern drivers even though
+	// units 32+ are fully accessible, because the per-stage value reflects the spec
+	// minimum guarantee per shader stage, not the actual hardware limit. The combined
+	// value reflects the true addressable range across all stages and is guaranteed ≥ 80
+	// by the OpenGL 4.x spec (Table 23.53), so it is the correct gate for this check.
+	// Fall back to 22/23 only on truly constrained hardware (< OpenGL 4.0 drivers, etc.).
+	{
+		GLint maxCombinedUnits = 0;
+		glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &maxCombinedUnits);
+		if (maxCombinedUnits >= 34)
+		{
+			_charlieLUTUnit = 32;
+			_sheenELUTUnit  = 33;
+			qDebug() << "GLWidget: sheen LUTs on texture units 32/33"
+			         << "(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS =" << maxCombinedUnits << ")";
+		}
+		else
+		{
+			_charlieLUTUnit = 22;
+			_sheenELUTUnit  = 23;
+			qWarning() << "GLWidget: GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS =" << maxCombinedUnits
+			           << "< 34 — sheen LUTs fall back to units 22/23."
+			           << "Scenes with both sheen and clearcoat textures on different"
+			           << "meshes may show intermittent sheen artefacts.";
+		}
+	}
 	
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	// Set Anisotropic Filtering Level
@@ -1313,8 +1344,8 @@ void GLWidget::initializeGL()
 	// material has those iridescence textures, preserving the SSS globals for volume-scatter
 	// materials.  See the multiplexing invariant comment in TriangleMesh::render() for the
 	// renderer limitation this implies and the conditions under which it breaks.
-	_fgShader->setUniformValue("charlieLUT", 22);
-	_fgShader->setUniformValue("sheenELUT", 23);
+	_fgShader->setUniformValue("charlieLUT", _charlieLUTUnit);
+	_fgShader->setUniformValue("sheenELUT",  _sheenELUTUnit);
 	_fgShader->setUniformValue("sheenPrefilterMipLevels", (int)_sheenPrefilterMipLevels);
 	_fgShader->setUniformValue("prefilterMipLevels", (int)_prefilterMipLevels);
 	_fgShader->setUniformValue("transmissionSceneTexture", 7);
@@ -4741,11 +4772,17 @@ void GLWidget::loadEnvMap()
 
 void GLWidget::loadIrradianceMap()
 {
-	// Setup framebuffer for offscreen rendering
-	unsigned int captureFBO;
-	unsigned int captureRBO;
+	// Setup framebuffer for offscreen rendering.
+	// Use zero-init + scope-exit lambda so captureFBO/RBO are always freed even
+	// if an early return is added in future.
+	unsigned int captureFBO = 0;
+	unsigned int captureRBO = 0;
 	glGenFramebuffers(1, &captureFBO);
 	glGenRenderbuffers(1, &captureRBO);
+	auto cleanupFBO = [&]() {
+		glDeleteFramebuffers(1, &captureFBO);
+		glDeleteRenderbuffers(1, &captureRBO);
+	};
 
 	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
@@ -4835,11 +4872,16 @@ void GLWidget::loadIrradianceMap()
 	glGenTextures(1, &_prefilterMap);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
 
-	constexpr int prefilterSize = 256;
+	constexpr int prefilterSize = 512;
 	unsigned int maxMipLevels = static_cast<unsigned int>(std::log2(prefilterSize)) + 1;
-	_prefilterMipLevels = maxMipLevels;
+	// Khronos uses only 5 effective LOD levels (lowestMipLevel=4 in ibl_sampler.js).
+	// LOD formula: lod = roughness * (effectiveMipLevels - 1).
+	// Roughness 0..1 maps to mips 0..4 only; tail mips (5-9) baked at roughness=1
+	// for texture completeness but are never sampled by the LOD formula.
+	constexpr unsigned int effectiveMipLevels = 5;
+	_prefilterMipLevels = effectiveMipLevels;
 
-	// Allocate all mip levels upfront
+	// Allocate all mip levels upfront (full chain for GL_LINEAR_MIPMAP_LINEAR completeness)
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
 		unsigned int mipSize = static_cast<unsigned int>(prefilterSize * std::pow(0.5, mip));
@@ -4886,8 +4928,11 @@ void GLWidget::loadIrradianceMap()
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
 		glViewport(0, 0, mipWidth, mipHeight);
 
-		// Set roughness for this mip level
-		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
+		// Spread roughness 0..1 over the first effectiveMipLevels mips (matches Khronos).
+		// Tail mips (beyond effective range) get roughness=1.0 for texture completeness.
+		float roughness = (mip < effectiveMipLevels)
+			? (float)mip / (float)(effectiveMipLevels - 1)
+			: 1.0f;
 		_prefilterShader->bind();
 		_prefilterShader->setUniformValue("roughness", roughness);
 		_prefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
@@ -4933,8 +4978,9 @@ void GLWidget::loadIrradianceMap()
 	// Mip 0 (roughness=0) collapses to the mirror-reflection sample, so low-roughness sheen
 	// IBL reflects the environment instead of being nearly black.
 	constexpr int sheenEffectiveMipLevels = 5;
+	const unsigned int sheenMaxMipLevels = static_cast<unsigned int>(std::log2(sheenPrefilterSize)) + 1;
 
-	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
 	{
 		unsigned int mipSize = static_cast<unsigned int>(sheenPrefilterSize * std::pow(0.5, mip));
 		for (unsigned int i = 0; i < 6; ++i)
@@ -4963,7 +5009,7 @@ void GLWidget::loadIrradianceMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 
-	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
 	{
 		unsigned int mipWidth = sheenPrefilterSize * std::pow(0.5, mip);
 		unsigned int mipHeight = sheenPrefilterSize * std::pow(0.5, mip);
@@ -5111,14 +5157,13 @@ void GLWidget::loadIrradianceMap()
 		loadKhronosLUTTexture("lut_sheen_E.png", _sheenELUTTexture);
 	}
 
-	glActiveTexture(GL_TEXTURE22);
+	glActiveTexture(GL_TEXTURE0 + _charlieLUTUnit);
 	glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
-	glActiveTexture(GL_TEXTURE23);
+	glActiveTexture(GL_TEXTURE0 + _sheenELUTUnit);
 	glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
 
 	// Cleanup temporary FBO
-	glDeleteFramebuffers(1, &captureFBO);
-	glDeleteRenderbuffers(1, &captureRBO);
+	cleanupFBO();
 }
 
 // Helper: Load HDR file and convert to cubemap
@@ -5291,10 +5336,11 @@ bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradiance
 	glGenTextures(1, &outPrefilterMap);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, outPrefilterMap);
 
-	constexpr int prefilterSize = 256;
+	constexpr int prefilterSize = 512;
 	unsigned int maxMipLevels = static_cast<unsigned int>(std::log2(prefilterSize)) + 1;
+	constexpr unsigned int effectiveMipLevels = 5;
 
-	// Allocate all mip levels
+	// Allocate all mip levels (full chain for completeness)
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
 		unsigned int mipSize = static_cast<unsigned int>(prefilterSize * std::pow(0.5, mip));
@@ -5335,7 +5381,9 @@ bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradiance
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
 		glViewport(0, 0, mipWidth, mipHeight);
 
-		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
+		float roughness = (mip < effectiveMipLevels)
+			? (float)mip / (float)(effectiveMipLevels - 1)
+			: 1.0f;
 		_prefilterShader->bind();
 		_prefilterShader->setUniformValue("roughness", roughness);
 		_prefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
@@ -5371,8 +5419,9 @@ bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradiance
 	constexpr int sheenPrefilterSize = 256;
 	// Same Khronos-compatible scheme as the primary environment sheen prefilter.
 	constexpr int sheenEffectiveMipLevels = 5;
+	const unsigned int sheenMaxMipLevels = static_cast<unsigned int>(std::log2(sheenPrefilterSize)) + 1;
 
-	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
 	{
 		unsigned int mipSize = static_cast<unsigned int>(sheenPrefilterSize * std::pow(0.5, mip));
 		for (unsigned int i = 0; i < 6; ++i)
@@ -5396,7 +5445,7 @@ bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradiance
 	glBindTexture(GL_TEXTURE_CUBE_MAP, sourceCubemap);
 	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 
-	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
+	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
 	{
 		unsigned int mipWidth = sheenPrefilterSize * std::pow(0.5, mip);
 		unsigned int mipHeight = sheenPrefilterSize * std::pow(0.5, mip);
@@ -6852,15 +6901,15 @@ void GLWidget::bindIBLTextures()
 	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
 	_fgShader->setUniformValue("sheenPrefilterMap", 9);
 	glActiveTexture(GL_TEXTURE9); glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
-	_fgShader->setUniformValue("charlieLUT", 22);
-	glActiveTexture(GL_TEXTURE22); glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
-	_fgShader->setUniformValue("sheenELUT", 23);
-	glActiveTexture(GL_TEXTURE23); glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
+	_fgShader->setUniformValue("charlieLUT", _charlieLUTUnit);
+	glActiveTexture(GL_TEXTURE0 + _charlieLUTUnit); glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
+	_fgShader->setUniformValue("sheenELUT",  _sheenELUTUnit);
+	glActiveTexture(GL_TEXTURE0 + _sheenELUTUnit);  glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
 	// Effective mip count for sheen LOD: lod = roughness * (sheenPrefilterMipLevels - 1)
 	int sheenMips = (_sheenPrefilterMipLevels > 0) ? (int)_sheenPrefilterMipLevels : 5;
 	_fgShader->setUniformValue("sheenPrefilterMipLevels", sheenMips);
 	// Effective mip count for GGX specular LOD: lod = roughness * (prefilterMipLevels - 1)
-	int prefilterMips = (_prefilterMipLevels > 0) ? (int)_prefilterMipLevels : 9;
+	int prefilterMips = (_prefilterMipLevels > 0) ? (int)_prefilterMipLevels : 5;
 	_fgShader->setUniformValue("prefilterMipLevels", prefilterMips);
 }
 
@@ -11335,7 +11384,7 @@ void GLWidget::setSkyBoxFOV(double fov)
 void GLWidget::setSkyBoxZRotation(int index)
 {
 	// Map combo index to Y-axis rotation angle (OpenGL Y = world Z-up)
-	// X+ → 0°, X- → 180°, Z+ → 90°, Z- → 270°
+	// X+ → 0°, X- → 180°, Y-Z+ → 90°, Y+ → 270°
 	static constexpr float angles[] = { 0.0f, 180.0f, 90.0f, 270.0f };
 	_skyBoxZRotation = angles[index % 4];
 	updateEnvMapRotationMatrix();
@@ -12687,8 +12736,8 @@ void GLWidget::requestTextureReadback(int meshId)
 		{ "iorMap",                   19, mat.hasIORMap()                 ? static_cast<GLuint>(mat.iorTextureId())                 : 0U,   false,          false, {} },
 		{ "sheenColorMap",            20, mat.hasSheenColorMap()          ? static_cast<GLuint>(mat.sheenColorTextureId())          : 0U,   extSheen,       false, {} },
 		{ "sheenRoughnessMap",        21, mat.hasSheenRoughnessMap()      ? static_cast<GLuint>(mat.sheenRoughnessTextureId())      : 0U,   extSheen,       false, {} },
-		{ "clearcoatColorMap",        22, mat.hasClearcoatColorMap()      ? static_cast<GLuint>(mat.clearcoatColorTextureId())      : 0U,   extClearcoat,   true,  "unit 22 shared with charlieLUT (global)"        },
-		{ "clearcoatRoughnessMap",    23, mat.hasClearcoatRoughnessMap()  ? static_cast<GLuint>(mat.clearcoatRoughnessTextureId())  : 0U,   extClearcoat,   true,  "unit 23 shared with sheenELUT (global)"         },
+		{ "clearcoatColorMap",        22, mat.hasClearcoatColorMap()      ? static_cast<GLuint>(mat.clearcoatColorTextureId())      : 0U,   extClearcoat,   true,  ""        },
+		{ "clearcoatRoughnessMap",    23, mat.hasClearcoatRoughnessMap()  ? static_cast<GLuint>(mat.clearcoatRoughnessTextureId())  : 0U,   extClearcoat,   true,  ""         },
 		{ "clearcoatNormalMap",       24, mat.hasClearcoatNormalMap()     ? static_cast<GLuint>(mat.clearcoatNormalTextureId())     : 0U,   extClearcoat,   false, {} },
 		{ "specularFactorMap",        25, mat.hasSpecularFactorMap()      ? static_cast<GLuint>(mat.specularFactorTextureId())      : 0U,   extSpecular,    false, {} },
 		{ "specularColorMap",         26, mat.hasSpecularColorMap()       ? static_cast<GLuint>(mat.specularColorTextureId())       : 0U,   extSpecular,    false, {} },
