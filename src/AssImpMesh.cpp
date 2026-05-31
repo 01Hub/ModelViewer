@@ -303,11 +303,6 @@ void AssImpMesh::setupMesh()
 		jointWeights.push_back(v.JointWeights.w);
 	}
 
-	// ============================================
-	// Texture flags
-	// ============================================
-	_hasTexture = false;
-
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents, &jointIndices, &jointWeights);
 	computeBounds();
 }

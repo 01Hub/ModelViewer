@@ -966,11 +966,6 @@ private:
 	unsigned int             _brdfLUTTexture  = 0;
 	unsigned int             _charlieLUTTexture   = 0;
 	unsigned int             _sheenELUTTexture    = 0;
-	// Texture units for the sheen LUTs. Preferred: 32/33 (no per-mesh conflict).
-	// Graceful fallback to 22/23 on hardware where GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS < 34.
-	// Set once in initializeGL() after querying the driver.
-	int                      _charlieLUTUnit  = 32;
-	int                      _sheenELUTUnit   = 33;
 	QString					 _currentSkyboxFolder;  // Track the current skybox folder path for environment map regeneration
 
 	// Preset environment maps (index 1=Studio, 2=Outdoor, 3=Office)
@@ -989,7 +984,6 @@ private:
 	unsigned int             _officePrefilterMap = 0;
 	unsigned int             _officeSheenPrefilterMap = 0;
 	unsigned int			 _skyboxFBO = 0;
-	unsigned int			 _skyboxColorTexture = 0;
 	unsigned int			 _skyboxDepthBuffer = 0;
 
 	// --- Transmission Buffer Resources ---

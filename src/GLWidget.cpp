@@ -1137,36 +1137,8 @@ void GLWidget::initializeGL()
 	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
 	ModelViewerApplication::setSupportedAnisotropicFilteringLevel(maxAniso);
 
-	// Sheen LUT texture units: prefer 32/33 (outside the per-mesh clearcoat range 22–24)
-	// to avoid cross-mesh texture unit contamination.
-	//
-	// We query GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, not GL_MAX_TEXTURE_IMAGE_UNITS.
-	// The per-stage query commonly returns 32 (units 0–31) on modern drivers even though
-	// units 32+ are fully accessible, because the per-stage value reflects the spec
-	// minimum guarantee per shader stage, not the actual hardware limit. The combined
-	// value reflects the true addressable range across all stages and is guaranteed ≥ 80
-	// by the OpenGL 4.x spec (Table 23.53), so it is the correct gate for this check.
-	// Fall back to 22/23 only on truly constrained hardware (< OpenGL 4.0 drivers, etc.).
-	{
-		GLint maxCombinedUnits = 0;
-		glGetIntegerv(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS, &maxCombinedUnits);
-		if (maxCombinedUnits >= 34)
-		{
-			_charlieLUTUnit = 32;
-			_sheenELUTUnit  = 33;
-			qDebug() << "GLWidget: sheen LUTs on texture units 32/33"
-			         << "(GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS =" << maxCombinedUnits << ")";
-		}
-		else
-		{
-			_charlieLUTUnit = 22;
-			_sheenELUTUnit  = 23;
-			qWarning() << "GLWidget: GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS =" << maxCombinedUnits
-			           << "< 34 — sheen LUTs fall back to units 22/23."
-			           << "Scenes with both sheen and clearcoat textures on different"
-			           << "meshes may show intermittent sheen artefacts.";
-		}
-	}
+	// Sheen is part of the guaranteed 0..31 budget, so its LUTs live on fixed
+	// units 8/9 instead of using the older overflow/fallback layout.
 	
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	// Set Anisotropic Filtering Level
@@ -1328,30 +1300,20 @@ void GLWidget::initializeGL()
 	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
 	_fgShader->setUniformValue("Line.Width", 0.75f);
 	_fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
-	_fgShader->setUniformValue("texUnit", 0);
 	_fgShader->setUniformValue("envMap", 1);
 	_fgShader->setUniformValue("shadowMap", 2);
 	_fgShader->setUniformValue("irradianceMap", 3);
 	_fgShader->setUniformValue("prefilterMap", 4);
 	_fgShader->setUniformValue("brdfLUT", 5);
-	_fgShader->setUniformValue("sheenPrefilterMap", 9);
-	// Units 22/23: multiplexed between global LUTs and per-mesh clearcoat maps.
-	// charlieLUT and sheenELUT share these units with clearcoatColorMap/clearcoatRoughnessMap.
-	// TriangleMesh::render() only binds 22/23 when the material has those clearcoat textures,
-	// so the global LUTs remain undisturbed for materials without clearcoat textures.
-	// Units 28/29: similarly multiplexed — sssDiffuseTexture/sssDepthTexture share with
-	// iridescenceMap/iridescenceThicknessMap.  TriangleMesh only binds 28/29 when the
-	// material has those iridescence textures, preserving the SSS globals for volume-scatter
-	// materials.  See the multiplexing invariant comment in TriangleMesh::render() for the
-	// renderer limitation this implies and the conditions under which it breaks.
-	_fgShader->setUniformValue("charlieLUT", _charlieLUTUnit);
-	_fgShader->setUniformValue("sheenELUT",  _sheenELUTUnit);
+	_fgShader->setUniformValue("sheenPrefilterMap", 7);
+	_fgShader->setUniformValue("charlieLUT", 8);
+	_fgShader->setUniformValue("sheenELUT",  9);
 	_fgShader->setUniformValue("sheenPrefilterMipLevels", (int)_sheenPrefilterMipLevels);
 	_fgShader->setUniformValue("prefilterMipLevels", (int)_prefilterMipLevels);
-	_fgShader->setUniformValue("transmissionSceneTexture", 7);
-	_fgShader->setUniformValue("transmissionDepthTexture", 8);
-	_fgShader->setUniformValue("sssDiffuseTexture", 28);
-	_fgShader->setUniformValue("sssDepthTexture", 29);
+	_fgShader->setUniformValue("transmissionSceneTexture", 32);
+	_fgShader->setUniformValue("transmissionDepthTexture", 33);
+	_fgShader->setUniformValue("sssDiffuseTexture", 37);
+	_fgShader->setUniformValue("sssDepthTexture", 38);
 	_fgShader->setUniformValue("shadowSamples", 27.0f);
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));	
@@ -1506,8 +1468,8 @@ void GLWidget::paintGL()
 	_debugShader->setUniformValue("near_plane", 1.0f);
 	_debugShader->setUniformValue("far_plane", _viewRange);
 	_debugShader->setUniformValue("screenSize", QVector2D(width(), height()));
-	_debugShader->setUniformValue("transmissionColorTexture", 8);
-	_debugShader->setUniformValue("transmissionDepthTexture", 9);	
+	_debugShader->setUniformValue("transmissionColorTexture", 32);
+	_debugShader->setUniformValue("transmissionDepthTexture", 33);	
 	renderQuad();*/
 
 	//_brdfShader->bind();
@@ -1517,22 +1479,6 @@ void GLWidget::paintGL()
 void GLWidget::updateView()
 {
 	update();
-}
-
-void GLWidget::setTexture(const std::vector<int>& ids, const QImage& texImage)
-{
-	for (int id : ids)
-	{
-		try
-		{
-			TriangleMesh* mesh = _meshStore[id];
-			mesh->setTexureImage(texImage.convertToFormat(QImage::Format_RGBA8888).mirrored());
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception raised in GLWidget::setTexture\n" << ex.what() << std::endl;
-		}
-	}
 }
 
 void GLWidget::setSkyBoxTextureFolder(QString folder)
@@ -3247,14 +3193,13 @@ void GLWidget::showFloor(bool show)
 void GLWidget::setFloorTexture(QImage img)
 {
 	_floorTexImage = convertToGLFormat(img);
-	_floorPlane->setTexureImage(_floorTexImage);
-	_floorPlane->markTexturesDirty();
+	syncFloorPlaneAlbedoTexture();
 }
 
 void GLWidget::showFloorTexture(bool show)
 {
 	_floorTextureDisplayed = show;
-	_floorPlane->enableTexture(_floorTextureDisplayed);
+	syncFloorPlaneAlbedoTexture();
 }
 
 void GLWidget::addToDisplay(TriangleMesh* mesh)
@@ -4589,8 +4534,44 @@ void GLWidget::applyFloorPlaneMaterialSettings()
 	_floorPlane->setDiffuseMaterial(QVector3D(1.0f, 1.0f, 1.0f));
 	_floorPlane->setSpecularMaterial(QVector3D(0.5f, 0.5f, 0.5f));
 	_floorPlane->setShininess(16.0f);
-	_floorPlane->enableTexture(_floorTextureDisplayed);
-	_floorPlane->setTexureImage(_floorTexImage);
+	syncFloorPlaneAlbedoTexture();
+}
+
+void GLWidget::syncFloorPlaneAlbedoTexture()
+{
+	if (_floorPlane == nullptr || _floorTexImage.isNull())
+		return;
+
+	const TextureSamplerSettings samplers{
+		GL_REPEAT,
+		GL_REPEAT,
+		GL_LINEAR_MIPMAP_LINEAR,
+		GL_LINEAR
+	};
+
+	const GLuint newFloorTex = createGPUTextureFromImage(_floorTexImage, samplers);
+	if (newFloorTex == 0)
+		return;
+
+	GLMaterial material = _floorPlane->getMaterial();
+	const GLuint oldFloorTex = static_cast<GLuint>(material.albedoTextureId());
+	if (oldFloorTex != 0)
+	{
+		glDeleteTextures(1, &oldFloorTex);
+	}
+
+	GLMaterial::Texture albedoTexture = material.texture(GLMaterial::TextureType::Albedo);
+	albedoTexture.id = newFloorTex;
+	albedoTexture.type = "albedo";
+	albedoTexture.path = "generated://floor-albedo";
+	albedoTexture.hasAlpha = _floorTexImage.hasAlphaChannel();
+	albedoTexture.wrapS = samplers.wrapS;
+	albedoTexture.wrapT = samplers.wrapT;
+	albedoTexture.minFilter = samplers.minFilter;
+	albedoTexture.magFilter = samplers.magFilter;
+	albedoTexture.imageData = _floorTexImage;
+	material.setTexture(GLMaterial::TextureType::Albedo, albedoTexture);
+	_floorPlane->setMaterial(material);
 }
 
 void GLWidget::updateMainLightPosition(float halfObjectSize)
@@ -5088,7 +5069,7 @@ void GLWidget::loadIrradianceMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
 	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
-	glActiveTexture(GL_TEXTURE9);
+	glActiveTexture(GL_TEXTURE7);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
 
 	auto resolveKhronosLUTPath = [](const QString& fileName) -> QString
@@ -5157,9 +5138,9 @@ void GLWidget::loadIrradianceMap()
 		loadKhronosLUTTexture("lut_sheen_E.png", _sheenELUTTexture);
 	}
 
-	glActiveTexture(GL_TEXTURE0 + _charlieLUTUnit);
+	glActiveTexture(GL_TEXTURE8);
 	glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
-	glActiveTexture(GL_TEXTURE0 + _sheenELUTUnit);
+	glActiveTexture(GL_TEXTURE9);
 	glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
 
 	// Cleanup temporary FBO
@@ -5657,16 +5638,15 @@ void GLWidget::drawFloor(const bool& drawReflection)
 {
 	auto bindFloorSharedSamplerState = [this]()
 	{
-		// Units 7/8: prevent the floor from sampling the transmission FBO while it is
+		// Units 32/33: prevent the floor from sampling the transmission FBO while it is
 		// the active render target (or stale from a previous frame).
-		glActiveTexture(GL_TEXTURE7);
+		glActiveTexture(GL_TEXTURE0 + 32);
 		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
-		glActiveTexture(GL_TEXTURE8);
+		glActiveTexture(GL_TEXTURE0 + 33);
 		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
-		// Units 28/29 (sssDiffuseTexture/sssDepthTexture) need no protection here:
+		// Units 37/38 (sssDiffuseTexture/sssDepthTexture) need no protection here:
 		// floor rendering never has hasVolumeScattering=true so sampleCapturedSSSDiffuse
-		// is never called, and TriangleMesh only touches those units when the material has
-		// iridescence textures, so the SSS globals remain valid throughout floor draw calls.
+		// is never called.
 		glActiveTexture(GL_TEXTURE0);
 	};
 
@@ -5697,7 +5677,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_fgShader->setUniformValue("screenCenter", _boundingSphere.getCenter());
 	_fgShader->setUniformValue("gradientStyle", _gradientStyle);
 	_fgShader->setUniformValue("floorSize", _floorSize * _floorSizeFactor);
-	_floorPlane->enableTexture(false);
+	_fgShader->setUniformValue("floorTextureEnabled", false);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	_floorPlane->setOpacity(0.1f);
@@ -5758,11 +5738,8 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_fgShader->setUniformValue("screenCenter", _boundingSphere.getCenter());
 	_fgShader->setUniformValue("gradientStyle", _gradientStyle);
 	_fgShader->setUniformValue("floorSize", _floorSize * _floorSizeFactor);
-	_floorPlane->enableTexture(_floorTextureDisplayed);
+	_fgShader->setUniformValue("floorTextureEnabled", _floorTextureDisplayed);
 
-	glActiveTexture(GL_TEXTURE5);
-	glBindTexture(GL_TEXTURE_2D, _skyboxColorTexture);
-	_fgShader->setUniformValue("skyboxColorTexture", 5);
 	_floorPlane->setOpacity(0.95f);
 	_floorPlane->render();
 	glDisable(GL_CULL_FACE);
@@ -6899,12 +6876,12 @@ void GLWidget::bindIBLTextures()
 	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
 	_fgShader->setUniformValue("brdfLUT", 5);
 	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
-	_fgShader->setUniformValue("sheenPrefilterMap", 9);
-	glActiveTexture(GL_TEXTURE9); glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
-	_fgShader->setUniformValue("charlieLUT", _charlieLUTUnit);
-	glActiveTexture(GL_TEXTURE0 + _charlieLUTUnit); glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
-	_fgShader->setUniformValue("sheenELUT",  _sheenELUTUnit);
-	glActiveTexture(GL_TEXTURE0 + _sheenELUTUnit);  glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
+	_fgShader->setUniformValue("sheenPrefilterMap", 7);
+	glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
+	_fgShader->setUniformValue("charlieLUT", 8);
+	glActiveTexture(GL_TEXTURE8); glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
+	_fgShader->setUniformValue("sheenELUT",  9);
+	glActiveTexture(GL_TEXTURE9); glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
 	// Effective mip count for sheen LOD: lod = roughness * (sheenPrefilterMipLevels - 1)
 	int sheenMips = (_sheenPrefilterMipLevels > 0) ? (int)_sheenPrefilterMipLevels : 5;
 	_fgShader->setUniformValue("sheenPrefilterMipLevels", sheenMips);
@@ -6945,13 +6922,9 @@ void GLWidget::render(GLCamera* camera)
 	}
 
 	// --- 2) Opaque meshes (with clipping) ---
-	// Units 28/29: SSS capture textures — multiplexed with iridescenceMap/iridescenceThicknessMap.
-	// TriangleMesh only touches these units when the material has iridescence textures, so the
-	// SSS globals are preserved for volume-scattering draw calls (renderer limitation —
-	// see multiplexing invariant comment in TriangleMesh::render()).
-	glActiveTexture(GL_TEXTURE28);
+	glActiveTexture(GL_TEXTURE0 + 37);
 	glBindTexture(GL_TEXTURE_2D, _sssCaptureTexture != 0 ? _sssCaptureTexture : _whiteTexture);
-	glActiveTexture(GL_TEXTURE29);
+	glActiveTexture(GL_TEXTURE0 + 38);
 	glBindTexture(GL_TEXTURE_2D, _sssDepthTexture != 0 ? _sssDepthTexture : _whiteTexture);
 	glActiveTexture(GL_TEXTURE0);
 
@@ -6977,10 +6950,10 @@ void GLWidget::render(GLCamera* camera)
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
-		glActiveTexture(GL_TEXTURE7);
+		glActiveTexture(GL_TEXTURE0 + 32);
 		glBindTexture(GL_TEXTURE_2D,
 			(camera == _primaryCamera && _transmissionColorTexture != 0) ? _transmissionColorTexture : _whiteTexture);
-		glActiveTexture(GL_TEXTURE8);
+		glActiveTexture(GL_TEXTURE0 + 33);
 		glBindTexture(GL_TEXTURE_2D,
 			(camera == _primaryCamera && _transmissionDepthTexture != 0) ? _transmissionDepthTexture : _whiteTexture);
 		glActiveTexture(GL_TEXTURE0);
@@ -6990,10 +6963,10 @@ void GLWidget::render(GLCamera* camera)
 	if (camera == _primaryCamera)
 	{
 		// Bind transmission texture for shader sampling
-		glActiveTexture(GL_TEXTURE7);  // Use a dedicated texture unit
+		glActiveTexture(GL_TEXTURE0 + 32);
 		glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
 
-		glActiveTexture(GL_TEXTURE8);  // For depth-based calculations (Phase 2)
+		glActiveTexture(GL_TEXTURE0 + 33);
 		glBindTexture(GL_TEXTURE_2D, _transmissionDepthTexture);
 	}
 
@@ -9377,16 +9350,16 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	}
 
 	// --- RENDER 2: OPAQUE MESHES (with clipping) ---
-	// Units 7/8: prevent feedback — the transmission FBO is currently the render target,
+	// Units 32/33: prevent feedback — the transmission FBO is currently the render target,
 	// so bind white instead of the real transmission textures.
-	glActiveTexture(GL_TEXTURE7);
+	glActiveTexture(GL_TEXTURE0 + 32);
 	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
-	glActiveTexture(GL_TEXTURE8);
+	glActiveTexture(GL_TEXTURE0 + 33);
 	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
-	// Units 28/29: SSS irradiance/depth from the SSS capture pass.
-	glActiveTexture(GL_TEXTURE28);
+	// Units 37/38: SSS irradiance/depth from the SSS capture pass.
+	glActiveTexture(GL_TEXTURE0 + 37);
 	glBindTexture(GL_TEXTURE_2D, _sssCaptureTexture != 0 ? _sssCaptureTexture : _whiteTexture);
-	glActiveTexture(GL_TEXTURE29);
+	glActiveTexture(GL_TEXTURE0 + 38);
 	glBindTexture(GL_TEXTURE_2D, _sssDepthTexture != 0 ? _sssDepthTexture : _whiteTexture);
 	glActiveTexture(GL_TEXTURE0);
 
@@ -9414,9 +9387,9 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	{
 		// Avoid sampling from the transmission render target while it is bound
 		// as the current framebuffer color attachment.
-		glActiveTexture(GL_TEXTURE7);
+		glActiveTexture(GL_TEXTURE0 + 32);
 		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
-		glActiveTexture(GL_TEXTURE8);
+		glActiveTexture(GL_TEXTURE0 + 33);
 		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
 		glActiveTexture(GL_TEXTURE0);
 		drawFloor(false);
@@ -9483,11 +9456,11 @@ void GLWidget::renderToSSSBuffer(GLCamera* camera)
 	_projectionMatrix = camera->getProjectionMatrix();
 	_modelViewMatrix = _viewMatrix * _modelMatrix;
 
-	// Bind white dummy textures on the SSS sampler slots (units 28/29) so the shader's
+	// Bind white dummy textures on the SSS sampler slots (units 37/38) so the shader's
 	// sampleCapturedSSSDiffuse() sees a valid, neutral value during the capture pass itself.
-	glActiveTexture(GL_TEXTURE28);
+	glActiveTexture(GL_TEXTURE0 + 37);
 	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
-	glActiveTexture(GL_TEXTURE29);
+	glActiveTexture(GL_TEXTURE0 + 38);
 	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
 	glActiveTexture(GL_TEXTURE0);
 
@@ -12719,11 +12692,7 @@ void GLWidget::requestTextureReadback(int meshId)
 		QString multiplexNote;
 	};
 
-	// Note: unit 0 (_texture, the legacy ADS base texture) has no public getter
-	// on TriangleMesh and mirrors the albedo/diffuse slot (unit 10) in practice,
-	// so it is omitted from the debug readback.
 	const QVector<SlotDef> defs = {
-		{ "diffuseTransmissionColor", 6,  mat.hasDiffuseTransmissionColorMap() ? static_cast<GLuint>(mat.diffuseTransmissionColorTextureId()) : 0U, extDiffuseTrans, false, {} },
 		{ "albedo / diffuse",         10, baseColorTex,                                                                                   false,          false, {} },
 		{ "metallicMap",              11, mat.hasMetallicMap()           ? static_cast<GLuint>(mat.metallicTextureId())           : 0U,    false,          false, {} },
 		{ "emissiveMap",              12, mat.hasEmissiveMap()            ? static_cast<GLuint>(mat.emissiveTextureId())            : 0U,   false,          false, {} },
@@ -12732,20 +12701,21 @@ void GLWidget::requestTextureReadback(int meshId)
 		{ "opacityMap",               15, mat.hasOpacityMap()             ? static_cast<GLuint>(mat.opacityTextureId())             : 0U,   false,          false, {} },
 		{ "roughnessMap",             16, mat.hasRoughnessMap()           ? static_cast<GLuint>(mat.roughnessTextureId())           : 0U,   false,          false, {} },
 		{ "aoMap",                    17, mat.hasAOMap()                  ? static_cast<GLuint>(mat.occlusionTextureId())           : 0U,   false,          false, {} },
-		{ "transmissionMap",          18, mat.hasTransmissionMap()        ? static_cast<GLuint>(mat.transmissionTextureId())        : 0U,   extTransmission,false, {} },
-		{ "iorMap",                   19, mat.hasIORMap()                 ? static_cast<GLuint>(mat.iorTextureId())                 : 0U,   false,          false, {} },
-		{ "sheenColorMap",            20, mat.hasSheenColorMap()          ? static_cast<GLuint>(mat.sheenColorTextureId())          : 0U,   extSheen,       false, {} },
-		{ "sheenRoughnessMap",        21, mat.hasSheenRoughnessMap()      ? static_cast<GLuint>(mat.sheenRoughnessTextureId())      : 0U,   extSheen,       false, {} },
-		{ "clearcoatColorMap",        22, mat.hasClearcoatColorMap()      ? static_cast<GLuint>(mat.clearcoatColorTextureId())      : 0U,   extClearcoat,   true,  ""        },
-		{ "clearcoatRoughnessMap",    23, mat.hasClearcoatRoughnessMap()  ? static_cast<GLuint>(mat.clearcoatRoughnessTextureId())  : 0U,   extClearcoat,   true,  ""         },
-		{ "clearcoatNormalMap",       24, mat.hasClearcoatNormalMap()     ? static_cast<GLuint>(mat.clearcoatNormalTextureId())     : 0U,   extClearcoat,   false, {} },
-		{ "specularFactorMap",        25, mat.hasSpecularFactorMap()      ? static_cast<GLuint>(mat.specularFactorTextureId())      : 0U,   extSpecular,    false, {} },
-		{ "specularColorMap",         26, mat.hasSpecularColorMap()       ? static_cast<GLuint>(mat.specularColorTextureId())       : 0U,   extSpecular,    false, {} },
-		{ "anisotropyMap",            27, mat.hasAnisotropyMap()          ? static_cast<GLuint>(mat.anisotropyTextureId())          : 0U,   extAnisotropy,  false, {} },
-		{ "iridescenceMap",           28, mat.hasIridescenceMap()         ? static_cast<GLuint>(mat.iridescenceTextureId())         : 0U,   extIridescence, true,  "unit 28 shared with sssDiffuseTexture (global)" },
-		{ "iridescenceThicknessMap",  29, mat.hasIridescenceThicknessMap()? static_cast<GLuint>(mat.iridescenceThicknessTextureId()): 0U,  extIridescence, true,  "unit 29 shared with sssDepthTexture (global)"   },
+		{ "clearcoatColorMap",        18, mat.hasClearcoatColorMap()      ? static_cast<GLuint>(mat.clearcoatColorTextureId())      : 0U,   extClearcoat,   false, {} },
+		{ "clearcoatRoughnessMap",    19, mat.hasClearcoatRoughnessMap()  ? static_cast<GLuint>(mat.clearcoatRoughnessTextureId())  : 0U,   extClearcoat,   false, {} },
+		{ "clearcoatNormalMap",       20, mat.hasClearcoatNormalMap()     ? static_cast<GLuint>(mat.clearcoatNormalTextureId())     : 0U,   extClearcoat,   false, {} },
+		{ "specularFactorMap",        21, mat.hasSpecularFactorMap()      ? static_cast<GLuint>(mat.specularFactorTextureId())      : 0U,   extSpecular,    false, {} },
+		{ "specularColorMap",         22, mat.hasSpecularColorMap()       ? static_cast<GLuint>(mat.specularColorTextureId())       : 0U,   extSpecular,    false, {} },
+		{ "anisotropyMap",            23, mat.hasAnisotropyMap()          ? static_cast<GLuint>(mat.anisotropyTextureId())          : 0U,   extAnisotropy,  false, {} },
+		{ "iridescenceMap",           24, mat.hasIridescenceMap()         ? static_cast<GLuint>(mat.iridescenceTextureId())         : 0U,   extIridescence, false, {} },
+		{ "iridescenceThicknessMap",  25, mat.hasIridescenceThicknessMap()? static_cast<GLuint>(mat.iridescenceThicknessTextureId()): 0U,  extIridescence, false, {} },
+		{ "sheenColorMap",            26, mat.hasSheenColorMap()          ? static_cast<GLuint>(mat.sheenColorTextureId())          : 0U,   extSheen,       false, {} },
+		{ "sheenRoughnessMap",        27, mat.hasSheenRoughnessMap()      ? static_cast<GLuint>(mat.sheenRoughnessTextureId())      : 0U,   extSheen,       false, {} },
+		{ "transmissionMap",          28, mat.hasTransmissionMap()        ? static_cast<GLuint>(mat.transmissionTextureId())        : 0U,   extTransmission,false, {} },
+		{ "iorMap",                   29, mat.hasIORMap()                 ? static_cast<GLuint>(mat.iorTextureId())                 : 0U,   false,          false, {} },
+		{ "diffuseTransmissionMap",   34, mat.hasDiffuseTransmissionMap() ? static_cast<GLuint>(mat.diffuseTransmissionTextureId()) : 0U,   extDiffuseTrans,false, {} },
+		{ "diffuseTransmissionColor", 35, mat.hasDiffuseTransmissionColorMap() ? static_cast<GLuint>(mat.diffuseTransmissionColorTextureId()) : 0U, extDiffuseTrans, false, {} },
 		{ "thicknessMap",             30, mat.hasThicknessMap()           ? static_cast<GLuint>(mat.thicknessTextureId())           : 0U,   extVolume,      false, {} },
-		{ "diffuseTransmissionMap",   31, mat.hasDiffuseTransmissionMap() ? static_cast<GLuint>(mat.diffuseTransmissionTextureId()) : 0U,  extDiffuseTrans,false, {} },
 	};
 
 	constexpr int ThumbSize = 64;

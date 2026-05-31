@@ -83,11 +83,6 @@ public:
 	bool isMetallic() const;
 	void setMetallic(bool metallic);
 
-	bool hasTexture() const;
-	void enableTexture(const bool& bHasTexture);
-
-	void setTexureImage(const QImage& texImage);
-
 	void setPBRAlbedoColor(const float& r, const float& g, const float& b);
 	void setPBRMetallic(const float& val);
 	void setPBRRoughness(const float& val);
@@ -413,9 +408,11 @@ protected:
 	float _baseThicknessFactor;
 	float _baseAttenuationDistance;
 
-	QImage _texImage, _texBuffer;
-	unsigned int _texture;
-	bool _hasTexture;
+	// Internal always-valid fallback texture bound on unit 0. This is no longer
+	// a user-facing mesh texture path, but some render paths still rely on the
+	// presence of a complete 2D texture object there.
+	QImage _fallbackTextureImage, _fallbackTextureBuffer;
+	unsigned int _fallbackTexture;
 	bool _hasTextureAlpha;
 	
 	unsigned int _sMax;

@@ -36,8 +36,6 @@ uniform bool hasNegativeScale;
 uniform int primitiveMode;  // 0=POINTS, 1=LINES, 2=LINE_LOOP, 3=LINE_STRIP, 4+=TRIANGLES
 
 uniform float opacity;
-uniform bool texEnabled;
-uniform sampler2D texUnit;
 
 // ADS light maps
 uniform sampler2D texture_diffuse;
@@ -53,6 +51,7 @@ uniform bool hasNormalTexture = false;
 uniform bool hasHeightTexture = false;
 uniform bool hasOpacityTexture = false;
 uniform bool opacityTextureInverted = false;
+uniform bool floorTextureEnabled = false;
 
 uniform samplerCube envMap;
 uniform sampler2D shadowMap;
@@ -312,7 +311,6 @@ uniform float iblExposure = 1.0;
 uniform int toneMapMode = 0;
 
 uniform bool skyBoxEnabled;
-uniform sampler2D skyboxColorTexture;
 
 uniform vec4 topColor;
 uniform vec4 botColor;
@@ -1084,8 +1082,8 @@ void main()
 	// Finally, handle floor rendering fade-out and background blending
 	if (floorRendering)
 	{
-		if (texEnabled == true)
-			fragColor = v_color * texture2D(texUnit, v_texCoord0);
+		if (!isReflectedPass && floorTextureEnabled)
+			fragColor = v_color * texture(texture_diffuse, getDiffuseTextureUV());
 		// Compute distance-based blending factor
 		float distance = length(v_position - screenCenter);
 
@@ -1126,10 +1124,10 @@ void main()
 			// Sample environment
 			vec3 backgroundColor = texture(envMap, R).rgb;
 		}
-		else if (texEnabled == true)
+		else if (!isReflectedPass && floorTextureEnabled)
 		{
 			// Interpolate background gradient color			
-			backgroundColor = texture2D(texUnit, v_texCoord0).rgb;			
+			backgroundColor = texture(texture_diffuse, getDiffuseTextureUV()).rgb;			
 		}
 
 		// Blend floor color with background gradient

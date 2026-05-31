@@ -12,8 +12,7 @@
 
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
 _nVerts(0),
-_texture(0),
-_hasTexture(false),
+_fallbackTexture(0),
 _sMax(1),
 _tMax(1),
 _hasTextureAlpha(false),
@@ -56,16 +55,15 @@ _baseAttenuationDistance(std::numeric_limits<float>::infinity())
 	_jointWeightBuffer.create();
 
 	_vertexArrayObject.create();
-		
+
 	QImage dummy(128, 128, QImage::Format_ARGB32);
 	dummy.fill(Qt::white);
-	_texBuffer = dummy;
-	_texImage = convertToGLFormat(_texBuffer);
+	_fallbackTextureBuffer = dummy;
+	_fallbackTextureImage = convertToGLFormat(_fallbackTextureBuffer);
 
-	glGenTextures(1, &_texture);
-	//std::cout << "TriangleMesh::TriangleMesh : _texture = " << _texture << std::endl;
+	glGenTextures(1, &_fallbackTexture);
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _texture);
+	glBindTexture(GL_TEXTURE_2D, _fallbackTexture);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -498,12 +496,10 @@ void TriangleMesh::setupTextures()
 		: (_material.hasDiffuseMap() ? _material.diffuseTextureId() : 0U);
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _texture);
-	// Only re-upload texture data when it has actually changed — avoids a full
-	// glTexImage2D + mipmap regeneration every frame for every mesh.
-	if (_textureBindingsDirty && !_texImage.isNull())
+	glBindTexture(GL_TEXTURE_2D, _fallbackTexture);
+	if (_textureBindingsDirty && !_fallbackTextureImage.isNull())
 	{
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _fallbackTextureImage.width(), _fallbackTextureImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _fallbackTextureImage.bits());
 		glGenerateMipmap(GL_TEXTURE_2D);
 		_textureBindingsDirty = false;
 	}
@@ -529,78 +525,44 @@ void TriangleMesh::setupTextures()
 	glActiveTexture(GL_TEXTURE17);
 	glBindTexture(GL_TEXTURE_2D, _material.hasAOMap() ? static_cast<GLuint>(_material.occlusionTextureId()) : 0U);
 	
-	// Advanced PBR maps
+	// Mesh-owned material block (units 10–29). These are the feature-complete
+	// material slots we keep inside the guaranteed 0..31 range.
 	glActiveTexture(GL_TEXTURE18);
-	glBindTexture(GL_TEXTURE_2D, _material.hasTransmissionMap() ? static_cast<GLuint>(_material.transmissionTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, _material.hasClearcoatColorMap() ? static_cast<GLuint>(_material.clearcoatColorTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE19);
-	glBindTexture(GL_TEXTURE_2D, _material.hasIORMap() ? static_cast<GLuint>(_material.iorTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, _material.hasClearcoatRoughnessMap() ? static_cast<GLuint>(_material.clearcoatRoughnessTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE20);
-	glBindTexture(GL_TEXTURE_2D, _material.hasSheenColorMap() ? static_cast<GLuint>(_material.sheenColorTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, _material.hasClearcoatNormalMap() ? static_cast<GLuint>(_material.clearcoatNormalTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE21);
+	glBindTexture(GL_TEXTURE_2D, _material.hasSpecularFactorMap() ? static_cast<GLuint>(_material.specularFactorTextureId()) : 0U);
+	glActiveTexture(GL_TEXTURE22);
+	glBindTexture(GL_TEXTURE_2D, _material.hasSpecularColorMap() ? static_cast<GLuint>(_material.specularColorTextureId()) : 0U);
+	glActiveTexture(GL_TEXTURE23);
+	glBindTexture(GL_TEXTURE_2D, _material.hasAnisotropyMap() ? static_cast<GLuint>(_material.anisotropyTextureId()) : 0U);
+	glActiveTexture(GL_TEXTURE24);
+	glBindTexture(GL_TEXTURE_2D, _material.hasIridescenceMap() ? static_cast<GLuint>(_material.iridescenceTextureId()) : 0U);
+	glActiveTexture(GL_TEXTURE25);
+	glBindTexture(GL_TEXTURE_2D, _material.hasIridescenceThicknessMap() ? static_cast<GLuint>(_material.iridescenceThicknessTextureId()) : 0U);
+	glActiveTexture(GL_TEXTURE26);
+	glBindTexture(GL_TEXTURE_2D, _material.hasSheenColorMap() ? static_cast<GLuint>(_material.sheenColorTextureId()) : 0U);
+	glActiveTexture(GL_TEXTURE27);
 	glBindTexture(GL_TEXTURE_2D, _material.hasSheenRoughnessMap() ? static_cast<GLuint>(_material.sheenRoughnessTextureId()) : 0U);
-	// Texture unit multiplexing — renderer limitation, not a glTF spec requirement.
-	// Unit multiplexing note:
-	// charlieLUT → unit 32, sheenELUT → unit 33 (moved from 22/23 to eliminate the
-	// cross-mesh contamination bug with clearcoat textures on those same units).
-	// Units 28/29 are still shared between SSS globals and iridescence per-mesh textures;
-	// a single material cannot have both simultaneously (glTF spec constraint).
-	Q_ASSERT_X(!(_material.hasVolumeScattering() && _material.hasIridescenceMap()),
-		"TriangleMesh::render",
-		"Material has both volume scattering and an iridescence texture: "
-		"unit 28 is shared between sssDiffuseTexture and iridescenceMap.");
-	Q_ASSERT_X(!(_material.hasVolumeScattering() && _material.hasIridescenceThicknessMap()),
-		"TriangleMesh::render",
-		"Material has both volume scattering and an iridescence thickness texture: "
-		"unit 29 is shared between sssDepthTexture and iridescenceThicknessMap.");
+	glActiveTexture(GL_TEXTURE28);
+	glBindTexture(GL_TEXTURE_2D, _material.hasTransmissionMap() ? static_cast<GLuint>(_material.transmissionTextureId()) : 0U);
+	glActiveTexture(GL_TEXTURE29);
+	glBindTexture(GL_TEXTURE_2D, _material.hasIORMap() ? static_cast<GLuint>(_material.iorTextureId()) : 0U);
 
-	// KHR clearcoat maps (units 22–24) — no longer conflict with any global LUT.
-	if (_material.hasClearcoatColorMap()) {
-		glActiveTexture(GL_TEXTURE22);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.clearcoatColorTextureId()));
-	}
-	if (_material.hasClearcoatRoughnessMap()) {
-		glActiveTexture(GL_TEXTURE23);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.clearcoatRoughnessTextureId()));
-	}
-	if (_material.hasClearcoatNormalMap()) {
-		glActiveTexture(GL_TEXTURE24);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.clearcoatNormalTextureId()));
-	}
+	// thicknessMap on unit 30: rounds out the contiguous per-mesh block (10–30).
+	glActiveTexture(GL_TEXTURE30);
+	glBindTexture(GL_TEXTURE_2D, _material.hasThicknessMap() ? static_cast<GLuint>(_material.thicknessTextureId()) : 0U);
 
-	// KHR extension maps (units 25–31, 6).
-	// Units 28/29 are multiplexed with global sssDiffuseTexture/sssDepthTexture — only bind
-	// when the material actually has iridescence textures so the SSS globals are preserved
-	// for volume-scattering materials (see multiplexing comment above).
-	if (_material.hasSpecularFactorMap()) {
-		glActiveTexture(GL_TEXTURE25);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.specularFactorTextureId()));
-	}
-	if (_material.hasSpecularColorMap()) {
-		glActiveTexture(GL_TEXTURE26);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.specularColorTextureId()));
-	}
-	if (_material.hasAnisotropyMap()) {
-		glActiveTexture(GL_TEXTURE27);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.anisotropyTextureId()));
-	}
-	if (_material.hasIridescenceMap()) {
-		glActiveTexture(GL_TEXTURE28);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.iridescenceTextureId()));
-	}
-	if (_material.hasIridescenceThicknessMap()) {
-		glActiveTexture(GL_TEXTURE29);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.iridescenceThicknessTextureId()));
-	}
-	if (_material.hasThicknessMap()) {
-		glActiveTexture(GL_TEXTURE30);
-		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.thicknessTextureId()));
-	}
+	// Overflow material bundles (units 34+).
 	if (_material.hasDiffuseTransmissionMap()) {
-		glActiveTexture(GL_TEXTURE31);
+		glActiveTexture(GL_TEXTURE0 + 34);
 		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.diffuseTransmissionTextureId()));
 	}
 	if (_material.hasDiffuseTransmissionColorMap()) {
-		glActiveTexture(GL_TEXTURE6);
+		glActiveTexture(GL_TEXTURE0 + 35);
 		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.diffuseTransmissionColorTextureId()));
 	}
 }
@@ -624,8 +586,6 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("primitiveMode", modeValue);
 	_prog->setUniformValue("hasVertexColors", _hasVertexColors);
 	_prog->setUniformValue("hasNegativeScale", _hasNegativeScale);
-	_prog->setUniformValue("texEnabled", _hasTexture);
-	_prog->setUniformValue("texUnit", 0);
 	_prog->setUniformValue("material.ambient", _material.ambient());
 	// For specular-glossiness materials the authoritative diffuse colour is
 	// diffuseColorFactor (stored in _diffuseColor / diffuseColor()), not the
@@ -688,24 +648,26 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("roughnessMap", 16);
 	_prog->setUniformValue("aoMap", 17);
 	// Advanced PBR Maps
-	_prog->setUniformValue("transmissionMap", 18);
-	_prog->setUniformValue("iorMap", 19);
-	_prog->setUniformValue("sheenColorMap", 20);
-	_prog->setUniformValue("sheenRoughnessMap", 21);
-	_prog->setUniformValue("clearcoatColorMap", 22);
-	_prog->setUniformValue("clearcoatRoughnessMap", 23);
-	_prog->setUniformValue("clearcoatNormalMap", 24);
+	_prog->setUniformValue("clearcoatColorMap", 18);
+	_prog->setUniformValue("clearcoatRoughnessMap", 19);
+	_prog->setUniformValue("clearcoatNormalMap", 20);
+	_prog->setUniformValue("specularFactorMap", 21);
+	_prog->setUniformValue("specularColorMap", 22);
+	_prog->setUniformValue("anisotropyMap", 23);
+	_prog->setUniformValue("iridescenceMap", 24);
+	_prog->setUniformValue("iridescenceThicknessMap", 25);
+	_prog->setUniformValue("sheenColorMap", 26);
+	_prog->setUniformValue("sheenRoughnessMap", 27);
+	_prog->setUniformValue("transmissionMap", 28);
+	_prog->setUniformValue("iorMap", 29);
 
 	// KHR_materials_specular
-	_prog->setUniformValue("specularFactorMap", 25);
 	_prog->setUniformValue("hasSpecularFactorMap", _material.hasSpecularFactorMap());
-
-	_prog->setUniformValue("specularColorMap", 26);
 	_prog->setUniformValue("hasSpecularColorMap", _material.hasSpecularColorMap());
 
 	// KHR_materials_pbrSpecularGlossiness
 	_prog->setUniformValue("diffuseMap", 10);
-	_prog->setUniformValue("specularGlossinessMap", 25);
+	_prog->setUniformValue("specularGlossinessMap", 21);
 	_prog->setUniformValue("hasDiffuseMap", _material.hasDiffuseMap());
 	_prog->setUniformValue("hasSpecularGlossinessMap", _material.hasSpecularGlossinessMap());
 	_prog->setUniformValue("useSpecularGlossiness", _material.getUseSpecularGlossiness());
@@ -722,14 +684,14 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("glossinessFactor", glossinessFactor);
 
 	// KHR_materials_anisotropy
-	_prog->setUniformValue("anisotropyMap", 27);
+	_prog->setUniformValue("anisotropyMap", 23);
 	_prog->setUniformValue("hasAnisotropyMap", _material.hasAnisotropyMap());
 
 	// KHR_materials_iridescence
-	_prog->setUniformValue("iridescenceMap", 28);
+	_prog->setUniformValue("iridescenceMap", 24);
 	_prog->setUniformValue("hasIridescenceMap", _material.hasIridescenceMap());
 
-	_prog->setUniformValue("iridescenceThicknessMap", 29);
+	_prog->setUniformValue("iridescenceThicknessMap", 25);
 	_prog->setUniformValue("hasIridescenceThicknessMap", _material.hasIridescenceThicknessMap());
 
 	// KHR_materials_volume
@@ -791,12 +753,12 @@ void TriangleMesh::setupUniforms()
 	// Diffuse Transmission Map
 	_prog->setUniformValue("hasDiffuseTransmissionMap",
 		_material.hasDiffuseTransmissionMap());
-	_prog->setUniformValue("diffuseTransmissionMap", 31);
+	_prog->setUniformValue("diffuseTransmissionMap", 34);
 	
 	// Diffuse Transmission Color Map
 	_prog->setUniformValue("hasDiffuseTransmissionColorMap",
 		_material.hasDiffuseTransmissionColorMap());
-	_prog->setUniformValue("diffuseTransmissionColorMap", 6);
+	_prog->setUniformValue("diffuseTransmissionColorMap", 35);
 
 	// Texture transform uniforms
 	_prog->setUniformValue("albedoTexTransform.texCoordIndex", _material.albedoTexCoord());
@@ -1500,9 +1462,7 @@ void TriangleMesh::renderShadow()
 
 void TriangleMesh::deleteTextures()
 {
-	//std::cout << "TriangleMesh::deleteTextures : _texture = " << _texture << std::endl;
-
-	glDeleteTextures(1, &_texture);
+	glDeleteTextures(1, &_fallbackTexture);
 	GLuint pbrIds[] = {
 		static_cast<GLuint>(_material.albedoTextureId()),
 		static_cast<GLuint>(_material.metallicTextureId()),
@@ -1970,25 +1930,6 @@ void TriangleMesh::updateRuntimeBounds()
 
 	buildTriangles();
 	computeBounds();
-}
-
-void TriangleMesh::setTexureImage(const QImage& texImage)
-{
-	_texImage = texImage;
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _texture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
-}
-
-bool TriangleMesh::hasTexture() const
-{
-	return _hasTexture;
-}
-
-void TriangleMesh::enableTexture(const bool& bHasTexture)
-{
-	_hasTexture = bHasTexture;
-	markUniformsDirty();
 }
 
 float TriangleMesh::shininess() const
