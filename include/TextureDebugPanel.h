@@ -67,6 +67,12 @@ public slots:
 	// or the user clicks the Refresh button).
 	void refresh();
 
+signals:
+	// Emitted when the user accepts the "switch to PBR?" prompt at panel launch.
+	// ModelViewer connects this to onRenderingModeSelected("PBR") so the full
+	// activation chain runs (HDR skybox, Realistic display mode, toolbar sync…).
+	void requestPBRMode();
+
 protected:
 	void showEvent(QShowEvent* event) override;
 	void closeEvent(QCloseEvent* event) override;
@@ -85,6 +91,9 @@ private:
 
 	void saveWindowGeometry();
 	void restoreWindowGeometry();
+
+	// Shows/hides the amber PBR warning strip based on the current rendering mode.
+	void updatePBRWarning();
 
 	// Returns the set of units that have real (active) textures on the current mesh.
 	QSet<int> activeUnits() const;
@@ -118,6 +127,7 @@ private:
 	QLabel*      _meshNameLabel       = nullptr;
 	QPushButton* _refreshButton       = nullptr;
 	QLabel*      _statusLabel         = nullptr;   // multi-select / info strip
+	QLabel*      _pbrWarningLabel     = nullptr;   // amber strip shown when mode is not PBR
 
 	// Channel isolation dropdown (All / Albedo / Metallic / …)
 	QComboBox*   _channelCombo        = nullptr;

@@ -348,6 +348,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        _textureDebugPanel, &TextureDebugPanel::onSelectionChanged);
 		connect(_glWidget,          &GLWidget::textureReadbackReady,
 		        _textureDebugPanel, &TextureDebugPanel::onTextureReadbackReady);
+		connect(_textureDebugPanel, &TextureDebugPanel::requestPBRMode,
+		        this, [this]() { onRenderingModeSelected("PBR"); });
 	}
 
 	connect(_sceneGraph, &SceneGraph::structureChanged,

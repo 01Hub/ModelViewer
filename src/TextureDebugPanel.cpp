@@ -14,6 +14,7 @@
 #include <QPixmap>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QMessageBox>
 #include <QSettings>
 #include <QShowEvent>
 #include <QToolButton>
@@ -140,6 +141,9 @@ TextureDebugPanel::TextureDebugPanel(QWidget* parent)
 void TextureDebugPanel::setGLWidget(GLWidget* gl)
 {
 	_glWidget = gl;
+	if (_glWidget)
+		connect(_glWidget, &GLWidget::renderingModeChanged,
+		        this, [this](int) { updatePBRWarning(); });
 }
 
 void TextureDebugPanel::setModelViewer(ModelViewer* mv)
@@ -277,6 +281,24 @@ void TextureDebugPanel::buildUI()
 	}
 
 	root->addWidget(makeSeparator(this));
+
+	// ---- PBR mode warning strip --------------------------------------------
+	// Shown in amber whenever the renderer is not in PBR mode.  Hidden for the
+	// common case (PBR active); updated reactively via renderingModeChanged.
+	{
+		_pbrWarningLabel = new QLabel(this);
+		_pbrWarningLabel->setText(
+		    tr("⚠  Switch to PBR rendering mode for accurate channel display"));
+		_pbrWarningLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+		_pbrWarningLabel->setWordWrap(true);
+		_pbrWarningLabel->setContentsMargins(4, 3, 4, 3);
+		QFont wf = _pbrWarningLabel->font();
+		wf.setPointSize(11);
+		_pbrWarningLabel->setFont(wf);
+		_pbrWarningLabel->setStyleSheet("color: #e8a838;");
+		_pbrWarningLabel->hide();
+		root->addWidget(_pbrWarningLabel);
+	}
 
 	// ---- Textures section --------------------------------------------------
 	{
@@ -695,6 +717,30 @@ void TextureDebugPanel::clearDynamicContent()
 void TextureDebugPanel::showEvent(QShowEvent* event)
 {
 	QDialog::showEvent(event);
+
+	// Warn and offer to switch if not in PBR mode.
+	updatePBRWarning();
+	if (_glWidget &&
+	    _glWidget->getRenderingMode() != RenderingMode::PHYSICALLY_BASED_RENDERING)
+	{
+		const auto answer = QMessageBox::question(
+		    this,
+		    tr("Texture Debugger"),
+		    tr("The Texture Debugger works best in PBR rendering mode.\n\n"
+		       "Switch to PBR now?"),
+		    QMessageBox::Yes | QMessageBox::No,
+		    QMessageBox::Yes);
+
+		if (answer == QMessageBox::Yes)
+		{
+			// Emit signal — ModelViewer is connected to onRenderingModeSelected("PBR")
+			// so the full activation chain runs: setRenderingMode + setPBRLightingMode
+			// + HDR skybox + Realistic display mode + toolbar button sync + updateControls.
+			emit requestPBRMode();
+			// Warning strip will hide itself via renderingModeChanged signal.
+		}
+	}
+
 	// Trigger a readback if a mesh was already selected before the panel opened.
 	if (_currentMeshId >= 0 && _lastSlots.isEmpty())
 		refresh();
@@ -728,6 +774,17 @@ void TextureDebugPanel::closeEvent(QCloseEvent* event)
 	// Do NOT call QDialog::closeEvent — it would call reject() again (re-entrant).
 	reject();
 	event->accept();
+}
+
+// ---------------------------------------------------------------------------
+// updatePBRWarning
+// ---------------------------------------------------------------------------
+void TextureDebugPanel::updatePBRWarning()
+{
+	if (!_pbrWarningLabel || !_glWidget) return;
+	const bool isPBR =
+	    (_glWidget->getRenderingMode() == RenderingMode::PHYSICALLY_BASED_RENDERING);
+	_pbrWarningLabel->setVisible(!isPBR);
 }
 
 // ---------------------------------------------------------------------------
