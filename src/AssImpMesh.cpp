@@ -431,48 +431,48 @@ void AssImpMesh::cacheTextureBindings()
 		}
 		else if (texture.type == "transmissionMap")
 		{
-			addBinding("transmissionMap" /*+ std::to_string(transmissionNr)*/, GL_TEXTURE18);
+			addBinding("transmissionMap" /*+ std::to_string(transmissionNr)*/, GL_TEXTURE28);
 			transmissionNr++;
 		}
 		else if (texture.type == "iorMap")
 		{
-			addBinding("iorMap" /*+ std::to_string(iorNr)*/, GL_TEXTURE19);
+			addBinding("iorMap" /*+ std::to_string(iorNr)*/, GL_TEXTURE29);
 			iorNr++;
 		}
 		else if (texture.type == "sheenColorMap")
 		{
-			addBinding("sheenColorMap" /*+ std::to_string(sheenColorNr)*/, GL_TEXTURE20);
+			addBinding("sheenColorMap" /*+ std::to_string(sheenColorNr)*/, GL_TEXTURE26);
 			sheenColorNr++;
 		}
 		else if (texture.type == "sheenRoughnessMap")
 		{
-			addBinding("sheenRoughnessMap" /*+ std::to_string(sheenRoughnessNr)*/, GL_TEXTURE21);
+			addBinding("sheenRoughnessMap" /*+ std::to_string(sheenRoughnessNr)*/, GL_TEXTURE27);
 			sheenRoughnessNr++;
 		}
 		else if (texture.type == "clearcoatColorMap")
 		{
-			addBinding("clearcoatColorMap" /*+ std::to_string(clearcoatNr)*/, GL_TEXTURE22);
+			addBinding("clearcoatColorMap" /*+ std::to_string(clearcoatNr)*/, GL_TEXTURE18);
 			clearcoatNr++;
 		}
 		else if (texture.type == "clearcoatRoughnessMap")
 		{
-			addBinding("clearcoatRoughnessMap" /*+ std::to_string(clearcoatRoughnessNr)*/, GL_TEXTURE23);
+			addBinding("clearcoatRoughnessMap" /*+ std::to_string(clearcoatRoughnessNr)*/, GL_TEXTURE19);
 			clearcoatRoughnessNr++;
 		}
 		else if (texture.type == "clearcoatNormalMap")
 		{
-			addBinding("clearcoatNormalMap" /*+ std::to_string(clearcoatNormalNr)*/, GL_TEXTURE24);
+			addBinding("clearcoatNormalMap" /*+ std::to_string(clearcoatNormalNr)*/, GL_TEXTURE20);
 			clearcoatNormalNr++;
 		}
 		// === NEW GLTF EXTENSION TEXTURES ===
 		else if (texture.type == "specularFactorMap")
 		{
-			addBinding("specularFactorMap" /*+ std::to_string(specularFactorNr)*/, GL_TEXTURE25);
+			addBinding("specularFactorMap" /*+ std::to_string(specularFactorNr)*/, GL_TEXTURE21);
 			specularFactorNr++;
 		}
 		else if (texture.type == "specularColorMap")
 		{
-			addBinding("specularColorMap" /*+ std::to_string(specularColorNr)*/, GL_TEXTURE26);
+			addBinding("specularColorMap" /*+ std::to_string(specularColorNr)*/, GL_TEXTURE22);
 			specularColorNr++;
 		}		
 		else if (texture.type == "diffuseMap") // === KHR_materials_pbrSpecularGlossiness ===
@@ -483,24 +483,24 @@ void AssImpMesh::cacheTextureBindings()
 		}
 		else if (texture.type == "specularGlossinessMap")
 		{
-			// GL_TEXTURE25 is reused (mutually exclusive with specularFactorMap)
+			// GL_TEXTURE21 is reused (mutually exclusive with specularFactorMap)
 			// The shader checks hasSpecularGlossinessMap to determine which to use
-			addBinding("specularGlossinessMap" /*+ std::to_string(specularGlossinessNr)*/, GL_TEXTURE25);
+			addBinding("specularGlossinessMap" /*+ std::to_string(specularGlossinessNr)*/, GL_TEXTURE21);
 			specularGlossinessNr++;
 		}
 		else if (texture.type == "anisotropyMap")
 		{
-			addBinding("anisotropyMap" /*+ std::to_string(anisotropyNr)*/, GL_TEXTURE27);
+			addBinding("anisotropyMap" /*+ std::to_string(anisotropyNr)*/, GL_TEXTURE23);
 			anisotropyNr++;
 		}
 		else if (texture.type == "iridescenceMap")
 		{
-			addBinding("iridescenceMap" /*+ std::to_string(iridescenceNr)*/, GL_TEXTURE28);
+			addBinding("iridescenceMap" /*+ std::to_string(iridescenceNr)*/, GL_TEXTURE24);
 			iridescenceNr++;
 		}
 		else if (texture.type == "iridescenceThicknessMap")
 		{
-			addBinding("iridescenceThicknessMap" /*+ std::to_string(iridescenceThicknessNr)*/, GL_TEXTURE29);
+			addBinding("iridescenceThicknessMap" /*+ std::to_string(iridescenceThicknessNr)*/, GL_TEXTURE25);
 			iridescenceThicknessNr++;
 		}
 		else if (texture.type == "thicknessMap")
@@ -510,11 +510,11 @@ void AssImpMesh::cacheTextureBindings()
 		}
 		else if (texture.type == "diffuseTransmissionMap")
 		{
-			addBinding("diffuseTransmissionMap", GL_TEXTURE31);
+			addBinding("diffuseTransmissionMap", GL_TEXTURE0 + 34);
 		}
 		else if (texture.type == "diffuseTransmissionColorMap")
 		{
-			addBinding("diffuseTransmissionColorMap", GL_TEXTURE6);
+			addBinding("diffuseTransmissionColorMap", GL_TEXTURE0 + 35);
 		}
 	}
 

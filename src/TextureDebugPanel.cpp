@@ -213,21 +213,21 @@ void TextureDebugPanel::buildUI()
 
 		// Extension texture channels group (PBR only)
 		_channelCombo->insertSeparator(_channelCombo->count());
-		_channelCombo->addItem(tr("Transmission Strength"),          18);
-		_channelCombo->addItem(tr("Sheen Color"),                    20);
-		_channelCombo->addItem(tr("Sheen Roughness"),                21);
-		_channelCombo->addItem(tr("Clearcoat Strength"),             22);
-		_channelCombo->addItem(tr("Clearcoat Roughness"),            23);
-		_channelCombo->addItem(tr("Clearcoat Normal"),               24);
-		_channelCombo->addItem(tr("Specular Strength"),              25);
-		_channelCombo->addItem(tr("Specular Color"),                 26);
-		_channelCombo->addItem(tr("Anisotropic Strength"),           27);
+		_channelCombo->addItem(tr("Clearcoat Strength"),             18);
+		_channelCombo->addItem(tr("Clearcoat Roughness"),            19);
+		_channelCombo->addItem(tr("Clearcoat Normal"),               20);
+		_channelCombo->addItem(tr("Specular Strength"),              21);
+		_channelCombo->addItem(tr("Specular Color"),                 22);
+		_channelCombo->addItem(tr("Anisotropic Strength"),           23);
 		_channelCombo->addItem(tr("Anisotropic Direction"),          32);
-		_channelCombo->addItem(tr("Iridescence Strength"),           28);
-		_channelCombo->addItem(tr("Iridescence Thickness"),          29);
+		_channelCombo->addItem(tr("Iridescence Strength"),           24);
+		_channelCombo->addItem(tr("Iridescence Thickness"),          25);
+		_channelCombo->addItem(tr("Sheen Color"),                    26);
+		_channelCombo->addItem(tr("Sheen Roughness"),                27);
+		_channelCombo->addItem(tr("Transmission Strength"),          28);
 		_channelCombo->addItem(tr("Volume Thickness"),               30);
-		_channelCombo->addItem(tr("Diffuse Transmission Strength"),  31);
-		_channelCombo->addItem(tr("Diffuse Transmission Color"),     33);
+		_channelCombo->addItem(tr("Diffuse Transmission Strength"),  34);
+		_channelCombo->addItem(tr("Diffuse Transmission Color"),     35);
 
 		row->addWidget(lbl);
 		row->addWidget(_channelCombo, 1);
@@ -258,7 +258,6 @@ void TextureDebugPanel::buildUI()
 				}
 				_thumbnailScroll->setEnabled(true);
 				_extensionGroup->setEnabled(true);
-				_multiplexGroup->setEnabled(true);
 			}
 			else
 			{
@@ -269,7 +268,6 @@ void TextureDebugPanel::buildUI()
 				_glWidget->setGlobalDebugChannel(channelId);
 				_thumbnailScroll->setEnabled(false);
 				_extensionGroup->setEnabled(false);
-				_multiplexGroup->setEnabled(false);
 			}
 
 			// Repopulate to update thumbnail border/style for active channel.
@@ -326,15 +324,6 @@ void TextureDebugPanel::buildUI()
 		root->addWidget(_extensionGroup);
 	}
 
-	// ---- Multiplexing health section ---------------------------------------
-	{
-		_multiplexGroup  = new QGroupBox(tr("Multiplexing Health"), this);
-		_multiplexLayout = new QGridLayout(_multiplexGroup);
-		_multiplexLayout->setSpacing(4);
-		_multiplexLayout->setContentsMargins(6, 4, 6, 4);
-		root->addWidget(_multiplexGroup);
-	}
-
 	// ---- Status strip -------------------------------------------------------
 	// Shows warnings such as "multiple meshes selected — showing first only".
 	// Hidden when there is nothing to report.
@@ -377,7 +366,6 @@ void TextureDebugPanel::onSelectionChanged(const QList<int>& selectedIds)
 		{
 			if (_thumbnailScroll) _thumbnailScroll->setEnabled(true);
 			if (_extensionGroup)  _extensionGroup->setEnabled(true);
-			if (_multiplexGroup)  _multiplexGroup->setEnabled(true);
 		}
 
 		_currentMeshId = -1;
@@ -461,7 +449,6 @@ void TextureDebugPanel::onTextureReadbackReady(const QVector<TextureSlotInfo>& s
 
 	populateThumbnails(slotInfos);
 	populateExtensions(slotInfos);
-	populateMultiplexingHealth(slotInfos);
 }
 
 // ---------------------------------------------------------------------------
@@ -477,6 +464,8 @@ void TextureDebugPanel::populateThumbnails(const QVector<TextureSlotInfo>& slotI
 	int col = 0, row = 0;
 	for (const TextureSlotInfo& info : slotInfos)
 	{
+		if (info.isMarker)
+			continue;  // scalar-activity markers have no texture to display
 		if (!info.isActive && !showInactive)
 			continue;
 
@@ -506,14 +495,11 @@ void TextureDebugPanel::populateThumbnails(const QVector<TextureSlotInfo>& slotI
 		thumbBtn->setIcon(QIcon(thumbPx));
 		thumbBtn->setIconSize(QSize(ThumbSize - 4, ThumbSize - 4));
 
-		// Border: red when disabled, amber for multiplexed, default otherwise.
+		// Border: red when disabled, default otherwise.
 		if (isDisabled)
 			thumbBtn->setStyleSheet(
 			    "QToolButton { border: 2px solid #e74c3c; background: transparent; }"
 			    "QToolButton:checked { border: 2px solid #e74c3c; background: #2a1010; }");
-		else if (info.isMultiplexed)
-			thumbBtn->setStyleSheet(
-			    "QToolButton { border: 1px solid #e8a838; background: transparent; }");
 		else
 			thumbBtn->setStyleSheet(
 			    "QToolButton { border: 1px solid #555; background: transparent; }");
@@ -561,8 +547,6 @@ void TextureDebugPanel::populateThumbnails(const QVector<TextureSlotInfo>& slotI
 		unitLabel->setText(QString("u%1").arg(info.unitIndex));
 		if (isDisabled)
 			unitLabel->setStyleSheet("color: #e74c3c;");
-		else if (info.isMultiplexed)
-			unitLabel->setStyleSheet("color: #e8a838; font-weight: bold;");
 		else if (!info.isActive)
 			unitLabel->setStyleSheet("color: #555;");
 
@@ -608,14 +592,18 @@ void TextureDebugPanel::populateExtensions(const QVector<TextureSlotInfo>& slotI
 	// Key is the stable identifier used by GLWidget::setDebugExtensionEnabled.
 	struct ExtDef { QString key; QString name; QVector<int> units; };
 	const QVector<ExtDef> extensions = {
-		{ "Sheen",                tr("Sheen"),                { 20, 21 } },
-		{ "Clearcoat",            tr("Clearcoat"),            { 22, 23, 24 } },
-		{ "Iridescence",          tr("Iridescence"),          { 28, 29 } },
+		{ "Sheen",                tr("Sheen"),                { 26, 27 } },
+		{ "Clearcoat",            tr("Clearcoat"),            { 18, 19, 20 } },
+		{ "Iridescence",          tr("Iridescence"),          { 24, 25 } },
+		{ "Specular",             tr("Specular"),             { 21, 22 } },
+		{ "Anisotropy",           tr("Anisotropy"),           { 23 } },
+		{ "Transmission",         tr("Transmission"),         { 28 } },
+		{ "Diffuse Transmission", tr("Diffuse Transmission"), { 34, 35 } },
 		{ "Volume / SSS",         tr("Volume / SSS"),         { 30 } },
-		{ "Specular",             tr("Specular"),             { 25, 26 } },
-		{ "Anisotropy",           tr("Anisotropy"),           { 27 } },
-		{ "Transmission",         tr("Transmission"),         { 18 } },
-		{ "Diffuse Transmission", tr("Diffuse Transmission"), { 31, 6 } },
+		{ "Volume Scattering",    tr("Volume Scattering"),    { 202 } },  // 202 = hasVolumeScattering scalar marker
+		{ "IOR",                  tr("IOR"),                  { 29, 203 } },  // 203 = IOR scalar marker (ior != 1.5)
+		{ "Emissive Strength",    tr("Emissive Strength"),    { 200 } },  // 200 = emissiveStrength scalar marker
+		{ "Dispersion",           tr("Dispersion"),           { 201 } },  // 201 = dispersion scalar marker
 	};
 
 	const int cols = 3;
@@ -693,75 +681,12 @@ void TextureDebugPanel::populateExtensions(const QVector<TextureSlotInfo>& slotI
 }
 
 // ---------------------------------------------------------------------------
-// populateMultiplexingHealth
-// ---------------------------------------------------------------------------
-void TextureDebugPanel::populateMultiplexingHealth(const QVector<TextureSlotInfo>& slotInfos)
-{
-	clearLayout(_multiplexLayout);
-
-	// Only show the four multiplexed units
-	int muxRow = 0;
-	for (const TextureSlotInfo& info : slotInfos)
-	{
-		if (!info.isMultiplexed)
-			continue;
-
-		// Unit label
-		auto* unitLbl = new QLabel(QString("u%1").arg(info.unitIndex), _multiplexGroup);
-		QFont f = unitLbl->font();
-		f.setFamily("Courier New");
-		f.setPointSize(11);
-		unitLbl->setFont(f);
-		unitLbl->setFixedWidth(30);
-
-		// Slot name
-		auto* nameLbl = new QLabel(info.slotName, _multiplexGroup);
-		nameLbl->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
-		QFont nf = nameLbl->font();
-		nf.setPointSize(11);
-		nameLbl->setFont(nf);
-
-		// State label ("active" / "inactive")
-		auto* stateLbl = new QLabel(
-		    info.isActive ? tr("active") : tr("inactive"), _multiplexGroup);
-		QFont sf = stateLbl->font();
-		sf.setPointSize(11);
-		sf.setItalic(true);
-		stateLbl->setFont(sf);
-		stateLbl->setStyleSheet(info.isActive ? "color: #e8a838;" : "color: #777;");
-
-		// Health indicator — when the per-mesh map is active it has overridden the
-		// global sampler on this unit for the current draw call.
-		const bool overridesGlobal = info.isActive;
-		auto* healthLbl = new QLabel(
-		    overridesGlobal ? tr("⚠ overrides global") : tr("✓ ok"),
-		    _multiplexGroup);
-		QFont hf = healthLbl->font();
-		hf.setPointSize(11);
-		healthLbl->setFont(hf);
-		healthLbl->setStyleSheet(overridesGlobal
-		    ? "color: #e8a838; font-weight: bold;"
-		    : "color: #48c774;");
-		// Tooltip shows what global resource this unit is shared with.
-		if (!info.multiplexNote.isEmpty())
-			healthLbl->setToolTip(info.multiplexNote);
-
-		_multiplexLayout->addWidget(unitLbl,   muxRow, 0);
-		_multiplexLayout->addWidget(nameLbl,   muxRow, 1);
-		_multiplexLayout->addWidget(stateLbl,  muxRow, 2);
-		_multiplexLayout->addWidget(healthLbl, muxRow, 3);
-		++muxRow;
-	}
-}
-
-// ---------------------------------------------------------------------------
 // clearDynamicContent
 // ---------------------------------------------------------------------------
 void TextureDebugPanel::clearDynamicContent()
 {
 	clearLayout(_thumbnailGrid);
 	clearLayout(_extensionLayout);
-	clearLayout(_multiplexLayout);
 }
 
 // ---------------------------------------------------------------------------
@@ -792,7 +717,6 @@ void TextureDebugPanel::reject()
 	if (_channelCombo) { QSignalBlocker b(_channelCombo); _channelCombo->setCurrentIndex(0); }
 	if (_thumbnailScroll) _thumbnailScroll->setEnabled(true);
 	if (_extensionGroup)  _extensionGroup->setEnabled(true);
-	if (_multiplexGroup)  _multiplexGroup->setEnabled(true);
 
 	saveWindowGeometry();
 	QDialog::reject();  // calls hide() — no QCloseEvent generated, no re-entry

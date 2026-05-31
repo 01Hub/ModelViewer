@@ -94,8 +94,8 @@ struct TextureSlotInfo
 	bool     isActive        = false; // textureId != 0 (a texture is bound)
 	bool     extensionEnabled = false;// the parent KHR extension is active (may be true even
 	                                  // when no texture is bound — e.g. sheen colour factor set)
-	bool     isMultiplexed = false; // unit shared between a global sampler and a per-mesh map
-	QString  multiplexNote;         // e.g. "shared with charlieLUT (global)"
+	bool     isMarker        = false; // synthetic slot used only for scalar-driven activity
+	                                  // detection; never shown in the thumbnail grid
 };
 Q_DECLARE_METATYPE(QVector<TextureSlotInfo>)
 

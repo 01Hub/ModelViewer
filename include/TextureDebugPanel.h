@@ -37,10 +37,6 @@ class ModelViewer;
 //   ├──────────────────────────────────────────────┤
 //   │ EXTENSIONS                                   │
 //   │  ● Sheen   ○ Clearcoat   ○ Iridescence  …   │
-//   ├──────────────────────────────────────────────┤
-//   │ MULTIPLEXING HEALTH                          │
-//   │  u22  clearcoatColorMap   inactive   ✓ ok   │
-//   │  …                                          │
 //   └──────────────────────────────────────────────┘
 // ---------------------------------------------------------------------------
 class TextureDebugPanel : public QDialog
@@ -82,9 +78,8 @@ private:
 	// Population helpers — called from onTextureReadbackReady
 	void populateThumbnails(const QVector<TextureSlotInfo>& slots);
 	void populateExtensions(const QVector<TextureSlotInfo>& slots);
-	void populateMultiplexingHealth(const QVector<TextureSlotInfo>& slots);
 
-	// Clears all dynamic content (thumbnails, extension badges, health rows)
+	// Clears all dynamic content (thumbnails, extension badges)
 	// without destroying the static chrome.
 	void clearDynamicContent();
 
@@ -136,8 +131,4 @@ private:
 	// Extensions section
 	QGroupBox*   _extensionGroup      = nullptr;
 	QGridLayout* _extensionLayout     = nullptr;
-
-	// Multiplexing health section
-	QGroupBox*   _multiplexGroup      = nullptr;
-	QGridLayout* _multiplexLayout     = nullptr;
 };

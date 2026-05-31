@@ -12387,7 +12387,7 @@ void GLWidget::setDebugTextureEnabled(int meshId, int unitIndex, bool enabled)
 		// scalar directly from the sample) contributes nothing without needing a
 		// bool-uniform override. PBR is covered by emissiveStrength=0 scalar.
 		// All other units get neutral white (1,1,1).
-		const bool isNormalUnit   = (unitIndex == 13 || unitIndex == 24);
+		const bool isNormalUnit   = (unitIndex == 13 || unitIndex == 20);
 		const bool isEmissiveUnit = (unitIndex == 12);
 		const GLuint replaceTex = isNormalUnit   ? _debugNormalTex :
 		                          isEmissiveUnit ? _debugBlackTex  : _debugNeutralTex;
@@ -12460,7 +12460,7 @@ void GLWidget::applyDebugTextureState(int meshId,
 		}
 		else
 		{
-			const bool isNormalUnit   = (unit == 13 || unit == 24);
+			const bool isNormalUnit   = (unit == 13 || unit == 20);
 			const bool isEmissiveUnit = (unit == 12);
 			const GLuint replaceTex = isNormalUnit   ? _debugNormalTex :
 			                          isEmissiveUnit ? _debugBlackTex  : _debugNeutralTex;
@@ -12487,14 +12487,11 @@ void GLWidget::setGlobalDebugChannel(int channelId)
 		if (!mesh) continue;
 		if (channelId != 0)
 		{
-			// Clear any checkbox-mode texture/scalar overrides so the in-shader
-			// isolation path reads the real (unmodified) texture samples.
-			for (int unit : {10, 11, 12, 13, 14, 15, 16, 17,
-			                 18, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31})
-			{
-				mesh->clearDebugTextureOverride(unit);
-				clearScalarOverridesForUnit(mesh, unit);
-			}
+			// Channel isolation must ignore all checkbox/extension override state.
+			// Clear every per-mesh debug override first, then install only the
+			// requested debugChannelOutput override below.
+			mesh->clearAllDebugTextureOverrides();
+			mesh->clearAllDebugUniformOverrides();
 		}
 		mesh->setDebugUniformOverride("debugChannelOutput",
 		    QVariant::fromValue<int>(channelId));
@@ -12514,6 +12511,7 @@ struct ExtOverrideDef
 {
 	QVector<QPair<QString, float>>      floatUniforms;
 	QVector<QPair<QString, QVector3D>>  vec3Uniforms;
+	QVector<QPair<QString, bool>>       boolUniforms;
 	QVector<int>                        textureUnits;
 };
 
@@ -12530,21 +12528,21 @@ const QMap<QString, ExtOverrideDef>& extensionOverrideDefs()
 		ExtOverrideDef d;
 		d.floatUniforms << qMakePair(QString("pbrLighting.sheenRoughness"), 0.0f);
 		d.vec3Uniforms  << qMakePair(QString("pbrLighting.sheenColor"),     QVector3D(0,0,0));
-		d.textureUnits  << 20 << 21;
+		d.textureUnits  << 26 << 27;
 		defs["Sheen"] = d;
 	}
 	// Clearcoat
 	{
 		ExtOverrideDef d;
 		d.floatUniforms << qMakePair(QString("pbrLighting.clearcoat"), 0.0f);
-		d.textureUnits  << 22 << 23 << 24;
+		d.textureUnits  << 18 << 19 << 20;
 		defs["Clearcoat"] = d;
 	}
 	// Iridescence
 	{
 		ExtOverrideDef d;
 		d.floatUniforms << qMakePair(QString("pbrLighting.iridescenceFactor"), 0.0f);
-		d.textureUnits  << 28 << 29;
+		d.textureUnits  << 24 << 25;
 		defs["Iridescence"] = d;
 	}
 	// Volume / SSS
@@ -12558,29 +12556,54 @@ const QMap<QString, ExtOverrideDef>& extensionOverrideDefs()
 	{
 		ExtOverrideDef d;
 		d.floatUniforms << qMakePair(QString("pbrLighting.specularFactor"), 0.0f);
-		d.textureUnits  << 25 << 26;
+		d.textureUnits  << 21 << 22;
 		defs["Specular"] = d;
 	}
 	// Anisotropy
 	{
 		ExtOverrideDef d;
 		d.floatUniforms << qMakePair(QString("pbrLighting.anisotropyStrength"), 0.0f);
-		d.textureUnits  << 27;
+		d.textureUnits  << 23;
 		defs["Anisotropy"] = d;
 	}
 	// Transmission
 	{
 		ExtOverrideDef d;
 		d.floatUniforms << qMakePair(QString("pbrLighting.transmission"), 0.0f);
-		d.textureUnits  << 18;
+		d.textureUnits  << 28;
 		defs["Transmission"] = d;
 	}
 	// Diffuse Transmission
 	{
 		ExtOverrideDef d;
 		d.floatUniforms << qMakePair(QString("pbrLighting.diffuseTransmissionFactor"), 0.0f);
-		d.textureUnits  << 6 << 31;
+		d.textureUnits  << 34 << 35;
 		defs["Diffuse Transmission"] = d;
+	}
+	// IOR — revert to glTF default (1.5) when disabled
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.ior"), 1.5f);
+		d.textureUnits  << 29;
+		defs["IOR"] = d;
+	}
+	// Emissive Strength — revert to neutral multiplier (1.0) when disabled
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.emissiveStrength"), 1.0f);
+		defs["Emissive Strength"] = d;
+	}
+	// Dispersion — zero out chromatic dispersion when disabled
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.dispersion"), 0.0f);
+		defs["Dispersion"] = d;
+	}
+	// Volume Scattering — disable the Burley SSS pass when disabled
+	{
+		ExtOverrideDef d;
+		d.boolUniforms << qMakePair(QString("hasVolumeScattering"), false);
+		defs["Volume Scattering"] = d;
 	}
 	return defs;
 }
@@ -12606,21 +12629,25 @@ void GLWidget::setDebugExtensionEnabled(int meshId, const QString& extensionKey,
 			mesh->clearDebugUniformOverride(kv.first);
 		for (const auto& kv : def.vec3Uniforms)
 			mesh->clearDebugUniformOverride(kv.first);
+		for (const auto& kv : def.boolUniforms)
+			mesh->clearDebugUniformOverride(kv.first);
 		for (int unit : def.textureUnits)
 			mesh->clearDebugTextureOverride(unit);
 		mesh->markUniformsDirty();
 	}
 	else
 	{
-		// Zero out the scalar factor uniforms so the extension contributes nothing.
+		// Suppress the extension's contribution via uniform overrides.
 		for (const auto& kv : def.floatUniforms)
 			mesh->setDebugUniformOverride(kv.first, QVariant::fromValue<float>(kv.second));
 		for (const auto& kv : def.vec3Uniforms)
 			mesh->setDebugUniformOverride(kv.first, QVariant::fromValue(kv.second));
+		for (const auto& kv : def.boolUniforms)
+			mesh->setDebugUniformOverride(kv.first, QVariant::fromValue<bool>(kv.second));
 		// Neutral-bind the extension's texture units.
 		for (int unit : def.textureUnits)
 		{
-			const bool isNormalUnit = (unit == 13 || unit == 24);
+			const bool isNormalUnit = (unit == 13 || unit == 20);
 			mesh->setDebugTextureOverride(unit, isNormalUnit ? _debugNormalTex : _debugNeutralTex);
 		}
 	}
@@ -12670,17 +12697,33 @@ void GLWidget::requestTextureReadback(int meshId)
 	// is bound (e.g. sheen colour factor set but no sheen texture).
 	// specularFactor defaults to 1.0 in glTF, so we consider KHR_materials_specular
 	// active when it deviates from the default or a specular texture is present.
-	const bool extSheen      = mat.hasSheen();
-	const bool extClearcoat  = mat.hasClearcoat();
-	const bool extIridescence= mat.iridescenceFactor() > 0.0f;
-	const bool extVolume     = mat.hasVolumeScattering();
+	const bool extSheen      = mat.hasSheen()
+	                           || mat.hasSheenColorMap()
+	                           || mat.hasSheenRoughnessMap();
+	const bool extClearcoat  = mat.hasClearcoat()
+	                           || mat.hasClearcoatColorMap()
+	                           || mat.hasClearcoatRoughnessMap()
+	                           || mat.hasClearcoatNormalMap();
+	const bool extIridescence= mat.iridescenceFactor() > 0.0f
+	                           || mat.hasIridescenceMap()
+	                           || mat.hasIridescenceThicknessMap();
+	const bool extVolume     = mat.hasVolumeScattering()
+	                           || mat.thicknessFactor() > 0.0f
+	                           || mat.hasThicknessMap();
 	const bool extSpecular   = mat.hasSpecularFactorMap() || mat.hasSpecularColorMap()
-	                           || mat.specularFactor() != 1.0f;
+	                           || mat.specularFactor() != 1.0f
+	                           || mat.specularColorFactor() != QVector3D(1.0f, 1.0f, 1.0f);
 	const bool extAnisotropy = mat.anisotropyStrength() != 0.0f || mat.hasAnisotropyMap();
-	const bool extTransmission = mat.hasTransmission();
+	const bool extTransmission = mat.hasTransmission()
+	                             || mat.hasTransmissionMap();
 	const bool extDiffuseTrans = mat.diffuseTransmissionFactor() > 0.0f
 	                             || mat.hasDiffuseTransmissionMap()
 	                             || mat.hasDiffuseTransmissionColorMap();
+	// IOR defaults to 1.5 for every material (glTF spec) so mat.ior() > 0 is
+	// always true.  Use deviation from 1.5 (explicit extension value) or a
+	// texture as the activity signal; scalar marker slot 203 carries this flag.
+	const bool extIOR          = mat.hasIORMap();                      // real unit 29
+	const bool extIORScalar    = (mat.ior() != 1.5f) || mat.hasIORMap(); // marker unit 203
 
 	struct SlotDef
 	{
@@ -12688,34 +12731,39 @@ void GLWidget::requestTextureReadback(int meshId)
 		int     unit;
 		GLuint  texId;
 		bool    extEnabled;   // parent KHR extension is active (with or without texture)
-		bool    multiplexed;
-		QString multiplexNote;
 	};
 
 	const QVector<SlotDef> defs = {
-		{ "albedo / diffuse",         10, baseColorTex,                                                                                   false,          false, {} },
-		{ "metallicMap",              11, mat.hasMetallicMap()           ? static_cast<GLuint>(mat.metallicTextureId())           : 0U,    false,          false, {} },
-		{ "emissiveMap",              12, mat.hasEmissiveMap()            ? static_cast<GLuint>(mat.emissiveTextureId())            : 0U,   false,          false, {} },
-		{ "normalMap",                13, mat.hasNormalMap()              ? static_cast<GLuint>(mat.normalTextureId())              : 0U,   false,          false, {} },
-		{ "heightMap",                14, mat.hasHeightMap()              ? static_cast<GLuint>(mat.heightTextureId())              : 0U,   false,          false, {} },
-		{ "opacityMap",               15, mat.hasOpacityMap()             ? static_cast<GLuint>(mat.opacityTextureId())             : 0U,   false,          false, {} },
-		{ "roughnessMap",             16, mat.hasRoughnessMap()           ? static_cast<GLuint>(mat.roughnessTextureId())           : 0U,   false,          false, {} },
-		{ "aoMap",                    17, mat.hasAOMap()                  ? static_cast<GLuint>(mat.occlusionTextureId())           : 0U,   false,          false, {} },
-		{ "clearcoatColorMap",        18, mat.hasClearcoatColorMap()      ? static_cast<GLuint>(mat.clearcoatColorTextureId())      : 0U,   extClearcoat,   false, {} },
-		{ "clearcoatRoughnessMap",    19, mat.hasClearcoatRoughnessMap()  ? static_cast<GLuint>(mat.clearcoatRoughnessTextureId())  : 0U,   extClearcoat,   false, {} },
-		{ "clearcoatNormalMap",       20, mat.hasClearcoatNormalMap()     ? static_cast<GLuint>(mat.clearcoatNormalTextureId())     : 0U,   extClearcoat,   false, {} },
-		{ "specularFactorMap",        21, mat.hasSpecularFactorMap()      ? static_cast<GLuint>(mat.specularFactorTextureId())      : 0U,   extSpecular,    false, {} },
-		{ "specularColorMap",         22, mat.hasSpecularColorMap()       ? static_cast<GLuint>(mat.specularColorTextureId())       : 0U,   extSpecular,    false, {} },
-		{ "anisotropyMap",            23, mat.hasAnisotropyMap()          ? static_cast<GLuint>(mat.anisotropyTextureId())          : 0U,   extAnisotropy,  false, {} },
-		{ "iridescenceMap",           24, mat.hasIridescenceMap()         ? static_cast<GLuint>(mat.iridescenceTextureId())         : 0U,   extIridescence, false, {} },
-		{ "iridescenceThicknessMap",  25, mat.hasIridescenceThicknessMap()? static_cast<GLuint>(mat.iridescenceThicknessTextureId()): 0U,  extIridescence, false, {} },
-		{ "sheenColorMap",            26, mat.hasSheenColorMap()          ? static_cast<GLuint>(mat.sheenColorTextureId())          : 0U,   extSheen,       false, {} },
-		{ "sheenRoughnessMap",        27, mat.hasSheenRoughnessMap()      ? static_cast<GLuint>(mat.sheenRoughnessTextureId())      : 0U,   extSheen,       false, {} },
-		{ "transmissionMap",          28, mat.hasTransmissionMap()        ? static_cast<GLuint>(mat.transmissionTextureId())        : 0U,   extTransmission,false, {} },
-		{ "iorMap",                   29, mat.hasIORMap()                 ? static_cast<GLuint>(mat.iorTextureId())                 : 0U,   false,          false, {} },
-		{ "diffuseTransmissionMap",   34, mat.hasDiffuseTransmissionMap() ? static_cast<GLuint>(mat.diffuseTransmissionTextureId()) : 0U,   extDiffuseTrans,false, {} },
-		{ "diffuseTransmissionColor", 35, mat.hasDiffuseTransmissionColorMap() ? static_cast<GLuint>(mat.diffuseTransmissionColorTextureId()) : 0U, extDiffuseTrans, false, {} },
-		{ "thicknessMap",             30, mat.hasThicknessMap()           ? static_cast<GLuint>(mat.thicknessTextureId())           : 0U,   extVolume,      false, {} },
+		{ "albedo / diffuse",         10, baseColorTex,                                                                                    false          },
+		{ "metallicMap",              11, mat.hasMetallicMap()            ? static_cast<GLuint>(mat.metallicTextureId())            : 0U,  false          },
+		{ "emissiveMap",              12, mat.hasEmissiveMap()             ? static_cast<GLuint>(mat.emissiveTextureId())             : 0U, false          },
+		{ "normalMap",                13, mat.hasNormalMap()               ? static_cast<GLuint>(mat.normalTextureId())               : 0U, false          },
+		{ "heightMap",                14, mat.hasHeightMap()               ? static_cast<GLuint>(mat.heightTextureId())               : 0U, false          },
+		{ "opacityMap",               15, mat.hasOpacityMap()              ? static_cast<GLuint>(mat.opacityTextureId())              : 0U, false          },
+		{ "roughnessMap",             16, mat.hasRoughnessMap()            ? static_cast<GLuint>(mat.roughnessTextureId())            : 0U, false          },
+		{ "aoMap",                    17, mat.hasAOMap()                   ? static_cast<GLuint>(mat.occlusionTextureId())            : 0U, false          },
+		{ "clearcoatColorMap",        18, mat.hasClearcoatColorMap()       ? static_cast<GLuint>(mat.clearcoatColorTextureId())       : 0U, extClearcoat   },
+		{ "clearcoatRoughnessMap",    19, mat.hasClearcoatRoughnessMap()   ? static_cast<GLuint>(mat.clearcoatRoughnessTextureId())   : 0U, extClearcoat   },
+		{ "clearcoatNormalMap",       20, mat.hasClearcoatNormalMap()      ? static_cast<GLuint>(mat.clearcoatNormalTextureId())      : 0U, extClearcoat   },
+		{ "specularFactorMap",        21, mat.hasSpecularFactorMap()       ? static_cast<GLuint>(mat.specularFactorTextureId())       : 0U, extSpecular    },
+		{ "specularColorMap",         22, mat.hasSpecularColorMap()        ? static_cast<GLuint>(mat.specularColorTextureId())        : 0U, extSpecular    },
+		{ "anisotropyMap",            23, mat.hasAnisotropyMap()           ? static_cast<GLuint>(mat.anisotropyTextureId())           : 0U, extAnisotropy  },
+		{ "iridescenceMap",           24, mat.hasIridescenceMap()          ? static_cast<GLuint>(mat.iridescenceTextureId())          : 0U, extIridescence },
+		{ "iridescenceThicknessMap",  25, mat.hasIridescenceThicknessMap() ? static_cast<GLuint>(mat.iridescenceThicknessTextureId()) : 0U, extIridescence },
+		{ "sheenColorMap",            26, mat.hasSheenColorMap()           ? static_cast<GLuint>(mat.sheenColorTextureId())           : 0U, extSheen       },
+		{ "sheenRoughnessMap",        27, mat.hasSheenRoughnessMap()       ? static_cast<GLuint>(mat.sheenRoughnessTextureId())       : 0U, extSheen       },
+		{ "transmissionMap",          28, mat.hasTransmissionMap()         ? static_cast<GLuint>(mat.transmissionTextureId())         : 0U, extTransmission},
+		{ "iorMap",                   29, mat.hasIORMap()                  ? static_cast<GLuint>(mat.iorTextureId())                  : 0U, extIOR         },
+		{ "diffuseTransmissionMap",   34, mat.hasDiffuseTransmissionMap()  ? static_cast<GLuint>(mat.diffuseTransmissionTextureId())  : 0U, extDiffuseTrans},
+		{ "diffuseTransmissionColor", 35, mat.hasDiffuseTransmissionColorMap() ? static_cast<GLuint>(mat.diffuseTransmissionColorTextureId()) : 0U, extDiffuseTrans},
+		{ "thicknessMap",             30, mat.hasThicknessMap()            ? static_cast<GLuint>(mat.thicknessTextureId())            : 0U, extVolume      },
+		// Scalar-activity markers (units 200-203): no real GL texture — used only
+		// to drive the extension-panel activity dot for extensions that have no
+		// dedicated texture slot.  isMarker is set to true in the loop below.
+		{ "ior",                     203, 0U, extIORScalar                                       },
+		{ "emissiveStrength",        200, 0U, mat.emissiveStrength() != 1.0f                     },
+		{ "dispersion",              201, 0U, mat.dispersion() > 0.0f                            },
+		{ "volumeScattering",        202, 0U, mat.hasVolumeScattering()                          },
 	};
 
 	constexpr int ThumbSize = 64;
@@ -12730,8 +12778,7 @@ void GLWidget::requestTextureReadback(int meshId)
 		info.textureId        = d.texId;
 		info.isActive         = (d.texId != 0U);
 		info.extensionEnabled = d.extEnabled;
-		info.isMultiplexed    = d.multiplexed;
-		info.multiplexNote    = d.multiplexNote;
+		info.isMarker         = (d.unit >= 200);   // scalar-activity markers have no real GL unit
 
 		if (info.isActive)
 		{

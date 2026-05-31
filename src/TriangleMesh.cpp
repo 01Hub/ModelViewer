@@ -485,6 +485,22 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 
 void TriangleMesh::setupTextures()
 {
+	const bool hasClearcoatColorTex = _material.hasClearcoatColorMap() || _material.clearcoatColorTextureId() != 0;
+	const bool hasClearcoatRoughnessTex = _material.hasClearcoatRoughnessMap() || _material.clearcoatRoughnessTextureId() != 0;
+	const bool hasClearcoatNormalTex = _material.hasClearcoatNormalMap() || _material.clearcoatNormalTextureId() != 0;
+	const bool hasSpecularFactorTex = _material.hasSpecularFactorMap() || _material.specularFactorTextureId() != 0;
+	const bool hasSpecularColorTex = _material.hasSpecularColorMap() || _material.specularColorTextureId() != 0;
+	const bool hasAnisotropyTex = _material.hasAnisotropyMap() || _material.anisotropyTextureId() != 0;
+	const bool hasIridescenceTex = _material.hasIridescenceMap() || _material.iridescenceTextureId() != 0;
+	const bool hasIridescenceThicknessTex = _material.hasIridescenceThicknessMap() || _material.iridescenceThicknessTextureId() != 0;
+	const bool hasSheenColorTex = _material.hasSheenColorMap() || _material.sheenColorTextureId() != 0;
+	const bool hasSheenRoughnessTex = _material.hasSheenRoughnessMap() || _material.sheenRoughnessTextureId() != 0;
+	const bool hasTransmissionTex = _material.hasTransmissionMap() || _material.transmissionTextureId() != 0;
+	const bool hasIORTex = _material.hasIORMap() || _material.iorTextureId() != 0;
+	const bool hasThicknessTex = _material.hasThicknessMap() || _material.thicknessTextureId() != 0;
+	const bool hasDiffuseTransmissionTex = _material.hasDiffuseTransmissionMap() || _material.diffuseTransmissionTextureId() != 0;
+	const bool hasDiffuseTransmissionColorTex = _material.hasDiffuseTransmissionColorMap() || _material.diffuseTransmissionColorTextureId() != 0;
+
 	// Unit 10 is shared by three shader paths — ADS (texture_diffuse / texture_specular /
 	// etc.), PBR metallic-roughness (albedoMap), and PBR specular-glossiness (diffuseMap) —
 	// all of which sample unit 10 for the base/diffuse/albedo colour.
@@ -528,38 +544,42 @@ void TriangleMesh::setupTextures()
 	// Mesh-owned material block (units 10–29). These are the feature-complete
 	// material slots we keep inside the guaranteed 0..31 range.
 	glActiveTexture(GL_TEXTURE18);
-	glBindTexture(GL_TEXTURE_2D, _material.hasClearcoatColorMap() ? static_cast<GLuint>(_material.clearcoatColorTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasClearcoatColorTex ? static_cast<GLuint>(_material.clearcoatColorTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE19);
-	glBindTexture(GL_TEXTURE_2D, _material.hasClearcoatRoughnessMap() ? static_cast<GLuint>(_material.clearcoatRoughnessTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasClearcoatRoughnessTex ? static_cast<GLuint>(_material.clearcoatRoughnessTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE20);
-	glBindTexture(GL_TEXTURE_2D, _material.hasClearcoatNormalMap() ? static_cast<GLuint>(_material.clearcoatNormalTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasClearcoatNormalTex ? static_cast<GLuint>(_material.clearcoatNormalTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE21);
-	glBindTexture(GL_TEXTURE_2D, _material.hasSpecularFactorMap() ? static_cast<GLuint>(_material.specularFactorTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasSpecularFactorTex ? static_cast<GLuint>(_material.specularFactorTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE22);
-	glBindTexture(GL_TEXTURE_2D, _material.hasSpecularColorMap() ? static_cast<GLuint>(_material.specularColorTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasSpecularColorTex ? static_cast<GLuint>(_material.specularColorTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE23);
-	glBindTexture(GL_TEXTURE_2D, _material.hasAnisotropyMap() ? static_cast<GLuint>(_material.anisotropyTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasAnisotropyTex ? static_cast<GLuint>(_material.anisotropyTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE24);
-	glBindTexture(GL_TEXTURE_2D, _material.hasIridescenceMap() ? static_cast<GLuint>(_material.iridescenceTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasIridescenceTex ? static_cast<GLuint>(_material.iridescenceTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE25);
-	glBindTexture(GL_TEXTURE_2D, _material.hasIridescenceThicknessMap() ? static_cast<GLuint>(_material.iridescenceThicknessTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasIridescenceThicknessTex ? static_cast<GLuint>(_material.iridescenceThicknessTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE26);
-	glBindTexture(GL_TEXTURE_2D, _material.hasSheenColorMap() ? static_cast<GLuint>(_material.sheenColorTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasSheenColorTex ? static_cast<GLuint>(_material.sheenColorTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE27);
-	glBindTexture(GL_TEXTURE_2D, _material.hasSheenRoughnessMap() ? static_cast<GLuint>(_material.sheenRoughnessTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasSheenRoughnessTex ? static_cast<GLuint>(_material.sheenRoughnessTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE28);
-	glBindTexture(GL_TEXTURE_2D, _material.hasTransmissionMap() ? static_cast<GLuint>(_material.transmissionTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasTransmissionTex ? static_cast<GLuint>(_material.transmissionTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE29);
-	glBindTexture(GL_TEXTURE_2D, _material.hasIORMap() ? static_cast<GLuint>(_material.iorTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasIORTex ? static_cast<GLuint>(_material.iorTextureId()) : 0U);
 
 	// Overflow material bundles (units 34+).
-	if (_material.hasDiffuseTransmissionMap()) {
+	if (hasDiffuseTransmissionTex) {
 		glActiveTexture(GL_TEXTURE0 + 34);
 		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.diffuseTransmissionTextureId()));
 	}
-	if (_material.hasDiffuseTransmissionColorMap()) {
+	if (hasDiffuseTransmissionColorTex) {
 		glActiveTexture(GL_TEXTURE0 + 35);
 		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.diffuseTransmissionColorTextureId()));
+	}
+	if (hasThicknessTex) {
+		glActiveTexture(GL_TEXTURE30);
+		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.thicknessTextureId()));
 	}
 }
 
@@ -567,6 +587,21 @@ void TriangleMesh::setupUniforms()
 {
 	if (!_uniformsDirty) return;
 	_prog->bind();
+	const bool hasTransmissionTex = _material.hasTransmissionMap() || _material.transmissionTextureId() != 0;
+	const bool hasIORTex = _material.hasIORMap() || _material.iorTextureId() != 0;
+	const bool hasSheenColorTex = _material.hasSheenColorMap() || _material.sheenColorTextureId() != 0;
+	const bool hasSheenRoughnessTex = _material.hasSheenRoughnessMap() || _material.sheenRoughnessTextureId() != 0;
+	const bool hasClearcoatColorTex = _material.hasClearcoatColorMap() || _material.clearcoatColorTextureId() != 0;
+	const bool hasClearcoatRoughnessTex = _material.hasClearcoatRoughnessMap() || _material.clearcoatRoughnessTextureId() != 0;
+	const bool hasClearcoatNormalTex = _material.hasClearcoatNormalMap() || _material.clearcoatNormalTextureId() != 0;
+	const bool hasSpecularFactorTex = _material.hasSpecularFactorMap() || _material.specularFactorTextureId() != 0;
+	const bool hasSpecularColorTex = _material.hasSpecularColorMap() || _material.specularColorTextureId() != 0;
+	const bool hasAnisotropyTex = _material.hasAnisotropyMap() || _material.anisotropyTextureId() != 0;
+	const bool hasIridescenceTex = _material.hasIridescenceMap() || _material.iridescenceTextureId() != 0;
+	const bool hasIridescenceThicknessTex = _material.hasIridescenceThicknessMap() || _material.iridescenceThicknessTextureId() != 0;
+	const bool hasThicknessTex = _material.hasThicknessMap() || _material.thicknessTextureId() != 0;
+	const bool hasDiffuseTransmissionTex = _material.hasDiffuseTransmissionMap() || _material.diffuseTransmissionTextureId() != 0;
+	const bool hasDiffuseTransmissionColorTex = _material.hasDiffuseTransmissionColorMap() || _material.diffuseTransmissionColorTextureId() != 0;
 	GLint modeValue = 0;
 	switch (_primitiveMode)
 	{
@@ -690,8 +725,8 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("iorMap", 29);
 
 	// KHR_materials_specular
-	_prog->setUniformValue("hasSpecularFactorMap", _material.hasSpecularFactorMap());
-	_prog->setUniformValue("hasSpecularColorMap", _material.hasSpecularColorMap());
+	_prog->setUniformValue("hasSpecularFactorMap", hasSpecularFactorTex);
+	_prog->setUniformValue("hasSpecularColorMap", hasSpecularColorTex);
 
 	// KHR_materials_pbrSpecularGlossiness
 	_prog->setUniformValue("diffuseMap", 10);
@@ -713,18 +748,18 @@ void TriangleMesh::setupUniforms()
 
 	// KHR_materials_anisotropy
 	_prog->setUniformValue("anisotropyMap", 23);
-	_prog->setUniformValue("hasAnisotropyMap", _material.hasAnisotropyMap());
+	_prog->setUniformValue("hasAnisotropyMap", hasAnisotropyTex);
 
 	// KHR_materials_iridescence
 	_prog->setUniformValue("iridescenceMap", 24);
-	_prog->setUniformValue("hasIridescenceMap", _material.hasIridescenceMap());
+	_prog->setUniformValue("hasIridescenceMap", hasIridescenceTex);
 
 	_prog->setUniformValue("iridescenceThicknessMap", 25);
-	_prog->setUniformValue("hasIridescenceThicknessMap", _material.hasIridescenceThicknessMap());
+	_prog->setUniformValue("hasIridescenceThicknessMap", hasIridescenceThicknessTex);
 
 	// KHR_materials_volume
 	_prog->setUniformValue("thicknessMap", 30);
-	_prog->setUniformValue("hasThicknessMap", _material.hasThicknessMap());
+	_prog->setUniformValue("hasThicknessMap", hasThicknessTex);
 	_prog->setUniformValue("hasThicknessAlpha", _material.hasThicknessAlpha());
 
 	// KHR_materials_scattering
@@ -780,12 +815,12 @@ void TriangleMesh::setupUniforms()
 		_material.diffuseTransmissionColorFactor());
 	// Diffuse Transmission Map
 	_prog->setUniformValue("hasDiffuseTransmissionMap",
-		_material.hasDiffuseTransmissionMap());
+		hasDiffuseTransmissionTex);
 	_prog->setUniformValue("diffuseTransmissionMap", 34);
 	
 	// Diffuse Transmission Color Map
 	_prog->setUniformValue("hasDiffuseTransmissionColorMap",
-		_material.hasDiffuseTransmissionColorMap());
+		hasDiffuseTransmissionColorTex);
 	_prog->setUniformValue("diffuseTransmissionColorMap", 35);
 
 	// Texture transform uniforms
@@ -984,31 +1019,40 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("hasOpacityMap", _material.hasOpacityMap());
 	_prog->setUniformValue("opacityMapInverted", _material.isOpacityMapInverted());
 	_prog->setUniformValue("hasHeightMap", _material.hasHeightMap());
-	_prog->setUniformValue("hasTransmissionMap", _material.hasTransmissionMap());
-	_prog->setUniformValue("hasIORMap", _material.hasIORMap());
-	_prog->setUniformValue("hasSheenColorMap", _material.hasSheenColorMap());
-	_prog->setUniformValue("hasSheenRoughnessMap", _material.hasSheenRoughnessMap());
-	_prog->setUniformValue("hasClearcoatMap", _material.hasClearcoatColorMap());
-	_prog->setUniformValue("hasClearcoatRoughnessMap", _material.hasClearcoatRoughnessMap());
-	_prog->setUniformValue("hasClearcoatNormalMap", _material.hasClearcoatNormalMap());
+	_prog->setUniformValue("hasTransmissionMap", hasTransmissionTex);
+	_prog->setUniformValue("hasIORMap", hasIORTex);
+	_prog->setUniformValue("hasSheenColorMap", hasSheenColorTex);
+	_prog->setUniformValue("hasSheenRoughnessMap", hasSheenRoughnessTex);
+	_prog->setUniformValue("hasClearcoatMap", hasClearcoatColorTex);
+	_prog->setUniformValue("hasClearcoatRoughnessMap", hasClearcoatRoughnessTex);
+	_prog->setUniformValue("hasClearcoatNormalMap", hasClearcoatNormalTex);
 
 	// Extension-presence flags for debug channel gating (mirrors Khronos #ifdef MATERIAL_XXX).
 	// True when the extension is active regardless of whether a texture is present.
-	_prog->setUniformValue("extClearcoat",    _material.hasClearcoat());
-	_prog->setUniformValue("extSheen",        _material.hasSheen());
-	_prog->setUniformValue("extTransmission", _material.hasTransmission());
-	_prog->setUniformValue("extSpecular",     _material.hasSpecularFactorMap()
-	                                              || _material.hasSpecularColorMap()
-	                                              || _material.specularFactor() != 1.0f);
+	_prog->setUniformValue("extClearcoat",    _material.hasClearcoat()
+	                                              || hasClearcoatColorTex
+	                                              || hasClearcoatRoughnessTex
+	                                              || hasClearcoatNormalTex);
+	_prog->setUniformValue("extSheen",        _material.hasSheen()
+	                                              || hasSheenColorTex
+	                                              || hasSheenRoughnessTex);
+	_prog->setUniformValue("extTransmission", _material.hasTransmission()
+	                                              || hasTransmissionTex);
+	_prog->setUniformValue("extSpecular",     hasSpecularFactorTex
+	                                              || hasSpecularColorTex
+	                                              || _material.specularFactor() != 1.0f
+	                                              || _material.specularColorFactor() != QVector3D(1.0f, 1.0f, 1.0f));
 	_prog->setUniformValue("extAnisotropy",   _material.anisotropyStrength() != 0.0f
-	                                              || _material.hasAnisotropyMap());
+	                                              || hasAnisotropyTex);
 	_prog->setUniformValue("extIridescence",  _material.iridescenceFactor() > 0.0f
-	                                              || _material.hasIridescenceMap());
+	                                              || hasIridescenceTex
+	                                              || hasIridescenceThicknessTex);
 	_prog->setUniformValue("extVolume",       _material.thicknessFactor() > 0.0f
-	                                              || _material.hasThicknessMap());
+	                                              || hasThicknessTex
+	                                              || _material.hasVolumeScattering());
 	_prog->setUniformValue("extDiffuseTrans", _material.diffuseTransmissionFactor() > 0.0f
-	                                              || _material.hasDiffuseTransmissionMap()
-	                                              || _material.hasDiffuseTransmissionColorMap());
+	                                              || hasDiffuseTransmissionTex
+	                                              || hasDiffuseTransmissionColorTex);
 
 	_prog->setUniformValue("isGLTFMaterial", _material.isGLTFMaterial());
 

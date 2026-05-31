@@ -147,11 +147,10 @@ uniform bool twoSided;
 // IDs 1-9 are geometry/vertex channels; IDs 10+ match GPU texture unit indices.
 //   1=UV0  2=UV1  3=GeoNormal  4=GeoTangent  5=GeoBitangent  6=TangentW  7=ShadingNormal  8=Alpha  9=VertexColor
 //   10=Albedo/Diffuse  11=Metallic  12=Emissive  13=NormalMap  14=Height  15=Opacity  16=Roughness  17=AO
-//   18=TransmissionStrength  20=SheenColor  21=SheenRoughness
-//   22=ClearcoatStrength  23=ClearcoatRoughness  24=ClearcoatNormal
-//   25=SpecularStrength  26=SpecularColor  27=AnisotropicStrength  32=AnisotropicDirection
-//   28=IridescenceStrength  29=IridescenceThickness  30=VolumeThickness
-//   31=DiffuseTransmissionStrength  33=DiffuseTransmissionColor
+//   18=ClearcoatStrength  19=ClearcoatRoughness  20=ClearcoatNormal
+//   21=SpecularStrength  22=SpecularColor  23=AnisotropicStrength  32=AnisotropicDirection
+//   24=IridescenceStrength  25=IridescenceThickness  26=SheenColor  27=SheenRoughness
+//   28=TransmissionStrength  30=VolumeThickness  34=DiffuseTransmissionStrength  35=DiffuseTransmissionColor
 uniform int debugChannelOutput = 0;
 
 // Advanced PBR Material Properties
@@ -973,26 +972,20 @@ void main()
 				iso = vec3(dbg.roughness);
 			else if (debugChannelOutput == 17)  // AO (occlusionStrength × tex, or 1.0 if absent)
 				iso = vec3(dbg.ambientOcclusion);
-			// ---- Extension channels (IDs 18, 20-33) ----
+			// ---- Extension channels (IDs 18-30, 32, 34-35) ----
 			// Each branch is gated by its extXxx flag so that absent extensions
 			// fall through to the checkerboard sentinel, matching Khronos behaviour.
-			else if (debugChannelOutput == 18 && extTransmission)
-				iso = vec3(dbg.transmission);
-			else if (debugChannelOutput == 20 && extSheen)
-				iso = dbg.sheenColor;
-			else if (debugChannelOutput == 21 && extSheen)
-				iso = vec3(dbg.sheenRoughness);
-			else if (debugChannelOutput == 22 && extClearcoat)
+			else if (debugChannelOutput == 18 && extClearcoat)
 				iso = vec3(dbg.clearcoat);
-			else if (debugChannelOutput == 23 && extClearcoat)
+			else if (debugChannelOutput == 19 && extClearcoat)
 				iso = vec3(dbg.clearcoatRoughness);
-			else if (debugChannelOutput == 24 && extClearcoat && hasClearcoatNormalMap)
+			else if (debugChannelOutput == 20 && extClearcoat && hasClearcoatNormalMap)
 				iso = texture(clearcoatNormalMap, getClearcoatNormalUV()).rgb;
-			else if (debugChannelOutput == 25 && extSpecular)
+			else if (debugChannelOutput == 21 && extSpecular)
 				iso = vec3(dbg.specularFactor);
-			else if (debugChannelOutput == 26 && extSpecular)
+			else if (debugChannelOutput == 22 && extSpecular)
 				iso = dbg.specularColor;
-			else if (debugChannelOutput == 27 && extAnisotropy)
+			else if (debugChannelOutput == 23 && extAnisotropy)
 				iso = vec3(dbg.anisotropyStrength);
 			else if (debugChannelOutput == 32 && extAnisotropy)
 			{
@@ -1001,15 +994,21 @@ void main()
 				else
 					iso = vec3(1.0, 0.5, 0.0); // default +X direction (1,0) remapped to [0,1]
 			}
-			else if (debugChannelOutput == 28 && extIridescence)
+			else if (debugChannelOutput == 24 && extIridescence)
 				iso = vec3(dbg.iridescenceFactor);
-			else if (debugChannelOutput == 29 && extIridescence)
+			else if (debugChannelOutput == 25 && extIridescence)
 				iso = vec3(dbg.iridescenceThickness / 1200.0);
+			else if (debugChannelOutput == 26 && extSheen)
+				iso = dbg.sheenColor;
+			else if (debugChannelOutput == 27 && extSheen)
+				iso = vec3(dbg.sheenRoughness);
+			else if (debugChannelOutput == 28 && extTransmission)
+				iso = vec3(dbg.transmission);
 			else if (debugChannelOutput == 30 && extVolume)
 				iso = vec3(dbg.thickness / max(pbrLighting.thicknessFactor, 0.001));
-			else if (debugChannelOutput == 31 && extDiffuseTrans)
+			else if (debugChannelOutput == 34 && extDiffuseTrans)
 				iso = vec3(dbg.diffuseTransmissionFactor);
-			else if (debugChannelOutput == 33 && extDiffuseTrans)
+			else if (debugChannelOutput == 35 && extDiffuseTrans)
 				iso = linearTosRGB(dbg.diffuseTransmissionColor);
 		}
 		fragColor = vec4(iso, 1.0);
