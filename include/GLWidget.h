@@ -231,7 +231,6 @@ public:
 	void resetTransformation(const std::vector<int>& ids);
 	void applyTransforms(const QMap<int, TransformState>& transforms);
 
-	void setTexture(const std::vector<int>& ids, const QImage& texImage);
 	void setSkyBoxTextureFolder(QString folder);
 	bool loadCubemapFromSingleHDR(const QString& filePath);
 	bool convertEquirectangularToCubemap(const QString& filePath);
@@ -631,6 +630,7 @@ private:
 	bool generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap);
 	void loadFloor();
 	void applyFloorPlaneMaterialSettings();
+	void syncFloorPlaneAlbedoTexture();
 	void updateMainLightPosition(float halfObjectSize);
 	float updateFloorGeometry();
 	void syncDefaultLightColorUniforms();
@@ -967,7 +967,7 @@ private:
 	unsigned int             _charlieLUTTexture   = 0;
 	unsigned int             _sheenELUTTexture    = 0;
 	// Texture units for the sheen LUTs. Preferred: 32/33 (no per-mesh conflict).
-	// Graceful fallback to 22/23 on hardware where GL_MAX_TEXTURE_IMAGE_UNITS < 34.
+	// Graceful fallback to 22/23 on hardware where GL_MAX_COMBINED_TEXTURE_IMAGE_UNITS < 34.
 	// Set once in initializeGL() after querying the driver.
 	int                      _charlieLUTUnit  = 32;
 	int                      _sheenELUTUnit   = 33;
