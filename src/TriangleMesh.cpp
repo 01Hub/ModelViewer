@@ -552,10 +552,6 @@ void TriangleMesh::setupTextures()
 	glActiveTexture(GL_TEXTURE29);
 	glBindTexture(GL_TEXTURE_2D, _material.hasIORMap() ? static_cast<GLuint>(_material.iorTextureId()) : 0U);
 
-	// thicknessMap on unit 30: rounds out the contiguous per-mesh block (10–30).
-	glActiveTexture(GL_TEXTURE30);
-	glBindTexture(GL_TEXTURE_2D, _material.hasThicknessMap() ? static_cast<GLuint>(_material.thicknessTextureId()) : 0U);
-
 	// Overflow material bundles (units 34+).
 	if (_material.hasDiffuseTransmissionMap()) {
 		glActiveTexture(GL_TEXTURE0 + 34);
@@ -647,6 +643,38 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("opacityMap", 15);
 	_prog->setUniformValue("roughnessMap", 16);
 	_prog->setUniformValue("aoMap", 17);
+
+	// Upload channel-packing parameters so the shader reads the correct channel
+	// with the correct scale/bias from each packed texture (e.g. ORM: R=AO, G=roughness, B=metallic).
+	// GLMaterial initialises sensible defaults (roughness→G, metallic→B, AO→R, all scale=1)
+	// and detectAndAssignPacking() updates them when multiple maps share the same file.
+	// Without this upload the GLSL uniforms zero-initialise (scale=0) and texture
+	// contributions are silently discarded, making all textured materials appear roughness≈0.
+	{
+		const auto& rp = _material.packingFor("roughness");
+		_prog->setUniformValue("roughnessChannel", rp.channel);
+		_prog->setUniformValue("roughnessInvert",  (int)rp.invert);
+		_prog->setUniformValue("roughnessScale",   rp.scale);
+		_prog->setUniformValue("roughnessBias",    rp.bias);
+
+		const auto& mp = _material.packingFor("metallic");
+		_prog->setUniformValue("metallicChannel", mp.channel);
+		_prog->setUniformValue("metallicInvert",  (int)mp.invert);
+		_prog->setUniformValue("metallicScale",   mp.scale);
+		_prog->setUniformValue("metallicBias",    mp.bias);
+
+		const auto& ap = _material.packingFor("ao");
+		_prog->setUniformValue("aoChannel", ap.channel);
+		_prog->setUniformValue("aoInvert",  (int)ap.invert);
+		_prog->setUniformValue("aoScale",   ap.scale);
+		_prog->setUniformValue("aoBias",    ap.bias);
+
+		const auto& op = _material.packingFor("opacity");
+		_prog->setUniformValue("opacityChannel", op.channel);
+		_prog->setUniformValue("opacityInvert",  (int)op.invert);
+		_prog->setUniformValue("opacityScale",   op.scale);
+		_prog->setUniformValue("opacityBias",    op.bias);
+	}
 	// Advanced PBR Maps
 	_prog->setUniformValue("clearcoatColorMap", 18);
 	_prog->setUniformValue("clearcoatRoughnessMap", 19);

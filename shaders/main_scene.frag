@@ -1545,6 +1545,19 @@ vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
 // Advanced PBR Functions
 
 // IOR-based Fresnel calculation
+// Energy-conserving mix for iridescent dielectric surfaces.
+// Matches Khronos glTF-Sample-Viewer functions.glsl rgb_mix().
+// Iridescent thin-film Fresnel varies per channel (e.g. R=0.9, G=0.1, B=0.8).
+// Plain mix() lets low-Fresnel channels retain most of the base (transmitted
+// light), inflating overall brightness. rgb_mix reduces the base by the MAX
+// channel Fresnel uniformly, so no channel retains more base than the most-
+// reflective channel allows, while per-channel specular coloring is preserved.
+vec3 rgb_mix(vec3 base, vec3 layer, vec3 rgb_alpha)
+{
+    float rgb_alpha_max = max(rgb_alpha.r, max(rgb_alpha.g, rgb_alpha.b));
+    return (1.0 - rgb_alpha_max) * base + rgb_alpha * layer;
+}
+
 vec3 fresnelSchlickIOR(float cosTheta, float ior)
 {
 	float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
@@ -3388,7 +3401,7 @@ void evaluateBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3
 		vec3 iridescenceFresnel_dielectric = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.dielectricF0);
 		vec3 iridescenceFresnel_metallic = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.baseColor);
 		l_metal_brdf = mix(l_metal_brdf, l_specular * iridescenceFresnel_metallic, params.iridescenceFactor);
-		l_dielectric_brdf = mix(l_dielectric_brdf, mix(l_diffuse, l_specular, iridescenceFresnel_dielectric), params.iridescenceFactor);
+		l_dielectric_brdf = mix(l_dielectric_brdf, rgb_mix(l_diffuse, l_specular, iridescenceFresnel_dielectric), params.iridescenceFactor);
 		diffuseOut = vec3(0.0);
 		specularOut = mix(l_dielectric_brdf, l_metal_brdf, params.metallic);
 	}
@@ -3519,7 +3532,7 @@ void evaluateBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 d
 		vec3 iridescenceFresnel_dielectric = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.dielectricF0);
 		vec3 iridescenceFresnel_metallic = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.baseColor);
 		f_metal_brdf_ibl = mix(f_metal_brdf_ibl, f_specular_metal * iridescenceFresnel_metallic, params.iridescenceFactor);
-		f_dielectric_brdf_ibl = mix(f_dielectric_brdf_ibl, mix(f_diffuse, f_specular_dielectric, iridescenceFresnel_dielectric), params.iridescenceFactor);
+		f_dielectric_brdf_ibl = mix(f_dielectric_brdf_ibl, rgb_mix(f_diffuse, f_specular_dielectric, iridescenceFresnel_dielectric), params.iridescenceFactor);
 	}
 
 	diffuseIBLOut = vec3(0.0);
