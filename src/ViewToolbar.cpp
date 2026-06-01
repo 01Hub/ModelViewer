@@ -471,6 +471,8 @@ ViewToolbar::ViewToolbar(QWidget* parent)
     _wireframe->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_W));
     _wireshaded = dispModeMenu->addAction(QIcon(":/icons/res/wireshaded.png"), tr("Wire Shaded"));
     _wireshaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_E));
+    _flatshaded = dispModeMenu->addAction(QIcon(":/icons/res/flat_shaded.png"), tr("Flat Shaded"));
+    _flatshaded->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F));
 
     connect(_realistic, &QAction::triggered, this,
         [this]() {
@@ -500,10 +502,18 @@ ViewToolbar::ViewToolbar(QWidget* parent)
         }
     );
 
+    connect(_flatshaded, &QAction::triggered, this,
+        [this]() {
+            _toolButtonDisplayModes->setDefaultAction(_flatshaded);
+            emit displayModeSelected("FlatShaded");
+        }
+    );
+
     _displayModeActions[DisplayModeActions::REALSHADED] = _realistic;
     _displayModeActions[DisplayModeActions::WIREFRAME] = _wireframe;
     _displayModeActions[DisplayModeActions::WIRESHADED] = _wireshaded;
     _displayModeActions[DisplayModeActions::SHADED] = _shaded;
+    _displayModeActions[DisplayModeActions::FLATSHADED] = _flatshaded;
 
     _toolButtonDisplayModes->setMenu(dispModeMenu);
     _toolButtonDisplayModes->setDefaultAction(_shaded);
@@ -855,6 +865,7 @@ void ViewToolbar::retranslateUI()
 	_shaded->setText(tr("Shaded"));
 	_wireframe->setText(tr("Wireframe"));
 	_wireshaded->setText(tr("Wire Shaded"));
+	_flatshaded->setText(tr("Flat Shaded"));
 
 	// Rendering Mode
 	_toolButtonRenderingMode->setToolTip(tr("Rendering Mode"));

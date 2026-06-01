@@ -13,7 +13,7 @@ enum class CameraModeActions { ORBIT, FLY, FIRST_PERSON };
 enum class NavigationActions { ROTATE, PAN, ZOOM };
 enum class StandardViewActions { TOP, FRONT, LEFT, BOTTOM, REAR, RIGHT };
 enum class ViewModeActions { ISOMETRIC, DIMETRIC, TRIMETRIC };
-enum class DisplayModeActions { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
+enum class DisplayModeActions { SHADED, WIREFRAME, WIRESHADED, REALSHADED, FLATSHADED };
 enum class RenderingModeActions { ADS, PBR };
 
 class ViewToolbar : public QWidget
@@ -126,6 +126,7 @@ private:
     QAction* _shaded;
     QAction* _wireframe;
     QAction* _wireshaded;
+    QAction* _flatshaded;
 
     // Other buttons
     QToolButton* _sectionBtn;

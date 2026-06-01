@@ -1,13 +1,12 @@
-#version 450 core
-#extension GL_EXT_geometry_shader : enable
-#extension GL_OES_geometry_shader : enable
+#version 330 core
 
 layout(triangles) in;
-layout(triangle_strip, max_vertices=6) out;
+layout(triangle_strip, max_vertices = 3) out;
 
 in vec3 v_position[];
 in vec3 v_normal[];
 in vec4 v_color[];
+in vec4 v_rawVertexColor[];
 in vec2 v_texCoord0[];
 in vec2 v_texCoord1[];
 in vec2 v_texCoord2[];
@@ -16,23 +15,11 @@ in vec3 v_tangent[];
 in vec3 v_bitangent[];
 in vec3 v_worldTangent[];
 in vec3 v_worldBitangent[];
-
-out vec3 g_normal;
-out vec3 g_position;
-out vec4 g_color;
-out vec2 g_texCoord0;
-out vec2 g_texCoord1;
-out vec2 g_texCoord2;
-out vec2 g_texCoord3;
-out vec3 g_tangent;
-out vec3 g_bitangent;
-out vec3 g_worldTangent;
-out vec3 g_worldBitangent;
-
-noperspective out vec3 g_edgeDistance;
-uniform mat4 viewportMatrix; // Viewport matrix
-
-uniform int displayMode;
+in vec3 v_reflectionPosition[];
+in vec3 v_reflectionNormal[];
+in vec3 v_tangentLightPos[];
+in vec3 v_tangentViewPos[];
+in vec3 v_tangentFragPos[];
 
 in VS_OUT_SHADOW {
     vec3 FragPos;
@@ -43,6 +30,26 @@ in VS_OUT_SHADOW {
     vec3 lightPos;
 } gs_in_shadow[];
 
+out vec3 g_position;
+out vec3 g_normal;
+out vec4 g_color;
+out vec4 g_rawVertexColor;
+out vec2 g_texCoord0;
+out vec2 g_texCoord1;
+out vec2 g_texCoord2;
+out vec2 g_texCoord3;
+out vec3 g_tangent;
+out vec3 g_bitangent;
+out vec3 g_worldTangent;
+out vec3 g_worldBitangent;
+out vec3 g_reflectionPosition;
+out vec3 g_reflectionNormal;
+out vec3 g_tangentLightPos;
+out vec3 g_tangentViewPos;
+out vec3 g_tangentFragPos;
+flat out vec3 g_flatNormal;
+flat out vec3 g_flatReflectionNormal;
+
 out GS_OUT_SHADOW {
     vec3 FragPos;
     vec3 Normal;
@@ -52,225 +59,70 @@ out GS_OUT_SHADOW {
     vec3 lightPos;
 } gs_out_shadow;
 
-in vec3  v_reflectionPosition[];
-out vec3 g_reflectionPosition;
+uniform mat4 viewMatrix;
 
-in vec3  v_reflectionNormal[];
-out vec3 g_reflectionNormal;
-
-in vec3 v_tangentLightPos[];
-in vec3 v_tangentViewPos[];
-in vec3 v_tangentFragPos[];
-out vec3 g_tangentLightPos;
-out vec3 g_tangentViewPos;
-out vec3 g_tangentFragPos;
-
-in float v_clipDistX[];
-in float v_clipDistY[];
-in float v_clipDistZ[];
-in float v_clipDist[];
-
-out float g_clipDistX;
-out float g_clipDistY;
-out float g_clipDistZ;
-out float g_clipDist;
+vec3 safeNormalize(vec3 value, vec3 fallback)
+{
+    float len = length(value);
+    if (len > 1e-8)
+        return value / len;
+    return fallback;
+}
 
 void main()
 {
-    // initialize to remove warning
-    g_edgeDistance = vec3(0);
-    gs_out_shadow.FragPos = vec3(0);
-    gs_out_shadow.Normal = vec3(0);
-    gs_out_shadow.TexCoords = vec2(0);
-    gs_out_shadow.FragPosLightSpace = vec4(0);
-    gs_out_shadow.cameraPos = vec3(0);
-    gs_out_shadow.lightPos = vec3(0);
-    g_reflectionPosition = vec3(0);
-    g_reflectionNormal = vec3(0);
-    g_tangentLightPos = vec3(0);
-    g_tangentViewPos = vec3(0);
-    g_tangentFragPos = vec3(0);
-    g_tangent = vec3(0);
-    g_bitangent = vec3(0);
-    g_worldTangent = vec3(0);
-    g_worldBitangent = vec3(0);
-    // end initialization
+    vec3 edge0 = v_position[1] - v_position[0];
+    vec3 edge1 = v_position[2] - v_position[0];
+    vec3 faceNormalWorld = cross(edge0, edge1);
 
-    if(displayMode == 2) // WireShaded
+    vec3 smoothWorldFallback = safeNormalize(
+        v_reflectionNormal[0] + v_reflectionNormal[1] + v_reflectionNormal[2],
+        vec3(0.0, 0.0, 1.0)
+    );
+    faceNormalWorld = safeNormalize(faceNormalWorld, smoothWorldFallback);
+
+    vec3 smoothViewFallback = safeNormalize(
+        v_normal[0] + v_normal[1] + v_normal[2],
+        vec3(0.0, 0.0, 1.0)
+    );
+    vec3 faceNormalView = safeNormalize(mat3(viewMatrix) * faceNormalWorld, smoothViewFallback);
+
+    for (int i = 0; i < gl_in.length(); ++i)
     {
-        // Transform each vertex into viewport space
-        vec3 p0 = vec3(viewportMatrix * (gl_in[0].gl_Position /
-        gl_in[0].gl_Position.w));
-        vec3 p1 = vec3(viewportMatrix * (gl_in[1].gl_Position /
-        gl_in[1].gl_Position.w));
-        vec3 p2 = vec3(viewportMatrix * (gl_in[2].gl_Position /
-        gl_in[2].gl_Position.w));
-        // Find the altitudes (ha, hb and hc)
-        float a = length(p1 - p2);
-        float b = length(p2 - p0);
-        float c = length(p1 - p0);
-        float alpha = acos( (b*b + c*c - a*a) / (2.0*b*c) );
-        float beta = acos( (a*a + c*c - b*b) / (2.0*a*c) );
-        float ha = abs( c * sin( beta ) );
-        float hb = abs( c * sin( alpha ) );
-        float hc = abs( b * sin( alpha ) );
+        g_position = v_position[i];
+        g_normal = v_normal[i];
+        g_color = v_color[i];
+        g_rawVertexColor = v_rawVertexColor[i];
+        g_texCoord0 = v_texCoord0[i];
+        g_texCoord1 = v_texCoord1[i];
+        g_texCoord2 = v_texCoord2[i];
+        g_texCoord3 = v_texCoord3[i];
+        g_tangent = v_tangent[i];
+        g_bitangent = v_bitangent[i];
+        g_worldTangent = v_worldTangent[i];
+        g_worldBitangent = v_worldBitangent[i];
+        g_reflectionPosition = v_reflectionPosition[i];
+        g_reflectionNormal = v_reflectionNormal[i];
+        g_tangentLightPos = v_tangentLightPos[i];
+        g_tangentViewPos = v_tangentViewPos[i];
+        g_tangentFragPos = v_tangentFragPos[i];
+        g_flatNormal = faceNormalView;
+        g_flatReflectionNormal = faceNormalWorld;
 
-        // Send the triangle along with the edge distances
-        g_edgeDistance = vec3( ha, 0, 0 );
-        g_normal = v_normal[0];
-        g_color = v_color[0];
-        g_texCoord0 = v_texCoord0[0];
-        g_texCoord1 = v_texCoord1[0];
-        g_texCoord2 = v_texCoord2[0];
-        g_texCoord3 = v_texCoord3[0];
-        g_position = v_position[0];
-        gl_Position = gl_in[0].gl_Position;
-        g_clipDistX = v_clipDistX[0];
-        g_clipDistY = v_clipDistY[0];
-        g_clipDistZ = v_clipDistZ[0];
-        g_clipDist =  v_clipDist[0];
+        gs_out_shadow.FragPos = gs_in_shadow[i].FragPos;
+        gs_out_shadow.Normal = gs_in_shadow[i].Normal;
+        gs_out_shadow.TexCoords = gs_in_shadow[i].TexCoords;
+        gs_out_shadow.FragPosLightSpace = gs_in_shadow[i].FragPosLightSpace;
+        gs_out_shadow.cameraPos = gs_in_shadow[i].cameraPos;
+        gs_out_shadow.lightPos = gs_in_shadow[i].lightPos;
 
-        g_tangent = v_tangent[0];
-        g_bitangent = v_bitangent[0];
-        g_worldTangent = v_worldTangent[0];
-        g_worldBitangent = v_worldBitangent[0];
-        g_reflectionPosition = v_reflectionPosition[0];
-        g_reflectionNormal = v_reflectionNormal[0];
-        g_tangentLightPos = v_tangentLightPos[0];
-        g_tangentViewPos = v_tangentViewPos[0];
-        g_tangentFragPos = v_tangentFragPos[0];
-        gs_out_shadow.FragPos = gs_in_shadow[0].FragPos;
-        gs_out_shadow.Normal = gs_in_shadow[0].Normal;
-        gs_out_shadow.TexCoords = gs_in_shadow[0].TexCoords;
-        gs_out_shadow.FragPosLightSpace = gs_in_shadow[0].FragPosLightSpace;
-        gs_out_shadow.cameraPos = gs_in_shadow[0].cameraPos;
-        gs_out_shadow.lightPos = gs_in_shadow[0].lightPos;
-
-        gl_ClipDistance[0] = g_clipDistX;
-        gl_ClipDistance[1] = g_clipDistY;
-        gl_ClipDistance[2] = g_clipDistZ;
-        gl_ClipDistance[3] = g_clipDist;
+        gl_Position = gl_in[i].gl_Position;
+        gl_ClipDistance[0] = gl_in[i].gl_ClipDistance[0];
+        gl_ClipDistance[1] = gl_in[i].gl_ClipDistance[1];
+        gl_ClipDistance[2] = gl_in[i].gl_ClipDistance[2];
+        gl_ClipDistance[3] = gl_in[i].gl_ClipDistance[3];
         EmitVertex();
-
-        g_edgeDistance = vec3( 0, hb, 0 );
-        g_normal = v_normal[1];
-        g_color  = v_color[1];
-        g_texCoord0 = v_texCoord0[1];
-        g_texCoord1 = v_texCoord1[1];
-        g_texCoord2 = v_texCoord2[1];
-        g_texCoord3 = v_texCoord3[1];
-        g_position = v_position[1];
-        gl_Position = gl_in[1].gl_Position;
-        g_clipDistX = v_clipDistX[1];
-        g_clipDistY = v_clipDistY[1];
-        g_clipDistZ = v_clipDistZ[1];
-        g_clipDist =  v_clipDist[1];
-
-        g_tangent = v_tangent[1];
-        g_bitangent = v_bitangent[1];
-        g_worldTangent = v_worldTangent[1];
-        g_worldBitangent = v_worldBitangent[1];
-        g_reflectionPosition = v_reflectionPosition[1];
-        g_reflectionNormal = v_reflectionNormal[1];
-        g_tangentLightPos = v_tangentLightPos[1];
-        g_tangentViewPos = v_tangentViewPos[1];
-        g_tangentFragPos = v_tangentFragPos[1];
-        gs_out_shadow.FragPos = gs_in_shadow[1].FragPos;
-        gs_out_shadow.Normal = gs_in_shadow[1].Normal;
-        gs_out_shadow.TexCoords = gs_in_shadow[1].TexCoords;
-        gs_out_shadow.FragPosLightSpace = gs_in_shadow[1].FragPosLightSpace;
-        gs_out_shadow.cameraPos = gs_in_shadow[1].cameraPos;
-        gs_out_shadow.lightPos = gs_in_shadow[1].lightPos;
-
-        gl_ClipDistance[0] = g_clipDistX;
-        gl_ClipDistance[1] = g_clipDistY;
-        gl_ClipDistance[2] = g_clipDistZ;
-        gl_ClipDistance[3] = g_clipDist;
-        EmitVertex();
-
-        g_edgeDistance = vec3( 0, 0, hc );
-        g_normal = v_normal[2];
-        g_color  = v_color[2];
-        g_texCoord0 = v_texCoord0[2];
-        g_texCoord1 = v_texCoord1[2];
-        g_texCoord2 = v_texCoord2[2];
-        g_texCoord3 = v_texCoord3[2];
-        g_position = v_position[2];
-        gl_Position = gl_in[2].gl_Position;
-        g_clipDistX = v_clipDistX[2];
-        g_clipDistY = v_clipDistY[2];
-        g_clipDistZ = v_clipDistZ[2];
-        g_clipDist =  v_clipDist[2];
-
-        g_tangent = v_tangent[2];
-        g_bitangent = v_bitangent[2];
-        g_worldTangent = v_worldTangent[2];
-        g_worldBitangent = v_worldBitangent[2];
-        g_reflectionPosition = v_reflectionPosition[2];
-        g_reflectionNormal = v_reflectionNormal[2];
-        g_tangentLightPos = v_tangentLightPos[2];
-        g_tangentViewPos = v_tangentViewPos[2];
-        g_tangentFragPos = v_tangentFragPos[2];
-        gs_out_shadow.FragPos = gs_in_shadow[2].FragPos;
-        gs_out_shadow.Normal = gs_in_shadow[2].Normal;
-        gs_out_shadow.TexCoords = gs_in_shadow[2].TexCoords;
-        gs_out_shadow.FragPosLightSpace = gs_in_shadow[2].FragPosLightSpace;
-        gs_out_shadow.cameraPos = gs_in_shadow[2].cameraPos;
-        gs_out_shadow.lightPos = gs_in_shadow[2].lightPos;
-
-        gl_ClipDistance[0] = g_clipDistX;
-        gl_ClipDistance[1] = g_clipDistY;
-        gl_ClipDistance[2] = g_clipDistZ;
-        gl_ClipDistance[3] = g_clipDist;
-        EmitVertex();
-
-        EndPrimitive();
     }
-    else
-    {
-        for(int i=0; i<gl_in.length(); i++)
-        {
-            g_normal = v_normal[i];
-            g_color  = v_color[i];
-            g_texCoord0 = v_texCoord0[i];
-            g_texCoord1 = v_texCoord1[i];
-            g_texCoord2 = v_texCoord2[i];
-            g_texCoord3 = v_texCoord3[i];
-            g_position = v_position[i];
-            gl_Position = gl_in[i].gl_Position;
 
-            g_clipDistX = v_clipDistX[i];
-            g_clipDistY = v_clipDistY[i];
-            g_clipDistZ = v_clipDistZ[i];
-            g_clipDist =  v_clipDist[i];
-
-            gl_ClipDistance[0] = g_clipDistX;
-            gl_ClipDistance[1] = g_clipDistY;
-            gl_ClipDistance[2] = g_clipDistZ;
-            gl_ClipDistance[3] = g_clipDist;
-
-            // Shadow mapping
-            gs_out_shadow.FragPos = gs_in_shadow[i].FragPos;
-            gs_out_shadow.Normal = gs_in_shadow[i].Normal;
-            gs_out_shadow.TexCoords = gs_in_shadow[i].TexCoords;
-            gs_out_shadow.FragPosLightSpace = gs_in_shadow[i].FragPosLightSpace;
-            gs_out_shadow.cameraPos = gs_in_shadow[i].cameraPos;
-            gs_out_shadow.lightPos = gs_in_shadow[i].lightPos;
-
-            // Cube environment mapping
-            g_reflectionPosition = v_reflectionPosition[i];
-            g_reflectionNormal = v_reflectionNormal[i];
-
-            g_tangentLightPos = v_tangentLightPos[i];
-            g_tangentViewPos = v_tangentViewPos[i];
-            g_tangentFragPos = v_tangentFragPos[i];
-            g_tangent = v_tangent[i];
-            g_bitangent = v_bitangent[i];
-            g_worldTangent = v_worldTangent[i];
-            g_worldBitangent = v_worldBitangent[i];
-
-            EmitVertex();
-        }
-        EndPrimitive();
-    }
+    EndPrimitive();
 }

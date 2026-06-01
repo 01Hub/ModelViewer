@@ -76,6 +76,7 @@
         <file>res/material_variants.png</file>
         <file>res/animations.png</file>
         <file>res/camera.png</file>
+        <file>res/flat_shaded.png</file>
     </qresource>
     <qresource prefix="/styles">
         <file>themes/DarkOrange.qss</file>

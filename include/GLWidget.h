@@ -44,7 +44,7 @@ class ModelViewer;
 
 enum class ViewMode { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK, ISOMETRIC, DIMETRIC, TRIMETRIC, NONE };
 enum class ViewProjection { ORTHOGRAPHIC, PERSPECTIVE };
-enum class DisplayMode { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
+enum class DisplayMode { SHADED, WIREFRAME, WIRESHADED, REALSHADED, FLATSHADED };
 enum class RenderingMode { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING };
 enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT };
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };

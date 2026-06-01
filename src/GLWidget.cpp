@@ -462,7 +462,8 @@ _assimpModelLoader(nullptr)
 		 if (type == "Realistic") setDisplayMode(DisplayMode::REALSHADED);
 		 else if (type == "Shaded") setDisplayMode(DisplayMode::SHADED);
 		 else if (type == "Wireframe") setDisplayMode(DisplayMode::WIREFRAME);
-		 else if (type == "WireShaded") setDisplayMode(DisplayMode::WIRESHADED);		 
+		 else if (type == "WireShaded") setDisplayMode(DisplayMode::WIRESHADED);
+		 else if (type == "FlatShaded") setDisplayMode(DisplayMode::FLATSHADED);
 		 });
 	 connect(this, &GLWidget::displayModeChanged, _viewer, &ModelViewer::onDisplayModeChanged);
 
@@ -4266,7 +4267,8 @@ void GLWidget::createShaderPrograms()
 	// Per fragment lighting
 	_fgShader = std::make_unique<ShaderProgram>(); _fgShader->setObjectName("_fgShader");
     _fgShader->loadCompileAndLinkShaderFromFile(path + "shaders/main_scene.vert",
-        path + "shaders/main_scene.frag");
+        path + "shaders/main_scene.frag",
+        path + "shaders/main_scene.geom");
 	// Axis
 	_axisShader = std::make_unique<ShaderProgram>(); _axisShader->setObjectName("_axisShader");
 	_axisShader->loadCompileAndLinkShaderFromFile(path + "shaders/axis.vert", path + "shaders/axis.frag");
@@ -7285,6 +7287,7 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		// ============================================
 	case DisplayMode::SHADED:
 	case DisplayMode::REALSHADED:
+	case DisplayMode::FLATSHADED:
 		// ============================================
 		// SHADED: Solid rendering only
 		// ============================================
