@@ -1081,6 +1081,7 @@ private:
 	QVector3D                _savedCameraRight;
 	GLCamera::ProjectionType _savedProjectionType = GLCamera::ProjectionType::PERSPECTIVE;
 	float                    _savedCameraFOV      = 45.0f;
+	float                    _savedCameraViewRange = 200.0f;
 
 	QTimer* _keyboardNavTimer;
 	QTimer* _animateViewTimer;
@@ -1181,6 +1182,9 @@ private:
 		float baselineRadius;
 		glm::mat4 accumulatedRotation;
 	} _lightRepoBasis;
+
+	float currentModelTransformScaleFactor() const;
+	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);
 
 	// Recycle bin (internal only - not exposed to user)
 	struct RecycleBinEntry

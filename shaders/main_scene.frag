@@ -723,7 +723,9 @@ SurfaceFrame  buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalU
 MaterialParams gatherMaterialParams();
 vec3  computeDielectricF0(float ior, float specularFactor, vec3 specularColor, bool useSpecGloss, vec3 specGlossSpecular);
 vec3  computeF90(float metallic, float specularFactor);
+float computeVolumeScaleFactor();
 float computeVolumeThickness(float thickness);
+float computeScaledAttenuationDistance(float attenuationDistance);
 vec3  computeBaseColor(vec2 uv,
 					   vec3 matBaseColor_linear,
 					   sampler2D albedoTex,
@@ -2072,15 +2074,9 @@ vec3 getVolumeTransmissionRay(vec3 n, vec3 v, float thickness, float ior, mat4 m
 	// Direction of refracted light (Snell's law)
 	vec3 refractionVector = refract(-v, normalize(n), 1.0 / ior);
 
-	// Compute rotation-independent scaling of the model matrix
-	vec3 modelScale;
-	modelScale.x = length(vec3(modelMatrix[0].xyz));
-	modelScale.y = length(vec3(modelMatrix[1].xyz));
-	modelScale.z = length(vec3(modelMatrix[2].xyz));
-
 	// The thickness is specified in local space
 	// Returns the world-space displacement vector
-	return normalize(refractionVector) * thickness * modelScale;
+	return normalize(refractionVector) * thickness * computeVolumeScaleFactor();
 }
 
 // ============================================================================
@@ -2829,12 +2825,21 @@ vec3 computeF90(float metallic, float specularFactor)
 	return mix(F90_dielectric, vec3(1.0), metallic);
 }
 
+float computeVolumeScaleFactor()
+{
+	return (length(vec3(modelMatrix[0].xyz)) +
+		length(vec3(modelMatrix[1].xyz)) +
+		length(vec3(modelMatrix[2].xyz))) / 3.0;
+}
+
 float computeVolumeThickness(float thickness)
 {
-	return thickness *
-		(length(vec3(modelMatrix[0].xyz)) +
-		 length(vec3(modelMatrix[1].xyz)) +
-		 length(vec3(modelMatrix[2].xyz))) / 3.0;
+	return thickness * computeVolumeScaleFactor();
+}
+
+float computeScaledAttenuationDistance(float attenuationDistance)
+{
+	return attenuationDistance * computeVolumeScaleFactor();
 }
 
 vec3 computeBaseColor(vec2 uv,
@@ -2889,7 +2894,7 @@ MaterialParams gatherMaterialParams()
 	params.diffuseTransmissionFactor = pbrLighting.diffuseTransmissionFactor;
 	params.diffuseTransmissionColor = pbrLighting.diffuseTransmissionColorFactor;
 	params.attenuationColor = pbrLighting.attenuationColor;
-	params.attenuationDistance = pbrLighting.attenuationDistance;
+	params.attenuationDistance = computeScaledAttenuationDistance(pbrLighting.attenuationDistance);
 	params.dispersion = pbrLighting.dispersion;
 	params.specularFactor = pbrLighting.specularFactor;
 	params.specularColor = pbrLighting.specularColorFactor;

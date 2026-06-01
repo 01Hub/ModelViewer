@@ -80,9 +80,11 @@ void TriangleMesh::cacheBaseVolumeProperties()
 
 void TriangleMesh::applyScaledVolumeProperties()
 {
-	const float appliedScale = (_scaleX + _scaleY + _scaleZ) / 3.0f;
-	_material.setThicknessFactor(_baseThicknessFactor * appliedScale);
-	_material.setAttenuationDistance(_baseAttenuationDistance * appliedScale);
+	// Runtime mesh scaling is already applied in the shader through modelMatrix
+	// when evaluating volume thickness/refraction. Keep the authored material
+	// values here to avoid double-applying user scale on the CPU.
+	_material.setThicknessFactor(_baseThicknessFactor);
+	_material.setAttenuationDistance(_baseAttenuationDistance);
 }
 
 void TriangleMesh::initBuffers(

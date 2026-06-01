@@ -2552,8 +2552,9 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	recalculateVisibleSceneStats(true);
 
 	// ===== CAPTURE BASELINE HERE - NOW BOUNDING SPHERE IS REAL =====
-	// Only capture if lights are present and baseline not yet set
-	if (!_originalParsedLights.empty() && _lightRepoBasis.baselineRadius <= 0.0f)
+	// Capture once per loaded scene so imported lights and glTF cameras can be
+	// compensated consistently when the user applies model-level transforms.
+	if (_lightRepoBasis.baselineRadius <= 0.0f)
 	{
 		_lightRepoBasis.baselineCenter = glm::vec3(
 			static_cast<float>(_boundingSphere.getCenter().x()),
@@ -2563,7 +2564,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 		_lightRepoBasis.baselineRadius = _boundingSphere.getRadius();
 		_lightRepoBasis.accumulatedRotation = glm::mat4(1.0f);
 
-		qDebug() << "Light repositioning basis captured in setDisplayList:";
+		qDebug() << "Model transform basis captured in setDisplayList:";
 		qDebug() << "  Baseline center: (" << _lightRepoBasis.baselineCenter.x
 			<< ", " << _lightRepoBasis.baselineCenter.y
 			<< ", " << _lightRepoBasis.baselineCenter.z << ")";
@@ -4253,9 +4254,21 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms)
 	// Update all dependent systems once
 	recalculateVisibleSceneStats(false);
 	updatePunctualLights();
+	if (isModelLevelTransform && isGltfCameraActive() && _viewer)
+	{
+		const GltfCameraData camData =
+			_viewer->sceneGraph()->gltfCameraDataForFile(_activeGltfCameraFile);
+		if (_activeGltfCameraIndex >= 0 && _activeGltfCameraIndex < camData.cameras.size())
+		{
+			applyGltfCameraEntryTransform(camData.cameras[_activeGltfCameraIndex]);
+		}
+	}
 	triggerShadowRecomputation();
 	updateFloorPlane();
-	fitAll();
+	if (!isGltfCameraActive())
+	{
+		fitAll();
+	}
 
 	doneCurrent();
 }
@@ -7834,36 +7847,13 @@ void GLWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
 		_savedCameraRight    = _primaryCamera->getRightVector();
 		_savedProjectionType = _primaryCamera->getProjectionType();
 		_savedCameraFOV      = _primaryCamera->getFOV();
+		_savedCameraViewRange = _primaryCamera->getViewRange();
 		_systemCameraStateSaved = true;
-	}
-
-	// Apply world-space position and orientation from the glTF camera entry.
-	//
-	// GLCamera in Orbit mode stores the ORBIT PIVOT in _position, not the eye.
-	// The actual eye position is: _position - _viewDir * orbitDistance.
-	// So to place the eye at worldPos we must pass
-	//   _position = worldPos + worldDir * orbitDistance
-	// which makes getRenderPosition() = worldPos exactly.
-	// In Fly / FirstPerson mode _position IS the eye, so no adjustment is needed.
-	const QVector3D right = QVector3D::crossProduct(cam.worldDirection, cam.worldUp).normalized();
-	const QVector3D pivotPos = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
-		? cam.worldPosition + cam.worldDirection * _primaryCamera->getOrbitDistance()
-		: cam.worldPosition;
-	_primaryCamera->setView(pivotPos, cam.worldDirection, cam.worldUp, right);
-
-	// Apply projection type and FOV / ortho scale.
-	if (cam.type == GltfCameraType::Perspective)
-	{
-		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
-		_primaryCamera->setFOV(qRadiansToDegrees(cam.fovYRadians));
-	}
-	else
-	{
-		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
 	}
 
 	_activeGltfCameraFile  = sourceFile;
 	_activeGltfCameraIndex = cameraIndex;
+	applyGltfCameraEntryTransform(cam);
 
 	update();
 }
@@ -7878,6 +7868,7 @@ void GLWidget::resetToSystemCamera()
 		                        _savedCameraRight);
 		_primaryCamera->setProjectionType(_savedProjectionType);
 		_primaryCamera->setFOV(_savedCameraFOV);
+		_primaryCamera->setViewRange(_savedCameraViewRange);
 		_systemCameraStateSaved = false;
 	}
 
@@ -7885,6 +7876,78 @@ void GLWidget::resetToSystemCamera()
 	_activeGltfCameraIndex = -1;
 
 	update();
+}
+
+float GLWidget::currentModelTransformScaleFactor() const
+{
+	if (_lightRepoBasis.baselineRadius <= 0.0f)
+		return 1.0f;
+
+	const float currentRadius = _boundingSphere.getRadius();
+	if (currentRadius <= 0.0f)
+		return 1.0f;
+
+	return currentRadius / _lightRepoBasis.baselineRadius;
+}
+
+void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
+{
+	if (!_primaryCamera)
+		return;
+
+	QVector3D worldPos = cam.worldPosition;
+	QVector3D worldDir = cam.worldDirection.normalized();
+	QVector3D worldUp  = cam.worldUp.normalized();
+	const float radiusDelta = currentModelTransformScaleFactor();
+
+	if (_lightRepoBasis.baselineRadius > 0.0f)
+	{
+		const glm::vec3 baselineCenter = _lightRepoBasis.baselineCenter;
+		const glm::vec3 currentCenter(
+			static_cast<float>(_boundingSphere.getCenter().x()),
+			static_cast<float>(_boundingSphere.getCenter().y()),
+			static_cast<float>(_boundingSphere.getCenter().z())
+		);
+		const glm::vec3 centerDelta = currentCenter - baselineCenter;
+
+		const glm::vec3 offsetFromBaseline(
+			worldPos.x() - baselineCenter.x,
+			worldPos.y() - baselineCenter.y,
+			worldPos.z() - baselineCenter.z
+		);
+		const glm::vec3 rotatedOffset = glm::vec3(
+			_lightRepoBasis.accumulatedRotation * glm::vec4(offsetFromBaseline, 0.0f));
+		const glm::vec3 transformedPos =
+			baselineCenter + rotatedOffset * radiusDelta + centerDelta;
+		worldPos = QVector3D(transformedPos.x, transformedPos.y, transformedPos.z);
+
+		const glm::vec3 rotatedDir = glm::normalize(glm::vec3(
+			_lightRepoBasis.accumulatedRotation * glm::vec4(worldDir.x(), worldDir.y(), worldDir.z(), 0.0f)));
+		const glm::vec3 rotatedUp = glm::normalize(glm::vec3(
+			_lightRepoBasis.accumulatedRotation * glm::vec4(worldUp.x(), worldUp.y(), worldUp.z(), 0.0f)));
+		worldDir = QVector3D(rotatedDir.x, rotatedDir.y, rotatedDir.z).normalized();
+		worldUp  = QVector3D(rotatedUp.x, rotatedUp.y, rotatedUp.z).normalized();
+	}
+
+	if (cam.type == GltfCameraType::Perspective)
+	{
+		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
+		_primaryCamera->setFOV(qRadiansToDegrees(cam.fovYRadians));
+	}
+	else
+	{
+		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
+		const float orthoRange = std::max(cam.xMag, cam.yMag) * 2.0f * radiusDelta;
+		_primaryCamera->setViewRange(std::max(orthoRange, 0.0001f));
+	}
+
+	const QVector3D right = QVector3D::crossProduct(worldDir, worldUp).normalized();
+	const QVector3D pivotPos = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+		? worldPos + worldDir * (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::ORTHOGRAPHIC
+			? _primaryCamera->getOrthoViewDistance()
+			: _primaryCamera->getOrbitDistance())
+		: worldPos;
+	_primaryCamera->setView(pivotPos, worldDir, worldUp, right);
 }
 
 void GLWidget::refreshAnimationMaterialState(const QString& sourceFile)
@@ -8381,13 +8444,11 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 					// glTF cameras look along local -Z; +Y is up.
 					const QVector3D worldDir   = world.mapVector(QVector3D(0.0f, 0.0f, -1.0f)).normalized();
 					const QVector3D worldUp    = world.mapVector(QVector3D(0.0f, 1.0f,  0.0f)).normalized();
-					const QVector3D worldRight = QVector3D::crossProduct(worldDir, worldUp).normalized();
-					// In Orbit mode _position is the pivot, not the eye; offset so
-					// that getRenderPosition() returns the true glTF camera position.
-					const QVector3D pivotPos = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
-						? worldPos + worldDir * _primaryCamera->getOrbitDistance()
-						: worldPos;
-					_primaryCamera->setView(pivotPos, worldDir, worldUp, worldRight);
+					GltfCameraEntry runtimeCam = cam;
+					runtimeCam.worldPosition = worldPos;
+					runtimeCam.worldDirection = worldDir;
+					runtimeCam.worldUp = worldUp;
+					applyGltfCameraEntryTransform(runtimeCam);
 				}
 			}
 		}
