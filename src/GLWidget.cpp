@@ -17,6 +17,7 @@
 #include "Plane.h"
 #include "Point.h"
 #include "Sphere.h"
+#include "ViewCubeMesh.h"
 #include "stb_image.h"
 #include "TangentGenerator.h"
 #include "TextRenderer.h"
@@ -26,6 +27,7 @@
 #include <QOpenGLContext>
 #include <QElapsedTimer>
 #include <QMessageBox>
+#include <QPainter>
 #include <QStyleFactory>
 #include <QThread>
 #include <QTreeView>
@@ -398,6 +400,8 @@ _irradianceShader(nullptr),
 _prefilterShader(nullptr),
 _brdfShader(nullptr),
 _lightCubeShader(nullptr),
+_viewCubeShader(nullptr),
+_viewCubeLabelShader(nullptr),
 _clippingPlaneShader(nullptr),
 _clippedMeshShader(nullptr),
 _selectionShader(nullptr),
@@ -857,6 +861,14 @@ GLWidget::~GLWidget()
 		glDeleteTextures(1, &_charlieLUTTexture);
 		glDeleteTextures(1, &_sheenELUTTexture);
 		glDeleteTextures(1, &_cappingTexture);
+		for (GLuint& labelTexture : _viewCubeLabelTextures)
+		{
+			if (labelTexture != 0)
+			{
+				glDeleteTextures(1, &labelTexture);
+				labelTexture = 0;
+			}
+		}
 
 		// Delete framebuffers and renderbuffers
 		if (_skyboxFBO != 0)
@@ -905,6 +917,13 @@ GLWidget::~GLWidget()
 			_conversionCubeVAO = 0;
 			_conversionCubeVBO = 0;
 		}
+		if (_viewCubeLabelVAO != 0)
+		{
+			glDeleteBuffers(1, &_viewCubeLabelVBO);
+			glDeleteVertexArrays(1, &_viewCubeLabelVAO);
+			_viewCubeLabelVAO = 0;
+			_viewCubeLabelVBO = 0;
+		}
 
 		// Delete scene objects
 		if (_clippingPlaneXY)
@@ -917,6 +936,8 @@ GLWidget::~GLWidget()
 			delete _floorPlane;
 		if (_axisCone)
 			delete _axisCone;
+		if (_viewCube)
+			delete _viewCube;
 		if (_skyBox)
 			delete _skyBox;
 		if (_lightCube)
@@ -1293,6 +1314,8 @@ void GLWidget::initializeGL()
 
 	float size = 15;
 	_axisCone = new Cone(_axisShader.get(), _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
+	_viewCube = new ViewCubeMesh(_viewCubeShader.get(), 1.0f);
+	initializeViewCubeLabels();
 
 	// Set lighting information
 	_fgShader->bind();
@@ -1450,6 +1473,8 @@ void GLWidget::paintGL()
 		{
 			renderSingleView(topColor, botColor);
 		}
+
+		drawViewCube();
 
 		// Text rendering
 		if (_meshStore.size() != 0)
@@ -4324,6 +4349,12 @@ void GLWidget::createShaderPrograms()
 	// Light Cube shader program
 	_lightCubeShader = std::make_unique<ShaderProgram>(); _lightCubeShader->setObjectName("_lightCubeShader");
 	_lightCubeShader->loadCompileAndLinkShaderFromFile(path + "shaders/light_cube.vert", path + "shaders/light_cube.frag");
+	// View Cube shader program
+	_viewCubeShader = std::make_unique<ShaderProgram>(); _viewCubeShader->setObjectName("_viewCubeShader");
+	_viewCubeShader->loadCompileAndLinkShaderFromFile(path + "shaders/viewcube.vert", path + "shaders/viewcube.frag");
+	// View Cube label shader program
+	_viewCubeLabelShader = std::make_unique<ShaderProgram>(); _viewCubeLabelShader->setObjectName("_viewCubeLabelShader");
+	_viewCubeLabelShader->loadCompileAndLinkShaderFromFile(path + "shaders/viewcube_label.vert", path + "shaders/viewcube_label.frag");
 	// Clipping Plane shader program
 	_clippingPlaneShader = std::make_unique<ShaderProgram>(); _clippingPlaneShader->setObjectName("_clippingPlaneShader");
 	_clippingPlaneShader->loadCompileAndLinkShaderFromFile(path + "shaders/clipping_plane.vert", path + "shaders/clipping_plane.frag");
@@ -6799,6 +6830,415 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_textShader->release();
 
 	glViewport(0, 0, width(), height());
+}
+
+QRect GLWidget::viewCubeRect() const
+{
+	const int side = std::max(96, std::min(std::min(width(), height()) / 5, 160));
+	const int padding = 18;
+	return QRect(width() - side - padding, padding, side, side);
+}
+
+QRect GLWidget::viewCubeScreenRect() const
+{
+	const QRect viewportRect = viewCubeRect();
+	return QRect(viewportRect.x(),
+	             height() - viewportRect.y() - viewportRect.height(),
+	             viewportRect.width(),
+	             viewportRect.height());
+}
+
+bool GLWidget::computeViewCubeRenderState(QRect& viewportRect,
+                                          QMatrix4x4& viewMatrix,
+                                          QMatrix4x4& projectionMatrix,
+                                          QMatrix4x4& modelMatrix,
+                                          float& cubeScale) const
+{
+	if (!_viewCube)
+		return false;
+
+	viewportRect = viewCubeRect();
+	if (viewportRect.width() <= 0 || viewportRect.height() <= 0)
+		return false;
+
+	QMatrix4x4 viewRotation = _viewMatrix;
+	viewRotation.setColumn(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
+	viewRotation.setRow(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
+
+	viewMatrix.setToIdentity();
+	viewMatrix.translate(0.0f, 0.0f, -3.6f);
+	viewMatrix *= viewRotation;
+
+	projectionMatrix.setToIdentity();
+	const float aspect = static_cast<float>(viewportRect.width()) / static_cast<float>(std::max(1, viewportRect.height()));
+	cubeScale = 1.0f;
+	if (_projection == ViewProjection::ORTHOGRAPHIC)
+	{
+		const float orthoHalfHeight = 1.2f;
+		const float orthoHalfWidth = orthoHalfHeight * aspect;
+		projectionMatrix.ortho(-orthoHalfWidth, orthoHalfWidth, -orthoHalfHeight, orthoHalfHeight, 0.1f, 10.0f);
+		cubeScale = 1.12f;
+	}
+	else
+	{
+		projectionMatrix.perspective(26.0f, aspect, 0.1f, 10.0f);
+		cubeScale = 0.90f;
+	}
+
+	modelMatrix.setToIdentity();
+	modelMatrix.scale(cubeScale);
+	return true;
+}
+
+bool GLWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
+{
+	if (!_primaryCamera || outwardNormal.lengthSquared() <= 1.0e-8f || isGltfCameraActive())
+		return false;
+
+	checkAndStopTimers();
+	_keyboardNavTimer->stop();
+
+	const QVector3D viewDir = -outwardNormal.normalized();
+	QVector3D upSeed(0.0f, 0.0f, 1.0f);
+	if (std::abs(QVector3D::dotProduct(viewDir, upSeed)) > 0.95f)
+		upSeed = viewDir.z() > 0.0f ? QVector3D(0.0f, -1.0f, 0.0f) : QVector3D(0.0f, 1.0f, 0.0f);
+
+	QVector3D right = QVector3D::crossProduct(viewDir, upSeed);
+	if (right.lengthSquared() <= 1.0e-8f)
+		right = QVector3D::crossProduct(viewDir, QVector3D(1.0f, 0.0f, 0.0f));
+	if (right.lengthSquared() <= 1.0e-8f)
+		return false;
+	right.normalize();
+	QVector3D up = QVector3D::crossProduct(right, viewDir).normalized();
+
+	QMatrix4x4 targetMatrix;
+	targetMatrix.setRow(0, QVector4D(right, 0.0f));
+	targetMatrix.setRow(1, QVector4D(up, 0.0f));
+	targetMatrix.setRow(2, QVector4D(-viewDir, 0.0f));
+	targetMatrix.setRow(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
+	_customTargetRotation = QQuaternion::fromRotationMatrix(targetMatrix.toGenericMatrix<3, 3>()).normalized();
+
+	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
+	if (!_meshStore.empty() && !visibleIds.empty())
+	{
+		QVector3D projCenter;
+		_viewBoundingSphereDia = computeFitViewRange(right, up, viewDir, &projCenter);
+		_boundingSphere.setCenter(projCenter);
+	}
+	else
+	{
+		_viewBoundingSphereDia = _currentViewRange;
+	}
+
+	_viewCubeAnimationActive = true;
+	_viewMode = ViewMode::NONE;
+	_slerpStep = 0.0f;
+	if (!_animateViewTimer->isActive())
+		_animateViewTimer->start(5);
+	return true;
+}
+
+bool GLWidget::handleViewCubeClick(const QPoint& pixel)
+{
+	if (!_viewCube || !_primaryCamera || !viewCubeScreenRect().contains(pixel) || isGltfCameraActive())
+		return false;
+
+	QVector3D outwardNormal;
+	int regionId = -1;
+	if (!pickViewCubeRegionAtPixel(pixel, outwardNormal, &regionId))
+		return true;
+
+	orientCameraToViewCubeNormal(outwardNormal);
+	return true;
+}
+
+bool GLWidget::pickViewCubeRegionAtPixel(const QPoint& pixel, QVector3D& outwardNormal, int* regionId) const
+{
+	outwardNormal = QVector3D();
+	if (regionId)
+		*regionId = -1;
+	if (!_viewCube || !_primaryCamera || !viewCubeScreenRect().contains(pixel) || isGltfCameraActive())
+		return false;
+
+	QRect viewportRect;
+	QMatrix4x4 viewMatrix;
+	QMatrix4x4 projectionMatrix;
+	QMatrix4x4 modelMatrix;
+	float cubeScale = 1.0f;
+	if (!computeViewCubeRenderState(viewportRect, viewMatrix, projectionMatrix, modelMatrix, cubeScale))
+		return false;
+
+	const int glX = pixel.x();
+	const int glY = height() - pixel.y() - 1;
+	const QVector3D nearPoint(glX, glY, 0.0f);
+	const QVector3D farPoint(glX, glY, 1.0f);
+	const QVector3D rayOrigin = nearPoint.unproject(viewMatrix, projectionMatrix, viewportRect);
+	const QVector3D rayFar = farPoint.unproject(viewMatrix, projectionMatrix, viewportRect);
+	QVector3D rayDir = rayFar - rayOrigin;
+	if (rayDir.lengthSquared() <= 1.0e-8f)
+		return false;
+	rayDir.normalize();
+
+	ViewCubeMesh::RegionHit hit;
+	if (!_viewCube->pickRegion(rayOrigin, rayDir, modelMatrix, hit))
+		return false;
+
+	outwardNormal = hit.outwardNormal;
+	if (regionId)
+		*regionId = hit.regionId;
+	return true;
+}
+
+void GLWidget::updateViewCubeHover(const QPoint& pixel, Qt::MouseButtons buttons)
+{
+	const int previousRegionId = _viewCubeHoveredRegionId;
+	if (buttons != Qt::NoButton || !_viewCube || isGltfCameraActive() || !viewCubeScreenRect().contains(pixel))
+	{
+		_viewCubeHoveredRegionId = -1;
+	}
+	else
+	{
+		QVector3D outwardNormal;
+		int regionId = -1;
+		_viewCubeHoveredRegionId = pickViewCubeRegionAtPixel(pixel, outwardNormal, &regionId) ? regionId : -1;
+	}
+
+	if (_viewCubeHoveredRegionId != previousRegionId)
+		update();
+}
+
+void GLWidget::initializeViewCubeLabels()
+{
+	if (!_viewCubeLabelShader)
+		return;
+
+	const std::array<QString, 6> labels = {
+		_labelTop, tr("Bottom"), _labelFront,
+		tr("Rear"), _labelLeft, tr("Right")
+	};
+
+	const TextureSamplerSettings samplers = {
+		GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR
+	};
+
+	for (GLuint& texture : _viewCubeLabelTextures)
+	{
+		if (texture != 0)
+		{
+			glDeleteTextures(1, &texture);
+			texture = 0;
+		}
+	}
+
+	for (int i = 0; i < static_cast<int>(labels.size()); ++i)
+	{
+		QImage image(256, 256, QImage::Format_RGBA8888);
+		image.fill(Qt::transparent);
+
+		QPainter painter(&image);
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		painter.setRenderHint(QPainter::TextAntialiasing, true);
+		QFont font(QStringLiteral("Arial"));
+		font.setBold(true);
+		font.setPixelSize(76);
+		font.setLetterSpacing(QFont::AbsoluteSpacing, 1.5);
+		painter.setFont(font);
+		painter.setPen(QColor(60, 60, 60, 235));
+		painter.drawText(image.rect(), Qt::AlignCenter, labels[i]);
+		painter.end();
+
+		_viewCubeLabelTextures[i] = uploadDecodedTextureImage(image, samplers);
+	}
+
+	if (_viewCubeLabelVAO == 0)
+		glGenVertexArrays(1, &_viewCubeLabelVAO);
+	if (_viewCubeLabelVBO == 0)
+		glGenBuffers(1, &_viewCubeLabelVBO);
+
+	const float quadVertices[] = {
+		-0.5f, -0.5f, 0.0f, 0.0f, 1.0f,
+		 0.5f, -0.5f, 0.0f, 1.0f, 1.0f,
+		 0.5f,  0.5f, 0.0f, 1.0f, 0.0f,
+		-0.5f, -0.5f, 0.0f, 0.0f, 1.0f,
+		 0.5f,  0.5f, 0.0f, 1.0f, 0.0f,
+		-0.5f,  0.5f, 0.0f, 0.0f, 0.0f
+	};
+
+	glBindVertexArray(_viewCubeLabelVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, _viewCubeLabelVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), reinterpret_cast<void*>(0));
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), reinterpret_cast<void*>(3 * sizeof(float)));
+	glBindVertexArray(0);
+}
+
+void GLWidget::drawViewCube()
+{
+	if (!_viewCube || !_viewCubeShader)
+		return;
+
+	QRect viewportRect;
+	QMatrix4x4 viewMatrix;
+	QMatrix4x4 projectionMatrix;
+	QMatrix4x4 modelMatrix;
+	float cubeScale = 1.0f;
+	if (!computeViewCubeRenderState(viewportRect, viewMatrix, projectionMatrix, modelMatrix, cubeScale))
+		return;
+
+	int prevViewport[4];
+	glGetIntegerv(GL_VIEWPORT, prevViewport);
+
+	GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+	GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+	GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+	GLboolean scissorWasEnabled = glIsEnabled(GL_SCISSOR_TEST);
+	GLboolean stencilWasEnabled = glIsEnabled(GL_STENCIL_TEST);
+	GLboolean polygonOffsetFillWasEnabled = glIsEnabled(GL_POLYGON_OFFSET_FILL);
+	GLboolean depthMask = GL_TRUE;
+	GLboolean colorMask[4] = { GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE };
+	GLint frontFaceMode = GL_CCW;
+	GLint cullFaceMode = GL_BACK;
+	glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMask);
+	glGetBooleanv(GL_COLOR_WRITEMASK, colorMask);
+	glGetIntegerv(GL_FRONT_FACE, &frontFaceMode);
+	glGetIntegerv(GL_CULL_FACE_MODE, &cullFaceMode);
+
+	glEnable(GL_SCISSOR_TEST);
+	glScissor(viewportRect.x(), viewportRect.y(), viewportRect.width(), viewportRect.height());
+	glClear(GL_DEPTH_BUFFER_BIT);
+	glViewport(viewportRect.x(), viewportRect.y(), viewportRect.width(), viewportRect.height());
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_CULL_FACE);
+	glDisable(GL_BLEND);
+	glDisable(GL_STENCIL_TEST);
+	glDisable(GL_POLYGON_OFFSET_FILL);
+	glDepthMask(GL_TRUE);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glFrontFace(GL_CCW);
+	glCullFace(GL_BACK);
+	_viewCube->setSceneRenderTransformFast(modelMatrix);
+	_viewCube->setProg(_viewCubeShader.get());
+
+	_viewCubeShader->bind();
+	_viewCubeShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+	_viewCubeShader->setProperty("viewMatrix", QVariant::fromValue(viewMatrix));
+	_viewCubeShader->setUniformValue("viewMatrix", viewMatrix);
+	_viewCubeShader->setUniformValue("projectionMatrix", projectionMatrix);
+	_viewCubeShader->setUniformValue("lightDirView", QVector3D(0.0f, 0.0f, 1.0f));
+	_viewCubeShader->setUniformValue("baseColor", QVector3D(0.92f, 0.92f, 0.92f));
+	_viewCubeShader->setUniformValue("ambientStrength", 0.45f);
+	_viewCubeShader->setUniformValue("diffuseStrength", 0.55f);
+	_viewCube->render();
+	_viewCubeShader->setUniformValue("baseColor", QVector3D(0.90f, 0.76f, 0.10f));
+	_viewCubeShader->setUniformValue("ambientStrength", 0.38f);
+	_viewCubeShader->setUniformValue("diffuseStrength", 0.62f);
+	for (int regionId = 0; regionId < _viewCube->regionCount(); ++regionId)
+	{
+		if (_viewCube->isPrimaryFaceRegion(regionId))
+			_viewCube->renderRegion(regionId);
+	}
+	if (_viewCubeHoveredRegionId >= 0)
+	{
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glDisable(GL_CULL_FACE);
+		_viewCubeShader->setUniformValue("baseColor", QVector3D(0.74f, 0.96f, 0.18f));
+		_viewCubeShader->setUniformValue("ambientStrength", 0.75f);
+		_viewCubeShader->setUniformValue("diffuseStrength", 0.25f);
+		_viewCube->renderRegion(_viewCubeHoveredRegionId);
+		glDisable(GL_BLEND);
+		if (cullWasEnabled)
+			glEnable(GL_CULL_FACE);
+	}
+	drawViewCubeLabels(viewMatrix, projectionMatrix, cubeScale);
+
+	if (!depthWasEnabled)
+		glDisable(GL_DEPTH_TEST);
+	glDepthMask(depthMask);
+	glColorMask(colorMask[0], colorMask[1], colorMask[2], colorMask[3]);
+	if (cullWasEnabled)
+		glEnable(GL_CULL_FACE);
+	else
+		glDisable(GL_CULL_FACE);
+	glCullFace(cullFaceMode);
+	glFrontFace(frontFaceMode);
+	if (blendWasEnabled)
+		glEnable(GL_BLEND);
+	if (stencilWasEnabled)
+		glEnable(GL_STENCIL_TEST);
+	if (polygonOffsetFillWasEnabled)
+		glEnable(GL_POLYGON_OFFSET_FILL);
+	if (!scissorWasEnabled)
+		glDisable(GL_SCISSOR_TEST);
+
+	glViewport(prevViewport[0], prevViewport[1], prevViewport[2], prevViewport[3]);
+}
+
+void GLWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale)
+{
+	if (!_viewCubeLabelShader || _viewCubeLabelVAO == 0)
+		return;
+
+	const std::array<QMatrix4x4, 6> labelTransforms = [cubeScale]() {
+		std::array<QMatrix4x4, 6> transforms;
+		const float offset = 0.501f * cubeScale;
+		const float scale = 0.68f * cubeScale;
+
+		auto faceTransform = [offset, scale](const QVector3D& center,
+			const QVector3D& right,
+			const QVector3D& up,
+			const QVector3D& normal) {
+			QMatrix4x4 matrix;
+			matrix.setColumn(0, QVector4D(right.normalized() * scale, 0.0f));
+			matrix.setColumn(1, QVector4D(up.normalized() * scale, 0.0f));
+			matrix.setColumn(2, QVector4D(normal.normalized(), 0.0f));
+			matrix.setColumn(3, QVector4D(center + normal.normalized() * offset, 1.0f));
+			return matrix;
+		};
+
+		// Viewer convention is Z-up:
+		// Top    = +Z, Bottom = -Z, Front = -Y, Rear = +Y, Left = -X, Right = +X.
+		transforms[0] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1.0f, 0.0f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f));
+		transforms[1] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f), QVector3D(0.0f, 0.0f, -1.0f));
+		transforms[2] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(0.0f, -1.0f, 0.0f));
+		transforms[3] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(-1.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(0.0f, 1.0f, 0.0f));
+		transforms[4] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(-1.0f, 0.0f, 0.0f));
+		transforms[5] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(1.0f, 0.0f, 0.0f));
+
+		return transforms;
+	}();
+
+	GLboolean blendWasEnabled = glIsEnabled(GL_BLEND);
+	GLboolean cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glDisable(GL_CULL_FACE);
+
+	_viewCubeLabelShader->bind();
+	_viewCubeLabelShader->setUniformValue("viewMatrix", viewMatrix);
+	_viewCubeLabelShader->setUniformValue("projectionMatrix", projectionMatrix);
+	_viewCubeLabelShader->setUniformValue("labelTexture", 0);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindVertexArray(_viewCubeLabelVAO);
+
+	for (int i = 0; i < static_cast<int>(_viewCubeLabelTextures.size()); ++i)
+	{
+		if (_viewCubeLabelTextures[i] == 0)
+			continue;
+		glBindTexture(GL_TEXTURE_2D, _viewCubeLabelTextures[i]);
+		_viewCubeLabelShader->setUniformValue("modelMatrix", labelTransforms[i]);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+	}
+
+	glBindVertexArray(0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	if (!blendWasEnabled)
+		glDisable(GL_BLEND);
+	if (cullWasEnabled)
+		glEnable(GL_CULL_FACE);
 }
 
 void GLWidget::drawLights()
@@ -9682,6 +10122,7 @@ void GLWidget::checkAndStopTimers()
 		_currentTranslation = _primaryCamera->getPosition();
 		_currentViewRange = _viewRange;
 		_slerpStep = 0.0f;
+		_viewCubeAnimationActive = false;
 		emit rotationsSet();
 	}
 	if (_animateFitAllTimer->isActive())
@@ -9780,6 +10221,14 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 
 	if (e->button() & Qt::LeftButton)
 	{
+		const QPoint clickPoint(e->position().x(), e->position().y());
+		if (!(e->modifiers() & Qt::ControlModifier) && !(e->modifiers() & Qt::ShiftModifier)
+			&& !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming
+			&& handleViewCubeClick(clickPoint))
+		{
+			return;
+		}
+
 		_leftButtonPoint.setX(e->position().x());
 		_leftButtonPoint.setY(e->position().y());
 
@@ -9791,7 +10240,7 @@ void GLWidget::mousePressEvent(QMouseEvent* e)
 			&& !_windowZoomActive && !_viewRotating && !_viewPanning && !_viewZooming)
 		{
 			// Selection
-			_selectionManager->clickSelect(QPoint(e->position().x(), e->position().y()));
+			_selectionManager->clickSelect(clickPoint);
 		}
 
 
@@ -10043,6 +10492,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		_lowResEnabled = false;
 	}
 
+	updateViewCubeHover(e->pos(), e->buttons());
+
 
 	// Auto-hide/show the view toolbar
 	if (_viewToolbar && e->buttons() == Qt::NoButton)
@@ -10099,8 +10550,11 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	// Hover highlight feedback (visual preview, independent of actual selection)
 	if (e->buttons() == Qt::NoButton && _selectionManager->getHoverMode() != HoverHighlightMode::Disabled)
 	{
-		// Compute hovered mesh (SelectionManager will emit hoverChanged signal if it changed)
-		_selectionManager->hoverSelect(e->pos());
+		if (!viewCubeScreenRect().contains(e->pos()))
+		{
+			// Compute hovered mesh (SelectionManager will emit hoverChanged signal if it changed)
+			_selectionManager->hoverSelect(e->pos());
+		}
 	}
 
 	update();
@@ -10329,6 +10783,12 @@ void GLWidget::animateViewChange()
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
+	if (_viewCubeAnimationActive)
+	{
+		animateToRotation(_customTargetRotation);
+		resizeGL(width(), height());
+		return;
+	}
 	if (_viewMode == ViewMode::TOP)
 	{
 		setRotations(0.0f, 0.0f, 0.0f);
@@ -11188,23 +11648,18 @@ void GLWidget::fitBoxToScreen(const BoundingBox& box)
 }
 
 
-void GLWidget::setRotations(float xRot, float yRot, float zRot)
+void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 {
-	// Rotation
-	QQuaternion targetRotation = QQuaternion::fromEulerAngles(yRot, zRot, xRot); //Pitch, Yaw, Roll
 	QQuaternion curRot = QQuaternion::slerp(_currentRotation, targetRotation, _slerpStep += _slerpFrac);
 
-	// Set camera vectors
 	QMatrix4x4 rotMat = QMatrix4x4(curRot.toRotationMatrix());
 	QVector3D viewDir = -rotMat.row(2).toVector3D();
 	QVector3D upDir = rotMat.row(1).toVector3D();
 	QVector3D rightDir = rotMat.row(0).toVector3D();
 
-	// Set zoom
 	float scaleStep = (_currentViewRange - _viewBoundingSphereDia) * _slerpFrac;
 	_viewRange -= scaleStep;
 
-	// Translation
 	QVector3D curPos;
 	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
 		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
@@ -11243,21 +11698,23 @@ void GLWidget::setRotations(float xRot, float yRot, float zRot)
 		}
 		else
 		{
-			QMatrix4x4 rotMat = QMatrix4x4(curRot.toRotationMatrix());
-			QVector3D viewDir = -rotMat.row(2).toVector3D();
-			QVector3D upDir = rotMat.row(1).toVector3D();
-			QVector3D rightDir = rotMat.row(0).toVector3D();
 			_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
 		}
 
-		// Set all defaults
 		_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
 		_currentTranslation = _primaryCamera->getPosition();
 		_currentViewRange = _viewRange;
 		_slerpStep = 0.0f;
+		_viewCubeAnimationActive = false;
 
 		emit rotationsSet();
 	}
+}
+
+void GLWidget::setRotations(float xRot, float yRot, float zRot)
+{
+	QQuaternion targetRotation = QQuaternion::fromEulerAngles(yRot, zRot, xRot); //Pitch, Yaw, Roll
+	animateToRotation(targetRotation);
 }
 
 void GLWidget::setZoomAndPan(float zoom, QVector3D pan)

@@ -20,6 +20,7 @@
 #include <QPointer>
 #include <QRubberBand>
 #include <QSet>
+#include <array>
 #include "ViewToolbar.h"
 #include "SceneUtils.h"
 #include "GLLights.h"
@@ -37,6 +38,7 @@ class Plane;
 class Cube;
 class Cone;
 class Sphere;
+class ViewCubeMesh;
 
 class AssImpModelLoader;
 
@@ -674,6 +676,8 @@ private:
 	void drawFaceNormals();
 	void drawAxis();
 	void drawCornerAxis(CornerAxisPosition position);
+	void drawViewCube();
+	void drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4& projectionMatrix, float cubeScale);
 	void drawLights();
 
 	void bindIBLTextures();
@@ -687,9 +691,22 @@ private:
 		float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle);
 
 	void loadBgColorSettings();
+	QRect viewCubeRect() const;
+	QRect viewCubeScreenRect() const;
+	void initializeViewCubeLabels();
+	bool computeViewCubeRenderState(QRect& viewportRect,
+	                               QMatrix4x4& viewMatrix,
+	                               QMatrix4x4& projectionMatrix,
+	                               QMatrix4x4& modelMatrix,
+	                               float& cubeScale) const;
+	bool pickViewCubeRegionAtPixel(const QPoint& pixel, QVector3D& outwardNormal, int* regionId = nullptr) const;
+	bool handleViewCubeClick(const QPoint& pixel);
+	void updateViewCubeHover(const QPoint& pixel, Qt::MouseButtons buttons);
+	bool orientCameraToViewCubeNormal(const QVector3D& outwardNormal);
 
 	void splitScreen();
 
+	void animateToRotation(const QQuaternion& targetRotation);
 	void setRotations(float xRot, float yRot, float zRot);
 	void setZoomAndPan(float zoom, QVector3D pan);
 	void setView(QVector3D viewPos, QVector3D viewDir, QVector3D upDir, QVector3D rightDir);
@@ -807,6 +824,7 @@ private:
 
 	QVector3D _currentTranslation;
 	QQuaternion _currentRotation;
+	QQuaternion _customTargetRotation;
 	float _slerpStep;
 	float _slerpFrac;
 
@@ -948,6 +966,8 @@ private:
 	std::unique_ptr<ShaderProgram> _sheenPrefilterShader;
 	std::unique_ptr<ShaderProgram> _brdfShader;
 	std::unique_ptr<ShaderProgram> _lightCubeShader;
+	std::unique_ptr<ShaderProgram> _viewCubeShader;
+	std::unique_ptr<ShaderProgram> _viewCubeLabelShader;
 	std::unique_ptr<ShaderProgram> _clippingPlaneShader;
 	std::unique_ptr<ShaderProgram> _clippedMeshShader;
 	std::unique_ptr<ShaderProgram> _selectionShader;
@@ -1120,6 +1140,12 @@ private:
 	float _anisotropicFilteringLevel = 16.0f;
 
 	Cone* _axisCone;
+	ViewCubeMesh* _viewCube = nullptr;
+	int _viewCubeHoveredRegionId = -1;
+	bool _viewCubeAnimationActive = false;
+	std::array<GLuint, 6> _viewCubeLabelTextures = { 0, 0, 0, 0, 0, 0 };
+	GLuint _viewCubeLabelVAO = 0;
+	GLuint _viewCubeLabelVBO = 0;
 
 	Cube* _lightCube;
 	Sphere* _lightSphere;
