@@ -18,6 +18,7 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QSet>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QRegularExpression>
@@ -76,6 +77,147 @@ struct GltfPrimitiveVertexBasis
 	std::vector<glm::vec3> normals;
 	std::vector<glm::vec3> tangents;
 };
+
+struct GltfPrimitiveReference
+{
+	int meshIndex = -1;
+	int primitiveIndex = -1;
+};
+
+QVector<GltfPrimitiveReference> parsePrimitiveReferencesFromMeshName(const QString& meshName)
+{
+	static const QRegularExpression primitiveRefPattern(
+		QStringLiteral(R"(meshes\[(\d+)\]-(\d+))"));
+
+	QVector<GltfPrimitiveReference> refs;
+	QSet<QString> seenRefs;
+	auto it = primitiveRefPattern.globalMatch(meshName);
+	while (it.hasNext())
+	{
+		const QRegularExpressionMatch match = it.next();
+		if (!match.hasMatch())
+			continue;
+
+		const QString key = match.captured(0);
+		if (seenRefs.contains(key))
+			continue;
+
+		seenRefs.insert(key);
+		refs.append({
+			match.captured(1).toInt(),
+			match.captured(2).toInt()
+		});
+	}
+
+	return refs;
+}
+
+bool resolveSingleGltfMaterialFromPrimitiveRefs(const QVector<GltfPrimitiveReference>& refs,
+	const QJsonArray& jsonMeshes,
+	int& outMaterialIndex)
+{
+	bool materialAssigned = false;
+	int resolvedMaterial = -1;
+
+	for (const GltfPrimitiveReference& ref : refs)
+	{
+		if (ref.meshIndex < 0 || ref.meshIndex >= jsonMeshes.size())
+			return false;
+
+		const QJsonArray primitives =
+			jsonMeshes.at(ref.meshIndex).toObject().value("primitives").toArray();
+		if (ref.primitiveIndex < 0 || ref.primitiveIndex >= primitives.size())
+			return false;
+
+		const QJsonObject primObj = primitives.at(ref.primitiveIndex).toObject();
+		const int materialIndex = primObj.contains("material")
+			? primObj.value("material").toInt(-1)
+			: -1;
+
+		if (!materialAssigned)
+		{
+			resolvedMaterial = materialIndex;
+			materialAssigned = true;
+		}
+		else if (resolvedMaterial != materialIndex)
+		{
+			return false;
+		}
+	}
+
+	if (!materialAssigned)
+		return false;
+
+	outMaterialIndex = resolvedMaterial;
+	return resolvedMaterial >= 0;
+}
+
+bool resolveSingleGltfMaterialFromMeshName(const QString& aiMeshName,
+	const QJsonArray& jsonMeshes,
+	const QMap<QString, int>& meshNameToUniqueIndex,
+	int& outMaterialIndex)
+{
+	auto resolveFromMeshIndex = [&](int meshIndex, int primitiveIndex) -> bool
+	{
+		if (meshIndex < 0 || meshIndex >= jsonMeshes.size())
+			return false;
+
+		const QJsonArray primitives =
+			jsonMeshes.at(meshIndex).toObject().value("primitives").toArray();
+		if (primitives.isEmpty())
+			return false;
+
+		if (primitiveIndex >= 0)
+		{
+			if (primitiveIndex >= primitives.size())
+				return false;
+
+			const QJsonObject primObj = primitives.at(primitiveIndex).toObject();
+			outMaterialIndex = primObj.contains("material")
+				? primObj.value("material").toInt(-1)
+				: -1;
+			return outMaterialIndex >= 0;
+		}
+
+		int resolvedMaterial = -1;
+		for (const QJsonValue& primVal : primitives)
+		{
+			const QJsonObject primObj = primVal.toObject();
+			const int materialIndex = primObj.contains("material")
+				? primObj.value("material").toInt(-1)
+				: -1;
+
+			if (resolvedMaterial < 0)
+				resolvedMaterial = materialIndex;
+			else if (resolvedMaterial != materialIndex)
+				return false;
+		}
+
+		outMaterialIndex = resolvedMaterial;
+		return resolvedMaterial >= 0;
+	};
+
+	const auto exactIt = meshNameToUniqueIndex.find(aiMeshName);
+	if (exactIt != meshNameToUniqueIndex.end() &&
+		resolveFromMeshIndex(exactIt.value(), -1))
+	{
+		return true;
+	}
+
+	static const QRegularExpression primitiveSuffixPattern(
+		QStringLiteral(R"(^(.*)-(\d+)$)"));
+	const QRegularExpressionMatch match = primitiveSuffixPattern.match(aiMeshName);
+	if (!match.hasMatch())
+		return false;
+
+	const QString baseName = match.captured(1);
+	const int primitiveIndex = match.captured(2).toInt();
+	const auto baseIt = meshNameToUniqueIndex.find(baseName);
+	if (baseIt == meshNameToUniqueIndex.end())
+		return false;
+
+	return resolveFromMeshIndex(baseIt.value(), primitiveIndex);
+}
 
 std::vector<unsigned int> buildMorphVertexRemap(const std::vector<Vertex>& importedVertices,
 	const GltfPrimitiveVertexBasis& sourceBasis)
@@ -735,16 +877,31 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	else // all Assimp models
 	{
 		// Read file via ASSIMP
-		_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
-		_scene = _importer.ReadFile(path, aiProcess_CalcTangentSpace |
-			aiProcess_GenSmoothNormals |
-			aiProcess_FixInfacingNormals |
+		// For glTF/GLB: normals come from the file spec; don't auto-generate smooth normals
+		// so that positions-only meshes keep zero normals and the shader can derive
+		// flat face normals via screen-space derivatives (dFdx/dFdy).
+		QString qPathCheck = QString::fromStdString(path);
+		bool isGltfFile = qPathCheck.endsWith(".gltf", Qt::CaseInsensitive) ||
+		                  qPathCheck.endsWith(".glb",  Qt::CaseInsensitive);
+
+		unsigned int importFlags = aiProcess_CalcTangentSpace |
 			aiProcess_JoinIdenticalVertices |
 			aiProcess_OptimizeMeshes |
 			aiProcess_ImproveCacheLocality |
 			aiProcess_Triangulate |
 			aiProcess_GenUVCoords |
-			aiProcess_SortByPType);
+			aiProcess_SortByPType;
+
+		if (!isGltfFile)
+		{
+			// glTF models have correct normals by design; FixInfacingNormals would flip
+			// inward-facing normals on interior geometry (e.g. sky domes) and break them.
+			importFlags |= aiProcess_FixInfacingNormals;
+			_importer.SetPropertyFloat("PP_GSN_MAX_SMOOTHING_ANGLE", 15);
+			importFlags |= aiProcess_GenSmoothNormals;
+		}
+
+		_scene = _importer.ReadFile(path, importFlags);
 	}
 
 	// Check for errors
@@ -805,10 +962,15 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		parseSceneAnimations();
 		_preserveNodeTransformsForRuntime =
 			(_animationData.hasNodeAnimations || _animationData.hasSkinning);
+		// parseSceneCameras() is deferred to after applyCoordinateSystemTransformations()
+		// so that findNodeWorldTransform() sees the corrected root-node matrix
+		// (auto-orient rotation + auto-scale) that is also applied to mesh vertices.
+		_cameraData = GltfCameraData();
 	}
 	else
 	{
 		_animationData = GltfAnimationData();
+		_cameraData    = GltfCameraData();
 		_preserveNodeTransformsForRuntime = false;
 	}
 
@@ -826,6 +988,13 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 	// check if auto scaling is active and apply it
 	applyCoordinateSystemTransformations(path);
+
+	// Parse cameras AFTER the coordinate-system correction so that
+	// findNodeWorldTransform() accumulates the corrected root-node matrix
+	// (auto-orient rotation + auto-scale already baked into mRootNode->mTransformation).
+	// This keeps the stored worldPosition / worldDirection / worldUp in the same
+	// world space that mesh vertices occupy after applyCoordinateSystemTransformations().
+	parseSceneCameras();
 
 	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
 	{
@@ -1074,7 +1243,12 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	bool canGenerateNormals = HasSurfaceGeometry(mesh);
 	std::vector<glm::vec3> generatedNormals;
 
-	if (!hasNormals && canGenerateNormals)
+	// Positions-only meshes have no normals and no UV coordinates.
+	// Keep their normals at zero so the fragment shader can derive flat face
+	// normals via dFdx/dFdy derivatives, giving correct flat shading.
+	bool isPositionsOnly = !hasNormals && !mesh->HasTextureCoords(0);
+
+	if (!hasNormals && canGenerateNormals && !isPositionsOnly)
 	{
 		GenerateFaceNormals(mesh, generatedNormals);
 		printf("Generated normals for mesh with %u vertices and %u faces\n",
@@ -1149,14 +1323,15 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		}
 		else
 		{
-			if (isNonTrianglePrimitive)
+			if (isNonTrianglePrimitive || isPositionsOnly)
 			{
-				// Points, lines, etc. - use null normal to indicate "no lighting"
-				vertex.Normal = glm::vec3(0.0f, 0.0f, 0.0f);				
+				// Points/lines and positions-only triangles: zero normal so the
+				// fragment shader computes flat face normals via dFdx/dFdy.
+				vertex.Normal = glm::vec3(0.0f, 0.0f, 0.0f);
 			}
 			else
 			{
-				// Fallback for points, lines, or invalid geometry
+				// Fallback for other geometry without normals
 				// Use transformed up vector instead of position
 				aiVector3D upVector(0.0f, 1.0f, 0.0f);
 				aiVector3D transformedUp = normalMatrix * upVector;
@@ -1441,6 +1616,47 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		}
 	}
 
+	// For positions-only triangle meshes, expand to non-indexed triangles with per-face
+	// flat normals. This is more robust than screen-space dFdx/dFdy derivatives which
+	// produce incorrect smooth normals when the mesh is small on screen (zoomed out).
+	if (!isNonTrianglePrimitive && isPositionsOnly && !vertices.empty() && !indices.empty())
+	{
+		std::vector<Vertex> flatVertices;
+		std::vector<unsigned int> flatIndices;
+		flatVertices.reserve(indices.size());
+		flatIndices.reserve(indices.size());
+
+		for (size_t idx = 0; idx + 2 < indices.size(); idx += 3)
+		{
+			Vertex v0 = vertices[indices[idx]];
+			Vertex v1 = vertices[indices[idx + 1]];
+			Vertex v2 = vertices[indices[idx + 2]];
+
+			glm::vec3 edge1 = v1.Position - v0.Position;
+			glm::vec3 edge2 = v2.Position - v0.Position;
+			glm::vec3 faceNormal = glm::cross(edge1, edge2);
+			float len = glm::length(faceNormal);
+			if (len > 0.0001f)
+				faceNormal /= len;
+			// degenerate face: leave normal zero — shader dFdx/dFdy fallback handles it
+
+			v0.Normal = faceNormal;
+			v1.Normal = faceNormal;
+			v2.Normal = faceNormal;
+
+			unsigned int base = static_cast<unsigned int>(flatVertices.size());
+			flatVertices.push_back(v0);
+			flatVertices.push_back(v1);
+			flatVertices.push_back(v2);
+			flatIndices.push_back(base);
+			flatIndices.push_back(base + 1);
+			flatIndices.push_back(base + 2);
+		}
+
+		vertices = std::move(flatVertices);
+		indices  = std::move(flatIndices);
+	}
+
 	if (!morphTargets.isEmpty() && _needsUVGeneration && textures.empty())
 	{
 		_needsUVGeneration = false;
@@ -1539,10 +1755,10 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 				const_cast<aiScene*>(scene),
 				QString::fromStdString(_path));
 			
-			// Match volumetric material distances to the same baked transform scale
-			// already applied to vertex positions above. This is especially important
-			// for glTF assets that encode node-level scale (for example 0.01) on the
-			// transmissive shell itself.
+			// Match the effective optical thickness to the baked node scale that was
+			// already applied to vertex positions above. Keep attenuationDistance in
+			// material space so scaled glTF instances still show stronger/weaker
+			// absorption, as intended by sample assets such as AttenuationTest.
 			const glm::mat3 meshTransform(
 				transform.a1, transform.a2, transform.a3,
 				transform.b1, transform.b2, transform.b3,
@@ -1553,7 +1769,6 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			const float materialScale = (scaleX + scaleY + scaleZ) / 3.0f;
 
 			mat.setThicknessFactor(mat.thicknessFactor() * materialScale);
-			mat.setAttenuationDistance(mat.attenuationDistance() * materialScale);
 			mat.setIsGLTFMaterial(true);
 			qDebug() << "GLTF Material Loaded";
 		}
@@ -1840,28 +2055,29 @@ bool AssImpModelLoader::regenerateUVs(AssImpMesh* mesh,
 	// Get current mesh data
 	std::vector<Vertex> vertices;
 	std::vector<unsigned int> indices;
+	std::vector<unsigned int> sourceVertexMap;
 	mesh->getMeshData(vertices, indices);
 
 	// Generate UVs and tangents
 	switch (method)
 	{
 	case UVMethod::Planar:
-		UVGenerator::generatePlanar(vertices, indices, config);
+		UVGenerator::generatePlanar(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::Cylindrical:
-		UVGenerator::generateCylindrical(vertices, indices, config);
+		UVGenerator::generateCylindrical(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::Spherical:
-		UVGenerator::generateSpherical(vertices, indices, config);
+		UVGenerator::generateSpherical(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::AngleBased:
-		UVGenerator::generateAngleBased(vertices, indices, config);
+		UVGenerator::generateAngleBased(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::Hybrid:
-		UVGenerator::generateHybrid(vertices, indices);
+		UVGenerator::generateHybrid(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::AngleBasedSmartUV:
-		UVGenerator::generateAngleBasedSmartUV(vertices, indices, config);
+		UVGenerator::generateAngleBasedSmartUV(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::None: // fall through
 	default:
@@ -1872,7 +2088,7 @@ bool AssImpModelLoader::regenerateUVs(AssImpMesh* mesh,
 	TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);
 
 	// Set data back to mesh (will call setupMesh internally)
-	mesh->setMeshData(vertices, indices);
+	mesh->setMeshData(vertices, indices, &sourceVertexMap);
 
 	return true;
 }
@@ -3200,6 +3416,126 @@ void AssImpModelLoader::parseSceneAnimations()
 	}
 }
 
+// ---------------------------------------------------------------------------
+// parseSceneCameras
+//
+// Populates _cameraData from aiScene::mCameras[].  Each aiCamera entry gives
+// us the projection parameters (FOV, clip planes, ortho extents) and a node
+// name.  The world-space position and orientation are derived by accumulating
+// the transform chain from the scene root down to the matching node.
+//
+// glTF cameras look along the node's local -Z axis with +Y as up.
+// ---------------------------------------------------------------------------
+
+namespace
+{
+// Recursively find the node with the given name and accumulate its world
+// transform.  Returns true and sets 'result' when found.
+bool findNodeWorldTransform(const aiNode*       node,
+                            const aiString&     targetName,
+                            const aiMatrix4x4&  parentTransform,
+                            aiMatrix4x4&        result)
+{
+    if (!node)
+        return false;
+
+    const aiMatrix4x4 worldTransform = parentTransform * node->mTransformation;
+
+    if (node->mName == targetName)
+    {
+        result = worldTransform;
+        return true;
+    }
+
+    for (unsigned int i = 0; i < node->mNumChildren; ++i)
+    {
+        if (findNodeWorldTransform(node->mChildren[i], targetName, worldTransform, result))
+            return true;
+    }
+    return false;
+}
+} // anonymous namespace
+
+void AssImpModelLoader::parseSceneCameras()
+{
+    _cameraData = GltfCameraData();
+
+    if (!_scene || _scene->mNumCameras == 0)
+        return;
+
+    _cameraData.sourceFile = QString::fromStdString(_path);
+
+    for (unsigned int i = 0; i < _scene->mNumCameras; ++i)
+    {
+        const aiCamera* cam = _scene->mCameras[i];
+        if (!cam)
+            continue;
+
+        GltfCameraEntry entry;
+        entry.name     = QString::fromUtf8(cam->mName.C_Str());
+        // Assimp's glTF2 importer sets aiCamera::mName to the scene-node name
+        // that references the camera.  That node name is the key used by the
+        // animation runtime's worldTransforms map, so store it directly.
+        entry.nodeName = entry.name;
+
+        // Projection type: orthographic when mOrthographicWidth > 0
+        if (cam->mOrthographicWidth > 0.0f)
+        {
+            entry.type  = GltfCameraType::Orthographic;
+            entry.xMag  = cam->mOrthographicWidth;
+            // mAspect = xmag / ymag  →  ymag = xmag / aspect (guard against zero)
+            entry.yMag  = (cam->mAspect > 0.0f)
+                        ? cam->mOrthographicWidth / cam->mAspect
+                        : cam->mOrthographicWidth;
+        }
+        else
+        {
+            entry.type = GltfCameraType::Perspective;
+            // For glTF files Assimp stores yfov in mHorizontalFOV.
+            entry.fovYRadians = cam->mHorizontalFOV;
+        }
+
+        entry.zNear = cam->mClipPlaneNear;
+        entry.zFar  = cam->mClipPlaneFar;
+
+        // Compute world-space transform by walking the node hierarchy.
+        aiMatrix4x4 identity;
+        aiMatrix4x4 worldMat;
+        if (findNodeWorldTransform(_scene->mRootNode, cam->mName, identity, worldMat))
+        {
+            // World position = translation component of the 4×4 matrix
+            entry.worldPosition = QVector3D(worldMat.a4, worldMat.b4, worldMat.c4);
+
+            // glTF cameras look along -Z in local space; +Y is up.
+            // Rotate these local vectors by the world rotation (3×3 submatrix).
+            aiMatrix3x3 rot(worldMat);
+            aiVector3D localForward(0.0f, 0.0f, -1.0f);
+            aiVector3D localUp(0.0f, 1.0f, 0.0f);
+            aiVector3D worldForward = (rot * localForward).Normalize();
+            aiVector3D worldUp      = (rot * localUp).Normalize();
+
+            entry.worldDirection = QVector3D(worldForward.x, worldForward.y, worldForward.z);
+            entry.worldUp        = QVector3D(worldUp.x,      worldUp.y,      worldUp.z);
+        }
+        else
+        {
+            qWarning() << "parseSceneCameras: node not found for camera" << entry.name;
+            // Use defaults: looking along -Z from the origin
+        }
+
+        _cameraData.cameras.append(entry);
+        qDebug() << "parseSceneCameras: camera" << entry.name
+                 << "pos" << entry.worldPosition
+                 << "dir" << entry.worldDirection
+                 << (entry.type == GltfCameraType::Perspective
+                     ? QString("fovY=%1°").arg(qRadiansToDegrees(entry.fovYRadians), 0, 'f', 1)
+                     : QString("ortho xMag=%1").arg(entry.xMag));
+    }
+
+    qDebug() << "parseSceneCameras: found" << _cameraData.cameras.size()
+             << "camera(s) in" << _cameraData.sourceFile;
+}
+
 void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, aiScene* scene)
 {
 	if (!scene || scene->mNumMaterials == 0)
@@ -3238,6 +3574,9 @@ void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, 
 
 	QJsonObject root = doc.object();
 	QJsonArray gltfMaterials = root["materials"].toArray();
+	const QJsonArray jsonNodes = root["nodes"].toArray();
+	const QJsonArray jsonMeshes = root["meshes"].toArray();
+	const QJsonArray jsonScenes = root["scenes"].toArray();
 
 	if (gltfMaterials.isEmpty())
 		return;
@@ -3246,125 +3585,219 @@ void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, 
 	int aiMatCount   = static_cast<int>(scene->mNumMaterials);
 
 	// ===== BUILD NAME→GLTF INDEX MAP =====
-	// glTF material names are authoritative for identity matching.
+	// Unique glTF material names are safe fallbacks when primitive provenance is
+	// unavailable. They must not override authoritative primitive-derived data.
 	QMap<QString, int> nameToGltfIdx;
+	QMap<QString, int> nameUseCount;
 	for (int i = 0; i < gltfMatCount; ++i)
 	{
 		QString name = gltfMaterials[i].toObject()["name"].toString();
-		if (!name.isEmpty() && !nameToGltfIdx.contains(name))
-			nameToGltfIdx[name] = i;
+		if (name.isEmpty())
+			continue;
+
+		nameUseCount[name] += 1;
+		if (!nameToGltfIdx.contains(name))
+			nameToGltfIdx.insert(name, i);
 	}
 
-	// ===== BUILD COMPACT→GLTF INDEX MAPPING (primary: mesh usage; fallback: name) =====
-	// Name matching alone fails for unnamed glTF materials (falls back to wrong index).
-	// We first do a parallel DFS over the aiScene and glTF node trees to build the
-	// compact→glTF mapping from actual mesh usage (no names required).
-	// Consecutive same-material glTF primitives that Assimp merged into one aiMesh are
-	// handled by grouping: when the primitive's material changes, we advance to the
-	// next aiMesh in the node.
-
-	const QJsonArray jsonNodes  = root["nodes"].toArray();
-	const QJsonArray jsonMeshes = root["meshes"].toArray();
-	const QJsonArray jsonScenes = root["scenes"].toArray();
-	int gltfSceneIdx = root.value("scene").toInt(0);
-	QJsonArray rootNodeIndices;
-	if (gltfSceneIdx >= 0 && gltfSceneIdx < jsonScenes.size())
-		rootNodeIndices = jsonScenes[gltfSceneIdx].toObject().value("nodes").toArray();
-
-	std::map<int, int> compactToGltfFromUsage; // compact mat idx → glTF mat idx
-
-	if (scene->mRootNode && !rootNodeIndices.isEmpty())
+	// Unique glTF mesh names provide a second provenance layer for assets where
+	// aiNode/glTF-node traversal cannot be aligned directly, but aiMesh names
+	// still preserve source mesh identity (for example "tower00" or "car-12-1").
+	QMap<QString, int> meshNameUseCount;
+	QMap<QString, int> meshNameToUniqueIndex;
+	for (int i = 0; i < jsonMeshes.size(); ++i)
 	{
-		struct MatMapFrame { aiNode* aiNodePtr; int gltfNodeIdx; };
-		QVector<MatMapFrame> dfsStack;
+		const QString name = jsonMeshes.at(i).toObject().value("name").toString();
+		if (name.isEmpty())
+			continue;
 
-		aiNode* aiRoot = scene->mRootNode;
+		meshNameUseCount[name] += 1;
+		if (!meshNameToUniqueIndex.contains(name))
+			meshNameToUniqueIndex.insert(name, i);
+	}
+	for (auto it = meshNameToUniqueIndex.begin(); it != meshNameToUniqueIndex.end(); )
+	{
+		if (meshNameUseCount.value(it.key()) != 1)
+			it = meshNameToUniqueIndex.erase(it);
+		else
+			++it;
+	}
+
+	// ===== BUILD AI-MESH → GLTF MATERIAL PROVENANCE =====
+	// Follow the Khronos viewer's correctness model: the glTF primitive owns the
+	// default material, and variants only override that primitive-local index.
+	// Our job is to reconstruct that primitive→material identity before Assimp's
+	// compact material slots are treated as authoritative.
+	std::map<int, int> aiMeshToGltfMaterial;
+
+	struct MaterialFrame { aiNode* aiNodePtr; int gltfNodeIdx; };
+	QVector<MaterialFrame> stack;
+	stack.reserve(jsonNodes.size());
+
+	int rootSceneIndex = root.value("scene").toInt(0);
+	QJsonArray rootNodeIndices;
+	if (rootSceneIndex >= 0 && rootSceneIndex < jsonScenes.size())
+		rootNodeIndices = jsonScenes[rootSceneIndex].toObject().value("nodes").toArray();
+
+	if (_scene && _scene->mRootNode && !rootNodeIndices.isEmpty())
+	{
+		aiNode* aiSceneRoot = _scene->mRootNode;
 		if (rootNodeIndices.size() == 1)
 		{
-			int rootGltfIdx = rootNodeIndices[0].toInt();
-			QString gltfRootName = (rootGltfIdx >= 0 && rootGltfIdx < jsonNodes.size())
-			    ? jsonNodes[rootGltfIdx].toObject().value("name").toString() : QString();
-			QString aiRootName = QString::fromUtf8(aiRoot->mName.C_Str());
+			const int rootGltfIdx = rootNodeIndices[0].toInt();
+			const QString gltfRootName = (rootGltfIdx >= 0 && rootGltfIdx < jsonNodes.size())
+				? jsonNodes[rootGltfIdx].toObject().value("name").toString()
+				: QString();
+			const QString aiRootName = QString::fromUtf8(aiSceneRoot->mName.C_Str());
 
-			if (aiRootName == gltfRootName || aiRoot->mNumMeshes > 0)
-				dfsStack.append({aiRoot, rootGltfIdx});
-			else if (aiRoot->mNumMeshes == 0 && aiRoot->mNumChildren == 1)
-				dfsStack.append({aiRoot->mChildren[0], rootGltfIdx});
+			if (aiRootName == gltfRootName || aiSceneRoot->mNumMeshes > 0)
+				stack.append({ aiSceneRoot, rootGltfIdx });
+			else if (aiSceneRoot->mNumMeshes == 0 && aiSceneRoot->mNumChildren == 1)
+				stack.append({ aiSceneRoot->mChildren[0], rootGltfIdx });
 		}
 		else
 		{
-			for (int i = (int)rootNodeIndices.size() - 1; i >= 0; --i)
-				if (i < (int)aiRoot->mNumChildren)
-					dfsStack.append({aiRoot->mChildren[i], rootNodeIndices[i].toInt()});
-		}
-
-		while (!dfsStack.isEmpty())
-		{
-			auto frame      = dfsStack.takeLast();
-			aiNode* aiNodePtr = frame.aiNodePtr;
-			int     nodeIdx   = frame.gltfNodeIdx;
-
-			if (!aiNodePtr || nodeIdx < 0 || nodeIdx >= jsonNodes.size())
-				continue;
-
-			const QJsonObject nodeObj = jsonNodes[nodeIdx].toObject();
-
-			if (nodeObj.contains("mesh") && aiNodePtr->mNumMeshes > 0)
+			for (int i = static_cast<int>(rootNodeIndices.size()) - 1; i >= 0; --i)
 			{
-				const int meshIdx = nodeObj.value("mesh").toInt(-1);
-				if (meshIdx >= 0 && meshIdx < jsonMeshes.size())
-				{
-					const QJsonArray prims = jsonMeshes[meshIdx].toObject()["primitives"].toArray();
-					const int P = prims.size();
-					const int M = static_cast<int>(aiNodePtr->mNumMeshes);
-
-					// Group consecutive same-material primitives → one aiMesh per group.
-					int aiMeshInNode = 0;
-					int prevGltfMat  = -1;
-
-					for (int pi = 0; pi < P && aiMeshInNode < M; ++pi)
-					{
-						int gltfMat = prims[pi].toObject().value("material").toInt(0);
-						if (pi == 0 || gltfMat != prevGltfMat)
-						{
-							if (pi > 0)
-							{
-								++aiMeshInNode;
-								if (aiMeshInNode >= M) break;
-							}
-							int aiMeshIdx = static_cast<int>(aiNodePtr->mMeshes[aiMeshInNode]);
-							auto savedIt  = _meshIndexToOriginalMaterialIndex.find(aiMeshIdx);
-							if (savedIt != _meshIndexToOriginalMaterialIndex.end())
-								compactToGltfFromUsage[savedIt->second] = gltfMat;
-						}
-						prevGltfMat = gltfMat;
-					}
-				}
+				if (i < static_cast<int>(aiSceneRoot->mNumChildren))
+					stack.append({ aiSceneRoot->mChildren[i], rootNodeIndices[i].toInt() });
 			}
-
-			const QJsonArray gltfChildren = nodeObj.value("children").toArray();
-			for (int i = (int)gltfChildren.size() - 1; i >= 0; --i)
-				if (i < (int)aiNodePtr->mNumChildren)
-					dfsStack.append({aiNodePtr->mChildren[i], gltfChildren[i].toInt()});
 		}
 	}
 
-	// Build _aiMatToGltfMat: mesh-usage mapping takes priority over name matching.
-	// Name matching is the fallback for compact materials not used by any default primitive.
+	while (!stack.isEmpty())
+	{
+		const MaterialFrame frame = stack.takeLast();
+		aiNode* aiNodePtr = frame.aiNodePtr;
+		const int nodeIdx = frame.gltfNodeIdx;
+
+		if (!aiNodePtr || nodeIdx < 0 || nodeIdx >= jsonNodes.size())
+			continue;
+
+		const QJsonObject nodeObj = jsonNodes[nodeIdx].toObject();
+		if (nodeObj.contains("mesh") && aiNodePtr->mNumMeshes > 0)
+		{
+			const int gltfMeshIdx = nodeObj.value("mesh").toInt(-1);
+			if (gltfMeshIdx >= 0 && gltfMeshIdx < jsonMeshes.size())
+			{
+				const QJsonArray primitives =
+					jsonMeshes[gltfMeshIdx].toObject().value("primitives").toArray();
+
+				// Exact positional pairing is the safest path when Assimp preserved
+				// the primitive list length for this node.
+				if (primitives.size() == static_cast<int>(aiNodePtr->mNumMeshes))
+				{
+					for (int primIndex = 0; primIndex < primitives.size(); ++primIndex)
+					{
+						const QJsonObject primObj = primitives.at(primIndex).toObject();
+						const int primMat = primObj.contains("material")
+							? primObj.value("material").toInt(-1)
+							: -1;
+						const unsigned int aiMeshIdx = aiNodePtr->mMeshes[primIndex];
+						aiMeshToGltfMaterial[static_cast<int>(aiMeshIdx)] = primMat;
+					}
+				}
+			}
+		}
+
+		const QJsonArray gltfChildren = nodeObj.value("children").toArray();
+		for (int i = static_cast<int>(gltfChildren.size()) - 1; i >= 0; --i)
+		{
+			if (i < static_cast<int>(aiNodePtr->mNumChildren))
+				stack.append({ aiNodePtr->mChildren[i], gltfChildren[i].toInt() });
+		}
+	}
+
+	// Assimp often preserves merged primitive provenance in aiMesh::mName
+	// (for example "meshes[0]-81.meshes[0]-83..."). Use it to recover the
+	// authoritative glTF material for merged meshes.
+	for (unsigned int meshIdx = 0; meshIdx < scene->mNumMeshes; ++meshIdx)
+	{
+		if (aiMeshToGltfMaterial.find(static_cast<int>(meshIdx)) != aiMeshToGltfMaterial.end())
+			continue;
+
+		const QString directMeshName = QString::fromUtf8(scene->mMeshes[meshIdx]->mName.C_Str());
+		int resolvedMaterial = -1;
+		if (resolveSingleGltfMaterialFromMeshName(
+			directMeshName,
+			jsonMeshes,
+			meshNameToUniqueIndex,
+			resolvedMaterial))
+		{
+			aiMeshToGltfMaterial[static_cast<int>(meshIdx)] = resolvedMaterial;
+			continue;
+		}
+
+		const QVector<GltfPrimitiveReference> refs = parsePrimitiveReferencesFromMeshName(directMeshName);
+		if (refs.isEmpty())
+			continue;
+
+		resolvedMaterial = -1;
+		if (resolveSingleGltfMaterialFromPrimitiveRefs(refs, jsonMeshes, resolvedMaterial))
+		{
+			aiMeshToGltfMaterial[static_cast<int>(meshIdx)] = resolvedMaterial;
+		}
+	}
+
+	// ===== BUILD COMPACT→GLTF INDEX MAPPING =====
+	// Derive compact aiMaterial slots from the meshes that referenced them before
+	// reindexing. This preserves the glTF material identity used by variants and export.
+	std::map<int, QSet<int>> compactMatCandidates;
+	for (unsigned int meshIdx = 0; meshIdx < scene->mNumMeshes; ++meshIdx)
+	{
+		const auto meshMatIt = aiMeshToGltfMaterial.find(static_cast<int>(meshIdx));
+		if (meshMatIt == aiMeshToGltfMaterial.end())
+			continue;
+
+		int compactMatIdx = static_cast<int>(scene->mMeshes[meshIdx]->mMaterialIndex);
+		const auto savedIt = _meshIndexToOriginalMaterialIndex.find(static_cast<int>(meshIdx));
+		if (savedIt != _meshIndexToOriginalMaterialIndex.end())
+			compactMatIdx = savedIt->second;
+
+		compactMatCandidates[compactMatIdx].insert(meshMatIt->second);
+	}
+
 	_aiMatToGltfMat.clear();
 	for (int aiIdx = 0; aiIdx < aiMatCount; ++aiIdx)
 	{
-		auto usageIt = compactToGltfFromUsage.find(aiIdx);
-		if (usageIt != compactToGltfFromUsage.end())
+		int resolvedGltfIdx = -1;
+
+		const auto compactIt = compactMatCandidates.find(aiIdx);
+		if (compactIt != compactMatCandidates.end())
 		{
-			_aiMatToGltfMat[aiIdx] = usageIt->second;
-			continue;
+			const QSet<int>& candidates = compactIt->second;
+			if (candidates.size() == 1)
+			{
+				resolvedGltfIdx = *candidates.constBegin();
+			}
+			else if (!candidates.isEmpty())
+			{
+				qWarning() << "updateAiSceneWithGltfMaterials: compact aiMaterial" << aiIdx
+				           << "maps to multiple glTF materials (count =" << candidates.size() << ")"
+				           << "- keeping fallback resolution";
+			}
 		}
-		aiString aiName;
-		scene->mMaterials[aiIdx]->Get(AI_MATKEY_NAME, aiName);
-		QString name = QString::fromUtf8(aiName.C_Str());
-		auto nameIt = nameToGltfIdx.find(name);
-		_aiMatToGltfMat[aiIdx] = (nameIt != nameToGltfIdx.end()) ? nameIt.value() : aiIdx;
+
+		// Fallback 1: unique material-name match.
+		if (resolvedGltfIdx < 0)
+		{
+			aiString aiName;
+			scene->mMaterials[aiIdx]->Get(AI_MATKEY_NAME, aiName);
+			const QString name = QString::fromUtf8(aiName.C_Str());
+			const auto nameIt = nameToGltfIdx.find(name);
+			if (!name.isEmpty() &&
+				nameIt != nameToGltfIdx.end() &&
+				nameUseCount.value(name) == 1)
+			{
+				resolvedGltfIdx = nameIt.value();
+			}
+		}
+
+		// Fallback 2: identity only when it stays inside glTF material space.
+		if (resolvedGltfIdx < 0 && aiIdx < gltfMatCount)
+			resolvedGltfIdx = aiIdx;
+
+		_aiMatToGltfMat[aiIdx] = resolvedGltfIdx;
 	}
 
 	// ===== REINDEX MATERIAL ARRAY TO GLTF ORDER =====
@@ -3416,5 +3849,6 @@ void AssImpModelLoader::updateAiSceneWithGltfMaterials(const QString& gltfPath, 
 	scene->mNumMaterials = static_cast<unsigned int>(gltfMatCount);
 
 	qDebug() << "updateAiSceneWithGltfMaterials: Reindexed" << aiMatCount
-	         << "compact materials into" << gltfMatCount << "glTF-indexed slots";
+	         << "compact materials into" << gltfMatCount << "glTF-indexed slots"
+	         << "(provenance mapped meshes:" << aiMeshToGltfMaterial.size() << ")";
 }

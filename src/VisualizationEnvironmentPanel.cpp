@@ -64,6 +64,12 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, GLWidge
 	connectSignalsAndSlots();
 	updateControlDependencies();
 
+	// Keep GLWidget in sync with the UI defaults on first startup as well.
+	// Without this, the viewer could retain an internal floor offset that
+	// differs from the spin box value until the user touches the control.
+	if (_glWidget && ui)
+		_glWidget->setFloorOffsetPercent(ui->doubleSpinBoxFloorOffset->value());
+
 	_isInitialized = true;
 }
 
@@ -73,9 +79,7 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 		return;
 
 	// ===== Light Color Buttons =====
-	connect(ui->pushButtonLightAmbient, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onLightAmbientClicked);
-	connect(ui->pushButtonLightDiffuse, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onLightDiffuseClicked);
-	connect(ui->pushButtonLightSpecular, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onLightSpecularClicked);
+	connect(ui->pushButtonLightColor, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onLightColorClicked);
 	connect(ui->pushButtonDefaultLights, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onDefaultLightsClicked);
 
 	// ===== Light Position Sliders =====
@@ -95,6 +99,7 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	connect(ui->checkBoxSkyBoxHDRI, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onLoadSkyBoxPresetMaps);
 	connect(ui->sliderSkyBoxBlur, QOverload<int>::of(&QSlider::valueChanged), this, &VisualizationEnvironmentPanel::onSkyBoxBlurChanged);
 	connect(ui->doubleSpinBoxSkyBoxFOV, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, &VisualizationEnvironmentPanel::onSkyBoxFOVChanged);
+	connect(ui->comboBoxSkyBoxRotation, QOverload<int>::of(&QComboBox::currentIndexChanged), _glWidget, &GLWidget::setSkyBoxZRotation);
 	connect(ui->comboBoxSkyBoxMaps, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &VisualizationEnvironmentPanel::onSkyBoxMapsChanged);
 	connect(ui->pushButtonSkyBoxTex, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::onSkyBoxTextureClicked);
 
@@ -148,7 +153,9 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	ui->sliderSkyBoxBlur->setEnabled(skyBoxEnabled);
 	ui->labelSkyBoxBlurValue->setEnabled(skyBoxEnabled);
 	ui->labelFOV->setEnabled(skyBoxEnabled);
-	ui->doubleSpinBoxSkyBoxFOV->setEnabled(skyBoxEnabled);	
+	ui->doubleSpinBoxSkyBoxFOV->setEnabled(skyBoxEnabled);
+	ui->labelSkyBoxRotation->setEnabled(skyBoxEnabled);
+	ui->comboBoxSkyBoxRotation->setEnabled(skyBoxEnabled);
 	
 	// Floor dependencies
 	ui->checkBoxReflections->setEnabled(floorEnabled);
@@ -184,72 +191,25 @@ void VisualizationEnvironmentPanel::updateButtonStyles()
 	if (!_glWidget || !ui)
 		return;
 
-	// Update light color button background colors to match current colors
-	QVector4D ambientLight = _glWidget->getAmbientLight();
-	QVector4D diffuseLight = _glWidget->getDiffuseLight();
-	QVector4D specularLight = _glWidget->getSpecularLight();
-
-	// Set ambient button color	
-	QColor ambientColor = QColor::fromRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z());
-	QString ambientStyle = QString("background-color: %1; color: %2; border: 1px solid gray;")
-		.arg(ambientColor.name(), ambientColor.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-	ui->pushButtonLightAmbient->setStyleSheet(ambientStyle);
-
-	// Set diffuse button color	
-	QColor diffuseColor = QColor::fromRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z());
+	QVector4D lightColor = _glWidget->getDefaultLightColor();
+	QColor diffuseColor = QColor::fromRgbF(lightColor.x(), lightColor.y(), lightColor.z());
 	QString diffuseStyle = QString("background-color: %1; color: %2; border: 1px solid gray;")
 		.arg(diffuseColor.name(), diffuseColor.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-	ui->pushButtonLightDiffuse->setStyleSheet(diffuseStyle);
-
-	// Set specular button color	
-	QColor specularColor = QColor::fromRgbF(specularLight.x(), specularLight.y(), specularLight.z());
-	QString specularStyle = QString("background-color: %1; color: %2; border: 1px solid gray;")
-		.arg(specularColor.name(), specularColor.lightness() < 75 ? QColor(Qt::white).name() : QColor(Qt::black).name());
-	ui->pushButtonLightSpecular->setStyleSheet(specularStyle);
+	ui->pushButtonLightColor->setStyleSheet(diffuseStyle);
 }
 
 // ==================== LIGHT COLOR BUTTONS ====================
 
-void VisualizationEnvironmentPanel::onLightAmbientClicked()
+void VisualizationEnvironmentPanel::onLightColorClicked()
 {
 	if (!_glWidget || !ui)
 		return;
 
-	QVector4D ambientLight = _glWidget->getAmbientLight();
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(ambientLight.x(), ambientLight.y(), ambientLight.z(), ambientLight.w()), this, "Ambient Light Color");
+	QVector4D lightColor = _glWidget->getDefaultLightColor();
+	QColor c = QColorDialog::getColor(QColor::fromRgbF(lightColor.x(), lightColor.y(), lightColor.z(), lightColor.w()), this, "Default Light Color");
 	if (c.isValid())
 	{
-		_glWidget->setAmbientLight(QVector4D(c.redF(), c.greenF(), c.blueF(), c.alphaF()));
-		updateButtonStyles();
-		_glWidget->updateView();
-	}
-}
-
-void VisualizationEnvironmentPanel::onLightDiffuseClicked()
-{
-	if (!_glWidget || !ui)
-		return;
-
-	QVector4D diffuseLight = _glWidget->getDiffuseLight();
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(diffuseLight.x(), diffuseLight.y(), diffuseLight.z(), diffuseLight.w()), this, "Diffuse Light Color");
-	if (c.isValid())
-	{
-		_glWidget->setDiffuseLight(QVector4D(c.redF(), c.greenF(), c.blueF(), c.alphaF()));
-		updateButtonStyles();
-		_glWidget->updateView();
-	}
-}
-
-void VisualizationEnvironmentPanel::onLightSpecularClicked()
-{
-	if (!_glWidget || !ui)
-		return;
-
-	QVector4D specularLight = _glWidget->getSpecularLight();
-	QColor c = QColorDialog::getColor(QColor::fromRgbF(specularLight.x(), specularLight.y(), specularLight.z(), specularLight.w()), this, "Specular Light Color");
-	if (c.isValid())
-	{
-		_glWidget->setSpecularLight(QVector4D(c.redF(), c.greenF(), c.blueF(), c.alphaF()));
+		_glWidget->setDefaultLightColor(QVector4D(c.redF(), c.greenF(), c.blueF(), c.alphaF()));
 		updateButtonStyles();
 		_glWidget->updateView();
 	}
@@ -260,10 +220,7 @@ void VisualizationEnvironmentPanel::onDefaultLightsClicked()
 	if (!_glWidget || !ui)
 		return;
 
-	// Set light colors
-	_glWidget->setAmbientLight(QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
-	_glWidget->setDiffuseLight(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
-	_glWidget->setSpecularLight(QVector4D(0.5f, 0.5f, 0.5f, 1.0f));
+	_glWidget->setDefaultLightColor(QVector4D(1.0f, 1.0f, 1.0f, 1.0f));
 
 	// Set light position sliders - block signals to prevent cascading during set
 	ui->sliderLightPosX->blockSignals(true);
@@ -681,6 +638,7 @@ void VisualizationEnvironmentPanel::onDefaultEnvValuesClicked()
 
 	ui->doubleSpinBoxSkyBoxFOV->setValue(45.0);
 	ui->sliderSkyBoxBlur->setValue(0);
+	ui->comboBoxSkyBoxRotation->setCurrentIndex(0);
 	ui->comboBoxShadowQuality->setCurrentIndex(1);
 	ui->doubleSpinBoxFloorOffset->setValue(0.0);
 	ui->doubleSpinBoxRepeatS->setValue(1.0);

@@ -193,12 +193,16 @@ private:
 		QLabel* label = nullptr;                 // text under the button
 		QToolButton* gear = nullptr;             // optional channel packing gear
 		QToolButton* transformButton = nullptr;  // transform/sampler button
+		QLabel* metaUv = nullptr;                // UV slot readout
+		QLabel* metaColorSpace = nullptr;        // sRGB / Linear
+		QLabel* metaPacking = nullptr;           // packed channel summary
 		QString key;                             // e.g., "albedo", "roughness"
 		GLMaterial::TextureType type;            // enum type
 	};
 
 	// Texture management helpers
 	void registerTextureMaps();
+	void setupTextureMetadataUI();
 	void connectTextureSignals();
 	void applyButtonEmptyIcon(MapSlot& m);
 	void applyButtonImageIcon(MapSlot& m, const QString& file);
@@ -221,6 +225,7 @@ private:
 
 	// Texture operations
 	void updateTexturePreview(GLMaterial::TextureType type);
+	void updateTextureMetadata(GLMaterial::TextureType type);
 	void openPackingDialogFor(GLMaterial::TextureType type);
 
 	// Slot handlers

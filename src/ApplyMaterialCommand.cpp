@@ -60,6 +60,8 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
 
     _glWidget->makeCurrent();
 
+    QSet<QString> affectedAnimatedSourceFiles;
+
     for (auto it = materials.begin(); it != materials.end(); ++it)
     {
         const QUuid& uuid = it.key();
@@ -86,9 +88,15 @@ void ApplyMaterialCommand::applyMaterials(const QMap<QUuid, GLMaterial>& materia
         mesh->invertOpacityADSMap(resolved.isOpacityMapInverted());
         mesh->invertOpacityPBRMap(resolved.isOpacityMapInverted());
 
+        if (!mesh->getSourceFile().isEmpty())
+            affectedAnimatedSourceFiles.insert(mesh->getSourceFile());
+
         if (mat.hasTransmission())
             _glWidget->setTransmissionEnabled(true);
     }
+
+    for (const QString& sourceFile : affectedAnimatedSourceFiles)
+        _glWidget->refreshAnimationMaterialState(sourceFile);
 
     _glWidget->updateView();
     _glWidget->update();

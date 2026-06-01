@@ -117,6 +117,7 @@ void TransformCommand::applyTransformStates(const QMap<QUuid, TransformState>& s
     if (!indexedStates.isEmpty())
     {
         _glWidget->applyTransforms(indexedStates);
+        _viewer->syncLightPositionUiToScene();
         _glWidget->update();
 
         // Update panel to show current transform values

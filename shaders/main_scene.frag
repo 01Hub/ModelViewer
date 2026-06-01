@@ -3,29 +3,53 @@
 
 // Adpated from https://learnopengl.com/
 
-in vec3 v_position;
-in vec3 v_normal;
-in vec4 v_color;
-in vec2 v_texCoord0;
-in vec2 v_texCoord1;
-in vec2 v_texCoord2;
-in vec2 v_texCoord3;
-in vec3 v_tangent;
-in vec3 v_bitangent;
-in vec3 v_reflectionPosition;
-in vec3 v_reflectionNormal;
-in vec3 v_tangentLightPos;
-in vec3 v_tangentViewPos;
-in vec3 v_tangentFragPos;
+in vec3 g_position;
+in vec3 g_normal;
+in vec4 g_color;
+in vec4 g_rawVertexColor;
+in vec2 g_texCoord0;
+in vec2 g_texCoord1;
+in vec2 g_texCoord2;
+in vec2 g_texCoord3;
+in vec3 g_tangent;
+in vec3 g_bitangent;
+in vec3 g_worldTangent;
+in vec3 g_worldBitangent;
+in vec3 g_reflectionPosition;
+in vec3 g_reflectionNormal;
+in vec3 g_tangentLightPos;
+in vec3 g_tangentViewPos;
+in vec3 g_tangentFragPos;
+flat in vec3 g_flatNormal;
+flat in vec3 g_flatReflectionNormal;
 
-in VS_OUT_SHADOW{
+in GS_OUT_SHADOW{
 	vec3 FragPos;
 	vec3 Normal;
 	vec2 TexCoords;
 	vec4 FragPosLightSpace;
 	vec3 cameraPos;
 	vec3 lightPos;
-} fs_in_shadow;
+} g_shadow;
+
+#define v_position g_position
+#define v_normal g_normal
+#define v_color g_color
+#define v_rawVertexColor g_rawVertexColor
+#define v_texCoord0 g_texCoord0
+#define v_texCoord1 g_texCoord1
+#define v_texCoord2 g_texCoord2
+#define v_texCoord3 g_texCoord3
+#define v_tangent g_tangent
+#define v_bitangent g_bitangent
+#define v_worldTangent g_worldTangent
+#define v_worldBitangent g_worldBitangent
+#define v_reflectionPosition g_reflectionPosition
+#define v_reflectionNormal g_reflectionNormal
+#define v_tangentLightPos g_tangentLightPos
+#define v_tangentViewPos g_tangentViewPos
+#define v_tangentFragPos g_tangentFragPos
+#define fs_in_shadow g_shadow
 
 uniform bool hasVertexColors;
 uniform bool hasNegativeScale;
@@ -33,8 +57,6 @@ uniform bool hasNegativeScale;
 uniform int primitiveMode;  // 0=POINTS, 1=LINES, 2=LINE_LOOP, 3=LINE_STRIP, 4+=TRIANGLES
 
 uniform float opacity;
-uniform bool texEnabled;
-uniform sampler2D texUnit;
 
 // ADS light maps
 uniform sampler2D texture_diffuse;
@@ -50,6 +72,7 @@ uniform bool hasNormalTexture = false;
 uniform bool hasHeightTexture = false;
 uniform bool hasOpacityTexture = false;
 uniform bool opacityTextureInverted = false;
+uniform bool floorTextureEnabled = false;
 
 uniform samplerCube envMap;
 uniform sampler2D shadowMap;
@@ -68,6 +91,9 @@ uniform float shadowSizeScale;
 uniform sampler2D transmissionSceneTexture;  // _transmissionColorTexture
 uniform sampler2D transmissionDepthTexture;  // _transmissionDepthTexture
 uniform vec2	  transmissionFramebufferSize;
+uniform sampler2D sssDiffuseTexture;
+uniform sampler2D sssDepthTexture;
+uniform vec2      sssFramebufferSize;
 
 uniform float floorAlpha = 0.95;
 uniform float floorSpecularScale = 0.6;  // scale specular on floor [0..1]
@@ -77,7 +103,18 @@ uniform float floorFresnelDampen = 0.5;  // how much to dampen spec at normal in
 // IBL
 uniform samplerCube irradianceMap;
 uniform samplerCube prefilterMap;
+uniform samplerCube sheenPrefilterMap;
 uniform sampler2D brdfLUT;
+uniform sampler2D charlieLUT;
+uniform sampler2D sheenELUT;
+// Effective sheen prefilter mip count: LOD = roughness * (sheenPrefilterMipLevels - 1).
+// Matches Khronos reference (u_MipCount=5), giving lod=0.4 at roughness=0.1 instead
+// of lod=0.8 from textureQueryLevels(). Mip 0 (roughness=0) is the mirror reflection.
+uniform int sheenPrefilterMipLevels;
+// Effective GGX prefilter mip count: LOD = roughness * (prefilterMipLevels - 1).
+// Replaces textureQueryLevels(prefilterMap) so LOD is driven by a known, tunable value
+// uploaded from C++ (_prefilterMipLevels = log2(prefilterSize)+1, e.g. 9 for 256 px).
+uniform int prefilterMipLevels;
 uniform bool useIBL;
 
 // material parameters
@@ -125,6 +162,17 @@ uniform float opacityScale;
 uniform float opacityBias;
 
 uniform bool twoSided;
+
+// Debug channel isolation (TextureDebugPanel dropdown).
+// 0 = normal rendering.  Non-zero = replace fragColor with raw channel value.
+// IDs 1-9 are geometry/vertex channels; IDs 10+ match GPU texture unit indices.
+//   1=UV0  2=UV1  3=GeoNormal  4=GeoTangent  5=GeoBitangent  6=TangentW  7=ShadingNormal  8=Alpha  9=VertexColor
+//   10=Albedo/Diffuse  11=Metallic  12=Emissive  13=NormalMap  14=Height  15=Opacity  16=Roughness  17=AO
+//   18=ClearcoatStrength  19=ClearcoatRoughness  20=ClearcoatNormal
+//   21=SpecularStrength  22=SpecularColor  23=AnisotropicStrength  32=AnisotropicDirection
+//   24=IridescenceStrength  25=IridescenceThickness  26=SheenColor  27=SheenRoughness
+//   28=TransmissionStrength  30=VolumeThickness  34=DiffuseTransmissionStrength  35=DiffuseTransmissionColor
+uniform int debugChannelOutput = 0;
 
 // Advanced PBR Material Properties
 uniform sampler2D transmissionMap;
@@ -176,6 +224,19 @@ uniform sampler2D diffuseTransmissionColorMap;
 uniform bool hasDiffuseTransmissionMap = false;
 uniform bool hasDiffuseTransmissionColorMap = false;
 
+// Extension-presence flags — true when the KHR extension is active on this
+// material (with or without a texture).  Used in the debug block to gate
+// extension channels behind a checkerboard when the extension is absent,
+// mirroring Khronos viewer's compile-time #ifdef MATERIAL_XXX gating.
+uniform bool extClearcoat    = false;
+uniform bool extSheen        = false;
+uniform bool extTransmission = false;
+uniform bool extSpecular     = false;
+uniform bool extAnisotropy   = false;
+uniform bool extIridescence  = false;
+uniform bool extVolume       = false;
+uniform bool extDiffuseTrans = false;
+
 // KHR_materials_volume
 uniform sampler2D thicknessMap;
 uniform bool hasThicknessMap = false;
@@ -184,6 +245,12 @@ uniform bool hasThicknessAlpha = false;
 // KHR_materials_scatter
 uniform vec3 multiScatterColor;
 uniform bool hasVolumeScattering;
+uniform float sssObjectId = 0.0;
+
+// SSS capture pass: when true, only hasVolumeScattering surfaces are drawn and they
+// output raw linear diffuse irradiance (no tone mapping / gamma / alpha handling).
+// Set from C++ before renderToSSSBuffer(); cleared for the normal render pass.
+uniform bool sssCapture = false;
 
 struct TextureTransform
 {
@@ -240,6 +307,7 @@ uniform vec3 cameraDir;
 uniform mat4 viewMatrix;
 uniform mat4 modelMatrix;
 uniform mat4 projectionMatrix;
+uniform mat4 inverseProjectionMatrix;  // precomputed on CPU — avoids per-fragment inverse()
 uniform bool sectionActive;
 uniform int displayMode;
 uniform int renderingMode;
@@ -263,7 +331,6 @@ uniform float iblExposure = 1.0;
 uniform int toneMapMode = 0;
 
 uniform bool skyBoxEnabled;
-uniform sampler2D skyboxColorTexture;
 
 uniform vec4 topColor;
 uniform vec4 botColor;
@@ -394,11 +461,90 @@ const float PI = 3.14159265359;
 
 layout(location = 0) out vec4 fragColor;
 
+// ============================================================================
+// TYPE DEFINITIONS
+// ============================================================================
+
+// ---- KHR Anisotropy --------------------------------------------------------
+struct AnisotropyData
+{
+	float strength;      // Final strength (texture x uniform)
+	float rotation;      // Final rotation (texture direction rotated by uniform)
+	vec2 direction;      // Texture direction in [-1,1] (before rotation)
+};
+
+// ---- Primary KHR-aligned PBR path -----------------------------------------
+// These structs define the internal contract for the active shading path.
+// The existing uniforms/samplers remain the external interface.
+struct SurfaceFrame
+{
+	vec3 V;      // surface -> camera
+	vec3 I;      // camera -> surface
+	vec3 L;      // surface -> active light
+	vec3 Ng;     // geometric normal
+	vec3 N;      // shaded base normal
+	vec3 Ncoat;  // shaded clearcoat normal
+	vec3 T;      // tangent
+	vec3 B;      // bitangent
+};
+
+struct MaterialParams
+{
+	vec3  baseColor;
+	vec3  emissive;
+	vec3  F0;
+	vec3  F90;
+	vec3  dielectricF0;
+	float metallic;
+	float roughness;
+	float ambientOcclusion;
+	float transmission;
+	float ior;
+	float clearcoat;
+	float clearcoatRoughness;
+	float sheenRoughness;
+	vec3  sheenColor;
+	float anisotropyStrength;
+	float anisotropyRotation;
+	float iridescenceFactor;
+	float iridescenceIor;
+	float iridescenceThickness;
+	float thickness;
+	float diffuseTransmissionFactor;
+	vec3  diffuseTransmissionColor;
+	vec3  attenuationColor;
+	float attenuationDistance;
+	float dispersion;
+	float specularFactor;
+	vec3  specularColor;
+	bool  useSpecGloss;
+	bool  unlit;
+};
+
+struct LayerContributions
+{
+	vec3 baseDirectDiffuse;
+	vec3 baseDirectSpecular;
+	vec3 baseDiffuseIBL;
+	vec3 baseSpecularIBL;
+	vec3 sheenDirect;
+	vec3 sheenIBL;
+	vec3 clearcoatDirect;
+	vec3 clearcoatIBL;
+	vec3 transmission;
+	vec3 emissive;
+};
+
+// ============================================================================
+// FORWARD DECLARATIONS
+// ============================================================================
+
+// ---- Guard utilities -------------------------------------------------------
 float	guardFactorScalar(float factor, float threshold);
 vec3	guardFactorColor(vec3 factor, float threshold);
 
+// ---- Texture UV Accessors - PBR core ---------------------------------------
 vec2	getTransformedUV(int texCoordIndex, TextureTransform transform);
-
 vec2    getAlbedoUV();
 vec2    getMetallicUV();
 vec2    getRoughnessUV();
@@ -408,6 +554,8 @@ vec2    getAOUV();
 vec2    getOpacityUV();
 vec2	getEmissiveUV();
 vec2    getTransmissionUV();
+
+// ---- Texture UV Accessors - KHR extensions ---------------------------------
 vec2    getIORUV();
 vec2    getSheenColorUV();
 vec2    getSheenRoughnessUV();
@@ -423,13 +571,11 @@ vec2    getThicknessUV();
 vec2    getDiffuseTransmissionUV();
 vec2    getDiffuseTransmissionColorUV();
 
-// KHR pbrSpecularGlossiness
+// ---- Texture UV Accessors - KHR pbrSpecularGlossiness ----------------------
 vec2	getDiffuseUV();
 vec2	getSpecularGlossinessUV();
 
-
-
-// Legacy ADS
+// ---- Texture UV Accessors - Legacy ADS -------------------------------------
 vec2    getDiffuseTextureUV();
 vec2    getSpecularTextureUV();
 vec2    getEmissiveTextureUV();
@@ -437,57 +583,86 @@ vec2    getNormalTextureUV();
 vec2    getHeightTextureUV();
 vec2    getOpacityTextureUV();
 
+// ---- Shading entry points --------------------------------------------------
 vec4    shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal);
 vec4    calculatePBRLighting(int renderMode, float side);
+vec4    calculatePBRLightingKHR(int renderMode, float side);
 
+// ---- Texture & Normal utilities --------------------------------------------
 float	samplePackedChannelValue(sampler2D tex, bool hasTexture, vec2 uv,
-	int channel, int invert, float scale, float bias,
-	float fallback);
-
+								 int channel, int invert, float scale, float bias,
+								 float fallback);
 vec3    getNormalFromMap(sampler2D map);
 mat3    getTBNFromMap(sampler2D map);
+vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
+vec2    parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale);
+vec2	applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, bool enabled);
+bool    isGeometryFrontFacing();
+vec3    safeNormalizeGeom(vec3 value, vec3 fallback);
+vec3    getUnsignedViewGeometryNormal();
+vec3    getSignedViewGeometryNormal();
+vec3    getUnsignedWorldGeometryNormal();
+
+// ---- Core BRDF primitives (NDF * G * F) ------------------------------------
 float   distributionGGX(vec3 N, vec3 H, float roughness);
 float   geometrySchlickGGX(float NdotV, float roughness);
 float   geometrySmith(vec3 N, vec3 V, vec3 L, float roughness);
 vec3    fresnelSchlick(float cosTheta, vec3 F0);
 vec3    fresnelSchlick(float cosTheta, vec3 F0, vec3 F90);
-vec2    parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale);
-vec2	applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, bool enabled);
-vec3    calcBumpedNormal(sampler2D map, vec2 texCoord);
-
-// Advanced PBR Functions
 vec3    fresnelSchlickIOR(float cosTheta, float ior);
+
+// ---- KHR Sheen BRDF --------------------------------------------------------
+float	D_Charlie(float roughness, float NoH);
 float   distributionCharlie(vec3 N, vec3 H, float roughness);
 float   geometryCharlie(float NdotV, float roughness);
-float	D_Charlie(float roughness, float NoH);
-
-float	max3(vec3 v);
 float	V_Sheen(float NdotL, float NdotV, float sheenRoughness);
 float	lambdaSheen(float cosTheta, float alphaG);
 float	lambdaSheenNumericHelper(float x, float alphaG);
+float	max3(vec3 v);
 vec3    calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughness);
-vec3    calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor);
-vec3    calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat, float clearcoatRoughness, vec3 clearcoatNormal);
-vec3    calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal, float clearcoatRoughness, float clearcoat);
+const float kSheenStrength = 1.0;
 
-// ==== NEW glTF EXTENSION FUNCTIONS ====
+bool isGeometryFrontFacing()
+{
+	bool frontFacing = gl_FrontFacing;
+	if (hasNegativeScale)
+		frontFacing = !frontFacing;
+	return frontFacing;
+}
 
-// ==== KHR Anisotropy
+vec3 safeNormalizeGeom(vec3 value, vec3 fallback)
+{
+	float len = length(value);
+	if (len > 1e-8)
+		return value / len;
+	return fallback;
+}
+
+vec3 getUnsignedViewGeometryNormal()
+{
+	vec3 smoothNormal = safeNormalizeGeom(v_normal, vec3(0.0, 0.0, 1.0));
+	if (displayMode == 4)
+		return safeNormalizeGeom(g_flatNormal, smoothNormal);
+	return smoothNormal;
+}
+
+vec3 getSignedViewGeometryNormal()
+{
+	vec3 normal = getUnsignedViewGeometryNormal();
+	return isGeometryFrontFacing() ? normal : -normal;
+}
+
+vec3 getUnsignedWorldGeometryNormal()
+{
+	vec3 smoothNormal = safeNormalizeGeom(v_reflectionNormal, vec3(0.0, 0.0, 1.0));
+	if (displayMode == 4)
+		return safeNormalizeGeom(g_flatReflectionNormal, smoothNormal);
+	return smoothNormal;
+}
+
+// ---- KHR Anisotropy --------------------------------------------------------
 float	V_GGX_anisotropic(float NdotL, float NdotV, float BdotV, float TdotV, float TdotL, float BdotL, float at, float ab);
 float	D_GGX_anisotropic(float NdotH, float TdotH, float BdotH, float at, float ab);
-vec3	calculateAnisotropy(vec3 N, vec3 V, vec3 L, vec3 T, vec3 B, float anisotropyStrength, float anisotropyRotation, float roughness, vec3 F0);
-
-// ============================================================================
-// HELPER: Decode anisotropy texture data
-// Call this BEFORE calling calculateAnisotropy
-// ============================================================================
-struct AnisotropyData
-{
-	float strength;      // Final strength (texture x uniform)
-	float rotation;      // Final rotation (texture direction rotated by uniform)
-	vec2 direction;      // Texture direction in [-1,1] (before rotation)
-};
-
 AnisotropyData decodeAnisotropyTexture(
 	vec3 texelRGB,                           // Raw texture data
 	float uniformStrength,                   // Uniform strength parameter
@@ -495,67 +670,99 @@ AnisotropyData decodeAnisotropyTexture(
 	bool hasTexture
 );
 
-// KHR Iridescence
+// ---- KHR Iridescence -------------------------------------------------------
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0);
 vec3	evalIridescence(float outsideIOR, float eta2, float cosTheta1, float thinFilmThickness, vec3 baseF0, vec3 baseF90);
 vec3    computeIridescentFresnel(float cosTheta,
-	vec3 baseF0,
-	vec3 baseF90,
-	float iridescenceFactor,
-	float iridescenceIor,
-	float iridescenceThickness);
+								 vec3 baseF0,
+								 vec3 baseF90,
+								 float iridescenceFactor,
+								 float iridescenceIor,
+								 float iridescenceThickness);
 
-// KHR IOR, Transmission, and Volume
-vec3    calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo);
+// ---- KHR Transmission & Volume ---------------------------------------------
+vec3    calculateTransmissionKHR(vec3 normal, vec3 view, vec3 pointToLight, float alphaRoughness, vec3 baseColor, float ior);
 vec3	calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance);
-float	iorToF0(float ior);
-float	fresnelVolumeEntering(float f0, float NdotH);
-float	fresnelVolumeExiting(float f0, float etaRatio, float NdotH);
-float	calculateVolumeFresnel(float ior, float iorIncident, float NdotV);
 float	applyIorToRoughness(float roughness, float ior);
 vec3	getVolumeTransmissionRay(vec3 n, vec3 v, float thickness, float ior, mat4 modelMatrix);
 vec3	getTransmissionSample(vec2 fragCoord, float roughness, float ior);
 vec3	getIBLVolumeRefraction(vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor,
-	vec3 position, mat4 modelMatrix, float ior, float thickness,
-	vec3 attenuationColor, float attenuationDistance);
+							   vec3 position, mat4 modelMatrix, float ior, float thickness,
+							   vec3 attenuationColor, float attenuationDistance);
 vec3	getIBLVolumeRefractionPerChannel(vec3 n, vec3 v, float perceptualRoughness, vec3 baseColor,
-	vec3 position, mat4 modelMatrix, vec3 iors, float thickness,
-	vec3 attenuationColor, float attenuationDistance);
+                                         vec3 position, mat4 modelMatrix, vec3 iors, float thickness,
+                                         vec3 attenuationColor, float attenuationDistance);
 
-// KHR scatter
+// ---- KHR Volume Scatter ----------------------------------------------------
 vec3	multiToSingleScatter();
+vec3    sampleCapturedSSSDiffuse(float attenuationDistance, vec3 diffuseColor);
 
-// Shadow
+// ---- Shadows ---------------------------------------------------------------
 float   calculateShadow(vec4 fragPosLightSpace);
-// Function to fetch shadow value with variable kernel size
 float   calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 lightPos);
 
+// ---- Background ------------------------------------------------------------
 vec2    calculateBackgroundUV();
 vec3    calculateBackgroundColor();
 
-float pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias);
-float sampleOpacityMap(vec2 uv);
-float sampleFallbackOpacity(vec2 uv);
-
-vec3 acesToneMapping(vec3 color);
+// ---- Tone mapping & colour space -------------------------------------------
 vec3 uncharted2ToneMapping(vec3 color);
 vec3 applyToneMapping(vec3 color);
-
 vec3 sRGBToLinear(vec3 c);
 vec3 linearTosRGB(vec3 c);
 float sRGBSaturation(vec3 c);
+
+// ---- Miscellaneous utilities -----------------------------------------------
+float pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias);
+float sampleOpacityMap(vec2 uv);
+float sampleFallbackOpacity(vec2 uv);
 float readMaskChannel(vec4 texel, int channel);
-vec3 computeBaseColor(vec2 uv,
-	vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
-	sampler2D albedoTex,
-	bool hasAlbedoTex,
-	vec3 vertexColor_sRGB,    // pass v_color.rgb
-	bool useVertexColor);
+
+// ---- KHR PBR path - setup & materials -------------------------------------
+SurfaceFrame  buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV, vec3 lightDirection);
+MaterialParams gatherMaterialParams();
+vec3  computeDielectricF0(float ior, float specularFactor, vec3 specularColor, bool useSpecGloss, vec3 specGlossSpecular);
+vec3  computeF90(float metallic, float specularFactor);
+float computeVolumeScaleFactor();
+float computeVolumeThickness(float thickness);
+float computeScaledAttenuationDistance(float attenuationDistance);
+vec3  computeBaseColor(vec2 uv,
+					   vec3 matBaseColor_linear,
+					   sampler2D albedoTex,
+					   bool hasAlbedoTex,
+					   vec3 vertexColor_linear,
+					   bool useVertexColor);
+
+// ---- KHR PBR path - IBL helpers --------------------------------------------
+vec3  transformNormalForIBL(vec3 normal);
+vec3  toPrefilterDirection(vec3 v);
+void  buildAnisotropyBasis(in SurfaceFrame frame, in MaterialParams params, out vec3 anisotropicT, out vec3 anisotropicB);
+vec3  sampleAnisotropicSpecularIBL(in SurfaceFrame frame, in MaterialParams params);
+float computeSheenScaling(float Ndot, float sheenRoughness);
+float computeCharlieBRDF(float Ndot, float sheenRoughness);
+vec3  computeIBLGGXFresnel(vec3 N, vec3 V, float roughness, vec3 F0, float specularWeight);
+vec3  computeAnisotropicSpecularLobe(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir);
+
+// ---- KHR PBR path - punctual & direct lighting ----------------------------
+void evaluatePunctualLight(in PunctualLight light, out vec3 lightDir, out vec3 lightIntensity);
+void evaluateBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor, out vec3 diffuseOut, out vec3 specularOut);
+vec3 evaluateSheenDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor);
+void evaluateBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 diffuseIBLOut, out vec3 specularIBLOut);
+vec3 evaluateClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor);
+vec3 evaluateClearcoatIBL(in SurfaceFrame frame, in MaterialParams params);
+vec3 evaluateSheenIBL(in SurfaceFrame frame, in MaterialParams params);
+
+// ---- KHR PBR path - layer composition --------------------------------------
+LayerContributions makeEmptyLayerContributions();
+vec3 sampleMappedNormal(sampler2D map, vec2 texCoord, float normalScale, vec3 Ng, vec3 T, vec3 B);
+vec3 composeBaseLayer(in MaterialParams params, in LayerContributions layers);
+vec3 composeLayeredPBR(in SurfaceFrame frame, in MaterialParams params, in LayerContributions layers);
 
 float floorRadius = floorSize * 0.5; // Adjust radius based on floor size
 float fadeStart = floorRadius * 0.65;   // Start fading 
 float fadeEnd = floorRadius * 1.025;     // Fully faded
 
+// ---- void main() ------------------------------------------------------------
 
 void main()
 {
@@ -564,12 +771,7 @@ void main()
 	vec4 v_color;
 
 	// Discard backfaces if not twoSided
-	bool isFrontFacing = gl_FrontFacing;
-
-	if (hasNegativeScale)
-	{
-		isFrontFacing = !isFrontFacing;  // Invert because negative scale reverses winding
-	}
+	bool isFrontFacing = isGeometryFrontFacing();
 
 	if (!twoSided && !isFrontFacing && !floorRendering)
 	{
@@ -584,11 +786,17 @@ void main()
 			discard;
 	}
 
+	// SSS capture pass: skip non-SSS surfaces entirely so only subsurface
+	// fragments are written into the SSS FBO.
+	if (sssCapture && !hasVolumeScattering)
+		discard;
+
 	// Choose rendering path - ADS vs PBR
 	if (renderingMode == 0)
 	{
-		v_color_front = shadeBlinnPhong(lightSource, lightModel, material, v_position, v_normal);
-		v_color_back = shadeBlinnPhong(lightSource, lightModel, material, v_position, -v_normal);
+		vec3 baseNormal = getUnsignedViewGeometryNormal();
+		v_color_front = shadeBlinnPhong(lightSource, lightModel, material, v_position, baseNormal);
+		v_color_back = shadeBlinnPhong(lightSource, lightModel, material, v_position, -baseNormal);
 	}
 	else
 	{
@@ -597,7 +805,7 @@ void main()
 	}
 
 	// Two-sided coloring
-	if (gl_FrontFacing)
+	if (isFrontFacing)
 	{
 		v_color = v_color_front;
 	}
@@ -709,11 +917,171 @@ void main()
 		fragColor.rgb *= finalAlpha;
 	}
 
-	// Selection highlighting
-	if (selected && selectionHighlighting) // with glow
+	// ---- Debug channel isolation -----------------------------------------------
+	// TextureDebugPanel dropdown: replace fragColor with a raw channel value.
+	// IDs 1-9  : geometry / vertex channels (no ADS/PBR branching needed).
+	// IDs 10-17: core texture channels (branched per rendering path).
+	// IDs 18+  : extension texture channels (PBR path only).
+	// Skipped for the floor mesh.
+	if (debugChannelOutput != 0 && !floorRendering)
+	{
+		float savedAlpha = fragColor.a;  // preserve before overwriting
+
+		// Default: white-grey checkerboard for channels absent on this mesh.
+		// Uses screen-space coordinates so the pattern is a fixed pixel size
+		// regardless of UV layout (matches Khronos missing-data style).
+		float _checker = mod(floor(gl_FragCoord.x / 16.0) + floor(gl_FragCoord.y / 16.0), 2.0);
+		vec3  iso = mix(vec3(1.0), vec3(0.65), _checker); // white / light-grey squares
+
+		// ---- Geometry / vertex channels (IDs 1-9) ----
+		if (debugChannelOutput == 1)     // Texture Coordinates 0  (R=U, G=V)
+			// Assimp flips V for glTF (top-origin → bottom-origin).  Re-flip here
+			// so the display matches Khronos and DCC tool UV conventions (V=0 at top).
+			iso = vec3(v_texCoord0.x, 1.0 - v_texCoord0.y, 0.0);
+
+		else if (debugChannelOutput == 2) // Texture Coordinates 1  (R=U, G=V)
+			iso = vec3(v_texCoord1.x, 1.0 - v_texCoord1.y, 0.0);
+
+		else if (debugChannelOutput == 3) // Geometry Normal  (world-space, remapped)
+			iso = getUnsignedViewGeometryNormal() * 0.5 + 0.5;
+
+		else if (debugChannelOutput == 4) // Geometry Tangent
+		{
+			bool hasTangentData = length(v_tangent) > 0.01;
+			iso = hasTangentData ? normalize(v_tangent) * 0.5 + 0.5 : vec3(0.5);
+		}
+
+		else if (debugChannelOutput == 5) // Geometry Bitangent
+		{
+			bool hasBitangentData = length(v_bitangent) > 0.01;
+			iso = hasBitangentData ? normalize(v_bitangent) * 0.5 + 0.5 : vec3(0.5);
+		}
+
+		else if (debugChannelOutput == 6) // Geometry Tangent W (handedness: 0=negative, 1=positive)
+		{
+			bool hasTangentData = length(v_tangent) > 0.01;
+			if (hasTangentData)
+			{
+				vec3 N = getUnsignedViewGeometryNormal();
+				vec3 T = normalize(v_tangent   - dot(v_tangent,   N) * N);
+				vec3 B = normalize(v_bitangent - dot(v_bitangent, N) * N);
+				float w = sign(dot(cross(T, B), N)); // +1 or -1
+				iso = vec3((w + 1.0) * 0.5);         // remap to [0,1]
+			}
+			// else keep mid-grey sentinel (no tangent data)
+		}
+
+		else if (debugChannelOutput == 7) // Shading Normal (TBN-transformed, what lighting uses)
+		{
+			vec3 shadingN;
+			if (renderingMode == 0) // ADS
+				shadingN = (displayMode != 4 && hasNormalTexture)
+				    ? calcBumpedNormal(texture_normal, getNormalTextureUV())
+				    : getSignedViewGeometryNormal();
+			else // PBR
+				shadingN = (displayMode != 4 && hasNormalMap)
+				    ? calcBumpedNormal(normalMap, getNormalUV())
+				    : getSignedViewGeometryNormal();
+			iso = shadingN * 0.5 + 0.5;
+		}
+
+		else if (debugChannelOutput == 8) // Alpha (final opacity value)
+			iso = vec3(savedAlpha);
+
+		else if (debugChannelOutput == 9) // Vertex Color
+		{
+			if (hasVertexColors)
+				iso = v_rawVertexColor.rgb;
+			// else keep checkerboard sentinel
+		}
+
+		// ---- Texture channels (IDs 10-17, branched per rendering path) ----
+		else if (renderingMode == 0) // ADS path
+		{
+			if      (debugChannelOutput == 10 && hasDiffuseTexture)
+				iso = texture(texture_diffuse, getDiffuseTextureUV()).rgb;
+			else if (debugChannelOutput == 12 && hasEmissiveTexture)
+				iso = texture(texture_emissive, getEmissiveTextureUV()).rgb;
+			else if (debugChannelOutput == 13 && hasNormalTexture)
+				iso = texture(texture_normal, getNormalTextureUV()).rgb;
+			else if (debugChannelOutput == 14 && hasHeightTexture)
+				{ float h = texture(texture_height, getHeightUV()).r; iso = vec3(h); }
+			else if (debugChannelOutput == 15 && hasOpacityTexture)
+				{ float a = texture(texture_opacity, getOpacityTextureUV()).r; iso = vec3(a); }
+		}
+		else // PBR path
+		{
+			// Gather the fully-resolved material parameters (texture × scalar factor).
+			// Mirrors Khronos viewer behaviour: every channel shows the combined value
+			// the lighting model actually uses, so a material with only a metallic scalar
+			// (no metallic texture) shows that scalar instead of a checkerboard.
+			// Normal/height maps are excluded — they have no meaningful scalar fallback.
+			MaterialParams dbg = gatherMaterialParams();
+
+			if      (debugChannelOutput == 10)  // Albedo/Base Color (factor × tex × vtxColor) — sRGB like Khronos
+				iso = linearTosRGB(dbg.baseColor);
+			else if (debugChannelOutput == 11)  // Metallic (metallicFactor × tex, or just factor)
+				iso = vec3(dbg.metallic);
+			else if (debugChannelOutput == 12)  // Emissive (emissionFactor × tex × emissiveStrength) — sRGB like Khronos
+				iso = linearTosRGB(dbg.emissive);
+			else if (debugChannelOutput == 13 && hasNormalMap)
+				iso = texture(normalMap, getNormalUV()).rgb;
+			else if (debugChannelOutput == 14 && hasHeightMap)
+				{ float h = texture(heightMap, getHeightUV()).r; iso = vec3(h); }
+			else if (debugChannelOutput == 15 && hasOpacityMap)
+				{ float a = texture(opacityMap, getOpacityUV()).r; iso = vec3(a); }
+			else if (debugChannelOutput == 16)  // Roughness (roughnessFactor × tex, or just factor)
+				iso = vec3(dbg.roughness);
+			else if (debugChannelOutput == 17)  // AO (occlusionStrength × tex, or 1.0 if absent)
+				iso = vec3(dbg.ambientOcclusion);
+			// ---- Extension channels (IDs 18-30, 32, 34-35) ----
+			// Each branch is gated by its extXxx flag so that absent extensions
+			// fall through to the checkerboard sentinel, matching Khronos behaviour.
+			else if (debugChannelOutput == 18 && extClearcoat)
+				iso = vec3(dbg.clearcoat);
+			else if (debugChannelOutput == 19 && extClearcoat)
+				iso = vec3(dbg.clearcoatRoughness);
+			else if (debugChannelOutput == 20 && extClearcoat && hasClearcoatNormalMap)
+				iso = texture(clearcoatNormalMap, getClearcoatNormalUV()).rgb;
+			else if (debugChannelOutput == 21 && extSpecular)
+				iso = vec3(dbg.specularFactor);
+			else if (debugChannelOutput == 22 && extSpecular)
+				iso = dbg.specularColor;
+			else if (debugChannelOutput == 23 && extAnisotropy)
+				iso = vec3(dbg.anisotropyStrength);
+			else if (debugChannelOutput == 32 && extAnisotropy)
+			{
+				if (hasAnisotropyMap)
+					iso = vec3(texture(anisotropyMap, getAnisotropyUV()).xy, 0.0);
+				else
+					iso = vec3(1.0, 0.5, 0.0); // default +X direction (1,0) remapped to [0,1]
+			}
+			else if (debugChannelOutput == 24 && extIridescence)
+				iso = vec3(dbg.iridescenceFactor);
+			else if (debugChannelOutput == 25 && extIridescence)
+				iso = vec3(dbg.iridescenceThickness / 1200.0);
+			else if (debugChannelOutput == 26 && extSheen)
+				iso = dbg.sheenColor;
+			else if (debugChannelOutput == 27 && extSheen)
+				iso = vec3(dbg.sheenRoughness);
+			else if (debugChannelOutput == 28 && extTransmission)
+				iso = vec3(dbg.transmission);
+			else if (debugChannelOutput == 30 && extVolume)
+				iso = vec3(dbg.thickness / max(pbrLighting.thicknessFactor, 0.001));
+			else if (debugChannelOutput == 34 && extDiffuseTrans)
+				iso = vec3(dbg.diffuseTransmissionFactor);
+			else if (debugChannelOutput == 35 && extDiffuseTrans)
+				iso = linearTosRGB(dbg.diffuseTransmissionColor);
+		}
+		fragColor = vec4(iso, 1.0);
+	}
+
+	// Selection highlighting — skipped in single-channel isolation mode so raw
+	// channel values are not tinted.
+	if (debugChannelOutput == 0 && selected && selectionHighlighting) // with glow
 	{
 		// Compute lighting
-		vec3 norm = normalize(gl_FrontFacing ? v_normal : -v_normal);
+		vec3 norm = getSignedViewGeometryNormal();
 		vec3 lightDir = normalize(lightSource.position);
 		float diff = max(dot(norm, lightDir), 0.0);
 
@@ -742,11 +1110,12 @@ void main()
 	}
 
 	// Hover highlighting (visual preview, non-destructive)
-	// Only applied if not already selected (selection takes priority)
-	if (hovered && hoverHighlighting && !selected)
+	// Only applied if not already selected (selection takes priority).
+	// Also skipped in single-channel isolation mode.
+	if (debugChannelOutput == 0 && hovered && hoverHighlighting && !selected)
 	{
 		// Compute lighting (similar to selection but more subtle)
-		vec3 norm = normalize(gl_FrontFacing ? v_normal : -v_normal);
+		vec3 norm = getSignedViewGeometryNormal();
 		vec3 lightDir = normalize(lightSource.position);
 		float diff = max(dot(norm, lightDir), 0.0);
 
@@ -774,8 +1143,8 @@ void main()
 	// Finally, handle floor rendering fade-out and background blending
 	if (floorRendering)
 	{
-		if (texEnabled == true)
-			fragColor = v_color * texture2D(texUnit, v_texCoord0);
+		if (!isReflectedPass && floorTextureEnabled)
+			fragColor = v_color * texture(texture_diffuse, getDiffuseTextureUV());
 		// Compute distance-based blending factor
 		float distance = length(v_position - screenCenter);
 
@@ -791,7 +1160,7 @@ void main()
 		// Blend floor color with the background gradient
 		// View-angle modulation: reduce background mix when looking straight down
 		// NdotV in world (front/back already handled above)
-		vec3 N_main = normalize(gl_FrontFacing ? v_normal : -v_normal);
+		vec3 N_main = getSignedViewGeometryNormal();
 		vec3 V_main = normalize(cameraDir);
 		float NdotV_main = clamp(dot(N_main, V_main), 0.0, 1.0);
 
@@ -806,7 +1175,7 @@ void main()
 		vec3 backgroundColor = vec3(1.0);
 		if (skyBoxEnabled)
 		{
-			vec3 N = normalize(v_reflectionNormal);
+			vec3 N = getUnsignedWorldGeometryNormal();
 			vec3 V = normalize(cameraDir);
 
 			// Refract ray into environment
@@ -816,10 +1185,10 @@ void main()
 			// Sample environment
 			vec3 backgroundColor = texture(envMap, R).rgb;
 		}
-		else if (texEnabled == true)
+		else if (!isReflectedPass && floorTextureEnabled)
 		{
 			// Interpolate background gradient color			
-			backgroundColor = texture2D(texUnit, v_texCoord0).rgb;			
+			backgroundColor = texture(texture_diffuse, getDiffuseTextureUV()).rgb;			
 		}
 
 		// Blend floor color with background gradient
@@ -828,1307 +1197,7 @@ void main()
 	}
 }
 
-// ========== LEGACY BLINN-PHONG SHADING FUNCTION ==========
-vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
-{
-	vec2 clippedTexCoord = v_texCoord0;
-
-	// --- Normal / Parallax (same as before) ---
-	if (hasNormalTexture)
-		normal = calcBumpedNormal(texture_normal, getNormalTextureUV());
-
-	if (hasHeightTexture)
-	{
-		clippedTexCoord = applyParallaxMapping(getHeightUV(), texture_height, heightScale, hasHeightTexture);
-		normal = calcBumpedNormal(normalMap, clippedTexCoord);
-	}
-
-	// --- Lighting vectors ---
-	vec3 lightDir, viewDir;
-
-	viewDir = normalize(vec3(0, 0, 1));
-	lightDir = normalize(source.position - v_position);
-
-	vec3 halfVector = normalize(lightDir + viewDir);
-	float nDotVP = max(dot(normal, normalize(lightDir + viewDir)), 0.0);
-	float nDotHV = max(0.0, dot(normal, halfVector));
-	float pf = pow(nDotHV, mat.shininess);
-
-	// --- Material terms ---
-	vec3 matAmbient = mat.ambient;
-	vec3 matDiffuse = mat.diffuse;
-	vec3 matSpecular = mat.specular * pf;
-	vec3 matEmissive = mat.emission;
-
-	if (hasDiffuseTexture)
-	{
-		vec4 d = texture(texture_diffuse, getDiffuseTextureUV());
-		matAmbient *= d.rgb;
-		matDiffuse *= d.rgb;
-	}
-
-	if (hasVertexColors)
-		matDiffuse *= v_color.rgb;
-
-	if (length(normal) < 0.01)
-	{		
-		return vec4(matDiffuse, 1.0);  // Actual object color, unlit
-	}
-
-	// Geometry term
-	matDiffuse  *= nDotVP;
-
-	if (hasSpecularTexture)
-	{
-		// ADS specular is cascaded from metallic texture
-		// Combine with roughness for proper metallic-roughness behavior:
-		// specular = metallic × (1 - roughness)
-		float metallicValue = texture(texture_specular, getSpecularTextureUV()).r;
-		float roughnessValue = 0.5; // Default if no roughness texture
-
-		// If roughness texture is available, use it to modulate specularity
-		if (hasRoughnessMap)
-		{
-			roughnessValue = texture(roughnessMap, getRoughnessUV()).r;
-		}
-
-		// Combine: metallic determines if reflective, roughness determines intensity
-		float specularity = metallicValue * (1.0 - roughnessValue);
-		matSpecular = vec3(specularity) * pf;
-	}
-	if (hasEmissiveTexture)
-		matEmissive = texture(texture_emissive, getEmissiveTextureUV()).rgb;
-
-	// --- Build lighting buckets ---
-	vec3 ambient = source.ambient * matAmbient * model.ambient;
-	vec3 diffuse = vec3(0.0);
-	vec3 specular = vec3(0.0);
-	
-	if (useDefaultLights || floorRendering)
-	{
-		diffuse = source.diffuse * matDiffuse;
-		specular = source.specular * matSpecular;
-	}
-
-	vec3 baseNoSpec, specOnly;
-	vec3 sceneColor = matEmissive + ambient;
-
-	if (useDefaultLights && shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering))
-	{
-		float shadowFactor = calculateShadowVariableKernel(
-			fs_in_shadow.FragPosLightSpace,
-			fs_in_shadow.FragPos,
-			fs_in_shadow.lightPos
-		);
-		shadowFactor = clamp(shadowFactor, 0.0, 0.7);
-		float lightFactor = 1.0 - shadowFactor;
-
-		vec3 ambientContrib = ambient * 0.6;
-		vec3 directDiffuse = lightFactor * diffuse;
-		vec3 directSpecular = lightFactor * specular;
-
-		baseNoSpec = sceneColor + ambientContrib + directDiffuse;
-		specOnly = directSpecular;
-	}
-	else
-	{
-		baseNoSpec = sceneColor + diffuse;
-		specOnly = specular;
-	}
-
-	// --- Floor override (non-reflected) ---
-	// Ensure the floor is actually translucent even if its material is OPAQUE
-	if (floorRendering && !isReflectedPass)
-	{
-		float fa = clamp(floorAlpha, 0.0, 1.0);
-
-		// View-angle term to avoid "whiteout" when looking straight down
-		vec3 Nf = normalize(gl_FrontFacing ? v_normal : -v_normal);
-		vec3 Vf = normalize(cameraPos - v_position);
-		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
-		// Fresnel-like dampening of spec when NdotV is high (looking straight down)
-		float fresDampen = mix(1.0 - floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
-
-		// Scale specular; keep non-spec premultiplied
-		vec3 floorRGB = baseNoSpec * fa + specOnly * (floorSpecularScale * fresDampen);
-
-		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB);
-		if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
-		return vec4(floorRGB, fa);
-	}
-
-	vec3 composed;
-	composed = baseNoSpec + specOnly;
-
-	// ADS reflection with exposure
-	if (useIBL && envMapEnabled)
-	{
-		vec3 I = normalize(cameraDir);
-		vec3 N = normalize(v_reflectionNormal);
-		vec3 offset = normalize(cameraPos - v_reflectionPosition);
-		vec3 I_offset = normalize(I - offset * 0.3);  // Blend factor adjustable
-		vec3 R = reflect(-I_offset, N);
-		R = envMapRotationMatrix * -R;
-		R = normalize(R);
-
-		float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
-		float diffuseLum = dot(material.diffuse, vec3(0.299, 0.587, 0.114));
-
-		// Derive metallic-like factor from ADS: metals have high spec/low diff
-		float adsMetallic = specLum / (specLum + diffuseLum + 0.001);
-		adsMetallic = clamp(adsMetallic, 0.0, 1.0);
-
-		float NdotV = max(dot(-I, N), 0.0);
-
-		// Gentler fresnel powers
-		float nonMetallicFresnelPower = mix(2.0, 3.5, 1.0 - specLum); // Reduced
-		float metallicFresnelPower = 1.2; // Reduced
-		float fresnelPower = mix(nonMetallicFresnelPower, metallicFresnelPower, adsMetallic);
-		float fresnel = pow(1.0 - NdotV, fresnelPower);
-
-		// Limit grazing angle effect
-		float grazingLimit = mix(0.6, 0.9, adsMetallic); // Metals can handle more
-		fresnel = clamp(fresnel, 0.0, grazingLimit);
-
-		float surfaceRoughness = 1.0 - (material.shininess / 128.0);
-		float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
-
-		// Reduced base strengths
-		float metallicStrength = mix(0.2, 0.4, specLum);
-		float glossyStrength = mix(0.25, 0.5, specLum);
-		float diffuseStrength = mix(0.02, 0.12, specLum);
-
-		bool isHighSpecular = specLum > 0.5;
-		bool isDiffuseDominant = dot(material.diffuse, vec3(0.299, 0.587, 0.114)) > specLum * 2.0;
-		float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
-		float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, adsMetallic);
-
-		// Additional roughness damping for very rough surfaces
-		float roughnessDamping = mix(0.3, 1.0, 1.0 - surfaceRoughness);
-		float reflectionStrength = clamp(baseReflectionStrength * fresnel * roughnessReduction * roughnessDamping, 0.0, 0.5);
-
-		// === IMPROVED GRAZING LOD ===
-		// Material-aware grazing influence: smooth metals/mirrors avoid extra blur
-		float grazingInfluence = surfaceRoughness * (1.0 - adsMetallic * 0.8);
-
-		// Grazing factor for LOD adjustment
-		float grazingFactor = pow(1.0 - NdotV, mix(1.8, 2.5, surfaceRoughness));
-
-		// Base LOD from roughness
-		float baseLOD = surfaceRoughness * 7.0;
-
-		// Extra grazing blur, but only for rough dielectrics
-		float grazingLOD = grazingFactor * grazingInfluence * 4.0; // Scaled to match 7.0 max
-
-		// Combine: mirrors/smooth metals keep sharp reflections
-		float envLOD = clamp(baseLOD + grazingLOD, 0.0, 7.0);
-		// ========================
-
-		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
-		composed += envColor * reflectionStrength;
-	}
-
-	// --- Tone/gamma ---
-	if (hdrToneMapping)
-	{
-		composed *= envMapExposure;
-		composed = applyToneMapping(composed);
-	}
-	if (gammaCorrection)
-		composed = pow(composed, vec3(1.0 / screenGamma));
-
-	return vec4(composed, 1.0);
-}
-
-
-// ----------------------------------------------------------------------------
-// Calculate PBR lighting based on the render mode
-vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = back
-{
-	vec3	normal = v_normal * side;
-
-	vec3	albedo;
-	float	metallic;
-	float	roughness;
-	float	normalScale;
-	float	ambientOcclusion;
-	float	occlusionStrength;
-	float	transmission;
-	float	ior;
-	vec3	sheenColor;
-	float	sheenRoughness;
-	float	clearcoat;
-	float	clearcoatRoughness;
-	vec3	clearcoatNormal;
-
-	// New glTF extension parameters
-	float	specularFactor;
-	vec3	specularColorFactor;
-	float	anisotropyStrength;
-	float	anisotropyRotation;
-	float	iridescenceFactor;
-	float	iridescenceIor;
-	float	iridescenceThickness;
-	float	thicknessFactor;
-	float	dispersion;
-	float	attenuationDistance;
-	vec3	attenuationColor;
-	bool	unlit;
-	float	diffuseTransmissionFactor;
-	vec3	diffuseTransmissionColorFactor;
-	float	emissiveStrength;
-
-	vec3	N;
-	vec3	V_direct;
-	vec3	L;
-
-	// Pre-compute reflection view (used by IBL, clearcoat, transmission)
-	vec3 V_reflect_base = normalize(cameraDir);
-	vec3 V_reflect_offset = normalize(cameraPos - v_reflectionPosition);
-	vec3 V_reflect = normalize(V_reflect_base - V_reflect_offset * 0.3);
-
-	V_direct = normalize(vec3(0, 0, 1));
-	L = normalize(lightSource.position - v_position);
-
-	// Optional shadows affecting direct terms
-	float lightShadowFactor = 0.0;
-	if (useDefaultLights && shadowsEnabled && displayMode == 3 && (selfShadowsEnabled || floorRendering))
-	{
-		float s = calculateShadowVariableKernel(
-			fs_in_shadow.FragPosLightSpace,
-			fs_in_shadow.FragPos,
-			fs_in_shadow.lightPos
-		);
-		lightShadowFactor = clamp(s, 0.0, 0.85); // a bit stronger on direct light
-	}
-	float lightFactor = 1.0 - lightShadowFactor;
-
-	vec2 clippedTexCoord = v_texCoord0;
-	vec4 textureColor = vec4(1.0);
-
-	float blendFactor = float(isGLTFMaterial);
-
-	// --- Initialize material properties from uniforms ---	
-	N = normalize(normal);
-	albedo = pbrLighting.albedo;
-	metallic = pbrLighting.metallic;
-	roughness = clamp(pbrLighting.roughness, 0.001, 1.0);
-	normalScale = pbrLighting.normalScale;
-	ambientOcclusion = pbrLighting.ambientOcclusion;
-	occlusionStrength = pbrLighting.occlusionStrength;
-	transmission = pbrLighting.transmission;
-	ior = pbrLighting.ior;
-	sheenColor = pbrLighting.sheenColor;
-	sheenRoughness = pbrLighting.sheenRoughness;
-	clearcoat = pbrLighting.clearcoat;
-	clearcoatRoughness = pbrLighting.clearcoatRoughness;
-	clearcoatNormal = normalize(v_reflectionNormal);
-	specularFactor = pbrLighting.specularFactor;
-	specularColorFactor = pbrLighting.specularColorFactor;
-	anisotropyStrength = pbrLighting.anisotropyStrength;
-	anisotropyRotation = pbrLighting.anisotropyRotation;
-	iridescenceFactor = pbrLighting.iridescenceFactor;
-	iridescenceIor = pbrLighting.iridescenceIor;
-	iridescenceThickness = (pbrLighting.iridescenceThicknessMin + pbrLighting.iridescenceThicknessMax) * 0.5;
-	thicknessFactor = pbrLighting.thicknessFactor;
-	dispersion = pbrLighting.dispersion;
-	attenuationDistance = pbrLighting.attenuationDistance;
-	attenuationColor = pbrLighting.attenuationColor;
-	unlit = pbrLighting.unlit;
-	diffuseTransmissionFactor = pbrLighting.diffuseTransmissionFactor;
-	diffuseTransmissionColorFactor = pbrLighting.diffuseTransmissionColorFactor;
-	emissiveStrength = pbrLighting.emissiveStrength;
-
-
-	// Normal map / Parallax
-	if (hasNormalMap)  N = calcBumpedNormal(normalMap, getNormalUV()) * side;
-	else               N = normalize(normal);
-
-	 // Apply scale to XY only
-     N.xy *= normalScale;
-     N = normalize(N);
-
-	if (hasHeightMap)
-	{
-		clippedTexCoord = applyParallaxMapping(getHeightUV(), heightMap, heightScale, hasHeightMap);
-		N = calcBumpedNormal(normalMap, clippedTexCoord) * side;
-	}
-
-	// Albedo (grayscale-tint logic via computeBaseColor)
-	if (hasAlbedoMap)
-	{
-		textureColor = texture(albedoMap, getAlbedoUV());
-		vec3 texRGB_L = pow(textureColor.rgb, vec3(2.2));
-		float colorDeviation = length(pbrLighting.albedo - vec3(1.0));
-		if (colorDeviation < 0.1)
-		{
-			albedo = texRGB_L;
-		}
-		else
-		{
-			albedo = computeBaseColor(getAlbedoUV(),
-				pbrLighting.albedo, // sRGB in function; it converts internally
-				albedoMap,
-				hasAlbedoMap,
-				vec3(1.0), false);
-		}
-	}
-	else
-	{
-		albedo = pbrLighting.albedo;
-	}
-
-	if (hasVertexColors)
-		albedo *= v_color.rgb;
-
-
-	if (length(v_normal) < 0.01)
-	{
-		// Return actual base color without PBR lighting
-		return vec4(albedo, 1.0);
-	}
-
-	vec3 specularGlossSpecular = vec3(1.0);
-	if (useSpecularGlossiness)
-	{
-		specularGlossSpecular = specularColor;
-		float glossinessVal = glossinessFactor;
-	
-		// Sample diffuse with proper conversions
-		if (hasDiffuseMap)
-		{
-			albedo = texture(diffuseMap, getDiffuseUV()).rgb;
-		}
-		else
-		{
-			albedo = diffuseFactor;
-		}
-	
-		if (hasSpecularGlossinessMap)
-		{
-			vec4 sampledSpecGloss = texture(specularGlossinessMap, getSpecularGlossinessUV());			
-			specularGlossSpecular *= sampledSpecGloss.rgb;			
-			glossinessVal *= sampledSpecGloss.a;
-		}
-	
-		metallic = 0.0;
-		roughness = 1.0 - glossinessVal;
-		roughness = clamp(roughness, 0.0, 1.0);
-	}
-	else  // Metallic-Roughness workflow
-	{
-		// --- packed-channel aware PBR sampling ---
-		// Metallic
-		float texMetallic = samplePackedChannelValue(metallicMap, hasMetallicMap, getMetallicUV(),
-			metallicChannel, metallicInvert,
-			metallicScale, metallicBias,
-			isGLTFMaterial ? 1.0 : pbrLighting.metallic
-		);
-		float metallicFactor = blendFactor > 0.5 ? pbrLighting.metallic : guardFactorScalar(pbrLighting.metallic, 0.01);
-		metallic = mix(texMetallic, metallicFactor * texMetallic, blendFactor);
-		metallic = clamp(metallic, 0.0, 1.0);
-
-		// Roughness
-		float texRoughness = samplePackedChannelValue(roughnessMap, hasRoughnessMap, getRoughnessUV(),
-			roughnessChannel, roughnessInvert,
-			roughnessScale, roughnessBias,
-			isGLTFMaterial ? 1.0 : pbrLighting.roughness
-		);
-		roughness = mix(texRoughness, pbrLighting.roughness * texRoughness, blendFactor);
-		roughness = clamp(roughness, 0.0001, 1.0);
-
-		// Specular (KHR_materials_specular)
-		float texSpecularFactor = hasSpecularFactorMap ? texture(specularFactorMap, getSpecularFactorUV()).a : 1.0;
-		specularFactor = mix(texSpecularFactor, pbrLighting.specularFactor * texSpecularFactor, blendFactor);
-
-		vec3 texSpecularColor = hasSpecularColorMap ? texture(specularColorMap, getSpecularColorUV()).rgb : vec3(1.0);
-		specularColorFactor = mix(texSpecularColor, pbrLighting.specularColorFactor * texSpecularColor, blendFactor);
-	}
-
-	// Ambient Occlusion (applies to both)
-	float texAO = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
-		aoChannel, aoInvert, aoScale, aoBias,
-		isGLTFMaterial ? 1.0 : pbrLighting.ambientOcclusion);
-	ambientOcclusion = mix(texAO, pbrLighting.ambientOcclusion * texAO, blendFactor);
-	ambientOcclusion = clamp(ambientOcclusion, 0.0001, 1.0);
-	ambientOcclusion = mix(1.0, ambientOcclusion, occlusionStrength);
-
-	// Anisotropy (KHR_materials_anisotropy)
-	AnisotropyData anisoData;
-	if (hasAnisotropyMap)
-	{
-		vec3 anisoTexel = texture(anisotropyMap, getAnisotropyUV()).rgb;
-		anisoData = decodeAnisotropyTexture(
-			anisoTexel,
-			pbrLighting.anisotropyStrength,
-			pbrLighting.anisotropyRotation,
-			true
-		);
-	}
-	else
-	{
-		anisoData = decodeAnisotropyTexture(
-			vec3(1.0, 0.5, 1.0),  // Default texture value
-			pbrLighting.anisotropyStrength,
-			pbrLighting.anisotropyRotation,
-			false
-		);
-	}
-
-	anisotropyStrength = anisoData.strength;
-	anisotropyRotation = anisoData.rotation;
-
-
-	// Early out for unlit materials
-	if (unlit)
-	{
-		vec3 unlitColor = albedo;
-
-		// Apply emissive
-		vec3 emissive_L = material.emission;
-		if (hasEmissiveMap)
-		{
-			vec3 emission = material.emission;
-			vec3 emissionFactor = guardFactorColor(emission, 0.01);
-			emissive_L = texture(emissiveMap, getEmissiveUV()).rgb * emissionFactor;
-		}
-
-		// Apply emissive strength
-		emissive_L *= emissiveStrength;
-
-		unlitColor += emissive_L;
-
-		if (hdrToneMapping) unlitColor = applyToneMapping(unlitColor);
-		if (gammaCorrection) unlitColor = pow(unlitColor, vec3(1.0 / screenGamma));
-
-		return vec4(unlitColor, 1.0);
-	}
-
-	// ============================================================================
-	// LIGHT ACCUMULATION VARIABLES
-	// ============================================================================
-	vec3 directDiffuse_L = vec3(0.0);
-	vec3 directSpecular_L = vec3(0.0);
-	vec3 transmission_L = vec3(0.0);
-	vec3 sheen_L = vec3(0.0);
-	vec3 sheenIBL_L = vec3(0.0);
-	vec3 clearcoat_L = vec3(0.0);
-	vec3 clearcoatIBL_L = vec3(0.0);
-	vec3 iridescence_BRDF_L = vec3(0.0);
-	vec3 iridescence_IBL_L = vec3(0.0);
-	vec3 ambient_L = vec3(0.0);
-	vec3 emissive_L = vec3(0.0);
-	float clearcoatAttenuation = 0.0;
-
-	// ============================================================================
-	// BASE LAYER - F0 and Material Foundation
-	// ============================================================================
-	vec3 F0 = vec3(0.04);
-
-	// Apply KHR_materials_ior and KHR_materials_specular for dielectrics
-	if (metallic < 0.02)  // Only for non-metallic/dielectric materials
-	{
-		// First compute the base dielectric F0 from IOR
-		float f0_from_ior = pow((ior - 1.0) / (ior + 1.0), 2.0);
-
-		if (useSpecularGlossiness)
-		{
-			// For spec-gloss: use specular directly as F0
-			F0 = clamp(specularGlossSpecular, vec3(0.0), vec3(1.0));
-		}
-		else if (specularFactor > 0.0)  // KHR_materials_specular is present
-		{
-			// Apply specular extension: multiply base F0 by color and factor
-			F0 = vec3(f0_from_ior) * specularColorFactor * specularFactor;
-		}
-		else  // No KHR_materials_specular, use IOR directly
-		{
-			F0 = vec3(f0_from_ior);
-			F0 = max(F0, vec3(0.04));
-		}
-	}
-
-	// Mix with albedo for metals
-	F0 = mix(F0, albedo, metallic);
-
-	// ============================================================================
-	// COMPUTE F90 FOR FRESNEL (KHR_materials_specular)
-	// ============================================================================
-	vec3 F90_dielectric = vec3(specularFactor);  // Already contains factor * texture.a
-	vec3 F90 = mix(F90_dielectric, vec3(1.0), metallic);
-
-	// Setup tangent space for anisotropy
-	vec3 T = normalize(v_tangent - dot(v_tangent, N) * N);
-	vec3 B = normalize(v_bitangent - dot(v_bitangent, N) * N);
-
-	// Keep the anisotropy frame orthonormal while preserving the imported tangent basis.
-	if (length(B) < 0.0001)
-	{
-		B = normalize(cross(N, T));
-	}
-	else
-	{
-		B = normalize(B - dot(B, T) * T);
-		if (dot(cross(T, B), N) < 0.0)
-		{
-			B = -B;
-		}
-	}
-
-	// ============================================================================
-	// PRE-LAYER: IRIDESCENCE - Compute F0/F90 before using in BRDFs
-	// ============================================================================
-	vec3 F0_iridescent = F0;
-	vec3 F90_iridescent = F90;
-
-	iridescenceFactor = hasIridescenceMap ? texture(iridescenceMap, getIridescenceUV()).r : pbrLighting.iridescenceFactor;
-	iridescenceIor = pbrLighting.iridescenceIor;
-
-	// Use MAX thickness per KHR spec, not average
-	if (hasIridescenceThicknessMap)
-	{
-		float thicknessNorm = texture(iridescenceThicknessMap, getIridescenceThicknessUV()).g;
-		iridescenceThickness = mix(pbrLighting.iridescenceThicknessMin, pbrLighting.iridescenceThicknessMax, thicknessNorm);
-	}
-	else
-	{
-		iridescenceThickness = pbrLighting.iridescenceThicknessMax;
-	}
-
-	if (iridescenceFactor > 0.001)
-	{
-		float NdotV_view = clamp(dot(N, normalize(V_direct)), 0.0, 1.0);
-
-		vec3 iridFresnel_dielectric = evalIridescence(
-			1.0,                              // outsideIOR (air)
-			iridescenceIor,
-			NdotV_view,
-			iridescenceThickness,
-			F0,								  // dielectric F0
-			F90_dielectric                    // F90
-		);
-
-		vec3 iridFresnel_metallic = evalIridescence(
-			1.0,                              // outsideIOR (air)
-			iridescenceIor,
-			NdotV_view,
-			iridescenceThickness,
-			albedo,							  // metallic F0
-			vec3(1.0)                         // F90
-		);
-
-		vec3 F0_irid = mix(iridFresnel_dielectric, iridFresnel_metallic, metallic);
-		F0_iridescent = mix(F0, F0_irid, iridescenceFactor);
-		F90_iridescent = mix(F90, vec3(1.0), iridescenceFactor);
-	}
-
-	// ============================================================================
-	// DIFFUSE & SPECULAR BASE LAYER (DIRECT LIGHTING)
-	// ============================================================================
-	vec3 H = normalize(V_direct + L);
-
-	vec3 specBRDF;
-	if (anisotropyStrength > 0.0)
-	{
-		specBRDF = calculateAnisotropy(N, V_direct, L, T, B, anisotropyStrength, anisotropyRotation, roughness, F0_iridescent);
-	}
-	else
-	{
-		float NDF = distributionGGX(N, H, roughness);
-		float G = geometrySmith(N, V_direct, L, roughness);
-		vec3 F = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0_iridescent, F90_iridescent);
-		specBRDF = (NDF * G * F) / max(4.0 * max(dot(N, V_direct), 0.0) * max(dot(N, L), 0.0), 0.001);
-	}
-
-	vec3 kS = fresnelSchlick(clamp(dot(H, V_direct), 0.0, 1.0), F0_iridescent, F90_iridescent);
-	vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
-
-	float NdotL = max(dot(N, L), 0.0);
-
-
-	// Calculate the light source component - single light as of now.
-	vec3 lightSourceComponent = lightSource.ambient + lightSource.diffuse + lightSource.specular;
-
-	// Sample diffuse transmission factor and color
-	float diffuseTrans_factor = diffuseTransmissionFactor;
-	vec3 diffuseTrans_color = diffuseTransmissionColorFactor;
-	if (hasDiffuseTransmissionMap)
-	{
-		float dtf = guardFactorScalar(diffuseTransmissionFactor, 0.01);
-		diffuseTrans_factor = dtf * texture(diffuseTransmissionMap, getDiffuseTransmissionUV()).a;
-	}
-	if (hasDiffuseTransmissionColorMap)
-	{
-		vec3 dtc = guardFactorColor(diffuseTransmissionColorFactor, 0.01);
-		diffuseTrans_color = dtc * texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb;
-	}
-
-	// ============================================================================
-	// TRANSMISSION - Sample once, use for both punctual and fallback
-	// ============================================================================
-	transmission = hasTransmissionMap ? texture(transmissionMap, getTransmissionUV()).r : pbrLighting.transmission;
-	ior = hasIORMap ? texture(iorMap, getIORUV()).r : pbrLighting.ior;
-
-	// KHR_materials_volume thickness is thicknessFactor modulated by thicknessTexture.
-	// Compute it once and reuse it consistently across all transmission/volume paths.
-	float volumeThickness = thicknessFactor;
-	if (hasThicknessMap)
-	{
-		vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
-		float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.g;
-		float thicknessFactor_safe = guardFactorScalar(thicknessFactor, 0.01);
-		volumeThickness = thicknessFactor_safe * thicknessSample;
-	}
-
-	// === Punctual lights (KHR_lights_punctual) ===
-	if (hasPunctualLights && usePunctualLights)
-	{
-		for (int i = 0; i < lightCount; ++i)
-		{
-			PunctualLight light = lights[i];
-
-			// ====================================================================
-			// Calculate light direction and attenuation
-			// ====================================================================
-			vec3 pointToLight;
-			vec3 lightIntensity;
-
-			if (light.type != LightType_Directional)
-			{
-				// Point or Spot light
-				vec3 fragPosView = vec3(viewMatrix * vec4(v_position, 1.0));
-				vec3 lightPosView = vec3(viewMatrix * vec4(light.position, 1.0));
-				pointToLight = lightPosView - fragPosView;
-				float distance = length(pointToLight);
-
-				// Range attenuation
-				float rangeAttenuation = 1.0;
-				if (light.range > 0.0)
-				{
-					float distAttenuation = 1.0 - pow(distance / light.range, 4.0);
-					rangeAttenuation = max(min(distAttenuation, 1.0), 0.0) / (distance * distance);
-				}
-				else
-				{
-					rangeAttenuation = 1.0 / (distance * distance);
-				}
-
-				// Spot cone attenuation
-				float spotAttenuation = 1.0;
-				if (light.type == LightType_Spot)
-				{
-					vec3 lightDirView = normalize(mat3(viewMatrix) * light.direction);
-					float actualCos = dot(lightDirView, normalize(-pointToLight));
-					if (actualCos > light.outerConeCos)
-					{
-						if (actualCos < light.innerConeCos)
-						{
-							float angularAtten = (actualCos - light.outerConeCos) / (light.innerConeCos - light.outerConeCos);
-							spotAttenuation = angularAtten * angularAtten;
-						}
-						else
-						{
-							spotAttenuation = 1.0;
-						}
-					}
-					else
-					{
-						spotAttenuation = 0.0;
-					}
-				}
-
-				lightIntensity = rangeAttenuation * spotAttenuation * light.intensity * light.color;
-			}
-			else
-			{
-				// Directional light
-				pointToLight = -normalize(mat3(viewMatrix) * light.direction);
-				lightIntensity = light.intensity * light.color;
-			}
-
-			vec3 l_dir = normalize(pointToLight);
-			float NdotL_light = max(dot(N, l_dir), 0.0);
-
-			// ====================================================================
-			// DIFFUSE with Transmission & Scattering (same logic as single light)
-			// ====================================================================
-			vec3 l_diffuse = vec3(0.0);
-
-			if (hasVolumeScattering && volumeThickness > 0.0)
-			{
-				// Scattering approach: REPLACE front diffuse with transmission color
-				vec3 singleScatter = multiToSingleScatter();
-				vec3 l_diffuse_front = lightIntensity * NdotL_light * (diffuseTrans_color / PI) * lightFactor * singleScatter;
-
-				vec3 l_diffuse_btdf = vec3(0.0);
-				if (dot(N, l_dir) < 0.0)
-				{
-					float diffuseNdotL = max(dot(-N, l_dir), 0.0);
-					l_diffuse_btdf = lightIntensity * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
-
-					if (volumeThickness > 0.0)
-					{
-						vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-						vec3 transmissionRay = refractDir * volumeThickness;
-						float transmissionDistance = length(transmissionRay);
-						vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
-						l_diffuse_btdf *= transmittance;
-					}
-
-					l_diffuse_front += l_diffuse_btdf * (1.0 - singleScatter) * singleScatter;
-				}
-				l_diffuse = l_diffuse_front * diffuseTrans_factor;
-
-			}
-			else
-			{
-				// PBR approach: standard diffuse + transmission BTDF
-				vec3 l_diffuse_front = kD * albedo / PI * lightIntensity * NdotL_light * lightFactor;
-				l_diffuse_front = l_diffuse_front * (1.0 - diffuseTrans_factor);
-
-				vec3 l_diffuse_btdf = vec3(0.0);
-				if (dot(N, l_dir) < 0.0)
-				{
-					float diffuseNdotL = max(dot(-N, l_dir), 0.0);
-					l_diffuse_btdf = lightIntensity * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
-
-					if (volumeThickness > 0.0)
-					{
-						vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-						vec3 transmissionRay = refractDir * volumeThickness;
-						float transmissionDistance = length(transmissionRay);
-						vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
-						l_diffuse_btdf *= transmittance;
-					}
-
-					l_diffuse_front += l_diffuse_btdf * diffuseTrans_factor;
-				}
-				l_diffuse = l_diffuse_front;
-			}
-
-			// Apply transmission blending
-			if (transmission > 0.0)
-			{
-				l_diffuse = mix(l_diffuse, kD * albedo / PI * lightIntensity * NdotL_light * lightFactor, transmission);
-			}
-
-			directDiffuse_L += l_diffuse;
-
-			// ====================================================================
-			// SPECULAR
-			// ====================================================================
-			vec3 l_specular = vec3(0.0);
-			if (NdotL_light > 0.0)
-			{
-				vec3 h_light = normalize(l_dir + V_direct);
-				float NdotH_light = max(dot(N, h_light), 0.0);
-				float VdotH_light = max(dot(V_direct, h_light), 0.0);
-
-				float NDF = distributionGGX(N, h_light, roughness);
-				float G = geometrySmith(N, V_direct, l_dir, roughness);
-				vec3 F = fresnelSchlick(clamp(VdotH_light, 0.0, 1.0), F0_iridescent, F90_iridescent);
-				vec3 specBRDF_light = (NDF * G * F) / max(4.0 * max(dot(N, V_direct), 0.0) * NdotL_light, 0.001);
-
-				l_specular = specBRDF_light * lightIntensity * NdotL_light * lightFactor;
-			}
-
-			directSpecular_L += l_specular;
-
-			// ====================================================================
-			// TRANSMISSION (KHR_materials_transmission) - Per Light
-			// ====================================================================
-					
-			// Calculate transmission for this light
-			if (transmission > 0.0)
-			{
-				vec3 l_transmission = calculateTransmission(N, V_direct, l_dir, transmission, ior, albedo);
-				l_transmission *= lightIntensity * lightFactor;
-				transmission_L += l_transmission;
-			}
-		}
-	}
-	else if(useDefaultLights || floorRendering)
-	{
-		// ========================================================================
-		// FALLBACK: Single legacy light - Apply SAME logic as punctual lights
-		// ========================================================================
-
-		// Use the existing L direction (already calculated before this section)
-		vec3 l_dir = L;
-		float NdotL_light = NdotL;
-		vec3 lightSourceComponent = lightSource.ambient + lightSource.diffuse + lightSource.specular;
-		vec3 lightIntensity = lightSourceComponent;
-
-		// ====================================================================
-		// DIFFUSE with Transmission & Scattering (same logic as punctual)
-		// ====================================================================
-		vec3 l_diffuse = vec3(0.0);
-
-		if (hasVolumeScattering && volumeThickness > 0.0)
-		{
-			// Scattering approach: REPLACE front diffuse with transmission color
-			vec3 singleScatter = multiToSingleScatter();
-			vec3 l_diffuse_front = lightIntensity * NdotL_light * (diffuseTrans_color / PI) * lightFactor * singleScatter;
-
-			vec3 l_diffuse_btdf = vec3(0.0);
-			if (dot(N, l_dir) < 0.0)
-			{
-				float diffuseNdotL = max(dot(-N, l_dir), 0.0);
-				l_diffuse_btdf = lightIntensity * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
-
-				if (volumeThickness > 0.0)
-				{
-					vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-					vec3 transmissionRay = refractDir * volumeThickness;
-					float transmissionDistance = length(transmissionRay);
-					vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
-					l_diffuse_btdf *= transmittance;
-				}
-
-				l_diffuse_front += l_diffuse_btdf * (1.0 - singleScatter) * singleScatter;
-			}
-			l_diffuse = l_diffuse_front * diffuseTrans_factor;
-
-		}
-		else
-		{
-			// PBR approach: standard diffuse + transmission BTDF
-			vec3 l_diffuse_front = kD * albedo / PI * lightIntensity * NdotL_light * lightFactor;
-			l_diffuse_front = l_diffuse_front * (1.0 - diffuseTrans_factor);
-
-			vec3 l_diffuse_btdf = vec3(0.0);
-			if (dot(N, l_dir) < 0.0)
-			{
-				float diffuseNdotL = max(dot(-N, l_dir), 0.0);
-				l_diffuse_btdf = lightIntensity * diffuseNdotL * (diffuseTrans_color / PI) * lightFactor;
-
-				if (volumeThickness > 0.0)
-				{
-					vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-					vec3 transmissionRay = refractDir * volumeThickness;
-					float transmissionDistance = length(transmissionRay);
-					vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
-					l_diffuse_btdf *= transmittance;
-				}
-
-				l_diffuse_front += l_diffuse_btdf * diffuseTrans_factor;
-			}
-			l_diffuse = l_diffuse_front;
-		}
-
-		// Apply transmission blending
-		if (transmission > 0.0)
-		{
-			l_diffuse = mix(l_diffuse, kD * albedo / PI * lightIntensity * NdotL_light * lightFactor, transmission);
-		}
-
-		directDiffuse_L = l_diffuse;
-
-		// ====================================================================
-		// SPECULAR (same as punctual)
-		// ====================================================================
-		directSpecular_L = specBRDF * lightIntensity * NdotL_light * lightFactor;
-
-		// ====================================================================
-		// TRANSMISSION (same as punctual)
-		// ====================================================================
-		if (transmission > 0.0)
-		{
-			transmission_L = calculateTransmission(N, V_direct, L, transmission, ior, albedo);
-		}
-	}
-
-	// ============================================================================
-	// SHEEN
-	// ============================================================================
-	if (hasSheenColorMap)
-	{
-		vec3 sc = texture(sheenColorMap, getSheenColorUV()).rgb;
-		vec3 sheenFactor = guardFactorColor(pbrLighting.sheenColor, 0.01);
-		sheenColor = sc * sheenFactor;
-	}
-	else
-	{
-		sheenColor = pbrLighting.sheenColor;
-	}
-	sheenColor = clamp(sheenColor, vec3(0.0), vec3(1.0));
-	
-	if (hasSheenRoughnessMap)
-	{
-		float sr = texture(sheenRoughnessMap, getSheenRoughnessUV()).r;
-		float sheenRoughFactor = guardFactorScalar(pbrLighting.sheenRoughness, 0.01);
-		sheenRoughness = sr * sheenRoughFactor;
-	}
-	else
-	{
-		sheenRoughness = pbrLighting.sheenRoughness;
-	}
-	sheenRoughness = clamp(sheenRoughness, 0.0001, 1.0);
-
-	if (length(sheenColor) > 0.0)
-	{
-		// Direct sheen
-		sheen_L = calculateSheen(N, V_direct, L, sheenColor, sheenRoughness);
-
-		// Sheen IBL
-		sheenIBL_L = calculateSheenIBL(v_reflectionNormal, V_reflect, sheenRoughness, sheenColor);
-	}
-
-	// ============================================================================
-	// CLEARCOAT
-	// ============================================================================
-	if (hasClearcoatMap)
-	{
-		float cc = texture(clearcoatColorMap, getClearcoatUV()).r;
-		float clearcoatFactor = guardFactorScalar(pbrLighting.clearcoat, 0.01);
-		clearcoat = cc * clearcoatFactor;
-	}
-	else
-	{
-		clearcoat = pbrLighting.clearcoat;
-	}
-	clearcoat = clamp(clearcoat, 0.0, 1.0);
-
-	if (hasClearcoatRoughnessMap)
-	{
-		float ccr = texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).g;
-		float ccRoughFactor = guardFactorScalar(pbrLighting.clearcoatRoughness, 0.01);
-		clearcoatRoughness = ccr * ccRoughFactor;
-	}
-	else
-	{
-		clearcoatRoughness = pbrLighting.clearcoatRoughness;
-	}
-	clearcoatRoughness = clamp(clearcoatRoughness, 0.0001, 1.0);
-
-	if (hasClearcoatNormalMap)
-	{
-		clearcoatNormal = calcBumpedNormal(clearcoatNormalMap, getClearcoatNormalUV()) * side;
-		clearcoatNormal.xy *= clearcoatNormalScale;
-		clearcoatNormal = normalize(clearcoatNormal);
-	}
-	else
-	{
-		clearcoatNormal = N;
-	}
-
-	if (clearcoat > 0.0)
-	{
-		clearcoat_L = calculateClearcoat(N, V_direct, L, clearcoat, clearcoatRoughness, clearcoatNormal);
-		clearcoatIBL_L = calculateClearcoatIBL(v_reflectionNormal, V_reflect, clearcoatNormal, clearcoatRoughness, clearcoat);
-
-		// Calculate clearcoat Fresnel for proper layering (per KHR spec line 140)
-		vec3 F0_clearcoat = vec3(0.04);
-		float NdotV_coat = clamp(dot(clearcoatNormal, normalize(V_direct)), 0.0, 1.0);
-		vec3 F_coat = F0_clearcoat + (vec3(1.0) - F0_clearcoat) * pow(clamp(1.0 - NdotV_coat, 0.0, 1.0), 5.0);
-
-		// Weight for layering: clearcoat_weight = clearcoat * fresnel
-		// (Use max of RGB to get a single scalar weight, or average - either works)
-		clearcoatAttenuation = clearcoat * max(F_coat.r, max(F_coat.g, F_coat.b));
-	}
-
-	// Add clearcoat direct specular (will be composited with proper weighting later)
-	directSpecular_L += clearcoat_L * lightSource.specular;
-
-
-	// ============================================================================
-	// IMAGE BASED LIGHTING (IBL) - AMBIENT
-	// ============================================================================
-	if (useIBL)
-	{
-		vec3 irradiance = texture(irradianceMap, N).rgb;
-		vec3 diffuseIBL_L = irradiance * albedo;
-
-		// Diffuse transmission IBL
-		if (diffuseTransmissionFactor > 0.0)
-		{
-			vec3 diffuseTransmissionIBL_back = texture(irradianceMap, -N).rgb * diffuseTransmissionColorFactor;
-			vec3 diffuseTransmissionIBL_front = texture(irradianceMap, N).rgb * diffuseTransmissionColorFactor;
-
-			diffuseTransmissionIBL_back *= diffuseTrans_color;
-			diffuseTransmissionIBL_front *= diffuseTrans_color;
-
-			// Apply volume attenuation to back only
-			if (volumeThickness > 0.0)
-			{
-				vec3 refractDir = refract(-V_reflect, N, 1.0 / ior);
-				vec3 transmissionRay = refractDir * volumeThickness;
-				float transmissionDistance = length(transmissionRay);
-				vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / max(attenuationDistance, 0.0001)));
-				diffuseTransmissionIBL_back *= transmittance;
-			}
-
-			if (hasVolumeScattering && volumeThickness > 0.0)
-			{
-				vec3 singleScatter = multiToSingleScatter();
-				diffuseIBL_L = diffuseTransmissionIBL_front * singleScatter + diffuseTransmissionIBL_back * (1.0 - singleScatter) * singleScatter;
-				diffuseIBL_L = diffuseIBL_L * diffuseTrans_factor;
-			}
-			else
-			{
-				diffuseIBL_L = mix(diffuseIBL_L, diffuseTransmissionIBL_back, diffuseTrans_factor);
-			}
-		}
-
-		vec3 specIBL_L = vec3(0.0);
-
-		if (envMapEnabled)
-		{
-			float dotNV = max(dot(N, V_direct), 0.0);
-			vec3 F90_effective = max(vec3(1.0 - roughness), F0_iridescent);
-			vec3 Fibl = fresnelSchlick(dotNV, F0_iridescent, F90_effective);
-			vec3 kSibl = Fibl;
-			vec3 kDibl = (vec3(1.0) - kSibl) * (1.0 - metallic);
-
-			vec3 iblNormal = normalize(v_reflectionNormal);
-			vec3 R = reflect(V_reflect, iblNormal);
-			float iblRoughness = roughness;
-
-			if (anisotropyStrength > 0.0)
-			{
-				float c_aniso = cos(anisotropyRotation);
-				float s_aniso = sin(anisotropyRotation);
-				vec3 T_ibl = normalize(c_aniso * T + s_aniso * B);
-				vec3 B_ibl = normalize(-s_aniso * T + c_aniso * B);
-				vec3 V_ibl = normalize(-V_direct);
-
-				// Approximate anisotropic IBL by bending the reflection normal along the
-				// authored anisotropy frame. This preserves the existing IBL pipeline
-				// while making environment highlights rotate and stretch more plausibly.
-				vec3 bentNormal = normalize(cross(cross(V_ibl, B_ibl), B_ibl));
-				float bendMix = pow(clamp(1.0 - anisotropyStrength * (1.0 - roughness), 0.0, 1.0), 2.0);
-				bentNormal = normalize(mix(bentNormal, iblNormal, bendMix));
-				R = reflect(V_reflect, bentNormal);
-				iblRoughness = clamp(roughness + anisotropyStrength * (1.0 - roughness) * 0.35, 0.0, 1.0);
-			}
-
-			const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
-			float lod = iblRoughness * MAX_REFLECTION_LOD;
-			lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
-			vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
-			prefilteredColor = max(prefilteredColor, vec3(0.0));
-			prefilteredColor *= envMapExposure;
-
-			vec2 brdf = texture(brdfLUT, vec2(dotNV, roughness)).rg;
-			brdf = max(brdf, vec2(0.0));
-
-			specIBL_L = prefilteredColor * (Fibl * brdf.x + brdf.y);
-			
-			// Multiply ambient occlusion
-			ambient_L = (kDibl * diffuseIBL_L + specIBL_L) * ambientOcclusion;
-		}
-		else
-		{
-			vec3 kS0 = fresnelSchlick(max(dot(N, V_direct), 0.0), F0, vec3(1.0));
-			vec3 kD0 = (vec3(1.0) - kS0) * (1.0 - metallic);			
-			// Multiply ambient occlusion
-			ambient_L = (kD0 * diffuseIBL_L) * ambientOcclusion;
-		}
-
-		// Apply clearcoat layering to ambient
-		vec3 ambient_base = ambient_L * (1.0 - clearcoatAttenuation) + clearcoatIBL_L * clearcoatAttenuation;
-		ambient_L = ambient_base + sheenIBL_L;
-	}
-	else
-	{
-		// No IBL - only direct lighting
-		ambient_L = vec3(0.0);		
-	}
-
-	// ============================================================================
-	// EMISSION
-	// ============================================================================
-	emissive_L = material.emission;
-	if (hasEmissiveMap) 
-	{
-		vec3 emission = material.emission;
-		vec3 emissionFactor = guardFactorColor(emission, 0.01);
-		emissive_L = texture(emissiveMap, getEmissiveUV()).rgb * emissionFactor;
-	}
-
-	// Apply emissive strength
-	emissive_L *= emissiveStrength;
-
-	// Attenuate emission by clearcoat layer (per KHR spec line 152)
-	// Only apply if clearcoat is active
-	if (clearcoat > 0.0)
-	{
-		emissive_L *= (1.0 - clearcoatAttenuation);
-	}
-
-	// ============================================================================
-	// CONSOLIDATE: COMBINE ALL LIGHT LAYERS
-	// ============================================================================
-	// Apply clearcoat weighting to all base contributions (except already-composited ambient_L)
-	vec3 baseNoSpec_L = emissive_L + ambient_L + directDiffuse_L * (1.0 - clearcoatAttenuation) +
-		transmission_L * (1.0 - clearcoatAttenuation) + sheen_L * (1.0 - clearcoatAttenuation);
-	vec3 specOnly_L = directSpecular_L * (1.0 - clearcoatAttenuation); // Apply attenuation to specular
-
-	// --- Floor override (non-reflected) ---
-	if (floorRendering && !isReflectedPass)
-	{
-		float fa = clamp(floorAlpha, 0.0, 1.0);
-		vec3 Nf = normalize(gl_FrontFacing ? v_normal : -v_normal);
-		vec3 Vf = normalize(cameraPos - v_position);
-		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
-		float fresDampen = mix(1.0 - floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
-
-		vec3 floorRGB_L = baseNoSpec_L * fa + specOnly_L * (floorSpecularScale * fresDampen);
-
-		if (hdrToneMapping) floorRGB_L = applyToneMapping(floorRGB_L);
-		if (gammaCorrection) floorRGB_L = pow(floorRGB_L, vec3(1.0 / screenGamma));
-		return vec4(floorRGB_L, fa);
-	}
-
-	vec3 outRGB = baseNoSpec_L + specOnly_L + clearcoat_L * lightSource.specular * clearcoatAttenuation;
-
-	// ============================================================================
-	// TRANSMISSION VOLUME & REFRACTION WITH DISPERSION (Mipmapped)
-	// ============================================================================
-	float transmissionFactor = pbrLighting.transmission;
-	if (hasTransmissionMap)
-	{
-		float mapVal = texture(transmissionMap, getTransmissionUV()).r;
-		transmissionFactor *= mapVal;
-	}
-
-	if (transmissionFactor > 0.0)
-	{
-		vec3 N_trans = normalize(v_reflectionNormal);
-
-		if (dot(N_trans, -V_reflect) < 0.0)
-		{
-			N_trans = -N_trans;  // Flip normal to face viewer
-		}
-
-		float ior_trans = pbrLighting.ior;
-
-		// --- THICKNESS CALCULATION ---
-		float thickness = volumeThickness;
-
-		// --- DISPERSION PARAMETER ---                
-		vec3 transmittedLight;
-
-		if (dispersion > 0.0)
-		{
-			// --- DISPERSION MODE: Per-channel refraction with different IORs ---
-			float halfSpread = (ior_trans - 1.0) * 0.025 * dispersion;
-			vec3 iors = vec3(
-				ior_trans - halfSpread,  // Red (lowest IOR)
-				ior_trans,               // Green (medium IOR)
-				ior_trans + halfSpread   // Blue (highest IOR)
-			);
-			iors = max(iors, vec3(1.001));  // Clamp to valid range
-
-			// Get per-channel refraction with proper 3D projection
-			transmittedLight = getIBLVolumeRefractionPerChannel(
-				N_trans,
-				normalize(-V_reflect),  // View direction
-				roughness,
-				albedo,
-				v_position,             // World position
-				modelMatrix,
-				iors,
-				thickness,
-				attenuationColor,
-				attenuationDistance
-			);
-		}
-		else
-		{
-			// --- NO DISPERSION: Single channel with 3D projection ---
-			transmittedLight = getIBLVolumeRefraction(
-				N_trans,
-				normalize(-V_reflect),  // View direction
-				roughness,
-				albedo,
-				v_position,             // World position
-				modelMatrix,
-				ior_trans,
-				thickness,
-				attenuationColor,
-				attenuationDistance
-			);
-		}
-
-		// --- FRESNEL BLENDING WITH IRIDESCENCE ---
-		float NdotV = max(dot(N_trans, -V_reflect), 0.001);
-
-		vec3 blendFresnel = vec3(1.0);  // Blending Fresnel (1.0 = full reflection, 0.0 = full transmission)
-
-		if (iridescenceFactor > 0.001)
-		{
-			// Use iridescent Fresnel for blending - matches KHR spec
-			// This makes iridescence act as a wavelength-dependent reflectance
-			vec3 iridFresnel_dielectric = evalIridescence(
-				1.0,                    // outsideIOR (air)
-				iridescenceIor,
-				NdotV,
-				iridescenceThickness,
-				vec3(pow((ior_trans - 1.0) / (ior_trans + 1.0), 2.0))  // base dielectric F0
-			);
-
-			// Blend between volume Fresnel and iridescent Fresnel based on iridescence strength
-			float volumeFresnel = calculateVolumeFresnel(ior_trans, 1.0, NdotV);
-			blendFresnel = mix(vec3(volumeFresnel), iridFresnel_dielectric, iridescenceFactor);
-		}
-		else
-		{
-			// No iridescence - use standard volume Fresnel
-			float volumeFresnel = calculateVolumeFresnel(ior_trans, 1.0, NdotV);
-			blendFresnel = vec3(volumeFresnel);
-		}
-
-		// Add an explicit environment reflection term for transmissive surfaces.
-		// Using outRGB alone here makes glass read mostly as refraction because it does
-		// not provide a distinct env-map reflection contribution in this path.
-		vec3 transmissionEnvReflection = vec3(0.0);
-		if (envMapEnabled)
-		{
-			float reflectionDotNV = clamp(dot(N_trans, normalize(-V_reflect)), 0.0, 1.0);
-			vec3 transmissionReflectDir = normalize(reflect(V_reflect, N_trans));
-			float maxReflectionLod = max(textureQueryLevels(prefilterMap) - 1.0, 0.0);
-			float reflectionLod = clamp(roughness * maxReflectionLod, 0.0, maxReflectionLod);
-			vec3 transmissionPrefilter = textureLod(prefilterMap, transmissionReflectDir, reflectionLod).rgb;
-			transmissionPrefilter = max(transmissionPrefilter, vec3(0.0));
-			transmissionPrefilter *= envMapExposure;
-
-			vec2 transmissionBrdf = texture(brdfLUT, vec2(reflectionDotNV, roughness)).rg;
-			transmissionBrdf = max(transmissionBrdf, vec2(0.0));
-
-			// Keep the effect subtle and Fresnel-driven so glass gets a believable
-			// environment sheen without overwhelming the transmitted image.
-			transmissionEnvReflection =
-				transmissionPrefilter *
-				(blendFresnel * transmissionBrdf.x + transmissionBrdf.y) *
-				ambientOcclusion *
-				0.5;
-		}
-
-		// Blend reflection and transmission using the Fresnel (which may be iridescent)
-		vec3 reflectionColor = outRGB;
-		vec3 finalTransmission = mix(transmittedLight, reflectionColor, blendFresnel);
-		finalTransmission += transmissionEnvReflection;
-
-		// Apply transmission factor
-		outRGB = mix(outRGB, finalTransmission, transmissionFactor);
-	}
-
-	// ============================================================================
-	// TONE MAPPING & GAMMA CORRECTION
-	// ============================================================================
-	if (hdrToneMapping)
-	{
-		outRGB *= envMapExposure;
-		outRGB = applyToneMapping(outRGB);
-	}
-	if (gammaCorrection)
-	{
-		outRGB = pow(outRGB, vec3(1.0 / screenGamma));
-	}
-
-	return vec4(outRGB, 1.0);
-}
+// ---- Guard utilities --------------------------------------------------------
 
 // ============================================================================
 // GUARD HELPERS: Prevent texture nullification by zero factors
@@ -2147,6 +1216,8 @@ vec3 guardFactorColor(vec3 factor, float threshold)
 {
     return length(factor) < threshold ? vec3(1.0) : factor;
 }
+
+// ---- Texture UV Accessors ---------------------------------------------------
 
 // ========== CORE TEXTURE TRANSFORM FUNCTION ==========
 vec2 getTransformedUV(int texCoordIndex, TextureTransform transform)
@@ -2352,6 +1423,8 @@ vec2 getOpacityTextureUV()
 	return getTransformedUV(opacityTextureTransform.texCoordIndex, opacityTextureTransform);
 }
 
+// ---- Texture & Normal utilities ---------------------------------------------
+
 float samplePackedChannelValue(sampler2D tex, bool hasTexture, vec2 uv,
 	int channel, int invert, float scale, float bias,
 	float fallback)
@@ -2374,16 +1447,231 @@ float samplePackedChannelValue(sampler2D tex, bool hasTexture, vec2 uv,
 	return clamp(val, 0.0, 1.0);
 }
 
+// Parallax mapping function
+vec2 applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, bool enabled)
+{
+	if (!enabled) return baseUV;
+
+	// Build TBN matrix
+	vec3 n = getUnsignedViewGeometryNormal();
+	vec3 t = normalize(v_tangent - dot(v_tangent, n) * n);
+	vec3 b = normalize(cross(n, t));
+	mat3 TBN = mat3(t, b, n);
+
+	// Transform view direction to tangent space
+	vec3 viewDirWorld = normalize(cameraPos - v_position);
+	vec3 viewDirTangent = TBN * viewDirWorld;
+
+	// Apply parallax mapping
+	vec2 parallaxUV = parallaxOcclusionMapping(baseUV, viewDirTangent, heightMap, heightScale);
+
+	// Clamp to UV bounds
+	if (parallaxUV.x < 0.0 || parallaxUV.x > 1.0 ||
+		parallaxUV.y < 0.0 || parallaxUV.y > 1.0)
+		parallaxUV = baseUV;
+
+	return parallaxUV;
+}
+
+// Function for parallax mapping to simulate depth displacement
+vec2 parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale)
+{
+	// Number of layers varies with angle
+	const float minLayers = 8.0;
+	const float maxLayers = 32.0;
+	float numLayers = mix(maxLayers, minLayers,
+		abs(dot(vec3(0.0, 0.0, 1.0), normalize(viewDir))));
+
+	// Calculate layer depth and step size
+	float layerDepth = 1.0 / numLayers;
+	float currentLayerDepth = 0.0;
+
+	// Shift per step (Z-up -> use xz)
+	vec2 P = viewDir.xz * heightScale;
+	vec2 deltaTexCoords = P / numLayers;
+
+	// Start at original texcoords
+	vec2 currentTexCoords = texCoords;
+	float currentDepthMapValue = texture(heightMap, currentTexCoords).r;
+
+	// Iteratively march
+	while (currentLayerDepth < currentDepthMapValue)
+	{
+		currentTexCoords -= deltaTexCoords;
+		currentDepthMapValue = texture(heightMap, currentTexCoords).r;
+		currentLayerDepth += layerDepth;
+	}
+
+	// Interpolate between last two steps for smoothness
+	vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
+
+	float afterDepth = currentDepthMapValue - currentLayerDepth;
+	float beforeDepth = texture(heightMap, prevTexCoords).r - (currentLayerDepth - layerDepth);
+
+	float weight = afterDepth / (afterDepth - beforeDepth);
+
+	return prevTexCoords * weight + currentTexCoords * (1.0 - weight);
+}
+
+// ----------------------------------------------------------------------------
+// Easy trick to get tangent-normals to world-space to keep PBR code simplified.
+vec3 getNormalFromMap(sampler2D map)
+{
+	vec3 tangentNormal = texture(map, getNormalUV()).xyz * 2.0 - 1.0;
+
+	vec3 Q1 = dFdx(v_position);
+	vec3 Q2 = dFdy(v_position);
+	vec2 st1 = dFdx(getNormalUV());
+	vec2 st2 = dFdy(getNormalUV());
+
+	vec3 N = getUnsignedViewGeometryNormal();
+	vec3 T = normalize(Q1 * st2.t - Q2 * st1.t);
+	vec3 B = -normalize(cross(N, T));
+	mat3 TBN = mat3(T, B, N);
+
+	return normalize(TBN * tangentNormal);
+}
+
+mat3 getTBNFromMap(sampler2D map)
+{
+	vec3 tangentNormal = texture(map, getNormalUV()).xyz * 2.0 - 1.0;
+
+	vec3 Q1 = dFdx(v_position);
+	vec3 Q2 = dFdy(v_position);
+	vec2 st1 = dFdx(getNormalUV());
+	vec2 st2 = dFdy(getNormalUV());
+
+	vec3 N = getUnsignedViewGeometryNormal();
+	vec3 T = normalize(Q1 * st2.t - Q2 * st1.t);
+	vec3 B = -normalize(cross(N, T));
+	mat3 TBN = mat3(T, B, N);
+
+	return TBN;
+}
+
+// http://ogldev.atspace.co.uk/www/tutorial26/tutorial26.html
+// Robust calcBumpedNormal: uses provided mesh tangent & bitangent, preserves handedness
+vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
+{
+    // base geometric normal (world space)
+    vec3 N = getUnsignedViewGeometryNormal();
+    
+    // Check if we have valid tangent data
+    bool hasTangents = (length(v_tangent) > 0.01);
+    
+    vec3 T, B;
+    
+    if (hasTangents)
+    {
+        // Use mesh-provided tangent and bitangent
+        // Make tangent orthogonal to normal
+        T = normalize(v_tangent - dot(v_tangent, N) * N);
+        
+        // Prefer using the provided bitangent (v_bitangent) instead of computing cross(N, T)
+        // but orthogonalize it too
+        B = normalize(v_bitangent - dot(v_bitangent, N) * N);
+        
+        // Ensure T, B, N form a right-handed basis; if not, flip B
+        float handedness = sign(dot(cross(T, B), N));
+        if (handedness < 0.0)
+        {
+            B = -B;
+        }
+    }
+    else
+    {
+        // FALLBACK: Compute tangent space from screen-space derivatives
+        // This is the same technique as getNormalFromMap
+        vec3 Q1 = dFdx(v_position);
+        vec3 Q2 = dFdy(v_position);
+        vec2 st1 = dFdx(texCoord);
+        vec2 st2 = dFdy(texCoord);
+        
+        T = normalize(Q1 * st2.t - Q2 * st1.t);
+        B = -normalize(cross(N, T));
+    }
+    
+    mat3 TBN = mat3(T, B, N);
+    
+    vec3 bumpMapNormal = texture(map, texCoord).rgb;
+    bumpMapNormal = bumpMapNormal * 2.0 - 1.0;
+    
+    vec3 Nw = normalize(TBN * bumpMapNormal);
+    return Nw;
+}
+
+// ---- Core BRDF primitives (NDF * G * F) -------------------------------------
 
 // ----------------------------------------------------------------------------
 // Advanced PBR Functions
 
 // IOR-based Fresnel calculation
+// Energy-conserving mix for iridescent dielectric surfaces.
+// Matches Khronos glTF-Sample-Viewer functions.glsl rgb_mix().
+// Iridescent thin-film Fresnel varies per channel (e.g. R=0.9, G=0.1, B=0.8).
+// Plain mix() lets low-Fresnel channels retain most of the base (transmitted
+// light), inflating overall brightness. rgb_mix reduces the base by the MAX
+// channel Fresnel uniformly, so no channel retains more base than the most-
+// reflective channel allows, while per-channel specular coloring is preserved.
+vec3 rgb_mix(vec3 base, vec3 layer, vec3 rgb_alpha)
+{
+    float rgb_alpha_max = max(rgb_alpha.r, max(rgb_alpha.g, rgb_alpha.b));
+    return (1.0 - rgb_alpha_max) * base + rgb_alpha * layer;
+}
+
 vec3 fresnelSchlickIOR(float cosTheta, float ior)
 {
 	float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
 	return vec3(f0) + (1.0 - f0) * pow(1.0 - cosTheta, 5.0);
 }
+
+// ----------------------------------------------------------------------------
+float distributionGGX(vec3 N, vec3 H, float roughness)
+{
+	float a = roughness * roughness;
+	float a2 = a * a;
+	float NdotH = max(dot(N, H), 0.0);
+	float NdotH2 = NdotH * NdotH;
+
+	float nom = a2;
+	float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+	denom = PI * denom * denom;
+
+	return nom / max(denom, 0.001); // prevent divide by zero for roughness=0.0 and NdotH=1.0
+}
+// ----------------------------------------------------------------------------
+float geometrySchlickGGX(float NdotV, float roughness)
+{
+	float r = (roughness + 1.0);
+	float k = (r * r) / 8.0;
+
+	float nom = NdotV;
+	float denom = NdotV * (1.0 - k) + k;
+
+	return nom / denom;
+}
+// ----------------------------------------------------------------------------
+float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
+{
+	float NdotV = max(dot(N, V), 0.0);
+	float NdotL = max(dot(N, L), 0.0);
+	float ggx2 = geometrySchlickGGX(NdotV, roughness);
+	float ggx1 = geometrySchlickGGX(NdotL, roughness);
+
+	return ggx1 * ggx2;
+}
+// ----------------------------------------------------------------------------
+vec3 fresnelSchlick(float cosTheta, vec3 F0)
+{
+	return fresnelSchlick(cosTheta, F0, vec3(1.0));
+}
+
+vec3 fresnelSchlick(float cosTheta, vec3 F0, vec3 F90)
+{
+	return F0 + (F90 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+// ---- KHR Sheen BRDF ---------------------------------------------------------
 
 // Charlie distribution for sheen (fabric-like materials)
 float distributionCharlie(vec3 N, vec3 H, float roughness)
@@ -2403,10 +1691,14 @@ float geometryCharlie(float NdotV, float roughness)
 	return NdotV / (NdotV + alpha * sinTheta);
 }
 
-// Charlie D function variant for sheen IBL
+// Charlie NDF for sheen direct lighting.
+// Matches Khronos brdf.glsl: alphaG = roughness * roughness (squared).
 float D_Charlie(float roughness, float NoH)
 {
-	float invAlpha = 1.0 / max(roughness, 0.001);
+	// Khronos-compliant: square roughness to get alphaG, matching brdf.glsl and sheenELUT.r baking.
+	// float alphaG = roughness * roughness; invR = 1/alphaG (same as Khronos runtime D_Charlie).
+	float alphaG = max(roughness * roughness, 0.000001);
+	float invAlpha = 1.0 / alphaG;
 	float sin2h = max(1.0 - NoH * NoH, 0.0078125);
 	return (2.0 + invAlpha) * pow(sin2h, invAlpha * 0.5) / (2.0 * PI);
 }
@@ -2443,6 +1735,8 @@ float lambdaSheen(float cosTheta, float alphaG)
 float V_Sheen(float NdotL, float NdotV, float sheenRoughness)
 {
 	sheenRoughness = max(sheenRoughness, 0.000001);
+	// Khronos-compliant: square roughness to get alphaG, matching brdf.glsl V_Sheen.
+	// This ensures direct sheen energy matches what sheenELUT.r represents.
 	float alphaG = sheenRoughness * sheenRoughness;
 
 	return clamp(1.0 / ((1.0 + lambdaSheen(NdotV, alphaG) +
@@ -2492,122 +1786,9 @@ vec3 calculateSheen(vec3 N, vec3 V, vec3 L, vec3 sheenColor, float sheenRoughnes
 	return sheenBRDF * NdotL;
 }
 
+// ---- KHR Anisotropy ---------------------------------------------------------
 
-// ============================================================================
-// KHR-compliant sheen IBL calculation
-// Formula: f_sheen_ibl = (L_ibl * sheenColor) * E_sheen
-// where E_sheen is the directional-albedo from BRDF LUT (pre-integrated D*V)
-// NO separate Fresnel or Geometry - both are in E_sheen already
-// ============================================================================
-vec3 calculateSheenIBL(vec3 N, vec3 V, float sheenRoughness, vec3 sheenColor)
-{
-	// Clamp roughness to safe range
-	float sheenRoughFinal = clamp(sheenRoughness, 0.000001, 1.0);
-
-	// Correct V direction (negative for reflection calculation - KHR spec)
-	vec3 V_norm = normalize(-V);
-
-	// Reflection vector from view direction
-	vec3 R = reflect(V_norm, N);
-	R = normalize(R);
-
-	// LOD calculation for prefiltered environment map
-	float maxLevels = textureQueryLevels(prefilterMap);
-	float MAX_LOD = max(maxLevels - 1.0, 0.0);
-	float lod = sheenRoughFinal * MAX_LOD;
-	lod = clamp(lod, 0.0, MAX_LOD);
-
-	// Sample prefiltered environment map
-	vec3 prefilteredLight = textureLod(prefilterMap, R, lod).rgb;
-	prefilteredLight = max(prefilteredLight, vec3(0.0));
-
-	// BRDF LUT sampling for sheen directional-albedo
-	// Blue channel contains pre-integrated D_charlie * V_sheen
-	float NdotV_val = clamp(dot(N, V_norm), 0.0, 1.0);
-	vec2 brdfCoord = clamp(vec2(NdotV_val, sheenRoughFinal), vec2(0.0), vec2(1.0));
-	float E_sheen = texture(brdfLUT, brdfCoord).b;
-
-	// KHR formula: only multiply by sheenColor and E_sheen
-	// BRDF LUT already includes all BRDF integration (D * V)
-	vec3 sheenIBL = prefilteredLight * sheenColor * E_sheen;
-
-	return sheenIBL;
-}
-
-
-// Calculate clearcoat contribution - CORRECTED per KHR specification
-vec3 calculateClearcoat(vec3 N, vec3 V, vec3 L, float clearcoat,
-	float clearcoatRoughness, vec3 clearcoatNormal)
-{
-	clearcoat = clamp(clearcoat, 0.0, 1.0);
-	if (clearcoat <= 0.0) return vec3(0.0);
-
-	// Use clearcoatRoughness directly - NO modulation by normal variation
-	float alphaRoughness = clearcoatRoughness * clearcoatRoughness;
-	alphaRoughness = clamp(alphaRoughness, 0.0, 1.0);
-
-	vec3 V_norm = normalize(V);
-	vec3 L_norm = normalize(L);
-	vec3 N_norm = normalize(clearcoatNormal);
-
-	vec3 H = normalize(V_norm + L_norm);
-	float NdotL = max(dot(N_norm, L_norm), 0.0);
-	float NdotV = max(dot(N_norm, V_norm), 0.0);
-	float NdotH = max(dot(N_norm, H), 0.0);
-
-	// Compute BRDF terms WITHOUT Fresnel (per KHR spec)    
-	float D = distributionGGX(N_norm, H, alphaRoughness);
-	float G = geometrySmith(N_norm, V_norm, L_norm, alphaRoughness);
-	float V_smith = G;
-
-	// BRDF = D * V (NO Fresnel, NO denominator - V_Smith handles normalization)
-	vec3 clearcoatBRDF = vec3(D * V_smith);
-
-	// Return: clearcoat mask * NdotL * BRDF
-	// Fresnel is applied LATER during composition, not here
-	return clearcoatBRDF * clearcoat * NdotL;
-}
-
-
-// Improved calculateClearcoatIBL - CORRECTED per KHR specification
-vec3 calculateClearcoatIBL(vec3 N, vec3 V, vec3 clearcoatNormal,
-	float clearcoatRoughness, float clearcoat)
-{
-	vec3 V_norm = normalize(V);
-	vec3 N_coat = normalize(clearcoatNormal);
-
-	// Use clearcoat normal for reflection (more physically correct)
-	//vec3 R = reflect(-V_norm, N_coat);
-	vec3 R = reflect(V_norm, N);
-	R = normalize(R);
-
-	// Map roughness to LOD (squared mapping consistent with perceptual roughness)
-	float maxLevels = textureQueryLevels(prefilterMap);
-	float MAX_LOD = max(maxLevels - 1.0, 0.0);
-
-	float lod = (clearcoatRoughness * clearcoatRoughness) * MAX_LOD;
-	lod = clamp(lod, 0.0, MAX_LOD);
-
-	// Sample prefiltered environment
-	vec3 prefilteredColor = textureLod(prefilterMap, R, lod).rgb;
-	prefilteredColor = max(prefilteredColor, vec3(0.0));
-
-	// Compute Fresnel separately (NOT via BRDF LUT)
-	// Use NdotV (not VdotH) for energy conservation per KHR spec line 157
-	float dotNV = clamp(dot(N_coat, V_norm), 0.0, 1.0);
-	vec3 F0 = vec3(0.04);  // Dielectric clearcoat (IOR 1.5)
-	vec3 F = F0 + (vec3(1.0) - F0) * pow(clamp(1.0 - dotNV, 0.0, 1.0), 5.0);
-
-	// Simple composition: prefiltered * Fresnel * clearcoat mask
-	vec3 specIBL = prefilteredColor * F;
-
-	return specIBL * clearcoat;
-}
-
-
-// ==== NEW GLTF EXTENSION IMPLEMENTATIONS ====
-
-// NEW: Anisotropic visibility/masking function (Khronos spec line 174-181)
+// Anisotropic visibility/masking function (Khronos spec line 174-181)
 float V_GGX_anisotropic(float NdotL, float NdotV, float BdotV, float TdotV,
 	float TdotL, float BdotL, float at, float ab)
 {
@@ -2617,7 +1798,7 @@ float V_GGX_anisotropic(float NdotL, float NdotV, float BdotV, float TdotV,
 	return clamp(v, 0.0, 1.0);
 }
 
-// NEW: Anisotropic GGX normal distribution (Khronos spec line 166-172)
+// Anisotropic GGX normal distribution (Khronos spec line 166-172)
 float D_GGX_anisotropic(float NdotH, float TdotH, float BdotH, float at, float ab)
 {
 	const float PI = 3.141592653589793;
@@ -2680,94 +1861,7 @@ AnisotropyData decodeAnisotropyTexture(
 	return result;
 }
 
-vec3 calculateAnisotropy(
-	vec3 N, vec3 V, vec3 L,
-	vec3 T, vec3 B,
-	float anisotropyStrength,  // In [0,1], strength of anisotropic effect
-	float anisotropyRotation,   // In radians, rotation of anisotropy direction
-	float roughness,            // Base roughness [0,1]
-	vec3 F0                     // Fresnel base color
-)
-{
-	const float PI = 3.141592653589793;
-
-	// Clamp strength to valid range [0,1]
-	anisotropyStrength = clamp(anisotropyStrength, 0.0, 1.0);
-
-	// SPEC-COMPLIANT: Compute alpha roughness values
-	// Formula (Spec line 88-94):
-	//   materialAlphaRoughness = materialRoughness^2
-	//   directionAlphaRoughness = mix(materialAlphaRoughness, 1.0, strength^2)
-	//   ab = materialAlphaRoughness (perpendicular direction stays same)
-	//   at = directionAlphaRoughness (parallel direction gets rougher)
-
-	float a = roughness * roughness;  // materialAlphaRoughness
-	float strength_sq = anisotropyStrength * anisotropyStrength;
-	float at = mix(a, 1.0, strength_sq);  // Use mix formula
-	float ab = a;                         // Bitangent uses base roughness
-
-	// Prevent degenerate values
-	at = max(at, 0.0001);
-	ab = max(ab, 0.0001);
-
-	// ========================================================================
-	// Apply anisotropy rotation to tangent/bitangent
-	// (Spec line 129-137: rotate the anisotropy direction, then transform to world)
-	// ========================================================================
-	float c = cos(anisotropyRotation);
-	float s = sin(anisotropyRotation);
-	vec3 T_aniso = c * T + s * B;  // Rotate tangent
-	vec3 B_aniso = -s * T + c * B; // Rotate bitangent (perpendicular)
-
-	// Ensure orthonormality after rotation
-	T_aniso = normalize(T_aniso);
-	B_aniso = normalize(cross(N, T_aniso));
-
-	// ========================================================================
-	// Compute required dot products
-	// ========================================================================
-	vec3 H = normalize(V + L);
-
-	// Essential dot products
-	float NdotH = clamp(dot(N, H), 0.0, 1.0);
-	float NdotV = clamp(dot(N, V), 0.0, 1.0);
-	float NdotL = clamp(dot(N, L), 0.0, 1.0);
-
-	// Anisotropic-specific dot products (with rotated T and B)
-	float TdotV = dot(T_aniso, V);
-	float BdotV = dot(B_aniso, V);
-	float TdotL = dot(T_aniso, L);
-	float BdotL = dot(B_aniso, L);
-	float TdotH = dot(T_aniso, H);
-	float BdotH = dot(B_aniso, H);
-
-	// ========================================================================
-	// Compute anisotropic BRDF components
-	// ========================================================================
-
-	// Fresnel (same as isotropic)
-	float VdotH = clamp(dot(V, H), 0.0, 1.0);
-	vec3 F = fresnelSchlick(VdotH, F0);  // Default F90=1.0
-
-	// Distribution: Anisotropic GGX
-	float D = D_GGX_anisotropic(NdotH, TdotH, BdotH, at, ab);
-
-	// Visibility: Anisotropic Smith
-	float V_vis = V_GGX_anisotropic(NdotL, NdotV, BdotV, TdotV, TdotL, BdotL, at, ab);
-
-	// ========================================================================
-	// Cook-Torrance: (D * V * F) / (4 * NdotL * NdotV) but V already includes denominator
-	// ========================================================================
-	vec3 specular = D * V_vis * F;
-
-	// Return with NdotL multiplier for energy conservation
-	return specular * NdotL;
-}
-
-
-// ============================================================================
-// KHRONOS IRIDESCENCE - HELPERS & CONVERSION FUNCTIONS
-// ============================================================================
+// ---- KHR Iridescence --------------------------------------------------------
 
 const float M_PI = 3.14159265359;
 const mat3 XYZ_TO_REC709 = mat3(
@@ -2926,100 +2020,41 @@ vec3 computeIridescentFresnel(float cosTheta,
 	return mix(baseFresnel, iridescentFresnel, iridescenceFactor);
 }
 
-// KHR_material_transmission
-vec3 calculateTransmission(vec3 N, vec3 V, vec3 L, float transmission, float ior, vec3 albedo)
+// ---- KHR Transmission & Volume ----------------------------------------------
+
+vec3 calculateTransmissionKHR(vec3 normal, vec3 view, vec3 pointToLight, float alphaRoughness, vec3 baseColor, float ior)
 {
-	if (transmission <= 0.0) return vec3(0.0);
+	float transmissionRoughness = applyIorToRoughness(alphaRoughness, ior);
 
-	vec3 H = normalize(V + L);
-	float VdotH = clamp(dot(V, H), 0.0, 1.0);
-	float NdotL = clamp(dot(N, L), -1.0, 1.0);
-	float NdotV = clamp(dot(N, V), 0.0, 1.0);
+	vec3 n = normalize(normal);
+	vec3 v = normalize(view);
+	vec3 l = normalize(pointToLight);
+	vec3 l_mirror = normalize(l + 2.0 * n * dot(-l, n));
+	vec3 h = normalize(l_mirror + v);
 
-	// Calculate proper Fresnel for transmission
-	float f0 = pow((ior - 1.0) / (ior + 1.0), 2.0);
-	float fresnel = f0 + (1.0 - f0) * pow(1.0 - abs(VdotH), 5.0);
-	float transmittance = (1.0 - fresnel) * transmission;
+	float D = distributionGGX(n, h, transmissionRoughness);
+	float G = geometrySmith(n, v, l_mirror, transmissionRoughness);
+	float NdotL = clamp(dot(n, l_mirror), 0.0, 1.0);
+	float NdotV = clamp(dot(n, v), 0.0, 1.0);
+	float Vis = (4.0 * NdotL * NdotV > 0.0) ? (G / (4.0 * NdotL * NdotV)) : 0.0;
 
-	// Improved transmission with both forward and back scattering
-	float backScatter = max(0.0, -NdotL) * 0.8; // Light from behind
-	float forwardScatter = max(0.0, NdotL) * 0.5; // Light from front (subsurface)
-
-	// Add thickness approximation
-	float thickness = max(0.01, pbrLighting.thicknessFactor);
-	float attenuationFactor = exp(-thickness * (1.0 - transmission));
-
-	vec3 transmissionColor = albedo * transmittance * attenuationFactor * (backScatter + forwardScatter);
-
-	return transmissionColor;
+	return baseColor * D * Vis;
 }
 
 // KHR_materials_volume
 vec3 calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColor, float attenuationDistance)
 {
-	if (attenuationDistance <= 0.0)
+	if (attenuationDistance == 0.0)
 	{
 		return transmittedLight;
 	}
 
-	float d = max(attenuationDistance, 1e-6);
-	float t = max(thickness, 1e-6);
-
-	// Beer-Lambert law
-	vec3 transmittance = exp(-attenuationColor * (t / d));
+	float transmissionDistance = max(distance, max(thickness, 0.0));
+	vec3 transmittance = pow(attenuationColor, vec3(transmissionDistance / attenuationDistance));
 
 	return transmittedLight * transmittance;
 }
 
-
-// ============================================================================
-// Volume Fresnel Calculation (KHR_materials_volume)
-// ============================================================================
-
-// Calculate F0 from IOR (dielectric Fresnel at normal incidence)
-float iorToF0(float ior)
-{
-	return sq((ior - 1.0) / (ior + 1.0));
-}
-
-// Case 1: Light enters medium with higher IOR (eta_o >= eta_i)
-float fresnelVolumeEntering(float f0, float NdotH)
-{
-	return f0 + (1.0 - f0) * pow(clamp(1.0 - NdotH, 0.0, 1.0), 5.0);
-}
-
-// Case 2: Light exits medium (eta_o < eta_i) without total internal reflection
-float fresnelVolumeExiting(float f0, float etaRatio, float NdotH)
-{
-	// eta_ratio = eta_i / eta_o
-	float sinThetaO_sq = etaRatio * etaRatio * (1.0 - NdotH * NdotH);
-
-	// Check for total internal reflection
-	if (sinThetaO_sq >= 1.0)
-		return 1.0;  // Total internal reflection
-
-	float cosThetaO = sqrt(1.0 - sinThetaO_sq);
-	return f0 + (1.0 - f0) * pow(clamp(1.0 - cosThetaO, 0.0, 1.0), 5.0);
-}
-
-// Determine which Fresnel case applies
-float calculateVolumeFresnel(float ior, float iorIncident, float NdotV)
-{
-	float f0 = iorToF0(ior);
-	float etaRatio = iorIncident / ior;
-
-	if (etaRatio <= 1.0)
-	{
-		// Case 1: Entering denser medium (air -> glass)
-		return fresnelVolumeEntering(f0, NdotV);
-	}
-	else
-	{
-		// Case 2: Exiting or between denser media
-		// Case 3: Handled inside (returns 1.0 for TIR)
-		return fresnelVolumeExiting(f0, etaRatio, NdotV);
-	}
-}
 
 // ============================================================================
 // Helper: Apply IOR to Roughness (for LOD calculation)
@@ -3039,15 +2074,9 @@ vec3 getVolumeTransmissionRay(vec3 n, vec3 v, float thickness, float ior, mat4 m
 	// Direction of refracted light (Snell's law)
 	vec3 refractionVector = refract(-v, normalize(n), 1.0 / ior);
 
-	// Compute rotation-independent scaling of the model matrix
-	vec3 modelScale;
-	modelScale.x = length(vec3(modelMatrix[0].xyz));
-	modelScale.y = length(vec3(modelMatrix[1].xyz));
-	modelScale.z = length(vec3(modelMatrix[2].xyz));
-
 	// The thickness is specified in local space
 	// Returns the world-space displacement vector
-	return normalize(refractionVector) * thickness * modelScale;
+	return normalize(refractionVector) * thickness * computeVolumeScaleFactor();
 }
 
 // ============================================================================
@@ -3145,6 +2174,8 @@ vec3 getIBLVolumeRefractionPerChannel(vec3 n, vec3 v, float perceptualRoughness,
 	return transmittedLight;
 }
 
+// ---- KHR Volume Scatter -----------------------------------------------------
+
 // KHR_materials_volume_scatter: Convert multi-scatter color to single scatter ratio
 // Based on glTF 2.0 specification
 vec3 multiToSingleScatter()
@@ -3153,6 +2184,146 @@ vec3 multiToSingleScatter()
 	return 1.0 - s * s;
 }
 
+vec3 burleySetup(vec3 radius, vec3 albedo)
+{
+	const float invPi = 0.31830988618;
+	vec3 s = 1.9 - albedo + 3.5 * ((albedo - 0.8) * (albedo - 0.8));
+	vec3 l = 0.25 * invPi * radius;
+	return l / s;
+}
+
+vec3 burleyEval(vec3 d, float r)
+{
+	vec3 exp_r_3_d = exp(-r / (3.0 * d));
+	vec3 exp_r_d = exp_r_3_d * exp_r_3_d * exp_r_3_d;
+	vec3 value = (exp_r_d + exp_r_3_d) / (8.0 * PI * d);
+	bvec3 valid = lessThan(vec3(r), 16.0 * d);
+	return vec3(
+		valid.x ? value.x : 0.0,
+		valid.y ? value.y : 0.0,
+		valid.z ? value.z : 0.0
+	);
+}
+
+vec3 sampleCapturedSSSDiffuse(float attenuationDistance, vec3 diffuseColor)
+{
+	if (sssFramebufferSize.x <= 0.0 || sssFramebufferSize.y <= 0.0)
+		return vec3(0.0);
+
+	const float scatterMinRadius = 0.001394607;
+	const int sampleCount = 55;
+	const vec3 scatterSamples[sampleCount] = vec3[](
+		vec3(3.141593, 0.001395, 0.969751),
+		vec3(5.541556, 0.004235, 0.993903),
+		vec3(7.941519, 0.007148, 1.019123),
+		vec3(10.341482, 0.010135, 1.045482),
+		vec3(12.741446, 0.013200, 1.073049),
+		vec3(15.141409, 0.016346, 1.101902),
+		vec3(17.541372, 0.019578, 1.132126),
+		vec3(19.941335, 0.022900, 1.163813),
+		vec3(22.341298, 0.026315, 1.197063),
+		vec3(24.741262, 0.029829, 1.231983),
+		vec3(27.141225, 0.033447, 1.268692),
+		vec3(29.541188, 0.037174, 1.307319),
+		vec3(31.941151, 0.041015, 1.348003),
+		vec3(34.341115, 0.044977, 1.390899),
+		vec3(36.741078, 0.049067, 1.436176),
+		vec3(39.141041, 0.053291, 1.484019),
+		vec3(41.541004, 0.057658, 1.534633),
+		vec3(43.940968, 0.062176, 1.588244),
+		vec3(46.340931, 0.066853, 1.645099),
+		vec3(48.740894, 0.071700, 1.705477),
+		vec3(51.140857, 0.076727, 1.769685),
+		vec3(53.540820, 0.081946, 1.838064),
+		vec3(55.940784, 0.087369, 1.910997),
+		vec3(58.340747, 0.093011, 1.988915),
+		vec3(60.740710, 0.098885, 2.072299),
+		vec3(63.140673, 0.105010, 2.161696),
+		vec3(65.540637, 0.111402, 2.257721),
+		vec3(67.940600, 0.118083, 2.361080),
+		vec3(70.340563, 0.125075, 2.472575),
+		vec3(72.740526, 0.132402, 2.593131),
+		vec3(75.140490, 0.140092, 2.723815),
+		vec3(77.540453, 0.148177, 2.865865),
+		vec3(79.940416, 0.156691, 3.020733),
+		vec3(82.340379, 0.165674, 3.190127),
+		vec3(84.740342, 0.175170, 3.376072),
+		vec3(87.140306, 0.185231, 3.580996),
+		vec3(89.540269, 0.195916, 3.807830),
+		vec3(91.940232, 0.207293, 4.060153),
+		vec3(94.340195, 0.219443, 4.342384),
+		vec3(96.740159, 0.232459, 4.660052),
+		vec3(99.140122, 0.246453, 5.020170),
+		vec3(101.540085, 0.261562, 5.431781),
+		vec3(103.940048, 0.277950, 5.906755),
+		vec3(106.340012, 0.295823, 6.461003),
+		vec3(108.739975, 0.315440, 7.116369),
+		vec3(111.139938, 0.337136, 7.903692),
+		vec3(113.539901, 0.361351, 8.867933),
+		vec3(115.939864, 0.388694, 10.077632),
+		vec3(118.339828, 0.420016, 11.641928),
+		vec3(120.739791, 0.456588, 13.746795),
+		vec3(123.139754, 0.500418, 16.736521),
+		vec3(125.539717, 0.554965, 21.327610),
+		vec3(127.939681, 0.627013, 29.298947),
+		vec3(130.339644, 0.733019, 46.613892),
+		vec3(132.739607, 0.936606, 113.316758)
+	);
+
+	vec2 texelSize = 1.0 / sssFramebufferSize;
+	vec2 uv = gl_FragCoord.xy * texelSize;
+	vec4 centerSample = textureLod(sssDiffuseTexture, uv, 0.0);
+	float centerId = centerSample.a;
+	if (centerId <= 0.0)
+		return centerSample.rgb;
+
+	float centerDepth = textureLod(sssDepthTexture, uv, 0.0).r * 2.0 - 1.0;
+	vec2 clipUV = uv * 2.0 - 1.0;
+	vec4 clipSpacePosition = vec4(clipUV.x, clipUV.y, centerDepth, 1.0);
+	vec4 upos = inverseProjectionMatrix * clipSpacePosition;
+	vec3 fragViewPosition = upos.xyz / max(upos.w, 1e-6);
+	upos = inverseProjectionMatrix * vec4(clipUV.x + texelSize.x, clipUV.y, centerDepth, 1.0);
+	vec3 offsetViewPosition = upos.xyz / max(upos.w, 1e-6);
+	float metersPerPixel = distance(fragViewPosition, offsetViewPosition);
+	if (metersPerPixel <= 1e-6)
+		return centerSample.rgb;
+
+	vec3 scatterDistance = attenuationDistance * multiScatterColor;
+	float maxColor = max(max3(scatterDistance), 1e-5);
+	float maxRadiusPixels = maxColor / metersPerPixel;
+	if (maxRadiusPixels <= 1.0)
+		return centerSample.rgb;
+
+	vec3 clampedScatterDistance = max(vec3(scatterMinRadius), scatterDistance / maxColor) * maxColor;
+	vec3 d = burleySetup(clampedScatterDistance, vec3(1.0));
+	vec3 totalWeight = vec3(0.0);
+	vec3 totalDiffuse = vec3(0.0);
+
+	for (int i = 0; i < sampleCount; ++i)
+	{
+		vec3 scatterSample = scatterSamples[i];
+		float angle = scatterSample.x;
+		float r = scatterSample.y * maxRadiusPixels * texelSize.x;
+		vec2 sampleUV = uv + vec2(cos(angle) * r, sin(angle) * r);
+		vec4 sampleColor = textureLod(sssDiffuseTexture, sampleUV, 0.0);
+		if (sampleColor.a != centerId)
+			continue;
+
+		float sampleDepth = textureLod(sssDepthTexture, sampleUV, 0.0).r * 2.0 - 1.0;
+		vec2 sampleClipUV = sampleUV * 2.0 - 1.0;
+		vec4 sampleUpos = inverseProjectionMatrix * vec4(sampleClipUV.x, sampleClipUV.y, sampleDepth, 1.0);
+		vec3 sampleViewPosition = sampleUpos.xyz / max(sampleUpos.w, 1e-6);
+		float sampleDistance = distance(sampleViewPosition, fragViewPosition);
+		vec3 weight = burleyEval(d, sampleDistance) * scatterSample.z;
+		totalWeight += weight;
+		totalDiffuse += weight * sampleColor.rgb;
+	}
+
+	totalWeight = max(totalWeight, vec3(1e-4));
+	return (totalDiffuse / totalWeight) * diffuseColor;
+}
+
+// ---- Shadows ----------------------------------------------------------------
 
 // ----------------------------------------------------------------------------
 float calculateShadow(vec4 fragPosLightSpace)
@@ -3203,7 +2374,7 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
 
 	// Size-aware kernel scaling
 	int kernelSize;
-	float distanceThreshold1 = 5.0 / max(shadowSizeScale, 0.1);  // NEW uniform
+	float distanceThreshold1 = 5.0 / max(shadowSizeScale, 0.1);
 	float distanceThreshold2 = 15.0 / max(shadowSizeScale, 0.1);
 
 	if (distanceToLight < distanceThreshold1)
@@ -3252,206 +2423,7 @@ float calculateShadowVariableKernel(vec4 fragPosLightSpace, vec3 fragPos, vec3 l
 	return shadow;
 }
 
-// Parallax mapping function
-vec2 applyParallaxMapping(vec2 baseUV, sampler2D heightMap, float heightScale, bool enabled)
-{
-	if (!enabled) return baseUV;
-
-	// Build TBN matrix
-	vec3 n = normalize(v_normal);
-	vec3 t = normalize(v_tangent - dot(v_tangent, n) * n);
-	vec3 b = normalize(cross(n, t));
-	mat3 TBN = mat3(t, b, n);
-
-	// Transform view direction to tangent space
-	vec3 viewDirWorld = normalize(cameraPos - v_position);
-	vec3 viewDirTangent = TBN * viewDirWorld;
-
-	// Apply parallax mapping
-	vec2 parallaxUV = parallaxOcclusionMapping(baseUV, viewDirTangent, heightMap, heightScale);
-
-	// Clamp to UV bounds
-	if (parallaxUV.x < 0.0 || parallaxUV.x > 1.0 ||
-		parallaxUV.y < 0.0 || parallaxUV.y > 1.0)
-		parallaxUV = baseUV;
-
-	return parallaxUV;
-}
-
-// Function for parallax mapping to simulate depth displacement
-vec2 parallaxOcclusionMapping(vec2 texCoords, vec3 viewDir, sampler2D heightMap, float heightScale)
-{
-	// Number of layers varies with angle
-	const float minLayers = 8.0;
-	const float maxLayers = 32.0;
-	float numLayers = mix(maxLayers, minLayers,
-		abs(dot(vec3(0.0, 0.0, 1.0), normalize(viewDir))));
-
-	// Calculate layer depth and step size
-	float layerDepth = 1.0 / numLayers;
-	float currentLayerDepth = 0.0;
-
-	// Shift per step (Z-up -> use xz)
-	vec2 P = viewDir.xz * heightScale;
-	vec2 deltaTexCoords = P / numLayers;
-
-	// Start at original texcoords
-	vec2 currentTexCoords = texCoords;
-	float currentDepthMapValue = texture(heightMap, currentTexCoords).r;
-
-	// Iteratively march
-	while (currentLayerDepth < currentDepthMapValue)
-	{
-		currentTexCoords -= deltaTexCoords;
-		currentDepthMapValue = texture(heightMap, currentTexCoords).r;
-		currentLayerDepth += layerDepth;
-	}
-
-	// Interpolate between last two steps for smoothness
-	vec2 prevTexCoords = currentTexCoords + deltaTexCoords;
-
-	float afterDepth = currentDepthMapValue - currentLayerDepth;
-	float beforeDepth = texture(heightMap, prevTexCoords).r - (currentLayerDepth - layerDepth);
-
-	float weight = afterDepth / (afterDepth - beforeDepth);
-
-	return prevTexCoords * weight + currentTexCoords * (1.0 - weight);
-}
-
-// ----------------------------------------------------------------------------
-// Easy trick to get tangent-normals to world-space to keep PBR code simplified.
-vec3 getNormalFromMap(sampler2D map)
-{
-	vec3 tangentNormal = texture(map, getNormalUV()).xyz * 2.0 - 1.0;
-
-	vec3 Q1 = dFdx(v_position);
-	vec3 Q2 = dFdy(v_position);
-	vec2 st1 = dFdx(getNormalUV());
-	vec2 st2 = dFdy(getNormalUV());
-
-	vec3 N = normalize(v_normal);
-	vec3 T = normalize(Q1 * st2.t - Q2 * st1.t);
-	vec3 B = -normalize(cross(N, T));
-	mat3 TBN = mat3(T, B, N);
-
-	return normalize(TBN * tangentNormal);
-}
-
-mat3 getTBNFromMap(sampler2D map)
-{
-	vec3 tangentNormal = texture(map, getNormalUV()).xyz * 2.0 - 1.0;
-
-	vec3 Q1 = dFdx(v_position);
-	vec3 Q2 = dFdy(v_position);
-	vec2 st1 = dFdx(getNormalUV());
-	vec2 st2 = dFdy(getNormalUV());
-
-	vec3 N = normalize(v_normal);
-	vec3 T = normalize(Q1 * st2.t - Q2 * st1.t);
-	vec3 B = -normalize(cross(N, T));
-	mat3 TBN = mat3(T, B, N);
-
-	return TBN;
-}
-
-// ----------------------------------------------------------------------------
-float distributionGGX(vec3 N, vec3 H, float roughness)
-{
-	float a = roughness * roughness;
-	float a2 = a * a;
-	float NdotH = max(dot(N, H), 0.0);
-	float NdotH2 = NdotH * NdotH;
-
-	float nom = a2;
-	float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-	denom = PI * denom * denom;
-
-	return nom / max(denom, 0.001); // prevent divide by zero for roughness=0.0 and NdotH=1.0
-}
-// ----------------------------------------------------------------------------
-float geometrySchlickGGX(float NdotV, float roughness)
-{
-	float r = (roughness + 1.0);
-	float k = (r * r) / 8.0;
-
-	float nom = NdotV;
-	float denom = NdotV * (1.0 - k) + k;
-
-	return nom / denom;
-}
-// ----------------------------------------------------------------------------
-float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness)
-{
-	float NdotV = max(dot(N, V), 0.0);
-	float NdotL = max(dot(N, L), 0.0);
-	float ggx2 = geometrySchlickGGX(NdotV, roughness);
-	float ggx1 = geometrySchlickGGX(NdotL, roughness);
-
-	return ggx1 * ggx2;
-}
-// ----------------------------------------------------------------------------
-vec3 fresnelSchlick(float cosTheta, vec3 F0)
-{
-	return fresnelSchlick(cosTheta, F0, vec3(1.0));
-}
-
-vec3 fresnelSchlick(float cosTheta, vec3 F0, vec3 F90)
-{
-	return F0 + (F90 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
-}
-
-
-// http://ogldev.atspace.co.uk/www/tutorial26/tutorial26.html
-// Robust calcBumpedNormal: uses provided mesh tangent & bitangent, preserves handedness
-vec3 calcBumpedNormal(sampler2D map, vec2 texCoord)
-{
-    // base geometric normal (world space)
-    vec3 N = normalize(v_normal);
-    
-    // Check if we have valid tangent data
-    bool hasTangents = (length(v_tangent) > 0.01);
-    
-    vec3 T, B;
-    
-    if (hasTangents)
-    {
-        // Use mesh-provided tangent and bitangent
-        // Make tangent orthogonal to normal
-        T = normalize(v_tangent - dot(v_tangent, N) * N);
-        
-        // Prefer using the provided bitangent (v_bitangent) instead of computing cross(N, T)
-        // but orthogonalize it too
-        B = normalize(v_bitangent - dot(v_bitangent, N) * N);
-        
-        // Ensure T, B, N form a right-handed basis; if not, flip B
-        float handedness = sign(dot(cross(T, B), N));
-        if (handedness < 0.0)
-        {
-            B = -B;
-        }
-    }
-    else
-    {
-        // FALLBACK: Compute tangent space from screen-space derivatives
-        // This is the same technique as getNormalFromMap
-        vec3 Q1 = dFdx(v_position);
-        vec3 Q2 = dFdy(v_position);
-        vec2 st1 = dFdx(texCoord);
-        vec2 st2 = dFdy(texCoord);
-        
-        T = normalize(Q1 * st2.t - Q2 * st1.t);
-        B = -normalize(cross(N, T));
-    }
-    
-    mat3 TBN = mat3(T, B, N);
-    
-    vec3 bumpMapNormal = texture(map, texCoord).rgb;
-    bumpMapNormal = bumpMapNormal * 2.0 - 1.0;
-    
-    vec3 Nw = normalize(TBN * bumpMapNormal);
-    return Nw;
-}
-
+// ---- Background -------------------------------------------------------------
 
 vec2 calculateBackgroundUV()
 {
@@ -3490,14 +2462,20 @@ vec3 calculateBackgroundColor()
 	return frag_color.rgb;
 }
 
-// sRGB <-> Linear helpers (fast-enough approximations)
+// ---- Tone mapping & colour space --------------------------------------------
+
+// sRGB <-> Linear helpers (IEC 61966-2-1 piecewise)
 vec3 sRGBToLinear(vec3 c)
 {
-	return pow(c, vec3(2.2));
+	return mix(c / 12.92,
+	           pow((c + 0.055) / 1.055, vec3(2.4)),
+	           step(vec3(0.04045), c));
 }
 vec3 linearTosRGB(vec3 c)
 {
-	return pow(c, vec3(1.0 / 2.2));
+	return mix(c * 12.92,
+	           1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055,
+	           step(vec3(0.0031308), c));
 }
 
 float sRGBSaturation(vec3 c)
@@ -3506,121 +2484,6 @@ float sRGBSaturation(vec3 c)
 	float mn = min(min(c.r, c.g), c.b);
 	return mx - mn; // cheap proxy; OK for gray detection
 }
-
-
-float readMaskChannel(vec4 texel, int channel)
-{
-	if (channel == 0) return texel.r;
-	if (channel == 1) return texel.g;
-	if (channel == 2) return texel.b;
-	return texel.a;
-}
-
-vec3 computeBaseColor(vec2 uv,
-	vec3 matBaseColor_sRGB,   // material.diffuse in sRGB
-	sampler2D albedoTex,
-	bool hasAlbedoTex,
-	vec3 vertexColor_sRGB,    // pass v_color.rgb
-	bool useVertexColor)
-{
-	vec3 base_sRGB = matBaseColor_sRGB;
-	vec3 tex_sRGB = hasAlbedoTex ? texture(albedoTex, uv).rgb : vec3(1.0);
-
-	// Optional vertex color (apply as a tint *in linear*; many pipelines want this)
-	vec3 vtx_sRGB = useVertexColor ? vertexColor_sRGB : vec3(1.0);
-
-	// Convert to linear for math
-	vec3 base_L = sRGBToLinear(base_sRGB);
-	vec3 tex_L = sRGBToLinear(tex_sRGB);
-	vec3 vtx_L = sRGBToLinear(vtx_sRGB);
-
-	vec3 out_L;
-
-	if (!hasAlbedoTex)
-	{
-		out_L = base_L; // color only
-	}
-	else
-	{
-		out_L = tex_L * base_L;		
-	}
-
-	// Apply vertex color last (in linear)
-	out_L *= vtx_L;
-
-	return out_L; // keep in linear for the rest of PBR
-}
-
-// pickChannel helper: choose channel (0=r,1=g,2=b,3=a), optionally invert and remap
-float pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
-{
-	float c = 0.0;
-	if (ch == 0) c = v.r;
-	else if (ch == 1) c = v.g;
-	else if (ch == 2) c = v.b;
-	else if (ch == 3) c = v.a;
-	else c = 0.0; // sentinel value (no channel)
-
-	if (invertFlag != 0) c = 1.0 - c;
-	c = c * scale + bias;
-	return clamp(c, 0.0, 1.0);
-}
-
-// compute sampled opacity from a dedicated opacity map (with packing support)
-float sampleOpacityMap(vec2 uv)
-{
-	if (!hasOpacityMap) return 1.0; // neutral when no map
-	vec4 opTex = texture(opacityMap, uv);
-
-	// channel-aware extraction: if channel < 0 fallback to .r (legacy)
-	float val;
-	if (opacityChannel >= 0)
-	{
-		val = pickChannel(opTex, opacityChannel, opacityInvert, opacityScale, opacityBias);
-	}
-	else
-	{
-		// legacy fallback: red channel + optional invert/scale/bias
-		val = opTex.r * opacityScale + opacityBias;
-		if (opacityInvert != 0) val = 1.0 - val;
-		val = clamp(val, 0.0, 1.0);
-	}
-	return val;
-}
-
-// compute fallback opacity from albedo/diffuse or legacy opacity texture
-float sampleFallbackOpacity(vec2 uv)
-{
-	float val = 1.0;
-
-	if (renderingMode == 0)
-	{ // ADS -> use diffuse alpha (if present) and/or texture_opacity
-		if (hasDiffuseTexture)
-		{
-			vec4 diff = texture(texture_diffuse, uv);
-			val *= diff.a; // alpha from diffuse texture
-		}
-		if (hasOpacityTexture)
-		{
-			// legacy single-channel opacity texture (no channel packing currently)
-			float optex = texture(texture_opacity, uv).r;
-			if (opacityTextureInverted) optex = 1.0 - optex;
-			val *= optex;
-		}
-	}
-	else
-	{ // PBR mode -> albedo alpha may indicate opacity
-		if (hasAlbedoMap)
-		{
-			vec4 alb = texture(albedoMap, uv);
-			// Use albedo alpha as fallback but be conservative (do not force)
-			val *= alb.a;
-		}
-	}
-
-	return clamp(val, 0.0, 1.0);
-}
-
 
 // ============================================================================
 // Tone Mapping
@@ -3752,4 +2615,1553 @@ vec3 applyToneMapping(vec3 color)
 	}
 
 	return color;
+}
+
+// ---- Miscellaneous utilities ------------------------------------------------
+
+float readMaskChannel(vec4 texel, int channel)
+{
+	if (channel == 0) return texel.r;
+	if (channel == 1) return texel.g;
+	if (channel == 2) return texel.b;
+	return texel.a;
+}
+
+// pickChannel helper: choose channel (0=r,1=g,2=b,3=a), optionally invert and remap
+float pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
+{
+	float c = 0.0;
+	if (ch == 0) c = v.r;
+	else if (ch == 1) c = v.g;
+	else if (ch == 2) c = v.b;
+	else if (ch == 3) c = v.a;
+	else c = 0.0; // sentinel value (no channel)
+
+	if (invertFlag != 0) c = 1.0 - c;
+	c = c * scale + bias;
+	return clamp(c, 0.0, 1.0);
+}
+
+// compute sampled opacity from a dedicated opacity map (with packing support)
+float sampleOpacityMap(vec2 uv)
+{
+	if (!hasOpacityMap) return 1.0; // neutral when no map
+	vec4 opTex = texture(opacityMap, uv);
+
+	// channel-aware extraction: if channel < 0 fallback to .r (legacy)
+	float val;
+	if (opacityChannel >= 0)
+	{
+		val = pickChannel(opTex, opacityChannel, opacityInvert, opacityScale, opacityBias);
+	}
+	else
+	{
+		// legacy fallback: red channel + optional invert/scale/bias
+		val = opTex.r * opacityScale + opacityBias;
+		if (opacityInvert != 0) val = 1.0 - val;
+		val = clamp(val, 0.0, 1.0);
+	}
+	return val;
+}
+
+// compute fallback opacity from albedo/diffuse or legacy opacity texture
+float sampleFallbackOpacity(vec2 uv)
+{
+	float val = 1.0;
+
+	if (renderingMode == 0)
+	{ // ADS -> use diffuse alpha (if present) and/or texture_opacity
+		if (hasDiffuseTexture)
+		{
+			vec4 diff = texture(texture_diffuse, uv);
+			val *= diff.a; // alpha from diffuse texture
+		}
+		if (hasOpacityTexture)
+		{
+			// legacy single-channel opacity texture (no channel packing currently)
+			float optex = texture(texture_opacity, uv).r;
+			if (opacityTextureInverted) optex = 1.0 - optex;
+			val *= optex;
+		}
+	}
+	else
+	{ // PBR mode -> albedo alpha may indicate opacity
+		if (hasAlbedoMap)
+		{
+			vec4 alb = texture(albedoMap, uv);
+			// Use albedo alpha as fallback but be conservative (do not force)
+			val *= alb.a;
+		}
+	}
+
+	return clamp(val, 0.0, 1.0);
+}
+
+// ---- KHR PBR path - setup & materials ---------------------------------------
+
+SurfaceFrame buildSurfaceFrame(float side, vec2 normalUV, vec2 clearcoatNormalUV, vec3 lightDirection)
+{
+	SurfaceFrame frame;
+
+	frame.V = normalize(cameraPos - v_position);
+	frame.I = -frame.V;
+	frame.L = normalize(lightDirection);
+	float frameSide = side < 0.0 ? -1.0 : 1.0;
+	if (displayMode == 4)
+	{
+		frame.Ng = getUnsignedWorldGeometryNormal();
+	}
+	else if (length(v_reflectionNormal) < 0.01)
+	{
+		// No vertex normals: derive face normal from screen-space position derivatives
+		vec3 dx = dFdx(v_position);
+		vec3 dy = dFdy(v_position);
+		vec3 faceN = cross(dx, dy);
+		if (length(faceN) > 0.0001)
+			frame.Ng = normalize(faceN);
+		else
+			frame.Ng = normalize(cameraPos - v_position); // camera-facing fallback for points/lines
+	}
+	else
+	{
+		frame.Ng = getUnsignedWorldGeometryNormal();
+	}
+
+	vec3 tangent;
+	vec3 bitangent;
+	if (length(v_worldTangent) > 0.01)
+	{
+		tangent = normalize(v_worldTangent - dot(v_worldTangent, frame.Ng) * frame.Ng);
+		float handedness = 1.0;
+		if (length(v_worldBitangent) > 0.01)
+		{
+			vec3 importedBitangent = normalize(v_worldBitangent - dot(v_worldBitangent, frame.Ng) * frame.Ng);
+			handedness = sign(dot(cross(frame.Ng, tangent), importedBitangent));
+			if (handedness == 0.0)
+			{
+				handedness = 1.0;
+			}
+		}
+		bitangent = normalize(cross(frame.Ng, tangent)) * handedness;
+	}
+	else
+	{
+		vec3 Q1 = dFdx(v_position);
+		vec3 Q2 = dFdy(v_position);
+		vec2 st1 = dFdx(normalUV);
+		vec2 st2 = dFdy(normalUV);
+
+		tangent = Q1 * st2.t - Q2 * st1.t;
+		if (length(tangent) < 0.0001)
+		{
+			vec3 fallback = abs(frame.Ng.z) < 0.999 ? vec3(0.0, 0.0, 1.0) : vec3(0.0, 1.0, 0.0);
+			tangent = cross(fallback, frame.Ng);
+		}
+		tangent = normalize(tangent - dot(tangent, frame.Ng) * frame.Ng);
+		bitangent = normalize(cross(frame.Ng, tangent));
+	}
+
+	// The caller already selects the front/back shading frame through `side`.
+	// Flipping again from the raster-facing flag makes the back-face path reuse the
+	// front-side normal, which washes out two-sided PBR materials.
+	if (frameSide < 0.0)
+	{
+		frame.Ng *= -1.0;
+		tangent *= -1.0;
+		bitangent *= -1.0;
+	}
+
+	frame.T = tangent;
+	frame.B = bitangent;
+
+	frame.N = frame.Ng;
+	if (displayMode != 4 && hasNormalMap)
+	{
+		frame.N = sampleMappedNormal(
+			normalMap,
+			normalUV,
+			pbrLighting.normalScale,
+			frame.Ng,
+			frame.T,
+			frame.B
+		);
+	}
+
+	frame.Ncoat = frame.Ng;
+	if (hasClearcoatNormalMap)
+	{
+		frame.Ncoat = sampleMappedNormal(
+			clearcoatNormalMap,
+			clearcoatNormalUV,
+			clearcoatNormalScale,
+			frame.Ng,
+			frame.T,
+			frame.B
+		);
+	}
+
+	return frame;
+}
+
+vec3 computeDielectricF0(float ior, float specularFactor, vec3 specularColor, bool useSpecGloss, vec3 specGlossSpecular)
+{
+	if (useSpecGloss)
+	{
+		return clamp(specGlossSpecular, vec3(0.0), vec3(1.0));
+	}
+
+	float f0_from_ior = pow((ior - 1.0) / (ior + 1.0), 2.0);
+	vec3 dielectricF0 = vec3(f0_from_ior);
+	if (specularFactor > 0.0)
+	{
+		dielectricF0 *= specularColor;
+	}
+	return clamp(dielectricF0, vec3(0.0), vec3(1.0));
+}
+
+vec3 computeF90(float metallic, float specularFactor)
+{
+	vec3 F90_dielectric = vec3(specularFactor);
+	return mix(F90_dielectric, vec3(1.0), metallic);
+}
+
+float computeVolumeScaleFactor()
+{
+	return (length(vec3(modelMatrix[0].xyz)) +
+		length(vec3(modelMatrix[1].xyz)) +
+		length(vec3(modelMatrix[2].xyz))) / 3.0;
+}
+
+float computeVolumeThickness(float thickness)
+{
+	return thickness * computeVolumeScaleFactor();
+}
+
+float computeScaledAttenuationDistance(float attenuationDistance)
+{
+	return attenuationDistance * computeVolumeScaleFactor();
+}
+
+vec3 computeBaseColor(vec2 uv,
+	vec3 matBaseColor_linear,
+	sampler2D albedoTex,
+	bool hasAlbedoTex,
+	vec3 vertexColor_linear,
+	bool useVertexColor)
+{
+	vec3 tex_sRGB = hasAlbedoTex ? texture(albedoTex, uv).rgb : vec3(1.0);
+	vec3 tex_L = sRGBToLinear(tex_sRGB);
+	vec3 vtx_L = useVertexColor ? vertexColor_linear : vec3(1.0);
+
+	vec3 out_L;
+
+	if (!hasAlbedoTex)
+	{
+		out_L = matBaseColor_linear; // color only
+	}
+	else
+	{
+		out_L = tex_L * matBaseColor_linear;
+	}
+
+	// Apply vertex color last (in linear)
+	out_L *= vtx_L;
+
+	return out_L; // keep in linear for the rest of PBR
+}
+
+MaterialParams gatherMaterialParams()
+{
+	MaterialParams params;
+
+	params.baseColor = pbrLighting.albedo;
+	params.emissive = material.emission * pbrLighting.emissiveStrength;
+	params.metallic = clamp(pbrLighting.metallic, 0.0, 1.0);
+	params.roughness = clamp(pbrLighting.roughness, 0.0001, 1.0);
+	params.ambientOcclusion = clamp(guardFactorScalar(pbrLighting.ambientOcclusion, 0.01), 0.0001, 1.0);
+	params.transmission = pbrLighting.transmission;
+	params.ior = pbrLighting.ior;
+	params.clearcoat = clamp(pbrLighting.clearcoat, 0.0, 1.0);
+	params.clearcoatRoughness = clamp(pbrLighting.clearcoatRoughness, 0.0001, 1.0);
+	params.sheenColor = clamp(pbrLighting.sheenColor, vec3(0.0), vec3(1.0));
+	params.sheenRoughness = clamp(pbrLighting.sheenRoughness, 0.0001, 1.0);
+	params.anisotropyStrength = pbrLighting.anisotropyStrength;
+	params.anisotropyRotation = pbrLighting.anisotropyRotation;
+	params.iridescenceFactor = pbrLighting.iridescenceFactor;
+	params.iridescenceIor = pbrLighting.iridescenceIor;
+	params.iridescenceThickness = pbrLighting.iridescenceThicknessMax;
+	params.thickness = pbrLighting.thicknessFactor;
+	params.diffuseTransmissionFactor = pbrLighting.diffuseTransmissionFactor;
+	params.diffuseTransmissionColor = pbrLighting.diffuseTransmissionColorFactor;
+	params.attenuationColor = pbrLighting.attenuationColor;
+	params.attenuationDistance = computeScaledAttenuationDistance(pbrLighting.attenuationDistance);
+	params.dispersion = pbrLighting.dispersion;
+	params.specularFactor = pbrLighting.specularFactor;
+	params.specularColor = pbrLighting.specularColorFactor;
+	params.useSpecGloss = useSpecularGlossiness;
+	params.unlit = pbrLighting.unlit;
+
+	if (params.useSpecGloss)
+	{
+		params.baseColor = computeBaseColor(
+			getDiffuseUV(),
+			diffuseFactor,
+			diffuseMap,
+			hasDiffuseMap,
+			v_color.rgb,
+			hasVertexColors
+		);
+
+		params.specularColor = specularColor;
+		if (hasSpecularGlossinessMap)
+		{
+			vec4 specGlossSample = texture(specularGlossinessMap, getSpecularGlossinessUV());
+			params.specularColor *= specGlossSample.rgb;
+			params.roughness = clamp(1.0 - (glossinessFactor * specGlossSample.a), 0.0001, 1.0);
+		}
+		else
+		{
+			params.roughness = clamp(1.0 - glossinessFactor, 0.0001, 1.0);
+		}
+
+		params.metallic = 0.0;
+		params.specularFactor = 1.0;
+	}
+	else
+	{
+		params.baseColor = computeBaseColor(
+			getAlbedoUV(),
+			pbrLighting.albedo,
+			albedoMap,
+			hasAlbedoMap,
+			v_color.rgb,
+			hasVertexColors
+		);
+	}
+	if (hasEmissiveMap)
+	{
+		vec3 emissionFactor = guardFactorColor(material.emission, 0.01);
+		params.emissive = sRGBToLinear(texture(emissiveMap, getEmissiveUV()).rgb) * emissionFactor * pbrLighting.emissiveStrength;
+	}
+	if (hasAOMap)
+	{
+		float texAO = samplePackedChannelValue(aoMap, hasAOMap, getAOUV(),
+			aoChannel, aoInvert, aoScale, aoBias, pbrLighting.ambientOcclusion);
+		params.ambientOcclusion = clamp(mix(1.0, texAO, pbrLighting.occlusionStrength), 0.0001, 1.0);
+	}
+	if (!params.useSpecGloss)
+	{
+		float texMetallic = samplePackedChannelValue(metallicMap, hasMetallicMap, getMetallicUV(),
+			metallicChannel, metallicInvert, metallicScale, metallicBias, 1.0);
+		params.metallic = clamp(params.metallic * texMetallic, 0.0, 1.0);
+
+		float texRoughness = samplePackedChannelValue(roughnessMap, hasRoughnessMap, getRoughnessUV(),
+			roughnessChannel, roughnessInvert, roughnessScale, roughnessBias, 1.0);
+		params.roughness = clamp(params.roughness * texRoughness, 0.0001, 1.0);
+	}
+	if (hasTransmissionMap)
+	{
+		params.transmission *= texture(transmissionMap, getTransmissionUV()).r;
+	}
+	if (hasIORMap)
+	{
+		params.ior = texture(iorMap, getIORUV()).r;
+	}
+	if (hasSheenColorMap)
+	{
+		params.sheenColor *= sRGBToLinear(texture(sheenColorMap, getSheenColorUV()).rgb);
+	}
+	if (hasSheenRoughnessMap)
+	{
+		params.sheenRoughness *= texture(sheenRoughnessMap, getSheenRoughnessUV()).a;
+	}
+	if (hasAnisotropyMap || params.anisotropyStrength > 0.0)
+	{
+		AnisotropyData anisoData;
+		if (hasAnisotropyMap)
+		{
+			vec3 anisoTexel = texture(anisotropyMap, getAnisotropyUV()).rgb;
+			anisoData = decodeAnisotropyTexture(
+				anisoTexel,
+				pbrLighting.anisotropyStrength,
+				pbrLighting.anisotropyRotation,
+				true
+			);
+		}
+		else
+		{
+			anisoData = decodeAnisotropyTexture(
+				vec3(1.0, 0.5, 1.0),
+				pbrLighting.anisotropyStrength,
+				pbrLighting.anisotropyRotation,
+				false
+			);
+		}
+		params.anisotropyStrength = anisoData.strength;
+		params.anisotropyRotation = anisoData.rotation;
+	}
+	if (hasClearcoatMap)
+	{
+		params.clearcoat *= texture(clearcoatColorMap, getClearcoatUV()).r;
+	}
+	if (hasClearcoatRoughnessMap)
+	{
+		params.clearcoatRoughness *= texture(clearcoatRoughnessMap, getClearcoatRoughnessUV()).g;
+	}
+	if (hasSpecularFactorMap)
+	{
+		params.specularFactor *= texture(specularFactorMap, getSpecularFactorUV()).a;
+	}
+	if (hasSpecularColorMap)
+	{
+		params.specularColor *= sRGBToLinear(texture(specularColorMap, getSpecularColorUV()).rgb);
+	}
+	if (hasIridescenceMap)
+	{
+		params.iridescenceFactor *= texture(iridescenceMap, getIridescenceUV()).r;
+	}
+	if (hasIridescenceThicknessMap)
+	{
+		float thicknessNorm = texture(iridescenceThicknessMap, getIridescenceThicknessUV()).g;
+		params.iridescenceThickness = mix(pbrLighting.iridescenceThicknessMin, pbrLighting.iridescenceThicknessMax, thicknessNorm);
+	}
+	if (hasThicknessMap)
+	{
+		vec4 thicknessTexel = texture(thicknessMap, getThicknessUV());
+		float thicknessSample = hasThicknessAlpha ? thicknessTexel.a : thicknessTexel.g;
+		params.thickness *= thicknessSample;
+	}
+	if (hasDiffuseTransmissionMap)
+	{
+		params.diffuseTransmissionFactor *= texture(diffuseTransmissionMap, getDiffuseTransmissionUV()).a;
+	}
+	if (hasDiffuseTransmissionColorMap)
+	{
+		params.diffuseTransmissionColor *= sRGBToLinear(texture(diffuseTransmissionColorMap, getDiffuseTransmissionColorUV()).rgb);
+	}
+
+	params.baseColor = clamp(params.baseColor, vec3(0.0), vec3(1.0));
+	params.sheenColor = clamp(params.sheenColor, vec3(0.0), vec3(1.0));
+	params.specularColor = max(params.specularColor, vec3(0.0));
+	params.clearcoat = clamp(params.clearcoat, 0.0, 1.0);
+	params.clearcoatRoughness = clamp(params.clearcoatRoughness, 0.0001, 1.0);
+	params.sheenRoughness = clamp(params.sheenRoughness, 0.0001, 1.0);
+	params.roughness = clamp(params.roughness, 0.0001, 1.0);
+	params.metallic = clamp(params.metallic, 0.0, 1.0);
+
+	vec3 dielectricF0 = computeDielectricF0(
+		params.ior,
+		params.specularFactor,
+		params.specularColor,
+		params.useSpecGloss,
+		params.specularColor
+	);
+	params.dielectricF0 = dielectricF0;
+	params.F0 = mix(dielectricF0, params.baseColor, params.metallic);
+	params.F90 = params.useSpecGloss ? vec3(1.0) : computeF90(params.metallic, params.specularFactor);
+
+	return params;
+}
+
+// ---- KHR PBR path - IBL helpers ---------------------------------------------
+
+void buildAnisotropyBasis(in SurfaceFrame frame, in MaterialParams params, out vec3 anisotropicT, out vec3 anisotropicB)
+{
+	vec2 direction = vec2(cos(params.anisotropyRotation), sin(params.anisotropyRotation));
+
+	vec3 tangentBasisT = frame.T;
+	vec3 tangentBasisB = frame.B;
+
+	anisotropicT = normalize(direction.x * tangentBasisT + direction.y * tangentBasisB);
+	anisotropicB = normalize(cross(frame.Ng, anisotropicT));
+	if (length(anisotropicB) < 0.0001)
+	{
+		anisotropicB = normalize(cross(frame.Ng, tangentBasisT));
+	}
+	if (dot(cross(anisotropicT, anisotropicB), frame.Ng) < 0.0)
+	{
+		anisotropicB = -anisotropicB;
+	}
+}
+
+vec3 sampleAnisotropicSpecularIBL(in SurfaceFrame frame, in MaterialParams params)
+{
+	vec3 anisotropicT;
+	vec3 anisotropicB;
+	buildAnisotropyBasis(frame, params, anisotropicT, anisotropicB);
+
+	float tangentRoughness = mix(params.roughness, 1.0, params.anisotropyStrength * params.anisotropyStrength);
+	vec3 anisotropicTangent = cross(anisotropicB, frame.V);
+	if (length(anisotropicTangent) < 0.0001)
+	{
+		anisotropicTangent = cross(anisotropicB, frame.N);
+	}
+	anisotropicTangent = normalize(anisotropicTangent);
+	vec3 anisotropicNormal = normalize(cross(anisotropicTangent, anisotropicB));
+	float bendFactor = 1.0 - params.anisotropyStrength * (1.0 - params.roughness);
+	float bendFactorPow4 = bendFactor * bendFactor * bendFactor * bendFactor;
+	vec3 bentNormal = normalize(mix(anisotropicNormal, frame.N, bendFactorPow4));
+
+	vec3 reflection = normalize(reflect(frame.I, bentNormal));
+	reflection = normalize(envMapRotationMatrix * reflection);
+	vec3 reflectionPrefilter = toPrefilterDirection(reflection);
+
+	float maxReflectionLod = float(max(prefilterMipLevels - 1, 0));
+	float lod = clamp(params.roughness * maxReflectionLod, 0.0, maxReflectionLod);
+	vec3 prefilteredColor = textureLod(prefilterMap, reflectionPrefilter, lod).rgb;
+	prefilteredColor = max(prefilteredColor, vec3(0.0));
+	return prefilteredColor * envMapExposure;
+}
+
+vec3 transformNormalForIBL(vec3 normal)
+{
+	return normalize(envMapRotationMatrix * normal);
+}
+
+vec3 toPrefilterDirection(vec3 v)
+{
+	return vec3(v.x, -v.z, v.y);
+}
+
+float computeSheenScaling(float Ndot, float sheenRoughness)
+{
+	// Khronos-compliant: use sheenELUT.r (pre-integrated directional albedo E(NdotV, roughness))
+	// for energy conservation. Matches albedoSheenScalingLUT() in Khronos material_info.glsl:
+	//   return texture(u_SheenELUT, vec2(NdotV, sheenRoughnessFactor)).r;
+	// This represents how much energy sheen removes from the base layer.
+	float sheenRoughFinal = clamp(sheenRoughness, 0.000001, 1.0);
+	vec2 brdfCoord = clamp(vec2(Ndot, sheenRoughFinal), vec2(0.0), vec2(1.0));
+	return texture(sheenELUT, brdfCoord).r;
+}
+
+float computeCharlieBRDF(float Ndot, float sheenRoughness)
+{
+	// Khronos-compliant: use charlieLUT.b for the pre-integrated sheen BRDF contribution.
+	// Matches getIBLRadianceCharlie() in Khronos ibl.glsl:
+	//   float brdf = texture(u_CharlieLUT, brdfSamplePoint).b;
+	float sheenRoughFinal = clamp(sheenRoughness, 0.000001, 1.0);
+	vec2 brdfCoord = clamp(vec2(Ndot, sheenRoughFinal), vec2(0.0), vec2(1.0));
+	return texture(charlieLUT, brdfCoord).b;
+}
+
+vec3 computeIBLGGXFresnel(vec3 N, vec3 V, float roughness, vec3 F0, float specularWeight)
+{
+	float NdotV = clamp(dot(N, V), 0.0, 1.0);
+	vec2 brdfSamplePoint = clamp(vec2(NdotV, roughness), vec2(0.0), vec2(1.0));
+	vec2 f_ab = max(texture(brdfLUT, brdfSamplePoint).rg, vec2(0.0));
+	vec3 Fr = max(vec3(1.0 - roughness), F0) - F0;
+	vec3 kS = F0 + Fr * pow(1.0 - NdotV, 5.0);
+	vec3 FssEss = specularWeight * (kS * f_ab.x + f_ab.y);
+
+	float Ems = 1.0 - (f_ab.x + f_ab.y);
+	vec3 Favg = specularWeight * (F0 + (vec3(1.0) - F0) / 21.0);
+	vec3 FmsEms = Ems * FssEss * Favg / max(vec3(1.0) - Favg * Ems, vec3(0.0001));
+
+	return FssEss + FmsEms;
+}
+
+vec3 computeAnisotropicSpecularLobe(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir)
+{
+	vec3 anisotropicT;
+	vec3 anisotropicB;
+	buildAnisotropyBasis(frame, params, anisotropicT, anisotropicB);
+
+	vec3 H = normalize(frame.V + lightDir);
+	float alphaRoughness = max(params.roughness * params.roughness, 0.001);
+	float at = mix(alphaRoughness, 1.0, params.anisotropyStrength * params.anisotropyStrength);
+	float ab = clamp(alphaRoughness, 0.001, 1.0);
+	float NdotL = clamp(dot(frame.N, lightDir), 0.0, 1.0);
+	float NdotH = clamp(dot(frame.N, H), 0.001, 1.0);
+	float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+
+	float V_aniso = V_GGX_anisotropic(
+		NdotL,
+		NdotV,
+		dot(anisotropicB, frame.V),
+		dot(anisotropicT, frame.V),
+		dot(anisotropicT, lightDir),
+		dot(anisotropicB, lightDir),
+		at,
+		ab
+	);
+	float D_aniso = D_GGX_anisotropic(
+		NdotH,
+		dot(anisotropicT, H),
+		dot(anisotropicB, H),
+		at,
+		ab
+	);
+
+	return vec3(V_aniso * D_aniso);
+}
+
+// ---- KHR PBR path - layer composition ---------------------------------------
+
+LayerContributions makeEmptyLayerContributions()
+{
+	LayerContributions layers;
+	layers.baseDirectDiffuse = vec3(0.0);
+	layers.baseDirectSpecular = vec3(0.0);
+	layers.baseDiffuseIBL = vec3(0.0);
+	layers.baseSpecularIBL = vec3(0.0);
+	layers.sheenDirect = vec3(0.0);
+	layers.sheenIBL = vec3(0.0);
+	layers.clearcoatDirect = vec3(0.0);
+	layers.clearcoatIBL = vec3(0.0);
+	layers.transmission = vec3(0.0);
+	layers.emissive = vec3(0.0);
+	return layers;
+}
+
+vec3 sampleMappedNormal(sampler2D map, vec2 texCoord, float normalScale, vec3 Ng, vec3 T, vec3 B)
+{
+	vec3 tangentNormal = texture(map, texCoord).rgb * 2.0 - 1.0;
+	tangentNormal.xy *= normalScale;
+	tangentNormal = normalize(tangentNormal);
+	return normalize(mat3(T, B, Ng) * tangentNormal);
+}
+
+vec3 composeBaseLayer(in MaterialParams params, in LayerContributions layers)
+{
+	return layers.emissive +
+		layers.baseDirectDiffuse +
+		layers.baseDirectSpecular +
+		layers.baseDiffuseIBL +
+		layers.baseSpecularIBL +
+		layers.sheenDirect +
+		layers.sheenIBL;
+}
+
+vec3 composeLayeredPBR(in SurfaceFrame frame, in MaterialParams params, in LayerContributions layers)
+{
+	vec3 baseColor = layers.baseDirectDiffuse + layers.baseDirectSpecular +
+		layers.baseDiffuseIBL + layers.baseSpecularIBL +
+		layers.sheenDirect + layers.sheenIBL;
+
+	if (params.clearcoat <= 0.0)
+	{
+		return layers.emissive + baseColor;
+	}
+
+	vec3 clearcoatLayer = layers.clearcoatDirect + layers.clearcoatIBL;
+	float clearcoatIor = max(params.ior, 1.0);
+	float clearcoatF0Scalar = pow((clearcoatIor - 1.0) / (clearcoatIor + 1.0), 2.0);
+	vec3 clearcoatFresnel = fresnelSchlick(clamp(dot(frame.Ncoat, frame.V), 0.0, 1.0), vec3(clearcoatF0Scalar), vec3(1.0));
+	vec3 color = mix(baseColor, clearcoatLayer, params.clearcoat * clearcoatFresnel);
+	return layers.emissive * (1.0 - params.clearcoat * clearcoatFresnel) + color;
+}
+
+// ---- KHR PBR path - punctual & direct lighting ------------------------------
+
+vec3 evaluateSheenIBL(in SurfaceFrame frame, in MaterialParams params)
+{
+	if (!useIBL || !envMapEnabled || length(params.sheenColor) <= 0.0)
+	{
+		return vec3(0.0);
+	}
+
+	float sheenRoughFinal = clamp(params.sheenRoughness, 0.000001, 1.0);
+	vec3 R = reflect(frame.I, frame.N);
+	R = normalize(envMapRotationMatrix * R);
+	vec3 Rprefilter = toPrefilterDirection(R);
+
+	// Use the effective mip count (not textureQueryLevels) so the LOD formula matches
+	// the roughness-per-mip mapping baked into the prefilter (Khronos: 5 levels, lod=rough*4).
+	// textureQueryLevels() returns 9 for a 256px cubemap → lod=0.8 at rough=0.1 (too dark).
+	// With sheenPrefilterMipLevels=5 → lod = roughness*4, e.g. 0.4 at roughness=0.1.
+	float maxLod = float(max(sheenPrefilterMipLevels - 1, 0));
+	// Khronos-compliant LOD: lod = sheenRoughness * (mipCount - 1), no minimum clamp.
+	// Matches getIBLRadianceCharlie() in Khronos ibl.glsl:
+	//   float lod = sheenRoughness * float(u_MipCount - 1);
+	float lod = clamp(sheenRoughFinal * maxLod, 0.0, maxLod);
+	vec3 prefilteredLight = textureLod(sheenPrefilterMap, Rprefilter, lod).rgb;
+	prefilteredLight = max(prefilteredLight, vec3(0.0));
+	prefilteredLight *= envMapExposure;
+
+	float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+	// Use min(charlieLUT.b, sheenELUT.r) for the sheen IBL gain — symmetric with
+	// iblSheenScaling — so both the energy removed from the base and the energy
+	// added by the sheen IBL use the same factor, preserving energy balance.
+	//
+	// Why this is necessary:
+	//   charlieLUT.b — old convention (alphaG = roughness, NOT squared)
+	//   sheenELUT.r  — new convention (alphaG = roughness², squared)
+	//
+	//   Low roughness (<~0.2): charlieLUT.b > sheenELUT.r.
+	//     Using charlieLUT.b for the IBL gain at roughness=0.05 (LOD=0.2, near-mirror
+	//     prefilter × bright env) produces an overwhelmingly bright additive sheen
+	//     contribution — the "bright glassy electric blue" on SheenDamask/ChairDamask.
+	//     min = sheenELUT.r ≈ near-zero at these roughnesses → sheen IBL is
+	//     proportionally tiny; no bright overlay.  Direct-light sheen is unaffected.
+	//
+	//   High roughness (>~0.3): charlieLUT.b < sheenELUT.r.
+	//     min = charlieLUT.b → identical to the current formula; SheenHighHeel
+	//     stays correct.
+	//
+	// The prefilter_charlie was baked with the old convention, so charlieLUT.b is
+	// the "exact" split-sum factor.  Using min() intentionally underestimates at
+	// low roughness to avoid the split-sum overestimate (near-mirror prefilter ×
+	// non-trivially large old-convention LUT), which is the dominant source of
+	// error in that regime.
+	float E_charlie = computeCharlieBRDF(NdotV, sheenRoughFinal);
+	float E_elut    = computeSheenScaling(NdotV, sheenRoughFinal);
+	float E_sheen   = min(E_charlie, E_elut);
+	// Apply AO to sheen IBL: Khronos reference applies ao to the full composed
+	// color (f_sheen + base * albedoSheenScaling) * ao, so sheen receives the
+	// same occlusion as the base IBL. We apply it here to match that behaviour.
+	return prefilteredLight * params.sheenColor * E_sheen * kSheenStrength * params.ambientOcclusion;
+}
+
+void evaluatePunctualLight(in PunctualLight light, out vec3 lightDir, out vec3 lightIntensity)
+{
+	lightDir = vec3(0.0);
+	lightIntensity = vec3(0.0);
+
+	if (light.type == LightType_Directional)
+	{
+		lightDir = -normalize(light.direction);
+		lightIntensity = light.intensity * light.color;
+		return;
+	}
+
+	vec3 pointToLight = light.position - v_position;
+	float distance = length(pointToLight);
+	if (distance <= 1e-6)
+	{
+		return;
+	}
+
+	lightDir = pointToLight / distance;
+
+	float rangeAttenuation = 1.0 / (distance * distance);
+	if (light.range > 0.0)
+	{
+		float distAttenuation = 1.0 - pow(distance / light.range, 4.0);
+		rangeAttenuation = max(min(distAttenuation, 1.0), 0.0) / (distance * distance);
+	}
+
+	float spotAttenuation = 1.0;
+	if (light.type == LightType_Spot)
+	{
+		float actualCos = dot(normalize(light.direction), normalize(-pointToLight));
+		if (actualCos > light.outerConeCos)
+		{
+			if (actualCos < light.innerConeCos)
+			{
+				float angularAtten = (actualCos - light.outerConeCos) / (light.innerConeCos - light.outerConeCos);
+				spotAttenuation = angularAtten * angularAtten;
+			}
+		}
+		else
+		{
+			spotAttenuation = 0.0;
+		}
+	}
+
+	lightIntensity = rangeAttenuation * spotAttenuation * light.intensity * light.color;
+}
+
+void evaluateBaseDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor, out vec3 diffuseOut, out vec3 specularOut)
+{
+	float NdotL = max(dot(frame.N, lightDir), 0.0);
+	float NdotLBack = max(dot(-frame.N, lightDir), 0.0);
+	float NdotV = max(dot(frame.N, frame.V), 0.0);
+	if (NdotL <= 0.0 && NdotLBack <= 0.0)
+	{
+		diffuseOut = vec3(0.0);
+		specularOut = vec3(0.0);
+		return;
+	}
+
+	vec3 H = normalize(frame.V + lightDir);
+	float VdotH = clamp(dot(H, frame.V), 0.0, 1.0);
+	vec3 dielectricDirectF0 = params.dielectricF0 * vec3(params.specularFactor);
+	vec3 directF0 = mix(dielectricDirectF0, params.baseColor, params.metallic);
+	float NDF = distributionGGX(frame.N, H, params.roughness);
+	float G = geometrySmith(frame.N, frame.V, lightDir, params.roughness);
+	vec3 specBRDFNoF = vec3((NDF * G) / max(4.0 * NdotV * max(NdotL, 0.0001), 0.001));
+	vec3 F = fresnelSchlick(clamp(dot(H, frame.V), 0.0, 1.0), directF0, params.F90);
+	vec3 specBRDF = specBRDFNoF * F;
+	if (params.anisotropyStrength > 0.0)
+	{
+		specBRDF = computeAnisotropicSpecularLobe(frame, params, lightDir) * F;
+		specBRDFNoF = computeAnisotropicSpecularLobe(frame, params, lightDir);
+	}
+
+	vec3 kS = F;
+	vec3 kD = (vec3(1.0) - kS) * (1.0 - params.metallic);
+
+	if (params.useSpecGloss)
+	{
+		vec3 l_diffuse = params.baseColor / PI * lightIntensity * NdotL * lightFactor;
+		vec3 l_specular_dielectric = specBRDFNoF * lightIntensity * NdotL * lightFactor;
+		vec3 dielectric_fresnel = fresnelSchlick(VdotH, params.dielectricF0, vec3(1.0));
+		diffuseOut = vec3(0.0);
+		specularOut = mix(l_diffuse, l_specular_dielectric, dielectric_fresnel);
+		return;
+	}
+
+	diffuseOut = kD * params.baseColor / PI * lightIntensity * NdotL * lightFactor;
+	specularOut = (NdotL > 0.0) ? (specBRDF * lightIntensity * NdotL * lightFactor) : vec3(0.0);
+
+	float diffuseTransmissionThickness = computeVolumeThickness(params.thickness);
+	if (!sssCapture && params.diffuseTransmissionFactor > 0.0)
+	{
+		diffuseOut *= (1.0 - params.diffuseTransmissionFactor);
+		if (NdotLBack > 0.0)
+		{
+			vec3 diffuseBTDF = lightIntensity * NdotLBack * (params.diffuseTransmissionColor / PI) * lightFactor;
+			if (diffuseTransmissionThickness > 0.0)
+			{
+				diffuseBTDF = calculateVolumeAttenuation(
+					diffuseBTDF,
+					diffuseTransmissionThickness,
+					diffuseTransmissionThickness,
+					params.attenuationColor,
+					params.attenuationDistance
+				);
+			}
+			if (hasVolumeScattering && diffuseTransmissionThickness > 0.0)
+			{
+				diffuseBTDF *= (vec3(1.0) - multiToSingleScatter());
+			}
+			diffuseOut += diffuseBTDF * params.diffuseTransmissionFactor;
+		}
+	}
+
+	if (!sssCapture && params.transmission > 0.0)
+	{
+		vec3 transmittedLight = lightIntensity *
+			calculateTransmissionKHR(
+				frame.N,
+				frame.V,
+				lightDir,
+				params.roughness * params.roughness,
+				params.baseColor,
+				params.ior) * lightFactor;
+		if (diffuseTransmissionThickness > 0.0)
+		{
+			transmittedLight = calculateVolumeAttenuation(
+				transmittedLight,
+				diffuseTransmissionThickness,
+				diffuseTransmissionThickness,
+				params.attenuationColor,
+				params.attenuationDistance
+			);
+		}
+		diffuseOut = mix(diffuseOut, transmittedLight, params.transmission);
+	}
+
+	if (params.iridescenceFactor > 0.001 && params.iridescenceThickness > 0.0)
+	{
+		vec3 l_diffuse = diffuseOut;
+		vec3 l_specular = (NdotL > 0.0)
+			? vec3((NDF * G) / max(4.0 * NdotV * NdotL, 0.001)) * lightIntensity * NdotL * lightFactor
+			: vec3(0.0);
+		if (params.anisotropyStrength > 0.0 && NdotL > 0.0)
+		{
+			l_specular = computeAnisotropicSpecularLobe(frame, params, lightDir) * lightIntensity * NdotL * lightFactor;
+		}
+		vec3 dielectric_fresnel = fresnelSchlick(VdotH, dielectricDirectF0, vec3(params.specularFactor));
+		vec3 metal_fresnel = fresnelSchlick(VdotH, params.baseColor, vec3(1.0));
+		vec3 l_dielectric_brdf = mix(l_diffuse, l_specular, dielectric_fresnel);
+		vec3 l_metal_brdf = metal_fresnel * l_specular;
+		vec3 iridescenceFresnel_dielectric = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.dielectricF0);
+		vec3 iridescenceFresnel_metallic = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.baseColor);
+		l_metal_brdf = mix(l_metal_brdf, l_specular * iridescenceFresnel_metallic, params.iridescenceFactor);
+		l_dielectric_brdf = mix(l_dielectric_brdf, rgb_mix(l_diffuse, l_specular, iridescenceFresnel_dielectric), params.iridescenceFactor);
+		diffuseOut = vec3(0.0);
+		specularOut = mix(l_dielectric_brdf, l_metal_brdf, params.metallic);
+	}
+}
+
+vec3 evaluateSheenDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor)
+{
+	if (length(params.sheenColor) <= 0.0)
+	{
+		return vec3(0.0);
+	}
+
+	vec3 punctualSheen = calculateSheen(frame.N, frame.V, lightDir, params.sheenColor, params.sheenRoughness);
+	return punctualSheen * lightIntensity * lightFactor * kSheenStrength;
+}
+
+void evaluateBaseIBL(in SurfaceFrame frame, in MaterialParams params, out vec3 diffuseIBLOut, out vec3 specularIBLOut)
+{
+	diffuseIBLOut = vec3(0.0);
+	specularIBLOut = vec3(0.0);
+
+	if (!useIBL)
+	{
+		return;
+	}
+
+	vec3 Nibl = transformNormalForIBL(normalize(frame.N));
+	vec3 irradiance = texture(irradianceMap, Nibl).rgb * envMapExposure;
+	vec3 f_diffuse = irradiance * params.baseColor;
+	float diffuseTransmissionThickness = computeVolumeThickness(params.thickness);
+
+	if (!sssCapture && params.diffuseTransmissionFactor > 0.0)
+	{
+		vec3 backNormalIBL = transformNormalForIBL(normalize(-frame.N));
+		vec3 diffuseTransmissionIBL = texture(irradianceMap, backNormalIBL).rgb * envMapExposure * params.diffuseTransmissionColor;
+		if (diffuseTransmissionThickness > 0.0)
+		{
+			diffuseTransmissionIBL = calculateVolumeAttenuation(
+				diffuseTransmissionIBL,
+				diffuseTransmissionThickness,
+				diffuseTransmissionThickness,
+				params.attenuationColor,
+				params.attenuationDistance
+			);
+		}
+		if (hasVolumeScattering && diffuseTransmissionThickness > 0.0)
+		{
+			diffuseTransmissionIBL *= (vec3(1.0) - multiToSingleScatter());
+		}
+		f_diffuse = mix(f_diffuse, diffuseTransmissionIBL, params.diffuseTransmissionFactor);
+	}
+
+	if (!envMapEnabled)
+	{
+		diffuseIBLOut = f_diffuse * params.ambientOcclusion;
+		return;
+	}
+
+	vec3 R = reflect(frame.I, frame.N);
+	R = normalize(envMapRotationMatrix * R);
+	vec3 Rprefilter = toPrefilterDirection(R);
+	float maxReflectionLod = float(max(prefilterMipLevels - 1, 0));
+	float lod = clamp(params.roughness * maxReflectionLod, 0.0, maxReflectionLod);
+	vec3 prefilteredColor = textureLod(prefilterMap, Rprefilter, lod).rgb;
+	prefilteredColor = max(prefilteredColor, vec3(0.0));
+	prefilteredColor *= envMapExposure;
+
+	if (!sssCapture && params.transmission > 0.0)
+	{
+		vec3 transmittedLight = vec3(0.0);
+		if (params.dispersion > 0.0)
+		{
+			float halfSpread = (params.ior - 1.0) * 0.025 * params.dispersion;
+			vec3 iors = vec3(params.ior - halfSpread, params.ior, params.ior + halfSpread);
+			transmittedLight = getIBLVolumeRefractionPerChannel(
+				frame.N,
+				frame.V,
+				params.roughness,
+				params.baseColor,
+				v_position,
+				modelMatrix,
+				iors,
+				params.thickness,
+				params.attenuationColor,
+				params.attenuationDistance
+			);
+		}
+		else
+		{
+			transmittedLight = getIBLVolumeRefraction(
+				frame.N,
+				frame.V,
+				params.roughness,
+				params.baseColor,
+				v_position,
+				modelMatrix,
+				params.ior,
+				params.thickness,
+				params.attenuationColor,
+				params.attenuationDistance
+			);
+		}
+		f_diffuse = mix(f_diffuse, transmittedLight, params.transmission);
+	}
+
+	vec3 f_specular_metal = prefilteredColor;
+	vec3 f_specular_dielectric = prefilteredColor;
+	if (params.anisotropyStrength > 0.0)
+	{
+		f_specular_metal = sampleAnisotropicSpecularIBL(frame, params);
+		f_specular_dielectric = f_specular_metal;
+	}
+	if (params.useSpecGloss)
+	{
+		vec3 f_dielectric_fresnel_ibl = computeIBLGGXFresnel(frame.N, frame.V, params.roughness, params.dielectricF0, 1.0);
+		diffuseIBLOut = vec3(0.0);
+		specularIBLOut = mix(f_diffuse, f_specular_dielectric, f_dielectric_fresnel_ibl) * params.ambientOcclusion;
+		return;
+	}
+	vec3 f_metal_fresnel_ibl = computeIBLGGXFresnel(frame.N, frame.V, params.roughness, params.baseColor, 1.0);
+	vec3 f_metal_brdf_ibl = f_metal_fresnel_ibl * f_specular_metal;
+	vec3 f_dielectric_fresnel_ibl = computeIBLGGXFresnel(frame.N, frame.V, params.roughness, params.dielectricF0, params.specularFactor);
+	vec3 f_dielectric_brdf_ibl = mix(f_diffuse, f_specular_dielectric, f_dielectric_fresnel_ibl);
+
+	if (params.iridescenceFactor > 0.001 && params.iridescenceThickness > 0.0)
+	{
+		float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+		vec3 iridescenceFresnel_dielectric = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.dielectricF0);
+		vec3 iridescenceFresnel_metallic = evalIridescence(1.0, params.iridescenceIor, NdotV, params.iridescenceThickness, params.baseColor);
+		f_metal_brdf_ibl = mix(f_metal_brdf_ibl, f_specular_metal * iridescenceFresnel_metallic, params.iridescenceFactor);
+		f_dielectric_brdf_ibl = mix(f_dielectric_brdf_ibl, rgb_mix(f_diffuse, f_specular_dielectric, iridescenceFresnel_dielectric), params.iridescenceFactor);
+	}
+
+	diffuseIBLOut = vec3(0.0);
+	specularIBLOut = mix(f_dielectric_brdf_ibl, f_metal_brdf_ibl, params.metallic) * params.ambientOcclusion;
+}
+
+vec3 evaluateClearcoatDirect(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir, in vec3 lightIntensity, float lightFactor)
+{
+	if (params.clearcoat <= 0.0)
+	{
+		return vec3(0.0);
+	}
+
+	vec3 V = frame.V;
+	vec3 L = normalize(lightDir);
+	vec3 H = normalize(L + V);
+	float NdotL = max(dot(frame.Ncoat, L), 0.0);
+	float NdotV = max(dot(frame.Ncoat, V), 0.0);
+	float NdotH = max(dot(frame.Ncoat, H), 0.0);
+	if (NdotL <= 0.0 || NdotV <= 0.0)
+	{
+		return vec3(0.0);
+	}
+
+	float alpha = params.clearcoatRoughness * params.clearcoatRoughness;
+	float D = distributionGGX(frame.Ncoat, H, alpha);
+	float G = geometrySmith(frame.Ncoat, V, L, alpha);
+	vec3 clearcoatBRDF = vec3((D * G) / max(4.0 * NdotV, 0.001));
+	return lightIntensity * clearcoatBRDF * params.clearcoat * lightFactor;
+}
+
+vec3 evaluateClearcoatIBL(in SurfaceFrame frame, in MaterialParams params)
+{
+	if (params.clearcoat <= 0.0 || !useIBL || !envMapEnabled)
+	{
+		return vec3(0.0);
+	}
+
+	vec3 R = reflect(frame.I, frame.Ncoat);
+	R = normalize(envMapRotationMatrix * R);
+	vec3 Rprefilter = toPrefilterDirection(R);
+
+	float maxReflectionLod = float(max(prefilterMipLevels - 1, 0));
+	float lod = clamp(params.clearcoatRoughness * maxReflectionLod, 0.0, maxReflectionLod);
+	vec3 prefilteredColor = textureLod(prefilterMap, Rprefilter, lod).rgb;
+	prefilteredColor = max(prefilteredColor, vec3(0.0));
+	prefilteredColor *= envMapExposure;
+	return prefilteredColor * params.clearcoat * params.ambientOcclusion;
+}
+
+// ---- Shading entry points ---------------------------------------------------
+
+// ========== LEGACY BLINN-PHONG SHADING FUNCTION ==========
+vec4 shadeBlinnPhong(LightSource source, LightModel model, Material mat, vec3 position, vec3 normal)
+{
+	vec2 clippedTexCoord = v_texCoord0;
+	float ambientOcclusion = 1.0;
+
+	if (hasAOMap)
+	{
+		float texAO = samplePackedChannelValue(
+			aoMap,
+			hasAOMap,
+			getAOUV(),
+			aoChannel,
+			aoInvert,
+			aoScale,
+			aoBias,
+			1.0
+		);
+		ambientOcclusion = clamp(mix(1.0, texAO, pbrLighting.occlusionStrength), 0.0001, 1.0);
+	}
+
+	// --- Normal / Parallax (same as before) ---
+	if (displayMode != 4 && hasNormalTexture)
+		normal = calcBumpedNormal(texture_normal, getNormalTextureUV());
+
+	if (displayMode != 4 && hasHeightTexture)
+	{
+		clippedTexCoord = applyParallaxMapping(getHeightUV(), texture_height, heightScale, hasHeightTexture);
+		normal = calcBumpedNormal(normalMap, clippedTexCoord);
+	}
+
+	// --- Lighting vectors ---
+	vec3 lightDir, viewDir;
+
+	viewDir = normalize(vec3(0, 0, 1));
+	lightDir = normalize(source.position - v_position);
+
+	vec3 halfVector = normalize(lightDir + viewDir);
+	float nDotVP = max(dot(normal, normalize(lightDir + viewDir)), 0.0);
+	float nDotHV = max(0.0, dot(normal, halfVector));
+	float pf = pow(nDotHV, mat.shininess);
+
+	// --- Material terms ---
+	vec3 matAmbient = mat.ambient;
+	vec3 matDiffuse = mat.diffuse;
+	vec3 matSpecular = mat.specular * pf;
+	vec3 matEmissive = mat.emission;
+
+	if (hasDiffuseTexture)
+	{
+		vec3 d = texture(texture_diffuse, getDiffuseTextureUV()).rgb;
+		matAmbient *= d;
+		matDiffuse *= d;
+	}
+
+	if (hasVertexColors)
+		matDiffuse *= v_color.rgb;
+
+	if (length(normal) < 0.01)
+	{
+		// No vertex normals: compute face normal from screen-space position derivatives
+		vec3 dx = dFdx(v_position);
+		vec3 dy = dFdy(v_position);
+		vec3 faceN = cross(dx, dy);
+		if (length(faceN) < 0.0001)
+			return vec4(matDiffuse, 1.0); // Degenerate primitive (point/line): return flat color
+		normal = normalize(faceN);
+	}
+
+	// Geometry term
+	matDiffuse  *= nDotVP;
+
+	if (hasSpecularTexture)
+	{
+		// ADS specular is cascaded from metallic texture
+		// Combine with roughness for proper metallic-roughness behavior:
+		// specular = metallic × (1 - roughness)
+		float metallicValue = texture(texture_specular, getSpecularTextureUV()).r;
+		float roughnessValue = 0.5; // Default if no roughness texture
+
+		// If roughness texture is available, use it to modulate specularity
+		if (hasRoughnessMap)
+		{
+			roughnessValue = texture(roughnessMap, getRoughnessUV()).r;
+		}
+
+		// Combine: metallic determines if reflective, roughness determines intensity
+		float specularity = metallicValue * (1.0 - roughnessValue);
+		matSpecular = vec3(specularity) * pf;
+	}
+	if (hasEmissiveTexture)
+		matEmissive = texture(texture_emissive, getEmissiveTextureUV()).rgb;
+
+	// --- Build lighting buckets ---
+	vec3 ambient = source.ambient * matAmbient * model.ambient * ambientOcclusion;
+	vec3 diffuse = vec3(0.0);
+	vec3 specular = vec3(0.0);
+	
+	if (useDefaultLights || floorRendering)
+	{
+		diffuse = source.diffuse * matDiffuse;
+		specular = source.specular * matSpecular;
+	}
+
+	vec3 baseNoSpec, specOnly;
+	vec3 sceneColor = matEmissive + ambient;
+
+	if (useDefaultLights && shadowsEnabled && displayMode == 3 &&
+		(selfShadowsEnabled || floorRendering || hasVolumeScattering))
+	{
+		float shadowFactor = calculateShadowVariableKernel(
+			fs_in_shadow.FragPosLightSpace,
+			fs_in_shadow.FragPos,
+			fs_in_shadow.lightPos
+		);
+		shadowFactor = clamp(shadowFactor, 0.0, 0.7);
+		float lightFactor = 1.0 - shadowFactor;
+
+		vec3 ambientContrib = ambient * 0.6;
+		vec3 directDiffuse = lightFactor * diffuse;
+		vec3 directSpecular = lightFactor * specular;
+
+		baseNoSpec = sceneColor + ambientContrib + directDiffuse;
+		specOnly = directSpecular;
+	}
+	else
+	{
+		baseNoSpec = sceneColor + diffuse;
+		specOnly = specular;
+	}
+
+	// --- Floor override (non-reflected) ---
+	// Ensure the floor is actually translucent even if its material is OPAQUE
+	if (floorRendering && !isReflectedPass)
+	{
+		float fa = clamp(floorAlpha, 0.0, 1.0);
+
+		// View-angle term to avoid "whiteout" when looking straight down
+		vec3 Nf = getSignedViewGeometryNormal();
+		vec3 Vf = normalize(cameraPos - v_position);
+		float NdotVf = clamp(dot(Nf, Vf), 0.0, 1.0);
+		// Fresnel-like dampening of spec when NdotV is high (looking straight down)
+		float fresDampen = mix(1.0 - floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
+
+		// Scale specular; keep non-spec premultiplied
+		vec3 floorRGB = baseNoSpec * fa + specOnly * (floorSpecularScale * fresDampen);
+
+		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB);
+		if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
+		return vec4(floorRGB, fa);
+	}
+
+	vec3 composed;
+	composed = baseNoSpec + specOnly;
+
+	// ADS reflection with exposure
+	if (useIBL && envMapEnabled)
+	{
+		vec3 I = normalize(cameraDir);
+		vec3 N = getUnsignedWorldGeometryNormal();
+		vec3 offset = normalize(cameraPos - v_reflectionPosition);
+		vec3 I_offset = normalize(I - offset * 0.3);  // Blend factor adjustable
+		vec3 R = reflect(-I_offset, N);
+		R = envMapRotationMatrix * -R;
+		R = normalize(R);
+
+		float specLum = dot(material.specular, vec3(0.299, 0.587, 0.114));
+		float diffuseLum = dot(material.diffuse, vec3(0.299, 0.587, 0.114));
+
+		// Derive metallic-like factor from ADS: metals have high spec/low diff
+		float adsMetallic = specLum / (specLum + diffuseLum + 0.001);
+		adsMetallic = clamp(adsMetallic, 0.0, 1.0);
+
+		float NdotV = max(dot(-I, N), 0.0);
+
+		// Gentler fresnel powers
+		float nonMetallicFresnelPower = mix(2.0, 3.5, 1.0 - specLum); // Reduced
+		float metallicFresnelPower = 1.2; // Reduced
+		float fresnelPower = mix(nonMetallicFresnelPower, metallicFresnelPower, adsMetallic);
+		float fresnel = pow(1.0 - NdotV, fresnelPower);
+
+		// Limit grazing angle effect
+		float grazingLimit = mix(0.6, 0.9, adsMetallic); // Metals can handle more
+		fresnel = clamp(fresnel, 0.0, grazingLimit);
+
+		float surfaceRoughness = 1.0 - (material.shininess / 128.0);
+		float roughnessReduction = pow(1.0 - surfaceRoughness, 2.0);
+
+		// Reduced base strengths
+		float metallicStrength = mix(0.2, 0.4, specLum);
+		float glossyStrength = mix(0.25, 0.5, specLum);
+		float diffuseStrength = mix(0.02, 0.12, specLum);
+
+		bool isHighSpecular = specLum > 0.5;
+		bool isDiffuseDominant = dot(material.diffuse, vec3(0.299, 0.587, 0.114)) > specLum * 2.0;
+		float nonMetallicStrength = isHighSpecular && !isDiffuseDominant ? glossyStrength : diffuseStrength;
+		float baseReflectionStrength = mix(nonMetallicStrength, metallicStrength, adsMetallic);
+
+		// Additional roughness damping for very rough surfaces
+		float roughnessDamping = mix(0.3, 1.0, 1.0 - surfaceRoughness);
+		float reflectionStrength = clamp(baseReflectionStrength * fresnel * roughnessReduction * roughnessDamping, 0.0, 0.5);
+
+		// === IMPROVED GRAZING LOD ===
+		// Material-aware grazing influence: smooth metals/mirrors avoid extra blur
+		float grazingInfluence = surfaceRoughness * (1.0 - adsMetallic * 0.8);
+
+		// Grazing factor for LOD adjustment
+		float grazingFactor = pow(1.0 - NdotV, mix(1.8, 2.5, surfaceRoughness));
+
+		// Base LOD from roughness
+		float baseLOD = surfaceRoughness * 7.0;
+
+		// Extra grazing blur, but only for rough dielectrics
+		float grazingLOD = grazingFactor * grazingInfluence * 4.0; // Scaled to match 7.0 max
+
+		// Combine: mirrors/smooth metals keep sharp reflections
+		float envLOD = clamp(baseLOD + grazingLOD, 0.0, 7.0);
+		// ========================
+
+		vec3 envColor = textureLod(envMap, R, envLOD).rgb;
+		composed += envColor * reflectionStrength * ambientOcclusion;
+	}
+
+	// --- Tone/gamma ---
+	if (hdrToneMapping)
+	{
+		composed *= envMapExposure;
+		composed = applyToneMapping(composed);
+	}
+	if (gammaCorrection)
+		composed = pow(composed, vec3(1.0 / screenGamma));
+
+	return vec4(composed, 1.0);
+}
+
+vec4 calculatePBRLightingKHR(int renderMode, float side)
+{
+	vec2 normalUV = getNormalUV();
+	if (displayMode != 4 && hasHeightMap)
+	{
+		normalUV = applyParallaxMapping(getNormalUV(), heightMap, heightScale, hasHeightMap);
+	}
+
+	vec2 clearcoatNormalUV = getClearcoatNormalUV();
+	if (displayMode != 4 && hasHeightMap)
+	{
+		clearcoatNormalUV = applyParallaxMapping(getClearcoatNormalUV(), heightMap, heightScale, hasHeightMap);
+	}
+
+	MaterialParams params = gatherMaterialParams();
+	SurfaceFrame frame = buildSurfaceFrame(side, normalUV, clearcoatNormalUV, lightSource.position - v_position);
+	LayerContributions layers = makeEmptyLayerContributions();
+	layers.emissive = params.emissive;
+
+	if (params.unlit)
+	{
+		vec3 unlitColor = params.baseColor + params.emissive;
+		if (hdrToneMapping) unlitColor = applyToneMapping(unlitColor);
+		if (gammaCorrection) unlitColor = pow(unlitColor, vec3(1.0 / screenGamma));
+		return vec4(unlitColor, 1.0);
+	}
+
+	float lightShadowFactor = 0.0;
+	if (useDefaultLights && shadowsEnabled && displayMode == 3 &&
+		(selfShadowsEnabled || floorRendering || hasVolumeScattering))
+	{
+		float s = calculateShadowVariableKernel(
+			fs_in_shadow.FragPosLightSpace,
+			fs_in_shadow.FragPos,
+			fs_in_shadow.lightPos
+		);
+		lightShadowFactor = clamp(s, 0.0, 0.85);
+	}
+	float lightFactor = 1.0 - lightShadowFactor;
+
+	if (hasPunctualLights && usePunctualLights)
+	{
+		for (int i = 0; i < lightCount; ++i)
+		{
+			vec3 lightDir;
+			vec3 lightIntensity;
+			evaluatePunctualLight(lights[i], lightDir, lightIntensity);
+
+			if (max3(lightIntensity) <= 0.0)
+			{
+				continue;
+			}
+
+			vec3 directDiffuse;
+			vec3 directSpecular;
+			evaluateBaseDirect(frame, params, lightDir, lightIntensity, lightFactor, directDiffuse, directSpecular);
+
+			if (length(params.sheenColor) > 0.0)
+			{
+				float sheenStrength = max3(params.sheenColor) * kSheenStrength;
+				float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+				float NdotL = clamp(dot(frame.N, lightDir), 0.0, 1.0);
+				// Khronos-compliant: min(1-E(NdotV), 1-E(NdotL)) for punctual lights.
+				// Matches Khronos pbr.frag lines 341-342.
+				float l_albedoSheenScaling = min(
+					1.0 - sheenStrength * computeSheenScaling(NdotV, params.sheenRoughness),
+					1.0 - sheenStrength * computeSheenScaling(NdotL, params.sheenRoughness));
+				directDiffuse *= l_albedoSheenScaling;
+				directSpecular *= l_albedoSheenScaling;
+				layers.sheenDirect += evaluateSheenDirect(frame, params, lightDir, lightIntensity, lightFactor);
+			}
+
+			if (params.clearcoat > 0.0)
+			{
+				layers.clearcoatDirect += evaluateClearcoatDirect(frame, params, lightDir, lightIntensity, lightFactor);
+			}
+
+			layers.baseDirectDiffuse += directDiffuse;
+			layers.baseDirectSpecular += directSpecular;
+		}
+	}
+
+	if (useDefaultLights || floorRendering)
+	{
+		vec3 lightIntensity = lightSource.diffuse;
+
+		if (max3(lightIntensity) > 0.0)
+		{
+			vec3 directDiffuse;
+			vec3 directSpecular;
+			evaluateBaseDirect(frame, params, frame.L, lightIntensity, lightFactor, directDiffuse, directSpecular);
+
+			if (length(params.sheenColor) > 0.0)
+			{
+				float sheenStrength = max3(params.sheenColor) * kSheenStrength;
+				float NdotV = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+				float NdotL = clamp(dot(frame.N, frame.L), 0.0, 1.0);
+				// Khronos-compliant: min(1-E(NdotV), 1-E(NdotL)) for punctual lights.
+				// Matches Khronos pbr.frag lines 341-342.
+				float l_albedoSheenScaling = min(
+					1.0 - sheenStrength * computeSheenScaling(NdotV, params.sheenRoughness),
+					1.0 - sheenStrength * computeSheenScaling(NdotL, params.sheenRoughness));
+				directDiffuse *= l_albedoSheenScaling;
+				directSpecular *= l_albedoSheenScaling;
+				layers.sheenDirect += evaluateSheenDirect(frame, params, frame.L, lightIntensity, lightFactor);
+			}
+
+			if (params.clearcoat > 0.0)
+			{
+				layers.clearcoatDirect += evaluateClearcoatDirect(frame, params, frame.L, lightIntensity, lightFactor);
+			}
+
+			layers.baseDirectDiffuse += directDiffuse;
+			layers.baseDirectSpecular += directSpecular;
+		}
+	}
+
+	evaluateBaseIBL(frame, params, layers.baseDiffuseIBL, layers.baseSpecularIBL);
+
+	float iblSheenScaling = 1.0;
+	if (length(params.sheenColor) > 0.0)
+	{
+		float sheenStrength = max3(params.sheenColor) * kSheenStrength;
+		float NdotV_sheen = clamp(dot(frame.N, frame.V), 0.0, 1.0);
+		// IBL sheen energy conservation: use min(charlieLUT.b, sheenELUT.r).
+		//
+		// Two BRDFs are in play for the sheen IBL:
+		//   charlieLUT.b  — baked with D_Charlie(alphaG = roughness,  NOT squared) + V_Ashikhmin
+		//   sheenELUT.r   — baked with D_Charlie(alphaG = roughness², squared)     + V_Sheen
+		//
+		// These conventions cross over with roughness:
+		//   High roughness (>~0.3): sheenELUT.r >> charlieLUT.b
+		//     → sheenELUT.r removes far more from base than charlieLUT.b × prefilteredSheenLight
+		//       restores → near-black zebra stripes on fabric normal maps.
+		//     → min = charlieLUT.b → balanced removal; fixes SheenHighHeel.
+		//
+		//   Low roughness (<~0.2): charlieLUT.b > sheenELUT.r
+		//     (old convention is broader; new convention is near-delta at extreme grazing → tiny)
+		//     → charlieLUT.b over-removes, making base too dark; sheenELUT.r ≈ 0 is more correct.
+		//     → min = sheenELUT.r ≈ 0 → base barely affected; fixes SheenDamask (roughness=0.05).
+		//
+		// min(charlieLUT.b, sheenELUT.r) is always ≤ both → never over-darkens for either
+		// roughness regime. At medium-high roughness the two terms converge so the min is
+		// the tighter (charlieLUT.b) bound, keeping the split-sum self-consistent.
+		// Punctual-light sheen scaling keeps sheenELUT.r (correct: runtime V_Sheen BRDF).
+		float E_charlie = computeCharlieBRDF(NdotV_sheen, params.sheenRoughness);
+		float E_sheen   = computeSheenScaling(NdotV_sheen, params.sheenRoughness);
+		iblSheenScaling = 1.0 - sheenStrength * min(E_charlie, E_sheen);
+	}
+
+	if (useIBL && envMapEnabled && length(params.sheenColor) > 0.0)
+	{
+		layers.sheenIBL = evaluateSheenIBL(frame, params);
+	}
+
+	if (params.clearcoat > 0.0)
+	{
+		layers.clearcoatIBL = evaluateClearcoatIBL(frame, params);
+	}
+
+	layers.baseDiffuseIBL *= iblSheenScaling;
+	layers.baseSpecularIBL *= iblSheenScaling;
+
+	// SSS capture mode: store total incident irradiance × scatter ratio into the SSS FBO.
+	// sampleCapturedSSSDiffuse() blurs this with the Burley kernel and adds it to outRGB.
+	//
+	// Design rationale for the omnidirectional capture:
+	//   A translucent surface with diffuseTransmissionFactor=1 lets light enter from BOTH
+	//   faces.  Sampling only frame.N (or weighting the back face less) makes side/rear
+	//   fragments always dark — the Burley kernel (~10 px radius) cannot carry front-face
+	//   brightness across a 300 px skull.  Instead we average the front and back hemisphere
+	//   IBL so every fragment sees the full omnidirectional environment, and for direct
+	//   lights we sum NdotLFront + NdotLBack so a back-lit point is not discarded.
+	//   diffuseTransmissionColor is intentionally left out here; sampleCapturedSSSDiffuse
+	//   applies it at blur time to avoid squaring it for coloured transmission materials.
+	if (sssCapture)
+	{
+		vec3 captureColor = vec3(0.0);
+		if (hasVolumeScattering)
+		{
+			vec3 singleScatter = multiToSingleScatter();
+			float dtFactor = max(params.diffuseTransmissionFactor, 0.0);
+
+			// ---- IBL: average of front + back hemisphere -------------------------
+			// Both hemispheres contribute equally — incident light enters from either face.
+			if (useIBL)
+			{
+				vec3 frontIrr = texture(irradianceMap, transformNormalForIBL(normalize( frame.N))).rgb;
+				vec3 backIrr  = texture(irradianceMap, transformNormalForIBL(normalize(-frame.N))).rgb;
+				captureColor += (frontIrr + backIrr) * 0.5 * envMapExposure;
+			}
+
+			// ---- Direct lights: sum front + back NdotL ---------------------------
+			// Summing both sides means a side/rear fragment also captures light that
+			// is reaching its inner face — which the Burley blur will scatter outward.
+			if (useDefaultLights || floorRendering)
+			{
+				float NdotLFront = max(dot( frame.N, frame.L), 0.0);
+				float NdotLBack  = max(dot(-frame.N, frame.L), 0.0);
+				captureColor += lightSource.diffuse * (NdotLFront + NdotLBack) / PI;
+			}
+			if (hasPunctualLights && usePunctualLights)
+			{
+				for (int i = 0; i < lightCount; ++i)
+				{
+					vec3 lightDir;
+					vec3 lightIntensity;
+					evaluatePunctualLight(lights[i], lightDir, lightIntensity);
+					if (max3(lightIntensity) <= 0.0)
+						continue;
+					float NdotLFront = max(dot( frame.N, lightDir), 0.0);
+					float NdotLBack  = max(dot(-frame.N, lightDir), 0.0);
+					captureColor += lightIntensity * (NdotLFront + NdotLBack) / PI;
+				}
+			}
+
+			// Scale by scatter ratio and transmission factor
+			captureColor *= singleScatter * dtFactor;
+
+			// NOTE: Volume Beer-Lambert attenuation is intentionally NOT applied here.
+			// That attenuation (pow(attenuationColor, thickness/attenuationDistance)) is
+			// for direct transmission rays crossing the full slab — it is already applied
+			// in evaluateBaseDirect and evaluateBaseIBL for the unscattered component.
+			// The scattered SSS component's spatial decay is handled by burleyEval()
+			// inside sampleCapturedSSSDiffuse(); adding full-thickness Beer-Lambert on top
+			// would drive captureColor to zero for any real skull thickness.
+		}
+		return vec4(captureColor, sssObjectId);
+	}
+
+	vec3 outRGB = composeLayeredPBR(frame, params, layers);
+
+	if (hasVolumeScattering)
+	{
+		float diffuseTransmissionThickness = computeVolumeThickness(params.thickness);
+		if (params.diffuseTransmissionFactor > 0.0 && diffuseTransmissionThickness > 0.0)
+		{
+			vec3 subsurface = sampleCapturedSSSDiffuse(params.attenuationDistance, params.diffuseTransmissionColor);
+			float sssWeight = (1.0 - params.metallic) * (1.0 - params.transmission);
+			float sssVisibility = 1.0;
+			if (useDefaultLights && shadowsEnabled)
+			{
+				// Let shadows read clearly on top of the SSS resolve instead of letting
+				// the gathered scatter fully wash out the shadowed side of the model.
+				sssVisibility = lightFactor;
+			}
+			outRGB += subsurface * sssWeight * sssVisibility;
+		}
+	}
+
+	if (floorRendering && !isReflectedPass)
+	{
+		float fa = clamp(floorAlpha, 0.0, 1.0);
+		float NdotVf = clamp(dot(frame.Ng, frame.V), 0.0, 1.0);
+		float fresDampen = mix(1.0 - floorFresnelDampen, 1.0, pow(1.0 - NdotVf, 5.0));
+		vec3 floorBase = (layers.emissive + layers.sheenDirect + layers.sheenIBL +
+			layers.baseDirectDiffuse +
+			layers.baseDiffuseIBL) * fa;
+		vec3 floorSpec = (layers.baseDirectSpecular +
+			layers.baseSpecularIBL) * (floorSpecularScale * fresDampen);
+		vec3 floorRGB = floorBase + floorSpec;
+		if (hdrToneMapping) floorRGB = applyToneMapping(floorRGB);
+		if (gammaCorrection) floorRGB = pow(floorRGB, vec3(1.0 / screenGamma));
+		return vec4(floorRGB, fa);
+	}
+
+	if (hdrToneMapping) outRGB = applyToneMapping(outRGB);
+	if (gammaCorrection) outRGB = pow(outRGB, vec3(1.0 / screenGamma));
+	return vec4(outRGB, 1.0);
+}
+
+// ----------------------------------------------------------------------------
+// Calculate PBR lighting based on the render mode
+vec4 calculatePBRLighting(int renderMode, float side) // side 1 = front, -1 = back
+{
+	return calculatePBRLightingKHR(renderMode, side);
 }

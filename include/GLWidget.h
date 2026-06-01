@@ -44,7 +44,7 @@ class ModelViewer;
 
 enum class ViewMode { TOP, BOTTOM, LEFT, RIGHT, FRONT, BACK, ISOMETRIC, DIMETRIC, TRIMETRIC, NONE };
 enum class ViewProjection { ORTHOGRAPHIC, PERSPECTIVE };
-enum class DisplayMode { SHADED, WIREFRAME, WIRESHADED, REALSHADED };
+enum class DisplayMode { SHADED, WIREFRAME, WIRESHADED, REALSHADED, FLATSHADED };
 enum class RenderingMode { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING };
 enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT };
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
@@ -79,6 +79,25 @@ struct CachedTextureEntry
 	TextureSamplerSettings lastSamplerSettings;
 	int refCount = 0;
 };
+
+// ---------------------------------------------------------------------------
+// TextureSlotInfo
+// Describes one texture slot as seen by the GPU — used by TextureDebugPanel.
+// Built inside GLWidget::requestTextureReadback() via glGetTexImage readback.
+// ---------------------------------------------------------------------------
+struct TextureSlotInfo
+{
+	QString  slotName;              // human-readable name ("albedoMap", "normalMap", …)
+	int      unitIndex  = -1;       // GL texture unit index (0, 6, 10–31)
+	GLuint   textureId  = 0;        // GL object ID; 0 = slot not populated
+	QPixmap  thumbnail;             // 64×64 readback pixmap; null when textureId == 0
+	bool     isActive        = false; // textureId != 0 (a texture is bound)
+	bool     extensionEnabled = false;// the parent KHR extension is active (may be true even
+	                                  // when no texture is bound — e.g. sheen colour factor set)
+	bool     isMarker        = false; // synthetic slot used only for scalar-driven activity
+	                                  // detection; never shown in the thumbnail grid
+};
+Q_DECLARE_METATYPE(QVector<TextureSlotInfo>)
 
 class GLWidget : public QOpenGLWidget, QOpenGLFunctions_4_5_Core
 {
@@ -212,7 +231,6 @@ public:
 	void resetTransformation(const std::vector<int>& ids);
 	void applyTransforms(const QMap<int, TransformState>& transforms);
 
-	void setTexture(const std::vector<int>& ids, const QImage& texImage);
 	void setSkyBoxTextureFolder(QString folder);
 	bool loadCubemapFromSingleHDR(const QString& filePath);
 	bool convertEquirectangularToCubemap(const QString& filePath);
@@ -229,12 +247,21 @@ public:
 	void setAnimationPlaying(bool playing);
 	void seekAnimation(double timeSeconds);
 	void setAnimationLooping(bool looping);
+	void setAnimationPlaybackSpeed(double speed);
 	void refreshAnimationMaterialState(const QString& sourceFile);
 	QString activeAnimationFile() const { return _activeAnimationFile; }
 	int activeAnimationClip() const { return _activeAnimationClip; }
 	double currentAnimationTimeSeconds() const { return _animationCurrentTimeSeconds; }
 	bool isAnimationPlaying() const { return _animationPlaying; }
 	bool isAnimationLooping() const { return _animationLooping; }
+	double animationPlaybackSpeed() const { return _animationPlaybackSpeed; }
+
+	// glTF camera switching
+	void activateGltfCamera(const QString& sourceFile, int cameraIndex);
+	void resetToSystemCamera();
+	bool isGltfCameraActive()     const { return _activeGltfCameraIndex >= 0; }
+	QString activeGltfCameraFile()  const { return _activeGltfCameraFile; }
+	int     activeGltfCameraIndex() const { return _activeGltfCameraIndex; }
 
 public:
 	float getXTran() const;
@@ -264,14 +291,8 @@ public:
 	float getZScale() const;
 	void setZScale(const float& zScale);
 
-	QVector4D getAmbientLight() const;
-	void setAmbientLight(const QVector4D& ambientLight);
-
-	QVector4D getDiffuseLight() const;
-	void setDiffuseLight(const QVector4D& diffuseLight);
-
-	QVector4D getSpecularLight() const;
-	void setSpecularLight(const QVector4D& specularLight);
+	QVector4D getDefaultLightColor() const;
+	void setDefaultLightColor(const QVector4D& defaultLightColor);
 
 	QVector3D getLightPosition() const;
 	void setLightOffset(const QVector3D& offset);
@@ -295,6 +316,7 @@ public:
 	bool isVisibleSwapped() const;
 
 	BoundingSphere getBoundingSphere() const;
+	int processSelection(const QPoint& pixel);
 
 	QColor getBgTopColor() const;
 	void setBgTopColor(const QColor& bgTopColor);
@@ -342,7 +364,12 @@ public:
 	GLuint getEnvironmentMap(int index = 0, bool regenerate = false);
 	GLuint getIrradianceMap(int index = 0, bool regenerate = false);
 	GLuint getPrefilterMap(int index = 0, bool regenerate = false);
+	GLuint getSheenPrefilterMap(int index = 0, bool regenerate = false);
+	unsigned int getPrefilterMipLevels() const { return _prefilterMipLevels; }
+	unsigned int getSheenPrefilterMipLevels() const { return _sheenPrefilterMipLevels; }
 	GLuint getBrdfLUT() const { return _brdfLUTTexture; }
+	GLuint getCharlieLUT() const { return _charlieLUTTexture; }
+	GLuint getSheenELUT() const { return _sheenELUTTexture; }
 	bool isEnvironmentMapEnabled() const { return _envMapEnabled; }
 	bool isIBLEnabled() const { return _useIBL; }
 	float getIBLExposure() const { return _iblExposure; }
@@ -449,6 +476,11 @@ signals:
 	void displayModeChanged(int);
 	void renderingModeChanged(int);
 	void animationStateChanged();
+	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
+	// can react to mesh selection changes without needing access to SelectionManager.
+	void selectionChanged(const QList<int>& selectedIds);
+	// Emitted by requestTextureReadback() once the GL readback is complete.
+	void textureReadbackReady(QVector<TextureSlotInfo> slots, QString meshName);
 
 public slots:
 	void animateViewChange();
@@ -468,6 +500,7 @@ public slots:
 	void setFloorTexRepeatT(double floorTexRepeatT);
 	void setFloorOffsetPercent(double value);
 	void setSkyBoxFOV(double fov);
+	void setSkyBoxZRotation(int index);
 	void setSkyBoxTextureHDRI(bool hdrSet);
 	void enableHDRToneMapping(bool hdrToneMapping);
 	void enableGammaCorrection(bool gammaCorrection);
@@ -506,6 +539,54 @@ public slots:
 
 	static GLMaterial resolveMaterialTextures(GLWidget* w, const GLMaterial& src);
 
+	// Reads back all per-mesh texture slots for meshId via glGetTexImage and
+	// emits textureReadbackReady().  Must be called on the GL thread (or the
+	// method calls makeCurrent/doneCurrent internally).  meshId is a _meshStore
+	// index; pass -1 to emit an empty result and clear the debug panel.
+	void requestTextureReadback(int meshId);
+
+	// Emits selectionChanged() with the given list.  Called by
+	// ModelViewer::handleTreeWidgetSelectionChanged() so that panels connected
+	// to this signal (e.g. TextureDebugPanel) stay in sync with tree-widget
+	// driven selection changes, including full deselection (empty list).
+	void broadcastSelectionChanged(const QList<int>& ids) { emit selectionChanged(ids); }
+
+	// Enable or disable a specific texture unit for meshId during rendering.
+	// When disabled the unit is replaced with a neutral placeholder texture
+	// (white for colour channels, tangent-space neutral for normal maps) so the
+	// shader still runs but that channel contributes a neutral value.
+	// Calls update() to trigger a repaint.
+	void setDebugTextureEnabled(int meshId, int unitIndex, bool enabled);
+
+	// Full-state apply for the checkbox panel.  enabledUnits = currently active
+	// (not disabled by user); allUnits = all units with real textures on this mesh.
+	// Handles the emissive-only special case (uses in-shader isolation automatically).
+	void applyDebugTextureState(int meshId,
+	                             const QSet<int>& enabledUnits,
+	                             const QSet<int>& allUnits);
+
+	// Global single-channel isolation for the channel dropdown.
+	// Applies to every mesh in the scene — no selection required.
+	// channelId matches shader IDs (1-9 = geometry, 10+ = texture units).
+	// channelId == 0 restores normal rendering on all meshes.
+	void setGlobalDebugChannel(int channelId);
+
+	// Remove all debug texture overrides for meshId and repaint.
+	void clearDebugTextureOverrides(int meshId);
+
+	// Remove all debug texture AND uniform overrides for meshId and repaint.
+	void clearAllDebugOverrides(int meshId);
+
+	// Disable/re-enable an entire KHR extension for meshId by zeroing the
+	// relevant scalar factor uniforms and neutral-binding its texture units.
+	// extensionKey is one of: "Sheen", "Clearcoat", "Iridescence",
+	// "Volume / SSS", "Specular", "Anisotropy", "Transmission",
+	// "Diffuse Transmission".
+	void setDebugExtensionEnabled(int meshId, const QString& extensionKey, bool enabled);
+
+	// Remove all extension-level debug uniform+texture overrides for meshId.
+	void clearDebugExtensionOverrides(int meshId);
+
 private slots:
 	void showContextMenu(const QPoint& pos);
 	void centerDisplayList();
@@ -541,15 +622,18 @@ private:
 	void createFullscreenTriangle();
 	void drawFullscreenTriangle();
 	void setIBLFaceBasis(QOpenGLShaderProgram* prog, int faceIndex);
+	void updateEnvMapRotationMatrix();
 
 	void loadEnvMap();
 	void loadIrradianceMap();
 	GLuint loadPresetEnvironmentMap(const QString& hdrFilePath);
-	bool generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap);
+	bool generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap);
 	void loadFloor();
 	void applyFloorPlaneMaterialSettings();
+	void syncFloorPlaneAlbedoTexture();
 	void updateMainLightPosition(float halfObjectSize);
 	float updateFloorGeometry();
+	void syncDefaultLightColorUniforms();
 
 	void updatePunctualLights();  // Update lights based on bounding sphere changes
 	void setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight);
@@ -596,7 +680,6 @@ private:
 
 	void render(GLCamera* camera);
 	void renderToShadowBuffer();
-	int processSelection(const QPoint& pixel);
 	void renderQuad();
 	void renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode);
 
@@ -685,6 +768,12 @@ private:
 	void renderToTransmissionBuffer(GLCamera* camera, const QColor& topColor, const QColor& botColor);
 	void cleanupTransmissionBuffer();
 	void resizeTransmissionBuffer(int width, int height);
+
+	// --- SSS (Subsurface Scattering) Buffer Methods ---
+	void initSSSBuffer();
+	void renderToSSSBuffer(GLCamera* camera);
+	void resizeSSSBuffer(int width, int height);
+	void cleanupSSSBuffer();
 
 	GLuint _whiteTexture = 0;
 	void createWhiteTexture();
@@ -832,6 +921,7 @@ private:
 	float _yScale;
 	float _zScale;
 
+	QVector4D _defaultLightColor;
 	QVector4D _ambientLight;
 	QVector4D _diffuseLight;
 	QVector4D _specularLight;
@@ -855,6 +945,7 @@ private:
 	std::unique_ptr<ShaderProgram> _skyBoxShader;
 	std::unique_ptr<ShaderProgram> _irradianceShader;
 	std::unique_ptr<ShaderProgram> _prefilterShader;
+	std::unique_ptr<ShaderProgram> _sheenPrefilterShader;
 	std::unique_ptr<ShaderProgram> _brdfShader;
 	std::unique_ptr<ShaderProgram> _lightCubeShader;
 	std::unique_ptr<ShaderProgram> _clippingPlaneShader;
@@ -864,29 +955,35 @@ private:
 	std::unique_ptr<ShaderProgram> _equirectToCubeQuadShader;
 	std::unique_ptr<ShaderProgram> _downsampleShader;
 
-	unsigned int             _environmentMap;
-	unsigned int             _shadowMap;
-	unsigned int             _shadowMapFBO;
-	unsigned int			 _irradianceMap;
-	unsigned int             _prefilterMap;
-	unsigned int             _prefilterMipLevels = 0;
-	unsigned int             _brdfLUTTexture;
+	unsigned int             _environmentMap  = 0;
+	unsigned int             _shadowMap       = 0;
+	unsigned int             _shadowMapFBO    = 0;
+	unsigned int             _irradianceMap   = 0;
+	unsigned int             _prefilterMap    = 0;
+	unsigned int             _sheenPrefilterMap   = 0;
+	unsigned int             _prefilterMipLevels  = 5; // Effective LOD levels: lod = roughness * (mipLevels - 1)
+	unsigned int             _sheenPrefilterMipLevels = 5; // Effective mip count for sheen LOD formula
+	unsigned int             _brdfLUTTexture  = 0;
+	unsigned int             _charlieLUTTexture   = 0;
+	unsigned int             _sheenELUTTexture    = 0;
 	QString					 _currentSkyboxFolder;  // Track the current skybox folder path for environment map regeneration
 
 	// Preset environment maps (index 1=Studio, 2=Outdoor, 3=Office)
 	unsigned int             _studioEnvironmentMap = 0;
 	unsigned int             _studioIrradianceMap = 0;
 	unsigned int             _studioPrefilterMap = 0;
+	unsigned int             _studioSheenPrefilterMap = 0;
 
 	unsigned int             _outdoorEnvironmentMap = 0;
 	unsigned int             _outdoorIrradianceMap = 0;
 	unsigned int             _outdoorPrefilterMap = 0;
+	unsigned int             _outdoorSheenPrefilterMap = 0;
 
 	unsigned int             _officeEnvironmentMap = 0;
 	unsigned int             _officeIrradianceMap = 0;
 	unsigned int             _officePrefilterMap = 0;
+	unsigned int             _officeSheenPrefilterMap = 0;
 	unsigned int			 _skyboxFBO = 0;
-	unsigned int			 _skyboxColorTexture = 0;
 	unsigned int			 _skyboxDepthBuffer = 0;
 
 	// --- Transmission Buffer Resources ---
@@ -897,6 +994,28 @@ private:
 	int _transmissionTextureHeight = 0;       // Current FBO height
 	int _transmissionMipLevels = 0;			  // Number of mip levels
 	bool _transmissionEnabled = true;         // Toggle for feature
+
+	// --- SSS (Subsurface Scattering) Buffer Resources ---
+	GLuint _sssFBO = 0;                       // Capture FBO: SSS diffuse irradiance
+	GLuint _sssCaptureTexture = 0;            // RGBA16F: SSS diffuse capture (also V-blur output)
+	GLuint _sssDepthTexture = 0;              // DEPTH32F: depth for capture pass occlusion
+	GLuint _sssBlurFBO = 0;                   // Blur FBO: H-blur output
+	GLuint _sssBlurTexture = 0;               // RGBA16F: H-blur result (V-blur input)
+	int _sssTextureWidth = 0;                 // Current FBO width
+	int _sssTextureHeight = 0;                // Current FBO height
+	bool _sssEnabled = false;                 // True when any loaded mesh has hasVolumeScattering
+
+	// --- Debug texture placeholders (TextureDebugPanel) ---
+	// Created once in initializeGL; owned by this widget.
+	// _debugNeutralTex : 1×1 white RGBA         — replacement for disabled multiplicative slots
+	// _debugNormalTex  : 1×1 (128,128,255,255) — replacement for disabled normal-map slots
+	// _debugBlackTex   : 1×1 black RGBA         — replacement for disabled emissive slot
+	// Note: contributions are silenced by zeroing the scalar uniforms (setScalarOverridesForUnit),
+	//       not by the replacement texture value, so _debugNeutralTex is used for all non-normal slots.
+	GLuint _debugNeutralTex = 0;
+	GLuint _debugNormalTex  = 0;
+	GLuint _debugBlackTex   = 0;
+	int    _globalDebugChannel = 0;  // active channel ID for TextureDebugPanel dropdown; 0 = normal rendering
 
 	QImage					 _floorTexImage;
 	float                    _floorSize;
@@ -949,6 +1068,21 @@ private:
 	GLCamera* _primaryCamera;
 	GLCamera* _orthoViewsCamera;
 
+	// Active glTF camera (-1 / empty = none active, system camera is in use)
+	QString _activeGltfCameraFile;
+	int     _activeGltfCameraIndex = -1;
+
+	// Saved system camera state, captured when a glTF camera is first activated
+	// so the user can switch back to exactly where they were.
+	bool                     _systemCameraStateSaved = false;
+	QVector3D                _savedCameraPos;
+	QVector3D                _savedCameraDir;
+	QVector3D                _savedCameraUp;
+	QVector3D                _savedCameraRight;
+	GLCamera::ProjectionType _savedProjectionType = GLCamera::ProjectionType::PERSPECTIVE;
+	float                    _savedCameraFOV      = 45.0f;
+	float                    _savedCameraViewRange = 200.0f;
+
 	QTimer* _keyboardNavTimer;
 	QTimer* _animateViewTimer;
 	QTimer* _animateFitAllTimer;
@@ -969,6 +1103,7 @@ private:
 	bool _fsTriInitialized = false; // Track initialization state
 	std::vector<QString> _skyBoxFaces;
 	float _skyBoxFOV;
+	float _skyBoxZRotation;
 	bool  _skyBoxTextureHDRI;
 	bool  _gammaCorrection;
 	float _screenGamma;
@@ -981,6 +1116,7 @@ private:
 
 	HDRToneMapMode _toneMappingMode;
 
+	bool _openGLInitialized = false;  // set true only after initializeGL() succeeds
 	float _anisotropicFilteringLevel = 16.0f;
 
 	Cone* _axisCone;
@@ -1047,6 +1183,9 @@ private:
 		glm::mat4 accumulatedRotation;
 	} _lightRepoBasis;
 
+	float currentModelTransformScaleFactor() const;
+	void applyGltfCameraEntryTransform(const GltfCameraEntry& cam);
+
 	// Recycle bin (internal only - not exposed to user)
 	struct RecycleBinEntry
 	{
@@ -1062,6 +1201,7 @@ private:
 	double _animationCurrentTimeSeconds = 0.0;
 	bool _animationPlaying = false;
 	bool _animationLooping = true;
+	double _animationPlaybackSpeed = 1.0;
 	QTimer* _animationTimer = nullptr;
 	QElapsedTimer _animationElapsed;
 };

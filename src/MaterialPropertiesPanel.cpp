@@ -41,6 +41,7 @@
 #include <QCheckBox>
 #include <QStandardPaths>
 #include <QRegularExpression>
+#include <QSignalBlocker>
 #include <QBoxLayout>
 #include <functional>
 
@@ -53,6 +54,71 @@ namespace
 	constexpr int PresetNameRole = Qt::UserRole;
 	constexpr int PresetFolderRole = Qt::UserRole + 1;
 	constexpr int PresetIsUserRole = Qt::UserRole + 2;
+
+	struct PreviewTexModeOption
+	{
+		const char* label;
+		int mode;
+		bool separator;
+	};
+
+	void populatePreviewTexModeCombo(QComboBox* combo)
+	{
+		if (!combo) return;
+
+		const int previousMode = combo->currentData().isValid()
+			? combo->currentData().toInt()
+			: static_cast<int>(TexViewMode::All);
+
+		const PreviewTexModeOption options[] = {
+			{ QT_TR_NOOP("All"), static_cast<int>(TexViewMode::All), false },
+			{ nullptr, 0, true },
+			{ QT_TR_NOOP("Albedo"), static_cast<int>(TexViewMode::Albedo), false },
+			{ QT_TR_NOOP("Metallic"), static_cast<int>(TexViewMode::Metalness), false },
+			{ QT_TR_NOOP("Roughness"), static_cast<int>(TexViewMode::Roughness), false },
+			{ QT_TR_NOOP("AO"), static_cast<int>(TexViewMode::AO), false },
+			{ QT_TR_NOOP("Emissive"), static_cast<int>(TexViewMode::Emissive), false },
+			{ QT_TR_NOOP("Normal Map"), static_cast<int>(TexViewMode::Normal), false },
+			{ QT_TR_NOOP("Height"), static_cast<int>(TexViewMode::Height), false },
+			{ QT_TR_NOOP("Opacity"), static_cast<int>(TexViewMode::Opacity), false },
+			{ nullptr, 0, true },
+			{ QT_TR_NOOP("Transmission Strength"), static_cast<int>(TexViewMode::Transmission), false },
+			{ QT_TR_NOOP("Sheen Color"), static_cast<int>(TexViewMode::SheenColor), false },
+			{ QT_TR_NOOP("Sheen Roughness"), static_cast<int>(TexViewMode::SheenRoughness), false },
+			{ QT_TR_NOOP("Clearcoat Strength"), static_cast<int>(TexViewMode::ClearcoatColor), false },
+			{ QT_TR_NOOP("Clearcoat Roughness"), static_cast<int>(TexViewMode::ClearcoatRoughness), false },
+			{ QT_TR_NOOP("Clearcoat Normal"), static_cast<int>(TexViewMode::ClearcoatNormal), false },
+			{ QT_TR_NOOP("Specular Strength"), static_cast<int>(TexViewMode::SpecularFactor), false },
+			{ QT_TR_NOOP("Specular Color"), static_cast<int>(TexViewMode::SpecularColor), false },
+			{ QT_TR_NOOP("Anisotropic Strength"), static_cast<int>(TexViewMode::Anisotropy), false },
+			{ QT_TR_NOOP("Iridescence Strength"), static_cast<int>(TexViewMode::Iridescence), false },
+			{ QT_TR_NOOP("Iridescence Thickness"), static_cast<int>(TexViewMode::IridescenceThickness), false },
+			{ QT_TR_NOOP("Volume Thickness"), static_cast<int>(TexViewMode::Thickness), false },
+			{ QT_TR_NOOP("Diffuse Transmission Strength"), static_cast<int>(TexViewMode::DiffuseTransmission), false },
+			{ QT_TR_NOOP("Diffuse Transmission Color"), static_cast<int>(TexViewMode::DiffuseTransmissionColor), false },
+			{ QT_TR_NOOP("IOR"), static_cast<int>(TexViewMode::IOR), false },
+		};
+
+		QSignalBlocker blocker(combo);
+		combo->clear();
+
+		for (const PreviewTexModeOption& option : options)
+		{
+			if (option.separator)
+			{
+				combo->insertSeparator(combo->count());
+				continue;
+			}
+
+			combo->addItem(QCoreApplication::translate("MaterialPropertiesPanel", option.label), option.mode);
+		}
+
+		int index = combo->findData(previousMode);
+		if (index < 0)
+			index = combo->findData(static_cast<int>(TexViewMode::All));
+		if (index >= 0)
+			combo->setCurrentIndex(index);
+	}
 
 	QString wrapModeToJson(GLenum mode)
 	{
@@ -101,6 +167,23 @@ namespace
 		return fallback;
 	}
 
+	QString channelPackingSummary(const GLMaterial::ChannelPacking& packing)
+	{
+		static const char* channels[] = { "R", "G", "B", "A" };
+		QString summary = (packing.channel >= 0 && packing.channel < 4)
+			? QString::fromLatin1(channels[packing.channel])
+			: QStringLiteral("-");
+
+		if (packing.invert)
+			summary.append(QStringLiteral(" inv"));
+		if (!qFuzzyCompare(packing.scale, 1.0f))
+			summary.append(QStringLiteral(" x%1").arg(packing.scale, 0, 'g', 2));
+		if (!qFuzzyIsNull(packing.bias))
+			summary.append(QStringLiteral(" %1").arg(packing.bias, 0, 'g', 2));
+
+		return summary;
+	}
+
 	QJsonArray vec2ToJsonArray(const glm::vec2& v)
 	{
 		return QJsonArray{ v.x, v.y };
@@ -143,8 +226,13 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 {
 	_ui->setupUi(this);
 
+	if (_ui->comboBoxTexMode)
+		populatePreviewTexModeCombo(_ui->comboBoxTexMode);
+
 	connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
 		_ui->retranslateUi(this);
+		if (_ui->comboBoxTexMode)
+			populatePreviewTexModeCombo(_ui->comboBoxTexMode);
 		});
 
 	// Enable right-click context menu
@@ -160,6 +248,7 @@ MaterialPropertiesPanel::MaterialPropertiesPanel(QWidget* parent)
 
 	_checkerIcon = makeCheckerIcon();
 	registerTextureMaps();
+	setupTextureMetadataUI();
 	connectTextureSignals();
 
 	// Connect search functionality for material library
@@ -809,6 +898,50 @@ void MaterialPropertiesPanel::registerTextureMaps()
 	if (_ui->btnThicknessTex) insertSlot(GLMaterial::TextureType::Thickness, _ui->btnThicknessTex, _ui->lblThicknessTex, nullptr, _ui->toolButtonThicknessTexTrsf, "thickness");
 }
 
+void MaterialPropertiesPanel::setupTextureMetadataUI()
+{
+	if (!_ui) return;
+
+	auto assignExistingMeta = [this](GLMaterial::TextureType type,
+		const char* uvName, const char* colorName, const char* packingName)
+	{
+		auto it = _textureSlots.find(type);
+		if (it == _textureSlots.end())
+			return;
+
+		it->metaUv = findChild<QLabel*>(QString::fromLatin1(uvName));
+		it->metaColorSpace = findChild<QLabel*>(QString::fromLatin1(colorName));
+		it->metaPacking = findChild<QLabel*>(QString::fromLatin1(packingName));
+	};
+
+	assignExistingMeta(GLMaterial::TextureType::Albedo, "lblAlbedoMetaUV", "lblAlbedoMetaColorSpace", "lblAlbedoMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::Opacity, "lblOpacityMetaUV", "lblOpacityMetaColorSpace", "lblOpacityMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::Emissive, "lblEmissiveMetaUV", "lblEmissiveMetaColorSpace", "lblEmissiveMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::Metallic, "lblMetallicMetaUV", "lblMetallicMetaColorSpace", "lblMetallicMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::AmbientOcclusion, "lblAOMetaUV", "lblAOMetaColorSpace", "lblAOMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::Height, "lblHeightMetaUV", "lblHeightMetaColorSpace", "lblHeightMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::Roughness, "lblRoughnessMetaUV", "lblRoughnessMetaColorSpace", "lblRoughnessMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::Normal, "lblNormalMetaUV", "lblNormalMetaColorSpace", "lblNormalMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::ClearcoatColor, "lblCCColorMetaUV", "lblCCColorMetaColorSpace", "lblCCColorMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::ClearcoatRoughness, "lblCCRoughMetaUV", "lblCCRoughMetaColorSpace", "lblCCRoughMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::ClearcoatNormal, "lblCCNormalMetaUV", "lblCCNormalMetaColorSpace", "lblCCNormalMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::SheenColor, "lblSheenColorMetaUV", "lblSheenColorMetaColorSpace", "lblSheenColorMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::SheenRoughness, "lblSheenRoughMetaUV", "lblSheenRoughMetaColorSpace", "lblSheenRoughMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::Iridescence, "lblIridFactorMetaUV", "lblIridFactorMetaColorSpace", "lblIridFactorMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::IridescenceThickness, "lblIridThicknessMetaUV", "lblIridThicknessMetaColorSpace", "lblIridThicknessMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::Transmission, "lblTransmissionMetaUV", "lblTransmissionMetaColorSpace", "lblTransmissionMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::IOR, "lblIORMetaUV", "lblIORMetaColorSpace", "lblIORMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::Thickness, "lblThicknessMetaUV", "lblThicknessMetaColorSpace", "lblThicknessMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::SpecularFactor, "lblSpecFactorMetaUV", "lblSpecFactorMetaColorSpace", "lblSpecFactorMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::SpecularColor, "lblSpecColorMetaUV", "lblSpecColorMetaColorSpace", "lblSpecColorMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::Anisotropy, "lblAnisotropyMetaUV", "lblAnisotropyMetaColorSpace", "lblAnisotropyMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::DiffuseTransmission, "lblDiffuseTransMetaUV", "lblDiffuseTransMetaColorSpace", "lblDiffuseTransMetaPacking");
+	assignExistingMeta(GLMaterial::TextureType::DiffuseTransmissionColor, "lblDiffuseTransColorMetaUV", "lblDiffuseTransColorMetaColorSpace", "lblDiffuseTransColorMetaPacking");
+
+	for (auto it = _textureSlots.begin(); it != _textureSlots.end(); ++it)
+		updateTextureMetadata(it.key());
+}
+
 void MaterialPropertiesPanel::connectTextureSignals()
 {
 	for (auto it = _textureSlots.begin(); it != _textureSlots.end(); ++it)
@@ -907,15 +1040,16 @@ void MaterialPropertiesPanel::applyButtonEmptyIcon(MapSlot& m)
 	m.button->setIconSize(QSize(90, 90));
 	m.button->setText(QString());
 	m.button->setToolTip(QString());
+	updateTextureMetadata(m.type);
 }
 
 void MaterialPropertiesPanel::applyButtonImageIcon(MapSlot& m, const QString& file)
 {
 	if (!m.button) return;
-	QIcon icon = makeIconFromFile(file);
-	m.button->setIcon(icon);
+	m.button->setIcon(makeIconFromFile(file));
 	m.button->setIconSize(QSize(90, 90));
 	m.button->setToolTip(file);
+	updateTextureMetadata(m.type);
 }
 
 QIcon MaterialPropertiesPanel::makeIconFromFile(const QString& file, int edge) const
@@ -1155,7 +1289,127 @@ void MaterialPropertiesPanel::updateScalarUI()
 	// Simply call loadScalarValuesFromMaterial to refresh all scalar controls
 	loadScalarValuesFromMaterial();
 }
-void MaterialPropertiesPanel::updateTexturePreview(GLMaterial::TextureType type) {}
+void MaterialPropertiesPanel::updateTexturePreview(GLMaterial::TextureType type)
+{
+	if (!_material || !_textureSlots.contains(type))
+		return;
+
+	auto& slot = _textureSlots[type];
+	if (!slot.button)
+		return;
+
+	const QString path = textureMapPath(type);
+	if (path.isEmpty())
+		applyButtonEmptyIcon(slot);
+	else
+		applyButtonImageIcon(slot, path);
+}
+
+void MaterialPropertiesPanel::updateTextureMetadata(GLMaterial::TextureType type)
+{
+	if (!_ui || !_textureSlots.contains(type))
+		return;
+
+	auto& slot = _textureSlots[type];
+	if (!slot.metaUv || !slot.metaColorSpace || !slot.metaPacking)
+		return;
+
+	auto setStaticMeta = [&slot](const QString& uv, const QString& colorSpace, const QString& packing) {
+		slot.metaUv->setText(uv);
+		slot.metaColorSpace->setText(colorSpace);
+		slot.metaPacking->setText(packing);
+	};
+
+	auto setMetaEnabled = [&slot](bool enabled) {
+		slot.metaUv->setEnabled(enabled);
+		slot.metaColorSpace->setEnabled(enabled);
+		slot.metaPacking->setEnabled(enabled);
+	};
+
+	auto defaultColorSpace = [](GLMaterial::TextureType textureType) -> QString {
+		switch (textureType)
+		{
+		case GLMaterial::TextureType::Albedo:
+		case GLMaterial::TextureType::Emissive:
+		case GLMaterial::TextureType::SheenColor:
+		case GLMaterial::TextureType::ClearcoatColor:
+		case GLMaterial::TextureType::SpecularColor:
+		case GLMaterial::TextureType::DiffuseTransmissionColor:
+			return QStringLiteral("sRGB");
+		default:
+			return QStringLiteral("Linear");
+		}
+	};
+
+	auto defaultPacking = [](GLMaterial::TextureType textureType) -> QString {
+		switch (textureType)
+		{
+		case GLMaterial::TextureType::Albedo:
+		case GLMaterial::TextureType::Normal:
+		case GLMaterial::TextureType::Emissive:
+		case GLMaterial::TextureType::SheenColor:
+		case GLMaterial::TextureType::ClearcoatNormal:
+		case GLMaterial::TextureType::SpecularColor:
+		case GLMaterial::TextureType::Anisotropy:
+		case GLMaterial::TextureType::DiffuseTransmissionColor:
+			return QStringLiteral("RGB");
+		case GLMaterial::TextureType::Metallic:
+		case GLMaterial::TextureType::Roughness:
+		case GLMaterial::TextureType::AmbientOcclusion:
+		case GLMaterial::TextureType::Opacity:
+			return QStringLiteral("-");
+		case GLMaterial::TextureType::Height:
+		case GLMaterial::TextureType::Transmission:
+		case GLMaterial::TextureType::IOR:
+		case GLMaterial::TextureType::ClearcoatColor:
+		case GLMaterial::TextureType::Iridescence:
+			return QStringLiteral("R");
+		case GLMaterial::TextureType::ClearcoatRoughness:
+		case GLMaterial::TextureType::IridescenceThickness:
+		case GLMaterial::TextureType::Thickness:
+			return QStringLiteral("G");
+		case GLMaterial::TextureType::SheenRoughness:
+		case GLMaterial::TextureType::SpecularFactor:
+		case GLMaterial::TextureType::DiffuseTransmission:
+			return QStringLiteral("A");
+		default:
+			return QStringLiteral("-");
+		}
+	};
+
+	if (!_material)
+	{
+		setStaticMeta(tr("UV-"), defaultColorSpace(type), defaultPacking(type));
+		setMetaEnabled(false);
+		return;
+	}
+
+	const GLMaterial::Texture tex = _material->texture(type);
+	slot.metaUv->setText(tr("UV%1").arg(tex.texCoordIndex));
+	slot.metaColorSpace->setText(defaultColorSpace(type));
+
+	switch (type)
+	{
+	case GLMaterial::TextureType::Metallic:
+		slot.metaPacking->setText(channelPackingSummary(_material->packingFor(QStringLiteral("metallic"))));
+		break;
+	case GLMaterial::TextureType::Roughness:
+		slot.metaPacking->setText(channelPackingSummary(_material->packingFor(QStringLiteral("roughness"))));
+		break;
+	case GLMaterial::TextureType::AmbientOcclusion:
+		slot.metaPacking->setText(channelPackingSummary(_material->packingFor(QStringLiteral("ao"))));
+		break;
+	case GLMaterial::TextureType::Opacity:
+		slot.metaPacking->setText(channelPackingSummary(_material->packingFor(QStringLiteral("opacity"))));
+		break;
+	default:
+		slot.metaPacking->setText(defaultPacking(type));
+		break;
+	}
+
+	setMetaEnabled(!textureMapPath(type).isEmpty());
+}
+
 void MaterialPropertiesPanel::openPackingDialogFor(GLMaterial::TextureType type)
 {
 	if (!_material) return;
@@ -1197,6 +1451,7 @@ void MaterialPropertiesPanel::openPackingDialogFor(GLMaterial::TextureType type)
 
 			// CRITICAL: Update unsaved material in shared map when packing changes
 			updateUnsavedMaterialInMap();
+			updateTextureMetadata(type);
 
 			updatePreview();
 			emit materialChanged(_material);
@@ -1261,6 +1516,9 @@ void MaterialPropertiesPanel::onTransformButtonClicked(GLMaterial::TextureType t
 		// CRITICAL: Update unsaved material in shared map when texture transforms change
 		updateUnsavedMaterialInMap();
 
+		// Refresh the swatch so UV-slot badge changes are visible immediately.
+		updateTexturePreview(type);
+
 		// Update preview to show transform changes (GL context issues are now fixed)
 		updatePreview();
 
@@ -1321,8 +1579,11 @@ void MaterialPropertiesPanel::updatePreview()
 
 	if (_ui->comboBoxTexMode)
 	{
-		int texModeIdx = _ui->comboBoxTexMode->currentIndex();
-		_preview->setTextureViewMode(static_cast<TexViewMode>(texModeIdx));
+		const QVariant texModeData = _ui->comboBoxTexMode->currentData();
+		const int texMode = texModeData.isValid()
+			? texModeData.toInt()
+			: static_cast<int>(TexViewMode::All);
+		_preview->setTextureViewMode(static_cast<TexViewMode>(texMode));
 	}
 
 	// Trigger re-render

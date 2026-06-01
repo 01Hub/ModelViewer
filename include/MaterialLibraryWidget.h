@@ -6,6 +6,8 @@
 #include <QVector>
 #include <QPair>
 
+class QKeyEvent;
+
 class MaterialLibraryWidget : public QTreeWidget
 {
     Q_OBJECT
@@ -64,6 +66,9 @@ public:
 signals:
     void materialPreview(const GLMaterial& mat);
     void materialSelected(const GLMaterial &mat);
+
+protected:
+    void keyPressEvent(QKeyEvent* event) override;
 
 private slots:
     void handleItemEntered(QTreeWidgetItem* item, int column);

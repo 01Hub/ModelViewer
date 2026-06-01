@@ -1,6 +1,7 @@
 #include "ModelViewerApplication.h"
 #include <QOpenGLFunctions>
 #include <QSettings>
+#include <QSurfaceFormat>
 #include <QTranslator>
 #include <QLocale>
 #include <assimp/Importer.hpp>
@@ -18,6 +19,19 @@ namespace AppContext
 QStringList ModelViewerApplication::_supportedExtensions;
 int ModelViewerApplication::_supportedMSAASamples = 4; // Default MSAA samples
 int ModelViewerApplication::_supportedAnisotropicFilteringLevel = 16; // Default anisotropic filtering level
+
+void ModelViewerApplication::configureOpenGLAttributes()
+{
+	// These Qt application attributes must be set before QApplication is constructed.
+	// On Linux/Wayland, AA_UseDesktopOpenGL forces native OpenGL (not ANGLE/EGL) and
+	// AA_ShareOpenGLContexts ensures shared contexts work correctly. Setting them on
+	// Windows is unnecessary and can interfere with driver auto-selection (ANGLE vs native),
+	// so they are gated to non-Windows platforms only.
+#if !defined(Q_OS_WIN)
+	QCoreApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
+	QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+#endif
+}
 
 ModelViewerApplication::ModelViewerApplication(int& argc, char** argv)
     : QApplication(argc, argv)

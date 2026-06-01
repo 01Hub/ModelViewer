@@ -12,10 +12,12 @@
 #include "ApplyMaterialCommand.h"
 #include "RenameMeshCommand.h"
 #include "AnimationsPanel.h"
+#include "CamerasPanel.h"
 #include "MaterialPropertiesPanel.h"
 #include "SceneClipboard.h"
 #include "CutCommand.h"
 #include "MaterialVariantsPanel.h"
+#include "TextureDebugPanel.h"
 
 #include <QUndoStack>
 
@@ -53,6 +55,7 @@ public:
 	void setTransformation();
 	void bakeTransformations();
 	void resetTransformation();
+	void syncLightPositionUiToScene();
 
 	SceneTreeWidget* getTreeModel() { return treeWidgetModel; }
 
@@ -91,6 +94,7 @@ public:
 
 	void selectAll();
 	void deselectAll();
+	void deselectAllWithUndo();
 
 	// For UV generation dialog user selection
 	static UVDialogResult askUserForUVMethod(QWidget* parent);
@@ -106,6 +110,10 @@ public:
 	bool hasRedo() const;
 	void undo();
 	void redo();
+
+	// Opens (or raises) the Texture Debug Panel for the current selection.
+	// Called by MainWindow when Tools → Texture Debugger is triggered.
+	void showTextureDebugPanel();
 
 	// Undo stack access
 	QUndoStack* getUndoStack() const { return _undoStack; }
@@ -213,11 +221,13 @@ private:
 	void ensureDockedNavigationHeader();
 	void placeNavigationContentInHost(QWidget* navigationContent, QWidget* hostParent, QLayout* hostLayout);
 
-	// Show/hide the Variants tab (_innerTabWidget) based on whether
-	// any currently loaded file carries optional glTF metadata panels.
-	void refreshVariantsTab();
+	// Rebuild the inner navigation sub-tab widget based on what the currently
+	// loaded model(s) support: Variants, Animations, and/or Cameras.
+	// The inner tab widget is created on demand and destroyed when no optional
+	// panels are needed, leaving the layout exactly as setupUi() made it.
+	void refreshNavigationSubTabs();
 
-	// Called when the inner tab selection changes (Model ↔ Variants).
+	// Called when the inner sub-tab selection changes.
 	void onInnerNavTabChanged(int index);
 
 	void checkAndRenameModel(TriangleMesh* mesh, const QString& name);
@@ -234,6 +244,7 @@ private:
 	void cleanupOrphanedMeshes();
 	void validateVariantData();   // removes variant data for files with no remaining meshes
 	void validateAnimationData(); // removes animation data for files with no remaining meshes
+	void validateCameraData();    // removes camera data for files with no remaining meshes
 	bool saveMaterialsBeforeClose();  // Save all unsaved materials to library before closing
 	void cleanupUnsavedMaterialsFromLibrary();
 	QSet<QUuid> scanStackForReferencedUuids();
@@ -313,16 +324,17 @@ private:
 	int _navigationPageIndex = -1;
 	QString _navigationPageLabel;
 
-	// KHR_materials_variants UI.
-	// _innerTabWidget is null at startup. When the first variant-bearing file
-	// loads, it is created on the fly: modelNavigationWidget is reparented into
-	// it as tab 0 and _variantsPanel as tab 1, and the tab widget itself takes
-	// modelNavigationWidget's place in navigationFrame's layout. When all
-	// variant models are removed the process is reversed and the tab widget
-	// is destroyed, leaving the layout exactly as it was originally.
-	QTabWidget*            _innerTabWidget = nullptr;
-	MaterialVariantsPanel* _variantsPanel  = nullptr;
-	AnimationsPanel*       _animationsPanel = nullptr;
+	// Optional navigation sub-tabs (Variants, Animations, Cameras).
+	// _innerTabWidget is null at startup. When at least one optional panel is
+	// needed it is created on the fly: modelNavigationWidget is reparented into
+	// it as tab 0 and the relevant panels follow in order. When all optional
+	// panels are removed the process is reversed and the tab widget is destroyed,
+	// leaving the layout exactly as it was originally.
+	QTabWidget*            _innerTabWidget  = nullptr;
+	MaterialVariantsPanel* _variantsPanel   = nullptr;
+	AnimationsPanel*       _animationsPanel    = nullptr;
+	CamerasPanel*          _camerasPanel       = nullptr;
+	TextureDebugPanel*     _textureDebugPanel  = nullptr;
 
 	QUndoStack* _undoStack;
 	bool _lastCanUndo = false;

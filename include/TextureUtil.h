@@ -13,6 +13,7 @@ namespace TextureUtil
     // - wrapS/T: GL_REPEAT / GL_CLAMP_TO_EDGE
     // - minFilter/magFilter: typical pair is GL_LINEAR_MIPMAP_LINEAR / GL_LINEAR
     // - aniso: desired anisotropy level (0 = off); will be clamped to hardware max if supported
+    // - flipY: whether to vertically flip the decoded image before upload
     inline GLuint loadTexture2DFromFile(const char* path,
         bool srgb = true,
         bool genMips = true,
@@ -20,10 +21,11 @@ namespace TextureUtil
         GLint wrapT = GL_REPEAT,
         GLint minFilter = GL_LINEAR_MIPMAP_LINEAR,
         GLint magFilter = GL_LINEAR,
-        float aniso = 0.0f)
+        float aniso = 0.0f,
+        bool flipY = false)
     {
         // stb_image is global-state; set flipping once per call
-        stbi_set_flip_vertically_on_load(true);
+        stbi_set_flip_vertically_on_load(flipY ? 1 : 0);
 
         int w = 0, h = 0, comp = 0;
         unsigned char* data = stbi_load(path, &w, &h, &comp, 0);

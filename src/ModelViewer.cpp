@@ -281,10 +281,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	treeWidgetModel->setGLWidget(_glWidget);
 
 	// -------------------------------------------------------------------
-	// KHR_materials_variants: variants panel only — no layout changes.
-	// _innerTabWidget starts null. refreshVariantsTab() creates it on the
-	// fly when the first variant-bearing file is loaded and destroys it
-	// when none remain, leaving the layout exactly as setupUi() made it.
+	// Optional navigation sub-tabs: Variants, Animations, Cameras.
+	// _innerTabWidget starts null. refreshNavigationSubTabs() creates it on
+	// the fly when the first optional-panel-bearing file is loaded and
+	// destroys it when none remain, leaving the layout exactly as
+	// setupUi() made it.
 	// -------------------------------------------------------------------
 	{
 		_variantsPanel = new MaterialVariantsPanel(this);
@@ -295,7 +296,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        this,           &ModelViewer::applyVariant);
 
 		connect(_sceneGraph, &SceneGraph::variantDataChanged,
-		        this,         &ModelViewer::refreshVariantsTab);
+		        this,         &ModelViewer::refreshNavigationSubTabs);
 	}
 
 	{
@@ -312,11 +313,43 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 		        _glWidget,         &GLWidget::setAnimationLooping);
 		connect(_animationsPanel, &AnimationsPanel::seekRequested,
 		        _glWidget,         &GLWidget::seekAnimation);
+		connect(_animationsPanel, &AnimationsPanel::playbackSpeedChanged,
+		        _glWidget,         &GLWidget::setAnimationPlaybackSpeed);
 
 		connect(_sceneGraph, &SceneGraph::animationDataChanged,
-		        this,         &ModelViewer::refreshVariantsTab);
+		        this,         &ModelViewer::refreshNavigationSubTabs);
 		connect(_glWidget, &GLWidget::animationStateChanged,
 		        _animationsPanel, &AnimationsPanel::refresh);
+	}
+
+	{
+		_camerasPanel = new CamerasPanel(this);
+		_camerasPanel->setSceneGraph(_sceneGraph);
+		_camerasPanel->setGLWidget(_glWidget);
+		_camerasPanel->hide();
+
+		connect(_camerasPanel, &CamerasPanel::gltfCameraActivated,
+		        _glWidget,      &GLWidget::activateGltfCamera);
+		connect(_camerasPanel, &CamerasPanel::systemCameraRequested,
+		        _glWidget,      &GLWidget::resetToSystemCamera);
+
+		connect(_sceneGraph, &SceneGraph::gltfCameraDataChanged,
+		        this,         &ModelViewer::refreshNavigationSubTabs);
+	}
+
+	// Texture Debug Panel — created once per viewer, shown on demand via
+	// Tools → Texture Debugger (visible only when the setting is enabled).
+	{
+		_textureDebugPanel = new TextureDebugPanel(this);
+		_textureDebugPanel->setGLWidget(_glWidget);
+		_textureDebugPanel->setModelViewer(this);
+
+		connect(_glWidget,          &GLWidget::selectionChanged,
+		        _textureDebugPanel, &TextureDebugPanel::onSelectionChanged);
+		connect(_glWidget,          &GLWidget::textureReadbackReady,
+		        _textureDebugPanel, &TextureDebugPanel::onTextureReadbackReady);
+		connect(_textureDebugPanel, &TextureDebugPanel::requestPBRMode,
+		        this, [this]() { onRenderingModeSelected("PBR"); });
 	}
 
 	connect(_sceneGraph, &SceneGraph::structureChanged,
@@ -325,6 +358,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	        this, &ModelViewer::validateVariantData);
 	connect(_sceneGraph, &SceneGraph::structureChanged,
 	        this, &ModelViewer::validateAnimationData);
+	connect(_sceneGraph, &SceneGraph::structureChanged,
+	        this, &ModelViewer::validateCameraData);
 	treeWidgetModel->installEventFilter(this);
 	treeWidgetModel->viewport()->installEventFilter(this);
 
@@ -546,10 +581,24 @@ void ModelViewer::deselectAll()
 	handleTreeWidgetSelectionChanged();
 }
 
+void ModelViewer::deselectAllWithUndo()
+{
+	// Only push a command if there is something to deselect, so that
+	// pressing Esc on an already-empty selection does not pollute the undo stack.
+	if (hasSelection())
+		setSelectionWithUndo(QSet<int>{});
+}
+
 void ModelViewer::setListRow(int index)
 {
 	if (index == -1)
+	{
+		// Viewport empty-space click (or toggle-deselect): clear selection with undo.
+		// Guard against empty undo entries when nothing is selected.
+		if (hasSelection())
+			setSelectionWithUndo(QSet<int>{});
 		return;
+	}
 
 	std::vector<TriangleMesh*> meshes = _glWidget->getMeshStore();
 	TriangleMesh* mesh = meshes.at(index);
@@ -625,9 +674,6 @@ void ModelViewer::setTransformation()
 	));
 
 	// Update UI (transformation already applied by command's redo())
-	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
-	float offset = _glWidget->getFloorSize() * 1.25f;
-	visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
 	_glWidget->update();
 
 	QApplication::restoreOverrideCursor();
@@ -727,12 +773,19 @@ void ModelViewer::resetTransformation()
 	objectTransformPanel->resetAllValues();
 
 	// Update UI
-	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
-	float offset = _glWidget->getFloorSize() * 1.25f;
-	visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
 	_glWidget->update();
 
 	QApplication::restoreOverrideCursor();
+}
+
+void ModelViewer::syncLightPositionUiToScene()
+{
+	if (!_glWidget || !visualizationEnvironmentPanel)
+		return;
+
+	float range = _glWidget->getBoundingSphere().getRadius() * 4.0f;
+	float offset = _glWidget->getFloorSize() * 1.25f;
+	visualizationEnvironmentPanel->updateLightPositionRanges(range, offset);
 }
 
 void ModelViewer::updateTransformationValues()
@@ -1185,11 +1238,13 @@ void ModelViewer::detachNavigationPanel()
 		checkBoxAutoFitView->update();
 		checkBoxSelectionHighlight->update();
 
-		// Apply overlay mode to the variants panel when it exists.
+		// Apply overlay mode to the optional panels when they exist.
 		if (_variantsPanel)
 			_variantsPanel->setDetachedOverlayMode(true);
 		if (_animationsPanel)
 			_animationsPanel->setDetachedOverlayMode(true);
+		if (_camerasPanel)
+			_camerasPanel->setDetachedOverlayMode(true);
 		_glWidget->refreshDetachedNavigationOverlayTheme();
 
 		updateNavigationOverlayGeometry();
@@ -1203,6 +1258,8 @@ void ModelViewer::detachNavigationPanel()
 				_variantsPanel->refreshDetachedOverlayTheme();
 			if (_animationsPanel)
 				_animationsPanel->refreshDetachedOverlayTheme();
+			if (_camerasPanel)
+				_camerasPanel->refreshDetachedOverlayTheme();
 		}, Qt::QueuedConnection);
 
 		if (auto* wrapperLayout = qobject_cast<QVBoxLayout*>(_detachedNavigationOverlay->layout()))
@@ -1332,6 +1389,8 @@ void ModelViewer::reattachNavigationPanel()
 		_variantsPanel->setDetachedOverlayMode(false);
 	if (_animationsPanel)
 		_animationsPanel->setDetachedOverlayMode(false);
+	if (_camerasPanel)
+		_camerasPanel->setDetachedOverlayMode(false);
 
 	QWidget* navigationContent = _innerTabWidget
 		? static_cast<QWidget*>(_innerTabWidget)
@@ -1357,14 +1416,15 @@ void ModelViewer::reattachNavigationPanel()
 	navigationContent->show();
 }
 
-void ModelViewer::refreshVariantsTab()
+void ModelViewer::refreshNavigationSubTabs()
 {
-	if (!_variantsPanel || !_animationsPanel || !_sceneGraph)
+	if (!_variantsPanel || !_animationsPanel || !_camerasPanel || !_sceneGraph)
 		return;
 
-	const bool hasVariants = !_sceneGraph->filesWithVariants().isEmpty();
+	const bool hasVariants   = !_sceneGraph->filesWithVariants().isEmpty();
 	const bool hasAnimations = !_sceneGraph->filesWithAnimations().isEmpty();
-	const bool needsInnerTabs = hasVariants || hasAnimations;
+	const bool hasCameras    = !_sceneGraph->filesWithGltfCameras().isEmpty();
+	const bool needsInnerTabs = hasVariants || hasAnimations || hasCameras;
 
 	if (needsInnerTabs && !_innerTabWidget)
 	{
@@ -1416,9 +1476,11 @@ void ModelViewer::refreshVariantsTab()
 			}
 		};
 
-		syncOptionalTab(_variantsPanel, hasVariants, QIcon(":/icons/res/material_variants.png"), tr("Variants"));
-		syncOptionalTab(_animationsPanel, hasAnimations, QIcon(":/icons/res/animations.png"), tr("Animations"));
+		syncOptionalTab(_variantsPanel,   hasVariants,   QIcon(":/icons/res/material_variants.png"), tr("Variants"));
+		syncOptionalTab(_animationsPanel, hasAnimations, QIcon(":/icons/res/animations.png"),         tr("Animations"));
+		syncOptionalTab(_camerasPanel,    hasCameras,    QIcon(":/icons/res/camera.png"),              tr("Cameras"));
 
+		// Enforce tab order: Model(0) → Variants(1) → Animations → Cameras(last)
 		const int modelTabIndex = _innerTabWidget->indexOf(modelNavigationWidget);
 		if (modelTabIndex > 0)
 			_innerTabWidget->tabBar()->moveTab(modelTabIndex, 0);
@@ -1439,10 +1501,21 @@ void ModelViewer::refreshVariantsTab()
 				_innerTabWidget->tabBar()->moveTab(animationsTabIndex, desiredAnimationIndex);
 		}
 
+		const int camerasTabIndex = _innerTabWidget->indexOf(_camerasPanel);
+		if (camerasTabIndex >= 0)
+		{
+			// Cameras is always the last tab
+			const int desiredCameraIndex = _innerTabWidget->count() - 1;
+			if (camerasTabIndex != desiredCameraIndex)
+				_innerTabWidget->tabBar()->moveTab(camerasTabIndex, desiredCameraIndex);
+		}
+
 		if (hasVariants)
 			_variantsPanel->refresh();
 		if (hasAnimations)
 			_animationsPanel->refresh();
+		if (hasCameras)
+			_camerasPanel->refresh();
 
 		if (_detachedNavigationOverlay && _glWidget)
 		{
@@ -1450,9 +1523,11 @@ void ModelViewer::refreshVariantsTab()
 				_variantsPanel->setDetachedOverlayMode(true);
 			if (hasAnimations)
 				_animationsPanel->setDetachedOverlayMode(true);
+			if (hasCameras)
+				_camerasPanel->setDetachedOverlayMode(true);
 
 			_glWidget->refreshDetachedNavigationOverlayTheme();
-			QMetaObject::invokeMethod(this, [this, hasVariants, hasAnimations]()
+			QMetaObject::invokeMethod(this, [this, hasVariants, hasAnimations, hasCameras]()
 			{
 				if (!_detachedNavigationOverlay || !_glWidget)
 					return;
@@ -1461,6 +1536,8 @@ void ModelViewer::refreshVariantsTab()
 					_variantsPanel->refreshDetachedOverlayTheme();
 				if (hasAnimations && _animationsPanel)
 					_animationsPanel->refreshDetachedOverlayTheme();
+				if (hasCameras && _camerasPanel)
+					_camerasPanel->refreshDetachedOverlayTheme();
 			}, Qt::QueuedConnection);
 		}
 	}
@@ -1487,6 +1564,8 @@ void ModelViewer::refreshVariantsTab()
 		_variantsPanel->hide();
 		_animationsPanel->setParent(this);
 		_animationsPanel->hide();
+		_camerasPanel->setParent(this);
+		_camerasPanel->hide();
 
 		delete _innerTabWidget;
 		_innerTabWidget = nullptr;
@@ -1519,6 +1598,23 @@ void ModelViewer::onInnerNavTabChanged(int index)
 		if (_detachedNavigationOverlay)
 			_animationsPanel->refreshDetachedOverlayTheme();
 	}
+	else if (currentWidget == _camerasPanel)
+	{
+		_camerasPanel->refresh();
+		if (_detachedNavigationOverlay)
+			_camerasPanel->refreshDetachedOverlayTheme();
+	}
+}
+
+void ModelViewer::showTextureDebugPanel()
+{
+	if (!_textureDebugPanel)
+		return;
+	_textureDebugPanel->show();
+	_textureDebugPanel->raise();
+	_textureDebugPanel->activateWindow();
+	// Trigger an immediate readback if there is already a selection.
+	_textureDebugPanel->refresh();
 }
 
 void ModelViewer::applyVariant(const QString& sourceFile, int variantIndex)
@@ -2587,6 +2683,35 @@ void ModelViewer::validateAnimationData()
 	}
 }
 
+void ModelViewer::validateCameraData()
+{
+	if (!_sceneGraph || !_glWidget)
+		return;
+
+	const QStringList files = _sceneGraph->filesWithGltfCameras();
+	const std::vector<TriangleMesh*>& meshes = _glWidget->getMeshStore();
+
+	for (const QString& sourceFile : files)
+	{
+		const bool hasLiveMesh = std::any_of(meshes.cbegin(), meshes.cend(),
+			[&](TriangleMesh* mesh)
+			{
+				return mesh
+					&& mesh->getSourceFile() == sourceFile
+					&& _sceneGraph->findNodeForMesh(mesh->uuid()) != nullptr;
+			});
+
+		if (!hasLiveMesh)
+		{
+			// If the active glTF camera belongs to this file, revert to system camera.
+			if (_glWidget->activeGltfCameraFile() == sourceFile)
+				_glWidget->resetToSystemCamera();
+
+			_sceneGraph->clearGltfCameraData(sourceFile);
+		}
+	}
+}
+
 void ModelViewer::invalidateCutClipboard()
 {
 	_clipboard.clear();
@@ -3182,11 +3307,16 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 		_glWidget->deselect(static_cast<int>(i));
 
 	// Select the mesh-store indices of selected leaf items
-	for (int idx : treeWidgetModel->getSelectedIndices())
+	const std::vector<int> selectedVec = treeWidgetModel->getSelectedIndices();
+	for (int idx : selectedVec)
 		_glWidget->select(idx);
 
 	_glWidget->update();
 	updateSelectionStatusMessage();
+
+	// Notify panels connected to GLWidget::selectionChanged (e.g. TextureDebugPanel).
+	// An empty list correctly clears the panel when nothing is selected in the tree.
+	_glWidget->broadcastSelectionChanged(QList<int>(selectedVec.begin(), selectedVec.end()));
 }
 
 void ModelViewer::handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& newName)
@@ -3997,9 +4127,10 @@ void ModelViewer::redo()
 
 void ModelViewer::setSelectionWithUndo(const QSet<int>& newSelection)
 {
-	// Create and push the undo command
-	// Note: push() automatically calls redo() on the command
-	_undoStack->push(new SelectionCommand(this, _glWidget, newSelection));
+	// Create and push the undo command.
+	// Note: push() automatically calls redo() on the command.
+	const QString label = newSelection.isEmpty() ? tr("Deselect") : tr("Select");
+	_undoStack->push(new SelectionCommand(this, _glWidget, newSelection, label));
 }
 
 void ModelViewer::setSelectionWithoutUndo(const QSet<int>& selection)

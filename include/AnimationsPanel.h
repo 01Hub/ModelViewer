@@ -8,6 +8,7 @@ class GLWidget;
 class QLabel;
 class QPushButton;
 class QCheckBox;
+class QComboBox;
 class QSlider;
 class SceneGraph;
 
@@ -37,11 +38,13 @@ signals:
 	void playbackToggled(bool playing);
 	void loopToggled(bool enabled);
 	void seekRequested(double timeSeconds);
+	void playbackSpeedChanged(double speed);
 
 private slots:
 	void onItemClicked(QTreeWidgetItem* item, int column);
 	void onPlayPauseClicked();
 	void onLoopCheckChanged(bool checked);
+	void onPlaybackSpeedChanged(int index);
 	void onSliderPressed();
 	void onSliderReleased();
 	void onSliderValueChanged(int value);
@@ -60,6 +63,8 @@ private:
 	QTreeWidget* _tree = nullptr;
 	QPushButton* _playPauseButton = nullptr;
 	QCheckBox* _loopCheck = nullptr;
+	QLabel* _speedLabel = nullptr;
+	QComboBox* _speedCombo = nullptr;
 	QSlider* _timelineSlider = nullptr;
 	QLabel* _timeLabel = nullptr;
 

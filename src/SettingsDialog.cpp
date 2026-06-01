@@ -321,6 +321,7 @@ void SettingsDialog::applySettings()
     settings.setValue("checkOpenGLErrorsCheckBox", debug_checkOpenGLErrors);
     settings.setValue("validateShadersCheckBox", debug_validateShaders);
     settings.setValue("profileRenderingCheckBox", debug_profileRendering);
+    settings.setValue("showTextureDebugPanelCheckBox", debug_showTextureDebugPanel);
 
     if (general_showTutorialLauncher)
     {
@@ -495,6 +496,7 @@ void SettingsDialog::setDefaultValues()
     ui->checkOpenGLErrorsCheckBox->setChecked(false);
     ui->validateShadersCheckBox->setChecked(false);
     ui->profileRenderingCheckBox->setChecked(false);
+    ui->showTextureDebugPanelCheckBox->setChecked(false);
 }
 
 void SettingsDialog::captureAppliedState()
@@ -676,6 +678,7 @@ void SettingsDialog::syncStateFromUi()
     debug_checkOpenGLErrors = ui->checkOpenGLErrorsCheckBox->isChecked();
     debug_validateShaders = ui->validateShadersCheckBox->isChecked();
     debug_profileRendering = ui->profileRenderingCheckBox->isChecked();
+    debug_showTextureDebugPanel = ui->showTextureDebugPanelCheckBox->isChecked();
 }
 
 void SettingsDialog::loadSettings()
@@ -884,6 +887,8 @@ void SettingsDialog::loadSettings()
     ui->validateShadersCheckBox->setChecked(bVal);
     bVal = settings.value("profileRenderingCheckBox", ui->profileRenderingCheckBox->isChecked()).toBool();
     ui->profileRenderingCheckBox->setChecked(bVal);
+    bVal = settings.value("showTextureDebugPanelCheckBox", ui->showTextureDebugPanelCheckBox->isChecked()).toBool();
+    ui->showTextureDebugPanelCheckBox->setChecked(bVal);
 
     blockAllChildWidgetSignals(false);
     syncStateFromUi();
@@ -976,6 +981,7 @@ void SettingsDialog::restoreDefaults()
         ui->showFpsCheckBox, ui->showMemoryUsageCheckBox, ui->showRenderStatsCheckBox,
         ui->showOpenGLInfoCheckBox, ui->enableLoggingCheckBox, ui->enableConsoleCheckBox, ui->logLevelComboBox,
         ui->checkOpenGLErrorsCheckBox, ui->validateShadersCheckBox, ui->profileRenderingCheckBox,
+        ui->showTextureDebugPanelCheckBox,
         ui->clearCacheButton, ui->resetSettingsButton
     };
 
@@ -1519,6 +1525,12 @@ void SettingsDialog::on_validateShadersCheckBox_stateChanged()
 void SettingsDialog::on_profileRenderingCheckBox_stateChanged()
 {
     debug_profileRendering = ui->profileRenderingCheckBox->isChecked();
+}
+
+void SettingsDialog::on_showTextureDebugPanelCheckBox_stateChanged()
+{
+    debug_showTextureDebugPanel = ui->showTextureDebugPanelCheckBox->isChecked();
+    emit textureDebugPanelVisibilityChanged(debug_showTextureDebugPanel);
 }
 
 void SettingsDialog::on_clearCacheButton_clicked()

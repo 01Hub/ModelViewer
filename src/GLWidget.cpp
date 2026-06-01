@@ -2,7 +2,9 @@
 #include "ClippingPlanesEditor.h"
 #include "Cone.h"
 #include "Cube.h"
+#include "GltfCameraData.h"
 #include "GLWidget.h"
+#include <QtMath>
 #include "SelectionManager.h"
 #include "LanguageManager.h"
 #include "MainWindow.h"
@@ -16,10 +18,12 @@
 #include "Point.h"
 #include "Sphere.h"
 #include "stb_image.h"
+#include "TangentGenerator.h"
 #include "TextRenderer.h"
 #include "Utils.h"
 #include <algorithm>
 #include <iostream>
+#include <QOpenGLContext>
 #include <QElapsedTimer>
 #include <QMessageBox>
 #include <QStyleFactory>
@@ -32,6 +36,15 @@ constexpr auto MAX_MODEL_SIZE_BYTES = 52428800; // bytes
 
 namespace
 {
+constexpr float kDefaultFloorOffsetPercent = 0.0f;
+
+float computeFloorDepthBias(float workspaceExtent, float floorSize)
+{
+	const float extentBias = std::max(workspaceExtent, 0.0f) * 1.0e-5f;
+	const float floorFallbackBias = std::max(floorSize, 0.0f) * 1.0e-8f;
+	return std::clamp(std::max(extentBias, floorFallbackBias), 1.0e-6f, 1.0e-4f);
+}
+
 QMatrix4x4 aiToQMatrix(const aiMatrix4x4& m)
 {
 	QMatrix4x4 out;
@@ -449,7 +462,8 @@ _assimpModelLoader(nullptr)
 		 if (type == "Realistic") setDisplayMode(DisplayMode::REALSHADED);
 		 else if (type == "Shaded") setDisplayMode(DisplayMode::SHADED);
 		 else if (type == "Wireframe") setDisplayMode(DisplayMode::WIREFRAME);
-		 else if (type == "WireShaded") setDisplayMode(DisplayMode::WIRESHADED);		 
+		 else if (type == "WireShaded") setDisplayMode(DisplayMode::WIRESHADED);
+		 else if (type == "FlatShaded") setDisplayMode(DisplayMode::FLATSHADED);
 		 });
 	 connect(this, &GLWidget::displayModeChanged, _viewer, &ModelViewer::onDisplayModeChanged);
 
@@ -525,6 +539,15 @@ _assimpModelLoader(nullptr)
 			this, [this](int) { update(); });
 	connect(_selectionManager, &SelectionManager::selectionChanged,
 			this, [this](const QList<int>& selectedIds) {
+				if (selectedIds.isEmpty()) {
+					// Viewport empty-space click: nothing was hit.
+					// Clear the tracked selection, then let setListRow(-1) handle
+					// deselecting the tree widget and broadcasting to panels.
+					_selectedIDs.clear();
+					emit singleSelectionDone(-1);
+					update();
+					return;
+				}
 				// Click select APPENDS to selection (multi-select by default)
 				// Add the selected mesh(es) if not already there
 				for (int id : selectedIds) {
@@ -532,7 +555,19 @@ _assimpModelLoader(nullptr)
 						_selectedIDs.append(id);
 					}
 				}
-				// Emit singleSelectionDone only for actual single clicks
+				// Forward to external panels (e.g. TextureDebugPanel) BEFORE
+				// singleSelectionDone so the panel sees the "raw" click state
+				// first.  singleSelectionDone triggers setListRow, which may
+				// toggle-deselect the mesh and call broadcastSelectionChanged({})
+				// — that final broadcast is the authoritative state the panel
+				// should end up in.  If we emitted selectionChanged AFTER
+				// singleSelectionDone, the toggle-deselect clear would be
+				// immediately overwritten by this "raw" [meshId] emission.
+				emit selectionChanged(selectedIds);
+				// Emit singleSelectionDone only for actual single clicks.
+				// This triggers setListRow, which handles toggle-deselect and
+				// multi-select bookkeeping, and ultimately calls
+				// broadcastSelectionChanged with the authoritative final list.
 				if (selectedIds.count() == 1) {
 					emit singleSelectionDone(selectedIds.first());
 				}
@@ -551,9 +586,10 @@ _assimpModelLoader(nullptr)
 
 	_modelNum = 6;
 
-	_ambientLight = { 0.0f, 0.0f, 0.0f, 1.0f };
-	_diffuseLight = { 1.0f, 1.0f, 1.0f, 1.0f };
-	_specularLight = { 0.5f, 0.5f, 0.5f, 1.0f };
+	_defaultLightColor = { 1.0f, 1.0f, 1.0f, 1.0f };
+	_ambientLight = { 0.12f, 0.12f, 0.12f, 1.0f };
+	_diffuseLight = _defaultLightColor;
+	_specularLight = _defaultLightColor;
 
 	_lightPosition = { 25.0f, 25.0f, 50.0f };
 	_lightOffsetX = 0.0f;
@@ -605,7 +641,7 @@ _assimpModelLoader(nullptr)
 	_floorDisplayed = false;
 	_floorTextureDisplayed = true;
 	_floorTexRepeatS = _floorTexRepeatT = 1;
-	_floorOffsetPercent = 0.0f;
+	_floorOffsetPercent = kDefaultFloorOffsetPercent / 100.0f;
 
 	// Floor texture
 	if (!_texBuffer.load(PathUtils::getDataDirectory() + "/" + "textures/envmap/floor/Grey-White-Checkered-Squares1800x1800.jpg"))
@@ -623,6 +659,7 @@ _assimpModelLoader(nullptr)
 	_skyBoxEnabled = false;
 	_skyBoxBlurPercent = 0;
 	_skyBoxFOV = 45.0f;
+	_skyBoxZRotation = 0.0f;
 	_skyBoxTextureHDRI = false;
 	_gammaCorrection = false;
 	_screenGamma = 2.2f;
@@ -646,6 +683,8 @@ _assimpModelLoader(nullptr)
 	_irradianceMap = 0;
 	_prefilterMap = 0;
 	_brdfLUTTexture = 0;
+	_charlieLUTTexture = 0;
+	_sheenELUTTexture = 0;
 
 	_selectionFBO = 0;
 	_selectionRBO = 0;
@@ -801,7 +840,22 @@ GLWidget::~GLWidget()
 		glDeleteTextures(1, &_shadowMap);
 		glDeleteTextures(1, &_irradianceMap);
 		glDeleteTextures(1, &_prefilterMap);
+		glDeleteTextures(1, &_sheenPrefilterMap);
+		glDeleteTextures(1, &_studioEnvironmentMap);
+		glDeleteTextures(1, &_studioIrradianceMap);
+		glDeleteTextures(1, &_studioPrefilterMap);
+		glDeleteTextures(1, &_studioSheenPrefilterMap);
+		glDeleteTextures(1, &_outdoorEnvironmentMap);
+		glDeleteTextures(1, &_outdoorIrradianceMap);
+		glDeleteTextures(1, &_outdoorPrefilterMap);
+		glDeleteTextures(1, &_outdoorSheenPrefilterMap);
+		glDeleteTextures(1, &_officeEnvironmentMap);
+		glDeleteTextures(1, &_officeIrradianceMap);
+		glDeleteTextures(1, &_officePrefilterMap);
+		glDeleteTextures(1, &_officeSheenPrefilterMap);
 		glDeleteTextures(1, &_brdfLUTTexture);
+		glDeleteTextures(1, &_charlieLUTTexture);
+		glDeleteTextures(1, &_sheenELUTTexture);
 		glDeleteTextures(1, &_cappingTexture);
 
 		// Delete framebuffers and renderbuffers
@@ -874,6 +928,7 @@ GLWidget::~GLWidget()
 		}
 
 		cleanupTransmissionBuffer();
+		cleanupSSSBuffer();
 
 		doneCurrent();  // Release context
 
@@ -1061,7 +1116,19 @@ QUuid GLWidget::getUuidByIndex(int index) const
 
 void GLWidget::initializeGL()
 {
-	initializeOpenGLFunctions();
+	_openGLInitialized = false;
+
+	if (!QOpenGLContext::currentContext())
+	{
+		qCritical() << "GLWidget::initializeGL: no current OpenGL context — skipping initialisation";
+		return;
+	}
+
+	if (!initializeOpenGLFunctions())
+	{
+		qCritical() << "GLWidget::initializeGL: failed to resolve OpenGL 4.5 Core functions — skipping initialisation";
+		return;
+	}
 
 	int maxSamples = 0;
 	glGetIntegerv(GL_MAX_SAMPLES, &maxSamples);	
@@ -1070,6 +1137,9 @@ void GLWidget::initializeGL()
 	GLfloat maxAniso = 0.0f;
 	glGetFloatv(GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &maxAniso);
 	ModelViewerApplication::setSupportedAnisotropicFilteringLevel(maxAniso);
+
+	// Sheen is part of the guaranteed 0..31 budget, so its LUTs live on fixed
+	// units 8/9 instead of using the older overflow/fallback layout.
 	
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	// Set Anisotropic Filtering Level
@@ -1197,21 +1267,21 @@ void GLWidget::initializeGL()
 		QString studioHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/studio.hdr";
 		_studioEnvironmentMap = loadPresetEnvironmentMap(studioHDRPath);
 		if (_studioEnvironmentMap)
-			generatePresetIBLMaps(_studioEnvironmentMap, _studioIrradianceMap, _studioPrefilterMap);
+			generatePresetIBLMaps(_studioEnvironmentMap, _studioIrradianceMap, _studioPrefilterMap, _studioSheenPrefilterMap);
 	}
 
 	{
 		QString outdoorHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/outdoor.hdr";
 		_outdoorEnvironmentMap = loadPresetEnvironmentMap(outdoorHDRPath);
 		if (_outdoorEnvironmentMap)
-			generatePresetIBLMaps(_outdoorEnvironmentMap, _outdoorIrradianceMap, _outdoorPrefilterMap);
+			generatePresetIBLMaps(_outdoorEnvironmentMap, _outdoorIrradianceMap, _outdoorPrefilterMap, _outdoorSheenPrefilterMap);
 	}
 
 	{
 		QString officeHDRPath = dataDir + "/textures/envmap/skyboxes/HDRI/office.hdr";
 		_officeEnvironmentMap = loadPresetEnvironmentMap(officeHDRPath);
 		if (_officeEnvironmentMap)
-			generatePresetIBLMaps(_officeEnvironmentMap, _officeIrradianceMap, _officePrefilterMap);
+			generatePresetIBLMaps(_officeEnvironmentMap, _officeIrradianceMap, _officePrefilterMap, _officeSheenPrefilterMap);
 	}
 
 	// Shadow mapping
@@ -1219,35 +1289,38 @@ void GLWidget::initializeGL()
 
 	createWhiteTexture();
 	initTransmissionBuffer();
+	initSSSBuffer();
 
 	float size = 15;
 	_axisCone = new Cone(_axisShader.get(), _viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
 
 	// Set lighting information
 	_fgShader->bind();
-	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
-	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
+	syncDefaultLightColorUniforms();
 	_fgShader->setUniformValue("lightSource.position", _lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_fgShader->setUniformValue("lightModel.ambient", QVector3D(0.2f, 0.2f, 0.2f));
 	_fgShader->setUniformValue("Line.Width", 0.75f);
 	_fgShader->setUniformValue("Line.Color", QVector4D(0.05f, 0.0f, 0.05f, 1.0f));
-	_fgShader->setUniformValue("texUnit", 0);
 	_fgShader->setUniformValue("envMap", 1);
 	_fgShader->setUniformValue("shadowMap", 2);
 	_fgShader->setUniformValue("irradianceMap", 3);
 	_fgShader->setUniformValue("prefilterMap", 4);
 	_fgShader->setUniformValue("brdfLUT", 5);
-	_fgShader->setUniformValue("transmissionSceneTexture", 7);
-	_fgShader->setUniformValue("transmissionDepthTexture", 8);
+	_fgShader->setUniformValue("sheenPrefilterMap", 7);
+	_fgShader->setUniformValue("charlieLUT", 8);
+	_fgShader->setUniformValue("sheenELUT",  9);
+	_fgShader->setUniformValue("sheenPrefilterMipLevels", (int)_sheenPrefilterMipLevels);
+	_fgShader->setUniformValue("prefilterMipLevels", (int)_prefilterMipLevels);
+	_fgShader->setUniformValue("transmissionSceneTexture", 32);
+	_fgShader->setUniformValue("transmissionDepthTexture", 33);
+	_fgShader->setUniformValue("sssDiffuseTexture", 37);
+	_fgShader->setUniformValue("sssDepthTexture", 38);
 	_fgShader->setUniformValue("shadowSamples", 27.0f);
 	_fgShader->setUniformValue("displayMode", static_cast<int>(_displayMode));
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));	
 	_fgShader->setUniformValue("selectionHighlighting", _selectionHighlighting);
 
-	QMatrix4x4 envMapRot;
-	envMapRot.rotate(-90, 1, 0, 0);
-	_fgShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
+	updateEnvMapRotationMatrix();
 
 	_debugShader->bind();
 	_debugShader->setUniformValue("depthMap", 0);
@@ -1256,10 +1329,41 @@ void GLWidget::initializeGL()
 	glEnable(GL_DEPTH_TEST);
 
 	glClearColor(0.0f, 0.0f, 0.0f, 1.f);
+
+	// --- Debug placeholder textures for TextureDebugPanel ---
+	// _debugNeutralTex: 1×1 opaque white  — used for all disabled texture slots.
+	// _debugNormalTex : 1×1 (128,128,255) — used for normal-map slots (flat tangent-space normal).
+	// _debugBlackTex  : 1×1 opaque black  — reserved; contributions are silenced via scalar uniforms,
+	//                   not via the texture value, so this is not used in the current override path.
+	{
+		auto makeDebugTex = [&](GLuint& texId, const GLubyte rgba[4]) {
+			glGenTextures(1, &texId);
+			glBindTexture(GL_TEXTURE_2D, texId);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0,
+			             GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		};
+
+		const GLubyte white[4]         = { 255, 255, 255, 255 };
+		const GLubyte neutralNormal[4] = { 128, 128, 255, 255 };
+		const GLubyte black[4]         = {   0,   0,   0, 255 };
+
+		makeDebugTex(_debugNeutralTex, white);
+		makeDebugTex(_debugNormalTex,  neutralNormal);
+		makeDebugTex(_debugBlackTex,   black);
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+	}
+
+	_openGLInitialized = true;
 }
 
 void GLWidget::resizeGL(int width, int height)
 {
+	if (!_openGLInitialized)
+		return;
+
 	float w = (float)width;
 	float h = (float)height;
 
@@ -1310,12 +1414,16 @@ void GLWidget::resizeGL(int width, int height)
 	_textShader->release();
 
 	resizeTransmissionBuffer(width, height);
+	resizeSSSBuffer(width, height);
 
 	update();
 }
 
 void GLWidget::paintGL()
 {
+	if (!_openGLInitialized)
+		return;
+
 	QColor topColor = !_visibleSwapped ? _bgTopColor : QColor::fromRgbF(1.0f - _bgTopColor.redF(),
 		1.0f - _bgTopColor.greenF(), 1.0f - _bgTopColor.blueF(),
 		_bgTopColor.alphaF());
@@ -1361,8 +1469,8 @@ void GLWidget::paintGL()
 	_debugShader->setUniformValue("near_plane", 1.0f);
 	_debugShader->setUniformValue("far_plane", _viewRange);
 	_debugShader->setUniformValue("screenSize", QVector2D(width(), height()));
-	_debugShader->setUniformValue("transmissionColorTexture", 8);
-	_debugShader->setUniformValue("transmissionDepthTexture", 9);	
+	_debugShader->setUniformValue("transmissionColorTexture", 32);
+	_debugShader->setUniformValue("transmissionDepthTexture", 33);	
 	renderQuad();*/
 
 	//_brdfShader->bind();
@@ -1372,22 +1480,6 @@ void GLWidget::paintGL()
 void GLWidget::updateView()
 {
 	update();
-}
-
-void GLWidget::setTexture(const std::vector<int>& ids, const QImage& texImage)
-{
-	for (int id : ids)
-	{
-		try
-		{
-			TriangleMesh* mesh = _meshStore[id];
-			mesh->setTexureImage(texImage.convertToFormat(QImage::Format_RGBA8888).mirrored());
-		}
-		catch (const std::exception& ex)
-		{
-			std::cout << "Exception raised in GLWidget::setTexture\n" << ex.what() << std::endl;
-		}
-	}
 }
 
 void GLWidget::setSkyBoxTextureFolder(QString folder)
@@ -1730,7 +1822,11 @@ bool GLWidget::convertEquirectangularToCubemap(const QString& filePath)
 	stbi_image_free(data);
 
 	// 2. Create cubemap texture
-	int cubeSize = 1024; // Adjust resolution as needed
+	// Derive face size from source: equirectangular width covers ~4 faces, so W/4 is a
+	// good face size.  Round down to the nearest power-of-two for clean mip chains and
+	// clamp to 2048 to keep GPU memory reasonable.
+	int cubeSize = 1 << static_cast<int>(std::log2(std::min(imgWidth / 4, 2048)));
+	qDebug() << "HDR equirect" << imgWidth << "x" << imgHeight << "→ cubemap face" << cubeSize;
 	for (int mip = 0; mip < static_cast<int>(std::log2(cubeSize)) + 1; ++mip)
 	{
 		int mipSize = cubeSize >> mip;
@@ -1829,7 +1925,11 @@ bool GLWidget::convertEquirectangularToCubemapQuad(const QString& filePath)
 	stbi_image_free(data);
 
 	/// 2. Create cubemap texture - allocate mip 0 for all faces first
-	int cubeSize = 1024;  // Base resolution - adjust if needed
+	// Derive face size from source: equirectangular width covers ~4 faces, so W/4 is a
+	// good face size.  Round down to the nearest power-of-two for clean mip chains and
+	// clamp to 2048 to keep GPU memory reasonable.
+	int cubeSize = 1 << static_cast<int>(std::log2(std::min(imgWidth / 4, 2048)));
+	qDebug() << "HDR equirect" << imgWidth << "x" << imgHeight << "→ cubemap face" << cubeSize;
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
 
 	for (int i = 0; i < 6; ++i)
@@ -1837,8 +1937,6 @@ bool GLWidget::convertEquirectangularToCubemapQuad(const QString& filePath)
 		glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, 0, GL_RGB32F,
 			cubeSize, cubeSize, 0, GL_RGB, GL_FLOAT, nullptr);
 	}
-
-	qDebug() << "Converting equirectangular to cubemap" << cubeSize << "x" << cubeSize;
 
 	// 3. Create simple full-screen quad
 	float quadVertices[] = {
@@ -1999,6 +2097,24 @@ QVector3D GLWidget::getLightPosition() const
 	return _lightPosition;
 }
 
+void GLWidget::syncDefaultLightColorUniforms()
+{
+	// Keep a small internal ambient term for ADS while exposing a single editable light color.
+	static constexpr float kDefaultLightAmbientFactor = 0.12f;
+
+	_ambientLight = QVector4D(
+		_defaultLightColor.x() * kDefaultLightAmbientFactor,
+		_defaultLightColor.y() * kDefaultLightAmbientFactor,
+		_defaultLightColor.z() * kDefaultLightAmbientFactor,
+		_defaultLightColor.w());
+	_diffuseLight = _defaultLightColor;
+	_specularLight = _defaultLightColor;
+
+	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
+	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
+	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
+}
+
 void GLWidget::setLightOffset(const QVector3D& offset)
 {
 	_lightOffsetX = offset.x();
@@ -2007,42 +2123,16 @@ void GLWidget::setLightOffset(const QVector3D& offset)
 	_shadowMapNeedsInitialization = true;
 }
 
-QVector4D GLWidget::getSpecularLight() const
+QVector4D GLWidget::getDefaultLightColor() const
 {
-	return _specularLight;
+	return _defaultLightColor;
 }
 
-void GLWidget::setSpecularLight(const QVector4D& specularLight)
+void GLWidget::setDefaultLightColor(const QVector4D& defaultLightColor)
 {
-	_specularLight = specularLight;
+	_defaultLightColor = defaultLightColor;
 	_fgShader->bind();
-	_fgShader->setUniformValue("lightSource.specular", _specularLight.toVector3D());
-	_fgShader->release();
-}
-
-QVector4D GLWidget::getDiffuseLight() const
-{
-	return _diffuseLight;
-}
-
-void GLWidget::setDiffuseLight(const QVector4D& diffuseLight)
-{
-	_diffuseLight = diffuseLight;
-	_fgShader->bind();
-	_fgShader->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
-	_fgShader->release();
-}
-
-QVector4D GLWidget::getAmbientLight() const
-{
-	return _ambientLight;
-}
-
-void GLWidget::setAmbientLight(const QVector4D& ambientLight)
-{
-	_ambientLight = ambientLight;
-	_fgShader->bind();
-	_fgShader->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
+	syncDefaultLightColorUniforms();
 	_fgShader->release();
 }
 
@@ -2113,6 +2203,79 @@ void GLWidget::fitAll()
 	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
 	if (_meshStore.empty() || visibleIds.empty())
 		return;
+
+	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	{
+		checkAndStopTimers();
+		_keyboardNavTimer->stop();
+		const QVector3D viewDir = _primaryCamera->getViewDir().normalized();
+		const QVector3D upDir = _primaryCamera->getUpVector().normalized();
+		const QVector3D rightDir = _primaryCamera->getRightVector().normalized();
+		const std::vector<QVector3D> corners = collectVisibleCorners();
+		if (corners.empty())
+			return;
+
+		const float aspect = std::max(static_cast<float>(width()) / std::max(1.0f, static_cast<float>(height())), 0.001f);
+		const float halfFovY = qDegreesToRadians(_FOV) * 0.5f;
+		const float tanHalfY = std::max(std::tan(halfFovY), 0.001f);
+		const float tanHalfX = std::max((aspect >= 1.0f ? tanHalfY * aspect : tanHalfY), 0.001f);
+		const float margin = 1.05f;
+
+		float xMin_v = std::numeric_limits<float>::max();
+		float xMax_v = -std::numeric_limits<float>::max();
+		float yMin_v = std::numeric_limits<float>::max();
+		float yMax_v = -std::numeric_limits<float>::max();
+		float zMin_v = std::numeric_limits<float>::max();
+		float zMax_v = -std::numeric_limits<float>::max();
+
+		for (const QVector3D& c : corners)
+		{
+			const float xc = QVector3D::dotProduct(c, rightDir);
+			const float yc = QVector3D::dotProduct(c, upDir);
+			const float zc = QVector3D::dotProduct(c, viewDir);
+			xMin_v = std::min(xMin_v, xc);  xMax_v = std::max(xMax_v, xc);
+			yMin_v = std::min(yMin_v, yc);  yMax_v = std::max(yMax_v, yc);
+			zMin_v = std::min(zMin_v, zc);  zMax_v = std::max(zMax_v, zc);
+		}
+
+		const float cx = (xMin_v + xMax_v) * 0.5f;
+		const float cy = (yMin_v + yMax_v) * 0.5f;
+		const float cz = (zMin_v + zMax_v) * 0.5f;
+		const QVector3D projCenter = rightDir * cx + upDir * cy + viewDir * cz;
+
+		float desiredDist = 0.0f;
+		for (const QVector3D& c : corners)
+		{
+			const float xc_rel = QVector3D::dotProduct(c, rightDir) - cx;
+			const float yc_rel = QVector3D::dotProduct(c, upDir) - cy;
+			const float dc = QVector3D::dotProduct(c, viewDir) - cz;
+
+			float req;
+			if (aspect >= 1.0f)
+				req = std::max(std::abs(xc_rel) / aspect, std::abs(yc_rel)) / tanHalfY - dc;
+			else
+				req = std::max(std::abs(xc_rel), std::abs(yc_rel) * aspect) / tanHalfY - dc;
+
+			desiredDist = std::max(desiredDist, req);
+		}
+		desiredDist = std::max(desiredDist * margin, 0.001f);
+
+		const float shiftFactor = std::min(1.05f / std::sin(halfFovY), 1.25f);
+		_viewBoundingSphereDia = std::max(desiredDist / std::max(shiftFactor, 0.001f), 0.0001f);
+		_viewRange = _viewBoundingSphereDia;
+		_boundingSphere.setCenter(projCenter);
+		_primaryCamera->setViewRange(_viewRange);
+		_primaryCamera->setView(projCenter - viewDir * desiredDist, viewDir, upDir, rightDir);
+
+		_currentTranslation = _primaryCamera->getPosition();
+		_currentViewRange = _viewRange;
+
+		resizeGL(width(), height());
+		update();
+		emit zoomAndPanSet();
+		return;
+	}
 
 	// Compute the viewRange and the projected visual centre simultaneously.
 	// The projected centre is the midpoint of the geometry's view-space extents
@@ -2197,7 +2360,9 @@ void GLWidget::performWindowZoom()
 		if (rawDepth >= 1.0f)
 		{
 			// No geometry found near centre — fall back to bounding sphere centre depth.
-			QVector3D Z = _boundingSphere.getCenter();
+			QVector3D Z = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+				? _primaryCamera->getPosition()
+				: _boundingSphere.getCenter();
 			Z = Z.project(mvMatrix, _projectionMatrix, viewport);
 			depthZ = Z.z();
 		}
@@ -2223,46 +2388,47 @@ void GLWidget::performWindowZoom()
 	_rubberBandZoomRatio = static_cast<GLfloat>((heightRatio < widthRatio) ? heightRatio : widthRatio);
 
 	// Perspective correction: the visible extent at signed view-space depth z_v is
-	// proportional to (|shift| - z_v), not just |shift|. Correct the zoom ratio accordingly.
+	// proportional to the eye-to-anchor distance. Correct the zoom ratio accordingly.
 	if (_projection == ViewProjection::PERSPECTIVE)
 	{
-		float shiftOld = std::abs(_primaryCamera->getShift());
-		if (shiftOld > 0.0f && _currentViewRange > 0.0f)
+		float distanceOld = _primaryCamera->getOrbitDistance();
+		if (distanceOld > 0.0f && _currentViewRange > 0.0f)
 		{
-			// Compute z_v (signed view-space Z) directly from the depth buffer value using
-			// the known projection parameters. This avoids the unproject → view-matrix
-			// multiply round-trip and is more numerically stable for near-side geometry.
-			//
-			// With projection = perspective(fov,a,n,f) * translate(0,0,shift):
-			//   z_eff  = z_v + shift        (where shift = -shiftOld)
-			//   z_ndc  = -M33 - M34/z_eff   (standard perspective depth formula)
-			//   depthZ = (z_ndc + 1) / 2
-			// Inverting: z_eff = -M34 / (M33 + z_ndc),  z_v = z_eff + shiftOld
-			float nearP = std::max(_currentViewRange * 0.01f, 0.01f);
-			float farP  = _currentViewRange * 1000.0f;
-			float M33   = -(farP + nearP) / (farP - nearP);
-			float M34   = -2.0f * farP * nearP / (farP - nearP);
-			float z_ndc = 2.0f * depthZ - 1.0f;
-			float denom = M33 + z_ndc;
-			float z_v   = (std::abs(denom) > 1e-10f)
-			              ? (-M34 / denom + shiftOld)
-			              : 0.0f;
-
-			// Unified formula: after zoom the visible half-extent at z_v changes from
-			// (shiftOld - z_v)*tan(fov/2) to (newShift - z_v)*tan(fov/2).
-			// Setting the new extent = old_extent / pixelRatio gives newShift:
-			//   newShift = (shiftOld - z_v) / ratio + z_v
-			float newShift = (shiftOld - z_v) / _rubberBandZoomRatio + z_v;
-			if (newShift > 0.0f)
+			const QVector3D target = _primaryCamera->getPosition();
+			const QVector3D viewDir = _primaryCamera->getViewDir().normalized();
+			const float dc = QVector3D::dotProduct(P - target, viewDir);
+			const float anchorDistanceOld = distanceOld - dc;
+			if (anchorDistanceOld > 0.0f)
 			{
-				float shiftFactor = shiftOld / _currentViewRange;
-				float newViewRange = newShift / shiftFactor;
-				_rubberBandZoomRatio = _currentViewRange / newViewRange;
+				const float newDistance = anchorDistanceOld / _rubberBandZoomRatio + dc;
+				if (newDistance > 0.0f)
+				{
+					const float distanceFactor = distanceOld / _currentViewRange;
+					const float newViewRange = newDistance / distanceFactor;
+					_rubberBandZoomRatio = _currentViewRange / newViewRange;
+				}
 			}
 		}
 	}
 
-	_rubberBandPan = P - O;
+	// Very small rectangles can feel too aggressive in perspective because even a
+	// mathematically correct ratio is visually abrupt near the object. Compress the
+	// high end of the zoom ratio to keep the target in frame more reliably.
+	if (_projection == ViewProjection::PERSPECTIVE)
+	{
+		if (_rubberBandZoomRatio > 4.0f)
+			_rubberBandZoomRatio = 4.0f + (_rubberBandZoomRatio - 4.0f) * 0.6f;
+		if (_rubberBandZoomRatio > 8.0f)
+			_rubberBandZoomRatio = 8.0f + (_rubberBandZoomRatio - 8.0f) * 0.4f;
+	}
+
+	const float targetViewRange = (_rubberBandZoomRatio > 0.0f)
+		? (_currentViewRange / _rubberBandZoomRatio)
+		: _currentViewRange;
+	const float panScale = (_currentViewRange > 0.0f)
+		? (1.0f - targetViewRange / _currentViewRange)
+		: 0.0f;
+	_rubberBandPan = (P - O) * panScale;
 
 	if (!_animateWindowZoomTimer->isActive())
 	{
@@ -2283,6 +2449,19 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 {
 	if (mode == GLCamera::CameraMode::Fly || mode == GLCamera::CameraMode::FirstPerson)
 	{
+		const bool comingFromOrbit = _primaryCamera->getMode() == GLCamera::CameraMode::Orbit;
+		QVector3D orbitEye = _primaryCamera->getPosition()
+			- _primaryCamera->getViewDir().normalized() * _primaryCamera->getOrbitDistance();
+
+		if (comingFromOrbit)
+		{
+			const QVector3D viewDir = _primaryCamera->getViewDir().normalized();
+			const QVector3D center = _boundingSphere.getCenter();
+			const float desiredDist = std::max(_primaryCamera->getOrbitDistance(),
+				std::max(_viewRange, _boundingSphere.getRadius() * 1.75f));
+			orbitEye = center - viewDir * desiredDist;
+		}
+
 		if (_primaryCamera->getProjectionType() != GLCamera::ProjectionType::PERSPECTIVE)
 		{
 			_previousProjection = GLCamera::ProjectionType::ORTHOGRAPHIC;
@@ -2295,15 +2474,20 @@ void GLWidget::setCameraMode(GLCamera::CameraMode mode)
 		// Drop any zoom scale accumulated in Orbit mode; Fly uses real position instead
 		_primaryCamera->setZoom(1.0f);
 
-		// Place camera at a physical position: pull back from scene center along view direction
-		QVector3D viewDir = _primaryCamera->getViewDir();
-		QVector3D center  = _boundingSphere.getCenter();
-		float dist = std::max(_viewRange, _boundingSphere.getRadius() * 1.5f);
-		_primaryCamera->setPosition(center - viewDir * dist);
+		// Continue from the actual orbit eye position to avoid a visible jump.
+		_primaryCamera->setPosition(orbitEye);
 		_currentTranslation = _primaryCamera->getPosition();
 	}
 	else if (mode == GLCamera::CameraMode::Orbit)
 	{
+		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+			_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		{
+			const QVector3D eye = _primaryCamera->getPosition();
+			const QVector3D target = eye + _primaryCamera->getViewDir() * _primaryCamera->getOrbitDistance();
+			_primaryCamera->setPosition(target);
+		}
+
 		_primaryCamera->setMode(mode);
 		setProjection(_previousProjection == GLCamera::ProjectionType::PERSPECTIVE ? ViewProjection::PERSPECTIVE : ViewProjection::ORTHOGRAPHIC);
 	}
@@ -2368,8 +2552,9 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 	recalculateVisibleSceneStats(true);
 
 	// ===== CAPTURE BASELINE HERE - NOW BOUNDING SPHERE IS REAL =====
-	// Only capture if lights are present and baseline not yet set
-	if (!_originalParsedLights.empty() && _lightRepoBasis.baselineRadius <= 0.0f)
+	// Capture once per loaded scene so imported lights and glTF cameras can be
+	// compensated consistently when the user applies model-level transforms.
+	if (_lightRepoBasis.baselineRadius <= 0.0f)
 	{
 		_lightRepoBasis.baselineCenter = glm::vec3(
 			static_cast<float>(_boundingSphere.getCenter().x()),
@@ -2379,7 +2564,7 @@ void GLWidget::setDisplayList(const std::vector<int>& ids)
 		_lightRepoBasis.baselineRadius = _boundingSphere.getRadius();
 		_lightRepoBasis.accumulatedRotation = glm::mat4(1.0f);
 
-		qDebug() << "Light repositioning basis captured in setDisplayList:";
+		qDebug() << "Model transform basis captured in setDisplayList:";
 		qDebug() << "  Baseline center: (" << _lightRepoBasis.baselineCenter.x
 			<< ", " << _lightRepoBasis.baselineCenter.y
 			<< ", " << _lightRepoBasis.baselineCenter.z << ")";
@@ -2622,7 +2807,13 @@ void GLWidget::updateFloorPlane()
 	// Use helper to set main light position (now consistent with loadFloor)
 	updateMainLightPosition(halfObjectSize);
 
-	_floorPlane->setPlane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, lowestModelZ() - (_floorSize * _floorOffsetPercent), _floorTexRepeatS, _floorTexRepeatT);
+	const float workspaceExtent = static_cast<float>(std::max({
+		_boundingBox.getXSize(),
+		_boundingBox.getYSize(),
+		_boundingBox.getZSize()
+	}));
+	float floorPlaneZ = lowestModelZ() - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(workspaceExtent, _floorSize);
+	_floorPlane->setPlane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT);
 
 	// Use helper to apply common material/texture settings
 	applyFloorPlaneMaterialSettings();
@@ -3004,14 +3195,13 @@ void GLWidget::showFloor(bool show)
 void GLWidget::setFloorTexture(QImage img)
 {
 	_floorTexImage = convertToGLFormat(img);
-	_floorPlane->setTexureImage(_floorTexImage);
-	_floorPlane->markTexturesDirty();
+	syncFloorPlaneAlbedoTexture();
 }
 
 void GLWidget::showFloorTexture(bool show)
 {
 	_floorTextureDisplayed = show;
-	_floorPlane->enableTexture(_floorTextureDisplayed);
+	syncFloorPlaneAlbedoTexture();
 }
 
 void GLWidget::addToDisplay(TriangleMesh* mesh)
@@ -3332,6 +3522,11 @@ bool GLWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod
 					if (!ad.clips.isEmpty())
 						setActiveAnimation(fileName, 0);
 				}
+
+				// Register glTF camera data (if any) for this file.
+				const GltfCameraData& cd = loadingWorker->getCameraData();
+				if (!cd.isEmpty())
+					_viewer->sceneGraph()->setGltfCameraData(fileName, cd);
 			}
 			_pendingSceneUuids.clear();
 
@@ -4059,9 +4254,21 @@ void GLWidget::applyTransforms(const QMap<int, TransformState>& transforms)
 	// Update all dependent systems once
 	recalculateVisibleSceneStats(false);
 	updatePunctualLights();
+	if (isModelLevelTransform && isGltfCameraActive() && _viewer)
+	{
+		const GltfCameraData camData =
+			_viewer->sceneGraph()->gltfCameraDataForFile(_activeGltfCameraFile);
+		if (_activeGltfCameraIndex >= 0 && _activeGltfCameraIndex < camData.cameras.size())
+		{
+			applyGltfCameraEntryTransform(camData.cameras[_activeGltfCameraIndex]);
+		}
+	}
 	triggerShadowRecomputation();
 	updateFloorPlane();
-	fitAll();
+	if (!isGltfCameraActive())
+	{
+		fitAll();
+	}
 
 	doneCurrent();
 }
@@ -4073,7 +4280,8 @@ void GLWidget::createShaderPrograms()
 	// Per fragment lighting
 	_fgShader = std::make_unique<ShaderProgram>(); _fgShader->setObjectName("_fgShader");
     _fgShader->loadCompileAndLinkShaderFromFile(path + "shaders/main_scene.vert",
-        path + "shaders/main_scene.frag");
+        path + "shaders/main_scene.frag",
+        path + "shaders/main_scene.geom");
 	// Axis
 	_axisShader = std::make_unique<ShaderProgram>(); _axisShader->setObjectName("_axisShader");
 	_axisShader->loadCompileAndLinkShaderFromFile(path + "shaders/axis.vert", path + "shaders/axis.frag");
@@ -4098,6 +4306,9 @@ void GLWidget::createShaderPrograms()
 	// Prefilter Map (now uses fullscreen triangle)
 	_prefilterShader = std::make_unique<ShaderProgram>(); _prefilterShader->setObjectName("_prefilterShader");
 	_prefilterShader->loadCompileAndLinkShaderFromFile(path + "shaders/fullscreen_triangle.vert", path + "shaders/prefilter.frag");
+	// Sheen/Charlie Prefilter Map
+	_sheenPrefilterShader = std::make_unique<ShaderProgram>(); _sheenPrefilterShader->setObjectName("_sheenPrefilterShader");
+	_sheenPrefilterShader->loadCompileAndLinkShaderFromFile(path + "shaders/fullscreen_triangle.vert", path + "shaders/prefilter_charlie.frag");
 	// BRDF LUT Map
 	_brdfShader = std::make_unique<ShaderProgram>(); _brdfShader->setObjectName("_brdfShader");
 	_brdfShader->loadCompileAndLinkShaderFromFile(path + "shaders/brdf.vert", path + "shaders/brdf.frag");
@@ -4307,7 +4518,14 @@ void GLWidget::loadFloor()
 	// Use helper to set main light position
 	updateMainLightPosition(halfObjectSize);
 
-	float floorPlaneCoeff = _meshStore.empty() ? -_floorSize - (_floorSize * 0.05f) : lowestModelZ() - (_floorSize * _floorOffsetPercent);
+	const float workspaceExtent = static_cast<float>(std::max({
+		_boundingBox.getXSize(),
+		_boundingBox.getYSize(),
+		_boundingBox.getZSize()
+	}));
+	float floorPlaneCoeff = _meshStore.empty()
+		? -_floorSize - (_floorSize * 0.05f)
+		: lowestModelZ() - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(workspaceExtent, _floorSize);
 
 	// FIX: Delete old floor plane to prevent memory leak
 	if (_floorPlane != nullptr)
@@ -4331,8 +4549,44 @@ void GLWidget::applyFloorPlaneMaterialSettings()
 	_floorPlane->setDiffuseMaterial(QVector3D(1.0f, 1.0f, 1.0f));
 	_floorPlane->setSpecularMaterial(QVector3D(0.5f, 0.5f, 0.5f));
 	_floorPlane->setShininess(16.0f);
-	_floorPlane->enableTexture(_floorTextureDisplayed);
-	_floorPlane->setTexureImage(_floorTexImage);
+	syncFloorPlaneAlbedoTexture();
+}
+
+void GLWidget::syncFloorPlaneAlbedoTexture()
+{
+	if (_floorPlane == nullptr || _floorTexImage.isNull())
+		return;
+
+	const TextureSamplerSettings samplers{
+		GL_REPEAT,
+		GL_REPEAT,
+		GL_LINEAR_MIPMAP_LINEAR,
+		GL_LINEAR
+	};
+
+	const GLuint newFloorTex = createGPUTextureFromImage(_floorTexImage, samplers);
+	if (newFloorTex == 0)
+		return;
+
+	GLMaterial material = _floorPlane->getMaterial();
+	const GLuint oldFloorTex = static_cast<GLuint>(material.albedoTextureId());
+	if (oldFloorTex != 0)
+	{
+		glDeleteTextures(1, &oldFloorTex);
+	}
+
+	GLMaterial::Texture albedoTexture = material.texture(GLMaterial::TextureType::Albedo);
+	albedoTexture.id = newFloorTex;
+	albedoTexture.type = "albedo";
+	albedoTexture.path = "generated://floor-albedo";
+	albedoTexture.hasAlpha = _floorTexImage.hasAlphaChannel();
+	albedoTexture.wrapS = samplers.wrapS;
+	albedoTexture.wrapT = samplers.wrapT;
+	albedoTexture.minFilter = samplers.minFilter;
+	albedoTexture.magFilter = samplers.magFilter;
+	albedoTexture.imageData = _floorTexImage;
+	material.setTexture(GLMaterial::TextureType::Albedo, albedoTexture);
+	_floorPlane->setMaterial(material);
 }
 
 void GLWidget::updateMainLightPosition(float halfObjectSize)
@@ -4514,11 +4768,17 @@ void GLWidget::loadEnvMap()
 
 void GLWidget::loadIrradianceMap()
 {
-	// Setup framebuffer for offscreen rendering
-	unsigned int captureFBO;
-	unsigned int captureRBO;
+	// Setup framebuffer for offscreen rendering.
+	// Use zero-init + scope-exit lambda so captureFBO/RBO are always freed even
+	// if an early return is added in future.
+	unsigned int captureFBO = 0;
+	unsigned int captureRBO = 0;
 	glGenFramebuffers(1, &captureFBO);
 	glGenRenderbuffers(1, &captureRBO);
+	auto cleanupFBO = [&]() {
+		glDeleteFramebuffers(1, &captureFBO);
+		glDeleteRenderbuffers(1, &captureRBO);
+	};
 
 	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
 	glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
@@ -4608,11 +4868,16 @@ void GLWidget::loadIrradianceMap()
 	glGenTextures(1, &_prefilterMap);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
 
-	constexpr int prefilterSize = 256;
+	constexpr int prefilterSize = 512;
 	unsigned int maxMipLevels = static_cast<unsigned int>(std::log2(prefilterSize)) + 1;
-	_prefilterMipLevels = maxMipLevels;
+	// Khronos uses only 5 effective LOD levels (lowestMipLevel=4 in ibl_sampler.js).
+	// LOD formula: lod = roughness * (effectiveMipLevels - 1).
+	// Roughness 0..1 maps to mips 0..4 only; tail mips (5-9) baked at roughness=1
+	// for texture completeness but are never sampled by the LOD formula.
+	constexpr unsigned int effectiveMipLevels = 5;
+	_prefilterMipLevels = effectiveMipLevels;
 
-	// Allocate all mip levels upfront
+	// Allocate all mip levels upfront (full chain for GL_LINEAR_MIPMAP_LINEAR completeness)
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
 		unsigned int mipSize = static_cast<unsigned int>(prefilterSize * std::pow(0.5, mip));
@@ -4659,8 +4924,11 @@ void GLWidget::loadIrradianceMap()
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
 		glViewport(0, 0, mipWidth, mipHeight);
 
-		// Set roughness for this mip level
-		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
+		// Spread roughness 0..1 over the first effectiveMipLevels mips (matches Khronos).
+		// Tail mips (beyond effective range) get roughness=1.0 for texture completeness.
+		float roughness = (mip < effectiveMipLevels)
+			? (float)mip / (float)(effectiveMipLevels - 1)
+			: 1.0f;
 		_prefilterShader->bind();
 		_prefilterShader->setUniformValue("roughness", roughness);
 		_prefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
@@ -4690,6 +4958,92 @@ void GLWidget::loadIrradianceMap()
 			drawFullscreenTriangle();
 		}
 	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+
+	// ==== SHEEN PREFILTER PASS: Create Charlie prefilter cubemap ====
+	if (_sheenPrefilterMap)
+		glDeleteTextures(1, &_sheenPrefilterMap);
+	glGenTextures(1, &_sheenPrefilterMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
+
+	constexpr int sheenPrefilterSize = 256;
+	// Khronos-compatible sheen mip scheme: 5 effective levels (roughness 0..1 over mips 0..4).
+	// LOD formula: lod = roughness * (sheenEffectiveMipLevels - 1) = roughness * 4.
+	// At sheenRoughness=0.1 this gives lod=0.4 vs the old lod=0.8 (9 mip/textureQueryLevels).
+	// Mip 0 (roughness=0) collapses to the mirror-reflection sample, so low-roughness sheen
+	// IBL reflects the environment instead of being nearly black.
+	constexpr int sheenEffectiveMipLevels = 5;
+	const unsigned int sheenMaxMipLevels = static_cast<unsigned int>(std::log2(sheenPrefilterSize)) + 1;
+
+	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
+	{
+		unsigned int mipSize = static_cast<unsigned int>(sheenPrefilterSize * std::pow(0.5, mip));
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			if (_skyBoxTextureHDRI)
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
+					mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
+			else
+				glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB16F,
+					mipSize, mipSize, 0, GL_RGB, GL_HALF_FLOAT, nullptr);
+		}
+	}
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameterf(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAX_ANISOTROPY_EXT, _anisotropicFilteringLevel);
+
+	_sheenPrefilterShader->bind();
+	_sheenPrefilterShader->setUniformValue("environmentMap", 1);
+	_sheenPrefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _environmentMap);
+	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+
+	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
+	{
+		unsigned int mipWidth = sheenPrefilterSize * std::pow(0.5, mip);
+		unsigned int mipHeight = sheenPrefilterSize * std::pow(0.5, mip);
+
+		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
+		glViewport(0, 0, mipWidth, mipHeight);
+
+		// Roughness for this mip: spread evenly over [0..1] for mips 0..(sheenEffectiveMipLevels-1),
+		// clamp to 1.0 for any extra mips (allocated for texture completeness, never sampled by LOD).
+		float roughness = (mip < static_cast<unsigned int>(sheenEffectiveMipLevels))
+			? static_cast<float>(mip) / static_cast<float>(sheenEffectiveMipLevels - 1)
+			: 1.0f;
+		_sheenPrefilterShader->bind();
+		_sheenPrefilterShader->setUniformValue("roughness", roughness);
+		_sheenPrefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
+
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, _sheenPrefilterMap, mip);
+
+			GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+			{
+				qWarning() << "Sheen prefilter FBO incomplete at mip" << mip << "face" << i
+					<< "Status:" << fboStatus;
+				continue;
+			}
+
+			_sheenPrefilterShader->bind();
+			setIBLFaceBasis(_sheenPrefilterShader.get(), i);
+
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			drawFullscreenTriangle();
+		}
+	}
+	_sheenPrefilterMipLevels = sheenEffectiveMipLevels;
 
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
 
@@ -4730,10 +5084,82 @@ void GLWidget::loadIrradianceMap()
 	glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
 	glActiveTexture(GL_TEXTURE5);
 	glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
+	glActiveTexture(GL_TEXTURE7);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
+
+	auto resolveKhronosLUTPath = [](const QString& fileName) -> QString
+	{
+		const QString dataCandidate = QDir(PathUtils::getDataDirectory()).absoluteFilePath("textures/khronos/" + fileName);
+		if (QFileInfo::exists(dataCandidate))
+		{
+			return dataCandidate;
+		}
+
+		// Development fallback when running from the source tree instead of an installed app layout.
+		const QString sourceCandidate = QDir(QDir::currentPath()).absoluteFilePath("textures/khronos/" + fileName);
+		if (QFileInfo::exists(sourceCandidate))
+		{
+			return sourceCandidate;
+		}
+
+		return dataCandidate;
+	};
+
+	auto loadKhronosLUTTexture = [this, &resolveKhronosLUTPath](const QString& fileName, GLuint& textureId)
+	{
+		const QString filePath = resolveKhronosLUTPath(fileName);
+		if (filePath.isEmpty())
+		{
+			qWarning() << "Failed to resolve Khronos LUT texture:" << fileName;
+			if (textureId != 0)
+			{
+				glDeleteTextures(1, &textureId);
+				textureId = 0;
+			}
+			return;
+		}
+
+		QImage image(filePath);
+		if (image.isNull())
+		{
+			qWarning() << "Failed to load Khronos LUT texture:" << filePath;
+			if (textureId != 0)
+			{
+				glDeleteTextures(1, &textureId);
+				textureId = 0;
+			}
+			return;
+		}
+
+		QImage glImage = image.convertToFormat(QImage::Format_RGBA8888);
+		if (textureId != 0)
+			glDeleteTextures(1, &textureId);
+		glGenTextures(1, &textureId);
+		glBindTexture(GL_TEXTURE_2D, textureId);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, glImage.width(), glImage.height(), 0,
+			GL_RGBA, GL_UNSIGNED_BYTE, glImage.constBits());
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	};
+
+	if (_charlieLUTTexture == 0)
+	{
+		loadKhronosLUTTexture("lut_charlie.png", _charlieLUTTexture);
+	}
+	if (_sheenELUTTexture == 0)
+	{
+		loadKhronosLUTTexture("lut_sheen_E.png", _sheenELUTTexture);
+	}
+
+	glActiveTexture(GL_TEXTURE8);
+	glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
+	glActiveTexture(GL_TEXTURE9);
+	glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
 
 	// Cleanup temporary FBO
-	glDeleteFramebuffers(1, &captureFBO);
-	glDeleteRenderbuffers(1, &captureRBO);
+	cleanupFBO();
 }
 
 // Helper: Load HDR file and convert to cubemap
@@ -4834,7 +5260,7 @@ GLuint GLWidget::loadPresetEnvironmentMap(const QString& hdrFilePath)
 
 // Helper: Generate irradiance and prefilter maps for a preset cubemap
 // Returns true on success
-bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap)
+bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap)
 {
 	if (!sourceCubemap) return false;
 
@@ -4906,10 +5332,11 @@ bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradiance
 	glGenTextures(1, &outPrefilterMap);
 	glBindTexture(GL_TEXTURE_CUBE_MAP, outPrefilterMap);
 
-	constexpr int prefilterSize = 256;
+	constexpr int prefilterSize = 512;
 	unsigned int maxMipLevels = static_cast<unsigned int>(std::log2(prefilterSize)) + 1;
+	constexpr unsigned int effectiveMipLevels = 5;
 
-	// Allocate all mip levels
+	// Allocate all mip levels (full chain for completeness)
 	for (unsigned int mip = 0; mip < maxMipLevels; ++mip)
 	{
 		unsigned int mipSize = static_cast<unsigned int>(prefilterSize * std::pow(0.5, mip));
@@ -4950,7 +5377,9 @@ bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradiance
 		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
 		glViewport(0, 0, mipWidth, mipHeight);
 
-		float roughness = std::max(0.04f, (float)mip / (float)(maxMipLevels - 1));
+		float roughness = (mip < effectiveMipLevels)
+			? (float)mip / (float)(effectiveMipLevels - 1)
+			: 1.0f;
 		_prefilterShader->bind();
 		_prefilterShader->setUniformValue("roughness", roughness);
 		_prefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
@@ -4969,6 +5398,79 @@ bool GLWidget::generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradiance
 
 			_prefilterShader->bind();
 			setIBLFaceBasis(_prefilterShader.get(), i);
+
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+			drawFullscreenTriangle();
+		}
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+
+	// Create Charlie/sheen prefilter map
+	if (outSheenPrefilterMap)
+		glDeleteTextures(1, &outSheenPrefilterMap);
+	glGenTextures(1, &outSheenPrefilterMap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, outSheenPrefilterMap);
+
+	constexpr int sheenPrefilterSize = 256;
+	// Same Khronos-compatible scheme as the primary environment sheen prefilter.
+	constexpr int sheenEffectiveMipLevels = 5;
+	const unsigned int sheenMaxMipLevels = static_cast<unsigned int>(std::log2(sheenPrefilterSize)) + 1;
+
+	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
+	{
+		unsigned int mipSize = static_cast<unsigned int>(sheenPrefilterSize * std::pow(0.5, mip));
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, mip, GL_RGB32F,
+				mipSize, mipSize, 0, GL_RGB, GL_FLOAT, nullptr);
+		}
+	}
+
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	_sheenPrefilterShader->bind();
+	_sheenPrefilterShader->setUniformValue("environmentMap", 1);
+	_sheenPrefilterShader->setUniformValue("environmentMapResolution", static_cast<float>(envMapWidth));
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, sourceCubemap);
+	glBindFramebuffer(GL_FRAMEBUFFER, captureFBO);
+
+	for (unsigned int mip = 0; mip < sheenMaxMipLevels; ++mip)
+	{
+		unsigned int mipWidth = sheenPrefilterSize * std::pow(0.5, mip);
+		unsigned int mipHeight = sheenPrefilterSize * std::pow(0.5, mip);
+
+		glBindRenderbuffer(GL_RENDERBUFFER, captureRBO);
+		glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT24, mipWidth, mipHeight);
+		glViewport(0, 0, mipWidth, mipHeight);
+
+		float roughness = (mip < static_cast<unsigned int>(sheenEffectiveMipLevels))
+			? static_cast<float>(mip) / static_cast<float>(sheenEffectiveMipLevels - 1)
+			: 1.0f;
+		_sheenPrefilterShader->bind();
+		_sheenPrefilterShader->setUniformValue("roughness", roughness);
+		_sheenPrefilterShader->setUniformValue("resolution", QVector2D(mipWidth, mipHeight));
+
+		for (unsigned int i = 0; i < 6; ++i)
+		{
+			glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, outSheenPrefilterMap, mip);
+
+			GLenum fboStatus = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+			if (fboStatus != GL_FRAMEBUFFER_COMPLETE)
+			{
+				qWarning() << "Sheen prefilter FBO incomplete at mip" << mip << "face" << i;
+				continue;
+			}
+
+			_sheenPrefilterShader->bind();
+			setIBLFaceBasis(_sheenPrefilterShader.get(), i);
 
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			drawFullscreenTriangle();
@@ -5046,6 +5548,27 @@ GLuint GLWidget::getPrefilterMap(int index, bool regenerate)
 	}
 }
 
+GLuint GLWidget::getSheenPrefilterMap(int index, bool regenerate)
+{
+	switch(index)
+	{
+		case 0:  // ViewerIBL
+			if (regenerate && !_currentSkyboxFolder.isEmpty())
+			{
+				loadIrradianceMap();
+			}
+			return _sheenPrefilterMap;
+		case 1:  // Studio
+			return _studioSheenPrefilterMap;
+		case 2:  // Outdoor
+			return _outdoorSheenPrefilterMap;
+		case 3:  // Office
+			return _officeSheenPrefilterMap;
+		default:
+			return 0;
+	}
+}
+
 void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 {
 	QMatrix4x4 projection;
@@ -5056,6 +5579,8 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	glViewport(0, 0, width(), height());
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
+
+	renderToSSSBuffer(_primaryCamera);
 
 	if (_transmissionEnabled)
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
@@ -5075,6 +5600,8 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	if (_shadowsEnabled)
 		renderToShadowBuffer();
 
+	renderToSSSBuffer(_primaryCamera);
+
 	if (_transmissionEnabled)
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
@@ -5083,8 +5610,8 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	// Render orthographic views with ortho view camera
 	// Top View
 	_orthoViewsCamera->setScreenSize(width() / 2, height() / 2);
-	_orthoViewsCamera->setProjectionMatrix(_projectionMatrix);
-	_orthoViewsCamera->setViewMatrix(_viewMatrix);
+	_orthoViewsCamera->setViewRange(_viewRange);
+	_orthoViewsCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
 	_orthoViewsCamera->setPosition(_primaryCamera->getPosition());
 	glViewport(0, 0, width() / 2, height() / 2);
 	_orthoViewsCamera->setView(GLCamera::ViewProjection::TOP_VIEW);
@@ -5124,6 +5651,20 @@ void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 
 void GLWidget::drawFloor(const bool& drawReflection)
 {
+	auto bindFloorSharedSamplerState = [this]()
+	{
+		// Units 32/33: prevent the floor from sampling the transmission FBO while it is
+		// the active render target (or stale from a previous frame).
+		glActiveTexture(GL_TEXTURE0 + 32);
+		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+		glActiveTexture(GL_TEXTURE0 + 33);
+		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+		// Units 37/38 (sssDiffuseTexture/sssDepthTexture) need no protection here:
+		// floor rendering never has hasVolumeScattering=true so sampleCapturedSSSDiffuse
+		// is never called.
+		glActiveTexture(GL_TEXTURE0);
+	};
+
 	//https://open.gl/depthstencils
 	glEnable(GL_STENCIL_TEST);
 	glClear(GL_STENCIL_BUFFER_BIT);
@@ -5139,6 +5680,8 @@ void GLWidget::drawFloor(const bool& drawReflection)
 
 	// Draw floor
 	_fgShader->bind();
+	bindFloorSharedSamplerState();
+	_fgShader->setUniformValue("sssCapture", false);
 	_fgShader->setUniformValue("envMapEnabled", false);
 	_fgShader->setUniformValue("floorRendering", true);
 	_fgShader->setUniformValue("isReflectedPass", true);
@@ -5149,7 +5692,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_fgShader->setUniformValue("screenCenter", _boundingSphere.getCenter());
 	_fgShader->setUniformValue("gradientStyle", _gradientStyle);
 	_fgShader->setUniformValue("floorSize", _floorSize * _floorSizeFactor);
-	_floorPlane->enableTexture(false);
+	_fgShader->setUniformValue("floorTextureEnabled", false);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	_floorPlane->setOpacity(0.1f);
@@ -5168,13 +5711,20 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	// calculate zFighting offset based on model size
 	float zFightingOffset = std::min((_boundingSphere.getRadius() / 100.0f), 0.001f);		
 	// Position the model just below the floor plane to avoid Z-fighting
-	float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent);
+	const float workspaceExtent = static_cast<float>(std::max({
+		_boundingBox.getXSize(),
+		_boundingBox.getYSize(),
+		_boundingBox.getZSize()
+	}));
+	float floorPos = lowestModelZ() - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(workspaceExtent, _floorSize);
 	float floorGap = fabs(floorPos - lowestModelZ());
 	float offset = (((lowestModelZ()) - floorGap) * 2.0f) - zFightingOffset; // Add offset to avoid Z fighting;	
 	model.scale(1.0f, 1.0f, -1.0f);
 	model.translate(0.0f, 0.0f, -offset);
 
 	_fgShader->bind();
+	bindFloorSharedSamplerState();
+	_fgShader->setUniformValue("sssCapture", false);
 	_fgShader->setUniformValue("modelMatrix", model);
 	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(model));
 	if (_reflectionsEnabled && drawReflection)
@@ -5190,6 +5740,8 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
 	_fgShader->bind();
+	bindFloorSharedSamplerState();
+	_fgShader->setUniformValue("sssCapture", false);
 	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
 	_fgShader->setUniformValue("envMapEnabled", false);	
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
@@ -5201,11 +5753,8 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	_fgShader->setUniformValue("screenCenter", _boundingSphere.getCenter());
 	_fgShader->setUniformValue("gradientStyle", _gradientStyle);
 	_fgShader->setUniformValue("floorSize", _floorSize * _floorSizeFactor);
-	_floorPlane->enableTexture(_floorTextureDisplayed);
+	_fgShader->setUniformValue("floorTextureEnabled", _floorTextureDisplayed);
 
-	glActiveTexture(GL_TEXTURE5);
-	glBindTexture(GL_TEXTURE_2D, _skyboxColorTexture);
-	_fgShader->setUniformValue("skyboxColorTexture", 5);
 	_floorPlane->setOpacity(0.95f);
 	_floorPlane->render();
 	glDisable(GL_CULL_FACE);
@@ -5215,6 +5764,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glDisable(GL_BLEND);
 
 	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+	glActiveTexture(GL_TEXTURE0);
 }
 
 void GLWidget::drawSkyBox()
@@ -5232,7 +5782,8 @@ void GLWidget::drawSkyBox()
 	view.setColumn(3, QVector4D(0, 0, 0, 1));
 	QMatrix4x4 model;
 	if (!usePrefilterBlur)
-		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f));
+		model.rotate(90.0f, QVector3D(1.0f, 0.0f, 0.0f)); // Z-up correction for raw env map
+	model.rotate(_skyBoxZRotation, QVector3D(0.0f, 1.0f, 0.0f)); // User Z rotation (always applied)
 	float skyboxLod = 0.0f;
 	if (usePrefilterBlur)
 	{
@@ -5266,7 +5817,7 @@ void GLWidget::drawSkyBox()
 
 void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 {
-	QVector3D camPos = _primaryCamera->getPosition();
+	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
 	if (_meshStore.empty()) return;
@@ -5349,7 +5900,7 @@ void GLWidget::drawMesh(QOpenGLShaderProgram* prog, int activeCapPlaneIndex)
 
 void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
-	QVector3D camPos = _primaryCamera->getPosition();
+	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
 	if (_meshStore.empty()) return;
@@ -5368,6 +5919,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 		(_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
 	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabled);
 	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
+	const int sssObjectIdLocation = prog->uniformLocation("sssObjectId");
 
 	// Collect visible opaque meshes, then sort by texture signature to
 	// minimise GPU texture state changes across consecutive draw calls.
@@ -5393,6 +5945,8 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 			prog->bind();
 			prog->setUniformValue("hovered",
 				hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+			if (sssObjectIdLocation >= 0)
+				prog->setUniformValue(sssObjectIdLocation, float(id + 1));
 			renderMeshWithDisplayMode(mesh, _displayMode);
 		}
 	}
@@ -5401,7 +5955,7 @@ void GLWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneI
 
 void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
-	QVector3D camPos = _primaryCamera->getPosition();
+	QVector3D camPos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(prog, camPos);
 
 	if (_meshStore.empty()) return;
@@ -5443,6 +5997,7 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 		(_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
 	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabledT);
 	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
+	const int sssObjectIdLocation = prog->uniformLocation("sssObjectId");
 
 	for (auto& it : transparent)
 	{
@@ -5453,6 +6008,8 @@ void GLWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activeClipP
 			prog->bind();
 			prog->setUniformValue("hovered",
 				hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
+			if (sssObjectIdLocation >= 0)
+				prog->setUniformValue(sssObjectIdLocation, float(id + 1));
 			renderMeshWithDisplayMode(mesh, _displayMode);
 		}
 	}
@@ -5675,14 +6232,16 @@ void GLWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 
 void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 {
-	QVector3D camPos = camera->getPosition();
+	QVector3D camPos = camera->getRenderPosition();
 	QVector3D camDir = camera->getViewDir();
 
 	prog->setUniformValue("lightSource.position",
 		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	prog->setUniformValue("normalMatrix", _modelViewMatrix.normalMatrix());
-	prog->setUniformValue("projectionMatrix", _projectionMatrix);
+	const QMatrix4x4 projMatrix = camera->getProjectionMatrix();
+	prog->setUniformValue("projectionMatrix", projMatrix);
+	prog->setUniformValue("inverseProjectionMatrix", projMatrix.inverted());
 	prog->setUniformValue("viewportMatrix", _viewportMatrix);
 
 	QVector3D zDir(0.0, 0.0, 1.0);
@@ -5698,8 +6257,8 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 		_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	prog->setUniformValue("modelMatrix", _modelMatrix);
 	prog->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
-	prog->setUniformValue("viewMatrix", _viewMatrix);
-	prog->setProperty("viewMatrix", QVariant::fromValue(_viewMatrix));
+	prog->setUniformValue("viewMatrix", camera->getViewMatrix());
+	prog->setProperty("viewMatrix", QVariant::fromValue(camera->getViewMatrix()));
 	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
 	prog->setUniformValue("lightFarPlane", _lightPosition.z() + _lightOffsetZ);
 	prog->setUniformValue("hdrToneMapping", _hdrToneMapping);
@@ -5712,6 +6271,8 @@ void GLWidget::setCommonUniforms(QOpenGLShaderProgram* prog, GLCamera* camera)
 
 	prog->setUniformValue("transmissionFramebufferSize",
 		QVector2D(_transmissionTextureWidth, _transmissionTextureHeight));
+	prog->setUniformValue("sssFramebufferSize",
+		QVector2D(_sssTextureWidth, _sssTextureHeight));
 
 	prog->setUniformValue("useDefaultLights", _useDefaultLights);
 	prog->setUniformValue("usePunctualLights", _usePunctualLights);
@@ -5729,8 +6290,7 @@ void GLWidget::drawSectionCapping()
 	_clippedMeshShader->setUniformValue("modelMatrix", _modelMatrix);
 	_clippedMeshShader->setUniformValue("viewMatrix", _viewMatrix);
 	_clippedMeshShader->setUniformValue("projectionMatrix", _projectionMatrix);
-
-	QVector3D pos = _primaryCamera->getPosition();
+	QVector3D pos = _primaryCamera->getRenderPosition();
 
 	_clippedMeshShader->setUniformValue("clipPlaneX", QVector4D(_modelViewMatrix.map(QVector3D(_clipXFlipped ? 1 : -1, 0, 0) + pos),
 		(_clipXFlipped ? 1 : -1) * (pos.x() - (_clipXCoeff + _boundingBox.center().getX()))));
@@ -5800,14 +6360,17 @@ void GLWidget::drawSectionCapping()
 		glStencilFunc(GL_EQUAL, 1, 0xFF);		
 		glDepthMask(GL_TRUE);
 		glEnable(GL_DEPTH_TEST);
+		glDisable(GL_CLIP_DISTANCE0);
+		glDisable(GL_CLIP_DISTANCE1);
+		glDisable(GL_CLIP_DISTANCE2);
 		// drawCappingPlane
 		{
 			QMatrix4x4 model;
 			Point P = _boundingBox.center();
-			QVector3D Pxyz(P.getX(), P.getY(), P.getZ());
 
 			_clippingPlaneShader->bind();
-			_clippingPlaneShader->setUniformValue("modelMatrix", model);
+			_clippingPlaneShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+			_clippingPlaneShader->setProperty("viewMatrix", QVariant::fromValue(_viewMatrix));
 			_clippingPlaneShader->setUniformValue("viewMatrix", _viewMatrix);
 			_clippingPlaneShader->setUniformValue("projectionMatrix", _projectionMatrix);
 			glActiveTexture(GL_TEXTURE6);
@@ -5822,7 +6385,6 @@ void GLWidget::drawSectionCapping()
 			bool wantFlipV = false/* read from UI or stored flag */;
 
 			// Pick a consistent density: e.g., ~3 tiles across the model diagonal
-			const Point c = _boundingBox.center();			
 			const float sceneDiag = _boundingBox.boundingRadius() * 2.0f;
 			const float tilesAcross = wantTexture ? 3.0f : _hatchTiling;
 			const float worldUnitsPerTile = sceneDiag / tilesAcross;
@@ -5845,11 +6407,10 @@ void GLWidget::drawSectionCapping()
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(yAng, QVector3D(0.0f, 1.0f, 0.0f));
 			_clippingPlaneShader->bind();
-			_clippingPlaneShader->setUniformValue("modelMatrix", model);
+			_clippingPlaneYZ->setSceneRenderTransformFast(model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.20f, 0.5f, 0.5f));			
 			if (_clipYZEnabled && i == 0)
 			{
-				// Plane position along X in world space
 				const float xPlane = P.getX() + _clipXCoeff;
 				// Origin at plane through bbox center
 				_clippingPlaneShader->setUniformValue("hatchOrigin", QVector3D(xPlane, P.getY(), P.getZ()));
@@ -5864,7 +6425,7 @@ void GLWidget::drawSectionCapping()
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(xAng, QVector3D(1.0f, 0.0f, 0.0f));
 			_clippingPlaneShader->bind();
-			_clippingPlaneShader->setUniformValue("modelMatrix", model);
+			_clippingPlaneZX->setSceneRenderTransformFast(model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.20f, 0.5f));
 			if (_clipZXEnabled && i == 1)
 			{
@@ -5881,7 +6442,7 @@ void GLWidget::drawSectionCapping()
 			model.translate(QVector3D(P.getX(), P.getY(), P.getZ()));
 			model.rotate(zAng, QVector3D(1.0f, 0.0f, 0.0f));
 			_clippingPlaneShader->bind();
-			_clippingPlaneShader->setUniformValue("modelMatrix", model);
+			_clippingPlaneXY->setSceneRenderTransformFast(model);
 			_clippingPlaneShader->setUniformValue("planeColor", QVector3D(0.5f, 0.5f, 0.20f));
 			if (_clipXYEnabled && i == 2)
 			{
@@ -5911,7 +6472,7 @@ void GLWidget::drawSectionCapping()
 
 void GLWidget::drawVertexNormals()
 {
-	QVector3D pos = _primaryCamera->getPosition();
+	QVector3D pos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(_vertexNormalShader.get(), pos);
 
 	if (_meshStore.size() != 0)
@@ -5932,7 +6493,7 @@ void GLWidget::drawVertexNormals()
 
 void GLWidget::drawFaceNormals()
 {
-	QVector3D pos = _primaryCamera->getPosition();
+	QVector3D pos = _primaryCamera->getRenderPosition();
 	setupClippingUniforms(_faceNormalShader.get(), pos);
 
 	if (_meshStore.size() != 0)
@@ -6068,6 +6629,7 @@ void GLWidget::drawAxis()
 
 void GLWidget::drawCornerAxis(CornerAxisPosition position)
 {
+	const int axisSize = std::max(1, std::min(width(), height()) / 10);
 	int viewportX = 0;
 	int viewportY = 0;
 
@@ -6076,43 +6638,57 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	{
 	case CornerAxisPosition::TOP_LEFT:
 		viewportX = 0;
-		viewportY = height() - height() / 10;
+		viewportY = height() - axisSize;
 		break;
 	case CornerAxisPosition::TOP_RIGHT:
-		viewportX = width() - width() / 10;
-		viewportY = height() - height() / 10;
+		viewportX = width() - axisSize;
+		viewportY = height() - axisSize;
 		break;
 	case CornerAxisPosition::BOTTOM_LEFT:
 		viewportX = 0;
 		viewportY = 0;
 		break;
 	case CornerAxisPosition::BOTTOM_RIGHT:
-		viewportX = width() - width() / 10;
+		viewportX = width() - axisSize;
 		viewportY = 0;
 		break;
 	}
 
 	// Set the viewport for the corner axis
-	glViewport(viewportX, viewportY, width() / 10, height() / 10);
+	glViewport(viewportX, viewportY, axisSize, axisSize);
 
-	QMatrix4x4 mat = _modelViewMatrix;
+	QMatrix4x4 mat = _viewMatrix;
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
+	QMatrix4x4 axisProjection;
+	axisProjection.ortho(-1.6f, 1.6f, -1.6f, 1.6f, -4.0f, 4.0f);
 
-	float size = 3.5;
+	const float axisLength = 1.0f;
+	const float labelScale = std::max(0.55f, axisSize / 110.0f);
+
+	const unsigned int prevTextWidth = _axisTextRenderer->width();
+	const unsigned int prevTextHeight = _axisTextRenderer->height();
+	_axisTextRenderer->setWidth(axisSize);
+	_axisTextRenderer->setHeight(axisSize);
+
+	QMatrix4x4 textProjection;
+	textProjection.ortho(QRect(0.0f, 0.0f, static_cast<float>(axisSize), static_cast<float>(axisSize)));
+	_textShader->bind();
+	_textShader->setUniformValue("projection", textProjection);
+	_textShader->release();
 
 	// Labels
-	QVector3D xAxis(_viewRange / size, 0, 0);
-	xAxis = xAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisX.toStdString(), xAxis.x(), height() - xAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	QVector3D xAxis(axisLength, 0, 0);
+	xAxis = xAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
+	_axisTextRenderer->RenderText(_labelAxisX.toStdString(), xAxis.x(), axisSize - xAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
-	QVector3D yAxis(0, _viewRange / size, 0);
-	yAxis = yAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisY.toStdString(), yAxis.x(), height() - yAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	QVector3D yAxis(0, axisLength, 0);
+	yAxis = yAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
+	_axisTextRenderer->RenderText(_labelAxisY.toStdString(), yAxis.x(), axisSize - yAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
-	QVector3D zAxis(0, 0, _viewRange / size);
-	zAxis = zAxis.project(mat, _projectionMatrix, QRect(0, 0, width(), height()));
-	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), height() - zAxis.y(), 7, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
+	QVector3D zAxis(0, 0, axisLength);
+	zAxis = zAxis.project(mat, axisProjection, QRect(0, 0, axisSize, axisSize));
+	_axisTextRenderer->RenderText(_labelAxisZ.toStdString(), zAxis.x(), axisSize - zAxis.y(), labelScale, QVector3D(1.0f, 1.0f, 0.0f), TextRenderer::VAlignment::VBOTTOM);
 
 	// Axes
 	if (!_axisVAO.isCreated())
@@ -6131,11 +6707,11 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisVBO.setUsagePattern(QOpenGLBuffer::StaticDraw);
 	std::vector<float> vertices = {
 		0, 0, 0,
-		_viewRange / size, 0, 0,
+		axisLength, 0, 0,
 		0, 0, 0,
-		0, _viewRange / size, 0,
+		0, axisLength, 0,
 		0, 0, 0,
-		0, 0, _viewRange / size };
+		0, 0, axisLength };
 	_axisVBO.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
 
 	// Color Buffer
@@ -6166,7 +6742,7 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisShader->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 3);
 
 	_axisShader->setUniformValue("modelViewMatrix", mat);
-	_axisShader->setUniformValue("projectionMatrix", _projectionMatrix);
+	_axisShader->setUniformValue("projectionMatrix", axisProjection);
 
 	_axisShader->setUniformValue("renderCone", false);
 
@@ -6177,9 +6753,9 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 
 	// Axes Cones
 	// X Axis
-	_axisCone->setParameters(_viewRange / size / 15, _viewRange / size / 5, 8.0f, 1.0f);
+	_axisCone->setParameters(axisLength / 15.0f, axisLength / 5.0f, 8.0f, 1.0f);
 	_axisShader->setUniformValue("renderCone", true);
-	mat.translate(_viewRange / size, 0, 0);
+	mat.translate(axisLength, 0, 0);
 	mat.rotate(90, QVector3D(0, 1.0f, 0));
 	_axisShader->bind();
 	_axisShader->setUniformValue("coneColor", QVector3D(1.0f, 1.0f, 1.0f));
@@ -6189,10 +6765,10 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisCone->getVAO().release();
 
 	// Y Axis
-	mat = _modelViewMatrix;
+	mat = _viewMatrix;
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
-	mat.translate(0, _viewRange / size, 0);
+	mat.translate(0, axisLength, 0);
 	mat.rotate(90, QVector3D(-1.0f, 0, 0));
 	_axisShader->bind();
 	_axisShader->setUniformValue("modelViewMatrix", mat);
@@ -6201,10 +6777,10 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisCone->getVAO().release();
 
 	// Z Axis
-	mat = _modelViewMatrix;
+	mat = _viewMatrix;
 	mat.setColumn(3, QVector4D(0, 0, 0, 1));
 	mat.setRow(3, QVector4D(0, 0, 0, 1));
-	mat.translate(0, 0, _viewRange / size);
+	mat.translate(0, 0, axisLength);
 	_axisShader->bind();
 	_axisShader->setUniformValue("modelViewMatrix", mat);
 	_axisCone->getVAO().bind();
@@ -6214,6 +6790,14 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 	_axisVAO.release();
 	_axisShader->release();
 
+	_axisTextRenderer->setWidth(prevTextWidth);
+	_axisTextRenderer->setHeight(prevTextHeight);
+	QMatrix4x4 projection;
+	projection.ortho(QRect(0.0f, 0.0f, static_cast<float>(width()), static_cast<float>(height())));
+	_textShader->bind();
+	_textShader->setUniformValue("projection", projection);
+	_textShader->release();
+
 	glViewport(0, 0, width(), height());
 }
 
@@ -6222,18 +6806,28 @@ void GLWidget::drawLights()
 	QMatrix4x4 model;
 	model.translate(_lightPosition + QVector3D(_lightOffsetX, _lightOffsetY, _lightOffsetZ));
 	_lightCubeShader->bind();
-	_lightCubeShader->setUniformValue("modelMatrix", model);
 	QMatrix4x4 viewMat = _viewMatrix;	
+	_lightCubeShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+	_lightCubeShader->setProperty("viewMatrix", QVariant::fromValue(viewMat));
 	_lightCubeShader->setUniformValue("viewMatrix", viewMat);
 	_lightCubeShader->setUniformValue("projectionMatrix", _projectionMatrix);
 	_lightCubeShader->setUniformValue("lightColor", _diffuseLight.toVector3D());	
 	_lightCubeShader->setUniformValue("intensity", 1.0f);
 	_lightCubeShader->setUniformValue("intensityScale", 1.0f);  // Tune brightness
+	_lightCube->setSceneRenderTransformFast(model);
 	_lightCube->render();
 
 	// Draw punctual lights
 	if (!_currentRepositionedLights.empty())
 	{
+		const float sceneRadius = std::max(_boundingSphere.getRadius(), 0.001f);
+		// Keep punctual-light spheres visually aligned with the default light cube size.
+		// The cube side is baked to sceneRadius * 0.1f, while Sphere is created with radius 1.
+		// Matching the sphere diameter to the cube side means a scale of sceneRadius * 0.05f.
+		const float pointSpotScale = sceneRadius * 0.05f;
+		const float directionalScale = pointSpotScale * 0.75f;
+		const QVector3D sceneCenter = _boundingSphere.getCenter();
+
 		for (const auto& light : _currentRepositionedLights)
 		{
 			// === Apply intensity with log scale ===
@@ -6244,11 +6838,30 @@ void GLWidget::drawLights()
 			glm::vec3 emissiveColor = light.color * normalizedIntensity;
 
 			QMatrix4x4 lightModel;
-			lightModel.translate(light.position.x, light.position.y, light.position.z);
-			lightModel.scale(_boundingSphere.getRadius() * 0.05f);
+			const LightType lightType = static_cast<LightType>(light.type);
+
+			if (lightType == LightType::Directional)
+			{
+				// Directional lights are defined by direction rather than emitter position.
+				// Show them as a small cube offset from the scene center along the incoming direction
+				// so multiple directional lights don't collapse visually at the origin.
+				QVector3D dir(light.direction.x, light.direction.y, light.direction.z);
+				if (dir.lengthSquared() < 1e-6f)
+					dir = QVector3D(0.0f, 0.0f, -1.0f);
+				dir.normalize();
+				const QVector3D markerPos = sceneCenter - dir * (sceneRadius + directionalScale * 6.0f);
+				lightModel.translate(markerPos);
+				lightModel.scale(directionalScale);
+			}
+			else
+			{
+				lightModel.translate(light.position.x, light.position.y, light.position.z);
+				lightModel.scale(pointSpotScale);
+			}
 
 			_lightCubeShader->bind();
-			_lightCubeShader->setUniformValue("modelMatrix", lightModel);
+			_lightCubeShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+			_lightCubeShader->setProperty("viewMatrix", QVariant::fromValue(viewMat));
 			_lightCubeShader->setUniformValue("viewMatrix", viewMat);
 			_lightCubeShader->setUniformValue("projectionMatrix", _projectionMatrix);
 			_lightCubeShader->setUniformValue("lightColor",
@@ -6256,7 +6869,16 @@ void GLWidget::drawLights()
 			_lightCubeShader->setUniformValue("intensity", normalizedIntensity);
 			_lightCubeShader->setUniformValue("intensityScale", 1.0f);  // Tune brightness
 
-			_lightSphere->render();
+			if (lightType == LightType::Directional)
+			{
+				_lightCube->setSceneRenderTransformFast(lightModel);
+				_lightCube->render();
+			}
+			else
+			{
+				_lightSphere->setSceneRenderTransformFast(lightModel);
+				_lightSphere->render();
+			}
 		}
 	}
 }
@@ -6267,8 +6889,20 @@ void GLWidget::bindIBLTextures()
 	glActiveTexture(GL_TEXTURE3); glBindTexture(GL_TEXTURE_CUBE_MAP, _irradianceMap);
 	_fgShader->setUniformValue("prefilterMap", 4);
 	glActiveTexture(GL_TEXTURE4); glBindTexture(GL_TEXTURE_CUBE_MAP, _prefilterMap);
-	_fgShader->setUniformValue("brdfLUTTexture", 5);
+	_fgShader->setUniformValue("brdfLUT", 5);
 	glActiveTexture(GL_TEXTURE5); glBindTexture(GL_TEXTURE_2D, _brdfLUTTexture);
+	_fgShader->setUniformValue("sheenPrefilterMap", 7);
+	glActiveTexture(GL_TEXTURE7); glBindTexture(GL_TEXTURE_CUBE_MAP, _sheenPrefilterMap);
+	_fgShader->setUniformValue("charlieLUT", 8);
+	glActiveTexture(GL_TEXTURE8); glBindTexture(GL_TEXTURE_2D, _charlieLUTTexture);
+	_fgShader->setUniformValue("sheenELUT",  9);
+	glActiveTexture(GL_TEXTURE9); glBindTexture(GL_TEXTURE_2D, _sheenELUTTexture);
+	// Effective mip count for sheen LOD: lod = roughness * (sheenPrefilterMipLevels - 1)
+	int sheenMips = (_sheenPrefilterMipLevels > 0) ? (int)_sheenPrefilterMipLevels : 5;
+	_fgShader->setUniformValue("sheenPrefilterMipLevels", sheenMips);
+	// Effective mip count for GGX specular LOD: lod = roughness * (prefilterMipLevels - 1)
+	int prefilterMips = (_prefilterMipLevels > 0) ? (int)_prefilterMipLevels : 5;
+	_fgShader->setUniformValue("prefilterMipLevels", prefilterMips);
 }
 
 
@@ -6303,6 +6937,12 @@ void GLWidget::render(GLCamera* camera)
 	}
 
 	// --- 2) Opaque meshes (with clipping) ---
+	glActiveTexture(GL_TEXTURE0 + 37);
+	glBindTexture(GL_TEXTURE_2D, _sssCaptureTexture != 0 ? _sssCaptureTexture : _whiteTexture);
+	glActiveTexture(GL_TEXTURE0 + 38);
+	glBindTexture(GL_TEXTURE_2D, _sssDepthTexture != 0 ? _sssDepthTexture : _whiteTexture);
+	glActiveTexture(GL_TEXTURE0);
+
 	_fgShader->bind();
 	setCommonUniforms(_fgShader.get(), camera);	
 	drawMeshesWithClipping(_fgShader.get(), false); // opaque pass
@@ -6325,16 +6965,23 @@ void GLWidget::render(GLCamera* camera)
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
+		glActiveTexture(GL_TEXTURE0 + 32);
+		glBindTexture(GL_TEXTURE_2D,
+			(camera == _primaryCamera && _transmissionColorTexture != 0) ? _transmissionColorTexture : _whiteTexture);
+		glActiveTexture(GL_TEXTURE0 + 33);
+		glBindTexture(GL_TEXTURE_2D,
+			(camera == _primaryCamera && _transmissionDepthTexture != 0) ? _transmissionDepthTexture : _whiteTexture);
+		glActiveTexture(GL_TEXTURE0);
 		drawFloor();
 	}
 
 	if (camera == _primaryCamera)
 	{
 		// Bind transmission texture for shader sampling
-		glActiveTexture(GL_TEXTURE7);  // Use a dedicated texture unit
+		glActiveTexture(GL_TEXTURE0 + 32);
 		glBindTexture(GL_TEXTURE_2D, _transmissionColorTexture);
 
-		glActiveTexture(GL_TEXTURE8);  // For depth-based calculations (Phase 2)
+		glActiveTexture(GL_TEXTURE0 + 33);
 		glBindTexture(GL_TEXTURE_2D, _transmissionDepthTexture);
 	}
 
@@ -6485,17 +7132,39 @@ int GLWidget::processSelection(const QPoint& pixel)
 	int viewport[4];
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
+	// Resolve the camera and sub-viewport for the clicked pixel.
+	// In multi-view mode each quadrant uses a different camera; the selection FBO
+	// must replicate the exact same view/projection and GL viewport so that the
+	// rendered pixel positions match the on-screen positions.
+	GLCamera* selCamera = getCameraForPoint(pixel);
+
+	int selVpX = 0, selVpY = 0, selVpW = width(), selVpH = height();
+	if (_multiViewActive)
+	{
+		const int hw = width() / 2, hh = height() / 2;
+		// Qt pixel coords have y=0 at top; GL viewport y=0 at bottom.
+		if (pixel.x() < width() / 2 && pixel.y() > height() / 2)        // Qt bottom-left → Top view
+			{ selVpX = 0;  selVpY = 0;  selVpW = hw; selVpH = hh; }
+		else if (pixel.x() < width() / 2 && pixel.y() <= height() / 2)  // Qt top-left   → Front view
+			{ selVpX = 0;  selVpY = hh; selVpW = hw; selVpH = hh; }
+		else if (pixel.x() >= width() / 2 && pixel.y() < height() / 2)  // Qt top-right  → Left view
+			{ selVpX = hw; selVpY = hh; selVpW = hw; selVpH = hh; }
+		else                                                               // Qt bottom-right → Isometric
+			{ selVpX = hw; selVpY = 0;  selVpW = hw; selVpH = hh; }
+	}
+
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glViewport(0, 0, width(), height());
 	glBindFramebuffer(GL_FRAMEBUFFER, _selectionFBO);
 	glDrawBuffer(GL_COLOR_ATTACHMENT0);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glViewport(selVpX, selVpY, selVpW, selVpH);
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
 	_selectionShader->bind();
-	_selectionShader->setUniformValue("projectionMatrix", _projectionMatrix);
+	_selectionShader->setUniformValue("projectionMatrix", selCamera->getProjectionMatrix());
 	_selectionShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
-	_selectionShader->setUniformValue("viewMatrix", _viewMatrix);
+	_selectionShader->setUniformValue("viewMatrix", selCamera->getViewMatrix());
 
 	// Render ALL visible objects to FBO (not just ray-hit ones)
 	// This ensures color picking is a true fallback method, independent of ray test results
@@ -6548,24 +7217,23 @@ int GLWidget::processSelection(const QPoint& pixel)
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 	int pixelWinSize = 2;
 
-	// Calculate safe pixel read coordinates with bounds checking
+	// Calculate safe pixel read coordinates with bounds checking.
+	// The selection FBO is always width() x height() in size.
+	// pixel is in Qt widget coords (y=0 at top); GL FBO coords have y=0 at bottom.
 	int readX = pixel.x() - pixelWinSize / 2;
-	int readY = viewport[3] - pixel.y() + pixelWinSize / 2;
+	int readY = height() - pixel.y() - 1 + pixelWinSize / 2;
 
-	// Clamp to viewport bounds
-	int maxX = viewport[0] + viewport[2];
-	int maxY = viewport[1] + viewport[3];
-
-	if (readX < viewport[0]) readX = viewport[0];
-	if (readY < viewport[1]) readY = viewport[1];
-	if (readX + pixelWinSize > maxX) readX = maxX - pixelWinSize;
-	if (readY + pixelWinSize > maxY) readY = maxY - pixelWinSize;
+	// Clamp to FBO bounds
+	if (readX < 0) readX = 0;
+	if (readY < 0) readY = 0;
+	if (readX + pixelWinSize > width())  readX = width()  - pixelWinSize;
+	if (readY + pixelWinSize > height()) readY = height() - pixelWinSize;
 
 	// Ensure dimensions don't exceed bounds
 	int readWidth = pixelWinSize;
 	int readHeight = pixelWinSize;
-	if (readX + readWidth > maxX) readWidth = maxX - readX;
-	if (readY + readHeight > maxY) readHeight = maxY - readY;
+	if (readX + readWidth > width())   readWidth  = width()  - readX;
+	if (readY + readHeight > height()) readHeight = height() - readY;
 
 	if (readWidth <= 0 || readHeight <= 0)
 	{
@@ -6580,7 +7248,7 @@ int GLWidget::processSelection(const QPoint& pixel)
 	for (size_t i = 0; i < res.size(); i += 4)
 	{
 		QColor col = QColor::fromRgbF(res[i + 0], res[i + 1], res[i + 2], res[i + 3]);
-		qDebug() << "ReadPixel Color" << col;
+		//qDebug() << "ReadPixel Color" << col;
 		unsigned int colId = colorToIndex(col);
 		if (colId != 0)
 			voteCount[colId - 1]++;
@@ -6632,6 +7300,7 @@ void GLWidget::renderMeshWithDisplayMode(TriangleMesh* mesh, DisplayMode mode)
 		// ============================================
 	case DisplayMode::SHADED:
 	case DisplayMode::REALSHADED:
+	case DisplayMode::FLATSHADED:
 		// ============================================
 		// SHADED: Solid rendering only
 		// ============================================
@@ -6824,11 +7493,11 @@ void GLWidget::setupClippingUniforms(QOpenGLShaderProgram* prog, QVector3D pos)
 	prog->bind();
 	if (_clipYZEnabled || _clipZXEnabled || _clipXYEnabled || !(_clipDX == 0 && _clipDY == 0 && _clipDZ == 0))
 	{
-		_fgShader->setUniformValue("sectionActive", true);
+		prog->setUniformValue("sectionActive", true);
 	}
 	else
 	{
-		_fgShader->setUniformValue("sectionActive", false);
+		prog->setUniformValue("sectionActive", false);
 	}
 	prog->setUniformValue("modelViewMatrix", _modelViewMatrix);
 	prog->setUniformValue("projectionMatrix", _projectionMatrix);
@@ -7145,6 +7814,142 @@ void GLWidget::setAnimationLooping(bool looping)
 	emit animationStateChanged();
 }
 
+void GLWidget::setAnimationPlaybackSpeed(double speed)
+{
+	_animationPlaybackSpeed = std::clamp(speed, 0.25, 4.0);
+	if (_animationPlaying)
+		_animationElapsed.restart();
+	emit animationStateChanged();
+}
+
+// ---------------------------------------------------------------------------
+// glTF camera switching
+// ---------------------------------------------------------------------------
+
+void GLWidget::activateGltfCamera(const QString& sourceFile, int cameraIndex)
+{
+	if (!_viewer || !_primaryCamera)
+		return;
+
+	const GltfCameraData cd = _viewer->sceneGraph()->gltfCameraDataForFile(sourceFile);
+	if (cameraIndex < 0 || cameraIndex >= cd.cameras.size())
+		return;
+
+	const GltfCameraEntry& cam = cd.cameras[cameraIndex];
+
+	// Save the current system camera state before the first glTF switch so the
+	// user can get back to exactly where they were.
+	if (!_systemCameraStateSaved)
+	{
+		_savedCameraPos      = _primaryCamera->getPosition();
+		_savedCameraDir      = _primaryCamera->getViewDir();
+		_savedCameraUp       = _primaryCamera->getUpVector();
+		_savedCameraRight    = _primaryCamera->getRightVector();
+		_savedProjectionType = _primaryCamera->getProjectionType();
+		_savedCameraFOV      = _primaryCamera->getFOV();
+		_savedCameraViewRange = _primaryCamera->getViewRange();
+		_systemCameraStateSaved = true;
+	}
+
+	_activeGltfCameraFile  = sourceFile;
+	_activeGltfCameraIndex = cameraIndex;
+	applyGltfCameraEntryTransform(cam);
+
+	update();
+}
+
+void GLWidget::resetToSystemCamera()
+{
+	if (_systemCameraStateSaved)
+	{
+		_primaryCamera->setView(_savedCameraPos,
+		                        _savedCameraDir,
+		                        _savedCameraUp,
+		                        _savedCameraRight);
+		_primaryCamera->setProjectionType(_savedProjectionType);
+		_primaryCamera->setFOV(_savedCameraFOV);
+		_primaryCamera->setViewRange(_savedCameraViewRange);
+		_systemCameraStateSaved = false;
+	}
+
+	_activeGltfCameraFile.clear();
+	_activeGltfCameraIndex = -1;
+
+	update();
+}
+
+float GLWidget::currentModelTransformScaleFactor() const
+{
+	if (_lightRepoBasis.baselineRadius <= 0.0f)
+		return 1.0f;
+
+	const float currentRadius = _boundingSphere.getRadius();
+	if (currentRadius <= 0.0f)
+		return 1.0f;
+
+	return currentRadius / _lightRepoBasis.baselineRadius;
+}
+
+void GLWidget::applyGltfCameraEntryTransform(const GltfCameraEntry& cam)
+{
+	if (!_primaryCamera)
+		return;
+
+	QVector3D worldPos = cam.worldPosition;
+	QVector3D worldDir = cam.worldDirection.normalized();
+	QVector3D worldUp  = cam.worldUp.normalized();
+	const float radiusDelta = currentModelTransformScaleFactor();
+
+	if (_lightRepoBasis.baselineRadius > 0.0f)
+	{
+		const glm::vec3 baselineCenter = _lightRepoBasis.baselineCenter;
+		const glm::vec3 currentCenter(
+			static_cast<float>(_boundingSphere.getCenter().x()),
+			static_cast<float>(_boundingSphere.getCenter().y()),
+			static_cast<float>(_boundingSphere.getCenter().z())
+		);
+		const glm::vec3 centerDelta = currentCenter - baselineCenter;
+
+		const glm::vec3 offsetFromBaseline(
+			worldPos.x() - baselineCenter.x,
+			worldPos.y() - baselineCenter.y,
+			worldPos.z() - baselineCenter.z
+		);
+		const glm::vec3 rotatedOffset = glm::vec3(
+			_lightRepoBasis.accumulatedRotation * glm::vec4(offsetFromBaseline, 0.0f));
+		const glm::vec3 transformedPos =
+			baselineCenter + rotatedOffset * radiusDelta + centerDelta;
+		worldPos = QVector3D(transformedPos.x, transformedPos.y, transformedPos.z);
+
+		const glm::vec3 rotatedDir = glm::normalize(glm::vec3(
+			_lightRepoBasis.accumulatedRotation * glm::vec4(worldDir.x(), worldDir.y(), worldDir.z(), 0.0f)));
+		const glm::vec3 rotatedUp = glm::normalize(glm::vec3(
+			_lightRepoBasis.accumulatedRotation * glm::vec4(worldUp.x(), worldUp.y(), worldUp.z(), 0.0f)));
+		worldDir = QVector3D(rotatedDir.x, rotatedDir.y, rotatedDir.z).normalized();
+		worldUp  = QVector3D(rotatedUp.x, rotatedUp.y, rotatedUp.z).normalized();
+	}
+
+	if (cam.type == GltfCameraType::Perspective)
+	{
+		_primaryCamera->setProjectionType(GLCamera::ProjectionType::PERSPECTIVE);
+		_primaryCamera->setFOV(qRadiansToDegrees(cam.fovYRadians));
+	}
+	else
+	{
+		_primaryCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
+		const float orthoRange = std::max(cam.xMag, cam.yMag) * 2.0f * radiusDelta;
+		_primaryCamera->setViewRange(std::max(orthoRange, 0.0001f));
+	}
+
+	const QVector3D right = QVector3D::crossProduct(worldDir, worldUp).normalized();
+	const QVector3D pivotPos = (_primaryCamera->getMode() == GLCamera::CameraMode::Orbit)
+		? worldPos + worldDir * (_primaryCamera->getProjectionType() == GLCamera::ProjectionType::ORTHOGRAPHIC
+			? _primaryCamera->getOrthoViewDistance()
+			: _primaryCamera->getOrbitDistance())
+		: worldPos;
+	_primaryCamera->setView(pivotPos, worldDir, worldUp, right);
+}
+
 void GLWidget::refreshAnimationMaterialState(const QString& sourceFile)
 {
 	RuntimeAnimationFileState& runtime = _runtimeAnimationsByFile[sourceFile];
@@ -7184,7 +7989,7 @@ void GLWidget::onAnimationTick()
 	if (clip.durationSeconds <= 0.0)
 		return;
 
-	_animationCurrentTimeSeconds += deltaSeconds;
+	_animationCurrentTimeSeconds += deltaSeconds * _animationPlaybackSpeed;
 	if (_animationCurrentTimeSeconds >= clip.durationSeconds)
 	{
 		if (_animationLooping)
@@ -7543,6 +8348,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 	if (runtime.data.hasNodeAnimations || runtime.data.hasSkinning)
 	{
 		QHash<QString, QMatrix4x4> worldTransforms;
+		QHash<int, QMatrix4x4> worldTransformsByNodeIndex;
 		std::function<void(SceneNode*, const QMatrix4x4&)> evalNode =
 			[&](SceneNode* node, const QMatrix4x4& parentWorld)
 		{
@@ -7554,6 +8360,14 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			const QMatrix4x4 local = composeNodeTransform(nodeTransform);
 			const QMatrix4x4 world = parentWorld * local;
 			worldTransforms.insert(node->name, world);
+			for (const GltfAnimationNodeBinding& binding : runtime.data.nodeBindings)
+			{
+				if (binding.nodeName == node->name && binding.nodeIndex >= 0)
+				{
+					worldTransformsByNodeIndex.insert(binding.nodeIndex, world);
+					break;
+				}
+			}
 
 			for (SceneNode* child : node->children)
 				evalNode(child, world);
@@ -7568,6 +8382,7 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 			_originalParsedLights.size() == static_cast<size_t>(runtime.data.lightBindings.size()))
 		{
 			std::vector<GPULight> animatedLights = _originalParsedLights;
+			bool resolvedAnyAnimatedLightTransform = false;
 			for (const GltfAnimationLightBinding& binding : runtime.data.lightBindings)
 			{
 				if (binding.parsedLightIndex < 0 ||
@@ -7576,19 +8391,66 @@ void GLWidget::applyAnimationPose(const QString& sourceFile, int clipIndex, doub
 					continue;
 				}
 
-				const QMatrix4x4 world = worldTransforms.value(binding.nodeName, QMatrix4x4());
+				QMatrix4x4 world;
+				bool hasWorldTransform = false;
+				if (binding.nodeIndex >= 0 && worldTransformsByNodeIndex.contains(binding.nodeIndex))
+				{
+					world = worldTransformsByNodeIndex.value(binding.nodeIndex);
+					hasWorldTransform = true;
+				}
+				else if (!binding.nodeName.isEmpty() && worldTransforms.contains(binding.nodeName))
+				{
+					world = worldTransforms.value(binding.nodeName);
+					hasWorldTransform = true;
+				}
+
+				if (!hasWorldTransform)
+					continue;
+
 				GPULight& light = animatedLights[binding.parsedLightIndex];
 				light.position = glm::vec3(world(0, 3), world(1, 3), world(2, 3));
 
 				const QVector3D localDir(0.0f, 0.0f, -1.0f);
 				const QVector3D worldDir = (world.mapVector(localDir)).normalized();
 				light.direction = glm::vec3(worldDir.x(), worldDir.y(), worldDir.z());
+				resolvedAnyAnimatedLightTransform = true;
 			}
-			setAnimatedLightTransformState(sourceFile, animatedLights);
+			if (resolvedAnyAnimatedLightTransform)
+				setAnimatedLightTransformState(sourceFile, animatedLights);
+			else
+				clearAnimatedLightTransformState(sourceFile);
 		}
 		else
 		{
 			clearAnimatedLightTransformState(sourceFile);
+		}
+
+		// Per-frame glTF camera update: when node animations are present the
+		// camera's hosting node moves every frame.  Read its current world
+		// transform from worldTransforms and drive the primary camera so that
+		// animated cameras (e.g. the firefly-chasing cameras in
+		// DiffuseTransmissionPlant) stay in sync with the animation timeline.
+		if (_activeGltfCameraFile == sourceFile && _activeGltfCameraIndex >= 0 && _primaryCamera)
+		{
+			const GltfCameraData camData = _viewer->sceneGraph()->gltfCameraDataForFile(sourceFile);
+			if (_activeGltfCameraIndex < camData.cameras.size())
+			{
+				const GltfCameraEntry& cam = camData.cameras[_activeGltfCameraIndex];
+				if (!cam.nodeName.isEmpty() && worldTransforms.contains(cam.nodeName))
+				{
+					const QMatrix4x4& world = worldTransforms.value(cam.nodeName);
+					// Position = translation column of the world matrix.
+					const QVector3D worldPos(world(0, 3), world(1, 3), world(2, 3));
+					// glTF cameras look along local -Z; +Y is up.
+					const QVector3D worldDir   = world.mapVector(QVector3D(0.0f, 0.0f, -1.0f)).normalized();
+					const QVector3D worldUp    = world.mapVector(QVector3D(0.0f, 1.0f,  0.0f)).normalized();
+					GltfCameraEntry runtimeCam = cam;
+					runtimeCam.worldPosition = worldPos;
+					runtimeCam.worldDirection = worldDir;
+					runtimeCam.worldUp = worldUp;
+					applyGltfCameraEntryTransform(runtimeCam);
+				}
+			}
 		}
 	}
 	else
@@ -8552,12 +9414,17 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	}
 
 	// --- RENDER 2: OPAQUE MESHES (with clipping) ---
-	glActiveTexture(GL_TEXTURE7);
-	glBindTexture(GL_TEXTURE_2D, _whiteTexture);  // Any valid texture works
-
-	glActiveTexture(GL_TEXTURE8);
-	glBindTexture(GL_TEXTURE_2D, _whiteTexture);  // Any valid texture works
-
+	// Units 32/33: prevent feedback — the transmission FBO is currently the render target,
+	// so bind white instead of the real transmission textures.
+	glActiveTexture(GL_TEXTURE0 + 32);
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glActiveTexture(GL_TEXTURE0 + 33);
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	// Units 37/38: SSS irradiance/depth from the SSS capture pass.
+	glActiveTexture(GL_TEXTURE0 + 37);
+	glBindTexture(GL_TEXTURE_2D, _sssCaptureTexture != 0 ? _sssCaptureTexture : _whiteTexture);
+	glActiveTexture(GL_TEXTURE0 + 38);
+	glBindTexture(GL_TEXTURE_2D, _sssDepthTexture != 0 ? _sssDepthTexture : _whiteTexture);
 	glActiveTexture(GL_TEXTURE0);
 
 	_fgShader->bind();
@@ -8582,6 +9449,13 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
+		// Avoid sampling from the transmission render target while it is bound
+		// as the current framebuffer color attachment.
+		glActiveTexture(GL_TEXTURE0 + 32);
+		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+		glActiveTexture(GL_TEXTURE0 + 33);
+		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+		glActiveTexture(GL_TEXTURE0);
 		drawFloor(false);
 	}
 
@@ -8590,6 +9464,81 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 	glHint(GL_GENERATE_MIPMAP_HINT, GL_NICEST);
 	glGenerateMipmap(GL_TEXTURE_2D);
 	glBindTexture(GL_TEXTURE_2D, 0);
+
+	// --- UNBIND FBO ---
+	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
+	glViewport(0, 0, width(), height());
+}
+
+// ============================================================================
+// SSS capture pass
+// Renders only hasVolumeScattering meshes into _sssFBO with sssCapture=true,
+// which makes the shader output raw linear diffuse irradiance.
+// The result in _sssCaptureTexture feeds the blur passes in Sequence 4.
+// ============================================================================
+
+void GLWidget::renderToSSSBuffer(GLCamera* camera)
+{
+	// Skip entirely if no SSS meshes are loaded
+	bool anySSS = false;
+	for (TriangleMesh* mesh : _meshStore)
+	{
+		if (mesh && mesh->getMaterial().hasVolumeScattering())
+		{
+			anySSS = true;
+			break;
+		}
+	}
+	if (!anySSS)
+		return;
+
+	resizeSSSBuffer(width(), height());
+
+	// --- SETUP STATE ---
+	glEnable(GL_DEPTH_TEST);
+	glDisable(GL_BLEND);
+	glDisable(GL_CULL_FACE);
+	glFrontFace(GL_CCW);
+	glDisable(GL_POLYGON_OFFSET_FILL);
+	glDepthMask(GL_TRUE);
+	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+	glStencilMask(0xFF);
+	glDisable(GL_STENCIL_TEST);
+
+	// --- BIND FBO ---
+	glBindFramebuffer(GL_FRAMEBUFFER, _sssFBO);
+	glViewport(0, 0, _sssTextureWidth, _sssTextureHeight);
+
+	// Black background — non-SSS pixels are discarded by the shader so nothing
+	// writes to them; black is the correct additive identity for the blur.
+	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	// --- Setup matrices ---
+	_viewMatrix.setToIdentity();
+	_viewMatrix = camera->getViewMatrix();
+	_projectionMatrix = camera->getProjectionMatrix();
+	_modelViewMatrix = _viewMatrix * _modelMatrix;
+
+	// Bind white dummy textures on the SSS sampler slots (units 37/38) so the shader's
+	// sampleCapturedSSSDiffuse() sees a valid, neutral value during the capture pass itself.
+	glActiveTexture(GL_TEXTURE0 + 37);
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glActiveTexture(GL_TEXTURE0 + 38);
+	glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+	glActiveTexture(GL_TEXTURE0);
+
+	// --- RENDER: SSS opaque meshes only ---
+	// sssCapture=true makes the shader discard non-SSS fragments and output
+	// raw linear diffuse (baseDirectDiffuse + baseDiffuseIBL) for SSS ones.
+	_fgShader->bind();
+	setCommonUniforms(_fgShader.get(), camera);
+	_fgShader->setUniformValue("sssCapture", true);
+	drawMeshesWithClipping(_fgShader.get(), false); // opaque pass only
+	_fgShader->setUniformValue("sssCapture", false); // reset before release
+	_fgShader->release();
+
+	// No mipmaps needed — the blur passes sample at full resolution.
 
 	// --- UNBIND FBO ---
 	glBindFramebuffer(GL_FRAMEBUFFER, defaultFramebufferObject());
@@ -8613,6 +9562,114 @@ void GLWidget::cleanupTransmissionBuffer()
 		glDeleteTextures(1, &_transmissionDepthTexture);
 		_transmissionDepthTexture = 0;
 	}
+}
+
+// ============================================================================
+// SSS (Subsurface Scattering) Buffer
+// Two-FBO ping-pong layout:
+//   _sssFBO    + _sssCaptureTexture  — capture pass output / V-blur output
+//   _sssBlurFBO + _sssBlurTexture    — H-blur output / V-blur input
+// Both are RGBA16F (no mipmaps needed — they are blur intermediates).
+// _sssDepthTexture is shared by the capture FBO for correct depth occlusion.
+// ============================================================================
+
+void GLWidget::initSSSBuffer()
+{
+	_sssTextureWidth  = width();
+	_sssTextureHeight = height();
+
+	// Clean up any pre-existing resources first
+	if (_sssFBO != 0)            { glDeleteFramebuffers(1, &_sssFBO);            _sssFBO            = 0; }
+	if (_sssCaptureTexture != 0) { glDeleteTextures(1, &_sssCaptureTexture);     _sssCaptureTexture = 0; }
+	if (_sssDepthTexture != 0)   { glDeleteTextures(1, &_sssDepthTexture);       _sssDepthTexture   = 0; }
+	if (_sssBlurFBO != 0)        { glDeleteFramebuffers(1, &_sssBlurFBO);        _sssBlurFBO        = 0; }
+	if (_sssBlurTexture != 0)    { glDeleteTextures(1, &_sssBlurTexture);        _sssBlurTexture    = 0; }
+
+	// ---- Capture FBO --------------------------------------------------------
+	glGenFramebuffers(1, &_sssFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, _sssFBO);
+
+	// Color: RGBA16F — SSS diffuse capture, no mipmaps (blur input)
+	glGenTextures(1, &_sssCaptureTexture);
+	glBindTexture(GL_TEXTURE_2D, _sssCaptureTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+		_sssTextureWidth, _sssTextureHeight,
+		0, GL_RGBA, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+		GL_TEXTURE_2D, _sssCaptureTexture, 0);
+
+	// Depth: DEPTH32F — correct occlusion ordering during the capture pass
+	glGenTextures(1, &_sssDepthTexture);
+	glBindTexture(GL_TEXTURE_2D, _sssDepthTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT32F,
+		_sssTextureWidth, _sssTextureHeight,
+		0, GL_DEPTH_COMPONENT, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT,
+		GL_TEXTURE_2D, _sssDepthTexture, 0);
+
+	{
+		GLenum drawBufs[] = { GL_COLOR_ATTACHMENT0 };
+		glDrawBuffers(1, drawBufs);
+		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE)
+			qWarning() << "SSS capture FBO incomplete! Status:" << status;
+	}
+
+	// ---- Blur FBO -----------------------------------------------------------
+	// No depth attachment needed — blur passes are fullscreen quads.
+	glGenFramebuffers(1, &_sssBlurFBO);
+	glBindFramebuffer(GL_FRAMEBUFFER, _sssBlurFBO);
+
+	glGenTextures(1, &_sssBlurTexture);
+	glBindTexture(GL_TEXTURE_2D, _sssBlurTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F,
+		_sssTextureWidth, _sssTextureHeight,
+		0, GL_RGBA, GL_FLOAT, nullptr);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+		GL_TEXTURE_2D, _sssBlurTexture, 0);
+
+	{
+		GLenum drawBufs[] = { GL_COLOR_ATTACHMENT0 };
+		glDrawBuffers(1, drawBufs);
+		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE)
+			qWarning() << "SSS blur FBO incomplete! Status:" << status;
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void GLWidget::resizeSSSBuffer(int width, int height)
+{
+	if (_sssTextureWidth == width && _sssTextureHeight == height)
+		return;
+
+	_sssTextureWidth  = width;
+	_sssTextureHeight = height;
+
+	initSSSBuffer();
+}
+
+void GLWidget::cleanupSSSBuffer()
+{
+	if (_sssFBO != 0)            { glDeleteFramebuffers(1, &_sssFBO);            _sssFBO            = 0; }
+	if (_sssCaptureTexture != 0) { glDeleteTextures(1, &_sssCaptureTexture);     _sssCaptureTexture = 0; }
+	if (_sssDepthTexture != 0)   { glDeleteTextures(1, &_sssDepthTexture);       _sssDepthTexture   = 0; }
+	if (_sssBlurFBO != 0)        { glDeleteFramebuffers(1, &_sssBlurFBO);        _sssBlurFBO        = 0; }
+	if (_sssBlurTexture != 0)    { glDeleteTextures(1, &_sssBlurTexture);        _sssBlurTexture    = 0; }
 }
 
 void GLWidget::checkAndStopTimers()
@@ -8846,7 +9903,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 		{
 			setCursor(QCursor(QPixmap(":/icons/res/window-zoom-cursor.png"), 12, 12));
 		}
-		else if ((e->modifiers() & Qt::ControlModifier) || _viewRotating)
+		else if (((e->modifiers() & Qt::ControlModifier) || _viewRotating) && !isGltfCameraActive())
 		{
 			if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 				_lowResEnabled = true;
@@ -8889,7 +9946,8 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	}
 	else if (e->buttons() == Qt::RightButton && !(e->modifiers() & Qt::ControlModifier) &&
 		(_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
-		 _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson))
+		 _primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson) &&
+		!isGltfCameraActive())
 	{
 		// Free-look in Fly/FP mode: RMB drag rotates the view via yaw/pitch
 		QPoint look = _rightButtonPoint - downPoint;
@@ -8915,7 +9973,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 		update();
 	}
-	else if ((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewPanning))
+	else if (((e->buttons() == Qt::RightButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewPanning)) && !isGltfCameraActive())
 	{
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_lowResEnabled = true;
@@ -8939,7 +9997,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 
 		update();
 	}
-	else if ((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewZooming))
+	else if (((e->buttons() == Qt::MiddleButton && e->modifiers() & Qt::ControlModifier) || (e->buttons() == Qt::LeftButton && _viewZooming)) && !isGltfCameraActive())
 	{
 		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 			_lowResEnabled = true;
@@ -9058,16 +10116,40 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	_inertiaPanVelocity = QVector2D(0, 0);
 	_inertiaZoomVelocity = 0.0f;
 	if (_inertiaTimer && _inertiaTimer->isActive())
-		_inertiaTimer->stop();	
+		_inertiaTimer->stop();
+
+	// Scroll-wheel zoom is disabled when a glTF camera is active (read-only view).
+	if (isGltfCameraActive())
+		return;
 
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
 	setSectionCapsInteractionSuppressed(true);
+
+	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	{
+		QPoint numDegrees = e->angleDelta() / 8;
+		QPoint numSteps = numDegrees / 30;
+		float zoomStep = numSteps.y();
+		if (zoomStep != 0.0f)
+		{
+			const float moveDist = _viewRange * 0.08f * std::abs(zoomStep);
+			_primaryCamera->moveForward(zoomStep > 0.0f ? moveDist : -moveDist);
+			_currentTranslation = _primaryCamera->getPosition();
+			_inertiaZoomVelocity = 0.0f;
+			resizeGL(width(), height());
+			update();
+		}
+		return;
+	}
+
 	// Zoom
 	QPoint numDegrees = e->angleDelta() / 8;
 	QPoint numSteps = numDegrees / 30;
 	float zoomStep = numSteps.y();
 	float zoomFactor = abs(zoomStep) + 0.05;
+	const float oldViewRange = _viewRange;
 
 	if (zoomStep < 0)
 		_viewRange *= zoomFactor;
@@ -9083,10 +10165,9 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 
 	// Translate to focus on mouse center
 	QPoint cen = getClientRectFromPoint(e->position().toPoint()).center();
-	float sign = (e->position().x() > cen.x() || e->position().y() < cen.y() ||
-		(e->position().x() < cen.x() && e->position().y() > cen.y())) && (zoomStep > 0) ? 1.0f : -1.0f;
 	QVector3D OP = get3dTranslationVectorFromMousePoints(cen, e->position().toPoint());
-	OP *= sign * 0.05f;
+	const float rangeScale = (oldViewRange > 0.0f) ? (_viewRange / oldViewRange) : 1.0f;
+	OP *= (1.0f - rangeScale);
 	_primaryCamera->move(OP.x(), OP.y(), OP.z());
 	_currentTranslation = _primaryCamera->getPosition();
 
@@ -9094,7 +10175,7 @@ void GLWidget::wheelEvent(QWheelEvent* e)
 	_inertiaZoomVelocity = (e->angleDelta().y() / 120.0f) * 0.05f; // scale as needed
 	if (_inertiaTimer) _inertiaTimer->start();
 
-	_inertiaZoomPanVelocity += OP * sign * 0.05f;
+	_inertiaZoomPanVelocity += OP;
 
 	resizeGL(width(), height());
 	update();
@@ -9119,11 +10200,13 @@ void GLWidget::keyPressEvent(QKeyEvent* event)
 		if (_viewToolbar)
 			_viewToolbar->deactivateAllNavigationModes();
 
-		_selectedIDs.clear();  // Clear selection in GLWidget
-		_viewer->deselectAll();  // Also clear in viewer
+		_selectedIDs.clear();               // Clear GLWidget's internal list immediately
+		_viewer->deselectAllWithUndo();     // Clear viewer selection and push an undo entry
 	}
 	else if (key == Qt::Key_F)
+	{
 		fitAll();
+	}
 	else if (key == Qt::Key_Delete)
 		_viewer->deleteSelectedItems();
 	else if (key == Qt::Key_Space)
@@ -9157,6 +10240,10 @@ void GLWidget::keyReleaseEvent(QKeyEvent* event)
 
 void GLWidget::performKeyboardNav()
 {
+	// Keyboard navigation is disabled when a glTF camera is active (read-only view).
+	if (isGltfCameraActive())
+		return;
+
 	if (_keys.empty() == false && QApplication::keyboardModifiers() == Qt::NoModifier)
 	{
 		float factor = _viewRange * 0.01f;
@@ -9312,6 +10399,10 @@ void GLWidget::animateCenterScreen()
 
 void GLWidget::onInertiaTimer()
 {
+	// Inertia effects are suppressed when a glTF camera is active (read-only view).
+	if (isGltfCameraActive())
+		return;
+
 	bool active = false;
 
 	// --- Pan inertia ---
@@ -9430,7 +10521,8 @@ GLCamera* GLWidget::getCameraForPoint(const QPoint& pixel)
 
 	// Configure the shared ortho camera to match this viewport's rendering setup
 	_orthoViewsCamera->setScreenSize(width() / 2, height() / 2);
-	_orthoViewsCamera->setProjectionMatrix(_primaryCamera->getProjectionMatrix());
+	_orthoViewsCamera->setViewRange(_viewRange);
+	_orthoViewsCamera->setProjectionType(GLCamera::ProjectionType::ORTHOGRAPHIC);
 	_orthoViewsCamera->setPosition(_primaryCamera->getPosition());
 	_orthoViewsCamera->setView(vp);
 	return _orthoViewsCamera;
@@ -9499,7 +10591,9 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 		? _orthoViewsCamera
 		: _primaryCamera;
 
-	QVector3D viewCenter = _boundingSphere.getCenter();
+	QVector3D viewCenter = (camera->getMode() == GLCamera::CameraMode::Orbit)
+		? camera->getPosition()
+		: _boundingSphere.getCenter();
 	// Get view and projection matrices
 	QMatrix4x4 view = camera->getViewMatrix();
 	QMatrix4x4 projection = camera->getProjectionMatrix();
@@ -9512,14 +10606,53 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 		ndcZ = refClip.w() != 0.0f ? refClip.z() / refClip.w() : 0.0f;
 	}
 	else {
-		// Project the actual model center to get its NDC Z
-		QVector4D modelCenterWorld(viewCenter.x(), viewCenter.y(), viewCenter.z(), 1.0f);
-		QVector4D modelCenterClip = projection * view * modelCenterWorld;
-		ndcZ = modelCenterClip.w() != 0.0f ? modelCenterClip.z() / modelCenterClip.w() : 0.0f;
-		
-		// Clamp NDC Z to between -0.99 and 0.99 to avoid 
-		// extreme values causing panning direction inversion
-		ndcZ = qBound(-0.99f, ndcZ, 0.99f);
+		auto sampleSceneDepth = [&](const QPoint& point) {
+			makeCurrent();
+
+			float rawDepth = 1.0f;
+			const int cx = point.x();
+			const int cy = height() - point.y() - 1;
+			glReadPixels(cx, cy, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &rawDepth);
+
+			if (rawDepth >= 1.0f)
+			{
+				const int halfGrid = 4;
+				const int x0 = std::max(0, cx - halfGrid);
+				const int y0 = std::max(0, cy - halfGrid);
+				const int x1 = std::min(width() - 1, cx + halfGrid);
+				const int y1 = std::min(height() - 1, cy + halfGrid);
+				const int sw = x1 - x0 + 1;
+				const int sh = y1 - y0 + 1;
+				std::vector<float> depthBuf(sw * sh, 1.0f);
+				glReadPixels(x0, y0, sw, sh, GL_DEPTH_COMPONENT, GL_FLOAT, depthBuf.data());
+
+				float minDepth = 1.0f;
+				for (float d : depthBuf)
+				{
+					if (d < minDepth)
+						minDepth = d;
+				}
+
+				if (minDepth < 1.0f)
+					rawDepth = minDepth;
+			}
+
+			if (rawDepth >= 1.0f)
+			{
+				const QVector3D projectedCenter = viewCenter.project(view, projection, viewport);
+				rawDepth = projectedCenter.z();
+			}
+
+			return rawDepth;
+		};
+
+		const float depthZ = sampleSceneDepth(start);
+		QVector3D worldStart(start.x(), height() - start.y(), depthZ);
+		QVector3D worldEnd(end.x(), height() - end.y(), depthZ);
+
+		const QVector3D startWorld = worldStart.unproject(view, projection, viewport);
+		const QVector3D endWorld = worldEnd.unproject(view, projection, viewport);
+		return endWorld - startWorld;
 	}
 
 	// Convert screen points to NDC
@@ -10061,28 +11194,61 @@ void GLWidget::setRotations(float xRot, float yRot, float zRot)
 	QQuaternion targetRotation = QQuaternion::fromEulerAngles(yRot, zRot, xRot); //Pitch, Yaw, Roll
 	QQuaternion curRot = QQuaternion::slerp(_currentRotation, targetRotation, _slerpStep += _slerpFrac);
 
-	// Translation
-	QVector3D curPos = _currentTranslation - (_slerpStep * _currentTranslation) + (_boundingSphere.getCenter() * _slerpStep);
-
 	// Set camera vectors
 	QMatrix4x4 rotMat = QMatrix4x4(curRot.toRotationMatrix());
 	QVector3D viewDir = -rotMat.row(2).toVector3D();
 	QVector3D upDir = rotMat.row(1).toVector3D();
 	QVector3D rightDir = rotMat.row(0).toVector3D();
-	_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
 
 	// Set zoom
 	float scaleStep = (_currentViewRange - _viewBoundingSphereDia) * _slerpFrac;
 	_viewRange -= scaleStep;
 
+	// Translation
+	QVector3D curPos;
+	if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+		_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+	{
+		QMatrix4x4 targetRotMat(targetRotation.toRotationMatrix());
+		QVector3D targetViewDir = -targetRotMat.row(2).toVector3D().normalized();
+		const float fovRad = qDegreesToRadians(_FOV);
+		const float sinHalfFov = std::max(std::sin(fovRad * 0.5f), 0.001f);
+		const float shiftFactor = std::min(1.05f / sinHalfFov, 1.25f);
+		const float targetDistance = shiftFactor * _viewBoundingSphereDia;
+		const QVector3D targetEye = _boundingSphere.getCenter() - targetViewDir * targetDistance;
+		curPos = _currentTranslation - (_slerpStep * _currentTranslation) + (targetEye * _slerpStep);
+	}
+	else
+	{
+		curPos = _currentTranslation - (_slerpStep * _currentTranslation) + (_boundingSphere.getCenter() * _slerpStep);
+	}
+
+	_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
+
 	if (qFuzzyCompare(_slerpStep, 1.0f))
 	{
-		// Set camera vectors
-		QMatrix4x4 rotMat = QMatrix4x4(curRot.toRotationMatrix());
-		QVector3D viewDir = -rotMat.row(2).toVector3D();
-		QVector3D upDir = rotMat.row(1).toVector3D();
-		QVector3D rightDir = rotMat.row(0).toVector3D();
-		_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
+		if (_primaryCamera->getMode() == GLCamera::CameraMode::Fly ||
+			_primaryCamera->getMode() == GLCamera::CameraMode::FirstPerson)
+		{
+			QMatrix4x4 targetRotMat(targetRotation.toRotationMatrix());
+			QVector3D targetViewDir = -targetRotMat.row(2).toVector3D().normalized();
+			QVector3D targetUpDir = targetRotMat.row(1).toVector3D().normalized();
+			QVector3D targetRightDir = targetRotMat.row(0).toVector3D().normalized();
+			const float fovRad = qDegreesToRadians(_FOV);
+			const float sinHalfFov = std::max(std::sin(fovRad * 0.5f), 0.001f);
+			const float shiftFactor = std::min(1.05f / sinHalfFov, 1.25f);
+			const float targetDistance = shiftFactor * _viewBoundingSphereDia;
+			const QVector3D targetEye = _boundingSphere.getCenter() - targetViewDir * targetDistance;
+			_primaryCamera->setView(targetEye, targetViewDir, targetUpDir, targetRightDir);
+		}
+		else
+		{
+			QMatrix4x4 rotMat = QMatrix4x4(curRot.toRotationMatrix());
+			QVector3D viewDir = -rotMat.row(2).toVector3D();
+			QVector3D upDir = rotMat.row(1).toVector3D();
+			QVector3D rightDir = rotMat.row(0).toVector3D();
+			_primaryCamera->setView(curPos, viewDir, upDir, rightDir);
+		}
 
 		// Set all defaults
 		_currentRotation = QQuaternion::fromRotationMatrix(_primaryCamera->getViewMatrix().toGenericMatrix<3, 3>());
@@ -10250,6 +11416,37 @@ void GLWidget::setSkyBoxFOV(double fov)
 {
 	_skyBoxFOV = static_cast<float>(fov);
 	update();
+}
+
+void GLWidget::setSkyBoxZRotation(int index)
+{
+	// Map combo index to Y-axis rotation angle (OpenGL Y = world Z-up)
+	// X+ → 0°, X- → 180°, Y-Z+ → 90°, Y+ → 270°
+	static constexpr float angles[] = { 0.0f, 180.0f, 90.0f, 270.0f };
+	_skyBoxZRotation = angles[index % 4];
+	updateEnvMapRotationMatrix();
+	update();
+}
+
+void GLWidget::updateEnvMapRotationMatrix()
+{
+	// Build Ry(-theta) · Rx(-90°) using Qt post-multiply (M = M*R):
+	//
+	//   envMapRotationMatrix = Ry(-theta) · Rx(-90°)
+	//
+	// This converts a Z-up world direction into a cubemap sample direction:
+	//   1. Rx(-90°)  — maps world Z-up to cubemap Y-up (Z-up correction)
+	//   2. Ry(-theta)— rotates horizontally around the (now corrected) Y axis,
+	//                   matching the user's Z-up world rotation
+	//
+	// Ordering matters: Rx(-90°) must be the INNER transform and Ry(-theta)
+	// the OUTER, so that Ry acts in cubemap (Y-up) space, not raw Z-up space.
+	// Reversing the order would tilt the sky axis as the environment rotates.
+	QMatrix4x4 envMapRot;
+	envMapRot.rotate(-_skyBoxZRotation, 0, 1, 0); // Qt post-mul: M = Ry(-theta)
+	envMapRot.rotate(-90.0f, 1, 0, 0);            // Qt post-mul: M = Ry(-theta) · Rx(-90°)
+	_fgShader->bind();
+	_fgShader->setUniformValue("envMapRotationMatrix", envMapRot.toGenericMatrix<3, 3>());
 }
 
 void GLWidget::setSkyBoxTextureHDRI(bool hdrSet)
@@ -10959,8 +12156,9 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
 
         const std::vector<float> normals  = readFloatStream(geometryChunk, document.accessors,
             document.bufferViews, attribs[QStringLiteral("NORMAL")].toInt(-1));
+        const int tangentAccessorIndex = attribs[QStringLiteral("TANGENT")].toInt(-1);
         const std::vector<float> tangents = readFloatStream(geometryChunk, document.accessors,
-            document.bufferViews, attribs[QStringLiteral("TANGENT")].toInt(-1));
+            document.bufferViews, tangentAccessorIndex);
         const std::vector<float> uv0      = readFloatStream(geometryChunk, document.accessors,
             document.bufferViews, attribs[QStringLiteral("TEXCOORD_0")].toInt(-1));
         const std::vector<float> uv1      = readFloatStream(geometryChunk, document.accessors,
@@ -10974,13 +12172,34 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
 
         const size_t vertexCount = positions.size() / 3;
         std::vector<Vertex> vertices(vertexCount);
+        const bool tangentAccessorIsVec4 =
+            tangentAccessorIndex >= 0 &&
+            tangentAccessorIndex < document.accessors.size() &&
+            document.accessors[tangentAccessorIndex].toObject()[QStringLiteral("type")].toString() == QLatin1String("VEC4");
+        const int tangentStride = tangentAccessorIsVec4 ? 4 : 3;
         for (size_t vi = 0; vi < vertexCount; ++vi)
         {
             Vertex& v = vertices[vi];
             v.Position = glm::vec3(positions[vi*3], positions[vi*3+1], positions[vi*3+2]);
 
             if (normals.size()  >= vi*3+3) v.Normal  = glm::vec3(normals [vi*3], normals [vi*3+1], normals [vi*3+2]);
-            if (tangents.size() >= vi*3+3) v.Tangent = glm::vec3(tangents[vi*3], tangents[vi*3+1], tangents[vi*3+2]);
+            if (tangents.size() >= static_cast<size_t>(vi * tangentStride + 3))
+            {
+                v.Tangent = glm::vec3(
+                    tangents[vi * tangentStride],
+                    tangents[vi * tangentStride + 1],
+                    tangents[vi * tangentStride + 2]);
+
+                if (glm::length(v.Normal) > 0.0001f && glm::length(v.Tangent) > 0.0001f)
+                {
+                    float handedness = 1.0f;
+                    if (tangentAccessorIsVec4 && tangents.size() > static_cast<size_t>(vi * tangentStride + 3))
+                    {
+                        handedness = tangents[vi * tangentStride + 3] >= 0.0f ? 1.0f : -1.0f;
+                    }
+                    v.Bitangent = glm::normalize(glm::cross(v.Normal, v.Tangent)) * handedness;
+                }
+            }
 
             if (uv0.size() >= vi*2+2) v.TexCoords[0] = glm::vec2(uv0[vi*2], uv0[vi*2+1]);
             if (uv1.size() >= vi*2+2) v.TexCoords[1] = glm::vec2(uv1[vi*2], uv1[vi*2+1]);
@@ -10990,6 +12209,14 @@ QVector<GLWidget::PreparedMvfMesh> GLWidget::prepareMvfMeshes(
             v.Color = colors.size() >= vi*4+4
                       ? glm::vec4(colors[vi*4], colors[vi*4+1], colors[vi*4+2], colors[vi*4+3])
                       : glm::vec4(1.0f);
+        }
+
+        const bool hasNormals = normals.size() >= vertexCount * 3;
+        const bool hasUv0 = uv0.size() >= vertexCount * 2;
+        const bool hasTangents = tangents.size() >= vertexCount * tangentStride;
+        if (!hasTangents && hasNormals && hasUv0 && prim[QStringLiteral("mode")].toInt(GL_TRIANGLES) == GL_TRIANGLES)
+        {
+            TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);
         }
 
         const int materialIndex = prim[QStringLiteral("material")].toInt(-1);
@@ -11142,4 +12369,505 @@ bool GLWidget::loadMvfMeshes(const Mvf::Document& document,
 {
     QVector<PreparedMvfMesh> prepared = prepareMvfMeshes(document, geometryChunk, imageChunk);
     return uploadPreparedMvfMeshes(prepared);
+}
+
+// ---------------------------------------------------------------------------
+// setDebugTextureEnabled / clearDebugTextureOverrides
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Per-unit scalar override helpers
+//
+// When a texture is disabled the replacement is white (1,1,1) — a neutral
+// value that leaves all multiplicative channels visible on a lit mesh.
+// That is the right neutral for modulating channels such as AO, roughness,
+// metallic and normal: their effect can only be seen if the base mesh remains
+// lit and visible.
+//
+// Emissive is the exception: it is purely additive, so a white replacement
+// drives full-strength emission via the scalar factor.  Unit 12 therefore
+// gets _debugBlackTex instead of white, which silences ADS directly
+// (matEmissive = sample(black) = vec3(0)).  Scalar uniforms are also zeroed
+// so PBR (emissiveStrength) is suppressed without relying on a bool override.
+//
+//  Unit 12 – emissive (black texture + scalar zeroing)
+//    ADS: matEmissive = sample(black) = vec3(0)        — silenced by texture
+//    PBR: pbrLighting.emissiveStrength = 0             — silenced by scalar
+//
+// All other units (including albedo / diffuse) receive only the white texture
+// replacement — their scalar factors are left at their real values so the mesh
+// stays normally lit, which is necessary for channels like AO to be visible.
+// ---------------------------------------------------------------------------
+namespace
+{
+void setScalarOverridesForUnit(TriangleMesh* mesh, int unit)
+{
+	switch (unit)
+	{
+	case 12: // emissive — additive channel, must be fully suppressed
+		mesh->setDebugUniformOverride("pbrLighting.emissiveStrength",
+		    QVariant::fromValue<float>(0.0f));
+		mesh->setDebugUniformOverride("material.emission",
+		    QVariant::fromValue(QVector3D(0.0f, 0.0f, 0.0f)));
+		// ADS: hasEmissiveTexture suppression via bool uniform is unreliable (QVariant
+		// type matching). Silence ADS by substituting a black texture for unit 12 instead
+		// (matEmissive = sample(black) = vec3(0)). PBR is covered by emissiveStrength=0.
+		break;
+	default:
+		break;
+	}
+}
+
+void clearScalarOverridesForUnit(TriangleMesh* mesh, int unit)
+{
+	switch (unit)
+	{
+	case 12:
+		mesh->clearDebugUniformOverride("pbrLighting.emissiveStrength");
+		mesh->clearDebugUniformOverride("material.emission");
+		mesh->markUniformsDirty();  // force setupUniforms to restore the real values
+		break;
+	default:
+		break;
+	}
+}
+} // anonymous namespace
+
+void GLWidget::setDebugTextureEnabled(int meshId, int unitIndex, bool enabled)
+{
+	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+		return;
+
+	TriangleMesh* mesh = _meshStore[meshId];
+
+	if (enabled)
+	{
+		mesh->clearDebugTextureOverride(unitIndex);
+		clearScalarOverridesForUnit(mesh, unitIndex);
+	}
+	else
+	{
+		// Normal-map units get flat tangent-space normal (0,0,1).
+		// Emissive unit gets black (0,0,0) so the ADS path (which overwrites the
+		// scalar directly from the sample) contributes nothing without needing a
+		// bool-uniform override. PBR is covered by emissiveStrength=0 scalar.
+		// All other units get neutral white (1,1,1).
+		const bool isNormalUnit   = (unitIndex == 13 || unitIndex == 20);
+		const bool isEmissiveUnit = (unitIndex == 12);
+		const GLuint replaceTex = isNormalUnit   ? _debugNormalTex :
+		                          isEmissiveUnit ? _debugBlackTex  : _debugNeutralTex;
+		mesh->setDebugTextureOverride(unitIndex, replaceTex);
+		setScalarOverridesForUnit(mesh, unitIndex);
+	}
+	update();
+}
+
+void GLWidget::clearDebugTextureOverrides(int meshId)
+{
+	if (meshId >= 0 && meshId < static_cast<int>(_meshStore.size()) && _meshStore[meshId])
+		_meshStore[meshId]->clearAllDebugTextureOverrides();
+	update();
+}
+
+void GLWidget::clearAllDebugOverrides(int meshId)
+{
+	if (meshId >= 0 && meshId < static_cast<int>(_meshStore.size()) && _meshStore[meshId])
+	{
+		TriangleMesh* mesh = _meshStore[meshId];
+		mesh->clearAllDebugTextureOverrides();
+		mesh->clearAllDebugUniformOverrides();
+		// Re-write the current global channel so debugChannelOutput stays consistent
+		// after the override map was wiped.  If the panel is closing, the caller
+		// follows up with setGlobalDebugChannel(0) which resets all meshes.
+		mesh->setDebugUniformOverride("debugChannelOutput",
+		    QVariant::fromValue<int>(_globalDebugChannel));
+		mesh->markUniformsDirty();
+	}
+	update();
+}
+
+// ---------------------------------------------------------------------------
+// applyDebugTextureState
+// ---------------------------------------------------------------------------
+// Full-state replacement for the per-toggle setDebugTextureEnabled path.
+// Called by TextureDebugPanel whenever any checkbox changes so the entire
+// enabled/disabled set can be evaluated at once.
+// NOTE: does NOT touch debugChannelOutput — that uniform is owned exclusively
+// by setGlobalDebugChannel.
+void GLWidget::applyDebugTextureState(int meshId,
+                                       const QSet<int>& enabledUnits,
+                                       const QSet<int>& allUnits)
+{
+	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+		return;
+	TriangleMesh* mesh = _meshStore[meshId];
+
+	// All textures active → clear all per-mesh overrides; no replacements needed.
+	if (enabledUnits == allUnits)
+	{
+		for (int unit : allUnits)
+		{
+			mesh->clearDebugTextureOverride(unit);
+			clearScalarOverridesForUnit(mesh, unit);
+		}
+		mesh->markUniformsDirty();
+		update();
+		return;
+	}
+
+	// Partial selection: replace disabled slots with neutral textures.
+	for (int unit : allUnits)
+	{
+		if (enabledUnits.contains(unit))
+		{
+			mesh->clearDebugTextureOverride(unit);
+			clearScalarOverridesForUnit(mesh, unit);
+		}
+		else
+		{
+			const bool isNormalUnit   = (unit == 13 || unit == 20);
+			const bool isEmissiveUnit = (unit == 12);
+			const GLuint replaceTex = isNormalUnit   ? _debugNormalTex :
+			                          isEmissiveUnit ? _debugBlackTex  : _debugNeutralTex;
+			mesh->setDebugTextureOverride(unit, replaceTex);
+			setScalarOverridesForUnit(mesh, unit);
+		}
+	}
+	mesh->markUniformsDirty();
+	update();
+}
+
+// ---------------------------------------------------------------------------
+// setGlobalDebugChannel
+// ---------------------------------------------------------------------------
+// Activates or clears single-channel isolation for the channel dropdown.
+// Applied to every mesh in _meshStore — no mesh selection required.
+// channelId == 0 restores normal rendering on all meshes.
+void GLWidget::setGlobalDebugChannel(int channelId)
+{
+	_globalDebugChannel = channelId;
+	makeCurrent();
+	for (TriangleMesh* mesh : _meshStore)
+	{
+		if (!mesh) continue;
+		if (channelId != 0)
+		{
+			// Channel isolation must ignore all checkbox/extension override state.
+			// Clear every per-mesh debug override first, then install only the
+			// requested debugChannelOutput override below.
+			mesh->clearAllDebugTextureOverrides();
+			mesh->clearAllDebugUniformOverrides();
+		}
+		mesh->setDebugUniformOverride("debugChannelOutput",
+		    QVariant::fromValue<int>(channelId));
+		mesh->markUniformsDirty();
+	}
+	doneCurrent();
+	update();
+}
+
+// ---------------------------------------------------------------------------
+// setDebugExtensionEnabled / clearDebugExtensionOverrides
+// ---------------------------------------------------------------------------
+// Extension key → { float uniform overrides, vec3 uniform overrides, texture units }
+namespace
+{
+struct ExtOverrideDef
+{
+	QVector<QPair<QString, float>>      floatUniforms;
+	QVector<QPair<QString, QVector3D>>  vec3Uniforms;
+	QVector<QPair<QString, bool>>       boolUniforms;
+	QVector<int>                        textureUnits;
+};
+
+const QMap<QString, ExtOverrideDef>& extensionOverrideDefs()
+{
+	// Build once, return by const ref.  Uses explicit qMakePair everywhere
+	// to avoid MSVC brace-init ambiguity with QPair<QString,T> from const char*.
+	static QMap<QString, ExtOverrideDef> defs;
+	if (!defs.isEmpty())
+		return defs;
+
+	// Sheen
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.sheenRoughness"), 0.0f);
+		d.vec3Uniforms  << qMakePair(QString("pbrLighting.sheenColor"),     QVector3D(0,0,0));
+		d.textureUnits  << 26 << 27;
+		defs["Sheen"] = d;
+	}
+	// Clearcoat
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.clearcoat"), 0.0f);
+		d.textureUnits  << 18 << 19 << 20;
+		defs["Clearcoat"] = d;
+	}
+	// Iridescence
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.iridescenceFactor"), 0.0f);
+		d.textureUnits  << 24 << 25;
+		defs["Iridescence"] = d;
+	}
+	// Volume / SSS
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.thicknessFactor"), 0.0f);
+		d.textureUnits  << 30;
+		defs["Volume / SSS"] = d;
+	}
+	// Specular
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.specularFactor"), 0.0f);
+		d.textureUnits  << 21 << 22;
+		defs["Specular"] = d;
+	}
+	// Anisotropy
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.anisotropyStrength"), 0.0f);
+		d.textureUnits  << 23;
+		defs["Anisotropy"] = d;
+	}
+	// Transmission
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.transmission"), 0.0f);
+		d.textureUnits  << 28;
+		defs["Transmission"] = d;
+	}
+	// Diffuse Transmission
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.diffuseTransmissionFactor"), 0.0f);
+		d.textureUnits  << 34 << 35;
+		defs["Diffuse Transmission"] = d;
+	}
+	// IOR — revert to glTF default (1.5) when disabled
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.ior"), 1.5f);
+		d.textureUnits  << 29;
+		defs["IOR"] = d;
+	}
+	// Emissive Strength — revert to neutral multiplier (1.0) when disabled
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.emissiveStrength"), 1.0f);
+		defs["Emissive Strength"] = d;
+	}
+	// Dispersion — zero out chromatic dispersion when disabled
+	{
+		ExtOverrideDef d;
+		d.floatUniforms << qMakePair(QString("pbrLighting.dispersion"), 0.0f);
+		defs["Dispersion"] = d;
+	}
+	// Volume Scattering — disable the Burley SSS pass when disabled
+	{
+		ExtOverrideDef d;
+		d.boolUniforms << qMakePair(QString("hasVolumeScattering"), false);
+		defs["Volume Scattering"] = d;
+	}
+	return defs;
+}
+} // anonymous namespace
+
+void GLWidget::setDebugExtensionEnabled(int meshId, const QString& extensionKey, bool enabled)
+{
+	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+		return;
+
+	TriangleMesh* mesh = _meshStore[meshId];
+	const auto& defs = extensionOverrideDefs();
+	auto it = defs.constFind(extensionKey);
+	if (it == defs.constEnd())
+		return;
+
+	const ExtOverrideDef& def = it.value();
+
+	if (enabled)
+	{
+		// Remove overrides; force uniforms to re-run so originals are restored.
+		for (const auto& kv : def.floatUniforms)
+			mesh->clearDebugUniformOverride(kv.first);
+		for (const auto& kv : def.vec3Uniforms)
+			mesh->clearDebugUniformOverride(kv.first);
+		for (const auto& kv : def.boolUniforms)
+			mesh->clearDebugUniformOverride(kv.first);
+		for (int unit : def.textureUnits)
+			mesh->clearDebugTextureOverride(unit);
+		mesh->markUniformsDirty();
+	}
+	else
+	{
+		// Suppress the extension's contribution via uniform overrides.
+		for (const auto& kv : def.floatUniforms)
+			mesh->setDebugUniformOverride(kv.first, QVariant::fromValue<float>(kv.second));
+		for (const auto& kv : def.vec3Uniforms)
+			mesh->setDebugUniformOverride(kv.first, QVariant::fromValue(kv.second));
+		for (const auto& kv : def.boolUniforms)
+			mesh->setDebugUniformOverride(kv.first, QVariant::fromValue<bool>(kv.second));
+		// Neutral-bind the extension's texture units.
+		for (int unit : def.textureUnits)
+		{
+			const bool isNormalUnit = (unit == 13 || unit == 20);
+			mesh->setDebugTextureOverride(unit, isNormalUnit ? _debugNormalTex : _debugNeutralTex);
+		}
+	}
+	update();
+}
+
+void GLWidget::clearDebugExtensionOverrides(int meshId)
+{
+	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+		return;
+
+	TriangleMesh* mesh = _meshStore[meshId];
+	mesh->clearAllDebugUniformOverrides();
+	mesh->markUniformsDirty();
+	update();
+}
+
+// ---------------------------------------------------------------------------
+// requestTextureReadback
+// Reads back every per-mesh texture slot for the given _meshStore index and
+// emits textureReadbackReady() with one TextureSlotInfo per slot.
+// Inactive slots (textureId == 0) are included with isActive = false and a
+// null thumbnail so the debug panel can show a placeholder if desired.
+// ---------------------------------------------------------------------------
+void GLWidget::requestTextureReadback(int meshId)
+{
+	if (meshId < 0 || meshId >= static_cast<int>(_meshStore.size()) || !_meshStore[meshId])
+	{
+		emit textureReadbackReady({}, {});
+		return;
+	}
+
+	makeCurrent();
+
+	TriangleMesh*    mesh    = _meshStore[meshId];
+	const GLMaterial& mat    = mesh->getMaterial();
+	const QString    meshName = mesh->getName();
+
+	// baseColorTex mirrors the logic in TriangleMesh::setupTextures() so the
+	// debug panel shows what is actually bound on unit 10.
+	const GLuint baseColorTex = mat.hasAlbedoMap()
+		? static_cast<GLuint>(mat.albedoTextureId())
+		: (mat.hasDiffuseMap() ? static_cast<GLuint>(mat.diffuseTextureId()) : 0U);
+
+	// Pre-compute extension active flags from the material.
+	// These are true whenever the KHR extension is in use — even if no texture
+	// is bound (e.g. sheen colour factor set but no sheen texture).
+	// specularFactor defaults to 1.0 in glTF, so we consider KHR_materials_specular
+	// active when it deviates from the default or a specular texture is present.
+	const bool extSheen      = mat.hasSheen()
+	                           || mat.hasSheenColorMap()
+	                           || mat.hasSheenRoughnessMap();
+	const bool extClearcoat  = mat.hasClearcoat()
+	                           || mat.hasClearcoatColorMap()
+	                           || mat.hasClearcoatRoughnessMap()
+	                           || mat.hasClearcoatNormalMap();
+	const bool extIridescence= mat.iridescenceFactor() > 0.0f
+	                           || mat.hasIridescenceMap()
+	                           || mat.hasIridescenceThicknessMap();
+	const bool extVolume     = mat.hasVolumeScattering()
+	                           || mat.thicknessFactor() > 0.0f
+	                           || mat.hasThicknessMap();
+	const bool extSpecular   = mat.hasSpecularFactorMap() || mat.hasSpecularColorMap()
+	                           || mat.specularFactor() != 1.0f
+	                           || mat.specularColorFactor() != QVector3D(1.0f, 1.0f, 1.0f);
+	const bool extAnisotropy = mat.anisotropyStrength() != 0.0f || mat.hasAnisotropyMap();
+	const bool extTransmission = mat.hasTransmission()
+	                             || mat.hasTransmissionMap();
+	const bool extDiffuseTrans = mat.diffuseTransmissionFactor() > 0.0f
+	                             || mat.hasDiffuseTransmissionMap()
+	                             || mat.hasDiffuseTransmissionColorMap();
+	// IOR defaults to 1.5 for every material (glTF spec) so mat.ior() > 0 is
+	// always true.  Use deviation from 1.5 (explicit extension value) or a
+	// texture as the activity signal; scalar marker slot 203 carries this flag.
+	const bool extIOR          = mat.hasIORMap();                      // real unit 29
+	const bool extIORScalar    = (mat.ior() != 1.5f) || mat.hasIORMap(); // marker unit 203
+
+	struct SlotDef
+	{
+		QString name;
+		int     unit;
+		GLuint  texId;
+		bool    extEnabled;   // parent KHR extension is active (with or without texture)
+	};
+
+	const QVector<SlotDef> defs = {
+		{ "albedo / diffuse",         10, baseColorTex,                                                                                    false          },
+		{ "metallicMap",              11, mat.hasMetallicMap()            ? static_cast<GLuint>(mat.metallicTextureId())            : 0U,  false          },
+		{ "emissiveMap",              12, mat.hasEmissiveMap()             ? static_cast<GLuint>(mat.emissiveTextureId())             : 0U, false          },
+		{ "normalMap",                13, mat.hasNormalMap()               ? static_cast<GLuint>(mat.normalTextureId())               : 0U, false          },
+		{ "heightMap",                14, mat.hasHeightMap()               ? static_cast<GLuint>(mat.heightTextureId())               : 0U, false          },
+		{ "opacityMap",               15, mat.hasOpacityMap()              ? static_cast<GLuint>(mat.opacityTextureId())              : 0U, false          },
+		{ "roughnessMap",             16, mat.hasRoughnessMap()            ? static_cast<GLuint>(mat.roughnessTextureId())            : 0U, false          },
+		{ "aoMap",                    17, mat.hasAOMap()                   ? static_cast<GLuint>(mat.occlusionTextureId())            : 0U, false          },
+		{ "clearcoatColorMap",        18, mat.hasClearcoatColorMap()       ? static_cast<GLuint>(mat.clearcoatColorTextureId())       : 0U, extClearcoat   },
+		{ "clearcoatRoughnessMap",    19, mat.hasClearcoatRoughnessMap()   ? static_cast<GLuint>(mat.clearcoatRoughnessTextureId())   : 0U, extClearcoat   },
+		{ "clearcoatNormalMap",       20, mat.hasClearcoatNormalMap()      ? static_cast<GLuint>(mat.clearcoatNormalTextureId())      : 0U, extClearcoat   },
+		{ "specularFactorMap",        21, mat.hasSpecularFactorMap()       ? static_cast<GLuint>(mat.specularFactorTextureId())       : 0U, extSpecular    },
+		{ "specularColorMap",         22, mat.hasSpecularColorMap()        ? static_cast<GLuint>(mat.specularColorTextureId())        : 0U, extSpecular    },
+		{ "anisotropyMap",            23, mat.hasAnisotropyMap()           ? static_cast<GLuint>(mat.anisotropyTextureId())           : 0U, extAnisotropy  },
+		{ "iridescenceMap",           24, mat.hasIridescenceMap()          ? static_cast<GLuint>(mat.iridescenceTextureId())          : 0U, extIridescence },
+		{ "iridescenceThicknessMap",  25, mat.hasIridescenceThicknessMap() ? static_cast<GLuint>(mat.iridescenceThicknessTextureId()) : 0U, extIridescence },
+		{ "sheenColorMap",            26, mat.hasSheenColorMap()           ? static_cast<GLuint>(mat.sheenColorTextureId())           : 0U, extSheen       },
+		{ "sheenRoughnessMap",        27, mat.hasSheenRoughnessMap()       ? static_cast<GLuint>(mat.sheenRoughnessTextureId())       : 0U, extSheen       },
+		{ "transmissionMap",          28, mat.hasTransmissionMap()         ? static_cast<GLuint>(mat.transmissionTextureId())         : 0U, extTransmission},
+		{ "iorMap",                   29, mat.hasIORMap()                  ? static_cast<GLuint>(mat.iorTextureId())                  : 0U, extIOR         },
+		{ "diffuseTransmissionMap",   34, mat.hasDiffuseTransmissionMap()  ? static_cast<GLuint>(mat.diffuseTransmissionTextureId())  : 0U, extDiffuseTrans},
+		{ "diffuseTransmissionColor", 35, mat.hasDiffuseTransmissionColorMap() ? static_cast<GLuint>(mat.diffuseTransmissionColorTextureId()) : 0U, extDiffuseTrans},
+		{ "thicknessMap",             30, mat.hasThicknessMap()            ? static_cast<GLuint>(mat.thicknessTextureId())            : 0U, extVolume      },
+		// Scalar-activity markers (units 200-203): no real GL texture — used only
+		// to drive the extension-panel activity dot for extensions that have no
+		// dedicated texture slot.  isMarker is set to true in the loop below.
+		{ "ior",                     203, 0U, extIORScalar                                       },
+		{ "emissiveStrength",        200, 0U, mat.emissiveStrength() != 1.0f                     },
+		{ "dispersion",              201, 0U, mat.dispersion() > 0.0f                            },
+		{ "volumeScattering",        202, 0U, mat.hasVolumeScattering()                          },
+	};
+
+	constexpr int ThumbSize = 64;
+	QVector<TextureSlotInfo> result;
+	result.reserve(defs.size());
+
+	for (const auto& d : defs)
+	{
+		TextureSlotInfo info;
+		info.slotName         = d.name;
+		info.unitIndex        = d.unit;
+		info.textureId        = d.texId;
+		info.isActive         = (d.texId != 0U);
+		info.extensionEnabled = d.extEnabled;
+		info.isMarker         = (d.unit >= 200);   // scalar-activity markers have no real GL unit
+
+		if (info.isActive)
+		{
+			glBindTexture(GL_TEXTURE_2D, d.texId);
+			GLint w = 0, h = 0;
+			glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_WIDTH,  &w);
+			glGetTexLevelParameteriv(GL_TEXTURE_2D, 0, GL_TEXTURE_HEIGHT, &h);
+
+			if (w > 0 && h > 0)
+			{
+				QByteArray buf(w * h * 4, '\0');
+				glGetTexImage(GL_TEXTURE_2D, 0, GL_RGBA, GL_UNSIGNED_BYTE,
+				              reinterpret_cast<void*>(buf.data()));
+				QImage img(reinterpret_cast<const uchar*>(buf.constData()),
+				           w, h, w * 4, QImage::Format_RGBA8888);
+				// Deep-copy before the buffer goes out of scope
+				info.thumbnail = QPixmap::fromImage(
+				    img.copy().scaled(ThumbSize, ThumbSize,
+				                     Qt::KeepAspectRatio, Qt::SmoothTransformation));
+			}
+		}
+
+		result.push_back(std::move(info));
+	}
+
+	doneCurrent();
+	emit textureReadbackReady(result, meshName);
 }

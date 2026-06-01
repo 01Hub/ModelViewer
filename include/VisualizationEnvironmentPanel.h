@@ -47,9 +47,7 @@ signals:
 
 public slots:
 	// ===== Light Color Buttons =====
-	void onLightAmbientClicked();
-	void onLightDiffuseClicked();
-	void onLightSpecularClicked();
+	void onLightColorClicked();
 	void onDefaultLightsClicked();
 
 	// ===== Light Position Sliders =====

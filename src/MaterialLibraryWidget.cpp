@@ -13,6 +13,7 @@
 #include <QSysInfo>
 #include <QSaveFile>
 #include <QMessageBox>
+#include <QKeyEvent>
 #include "PathUtils.h"
 
 
@@ -148,6 +149,9 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget* parent)
 			emit materialSelected(GLMaterial::DEFAULT_MAT());
 		});
 
+	// Apply the currently selected material with the spacebar.
+	// This mirrors the double-click behavior for keyboard users.
+	setFocusPolicy(Qt::StrongFocus);
 
 	// connect when user hovers over an item
 	connect(this, &QTreeWidget::itemEntered,
@@ -156,6 +160,27 @@ MaterialLibraryWidget::MaterialLibraryWidget(QWidget* parent)
 	connect(&MaterialRegistry::instance(), &MaterialRegistry::materialsChanged,
 		this, &MaterialLibraryWidget::populateMaterials);
 
+}
+
+void MaterialLibraryWidget::keyPressEvent(QKeyEvent* event)
+{
+	if (event && event->key() == Qt::Key_Space)
+	{
+		QList<QTreeWidgetItem*> sel = selectedItems();
+		if (!sel.isEmpty())
+		{
+			QTreeWidgetItem* item = sel.first();
+			QString key = item->data(0, Qt::UserRole).toString();
+			if (!key.isEmpty() && MaterialLibraryWidget::s_materialMap.contains(key))
+				emit materialSelected(MaterialLibraryWidget::s_materialMap[key]());
+			else
+				emit materialSelected(GLMaterial::DEFAULT_MAT());
+		}
+		event->accept();
+		return;
+	}
+
+	QTreeWidget::keyPressEvent(event);
 }
 
 void MaterialLibraryWidget::deleteSelectedMaterial()

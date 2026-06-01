@@ -12,8 +12,7 @@
 
 TriangleMesh::TriangleMesh(QOpenGLShaderProgram* prog, const QString name) : Drawable(prog),
 _nVerts(0),
-_texture(0),
-_hasTexture(false),
+_fallbackTexture(0),
 _sMax(1),
 _tMax(1),
 _hasTextureAlpha(false),
@@ -56,16 +55,15 @@ _baseAttenuationDistance(std::numeric_limits<float>::infinity())
 	_jointWeightBuffer.create();
 
 	_vertexArrayObject.create();
-		
+
 	QImage dummy(128, 128, QImage::Format_ARGB32);
 	dummy.fill(Qt::white);
-	_texBuffer = dummy;
-	_texImage = convertToGLFormat(_texBuffer);
+	_fallbackTextureBuffer = dummy;
+	_fallbackTextureImage = convertToGLFormat(_fallbackTextureBuffer);
 
-	glGenTextures(1, &_texture);
-	//std::cout << "TriangleMesh::TriangleMesh : _texture = " << _texture << std::endl;
+	glGenTextures(1, &_fallbackTexture);
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _texture);
+	glBindTexture(GL_TEXTURE_2D, _fallbackTexture);
 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
@@ -82,9 +80,11 @@ void TriangleMesh::cacheBaseVolumeProperties()
 
 void TriangleMesh::applyScaledVolumeProperties()
 {
-	const float appliedScale = (_scaleX + _scaleY + _scaleZ) / 3.0f;
-	_material.setThicknessFactor(_baseThicknessFactor * appliedScale);
-	_material.setAttenuationDistance(_baseAttenuationDistance * appliedScale);
+	// Runtime mesh scaling is already applied in the shader through modelMatrix
+	// when evaluating volume thickness/refraction. Keep the authored material
+	// values here to avoid double-applying user scale on the CPU.
+	_material.setThicknessFactor(_baseThicknessFactor);
+	_material.setAttenuationDistance(_baseAttenuationDistance);
 }
 
 void TriangleMesh::initBuffers(
@@ -107,8 +107,34 @@ void TriangleMesh::initBuffers(
 	_trsfPoints = _points;
 	_normals = *normals;
 	_trsfNormals = _normals;
-	_trsfTangents.clear();  
+	_trsfTangents.clear();
 	_trsfBitangents.clear();
+
+	// Compute the local-space bounding box from the raw (untransformed) points.
+	// This is used by setSceneRenderTransformFast() to cheaply keep _boundingBox
+	// correct for animated meshes without re-transforming every vertex.
+	if (!_points.empty())
+	{
+		float lxMin =  std::numeric_limits<float>::max();
+		float lyMin =  std::numeric_limits<float>::max();
+		float lzMin =  std::numeric_limits<float>::max();
+		float lxMax = -std::numeric_limits<float>::max();
+		float lyMax = -std::numeric_limits<float>::max();
+		float lzMax = -std::numeric_limits<float>::max();
+		for (size_t i = 0; i < _points.size(); i += 3)
+		{
+			lxMin = std::min(lxMin, _points[i]);
+			lyMin = std::min(lyMin, _points[i + 1]);
+			lzMin = std::min(lzMin, _points[i + 2]);
+			lxMax = std::max(lxMax, _points[i]);
+			lyMax = std::max(lyMax, _points[i + 1]);
+			lzMax = std::max(lzMax, _points[i + 2]);
+		}
+		_localBoundingBox.setLimits(
+			static_cast<double>(lxMin), static_cast<double>(lxMax),
+			static_cast<double>(lyMin), static_cast<double>(lyMax),
+			static_cast<double>(lzMin), static_cast<double>(lzMax));
+	}
 
 	// build the triangles for selection
 	buildTriangles();
@@ -461,48 +487,47 @@ void TriangleMesh::setProg(QOpenGLShaderProgram* prog)
 
 void TriangleMesh::setupTextures()
 {
-	const GLuint adsDiffuseTex = _material.hasAlbedoMap()
+	const bool hasClearcoatColorTex = _material.hasClearcoatColorMap() || _material.clearcoatColorTextureId() != 0;
+	const bool hasClearcoatRoughnessTex = _material.hasClearcoatRoughnessMap() || _material.clearcoatRoughnessTextureId() != 0;
+	const bool hasClearcoatNormalTex = _material.hasClearcoatNormalMap() || _material.clearcoatNormalTextureId() != 0;
+	const bool hasSpecularFactorTex = _material.hasSpecularFactorMap() || _material.specularFactorTextureId() != 0;
+	const bool hasSpecularColorTex = _material.hasSpecularColorMap() || _material.specularColorTextureId() != 0;
+	const bool hasAnisotropyTex = _material.hasAnisotropyMap() || _material.anisotropyTextureId() != 0;
+	const bool hasIridescenceTex = _material.hasIridescenceMap() || _material.iridescenceTextureId() != 0;
+	const bool hasIridescenceThicknessTex = _material.hasIridescenceThicknessMap() || _material.iridescenceThicknessTextureId() != 0;
+	const bool hasSheenColorTex = _material.hasSheenColorMap() || _material.sheenColorTextureId() != 0;
+	const bool hasSheenRoughnessTex = _material.hasSheenRoughnessMap() || _material.sheenRoughnessTextureId() != 0;
+	const bool hasTransmissionTex = _material.hasTransmissionMap() || _material.transmissionTextureId() != 0;
+	const bool hasIORTex = _material.hasIORMap() || _material.iorTextureId() != 0;
+	const bool hasThicknessTex = _material.hasThicknessMap() || _material.thicknessTextureId() != 0;
+	const bool hasDiffuseTransmissionTex = _material.hasDiffuseTransmissionMap() || _material.diffuseTransmissionTextureId() != 0;
+	const bool hasDiffuseTransmissionColorTex = _material.hasDiffuseTransmissionColorMap() || _material.diffuseTransmissionColorTextureId() != 0;
+
+	// Unit 10 is shared by three shader paths — ADS (texture_diffuse / texture_specular /
+	// etc.), PBR metallic-roughness (albedoMap), and PBR specular-glossiness (diffuseMap) —
+	// all of which sample unit 10 for the base/diffuse/albedo colour.
+	// Fall back to the legacy diffuse texture for specular-glossiness materials that carry
+	// hasDiffuseMap but not hasAlbedoMap; using only hasAlbedoMap here would leave unit 10
+	// as 0 and black out the diffuse colour for those materials.
+	const GLuint baseColorTex = _material.hasAlbedoMap()
 		? static_cast<GLuint>(_material.albedoTextureId())
 		: (_material.hasDiffuseMap() ? _material.diffuseTextureId() : 0U);
-	const GLuint adsSpecularTex = _material.hasMetallicMap()
-		? static_cast<GLuint>(_material.metallicTextureId()) : 0U;
-	const GLuint adsEmissiveTex = _material.hasEmissiveMap()
-		? static_cast<GLuint>(_material.emissiveTextureId()) : 0U;
-	const GLuint adsNormalTex = _material.hasNormalMap()
-		? static_cast<GLuint>(_material.normalTextureId()) : 0U;
-	const GLuint adsHeightTex = _material.hasHeightMap()
-		? static_cast<GLuint>(_material.heightTextureId()) : 0U;
-	const GLuint adsOpacityTex = _material.hasOpacityMap()
-		? static_cast<GLuint>(_material.opacityTextureId()) : 0U;
 
 	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _texture);
-	// Only re-upload texture data when it has actually changed — avoids a full
-	// glTexImage2D + mipmap regeneration every frame for every mesh.
-	if (_textureBindingsDirty && !_texImage.isNull())
+	glBindTexture(GL_TEXTURE_2D, _fallbackTexture);
+	if (_textureBindingsDirty && !_fallbackTextureImage.isNull())
 	{
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _fallbackTextureImage.width(), _fallbackTextureImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _fallbackTextureImage.bits());
 		glGenerateMipmap(GL_TEXTURE_2D);
 		_textureBindingsDirty = false;
 	}
 
-	// ADS light texture maps
+	// Texture maps (units 10–17): single unified bind — serves ADS, PBR metallic-roughness,
+	// and PBR specular-glossiness simultaneously.  Previously there were two consecutive bind
+	// blocks for the same units (ADS then PBR), with the PBR block overwriting the ADS one;
+	// the ADS-only block obscured the specular-glossiness bug and has been removed.
 	glActiveTexture(GL_TEXTURE10);
-	glBindTexture(GL_TEXTURE_2D, adsDiffuseTex);
-	glActiveTexture(GL_TEXTURE11);
-	glBindTexture(GL_TEXTURE_2D, adsSpecularTex);
-	glActiveTexture(GL_TEXTURE12);
-	glBindTexture(GL_TEXTURE_2D, adsEmissiveTex);
-	glActiveTexture(GL_TEXTURE13);
-	glBindTexture(GL_TEXTURE_2D, adsNormalTex);
-	glActiveTexture(GL_TEXTURE14);
-	glBindTexture(GL_TEXTURE_2D, adsHeightTex);
-	glActiveTexture(GL_TEXTURE15);
-	glBindTexture(GL_TEXTURE_2D, adsOpacityTex);
-
-	// PBR light texture maps
-	glActiveTexture(GL_TEXTURE10);
-	glBindTexture(GL_TEXTURE_2D, _material.hasAlbedoMap() ? static_cast<GLuint>(_material.albedoTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, baseColorTex);
 	glActiveTexture(GL_TEXTURE11);
 	glBindTexture(GL_TEXTURE_2D, _material.hasMetallicMap() ? static_cast<GLuint>(_material.metallicTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE12);
@@ -518,48 +543,67 @@ void TriangleMesh::setupTextures()
 	glActiveTexture(GL_TEXTURE17);
 	glBindTexture(GL_TEXTURE_2D, _material.hasAOMap() ? static_cast<GLuint>(_material.occlusionTextureId()) : 0U);
 	
-	// Advanced PBR maps
+	// Mesh-owned material block (units 10–29). These are the feature-complete
+	// material slots we keep inside the guaranteed 0..31 range.
 	glActiveTexture(GL_TEXTURE18);
-	glBindTexture(GL_TEXTURE_2D, _material.hasTransmissionMap() ? static_cast<GLuint>(_material.transmissionTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasClearcoatColorTex ? static_cast<GLuint>(_material.clearcoatColorTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE19);
-	glBindTexture(GL_TEXTURE_2D, _material.hasIORMap() ? static_cast<GLuint>(_material.iorTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasClearcoatRoughnessTex ? static_cast<GLuint>(_material.clearcoatRoughnessTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE20);
-	glBindTexture(GL_TEXTURE_2D, _material.hasSheenColorMap() ? static_cast<GLuint>(_material.sheenColorTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasClearcoatNormalTex ? static_cast<GLuint>(_material.clearcoatNormalTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE21);
-	glBindTexture(GL_TEXTURE_2D, _material.hasSheenRoughnessMap() ? static_cast<GLuint>(_material.sheenRoughnessTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasSpecularFactorTex ? static_cast<GLuint>(_material.specularFactorTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE22);
-	glBindTexture(GL_TEXTURE_2D, _material.hasClearcoatColorMap() ? static_cast<GLuint>(_material.clearcoatColorTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasSpecularColorTex ? static_cast<GLuint>(_material.specularColorTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE23);
-	glBindTexture(GL_TEXTURE_2D, _material.hasClearcoatRoughnessMap() ? static_cast<GLuint>(_material.clearcoatRoughnessTextureId()) : 0U);
+	glBindTexture(GL_TEXTURE_2D, hasAnisotropyTex ? static_cast<GLuint>(_material.anisotropyTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE24);
-	glBindTexture(GL_TEXTURE_2D, _material.hasClearcoatNormalMap() ? static_cast<GLuint>(_material.clearcoatNormalTextureId()) : 0U);
-
-	// KHR extension maps (units 25–31, 9)
-	// These are stored only in _material, not in dedicated member variables.
-	// Bind them directly so hasXxxMap=true in the shader actually reads the
-	// correct texture rather than whatever happened to be at those units.
+	glBindTexture(GL_TEXTURE_2D, hasIridescenceTex ? static_cast<GLuint>(_material.iridescenceTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE25);
-	glBindTexture(GL_TEXTURE_2D, _material.specularFactorTextureId());
+	glBindTexture(GL_TEXTURE_2D, hasIridescenceThicknessTex ? static_cast<GLuint>(_material.iridescenceThicknessTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE26);
-	glBindTexture(GL_TEXTURE_2D, _material.specularColorTextureId());
+	glBindTexture(GL_TEXTURE_2D, hasSheenColorTex ? static_cast<GLuint>(_material.sheenColorTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE27);
-	glBindTexture(GL_TEXTURE_2D, _material.anisotropyTextureId());
+	glBindTexture(GL_TEXTURE_2D, hasSheenRoughnessTex ? static_cast<GLuint>(_material.sheenRoughnessTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE28);
-	glBindTexture(GL_TEXTURE_2D, _material.iridescenceTextureId());
+	glBindTexture(GL_TEXTURE_2D, hasTransmissionTex ? static_cast<GLuint>(_material.transmissionTextureId()) : 0U);
 	glActiveTexture(GL_TEXTURE29);
-	glBindTexture(GL_TEXTURE_2D, _material.iridescenceThicknessTextureId());
-	glActiveTexture(GL_TEXTURE30);
-	glBindTexture(GL_TEXTURE_2D, _material.thicknessTextureId());
-	glActiveTexture(GL_TEXTURE31);
-	glBindTexture(GL_TEXTURE_2D, _material.diffuseTransmissionTextureId());
-	glActiveTexture(GL_TEXTURE9);
-	glBindTexture(GL_TEXTURE_2D, _material.diffuseTransmissionColorTextureId());
+	glBindTexture(GL_TEXTURE_2D, hasIORTex ? static_cast<GLuint>(_material.iorTextureId()) : 0U);
+
+	// Overflow material bundles (units 34+).
+	if (hasDiffuseTransmissionTex) {
+		glActiveTexture(GL_TEXTURE0 + 34);
+		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.diffuseTransmissionTextureId()));
+	}
+	if (hasDiffuseTransmissionColorTex) {
+		glActiveTexture(GL_TEXTURE0 + 35);
+		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.diffuseTransmissionColorTextureId()));
+	}
+	if (hasThicknessTex) {
+		glActiveTexture(GL_TEXTURE30);
+		glBindTexture(GL_TEXTURE_2D, static_cast<GLuint>(_material.thicknessTextureId()));
+	}
 }
 
 void TriangleMesh::setupUniforms()
 {
 	if (!_uniformsDirty) return;
 	_prog->bind();
+	const bool hasTransmissionTex = _material.hasTransmissionMap() || _material.transmissionTextureId() != 0;
+	const bool hasIORTex = _material.hasIORMap() || _material.iorTextureId() != 0;
+	const bool hasSheenColorTex = _material.hasSheenColorMap() || _material.sheenColorTextureId() != 0;
+	const bool hasSheenRoughnessTex = _material.hasSheenRoughnessMap() || _material.sheenRoughnessTextureId() != 0;
+	const bool hasClearcoatColorTex = _material.hasClearcoatColorMap() || _material.clearcoatColorTextureId() != 0;
+	const bool hasClearcoatRoughnessTex = _material.hasClearcoatRoughnessMap() || _material.clearcoatRoughnessTextureId() != 0;
+	const bool hasClearcoatNormalTex = _material.hasClearcoatNormalMap() || _material.clearcoatNormalTextureId() != 0;
+	const bool hasSpecularFactorTex = _material.hasSpecularFactorMap() || _material.specularFactorTextureId() != 0;
+	const bool hasSpecularColorTex = _material.hasSpecularColorMap() || _material.specularColorTextureId() != 0;
+	const bool hasAnisotropyTex = _material.hasAnisotropyMap() || _material.anisotropyTextureId() != 0;
+	const bool hasIridescenceTex = _material.hasIridescenceMap() || _material.iridescenceTextureId() != 0;
+	const bool hasIridescenceThicknessTex = _material.hasIridescenceThicknessMap() || _material.iridescenceThicknessTextureId() != 0;
+	const bool hasThicknessTex = _material.hasThicknessMap() || _material.thicknessTextureId() != 0;
+	const bool hasDiffuseTransmissionTex = _material.hasDiffuseTransmissionMap() || _material.diffuseTransmissionTextureId() != 0;
+	const bool hasDiffuseTransmissionColorTex = _material.hasDiffuseTransmissionColorMap() || _material.diffuseTransmissionColorTextureId() != 0;
 	GLint modeValue = 0;
 	switch (_primitiveMode)
 	{
@@ -575,10 +619,18 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("primitiveMode", modeValue);
 	_prog->setUniformValue("hasVertexColors", _hasVertexColors);
 	_prog->setUniformValue("hasNegativeScale", _hasNegativeScale);
-	_prog->setUniformValue("texEnabled", _hasTexture);
-	_prog->setUniformValue("texUnit", 0);
 	_prog->setUniformValue("material.ambient", _material.ambient());
-	_prog->setUniformValue("material.diffuse", _material.diffuse());
+	// For specular-glossiness materials the authoritative diffuse colour is
+	// diffuseColorFactor (stored in _diffuseColor / diffuseColor()), not the
+	// albedo-derived _diffuse.  Mirror the same logic used for diffuseFactor in
+	// the PBR path: use (1,1,1) when a diffuse texture is present (the texture
+	// provides the colour), otherwise use the factor directly.  Without this,
+	// ADS mode multiplies the correctly bound diffuse texture by the wrong colour
+	// and the specular-glossiness material renders black.
+	const QVector3D adsDiffuse = _material.getUseSpecularGlossiness()
+		? (_material.hasDiffuseMap() ? QVector3D(1.0f, 1.0f, 1.0f) : _material.diffuseColor())
+		: _material.diffuse();
+	_prog->setUniformValue("material.diffuse", adsDiffuse);
 	_prog->setUniformValue("material.specular", _material.specular());
 	_prog->setUniformValue("material.emission", _material.emissive());
 	_prog->setUniformValue("material.shininess", _material.shininess());
@@ -628,25 +680,59 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("opacityMap", 15);
 	_prog->setUniformValue("roughnessMap", 16);
 	_prog->setUniformValue("aoMap", 17);
+
+	// Upload channel-packing parameters so the shader reads the correct channel
+	// with the correct scale/bias from each packed texture (e.g. ORM: R=AO, G=roughness, B=metallic).
+	// GLMaterial initialises sensible defaults (roughness→G, metallic→B, AO→R, all scale=1)
+	// and detectAndAssignPacking() updates them when multiple maps share the same file.
+	// Without this upload the GLSL uniforms zero-initialise (scale=0) and texture
+	// contributions are silently discarded, making all textured materials appear roughness≈0.
+	{
+		const auto& rp = _material.packingFor("roughness");
+		_prog->setUniformValue("roughnessChannel", rp.channel);
+		_prog->setUniformValue("roughnessInvert",  (int)rp.invert);
+		_prog->setUniformValue("roughnessScale",   rp.scale);
+		_prog->setUniformValue("roughnessBias",    rp.bias);
+
+		const auto& mp = _material.packingFor("metallic");
+		_prog->setUniformValue("metallicChannel", mp.channel);
+		_prog->setUniformValue("metallicInvert",  (int)mp.invert);
+		_prog->setUniformValue("metallicScale",   mp.scale);
+		_prog->setUniformValue("metallicBias",    mp.bias);
+
+		const auto& ap = _material.packingFor("ao");
+		_prog->setUniformValue("aoChannel", ap.channel);
+		_prog->setUniformValue("aoInvert",  (int)ap.invert);
+		_prog->setUniformValue("aoScale",   ap.scale);
+		_prog->setUniformValue("aoBias",    ap.bias);
+
+		const auto& op = _material.packingFor("opacity");
+		_prog->setUniformValue("opacityChannel", op.channel);
+		_prog->setUniformValue("opacityInvert",  (int)op.invert);
+		_prog->setUniformValue("opacityScale",   op.scale);
+		_prog->setUniformValue("opacityBias",    op.bias);
+	}
 	// Advanced PBR Maps
-	_prog->setUniformValue("transmissionMap", 18);
-	_prog->setUniformValue("iorMap", 19);
-	_prog->setUniformValue("sheenColorMap", 20);
-	_prog->setUniformValue("sheenRoughnessMap", 21);
-	_prog->setUniformValue("clearcoatColorMap", 22);
-	_prog->setUniformValue("clearcoatRoughnessMap", 23);
-	_prog->setUniformValue("clearcoatNormalMap", 24);
+	_prog->setUniformValue("clearcoatColorMap", 18);
+	_prog->setUniformValue("clearcoatRoughnessMap", 19);
+	_prog->setUniformValue("clearcoatNormalMap", 20);
+	_prog->setUniformValue("specularFactorMap", 21);
+	_prog->setUniformValue("specularColorMap", 22);
+	_prog->setUniformValue("anisotropyMap", 23);
+	_prog->setUniformValue("iridescenceMap", 24);
+	_prog->setUniformValue("iridescenceThicknessMap", 25);
+	_prog->setUniformValue("sheenColorMap", 26);
+	_prog->setUniformValue("sheenRoughnessMap", 27);
+	_prog->setUniformValue("transmissionMap", 28);
+	_prog->setUniformValue("iorMap", 29);
 
 	// KHR_materials_specular
-	_prog->setUniformValue("specularFactorMap", 25);
-	_prog->setUniformValue("hasSpecularFactorMap", _material.hasSpecularFactorMap());
-
-	_prog->setUniformValue("specularColorMap", 26);
-	_prog->setUniformValue("hasSpecularColorMap", _material.hasSpecularColorMap());
+	_prog->setUniformValue("hasSpecularFactorMap", hasSpecularFactorTex);
+	_prog->setUniformValue("hasSpecularColorMap", hasSpecularColorTex);
 
 	// KHR_materials_pbrSpecularGlossiness
 	_prog->setUniformValue("diffuseMap", 10);
-	_prog->setUniformValue("specularGlossinessMap", 25);
+	_prog->setUniformValue("specularGlossinessMap", 21);
 	_prog->setUniformValue("hasDiffuseMap", _material.hasDiffuseMap());
 	_prog->setUniformValue("hasSpecularGlossinessMap", _material.hasSpecularGlossinessMap());
 	_prog->setUniformValue("useSpecularGlossiness", _material.getUseSpecularGlossiness());
@@ -663,19 +749,19 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("glossinessFactor", glossinessFactor);
 
 	// KHR_materials_anisotropy
-	_prog->setUniformValue("anisotropyMap", 27);
-	_prog->setUniformValue("hasAnisotropyMap", _material.hasAnisotropyMap());
+	_prog->setUniformValue("anisotropyMap", 23);
+	_prog->setUniformValue("hasAnisotropyMap", hasAnisotropyTex);
 
 	// KHR_materials_iridescence
-	_prog->setUniformValue("iridescenceMap", 28);
-	_prog->setUniformValue("hasIridescenceMap", _material.hasIridescenceMap());
+	_prog->setUniformValue("iridescenceMap", 24);
+	_prog->setUniformValue("hasIridescenceMap", hasIridescenceTex);
 
-	_prog->setUniformValue("iridescenceThicknessMap", 29);
-	_prog->setUniformValue("hasIridescenceThicknessMap", _material.hasIridescenceThicknessMap());
+	_prog->setUniformValue("iridescenceThicknessMap", 25);
+	_prog->setUniformValue("hasIridescenceThicknessMap", hasIridescenceThicknessTex);
 
 	// KHR_materials_volume
 	_prog->setUniformValue("thicknessMap", 30);
-	_prog->setUniformValue("hasThicknessMap", _material.hasThicknessMap());
+	_prog->setUniformValue("hasThicknessMap", hasThicknessTex);
 	_prog->setUniformValue("hasThicknessAlpha", _material.hasThicknessAlpha());
 
 	// KHR_materials_scattering
@@ -731,13 +817,13 @@ void TriangleMesh::setupUniforms()
 		_material.diffuseTransmissionColorFactor());
 	// Diffuse Transmission Map
 	_prog->setUniformValue("hasDiffuseTransmissionMap",
-		_material.hasDiffuseTransmissionMap());
-	_prog->setUniformValue("diffuseTransmissionMap", 31);
+		hasDiffuseTransmissionTex);
+	_prog->setUniformValue("diffuseTransmissionMap", 34);
 	
 	// Diffuse Transmission Color Map
 	_prog->setUniformValue("hasDiffuseTransmissionColorMap",
-		_material.hasDiffuseTransmissionColorMap());
-	_prog->setUniformValue("diffuseTransmissionColorMap", 9);
+		hasDiffuseTransmissionColorTex);
+	_prog->setUniformValue("diffuseTransmissionColorMap", 35);
 
 	// Texture transform uniforms
 	_prog->setUniformValue("albedoTexTransform.texCoordIndex", _material.albedoTexCoord());
@@ -935,13 +1021,40 @@ void TriangleMesh::setupUniforms()
 	_prog->setUniformValue("hasOpacityMap", _material.hasOpacityMap());
 	_prog->setUniformValue("opacityMapInverted", _material.isOpacityMapInverted());
 	_prog->setUniformValue("hasHeightMap", _material.hasHeightMap());
-	_prog->setUniformValue("hasTransmissionMap", _material.hasTransmissionMap());
-	_prog->setUniformValue("hasIORMap", _material.hasIORMap());
-	_prog->setUniformValue("hasSheenColorMap", _material.hasSheenColorMap());
-	_prog->setUniformValue("hasSheenRoughnessMap", _material.hasSheenRoughnessMap());
-	_prog->setUniformValue("hasClearcoatMap", _material.hasClearcoatColorMap());
-	_prog->setUniformValue("hasClearcoatRoughnessMap", _material.hasClearcoatRoughnessMap());
-	_prog->setUniformValue("hasClearcoatNormalMap", _material.hasClearcoatNormalMap());
+	_prog->setUniformValue("hasTransmissionMap", hasTransmissionTex);
+	_prog->setUniformValue("hasIORMap", hasIORTex);
+	_prog->setUniformValue("hasSheenColorMap", hasSheenColorTex);
+	_prog->setUniformValue("hasSheenRoughnessMap", hasSheenRoughnessTex);
+	_prog->setUniformValue("hasClearcoatMap", hasClearcoatColorTex);
+	_prog->setUniformValue("hasClearcoatRoughnessMap", hasClearcoatRoughnessTex);
+	_prog->setUniformValue("hasClearcoatNormalMap", hasClearcoatNormalTex);
+
+	// Extension-presence flags for debug channel gating (mirrors Khronos #ifdef MATERIAL_XXX).
+	// True when the extension is active regardless of whether a texture is present.
+	_prog->setUniformValue("extClearcoat",    _material.hasClearcoat()
+	                                              || hasClearcoatColorTex
+	                                              || hasClearcoatRoughnessTex
+	                                              || hasClearcoatNormalTex);
+	_prog->setUniformValue("extSheen",        _material.hasSheen()
+	                                              || hasSheenColorTex
+	                                              || hasSheenRoughnessTex);
+	_prog->setUniformValue("extTransmission", _material.hasTransmission()
+	                                              || hasTransmissionTex);
+	_prog->setUniformValue("extSpecular",     hasSpecularFactorTex
+	                                              || hasSpecularColorTex
+	                                              || _material.specularFactor() != 1.0f
+	                                              || _material.specularColorFactor() != QVector3D(1.0f, 1.0f, 1.0f));
+	_prog->setUniformValue("extAnisotropy",   _material.anisotropyStrength() != 0.0f
+	                                              || hasAnisotropyTex);
+	_prog->setUniformValue("extIridescence",  _material.iridescenceFactor() > 0.0f
+	                                              || hasIridescenceTex
+	                                              || hasIridescenceThicknessTex);
+	_prog->setUniformValue("extVolume",       _material.thicknessFactor() > 0.0f
+	                                              || hasThicknessTex
+	                                              || _material.hasVolumeScattering());
+	_prog->setUniformValue("extDiffuseTrans", _material.diffuseTransmissionFactor() > 0.0f
+	                                              || hasDiffuseTransmissionTex
+	                                              || hasDiffuseTransmissionColorTex);
 
 	_prog->setUniformValue("isGLTFMaterial", _material.isGLTFMaterial());
 
@@ -1335,8 +1448,10 @@ void TriangleMesh::render()
 	}
 
 	setupTextures();
+	applyDebugTextureOverrides();
 
 	setupUniforms();
+	applyDebugUniformOverrides();
 
 	if(_material.opacity() < 1.0f ||
 		_material.hasOpacityMap() || _material.hasTransmissionMap() ||
@@ -1421,9 +1536,7 @@ void TriangleMesh::renderShadow()
 
 void TriangleMesh::deleteTextures()
 {
-	//std::cout << "TriangleMesh::deleteTextures : _texture = " << _texture << std::endl;
-
-	glDeleteTextures(1, &_texture);
+	glDeleteTextures(1, &_fallbackTexture);
 	GLuint pbrIds[] = {
 		static_cast<GLuint>(_material.albedoTextureId()),
 		static_cast<GLuint>(_material.metallicTextureId()),
@@ -1451,9 +1564,7 @@ void TriangleMesh::deleteTextures()
 TriangleMesh::~TriangleMesh()
 {
 	deleteBuffers();
-#ifdef Q_OS_WIN
-	//deleteTextures(); // causes wrong texture deletion on Linux
-#endif
+	deleteTextures();
 	for (Triangle* t : _triangles)
 		delete t;
 }
@@ -1731,6 +1842,35 @@ void TriangleMesh::setSceneRenderTransform(const QMatrix4x4& trsf)
 void TriangleMesh::setSceneRenderTransformFast(const QMatrix4x4& trsf)
 {
 	_sceneRenderTransform = trsf;
+
+	// Update the world-space bounding box cheaply by transforming the 8 corners of the
+	// local-space bounding box (from _points, no transform) through the current combined
+	// render transform.  This keeps isMeshOutsideFrustum() correct for animated meshes
+	// without the cost of re-transforming every vertex (as updateRuntimeBounds() would).
+	if (!_points.empty())
+	{
+		const QMatrix4x4 combined = combinedRenderTransform();
+		float xMin =  std::numeric_limits<float>::max();
+		float yMin =  std::numeric_limits<float>::max();
+		float zMin =  std::numeric_limits<float>::max();
+		float xMax = -std::numeric_limits<float>::max();
+		float yMax = -std::numeric_limits<float>::max();
+		float zMax = -std::numeric_limits<float>::max();
+		for (const QVector3D& corner : _localBoundingBox.getCorners())
+		{
+			const QVector3D tc = combined.map(corner);
+			xMin = std::min(xMin, tc.x());
+			yMin = std::min(yMin, tc.y());
+			zMin = std::min(zMin, tc.z());
+			xMax = std::max(xMax, tc.x());
+			yMax = std::max(yMax, tc.y());
+			zMax = std::max(zMax, tc.z());
+		}
+		_boundingBox.setLimits(
+			static_cast<double>(xMin), static_cast<double>(xMax),
+			static_cast<double>(yMin), static_cast<double>(yMax),
+			static_cast<double>(zMin), static_cast<double>(zMax));
+	}
 }
 
 void TriangleMesh::setupTransformation()
@@ -1740,6 +1880,32 @@ void TriangleMesh::setupTransformation()
 
 void TriangleMesh::updateRuntimeBounds()
 {
+	// Compute the local-space bounding box from _points (before any transform).
+	// This is used by setSceneRenderTransformFast() to cheaply derive the
+	// world-space bounding box each animation frame without re-transforming every vertex.
+	if (!_points.empty())
+	{
+		float lxMin =  std::numeric_limits<float>::max();
+		float lyMin =  std::numeric_limits<float>::max();
+		float lzMin =  std::numeric_limits<float>::max();
+		float lxMax = -std::numeric_limits<float>::max();
+		float lyMax = -std::numeric_limits<float>::max();
+		float lzMax = -std::numeric_limits<float>::max();
+		for (size_t i = 0; i < _points.size(); i += 3)
+		{
+			lxMin = std::min(lxMin, _points[i]);
+			lyMin = std::min(lyMin, _points[i + 1]);
+			lzMin = std::min(lzMin, _points[i + 2]);
+			lxMax = std::max(lxMax, _points[i]);
+			lyMax = std::max(lyMax, _points[i + 1]);
+			lzMax = std::max(lzMax, _points[i + 2]);
+		}
+		_localBoundingBox.setLimits(
+			static_cast<double>(lxMin), static_cast<double>(lxMax),
+			static_cast<double>(lyMin), static_cast<double>(lyMax),
+			static_cast<double>(lzMin), static_cast<double>(lzMax));
+	}
+
 	_trsfPoints.clear();
 	_trsfNormals.clear();
 	_trsfTangents.clear();
@@ -1838,25 +2004,6 @@ void TriangleMesh::updateRuntimeBounds()
 
 	buildTriangles();
 	computeBounds();
-}
-
-void TriangleMesh::setTexureImage(const QImage& texImage)
-{
-	_texImage = texImage;
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, _texture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, _texImage.width(), _texImage.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, _texImage.bits());
-}
-
-bool TriangleMesh::hasTexture() const
-{
-	return _hasTexture;
-}
-
-void TriangleMesh::enableTexture(const bool& bHasTexture)
-{
-	_hasTexture = bHasTexture;
-	markUniformsDirty();
 }
 
 float TriangleMesh::shininess() const
@@ -2615,4 +2762,75 @@ const GLMaterial* TriangleMesh::materialForVariant(int variantIndex) const
 	}
 
 	return nullptr;  // no explicit mapping — caller keeps current material
+}
+
+// ---------------------------------------------------------------------------
+// Debug texture overrides (TextureDebugPanel)
+// ---------------------------------------------------------------------------
+void TriangleMesh::setDebugTextureOverride(int unit, GLuint replaceTex)
+{
+	_debugTextureOverrides[unit] = replaceTex;
+}
+
+void TriangleMesh::clearDebugTextureOverride(int unit)
+{
+	_debugTextureOverrides.remove(unit);
+}
+
+void TriangleMesh::clearAllDebugTextureOverrides()
+{
+	_debugTextureOverrides.clear();
+}
+
+void TriangleMesh::applyDebugTextureOverrides()
+{
+	if (_debugTextureOverrides.isEmpty())
+		return;
+
+	for (auto it = _debugTextureOverrides.constBegin();
+	     it != _debugTextureOverrides.constEnd(); ++it)
+	{
+		glActiveTexture(GL_TEXTURE0 + it.key());
+		glBindTexture(GL_TEXTURE_2D, it.value());
+	}
+	// Restore the active texture to unit 0 so subsequent code is not confused.
+	glActiveTexture(GL_TEXTURE0);
+}
+
+void TriangleMesh::setDebugUniformOverride(const QString& name, const QVariant& value)
+{
+	_debugUniformOverrides[name] = value;
+}
+
+void TriangleMesh::clearDebugUniformOverride(const QString& name)
+{
+	_debugUniformOverrides.remove(name);
+}
+
+void TriangleMesh::clearAllDebugUniformOverrides()
+{
+	_debugUniformOverrides.clear();
+}
+
+void TriangleMesh::applyDebugUniformOverrides()
+{
+	if (_debugUniformOverrides.isEmpty() || !_prog)
+		return;
+
+	for (auto it = _debugUniformOverrides.constBegin();
+	     it != _debugUniformOverrides.constEnd(); ++it)
+	{
+		const QByteArray nameBytes = it.key().toUtf8();
+		const char* uName = nameBytes.constData();
+
+		const int typeId = it.value().userType();
+		if (typeId == qMetaTypeId<QVector3D>())
+			_prog->setUniformValue(uName, it.value().value<QVector3D>());
+		else if (typeId == QMetaType::Bool)
+			_prog->setUniformValue(uName, it.value().toBool());
+		else if (typeId == QMetaType::Int)
+			_prog->setUniformValue(uName, it.value().toInt());
+		else
+			_prog->setUniformValue(uName, it.value().toFloat());
+	}
 }

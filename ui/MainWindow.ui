@@ -127,8 +127,15 @@
     <addaction name="separator"/>
     <addaction name="actionSettings"/>
    </widget>
+   <widget class="QMenu" name="menuTools">
+    <property name="title">
+     <string>Tools</string>
+    </property>
+    <addaction name="actionTextureDebugger"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
+   <addaction name="menuTools"/>
    <addaction name="menuWindows"/>
    <addaction name="menuHelp"/>
   </widget>
@@ -367,6 +374,14 @@
    </property>
    <property name="statusTip">
     <string>Open the settings dialog</string>
+   </property>
+  </action>
+  <action name="actionTextureDebugger">
+   <property name="text">
+    <string>Texture Debugger</string>
+   </property>
+   <property name="statusTip">
+    <string>Open the texture debug panel for the selected mesh</string>
    </property>
   </action>
   <action name="actionQuick_Help">

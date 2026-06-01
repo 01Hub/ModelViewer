@@ -511,10 +511,18 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("specular", _currentMaterial.specularFactor());
 	_shader->setUniformValue("specularFactor", _currentMaterial.specularFactor());
 	_shader->setUniformValue("specularColorFactor", _currentMaterial.specularColorFactor());
+	_shader->setUniformValue("diffuseFactor", _currentMaterial.diffuseColor());
+	_shader->setUniformValue("specGlossSpecularColorFactor", _currentMaterial.specularColor());
+	_shader->setUniformValue("glossinessFactor", _currentMaterial.glossinessFactor());
+	_shader->setUniformValue("useSpecularGlossiness", _currentMaterial.getUseSpecularGlossiness());
 	_shader->setUniformValue("anisotropyStrength", _currentMaterial.anisotropyStrength());
 	_shader->setUniformValue("anisotropyRotationFactor", _currentMaterial.anisotropyRotation());
 	_shader->setUniformValue("occlusionStrength", _currentMaterial.occlusionStrength());
 	_shader->setUniformValue("unlitMaterial", _currentMaterial.isUnlit());
+	_shader->setUniformValue("thicknessFactor", _currentMaterial.thicknessFactor());
+	_shader->setUniformValue("attenuationColor", _currentMaterial.attenuationColor());
+	_shader->setUniformValue("attenuationDistance", _currentMaterial.attenuationDistance());
+	_shader->setUniformValue("dispersion", _currentMaterial.dispersion());
 	_shader->setUniformValue("diffuseTransmissionFactor", _currentMaterial.diffuseTransmissionFactor());
 	_shader->setUniformValue("diffuseTransmissionColorFactor", _currentMaterial.diffuseTransmissionColorFactor());
 	_shader->setUniformValue("emissiveColor", _currentMaterial.emissive());
@@ -550,6 +558,27 @@ void MaterialPreviewWidget::paintGL()
 	const bool hasDiffuseTransmission = _currentMaterial.diffuseTransmissionTextureId() != 0;
 	const bool hasDiffuseTransmissionColor = _currentMaterial.diffuseTransmissionColorTextureId() != 0;
 	const bool hasThickness = _currentMaterial.thicknessTextureId() != 0;
+	const bool hasDiffuse = _currentMaterial.diffuseTextureId() != 0;
+	const bool hasSpecGloss = _currentMaterial.specularGlossinessTextureId() != 0;
+	const bool extClearcoat = _currentMaterial.hasClearcoat() || hasCcColor || hasCcRough || hasCcNormal;
+	const bool extSheen = _currentMaterial.hasSheen() || hasSheenCol || hasSheenRough;
+	const bool extTransmission = _currentMaterial.hasTransmission() || hasTransmission;
+	const bool extSpecular =
+		hasSpecularFactor ||
+		hasSpecularColor ||
+		_currentMaterial.specularFactor() != 1.0f ||
+		_currentMaterial.specularColorFactor() != QVector3D(1.0f, 1.0f, 1.0f);
+	const bool extAnisotropy = hasAnisotropy || _currentMaterial.anisotropyStrength() > 0.0f;
+	const bool extIridescence = hasIridescence || hasIridescenceThickness || _currentMaterial.iridescenceFactor() > 0.0f;
+	const bool extVolume =
+		hasThickness ||
+		hasIOR ||
+		_currentMaterial.thicknessFactor() > 0.0f ||
+		_currentMaterial.hasVolumeScattering();
+	const bool extDiffuseTransmission =
+		hasDiffuseTransmission ||
+		hasDiffuseTransmissionColor ||
+		_currentMaterial.diffuseTransmissionFactor() > 0.0f;
 
 	_shader->setUniformValue("useAlbedoMap", hasAlbedo);
 	_shader->setUniformValue("useMetalnessMap", hasMetalness);
@@ -576,6 +605,16 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("useDiffuseTransmissionMap", hasDiffuseTransmission);
 	_shader->setUniformValue("useDiffuseTransmissionColorMap", hasDiffuseTransmissionColor);
 	_shader->setUniformValue("useThicknessMap", hasThickness);
+	_shader->setUniformValue("hasDiffuseMap", hasDiffuse);
+	_shader->setUniformValue("hasSpecularGlossinessMap", hasSpecGloss);
+	_shader->setUniformValue("extClearcoat", extClearcoat);
+	_shader->setUniformValue("extSheen", extSheen);
+	_shader->setUniformValue("extTransmission", extTransmission);
+	_shader->setUniformValue("extSpecular", extSpecular);
+	_shader->setUniformValue("extAnisotropy", extAnisotropy);
+	_shader->setUniformValue("extIridescence", extIridescence);
+	_shader->setUniformValue("extVolume", extVolume);
+	_shader->setUniformValue("extDiffuseTransmission", extDiffuseTransmission);
 
 	// Optional: intensities/tiling
 	_shader->setUniformValue("UVScale", QVector2D(1.0f, 1.0f));
@@ -646,6 +685,8 @@ void MaterialPreviewWidget::paintGL()
 	sendTextureTransforms("diffuseTransmission", GLMaterial::TextureType::DiffuseTransmission);
 	sendTextureTransforms("diffuseTransmissionColor", GLMaterial::TextureType::DiffuseTransmissionColor);
 	sendTextureTransforms("thickness", GLMaterial::TextureType::Thickness);
+	sendTextureTransforms("diffuse", GLMaterial::TextureType::Diffuse);
+	sendTextureTransforms("specularGlossiness", GLMaterial::TextureType::SpecularGlossiness);
 
 	_shader->setUniformValue("clearcoatNormalIntensity", _currentMaterial.clearcoatNormalScale());
 
@@ -673,6 +714,11 @@ void MaterialPreviewWidget::paintGL()
 	_shader->setUniformValue("diffuseTransmissionMap", 20);
 	_shader->setUniformValue("diffuseTransmissionColorMap", 21);
 	_shader->setUniformValue("thicknessMap", 22);
+	_shader->setUniformValue("diffuseMap", 30);
+	_shader->setUniformValue("specularGlossinessMap", 31);
+	_shader->setUniformValue("charlieLUT", 27);
+	_shader->setUniformValue("sheenELUT", 28);
+	_shader->setUniformValue("sheenPrefilterMap", 29);
 
 	// Set up texture units
 	glActiveTexture(GL_TEXTURE0);
@@ -721,6 +767,10 @@ void MaterialPreviewWidget::paintGL()
 	glBindTexture(GL_TEXTURE_2D, _currentMaterial.diffuseTransmissionColorTextureId());
 	glActiveTexture(GL_TEXTURE22);
 	glBindTexture(GL_TEXTURE_2D, _currentMaterial.thicknessTextureId());
+	glActiveTexture(GL_TEXTURE30);
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.diffuseTextureId());
+	glActiveTexture(GL_TEXTURE31);
+	glBindTexture(GL_TEXTURE_2D, _currentMaterial.specularGlossinessTextureId());
 
 	applyEnvPreset(_currentEnv, _profile);
 
@@ -760,6 +810,9 @@ void MaterialPreviewWidget::paintGL()
 		GLuint envMap = _glWidget ? _glWidget->getEnvironmentMap(envIndex) : 0;
 		GLuint irrMap = _glWidget ? _glWidget->getIrradianceMap(envIndex) : 0;
 		GLuint prefilterMap = _glWidget ? _glWidget->getPrefilterMap(envIndex) : 0;
+		GLuint sheenPrefilterMap = _glWidget ? _glWidget->getSheenPrefilterMap(envIndex) : 0;
+		GLuint charlieLut = _glWidget ? _glWidget->getCharlieLUT() : 0;
+		GLuint sheenELut = _glWidget ? _glWidget->getSheenELUT() : 0;
 
 		// Use consistent IBL exposure for all environments (presets use same exposure as ViewerIBL)
 		float iblExposure = _glWidget ? _glWidget->getIBLExposure() : 1.0f;
@@ -776,6 +829,20 @@ void MaterialPreviewWidget::paintGL()
 		glActiveTexture(GL_TEXTURE26);
 		glBindTexture(GL_TEXTURE_CUBE_MAP, prefilterMap);
 		_shader->setUniformValue("prefilterMap", 26);
+		int previewPrefilterMips = (_glWidget && _glWidget->getPrefilterMipLevels() > 0)
+			? static_cast<int>(_glWidget->getPrefilterMipLevels())
+			: 9;
+		_shader->setUniformValue("prefilterMipLevels", previewPrefilterMips);
+		glActiveTexture(GL_TEXTURE27);
+		glBindTexture(GL_TEXTURE_2D, charlieLut);
+		glActiveTexture(GL_TEXTURE28);
+		glBindTexture(GL_TEXTURE_2D, sheenELut);
+		glActiveTexture(GL_TEXTURE29);
+		glBindTexture(GL_TEXTURE_CUBE_MAP, sheenPrefilterMap);
+		int previewSheenPrefilterMips = (_glWidget && _glWidget->getSheenPrefilterMipLevels() > 0)
+			? static_cast<int>(_glWidget->getSheenPrefilterMipLevels())
+			: 5;
+		_shader->setUniformValue("sheenPrefilterMipLevels", previewSheenPrefilterMips);
 
 		// Pass IBL exposure (ViewerIBL uses main viewer's exposure, presets use 1.0)
 		_shader->setUniformValue("envMapExposure", static_cast<float>(iblExposure));
@@ -1577,6 +1644,12 @@ void MaterialPreviewWidget::syncAllTexturesFromMaterial()
 	syncTextureFromMaterial(_thicknessTex,
 		_currentMaterial.thicknessMap(),
 		22, "thicknessMap", "useThicknessMap", false);
+	syncTextureFromMaterial(_diffuseTex,
+		_currentMaterial.diffuseMapPath(),
+		30, "diffuseMap", "hasDiffuseMap", true);
+	syncTextureFromMaterial(_specularGlossinessTex,
+		_currentMaterial.specularGlossinessMap(),
+		31, "specularGlossinessMap", "hasSpecularGlossinessMap", true);
 }
 
 void MaterialPreviewWidget::clearTextureCache()
@@ -1604,6 +1677,8 @@ void MaterialPreviewWidget::clearTextureCache()
 	_diffuseTransmissionTex = GpuTexCache();
 	_diffuseTransmissionColorTex = GpuTexCache();
 	_thicknessTex = GpuTexCache();
+	_diffuseTex = GpuTexCache();
+	_specularGlossinessTex = GpuTexCache();
 }
 
 void MaterialPreviewWidget::updateTextureSamplers(GLMaterial::TextureType type, GLint wrapS, GLint wrapT, GLint minFilter, GLint magFilter, float aniso)
@@ -1643,6 +1718,8 @@ void MaterialPreviewWidget::updateTextureSamplers(GLMaterial::TextureType type, 
 	case GLMaterial::TextureType::DiffuseTransmission:  cacheToInvalidate = &_diffuseTransmissionTex; break;
 	case GLMaterial::TextureType::DiffuseTransmissionColor: cacheToInvalidate = &_diffuseTransmissionColorTex; break;
 	case GLMaterial::TextureType::Thickness:            cacheToInvalidate = &_thicknessTex; break;
+	case GLMaterial::TextureType::Diffuse:              cacheToInvalidate = &_diffuseTex; break;
+	case GLMaterial::TextureType::SpecularGlossiness:   cacheToInvalidate = &_specularGlossinessTex; break;
 	default:
 		return;
 	}

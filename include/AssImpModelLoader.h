@@ -37,6 +37,7 @@
 
 #include "GLLights.h"
 #include "GltfAnimationData.h"
+#include "GltfCameraData.h"
 #include "GltfVariantData.h"
 
 
@@ -166,8 +167,9 @@ public:
 
 	// Returns variant data parsed from KHR_materials_variants.
 	// Empty when the loaded file has no variant extension.
-	const GltfVariantData& getVariantData() const { return _variantData; }
-	const GltfAnimationData& getAnimationData() const { return _animationData; }
+	const GltfVariantData&    getVariantData()  const { return _variantData; }
+	const GltfAnimationData&  getAnimationData() const { return _animationData; }
+	const GltfCameraData&     getCameraData()    const { return _cameraData; }
 
 	void freeScene();
 	void setImageTextureUploader(MaterialProcessor::ImageTextureUploadFn uploader);
@@ -217,6 +219,7 @@ private:
 	// in the JSON correspond 1:1 to aiScene::mMaterials[] entries.
 	void parseGltfVariants(const QString& gltfPath);
 	void parseSceneAnimations();
+	void parseSceneCameras();
 
 	// Update aiScene materials to match glTF structure (deduplicate, fix material assignments)
 	void updateAiSceneWithGltfMaterials(const QString& gltfPath, aiScene* scene);
@@ -267,11 +270,18 @@ private:
 	// updateAiSceneWithGltfMaterials() builds this so processMesh() can convert
 	// _meshIndexToOriginalMaterialIndex values (compact) into glTF-space indices
 	// that are consistent with variant mapping materialIndex values.
+	// Map from Assimp compact material index to glTF material index.
+	// updateAiSceneWithGltfMaterials() rebuilds this from glTF primitive
+	// provenance so processMesh() can convert pre-remap compact material slots
+	// into authoritative glTF material indices. This keeps default materials,
+	// variants, and export logic in the same index space even when Assimp merges
+	// or reorders primitives.
 	std::map<int, int> _aiMatToGltfMat;
 
 	// Variant data parsed from KHR_materials_variants (empty for non-glTF files
 	// or glTF files that do not carry the extension).
-	GltfVariantData _variantData;
+	GltfVariantData   _variantData;
 	GltfAnimationData _animationData;
+	GltfCameraData    _cameraData;
 	bool _preserveNodeTransformsForRuntime = false;
 };

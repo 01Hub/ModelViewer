@@ -190,8 +190,16 @@ uniform vec3  specularColorFactor;
 uniform float anisotropyStrength;
 uniform float anisotropyRotationFactor;
 uniform float occlusionStrength;
+uniform float thicknessFactor;
+uniform vec3  attenuationColor;
+uniform float attenuationDistance;
+uniform float dispersion;
 uniform float diffuseTransmissionFactor;
 uniform vec3  diffuseTransmissionColorFactor;
+uniform vec3  diffuseFactor;
+uniform vec3  specGlossSpecularColorFactor;
+uniform float glossinessFactor;
+uniform bool  useSpecularGlossiness;
 
 // ----- KHR_materials_iridescence -----
 uniform float iridescence;
@@ -223,14 +231,21 @@ uniform sampler2D iridescenceThicknessMap;
 uniform sampler2D diffuseTransmissionMap;
 uniform sampler2D diffuseTransmissionColorMap;
 uniform sampler2D thicknessMap;
+uniform sampler2D diffuseMap;
+uniform sampler2D specularGlossinessMap;
 
 // ----- Environment mapping (IBL) -----
 uniform samplerCube envCubemap;
 uniform samplerCube irradianceMap;
 uniform samplerCube prefilterMap;  // Prefiltered environment map with LOD miplevels
+uniform samplerCube sheenPrefilterMap;
 uniform sampler2D brdfLUT;  // BRDF lookup table from main viewer
+uniform sampler2D charlieLUT;
+uniform sampler2D sheenELUT;
 uniform mat3 previewRotationMatrix;  // Rotation matrix from preview object rotation
 uniform float envMapExposure;  // Exposure adjustment for environment maps
+uniform int prefilterMipLevels = 9;
+uniform int sheenPrefilterMipLevels = 5;
 
 // ----- Enable flags -----
 uniform bool useAlbedoMap;
@@ -257,6 +272,16 @@ uniform bool useIridescenceThicknessMap;
 uniform bool useDiffuseTransmissionMap;
 uniform bool useDiffuseTransmissionColorMap;
 uniform bool useThicknessMap;
+uniform bool hasDiffuseMap;
+uniform bool hasSpecularGlossinessMap;
+uniform bool extClearcoat;
+uniform bool extSheen;
+uniform bool extTransmission;
+uniform bool extSpecular;
+uniform bool extAnisotropy;
+uniform bool extIridescence;
+uniform bool extVolume;
+uniform bool extDiffuseTransmission;
 
 // ----- Extra controls -----
 uniform float AOIntensity;
@@ -360,6 +385,14 @@ uniform vec2  thicknessScale;
 uniform vec2  thicknessOffset;
 uniform float thicknessRotation;
 
+uniform vec2  diffuseScale;
+uniform vec2  diffuseOffset;
+uniform float diffuseRotation;
+
+uniform vec2  specularGlossinessScale;
+uniform vec2  specularGlossinessOffset;
+uniform float specularGlossinessRotation;
+
 // channel packing uniforms (for packed textures like ORM/AORM)
 uniform int   metalnessChannel;
 uniform int   metalnessChannelInvert;
@@ -383,6 +416,51 @@ uniform float opacityChannelBias;
 
 
 // ---------- Helpers ----------
+
+struct PreviewMaterialParams
+{
+    vec3 baseColor;
+    float metalness;
+    float roughness;
+    float ambientOcclusion;
+    float opacity;
+    vec3 emissive;
+    float ior;
+    float specularFactor;
+    vec3 specularColor;
+    float clearcoat;
+    float clearcoatRoughness;
+    vec3 sheenColor;
+    float sheenRoughness;
+    float transmission;
+    float iridescenceFactor;
+    float iridescenceThickness;
+    float anisotropyStrength;
+    float diffuseTransmissionFactor;
+    vec3 diffuseTransmissionColor;
+    float thickness;
+    vec3 attenuationColor;
+    float attenuationDistance;
+    float dispersion;
+    bool useSpecGloss;
+};
+
+vec3 sRGBToLinear(vec3 c)
+{
+    bvec3 cutoff = lessThanEqual(c, vec3(0.04045));
+    vec3 lower = c / 12.92;
+    vec3 higher = pow((c + 0.055) / 1.055, vec3(2.4));
+    return mix(higher, lower, cutoff);
+}
+
+vec3 linearTosRGB(vec3 c)
+{
+    c = max(c, vec3(0.0));
+    bvec3 cutoff = lessThanEqual(c, vec3(0.0031308));
+    vec3 lower = c * 12.92;
+    vec3 higher = 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055;
+    return clamp(mix(higher, lower, cutoff), 0.0, 1.0);
+}
 
 // TBN-based normal mapping (tangent-space normal -> world space)
 vec3 getNormalFromMapSampler(sampler2D map, vec2 uv, float intensity)
@@ -481,6 +559,11 @@ float geometrySmith(vec3 N, vec3 V, vec3 L, float perceptualRoughness)
            geometrySchlickGGX(max(dot(N, L), 0.0), perceptualRoughness);
 }
 
+float max3(vec3 v)
+{
+    return max(v.x, max(v.y, v.z));
+}
+
 vec3 getBitangent(vec3 N, vec3 T, float handedness)
 {
     return normalize(cross(N, T)) * handedness;
@@ -530,11 +613,23 @@ vec3 calculateSheenLayer(vec3 N, vec3 V, vec3 L, vec3 color, float rough)
 
 vec3 calculateSheenIBLLayer(vec3 N, vec3 V, vec3 color, float rough)
 {
-    float NoV = max(dot(N, V), 0.0);
-    float grazing = pow(clamp(1.0 - NoV, 0.0, 1.0), mix(5.0, 2.0, rough));
-    vec3 Nibl = transformNormalForIBL(N);
-    vec3 irradiance = texture(irradianceMap, Nibl).rgb;
-    return irradiance * color * grazing;
+    float sheenRoughFinal = clamp(rough, 0.000001, 1.0);
+    vec3 R = reflect(-V, N);
+    R = normalize(previewRotationMatrix * R);
+    vec3 Rprefilter = toPrefilterDirection(R);
+    float maxLod = float(max(sheenPrefilterMipLevels - 1, 0));
+    float lod = clamp(sheenRoughFinal * maxLod, 0.0, maxLod);
+    vec3 prefilteredLight = textureLod(sheenPrefilterMap, Rprefilter, lod).rgb;
+    prefilteredLight = max(prefilteredLight, vec3(0.0));
+    prefilteredLight *= envMapExposure;
+
+    float NdotV = clamp(dot(N, V), 0.0, 1.0);
+    vec2 brdfCoord = clamp(vec2(NdotV, sheenRoughFinal), vec2(0.0), vec2(1.0));
+    float E_charlie = texture(charlieLUT, brdfCoord).b;
+    float E_sheen = texture(sheenELUT, brdfCoord).r;
+    float sheenIBLGain = min(E_charlie, E_sheen);
+
+    return prefilteredLight * color * sheenIBLGain * envSpecularIntensity;
 }
 
 vec3 calculateClearcoatLayer(vec3 N, vec3 V, vec3 L, float amount, float rough)
@@ -547,6 +642,34 @@ vec3 calculateClearcoatLayer(vec3 N, vec3 V, vec3 L, float amount, float rough)
     float G = geometrySmith(N, V, L, rough);
     vec3 F = fresnelSchlick(VoH, vec3(0.04), vec3(1.0));
     return amount * (D * G * F) / max(4.0 * NoV * NoL, 0.001) * NoL;
+}
+
+vec3 calculateVolumeAttenuation(vec3 transmittedLight, float distance, float thickness, vec3 attenuationColorValue, float attenuationDistanceValue)
+{
+    if (attenuationDistanceValue == 0.0 || !all(greaterThan(attenuationColorValue, vec3(0.0))))
+    {
+        return transmittedLight;
+    }
+
+    float transmissionDistance = max(distance, max(thickness, 0.0));
+    vec3 transmittance = pow(attenuationColorValue, vec3(transmissionDistance / attenuationDistanceValue));
+    return transmittedLight * transmittance;
+}
+
+vec3 computeDielectricF0(float iorValue, float specularFactorValue, vec3 specularColorValue, bool useSpecGlossWorkflow, vec3 specGlossSpecular)
+{
+    if (useSpecGlossWorkflow)
+    {
+        return clamp(specGlossSpecular, vec3(0.0), vec3(1.0));
+    }
+
+    float f0FromIor = pow((iorValue - 1.0) / (iorValue + 1.0), 2.0);
+    vec3 dielectricF0 = vec3(f0FromIor);
+    if (specularFactorValue > 0.0)
+    {
+        dielectricF0 *= specularColorValue * specularFactorValue;
+    }
+    return clamp(dielectricF0, vec3(0.0), vec3(1.0));
 }
 
 // Specular IBL from prefiltered environment map using BRDF lookup table (matches main_scene.frag)
@@ -570,7 +693,7 @@ vec3 computeSpecularIBL(vec3 V, vec3 N, float roughness, vec3 F0, vec3 F90)
     vec3 R_prefilter = toPrefilterDirection(R);
 
     // This uses the same approach as main_scene.frag lines 1885-1890
-    const float MAX_REFLECTION_LOD = textureQueryLevels(prefilterMap) - 1.0;
+    float MAX_REFLECTION_LOD = float(max(prefilterMipLevels - 1, 0));
     float lod = roughness * MAX_REFLECTION_LOD;
     lod = clamp(lod, 0.0, MAX_REFLECTION_LOD);
     vec3 prefilteredColor = textureLod(prefilterMap, R_prefilter, lod).rgb;
@@ -604,6 +727,105 @@ float pickChannel(vec4 v, int ch, int invertFlag, float scale, float bias)
     if (invertFlag != 0) c = 1.0 - c;
     c = c * scale + bias;
     return clamp(c, 0.0, 1.0);
+}
+
+PreviewMaterialParams gatherMaterialParams(vec2 uv)
+{
+    PreviewMaterialParams params;
+
+    vec2 albedoUv = applyTextureTransform(uv, albedoScale, albedoOffset, albedoRotation);
+    vec2 metalnessUv = applyTextureTransform(uv, metalnessScale, metalnessOffset, metalnessRotation);
+    vec2 roughnessUv = applyTextureTransform(uv, roughnessScale, roughnessOffset, roughnessRotation);
+    vec2 aoUv = applyTextureTransform(uv, AOScale, AOOffset, AORotation);
+    vec2 opacityUv = applyTextureTransform(uv, opacityScale, opacityOffset, opacityRotation);
+    vec2 emissiveUv = applyTextureTransform(uv, emissiveScale, emissiveOffset, emissiveRotation);
+    vec2 clearcoatUv = applyTextureTransform(uv, clearcoatColorScale, clearcoatColorOffset, clearcoatColorRotation);
+    vec2 clearcoatRoughnessUv = applyTextureTransform(uv, clearcoatRoughnessScale, clearcoatRoughnessOffset, clearcoatRoughnessRotation);
+    vec2 sheenColorUv = applyTextureTransform(uv, sheenColorScale, sheenColorOffset, sheenColorRotation);
+    vec2 sheenRoughnessUv = applyTextureTransform(uv, sheenRoughnessScale, sheenRoughnessOffset, sheenRoughnessRotation);
+    vec2 transmissionUv = applyTextureTransform(uv, transmissionScale, transmissionOffset, transmissionRotation);
+    vec2 iorUv = applyTextureTransform(uv, iorScale, iorOffset, iorRotation);
+    vec2 specularFactorUv = applyTextureTransform(uv, specularFactorScale, specularFactorOffset, specularFactorRotation);
+    vec2 specularColorUv = applyTextureTransform(uv, specularColorScale, specularColorOffset, specularColorRotation);
+    vec2 diffuseTransmissionUv = applyTextureTransform(uv, diffuseTransmissionScale, diffuseTransmissionOffset, diffuseTransmissionRotation);
+    vec2 diffuseTransmissionColorUv = applyTextureTransform(uv, diffuseTransmissionColorScale, diffuseTransmissionColorOffset, diffuseTransmissionColorRotation);
+    vec2 thicknessUv = applyTextureTransform(uv, thicknessScale, thicknessOffset, thicknessRotation);
+    vec2 iridescenceUv = applyTextureTransform(uv, iridescenceScale, iridescenceOffset, iridescenceRotation);
+    vec2 iridescenceThicknessUv = applyTextureTransform(uv, iridescenceThicknessScale, iridescenceThicknessOffset, iridescenceThicknessRotation);
+    vec2 diffuseUv = applyTextureTransform(uv, diffuseScale, diffuseOffset, diffuseRotation);
+    vec2 specGlossUv = applyTextureTransform(uv, specularGlossinessScale, specularGlossinessOffset, specularGlossinessRotation);
+
+    params.baseColor = (useAlbedoMap ? texture(albedoMap, albedoUv).rgb : vec3(1.0)) * albedo;
+    params.metalness = useMetalnessMap ? pickChannel(texture(metalnessMap, metalnessUv), metalnessChannel, metalnessChannelInvert, metalnessChannelScale, metalnessChannelBias) : metalness;
+    params.roughness = useRoughnessMap ? pickChannel(texture(roughnessMap, roughnessUv), roughnessChannel, roughnessChannelInvert, roughnessChannelScale, roughnessChannelBias) : roughness;
+    params.ambientOcclusion = useAOMap ? pickChannel(texture(AOMap, aoUv), AOChannel, AOChannelInvert, AOChannelScale, AOChannelBias) : 1.0;
+    params.opacity = useOpacityMap ? pickChannel(texture(opacityMap, opacityUv), opacityChannel, opacityChannelInvert, opacityChannelScale, opacityChannelBias) : opacity;
+    params.emissive = (useEmissiveMap ? texture(emissiveMap, emissiveUv).rgb : vec3(1.0)) * emissiveColor * emissiveStrength;
+    params.ior = useIorMap ? texture(iorMap, iorUv).r : IOR;
+    params.specularFactor = useSpecularFactorMap ? texture(specularFactorMap, specularFactorUv).a * specularFactor : specularFactor;
+    params.specularColor = (useSpecularColorMap ? texture(specularColorMap, specularColorUv).rgb : vec3(1.0)) * specularColorFactor;
+    params.clearcoat = (useClearcoatColorMap ? texture(clearcoatColorMap, clearcoatUv).r : 1.0) * clearcoat;
+    params.clearcoatRoughness = (useClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, clearcoatRoughnessUv).g : 1.0) * clearcoatRoughness;
+    params.sheenColor = (useSheenColorMap ? texture(sheenColorMap, sheenColorUv).rgb : vec3(1.0)) * sheenColor;
+    params.sheenRoughness = useSheenRoughnessMap ? texture(sheenRoughnessMap, sheenRoughnessUv).a * sheenRoughness : sheenRoughness;
+    params.transmission = useTransmissionMap ? texture(transmissionMap, transmissionUv).r * transmission : transmission;
+    params.iridescenceFactor = useIridescenceMap ? texture(iridescenceMap, iridescenceUv).r * iridescence : iridescence;
+    params.iridescenceThickness = iridescenceThicknessMax;
+    if (useIridescenceThicknessMap)
+    {
+        float thicknessNorm = texture(iridescenceThicknessMap, iridescenceThicknessUv).g;
+        params.iridescenceThickness = mix(iridescenceThicknessMin, iridescenceThicknessMax, thicknessNorm);
+    }
+    params.anisotropyStrength = anisotropyStrength;
+    params.diffuseTransmissionFactor = useDiffuseTransmissionMap ? texture(diffuseTransmissionMap, diffuseTransmissionUv).a * diffuseTransmissionFactor : diffuseTransmissionFactor;
+    params.diffuseTransmissionColor = (useDiffuseTransmissionColorMap ? texture(diffuseTransmissionColorMap, diffuseTransmissionColorUv).rgb : vec3(1.0)) * diffuseTransmissionColorFactor;
+    params.thickness = (useThicknessMap ? texture(thicknessMap, thicknessUv).g : 1.0) * thicknessFactor;
+    params.attenuationColor = attenuationColor;
+    params.attenuationDistance = attenuationDistance;
+    params.dispersion = dispersion;
+    params.useSpecGloss = useSpecularGlossiness;
+
+    if (params.useSpecGloss)
+    {
+        params.baseColor = (hasDiffuseMap ? texture(diffuseMap, diffuseUv).rgb : vec3(1.0)) * diffuseFactor;
+        params.specularColor = specGlossSpecularColorFactor;
+        if (hasSpecularGlossinessMap)
+        {
+            vec4 specGlossSample = texture(specularGlossinessMap, specGlossUv);
+            params.specularColor *= specGlossSample.rgb;
+            params.roughness = 1.0 - (glossinessFactor * specGlossSample.a);
+        }
+        else
+        {
+            params.roughness = 1.0 - glossinessFactor;
+        }
+
+        params.metalness = 0.0;
+        params.specularFactor = 1.0;
+    }
+
+    params.baseColor = clamp(params.baseColor, vec3(0.0), vec3(1.0));
+    params.metalness = clamp(params.metalness, 0.0, 1.0);
+    params.roughness = clamp(params.roughness, 0.0001, 1.0);
+    params.ambientOcclusion = clamp(mix(1.0, params.ambientOcclusion, occlusionStrength), 0.0, 1.0);
+    params.opacity = clamp(params.opacity, 0.0, 1.0);
+    params.ior = max(params.ior, 1.001);
+    params.specularFactor = clamp(params.specularFactor, 0.0, 1.0);
+    params.specularColor = max(params.specularColor, vec3(0.0));
+    params.clearcoat = clamp(params.clearcoat, 0.0, 1.0);
+    params.clearcoatRoughness = clamp(params.clearcoatRoughness, 0.0001, 1.0);
+    params.sheenColor = clamp(params.sheenColor, vec3(0.0), vec3(1.0));
+    params.sheenRoughness = clamp(params.sheenRoughness, 0.0, 1.0);
+    params.transmission = clamp(params.transmission, 0.0, 1.0);
+    params.iridescenceFactor = clamp(params.iridescenceFactor, 0.0, 1.0);
+    params.diffuseTransmissionFactor = clamp(params.diffuseTransmissionFactor, 0.0, 1.0);
+    params.diffuseTransmissionColor = clamp(params.diffuseTransmissionColor, vec3(0.0), vec3(1.0));
+    params.thickness = max(params.thickness, 0.0);
+    params.attenuationColor = max(params.attenuationColor, vec3(0.0));
+    params.attenuationDistance = max(params.attenuationDistance, 0.0);
+    params.dispersion = max(params.dispersion, 0.0);
+
+    return params;
 }
 
 // ============================================================================
@@ -758,7 +980,7 @@ void main()
     if (length(V) < 0.1) V = vec3(0,0,1);    // safety (shouldn't trigger in your preview)
 
     // Base UV (tiling)
-    vec2 uv = vTexCoord * UVScale;
+    vec2 uv = vec2(1.0 - vTexCoord.x, vTexCoord.y) * UVScale;
 
     // ----- Parallax: adjust UVs BEFORE sampling any map -----
     if (useHeightMap) {
@@ -770,24 +992,19 @@ void main()
 
     // ---- Texture debug views (no lighting). 0 = All (normal shading) ----
     if (texViewMode != 0) {
-        vec2 uv = vTexCoord * UVScale;
+        vec2 uv = vec2(1.0 - vTexCoord.x, vTexCoord.y) * UVScale;
+        PreviewMaterialParams debugParams = gatherMaterialParams(uv);
+        float checker = mod(floor(gl_FragCoord.x / 16.0) + floor(gl_FragCoord.y / 16.0), 2.0);
+        vec3 outCol = mix(vec3(1.0), vec3(0.65), checker);
 
-        vec3 outCol = vec3(0.0);
         if (texViewMode == 1) {                     // Albedo
-            vec3 base = useAlbedoMap ? texture(albedoMap, applyTextureTransform(uv, albedoScale, albedoOffset, albedoRotation)).rgb : albedo;
-            outCol = clamp(base, 0.0, 1.0);
+            outCol = linearTosRGB(debugParams.baseColor);
         }
         else if (texViewMode == 2) {                // Metalness
-            //float m = useMetalnessMap ? texture(metalnessMap, uv).r : metalness;
-            vec4 metalTex = texture(metalnessMap, applyTextureTransform(uv, metalnessScale, metalnessOffset, metalnessRotation));
-            float m = useMetalnessMap ? pickChannel(metalTex, metalnessChannel, metalnessChannelInvert, metalnessChannelScale, metalnessChannelBias) : metalness;
-            outCol = vec3(m);
+            outCol = vec3(debugParams.metalness);
         }
         else if (texViewMode == 3) {                // Roughness
-            //float r = useRoughnessMap ? texture(roughnessMap, uv).r : roughness;
-            vec4 roughTex = texture(roughnessMap, applyTextureTransform(uv, roughnessScale, roughnessOffset, roughnessRotation));
-            float r = useRoughnessMap ? pickChannel(roughTex, roughnessChannel, roughnessChannelInvert, roughnessChannelScale, roughnessChannelBias) : roughness;
-            outCol = vec3(r);
+            outCol = vec3(debugParams.roughness);
         }
         else if (texViewMode == 4) {                // Normal (tangent space)
             vec3 nTS = useNormalMap ? (texture(normalMap, applyTextureTransform(uv, normalScale, normalOffset, normalRotation)).xyz * 2.0 - 1.0) : vec3(0,0,1);
@@ -795,83 +1012,66 @@ void main()
             outCol = nTS * 0.5 + 0.5;
         }
         else if (texViewMode == 5) {                // Ambient Occlusion
-            //float ao = useAOMap ? texture(AOMap, uv).r : 1.0;
-            vec4 aoTex    = texture(AOMap, applyTextureTransform(uv, AOScale, AOOffset, AORotation));
-            float ao    = useAOMap ? pickChannel(aoTex, AOChannel, AOChannelInvert, AOChannelScale, AOChannelBias) : 1.0;
-            outCol = vec3(ao);
+            outCol = vec3(debugParams.ambientOcclusion);
         }
         else if (texViewMode == 6) {                // Height
             float h = useHeightMap ? texture(heightMap, applyTextureTransform(uv, heightScale, heightOffset, heightRotation)).r : 0.5;
             outCol = vec3(h);
         }
         else if (texViewMode == 7) {                // Opacity
-            vec4 opTex = texture(opacityMap, applyTextureTransform(uv, opacityScale, opacityOffset, opacityRotation));
-            float a = useOpacityMap ? pickChannel(opTex, opacityChannel, opacityChannelInvert, opacityChannelScale, opacityChannelBias) : opacity;
-            outCol = vec3(a);
+            outCol = vec3(debugParams.opacity);
         }
         else if (texViewMode == 8) {                // Emissive (as color)
-            vec3 e = useEmissiveMap ? texture(emissiveMap, applyTextureTransform(uv, emissiveScale, emissiveOffset, emissiveRotation)).rgb : vec3(0.0);
-            outCol = e * emissiveColor * emissiveStrength;
+            outCol = linearTosRGB(debugParams.emissive);
         }
-        else if (texViewMode == 9) {                // Clearcoat Color
+        else if (texViewMode == 9 && extClearcoat) {                // Clearcoat Color
             vec3 cc = useClearcoatColorMap ? texture(clearcoatColorMap, applyTextureTransform(uv, clearcoatColorScale, clearcoatColorOffset, clearcoatColorRotation)).rgb : vec3(0.0);
             outCol = clamp(cc, 0.0, 1.0);
         }
-        else if (texViewMode == 10) {               // Clearcoat Roughness
-            float cr = useClearcoatRoughnessMap ? texture(clearcoatRoughnessMap, applyTextureTransform(uv, clearcoatRoughnessScale, clearcoatRoughnessOffset, clearcoatRoughnessRotation)).r : 0.0;
-            outCol = vec3(cr);
+        else if (texViewMode == 10 && extClearcoat) {               // Clearcoat Roughness
+            outCol = vec3(debugParams.clearcoatRoughness);
         }
-        else if (texViewMode == 11) {               // Clearcoat Normal
+        else if (texViewMode == 11 && extClearcoat && useClearcoatNormalMap) {               // Clearcoat Normal
             vec3 cnTS = useClearcoatNormalMap ? (texture(clearcoatNormalMap, applyTextureTransform(uv, clearcoatNormalScale, clearcoatNormalOffset, clearcoatNormalRotation)).xyz * 2.0 - 1.0) : vec3(0,0,1);
             outCol = cnTS * 0.5 + 0.5;
         }
-        else if (texViewMode == 12) {               // Sheen Color
-            vec3 sc = useSheenColorMap ? texture(sheenColorMap, applyTextureTransform(uv, sheenColorScale, sheenColorOffset, sheenColorRotation)).rgb : sheenColor;
-            outCol = clamp(sc, 0.0, 1.0);
+        else if (texViewMode == 12 && extSheen) {               // Sheen Color
+            outCol = linearTosRGB(debugParams.sheenColor);
         }
-        else if (texViewMode == 13) {               // Sheen Roughness
-            float sr = useSheenRoughnessMap ? texture(sheenRoughnessMap, applyTextureTransform(uv, sheenRoughnessScale, sheenRoughnessOffset, sheenRoughnessRotation)).r : sheenRoughness;
-            outCol = vec3(sr);
+        else if (texViewMode == 13 && extSheen) {               // Sheen Roughness
+            outCol = vec3(debugParams.sheenRoughness);
         }
-        else if (texViewMode == 14) {               // Transmission (KHR_materials_volume)
-            float t = useTransmissionMap ? texture(transmissionMap, applyTextureTransform(uv, transmissionScale, transmissionOffset, transmissionRotation)).r : transmission;
-            outCol = vec3(t);
+        else if (texViewMode == 14 && extTransmission) {               // Transmission
+            outCol = vec3(debugParams.transmission);
         }
-        else if (texViewMode == 15) {               // IOR (KHR_materials_volume)
+        else if (texViewMode == 15 && extVolume) {               // IOR
             float ior = useIorMap ? texture(iorMap, applyTextureTransform(uv, iorScale, iorOffset, iorRotation)).r : (IOR / 2.0);
             outCol = vec3(ior);
         }
-        else if (texViewMode == 16) {               // Thickness (KHR_materials_volume)
-            float thick = useThicknessMap ? texture(thicknessMap, applyTextureTransform(uv, thicknessScale, thicknessOffset, thicknessRotation)).r : 0.0;
-            outCol = vec3(thick);
+        else if (texViewMode == 16 && extVolume) {               // Thickness
+            outCol = vec3(debugParams.thickness);
         }
-        else if (texViewMode == 17) {               // Specular Factor (KHR_materials_specular)
-            float sf = useSpecularFactorMap ? texture(specularFactorMap, applyTextureTransform(uv, specularFactorScale, specularFactorOffset, specularFactorRotation)).r : specular;
-            outCol = vec3(sf);
+        else if (texViewMode == 17 && extSpecular) {               // Specular Factor
+            outCol = vec3(debugParams.specularFactor);
         }
-        else if (texViewMode == 18) {               // Specular Color (KHR_materials_specular)
-            vec3 spc = useSpecularColorMap ? texture(specularColorMap, applyTextureTransform(uv, specularColorScale, specularColorOffset, specularColorRotation)).rgb : vec3(0.0);
-            outCol = clamp(spc, 0.0, 1.0);
+        else if (texViewMode == 18 && extSpecular) {               // Specular Color
+            outCol = linearTosRGB(debugParams.specularColor);
         }
-        else if (texViewMode == 19) {               // Anisotropy (KHR_materials_anisotropy)
+        else if (texViewMode == 19 && extAnisotropy) {               // Anisotropy
             float aniso = useAnisotropyMap ? texture(anisotropyMap, applyTextureTransform(uv, anisotropyScale, anisotropyOffset, anisotropyRotation)).r : 0.0;
             outCol = vec3(aniso);
         }
-        else if (texViewMode == 20) {               // Iridescence (KHR_materials_iridescence)
-            float iri = useIridescenceMap ? texture(iridescenceMap, applyTextureTransform(uv, iridescenceScale, iridescenceOffset, iridescenceRotation)).r : iridescence;
-            outCol = vec3(iri);
+        else if (texViewMode == 20 && extIridescence) {               // Iridescence
+            outCol = vec3(debugParams.iridescenceFactor);
         }
-        else if (texViewMode == 21) {               // Iridescence Thickness (KHR_materials_iridescence)
-            float iriThick = useIridescenceThicknessMap ? texture(iridescenceThicknessMap, applyTextureTransform(uv, iridescenceThicknessScale, iridescenceThicknessOffset, iridescenceThicknessRotation)).r : 0.5;
-            outCol = vec3(iriThick);
+        else if (texViewMode == 21 && extIridescence) {               // Iridescence Thickness
+            outCol = vec3(debugParams.iridescenceThickness);
         }
-        else if (texViewMode == 22) {               // Diffuse Transmission (KHR_materials_diffuse_transmission)
-            vec3 diffTrans = useDiffuseTransmissionMap ? texture(diffuseTransmissionMap, applyTextureTransform(uv, diffuseTransmissionScale, diffuseTransmissionOffset, diffuseTransmissionRotation)).rgb : vec3(0.0);
-            outCol = clamp(diffTrans, 0.0, 1.0);
+        else if (texViewMode == 22 && extDiffuseTransmission) {               // Diffuse Transmission
+            outCol = vec3(debugParams.diffuseTransmissionFactor);
         }
-        else if (texViewMode == 23) {               // Diffuse Transmission Color (KHR_materials_diffuse_transmission)
-            vec3 diffTransCol = useDiffuseTransmissionColorMap ? texture(diffuseTransmissionColorMap, applyTextureTransform(uv, diffuseTransmissionColorScale, diffuseTransmissionColorOffset, diffuseTransmissionColorRotation)).rgb : vec3(0.0);
-            outCol = clamp(diffTransCol, 0.0, 1.0);
+        else if (texViewMode == 23 && extDiffuseTransmission) {               // Diffuse Transmission Color
+            outCol = linearTosRGB(debugParams.diffuseTransmissionColor);
         }
 
         // Apply tonemap and gamma (matches main_scene.frag environment settings)
@@ -883,44 +1083,21 @@ void main()
         FragColor = vec4(outCol, 1.0);
         return;
     }
-
-
     // ----- Sample or fallback using parallaxed UVs -----
-    // WYSIWYG: Multiply texture with scalar (if no texture, use vec3(1.0) so only scalar shows)
-    vec3  albedoVal = (useAlbedoMap ? texture(albedoMap, applyTextureTransform(uv, albedoScale, albedoOffset, albedoRotation)).rgb : vec3(1.0)) * albedo;
-    albedoVal = clamp(albedoVal, vec3(0.01), vec3(1.0));
-
-    vec4 metalTex = texture(metalnessMap, applyTextureTransform(uv, metalnessScale, metalnessOffset, metalnessRotation));
-    vec4 roughTex = texture(roughnessMap, applyTextureTransform(uv, roughnessScale, roughnessOffset, roughnessRotation));
-    vec4 aoTex    = texture(AOMap, applyTextureTransform(uv, AOScale, AOOffset, AORotation));
-    vec4 opTex    = texture(opacityMap, applyTextureTransform(uv, opacityScale, opacityOffset, opacityRotation));
-
-    float metalnessVal = useMetalnessMap ? pickChannel(metalTex, metalnessChannel, metalnessChannelInvert, metalnessChannelScale, metalnessChannelBias) : metalness;
-    float roughnessVal = useRoughnessMap ? pickChannel(roughTex, roughnessChannel, roughnessChannelInvert, roughnessChannelScale, roughnessChannelBias) : roughness;
-    float ao    = useAOMap ? pickChannel(aoTex, AOChannel, AOChannelInvert, AOChannelScale, AOChannelBias) : 1.0;
-    float opacityVal = useOpacityMap ? pickChannel(opTex, opacityChannel, opacityChannelInvert, opacityChannelScale, opacityChannelBias) : opacity;
-
-    vec3 emissive = vec3(0.0);
-    if (useEmissiveMap) {
-        emissive = texture(emissiveMap, applyTextureTransform(uv, emissiveScale, emissiveOffset, emissiveRotation)).rgb * emissiveColor * emissiveStrength;
-    } else {
-        emissive = emissiveColor * emissiveStrength;
-    }
+    PreviewMaterialParams params = gatherMaterialParams(uv);
+    vec3 albedoVal = max(params.baseColor, vec3(0.01));
+    float metalnessVal = params.metalness;
+    float roughnessVal = params.roughness;
+    float ao = params.ambientOcclusion;
+    float opacityVal = params.opacity;
+    vec3 emissive = params.emissive;
 
     // ----- Normal mapping uses parallaxed UVs -----
     vec3 N = getNormalFromMap(applyTextureTransform(uv, normalScale, normalOffset, normalRotation));
 
     // WYSIWYG: Multiply clearcoat texture with scalar
-    float clearcoatVal = (useClearcoatColorMap
-        ? texture(clearcoatColorMap, applyTextureTransform(uv, clearcoatColorScale, clearcoatColorOffset, clearcoatColorRotation)).r
-        : 1.0) * clearcoat;
-    clearcoatVal = clamp(clearcoatVal, 0.0, 1.0);
-
-    // WYSIWYG: Multiply clearcoat roughness texture with scalar
-    float clearcoatRoughnessVal = (useClearcoatRoughnessMap
-        ? texture(clearcoatRoughnessMap, applyTextureTransform(uv, clearcoatRoughnessScale, clearcoatRoughnessOffset, clearcoatRoughnessRotation)).r
-        : 1.0) * clearcoatRoughness;
-    clearcoatRoughnessVal = clamp(clearcoatRoughnessVal, 0.0001, 1.0);
+    float clearcoatVal = params.clearcoat;
+    float clearcoatRoughnessVal = params.clearcoatRoughness;
 
     vec3 clearcoatN = useClearcoatNormalMap
         ? getNormalFromMapSampler(
@@ -929,21 +1106,13 @@ void main()
             clearcoatNormalIntensity)
         : N;
 
-    // WYSIWYG: Multiply sheen texture with scalar
-    vec3 sheenColorVal = (useSheenColorMap
-        ? texture(sheenColorMap, applyTextureTransform(uv, sheenColorScale, sheenColorOffset, sheenColorRotation)).rgb
-        : vec3(1.0)) * sheenColor;
-
-    float sheenRoughnessVal = useSheenRoughnessMap
-        ? texture(sheenRoughnessMap, applyTextureTransform(uv, sheenRoughnessScale, sheenRoughnessOffset, sheenRoughnessRotation)).r * sheenRoughness
-        : sheenRoughness;
-    sheenRoughnessVal = clamp(sheenRoughnessVal, 0.0, 1.0);
+    vec3 sheenColorVal = params.sheenColor;
+    float sheenRoughnessVal = params.sheenRoughness;
 
     vec3 N_normalized = normalize(N);
     vec3 V_normalized = normalize(V);
     roughnessVal = clamp(roughnessVal, 0.0001, 1.0);
     metalnessVal = clamp(metalnessVal, 0.0, 1.0);
-    ao = mix(1.0, ao, occlusionStrength);
 
     vec3 color = vec3(0.0);
 
@@ -969,32 +1138,18 @@ void main()
     }
     else
     {
-        float iorVal = useIorMap ? texture(iorMap, applyTextureTransform(uv, iorScale, iorOffset, iorRotation)).r : IOR;
-        iorVal = max(iorVal, 1.001);
+        float iorVal = params.ior;
+        float specularFactorVal = params.specularFactor;
+        vec3 specularColorVal = params.specularColor;
 
-        float specularFactorVal = useSpecularFactorMap
-            ? texture(specularFactorMap, applyTextureTransform(uv, specularFactorScale, specularFactorOffset, specularFactorRotation)).a * specularFactor
-            : specularFactor;
-        vec3 specularColorVal = (useSpecularColorMap
-            ? texture(specularColorMap, applyTextureTransform(uv, specularColorScale, specularColorOffset, specularColorRotation)).rgb
-            : vec3(1.0)) * specularColorFactor;
-
-        vec3 F0 = vec3(pow((iorVal - 1.0) / (iorVal + 1.0), 2.0));
-        F0 = max(F0 * specularColorVal * specularFactorVal, vec3(0.0));
+        vec3 F0 = computeDielectricF0(iorVal, specularFactorVal, specularColorVal, params.useSpecGloss, specularColorVal);
         F0 = mix(F0, albedoVal, metalnessVal);
         vec3 F90 = mix(vec3(specularFactorVal), vec3(1.0), metalnessVal);
 
-        float iridescenceVal = useIridescenceMap
-            ? texture(iridescenceMap, applyTextureTransform(uv, iridescenceScale, iridescenceOffset, iridescenceRotation)).r * iridescence
-            : iridescence;
+        float iridescenceVal = params.iridescenceFactor;
         if (iridescenceVal > 0.001)
         {
-            float thickness = iridescenceThicknessMax;
-            if (useIridescenceThicknessMap)
-            {
-                float thicknessNorm = texture(iridescenceThicknessMap, applyTextureTransform(uv, iridescenceThicknessScale, iridescenceThicknessOffset, iridescenceThicknessRotation)).g;
-                thickness = mix(iridescenceThicknessMin, iridescenceThicknessMax, thicknessNorm);
-            }
+            float thickness = params.iridescenceThickness;
             float NoV = clamp(dot(N_normalized, V_normalized), 0.0, 1.0);
             vec3 iridDielectric = evalIridescence(1.0, iridescenceIOR, NoV, thickness, F0, vec3(specularFactorVal));
             vec3 iridMetallic = evalIridescence(1.0, iridescenceIOR, NoV, thickness, albedoVal, vec3(1.0));
@@ -1005,7 +1160,7 @@ void main()
 
         vec3 T = normalize(vTangentW.xyz - dot(vTangentW.xyz, N_normalized) * N_normalized);
         vec3 B = getBitangent(N_normalized, T, vTangentW.w);
-        float anisotropyVal = anisotropyStrength;
+        float anisotropyVal = params.anisotropyStrength;
         if (useAnisotropyMap)
         {
             vec3 anisoTex = texture(anisotropyMap, applyTextureTransform(uv, anisotropyScale, anisotropyOffset, anisotropyRotation)).rgb;
@@ -1038,6 +1193,16 @@ void main()
             float G = geometrySmith(N_normalized, V_normalized, L, roughnessVal);
             vec3 specBRDF = (D * G * F) / max(4.0 * NoV * NoL, 0.001);
 
+            if (length(sheenColorVal) > 0.0)
+            {
+                float sheenStrength = max3(sheenColorVal);
+                float albedoSheenScaling = min(
+                    1.0 - sheenStrength * texture(sheenELUT, clamp(vec2(NoV, sheenRoughnessVal), vec2(0.0), vec2(1.0))).r,
+                    1.0 - sheenStrength * texture(sheenELUT, clamp(vec2(NoL, sheenRoughnessVal), vec2(0.0), vec2(1.0))).r);
+                kD *= albedoSheenScaling;
+                specBRDF *= albedoSheenScaling;
+            }
+
             directDiffuse += kD * albedoVal / PI * lights[i].color * NoL;
             directSpecular += specBRDF * lights[i].color * NoL;
             directSheen += calculateSheenLayer(N_normalized, V_normalized, L, sheenColorVal, sheenRoughnessVal) * lights[i].color;
@@ -1054,7 +1219,32 @@ void main()
             vec3 kDibl = (vec3(1.0) - Fibl) * (1.0 - metalnessVal);
             vec3 diffuseIBL = irradiance * albedoVal;
             vec3 specularIBL = envMapEnabled ? computeSpecularIBL(V_normalized, N_normalized, roughnessVal, F0, max(vec3(1.0 - roughnessVal), F0)) : vec3(0.0);
-            ambient = (kDibl * diffuseIBL * envDiffuseIntensity + specularIBL) * ao;
+            float iblSheenScaling = 1.0;
+            if (length(sheenColorVal) > 0.0)
+            {
+                float sheenStrength = max3(sheenColorVal);
+                vec2 sheenCoord = clamp(vec2(dotNV, sheenRoughnessVal), vec2(0.0), vec2(1.0));
+                float E_charlie = texture(charlieLUT, sheenCoord).b;
+                float E_sheen = texture(sheenELUT, sheenCoord).r;
+                iblSheenScaling = 1.0 - sheenStrength * min(E_charlie, E_sheen);
+            }
+            if (params.diffuseTransmissionFactor > 0.0)
+            {
+                vec3 backNormalIBL = transformNormalForIBL(-N_normalized);
+                vec3 diffuseTransmissionIBL = texture(irradianceMap, backNormalIBL).rgb * params.diffuseTransmissionColor;
+                if (params.thickness > 0.0)
+                {
+                    diffuseTransmissionIBL = calculateVolumeAttenuation(
+                        diffuseTransmissionIBL,
+                        params.thickness,
+                        params.thickness,
+                        params.attenuationColor,
+                        params.attenuationDistance);
+                }
+                diffuseIBL = mix(diffuseIBL, diffuseTransmissionIBL, params.diffuseTransmissionFactor);
+            }
+
+            ambient = ((kDibl * diffuseIBL * envDiffuseIntensity) + specularIBL) * ao * iblSheenScaling;
             ambient += calculateSheenIBLLayer(N_normalized, V_normalized, sheenColorVal, sheenRoughnessVal) * ao;
 
             if (clearcoatVal > 0.001 && envMapEnabled)
@@ -1062,7 +1252,7 @@ void main()
                 vec3 ccR = reflect(-V_normalized, clearcoatN);
                 ccR = previewRotationMatrix * ccR;
                 vec3 ccPrefilterDir = toPrefilterDirection(ccR);
-                float maxLod = max(float(textureQueryLevels(prefilterMap)) - 1.0, 0.0);
+                float maxLod = float(max(prefilterMipLevels - 1, 0));
                 vec3 ccPrefilter = textureLod(prefilterMap, ccPrefilterDir, clamp(clearcoatRoughnessVal * maxLod, 0.0, maxLod)).rgb * envMapExposure;
                 vec2 ccBrdf = texture(brdfLUT, vec2(dotNV, clearcoatRoughnessVal)).rg;
                 vec3 ccF = fresnelSchlick(dotNV, vec3(0.04), vec3(1.0));
@@ -1074,11 +1264,21 @@ void main()
 
         color = emissive + ambient + (directDiffuse + directSpecular) * (1.0 - clearcoatAttenuation) + directSheen + directClearcoat;
 
-        float transmissionVal = useTransmissionMap ? texture(transmissionMap, applyTextureTransform(uv, transmissionScale, transmissionOffset, transmissionRotation)).r * transmission : transmission;
+        float transmissionVal = params.transmission;
         if (transmissionVal > 0.001)
         {
             vec3 tint = mix(albedoVal, vec3(1.0), clamp((iorVal - 1.0) * 0.3, 0.0, 1.0));
-            color = mix(color, tint * (ambient + directSpecular + emissive), transmissionVal);
+            vec3 transmitted = tint * (ambient + directSpecular + emissive);
+            if (params.thickness > 0.0)
+            {
+                transmitted = calculateVolumeAttenuation(
+                    transmitted,
+                    params.thickness,
+                    params.thickness,
+                    params.attenuationColor,
+                    params.attenuationDistance);
+            }
+            color = mix(color, transmitted, transmissionVal);
         }
     }
 

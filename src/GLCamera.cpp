@@ -53,6 +53,7 @@ void GLCamera::setFOV(float fov)
 {
 	_FOV = fov;
 	updateProjectionMatrix();
+	updateViewMatrix();
 }
 
 float GLCamera::getFOV() const
@@ -64,6 +65,7 @@ void GLCamera::setViewRange(float range)
 {
 	_viewRange = range;
 	updateProjectionMatrix();
+	updateViewMatrix();
 }
 
 float GLCamera::getViewRange() const
@@ -75,6 +77,7 @@ void GLCamera::setProjectionType(ProjectionType proj)
 {
 	_projectionType = proj;
 	updateProjectionMatrix();
+	updateViewMatrix();
 }
 
 GLCamera::ProjectionType GLCamera::getProjectionType() const
@@ -101,11 +104,17 @@ void GLCamera::resetAll(void)
 void GLCamera::updateViewMatrix(void)
 {
 	_viewMatrix.setToIdentity();
-	//The point at which the camera looks:
+	QVector3D eye = _position;
 	QVector3D viewPoint = _position + _viewDir;
 
+	if (_cameraMode == CameraMode::Orbit)
+	{
+		eye = getRenderPosition();
+		viewPoint = _position;
+	}
+
 	//as we know the up vector, we can easily use gluLookAt:
-	_viewMatrix.lookAt(_position, viewPoint, _upVector);
+	_viewMatrix.lookAt(eye, viewPoint, _upVector);
 
 	// Camera Zooming
 	_viewMatrix.scale(_zoomValue);
@@ -138,12 +147,21 @@ void GLCamera::updateProjectionMatrix(void)
 
 	if (_projectionType == ProjectionType::ORTHOGRAPHIC)
 	{
+		float nearPlane = -viewRange * 10.0f;
+		float farPlane = viewRange * 10.0f;
+		if (_cameraMode == CameraMode::Orbit)
+		{
+			const float depthCenter = getOrthoViewDistance();
+			nearPlane = std::max(depthCenter - viewRange * 20.0f, 0.001f);
+			farPlane = depthCenter + viewRange * 20.0f;
+		}
+
 		if (w <= h)
 		{
 			_projectionMatrix.ortho(
 				-halfRange, halfRange,
 				-halfRange * h / w, halfRange * h / w,
-				-viewRange * 10.0f, viewRange * 10.0f
+				nearPlane, farPlane
 			);
 		}
 		else
@@ -151,14 +169,19 @@ void GLCamera::updateProjectionMatrix(void)
 			_projectionMatrix.ortho(
 				-halfRange * w / h, halfRange * w / h,
 				-halfRange, halfRange,
-				-viewRange * 10.0f, viewRange * 10.0f
+				nearPlane, farPlane
 			);
 		}
 	}
 	else // Perspective
 	{
 		float aspect = w / h;
-		float nearPlane = std::max(_viewRange * 0.01f, 0.01f);
+		// Use 0.1 % of viewRange for the near plane so that close-up views
+		// (e.g. a glTF camera positioned near a surface, or heavy zoom-in in
+		// Orbit mode) do not clip into geometry.  The resulting near:far ratio
+		// of 1 : 1 000 000 is comfortable for a 24-bit depth buffer in a
+		// model-viewer context where the full depth range is rarely in use.
+		float nearPlane = std::max(_viewRange * 0.001f, 0.0001f);
 		float farPlane = _viewRange * 1000.0f;
 
 		float fovY = _FOV;
@@ -173,12 +196,6 @@ void GLCamera::updateProjectionMatrix(void)
 		}
 
 		_projectionMatrix.perspective(effectiveFOV, aspect, nearPlane, farPlane);
-
-		// Final shift to fit bounding sphere perfectly
-		float shift = computeViewShift(_FOV, _viewRange, 1.05f, 1.25f);
-
-		_projectionMatrix.translate(0.0f, 0.0f, shift);
-
 	}
 }
 
@@ -383,6 +400,27 @@ void GLCamera::setPosition(float iX, float iY, float iZ)
 void GLCamera::setPosition(QVector3D pos)
 {
 	setPosition(pos.x(), pos.y(), pos.z());
+}
+
+QVector3D GLCamera::getRenderPosition() const
+{
+	if (_cameraMode != CameraMode::Orbit)
+		return _position;
+
+	const float distance = (_projectionType == ProjectionType::ORTHOGRAPHIC)
+		? getOrthoViewDistance()
+		: getOrbitDistance();
+	return _position - _viewDir.normalized() * distance;
+}
+
+float GLCamera::getOrbitDistance() const
+{
+	return -computeViewShift(_FOV, _viewRange, 1.05f, 1.25f);
+}
+
+float GLCamera::getOrthoViewDistance() const
+{
+	return std::max(getOrbitDistance() * 4.0f, _viewRange * 6.0f);
 }
 
 void GLCamera::updateFlyView()

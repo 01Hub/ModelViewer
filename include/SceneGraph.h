@@ -3,6 +3,7 @@
 #include "SceneNode.h"
 #include "GLLights.h"
 #include "GltfAnimationData.h"
+#include "GltfCameraData.h"
 #include "GltfVariantData.h"
 
 #include <QHash>
@@ -132,6 +133,14 @@ public:
     int activeAnimationClipForFile(const QString& sourceFile) const;
 
     // -----------------------------------------------------------------------
+    // glTF cameras
+    // -----------------------------------------------------------------------
+    void setGltfCameraData(const QString& sourceFile, const GltfCameraData& data);
+    void clearGltfCameraData(const QString& sourceFile);
+    GltfCameraData gltfCameraDataForFile(const QString& sourceFile) const;
+    QStringList filesWithGltfCameras() const;
+
+    // -----------------------------------------------------------------------
     // Mutation  (called by undo/redo command classes)
     // -----------------------------------------------------------------------
 
@@ -182,6 +191,7 @@ signals:
     // The MaterialVariantsPanel connects to this to refresh its tree.
     void variantDataChanged();
     void animationDataChanged();
+    void gltfCameraDataChanged();
 
 private:
     // Recursively build a SceneNode subtree that mirrors ainode and its
@@ -220,4 +230,7 @@ private:
     QHash<QString, int> _activeVariantByFile;
     QHash<QString, GltfAnimationData> _animationDataByFile;
     QHash<QString, int> _activeAnimationClipByFile;
+
+    // glTF cameras: one entry per source file that declares cameras.
+    QHash<QString, GltfCameraData> _gltfCameraDataByFile;
 };

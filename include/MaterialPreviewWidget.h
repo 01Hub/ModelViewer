@@ -158,6 +158,8 @@ private:
 	GpuTexCache _diffuseTransmissionTex;
 	GpuTexCache _diffuseTransmissionColorTex;
 	GpuTexCache _thicknessTex;
+	GpuTexCache _diffuseTex;
+	GpuTexCache _specularGlossinessTex;
 
     MeshGL _sphere{};
     MeshGL _cube{};

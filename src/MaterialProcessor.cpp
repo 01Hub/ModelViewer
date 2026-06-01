@@ -2239,73 +2239,64 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 	// ===== Only run remaining strategies if name-based lookup FAILED =====
 	if (gltfMaterialIndex < 0)
 	{
-		// ===== STRATEGY B: Find by NODE name =====
-		for (int nodeIdx = 0; nodeIdx < jsonNodes.size(); ++nodeIdx)
+		// ===== STRATEGY E: Use materialIndex directly as glTF material index =====
+		// materialIndex = originalMaterialIndex has been explicitly mapped to glTF material
+		// index space via _aiMatToGltfMat in AssImpModelLoader.  This is the most reliable
+		// strategy for glTF files because it uses the authoritative compact→glTF mapping
+		// built from the scene structure, not node/mesh names.  Name-based strategies
+		// (B/C) are unreliable for multi-primitive single-mesh glTF files: for example
+		// Sponza has a single "Sponza" node referencing one mesh with 103 primitives, so
+		// any node-name lookup finds mesh[0]→prim[0]→mat[0] and wrongly assigns mat[0]
+		// (foliage) to every merged mesh group regardless of its actual material.
+		if (materialIndex >= 0 && materialIndex < jsonCount)
 		{
-			QJsonObject node = jsonNodes.at(nodeIdx).toObject();
-			if (node.value("name").toString() == lookupKey && node.contains("mesh"))
-			{
-				int nodeMeshIndex = node.value("mesh").toInt(-1);
-				if (nodeMeshIndex >= 0 && nodeMeshIndex < jsonMeshes.size())
-				{
-					QJsonArray prims = jsonMeshes.at(nodeMeshIndex).toObject().value("primitives").toArray();
-					if (!prims.isEmpty())
-					{
-						int matIdx = prims.at(0).toObject().value("material").toInt(-1);
-						if (matIdx >= 0 && matIdx < jsonCount)
-						{
-							gltfMaterialIndex = matIdx;
-							break;
-						}
-					}
-				}
-			}
+			gltfMaterialIndex = materialIndex;
+			qDebug() << "STRATEGY E (direct materialIndex):" << materialIndex << "for" << lookupKey;
 		}
 
-		// ===== STRATEGY C: Find by MESH name, with index tie-breaker =====
+		// ===== Fallback strategies — only reached when materialIndex is invalid =====
 		if (gltfMaterialIndex < 0)
 		{
-			QList<int> matchingGltfMeshIndices;
-			for (int meshIdx = 0; meshIdx < jsonMeshes.size(); ++meshIdx)
+			// ===== STRATEGY B: Find by NODE name =====
+			for (int nodeIdx = 0; nodeIdx < jsonNodes.size(); ++nodeIdx)
 			{
-				if (jsonMeshes.at(meshIdx).toObject().value("name").toString() == lookupKey)
+				QJsonObject node = jsonNodes.at(nodeIdx).toObject();
+				if (node.value("name").toString() == lookupKey && node.contains("mesh"))
 				{
-					matchingGltfMeshIndices.append(meshIdx);
-				}
-			}
-
-			if (!matchingGltfMeshIndices.isEmpty())
-			{
-				if (matchingGltfMeshIndices.size() == 1)
-				{
-					int meshIdx = matchingGltfMeshIndices.at(0);
-					QJsonArray prims = jsonMeshes.at(meshIdx).toObject().value("primitives").toArray();
-					if (!prims.isEmpty())
+					int nodeMeshIndex = node.value("mesh").toInt(-1);
+					if (nodeMeshIndex >= 0 && nodeMeshIndex < jsonMeshes.size())
 					{
-						int matIdx = prims.at(0).toObject().value("material").toInt(-1);
-						if (matIdx >= 0 && matIdx < jsonCount)
-						{
-							gltfMaterialIndex = matIdx;
-						}
-					}
-				}
-				else if (matchingGltfMeshIndices.size() > 1)
-				{
-					if (actualMeshIndex < jsonMeshes.size() && matchingGltfMeshIndices.contains(actualMeshIndex))
-					{
-						QJsonArray prims = jsonMeshes.at(actualMeshIndex).toObject().value("primitives").toArray();
+						QJsonArray prims = jsonMeshes.at(nodeMeshIndex).toObject().value("primitives").toArray();
 						if (!prims.isEmpty())
 						{
 							int matIdx = prims.at(0).toObject().value("material").toInt(-1);
 							if (matIdx >= 0 && matIdx < jsonCount)
 							{
 								gltfMaterialIndex = matIdx;
+								break;
 							}
 						}
 					}
-					else if (matchingGltfMeshIndices.size() > actualMeshIndex)
+				}
+			}
+
+			// ===== STRATEGY C: Find by MESH name, with index tie-breaker =====
+			if (gltfMaterialIndex < 0)
+			{
+				QList<int> matchingGltfMeshIndices;
+				for (int meshIdx = 0; meshIdx < jsonMeshes.size(); ++meshIdx)
+				{
+					if (jsonMeshes.at(meshIdx).toObject().value("name").toString() == lookupKey)
 					{
-						int meshIdx = matchingGltfMeshIndices.at(actualMeshIndex % matchingGltfMeshIndices.size());
+						matchingGltfMeshIndices.append(meshIdx);
+					}
+				}
+
+				if (!matchingGltfMeshIndices.isEmpty())
+				{
+					if (matchingGltfMeshIndices.size() == 1)
+					{
+						int meshIdx = matchingGltfMeshIndices.at(0);
 						QJsonArray prims = jsonMeshes.at(meshIdx).toObject().value("primitives").toArray();
 						if (!prims.isEmpty())
 						{
@@ -2316,20 +2307,49 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 							}
 						}
 					}
+					else if (matchingGltfMeshIndices.size() > 1)
+					{
+						if (actualMeshIndex < jsonMeshes.size() && matchingGltfMeshIndices.contains(actualMeshIndex))
+						{
+							QJsonArray prims = jsonMeshes.at(actualMeshIndex).toObject().value("primitives").toArray();
+							if (!prims.isEmpty())
+							{
+								int matIdx = prims.at(0).toObject().value("material").toInt(-1);
+								if (matIdx >= 0 && matIdx < jsonCount)
+								{
+									gltfMaterialIndex = matIdx;
+								}
+							}
+						}
+						else if (matchingGltfMeshIndices.size() > actualMeshIndex)
+						{
+							int meshIdx = matchingGltfMeshIndices.at(actualMeshIndex % matchingGltfMeshIndices.size());
+							QJsonArray prims = jsonMeshes.at(meshIdx).toObject().value("primitives").toArray();
+							if (!prims.isEmpty())
+							{
+								int matIdx = prims.at(0).toObject().value("material").toInt(-1);
+								if (matIdx >= 0 && matIdx < jsonCount)
+								{
+									gltfMaterialIndex = matIdx;
+								}
+							}
+						}
+					}
 				}
 			}
-		}
 
-		// ===== STRATEGY D: Use direct index match =====
-		if (gltfMaterialIndex < 0 && actualMeshIndex < jsonMeshes.size())
-		{
-			QJsonArray prims = jsonMeshes.at(actualMeshIndex).toObject().value("primitives").toArray();
-			if (!prims.isEmpty())
+			// ===== STRATEGY D: Use direct index match =====
+			// Last resort — unreliable for multi-primitive glTF meshes.
+			if (gltfMaterialIndex < 0 && actualMeshIndex < jsonMeshes.size())
 			{
-				int matIdx = prims.at(0).toObject().value("material").toInt(-1);
-				if (matIdx >= 0 && matIdx < jsonCount)
+				QJsonArray prims = jsonMeshes.at(actualMeshIndex).toObject().value("primitives").toArray();
+				if (!prims.isEmpty())
 				{
-					gltfMaterialIndex = matIdx;
+					int matIdx = prims.at(0).toObject().value("material").toInt(-1);
+					if (matIdx >= 0 && matIdx < jsonCount)
+					{
+						gltfMaterialIndex = matIdx;
+					}
 				}
 			}
 		}

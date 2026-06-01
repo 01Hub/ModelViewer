@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QDebug>
 #include <QFileInfo>
+#include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QScreen>
 #include <QSplashScreen>
@@ -19,6 +20,10 @@
 int main(int argc, char** argv)
 {
 	Q_INIT_RESOURCE(ModelViewer);
+
+	// Must be called before QApplication is constructed — sets platform OpenGL attributes.
+	// On Linux/Wayland this prevents crashes; safe no-op on Windows (gated inside).
+	ModelViewerApplication::configureOpenGLAttributes();
 
 	ModelViewerApplication app(argc, argv);
 
@@ -116,28 +121,39 @@ int main(int argc, char** argv)
 		}
 	}
 
-	QOpenGLFunctions glFuncs(QOpenGLContext::currentContext());
-	auto logOpenGLInfo = [&glFuncs](auto& outputStream) {
-		std::map<std::string, GLenum> infoMap = {
-			{"Renderer", GL_RENDERER},
-			{"Vendor", GL_VENDOR},
-			{"OpenGL Version", GL_VERSION},
-			{"Shader Version", GL_SHADING_LANGUAGE_VERSION}
+	// Guard against platforms (Wayland, headless) where no context is current at this point.
+	// The main window's GLWidget will have initialised by now on most platforms, but it is
+	// not guaranteed — a missing context here would crash glGetString.
+	if (QOpenGLContext::currentContext())
+	{
+		QOpenGLFunctions glFuncs(QOpenGLContext::currentContext());
+		auto logOpenGLInfo = [&glFuncs](auto& outputStream) {
+			std::map<std::string, GLenum> infoMap = {
+				{"Renderer", GL_RENDERER},
+				{"Vendor", GL_VENDOR},
+				{"OpenGL Version", GL_VERSION},
+				{"Shader Version", GL_SHADING_LANGUAGE_VERSION}
+			};
+
+			for (const auto& [label, value] : infoMap) {
+				const char* info = reinterpret_cast<const char*>(glFuncs.glGetString(value));
+				outputStream << label << ": " << info << '\n';
+			}
 		};
 
-		for (const auto& [label, value] : infoMap) {
-			const char* info = reinterpret_cast<const char*>(glFuncs.glGetString(value));
-			outputStream << label << ": " << info << '\n';
-		}
-		};
+		// Log information to std::cout
+		logOpenGLInfo(std::cout);
 
-	// Log information to std::cout
-	logOpenGLInfo(std::cout);
-
-	// Collect information into std::stringstream and set it to mw
-	std::stringstream ss;
-	logOpenGLInfo(ss);
-	mw->setGraphicsInfo(ss.str().c_str());
+		// Collect information into std::stringstream and set it to mw
+		std::stringstream ss;
+		logOpenGLInfo(ss);
+		mw->setGraphicsInfo(ss.str().c_str());
+	}
+	else
+	{
+		qWarning() << "main: OpenGL context not current during startup — graphics info unavailable until viewer initialises.";
+		mw->setGraphicsInfo("OpenGL context information unavailable until the viewer is initialised.");
+	}
 
 	/*
 #ifdef QT_DEBUG

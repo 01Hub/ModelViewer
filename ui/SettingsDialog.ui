@@ -2092,13 +2092,23 @@
            </widget>
           </item>
           <item row="3" column="0">
+           <widget class="QCheckBox" name="showTextureDebugPanelCheckBox">
+            <property name="text">
+             <string>Enable Texture Debugger in Tools menu</string>
+            </property>
+            <property name="toolTip">
+             <string>Adds a Texture Debugger entry to the Tools menu. The panel shows GPU-side texture bindings for the selected mesh.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0">
            <widget class="QPushButton" name="clearCacheButton">
             <property name="text">
              <string>Clear All Caches</string>
             </property>
            </widget>
           </item>
-          <item row="4" column="0">
+          <item row="6" column="0">
            <widget class="QPushButton" name="resetSettingsButton">
             <property name="text">
              <string>Reset to Defaults</string>

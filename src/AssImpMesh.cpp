@@ -129,8 +129,15 @@ void AssImpMesh::render()
 		_uniformsDirty = false;
 	}
 
+	// Apply debug uniform overrides (TextureDebugPanel extension toggles).
+	// Called unconditionally — NOT inside the _uniformsDirty gate — so the
+	// shader reflects the user's toggle state every frame even when the
+	// uniform cache is clean.
+	applyDebugUniformOverrides();
+
 	// Bind textures efficiently
 	bindTexturesOptimized();
+	applyDebugTextureOverrides();  // TextureDebugPanel per-unit overrides
 
 	// Set render state efficiently
 	setRenderStateOptimized();
@@ -296,11 +303,6 @@ void AssImpMesh::setupMesh()
 		jointWeights.push_back(v.JointWeights.w);
 	}
 
-	// ============================================
-	// Texture flags
-	// ============================================
-	_hasTexture = false;
-
 	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents, &jointIndices, &jointWeights);
 	computeBounds();
 }
@@ -429,48 +431,48 @@ void AssImpMesh::cacheTextureBindings()
 		}
 		else if (texture.type == "transmissionMap")
 		{
-			addBinding("transmissionMap" /*+ std::to_string(transmissionNr)*/, GL_TEXTURE18);
+			addBinding("transmissionMap" /*+ std::to_string(transmissionNr)*/, GL_TEXTURE28);
 			transmissionNr++;
 		}
 		else if (texture.type == "iorMap")
 		{
-			addBinding("iorMap" /*+ std::to_string(iorNr)*/, GL_TEXTURE19);
+			addBinding("iorMap" /*+ std::to_string(iorNr)*/, GL_TEXTURE29);
 			iorNr++;
 		}
 		else if (texture.type == "sheenColorMap")
 		{
-			addBinding("sheenColorMap" /*+ std::to_string(sheenColorNr)*/, GL_TEXTURE20);
+			addBinding("sheenColorMap" /*+ std::to_string(sheenColorNr)*/, GL_TEXTURE26);
 			sheenColorNr++;
 		}
 		else if (texture.type == "sheenRoughnessMap")
 		{
-			addBinding("sheenRoughnessMap" /*+ std::to_string(sheenRoughnessNr)*/, GL_TEXTURE21);
+			addBinding("sheenRoughnessMap" /*+ std::to_string(sheenRoughnessNr)*/, GL_TEXTURE27);
 			sheenRoughnessNr++;
 		}
 		else if (texture.type == "clearcoatColorMap")
 		{
-			addBinding("clearcoatColorMap" /*+ std::to_string(clearcoatNr)*/, GL_TEXTURE22);
+			addBinding("clearcoatColorMap" /*+ std::to_string(clearcoatNr)*/, GL_TEXTURE18);
 			clearcoatNr++;
 		}
 		else if (texture.type == "clearcoatRoughnessMap")
 		{
-			addBinding("clearcoatRoughnessMap" /*+ std::to_string(clearcoatRoughnessNr)*/, GL_TEXTURE23);
+			addBinding("clearcoatRoughnessMap" /*+ std::to_string(clearcoatRoughnessNr)*/, GL_TEXTURE19);
 			clearcoatRoughnessNr++;
 		}
 		else if (texture.type == "clearcoatNormalMap")
 		{
-			addBinding("clearcoatNormalMap" /*+ std::to_string(clearcoatNormalNr)*/, GL_TEXTURE24);
+			addBinding("clearcoatNormalMap" /*+ std::to_string(clearcoatNormalNr)*/, GL_TEXTURE20);
 			clearcoatNormalNr++;
 		}
 		// === NEW GLTF EXTENSION TEXTURES ===
 		else if (texture.type == "specularFactorMap")
 		{
-			addBinding("specularFactorMap" /*+ std::to_string(specularFactorNr)*/, GL_TEXTURE25);
+			addBinding("specularFactorMap" /*+ std::to_string(specularFactorNr)*/, GL_TEXTURE21);
 			specularFactorNr++;
 		}
 		else if (texture.type == "specularColorMap")
 		{
-			addBinding("specularColorMap" /*+ std::to_string(specularColorNr)*/, GL_TEXTURE26);
+			addBinding("specularColorMap" /*+ std::to_string(specularColorNr)*/, GL_TEXTURE22);
 			specularColorNr++;
 		}		
 		else if (texture.type == "diffuseMap") // === KHR_materials_pbrSpecularGlossiness ===
@@ -481,24 +483,24 @@ void AssImpMesh::cacheTextureBindings()
 		}
 		else if (texture.type == "specularGlossinessMap")
 		{
-			// GL_TEXTURE25 is reused (mutually exclusive with specularFactorMap)
+			// GL_TEXTURE21 is reused (mutually exclusive with specularFactorMap)
 			// The shader checks hasSpecularGlossinessMap to determine which to use
-			addBinding("specularGlossinessMap" /*+ std::to_string(specularGlossinessNr)*/, GL_TEXTURE25);
+			addBinding("specularGlossinessMap" /*+ std::to_string(specularGlossinessNr)*/, GL_TEXTURE21);
 			specularGlossinessNr++;
 		}
 		else if (texture.type == "anisotropyMap")
 		{
-			addBinding("anisotropyMap" /*+ std::to_string(anisotropyNr)*/, GL_TEXTURE27);
+			addBinding("anisotropyMap" /*+ std::to_string(anisotropyNr)*/, GL_TEXTURE23);
 			anisotropyNr++;
 		}
 		else if (texture.type == "iridescenceMap")
 		{
-			addBinding("iridescenceMap" /*+ std::to_string(iridescenceNr)*/, GL_TEXTURE28);
+			addBinding("iridescenceMap" /*+ std::to_string(iridescenceNr)*/, GL_TEXTURE24);
 			iridescenceNr++;
 		}
 		else if (texture.type == "iridescenceThicknessMap")
 		{
-			addBinding("iridescenceThicknessMap" /*+ std::to_string(iridescenceThicknessNr)*/, GL_TEXTURE29);
+			addBinding("iridescenceThicknessMap" /*+ std::to_string(iridescenceThicknessNr)*/, GL_TEXTURE25);
 			iridescenceThicknessNr++;
 		}
 		else if (texture.type == "thicknessMap")
@@ -508,11 +510,11 @@ void AssImpMesh::cacheTextureBindings()
 		}
 		else if (texture.type == "diffuseTransmissionMap")
 		{
-			addBinding("diffuseTransmissionMap", GL_TEXTURE31);
+			addBinding("diffuseTransmissionMap", GL_TEXTURE0 + 34);
 		}
 		else if (texture.type == "diffuseTransmissionColorMap")
 		{
-			addBinding("diffuseTransmissionColorMap", GL_TEXTURE9);
+			addBinding("diffuseTransmissionColorMap", GL_TEXTURE0 + 35);
 		}
 	}
 
@@ -784,17 +786,65 @@ void AssImpMesh::getMeshData(std::vector<Vertex>& vertices,
 
 // Set new mesh data and upload to GPU (no optimization)
 void AssImpMesh::setMeshData(const std::vector<Vertex>& vertices,
-	const std::vector<unsigned int>& indices)
+	const std::vector<unsigned int>& indices,
+	const std::vector<unsigned int>* sourceVertexMap)
 {
+	QVector<MorphTargetData> remappedMorphTargets;
+	if (!_morphTargets.isEmpty() &&
+		sourceVertexMap &&
+		sourceVertexMap->size() == vertices.size())
+	{
+		remappedMorphTargets = _morphTargets;
+		for (MorphTargetData& morphTarget : remappedMorphTargets)
+		{
+			auto remapDeltas = [&](std::vector<glm::vec3>& deltas)
+			{
+				if (deltas.empty())
+					return;
+
+				std::vector<glm::vec3> remapped(vertices.size(), glm::vec3(0.0f));
+				for (size_t i = 0; i < sourceVertexMap->size(); ++i)
+				{
+					const unsigned int sourceIndex = (*sourceVertexMap)[i];
+					if (sourceIndex >= deltas.size())
+					{
+						deltas.clear();
+						return;
+					}
+
+					remapped[i] = deltas[sourceIndex];
+				}
+
+				deltas = std::move(remapped);
+			};
+
+			remapDeltas(morphTarget.positionDeltas);
+			remapDeltas(morphTarget.normalDeltas);
+			remapDeltas(morphTarget.tangentDeltas);
+		}
+	}
+
 	_vertices = vertices;
 	_baseVertices = vertices;
 	_indices = indices;
+	if (!remappedMorphTargets.isEmpty())
+		_morphTargets = std::move(remappedMorphTargets);
 
 	// Re-upload to GPU (no optimization)
 	setupMesh();
 
 	// Setup transformation again (in case bounds changed)
 	setupTransformation();
+
+	if (!_morphTargets.isEmpty())
+	{
+		const QVector<float> weightsToApply = !_currentMorphWeights.isEmpty()
+			? _currentMorphWeights
+			: _defaultMorphWeights;
+		_currentMorphWeights.clear();
+		if (!weightsToApply.isEmpty())
+			applyMorphWeights(weightsToApply);
+	}
 }
 
 void AssImpMesh::setMorphTargets(const QVector<MorphTargetData>& targets,
@@ -1244,7 +1294,8 @@ void AssImpMesh::clearAllPBRMaps()
 
 void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
 {
-	//glDeleteTextures(1, &_diffuseADSMap);
+	if (_diffuseADSMap && _diffuseADSMap != diffuseTex)
+		glDeleteTextures(1, &_diffuseADSMap);
 	_diffuseADSMap = diffuseTex;
 	GLMaterial::Texture t;
 	t.id = diffuseTex;
@@ -1257,7 +1308,8 @@ void AssImpMesh::setDiffuseADSMap(unsigned int diffuseTex)
 
 void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
 {
-	//glDeleteTextures(1, &_specularADSMap);
+	if (_specularADSMap && _specularADSMap != specularTex)
+		glDeleteTextures(1, &_specularADSMap);
 	_specularADSMap = specularTex;
 	GLMaterial::Texture t;
 	t.id = specularTex;
@@ -1270,7 +1322,8 @@ void AssImpMesh::setSpecularADSMap(unsigned int specularTex)
 
 void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
 {
-	//glDeleteTextures(1, &_emissiveADSMap);
+	if (_emissiveADSMap && _emissiveADSMap != emissiveTex)
+		glDeleteTextures(1, &_emissiveADSMap);
 	_emissiveADSMap = emissiveTex;
 	GLMaterial::Texture t;
 	t.id = emissiveTex;
@@ -1283,7 +1336,8 @@ void AssImpMesh::setEmissiveADSMap(unsigned int emissiveTex)
 
 void AssImpMesh::setNormalADSMap(unsigned int normalTex)
 {
-	//glDeleteTextures(1, &_normalADSMap);
+	if (_normalADSMap && _normalADSMap != normalTex)
+		glDeleteTextures(1, &_normalADSMap);
 	_normalADSMap = normalTex;
 	GLMaterial::Texture t;
 	t.id = normalTex;
@@ -1296,7 +1350,8 @@ void AssImpMesh::setNormalADSMap(unsigned int normalTex)
 
 void AssImpMesh::setHeightADSMap(unsigned int heightTex)
 {
-	//glDeleteTextures(1, &_heightADSMap);
+	if (_heightADSMap && _heightADSMap != heightTex)
+		glDeleteTextures(1, &_heightADSMap);
 	_heightADSMap = heightTex;
 	GLMaterial::Texture t;
 	t.id = heightTex;
@@ -1309,7 +1364,8 @@ void AssImpMesh::setHeightADSMap(unsigned int heightTex)
 
 void AssImpMesh::setOpacityADSMap(unsigned int opacityTex)
 {
-	//glDeleteTextures(1, &_opacityADSMap);
+	if (_opacityADSMap && _opacityADSMap != opacityTex)
+		glDeleteTextures(1, &_opacityADSMap);
 	_opacityADSMap = opacityTex;
 	GLMaterial::Texture t;
 	t.id = opacityTex;
