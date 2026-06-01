@@ -75,7 +75,8 @@ public:
 
 	// Set new mesh data and upload to GPU (no optimization)
 	void setMeshData(const std::vector<Vertex>& vertices,
-		const std::vector<unsigned int>& indices);
+		const std::vector<unsigned int>& indices,
+		const std::vector<unsigned int>* sourceVertexMap = nullptr);
 	void setMorphTargets(const QVector<MorphTargetData>& targets,
 		const QVector<float>& defaultWeights);
 	bool hasMorphTargets() const override { return !_morphTargets.isEmpty(); }

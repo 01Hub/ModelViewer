@@ -93,31 +93,36 @@ public:
     static bool generateAngleBased(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
-        const UVConfig& config = UVConfig{});
+        const UVConfig& config = UVConfig{},
+        std::vector<unsigned int>* sourceVertexMap = nullptr);
 
     // Method 2: Cylindrical projection (good for organic shapes)
     static bool generateCylindrical(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
-        const UVConfig& config = UVConfig{});
+        const UVConfig& config = UVConfig{},
+        std::vector<unsigned int>* sourceVertexMap = nullptr);
 
     // Method 3: Spherical projection (good for rounded objects)
     static bool generateSpherical(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
-        const UVConfig& config = UVConfig{});
+        const UVConfig& config = UVConfig{},
+        std::vector<unsigned int>* sourceVertexMap = nullptr);
 
     // Method 4: Planar projection with automatic orientation
     static bool generatePlanar(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
-        const UVConfig& config = UVConfig{});
+        const UVConfig& config = UVConfig{},
+        std::vector<unsigned int>* sourceVertexMap = nullptr);
 
     // Method 5: Hybrid approach (combines multiple methods)
     static bool generateHybrid(
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
-        const UVConfig& config = UVConfig{});
+        const UVConfig& config = UVConfig{},
+        std::vector<unsigned int>* sourceVertexMap = nullptr);
 
 	// Method 6: Angle-based Smart UV (similar to Blender's Smart UV)
     /*static bool generateAngleBasedSmartUV(
@@ -129,7 +134,8 @@ public:
     static bool generateAngleBasedSmartUV(        
         std::vector<Vertex>& vertices,
         std::vector<unsigned int>& indices,
-        const UVConfig& config);
+        const UVConfig& config,
+        std::vector<unsigned int>* sourceVertexMap = nullptr);
 
 private:
     // Helper methods for angle-based unwrapping

@@ -786,17 +786,65 @@ void AssImpMesh::getMeshData(std::vector<Vertex>& vertices,
 
 // Set new mesh data and upload to GPU (no optimization)
 void AssImpMesh::setMeshData(const std::vector<Vertex>& vertices,
-	const std::vector<unsigned int>& indices)
+	const std::vector<unsigned int>& indices,
+	const std::vector<unsigned int>* sourceVertexMap)
 {
+	QVector<MorphTargetData> remappedMorphTargets;
+	if (!_morphTargets.isEmpty() &&
+		sourceVertexMap &&
+		sourceVertexMap->size() == vertices.size())
+	{
+		remappedMorphTargets = _morphTargets;
+		for (MorphTargetData& morphTarget : remappedMorphTargets)
+		{
+			auto remapDeltas = [&](std::vector<glm::vec3>& deltas)
+			{
+				if (deltas.empty())
+					return;
+
+				std::vector<glm::vec3> remapped(vertices.size(), glm::vec3(0.0f));
+				for (size_t i = 0; i < sourceVertexMap->size(); ++i)
+				{
+					const unsigned int sourceIndex = (*sourceVertexMap)[i];
+					if (sourceIndex >= deltas.size())
+					{
+						deltas.clear();
+						return;
+					}
+
+					remapped[i] = deltas[sourceIndex];
+				}
+
+				deltas = std::move(remapped);
+			};
+
+			remapDeltas(morphTarget.positionDeltas);
+			remapDeltas(morphTarget.normalDeltas);
+			remapDeltas(morphTarget.tangentDeltas);
+		}
+	}
+
 	_vertices = vertices;
 	_baseVertices = vertices;
 	_indices = indices;
+	if (!remappedMorphTargets.isEmpty())
+		_morphTargets = std::move(remappedMorphTargets);
 
 	// Re-upload to GPU (no optimization)
 	setupMesh();
 
 	// Setup transformation again (in case bounds changed)
 	setupTransformation();
+
+	if (!_morphTargets.isEmpty())
+	{
+		const QVector<float> weightsToApply = !_currentMorphWeights.isEmpty()
+			? _currentMorphWeights
+			: _defaultMorphWeights;
+		_currentMorphWeights.clear();
+		if (!weightsToApply.isEmpty())
+			applyMorphWeights(weightsToApply);
+	}
 }
 
 void AssImpMesh::setMorphTargets(const QVector<MorphTargetData>& targets,

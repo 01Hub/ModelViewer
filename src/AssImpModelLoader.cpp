@@ -2055,28 +2055,29 @@ bool AssImpModelLoader::regenerateUVs(AssImpMesh* mesh,
 	// Get current mesh data
 	std::vector<Vertex> vertices;
 	std::vector<unsigned int> indices;
+	std::vector<unsigned int> sourceVertexMap;
 	mesh->getMeshData(vertices, indices);
 
 	// Generate UVs and tangents
 	switch (method)
 	{
 	case UVMethod::Planar:
-		UVGenerator::generatePlanar(vertices, indices, config);
+		UVGenerator::generatePlanar(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::Cylindrical:
-		UVGenerator::generateCylindrical(vertices, indices, config);
+		UVGenerator::generateCylindrical(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::Spherical:
-		UVGenerator::generateSpherical(vertices, indices, config);
+		UVGenerator::generateSpherical(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::AngleBased:
-		UVGenerator::generateAngleBased(vertices, indices, config);
+		UVGenerator::generateAngleBased(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::Hybrid:
-		UVGenerator::generateHybrid(vertices, indices);
+		UVGenerator::generateHybrid(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::AngleBasedSmartUV:
-		UVGenerator::generateAngleBasedSmartUV(vertices, indices, config);
+		UVGenerator::generateAngleBasedSmartUV(vertices, indices, config, &sourceVertexMap);
 		break;
 	case UVMethod::None: // fall through
 	default:
@@ -2087,7 +2088,7 @@ bool AssImpModelLoader::regenerateUVs(AssImpMesh* mesh,
 	TangentGenerator::generateMikkTSpaceTangentsForMesh(vertices, indices);
 
 	// Set data back to mesh (will call setupMesh internally)
-	mesh->setMeshData(vertices, indices);
+	mesh->setMeshData(vertices, indices, &sourceVertexMap);
 
 	return true;
 }

@@ -5,6 +5,19 @@
 #include <utility>
 #include <unordered_set>
 
+namespace
+{
+void buildIdentityVertexMap(size_t vertexCount, std::vector<unsigned int>* sourceVertexMap)
+{
+    if (!sourceVertexMap)
+        return;
+
+    sourceVertexMap->resize(vertexCount);
+    for (size_t i = 0; i < vertexCount; ++i)
+        (*sourceVertexMap)[i] = static_cast<unsigned int>(i);
+}
+}
+
 namespace std
 {
     template<>
@@ -25,7 +38,8 @@ namespace std
 bool UVGenerator::generateAngleBased(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
-    const UVConfig& config)
+    const UVConfig& config,
+    std::vector<unsigned int>* sourceVertexMap)
 {
     if (vertices.empty() || indices.empty()) return false;
 
@@ -59,6 +73,8 @@ bool UVGenerator::generateAngleBased(
         vertices[i].TexCoords[0] = finalUV;
     }
 
+    buildIdentityVertexMap(vertices.size(), sourceVertexMap);
+
     return true;
 }
 
@@ -67,9 +83,12 @@ bool UVGenerator::generateAngleBased(
 bool UVGenerator::generateCylindrical(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
-    const UVConfig& config)
+    const UVConfig& config,
+    std::vector<unsigned int>* sourceVertexMap)
 {
     if (vertices.empty() || indices.empty()) return false;
+
+    buildIdentityVertexMap(vertices.size(), sourceVertexMap);
 
     glm::vec3 centroid = calculateCentroid(vertices);
     glm::vec3 minBounds, maxBounds;
@@ -141,6 +160,8 @@ bool UVGenerator::generateCylindrical(
                         // The transformed coordinates should maintain the offset
 
                         vertices.push_back(dup);
+                        if (sourceVertexMap)
+                            sourceVertexMap->push_back(originalIdx);
                         return static_cast<unsigned int>(vertices.size() - 1);
                     }
                     return originalIdx;
@@ -176,7 +197,8 @@ bool UVGenerator::generateCylindrical(
 bool UVGenerator::generateSpherical(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
-    const UVConfig& config)
+    const UVConfig& config,
+    std::vector<unsigned int>* sourceVertexMap)
 {
     if (vertices.empty() || indices.empty())
         return false;
@@ -352,6 +374,7 @@ bool UVGenerator::generateSpherical(
     {
         std::vector<Vertex> finalVertices;
         std::vector<unsigned int> finalIndices;
+        std::vector<unsigned int> finalSourceVertexMap;
 
         // Process triangles to handle seams and poles
         for (size_t i = 0; i < indices.size(); i += 3)
@@ -394,6 +417,7 @@ bool UVGenerator::generateSpherical(
                 applyUVTransforms(newVertex.TexCoords[0], config);
 
                 finalVertices.push_back(newVertex);
+                finalSourceVertexMap.push_back(triIndices[j]);
                 newTriIndices[j] = static_cast<unsigned int>(finalVertices.size() - 1);
             }
 
@@ -404,9 +428,13 @@ bool UVGenerator::generateSpherical(
 
         vertices = std::move(finalVertices);
         indices = std::move(finalIndices);
+        if (sourceVertexMap)
+            *sourceVertexMap = std::move(finalSourceVertexMap);
     }
     else
     {
+        buildIdentityVertexMap(vertices.size(), sourceVertexMap);
+
         // Create a mapping from original to corrected UVs
         std::unordered_map<unsigned int, glm::vec2> vertexUVMap;
 
@@ -466,7 +494,8 @@ bool UVGenerator::generateSpherical(
 bool UVGenerator::generatePlanar(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
-    const UVConfig& config)
+    const UVConfig& config,
+    std::vector<unsigned int>* sourceVertexMap)
 {
     if (vertices.empty()) return false;
 
@@ -561,6 +590,8 @@ bool UVGenerator::generatePlanar(
         vertex.TexCoords[0] = uv;
     }
 
+    buildIdentityVertexMap(vertices.size(), sourceVertexMap);
+
     return true;
 }
 
@@ -569,7 +600,8 @@ bool UVGenerator::generatePlanar(
 bool UVGenerator::generateHybrid(
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
-    const UVConfig& config)
+    const UVConfig& config,
+    std::vector<unsigned int>* sourceVertexMap)
 {
     if (vertices.empty()) return false;
 
@@ -607,7 +639,7 @@ bool UVGenerator::generateHybrid(
     // Use elongation + variance to determine mapping
     if (elongation > 4.0f)
     {
-        return generateCylindrical(vertices, indices, config);
+        return generateCylindrical(vertices, indices, config, sourceVertexMap);
     }
     else if (elongation < 1.5f)
     {
@@ -615,13 +647,13 @@ bool UVGenerator::generateHybrid(
         float var = (pow(e0 - avg, 2) + pow(e1 - avg, 2) + pow(e2 - avg, 2)) / 3.0f;
 
         if (var < avg * 0.05f)
-            return generateSpherical(vertices, indices, config);
+            return generateSpherical(vertices, indices, config, sourceVertexMap);
         else
-            return generateAngleBased(vertices, indices, config);
+            return generateAngleBased(vertices, indices, config, sourceVertexMap);
     }
     else
     {
-        return generatePlanar(vertices, indices, config);
+        return generatePlanar(vertices, indices, config, sourceVertexMap);
     }
 }
 
@@ -630,7 +662,8 @@ bool UVGenerator::generateHybrid(
 bool UVGenerator::generateAngleBasedSmartUV(    
     std::vector<Vertex>& vertices,
     std::vector<unsigned int>& indices,
-    const UVConfig& config)
+    const UVConfig& config,
+    std::vector<unsigned int>* sourceVertexMap)
 {
     if (vertices.empty() || indices.empty())
         return false;
@@ -656,6 +689,7 @@ bool UVGenerator::generateAngleBasedSmartUV(
     // 3. Flatten: expand vertices and indices to support seams
     std::vector<Vertex> newVertices;
     std::vector<unsigned int> newIndices;
+    std::vector<unsigned int> newSourceVertexMap;
 
     for (size_t triIdx = 0; triIdx < triangles.size(); ++triIdx)
     {
@@ -671,6 +705,7 @@ bool UVGenerator::generateAngleBasedSmartUV(
             v.TexCoords[0] = uvSet[i];
             newIndices.push_back(static_cast<unsigned int>(newVertices.size()));
             newVertices.push_back(v);
+            newSourceVertexMap.push_back(tri.indices[i]);
         }
     }
 
@@ -707,6 +742,8 @@ bool UVGenerator::generateAngleBasedSmartUV(
     // 6. Replace original vertex/index buffers
     vertices = std::move(newVertices);
     indices = std::move(newIndices);
+    if (sourceVertexMap)
+        *sourceVertexMap = std::move(newSourceVertexMap);
 
     return true;
 }
