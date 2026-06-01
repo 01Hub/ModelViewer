@@ -593,14 +593,14 @@
           <string>Viewport</string>
          </property>
          <layout class="QGridLayout" name="gridLayout_12">
-          <item row="6" column="0">
+          <item row="7" column="0">
            <widget class="QLabel" name="nearPlaneLabel">
             <property name="text">
              <string>Near Plane:</string>
             </property>
            </widget>
           </item>
-          <item row="7" column="2">
+          <item row="8" column="2">
            <widget class="QDoubleSpinBox" name="farPlaneSpinBox">
             <property name="minimum">
              <double>10.000000000000000</double>
@@ -616,7 +616,7 @@
             </property>
            </widget>
           </item>
-          <item row="5" column="0">
+          <item row="6" column="0">
            <widget class="QLabel" name="fieldOfViewLabel">
             <property name="text">
              <string>Field of View:</string>
@@ -633,7 +633,7 @@
             </property>
            </widget>
           </item>
-          <item row="7" column="0">
+          <item row="8" column="0">
            <widget class="QLabel" name="farPlaneLabel">
             <property name="text">
              <string>Far Plane:</string>
@@ -684,13 +684,23 @@
            </widget>
           </item>
           <item row="3" column="0">
+           <widget class="QCheckBox" name="showViewCubeCheckBox">
+            <property name="text">
+             <string>Show View Cube</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0">
            <widget class="QCheckBox" name="showBoundingBoxCheckBox">
             <property name="text">
              <string>Show Bounding Box</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="3" rowspan="2">
+          <item row="4" column="3" rowspan="2">
            <spacer name="horizontalSpacer">
             <property name="orientation">
              <enum>Qt::Orientation::Horizontal</enum>
@@ -713,14 +723,14 @@
             </property>
            </widget>
           </item>
-          <item row="4" column="0">
+          <item row="5" column="0">
            <widget class="QCheckBox" name="showWireframeCheckBox">
             <property name="text">
              <string>Show Wireframe</string>
             </property>
            </widget>
           </item>
-          <item row="5" column="2">
+          <item row="6" column="2">
            <widget class="QSpinBox" name="fieldOfViewSpinBox">
             <property name="minimum">
              <number>10</number>
@@ -733,7 +743,7 @@
             </property>
            </widget>
           </item>
-          <item row="6" column="2">
+          <item row="7" column="2">
            <widget class="QDoubleSpinBox" name="nearPlaneSpinBox">
             <property name="minimum">
              <double>0.000000000000000</double>
@@ -756,14 +766,14 @@
             </property>
            </widget>
           </item>
-          <item row="8" column="0">
+          <item row="9" column="0">
            <widget class="QLabel" name="hoverHighlightModeLabel">
             <property name="text">
              <string>Hover Highlight Mode:</string>
             </property>
            </widget>
           </item>
-          <item row="8" column="2">
+          <item row="9" column="2">
            <widget class="QComboBox" name="comboBoxHoverHighlightMode">
             <property name="minimumSize">
              <size>
@@ -2159,6 +2169,7 @@
   <tabstop>showCenterTrihedronCheckBox</tabstop>
   <tabstop>showCornerTrihedronCheckBox</tabstop>
   <tabstop>comboBoxCornerTrihedronPosition</tabstop>
+  <tabstop>showViewCubeCheckBox</tabstop>
   <tabstop>showBoundingBoxCheckBox</tabstop>
   <tabstop>showWireframeCheckBox</tabstop>
   <tabstop>fieldOfViewSpinBox</tabstop>

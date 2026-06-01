@@ -31,6 +31,7 @@ public:
     bool isFlyoutMenuVisible() const;
 
     void setDefaultCameraModeAction(CameraModeActions mode);
+    void setDefaultStandardViewAction(StandardViewActions view);
     void setDefaultViewModeAction(ViewModeActions mode);
     void setDefaultDisplayModeAction(DisplayModeActions mode);
     void setDefaultRenderingModeAction(RenderingModeActions mode);

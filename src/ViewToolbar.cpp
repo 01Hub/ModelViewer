@@ -732,6 +732,12 @@ void ViewToolbar::setDefaultCameraModeAction(CameraModeActions mode)
 		_toolButtonCameraModes->setDefaultAction(_cameraModeActions[mode]);
 }
 
+void ViewToolbar::setDefaultStandardViewAction(StandardViewActions view)
+{
+	if (_standardViewActions.contains(view))
+		_toolButtonViews->setDefaultAction(_standardViewActions[view]);
+}
+
 void ViewToolbar::setDefaultViewModeAction(ViewModeActions mode)
 {
 	if (_viewModeActions.contains(mode))

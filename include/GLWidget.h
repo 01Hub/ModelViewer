@@ -124,7 +124,8 @@ public:
 
 	void setShowCenterAxisOverride(bool show) { _userShowAxisOverride = show; update(); }
 	void setShowCornerAxisOverride(bool show) { _userShowCornerAxisOverride = show; update(); }
-	void setCornerAxisPosition(CornerAxisPosition position) { _cornerAxisPosition = position; }
+	void setShowViewCubeOverride(bool show) { _showViewCubeOverride = show; if (!show) _viewCubeHoveredRegionId = -1; update(); }
+	void setCornerAxisPosition(CornerAxisPosition position);
 
 	void beginWindowZoom();
 	void performWindowZoom();
@@ -824,7 +825,7 @@ private:
 
 	QVector3D _currentTranslation;
 	QQuaternion _currentRotation;
-	QQuaternion _customTargetRotation;
+	QQuaternion _customViewTargetRotation;
 	float _slerpStep;
 	float _slerpFrac;
 
@@ -1142,7 +1143,8 @@ private:
 	Cone* _axisCone;
 	ViewCubeMesh* _viewCube = nullptr;
 	int _viewCubeHoveredRegionId = -1;
-	bool _viewCubeAnimationActive = false;
+	bool _customViewAnimationActive = false;
+	bool _showViewCubeOverride = true;
 	std::array<GLuint, 6> _viewCubeLabelTextures = { 0, 0, 0, 0, 0, 0 };
 	GLuint _viewCubeLabelVAO = 0;
 	GLuint _viewCubeLabelVBO = 0;

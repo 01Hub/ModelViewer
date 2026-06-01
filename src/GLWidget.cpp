@@ -40,6 +40,55 @@ namespace
 {
 constexpr float kDefaultFloorOffsetPercent = 0.0f;
 
+struct ViewCubeStyle
+{
+	QVector3D baseFaceColor = QVector3D(0.92f, 0.92f, 0.92f);
+	QVector3D primaryFaceColor = QVector3D(0.90f, 0.76f, 0.10f);
+	QVector3D hoverFaceColor = QVector3D(0.74f, 0.96f, 0.18f);
+	QColor labelTextColor = QColor(60, 60, 60, 235);
+	float baseAmbient = 0.45f;
+	float baseDiffuse = 0.55f;
+	float primaryAmbient = 0.38f;
+	float primaryDiffuse = 0.62f;
+	float hoverAmbient = 0.75f;
+	float hoverDiffuse = 0.25f;
+	float perspectiveScale = 0.90f;
+	float orthographicScale = 1.12f;
+	float orthographicHalfHeight = 1.2f;
+	float eyeDistance = 3.6f;
+	int minViewportSize = 96;
+	int maxViewportSize = 160;
+	int viewportPadding = 18;
+	int labelTextureSize = 256;
+	int labelFontPixelSize = 76;
+	float labelFaceOffset = 0.501f;
+	float labelFaceScale = 0.68f;
+};
+
+const ViewCubeStyle kViewCubeStyle;
+
+struct ViewCubeLabelFace
+{
+	QString text;
+	QVector3D right;
+	QVector3D up;
+	QVector3D normal;
+};
+
+CornerAxisPosition normalizeCornerAxisPosition(CornerAxisPosition position)
+{
+	switch (position)
+	{
+	case CornerAxisPosition::TOP_LEFT:
+	case CornerAxisPosition::TOP_RIGHT:
+	case CornerAxisPosition::BOTTOM_LEFT:
+	case CornerAxisPosition::BOTTOM_RIGHT:
+		return position;
+	default:
+		return CornerAxisPosition::TOP_RIGHT;
+	}
+}
+
 float computeFloorDepthBias(float workspaceExtent, float floorSize)
 {
 	const float extentBias = std::max(workspaceExtent, 0.0f) * 1.0e-5f;
@@ -219,6 +268,25 @@ QVector<float> sampleWeightKeys(const QVector<GltfAnimationWeightsKey>& keys, do
 		}
 	}
 	return keys.back().values;
+}
+
+std::array<ViewCubeLabelFace, 6> buildViewCubeLabelFaces(const QString& top,
+                                                         const QString& front,
+                                                         const QString& left,
+                                                         const QString& bottom,
+                                                         const QString& rear,
+                                                         const QString& right)
+{
+	// Viewer convention is Z-up:
+	// Top    = +Z, Bottom = -Z, Front = -Y, Rear = +Y, Left = -X, Right = +X.
+	return {{
+		{ top,    QVector3D( 1.0f,  0.0f, 0.0f), QVector3D( 0.0f,  1.0f, 0.0f),         QVector3D( 0.0f,  0.0f, 1.0f) },
+		{ bottom, QVector3D( 1.0f,  0.0f, 0.0f), QVector3D( 0.0f, -1.0f, 0.0f),         QVector3D( 0.0f,  0.0f,-1.0f) },
+		{ front,  QVector3D( 1.0f,  0.0f, 0.0f), QVector3D( 0.0f,  0.0f, 1.0f),         QVector3D( 0.0f, -1.0f, 0.0f) },
+		{ rear,   QVector3D(-1.0f,  0.0f, 0.0f), QVector3D( 0.0f,  0.0f, 1.0f),         QVector3D( 0.0f,  1.0f, 0.0f) },
+		{ left,   QVector3D( 0.0f, -1.0f, 0.0f), QVector3D( 0.0f,  0.0f, 1.0f),         QVector3D(-1.0f,  0.0f, 0.0f) },
+		{ right,  QVector3D( 0.0f,  1.0f, 0.0f), QVector3D( 0.0f,  0.0f, 1.0f),         QVector3D( 1.0f,  0.0f, 0.0f) }
+	}};
 }
 
 void applyTexturePointerValue(GLMaterial& material,
@@ -1169,7 +1237,8 @@ void GLWidget::initializeGL()
 
 	_userShowAxisOverride = settings.value("showCenterTrihedronCheckBox", true).toBool();
 	_userShowCornerAxisOverride = settings.value("showCornerTrihedronCheckBox", true).toBool();
-	_cornerAxisPosition = static_cast<CornerAxisPosition>(settings.value("comboBoxCornerTrihedronPosition", 1).toInt());	
+	_cornerAxisPosition = normalizeCornerAxisPosition(static_cast<CornerAxisPosition>(settings.value("comboBoxCornerTrihedronPosition", 1).toInt()));
+	_showViewCubeOverride = settings.value("showViewCubeCheckBox", true).toBool() && (_cornerAxisPosition != CornerAxisPosition::BOTTOM_RIGHT);
 		
 	makeCurrent();
 
@@ -5625,6 +5694,12 @@ void GLWidget::renderSingleView(QColor& topColor, QColor& botColor)
 		drawCornerAxis(_cornerAxisPosition);
 }
 
+void GLWidget::setCornerAxisPosition(CornerAxisPosition position)
+{
+	_cornerAxisPosition = normalizeCornerAxisPosition(position);
+	update();
+}
+
 void GLWidget::renderMultiView(QColor& topColor, QColor& botColor)
 {
 	glViewport(0, 0, width(), height());
@@ -6834,8 +6909,9 @@ void GLWidget::drawCornerAxis(CornerAxisPosition position)
 
 QRect GLWidget::viewCubeRect() const
 {
-	const int side = std::max(96, std::min(std::min(width(), height()) / 5, 160));
-	const int padding = 18;
+	const int side = std::max(kViewCubeStyle.minViewportSize,
+		std::min(std::min(width(), height()) / 5, kViewCubeStyle.maxViewportSize));
+	const int padding = kViewCubeStyle.viewportPadding;
 	return QRect(width() - side - padding, padding, side, side);
 }
 
@@ -6866,7 +6942,7 @@ bool GLWidget::computeViewCubeRenderState(QRect& viewportRect,
 	viewRotation.setRow(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
 
 	viewMatrix.setToIdentity();
-	viewMatrix.translate(0.0f, 0.0f, -3.6f);
+	viewMatrix.translate(0.0f, 0.0f, -kViewCubeStyle.eyeDistance);
 	viewMatrix *= viewRotation;
 
 	projectionMatrix.setToIdentity();
@@ -6874,15 +6950,15 @@ bool GLWidget::computeViewCubeRenderState(QRect& viewportRect,
 	cubeScale = 1.0f;
 	if (_projection == ViewProjection::ORTHOGRAPHIC)
 	{
-		const float orthoHalfHeight = 1.2f;
+		const float orthoHalfHeight = kViewCubeStyle.orthographicHalfHeight;
 		const float orthoHalfWidth = orthoHalfHeight * aspect;
 		projectionMatrix.ortho(-orthoHalfWidth, orthoHalfWidth, -orthoHalfHeight, orthoHalfHeight, 0.1f, 10.0f);
-		cubeScale = 1.12f;
+		cubeScale = kViewCubeStyle.orthographicScale;
 	}
 	else
 	{
 		projectionMatrix.perspective(26.0f, aspect, 0.1f, 10.0f);
-		cubeScale = 0.90f;
+		cubeScale = kViewCubeStyle.perspectiveScale;
 	}
 
 	modelMatrix.setToIdentity();
@@ -6898,29 +6974,90 @@ bool GLWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
 	checkAndStopTimers();
 	_keyboardNavTimer->stop();
 
-	const QVector3D viewDir = -outwardNormal.normalized();
-	QVector3D upSeed(0.0f, 0.0f, 1.0f);
-	if (std::abs(QVector3D::dotProduct(viewDir, upSeed)) > 0.95f)
-		upSeed = viewDir.z() > 0.0f ? QVector3D(0.0f, -1.0f, 0.0f) : QVector3D(0.0f, 1.0f, 0.0f);
+	const QVector3D normalizedNormal = outwardNormal.normalized();
+	const auto isAxisNormal = [&normalizedNormal](const QVector3D& axis) {
+		return (normalizedNormal - axis).lengthSquared() <= 1.0e-6f;
+	};
 
-	QVector3D right = QVector3D::crossProduct(viewDir, upSeed);
-	if (right.lengthSquared() <= 1.0e-8f)
-		right = QVector3D::crossProduct(viewDir, QVector3D(1.0f, 0.0f, 0.0f));
-	if (right.lengthSquared() <= 1.0e-8f)
-		return false;
-	right.normalize();
-	QVector3D up = QVector3D::crossProduct(right, viewDir).normalized();
+	auto setCanonicalTargetRotation = [this](float xRot, float yRot, float zRot) {
+		_customViewTargetRotation = QQuaternion::fromEulerAngles(yRot, zRot, xRot).normalized();
+	};
 
-	QMatrix4x4 targetMatrix;
-	targetMatrix.setRow(0, QVector4D(right, 0.0f));
-	targetMatrix.setRow(1, QVector4D(up, 0.0f));
-	targetMatrix.setRow(2, QVector4D(-viewDir, 0.0f));
-	targetMatrix.setRow(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
-	_customTargetRotation = QQuaternion::fromRotationMatrix(targetMatrix.toGenericMatrix<3, 3>()).normalized();
+	if (isAxisNormal(QVector3D(0.0f, 0.0f, 1.0f)))
+	{
+		setCanonicalTargetRotation(0.0f, 0.0f, 0.0f);
+		_viewMode = ViewMode::TOP;
+		if (_viewToolbar)
+			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::TOP);
+	}
+	else if (isAxisNormal(QVector3D(0.0f, 0.0f, -1.0f)))
+	{
+		setCanonicalTargetRotation(0.0f, 180.0f, 0.0f);
+		_viewMode = ViewMode::BOTTOM;
+		if (_viewToolbar)
+			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::BOTTOM);
+	}
+	else if (isAxisNormal(QVector3D(0.0f, -1.0f, 0.0f)))
+	{
+		setCanonicalTargetRotation(0.0f, -90.0f, 0.0f);
+		_viewMode = ViewMode::FRONT;
+		if (_viewToolbar)
+			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::FRONT);
+	}
+	else if (isAxisNormal(QVector3D(0.0f, 1.0f, 0.0f)))
+	{
+		setCanonicalTargetRotation(0.0f, -90.0f, 180.0f);
+		_viewMode = ViewMode::BACK;
+		if (_viewToolbar)
+			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::REAR);
+	}
+	else if (isAxisNormal(QVector3D(-1.0f, 0.0f, 0.0f)))
+	{
+		setCanonicalTargetRotation(0.0f, -90.0f, 90.0f);
+		_viewMode = ViewMode::LEFT;
+		if (_viewToolbar)
+			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::LEFT);
+	}
+	else if (isAxisNormal(QVector3D(1.0f, 0.0f, 0.0f)))
+	{
+		setCanonicalTargetRotation(0.0f, -90.0f, -90.0f);
+		_viewMode = ViewMode::RIGHT;
+		if (_viewToolbar)
+			_viewToolbar->setDefaultStandardViewAction(StandardViewActions::RIGHT);
+	}
+	else
+	{
+		const QVector3D viewDir = -normalizedNormal;
+		// Keep the View Cube aligned to the viewer's Z-up convention while
+		// picking a stable screen-up vector for face, edge, and corner targets.
+		QVector3D upSeed(0.0f, 0.0f, 1.0f);
+		if (std::abs(QVector3D::dotProduct(viewDir, upSeed)) > 0.95f)
+			upSeed = viewDir.z() > 0.0f ? QVector3D(0.0f, -1.0f, 0.0f) : QVector3D(0.0f, 1.0f, 0.0f);
+
+		QVector3D right = QVector3D::crossProduct(viewDir, upSeed);
+		if (right.lengthSquared() <= 1.0e-8f)
+			right = QVector3D::crossProduct(viewDir, QVector3D(1.0f, 0.0f, 0.0f));
+		if (right.lengthSquared() <= 1.0e-8f)
+			return false;
+		right.normalize();
+		QVector3D up = QVector3D::crossProduct(right, viewDir).normalized();
+
+		QMatrix4x4 targetMatrix;
+		targetMatrix.setRow(0, QVector4D(right, 0.0f));
+		targetMatrix.setRow(1, QVector4D(up, 0.0f));
+		targetMatrix.setRow(2, QVector4D(-viewDir, 0.0f));
+		targetMatrix.setRow(3, QVector4D(0.0f, 0.0f, 0.0f, 1.0f));
+		_customViewTargetRotation = QQuaternion::fromRotationMatrix(targetMatrix.toGenericMatrix<3, 3>()).normalized();
+		_viewMode = ViewMode::NONE;
+	}
 
 	const std::vector<int>& visibleIds = _visibleSwapped ? _hiddenObjectsIds : _displayedObjectsIds;
 	if (!_meshStore.empty() && !visibleIds.empty())
 	{
+		const QMatrix4x4 targetRotationMatrix(_customViewTargetRotation.toRotationMatrix());
+		const QVector3D right = targetRotationMatrix.row(0).toVector3D().normalized();
+		const QVector3D up = targetRotationMatrix.row(1).toVector3D().normalized();
+		const QVector3D viewDir = -targetRotationMatrix.row(2).toVector3D().normalized();
 		QVector3D projCenter;
 		_viewBoundingSphereDia = computeFitViewRange(right, up, viewDir, &projCenter);
 		_boundingSphere.setCenter(projCenter);
@@ -6930,8 +7067,7 @@ bool GLWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
 		_viewBoundingSphereDia = _currentViewRange;
 	}
 
-	_viewCubeAnimationActive = true;
-	_viewMode = ViewMode::NONE;
+	_customViewAnimationActive = true;
 	_slerpStep = 0.0f;
 	if (!_animateViewTimer->isActive())
 		_animateViewTimer->start(5);
@@ -6940,7 +7076,7 @@ bool GLWidget::orientCameraToViewCubeNormal(const QVector3D& outwardNormal)
 
 bool GLWidget::handleViewCubeClick(const QPoint& pixel)
 {
-	if (!_viewCube || !_primaryCamera || !viewCubeScreenRect().contains(pixel) || isGltfCameraActive())
+	if (!_showViewCubeOverride || !_viewCube || !_primaryCamera || !viewCubeScreenRect().contains(pixel) || isGltfCameraActive())
 		return false;
 
 	QVector3D outwardNormal;
@@ -6957,7 +7093,7 @@ bool GLWidget::pickViewCubeRegionAtPixel(const QPoint& pixel, QVector3D& outward
 	outwardNormal = QVector3D();
 	if (regionId)
 		*regionId = -1;
-	if (!_viewCube || !_primaryCamera || !viewCubeScreenRect().contains(pixel) || isGltfCameraActive())
+	if (!_showViewCubeOverride || !_viewCube || !_primaryCamera || !viewCubeScreenRect().contains(pixel) || isGltfCameraActive())
 		return false;
 
 	QRect viewportRect;
@@ -6992,7 +7128,7 @@ bool GLWidget::pickViewCubeRegionAtPixel(const QPoint& pixel, QVector3D& outward
 void GLWidget::updateViewCubeHover(const QPoint& pixel, Qt::MouseButtons buttons)
 {
 	const int previousRegionId = _viewCubeHoveredRegionId;
-	if (buttons != Qt::NoButton || !_viewCube || isGltfCameraActive() || !viewCubeScreenRect().contains(pixel))
+	if (!_showViewCubeOverride || buttons != Qt::NoButton || !_viewCube || isGltfCameraActive() || !viewCubeScreenRect().contains(pixel))
 	{
 		_viewCubeHoveredRegionId = -1;
 	}
@@ -7012,10 +7148,8 @@ void GLWidget::initializeViewCubeLabels()
 	if (!_viewCubeLabelShader)
 		return;
 
-	const std::array<QString, 6> labels = {
-		_labelTop, tr("Bottom"), _labelFront,
-		tr("Rear"), _labelLeft, tr("Right")
-	};
+	const auto labelFaces = buildViewCubeLabelFaces(_labelTop, _labelFront, _labelLeft,
+		tr("Bottom"), tr("Rear"), tr("Right"));
 
 	const TextureSamplerSettings samplers = {
 		GL_CLAMP_TO_EDGE, GL_CLAMP_TO_EDGE, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR
@@ -7030,9 +7164,9 @@ void GLWidget::initializeViewCubeLabels()
 		}
 	}
 
-	for (int i = 0; i < static_cast<int>(labels.size()); ++i)
+	for (int i = 0; i < static_cast<int>(labelFaces.size()); ++i)
 	{
-		QImage image(256, 256, QImage::Format_RGBA8888);
+		QImage image(kViewCubeStyle.labelTextureSize, kViewCubeStyle.labelTextureSize, QImage::Format_RGBA8888);
 		image.fill(Qt::transparent);
 
 		QPainter painter(&image);
@@ -7040,11 +7174,11 @@ void GLWidget::initializeViewCubeLabels()
 		painter.setRenderHint(QPainter::TextAntialiasing, true);
 		QFont font(QStringLiteral("Arial"));
 		font.setBold(true);
-		font.setPixelSize(76);
+		font.setPixelSize(kViewCubeStyle.labelFontPixelSize);
 		font.setLetterSpacing(QFont::AbsoluteSpacing, 1.5);
 		painter.setFont(font);
-		painter.setPen(QColor(60, 60, 60, 235));
-		painter.drawText(image.rect(), Qt::AlignCenter, labels[i]);
+		painter.setPen(kViewCubeStyle.labelTextColor);
+		painter.drawText(image.rect(), Qt::AlignCenter, labelFaces[i].text);
 		painter.end();
 
 		_viewCubeLabelTextures[i] = uploadDecodedTextureImage(image, samplers);
@@ -7076,7 +7210,7 @@ void GLWidget::initializeViewCubeLabels()
 
 void GLWidget::drawViewCube()
 {
-	if (!_viewCube || !_viewCubeShader)
+	if (!_showViewCubeOverride || !_viewCube || !_viewCubeShader)
 		return;
 
 	QRect viewportRect;
@@ -7105,6 +7239,10 @@ void GLWidget::drawViewCube()
 	glGetIntegerv(GL_FRONT_FACE, &frontFaceMode);
 	glGetIntegerv(GL_CULL_FACE_MODE, &cullFaceMode);
 
+	// The main scene may leave behind render-state choices that are correct for
+	// PBR/ADS mesh passes but wrong for the View Cube overlay. Establish a
+	// known-good state here so the cube remains visually stable across display
+	// modes, rendering modes, and intermediate overlay passes.
 	glEnable(GL_SCISSOR_TEST);
 	glScissor(viewportRect.x(), viewportRect.y(), viewportRect.width(), viewportRect.height());
 	glClear(GL_DEPTH_BUFFER_BIT);
@@ -7127,13 +7265,13 @@ void GLWidget::drawViewCube()
 	_viewCubeShader->setUniformValue("viewMatrix", viewMatrix);
 	_viewCubeShader->setUniformValue("projectionMatrix", projectionMatrix);
 	_viewCubeShader->setUniformValue("lightDirView", QVector3D(0.0f, 0.0f, 1.0f));
-	_viewCubeShader->setUniformValue("baseColor", QVector3D(0.92f, 0.92f, 0.92f));
-	_viewCubeShader->setUniformValue("ambientStrength", 0.45f);
-	_viewCubeShader->setUniformValue("diffuseStrength", 0.55f);
+	_viewCubeShader->setUniformValue("baseColor", kViewCubeStyle.baseFaceColor);
+	_viewCubeShader->setUniformValue("ambientStrength", kViewCubeStyle.baseAmbient);
+	_viewCubeShader->setUniformValue("diffuseStrength", kViewCubeStyle.baseDiffuse);
 	_viewCube->render();
-	_viewCubeShader->setUniformValue("baseColor", QVector3D(0.90f, 0.76f, 0.10f));
-	_viewCubeShader->setUniformValue("ambientStrength", 0.38f);
-	_viewCubeShader->setUniformValue("diffuseStrength", 0.62f);
+	_viewCubeShader->setUniformValue("baseColor", kViewCubeStyle.primaryFaceColor);
+	_viewCubeShader->setUniformValue("ambientStrength", kViewCubeStyle.primaryAmbient);
+	_viewCubeShader->setUniformValue("diffuseStrength", kViewCubeStyle.primaryDiffuse);
 	for (int regionId = 0; regionId < _viewCube->regionCount(); ++regionId)
 	{
 		if (_viewCube->isPrimaryFaceRegion(regionId))
@@ -7144,9 +7282,9 @@ void GLWidget::drawViewCube()
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glDisable(GL_CULL_FACE);
-		_viewCubeShader->setUniformValue("baseColor", QVector3D(0.74f, 0.96f, 0.18f));
-		_viewCubeShader->setUniformValue("ambientStrength", 0.75f);
-		_viewCubeShader->setUniformValue("diffuseStrength", 0.25f);
+		_viewCubeShader->setUniformValue("baseColor", kViewCubeStyle.hoverFaceColor);
+		_viewCubeShader->setUniformValue("ambientStrength", kViewCubeStyle.hoverAmbient);
+		_viewCubeShader->setUniformValue("diffuseStrength", kViewCubeStyle.hoverDiffuse);
 		_viewCube->renderRegion(_viewCubeHoveredRegionId);
 		glDisable(GL_BLEND);
 		if (cullWasEnabled)
@@ -7181,10 +7319,10 @@ void GLWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4
 	if (!_viewCubeLabelShader || _viewCubeLabelVAO == 0)
 		return;
 
-	const std::array<QMatrix4x4, 6> labelTransforms = [cubeScale]() {
+	const std::array<QMatrix4x4, 6> labelTransforms = [this, cubeScale]() {
 		std::array<QMatrix4x4, 6> transforms;
-		const float offset = 0.501f * cubeScale;
-		const float scale = 0.68f * cubeScale;
+		const float offset = kViewCubeStyle.labelFaceOffset * cubeScale;
+		const float scale = kViewCubeStyle.labelFaceScale * cubeScale;
 
 		auto faceTransform = [offset, scale](const QVector3D& center,
 			const QVector3D& right,
@@ -7198,14 +7336,10 @@ void GLWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMatrix4x4
 			return matrix;
 		};
 
-		// Viewer convention is Z-up:
-		// Top    = +Z, Bottom = -Z, Front = -Y, Rear = +Y, Left = -X, Right = +X.
-		transforms[0] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1.0f, 0.0f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f));
-		transforms[1] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f), QVector3D(0.0f, 0.0f, -1.0f));
-		transforms[2] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(1.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(0.0f, -1.0f, 0.0f));
-		transforms[3] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(-1.0f, 0.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(0.0f, 1.0f, 0.0f));
-		transforms[4] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, -1.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(-1.0f, 0.0f, 0.0f));
-		transforms[5] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), QVector3D(0.0f, 1.0f, 0.0f), QVector3D(0.0f, 0.0f, 1.0f), QVector3D(1.0f, 0.0f, 0.0f));
+		const auto faces = buildViewCubeLabelFaces(_labelTop, _labelFront, _labelLeft,
+			tr("Bottom"), tr("Rear"), tr("Right"));
+		for (int i = 0; i < static_cast<int>(faces.size()); ++i)
+			transforms[i] = faceTransform(QVector3D(0.0f, 0.0f, 0.0f), faces[i].right, faces[i].up, faces[i].normal);
 
 		return transforms;
 	}();
@@ -10122,7 +10256,7 @@ void GLWidget::checkAndStopTimers()
 		_currentTranslation = _primaryCamera->getPosition();
 		_currentViewRange = _viewRange;
 		_slerpStep = 0.0f;
-		_viewCubeAnimationActive = false;
+		_customViewAnimationActive = false;
 		emit rotationsSet();
 	}
 	if (_animateFitAllTimer->isActive())
@@ -10550,7 +10684,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* e)
 	// Hover highlight feedback (visual preview, independent of actual selection)
 	if (e->buttons() == Qt::NoButton && _selectionManager->getHoverMode() != HoverHighlightMode::Disabled)
 	{
-		if (!viewCubeScreenRect().contains(e->pos()))
+		if (!_showViewCubeOverride || !viewCubeScreenRect().contains(e->pos()))
 		{
 			// Compute hovered mesh (SelectionManager will emit hoverChanged signal if it changed)
 			_selectionManager->hoverSelect(e->pos());
@@ -10783,9 +10917,9 @@ void GLWidget::animateViewChange()
 	setSectionCapsInteractionSuppressed(true);
 	if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
 		_lowResEnabled = true;
-	if (_viewCubeAnimationActive)
+	if (_customViewAnimationActive)
 	{
-		animateToRotation(_customTargetRotation);
+		animateToRotation(_customViewTargetRotation);
 		resizeGL(width(), height());
 		return;
 	}
@@ -11705,7 +11839,7 @@ void GLWidget::animateToRotation(const QQuaternion& targetRotation)
 		_currentTranslation = _primaryCamera->getPosition();
 		_currentViewRange = _viewRange;
 		_slerpStep = 0.0f;
-		_viewCubeAnimationActive = false;
+		_customViewAnimationActive = false;
 
 		emit rotationsSet();
 	}

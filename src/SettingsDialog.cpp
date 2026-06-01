@@ -3,8 +3,60 @@
 #include "SettingsDialog.h"
 #include "ModelViewerApplication.h"
 #include "ui_SettingsDialog.h"
+#include <algorithm>
 #include <QMessageBox>
 #include <QTimer>
+
+namespace
+{
+constexpr int kCornerTrihedronTopLeft = 0;
+constexpr int kCornerTrihedronTopRight = 1;
+constexpr int kCornerTrihedronBottomLeft = 2;
+constexpr int kCornerTrihedronBottomRight = 3;
+
+int normalizeCornerTrihedronPositionValue(int value)
+{
+    return std::clamp(value, kCornerTrihedronTopLeft, kCornerTrihedronBottomRight);
+}
+
+void configureCornerTrihedronPositionCombo(QComboBox* comboBox)
+{
+    if (!comboBox)
+        return;
+
+    comboBox->setItemData(0, kCornerTrihedronTopLeft);
+    comboBox->setItemData(1, kCornerTrihedronTopRight);
+    comboBox->setItemData(2, kCornerTrihedronBottomLeft);
+    comboBox->setItemData(3, kCornerTrihedronBottomRight);
+}
+
+void setCornerTrihedronPositionSelection(QComboBox* comboBox, int positionValue)
+{
+    if (!comboBox)
+        return;
+
+    const int normalizedValue = normalizeCornerTrihedronPositionValue(positionValue);
+    const int index = comboBox->findData(normalizedValue);
+    comboBox->setCurrentIndex(index >= 0 ? index : 1);
+}
+
+int currentCornerTrihedronPositionValue(const QComboBox* comboBox)
+{
+    if (!comboBox)
+        return kCornerTrihedronTopRight;
+
+    const QVariant data = comboBox->currentData();
+    if (data.isValid())
+        return normalizeCornerTrihedronPositionValue(data.toInt());
+
+    return normalizeCornerTrihedronPositionValue(comboBox->currentIndex());
+}
+
+bool isViewCubeAvailableForCornerPosition(int positionValue)
+{
+    return normalizeCornerTrihedronPositionValue(positionValue) != kCornerTrihedronBottomRight;
+}
+}
 
 SettingsDialog::SettingsDialog(QWidget *parent) :
     QDialog(parent),
@@ -12,6 +64,7 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     _themeManager(new ThemeManager(this))
 {
     ui->setupUi(this);
+    configureCornerTrihedronPositionCombo(ui->comboBoxCornerTrihedronPosition);
 
     retranslateUI();
 
@@ -87,6 +140,15 @@ void SettingsDialog::retranslateUI()
     //setMaxAnisotropy(/* pass current maxAnisotropy value here */);
 
     // If there are other dynamically set texts, add them here.
+}
+
+void SettingsDialog::refreshViewCubeAvailability()
+{
+    const bool viewCubeAvailable = isViewCubeAvailableForCornerPosition(
+        currentCornerTrihedronPositionValue(ui->comboBoxCornerTrihedronPosition));
+    ui->showViewCubeCheckBox->setEnabled(viewCubeAvailable);
+    if (!viewCubeAvailable)
+        ui->showViewCubeCheckBox->setChecked(false);
 }
 
 void SettingsDialog::setMaxMSAASamples(int maxSamples)
@@ -216,6 +278,7 @@ void SettingsDialog::applySettings()
     // Display tab
     settings.setValue("showBoundingBoxCheckBox", display_showBoundingBox);
     settings.setValue("showCornerTrihedronCheckBox", display_showCornerTrihedron);
+    settings.setValue("showViewCubeCheckBox", display_showViewCube);
     settings.setValue("comboBoxCornerTrihedronPosition", display_cornerTrihedronPosition);
     settings.setValue("showGridCheckBox", display_showGrid);
     settings.setValue("showWireframeCheckBox", display_showWireframe);
@@ -376,8 +439,10 @@ void SettingsDialog::setDefaultValues()
     // Display tab
     ui->showBoundingBoxCheckBox->setChecked(false);    // No 'checked' property found
     ui->showCornerTrihedronCheckBox->setChecked(true); // Explicitly set to true
+    ui->showViewCubeCheckBox->setChecked(true);        // Explicitly set to true
 	ui->showCenterTrihedronCheckBox->setChecked(true); // Explicitly set to true
-    ui->comboBoxCornerTrihedronPosition->setCurrentIndex(1); // Explicitly set to 1
+    setCornerTrihedronPositionSelection(ui->comboBoxCornerTrihedronPosition, kCornerTrihedronTopRight);
+    refreshViewCubeAvailability();
     ui->showGridCheckBox->setChecked(true);            // Explicitly set to true
     ui->showWireframeCheckBox->setChecked(false);      // No 'checked' property found
     ui->fieldOfViewSpinBox->setValue(60);              // Explicitly set
@@ -577,7 +642,9 @@ void SettingsDialog::syncStateFromUi()
     // Display tab
     display_showBoundingBox = ui->showBoundingBoxCheckBox->isChecked();
     display_showCornerTrihedron = ui->showCornerTrihedronCheckBox->isChecked();
-    display_cornerTrihedronPosition = ui->comboBoxCornerTrihedronPosition->currentIndex();
+    display_cornerTrihedronPosition = currentCornerTrihedronPositionValue(ui->comboBoxCornerTrihedronPosition);
+    display_showViewCube = isViewCubeAvailableForCornerPosition(display_cornerTrihedronPosition)
+        && ui->showViewCubeCheckBox->isChecked();
     display_showGrid = ui->showGridCheckBox->isChecked();
     display_showWireframe = ui->showWireframeCheckBox->isChecked();
     display_fieldOfView = ui->fieldOfViewSpinBox->value();
@@ -723,8 +790,11 @@ void SettingsDialog::loadSettings()
     ui->showBoundingBoxCheckBox->setChecked(bVal);
     bVal = settings.value("showCornerTrihedronCheckBox", ui->showCornerTrihedronCheckBox->isChecked()).toBool();
     ui->showCornerTrihedronCheckBox->setChecked(bVal);
-    iVal = settings.value("comboBoxCornerTrihedronPosition", ui->comboBoxCornerTrihedronPosition->currentIndex()).toInt();
-    ui->comboBoxCornerTrihedronPosition->setCurrentIndex(iVal);
+    bVal = settings.value("showViewCubeCheckBox", ui->showViewCubeCheckBox->isChecked()).toBool();
+    ui->showViewCubeCheckBox->setChecked(bVal);
+    iVal = settings.value("comboBoxCornerTrihedronPosition", kCornerTrihedronTopRight).toInt();
+    setCornerTrihedronPositionSelection(ui->comboBoxCornerTrihedronPosition, iVal);
+    refreshViewCubeAvailability();
     dVal = settings.value("farPlaneSpinBox", ui->farPlaneSpinBox->value()).toDouble();
     ui->farPlaneSpinBox->setValue(dVal);
     iVal = settings.value("fieldOfViewSpinBox", ui->fieldOfViewSpinBox->value()).toInt();
@@ -954,6 +1024,7 @@ void SettingsDialog::restoreDefaults()
         ui->checkTrackball, ui->checkInvertZoom, ui->spinZoomFactor,
         ui->comboBoxBackgroundStyle, ui->pushButtonTopColor, ui->pushButtonBottomColor,
         ui->comboBoxGradientStyle, ui->showBoundingBoxCheckBox, ui->showCornerTrihedronCheckBox,
+        ui->showViewCubeCheckBox,
         ui->comboBoxCornerTrihedronPosition, ui->farPlaneSpinBox, ui->fieldOfViewSpinBox, ui->showGridCheckBox,
         ui->nearPlaneSpinBox, ui->showWireframeCheckBox, ui->showCenterTrihedronCheckBox,
         ui->navigationModeComboBox, ui->mouseSensitivitySlider, ui->zoomSensitivitySlider,
@@ -1105,9 +1176,16 @@ void SettingsDialog::on_showCornerTrihedronCheckBox_stateChanged()
     display_showCornerTrihedron = ui->showCornerTrihedronCheckBox->isChecked();
 }
 
+void SettingsDialog::on_showViewCubeCheckBox_stateChanged()
+{
+    display_showViewCube = ui->showViewCubeCheckBox->isChecked();
+}
+
 void SettingsDialog::on_comboBoxCornerTrihedronPosition_currentIndexChanged()
 {
-    display_cornerTrihedronPosition = ui->comboBoxCornerTrihedronPosition->currentIndex();
+    display_cornerTrihedronPosition = currentCornerTrihedronPositionValue(ui->comboBoxCornerTrihedronPosition);
+    refreshViewCubeAvailability();
+    display_showViewCube = ui->showViewCubeCheckBox->isChecked();
 }
 
 void SettingsDialog::on_farPlaneSpinBox_valueChanged()

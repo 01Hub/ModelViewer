@@ -804,6 +804,7 @@ void MainWindow::on_actionSettings_triggered()
 				viewer->getGLView()->setAnisotropicFilteringLevel(anIsoVals[idx]);
 				viewer->getGLView()->setShowCenterAxisOverride(settingsDialog->displayShowCenterTrihedron());
 				viewer->getGLView()->setShowCornerAxisOverride(settingsDialog->displayShowCornerTrihedron());
+				viewer->getGLView()->setShowViewCubeOverride(settingsDialog->displayShowViewCube());
 				viewer->getGLView()->setCornerAxisPosition(static_cast<CornerAxisPosition>(settingsDialog->displayCornerTrihedronPosition()));
 				viewer->getGLView()->getSelectionManager()->setHoverHighlightMode(settingsDialog->displayHoverHighlightMode());
 			}
