@@ -11261,8 +11261,27 @@ QRect GLWidget::getClientRectFromPoint(const QPoint& pixel)
 
 QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, const QPoint& end)
 {
+	if (width() <= 0 || height() <= 0)
+		return QVector3D(0, 0, 0);
+
+	auto clampPointToRect = [](const QPoint& point, const QRect& rect) {
+		if (rect.width() <= 0 || rect.height() <= 0)
+			return point;
+
+		return QPoint(
+			std::clamp(point.x(), rect.left(), rect.right()),
+			std::clamp(point.y(), rect.top(), rect.bottom()));
+	};
+
 	// Determine viewport and camera
-	QRect viewport = getViewportFromPoint(start);
+	const QRect widgetRect(0, 0, width(), height());
+	const QPoint safeStart = clampPointToRect(start, widgetRect);
+	QRect viewport = getViewportFromPoint(safeStart);
+	if (viewport.width() <= 0 || viewport.height() <= 0)
+		return QVector3D(0, 0, 0);
+
+	const QPoint clampedStart = clampPointToRect(safeStart, viewport);
+	const QPoint clampedEnd = clampPointToRect(clampPointToRect(end, widgetRect), viewport);
 	GLCamera* camera = _multiViewActive && (viewport.x() != viewport.width() || viewport.y() != 0)
 		? _orthoViewsCamera
 		: _primaryCamera;
@@ -11286,8 +11305,9 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 			makeCurrent();
 
 			float rawDepth = 1.0f;
-			const int cx = point.x();
-			const int cy = height() - point.y() - 1;
+			const QPoint clampedPoint = clampPointToRect(point, viewport);
+			const int cx = clampedPoint.x();
+			const int cy = height() - clampedPoint.y() - 1;
 			glReadPixels(cx, cy, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &rawDepth);
 
 			if (rawDepth >= 1.0f)
@@ -11299,18 +11319,21 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 				const int y1 = std::min(height() - 1, cy + halfGrid);
 				const int sw = x1 - x0 + 1;
 				const int sh = y1 - y0 + 1;
-				std::vector<float> depthBuf(sw * sh, 1.0f);
-				glReadPixels(x0, y0, sw, sh, GL_DEPTH_COMPONENT, GL_FLOAT, depthBuf.data());
-
-				float minDepth = 1.0f;
-				for (float d : depthBuf)
+				if (sw > 0 && sh > 0)
 				{
-					if (d < minDepth)
-						minDepth = d;
-				}
+					std::vector<float> depthBuf(sw * sh, 1.0f);
+					glReadPixels(x0, y0, sw, sh, GL_DEPTH_COMPONENT, GL_FLOAT, depthBuf.data());
 
-				if (minDepth < 1.0f)
-					rawDepth = minDepth;
+					float minDepth = 1.0f;
+					for (float d : depthBuf)
+					{
+						if (d < minDepth)
+							minDepth = d;
+					}
+
+					if (minDepth < 1.0f)
+						rawDepth = minDepth;
+				}
 			}
 
 			if (rawDepth >= 1.0f)
@@ -11322,9 +11345,9 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 			return rawDepth;
 		};
 
-		const float depthZ = sampleSceneDepth(start);
-		QVector3D worldStart(start.x(), height() - start.y(), depthZ);
-		QVector3D worldEnd(end.x(), height() - end.y(), depthZ);
+		const float depthZ = sampleSceneDepth(clampedStart);
+		QVector3D worldStart(clampedStart.x(), height() - clampedStart.y(), depthZ);
+		QVector3D worldEnd(clampedEnd.x(), height() - clampedEnd.y(), depthZ);
 
 		const QVector3D startWorld = worldStart.unproject(view, projection, viewport);
 		const QVector3D endWorld = worldEnd.unproject(view, projection, viewport);
@@ -11339,8 +11362,8 @@ QVector3D GLWidget::get3dTranslationVectorFromMousePoints(const QPoint& start, c
 		return QVector2D(ndcX, ndcY);
 		};
 
-	QVector2D ndcStart2 = toNDC(start);
-	QVector2D ndcEnd2 = toNDC(end);
+	QVector2D ndcStart2 = toNDC(clampedStart);
+	QVector2D ndcEnd2 = toNDC(clampedEnd);
 	QVector4D ndcStart(ndcStart2.x(), ndcStart2.y(), ndcZ, 1.0f);
 	QVector4D ndcEnd(ndcEnd2.x(), ndcEnd2.y(), ndcZ, 1.0f);
 
