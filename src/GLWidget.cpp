@@ -7269,10 +7269,12 @@ void GLWidget::drawViewCube()
 	GLboolean colorMask[4] = { GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE };
 	GLint frontFaceMode = GL_CCW;
 	GLint cullFaceMode = GL_BACK;
+	GLint depthFuncMode = GL_LESS;
 	glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMask);
 	glGetBooleanv(GL_COLOR_WRITEMASK, colorMask);
 	glGetIntegerv(GL_FRONT_FACE, &frontFaceMode);
 	glGetIntegerv(GL_CULL_FACE_MODE, &cullFaceMode);
+	glGetIntegerv(GL_DEPTH_FUNC, &depthFuncMode);
 
 	// The main scene may leave behind render-state choices that are correct for
 	// PBR/ADS mesh passes but wrong for the View Cube overlay. Establish a
@@ -7291,6 +7293,7 @@ void GLWidget::drawViewCube()
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
 	glFrontFace(GL_CCW);
 	glCullFace(GL_BACK);
+	glDepthFunc(GL_LEQUAL);
 	_viewCube->setSceneRenderTransformFast(modelMatrix);
 	_viewCube->setProg(_viewCubeShader.get());
 
@@ -7337,6 +7340,7 @@ void GLWidget::drawViewCube()
 		glDisable(GL_CULL_FACE);
 	glCullFace(cullFaceMode);
 	glFrontFace(frontFaceMode);
+	glDepthFunc(depthFuncMode);
 	if (blendWasEnabled)
 		glEnable(GL_BLEND);
 	if (stencilWasEnabled)
