@@ -464,6 +464,7 @@ _vertexNormalShader(nullptr),
 _faceNormalShader(nullptr),
 _shadowMappingShader(nullptr),
 _skyBoxShader(nullptr),
+_gridShader(nullptr),
 _irradianceShader(nullptr),
 _prefilterShader(nullptr),
 _brdfShader(nullptr),
@@ -482,6 +483,7 @@ _clippingPlaneXY(nullptr),
 _clippingPlaneYZ(nullptr),
 _clippingPlaneZX(nullptr),
 _floorPlane(nullptr),
+_gridPlane(nullptr),
 _skyBox(nullptr),
 _axisCone(nullptr),
 _lightCube(nullptr),
@@ -1002,6 +1004,8 @@ GLWidget::~GLWidget()
 			delete _clippingPlaneZX;
 		if (_floorPlane)
 			delete _floorPlane;
+		if (_gridPlane)
+			delete _gridPlane;
 		if (_axisCone)
 			delete _axisCone;
 		if (_viewCube)
@@ -1376,6 +1380,7 @@ void GLWidget::initializeGL()
 
 	// Shadow mapping
 	loadFloor();
+	loadGrid();
 
 	createWhiteTexture();
 	initTransmissionBuffer();
@@ -2892,7 +2897,7 @@ void GLWidget::updateBoundingBox()
 
 void GLWidget::updateFloorPlane()
 {
-	if (!_floorPlane || !_fgShader)
+	if ((!_floorPlane || !_fgShader) && (!_gridPlane || !_gridShader))
 		return;
 
 	// Use helper to update floor geometry
@@ -2901,17 +2906,19 @@ void GLWidget::updateFloorPlane()
 	// Use helper to set main light position (now consistent with loadFloor)
 	updateMainLightPosition(halfObjectSize);
 
-	const float workspaceExtent = static_cast<float>(std::max({
-		_boundingBox.getXSize(),
-		_boundingBox.getYSize(),
-		_boundingBox.getZSize()
-	}));
-	float floorPlaneZ = lowestModelZ() - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(workspaceExtent, _floorSize);
+	float floorPlaneZ = groundPlaneZ();
 	const float groundExtent = groundPlaneExtent();
-	_floorPlane->setPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT);
+	if (_floorPlane && _fgShader)
+	{
+		_floorPlane->setPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT);
+		applyFloorPlaneMaterialSettings();
+	}
 
-	// Use helper to apply common material/texture settings
-	applyFloorPlaneMaterialSettings();
+	if (_gridPlane && _gridShader)
+	{
+		_gridPlane->setPlane(_gridShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneZ, 1, 1);
+		_gridPlane->setOpacity(0.95f);
+	}
 
 	// Create fallback light if no punctual lights available
 	if (_originalParsedLights.empty())
@@ -3163,6 +3170,16 @@ void GLWidget::applyOverlayPanelStyle(QWidget* wrapper, const QString& objectNam
 			animationsPanel->refreshDetachedOverlayTheme();
 		}
 	}
+}
+
+float GLWidget::groundPlaneZ()
+{
+	const float workspaceExtent = static_cast<float>(std::max({
+		_boundingBox.getXSize(),
+		_boundingBox.getYSize(),
+		_boundingBox.getZSize()
+	}));
+	return lowestModelZ() - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(workspaceExtent, _floorSize);
 }
 
 void GLWidget::refreshNavigationOverlayStyle()
@@ -4404,6 +4421,9 @@ void GLWidget::createShaderPrograms()
 	// Sky Box
 	_skyBoxShader = std::make_unique<ShaderProgram>(); _skyBoxShader->setObjectName("_skyBoxShader");
 	_skyBoxShader->loadCompileAndLinkShaderFromFile(path + "shaders/skybox.vert", path + "shaders/skybox.frag");
+	// Grid
+	_gridShader = std::make_unique<ShaderProgram>(); _gridShader->setObjectName("_gridShader");
+	_gridShader->loadCompileAndLinkShaderFromFile(path + "shaders/grid.vert", path + "shaders/grid.frag");
 	// Irradiance Map (now uses fullscreen triangle)
 	_irradianceShader = std::make_unique<ShaderProgram>(); _irradianceShader->setObjectName("_irradianceShader");
 	_irradianceShader->loadCompileAndLinkShaderFromFile(path + "shaders/fullscreen_triangle.vert", path + "shaders/irradiance_convolution.frag");
@@ -4649,6 +4669,28 @@ void GLWidget::loadFloor()
 
 	// Use helper to apply common material/texture settings
 	applyFloorPlaneMaterialSettings();
+}
+
+void GLWidget::loadGrid()
+{
+	// Reuse the same computed scene-ground placement as the floor plane,
+	// but keep the grid on its own shader/mesh path.
+	float halfObjectSize = updateFloorGeometry();
+	updateMainLightPosition(halfObjectSize);
+
+	const float groundExtent = groundPlaneExtent();
+	const float floorPlaneZ = _meshStore.empty()
+		? -_floorSize - (_floorSize * 0.05f)
+		: groundPlaneZ();
+
+	if (_gridPlane != nullptr)
+	{
+		delete _gridPlane;
+		_gridPlane = nullptr;
+	}
+
+	_gridPlane = new Plane(_gridShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneZ, 1, 1);
+	_gridPlane->setOpacity(0.95f);
 }
 
 void GLWidget::applyFloorPlaneMaterialSettings()
@@ -5802,24 +5844,6 @@ void GLWidget::drawFloor(const bool& drawReflection)
 		_fgShader->setUniformValue("floorTextureEnabled", textureEnabled);
 	};
 
-	if (_groundMode == GroundMode::Grid)
-	{
-		glEnable(GL_DEPTH_TEST);
-		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		configureGroundPass(false, false);
-		_floorPlane->setOpacity(1.0f);
-		_floorPlane->render();
-		_fgShader->bind();
-		_fgShader->setUniformValue("floorRendering", false);
-		_fgShader->setUniformValue("groundMode", static_cast<int>(GroundMode::None));
-		_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
-		_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
-		glDisable(GL_BLEND);
-		glActiveTexture(GL_TEXTURE0);
-		return;
-	}
-
 	//https://open.gl/depthstencils
 	glEnable(GL_STENCIL_TEST);
 	glClear(GL_STENCIL_BUFFER_BIT);
@@ -5896,6 +5920,32 @@ void GLWidget::drawFloor(const bool& drawReflection)
 
 	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
 	glActiveTexture(GL_TEXTURE0);
+}
+
+void GLWidget::drawGrid()
+{
+	if (!_gridPlane || !_gridShader)
+		return;
+
+	_gridPlane->setProg(_gridShader.get());
+	_gridShader->bind();
+	_gridShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
+	_gridShader->setProperty("viewMatrix", QVariant::fromValue(_viewMatrix));
+	_gridShader->setUniformValue("modelMatrix", _modelMatrix);
+	_gridShader->setUniformValue("viewMatrix", _viewMatrix);
+	_gridShader->setUniformValue("projectionMatrix", _projectionMatrix);
+	_gridShader->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
+	_gridShader->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
+	_gridShader->setUniformValue("screenCenter", _floorCenter);
+	_gridShader->setUniformValue("groundReferenceSize", _floorSize);
+	_gridShader->setUniformValue("floorSize", groundPlaneExtent());
+	_gridShader->setUniformValue("gradientStyle", _gradientStyle);
+	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	_gridPlane->setOpacity(0.95f);
+	_gridPlane->render();
+	glDisable(GL_BLEND);
 }
 
 float GLWidget::groundPlaneScaleFactor() const
@@ -7572,20 +7622,27 @@ void GLWidget::render(GLCamera* camera)
 		glDisable(GL_POLYGON_OFFSET_FILL);
 	}
 
-	// --- 3) Floor ---
+	// --- 3) Ground ---
 	if (_displayMode == DisplayMode::REALSHADED &&
 		_groundMode != GroundMode::None && !_cappingEnabled &&
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
-		glActiveTexture(GL_TEXTURE0 + 32);
-		glBindTexture(GL_TEXTURE_2D,
-			(camera == _primaryCamera && _transmissionColorTexture != 0) ? _transmissionColorTexture : _whiteTexture);
-		glActiveTexture(GL_TEXTURE0 + 33);
-		glBindTexture(GL_TEXTURE_2D,
-			(camera == _primaryCamera && _transmissionDepthTexture != 0) ? _transmissionDepthTexture : _whiteTexture);
-		glActiveTexture(GL_TEXTURE0);
-		drawFloor();
+		if (_groundMode == GroundMode::Floor)
+		{
+			glActiveTexture(GL_TEXTURE0 + 32);
+			glBindTexture(GL_TEXTURE_2D,
+				(camera == _primaryCamera && _transmissionColorTexture != 0) ? _transmissionColorTexture : _whiteTexture);
+			glActiveTexture(GL_TEXTURE0 + 33);
+			glBindTexture(GL_TEXTURE_2D,
+				(camera == _primaryCamera && _transmissionDepthTexture != 0) ? _transmissionDepthTexture : _whiteTexture);
+			glActiveTexture(GL_TEXTURE0);
+			drawFloor();
+		}
+		else if (_groundMode == GroundMode::Grid)
+		{
+			drawGrid();
+		}
 	}
 
 	if (camera == _primaryCamera)
@@ -10056,20 +10113,27 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 		glDisable(GL_POLYGON_OFFSET_FILL);
 	}
 
-	// --- RENDER 4: FLOOR ---
+	// --- RENDER 4: GROUND ---
 	if (_displayMode == DisplayMode::REALSHADED &&
 		_groundMode != GroundMode::None && !_cappingEnabled &&
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
-		// Avoid sampling from the transmission render target while it is bound
-		// as the current framebuffer color attachment.
-		glActiveTexture(GL_TEXTURE0 + 32);
-		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
-		glActiveTexture(GL_TEXTURE0 + 33);
-		glBindTexture(GL_TEXTURE_2D, _whiteTexture);
-		glActiveTexture(GL_TEXTURE0);
-		drawFloor(false);
+		if (_groundMode == GroundMode::Floor)
+		{
+			// Avoid sampling from the transmission render target while it is bound
+			// as the current framebuffer color attachment.
+			glActiveTexture(GL_TEXTURE0 + 32);
+			glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+			glActiveTexture(GL_TEXTURE0 + 33);
+			glBindTexture(GL_TEXTURE_2D, _whiteTexture);
+			glActiveTexture(GL_TEXTURE0);
+			drawFloor(false);
+		}
+		else if (_groundMode == GroundMode::Grid)
+		{
+			drawGrid();
+		}
 	}
 
 	// IMPORTANT: After rendering, generate mipmaps

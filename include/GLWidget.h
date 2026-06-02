@@ -636,6 +636,7 @@ private:
 	GLuint loadPresetEnvironmentMap(const QString& hdrFilePath);
 	bool generatePresetIBLMaps(GLuint sourceCubemap, GLuint& outIrradianceMap, GLuint& outPrefilterMap, GLuint& outSheenPrefilterMap);
 	void loadFloor();
+	void loadGrid();
 	void applyFloorPlaneMaterialSettings();
 	void syncFloorPlaneAlbedoTexture();
 	void updateMainLightPosition(float halfObjectSize);
@@ -676,6 +677,7 @@ private:
 
 	void drawSectionCapping();
 	void drawFloor(const bool& drawReflection = true);
+	void drawGrid();
 	void drawSkyBox();
 	void drawVertexNormals();
 	void drawFaceNormals();
@@ -696,6 +698,7 @@ private:
 		float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle);
 
 	void loadBgColorSettings();
+	float groundPlaneZ();
 	QRect viewCubeRect() const;
 	QRect viewCubeScreenRect() const;
 	void initializeViewCubeLabels();
@@ -968,6 +971,7 @@ private:
 	std::unique_ptr<ShaderProgram> _faceNormalShader;
 	std::unique_ptr<ShaderProgram> _shadowMappingShader;
 	std::unique_ptr<ShaderProgram> _skyBoxShader;
+	std::unique_ptr<ShaderProgram> _gridShader;
 	std::unique_ptr<ShaderProgram> _irradianceShader;
 	std::unique_ptr<ShaderProgram> _prefilterShader;
 	std::unique_ptr<ShaderProgram> _sheenPrefilterShader;
@@ -1124,6 +1128,7 @@ private:
 	float _visibleLowestZ = 0.0f;
 
 	Plane* _floorPlane;
+	Plane* _gridPlane;
 	Cube* _skyBox;
 	GLuint _fsTriVAO = 0;          // Fullscreen triangle VAO
 	GLuint _fsTriVBO = 0;          // Fullscreen triangle VBO
