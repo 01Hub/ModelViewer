@@ -68,7 +68,12 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, GLWidge
 	// Without this, the viewer could retain an internal floor offset that
 	// differs from the spin box value until the user touches the control.
 	if (_glWidget && ui)
+	{
+		_glWidget->setGroundMode(ui->radioButtonGroundFloor->isChecked()
+			? GroundMode::Floor
+			: (ui->radioButtonGroundGrid->isChecked() ? GroundMode::Grid : GroundMode::None));
 		_glWidget->setFloorOffsetPercent(ui->doubleSpinBoxFloorOffset->value());
+	}
 
 	_isInitialized = true;
 }
@@ -109,7 +114,9 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	connect(ui->comboBoxShadowQuality, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &VisualizationEnvironmentPanel::onShadowQualityChanged);
 
 	// ===== Floor Controls =====
-	connect(ui->checkBoxFloor, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onFloorStateChanged);
+	connect(ui->radioButtonGroundNone, &QRadioButton::toggled, this, &VisualizationEnvironmentPanel::onGroundModeChanged);
+	connect(ui->radioButtonGroundFloor, &QRadioButton::toggled, this, &VisualizationEnvironmentPanel::onGroundModeChanged);
+	connect(ui->radioButtonGroundGrid, &QRadioButton::toggled, this, &VisualizationEnvironmentPanel::onGroundModeChanged);
 	connect(ui->checkBoxFloorTexture, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onFloorTextureStateChanged);
 	connect(ui->checkBoxReflections, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onReflectionsChanged);
 	connect(ui->checkBoxEnvMapping, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onEnvMappingChanged);
@@ -141,7 +148,9 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 		return;
 
 	bool skyBoxEnabled = ui->checkBoxSkyBox->isChecked();
-	bool floorEnabled = ui->checkBoxFloor->isChecked();
+	bool floorEnabled = ui->radioButtonGroundFloor->isChecked();
+	bool gridEnabled = ui->radioButtonGroundGrid->isChecked();
+	bool groundEnabled = floorEnabled || gridEnabled;
 	bool shadowsEnabled = ui->checkBoxShadowMapping->isChecked();
 	bool hdrEnabled = ui->checkBoxHDRToneMapping->isChecked();
 	bool gammaEnabled = ui->checkBoxGammaCorrection->isChecked();
@@ -160,8 +169,8 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	// Floor dependencies
 	ui->checkBoxReflections->setEnabled(floorEnabled);
 	ui->checkBoxFloorTexture->setEnabled(floorEnabled);
-	ui->labelFloorOffset->setEnabled(floorEnabled);
-	ui->doubleSpinBoxFloorOffset->setEnabled(floorEnabled);
+	ui->labelFloorOffset->setEnabled(groundEnabled);
+	ui->doubleSpinBoxFloorOffset->setEnabled(groundEnabled);
 	ui->labelRepeatS->setEnabled(floorTextureEnabled);
 	ui->labelRepeatT->setEnabled(floorTextureEnabled);
 	ui->doubleSpinBoxRepeatS->setEnabled(floorTextureEnabled);
@@ -475,12 +484,18 @@ void VisualizationEnvironmentPanel::onShadowQualityChanged(int index)
 
 // ==================== FLOOR CONTROLS ====================
 
-void VisualizationEnvironmentPanel::onFloorStateChanged(bool checked)
+void VisualizationEnvironmentPanel::onGroundModeChanged()
 {
-	if (!_glWidget)
+	if (!_glWidget || !ui)
 		return;
 
-	_glWidget->showFloor(checked);
+	GroundMode mode = GroundMode::None;
+	if (ui->radioButtonGroundFloor->isChecked())
+		mode = GroundMode::Floor;
+	else if (ui->radioButtonGroundGrid->isChecked())
+		mode = GroundMode::Grid;
+
+	_glWidget->setGroundMode(mode);
 	updateControlDependencies();
 	_glWidget->updateView();
 }
@@ -722,7 +737,8 @@ void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 	ui->checkBoxShadowMapping->setChecked(realShaded);
 	ui->checkBoxSelfShadows->setChecked(realShaded);
 	ui->checkBoxReflections->setChecked(realShaded);
-	ui->checkBoxFloor->setChecked(realShaded);
+	ui->radioButtonGroundFloor->setChecked(realShaded);
+	ui->radioButtonGroundNone->setChecked(!realShaded);
 	ui->checkBoxSkyBoxHDRI->setChecked(ui->checkBoxSkyBoxHDRI->isChecked() || (realShaded && pbrLighting));
 
 	bool skyBoxHDRIChecked = ui->checkBoxSkyBoxHDRI->isChecked();

@@ -654,7 +654,7 @@
           <item>
            <widget class="QGroupBox" name="groupBoxFloor">
             <property name="title">
-             <string>Floor</string>
+             <string>Ground</string>
             </property>
             <property name="flat">
              <bool>true</bool>
@@ -666,9 +666,26 @@
              <item>
               <layout class="QHBoxLayout" name="floorCheckLayout">
                <item>
-                <widget class="QCheckBox" name="checkBoxFloor">
+                <widget class="QRadioButton" name="radioButtonGroundNone">
+                 <property name="text">
+                  <string>None</string>
+                 </property>
+                 <property name="checked">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QRadioButton" name="radioButtonGroundFloor">
                  <property name="text">
                   <string>Floor</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QRadioButton" name="radioButtonGroundGrid">
+                 <property name="text">
+                  <string>Grid</string>
                  </property>
                 </widget>
                </item>

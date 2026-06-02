@@ -319,6 +319,7 @@ uniform bool hoverHighlighting = false;  // Is hover highlighting enabled?
 uniform vec3 hoverColor = vec3(1.0, 0.84, 0.0);  // Gold/yellow default hover color
 uniform vec4 reflectColor;
 uniform bool floorRendering;
+uniform int groundMode = 1; // 0=None, 1=Floor, 2=Grid
 uniform bool hdrToneMapping = false;
 uniform bool gammaCorrection = false;
 uniform float screenGamma = 2.2;
@@ -338,6 +339,7 @@ uniform int gradientStyle;
 uniform vec2 screenSize;
 uniform vec3 screenCenter;
 uniform float floorSize;
+uniform float groundReferenceSize = 1.0;
 uniform bool isReflectedPass;
 
 struct LineInfo
@@ -742,6 +744,7 @@ float computeSheenScaling(float Ndot, float sheenRoughness);
 float computeCharlieBRDF(float Ndot, float sheenRoughness);
 vec3  computeIBLGGXFresnel(vec3 N, vec3 V, float roughness, vec3 F0, float specularWeight);
 vec3  computeAnisotropicSpecularLobe(in SurfaceFrame frame, in MaterialParams params, in vec3 lightDir);
+vec3  calculateBackgroundColor();
 
 // ---- KHR PBR path - punctual & direct lighting ----------------------------
 void evaluatePunctualLight(in PunctualLight light, out vec3 lightDir, out vec3 lightIntensity);
@@ -761,6 +764,48 @@ vec3 composeLayeredPBR(in SurfaceFrame frame, in MaterialParams params, in Layer
 float floorRadius = floorSize * 0.5; // Adjust radius based on floor size
 float fadeStart = floorRadius * 0.65;   // Start fading 
 float fadeEnd = floorRadius * 1.025;     // Fully faded
+
+float gridLineMask(vec2 planePos, float cellSize, float lineWidthPixels)
+{
+	vec2 scaled = planePos / max(cellSize, 1e-4);
+	vec2 derivative = max(fwidth(scaled), vec2(1e-4));
+	vec2 grid = abs(fract(scaled - 0.5) - 0.5) / derivative;
+	float line = min(grid.x, grid.y);
+	return 1.0 - clamp(line / max(lineWidthPixels, 1e-4), 0.0, 1.0);
+}
+
+vec4 computeGridOverlayColor()
+{
+	vec2 planePos = v_position.xy - screenCenter.xy;
+	float sceneScale = max(groundReferenceSize, 1.0);
+	float majorCell = max(sceneScale / 12.0, 0.25);
+	float minorCell = majorCell / 10.0;
+
+	float majorMask = gridLineMask(planePos, majorCell, 1.55);
+	float minorMask = gridLineMask(planePos, minorCell, 1.20);
+
+	float radialGridDistance = length(planePos);
+	float farBlend = smoothstep(sceneScale * 0.18, sceneScale * 0.82, radialGridDistance);
+	float minorVisibility = max(1.0 - farBlend, 0.22);
+
+	float majorAlpha = majorMask * 0.92;
+	float minorAlpha = minorMask * minorVisibility * 0.62;
+	float axisXAlpha = gridLineMask(vec2(planePos.x, 0.0), majorCell, 2.0) * 0.55;
+	float axisYAlpha = gridLineMask(vec2(0.0, planePos.y), majorCell, 2.0) * 0.55;
+
+	vec3 baseColor = vec3(0.94);
+	baseColor = mix(baseColor, vec3(0.35), clamp(minorAlpha, 0.0, 1.0));
+	baseColor = mix(baseColor, vec3(0.0), clamp(majorAlpha, 0.0, 1.0));
+	baseColor = mix(baseColor, vec3(0.92, 0.48, 0.40), clamp(axisXAlpha, 0.0, 1.0));
+	baseColor = mix(baseColor, vec3(0.40, 0.64, 0.92), clamp(axisYAlpha, 0.0, 1.0));
+
+	float alpha = max(majorAlpha, minorAlpha);
+	alpha = max(alpha, axisXAlpha);
+	alpha = max(alpha, axisYAlpha);
+	alpha *= 0.95;
+
+	return vec4(baseColor, alpha);
+}
 
 // ---- void main() ------------------------------------------------------------
 
@@ -1143,10 +1188,14 @@ void main()
 	// Finally, handle floor rendering fade-out and background blending
 	if (floorRendering)
 	{
-		if (!isReflectedPass && floorTextureEnabled)
+		if (groundMode == 2)
+		{
+			fragColor = computeGridOverlayColor();
+		}
+		else if (!isReflectedPass && floorTextureEnabled)
 			fragColor = v_color * texture(texture_diffuse, getDiffuseTextureUV());
 		// Compute distance-based blending factor
-		float distance = length(v_position - screenCenter);
+		float distance = length(v_position.xy - screenCenter.xy);
 
 		// Set fade parameters first, before any calculations
 		// Early discard for pixels beyond fade range

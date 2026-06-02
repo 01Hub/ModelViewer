@@ -52,6 +52,7 @@ enum class CornerAxisPosition { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT }
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
 enum class HatchPattern { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3, GRID = 4, DIAGONAL_CROSS = 5 };
 enum class HDRToneMapMode { KhronosPbrNeutral, ACES_Narkowicz, ACES_Hill, AECS_Hill_Exposure_Boost, Uncharted2ToneMapping, Reinhard };
+enum class GroundMode { None = 0, Floor = 1, Grid = 2 };
 
 struct TextureSamplerSettings
 {
@@ -172,8 +173,11 @@ public:
 	void blurSkyBox(bool blur);
 	void setSkyBoxBlurPercent(int percent);
 	void showReflections(bool show);
+	void setGroundMode(GroundMode mode);
+	GroundMode groundMode() const { return _groundMode; }
 	void showFloor(bool show);
-	bool isFloorShown() { return _floorDisplayed; }
+	bool isFloorShown() { return _groundMode == GroundMode::Floor; }
+	bool isGridShown() const { return _groundMode == GroundMode::Grid; }
 	void showFloorTexture(bool show);
 	void setFloorTexture(QImage img);
 
@@ -799,6 +803,8 @@ private:
 	void generateCubemapMipmaps(GLuint cubemapTexture);
 
 	void setSectionCapsInteractionSuppressed(bool suppressed);
+	float groundPlaneScaleFactor() const;
+	float groundPlaneExtent() const;
 
 private:
 	ViewToolbar* _viewToolbar;
@@ -914,7 +920,7 @@ private:
 	bool _shadowsEnabled;
 	bool _selfShadowsEnabled;
 	bool _reflectionsEnabled;
-	bool _floorDisplayed;
+	GroundMode _groundMode;
 	bool _floorTextureDisplayed;
 	bool _skyBoxEnabled;
 	int  _skyBoxBlurPercent;

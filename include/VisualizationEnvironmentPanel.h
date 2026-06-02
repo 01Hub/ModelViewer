@@ -75,7 +75,7 @@ public slots:
 	void onShadowQualityChanged(int index);
 
 	// ===== Floor Controls =====
-	void onFloorStateChanged(bool checked);
+	void onGroundModeChanged();
 	void onFloorTextureStateChanged(bool checked);
 	void onReflectionsChanged(bool checked);
 	void onEnvMappingChanged(bool checked);

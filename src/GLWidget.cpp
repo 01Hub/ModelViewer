@@ -710,7 +710,7 @@ _assimpModelLoader(nullptr)
 	_reflectionsEnabled = false;
 	_floorSize = 10.0f;
 	_floorSizeFactor = 5.0f;
-	_floorDisplayed = false;
+	_groundMode = GroundMode::None;
 	_floorTextureDisplayed = true;
 	_floorTexRepeatS = _floorTexRepeatT = 1;
 	_floorOffsetPercent = kDefaultFloorOffsetPercent / 100.0f;
@@ -2907,7 +2907,8 @@ void GLWidget::updateFloorPlane()
 		_boundingBox.getZSize()
 	}));
 	float floorPlaneZ = lowestModelZ() - (_floorSize * _floorOffsetPercent) - computeFloorDepthBias(workspaceExtent, _floorSize);
-	_floorPlane->setPlane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT);
+	const float groundExtent = groundPlaneExtent();
+	_floorPlane->setPlane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneZ, _floorTexRepeatS, _floorTexRepeatT);
 
 	// Use helper to apply common material/texture settings
 	applyFloorPlaneMaterialSettings();
@@ -3281,9 +3282,18 @@ void GLWidget::showReflections(bool show)
 
 void GLWidget::showFloor(bool show)
 {
-	_floorDisplayed = show;
+	setGroundMode(show ? GroundMode::Floor : GroundMode::None);
+}
+
+void GLWidget::setGroundMode(GroundMode mode)
+{
+	if (_groundMode == mode)
+		return;
+
+	_groundMode = mode;
+	updateFloorPlane();
 	update();
-	emit floorShown(show);
+	emit floorShown(_groundMode == GroundMode::Floor);
 }
 
 void GLWidget::setFloorTexture(QImage img)
@@ -4634,7 +4644,8 @@ void GLWidget::loadFloor()
 		_floorPlane = nullptr;
 	}
 
-	_floorPlane = new Plane(_fgShader.get(), _floorCenter, _floorSize * _floorSizeFactor, _floorSize * _floorSizeFactor, 1, 1, floorPlaneCoeff, 1, 1);
+	const float groundExtent = groundPlaneExtent();
+	_floorPlane = new Plane(_fgShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneCoeff, 1, 1);
 
 	// Use helper to apply common material/texture settings
 	applyFloorPlaneMaterialSettings();
@@ -5771,6 +5782,44 @@ void GLWidget::drawFloor(const bool& drawReflection)
 		glActiveTexture(GL_TEXTURE0);
 	};
 
+	auto configureGroundPass = [this, &bindFloorSharedSamplerState](bool reflectedPass, bool textureEnabled)
+	{
+		_fgShader->bind();
+		bindFloorSharedSamplerState();
+		_fgShader->setUniformValue("sssCapture", false);
+		_fgShader->setUniformValue("envMapEnabled", false);
+		_fgShader->setUniformValue("floorRendering", true);
+		_fgShader->setUniformValue("groundMode", static_cast<int>(_groundMode));
+		_fgShader->setUniformValue("isReflectedPass", reflectedPass);
+		_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
+		_fgShader->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
+		_fgShader->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
+		_fgShader->setUniformValue("screenSize", QVector2D(width(), height()));
+		_fgShader->setUniformValue("screenCenter", _floorCenter);
+		_fgShader->setUniformValue("gradientStyle", _gradientStyle);
+		_fgShader->setUniformValue("floorSize", groundPlaneExtent());
+		_fgShader->setUniformValue("groundReferenceSize", _floorSize);
+		_fgShader->setUniformValue("floorTextureEnabled", textureEnabled);
+	};
+
+	if (_groundMode == GroundMode::Grid)
+	{
+		glEnable(GL_DEPTH_TEST);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		configureGroundPass(false, false);
+		_floorPlane->setOpacity(1.0f);
+		_floorPlane->render();
+		_fgShader->bind();
+		_fgShader->setUniformValue("floorRendering", false);
+		_fgShader->setUniformValue("groundMode", static_cast<int>(GroundMode::None));
+		_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
+		_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
+		glDisable(GL_BLEND);
+		glActiveTexture(GL_TEXTURE0);
+		return;
+	}
+
 	//https://open.gl/depthstencils
 	glEnable(GL_STENCIL_TEST);
 	glClear(GL_STENCIL_BUFFER_BIT);
@@ -5785,20 +5834,7 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glCullFace(GL_FRONT);
 
 	// Draw floor
-	_fgShader->bind();
-	bindFloorSharedSamplerState();
-	_fgShader->setUniformValue("sssCapture", false);
-	_fgShader->setUniformValue("envMapEnabled", false);
-	_fgShader->setUniformValue("floorRendering", true);
-	_fgShader->setUniformValue("isReflectedPass", true);
-	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
-	_fgShader->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
-	_fgShader->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
-	_fgShader->setUniformValue("screenSize", QVector2D(width(), height()));
-	_fgShader->setUniformValue("screenCenter", _boundingSphere.getCenter());
-	_fgShader->setUniformValue("gradientStyle", _gradientStyle);
-	_fgShader->setUniformValue("floorSize", _floorSize * _floorSizeFactor);
-	_fgShader->setUniformValue("floorTextureEnabled", false);
+	configureGroundPass(true, false);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	_floorPlane->setOpacity(0.1f);
@@ -5845,32 +5881,31 @@ void GLWidget::drawFloor(const bool& drawReflection)
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_FRONT);
-	_fgShader->bind();
-	bindFloorSharedSamplerState();
-	_fgShader->setUniformValue("sssCapture", false);
+	configureGroundPass(false, _floorTextureDisplayed);
 	_fgShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
-	_fgShader->setUniformValue("envMapEnabled", false);	
-	_fgShader->setUniformValue("renderingMode", static_cast<int>(RenderingMode::ADS_BLINN_PHONG));
 	_fgShader->setUniformValue("shadowSamples", 18.0f);
-	_fgShader->setUniformValue("isReflectedPass", false);
-	_fgShader->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
-	_fgShader->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
-	_fgShader->setUniformValue("screenSize", QVector2D(width(), height()));
-	_fgShader->setUniformValue("screenCenter", _boundingSphere.getCenter());
-	_fgShader->setUniformValue("gradientStyle", _gradientStyle);
-	_fgShader->setUniformValue("floorSize", _floorSize * _floorSizeFactor);
-	_fgShader->setUniformValue("floorTextureEnabled", _floorTextureDisplayed);
 
 	_floorPlane->setOpacity(0.95f);
 	_floorPlane->render();
 	glDisable(GL_CULL_FACE);
 	_fgShader->bind();
 	_fgShader->setUniformValue("floorRendering", false);
+	_fgShader->setUniformValue("groundMode", static_cast<int>(GroundMode::None));
 	_fgShader->setUniformValue("renderingMode", static_cast<int>(_renderingMode));
 	glDisable(GL_BLEND);
 
 	_fgShader->setUniformValue("envMapEnabled", _envMapEnabled);
 	glActiveTexture(GL_TEXTURE0);
+}
+
+float GLWidget::groundPlaneScaleFactor() const
+{
+	return (_groundMode == GroundMode::Grid) ? 200.0f : _floorSizeFactor;
+}
+
+float GLWidget::groundPlaneExtent() const
+{
+	return _floorSize * groundPlaneScaleFactor();
 }
 
 void GLWidget::drawSkyBox()
@@ -7535,7 +7570,7 @@ void GLWidget::render(GLCamera* camera)
 
 	// --- 3) Floor ---
 	if (_displayMode == DisplayMode::REALSHADED &&
-		_floorDisplayed && !_cappingEnabled &&
+		_groundMode != GroundMode::None && !_cappingEnabled &&
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
@@ -10019,7 +10054,7 @@ void GLWidget::renderToTransmissionBuffer(GLCamera* camera, const QColor& topCol
 
 	// --- RENDER 4: FLOOR ---
 	if (_displayMode == DisplayMode::REALSHADED &&
-		_floorDisplayed && !_cappingEnabled &&
+		_groundMode != GroundMode::None && !_cappingEnabled &&
 		!_meshStore.empty() &&
 		camera != _orthoViewsCamera)
 	{
