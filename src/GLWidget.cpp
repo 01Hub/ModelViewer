@@ -2914,12 +2914,6 @@ void GLWidget::updateFloorPlane()
 		applyFloorPlaneMaterialSettings();
 	}
 
-	if (_gridPlane && _gridShader)
-	{
-		_gridPlane->setPlane(_gridShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneZ, 1, 1);
-		_gridPlane->setOpacity(0.95f);
-	}
-
 	// Create fallback light if no punctual lights available
 	if (_originalParsedLights.empty())
 	{
@@ -4673,24 +4667,12 @@ void GLWidget::loadFloor()
 
 void GLWidget::loadGrid()
 {
-	// Reuse the same computed scene-ground placement as the floor plane,
-	// but keep the grid on its own shader/mesh path.
-	float halfObjectSize = updateFloorGeometry();
-	updateMainLightPosition(halfObjectSize);
-
-	const float groundExtent = groundPlaneExtent();
-	const float floorPlaneZ = _meshStore.empty()
-		? -_floorSize - (_floorSize * 0.05f)
-		: groundPlaneZ();
-
+	// Endless grid is rendered as a fullscreen procedural pass, so no mesh is needed.
 	if (_gridPlane != nullptr)
 	{
 		delete _gridPlane;
 		_gridPlane = nullptr;
 	}
-
-	_gridPlane = new Plane(_gridShader.get(), _floorCenter, groundExtent, groundExtent, 1, 1, floorPlaneZ, 1, 1);
-	_gridPlane->setOpacity(0.95f);
 }
 
 void GLWidget::applyFloorPlaneMaterialSettings()
@@ -5924,27 +5906,24 @@ void GLWidget::drawFloor(const bool& drawReflection)
 
 void GLWidget::drawGrid()
 {
-	if (!_gridPlane || !_gridShader)
+	if (!_gridShader)
 		return;
 
-	_gridPlane->setProg(_gridShader.get());
+	QMatrix4x4 viewProjection = _projectionMatrix * _viewMatrix;
+	QMatrix4x4 inverseViewProjection = viewProjection.inverted();
 	_gridShader->bind();
-	_gridShader->setProperty("globalModelMatrix", QVariant::fromValue(_modelMatrix));
-	_gridShader->setProperty("viewMatrix", QVariant::fromValue(_viewMatrix));
-	_gridShader->setUniformValue("modelMatrix", _modelMatrix);
-	_gridShader->setUniformValue("viewMatrix", _viewMatrix);
-	_gridShader->setUniformValue("projectionMatrix", _projectionMatrix);
-	_gridShader->setUniformValue("topColor", QVector4D(_bgTopColor.red(), _bgTopColor.green(), _bgTopColor.blue(), _bgTopColor.alpha()));
-	_gridShader->setUniformValue("botColor", QVector4D(_bgBotColor.red(), _bgBotColor.green(), _bgBotColor.blue(), _bgBotColor.alpha()));
+	_gridShader->setUniformValue("inverseViewProjectionMatrix", inverseViewProjection);
+	_gridShader->setUniformValue("viewProjectionMatrix", viewProjection);
+	_gridShader->setUniformValue("cameraPos", _primaryCamera->getRenderPosition());
 	_gridShader->setUniformValue("screenCenter", _floorCenter);
 	_gridShader->setUniformValue("groundReferenceSize", _floorSize);
 	_gridShader->setUniformValue("floorSize", groundPlaneExtent());
-	_gridShader->setUniformValue("gradientStyle", _gradientStyle);
+	_gridShader->setUniformValue("gridPlaneZ", groundPlaneZ());
+	_gridShader->setUniformValue("opacity", 0.95f);
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	_gridPlane->setOpacity(0.95f);
-	_gridPlane->render();
+	drawFullscreenTriangle();
 	glDisable(GL_BLEND);
 }
 

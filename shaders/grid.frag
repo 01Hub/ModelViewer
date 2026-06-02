@@ -1,15 +1,24 @@
 #version 450 core
 
-in vec3 v_position;
+in vec2 v_uv;
 
-uniform vec4 topColor;
-uniform vec4 botColor;
+uniform mat4 inverseViewProjectionMatrix;
+uniform mat4 viewProjectionMatrix;
+uniform vec3 cameraPos;
 uniform vec3 screenCenter;
 uniform float floorSize;
 uniform float groundReferenceSize;
+uniform float gridPlaneZ;
 uniform float opacity;
 
 out vec4 fragColor;
+
+vec3 unprojectPoint(float ndcZ)
+{
+	vec4 clip = vec4(v_uv * 2.0 - 1.0, ndcZ, 1.0);
+	vec4 world = inverseViewProjectionMatrix * clip;
+	return world.xyz / world.w;
+}
 
 float gridLineMask(vec2 planePos, float cellSize, float lineWidthPixels)
 {
@@ -20,32 +29,101 @@ float gridLineMask(vec2 planePos, float cellSize, float lineWidthPixels)
 	return 1.0 - clamp(line / max(lineWidthPixels, 1e-4), 0.0, 1.0);
 }
 
+float satf(float x)
+{
+	return clamp(x, 0.0, 1.0);
+}
+
+vec2 satv(vec2 x)
+{
+	return clamp(x, vec2(0.0), vec2(1.0));
+}
+
+float max2(vec2 v)
+{
+	return max(v.x, v.y);
+}
+
+float log10f(float x)
+{
+	return log(x) / log(10.0);
+}
+
 void main()
 {
-	vec2 planePos = v_position.xy - screenCenter.xy;
-	float sceneScale = max(groundReferenceSize, 1.0);
-	float majorCell = max(sceneScale / 12.0, 0.25);
-	float minorCell = majorCell / 10.0;
+	vec3 nearPoint = unprojectPoint(-1.0);
+	vec3 farPoint = unprojectPoint(1.0);
 
-	float majorMask = gridLineMask(planePos, majorCell, 1.55);
-	float minorMask = gridLineMask(planePos, minorCell, 1.20);
+	float denom = farPoint.z - nearPoint.z;
+	if (abs(denom) < 1e-6)
+		discard;
 
+	float t = (gridPlaneZ - nearPoint.z) / denom;
+	if (t < 0.0)
+		discard;
+
+	vec3 hitPoint = nearPoint + t * (farPoint - nearPoint);
+	vec4 clipPos = viewProjectionMatrix * vec4(hitPoint, 1.0);
+	float depth = clipPos.z / clipPos.w;
+	gl_FragDepth = depth * 0.5 + 0.5;
+	if (gl_FragDepth < 0.0 || gl_FragDepth > 1.0)
+		discard;
+
+	vec2 planePos = hitPoint.xy - screenCenter.xy;
 	float radialGridDistance = length(planePos);
-	float farBlend = smoothstep(sceneScale * 0.18, sceneScale * 0.82, radialGridDistance);
-	float minorVisibility = max(1.0 - farBlend, 0.22);
+	float sceneScale = max(groundReferenceSize, 1.0);
+	float gridCellSize = max(sceneScale / 120.0, 0.01);
+	float minPixelsBetweenCells = 2.0;
 
-	float majorAlpha = majorMask * 0.92;
-	float minorAlpha = minorMask * minorVisibility * 0.62;
-	float axisXAlpha = gridLineMask(vec2(planePos.x, 0.0), majorCell, 2.0) * 0.55;
-	float axisYAlpha = gridLineMask(vec2(0.0, planePos.y), majorCell, 2.0) * 0.55;
+	vec2 dvx = vec2(dFdx(hitPoint.x), dFdy(hitPoint.x));
+	vec2 dvy = vec2(dFdx(hitPoint.y), dFdy(hitPoint.y));
+	vec2 dudv = vec2(length(dvx), length(dvy));
+	float l = length(dudv);
+	float lod = max(0.0, log10f(l * minPixelsBetweenCells / gridCellSize) + 1.0);
 
-	vec3 baseColor = vec3(0.94);
-	baseColor = mix(baseColor, vec3(0.35), clamp(minorAlpha, 0.0, 1.0));
-	baseColor = mix(baseColor, vec3(0.0), clamp(majorAlpha, 0.0, 1.0));
+	float cellLod0 = gridCellSize * pow(10.0, floor(lod));
+	float cellLod1 = cellLod0 * 10.0;
+	float cellLod2 = cellLod1 * 10.0;
+
+	vec2 aaDudv = max(dudv * 5.25, vec2(1e-5));
+
+	vec2 modDiv = mod(hitPoint.xy, cellLod0) / aaDudv;
+	float lod0a = max2(vec2(1.0) - abs(satv(modDiv) * 2.0 - vec2(1.0)));
+
+	modDiv = mod(hitPoint.xy, cellLod1) / aaDudv;
+	float lod1a = max2(vec2(1.0) - abs(satv(modDiv) * 2.0 - vec2(1.0)));
+
+	modDiv = mod(hitPoint.xy, cellLod2) / aaDudv;
+	float lod2a = max2(vec2(1.0) - abs(satv(modDiv) * 2.0 - vec2(1.0)));
+
+	float lodFade = fract(lod);
+
+	float axisXAlpha = gridLineMask(vec2(planePos.x, 0.0), cellLod2, 2.8) * 0.6;
+	float axisYAlpha = gridLineMask(vec2(0.0, planePos.y), cellLod2, 2.8) * 0.6;
+
+	vec3 thinColor = vec3(0.45);
+	vec3 thickColor = vec3(0.18);
+	vec3 baseColor = vec3(0.82);
+	float alpha = 0.0;
+
+	if (lod2a > 0.0)
+	{
+		baseColor = thickColor;
+		alpha = lod2a;
+	}
+	else if (lod1a > 0.0)
+	{
+		baseColor = mix(thickColor, thinColor, lodFade);
+		alpha = lod1a;
+	}
+	else
+	{
+		baseColor = thinColor;
+		alpha = lod0a * (1.0 - lodFade);
+	}
+
 	baseColor = mix(baseColor, vec3(0.92, 0.48, 0.40), clamp(axisXAlpha, 0.0, 1.0));
 	baseColor = mix(baseColor, vec3(0.40, 0.64, 0.92), clamp(axisYAlpha, 0.0, 1.0));
-
-	float alpha = max(majorAlpha, minorAlpha);
 	alpha = max(alpha, axisXAlpha);
 	alpha = max(alpha, axisYAlpha);
 	alpha *= 0.95;
@@ -53,11 +131,10 @@ void main()
 	float floorRadius = floorSize * 0.5;
 	float fadeStart = floorRadius * 0.65;
 	float fadeEnd = floorRadius * 1.025;
-	float distance = radialGridDistance;
-	if (distance > fadeEnd)
+	if (radialGridDistance > fadeEnd)
 		discard;
 
-	float fadeFactor = smoothstep(fadeStart, fadeEnd, distance);
+	float fadeFactor = smoothstep(fadeStart, fadeEnd, radialGridDistance);
 	if (fadeFactor >= 1.0)
 		discard;
 
